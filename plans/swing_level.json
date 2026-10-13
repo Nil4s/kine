@@ -1,0 +1,336 @@
+{
+ "name": "swing_level",
+ "base": "poses/stand.json",
+ "bat_hand": "hand_l",
+ "note": "two-hand level swing, right to left across the front (a right-handed batter: left hand at the knob, right hand on top). Kinematic sequence: stride foot lands, hips open, chest follows, hands, then the bat squares at contact in front of the belly.",
+ "clips": [
+  {
+   "name": "stance",
+   "move": -1,
+   "hold": 0.3,
+   "two_hands": true,
+   "grip_m": 0.17,
+   "grip": [
+    "r"
+   ],
+   "set": {
+    "thigh_l": [
+     6,
+     7,
+     0
+    ],
+    "thigh_r": [
+     6,
+     7,
+     0
+    ],
+    "calf_l": [
+     14,
+     0,
+     0
+    ],
+    "calf_r": [
+     14,
+     0,
+     0
+    ],
+    "spine_02": [
+     4,
+     0,
+     0
+    ]
+   },
+   "hand": [
+    -0.04,
+    0.0,
+    0.26
+   ],
+   "aim": [
+    -0.25,
+    0.9,
+    -0.35
+   ]
+  },
+  {
+   "name": "load",
+   "move": 0.45,
+   "hold": 0.05,
+   "set": {
+    "pelvis": [
+     0,
+     0,
+     -14
+    ],
+    "spine_01": [
+     3,
+     0,
+     -8
+    ],
+    "spine_02": [
+     4,
+     0,
+     -8
+    ],
+    "spine_03": [
+     3,
+     0,
+     -8
+    ],
+    "neck_01": [
+     0,
+     0,
+     20
+    ]
+   },
+   "hand": [
+    -0.08,
+    0.04,
+    0.2
+   ],
+   "aim": [
+    0.05,
+    0.75,
+    -0.65
+   ]
+  },
+  {
+   "name": "stride",
+   "move": 0.25,
+   "hold": 0.0,
+   "steps": {
+    "_l": [
+     0.02,
+     0,
+     0.22
+    ]
+   },
+   "set": {
+    "pelvis": [
+     2,
+     0,
+     -6
+    ],
+    "neck_01": [
+     0,
+     0,
+     14
+    ]
+   },
+   "hand": [
+    -0.06,
+    -0.04,
+    0.22
+   ],
+   "aim": [
+    -0.1,
+    0.55,
+    -0.8
+   ]
+  },
+  {
+   "name": "CONTACT",
+   "move": 0.14,
+   "hold": 0.0,
+   "heel_up": [
+    "_r"
+   ],
+   "set": {
+    "pelvis": [
+     6,
+     0,
+     28
+    ],
+    "spine_01": [
+     4,
+     0,
+     8
+    ],
+    "spine_02": [
+     4,
+     0,
+     8
+    ],
+    "spine_03": [
+     4,
+     0,
+     8
+    ],
+    "neck_01": [
+     6,
+     0,
+     -18
+    ],
+    "thigh_r": [
+     2,
+     7,
+     0
+    ],
+    "calf_r": [
+     20,
+     0,
+     0
+    ]
+   },
+   "hand": [
+    0.02,
+    -0.2,
+    0.22
+   ],
+   "aim": [
+    -0.2,
+    -0.05,
+    1.0
+   ]
+  },
+  {
+   "name": "extension",
+   "move": 0.08,
+   "hold": 0.0,
+   "heel_up": [
+    "_r"
+   ],
+   "set": {
+    "pelvis": [
+     6,
+     0,
+     42
+    ],
+    "spine_01": [
+     4,
+     0,
+     12
+    ],
+    "spine_02": [
+     4,
+     0,
+     12
+    ],
+    "spine_03": [
+     4,
+     0,
+     12
+    ],
+    "neck_01": [
+     6,
+     0,
+     -28
+    ]
+   },
+   "hand": [
+    0.14,
+    -0.14,
+    0.3
+   ],
+   "aim": [
+    0.85,
+    0.0,
+    0.5
+   ]
+  },
+  {
+   "name": "follow-through",
+   "move": 0.2,
+   "hold": 0.35,
+   "heel_up": [
+    "_r"
+   ],
+   "set": {
+    "pelvis": [
+     4,
+     0,
+     50
+    ],
+    "spine_01": [
+     2,
+     0,
+     15
+    ],
+    "spine_02": [
+     2,
+     0,
+     15
+    ],
+    "spine_03": [
+     2,
+     0,
+     15
+    ],
+    "neck_01": [
+     0,
+     0,
+     -30
+    ]
+   },
+   "hand": [
+    0.22,
+    0.1,
+    0.18
+   ],
+   "aim": [
+    -0.2,
+    0.35,
+    -0.9
+   ]
+  },
+  {
+   "name": "recover",
+   "move": 0.7,
+   "hold": 0.4,
+   "steps": {
+    "_l": [
+     -0.02,
+     0,
+     -0.22
+    ]
+   },
+   "set": {
+    "pelvis": [
+     0,
+     0,
+     0
+    ],
+    "spine_01": [
+     0,
+     0,
+     0
+    ],
+    "spine_02": [
+     4,
+     0,
+     0
+    ],
+    "spine_03": [
+     0,
+     0,
+     0
+    ],
+    "neck_01": [
+     0,
+     0,
+     0
+    ],
+    "thigh_r": [
+     6,
+     7,
+     0
+    ],
+    "calf_r": [
+     14,
+     0,
+     0
+    ]
+   },
+   "hand": [
+    -0.04,
+    0.0,
+    0.26
+   ],
+   "aim": [
+    -0.25,
+    0.9,
+    -0.35
+   ]
+  }
+ ],
+ "frame": "chest"
+}

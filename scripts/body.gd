@@ -365,6 +365,37 @@ func grip_point() -> Vector3:
 	return wep_point(clampf(grip_u, 0.0, wep_len))
 
 
+## AIM THE BAT: turn the holding hand (inside its limits) so the bat's axis (knob -> tip) points along `dir`.
+##   R = the shortest turn from the axis now to dir;  turn_world(hand, R), clamped.
+## Then the upper arm's roll (searched in 5 deg steps) does what the wrist couldn't. 4 rounds. Returns the angle left (deg).
+func aim_weapon(dir: Vector3) -> float:
+	if not wep_on or wep_hand == "":
+		return 180.0
+	var h := wep_hand
+	var ua := "upperarm" + h.substr(h.length() - 2)
+	dir = dir.normalized()
+	for it in 4:
+		var ax: Vector3 = ((wep_xform()[1] as Quaternion) * Vector3.UP).normalized()
+		var c := ax.cross(dir)
+		if c.length() > 1e-6:
+			turn_world(h, Quaternion(c.normalized(), ax.angle_to(dir)))
+		var v: Vector3 = ang[ua]
+		var best := 0.0
+		var e_best := ((wep_xform()[1] as Quaternion) * Vector3.UP).angle_to(dir)
+		for k in 25:
+			var tw := -60.0 + k * 5.0
+			set_ang(ua, v + Vector3(0, 0, tw))
+			var e := ((wep_xform()[1] as Quaternion) * Vector3.UP).angle_to(dir)
+			if e < e_best - 1e-4:
+				e_best = e
+				best = tw
+		set_ang(ua, v)
+		if best != 0.0:
+			set_ang_safe(ua, v + Vector3(0, 0, best))
+	var ax2: Vector3 = ((wep_xform()[1] as Quaternion) * Vector3.UP).normalized()
+	return rad_to_deg(ax2.angle_to(dir))
+
+
 ## the other hand's wrist onto the bat: the wrist sits ~half a hand behind the grip point, back along that hand
 func apply_grip() -> float:
 	if not (wep_on and grip and wep_hand != ""):
@@ -401,6 +432,9 @@ func contacts() -> Array:
 	var out := []
 	for pr in pairs:
 		if not wep_on and (pr[0] in WEAPON or pr[1] in WEAPON):
+			continue
+		# both hands on one handle touch by nature (their capsules include the fingers wrapped round it)
+		if wep_on and grip and pr[0].begins_with("hand") and pr[1].begins_with("hand"):
 			continue
 		var d := depth(pr[0], pr[1]) - float(allow.get(pr[0] + "|" + pr[1], 0.0))
 		if d > 0.001:   # under 1 mm is touching, not inside
@@ -498,6 +532,91 @@ func reach(tip: String, target: Vector3) -> float:
 		if ax.length() > 1e-9:
 			turn_world(root, Quaternion(ax.normalized(), r1.angle_to(r2)))
 	return ((P[tip] - target) as Vector3).length()
+
+
+## SEARCH: coordinate descent on the joints in `js` (each free angle), minimising cost.call() + 10 * the body's new
+## penetration (m). Steps 16, 8, 4, 2, 1 deg; a step is kept only if it lowers the total. Limits hold (set_ang clamps).
+func search(js: Array, cost: Callable, pen0 := -1.0) -> float:
+	if pen0 < 0.0:
+		pen0 = penetration()
+	var total := func() -> float:
+		return float(cost.call()) + 10.0 * maxf(0.0, penetration() - pen0)
+	var best: float = total.call()
+	for st in [16.0, 8.0, 4.0, 2.0, 1.0]:
+		var better := true
+		var guard := 0
+		while better and guard < 30:
+			better = false
+			guard += 1
+			for j in js:
+				for k in 3:
+					var r: Vector2 = lim[j][["bend", "side", "twist"][k]]
+					if r.y - r.x < 0.5:
+						continue
+					for sgn in [1.0, -1.0]:
+						var v: Vector3 = ang[j]
+						var dv := Vector3.ZERO
+						dv[k] = st * sgn
+						set_ang(j, v + dv)
+						var c: float = total.call()
+						if c < best - 1e-5:
+							best = c
+							better = true
+						else:
+							ang[j] = v
+							fk()
+	return best
+
+
+## the bat's axis now (knob -> tip, unit)
+func wep_axis() -> Vector3:
+	return ((wep_xform()[1] as Quaternion) * Vector3.UP).normalized()
+
+
+## where the free hand's wrist should be to hold the handle (as apply_grip aims it)
+func grip_wrist() -> Vector3:
+	var other := "hand_l" if wep_hand == "hand_r" else "hand_r"
+	var back: Vector3 = ((P[other] - E[other]) as Vector3).normalized() * ((e0[other] - p0[other]) as Vector3).length() * 0.45
+	return grip_point() + back
+
+
+## HOLD THE BAT: both arms searched together so the bat hand's wrist is at `at`, the bat points along `dir` and (two
+## hands) the free wrist is on the handle. cost = |wrist - at| + 0.25 * angle(axis, dir) [rad] + |free wrist - grip|.
+## Returns [wrist miss m, aim off deg, free hand miss m].
+func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true) -> Array:
+	var h := wep_hand
+	var sd := h.substr(h.length() - 2)
+	var od := "_l" if sd == "_r" else "_r"
+	var js := ["upperarm" + sd, "lowerarm" + sd, "hand" + sd, "clavicle" + sd]
+	if grip:
+		js += ["upperarm" + od, "lowerarm" + od, "hand" + od, "clavicle" + od]
+	dir = dir.normalized()
+	var cost := func() -> float:
+		var c := 0.0
+		if use_at:
+			c += ((P[h] - at) as Vector3).length()
+		if use_dir:
+			c += 0.25 * wep_axis().angle_to(dir)
+		if grip:
+			c += ((P["hand" + od] - grip_wrist()) as Vector3).length()
+		return c
+	# two starts: as the arms are now, and both arms out in front of the chest (elbows bent) - a hand crossing the body
+	# can't get round the belly from the side by small steps. The lower cost wins.
+	var keep := ang.duplicate()
+	var pen0 := penetration()
+	var c1 := search(js, cost, pen0)
+	var won := ang.duplicate()
+	ang = keep.duplicate()
+	for s2 in [sd, od] if grip else [sd]:
+		ang["upperarm" + s2] = clamp_ang("upperarm" + s2, Vector3(55, -35, 0))
+		ang["lowerarm" + s2] = clamp_ang("lowerarm" + s2, Vector3(70, 0, 0))
+	fk()
+	var c2 := search(js, cost, pen0)
+	if c1 < c2:
+		ang = won
+		fk()
+	var gm := ((P["hand" + od] - grip_wrist()) as Vector3).length() if grip else 0.0
+	return [((P[h] - at) as Vector3).length() if use_at else 0.0, rad_to_deg(wep_axis().angle_to(dir)) if use_dir else 0.0, gm]
 
 
 ## curl one hand's fingers to a shape: "open" | "grip" (round a bat handle) | "fist". side = "l" or "r".

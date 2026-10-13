@@ -180,8 +180,20 @@ func span(t: float) -> int:
 	return -1
 
 
+var _feet_cache := {}   # card i -> [its pose dict, feet] (the same dict object = still valid)
+
+
 ## each foot's state in card i, as it stands (grounded)
 func _feet(B: Body, i: int) -> Dictionary:
+	var c = _feet_cache.get(i, null)
+	if c != null and is_same(c[0], cards[i]["pose"]):
+		return c[1]
+	var r := _feet_raw(B, i)
+	_feet_cache[i] = [cards[i]["pose"], r]
+	return r
+
+
+func _feet_raw(B: Body, i: int) -> Dictionary:
 	B.from_dict(cards[i]["pose"])
 	if on_floor:
 		B.ground()
@@ -216,7 +228,7 @@ func pin_cards(B: Body) -> int:
 	var n := 0
 	var prev := {}
 	for i in cards.size():
-		var now := _feet(B, i)
+		var now := _feet_raw(B, i)
 		var moved := false
 		for sd in ["_l", "_r"]:
 			if prev.has(sd) and _pinned(i, sd, prev[sd], now[sd]):
@@ -234,7 +246,7 @@ func pin_cards(B: Body) -> int:
 		if moved:
 			B.apply_grip()
 			cards[i]["pose"] = B.to_dict()
-			now = _feet(B, i)
+			now = _feet_raw(B, i)
 			for sd in ["_l", "_r"]:
 				if prev.has(sd) and _pinned(i, sd, prev[sd], now[sd]):
 					now[sd][0] = prev[sd][0]
