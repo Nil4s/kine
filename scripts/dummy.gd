@@ -19,6 +19,7 @@ const STEP := 0.02     # the weapon's axis is sampled every 2 cm to find the spo
 
 var D := Body.new()
 var dist := 1.5
+var yaw := 0.0                   # deg round the hero the dummy stands (0 = in front, + = to his left)
 var xf := Transform3D.IDENTITY   # the dummy's body space -> the hero's space (turned to face him, moved out front)
 
 
@@ -29,10 +30,12 @@ func _init() -> void:
 	place(dist)
 
 
-## stand the dummy `d` m in front of the hero (+z), facing him
-func place(d: float) -> void:
+## stand the dummy `d` m from the hero, `a` deg round him (0 = in front, +z; + = to his left, +x), facing him
+func place(d: float, a := 0.0) -> void:
 	dist = d
-	xf = Transform3D(Basis(Vector3.UP, PI), Vector3(0, 0, d))
+	yaw = a
+	var r := Basis(Vector3.UP, deg_to_rad(a))
+	xf = Transform3D(r * Basis(Vector3.UP, PI), r * Vector3(0, 0, d))
 
 
 ## a dummy part's capsule axis in the hero's space
