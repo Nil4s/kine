@@ -15,7 +15,7 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
 - [x] hit_react: flinch back from a hit to the chest, recover
 - [x] walk_bat: walk start -> stop with the bat (steps) (a loop version later)
 - [x] side-step dodge (dodge_side)
-- [ ] each one: sheet, contacts, compare with a real reference
+- [x] compare with a real reference: the overhead (combo3) vs six real sledgehammer swings (game art/refs/swings_real); no one-hand bat refs on disk yet
 
 ## Log
 - 22:31 start. Tools built; idle cooked clean.
@@ -39,3 +39,7 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
   3-53 cm (crossing to the knob the left shoulder hits its limits; distance can't see that); solving the left arm inside
   the search made one cook take 25+ min. PARKED for good on this route: the two-hand swing needs Nick's posed keys (his
   poser), then the cook only plants the legs and checks contacts, like combo3's overhead.
+- 01:4x real-photo compare (Haiku listed the gaps, checked by eye): at contact the real body lunges (front thigh near level),
+  hinges 30-45 deg forward at the hips and drops the head; ours stood upright on shallow knees. combo3's copy of Nick's
+  strike: stride 26 -> 38 cm, front knee +22, hinge +16 (pelvis/spine), head +10; his arms untouched, his scene untouched.
+  Side sheet: moves/cooked/combo3_side_sheet.jpg. New graze: bat handle vs front thigh 9 mm on the way down.
