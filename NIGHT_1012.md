@@ -45,3 +45,4 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
   Side sheet: moves/cooked/combo3_side_sheet.jpg. New graze: bat handle vs front thigh 9 mm on the way down.
 - 01:5x tried pulling the forehand/backhand CONTACT hands in (12-15 cm misses -> 1 cm): the bat then met the target tilted ~30 deg up instead of level; reverted. Hand spot vs bat direction trade off with a straight wrist; the stance/chest turn has to change, not the hand target.
 - 02:0x forehand CONTACT: +8 hips / +5 per spine joint of turn (neck -15 keeps the head on target) -> hand miss 12 -> 5 cm, bat 0.6 deg. The chest turn gives the reach a straight wrist can't. Same keys copied into combo3.
+- 02:3x backhand CONTACT: the chest stays CLOSED at contact (+8 hips / +5 per spine joint toward the left; neck -15). Opening it (the forehand's fix mirrored) made it worse (16 cm, foot slip 8.5 cm). Closed: hand 15.5 -> 1.1 cm, bat 40 -> 18 deg. Same in combo3.
