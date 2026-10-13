@@ -22,6 +22,8 @@ var cards := []        # [{"name", "pose", "move", "hold"}]
 var name := "scene"
 var natural := true
 var on_floor := true   # every frame: the hips move up/down so the lowest sole touches the floor (Body.ground)
+var pin := true        # feet that stay put between two clips are planted: they don't slide while the body turns
+const STEP := 0.12     # a toe base that moves more than this (m, along the floor) between clips = a step, not planted
 var fps := 30
 
 
@@ -149,7 +151,96 @@ func apply(B: Body, t: float) -> void:
 	put(B, sample(t))
 	if on_floor:
 		B.ground()
+	if pin:
+		var i := span(t)
+		if i > 0:
+			var a := _feet(B, i - 1)
+			var b := _feet(B, i)
+			put(B, sample(t))
+			if on_floor:
+				B.ground()
+			var e := _ease(clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0), 5)
+			for sd in ["_l", "_r"]:
+				if _pinned(i, sd, a[sd], b[sd]):
+					B.plant(sd, a[sd][0], a[sd][1], a[sd][3] and b[sd][3])
+				elif _steps(i).has(sd):
+					# a STEP: the toe base travels from where it stood to where it lands, lifted on an arc
+					#   at = lerp(a, b, e) + up * LIFT * sin(pi e)
+					var at: Vector3 = (a[sd][0] as Vector3).lerp(b[sd][0], e) + Vector3.UP * LIFT * sin(PI * e)
+					B.plant(sd, at, lerp_angle(a[sd][1], b[sd][1], e), false)
 	B.apply_grip()
+
+
+## the card the body is moving INTO at time t (-1 while holding still)
+func span(t: float) -> int:
+	var ts := times()
+	for i in range(1, cards.size()):
+		if t >= ts[i][0] and t < ts[i][1]:
+			return i
+	return -1
+
+
+## each foot's state in card i, as it stands (grounded)
+func _feet(B: Body, i: int) -> Dictionary:
+	B.from_dict(cards[i]["pose"])
+	if on_floor:
+		B.ground()
+	return {"_l": B.foot_state("_l"), "_r": B.foot_state("_r")}
+
+
+const LIFT := 0.08     # how high a stepping foot lifts mid-step (m)
+
+
+## the feet card i steps with: {"_l": Vector3 offset along the floor from where that foot stood} (from the card's
+## "steps"); a card without "steps" is judged by distance (STEP)
+func _steps(i: int) -> Dictionary:
+	var out := {}
+	var s = cards[i].get("steps", null)
+	if s is Dictionary:
+		for sd in s:
+			var v = s[sd]
+			out[sd] = Vector3(v[0], v[1], v[2]) if v is Array else v
+	return out
+
+
+## is foot sd held where it stood, on the way into card i?
+func _pinned(i: int, sd: String, a: Array, b: Array) -> bool:
+	if cards[i].has("steps"):
+		return a[2] and not _steps(i).has(sd)
+	return a[2] and b[2] and ((b[0] - a[0]) as Vector3).slide(Vector3.UP).length() < STEP
+
+
+## PIN THE CARDS: walking the clips in order, a foot that is on the floor in two clips in a row and moved less than STEP
+## is put back where it stood (the leg is re-solved, the rest of the body untouched). Returns how many legs moved.
+func pin_cards(B: Body) -> int:
+	var n := 0
+	var prev := {}
+	for i in cards.size():
+		var now := _feet(B, i)
+		var moved := false
+		for sd in ["_l", "_r"]:
+			if prev.has(sd) and _pinned(i, sd, prev[sd], now[sd]):
+				var miss := B.plant(sd, prev[sd][0], prev[sd][1], now[sd][3])
+				if miss > 0.01:
+					print("  pin %s card %d: the leg misses by %.3f m (thigh %s calf %s foot %s, hip-ball %.3f m)" % [sd, i, miss, B.ang["thigh" + sd], B.ang["calf" + sd], B.ang["foot" + sd], ((B.P["thigh" + sd] - prev[sd][0]) as Vector3).length()])
+				moved = true
+				n += 1
+			elif prev.has(sd) and _steps(i).has(sd):
+				var land: Vector3 = prev[sd][0] + _steps(i)[sd]
+				land.y = prev[sd][0].y
+				B.plant(sd, land, now[sd][1], true)
+				moved = true
+				n += 1
+		if moved:
+			B.apply_grip()
+			cards[i]["pose"] = B.to_dict()
+			now = _feet(B, i)
+			for sd in ["_l", "_r"]:
+				if prev.has(sd) and _pinned(i, sd, prev[sd], now[sd]):
+					now[sd][0] = prev[sd][0]
+					now[sd][1] = prev[sd][1]
+		prev = now
+	return n
 
 
 ## frames where parts sink into each other: [[frame, time, [[a, b, depth m], ...]], ...]
@@ -233,7 +324,13 @@ func to_dict(B: Body) -> Dictionary:
 		var c: Dictionary = cards[i]
 		cs.append({"name": c["name"], "move": c["move"], "hold": c["hold"], "arrive_s": snappedf(ts[i][1], 0.001),
 			"leave_s": snappedf(ts[i][2], 0.001), "pose": c["pose"]})
-	return {"scene": name, "natural": natural, "on_floor": on_floor, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
+		if c.has("steps"):
+			var st := {}
+			for sd in _steps(i):
+				var v: Vector3 = _steps(i)[sd]
+				st[sd] = [v.x, v.y, v.z]
+			cs[-1]["steps"] = st
+	return {"scene": name, "natural": natural, "on_floor": on_floor, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
 
@@ -242,7 +339,10 @@ func from_dict(d: Dictionary) -> void:
 	name = d.get("scene", "scene")
 	natural = bool(d.get("natural", true))
 	on_floor = bool(d.get("on_floor", true))
+	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
 	cards = []
 	for c in d.get("cards", []):
 		cards.append({"name": c["name"], "pose": c["pose"], "move": float(c.get("move", -1.0)), "hold": float(c.get("hold", 0.3))})
+		if c.has("steps"):
+			cards[-1]["steps"] = c["steps"]

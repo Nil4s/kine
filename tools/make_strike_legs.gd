@@ -20,7 +20,7 @@ const PLAN := [
 	{"name": "overhead coil", "move": 0.4, "hold": 0.08, "toes_r": false,
 	 "set": {"pelvis": Vector3(0, 0, -12), "spine_01": Vector3(-4, 0, -9), "spine_02": Vector3(-4, 0, -9), "spine_03": Vector3(-4, 0, -9),
 		"neck_01": Vector3(-6, 0, 10), "thigh_l": Vector3(18, 4, 10), "thigh_r": Vector3(12, 4, 10), "calf_l": Vector3(30, 0, 0), "calf_r": Vector3(22, 0, 0)}},
-	{"name": "STRIKE (step)", "move": 0.16, "hold": 0.04, "toes_r": true,
+	{"name": "STRIKE (step)", "move": 0.16, "hold": 0.04, "toes_r": true, "steps": {"_l": [0.04, 0, 0.26]},
 	 "set": {"pelvis": Vector3(8, 0, 10), "spine_01": Vector3(5, 0, 7), "spine_02": Vector3(5, 0, 7), "spine_03": Vector3(5, 0, 7),
 		"neck_01": Vector3(-10, 0, -6), "thigh_l": Vector3(30, 3, -6), "thigh_r": Vector3(-12, 3, -6), "calf_l": Vector3(30, 0, 0), "calf_r": Vector3(18, 0, 0)}},
 	{"name": "follow-through", "move": 0.3, "hold": 0.5, "toes_r": true,
@@ -57,7 +57,15 @@ func _init() -> void:
 		S.add(plan["name"], B.to_dict())
 		S.cards[-1]["move"] = plan["move"]
 		S.cards[-1]["hold"] = plan["hold"]
+		S.cards[-1]["steps"] = plan.get("steps", {})   # every other foot on the floor stays planted
 		print("%-16s hips y %+.3f  feet: L %s  R %s  contacts %s" % [plan["name"], B.offset.y, B.ang["foot_l"], B.ang["foot_r"], B.contacts()])
+	for i in S.cards.size():
+		var st := S._feet(B, i)
+		print("before pin %-16s L %s  R %s" % [S.cards[i]["name"], st["_l"], st["_r"]])
+	print("legs re-planted: ", S.pin_cards(B))
+	for i in S.cards.size():
+		var st := S._feet(B, i)
+		print("after  pin %-16s L %s  R %s  contacts %s" % [S.cards[i]["name"], st["_l"], st["_r"], B.contacts()])
 	var n := S.clear(B)
 	var d := S.to_dict(B)
 	var f := FileAccess.open("res://scenes/strike_legs.json", FileAccess.WRITE)

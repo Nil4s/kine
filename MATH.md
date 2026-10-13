@@ -114,3 +114,12 @@ No gradients or training: three small formulas.
   angle = lerp(clip A, clip B, e). Stays inside the limits by construction.
 - Clearance: frames are checked; where an arm or the bat goes through the body, a "pass-by" clip is added at the
   worst frame with that arm lifted forward/out until clean.
+
+## Feet: planted and stepping (Body.plant, Scene.pin_cards)
+- A clip may list `steps`: {"_l": [x, y, z]} = that foot lands this far (m, along the floor) from where it stood.
+  Every other foot on the floor stays PLANTED; a clip without `steps` treats a toe base that moved < 12 cm as planted.
+- plant(foot, spot, heading): repeat 6x { thigh roll by a Newton step  d = -err / (d err / d roll)  (flat feet only;
+  a heel-up foot pivots on its ball like a real back foot) -> foot flat -> two-bone reach of the ankle to
+  spot - (ball - ankle) }. The reach is always last so the spot is held to the mm.
+- In between, a planted foot is re-solved every frame; a stepping foot's toe base follows
+  lerp(from, to, e) + up * 0.08 * sin(pi e), a lifted arc.

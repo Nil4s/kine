@@ -573,6 +573,43 @@ func toes_flat(sd: String) -> void:
 	fk()
 
 
+## where a foot points on the floor (radians about up; 0 = +z)
+func foot_heading(sd: String) -> float:
+	var d: Vector3 = P["ball" + sd] - P["foot" + sd]
+	return atan2(d.x, d.z)
+
+
+## [ball (toe base) position, heading, toe base on the floor?, heel on the floor?]
+func foot_state(sd: String) -> Array:
+	var b: Vector3 = P["ball" + sd]
+	var on := b.y - (p0["ball" + sd] as Vector3).y < 0.02
+	var heel := (P["foot" + sd] as Vector3).y - (p0["foot" + sd] as Vector3).y < 0.02
+	return [b, foot_heading(sd), on, heel]
+
+
+## PLANT A FOOT: the leg alone (thigh, knee, ankle) puts the toe base at `ball_at`, pointing `head`.
+##   loop: (flat foot) -> reach the ankle to ball_at - (ball - ankle) -> turn the thigh about its length by Newton's
+##   step  dtwist = -err / (d err / d twist)  so the foot points where it pointed (flat feet only; a heel-up foot
+##   pivots on its ball). Returns the miss (m).
+func plant(sd: String, ball_at: Vector3, head: float, flat: bool) -> float:
+	var th := "thigh" + sd
+	for it in 6:
+		# heading first (it swings a bent leg's ankle), then the foot flat, then the reach - the reach is always last
+		# heel up = the foot pivots on its ball (a back foot turns with the hips): only the spot is held, not the heading
+		var v: Vector3 = ang[th]
+		var e := wrapf(head - foot_heading(sd), -PI, PI) if flat else 0.0
+		set_ang(th, v + Vector3(0, 0, 1))
+		var slope := wrapf(head - foot_heading(sd), -PI, PI) - e
+		set_ang(th, v)
+		if absf(slope) > 1e-5:
+			set_ang(th, v + Vector3(0, 0, clampf(-e / slope, -15.0, 15.0)))
+		if flat:
+			flat_foot(sd)
+		var d: Vector3 = P["ball" + sd] - P["foot" + sd]
+		reach("foot" + sd, ball_at - d)
+	return ((P["ball" + sd] - ball_at) as Vector3).length()
+
+
 func fk() -> void:
 	for j in ORDER:
 		var A := compose(j, ang[j])
