@@ -1,4 +1,4 @@
-## godot --headless --path . -s tools/make_demo_scene.gd  -> res://scenes/bat_demo.json
+## godot --headless --path . -s tools/make_demo_scene.gd  -> res://scenes/_archive/bat_demo.json
 ## A demo scene from Nick's bat_ready pose: bat down -> ready (Nick's) -> strike -> follow-through -> bat down.
 extends SceneTree
 
@@ -51,7 +51,7 @@ func _init() -> void:
 	var n := S.clear(chk)
 	var d := S.to_dict(chk)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://scenes"))
-	var f := FileAccess.open("res://scenes/bat_demo.json", FileAccess.WRITE)
+	var f := FileAccess.open("res://scenes/_archive/bat_demo.json", FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, " "))
 	f.close()
 	print("bat_demo: %d clips (%d pass-by), %.2f s, bad frames %d" % [S.cards.size(), n, S.length(), d["bad_frames"].size()])

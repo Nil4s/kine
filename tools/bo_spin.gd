@@ -6,7 +6,7 @@ extends SceneTree
 ## key 5; then the left hand, which only followed, catches the shaft (his fitted staff grip). Feet: the right foot
 ## pivots on its ball in place (the body is shifted so it stays put), the left steps round it each third.
 ##   godot --headless --path . -s tools/bo_spin.gd        -> scenes/bo_spin.json (his file is not touched)
-const SRC := "res://scenes/bo_swing_test.json"
+const SRC := "res://scenes/_archive/bo_swing_test.json"
 const RARM := ["clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "spine_01", "spine_02", "spine_03", "neck_01", "head"]
 
 var B: Body

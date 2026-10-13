@@ -4,7 +4,7 @@
 ## Every clip: feet flat (or the back heel up on the toes), then the body dropped so the soles touch the floor.
 extends SceneTree
 
-const SRC := "res://scenes/scene_20261012_220805.json"
+const SRC := "res://scenes/_archive/scene_20261012_220805.json"
 
 # per clip: the lower body + trunk (degrees: bend, side, twist; meaning in data/body_limits.json "say")
 #   pelvis twist + = hips turn to his left;  spine twist + = chest turns to his left;  bend + = lean forward

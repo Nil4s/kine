@@ -1138,6 +1138,7 @@ func _ui() -> void:
 	lv.add_child(ui_pose_name)
 	_row(lv, [_button("Save pose", _save_pose, "save the body as a pose (Ctrl+S)"),
 		_button("Rename", _rename_pose, "click one of YOUR poses in the list, type the new name above, press Rename")])
+	_row(lv, [_button("Delete pose", _delete_pose, "click a pose in the list, then Delete twice (it goes to the trash folder)")])
 	_row(lv, [_button("CLIP this pose  (Enter)", _card_add, "the body as it is now becomes the next clip in the scene below")])
 	lv.add_child(_label("WEAPON  (in the right hand)", 14, Color(0.6, 0.78, 1.0)))
 	_row(lv, [_button("Bat", _do.bind(_kind.bind("metal_bat")), "metal bat 0.84 m"), _button("Bo staff", _do.bind(_kind.bind("staff")), "staff 1.8 m")])
@@ -1264,6 +1265,7 @@ func _ui() -> void:
 			_load_scene(ui_scenes.get_item_metadata(ui_scenes.selected))
 			_rebuild_cards()
 			_refresh()))
+	bh.add_child(_button("Delete scene", _delete_scene, "the scene picked in the list: press twice (it goes to the trash folder)"))
 	bh.add_child(_button("New empty scene", func(): S = Scene.new(); sel_card = -1; playhead = 0.0; _rebuild_cards()))
 	var cs := ScrollContainer.new()
 	cs.custom_minimum_size = Vector2(0, 112)
@@ -1277,6 +1279,8 @@ func _ui() -> void:
 	bv.add_child(ph)
 	ui_play = _button("  Play (Space)  ", _toggle_play)
 	ph.add_child(ui_play)
+	ph.add_child(_button("Slower", _speed.bind(1.1), "10% slower: the picked card, or the whole scene with no card picked (Save scene keeps it)"))
+	ph.add_child(_button("Faster", _speed.bind(1.0 / 1.1), "10% faster: the picked card, or the whole scene with no card picked (Save scene keeps it)"))
 	ui_time = HSlider.new()
 	ui_time.step = 0.01
 	ui_time.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1684,6 +1688,65 @@ func _rename_pose() -> void:
 	ui_pose_name.text = ""
 	_lists()
 	_say("renamed %s -> %s" % [old.get_file().get_basename(), nm])
+
+
+## DELETE (Nick 10-13: "delete option should exist, let's stick with done creations only"). Nothing is erased: the file
+## goes to res://trash/ (put it back by hand). A press asks, the second press on the same thing deletes. The library
+## (poses/lib) is kept: the tools and the transition table read it.
+var _del_armed := ""
+
+
+func _trash(path: String) -> bool:
+	if _del_armed != path:
+		_del_armed = path
+		_say("press Delete again to remove '%s' (it goes to the trash folder)" % path.get_file().get_basename())
+		return false
+	_del_armed = ""
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://trash"))
+	var to := "res://trash/%s_%s.json" % [path.get_file().get_basename(), _stamp()]
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(to))
+	if err != OK:
+		_say("couldn't delete (error %d)" % err)
+		return false
+	_lists()
+	_say("deleted '%s' (in trash/ if you want it back)" % path.get_file().get_basename())
+	return true
+
+
+func _delete_pose() -> void:
+	var sel_i := ui_poses.get_selected_items()
+	if sel_i.is_empty():
+		_say("click the pose to delete in the list first")
+		return
+	var path: String = ui_poses.get_item_metadata(sel_i[0])
+	if path.begins_with("res://poses/lib/"):
+		_say("library poses stay (the tools use them)")
+		return
+	_trash(path)
+
+
+func _delete_scene() -> void:
+	if ui_scenes.selected < 0:
+		_say("pick the scene to delete in the list first")
+		return
+	_trash(ui_scenes.get_item_metadata(ui_scenes.selected))
+
+
+## SPEED (Nick 10-13: "speed in some of them need a little adjustment"): the picked card's move + hold, or every card's,
+## times k (1.1 = 10% slower). An auto move becomes its number first, so it scales too.
+func _speed(k: float) -> void:
+	if S.cards.is_empty():
+		_say("open a scene first")
+		return
+	var idx := [sel_card] if sel_card >= 0 and sel_card < S.cards.size() else range(S.cards.size())
+	for i in idx:
+		var c: Dictionary = S.cards[i]
+		if i > 0:
+			c["move"] = snappedf(maxf(0.04, S.move_time(i) * k), 0.01)
+		c["hold"] = snappedf(float(c["hold"]) * k, 0.01)
+	_rebuild_cards()
+	_refresh()
+	_say("%s %s: the scene is now %.2f s (Save scene keeps it)" % ["card '%s'" % S.cards[sel_card]["name"] if idx.size() == 1 and sel_card >= 0 else "whole scene", "slower" if k > 1.0 else "faster", _ps().length()])
 
 
 func _load_pose(path: String) -> void:
