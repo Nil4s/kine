@@ -557,7 +557,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_B: _do(func(): _bat_put("hand_r") if not B.wep_on else _bat_remove())
 			KEY_L: _do(func(): _bat_lock())
 			KEY_F: _do(func(): _fingers_cycle())
-			KEY_G: _do(func(): B.grip = not B.grip)
+			KEY_G: _do(_toggle_second)
 			KEY_BRACKETLEFT: _do(func(): B.grip_u = clampf(B.grip_u - 0.03, 0.0, B.wep_len))
 			KEY_BRACKETRIGHT: _do(func(): B.grip_u = clampf(B.grip_u + 0.03, 0.0, B.wep_len))
 			KEY_COMMA: _do(func(): _slide(-0.03))
@@ -735,7 +735,11 @@ func _bat_lock() -> void:
 		var mid := B.wep_point(B.wep_handle * 0.5)
 		var h := "hand_r" if (B.E["hand_r"] as Vector3).distance_to(mid) <= (B.E["hand_l"] as Vector3).distance_to(mid) else "hand_l"
 		B.lock_weapon(h)
-		_say("bat LOCKED to the %s: it now moves with the hand" % nice(h))
+		var off := B.capture_second()
+		if off >= 0.0 and off <= 0.05:
+			_say("LOCKED in BOTH hands (the %s holds it, the other hand keeps its grip at %.2f m): they move together. G lets the second hand go" % [nice(h), B.grip_u])
+		else:
+			_say("LOCKED to the %s: it moves with the hand (the other hand isn't on the shaft%s)" % [nice(h), "" if off < 0.0 else ": %.0f cm off" % (off * 100.0)])
 
 
 func _fingers(side: String, kind: String) -> void:
@@ -783,6 +787,18 @@ func _slide(d: float) -> void:
 		_say("main hand at %.2f m from the lower end%s" % [B.hold_u(), ", the other hand re-gripped" if B.grip else ""])
 	else:
 		_say("the arm can't reach further that way: turn the weapon or move the body first")
+
+
+## G: the second hand on / off. On: if that hand is already on the shaft, it keeps the grip it has there.
+func _toggle_second() -> void:
+	if B.grip:
+		B.grip = false
+		_say("second hand off the weapon")
+		return
+	var off := B.capture_second()
+	if off < 0.0 or off > 0.05:
+		B.grip = true   # the fitted grip of this kind (or the rough reach) takes the hand to the shaft
+	_say("second hand on the weapon at %.2f m" % B.grip_u)
 
 
 func _slide_mode() -> void:
@@ -983,7 +999,7 @@ func _ui() -> void:
 	lv.add_child(_label("WEAPON  (in the right hand)", 14, Color(0.6, 0.78, 1.0)))
 	_row(lv, [_button("Bat", _do.bind(_kind.bind("metal_bat")), "metal bat 0.84 m"), _button("Bo staff", _do.bind(_kind.bind("staff")), "staff 1.8 m")])
 	_row(lv, [_button("Hammer", _do.bind(_kind.bind("long_hammer")), "long hammer 1.1 m"), _button("None", _do.bind(_bat_remove), "remove the weapon")])
-	_row(lv, [_button("2nd hand on/off (G)", _do.bind(func(): B.grip = not B.grip), "the other hand on the shaft; [ ] slide it")])
+	_row(lv, [_button("2nd hand on/off (G)", _do.bind(_toggle_second), "the other hand on the shaft; [ ] slide it")])
 	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
 	_row(lv, [ui_slide_btn])
 
@@ -1525,6 +1541,7 @@ func _load_pose(path: String) -> void:
 		_load_scene(path)
 		return
 	B.from_dict(d)
+	B.capture_second()   # a pose with both hands on the shaft loads with both hands holding it
 
 
 func _save_scene() -> void:

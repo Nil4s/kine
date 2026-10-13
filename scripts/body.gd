@@ -542,6 +542,35 @@ func _fit_second(h: String) -> float:
 	return fit_hand(h, target, want)
 
 
+## LOCK BOTH HANDS (Nick 10-13: "it still doesn't lock both hands on the bo when I press lock, only one arm keeps
+## holding it"). If the other hand is on the shaft now (palm within 5 cm of its axis), its grip AS IT IS becomes the
+## second grip (wrist + turn in the weapon's frame, fingers, place along the shaft) and G is switched on: from then on
+## it holds the weapon as the body moves. Returns the palm's distance from the axis (m), or -1 with no weapon in a hand.
+func capture_second() -> float:
+	if not wep_on or wep_hand == "":
+		return -1.0
+	var o := "hand_l" if wep_hand == "hand_r" else "hand_r"
+	var x := wep_xform()
+	var q: Quaternion = x[1]
+	var k: Vector3 = x[0]
+	var palm: Vector3 = (P[o] as Vector3).lerp(E[o], 0.6) + (G[o] as Quaternion) * Vector3(0, -0.03, 0)
+	var pl := q.inverse() * (palm - k)
+	var off := Vector2(pl.x, pl.z).length()
+	if off > 0.05 or pl.y < 0.0 or pl.y > wep_len:
+		return off
+	var wl := q.inverse() * ((P[o] as Vector3) - k)
+	var fing := {}
+	for j in FINGERS:
+		if j.ends_with(o.right(2)):
+			var v: Vector3 = ang[j]
+			fing[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
+	grip2 = {"hand": o, "u": snappedf(pl.y, 0.001), "lpos": _p(wl - Vector3(0, pl.y, 0)),
+		"lrot": _q((q.inverse() * (G[o] as Quaternion)).normalized()), "fingers": fing}
+	grip = true
+	grip_u = pl.y
+	return off
+
+
 ## SLIDE THE MAIN HAND ALONG THE SHAFT, THE BODY FOLLOWS (Nick 10-13: "slide the hand on the weapon and the body
 ## already adjusts, after the grip too"). The weapon stays where it is in the world; the bat hand's wrist moves d m
 ## along the shaft (+ = toward the tip) keeping its turn round it; the arm is re-fitted to get there (fit_hand), the
@@ -584,7 +613,11 @@ func fit_hand(h: String, target: Vector3, want: Quaternion) -> float:
 			if (c[0] as String).trim_prefix("skin:") in arm or c[1] in arm:
 				inside = maxf(inside, c[2])
 		return ((P[h] as Vector3).distance_to(target)) + 0.004 * turn + 5.0 * inside
-	reach(h, target)   # the safe reach (stops at the body)
+	reach(h, target)
+	turn_world(h, (want * (G[h] as Quaternion).inverse()).normalized())
+	fk()
+	if (P[h] as Vector3).distance_to(target) < 0.01 and rad_to_deg((G[h] as Quaternion).angle_to(want)) < 8.0:
+		return (P[h] as Vector3).distance_to(target)   # the quick way did it (dragging stays smooth)   # the safe reach (stops at the body)
 	var js := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, h]
 	var best: float = cost.call()
 	for stp in [12.0, 6.0, 3.0, 1.5]:
