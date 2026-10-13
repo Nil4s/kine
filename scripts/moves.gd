@@ -46,7 +46,14 @@ func sample(t: float) -> Dictionary:
 	var ang := {}
 	for j in a["ang"]:
 		ang[j] = (a["ang"][j] as Vector3).lerp(b["ang"].get(j, a["ang"][j]), e)
-	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], e), "ang": ang}
+	# the bat: in the same hand in both keys -> its place in the hand blends (lerp + slerp); otherwise key i's state holds
+	var w: Dictionary = a["weapon"].duplicate()
+	var wb: Dictionary = b["weapon"]
+	if not w.is_empty() and not wb.is_empty() and w.get("hand", "") == wb.get("hand", ""):
+		var key := "local_" if w.get("hand", "") != "" else ""
+		w[key + "pos"] = (w[key + "pos"] as Vector3).lerp(wb[key + "pos"], e)
+		w[key + "rot"] = (w[key + "rot"] as Quaternion).slerp(wb[key + "rot"], e)
+	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], e), "ang": ang, "weapon": w}
 
 
 static func _flat(p: Dictionary) -> Dictionary:
@@ -55,7 +62,17 @@ static func _flat(p: Dictionary) -> Dictionary:
 		var x: Dictionary = p["joints"][j]
 		ang[j] = Vector3(x["bend"], x["side"], x["twist"])
 	var o: Array = p.get("offset", [0, 0, 0])
-	return {"offset": Vector3(o[0], o[1], o[2]), "ang": ang}
+	var w := {}
+	var pw: Dictionary = p.get("weapon", {})
+	if not pw.is_empty():
+		var r: Array = pw["rot"]
+		var lr: Array = pw.get("local_rot", [0, 0, 0, 1])
+		var lp: Array = pw.get("local_pos", [0, 0, 0])
+		var k: Array = pw["knob"]
+		w = {"hand": pw.get("hand", ""), "pos": Vector3(k[0], k[1], k[2]), "rot": Quaternion(r[0], r[1], r[2], r[3]),
+			"local_pos": Vector3(lp[0], lp[1], lp[2]), "local_rot": Quaternion(lr[0], lr[1], lr[2], lr[3]),
+			"length": float(pw.get("length", 0.84)), "grip": bool(pw.get("two_hand_grip", false)), "grip_m": float(pw.get("grip_m", 0.18))}
+	return {"offset": Vector3(o[0], o[1], o[2]), "ang": ang, "weapon": w}
 
 
 ## play every frame through the body: [[frame, time, contacts], ...] for frames where parts sink into each other
@@ -79,6 +96,17 @@ func apply(B: Body, t: float) -> void:
 	for j in s["ang"]:
 		B.ang[j] = B.clamp_ang(j, s["ang"][j])
 	B.fk()
+	var w: Dictionary = s["weapon"]
+	B.wep_on = not w.is_empty()
+	if B.wep_on:
+		B.set_weapon_len(w["length"])
+		B.wep_hand = w["hand"]
+		B.wep_pos = w["pos"]
+		B.wep_rot = w["rot"]
+		B.wep_lpos = w["local_pos"]
+		B.wep_lrot = w["local_rot"]
+		B.grip = w["grip"]
+		B.grip_u = w["grip_m"]
 
 
 func to_dict(B: Body) -> Dictionary:

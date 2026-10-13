@@ -48,9 +48,12 @@ def world(i):
 
 BODY = ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "Head",
         "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r",
-        "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"]
+        "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"] +        [f"{f}_0{k}_{sd}" for sd in "lr" for f in ("thumb", "index", "middle", "ring", "pinky") for k in (1, 2, 3)]
 ENDS = {"hand_l": ["middle_01_l"], "hand_r": ["middle_01_r"], "ball_l": ["foot_end_l", "ball_leaf_l"],
         "ball_r": ["foot_end_r", "ball_leaf_r"]}
+for _sd in "lr":
+    for _f in ("thumb", "index", "middle", "ring", "pinky"):
+        ENDS[f"{_f}_03_{_sd}"] = [f"{_f}_04_leaf_{_sd}", f"{_f}_04_{_sd}"]
 out = {"source": SRC.replace("\\", "/"), "axes": "+Y up, +Z forward (the hero faces +Z), +X = hero's LEFT; metres",
        "joints": {}}
 for nm in BODY:
@@ -73,6 +76,9 @@ CHILD = {"pelvis": None, "spine_01": "spine_02", "spine_02": "spine_03", "spine_
          "clavicle_l": "upperarm_l", "upperarm_l": "lowerarm_l", "lowerarm_l": "hand_l", "clavicle_r": "upperarm_r",
          "upperarm_r": "lowerarm_r", "lowerarm_r": "hand_r", "thigh_l": "calf_l", "calf_l": "foot_l", "foot_l": "ball_l",
          "thigh_r": "calf_r", "calf_r": "foot_r", "foot_r": "ball_r"}
+for _sd in "lr":
+    for _f in ("thumb", "index", "middle", "ring", "pinky"):
+        CHILD[f"{_f}_01_{_sd}"] = f"{_f}_02_{_sd}"; CHILD[f"{_f}_02_{_sd}"] = f"{_f}_03_{_sd}"
 JJ = out["joints"]
 skin = j["skins"][0]
 mesh_node = next(i for i, n in enumerate(N) if "mesh" in n and n.get("skin") is not None)
@@ -139,6 +145,10 @@ for nm, d in JJ.items():
     else:
         ds = sorted(seg_d(p, a, b) for p in g)
         r = ds[int(0.8 * (len(ds) - 1))] if ds else 0.04
+    if any(nm.startswith(x) for x in ("thumb", "index", "middle", "ring", "pinky")):
+        r = min(max(r, 0.008), 0.013)
+    if nm.startswith("neck"):
+        r = min(r, 0.06)   # the fit takes in the trapezius (24 cm "neck")
     if nm.startswith("clavicle"):
         r = min(r, 0.06)   # the fit takes in the deltoid and sticks out in front of the chest (10-12: stopped a folded arm 8 cm out)
     d["radius"] = round(r, 4)

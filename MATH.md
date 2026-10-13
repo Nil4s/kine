@@ -87,3 +87,19 @@ Keys = poses at times. Between key i (t0) and i+1 (t1): `u = (t - t0)/(t1 - t0)`
 out), every ANGLE = lerp(key i, key i+1, e), the hips' offset too. Angles blend inside their ranges, so every
 in-between is a legal pose by construction; contacts in between are listed per frame in the saved move's
 `bad_frames` (never hidden).
+
+## Fingers
+15 joints per hand (thumb/index/middle/ring/pinky x base/middle/tip), same three-angle math as every joint. Limits in
+data/body_limits.json as `finger_01..03` (all four fingers) and `thumb_01..03`. Shapes (`Body.hand_shape`): open / grip
+(round a 3.2 cm bat handle) / fist; the thumb values were found by search (thumb tip 4-5 mm from its target).
+Fingers don't collide (they wrap round things); their capsules exist for clicking.
+
+## The weapon (metal bat, 0.84 m)
+A rigid object with its own frame: knob at the origin, the bat along +Y. Two capsules: handle (r 1.6 cm, knob to 48%)
+and barrel (r 3.3 cm).
+- FREE: world knob position `pos` + rotation `rot`. Drags move/turn it and stop at the body (same bisection as joints).
+- LOCK to hand h, where it is now:  `lrot = G[h]^-1 * rot`,  `lpos = G[h]^-1 * (pos - P[h])`.
+  From then on:  `rot = G[h] * lrot`,  `pos = P[h] + G[h] * lpos`  -> it rides the hand through every pose and move.
+- In a move, two keys with the bat in the same hand blend its place in the hand: lerp(lpos), slerp(lrot), same ease.
+- The other hand (2-hand grip) = reach() of its wrist to a point `grip_m` metres up the bat.
+Pose files store it under "weapon": knob, tip, rot, hand, local_pos, local_rot.

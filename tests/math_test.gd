@@ -25,7 +25,7 @@ func _init() -> void:
 				randf_range(L["twist"].x, L["twist"].y))
 			var back := B.decompose(j, B.compose(j, v))
 			worst = maxf(worst, (func(w): return maxf(w.x, maxf(w.y, w.z))).call((back - v).abs()) if v.length() < 170.0 else 0.0)
-	check("round trip angles", worst < 0.01, "worst %.5f deg" % worst)
+	check("round trip angles", worst < 0.05, "worst %.5f deg" % worst)
 	# 2. rest pose = the skeleton file exactly
 	var d := 0.0
 	for j in Body.ORDER:

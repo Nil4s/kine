@@ -26,7 +26,7 @@ func _save(B: Body, name: String) -> void:
 func _init() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://poses"))
 	_save(_pose({}), "t_pose")
-	var down := {"upperarm_r": Vector3(0, -88, 0), "upperarm_l": Vector3(0, -88, 0), "lowerarm_r": Vector3(8, 0, 0), "lowerarm_l": Vector3(8, 0, 0)}
+	var down := {"upperarm_r": Vector3(0, -65, 0), "upperarm_l": Vector3(0, -65, 0), "lowerarm_r": Vector3(10, 0, 0), "lowerarm_l": Vector3(10, 0, 0)}   # arms 25 deg out
 	_save(_pose(down), "stand")
 	# military salute: fingertips at the right brow corner (head joint + (-0.045, 0.11, 0.085)), so the wrist sits a hand
 	# below-out-front of it; elbow out to the side near shoulder height; left arm straight down; chin level
@@ -38,4 +38,9 @@ func _init() -> void:
 	var cmd := {"upperarm_r": Vector3(80, -15, 0), "lowerarm_r": Vector3(5, 0, 0), "upperarm_l": Vector3(0, -60, 0),
 		"spine_03": Vector3(-4, 0, 0), "neck_01": Vector3(-8, 0, 0), "thigh_r": Vector3(12, 4, 0), "calf_r": Vector3(8, 0, 0)}
 	_save(_pose(cmd, [["hand_l", func(B): return (B.P["thigh_l"] as Vector3) + Vector3(0.12, 0.1, -0.02)]]), "command_point")
+	# metal bat held relaxed at the side, arms 25 deg out, the right fist round the handle
+	var bat := _pose(down)
+	bat.weapon_to_hand("hand_r")
+	bat.hand_shape("r", "grip")
+	_save(bat, "bat_hold")
 	quit()
