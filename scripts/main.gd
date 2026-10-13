@@ -885,6 +885,7 @@ func _row(parent: Control, items: Array) -> HBoxContainer:
 		h.add_child(it)
 		if it is Button:
 			(it as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			(it as Button).clip_text = true   # a row never pushes the panel wider than the screen
 	parent.add_child(h)
 	return h
 
@@ -954,6 +955,10 @@ func _ui() -> void:
 	lv.add_child(ui_pose_name)
 	_row(lv, [_button("Save body as a pose", _save_pose, "Ctrl+S")])
 	_row(lv, [_button("CLIP this pose  (Enter)", _card_add, "the body as it is now becomes the next clip in the scene below")])
+	lv.add_child(_label("WEAPON  (in the right hand)", 14, Color(0.6, 0.78, 1.0)))
+	_row(lv, [_button("Bat", _do.bind(_kind.bind("metal_bat")), "metal bat 0.84 m"), _button("Bo staff", _do.bind(_kind.bind("staff")), "staff 1.8 m")])
+	_row(lv, [_button("Hammer", _do.bind(_kind.bind("long_hammer")), "long hammer 1.1 m"), _button("None", _do.bind(_bat_remove), "remove the weapon")])
+	_row(lv, [_button("2nd hand on/off (G)", _do.bind(func(): B.grip = not B.grip), "the other hand on the shaft; [ ] slide it")])
 
 	# ---- right: the selected part
 	var rp := PanelContainer.new()
@@ -968,6 +973,7 @@ func _ui() -> void:
 	ui_side.append(rp)
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS   # Nick 10-13 couldn't find the weapon rows below
 	rp.add_child(sc)
 	var vb := VBoxContainer.new()
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1003,7 +1009,7 @@ func _ui() -> void:
 		s.value_changed.connect(_on_hip.bind(k))
 		ui_hip_box.add_child(s)
 		ui_hips.append([s, l])
-	_row(vb, [_button("Reset this part (R)", _do.bind(_reset_part)), _button("90 (Q)", _do.bind(_snap.bind(90.0))),
+	_row(vb, [_button("Reset (R)", _do.bind(_reset_part)), _button("90 (Q)", _do.bind(_snap.bind(90.0))),
 		_button("45", _do.bind(_snap.bind(45.0)))])
 	_row(vb, [_button("Right to left (M)", _do.bind(B.mirror_side.bind("_r"))),
 		_button("Left to right (N)", _do.bind(B.mirror_side.bind("_l")))])
@@ -1144,7 +1150,7 @@ func _ui() -> void:
 
 func _lists() -> void:
 	ui_poses.clear()
-	for dir in ["res://poses", "res://moves"]:
+	for dir in ["res://poses/lib", "res://poses", "res://moves"]:
 		var d := DirAccess.open(dir)
 		if d == null:
 			continue
@@ -1157,7 +1163,7 @@ func _lists() -> void:
 			var txt := FileAccess.get_file_as_string(path)
 			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
 				continue
-			var i := ui_poses.add_item(f.get_basename().replace("_", " ") + ("" if dir == "res://poses" else "   (yours)"))
+			var i := ui_poses.add_item(f.get_basename().replace("_", " ") + {"res://poses": "", "res://poses/lib": "   (library)"}.get(dir, "   (yours)"))
 			ui_poses.set_item_metadata(i, path)
 	ui_scenes.clear()
 	for dir in ["res://scenes", "res://moves"]:

@@ -137,6 +137,8 @@ static func put(B: Body, s: Dictionary) -> void:
 	var w: Dictionary = s["weapon"]
 	B.wep_on = not w.is_empty()
 	if B.wep_on:
+		if B.wep_kind != String(w.get("kind", "metal_bat")):
+			B.set_kind(String(w.get("kind", "metal_bat")))
 		B.set_weapon_len(w["length"])
 		B.wep_hand = w["hand"]
 		B.wep_pos = w["pos"]

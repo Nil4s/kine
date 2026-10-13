@@ -71,7 +71,7 @@ static func _flat(p: Dictionary) -> Dictionary:
 		var k: Array = pw["knob"]
 		w = {"hand": pw.get("hand", ""), "pos": Vector3(k[0], k[1], k[2]), "rot": Quaternion(r[0], r[1], r[2], r[3]),
 			"local_pos": Vector3(lp[0], lp[1], lp[2]), "local_rot": Quaternion(lr[0], lr[1], lr[2], lr[3]),
-			"length": float(pw.get("length", 0.84)), "grip": bool(pw.get("two_hand_grip", false)), "grip_m": float(pw.get("grip_m", 0.18))}
+			"length": float(pw.get("length", 0.84)), "kind": String(pw.get("kind", "metal_bat")), "grip": bool(pw.get("two_hand_grip", false)), "grip_m": float(pw.get("grip_m", 0.18))}
 	return {"offset": Vector3(o[0], o[1], o[2]), "ang": ang, "weapon": w}
 
 
@@ -99,6 +99,8 @@ func apply(B: Body, t: float) -> void:
 	var w: Dictionary = s["weapon"]
 	B.wep_on = not w.is_empty()
 	if B.wep_on:
+		if B.wep_kind != String(w.get("kind", "metal_bat")):
+			B.set_kind(String(w.get("kind", "metal_bat")))
 		B.set_weapon_len(w["length"])
 		B.wep_hand = w["hand"]
 		B.wep_pos = w["pos"]
