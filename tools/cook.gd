@@ -9,6 +9,7 @@
 ##   "two_hands": true/false  the free hand on the handle (grip at "grip_m" metres up from the knob)
 ##   "heel_up": ["_r"]  that heel lifts (on the toes);  "steps": {"_l": [x, 0, z]} that foot steps (else feet planted)
 ##   "fist": ["l"] / "open": ["l"] / "grip": ["l"]  a hand's shape
+##   "pose":  "guard_bat"  start this clip from a standard pose (poses/lib/<name>.json); set/add/hand go on top
 ##   "lift":  0.13      how high the stepping foot rises mid-step (m; default 0.08)
 ##   "hips":  [x, 0, z]  where the body stands now (m along the floor; kept until a clip changes it)
 ##   "move", "hold": seconds (move -1 = auto)
@@ -46,6 +47,18 @@ func _init() -> void:
 	for c in plan["clips"]:
 		for j in LEGS:
 			B.ang[j] = Vector3.ZERO
+		if c.has("pose"):
+			# a STANDARD POSE from poses/lib/ (checked by tools/pose_check.gd): every angle from it, then this clip's
+			# own "set"/"add"/"hand" on top. The bat stays in the plan's hand.
+			var lp = JSON.parse_string(FileAccess.get_file_as_string("res://poses/lib/%s.json" % c["pose"]))
+			if not lp is Dictionary:
+				print("COOK: no library pose ", c["pose"])
+				quit(1)
+				return
+			var keep_hand := B.wep_hand
+			B.from_dict(lp)
+			if keep_hand != "" and B.wep_hand != keep_hand:
+				B.weapon_to_hand(keep_hand)
 		for j in c.get("set", {}):
 			B.ang[j] = B.clamp_ang(j, _v(c["set"][j]))
 		for j in c.get("add", {}):

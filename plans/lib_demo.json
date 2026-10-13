@@ -1,0 +1,51 @@
+{
+ "name": "lib_demo",
+ "base": "poses/stand.json",
+ "bat_hand": "hand_r",
+ "frame": "chest",
+ "note": "library test: guard -> wind-up -> forehand contact -> guard -> rest the bat on the shoulder, every key a checked standard pose",
+ "clips": [
+  {
+   "name": "guard",
+   "pose": "guard_bat",
+   "move": -1,
+   "hold": 0.3,
+   "fist": [
+    "l"
+   ]
+  },
+  {
+   "name": "wind-up",
+   "pose": "windup_high",
+   "move": 0.4,
+   "hold": 0.05
+  },
+  {
+   "name": "hit",
+   "pose": "forehand_contact",
+   "move": 0.15,
+   "hold": 0.1,
+   "heel_up": [
+    "_r"
+   ]
+  },
+  {
+   "name": "guard",
+   "pose": "guard_bat",
+   "move": 0.45,
+   "hold": 0.2
+  },
+  {
+   "name": "lift over the shoulder",
+   "pose": "windup_high",
+   "move": 0.35,
+   "hold": 0.0
+  },
+  {
+   "name": "rest",
+   "pose": "idle_bat_carry",
+   "move": 0.4,
+   "hold": 0.4
+  }
+ ]
+}
