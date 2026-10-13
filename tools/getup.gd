@@ -91,7 +91,7 @@ func _init() -> void:
 		"thigh_l": [45, 6, 0], "thigh_r": [40, 8, 0], "calf_l": [100, 0, 0], "calf_r": [90, 0, 0], "foot_l": [-15, 0, 0], "foot_r": [-15, 0, 0],
 		"upperarm_l": [-5, -72, 0], "upperarm_r": [-15, -70, 0], "lowerarm_l": [20, 0, 0], "lowerarm_r": [30, 0, 0]})
 	var elbow := key({"_name": "on the elbow", "pelvis": [-60, 0, 5], "spine_01": [18, 0, 0], "spine_02": [16, 0, 0], "spine_03": [10, 0, 0], "neck_01": [25, 0, 0],
-		"thigh_l": [75, 6, 0], "thigh_r": [60, 8, 0], "calf_l": [105, 0, 0], "calf_r": [80, 0, 0], "foot_l": [-15, 0, 0], "foot_r": [-20, 0, 0],
+		"thigh_l": [80, 6, 0], "thigh_r": [70, 8, 0], "calf_l": [105, 0, 0], "calf_r": [90, 0, 0], "foot_l": [-15, 0, 0], "foot_r": [-20, 0, 0],
 		"upperarm_l": [35, -50, 0], "lowerarm_l": [40, 0, 0], "upperarm_r": [-40, -55, 0], "lowerarm_r": [40, 0, 0]},
 		{"hand_r": Vector2(-0.26, -0.30)})
 	var sit := key({"_name": "sit up", "pelvis": [-30, 0, 8], "spine_01": [18, 0, 0], "spine_02": [16, 0, 0], "spine_03": [12, 0, 0], "neck_01": [8, 0, 0],

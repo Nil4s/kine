@@ -42,7 +42,7 @@ func _init() -> void:
 		frames.append(fr)
 	var sk: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/skeleton.json"))
 	var out := {"name": S.name, "fps": fps, "length": S.length(), "source": a[0],
-		"pelvis_rest_y": sk["joints"]["pelvis"]["pos"][1],
+		"pelvis_rest_y": sk["joints"]["pelvis"]["pos"][1], "grounded": grounded,
 		"_note": "poser bake (tools/bake_scene.gd): per frame A = each joint's turn from rest in rest axes (quaternion x,y,z,w), offset = the hips' move from rest (m, character space +Y up +Z forward +X his left). Game: local = R_rest(parent)^-1 * A * R_rest(j).",
 		"frames": frames}
 	FileAccess.open(a[1], FileAccess.WRITE).store_string(JSON.stringify(out))
