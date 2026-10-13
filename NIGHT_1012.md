@@ -11,7 +11,7 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
 - [x] swing_fore: one-hand forehand, right to left
 - [x] swing_back: one-hand backhand return, left to right
 - [x] thrust: one-hand jab with the bat end
-- [ ] combo3: forehand -> backhand -> Nick's overhead strike
+- [x] combo3: forehand -> backhand -> Nick's overhead strike
 - [x] hit_react: flinch back from a hit to the chest, recover
 - [ ] walk_bat: walk cycle with the bat (steps), loop
 - [x] side-step dodge (dodge_side)
@@ -33,3 +33,4 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
     bat through the chest).
 - 00:15 all six recooked: worst contact anywhere 1-4 mm, hands on target (one key 12 cm: forehand CONTACT), wrists
   straight. Sheets re-recorded.
+- 00:25 combo3 cooked: 12 keys, 4.7 s, my forehand + backhand then Nick's four strike cards at his exact angles; worst contact 2 mm.
