@@ -8,7 +8,7 @@ extends SceneTree
 ## skin sits 3-4 cm outside its capsule). --write stores the trunk + head skin points in data/skin_points.json, which
 ## Body tests the forearms, hands and bat against (Body.skin_contacts).
 
-const SKIN_PARTS := ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head"]
+const SKIN_PARTS := ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head", "thigh_l", "thigh_r"]
 const SKIN_STEP := 0.025   # keep one skin point per 2.5 cm cell (the test is then ~1 cm true, and cheap)
 
 

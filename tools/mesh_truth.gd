@@ -9,7 +9,8 @@ extends SceneTree
 ##   godot --headless --path . -s tools/mesh_truth.gd -- poses/a.json [...]      judge poses
 ##   godot --headless --path . -s tools/mesh_truth.gd -- scenes/x.json           judge EVERY frame of a move (30 fps)
 ##   godot --headless --path . -s tools/mesh_truth.gd -- --selftest              a hand forced into the chest: must be BAD
-## > INSIDE_MM deep = visibly inside. A move prints only its bad frames (frame, time, how deep, which parts).
+## > INSIDE_MM deep = visibly inside. A move prints only its bad frames (frame, time, how deep, which parts), and its
+## banned SPINS (Scene.spins: an arm rolling round itself more than Body.ROLL_STEP between two keys).
 
 const ARM := ["lowerarm", "hand", "thumb", "index", "middle", "ring", "pinky"]
 const TRUNK := ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "Head", "thigh_l", "thigh_r"]   # hip sides = thigh skin
@@ -61,9 +62,12 @@ func _initialize() -> void:
 					bad += 1
 					worst = maxf(worst, r[0])
 					print("   frame %3d  t=%.2f  %3.0f mm  %s" % [fr, float(fr) / 30.0, r[0] * 1000.0, r[1]])
-			if bad > 0:
+			var sp: Array = S.spins()
+			for x in sp:
+				print("   SPIN  ", x)
+			if bad > 0 or not sp.is_empty():
 				n_bad += 1
-			print("%-34s %s  %d of %d frames visibly inside (worst %.0f mm)" % [f, "OK  " if bad == 0 else "BAD ", bad, n + 1, worst * 1000.0])
+			print("%-34s %s  %d of %d frames visibly inside (worst %.0f mm), %d arm spins" % [f, "OK  " if bad == 0 and sp.is_empty() else "BAD ", bad, n + 1, worst * 1000.0, sp.size()])
 		else:
 			B.from_dict(d)
 			B.ground()

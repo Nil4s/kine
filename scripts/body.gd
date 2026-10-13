@@ -67,6 +67,8 @@ var pairs := []        # [part, part] checked for contact
 ## are flat ovals a capsule can't follow (their skin sits 3-4 cm outside the capsules: tools/mesh_fit.gd), so the
 ## trunk + head are ALSO tested as their real skin points (data/skin_points.json, one per 2.5 cm) against these parts.
 const SKIN_VS := ["lowerarm_r", "lowerarm_l", "hand_r", "hand_l", "bat_handle", "bat_barrel"]
+const SKIN_HAND_PAD := 0.01   # the knuckles and finger tips sit ~1 cm outside the hand capsule (tools/mesh_truth.gd found
+                              # fingers in the thighs the capsule passed)
 var skin := {}          # trunk/head part -> [rest skin points]
 var skin_c := {}        # part -> [rest centre, bound radius] of its points (culls far capsules)
 var allow := {}        # "x|y" -> how deep that pair already sits in the body's neutral poses (m)
@@ -511,7 +513,7 @@ func skin_raw() -> Array:
 		for y in caps:
 			var a: Vector3 = caps[y][0]
 			var b: Vector3 = caps[y][1]
-			var r: float = rad[y]
+			var r: float = float(rad[y]) + (SKIN_HAND_PAD if (y as String).begins_with("hand") else 0.0)
 			var ab := b - a
 			var L2 := maxf(1e-9, ab.length_squared())
 			var tc := clampf((cen - a).dot(ab) / L2, 0.0, 1.0)
@@ -670,6 +672,15 @@ func fk_some(js: Array) -> void:
 ## twist, every 30 to +-60: pronation is not a wrist fold), the wrist itself straight; score = |wrist - at| + 0.15 * angle(bat, dir) [rad]. The best few
 ## are then refined by search() with the body's contacts counted. Bat direction comes from the arm, never from a
 ## folded wrist (Nick 10-12: "keep hand straight w forearm").
+## NO SPINS (Nick 10-13: "the arm is straight up front and abruptly spins around itself ... nobody turns the hand the
+## opposite way, those should be banned"): from the pose before, the upper arm may roll and the forearm may turn at most
+## ROLL_STEP degrees per key, and every degree of roll costs a little (continuity wins over a slightly better aim).
+const ROLL_STEP := 45.0
+const ROLL_COST := 0.08   # per 45 deg of roll
+var roll_free := false    # the first key of a move has no key before it: no step limit (cook sets it)
+var roll_start := NAN     # with roll_free: the first key's forearm turn is held near this (cook --roll: the move's "lane")
+
+
 func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, aw := 0.15) -> float:
 	var h := wep_hand
 	var sd := h.substr(h.length() - 2)
@@ -680,6 +691,14 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 	var lu: Dictionary = lim[ua]
 	var ll: Dictionary = lim[la]
 	var keep := ang.duplicate()
+	var ku: float = (ang[ua] as Vector3).z   # the upper arm's roll and the forearm's turn in the key before
+	var kh: float = (ang[h] as Vector3).z
+	var step := 999.0 if roll_free else ROLL_STEP
+	var step_h := step
+	var rc := 0.0 if roll_free else ROLL_COST
+	if roll_free and not is_nan(roll_start):
+		kh = roll_start
+		step_h = 15.0
 	var ou := "upperarm" + ("_l" if sd == "_r" else "_r")
 	var best := []   # [score, ua, la, hand]
 	# the pairs this arm or the bat take part in (the rest of the body doesn't move while sweeping)
@@ -694,11 +713,16 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 		while sv <= lu["side"].y:
 			var t: float = lu["twist"].x
 			while t <= lu["twist"].y:
+				if absf(t - ku) > step + 10.0:   # (the 20-deg grid: the refine holds the exact step)
+					t += 20.0
+					continue
 				ang[ua] = Vector3(b, sv, t)
 				var e: float = ll["bend"].x
 				while e <= ll["bend"].y:
 					ang[la] = Vector3(e, 0, 0)
 					for ht in [-60.0, -30.0, 0.0, 30.0, 60.0]:
+						if absf(ht - kh) > step_h:
+							continue
 						for hs in [0.0]:
 							ang[h] = Vector3(0, hs, ht)
 							fk_some(chain)
@@ -712,6 +736,7 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 							if grip:
 								# two hands: the other hand has to reach the handle (its arm is ~0.49 m long)
 								c += 2.0 * maxf(0.0, (grip_point() - (P[ou] as Vector3)).length() - 0.42)
+							c += rc * (absf(t - ku) + absf(ht - kh)) / 45.0
 							if best.size() < 6 or c < best[-1][0]:
 								best.append([c, ang[ua], ang[la], ang[h]])
 								best.sort_custom(func(x, y): return x[0] < y[0])
@@ -733,13 +758,16 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 		if grip:
 			# cheap: the handle within the other arm's reach (solving that arm here made a cook take 25+ min)
 			c += 2.0 * maxf(0.0, (grip_point() - (P[ou] as Vector3)).length() - 0.42)
+		c += rc * (absf((ang[ua] as Vector3).z - ku) + absf((ang[h] as Vector3).z - kh)) / 45.0
 		return c
 	var won := {}
 	var won_c := INF
 	var keep_lim: Dictionary = lim[h].duplicate()
 	lim[h]["bend"] = Vector2(-15, 15)
 	lim[h]["side"] = Vector2(-20, 20)
-	lim[h]["twist"] = Vector2(-60, 60)
+	lim[h]["twist"] = Vector2(maxf(-60.0, kh - step_h), minf(60.0, kh + step_h))
+	var keep_lim_u: Dictionary = lim[ua].duplicate()
+	lim[ua]["twist"] = Vector2(maxf(keep_lim_u["twist"].x, ku - step), minf(keep_lim_u["twist"].y, ku + step))
 	for cand in best:
 		ang = keep.duplicate()
 		ang[ua] = cand[1]
@@ -751,6 +779,7 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 			won_c = c
 			won = ang.duplicate()
 	lim[h] = keep_lim
+	lim[ua] = keep_lim_u
 	ang = won
 	fk()
 	return won_c

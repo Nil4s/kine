@@ -22,3 +22,11 @@ a joint STOPS at its limit (no breaking it), a real-looking body (not capsules).
    against the same limits + collision (bad frames listed, not hidden). File: moves/<name>.json.
 4. Bake: a move -> a clip in a game hero glb, byte-safe (gltf_local per key), then the game's wrist_check + meshcheck.
    The game's checker reads data/body_limits.json so both judge by one body.
+
+## Next, in Nick's order (10-13)
+1. **Confidence with the bat first.** The simple one-hand moves must pass every check (limits, capsules, visible skin
+   via tools/mesh_truth.gd, no bat pointed at its owner, no arm spins between keys) AND Nick's eye, before anything new.
+2. **A long two-hand handle for the hammer.** Nick poses where both hands hold it; the engine's limits then drive the
+   two-hand animations (same checks, plus both grips on the handle).
+3. **More engine functions whenever they make posing easier for Nick or me** (Nick: "we can always add more functions
+   to the engine"). Ones already earned: pose library + checker, transition table, mesh truth, spin ban, roll lanes.

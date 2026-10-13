@@ -43,6 +43,11 @@ func _init() -> void:
 	var S := Scene.new()
 	S.name = plan["name"]
 	var report := []
+	var score := 0.0   # the lane score: hand misses (m) + aim misses (deg/100) + 0.02 per bad frame
+	var ua_ := OS.get_cmdline_user_args()
+	var ri := ua_.find("--roll")
+	if ri >= 0 and ri + 1 < ua_.size():
+		B.roll_start = float(ua_[ri + 1])
 	var hips := Vector3.ZERO
 	for c in plan["clips"]:
 		for j in LEGS:
@@ -98,6 +103,7 @@ func _init() -> void:
 					print("  ! %s: the hand target is %.2f m from the shoulder (the arm reaches ~0.49)" % [c["name"], dd])
 		if B.wep_hand != "" and (c.has("hand") or c.has("aim")):
 			# quick two-bone reach + wrist aim first, then both arms searched together (contact-aware)
+			B.roll_free = S.cards.is_empty()   # the move's first key: nothing to spin from
 			B.sweep_bat_arm(at, _v(c.get("aim", [0, 1, 0])), c.has("hand"), c.has("aim"), float(c.get("aim_weight", plan.get("aim_weight", 0.15))))
 			var res := [((B.P[B.wep_hand] as Vector3) - at).length() if c.has("hand") else 0.0,
 				rad_to_deg(B.wep_axis().angle_to(_v(c.get("aim", [0, 1, 0])).normalized())) if c.has("aim") else 0.0,
@@ -113,14 +119,19 @@ func _init() -> void:
 		if c.has("lift"):
 			S.cards[-1]["lift"] = float(c["lift"])
 		var cs: Array = B.contacts().map(func(x): return "%s/%s %.0fmm" % [x[0], x[1], x[2] * 1000])
+		score += miss + aim / 100.0
 		report.append("  %-18s hand miss %.3f m  aim off %4.1f deg  2nd hand miss %.3f  contacts %s" % [c["name"], miss, aim, gm, cs])
 	var pins := S.pin_cards(B)
+	for x in S.spins():
+		report.append("  SPIN (banned): " + x)
 	var added := S.clear(B)
 	var d := S.to_dict(B)
 	d["plan"] = path
 	var f := FileAccess.open("res://scenes/%s.json" % plan["name"], FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, " "))
 	f.close()
+	score += 0.02 * d["bad_frames"].size()
+	print("LANE roll %s score %.3f" % [str(B.roll_start), score])
 	print("COOK %s: %d clips (+%d pass-by), %.2f s, legs re-planted %d, bad frames %d" % [plan["name"], S.cards.size() - added, added, S.length(), pins, d["bad_frames"].size()])
 	for r in report:
 		print(r)

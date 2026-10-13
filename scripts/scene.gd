@@ -389,3 +389,20 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["steps"] = c["steps"]
 		if c.has("lift"):
 			cards[-1]["lift"] = float(c["lift"])
+
+
+## SPINS (Nick 10-13: banned): key pairs where an arm rolls around itself more than Body.ROLL_STEP + 5 deg: the upper
+## arm's roll or the forearm's turn (the hand's twist). Blending such a pair turns the arm and the weapon through the
+## body. Returns ["key a -> key b: upperarm_r roll +63", ...]
+func spins() -> Array:
+	var out := []
+	for i in range(1, cards.size()):
+		var a: Dictionary = Moves._flat(cards[i - 1]["pose"])["ang"]
+		var b: Dictionary = Moves._flat(cards[i]["pose"])["ang"]
+		for j in ["upperarm_r", "upperarm_l", "hand_r", "hand_l"]:
+			if not a.has(j) or not b.has(j):
+				continue
+			var d: float = float((b[j] as Vector3).z) - float((a[j] as Vector3).z)
+			if absf(d) > Body.ROLL_STEP + 5.0:
+				out.append("%s -> %s: %s %s %+.0f" % [cards[i - 1]["name"], cards[i]["name"], j, "roll" if j.begins_with("upper") else "forearm turn", d])
+	return out
