@@ -69,7 +69,7 @@ func scene(nm: String, keys: Array) -> void:
 	S.floor_body = true   # the butt / back on the street between keys, never lifted onto the soles
 	for k in keys:
 		S.cards.append(k)
-	S.cards.append({"name": "stand", "pose": stand, "move": 0.55, "hold": 0.2})
+	S.cards.append({"name": "stand", "pose": stand, "move": 0.5, "hold": 0.05})
 	var d := S.to_dict(B)
 	d["note"] = "Get-up (tools/getup.gd) for the game's ragdoll knockdown: baked with tools/bake_scene.gd"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://scenes/_wip"))
@@ -121,13 +121,14 @@ func _init() -> void:
 		"thigh_r": [12, 5, 0], "calf_r": [90, 0, 0], "foot_r": [-40, 0, 0],
 		"upperarm_l": [40, -55, 0], "lowerarm_l": [45, 0, 0], "upperarm_r": [30, -70, 0], "lowerarm_r": [10, 0, 0]},
 		{"hand_r": Vector2(-0.42, 0.22)})
+	# TIMING (Nick 10-13 "calibrate speed to feel natural"): ~2.4 s from the back, ~1.6 s from the front, as a fighter
+	# gets up: quick knees, the sit-up is the effort, a short gather on the knee (hold 0.12), a steady rise
 	scene("getup_back", [{"name": "lie (back)", "pose": lie, "move": 0.0, "hold": 0.1},
-		{"name": "knees up", "pose": knees, "move": 0.35, "hold": 0.0},
-		{"name": "on the elbow", "pose": elbow, "move": 0.35, "hold": 0.0},
-		{"name": "sit up", "pose": sit, "move": 0.35, "hold": 0.05},
-		{"name": "leg tucked", "pose": tuck, "move": 0.3, "hold": 0.0},
-		{"name": "knee down", "pose": turn, "move": 0.3, "hold": 0.0},
-		{"name": "on one knee", "pose": kneel, "move": 0.35, "hold": 0.05}])
+		{"name": "knees up", "pose": knees, "move": 0.3, "hold": 0.0},
+		{"name": "sit up", "pose": sit, "move": 0.45, "hold": 0.05},   # Nick 10-13: the elbow key taken out
+		{"name": "leg tucked", "pose": tuck, "move": 0.25, "hold": 0.0},
+		{"name": "knee down", "pose": turn, "move": 0.28, "hold": 0.0},
+		{"name": "on one knee", "pose": kneel, "move": 0.3, "hold": 0.12}])
 	print("FROM THE FRONT")
 	var prone := key({"_name": "lie (front)", "pelvis": [90, 0, 0], "neck_01": [-15, 0, 10],
 		"thigh_l": [0, 6, 0], "thigh_r": [0, 6, 0], "calf_l": [8, 0, 0], "calf_r": [8, 0, 0], "foot_l": [-40, 0, 0], "foot_r": [-40, 0, 0],
@@ -142,6 +143,6 @@ func _init() -> void:
 		"upperarm_l": [40, -60, 0], "lowerarm_l": [40, 0, 0], "upperarm_r": [45, -60, 0], "lowerarm_r": [10, 0, 0]},
 		{"hand_r": Vector2(-0.22, 0.40)})
 	scene("getup_front", [{"name": "lie (front)", "pose": prone, "move": 0.0, "hold": 0.1},
-		{"name": "push up", "pose": push, "move": 0.45, "hold": 0.05},
-		{"name": "foot forward", "pose": kneel2, "move": 0.4, "hold": 0.05}])
+		{"name": "push up", "pose": push, "move": 0.4, "hold": 0.05},
+		{"name": "foot forward", "pose": kneel2, "move": 0.35, "hold": 0.12}])
 	quit()
