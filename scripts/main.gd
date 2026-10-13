@@ -28,7 +28,9 @@ var bone_idx := {}
 var bat_handle: MeshInstance3D
 var bat_barrel: MeshInstance3D
 var bat_knob: MeshInstance3D
-var wep_mats := {}   # "metal" / "tape" / "wood" / "steel": the weapon's looks per kind
+var wep_mats := {}
+var slide_body := true   # , . slide the main hand: true = the weapon stays, the body follows; false = the weapon slides in the hand
+var ui_slide_btn: Button   # "metal" / "tape" / "wood" / "steel": the weapon's looks per kind
 var tag: Label3D
 var show_caps := false
 var sel := "upperarm_r"
@@ -558,8 +560,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_G: _do(func(): B.grip = not B.grip)
 			KEY_BRACKETLEFT: _do(func(): B.grip_u = clampf(B.grip_u - 0.03, 0.0, B.wep_len))
 			KEY_BRACKETRIGHT: _do(func(): B.grip_u = clampf(B.grip_u + 0.03, 0.0, B.wep_len))
-			KEY_COMMA: _do(func(): B.slide_in_hand(-0.03))
-			KEY_PERIOD: _do(func(): B.slide_in_hand(0.03))
+			KEY_COMMA: _do(func(): _slide(-0.03))
+			KEY_PERIOD: _do(func(): _slide(0.03))
 			KEY_MINUS: _do(func(): B.set_weapon_len(B.wep_len - 0.05))
 			KEY_EQUAL: _do(func(): B.set_weapon_len(B.wep_len + 0.05))
 			KEY_SPACE: _toggle_play()
@@ -767,6 +769,28 @@ func _save_grip() -> void:
 	_say("saved as the standard %s grip (where the main hand holds + the fingers%s)" % [B.wep_kind.replace("_", " "), ", + the other hand" if B.grip else ""])
 
 
+## slide the main hand along the shaft, the weapon stays put, the body follows
+func _slide(d: float) -> void:
+	if not B.wep_on or B.wep_hand == "":
+		_say("put a weapon in the hand first")
+		return
+	if not slide_body:
+		B.slide_in_hand(-d)
+		B.apply_grip()
+		_say("the weapon slid in the hand: hand at %.2f m from the lower end" % B.hold_u())
+		return
+	if B.slide_hand(d):
+		_say("main hand at %.2f m from the lower end%s" % [B.hold_u(), ", the other hand re-gripped" if B.grip else ""])
+	else:
+		_say("the arm can't reach further that way: turn the weapon or move the body first")
+
+
+func _slide_mode() -> void:
+	slide_body = not slide_body
+	ui_slide_btn.text = "Slide , . : body follows" if slide_body else "Slide , . : weapon moves"
+	_say("now , and . %s" % ("move the hand along the weapon, the weapon stays and the arm follows" if slide_body else "slide the weapon through the hand, the hand stays"))
+
+
 ## switch the weapon kind; if one is in a hand, it goes back in that hand with this kind's grip
 func _kind(k: String) -> void:
 	var h := B.wep_hand
@@ -960,6 +984,8 @@ func _ui() -> void:
 	_row(lv, [_button("Bat", _do.bind(_kind.bind("metal_bat")), "metal bat 0.84 m"), _button("Bo staff", _do.bind(_kind.bind("staff")), "staff 1.8 m")])
 	_row(lv, [_button("Hammer", _do.bind(_kind.bind("long_hammer")), "long hammer 1.1 m"), _button("None", _do.bind(_bat_remove), "remove the weapon")])
 	_row(lv, [_button("2nd hand on/off (G)", _do.bind(func(): B.grip = not B.grip), "the other hand on the shaft; [ ] slide it")])
+	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
+	_row(lv, [ui_slide_btn])
 
 	# ---- right: the selected part
 	var rp := PanelContainer.new()
@@ -1024,8 +1050,8 @@ func _ui() -> void:
 	_row(vb, [_button("Metal bat", _do.bind(_kind.bind("metal_bat"))), _button("Staff (bo)", _do.bind(_kind.bind("staff"))),
 		_button("Long hammer", _do.bind(_kind.bind("long_hammer")))])
 	_row(vb, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
-	_row(vb, [_button("Main hand down the shaft (,)", _do.bind(B.slide_in_hand.bind(-0.03))),
-		_button("Main hand up the shaft (.)", _do.bind(B.slide_in_hand.bind(0.03)))])
+	_row(vb, [_button("Main hand down (,)", _do.bind(_slide.bind(-0.03)), "the hand slides toward the lower end; the weapon stays, the arm follows"),
+		_button("Main hand up (.)", _do.bind(_slide.bind(0.03)), "the hand slides toward the tip; the weapon stays, the arm follows")])
 	_row(vb, [_button("Lock bat to hand / Free it (L)", _do.bind(_bat_lock)), _button("Remove bat", _do.bind(_bat_remove))])
 	_row(vb, [_button("Other hand on the bat (G)", _do.bind(func(): B.grip = not B.grip)),
 		_button("Save grip as standard", _save_grip, "the bat's place in the hand + the fingers become the grip 'Bat in hand' uses")])

@@ -526,9 +526,7 @@ func apply_grip() -> float:
 
 
 ## the second hand into its fitted grip: wrist on its spot (slid along the shaft to grip_u) AND the hand turned
-## round the shaft as Nick held it. reach() places the wrist; then a small search over that arm (upper arm 3 ways,
-## elbow, hand 3 ways) brings the hand's turn in: cost = wrist miss (m) + 0.002 per degree of turn off.
-## Skipped when already within 1 cm and 8 deg (so dragging the body stays fast). Returns the wrist miss (m).
+## round the shaft as Nick held it. Skipped when already within 1 cm and 8 deg (dragging stays fast). Returns the miss (m).
 func _fit_second(h: String) -> float:
 	var x := wep_xform()
 	var q: Quaternion = x[1]
@@ -536,10 +534,48 @@ func _fit_second(h: String) -> float:
 	var target: Vector3 = (x[0] as Vector3) + q * lp
 	var lr: Array = grip2["lrot"]
 	var want: Quaternion = (q * Quaternion(lr[0], lr[1], lr[2], lr[3])).normalized()
-	var sd := h.right(2)
 	for j in grip2["fingers"]:
 		var a: Array = grip2["fingers"][j]
 		ang[j] = clamp_ang(j, Vector3(a[0], a[1], a[2]))
+	if (P[h] as Vector3).distance_to(target) < 0.01 and rad_to_deg((G[h] as Quaternion).angle_to(want)) < 8.0:
+		return (P[h] as Vector3).distance_to(target)
+	return fit_hand(h, target, want)
+
+
+## SLIDE THE MAIN HAND ALONG THE SHAFT, THE BODY FOLLOWS (Nick 10-13: "slide the hand on the weapon and the body
+## already adjusts, after the grip too"). The weapon stays where it is in the world; the bat hand's wrist moves d m
+## along the shaft (+ = toward the tip) keeping its turn round it; the arm is re-fitted to get there (fit_hand), the
+## second hand (G) re-fits to the weapon that hasn't moved. If the arm can't get there (> 1.5 cm short) nothing
+## changes and it returns false.
+func slide_hand(d: float) -> bool:
+	if not wep_on or wep_hand == "":
+		return false
+	var h := wep_hand
+	var x := wep_xform()
+	var q: Quaternion = x[1]
+	var knob: Vector3 = x[0]
+	var keep_ang := ang.duplicate()
+	var keep := [wep_lpos, wep_lrot, grip_u]
+	var target: Vector3 = (P[h] as Vector3) + q * Vector3(0, d, 0)
+	var want: Quaternion = G[h]
+	var miss := fit_hand(h, target, want)
+	if miss > 0.015:
+		ang = keep_ang
+		fk()
+		return false
+	# the weapon where it was: its place in the hand from the hand's new spot
+	var g: Quaternion = G[h]
+	wep_lrot = (g.inverse() * q).normalized()
+	wep_lpos = g.inverse() * (knob - (P[h] as Vector3))
+	apply_grip()
+	return true
+
+
+## put a hand's wrist on `target` turned as `want` (world): the safe reach, then a search over that arm (clavicle,
+## upper arm 3 ways, elbow, hand 3 ways). cost = wrist miss (m) + 0.004 per degree of turn off + 5 x this arm's
+## deepest contact (never bought with a better grip). Returns the wrist miss (m).
+func fit_hand(h: String, target: Vector3, want: Quaternion) -> float:
+	var sd := h.right(2)
 	var arm := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, h]
 	var cost := func() -> float:
 		var turn := rad_to_deg((G[h] as Quaternion).angle_to(want))
@@ -548,8 +584,6 @@ func _fit_second(h: String) -> float:
 			if (c[0] as String).trim_prefix("skin:") in arm or c[1] in arm:
 				inside = maxf(inside, c[2])
 		return ((P[h] as Vector3).distance_to(target)) + 0.004 * turn + 5.0 * inside
-	if (P[h] as Vector3).distance_to(target) < 0.01 and rad_to_deg((G[h] as Quaternion).angle_to(want)) < 8.0:
-		return (P[h] as Vector3).distance_to(target)
 	reach(h, target)   # the safe reach (stops at the body)
 	var js := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, h]
 	var best: float = cost.call()
