@@ -23,13 +23,17 @@ func _init() -> void:
 			names.append(n)
 			poses[n] = JSON.parse_string(FileAccess.get_file_as_string("res://poses/lib/" + f))
 	names.sort()
+	# only poses holding the same weapon connect (a staff pose is no stepping stone between two bat poses)
+	var kind := func(n: String) -> String:
+		var w: Dictionary = poses[n].get("weapon", {})
+		return "" if w.is_empty() else String(w.get("kind", "metal_bat"))
 	var out := {}
 	var n_direct := 0
 	var n_via := 0
 	var n_none := 0
 	for a in names:
 		for b in names:
-			if a == b:
+			if a == b or kind.call(a) != kind.call(b):
 				continue
 			var w := worst(B, [poses[a], poses[b]])
 			if w <= CLEAN_MM:
@@ -39,7 +43,7 @@ func _init() -> void:
 			var best_v := ""
 			var best_w := w
 			for v in names:
-				if v == a or v == b:
+				if v == a or v == b or kind.call(v) != kind.call(a):
 					continue
 				var wv := worst(B, [poses[a], poses[v], poses[b]])
 				if wv < best_w:
