@@ -71,6 +71,14 @@ var _sync := false
 var big_view := false
 var clean := false          # recording: no highlights, no name tag
 var ui_side: Array = []      # the panels Tab hides
+# THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
+var T := Dummy.new()
+var dummy_on := true
+var dummy_node: Node3D
+var dummy_mat: StandardMaterial3D
+var hit_tag: Label3D
+var hit_dot: MeshInstance3D
+var ui_dummy: Label
 
 
 func _ready() -> void:
@@ -96,6 +104,11 @@ func _ready() -> void:
 	i = args.find("--view")
 	if i >= 0 and i + 1 < args.size():
 		_view(int(args[i + 1]))
+	i = args.find("--dummy")
+	if i >= 0 and i + 1 < args.size():
+		T.place(float(args[i + 1]))
+	if args.has("--no-dummy"):
+		dummy_on = false
 	if args.has("--caps"):
 		show_caps = true
 	if args.has("--clean"):
@@ -306,6 +319,96 @@ func _body() -> void:
 	tag.outline_size = 8
 	tag.font_size = 30
 	add_child(tag)
+	_dummy_build()
+
+
+## the dummy: the same mannequin, blue-grey, standing (T.D), turned to face the hero
+func _dummy_build() -> void:
+	dummy_node = (load("res://assets/mannequin.glb") as PackedScene).instantiate()
+	add_child(dummy_node)
+	for ap in dummy_node.find_children("*", "AnimationPlayer", true, false):
+		(ap as AnimationPlayer).stop()
+		ap.queue_free()
+	var dsk: Skeleton3D = dummy_node.find_children("*", "Skeleton3D", true, false)[0]
+	for j in Body.ORDER:
+		var bi := dsk.find_bone("Head" if j == "head" else j)
+		if bi >= 0:
+			dsk.set_bone_pose_rotation(bi, T.D.gltf_local(j))
+	var pb := dsk.find_bone("pelvis")
+	if pb >= 0:
+		dsk.set_bone_pose_position(pb, T.D.gltf_pelvis_pos())
+	dummy_mat = StandardMaterial3D.new()
+	dummy_mat.albedo_color = Color(0.45, 0.5, 0.58)
+	dummy_mat.roughness = 0.7
+	for mi in dummy_node.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).material_override = dummy_mat
+	hit_tag = Label3D.new()
+	hit_tag.pixel_size = 0.0009
+	hit_tag.fixed_size = true
+	hit_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	hit_tag.no_depth_test = true
+	hit_tag.modulate = Color(1.0, 0.45, 0.35)
+	hit_tag.outline_size = 10
+	hit_tag.font_size = 34
+	add_child(hit_tag)
+	hit_dot = MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.035
+	sm.height = 0.07
+	hit_dot.mesh = sm
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color(1.0, 0.3, 0.2)
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.no_depth_test = true
+	hit_dot.material_override = hm
+	add_child(hit_dot)
+
+
+## the dummy now: where it stands, and red with a tag where the weapon is in it
+func _dummy_refresh() -> void:
+	dummy_node.visible = dummy_on
+	dummy_node.transform = T.xf
+	var h := T.touch(B) if dummy_on else {}
+	hit_tag.visible = not h.is_empty()
+	hit_dot.visible = not h.is_empty()
+	dummy_mat.albedo_color = Color(0.85, 0.3, 0.25) if not h.is_empty() else Color(0.45, 0.5, 0.58)
+	if not h.is_empty():
+		hit_dot.position = h["at"]
+		hit_tag.position = (h["at"] as Vector3) + Vector3(0, 0.12, 0)
+		hit_tag.text = "%s  (%.2f m up the weapon)" % [h["zone"], h["u"]]
+
+
+## the dummy on/off and its range; the scene's hits listed (time, zone, speed of the spot that lands)
+func _dummy_toggle() -> void:
+	dummy_on = not dummy_on
+	_dummy_hits()
+	_refresh()
+
+
+func _dummy_move(d: float) -> void:
+	T.place(clampf(T.dist + d, 0.6, 3.0))
+	_dummy_hits()
+	_refresh()
+
+
+func _dummy_hits() -> void:
+	if ui_dummy == null:
+		return
+	if not dummy_on:
+		ui_dummy.text = "dummy off"
+		return
+	var txt := "dummy %.2f m out" % T.dist
+	if S.cards.size() >= 2:
+		var HB := Body.new()
+		HB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var hs: Array = T.hits(S, HB, 30)
+		if hs.is_empty():
+			txt += "
+the scene: no hit at this range"
+		for x in hs:
+			txt += "
+%.2fs  %s  %.1f m/s  (%.2f m up)" % [x["t"], x["zone"], x["speed"], x["u"]]
+	ui_dummy.text = txt
 
 
 ## the weapon's radii + materials for its kind
@@ -411,6 +514,7 @@ func _refresh() -> void:
 		d.visible = not clean
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
+	_dummy_refresh()
 	_panel()
 
 
@@ -558,6 +662,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_L: _do(func(): _bat_lock())
 			KEY_F: _do(func(): _fingers_cycle())
 			KEY_G: _do(_toggle_second)
+			KEY_H: _dummy_toggle()
 			KEY_BRACKETLEFT: _do(func(): B.grip_u = clampf(B.grip_u - 0.03, 0.0, B.wep_len))
 			KEY_BRACKETRIGHT: _do(func(): B.grip_u = clampf(B.grip_u + 0.03, 0.0, B.wep_len))
 			KEY_COMMA: _do(func(): _slide(-0.03))
@@ -1022,6 +1127,11 @@ func _ui() -> void:
 	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
 	_row(lv, [ui_slide_btn])
 	_row(lv, [_button("Hand to the end", _do.bind(_hand_to_end), "Nick 10-13: a long weapon swings from its end - the main hand slides to the lower end in 3 cm steps (the body follows, or the weapon moves: the toggle above)")])
+	lv.add_child(_label("TARGET DUMMY  (H)", 14, Color(1.0, 0.6, 0.5)))
+	_row(lv, [_button("On/off", _dummy_toggle, "a second mannequin out front: it turns red where the weapon is in it (H)"),
+		_button("Closer", _dummy_move.bind(-0.25), "the dummy 25 cm closer"), _button("Farther", _dummy_move.bind(0.25), "the dummy 25 cm farther")])
+	ui_dummy = _label("dummy %.2f m out" % T.dist, 13, Color(1.0, 0.8, 0.75), true)
+	lv.add_child(ui_dummy)
 
 	# ---- right: the selected part
 	var rp := PanelContainer.new()
@@ -1594,6 +1704,7 @@ func _load_scene(path: String) -> void:
 		S.name = d.get("name", "move")
 	if ui_scene_name != null:
 		ui_scene_name.text = S.name
+	_dummy_hits()
 	sel_card = -1
 	playhead = 0.0
 	S.apply(B, 0.0)

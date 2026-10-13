@@ -123,3 +123,23 @@ No gradients or training: three small formulas.
   spot - (ball - ankle) }. The reach is always last so the spot is held to the mm.
 - In between, a planted foot is re-solved every frame; a stepping foot's toe base follows
   lerp(from, to, e) + up * 0.08 * sin(pi e), a lifted arc.
+
+## Target dummy (scripts/dummy.gd, tools/hit_report.gd) - Nick 10-13
+
+A second mannequin stands `dist` m in front of the hero (+z), turned 180 deg to face him: the same Body in the standing
+pose, so its parts are the mannequin's own capsules. Its space -> the hero's: `x' = R_y(180) x + (0, 0, dist)`.
+
+Each frame, for each weapon capsule w (handle, barrel) and each dummy part p:
+
+    depth = r_w + r_p - |closest points of the axes|        (Body.seg_seg: clamped segment-segment distance)
+
+depth > 0 = the weapon is in that part. The part's ZONE: head/neck = HEAD, spine_03/spine_02 = CHEST, spine_01 = BELLY,
+pelvis = HIPS, thighs = LEGS, calves = SHINS, feet = FEET, arms/hands = ARMS.
+
+A HIT = the first frame of a touch (the weapon must leave the dummy before the next one counts). For it:
+
+    u      = the spot on the weapon nearest the part's axis (the axis sampled every 2 cm, m from the butt)
+    speed  = |p_u(t) - p_u(t - dt)| / dt                    (m/s; dt = 1/60 s in the report, 1/30 s in the window)
+
+Real strikes for scale: a staff or bat end moves ~10-20 m/s at contact. A hit far below that is a push, not a strike.
+`godot --headless --path . -s tools/hit_report.gd -- scenes/x.json [--dist 1.5]` lists the hits at 1.0-2.0 m.
