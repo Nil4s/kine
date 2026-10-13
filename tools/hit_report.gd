@@ -37,5 +37,5 @@ func _init() -> void:
 				if not hs.is_empty():
 					var L: Array = T.landed(S, B)
 					var again: Array = T.hits(L[0], B)
-					print("      solid: stops at %.3fs on the %s, rebounds, %.2f s long; touches after the rebound: %d" % [L[1]["t"], L[1]["zone"], (L[0] as Scene).length(), again.size() - 1])
+					print("      solid: stops at %.3fs on the %s, rebounds, %.2f s long; touches after the rebound: %d" % [L[1]["t"], L[1]["zone"], (L[0] as Scene).length(), maxi(0, again.size() - 1)])
 	quit()
