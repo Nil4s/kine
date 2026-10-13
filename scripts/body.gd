@@ -1099,6 +1099,20 @@ func ground() -> void:
 	fk()
 
 
+## the WHOLE body's lowest point on the floor (each capsule's ends minus its radius, fingers aside): a body that sits
+## or lies rests on its hips/back, not lifted onto its soles (Nick 10-13: "the butt touches the ground when we stand up")
+func ground_body() -> void:
+	fk()
+	var low := INF
+	for j in ORDER:
+		if j.begins_with("thumb") or j.begins_with("index") or j.begins_with("middle") or j.begins_with("ring") or j.begins_with("pinky"):
+			continue
+		var r: float = float(rad.get(j, 0.03))
+		low = minf(low, minf((P[j] as Vector3).y, (E[j] as Vector3).y) - r)
+	offset.y -= low
+	fk()
+
+
 ## FLAT FOOT: the ankle's bend that puts the toes' ball back at the heel's height difference it has at rest
 ## (bisection: the ball rises as the bend grows). Toes off = the toes bend so their tip touches the floor too.
 func flat_foot(sd: String) -> void:

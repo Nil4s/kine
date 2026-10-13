@@ -22,6 +22,7 @@ var cards := []        # [{"name", "pose", "move", "hold"}]
 var name := "scene"
 var natural := true
 var on_floor := true   # every frame: the hips move up/down so the lowest sole touches the floor (Body.ground)
+var floor_body := false   # with on_floor: the whole body's lowest point instead of the soles (get-ups, falls)
 var pin := true        # feet that stay put between two clips are planted: they don't slide while the body turns
 const STEP := 0.12     # a toe base that moves more than this (m, along the floor) between clips = a step, not planted
 var fps := 30
@@ -167,10 +168,17 @@ func apply(B: Body, t: float) -> void:
 	B.fast = was_fast
 
 
+func _ground(B: Body) -> void:
+	if floor_body:
+		B.ground_body()
+	else:
+		B.ground()
+
+
 func _apply(B: Body, t: float) -> void:
 	put(B, sample(t))
 	if on_floor:
-		B.ground()
+		_ground(B)
 	if pin:
 		var i := span(t)
 		if i > 0:
@@ -178,7 +186,7 @@ func _apply(B: Body, t: float) -> void:
 			var b := _feet(B, i)
 			put(B, sample(t))
 			if on_floor:
-				B.ground()
+				_ground(B)
 			var e := _ease(clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0), 5)
 			for sd in ["_l", "_r"]:
 				if _pinned(i, sd, a[sd], b[sd]):
@@ -217,7 +225,7 @@ func _feet(B: Body, i: int) -> Dictionary:
 func _feet_raw(B: Body, i: int) -> Dictionary:
 	B.from_dict(cards[i]["pose"])
 	if on_floor:
-		B.ground()
+		_ground(B)
 	return {"_l": B.foot_state("_l"), "_r": B.foot_state("_r")}
 
 
@@ -384,7 +392,7 @@ func to_dict(B: Body) -> Dictionary:
 			cs[-1]["steps"] = st
 		if c.has("lift"):
 			cs[-1]["lift"] = c["lift"]
-	return {"scene": name, "natural": natural, "on_floor": on_floor, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
+	return {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
 
@@ -393,6 +401,7 @@ func from_dict(d: Dictionary) -> void:
 	name = d.get("scene", "scene")
 	natural = bool(d.get("natural", true))
 	on_floor = bool(d.get("on_floor", true))
+	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
 	cards = []

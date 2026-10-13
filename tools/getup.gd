@@ -66,6 +66,7 @@ func _limits() -> Array:
 func scene(nm: String, keys: Array) -> void:
 	var S := Scene.new()
 	S.name = nm
+	S.floor_body = true   # the butt / back on the street between keys, never lifted onto the soles
 	for k in keys:
 		S.cards.append(k)
 	S.cards.append({"name": "stand", "pose": stand, "move": 0.55, "hold": 0.2})
@@ -84,10 +85,31 @@ func _init() -> void:
 	var lie := key({"_name": "lie (back)", "pelvis": [-90, 0, 0], "neck_01": [10, 0, 0],
 		"thigh_l": [2, 6, 0], "thigh_r": [2, 6, 0], "calf_l": [6, 0, 0], "calf_r": [4, 0, 0], "foot_l": [-25, 8, 0], "foot_r": [-25, 8, 0],
 		"upperarm_l": [-8, -72, 0], "upperarm_r": [-8, -72, 0], "lowerarm_l": [10, 0, 0], "lowerarm_r": [10, 0, 0]})
+	# Nick 10-13 "the first row needs more animations between 1-2-3-4": the knees come up while he still lies, then he
+	# props up on the right elbow, sits, and leans onto the planted hand with the right leg folding under
+	var knees := key({"_name": "knees up", "pelvis": [-88, 0, 0], "spine_01": [8, 0, 0], "spine_02": [8, 0, 0], "neck_01": [25, 0, 0],
+		"thigh_l": [45, 6, 0], "thigh_r": [40, 8, 0], "calf_l": [100, 0, 0], "calf_r": [90, 0, 0], "foot_l": [-15, 0, 0], "foot_r": [-15, 0, 0],
+		"upperarm_l": [-5, -72, 0], "upperarm_r": [-15, -70, 0], "lowerarm_l": [20, 0, 0], "lowerarm_r": [30, 0, 0]})
+	var elbow := key({"_name": "on the elbow", "pelvis": [-60, 0, 5], "spine_01": [18, 0, 0], "spine_02": [16, 0, 0], "spine_03": [10, 0, 0], "neck_01": [25, 0, 0],
+		"thigh_l": [75, 6, 0], "thigh_r": [60, 8, 0], "calf_l": [105, 0, 0], "calf_r": [80, 0, 0], "foot_l": [-15, 0, 0], "foot_r": [-20, 0, 0],
+		"upperarm_l": [35, -50, 0], "lowerarm_l": [40, 0, 0], "upperarm_r": [-40, -55, 0], "lowerarm_r": [40, 0, 0]},
+		{"hand_r": Vector2(-0.26, -0.30)})
 	var sit := key({"_name": "sit up", "pelvis": [-30, 0, 8], "spine_01": [18, 0, 0], "spine_02": [16, 0, 0], "spine_03": [12, 0, 0], "neck_01": [8, 0, 0],
 		"thigh_l": [105, 6, 0], "thigh_r": [60, 8, 0], "calf_l": [90, 0, 0], "calf_r": [5, 0, 0], "foot_l": [-10, 0, 0], "foot_r": [-25, 5, 0],
 		"upperarm_l": [55, -45, 0], "lowerarm_l": [35, 0, 0], "upperarm_r": [-30, -60, 0], "lowerarm_r": [8, 0, 0]},
 		{"hand_r": Vector2(-0.34, -0.20)})
+	# butt, right knee and left sole level on the street (a small search, 10-13)
+	var lean := key({"_name": "lean on the hand", "pelvis": [-35, 0, -30], "spine_01": [20, 0, 0], "spine_02": [18, 0, 0], "spine_03": [10, 0, 0], "neck_01": [10, 0, 0],
+		"thigh_l": [120, 8, 0], "calf_l": [140, 0, 0], "foot_l": [-15, 0, 0],
+		"thigh_r": [40, 35, 0], "calf_r": [145, 0, 0], "foot_r": [-40, 0, 0],
+		"upperarm_l": [50, -45, 0], "lowerarm_l": [35, 0, 0], "upperarm_r": [10, -70, 0], "lowerarm_r": [8, 0, 0]},
+		{"hand_r": Vector2(-0.36, -0.08)})
+	# the right leg folds first (heel to the butt) while he still sits: no frame where it swings under him and he stands on it
+	var tuck := key({"_name": "leg tucked", "pelvis": [-28, 0, -15], "spine_01": [18, 0, 0], "spine_02": [16, 0, 0], "spine_03": [12, 0, 0], "neck_01": [8, 0, 0],
+		"thigh_l": [105, 6, 0], "calf_l": [100, 0, 0], "foot_l": [-10, 0, 0],
+		"thigh_r": [75, 30, 0], "calf_r": [145, 0, 0], "foot_r": [-40, 0, 0],
+		"upperarm_l": [55, -45, 0], "lowerarm_l": [35, 0, 0], "upperarm_r": [-30, -60, 0], "lowerarm_r": [8, 0, 0]},
+		{"hand_r": Vector2(-0.36, -0.15)})
 	# between: rolled onto the right hip and knee, both hands on the floor (no frame on one foot, Nick 10-13 sheet)
 	var turn := key({"_name": "knee down", "pelvis": [10, 0, -20], "spine_01": [12, 0, 0], "spine_02": [8, 0, 0], "neck_01": [0, 0, 0],
 		"thigh_l": [120, 8, 0], "calf_l": [120, 0, 0], "foot_l": [-20, 0, 0],
@@ -100,8 +122,11 @@ func _init() -> void:
 		"upperarm_l": [40, -55, 0], "lowerarm_l": [45, 0, 0], "upperarm_r": [30, -70, 0], "lowerarm_r": [10, 0, 0]},
 		{"hand_r": Vector2(-0.42, 0.22)})
 	scene("getup_back", [{"name": "lie (back)", "pose": lie, "move": 0.0, "hold": 0.1},
-		{"name": "sit up", "pose": sit, "move": 0.5, "hold": 0.05},
-		{"name": "knee down", "pose": turn, "move": 0.35, "hold": 0.0},
+		{"name": "knees up", "pose": knees, "move": 0.35, "hold": 0.0},
+		{"name": "on the elbow", "pose": elbow, "move": 0.35, "hold": 0.0},
+		{"name": "sit up", "pose": sit, "move": 0.35, "hold": 0.05},
+		{"name": "leg tucked", "pose": tuck, "move": 0.3, "hold": 0.0},
+		{"name": "knee down", "pose": turn, "move": 0.3, "hold": 0.0},
 		{"name": "on one knee", "pose": kneel, "move": 0.35, "hold": 0.05}])
 	print("FROM THE FRONT")
 	var prone := key({"_name": "lie (front)", "pelvis": [90, 0, 0], "neck_01": [-15, 0, 10],
