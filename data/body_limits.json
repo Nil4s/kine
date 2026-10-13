@@ -1,6 +1,6 @@
 {
  "_how": "Each joint turns by three angles, in degrees, measured from the rest (T-pose). twist = about the bone's own length (right-hand rule along the bone, rest pointing joint -> end). bend = the end swings toward the 'f' direction; side = the end swings toward the 's' direction. f and s are character-space directions at rest (+Y up, +Z forward, +X the hero's LEFT). Only the RIGHT side and the centre are written; each *_l joint is the *_r one mirrored (x of f and s flipped, twist range negated). r = the capsule radius in metres (collision, step 2).",
- "pelvis":     {"f": [0, 0, 1], "s": [1, 0, 0], "bend": [-60, 90], "side": [-45, 45], "twist": [-180, 180], "r": 0.13,
+ "pelvis":     {"f": [0, 0, 1], "s": [1, 0, 0], "bend": [-100, 100], "side": [-45, 45], "twist": [-180, 180], "r": 0.13,
                 "say": {"bend": "+ = whole body tips forward", "side": "+ = tips to his left", "twist": "+ = turns to his left"}},
  "spine_01":   {"f": [0, 0, 1], "s": [1, 0, 0], "bend": [-7, 20], "side": [-7, 7], "twist": [-17, 17], "r": 0.13,
                 "say": {"bend": "+ = lean forward", "side": "+ = lean to his left", "twist": "+ = chest turns to his left"}},

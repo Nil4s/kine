@@ -1119,12 +1119,19 @@ func _ui() -> void:
 	lp.offset_bottom = -BOTTOM_H - 6
 	ui_root.add_child(lp)
 	ui_side.append(lp)
+	# Nick 10-13 "we can't see individual poses": the buttons below the list had squeezed it to nothing. The panel
+	# scrolls now and the list keeps its own height
+	var lsc := ScrollContainer.new()
+	lsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	lp.add_child(lsc)
 	var lv := VBoxContainer.new()
 	lv.add_theme_constant_override("separation", 6)
-	lp.add_child(lv)
+	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lsc.add_child(lv)
 	lv.add_child(_label("1  POSES", 19, Color(0.6, 0.78, 1.0)))
 	lv.add_child(_label("Click a pose: the body takes it.", 14, Color(1, 1, 1, 0.65), true))
 	ui_poses = ItemList.new()
+	ui_poses.custom_minimum_size = Vector2(0, 240)
 	ui_poses.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ui_poses.focus_mode = Control.FOCUS_NONE
 	ui_poses.item_selected.connect(func(i):
