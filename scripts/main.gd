@@ -953,7 +953,8 @@ func _ui() -> void:
 	ui_pose_name = LineEdit.new()
 	ui_pose_name.placeholder_text = "name for the body's pose"
 	lv.add_child(ui_pose_name)
-	_row(lv, [_button("Save body as a pose", _save_pose, "Ctrl+S")])
+	_row(lv, [_button("Save pose", _save_pose, "save the body as a pose (Ctrl+S)"),
+		_button("Rename", _rename_pose, "click one of YOUR poses in the list, type the new name above, press Rename")])
 	_row(lv, [_button("CLIP this pose  (Enter)", _card_add, "the body as it is now becomes the next clip in the scene below")])
 	lv.add_child(_label("WEAPON  (in the right hand)", 14, Color(0.6, 0.78, 1.0)))
 	_row(lv, [_button("Bat", _do.bind(_kind.bind("metal_bat")), "metal bat 0.84 m"), _button("Bo staff", _do.bind(_kind.bind("staff")), "staff 1.8 m")])
@@ -1460,6 +1461,36 @@ func _save_pose() -> void:
 	_write(path, d)
 	_lists()
 	_say("saved pose " + path.get_file())
+
+
+## Nick 10-13: "the option to rename poses, now it's just random names, hard to find". Only his own (moves/):
+## the library and the starter poses are named by the tools that use them.
+func _rename_pose() -> void:
+	var sel_i := ui_poses.get_selected_items()
+	if sel_i.is_empty():
+		_say("click the pose to rename in the list first")
+		return
+	var old: String = ui_poses.get_item_metadata(sel_i[0])
+	if not old.begins_with("res://moves/"):
+		_say("only your own poses can be renamed (the library + starter poses keep their names)")
+		return
+	var nm := ui_pose_name.text.strip_edges().replace(" ", "_")
+	for bad in ["/", "\\", ":", "*", "?", "\"", "<", ">", "|", "."]:
+		nm = nm.replace(bad, "")
+	if nm == "":
+		_say("type the new name in the box above first")
+		return
+	var path := "res://moves/%s.json" % nm
+	if FileAccess.file_exists(path):
+		_say("a pose called '%s' already exists" % nm)
+		return
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(old), ProjectSettings.globalize_path(path))
+	if err != OK:
+		_say("couldn't rename (error %d)" % err)
+		return
+	ui_pose_name.text = ""
+	_lists()
+	_say("renamed %s -> %s" % [old.get_file().get_basename(), nm])
 
 
 func _load_pose(path: String) -> void:

@@ -86,6 +86,10 @@ const KINDS := {
 	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true},
 }
 var wep_kind := "metal_bat"
+## the SECOND hand's fitted grip for this kind (data/grips/<kind>.json "second", from Nick's pose by
+## tools/grip_from_pose.gd): its wrist + turn in the weapon's frame, its fingers. G then puts that hand on the
+## shaft exactly so, slid to grip_u. {} = the old rough wrist-behind-the-grip-point reach.
+var grip2 := {}
 var wep_head := []          # [half width, radius] of a hammer head across the tip, or []
 var wep_on := false
 var wep_len := 0.84          # 33 inches, a common adult bat
@@ -370,7 +374,12 @@ func weapon_to_hand(h: String) -> void:
 	unlock_weapon()
 	lock_weapon(h)
 	var own: bool = path.ends_with("/%s.json" % wep_kind)
-	if own and float(g.get("other_hand_m", -1.0)) >= 0.0:
+	grip2 = g.get("second", {}) if own and String(g.get("hand", "")) == h else {}
+	if not grip2.is_empty():
+		grip = true
+		grip_u = float(grip2["u"])
+		apply_grip()
+	elif own and float(g.get("other_hand_m", -1.0)) >= 0.0:
 		grip = true
 		grip_u = float(g["other_hand_m"])
 	elif not own and wep_kind == "staff":
@@ -435,6 +444,7 @@ func set_kind(kind: String) -> void:
 	if not KINDS.has(kind):
 		return
 	wep_kind = kind
+	grip2 = {}
 	var k: Dictionary = KINDS[kind]
 	wep_r_handle = k["r_handle"]
 	wep_r_barrel = k["r_barrel"]
@@ -509,8 +519,67 @@ func apply_grip() -> float:
 	if not (wep_on and grip and wep_hand != ""):
 		return 0.0
 	var other := "hand_l" if wep_hand == "hand_r" else "hand_r"
+	if not grip2.is_empty() and String(grip2.get("hand", "")) == other:
+		return _fit_second(other)
 	var back: Vector3 = ((P[other] - E[other]) as Vector3).normalized() * ((e0[other] - p0[other]) as Vector3).length() * 0.45
 	return reach(other, grip_point() + back)
+
+
+## the second hand into its fitted grip: wrist on its spot (slid along the shaft to grip_u) AND the hand turned
+## round the shaft as Nick held it. reach() places the wrist; then a small search over that arm (upper arm 3 ways,
+## elbow, hand 3 ways) brings the hand's turn in: cost = wrist miss (m) + 0.002 per degree of turn off.
+## Skipped when already within 1 cm and 8 deg (so dragging the body stays fast). Returns the wrist miss (m).
+func _fit_second(h: String) -> float:
+	var x := wep_xform()
+	var q: Quaternion = x[1]
+	var lp := _v(grip2["lpos"]) + Vector3(0, grip_u, 0)
+	var target: Vector3 = (x[0] as Vector3) + q * lp
+	var lr: Array = grip2["lrot"]
+	var want: Quaternion = (q * Quaternion(lr[0], lr[1], lr[2], lr[3])).normalized()
+	var sd := h.right(2)
+	for j in grip2["fingers"]:
+		var a: Array = grip2["fingers"][j]
+		ang[j] = clamp_ang(j, Vector3(a[0], a[1], a[2]))
+	var arm := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, h]
+	var cost := func() -> float:
+		var turn := rad_to_deg((G[h] as Quaternion).angle_to(want))
+		var inside := 0.0   # this arm in the body (or the other arm): never bought with a better grip
+		for c in contacts():
+			if (c[0] as String).trim_prefix("skin:") in arm or c[1] in arm:
+				inside = maxf(inside, c[2])
+		return ((P[h] as Vector3).distance_to(target)) + 0.004 * turn + 5.0 * inside
+	if (P[h] as Vector3).distance_to(target) < 0.01 and rad_to_deg((G[h] as Quaternion).angle_to(want)) < 8.0:
+		return (P[h] as Vector3).distance_to(target)
+	reach(h, target)   # the safe reach (stops at the body)
+	var js := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, h]
+	var best: float = cost.call()
+	for stp in [12.0, 6.0, 3.0, 1.5]:
+		var moved := true
+		var rounds := 0
+		while moved and rounds < 4:
+			moved = false
+			rounds += 1
+			for j in js:
+				for k in 3:
+					if j.begins_with("lowerarm") and k != 0:
+						continue
+					for sg in [-1.0, 1.0]:
+						var v: Vector3 = ang[j]
+						var nv := v
+						nv[k] += sg * stp
+						nv = clamp_ang(j, nv)
+						if nv == v:
+							continue
+						ang[j] = nv
+						fk()
+						var c: float = cost.call()
+						if c < best - 1e-5:
+							best = c
+							moved = true
+						else:
+							ang[j] = v
+							fk()
+	return (P[h] as Vector3).distance_to(target)
 
 
 # ---------------------------------------------------------------- contacts
