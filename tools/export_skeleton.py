@@ -67,10 +67,88 @@ for nm in BODY:
 for d in out["joints"].values():
     if d["parent"] == "Head":
         d["parent"] = "head"
+# each part's thickness, measured on the hero's own mesh: the vertices mostly bound to that bone, their distance to the
+# bone's segment (joint -> end) at rest, the 80th percentile = the capsule radius (step 2: self-collision)
+CHILD = {"pelvis": None, "spine_01": "spine_02", "spine_02": "spine_03", "spine_03": "neck_01", "neck_01": "head",
+         "clavicle_l": "upperarm_l", "upperarm_l": "lowerarm_l", "lowerarm_l": "hand_l", "clavicle_r": "upperarm_r",
+         "upperarm_r": "lowerarm_r", "lowerarm_r": "hand_r", "thigh_l": "calf_l", "calf_l": "foot_l", "foot_l": "ball_l",
+         "thigh_r": "calf_r", "calf_r": "foot_r", "foot_r": "ball_r"}
+JJ = out["joints"]
+skin = j["skins"][0]
+mesh_node = next(i for i, n in enumerate(N) if "mesh" in n and n.get("skin") is not None)
+prim = j["meshes"][N[mesh_node]["mesh"]]["primitives"][0]
+b0 = 20 + jl + 8
+
+
+def acc(ix):
+    ac = j["accessors"][ix]; bv = j["bufferViews"][ac["bufferView"]]
+    n = {"SCALAR": 1, "VEC3": 3, "VEC4": 4}[ac["type"]]
+    fmt = {5126: "f", 5121: "B", 5123: "H"}[ac["componentType"]]
+    sz = struct.calcsize(fmt) * n
+    off = b0 + bv.get("byteOffset", 0) + ac.get("byteOffset", 0); st = bv.get("byteStride", sz)
+    return [struct.unpack_from("<%d%s" % (n, fmt), raw, off + k * st) for k in range(ac["count"])]
+
+
+pos = acc(prim["attributes"]["POSITION"]); jnt = acc(prim["attributes"]["JOINTS_0"]); wts = acc(prim["attributes"]["WEIGHTS_0"])
+mp, mq = world(mesh_node)
+jname = {k: N[ix].get("name") for k, ix in enumerate(skin["joints"])}
+head_top = None
+groups = {}
+for v, jj, ww in zip(pos, jnt, wts):
+    k = max(range(4), key=lambda q: ww[q])
+    nm = jname[jj[k]]
+    nm = "head" if nm == "Head" else nm
+    w = qrot(mq, v); w = (w[0] + mp[0], w[1] + mp[1], w[2] + mp[2])
+    groups.setdefault(nm, []).append(w)
+    if nm == "head" and (head_top is None or w[1] > head_top):
+        head_top = w[1]
+
+
+def seg_d(p, a, b):
+    ab = [b[i] - a[i] for i in range(3)]; ap = [p[i] - a[i] for i in range(3)]
+    L = sum(x * x for x in ab)
+    t = 0.0 if L < 1e-12 else max(0.0, min(1.0, sum(ab[i] * ap[i] for i in range(3)) / L))
+    return math.dist(p, [a[i] + ab[i] * t for i in range(3)])
+
+
+for nm, d in JJ.items():
+    a = d["pos"]
+    if nm == "pelvis":
+        a, b = JJ["thigh_r"]["pos"], JJ["thigh_l"]["pos"]
+    elif nm == "head":
+        b = [a[0], head_top - 0.09, a[2]]; d["end"] = [round(x, 5) for x in b]
+    elif CHILD.get(nm):
+        b = JJ[CHILD[nm]]["pos"]
+    else:
+        b = d.get("end", a)
+    g = groups.get(nm, [])
+    if nm in ("pelvis", "spine_01", "spine_02", "spine_03"):
+        # the trunk is wide, not deep: a capsule running left-right, fitted to a horizontal slice of the WHOLE mesh
+        # between this joint's height and the next one's (the low-poly trunk has too few verts bound per bone),
+        # arms left out (|x| < 0.17). Radius = half the depth (5th..95th percentile), width = the slice's.
+        y0 = JJ["pelvis"]["pos"][1] - 0.08 if nm == "pelvis" else d["pos"][1]
+        y1 = JJ["spine_01"]["pos"][1] if nm == "pelvis" else JJ[CHILD[nm]]["pos"][1]
+        sl = [p for gg in groups.values() for p in gg if y0 <= p[1] <= y1 and abs(p[0]) < 0.17]
+        zs = sorted(p[2] for p in sl); xs = sorted(abs(p[0]) for p in sl)
+        zlo, zhi = zs[int(0.05 * (len(zs) - 1))], zs[int(0.95 * (len(zs) - 1))]
+        r = (zhi - zlo) / 2
+        cz = (zhi + zlo) / 2; cy = (y0 + y1) / 2
+        w = max(0.0, xs[int(0.95 * (len(xs) - 1))] - r)
+        a, b = [-w, cy, cz], [w, cy, cz]
+        g = sl
+    else:
+        ds = sorted(seg_d(p, a, b) for p in g)
+        r = ds[int(0.8 * (len(ds) - 1))] if ds else 0.04
+    if nm.startswith("clavicle"):
+        r = min(r, 0.06)   # the fit takes in the deltoid and sticks out in front of the chest (10-12: stopped a folded arm 8 cm out)
+    d["radius"] = round(r, 4)
+    d["cap"] = [[round(x, 5) for x in a], [round(x, 5) for x in b]]
+    d["verts"] = len(g)
+
 # the pelvis's parent node (the "root" bone, the -90 deg X turn from Z-up): a pose's pelvis is written relative to it
 rp, rq = world(par[names["pelvis"]])
 out["pelvis_parent"] = {"name": N[par[names["pelvis"]]].get("name"), "pos": [round(x, 6) for x in rp],
                         "rot": [round(x, 7) for x in rq]}
 json.dump(out, open(DST, "w"), indent=1)
 for k, d in out["joints"].items():
-    print("%-11s %-11s pos %s" % (k, d["parent"], d["pos"]))
+    print("%-11s r %.3f cap %s (%d verts)" % (k, d.get("radius", 0), d.get("cap"), d.get("verts", 0)))

@@ -63,3 +63,27 @@ byte-safe (the game repo's tools), the clip plays exactly the pose.
 ## A saved pose (moves/pose_*.json)
 Per joint: `bend, side, twist` (degrees), `A` and `G` (quaternions x,y,z,w), `pos` and `end` (metres), `at_limit`.
 Enough to rebuild the pose (angles) AND to check it without running anything (positions).
+
+## Collision (step 2)
+Every part is a capsule: two end points carried by its joint (`cap = P[j] + G[j] * (cap0 - P0[j])`) and a radius. The
+radii come from the mannequin's own mesh (`tools/export_skeleton.py`): a limb = the 80th percentile distance of its
+vertices from the bone; the trunk (pelvis, spine 1-3) = a LEFT-RIGHT capsule fitted to a horizontal slice of the mesh
+(radius = half the chest's depth), because a chest is wide, not deep. Clavicles are clamped to 6 cm.
+- Depth of two capsules: `rA + rB - (shortest distance between their segments)` (Ericson 5.1.9); > 0 = inside.
+- Some parts already overlap in the body's NEUTRAL poses (T-pose, arms down): the shoulder sits in the chest, a hanging
+  arm rests on the thigh. Each pair's **allowance** = its deepest overlap in those poses + 2 mm (0 if it never touches).
+  A **contact** = sinking deeper than the allowance.
+- `set_ang_safe`: a new angle that makes the total contact depth grow is cut back to where it touches (10 halvings
+  along the way from the old angles to the new). Sliders, drags, snaps and reaches all go through it: a part can
+  never be pushed into the body. Red = stopped against another part.
+
+## Reach (drag a hand or foot)
+Two joints in turns, 6 rounds: the elbow/knee bend is found by halving (the shoulder->wrist distance falls as the bend
+grows) to match the shoulder->target distance; then the shoulder/hip turns the wrist onto the target (turn_world).
+Limits and contacts apply at every step, so a hand dragged into the chest stops on it.
+
+## Moves (animations, transitions) - scripts/moves.gd
+Keys = poses at times. Between key i (t0) and i+1 (t1): `u = (t - t0)/(t1 - t0)`, `e = u*u*(3 - 2u)` (ease in and
+out), every ANGLE = lerp(key i, key i+1, e), the hips' offset too. Angles blend inside their ranges, so every
+in-between is a legal pose by construction; contacts in between are listed per frame in the saved move's
+`bad_frames` (never hidden).

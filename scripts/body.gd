@@ -31,6 +31,17 @@ var t_ax := {}         # joint -> twist axis (unit, at rest)
 var b_ax := {}         # joint -> bend axis
 var a_ax := {}         # joint -> side axis
 var lim := {}          # joint -> {"bend": Vector2(min,max), "side": ..., "twist": ..., "r": radius, "say": {...}}
+var cap0 := {}         # part -> [a, b] its capsule's two end points at rest (skeleton.json, fitted to the mesh)
+var rad := {}          # part -> capsule radius (m)
+var pairs := []        # [part, part] checked for contact (all pairs, minus those already touching at rest)
+var allow := {}        # "x|y" -> how deep that pair already sits in the body's neutral poses (m): touching beyond it = contact
+var stick := false     # the stick in the right hand
+var stick_len := 0.9   # metres (the shaft; the head is the last STICK_HEAD of it)
+var grip := false      # the left hand holds the stick too
+var grip_u := 0.35     # where the left hand holds it: 0 = the bottom end, 1 = the top
+const STICK_R := 0.018
+const STICK_HEAD := 0.16
+const HEAD_R := 0.055
 var ang := {}          # joint -> Vector3(bend, side, twist) degrees  (THE POSE)
 var offset := Vector3.ZERO   # pelvis moved from rest (metres)
 
@@ -84,6 +95,49 @@ func load_files(skel_path: String, limits_path: String) -> void:
 		a_ax[j] = t.cross(so).normalized()
 		lim[j] = {"bend": Vector2(L["bend"][0], L["bend"][1]), "side": Vector2(L["side"][0], L["side"][1]),
 			"twist": tw, "r": float(L["r"]), "say": L.get("say", {})}
+		ang[j] = Vector3.ZERO
+		if sk[j].has("cap"):
+			cap0[j] = [_v(sk[j]["cap"][0]), _v(sk[j]["cap"][1])]
+			rad[j] = float(sk[j]["radius"])
+		else:
+			cap0[j] = [p0[j], e0[j]]
+			rad[j] = float(L["r"])
+	# the stick, held in the right fist: through the palm (60% down the hand), out of the fist on the thumb side (at
+	# rest +Z); 12 cm sticks out below the fist
+	var gp: Vector3 = (p0["hand_r"] as Vector3).lerp(e0["hand_r"], 0.6) + Vector3(0, -0.035, 0)
+	var dz := Vector3(0, 0, 1)
+	cap0["stick"] = [gp - dz * 0.12, gp + dz * (stick_len - 0.12 - STICK_HEAD)]
+	cap0["stick_head"] = [gp + dz * (stick_len - 0.12 - STICK_HEAD), gp + dz * (stick_len - 0.12)]
+	rad["stick"] = STICK_R
+	rad["stick_head"] = HEAD_R
+	fk()
+	# contact pairs: every two parts except a part and its own parent/child; the stick only against the body.
+	# A pair may already overlap in the body's NEUTRAL poses (the shoulder sits in the chest, a hanging arm rests on the
+	# thigh): that much is its allowance, measured below; a contact is sinking deeper than that.
+	var names: Array = ORDER + ["stick", "stick_head"]
+	var held := ["hand_r", "lowerarm_r", "hand_l"]
+	for i in names.size():
+		for k in range(i + 1, names.size()):
+			var x: String = names[i]
+			var y: String = names[k]
+			if parent.get(x, "") == y or parent.get(y, "") == x:
+				continue
+			if x.begins_with("stick") and y.begins_with("stick"):
+				continue
+			if (x.begins_with("stick") and y in held) or (y.begins_with("stick") and x in held):
+				continue
+			pairs.append([x, y])
+	# the neutral poses: the T-pose, and arms hanging at the sides
+	var calib := [{}, {"upperarm_r": Vector3(0, -90, 0), "upperarm_l": Vector3(0, -90, 0)},
+		{"upperarm_r": Vector3(0, -95, 0), "upperarm_l": Vector3(0, -95, 0)}]
+	for pose in calib:
+		for j in ORDER:
+			ang[j] = pose.get(j, Vector3.ZERO)
+		fk()
+		for pr in pairs:
+			var key: String = pr[0] + "|" + pr[1]
+			allow[key] = maxf(allow.get(key, 0.0), depth(pr[0], pr[1]) + 0.002)   # pairs apart: 0; touching: + 2 mm
+	for j in ORDER:
 		ang[j] = Vector3.ZERO
 	fk()
 
@@ -159,7 +213,153 @@ func turn_world(j: String, R: Quaternion) -> void:
 		v.z -= 360.0
 	while v.z - old.z < -180.0:
 		v.z += 360.0
+	set_ang_safe(j, v)
+
+
+func set_stick_len(L: float) -> void:
+	stick_len = clampf(L, 0.3, 1.8)
+	var a: Vector3 = cap0["stick"][0]
+	var dz: Vector3 = ((cap0["stick"][1] as Vector3) - a).normalized()
+	var gp := a + dz * 0.12
+	cap0["stick"] = [a, gp + dz * (stick_len - 0.12 - STICK_HEAD)]
+	cap0["stick_head"] = [gp + dz * (stick_len - 0.12 - STICK_HEAD), gp + dz * (stick_len - 0.12)]
+
+
+## a part's capsule now: its rest end points carried by its joint (the stick rides the right hand)
+func cap(part: String) -> Array:
+	var j := "hand_r" if part.begins_with("stick") else part
+	var c: Array = cap0[part]
+	var g: Quaternion = G[j]
+	var pj: Vector3 = P[j]
+	var rj: Vector3 = p0[j]
+	return [pj + g * ((c[0] as Vector3) - rj), pj + g * ((c[1] as Vector3) - rj)]
+
+
+## how far two capsules sink into each other (m): > 0 = inside, < 0 = the gap between them
+func depth(x: String, y: String) -> float:
+	var a: Array = cap(x)
+	var b: Array = cap(y)
+	return float(rad[x]) + float(rad[y]) - seg_seg(a[0], a[1], b[0], b[1])
+
+
+## every contact now: [[part, part, depth], ...] with depth > 0
+func contacts() -> Array:
+	var out := []
+	for pr in pairs:
+		if not stick and ((pr[0] as String).begins_with("stick") or (pr[1] as String).begins_with("stick")):
+			continue
+		var d := depth(pr[0], pr[1]) - float(allow.get(pr[0] + "|" + pr[1], 0.0))
+		if d > 0.0:
+			out.append([pr[0], pr[1], d])
+	return out
+
+
+func penetration() -> float:
+	var t := 0.0
+	for c in contacts():
+		t += float(c[2])
+	return t
+
+
+## the shortest distance between segments p1-q1 and p2-q2 (Ericson, Real-Time Collision Detection 5.1.9)
+static func seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> float:
+	var d1 := q1 - p1
+	var d2 := q2 - p2
+	var r := p1 - p2
+	var a := d1.dot(d1)
+	var e := d2.dot(d2)
+	var f := d2.dot(r)
+	var s := 0.0
+	var t := 0.0
+	if a <= 1e-12 and e <= 1e-12:
+		return r.length()
+	if a <= 1e-12:
+		t = clampf(f / e, 0.0, 1.0)
+	else:
+		var c := d1.dot(r)
+		if e <= 1e-12:
+			s = clampf(-c / a, 0.0, 1.0)
+		else:
+			var b := d1.dot(d2)
+			var den := a * e - b * b
+			s = clampf((b * f - c * e) / den, 0.0, 1.0) if den > 1e-12 else 0.0
+			t = (b * s + f) / e
+			if t < 0.0:
+				t = 0.0
+				s = clampf(-c / a, 0.0, 1.0)
+			elif t > 1.0:
+				t = 1.0
+				s = clampf((b - c) / a, 0.0, 1.0)
+	return ((p1 + d1 * s) - (p2 + d2 * t)).length()
+
+
+## set a joint's angles, but never INTO the body: if the new angles sink parts deeper than before, go only as far as
+## the contact (bisection on the way from the old angles to the new: 10 halvings = 0.1% of the move)
+func set_ang_safe(j: String, v: Vector3) -> bool:
+	var old: Vector3 = ang[j]
+	var pen0 := penetration()
 	set_ang(j, v)
+	if penetration() <= pen0 + 1e-4:
+		return true
+	var target: Vector3 = ang[j]
+	var lo := 0.0
+	var hi := 1.0
+	for i in 10:
+		var m := (lo + hi) * 0.5
+		set_ang(j, old.lerp(target, m))
+		if penetration() <= pen0 + 1e-4:
+			lo = m
+		else:
+			hi = m
+	set_ang(j, old.lerp(target, lo))
+	return false
+
+
+## reach: put a limb's tip (hand_r/l = the wrist, foot_r/l = the ankle) on a target point. Two joints, in turns: the
+## elbow/knee bend sets the shoulder-to-tip DISTANCE (bisection: it falls as the bend grows), then the shoulder/hip
+## turns the tip onto the target (turn_world). Every step goes through the limits and the contacts, so the limb stops
+## where the body stops it. Returns how far the tip ends from the target (m).
+func reach(tip: String, target: Vector3) -> float:
+	var mid: String = parent[tip]
+	var root: String = parent[mid]
+	for it in 6:
+		var want := ((target - P[root]) as Vector3).length()
+		var r: Vector2 = lim[mid]["bend"]
+		var v: Vector3 = ang[mid]
+		var lo := r.x
+		var hi := r.y
+		for k in 14:
+			var m := (lo + hi) * 0.5
+			ang[mid] = Vector3(m, v.y, v.z)
+			fk()
+			if ((P[tip] - P[root]) as Vector3).length() > want:
+				lo = m
+			else:
+				hi = m
+		ang[mid] = v
+		fk()
+		set_ang_safe(mid, Vector3((lo + hi) * 0.5, v.y, v.z))
+		var r1: Vector3 = P[tip] - P[root]
+		var r2: Vector3 = target - P[root]
+		var ax := r1.cross(r2)
+		if ax.length() > 1e-9:
+			turn_world(root, Quaternion(ax.normalized(), r1.angle_to(r2)))
+	return ((P[tip] - target) as Vector3).length()
+
+
+## where the left hand holds the stick (grip_u along it)
+func grip_point() -> Vector3:
+	var c: Array = cap("stick")
+	var h: Array = cap("stick_head")
+	return (c[0] as Vector3).lerp(h[1], clampf(grip_u, 0.0, 1.0))
+
+
+## the left wrist onto the stick: the wrist sits a fist behind the grip point, back along the left hand
+func apply_grip() -> float:
+	if not (stick and grip):
+		return 0.0
+	var back: Vector3 = ((P["hand_l"] - E["hand_l"]) as Vector3).normalized() * ((e0["hand_l"] - p0["hand_l"]) as Vector3).length() * 0.6
+	return reach("hand_l", grip_point() + back)
 
 
 func fk() -> void:
@@ -209,10 +409,24 @@ func to_dict() -> Dictionary:
 		joints[j] = {
 			"bend": snappedf(a.x, 0.01), "side": snappedf(a.y, 0.01), "twist": snappedf(a.z, 0.01),
 			"A": _q(A), "G": _q(g), "pos": _p(P[j]), "end": _p(E[j]), "at_limit": at_limit(j)}
-	return {"offset": _p(offset), "joints": joints}
+	var con := []
+	for c in contacts():
+		con.append([c[0], c[1], snappedf(c[2], 0.0001)])
+	var st := {}
+	if stick:
+		var a: Array = cap("stick")
+		var h: Array = cap("stick_head")
+		st = {"length": stick_len, "bottom": _p(a[0]), "top": _p(h[1]), "left_grip": grip, "grip_u": grip_u}
+	return {"offset": _p(offset), "joints": joints, "stick": st, "contacts": con}
 
 
 func from_dict(d: Dictionary) -> void:
+	var st: Dictionary = d.get("stick", {})
+	stick = not st.is_empty() or not d.has("stick")
+	if not st.is_empty():
+		set_stick_len(float(st.get("length", stick_len)))
+		grip = bool(st.get("left_grip", false))
+		grip_u = float(st.get("grip_u", grip_u))
 	var o: Array = d.get("offset", [0, 0, 0])
 	offset = _v(o)
 	for j in d["joints"]:
