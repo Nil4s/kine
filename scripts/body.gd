@@ -79,6 +79,7 @@ var wep_hand := ""                           # locked to "hand_r" / "hand_l", or
 var wep_lpos := Vector3.ZERO                 # locked: the knob in the hand's frame:  pos = P[h] + G[h] * lpos
 var wep_lrot := Quaternion.IDENTITY          #                                         rot = G[h] * lrot
 var grip := false      # the OTHER hand holds the bat too
+var fast := false      # true while a scene plays: set_ang_safe skips the contact bisection (10-13: 300 ms -> ~ms a frame)
 var grip_u := 0.18     # where it holds it: metres up the bat from the knob
 
 # results of the last fk()
@@ -505,6 +506,9 @@ static func seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> float
 ## set a joint's angles, but never INTO the body: if the new angles sink parts deeper than before, go only as far as
 ## the contact (bisection on the way from the old angles to the new: 10 halvings = 0.1% of the move)
 func set_ang_safe(j: String, v: Vector3) -> bool:
+	if fast:
+		set_ang(j, v)   # playback: limits only (the cook already checked contacts frame by frame)
+		return true
 	var old: Vector3 = ang[j]
 	var pen0 := penetration()
 	set_ang(j, v)
@@ -539,7 +543,7 @@ func reach(tip: String, target: Vector3) -> float:
 		for k in 14:
 			var m := (lo + hi) * 0.5
 			ang[mid] = Vector3(m, v.y, v.z)
-			fk()
+			fk_some([mid, tip])   # only the elbow/knee and the tip move here
 			if ((P[tip] - P[root]) as Vector3).length() > want:
 				lo = m
 			else:
@@ -799,7 +803,7 @@ func flat_foot(sd: String) -> void:
 	for k in 16:
 		var m := (lo + hi) * 0.5
 		ang["foot" + sd] = Vector3(m, v.y, v.z)
-		fk()
+		fk_some(["foot" + sd, "ball" + sd])
 		if (P["ball" + sd] as Vector3).y - (P["foot" + sd] as Vector3).y > want:
 			hi = m
 		else:
@@ -817,7 +821,7 @@ func toes_flat(sd: String) -> void:
 	for k in 16:
 		var m := (lo + hi) * 0.5
 		ang["ball" + sd] = Vector3(m, 0, 0)
-		fk()
+		fk_some(["ball" + sd])
 		if (E["ball" + sd] as Vector3).y - (P["ball" + sd] as Vector3).y > want:
 			hi = m
 		else:

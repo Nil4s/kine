@@ -148,6 +148,13 @@ static func put(B: Body, s: Dictionary) -> void:
 
 
 func apply(B: Body, t: float) -> void:
+	var was_fast := B.fast
+	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
+	_apply(B, t)
+	B.fast = was_fast
+
+
+func _apply(B: Body, t: float) -> void:
 	put(B, sample(t))
 	if on_floor:
 		B.ground()
