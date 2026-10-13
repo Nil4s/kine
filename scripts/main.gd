@@ -801,6 +801,25 @@ func _toggle_second() -> void:
 	_say("second hand on the weapon at %.2f m" % B.grip_u)
 
 
+## the main hand to the weapon's lower end (6 cm of shaft left below the fist), in 3 cm steps so the arm follows
+## smoothly; stops where the arm can't go further
+func _hand_to_end() -> void:
+	if not B.wep_on or B.wep_hand == "":
+		_say("put a weapon in the hand first")
+		return
+	var n := 0
+	while B.hold_u() > 0.09 and n < 60:
+		var d := -minf(0.03, B.hold_u() - 0.06)
+		if slide_body:
+			if not B.slide_hand(d):
+				break
+		else:
+			B.slide_in_hand(-d)
+			B.apply_grip()
+		n += 1
+	_say("main hand at %.2f m from the lower end%s" % [B.hold_u(), "" if B.hold_u() <= 0.1 else " (the arm can't follow further: turn the weapon or the body)"])
+
+
 func _slide_mode() -> void:
 	slide_body = not slide_body
 	ui_slide_btn.text = "Slide , . : body follows" if slide_body else "Slide , . : weapon moves"
@@ -1002,6 +1021,7 @@ func _ui() -> void:
 	_row(lv, [_button("2nd hand on/off (G)", _do.bind(_toggle_second), "the other hand on the shaft; [ ] slide it")])
 	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
 	_row(lv, [ui_slide_btn])
+	_row(lv, [_button("Hand to the end", _do.bind(_hand_to_end), "Nick 10-13: a long weapon swings from its end - the main hand slides to the lower end in 3 cm steps (the body follows, or the weapon moves: the toggle above)")])
 
 	# ---- right: the selected part
 	var rp := PanelContainer.new()
