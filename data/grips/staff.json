@@ -1,5 +1,5 @@
 {
- "_note": "staff grip fitted from Nick's pose moves/bo_guard.json (tools/grip_from_pose.gd)",
+ "_note": "staff grip fitted from Nick's pose moves/bo_two_hand_nick.json (tools/grip_from_pose.gd)",
  "fingers": {
   "index_01_r": [
    67.5,
@@ -170,17 +170,17 @@
   },
   "hand": "hand_l",
   "lpos": [
-   0.0649,
-   -0.0251,
-   0.0633
+   0.0495,
+   -0.0316,
+   0.0681
   ],
   "lrot": [
-   -0.06945,
-   -0.73695,
-   -0.63661,
-   -0.21637
+   -0.06797,
+   -0.7113,
+   -0.63368,
+   -0.29647
   ],
-  "u": 0.935
+  "u": 1.014
  },
  "weapon": "staff"
 }
