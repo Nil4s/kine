@@ -1,5 +1,15 @@
 # Night 10-12 -> 10-13: Nick asleep, "cook some and we go from there"
 
+## Morning summary (read this first)
+- Your 23:00 notes fixed: wrist straight with the forearm (the forearm turns instead), bat out of the chest/shoulders/
+  head (worst contact anywhere 1-4 mm), knees over the toes.
+- Cooked, each with a gif + sheet in moves/cooked/: idle_bat, swing_fore, swing_back, thrust, hit_react, dodge_side,
+  combo3 (forehand -> backhand -> YOUR overhead, legs reworked against real sledgehammer photos), walk_bat.
+- Chest turn at contact fixed the swings' reach: forehand hand miss 12 -> 5 cm, backhand 15.5 -> 1 cm (chest stays
+  closed at a backhand contact).
+- Needs you: (1) your verdict on the gifs; (2) the two-hand swing: pose its keys in the poser, I add legs + timing
+  (4 tries to solve the second hand automatically failed); (3) OK to download real one-hand bat photos to compare.
+
 Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `plans/` -> `scenes/<name>.json`, then
 `python tools/sheet.py <name>` -> `moves/cooked/<name>.gif` + `_sheet.jpg`. Open any scene in the poser's scene list.
 
