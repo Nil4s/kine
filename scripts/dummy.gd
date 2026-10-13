@@ -91,3 +91,62 @@ func hits(S: Scene, B: Body, fps := 60) -> Array:
 			out.append(h)
 		was = not h.is_empty()
 	return out
+
+
+## THE DUMMY IS SOLID (Nick 10-13: "the dummy needs limits ... so when it hits it doesn't go through"). The scene as it
+## plays against the dummy: the swing runs until the weapon meets its surface, then stops there and rebounds.
+##   1. the first hit's frame t1 (60 fps); the surface time tc between t1 - dt and t1 by bisection (10 halvings: the
+##      weapon stops within ~0.1 mm of the skin):  touching(mid) ? hi = mid : lo = mid
+##   2. the cards up to tc are kept (one still holding at tc is cut there); IMPACT = the pose at tc (the weapon on the
+##      surface), held a breath (0.04 s); REBOUND = the pose REBOUND_S before the impact (the strike bounces back the
+##      way it came), 0.10 s; then the scene's last card (the recovery) as authored, 0.45 s.
+## Returns [the landed scene, the hit] or [S, {}] when nothing lands.
+const REBOUND_S := 0.10
+
+
+func landed(S: Scene, B: Body) -> Array:
+	var hs := hits(S, B, 60)
+	if hs.is_empty():
+		return [S, {}]
+	var h: Dictionary = hs[0]
+	var lo := maxf(0.0, float(h["t"]) - 1.0 / 60.0)
+	var hi := float(h["t"])
+	for k in 10:
+		var mid := (lo + hi) * 0.5
+		S.apply(B, mid)
+		if touch(B).is_empty():
+			lo = mid
+		else:
+			hi = mid
+	var tc := lo
+	var L := Scene.new()
+	L.name = S.name
+	L.natural = S.natural
+	var ts: Array = S.times()
+	var last := -1
+	for i in S.cards.size():
+		if float(ts[i][1]) > tc:
+			break
+		var c: Dictionary = S.cards[i].duplicate()
+		c["hold"] = minf(float(c["hold"]), tc - float(ts[i][1]))
+		L.cards.append(c)
+		last = i
+	if last < 0:
+		return [S, {}]
+	var t_last: float = float(ts[last][1]) + float(L.cards[-1]["hold"])
+	S.apply(B, tc)
+	var pc: Dictionary = B.to_dict()
+	S.apply(B, maxf(0.0, tc - REBOUND_S))
+	var pr: Dictionary = B.to_dict()
+	if tc - t_last > 0.005:
+		L.cards.append({"name": "IMPACT", "pose": pc, "move": tc - t_last, "hold": 0.04})
+	else:
+		L.cards[-1]["hold"] = float(L.cards[-1]["hold"]) + 0.04
+	L.cards.append({"name": "rebound", "pose": pr, "move": REBOUND_S, "hold": 0.06})
+	if last < S.cards.size() - 1:
+		var end: Dictionary = S.cards[-1].duplicate()
+		end["move"] = 0.45
+		end.erase("steps")
+		L.cards.append(end)
+	h["t"] = tc
+	return [L, h]

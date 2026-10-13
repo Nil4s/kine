@@ -25,4 +25,8 @@ func _init() -> void:
 			for h in hs:
 				row.append("%.2fs %s (%s) at %.2f m up the weapon, %.1f m/s, %.0f mm in" % [h["t"], h["zone"], h["part"], h["u"], h["speed"], float(h["depth"]) * 1000.0])
 			print("   dummy at %.2f m: %s" % [d, "no hit" if row.is_empty() else "; ".join(row)])
+			if not hs.is_empty():
+				var L: Array = T.landed(S, B)
+				var again: Array = T.hits(L[0], B)
+				print("      solid: stops at %.3fs on the %s, rebounds, %.2f s long; touches after the rebound: %d" % [L[1]["t"], L[1]["zone"], (L[0] as Scene).length(), again.size() - 1])
 	quit()

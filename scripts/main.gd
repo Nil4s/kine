@@ -79,6 +79,13 @@ var dummy_mat: StandardMaterial3D
 var hit_tag: Label3D
 var hit_dot: MeshInstance3D
 var ui_dummy: Label
+var solid := true            # the dummy stops the weapon (the scene plays as landed: impact + rebound)
+var SL: Scene = null         # that landed scene (Dummy.landed), rebuilt when the scene or the dummy changes
+
+
+## the scene the window plays: landed on the solid dummy, or as authored
+func _ps() -> Scene:
+	return SL if dummy_on and solid and SL != null else S
 
 
 func _ready() -> void:
@@ -100,7 +107,7 @@ func _ready() -> void:
 	i = args.find("--t")
 	if i >= 0 and i + 1 < args.size():
 		playhead = float(args[i + 1])
-		S.apply(B, playhead)
+		_ps().apply(B, playhead)
 	i = args.find("--view")
 	if i >= 0 and i + 1 < args.size():
 		_view(int(args[i + 1]))
@@ -151,10 +158,10 @@ func _ready() -> void:
 		target = Vector3(0, 1.05, 0.2)
 		_cam()
 		cam.v_offset = 0.0
-		var n := int(ceil(S.length() * fps))
+		var n := int(ceil(_ps().length() * fps))
 		for f in n + 1:
 			playhead = float(f) / fps
-			S.apply(B, playhead)
+			_ps().apply(B, playhead)
 			_refresh()
 			await get_tree().process_frame
 			await RenderingServer.frame_post_draw
@@ -175,9 +182,9 @@ func _process(dt: float) -> void:
 	_keys_camera(dt)
 	if playing and not S.cards.is_empty():
 		playhead += dt
-		if playhead > S.length():
+		if playhead > _ps().length():
 			playhead = 0.0
-		S.apply(B, playhead)
+		_ps().apply(B, playhead)
 		_refresh()
 
 
@@ -385,6 +392,12 @@ func _dummy_toggle() -> void:
 	_refresh()
 
 
+func _dummy_solid() -> void:
+	solid = not solid
+	_dummy_hits()
+	_refresh()
+
+
 func _dummy_move(d: float) -> void:
 	T.place(clampf(T.dist + d, 0.6, 3.0))
 	_dummy_hits()
@@ -397,7 +410,8 @@ func _dummy_hits() -> void:
 	if not dummy_on:
 		ui_dummy.text = "dummy off"
 		return
-	var txt := "dummy %.2f m out" % T.dist
+	var txt := "dummy %.2f m out, %s" % [T.dist, "SOLID: the weapon stops on it" if solid else "see-through"]
+	SL = null
 	if S.cards.size() >= 2:
 		var HB := Body.new()
 		HB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -408,6 +422,11 @@ the scene: no hit at this range"
 		for x in hs:
 			txt += "
 %.2fs  %s  %.1f m/s  (%.2f m up)" % [x["t"], x["zone"], x["speed"], x["u"]]
+		if solid and not hs.is_empty():
+			var r: Array = T.landed(S, HB)
+			SL = r[0]
+			txt += "
+lands %.2fs on the %s, rebounds; plays %.2f s" % [r[1]["t"], r[1]["zone"], SL.length()]
 	ui_dummy.text = txt
 
 
@@ -1130,6 +1149,7 @@ func _ui() -> void:
 	lv.add_child(_label("TARGET DUMMY  (H)", 14, Color(1.0, 0.6, 0.5)))
 	_row(lv, [_button("On/off", _dummy_toggle, "a second mannequin out front: it turns red where the weapon is in it (H)"),
 		_button("Closer", _dummy_move.bind(-0.25), "the dummy 25 cm closer"), _button("Farther", _dummy_move.bind(0.25), "the dummy 25 cm farther")])
+	_row(lv, [_button("Solid / see-through", _dummy_solid, "solid: the swing stops on the dummy and rebounds (the scene plays as landed); see-through: the scene as you made it")])
 	ui_dummy = _label("dummy %.2f m out" % T.dist, 13, Color(1.0, 0.8, 0.75), true)
 	lv.add_child(ui_dummy)
 
@@ -1266,7 +1286,7 @@ func _ui() -> void:
 			return
 		playhead = v
 		playing = false
-		S.apply(B, playhead)
+		_ps().apply(B, playhead)
 		_refresh())
 	ph.add_child(ui_time)
 	ui_time_lbl = _label("0.00 s", 15)
@@ -1277,7 +1297,7 @@ func _ui() -> void:
 	ui_natural.button_pressed = true
 	ui_natural.focus_mode = Control.FOCUS_NONE
 	ui_natural.tooltip_text = "ON: the hips start first and the hands arrive last, like a real body. OFF: everything moves together."
-	ui_natural.toggled.connect(func(on): S.natural = on; S.apply(B, playhead); _refresh())
+	ui_natural.toggled.connect(func(on): S.natural = on; _dummy_hits(); _ps().apply(B, playhead); _refresh())
 	ph.add_child(ui_natural)
 	ph.add_child(_button("Fix moves through the body", _clear_scene,
 		"where a move between two cards passes an arm or the bat through the body, add a pass-by card that goes around"))
@@ -1363,9 +1383,9 @@ func _panel() -> void:
 		_panel_bat()
 	else:
 		_panel_part()
-	ui_time.max_value = maxf(S.length(), 0.01)
+	ui_time.max_value = maxf(_ps().length(), 0.01)
 	ui_time.value = playhead
-	ui_time_lbl.text = "%.2f / %.2f s" % [playhead, S.length()]
+	ui_time_lbl.text = "%.2f / %.2f s" % [playhead, _ps().length()]
 	ui_play.text = "  Stop (Space)  " if playing else "  Play (Space)  "
 	_sync = false
 
@@ -1489,6 +1509,7 @@ func _bat_from_sliders() -> void:
 func _rebuild_cards() -> void:
 	if ui_cards == null:
 		return
+	_dummy_hits()   # the cards changed: the landed scene and its hits too
 	for c in ui_cards.get_children():
 		c.queue_free()
 	if S.cards.is_empty():
@@ -1576,7 +1597,7 @@ func _card_update(i: int) -> void:
 func _card_del(i: int) -> void:
 	S.cards.remove_at(i)
 	sel_card = mini(sel_card, S.cards.size() - 1)
-	playhead = minf(playhead, S.length())
+	playhead = minf(playhead, _ps().length())
 	_rebuild_cards()
 	_refresh()
 
@@ -1598,7 +1619,7 @@ func _toggle_play() -> void:
 		_say("a scene needs at least 2 cards to play")
 		return
 	playing = not playing
-	if playing and playhead >= S.length() - 0.01:
+	if playing and playhead >= _ps().length() - 0.01:
 		playhead = 0.0
 	_refresh()
 
