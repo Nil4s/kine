@@ -43,7 +43,7 @@
   },
   {
    "name": "rest",
-   "pose": "idle_bat_carry",
+   "pose": "shoulder_rest",
    "move": 0.4,
    "hold": 0.4
   }

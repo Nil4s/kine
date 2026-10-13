@@ -8,20 +8,30 @@ Positions that repeat across animations (guard, wind-up, contact, carry, ...). E
 
 The checks: no joint on the end of its range (finger curl excepted: a fist is full curl), no part inside another,
 both feet on the floor (heels down unless listed in `heel_up`), knees within 25 deg of their feet, hips over the
-line between the ankles, the bat wrist straight (bend +-15, side +-20). `tests/bad_poses/` must always FAIL.
+line between the ankles, the bat wrist straight (bend +-15, side +-20), and the bat never pointed back at its owner
+(Nick: "we as humans don't spin our arms inward pointing a weapon at ourselves"). `tests/bad_poses/` must always FAIL.
+
+**And the visible skin:** `tools/mesh_truth.gd` skins the real mannequin on the CPU and fails any forearm/hand/finger
+vertex behind the trunk, head or hip skin, or one forearm through the other (> 3 mm). The capsules alone missed the
+chest/belly front by 3-4 cm. `--selftest` forces a hand into the chest and must say BAD. A scene file is judged frame by
+frame (30 fps), which names the exact bad frames to fix, so nothing restarts from zero.
 
 Use one in a plan clip: `{"name": "guard", "pose": "guard_bat", "move": 0.4}` (then `set` / `add` / `hand` on top).
 
 | pose | what | look |
 |---|---|---|
 | guard_bat | bat up in front, ready for any one-hand move | ok |
-| idle_bat_carry | bat resting on the right shoulder | elbow rides high behind (Nick to judge) |
+| shoulder_rest | hand up in front of the right shoulder, bat lying back over it | ok |
 | windup_high | forehand load, bat cocked over the right shoulder | ok |
 | forehand_contact | hips + chest turned in, bat level out front, right heel up | ok |
 | backhand_contact | chest still closed, back of the hand leads | ok |
 | overhead_load | Nick's overhead load | ok |
 | strike_lunge | Nick's strike: long lunge, hips hinged, head down, right heel up | ok |
-| walk_step | walking with the bat, left foot landing | ok |
+| walk_bat_down | walking, arm relaxed, bat hanging down at the side, left foot landing | ok |
+| bat_up | bat straight up in front of the right shoulder (a gate between poses) | ok |
+
+Rejected (`poses/rejected/`, the reason inside each): idle_bat_carry and walk_step pointed the bat back into the
+chest. walk_step is kept as `tests/bad_poses/aim_self.json`.
 | hit_flinch | hit in the chest, snapped back | ok |
 | dodge_low | sunk for a side step | knees a little in from the front (Nick to judge) |
 

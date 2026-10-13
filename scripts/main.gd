@@ -97,11 +97,19 @@ func _ready() -> void:
 	if i >= 0 and i + 1 < args.size():
 		yaw = float(args[i + 1])
 		_cam()
+	i = args.find("--pitch")
+	if i >= 0 and i + 1 < args.size():
+		pitch = float(args[i + 1])
+		_cam()
 	i = args.find("--focus")
 	if i >= 0 and i + 1 < args.size():
 		sel = args[i + 1]
 		target = B.P[sel]
 		dist = 0.55
+		_cam()
+	i = args.find("--dist")
+	if i >= 0 and i + 1 < args.size():
+		dist = float(args[i + 1])
 		_cam()
 	_refresh()
 	_rebuild_cards()

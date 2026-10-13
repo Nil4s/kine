@@ -1,0 +1,46 @@
+{
+ "name": "rebuild_carries",
+ "base": "poses/stand.json",
+ "bat_hand": "hand_r",
+ "frame": "chest",
+ "note": "Nick 10-13: no weapon pointed at yourself. The shoulder rest (hand up at the shoulder, bat back over it) and the walking carry (arm relaxed, bat hanging down-forward)",
+ "clips": [
+  {
+   "name": "shoulder rest",
+   "pose": "bat_up",
+   "hand": [
+    -0.2,
+    0.06,
+    0.1
+   ],
+   "aim": [
+    -0.45,
+    0.5,
+    -0.74
+   ],
+   "aim_weight": 0.4,
+   "move": -1,
+   "hold": 0.3
+  },
+  {
+   "name": "walk bat down",
+   "pose": "_walk_legs",
+   "hand": [
+    -0.31,
+    -0.5,
+    0.09
+   ],
+   "aim": [
+    -0.12,
+    -0.55,
+    0.83
+   ],
+   "aim_weight": 0.4,
+   "move": 0.6,
+   "hold": 0.3,
+   "heel_up": [
+    "_r"
+   ]
+  }
+ ]
+}

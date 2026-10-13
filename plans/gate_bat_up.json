@@ -1,0 +1,26 @@
+{
+ "name": "gate_bat_up",
+ "base": "poses/stand.json",
+ "bat_hand": "hand_r",
+ "frame": "chest",
+ "note": "gate pose: hand in front of the right shoulder, bat straight up (between the carry and everything in front)",
+ "clips": [
+  {
+   "name": "bat up",
+   "pose": "guard_bat",
+   "hand": [
+    -0.2,
+    -0.06,
+    0.24
+   ],
+   "aim": [
+    -0.05,
+    1.0,
+    0.05
+   ],
+   "aim_weight": 0.5,
+   "move": -1,
+   "hold": 0.3
+  }
+ ]
+}

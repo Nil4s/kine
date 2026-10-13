@@ -1,0 +1,483 @@
+{
+ "backhand_contact>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "backhand_contact>dodge_low": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "backhand_contact>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "backhand_contact>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "backhand_contact>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "backhand_contact>idle_bat_carry": {
+  "direct_mm": 82.0,
+  "via": "",
+  "worst_mm": 82.0
+ },
+ "backhand_contact>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "backhand_contact>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "backhand_contact>walk_step": {
+  "direct_mm": 104.0,
+  "via": "idle_bat_carry",
+  "worst_mm": 82.0
+ },
+ "backhand_contact>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>backhand_contact": {
+  "direct_mm": 7.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
+ "bat_up>dodge_low": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>idle_bat_carry": {
+  "direct_mm": 92.0,
+  "via": "backhand_contact",
+  "worst_mm": 74.0
+ },
+ "bat_up>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>walk_step": {
+  "direct_mm": 110.0,
+  "via": "forehand_contact",
+  "worst_mm": 92.0
+ },
+ "bat_up>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "dodge_low>backhand_contact": {
+  "direct_mm": 6.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
+ "dodge_low>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "dodge_low>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "dodge_low>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "dodge_low>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "dodge_low>idle_bat_carry": {
+  "direct_mm": 106.0,
+  "via": "backhand_contact",
+  "worst_mm": 82.0
+ },
+ "dodge_low>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "dodge_low>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "dodge_low>walk_step": {
+  "direct_mm": 132.0,
+  "via": "guard_bat",
+  "worst_mm": 82.0
+ },
+ "dodge_low>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>backhand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>dodge_low": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>idle_bat_carry": {
+  "direct_mm": 110.0,
+  "via": "backhand_contact",
+  "worst_mm": 74.0
+ },
+ "forehand_contact>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "forehand_contact>walk_step": {
+  "direct_mm": 89.0,
+  "via": "",
+  "worst_mm": 89.0
+ },
+ "forehand_contact>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "guard_bat>backhand_contact": {
+  "direct_mm": 7.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
+ "guard_bat>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "guard_bat>dodge_low": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "guard_bat>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "guard_bat>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "guard_bat>idle_bat_carry": {
+  "direct_mm": 120.0,
+  "via": "backhand_contact",
+  "worst_mm": 75.0
+ },
+ "guard_bat>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "guard_bat>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "guard_bat>walk_step": {
+  "direct_mm": 117.0,
+  "via": "forehand_contact",
+  "worst_mm": 91.0
+ },
+ "guard_bat>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>backhand_contact": {
+  "direct_mm": 7.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>dodge_low": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>idle_bat_carry": {
+  "direct_mm": 100.0,
+  "via": "backhand_contact",
+  "worst_mm": 75.0
+ },
+ "hit_flinch>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "hit_flinch>walk_step": {
+  "direct_mm": 117.0,
+  "via": "guard_bat",
+  "worst_mm": 78.0
+ },
+ "hit_flinch>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "idle_bat_carry>backhand_contact": {
+  "direct_mm": 104.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>bat_up": {
+  "direct_mm": 123.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>dodge_low": {
+  "direct_mm": 104.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>forehand_contact": {
+  "direct_mm": 81.0,
+  "via": "",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>guard_bat": {
+  "direct_mm": 132.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>hit_flinch": {
+  "direct_mm": 109.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>overhead_load": {
+  "direct_mm": 88.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>strike_lunge": {
+  "direct_mm": 116.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "idle_bat_carry>walk_step": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "idle_bat_carry>windup_high": {
+  "direct_mm": 97.0,
+  "via": "forehand_contact",
+  "worst_mm": 81.0
+ },
+ "overhead_load>backhand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "overhead_load>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "overhead_load>dodge_low": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "overhead_load>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "overhead_load>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "overhead_load>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "overhead_load>idle_bat_carry": {
+  "direct_mm": 107.0,
+  "via": "backhand_contact",
+  "worst_mm": 74.0
+ },
+ "overhead_load>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "overhead_load>walk_step": {
+  "direct_mm": 115.0,
+  "via": "forehand_contact",
+  "worst_mm": 80.0
+ },
+ "overhead_load>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>backhand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>dodge_low": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>idle_bat_carry": {
+  "direct_mm": 71.0,
+  "via": "",
+  "worst_mm": 71.0
+ },
+ "strike_lunge>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "strike_lunge>walk_step": {
+  "direct_mm": 97.0,
+  "via": "idle_bat_carry",
+  "worst_mm": 71.0
+ },
+ "strike_lunge>windup_high": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "walk_step>backhand_contact": {
+  "direct_mm": 96.0,
+  "via": "guard_bat",
+  "worst_mm": 95.0
+ },
+ "walk_step>bat_up": {
+  "direct_mm": 106.0,
+  "via": "guard_bat",
+  "worst_mm": 95.0
+ },
+ "walk_step>dodge_low": {
+  "direct_mm": 113.0,
+  "via": "idle_bat_carry",
+  "worst_mm": 93.0
+ },
+ "walk_step>forehand_contact": {
+  "direct_mm": 96.0,
+  "via": "idle_bat_carry",
+  "worst_mm": 84.0
+ },
+ "walk_step>guard_bat": {
+  "direct_mm": 95.0,
+  "via": "",
+  "worst_mm": 95.0
+ },
+ "walk_step>hit_flinch": {
+  "direct_mm": 118.0,
+  "via": "guard_bat",
+  "worst_mm": 95.0
+ },
+ "walk_step>idle_bat_carry": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "walk_step>overhead_load": {
+  "direct_mm": 139.0,
+  "via": "idle_bat_carry",
+  "worst_mm": 88.0
+ },
+ "walk_step>strike_lunge": {
+  "direct_mm": 120.0,
+  "via": "guard_bat",
+  "worst_mm": 95.0
+ },
+ "walk_step>windup_high": {
+  "direct_mm": 125.0,
+  "via": "idle_bat_carry",
+  "worst_mm": 88.0
+ },
+ "windup_high>backhand_contact": {
+  "direct_mm": 7.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
+ "windup_high>bat_up": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "windup_high>dodge_low": {
+  "via": "",
+  "worst_mm": 1.0
+ },
+ "windup_high>forehand_contact": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "windup_high>guard_bat": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "windup_high>hit_flinch": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "windup_high>idle_bat_carry": {
+  "direct_mm": 95.0,
+  "via": "backhand_contact",
+  "worst_mm": 74.0
+ },
+ "windup_high>overhead_load": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "windup_high>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "windup_high>walk_step": {
+  "direct_mm": 133.0,
+  "via": "forehand_contact",
+  "worst_mm": 88.0
+ }
+}

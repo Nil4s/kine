@@ -63,6 +63,12 @@ var lim := {}          # joint -> {"bend": Vector2(min,max), "side": ..., "twist
 var cap0 := {}         # part -> [a, b] its capsule's two end points at rest (skeleton.json, fitted to the mesh)
 var rad := {}          # part -> capsule radius (m)
 var pairs := []        # [part, part] checked for contact
+## SKIN test (Nick 10-13: a hand flat on the chest and a forearm in the belly passed the capsules). The chest and hips
+## are flat ovals a capsule can't follow (their skin sits 3-4 cm outside the capsules: tools/mesh_fit.gd), so the
+## trunk + head are ALSO tested as their real skin points (data/skin_points.json, one per 2.5 cm) against these parts.
+const SKIN_VS := ["lowerarm_r", "lowerarm_l", "hand_r", "hand_l", "bat_handle", "bat_barrel"]
+var skin := {}          # trunk/head part -> [rest skin points]
+var skin_c := {}        # part -> [rest centre, bound radius] of its points (culls far capsules)
 var allow := {}        # "x|y" -> how deep that pair already sits in the body's neutral poses (m)
 var ang := {}          # joint -> Vector3(bend, side, twist) degrees  (THE POSE)
 var offset := Vector3.ZERO   # pelvis moved from rest (metres)
@@ -183,10 +189,28 @@ func load_files(skel_path: String, limits_path: String) -> void:
 	wep_on = false
 	var calib := [{}, {"upperarm_r": Vector3(0, -90, 0), "upperarm_l": Vector3(0, -90, 0)},
 		{"upperarm_r": Vector3(0, -95, 0), "upperarm_l": Vector3(0, -95, 0)}]
+	if FileAccess.file_exists("res://data/skin_points.json"):
+		var sp: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/skin_points.json"))
+		for part in sp:
+			var pts := []
+			var c := Vector3.ZERO
+			for q in sp[part]:
+				pts.append(Vector3(q[0], q[1], q[2]))
+				c += pts[-1]
+			c /= maxf(1.0, pts.size())
+			var r := 0.0
+			for q in pts:
+				r = maxf(r, (q - c).length())
+			skin[part] = pts
+			skin_c[part] = [c, r]
 	for pose in calib:
 		for j in ORDER:
 			ang[j] = pose.get(j, Vector3.ZERO)
 		fk()
+		for sc in skin_raw():
+			if not (sc[1] in WEAPON):
+				var sk_key: String = "skin:" + sc[0] + "|" + sc[1]
+				allow[sk_key] = maxf(allow.get(sk_key, 0.0), float(sc[2]) + 0.002)
 		for pr in pairs:
 			if pr[0] in WEAPON or pr[1] in WEAPON:
 				continue
@@ -461,6 +485,45 @@ func contacts() -> Array:
 		var d := depth(pr[0], pr[1]) - float(allow.get(pr[0] + "|" + pr[1], 0.0))
 		if d > 0.001:   # under 1 mm is touching, not inside
 			out.append([pr[0], pr[1], d])
+	for sc in skin_raw():
+		var d2: float = float(sc[2]) - float(allow.get("skin:" + sc[0] + "|" + sc[1], 0.0))
+		if d2 > 0.001:
+			out.append(["skin:" + sc[0], sc[1], d2])
+	return out
+
+
+## the trunk + head skin points vs the forearms, hands and bat: [[part, other, deepest point inside (m)], ...] (raw)
+func skin_raw() -> Array:
+	var out := []
+	if skin.is_empty():
+		return out
+	var caps := {}
+	for y in SKIN_VS:
+		if y in WEAPON and not wep_on:
+			continue
+		caps[y] = cap(y)
+	for part in skin:
+		var g: Quaternion = G[part]
+		var pj: Vector3 = P[part]
+		var rj: Vector3 = p0[part]
+		var cen: Vector3 = pj + g * ((skin_c[part][0] as Vector3) - rj)
+		var br: float = skin_c[part][1]
+		for y in caps:
+			var a: Vector3 = caps[y][0]
+			var b: Vector3 = caps[y][1]
+			var r: float = rad[y]
+			var ab := b - a
+			var L2 := maxf(1e-9, ab.length_squared())
+			var tc := clampf((cen - a).dot(ab) / L2, 0.0, 1.0)
+			if (cen - (a + ab * tc)).length() > br + r:
+				continue
+			var deep := 0.0
+			for q in skin[part]:
+				var w: Vector3 = pj + g * ((q as Vector3) - rj)
+				var t := clampf((w - a).dot(ab) / L2, 0.0, 1.0)
+				deep = maxf(deep, r - (w - (a + ab * t)).length())
+			if deep > 0.0:
+				out.append([part, y, deep])
 	return out
 
 

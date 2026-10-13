@@ -14,6 +14,11 @@ extends SceneTree
 ##   BALANCE   the hips (pelvis, seen from above) within 12 cm of the line between the two ankles, and not past
 ##             either ankle by more than 15 % of the stance
 ##   WRIST     the bat hand straight with the forearm: bend within +-15, side within +-20 (twist = the forearm turn, free)
+##   AIM       the bat never points back into its owner (Nick 10-13: "we as humans don't spin our arms to the inside
+##             pointing a weapon at ourselves, it's a nonsense position"): from the knob, the tip may not point within
+##             50 deg of the own chest, hips or head while its line passes within 30 cm of them
+## The VISIBLE skin is judged too, by tools/mesh_truth.gd (the capsules can't see the chest/hip front): a library pose
+## passes both.
 
 const LIMITS_SKIP := ["root", "ik_foot_root", "ik_hand_root"]
 const FINGERS := ["thumb", "index", "middle", "ring", "pinky"]   # a fist IS the fingers at full curl: not strain
@@ -204,4 +209,14 @@ static func check(B: Body, d: Dictionary) -> Array:
 		var v: Vector3 = B.ang[B.wep_hand]
 		if absf(v.x) > 15.5 or absf(v.y) > 20.5:
 			fails.append("bat wrist bent (bend %.0f, side %.0f)" % [v.x, v.y])
+		# AIM: not at yourself
+		var k: Vector3 = B.cap("bat_handle")[0]
+		var t: Vector3 = B.cap("bat_barrel")[1]
+		var dv := (t - k).normalized()
+		for part in ["spine_03", "pelvis", "head"]:
+			var c: Vector3 = (B.P[part] as Vector3) + (Vector3(0, 0.08, 0) if part == "head" else Vector3.ZERO)
+			var ang := rad_to_deg(dv.angle_to(c - k))
+			var near := (c - (k + dv * clampf((c - k).dot(dv), 0.0, (t - k).length()))).length()
+			if ang < 50.0 and near < 0.30:
+				fails.append("bat points at its owner's %s (%.0f deg, passes %.0f cm off)" % [part, ang, near * 100.0])
 	return fails
