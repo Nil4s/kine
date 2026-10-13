@@ -75,7 +75,18 @@ var allow := {}        # "x|y" -> how deep that pair already sits in the body's 
 var ang := {}          # joint -> Vector3(bend, side, twist) degrees  (THE POSE)
 var offset := Vector3.ZERO   # pelvis moved from rest (metres)
 
-# the weapon: a metal bat. Its own frame: the knob at the origin, the bat along its +Y to the tip.
+# the weapon. Its own frame: the butt end (the bat's knob) at the origin, the shaft along its +Y to the tip.
+## KINDS (Nick 10-13: "a long bat so I can position hands on a long hammer or a staff; Ghost is kind of a ninja"):
+##   len m, handle = where the shaft's first capsule ends (m from the butt, <0 = len + it), r_handle / r_barrel = radii,
+##   head = [half width across, radius] for a hammer head set ACROSS the shaft at the tip ([] = none), aim = the AIM rule
+##   applies (a staff is held in the middle and both ends strike: pointing one end back past you is how it's held)
+const KINDS := {
+	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true},
+	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false},
+	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true},
+}
+var wep_kind := "metal_bat"
+var wep_head := []          # [half width, radius] of a hammer head across the tip, or []
 var wep_on := false
 var wep_len := 0.84          # 33 inches, a common adult bat
 var wep_handle := 0.40       # knob -> where the barrel starts to swell
@@ -329,7 +340,9 @@ func unlock_weapon() -> void:
 ## the STANDARD grip (data/grips/metal_bat.json, fitted by Nick 10-12): the bat's place in the hand + the finger angles.
 ## Left hand = the mirror: x of the position flipped, rotation (x, y, z, w) -> (x, -y, -z, w), finger twist negated.
 func weapon_to_hand(h: String) -> void:
-	var path := "res://data/grips/metal_bat.json"
+	var path := "res://data/grips/%s.json" % wep_kind
+	if not FileAccess.file_exists(path):
+		path = "res://data/grips/metal_bat.json"   # the same hand round a shaft until Nick fits this kind's own
 	if not FileAccess.file_exists(path):
 		_weapon_to_hand_rough(h)
 		return
@@ -356,6 +369,20 @@ func weapon_to_hand(h: String) -> void:
 	wep_lrot = q
 	unlock_weapon()
 	lock_weapon(h)
+	var own: bool = path.ends_with("/%s.json" % wep_kind)
+	if own and float(g.get("other_hand_m", -1.0)) >= 0.0:
+		grip = true
+		grip_u = float(g["other_hand_m"])
+	elif not own and wep_kind == "staff":
+		# no staff grip fitted yet: the bat hand a third of the way up, the other hand on at two thirds
+		grip_u = 0.0
+		slide_in_hand(0.6)
+		grip = true
+		grip_u = 1.2
+	elif not own and wep_kind == "long_hammer":
+		# no hammer grip yet: the bat hand at the butt, the other hand 40 cm up (a sledge hold)
+		grip = true
+		grip_u = 0.4
 
 
 ## the old rough start (no grip file): the bat through the palm, out on the thumb side, knob 6 cm below, locked
@@ -397,8 +424,42 @@ func move_weapon(dp: Vector3, R: Quaternion) -> void:
 
 
 func set_weapon_len(L: float) -> void:
-	wep_len = clampf(L, 0.4, 1.6)
-	wep_handle = wep_len * 0.48
+	wep_len = clampf(L, 0.4, 2.2)
+	var k: Dictionary = KINDS[wep_kind]
+	var hh: float = k["handle"]
+	wep_handle = (wep_len + hh) if hh < 0.0 else wep_len * hh / float(k["len"])
+
+
+## switch the weapon: its size, radii, head (the grip stays: the hand holds the shaft the same way)
+func set_kind(kind: String) -> void:
+	if not KINDS.has(kind):
+		return
+	wep_kind = kind
+	var k: Dictionary = KINDS[kind]
+	wep_r_handle = k["r_handle"]
+	wep_r_barrel = k["r_barrel"]
+	wep_head = k["head"]
+	rad["bat_handle"] = wep_r_handle
+	rad["bat_barrel"] = wep_r_barrel if wep_head.is_empty() else float(wep_head[1])
+	set_weapon_len(k["len"])
+	grip_u = clampf(grip_u, 0.0, wep_len)
+
+
+## slide the weapon in the bat hand: + = the hand moves toward the tip (the butt sticks out further behind it)
+func slide_in_hand(d: float) -> void:
+	if wep_hand == "":
+		return
+	wep_lpos += wep_lrot * Vector3(0, -d, 0)
+	grip_u = clampf(grip_u + d, 0.0, wep_len)
+
+
+## where the bat hand holds the shaft (m from the butt)
+func hold_u() -> float:
+	if wep_hand == "":
+		return 0.0
+	# the hand's centre seen in the weapon frame
+	var x := wep_xform()
+	return ((x[1] as Quaternion).inverse() * ((P[wep_hand] as Vector3) - (x[0] as Vector3))).y
 
 
 ## a point on the bat, d metres up from the knob
@@ -459,6 +520,12 @@ func cap(part: String) -> Array:
 	if part == "bat_handle":
 		return [wep_point(wep_r_handle), wep_point(wep_handle)]
 	if part == "bat_barrel":
+		if not wep_head.is_empty():
+			# the hammer head: across the shaft at the tip (along the weapon's own X)
+			var x := wep_xform()
+			var c := wep_point(wep_len - float(wep_head[1]))
+			var side: Vector3 = (x[1] as Quaternion) * Vector3(float(wep_head[0]) - float(wep_head[1]), 0, 0)
+			return [c - side, c + side]
 		return [wep_point(wep_handle), wep_point(wep_len - wep_r_barrel)]
 	var c: Array = cap0[part]
 	var jn: String = WIDE[part][0] if WIDE.has(part) else part
@@ -1025,7 +1092,7 @@ func to_dict() -> Dictionary:
 	var w := {}
 	if wep_on:
 		var x := wep_xform()
-		w = {"kind": "metal_bat", "length": wep_len, "hand": wep_hand, "knob": _p(x[0]), "tip": _p(wep_point(wep_len)),
+		w = {"kind": wep_kind, "length": wep_len, "hand": wep_hand, "knob": _p(x[0]), "tip": _p(wep_point(wep_len)),
 			"rot": _q(x[1]), "local_pos": _p(wep_lpos), "local_rot": _q(wep_lrot), "two_hand_grip": grip, "grip_m": grip_u}
 	return {"offset": _p(offset), "joints": joints, "weapon": w, "contacts": con}
 
@@ -1044,6 +1111,7 @@ func from_dict(d: Dictionary) -> void:
 	var w: Dictionary = d.get("weapon", {})
 	wep_on = not w.is_empty()
 	if wep_on:
+		set_kind(String(w.get("kind", "metal_bat")))
 		set_weapon_len(float(w.get("length", wep_len)))
 		var r: Array = w["rot"]
 		wep_rot = Quaternion(r[0], r[1], r[2], r[3])

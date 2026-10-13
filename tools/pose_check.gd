@@ -211,9 +211,10 @@ static func check(B: Body, d: Dictionary) -> Array:
 			fails.append("bat wrist bent (bend %.0f, side %.0f)" % [v.x, v.y])
 		# AIM: not at yourself
 		var k: Vector3 = B.cap("bat_handle")[0]
-		var t: Vector3 = B.cap("bat_barrel")[1]
+		var t: Vector3 = B.wep_point(B.wep_len)   # the tip (a hammer's head capsule lies across it)
 		var dv := (t - k).normalized()
-		for part in ["spine_03", "pelvis", "head"]:
+		# a staff is held in the middle and strikes with both ends: one end back past you is how it's carried
+		for part in (["spine_03", "pelvis", "head"] if Body.KINDS[B.wep_kind]["aim"] else []):
 			var c: Vector3 = (B.P[part] as Vector3) + (Vector3(0, 0.08, 0) if part == "head" else Vector3.ZERO)
 			var ang := rad_to_deg(dv.angle_to(c - k))
 			var near := (c - (k + dv * clampf((c - k).dot(dv), 0.0, (t - k).length()))).length()

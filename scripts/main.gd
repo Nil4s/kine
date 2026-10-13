@@ -28,6 +28,7 @@ var bone_idx := {}
 var bat_handle: MeshInstance3D
 var bat_barrel: MeshInstance3D
 var bat_knob: MeshInstance3D
+var wep_mats := {}   # "metal" / "tape" / "wood" / "steel": the weapon's looks per kind
 var tag: Label3D
 var show_caps := false
 var sel := "upperarm_r"
@@ -79,6 +80,10 @@ func _ready() -> void:
 	var i := args.find("--pose")
 	if i >= 0 and i + 1 < args.size():
 		_load_pose(args[i + 1])
+	i = args.find("--kind")
+	if i >= 0 and i + 1 < args.size():
+		_kind(args[i + 1])
+		B.apply_grip()
 	i = args.find("--scene")
 	if i >= 0 and i + 1 < args.size():
 		_load_scene(args[i + 1])
@@ -282,6 +287,14 @@ func _body() -> void:
 	bat_handle = _cyl(B.wep_r_handle, B.wep_r_handle, tape)
 	bat_barrel = _cyl(B.wep_r_barrel, B.wep_r_handle, metal)
 	bat_knob = _cyl(B.wep_r_handle * 1.6, B.wep_r_handle * 1.6, tape)
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.36, 0.24, 0.14)
+	wood.roughness = 0.75
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.3, 0.31, 0.33)
+	steel.metallic = 0.9
+	steel.roughness = 0.35
+	wep_mats = {"metal": metal, "tape": tape, "wood": wood, "steel": steel}
 	tag = Label3D.new()
 	tag.pixel_size = 0.0009
 	tag.fixed_size = true
@@ -291,6 +304,29 @@ func _body() -> void:
 	tag.outline_size = 8
 	tag.font_size = 30
 	add_child(tag)
+
+
+## the weapon's radii + materials for its kind
+func _wep_look() -> void:
+	var hm := bat_handle.mesh as CylinderMesh
+	var bm := bat_barrel.mesh as CylinderMesh
+	hm.top_radius = B.wep_r_handle
+	hm.bottom_radius = B.wep_r_handle
+	if B.wep_kind == "staff":
+		bm.top_radius = B.wep_r_handle
+		bm.bottom_radius = B.wep_r_handle
+		bat_handle.material_override = wep_mats["wood"]
+		bat_barrel.material_override = wep_mats["wood"]
+	elif not B.wep_head.is_empty():
+		bm.top_radius = float(B.wep_head[1])
+		bm.bottom_radius = float(B.wep_head[1])
+		bat_handle.material_override = wep_mats["tape"]
+		bat_barrel.material_override = wep_mats["steel"]
+	else:
+		bm.top_radius = B.wep_r_barrel
+		bm.bottom_radius = B.wep_r_handle
+		bat_handle.material_override = wep_mats["tape"]
+		bat_barrel.material_override = wep_mats["metal"]
 
 
 func _cyl(top: float, bottom: float, m: Material) -> MeshInstance3D:
@@ -350,9 +386,23 @@ func _refresh() -> void:
 	for m in [bat_handle, bat_barrel, bat_knob]:
 		m.visible = B.wep_on
 	if B.wep_on:
-		_place(bat_knob, B.wep_point(0.0), B.wep_point(0.012), 0.0, false)
-		_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_handle), 0.0, false)
-		_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
+		_wep_look()
+		if B.wep_kind == "staff":
+			# one even wooden shaft (the two halves drawn the same), no knob
+			bat_knob.visible = false
+			_place(bat_handle, B.wep_point(0.0), B.wep_point(B.wep_handle), 0.0, false)
+			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
+		elif not B.wep_head.is_empty():
+			# the long hammer: a taped shaft to the head, the steel head across the tip
+			_place(bat_knob, B.wep_point(0.0), B.wep_point(0.012), 0.0, false)
+			_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_len - 0.02), 0.0, false)
+			var hc: Array = B.cap("bat_barrel")
+			var hd: Vector3 = ((hc[1] as Vector3) - (hc[0] as Vector3)).normalized() * float(B.wep_head[1])
+			_place(bat_barrel, (hc[0] as Vector3) - hd, (hc[1] as Vector3) + hd, 0.0, false)
+		else:
+			_place(bat_knob, B.wep_point(0.0), B.wep_point(0.012), 0.0, false)
+			_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_handle), 0.0, false)
+			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 	var c2: Array = B.cap(sel)
 	tag.visible = not clean
 	for d in dots.values():
@@ -508,6 +558,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_G: _do(func(): B.grip = not B.grip)
 			KEY_BRACKETLEFT: _do(func(): B.grip_u = clampf(B.grip_u - 0.03, 0.0, B.wep_len))
 			KEY_BRACKETRIGHT: _do(func(): B.grip_u = clampf(B.grip_u + 0.03, 0.0, B.wep_len))
+			KEY_COMMA: _do(func(): B.slide_in_hand(-0.03))
+			KEY_PERIOD: _do(func(): B.slide_in_hand(0.03))
 			KEY_MINUS: _do(func(): B.set_weapon_len(B.wep_len - 0.05))
 			KEY_EQUAL: _do(func(): B.set_weapon_len(B.wep_len + 0.05))
 			KEY_SPACE: _toggle_play()
@@ -708,10 +760,24 @@ func _save_grip() -> void:
 		if j.ends_with(sd):
 			var v: Vector3 = B.ang[j]
 			fing[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
-	var d := {"_note": "standard metal bat grip, saved from the poser (body.gd weapon_to_hand)", "weapon": "metal_bat",
-		"hand": h, "local_pos": Body._p(B.wep_lpos), "local_rot": Body._q(B.wep_lrot), "fingers": fing}
-	_write("res://data/grips/metal_bat.json", d)
-	_say("saved as the standard bat grip")
+	var d := {"_note": "standard %s grip, saved from the poser (body.gd weapon_to_hand)" % B.wep_kind, "weapon": B.wep_kind,
+		"hand": h, "local_pos": Body._p(B.wep_lpos), "local_rot": Body._q(B.wep_lrot), "fingers": fing,
+		"other_hand_m": B.grip_u if B.grip else -1.0}
+	_write("res://data/grips/%s.json" % B.wep_kind, d)
+	_say("saved as the standard %s grip (where the main hand holds + the fingers%s)" % [B.wep_kind.replace("_", " "), ", + the other hand" if B.grip else ""])
+
+
+## switch the weapon kind; if one is in a hand, it goes back in that hand with this kind's grip
+func _kind(k: String) -> void:
+	var h := B.wep_hand
+	B.set_kind(k)
+	if B.wep_on and h != "":
+		B.weapon_to_hand(h)
+	elif not B.wep_on:
+		B.weapon_to_hand("hand_r")
+	sel = "bat_handle"
+	_say({"metal_bat": "metal bat (0.84 m)", "staff": "staff / bo (1.8 m): slide your hand along it with , and .  and put the other hand on with G, [ ]",
+		"long_hammer": "long hammer (1.1 m, steel head across the tip): G for both hands, [ ] to slide the other hand"}[k])
 
 
 # ---------------------------------------------------------------- words
@@ -947,12 +1013,16 @@ func _ui() -> void:
 	_row(vb, [_label("left:  ", 15), _button("Open", _do.bind(_fingers.bind("l", "open"))), _button("Grip", _do.bind(_fingers.bind("l", "grip"))),
 		_button("Fist", _do.bind(_fingers.bind("l", "fist")))])
 	vb.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", 13, Color(1, 1, 1, 0.55), true))
-	_section(vb, "BAT")
-	_row(vb, [_button("Bat in right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("Bat in left hand", _do.bind(_bat_put.bind("hand_l")))])
+	_section(vb, "WEAPON")
+	_row(vb, [_button("Metal bat", _do.bind(_kind.bind("metal_bat"))), _button("Staff (bo)", _do.bind(_kind.bind("staff"))),
+		_button("Long hammer", _do.bind(_kind.bind("long_hammer")))])
+	_row(vb, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
+	_row(vb, [_button("Main hand down the shaft (,)", _do.bind(B.slide_in_hand.bind(-0.03))),
+		_button("Main hand up the shaft (.)", _do.bind(B.slide_in_hand.bind(0.03)))])
 	_row(vb, [_button("Lock bat to hand / Free it (L)", _do.bind(_bat_lock)), _button("Remove bat", _do.bind(_bat_remove))])
 	_row(vb, [_button("Other hand on the bat (G)", _do.bind(func(): B.grip = not B.grip)),
 		_button("Save grip as standard", _save_grip, "the bat's place in the hand + the fingers become the grip 'Bat in hand' uses")])
-	vb.add_child(_label("[ ] slide the other hand along the bat,  - = change the bat's length", 13, Color(1, 1, 1, 0.55), true))
+	vb.add_child(_label("[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length", 13, Color(1, 1, 1, 0.55), true))
 	_section(vb, "NUMBERS")
 	ui_math_btn = _button("Show the math (for Claude)", func(): ui_math.visible = not ui_math.visible)
 	vb.add_child(ui_math_btn)
