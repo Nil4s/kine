@@ -105,6 +105,12 @@ func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
 	for j in a["ang"]:
 		var e := _ease(u, level(j))
 		ang[j] = (a["ang"][j] as Vector3).lerp(b["ang"].get(j, a["ang"][j]), e)
+		if j == "pelvis":
+			# the WHOLE BODY's turn takes the short way round (Nick 10-13: a spinning staff swing): keys at 0, 120, -120, 0
+			# make one full turn; a plain lerp from 170 to -170 would swing back 340 the long way
+			var tz: float = (a["ang"][j] as Vector3).z
+			var tb: float = (b["ang"].get(j, a["ang"][j]) as Vector3).z
+			ang[j].z = wrapf(tz + wrapf(tb - tz, -180.0, 180.0) * e, -180.0, 180.0)
 	var eh := _ease(u, 0)
 	var w: Dictionary = a["weapon"].duplicate()
 	var wb: Dictionary = b["weapon"]
