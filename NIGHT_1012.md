@@ -43,3 +43,4 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
   hinges 30-45 deg forward at the hips and drops the head; ours stood upright on shallow knees. combo3's copy of Nick's
   strike: stride 26 -> 38 cm, front knee +22, hinge +16 (pelvis/spine), head +10; his arms untouched, his scene untouched.
   Side sheet: moves/cooked/combo3_side_sheet.jpg. New graze: bat handle vs front thigh 9 mm on the way down.
+- 01:5x tried pulling the forehand/backhand CONTACT hands in (12-15 cm misses -> 1 cm): the bat then met the target tilted ~30 deg up instead of level; reverted. Hand spot vs bat direction trade off with a straight wrist; the stance/chest turn has to change, not the hand target.
