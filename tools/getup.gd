@@ -83,16 +83,16 @@ func _init() -> void:
 	print("FROM THE BACK")
 	var lie := key({"_name": "lie (back)", "pelvis": [-90, 0, 0], "neck_01": [10, 0, 0],
 		"thigh_l": [2, 6, 0], "thigh_r": [2, 6, 0], "calf_l": [6, 0, 0], "calf_r": [4, 0, 0], "foot_l": [-25, 8, 0], "foot_r": [-25, 8, 0],
-		"upperarm_l": [-8, -86, 0], "upperarm_r": [-8, -86, 0], "lowerarm_l": [10, 0, 0], "lowerarm_r": [10, 0, 0]})
+		"upperarm_l": [-8, -72, 0], "upperarm_r": [-8, -72, 0], "lowerarm_l": [10, 0, 0], "lowerarm_r": [10, 0, 0]})
 	var sit := key({"_name": "sit up", "pelvis": [-30, 0, 8], "spine_01": [18, 0, 0], "spine_02": [16, 0, 0], "spine_03": [12, 0, 0], "neck_01": [8, 0, 0],
 		"thigh_l": [105, 6, 0], "thigh_r": [60, 8, 0], "calf_l": [90, 0, 0], "calf_r": [5, 0, 0], "foot_l": [-10, 0, 0], "foot_r": [-25, 5, 0],
 		"upperarm_l": [55, -45, 0], "lowerarm_l": [35, 0, 0], "upperarm_r": [-30, -60, 0], "lowerarm_r": [8, 0, 0]},
-		{"hand_r": Vector2(-0.24, -0.22)})
+		{"hand_r": Vector2(-0.34, -0.20)})
 	var kneel := key({"_name": "on one knee", "pelvis": [12, 0, -15], "spine_01": [10, 0, 0], "spine_02": [8, 0, 0], "neck_01": [5, 0, 0],
 		"thigh_l": [102, 5, 0], "calf_l": [90, 0, 0], "foot_l": [-10, 0, 0],
 		"thigh_r": [12, 5, 0], "calf_r": [90, 0, 0], "foot_r": [-40, 0, 0],
 		"upperarm_l": [40, -55, 0], "lowerarm_l": [45, 0, 0], "upperarm_r": [30, -70, 0], "lowerarm_r": [10, 0, 0]},
-		{"hand_r": Vector2(-0.30, 0.18)})
+		{"hand_r": Vector2(-0.42, 0.22)})
 	scene("getup_back", [{"name": "lie (back)", "pose": lie, "move": 0.0, "hold": 0.1},
 		{"name": "sit up", "pose": sit, "move": 0.5, "hold": 0.05},
 		{"name": "on one knee", "pose": kneel, "move": 0.45, "hold": 0.05}])
