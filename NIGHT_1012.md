@@ -35,3 +35,7 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
   straight. Sheets re-recorded.
 - 00:25 combo3 cooked: 12 keys, 4.7 s, my forehand + backhand then Nick's four strike cards at his exact angles; worst contact 2 mm.
 - 00:4x walk_bat: half step + 4 strides of 0.6 m + feet together, 3.15 s, 0 bad frames. First cut was a stiff march (no knee bend -> ground() stood the hips tall); soft knees in the plan + per-clip "lift" (0.13 m) fixed it.
+- 01:2x swing_level try 4 (the one-hand sweep + "grip spot within the left arm's reach"): right hand on target, left hand misses
+  3-53 cm (crossing to the knob the left shoulder hits its limits; distance can't see that); solving the left arm inside
+  the search made one cook take 25+ min. PARKED for good on this route: the two-hand swing needs Nick's posed keys (his
+  poser), then the cook only plants the legs and checks contacts, like combo3's overhead.

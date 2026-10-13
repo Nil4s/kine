@@ -85,13 +85,10 @@ func _init() -> void:
 					print("  ! %s: the hand target is %.2f m from the shoulder (the arm reaches ~0.49)" % [c["name"], dd])
 		if B.wep_hand != "" and (c.has("hand") or c.has("aim")):
 			# quick two-bone reach + wrist aim first, then both arms searched together (contact-aware)
-			for r in 2 if B.grip else 0:
-				if c.has("hand"):
-					B.reach(B.wep_hand, at)
-			if not B.grip:
-				B.sweep_bat_arm(at, _v(c.get("aim", [0, 1, 0])), c.has("hand"), c.has("aim"), float(c.get("aim_weight", plan.get("aim_weight", 0.15))))
-			var res := B.hold_bat(at, _v(c.get("aim", [0, 1, 0])), c.has("hand"), c.has("aim")) if B.grip else 				[((B.P[B.wep_hand] as Vector3) - at).length() if c.has("hand") else 0.0,
-				rad_to_deg(B.wep_axis().angle_to(_v(c.get("aim", [0, 1, 0])).normalized())) if c.has("aim") else 0.0, 0.0]
+			B.sweep_bat_arm(at, _v(c.get("aim", [0, 1, 0])), c.has("hand"), c.has("aim"), float(c.get("aim_weight", plan.get("aim_weight", 0.15))))
+			var res := [((B.P[B.wep_hand] as Vector3) - at).length() if c.has("hand") else 0.0,
+				rad_to_deg(B.wep_axis().angle_to(_v(c.get("aim", [0, 1, 0])).normalized())) if c.has("aim") else 0.0,
+				B.apply_grip()]
 			miss = res[0]
 			aim = res[1]
 			gm = res[2]

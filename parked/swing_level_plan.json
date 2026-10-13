@@ -332,5 +332,6 @@
    ]
   }
  ],
- "frame": "chest"
+ "frame": "chest",
+ "aim_weight": 0.3
 }

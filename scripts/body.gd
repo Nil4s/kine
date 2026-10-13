@@ -613,6 +613,7 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 	var lu: Dictionary = lim[ua]
 	var ll: Dictionary = lim[la]
 	var keep := ang.duplicate()
+	var ou := "upperarm" + ("_l" if sd == "_r" else "_r")
 	var best := []   # [score, ua, la, hand]
 	# the pairs this arm or the bat take part in (the rest of the body doesn't move while sweeping)
 	var mine := [ua, la, h] + WEAPON
@@ -641,6 +642,9 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 								c += aw * wep_axis().angle_to(dir)
 							for pr in prs:
 								c += 10.0 * maxf(0.0, depth(pr[0], pr[1]) - pr[2] - 0.001)
+							if grip:
+								# two hands: the other hand has to reach the handle (its arm is ~0.49 m long)
+								c += 2.0 * maxf(0.0, (grip_point() - (P[ou] as Vector3)).length() - 0.42)
 							if best.size() < 6 or c < best[-1][0]:
 								best.append([c, ang[ua], ang[la], ang[h]])
 								best.sort_custom(func(x, y): return x[0] < y[0])
@@ -659,6 +663,9 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 			c += ((P[h] - at) as Vector3).length()
 		if use_dir:
 			c += aw * wep_axis().angle_to(dir)
+		if grip:
+			# cheap: the handle within the other arm's reach (solving that arm here made a cook take 25+ min)
+			c += 2.0 * maxf(0.0, (grip_point() - (P[ou] as Vector3)).length() - 0.42)
 		return c
 	var won := {}
 	var won_c := INF
