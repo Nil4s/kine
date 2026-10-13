@@ -89,6 +89,10 @@ func _ready() -> void:
 	i = args.find("--view")
 	if i >= 0 and i + 1 < args.size():
 		_view(int(args[i + 1]))
+	if args.has("--caps"):
+		show_caps = true
+	if args.has("--clean"):
+		clean = true
 	i = args.find("--yaw")
 	if i >= 0 and i + 1 < args.size():
 		yaw = float(args[i + 1])

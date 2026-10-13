@@ -1,0 +1,274 @@
+{
+ "name": "swing_back",
+ "base": "poses/stand.json",
+ "bat_hand": "hand_r",
+ "frame": "chest",
+ "note": "one-hand backhand return, left to right: starts where the forehand ends (bat wrapped to the left), the back of the hand leads, the hips turn back first.",
+ "clips": [
+  {
+   "name": "from forehand end",
+   "move": -1,
+   "hold": 0.15,
+   "two_hands": false,
+   "fist": [
+    "l"
+   ],
+   "set": {
+    "pelvis": [
+     5,
+     0,
+     30
+    ],
+    "spine_01": [
+     3,
+     0,
+     10
+    ],
+    "spine_02": [
+     3,
+     0,
+     10
+    ],
+    "spine_03": [
+     3,
+     0,
+     10
+    ],
+    "neck_01": [
+     2,
+     0,
+     -22
+    ],
+    "thigh_l": [
+     8,
+     7,
+     0
+    ],
+    "thigh_r": [
+     8,
+     7,
+     0
+    ],
+    "calf_l": [
+     16,
+     0,
+     0
+    ],
+    "calf_r": [
+     16,
+     0,
+     0
+    ],
+    "upperarm_l": [
+     -20,
+     -62,
+     0
+    ],
+    "lowerarm_l": [
+     35,
+     0,
+     0
+    ]
+   },
+   "hand": [
+    0.12,
+    0.0,
+    0.22
+   ],
+   "aim": [
+    0.9,
+    0.1,
+    -0.3
+   ]
+  },
+  {
+   "name": "coil",
+   "move": 0.3,
+   "hold": 0.05,
+   "set": {
+    "pelvis": [
+     5,
+     0,
+     36
+    ],
+    "spine_01": [
+     3,
+     0,
+     13
+    ],
+    "spine_02": [
+     3,
+     0,
+     13
+    ],
+    "spine_03": [
+     3,
+     0,
+     13
+    ],
+    "neck_01": [
+     2,
+     0,
+     -30
+    ]
+   },
+   "hand": [
+    0.15,
+    0.05,
+    0.14
+   ],
+   "aim": [
+    0.6,
+    0.4,
+    -0.7
+   ]
+  },
+  {
+   "name": "CONTACT",
+   "move": 0.15,
+   "hold": 0.0,
+   "set": {
+    "pelvis": [
+     4,
+     0,
+     -4
+    ],
+    "spine_01": [
+     3,
+     0,
+     -4
+    ],
+    "spine_02": [
+     3,
+     0,
+     -4
+    ],
+    "spine_03": [
+     3,
+     0,
+     -4
+    ],
+    "neck_01": [
+     2,
+     0,
+     6
+    ],
+    "upperarm_l": [
+     10,
+     -60,
+     0
+    ],
+    "lowerarm_l": [
+     45,
+     0,
+     0
+    ]
+   },
+   "hand": [
+    -0.12,
+    0.0,
+    0.38
+   ],
+   "aim": [
+    -0.35,
+    0.05,
+    0.93
+   ]
+  },
+  {
+   "name": "extension",
+   "move": 0.1,
+   "hold": 0.25,
+   "set": {
+    "pelvis": [
+     4,
+     0,
+     -14
+    ],
+    "spine_01": [
+     3,
+     0,
+     -8
+    ],
+    "spine_02": [
+     3,
+     0,
+     -8
+    ],
+    "spine_03": [
+     3,
+     0,
+     -8
+    ],
+    "neck_01": [
+     2,
+     0,
+     14
+    ]
+   },
+   "hand": [
+    -0.35,
+    0.02,
+    0.25
+   ],
+   "aim": [
+    -0.95,
+    0.05,
+    0.1
+   ]
+  },
+  {
+   "name": "recover",
+   "move": 0.55,
+   "hold": 0.3,
+   "set": {
+    "pelvis": [
+     0,
+     0,
+     0
+    ],
+    "spine_01": [
+     0,
+     0,
+     0
+    ],
+    "spine_02": [
+     4,
+     0,
+     0
+    ],
+    "spine_03": [
+     0,
+     0,
+     0
+    ],
+    "neck_01": [
+     0,
+     0,
+     0
+    ],
+    "upperarm_l": [
+     15,
+     -55,
+     0
+    ],
+    "lowerarm_l": [
+     45,
+     0,
+     0
+    ]
+   },
+   "hand": [
+    -0.3,
+    -0.1,
+    0.16
+   ],
+   "aim": [
+    -0.1,
+    0.85,
+    0.4
+   ]
+  }
+ ],
+ "aim_weight": 0.3
+}

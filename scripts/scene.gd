@@ -311,20 +311,39 @@ func clear(B: Body) -> int:
 		if arms.is_empty():
 			i += 1
 			continue
-		for step in 12:
-			if B.penetration() <= base + 0.001:
-				break
-			for ua in arms:
-				var v: Vector3 = B.ang[ua]
-				B.set_ang(ua, v + Vector3(4.0, 6.0, 0.0))   # forward and out, away from the chest
-			B.apply_grip()
+		# search the arm(s) out of the body, staying as close as it can to the in-between (so the path keeps its shape);
+		# the wrist stays nearly straight (forearm turn allowed), as in the keys
+		var js := []
+		var want := {}
+		for ua in arms:
+			var sd: String = (ua as String).substr((ua as String).length() - 2)
+			for j in ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, "hand" + sd]:
+				js.append(j)
+				want[j] = B.ang[j]
+		var keep_lim := {}
+		for j in js:
+			if (j as String).begins_with("hand"):
+				keep_lim[j] = (B.lim[j] as Dictionary).duplicate()
+				B.lim[j]["bend"] = Vector2(-15, 15)
+				B.lim[j]["side"] = Vector2(-20, 20)
+				B.lim[j]["twist"] = Vector2(-60, 60)
+		var near := func() -> float:
+			var c := 0.0
+			for j in js:
+				c += ((B.ang[j] as Vector3) - (want[j] as Vector3)).length() / 400.0
+			return c
+		B.search(js, near, base)
+		for j in keep_lim:
+			B.lim[j] = keep_lim[j]
+		B.apply_grip()
+		var clean := B.penetration() <= base + 0.001
 		var via := B.to_dict()
 		var mv := move_time(i)
 		cards.insert(i, {"name": "pass-by", "pose": via, "move": maxf(0.15, mv * worst_u), "hold": 0.0})
 		if cards[i + 1]["move"] <= 0.0:
 			cards[i + 1]["move"] = maxf(0.15, mv * (1.0 - worst_u))
 		added += 1
-		i += 2
+		i += 2   # one pass-by per segment: re-checking the halves stacked 20+ of them (10-13) (a -> pass-by); the second half is checked when i reaches it
 	return added
 
 

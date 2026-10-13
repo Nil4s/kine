@@ -8,15 +8,28 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
 - [x] idle_bat: weight shift + breathing, 4.6 s loop, 0 bad frames
 - [ ] swing_level (two hands): PARKED. The arm search finds body-legal but unnatural arms (elbows to the face in
       the load). Next try: pose the two-hand clips by angles like Nick does, search only the second hand.
-- [ ] swing_fore: one-hand forehand, right to left
-- [ ] swing_back: one-hand backhand return, left to right
-- [ ] thrust: one-hand jab with the bat end
+- [x] swing_fore: one-hand forehand, right to left
+- [x] swing_back: one-hand backhand return, left to right
+- [x] thrust: one-hand jab with the bat end
 - [ ] combo3: forehand -> backhand -> Nick's overhead strike
-- [ ] hit_react: flinch back from a hit to the chest, recover
+- [x] hit_react: flinch back from a hit to the chest, recover
 - [ ] walk_bat: walk cycle with the bat (steps), loop
-- [ ] side-step dodge
+- [x] side-step dodge (dodge_side)
 - [ ] each one: sheet, contacts, compare with a real reference
 
 ## Log
 - 22:31 start. Tools built; idle cooked clean.
 - swing_level x3 (reach -> two-arm search -> two starts): hands miss 12-33 cm in the stance/load; parked.
+- ~23:00 Nick (awake): "check legs position ... the bat goes inside shoulder chest head ... keep hand straight w forearm".
+  Fixes, all in scripts/body.gd + scene.gd + tools/cook.gd:
+  - legs: knee_over_toes (the knee turns over the toes); a heel-up back foot's knee follows the hips' facing.
+  - bat in the body: chest/hips are wider than the spine capsules -> WIDE capsules (chest_wide, hips_wide) tested
+    against bat + forearms + hands; upper-arm capsule starts 8 cm down the arm (the shoulder ball is part of the chest).
+  - straight wrist: the bat arm is found by a SWEEP over upper arm x elbow x forearm turn (hand twist +-60) with the
+    wrist straight, scored on hand spot + bat direction + contacts, then refined with the wrist held to bend +-15,
+    side +-20. The bat's direction now comes from the arm and the forearm turn, never a folded wrist.
+  - in-betweens: pass-by repair = search the arm out of the body staying closest to the in-between pose.
+  - combat ready = bat up in front (guard); the shoulder carry is the idle only (going carry -> front swept the
+    bat through the chest).
+- 00:15 all six recooked: worst contact anywhere 1-4 mm, hands on target (one key 12 cm: forehand CONTACT), wrists
+  straight. Sheets re-recorded.

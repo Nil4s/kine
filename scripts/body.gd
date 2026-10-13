@@ -41,6 +41,14 @@ const CHILD := {"pelvis": "spine_01", "spine_01": "spine_02", "spine_02": "spine
 	"thumb_01_l": "thumb_02_l", "thumb_02_l": "thumb_03_l", "index_01_l": "index_02_l", "index_02_l": "index_03_l", "middle_01_l": "middle_02_l", "middle_02_l": "middle_03_l", "ring_01_l": "ring_02_l", "ring_02_l": "ring_03_l", "pinky_01_l": "pinky_02_l", "pinky_02_l": "pinky_03_l",
 	"thumb_01_r": "thumb_02_r", "thumb_02_r": "thumb_03_r", "index_01_r": "index_02_r", "index_02_r": "index_03_r", "middle_01_r": "middle_02_r", "middle_02_r": "middle_03_r", "ring_01_r": "ring_02_r", "ring_02_r": "ring_03_r", "pinky_01_r": "pinky_02_r", "pinky_02_r": "pinky_03_r"}
 const WEAPON := ["bat_handle", "bat_barrel"]
+## extra capsules for the WIDE parts the spine capsules miss (the mannequin's chest + shoulders and hips are wider than
+## deep): [the joint they ride on, end a, end b (rest positions, m), radius]. Tested against the bat and the forearms
+## and hands only (the upper arms grow out of them).
+const WIDE := {
+	"chest_wide": ["spine_03", Vector3(-0.12, 1.34, -0.01), Vector3(0.12, 1.34, -0.01), 0.11],
+	"hips_wide": ["pelvis", Vector3(-0.09, 0.93, -0.01), Vector3(0.09, 0.93, -0.01), 0.12],
+}
+const WIDE_VS := ["bat_handle", "bat_barrel", "lowerarm_r", "lowerarm_l", "hand_r", "hand_l"]
 
 var parent := {}       # joint -> parent joint ("" for the pelvis)
 var p0 := {}           # joint -> rest position
@@ -139,6 +147,15 @@ func load_files(skel_path: String, limits_path: String) -> void:
 		else:
 			cap0[j] = [p0[j], e0[j]]
 			rad[j] = float(L["r"])
+	# the shoulder joint itself sits inside the chest (the ball of the shoulder is part of the trunk's shape): the
+	# upper arm's capsule starts 8 cm down the arm, so an arm brought forward or across isn't "in the chest" at its root
+	for sd in ["_r", "_l"]:
+		var ca: Array = cap0["upperarm" + sd]
+		var dirv: Vector3 = ((ca[1] as Vector3) - (ca[0] as Vector3)).normalized()
+		cap0["upperarm" + sd] = [(ca[0] as Vector3) + dirv * 0.08, ca[1]]
+	for w in WIDE:
+		cap0[w] = [WIDE[w][1], WIDE[w][2]]
+		rad[w] = WIDE[w][3]
 	rad["bat_handle"] = wep_r_handle
 	rad["bat_barrel"] = wep_r_barrel
 	fk()
@@ -156,6 +173,9 @@ func load_files(skel_path: String, limits_path: String) -> void:
 			if (x in WEAPON and y in ["hand_r", "hand_l"]) or (y in WEAPON and x in ["hand_r", "hand_l"]):
 				continue
 			pairs.append([x, y])
+	for w in WIDE:
+		for y in WIDE_VS:
+			pairs.append([w, y])
 	# A pair may already overlap in the body's NEUTRAL poses (the shoulder sits in the chest, a hanging arm rests on
 	# the thigh): that much (+2 mm) is its allowance; a contact = sinking deeper. The bat is put away while measuring.
 	var keep_on := wep_on
@@ -414,9 +434,10 @@ func cap(part: String) -> Array:
 	if part == "bat_barrel":
 		return [wep_point(wep_handle), wep_point(wep_len - wep_r_barrel)]
 	var c: Array = cap0[part]
-	var g: Quaternion = G[part]
-	var pj: Vector3 = P[part]
-	var rj: Vector3 = p0[part]
+	var jn: String = WIDE[part][0] if WIDE.has(part) else part
+	var g: Quaternion = G[jn]
+	var pj: Vector3 = P[jn]
+	var rj: Vector3 = p0[jn]
 	return [pj + g * ((c[0] as Vector3) - rj), pj + g * ((c[1] as Vector3) - rj)]
 
 
@@ -568,6 +589,99 @@ func search(js: Array, cost: Callable, pen0 := -1.0) -> float:
 	return best
 
 
+## FK for a few joints only (an arm), parents first: the same math as fk(), for fast sweeps
+func fk_some(js: Array) -> void:
+	for j in js:
+		var A := compose(j, ang[j])
+		var pj: String = parent[j]
+		G[j] = G[pj] * A
+		P[j] = P[pj] + G[pj] * (p0[j] - p0[pj])
+		E[j] = P[j] + G[j] * (e0[j] - p0[j])
+
+
+## SWEEP THE BAT ARM: every upper arm (bend, side, roll every 20 deg), elbow (every 20) and forearm turn (the hand's
+## twist, every 30 to +-60: pronation is not a wrist fold), the wrist itself straight; score = |wrist - at| + 0.15 * angle(bat, dir) [rad]. The best few
+## are then refined by search() with the body's contacts counted. Bat direction comes from the arm, never from a
+## folded wrist (Nick 10-12: "keep hand straight w forearm").
+func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, aw := 0.15) -> float:
+	var h := wep_hand
+	var sd := h.substr(h.length() - 2)
+	var ua := "upperarm" + sd
+	var la := "lowerarm" + sd
+	var chain := [ua, la, h]
+	dir = dir.normalized()
+	var lu: Dictionary = lim[ua]
+	var ll: Dictionary = lim[la]
+	var keep := ang.duplicate()
+	var best := []   # [score, ua, la, hand]
+	# the pairs this arm or the bat take part in (the rest of the body doesn't move while sweeping)
+	var mine := [ua, la, h] + WEAPON
+	var prs := []
+	for pr in pairs:
+		if (pr[0] in mine) != (pr[1] in mine):
+			prs.append([pr[0], pr[1], float(allow.get(pr[0] + "|" + pr[1], 0.0))])
+	var b: float = lu["bend"].x
+	while b <= lu["bend"].y:
+		var sv: float = lu["side"].x
+		while sv <= lu["side"].y:
+			var t: float = lu["twist"].x
+			while t <= lu["twist"].y:
+				ang[ua] = Vector3(b, sv, t)
+				var e: float = ll["bend"].x
+				while e <= ll["bend"].y:
+					ang[la] = Vector3(e, 0, 0)
+					for ht in [-60.0, -30.0, 0.0, 30.0, 60.0]:
+						for hs in [0.0]:
+							ang[h] = Vector3(0, hs, ht)
+							fk_some(chain)
+							var c := 0.0
+							if use_at:
+								c += ((P[h] - at) as Vector3).length()
+							if use_dir:
+								c += aw * wep_axis().angle_to(dir)
+							for pr in prs:
+								c += 10.0 * maxf(0.0, depth(pr[0], pr[1]) - pr[2] - 0.001)
+							if best.size() < 6 or c < best[-1][0]:
+								best.append([c, ang[ua], ang[la], ang[h]])
+								best.sort_custom(func(x, y): return x[0] < y[0])
+								if best.size() > 6:
+									best.pop_back()
+					e += 20.0
+				t += 20.0
+			sv += 20.0
+		b += 20.0
+	# refine the best few with contacts counted (every contact, from zero: the pose before may already be inside);
+	# the lowest total wins
+	var pen0 := 0.0
+	var cost := func() -> float:
+		var c := 0.0
+		if use_at:
+			c += ((P[h] - at) as Vector3).length()
+		if use_dir:
+			c += aw * wep_axis().angle_to(dir)
+		return c
+	var won := {}
+	var won_c := INF
+	var keep_lim: Dictionary = lim[h].duplicate()
+	lim[h]["bend"] = Vector2(-15, 15)
+	lim[h]["side"] = Vector2(-20, 20)
+	lim[h]["twist"] = Vector2(-60, 60)
+	for cand in best:
+		ang = keep.duplicate()
+		ang[ua] = cand[1]
+		ang[la] = cand[2]
+		ang[h] = cand[3]
+		fk()
+		var c := search([ua, la, h, "clavicle" + sd], cost, pen0)
+		if c < won_c:
+			won_c = c
+			won = ang.duplicate()
+	lim[h] = keep_lim
+	ang = won
+	fk()
+	return won_c
+
+
 ## the bat's axis now (knob -> tip, unit)
 func wep_axis() -> Vector3:
 	return ((wep_xform()[1] as Quaternion) * Vector3.UP).normalized()
@@ -581,22 +695,33 @@ func grip_wrist() -> Vector3:
 
 
 ## HOLD THE BAT: both arms searched together so the bat hand's wrist is at `at`, the bat points along `dir` and (two
-## hands) the free wrist is on the handle. cost = |wrist - at| + 0.25 * angle(axis, dir) [rad] + |free wrist - grip|.
+## hands) the free wrist is on the handle. cost = |wrist - at| + 0.06 * angle(axis, dir) [rad] + |free wrist - grip|.
 ## Returns [wrist miss m, aim off deg, free hand miss m].
 func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true) -> Array:
 	var h := wep_hand
 	var sd := h.substr(h.length() - 2)
 	var od := "_l" if sd == "_r" else "_r"
+	# the WRIST STAYS STRAIGHT with the forearm (Nick: that is what makes a swing look natural; the game skin has no
+	# forearm twist bones either): the bat is aimed by the shoulder, the elbow and the upper arm's roll only
+	# A wrist may cock a little, like a batter's: bend +-15, side (radial/ulnar) +-20, no roll. Never the 90 deg folds.
+	var keep_lim := {}
+	for hh in ["hand" + sd, "hand" + od]:
+		keep_lim[hh] = lim[hh].duplicate()
+		lim[hh]["bend"] = Vector2(-15, 15)
+		lim[hh]["side"] = Vector2(-20, 20)
+		lim[hh]["twist"] = Vector2(0, 0)
+		ang[hh] = clamp_ang(hh, ang[hh])
 	var js := ["upperarm" + sd, "lowerarm" + sd, "hand" + sd, "clavicle" + sd]
 	if grip:
 		js += ["upperarm" + od, "lowerarm" + od, "hand" + od, "clavicle" + od]
+	fk()
 	dir = dir.normalized()
 	var cost := func() -> float:
 		var c := 0.0
 		if use_at:
 			c += ((P[h] - at) as Vector3).length()
 		if use_dir:
-			c += 0.25 * wep_axis().angle_to(dir)
+			c += 0.06 * wep_axis().angle_to(dir)   # the bat's direction only breaks ties: the arm's path leads
 		if grip:
 			c += ((P["hand" + od] - grip_wrist()) as Vector3).length()
 		return c
@@ -615,6 +740,8 @@ func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true) -> Arr
 	if c1 < c2:
 		ang = won
 		fk()
+	for hh in keep_lim:
+		lim[hh] = keep_lim[hh]
 	var gm := ((P["hand" + od] - grip_wrist()) as Vector3).length() if grip else 0.0
 	return [((P[h] - at) as Vector3).length() if use_at else 0.0, rad_to_deg(wep_axis().angle_to(dir)) if use_dir else 0.0, gm]
 
@@ -712,21 +839,34 @@ func foot_state(sd: String) -> Array:
 ##   pivots on its ball). Returns the miss (m).
 func plant(sd: String, ball_at: Vector3, head: float, flat: bool) -> float:
 	var th := "thigh" + sd
-	for it in 6:
-		# heading first (it swings a bent leg's ankle), then the foot flat, then the reach - the reach is always last
-		# heel up = the foot pivots on its ball (a back foot turns with the hips): only the spot is held, not the heading
-		var v: Vector3 = ang[th]
-		var e := wrapf(head - foot_heading(sd), -PI, PI) if flat else 0.0
-		set_ang(th, v + Vector3(0, 0, 1))
-		var slope := wrapf(head - foot_heading(sd), -PI, PI) - e
-		set_ang(th, v)
-		if absf(slope) > 1e-5:
-			set_ang(th, v + Vector3(0, 0, clampf(-e / slope, -15.0, 15.0)))
+	for it in 5:
 		if flat:
 			flat_foot(sd)
 		var d: Vector3 = P["ball" + sd] - P["foot" + sd]
 		reach("foot" + sd, ball_at - d)
+		# a heel-up back foot pivots with the hips: its knee follows the hips' facing, not its own foot (that chases itself)
+		var hf: Vector3 = (G["pelvis"] as Quaternion) * Vector3(0, 0, 1)
+		knee_over_toes(sd, head if flat else atan2(hf.x, hf.z))
 	return ((P["ball" + sd] - ball_at) as Vector3).length()
+
+
+## KNEE OVER THE TOES: swing the whole leg about the hip -> ankle line (the ankle stays put) until the knee points the
+## way the foot points.  u = (ankle - hip)/|..|,  k = knee dir without its u part,  want = heading without its u part,
+## angle = atan2(u . (k x want), k . want),  turn_world(thigh, rotation(u, angle)).
+func knee_over_toes(sd: String, head: float) -> void:
+	var th := "thigh" + sd
+	var H: Vector3 = P[th]
+	var u: Vector3 = ((P["foot" + sd] - H) as Vector3).normalized()
+	var k: Vector3 = (P["calf" + sd] as Vector3) - H
+	k -= u * u.dot(k)
+	var w := Vector3(sin(head), 0.0, cos(head))
+	w -= u * u.dot(w)
+	if k.length() < 0.01 or w.length() < 0.01:
+		return   # a straight leg has no knee direction to fix
+	k = k.normalized()
+	w = w.normalized()
+	var a := atan2(u.dot(k.cross(w)), k.dot(w))
+	turn_world(th, Quaternion(u, a))
 
 
 func fk() -> void:

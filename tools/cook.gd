@@ -9,8 +9,10 @@
 ##   "two_hands": true/false  the free hand on the handle (grip at "grip_m" metres up from the knob)
 ##   "heel_up": ["_r"]  that heel lifts (on the toes);  "steps": {"_l": [x, 0, z]} that foot steps (else feet planted)
 ##   "fist": ["l"] / "open": ["l"] / "grip": ["l"]  a hand's shape
+##   "hips":  [x, 0, z]  where the body stands now (m along the floor; kept until a clip changes it)
 ##   "move", "hold": seconds (move -1 = auto)
-## Plan keys: "name", "base" (a pose file), "bat_hand" ("hand_r" / "hand_l": the hand that holds the bat at the knob end)
+## Plan keys: "aim_weight" (default 0.15 per radian of bat direction vs 1 per metre of hand: raise it where the bat's
+## direction is the look, as in swings), "name", "base" (a pose file), "bat_hand" ("hand_r" / "hand_l": the hand that holds the bat at the knob end)
 ## The tool: angles -> feet flat / heel up -> ground -> bat hand reach + aim (4 rounds) -> other hand on the grip ->
 ## the scene: feet planted, pass-bys round the body -> report (misses, contacts, bad frames).
 extends SceneTree
@@ -39,6 +41,7 @@ func _init() -> void:
 	var S := Scene.new()
 	S.name = plan["name"]
 	var report := []
+	var hips := Vector3.ZERO
 	for c in plan["clips"]:
 		for j in LEGS:
 			B.ang[j] = Vector3.ZERO
@@ -47,6 +50,9 @@ func _init() -> void:
 		for j in c.get("add", {}):
 			B.ang[j] = B.clamp_ang(j, B.ang[j] + _v(c["add"][j]))
 		B.offset = Vector3.ZERO
+		if c.has("hips"):
+			hips = _v(c["hips"])
+		B.offset = Vector3(hips.x, 0.0, hips.z)   # the body travels (dodges, walks); the height comes from ground()
 		B.fk()
 		for kind in ["fist", "open", "grip"]:
 			for k in c.get(kind, []):
@@ -78,12 +84,13 @@ func _init() -> void:
 					print("  ! %s: the hand target is %.2f m from the shoulder (the arm reaches ~0.49)" % [c["name"], dd])
 		if B.wep_hand != "" and (c.has("hand") or c.has("aim")):
 			# quick two-bone reach + wrist aim first, then both arms searched together (contact-aware)
-			for r in 2:
+			for r in 2 if B.grip else 0:
 				if c.has("hand"):
 					B.reach(B.wep_hand, at)
-				if c.has("aim"):
-					B.aim_weapon(_v(c["aim"]))
-			var res := B.hold_bat(at, _v(c.get("aim", [0, 1, 0])), c.has("hand"), c.has("aim"))
+			if not B.grip:
+				B.sweep_bat_arm(at, _v(c.get("aim", [0, 1, 0])), c.has("hand"), c.has("aim"), float(c.get("aim_weight", plan.get("aim_weight", 0.15))))
+			var res := B.hold_bat(at, _v(c.get("aim", [0, 1, 0])), c.has("hand"), c.has("aim")) if B.grip else 				[((B.P[B.wep_hand] as Vector3) - at).length() if c.has("hand") else 0.0,
+				rad_to_deg(B.wep_axis().angle_to(_v(c.get("aim", [0, 1, 0])).normalized())) if c.has("aim") else 0.0, 0.0]
 			miss = res[0]
 			aim = res[1]
 			gm = res[2]
