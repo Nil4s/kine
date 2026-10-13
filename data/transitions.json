@@ -27,10 +27,15 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "backhand_contact>shoulder_over": {
+  "direct_mm": 51.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
  "backhand_contact>shoulder_rest": {
   "direct_mm": 94.0,
-  "via": "forehand_contact",
-  "worst_mm": 80.0
+  "via": "shoulder_over",
+  "worst_mm": 51.0
  },
  "backhand_contact>strike_lunge": {
   "via": "",
@@ -71,6 +76,11 @@
  },
  "bat_up>shoulder_lift": {
   "via": "",
+  "worst_mm": 0.0
+ },
+ "bat_up>shoulder_over": {
+  "direct_mm": 104.0,
+  "via": "forehand_contact",
   "worst_mm": 0.0
  },
  "bat_up>shoulder_rest": {
@@ -119,6 +129,11 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "dodge_low>shoulder_over": {
+  "direct_mm": 88.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
  "dodge_low>shoulder_rest": {
   "direct_mm": 126.0,
   "via": "overhead_load",
@@ -164,10 +179,14 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "forehand_contact>shoulder_over": {
+  "via": "",
+  "worst_mm": 0.0
+ },
  "forehand_contact>shoulder_rest": {
   "direct_mm": 90.0,
-  "via": "shoulder_lift",
-  "worst_mm": 49.0
+  "via": "shoulder_over",
+  "worst_mm": 0.0
  },
  "forehand_contact>strike_lunge": {
   "via": "",
@@ -210,10 +229,15 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "guard_bat>shoulder_over": {
+  "direct_mm": 74.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
  "guard_bat>shoulder_rest": {
   "direct_mm": 112.0,
-  "via": "bat_up",
-  "worst_mm": 86.0
+  "via": "shoulder_over",
+  "worst_mm": 74.0
  },
  "guard_bat>strike_lunge": {
   "via": "",
@@ -256,10 +280,15 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "hit_flinch>shoulder_over": {
+  "direct_mm": 29.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
  "hit_flinch>shoulder_rest": {
   "direct_mm": 134.0,
-  "via": "forehand_contact",
-  "worst_mm": 75.0
+  "via": "shoulder_over",
+  "worst_mm": 29.0
  },
  "hit_flinch>strike_lunge": {
   "via": "",
@@ -301,10 +330,15 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "overhead_load>shoulder_over": {
+  "direct_mm": 32.0,
+  "via": "forehand_contact",
+  "worst_mm": 0.0
+ },
  "overhead_load>shoulder_rest": {
   "direct_mm": 104.0,
-  "via": "shoulder_lift",
-  "worst_mm": 55.0
+  "via": "shoulder_over",
+  "worst_mm": 32.0
  },
  "overhead_load>strike_lunge": {
   "via": "",
@@ -347,10 +381,14 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "shoulder_lift>shoulder_over": {
+  "via": "",
+  "worst_mm": 0.0
+ },
  "shoulder_lift>shoulder_rest": {
   "direct_mm": 54.0,
-  "via": "",
-  "worst_mm": 54.0
+  "via": "shoulder_over",
+  "worst_mm": 0.0
  },
  "shoulder_lift>strike_lunge": {
   "via": "",
@@ -362,6 +400,63 @@
  },
  "shoulder_lift>windup_high": {
   "via": "",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>backhand_contact": {
+  "direct_mm": 108.0,
+  "via": "strike_lunge",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>bat_up": {
+  "direct_mm": 134.0,
+  "via": "shoulder_lift",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>dodge_low": {
+  "direct_mm": 91.0,
+  "via": "shoulder_lift",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>forehand_contact": {
+  "direct_mm": 21.0,
+  "via": "shoulder_lift",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>guard_bat": {
+  "direct_mm": 86.0,
+  "via": "shoulder_lift",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>hit_flinch": {
+  "direct_mm": 112.0,
+  "via": "shoulder_lift",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>overhead_load": {
+  "direct_mm": 26.0,
+  "via": "shoulder_lift",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>shoulder_lift": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>shoulder_rest": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>strike_lunge": {
+  "via": "",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>walk_bat_down": {
+  "direct_mm": 19.0,
+  "via": "shoulder_lift",
+  "worst_mm": 0.0
+ },
+ "shoulder_over>windup_high": {
+  "direct_mm": 110.0,
+  "via": "shoulder_lift",
   "worst_mm": 0.0
  },
  "shoulder_rest>backhand_contact": {
@@ -381,8 +476,8 @@
  },
  "shoulder_rest>forehand_contact": {
   "direct_mm": 87.0,
-  "via": "walk_bat_down",
-  "worst_mm": 74.0
+  "via": "shoulder_over",
+  "worst_mm": 20.0
  },
  "shoulder_rest>guard_bat": {
   "direct_mm": 102.0,
@@ -401,18 +496,22 @@
  },
  "shoulder_rest>shoulder_lift": {
   "direct_mm": 97.0,
-  "via": "walk_bat_down",
-  "worst_mm": 74.0
+  "via": "shoulder_over",
+  "worst_mm": 0.0
+ },
+ "shoulder_rest>shoulder_over": {
+  "via": "",
+  "worst_mm": 0.0
  },
  "shoulder_rest>strike_lunge": {
   "direct_mm": 94.0,
-  "via": "walk_bat_down",
-  "worst_mm": 74.0
+  "via": "shoulder_over",
+  "worst_mm": 0.0
  },
  "shoulder_rest>walk_bat_down": {
   "direct_mm": 74.0,
-  "via": "",
-  "worst_mm": 74.0
+  "via": "shoulder_over",
+  "worst_mm": 20.0
  },
  "shoulder_rest>windup_high": {
   "direct_mm": 125.0,
@@ -451,10 +550,14 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "strike_lunge>shoulder_over": {
+  "via": "",
+  "worst_mm": 0.0
+ },
  "strike_lunge>shoulder_rest": {
   "direct_mm": 132.0,
-  "via": "shoulder_lift",
-  "worst_mm": 51.0
+  "via": "shoulder_over",
+  "worst_mm": 0.0
  },
  "strike_lunge>walk_bat_down": {
   "via": "",
@@ -497,10 +600,14 @@
   "via": "",
   "worst_mm": 0.0
  },
+ "walk_bat_down>shoulder_over": {
+  "via": "",
+  "worst_mm": 0.0
+ },
  "walk_bat_down>shoulder_rest": {
   "direct_mm": 89.0,
-  "via": "shoulder_lift",
-  "worst_mm": 71.0
+  "via": "shoulder_over",
+  "worst_mm": 0.0
  },
  "walk_bat_down>strike_lunge": {
   "via": "",
@@ -541,6 +648,11 @@
  },
  "windup_high>shoulder_lift": {
   "via": "",
+  "worst_mm": 0.0
+ },
+ "windup_high>shoulder_over": {
+  "direct_mm": 112.0,
+  "via": "forehand_contact",
   "worst_mm": 0.0
  },
  "windup_high>shoulder_rest": {
