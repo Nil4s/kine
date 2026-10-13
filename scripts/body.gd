@@ -518,6 +518,61 @@ func hand_shape(side: String, kind: String) -> void:
 	fk()
 
 
+## the lowest sole point's height above where it rests (m): heel (the ankle joint, minus its rest height) and toe tip
+func sole_low() -> float:
+	var low := INF
+	for sd in ["_l", "_r"]:
+		low = minf(low, (P["foot" + sd] as Vector3).y - (p0["foot" + sd] as Vector3).y)
+		low = minf(low, (E["ball" + sd] as Vector3).y - (e0["ball" + sd] as Vector3).y)
+		low = minf(low, (P["ball" + sd] as Vector3).y - (p0["ball" + sd] as Vector3).y)
+	return low
+
+
+## FEET ON THE FLOOR: move the hips straight up/down so the lowest sole point touches the ground
+##   offset.y -= sole_low()      (a bent knee drops the body; nothing floats, nothing sinks)
+func ground() -> void:
+	offset.y -= sole_low()
+	fk()
+
+
+## FLAT FOOT: the ankle's bend that puts the toes' ball back at the heel's height difference it has at rest
+## (bisection: the ball rises as the bend grows). Toes off = the toes bend so their tip touches the floor too.
+func flat_foot(sd: String) -> void:
+	var want: float = (p0["ball" + sd] as Vector3).y - (p0["foot" + sd] as Vector3).y
+	var r: Vector2 = lim["foot" + sd]["bend"]
+	var v: Vector3 = ang["foot" + sd]
+	var lo := r.x
+	var hi := r.y
+	for k in 16:
+		var m := (lo + hi) * 0.5
+		ang["foot" + sd] = Vector3(m, v.y, v.z)
+		fk()
+		if (P["ball" + sd] as Vector3).y - (P["foot" + sd] as Vector3).y > want:
+			hi = m
+		else:
+			lo = m
+	ang["foot" + sd] = Vector3((lo + hi) * 0.5, v.y, v.z)
+	fk()
+
+
+## ON THE TOES: heel up, the toes bend back so they lie flat on the floor (the back foot of a lunge)
+func toes_flat(sd: String) -> void:
+	var r: Vector2 = lim["ball" + sd]["bend"]
+	var lo := r.x
+	var hi := r.y
+	var want: float = (e0["ball" + sd] as Vector3).y - (p0["ball" + sd] as Vector3).y
+	for k in 16:
+		var m := (lo + hi) * 0.5
+		ang["ball" + sd] = Vector3(m, 0, 0)
+		fk()
+		if (E["ball" + sd] as Vector3).y - (P["ball" + sd] as Vector3).y > want:
+			hi = m
+		else:
+			lo = m
+	ang["ball" + sd] = Vector3((lo + hi) * 0.5, 0, 0)
+	fk()
+
+
 func fk() -> void:
 	for j in ORDER:
 		var A := compose(j, ang[j])

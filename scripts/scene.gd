@@ -21,6 +21,7 @@ const LAG := 0.3
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var name := "scene"
 var natural := true
+var on_floor := true   # every frame: the hips move up/down so the lowest sole touches the floor (Body.ground)
 var fps := 30
 
 
@@ -146,6 +147,8 @@ static func put(B: Body, s: Dictionary) -> void:
 
 func apply(B: Body, t: float) -> void:
 	put(B, sample(t))
+	if on_floor:
+		B.ground()
 	B.apply_grip()
 
 
@@ -230,7 +233,7 @@ func to_dict(B: Body) -> Dictionary:
 		var c: Dictionary = cards[i]
 		cs.append({"name": c["name"], "move": c["move"], "hold": c["hold"], "arrive_s": snappedf(ts[i][1], 0.001),
 			"leave_s": snappedf(ts[i][2], 0.001), "pose": c["pose"]})
-	return {"scene": name, "natural": natural, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
+	return {"scene": name, "natural": natural, "on_floor": on_floor, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
 
@@ -238,6 +241,7 @@ func to_dict(B: Body) -> Dictionary:
 func from_dict(d: Dictionary) -> void:
 	name = d.get("scene", "scene")
 	natural = bool(d.get("natural", true))
+	on_floor = bool(d.get("on_floor", true))
 	fps = int(d.get("fps", 30))
 	cards = []
 	for c in d.get("cards", []):

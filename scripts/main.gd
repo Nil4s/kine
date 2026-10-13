@@ -66,6 +66,7 @@ var ui_help: PanelContainer
 var ui_card_btns: Array = []
 var _sync := false
 var big_view := false
+var clean := false          # recording: no highlights, no name tag
 var ui_side: Array = []      # the panels Tab hides
 
 
@@ -88,6 +89,10 @@ func _ready() -> void:
 	i = args.find("--view")
 	if i >= 0 and i + 1 < args.size():
 		_view(int(args[i + 1]))
+	i = args.find("--yaw")
+	if i >= 0 and i + 1 < args.size():
+		yaw = float(args[i + 1])
+		_cam()
 	i = args.find("--focus")
 	if i >= 0 and i + 1 < args.size():
 		sel = args[i + 1]
@@ -96,6 +101,34 @@ func _ready() -> void:
 		_cam()
 	_refresh()
 	_rebuild_cards()
+	i = args.find("--record")
+	if i >= 0 and i + 1 < args.size():
+		# --record <dir> [--fps N]: play the scene and save every frame (frame_0000.png ...), then quit
+		var dir: String = args[i + 1]
+		var fps := 24
+		var k := args.find("--fps")
+		if k >= 0 and k + 1 < args.size():
+			fps = int(args[k + 1])
+		DirAccess.make_dir_recursive_absolute(dir)
+		for p in ui_side:
+			p.visible = false
+		ui_root.visible = false
+		clean = true
+		big_view = true
+		dist = 4.6
+		target = Vector3(0, 1.05, 0.2)
+		_cam()
+		cam.v_offset = 0.0
+		var n := int(ceil(S.length() * fps))
+		for f in n + 1:
+			playhead = float(f) / fps
+			S.apply(B, playhead)
+			_refresh()
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png("%s/frame_%04d.png" % [dir, f])
+		get_tree().quit()
+		return
 	i = args.find("--shot")
 	if i >= 0 and i + 1 < args.size():
 		var path: String = args[i + 1]
@@ -298,6 +331,8 @@ func _refresh() -> void:
 			col = Color(TOUCH, 0.45)
 		if j == sel:
 			col = Color(SEL.lerp(col, 0.4) if col.a > 0.3 else SEL, 0.35)
+		if clean:
+			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON)
 	for m in [bat_handle, bat_barrel, bat_knob]:
@@ -307,6 +342,9 @@ func _refresh() -> void:
 		_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_handle), 0.0, false)
 		_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 	var c2: Array = B.cap(sel)
+	tag.visible = not clean
+	for d in dots.values():
+		d.visible = not clean
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_panel()
