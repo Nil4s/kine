@@ -1003,7 +1003,8 @@ func grip_wrist() -> Vector3:
 ## HOLD THE BAT: both arms searched together so the bat hand's wrist is at `at`, the bat points along `dir` and (two
 ## hands) the free wrist is on the handle. cost = |wrist - at| + 0.06 * angle(axis, dir) [rad] + |free wrist - grip|.
 ## Returns [wrist miss m, aim off deg, free hand miss m].
-func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_lane := NAN, lane_w := 15.0) -> Array:
+## one_start: search only from the arms as they are (no second start): a CONTINUATION from the key before can't flip.
+func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_lane := NAN, lane_w := 15.0, one_start := false) -> Array:
 	var h := wep_hand
 	var sd := h.substr(h.length() - 2)
 	var od := "_l" if sd == "_r" else "_r"
@@ -1043,6 +1044,11 @@ func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_
 	var pen0 := penetration()
 	var c1 := search(js, cost, pen0)
 	var won := ang.duplicate()
+	if one_start:
+		for hh in keep_lim:
+			lim[hh] = keep_lim[hh]
+		var gm1 := ((P["hand" + od] - grip_wrist()) as Vector3).length() if grip else 0.0
+		return [((P[h] - at) as Vector3).length() if use_at else 0.0, rad_to_deg(wep_axis().angle_to(dir)) if use_dir else 0.0, gm1]
 	ang = keep.duplicate()
 	for s2 in [sd, od] if grip else [sd]:
 		ang["upperarm" + s2] = clamp_ang("upperarm" + s2, Vector3(55, -35, 0))
