@@ -1,11 +1,11 @@
 extends SceneTree
 ## FIRST STAFF SCENE (Nick 10-13: "in transitions it can use one hand to swing the bo and get it back in two hands
 ## for defence, like a real monk ... can you make a scene for us to judge?"). From Nick's own two-hand guard
-## (moves/pose_20261013_082602): the left hand lets go to a fist, the right hand loads the staff back to his right,
+## (moves/bo_guard): the left hand lets go to a fist, the right hand loads the staff back to his right,
 ## sweeps it across the front one-handed (the long end leads), follows through to his left, and the left hand
 ## catches it back into Nick's guard. Legs = his guard's all the way (the footing stays planted).
 ##   godot --headless --path . -s tools/bo_scene.gd        -> scenes/bo_sweep.json
-const GUARD := "res://moves/pose_20261013_082602.json"
+const GUARD := "res://moves/bo_guard.json"
 
 func _init() -> void:
 	var B := Body.new()

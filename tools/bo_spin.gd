@@ -1,12 +1,12 @@
 extends SceneTree
 ## NICK'S RIGHT SWING, WITH THE SPIN HE WANTED (Nick 10-13: "I did one scene but you can improve, it's the right swing,
-## I wanted it to spin to do it but I wasn't that capable"). From scenes/bo_sweep_nick.json (his 5 keys, kept as he
+## I wanted it to spin to do it but I wasn't that capable"). From scenes/bo_swing_test.json (his 5 keys, kept as he
 ## posed them): his wind-up (keys 1-4, faster), then ONE FULL TURN of the body to the left in three thirds while the
 ## arm opens out from his load (key 4) to his strike (key 5), so the staff whirls at its full length and lands on his
 ## key 5; then the left hand, which only followed, catches the shaft (his fitted staff grip). Feet: the right foot
 ## pivots on its ball in place (the body is shifted so it stays put), the left steps round it each third.
 ##   godot --headless --path . -s tools/bo_spin.gd        -> scenes/bo_spin.json (his file is not touched)
-const SRC := "res://scenes/bo_sweep_nick.json"
+const SRC := "res://scenes/bo_swing_test.json"
 const RARM := ["clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "spine_01", "spine_02", "spine_03", "neck_01", "head"]
 
 var B: Body
@@ -51,7 +51,12 @@ func _init() -> void:
 	var S := Scene.new()
 	S.name = "bo_spin"
 	# his wind-up, timed: start, then load low -> high (slower), a breath at the top
-	S.cards.append({"name": "start (Nick 1)", "pose": N[0], "move": 0.0, "hold": 0.15})
+	# his key 1's upper-arm roll brought within 40 deg of key 2's (it rolled +70 between them: a spin; Nick 10-13
+	# "they were just tests, all good to update")
+	var r1: float = _v(N[1]["joints"]["upperarm_r"]).z
+	var u0: Vector3 = _v(N[0]["joints"]["upperarm_r"])
+	var k1 := make(N[0], {"upperarm_r": Vector3(u0.x, u0.y, clampf(u0.z, r1 - 40.0, r1 + 40.0))}, _v(N[0]["joints"]["pelvis"]).z, null)
+	S.cards.append({"name": "start (Nick 1)", "pose": k1, "move": 0.0, "hold": 0.15})
 	S.cards.append({"name": "wind (Nick 2)", "pose": N[1], "move": 0.32, "hold": 0.0})
 	S.cards.append({"name": "rise (Nick 3)", "pose": N[2], "move": 0.30, "hold": 0.0})
 	S.cards.append({"name": "LOAD (Nick 4)", "pose": N[3], "move": 0.30, "hold": 0.06})
@@ -68,7 +73,7 @@ func _init() -> void:
 		for j in RARM:
 			set[j] = _v(a4.get(j, {"bend": 0, "side": 0, "twist": 0})).lerp(_v(a5.get(j, {"bend": 0, "side": 0, "twist": 0})), k[1])
 		var d := make(N[3], set, t4 + 120.0 * k[0], pivot)
-		# WIDE (Nick: "this swing you're not damaging a leaf ... let the bo go to its edge on the hand"): the hand out at
+		# LEVEL + WIDE (Nick: "this swing you're not damaging a leaf ... let the bo go to its edge on the hand"): the hand out at
 		# the staff's end, the arm out at shoulder height on his right, the staff trailing level behind the turn
 		B.from_dict(d)
 		B.grip = false
@@ -77,7 +82,7 @@ func _init() -> void:
 		var ch: Vector3 = B.P["spine_03"]
 		# the forearm's turn walks from his load's toward his strike's, a third per key (no spin into the strike)
 		lane = lerpf(_v(a4["hand_r"]).z, _v(a5["hand_r"]).z, k[0] / 3.0)
-		var r: Array = B.hold_bat(ch + R * Vector3(-0.50, 0.0, 0.22), R * Vector3(-0.85, 0.12, -0.5).normalized(), true, true, lane, 12.0)
+		var r: Array = B.hold_bat(ch + R * Vector3(-0.50, 0.0, 0.22), R * Vector3(-0.85, -0.03, -0.5).normalized(), true, true, lane, 20.0)
 		lane = (B.ang["hand_r"] as Vector3).z
 		print("spin %d/3: wrist miss %.3f m, staff aim off %.0f deg, contacts %d" % [k[0], r[0], r[1], B.contacts().size()])
 		d = B.to_dict()
@@ -94,7 +99,7 @@ func _init() -> void:
 		"steps": {"_l": [st5.x, 0.0, st5.z], "_r": [0.0, 0.0, 0.0]}})
 	# the catch: the right arm draws the staff halfway back toward Nick's two-hand guard and the left hand, which only
 	# followed, takes the shaft with his fitted staff grip
-	var gd: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://moves/pose_20261013_082602.json"))["joints"]
+	var gd: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://moves/bo_guard.json"))["joints"]
 	var draw := {}
 	for j in ["clavicle_r", "upperarm_r", "lowerarm_r", "hand_r"]:
 		draw[j] = _v(a5[j]).lerp(_v(gd[j]), 0.5)
@@ -133,7 +138,7 @@ func _init() -> void:
 		if miss < 0.03:
 			S.cards.append({"name": "CATCH (two hands)", "pose": B.to_dict(), "move": 0.28, "hold": 0.4})
 	var d := S.to_dict(B)
-	d["note"] = "Nick's right swing (bo_sweep_nick) with a full spin + the left-hand catch (tools/bo_spin.gd)"
+	d["note"] = "Nick's right swing (bo_swing_test) with a full spin + the left-hand catch (tools/bo_spin.gd)"
 	FileAccess.open("res://scenes/bo_spin.json", FileAccess.WRITE).store_string(JSON.stringify(d, " "))
 	print("BO SPIN %.2f s, %d keys, spins %s" % [S.length(), S.cards.size(), S.spins()])
 	quit()
