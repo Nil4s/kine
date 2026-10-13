@@ -1,0 +1,1 @@
+assets/mannequin.glb: Quaternius "Universal Animation Library 2" (Standard) mannequin, CC0 1.0 (quaternius.com / opengameart.org). Its animations are unused.
