@@ -53,6 +53,11 @@ func sample(t: float) -> Dictionary:
 		var key := "local_" if w.get("hand", "") != "" else ""
 		w[key + "pos"] = (w[key + "pos"] as Vector3).lerp(wb[key + "pos"], e)
 		w[key + "rot"] = (w[key + "rot"] as Quaternion).slerp(wb[key + "rot"], e)
+	# the SECOND HAND holds during a move only if it holds at both ends: it lets go as the move starts and catches the
+	# shaft as it ends (Nick 10-13 staff: before, it stayed glued till halfway and the swing dragged it through the head)
+	if not w.is_empty() and not wb.is_empty():
+		w = w.duplicate()
+		w["grip"] = bool(a["weapon"].get("grip", false)) and bool(wb.get("grip", false))
 	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], e), "ang": ang, "weapon": w}
 
 

@@ -1003,7 +1003,7 @@ func grip_wrist() -> Vector3:
 ## HOLD THE BAT: both arms searched together so the bat hand's wrist is at `at`, the bat points along `dir` and (two
 ## hands) the free wrist is on the handle. cost = |wrist - at| + 0.06 * angle(axis, dir) [rad] + |free wrist - grip|.
 ## Returns [wrist miss m, aim off deg, free hand miss m].
-func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true) -> Array:
+func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_lane := NAN, lane_w := 15.0) -> Array:
 	var h := wep_hand
 	var sd := h.substr(h.length() - 2)
 	var od := "_l" if sd == "_r" else "_r"
@@ -1015,7 +1015,13 @@ func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true) -> Arr
 		keep_lim[hh] = lim[hh].duplicate()
 		lim[hh]["bend"] = Vector2(-15, 15)
 		lim[hh]["side"] = Vector2(-20, 20)
-		lim[hh]["twist"] = Vector2(0, 0)
+		# the forearm's turn: 0 for the bat; a staff guard holds the palms turned in (Nick's guard -55 / -66 deg), so a
+		# staff move keeps the turn it starts with, +-15 (twist_lane = that turn; the other hand keeps its own +-15)
+		if is_nan(twist_lane):
+			lim[hh]["twist"] = Vector2(0, 0)
+		else:
+			var tl: float = twist_lane if hh == "hand" + sd else (ang[hh] as Vector3).z
+			lim[hh]["twist"] = Vector2(maxf(keep_lim[hh]["twist"].x, tl - lane_w), minf(keep_lim[hh]["twist"].y, tl + lane_w))
 		ang[hh] = clamp_ang(hh, ang[hh])
 	var js := ["upperarm" + sd, "lowerarm" + sd, "hand" + sd, "clavicle" + sd]
 	if grip:
