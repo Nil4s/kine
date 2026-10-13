@@ -88,6 +88,12 @@ func _init() -> void:
 		"thigh_l": [105, 6, 0], "thigh_r": [60, 8, 0], "calf_l": [90, 0, 0], "calf_r": [5, 0, 0], "foot_l": [-10, 0, 0], "foot_r": [-25, 5, 0],
 		"upperarm_l": [55, -45, 0], "lowerarm_l": [35, 0, 0], "upperarm_r": [-30, -60, 0], "lowerarm_r": [8, 0, 0]},
 		{"hand_r": Vector2(-0.34, -0.20)})
+	# between: rolled onto the right hip and knee, both hands on the floor (no frame on one foot, Nick 10-13 sheet)
+	var turn := key({"_name": "knee down", "pelvis": [10, 0, -20], "spine_01": [12, 0, 0], "spine_02": [8, 0, 0], "neck_01": [0, 0, 0],
+		"thigh_l": [120, 8, 0], "calf_l": [120, 0, 0], "foot_l": [-20, 0, 0],
+		"thigh_r": [15, 10, 0], "calf_r": [100, 0, 0], "foot_r": [-40, 0, 0],
+		"upperarm_l": [45, -50, 0], "lowerarm_l": [40, 0, 0], "upperarm_r": [25, -65, 0], "lowerarm_r": [10, 0, 0]},
+		{"hand_r": Vector2(-0.40, 0.15)})
 	var kneel := key({"_name": "on one knee", "pelvis": [12, 0, -15], "spine_01": [10, 0, 0], "spine_02": [8, 0, 0], "neck_01": [5, 0, 0],
 		"thigh_l": [102, 5, 0], "calf_l": [90, 0, 0], "foot_l": [-10, 0, 0],
 		"thigh_r": [12, 5, 0], "calf_r": [90, 0, 0], "foot_r": [-40, 0, 0],
@@ -95,7 +101,8 @@ func _init() -> void:
 		{"hand_r": Vector2(-0.42, 0.22)})
 	scene("getup_back", [{"name": "lie (back)", "pose": lie, "move": 0.0, "hold": 0.1},
 		{"name": "sit up", "pose": sit, "move": 0.5, "hold": 0.05},
-		{"name": "on one knee", "pose": kneel, "move": 0.45, "hold": 0.05}])
+		{"name": "knee down", "pose": turn, "move": 0.35, "hold": 0.0},
+		{"name": "on one knee", "pose": kneel, "move": 0.35, "hold": 0.05}])
 	print("FROM THE FRONT")
 	var prone := key({"_name": "lie (front)", "pelvis": [90, 0, 0], "neck_01": [-15, 0, 10],
 		"thigh_l": [0, 6, 0], "thigh_r": [0, 6, 0], "calf_l": [8, 0, 0], "calf_r": [8, 0, 0], "foot_l": [-40, 0, 0], "foot_r": [-40, 0, 0],

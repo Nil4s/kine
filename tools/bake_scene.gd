@@ -6,6 +6,8 @@ extends SceneTree
 ## space), so any UAL-rigged body plays it (MATH.md "Bake for the game"). Fingers are baked too (the grip).
 ##   godot --headless --path . -s tools/bake_scene.gd -- scenes/x.json out.json [fps=30] [--landed D]
 ## G per frame too (each joint's turn from rest in the world): the game's check compares its bones against it.
+## --grounded: each frame the whole body drops (or rises) till its lowest point (any capsule, fingers aside) is on the
+## floor; for moves that always touch it (the get-ups: between two keys the blend can lift the body off the street).
 ## --landed D: the solid-dummy version at D m (the impact + rebound), as the poser plays it with the dummy on.
 func _init() -> void:
 	var a := OS.get_cmdline_user_args()
@@ -21,10 +23,13 @@ func _init() -> void:
 		var T := Dummy.new()
 		T.place(float(a[k + 1]))
 		S = T.landed(S, B)[0]
+	var grounded := a.has("--grounded")
 	var n := int(ceil(S.length() * fps)) + 1
 	var frames := []
 	for f in n:
 		S.apply(B, minf(float(f) / fps, S.length()))
+		if grounded:
+			_ground(B)
 		var js := {}
 		var gs := {}
 		for j in Body.ORDER:
@@ -43,3 +48,16 @@ func _init() -> void:
 	FileAccess.open(a[1], FileAccess.WRITE).store_string(JSON.stringify(out))
 	print("BAKED %s: %d frames at %d fps, %.2f s -> %s" % [S.name, n, fps, S.length(), a[1]])
 	quit()
+
+
+## the lowest point of the whole body on the floor (each capsule's ends minus its radius; fingers skipped)
+func _ground(B: Body) -> void:
+	B.fk()
+	var low := INF
+	for j in Body.ORDER:
+		if j.begins_with("thumb") or j.begins_with("index") or j.begins_with("middle") or j.begins_with("ring") or j.begins_with("pinky"):
+			continue
+		var r: float = float(B.rad.get(j, 0.03))
+		low = minf(low, minf((B.P[j] as Vector3).y, (B.E[j] as Vector3).y) - r)
+	B.offset.y -= low
+	B.fk()
