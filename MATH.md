@@ -103,3 +103,14 @@ and barrel (r 3.3 cm).
 - In a move, two keys with the bat in the same hand blend its place in the hand: lerp(lpos), slerp(lrot), same ease.
 - The other hand (2-hand grip) = reach() of its wrist to a point `grip_m` metres up the bat.
 Pose files store it under "weapon": knob, tip, rot, hand, local_pos, local_rot.
+
+## Scenes: clips and the movement between them (scripts/scene.gd)
+A scene = clips (saved poses) in a row; each has `move` (seconds to arrive, -1 = auto) and `hold` (seconds still).
+No gradients or training: three small formulas.
+- Auto time: `move = clamp(0.25 + biggest_angle_change_deg / 200, 0.3, 1.6)` (fingers ignored).
+- Natural order: joint level L (hips 0, back 1, neck/shoulders 2, upper arm/thigh 3, forearm/shin 4, hand/foot 5,
+  fingers 6); its own progress `u_j = clamp((u - 0.3 * L/6) / 0.7, 0, 1)`: hips start first, hands arrive last.
+- Ease: smootherstep `e = u^3 (6u^2 - 15u + 10)` (zero speed and acceleration at both ends = no jerk);
+  angle = lerp(clip A, clip B, e). Stays inside the limits by construction.
+- Clearance: frames are checked; where an arm or the bat goes through the body, a "pass-by" clip is added at the
+  worst frame with that arm lifted forward/out until clean.

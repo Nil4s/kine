@@ -279,8 +279,40 @@ func unlock_weapon() -> void:
 	wep_hand = ""
 
 
-## a quick start: the bat through a hand's palm, out on the thumb side (as a fist holds a bat), knob 7 cm below, locked
+## the STANDARD grip (data/grips/metal_bat.json, fitted by Nick 10-12): the bat's place in the hand + the finger angles.
+## Left hand = the mirror: x of the position flipped, rotation (x, y, z, w) -> (x, -y, -z, w), finger twist negated.
 func weapon_to_hand(h: String) -> void:
+	var path := "res://data/grips/metal_bat.json"
+	if not FileAccess.file_exists(path):
+		_weapon_to_hand_rough(h)
+		return
+	var g: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var lp := _v(g["local_pos"])
+	var lr: Array = g["local_rot"]
+	var q := Quaternion(lr[0], lr[1], lr[2], lr[3])
+	var mirror: bool = h != g["hand"]
+	if mirror:
+		lp.x = -lp.x
+		q = Quaternion(q.x, -q.y, -q.z, q.w)
+	for j in g["fingers"]:
+		var a: Array = g["fingers"][j]
+		var jj: String = j
+		var v := Vector3(a[0], a[1], a[2])
+		if mirror:
+			jj = j.substr(0, j.length() - 2) + h.substr(h.length() - 2)
+			v.z = -v.z
+		ang[jj] = clamp_ang(jj, v)
+	fk()
+	wep_on = true
+	wep_hand = h
+	wep_lpos = lp
+	wep_lrot = q
+	unlock_weapon()
+	lock_weapon(h)
+
+
+## the old rough start (no grip file): the bat through the palm, out on the thumb side, knob 6 cm below, locked
+func _weapon_to_hand_rough(h: String) -> void:
 	wep_on = true
 	wep_hand = ""
 	var g: Quaternion = G[h]
@@ -371,7 +403,7 @@ func contacts() -> Array:
 		if not wep_on and (pr[0] in WEAPON or pr[1] in WEAPON):
 			continue
 		var d := depth(pr[0], pr[1]) - float(allow.get(pr[0] + "|" + pr[1], 0.0))
-		if d > 0.0:
+		if d > 0.001:   # under 1 mm is touching, not inside
 			out.append([pr[0], pr[1], d])
 	return out
 

@@ -1,0 +1,93 @@
+{
+ "_note": "Nick 10-12: his hand-fitted metal bat grip, the standard. local_pos/local_rot = the knob in the hand_r frame (pos = P[hand] + G[hand]*local_pos, rot = G[hand]*local_rot). fingers = bend/side/twist degrees. Left hand = mirror (x flipped).",
+ "weapon": "metal_bat",
+ "hand": "hand_r",
+ "local_pos": [
+  -0.08,
+  -0.035,
+  -0.085
+ ],
+ "local_rot": [
+  0.70579,
+  -0.04317,
+  0.04317,
+  0.70579
+ ],
+ "fingers": {
+  "index_01_r": [
+   67.5,
+   -1.39,
+   0.0
+  ],
+  "index_02_r": [
+   51.5,
+   0.0,
+   0.0
+  ],
+  "index_03_r": [
+   79.0,
+   0.0,
+   0.0
+  ],
+  "middle_01_r": [
+   67.88,
+   15.25,
+   0.0
+  ],
+  "middle_02_r": [
+   61.0,
+   0.0,
+   0.0
+  ],
+  "middle_03_r": [
+   63.46,
+   0.0,
+   0.0
+  ],
+  "pinky_01_r": [
+   62.0,
+   0.0,
+   0.0
+  ],
+  "pinky_02_r": [
+   68.63,
+   0.0,
+   0.0
+  ],
+  "pinky_03_r": [
+   43.14,
+   0.0,
+   0.0
+  ],
+  "ring_01_r": [
+   76.35,
+   -2.04,
+   0.0
+  ],
+  "ring_02_r": [
+   39.0,
+   0.0,
+   0.0
+  ],
+  "ring_03_r": [
+   73.15,
+   0.0,
+   0.0
+  ],
+  "thumb_01_r": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "thumb_02_r": [
+   18.0,
+   0.0,
+   0.0
+  ],
+  "thumb_03_r": [
+   31.5,
+   0.0,
+   0.0
+  ]
+ }
+}

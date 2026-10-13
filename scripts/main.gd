@@ -1,62 +1,72 @@
-## main.gd - the poser window: draws the Body (body.gd), mouse + keys, the panels. All math lives in body.gd / moves.gd.
+## main.gd - the poser window. All math lives in body.gd (the body), scene.gd (moving between poses), moves.gd (old files).
 ##
-## Mouse:  click a part = select;  drag it = ROTATE that joint (its end follows the mouse);  Shift+drag = ROLL it;
-##         drag a HAND or FOOT = the whole arm/leg follows (reach);  Alt+drag a hand/foot = rotate only the wrist/ankle;
-##         Ctrl+drag the hips = move the body;  click a finger = curl it with the sliders;
-##         the BAT: free = drag moves it, Shift+drag turns it, Alt+drag spins it; locked = dragging it moves the hand.
-##         right-drag = orbit;  middle-drag = pan;  wheel = zoom.
-## Keys:   1 front 2 his right 3 top 4 back 5 his left | R reset joint | Q snap the joint to 90s (Shift+Q: 45s) |
-##         M mirror R>L, N mirror L>R | B bat on/off | L lock the bat to the hand / free it | F fingers open/grip/fist |
-##         G other hand on the bat, [ ] slide it | - = bat length | K key, Del, Space play, , . keys |
-##         C show the collision capsules | Ctrl+S save the pose
-## Command line (after --): --pose <json> | --move <json> | --view <1-5> | --t <seconds> | --focus <joint> (close-up)
-##                           | --shot <png> (render, quit)
+## Screen:  top bar = views + undo |  left = POSES (click one to put the body in it) |  right = the SELECTED PART
+##          (sliders in words) + HANDS & BAT |  bottom = the SCENE (pose cards in a row; the poser moves between them).
+## Mouse:   click a part = select;  drag = rotate it;  Shift+drag = roll it;  drag a hand/foot = the whole limb follows
+##          (Alt: only the wrist/ankle);  Ctrl+drag the hips = move the body;  the bat: free = drag/Shift/Alt, locked =
+##          dragging it moves the hand.   Right-drag = orbit, middle-drag = pan, wheel = zoom.
+## Keys:    shown on every button (Q snap, R reset, L lock bat, F fingers, G 2 hands, Space play, Ctrl+Z undo ...).
+## Command line (after --): --pose <json> | --scene <json> | --t <s> | --view <1-5> | --focus <joint> | --shot <png>
 extends Node3D
 
 const SEL := Color(0.25, 0.55, 1.0)
 const LIMIT := Color(1.0, 0.82, 0.15)
 const TOUCH := Color(1.0, 0.25, 0.2)
-const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down
+const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10-12)
+const LEFT_W := 250
+const RIGHT_W := 370
+const BOTTOM_H := 262
+const TOP_H := 46
 
 var B := Body.new()
-var M := Moves.new()
-var parts := {}          # part -> MeshInstance3D (its collision capsule): invisible click target + highlight
+var S := Scene.new()
+var parts := {}          # part -> MeshInstance3D (its collision capsule): click target + highlight
 var mats := {}
 var dots := {}
-var skel: Skeleton3D     # the mannequin's own skeleton (assets/mannequin.glb, Quaternius UAL2, CC0)
+var skel: Skeleton3D     # the mannequin's skeleton (assets/mannequin.glb, Quaternius UAL2, CC0)
 var bone_idx := {}
 var bat_handle: MeshInstance3D
 var bat_barrel: MeshInstance3D
 var bat_knob: MeshInstance3D
-var tag: Label3D         # the selected part's plain name, floating over it
-var shapes := ["open", "grip", "fist"]
-var shape_i := {"l": 0, "r": 0}
+var tag: Label3D
 var show_caps := false
 var sel := "upperarm_r"
 var cam: Camera3D
 var yaw := 0.0
 var pitch := -8.0
-var dist := 3.4
-var target := Vector3(0, 1.0, 0)
+var dist := 4.0
+var target := Vector3(0, 0.95, 0)
 var dragging := ""
 var playhead := 0.0
 var playing := false
+var sel_card := -1
+var undo := []
+var redo := []
 
-var ui_name: Label
-var ui_rows := {}
-var ui_hips: VBoxContainer
-var ui_hip_sliders := []
-var ui_info: Label
+# ui
+var ui_root: Control
+var ui_title: Label
 var ui_how: Label
+var ui_rows := {}
+var ui_hip_box: VBoxContainer
+var ui_hips := []
+var ui_math: Label
+var ui_math_btn: Button
 var ui_status: Label
-var ui_poses: OptionButton
+var ui_poses: ItemList
 var ui_pose_name: LineEdit
-var ui_moves: OptionButton
-var ui_move_name: LineEdit
+var ui_cards: HBoxContainer
 var ui_time: HSlider
-var ui_keys: Label
-var ui_key_t: SpinBox
+var ui_time_lbl: Label
+var ui_play: Button
+var ui_natural: CheckBox
+var ui_scene_name: LineEdit
+var ui_scenes: OptionButton
+var ui_help: PanelContainer
+var ui_card_btns: Array = []
 var _sync := false
+var big_view := false
+var ui_side: Array = []      # the panels Tab hides
 
 
 func _ready() -> void:
@@ -68,13 +78,13 @@ func _ready() -> void:
 	var i := args.find("--pose")
 	if i >= 0 and i + 1 < args.size():
 		_load_pose(args[i + 1])
-	i = args.find("--move")
+	i = args.find("--scene")
 	if i >= 0 and i + 1 < args.size():
-		_load_move(args[i + 1])
+		_load_scene(args[i + 1])
 	i = args.find("--t")
 	if i >= 0 and i + 1 < args.size():
 		playhead = float(args[i + 1])
-		M.apply(B, playhead)
+		S.apply(B, playhead)
 	i = args.find("--view")
 	if i >= 0 and i + 1 < args.size():
 		_view(int(args[i + 1]))
@@ -85,6 +95,7 @@ func _ready() -> void:
 		dist = 0.55
 		_cam()
 	_refresh()
+	_rebuild_cards()
 	i = args.find("--shot")
 	if i >= 0 and i + 1 < args.size():
 		var path: String = args[i + 1]
@@ -96,15 +107,16 @@ func _ready() -> void:
 
 
 func _process(dt: float) -> void:
-	if playing and not M.keys.is_empty():
+	_keys_camera(dt)
+	if playing and not S.cards.is_empty():
 		playhead += dt
-		if playhead > M.length():
+		if playhead > S.length():
 			playhead = 0.0
-		M.apply(B, playhead)
+		S.apply(B, playhead)
 		_refresh()
 
 
-# ---------------------------------------------------------------- scene
+# ---------------------------------------------------------------- 3D scene
 
 func _world() -> void:
 	var env := WorldEnvironment.new()
@@ -157,7 +169,7 @@ func _world() -> void:
 	floor.material_override = fm
 	floor.position.y = -0.002
 	add_child(floor)
-	for lab in [["+X his left", Vector3(0.65, 0.01, 0), Color(0.9, 0.4, 0.4)], ["+Z forward", Vector3(0, 0.01, 0.65), Color(0.4, 0.6, 1.0)]]:
+	for lab in [["his left", Vector3(0.68, 0.01, 0), Color(0.9, 0.4, 0.4)], ["he faces this way", Vector3(0, 0.01, 0.7), Color(0.4, 0.6, 1.0)]]:
 		var l := Label3D.new()
 		l.text = lab[0]
 		l.position = lab[1]
@@ -204,8 +216,8 @@ func _body() -> void:
 			continue
 		var d := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.013
-		sm.height = 0.026
+		sm.radius = 0.011
+		sm.height = 0.022
 		d.mesh = sm
 		var dm := StandardMaterial3D.new()
 		dm.albedo_color = Color(0.15, 0.15, 0.18)
@@ -214,7 +226,7 @@ func _body() -> void:
 		d.material_override = dm
 		add_child(d)
 		dots[j] = d
-	# the metal bat you see: a taped handle, a barrel that swells from the handle to full width, a knob
+	# the metal bat: a taped handle, a barrel swelling from the handle to full width, a knob
 	var metal := StandardMaterial3D.new()
 	metal.albedo_color = Color(0.62, 0.64, 0.68)
 	metal.metallic = 0.85
@@ -222,27 +234,9 @@ func _body() -> void:
 	var tape := StandardMaterial3D.new()
 	tape.albedo_color = Color(0.08, 0.08, 0.09)
 	tape.roughness = 0.9
-	bat_handle = MeshInstance3D.new()
-	var hy := CylinderMesh.new()
-	hy.top_radius = B.wep_r_handle
-	hy.bottom_radius = B.wep_r_handle
-	bat_handle.mesh = hy
-	bat_handle.material_override = tape
-	add_child(bat_handle)
-	bat_barrel = MeshInstance3D.new()
-	var by := CylinderMesh.new()
-	by.top_radius = B.wep_r_barrel
-	by.bottom_radius = B.wep_r_handle
-	bat_barrel.mesh = by
-	bat_barrel.material_override = metal
-	add_child(bat_barrel)
-	bat_knob = MeshInstance3D.new()
-	var ky := CylinderMesh.new()
-	ky.top_radius = B.wep_r_handle * 1.6
-	ky.bottom_radius = B.wep_r_handle * 1.6
-	bat_knob.mesh = ky
-	bat_knob.material_override = tape
-	add_child(bat_knob)
+	bat_handle = _cyl(B.wep_r_handle, B.wep_r_handle, tape)
+	bat_barrel = _cyl(B.wep_r_barrel, B.wep_r_handle, metal)
+	bat_knob = _cyl(B.wep_r_handle * 1.6, B.wep_r_handle * 1.6, tape)
 	tag = Label3D.new()
 	tag.pixel_size = 0.0009
 	tag.fixed_size = true
@@ -250,7 +244,19 @@ func _body() -> void:
 	tag.no_depth_test = true
 	tag.modulate = Color(0.55, 0.78, 1.0)
 	tag.outline_size = 8
+	tag.font_size = 30
 	add_child(tag)
+
+
+func _cyl(top: float, bottom: float, m: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var c := CylinderMesh.new()
+	c.top_radius = top
+	c.bottom_radius = bottom
+	mi.mesh = c
+	mi.material_override = m
+	add_child(mi)
+	return mi
 
 
 ## a capsule (or cylinder) from a to b: Godot's meshes run along their local Y
@@ -277,7 +283,7 @@ func _refresh() -> void:
 	for pr in B.pairs:
 		if not B.wep_on and (pr[0] in Body.WEAPON or pr[1] in Body.WEAPON):
 			continue
-		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > -0.0015:   # stopped against it, or in
+		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
 			touching[pr[0]] = true
 			touching[pr[1]] = true
 	for j in Body.ORDER + Body.WEAPON:
@@ -291,7 +297,7 @@ func _refresh() -> void:
 		if touching.has(j):
 			col = Color(TOUCH, 0.45)
 		if j == sel:
-			col = Color(SEL.lerp(col, 0.4) if col.a > 0.3 else SEL, 0.42)
+			col = Color(SEL.lerp(col, 0.4) if col.a > 0.3 else SEL, 0.35)
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON)
 	for m in [bat_handle, bat_barrel, bat_knob]:
@@ -302,15 +308,44 @@ func _refresh() -> void:
 		_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 	var c2: Array = B.cap(sel)
 	tag.text = nice(sel)
-	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.12, 0)
+	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_panel()
 
 
 # ---------------------------------------------------------------- camera
 
+## arrows slide the view (Shift+arrows turn around the body), PageUp / PageDown zoom; held = keeps moving
+func _keys_camera(dt: float) -> void:
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit or fo is SpinBox:
+		return
+	var x := float(Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_LEFT))
+	var y := float(Input.is_key_pressed(KEY_UP)) - float(Input.is_key_pressed(KEY_DOWN))
+	var z := float(Input.is_key_pressed(KEY_PAGEDOWN)) - float(Input.is_key_pressed(KEY_PAGEUP))
+	if x == 0.0 and y == 0.0 and z == 0.0:
+		return
+	if Input.is_key_pressed(KEY_SHIFT):
+		yaw -= x * 90.0 * dt
+		pitch = clampf(pitch + y * 60.0 * dt, -89.0, 89.0)
+	else:
+		var sp := dist * 0.6 * dt
+		target += cam.global_basis.x * x * sp + cam.global_basis.y * y * sp
+	dist = clampf(dist * (1.0 + z * 1.2 * dt), 0.4, 12.0)
+	_cam()
+
+
+## the camera looks at the body, shifted so the body sits in the middle of the free space between the panels
 func _cam() -> void:
 	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
+	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
+	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
+	if big_view:
+		cam.h_offset = 0.0
+		cam.v_offset = (BOTTOM_H - TOP_H) * 0.5 * mpp * -1.0
+	else:
+		cam.h_offset = (RIGHT_W - LEFT_W) * 0.5 * mpp
+		cam.v_offset = (BOTTOM_H - TOP_H) * 0.5 * mpp * -1.0
 
 
 func _view(k: int) -> void:
@@ -367,6 +402,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if mb.button_index == MOUSE_BUTTON_LEFT:
 				var j := _pick(mb.position)
 				if j != "":
+					_push_undo()
 					sel = j
 					dragging = "joint"
 					playing = false
@@ -376,7 +412,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			elif mb.button_index == MOUSE_BUTTON_MIDDLE:
 				dragging = "pan"
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-				dist = maxf(0.6, dist * 0.9)
+				dist = maxf(0.5, dist * 0.9)
 				_cam()
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				dist = minf(12.0, dist / 0.9)
@@ -398,61 +434,35 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_drag_joint(rel, mm.shift_pressed, mm.ctrl_pressed, mm.alt_pressed)
 	elif ev is InputEventKey and ev.pressed:
 		var k := ev as InputEventKey
-		if get_viewport().gui_get_focus_owner() is LineEdit:
+		if get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is SpinBox:
+			return
+		if k.ctrl_pressed:
+			match k.keycode:
+				KEY_Z: _undo()
+				KEY_Y: _redo()
+				KEY_S: _save_pose()
 			return
 		match k.keycode:
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_view(k.keycode - KEY_0)
-			KEY_R:
-				if sel == "pelvis":
-					B.offset = Vector3.ZERO
-				B.set_ang_safe(sel, Vector3.ZERO)
-				_after_edit()
-			KEY_Q:
-				_snap(45.0 if k.shift_pressed else 90.0)
-			KEY_M:
-				B.mirror_side("_r")
-				_after_edit()
-			KEY_N:
-				B.mirror_side("_l")
-				_after_edit()
+			KEY_R: _do(func(): _reset_part())
+			KEY_Q: _do(func(): _snap(45.0 if k.shift_pressed else 90.0))
+			KEY_M: _do(func(): B.mirror_side("_r"))
+			KEY_N: _do(func(): B.mirror_side("_l"))
 			KEY_C:
 				show_caps = not show_caps
 				_refresh()
-			KEY_B:
-				_bat_toggle()
-			KEY_L:
-				_bat_lock()
-			KEY_F:
-				_fingers()
-			KEY_G:
-				B.grip = not B.grip
-				_after_edit()
-			KEY_BRACKETLEFT:
-				B.grip_u = clampf(B.grip_u - 0.03, 0.0, B.wep_len)
-				_after_edit()
-			KEY_BRACKETRIGHT:
-				B.grip_u = clampf(B.grip_u + 0.03, 0.0, B.wep_len)
-				_after_edit()
-			KEY_MINUS:
-				B.set_weapon_len(B.wep_len - 0.05)
-				_after_edit()
-			KEY_EQUAL:
-				B.set_weapon_len(B.wep_len + 0.05)
-				_after_edit()
-			KEY_K:
-				_add_key()
-			KEY_DELETE:
-				_del_key()
-			KEY_SPACE:
-				playing = not playing
-			KEY_COMMA:
-				_step_key(-1)
-			KEY_PERIOD:
-				_step_key(1)
-			KEY_S:
-				if k.ctrl_pressed:
-					_save_pose()
+			KEY_B: _do(func(): _bat_put("hand_r") if not B.wep_on else _bat_remove())
+			KEY_L: _do(func(): _bat_lock())
+			KEY_F: _do(func(): _fingers_cycle())
+			KEY_G: _do(func(): B.grip = not B.grip)
+			KEY_BRACKETLEFT: _do(func(): B.grip_u = clampf(B.grip_u - 0.03, 0.0, B.wep_len))
+			KEY_BRACKETRIGHT: _do(func(): B.grip_u = clampf(B.grip_u + 0.03, 0.0, B.wep_len))
+			KEY_MINUS: _do(func(): B.set_weapon_len(B.wep_len - 0.05))
+			KEY_EQUAL: _do(func(): B.set_weapon_len(B.wep_len + 0.05))
+			KEY_SPACE: _toggle_play()
+			KEY_TAB: _big_view()
+			KEY_ENTER, KEY_KP_ENTER: _card_add()
 
 
 func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
@@ -469,7 +479,6 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		var v: Vector3 = B.ang[sel]
 		B.set_ang_safe(sel, Vector3(v.x, v.y, v.z + rel.x * 0.5))
 	elif tip and not alt:
-		# the whole arm/leg follows the wrist/ankle (body.gd reach)
 		B.reach(sel, (B.P[sel] as Vector3) + dw)
 	else:
 		var p: Vector3 = B.P[sel]
@@ -483,92 +492,90 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
-	ui_status.text = "%s %s:  bend %.1f   side %.1f   roll %.1f" % [
-		"ROLLING" if twist else ("MOVING" if move else "ROTATING"), nice(sel), v2.x, v2.y, v2.z]
+	var what := "ROLLING" if twist else ("MOVING" if (move and sel == "pelvis") else ("PULLING" if tip and not alt else "ROTATING"))
+	_say("%s the %s     %s" % [what, nice(sel), _angles_words(sel, v2)])
 
 
-## the bat. Locked: dragging it moves the hand that holds it. Free: drag = move it, Shift+drag = turn it (tilt toward
-## the mouse), Alt+drag = spin it about its own length. It stops at the body.
 func _drag_bat(rel: Vector2, dw: Vector3, turn: bool, spin: bool) -> void:
 	if B.wep_hand != "":
 		B.reach(B.wep_hand, (B.P[B.wep_hand] as Vector3) + dw)
 		_after_edit()
-		ui_status.text = "the bat is LOCKED to the %s: dragging it moves the hand (L frees it)" % nice(B.wep_hand)
+		_say("the bat is LOCKED in the %s: dragging it moves the hand.  'Free the bat' to move it alone." % nice(B.wep_hand))
 		return
 	if spin:
 		var axis: Vector3 = (B.wep_rot * Vector3.UP).normalized()
 		B.move_weapon(Vector3.ZERO, Quaternion(axis, deg_to_rad(rel.x * 0.6)))
-		ui_status.text = "SPINNING the bat about its length"
+		_say("SPINNING the bat about its length")
 	elif turn:
 		var R := Quaternion(cam.global_basis.y, deg_to_rad(rel.x * 0.5)) * Quaternion(cam.global_basis.x, deg_to_rad(rel.y * 0.5))
 		B.move_weapon(Vector3.ZERO, R)
-		ui_status.text = "TURNING the bat about its knob"
+		_say("TURNING the bat about its knob")
 	else:
 		B.move_weapon(dw, Quaternion.IDENTITY)
-		ui_status.text = "MOVING the bat"
+		_say("MOVING the bat")
 	_after_edit()
 
 
-func _bat_toggle() -> void:
-	if B.wep_on:
-		B.wep_on = false
-		B.grip = false
-		if sel in Body.WEAPON:
-			sel = "hand_r"
-	else:
-		B.weapon_to_hand("hand_r")
-		B.hand_shape("r", "grip")
-		shape_i["r"] = 1
-		sel = "bat_handle"
+# ---------------------------------------------------------------- actions
+
+## run an edit with undo, then refresh
+func _do(f: Callable) -> void:
+	_push_undo()
+	f.call()
 	_after_edit()
 
 
-## lock the bat to the nearest hand where it is now, or free it
-func _bat_lock() -> void:
-	if not B.wep_on:
-		return
-	if B.wep_hand != "":
-		B.unlock_weapon()
-		ui_status.text = "bat FREE: drag it to fit it, then L to lock it to the hand"
-	else:
-		var mid := B.wep_point(B.wep_handle * 0.5)
-		var h := "hand_r" if (B.E["hand_r"] as Vector3).distance_to(mid) <= (B.E["hand_l"] as Vector3).distance_to(mid) else "hand_l"
-		B.lock_weapon(h)
-		ui_status.text = "bat LOCKED to the %s: it now moves with the hand" % nice(h)
+func _after_edit() -> void:
+	B.apply_grip()
 	_refresh()
 
 
-## cycle the selected side's fingers: open -> grip -> fist
-func _fingers() -> void:
-	var side := "l" if sel.ends_with("_l") else "r"
-	shape_i[side] = (shape_i[side] + 1) % shapes.size()
-	B.hand_shape(side, shapes[shape_i[side]])
-	ui_status.text = "%s hand: %s" % ["left" if side == "l" else "right", shapes[shape_i[side]]]
-	_after_edit()
+func _big_view() -> void:
+	big_view = not big_view
+	for p in ui_side:
+		p.visible = not big_view
+	_cam()
+	_say("big view: the side panels are hidden (Tab brings them back)" if big_view else "panels back")
 
 
-## a plain name for a part: "upperarm_r" -> "right upper arm"
-static func nice(j: String) -> String:
-	var names := {"pelvis": "hips", "spine_01": "lower back", "spine_02": "mid back", "spine_03": "chest",
-		"neck_01": "neck", "head": "head", "clavicle": "shoulder blade", "upperarm": "upper arm", "lowerarm": "forearm",
-		"hand": "hand (wrist)", "thigh": "thigh (hip joint)", "calf": "shin (knee)", "foot": "foot (ankle)", "ball": "toes",
-		"bat_handle": "bat handle", "bat_barrel": "bat barrel"}
-	if names.has(j):
-		return names[j]
-	var side := ""
-	var base := j
-	if j.ends_with("_l") or j.ends_with("_r"):
-		side = "left " if j.ends_with("_l") else "right "
-		base = j.substr(0, j.length() - 2)
-	for f in ["thumb", "index", "middle", "ring", "pinky"]:
-		if base.begins_with(f + "_"):
-			var k := int(base.substr(base.length() - 1))
-			return side + f + " " + ["", "base joint", "middle joint", "tip joint"][k]
-	return side + names.get(base, base)
+func _push_undo() -> void:
+	undo.append(B.to_dict())
+	if undo.size() > 60:
+		undo.pop_front()
+	redo.clear()
 
 
-## snap the selected joint's free angles to the nearest multiple of 90 (or 45) the range allows; it stops at contact
+func _undo() -> void:
+	if undo.is_empty():
+		_say("nothing to undo")
+		return
+	redo.append(B.to_dict())
+	B.from_dict(undo.pop_back())
+	_refresh()
+	_say("undone")
+
+
+func _redo() -> void:
+	if redo.is_empty():
+		return
+	undo.append(B.to_dict())
+	B.from_dict(redo.pop_back())
+	_refresh()
+	_say("redone")
+
+
+func _reset_part() -> void:
+	if sel in Body.WEAPON:
+		return
+	if sel == "pelvis":
+		B.offset = Vector3.ZERO
+	B.set_ang_safe(sel, Vector3.ZERO)
+
+
+## snap the selected joint's free angles to the nearest 90 (or 45) the range allows; it stops at contact
 func _snap(step: float) -> void:
+	if sel in Body.WEAPON:
+		return
 	var v: Vector3 = B.ang[sel]
 	var L: Dictionary = B.lim[sel]
 	var out := v
@@ -584,186 +591,439 @@ func _snap(step: float) -> void:
 			s -= step
 		out[k] = clampf(s, r.x, r.y)
 	B.set_ang_safe(sel, out)
-	_after_edit()
+	_say("snapped the %s to %d-degree steps" % [nice(sel), int(step)])
 
 
-func _after_edit() -> void:
-	B.apply_grip()
-	_refresh()
+func _arms_relaxed() -> void:
+	for sd in ["_r", "_l"]:
+		B.set_ang_safe("upperarm" + sd, Vector3(0, -90 + ARMS_OUT, 0))
+		B.set_ang_safe("lowerarm" + sd, Vector3(10, 0, 0))
 
 
-# ---------------------------------------------------------------- panels
+func _reset_all() -> void:
+	for j in Body.ORDER:
+		B.ang[j] = Vector3.ZERO
+	B.offset = Vector3.ZERO
+	B.fk()
 
-func _label(t: String, size := 14) -> Label:
+
+func _bat_put(h: String) -> void:
+	B.weapon_to_hand(h)
+	sel = "bat_handle"
+	_say("bat in the %s with the standard grip (Nick's). It moves with the hand. 'Free the bat' to refit it." % nice(h))
+
+
+func _bat_remove() -> void:
+	B.wep_on = false
+	B.grip = false
+	if sel in Body.WEAPON:
+		sel = "hand_r"
+	_say("bat removed")
+
+
+func _bat_lock() -> void:
+	if not B.wep_on:
+		return
+	if B.wep_hand != "":
+		B.unlock_weapon()
+		_say("bat FREE: drag it (Shift = turn, Alt = spin) or use the sliders to fit it, then 'Lock bat to hand'")
+	else:
+		var mid := B.wep_point(B.wep_handle * 0.5)
+		var h := "hand_r" if (B.E["hand_r"] as Vector3).distance_to(mid) <= (B.E["hand_l"] as Vector3).distance_to(mid) else "hand_l"
+		B.lock_weapon(h)
+		_say("bat LOCKED to the %s: it now moves with the hand" % nice(h))
+
+
+func _fingers(side: String, kind: String) -> void:
+	B.hand_shape(side, kind)
+	_say("%s hand: %s" % ["left" if side == "l" else "right", kind])
+
+
+var _shape_i := {"l": 0, "r": 0}
+func _fingers_cycle() -> void:
+	var side := "l" if sel.ends_with("_l") else "r"
+	_shape_i[side] = (_shape_i[side] + 1) % 3
+	_fingers(side, ["open", "grip", "fist"][_shape_i[side]])
+
+
+## save the bat's place in the hand + the fingers as the new standard grip
+func _save_grip() -> void:
+	if not B.wep_on or B.wep_hand == "":
+		_say("lock the bat to a hand first")
+		return
+	var h := B.wep_hand
+	var sd := h.substr(h.length() - 2)
+	var fing := {}
+	for j in Body.FINGERS:
+		if j.ends_with(sd):
+			var v: Vector3 = B.ang[j]
+			fing[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
+	var d := {"_note": "standard metal bat grip, saved from the poser (body.gd weapon_to_hand)", "weapon": "metal_bat",
+		"hand": h, "local_pos": Body._p(B.wep_lpos), "local_rot": Body._q(B.wep_lrot), "fingers": fing}
+	_write("res://data/grips/metal_bat.json", d)
+	_say("saved as the standard bat grip")
+
+
+# ---------------------------------------------------------------- words
+
+## a plain name for a part: "upperarm_r" -> "right upper arm"
+static func nice(j: String) -> String:
+	var names := {"pelvis": "hips", "spine_01": "lower back", "spine_02": "middle back", "spine_03": "chest",
+		"neck_01": "neck", "head": "head", "clavicle": "shoulder", "upperarm": "upper arm", "lowerarm": "elbow / forearm",
+		"hand": "wrist / hand", "thigh": "hip joint / thigh", "calf": "knee / shin", "foot": "ankle / foot", "ball": "toes",
+		"bat_handle": "bat (handle)", "bat_barrel": "bat (barrel)"}
+	if names.has(j):
+		return names[j]
+	var side := ""
+	var base := j
+	if j.ends_with("_l") or j.ends_with("_r"):
+		side = "left " if j.ends_with("_l") else "right "
+		base = j.substr(0, j.length() - 2)
+	for f in ["thumb", "index", "middle", "ring", "pinky"]:
+		if base.begins_with(f + "_"):
+			var k := int(base.substr(base.length() - 1))
+			return side + f + " finger, " + ["", "base", "middle", "tip"][k] + " joint"
+	return side + names.get(base, base)
+
+
+func _angles_words(j: String, v: Vector3) -> String:
+	var out := []
+	var L: Dictionary = B.lim[j]
+	for k in 3:
+		var key: String = ["bend", "side", "twist"][k]
+		var r: Vector2 = L[key]
+		if r.y - r.x > 0.5:
+			out.append("%s %.0f" % [["swing", "raise/tilt", "roll"][k], v[k]])
+	return "   ".join(out)
+
+
+func _how(j: String) -> String:
+	if j in Body.WEAPON:
+		return ""
+	if j == "pelvis":
+		return "Drag: tip the whole body.   Shift+drag: turn it.   Ctrl+drag: move it.   (or the sliders)"
+	if j in ["hand_r", "hand_l"]:
+		return "Drag: the whole arm follows the wrist.   Alt+drag: bend only the wrist.   Shift+drag: roll the hand."
+	if j in ["foot_r", "foot_l"]:
+		return "Drag: the whole leg follows the ankle.   Alt+drag: bend only the ankle.   Shift+drag: roll the foot."
+	if j in Body.FINGERS:
+		return "Drag: curl this finger joint.   Use the buttons below for the whole hand (open / grip / fist)."
+	return "Drag: rotate it (its far end follows the mouse).   Shift+drag: roll it about its own length."
+
+
+func _say(t: String) -> void:
+	if ui_status != null:
+		ui_status.text = t
+
+
+# ---------------------------------------------------------------- ui building
+
+func _theme() -> Theme:
+	var th := Theme.new()
+	th.default_font_size = 16
+	var panel := StyleBoxFlat.new()
+	panel.bg_color = Color(0.085, 0.09, 0.105, 0.94)
+	panel.set_corner_radius_all(8)
+	panel.set_content_margin_all(10)
+	th.set_stylebox("panel", "PanelContainer", panel)
+	var btn := StyleBoxFlat.new()
+	btn.bg_color = Color(0.19, 0.21, 0.25)
+	btn.set_corner_radius_all(6)
+	btn.set_content_margin_all(6)
+	var hov := btn.duplicate()
+	hov.bg_color = Color(0.26, 0.3, 0.37)
+	var prs := btn.duplicate()
+	prs.bg_color = Color(0.2, 0.42, 0.75)
+	th.set_stylebox("normal", "Button", btn)
+	th.set_stylebox("hover", "Button", hov)
+	th.set_stylebox("pressed", "Button", prs)
+	th.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	return th
+
+
+func _label(t: String, size := 16, col := Color(1, 1, 1), wrap := false) -> Label:
 	var l := Label.new()
 	l.text = t
 	l.add_theme_font_size_override("font_size", size)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.modulate = col
+	if wrap:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.custom_minimum_size = Vector2(120, 0)
 	return l
 
 
-func _button(t: String, f: Callable) -> Button:
+func _button(t: String, f: Callable, tip := "") -> Button:
 	var b := Button.new()
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = tip
 	b.pressed.connect(f)
 	return b
+
+
+func _row(parent: Control, items: Array) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	for it in items:
+		h.add_child(it)
+		if it is Button:
+			(it as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(h)
+	return h
+
+
+func _section(parent: Control, t: String) -> void:
+	var s := HSeparator.new()
+	parent.add_child(s)
+	parent.add_child(_label(t, 15, Color(0.6, 0.75, 1.0)))
 
 
 func _ui() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
-	# ---- right: the selected joint
-	var pc := PanelContainer.new()
-	pc.anchor_left = 1.0
-	pc.anchor_right = 1.0
-	pc.offset_left = -400
-	pc.offset_right = -10
-	pc.offset_top = 10
-	layer.add_child(pc)
+	ui_root = Control.new()
+	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_root.theme = _theme()
+	layer.add_child(ui_root)
+
+	# ---- top bar
+	var top := PanelContainer.new()
+	top.anchor_right = 1.0
+	top.offset_bottom = TOP_H
+	ui_root.add_child(top)
+	var tb := HBoxContainer.new()
+	tb.add_theme_constant_override("separation", 6)
+	top.add_child(tb)
+	tb.add_child(_label("POSER  ", 20, Color(0.6, 0.78, 1.0)))
+	tb.add_child(_label("view (arrows move it):", 14, Color(1, 1, 1, 0.6)))
+	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
+		tb.add_child(_button(v[0], _view.bind(v[1])))
+	tb.add_child(VSeparator.new())
+	tb.add_child(_button("Undo (Ctrl+Z)", _undo))
+	tb.add_child(_button("Redo (Ctrl+Y)", _redo))
+	tb.add_child(_button("Collision (C)", func(): show_caps = not show_caps; _refresh(),
+		"see the capsules the body collides with. Yellow = a joint at its limit, red = touching another part"))
+	tb.add_child(_button("Reset body", _do.bind(_reset_all)))
+	tb.add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed)))
+	tb.add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
+	tb.add_child(_button("? Help", func(): ui_help.visible = not ui_help.visible))
+
+	# ---- left: poses
+	var lp := PanelContainer.new()
+	lp.offset_left = 6
+	lp.offset_top = TOP_H + 6
+	lp.offset_right = LEFT_W
+	lp.anchor_bottom = 1.0
+	lp.offset_bottom = -BOTTOM_H - 6
+	ui_root.add_child(lp)
+	ui_side.append(lp)
+	var lv := VBoxContainer.new()
+	lv.add_theme_constant_override("separation", 6)
+	lp.add_child(lv)
+	lv.add_child(_label("1  POSES", 19, Color(0.6, 0.78, 1.0)))
+	lv.add_child(_label("Click a pose: the body takes it.", 14, Color(1, 1, 1, 0.65), true))
+	ui_poses = ItemList.new()
+	ui_poses.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ui_poses.focus_mode = Control.FOCUS_NONE
+	ui_poses.item_selected.connect(func(i):
+		_push_undo()
+		_load_pose(ui_poses.get_item_metadata(i))
+		_refresh()
+		_say("the body is now in pose '%s'" % ui_poses.get_item_text(i)))
+	lv.add_child(ui_poses)
+	ui_pose_name = LineEdit.new()
+	ui_pose_name.placeholder_text = "name for the body's pose"
+	lv.add_child(ui_pose_name)
+	_row(lv, [_button("Save body as a pose", _save_pose, "Ctrl+S")])
+	_row(lv, [_button("CLIP this pose  (Enter)", _card_add, "the body as it is now becomes the next clip in the scene below")])
+
+	# ---- right: the selected part
+	var rp := PanelContainer.new()
+	rp.anchor_left = 1.0
+	rp.anchor_right = 1.0
+	rp.offset_left = -RIGHT_W
+	rp.offset_right = -6
+	rp.offset_top = TOP_H + 6
+	rp.anchor_bottom = 1.0
+	rp.offset_bottom = -BOTTOM_H - 6
+	ui_root.add_child(rp)
+	ui_side.append(rp)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	rp.add_child(sc)
 	var vb := VBoxContainer.new()
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.custom_minimum_size = Vector2(RIGHT_W - 34, 0)
 	vb.add_theme_constant_override("separation", 5)
-	pc.add_child(vb)
-	ui_name = _label("", 22)
-	vb.add_child(ui_name)
+	sc.add_child(vb)
+	vb.add_child(_label("2  SELECTED PART  (click the body)", 15, Color(0.6, 0.78, 1.0)))
+	ui_title = _label("", 22, Color(1, 1, 1), true)
+	vb.add_child(ui_title)
+	ui_how = _label("", 14, Color(0.75, 0.9, 1.0), true)
+	vb.add_child(ui_how)
 	for k in ["bend", "side", "twist"]:
-		var l := _label("", 14)
-		l.custom_minimum_size = Vector2(370, 0)
-		vb.add_child(l)
+		var box := VBoxContainer.new()
+		var l := _label("", 15, Color(1, 1, 1), true)
+		box.add_child(l)
 		var s := HSlider.new()
 		s.step = 0.5
-		s.custom_minimum_size = Vector2(370, 22)
+		s.custom_minimum_size = Vector2(0, 24)
+		s.drag_started.connect(_push_undo)
 		s.value_changed.connect(_on_slider.bind(k))
-		vb.add_child(s)
-		ui_rows[k] = {"slider": s, "label": l}
-	ui_hips = VBoxContainer.new()
-	vb.add_child(ui_hips)
+		box.add_child(s)
+		vb.add_child(box)
+		ui_rows[k] = {"slider": s, "label": l, "box": box}
+	ui_hip_box = VBoxContainer.new()
+	vb.add_child(ui_hip_box)
 	for k in 3:
-		var l := _label("", 14)
-		ui_hips.add_child(l)
+		var l := _label("", 15, Color(1, 1, 1), true)
+		ui_hip_box.add_child(l)
 		var s := HSlider.new()
-		s.min_value = -1.0 if k != 1 else -0.9
-		s.max_value = 1.0 if k != 1 else 0.4
 		s.step = 0.005
-		s.custom_minimum_size = Vector2(370, 22)
+		s.custom_minimum_size = Vector2(0, 24)
+		s.drag_started.connect(_push_undo)
 		s.value_changed.connect(_on_hip.bind(k))
-		ui_hips.add_child(s)
-		ui_hip_sliders.append([s, l])
-	var hb := HBoxContainer.new()
-	vb.add_child(hb)
-	hb.add_child(_button("Reset joint", func(): B.set_ang_safe(sel, Vector3.ZERO); _after_edit()))
-	hb.add_child(_button("Snap 90", func(): _snap(90.0)))
-	hb.add_child(_button("Snap 45", func(): _snap(45.0)))
-	hb.add_child(_button("Reset all", _reset_all))
-	var hb2 := HBoxContainer.new()
-	vb.add_child(hb2)
-	hb2.add_child(_button("Mirror R>L", func(): B.mirror_side("_r"); _after_edit()))
-	hb2.add_child(_button("Mirror L>R", func(): B.mirror_side("_l"); _after_edit()))
-	var hb3 := HBoxContainer.new()
-	vb.add_child(hb3)
-	hb3.add_child(_button("Bat on/off (B)", _bat_toggle))
-	hb3.add_child(_button("Lock/free bat (L)", _bat_lock))
-	hb3.add_child(_button("Fingers (F)", _fingers))
-	hb3.add_child(_button("2-hand (G)", func(): B.grip = not B.grip; _after_edit()))
-	var hb4 := HBoxContainer.new()
-	vb.add_child(hb4)
-	hb4.add_child(_button("Arms relaxed 25 deg", _arms_relaxed))
-	hb4.add_child(_button("Hands open", func(): B.hand_shape("l", "open"); B.hand_shape("r", "open"); _after_edit()))
-	ui_how = _label("", 13)
-	ui_how.custom_minimum_size = Vector2(370, 0)
-	ui_how.modulate = Color(0.75, 0.9, 1.0)
-	vb.add_child(ui_how)
-	ui_info = _label("", 12)
-	ui_info.custom_minimum_size = Vector2(370, 0)
-	ui_info.modulate = Color(1, 1, 1, 0.6)
-	vb.add_child(ui_info)
-	# ---- left: poses and moves
-	var lp := PanelContainer.new()
-	lp.offset_left = 10
-	lp.offset_top = 66
-	layer.add_child(lp)
-	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 5)
-	lp.add_child(lv)
-	lv.add_child(_label("POSES", 16))
-	ui_poses = OptionButton.new()
-	ui_poses.custom_minimum_size = Vector2(300, 0)
-	ui_poses.focus_mode = Control.FOCUS_NONE
-	lv.add_child(ui_poses)
+		ui_hip_box.add_child(s)
+		ui_hips.append([s, l])
+	_row(vb, [_button("Reset this part (R)", _do.bind(_reset_part)), _button("90 (Q)", _do.bind(_snap.bind(90.0))),
+		_button("45", _do.bind(_snap.bind(45.0)))])
+	_row(vb, [_button("Right to left (M)", _do.bind(B.mirror_side.bind("_r"))),
+		_button("Left to right (N)", _do.bind(B.mirror_side.bind("_l")))])
+	_section(vb, "HANDS")
+	_row(vb, [_label("right:", 15), _button("Open", _do.bind(_fingers.bind("r", "open"))), _button("Grip", _do.bind(_fingers.bind("r", "grip"))),
+		_button("Fist", _do.bind(_fingers.bind("r", "fist")))])
+	_row(vb, [_label("left:  ", 15), _button("Open", _do.bind(_fingers.bind("l", "open"))), _button("Grip", _do.bind(_fingers.bind("l", "grip"))),
+		_button("Fist", _do.bind(_fingers.bind("l", "fist")))])
+	vb.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", 13, Color(1, 1, 1, 0.55), true))
+	_section(vb, "BAT")
+	_row(vb, [_button("Bat in right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("Bat in left hand", _do.bind(_bat_put.bind("hand_l")))])
+	_row(vb, [_button("Lock bat to hand / Free it (L)", _do.bind(_bat_lock)), _button("Remove bat", _do.bind(_bat_remove))])
+	_row(vb, [_button("Other hand on the bat (G)", _do.bind(func(): B.grip = not B.grip)),
+		_button("Save grip as standard", _save_grip, "the bat's place in the hand + the fingers become the grip 'Bat in hand' uses")])
+	vb.add_child(_label("[ ] slide the other hand along the bat,  - = change the bat's length", 13, Color(1, 1, 1, 0.55), true))
+	_section(vb, "NUMBERS")
+	ui_math_btn = _button("Show the math (for Claude)", func(): ui_math.visible = not ui_math.visible)
+	vb.add_child(ui_math_btn)
+	ui_math = _label("", 12, Color(1, 1, 1, 0.6), true)
+	ui_math.visible = false
+	vb.add_child(ui_math)
+
+	# ---- bottom: the scene
+	var bp := PanelContainer.new()
+	bp.anchor_top = 1.0
+	bp.anchor_bottom = 1.0
+	bp.anchor_right = 1.0
+	bp.offset_top = -BOTTOM_H
+	bp.offset_left = 6
+	bp.offset_right = -6
+	bp.offset_bottom = -6
+	ui_root.add_child(bp)
+	var bv := VBoxContainer.new()
+	bv.add_theme_constant_override("separation", 6)
+	bp.add_child(bv)
+	var bh := HBoxContainer.new()
+	bh.add_theme_constant_override("separation", 6)
+	bv.add_child(bh)
+	bh.add_child(_label("3  SCENE  (clips)", 19, Color(0.6, 0.78, 1.0)))
+	bh.add_child(_label("your clips in a row; Play and the body moves from clip to clip on its own", 14, Color(1, 1, 1, 0.6)))
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bh.add_child(sp)
+	ui_scene_name = LineEdit.new()
+	ui_scene_name.placeholder_text = "scene name"
+	ui_scene_name.custom_minimum_size = Vector2(160, 0)
+	bh.add_child(ui_scene_name)
+	bh.add_child(_button("Save scene", _save_scene))
+	ui_scenes = OptionButton.new()
+	ui_scenes.focus_mode = Control.FOCUS_NONE
+	ui_scenes.custom_minimum_size = Vector2(170, 0)
+	bh.add_child(ui_scenes)
+	bh.add_child(_button("Open scene", func():
+		if ui_scenes.selected >= 0:
+			_load_scene(ui_scenes.get_item_metadata(ui_scenes.selected))
+			_rebuild_cards()
+			_refresh()))
+	bh.add_child(_button("New empty scene", func(): S = Scene.new(); sel_card = -1; playhead = 0.0; _rebuild_cards()))
+	var cs := ScrollContainer.new()
+	cs.custom_minimum_size = Vector2(0, 112)
+	cs.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	bv.add_child(cs)
+	ui_cards = HBoxContainer.new()
+	ui_cards.add_theme_constant_override("separation", 8)
+	cs.add_child(ui_cards)
 	var ph := HBoxContainer.new()
-	lv.add_child(ph)
-	ph.add_child(_button("Load pose", func():
-		if ui_poses.selected >= 0:
-			_load_pose(ui_poses.get_item_metadata(ui_poses.selected))
-			_refresh()))
-	ui_pose_name = LineEdit.new()
-	ui_pose_name.placeholder_text = "name"
-	ui_pose_name.custom_minimum_size = Vector2(110, 0)
-	ph.add_child(ui_pose_name)
-	ph.add_child(_button("Save pose", _save_pose))
-	lv.add_child(_label("MOVE (animation / transition)", 16))
-	ui_moves = OptionButton.new()
-	ui_moves.focus_mode = Control.FOCUS_NONE
-	lv.add_child(ui_moves)
-	var mh := HBoxContainer.new()
-	lv.add_child(mh)
-	mh.add_child(_button("Load move", func():
-		if ui_moves.selected >= 0:
-			_load_move(ui_moves.get_item_metadata(ui_moves.selected))
-			_refresh()))
-	mh.add_child(_button("New", func(): M = Moves.new(); playhead = 0.0; _refresh()))
-	ui_move_name = LineEdit.new()
-	ui_move_name.placeholder_text = "move name"
-	ui_move_name.custom_minimum_size = Vector2(100, 0)
-	mh.add_child(ui_move_name)
-	mh.add_child(_button("Save move", _save_move))
-	var kh := HBoxContainer.new()
-	lv.add_child(kh)
-	kh.add_child(_label("key at", 14))
-	ui_key_t = SpinBox.new()
-	ui_key_t.step = 0.05
-	ui_key_t.max_value = 30.0
-	ui_key_t.suffix = "s"
-	kh.add_child(ui_key_t)
-	kh.add_child(_button("Add key (K)", _add_key))
-	kh.add_child(_button("Delete key", _del_key))
-	var th := HBoxContainer.new()
-	lv.add_child(th)
-	th.add_child(_button("< key", func(): _step_key(-1)))
-	th.add_child(_button("Play / Stop", func(): playing = not playing))
-	th.add_child(_button("key >", func(): _step_key(1)))
+	ph.add_theme_constant_override("separation", 8)
+	bv.add_child(ph)
+	ui_play = _button("  Play (Space)  ", _toggle_play)
+	ph.add_child(ui_play)
 	ui_time = HSlider.new()
 	ui_time.step = 0.01
-	ui_time.custom_minimum_size = Vector2(300, 22)
+	ui_time.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_time.custom_minimum_size = Vector2(0, 26)
 	ui_time.value_changed.connect(func(v):
 		if _sync:
 			return
 		playhead = v
 		playing = false
-		M.apply(B, playhead)
+		S.apply(B, playhead)
 		_refresh())
-	lv.add_child(ui_time)
-	ui_keys = _label("", 12)
-	ui_keys.custom_minimum_size = Vector2(300, 0)
-	lv.add_child(ui_keys)
-	var help := _label("BODY: click = select | drag = rotate | Shift+drag = roll | drag a hand/foot = whole limb (Alt: wrist/ankle only) | Ctrl+drag hips = move\nBAT: B on/off | free: drag = move, Shift = turn, Alt = spin | L lock to hand / free | F fingers open/grip/fist | G 2-hand, [ ] slide | - = length\nVIEW: right-drag orbit | middle-drag pan | wheel zoom | 1 front 2 right 3 top 4 back 5 left    TOOLS: Q snap 90 (Shift+Q 45) | R reset | M/N mirror | K key, Space play | C capsules | Ctrl+S save", 12)
-	help.autowrap_mode = TextServer.AUTOWRAP_OFF
-	help.position = Vector2(12, 8)
-	help.modulate = Color(1, 1, 1, 0.7)
-	layer.add_child(help)
-	ui_status = _label("click a body part to select it", 18)
+	ph.add_child(ui_time)
+	ui_time_lbl = _label("0.00 s", 15)
+	ui_time_lbl.custom_minimum_size = Vector2(130, 0)
+	ph.add_child(ui_time_lbl)
+	ui_natural = CheckBox.new()
+	ui_natural.text = "Natural movement"
+	ui_natural.button_pressed = true
+	ui_natural.focus_mode = Control.FOCUS_NONE
+	ui_natural.tooltip_text = "ON: the hips start first and the hands arrive last, like a real body. OFF: everything moves together."
+	ui_natural.toggled.connect(func(on): S.natural = on; S.apply(B, playhead); _refresh())
+	ph.add_child(ui_natural)
+	ph.add_child(_button("Fix moves through the body", _clear_scene,
+		"where a move between two cards passes an arm or the bat through the body, add a pass-by card that goes around"))
+
+	# ---- status line
+	ui_status = _label("Click a body part to select it.  Drag it to rotate.  Click a pose on the left to start from it.", 16, Color(1.0, 0.9, 0.55), true)
 	ui_status.anchor_top = 1.0
 	ui_status.anchor_bottom = 1.0
-	ui_status.offset_top = -40
-	ui_status.offset_left = 330
-	ui_status.modulate = Color(1.0, 0.92, 0.6)
-	layer.add_child(ui_status)
+	ui_status.offset_top = -BOTTOM_H - 48
+	ui_status.offset_bottom = -BOTTOM_H - 8
+	ui_status.offset_left = LEFT_W + 12
+	ui_status.anchor_right = 1.0
+	ui_status.offset_right = -RIGHT_W - 12
+	ui_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.05, 0.07, 0.85)
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(6)
+	ui_status.add_theme_stylebox_override("normal", sb)
+	ui_root.add_child(ui_status)
+
+	# ---- help
+	ui_help = PanelContainer.new()
+	ui_help.anchor_left = 0.5
+	ui_help.anchor_right = 0.5
+	ui_help.offset_left = -360
+	ui_help.offset_right = 360
+	ui_help.offset_top = TOP_H + 30
+	ui_root.add_child(ui_help)
+	var hv := VBoxContainer.new()
+	hv.custom_minimum_size = Vector2(700, 0)
+	ui_help.add_child(hv)
+	hv.add_child(_label("HOW IT WORKS", 22, Color(0.6, 0.78, 1.0)))
+	hv.add_child(_label("1  POSE THE BODY.  Click a part, drag it.  Or use the sliders on the right, which say what each one does.  The body stops at real joint limits (yellow) and where parts meet (red).  Drag a hand or a foot and the whole arm or leg follows.  Ctrl+Z undoes.", 16, Color(1, 1, 1), true))
+	hv.add_child(_label("2  SAVE IT.  Type a name on the left, 'Save body as a pose'.  It joins the list; click it any time to get it back.", 16, Color(1, 1, 1), true))
+	hv.add_child(_label("3  MAKE A SCENE.  Put the body in a pose, CLIP this pose: it becomes a clip at the bottom.  Pose the next moment, add it.  Each card says how long the body takes to get there ('move', auto = the poser picks a natural time) and how long it stays ('hold').", 16, Color(1, 1, 1), true))
+	hv.add_child(_label("4  PLAY.  The body moves from card to card on its own: the hips lead, the hands arrive last.  'Fix moves through the body' adds a pass-by card where an arm or the bat would go through the body.  Click a card to see that moment; change the body, then 'Update' on the card.", 16, Color(1, 1, 1), true))
+	hv.add_child(_label("View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  Mouse: right-drag = turn around, middle-drag = slide.", 15, Color(1, 1, 1, 0.7), true))
+	hv.add_child(_button("Got it", func(): ui_help.visible = false))
+	ui_help.visible = false
 	_lists()
 
 
 func _lists() -> void:
 	ui_poses.clear()
-	ui_moves.clear()
 	for dir in ["res://poses", "res://moves"]:
 		var d := DirAccess.open(dir)
 		if d == null:
@@ -775,56 +1035,111 @@ func _lists() -> void:
 				continue
 			var path: String = dir + "/" + f
 			var txt := FileAccess.get_file_as_string(path)
-			var box: OptionButton = ui_moves if txt.contains("\"keys\"") else ui_poses
-			box.add_item(("* " if dir == "res://poses" else "") + f.get_basename())
-			box.set_item_metadata(box.item_count - 1, path)
+			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
+				continue
+			var i := ui_poses.add_item(f.get_basename().replace("_", " ") + ("" if dir == "res://poses" else "   (yours)"))
+			ui_poses.set_item_metadata(i, path)
+	ui_scenes.clear()
+	for dir in ["res://scenes", "res://moves"]:
+		var d := DirAccess.open(dir)
+		if d == null:
+			continue
+		for f in d.get_files():
+			if not f.ends_with(".json"):
+				continue
+			var path: String = dir + "/" + f
+			var txt := FileAccess.get_file_as_string(path)
+			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
+				ui_scenes.add_item(f.get_basename().replace("_", " "))
+				ui_scenes.set_item_metadata(ui_scenes.item_count - 1, path)
 
+
+# ---------------------------------------------------------------- the right panel
 
 func _panel() -> void:
-	if ui_name == null:
+	if ui_title == null:
 		return
 	_sync = true
 	if sel in Body.WEAPON:
 		_panel_bat()
-		_sync = false
-		return
-	var v: Vector3 = B.ang[sel]
-	var L: Dictionary = B.lim[sel]
-	var lims: Array = B.at_limit(sel)
-	ui_name.text = nice(sel).to_upper() + ("   [AT LIMIT: " + ", ".join(lims) + "]" if not lims.is_empty() else "")
-	ui_how.text = _how(sel)
-	var vals := {"bend": v.x, "side": v.y, "twist": v.z}
-	for k in ["bend", "side", "twist"]:
-		var r: Vector2 = L[k]
-		var row: Dictionary = ui_rows[k]
-		row["slider"].min_value = r.x
-		row["slider"].max_value = maxf(r.y, r.x + 0.001)
-		row["slider"].value = vals[k]
-		row["slider"].editable = r.y - r.x > 0.5
-		var word: String = {"bend": "ROTATE", "side": "ROTATE (other way)", "twist": "ROLL"}[k]
-		row["label"].text = "%s  %.1f deg   [%s .. %s]\n   %s" % [word, vals[k], r.x, r.y, L["say"].get(k, "")] if r.y - r.x > 0.5 else "%s: locked (this joint can't move that way)" % word
-	ui_hips.visible = sel == "pelvis"
-	var names := ["hips left/right (x, m)", "hips up/down (y, m)", "hips forward/back (z, m)"]
-	for k in 3:
-		ui_hip_sliders[k][0].value = B.offset[k]
-		ui_hip_sliders[k][1].text = "%s  %.3f" % [names[k], B.offset[k]]
-	var A := B.compose(sel, v)
-	var g: Quaternion = B.G[sel]
-	var con: Array = B.contacts()
-	ui_info.text = "math (MATH.md): A turn from rest %s\nG turn now %s\njoint %s  end %s\nbat %s %s  2-hand %s at %.2f m\ncontacts inside: %s" % [
-		_qs(A), _qs(g), _vs(B.P[sel]), _vs(B.E[sel]),
-		"on" if B.wep_on else "off", ("locked to " + nice(B.wep_hand)) if B.wep_hand != "" else "free", "on" if B.grip else "off", B.grip_u,
-		"none" if con.is_empty() else ", ".join(con.map(func(c): return "%s/%s %.0fmm" % [c[0], c[1], c[2] * 1000.0]))]
-	ui_time.max_value = maxf(M.length(), 0.01)
+	else:
+		_panel_part()
+	ui_time.max_value = maxf(S.length(), 0.01)
 	ui_time.value = playhead
-	ui_key_t.value = playhead if not M.keys.is_empty() else 0.0
-	var ks := M.keys.map(func(k): return "%.2fs" % k["t"])
-	ui_keys.text = "%s: %d keys %s   playhead %.2fs" % [M.name, M.keys.size(), ", ".join(ks), playhead]
+	ui_time_lbl.text = "%.2f / %.2f s" % [playhead, S.length()]
+	ui_play.text = "  Stop (Space)  " if playing else "  Play (Space)  "
 	_sync = false
 
 
+func _panel_part() -> void:
+	var v: Vector3 = B.ang[sel]
+	var L: Dictionary = B.lim[sel]
+	var lims: Array = B.at_limit(sel)
+	ui_title.text = nice(sel).to_upper() + ("   (at its limit)" if not lims.is_empty() else "")
+	ui_title.modulate = LIMIT if not lims.is_empty() else Color(1, 1, 1)
+	ui_how.text = _how(sel)
+	var vals := {"bend": v.x, "side": v.y, "twist": v.z}
+	var words := {"bend": "SWING", "side": "RAISE / TILT", "twist": "ROLL"}
+	for k in ["bend", "side", "twist"]:
+		var r: Vector2 = L[k]
+		var row: Dictionary = ui_rows[k]
+		var free := r.y - r.x > 0.5
+		row["box"].visible = free
+		if not free:
+			continue
+		row["slider"].min_value = r.x
+		row["slider"].max_value = r.y
+		row["slider"].value = vals[k]
+		var say: String = L["say"].get(k, "")
+		row["label"].text = "%s   %.0f deg      (%s)" % [words[k], vals[k], say.replace("+ = ", "more = ")]
+	ui_hip_box.visible = sel == "pelvis"
+	var names := ["hips left / right", "hips up / down", "hips forward / back"]
+	for k in 3:
+		ui_hips[k][0].min_value = -1.0 if k != 1 else -0.9
+		ui_hips[k][0].max_value = 1.0 if k != 1 else 0.4
+		ui_hips[k][0].value = B.offset[k]
+		ui_hips[k][1].text = "%s   %.2f m" % [names[k], B.offset[k]]
+	if ui_math.visible:
+		var A := B.compose(sel, v)
+		var con: Array = B.contacts()
+		ui_math.text = "%s  bend %.2f side %.2f twist %.2f deg\nA (turn from rest, rest axes) %s\nG (turn from rest, now) %s\njoint %s   end %s\ncontacts: %s\n(MATH.md explains every number)" % [
+			sel, v.x, v.y, v.z, _qs(A), _qs(B.G[sel]), _vs(B.P[sel]), _vs(B.E[sel]),
+			"none" if con.is_empty() else ", ".join(con.map(func(c): return "%s/%s %.0f mm" % [c[0], c[1], c[2] * 1000.0]))]
+
+
+func _panel_bat() -> void:
+	var locked := B.wep_hand != ""
+	ui_title.text = "METAL BAT  " + ("(locked in the %s)" % nice(B.wep_hand) if locked else "(free)")
+	ui_title.modulate = Color(1, 1, 1)
+	ui_how.text = ("LOCKED: the sliders shift the bat inside the hand.  Dragging the bat moves the hand.  'Free it' to move it alone." if locked
+		else "FREE: drag = move it,  Shift+drag = turn it,  Alt+drag = spin it.  When it sits right in the fingers: 'Lock bat to hand'.")
+	var q: Quaternion = B.wep_lrot if locked else B.wep_rot
+	var pos: Vector3 = B.wep_lpos if locked else B.wep_pos
+	var e: Vector3 = Basis(q).get_euler() * (180.0 / PI)
+	var words := {"bend": "TILT forward / back", "side": "TURN left / right", "twist": "TILT sideways"}
+	var vals := {"bend": e.x, "side": e.y, "twist": e.z}
+	for k in ["bend", "side", "twist"]:
+		var row: Dictionary = ui_rows[k]
+		row["box"].visible = true
+		row["slider"].min_value = -180.0
+		row["slider"].max_value = 180.0
+		row["slider"].value = vals[k]
+		row["label"].text = "%s   %.0f deg" % [words[k], vals[k]]
+	ui_hip_box.visible = true
+	var span := 0.3 if locked else 2.0
+	var names := ["bat left / right", "bat up / down", "bat forward / back"]
+	for k in 3:
+		ui_hips[k][0].min_value = -span if (k != 1 or locked) else -0.2
+		ui_hips[k][0].max_value = span
+		ui_hips[k][0].value = pos[k]
+		ui_hips[k][1].text = "%s   %.3f m%s" % [names[k], pos[k], "  (inside the hand)" if locked else ""]
+	if ui_math.visible:
+		var x := B.wep_xform()
+		ui_math.text = "knob %s  tip %s\nrotation %s\nin the hand: pos %s rot %s" % [_vs(x[0]), _vs(B.wep_point(B.wep_len)), _qs(x[1]), _vs(B.wep_lpos), _qs(B.wep_lrot)]
+
+
 static func _qs(q: Quaternion) -> String:
-	return "(%.3f, %.3f, %.3f, %.3f)  %.1f deg" % [q.x, q.y, q.z, q.w, rad_to_deg(q.get_angle())]
+	return "(%.3f, %.3f, %.3f, %.3f) %.1f deg" % [q.x, q.y, q.z, q.w, rad_to_deg(q.get_angle())]
 
 
 static func _vs(v: Vector3) -> String:
@@ -857,54 +1172,10 @@ func _on_hip(val: float, k: int) -> void:
 	_after_edit()
 
 
-## what the mouse does on this part, in words
-func _how(j: String) -> String:
-	if j == "pelvis":
-		return "drag = tip the whole body | Shift+drag = turn it | Ctrl+drag = move it (or the 3 sliders below)"
-	if j in ["hand_r", "hand_l"]:
-		return "drag = the whole arm follows the wrist | Alt+drag = rotate only the wrist | Shift+drag = roll the hand | F = finger shape"
-	if j in ["foot_r", "foot_l"]:
-		return "drag = the whole leg follows the ankle | Alt+drag = rotate only the ankle | Shift+drag = roll the foot"
-	if j.begins_with("thumb") or j.begins_with("index") or j.begins_with("middle") or j.begins_with("ring") or j.begins_with("pinky"):
-		return "drag = curl this finger joint | sliders = exact | F on the hand = open/grip/fist for all fingers"
-	return "drag = rotate (the far end follows the mouse) | Shift+drag = roll it about its own length | Q = snap to 90"
-
-
-## the bat's panel: rotation and position, in the HAND's frame when locked (fit it in the fist) or the world when free
-func _panel_bat() -> void:
-	ui_name.text = "METAL BAT  (%.2f m)  %s" % [B.wep_len, ("locked to " + nice(B.wep_hand)) if B.wep_hand != "" else "free"]
-	ui_how.text = ("LOCKED: the sliders fit the bat inside the hand (it stays there when the arm moves) | drag = move the hand | L = free it" if B.wep_hand != ""
-		else "FREE: drag = move | Shift+drag = turn | Alt+drag = spin | sliders = exact | when it sits right in the fingers, L locks it to the hand")
-	var q: Quaternion = B.wep_lrot if B.wep_hand != "" else B.wep_rot
-	var pos: Vector3 = B.wep_lpos if B.wep_hand != "" else B.wep_pos
-	var e: Vector3 = Basis(q).get_euler() * (180.0 / PI)
-	var words := {"bend": "TILT forward/back (about X)", "side": "TURN left/right (about Y)", "twist": "TILT sideways (about Z)"}
-	var vals := {"bend": e.x, "side": e.y, "twist": e.z}
-	for k in ["bend", "side", "twist"]:
-		var row: Dictionary = ui_rows[k]
-		row["slider"].min_value = -180.0
-		row["slider"].max_value = 180.0
-		row["slider"].editable = true
-		row["slider"].value = vals[k]
-		row["label"].text = "%s  %.1f deg" % [words[k], vals[k]]
-	ui_hips.visible = true
-	var span := 0.3 if B.wep_hand != "" else 2.0
-	var names := ["knob left/right (x, m)", "knob up/down (y, m)", "knob forward/back (z, m)"]
-	for k in 3:
-		var sl: HSlider = ui_hip_sliders[k][0]
-		sl.min_value = -span if (k != 1 or B.wep_hand != "") else -0.2
-		sl.max_value = span
-		sl.value = pos[k]
-		ui_hip_sliders[k][1].text = "%s  %.3f%s" % [names[k], pos[k], "  (in the hand)" if B.wep_hand != "" else ""]
-	var x := B.wep_xform()
-	ui_info.text = "knob %s  tip %s\nrotation %s\nother hand %s at %.2f m from the knob ([ ])" % [
-		_vs(x[0]), _vs(B.wep_point(B.wep_len)), _qs(x[1]), "on" if B.grip else "off", B.grip_u]
-
-
 func _bat_from_sliders() -> void:
 	var e := Vector3(ui_rows["bend"]["slider"].value, ui_rows["side"]["slider"].value, ui_rows["twist"]["slider"].value) * (PI / 180.0)
 	var q := Basis.from_euler(e).get_rotation_quaternion()
-	var pos := Vector3(ui_hip_sliders[0][0].value, ui_hip_sliders[1][0].value, ui_hip_sliders[2][0].value)
+	var pos := Vector3(ui_hips[0][0].value, ui_hips[1][0].value, ui_hips[2][0].value)
 	if B.wep_hand != "":
 		B.wep_lrot = q
 		B.wep_lpos = pos
@@ -914,20 +1185,132 @@ func _bat_from_sliders() -> void:
 	_after_edit()
 
 
-## both arms hanging relaxed, 25 deg out from the body (Nick: arms usually rest ~25 deg to the sides), elbows soft
-func _arms_relaxed() -> void:
-	for sd in ["_r", "_l"]:
-		B.set_ang_safe("upperarm" + sd, Vector3(0, -90 + ARMS_OUT, 0))
-		B.set_ang_safe("lowerarm" + sd, Vector3(10, 0, 0))
-	_after_edit()
+# ---------------------------------------------------------------- the scene strip
+
+func _rebuild_cards() -> void:
+	if ui_cards == null:
+		return
+	for c in ui_cards.get_children():
+		c.queue_free()
+	if S.cards.is_empty():
+		ui_cards.add_child(_label("No clips yet.  Pose the body (or click a pose on the left), then press  CLIP this pose.  Pose the next moment, clip it too, and press Play.", 16, Color(1, 1, 1, 0.55)))
+	var ts := S.times()
+	for i in S.cards.size():
+		var c: Dictionary = S.cards[i]
+		var pc := PanelContainer.new()
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(0.2, 0.36, 0.62) if i == sel_card else (Color(0.25, 0.2, 0.12) if c["name"] == "pass-by" else Color(0.16, 0.17, 0.2))
+		st.set_corner_radius_all(6)
+		st.set_content_margin_all(6)
+		pc.add_theme_stylebox_override("panel", st)
+		pc.custom_minimum_size = Vector2(196, 0)
+		ui_cards.add_child(pc)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 3)
+		pc.add_child(v)
+		var nb := _button("%d  %s" % [i + 1, c["name"]], _card_pick.bind(i), "show this moment (at %.2f s)" % ts[i][1])
+		v.add_child(nb)
+		if i > 0:
+			var mh := HBoxContainer.new()
+			v.add_child(mh)
+			mh.add_child(_label("move", 13, Color(1, 1, 1, 0.7)))
+			var ms := SpinBox.new()
+			ms.min_value = 0.0
+			ms.max_value = 5.0
+			ms.step = 0.05
+			ms.value = maxf(0.0, c["move"])
+			ms.suffix = "s" if c["move"] > 0.0 else "s (auto %.2f)" % S.move_time(i)
+			ms.custom_minimum_size = Vector2(150, 0)
+			ms.tooltip_text = "seconds to get here from the card before. 0 = auto (natural time from how far the body moves)"
+			ms.value_changed.connect(func(x): S.cards[i]["move"] = x if x > 0.0 else -1.0; _rebuild_cards(); _refresh())
+			mh.add_child(ms)
+		var hh := HBoxContainer.new()
+		v.add_child(hh)
+		hh.add_child(_label("hold", 13, Color(1, 1, 1, 0.7)))
+		var hs := SpinBox.new()
+		hs.min_value = 0.0
+		hs.max_value = 5.0
+		hs.step = 0.05
+		hs.value = c["hold"]
+		hs.suffix = "s"
+		hs.tooltip_text = "seconds the body stays still in this pose"
+		hs.value_changed.connect(func(x): S.cards[i]["hold"] = x; _refresh())
+		hh.add_child(hs)
+		var bh := HBoxContainer.new()
+		v.add_child(bh)
+		bh.add_child(_button("<", _card_move.bind(i, -1), "move this card earlier"))
+		bh.add_child(_button(">", _card_move.bind(i, 1), "move this card later"))
+		bh.add_child(_button("Update", _card_update.bind(i), "replace this card's pose with the body as it is now"))
+		bh.add_child(_button("X", _card_del.bind(i), "delete this card"))
 
 
-func _reset_all() -> void:
-	for j in Body.ORDER:
-		B.ang[j] = Vector3.ZERO
-	B.offset = Vector3.ZERO
-	B.fk()
-	_after_edit()
+func _card_add() -> void:
+	var nm := ui_pose_name.text.strip_edges()
+	var at := sel_card + 1 if sel_card >= 0 else -1
+	S.add(nm if nm != "" else "pose %d" % (S.cards.size() + 1), B.to_dict(), at)
+	sel_card = at if at >= 0 else S.cards.size() - 1
+	playhead = S.times()[sel_card][1]
+	_rebuild_cards()
+	_refresh()
+	_say("added card %d.  Pose the next moment and add it too, then Play." % (sel_card + 1))
+
+
+func _card_pick(i: int) -> void:
+	_push_undo()
+	sel_card = i
+	playing = false
+	playhead = S.times()[i][1]
+	Scene.put(B, Moves._flat(S.cards[i]["pose"]))
+	_rebuild_cards()
+	_refresh()
+	_say("card %d '%s': change the body, then 'Update' on the card to keep it" % [i + 1, S.cards[i]["name"]])
+
+
+func _card_update(i: int) -> void:
+	S.cards[i]["pose"] = B.to_dict()
+	if S.cards[i]["name"] == "pass-by":
+		S.cards[i]["name"] = "pose %d" % (i + 1)
+	_rebuild_cards()
+	_say("card %d updated from the body" % (i + 1))
+
+
+func _card_del(i: int) -> void:
+	S.cards.remove_at(i)
+	sel_card = mini(sel_card, S.cards.size() - 1)
+	playhead = minf(playhead, S.length())
+	_rebuild_cards()
+	_refresh()
+
+
+func _card_move(i: int, d: int) -> void:
+	var j := i + d
+	if j < 0 or j >= S.cards.size():
+		return
+	var c = S.cards[i]
+	S.cards[i] = S.cards[j]
+	S.cards[j] = c
+	sel_card = j
+	_rebuild_cards()
+	_refresh()
+
+
+func _toggle_play() -> void:
+	if S.cards.size() < 2:
+		_say("a scene needs at least 2 cards to play")
+		return
+	playing = not playing
+	if playing and playhead >= S.length() - 0.01:
+		playhead = 0.0
+	_refresh()
+
+
+func _clear_scene() -> void:
+	var keep := B.to_dict()
+	var n := S.clear(B)
+	B.from_dict(keep)
+	_rebuild_cards()
+	_refresh()
+	_say("added %d pass-by card(s) so nothing goes through the body" % n if n > 0 else "no move goes through the body")
 
 
 # ---------------------------------------------------------------- files
@@ -949,71 +1332,48 @@ func _save_pose() -> void:
 	var d := B.to_dict()
 	d["note"] = "angles in degrees from rest (bend, side, twist; meaning in data/body_limits.json 'say'); A = the joint's turn in rest axes, G = its turn from rest in the world now (quaternions x,y,z,w); pos/end in metres, character space (+Y up, +Z forward, +X his left); contacts = parts inside each other (m). Math: MATH.md"
 	_write(path, d)
-	ui_info.text = "saved " + ProjectSettings.globalize_path(path) + "\n" + ui_info.text
 	_lists()
+	_say("saved pose " + path.get_file())
 
 
 func _load_pose(path: String) -> void:
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if d.has("keys"):
-		_load_move(path)
+	if d.has("keys") or d.has("cards"):
+		_load_scene(path)
 		return
 	B.from_dict(d)
 
 
-func _add_key() -> void:
-	var t := ui_key_t.value if ui_key_t != null else playhead
-	if M.keys.is_empty():
-		t = 0.0
-	elif absf(t - playhead) < 0.001 and t <= M.length():
-		t = M.length() + 0.5   # the playhead on an old key: the new key goes half a second after the last
-	M.add_key(t, B.to_dict())
-	playhead = t
-	_refresh()
-
-
-func _del_key() -> void:
-	for k in M.keys.size():
-		if absf(M.keys[k]["t"] - playhead) < 0.02:
-			M.keys.remove_at(k)
-			break
-	_refresh()
-
-
-func _step_key(dir: int) -> void:
-	if M.keys.is_empty():
+func _save_scene() -> void:
+	if S.cards.is_empty():
+		_say("the scene is empty")
 		return
-	var ts: Array = M.keys.map(func(k): return k["t"])
-	var nxt := playhead
-	if dir > 0:
-		for t in ts:
-			if t > playhead + 0.001:
-				nxt = t
-				break
-	else:
-		for i in range(ts.size() - 1, -1, -1):
-			if ts[i] < playhead - 0.001:
-				nxt = ts[i]
-				break
-	playhead = nxt
-	playing = false
-	M.apply(B, playhead)
-	_refresh()
-
-
-func _save_move() -> void:
-	var nm := ui_move_name.text.strip_edges().replace(" ", "_")
-	M.name = nm if nm != "" else "move_" + _stamp()
-	var keep := playhead
-	var d := M.to_dict(B)
-	M.apply(B, keep)
-	_write("res://moves/%s.json" % M.name, d)
-	ui_info.text = "saved move %s: %d keys, %.2fs, %d frames with parts inside each other\n" % [M.name, M.keys.size(), M.length(), d["bad_frames"].size()] + ui_info.text
+	var nm := ui_scene_name.text.strip_edges().replace(" ", "_")
+	S.name = nm if nm != "" else "scene_" + _stamp()
+	var keep := B.to_dict()
+	var d := S.to_dict(B)
+	B.from_dict(keep)
+	_write("res://scenes/%s.json" % S.name, d)
 	_lists()
+	_refresh()
+	_say("saved scene %s: %d cards, %.2f s, %d frames with parts inside each other" % [S.name, S.cards.size(), S.length(), d["bad_frames"].size()])
 
 
-func _load_move(path: String) -> void:
-	M = Moves.new()
-	M.from_dict(JSON.parse_string(FileAccess.get_file_as_string(path)))
+func _load_scene(path: String) -> void:
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	S = Scene.new()
+	if d.has("cards"):
+		S.from_dict(d)
+	else:   # an old move file: its keys become cards
+		var prev := 0.0
+		for k in d.get("keys", []):
+			S.add("key %.2fs" % k["t"], k["pose"])
+			S.cards[-1]["move"] = maxf(0.05, k["t"] - prev) if S.cards.size() > 1 else -1.0
+			S.cards[-1]["hold"] = 0.0
+			prev = k["t"]
+		S.name = d.get("name", "move")
+	if ui_scene_name != null:
+		ui_scene_name.text = S.name
+	sel_card = -1
 	playhead = 0.0
-	M.apply(B, 0.0)
+	S.apply(B, 0.0)
