@@ -4,6 +4,8 @@ extends SceneTree
 ## more than half that peak; ANTICIPATION = from the start to the strike, RECOVERY = from the strike to the end. Prints
 ## them (s, and the strike in 30 fps frames) and grades each against the weapon's row of the rules.
 ##   godot --headless --path . -s tools/attack_timing.gd -- [scenes/a.json ...]      (no args: every scenes/*.json)
+## --retime: also write scenes/_wip/<name>_timed.json, TIMES ONLY (poses untouched): a strike faster than a real tip
+## gets a longer move in proportion; a recovery past the rule is scaled down to the middle of the weapon's range.
 
 ## kind -> [anticipation lo, hi], [strike frames at 30 fps hi], [recovery lo, hi]   (ATTACK_RULES.md, "Weapons")
 const RULES := {
@@ -16,11 +18,14 @@ const RULES := {
 ## the fastest a real tip goes (m/s): a pro bat ~40, a staff end ~30 (2x the hands' ~15), a knife ~15 (the hand)
 const TIP_MAX := {"knife": 15.0, "metal_bat": 40.0, "hammer": 30.0, "staff": 30.0, "spear": 20.0}
 const FPS := 60.0
+var retime := false
 const NOT_ATTACKS := ["idle_bat", "walk_bat", "dodge_side", "hit_react"]   ## no strike in them: skipped
 
 
 func _init() -> void:
 	var files := Array(OS.get_cmdline_user_args())
+	retime = files.has("--retime")
+	files = files.filter(func(f): return not String(f).begins_with("--"))
 	if files.is_empty():
 		for f in DirAccess.get_files_at("res://scenes"):
 			if f.ends_with(".json"):
@@ -32,7 +37,7 @@ func _init() -> void:
 	quit()
 
 
-func _one(B: Body, path: String) -> void:
+func _one(B: Body, path: String, again := false) -> void:
 	if path.get_file().get_basename() in NOT_ATTACKS:
 		return
 	var S := Scene.new()
@@ -96,5 +101,63 @@ func _one(B: Body, path: String) -> void:
 		notes.append("TOO FAST: tip %.0f m/s > %.0f real (the strike card's move time too short for its arc)" % [sp[pk], cap])
 	if not pops.is_empty():
 		notes.append("POPS at " + ", ".join(pops))
+	if again:
+		path = "  -> " + path.get_file()
 	print("%-24s %-9s wind-up %.2f s | strike %.2f s = %2.0f fr @30 (tip %.1f m/s) | recovery %.2f s  %s" % [path.get_file(),
 		B.wep_kind, ant, strike, strike * 30.0, sp[pk], rec, "OK" if notes.is_empty() else ", ".join(notes)])
+
+	if retime and not again:
+		# measure -> fix -> measure, at most 6 rounds: the fastest card back under the real cap; the recovery cards after
+		# the STRIKE card scaled toward the rule, but never so short that one of them out-runs the strike (a follow-through
+		# faster than the hit would become the "strike" itself)
+		var ks0 := S.span(pk / FPS)
+		if ks0 < 0:
+			return
+		var rec_cards := {}
+		for i in range(ks0 + 1, S.cards.size()):
+			rec_cards[i] = [S.move_time(i), float(S.cards[i]["hold"])]
+		var f: float = minf(1.0, (r[2][0] + r[2][1]) * 0.5 / maxf(rec, 0.01))
+		for round in 6:
+			for i in rec_cards:
+				S.cards[i]["move"] = snappedf(maxf(rec_cards[i][0] * f, 0.08), 0.01)
+				S.cards[i]["hold"] = snappedf(rec_cards[i][1] * f, 0.01)
+			var m := _measure(S, B)
+			var ksn := S.span(float(m["peak_t"]))
+			if float(m["peak"]) > cap and ksn >= 0 and ksn <= ks0:   # the strike (or a spin before it) too fast
+				S.cards[ksn]["move"] = snappedf(S.move_time(ksn) * float(m["peak"]) / cap * 0.95, 0.01)
+			elif ksn > ks0:   # a recovery card became the fastest: give the recovery back some time
+				f = minf(1.0, f * 1.3)
+			else:
+				break
+		var out := "scenes/_wip/%s_timed.json" % path.get_file().get_basename()
+		var d := S.to_dict(B)
+		d["note"] = "TIMES ONLY retime of %s by tools/attack_timing.gd --retime (docs/ATTACK_RULES.md); poses untouched" % path
+		FileAccess.open("res://" + out, FileAccess.WRITE).store_string(JSON.stringify(d, " "))
+		_one(B, out, true)
+
+
+## the tip's smoothed peak speed and when (pops flattened), for the retime loop
+func _measure(S: Scene, B: Body) -> Dictionary:
+	var n := int(S.length() * FPS) + 1
+	var tips := []
+	for i in n:
+		S.apply(B, minf(i / FPS, S.length()))
+		tips.append(B.wep_point(B.wep_len))
+	var raw := [0.0]
+	for i in range(1, n):
+		raw.append(((tips[i] as Vector3) - (tips[i - 1] as Vector3)).length() * FPS)
+	for i in range(1, n - 1):
+		if raw[i] > 3.0 * maxf(raw[i - 1], raw[i + 1]) and raw[i] > 8.0:
+			raw[i] = maxf(raw[i - 1], raw[i + 1])
+	var best := 0.0
+	var bt := 0.0
+	for i in n:
+		var acc := 0.0
+		var c := 0
+		for j in range(maxi(0, i - 2), mini(n, i + 3)):
+			acc += raw[j]
+			c += 1
+		if acc / c > best:
+			best = acc / c
+			bt = i / FPS
+	return {"peak": best, "peak_t": bt}
