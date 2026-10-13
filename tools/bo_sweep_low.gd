@@ -11,11 +11,11 @@ extends SceneTree
 ##   godot --headless --path . -s tools/bo_sweep_low.gd        -> scenes/bo_sweep_low.json
 const LEGS := ["thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"]
 const L_AT := Vector3(0.22, 0.0, 0.44)    # the deep lunge: the left (front) toe base far forward
-const R_AT := Vector3(-0.24, 0.0, -0.46)   # the right (back) toe base far back, the heel up
+var R_AT := Vector3(-0.24, 0.0, -0.46)   # the right (back) toe base far back, the heel up
 const L_HEAD := 0.15                      # where the feet point (rad about up, 0 = forward)
 const R_HEAD := -0.26
 const HIPS_BACK := 0.0
-const PELVIS_TILT := 18.0                 # deg forward (+ = the pelvis tips forward; check the sign in body_limits 'say')
+var PELVIS_TILT := 18.0                 # deg forward (+ = the pelvis tips forward; check the sign in body_limits 'say')
 
 var B: Body
 var start: Dictionary

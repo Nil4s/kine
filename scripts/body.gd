@@ -1134,6 +1134,11 @@ func toes_flat(sd: String) -> void:
 ## where a foot points on the floor (radians about up; 0 = +z)
 func foot_heading(sd: String) -> float:
 	var d: Vector3 = P["ball" + sd] - P["foot" + sd]
+	# a heel high up (a deep lunge's back foot) stands the foot almost on end: ankle -> toe base then points nearly
+	# straight down and its floor direction is noise (it read 85-130 deg off on a good lunge). The toes lie flat on
+	# the floor there, so they say where the foot points: toe base -> toe tip.
+	if Vector2(d.x, d.z).length() < 0.5 * d.length():
+		d = E["ball" + sd] - P["ball" + sd]
 	return atan2(d.x, d.z)
 
 
