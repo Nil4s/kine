@@ -45,6 +45,11 @@ func _init() -> void:
 		"pelvis_rest_y": sk["joints"]["pelvis"]["pos"][1], "grounded": grounded,
 		"_note": "poser bake (tools/bake_scene.gd): per frame A = each joint's turn from rest in rest axes (quaternion x,y,z,w), offset = the hips' move from rest (m, character space +Y up +Z forward +X his left). Game: local = R_rest(parent)^-1 * A * R_rest(j).",
 		"frames": frames}
+	# the weapon, rigid in its hand (Body.lock_weapon): its place in the hand's frame (lrot = G[h]^-1 * rot,
+	# lpos = G[h]^-1 * (knob - P[h])), its kind and length; the game hangs a mesh on that hand bone
+	S.apply(B, 0.0)
+	if B.wep_on and B.wep_hand != "":
+		out["weapon"] = {"kind": B.wep_kind, "length": B.wep_len, "hand": B.wep_hand, "lpos": Body._p(B.wep_lpos), "lrot": Body._q(B.wep_lrot)}
 	FileAccess.open(a[1], FileAccess.WRITE).store_string(JSON.stringify(out))
 	print("BAKED %s: %d frames at %d fps, %.2f s -> %s" % [S.name, n, fps, S.length(), a[1]])
 	quit()
