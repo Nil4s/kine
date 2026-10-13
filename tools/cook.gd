@@ -9,6 +9,7 @@
 ##   "two_hands": true/false  the free hand on the handle (grip at "grip_m" metres up from the knob)
 ##   "heel_up": ["_r"]  that heel lifts (on the toes);  "steps": {"_l": [x, 0, z]} that foot steps (else feet planted)
 ##   "fist": ["l"] / "open": ["l"] / "grip": ["l"]  a hand's shape
+##   "lift":  0.13      how high the stepping foot rises mid-step (m; default 0.08)
 ##   "hips":  [x, 0, z]  where the body stands now (m along the floor; kept until a clip changes it)
 ##   "move", "hold": seconds (move -1 = auto)
 ## Plan keys: "aim_weight" (default 0.15 per radian of bat direction vs 1 per metre of hand: raise it where the bat's
@@ -99,6 +100,8 @@ func _init() -> void:
 		S.cards[-1]["move"] = float(c.get("move", -1.0))
 		S.cards[-1]["hold"] = float(c.get("hold", 0.0))
 		S.cards[-1]["steps"] = c.get("steps", {})
+		if c.has("lift"):
+			S.cards[-1]["lift"] = float(c["lift"])
 		var cs: Array = B.contacts().map(func(x): return "%s/%s %.0fmm" % [x[0], x[1], x[2] * 1000])
 		report.append("  %-18s hand miss %.3f m  aim off %4.1f deg  2nd hand miss %.3f  contacts %s" % [c["name"], miss, aim, gm, cs])
 	var pins := S.pin_cards(B)

@@ -13,7 +13,7 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
 - [x] thrust: one-hand jab with the bat end
 - [x] combo3: forehand -> backhand -> Nick's overhead strike
 - [x] hit_react: flinch back from a hit to the chest, recover
-- [ ] walk_bat: walk cycle with the bat (steps), loop
+- [x] walk_bat: walk start -> stop with the bat (steps) (a loop version later)
 - [x] side-step dodge (dodge_side)
 - [ ] each one: sheet, contacts, compare with a real reference
 
@@ -34,3 +34,4 @@ Started 22:31 (date). Everything is cooked with `tools/cook.gd` from a plan in `
 - 00:15 all six recooked: worst contact anywhere 1-4 mm, hands on target (one key 12 cm: forehand CONTACT), wrists
   straight. Sheets re-recorded.
 - 00:25 combo3 cooked: 12 keys, 4.7 s, my forehand + backhand then Nick's four strike cards at his exact angles; worst contact 2 mm.
+- 00:4x walk_bat: half step + 4 strides of 0.6 m + feet together, 3.15 s, 0 bad frames. First cut was a stiff march (no knee bend -> ground() stood the hips tall); soft knees in the plan + per-clip "lift" (0.13 m) fixed it.

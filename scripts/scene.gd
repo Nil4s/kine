@@ -165,8 +165,9 @@ func apply(B: Body, t: float) -> void:
 					B.plant(sd, a[sd][0], a[sd][1], a[sd][3] and b[sd][3])
 				elif _steps(i).has(sd):
 					# a STEP: the toe base travels from where it stood to where it lands, lifted on an arc
-					#   at = lerp(a, b, e) + up * LIFT * sin(pi e)
-					var at: Vector3 = (a[sd][0] as Vector3).lerp(b[sd][0], e) + Vector3.UP * LIFT * sin(PI * e)
+					#   at = lerp(a, b, e) + up * lift * sin(pi e)   (lift = the card's "lift", else LIFT)
+					var lift := float(cards[i].get("lift", LIFT))
+					var at: Vector3 = (a[sd][0] as Vector3).lerp(b[sd][0], e) + Vector3.UP * lift * sin(PI * e)
 					B.plant(sd, at, lerp_angle(a[sd][1], b[sd][1], e), false)
 	B.apply_grip()
 
@@ -361,6 +362,8 @@ func to_dict(B: Body) -> Dictionary:
 				var v: Vector3 = _steps(i)[sd]
 				st[sd] = [v.x, v.y, v.z]
 			cs[-1]["steps"] = st
+		if c.has("lift"):
+			cs[-1]["lift"] = c["lift"]
 	return {"scene": name, "natural": natural, "on_floor": on_floor, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
@@ -377,3 +380,5 @@ func from_dict(d: Dictionary) -> void:
 		cards.append({"name": c["name"], "pose": c["pose"], "move": float(c.get("move", -1.0)), "hold": float(c.get("hold", 0.3))})
 		if c.has("steps"):
 			cards[-1]["steps"] = c["steps"]
+		if c.has("lift"):
+			cards[-1]["lift"] = float(c["lift"])
