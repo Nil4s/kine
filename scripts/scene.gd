@@ -11,6 +11,11 @@
 ##   Every angle blends between two legal values, so every frame is inside the body's ranges.
 ## AUTO time: the biggest angle change among the big joints (not fingers) sets it:
 ##       move = clamp(0.25 + biggest_deg / 200, 0.3, 1.6) s     (90 deg -> 0.7 s, 180 deg -> 1.15 s)
+## FLOW card ("flow": true; 10-13, from comparing a real swing): a PASS-THROUGH key. Smootherstep stops every joint at
+##   every card, so a swing slowed to zero AT the contact card (a hitch real swings never have). The moves from the
+##   last normal card before a flow run to the first after it are eased as ONE move; the path goes through the flow
+##   cards' poses on a monotone cubic (Fritsch-Carlson: a joint that reverses at a flow card stops there, as it must;
+##   one that keeps going passes through at speed; nothing overshoots its two neighbours, so limits hold). Its hold is 0.
 ## CLEARANCE: if an in-between frame puts parts inside each other (and the two cards don't), clear() adds a pass-by
 ##   pose at the worst frame: the arm involved is lifted out from the body until that frame is clean. It shows up as its
 ##   own card ("pass-by"), so you can see and edit it.
@@ -77,8 +82,9 @@ func times() -> Array:
 	var t := 0.0
 	for i in cards.size():
 		var m := move_time(i)
-		out.append([t, t + m, t + m + float(cards[i]["hold"])])
-		t += m + float(cards[i]["hold"])
+		var h := 0.0 if _flow(i) else float(cards[i]["hold"])
+		out.append([t, t + m, t + m + h])
+		t += m + h
 	return out
 
 
@@ -93,12 +99,82 @@ func sample(t: float) -> Dictionary:
 		return {}
 	var ts := times()
 	for i in cards.size():
+		if t < ts[i][1] and i > 0 and (_flow(i) or _flow(i - 1)):
+			return _flow_sample(t, i, ts)
 		if t < ts[i][1] and i > 0:
 			var u := clampf((t - ts[i][0]) / maxf(1e-6, ts[i][1] - ts[i][0]), 0.0, 1.0)
 			return blend(Moves._flat(cards[i - 1]["pose"]), Moves._flat(cards[i]["pose"]), u)
 		if t < ts[i][2]:
 			return Moves._flat(cards[i]["pose"])
 	return Moves._flat(cards[-1]["pose"])
+
+
+func _flow(i: int) -> bool:
+	return i > 0 and i < cards.size() - 1 and bool(cards[i].get("flow", false))
+
+
+## the flow run around segment i: one easing over [the last normal card before, the first normal card after]; the
+## path through every card of the run on a monotone cubic per angle (and hips offset)
+func _flow_sample(t: float, i: int, ts: Array) -> Dictionary:
+	var p := i - 1
+	while _flow(p):
+		p -= 1
+	var q := i
+	while _flow(q):
+		q += 1
+	var t0: float = ts[p][2]
+	var t1: float = ts[q][1]
+	var u := clampf((t - t0) / maxf(1e-6, t1 - t0), 0.0, 1.0)
+	var poses := []
+	var knots := []
+	for k in range(p, q + 1):
+		poses.append(Moves._flat(cards[k]["pose"]))
+		knots.append((ts[k][1] - t0) / maxf(1e-6, t1 - t0) if k > p else 0.0)
+	var a: Dictionary = poses[0]
+	var ang := {}
+	for j in a["ang"]:
+		var e := _ease(u, level(j))
+		var v := Vector3.ZERO
+		for c in 3:
+			var ys := []
+			for P in poses:
+				ys.append(float((P["ang"].get(j, a["ang"][j]) as Vector3)[c]))
+			v[c] = _mono(knots, ys, e)
+		ang[j] = v
+	var eh := _ease(u, 0)
+	var off := Vector3.ZERO
+	for c in 3:
+		var ys := []
+		for P in poses:
+			ys.append(float((P["offset"] as Vector3)[c]))
+		off[c] = _mono(knots, ys, eh)
+	# the weapon and the second hand: the plain blend inside the piece the hands are in
+	var eb := _ease(u, 5)
+	var k2 := 1
+	while k2 < knots.size() - 1 and eb > knots[k2]:
+		k2 += 1
+	var piece := blend(poses[k2 - 1], poses[k2], clampf((eb - knots[k2 - 1]) / maxf(1e-6, knots[k2] - knots[k2 - 1]), 0.0, 1.0))
+	return {"offset": off, "ang": ang, "weapon": piece["weapon"]}
+
+
+## monotone cubic (Fritsch-Carlson) through (xs, ys) at x: no overshoot, zero slope where the values turn back
+static func _mono(xs: Array, ys: Array, x: float) -> float:
+	var n := xs.size()
+	var d := []
+	for k in n - 1:
+		d.append((ys[k + 1] - ys[k]) / maxf(1e-6, xs[k + 1] - xs[k]))
+	var m := [d[0]]
+	for k in range(1, n - 1):
+		m.append(0.0 if d[k - 1] * d[k] <= 0.0 else 2.0 / (1.0 / d[k - 1] + 1.0 / d[k]))
+	m.append(d[n - 2])
+	var k := 0
+	while k < n - 2 and x > xs[k + 1]:
+		k += 1
+	var h: float = maxf(1e-6, xs[k + 1] - xs[k])
+	var s := clampf((x - xs[k]) / h, 0.0, 1.0)
+	var s2 := s * s
+	var s3 := s2 * s
+	return (2 * s3 - 3 * s2 + 1) * ys[k] + (s3 - 2 * s2 + s) * h * m[k] + (-2 * s3 + 3 * s2) * ys[k + 1] + (s3 - s2) * h * m[k + 1]
 
 
 func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
@@ -384,6 +460,8 @@ func to_dict(B: Body) -> Dictionary:
 		var c: Dictionary = cards[i]
 		cs.append({"name": c["name"], "move": c["move"], "hold": c["hold"], "arrive_s": snappedf(ts[i][1], 0.001),
 			"leave_s": snappedf(ts[i][2], 0.001), "pose": c["pose"]})
+		if c.get("flow", false):
+			cs[-1]["flow"] = true
 		if c.has("steps"):
 			var st := {}
 			for sd in _steps(i):
@@ -411,6 +489,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["steps"] = c["steps"]
 		if c.has("lift"):
 			cards[-1]["lift"] = float(c["lift"])
+		if c.get("flow", false):
+			cards[-1]["flow"] = true
 
 
 ## SPINS (Nick 10-13: banned): key pairs where an arm rolls around itself more than Body.ROLL_STEP + 5 deg: the upper
