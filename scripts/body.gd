@@ -1004,7 +1004,7 @@ func grip_wrist() -> Vector3:
 ## hands) the free wrist is on the handle. cost = |wrist - at| + 0.06 * angle(axis, dir) [rad] + |free wrist - grip|.
 ## Returns [wrist miss m, aim off deg, free hand miss m].
 ## one_start: search only from the arms as they are (no second start): a CONTINUATION from the key before can't flip.
-func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_lane := NAN, lane_w := 15.0, one_start := false) -> Array:
+func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_lane := NAN, lane_w := 15.0, one_start := false, dir_w := 0.06) -> Array:
 	var h := wep_hand
 	var sd := h.substr(h.length() - 2)
 	var od := "_l" if sd == "_r" else "_r"
@@ -1034,7 +1034,7 @@ func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_
 		if use_at:
 			c += ((P[h] - at) as Vector3).length()
 		if use_dir:
-			c += 0.06 * wep_axis().angle_to(dir)   # the bat's direction only breaks ties: the arm's path leads
+			c += dir_w * wep_axis().angle_to(dir)   # default 0.06: the bat's direction only breaks ties (a scripted key where the weapon's line IS the pose passes more)
 		if grip:
 			c += ((P["hand" + od] - grip_wrist()) as Vector3).length()
 		return c
