@@ -47,6 +47,10 @@ func key(turn: float, drop: float, lean: float, feet: String, tuck: float, at: V
 			B.set_ang("calf" + sd, Vector3(tuck * 1.4, 0, 0))
 			B.set_ang("foot" + sd, Vector3(-15, 0, 0))
 	B.grip = true
+	# both hands CLOSED round the shaft (Nick 10-13 "the left hand is just open all the way": with no fitted hammer
+	# grip nothing curled the second hand)
+	B.hand_shape("l", "grip")
+	B.hand_shape("r", "grip")
 	var R := Basis(Vector3.UP, deg_to_rad(turn))
 	var r: Array = B.hold_bat((B.P["pelvis"] as Vector3) + R * at, dir.normalized(), true, true, NAN, 15.0, false, 0.5)
 	var d: Dictionary = B.to_dict()
@@ -66,7 +70,7 @@ func _init() -> void:
 	B.from_dict(gd)
 	B.set_kind("long_hammer")
 	B.grip = true
-	B.grip_u = 0.55
+	B.grip_u = 0.4
 	B.ground()
 	start = B.to_dict()
 	var S := Scene.new()
@@ -77,8 +81,8 @@ func _init() -> void:
 	var keys := [
 		["LOAD (crouch)", -30.0, 0.28, 12.0, "plant", 0.0, Vector3(-0.28, 0.50, 0.08), Vector3(-0.1, 1.0, -0.15), 0.10, 0.23],
 		["windmill back", -40.0, 0.24, 6.0, "plant", 0.0, Vector3(-0.15, 0.72, -0.02), Vector3(-0.25, 0.25, -1.0), 0.13, 0.0],
-		["take-off", -15.0, -0.15, 0.0, "tuck", 15.0, Vector3(-0.06, 0.80, -0.02), Vector3(0.0, 0.55, -1.0), 0.10, 0.0],
-		["airborne: over the top", 0.0, -0.62, 12.0, "tuck", 60.0, Vector3(-0.04, 0.85, 0.10), Vector3(0.0, 1.0, -0.15), 0.13, 0.0],
+		["take-off", -15.0, -0.06, 0.0, "tuck", 15.0, Vector3(-0.06, 0.80, -0.02), Vector3(0.0, 0.55, -1.0), 0.10, 0.0],
+		["airborne: over the top", 0.0, -0.30, 12.0, "tuck", 60.0, Vector3(-0.04, 0.85, 0.10), Vector3(0.0, 1.0, -0.15), 0.13, 0.0],
 		["STRIKE (lands)", 0.0, 0.34, 32.0, "plant", 0.0, Vector3(-0.05, 0.20, 0.48), Vector3(0.0, -0.45, 1.0), 0.10, 0.0],
 		["landing hold", 0.0, 0.36, 34.0, "plant", 0.0, Vector3(-0.04, 0.14, 0.46), Vector3(0.0, -0.75, 1.0), 0.06, 0.5],
 	]
