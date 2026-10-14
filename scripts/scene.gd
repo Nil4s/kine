@@ -16,6 +16,15 @@
 ##   last normal card before a flow run to the first after it are eased as ONE move; the path goes through the flow
 ##   cards' poses on a monotone cubic (Fritsch-Carlson: a joint that reverses at a flow card stops there, as it must;
 ##   one that keeps going passes through at speed; nothing overshoots its two neighbours, so limits hold). Its hold is 0.
+## SPLINE scene ("spline": true; 10-14, Nick: "more easy move and more natural", ~30 cards a combat scene): the WHOLE
+##   scene is one smooth curve per angle, timed by the cards' own times (no global ease, so a card is where its time says).
+##   A card with hold 0 is passed THROUGH; a card with hold > 0, and the first and last card, is a STOP. At a pass-through
+##   card each angle's speed is the weighted harmonic mean of the two secants (Fritsch-Butland / Brodlie, as in scipy's
+##   PCHIP): it keeps going at speed, and is 0 where that angle turns back. Between cards a cubic Hermite: monotone, so
+##   no angle leaves the range of its two cards (limits hold by construction). Smootherstep stops EVERY joint at EVERY
+##   card, so 30 cards would be 30 stops; this stops only where the body really does.
+##   Overlap ("successive breaking of joints"): a joint of level L reads the curve LEAD * (5 - L) s AHEAD, so the hips
+##   lead, the hands are exactly on the cards' times (the strike's timing is the cards'), the fingers trail.
 ## CLEARANCE: if an in-between frame puts parts inside each other (and the two cards don't), clear() adds a pass-by
 ##   pose at the worst frame: the arm involved is lifted out from the body until that frame is clean. It shows up as its
 ##   own card ("pass-by"), so you can see and edit it.
@@ -23,14 +32,25 @@ class_name Scene
 extends RefCounted
 
 const LAG := 0.3
+const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var name := "scene"
 var natural := true
+var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
 var on_floor := true   # every frame: the hips move up/down so the lowest sole touches the floor (Body.ground)
 var floor_body := false   # with on_floor: the whole body's lowest point instead of the soles (get-ups, falls)
 var pin := true        # feet that stay put between two clips are planted: they don't slide while the body turns
 const STEP := 0.12     # a toe base that moves more than this (m, along the floor) between clips = a step, not planted
 var fps := 30
+## MOVING HOLDS (10-14, the animators' "dead hold" complaint; opt-in, saved): during a card's hold the UPPER body keeps
+## drifting toward the next card, HOLD_DRIFT of the way (smoothstep), so a held pose never freezes; the move out
+## starts from the drifted pose (no jump). Hips, legs and the hips' offset stay: a drifting hip would slide the
+## planted feet. Not in a spline scene (its holds are its STOPs) nor before a flow run. HOLD_DRIFT is taste, not data.
+var moving_holds := false
+const HOLD_DRIFT := 0.08
+## STEPPED preview (blocking; view only, never saved): each card's pose is held until the next card ARRIVES, no
+## in-betweens, the way animators check poses and timing before they spline
+var stepped := false
 
 
 static func level(j: String) -> int:
@@ -97,16 +117,43 @@ func length() -> float:
 func sample(t: float) -> Dictionary:
 	if cards.is_empty():
 		return {}
+	if spline:
+		return _spline_sample(t)
 	var ts := times()
 	for i in cards.size():
 		if t < ts[i][1] and i > 0 and (_flow(i) or _flow(i - 1)):
 			return _flow_sample(t, i, ts)
 		if t < ts[i][1] and i > 0:
 			var u := clampf((t - ts[i][0]) / maxf(1e-6, ts[i][1] - ts[i][0]), 0.0, 1.0)
-			return blend(Moves._flat(cards[i - 1]["pose"]), Moves._flat(cards[i]["pose"]), u)
+			var a := Moves._flat(cards[i - 1]["pose"])
+			if _drifts(i - 1, ts):
+				a = _drift(i - 1, 1.0)
+			return blend(a, Moves._flat(cards[i]["pose"]), u)
 		if t < ts[i][2]:
+			if _drifts(i, ts):
+				return _drift(i, (t - ts[i][1]) / maxf(1e-6, ts[i][2] - ts[i][1]))
 			return Moves._flat(cards[i]["pose"])
 	return Moves._flat(cards[-1]["pose"])
+
+
+## does card i's hold drift? (moving holds on, a real hold, a card after it, and that move is a plain one)
+func _drifts(i: int, ts: Array) -> bool:
+	return moving_holds and not spline and i < cards.size() - 1 and float(ts[i][2]) - float(ts[i][1]) > 1e-4 \
+		and not _flow(i + 1)
+
+
+## card i's pose with its upper body f of the way through its hold's drift toward card i+1
+func _drift(i: int, f: float) -> Dictionary:
+	var a := Moves._flat(cards[i]["pose"])
+	var b := Moves._flat(cards[i + 1]["pose"])
+	f = clampf(f, 0.0, 1.0)
+	var k := HOLD_DRIFT * f * f * (3.0 - 2.0 * f)
+	for j in a["ang"]:
+		if j == "pelvis" or j.begins_with("thigh") or j.begins_with("calf") or j.begins_with("foot") or j.begins_with("ball"):
+			continue
+		if b["ang"].has(j):
+			a["ang"][j] = (a["ang"][j] as Vector3) + _d(a["ang"][j], b["ang"][j], j) * k
+	return a
 
 
 func _flow(i: int) -> bool:
@@ -175,6 +222,124 @@ static func _mono(xs: Array, ys: Array, x: float) -> float:
 	var s2 := s * s
 	var s3 := s2 * s
 	return (2 * s3 - 3 * s2 + 1) * ys[k] + (s3 - 2 * s2 + s) * h * m[k] + (-2 * s3 + 3 * s2) * ys[k + 1] + (s3 - s2) * h * m[k + 1]
+
+
+## SPLINE: the pose at time t, every joint on one curve through all the cards (see SPLINE at the top)
+func _spline_sample(t: float) -> Dictionary:
+	var ts := times()
+	var T: float = ts[-1][2]
+	var F := {}   # card -> its flat pose, read once per sample
+	var ang := {}
+	for j in _flat_of(F, 0)["ang"]:
+		ang[j] = _curve(F, j, clampf(t + LEAD * (5 - level(j)), 0.0, T), ts)
+	var off := _curve(F, "_off", clampf(t + LEAD * 5.0, 0.0, T), ts)
+	# the weapon's place in the hand: the plain blend inside the piece the hand is in (as in a flow run)
+	var w := _where(clampf(t, 0.0, T), ts)
+	var wep: Dictionary
+	if w[1] < 0.0:
+		wep = _flat_of(F, w[0])["weapon"]
+	else:
+		wep = blend(_flat_of(F, w[0] - 1), _flat_of(F, w[0]), w[1])["weapon"]
+	return {"offset": off, "ang": ang, "weapon": wep}
+
+
+func _flat_of(F: Dictionary, k: int) -> Dictionary:
+	if not F.has(k):
+		F[k] = Moves._flat(cards[k]["pose"])
+	return F[k]
+
+
+## where time tt falls: [i, s] = moving into card i, s = 0..1 of the move;  [i, -1] = holding card i
+func _where(tt: float, ts: Array) -> Array:
+	for i in cards.size():
+		if tt < ts[i][1] and i > 0:
+			return [i, clampf((tt - ts[i][0]) / maxf(1e-6, ts[i][1] - ts[i][0]), 0.0, 1.0)]
+		if tt < ts[i][2]:
+			return [i, -1.0]
+	return [cards.size() - 1, -1.0]
+
+
+## a STOP card: the first, the last, and any card that holds
+func _stop(k: int) -> bool:
+	return k <= 0 or k >= cards.size() - 1 or float(cards[k]["hold"]) > 0.0
+
+
+## joint j ("_off" = the hips' offset) in card k; a joint a card lacks keeps the card before's value
+func _val(F: Dictionary, k: int, j: String) -> Vector3:
+	var P := _flat_of(F, k)
+	if j == "_off":
+		return P["offset"]
+	if P["ang"].has(j):
+		return P["ang"][j]
+	return _val(F, k - 1, j) if k > 0 else Vector3.ZERO
+
+
+## TWEEN (Tween Machine's rule): flat pose a + s x (b - a) on every angle and the hips; s 0 = a, 1 = b, past the ends
+## = overshoot (put() clamps to the limits). The weapon's place in the hand blends inside [0, 1] when both hold it in
+## the same hand, else it is the nearer card's. Used by the poser's tween slider and tools/detail.gd.
+static func mix_flat(a: Dictionary, b: Dictionary, s: float) -> Dictionary:
+	var ang := {}
+	for j in a["ang"]:
+		var v: Vector3 = (a["ang"][j] as Vector3) + _d(a["ang"][j], b["ang"].get(j, a["ang"][j]), j) * s
+		if j == "pelvis":
+			v.z = wrapf(v.z, -180.0, 180.0)
+		ang[j] = v
+	var w: Dictionary = a["weapon"] if s < 0.5 else b["weapon"]
+	var wa: Dictionary = a["weapon"]
+	var wb: Dictionary = b["weapon"]
+	if not wa.is_empty() and not wb.is_empty() and wa.get("hand", "") == wb.get("hand", "") and wa.get("hand", "") != "":
+		var u := clampf(s, 0.0, 1.0)
+		w = wa.duplicate()
+		w["local_pos"] = (wa["local_pos"] as Vector3).lerp(wb["local_pos"], u)
+		w["local_rot"] = (wa["local_rot"] as Quaternion).slerp(wb["local_rot"], u)
+	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], s), "ang": ang, "weapon": w}
+
+
+## b - a, the hips' whole-body turn the short way round (as blend() does)
+static func _d(a: Vector3, b: Vector3, j: String) -> Vector3:
+	var d := b - a
+	if j == "pelvis":
+		d.z = wrapf(d.z, -180.0, 180.0)
+	return d
+
+
+## joint j's speed (units/s) at card k: 0 at a stop or where it turns back, else the weighted harmonic mean of the two
+## secants (Brodlie: w1 = 2 h_right + h_left, w2 = h_right + 2 h_left) - never more than 3x the smaller: monotone
+func _slope(F: Dictionary, k: int, j: String, ts: Array) -> Vector3:
+	if _stop(k):
+		return Vector3.ZERO
+	var hl: float = maxf(1e-6, ts[k][1] - ts[k][0])
+	var hr: float = maxf(1e-6, ts[k + 1][1] - ts[k + 1][0])
+	var y := _val(F, k, j)
+	var dl := _d(_val(F, k - 1, j), y, j) / hl
+	var dr := _d(y, _val(F, k + 1, j), j) / hr
+	var w1 := 2.0 * hr + hl
+	var w2 := hr + 2.0 * hl
+	var m := Vector3.ZERO
+	for c in 3:
+		if dl[c] * dr[c] > 0.0:
+			m[c] = (w1 + w2) / (w1 / dl[c] + w2 / dr[c])
+	return m
+
+
+## joint j at time tt: held at a card, a cubic Hermite between two cards
+func _curve(F: Dictionary, j: String, tt: float, ts: Array) -> Vector3:
+	var w := _where(tt, ts)
+	var i: int = w[0]
+	var s: float = w[1]
+	if s < 0.0:
+		return _val(F, i, j)
+	var h: float = maxf(1e-6, ts[i][1] - ts[i][0])
+	var a := _val(F, i - 1, j)
+	var b := a + _d(a, _val(F, i, j), j)
+	var ma := _slope(F, i - 1, j, ts)
+	var mb := _slope(F, i, j, ts)
+	var s2 := s * s
+	var s3 := s2 * s
+	var v := (2 * s3 - 3 * s2 + 1) * a + (s3 - 2 * s2 + s) * h * ma + (-2 * s3 + 3 * s2) * b + (s3 - s2) * h * mb
+	if j == "pelvis":
+		v.z = wrapf(v.z, -180.0, 180.0)
+	return v
 
 
 func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
@@ -252,6 +417,17 @@ func _ground(B: Body) -> void:
 
 
 func _apply(B: Body, t: float) -> void:
+	if stepped:
+		var ts := times()
+		var k := 0
+		for i in cards.size():
+			if t >= float(ts[i][1]) - 1e-6:
+				k = i
+		put(B, Moves._flat(cards[k]["pose"]))
+		if on_floor:
+			_ground(B)
+		B.apply_grip()
+		return
 	put(B, sample(t))
 	if on_floor:
 		_ground(B)
@@ -470,14 +646,21 @@ func to_dict(B: Body) -> Dictionary:
 			cs[-1]["steps"] = st
 		if c.has("lift"):
 			cs[-1]["lift"] = c["lift"]
-	return {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
+	var out := {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
+	if spline:
+		out["spline"] = true   # written only when on, so every older scene saves byte-identical
+	if moving_holds:
+		out["moving_holds"] = true   # the same: only when on
+	return out
 
 
 func from_dict(d: Dictionary) -> void:
 	name = d.get("scene", "scene")
 	natural = bool(d.get("natural", true))
+	spline = bool(d.get("spline", false))
+	moving_holds = bool(d.get("moving_holds", false))
 	on_floor = bool(d.get("on_floor", true))
 	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))

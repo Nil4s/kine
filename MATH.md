@@ -115,6 +115,28 @@ No gradients or training: three small formulas.
 - Clearance: frames are checked; where an arm or the bat goes through the body, a "pass-by" clip is added at the
   worst frame with that arm lifted forward/out until clean.
 
+## Spline scenes ("spline": true; 10-14) - one curve through every card
+Smootherstep stops every joint at every card, so more cards made a move stiffer. In a spline scene each angle is ONE
+piecewise cubic Hermite in real time through all the cards (no global ease: a card is where its time says):
+- A card with `hold > 0`, the first and the last are STOPS: speed 0 in and out.
+- Any other card is passed THROUGH at speed `m = (w1 + w2) / (w1/d_l + w2/d_r)`, `w1 = 2 h_r + h_l`, `w2 = h_r + 2 h_l`
+  (Brodlie's weighted harmonic mean of the two secants d = change / move time; scipy's PCHIP); `m = 0` where the angle
+  turns back (`d_l d_r <= 0`). Monotone: no angle leaves the range of its two cards, so the limits hold.
+- Overlap: joint level L reads the curve at `t + 0.015 (5 - L)` s: hips 75 ms ahead, hands ON the cards' times (the
+  strike's timing is the cards'), fingers 15 ms behind.
+- The hips' whole-body turn takes the short way round, as in blend(). The weapon's place in the hand blends per piece.
+Checked by `tests/spline_test.gd` (cards hit at their times, stops are stops, pass-through speed continuous, nothing out
+of range; fails on purpose when every card is made a stop) and `tests/sample_dump.gd` (a scene without "spline" samples
+byte-identical to before).
+
+## Detail pass (tools/detail.gd; 10-14) - ~30 cards a combat scene
+Writes `scenes/_wip/<name>_detail.json` only. Keeps every card at its time and adds named breakdowns, each a principle:
+`~overshoot` (+8% of the move that stopped there) then `~settle` (+2%); `~hold` (a moving hold: +3% drift);
+`~anticipate` (-10% of a coming STRIKE: big and at least median speed, never a recovery); `~bd` in-betweens
+(smootherstep, forearm 0.07 and hand 0.12 behind in u: the trunk leads, the ends whip). A hold under 0.2 s gets ONE ~
+card (three in 80 ms jittered). Never denser than ON TWOS (a card per 2 frames); none inside a STEP move. Each new card
+is guarded: never deeper in the body than its source cards (the push halves until clean; the tool prints every cut).
+
 ## Feet: planted and stepping (Body.plant, Scene.pin_cards)
 - A clip may list `steps`: {"_l": [x, y, z]} = that foot lands this far (m, along the floor) from where it stood.
   Every other foot on the floor stays PLANTED; a clip without `steps` treats a toe base that moved < 12 cm as planted.

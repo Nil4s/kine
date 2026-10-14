@@ -124,7 +124,14 @@ func landed(S: Scene, B: Body) -> Array:
 	var tc := lo
 	var L := Scene.new()
 	L.name = S.name
+	# every playback flag goes with the copy (10-14: it kept only `natural`, so a solid dummy played a spline scene with
+	# the old per-card ease, and a get-up without floor_body)
 	L.natural = S.natural
+	L.spline = S.spline
+	L.on_floor = S.on_floor
+	L.floor_body = S.floor_body
+	L.pin = S.pin
+	L.fps = S.fps
 	var ts: Array = S.times()
 	var last := -1
 	for i in S.cards.size():

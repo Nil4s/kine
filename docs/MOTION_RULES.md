@@ -1,0 +1,58 @@
+# Motion rules (the rulebook: `scripts/rulebook.gd`; Check button; `tools/rules_check.gd`)
+
+Recorded human numbers a scene is graded against (Nick 10-14: "plenty of humans recorded maths and numbers about those
+animations"). Each rule: what it reads, the bar, where the bar comes from. **FAIL** = past a real human limit,
+**WARN** = looks off. Sampled at 60 fps. The weapon's phase timing stays in `docs/ATTACK_RULES.md` /
+`tools/attack_timing.gd`; its tables are reused here, not copied.
+
+| rule | reads | bar | source |
+|---|---|---|---|
+| SEQUENCE | in the 0.5 s before each strike's tip peak: when the hips, the chest and the weapon turn fastest | hips, then chest, then weapon (1 frame = a tie). Chest or hips after the weapon = FAIL; hips after chest = WARN | pelvis -> trunk -> bat in hitting: [ISBS 2015, 3 hitters, 389 / 601 / 1953 deg/s](https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737); [K-Vest on the hitting sequence](https://rocklandpeakperformance.com/?p=13418) |
+| HIPS TURN | the hips' fastest turn into a strike | WARN under 97 deg/s (a quarter of 389) | same ISBS study (3 recreational hitters: the bar is deliberately loose) |
+| HEAD QUIET | from 0.3 s before the tip's peak to 0.1 s after: how far the head gets from where it began | WARN over 15 cm, FAIL over 30 cm. Stands down when a foot leaves the ground within 0.2 s of the window (jumps) | hitters' heads drop ~9 cm over the whole swing (Inkster et al., reported in [SABR: stride and head movement](https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/)); skilled hitters steadier (Nakata, same review). The primary Inkster paper was not found: the 9 cm is the review's figure |
+| TIP SPEED | the weapon tip's speed at each strike | FAIL over the weapon's cap (bat 40, staff 30, knife 15, hammer 30, spear 20 m/s) | `docs/ATTACK_RULES.md` (good hitters' bat 36.8 m/s in the ISBS-cited study) |
+| STRIKE FRAMES | frames the tip spends above half its peak, in 30 fps frames | WARN over the weapon's budget (bat 6, knife 4...) | `docs/ATTACK_RULES.md` (Aztez: "rarely more than 6 frames") |
+| FIST SPEED | unarmed only: each hand's fastest | WARN over 11.95 m/s, FAIL over 15.6 (mean + 2 SD) | lead hook 11.95 +- 1.84 m/s, [Stanley et al. 2018](https://chesterrep.openrepository.com/entities/publication/0acdae9d-e8be-48cf-816e-ed9c667981b3); straight 9.26 +- 2.09, [Piorkowski et al. 2011](https://clok.uclan.ac.uk/3757/1/piorkowski-et-al-2011-punch-kinematics.pdf) |
+| HITCH | weapon tip, hips, head: a speed dip under 30% of BOTH sides within 3 frames (50 ms), both sides >= 1 m/s; not inside a card's hold | WARN (one finding per moment, naming every part) | point-to-point movement has one bell-shaped speed peak: Flash & Hogan 1985, *J. Neurosci.* 5(7):1688-1703 |
+| FOOT SLIDE | each foot's toe base (ball) while it is DOWN (under 5 cm) and SETTLED (moving under 5 mm a frame): how far it drifts along the floor over one such stretch | WARN over 2.5 cm | foot-skating metric in motion generation: down = under 5 cm, skating = over 2.5 cm ([Karunratanakul et al. 2023, as used by OmniControl](https://arxiv.org/pdf/2310.08580)). The 5 mm "settled" gate and measuring per stretch are MY choices, not the paper's: without them every landing and take-off scored as a slide (40 false findings over the scenes, traced) |
+
+## Which scenes get which rules
+- The swing rules (SEQUENCE, HIPS TURN, HEAD QUIET, TIP SPEED, STRIKE FRAMES) only run on strikes in attack scenes:
+  not `idle_bat`, `walk_bat`, `dodge_side`, `hit_react` (attack_timing's list), not the get-ups.
+- A strike = a tip speed peak at least half the scene's fastest (and over 3 m/s), 0.25 s from any bigger one.
+
+## How the bars were set (and what was thrown out)
+- A LURCH rule on raw acceleration was planned and DROPPED after a survey of every scene (`tests/lurch_survey.gd`): a
+  jump landing (leap_slam 377 m/s^2) and a get-up (336) are real and scored above combo3's lurch (hips 81, head 247),
+  so no acceleration bar separates them. The lurch is caught by HEAD QUIET instead (56 cm in 130 ms).
+- HITCH first flagged holds (a held wind-up top is on purpose) and reported one stop three times; both fixed.
+- Every rule fires on a series broken on purpose and stays quiet on a good one: `tests/rules_test.gd`.
+- FOOT SLIDE, first version (any down frame): 40 findings, every one a landing or a take-off. The settled gate leaves
+  one: in `combo3_detail` the right foot creeps 5.4 cm into 'recover' at 3-5 mm a frame (traced frame by frame, real).
+- GIMBAL FLIPS (an animator complaint) were MEASURED, not ruled: `tests/flip_survey.gd` reads every joint's turn between
+  frames over 32 scenes. Worst 58.4 deg/frame = 3505 deg/s (thrust, the knee); bar = the fastest joint turn on record, a
+  pitcher's shoulder internal rotation, 4766 +- 772 deg/s ([Campbell, ISBS, Table 2](https://ojs.ub.uni-konstanz.de/cpa/article/view/1673/1575)),
+  mean + 2 SD = 6310 deg/s. Nothing over it, nothing even over the mean; a 180 deg twist planted as a control reads 180 deg/frame and is caught.
+  Angles here are swing/twist with joint limits, never Euler gimbals, so flips have no way in; the survey stays as a guard.
+
+## Fix (the button under a finding; `scripts/fixer.gd`)
+Nick 10-14: "fixes could update the clip only, not delete them; we always have ctrl+z". A fix changes a card's move
+time, its flow flag or its trunk pose; it never adds, deletes, renames or reorders a card (asserted). It is KEPT only
+if its own finding is gone and the scene has no more must-fix findings than before; otherwise the cards are put back
+byte-identical and the row says why. A kept fix is one Ctrl+Z step (undo now restores cards, not just the body).
+
+| finding | what Fix does |
+|---|---|
+| TIP SPEED / FIST SPEED | the card's move time x (speed / cap) x 1.05, re-checked, up to 4 times |
+| STRIKE FRAMES | the card's move time x 0.85, re-checked, up to 4 times |
+| HITCH (no spline) | the card the body stops at becomes a flow card (passed through) |
+| HEAD QUIET | the card's spine, neck, head and the hips' slide eased back toward the card before, by the LEAST amount (bisection) that brings the head under 15 cm; the arms ride on the trunk, so the message reports the tip speed change |
+| SEQUENCE, HIPS TURN, HITCH in a spline scene | no button: the row says it is in the poses |
+
+Measured on real scenes (`tests/fix_test.gd`): combo3's head fix eases card 10 93% back toward card 9 (56 cm -> under
+15), and the tip drops 44.7 -> 31.0 m/s with it. The same fix on the polished combo3 is REFUSED (it would create a
+SEQUENCE FAIL and move the lurch to card 26): the 30-card version spreads the lurch over several cards.
+
+## Not graded yet
+Walk cadence (normal adults ~80-135 steps/min) has no walk scene with steps to read. Recorded numbers for kicks,
+throws and falls are not in yet.

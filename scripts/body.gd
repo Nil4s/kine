@@ -1243,6 +1243,37 @@ func mirror_side(from_side: String) -> void:
 	fk()
 
 
+## the joint's twin on the other side (hand_l <-> hand_r); a middle joint is its own twin
+static func twin(j: String) -> String:
+	if j.ends_with("_l"):
+		return j.substr(0, j.length() - 2) + "_r"
+	if j.ends_with("_r"):
+		return j.substr(0, j.length() - 2) + "_l"
+	return j
+
+
+## MIRROR THE WHOLE POSE (10-14, animators: "the left-handed version of this move"): left <-> right through the
+## body's middle plane (x -> -x). Each joint takes its twin's rotation reflected, A' = M A M, which for a quaternion
+## is (x, y, z, w) -> (x, -y, -z, w) (the same rule weapon_to_hand uses for the left-hand grip); the hips' offset x
+## flips; the weapon goes to the other hand, its place in the hand reflected the same way. Mirroring twice = the pose.
+func mirror_pose() -> void:
+	var A := {}
+	for j in ORDER:
+		A[j] = compose(j, ang[j])
+	for j in ORDER:
+		var q: Quaternion = A[twin(j)]
+		ang[j] = clamp_ang(j, decompose(j, Quaternion(q.x, -q.y, -q.z, q.w)))
+	offset.x = -offset.x
+	if wep_hand != "":
+		wep_hand = twin(wep_hand)
+		wep_lpos.x = -wep_lpos.x
+		wep_lrot = Quaternion(wep_lrot.x, -wep_lrot.y, -wep_lrot.z, wep_lrot.w)
+	else:
+		wep_pos.x = -wep_pos.x
+		wep_rot = Quaternion(wep_rot.x, -wep_rot.y, -wep_rot.z, wep_rot.w)
+	fk()
+
+
 ## the pose as plain data: angles, rotations and positions, all readable
 func to_dict() -> Dictionary:
 	var joints := {}
