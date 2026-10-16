@@ -101,7 +101,7 @@ func _init() -> void:
 	ok(back_at > 0, "Tab comes back round to the first control after %d presses: no trap" % back_at)
 	var reach := {"top bar": seen.any(func(x): return x.begins_with("tab_") or x.begins_with("ribbon_") or x in ["b_undo", "b_search"]),
 		"left panel": seen.any(func(x): return x.contains("b_save_pose") or x.contains("edit_name")),
-		"right panel": seen.any(func(x): return x.contains("slider_swing")),
+		"right panel": seen.any(func(x): return x.contains("slider_bend")),
 		"scene row": seen.any(func(x): return x.begins_with("card_") or x.contains("play_row")),
 		"CHECK panel": seen.any(func(x): return x.begins_with("check_panel"))}
 	ok(reach.values().all(func(v): return v), "the walk reaches every panel: %s" % reach)

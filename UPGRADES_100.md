@@ -49,7 +49,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 37. DONE (round 9: VIEW > Light, remembered; contrast >= 4.5:1 measured from the tokens in both palettes) ~~[STY] Dark theme close to Fusion's charcoal plus one accent color; and a light theme.~~
 38. DONE (round 9: scripts/icons.gd, 26 icons drawn in code, tinted by the theme; icons_test) ~~[STY] Icon set: consistent 24px line icons for every ribbon command (no text-only buttons).~~
 39. [STY] 4/8px spacing grid audit across all panels.
-40. [STY] Typography: 2 sizes and 2 weights max. A label and value style for the properties panel.
+40. DONE (round 25: the properties panel at two sizes (22 name, 15 the rest), one weight, value rows label dim / value bright; type_scale_test) ~~[STY] Typography: 2 sizes and 2 weights max. A label and value style for the properties panel.~~
 41. DONE (round 24: undo/redo toast, Fix flashes the changed cards; feedback_test) ~~[STY] Animated micro-feedback: button press, apply-fix flash, undo toast.~~
 42. DONE (round 24: joint dots and the part name red = his left, blue = his right; side_colours_test; bones not thickened) ~~[STY] Skeleton rendering: thicker bones, joint dots, and a left/right color convention (e.g. blue/red).~~
 43. DONE (round 23: two ghosts a side, fading, orange->red / green->cyan; onion_fade_test) ~~[STY] Ghost/onion skins: fading alpha plus a hue shift for past and future.~~
@@ -94,7 +94,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 78. DONE (round 12: a plain 'why' line under each finding + a source button to the research; why_test) ~~[UX] Rule warnings explain the "why" plus a link to the research note (Campbell ISBS etc.).~~
 79. DONE (round 10: hovering a Fix shows a blue ghost of the result, worked out off the main thread, the scene untouched; fix_preview_test) ~~[UX] Fix button preview: show the before and after ghost before applying.~~
 80. DONE (round 12: Example: walk / swing / dodge on the empty state, opened as a copy; examples_test) ~~[UX] Example scenes bundled (walk, swing, block) and opened from the empty state.~~
-81. PARTIAL (round 15: clicks_test measures 10 tasks in the real window, docs/CLICKS.md; 21 -> 16 on the 9 possible before (24%), card naming added; short of 30%, why per task) ~~[UX] Clicks-to-task audit: count clicks for 10 common tasks and cut each by at least 30%.~~
+81. DONE (round 25: 21 -> 14 on the 9 tasks, 33%: one drag picks and grabs, each Fix under its finding; round 15: 21 -> 16, card naming; docs/CLICKS.md) ~~[UX] Clicks-to-task audit: count clicks for 10 common tasks and cut each by at least 30%.~~
 82. [UX] A non-animator test script: a novice completes "make a punch clip" in under 5 minutes. Record the steps.
 83. DONE (round 14: F6 = the panels by keyboard; Tab walks 198 stops with no trap, Enter/Space press, Esc back; focus ring measured 11.5:1 dark / 4.6:1 light; keyboard_test) ~~[UX] Accessibility: keyboard-only operation of all panels and visible focus rings.~~
 84. DONE (round 11: VIEW > UI size 90/100/125/150, offered when the window leaves 1280x720 (150 needs 1920x1080); ui_scale_test) ~~[UX] UI scale setting (90–150%).~~

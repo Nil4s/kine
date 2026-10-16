@@ -54,7 +54,7 @@ func _init() -> void:
 		ok(String(m.ui_title.text).begins_with(k[1]), "weapon %s -> the panel title '%s'" % [k[0], m.ui_title.text])
 		var noun: String = k[1].to_lower()
 		var how: String = m.ui_how.text
-		var row: String = m.ui_hips[0][1].text
+		var row: String = "%s   %s" % [m.ui_hips[0][1][0].text, m.ui_hips[0][1][1].text]   # the row's name + value (round 25: two labels)
 		var stray: bool = k[0] != "metal_bat" and (how.replace("'Lock bat to hand'", "").contains("bat") or row.contains("bat"))
 		ok(not stray and (how.contains(noun) or how.begins_with("FREE")) and row.begins_with(noun), "  its words: '%s' / '%s'" % [how.left(60), row])
 	print("SCENE LIST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

@@ -14,17 +14,17 @@ const BEFORE := {"open a scene (combo3)": 3, "slow one card down": 2, "raise the
 	"add the pose as a card": 1, "name a card": -1, "put the bat in the right hand": 4, "check, apply a fix": 3,
 	"undo": 1, "save under a new name": 4}
 ## the count each task may take now: one more is a regression and FAILS
-const BUDGET := {"open a scene (combo3)": 2, "slow one card down": 2, "raise the right arm": 2, "mirror the pose": 1,
-	"add the pose as a card": 1, "name a card": 3, "put the bat in the right hand": 1, "check, apply a fix": 3,
+const BUDGET := {"open a scene (combo3)": 2, "slow one card down": 2, "raise the right arm": 1, "mirror the pose": 1,
+	"add the pose as a card": 1, "name a card": 3, "put the bat in the right hand": 1, "check, apply a fix": 2,
 	"undo": 1, "save under a new name": 3}
 ## why a task is not cut further
 const WHY := {"open a scene (combo3)": "cut: picking it opens it (it asks first when the open scene has unsaved changes). 2 = open the list + pick.",
 	"slow one card down": "which card + what to do: 2 is the floor without guessing the card.",
-	"raise the right arm": "which part + how far: the drag is the amount.",
+	"raise the right arm": "cut: one drag; the press on the part picks it and grabs it (the click first was never needed).",
 	"mirror the pose": "already one key.", "add the pose as a card": "already one key.",
 	"name a card": "cut from impossible: double-click the title, type, Enter (Esc or clicking away keeps the old name).",
 	"put the bat in the right hand": "cut: B now moves the bat into the right hand whichever hand held it (it took it off before); the button was 2 scrolls down.",
-	"check, apply a fix": "Check + the fix you choose. The +1 is a scroll: the first fix offered was refused (it did not remove the problem), and the next is below the panel's fold. Kept: which fix is a choice.",
+	"check, apply a fix": "cut: each Fix sits right under its finding (its why line after it), so the next fix is in view when the first is refused. 2 = Check + the fix you choose.",
 	"undo": "already one key.",
 	"save under a new name": "cut: Enter in the name box saves. A new name has to be typed; re-saving under the same name is Ctrl+Shift+S, 1 key."}
 
@@ -180,18 +180,14 @@ func _init() -> void:
 		n += 1
 	await task("slow one card down", "click the card, Slower", n, m.S.times()[2][1] - m.S.times()[1][1] > mv0 + 1e-6 or m.S.cards[2]["hold"] > 0)
 
-	# 3 raise the right arm (pick it, drag it)
+	# 3 raise the right arm: ONE drag from it (round 25, #81: the press on a part picks it AND grabs it; another part
+	# is picked first, so the drag must do both)
 	var a0: Vector3 = m.B.ang["upperarm_r"]
-	n = 0
-	var p := spot("upperarm_r")
-	mouse(true, p)
-	await process_frame
-	mouse(false, p)
+	m.sel = "head"
+	m._refresh()
 	await idle()
-	n += 1
 	await drag(spot("upperarm_r"), Vector2(0, -60))
-	n += 1
-	await task("raise the right arm", "click it, drag it", n, m.sel == "upperarm_r" and not m.B.ang["upperarm_r"].is_equal_approx(a0))
+	await task("raise the right arm", "drag it (the press picks it)", 1, m.sel == "upperarm_r" and not m.B.ang["upperarm_r"].is_equal_approx(a0))
 
 	# 4 mirror the pose
 	var al: Vector3 = m.B.ang["upperarm_l"]
@@ -222,9 +218,13 @@ func _init() -> void:
 	n = 0
 	var bpath := ""
 	if not (m.B.wep_on and m.B.wep_kind == "metal_bat"):
-		if await click("Poses/b_bat"):
-			n += 1
-			bpath = "Bat, "
+		if await click("Poses/opt_weapon"):   # the weapon picker (round 25): open it, pick Metal bat = 2 actions
+			var wo := find("Poses/opt_weapon") as OptionButton
+			(wo.get_popup() as PopupMenu).hide()
+			wo.select(1)
+			wo.item_selected.emit(1)
+			n += 2
+			bpath = "weapon picker > Metal bat, "
 	await key(KEY_B)   # "In right hand (B)"
 	n += 1
 	await task("put the bat in the right hand", bpath + "B (In right hand)", n, m.B.wep_on and m.B.wep_hand == "hand_r" and m.B.wep_kind == "metal_bat")
@@ -310,7 +310,7 @@ func _init() -> void:
 		most = maxi(most, r[2])
 	lines += ["", "Over the %d tasks the window could do before: %d -> %d actions, %.0f%% fewer; tasks that had no way now take %d." % [
 		possible, was, was_n, cut, total - was_n],
-		("That meets the 30%% bar." if cut >= 30.0 else "That is short of the 30%% the gate asked for: no task takes more than %d actions now, and each row says why it is not cut further. The rest is choices (which card, which part, which fix, which name)." % most)]
+		("That meets the 30% bar." if cut >= 30.0 else "That is short of the 30%% the gate asked for: no task takes more than %d actions now, and each row says why it is not cut further. The rest is choices (which card, which part, which fix, which name)." % most)]
 	var outp := OS.get_environment("CLICKS_OUT") if OS.get_environment("CLICKS_OUT") != "" else OS.get_environment("TMP") + "/clicks_now.md"
 	var fh := FileAccess.open(outp, FileAccess.WRITE)
 	fh.store_string("

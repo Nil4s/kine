@@ -878,6 +878,7 @@ func _refresh() -> void:
 	Overlays.pose_skeleton(skel, bone_idx, B)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
+	_sync_weapon()
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
 	var touching := {}
@@ -1447,6 +1448,49 @@ func _bat_put(h: String) -> void:
 	B.weapon_to_hand(h)
 	sel = "bat_handle"
 	_say("bat in the %s with the standard grip (Nick's). It moves with the hand. 'Free the bat' to refit it." % nice(h))
+
+
+## ONE WEAPON PICKER (round 25, GATES FF1, Nick 10-16: "weapons could be a drop down list so it looks cleaner"): the
+## same dropdown in both panels; picking = what the old buttons did (one undo step); _refresh makes every picker show
+## what the body holds, whatever changed it (B, undo, a scene, the search); select() does not fire item_selected
+const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "0.84 m"], ["Bo staff", "staff", "1.8 m"], ["Long hammer", "long_hammer", "1.1 m"]]
+var ui_weapon_pickers: Array[OptionButton] = []
+
+
+func _weapon_picker(nm := "opt_weapon") -> OptionButton:   # names differ: every control is found by its name
+	var o := OptionButton.new()
+	o.name = nm
+	o.focus_mode = Control.FOCUS_NONE
+	o.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for w in WEAPONS:
+		o.add_item("%s   (%s)" % [w[0], w[2]] if w[1] != "" else w[0])
+	o.tooltip_text = "the weapon in the hand: pick one, or None to take it away"
+	o.item_selected.connect(_pick_weapon)
+	ui_weapon_pickers.append(o)
+	return o
+
+
+func _pick_weapon(k: int) -> void:
+	if k == weapon_shown():
+		return
+	_do(_bat_remove if WEAPONS[k][1] == "" else _kind.bind(WEAPONS[k][1]))
+
+
+## the picker's row for what the body holds
+func weapon_shown() -> int:
+	if not B.wep_on:
+		return 0
+	for k in WEAPONS.size():
+		if WEAPONS[k][1] == B.wep_kind:
+			return k
+	return 0
+
+
+func _sync_weapon() -> void:
+	var k := weapon_shown()
+	for o in ui_weapon_pickers:
+		if is_instance_valid(o) and o.selected != k:
+			o.select(k)
 
 
 func _bat_remove() -> void:
@@ -2123,6 +2167,33 @@ func _row(parent: Control, items: Array) -> HBoxContainer:
 	return h
 
 
+## ONE TYPE SCALE (round 25, GATES FF3, UPGRADES #40): the properties panel has two sizes, PROP_BIG (the part's name)
+## and PROP_TXT (everything else), one weight; a value row reads label dim, value bright, its hint dim under them
+const PROP_BIG := 22
+const PROP_TXT := 15
+
+
+## a value row in parent: [name (dim), value (bright)] then the hint (dim, hidden when empty). Returns the three labels
+func _prop_row(parent: Control) -> Array:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	var n := _label("", PROP_TXT, "text:0.6")
+	var v := _label("", PROP_TXT, "text")
+	h.add_child(n)
+	h.add_child(v)
+	parent.add_child(h)
+	var hint := _label("", PROP_TXT, "text:0.6", true)
+	parent.add_child(hint)
+	return [n, v, hint]
+
+
+func _set_prop(r: Array, name: String, value: String, hint := "") -> void:
+	(r[0] as Label).text = name
+	(r[1] as Label).text = value
+	(r[2] as Label).text = hint
+	(r[2] as Label).visible = hint != ""
+
+
 func _section(parent: Control, t: String) -> void:
 	var s := HSeparator.new()
 	parent.add_child(s)
@@ -2304,9 +2375,8 @@ func _ui() -> void:
 		_button("Rename", _rename_pose, "click one of YOUR poses in the list, type the new name above, press Rename")])
 	_row(lv, [_button("Delete pose", _delete_pose, "click a pose in the list, then Delete (it asks first; the file goes to the trash folder)")])
 	_row(lv, [_button("CLIP this pose  (Enter)", _card_add, "the body as it is now becomes the next clip in the scene below")])
-	lv.add_child(_label("WEAPON  (in the right hand)", 14, "heading"))
-	_row(lv, [_button("Bat", _do.bind(_kind.bind("metal_bat")), "metal bat 0.84 m"), _button("Bo staff", _do.bind(_kind.bind("staff")), "staff 1.8 m")])
-	_row(lv, [_button("Hammer", _do.bind(_kind.bind("long_hammer")), "long hammer 1.1 m"), _button("None", _do.bind(_bat_remove), "remove the weapon")])
+	lv.add_child(_label("WEAPON", 14, "heading"))
+	_row(lv, [_weapon_picker()])
 	_row(lv, [_button("2nd hand on/off (G)", _do.bind(_toggle_second), "the other hand on the shaft; [ ] slide it")])
 	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
 	_row(lv, [ui_slide_btn])
@@ -2338,16 +2408,20 @@ func _ui() -> void:
 	vb.custom_minimum_size = Vector2(RIGHT_W - 34, 0)
 	vb.add_theme_constant_override("separation", 5)
 	sc.add_child(vb)
-	vb.add_child(_label("2  SELECTED PART  (click the body)", 15, "heading"))
-	ui_title = _label("", 22, "text", true)
+	var pth := Theme.new()   # ONE TYPE SCALE (round 25, #40): the panel's buttons at the text size too
+	for t in ["Button", "OptionButton", "Label"]:
+		pth.set_font_size("font_size", t, PROP_TXT)
+	vb.theme = pth
+	vb.add_child(_label("2  SELECTED PART  (click the body)", PROP_TXT, "heading"))
+	ui_title = _label("", PROP_BIG, "text", true)
 	vb.add_child(ui_title)
-	ui_how = _label("", 14, "info", true)
+	ui_how = _label("", PROP_TXT, "info", true)
 	vb.add_child(ui_how)
 	for k in ["bend", "side", "twist"]:
 		var box := VBoxContainer.new()
-		var l := _label("", 15, "text", true)
-		box.add_child(l)
+		var l := _prop_row(box)
 		var s := HSlider.new()
+		s.name = "slider_" + k   # by its axis: the label before it is the hint, and its words change with the part
 		s.step = 0.5
 		s.custom_minimum_size = Vector2(0, 24)
 		s.drag_started.connect(_push_undo)
@@ -2358,9 +2432,9 @@ func _ui() -> void:
 	ui_hip_box = VBoxContainer.new()
 	vb.add_child(ui_hip_box)
 	for k in 3:
-		var l := _label("", 15, "text", true)
-		ui_hip_box.add_child(l)
+		var l := _prop_row(ui_hip_box)
 		var s := HSlider.new()
+		s.name = "slider_hip_%d" % k
 		s.step = 0.005
 		s.custom_minimum_size = Vector2(0, 24)
 		s.drag_started.connect(_push_undo)
@@ -2380,21 +2454,20 @@ func _ui() -> void:
 	frow = _row(vb, [_label("left:  ", 15), _button("Open", _do.bind(_fingers.bind("l", "open"))), _button("Grip", _do.bind(_fingers.bind("l", "grip"))),
 		_button("Fist", _do.bind(_fingers.bind("l", "fist")))])
 	frow.name = "fingers_l"
-	vb.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", 13, "text:0.55", true))
+	vb.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
 	_section(vb, "WEAPON")
-	_row(vb, [_button("Metal bat", _do.bind(_kind.bind("metal_bat"))), _button("Staff (bo)", _do.bind(_kind.bind("staff"))),
-		_button("Long hammer", _do.bind(_kind.bind("long_hammer")))])
+	_row(vb, [_weapon_picker("opt_weapon_panel")])
 	_row(vb, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
 	_row(vb, [_button("Main hand down (,)", _do.bind(_slide.bind(-0.03)), "the hand slides toward the lower end; the weapon stays, the arm follows"),
 		_button("Main hand up (.)", _do.bind(_slide.bind(0.03)), "the hand slides toward the tip; the weapon stays, the arm follows")])
-	_row(vb, [_button("Lock bat to hand / Free it (L)", _do.bind(_bat_lock)), _button("Remove bat", _do.bind(_bat_remove))])
+	_row(vb, [_button("Lock bat to hand / Free it (L)", _do.bind(_bat_lock))])
 	_row(vb, [_button("Other hand on the bat (G)", _do.bind(func(): B.grip = not B.grip)),
 		_button("Save grip as standard", _save_grip, "the bat's place in the hand + the fingers become the grip 'Bat in hand' uses")])
-	vb.add_child(_label("[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length", 13, "text:0.55", true))
+	vb.add_child(_label("[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length", PROP_TXT, "text:0.55", true))
 	_section(vb, "NUMBERS")
 	ui_math_btn = _button("Show the math (for Claude)", func(): ui_math.visible = not ui_math.visible)
 	vb.add_child(ui_math_btn)
-	ui_math = _label("", 12, "text:0.6", true)
+	ui_math = _label("", PROP_TXT, "text:0.6", true)
 	ui_math.visible = false
 	vb.add_child(ui_math)
 
@@ -2801,7 +2874,7 @@ func _panel_part() -> void:
 		row["slider"].max_value = r.y
 		row["slider"].value = vals[k]
 		var say: String = L["say"].get(k, "")
-		row["label"].text = "%s   %.0f deg      (%s)" % [words[k], vals[k], say.replace("+ = ", "more = ")]
+		_set_prop(row["label"], words[k], "%.0f deg" % vals[k], say.replace("+ = ", "more = "))
 	ui_hip_box.visible = sel == "pelvis"
 	ui_pole_row.visible = sel in ["hand_r", "hand_l", "foot_r", "foot_l"]
 	(ui_pole_row.get_child(0) as Label).text = ("elbow" if sel.begins_with("hand") else "knee") + "  (Ctrl+drag)"
@@ -2810,7 +2883,7 @@ func _panel_part() -> void:
 		ui_hips[k][0].min_value = -1.0 if k != 1 else -0.9
 		ui_hips[k][0].max_value = 1.0 if k != 1 else 0.4
 		ui_hips[k][0].value = B.offset[k]
-		ui_hips[k][1].text = "%s   %.2f m" % [names[k], B.offset[k]]
+		_set_prop(ui_hips[k][1], names[k], "%.2f m" % B.offset[k])
 	if ui_math.visible:
 		var A := B.compose(sel, v)
 		var con: Array = B.contacts()
@@ -2838,7 +2911,7 @@ func _panel_bat() -> void:
 		row["slider"].min_value = -180.0
 		row["slider"].max_value = 180.0
 		row["slider"].value = vals[k]
-		row["label"].text = "%s   %.0f deg" % [words[k], vals[k]]
+		_set_prop(row["label"], words[k], "%.0f deg" % vals[k])
 	ui_hip_box.visible = true
 	ui_pole_row.visible = false
 	var span := 0.3 if locked else 2.0
@@ -2847,7 +2920,7 @@ func _panel_bat() -> void:
 		ui_hips[k][0].min_value = -span if (k != 1 or locked) else -0.2
 		ui_hips[k][0].max_value = span
 		ui_hips[k][0].value = pos[k]
-		ui_hips[k][1].text = "%s   %.3f m%s" % [names[k], pos[k], "  (inside the hand)" if locked else ""]
+		_set_prop(ui_hips[k][1], names[k], "%.3f m" % pos[k], "inside the hand" if locked else "")
 	if ui_math.visible:
 		var x := B.wep_xform()
 		ui_math.text = "knob %s  tip %s\nrotation %s\nin the hand: pos %s rot %s" % [_vs(x[0]), _vs(B.wep_point(B.wep_len)), _qs(x[1]), _vs(B.wep_lpos), _qs(B.wep_lrot)]
@@ -3641,6 +3714,16 @@ func _check(given = null) -> void:
 		b.add_theme_color_override("font_color", Tok.c("fail") if f["sev"] == "FAIL" else Tok.c("warn"))
 		b.pressed.connect(_goto_finding.bind(f))
 		ui_find_list.add_child(b)
+		var lbl := Fixer.label(f, S)   # the action first, under its finding; then why (round 25, #81: fewer scrolls)
+		if lbl != "":
+			var fx := _button(lbl, _fix.bind(f))
+			fx.name = "fix_%d" % (fk + 1)
+			fx.add_theme_font_size_override("font_size", 14)
+			fx.mouse_entered.connect(_fix_hover.bind(f))   # FIX PREVIEW (#79): a blue ghost of the result, nothing changed
+			fx.mouse_exited.connect(_fix_hover.bind({}))
+			ui_find_list.add_child(fx)
+		else:
+			ui_find_list.add_child(_label("   no automatic fix: " + ("two cards fight here; change one of them" if f["rule"] == "HITCH" else "the foot creeps between two cards' stances: give the cards the same foot spot, or step it on purpose" if f["rule"] == "FOOT SLIDE" else "it is in the poses; change the cards around it"), 12, "text:0.5", true))
 		if Rulebook.WHY.has(f["rule"]):   # WHY + SOURCE (round 12, #78)
 			var wr := HBoxContainer.new()
 			var wl := _label("   why: " + Rulebook.WHY[f["rule"]], 12, "text:0.7", true)
@@ -3652,16 +3735,6 @@ func _check(given = null) -> void:
 			sb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			wr.add_child(sb)
 			ui_find_list.add_child(wr)
-		var lbl := Fixer.label(f, S)
-		if lbl != "":
-			var fx := _button(lbl, _fix.bind(f))
-			fx.name = "fix_%d" % (fk + 1)
-			fx.add_theme_font_size_override("font_size", 14)
-			fx.mouse_entered.connect(_fix_hover.bind(f))   # FIX PREVIEW (#79): a blue ghost of the result, nothing changed
-			fx.mouse_exited.connect(_fix_hover.bind({}))
-			ui_find_list.add_child(fx)
-		else:
-			ui_find_list.add_child(_label("   no automatic fix: " + ("two cards fight here; change one of them" if f["rule"] == "HITCH" else "the foot creeps between two cards' stances: give the cards the same foot spot, or step it on purpose" if f["rule"] == "FOOT SLIDE" else "it is in the poses; change the cards around it"), 12, "text:0.5", true))
 	# a ScrollContainer has no height of its own: size it to the list (up to most of the view), else it collapses to 0
 	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 128.0 * findings.size(), 60.0,
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))   # ends above the status line (round 9: the bar moved it up)

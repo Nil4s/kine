@@ -9,15 +9,15 @@ A task taking more than its count now FAILS the test.
 |---|---|---|---|---|
 | open a scene (combo3) | 3 | 2 | the list, pick it | cut: picking it opens it (it asks first when the open scene has unsaved changes). 2 = open the list + pick. |
 | slow one card down | 2 | 2 | click the card, Slower | which card + what to do: 2 is the floor without guessing the card. |
-| raise the right arm | 2 | 2 | click it, drag it | which part + how far: the drag is the amount. |
+| raise the right arm | 2 | 1 | drag it (the press picks it) | cut: one drag; the press on the part picks it and grabs it (the click first was never needed). |
 | mirror the pose | 1 | 1 | Shift+M | already one key. |
 | add the pose as a card | 1 | 1 | Enter | already one key. |
 | name a card | -1 | 3 | double-click its title, type, Enter | cut from impossible: double-click the title, type, Enter (Esc or clicking away keeps the old name). |
 | put the bat in the right hand | 4 | 1 | B (In right hand) | cut: B now moves the bat into the right hand whichever hand held it (it took it off before); the button was 2 scrolls down. |
-| check, apply a fix | 3 | 3 | Check, a fix's button (1 were refused first: not counted) (+1 scroll to reach it) | Check + the fix you choose. The +1 is a scroll: the first fix offered was refused (it did not remove the problem), and the next is below the panel's fold. Kept: which fix is a choice. |
+| check, apply a fix | 3 | 2 | Check, a fix's button (1 were refused first: not counted) | cut: each Fix sits right under its finding (its why line after it), so the next fix is in view when the first is refused. 2 = Check + the fix you choose. |
 | undo | 1 | 1 | Ctrl+Z | already one key. |
 | save under a new name | 4 | 3 | click the name, type it, Enter | cut: Enter in the name box saves. A new name has to be typed; re-saving under the same name is Ctrl+Shift+S, 1 key. |
-| **total** | **21** | **19** | | |
+| **total** | **21** | **17** | | |
 
-Over the 9 tasks the window could do before: 21 -> 16 actions, 24% fewer; tasks that had no way now take 3.
-That is short of the 30% the gate asked for: no task takes more than 3 actions now, and each row says why it is not cut further. The rest is choices (which card, which part, which fix, which name).
+Over the 9 tasks the window could do before: 21 -> 14 actions, 33% fewer; tasks that had no way now take 3.
+That meets the 30% bar.

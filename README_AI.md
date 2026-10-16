@@ -186,3 +186,9 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - **Joint dots** red on his left, blue on his right (`main.side_col`); the selected part's name takes its side's colour.
 - **Ctrl+Z / Ctrl+Y** show a toast naming the step; a **Fix** flashes only the cards it changed.
 - `_fix` refuses a finding with no automatic fix (it used to crash in Fixer.apply and wedge every later Fix).
+
+## Round 25 (GATES.md section FF): one weapon picker, fewer clicks, one type scale
+- **Weapon**: one dropdown per panel (`opt_weapon` in Poses, `opt_weapon_panel` on the right), synced in `_refresh`.
+- **Clicks** (docs/CLICKS.md, generated): 21 -> 14 on the 9 tasks. A drag on a part picks it; each Fix sits under its finding.
+- **Properties panel**: two sizes (`PROP_BIG` 22, `PROP_TXT` 15), value rows built by `_prop_row` (name dim, value
+  bright, hint under). Sliders are named by axis: `slider_bend/side/twist`, `slider_hip_0..2`.
