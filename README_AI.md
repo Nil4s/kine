@@ -174,3 +174,9 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - **ViewCube**: click near an edge or a corner of a face for the view between the faces; the house mark goes home; cube
   moves ease over 0.3 s the short way round. Keys 1-5 stay instant.
 - **A greyed control says why**: `main._grey(control, why)` puts "NOT NOW: why" in its tooltip.
+
+## Round 23 (GATES.md section DD): onion skins that fade, a speed graph you can read, findings on the timeline
+- **Onion** shows two cards each side; the farther ghost is fainter, past orange -> red, future green -> cyan.
+- **Speed graph**: a time axis, and the mouse over it shows the three speeds at that time.
+- **After Check**, each finding is a diamond in the timeline's ruler (red must fix, amber look); click one to jump there.
+  An edit clears them until Check runs again (`main.findings_live()`).

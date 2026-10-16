@@ -15,6 +15,12 @@ const FAST := Color(1.0, 0.2, 0.15)
 const BEFORE := Color(1.0, 0.55, 0.15, 0.28)
 const AFTER := Color(0.25, 0.95, 0.45, 0.28)
 const FIXED := Color(0.15, 0.65, 1.0, 0.6)   # the fix preview ghost: what a Fix button would make of this moment
+## ONION FADES (round 23, GATES DD1, UPGRADES #43): two ghosts each side; the farther one fainter, and its hue pushed on
+## away from the other side's (past: orange -> red, future: green -> cyan), so near/far and past/future read at a glance
+const PAST_FAR := Color(1.0, 0.25, 0.2, 0.13)
+const FUTURE_FAR := Color(0.2, 0.85, 1.0, 0.13)
+## ghost slots: [past near, future near, fix preview, past far, future far]; onion's [side][distance] -> slot
+const ONION_SLOT := [[0, 3], [1, 4]]
 
 var trail_on := false
 var pins := []      # body parts with a trail of their own (Shift+T on the selected part): the END of the part (forearm =
@@ -66,7 +72,7 @@ func setup() -> void:
 	_space_mesh = MeshInstance3D.new()
 	_space_mesh.mesh = ImmediateMesh.new()
 	add_child(_space_mesh)
-	for col in [BEFORE, AFTER, FIXED]:
+	for col in [BEFORE, AFTER, FIXED, PAST_FAR, FUTURE_FAR]:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -289,19 +295,23 @@ static func neighbours(S: Scene, t: float) -> Array:
 
 
 func onion(S: Scene, t: float) -> void:
-	for g in _ghosts.slice(0, 2):
-		g[0].visible = false
-		g[3].visible = false
+	for side in ONION_SLOT:
+		for k in side:
+			_ghosts[k][0].visible = false
+			_ghosts[k][3].visible = false
 	if not onion_on or S.cards.size() < 2:
 		return
 	var nb := neighbours(S, t)
 	var ts := S.times()
-	for k in 2:
-		if nb[k] < 0:
+	for side in 2:
+		if nb[side] < 0:
 			continue
-		var g: Array = _ghosts[k]
-		S.apply(GB, float(ts[nb[k]][1]))
-		_pose(g, GB)
+		for d in 2:   # the nearest card on this side, then the one past it
+			var ci: int = nb[side] + (d if side == 1 else -d)
+			if ci < 0 or ci >= S.cards.size():
+				continue
+			S.apply(GB, float(ts[ci][1]))
+			_pose(_ghosts[ONION_SLOT[side][d]], GB)
 
 
 ## FIX PREVIEW: the scene as the fix would leave it (`cards`, from Fixer.propose), posed at t, as a blue ghost. The

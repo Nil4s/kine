@@ -37,7 +37,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 27. DONE (round 9: part + angles or weapon, card n/N, playhead, Check count with "changed since"; status_bar_test. No fps: the scene plays in real time, so frame/fps would only repeat the playhead) ~~[UI] Status bar: selected part, joint angle readout, frame, fps and rule warnings count.~~
 28. [UI] Floating mini toolbar near the selection (like Fusion's in-canvas manipulator values).
 29. [UI] In-canvas numeric entry: type an angle while dragging, Tab to switch axis.
-30. [UI] Rule warnings shown as icons on the timeline cards (foot slide, gimbal), clickable to jump.
+30. DONE (round 23: diamonds in the timeline ruler, merged with counts, click = the finding; timeline_marks_test) ~~[UI] Rule warnings shown as icons on the timeline cards (foot slide, gimbal), clickable to jump.~~
 31. [UI] Split view: front and side at the same time.
 32. [UI] Tool tips with a short GIF/preview of what the tool does.
 33. [UI] Resizable, dockable panels that remember their layout per user.
@@ -52,8 +52,8 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 40. [STY] Typography: 2 sizes and 2 weights max. A label and value style for the properties panel.
 41. [STY] Animated micro-feedback: button press, apply-fix flash, undo toast.
 42. [STY] Skeleton rendering: thicker bones, joint dots, and a left/right color convention (e.g. blue/red).
-43. [STY] Ghost/onion skins: fading alpha plus a hue shift for past and future.
-44. [STY] Speed graph: a proper axis, a gridline legend, and hover readout.
+43. DONE (round 23: two ghosts a side, fading, orange->red / green->cyan; onion_fade_test) ~~[STY] Ghost/onion skins: fading alpha plus a hue shift for past and future.~~
+44. DONE (round 23: time axis, hover line + readout; graph_read_test) ~~[STY] Speed graph: a proper axis, a gridline legend, and hover readout.~~
 45. [STY] Ground grid with fade-out and an origin axis gizmo.
 46. DONE (round 22: main._grey + NOT NOW reasons; greyed_why_test audits 7 states x 4 tabs) ~~[STY] Consistent disabled states (greyed out plus a tooltip that says why it is disabled).~~
 47. [STY] Splash/empty state art: "Create a pose / open a scene / try an example".

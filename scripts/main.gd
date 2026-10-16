@@ -2087,7 +2087,7 @@ func _ui() -> void:
 		"see the capsules the body collides with. Yellow = a joint at its limit, red = touching another part")
 	# ANIMATE
 	tog.call("ANIMATE", "Trail (T)", _press.bind(KEY_T), func(): return ov.trail_on, "the weapon tip's path, one dot per frame, blue slow to red fast")
-	tog.call("ANIMATE", "Onion (O)", _press.bind(KEY_O), func(): return ov.onion_on, "the card before (orange) and after (green) as ghosts")
+	tog.call("ANIMATE", "Onion (O)", _press.bind(KEY_O), func(): return ov.onion_on, "the two cards before (orange, then red) and after (green, then cyan) as ghosts, the farther ones fainter")
 	tog.call("ANIMATE", "Spacing (Shift+O)", _tool.bind(1), func(): return ov.spacing_on, "arms + weapon every 0.1 s around the playhead: bunched = slow")
 	tog.call("ANIMATE", "Speed graph (Y)", _tool.bind(2), func(): return ov.graph_on)
 	tog.call("ANIMATE", "Stepped", _tool.bind(3), func(): return stepped_view, "poses only, no in-betweens (blocking)")
@@ -2372,6 +2372,7 @@ func _ui() -> void:
 		_ps().apply(B, playhead)
 		_refresh())
 	ui_timeline.picked.connect(_timeline_pick)
+	ui_timeline.finding_picked.connect(_finding_mark)
 	ui_timeline.retime_started.connect(_push_undo)
 	ui_timeline.retimed.connect(func(final: bool):
 		if final:
@@ -2580,6 +2581,7 @@ func _ui() -> void:
 	ui_graph.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_graph.draw.connect(_draw_graph)
 	ui_graph.gui_input.connect(_graph_input)
+	ui_graph.mouse_exited.connect(func(): _graph_hover = -1.0; ui_graph.queue_redraw())
 	ui_graph.visible = false
 	ui_root.add_child(ui_graph)
 	_lists()
@@ -3396,7 +3398,7 @@ func _draw_graph() -> void:
 	var rows := [["tip", "tip" if c["armed"] else "wrist", Tok.c("s_tip")],
 		["hips", "hips", Tok.c("s_hips")], ["head", "head", Tok.c("s_head")]]
 	var lw := 118.0
-	var h := (g.size.y - 8.0) / rows.size()
+	var h := (g.size.y - 8.0 - GRAPH_AXIS) / rows.size()
 	for r in rows.size():
 		var y0 := 4.0 + h * r
 		var s: Array = c[rows[r][0]]
@@ -3419,10 +3421,69 @@ func _draw_graph() -> void:
 		g.draw_string(font, Vector2(x + 2, 14), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.of("ink:0.45"))
 	var px := lw + (g.size.x - lw - 8.0) * clampf(playhead / maxf(T, 1e-6), 0.0, 1.0)
 	g.draw_line(Vector2(px, 0), Vector2(px, g.size.y), Tok.of("ink:0.9"), 2.0)
+	# the time axis (round 23, GATES DD2): a tick and its seconds under the strips
+	var ay := g.size.y - GRAPH_AXIS
+	g.draw_line(Vector2(lw, ay), Vector2(g.size.x - 8, ay), Tok.of("ink:0.35"), 1.0)
+	for s in graph_ticks(T):
+		var x: float = lw + (g.size.x - lw - 8.0) * float(s) / maxf(T, 1e-6)
+		g.draw_line(Vector2(x, ay), Vector2(x, ay + 4), Tok.of("ink:0.5"), 1.0)
+		var lab := ("%.1f" % s).trim_suffix(".0") + ("s" if s == 0.0 else "")
+		var tw := font.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+		g.draw_string(font, Vector2(clampf(x - tw * 0.5, lw + 6, g.size.x - 8 - tw), ay + 14), lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.of("ink:0.6"))
+	# the hover line and its readout
+	if _graph_hover >= 0.0:
+		var hx := lw + (g.size.x - lw - 8.0) * clampf(_graph_hover / maxf(T, 1e-6), 0.0, 1.0)
+		g.draw_line(Vector2(hx, 0), Vector2(hx, ay), Tok.c("accent"), 1.0)
+		var txt := graph_readout()
+		var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		var bx := clampf(hx + 6, lw, g.size.x - tw - 14)
+		g.draw_rect(Rect2(bx - 3, 3, tw + 6, 17), Color(Tok.c("float"), 0.92))
+		g.draw_string(font, Vector2(bx, 16), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.c("heading"))
+
+
+## A SPEED GRAPH YOU CAN READ (round 23, GATES DD2, UPGRADES #44): the time axis's ticks (every 0.5 s, 1 s past 6 s,
+## from 0, none past the end), and the readout under the mouse: the three speeds at that time, linear between samples
+const GRAPH_AXIS := 16.0
+var _graph_hover := -1.0   # the time under the mouse (-1 = the mouse is not on the graph)
+
+
+static func graph_ticks(T: float) -> Array:
+	var step := 0.5 if T <= 6.0 else 1.0
+	var out := []
+	var k := 0
+	while k * step <= T + 1e-6:
+		out.append(k * step)
+		k += 1
+	return out
+
+
+func graph_value(row: String, t: float) -> float:
+	var c: Dictionary = ov.curves
+	var ts: Array = c["t"]
+	var s: Array = c[row]
+	if t <= float(ts[0]):
+		return float(s[0])
+	for i in range(1, ts.size()):
+		if t <= float(ts[i]):
+			var f := (t - float(ts[i - 1])) / maxf(float(ts[i]) - float(ts[i - 1]), 1e-9)
+			return lerpf(float(s[i - 1]), float(s[i]), f)
+	return float(s[-1])
+
+
+func graph_readout() -> String:
+	if _graph_hover < 0.0 or ov.curves.is_empty() or ov.curves["t"].size() < 2:
+		return ""
+	var c: Dictionary = ov.curves
+	return "%.2f s   %s %.2f   hips %.2f   head %.2f m/s" % [_graph_hover, "tip" if c["armed"] else "wrist",
+		graph_value("tip", _graph_hover), graph_value("hips", _graph_hover), graph_value("head", _graph_hover)]
 
 
 func _graph_input(ev: InputEvent) -> void:
 	var lw := 118.0
+	if ev is InputEventMouseMotion and not ov.curves.is_empty():
+		var x := (ev as InputEventMouseMotion).position.x
+		_graph_hover = clampf((x - lw) / maxf(ui_graph.size.x - lw - 8.0, 1.0), 0.0, 1.0) * float(ov.curves["t"][-1]) if x >= lw else -1.0
+		ui_graph.queue_redraw()
 	if (ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT) or (ev is InputEventMouseMotion and ev.button_mask & MOUSE_BUTTON_MASK_LEFT):
 		if ov.curves.is_empty():
 			return
@@ -3504,6 +3565,22 @@ func _check(given = null) -> void:
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))   # ends above the status line (round 9: the bar moved it up)
 	ui_find.visible = true
 	_say("check: " + ("clean" if findings.is_empty() else "%d findings, %d must fix.  Click one to jump to it." % [findings.size(), fails]))
+
+
+## Check is fresh: it ran, and nothing has been changed since (an edit pushes an undo step; an undo takes one away)
+func findings_live() -> bool:
+	return check_ran and check_at == undo.size() and not findings.is_empty()
+
+
+## a finding's mark on the timeline clicked: the same as its row in the Check list, and that row shown
+func _finding_mark(i: int) -> void:
+	var f: Dictionary = findings[i]
+	_goto_finding(f)
+	ui_find.visible = true
+	var row := ui_find_list.get_node_or_null("finding_%d" % (i + 1)) as Control
+	if row != null:
+		var sc := ui_find_list.get_parent() as ScrollContainer
+		sc.ensure_control_visible.call_deferred(row)
 
 
 func _goto_finding(f: Dictionary) -> void:

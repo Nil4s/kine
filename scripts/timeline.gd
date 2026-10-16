@@ -11,6 +11,7 @@ signal scrubbed(t: float)
 signal picked(i: int)
 signal retime_started
 signal retimed(final: bool)
+signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 
 const RULER := 16.0      # px: the seconds ruler on top
 const PAD := 8.0         # px each side
@@ -23,6 +24,49 @@ var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
 
 var _drag := {}          # {"kind": "move"/"hold"/"edge0"/"scrub", "i", "x0", "v0", "pps", "t0"}
 var _hover := {}
+
+## FINDINGS ON THE TIMELINE (round 23, GATES DD3, UPGRADES #30): after Check each finding is a diamond in the ruler at
+## its time (FAIL red, WARN amber); findings within MARK_PX of each other share one mark with their count; a click on
+## one goes to the first. Only while Check is fresh (m.findings_live()): an edit clears them until Check runs again
+const MARK_PX := 7.0
+
+
+## [[x, [finding indices]], ...] left to right
+func marks() -> Array:
+	if m == null or not m.findings_live():
+		return []
+	var out := []
+	var order := range(m.findings.size())
+	order.sort_custom(func(a, b): return float(m.findings[a]["t"]) < float(m.findings[b]["t"]))
+	for i in order:
+		var x := x_of(float(m.findings[i]["t"]))
+		if not out.is_empty() and x - float(out[-1][0]) < MARK_PX:
+			out[-1][1].append(i)
+		else:
+			out.append([x, [i]])
+	return out
+
+
+func mark_at(p: Vector2) -> Array:
+	if p.y >= RULER:
+		return []
+	for mk in marks():
+		if absf(p.x - float(mk[0])) <= MARK_PX * 0.5 + 1.0:
+			return mk[1]
+	return []
+
+
+func _get_tooltip(at: Vector2) -> String:
+	var fs := mark_at(at)
+	if fs.is_empty():
+		return tooltip_text
+	var lines := []
+	for i in fs:
+		var f: Dictionary = m.findings[i]
+		lines.append("%s %s at %.2f s: %s" % ["MUST FIX" if f["sev"] == "FAIL" else "look", f["rule"], f["t"], f["msg"]])
+	return "
+".join(lines) + "
+(click: jump there)"
 
 
 func _init() -> void:
@@ -87,6 +131,11 @@ func _gui_input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
 		if ev.pressed:
+			var fs := mark_at(ev.position)
+			if not fs.is_empty():
+				finding_picked.emit(fs[0])
+				accept_event()
+				return
 			var h := hit(ev.position)
 			if h.is_empty():
 				return
@@ -220,6 +269,14 @@ func _draw() -> void:
 		var bx := clampf(ex + 6, 2, size.x - tw - 10)
 		draw_rect(Rect2(bx - 3, y0 + 2, tw + 8, 18), Color(0, 0, 0, 0.85))
 		draw_string(font, Vector2(bx + 1, y0 + 16), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.95, 0.5))
+	# the findings' marks, over the ruler
+	for mk in marks():
+		var fail: bool = mk[1].any(func(i): return m.findings[i]["sev"] == "FAIL")
+		var c := Tok.c("fail") if fail else Tok.c("warn")
+		var x: float = mk[0]
+		draw_colored_polygon(PackedVector2Array([Vector2(x, 1), Vector2(x + 5, 7), Vector2(x, 13), Vector2(x - 5, 7)]), c)
+		if mk[1].size() > 1:
+			draw_string(font, Vector2(x + 6, 12), str(mk[1].size()), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, c)
 	# playhead
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)
