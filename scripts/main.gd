@@ -453,6 +453,79 @@ func _nav_grid() -> void:
 	(ui_nav.get_node("nav_grid") as Button).set_pressed_no_signal(grid_node.visible)
 
 
+## SEVERAL PARTS AT ONCE (round 28, GATES II1, UPGRADES #66): sel is the part the panel shows and the drag holds;
+## sel_more are the others in the group. Ctrl+click (no motion) adds a part, or takes a member out; a plain press off
+## the group starts a new one; a drag turns every member by the change of sel's angles (each through set_ang_safe)
+var sel_more: Array = []
+var _group_sel := ""   # the sel the group was made for: anything else that moves sel (the ring, a list, a key) ends it
+var _gp := {}   # the press: {part, ctrl, at, group before}
+
+
+func group() -> Array:
+	return [sel] + sel_more
+
+
+func _group_press(j: String, ctrl: bool, at: Vector2) -> void:
+	var g := group()
+	_gp = {"part": j, "ctrl": ctrl, "at": at, "was": g}
+	_group_sel = j
+	if j in Body.WEAPON:
+		sel_more = []
+	elif ctrl or g.has(j):
+		sel_more = g.filter(func(x): return x != j and not x in Body.WEAPON)   # added for now; a still release decides
+	else:
+		sel_more = []
+
+
+## a Ctrl press that did not move: it was a click. A member's click takes it out; the press's empty step goes
+func _group_release(at: Vector2) -> void:
+	var gp := _gp
+	_gp = {}
+	if not gp["ctrl"] or at.distance_to(gp["at"]) >= 4.0:
+		return
+	undo.pop_back()   # a selection change is not an edit
+	_history_rows.call_deferred()
+	var was: Array = gp["was"]
+	var j: String = gp["part"]
+	if was.has(j) and was.size() > 1:
+		var rest := was.filter(func(x): return x != j)
+		sel = rest.back()
+		sel_more = rest.slice(0, rest.size() - 1)
+		_group_sel = sel
+	_refresh()
+	_say_plain("%d parts selected: drag any of them to turn them all (Ctrl+click: add / take out; a plain click: one part)" % group().size() if group().size() > 1 else "one part selected")
+
+
+## the members follow sel's change of angles
+func _group_follow(before: Vector3) -> void:
+	if sel_more.is_empty() or sel in Body.WEAPON:
+		return
+	var d: Vector3 = (B.ang[sel] as Vector3) - before
+	if d.is_zero_approx():
+		return
+	for j in sel_more:   # a locked member: the drag's _lock_keep, right after, puts it back
+		B.set_ang_safe(j, (B.ang[j] as Vector3) + d)
+	B.fk()
+	_refresh()
+
+
+## SELECTION SETS (round 28, GATES II2, UPGRADES #67): a named group in one go (the first part is the one shown).
+## No "both arms": the same change of angles turns the two sides opposite ways (Symmetry is for that)
+const SEL_SETS := {"spine": ["spine_01", "spine_02", "spine_03"], "neck and head": ["neck_01", "head"],
+	"left arm": ["upperarm_l", "lowerarm_l", "hand_l"], "right arm": ["upperarm_r", "lowerarm_r", "hand_r"],
+	"left leg": ["thigh_l", "calf_l", "foot_l"], "right leg": ["thigh_r", "calf_r", "foot_r"]}
+
+
+func _select_set(parts: Array) -> void:
+	if not parts.is_empty():
+		sel = parts[0]
+	sel_more = parts.slice(1)
+	_group_sel = sel
+	playing = false
+	_refresh()
+	_say_plain("%d parts selected (%s): drag any of them to turn them all" % [group().size(), ", ".join(group().map(nice))] if group().size() > 1 else "one part: %s" % nice(sel))
+
+
 func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and not ev.echo and _num_key(ev as InputEventKey):
 		get_viewport().set_input_as_handled()
@@ -1121,6 +1194,8 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	if not sel_more.is_empty() and sel != _group_sel:
+		sel_more = []
 	_sym_prev = B.ang.duplicate()
 	Overlays.pose_skeleton(skel, bone_idx, B)
 	for tg in ui_toggles:
@@ -1149,7 +1224,7 @@ func _refresh() -> void:
 			col = Color(LOCK_COL, 0.45)
 		if j == hover_part and j != sel:   # HOVER (round 26, #35): what a click would pick
 			col = Color(HOVER, 0.3)
-		if j == sel:
+		if j == sel or sel_more.has(j):   # the group's members are drawn selected too (II1)
 			col = Color(SEL.lerp(col, 0.4) if col.a > 0.3 else SEL, 0.35)
 		if clean:
 			col.a = 0.0
@@ -1348,6 +1423,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_num_axis = 0
 					_num_text = ""   # each drag types afresh
 					_push_undo()
+					_group_press(j, mb.ctrl_pressed, mb.position)
 					sel = j
 					_clicked_part = true   # the tour's step 1 (clicking the part already picked counts too)
 					dragging = "joint"
@@ -1377,6 +1453,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_cam()
 					_ring_open(_rpress["part"], mb.position)
 				_rpress = {}
+			if was == "joint" and not _gp.is_empty():
+				_group_release(mb.position)
 			if was == "joint" and not is_nan(_grab.x):
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
@@ -1392,7 +1470,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			target += -cam.global_basis.x * rel.x * k + cam.global_basis.y * rel.y * k
 			_cam()
 		elif dragging == "joint" and not _num_on:   # a typed angle holds the part (HH1)
+			var before: Vector3 = B.ang[sel] if not sel in Body.WEAPON else Vector3.ZERO
 			_drag_joint(rel, mm.shift_pressed, mm.ctrl_pressed, mm.alt_pressed)
+			_group_follow(before)
 			if _lock_keep(_drag_locks):   # a hand's reach can turn a locked arm: it stays
 				_refresh()
 	elif ev is InputEventMouseMotion:
@@ -3098,6 +3178,8 @@ func bar_text() -> String:
 	else:
 		var v: Vector3 = B.ang[sel]
 		what = "%s  swing %.0f  raise %.0f  roll %.0f" % [nice(sel), v.x, v.y, v.z]
+		if not sel_more.is_empty():
+			what += "   (+ %d more turn with it)" % sel_more.size()
 	var card := "no cards" if S.cards.is_empty() else ("card %d / %d" % [sel_card + 1, S.cards.size()] if sel_card >= 0 else "%d cards, none picked" % S.cards.size())
 	var t := "%.2f / %.2f s" % [playhead, _ps().length()]
 	var fails := findings.filter(func(f): return f["sev"] == "FAIL").size()
@@ -3134,6 +3216,8 @@ func _panel_part() -> void:
 	var L: Dictionary = B.lim[sel]
 	var lims: Array = B.at_limit(sel)
 	ui_title.text = nice(sel).to_upper() + ("   (at its limit)" if not lims.is_empty() else "")
+	if not sel_more.is_empty():
+		ui_title.text += "   + %d more" % sel_more.size()
 	ui_lock_btn.visible = true
 	ui_lock_btn.text = "Unlock this part" if locked_parts.has(sel) else "Lock this part"
 	if locked_parts.has(sel):
@@ -3645,6 +3729,9 @@ func _commands() -> Array:
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	for st in SEL_SETS:   # SELECTION SETS (round 28, GATES II2, UPGRADES #67)
+		add.call("Select: " + st, "", _select_set.bind(SEL_SETS[st]), "group set several parts together " + st, false, "select %s together: a drag on any of them turns them all" % st)
+	add.call("Select: just one part", "", _select_set.bind([]), "group set single clear one", false, "back to the one part the panel shows")
 	add.call("Lock / unlock this part", "", _toggle_lock.bind(""), "freeze hold keep unlock protect", false, "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
 	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
 	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")

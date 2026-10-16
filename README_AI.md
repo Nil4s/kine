@@ -208,3 +208,10 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - **Nav block** (`ui_nav`, `nav_*`): a 2 x 3 grid under the ViewCube (NOT the bottom centre: it covered the feet).
   `nav_tool` "orbit"/"pan" turns a left press into that drag; Esc off. `_nav_fit` projects `fit_points()` and corrects
   distance and pivot into `nav_clear_rect()` over 4 passes. `grid_node` is the floor grid's MeshInstance3D.
+
+## Round 28 (GATES.md section II): several parts at once, selection sets
+- **Group** = `group()` = `[sel] + sel_more`. `sel` stays the shown / dragged part everywhere; `_group_sel` ties the
+  group to it, and `_refresh` drops `sel_more` once anything else moves `sel`. Ctrl+click (no motion, judged on the
+  release in `_group_release`, its undo step popped) adds / removes; `_group_follow` gives every member the change of
+  `sel`'s angles through `set_ang_safe` (a hinge or the body can stop a member short: by design).
+- **Sets**: `SEL_SETS` + `_select_set`, as "Select: ..." search commands. No "both arms" (opposite sides turn opposite).

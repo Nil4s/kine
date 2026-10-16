@@ -77,8 +77,8 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 63. DONE (round 16: balance_test: de Leva COM, the feet's floor shadow, BALANCE in CHECK, measure com / balance) ~~[FN] Physics sanity checks: center of mass over the support polygon, and a balance warning.~~
 64. [FN] Joint limits per part (anatomical ranges), with a soft warn and a hard clamp option.
 65. DONE (round 22: Symmetry toggle, only the changed joints mirror; symmetry_test) ~~[FN] Symmetry mode: edit the left and the right updates live.~~
-66. [FN] Multi-select parts and rotate them as a group.
-67. [FN] Selection sets ("whole arm", "upper body").
+66. DONE (round 28: Ctrl+click to group parts, a drag turns them all by the same change; multi_select_test) ~~[FN] Multi-select parts and rotate them as a group.~~
+67. DONE (round 28: spine, neck and head, each arm, each leg, from the search; sel_sets_test) ~~[FN] Selection sets ("whole arm", "upper body").~~
 68. DONE (round 16: autosave_test: every 15 s, atomic, Recover / Discard on start) ~~[FN] Autosave plus crash recovery.~~
 69. [FN] Version history/snapshots per scene (Fusion-like "versions").
 70. DONE (round 18: poser_cli check_all --html; check_all_test) ~~[FN] Batch run of all CHECK rules over every scene with one HTML report.~~
