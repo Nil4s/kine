@@ -1,6 +1,6 @@
 ## godot --path . -s tests/ring_edges_test.gd     (GATES BB2, UPGRADES #5; a real window, real right-clicks)
 ## THE RING AT THE EDGES: the head panned (the camera's target) under each of the 3D view's four corners and four edge
-## middles (16 px in from the panels and the top bar; the top right one below the view cube, which owns that corner), at UI size 100, 125 (1600 x 900) and 150 % (the window made
+## middles (16 px in from the panels and the top bar; the top right one below the view cube, which owns that corner; one on the nav block under it goes just left of it), at UI size 100, 125 (1600 x 900) and 150 % (the window made
 ## 1920 x 1080 for it). A real right-click there must pick the head and open the ring; the whole ring and its title are
 ## inside the window and below the top bar; each wedge's label spot is inside its own wedge, and a real left click on
 ## each wedge's label runs that wedge (the ring's actions swapped for recorders, so nothing in the scene changes).
@@ -79,6 +79,11 @@ func _init() -> void:
 		var cube: Rect2 = m.ui_cube.get_global_rect().grow(8.0)
 		if cube.has_point(spots["top right"]):
 			spots["top right"].y = cube.end.y + 16.0
+		# round 27: the nav block (Orbit Pan / - + / Fit Grid) sits under the cube; a spot on it goes just left of it
+		var nav: Rect2 = m.ui_nav.get_global_rect().grow(8.0)
+		for k in spots:
+			if nav.has_point(spots[k]):
+				spots[k].x = nav.position.x - 16.0
 		var bad := []
 		var runs := 0
 		for nm in spots:

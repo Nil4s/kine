@@ -279,7 +279,188 @@ func _say_plain(t: String) -> void:
 		ui_status.text = t
 
 
+## TYPE THE ANGLE WHILE DRAGGING (round 27, GATES HH1, UPGRADES #29): during a drag on a body part, digits - . and
+## Backspace type the current axis' angle (it is the part's angle at once, clamped by the joint); Tab = the next axis;
+## Enter (or the release) ends the drag, one undo step; Esc cancels it. Read in _input: before the GUI takes Tab
+const NUM_AXES := ["bend", "side", "twist"]
+var _num_on := false
+var _num_axis := 0
+var _num_text := ""
+var _num_start := {}
+
+
+## true if the key was the typed angle's
+func _num_key(k: InputEventKey) -> bool:
+	if dragging != "joint" or sel in Body.WEAPON:
+		return false
+	var ch := ""
+	if k.keycode >= KEY_0 and k.keycode <= KEY_9:
+		ch = str(k.keycode - KEY_0)
+	elif k.keycode >= KEY_KP_0 and k.keycode <= KEY_KP_9:
+		ch = str(k.keycode - KEY_KP_0)
+	elif k.keycode in [KEY_MINUS, KEY_KP_SUBTRACT]:
+		ch = "-"
+	elif k.keycode in [KEY_PERIOD, KEY_KP_PERIOD]:
+		ch = "."
+	match k.keycode:
+		KEY_TAB:
+			_num_on = true
+			_num_axis = (_num_axis + 1) % 3
+			_num_text = ""
+		KEY_BACKSPACE:
+			if not _num_on:
+				return false
+			_num_text = _num_text.left(-1)
+			_num_apply()
+		KEY_ENTER, KEY_KP_ENTER:
+			if not _num_on:
+				return false
+			dragging = ""
+			_num_on = false
+			_after_edit()
+		KEY_ESCAPE:
+			B.set_state(_num_start)
+			undo.pop_back()
+			dragging = ""
+			_num_on = false
+			_refresh()
+			_say_plain("drag cancelled: the %s is back as it was" % nice(sel))
+		_:
+			if ch == "":
+				return false
+			_num_on = true
+			_num_text += ch
+			_num_apply()
+	_refresh()
+	return true
+
+
+func _num_apply() -> void:
+	if not _num_text.is_valid_float():
+		return   # "-" or "." alone: wait for a digit
+	var v: Vector3 = B.ang[sel]
+	v[_num_axis] = _num_text.to_float()
+	B.set_ang_safe(sel, v)
+	_after_edit()
+
+
+## A NAVIGATION BAR (round 27, GATES HH2, UPGRADES #23): a 2 x 3 block under the ViewCube at the view's right edge
+## (first at the bottom centre: it sat over the feet at the opening view, hover_test caught it). Orbit and Pan
+## are tools (while on, a left drag in the view orbits / pans; Esc or the button again = off); - + zoom; Fit frames the
+## body (and the weapon when out) inside the view the panels leave; Grid shows / hides the floor grid. No undo steps
+const NAV_H := 30   # one button's height
+const NAV_W := 50
+var ui_nav: GridContainer
+var nav_tool := ""
+var grid_node: MeshInstance3D
+
+
+func _build_nav() -> void:
+	ui_nav = GridContainer.new()
+	ui_nav.name = "nav_bar"
+	ui_nav.columns = 2
+	ui_nav.add_theme_constant_override("h_separation", 4)
+	ui_nav.add_theme_constant_override("v_separation", 4)
+	ui_nav.anchor_left = 1.0
+	ui_nav.anchor_right = 1.0
+	ui_nav.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	for b in [["nav_orbit", "Orbit", func(): _nav_set("orbit" if nav_tool != "orbit" else ""), "while on, a left drag turns the view round the body (Esc: off)", true],
+			["nav_pan", "Pan", func(): _nav_set("pan" if nav_tool != "pan" else ""), "while on, a left drag slides the view (Esc: off)", true],
+			["nav_out", "-", _nav_zoom.bind(1.0 / 0.8), "zoom out", false],
+			["nav_in", "+", _nav_zoom.bind(0.8), "zoom in", false],
+			["nav_fit", "Fit", _nav_fit, "frame the whole body (and the weapon) in the view", false],
+			["nav_grid", "Grid", _nav_grid, "show or hide the floor grid", true]]:
+		var bt := _button(b[1], b[2], b[3])
+		bt.name = b[0]
+		bt.toggle_mode = b[4]
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.custom_minimum_size = Vector2(NAV_W, NAV_H)
+		bt.add_theme_font_size_override("font_size", 13)   # 3 rows fit above the say-line at 1280 x 720
+		ui_nav.add_child(bt)
+	(ui_nav.get_node("nav_grid") as Button).set_pressed_no_signal(true)
+	ui_root.add_child(ui_nav)
+	_place_nav()
+
+
+## under the ViewCube, the view's right edge (the right panel hidden in the big view)
+func _place_nav() -> void:
+	if ui_nav == null:
+		return
+	var r := 10.0 if big_view else RIGHT_W + 10.0
+	ui_nav.offset_right = -r
+	ui_nav.offset_left = -r - (2 * NAV_W + 4)
+	ui_nav.offset_top = TOP_H + 8 + ViewCube.SIZE + 8
+	ui_nav.offset_bottom = ui_nav.offset_top + 3 * NAV_H + 8
+
+
+func _nav_set(t: String) -> void:
+	nav_tool = t
+	(ui_nav.get_node("nav_orbit") as Button).set_pressed_no_signal(t == "orbit")
+	(ui_nav.get_node("nav_pan") as Button).set_pressed_no_signal(t == "pan")
+	_say_plain({"orbit": "Orbit: a left drag turns the view.  Esc or Orbit again: back to posing", "pan": "Pan: a left drag slides the view.  Esc or Pan again: back to posing"}.get(t, "back to posing: a left drag turns a part"))
+
+
+func _nav_zoom(f: float) -> void:
+	dist = clampf(dist * f, 0.5, 12.0)
+	_cam()
+
+
+## the body (and the weapon when out) framed in the CLEAR view: between the ribbon and the say-line, between the left
+## panel and the cube / nav strip (no panels in the big view). Projected, then the distance and the centre corrected (3 passes: depth makes one
+## pass approximate). The pivot moves to the body's middle, as Fusion's Fit does
+const FIT_FILL := 0.85
+
+
+func nav_clear_rect() -> Rect2:
+	var vs := get_viewport().get_visible_rect().size
+	var x0 := 0.0 if big_view else float(LEFT_W)
+	var x1 := vs.x - (0.0 if big_view else float(RIGHT_W)) - (2 * NAV_W + 24)   # the cube and the nav block's strip
+	return Rect2(x0, TOP_H, x1 - x0, vs.y - bottom_h - 88 - TOP_H)   # above the say-line
+
+
+func fit_points() -> Array:
+	var out := []
+	for j in Body.BODY + (Body.WEAPON if B.wep_on else []):
+		var c: Array = B.cap(j)
+		out.append_array([c[0], c[1]])
+	return out
+
+
+func _nav_fit() -> void:
+	var pts := fit_points()
+	var mid := Vector3.ZERO
+	for q in pts:
+		mid += q
+	target = mid / pts.size()
+	var clear := nav_clear_rect()
+	var vs := get_viewport().get_visible_rect().size
+	for it in 4:
+		_cam()
+		var r := Rect2(cam.unproject_position(pts[0]), Vector2.ZERO)
+		for q in pts:
+			r = r.expand(cam.unproject_position(q))
+		r = r.grow(14.0)   # the capsules' thickness on screen
+		var need := maxf(r.size.x / clear.size.x, r.size.y / clear.size.y) / FIT_FILL
+		var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
+		var d := clear.get_center() - r.get_center()
+		target -= cam.global_basis.x * d.x * mpp - cam.global_basis.y * d.y * mpp
+		dist = clampf(dist * need, 0.5, 12.0)
+	_cam()
+
+
+func _nav_grid() -> void:
+	grid_node.visible = not grid_node.visible
+	(ui_nav.get_node("nav_grid") as Button).set_pressed_no_signal(grid_node.visible)
+
+
 func _input(ev: InputEvent) -> void:
+	if ev is InputEventKey and ev.pressed and not ev.echo and _num_key(ev as InputEventKey):
+		get_viewport().set_input_as_handled()
+		return
+	if nav_tool != "" and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:
+		_nav_set("")
+		get_viewport().set_input_as_handled()
+		return
 	# Esc in keyboard mode: before the focused control sees it (a text box would only drop its caret)
 	if kb_nav and ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).keycode == KEY_ESCAPE:
 		_kb_leave()
@@ -602,6 +783,7 @@ func _world() -> void:
 	add_child(am)
 	_grid()
 	add_child(gm)
+	grid_node = gm
 	var floor := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(4, 4)
@@ -1151,7 +1333,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			ui_cmd.close()   # a click in the view puts the search away
 		if mb.pressed:
 			hover_part = ""   # a press ends the hover (the drag shows the selection)
-			if mb.button_index == MOUSE_BUTTON_LEFT:
+			if mb.button_index == MOUSE_BUTTON_LEFT and nav_tool != "":   # the nav bar's Orbit / Pan tool (HH2)
+				dragging = nav_tool
+			elif mb.button_index == MOUSE_BUTTON_LEFT:
 				var j := _pick(mb.position)
 				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
 					sel = j
@@ -1160,6 +1344,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_say_plain("the %s is locked: right-click it > Unlock, or S and type 'unlock'" % nice(j))
 				elif j != "":
 					_drag_locks = _lock_snap()
+					_num_start = B.state()   # Esc during the drag puts this back (HH1)
+					_num_axis = 0
+					_num_text = ""   # each drag types afresh
 					_push_undo()
 					sel = j
 					_clicked_part = true   # the tour's step 1 (clicking the part already picked counts too)
@@ -1181,6 +1368,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		else:
 			var was := dragging
 			dragging = ""
+			_num_on = false
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
 			if was == "orbit" and mb.button_index == MOUSE_BUTTON_RIGHT and not _rpress.is_empty():
 				if mb.position.distance_to(_rpress["at"]) < 5.0 and _rpress["part"] != "":
@@ -1203,7 +1391,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			var k := dist * 0.0012
 			target += -cam.global_basis.x * rel.x * k + cam.global_basis.y * rel.y * k
 			_cam()
-		elif dragging == "joint":
+		elif dragging == "joint" and not _num_on:   # a typed angle holds the part (HH1)
 			_drag_joint(rel, mm.shift_pressed, mm.ctrl_pressed, mm.alt_pressed)
 			if _lock_keep(_drag_locks):   # a hand's reach can turn a locked arm: it stays
 				_refresh()
@@ -1420,6 +1608,7 @@ func _big_view() -> void:
 	for p in ui_side:
 		p.visible = not big_view
 	_place_cube()
+	_place_nav()
 	_cam()
 	_say("big view: the side panels are hidden (Tab brings them back)" if big_view else "panels back")
 
@@ -2741,6 +2930,7 @@ func _ui() -> void:
 	bb.content_margin_right = 10
 	ui_bar.add_theme_stylebox_override("normal", bb)
 	ui_root.add_child(ui_bar)
+	_build_nav()
 
 	# ---- help
 	ui_cube = ViewCube.new()
@@ -2899,7 +3089,9 @@ func bar_text() -> String:
 	if _hover_hint != "":
 		return _hover_hint
 	var what := ""
-	if hover_part != "" and hover_part != sel:
+	if _num_on:
+		what = "TYPE %s = %s_   (it is %.1f)   Tab: next axis   Enter: done   Esc: cancel the drag" % [NUM_AXES[_num_axis], _num_text, (B.ang[sel] as Vector3)[_num_axis]]
+	elif hover_part != "" and hover_part != sel:
 		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if hover_part in Body.WEAPON else nice(hover_part))
 	elif sel in Body.WEAPON:
 		what = wep_noun() + ("  in the " + nice(B.wep_hand) if B.wep_hand != "" else "  free")
@@ -3356,6 +3548,7 @@ func _layout_bottom() -> void:
 	ui_bar.offset_bottom = -bottom_h - 6
 	ui_graph.offset_bottom = -bottom_h - 92
 	ui_graph.offset_top = -bottom_h - 92 - 120
+	_place_nav()
 	_cam()
 
 

@@ -30,13 +30,13 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 20. [UI] Dropdown arrow under the big ribbon buttons for related sub-commands.
 21. [UI] Marking menu v2: 8 wedges plus an overflow list, gesture-flick support (flick without waiting for the menu).
 22. DONE (round 22: edges/corners, house mark, 0.3 s tween the short way; cube_views_test) ~~[UI] ViewCube: click edges and corners for 3/4 views, a home button, and smooth tweened camera moves.~~
-23. [UI] Navigation bar at the bottom center: orbit/pan/zoom/fit/grid toggle.
+23. DONE (round 27: Orbit / Pan tools, - +, Fit, Grid; a block under the ViewCube, not the bottom centre: there it covered the feet; nav_bar_test) ~~[UI] Navigation bar at the bottom center: orbit/pan/zoom/fit/grid toggle.~~
 24. PARTIAL (round 26: the LOCK, from the ring / panel / search; NOT the browser icons, the eye (hide) or limb folders; lock_part_test) ~~[UI] Browser: eye (visibility) and lock icons per part, plus a folder per limb chain.~~
 25. [UI] Browser: a "Clips" and a "Scenes" folder, so the whole document lives in one tree.
 26. [UI] Data panel: a scene/clip file browser with thumbnails, toggled like Fusion's data panel.
 27. DONE (round 9: part + angles or weapon, card n/N, playhead, Check count with "changed since"; status_bar_test. No fps: the scene plays in real time, so frame/fps would only repeat the playhead) ~~[UI] Status bar: selected part, joint angle readout, frame, fps and rule warnings count.~~
 28. [UI] Floating mini toolbar near the selection (like Fusion's in-canvas manipulator values).
-29. [UI] In-canvas numeric entry: type an angle while dragging, Tab to switch axis.
+29. DONE (round 27: digits / Tab / Enter / Esc during a part drag; num_entry_test) ~~[UI] In-canvas numeric entry: type an angle while dragging, Tab to switch axis.~~
 30. DONE (round 23: diamonds in the timeline ruler, merged with counts, click = the finding; timeline_marks_test) ~~[UI] Rule warnings shown as icons on the timeline cards (foot slide, gimbal), clickable to jump.~~
 31. [UI] Split view: front and side at the same time.
 32. [UI] Tool tips with a short GIF/preview of what the tool does.

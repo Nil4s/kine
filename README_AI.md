@@ -200,3 +200,11 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - **Locks**: `locked_parts` (view state, never saved). `_do` and every joint-drag motion put locked angles back
   (`_lock_snap`/`_lock_keep`), so Reset, Mirror, Snap and a hand's IK reach all respect it. Lock from the ring (7th
   wedge), the panel (`btn_lock_part`) or the search. Not done from #24: browser eye icons, limb folders.
+
+## Round 27 (GATES.md section HH): type the angle, a navigation block
+- **Typed angles**: during a joint drag, `_num_key` (in `_input`, ahead of the GUI's Tab) takes digits - . Backspace
+  Tab Enter Esc; `_num_apply` sets the axis through `set_ang_safe` (the limit OR the body stops it). Esc = `_num_start`
+  back and the drag's undo step popped. `_num_text` resets at every press.
+- **Nav block** (`ui_nav`, `nav_*`): a 2 x 3 grid under the ViewCube (NOT the bottom centre: it covered the feet).
+  `nav_tool` "orbit"/"pan" turns a left press into that drag; Esc off. `_nav_fit` projects `fit_points()` and corrects
+  distance and pivot into `nav_clear_rect()` over 4 passes. `grid_node` is the floor grid's MeshInstance3D.
