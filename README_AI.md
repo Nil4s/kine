@@ -180,3 +180,9 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - **Speed graph**: a time axis, and the mouse over it shows the three speeds at that time.
 - **After Check**, each finding is a diamond in the timeline's ruler (red must fix, amber look); click one to jump there.
   An edit clears them until Check runs again (`main.findings_live()`).
+
+## Round 24 (GATES.md section EE): a floor that fades, sides you can tell apart, feedback you can see
+- **Floor grid** fades from 1 m to its 2 m edge; the origin has X (red, his left), Y (green, up), Z (blue, he faces).
+- **Joint dots** red on his left, blue on his right (`main.side_col`); the selected part's name takes its side's colour.
+- **Ctrl+Z / Ctrl+Y** show a toast naming the step; a **Fix** flashes only the cards it changed.
+- `_fix` refuses a finding with no automatic fix (it used to crash in Fixer.apply and wedge every later Fix).

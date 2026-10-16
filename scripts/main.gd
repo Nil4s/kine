@@ -87,7 +87,7 @@ var ui_bar_box: StyleBoxFlat
 var ui_find_box: StyleBoxFlat
 var world_env: Environment
 var floor_mat: StandardMaterial3D
-var grid_mesh: ImmediateMesh
+var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
 var ui_help: PanelContainer
 var ui_cmd: CommandSearch
@@ -524,8 +524,17 @@ func _world() -> void:
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA   # the grid fades out (round 24)
 	gm.material_override = m
 	grid_mesh = im
+	var am := MeshInstance3D.new()
+	axis_mesh = ImmediateMesh.new()
+	am.mesh = axis_mesh
+	var amat := StandardMaterial3D.new()
+	amat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	amat.vertex_color_use_as_albedo = true
+	am.material_override = amat
+	add_child(am)
 	_grid()
 	add_child(gm)
 	var floor := MeshInstance3D.new()
@@ -538,8 +547,9 @@ func _world() -> void:
 	floor.material_override = fm
 	floor.position.y = -0.002
 	add_child(floor)
-	for lab in [["his left", Vector3(0.68, 0.01, 0), Color(0.9, 0.4, 0.4)], ["he faces this way", Vector3(0, 0.01, 0.7), Color(0.4, 0.6, 1.0)]]:
+	for lab in [["X  his left", Vector3(0.72, 0.01, 0), AXES[0][1]], ["Y  up", Vector3(0, AXIS_Y + 0.05, 0), AXES[1][1]], ["Z  he faces this way", Vector3(0, 0.01, 0.74), AXES[2][1]]]:
 		var l := Label3D.new()
+		l.name = "axis_" + String(lab[0]).left(1)
 		l.text = lab[0]
 		l.position = lab[1]
 		l.modulate = lab[2]
@@ -582,7 +592,7 @@ func _body() -> void:
 		sm.height = 0.022
 		d.mesh = sm
 		var dm := StandardMaterial3D.new()
-		dm.albedo_color = Color(0.15, 0.15, 0.18)
+		dm.albedo_color = side_col(j)
 		dm.no_depth_test = true
 		dm.render_priority = 1
 		d.material_override = dm
@@ -620,23 +630,53 @@ func _body() -> void:
 
 
 ## the floor grid in the theme's colours (a theme switch rebuilds it; the two axis lines are content)
+## THE FLOOR FADES (round 24, GATES EE1, UPGRADES #45): full to GRID_FULL m from the middle, nothing at GRID_END (its
+## edge), each line cut into GRID_STEP pieces so the fade is smooth; the origin's axes are their own mesh, never faded:
+## X red toward his left, Y green up, Z blue the way he faces, each with an arrowhead (and its letter, a Label3D)
+const GRID_FULL := 1.0
+const GRID_END := 2.0
+const GRID_STEP := 0.1
+const AXIS_Y := 0.3
+const AXES := [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, AXIS_Y, 0), Color(0.35, 0.8, 0.35)], [Vector3(0, 0.001, 0.6), Color(0.3, 0.5, 0.95)]]
+var axis_mesh: ImmediateMesh
+
+
+static func grid_alpha(p: Vector3) -> float:
+	return clampf((GRID_END - Vector2(p.x, p.z).length()) / (GRID_END - GRID_FULL), 0.0, 1.0)
+
+
 func _grid() -> void:
 	grid_mesh.clear_surfaces()
 	grid_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	for k in range(-20, 21):
-		var x := k * 0.1
+	var n := int(round(GRID_END / GRID_STEP))
+	for k in range(-n, n + 1):
+		var x := k * GRID_STEP
 		var c := Tok.c("grid_major") if k % 10 == 0 else Tok.c("grid")
-		for seg in [[Vector3(x, 0, -2), Vector3(x, 0, 2)], [Vector3(-2, 0, x), Vector3(2, 0, x)]]:
-			grid_mesh.surface_set_color(c)
-			grid_mesh.surface_add_vertex(seg[0])
-			grid_mesh.surface_set_color(c)
-			grid_mesh.surface_add_vertex(seg[1])
-	for ax in [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, 0.001, 0.6), Color(0.3, 0.5, 0.95)]]:
-		grid_mesh.surface_set_color(ax[1])
-		grid_mesh.surface_add_vertex(Vector3(0, 0.001, 0))
-		grid_mesh.surface_set_color(ax[1])
-		grid_mesh.surface_add_vertex(ax[0])
+		for i in range(-n, n):
+			for seg in [[Vector3(x, 0, i * GRID_STEP), Vector3(x, 0, (i + 1) * GRID_STEP)], [Vector3(i * GRID_STEP, 0, x), Vector3((i + 1) * GRID_STEP, 0, x)]]:
+				var a0 := grid_alpha(seg[0])
+				var a1 := grid_alpha(seg[1])
+				if a0 <= 0.0 and a1 <= 0.0:
+					continue
+				grid_mesh.surface_set_color(Color(c, c.a * a0))
+				grid_mesh.surface_add_vertex(seg[0])
+				grid_mesh.surface_set_color(Color(c, c.a * a1))
+				grid_mesh.surface_add_vertex(seg[1])
 	grid_mesh.surface_end()
+	axis_mesh.clear_surfaces()
+	axis_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	for ax in AXES:
+		var tip: Vector3 = ax[0]
+		var o := Vector3(0, 0.001, 0)
+		var d := (tip - o).normalized()
+		var side := Vector3.UP if absf(d.y) < 0.5 else Vector3.RIGHT
+		var w := d.cross(side).normalized() * 0.03
+		for seg in [[o, tip], [tip, tip - d * 0.06 + w], [tip, tip - d * 0.06 - w]]:
+			axis_mesh.surface_set_color(ax[1])
+			axis_mesh.surface_add_vertex(seg[0])
+			axis_mesh.surface_set_color(ax[1])
+			axis_mesh.surface_add_vertex(seg[1])
+	axis_mesh.surface_end()
 
 
 ## the dummy: the same mannequin, blue-grey, standing (T.D), turned to face the hero
@@ -1343,6 +1383,7 @@ func _undo() -> void:
 	redo.append(now)
 	_restore(u)
 	_say("undone: " + now["name"])
+	_toast("Undid: " + now["name"])
 	_history_rows()
 
 
@@ -1355,6 +1396,7 @@ func _redo() -> void:
 	undo.append(now)
 	_restore(r)
 	_say("redone: " + now["name"])
+	_toast("Redid: " + now["name"])
 	_history_rows()
 
 
@@ -1537,6 +1579,17 @@ func _kind(k: String) -> void:
 # ---------------------------------------------------------------- words
 
 ## a plain name for a part: "upperarm_r" -> "right upper arm"
+## LEFT AND RIGHT (round 24, GATES EE2, UPGRADES #42): his left red (the floor's X, "his left"), his right blue, the
+## middle dark; the joint dots and the selected part's name carry it
+const SIDE_L := Color(0.9, 0.3, 0.3)
+const SIDE_R := Color(0.3, 0.5, 0.95)
+const SIDE_MID := Color(0.15, 0.15, 0.18)
+
+
+static func side_col(j: String) -> Color:
+	return SIDE_L if j.ends_with("_l") else (SIDE_R if j.ends_with("_r") else SIDE_MID)
+
+
 static func nice(j: String) -> String:
 	var names := {"pelvis": "hips", "spine_01": "lower back", "spine_02": "middle back", "spine_03": "chest",
 		"neck_01": "neck", "head": "head", "clavicle": "shoulder", "upperarm": "upper arm", "lowerarm": "elbow / forearm",
@@ -1579,6 +1632,50 @@ func _how(j: String) -> String:
 	if j in Body.FINGERS:
 		return "Drag: curl this finger joint.   Use the buttons below for the whole hand (open / grip / fist)."
 	return "Drag: rotate it (its far end follows the mouse).   Shift+drag: roll it about its own length."
+
+
+## FEEDBACK YOU CAN SEE (round 24, GATES EE3, UPGRADES #41): Ctrl+Z / Ctrl+Y show a toast over the view naming the
+## step, gone after TOAST_T (a new one replaces it); a Fix flashes the cards it changed, fading back over FLASH_T
+const TOAST_T := 1.6
+const FLASH_T := 0.7
+const FLASH_COL := Color(1.7, 1.5, 0.75)
+var ui_toast: Label
+var _toast_gen := 0
+
+
+func _toast(t: String) -> void:
+	if ui_root == null:
+		return
+	if ui_toast == null:
+		ui_toast = Label.new()
+		ui_toast.name = "toast"
+		ui_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui_toast.add_theme_font_size_override("font_size", 18)
+		ui_toast.add_theme_color_override("font_color", Tok.c("say"))
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Tok.c("say_bg")
+		sb.set_corner_radius_all(8)
+		sb.set_content_margin_all(10)
+		ui_toast.add_theme_stylebox_override("normal", sb)
+		ui_root.add_child(ui_toast)
+	ui_toast.text = t
+	ui_toast.visible = true
+	ui_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE)
+	ui_toast.position.y = 96
+	_toast_gen += 1
+	var g := _toast_gen
+	get_tree().create_timer(TOAST_T).timeout.connect(func():
+		if g == _toast_gen and is_instance_valid(ui_toast):
+			ui_toast.visible = false)
+
+
+func _flash_cards(idx: Array) -> void:
+	for i in idx:
+		var pc := ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
+		if pc == null:
+			continue
+		pc.modulate = FLASH_COL
+		pc.create_tween().tween_property(pc, "modulate", Color.WHITE, FLASH_T)
 
 
 func _say(t: String) -> void:
@@ -2685,6 +2782,10 @@ func _panel_part() -> void:
 	var L: Dictionary = B.lim[sel]
 	var lims: Array = B.at_limit(sel)
 	ui_title.text = nice(sel).to_upper() + ("   (at its limit)" if not lims.is_empty() else "")
+	if side_col(sel) != SIDE_MID:
+		ui_title.add_theme_color_override("font_color", side_col(sel))
+	else:
+		ui_title.remove_theme_color_override("font_color")
 	ui_title.modulate = LIMIT if not lims.is_empty() else Color.WHITE
 	ui_how.text = _how(sel)
 	var vals := {"bend": v.x, "side": v.y, "twist": v.z}
@@ -2720,6 +2821,7 @@ func _panel_part() -> void:
 
 func _panel_bat() -> void:
 	var locked := B.wep_hand != ""
+	ui_title.remove_theme_color_override("font_color")
 	ui_title.text = {"metal_bat": "METAL BAT", "staff": "BO STAFF", "long_hammer": "LONG HAMMER"}.get(B.wep_kind, B.wep_kind.to_upper()) + "  " + ("(locked in the %s)" % nice(B.wep_hand) if locked else "(free)")
 	ui_title.modulate = Color.WHITE
 	var w := wep_noun()   # round 9: the panel said "bat" for the staff and the hammer too
@@ -3667,6 +3769,9 @@ func _fix(f: Dictionary) -> void:
 	_pv_hover = {}
 	if _fixing:
 		return
+	if Fixer.label(f, S) == "":   # no fix for this rule: Fixer.apply has none to run (and _fixing would stay set)
+		_say("%s has no automatic fix: click its card and drag the parts by hand" % f["rule"])
+		return
 	_fixing = true
 	_say("fixing %s on card %d... (it plays the scene to check the fix)" % [f["rule"], f["card"] + 1])
 	await get_tree().process_frame
@@ -3681,6 +3786,12 @@ func _fix(f: Dictionary) -> void:
 		_ps().apply(B, playhead)
 		_check(r["after"])
 	_refresh()
+	if r["kept"]:
+		var changed := []
+		for i in mini(u["cards"].size(), S.cards.size()):
+			if JSON.stringify(u["cards"][i]) != JSON.stringify(S.cards[i]):
+				changed.append(i)
+		_flash_cards(changed)
 	_say(r["msg"] + ("   (Ctrl+Z undoes it)" if r["kept"] else "") + "   [%.1f s]" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	_fixing = false
 

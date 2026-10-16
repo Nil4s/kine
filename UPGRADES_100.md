@@ -50,11 +50,11 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 38. DONE (round 9: scripts/icons.gd, 26 icons drawn in code, tinted by the theme; icons_test) ~~[STY] Icon set: consistent 24px line icons for every ribbon command (no text-only buttons).~~
 39. [STY] 4/8px spacing grid audit across all panels.
 40. [STY] Typography: 2 sizes and 2 weights max. A label and value style for the properties panel.
-41. [STY] Animated micro-feedback: button press, apply-fix flash, undo toast.
-42. [STY] Skeleton rendering: thicker bones, joint dots, and a left/right color convention (e.g. blue/red).
+41. DONE (round 24: undo/redo toast, Fix flashes the changed cards; feedback_test) ~~[STY] Animated micro-feedback: button press, apply-fix flash, undo toast.~~
+42. DONE (round 24: joint dots and the part name red = his left, blue = his right; side_colours_test; bones not thickened) ~~[STY] Skeleton rendering: thicker bones, joint dots, and a left/right color convention (e.g. blue/red).~~
 43. DONE (round 23: two ghosts a side, fading, orange->red / green->cyan; onion_fade_test) ~~[STY] Ghost/onion skins: fading alpha plus a hue shift for past and future.~~
 44. DONE (round 23: time axis, hover line + readout; graph_read_test) ~~[STY] Speed graph: a proper axis, a gridline legend, and hover readout.~~
-45. [STY] Ground grid with fade-out and an origin axis gizmo.
+45. DONE (round 24: grid fades 1 m -> 2 m, XYZ gizmo with arrowheads and letters; floor_fade_test) ~~[STY] Ground grid with fade-out and an origin axis gizmo.~~
 46. DONE (round 22: main._grey + NOT NOW reasons; greyed_why_test audits 7 states x 4 tabs) ~~[STY] Consistent disabled states (greyed out plus a tooltip that says why it is disabled).~~
 47. [STY] Splash/empty state art: "Create a pose / open a scene / try an example".
 48. [STY] Screenshot gallery test: render every panel and store it in shots/ for visual diffs.
