@@ -70,7 +70,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 56. [FN] Clip blend/crossfade between two clips.
 57. DONE (round 17: retime_test: Shift+click a range, Faster / Slower on it, retime=A-B:pct) ~~[FN] Retime tool: stretch a range of cards by a percentage.~~
 58. DONE (round 16: loop_test: LOOP SEAM pose + speed, a Loop box, Loop: close the seam) ~~[FN] Loop check: the first and last pose match, with a velocity continuity warning.~~
-59. [FN] Weapon/prop attach to a hand with an offset, kept through mirror.
+59. DONE (round 29: verified, no change needed: Mirror keeps the hand offset, twice = back, saved and loaded; grip_mirror_test) ~~[FN] Weapon/prop attach to a hand with an offset, kept through mirror.~~
 60. [FN] Export: JSON plus a sprite sheet and GIF preview straight from the app.
 61. [FN] Import reference video frames as a background plate (connect to the see-video skill output).
 62. [FN] Overlay a tracked skeleton from video, and snap cards to it.
@@ -80,7 +80,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 66. DONE (round 28: Ctrl+click to group parts, a drag turns them all by the same change; multi_select_test) ~~[FN] Multi-select parts and rotate them as a group.~~
 67. DONE (round 28: spine, neck and head, each arm, each leg, from the search; sel_sets_test) ~~[FN] Selection sets ("whole arm", "upper body").~~
 68. DONE (round 16: autosave_test: every 15 s, atomic, Recover / Discard on start) ~~[FN] Autosave plus crash recovery.~~
-69. [FN] Version history/snapshots per scene (Fusion-like "versions").
+69. DONE (round 29: Versions in the scene row, scenes/_versions/<scene>/vNNN.json; versions_test) ~~[FN] Version history/snapshots per scene (Fusion-like "versions").~~
 70. DONE (round 18: poser_cli check_all --html; check_all_test) ~~[FN] Batch run of all CHECK rules over every scene with one HTML report.~~
 
 ## E. User-friendly check (71–85)

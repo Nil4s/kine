@@ -215,3 +215,15 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   release in `_group_release`, its undo step popped) adds / removes; `_group_follow` gives every member the change of
   `sel`'s angles through `set_ang_safe` (a hinge or the body can stop a member short: by design).
 - **Sets**: `SEL_SETS` + `_select_set`, as "Select: ..." search commands. No "both arms" (opposite sides turn opposite).
+
+## Round 29 (GATES.md section JJ): scene versions, the grip through a mirror
+- **Versions** = `ui_versions` (a MenuButton in the scene row) + the search's "Save a version". `_save_version` writes
+  `scenes/_versions/<safe_file(name)>/vNNN.json` (next number; never the scene's own file). `_open_version` puts the
+  version's CARDS in as one `_do` step (not Natural / Spline / Loop: an undo step holds only the cards); the scene is
+  then unsaved. `_lists()` reads `scenes/` without recursion, so versions never show as scenes.
+- **A new file-writing command must be listed in THREE tests**: `confirm_test` (the policy table), `undo_audit_test`
+  (SKIP) and `command_search_test` (writers). Each runs or audits every command; missing one left real versions of
+  combo3 and an unnamed scene on disk in the first full run.
+- **Grip through Mirror (#59)**: already right in `body.mirror_pose` (the hand offset x and the turn reflected);
+  `grip_mirror_test` proves it, twice = back, save/load (the load path is `scene.gd` applying a card). Paste mirrored
+  keeps the weapon in its hand (round 10 Q1); whether it should cross hands is Nick's call.

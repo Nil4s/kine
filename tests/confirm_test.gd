@@ -31,7 +31,8 @@ func _init() -> void:
 		"_polish": "a NEW machine copy in scenes/_wip/", "_mirror_scene": "a NEW machine copy in scenes/_wip/",
 		"_rename_pose": "refuses an existing name; the old name is free again", "_exit_tree": "the test's own settings file",
 		"_write": "the writer itself (callers above)", "_set_light": "the settings file (a preference, not work)", "_set_scale": "the settings file (a preference, not work)", "_save_settings": "the settings file", "_tour_end": "the settings file (tour done: a preference, not work)",
-		"autosave_now": "user://autosave.json only (never scenes/): a copy of unsaved work, atomic", "_autosave_drop": "removes only the autosave file and its .tmp"}
+		"autosave_now": "user://autosave.json only (never scenes/): a copy of unsaved work, atomic", "_autosave_drop": "removes only the autosave file and its .tmp",
+		"_save_version": "always a NEW file scenes/_versions/<scene>/vNNN.json (the next number; never the scene's own file)"}
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd").split("\n")
 	var fn := ""
 	var writers := {}

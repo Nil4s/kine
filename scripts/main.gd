@@ -526,6 +526,83 @@ func _select_set(parts: Array) -> void:
 	_say_plain("%d parts selected (%s): drag any of them to turn them all" % [group().size(), ", ".join(group().map(nice))] if group().size() > 1 else "one part: %s" % nice(sel))
 
 
+## SCENE VERSIONS (round 29, GATES JJ1, UPGRADES #69): snapshots of the open scene in scenes/_versions/<scene>/vNNN.json
+## (the scene list reads only scenes/ itself, so they never show as scenes). Going back to one = its cards into the
+## open scene as one undo step; the scene's own file changes only when it is saved
+var ui_versions: MenuButton
+var _version_paths: Array = []
+
+
+func versions_dir() -> String:
+	var nm := safe_file(S.name)
+	return "res://scenes/_versions/%s" % (nm if nm != "" else "unnamed")
+
+
+## the open scene's versions, newest first
+func versions() -> Array:
+	var out := []
+	var d := DirAccess.open(versions_dir())
+	if d == null:
+		return out
+	for f in d.get_files():
+		if f.begins_with("v") and f.ends_with(".json"):
+			out.append(versions_dir() + "/" + f)
+	out.sort()
+	out.reverse()
+	return out
+
+
+func _save_version() -> void:
+	var list := versions()
+	var n := 1 if list.is_empty() else (list[0] as String).get_file().get_basename().substr(1).to_int() + 1
+	var keep := B.state()
+	var d := S.to_dict(B)
+	B.set_state(keep)
+	d["version"] = {"n": n, "saved": Time.get_datetime_string_from_system(false, true)}
+	var path := "%s/v%03d.json" % [versions_dir(), n]
+	_write(path, d)
+	_say_plain("version %d of %s kept (%d cards).  Versions, in the scene row, goes back to it" % [n, S.name, S.cards.size()])
+
+
+func _versions_menu() -> void:
+	var pm := ui_versions.get_popup()
+	pm.clear()
+	pm.add_item("Save a version now", 0)
+	pm.add_separator()
+	_version_paths = versions()
+	if _version_paths.is_empty():
+		pm.add_item("no versions yet", 1)
+		pm.set_item_disabled(pm.item_count - 1, true)
+		pm.set_item_tooltip(pm.item_count - 1, "NOT NOW: this scene has no versions yet. 'Save a version now' (above) keeps the scene as it is, to come back to")
+	for i in _version_paths.size():
+		var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_version_paths[i]))
+		var v: Dictionary = d.get("version", {})
+		pm.add_item("v%d   %s   %d cards" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size()], 100 + i)
+
+
+func _version_picked(id: int) -> void:
+	if id == 0:
+		_save_version()
+	elif id >= 100 and id - 100 < _version_paths.size():
+		_open_version(_version_paths[id - 100])
+
+
+## a version's cards into the open scene: one undo step, the scene then unsaved (its file untouched)
+func _open_version(path: String) -> void:
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var V := Scene.new()
+	V.from_dict(d)
+	_do(func():
+		S.cards = V.cards   # the cards only: an undo step holds the cards, not the scene's settings (Natural, Loop)
+		sel_card = -1
+		S.apply(B, 0.0))
+	playhead = 0.0
+	ov.mark_dirty()
+	_rebuild_cards()
+	_refresh()
+	_say_plain("back to version %d: %d cards (Ctrl+Z undoes; Save scene keeps it)" % [d.get("version", {}).get("n", 0), S.cards.size()])
+
+
 func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and not ev.echo and _num_key(ev as InputEventKey):
 		get_viewport().set_input_as_handled()
@@ -2871,6 +2948,15 @@ func _ui() -> void:
 			_rebuild_cards()
 			_refresh()))
 	bh.add_child(_button("Delete scene", _delete_scene, "the scene picked in the list (it asks first; the file goes to the trash folder)"))
+	ui_versions = MenuButton.new()   # SCENE VERSIONS (round 29, JJ1)
+	ui_versions.name = "btn_versions"
+	ui_versions.text = "Versions"
+	ui_versions.flat = false
+	ui_versions.focus_mode = Control.FOCUS_NONE
+	ui_versions.tooltip_text = "save the scene as it is now as a version, or go back to one (the scene's file is not touched)"
+	ui_versions.about_to_popup.connect(_versions_menu)
+	ui_versions.get_popup().id_pressed.connect(_version_picked)
+	bh.add_child(ui_versions)
 	ui_loop = CheckBox.new()
 	ui_loop.text = "Loop"
 	ui_loop.name = "check_loop"
@@ -3761,6 +3847,7 @@ func _commands() -> Array:
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
 	add.call("Arms down 25 deg", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25 degrees out from straight down")
