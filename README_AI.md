@@ -242,3 +242,20 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   `_left` (mouse_exited) clears it, needed for a move straight onto the right panel, which main's `_process`
   clean-up does not see; `_process` skips the Browser as the hovered control.
 - Test note: a cleared TreeItem bg colour reads back as `Color()` (opaque black), not transparent.
+
+## Round 31 (GATES.md section LL): export to the game (UPGRADES_200 #101-105)
+- **Target**: the ARPG (D:/arpg, Unity 6) has no Animator and no clips. Moves are `PoseTable` data in C#
+  (`unity/Assets/Scripts/View/PoseTable.cs`): per slot (`LimbRig.Bone`, 13; 11 on a human), keys `(t 0..1, pitch,
+  yaw, roll)` in degrees from the GAME's rest, character frame, composed pitch*yaw*roll*rest, smoothstep per segment.
+- **`scripts/game_export.gd` (`GameExport`)**: `slot_angles(B)` = the fold. A slot's angles are its world delta
+  relative to its parent slot's, `D = Dp^-1 * Dg`, with `Dg = B.G[end joint]` (so spine_01..03, clavicle and neck
+  fold in; hands, feet, fingers and the weapon do not reach the game). Arms only: `Dg = G * C`, C = the turn from
+  straight down (the game's rest) to Poser's T-pose rest direction. Axes: right = -x, up = +y, forward = +z;
+  `SIGN` flips an axis if the in-game capture (UPGRADES_200 #105, OPEN) says so.
+- **`table(S, B, refine, tol)`**: 60 fps frames (Euler unwrapped), keys at the start, end and every card's arrive and
+  leave, then the worst frame added per slot until the game's sampler is within 1° everywhere. `to_json`,
+  `from_json`, `to_csharp` (paste into `Skills`), `write(S, B, dir)`.
+- **Command** "Export to game" (`main._export_game`): exports/<scene>.json + .cs; keeps the body's pose
+  (`B.state()`); listed in confirm / undo_audit / command_search as a file writer.
+- **Known**: 188-817 keys per scene at 1°. Foot planting makes legs jump up to 39° in one frame (UPGRADES_200 #132),
+  which the export copies; that is round 32.

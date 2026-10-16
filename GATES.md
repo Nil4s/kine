@@ -475,3 +475,40 @@ Order: the runner first (every later gate is read through it), then the registry
 - [x] KK2 HOVER IN SYNC (#35): the part under the mouse in the view has its Browser row lit; the mouse over a part's row in the Browser lights that part in the view (HOVER) and names it on the bar; the mouse off the row / off the part clears both. Real mouse motion; anti-vacuity
   - EVIDENCE: tests/hover_sync_test.gd (hover_sync:w), real mouse motion: 6 ok. (1) the mouse on the left thigh in the view: its row lit (btn_hover); (2) onto empty view: unlit; (3) the mouse on the head's row: the head lit HOVER in the view, the bar 'pointing at the head', still lit 10 frames on; (4) onto the Torso folder row: cleared; (5) the head's row, then out onto empty view: cleared; (6) the head's row, then STRAIGHT onto the right panel: cleared. A test bug on the way: a cleared bg colour reads back as Color() = opaque black, so 'alpha > 0' called every row lit; it compares with btn_hover now. Anti-vacuity, singly: the view's hover never lights a row -> FAIL 1; the light paints nothing -> FAIL 1; a lit row never unlit -> FAIL 2; main's _process clean-up wipes the Browser's own hover -> FAIL 3,5 (the hc != ui_browser exception is needed); a row's hover never reaches the view -> FAIL 3,5; the Browser's mouse_exited handler stubbed -> first PASSED with checks 1-5, so it was removed as dead; check 6 (straight onto the right panel, which lets the mouse pass, so _process never clears) then FAILED with it removed: a real leak, the handler restored, and stubbed again -> FAIL 6. Restored, ANTI 0.
 - [x] KK3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 30; committed. EVIDENCE: run 1 FAIL theme 3 (the eye/lock colours were `Color(on, 0.4)` literals, not tokens): now `Tok.dim(0.4)`; browser_eye failed once on check 4 in the rerun that followed, passed 5 of 5 after with a MISAIM print added (never printed, 0 in the full run). Run 2: SUITES 91/91 PASS; fingerprint 99e49b62d06763c13a9bc3fde9ef185b; git status scenes/poses/data/moves: only the old bo_sweep deletion; 0 zz_ files; 0 scenes/_versions; ANTI 0. UPGRADES #24, #35 DONE.
+
+## LL. Round 31: export to the game (UPGRADES_200 #101–105)
+The ARPG reads poses as `PoseTable` data (D:/arpg/unity/Assets/Scripts/View/PoseTable.cs, LimbRig.cs): per slot,
+keys (t 0..1, pitch, yaw, roll) in degrees from the game's REST, in the character's frame, composed
+pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arms OUT (T-pose); the game's hang DOWN.
+- [x] LL1 THE FOLD (#102, #105): `GameExport.slot_angles(B)` gives the game's 11 human slots (Hips, Head, Arm L/R,
+  Thigh L/R, Shin L/R, Fore L/R, Chest; Hock none) from Poser's world rotations. Bars, on real poses: (a) the rest pose
+  exports pitch/yaw/roll 0 on the spine, head and legs, and the arms raised ~90° (out to the side, as Poser's rest is);
+  (b) rebuilding each game bone's world direction from the exported angles alone (the game's composition, the game's
+  rest directions) points where Poser's limb points, within 0.5°, over every card of 3 scenes; (c) SIGN CONTROLS, one
+  joint and one axis at a time: thigh forward → ThighL +pitch, body turned to its left → Hips +yaw, right shoulder
+  dropped → Chest +roll (the semantics PoseTable.cs states; the in-game check stays OPEN in UPGRADES #105), each with
+  the other two angles under 1°. Anti-vacuity: drop the arm rest correction, flip one sign, swap two slots: each fails.
+  - EVIDENCE: tests/game_fold_test.gd (game_fold:h): 7 ok. (0) compose/decompose worst 0.00008° over 200 random angles.
+    (1) rest: spine/head/legs 0.000°; ArmL (-0.98, 0.98, 89.98), ArmR (-0.98, -0.98, -89.98) = raised 90.0 / 90.0;
+    forearms 2.8° (Poser's rest elbow). (2) the game's bones rebuilt from the angles alone, worst 0.0000° over 23 cards
+    of combo3, swing_fore, walk_bat (exact: the parent deltas telescope; the check is on the map, the arm turn and the
+    angle maths, see stubs). (3a) knee to the toes: ThighL (30, 0, 0); (3b) left hip back: Hips (0, 20, 0); (3c) right
+    shoulder down: Chest (0, -0.03, 7.0). STUBS: no arm turn: FAIL 1 + 2 (90°); yaw sign flipped: FAIL 3b (-20); ArmL /
+    ForeL swapped: PASSED at first: the test read the exporter's own slot map, so a wrong map agreed with itself. The
+    test now carries its own map by meaning (LIMB): FAIL 2 (109°); Chest on spine_01 (fold dropped): FAIL 2 (18.9°) + 3c.
+- [x] LL2 THE TABLE (#101, #103, #104): `GameExport.table(S, B)` keys at every card's arrive and leave times, then adds
+  keys where the game's own sampler (smoothstep, re-implemented in the test from PoseTable.Sample) is worst, until
+  every 60 fps frame of the scene is within 1° of Poser on every slot (the angle between the two rotations). Output:
+  a C# block in PoseTable.cs's own syntax and a JSON copy, written by a command "Export to game" to `exports/`
+  (never scenes/); the JSON re-read gives the same keys. Bars: all 10 scenes in scenes/ meet 1°; the key count is
+  printed per scene; the C# compiles-shaped (balanced, `new PoseKey(` per key, t ascending in [0,1]). Anti-vacuity:
+  keys at the cards only (no added keys) must fail the 1° bar on at least one scene.
+  - EVIDENCE: tests/game_table_test.gd (game_table:h): 4 ok. (1) all 10 scenes within 1° on every frame and slot
+    through the test's own copy of PoseTrack.Sample + Joint.Set (worst 0.956-0.999°); keys 188 (idle_bat) to 817
+    (combo3). (2) cards-only keys miss on 10 of 10 (6.7° to 77.8°). (3) bo_spin JSON re-read: same keys, plays within
+    1.002° (the 0.01° rounding); C# 11 tracks, 432 PoseKeys of 432, balanced. (4) Export to game: wrote exports/<scene>
+    .json + .cs (scratch folder), the pose unchanged, the status says so, scenes/ md5 unchanged. STUBS: the exporter's
+    sampler linear: FAIL 1 + 3 (3.18°); the C# drops each track's first key: FAIL 3 (421 of 432); the pose not put back:
+    FAIL 4. KEY COUNTS ARE HIGH (swing_fore 34.5 per bone at 1°, 17.2 at 5°; linear blending only 15% fewer): the legs'
+    planting pops (UPGRADES_200 #132, up to 38.9° in one frame) cost keys; recorded for round 32.
+- [x] LL3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 31; committed. EVIDENCE: SUITES 92/93; FAIL popup_leak 3 (object counts up AND down by ~30, nodes flat, orphans 0) in a run that had my own Godot probe (the leg-pop trace) running beside it, against the rule; popup_leak alone, twice: 5 ok, every count exactly flat. Fingerprint 99e49b62d06763c13a9bc3fde9ef185b; scenes/poses/data/moves: only the old bo_sweep deletion; 0 zz_; exports/ empty; ANTI 0.

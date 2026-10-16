@@ -51,7 +51,7 @@ itself says a baked JSON table "drops straight into this sampler". So that is th
 129. [ANI] Arcs: draw the path of ANY joint (not only the tip) over the clip, with its frame ticks.
 130. [ANI] Overlap / follow-through: children (forearm, hand, head) lag their parent by a set number of frames, as a toggle.
 131. [ANI] Breakdown tool: make the in-between of two cards with a favour slider (closer to A or to B).
-132. [ANI] Pops: find frames where any joint's speed jumps (a velocity spike), listed and clickable.
+132. [ANI] Pops: find frames where any joint's speed jumps (a velocity spike), listed and clickable. FOUND (round 31, measuring the export): FOOT PLANTING makes the legs jump: the worst leg turn in one 60 fps frame, planting on / off: combo3 38.9 / 10.7, thrust 37.4 / 14.2, bo_spin 38.4 / 31.8, swing_fore 23.3 / 10.7, strike_legs 24.4 / 9.6, walk_bat 9.5 / 2.5 degrees. The game export copies it faithfully (and pays keys for it). combo3's worst frame reports span -1 at 1.700 s. FIX FIRST, round 32. TRACED in swing_fore (card 2 steps the left foot 14 cm in a 0.15 s move): (1) A SNAP: the last hold frame (0.750 s) has thigh_l twist -15.9, the first stepping frame (0.767 s) 0.1: the step's leg re-solve (Body.plant) throws the card's thigh twist away. That is a bug. (2) SPEED: the 8 cm lift arc in 0.15 s swings the thigh 4 -> 40 degrees in 2 frames; true to the card, not a bug, but it costs keys.
 133. [ANI] Contact detection: find the frames where a foot is planted, from the clip itself, for foot locking.
 134. [ANI] Walk / run cycle generator from a contact pose and a passing pose, with stride and speed.
 135. [ANI] Idle breathing: a small loop added on top of any held pose (chest and shoulders), with a strength slider.
@@ -77,6 +77,9 @@ itself says a baked JSON table "drops straight into this sampler". So that is th
 153. [RIG] Collision tuning: see and adjust each capsule's size, saved per character.
 154. [RIG] More weapons: sword, axe, shield, spear, with their own grips. NICK? (which ones the ARPG needs)
 155. [RIG] A shield on the other arm, with its own block poses.
+155a. [CMB] DUAL WIELD (Nick 2026-10-16: "weapons like double dagger, so mirrored would help in making the scenes easier, like for combos"): a weapon in EACH hand (a new "dagger" kind, ~0.30 m, one-hand grip), each with its own grip, saved per card; collisions for both.
+155b. [CMB] Mirror carries the weapons: Mirror pose / Mirror the scene swap the two hands' weapons, each mirrored into the other hand (one weapon: it changes hands, as today); and PASTE MIRRORED now carries the weapon(s) too (Nick 2026-10-16 overrides round 10's "a copied pose carries the body, not the weapon").
+155c. [CMB] Mirror a combo: "the next hit, mirrored": copy the last card(s) as a new card mirrored, so left-right-left chains are built from one side.
 156. [RIG] Clothing silhouette shapes (a coat, a cape) to check readable poses with the ARPG's outfit. NICK?
 
 ## E. Viewport and camera (157–166)

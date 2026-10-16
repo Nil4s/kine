@@ -593,6 +593,26 @@ func _save_version() -> void:
 	_say_plain("version %d of %s kept (%d cards).  Versions, in the scene row, goes back to it" % [n, S.name, S.cards.size()])
 
 
+## EXPORT TO GAME (round 31, GATES LL2): the scene as the ARPG's PoseTable, exports/<scene>.json + .cs (never scenes/).
+## The table is sampled from the scene frame by frame, so the body's pose is kept and put back.
+func _export_game(dir := "res://exports") -> Array:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: export to the game needs at least 2 cards (a move)")
+		return []
+	var keep := B.state()
+	var out := GameExport.write(S, B, dir)
+	B.set_state(keep)
+	_refresh()
+	var T: Dictionary = out[2]
+	var n := 0
+	var w := 0.0
+	for s in T["tracks"]:
+		n += (T["tracks"][s] as Array).size()
+		w = maxf(w, T["worst"][s])
+	_say_plain("exported to the game: %s (%d keys on 11 bones, within %.2f degrees of Poser). The hands, feet and fingers do not reach the game" % [(out[0] as String).get_basename() + ".json / .cs", n, w])
+	return out
+
+
 func _versions_menu() -> void:
 	var pm := ui_versions.get_popup()
 	pm.clear()
@@ -3881,6 +3901,7 @@ func _commands() -> Array:
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
