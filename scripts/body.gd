@@ -796,6 +796,11 @@ func set_ang_safe(j: String, v: Vector3) -> bool:
 	return false
 
 
+## IK stops when the tip is this close (m): 0.01 mm, a tenth of what a file holds (0.1 mm). Round 13: reach and plant
+## always ran every round (6 and 5): a 30-card scene's playback spent 5 ms a frame there, a card edit 2.5 s
+const IK_EPS := 1e-5
+
+
 ## reach: put a limb's tip (hand_r/l = the wrist, foot_r/l = the ankle) on a target point. Two joints, in turns: the
 ## elbow/knee bend sets the shoulder-to-tip DISTANCE (bisection: it falls as the bend grows), then the shoulder/hip
 ## turns the tip onto the target (turn_world). Limits and contacts apply at every step. Returns the miss (m).
@@ -824,7 +829,56 @@ func reach(tip: String, target: Vector3) -> float:
 		var ax := r1.cross(r2)
 		if ax.length() > 1e-9:
 			turn_world(root, Quaternion(ax.normalized(), r1.angle_to(r2)))
+		if ((P[tip] - target) as Vector3).length() < IK_EPS:
+			break   # there (round 13: the rounds after this moved nothing a file can hold, and cost 5 ms a frame)
 	return ((P[tip] - target) as Vector3).length()
+
+
+## IK POLE (round 10, GATES Q5): swing the elbow / knee about the root-to-tip line by `deg`, the tip (hand / foot)
+## staying put. The root (upper arm / thigh) turns about that line, which carries the limb round it; but the turn
+## goes through the joint's bend/side/twist angles, which do not reproduce an arbitrary turn exactly (the hip: asked
+## 20, got 10.8, the foot off by 6 mm). So it is a loop: turn the rest of the way, put the tip back (reach), MEASURE
+## the elbow's angle about the line, repeat (8 at most). The tip keeps its world orientation. A limit stops it short.
+## Returns the angle actually swung (deg).
+func swing_pole(tip: String, deg: float) -> float:
+	var mid: String = parent[tip]
+	var root: String = parent[mid]
+	var at: Vector3 = P[tip]
+	var g0: Quaternion = G[tip]
+	var ref := _pole_ref(root, tip)
+	var a0 := _pole_angle(root, mid, tip, ref)
+	var done := 0.0
+	for it in 8:
+		var left := deg - done
+		if absf(left) < 0.05:
+			break
+		var ax: Vector3 = ((P[tip] - P[root]) as Vector3).normalized()
+		turn_world(root, Quaternion(ax, deg_to_rad(left)))
+		fk()
+		reach(tip, at)
+		var now := wrapf(_pole_angle(root, mid, tip, ref) - a0, -180.0, 180.0)
+		if absf(now - done) < 0.01:   # no progress: a limit
+			break
+		done = now
+	var gp: Quaternion = G[parent[tip]]
+	set_ang_safe(tip, decompose(tip, (gp.inverse() * g0).normalized()))   # G = G[parent] * A: the tip's old G
+	fk()
+	return done
+
+
+## a fixed direction perpendicular to the root->tip line (the elbow's angle is measured from it)
+func _pole_ref(root: String, tip: String) -> Vector3:
+	var ax: Vector3 = ((P[tip] - P[root]) as Vector3).normalized()
+	var r := Vector3.UP if absf(ax.dot(Vector3.UP)) < 0.9 else Vector3.FORWARD
+	return (r - ax * r.dot(ax)).normalized()
+
+
+func _pole_angle(root: String, mid: String, tip: String, ref: Vector3) -> float:
+	var ax: Vector3 = ((P[tip] - P[root]) as Vector3).normalized()
+	var e: Vector3 = (P[mid] - P[root]) as Vector3
+	e = (e - ax * e.dot(ax)).normalized()
+	var r := (ref - ax * ref.dot(ax)).normalized()
+	return rad_to_deg(r.signed_angle_to(e, ax))
 
 
 ## SEARCH: coordinate descent on the joints in `js` (each free angle), minimising cost.call() + 10 * the body's new
@@ -1184,6 +1238,8 @@ func plant(sd: String, ball_at: Vector3, head: float, flat: bool) -> float:
 		# a heel-up back foot pivots with the hips: its knee follows the hips' facing, not its own foot (that chases itself)
 		var hf: Vector3 = (G["pelvis"] as Quaternion) * Vector3(0, 0, 1)
 		knee_over_toes(sd, head if flat else atan2(hf.x, hf.z))
+		if ((P["ball" + sd] - ball_at) as Vector3).length() < IK_EPS:
+			break   # the knee turn left the ball on its mark: the next round would change nothing that shows
 	return ((P["ball" + sd] - ball_at) as Vector3).length()
 
 
@@ -1256,6 +1312,42 @@ static func twin(j: String) -> String:
 ## body's middle plane (x -> -x). Each joint takes its twin's rotation reflected, A' = M A M, which for a quaternion
 ## is (x, y, z, w) -> (x, -y, -z, w) (the same rule weapon_to_hand uses for the left-hand grip); the hips' offset x
 ## flips; the weapon goes to the other hand, its place in the hand reflected the same way. Mirroring twice = the pose.
+## COPY / PASTE POSE (round 10, GATES Q1): the body's angles and hip offset (not the weapon: it stays as it is)
+func pose_copy() -> Dictionary:
+	return {"ang": ang.duplicate(), "offset": offset}
+
+
+## j and every joint below it (an upper arm -> the arm, forearm, hand and fingers)
+func below(j: String) -> Array:
+	var out := []
+	for k in ORDER:
+		var c: String = k
+		while c != "":
+			if c == j:
+				out.append(k)
+				break
+			c = parent[c]
+	return out
+
+
+## paste a copied pose: mirrored = reflected left <-> right (as mirror_pose does to the angles); only = just these
+## joints (empty = all, and then the hips' offset too)
+func pose_paste(p: Dictionary, mirrored := false, only := []) -> void:
+	var src: Dictionary = p["ang"]
+	for j in ORDER:
+		if not only.is_empty() and not j in only:
+			continue
+		if mirrored:
+			var q := compose(twin(j), src[twin(j)])
+			ang[j] = clamp_ang(j, decompose(j, Quaternion(q.x, -q.y, -q.z, q.w)))
+		else:
+			ang[j] = src[j]
+	if only.is_empty():
+		var o: Vector3 = p["offset"]
+		offset = Vector3(-o.x, o.y, o.z) if mirrored else o
+	fk()
+
+
 func mirror_pose() -> void:
 	var A := {}
 	for j in ORDER:
@@ -1320,6 +1412,31 @@ func from_dict(d: Dictionary) -> void:
 		wep_lpos = _v(w.get("local_pos", [0, 0, 0]))
 		grip = bool(w.get("two_hand_grip", false))
 		grip_u = float(w.get("grip_m", grip_u))
+
+
+## THE POSE, LOSSLESS (round 8, for undo): to_dict rounds for the files (0.01 deg, 0.1 mm), so an undo through it
+## re-solved from rounded numbers and a chain of undos drifted (tests/undo_fuzz_test.gd: 0.1 mm, 4th decimal of G)
+func state() -> Dictionary:
+	return {"ang": ang.duplicate(), "offset": offset, "wep_on": wep_on, "wep_kind": wep_kind, "wep_len": wep_len,
+		"wep_pos": wep_pos, "wep_rot": wep_rot, "wep_hand": wep_hand, "wep_lpos": wep_lpos, "wep_lrot": wep_lrot,
+		"grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true)}
+
+
+func set_state(s: Dictionary) -> void:
+	ang = (s["ang"] as Dictionary).duplicate()
+	offset = s["offset"]
+	set_kind(s["wep_kind"])
+	set_weapon_len(s["wep_len"])
+	wep_on = s["wep_on"]
+	wep_pos = s["wep_pos"]
+	wep_rot = s["wep_rot"]
+	wep_hand = s["wep_hand"]
+	wep_lpos = s["wep_lpos"]
+	wep_lrot = s["wep_lrot"]
+	grip = s["grip"]
+	grip_u = s["grip_u"]
+	grip2 = (s["grip2"] as Dictionary).duplicate(true)
+	fk()
 
 
 static func _q(q: Quaternion) -> Array:

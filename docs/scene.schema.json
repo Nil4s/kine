@@ -1,0 +1,345 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "poser/scene.schema.json",
+ "title": "Poser scene or pose file",
+ "description": "A file with 'cards' is a SCENE (poses in order, played as a motion); one with 'joints' is a POSE. Angles are degrees from rest (bend, side, twist; Body clamps them to data/body_limits.json on load), positions metres, quaternions [x, y, z, w]. Derived fields (A, G, pos, end, at_limit, contacts, bad_frames, length_s, arrive_s, leave_s) are written for readers and ignored on load. tools/validate.gd checks a file against this; tests/schema_test.gd keeps the enums equal to the code's tables.",
+ "if": {
+  "type": "object",
+  "required": [
+   "cards"
+  ]
+ },
+ "then": {
+  "$ref": "#/$defs/scene"
+ },
+ "else": {
+  "$ref": "#/$defs/pose"
+ },
+ "$defs": {
+  "vec3": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "quat": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 4,
+   "maxItems": 4
+  },
+  "joint": {
+   "type": "object",
+   "required": [
+    "bend",
+    "side",
+    "twist"
+   ],
+   "properties": {
+    "bend": {
+     "type": "number"
+    },
+    "side": {
+     "type": "number"
+    },
+    "twist": {
+     "type": "number"
+    },
+    "A": {
+     "$ref": "#/$defs/quat"
+    },
+    "G": {
+     "$ref": "#/$defs/quat"
+    },
+    "pos": {
+     "$ref": "#/$defs/vec3"
+    },
+    "end": {
+     "$ref": "#/$defs/vec3"
+    },
+    "at_limit": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "additionalProperties": false
+  },
+  "weapon": {
+   "type": "object",
+   "description": "empty = no weapon",
+   "properties": {
+    "kind": {
+     "enum": [
+      "metal_bat",
+      "staff",
+      "long_hammer"
+     ]
+    },
+    "length": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "hand": {
+     "enum": [
+      "",
+      "hand_l",
+      "hand_r"
+     ]
+    },
+    "knob": {
+     "$ref": "#/$defs/vec3"
+    },
+    "tip": {
+     "$ref": "#/$defs/vec3"
+    },
+    "rot": {
+     "$ref": "#/$defs/quat"
+    },
+    "local_pos": {
+     "$ref": "#/$defs/vec3"
+    },
+    "local_rot": {
+     "$ref": "#/$defs/quat"
+    },
+    "two_hand_grip": {
+     "type": "boolean"
+    },
+    "grip_m": {
+     "type": "number"
+    }
+   },
+   "dependentRequired": {
+    "kind": [
+     "rot",
+     "knob"
+    ]
+   },
+   "additionalProperties": false
+  },
+  "pose": {
+   "type": "object",
+   "required": [
+    "joints"
+   ],
+   "properties": {
+    "joints": {
+     "type": "object",
+     "propertyNames": {
+      "enum": [
+       "pelvis",
+       "spine_01",
+       "spine_02",
+       "spine_03",
+       "neck_01",
+       "head",
+       "clavicle_l",
+       "upperarm_l",
+       "lowerarm_l",
+       "hand_l",
+       "clavicle_r",
+       "upperarm_r",
+       "lowerarm_r",
+       "hand_r",
+       "thigh_l",
+       "calf_l",
+       "foot_l",
+       "ball_l",
+       "thigh_r",
+       "calf_r",
+       "foot_r",
+       "ball_r",
+       "thumb_01_l",
+       "thumb_02_l",
+       "thumb_03_l",
+       "index_01_l",
+       "index_02_l",
+       "index_03_l",
+       "middle_01_l",
+       "middle_02_l",
+       "middle_03_l",
+       "ring_01_l",
+       "ring_02_l",
+       "ring_03_l",
+       "pinky_01_l",
+       "pinky_02_l",
+       "pinky_03_l",
+       "thumb_01_r",
+       "thumb_02_r",
+       "thumb_03_r",
+       "index_01_r",
+       "index_02_r",
+       "index_03_r",
+       "middle_01_r",
+       "middle_02_r",
+       "middle_03_r",
+       "ring_01_r",
+       "ring_02_r",
+       "ring_03_r",
+       "pinky_01_r",
+       "pinky_02_r",
+       "pinky_03_r"
+      ]
+     },
+     "additionalProperties": {
+      "$ref": "#/$defs/joint"
+     }
+    },
+    "offset": {
+     "$ref": "#/$defs/vec3"
+    },
+    "weapon": {
+     "$ref": "#/$defs/weapon"
+    },
+    "contacts": {
+     "type": "array"
+    },
+    "note": {
+     "type": "string"
+    },
+    "from": {
+     "type": "string"
+    },
+    "settled": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "heel_up": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "additionalProperties": false
+  },
+  "card": {
+   "type": "object",
+   "required": [
+    "name",
+    "pose"
+   ],
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "pose": {
+     "$ref": "#/$defs/pose"
+    },
+    "move": {
+     "type": "number",
+     "minimum": -1,
+     "description": "seconds to arrive from the card before; -1 = auto"
+    },
+    "hold": {
+     "type": "number",
+     "minimum": 0
+    },
+    "arrive_s": {
+     "type": "number"
+    },
+    "leave_s": {
+     "type": "number"
+    },
+    "steps": {
+     "type": "object",
+     "propertyNames": {
+      "enum": [
+       "_l",
+       "_r"
+      ]
+     },
+     "additionalProperties": {
+      "$ref": "#/$defs/vec3"
+     }
+    },
+    "lift": {
+     "type": "number"
+    },
+    "flow": {
+     "type": "boolean"
+    },
+    "ease": {
+     "enum": [
+      "smooth",
+      "linear",
+      "in",
+      "out",
+      "snap"
+     ]
+    },
+    "plant": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "_l",
+       "_r"
+      ]
+     },
+     "uniqueItems": true
+    }
+   },
+   "additionalProperties": false
+  },
+  "scene": {
+   "type": "object",
+   "required": [
+    "cards"
+   ],
+   "properties": {
+    "scene": {
+     "type": "string"
+    },
+    "cards": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/card"
+     }
+    },
+    "natural": {
+     "type": "boolean"
+    },
+    "spline": {
+     "type": "boolean"
+    },
+    "moving_holds": {
+     "type": "boolean"
+    },
+    "on_floor": {
+     "type": "boolean"
+    },
+    "floor_body": {
+     "type": "boolean"
+    },
+    "pin": {
+     "type": "boolean"
+    },
+    "fps": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 240
+    },
+    "length_s": {
+     "type": "number"
+    },
+    "bad_frames": {
+     "type": "array"
+    },
+    "note": {
+     "type": "string"
+    },
+    "plan": {
+     "type": "string"
+    }
+   },
+   "additionalProperties": false
+  }
+ }
+}

@@ -19,7 +19,36 @@ const SRC := {
 	"STRIKE FRAMES": "the swing itself <= the weapon's frame budget at 30 fps (docs/ATTACK_RULES.md, Aztez)",
 	"FIST SPEED": "boxers' fastest punch (lead hook) 11.95 +- 1.84 m/s (Stanley et al. 2018); straight 9.3 +- 2.1 (Piorkowski 2011)",
 	"HITCH": "a point-to-point move has ONE bell-shaped speed peak (Flash & Hogan 1985, J. Neurosci. 5(7))",
+	"BALANCE": "centre of mass from the body parts' masses (de Leva 1996, J. Biomech. 29(9)) over the feet on the floor",
+	"LOOP SEAM": "a loop must not show where it starts: the last frame meets the first in pose and in speed (our own bars, docs/MOTION_RULES.md)",
 	"FOOT SLIDE": "foot skating: a foot under 5 cm off the floor that slides more than 2.5 cm (Karunratanakul et al. 2023, the motion-generation standard; there per frame, here per planted stretch: stricter)",
+}
+## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
+## and WHERE the number comes from (the panel's "source" button opens it). The links are docs/MOTION_RULES.md's own
+## (tests/why_test.gd checks they agree); a rule whose source is a book or our own table points at that doc
+const WHY := {
+	"SEQUENCE": "Power travels up the body: hips first, then chest, then the weapon. Out of order, the swing reads as all arms.",
+	"HIPS TURN": "A strike starts in the hips. If they barely turn, the swing looks weak however fast the arms go.",
+	"HEAD QUIET": "Real fighters keep the head steady through the strike. A bobbing head reads as off balance.",
+	"TIP SPEED": "Faster than a real weapon can move: the eye reads it as cartoon, not power.",
+	"STRIKE FRAMES": "The hit itself must be quick. Too many frames at speed and it looks like a push, not a strike.",
+	"FIST SPEED": "Faster than the best recorded punches: it stops looking human.",
+	"HITCH": "A real move speeds up and slows down once. A stop in the middle reads as a glitch.",
+	"BALANCE": "With both feet down, the weight must stay over the feet. Past them he would fall: it reads as weightless.",
+	"LOOP SEAM": "A loop plays round and round. If the end does not meet the start, every lap jumps at the same place.",
+	"FOOT SLIDE": "A planted foot that slides looks like ice skating, the most noticed mistake in animation.",
+}
+const URL := {
+	"SEQUENCE": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
+	"HIPS TURN": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
+	"HEAD QUIET": "https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/",
+	"TIP SPEED": "res://docs/ATTACK_RULES.md",
+	"STRIKE FRAMES": "res://docs/ATTACK_RULES.md",
+	"FIST SPEED": "https://chesterrep.openrepository.com/entities/publication/0acdae9d-e8be-48cf-816e-ed9c667981b3",
+	"HITCH": "res://docs/MOTION_RULES.md",   # Flash & Hogan 1985, J. Neurosci. 5(7): a journal citation, no free link
+	"FOOT SLIDE": "https://arxiv.org/pdf/2310.08580",
+	"LOOP SEAM": "res://docs/MOTION_RULES.md",
+	"BALANCE": "https://doi.org/10.1016/0021-9290(95)00178-6",
 }
 const HIPS_MIN := 389.0 / 4.0      # deg/s
 const HEAD_WARN := 0.15            # m from where it was as the swing began (9 cm recorded + 6 cm grace)
@@ -37,6 +66,11 @@ const AIR := 0.05                  # m: the lower foot this far above its lowest
 const NOT_SWINGS := ["getup_back", "getup_front"]
 const FOOT_DOWN := 0.05            # m: the ball of the foot this low = on the floor (Karunratanakul 2023)
 const FOOT_SKATE := 0.025          # m: sliding more than this along the floor while down = skating
+const BAL_OUT := 0.03             # m: the centre of mass this far past the support polygon...
+const BAL_RUN := 6                 # ...for this many 60 fps frames (0.1 s) with both feet down: a fall, not momentum
+const LOOP_DEG := 3.0              # deg: a joint's last pose this far off its first = a visible pop at the seam
+const LOOP_GAP := 0.02             # m: a point (hand, foot, head...) this far from where it started
+const LOOP_JUMP := 0.5             # m/s: a point's velocity changing this much across the seam (a hitch each lap)
 const FOOT_STILL := 0.005          # m per 60 fps frame (0.3 m/s): slower than this = meant to stand (landings are faster)
 
 
@@ -73,13 +107,13 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			"hand_r": B.E["hand_r"], "gp": B.G["pelvis"], "gt": B.G["spine_03"],
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),
 			"fy": minf((B.P["foot_l"] as Vector3).y, (B.P["foot_r"] as Vector3).y), "wep": B.wep_on, "kind": B.wep_kind,
-			"bl": B.P["ball_l"], "br": B.P["ball_r"]})
+			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B)})
 		if contacts and not B.contacts().is_empty():
 			bad += 1
 	S.stepped = was_stepped
 	var out := {"t": [], "tip": [], "hips": [], "head": [], "hand_l": [], "hand_r": [], "w_pelvis": [], "w_trunk": [],
 		"w_weapon": [], "head_pos": [], "foot_y": [], "ball_l": [], "ball_r": [], "armed": false, "kind": "",
-		"spline": S.spline, "_raw": raw, "bad": bad}
+		"spline": S.spline, "_raw": raw, "bad": bad, "balance": [], "both_down": []}
 	for i in n:
 		var now: Dictionary = raw[i]
 		var prev: Dictionary = raw[maxi(i - 1, 0)]
@@ -91,6 +125,8 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 		out["foot_y"].append(now["fy"])
 		out["ball_l"].append(now["bl"])
 		out["ball_r"].append(now["br"])
+		out["balance"].append(float(now["bal"]["margin"]))
+		out["both_down"].append(now["bal"]["down"].size() == 2)
 		for k in ["tip", "hips", "head", "hand_l", "hand_r"]:
 			out[k].append(((now[k] as Vector3) - prev[k]).length() * FPS if i > 0 else 0.0)
 		out["w_pelvis"].append(ang_deg(prev["gp"], now["gp"]) * FPS if i > 0 else 0.0)
@@ -245,7 +281,9 @@ static func rule_feet(sm: Dictionary) -> Array:
 				far = maxf(far, Vector2(d.x, d.z).length())
 				i += 1
 			if far > FOOT_SKATE:
-				out.append(_f("WARN", sm["t"][a], "FOOT SLIDE", "the %s foot creeps %.1f cm along the floor while it should stand (%.2f-%.2f s); more than 2.5 cm reads as skating. Pin it: give it the same place in the cards around it." % ["left" if k == "ball_l" else "right", far * 100.0, sm["t"][a], sm["t"][i - 1]], far))
+				out.append(_f("WARN", sm["t"][a], "FOOT SLIDE", "the %s foot creeps %.1f cm along the floor while it should stand (%.2f-%.2f s); more than 2.5 cm reads as skating. Plant it on these cards (the Fix), or give it the same place in the cards around it." % ["left" if k == "ball_l" else "right", far * 100.0, sm["t"][a], sm["t"][i - 1]], far))
+				out[-1]["foot"] = k.substr(4)   # "_l" / "_r": the Fix plants this foot over [t, t1] (round 10)
+				out[-1]["t1"] = sm["t"][i - 1]
 	return out
 
 
@@ -296,6 +334,91 @@ static func rule_hitch(sm: Dictionary, holds: Array) -> Array:
 
 
 ## which card a moment belongs to: the card being moved into or held
+## LOOP SEAM (round 16, GATES W2): a loop scene's last frame against its first. The pose: the joint whose rotation (in
+## the world, so the body's own turn counts) differs most, and the point that ends farthest from where it started. The
+## speed: each point's velocity just before the end against just after the start (one 60 fps frame each side); a
+## change over LOOP_JUMP is a jump every lap, even when the poses meet
+## a part's plain name (main.gd's, loaded when asked: main uses this class, a preload would be a cycle)
+static func _nice(j: String) -> String:
+	return load("res://scripts/main.gd").nice(j)
+
+
+static func rule_loop(S: Scene, B: Body) -> Array:
+	if not S.loop or S.cards.size() < 2:
+		return []
+	var L := S.length()
+	var h := 1.0 / FPS
+	var keep := B.state()
+	var at := {}
+	for t in [0.0, h, L - h, L]:
+		S.apply(B, t)
+		at[t] = [B.G.duplicate(), B.P.duplicate()]
+	B.set_state(keep)
+	var out := []
+	var wj := ""
+	var wd := 0.0
+	for j in at[0.0][0]:
+		var d := ang_deg(at[0.0][0][j], at[L][0][j])
+		if d > wd:
+			wd = d
+			wj = j
+	var wp := ""
+	var wg := 0.0
+	var vj := ""
+	var vjump := 0.0
+	var v_end := Vector3.ZERO
+	var v_start := Vector3.ZERO
+	for j in at[0.0][1]:
+		var g: float = ((at[0.0][1][j] as Vector3) - at[L][1][j]).length()
+		if g > wg:
+			wg = g
+			wp = j
+		var ve: Vector3 = ((at[L][1][j] as Vector3) - at[L - h][1][j]) / h
+		var vs: Vector3 = ((at[h][1][j] as Vector3) - at[0.0][1][j]) / h
+		if (ve - vs).length() > vjump:
+			vjump = (ve - vs).length()
+			vj = j
+			v_end = ve
+			v_start = vs
+	if wd > LOOP_DEG or wg > LOOP_GAP:
+		out.append(_f("WARN", L, "LOOP SEAM", "the loop's end does not meet its start: the %s is %.1f deg off and the %s ends %.1f cm from where it began (over %.0f deg or %.0f cm pops every lap). Make the last card a copy of the first ('Loop: close the seam')." % [
+			_nice(wj) if wj != "" else "-", wd, _nice(wp) if wp != "" else "-", wg * 100.0, LOOP_DEG, LOOP_GAP * 100.0], maxf(wd, wg * 100.0)))
+		out[-1]["joint"] = wj
+	if vjump > LOOP_JUMP:
+		out.append(_f("WARN", L, "LOOP SEAM", "across the loop's seam the %s's speed jumps %.2f m/s (%.2f m/s at the end, %.2f at the start; over %.1f is a hitch every lap). End and start the same way: both on a hold, or the same move through the first card." % [
+			_nice(vj), vjump, v_end.length(), v_start.length(), LOOP_JUMP], vjump))
+		out[-1]["joint"] = vj
+	return out
+
+
+## BALANCE (round 16, GATES W3): with both feet on the floor, the centre of mass's floor point more than BAL_OUT past
+## the support polygon for BAL_RUN frames or more. One feet-down stretch = one finding, at its worst
+static func rule_balance(sm: Dictionary) -> Array:
+	var out := []
+	if not sm.has("balance"):
+		return out
+	var s: Array = sm["balance"]
+	var dn: Array = sm["both_down"]
+	var i := 0
+	while i < s.size():
+		if not (dn[i] and s[i] < -BAL_OUT):
+			i += 1
+			continue
+		var a := i
+		var worst := 0.0
+		var wi := i
+		while i < s.size() and dn[i] and s[i] < -BAL_OUT:
+			if -s[i] > worst:
+				worst = -s[i]
+				wi = i
+			i += 1
+		if i - a >= BAL_RUN:
+			out.append(_f("WARN", sm["t"][wi], "BALANCE", "%.2f-%.2f s: with both feet down, his centre of mass is %.1f cm past the edge of his feet (over %.0f cm for %.1f s or more, he would fall). Move the hips back over the feet, or let him take a step." % [
+				sm["t"][a], sm["t"][i - 1], worst * 100.0, BAL_OUT * 100.0, BAL_RUN / FPS], worst))
+			out[-1]["t1"] = sm["t"][i - 1]
+	return out
+
+
 static func card_at(S: Scene, t: float) -> int:
 	var ts := S.times()
 	for i in ts.size():
@@ -325,6 +448,8 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 		if float(ts[2]) - float(ts[1]) > 1e-4:
 			holds.append([float(ts[1]), float(ts[2])])
 	out += rule_hitch(sm, holds)
+	out += rule_loop(S, B)
+	out += rule_balance(sm)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

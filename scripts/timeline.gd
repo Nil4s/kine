@@ -145,10 +145,10 @@ func _retime_to(x: float, fine: bool) -> void:
 
 func _draw() -> void:
 	var S := _S()
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.07, 0.08, 0.1))
+	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
 	var font := get_theme_default_font()
 	if S == null or S.cards.size() < 1:
-		draw_string(font, Vector2(PAD, 30), "TIMELINE: clip two poses and the scene shows here", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.4))
+		draw_string(font, Vector2(PAD, 30), "TIMELINE: clip two poses and the scene shows here", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Tok.of("ink:0.4"))
 		return
 	var ts := S.times()
 	var L := S.length()
@@ -158,9 +158,9 @@ func _draw() -> void:
 	while k * 0.1 <= L + 1e-6:
 		var x := x_of(k * 0.1)
 		var major := absf(fmod(k * 0.1 + 1e-6, step)) < 2e-6 * 10.0
-		draw_line(Vector2(x, RULER - (7.0 if major else 3.0)), Vector2(x, RULER), Color(1, 1, 1, 0.35 if major else 0.18), 1.0)
+		draw_line(Vector2(x, RULER - (7.0 if major else 3.0)), Vector2(x, RULER), Color(Tok.c("ink"), 0.35 if major else 0.18), 1.0)
 		if major:
-			draw_string(font, Vector2(x + 2, 11), str(snappedf(k * 0.1, 0.1)) + "s", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.45))
+			draw_string(font, Vector2(x + 2, 11), str(snappedf(k * 0.1, 0.1)) + "s", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.of("ink:0.45"))
 		k += 1
 	var y0 := RULER + 2.0
 	var h := size.y - y0 - 2.0
@@ -222,5 +222,5 @@ func _draw() -> void:
 		draw_string(font, Vector2(bx + 1, y0 + 16), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.95, 0.5))
 	# playhead
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
-	draw_line(Vector2(px, 0), Vector2(px, size.y), Color(1, 1, 1), 2.0)
-	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Color(1, 1, 1))
+	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)
+	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))

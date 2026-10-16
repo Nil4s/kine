@@ -1,0 +1,42 @@
+## godot --path . -s tests/hover_hint_test.gd     (GATES R4; needs a window)
+## HOVER HINTS: every ribbon / top-bar button (the iconised ones) has a one-line hint; hovering one puts it in the
+## status bar; leaving gives the normal bar back. Checked on every such button, each ribbon tab opened in turn.
+extends SceneTree
+
+var fails := 0
+var m: Node
+
+
+func ok(c: bool, what: String) -> void:
+	print(("ok   " if c else "FAIL ") + what)
+	if not c:
+		fails += 1
+
+
+func _init() -> void:
+	m = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(m)
+	await process_frame
+	var btns: Array = m.ui_root.find_children("*", "BaseButton", true, false).filter(func(b): return b is Button and m.ICON_OF.has(b.text))
+	var none: Array = btns.filter(func(b): return b.tooltip_text.strip_edges().length() < 8).map(func(b): return b.text)
+	ok(btns.size() >= m.ICON_OF.size() and none.is_empty(), "%d ribbon / top-bar buttons, every one with a hint (none: %s)" % [btns.size(), none])
+	var plain: String = m.bar_text()
+	await process_frame
+	var bad := []
+	for b in btns:
+		b.mouse_entered.emit()
+		await process_frame
+		var shown: String = m.ui_bar.text
+		if not (shown.begins_with(b.text) and shown.contains(b.tooltip_text)):
+			bad.append(b.text)
+		b.mouse_exited.emit()
+		await process_frame
+		if m.ui_bar.text != plain:
+			bad.append(b.text + " (stuck)")
+	ok(bad.is_empty(), "hover each: the bar shows '<button>:  <hint>'; leave: the normal bar is back (bad: %s)" % [bad])
+	btns[0].mouse_entered.emit()
+	await process_frame
+	print("     e.g. '%s'" % m.ui_bar.text)
+	btns[0].mouse_exited.emit()
+	print("HOVER HINT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	quit(fails)

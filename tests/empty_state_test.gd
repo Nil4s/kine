@@ -41,7 +41,8 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 	await state("start, no clips", true)
-	var hint: bool = m.ui_cards.get_child_count() == 1 and String(m.ui_cards.get_child(0).text).contains("CLIP this pose")
+	# round 12: the hint, then the three example buttons (examples_test)
+	var hint: bool = m.ui_cards.get_child_count() == 4 and String(m.ui_cards.get_child(0).text).contains("CLIP this pose")
 	ok(hint and m.ui_cards.get_child(0).is_visible_in_tree(), "  the hint is on screen: 'No clips yet ... CLIP this pose ...'")
 	m._card_add()
 	await state("after CLIP this pose (1 clip)", false)
@@ -61,6 +62,10 @@ func _init() -> void:
 	m._load_scene("res://scenes/combo3.json")
 	m._rebuild_cards()
 	await state("combo3 opened", false)
+	m._set_light(true)   # round 9: light fields once made every card 4 px taller and the panel overflowed
+	await state("combo3 opened, LIGHT theme", false)
+	m._set_light(false)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	m.S = Scene.new()
 	m.sel_card = -1
 	m._rebuild_cards()

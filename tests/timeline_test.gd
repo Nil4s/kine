@@ -119,6 +119,7 @@ func _init() -> void:
 	for d in [1.6, 1.4, 1.2, 1.0, 0.9, 0.8, 0.7]:
 		m.T.place(d)
 		m._dummy_hits()
+		await m.dummy_settle()   # round 14: measured on a worker thread
 		if m.SL != null:
 			break
 	var b0: int = m.ov.builds
@@ -126,6 +127,8 @@ func _init() -> void:
 	print("     dummy on, solid, %.1f m out: landed copy %s" % [m.T.dist, "built" if sl0 != null else "NONE (no hit at any range)"])
 	m.ui_find.visible = true
 	drag(tl.x_of(ts()[1][1]), 0.2 * k)
+	await process_frame
+	await m.dummy_settle()
 	await process_frame
 	ok(m.ov.builds > b0 and absf(float(m.ov.curves["t"][-1]) - m._ps().length()) < 0.05, "after a retime the trail/graph pass re-ran (%d builds), its curve ends at %.2f s = what plays (the landed copy; the cards run to %.2f)" % [m.ov.builds - b0, m.ov.curves["t"][-1], m.S.length()])
 	ok(sl0 != null and m.SL != null and not is_same(m.SL, sl0), "  the landed dummy copy was rebuilt for the new timing (a new object, plays %.2f s)" % (m.SL.length() if m.SL != null else -1.0))

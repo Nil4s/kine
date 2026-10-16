@@ -43,7 +43,7 @@ func _folder(parent: TreeItem, t: String, folded := false) -> TreeItem:
 	var it := create_item(parent)
 	it.set_text(0, t)
 	it.set_selectable(0, false)
-	it.set_custom_color(0, Color(0.6, 0.78, 1.0))
+	it.set_custom_color(0, Tok.c("heading"))
 	it.collapsed = folded
 	return it
 
@@ -108,8 +108,32 @@ func follow() -> void:
 		_quiet = true
 		it.select(0)
 		_quiet = false
-	# in the middle, so the folders above it stay in sight; deferred: a just-unfolded tree has no layout yet this frame
-	scroll_to_item.call_deferred(it, true)
+	# only when the row is OUT of sight (round 20, GATES AA2: follow runs on every refresh, every drag, and re-centred
+	# the row each time, so the tree jumped back whenever the user had scrolled); then in the middle, so the folders
+	# above it stay in sight. Deferred: a just-unfolded tree has no layout yet this frame
+	_scroll_if_hidden.call_deferred(it)
+
+
+func _scroll_if_hidden(it: TreeItem) -> void:
+	if it == null or not rows.values().has(it):
+		return
+	var r := get_item_area_rect(it)   # already scrolled: in sight = inside 0..size.y
+	if r.position.y < 0.0 or r.end.y > size.y or r.size.y <= 0.0:
+		scroll_to_item(it, true)
+
+
+## the theme changed: the folder rows take the new heading colour IN PLACE (round 20, GATES AA2: build() for this
+## dropped the user's folds and scroll)
+func recolor() -> void:
+	var stack: Array = [get_root()]
+	while stack.size() > 0:
+		var it: TreeItem = stack.pop_back()
+		if it == null:
+			continue
+		if it != get_root() and not it.is_selectable(0):
+			it.set_custom_color(0, Tok.c("heading"))
+		for c in it.get_children():
+			stack.append(c)
 
 
 func _chosen() -> void:

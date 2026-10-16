@@ -14,6 +14,7 @@ const MID := Color(1.0, 0.85, 0.2)
 const FAST := Color(1.0, 0.2, 0.15)
 const BEFORE := Color(1.0, 0.55, 0.15, 0.28)
 const AFTER := Color(0.25, 0.95, 0.45, 0.28)
+const FIXED := Color(0.15, 0.65, 1.0, 0.6)   # the fix preview ghost: what a Fix button would make of this moment
 
 var trail_on := false
 var pins := []      # body parts with a trail of their own (Shift+T on the selected part): the END of the part (forearm =
@@ -65,7 +66,7 @@ func setup() -> void:
 	_space_mesh = MeshInstance3D.new()
 	_space_mesh.mesh = ImmediateMesh.new()
 	add_child(_space_mesh)
-	for col in [BEFORE, AFTER]:
+	for col in [BEFORE, AFTER, FIXED]:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -187,6 +188,8 @@ func trail(S: Scene) -> void:
 	for j in pins:
 		for n in _pin_nodes[j]:
 			n.visible = show
+	if not show:
+		_space = []   # nothing to space (round 19, GATES Z3: the last scene's ghosts stayed drawn at 1 card and at 0)
 	if not show or not _dirty or (not trail_on and pins.is_empty() and not spacing_on and not graph_on):
 		return
 	_dirty = false
@@ -286,7 +289,7 @@ static func neighbours(S: Scene, t: float) -> Array:
 
 
 func onion(S: Scene, t: float) -> void:
-	for g in _ghosts:
+	for g in _ghosts.slice(0, 2):
 		g[0].visible = false
 		g[3].visible = false
 	if not onion_on or S.cards.size() < 2:
@@ -299,6 +302,22 @@ func onion(S: Scene, t: float) -> void:
 		var g: Array = _ghosts[k]
 		S.apply(GB, float(ts[nb[k]][1]))
 		_pose(g, GB)
+
+
+## FIX PREVIEW: the scene as the fix would leave it (`cards`, from Fixer.propose), posed at t, as a blue ghost. The
+## scene's cards are swapped in for the one sample and put back (the same list object): nothing of it changes.
+## Empty cards = hide it.
+func fix_preview(S: Scene, cards: Array, t: float) -> void:
+	var g: Array = _ghosts[2]
+	g[0].visible = false
+	g[3].visible = false
+	if cards.is_empty():
+		return
+	var orig := S.cards
+	S.cards = cards
+	S.apply(GB, t)
+	S.cards = orig
+	_pose(g, GB)
 
 
 ## a stick body: line pairs along every bone but the fingers, the head to its top, the weapon shaft

@@ -25,6 +25,16 @@
 ##   card, so 30 cards would be 30 stops; this stops only where the body really does.
 ##   Overlap ("successive breaking of joints"): a joint of level L reads the curve LEAD * (5 - L) s AHEAD, so the hips
 ##   lead, the hands are exactly on the cards' times (the strike's timing is the cards'), the fingers trail.
+## EASE PRESETS (round 10, GATES Q2): a card's "ease" sets how the plain move INTO it eases. Absent = smooth (the
+##   above). "linear": e = x; "in": e = x^3 (starts slow); "out": e = 1 - (1 - x)^3 (ends slow); "snap": e = 0 until the
+##   card's arrival, then 1 (the pose before is held and the body jumps: a hit, a cut). x is the joint's own progress
+##   (with NATURAL's overlap) or u (PLAIN); snap ignores the overlap. Flow runs and spline scenes have their own curves
+##   and do not read it. Saved only when set, so older scenes save byte-identical.
+## PLANTED FEET (round 10, GATES Q3): a card's "plant": ["_l"] (or "_r", or both) holds that foot where it stood in
+##   the card BEFORE the run of cards that plant it, for the whole run (every move into those cards and every hold):
+##   the leg is re-solved every frame (Body.plant), the poses are not changed, so taking the plant off gives the old
+##   motion back. It works in spline scenes too, where the per-move pinning above does not stop a stance that differs
+##   by a few cm from card to card from creeping along the floor (combo3 in spline: a 5 cm FOOT SLIDE).
 ## CLEARANCE: if an in-between frame puts parts inside each other (and the two cards don't), clear() adds a pass-by
 ##   pose at the worst frame: the arm involved is lifted out from the body until that frame is clean. It shows up as its
 ##   own card ("pass-by"), so you can see and edit it.
@@ -32,11 +42,13 @@ class_name Scene
 extends RefCounted
 
 const LAG := 0.3
+const EASES := ["smooth", "linear", "in", "out", "snap"]   # a card's ease preset (EASE PRESETS above)
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var name := "scene"
 var natural := true
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
+var loop := false      # the scene plays round: CHECK grades the seam from the last frame to the first (round 16, W2)
 var on_floor := true   # every frame: the hips move up/down so the lowest sole touches the floor (Body.ground)
 var floor_body := false   # with on_floor: the whole body's lowest point instead of the soles (get-ups, falls)
 var pin := true        # feet that stay put between two clips are planted: they don't slide while the body turns
@@ -77,6 +89,23 @@ func add(card_name: String, pose: Dictionary, at := -1) -> void:
 		cards.insert(at, c)
 
 
+## card i's pose flattened, for READING only (move_time: times() runs it for every card, and apply() runs times()
+## several times a frame: 8 s per card add on a 30-card scene, measured round 13). Kept per card while the card holds
+## the SAME pose dictionary (is_same: a pose is always replaced whole, never edited in place: audited round 13).
+## Never write into the result: _drift, which does, flattens its own copy
+var _flat_memo := {}
+
+
+func _flat_read(i: int) -> Dictionary:
+	var p: Dictionary = cards[i]["pose"]
+	var c: Variant = _flat_memo.get(i)
+	if c != null and is_same(c[0], p):
+		return c[1]
+	var f := Moves._flat(p)
+	_flat_memo[i] = [p, f]
+	return f
+
+
 ## the time this card's move takes (its own value, or auto from the angles)
 func move_time(i: int) -> float:
 	if i == 0:
@@ -84,8 +113,8 @@ func move_time(i: int) -> float:
 	var m: float = cards[i]["move"]
 	if m > 0.0:
 		return m
-	var a := Moves._flat(cards[i - 1]["pose"])
-	var b := Moves._flat(cards[i]["pose"])
+	var a := _flat_read(i - 1)
+	var b := _flat_read(i)
 	var big := 0.0
 	for j in a["ang"]:
 		if level(j) >= 6 or not b["ang"].has(j):
@@ -96,8 +125,36 @@ func move_time(i: int) -> float:
 	return clampf(0.25 + big / 200.0, 0.3, 1.6)
 
 
-## [start of move, arrival, end of hold] per card
+## [start of move, arrival, end of hold] per card. MEMOIZED (round 13): apply() runs it about 5 times a frame, 1 ms each
+## at 30 cards. The memo holds while every card has the same pose dictionary (is_same), move, hold and flow flag; the
+## result is READ-ONLY (a caller that writes into it errors loudly instead of corrupting the next caller's times)
+var _times_memo: Array = []   # [[pose, move, hold, flow] per card, the result]
+
+
 func times() -> Array:
+	if not _times_memo.is_empty() and _times_memo[0].size() == cards.size():
+		var k: Array = _times_memo[0]
+		var same := true
+		for i in cards.size():
+			var c: Dictionary = cards[i]
+			var e: Array = k[i]
+			if not (is_same(c["pose"], e[0]) and c["move"] == e[1] and c["hold"] == e[2] and c.get("flow", false) == e[3]):
+				same = false
+				break
+		if same:
+			return _times_memo[1]
+	var out := _times_raw()
+	var key := []
+	for c in cards:
+		key.append([c["pose"], c["move"], c["hold"], c.get("flow", false)])
+	for r in out:
+		(r as Array).make_read_only()
+	out.make_read_only()
+	_times_memo = [key, out]
+	return out
+
+
+func _times_raw() -> Array:
 	var out := []
 	var t := 0.0
 	for i in cards.size():
@@ -128,7 +185,7 @@ func sample(t: float) -> Dictionary:
 			var a := Moves._flat(cards[i - 1]["pose"])
 			if _drifts(i - 1, ts):
 				a = _drift(i - 1, 1.0)
-			return blend(a, Moves._flat(cards[i]["pose"]), u)
+			return blend(a, Moves._flat(cards[i]["pose"]), u, cards[i].get("ease", ""))
 		if t < ts[i][2]:
 			if _drifts(i, ts):
 				return _drift(i, (t - ts[i][1]) / maxf(1e-6, ts[i][2] - ts[i][1]))
@@ -230,9 +287,14 @@ func _spline_sample(t: float) -> Dictionary:
 	var T: float = ts[-1][2]
 	var F := {}   # card -> its flat pose, read once per sample
 	var ang := {}
+	# the lead RAMPS IN over the first LEAD * 5 s less the first card's hold (round 18, GATES Y2): read at t + lead x k,
+	# k = (t + hold0) / (LEAD * 5) clamped to 0..1, so at t = 0 every joint reads at most hold0 ahead (inside the first
+	# card's hold: the first frame IS the first card, as the end's clamp makes the last frame the last card). With
+	# hold0 >= 75 ms, k = 1 from t = 0: unchanged. t + lead x k rises with t (slope 1 + lead / 75 ms): no joint runs back
+	var k := clampf((t + float(ts[0][2])) / (LEAD * 5.0), 0.0, 1.0)
 	for j in _flat_of(F, 0)["ang"]:
-		ang[j] = _curve(F, j, clampf(t + LEAD * (5 - level(j)), 0.0, T), ts)
-	var off := _curve(F, "_off", clampf(t + LEAD * 5.0, 0.0, T), ts)
+		ang[j] = _curve(F, j, clampf(t + LEAD * (5 - level(j)) * k, 0.0, T), ts)
+	var off := _curve(F, "_off", clampf(t + LEAD * 5.0 * k, 0.0, T), ts)
 	# the weapon's place in the hand: the plain blend inside the piece the hand is in (as in a flow run)
 	var w := _where(clampf(t, 0.0, T), ts)
 	var wep: Dictionary
@@ -342,10 +404,10 @@ func _curve(F: Dictionary, j: String, tt: float, ts: Array) -> Vector3:
 	return v
 
 
-func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
+func blend(a: Dictionary, b: Dictionary, u: float, kind := "") -> Dictionary:
 	var ang := {}
 	for j in a["ang"]:
-		var e := _ease(u, level(j))
+		var e := _ease(u, level(j), kind)
 		ang[j] = (a["ang"][j] as Vector3).lerp(b["ang"].get(j, a["ang"][j]), e)
 		if j == "pelvis":
 			# the WHOLE BODY's turn takes the short way round (Nick 10-13: a spinning staff swing): keys at 0, 120, -120, 0
@@ -353,10 +415,10 @@ func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
 			var tz: float = (a["ang"][j] as Vector3).z
 			var tb: float = (b["ang"].get(j, a["ang"][j]) as Vector3).z
 			ang[j].z = wrapf(tz + wrapf(tb - tz, -180.0, 180.0) * e, -180.0, 180.0)
-	var eh := _ease(u, 0)
+	var eh := _ease(u, 0, kind)
 	var w: Dictionary = a["weapon"].duplicate()
 	var wb: Dictionary = b["weapon"]
-	var eb := _ease(u, 5)
+	var eb := _ease(u, 5, kind)
 	if w.is_empty() or wb.is_empty() or w.get("hand", "") != wb.get("hand", ""):
 		w = a["weapon"] if eb < 0.5 else wb
 	else:
@@ -371,10 +433,19 @@ func blend(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
 	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], eh), "ang": ang, "weapon": w}
 
 
-func _ease(u: float, lv: int) -> float:
+func _ease(u: float, lv: int, kind := "") -> float:
+	if kind == "snap":
+		return 1.0 if u >= 1.0 else 0.0
+	var x := u if not natural else clampf((u - LAG * lv / 6.0) / (1.0 - LAG), 0.0, 1.0)
+	match kind:
+		"linear":
+			return x
+		"in":
+			return x * x * x
+		"out":
+			return 1.0 - (1.0 - x) * (1.0 - x) * (1.0 - x)
 	if not natural:
 		return u * u * (3.0 - 2.0 * u)
-	var x := clampf((u - LAG * lv / 6.0) / (1.0 - LAG), 0.0, 1.0)
 	return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
 
 
@@ -449,7 +520,38 @@ func _apply(B: Body, t: float) -> void:
 					var lift := float(cards[i].get("lift", LIFT))
 					var at: Vector3 = (a[sd][0] as Vector3).lerp(b[sd][0], e) + Vector3.UP * lift * sin(PI * e)
 					B.plant(sd, at, lerp_angle(a[sd][1], b[sd][1], e), false)
+	_planted(B, t)
 	B.apply_grip()
+
+
+## PLANTED FEET: the card whose move or hold contains t; for each foot it plants, back to the run's first card; the foot
+## goes where it stood in the card before that
+func _planted(B: Body, t: float) -> void:
+	var ts := times()
+	var c := -1
+	for i in range(1, cards.size()):
+		if t >= ts[i][0] and t < ts[i][2]:
+			c = i
+	if c < 1 and not cards.is_empty() and t >= float(ts[-1][2]):
+		c = cards.size() - 1
+	if c < 1:
+		return
+	for sd in ["_l", "_r"]:
+		if not sd in cards[c].get("plant", []):
+			continue
+		var r := c
+		while r > 1 and sd in cards[r - 1].get("plant", []):
+			r -= 1
+		var at: Array
+		var cached = _feet_cache.get(r - 1, null)
+		if cached != null and is_same(cached[0], cards[r - 1]["pose"]):
+			at = cached[1][sd]
+		else:   # _feet loads that card into the body: keep the frame being played
+			var keep := B.state()
+			at = _feet(B, r - 1)[sd]
+			B.set_state(keep)
+			B.fk()
+		B.plant(sd, at[0], at[1], at[3])
 
 
 ## the card the body is moving INTO at time t (-1 while holding still)
@@ -459,6 +561,16 @@ func span(t: float) -> int:
 		if t >= ts[i][0] and t < ts[i][1]:
 			return i
 	return -1
+
+
+## a scene of its own with the same settings and a deep copy of the cards (for work off the main thread: the fix
+## preview). Caches start empty
+func clone() -> Scene:
+	var c := Scene.new()
+	c.cards = cards.duplicate(true)
+	for k in ["name", "natural", "spline", "on_floor", "floor_body", "pin", "fps", "moving_holds", "stepped", "loop"]:
+		c.set(k, get(k))
+	return c
 
 
 var _feet_cache := {}   # card i -> [its pose dict, feet] (the same dict object = still valid)
@@ -568,7 +680,7 @@ func clear(B: Body) -> int:
 		base = maxf(base, B.penetration())
 		for k in range(1, 20):
 			var u := k / 20.0
-			put(B, blend(a, b, u))
+			put(B, blend(a, b, u, cards[i].get("ease", "")))
 			B.apply_grip()
 			var p := B.penetration() - base
 			if p > 0.002 and p > worst:
@@ -579,7 +691,7 @@ func clear(B: Body) -> int:
 			i += 1
 			continue
 		# lift the arm(s) in the contacts out from the body until that frame is clean
-		put(B, blend(a, b, worst_u))
+		put(B, blend(a, b, worst_u, cards[i].get("ease", "")))
 		var arms := {}
 		for c in worst_c:
 			for part in [c[0], c[1]]:
@@ -629,7 +741,12 @@ func clear(B: Body) -> int:
 
 
 func to_dict(B: Body) -> Dictionary:
+	# the file records the REAL motion: the stepped preview is a view setting (round 8: saving during it wrote the
+	# stepped playback's bad_frames into the file)
+	var was := stepped
+	stepped = false
 	var bad := check(B)
+	stepped = was
 	var ts := times()
 	var cs := []
 	for i in cards.size():
@@ -646,6 +763,10 @@ func to_dict(B: Body) -> Dictionary:
 			cs[-1]["steps"] = st
 		if c.has("lift"):
 			cs[-1]["lift"] = c["lift"]
+		if c.get("ease", "smooth") != "smooth":
+			cs[-1]["ease"] = c["ease"]
+		if not c.get("plant", []).is_empty():
+			cs[-1]["plant"] = c["plant"]
 	var out := {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
@@ -653,6 +774,37 @@ func to_dict(B: Body) -> Dictionary:
 		out["spline"] = true   # written only when on, so every older scene saves byte-identical
 	if moving_holds:
 		out["moving_holds"] = true   # the same: only when on
+	if loop:
+		out["loop"] = true   # the same
+	return out
+
+
+## MIRROR'S LIST (round 19, GATES Z1, UPGRADES #3): every key a scene file and its cards hold, and what Mirror the
+## scene does with it. "free" = has no side, copied as is; anything else is SIDED and says how it changes. A key not
+## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
+const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
+	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
+	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free",
+	"length_s": "free", "note": "free"}
+const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
+	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
+	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "lift": "free", "ease": "free"}
+
+
+## one card of a scene file, mirrored by MIRROR_CARD (M: a Body to mirror poses on); keys not on the list are copied
+static func mirror_card(c: Dictionary, M: Body) -> Dictionary:
+	var out := c.duplicate(true)
+	M.from_dict(c["pose"])
+	M.mirror_pose()
+	out["pose"] = M.to_dict()
+	if c.has("steps"):
+		var st := {}
+		for sd in c["steps"]:
+			var v: Array = c["steps"][sd]
+			st["_r" if sd == "_l" else "_l"] = [-float(v[0]), v[1], v[2]]
+		out["steps"] = st
+	if c.has("plant"):
+		out["plant"] = c["plant"].map(func(sd): return "_r" if sd == "_l" else "_l")
 	return out
 
 
@@ -661,6 +813,7 @@ func from_dict(d: Dictionary) -> void:
 	natural = bool(d.get("natural", true))
 	spline = bool(d.get("spline", false))
 	moving_holds = bool(d.get("moving_holds", false))
+	loop = bool(d.get("loop", false))
 	on_floor = bool(d.get("on_floor", true))
 	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))
@@ -674,6 +827,10 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["lift"] = float(c["lift"])
 		if c.get("flow", false):
 			cards[-1]["flow"] = true
+		if String(c.get("ease", "smooth")) in EASES and c.get("ease", "smooth") != "smooth":
+			cards[-1]["ease"] = c["ease"]
+		if c.get("plant", []) is Array and not c.get("plant", []).is_empty():
+			cards[-1]["plant"] = c["plant"].filter(func(x): return x in ["_l", "_r"])
 
 
 ## SPINS (Nick 10-13: banned): key pairs where an arm rolls around itself more than Body.ROLL_STEP + 5 deg: the upper

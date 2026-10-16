@@ -61,7 +61,7 @@ func dir(i: int) -> Vector2:
 
 func _draw() -> void:
 	var n := items.size()
-	draw_circle(at, R_OUT, Color(0.06, 0.07, 0.09, 0.96))   # near-opaque: the 3D part label showed through
+	draw_circle(at, R_OUT, Color(Tok.c("float"), 0.97))   # near-opaque: the 3D part label showed through
 	for i in n:
 		var a0 := TAU * (i - 0.5) / n - PI / 2.0
 		var pts := PackedVector2Array()
@@ -71,8 +71,8 @@ func _draw() -> void:
 		for k in 17:
 			var a := a0 + TAU / n * (16 - k) / 16.0
 			pts.append(at + Vector2(cos(a), sin(a)) * (R_IN + 4.0))
-		draw_colored_polygon(pts, Color(0.35, 0.6, 1.0, 0.85) if i == hover else Color(0.22, 0.25, 0.3, 0.9))
-	draw_arc(at, R_IN, 0.0, TAU, 32, Color(1, 1, 1, 0.5), 1.5, true)
+		draw_colored_polygon(pts, Tok.c("accent") if i == hover else Tok.c("btn"))
+	draw_arc(at, R_IN, 0.0, TAU, 32, Tok.of("ink:0.5"), 1.5, true)
 	var font := get_theme_default_font()
 	for i in n:
 		var t: String = items[i]["name"]
@@ -80,9 +80,9 @@ func _draw() -> void:
 		var c := at + dir(i) * R_TXT
 		for li in lines.size():
 			var w := font.get_string_size(lines[li], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-			draw_string(font, c + Vector2(-w * 0.5, 5.0 + (li - (lines.size() - 1) * 0.5) * 16.0), lines[li], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
+			draw_string(font, c + Vector2(-w * 0.5, 5.0 + (li - (lines.size() - 1) * 0.5) * 16.0), lines[li], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Tok.c("on_accent") if i == hover else Tok.c("btn_text"))
 	var tw := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-	draw_string(font, at + Vector2(-tw * 0.5, -R_OUT - 10.0), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.6, 0.78, 1.0))
+	draw_string(font, at + Vector2(-tw * 0.5, -R_OUT - 10.0), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Tok.c("heading"))
 
 
 func _gui_input(ev: InputEvent) -> void:

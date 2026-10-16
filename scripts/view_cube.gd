@@ -75,18 +75,18 @@ func face_at(p: Vector2) -> int:
 
 
 func _draw() -> void:
-	draw_circle(Vector2(SIZE, SIZE) * 0.5, SIZE * 0.47, Color(0.08, 0.09, 0.11, 0.55))
+	draw_circle(Vector2(SIZE, SIZE) * 0.5, SIZE * 0.47, Color(Tok.c("panel"), 0.55))
 	var font := get_theme_default_font()
 	for i in _visible():
 		var z := _proj(FACES[i][0]).z
 		var q := _quad(i)
-		var c := Color(0.32, 0.36, 0.42).lerp(Color(0.55, 0.62, 0.72), z)
+		var c := Tok.c("cube").darkened(0.4).lerp(Tok.c("cube"), z)
 		if i == hover:
-			c = Color(0.35, 0.6, 1.0)
+			c = Tok.c("accent")
 		draw_colored_polygon(q, c)
 		var ring := q.duplicate()
 		ring.append(q[0])
-		draw_polyline(ring, Color(0.9, 0.93, 1.0, 0.7), 1.2, true)
+		draw_polyline(ring, Color(Tok.c("cube_edge"), 0.7), 1.2, true)
 		if z > 0.35:   # a label only on a face you can read
 			var t: String = FACES[i][1]
 			var cen := (q[0] + q[1] + q[2] + q[3]) * 0.25
@@ -97,7 +97,7 @@ func _draw() -> void:
 			while fs > 8 and font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > across - 6.0:
 				fs -= 1
 			var tw := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			draw_string(font, cen + Vector2(-tw * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, clampf(z * 1.6, 0.0, 1.0)))
+			draw_string(font, cen + Vector2(-tw * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(Tok.c("ink"), clampf(z * 1.6, 0.0, 1.0)))
 
 
 func _gui_input(ev: InputEvent) -> void:

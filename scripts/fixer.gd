@@ -20,8 +20,10 @@ static func label(f: Dictionary, S: Scene) -> String:
 			return "" if S.spline else "Fix: let the body flow through this card"
 		"HEAD QUIET":
 			return "Fix: steady the head on this card" if f["card"] > 0 else ""
-	# no FOOT SLIDE fix on purpose: the creep comes from where two cards stand the feet; fixing it means rewriting a
-	# card's stance or steps, which is the animator's call (round 5)
+		"FOOT SLIDE":
+			# round 5 had none on purpose (rewriting a card's stance is the animator's call). Round 10 (#51) plants the
+			# foot instead: no pose changes, one undo, and it is still the animator who presses it
+			return "Fix: plant this foot" if f.has("foot") else ""
 	return ""
 
 
@@ -29,6 +31,27 @@ static func label(f: Dictionary, S: Scene) -> String:
 ## KEPT only if its own finding is gone, the scene has no more FAILs than before, and (a pose fix) no more frames with
 ## parts inside each other; else the cards are put back and the words say why. sm0: the sample Check already took of
 ## this scene (saves one full pass: ~4 s on combo3, where every frame re-plants the feet).
+## FIX PREVIEW (round 10, #79): the cards this fix WOULD write, with the scene left exactly as it was (the edit runs on a
+## deep copy of the cards; the scene's own list is put back, the same object). No check is run: it is a look, not a verdict
+static func propose(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Array:
+	var orig := S.cards
+	S.cards = orig.duplicate(true)
+	match f["rule"]:
+		"TIP SPEED", "FIST SPEED":
+			_more_time(f, S, B)
+		"STRIKE FRAMES":
+			_quicker(f, S, B)
+		"HITCH":
+			_flow(f, S, B)
+		"HEAD QUIET":
+			_steady_head(f, S, B, sm0 if not sm0.is_empty() else Rulebook.sample(S, B))
+		"FOOT SLIDE":
+			_plant(f, S, B)
+	var after := S.cards
+	S.cards = orig
+	return after
+
+
 static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	var names := S.cards.map(func(c): return c["name"])
 	var before := S.cards.duplicate(true)
@@ -45,6 +68,8 @@ static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 			r = _flow(f, S, B)
 		"HEAD QUIET":
 			r = _steady_head(f, S, B, sm0)
+		"FOOT SLIDE":
+			r = _plant(f, S, B)
 	assert(S.cards.map(func(c): return c["name"]) == names, "a fix changed the cards' count, names or order")
 	var did: String = r["did"]
 	var all1: Array = r["after"] if r.get("after") != null else Rulebook.check(S, B)
@@ -74,7 +99,23 @@ static func _same_finding(f: Dictionary, x: Dictionary) -> bool:
 		return false
 	if f["rule"] == "HITCH":
 		return absf(x["t"] - f["t"]) < 0.12
+	if f["rule"] == "FOOT SLIDE":   # the same foot sliding over the same stretch
+		return x.get("foot", "") == f.get("foot", "") and x["t"] < f.get("t1", f["t"]) + 0.1 and x.get("t1", x["t"]) > f["t"] - 0.1
 	return x["card"] == f["card"]
+
+
+## a creeping foot: plant it (Scene PLANTED FEET) on every card whose move or hold overlaps the stretch [t, t1]
+static func _plant(f: Dictionary, S: Scene, B: Body) -> Dictionary:
+	var sd: String = f["foot"]
+	var ts := S.times()
+	var on := []
+	for c in range(1, S.cards.size()):
+		if ts[c][0] < f["t1"] and ts[c][2] > f["t"] and not sd in S.cards[c].get("plant", []):
+			S.cards[c]["plant"] = S.cards[c].get("plant", []) + [sd]
+			on.append(c + 1)
+	if on.is_empty():
+		return {"did": "nothing to plant", "same": true}
+	return {"did": "the %s foot planted on card%s %s" % ["left" if sd == "_l" else "right", "s" if on.size() > 1 else "", ", ".join(on.map(func(x): return str(x)))]}
 
 
 ## a too-fast move: its card's move time scaled by speed / bar (speed ~ 1 / time), +5%, until the finding is gone

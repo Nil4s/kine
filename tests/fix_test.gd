@@ -57,7 +57,7 @@ func _init() -> void:
 		for f in found:
 			var lbl := Fixer.label(f, S0)
 			if lbl == "":
-				ok(f["rule"] in ["SEQUENCE", "HIPS TURN", "FOOT SLIDE"] or (f["rule"] == "HITCH" and S0.spline) or f["card"] == 0, "  no button for %s at %.2f s (%s)" % [f["rule"], f["t"], "spline: two cards fight" if f["rule"] == "HITCH" else "no safe fix"])
+				ok(f["rule"] in ["SEQUENCE", "HIPS TURN", "FOOT SLIDE", "BALANCE"] or (f["rule"] == "HITCH" and S0.spline) or f["card"] == 0, "  no button for %s at %.2f s (%s)" % [f["rule"], f["t"], "spline: two cards fight" if f["rule"] == "HITCH" else "no safe fix"])
 				continue
 			var S := load_scene(path)
 			var names := S.cards.map(func(c): return c["name"])
