@@ -107,6 +107,69 @@ static func mannequin(parent: Node, m: Material) -> Array:
 	return [man, sk, idx]
 
 
+## ONE PIECE PER PART (round 30, GATES KK1, UPGRADES #24): the mannequin is one skinned mesh, so a part could not be
+## hidden on its own. Split it once: each triangle goes to the part whose bones weigh most on its three corners (a
+## bone below no part of ours, the root, counts as the pelvis; a finger's extra bones as their finger joint). Every
+## piece keeps ALL the vertex data and only its own triangles, the same skin and skeleton and material, so with
+## nothing hidden the body renders the same. The original is hidden, not freed. -> part -> its MeshInstance3D
+static func split_parts(man: Node3D, sk: Skeleton3D, idx: Dictionary) -> Dictionary:
+	var part_of := {}   # bone -> part: the bone itself if it is one of ours, else its nearest ancestor that is
+	var ours := {}
+	for j in idx:
+		if idx[j] >= 0:
+			ours[idx[j]] = j
+	for b in sk.get_bone_count():
+		var c := b
+		while c >= 0 and not ours.has(c):
+			c = sk.get_bone_parent(c)
+		part_of[b] = ours[c] if c >= 0 else "pelvis"
+	var out := {}
+	for mi in man.find_children("*", "MeshInstance3D", true, false):
+		var src := mi as MeshInstance3D
+		var tris := {}   # part -> [surface -> PackedInt32Array]
+		var mesh := src.mesh
+		for si in mesh.get_surface_count():
+			var arr := mesh.surface_get_arrays(si)
+			var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+			var wts: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+			var nv: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+			var per := bones.size() / nv   # 4 or 8 influences
+			var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(nv))
+			for t in range(0, ix.size(), 3):
+				var w := {}
+				for k in 3:
+					var v: int = ix[t + k]
+					for q in per:
+						var pj: String = part_of.get(bones[v * per + q], "pelvis")
+						w[pj] = w.get(pj, 0.0) + wts[v * per + q]
+				var best := ""
+				for pj in w:
+					if best == "" or w[pj] > w[best]:
+						best = pj
+				if not tris.has(best):
+					tris[best] = {}
+				if not tris[best].has(si):
+					tris[best][si] = PackedInt32Array()
+				tris[best][si].append_array(ix.slice(t, t + 3))
+		for pj in tris:
+			var am := ArrayMesh.new()
+			for si in tris[pj]:
+				var arr := mesh.surface_get_arrays(si)
+				arr[Mesh.ARRAY_INDEX] = tris[pj][si]
+				am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+			var piece := MeshInstance3D.new()
+			piece.name = "piece_" + pj
+			piece.mesh = am
+			piece.skin = src.skin
+			piece.material_override = src.material_override
+			src.get_parent().add_child(piece)
+			piece.transform = src.transform
+			piece.skeleton = piece.get_path_to(src.get_node(src.skeleton))
+			out[pj] = piece
+		src.visible = false
+	return out
+
+
 ## write a body's pose into a mannequin's skeleton (glTF local rotations, the pelvis's position)
 static func pose_skeleton(sk: Skeleton3D, idx: Dictionary, b: Body) -> void:
 	for j in Body.ORDER:

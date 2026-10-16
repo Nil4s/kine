@@ -19,6 +19,9 @@ var rows := {}   # part -> its TreeItem
 var _scene_root: TreeItem
 var _wep: TreeItem
 var _quiet := false
+var folders := []   # [the folder row, its parts]: a limb's eye and lock act on all of them (KK1)
+var _lit: TreeItem   # the row lit because the view's mouse is on its part (KK2)
+var _hover_mine := false   # the hover came from the mouse on a row here
 var _pending := false   # a clip-row rebuild is queued for the next frame   # true while the tree follows the view (a selection made here must not loop back)
 
 
@@ -28,6 +31,8 @@ func _ready() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_theme_font_size_override("font_size", 15)
 	item_selected.connect(_chosen)
+	gui_input.connect(_motion)
+	mouse_exited.connect(_left)
 	build()
 
 
@@ -35,8 +40,19 @@ func _part(parent: TreeItem, j: String, label := "") -> TreeItem:
 	var it := create_item(parent)
 	it.set_text(0, label if label != "" else m.nice(j))
 	it.set_metadata(0, {"part": j})
+	it.set_tooltip_text(0, it.get_text(0))   # the whole name, when the eye and lock leave it cut short
 	rows[j] = it
+	if not j in Body.WEAPON:   # the weapon has its own lock (L) and is never hidden from here
+		it.add_button(0, Icons.small("eye"), 0)
+		it.add_button(0, Icons.small("unlock"), 1)
 	return it
+
+
+## a folder's eye and lock, for every part under it
+func _folder_buttons(it: TreeItem, js: Array) -> void:
+	it.add_button(0, Icons.small("eye"), 0)
+	it.add_button(0, Icons.small("unlock"), 1)
+	folders.append([it, js])
 
 
 func _folder(parent: TreeItem, t: String, folded := false) -> TreeItem:
@@ -51,19 +67,31 @@ func _folder(parent: TreeItem, t: String, folded := false) -> TreeItem:
 func build() -> void:
 	clear()
 	rows = {}
+	folders = []
+	_lit = null
 	var root := create_item()
 	var body := _folder(root, "Body")
 	for g in GROUPS:
 		var gi := _folder(body, g[0])
+		var all: Array = g[1].duplicate()
 		for j in g[1]:
 			_part(gi, j)
 		if g.size() > 2:   # an arm: its fingers, folded, one row per joint
 			var fi := _folder(gi, "fingers", true)
+			var hand := []
 			for f in FINGER_NAMES:
 				var ff := _folder(fi, f, true)
+				var one := []
 				for k in 3:
 					# "index, middle joint": a row must say which finger even when its folders have scrolled away
-					_part(ff, "%s_0%d_%s" % [f, k + 1, g[2]], "%s, %s joint" % [f, ["base", "middle", "tip"][k]])
+					var fj := "%s_0%d_%s" % [f, k + 1, g[2]]
+					_part(ff, fj, "%s, %s joint" % [f, ["base", "middle", "tip"][k]])
+					one.append(fj)
+				_folder_buttons(ff, one)
+				hand += one
+			_folder_buttons(fi, hand)
+			all += hand
+		_folder_buttons(gi, all)
 	_wep = _folder(root, "Weapon")
 	_part(_wep, "bat_handle", "handle (drag it to swing the weapon)")
 	_scene_root = _folder(root, "Scene")
@@ -96,6 +124,8 @@ func _refresh_now() -> void:
 ## light the selected part's row (unfold what holds it, scroll to it)
 func follow() -> void:
 	_wep.visible = m.B.wep_on
+	_sync_buttons()
+	_light(rows.get(m.hover_part) if m.hover_part != m.sel else null)
 	var it: TreeItem = rows.get(m.sel)
 	if it == null:   # nothing picked, or a part with no row
 		deselect_all()
@@ -134,6 +164,97 @@ func recolor() -> void:
 			it.set_custom_color(0, Tok.c("heading"))
 		for c in it.get_children():
 			stack.append(c)
+
+
+## each eye / lock shows its state; a folder's: hidden / locked when ALL its parts are
+func _sync_buttons() -> void:
+	for j in rows:
+		var it: TreeItem = rows[j]
+		if it.get_button_count(0) == 2:
+			_show_state(it, [j])
+	for f in folders:
+		_show_state(f[0], f[1])
+
+
+func _show_state(it: TreeItem, js: Array) -> void:
+	var hid: bool = js.all(func(j): return m.hidden_parts.has(j))
+	var lk: bool = js.all(func(j): return m.locked_parts.has(j))
+	var key := [hid, lk, Tok.c("text")]
+	if it.has_meta("eye_lock") and it.get_meta("eye_lock") == key:
+		return   # unchanged: re-setting a button mid-click made the Tree drop the click
+	it.set_meta("eye_lock", key)
+	var what: String = m.nice(js[0]) if js.size() == 1 else "all %d parts in %s" % [js.size(), it.get_text(0)]
+	it.set_button(0, 0, Icons.small("eye_off" if hid else "eye"))
+	it.set_button(0, 1, Icons.small("lock" if lk else "unlock"))
+	it.set_button_tooltip_text(0, 0, ("hidden: click to show %s again" if hid else "shown: click to hide %s (a click in the view goes through it)") % what)
+	it.set_button_tooltip_text(0, 1, ("locked: click to free %s" if lk else "free: click to lock %s (it keeps its pose)") % what)
+	it.set_button_color(0, 0, Tok.dim(0.4) if hid else Tok.c("text"))   # off = dimmed toward the panel (readable floor)
+	it.set_button_color(0, 1, Tok.c("say") if lk else Tok.dim(0.4))
+
+
+func _parts_of(it: TreeItem) -> Array:
+	var md = it.get_metadata(0)
+	if md is Dictionary and md.has("part"):
+		return [md["part"]]
+	for f in folders:
+		if f[0] == it:
+			return f[1]
+	return []
+
+
+## the eye (id 0) or the lock (id 1) on a row: a folder's acts on every part under it. Taken from the press itself in
+## _motion, not Tree's button_clicked: the Tree re-checks the press against the OS mouse, so a pushed click (every
+## test) was dropped there; the press is accepted, so the Tree's own path never toggles it a second time
+func _button(it: TreeItem, id: int) -> void:
+	var js := _parts_of(it)
+	if js.is_empty():
+		return
+	if id == 0:
+		m._set_hidden(js, not js.all(func(j): return m.hidden_parts.has(j)))
+	else:
+		m._set_locked(js, not js.all(func(j): return m.locked_parts.has(j)))
+
+
+## HOVER IN SYNC (round 30, GATES KK2, UPGRADES #35): the row of the part the view's mouse is on is lit; the mouse on
+## a part's row lights that part in the view (main's hover_part) and names it on the bar. Leaving the Browser clears it
+## (_left): onto the view its motion re-picks anyway, but straight onto the right panel nothing else would (main's
+## _process clean-up only sees panels that stop the mouse; the right panel's body lets it pass)
+func _light(it: TreeItem) -> void:
+	if _lit == it:
+		return
+	if _lit != null and rows.values().has(_lit):
+		_lit.clear_custom_bg_color(0)
+	_lit = it
+	if it != null:
+		it.set_custom_bg_color(0, Tok.c("btn_hover"))
+
+
+func _motion(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var at := (ev as InputEventMouseButton).position
+		var id := get_button_id_at_position(at)
+		var row := get_item_at_position(at)
+		if id >= 0 and row != null:
+			accept_event()
+			if (ev as InputEventMouseButton).pressed:
+				_button(row, id)
+		return
+	if not ev is InputEventMouseMotion:
+		return
+	var it := get_item_at_position((ev as InputEventMouseMotion).position)
+	var md = it.get_metadata(0) if it != null else null
+	var j: String = md["part"] if md is Dictionary and md.has("part") else ""
+	if j != m.hover_part:
+		_hover_mine = j != ""
+		m.hover_part = j
+		m._refresh()
+
+
+func _left() -> void:
+	if _hover_mine:
+		_hover_mine = false
+		m.hover_part = ""
+		m._refresh()
 
 
 func _chosen() -> void:

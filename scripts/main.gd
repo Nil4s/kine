@@ -240,6 +240,35 @@ var ui_lock_btn: Button
 var _drag_locks := {}
 
 
+## HIDE A PART (round 30, GATES KK1, UPGRADES #24): the Browser's eye. The part's piece of the mannequin (split at load,
+## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
+## no undo step, never in a pose or scene file
+var pieces := {}         # part -> its piece of the mannequin
+var hidden_parts := {}
+
+
+## every part in js hidden (on) or shown; one line on the bar
+func _set_hidden(js: Array, on: bool) -> void:
+	for j in js:
+		if on:
+			hidden_parts[j] = true
+		else:
+			hidden_parts.erase(j)
+	_refresh()
+	_say_plain(("%s hidden: a click goes through it (the eye in the Browser shows it again)" if on else "%s shown") % (nice(js[0]).capitalize() if js.size() == 1 else "%d parts" % js.size()))
+
+
+## every part in js locked (on) or free: the folder row's lock
+func _set_locked(js: Array, on: bool) -> void:
+	for j in js:
+		if on:
+			locked_parts[j] = true
+		else:
+			locked_parts.erase(j)
+	_refresh()
+	_say_plain(("%s locked: they keep their pose while you change the rest" if on else "%s unlocked") % ("%d parts" % js.size()))
+
+
 func _toggle_lock(j := "") -> void:
 	if j == "":
 		j = sel
@@ -877,7 +906,7 @@ func _process(dt: float) -> void:
 		autosave_now()
 	if hover_part != "":   # the mouse went onto a panel (it eats the motion, so the view never hears it leave)
 		var hc := get_viewport().gui_get_hovered_control()
-		if dragging != "" or (hc != null and hc.mouse_filter == Control.MOUSE_FILTER_STOP):
+		if dragging != "" or (hc != null and hc != ui_browser and hc.mouse_filter == Control.MOUSE_FILTER_STOP):   # the Browser lights a part itself (KK2)
 			hover_part = ""
 			_refresh()
 	if ui_bar != null:
@@ -966,6 +995,7 @@ func _body() -> void:
 	var mq := Overlays.mannequin(self, skin)
 	skel = mq[1]
 	bone_idx = mq[2]
+	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
 	for j in Body.ORDER + Body.WEAPON:
 		var mi := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
@@ -1306,7 +1336,9 @@ func _refresh() -> void:
 		if clean:
 			col.a = 0.0
 		mats[j].albedo_color = col
-		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON)
+		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and not hidden_parts.has(j)
+		if pieces.has(j):
+			pieces[j].visible = not hidden_parts.has(j)
 	for m in [bat_handle, bat_barrel, bat_knob]:
 		m.visible = B.wep_on
 	if B.wep_on:
@@ -1329,8 +1361,8 @@ func _refresh() -> void:
 			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 	var c2: Array = B.cap(sel)
 	tag.visible = not clean
-	for d in dots.values():
-		d.visible = not clean
+	for dj in dots:
+		dots[dj].visible = not clean and not hidden_parts.has(dj)
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
@@ -1453,6 +1485,8 @@ func _pick(mp: Vector2) -> String:
 	var best_t := INF
 	var cand: Array = Body.ORDER + (Body.WEAPON if B.wep_on else [])
 	for j in cand:
+		if hidden_parts.has(j):
+			continue   # hidden: a click goes through it (KK1)
 		var c: Array = B.cap(j)
 		var res := _ray_seg(o, d, c[0], c[1])
 		if res.y <= maxf(float(B.rad[j]) * 1.15, 0.014) and res.x < best_t:

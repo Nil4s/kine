@@ -49,6 +49,12 @@ const DRAW := {
 		["seg", Vector2(2, 9), Vector2(5, 12.5), 2], ["seg", Vector2(5, 12.5), Vector2(8, 9.5), 2]],
 	"size": [["box", Rect2(2, 12, 8, 8), 1.6], ["box", Rect2(11, 4, 11, 16), 1.8], ["seg", Vector2(5, 9), Vector2(9, 5), 1.4], ["seg", Vector2(9, 5), Vector2(9, 8), 1.4]],
 	"search": [["ring", Vector2(10, 10), 6, 2.2], ["seg", Vector2(14.5, 14.5), Vector2(21, 21), 2.8]],
+	# the Browser's per-part buttons (round 30, KK1): shown / hidden, locked / free
+	"eye": [["arc", Vector2(12, 22), 13, 2, 226, 314], ["arc", Vector2(12, 3.2), 13, 2, 46, 134], ["disc", Vector2(12, 12.5), 3.2]],
+	"eye_off": [["arc", Vector2(12, 22), 13, 2, 226, 314], ["arc", Vector2(12, 3.2), 13, 2, 46, 134], ["disc", Vector2(12, 12.5), 3.2],
+		["seg", Vector2(4, 21), Vector2(20, 4), 2.2]],
+	"lock": [["box", Rect2(5, 11, 14, 10), 0], ["arc", Vector2(12, 11), 5, 2.2, 180, 360]],
+	"unlock": [["box", Rect2(5, 11, 14, 10), 0], ["arc", Vector2(12, 8), 5, 2.2, 180, 330], ["seg", Vector2(7, 8), Vector2(7, 11), 2.2]],
 	"help": [["arc", Vector2(12, 8.5), 4.5, 2.2, 160, 420], ["seg", Vector2(12, 13), Vector2(12, 16), 2.2], ["disc", Vector2(12, 20.5), 1.5]],
 }
 
@@ -60,6 +66,16 @@ static func tex(name: String) -> ImageTexture:
 	if not _cache.has(name):
 		_cache[name] = ImageTexture.create_from_image(paint(DRAW[name]))
 	return _cache[name]
+
+
+## the icon at 16 px (the Browser's rows: room for the part's name); scaled down from the 22 px drawing
+static func small(name: String) -> ImageTexture:
+	var k := name + "@16"
+	if not _cache.has(k):
+		var img := paint(DRAW[name])
+		img.resize(16, 16, Image.INTERPOLATE_LANCZOS)
+		_cache[k] = ImageTexture.create_from_image(img)
+	return _cache[k]
 
 
 static func paint(shapes: Array) -> Image:

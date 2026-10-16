@@ -227,3 +227,18 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - **Grip through Mirror (#59)**: already right in `body.mirror_pose` (the hand offset x and the turn reflected);
   `grip_mirror_test` proves it, twice = back, save/load (the load path is `scene.gd` applying a card). Paste mirrored
   keeps the weapon in its hand (round 10 Q1); whether it should cross hands is Nick's call.
+
+## Round 30 (GATES.md section KK): the Browser's eye and lock, hover in sync
+- **Pieces**: `Overlays.split_parts` splits the hero's single skinned mesh at load into one MeshInstance per part
+  (`main.pieces`; each triangle to the part whose bones weigh most; all vertex data kept, same skin/skeleton/material;
+  the original hidden, not freed). The dummy is NOT split. Renders the same but for ~7 outline pixels in 125k.
+- **Hide** = `hidden_parts` (view state, like `locked_parts`): `_refresh` hides the piece, capsule and dot; `_pick`
+  skips it. `_set_hidden` / `_set_locked` take a list (a folder's buttons). Never in a pose or scene file.
+- **Browser buttons**: eye (id 0) and lock (id 1) on part rows and limb / finger folders (`folders`), 16 px
+  `Icons.small`. The press is handled in the Browser's `gui_input` (`_motion`) from the EVENT's position and
+  accepted: Tree's own `button_clicked` re-checks the OS mouse and drops pushed clicks. `_show_state` re-sets a
+  button only when its state changed (re-setting mid-click lost clicks).
+- **Hover sync**: `follow()` lights `rows[hover_part]` (btn_hover bg); a row's motion sets `m.hover_part`;
+  `_left` (mouse_exited) clears it, needed for a move straight onto the right panel, which main's `_process`
+  clean-up does not see; `_process` skips the Browser as the hovered control.
+- Test note: a cleared TreeItem bg colour reads back as `Color()` (opaque black), not transparent.
