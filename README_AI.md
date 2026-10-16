@@ -192,3 +192,11 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - **Clicks** (docs/CLICKS.md, generated): 21 -> 14 on the 9 tasks. A drag on a part picks it; each Fix sits under its finding.
 - **Properties panel**: two sizes (`PROP_BIG` 22, `PROP_TXT` 15), value rows built by `_prop_row` (name dim, value
   bright, hint under). Sliders are named by axis: `slider_bend/side/twist`, `slider_hip_0..2`.
+
+## Round 26 (GATES.md section GG): three ways in, hover, part locks
+- **Empty scene**: the strip offers `start_clip` (Clip this pose), `start_open` (the scene list) and the examples.
+- **Hover**: button-less motion over the view sets `hover_part` (drawn `HOVER`, named on the bar as "pointing at");
+  a press, a drag or a panel under the mouse clears it. It shows what a click there would pick (`_pick`).
+- **Locks**: `locked_parts` (view state, never saved). `_do` and every joint-drag motion put locked angles back
+  (`_lock_snap`/`_lock_keep`), so Reset, Mirror, Snap and a hand's IK reach all respect it. Lock from the ring (7th
+  wedge), the panel (`btn_lock_part`) or the search. Not done from #24: browser eye icons, limb folders.

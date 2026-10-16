@@ -219,6 +219,66 @@ func _kb_poll() -> void:
 			(n as Control).grab_focus()
 
 
+## HOVER SAYS WHAT IS UNDER THE MOUSE (round 26, GATES GG2, UPGRADES #35): with no button down, the part under the
+## mouse is lit HOVER (the selected one keeps SEL) and named on the status line; a press, a drag or a panel ends it
+const HOVER := Color(0.92, 0.94, 1.0)   # pale, far from SEL's blue
+var hover_part := ""
+
+
+func _hover_at(p: Vector2) -> void:
+	var j := _pick(p)   # only called with no drag on (a drag's motion goes to the drag)
+	if j != hover_part:
+		hover_part = j
+		_refresh()
+
+
+## LOCK A PART (round 26, GATES GG3, UPGRADES #24): a locked part is picked but never grabbed, keeps its angles through
+## every edit (_do and a drag's reach put them back), and is drawn LOCK_COL. View state only: never in a pose or scene
+const LOCK_COL := Color(0.5, 0.5, 0.55)
+var locked_parts := {}
+var ui_lock_btn: Button
+var _drag_locks := {}
+
+
+func _toggle_lock(j := "") -> void:
+	if j == "":
+		j = sel
+	if j in Body.WEAPON:
+		_say_plain("the weapon has its own lock: L locks it to the hand")
+		return
+	if locked_parts.has(j):
+		locked_parts.erase(j)
+	else:
+		locked_parts[j] = true
+	_refresh()
+	_say_plain(("%s locked: it keeps its pose while you change the rest (Unlock: right-click it, or S 'unlock')" if locked_parts.has(j) else "%s unlocked") % nice(j).capitalize())
+
+
+func _lock_snap() -> Dictionary:
+	var d := {}
+	for j in locked_parts:
+		d[j] = B.ang[j]
+	return d
+
+
+## the locked parts back to the angles in snap; true if any had moved
+func _lock_keep(snap: Dictionary) -> bool:
+	var moved := false
+	for j in snap:
+		if locked_parts.has(j) and not (B.ang[j] as Vector3).is_equal_approx(snap[j]):
+			B.ang[j] = snap[j]
+			moved = true
+	if moved:
+		B.fk()
+	return moved
+
+
+## the status line, without naming an undo step (_say names the newest unnamed one)
+func _say_plain(t: String) -> void:
+	if ui_status != null:
+		ui_status.text = t
+
+
 func _input(ev: InputEvent) -> void:
 	# Esc in keyboard mode: before the focused control sees it (a text box would only drop its caret)
 	if kb_nav and ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).keycode == KEY_ESCAPE:
@@ -484,6 +544,11 @@ func _process(dt: float) -> void:
 	if _as_wait >= 15.0:
 		_as_wait = 0.0
 		autosave_now()
+	if hover_part != "":   # the mouse went onto a panel (it eats the motion, so the view never hears it leave)
+		var hc := get_viewport().gui_get_hovered_control()
+		if dragging != "" or (hc != null and hc.mouse_filter == Control.MOUSE_FILTER_STOP):
+			hover_part = ""
+			_refresh()
 	if ui_bar != null:
 		var bt := bar_text()
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
@@ -898,6 +963,10 @@ func _refresh() -> void:
 			col = Color(LIMIT, 0.45)
 		if touching.has(j):
 			col = Color(TOUCH, 0.45)
+		if locked_parts.has(j):   # LOCKED (round 26, GG3): a grey, hatched-free look that says "hands off"
+			col = Color(LOCK_COL, 0.45)
+		if j == hover_part and j != sel:   # HOVER (round 26, #35): what a click would pick
+			col = Color(HOVER, 0.3)
 		if j == sel:
 			col = Color(SEL.lerp(col, 0.4) if col.a > 0.3 else SEL, 0.35)
 		if clean:
@@ -1081,9 +1150,16 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if mb.pressed and ui_cmd.visible:
 			ui_cmd.close()   # a click in the view puts the search away
 		if mb.pressed:
+			hover_part = ""   # a press ends the hover (the drag shows the selection)
 			if mb.button_index == MOUSE_BUTTON_LEFT:
 				var j := _pick(mb.position)
-				if j != "":
+				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
+					sel = j
+					playing = false
+					_refresh()
+					_say_plain("the %s is locked: right-click it > Unlock, or S and type 'unlock'" % nice(j))
+				elif j != "":
+					_drag_locks = _lock_snap()
 					_push_undo()
 					sel = j
 					_clicked_part = true   # the tour's step 1 (clicking the part already picked counts too)
@@ -1129,6 +1205,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_cam()
 		elif dragging == "joint":
 			_drag_joint(rel, mm.shift_pressed, mm.ctrl_pressed, mm.alt_pressed)
+			if _lock_keep(_drag_locks):   # a hand's reach can turn a locked arm: it stays
+				_refresh()
+	elif ev is InputEventMouseMotion:
+		_hover_at((ev as InputEventMouseMotion).position)
 	elif ev is InputEventKey and ev.pressed:
 		var k := ev as InputEventKey
 		if get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is SpinBox:
@@ -1267,7 +1347,9 @@ func _drag_bat(rel: Vector2, dw: Vector3, turn: bool, spin: bool) -> void:
 ## run an edit with undo, then refresh
 func _do(f: Callable) -> void:
 	_push_undo()
+	var keep := _lock_snap()
 	f.call()
+	_lock_keep(keep)   # a locked part keeps its angles through Reset, Mirror, Snap, a pose... (round 26, GG3)
 	_after_edit()
 
 
@@ -2415,6 +2497,9 @@ func _ui() -> void:
 	vb.add_child(_label("2  SELECTED PART  (click the body)", PROP_TXT, "heading"))
 	ui_title = _label("", PROP_BIG, "text", true)
 	vb.add_child(ui_title)
+	ui_lock_btn = _button("Lock this part", _toggle_lock.bind(""), "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
+	ui_lock_btn.name = "btn_lock_part"
+	vb.add_child(ui_lock_btn)
 	ui_how = _label("", PROP_TXT, "info", true)
 	vb.add_child(ui_how)
 	for k in ["bend", "side", "twist"]:
@@ -2814,7 +2899,9 @@ func bar_text() -> String:
 	if _hover_hint != "":
 		return _hover_hint
 	var what := ""
-	if sel in Body.WEAPON:
+	if hover_part != "" and hover_part != sel:
+		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if hover_part in Body.WEAPON else nice(hover_part))
+	elif sel in Body.WEAPON:
 		what = wep_noun() + ("  in the " + nice(B.wep_hand) if B.wep_hand != "" else "  free")
 	else:
 		var v: Vector3 = B.ang[sel]
@@ -2855,6 +2942,10 @@ func _panel_part() -> void:
 	var L: Dictionary = B.lim[sel]
 	var lims: Array = B.at_limit(sel)
 	ui_title.text = nice(sel).to_upper() + ("   (at its limit)" if not lims.is_empty() else "")
+	ui_lock_btn.visible = true
+	ui_lock_btn.text = "Unlock this part" if locked_parts.has(sel) else "Lock this part"
+	if locked_parts.has(sel):
+		ui_title.text += "   (LOCKED)"
 	if side_col(sel) != SIDE_MID:
 		ui_title.add_theme_color_override("font_color", side_col(sel))
 	else:
@@ -2873,6 +2964,9 @@ func _panel_part() -> void:
 		row["slider"].min_value = r.x
 		row["slider"].max_value = r.y
 		row["slider"].value = vals[k]
+		var lk := locked_parts.has(sel)
+		row["slider"].editable = not lk
+		row["slider"].tooltip_text = (GREY_TAG + "this part is locked: right-click it > Unlock to change it") if lk else ""
 		var say: String = L["say"].get(k, "")
 		_set_prop(row["label"], words[k], "%.0f deg" % vals[k], say.replace("+ = ", "more = "))
 	ui_hip_box.visible = sel == "pelvis"
@@ -2893,6 +2987,7 @@ func _panel_part() -> void:
 
 
 func _panel_bat() -> void:
+	ui_lock_btn.visible = false   # the weapon's own lock is L (part locks are for body parts)
 	var locked := B.wep_hand != ""
 	ui_title.remove_theme_color_override("font_color")
 	ui_title.text = {"metal_bat": "METAL BAT", "staff": "BO STAFF", "long_hammer": "LONG HAMMER"}.get(B.wep_kind, B.wep_kind.to_upper()) + "  " + ("(locked in the %s)" % nice(B.wep_hand) if locked else "(free)")
@@ -2935,7 +3030,7 @@ static func _vs(v: Vector3) -> String:
 
 
 func _on_slider(val: float, k: String) -> void:
-	if _sync:
+	if _sync or locked_parts.has(sel):
 		return
 	if sel in Body.WEAPON:
 		_bat_from_sliders()
@@ -3004,7 +3099,16 @@ func _rebuild_cards() -> void:
 		c.queue_free()
 	_layout_bottom()
 	if S.cards.is_empty():
-		ui_cards.add_child(_label("No clips yet.  Pose the body, press  CLIP this pose, pose the next moment, clip it, press Play.   Or start from one:", 16, "text:0.55"))
+		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
+		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
+		for st in [["Clip this pose  (Enter)", _card_add, "the body as it is now becomes clip 1; pose the next moment and clip again, then Play"],
+				["Open a scene", func(): ui_scenes.show_popup(), "pick one of your scenes from the list"]]:
+			var sb := _button(st[0], st[1], st[2])
+			sb.name = "start_" + ("clip" if st[0].begins_with("Clip") else "open")
+			sb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			sb.add_theme_font_size_override("font_size", 13)   # fits the collapsed row (26 px)
+			ui_cards.add_child(sb)
+		ui_cards.add_child(_label("   or try one:", 16, "text:0.55"))
 		for ex in EXAMPLES:
 			var eb := _button("Example: " + ex[0], _open_example.bind(ex[1]), "open '%s' as a copy to look at and change; Save makes a new file, the example stays as it is" % ex[1].get_file().get_basename())
 			eb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -3121,6 +3225,9 @@ this pose", "run": _card_add},
 		{"name": "Pin a
 trail here", "run": _press.bind(KEY_T, true)},
 		{"name": "Snap 45", "run": _do.bind(_snap.bind(45.0))},
+		{"name": ("Unlock
+this part" if locked_parts.has(j) else "Lock
+this part"), "run": _toggle_lock.bind(j)},
 	]
 	ui_ring.open(p, nice(j), its)
 
@@ -3345,6 +3452,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Lock / unlock this part", "", _toggle_lock.bind(""), "freeze hold keep unlock protect", false, "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
 	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
 	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")
 	for e in Scene.EASES:

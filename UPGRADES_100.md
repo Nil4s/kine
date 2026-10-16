@@ -31,7 +31,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 21. [UI] Marking menu v2: 8 wedges plus an overflow list, gesture-flick support (flick without waiting for the menu).
 22. DONE (round 22: edges/corners, house mark, 0.3 s tween the short way; cube_views_test) ~~[UI] ViewCube: click edges and corners for 3/4 views, a home button, and smooth tweened camera moves.~~
 23. [UI] Navigation bar at the bottom center: orbit/pan/zoom/fit/grid toggle.
-24. [UI] Browser: eye (visibility) and lock icons per part, plus a folder per limb chain.
+24. PARTIAL (round 26: the LOCK, from the ring / panel / search; NOT the browser icons, the eye (hide) or limb folders; lock_part_test) ~~[UI] Browser: eye (visibility) and lock icons per part, plus a folder per limb chain.~~
 25. [UI] Browser: a "Clips" and a "Scenes" folder, so the whole document lives in one tree.
 26. [UI] Data panel: a scene/clip file browser with thumbnails, toggled like Fusion's data panel.
 27. DONE (round 9: part + angles or weapon, card n/N, playhead, Check count with "changed since"; status_bar_test. No fps: the scene plays in real time, so frame/fps would only repeat the playhead) ~~[UI] Status bar: selected part, joint angle readout, frame, fps and rule warnings count.~~
@@ -42,7 +42,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 32. [UI] Tool tips with a short GIF/preview of what the tool does.
 33. [UI] Resizable, dockable panels that remember their layout per user.
 34. DONE (round 17: keys_overlay_test: ? opens every keyed command, from the registry) ~~[UI] Keyboard shortcut overlay (? key) generated from the command registry.~~
-35. [UI] Selection highlight: hover pre-highlight in the viewport and browser in sync.
+35. PARTIAL (round 26: the viewport half, the part under the mouse lit and named on the bar; the browser in sync NOT done; hover_test) ~~[UI] Selection highlight: hover pre-highlight in the viewport and browser in sync.~~
 
 ## C. Style (36–48)
 36. DONE (round 9: scripts/tok.gd; theme_test audits every Color( literal left, each with its reason) ~~[STY] A single theme token file (colors, spacing, radius, font sizes). No hardcoded colors in scripts.~~
@@ -56,7 +56,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 44. DONE (round 23: time axis, hover line + readout; graph_read_test) ~~[STY] Speed graph: a proper axis, a gridline legend, and hover readout.~~
 45. DONE (round 24: grid fades 1 m -> 2 m, XYZ gizmo with arrowheads and letters; floor_fade_test) ~~[STY] Ground grid with fade-out and an origin axis gizmo.~~
 46. DONE (round 22: main._grey + NOT NOW reasons; greyed_why_test audits 7 states x 4 tabs) ~~[STY] Consistent disabled states (greyed out plus a tooltip that says why it is disabled).~~
-47. [STY] Splash/empty state art: "Create a pose / open a scene / try an example".
+47. DONE (round 26: the empty strip offers Clip this pose / Open a scene / the examples; empty_paths_test) ~~[STY] Splash/empty state art: "Create a pose / open a scene / try an example".~~
 48. [STY] Screenshot gallery test: render every panel and store it in shots/ for visual diffs.
 
 ## D. Functions (49–70)

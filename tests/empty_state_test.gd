@@ -41,9 +41,9 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 	await state("start, no clips", true)
-	# round 12: the hint, then the three example buttons (examples_test)
-	var hint: bool = m.ui_cards.get_child_count() == 4 and String(m.ui_cards.get_child(0).text).contains("CLIP this pose")
-	ok(hint and m.ui_cards.get_child(0).is_visible_in_tree(), "  the hint is on screen: 'No clips yet ... CLIP this pose ...'")
+	# round 26: the hint, Clip this pose, Open a scene, "or try one:", the three examples (empty_paths_test, examples_test)
+	var hint: bool = m.ui_cards.get_child_count() == 7 and String(m.ui_cards.get_child(0).text).begins_with("No clips yet")
+	ok(hint and m.ui_cards.get_child(0).is_visible_in_tree(), "  the hint is on screen: 'No clips yet.  Start here:' and its paths")
 	m._card_add()
 	await state("after CLIP this pose (1 clip)", false)
 	m._card_add()

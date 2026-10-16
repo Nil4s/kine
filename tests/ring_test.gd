@@ -81,7 +81,7 @@ func _init() -> void:
 	await right_click(p)
 	ok(ring.visible and m.sel == j and m.yaw == y0 and m.pitch == pi0, "right-click the forearm: ring open %s, '%s' selected, the view did not turn (yaw %.2f)" % [ring.visible, m.sel, m.yaw])
 	ok(ring.get_global_rect().size == Vector2(root.size), "  the ring covers the window (%s): a click anywhere reaches it" % ring.get_global_rect().size)
-	ok(ring.title == m.nice(j) and ring.items.size() == 6, "  titled '%s', %d wedges" % [ring.title, ring.items.size()])
+	ok(ring.title == m.nice(j) and ring.items.size() == 7, "  titled '%s', %d wedges" % [ring.title, ring.items.size()])
 	# wedge geometry: each label's spot is its own wedge; middle and outside are none
 	var wrong := 0
 	for i in ring.items.size():
