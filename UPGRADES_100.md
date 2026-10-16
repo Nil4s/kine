@@ -29,7 +29,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 19. [UI] Each ribbon tab gets grouped sections with labels under them (POSE: Select | Transform | Constrain).
 20. [UI] Dropdown arrow under the big ribbon buttons for related sub-commands.
 21. [UI] Marking menu v2: 8 wedges plus an overflow list, gesture-flick support (flick without waiting for the menu).
-22. [UI] ViewCube: click edges and corners for 3/4 views, a home button, and smooth tweened camera moves.
+22. DONE (round 22: edges/corners, house mark, 0.3 s tween the short way; cube_views_test) ~~[UI] ViewCube: click edges and corners for 3/4 views, a home button, and smooth tweened camera moves.~~
 23. [UI] Navigation bar at the bottom center: orbit/pan/zoom/fit/grid toggle.
 24. [UI] Browser: eye (visibility) and lock icons per part, plus a folder per limb chain.
 25. [UI] Browser: a "Clips" and a "Scenes" folder, so the whole document lives in one tree.
@@ -55,7 +55,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 43. [STY] Ghost/onion skins: fading alpha plus a hue shift for past and future.
 44. [STY] Speed graph: a proper axis, a gridline legend, and hover readout.
 45. [STY] Ground grid with fade-out and an origin axis gizmo.
-46. [STY] Consistent disabled states (greyed out plus a tooltip that says why it is disabled).
+46. DONE (round 22: main._grey + NOT NOW reasons; greyed_why_test audits 7 states x 4 tabs) ~~[STY] Consistent disabled states (greyed out plus a tooltip that says why it is disabled).~~
 47. [STY] Splash/empty state art: "Create a pose / open a scene / try an example".
 48. [STY] Screenshot gallery test: render every panel and store it in shots/ for visual diffs.
 
@@ -76,7 +76,7 @@ Tags: [BUG] [UI] [FN] function · [STY] style · [UX] user-friendly · [AI] easy
 62. [FN] Overlay a tracked skeleton from video, and snap cards to it.
 63. DONE (round 16: balance_test: de Leva COM, the feet's floor shadow, BALANCE in CHECK, measure com / balance) ~~[FN] Physics sanity checks: center of mass over the support polygon, and a balance warning.~~
 64. [FN] Joint limits per part (anatomical ranges), with a soft warn and a hard clamp option.
-65. [FN] Symmetry mode: edit the left and the right updates live.
+65. DONE (round 22: Symmetry toggle, only the changed joints mirror; symmetry_test) ~~[FN] Symmetry mode: edit the left and the right updates live.~~
 66. [FN] Multi-select parts and rotate them as a group.
 67. [FN] Selection sets ("whole arm", "upper body").
 68. DONE (round 16: autosave_test: every 15 s, atomic, Recover / Discard on start) ~~[FN] Autosave plus crash recovery.~~

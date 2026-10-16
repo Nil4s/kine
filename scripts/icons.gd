@@ -14,6 +14,8 @@ const DRAW := {
 	"mirror": [["seg", Vector2(12, 2), Vector2(12, 6), 1.5], ["seg", Vector2(12, 9), Vector2(12, 15), 1.5], ["seg", Vector2(12, 18), Vector2(12, 22), 1.5],
 		["seg", Vector2(9, 6), Vector2(3, 18), 1.8], ["seg", Vector2(3, 18), Vector2(9, 18), 1.8], ["seg", Vector2(9, 18), Vector2(9, 6), 1.8],
 		["seg", Vector2(15, 6), Vector2(21, 18), 1.8], ["seg", Vector2(21, 18), Vector2(15, 18), 1.8], ["seg", Vector2(15, 18), Vector2(15, 6), 1.8]],
+	"symmetry": [["seg", Vector2(12, 2), Vector2(12, 6), 1.5], ["seg", Vector2(12, 9), Vector2(12, 15), 1.5], ["seg", Vector2(12, 18), Vector2(12, 22), 1.5],
+		["arc", Vector2(12, 12), 8, 2, 200, 340], ["seg", Vector2(4.5, 9.3), Vector2(3, 13), 2], ["seg", Vector2(19.5, 9.3), Vector2(21, 13), 2]],
 	"collision": [["ring", Vector2(9, 12), 6, 1.8], ["ring", Vector2(15, 12), 6, 1.8]],
 	"trail": [["disc", Vector2(3, 19), 1.4], ["disc", Vector2(5.5, 13.5), 1.6], ["disc", Vector2(9.5, 8.5), 1.8], ["disc", Vector2(15, 5.5), 2.0], ["disc", Vector2(21, 4.5), 2.4]],
 	"onion": [["ring", Vector2(6.5, 12), 4.5, 1.2], ["ring", Vector2(12, 12), 4.5, 1.6], ["disc", Vector2(17.5, 12), 4.5]],

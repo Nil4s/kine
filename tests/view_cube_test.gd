@@ -87,13 +87,15 @@ func _init() -> void:
 		m.pitch = -30.0 if n.y >= 0.0 else 40.0
 		m._cam()
 		await process_frame
+		await process_frame   # the cube reads the camera in its own _process, after the tree's process_frame signal
 		var v: int = ViewCube.FACES[i][2]
 		var p := centre(cube, i)
 		ok(cube.face_at(p) == i, "  %s: its middle is on it (yaw %.0f pitch %.0f)" % [ViewCube.FACES[i][1], m.yaw, m.pitch])
 		click(cube, p)
+		await m.get_tree().create_timer(m.VIEW_T + 0.1).timeout   # the cube's move is smooth (round 22)
 		ok(is_equal_approx(m.yaw, want[v][0]) and is_equal_approx(m.pitch, want[v][1]), "  click %s -> yaw %.0f pitch %.0f" % [ViewCube.FACES[i][1], m.yaw, m.pitch])
 	var y0: float = m.yaw
-	click(cube, Vector2(3, 3))
+	click(cube, Vector2(3, ViewCube.SIZE - 3))   # (the top left corner is the home mark since round 22)
 	ok(m.yaw == y0, "a click in the cube's corner, off the cube: nothing")
 	var r0 := cube.get_global_rect()
 	m._big_view()

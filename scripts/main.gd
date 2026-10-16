@@ -834,6 +834,7 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	_sym_prev = B.ang.duplicate()
 	Overlays.pose_skeleton(skel, bone_idx, B)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -939,20 +940,64 @@ func _cam() -> void:
 		cam.v_offset = (bottom_h - TOP_H) * 0.5 * mpp * -1.0
 
 
-func _view(k: int) -> void:
-	pitch = -8.0
+## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
+## a face, an edge (two faces) or a corner (three). Smooth: the turn eases over VIEW_T seconds the short way round (yaw
+## wrapped to within 180 of where it is). Keys 1-5 stay instant (_view): tests and the CLI shoot right after them
+const VIEW_T := 0.3
+const HOME := {"yaw": 0.0, "pitch": -8.0, "dist": 4.0, "target": Vector3(0, 0.95, 0)}   # the view the poser opens with
+var _view_tw: Tween
+
+
+func _view_dir(d: Vector3, smooth := true) -> void:
+	d = d.normalized()
+	var y1 := rad_to_deg(atan2(d.x, d.z))
+	var p1 := clampf(-rad_to_deg(asin(clampf(d.y, -1.0, 1.0))), -89.0, 89.0)
+	if absf(d.y) > 0.999:
+		y1 = yaw   # straight up or down: keep the turn round the vertical as it is
+	_turn_to(y1, p1, dist, target, smooth)
+
+
+func _view_home(smooth := true) -> void:
+	_turn_to(HOME["yaw"], HOME["pitch"], HOME["dist"], HOME["target"], smooth)
+
+
+func _turn_to(y1: float, p1: float, d1: float, t1: Vector3, smooth: bool) -> void:
+	if _view_tw != null and _view_tw.is_valid():
+		_view_tw.kill()
+	var y0 := yaw
+	var y_goal := y1   # where it ends: the yaw asked for (the key views' own numbers, 180 not -180)
+	y1 = y0 + wrapf(y1 - y0, -180.0, 180.0)   # the short way round
+	if not smooth:
+		yaw = y_goal
+		pitch = p1
+		dist = d1
+		target = t1
+		_cam()
+		return
+	var p0 := pitch
+	var d0 := dist
+	var t0 := target
+	_view_tw = create_tween()
+	_view_tw.tween_method(func(k: float):
+		var e := ease(k, -2.0)   # in-out
+		yaw = lerpf(y0, y1, e)
+		pitch = lerpf(p0, p1, e)
+		dist = lerpf(d0, d1, e)
+		target = t0.lerp(t1, e)
+		_cam(), 0.0, 1.0, VIEW_T)
+	_view_tw.tween_callback(func(): yaw = y_goal; _cam())
+
+
+func _view(k: int, smooth := false) -> void:
+	var y := 0.0
+	var p := -8.0
 	match k:
-		1: yaw = 0.0
-		2: yaw = -90.0
-		3:
-			yaw = 0.0
-			pitch = -89.0
-		4: yaw = 180.0
-		5: yaw = 90.0
-		6:   # from below (the ViewCube's bottom face)
-			yaw = 0.0
-			pitch = 89.0
-	_cam()
+		2: y = -90.0
+		3: p = -89.0
+		4: y = 180.0
+		5: y = 90.0
+		6: p = 89.0   # from below (the ViewCube's bottom face)
+	_turn_to(y, p, dist, target, smooth)
 
 
 # ---------------------------------------------------------------- picking + dragging
@@ -1212,8 +1257,39 @@ func _pose_words(text: String) -> Dictionary:
 
 
 func _after_edit() -> void:
+	if symmetry:
+		_mirror_changed()
 	B.apply_grip()
 	_refresh()
+
+
+## SYMMETRY MODE (round 22, GATES CC1, UPGRADES #65): while on, an edit on one side moves its twin, reflected the way
+## Copy side does (bend, side, -twist). Only the joints the edit CHANGED since the last refresh are copied, so dragging
+## an arm leaves the legs as they were, and the middle (its own twin) is never touched. Runs inside the edit's own undo
+## step: one Ctrl+Z takes back both sides
+var symmetry := false
+var _sym_prev := {}   # the angles at the last refresh: what an edit is measured against
+
+
+func _mirror_changed() -> void:
+	var moved := false
+	for j in Body.ORDER:
+		var t := Body.twin(j)
+		if t == j or not _sym_prev.has(j) or (B.ang[j] as Vector3).is_equal_approx(_sym_prev[j]):
+			continue
+		if not (B.ang[t] as Vector3).is_equal_approx(_sym_prev[t]):
+			continue   # both sides changed (Copy side, Mirror pose, a pasted pose): the edit already set them
+		var v: Vector3 = B.ang[j]
+		B.ang[t] = B.clamp_ang(t, Vector3(v.x, v.y, -v.z))
+		moved = true
+	if moved:
+		B.fk()
+
+
+func _toggle_symmetry() -> void:
+	symmetry = not symmetry
+	_refresh()
+	_say("symmetry ON: drag a part on one side and its twin on the other side follows, reflected" if symmetry else "symmetry off: each side moves on its own")
 
 
 func _big_view() -> void:
@@ -1876,7 +1952,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Collision (C)": "collision",
+const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Stepped": "stepped",
 	"Moving holds": "holds", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -1914,6 +1990,18 @@ func _iconise(b: Node) -> void:
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
 	b.add_theme_font_size_override("font_size", 13)
 	b.add_theme_constant_override("h_separation", 2)
+
+
+## DISABLED SAYS WHY (round 22, GATES CC3, UPGRADES #46): a control greyed out keeps its own tooltip and adds the
+## reason and what to do after GREY_TAG (one place, so every greyed control reads the same way); why "" = enabled
+const GREY_TAG := "
+NOT NOW: "
+
+
+func _grey(c: Control, why: String) -> void:
+	var base: String = c.tooltip_text.get_slice(GREY_TAG, 0)
+	c.set("disabled", why != "")
+	c.tooltip_text = base + (GREY_TAG + why if why != "" else "")
 
 
 func _button(t: String, f: Callable, tip := "") -> Button:
@@ -1993,6 +2081,8 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
 	ui_ribbon["POSE"].add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed), "both arms relaxed: 25 degrees out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
+	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
+		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
 		"see the capsules the body collides with. Yellow = a joint at its limit, red = touching another part")
 	# ANIMATE
@@ -2039,6 +2129,7 @@ func _ui() -> void:
 		for k in SCALES.size():
 			us.get_popup().set_item_checked(k, SCALES[k] == ui_scale)
 			us.get_popup().set_item_disabled(k, not scale_fits(SCALES[k]))
+			us.get_popup().set_item_tooltip(k, "" if scale_fits(SCALES[k]) else GREY_TAG.strip_edges() + " %d %% needs a window of at least %d x %d: make the window bigger (maximise it)" % [SCALES[k], MIN_ROOM.x * SCALES[k] / 100, MIN_ROOM.y * SCALES[k] / 100])
 			us.get_popup().set_item_text(k, "%d %%" % SCALES[k] + ("" if scale_fits(SCALES[k]) else "   (needs a bigger window)")))
 	ui_ribbon["VIEW"].add_child(us)
 	# always there
@@ -2577,7 +2668,9 @@ func _panel() -> void:
 	ui_time.value = playhead
 	ui_time_lbl.text = "%.2f / %.2f s" % [playhead, _ps().length()]
 	if ui_ease != null:
-		ui_ease.disabled = sel_card < 1 or S.spline   # the first card has no move into it; a spline scene has its own curve
+		_grey(ui_ease, "this scene is Smooth (spline): one curve through every card sets the timing; turn Smooth off to ease card by card" if S.spline
+			else ("pick a card first (click one in the scene row): the ease is the move INTO that card" if sel_card < 0
+			else ("the first card has no move into it: pick card 2 or later" if sel_card == 0 else "")))
 		ui_ease.select(Scene.EASES.find(S.cards[sel_card].get("ease", "smooth")) if sel_card >= 0 and sel_card < S.cards.size() else 0)
 	if ui_timeline != null:
 		ui_timeline.queue_redraw()
@@ -2891,13 +2984,20 @@ func _min_w(n: Control) -> float:
 
 
 func _top_fits() -> bool:
-	var room := get_viewport().get_visible_rect().end.x - 6.0 - ui_tb.get_global_rect().position.x
+	# the room: to the window's right edge less the top panel's own right margin (round 22: a fixed 6 px was 4 short)
+	var right := 0.0
+	var pc := ui_tb.get_parent() as PanelContainer
+	if pc != null:
+		var sb := pc.get_theme_stylebox("panel")
+		right = sb.get_margin(SIDE_RIGHT) if sb != null else 0.0
+	var room := get_viewport().get_visible_rect().end.x - right - ui_tb.get_global_rect().position.x
 	var w := 0.0
 	var k := 0
 	for c in ui_tb.get_children():
-		if c is Control and (c as Control).visible and not ((c as Control).size_flags_horizontal & Control.SIZE_EXPAND):
-			w += _min_w(c)
-			k += 1
+		if c is Control and (c as Control).visible:
+			k += 1   # every shown child takes a gap, the expanding filler too (round 22: it was left out, 6 px short)
+			if not ((c as Control).size_flags_horizontal & Control.SIZE_EXPAND):
+				w += _min_w(c)
 	return w + maxf(0, k - 1) * ui_tb.get_theme_constant("separation") <= room
 
 
@@ -3068,6 +3168,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
 	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")
 	for e in Scene.EASES:
 		add.call("Ease: " + e, "", _set_ease.bind(e), "easing timing curve " + {"smooth": "natural", "linear": "constant even", "in": "slow start accelerate", "out": "slow end decelerate", "snap": "jump cut hit step"}[e], true,

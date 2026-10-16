@@ -167,3 +167,10 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   in the tooltip), then the tab's last tools go into a **More** menu. The window cannot be made smaller than 1280 x 720.
 - **The right-click ring** stays whole and below the top bar at every corner of the view, at 100, 125 and 150 %.
 - **`tests/flip_survey.gd`** covers every scene in scenes/, _wip and _archive, and each one's mirror; it fails on a flip.
+
+## Round 22 (GATES.md section CC): symmetry, 3/4 views, greyed controls say why
+- **Symmetry** (POSE tab, or the search "Symmetry on / off"): drag one side and its twin follows, reflected; only the
+  joints you changed are copied, and one Ctrl+Z undoes both sides.
+- **ViewCube**: click near an edge or a corner of a face for the view between the faces; the house mark goes home; cube
+  moves ease over 0.3 s the short way round. Keys 1-5 stay instant.
+- **A greyed control says why**: `main._grey(control, why)` puts "NOT NOW: why" in its tooltip.
