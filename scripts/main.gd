@@ -6438,7 +6438,28 @@ func _library_load() -> void:
 
 func _on_drop(files: PackedStringArray) -> void:
 	for f in files:
-		_import_file(f)
+		if f.to_lower().ends_with(".bvh"):
+			_import_bvh(f)
+		else:
+			_import_file(f)
+
+
+## BVH IMPORT (round 41, GATES WW7): a dropped .bvh (a Poser export) becomes a NEW scene in scenes/_wip, opened. The
+## work is in scripts/bvh_import.gd; a refusal puts its reason on the status line and changes nothing.
+func _import_bvh(path: String) -> void:
+	var bv := BvhImport.load_file(path)
+	var r := BvhImport.to_scene(bv, B, 1, 1.0, safe_file(path.get_file().get_basename())) if bv["ok"] else bv
+	if not r["ok"]:
+		_say("could not import %s: %s" % [path.get_file(), r["why"]])
+		return
+	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
+	d["plan"] = "BVH import of %s: %s" % [path.get_file(), r["text"]]
+	var out := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"]))
+	_write(out, d)
+	_load_scene(out)
+	_rebuild_cards()
+	_refresh()
+	_say("imported %s as scenes/_wip/%s: %s" % [path.get_file(), out.get_file(), r["text"]])
 
 
 func _import_ask() -> void:
