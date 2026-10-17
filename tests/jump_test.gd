@@ -2,8 +2,8 @@
 ## AIRBORNE CARDS. A countermovement jump: stand, dip (take-off), legs reaching in the air (air), land in a crouch,
 ## stand. The flight is the take-off card's leave to the landing card's arrival, T = 0.571 s. REAL PEOPLE: a flight of
 ## T means a jump of g T^2 / 8 (Bosco; Asmussen & Bonde-Petersen): 0.571 s -> 0.40 m, about a recreational adult's
-## countermovement jump (40 +- 11 cm on a force plate). Checked by numbers: the hips' apex over their take-off height,
-## the hips on the parabola at 9 times, both soles off the floor mid-flight, on the floor at the landing, a scene
+## countermovement jump (40 +- 11 cm on a force plate). Checked by numbers: the CoM's apex over their take-off height,
+## the CoM on the parabola at 9 times, both soles off the floor mid-flight, on the floor at the landing, a scene
 ## without "air" unchanged, save/load and mirror keep it.
 extends SceneTree
 
@@ -70,21 +70,21 @@ func _init() -> void:
 	var t1: float = fl[0]["t1"]
 	var T := t1 - t0
 	S.apply(B, t0)
-	var y0: float = (B.P["pelvis"] as Vector3).y
+	var y0: float = Balance.com(B).y   # round 41: the CENTRE OF MASS rides the parabola, not the pelvis
 	S.apply(B, t1)
-	var y1: float = (B.P["pelvis"] as Vector3).y
+	var y1: float = Balance.com(B).y
 	S.apply(B, (t0 + t1) / 2.0)
-	var apex: float = (B.P["pelvis"] as Vector3).y
+	var apex: float = Balance.com(B).y
 	var want := Scene.G * T * T / 8.0
-	print("REFERENCE vs OURS: flight %.3f s -> people jump g T^2/8 = %.3f m (recreational CMJ 0.40 +- 0.11) | the hips rise %.3f m over the take-off height (take-off %.3f, landing %.3f)" % [T, want, apex - (y0 + y1) / 2.0, y0, y1])
-	ok(absf(apex - (y0 + y1) / 2.0 - want) < 0.01, "apex = g T^2 / 8 over the take-off height (1 cm)")
+	print("REFERENCE vs OURS: flight %.3f s -> people jump g T^2/8 = %.3f m (recreational CMJ 0.40 +- 0.11) | the CoM rises %.3f m over the take-off height (take-off %.3f, landing %.3f)" % [T, want, apex - (y0 + y1) / 2.0, y0, y1])
+	ok(absf(apex - (y0 + y1) / 2.0 - want) < 0.01, "CoM apex = g T^2 / 8 over the take-off height (1 cm)")
 	var worst := 0.0
 	for k in range(1, 10):
 		var t := t0 + T * k / 10.0
 		S.apply(B, t)
 		var par := lerpf(y0, y1, k / 10.0) + Scene.G / 2.0 * (t - t0) * (t1 - t)
-		worst = maxf(worst, absf((B.P["pelvis"] as Vector3).y - par))
-	ok(worst < 0.002, "the hips on the parabola at 9 times (worst %.4f m)" % worst)
+		worst = maxf(worst, absf(Balance.com(B).y - par))
+	ok(worst < 0.002, "the CoM on the parabola at 9 times (worst %.4f m)" % worst)
 	S.apply(B, (t0 + t1) / 2.0)
 	ok(sole(B) > 0.20, "mid-flight both feet are off the floor (lowest sole %.3f m)" % sole(B))
 	S.apply(B, t1)

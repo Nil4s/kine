@@ -808,8 +808,12 @@ func props_at(t: float, B: Body) -> Array:
 
 ## JUMPS (round 40, GATES VV1, #230). A card marked "air" is in the air at its arrival. A run of air cards between a
 ## take-off card k and a landing card l is a FLIGHT from k's leave time T0 to l's arrival T1. In it there is no floor
-## and no pin: the limbs blend through the cards as ever, and the hips follow the ballistic path through their grounded
-## heights at both ends:  y(t) = lerp(y0, y1, u) + G/2 (t - T0)(T1 - t),  u = (t - T0) / (T1 - T0)
+## and no pin: the limbs blend through the cards as ever, and the CENTRE OF MASS (Balance.com, de Leva masses; round 41,
+## GATES WW10, #311 momentum) follows the ballistic path through its grounded heights at both ends:
+##   y(t) = lerp(y0, y1, u) + G/2 (t - T0)(T1 - t),  u = (t - T0) / (T1 - T0)
+## (round 40 put the pelvis there; but in the air only the CoM is on the parabola, so arms thrown up lift the CoM off
+## it, the body must sit LOWER by that shift, the pelvis no longer on the parabola. Legs tucked, arms up: pelvis
+## drops, CoM keeps the path.)
 ## (a body in free fall: y'' = -G; the apex over level ground is G T^2 / 8, T = T1 - T0: 0.571 s -> 0.40 m)
 var _flight_memo := []   # [key, flights]
 
@@ -842,21 +846,21 @@ func flight_at(t: float) -> Dictionary:
 	return {}
 
 
-## the body in the air: the cards' blend, the hips put on the parabola (the ends measured by posing B at T0 and T1
+## the body in the air: the cards' blend, the CoM put on the parabola (the ends measured by posing B at T0 and T1
 ## the ordinary way, cached per flight while the cards are the same)
 func _fly(B: Body, t: float, f: Dictionary) -> void:
 	if not f.has("y0"):
 		_apply(B, float(f["t0"]))
-		f["y0"] = (B.P["pelvis"] as Vector3).y
+		f["y0"] = Balance.com(B).y
 		_apply(B, float(f["t1"]))
-		f["y1"] = (B.P["pelvis"] as Vector3).y
+		f["y1"] = Balance.com(B).y
 	var t0: float = f["t0"]
 	var t1: float = f["t1"]
 	var u := (t - t0) / maxf(1e-6, t1 - t0)
 	put(B, sample(t))
 	B.fk()
 	var y: float = lerpf(f["y0"], f["y1"], u) + G / 2.0 * (t - t0) * (t1 - t)
-	B.offset.y += y - (B.P["pelvis"] as Vector3).y
+	B.offset.y += y - Balance.com(B).y
 	B.fk()
 
 
