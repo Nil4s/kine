@@ -988,6 +988,51 @@ func _name_later(n: Node) -> void:
 	Names.give(n)
 
 
+## RECORD (the --record / --playblast flags; GATES WW6): play the scene, one frame per 1/fps, from the clean big view.
+## dir: PNG frames go there ("" = none); avi: one MJPEG AVI of the same frames ("" = none); burn: scene name, frame,
+## seconds and the Check finding count drawn into each frame. Returns the number of frames.
+func _record(dir: String, fps: int, burn: bool, avi: String) -> int:
+	if dir != "":
+		DirAccess.make_dir_recursive_absolute(dir)
+	for p in ui_side:
+		p.visible = false
+	ui_root.visible = false
+	clean = true
+	big_view = true
+	dist = 4.6
+	target = Vector3(0, 1.05, 0.2)
+	_cam()
+	cam.v_offset = 0.0
+	var finds := -1
+	var layer: CanvasLayer = null
+	if burn:
+		if S.cards.size() >= 2:
+			finds = Rulebook.check(S, ov.GB, Rulebook.sample(S, ov.GB)).size()
+		layer = Playblast.make_overlay()
+		add_child(layer)
+	var jpgs := []
+	var n := int(ceil(_ps().length() * fps))
+	for f in n + 1:
+		playhead = float(f) / fps
+		_ps().apply(B, playhead)
+		_refresh()
+		if layer != null:
+			(layer.get_node("burn") as Label).text = Playblast.text(S.name, f, playhead, finds)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		if dir != "":
+			img.save_png("%s/frame_%04d.png" % [dir, f])
+		if avi != "":
+			jpgs.append(img.save_jpg_to_buffer(0.9))
+	if layer != null:
+		layer.queue_free()
+	if avi != "" and not jpgs.is_empty():
+		var sz := get_viewport().get_visible_rect().size
+		AviWriter.write(avi, jpgs, int(sz.x), int(sz.y), fps)
+	return n + 1
+
+
 ## the scene the window plays: landed on the solid dummy, or as authored
 func _ps() -> Scene:
 	var p: Scene = SL if dummy_on and solid and SL != null else S
@@ -1151,31 +1196,15 @@ func _ready() -> void:
 		_ps().apply(B, playhead)   # (and --dummy's range now counts: it used to move the dummy after --t had posed)
 		_refresh()
 	i = args.find("--record")
-	if i >= 0 and i + 1 < args.size():
-		# --record <dir> [--fps N]: play the scene and save every frame (frame_0000.png ...), then quit
-		var dir: String = args[i + 1]
+	var pb := args.find("--playblast")
+	if (i >= 0 and i + 1 < args.size()) or (pb >= 0 and pb + 1 < args.size()):
+		# --record <dir> [--fps N] [--burn]: play the scene and save every frame (frame_0000.png ...), then quit
+		# --playblast out.avi [--fps N] [--burn]: the same frames as one MJPEG AVI (GATES WW6)
 		var fps := 24
 		var k := args.find("--fps")
 		if k >= 0 and k + 1 < args.size():
 			fps = int(args[k + 1])
-		DirAccess.make_dir_recursive_absolute(dir)
-		for p in ui_side:
-			p.visible = false
-		ui_root.visible = false
-		clean = true
-		big_view = true
-		dist = 4.6
-		target = Vector3(0, 1.05, 0.2)
-		_cam()
-		cam.v_offset = 0.0
-		var n := int(ceil(_ps().length() * fps))
-		for f in n + 1:
-			playhead = float(f) / fps
-			_ps().apply(B, playhead)
-			_refresh()
-			await get_tree().process_frame
-			await RenderingServer.frame_post_draw
-			get_viewport().get_texture().get_image().save_png("%s/frame_%04d.png" % [dir, f])
+		await _record(args[i + 1] if i >= 0 else "", fps, args.has("--burn"), args[pb + 1] if pb >= 0 else "")
 		get_tree().quit()
 		return
 	i = args.find("--tl-drag")   # --tl-drag card,seconds: hold a timeline drag on that card's edge (for screenshots)
