@@ -66,6 +66,11 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - UI size: `SCALES`, `MIN_ROOM` (1280x720), `scale_fits()`, `_fit_rows()` (the play row's extra buttons hide when the row is short of room). CLI flags: `--scale N`, `--history`.
 
 ## Rules of the house
+- **REAL HUMANS FIRST (Nick, 2026-10-17).** Every pose, grip or interaction (carry, sit, step, lift, jump, later the face)
+  is compared with REAL people before it is shown or ticked: find a reference (a biomechanics paper, an ergonomics
+  standard such as NIOSH or Snook, motion-capture data, photos), write its numbers down (angles, heights, distances),
+  measure the same numbers on our body, and put both in the gate and the test. "The prop moved with the hand" is not
+  a pass: round 39's first screenshot held a box on straight arms at shoulder height, which no human does.
 - `GATES.md` is the ledger: a box gets ticked only with evidence (test name, numbers, what failed first).
 - `UPGRADES_100.md` is the backlog. Each round takes items from it.
 - Every edit is ONE undo step (`tests/undo_audit_test.gd` enforces this for each command, `tests/undo_fuzz_test.gd` for chains of commands).
@@ -436,3 +441,9 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   while any card carries.
 - SET > USE: Pick up (a hand within REACH 12 cm of the prop on the selected card; box / crate in both hands when both
   are near; else refused with the distance), Put down (on a card where it is held; says how far it falls and how long).
+- CARRY FORM (after Nick's correction; the REAL HUMANS FIRST rule): `Rulebook.carry_form(S, t, B)` measures a two-
+  handed carry (upper arm from hanging, elbow bend, NIOSH H); `rule_carry_form` WARNs outside 35 deg / 50-130 deg /
+  40 cm for 0.1 s. Reference carry on our body: upperarm (0, -80, 0) + lowerarm (90, 0, 0) per side = arms down,
+  forearms forward, hands 48.5 cm apart (a 40 cm box between the forearms) at elbow height.
+- Found by that screenshot: a toe TIP 2 cm into a 1 m crate stack lifted the whole body onto it (_sole_low_set took
+  each sole point's own surface). The toe tip now stands on what the ball of its foot stands on.

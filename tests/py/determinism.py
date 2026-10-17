@@ -36,6 +36,13 @@ for name, args in SHOTS:
     a = shot(name + "_a", args)
     b = shot(name + "_b", args)
     ok(a is not None and a == b, "1 %s rendered twice: %s / %s" % (name, a and a[:10], b and b[:10]))
+    if a is not None and b is not None and a != b:   # keep both pictures: a mismatch seen once under load (round 39) had no cause found
+        import shutil
+        keep = os.path.join(os.environ.get("TEMP", TMP), "poser_determinism_mismatch")
+        os.makedirs(keep, exist_ok=True)
+        for k in ("_a", "_b"):
+            shutil.copy(os.path.join(TMP, name + k + ".png"), os.path.join(keep, name + k + ".png"))
+        print("     both kept in %s" % keep, flush=True)
 
 t92 = repr(92 / 30)
 c = shot("combo3_dummy_hit_t", ["--scene", "res://scenes/combo3.json", "--dummy", "1.4", "--t", t92])

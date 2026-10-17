@@ -1279,13 +1279,17 @@ func sole_low() -> float:
 
 
 ## the same on the set (TT2): each sole point measured from the surface under it, not from the floor
+## The toe TIP stands on what the ball of its foot stands on: the heel or the ball carries a foot on a step, a toe tip
+## touching a crate's face does not (round 39: toes 2 cm into a 1 m crate stack lifted the whole body onto it)
 func _sole_low_set() -> float:
 	var low := INF
 	for sd in ["_l", "_r"]:
-		for k in [[P, p0, "foot"], [E, e0, "ball"], [P, p0, "ball"]]:
-			var at: Vector3 = k[0][k[2] + sd]
-			var up: float = (k[1][k[2] + sd] as Vector3).y
-			low = minf(low, at.y - up - surface_at(at, up))
+		var ball_up: float = (p0["ball" + sd] as Vector3).y
+		var ball_s := surface_at(P["ball" + sd], ball_up)
+		var heel_up: float = (p0["foot" + sd] as Vector3).y
+		low = minf(low, (P["foot" + sd] as Vector3).y - heel_up - surface_at(P["foot" + sd], heel_up))
+		low = minf(low, (P["ball" + sd] as Vector3).y - ball_up - ball_s)
+		low = minf(low, (E["ball" + sd] as Vector3).y - (e0["ball" + sd] as Vector3).y - ball_s)
 	return low
 
 

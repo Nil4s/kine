@@ -24,6 +24,7 @@ const SRC := {
 	"FOOT SLIDE": "foot skating: a foot under 5 cm off the floor that slides more than 2.5 cm (Karunratanakul et al. 2023, the motion-generation standard; there per frame, here per planted stretch: stricter)",
 	"THROUGH A PROP": "a body part or the weapon inside a prop of the set (Props.depth, the capsules against the prop's boxes; resting ON a top is allowed): our own bars, docs/MOTION_RULES.md",
 	"FLOATS": "the hips over a seat but not on it while no foot carries the body: our own bars, docs/MOTION_RULES.md",
+	"CARRY FORM": "a load carried in front in both hands is held close at knuckle-to-elbow height: upper arms near the trunk, elbows bent (Anderson et al. 2007, anterior load carriage; Snook 1978), hands near the body (NIOSH lifting equation: H 25 cm ideal, the multiplier 25/H)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
 ## and WHERE the number comes from (the panel's "source" button opens it). The links are docs/MOTION_RULES.md's own
@@ -41,6 +42,7 @@ const WHY := {
 	"FOOT SLIDE": "A planted foot that slides looks like ice skating, the most noticed mistake in animation.",
 	"THROUGH A PROP": "A table, a chair, a box are solid. A hand or a weapon passing through one breaks the scene at once.",
 	"FLOATS": "Sitting means the seat carries the weight. Hips hovering over it, with nothing else holding him up, read as a ghost.",
+	"CARRY FORM": "Nobody carries a box on straight arms held out in front: it is held against the body, arms down at the sides, elbows bent. Anything else reads as fake at once.",
 }
 const URL := {
 	"SEQUENCE": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
@@ -55,6 +57,7 @@ const URL := {
 	"BALANCE": "https://doi.org/10.1016/0021-9290(95)00178-6",
 	"THROUGH A PROP": "res://docs/MOTION_RULES.md",
 	"FLOATS": "res://docs/MOTION_RULES.md",
+	"CARRY FORM": "https://stacks.cdc.gov/view/cdc/189155",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
 const PROP_WARN := 0.005   # m inside a prop: a WARN (Props.REST_SINK: less is resting on it)
@@ -64,6 +67,10 @@ const SOLE_SINK := 0.01    # m: a SOLE on a top may be this far in: the floor it
 const FLOAT_MIN := 0.02    # m: the hips this far over a seat they are over...
 const FLOAT_MAX := 0.15    # ...up to this (higher is not "meant to sit")
 const FLOAT_RUN := 6       # frames (0.1 s)
+## CARRY FORM (round 39, Nick: "we never saw a human holding a box like that"): two-handed front carry, from real people
+const CARRY_UP := 35.0     # deg: an upper arm further than this from hanging down is holding the load out, not carrying
+const CARRY_FLEX := [50.0, 130.0]   # deg elbow flexion: carried loads ride on bent elbows (knuckle to elbow height)
+const CARRY_H := 0.40      # m, hands' middle from the ankles' middle, along the floor (NIOSH: 25 ideal; 40 -> 25/H = 0.63)
 const PART_WORDS := {"pelvis": "hips", "hips_wide": "hips", "chest_wide": "chest", "spine_01": "lower back",
 	"spine_02": "middle back", "spine_03": "chest", "neck_01": "neck", "head": "head", "clavicle": "shoulder",
 	"upperarm": "upper arm", "lowerarm": "forearm", "hand": "hand", "thigh": "thigh", "calf": "shin", "foot": "foot",
@@ -131,6 +138,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			raw[-1]["pc"] = prop_hits(S.props_at(t, B), B, S.holding(t, B))   # UU2: the set as it is now; holding hands are not through
 			raw[-1]["sg"] = seat_gap(S.props, B)
 			raw[-1]["fo"] = B.foot_state("_l")[2] or B.foot_state("_r")[2]
+			raw[-1]["cf"] = carry_form(S, t, B)
 		if contacts and not B.contacts().is_empty():
 			bad += 1
 	S.stepped = was_stepped
@@ -158,6 +166,9 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			out["prop_hits"].append(now["pc"])
 			out["seat_gap"].append(now["sg"])
 			out["feet_on"].append(now["fo"])
+			if not out.has("carry_form"):
+				out["carry_form"] = []
+			out["carry_form"].append(now["cf"])
 		for k in ["tip", "hips", "head", "hand_l", "hand_r"]:
 			out[k].append(((now[k] as Vector3) - prev[k]).length() * FPS if i > 0 else 0.0)
 		out["w_pelvis"].append(ang_deg(prev["gp"], now["gp"]) * FPS if i > 0 else 0.0)
@@ -594,6 +605,66 @@ static func rule_floats(sm: Dictionary) -> Array:
 	return out
 
 
+## the two-handed carry's form this frame ({} = nothing carried in both hands): "up" the larger upper arm angle from
+## hanging straight down, "flex" both elbows' bend (0 = straight), "h" the hands' middle from the ankles' middle along
+## the floor (NIOSH H)
+static func carry_form(S: Scene, t: float, B: Body) -> Dictionary:
+	var two := false
+	for pi in S.holding(t, B):
+		for c in S.carries():
+			if int(c["prop"]) == int(pi) and (c["hands"] as Array).size() == 2:
+				two = true
+	if not two:
+		return {}
+	var up := 0.0
+	var flex := []
+	for sd in ["_l", "_r"]:
+		var u: Vector3 = (B.P["lowerarm" + sd] as Vector3) - (B.P["upperarm" + sd] as Vector3)
+		var f: Vector3 = (B.P["hand" + sd] as Vector3) - (B.P["lowerarm" + sd] as Vector3)
+		up = maxf(up, rad_to_deg(u.angle_to(Vector3.DOWN)))
+		flex.append(rad_to_deg(u.angle_to(f)))
+	var hands := ((B.cap("hand_l")[0] as Vector3) + (B.cap("hand_l")[1] as Vector3) + (B.cap("hand_r")[0] as Vector3) + (B.cap("hand_r")[1] as Vector3)) / 4.0
+	var ankles := ((B.P["foot_l"] as Vector3) + (B.P["foot_r"] as Vector3)) / 2.0
+	return {"up": up, "flex": flex, "h": Vector2(hands.x - ankles.x, hands.z - ankles.z).length()}
+
+
+## CARRY FORM: a two-handed carry held unlike a person (arms out, elbows straight or folded, the load far from the
+## body) for FLOAT_RUN frames or more: one WARN per run, naming what is off and what real carriers do
+static func rule_carry_form(sm: Dictionary) -> Array:
+	var out := []
+	if not sm.has("carry_form"):
+		return out
+	var cf: Array = sm["carry_form"]
+	var whats := func(d: Dictionary) -> Array:
+		var w := []
+		if d.is_empty():
+			return w
+		if float(d["up"]) > CARRY_UP:
+			w.append("the upper arms are %.0f deg out from the sides (people carry with them down, under %.0f)" % [d["up"], CARRY_UP])
+		var fl: Array = d["flex"]
+		if minf(fl[0], fl[1]) < CARRY_FLEX[0] or maxf(fl[0], fl[1]) > CARRY_FLEX[1]:
+			w.append("the elbows bend %.0f / %.0f deg (people carry on bent elbows, %.0f-%.0f)" % [fl[0], fl[1], CARRY_FLEX[0], CARRY_FLEX[1]])
+		if float(d["h"]) > CARRY_H:
+			w.append("the hands are %.0f cm in front of the ankles (people hold a load against the body: NIOSH 25 cm ideal, over %.0f is far)" % [float(d["h"]) * 100.0, CARRY_H * 100.0])
+		return w
+	var i := 0
+	while i < cf.size():
+		if whats.call(cf[i]).is_empty():
+			i += 1
+			continue
+		var a := i
+		var worst: Array = whats.call(cf[i])
+		while i < cf.size() and not whats.call(cf[i]).is_empty():
+			if whats.call(cf[i]).size() > worst.size():
+				worst = whats.call(cf[i])
+			i += 1
+		if i - a >= FLOAT_RUN:
+			out.append(_f("WARN", sm["t"][a], "CARRY FORM", "%.2f-%.2f s: carried in both hands, but %s. Hold it against the belly: upper arms down, elbows bent about 90 deg." % [
+				sm["t"][a], sm["t"][i - 1], "; ".join(worst)], float(worst.size())))
+			out[-1]["t1"] = sm["t"][i - 1]
+	return out
+
+
 static func card_at(S: Scene, t: float) -> int:
 	var ts := S.times()
 	for i in ts.size():
@@ -627,6 +698,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_balance(sm)
 	out += rule_props(S, sm)
 	out += rule_floats(sm)
+	out += rule_carry_form(sm)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

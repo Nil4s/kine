@@ -58,6 +58,12 @@ func _init() -> void:
 	B.props = [at("table", mid.x, mid.z)]
 	B.ground()
 	ok(is_equal_approx(B.offset.y, y0) and sole(B, "_l") < 0.001, "feet under a table: on the floor, where they stand with no set (offset.y %.4f vs %.4f)" % [B.offset.y, y0])
+	# toes touching the face of a 1 m stack (two crates): the body stays on the floor (round 39: it was lifted onto it)
+	B = body()
+	var toe: float = maxf((B.E["ball_l"] as Vector3).z, (B.E["ball_r"] as Vector3).z)
+	B.props = [at("crate", 0.0, toe + 0.2 - 0.02), Props.make("crate", Props.xf_at(Vector3(0, 0.5, toe + 0.2 - 0.02), 0.0))]
+	B.ground()
+	ok(is_equal_approx(B.offset.y, y0), "toes 2 cm into the face of a 1 m crate stack: the body stays on the floor (offset.y %.4f vs %.4f)" % [B.offset.y, y0])
 	# seated over a chair: the hips on the seat, not in it
 	for kind in ["chair", "stool"]:
 		B = body()

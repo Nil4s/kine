@@ -1096,3 +1096,23 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   EVIDENCE: run_par -j 8: SUITES 115/115 PASS, 386 s (C:/Temp/par39; carry:w added; mirror_list holds the new card
   keys). Fingerprint 99e49b62d06763c13a9bc3fde9ef185b; no zz_ / poser_test leftovers. README_AI Round 39. Screenshot
   sent: a box taken from a crate in both hands and carried 0.9 m.
+- [x] UU5 CARRY FORM AGAINST REAL PEOPLE (Nick 10-17: "we both never saw an human holding an box like that, look for
+  real ones for comparision allways"). References: Anderson et al. 2007 (anterior load carriage, CDC stacks 189155):
+  loads carried in front at knuckle or elbow height, a lean back; Snook 1978: 26% more accepted at knuckle than at
+  elbow height; NIOSH lifting equation: H = 25 cm ideal, 25/H. Bars: two-handed carry, upper arms within 35 deg of
+  hanging, elbows 50-130 deg, hands within 40 cm of the ankles' middle; WARN CARRY FORM otherwise. The reference
+  carry built on our body measures inside the bars and its box sits between this body's knuckle and elbow heights;
+  the first screenshot's pose is flagged. Rule rows in SRC / WHY / URL and docs/MOTION_RULES.md.
+  EVIDENCE: tests/carry_form_test.gd PASS 5/5 (headless). OURS vs REFERENCE on the reference carry: upper arms 10.0
+  deg from hanging (bar 35), elbows 92.0 / 92.0 (people ~90, bar 50-130), hands 30.3 cm in front of the ankles (NIOSH
+  25 ideal, bar 40), box bottom 1.08 m between this body's knuckle and elbow heights (0.78-1.17); no CARRY FORM, nothing
+  through the box. The first screenshot's pose: upper arms 52.1 deg, elbows 2.0 (straight), hands 45.4 cm -> WARN
+  naming all three. One hand: not graded. Stubs: rule_carry_form -> [] FAIL 1; carry_form -> {} FAIL 1; CARRY_UP 60
+  FAIL 1 (a first version of that check was VACUOUS: "upper arms" is also in the advice sentence; now it matches
+  "the upper arms are 52 deg out"). Found by the new screenshot: toes 2 cm into a 1 m crate stack LIFTED THE BODY
+  1.000 m onto it; the toe tip now stands where the ball of its foot stands (stand_set_test: old code FAIL 1, new 0.0000).
+  Full suite: run_par 116/116 PASS, 389 s (C:/Temp/par39c). The run before it (par39b) had 1 FAIL: determinism's
+  combo3_dummy_hit rendered db34428b9d / 8deb0bf61c under 8 workers; 9 reruns (2 alone, 4 side by side, 3 probed)
+  all 8deb0bf61c; probe: no dummy job pending at capture time (that hypothesis refuted). Cause NOT found;
+  determinism.py now keeps both PNGs on a mismatch (%TEMP%/poser_determinism_mismatch). Screenshot re-sent.
+
