@@ -11,6 +11,7 @@ signal scrubbed(t: float)
 signal picked(i: int)
 signal retime_started
 signal retimed(final: bool)
+signal range_set(which: String, t: float)   # WW4: Shift+click on the ruler = in point, Alt+click = out point
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 
 const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
@@ -140,6 +141,8 @@ func _gui_input(ev: InputEvent) -> void:
 			if h.is_empty():
 				return
 			match h["kind"]:
+				"ruler" when ev.shift_pressed or ev.alt_pressed:
+					range_set.emit("in" if ev.shift_pressed else "out", t_of(ev.position.x))
 				"ruler":
 					_drag = {"kind": "scrub"}
 					scrubbed.emit(t_of(ev.position.x))
@@ -277,6 +280,16 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(x, 1), Vector2(x + 5, 7), Vector2(x, 13), Vector2(x - 5, 7)]), c)
 		if mk[1].size() > 1:
 			draw_string(font, Vector2(x + 6, 12), str(mk[1].size()), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, c)
+	# the preview range (WW4): shaded outside, edges marked
+	var pr := PreviewRange.span(float(m.pv_in), float(m.pv_out), L)
+	if not pr.is_empty():
+		var xa0 := x_of(pr[0])
+		var xb0 := x_of(pr[1])
+		draw_rect(Rect2(0, 0, maxf(xa0, 0.0), size.y), Color(0, 0, 0, 0.45))
+		draw_rect(Rect2(xb0, 0, maxf(size.x - xb0, 0.0), size.y), Color(0, 0, 0, 0.45))
+		draw_rect(Rect2(xa0, 0, xb0 - xa0, 3), Tok.c("warn"))
+		draw_line(Vector2(xa0, 0), Vector2(xa0, size.y), Tok.c("warn"), 1.0)
+		draw_line(Vector2(xb0, 0), Vector2(xb0, size.y), Tok.c("warn"), 1.0)
 	# playhead
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)
