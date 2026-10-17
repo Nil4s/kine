@@ -342,3 +342,10 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - tools/layout_measure.gd: the view's share of the window (4 px samples of what no chrome covers); flags are --m-*
   because main.gd reads --scene and --shot itself. 1600x900: startup 46.5 -> 73.1 %, combo3 open 31.5 -> 71.3 %.
 - tests: tour (QQ2/QQ3 checks), hints (new), fold (new), autosave 11b/11c, hover / hover_sync wait for the rest.
+
+## Round 35: a stranger can start it and knows why it stops (GATES PP)
+- pose.bat finds Godot 4.7: POSER_GODOT, godot\ beside it, PATH (Godot_v4.7*win64.exe / godot.exe), godot.path beside
+  it (one line; LOCAL, git-ignored: Nick's own holds his path). Not found: words + godotengine.org + the three ways, a
+  pause. POSER_DRY=1 prints "LAUNCH ..." and starts nothing. pose.sh: the same for Linux / macOS. tests/launcher_test.
+- Body.last_stop {kind limit|contact, ...}: set by set_ang_safe (locked axes ignored); clear it before an edit, read it
+  after. main.stop_words(st) turns it into "STOPPED: ..." on the drag's status line. tests/drag_stop_test.gd.

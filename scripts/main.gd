@@ -1909,6 +1909,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 
 func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
+	B.last_stop = {}
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / get_viewport().get_visible_rect().size.y
 	var dw: Vector3 = cam.global_basis.x * rel.x * mpp - cam.global_basis.y * rel.y * mpp
 	var tip := sel in ["hand_r", "hand_l", "foot_r", "foot_l"]
@@ -1941,7 +1942,29 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
 	var what := "ROLLING" if twist else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING")))
-	_say("%s the %s     %s" % [what, nice(sel), _angles_words(sel, v2)])
+	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
+
+
+## A DRAG THAT STOPS SAYS WHY (round 35, GATES PP2): the reason Body.set_ang_safe recorded, in words; "" if it went
+## all the way. Typed poses say "stopped short" the same way
+func stop_words(st: Dictionary) -> String:
+	if st.is_empty():
+		return ""
+	if st["kind"] == "limit":
+		return "     STOPPED: the %s is at its limit, %s %.0f (its range %.0f to %.0f)" % [nice(st["joint"]), st["axis"], st["at"], st["lo"], st["hi"]]
+	var ps: Array = st["pairs"]
+	if ps.is_empty():
+		return "     STOPPED: it would go deeper into the body"
+	# the moving part first (the one below the dragged joint), the two deepest contacts, the rest counted
+	var below := func(x: String) -> bool:
+		var y := x
+		while y != "":
+			if y == st["joint"]:
+				return true
+			y = B.parent.get(y, "")
+		return false
+	var said := ps.slice(0, 2).map(func(q): return "the %s meets the %s" % ([nice(q[0]), nice(q[1])] if below.call(q[0]) or not below.call(q[1]) else [nice(q[1]), nice(q[0])]))
+	return "     STOPPED: " + ", ".join(said) + ("  (+ %d more)" % (ps.size() - 2) if ps.size() > 2 else "")
 
 
 func _drag_bat(rel: Vector2, dw: Vector3, turn: bool, spin: bool) -> void:

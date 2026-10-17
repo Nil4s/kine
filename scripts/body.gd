@@ -878,16 +878,38 @@ static func seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> float
 
 ## set a joint's angles, but never INTO the body: if the new angles sink parts deeper than before, go only as far as
 ## the contact (bisection on the way from the old angles to the new: 10 halvings = 0.1% of the move)
+## WHY A MOVE STOPPED (round 35, GATES PP2): set_ang_safe records it here, for the status line to say. A caller clears
+## it before an edit and reads it after. {"kind": "limit", "joint", "axis", "at", "lo", "hi"} when an angle asked for
+## lies past the joint's range (more than 0.5 deg); {"kind": "contact", "joint", "pairs": [[a, b], ...]} when the move
+## was cut short where parts meet (the pairs touching at the asked angles that were not touching before)
+var last_stop := {}
+
+
 func set_ang_safe(j: String, v: Vector3) -> bool:
 	if fast:
 		set_ang(j, v)   # playback: limits only (the cook already checked contacts frame by frame)
 		return true
+	var cl := clamp_ang(j, v)
+	for k in 3:
+		var r: Vector2 = lim[j][["bend", "side", "twist"][k]]
+		if r.y - r.x > 0.5 and absf(cl[k] - v[k]) > 0.5:   # a locked axis (a hinge's side, twist) is not a stop
+			last_stop = {"kind": "limit", "joint": j, "axis": ["bend", "side", "twist"][k], "at": cl[k], "lo": r.x, "hi": r.y}
+			break
 	var old: Vector3 = ang[j]
 	var pen0 := penetration()
 	set_ang(j, v)
 	if penetration() <= pen0 + 1e-4:
 		return true
 	var target: Vector3 = ang[j]
+	var now := {}
+	for c in contacts():
+		now[[c[0], c[1]]] = float(c[2])
+	set_ang(j, old)
+	for c in contacts():
+		now.erase([c[0], c[1]])
+	var ps: Array = now.keys()
+	ps.sort_custom(func(a, b): return now[a] > now[b])   # the deepest first
+	last_stop = {"kind": "contact", "joint": j, "pairs": ps}
 	var lo := 0.0
 	var hi := 1.0
 	for i in 10:

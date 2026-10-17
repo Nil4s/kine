@@ -2,3 +2,5 @@
 *.import
 trash/
 scenes/_wip/
+godot.path
+godot/

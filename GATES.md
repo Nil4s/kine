@@ -756,13 +756,38 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
 ## PP. Round 35: a stranger can start it and knows why it stops (from Gemini's review of 2026-10-16, Antigravity,
 ## checked against the code: the launcher text, autosave 15 s, B / C / S keys, the Fix ghost and "stopped short" for
 ## typed poses are as it says. It READ the code, it did not run the app: its 8.2 / 10 is a reading, not a test.)
-- [ ] PP1 THE LAUNCHER WORKS ON ANY MACHINE: pose.bat finds Godot 4.7.x by, in order: POSER_GODOT, a godot/ folder
+- [x] PP1 THE LAUNCHER WORKS ON ANY MACHINE: pose.bat finds Godot 4.7.x by, in order: POSER_GODOT, a godot/ folder
   beside it, PATH; never a path that exists only on Nick's PC; passes its arguments through (%*); when Godot is not
   found it says so in words and where to get it, and waits for a key. A pose.sh does the same on Linux / macOS. Test:
   the launch line each finds (dry run, no Godot started) with POSER_GODOT set, with a fake godot/ folder, with neither
   (the message); the arguments arrive. Anti-vacuity: the old pose.bat fails the "neither" case (no message).
-- [ ] PP2 A DRAG THAT STOPS SAYS WHY: when a drag stops short (a joint at its limit, or two parts meeting), the status
+  AMENDED before the work: a 4th source, after PATH: a one-line godot.path file beside it (local, git-ignored), so
+  Nick's own double-click keeps working without his path in the repo. POSER_DRY=1 prints the launch line, starts
+  nothing and does not wait (the test's mode).
+  - EVIDENCE: pose.bat rewritten (POSER_GODOT -> godot\Godot_v4.7*win64.exe -> `where` Godot_v4.7* / godot.exe on
+    PATH -> godot.path; the not-found text names godotengine.org and the three ways; pause unless POSER_DRY); pose.sh
+    (new) the same for Linux / macOS (Godot.app too). Nick's godot.path written (git-ignored with godot/): his
+    double-click finds his 4.7.2 (dry run). tests/launcher_test.gd (new, launcher:h): copies of both launchers in a
+    scratch folder, PATH = System32 only: none -> the message, exit 1; POSER_GODOT -> it (and it beats the folder);
+    the folder; PATH; godot.path; "--foo bar" arrives; neither file names a folder of this PC; pose.sh through Git's
+    bash: none -> message, folder -> found, arguments. ANTI-VACUITY: the round-34 pose.bat (git show 38ce920) gives no
+    message. Found while writing it: the anti-vacuity first ran git with PATH = System32, read NOTHING and passed on
+    an empty file; it now asserts the old launcher was read (179 chars). STUB: the "was not found" words removed ->
+    FAIL 1.
+- [x] PP2 A DRAG THAT STOPS SAYS WHY: when a drag stops short (a joint at its limit, or two parts meeting), the status
   line names it in words ("the right forearm meets the chest", "the right elbow is at its limit: 145 of 145 bend"),
   as typed poses already do. Test: an arm dragged into the chest and an elbow bent past its limit, through real mouse
   events; the status names the parts. Anti-vacuity: a drag that is NOT stopped says neither.
-- [ ] PP3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 35; committed
+  - EVIDENCE: Body.last_stop, written by set_ang_safe only where a move is already stopped: an angle asked past the
+    joint's range (> 0.5 deg; a LOCKED axis such as a hinge's side / twist is not a stop: the first run said "at its
+    limit, side 0 (range 0 to 0)" for a free forearm drag), or the contact branch (the pairs touching at the asked
+    angles and not before, deepest first). main.stop_words: "STOPPED: the right elbow / forearm meets the right hip
+    joint / thigh, the right elbow / forearm meets the hips (+ 12 more)" (the moving part named first, two named);
+    "STOPPED: the right elbow / forearm is at its limit, bend 0 (its range 0 to 145)". tests/drag_stop_test.gd (new,
+    windowed, real mouse press / motions / release, the label read): arm into the body, forearm past its range, a
+    small free drag says neither. STUB: the pre-PP2 main.gd + body.gd -> FAIL 2 (cases 1 and 2). The bisection that
+    follows is unchanged (determinism suite in the full run).
+- [x] PP3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 35; committed
+  - EVIDENCE: run_all 102/102 PASS (C:/Temp/full35; launcher, drag_stop new; determinism PASS: the body.gd change
+    moved nothing); Nick's files' fingerprint 99e49b62 (the house value), only the old bo_sweep deletion unstaged;
+    no zz_ (repo, user data, %TEMP%); exports/ empty; README_AI "Round 35"; committed.
