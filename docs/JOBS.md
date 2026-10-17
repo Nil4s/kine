@@ -406,4 +406,5 @@ and later a cup) with #205 snaps. (3) #225 weight/timing rules (jump, breathing,
 
 Items that do not exist in UPGRADES_200 but the jobs need: an off-floor/airborne switch in the window (jump); a jump
 rule (hang time against height, the arc, a stiff landing); a lifting-form rule (back vs knees). Suggested as #228,
-#229, and one for the switch. Needs Nick's call.
+#229, and one for the switch. Added to UPGRADES_200 on 2026-10-17 as #228 (jump rule), #229 (lifting form) and #230
+(the off-floor switch).

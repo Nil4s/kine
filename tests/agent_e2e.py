@@ -108,7 +108,9 @@ try:
         raise SystemExit("AGENT E2E FAIL the saved file does not validate: %s" % v["errors"][:2])
     print("AGENT E2E PASS (%d requests)" % n)
 finally:
-    if p.poll() is None:
+    try:
+        p.wait(timeout=30)   # let it exit on its own: main's _exit_tree removes its poser_test_<pid>.cfg
+    except subprocess.TimeoutExpired:
         p.kill()
     if not KEEP and os.path.exists(os.path.join(PROJ, OUT)):
         os.remove(os.path.join(PROJ, OUT))

@@ -130,7 +130,9 @@ try:
     ok("error" in bad and "nose" in bad["error"]["message"], "a part that isn't: refused, named ('%s')" % bad.get("error", {}).get("message", "")[:60])
     call("quit")
 finally:
-    if p.poll() is None:
+    try:
+        p.wait(timeout=30)   # let it exit on its own: main's _exit_tree removes its poser_test_<pid>.cfg
+    except subprocess.TimeoutExpired:
         p.kill()
 r = subprocess.run([sys.executable, os.path.join(PROJ, "tools", "agent_math_doc.py"), "--check"], capture_output=True, text=True)
 ok(r.returncode == 0, "docs/AGENT_MATH.md is current with data/body_limits.json (%s)" % r.stdout.strip())

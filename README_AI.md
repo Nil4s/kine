@@ -396,3 +396,25 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   `_import_ask` (native picker) -> `_import_file`. Library `user://library`; tests get `user://zz_lib_<pid>`
   (removed on exit). Rigged files are kept, not yet played (#209).
 - docs/JOBS.md: six Blender-vs-Poser jobs scored (routes checked against Blender 4.5.3 installed here).
+
+## Round 38: the set is solid (GATES TT; UPGRADES_200 #203, #204, #205; also #228-#237 added, section L the FACE)
+- Rule of the round: a scene with NO props runs the old code paths (every new branch is `if not props.is_empty()`).
+- Grounding (body.gd): `B.props` (Scene._ground and main's `_props_show` set it). `sole_low()` -> `_sole_low_set()` on
+  the set: each sole point (foot P, ball E, ball P) is measured from `surface_at(pt, up)` = the floor or the LOWEST
+  support top at which the point is not inside a prop (over a box: its top; under a table or a chair: the floor).
+  `seat_lift()`: the part of the hips / thighs OVER a support (axis sampled every 2 cm) sinking under its top by less
+  than SEAT_CATCH (15 cm) lifts the body onto it. `foot_state`'s "on" is measured from the surface under the foot, so
+  pins hold on a step. balance.gd's footprint uses the same surface.
+- Check (rulebook.gd): sample() adds "prop_hits", "seat_gap", "feet_on" ONLY when the scene has props.
+  `prop_hits(props, B)`: parts (fingers aside, weapons when out) deeper than PROP_WARN 5 mm into a prop; feet use
+  `sole_rad()` (capsules thinned to the sole line: the foot capsule reaches 6 cm under the floor at rest) and a 1 cm
+  allowance (SOLE_SINK: the floor itself lets the soles dip 6.75 mm mid-move). Rules THROUGH A PROP (FAIL from 2 cm)
+  and FLOATS (hips 2-15 cm over a seat, no foot down, 0.1 s). Rows in docs/MOTION_RULES.md; `part_words()` names parts.
+- SET tab, USE group: Sit here (chair / stool / bench: faces away from the back, hips behind the seat's middle, thighs
+  level, ground, hanging feet planted) and Step up (box / crate / step / stairs: the nearer foot IK-planted 12 cm in
+  from the near edge of the lowest top; out of reach -> refused in words). Both through `_use_card()`, which says
+  what still goes into a prop.
+- Test drivers that talk to a Godot child (tests/py/determinism.py, measure_check.py) WAIT for it after "quit": a
+  killed child skips main's `_exit_tree` and leaks user://poser_test_<pid>.cfg.
+- Known, not fixed: the soles dip up to 6.75 mm into the floor mid-move (Scene._apply plants after grounding); every
+  scene has it; fixing it changes every scene's numbers, so it is its own item.

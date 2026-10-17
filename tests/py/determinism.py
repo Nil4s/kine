@@ -80,7 +80,9 @@ for order in (TIMES, list(reversed(TIMES))):
         got["t2"] = call("state", {"t": 2.0}).get("result")
         call("quit")
     finally:
-        if p.poll() is None:
+        try:
+            p.wait(timeout=30)   # let it exit on its own: main's _exit_tree removes its poser_test_<pid>.cfg
+        except subprocess.TimeoutExpired:
             p.kill()
     answers.append(got)
 A, B = answers

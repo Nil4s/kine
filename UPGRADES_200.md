@@ -215,3 +215,29 @@ assets coming IN through the same open formats that go OUT (round 34: .glb, .bvh
      are taught while they are used (Blender's docs explain buttons; Poser explains MOTION).
 227. [BENCH] The fundraiser line comes from this file only: "FASTER than Blender on N of M jobs for a first-timer",
      with the list linked. No claim the table does not hold.
+228. [WHY] Jump rule (docs/JOBS.md job 4): hang time against height (h = g t^2 / 8 for the whole flight), the hips'
+     path a parabola, take-off and landing absorbed (knees bend before and after); a jump that hangs too long or
+     lands stiff named with the number.
+229. [WHY] Lifting form (JOBS.md job 6): bending at the back with straight knees to reach the floor is flagged
+     ("back 70 deg, knees 10 deg: lift with the legs"); the angle pair read per card.
+230. [SET] The off-floor switch (JOBS.md job 4): a card can say "airborne", so planting lets both feet leave the
+     floor for those cards (today on_floor pins a foot every frame, so a jump cannot leave the ground).
+
+## L. THE FACE (Nick 2026-10-17, after looking at Maya: "u can custom eyes, nose, mouth, small details ... like blink
+## for scenes, move mouth"). TODAY: the head is one smooth shape, no face. Order: cheap and useful first (eyes, blink,
+## jaw: bones, so they reach every export), then mouth shapes (morph targets: .glb only, BVH carries bones only), then
+## fine detail (needs a sculpted face asset; costs more as art than as code). Built after sections I and J.
+
+231. [FACE] Eyes: two eyeballs that turn (bones, with limits: about 35 deg side, 25 up / down); "look at" a point,
+     the dummy, or the weapon's tip, held across cards.
+232. [FACE] Blink: eyelids (bones or morphs); "Blink here" on a card (about 150 ms, closed for 2 frames) and an
+     auto-blink every 2-6 s, never during a held stare unless asked.
+233. [FACE] Jaw: opens and closes (a bone, about 0-25 deg), keyed on cards like any joint; the mouth corners follow.
+234. [FACE] Mouth shapes (visemes): A, E, I, O, U, M/B/P, F/V, L, rest, as morph targets on the head; keyed on the
+     strip; exported in the .glb as morph weights (said plainly in Export: BVH does not carry them).
+235. [FACE] Expressions: brows (raise, frown), cheeks (smile), as a few named sliders that mix; presets (angry,
+     surprised, effort, pain) for combat cards.
+236. [FACE] Lip sync from an audio file: the visemes placed by the sound's loudness and timing (a classic signal
+     method, no AI model), editable as cards afterwards.
+237. [FACE] Check on the face: eyes that stare without a blink for over 10 s, a jaw open with no sound, expression
+     flips in under 2 frames, each named with the frames.

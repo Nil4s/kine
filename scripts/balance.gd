@@ -39,7 +39,7 @@ static func footprint(B: Body, side: String) -> PackedVector2Array:
 		var r: float = B.rad[part]
 		for k in 9:
 			var p: Vector3 = (c[0] as Vector3).lerp(c[1], k / 8.0)
-			if p.y - r > TOUCH:
+			if p.y - r - (0.0 if B.props.is_empty() else B.surface_at(p, r)) > TOUCH:   # TT2: the top it stands on
 				continue
 			var rf := r
 			for a in RING:

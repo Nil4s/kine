@@ -22,6 +22,8 @@ const SRC := {
 	"BALANCE": "centre of mass from the body parts' masses (de Leva 1996, J. Biomech. 29(9)) over the feet on the floor",
 	"LOOP SEAM": "a loop must not show where it starts: the last frame meets the first in pose and in speed (our own bars, docs/MOTION_RULES.md)",
 	"FOOT SLIDE": "foot skating: a foot under 5 cm off the floor that slides more than 2.5 cm (Karunratanakul et al. 2023, the motion-generation standard; there per frame, here per planted stretch: stricter)",
+	"THROUGH A PROP": "a body part or the weapon inside a prop of the set (Props.depth, the capsules against the prop's boxes; resting ON a top is allowed): our own bars, docs/MOTION_RULES.md",
+	"FLOATS": "the hips over a seat but not on it while no foot carries the body: our own bars, docs/MOTION_RULES.md",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
 ## and WHERE the number comes from (the panel's "source" button opens it). The links are docs/MOTION_RULES.md's own
@@ -37,6 +39,8 @@ const WHY := {
 	"BALANCE": "With both feet down, the weight must stay over the feet. Past them he would fall: it reads as weightless.",
 	"LOOP SEAM": "A loop plays round and round. If the end does not meet the start, every lap jumps at the same place.",
 	"FOOT SLIDE": "A planted foot that slides looks like ice skating, the most noticed mistake in animation.",
+	"THROUGH A PROP": "A table, a chair, a box are solid. A hand or a weapon passing through one breaks the scene at once.",
+	"FLOATS": "Sitting means the seat carries the weight. Hips hovering over it, with nothing else holding him up, read as a ghost.",
 }
 const URL := {
 	"SEQUENCE": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
@@ -49,7 +53,22 @@ const URL := {
 	"FOOT SLIDE": "https://arxiv.org/pdf/2310.08580",
 	"LOOP SEAM": "res://docs/MOTION_RULES.md",
 	"BALANCE": "https://doi.org/10.1016/0021-9290(95)00178-6",
+	"THROUGH A PROP": "res://docs/MOTION_RULES.md",
+	"FLOATS": "res://docs/MOTION_RULES.md",
 }
+## THE SET (round 38, GATES TT1 / TT4)
+const PROP_WARN := 0.005   # m inside a prop: a WARN (Props.REST_SINK: less is resting on it)
+const PROP_FAIL := 0.02    # m: a FAIL
+const SOLE_SINK := 0.01    # m: a SOLE on a top may be this far in: the floor itself lets the soles dip 6.75 mm mid-move
+                           # (the planting pass after grounding; measured round 38 with an arm-raise on the floor)
+const FLOAT_MIN := 0.02    # m: the hips this far over a seat they are over...
+const FLOAT_MAX := 0.15    # ...up to this (higher is not "meant to sit")
+const FLOAT_RUN := 6       # frames (0.1 s)
+const PART_WORDS := {"pelvis": "hips", "hips_wide": "hips", "chest_wide": "chest", "spine_01": "lower back",
+	"spine_02": "middle back", "spine_03": "chest", "neck_01": "neck", "head": "head", "clavicle": "shoulder",
+	"upperarm": "upper arm", "lowerarm": "forearm", "hand": "hand", "thigh": "thigh", "calf": "shin", "foot": "foot",
+	"ball": "toes", "bat_handle": "weapon's handle", "bat_barrel": "weapon", "wep2_handle": "second weapon's handle",
+	"wep2_blade": "second weapon"}
 const HIPS_MIN := 389.0 / 4.0      # deg/s
 const HEAD_WARN := 0.15            # m from where it was as the swing began (9 cm recorded + 6 cm grace)
 const HEAD_FAIL := 0.30
@@ -108,6 +127,10 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),
 			"fy": minf((B.P["foot_l"] as Vector3).y, (B.P["foot_r"] as Vector3).y), "wep": B.wep_on, "kind": B.wep_kind,
 			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B)})
+		if not S.props.is_empty():
+			raw[-1]["pc"] = prop_hits(S.props, B)
+			raw[-1]["sg"] = seat_gap(S.props, B)
+			raw[-1]["fo"] = B.foot_state("_l")[2] or B.foot_state("_r")[2]
 		if contacts and not B.contacts().is_empty():
 			bad += 1
 	S.stepped = was_stepped
@@ -127,6 +150,14 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 		out["ball_r"].append(now["br"])
 		out["balance"].append(float(now["bal"]["margin"]))
 		out["both_down"].append(now["bal"]["down"].size() == 2)
+		if now.has("pc"):   # the set (TT1, TT4): only a scene with props has these keys
+			if not out.has("prop_hits"):
+				out["prop_hits"] = []
+				out["seat_gap"] = []
+				out["feet_on"] = []
+			out["prop_hits"].append(now["pc"])
+			out["seat_gap"].append(now["sg"])
+			out["feet_on"].append(now["fo"])
 		for k in ["tip", "hips", "head", "hand_l", "hand_r"]:
 			out[k].append(((now[k] as Vector3) - prev[k]).length() * FPS if i > 0 else 0.0)
 		out["w_pelvis"].append(ang_deg(prev["gp"], now["gp"]) * FPS if i > 0 else 0.0)
@@ -419,6 +450,148 @@ static func rule_balance(sm: Dictionary) -> Array:
 	return out
 
 
+## the body and the weapon inside the props, this frame: [[part, prop index, depth m], ...] deeper than PROP_WARN (a
+## sole: SOLE_SINK). Less is RESTING on a top (a foot on a box, the hips on a seat, a hand flat on a table)
+static func prop_hits(props: Array, B: Body) -> Array:
+	var parts := []
+	for part in B.cap0:
+		if not (part.begins_with("thumb") or part.begins_with("index") or part.begins_with("middle") or part.begins_with("ring") or part.begins_with("pinky")):
+			parts.append(part)
+	if B.wep_on:
+		parts += ["bat_handle", "bat_barrel"]
+	if B.wep2_on:
+		parts += ["wep2_handle", "wep2_blade"]
+	var out := []
+	for pi in props.size():
+		var p: Dictionary = props[pi]
+		var ball := _ball(p)
+		for part in parts:
+			var c := B.cap(part)
+			var r: float = sole_rad(B, part)
+			if Body.seg_seg(c[0], c[1], ball[0], ball[0]) > float(ball[1]) + r:
+				continue   # nowhere near this prop
+			var d := Props.depth(p, c[0], c[1], r)
+			var bar := PROP_WARN if r == float(B.rad[part]) else SOLE_SINK   # a thinned part is a sole
+			if d > bar:   # under the bar IS resting (Props.rests allows under REST_SINK = PROP_WARN)
+				out.append([part, pi, d])
+	return out
+
+
+## a part's radius for the set: the foot and toe capsules are fitted to the foot's VOLUME and reach 6 cm under the
+## floor at rest, so a part whose rest capsule dips under the floor is thinned until it does not (the sole line that
+## grounding stands on). A foot kicked sideways into a box therefore reads "through" only past that line
+static func sole_rad(B: Body, part: String) -> float:
+	var r: float = B.rad[part]
+	if B.cap0.has(part):
+		r = minf(r, maxf(0.0, minf((B.cap0[part][0] as Vector3).y, (B.cap0[part][1] as Vector3).y)))
+	return r
+
+
+## a sphere round the prop's boxes: [centre, radius] (a quick "nowhere near")
+static func _ball(p: Dictionary) -> Array:
+	var pts := []
+	for sw in Props.solids(p):
+		var h: Vector3 = sw["half"]
+		for sx in [-1.0, 1.0]:
+			for sy in [-1.0, 1.0]:
+				for sz in [-1.0, 1.0]:
+					pts.append((sw["xf"] as Transform3D) * Vector3(h.x * sx, h.y * sy, h.z * sz))
+	var c := Vector3.ZERO
+	for q in pts:
+		c += q
+	c /= maxf(1.0, pts.size())
+	var rr := 0.0
+	for q in pts:
+		rr = maxf(rr, c.distance_to(q))
+	return [c, rr]
+
+
+## how far the hips' lowest surface is above a seat they are over (INF: over none, or below its top)
+static func seat_gap(props: Array, B: Body) -> float:
+	var c := B.cap("hips_wide")
+	var r: float = B.rad["hips_wide"]
+	var lo := minf((c[0] as Vector3).y, (c[1] as Vector3).y) - r
+	var mid := ((c[0] as Vector3) + (c[1] as Vector3)) / 2.0
+	var best := INF
+	for p in props:
+		for s in Props.supports(p):
+			if Props._over(s, mid) and lo >= float(s["y"]) - Props.REST_SINK:
+				best = minf(best, lo - float(s["y"]))
+	return best
+
+
+static func part_words(part: String) -> String:
+	var side := ""
+	var base := part
+	if part.ends_with("_l") or part.ends_with("_r"):
+		side = "left " if part.ends_with("_l") else "right "
+		base = part.left(-2)
+	return side + String(PART_WORDS.get(base, base.replace("_", " ")))
+
+
+## THROUGH A PROP: one finding per run of frames per part and prop; FAIL from PROP_FAIL deep
+static func rule_props(S: Scene, sm: Dictionary) -> Array:
+	var out := []
+	if not sm.has("prop_hits"):
+		return out
+	var hits: Array = sm["prop_hits"]
+	var runs := {}   # "part|prop" -> [first frame, last frame, deepest, its frame]
+	var done := []
+	for i in hits.size():
+		var now := {}
+		for h in hits[i]:
+			var k := "%s|%d" % [h[0], h[1]]
+			now[k] = true
+			if runs.has(k) and runs[k][1] == i - 1:
+				runs[k][1] = i
+				if h[2] > runs[k][2]:
+					runs[k][2] = h[2]
+					runs[k][3] = i
+			else:
+				if runs.has(k):
+					done.append([k, runs[k]])
+				runs[k] = [i, i, h[2], i]
+	for k in runs:
+		done.append([k, runs[k]])
+	for e in done:
+		var part: String = e[0].get_slice("|", 0)
+		var pi := int(e[0].get_slice("|", 1))
+		var rn: Array = e[1]
+		var what := String(S.props[pi]["kind"]).replace("_", " ") if pi < S.props.size() else "prop"
+		var t0: float = sm["t"][rn[0]]
+		var t1: float = sm["t"][rn[1]]
+		out.append(_f("FAIL" if rn[2] >= PROP_FAIL else "WARN", sm["t"][rn[3]], "THROUGH A PROP",
+			"%.2f-%.2f s (frames %d-%d): the %s goes %.1f cm into the %s. Move it out, or move the %s: a body cannot pass through it." % [
+			t0, t1, int(round(t0 * 30.0)), int(round(t1 * 30.0)), part_words(part), rn[2] * 100.0, what, what], rn[2]))
+		out[-1]["t1"] = t1
+	return out
+
+
+## FLOATS: the hips 2-15 cm over a seat they are over, for FLOAT_RUN frames or more, while no foot is on the ground
+static func rule_floats(sm: Dictionary) -> Array:
+	var out := []
+	if not sm.has("seat_gap"):
+		return out
+	var g: Array = sm["seat_gap"]
+	var fo: Array = sm["feet_on"]
+	var i := 0
+	while i < g.size():
+		var bad := func(k: int) -> bool: return not fo[k] and float(g[k]) >= FLOAT_MIN and float(g[k]) <= FLOAT_MAX
+		if not bad.call(i):
+			i += 1
+			continue
+		var a := i
+		var top := 0.0
+		while i < g.size() and bad.call(i):
+			top = maxf(top, float(g[i]))
+			i += 1
+		if i - a >= FLOAT_RUN:
+			out.append(_f("WARN", sm["t"][a], "FLOATS", "%.2f-%.2f s: the hips hover %.1f cm over the seat with no foot on the ground. Lower them onto it (or put the feet down)." % [
+				sm["t"][a], sm["t"][i - 1], top * 100.0], top))
+			out[-1]["t1"] = sm["t"][i - 1]
+	return out
+
+
 static func card_at(S: Scene, t: float) -> int:
 	var ts := S.times()
 	for i in ts.size():
@@ -450,6 +623,8 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_hitch(sm, holds)
 	out += rule_loop(S, B)
 	out += rule_balance(sm)
+	out += rule_props(S, sm)
+	out += rule_floats(sm)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

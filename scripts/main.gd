@@ -114,7 +114,7 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["TOOLS", ["Animator tools"]]],
-	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]]],
+	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -364,6 +364,9 @@ var ui_props_root: Node3D
 var sel_prop := -1
 var _prop_drag := {}
 var ui_prop_btns := {}
+var ui_use_btns := {}         # TT3: Sit here / Step up (greyed by the picked prop's kind)
+const SIT_ON := ["chair", "stool", "bench"]
+const STEP_ON := ["box", "crate", "step", "stairs"]
 var _pick_t := INF            # how far along the ray _pick's part was (a prop in front of it wins the click)
 var dummy_mat: StandardMaterial3D
 var hit_tag: Label3D
@@ -3142,7 +3145,8 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
-	"Add prop": "prop", "Import model": "import", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete"}
+	"Add prop": "prop", "Import model": "import", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
+	"Sit here": "sit", "Step up": "step"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -3491,6 +3495,10 @@ func _ui() -> void:
 	var dpb := _button("Delete prop", _prop_del, "take the picked prop out of the scene (Ctrl+Z puts it back)")
 	ui_prop_btns["Delete prop"] = dpb
 	ui_ribbon["SET"].add_child(dpb)
+	ui_use_btns["Sit here"] = _button("Sit here", _prop_sit, "a new card: the body sits on the picked chair, stool or bench (facing away from its back, feet on the floor)")
+	ui_use_btns["Step up"] = _button("Step up", _prop_step, "a new card: the nearer foot steps onto the picked box, step or stairs (the other stays on the floor)")
+	for k in ui_use_btns:
+		ui_ribbon["SET"].add_child(ui_use_btns[k])
 	# VIEW
 	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
 		ui_ribbon["VIEW"].add_child(_button(v[0], _view.bind(v[1])))
@@ -5995,6 +6003,7 @@ func _recover() -> void:
 ## ---------------------------------------------------------------- THE SET (round 37, GATES SS5 / SS6)
 ## The scene's props as nodes under ui_props_root (rebuilt whole: a set is a handful of boxes); the picked one tinted
 func _props_show() -> void:
+	B.props = S.props   # TT2: the live body stands on the set too
 	if ui_props_root == null:
 		return
 	for c in ui_props_root.get_children():
@@ -6013,6 +6022,10 @@ func _props_show() -> void:
 		ui_props_root.add_child(n)
 	for k in ui_prop_btns:
 		_grey(ui_prop_btns[k], "" if sel_prop >= 0 else "pick a prop first: click it in the view, or add one with Add prop")
+	var kind := String(S.props[sel_prop]["kind"]) if sel_prop >= 0 and sel_prop < S.props.size() else ""
+	if ui_use_btns.has("Sit here"):
+		_grey(ui_use_btns["Sit here"], "" if kind in SIT_ON else "pick a chair, a stool or a bench first (Add prop puts one in the set)")
+		_grey(ui_use_btns["Step up"], "" if kind in STEP_ON else "pick a box, a crate, a step or the stairs first (Add prop puts one in the set)")
 	if ui_browser != null:
 		ui_browser.refresh()
 
@@ -6195,6 +6208,86 @@ func _prop_del() -> void:
 	_props_show()
 	_doc_line()
 	_say("deleted the %s: Ctrl+Z puts it back" % nm)
+
+
+## SIT HERE (TT3, #205): a new card after the picked one: the body faces away from the seat's back (the prop's +Z),
+## its hips just behind the seat's middle, thighs level and shins down; grounding on the set lifts the thighs onto the
+## seat; a foot left hanging is planted on the floor. One undo step; a pose that still goes into the seat is said
+func _prop_sit() -> void:
+	if sel_prop < 0 or not String(S.props[sel_prop]["kind"]) in SIT_ON:
+		return
+	_push_undo()
+	var p: Dictionary = S.props[sel_prop]
+	var xf: Transform3D = p["xf"]
+	var fwd: Vector3 = (xf.basis * Vector3(0, 0, 1)).normalized()
+	var sup: Dictionary = Props.supports(p)[0]
+	var seat: Vector3 = (sup["xf"] as Transform3D) * Vector3((sup["c"] as Vector2).x, 0.0, (sup["c"] as Vector2).y)
+	var at := seat - fwd * 0.05
+	var a: Dictionary = B.state()
+	B.set_ang("pelvis", Vector3(0, 0, rad_to_deg(atan2(fwd.x, fwd.z))))
+	for sd in ["_l", "_r"]:
+		B.set_ang("thigh" + sd, Vector3(90, 0, 0))
+		B.set_ang("calf" + sd, Vector3(90, 0, 0))
+	B.offset = Vector3(at.x - (B.p0["pelvis"] as Vector3).x, B.offset.y, at.z - (B.p0["pelvis"] as Vector3).z)
+	B.fk()
+	B.props = S.props
+	B.ground()
+	for sd in ["_l", "_r"]:   # a foot hanging (a high stool): onto the floor
+		var fs := B.foot_state(sd)
+		if not fs[2]:
+			var ball: Vector3 = fs[0]
+			B.plant(sd, Vector3(ball.x, (B.p0["ball" + sd] as Vector3).y, ball.z), fs[1], true)
+	_use_card("sit on the %s" % _prop_name(sel_prop), a)
+
+
+## STEP UP (TT3, #205): a new card: the foot nearer the picked box / step / stairs stands on its lowest top, 12 cm in
+## from the edge nearest the body; the other stays. A top out of the leg's reach is refused in words, nothing changed
+func _prop_step() -> void:
+	if sel_prop < 0 or not String(S.props[sel_prop]["kind"]) in STEP_ON:
+		return
+	var p: Dictionary = S.props[sel_prop]
+	var hips: Vector3 = B.P["pelvis"]
+	var best := {}
+	for s in Props.supports(p):   # the lowest top (the stairs: the first step)
+		if best.is_empty() or float(s["y"]) < float(best["y"]):
+			best = s
+	var sx: Transform3D = best["xf"]
+	var c: Vector2 = best["c"]
+	var h: Vector2 = best["half"]
+	var lh := sx.affine_inverse() * hips
+	var inset := Vector2(minf(0.12, h.x), minf(0.12, h.y))
+	var lp := Vector2(clampf(lh.x, c.x - h.x + inset.x, c.x + h.x - inset.x), clampf(lh.z, c.y - h.y + inset.y, c.y + h.y - inset.y))
+	var top: float = best["y"]
+	var sd := "_l" if (B.P["ball_l"] as Vector3).distance_to(sx * Vector3(lp.x, top, lp.y)) < (B.P["ball_r"] as Vector3).distance_to(sx * Vector3(lp.x, top, lp.y)) else "_r"
+	var target := sx * Vector3(lp.x, 0.0, lp.y)
+	target.y = top + (B.p0["ball" + sd] as Vector3).y
+	_push_undo()
+	var a: Dictionary = B.state()
+	var miss := B.plant(sd, target, B.foot_state(sd)[1], true)
+	if miss > 0.02:
+		B.set_state(a)
+		undo.pop_back()
+		_history_rows()
+		_refresh()
+		_say("the %s's top is out of the foot's reach (it misses by %.0f cm): move it closer to the feet, then Step up again" % [_prop_name(sel_prop), miss * 100.0])
+		return
+	_use_card("step up on the %s" % _prop_name(sel_prop), a)
+
+
+## the posed body becomes a card after the selected one; what goes into a prop on it is said (TT1's own reading)
+func _use_card(nm: String, before: Dictionary) -> void:
+	var at := sel_card + 1 if sel_card >= 0 else -1
+	S.add(nm, B.to_dict(), at)
+	sel_card = at if at >= 0 else S.cards.size() - 1
+	playhead = S.times()[sel_card][1]
+	_rebuild_cards()
+	_refresh()
+	var hits := Rulebook.prop_hits(S.props, B)
+	if hits.is_empty():
+		_say("added card %d: %s. Ctrl+Z takes it back" % [sel_card + 1, nm])
+	else:
+		_say("added card %d: %s, but the %s is %.1f cm into the %s: move it out (Check lists it)" % [sel_card + 1, nm,
+			Rulebook.part_words(hits[0][0]), float(hits[0][2]) * 100.0, String(S.props[hits[0][1]]["kind"])])
 
 
 ## a row in the browser's Set: pick prop i (no undo step)

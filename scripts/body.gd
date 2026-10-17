@@ -76,6 +76,9 @@ var skin_c := {}        # part -> [rest centre, bound radius] of its points (cul
 var allow := {}        # "x|y" -> how deep that pair already sits in the body's neutral poses (m)
 var ang := {}          # joint -> Vector3(bend, side, twist) degrees  (THE POSE)
 var offset := Vector3.ZERO   # pelvis moved from rest (metres)
+var props: Array = []        # THE SET (round 38, TT2): the scene's props (Scene._ground sets it); grounding stands on them
+const SEAT_PARTS := ["hips_wide", "thigh_l", "thigh_r"]   # what sits: lifted onto a seat they sink into
+const SEAT_CATCH := 0.15     # a seat catches a part whose lowest surface is less than this below its top (deeper: through)
 
 # the weapon. Its own frame: the butt end (the bat's knob) at the origin, the shaft along its +Y to the tip.
 ## KINDS (Nick 10-13: "a long bat so I can position hands on a long hammer or a staff; Ghost is kind of a ninja"):
@@ -1265,6 +1268,8 @@ func hand_shape(side: String, kind: String) -> void:
 
 ## the lowest sole point's height above where it rests (m): heel (the ankle joint, minus its rest height) and toe tip
 func sole_low() -> float:
+	if not props.is_empty():
+		return _sole_low_set()
 	var low := INF
 	for sd in ["_l", "_r"]:
 		low = minf(low, (P["foot" + sd] as Vector3).y - (p0["foot" + sd] as Vector3).y)
@@ -1273,10 +1278,73 @@ func sole_low() -> float:
 	return low
 
 
+## the same on the set (TT2): each sole point measured from the surface under it, not from the floor
+func _sole_low_set() -> float:
+	var low := INF
+	for sd in ["_l", "_r"]:
+		for k in [[P, p0, "foot"], [E, e0, "ball"], [P, p0, "ball"]]:
+			var at: Vector3 = k[0][k[2] + sd]
+			var up: float = (k[1][k[2] + sd] as Vector3).y
+			low = minf(low, at.y - up - surface_at(at, up))
+	return low
+
+
+## the surface under a point (world x, z): the floor (0) or a support's top, the LOWEST one at which the point, `up`
+## metres above it, is not inside a prop: a foot over a box stands on its top; a foot under a table or between a
+## chair's legs stays on the floor
+func surface_at(pt: Vector3, up: float) -> float:
+	var hs := [0.0]
+	for p in props:
+		for s in Props.supports(p):
+			if Props._over(s, pt):
+				hs.append(float(s["y"]))
+	hs.sort()
+	for h in hs:
+		var q := Vector3(pt.x, h + up, pt.z)
+		var inside := false
+		for p in props:
+			for sw in Props.solids(p):
+				if Props._sd(sw, q) < -Props.REST_SINK:
+					inside = true
+		if not inside:
+			return h
+	return hs[-1]
+
+
+## how far the hips and thighs must rise to sit ON a seat they sink into (0 = none): the part of each capsule that is
+## OVER a support (its axis sampled every 2 cm) whose top is above it, its lowest surface under the top by less than
+## SEAT_CATCH. Only the part over the seat: a thigh tilting down past the seat's front edge is not lifted by its knee
+func seat_lift() -> float:
+	var lift := 0.0
+	for part in SEAT_PARTS:
+		var c := cap(part)
+		var r: float = rad[part]
+		var a: Vector3 = c[0]
+		var b: Vector3 = c[1]
+		if maxf(a.y, b.y) + r <= 0.0:
+			continue
+		var n := maxi(1, int(ceil(a.distance_to(b) / 0.02)))
+		for p in props:
+			for s in Props.supports(p):
+				var top: float = s["y"]
+				var lo := INF
+				for k in n + 1:
+					var q := a.lerp(b, float(k) / n)
+					if Props._over(s, q):
+						lo = minf(lo, q.y - r)
+				if lo < top and top - lo < SEAT_CATCH and maxf(a.y, b.y) + r > top:
+					lift = maxf(lift, top - lo)
+	return lift
+
+
 ## FEET ON THE FLOOR: move the hips straight up/down so the lowest sole point touches the ground
 ##   offset.y -= sole_low()      (a bent knee drops the body; nothing floats, nothing sinks)
+## On the set (TT2): the soles stand on what is under them, and hips sinking into a seat are lifted onto it
 func ground() -> void:
 	offset.y -= sole_low()
+	if not props.is_empty():
+		fk()
+		offset.y += seat_lift()
 	fk()
 
 
@@ -1348,6 +1416,11 @@ func foot_state(sd: String) -> Array:
 	var b: Vector3 = P["ball" + sd]
 	var on := b.y - (p0["ball" + sd] as Vector3).y < 0.02
 	var heel := (P["foot" + sd] as Vector3).y - (p0["foot" + sd] as Vector3).y < 0.02
+	if not props.is_empty():   # TT2: on the ground = on the surface under it (a step's top counts)
+		var bu: float = (p0["ball" + sd] as Vector3).y
+		var fu: float = (p0["foot" + sd] as Vector3).y
+		on = b.y - bu - surface_at(b, bu) < 0.02
+		heel = (P["foot" + sd] as Vector3).y - fu - surface_at(P["foot" + sd], fu) < 0.02
 	return [b, foot_heading(sd), on, heel]
 
 

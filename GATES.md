@@ -996,3 +996,65 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   Fingerprint 99e49b62d06763c13a9bc3fde9ef185b; no zz_ in scenes/_wip, tests/ or user://. README_AI Round 37.
   Found, not fixed: poser_test_<pid>.cfg files left in user:// by some suite even on a passing run (22 removed by
   hand, the oldest 05:43, before this round): to trace next round.
+
+## TT. ROUND 38: THE SET IS SOLID (UPGRADES_200 #203, #204, #205; Nick 10-17: "u dont need to suggest, u can tell me
+## what u gonna do"). docs/JOBS.md ranks #203 + #204 the biggest unlock ("sit on a chair", half of "pick up a box").
+## The rule of the round: a scene with NO props behaves byte for byte as before (every suite, the fingerprint).
+
+- [x] TT1 SOLID IN CHECK (#203): Rulebook.sample reads, per frame, how deep every body part and the weapon are inside
+  each prop (Props.depth on B.cap / B.rad); a part RESTING on a support (Props.rests: a foot on a box, the hips on a
+  seat, a hand on the table) is not counted. Check gets the rule THROUGH A PROP: one finding per run of frames per
+  part and prop, FAIL from 2 cm, WARN from 5 mm, worded with the part, the prop, the cm and the frames ("the right
+  forearm goes 6.2 cm into the table, frames 31-38"). Test: a scene built in the test whose arm swings through a
+  table -> the FAIL names part, prop, depth; the table moved 2 m away -> nothing; no props -> Check's findings and
+  sample's numbers identical to the same scene before this round.
+  EVIDENCE: tests/prop_check_test.gd PASS 8/8 (headless): an arm swinging through a 0.3 m pillar -> FAIL "the right
+  upper arm goes 3.0 cm into the zz pillar" with frames, span and card; pillar 2 m away -> nothing; no props ->
+  sample() has no set keys (the old dictionary) and nothing about props; feet standing ON a box -> nothing. Found on
+  the way: the foot capsules are fitted to the foot's volume and reach 6.4 cm under the floor AT REST, so feet are
+  measured on their sole line (sole_rad); and the soles dip 6.75 mm into the plain floor mid-move (measured: the
+  planting pass after grounding; an old behaviour, not fixed here), so a sole gets 1 cm (SOLE_SINK). The resting test
+  (Props.rests) was VACUOUS beside a 5 mm bar (a stub removing it passed) and was taken out: under the bar IS resting.
+  Stubs: prop_hits -> [] FAIL 2; SOLE_SINK 0.005 -> FAIL 1. Rows in docs/MOTION_RULES.md; why_test PASS.
+- [x] TT2 STANDING ON THE SET (#203 planting): grounding reads the props: a sole stands on the floor or on the lowest
+  support it is not inside (a foot over a box stands on its top; a foot under a table stays on the floor); one foot on
+  a step and one on the floor: the body hangs so neither sinks and one touches; the hips and thighs that sink into a
+  seat are lifted onto it. A foot's "on the ground" is measured against the surface under it, so a foot on a step is
+  planted and stays pinned over a card run (slide under 1 cm). No props: Body.ground's result is unchanged (all
+  suites, the fingerprint). Test by numbers in a test scene.
+  EVIDENCE: tests/stand_set_test.gd PASS 9/9 (headless): a set 10 m away -> the same P and offset as no set; both
+  feet over a box -> soles 0.400 / 0.400 m and "on the ground"; one foot over it -> that foot 0.400, the other hangs
+  (straight legs: the body rises), on / not on; feet under a table -> the no-set offset exactly; seated over a chair /
+  stool -> hips and thighs ON the seat (0.0 mm in); three cards on a box, the hips turning 20 deg over a planted
+  right foot -> it slides 2.4 mm, no sole under the top. Stubs: surface_at -> 0 FAIL 4; seat_lift -> 0 FAIL 2;
+  foot_state's set branch off -> FAIL 3 (the foot slides 73.3 mm). A first fixture had the second card's own foot
+  18 cm away (a STEP by design, 186.6 mm on the plain floor too): rebuilt with the foot re-planted, as cards are.
+  seat_lift was then fixed to read only the part of a thigh OVER the seat (a stool's feet hung 5.5 cm: the knee end
+  past the seat's edge lifted the body). All suites PASS with no props: the old paths.
+- [x] TT3 SIT HERE, STEP UP (#205): with a chair, stool or bench picked, SET > Sit here adds a card: the body faces
+  away from the chair's back, the hips rest on the seat (lowest surface within 1 cm of the top), both feet flat on the
+  floor (within 1 cm), knees bent 60-110 deg, nothing through the chair (TT1 clean on that card). With a box, step or
+  stairs picked, Step up adds a card with the near foot on its top and the other on the floor, nothing through it.
+  Both one undo step; greyed with a reason for any other pick. Test by real clicks.
+  EVIDENCE: tests/use_set_test.gd PASS 20/20 (a window, the buttons clicked) on combo3: chair -> one card "sit on
+  the chair", one undo step, facing 1.00, hips over the seat at 0.450 (seat 0.450), feet 0.000 / 0.000, knees 87 /
+  87 deg, nothing into it; Ctrl+Z takes it back; stool -> 0.499 (seat 0.500), feet planted 0.000, knees 79 deg; a
+  table picked -> both greyed with reasons; Step up with the box 2.2 m off -> "out of the foot's reach (misses by
+  116 cm): move it closer...", nothing changed; 45 cm in front of the right foot -> "step up on the box": one foot
+  0.400, the other 0.000, nothing into it. Stubs: no foot planting FAIL 2; seat_lift 0 FAIL 4; no reach test FAIL 3.
+- [x] TT4 FLOATS (#204): Check WARNs "FLOATS above the seat" when the hips are over a seat with their lowest surface
+  2-15 cm above it for at least 6 frames (0.1 s) while no foot carries the body. Test: a sitting card lifted 6 cm
+  -> the WARN with the cm and frames; the same card resting -> nothing.
+  EVIDENCE: prop_check_test: hips 6 cm over a chair, feet off -> WARN "the hips hover 6.0 cm over the seat with no
+  foot on the ground" (v 0.06); resting -> no FLOATS, nothing through. Stub rule_floats -> [] FAIL 1.
+- [x] TT5 the test-settings leak (found in SS7): tests/py/determinism.py and measure_check.py killed the Godot child
+  right after "quit", before main's _exit_tree removes user://poser_test_<pid>.cfg. They now wait up to 30 s and kill
+  only on a hang (serve_drive.py already did).
+  EVIDENCE: with the user folder emptied, determinism left 2 files and measure 1 (quiet, a SceneTree test, 0); after
+  the change determinism + measure PASS and leave 0.
+- [x] TT6 all suites PASS (run_par); Nick's files unchanged; no zz_ / *_test_<pid> leftovers in user://; README_AI
+  Round 38; committed; a screenshot to Nick.
+  EVIDENCE: run_par -j 8: SUITES 114/114 PASS, 385 s (C:/Temp/par38; stand_set:h prop_check:h use_set:w added).
+  Fingerprint 99e49b62d06763c13a9bc3fde9ef185b. One poser_test_<pid>.cfg was left (11:15): the agent suite's driver
+  (tests/agent_e2e.py) had TT5's kill race too; fixed the same way: agent alone left 1 before, 0 after (PASS, 28 s).
+  README_AI Round 38. Screenshot sent: SET > Sit here on combo3 with a chair and a table.

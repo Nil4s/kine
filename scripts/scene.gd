@@ -486,6 +486,7 @@ func apply(B: Body, t: float) -> void:
 
 
 func _ground(B: Body) -> void:
+	B.props = props   # TT2: the set it stands on
 	if floor_body:
 		B.ground_body()
 	else:
