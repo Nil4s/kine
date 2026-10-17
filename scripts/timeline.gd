@@ -277,6 +277,12 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(x, 1), Vector2(x + 5, 7), Vector2(x, 13), Vector2(x - 5, 7)]), c)
 		if mk[1].size() > 1:
 			draw_string(font, Vector2(x + 6, 12), str(mk[1].size()), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, c)
+	# MARKERS (round 41, WW5): a small flag on the ruler at each marker's time, coloured by its kind
+	for mk in S.markers:
+		var fx := x_of(float(mk["t"]))
+		var fc: Color = Markers.COLORS.get(String(mk["kind"]), Color.WHITE)
+		draw_line(Vector2(fx, 0), Vector2(fx, RULER), fc, 1.0)
+		draw_colored_polygon(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6)]), fc)
 	# playhead
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)

@@ -182,7 +182,10 @@ static func table(S: Scene, B: Body, refine := true, tol := TOL) -> Dictionary:
 				worst[s] = w
 				break
 			idx.append(wi)
-	return {"length": S.length(), "frames": n, "tracks": tracks, "worst": worst}
+	var out := {"length": S.length(), "frames": n, "tracks": tracks, "worst": worst}
+	if not S.markers.is_empty():
+		out["events"] = Markers.events(S.markers, S.length())   # WW5: only when the scene has markers (old exports are byte-identical)
+	return out
 
 
 ## the table as JSON-ready data (Vector3 -> [pitch, yaw, roll], 2 decimals; t 4 decimals)
@@ -194,8 +197,11 @@ static func to_json(name: String, T: Dictionary) -> Dictionary:
 			var v: Vector3 = k[1]
 			ks.append([snappedf(k[0], 0.0001), snappedf(v.x, 0.01), snappedf(v.y, 0.01), snappedf(v.z, 0.01)])
 		tr[s] = ks
-	return {"name": name, "seconds": snappedf(T["length"], 0.001), "bone_index": _indices(), "tracks": tr,
+	var out := {"name": name, "seconds": snappedf(T["length"], 0.001), "bone_index": _indices(), "tracks": tr,
 		"format": "PoseTable: t is a fraction of the move; pitch, yaw, roll in degrees from the game's rest (+pitch forward, +yaw left, +roll right shoulder down); smoothstep between keys"}
+	if T.has("events"):
+		out["events"] = T["events"]   # WW5: [{"t_frac", "name", "kind"}], the markers; absent without any
+	return out
 
 
 static func _indices() -> Dictionary:

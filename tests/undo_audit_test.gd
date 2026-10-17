@@ -34,7 +34,7 @@ func fp() -> String:
 	# the body + what the scene IS (its cards and settings). Not S.to_dict: that POSES the body it is given (round 8:
 	# the fingerprint moved with nothing done) and adds derived data (bad_frames) that re-plays the whole scene per call
 	var sd := {"cards": m.S.cards, "name": m.S.name, "natural": m.S.natural, "spline": m.S.spline, "on_floor": m.S.on_floor,
-		"floor_body": m.S.floor_body, "pin": m.S.pin, "fps": m.S.fps, "moving_holds": m.S.moving_holds}
+		"floor_body": m.S.floor_body, "pin": m.S.pin, "fps": m.S.fps, "moving_holds": m.S.moving_holds, "markers": m.S.markers}
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
 
@@ -74,6 +74,7 @@ func start(kind: String) -> void:
 		else:
 			m.sel = "lowerarm_r"
 			m.B.set_ang_safe("lowerarm_r", m.B.ang["lowerarm_r"] + Vector3(17.3333, 0, 0))   # off the files' 0.01-deg grid: a lossy keep/restore shows
+	Markers.add(m.S.markers, m.playhead, "zz")   # WW5: a marker under the playhead, so Delete marker has something to delete
 	m._refresh()
 	m.undo.clear()
 	m.redo.clear()

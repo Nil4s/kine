@@ -2006,6 +2006,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				KEY_S: _save_scene() if k.shift_pressed else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3)
 				KEY_C: _copy_pose()
 				KEY_V: _paste_pose("mirrored" if k.shift_pressed else "")
+				KEY_BRACKETRIGHT: _marker_jump(true)
+				KEY_BRACKETLEFT: _marker_jump(false)
 			return
 		match k.keycode:
 			KEY_S:
@@ -2224,7 +2226,7 @@ func _big_view() -> void:
 ## them back). The cards come back only into the scene they were taken from: opening another scene makes them stale.
 func _snapshot() -> Dictionary:
 	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds,
-		"props": S.props.map(func(p): return Props.to_dict(p))}
+		"props": S.props.map(func(p): return Props.to_dict(p)), "markers": S.markers.duplicate(true)}
 
 
 func _restore(u: Dictionary) -> void:
@@ -2232,6 +2234,10 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
 		_rebuild_cards()
+	if u["scene"] == S and u.has("markers") and JSON.stringify(u["markers"]) != JSON.stringify(S.markers):
+		S.markers = u["markers"].duplicate(true)   # WW5: the markers, undone like a card
+		if ui_timeline != null:
+			ui_timeline.queue_redraw()
 	if u["scene"] == S and u.has("props") and JSON.stringify(u["props"]) != JSON.stringify(S.props.map(func(p): return Props.to_dict(p))):
 		S.props = u["props"].map(func(q): return Props.from_dict(q))   # the set, undone like a card (SS5)
 		if sel_prop >= S.props.size():
@@ -3847,8 +3853,11 @@ func _ui() -> void:
 		_refresh())
 	ui_timeline.picked.connect(_timeline_pick)
 	ui_timeline.finding_picked.connect(_finding_mark)
-	ui_timeline.retime_started.connect(_push_undo)
+	ui_timeline.retime_started.connect(func():
+		_push_undo()
+		_markers_hold())
 	ui_timeline.retimed.connect(func(final: bool):
+		_markers_follow()
 		if final:
 			_retimed()
 		else:
@@ -4443,7 +4452,7 @@ func _rebuild_cards() -> void:
 			ms.suffix = "s" if c["move"] > 0.0 else "s (auto %.2f)" % S.move_time(i)
 			ms.custom_minimum_size = Vector2(150, 0)
 			ms.tooltip_text = "seconds to get here from the card before. 0 = auto (natural time from how far the body moves)"
-			ms.value_changed.connect(func(x): _push_undo(); S.cards[i]["move"] = x if x > 0.0 else -1.0; _retimed())
+			ms.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["move"] = x if x > 0.0 else -1.0; _markers_follow(); _retimed())
 			mh.add_child(ms)
 		var hh := HBoxContainer.new()
 		v.add_child(hh)
@@ -4455,7 +4464,7 @@ func _rebuild_cards() -> void:
 		hs.value = c["hold"]
 		hs.suffix = "s"
 		hs.tooltip_text = "seconds the body stays still in this pose"
-		hs.value_changed.connect(func(x): _push_undo(); S.cards[i]["hold"] = x; _retimed(false))
+		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false))
 		hh.add_child(hs)
 		var bh := HBoxContainer.new()
 		v.add_child(bh)
@@ -4826,6 +4835,10 @@ func _commands() -> Array:
 	add.call("Paste pose mirrored", "Ctrl+Shift+V", _paste_pose.bind("mirrored"), "clipboard flip left right", true, "the copied pose reflected left <-> right")
 	add.call("Paste to this part", "", _paste_pose.bind("part"), "clipboard arm leg only", true, "the copied pose on the picked part and the parts below it only (an arm, a leg)")
 	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "flip", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
+	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
+	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
+	add.call("Next marker", "Ctrl+]", _marker_jump.bind(true), "cue event flag jump", false, "the playhead jumps to the next marker")
+	add.call("Previous marker", "Ctrl+[", _marker_jump.bind(false), "cue event flag jump", false, "the playhead jumps to the marker before")
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
 	add.call("Pin a trail on the picked part", "Shift+T", _press.bind(KEY_T, true), "path arc", false, "draw the picked body part's path over the scene (again removes it)")
@@ -4877,6 +4890,60 @@ func _commands() -> Array:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
 	return c
+
+
+## MARKERS (round 41, GATES WW5, UPGRADES_300 #261): named moments on the timeline (Markers). Add / Delete at the playhead are
+## one undo step each; Next / Previous only move the playhead
+func _marker_add() -> void:
+	_push_undo()
+	var mk := Markers.add(S.markers, playhead)
+	_markers_changed()
+	_say("marker %s at %.2f s (note).  Ctrl+] / Ctrl+[ jump between markers; Ctrl+Z undoes" % [mk["name"], mk["t"]])
+
+
+func _marker_delete() -> void:
+	var i := Markers.near(S.markers, playhead, 1.0 / float(S.fps))
+	if i < 0:
+		_say("no marker within one frame of the playhead: Ctrl+] / Ctrl+[ jump to one")
+		return
+	_push_undo()
+	var gone: Dictionary = S.markers[i]
+	S.markers.remove_at(i)
+	_markers_changed()
+	_say("marker %s at %.2f s deleted.  Ctrl+Z undoes" % [gone["name"], gone["t"]])
+
+
+func _marker_jump(fwd: bool) -> void:
+	var t := Markers.next_t(S.markers, playhead) if fwd else Markers.prev_t(S.markers, playhead)
+	if t < 0.0:
+		_say("no marker %s the playhead" % ("after" if fwd else "before"))
+		return
+	playhead = t
+	_ps().apply(B, minf(playhead, _ps().length()))
+	_refresh()
+	_say("marker at %.2f s" % t)
+
+
+func _markers_changed() -> void:
+	if ui_timeline != null:
+		ui_timeline.queue_redraw()
+	_refresh()
+
+
+## the timing is about to change: remember it, so the markers ride with the time they sit in
+var _mk_old: Array = []
+var _mk_list: Array = []
+func _markers_hold() -> void:
+	_mk_old = S.times().duplicate(true) if not S.markers.is_empty() else []
+	_mk_list = S.markers.duplicate(true)
+
+
+## ... and the timing changed: every marker moves with the card time it was in (Markers.remap)
+func _markers_follow() -> void:
+	if not _mk_list.is_empty() and _mk_old.size() == S.cards.size():
+		S.markers = Markers.remap(_mk_list, _mk_old, S.times())
+		if ui_timeline != null:
+			ui_timeline.queue_redraw()
 
 
 ## the timing changed (timeline drag, a move/hold box): everything that was built from the old timing is rebuilt.
@@ -5875,6 +5942,7 @@ func retime(a: int, b: int, pct: float) -> String:
 	if not (pct >= 10.0 and pct <= 1000.0):
 		return "retime by 10 to 1000 %% (100 = as it is), not %s" % pct
 	_push_undo()
+	_markers_hold()
 	var k := pct / 100.0
 	var mv := []
 	for i in range(a, b + 1):
@@ -5883,6 +5951,7 @@ func retime(a: int, b: int, pct: float) -> String:
 		if i > 0:
 			S.cards[i]["move"] = snappedf(maxf(0.04, mv[i - a] * k), 0.001)
 		S.cards[i]["hold"] = snappedf(float(S.cards[i]["hold"]) * k, 0.001)
+	_markers_follow()
 	_rebuild_cards()
 	_refresh()
 	_say("cards %d-%d at %.0f %%: the scene is now %.2f s (Save scene keeps it)" % [a + 1, b + 1, pct, _ps().length()])
