@@ -290,6 +290,12 @@ func _draw() -> void:
 		draw_rect(Rect2(xa0, 0, xb0 - xa0, 3), Tok.c("warn"))
 		draw_line(Vector2(xa0, 0), Vector2(xa0, size.y), Tok.c("warn"), 1.0)
 		draw_line(Vector2(xb0, 0), Vector2(xb0, size.y), Tok.c("warn"), 1.0)
+	# MARKERS (round 41, WW5): a small flag on the ruler at each marker's time, coloured by its kind
+	for mk in S.markers:
+		var fx := x_of(float(mk["t"]))
+		var fc: Color = Markers.COLORS.get(String(mk["kind"]), Color.WHITE)
+		draw_line(Vector2(fx, 0), Vector2(fx, RULER), fc, 1.0)
+		draw_colored_polygon(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6)]), fc)
 	# playhead
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)

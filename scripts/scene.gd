@@ -45,6 +45,7 @@ const LAG := 0.3
 const EASES := ["smooth", "linear", "in", "out", "snap"]   # a card's ease preset (EASE PRESETS above)
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
+var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
@@ -679,6 +680,7 @@ func clone() -> Scene:
 		c.set(k, get(k))
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
+	c.markers = markers.duplicate(true)
 	return c
 
 
@@ -1105,6 +1107,8 @@ func to_dict(B: Body) -> Dictionary:
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
 	if not part_keys.is_empty():
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
+	if not markers.is_empty():
+		out["markers"] = markers.duplicate(true)   # WW5: the same, only when there are any
 	return out
 
 
@@ -1114,7 +1118,7 @@ func to_dict(B: Body) -> Dictionary:
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free",
-	"length_s": "free", "note": "free", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
@@ -1153,6 +1157,7 @@ func from_dict(d: Dictionary) -> void:
 	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
+	markers = Markers.from_list(d.get("markers", []))
 	props = []
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none

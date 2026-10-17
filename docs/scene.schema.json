@@ -314,6 +314,20 @@
     "spline": {
      "type": "boolean"
     },
+    "markers": {
+     "type": "array",
+     "description": "named moments on the timeline (round 41); only when any",
+     "items": {
+      "type": "object",
+      "required": ["t", "name", "kind"],
+      "properties": {
+       "t": {"type": "number"},
+       "name": {"type": "string"},
+       "kind": {"enum": ["hit", "step", "swoosh", "note"]}
+      },
+      "additionalProperties": false
+     }
+    },
     "moving_holds": {
      "type": "boolean"
     },
