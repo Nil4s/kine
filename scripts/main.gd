@@ -615,6 +615,44 @@ func _export_game(dir := "res://exports") -> Array:
 	return out
 
 
+## EXPORT .GLB (round 34, GATES OO1; Nick 10-16: "universal files to use in all engines"): the scene as glTF 2.0,
+## exports/<scene>.glb: the mannequin, its skeleton with UE5's bone names, one animation keyed on every frame, the
+## weapons as animated nodes. Godot, Blender and Unreal 5 import it as it is; Unity through glTFast (docs/EXPORT.md).
+func _export_glb(dir := "res://exports") -> String:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	var nm := S.name if S.name != "" else "scene"
+	var path := "%s/%s.glb" % [dir, nm]
+	var keep := B.state()
+	var err := GltfExport.write(S, B, path)
+	B.set_state(keep)
+	_refresh()
+	if err != OK:
+		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
+		return ""
+	_say_plain("exported %s.glb: %d frames at %d fps, the mannequin and its skeleton (UE5 bone names)%s. Opens in Godot, Blender, Unreal 5; Unity via glTFast" % [nm, int(ceil(S.length() * S.fps - 1e-6)) + 1, S.fps, ", the weapons as nodes" if B.wep_on or B.wep2_on else ""])
+	return path
+
+
+## EXPORT .BVH (round 34, GATES OO2): the scene as exports/<scene>.bvh (BvhExport, the writer tools/export_bvh.gd uses):
+## the skeleton with UE5's bone names, every frame, the weapons as joints in their hands. Every retargeter reads BVH.
+func _export_bvh(dir := "res://exports") -> String:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	var nm := S.name if S.name != "" else "scene"
+	var path := "%s/%s.bvh" % [dir, nm]
+	var r := BvhExport.write(S, B, path)
+	_refresh()
+	if r[0] != OK:
+		_say_plain("NOT DONE: the .bvh could not be written (%s)" % error_string(r[0]))
+		return ""
+	var info: Dictionary = r[1]
+	_say_plain("exported %s.bvh: %d joints, %d frames at %d fps%s. Opens in Blender, MotionBuilder, Cascadeur and any retargeter" % [nm, info["joints"], info["frames"], S.fps, " (the weapons as joints in their hands)" if not BvhExport.weapons_of(S).is_empty() else ""])
+	return path
+
+
 func _versions_menu() -> void:
 	var pm := ui_versions.get_popup()
 	pm.clear()
@@ -3942,6 +3980,8 @@ func _commands() -> Array:
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
+	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
+	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")

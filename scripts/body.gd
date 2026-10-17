@@ -309,7 +309,7 @@ func at_limit(j: String) -> Array:
 
 func set_ang(j: String, v: Vector3) -> void:
 	ang[j] = clamp_ang(j, v)
-	fk()
+	fk_sub(j)
 
 
 ## turn joint j by a rotation R given in CHARACTER space (now, not at rest), e.g. from a mouse drag; the result is
@@ -927,7 +927,7 @@ func reach(tip: String, target: Vector3) -> float:
 			else:
 				hi = m
 		ang[mid] = v
-		fk()
+		fk_sub(mid)
 		set_ang_safe(mid, Vector3((lo + hi) * 0.5, v.y, v.z))
 		var r1: Vector3 = P[tip] - P[root]
 		var r2: Vector3 = target - P[root]
@@ -1289,7 +1289,7 @@ func flat_foot(sd: String) -> void:
 		else:
 			lo = m
 	ang["foot" + sd] = Vector3((lo + hi) * 0.5, v.y, v.z)
-	fk()
+	fk_sub("foot" + sd)
 
 
 ## ON THE TOES: heel up, the toes bend back so they lie flat on the floor (the back foot of a lunge)
@@ -1377,6 +1377,38 @@ func knee_over_toes(sd: String, head: float) -> void:
 	w = w.normalized()
 	var a := atan2(u.dot(k.cross(w)), k.dot(w))
 	turn_world(th, Quaternion(u, a))
+
+
+## PLAYBACK COST (round 34, GATES OO1b): joint j moved, only j and the joints below it can change. While a scene plays
+## (fast) only that subtree is recomputed, in ORDER, by the same expressions as fk(), so every number comes out bit for
+## bit as a full fk() would make it (a leg solve recomputed all 52 joints ~200 times a frame; round 32's fade added two
+## solves per foot and tripled a frame). Outside playback a full fk() as before: an edit may have written ang directly.
+var _below := {}   # j -> [j and every joint under it, in ORDER]
+
+
+func fk_sub(j: String) -> void:
+	if not fast:
+		fk()
+		return
+	var js = _below.get(j, null)
+	if js == null:
+		var inside := {j: true}
+		js = []
+		for k in ORDER:
+			if k == j or inside.has(parent[k]):
+				inside[k] = true
+				js.append(k)
+		_below[j] = js
+	for k in js:
+		var A := compose(k, ang[k])
+		var pk: String = parent[k]
+		if pk == "":
+			G[k] = A
+			P[k] = p0[k] + offset
+		else:
+			G[k] = G[pk] * A
+			P[k] = P[pk] + G[pk] * (p0[k] - p0[pk])
+		E[k] = P[k] + G[k] * (e0[k] - p0[k])
 
 
 func fk() -> void:

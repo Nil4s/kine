@@ -190,3 +190,28 @@ assets coming IN through the same open formats that go OUT (round 34: .glb, .bvh
 220. [RIG] The rulebook per profile: rules from physics (balance, nothing through the body, foot slide) hold for all;
      rules from human anatomy (head quiet, tip speed of a swung bat) belong to the human profile or scale with SIZE
      (a 10 m mech is not barred at a human's head travel).
+
+## K. THE JOBS BENCHMARK, AND "WHY" (Nick 2026-10-16: "i dont wanna make equal them... u can discover how most of the
+## functions work, we simplify for poser... blender and maya dont explain why walking dont feel natural, or why an arm
+## inside a body feels weird, we do"). Not a feature count against Blender/Maya: a list of REAL JOBS a first-timer does,
+## each scored CAN'T / CAN / FASTER-THAN-BLENDER (timed, steps counted, the Blender route written out). The next items
+## are picked by which job they unlock. And the edge no one else has: every "feels wrong" gets its NUMBER and its CAUSE.
+221. [BENCH] docs/JOBS.md: the job list, each with its Blender route (the menus, the steps), Poser's route, the score.
+     First jobs: a walk cycle that loops; a 3-hit sword combo with feet planted; idle breathing; a jump that lands;
+     a hit reaction; fix a downloaded mocap clip; put the result on a Unity / Unreal / Godot character; sit on a chair
+     and lift a cup (needs section I); a spider walk (needs section J); two daggers (round 33: CAN).
+222. [BENCH] Each job's score backed by a test or a recorded run (a first-timer's run counts: Gemini 10-16 made
+     scenes/_wip/agent_fight.json on its first try), never by opinion.
+223. [WHY] Every Check finding states the cause in the body's terms and the number: "the left foot slides 4.1 cm while
+     it carries the weight (frames 31-38): it should be pinned", "the hips are 9 cm outside the feet: the body would
+     fall", "the right forearm is 3.2 cm inside the chest on frame 42", "the bat tip reaches 41 m/s: a strong human
+     swing is about 35". Then the one-click fix, where one exists.
+224. [WHY] "Why does this walk feel off?": a walk read against human gait numbers: stride vs leg length, the hips'
+     up-down (two dips per cycle), the arms against the legs, the heel strike before the toe; each off-pattern named
+     with how far off it is.
+225. [WHY] Weight and timing: anticipation before a big move, follow-through after; a move whose speed has no ramp
+     ("it pops") flagged with the frames and the size of the jump.
+226. [WHY] Learn mode: hover any finding, see a 2-line plain explanation and a tiny before/after picture. The rules
+     are taught while they are used (Blender's docs explain buttons; Poser explains MOTION).
+227. [BENCH] The fundraiser line comes from this file only: "FASTER than Blender on N of M jobs for a first-timer",
+     with the list linked. No claim the table does not hold.

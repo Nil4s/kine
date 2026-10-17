@@ -300,3 +300,20 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   covered the view's left edge (ring_edges). Keep picker rows no longer than "Long hammer   (1.1 m)".
 - KNOWN FLAKE (pre-existing): popup_leak's objects count sometimes rises (3915 -> 3956) with nodes and orphans flat;
   1 in 9 on round 32, 2 in 9 on round 33. To be looked at on its own.
+
+## Round 34: universal export (GATES OO; Nick 10-16: "universal files to use in all engines")
+- `scripts/gltf_export.gd` GltfExport.write(S, B, path): .glb via Godot's GLTFDocument; the app mannequin, one clip
+  named after the file, a key per frame (Body.gltf_local + gltf_pelvis_pos), weapons as root nodes "weapon"/"weapon2"
+  (a put-away weapon is scaled to 0). Command "Export animation (.glb)" -> main._export_glb.
+  - GOTCHAS: renaming a bone in a Skeleton3D before export DROPS it (65 in, 64 out): rename on the GLTFState node.
+    The root node must not share the clip's name (importer renames the clip "<name>2"). In a test's _init the tree
+    is not running: get_bone_global_pose and global_transform are stale/errors; build from local poses.
+- `scripts/bvh_export.gd` BvhExport.text/write; tools/export_bvh.gd is its CLI. Weapons: 6-channel joints, OFFSET 0,
+  under their hand (the grip slides/turns within a scene). Command "Export animation (.bvh)".
+- Frame count everywhere: ceil(length * fps - 1e-6) + 1 (4.6 x 30 = 138.0000x in floats doubled a BVH frame).
+- Body.fk_sub(j): while `fast` (playback) only j's subtree is recomputed; bit-identical (814-frame hash); playback
+  18.8 -> 6.7 ms/frame. Outside playback fk() as before (edits may write ang directly).
+- Blender check: tools/blender_expect.gd then `blender -b --factory-startup --python tools/blender_check.py`
+  (Blender 4.5 at C:/Program Files/Blender Foundation). FBX needs simplify 0, bake over the scene range, end rounded up.
+- docs/EXPORT.md: per-engine guide (UE5, Unity, Godot, Blender) + NOT TESTED list. tests: glb_export, bvh_export,
+  engine_names.

@@ -13,6 +13,8 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"save_scene": "writes scenes/ (a file, not an edit)", "polish_the_scene_new_copy": "writes + opens a copy in scenes/_wip",
 	"mirror_the_scene_left-handed_copy": "writes + opens a copy in scenes/_wip",
 	"export_to_game": "writes exports/<scene>.json and .cs (a file, not an edit; round 31)",
+	"export_animation_.glb": "writes exports/<scene>.glb (a file, not an edit; round 34)",
+	"export_animation_.bvh": "writes exports/<scene>.bvh (a file, not an edit; round 34)",
 	"save_a_version": "writes scenes/_versions/<scene>/ (a file, not an edit; round 29)",
 	"new_empty_scene": "replaces the scene (the open one stays on disk); not an edit of it",
 	"play_pause": "plays (the playhead moves the body by design); stopped at once below"}

@@ -33,6 +33,8 @@ func _init() -> void:
 		"_write": "the writer itself (callers above)", "_set_light": "the settings file (a preference, not work)", "_set_scale": "the settings file (a preference, not work)", "_save_settings": "the settings file", "_tour_end": "the settings file (tour done: a preference, not work)",
 		"autosave_now": "user://autosave.json only (never scenes/): a copy of unsaved work, atomic", "_autosave_drop": "removes only the autosave file and its .tmp",
 		"_export_game": "exports/<scene>.json and .cs (a separate export folder; never a scene, pose or data file)",
+		"_export_glb": "exports/<scene>.glb (the export folder; never a scene, pose or data file)",
+		"_export_bvh": "exports/<scene>.bvh (the export folder; never a scene, pose or data file)",
 		"_save_version": "always a NEW file scenes/_versions/<scene>/vNNN.json (the next number; never the scene's own file)"}
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd").split("\n")
 	var fn := ""

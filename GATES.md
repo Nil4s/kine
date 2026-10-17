@@ -597,29 +597,115 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
 ## in our game"). glTF 2.0 (.glb, the Khronos open standard: Godot, Blender, Unreal 5 import it natively, Unity through
 ## glTFast) is the main format; BVH (every retargeter) the second; FBX only by Blender converting the .glb. The game's
 ## PoseTable (round 31) stays as one more target.
-- [ ] OO1 EXPORT .GLB: "Export animation (.glb)" writes exports/<scene>.glb: the mannequin (mesh + skin + skeleton,
-  the bone names as assets/mannequin.glb has them), one animation named after the scene, sampled at the scene's fps,
-  every bone's rotation and the hips' position; the weapons as nodes under their hand bones (none = none). ROUND TRIP:
+- [x] OO1 EXPORT .GLB: "Export animation (.glb)" writes exports/<scene>.glb: the mannequin (mesh + skin + skeleton,
+  the bone names as assets/mannequin.glb has them; AMENDED at the work: its "Head" written "head", UE5's name, for
+  OO4), one animation named after the scene, sampled at the scene's fps,
+  every bone's rotation and the hips' position; the weapons as nodes "weapon" / "weapon2" (AMENDED before the work: animated nodes at the
+  root carrying their world motion; parenting them under the hand bones is a later item) (none = none). ROUND TRIP:
   the file read back by Godot's own GLTFDocument (not by the exporter's code), its animation played on the skeleton it
   brings, puts every joint within 1 cm and every bone within 1 degree of Poser on every frame of every scene in
   scenes/ (and the weapon tips within 1 cm). Anti-vacuity: an export with one bone's track dropped, or the hips'
   position dropped, fails the round trip.
-- [ ] OO2 EXPORT .BVH FROM THE APP: tools/export_bvh.gd's writer moved into a class the app calls ("Export animation
-  (.bvh)"), the weapons as end joints under their hands; its existing check (re-parsed BVH, joint positions within 1 cm)
+  - EVIDENCE: scripts/gltf_export.gd (GltfExport.build/write: Godot's GLTFDocument writes it); main.gd _export_glb
+    and the command "Export animation (.glb)". tests/glb_export_test.gd (glb_export:h): all 10 scenes, 814 frames
+    read back by GLTFDocument.append_from_file + generate_scene, played by the file's own AnimationPlayer: joints worst
+    0.0000 m, bones worst 0.000 deg against the app's mannequin posed by Overlays.pose_skeleton; weapons 814
+    weapon-frames knob/tip worst 0.0000 m; every clip's length = its scene's; head bone "head"; the app command bound
+    to _export_glb wrote combo3.glb whose only animation is "combo3". STUBS, each made it FAIL: lowerarm_l's track
+    dropped (0.757 m), the hips' position dropped (1.201 m), all rotation keys dropped (1.595 m), keys one frame late
+    (0.877 m and weapon 2.730 m), weapon position frozen (1w 1.974 m), head left "Head" (1 and 3). Found on the way:
+    Godot 4.7 drops a bone renamed in a Skeleton3D before export (65 bones in, 64 out), so the rename is done on
+    the GLTFState's node; get_bone_global_pose is a cache the tree refreshes, so the test builds poses from the
+    local chain; the importer renames a clip that shares the root node's name ("combo32"), so the root is
+    "mannequin". command_search and confirm list the new writer; both pass.
+- [x] OO1b PLAYBACK COST BACK TO ROUND 31's (found by OO1's test, which timed out): round 32's planting made a frame
+  ~3x dearer (S.apply over every frame, ms/frame, round 31 -> round 33: combo3 6.4 -> 20.0, walk_bat 7.9 -> 17.0,
+  dodge_side 6.0 -> 14.1, swing_fore 6.6 -> 22.0). Bar: each within 1.5x of round 31's, measured the same way in one
+  run beside a worktree of 0be59c5; plant_edges, plant, fix, determinism still pass with the same numbers.
+  - EVIDENCE: the cost was the leg solver: every IK step ran a full fk() over all 52 joints (~200 a frame), and round
+    32's fade added two solves per foot. Body.fk_sub(j): while a scene plays (fast), only j and the joints under it
+    are recomputed, in ORDER, by fk()'s own expressions; outside playback a full fk() as before. EQUIVALENCE: every
+    frame of all 10 scenes (814) hashed (ang, P, G of every joint, offset, weapon): a37948c50d43cf87401d57015872d54c
+    before and after, bit for bit; a stub that skips the last joint of each subtree changes it (effd83e6...).
+    COST, one run beside a worktree of 0be59c5, interleaved twice (ms/frame round 31 | now): combo3 6.5,7.8 | 6.6,6.8;
+    walk_bat 8.3,8.7 | 5.3,5.5; dodge_side 6.2,6.4 | 5.2,5.9; swing_fore 7.3,7.7 | 7.5,6.5: all within 1.5x (at or
+    below round 31). All scenes 18.8 -> 6.7 ms/frame. plant_edges, plant, fix, determinism: 0 failures.
+- [x] OO2 EXPORT .BVH FROM THE APP: tools/export_bvh.gd's writer moved into a class the app calls ("Export animation
+  (.bvh)"), the weapons as joints under their hands (AMENDED at the work: SIX channels, OFFSET 0, the tip an End Site:
+  the grip moves within a scene, 0.20 m along the staff in bo_spin, 141 degrees in strike_legs, so a fixed offset
+  would be wrong); its existing check (re-parsed BVH, joint positions within 1 cm)
   runs on every scene in scenes/. Anti-vacuity: a channel order swapped fails it.
-- [ ] OO3 A REAL IMPORTER READS IT: the .glb opened in Blender (the Blender connection): the armature's bone count and
+  - EVIDENCE: scripts/bvh_export.gd (BvhExport.text/write); tools/export_bvh.gd is now its command line (bo_spin:
+    53 joints, 74 frames, Euler round trip 0.000051 deg); main.gd _export_bvh, the command "Export animation (.bvh)".
+    tests/bvh_export_test.gd (bvh_export:h) re-parses with its own reader (HIERARCHY, CHANNELS in listed order, End
+    Sites, MOTION; FK the BVH way): 10 scenes, 814 frames, every joint within 0.0000 m of Poser, 814 weapon-frames
+    knob and tip within 0.0004 m, Frames/Frame Time = the scene's, the app command wrote bo_spin.bvh with a weapon
+    joint. STUBS, each made it FAIL: the header's channel order swapped with the data left Z X Y (1.739 m, weapons
+    4.250 m), the grip frozen (1w 0.302 m). command_search and confirm list the new writer; both pass.
+- [x] OO3 A REAL IMPORTER READS IT: the .glb opened in Blender (the Blender connection): the armature's bone count and
   names match, the action's frame count matches, and at 4 frames the bones' world heads are within 1 cm of Poser's;
   the same file exported from Blender as .fbx (the route to engines that want FBX) exists and re-imports with the same
   frame count. If the Blender connection is down, this gate stays OPEN and says so; it is not ticked from Godot alone.
-- [ ] OO4 FOR EVERY ENGINE (Nick 10-16: "some people will use unity, ue5, godot or others... open source power for all"):
+  - AMENDED at the work: the Blender CONNECTION was down ("Could not connect to Blender"); Blender 4.5.3 LTS is
+    installed, so its OWN importers ran headless (blender -b --factory-startup): the same glTF/FBX code the connection
+    drives, nothing of ours reads the file on the Blender side.
+  - EVIDENCE: tools/blender_expect.gd (Godot: each scene's .glb + where every bone of the app's mannequin stands at 4
+    frames) then tools/blender_check.py (Blender): all 10 scenes, one armature, 65 bones, none of ours missing, keys =
+    the scene's frames (74, 142, 40, 57, 139, 86, 57, 70, 52, 96), bone heads worst 0.0000 m (Y-up -> Z-up); FBX
+    written by Blender and read back: 65 bones and the same frame counts, every scene (blender_report 20 ok, 0 failed,
+    rerun from the saved tools into a fresh folder). STUB OO3_SHIFT=1 (every frame read one late): 9 of 10 scenes
+    FAIL (0.034 to 0.691 m); idle_bat stays under 1 cm (0.0069 m: it barely moves in one frame), so the bar can fail.
+    FOUND ON THE WAY: (a) the BVH writer doubled idle_bat's last frame (4.6 s x 30 = 138.0000x in floats, ceil -> 139):
+    both writers now count ceil(len x fps - 1e-6) + 1; the BVH test catches the old count (140 vs 139); the .glb was
+    never doubled (Godot's Animation replaces a key at an existing time). (b) FBX keeps every frame only with
+    bake_anim_simplify_factor 0 and the bake over the scene's range (use_all_actions/nla_strips off, frame_end rounded
+    UP): defaults gave 32 of 74 keys, then one short where a scene's length is not whole frames. Goes in docs/EXPORT.md.
+- [x] OO4 FOR EVERY ENGINE (Nick 10-16: "some people will use unity, ue5, godot or others... open source power for all"):
   the skeleton already carries the UE5 Mannequin bone names (pelvis, spine_01-03, upperarm_l, ...); docs/EXPORT.md
   says, per engine, how to bring the .glb in and put it on the engine's own character: Unreal 5 (retarget onto
   Manny/Quinn), Unity (Humanoid avatar), Godot (BoneMap + SkeletonProfileHumanoid), Blender (and FBX from it). Every
   bone name in the exported file checked against the UE5 Mannequin list (written in the test, not read from the
   exporter); a name that is not on it is printed. What was NOT tested inside Unity or Unreal is said so in the doc.
-- [ ] OO5 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 34; committed.
-  NICK? Poser has no LICENSE file: open source needs one (MIT: anyone uses it, even closed; GPL: changes must stay
-  open). The mannequin is CC0 and may ship with it.
+  - EVIDENCE: docs/EXPORT.md: the two commands, the skeleton's names, units/axes, how it was checked; per engine:
+    Unreal 5 (glTF import, IK Rig + IK Retargeter onto Manny/Quinn, spine 3 -> 5), Unity (glTFast for the clip on the
+    mannequin; the FBX route for a Humanoid avatar), Godot (import, BoneMap + SkeletonProfileHumanoid), Blender (fps
+    first, the FBX settings OO3 found), any other tool; a NOT TESTED section (Unreal and Unity not opened; Godot's
+    retarget onto another character not run). tests/engine_names_test.gd (engine_names:h): UE5's Manny list typed in
+    the test (88 names); the .glb read back has 65 bones, all 52 of Poser's joints on UE5's list; the 12 not on it
+    printed (the mannequin's *_04_leaf_* and ball_leaf_*, no motion). STUB: the head left "Head" -> FAIL ("head (not
+    in the file)"). The doc's coverage checked by the same test (every engine heading, the terms, NOT TESTED).
+- [x] OO5 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 34; committed.
+  NICK ANSWERED 10-16 ("only us can update this, our license, but anyone can use it" -> option 1, open source):
+  LICENSE = MIT, "Copyright (c) 2026 Nick Teschima (Teschima Studios) and the Poser contributors", plus "what you make is yours" and the CC0
+  mannequin note. (Was: Poser has no LICENSE file: open source needs one (MIT: anyone uses it, even closed; GPL: changes must stay
+  open). The mannequin is CC0 and may ship with it.)
+  - EVIDENCE: full run (oo5) SUITES 98/98 PASS (95 + glb_export, bvh_export, engine_names); fingerprint
+    99e49b62d06763c13a9bc3fde9ef185b; only the bo_sweep deletion unstaged; 0 zz_; 0 ANTI; no _versions. ONE house check
+    FAILED: exports/ held combo3.glb + combo3.bvh (20:57): undo_audit runs every command and ran the two new exports.
+    Fixed in the test (both on its SKIP list, as "Export to game" was); undo_audit alone: PASS, the two print "skip",
+    exports/ empty. README_AI Round 34. LICENSE: MIT (Nick's answer above). Committed.
+
+
+## QQ. Round 35a: the first five seconds (Nick 2026-10-16, opening the app: "all the introductions and tutorials keep
+## blinking when u open the pose app, and have no option to close or skip... page things still feel too close and too
+## big, not like Fusion that is more minimalist, more space to design and tools organized cleanly in their categories").
+## Before round 35's launcher: a stranger who opens Poser must not meet a flicker they cannot stop.
+- [ ] QQ1 SEE IT FIRST: a recording of the real startup (the app as Nick starts it, a first-run settings file, an
+  autosave present): a screenshot every 100 ms for the first 6 s; every pop-up/card listed with each time it APPEARS
+  and DISAPPEARS. The cause of the blinking named from that record (suspects, unproven: the tour's steps move on by
+  themselves because loading/recovery changes sel / the pose / the cards; the recover offer and the tour open together).
+- [ ] QQ2 NOTHING BLINKS: in the same recording, no pop-up appears more than once, none is on screen less than 1 s
+  unless the user closed it, and at most ONE intro thing at a time (the recover offer first; the tour only after it is
+  answered). A tour step moves on only after an INPUT from the user (a click, a drag, a key), never from the app
+  loading or recovering. Anti-vacuity: the recording run on the round-34 code shows the blinking QQ1 found.
+- [ ] QQ3 EVERY INTRO CAN BE CLOSED: the tour card has a visible close (x) and Skip, and Esc closes it; the recover
+  offer has its buttons and Esc; closing either is remembered (the tour never comes back by itself; Help -> "First
+  steps tour" starts it on purpose). Checked by clicking each control in a windowed test.
+- [ ] QQ4 ROOM TO WORK (the Fusion point): measured at 1600x900, 100 %: the 3D view's share of the window, every
+  panel's width, the top rows' height, BEFORE and AFTER. Bar: the view gets at least 70 % of the window by default;
+  each side panel can fold to a thin rail with one click (remembered); the tools grouped by category, named for what
+  they are for (Pose / Animate / Check / Export, as Fusion's workspaces), nothing removed (every command still reachable
+  and every suite passing). Screenshots before/after put in front of Nick: his eye is the last bar ("NICK?").
 
 ## PP. Round 35: a stranger can start it and knows why it stops (from Gemini's review of 2026-10-16, Antigravity,
 ## checked against the code: the launcher text, autosave 15 s, B / C / S keys, the Fix ghost and "stopped short" for
