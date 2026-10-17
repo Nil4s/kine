@@ -26,6 +26,7 @@ const SRC := {
 	"FLOATS": "the hips over a seat but not on it while no foot carries the body: our own bars, docs/MOTION_RULES.md",
 	"JUMP": "a flight of T seconds is a jump of g T^2 / 8 (Bosco; Asmussen & Bonde-Petersen): a recreational adult's countermovement jump is 0.40 +- 0.11 m (0.57 s); people dip to ~90 deg of knee bend before take-off and land soft on ~117 deg (stiff ~77; DeVita & Skelly 1992)",
 	"CARRY FORM": "a load carried in front in both hands is held close at knuckle-to-elbow height: upper arms near the trunk, elbows bent (Anderson et al. 2007, anterior load carriage; Snook 1978), hands near the body (NIOSH lifting equation: H 25 cm ideal, the multiplier 25/H)",
+	"LIFT FORM": "reaching the floor with the hands: people who squat bend the knees deep (floor lifts peak at 86-115 deg of knee bend, Saraceni et al. 2021); a stoop (the lifting studies' own definition: knees 0-30 deg, Int J Sports Med 2025) with the trunk past 60 deg of flexion (where the back muscles go quiet and the passive tissues take the load, Shu et al. 2007) loads the spine more than a squat (Bazrgari et al. 2007)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
 ## and WHERE the number comes from (the panel's "source" button opens it). The links are docs/MOTION_RULES.md's own
@@ -45,6 +46,7 @@ const WHY := {
 	"FLOATS": "Sitting means the seat carries the weight. Hips hovering over it, with nothing else holding him up, read as a ghost.",
 	"JUMP": "Air time IS the height: hang too long and he floats like the Moon. And a jump starts in a dip and ends in a squat; straight legs at either end read as a puppet on a string.",
 	"CARRY FORM": "Nobody carries a box on straight arms held out in front: it is held against the body, arms down at the sides, elbows bent. Anything else reads as fake at once.",
+	"LIFT FORM": "Picking something off the floor with straight knees and a bent back is the lift that hurts backs, and it reads as careless. People bend the knees and keep the trunk more upright.",
 }
 const URL := {
 	"SEQUENCE": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
@@ -61,6 +63,7 @@ const URL := {
 	"FLOATS": "res://docs/MOTION_RULES.md",
 	"CARRY FORM": "https://stacks.cdc.gov/view/cdc/189155",
 	"JUMP": "https://pubmed.ncbi.nlm.nih.gov/1548984/",
+	"LIFT FORM": "https://pubmed.ncbi.nlm.nih.gov/17103232/",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
 const PROP_WARN := 0.005   # m inside a prop: a WARN (Props.REST_SINK: less is resting on it)
@@ -87,6 +90,9 @@ const JUMP_FALL1 := 0.59
 const JUMP_LAND1 := 77.0
 const JUMP_LAND_MAX := 110.0
 const JUMP_DIP := 30.0     # deg: the deeper knee's most bend in the 0.5 s before take-off under this = no dip
+## LIFT FORM (round 41, GATES WW9, #229): hands below the knees, trunk flexed past LIFT_TRUNK with the knees bent under LIFT_KNEE
+const LIFT_TRUNK := 60.0   # deg: trunk flexion (hips to neck against vertical); Shu 2007 tested 45 vs 60 deg, the multifidus quiets as it grows
+const LIFT_KNEE := 30.0    # deg: the deeper knee's bend; the 2025 lifting study defines a stoop as knees 0-30 deg (squat free / 0-60 / 0-90)
 const CARRY_H := 0.40      # m, hands' middle from the ankles' middle, along the floor (NIOSH: 25 ideal; 40 -> 25/H = 0.63)
 const PART_WORDS := {"pelvis": "hips", "hips_wide": "hips", "chest_wide": "chest", "spine_01": "lower back",
 	"spine_02": "middle back", "spine_03": "chest", "neck_01": "neck", "head": "head", "clavicle": "shoulder",
@@ -150,7 +156,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			"hand_r": B.E["hand_r"], "gp": B.G["pelvis"], "gt": B.G["spine_03"],
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),
 			"fy": minf((B.P["foot_l"] as Vector3).y, (B.P["foot_r"] as Vector3).y), "wep": B.wep_on, "kind": B.wep_kind,
-			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B)})
+			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B), "lf": lift_form(B)})
 		if not S.props.is_empty():
 			raw[-1]["pc"] = prop_hits(S.props_at(t, B), B, S.holding(t, B))   # UU2: the set as it is now; holding hands are not through
 			raw[-1]["sg"] = seat_gap(S.props, B)
@@ -161,7 +167,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 	S.stepped = was_stepped
 	var out := {"t": [], "tip": [], "hips": [], "head": [], "hand_l": [], "hand_r": [], "w_pelvis": [], "w_trunk": [],
 		"w_weapon": [], "head_pos": [], "foot_y": [], "ball_l": [], "ball_r": [], "armed": false, "kind": "",
-		"spline": S.spline, "_raw": raw, "bad": bad, "balance": [], "both_down": []}
+		"spline": S.spline, "_raw": raw, "bad": bad, "balance": [], "both_down": [], "lift_form": []}
 	for i in n:
 		var now: Dictionary = raw[i]
 		var prev: Dictionary = raw[maxi(i - 1, 0)]
@@ -174,6 +180,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 		out["ball_l"].append(now["bl"])
 		out["ball_r"].append(now["br"])
 		out["balance"].append(float(now["bal"]["margin"]))
+		out["lift_form"].append(now["lf"])
 		out["both_down"].append(now["bal"]["down"].size() == 2)
 		if now.has("pc"):   # the set (TT1, TT4): only a scene with props has these keys
 			if not out.has("prop_hits"):
@@ -682,6 +689,47 @@ static func rule_carry_form(sm: Dictionary) -> Array:
 	return out
 
 
+## what the lifting rule reads, one frame: the hands' lowest point and the knees' height (m), the trunk's flexion from
+## vertical (hips to neck, deg) and the deeper knee's bend (0 = straight)
+static func lift_form(B: Body) -> Dictionary:
+	var hand := minf(minf((B.cap("hand_l")[0] as Vector3).y, (B.cap("hand_l")[1] as Vector3).y),
+		minf((B.cap("hand_r")[0] as Vector3).y, (B.cap("hand_r")[1] as Vector3).y))
+	var knee := 0.0
+	var bend := 0.0
+	for sd in ["_l", "_r"]:
+		var th: Vector3 = (B.P["calf" + sd] as Vector3) - (B.P["thigh" + sd] as Vector3)
+		var sh: Vector3 = (B.P["foot" + sd] as Vector3) - (B.P["calf" + sd] as Vector3)
+		bend = maxf(bend, rad_to_deg(th.angle_to(sh)))
+		knee += (B.P["calf" + sd] as Vector3).y / 2.0
+	var trunk := rad_to_deg(((B.P["neck_01"] as Vector3) - (B.P["pelvis"] as Vector3)).angle_to(Vector3.UP))
+	return {"hand": hand, "knee": knee, "trunk": trunk, "bend": bend}
+
+
+## LIFT FORM: the hands below the knees while the trunk is flexed past LIFT_TRUNK and the knees bend under LIFT_KNEE
+## (a stoop to the floor) for FLOAT_RUN frames or more: one WARN per run, naming both angles and what people do
+static func rule_lift_form(sm: Dictionary) -> Array:
+	var out := []
+	var lf: Array = sm.get("lift_form", [])
+	var bad := func(d: Dictionary) -> bool:
+		return float(d["hand"]) < float(d["knee"]) and float(d["trunk"]) > LIFT_TRUNK and float(d["bend"]) < LIFT_KNEE
+	var i := 0
+	while i < lf.size():
+		if not bad.call(lf[i]):
+			i += 1
+			continue
+		var a := i
+		var worst: Dictionary = lf[i]
+		while i < lf.size() and bad.call(lf[i]):
+			if float(lf[i]["trunk"]) - float(lf[i]["bend"]) > float(worst["trunk"]) - float(worst["bend"]):
+				worst = lf[i]
+			i += 1
+		if i - a >= FLOAT_RUN:
+			out.append(_f("WARN", sm["t"][a], "LIFT FORM", "%.2f-%.2f s: hands below the knees with the back bent %.0f deg and the knees only %.0f deg: lift with the legs (people squatting to the floor bend the knees 86-115 deg; a stoop is knees under %.0f with the back past %.0f)." % [
+				sm["t"][a], sm["t"][i - 1], worst["trunk"], worst["bend"], LIFT_KNEE, LIFT_TRUNK], float(worst["trunk"])))
+			out[-1]["t1"] = sm["t"][i - 1]
+	return out
+
+
 ## the deeper knee's bend at time t (0 = straight): the angle between the thigh and the shin
 static func knee_bend(S: Scene, B: Body, t: float) -> float:
 	S.apply(B, t)
@@ -773,6 +821,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_props(S, sm)
 	out += rule_floats(sm)
 	out += rule_carry_form(sm)
+	out += rule_lift_form(sm)
 	out += rule_jump(S, B)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
