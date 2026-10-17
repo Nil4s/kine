@@ -300,6 +300,10 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   covered the view's left edge (ring_edges). Keep picker rows no longer than "Long hammer   (1.1 m)".
 - KNOWN FLAKE (pre-existing): popup_leak's objects count sometimes rises (3915 -> 3956) with nodes and orphans flat;
   1 in 9 on round 32, 2 in 9 on round 33. To be looked at on its own.
+  2026-10-17 (after round 35): NOT REPRODUCED in 10 of 10 (8 runs on their own, counts identical every run:
+  search 3811 -> 3807 -> 3807, keys/help/tools 4006 flat, ring 4020 flat; + both full runs). Cause NOT found, so
+  NOT fixed: round 35a changed start-up timing (the tour waits for the recover offer), which may only have hidden
+  it. If it fails again: log Performance.OBJECT_COUNT per cycle and diff ClassDB instance counts at b and c.
 
 ## Round 34: universal export (GATES OO; Nick 10-16: "universal files to use in all engines")
 - `scripts/gltf_export.gd` GltfExport.write(S, B, path): .glb via Godot's GLTFDocument; the app mannequin, one clip
