@@ -2027,6 +2027,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_F: _do(func(): _fingers_cycle())
 			KEY_G: _do(_toggle_second)
 			KEY_H: _dummy_toggle()
+			KEY_K: _key_part()
 			KEY_T when k.shift_pressed:
 				if not sel in Body.BODY:
 					_say("Shift+T pins a trail on a BODY part: click one first (the weapon's own trail is T)")
@@ -2224,7 +2225,7 @@ func _big_view() -> void:
 ## them back). The cards come back only into the scene they were taken from: opening another scene makes them stale.
 func _snapshot() -> Dictionary:
 	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds,
-		"props": S.props.map(func(p): return Props.to_dict(p))}
+		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true)}
 
 
 func _restore(u: Dictionary) -> void:
@@ -2237,6 +2238,8 @@ func _restore(u: Dictionary) -> void:
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
+	if u["scene"] == S and u.has("pk"):
+		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
 	if u["scene"] == S and JSON.stringify(u["cards"]) != JSON.stringify(S.cards):
 		S.cards = u["cards"].duplicate(true)
 		sel_card = mini(u["sel"], S.cards.size() - 1)
@@ -2283,6 +2286,17 @@ func _redo() -> void:
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
 	_history_rows()
+
+
+## KEY ONE PART (round 41, WW1, UPGRADES #239): K keys the picked part's 3 angles at the playhead as a PART KEY
+## (scripts/part_keys.gd); keying the same time again replaces it. One undo step
+func _key_part() -> void:
+	if not sel in Body.BODY or S.cards.is_empty():
+		_say("K keys a BODY part at the playhead: open a scene with cards and click a part first")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	_do(func(): PartKeys.put(S.part_keys, sel, t, B.ang[sel]))
+	_say("keyed %s at %.2f s  (%d key%s on it; Ctrl+Z takes it back)" % [sel, t, S.part_keys[sel].size(), "" if S.part_keys[sel].size() == 1 else "s"])
 
 
 func _reset_part() -> void:
@@ -4805,6 +4819,7 @@ func _commands() -> Array:
 	add.call("Big view (hide the panels)", "Tab", _press.bind(KEY_TAB), "fullscreen", false, "hide the side panels so the body gets the whole window")
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
 	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0, 0, 0)")
+	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("Snap the part to 90", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90-degree steps its range allows")
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
@@ -5035,6 +5050,8 @@ func _mirror_scene() -> void:
 	var M := Body.new()
 	M.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	d["cards"] = d["cards"].map(func(c): return Scene.mirror_card(c, M))   # by Scene.MIRROR_CARD (round 19, Z1)
+	if d.has("part_keys"):
+		d["part_keys"] = PartKeys.mirror_file(d["part_keys"], M)   # MIRROR_SCENE "part_keys" (WW1)
 	B.set_state(keep)
 	var base := S.name.trim_suffix("_mirrored")
 	d["scene"] = base + "_mirrored" if not S.name.ends_with("_mirrored") else base
