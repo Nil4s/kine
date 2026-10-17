@@ -556,12 +556,81 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
     no _versions, exports empty. README_AI Round 32.
 
 ## NN. Round 33: dual wield (UPGRADES_200 #155a, #155b; Nick 2026-10-16: "weapons like double dagger, so mirrored would help")
-- [ ] NN1 A WEAPON IN EACH HAND: a new kind "dagger" (0.30 m, one-hand grip); an OFF-HAND weapon (`wep2_*`) held in the
+- [x] NN1 A WEAPON IN EACH HAND: a new kind "dagger" (0.30 m, one-hand grip); an OFF-HAND weapon (`wep2_*`) held in the
   hand the main weapon is not in, with its own grip in that hand, its own two capsules (handle, blade) in the contact
-  checks (a blade through the thigh is reported, as the bat's is), drawn in the view, picked and turned like the bat;
+  checks (a blade through the thigh is reported, as the bat's is), drawn in the view and RIDING its hand (AMENDED before the work: it is turned by turning that hand, not picked
+  on its own; the main weapon keeps its picking, free place and sliders);
   saved per card as "weapon2" and loaded back (0.1 mm), a scene with no "weapon2" loads exactly as before (all 10
   scenes' playback unchanged, bit for bit at 30 frames each). Turned on from the weapon picker ("two daggers").
-- [ ] NN2 MIRROR SWAPS THE HANDS' WEAPONS: Mirror pose, paste mirrored and Mirror the scene send each weapon to the other
+  - EVIDENCE: Body: KINDS "dagger" (0.30 m; set_weapon_len's floor 0.4 -> 0.2 m, found by check 1 reading 0.400), the
+    off-hand weapon wep2_* (hand, grip in it; wep2_to_hand = the grip file mirrored to that hand), WEAPON2 =
+    wep2_handle + wep2_blade in pairs / WIDE_VS / SKIN_VS, skipped when off, out of the allowances; to_dict
+    "weapon2", from_dict, state/set_state; Moves + Scene carry "weapon2" on every path (wep2_flat, wep2_mix, put_wep2).
+    main: picker rows "Dagger" and "Two daggers", the off-hand dagger drawn. tests/dual_wield_test.gd (dual_wield:w):
+    (1) dagger 0.300 m in hand_r + 0.300 m in hand_l, drawn, the picker shows the row; (2) through the left thigh:
+    thigh_l|wep2_handle 0.088 m, put away: none; (3) save + load: 0.00000 m / 0.0000 deg on both cards (normalized: a
+    raw angle_to read 0.2 deg off the file's rounded quaternion), mid-move 16.9 + 51.8 = 68.8 deg: between the cards;
+    (4) 10 scenes x 30 frames: no off-hand weapon. BIT FOR BIT: P, G, weapon, contacts of all 10 scenes x 30 frames
+    hashed on the new and the pre-round body/scene/moves: 300 lines IDENTICAL. STUBS: contacts never see it: FAIL 2;
+    no blend: FAIL 3 (0.0 deg from card 1); cards don't save it: FAIL 3 (118.8 deg) + 5, 7, 8 (that stub first HUNG on
+    a missing key; the test now reads it with a default, so it fails, not stalls).
+- [x] NN2 MIRROR SWAPS THE HANDS' WEAPONS: Mirror pose, paste mirrored and Mirror the scene send each weapon to the other
   hand with its grip mirrored: with a dagger in each hand, both knobs and both tips land on the mirror images of the
   other side's (1 mm); twice = back (1 mm). One undo step. Anti-vacuity: a mirror that moves only the main weapon fails.
-- [ ] NN3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 33; committed
+  - EVIDENCE: mirror_pose and pose_paste move the off-hand weapon to the twin hand, grip mirrored; mirror_card goes
+    through them. dual_wield_test (5) Mirror pose: main hand_l, off-hand hand_r, the four points 0.0000 m from the
+    mirror images, +1 undo; (6) twice: 0.0000 m from the start; (7) paste mirrored: 0.0000 m, +1 undo; (8) Mirror the
+    scene: card 1 swapped, 0.0000 m. STUBS: mirror moves only the main weapon: FAIL 5 (1.211 m), 6, 7, 8; paste ignores
+    it: FAIL 7 (1.211 m).
+- [x] NN3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 33; committed
+  - EVIDENCE: run 1 (nn3): 91/95: schema (the dagger kind; "weapon2" added to docs/scene.schema.json), weapon_picker
+    (its rows list), ring_edges and popup_leak. ring_edges was REAL and round 33's: bisected (the round-32 main.gd
+    passes; the new rows removed passes; the dagger part meshes removed still fails): the row "Two daggers (one in
+    each hand)" widened the side panel over the view's left edge, so a right-click on the head there opened no ring;
+    the row is now "2 daggers (0.3 m)". Run 3 (nn3c): 94/95, popup_leak "keys" objects 3915 -> 3956 (nodes and
+    orphans flat). popup_leak FLAKES ON THE COMMITTED CODE TOO: 9 runs each alone, round 32 (a worktree at cd902c3)
+    1 of 9 failed, round 33 2 of 9 (+ one 4-fail run while Gemini's Poser window was open); always the objects count,
+    never nodes/orphans. Logged as its own item, not round 33's. Fingerprint 99e49b62d06763c13a9bc3fde9ef185b, only the
+    bo_sweep deletion unstaged, 0 zz_, 0 ANTI, no _versions, exports empty. README_AI Round 33.
+
+## OO. Round 34: universal export (Nick 2026-10-16: "the export could be universal files to use in all engines, not only
+## in our game"). glTF 2.0 (.glb, the Khronos open standard: Godot, Blender, Unreal 5 import it natively, Unity through
+## glTFast) is the main format; BVH (every retargeter) the second; FBX only by Blender converting the .glb. The game's
+## PoseTable (round 31) stays as one more target.
+- [ ] OO1 EXPORT .GLB: "Export animation (.glb)" writes exports/<scene>.glb: the mannequin (mesh + skin + skeleton,
+  the bone names as assets/mannequin.glb has them), one animation named after the scene, sampled at the scene's fps,
+  every bone's rotation and the hips' position; the weapons as nodes under their hand bones (none = none). ROUND TRIP:
+  the file read back by Godot's own GLTFDocument (not by the exporter's code), its animation played on the skeleton it
+  brings, puts every joint within 1 cm and every bone within 1 degree of Poser on every frame of every scene in
+  scenes/ (and the weapon tips within 1 cm). Anti-vacuity: an export with one bone's track dropped, or the hips'
+  position dropped, fails the round trip.
+- [ ] OO2 EXPORT .BVH FROM THE APP: tools/export_bvh.gd's writer moved into a class the app calls ("Export animation
+  (.bvh)"), the weapons as end joints under their hands; its existing check (re-parsed BVH, joint positions within 1 cm)
+  runs on every scene in scenes/. Anti-vacuity: a channel order swapped fails it.
+- [ ] OO3 A REAL IMPORTER READS IT: the .glb opened in Blender (the Blender connection): the armature's bone count and
+  names match, the action's frame count matches, and at 4 frames the bones' world heads are within 1 cm of Poser's;
+  the same file exported from Blender as .fbx (the route to engines that want FBX) exists and re-imports with the same
+  frame count. If the Blender connection is down, this gate stays OPEN and says so; it is not ticked from Godot alone.
+- [ ] OO4 FOR EVERY ENGINE (Nick 10-16: "some people will use unity, ue5, godot or others... open source power for all"):
+  the skeleton already carries the UE5 Mannequin bone names (pelvis, spine_01-03, upperarm_l, ...); docs/EXPORT.md
+  says, per engine, how to bring the .glb in and put it on the engine's own character: Unreal 5 (retarget onto
+  Manny/Quinn), Unity (Humanoid avatar), Godot (BoneMap + SkeletonProfileHumanoid), Blender (and FBX from it). Every
+  bone name in the exported file checked against the UE5 Mannequin list (written in the test, not read from the
+  exporter); a name that is not on it is printed. What was NOT tested inside Unity or Unreal is said so in the doc.
+- [ ] OO5 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 34; committed.
+  NICK? Poser has no LICENSE file: open source needs one (MIT: anyone uses it, even closed; GPL: changes must stay
+  open). The mannequin is CC0 and may ship with it.
+
+## PP. Round 35: a stranger can start it and knows why it stops (from Gemini's review of 2026-10-16, Antigravity,
+## checked against the code: the launcher text, autosave 15 s, B / C / S keys, the Fix ghost and "stopped short" for
+## typed poses are as it says. It READ the code, it did not run the app: its 8.2 / 10 is a reading, not a test.)
+- [ ] PP1 THE LAUNCHER WORKS ON ANY MACHINE: pose.bat finds Godot 4.7.x by, in order: POSER_GODOT, a godot/ folder
+  beside it, PATH; never a path that exists only on Nick's PC; passes its arguments through (%*); when Godot is not
+  found it says so in words and where to get it, and waits for a key. A pose.sh does the same on Linux / macOS. Test:
+  the launch line each finds (dry run, no Godot started) with POSER_GODOT set, with a fake godot/ folder, with neither
+  (the message); the arguments arrive. Anti-vacuity: the old pose.bat fails the "neither" case (no message).
+- [ ] PP2 A DRAG THAT STOPS SAYS WHY: when a drag stops short (a joint at its limit, or two parts meeting), the status
+  line names it in words ("the right forearm meets the chest", "the right elbow is at its limit: 145 of 145 bend"),
+  as typed poses already do. Test: an arm dragged into the chest and an elbow bent past its limit, through real mouse
+  events; the status names the parts. Anti-vacuity: a drag that is NOT stopped says neither.
+- [ ] PP3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 35; committed

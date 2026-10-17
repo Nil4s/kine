@@ -279,3 +279,24 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   of it). combo3 card 10: window 2.95-3.49 -> 2.95-4.69 s, windowed == full on all 282 frames.
 - `tests/plant_test.gd`: its fixture slide (combo3 in spline, 4.9 cm) is gone with pinning on (recorded as a check);
   the card "plant" Fix is tested with `S.pin = false`, where the slide is real.
+
+## Round 33 (GATES.md section NN): dual wield
+- Nick 10-16: "weapons like double dagger, so mirrored would help in making the scenes easier, like for combos".
+- `Body.KINDS["dagger"]`: 0.30 m, one hand. `set_weapon_len` now floors at 0.2 m (was 0.4).
+- THE OFF-HAND WEAPON (`wep2_*`): always held, locked in `wep2_hand` (pos = P[h] + G[h] * wep2_lpos, rot = G[h] *
+  wep2_lrot); `wep2_to_hand(h)` = the grip file mirrored to h. Its capsules `Body.WEAPON2` = wep2_handle, wep2_blade:
+  in the contact pairs, the wide-part and skin tests, skipped when off, never in the allowances; weapon-on-weapon and
+  weapon-on-hand pairs are not contacts. It is NOT pickable: it rides its hand (turn the hand to turn it).
+- Cards: the pose's "weapon2" (`wep2_dict`); samplers carry it as `"weapon2"` beside `"weapon"` on every path
+  (`Body.wep2_flat`, `Body.wep2_mix`: same hand -> lerp/slerp of its place in the hand, else the nearer card's;
+  `B.put_wep2`). A scene without it plays bit for bit as before (300 frames hashed, identical).
+- Mirror pose, paste mirrored and Mirror the scene send it to the other hand, grip mirrored: with a dagger in each
+  hand the hands swap what they hold.
+- main: picker rows "Dagger" and "Two daggers" (`_two_daggers`); picking one weapon puts the off-hand one away.
+- `tests/dual_wield_test.gd` (dual_wield:w): 8 checks.
+- NOT YET: the game export (`GameExport`) has no weapon slot for either hand; a dagger fitted grip file
+  (data/grips/dagger.json) does not exist, so the bat's standard grip is used, mirrored for the off hand.
+- Found by the full run: a picker row's TEXT WIDTH sets the side panel's width; "Two daggers (one in each hand)"
+  covered the view's left edge (ring_edges). Keep picker rows no longer than "Long hammer   (1.1 m)".
+- KNOWN FLAKE (pre-existing): popup_leak's objects count sometimes rises (3915 -> 3956) with nodes and orphans flat;
+  1 in 9 on round 32, 2 in 9 on round 33. To be looked at on its own.

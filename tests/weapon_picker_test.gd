@@ -1,6 +1,6 @@
 ## godot --path . -s tests/weapon_picker_test.gd     (GATES FF1, Nick 10-16; a real window, real clicks and keys)
 ## ONE WEAPON PICKER: the old weapon buttons are gone from both panels (Bat, Bo staff, Hammer, None, Metal bat, Staff
-## (bo), Long hammer, Remove bat); each panel has opt_weapon with None / Metal bat / Bo staff / Long hammer. A REAL click
+## (bo), Long hammer, Remove bat); each panel has opt_weapon with None / Metal bat / Bo staff / Long hammer / Dagger / 2 daggers (round 33). A REAL click
 ## opens the Poses one; picking Bo staff = the staff in the hand, ONE undo step, and the right panel's picker shows it
 ## too; None = the weapon away, one step. Then every other path that changes the weapon, and both pickers must show
 ## what the body holds after each: the B key, Ctrl+Z, the command search's "Weapon: long hammer", opening combo3 (a
@@ -66,7 +66,7 @@ func shown() -> String:
 
 
 func holds() -> String:
-	return "None" if not m.B.wep_on else {"metal_bat": "Metal bat", "staff": "Bo staff", "long_hammer": "Long hammer"}[m.B.wep_kind]
+	return "None" if not m.B.wep_on else ("2 daggers" if m.B.wep2_on else {"metal_bat": "Metal bat", "staff": "Bo staff", "long_hammer": "Long hammer", "dagger": "Dagger"}[m.B.wep_kind])
 
 
 ## a real click opens the picker; the pick in its list (the popup is its own window) = select + item_selected
@@ -99,7 +99,7 @@ func _init() -> void:
 	if not ps.is_empty():
 		for i in (ps[0] as OptionButton).item_count:
 			items.append((ps[0] as OptionButton).get_item_text(i).get_slice("   ", 0))
-	ok(gone.is_empty() and ps.size() == 2 and items == ["None", "Metal bat", "Bo staff", "Long hammer"],
+	ok(gone.is_empty() and ps.size() == 2 and items == ["None", "Metal bat", "Bo staff", "Long hammer", "Dagger", "2 daggers"],
 		"1 the old weapon buttons gone (left: %s); %d pickers, rows %s" % [gone, ps.size(), items])
 	for p in ps:
 		(p as OptionButton).item_selected.connect(func(_k): fired += 1)

@@ -78,7 +78,8 @@
      "enum": [
       "metal_bat",
       "staff",
-      "long_hammer"
+      "long_hammer",
+      "dagger"
      ]
     },
     "length": {
@@ -195,6 +196,10 @@
     },
     "weapon": {
      "$ref": "#/$defs/weapon"
+    },
+    "weapon2": {
+     "$ref": "#/$defs/weapon",
+     "description": "the off-hand weapon (round 33, dual wield): always held, in the hand the main weapon is not in"
     },
     "contacts": {
      "type": "array"

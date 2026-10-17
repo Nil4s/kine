@@ -133,3 +133,60 @@ itself says a baked JSON table "drops straight into this sampler". So that is th
 198. [AI] An agent regression: every example scene rebuilt from its description via the CLI, and compared.
 199. [AI] Random valid poses within the joint limits, for testing and for inspiration.
 200. [AI] A Claude panel inside Poser: ask "why does this swing look weak?" and get an answer with the cards marked. NICK? (needs an API key)
+
+## I. THE SET AND YOUR OWN THINGS (Nick 2026-10-16: "boxes, or furniture like tables, chairs, for the char to interact
+## with, cuz it's animations, not only game animations... and a way to bring in your own stuff: animations in the format
+## we accept, and furniture, weapons, objects etc, like a real one would do")
+Poser stops being only a combat planner: a set for any scene (sitting, leaning, climbing, carrying), and the user's own
+assets coming IN through the same open formats that go OUT (round 34: .glb, .bvh).
+
+201. [SET] A starter set of props at real sizes, CC0: box (40 cm), crate, table (75 cm high), chair (seat 45 cm),
+     stool, bench, step and stairs (18 cm risers), ramp, wall, door frame, railing, bed.
+202. [SET] Props in the scene: placed, turned, snapped to the floor or onto each other; saved in the scene file
+     ("props"); Mirror the scene mirrors them; undo for every move.
+203. [SET] Props are SOLID: body parts and weapons cannot pass through them (the contact checks, as the body's own
+     capsules); a foot planted on a box or a stair stays planted there (planting learns surfaces above the floor).
+204. [SET] SUPPORT, not collision: the hips on a seat, a hand flat on a table, a foot on a step are allowed contacts
+     (the body rests ON the prop); Check says when the body floats above a seat it should sit on, or sinks into it.
+205. [SET] Interaction snaps: a chair offers "sit" (hips onto the seat, feet to the floor), a table "lean" (hands on
+     the edge), a box "step up"; one click poses toward it, the limits and contacts still apply.
+206. [SET] HELD OBJECTS: the weapon system generalised: any prop can be picked up in one or two hands (a box, a cup,
+     a sword), carried across cards, and PUT DOWN at a card (it stays where it was left). Dual wield (round 33) is
+     the first case of two held things.
+207. [SET] The set exports: props as static meshes and held objects as animated nodes in the .glb, so a scene opens in
+     an engine as a whole set, not a character in a void.
+208. [IMPORT] Your own objects: a .glb dropped in becomes a prop or a weapon; its size checked (metres; "this is 100x
+     too big, it was made in centimetres"), its solid shape from its bounds (or a convex hull), a weapon's butt and tip
+     picked by two clicks; kept in a library folder (props/, weapons/) with its licence noted beside it.
+209. [IMPORT] Your own animations (replaces #170): .glb or .bvh with a humanoid skeleton; UE5 Mannequin names map
+     directly, Mixamo and other common rigs through a name table; retargeted onto the mannequin and cut into CARDS at
+     the motion's turning points, so they are edited the Poser way. Check runs on them like on any scene.
+210. [IMPORT] One library panel for built-ins and your own: props, weapons, animations, poses; thumbnails; search.
+211. [IMPORT] Round trip: a Poser scene exported (.glb) and imported back lands within 1 cm per joint and per prop.
+212. [IMPORT] An imported file that is broken, has no skeleton, or the wrong scale says so in words and changes nothing.
+213. [IMPORT] HOW THINGS COME IN (Nick 10-16: "drag and drop inside the engine, or put them in the right folders?"):
+     all three, one path: (1) DRAG AND DROP a file from the file explorer onto the Poser window (Godot's
+     files_dropped): a body with a skeleton asks "animation or prop?", a single object "prop or weapon?"; (2) an Import
+     button with a file picker; (3) the library folders (props/, weapons/, animations/) are read at start, so files put
+     there by hand or by an AI agent appear too. Every way checks the file and COPIES it into the library (the
+     original is never changed). No terminal needed.
+
+## J. ANY SKELETON (Nick 2026-10-16: "what happens when a person is animating a spider, or a robot mech that's huge?
+## would they be able to relock the skeleton to match the mesh?"). TODAY: one human skeleton is built in (52 named
+## joints, anatomical limits, capsules fitted to the mannequin, a human rulebook, two-footed planting, left/right mirror).
+## The way out: the skeleton becomes DATA (a rig profile), and everything that assumed a human reads it.
+214. [RIG] Rig profiles: a skeleton described in a file (joints, parents, rest positions, limits, capsules, which
+     joints are FEET, which pairs are left/right TWINS, the body's SIZE). The mannequin becomes the first profile;
+     the app and every suite run unchanged on it (the refactor's bar).
+215. [RIG] Human proportions: fit the mannequin's bone lengths to a different human mesh (tall, short, broad);
+     limits and rules stay human. Ties into the character mesh engine (Nick's next project).
+216. [RIG] A rigged mesh brings its own skeleton (.glb): its bones read in, the user marks the feet and the twins,
+     limits start free or from a template (human, quadruped, insect leg, hydraulic joint, tentacle), capsules fitted
+     from the skinned mesh automatically (tools/mesh_fit.gd's method).
+217. [RIG] An unrigged mesh: click to place the joints inside it; Poser builds the skeleton and skins it (the last and
+     hardest piece).
+218. [RIG] Planting for N feet (a spider's 8, a mech's 2 big ones); balance over the polygon of whatever is planted.
+219. [RIG] Mirror by the profile's twins; a creature with no left/right (a tentacle beast) has no Mirror button.
+220. [RIG] The rulebook per profile: rules from physics (balance, nothing through the body, foot slide) hold for all;
+     rules from human anatomy (head quiet, tip speed of a swung bat) belong to the human profile or scale with SIZE
+     (a 10 m mech is not barred at a human's head travel).

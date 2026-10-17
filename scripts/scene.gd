@@ -258,7 +258,7 @@ func _flow_sample(t: float, i: int, ts: Array) -> Dictionary:
 	while k2 < knots.size() - 1 and eb > knots[k2]:
 		k2 += 1
 	var piece := blend(poses[k2 - 1], poses[k2], clampf((eb - knots[k2 - 1]) / maxf(1e-6, knots[k2] - knots[k2 - 1]), 0.0, 1.0))
-	return {"offset": off, "ang": ang, "weapon": piece["weapon"]}
+	return {"offset": off, "ang": ang, "weapon": piece["weapon"], "weapon2": piece.get("weapon2", {})}
 
 
 ## monotone cubic (Fritsch-Carlson) through (xs, ys) at x: no overshoot, zero slope where the values turn back
@@ -297,12 +297,12 @@ func _spline_sample(t: float) -> Dictionary:
 	var off := _curve(F, "_off", clampf(t + LEAD * 5.0 * k, 0.0, T), ts)
 	# the weapon's place in the hand: the plain blend inside the piece the hand is in (as in a flow run)
 	var w := _where(clampf(t, 0.0, T), ts)
-	var wep: Dictionary
+	var piece: Dictionary
 	if w[1] < 0.0:
-		wep = _flat_of(F, w[0])["weapon"]
+		piece = _flat_of(F, w[0])
 	else:
-		wep = blend(_flat_of(F, w[0] - 1), _flat_of(F, w[0]), w[1])["weapon"]
-	return {"offset": off, "ang": ang, "weapon": wep}
+		piece = blend(_flat_of(F, w[0] - 1), _flat_of(F, w[0]), w[1])
+	return {"offset": off, "ang": ang, "weapon": piece["weapon"], "weapon2": piece.get("weapon2", {})}
 
 
 func _flat_of(F: Dictionary, k: int) -> Dictionary:
@@ -354,7 +354,8 @@ static func mix_flat(a: Dictionary, b: Dictionary, s: float) -> Dictionary:
 		w = wa.duplicate()
 		w["local_pos"] = (wa["local_pos"] as Vector3).lerp(wb["local_pos"], u)
 		w["local_rot"] = (wa["local_rot"] as Quaternion).slerp(wb["local_rot"], u)
-	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], s), "ang": ang, "weapon": w}
+	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], s), "ang": ang, "weapon": w,
+		"weapon2": Body.wep2_mix(a.get("weapon2", {}), b.get("weapon2", {}), clampf(s, 0.0, 1.0))}
 
 
 ## b - a, the hips' whole-body turn the short way round (as blend() does)
@@ -430,7 +431,8 @@ func blend(a: Dictionary, b: Dictionary, u: float, kind := "") -> Dictionary:
 	if not w.is_empty() and not wb.is_empty():
 		w = w.duplicate()
 		w["grip"] = bool(a["weapon"].get("grip", false)) and bool(wb.get("grip", false))
-	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], eh), "ang": ang, "weapon": w}
+	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], eh), "ang": ang, "weapon": w,
+		"weapon2": Body.wep2_mix(a.get("weapon2", {}), b.get("weapon2", {}), eb)}
 
 
 func _ease(u: float, lv: int, kind := "") -> float:
@@ -458,6 +460,7 @@ static func put(B: Body, s: Dictionary) -> void:
 		if B.lim.has(j):
 			B.ang[j] = B.clamp_ang(j, s["ang"][j])
 	B.fk()
+	B.put_wep2(s.get("weapon2", {}))
 	var w: Dictionary = s["weapon"]
 	B.wep_on = not w.is_empty()
 	if B.wep_on:

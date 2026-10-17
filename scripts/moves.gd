@@ -58,7 +58,8 @@ func sample(t: float) -> Dictionary:
 	if not w.is_empty() and not wb.is_empty():
 		w = w.duplicate()
 		w["grip"] = bool(a["weapon"].get("grip", false)) and bool(wb.get("grip", false))
-	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], e), "ang": ang, "weapon": w}
+	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], e), "ang": ang, "weapon": w,
+		"weapon2": Body.wep2_mix(a.get("weapon2", {}), b.get("weapon2", {}), e)}
 
 
 static func _flat(p: Dictionary) -> Dictionary:
@@ -77,7 +78,7 @@ static func _flat(p: Dictionary) -> Dictionary:
 		w = {"hand": pw.get("hand", ""), "pos": Vector3(k[0], k[1], k[2]), "rot": Quaternion(r[0], r[1], r[2], r[3]),
 			"local_pos": Vector3(lp[0], lp[1], lp[2]), "local_rot": Quaternion(lr[0], lr[1], lr[2], lr[3]),
 			"length": float(pw.get("length", 0.84)), "kind": String(pw.get("kind", "metal_bat")), "grip": bool(pw.get("two_hand_grip", false)), "grip_m": float(pw.get("grip_m", 0.18))}
-	return {"offset": Vector3(o[0], o[1], o[2]), "ang": ang, "weapon": w}
+	return {"offset": Vector3(o[0], o[1], o[2]), "ang": ang, "weapon": w, "weapon2": Body.wep2_flat(p.get("weapon2", {}))}
 
 
 ## play every frame through the body: [[frame, time, contacts], ...] for frames where parts sink into each other
@@ -101,6 +102,7 @@ func apply(B: Body, t: float) -> void:
 	for j in s["ang"]:
 		B.ang[j] = B.clamp_ang(j, s["ang"][j])
 	B.fk()
+	B.put_wep2(s.get("weapon2", {}))
 	var w: Dictionary = s["weapon"]
 	B.wep_on = not w.is_empty()
 	if B.wep_on:

@@ -41,6 +41,8 @@ const CHILD := {"pelvis": "spine_01", "spine_01": "spine_02", "spine_02": "spine
 	"thumb_01_l": "thumb_02_l", "thumb_02_l": "thumb_03_l", "index_01_l": "index_02_l", "index_02_l": "index_03_l", "middle_01_l": "middle_02_l", "middle_02_l": "middle_03_l", "ring_01_l": "ring_02_l", "ring_02_l": "ring_03_l", "pinky_01_l": "pinky_02_l", "pinky_02_l": "pinky_03_l",
 	"thumb_01_r": "thumb_02_r", "thumb_02_r": "thumb_03_r", "index_01_r": "index_02_r", "index_02_r": "index_03_r", "middle_01_r": "middle_02_r", "middle_02_r": "middle_03_r", "ring_01_r": "ring_02_r", "ring_02_r": "ring_03_r", "pinky_01_r": "pinky_02_r", "pinky_02_r": "pinky_03_r"}
 const WEAPON := ["bat_handle", "bat_barrel"]
+## THE OFF-HAND WEAPON (round 33, Nick 10-16: "double dagger"): always held, in the hand the main weapon is not in
+const WEAPON2 := ["wep2_handle", "wep2_blade"]
 ## extra capsules for the WIDE parts the spine capsules miss (the mannequin's chest + shoulders and hips are wider than
 ## deep): [the joint they ride on, end a, end b (rest positions, m), radius]. Tested against the bat and the forearms
 ## and hands only (the upper arms grow out of them).
@@ -48,7 +50,7 @@ const WIDE := {
 	"chest_wide": ["spine_03", Vector3(-0.12, 1.34, -0.01), Vector3(0.12, 1.34, -0.01), 0.11],
 	"hips_wide": ["pelvis", Vector3(-0.09, 0.93, -0.01), Vector3(0.09, 0.93, -0.01), 0.12],
 }
-const WIDE_VS := ["bat_handle", "bat_barrel", "lowerarm_r", "lowerarm_l", "hand_r", "hand_l"]
+const WIDE_VS := ["bat_handle", "bat_barrel", "wep2_handle", "wep2_blade", "lowerarm_r", "lowerarm_l", "hand_r", "hand_l"]
 
 var parent := {}       # joint -> parent joint ("" for the pelvis)
 var p0 := {}           # joint -> rest position
@@ -66,7 +68,7 @@ var pairs := []        # [part, part] checked for contact
 ## SKIN test (Nick 10-13: a hand flat on the chest and a forearm in the belly passed the capsules). The chest and hips
 ## are flat ovals a capsule can't follow (their skin sits 3-4 cm outside the capsules: tools/mesh_fit.gd), so the
 ## trunk + head are ALSO tested as their real skin points (data/skin_points.json, one per 2.5 cm) against these parts.
-const SKIN_VS := ["lowerarm_r", "lowerarm_l", "hand_r", "hand_l", "bat_handle", "bat_barrel"]
+const SKIN_VS := ["lowerarm_r", "lowerarm_l", "hand_r", "hand_l", "bat_handle", "bat_barrel", "wep2_handle", "wep2_blade"]
 const SKIN_HAND_PAD := 0.01   # the knuckles and finger tips sit ~1 cm outside the hand capsule (tools/mesh_truth.gd found
                               # fingers in the thighs the capsule passed)
 var skin := {}          # trunk/head part -> [rest skin points]
@@ -84,6 +86,7 @@ const KINDS := {
 	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true},
 	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false},
 	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true},
+	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true},
 }
 var wep_kind := "metal_bat"
 ## the SECOND hand's fitted grip for this kind (data/grips/<kind>.json "second", from Nick's pose by
@@ -104,6 +107,12 @@ var wep_lrot := Quaternion.IDENTITY          #                                  
 var grip := false      # the OTHER hand holds the bat too
 var fast := false      # true while a scene plays: set_ang_safe skips the contact bisection (10-13: 300 ms -> ~ms a frame)
 var grip_u := 0.18     # where it holds it: metres up the bat from the knob
+## the off-hand weapon: locked in wep2_hand (pos = P[h] + G[h] * wep2_lpos, rot = G[h] * wep2_lrot), a dagger
+var wep2_on := false
+var wep2_kind := "dagger"
+var wep2_hand := "hand_l"
+var wep2_lpos := Vector3.ZERO
+var wep2_lrot := Quaternion.IDENTITY
 
 # results of the last fk()
 var G := {}            # joint -> Quaternion
@@ -182,19 +191,21 @@ func load_files(skel_path: String, limits_path: String) -> void:
 		rad[w] = WIDE[w][3]
 	rad["bat_handle"] = wep_r_handle
 	rad["bat_barrel"] = wep_r_barrel
+	rad["wep2_handle"] = float(KINDS["dagger"]["r_handle"])
+	rad["wep2_blade"] = float(KINDS["dagger"]["r_barrel"])
 	fk()
 	# contact pairs: body part vs body part (not a part and its own parent/child; fingers are left out: they wrap
 	# round things), and the bat vs the body (not the hands: they hold it).
-	var names: Array = BODY + WEAPON
+	var names: Array = BODY + WEAPON + WEAPON2
 	for i in names.size():
 		for k in range(i + 1, names.size()):
 			var x: String = names[i]
 			var y: String = names[k]
 			if parent.get(x, "") == y or parent.get(y, "") == x:
 				continue
-			if x in WEAPON and y in WEAPON:
+			if is_wep(x) and is_wep(y):   # weapon on weapon is a clash, not the body
 				continue
-			if (x in WEAPON and y in ["hand_r", "hand_l"]) or (y in WEAPON and x in ["hand_r", "hand_l"]):
+			if (is_wep(x) and y in ["hand_r", "hand_l"]) or (is_wep(y) and x in ["hand_r", "hand_l"]):
 				continue
 			pairs.append([x, y])
 	for w in WIDE:
@@ -203,7 +214,9 @@ func load_files(skel_path: String, limits_path: String) -> void:
 	# A pair may already overlap in the body's NEUTRAL poses (the shoulder sits in the chest, a hanging arm rests on
 	# the thigh): that much (+2 mm) is its allowance; a contact = sinking deeper. The bat is put away while measuring.
 	var keep_on := wep_on
+	var keep_on2 := wep2_on
 	wep_on = false
+	wep2_on = false
 	var calib := [{}, {"upperarm_r": Vector3(0, -90, 0), "upperarm_l": Vector3(0, -90, 0)},
 		{"upperarm_r": Vector3(0, -95, 0), "upperarm_l": Vector3(0, -95, 0)}]
 	if FileAccess.file_exists("res://data/skin_points.json"):
@@ -225,17 +238,18 @@ func load_files(skel_path: String, limits_path: String) -> void:
 			ang[j] = pose.get(j, Vector3.ZERO)
 		fk()
 		for sc in skin_raw():
-			if not (sc[1] in WEAPON):
+			if not is_wep(sc[1]):
 				var sk_key: String = "skin:" + sc[0] + "|" + sc[1]
 				allow[sk_key] = maxf(allow.get(sk_key, 0.0), float(sc[2]) + 0.002)
 		for pr in pairs:
-			if pr[0] in WEAPON or pr[1] in WEAPON:
+			if is_wep(pr[0]) or is_wep(pr[1]):
 				continue
 			var key: String = pr[0] + "|" + pr[1]
 			allow[key] = maxf(allow.get(key, 0.0), depth(pr[0], pr[1]) + 0.002)
 	for j in ORDER:
 		ang[j] = Vector3.ZERO
 	wep_on = keep_on
+	wep2_on = keep_on2
 	fk()
 
 
@@ -313,6 +327,91 @@ func turn_world(j: String, R: Quaternion) -> void:
 
 
 # ---------------------------------------------------------------- the weapon
+
+static func is_wep(part: String) -> bool:
+	return part in WEAPON or part in WEAPON2
+
+
+## the off-hand weapon's butt position and rotation now
+func wep2_xform() -> Array:
+	var g: Quaternion = G[wep2_hand]
+	return [(P[wep2_hand] as Vector3) + g * wep2_lpos, g * wep2_lrot]
+
+
+func wep2_point(d: float) -> Vector3:
+	var x := wep2_xform()
+	return (x[0] as Vector3) + (x[1] as Quaternion) * Vector3(0, d, 0)
+
+
+func wep2_len() -> float:
+	return float(KINDS[wep2_kind]["len"])
+
+
+## the off-hand weapon into hand h with the standard grip (the grip file's, mirrored to h as weapon_to_hand does)
+func wep2_to_hand(h: String) -> void:
+	var path := "res://data/grips/dagger.json"
+	if not FileAccess.file_exists(path):
+		path = "res://data/grips/metal_bat.json"
+	var g: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var lp := _v(g["local_pos"])
+	var lr: Array = g["local_rot"]
+	var q := Quaternion(lr[0], lr[1], lr[2], lr[3])
+	var mirror: bool = h != g["hand"]
+	if mirror:
+		lp.x = -lp.x
+		q = Quaternion(q.x, -q.y, -q.z, q.w)
+	for j in g["fingers"]:
+		var a: Array = g["fingers"][j]
+		var jj: String = j
+		var v := Vector3(a[0], a[1], a[2])
+		if mirror:
+			jj = j.substr(0, j.length() - 2) + h.substr(h.length() - 2)
+			v.z = -v.z
+		ang[jj] = clamp_ang(jj, v)
+	wep2_on = true
+	wep2_hand = h
+	wep2_lpos = lp
+	wep2_lrot = q
+	fk()
+
+
+## the off-hand weapon as plain data (cards: "weapon2"; {} = none)
+func wep2_dict() -> Dictionary:
+	if not wep2_on:
+		return {}
+	var x := wep2_xform()
+	return {"kind": wep2_kind, "hand": wep2_hand, "knob": _p(x[0]), "tip": _p(wep2_point(wep2_len())),
+		"rot": _q(x[1]), "local_pos": _p(wep2_lpos), "local_rot": _q(wep2_lrot)}
+
+
+## a card's "weapon2" in the sampler's shape: {hand, kind, local_pos, local_rot} or {}
+static func wep2_flat(w: Dictionary) -> Dictionary:
+	if w.is_empty():
+		return {}
+	var lp: Array = w.get("local_pos", [0, 0, 0])
+	var lr: Array = w.get("local_rot", [0, 0, 0, 1])
+	return {"hand": String(w.get("hand", "hand_l")), "kind": String(w.get("kind", "dagger")),
+		"local_pos": Vector3(lp[0], lp[1], lp[2]), "local_rot": Quaternion(lr[0], lr[1], lr[2], lr[3])}
+
+
+## between two cards: in the same hand -> its place in the hand blends; otherwise the nearer card's (as the bat)
+static func wep2_mix(a: Dictionary, b: Dictionary, e: float) -> Dictionary:
+	if a.is_empty() or b.is_empty() or a["hand"] != b["hand"]:
+		return a if e < 0.5 else b
+	var w := a.duplicate()
+	w["local_pos"] = (a["local_pos"] as Vector3).lerp(b["local_pos"], e)
+	w["local_rot"] = (a["local_rot"] as Quaternion).slerp(b["local_rot"], e)
+	return w
+
+
+## a sampled off-hand weapon into the body ({} = none)
+func put_wep2(w: Dictionary) -> void:
+	wep2_on = not w.is_empty()
+	if wep2_on:
+		wep2_kind = w["kind"]
+		wep2_hand = w["hand"]
+		wep2_lpos = w["local_pos"]
+		wep2_lrot = w["local_rot"]
 
 ## the bat's knob position and rotation in the world now: [Vector3, Quaternion]
 func wep_xform() -> Array:
@@ -433,7 +532,7 @@ func move_weapon(dp: Vector3, R: Quaternion) -> void:
 
 
 func set_weapon_len(L: float) -> void:
-	wep_len = clampf(L, 0.4, 2.2)
+	wep_len = clampf(L, 0.2, 2.2)   # 0.2: the dagger (0.30 m) is the shortest kind
 	var k: Dictionary = KINDS[wep_kind]
 	var hh: float = k["handle"]
 	wep_handle = (wep_len + hh) if hh < 0.0 else wep_len * hh / float(k["len"])
@@ -653,6 +752,10 @@ func fit_hand(h: String, target: Vector3, want: Quaternion) -> float:
 
 ## a part's capsule now: its rest end points carried by its joint; the bat's from its own frame
 func cap(part: String) -> Array:
+	if part == "wep2_handle":
+		return [wep2_point(float(rad[part])), wep2_point(float(KINDS[wep2_kind]["handle"]))]
+	if part == "wep2_blade":
+		return [wep2_point(float(KINDS[wep2_kind]["handle"])), wep2_point(wep2_len() - float(rad[part]))]
 	if part == "bat_handle":
 		return [wep_point(wep_r_handle), wep_point(wep_handle)]
 	if part == "bat_barrel":
@@ -684,6 +787,8 @@ func contacts() -> Array:
 	for pr in pairs:
 		if not wep_on and (pr[0] in WEAPON or pr[1] in WEAPON):
 			continue
+		if not wep2_on and (pr[0] in WEAPON2 or pr[1] in WEAPON2):
+			continue
 		# both hands on one handle touch by nature (their capsules include the fingers wrapped round it)
 		if wep_on and grip and pr[0].begins_with("hand") and pr[1].begins_with("hand"):
 			continue
@@ -704,7 +809,7 @@ func skin_raw() -> Array:
 		return out
 	var caps := {}
 	for y in SKIN_VS:
-		if y in WEAPON and not wep_on:
+		if (y in WEAPON and not wep_on) or (y in WEAPON2 and not wep2_on):
 			continue
 		caps[y] = cap(y)
 	for part in skin:
@@ -1331,6 +1436,8 @@ func pose_copy() -> Dictionary:
 	var c := {"ang": ang.duplicate(), "offset": offset}
 	if wep_on:
 		c["wep"] = {"hand": wep_hand, "lpos": wep_lpos, "lrot": wep_lrot, "pos": wep_pos, "rot": wep_rot}
+	if wep2_on:
+		c["wep2"] = {"hand": wep2_hand, "lpos": wep2_lpos, "lrot": wep2_lrot}
 	return c
 
 
@@ -1373,6 +1480,13 @@ func pose_paste(p: Dictionary, mirrored := false, only := []) -> void:
 			wep_lrot = Quaternion(lr.x, -lr.y, -lr.z, lr.w) if mirrored else lr
 			wep_pos = Vector3(-wp.x, wp.y, wp.z) if mirrored else wp
 			wep_rot = Quaternion(wr.x, -wr.y, -wr.z, wr.w) if mirrored else wr
+		if wep2_on and p.has("wep2"):
+			var w2: Dictionary = p["wep2"]
+			var lp2: Vector3 = w2["lpos"]
+			var lr2: Quaternion = w2["lrot"]
+			wep2_hand = twin(w2["hand"]) if mirrored else w2["hand"]
+			wep2_lpos = Vector3(-lp2.x, lp2.y, lp2.z) if mirrored else lp2
+			wep2_lrot = Quaternion(lr2.x, -lr2.y, -lr2.z, lr2.w) if mirrored else lr2
 	fk()
 
 
@@ -1391,6 +1505,10 @@ func mirror_pose() -> void:
 	else:
 		wep_pos.x = -wep_pos.x
 		wep_rot = Quaternion(wep_rot.x, -wep_rot.y, -wep_rot.z, wep_rot.w)
+	if wep2_on:   # the off-hand weapon crosses too: with one in each hand, the hands swap what they hold
+		wep2_hand = twin(wep2_hand)
+		wep2_lpos.x = -wep2_lpos.x
+		wep2_lrot = Quaternion(wep2_lrot.x, -wep2_lrot.y, -wep2_lrot.z, wep2_lrot.w)
 	fk()
 
 
@@ -1412,7 +1530,10 @@ func to_dict() -> Dictionary:
 		var x := wep_xform()
 		w = {"kind": wep_kind, "length": wep_len, "hand": wep_hand, "knob": _p(x[0]), "tip": _p(wep_point(wep_len)),
 			"rot": _q(x[1]), "local_pos": _p(wep_lpos), "local_rot": _q(wep_lrot), "two_hand_grip": grip, "grip_m": grip_u}
-	return {"offset": _p(offset), "joints": joints, "weapon": w, "contacts": con}
+	var out := {"offset": _p(offset), "joints": joints, "weapon": w, "contacts": con}
+	if wep2_on:
+		out["weapon2"] = wep2_dict()
+	return out
 
 
 func from_dict(d: Dictionary) -> void:
@@ -1440,6 +1561,7 @@ func from_dict(d: Dictionary) -> void:
 		wep_lpos = _v(w.get("local_pos", [0, 0, 0]))
 		grip = bool(w.get("two_hand_grip", false))
 		grip_u = float(w.get("grip_m", grip_u))
+	put_wep2(wep2_flat(d.get("weapon2", {})))
 
 
 ## THE POSE, LOSSLESS (round 8, for undo): to_dict rounds for the files (0.01 deg, 0.1 mm), so an undo through it
@@ -1447,7 +1569,8 @@ func from_dict(d: Dictionary) -> void:
 func state() -> Dictionary:
 	return {"ang": ang.duplicate(), "offset": offset, "wep_on": wep_on, "wep_kind": wep_kind, "wep_len": wep_len,
 		"wep_pos": wep_pos, "wep_rot": wep_rot, "wep_hand": wep_hand, "wep_lpos": wep_lpos, "wep_lrot": wep_lrot,
-		"grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true)}
+		"grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true), "wep2_on": wep2_on, "wep2_kind": wep2_kind,
+		"wep2_hand": wep2_hand, "wep2_lpos": wep2_lpos, "wep2_lrot": wep2_lrot}
 
 
 func set_state(s: Dictionary) -> void:
@@ -1464,6 +1587,11 @@ func set_state(s: Dictionary) -> void:
 	grip = s["grip"]
 	grip_u = s["grip_u"]
 	grip2 = (s["grip2"] as Dictionary).duplicate(true)
+	wep2_on = s.get("wep2_on", false)
+	wep2_kind = s.get("wep2_kind", "dagger")
+	wep2_hand = s.get("wep2_hand", "hand_l")
+	wep2_lpos = s.get("wep2_lpos", Vector3.ZERO)
+	wep2_lrot = s.get("wep2_lrot", Quaternion.IDENTITY)
 	fk()
 
 

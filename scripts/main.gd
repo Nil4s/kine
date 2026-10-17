@@ -39,6 +39,8 @@ var skel: Skeleton3D     # the mannequin's skeleton (assets/mannequin.glb, Quate
 var bone_idx := {}
 var bat_handle: MeshInstance3D
 var bat_barrel: MeshInstance3D
+var d2_handle: MeshInstance3D   # the off-hand dagger (round 33): drawn, riding its hand
+var d2_blade: MeshInstance3D
 var bat_knob: MeshInstance3D
 var wep_mats := {}
 var slide_body := true   # , . slide the main hand: true = the weapon stays, the body follows; false = the weapon slides in the hand
@@ -1016,7 +1018,7 @@ func _body() -> void:
 	skel = mq[1]
 	bone_idx = mq[2]
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
-	for j in Body.ORDER + Body.WEAPON:
+	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var mi := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
 		cm.radius = B.rad[j]
@@ -1064,6 +1066,8 @@ func _body() -> void:
 	steel.metallic = 0.9
 	steel.roughness = 0.35
 	wep_mats = {"metal": metal, "tape": tape, "wood": wood, "steel": steel}
+	d2_handle = _cyl(0.013, 0.013, tape)
+	d2_blade = _cyl(0.004, 0.011, steel)
 	tag = Label3D.new()
 	tag.pixel_size = 0.0009
 	tag.fixed_size = true
@@ -1278,7 +1282,13 @@ func _wep_look() -> void:
 	var bm := bat_barrel.mesh as CylinderMesh
 	hm.top_radius = B.wep_r_handle
 	hm.bottom_radius = B.wep_r_handle
-	if B.wep_kind == "staff":
+	if B.wep_kind == "dagger":
+		# a taped grip, a steel blade narrowing to the point
+		bm.top_radius = 0.004
+		bm.bottom_radius = B.wep_r_barrel
+		bat_handle.material_override = wep_mats["tape"]
+		bat_barrel.material_override = wep_mats["steel"]
+	elif B.wep_kind == "staff":
 		bm.top_radius = B.wep_r_handle
 		bm.bottom_radius = B.wep_r_handle
 		bat_handle.material_override = wep_mats["wood"]
@@ -1334,10 +1344,12 @@ func _refresh() -> void:
 	for pr in B.pairs:
 		if not B.wep_on and (pr[0] in Body.WEAPON or pr[1] in Body.WEAPON):
 			continue
+		if not B.wep2_on and (pr[0] in Body.WEAPON2 or pr[1] in Body.WEAPON2):
+			continue
 		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
 			touching[pr[0]] = true
 			touching[pr[1]] = true
-	for j in Body.ORDER + Body.WEAPON:
+	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var c: Array = B.cap(j)
 		_place(parts[j], c[0], c[1], B.rad[j])
 		if dots.has(j):
@@ -1356,11 +1368,17 @@ func _refresh() -> void:
 		if clean:
 			col.a = 0.0
 		mats[j].albedo_color = col
-		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and not hidden_parts.has(j)
+		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
 		if pieces.has(j):
 			pieces[j].visible = not hidden_parts.has(j)
 	for m in [bat_handle, bat_barrel, bat_knob]:
 		m.visible = B.wep_on
+	d2_handle.visible = B.wep2_on
+	d2_blade.visible = B.wep2_on
+	if B.wep2_on:
+		var hu := float(Body.KINDS[B.wep2_kind]["handle"])
+		_place(d2_handle, B.wep2_point(0.0), B.wep2_point(hu), 0.0, false)
+		_place(d2_blade, B.wep2_point(hu), B.wep2_point(B.wep2_len()), 0.0, false)
 	if B.wep_on:
 		_wep_look()
 		if B.wep_kind == "staff":
@@ -1935,7 +1953,7 @@ func _bat_put(h: String) -> void:
 ## ONE WEAPON PICKER (round 25, GATES FF1, Nick 10-16: "weapons could be a drop down list so it looks cleaner"): the
 ## same dropdown in both panels; picking = what the old buttons did (one undo step); _refresh makes every picker show
 ## what the body holds, whatever changed it (B, undo, a scene, the search); select() does not fire item_selected
-const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "0.84 m"], ["Bo staff", "staff", "1.8 m"], ["Long hammer", "long_hammer", "1.1 m"]]
+const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "0.84 m"], ["Bo staff", "staff", "1.8 m"], ["Long hammer", "long_hammer", "1.1 m"], ["Dagger", "dagger", "0.30 m"], ["2 daggers", "two_daggers", "0.3 m"]]
 var ui_weapon_pickers: Array[OptionButton] = []
 
 
@@ -1955,6 +1973,9 @@ func _weapon_picker(nm := "opt_weapon") -> OptionButton:   # names differ: every
 func _pick_weapon(k: int) -> void:
 	if k == weapon_shown():
 		return
+	if WEAPONS[k][1] == "two_daggers":
+		_do(_two_daggers)
+		return
 	_do(_bat_remove if WEAPONS[k][1] == "" else _kind.bind(WEAPONS[k][1]))
 
 
@@ -1962,6 +1983,8 @@ func _pick_weapon(k: int) -> void:
 func weapon_shown() -> int:
 	if not B.wep_on:
 		return 0
+	if B.wep2_on:
+		return WEAPONS.size() - 1
 	for k in WEAPONS.size():
 		if WEAPONS[k][1] == B.wep_kind:
 			return k
@@ -1977,6 +2000,7 @@ func _sync_weapon() -> void:
 
 func _bat_remove() -> void:
 	B.wep_on = false
+	B.wep2_on = false
 	B.grip = false
 	if sel in Body.WEAPON:
 		sel = "hand_r"
@@ -2092,6 +2116,7 @@ func _slide_mode() -> void:
 ## switch the weapon kind; if one is in a hand, it goes back in that hand with this kind's grip
 func _kind(k: String) -> void:
 	var h := B.wep_hand
+	B.wep2_on = false   # one weapon picked: the off-hand one is put away
 	B.set_kind(k)
 	if B.wep_on and h != "":
 		B.weapon_to_hand(h)
@@ -2099,7 +2124,22 @@ func _kind(k: String) -> void:
 		B.weapon_to_hand("hand_r")
 	sel = "bat_handle"
 	_say({"metal_bat": "metal bat (0.84 m)", "staff": "staff / bo (1.8 m): slide your hand along it with , and .  and put the other hand on with G, [ ]",
-		"long_hammer": "long hammer (1.1 m, steel head across the tip): G for both hands, [ ] to slide the other hand"}[k])
+		"long_hammer": "long hammer (1.1 m, steel head across the tip): G for both hands, [ ] to slide the other hand",
+		"dagger": "dagger (0.30 m, one hand)"}[k])
+
+
+## DUAL WIELD (round 33, Nick 10-16): a dagger in each hand; the main one in the right (or the hand it is in now),
+## the off-hand one in the other. Mirror swaps what the hands hold
+func _two_daggers() -> void:
+	var h := B.wep_hand if B.wep_on and B.wep_hand != "" else "hand_r"
+	B.grip = false
+	B.set_kind("dagger")
+	B.weapon_to_hand(h)
+	B.grip = false
+	B.wep2_kind = "dagger"
+	B.wep2_to_hand(B.twin(h))
+	sel = "bat_handle"
+	_say("two daggers: one in each hand (0.30 m). Mirror pose swaps them: the other hand leads")
 
 
 # ---------------------------------------------------------------- words
