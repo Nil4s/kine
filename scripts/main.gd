@@ -17,8 +17,10 @@ const LEFT_W := 250
 const RIGHT_W := 370
 const BOTTOM_H := 321   # +52 for the timeline (round 6); +7 (round 7): a card with move AND hold rows needs 315 px of
 						# panel, it had 308 and ran 1 px off the window's bottom (tests/empty_state_test.gd measured it)
+const BOTTOM_FOLDED := 118   # the timeline and the play row (QQ4); tests/fold_test.gd holds their need to it
 const BOTTOM_EMPTY := 100   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
 							# and play row took a third of the screen for nothing)
+var ui_bh: HBoxContainer   # the bottom panel's header row (the scene's name and buttons): folded away with the cards
 var bottom_h := BOTTOM_H   # the bottom panel's height now: _layout_bottom() sets it and moves what sits on it
 const TOP_H := 68   # round 9: icon over label (Fusion's ribbon); was 46. tests/icons_test.gd keeps every button inside it
 const SETTINGS := "user://poser.cfg"   # what the poser remembers between runs (round 9: the theme)
@@ -95,9 +97,10 @@ var ui_help: PanelContainer
 var ui_cmd: CommandSearch
 var ui_cube: ViewCube
 var ui_browser: Browser
-const RIBBON := ["POSE", "ANIMATE", "CHECK", "VIEW"]
+const RIBBON := ["POSE", "ANIMATE", "CHECK", "EXPORT", "VIEW"]   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
 const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
-	"CHECK": "grade the motion, polish, fix, the dummy", "VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)"}
+	"CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: .glb, .bvh, the game, a version",
+	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)"}
 var ui_ribbon := {}        # tab -> its row of tools (round 7)
 var ui_ribbon_tabs := {}   # tab -> its tab button
 var ui_toggles := []       # [button, func -> is it on]: the ribbon's on/off buttons show their state (synced in _refresh)
@@ -108,6 +111,147 @@ var _sync := false
 var big_view := false
 var clean := false          # recording: no highlights, no name tag
 var ui_side: Array = []      # the panels Tab hides
+
+## ROOM TO WORK (round 35a, GATES QQ4; Nick 10-16 "not like fusion that is more minimalist, more space to design"):
+## each side panel folds to a RAIL_W rail (one click on its << / >>; the rail's own button opens it), the bottom panel
+## folds to the timeline and the play row (when the scene has clips; an empty scene's start row stays). Remembered.
+## A user's first start: both sides folded (FOLD_DEFAULT); tests start open (as they start in the dark theme).
+## lw() / rw(): what the left / right side takes from the view now (0 in the big view)
+const RAIL_W := 40
+const FOLD_DEFAULT := {"left": true, "right": true, "bottom": true}
+var fold := {"left": false, "right": false, "bottom": false}
+var ui_rails := {}      # "left" / "right" -> the rail (a PanelContainer)
+var ui_fold_btn := {}   # "left" / "right" / "bottom" / "bottom_open" -> its fold button
+var ui_side_of := {}    # "left" / "right" -> the panel
+
+
+func lw() -> float:
+	return 0.0 if big_view else float(RAIL_W if fold["left"] else LEFT_W)
+
+
+func rw() -> float:
+	return 0.0 if big_view else float(RAIL_W if fold["right"] else RIGHT_W)
+
+
+func _fold(which: String, on: bool, save := true) -> void:
+	fold[which] = on
+	_sides_apply()
+	_layout_bottom()
+	_fit_rows.call_deferred()
+	if save:
+		var cf := ConfigFile.new()
+		cf.load(settings)
+		cf.set_value("layout", "fold_" + which, on)
+		cf.save(settings)
+
+
+## every side piece shown or hidden, and everything that sits beside the panels moved to the view's new edges
+func _sides_apply() -> void:
+	for k in ui_side_of:
+		ui_side_of[k].visible = not big_view and not fold[k] and not clean
+		if ui_rails.has(k):
+			ui_rails[k].visible = not big_view and fold[k] and not clean
+		if ui_fold_btn.has(k):
+			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean
+	if ui_status == null:
+		return
+	for c in [ui_bar, ui_graph]:
+		c.offset_left = lw() + 12
+		c.offset_right = -rw() - 12
+	_strip_fit()
+	if ui_find != null:
+		ui_find.offset_left = lw() + 12
+		ui_find.offset_right = lw() + 12 + 420
+	if ui_hist != null:
+		ui_hist.offset_left = -rw() - 12 - 300
+		ui_hist.offset_right = -rw() - 12
+	_place_cube()
+	_place_nav()
+	_cam()
+
+
+## THE SAY STRIP FITS ITS WORDS (QQ4): it was the view's whole width for one short line; now its width is the text's
+## (and the close x), up to the view's width, where it wraps as before
+func _strip_fit() -> void:
+	if ui_status == null:
+		return
+	var room := get_viewport().get_visible_rect().size.x - lw() - rw() - 24
+	var f := ui_status.get_theme_font("font")
+	var fs := ui_status.get_theme_font_size("font_size")
+	var w := f.get_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 12 + 34
+	# one line when it fits (a measured width + autowrap can break the last word onto a 2nd line that grows the
+	# strip down into the scene panel); it wraps only when longer than the view is wide
+	ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF if w <= room else TextServer.AUTOWRAP_WORD_SMART
+	ui_status.anchor_right = 0.0
+	ui_status.offset_left = lw() + 12
+	ui_status.offset_right = lw() + 12 + minf(w, room)
+
+
+func _rail(which: String, title: String) -> void:
+	var r := PanelContainer.new()
+	r.name = "rail_" + which
+	r.offset_top = TOP_H + 6
+	r.anchor_bottom = 1.0
+	r.offset_bottom = -BOTTOM_H - 6
+	if which == "left":
+		r.offset_left = 6
+		r.offset_right = RAIL_W
+	else:
+		r.anchor_left = 1.0
+		r.anchor_right = 1.0
+		r.offset_left = -RAIL_W
+		r.offset_right = -6
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.c("panel")
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(2)
+	r.add_theme_stylebox_override("panel", sb)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	r.add_child(v)
+	var b := _button(">>" if which == "left" else "<<", _fold.bind(which, false), "open the %s panel" % title.to_lower())
+	_rail_slim(b)
+	b.name = "open_" + which
+	v.add_child(b)
+	# the name, one letter a line (a rail is too thin for a word); a click on it opens the panel too
+	var t := Button.new()
+	t.name = "rail_name_" + which
+	t.flat = true
+	t.focus_mode = Control.FOCUS_NONE
+	t.text = "\n".join(title.split(""))
+	t.tooltip_text = "open the %s panel" % title.to_lower()
+	t.pressed.connect(_fold.bind(which, false))
+	_rail_slim(t)
+	v.add_child(t)
+	r.visible = false
+	ui_root.add_child(r)
+	ui_rails[which] = r
+
+
+func _rail_slim(b: Button) -> void:
+	b.add_theme_font_size_override("font_size", 14)
+	for st in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
+		var e := StyleBoxEmpty.new()
+		e.set_content_margin_all(4)
+		b.add_theme_stylebox_override(st, e)
+
+
+func _fold_button(which: String) -> void:
+	var b := _button("<<" if which == "left" else ">>", _fold.bind(which, true), "fold this panel to a thin rail: more room for the body (remembered)")
+	b.name = "fold_" + which
+	b.flat = true
+	b.offset_top = TOP_H + 8
+	b.offset_bottom = TOP_H + 8 + 26
+	if which == "left":
+		b.offset_left = LEFT_W - 34
+		b.offset_right = LEFT_W - 6
+	else:
+		b.anchor_left = 1.0
+		b.anchor_right = 1.0
+		b.offset_left = -6 - 18 - 30   # left of the panel's scroll bar
+		b.offset_right = -6 - 18
+	ui_root.add_child(b)
+	ui_fold_btn[which] = b
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
@@ -225,6 +369,15 @@ func _kb_poll() -> void:
 ## mouse is lit HOVER (the selected one keeps SEL) and named on the status line; a press, a drag or a panel ends it
 const HOVER := Color(0.92, 0.94, 1.0)   # pale, far from SEL's blue
 var hover_part := ""
+## THE BAR DOES NOT FLICKER (round 35a, GATES QQ2): the status line names the hovered part through _bar_hover, which
+## takes hover_part only once it has RESTED: BAR_REST on a part, BAR_LEAVE off the body (so a pointer crossing the
+## body names nothing, and one sliding off a part for an instant does not wipe its name). The light on the body is
+## still instant; only the words wait. QQ1's record: a mouse moved over the body flipped the bar 15 times in 4 s.
+const BAR_REST := 0.15
+const BAR_LEAVE := 0.3
+var _bar_hover := ""
+var _bar_want := ""
+var _bar_want_t := 0.0
 
 
 func _hover_at(p: Vector2) -> void:
@@ -308,6 +461,8 @@ func _lock_keep(snap: Dictionary) -> bool:
 func _say_plain(t: String) -> void:
 	if ui_status != null:
 		ui_status.text = t
+		ui_status.visible = hints_on or t != ""
+		_strip_fit()
 
 
 ## TYPE THE ANGLE WHILE DRAGGING (round 27, GATES HH1, UPGRADES #29): during a drag on a body part, digits - . and
@@ -417,7 +572,7 @@ func _build_nav() -> void:
 func _place_nav() -> void:
 	if ui_nav == null:
 		return
-	var r := 10.0 if big_view else RIGHT_W + 10.0
+	var r := rw() + 10.0
 	ui_nav.offset_right = -r
 	ui_nav.offset_left = -r - (2 * NAV_W + 4)
 	ui_nav.offset_top = TOP_H + 8 + ViewCube.SIZE + 8
@@ -444,8 +599,8 @@ const FIT_FILL := 0.85
 
 func nav_clear_rect() -> Rect2:
 	var vs := get_viewport().get_visible_rect().size
-	var x0 := 0.0 if big_view else float(LEFT_W)
-	var x1 := vs.x - (0.0 if big_view else float(RIGHT_W)) - (2 * NAV_W + 24)   # the cube and the nav block's strip
+	var x0 := lw()
+	var x1 := vs.x - rw() - (2 * NAV_W + 24)   # the cube and the nav block's strip
 	return Rect2(x0, TOP_H, x1 - x0, vs.y - bottom_h - 88 - TOP_H)   # above the say-line
 
 
@@ -693,6 +848,12 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	if (ev is InputEventMouseButton or ev is InputEventKey) and ev.is_pressed() and not ev.is_echo():
+		_tour_inputs += 1
+		if tour_step >= 0 and ev is InputEventKey and (ev as InputEventKey).keycode == KEY_ESCAPE:
+			_tour_end(true)   # Esc closes the tour (QQ3)
+			get_viewport().set_input_as_handled()
+			return
 	if ev is InputEventKey and ev.pressed and not ev.echo and _num_key(ev as InputEventKey):
 		get_viewport().set_input_as_handled()
 		return
@@ -755,16 +916,21 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
-	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred())
+	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _strip_fit.call_deferred())
 	_world()
 	_body()
 	add_child(ov)
 	ov.setup()
 	_ui()
+	if not testing and not cf.get_value("look", "hints", true):
+		_set_hints(false, false)   # remembered (QQ3)
+	for k in fold:   # QQ4: a user's folds, remembered (the first start: FOLD_DEFAULT); a test starts open
+		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
+			_fold(k, true, false)
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	if (not testing and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
-		_tour_start.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
+		_tour_after_recover.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
 	var args := OS.get_cmdline_user_args()
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):
 		_recover_offer.call_deferred()
@@ -951,6 +1117,8 @@ func _exit_tree() -> void:
 	# quitting with nothing unsaved: no autosave to offer next time. A test's own per-process file always goes
 	if not _unsaved() or (autosave != AUTOSAVE and OS.get_environment("POSER_AUTOSAVE") == ""):
 		_autosave_drop()
+	if autosave != AUTOSAVE and OS.get_environment("POSER_AUTOSAVE") == "" and FileAccess.file_exists(_later_path()):
+		DirAccess.remove_absolute(_later_path())
 
 
 func _process(dt: float) -> void:
@@ -969,6 +1137,12 @@ func _process(dt: float) -> void:
 		if dragging != "" or (hc != null and hc != ui_browser and hc.mouse_filter == Control.MOUSE_FILTER_STOP):   # the Browser lights a part itself (KK2)
 			hover_part = ""
 			_refresh()
+	var now := Time.get_ticks_msec() / 1000.0
+	if hover_part != _bar_want:
+		_bar_want = hover_part
+		_bar_want_t = now
+	if _bar_want != _bar_hover and now - _bar_want_t >= (BAR_REST if _bar_want != "" else BAR_LEAVE):
+		_bar_hover = _bar_want
 	if ui_bar != null:
 		var bt := bar_text()
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
@@ -1484,12 +1658,8 @@ func _cam() -> void:
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
-	if big_view:
-		cam.h_offset = 0.0
-		cam.v_offset = (bottom_h - TOP_H) * 0.5 * mpp * -1.0
-	else:
-		cam.h_offset = (RIGHT_W - LEFT_W) * 0.5 * mpp
-		cam.v_offset = (bottom_h - TOP_H) * 0.5 * mpp * -1.0
+	cam.h_offset = (rw() - lw()) * 0.5 * mpp
+	cam.v_offset = (bottom_h - TOP_H) * 0.5 * mpp * -1.0
 
 
 ## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
@@ -1872,11 +2042,7 @@ func _toggle_symmetry() -> void:
 
 func _big_view() -> void:
 	big_view = not big_view
-	for p in ui_side:
-		p.visible = not big_view
-	_place_cube()
-	_place_nav()
-	_cam()
+	_sides_apply()
 	_say("big view: the side panels are hidden (Tab brings them back)" if big_view else "panels back")
 
 
@@ -2285,6 +2451,8 @@ func _flash_cards(idx: Array) -> void:
 func _say(t: String) -> void:
 	if ui_status != null:
 		ui_status.text = t
+		ui_status.visible = hints_on or t != ""
+		_strip_fit()
 	# UNDO HISTORY (round 11, #75): the first thing said after a step is pushed names it ("ROTATING the right upper
 	# arm", "card 12: the right foot planted"...); its first clause, without the numbers that follow
 	if not undo.is_empty() and not undo[-1].has("name") and not t.begins_with("undone") and not t.begins_with("redone"):
@@ -2480,6 +2648,7 @@ const TOUR := [
 var tour_step := -1          # -1 = no tour
 var _tour_at := {}           # what the step started from (to see the user do it)
 var _clicked_part := false   # set by a click on the body; the tour reads and clears it
+var _tour_inputs := 0        # the user's presses so far (a click, a key, a button): a tour step needs one of its own
 var ui_tour: PanelContainer
 
 
@@ -2488,6 +2657,17 @@ func _tour_due() -> bool:
 	var cf := ConfigFile.new()
 	cf.load(settings)
 	return not cf.get_value("look", "tour_done", false)
+
+
+## ONE INTRO AT A TIME (round 35a, GATES QQ2; QQ1 recorded the tour card and "Unsaved work found" both appearing at
+## 0.40 s, the dialog modal over the tour's Skip): the recover offer (deferred after this) goes first; the tour starts
+## once it is answered, or at once when there is nothing to recover
+func _tour_after_recover() -> void:
+	await get_tree().process_frame
+	while ui_recover != null and ui_recover.visible:
+		await ui_recover.visibility_changed
+	if is_inside_tree():
+		_tour_start()
 
 
 func _tour_start() -> void:
@@ -2511,6 +2691,9 @@ func _tour_start() -> void:
 		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(t)
 		h.add_child(_button("Skip", _tour_end.bind(true), "end the tour; it won't show again (Help has it all)"))
+		var x := _button("x", _tour_end.bind(true), "close the tour (Esc); it won't show again (Help -> First steps tour)")
+		x.name = "tour_close"
+		h.add_child(x)
 		v.add_child(_label("", 14, "on_accent", true))
 		ui_root.add_child(ui_tour)
 	tour_step = -1
@@ -2523,7 +2706,7 @@ func _tour_go(k: int) -> void:
 		_tour_end(false)
 		return
 	_clicked_part = false
-	_tour_at = {"sel": sel, "body": JSON.stringify(B.state()), "cards": S.cards.size()}
+	_tour_at = {"sel": sel, "body": JSON.stringify(B.state()), "cards": S.cards.size(), "inputs": _tour_inputs}
 	var v := ui_tour.get_child(0)
 	(v.get_child(0).get_child(0) as Label).text = "Step %d of %d:  %s" % [k + 1, TOUR.size(), TOUR[k][0]]
 	(v.get_child(1) as Label).text = TOUR[k][1]
@@ -2541,7 +2724,7 @@ func _tour_poll() -> void:
 		2: did = S.cards.size() >= 2 and S.cards.size() > _tour_at["cards"]
 		3: did = playing
 		4: did = check_ran
-	if did:
+	if did and _tour_inputs > int(_tour_at["inputs"]):   # the user's own doing (QQ2), not a load or a recovery
 		_tour_go(tour_step + 1)
 
 
@@ -2598,6 +2781,40 @@ func _set_scale(pct: int) -> void:
 	_say("UI size %d %%" % pct)
 
 
+## HINTS ON/OFF (round 35a, GATES QQ3): the teaching texts (the welcome line on the yellow strip, the selected part's
+## "Drag: rotate it..." line, the Poses and Scene captions) go; what the app SAYS about what you did still shows
+const WELCOME := "Click a body part to select it.  Drag it to rotate.  POSES, on the left, has poses to start from."
+var hints_on := true
+var ui_hint_labels: Array = []
+
+
+func _set_hints(on: bool, save := true) -> void:
+	hints_on = on
+	_hints_apply()
+	if save:
+		var cf := ConfigFile.new()
+		cf.load(settings)
+		cf.set_value("look", "hints", on)
+		cf.save(settings)
+		_say_plain("hints on (VIEW > Hints to hide them)" if on else "")
+
+
+func _hints_apply() -> void:
+	for l in ui_hint_labels:
+		if not is_instance_valid(l):
+			continue
+		if (l as Label).has_meta("hint_text"):
+			(l as Label).text = l.get_meta("hint_text") if hints_on else ""
+		else:
+			l.visible = hints_on
+	if ui_how != null:
+		ui_how.visible = hints_on
+	if ui_status != null:
+		if not hints_on and ui_status.text == WELCOME:
+			ui_status.text = ""
+		ui_status.visible = hints_on or ui_status.text != ""
+
+
 func _set_light(on: bool) -> void:
 	Tok.set_dark(not on)
 	_retheme()
@@ -2618,6 +2835,8 @@ func _retheme() -> void:
 		(ui_ribbon_tabs[t] as Button).add_theme_color_override("font_pressed_color", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
 	ui_say_box.bg_color = Tok.c("say_bg")
 	ui_bar_box.bg_color = Tok.c("panel")
+	for r in ui_rails.values():
+		(r.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = Tok.c("panel")
 	ui_find_box.bg_color = Tok.c("float")
 	world_env.background_color = Tok.c("world")
 	floor_mat.albedo_color = Tok.c("floor")
@@ -2657,7 +2876,8 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Stepped": "stepped",
 	"Moving holds": "holds", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
-	"Big view (Tab)": "big", "Light": "light", "UI size": "size", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help"}
+	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
+	"To game": "export_game", "Save version": "version", "UI size": "size", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -2710,7 +2930,7 @@ func _button(t: String, f: Callable, tip := "") -> Button:
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = tip
-	b.pressed.connect(func(): _step_hint = t)   # first: an undo step pushed by f is named after the button
+	b.pressed.connect(func(): _step_hint = t; _tour_inputs += 1)   # first: an undo step pushed by f is named after the button
 	b.pressed.connect(f)
 	return b
 
@@ -2840,10 +3060,16 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
 	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
+	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
+	ui_ribbon["EXPORT"].add_child(_button("Export .glb", func(): _export_glb(), "the scene as exports/<name>.glb: one file with the mannequin and its animation, for Blender, Unreal, Unity, Godot (docs/EXPORT.md)"))
+	ui_ribbon["EXPORT"].add_child(_button("Export .bvh", func(): _export_bvh(), "the scene as exports/<name>.bvh: motion capture, for Blender, Maya, MotionBuilder, Cascadeur (docs/EXPORT.md)"))
+	ui_ribbon["EXPORT"].add_child(_button("To game", _export_game, "the scene as the game's PoseTable (exports/)"))
+	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# VIEW
 	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
 		ui_ribbon["VIEW"].add_child(_button(v[0], _view.bind(v[1])))
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
+	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	var us := MenuButton.new()
 	us.text = "UI size"
@@ -2897,6 +3123,7 @@ func _ui() -> void:
 	lp.offset_bottom = -BOTTOM_H - 6
 	ui_root.add_child(lp)
 	ui_side.append(lp)
+	ui_side_of["left"] = lp
 	# Nick 10-13 "we can't see individual poses": the buttons below the list had squeezed it to nothing. The panel
 	# scrolls now and the list keeps its own height
 	var lsc := ScrollContainer.new()
@@ -2917,7 +3144,9 @@ func _ui() -> void:
 	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lsc.add_child(lv)
 	lv.add_child(_label("1  POSES", 19, "heading"))
-	lv.add_child(_label("Click a pose: the body takes it.", 14, "text:0.65", true))
+	var pose_tip := _label("Click a pose: the body takes it.", 14, "text:0.65", true)
+	lv.add_child(pose_tip)
+	ui_hint_labels.append(pose_tip)
 	ui_poses = ItemList.new()
 	ui_poses.custom_minimum_size = Vector2(0, 240)
 	ui_poses.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -2959,6 +3188,11 @@ func _ui() -> void:
 	rp.offset_bottom = -BOTTOM_H - 6
 	ui_root.add_child(rp)
 	ui_side.append(rp)
+	ui_side_of["right"] = rp
+	_rail("left", "POSES")
+	_rail("right", "PART")
+	_fold_button("left")
+	_fold_button("right")
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS   # Nick 10-13 couldn't find the weapon rows below
@@ -3049,10 +3283,13 @@ func _ui() -> void:
 	bv.add_theme_constant_override("separation", 6)
 	bp.add_child(bv)
 	var bh := HBoxContainer.new()
+	ui_bh = bh
 	bh.add_theme_constant_override("separation", 6)
 	bv.add_child(bh)
 	bh.add_child(_label("3  SCENE  (clips)", 19, "heading"))
 	var intro := _label("your clips in a row; Play and the body moves from clip to clip on its own", 14, "text:0.6")
+	intro.set_meta("hint_text", intro.text)   # hints off empties it (it keeps its width: the buttons do not move)
+	ui_hint_labels.append(intro)
 	intro.clip_text = true   # a narrow window (or a big UI size) shortens this line, never pushes the buttons off (round 11)
 	intro.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	intro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3097,6 +3334,10 @@ func _ui() -> void:
 	ui_loop.toggled.connect(func(on): _push_undo(); S.loop = on; check_ran = false; _refresh())
 	bh.add_child(ui_loop)   # a property of the scene FILE: with its buttons (the play row has no room at 100 %)
 	bh.add_child(_button("New empty scene", _new_scene))
+	var fb := _button("Fold", _fold.bind("bottom", true), "fold the scene panel to the timeline and Play: more room for the body (remembered)")
+	fb.name = "fold_bottom"
+	bh.add_child(fb)
+	ui_fold_btn["bottom"] = fb
 	var cs := ScrollContainer.new()
 	cs.custom_minimum_size = Vector2(0, 112)
 	cs.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -3130,6 +3371,11 @@ func _ui() -> void:
 	bv.add_child(ph)
 	ui_play = _button("  Play (Space)  ", _toggle_play)
 	ph.add_child(ui_play)
+	var ob := _button("Clips", _fold.bind("bottom", false), "open the scene panel again: the clips and the scene's buttons")
+	ob.name = "open_bottom"
+	ob.visible = false
+	ph.add_child(ob)
+	ui_fold_btn["bottom_open"] = ob
 	ph.add_child(_button("Slower", _speed.bind(1.1), "10% slower: the picked card, or the whole scene with no card picked (Save scene keeps it)"))
 	ph.add_child(_button("Faster", _speed.bind(1.0 / 1.1), "10% faster: the picked card, or the whole scene with no card picked (Save scene keeps it)"))
 	ui_time = HSlider.new()
@@ -3192,7 +3438,7 @@ func _ui() -> void:
 		ph.add_child(b)
 
 	# ---- status line
-	ui_status = _label("Click a body part to select it.  Drag it to rotate.  Click a pose on the left to start from it.", 16, "say", true)
+	ui_status = _label(WELCOME, 16, "say", true)
 	ui_status.anchor_top = 1.0
 	ui_status.anchor_bottom = 1.0
 	ui_status.offset_top = -BOTTOM_H - 82
@@ -3206,6 +3452,21 @@ func _ui() -> void:
 	ui_say_box = sb
 	sb.set_corner_radius_all(6)
 	sb.set_content_margin_all(6)
+	# the close (x): hints off (QQ3). The strip ignores the mouse; its own child button does not
+	var hx := Button.new()
+	hx.name = "hints_close"
+	hx.text = "x"
+	hx.flat = true
+	hx.focus_mode = Control.FOCUS_NONE
+	hx.tooltip_text = "hide the teaching hints (VIEW > Hints brings them back); messages about what you do still show"
+	hx.anchor_left = 1.0
+	hx.anchor_right = 1.0
+	hx.offset_left = -26
+	hx.offset_right = -2
+	hx.offset_top = 2
+	hx.offset_bottom = 24
+	hx.pressed.connect(func(): _set_hints(false))
+	ui_status.add_child(hx)
 	ui_status.add_theme_stylebox_override("normal", sb)
 	ui_root.add_child(ui_status)
 	# ---- status bar: one line, always there (Fusion's bottom bar)
@@ -3389,8 +3650,8 @@ func bar_text() -> String:
 	var what := ""
 	if _num_on:
 		what = "TYPE %s = %s_   (it is %.1f)   Tab: next axis   Enter: done   Esc: cancel the drag" % [NUM_AXES[_num_axis], _num_text, (B.ang[sel] as Vector3)[_num_axis]]
-	elif hover_part != "" and hover_part != sel:
-		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if hover_part in Body.WEAPON else nice(hover_part))
+	elif _bar_hover != "" and _bar_hover != sel:
+		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else nice(_bar_hover))
 	elif sel in Body.WEAPON:
 		what = wep_noun() + ("  in the " + nice(B.wep_hand) if B.wep_hand != "" else "  free")
 	else:
@@ -3692,7 +3953,7 @@ func _card_pick(i: int) -> void:
 func _place_cube() -> void:
 	if ui_cube == null:
 		return
-	var r := 10.0 if big_view else RIGHT_W + 10.0
+	var r := rw() + 10.0
 	ui_cube.offset_right = -r
 	ui_cube.offset_left = -r - ViewCube.SIZE
 	ui_cube.offset_top = TOP_H + 8
@@ -3837,12 +4098,18 @@ func _layout_bottom() -> void:
 	if ui_bp == null or ui_status == null or ui_bar == null or ui_graph == null or ui_timeline == null:   # mid-build
 		return
 	var empty := S.cards.is_empty()
-	bottom_h = BOTTOM_EMPTY if empty else BOTTOM_H
+	var folded: bool = fold["bottom"] and not empty
+	bottom_h = BOTTOM_EMPTY if empty else (BOTTOM_FOLDED if folded else BOTTOM_H)
+	ui_bh.visible = not folded
+	ui_card_row.visible = not folded
+	if ui_fold_btn.has("bottom_open"):
+		ui_fold_btn["bottom_open"].visible = folded
+		ui_fold_btn["bottom"].visible = not empty
 	ui_card_row.custom_minimum_size.y = 26 if empty else 112
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty
 	ui_bp.offset_top = -bottom_h
-	for p in ui_side:
+	for p in ui_side + ui_rails.values():
 		p.offset_bottom = -bottom_h - 6
 	ui_status.offset_top = -bottom_h - 82
 	ui_status.offset_bottom = -bottom_h - 40
@@ -4980,19 +5247,54 @@ var _recovering := false   # Recover opens the scene's file under the autosave: 
 
 
 ## on start: an autosave that differs from its scene on disk is offered back (Recover / Discard)
+var _recover_discard := false
+
+
+## LATER keeps the offered work in a slot of its own (the autosave's own slot is overwritten by the next autosave, and
+## dropped by a quit with nothing unsaved or by opening a scene): <autosave>_later.json, offered when the main slot
+## has nothing; one later slot (a newer Later replaces it)
+func _later_path() -> String:
+	return ProjectSettings.globalize_path(autosave).get_basename() + "_later.json"
+
+
+func _recover_closed() -> void:
+	var from: String = ui_recover.get_meta("from", "")
+	if _recover_discard:
+		_recover_discard = false
+		if from == _later_path():
+			DirAccess.remove_absolute(from)
+		else:
+			_autosave_drop()
+		_say("the unsaved work was discarded")
+	else:
+		if from != _later_path():
+			DirAccess.rename_absolute(from, _later_path())
+			_as_last = ""
+		_say("the unsaved work is kept: it is offered again next time Poser starts")
+
+
+func _offer_drop(fp: String) -> void:
+	if fp == _later_path():
+		DirAccess.remove_absolute(fp)
+	else:
+		_autosave_drop()
+
+
 func _recover_offer() -> void:
 	var fp := ProjectSettings.globalize_path(autosave)
 	if not FileAccess.file_exists(fp):
-		return
+		fp = _later_path()
+		if not FileAccess.file_exists(fp):
+			return
 	var a: Variant = JSON.parse_string(FileAccess.get_file_as_string(fp))
 	if not (a is Dictionary) or not (a.get("scene") is Dictionary) or not a["scene"].has("cards"):
-		_autosave_drop()   # unreadable: nothing to give back
+		_offer_drop(fp)   # unreadable: nothing to give back
 		return
 	var path: String = a.get("path", "")
 	if path != "" and FileAccess.file_exists(path):
 		var disk: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if disk is Dictionary and JSON.stringify(disk.get("cards")) == JSON.stringify(a["scene"]["cards"]):
-			_autosave_drop()   # the same as the file: nothing was lost
+			_offer_drop(fp)   # the same as the file: nothing was lost
 			return
 	if ui_recover == null:
 		ui_recover = ConfirmationDialog.new()
@@ -5004,7 +5306,10 @@ func _recover_offer() -> void:
 		ui_recover.get_ok_button().name = "b_recover"
 		add_child(ui_recover)
 		ui_recover.confirmed.connect(_recover)
-		ui_recover.canceled.connect(func(): _autosave_drop(); _say("the unsaved work was discarded"))
+		# ONLY THE DISCARD BUTTON DISCARDS (round 35a, GATES QQ3): Esc and the window's (x) also cancel; closing an
+		# intro must never throw work away, so they mean LATER: the autosave stays and the next start offers it again
+		ui_recover.get_cancel_button().pressed.connect(func(): _recover_discard = true)
+		ui_recover.canceled.connect(func(): _recover_closed.call_deferred())   # after the button's own pressed
 	var nm: String = a["scene"].get("name", "")
 	if nm == "" and path != "":
 		nm = path.get_file().get_basename()
@@ -5013,12 +5318,15 @@ func _recover_offer() -> void:
 Recover it?" % [
 		nm if nm != "" else "a new scene", a["scene"]["cards"].size(), String(a.get("at", "")).replace("T", " ")]
 	ui_recover.set_meta("autosave", a)
+	ui_recover.set_meta("from", fp)
 	ui_recover.popup_centered()
 
 
 ## Recover: the autosaved scene comes back, still marked unsaved (its file on disk is what _clean holds)
 func _recover() -> void:
 	var a: Dictionary = ui_recover.get_meta("autosave")
+	if ui_recover.get_meta("from", "") == _later_path():
+		DirAccess.remove_absolute(_later_path())   # it is open again; the autosave holds it from here
 	var path: String = a.get("path", "")
 	_clean = "[]"
 	if path != "" and FileAccess.file_exists(path):

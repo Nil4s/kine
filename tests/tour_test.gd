@@ -69,6 +69,17 @@ func _init() -> void:
 	await idle()
 	ok(m._tour_due() and m.tour_step == -1, "a fresh start owes the tour (a test does not start it by itself)")
 	m._tour_start()
+	# QQ2: the APP changing what a step watches (a pick by code, a scene loaded: no click, no key) moves nothing on
+	await idle()
+	m.sel = "head"
+	m._refresh()
+	m._load_scene("res://scenes/combo3.json")
+	m.sel = "head"
+	await idle(6)
+	ok(m.tour_step == 0, "QQ2 the app picking a part and loading a scene by itself (no input): still step 1 (now %d)" % (m.tour_step + 1))
+	m._new_scene()
+	await idle()
+	m._tour_start()
 	var p := spot("upperarm_l")
 	await step(0, "click a part", func():
 		btn(true, p)
@@ -105,6 +116,25 @@ func _init() -> void:
 	skip.pressed.emit()
 	await idle()
 	ok(m.tour_step == -1 and not m.ui_tour.visible and not m._tour_due() and skip.text == "Skip", "Skip ends it and it is not due again")
+	# QQ3: the close (x) and Esc, each from a fresh settings file
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
+	m._tour_start()
+	await idle()
+	var x: Button = m.ui_tour.find_child("tour_close", true, false)
+	ok(x != null and x.is_visible_in_tree(), "QQ3 the card has a close (x) on screen")
+	if x != null:
+		var r := x.get_global_rect()
+		btn(true, r.get_center())
+		await process_frame
+		btn(false, r.get_center())
+		await idle()
+	ok(m.tour_step == -1 and not m.ui_tour.visible and not m._tour_due(), "QQ3 a click on the (x) closes it and it is not due again")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
+	m._tour_start()
+	await idle()
+	await key(KEY_ESCAPE)
+	await idle()
+	ok(m.tour_step == -1 and not m.ui_tour.visible and not m._tour_due(), "QQ3 Esc closes it and it is not due again")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("TOUR TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

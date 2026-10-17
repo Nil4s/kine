@@ -55,6 +55,17 @@ const DRAW := {
 		["seg", Vector2(4, 21), Vector2(20, 4), 2.2]],
 	"lock": [["box", Rect2(5, 11, 14, 10), 0], ["arc", Vector2(12, 11), 5, 2.2, 180, 360]],
 	"unlock": [["box", Rect2(5, 11, 14, 10), 0], ["arc", Vector2(12, 8), 5, 2.2, 180, 330], ["seg", Vector2(7, 8), Vector2(7, 11), 2.2]],
+	"hints": [["ring", Vector2(12, 10), 7.5, 1.8], ["seg", Vector2(8, 16), Vector2(5, 22), 1.8], ["seg", Vector2(5, 22), Vector2(12.5, 17.5), 1.8],
+		["disc", Vector2(12, 7), 1.3], ["seg", Vector2(12, 10), Vector2(12, 13.5), 1.8]],
+	"export_glb": [["box", Rect2(3, 9, 12, 12), 1.8], ["seg", Vector2(10, 14), Vector2(20, 4), 2], ["seg", Vector2(20, 4), Vector2(14, 4), 2],
+		["seg", Vector2(20, 4), Vector2(20, 10), 2]],
+	"export_bvh": [["disc", Vector2(6, 5), 2.2], ["seg", Vector2(6, 8), Vector2(6, 15), 2], ["seg", Vector2(6, 15), Vector2(3, 21), 1.8],
+		["seg", Vector2(6, 15), Vector2(9, 21), 1.8], ["seg", Vector2(11, 12), Vector2(21, 12), 2], ["seg", Vector2(21, 12), Vector2(17, 8), 2],
+		["seg", Vector2(21, 12), Vector2(17, 16), 2]],
+	"export_game": [["box", Rect2(2.5, 7, 19, 11), 1.8], ["seg", Vector2(6, 12.5), Vector2(10, 12.5), 1.8], ["seg", Vector2(8, 10.5), Vector2(8, 14.5), 1.8],
+		["disc", Vector2(15.5, 11), 1.3], ["disc", Vector2(18, 14), 1.3]],
+	"version": [["ring", Vector2(13, 13), 7.5, 1.8], ["seg", Vector2(13, 13), Vector2(13, 8), 1.8], ["seg", Vector2(13, 13), Vector2(16.5, 15), 1.8],
+		["arc", Vector2(13, 13), 10.5, 1.4, 150, 250]],
 	"help": [["arc", Vector2(12, 8.5), 4.5, 2.2, 160, 420], ["seg", Vector2(12, 13), Vector2(12, 16), 2.2], ["disc", Vector2(12, 20.5), 1.5]],
 }
 

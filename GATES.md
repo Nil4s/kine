@@ -690,22 +690,68 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
 ## blinking when u open the pose app, and have no option to close or skip... page things still feel too close and too
 ## big, not like Fusion that is more minimalist, more space to design and tools organized cleanly in their categories").
 ## Before round 35's launcher: a stranger who opens Poser must not meet a flicker they cannot stop.
-- [ ] QQ1 SEE IT FIRST: a recording of the real startup (the app as Nick starts it, a first-run settings file, an
+- [x] QQ1 SEE IT FIRST: a recording of the real startup (the app as Nick starts it, a first-run settings file, an
   autosave present): a screenshot every 100 ms for the first 6 s; every pop-up/card listed with each time it APPEARS
   and DISAPPEARS. The cause of the blinking named from that record (suspects, unproven: the tour's steps move on by
   themselves because loading/recovery changes sel / the pose / the cards; the recover offer and the tour open together).
-- [ ] QQ2 NOTHING BLINKS: in the same recording, no pop-up appears more than once, none is on screen less than 1 s
+  - EVIDENCE: tools/startup_record.gd (a real window, this run's own settings/autosave; events per frame + a PNG
+    every 100 ms). Nick's own settings say tour_done=true since 13:48, so the TOUR IS NOT WHAT HE SEES now; his run's
+    logs had rotated out. Records: (a) first run + autosave (C:/Temp/qq1): the tour card AND "Unsaved work found" both
+    appear at 0.40 s, stacked over the body; the dialog is modal, so the tour's Skip cannot be clicked while it is up.
+    (b) pressing Recover / Discard at 1.5 s: the dialog goes at 1.59 / 1.58 s, the tour stays on step 1: the suspect
+    "the tour moves on by itself" is REFUTED (0 step changes). (c) a mouse moved over the window as a person does
+    (--sweep, no tour): the status bar flips 15 times in 4 s between "pointing at <part>" and the picked part's line,
+    twice within 20 ms (the left/right hip at 3.980/3.988 s): FLICKER, CONFIRMED. (d) the teaching texts (the yellow
+    "Drag: rotate it..." strip, the panels' captions, "No clips yet. Start here") have no off switch.
+    NICK? which of these he saw (the morning screenshots: qq1 f_0010, qq1_sweep).
+- [x] QQ2 NOTHING BLINKS: in the same recording, no pop-up appears more than once, none is on screen less than 1 s
   unless the user closed it, and at most ONE intro thing at a time (the recover offer first; the tour only after it is
   answered). A tour step moves on only after an INPUT from the user (a click, a drag, a key), never from the app
-  loading or recovering. Anti-vacuity: the recording run on the round-34 code shows the blinking QQ1 found.
-- [ ] QQ3 EVERY INTRO CAN BE CLOSED: the tour card has a visible close (x) and Skip, and Esc closes it; the recover
+  loading or recovering. AMENDED from QQ1: the status bar's hover line changes only after the pointer RESTS on a part
+  (150 ms) and goes back to the picked part only after it has left for 300 ms: in the --sweep record, no two bar
+  changes closer than 150 ms, and fewer than half the round-34 count. Anti-vacuity: the recording run on the round-34
+  code shows the blinking QQ1 found (two intros at 0.40 s; 15 bar flips, two within 20 ms).
+  - EVIDENCE: startup_record on the new code: first run + autosave (C:/Temp/qq2): the recover offer at 0.39 s, the
+    tour NOT shown while it is up (0 spans); --press recover (C:/Temp/qq2_recover): recover 0.39-1.53, the tour
+    1.53-end: one at a time, each shown once, none under 1 s. tour_test: the app picking a part and loading combo3 by
+    itself (no input) leaves the tour on step 1; all 5 steps still move on to the user's click / drag / Enter / Space /
+    Check. The bar: --sweep (C:/Temp/qq2_sweep) 2 bar changes (both the start-up fill, 0.40/0.45 s), 0 from the
+    hover, against 15 on round 34: a pointer crossing the body names nothing; one resting names its part
+    (hover_test 20 parts, hover_sync 6 checks, waiting BAR_LEAVE). ANTI-VACUITY: tour_test on round-34 main.gd FAILS
+    4 (the app's own load moved the tour to step 2; no x; x and Esc do nothing); the round-34 --sweep: 15 flips.
+- [x] QQ3 EVERY INTRO CAN BE CLOSED: the tour card has a visible close (x) and Skip, and Esc closes it; the recover
   offer has its buttons and Esc; closing either is remembered (the tour never comes back by itself; Help -> "First
-  steps tour" starts it on purpose). Checked by clicking each control in a windowed test.
-- [ ] QQ4 ROOM TO WORK (the Fusion point): measured at 1600x900, 100 %: the 3D view's share of the window, every
+  steps tour" starts it on purpose). AMENDED from QQ1: the teaching texts too: the yellow hint strip gets a close (x)
+  that turns HINTS off (remembered; the panels' captions and the empty-scene line go with it), and View -> "Hints"
+  brings them back. Checked by clicking each control in a windowed test.
+  - EVIDENCE: tour_test: a real click on the card's (x) and a real Esc each end it, not due again (+ Skip, as
+    before); Help's search has "First steps tour". hints_test (new, windowed): a real click on the strip's (x): the 4
+    teaching texts gone, saved; a message still shows; VIEW > Hints brings all back, saved. FOUND ON THE WAY, FIXED:
+    the recover dialog's Esc and its window (x) both DISCARDED the unsaved work (they emit canceled, wired to the
+    drop): closing an intro threw work away. Now only the Discard button discards; Esc / (x) = LATER: the work moves to
+    <autosave>_later.json (the main slot is dropped by a quit with nothing unsaved and overwritten by the next
+    autosave) and the next start offers it (record C:/Temp/qq3_esc: real Esc at 1.50 s, the dialog goes at 1.58, the
+    tour follows). autosave_test 11b/11c/12 new. STUBS: hints (x) wired to nothing -> hints_test FAIL 4; canceled ->
+    drop (round 34) -> autosave_test FAIL 2 (11b, 11c); round-34 main -> tour_test FAIL 4.
+- [x] QQ4 ROOM TO WORK (the Fusion point): measured at 1600x900, 100 %: the 3D view's share of the window, every
   panel's width, the top rows' height, BEFORE and AFTER. Bar: the view gets at least 70 % of the window by default;
   each side panel can fold to a thin rail with one click (remembered); the tools grouped by category, named for what
   they are for (Pose / Animate / Check / Export, as Fusion's workspaces), nothing removed (every command still reachable
   and every suite passing). Screenshots before/after put in front of Nick: his eye is the last bar ("NICK?").
+  - EVIDENCE: tools/layout_measure.gd (new; the window's pixels no chrome covers, 4 px samples), 1600x900, 100 %:
+    BEFORE (round 34): startup 46.5 %, combo3 open 31.5 % (left 244, right 364, bottom 94 / 315 px; the say strip the
+    view's whole width). AFTER: both sides folded to 34 px rails, startup 73.1 %; combo3 open with the scene panel
+    folded to the timeline + play row (BOTTOM_FOLDED 118) 71.3 % (fold_test, in its own window: 73.0 %); sides only
+    49.9 %. A user's FIRST start is all folded (FOLD_DEFAULT); each fold one click (<< / >> / Fold), each rail or
+    "Clips" opens it, saved under layout/fold_*; tests start open. The say strip is its text's width. Categories:
+    the ribbon is POSE / ANIMATE / CHECK / EXPORT (new: Export .glb, Export .bvh, To game, Save version) / VIEW;
+    nothing removed (the play row's Check/Polish/Fix drop off right-to-left when folded, as on a small window; all
+    three are in CHECK). fold_test (new, windowed, 15 checks: real clicks, rails on screen, strip/bar/cube follow,
+    the body centred in the free view within 4 px, big view hides rails, the folded contents fit, play row on screen,
+    share >= 70). STUB: _fold without _sides_apply -> fold_test FAIL 5. Found by empty_state: the fitted strip
+    wrapped its last word onto a 2nd line and grew into the scene panel: one line unless longer than the view.
+    Full run: 99/100 first (confirm: the file-writer audit listed the 5 new file-touching functions, as it should: policies added, confirm PASS), so 100/100; Nick's files' fingerprint 99e49b62 unchanged, no zz_, exports/ empty.
+    NICK? the screenshots C:/Temp/qq4 (before_*.png, after_*.png): his eye is the last bar.
 
 ## PP. Round 35: a stranger can start it and knows why it stops (from Gemini's review of 2026-10-16, Antigravity,
 ## checked against the code: the launcher text, autosave 15 s, B / C / S keys, the Fix ghost and "stopped short" for

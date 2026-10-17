@@ -103,11 +103,19 @@ func _init() -> void:
 	m = await boot()
 	await idle(3)
 	ok(offered(m), "11 not saved, so offered again")
-	if m.ui_recover != null:
+	if m.ui_recover != null:   # QQ3: closing it (Esc, its x) is LATER, never Discard
 		m.ui_recover.hide()
 		m.ui_recover.canceled.emit()
 	await idle()
-	ok(not FileAccess.file_exists(AS) and m.S.cards.is_empty(), "12 Discard deletes it and opens nothing")
+	ok(FileAccess.file_exists(m._later_path()), "11b closed without Discard (Esc / its x): the work is kept (the Later slot)")
+	await close(m)
+	m = await boot()
+	await idle(3)
+	ok(offered(m), "11c and offered again on the next start")
+	if m.ui_recover != null:
+		m.ui_recover.get_cancel_button().pressed.emit()   # the Discard button, as clicked
+	await idle()
+	ok(not FileAccess.file_exists(AS) and not FileAccess.file_exists(m._later_path()) and m.S.cards.is_empty(), "12 Discard deletes it (and the Later slot) and opens nothing")
 	# a save drops it
 	m._load_scene("res://scenes/combo3.json")
 	m._rebuild_cards()
@@ -124,6 +132,9 @@ func _init() -> void:
 	await close(m)
 	if FileAccess.file_exists(wip):
 		DirAccess.remove_absolute(wip)
+	var later := ProjectSettings.globalize_path(AS).get_basename() + "_later.json"
+	if FileAccess.file_exists(later):
+		DirAccess.remove_absolute(later)
 	var real_now := FileAccess.get_modified_time(real) if FileAccess.file_exists(real) else -1
 	ok(real_now == real_was, "15 the real user://autosave.json untouched (%s)" % ("absent" if real_now == -1 else str(real_now)))
 	OS.set_environment("POSER_AUTOSAVE", "")

@@ -77,6 +77,8 @@ func _init() -> void:
 		if want == "" or want == "head":
 			continue   # its centre is not on the body from here, or under the selected head
 		tried += 1
+		await create_timer(m.BAR_LEAVE + 0.05).timeout   # the bar's words follow a RESTED hover (QQ2: BAR_REST on, BAR_LEAVE off)
+		await process_frame
 		var h: String = m.hover_part
 		var lit: bool = colour(h).is_equal_approx(Color(m.HOVER, 0.3)) if h != "" else false
 		var named: bool = h != "" and m.bar_text().contains(m.nice(h))

@@ -317,3 +317,28 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   (Blender 4.5 at C:/Program Files/Blender Foundation). FBX needs simplify 0, bake over the scene range, end rounded up.
 - docs/EXPORT.md: per-engine guide (UE5, Unity, Godot, Blender) + NOT TESTED list. tests: glb_export, bvh_export,
   engine_names.
+
+## Round 35a: first start, quiet and roomy (GATES QQ; Nick 10-16: intros "keep blinking", "no option to close or skip", "not like fusion")
+- tools/startup_record.gd: the first 6 s recorded (events per frame + a PNG every 100 ms; --tour, --no-autosave,
+  --press recover|discard|esc, --sweep moves the mouse). Own settings/autosave files, never the user's.
+- One intro at a time: `_tour_after_recover` starts the tour once the recover offer is answered. A tour step moves on
+  only if `_tour_inputs` (presses: mouse, key, any `_button`) grew since the step began: never on a load or recovery.
+  The card has an (x); Esc ends the tour.
+- Status bar: the hover words go through `_bar_hover`, which takes `hover_part` after it RESTS (BAR_REST 0.15 s on a
+  part, BAR_LEAVE 0.3 s off). The light on the body is still instant. Tests read the bar after BAR_LEAVE + 0.05 s.
+- Recover dialog: ONLY the Discard button discards (`_recover_discard`, set by its pressed; canceled is handled
+  deferred). Esc / the window's x = LATER: the file moves to `<autosave>_later.json`, offered on the next start
+  (the main slot is dropped by a quit with nothing unsaved, and overwritten by the next autosave).
+- Hints: `hints_on` (settings look/hints): off hides WELCOME on the say strip, ui_how, the Poses and Scene captions
+  (`ui_hint_labels`; a label with meta hint_text is emptied, not hidden, so its row keeps its width). Messages still
+  show. The strip's own (x) turns hints off; VIEW > Hints.
+- Folding (QQ4): `fold` {left,right,bottom}, `_fold(which, on, save)`, saved under settings layout/fold_*. A user's
+  first start: FOLD_DEFAULT (all folded); a test starts open (as for theme and scale). lw()/rw() = what the sides take
+  now (RAIL_W folded, 0 in big view): every reader of LEFT_W/RIGHT_W for placement uses them (`_sides_apply`). Rails:
+  `ui_rails`, open buttons "open_left"/"open_right"; fold buttons `ui_fold_btn`. The bottom folds only with clips:
+  the header row (`ui_bh`) and the card row go, BOTTOM_FOLDED; "Clips" in the play row opens it.
+- The say strip is as wide as its text (`_strip_fit`, anchor_right 0), up to the view's width.
+- EXPORT ribbon tab: Export .glb, Export .bvh, To game, Save version (icons in scripts/icons.gd).
+- tools/layout_measure.gd: the view's share of the window (4 px samples of what no chrome covers); flags are --m-*
+  because main.gd reads --scene and --shot itself. 1600x900: startup 46.5 -> 73.1 %, combo3 open 31.5 -> 71.3 %.
+- tests: tour (QQ2/QQ3 checks), hints (new), fold (new), autosave 11b/11c, hover / hover_sync wait for the rest.

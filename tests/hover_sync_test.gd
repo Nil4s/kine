@@ -75,12 +75,16 @@ func _init() -> void:
 	ok(m.hover_part == "" and not lit("thigh_l"), "2 the mouse onto empty view: hover '%s', the row lit %s" % [m.hover_part, lit("thigh_l")])
 	var hp := await row_at(m.ui_browser.rows["head"])
 	await motion(hp)
+	await create_timer(m.BAR_LEAVE + 0.05).timeout   # the bar's words follow a RESTED hover (QQ2: BAR_REST on, BAR_LEAVE off)
+	await process_frame
 	var named: bool = m.bar_text().contains("pointing at the head")
 	var on_now := head_hover()
 	await idle(10)
 	ok(m.hover_part == "head" and on_now and named and head_hover(), "3 the mouse on the head's row: hover '%s', the head lit in the view %s, the bar points at it %s; 10 frames on still lit %s" % [m.hover_part, on_now, named, head_hover()])
 	var fold: TreeItem = m.ui_browser.rows["head"].get_parent()   # the Torso folder
 	await motion(await row_at(fold))
+	await create_timer(m.BAR_LEAVE + 0.05).timeout   # the bar's words follow a RESTED hover (QQ2: BAR_REST on, BAR_LEAVE off)
+	await process_frame
 	ok(m.hover_part == "" and not head_hover() and not m.bar_text().contains("pointing at"), "4 the mouse onto the Torso folder row: hover '%s', the head lit %s" % [m.hover_part, head_hover()])
 	await motion(await row_at(m.ui_browser.rows["head"]))
 	var again: bool = m.hover_part == "head"
