@@ -1995,6 +1995,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if k.keycode == KEY_ESCAPE and ui_keys != null and ui_keys.visible:
 			keys_overlay(false)
 			return
+		if k.alt_pressed and not k.ctrl_pressed and k.keycode == KEY_E:   # Alt+E relax, Shift+Alt+E blend to the card before (Blender's keys; WW3)
+			_step_hint = "Blend to previous card" if k.shift_pressed else "Relax to the in-between"
+			_inbetween("prev" if k.shift_pressed else "relax")
+			return
 		var combo: String = ("Ctrl+" if k.ctrl_pressed else "") + ("Shift+" if k.shift_pressed else "") + KEY_WORD.get(k.keycode, OS.get_keycode_string(k.keycode))
 		for c in ui_cmd.commands:
 			if c["keys"] == combo:
@@ -2004,6 +2008,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				KEY_Z: _undo()
 				KEY_Y: _redo()
 				KEY_S: _save_scene() if k.shift_pressed else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3)
+				KEY_E: _inbetween("push")   # Ctrl+E push from the in-between (WW3)
 				KEY_C: _copy_pose()
 				KEY_V: _paste_pose("mirrored" if k.shift_pressed else "")
 			return
@@ -4837,6 +4842,11 @@ func _commands() -> Array:
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
+	add.call("Push from the in-between", "Ctrl+E", _inbetween.bind("push"), "breakdown exaggerate tween", true, "the picked card's pose (the selected parts, else the whole body) moves 25% AWAY from the mix of its two neighbours; stops at joint limits and says so")
+	add.call("Relax to the in-between", "Alt+E", _inbetween.bind("relax"), "breakdown soften tween", true, "the picked card's pose moves 25% TOWARD the mix of its two neighbours (the selected parts, else the whole body)")
+	add.call("Blend to rest pose", "", _inbetween.bind("rest"), "straight zero", true, "the selected parts (else the whole body) 25% of the way to the straight pose")
+	add.call("Blend to previous card", "Shift+Alt+E", _inbetween.bind("prev"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card before")
+	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
 	add.call("Add an in-between card", "", _tween_add, "tween", true, "a new card halfway between the picked card and the next")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
@@ -5391,6 +5401,22 @@ func _polish() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("polished: %d cards -> %d, one smooth curve.  Saved as %s; your '%s' is untouched.  Press Check to see what is left." % [n0, D.cards.size(), path.get_file(), base])
+
+
+## PUSH / RELAX / BLEND TO REST / BLEND TO NEIGHBOUR (round 41, GATES WW3, #279 #280): logic in inbetween.gd; one undo step
+func _inbetween(op: String) -> void:
+	var why := Inbetween.refuse(S, sel_card, op)
+	if why != "":
+		_say("%s: %s" % [op, why])
+		return
+	_push_undo()
+	var js := Inbetween.joints_for(B, group())
+	var r := Inbetween.run(B, S, sel_card, op, Inbetween.FACTOR, js)
+	if S.on_floor:
+		S._ground(B)
+	B.apply_grip()
+	_refresh()
+	_say(Inbetween.describe(op, Inbetween.FACTOR, r, "%d parts" % js.size() if group().size() > 1 else "the whole body"))
 
 
 ## TWEEN MACHINE: the body = the picked card's two neighbours mixed by bias (Scene.mix_flat); Update keeps it
