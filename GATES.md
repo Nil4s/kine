@@ -1249,3 +1249,39 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   _import_bvh never overwrites (_2, _3), the search test checks the rule rather than a count. Re-run: run_par -j 8
   130/130 PASS in 408 s (C:/Temp/r41_full2). Fingerprint 99e49b62d06763c13a9bc3fde9ef185b, no zz_ files, no test files in
   user data, bo_sweep.json deletion not staged. README_AI Round 41 written.
+
+## XX. ROUND 42: TEN MORE (UPGRADES_300; Nick 10-17: "lets keep going"). Same shape as WW: one worktree and branch
+## r42-<key> each, the lead merges. Lessons kept from WW: no agent kills Godot processes it did not start; no test opens
+## scenes/bo_sweep.json; every agent runs the HOUSE CHECKS (say_next, theme, confirm, command_search, undo_audit) on its
+## own branch; an agent commits BEFORE it ends a turn and never ends a turn "waiting". A scene that uses none of the new
+## fields plays, saves and exports byte for byte as before. Body-moving gates carry a real-people bar with a checked
+## source, or the report says UNVERIFIED next to the number.
+
+- [ ] XX1 KEY INTERPOLATION (#241, #242, #247): per part-key interpolation constant / linear / bezier, handle types
+  auto-clamped (default, = round 41's curve exactly), auto, vector, aligned, free; infinity hold / linear / cycle / cycle
+  with offset. Bars: auto-clamped never overshoots; constant holds to the next key's time; a cycle repeats to 1e-6; old
+  part keys sample identically.
+- [ ] XX2 CURVE EDITOR (#240): one curve per channel (X red, Y green, Z blue) against time for the picked joint's part
+  keys; click a key, drag its value and time (snap to frame), one undo step per drag; frame-all. Bars: the drawn curve's
+  pixels follow PartKeys' samples (worst error printed in px); a real drag moves a key by the expected amount.
+- [ ] XX3 DOPE SHEET (#252, #253): one row per part, diamonds for card keys and part keys; key type key / breakdown /
+  moving hold / extreme, saved only when set; drag a diamond to retime, one undo step. Bars: diamond x within 1 px of
+  the key time; retime by drag moves the time by the dragged frames.
+- [ ] XX4 BREAKDOWNER + PASTE FLIPPED (#278, #282): a 0..100 % slider between the card before and after for the
+  picked card (past 0/100 = overshoot, shown); paste flipped with "selected parts only" and a factor. Bars: 50 % =
+  the slerp midpoint to 1e-4 deg; selected-only leaves every other joint bit-identical.
+- [ ] XX5 FOOT ROLL (#270): one control rolls the foot about heel, ball and toe pivots. Bars from real gait (source
+  checked): the ankle and toe angles at heel strike and push-off against the reference, numbers printed.
+- [ ] XX6 LOOK-AT (#271): head and eyes aim at a target with a neck share; the eyes take small shifts alone. Bars from
+  real gaze-shift data (source checked): the head's share of a large shift and the eye-only range, numbers printed.
+- [ ] XX7 MOCAP FOOT LOCK + CLEANUP REPORT (#299, #305): contacts found by foot speed and height on an imported BVH and
+  planted; a report of pops, flips and limbs through the body with the frame and a fix. Bars: FOOT SLIDE before /
+  after printed and reduced; a planted contact slides < 1 cm; a seeded pop is found at its frame.
+- [ ] XX8 GAIT BARS (#333): a Check rule on walks: step length against height, cadence, arm swing. Bars from real
+  walking data (source checked); walk_bat measured and printed against them; a stub makes the rule test FAIL.
+- [ ] XX9 USD EXPORT (#327): the skeleton animation as USDA text (UsdSkel). Bars: it parses back (our reader) to the
+  same joint rotations within 1e-4 deg; usdcat / pxr checks it if installed (said if not).
+- [ ] XX10 SHADING + FPS TRUTH (#318, #323): solid / matcap / silhouette / x-ray modes; playback shows the fps really
+  reached and counts dropped frames. Bars: the silhouette frame has exactly 2 colours; a forced slow frame is counted.
+- [ ] XX11 MERGED: every branch in, all suites PASS (run_par -j 8), house checks, no leftovers, README_AI Round 42,
+  committed, worktrees removed.
