@@ -133,7 +133,7 @@ func _init() -> void:
 	m._more_pick(items.find(pick))
 	await idle(2)
 	ok(m.ui_more.is_visible_in_tree() and "Extra tool 12" in items and items.size() >= 2 and off.is_empty() and ran == [int(pick.get_slice(" ", 2))],
-		"12 twelve more tools on ANIMATE: More shows (%s), nothing off the window, picking '%s' ran it (%s)" % [items, pick, ran])
+		"12 twelve more tools on ANIMATE: More shows (%s), nothing off the window, picking '%s' ran it (%s), off the window: %s" % [items, pick, ran, off])
 	for b in m.ui_ribbon["ANIMATE"].get_children().filter(func(b): return m.label_of(b).begins_with("Extra tool")):
 		b.free()
 	m.get_window().size = Vector2i(1600, 900)

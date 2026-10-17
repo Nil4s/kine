@@ -24,6 +24,7 @@ const SRC := {
 	"FOOT SLIDE": "foot skating: a foot under 5 cm off the floor that slides more than 2.5 cm (Karunratanakul et al. 2023, the motion-generation standard; there per frame, here per planted stretch: stricter)",
 	"THROUGH A PROP": "a body part or the weapon inside a prop of the set (Props.depth, the capsules against the prop's boxes; resting ON a top is allowed): our own bars, docs/MOTION_RULES.md",
 	"FLOATS": "the hips over a seat but not on it while no foot carries the body: our own bars, docs/MOTION_RULES.md",
+	"JUMP": "a flight of T seconds is a jump of g T^2 / 8 (Bosco; Asmussen & Bonde-Petersen): a recreational adult's countermovement jump is 0.40 +- 0.11 m (0.57 s); people dip to ~90 deg of knee bend before take-off and land soft on ~117 deg (stiff ~77; DeVita & Skelly 1992)",
 	"CARRY FORM": "a load carried in front in both hands is held close at knuckle-to-elbow height: upper arms near the trunk, elbows bent (Anderson et al. 2007, anterior load carriage; Snook 1978), hands near the body (NIOSH lifting equation: H 25 cm ideal, the multiplier 25/H)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
@@ -42,6 +43,7 @@ const WHY := {
 	"FOOT SLIDE": "A planted foot that slides looks like ice skating, the most noticed mistake in animation.",
 	"THROUGH A PROP": "A table, a chair, a box are solid. A hand or a weapon passing through one breaks the scene at once.",
 	"FLOATS": "Sitting means the seat carries the weight. Hips hovering over it, with nothing else holding him up, read as a ghost.",
+	"JUMP": "Air time IS the height: hang too long and he floats like the Moon. And a jump starts in a dip and ends in a squat; straight legs at either end read as a puppet on a string.",
 	"CARRY FORM": "Nobody carries a box on straight arms held out in front: it is held against the body, arms down at the sides, elbows bent. Anything else reads as fake at once.",
 }
 const URL := {
@@ -58,6 +60,7 @@ const URL := {
 	"THROUGH A PROP": "res://docs/MOTION_RULES.md",
 	"FLOATS": "res://docs/MOTION_RULES.md",
 	"CARRY FORM": "https://stacks.cdc.gov/view/cdc/189155",
+	"JUMP": "https://pubmed.ncbi.nlm.nih.gov/1548984/",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
 const PROP_WARN := 0.005   # m inside a prop: a WARN (Props.REST_SINK: less is resting on it)
@@ -70,6 +73,10 @@ const FLOAT_RUN := 6       # frames (0.1 s)
 ## CARRY FORM (round 39, Nick: "we never saw a human holding a box like that"): two-handed front carry, from real people
 const CARRY_UP := 35.0     # deg: an upper arm further than this from hanging down is holding the load out, not carrying
 const CARRY_FLEX := [50.0, 130.0]   # deg elbow flexion: carried loads ride on bent elbows (knuckle to elbow height)
+## JUMP (round 40, GATES VV2, #228): from real jumps (sources in SRC)
+const JUMP_HIGH := 0.70    # m: over this the flight is a jump few people can make (CMJ 0.40 +- 0.11; elite ~0.70)
+const JUMP_LAND := 45.0    # deg: the deeper knee's most bend in the 0.25 s after touchdown under this = stiff
+const JUMP_DIP := 30.0     # deg: the deeper knee's most bend in the 0.5 s before take-off under this = no dip
 const CARRY_H := 0.40      # m, hands' middle from the ankles' middle, along the floor (NIOSH: 25 ideal; 40 -> 25/H = 0.63)
 const PART_WORDS := {"pelvis": "hips", "hips_wide": "hips", "chest_wide": "chest", "spine_01": "lower back",
 	"spine_02": "middle back", "spine_03": "chest", "neck_01": "neck", "head": "head", "clavicle": "shoulder",
@@ -665,6 +672,56 @@ static func rule_carry_form(sm: Dictionary) -> Array:
 	return out
 
 
+## the deeper knee's bend at time t (0 = straight): the angle between the thigh and the shin
+static func knee_bend(S: Scene, B: Body, t: float) -> float:
+	S.apply(B, t)
+	var k := 0.0
+	for sd in ["_l", "_r"]:
+		var th: Vector3 = (B.P["calf" + sd] as Vector3) - (B.P["thigh" + sd] as Vector3)
+		var sh: Vector3 = (B.P["foot" + sd] as Vector3) - (B.P["calf" + sd] as Vector3)
+		k = maxf(k, rad_to_deg(th.angle_to(sh)))
+	return k
+
+
+## the most knee bend over [a, b] at 60 frames a second
+static func knee_most(S: Scene, B: Body, a: float, b: float) -> float:
+	var k := 0.0
+	var n := maxi(1, int(ceil((b - a) * 60.0)))
+	for i in n + 1:
+		k = maxf(k, knee_bend(S, B, lerpf(a, b, float(i) / n)))
+	return k
+
+
+## JUMP: each flight (Scene.flights) against real jumps: too high for its hang time, no dip before, stiff landing.
+## {"T", "h", "dip", "land"} per flight, for the test and the panel
+static func jumps(S: Scene, B: Body) -> Array:
+	var out := []
+	var end: float = S.times()[-1][2]
+	for f in S.flights():
+		var t0: float = f["t0"]
+		var t1: float = f["t1"]
+		var T := t1 - t0
+		out.append({"t0": t0, "t1": t1, "T": T, "h": Scene.G * T * T / 8.0,
+			"dip": knee_most(S, B, maxf(0.0, t0 - 0.5), t0), "land": knee_most(S, B, t1, minf(end, t1 + 0.25))})
+	return out
+
+
+static func rule_jump(S: Scene, B: Body) -> Array:
+	var out := []
+	for j in jumps(S, B):
+		var w := []
+		if float(j["h"]) > JUMP_HIGH:
+			w.append("%.2f s in the air means a %.2f m jump (people: 0.40 m = 0.57 s; over %.2f m is a rare athlete)" % [j["T"], j["h"], JUMP_HIGH])
+		if float(j["dip"]) < JUMP_DIP:
+			w.append("no dip before take-off: the knees bend only %.0f deg (people dip to ~90)" % j["dip"])
+		if float(j["land"]) < JUMP_LAND:
+			w.append("a stiff landing: the knees bend only %.0f deg after touchdown (people land soft on ~117, stiff is ~77)" % j["land"])
+		if not w.is_empty():
+			out.append(_f("WARN", j["t0"], "JUMP", "%.2f-%.2f s: %s." % [j["t0"], j["t1"], "; ".join(w)], float(w.size())))
+			out[-1]["t1"] = j["t1"]
+	return out
+
+
 static func card_at(S: Scene, t: float) -> int:
 	var ts := S.times()
 	for i in ts.size():
@@ -699,6 +756,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_props(S, sm)
 	out += rule_floats(sm)
 	out += rule_carry_form(sm)
+	out += rule_jump(S, B)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

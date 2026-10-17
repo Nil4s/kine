@@ -113,7 +113,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["TOOLS", ["Animator tools"]]],
+		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
@@ -3144,7 +3144,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Stepped": "stepped",
-	"Moving holds": "holds", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
@@ -3455,6 +3455,8 @@ func _ui() -> void:
 	tog.call("ANIMATE", "Speed graph (Y)", _tool.bind(2), func(): return ov.graph_on)
 	tog.call("ANIMATE", "Stepped", _tool.bind(3), func(): return stepped_view, "poses only, no in-betweens (blocking)")
 	tog.call("ANIMATE", "Moving holds", _tool.bind(4), func(): return S.moving_holds, "a held pose keeps drifting slightly toward the next")
+	tog.call("ANIMATE", "Airborne", _toggle_air, func(): return sel_card >= 0 and sel_card < S.cards.size() and S.cards[sel_card].get("air", false),
+		"the picked card is in the air: from the card before to the card after, no foot touches the floor and the hips fly a real arc (g = 9.81)")
 	# "Mirror the scene" lives in the Animator tools menu at the end of this row (a button for it too ran the bar off the screen)
 	ui_tools = MenuButton.new()
 	ui_tools.text = "Animator tools"
@@ -4614,10 +4616,14 @@ func _min_w(n: Control) -> float:
 
 func _top_fits() -> bool:
 	# the room: to the window's right edge less the top panel's own right margin (round 22: a fixed 6 px was 4 short)
+	# the top panel: the NEAREST PanelContainer up the tree (round 40: since round 36 the row sits in a VBox, so the
+	# parent cast was null, the margin read 0 and the bar could run 10 px off the window)
 	var right := 0.0
-	var pc := ui_tb.get_parent() as PanelContainer
+	var pc: Node = ui_tb.get_parent()
+	while pc != null and not pc is PanelContainer:
+		pc = pc.get_parent()
 	if pc != null:
-		var sb := pc.get_theme_stylebox("panel")
+		var sb := (pc as PanelContainer).get_theme_stylebox("panel")
 		right = sb.get_margin(SIDE_RIGHT) if sb != null else 0.0
 	var room := get_viewport().get_visible_rect().end.x - right - ui_tb.get_global_rect().position.x
 	var w := 0.0
@@ -4812,6 +4818,7 @@ func _commands() -> Array:
 	for e in Scene.EASES:
 		add.call("Ease: " + e, "", _set_ease.bind(e), "easing timing curve " + {"smooth": "natural", "linear": "constant even", "in": "slow start accelerate", "out": "slow end decelerate", "snap": "jump cut hit step"}[e], true,
 			"the picked card's move eases '%s'" % e)
+	add.call("Airborne: this card is in the air", "", _toggle_air, "jump air fly leap hop flight gravity", true, "on/off: from the card before to the card after, the feet leave the floor and the hips fly the arc gravity gives (0.57 s in the air = 40 cm up)")
 	add.call("Plant the left foot on this card", "", _toggle_plant.bind("_l"), "pin lock foot slide skate stick floor", true, "on/off: the left foot stays where it stood in the card before (no sliding)")
 	add.call("Plant the right foot on this card", "", _toggle_plant.bind("_r"), "pin lock foot slide skate stick floor", true, "on/off: the right foot stays where it stood in the card before (no sliding)")
 	add.call("Copy pose", "Ctrl+C", _copy_pose, "clipboard", false, "remember the body's pose (every angle, the hips, and the weapon in its hand) to paste on another card; pasted mirrored, the weapon goes to the other hand")
@@ -4923,6 +4930,27 @@ func _toggle_plant(sd: String) -> void:
 	_retimed()
 	_say("card %d: the %s foot %s.  Ctrl+Z undoes" % [sel_card + 1, "left" if sd == "_l" else "right",
 		"planted (it stays where it stood in the card before)" if on else "free again"])
+
+
+## AIRBORNE (round 40, GATES VV1, #230): the picked card is in the air (on <-> off). A run of them between two cards on
+## the floor is a jump: Scene FLIGHTS. One undo step; it says the flight time and the height it means
+func _toggle_air() -> void:
+	if sel_card < 1 or sel_card >= S.cards.size() - 1:
+		_say("pick a card with a card before it and after it: a jump leaves the floor after one and lands on the next")
+		return
+	_push_undo()
+	var on: bool = not S.cards[sel_card].get("air", false)
+	if on:
+		S.cards[sel_card]["air"] = true
+	else:
+		S.cards[sel_card].erase("air")
+	_retimed()
+	var tail := "on the floor again"
+	for f in S.flights():
+		if sel_card > int(f["k"]) and sel_card < int(f["l"]):
+			var T := float(f["t1"]) - float(f["t0"])
+			tail = "in the air %.2f s: the hips rise %.0f cm (people's standing jump ~40 cm = 0.57 s)" % [T, Scene.G * T * T / 8.0 * 100.0]
+	_say("card %d: %s.  Ctrl+Z undoes" % [sel_card + 1, tail])
 
 
 ## EASE PRESET of the picked card (the move into it). One undo step

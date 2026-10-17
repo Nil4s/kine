@@ -1116,3 +1116,40 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   all 8deb0bf61c; probe: no dummy job pending at capture time (that hypothesis refuted). Cause NOT found;
   determinism.py now keeps both PNGs on a mismatch (%TEMP%/poser_determinism_mismatch). Screenshot re-sent.
 
+
+## VV. ROUND 40: JUMPS (UPGRADES_200 #230 the off-floor switch, #228 the jump rule; JOBS.md job 4). REAL PEOPLE FIRST:
+## flight h = g t^2 / 8 (Bosco / Asmussen & Bonde-Petersen; 0.571 s = 40 cm); recreational-collegiate CMJ 40 +- 11 cm on
+## a force plate; the test dip ~90 deg of knee bend; landing peak knee flexion soft 117 / stiff 77 deg (DeVita & Skelly
+## 1992, 59 cm drop), contact-to-peak 55 / 37 deg (fluoroscopy study). A scene with no airborne card plays byte for byte
+## as before.
+
+- [x] VV1 AIRBORNE CARDS: a card can be marked "air" (ANIMATE > Airborne, a toggle; one undo step; saved only when on;
+  Mirror keeps it). A run of air cards between a take-off card and a landing card is a FLIGHT from the take-off card's
+  leave time to the landing card's arrival: no grounding, no pins; the hips follow y = lerp(y0, y1, u) + g/2 (t-T0)(T1-t)
+  through their grounded heights at both ends. Test by numbers: apex - take-off height = g T^2 / 8 (1 cm); the hips'
+  path off that parabola by < 2 mm at 9 times; both soles above the floor mid-flight; on the floor at the landing.
+  EVIDENCE: tests/jump_test.gd (h) - flight 0.571 s -> hips rise 0.400 m (g T^2/8 = 0.400), parabola worst 0.0000 m,
+  soles 0.242 m up mid-flight, 0.000 at the landing; no air card: soles 0.000 (unchanged playback); saved only where
+  on, loads back, mirror keeps it. tests/jump_ui_test.gd (w) - Airborne CLICKED on card 3: marked, one undo step, says
+  "in the air 0.57 s: the hips rise 40 cm", button pressed, soles 0.242 m up in the poser's playback; Ctrl+Z on the
+  floor; card 1 refused. Stubs: no arc FAIL 3; flight path off FAIL 3; the click marks nothing FAIL 4.
+- [x] VV2 THE JUMP RULE (#228): per flight, from the scene: JUMP WARN when the flight implies a jump over 0.70 m (the
+  number, the hang time, and people's 0.40 m / 0.57 s), when the deeper knee bends under 45 deg in the 0.25 s after
+  touchdown (stiff; people soft ~117, stiff ~77), or under 30 deg in the 0.5 s before take-off (no dip; people ~90).
+  Rows in SRC / WHY / URL and docs/MOTION_RULES.md. Test: a good jump -> nothing; 1.0 s flight -> WARN 1.23 m; straight
+  legs at landing -> WARN stiff; no dip -> WARN.
+  EVIDENCE: jump_test.gd - ours vs people: height 0.40 (people 0.40 +- 0.11, bar 0.70), dip 94 deg (people ~90, bar
+  30), landing 94 deg (people soft 117 / stiff 77, bar 45); the good jump: Check finds NOTHING (no foot slide or balance
+  in the air); 1.0 s -> "1.00 s in the air means a 1.23 m jump"; straight landing -> "stiff ... 42 deg" only; no dip ->
+  "no dip ... 9 deg" only; no air card -> silent. Stub rule_jump -> FAIL 3. DeVita & Skelly checked on PubMed (PMID
+  1548984: 117 / 77 deg, 59 cm drop); the first link I typed from memory was wrong and was corrected.
+- [x] VV3 all suites PASS; no leftovers; README_AI Round 40; committed; a screenshot (a jump's apex, with the trail).
+  EVIDENCE: run_par -j 8: 118/118 PASS, 398 s (C:/Temp/vv_full2). The first run (116/118) caught two of mine: the JUMP
+  source link missing from MOTION_RULES (why), and the new JUMP group exposing a round-36 bug in _top_fits (the panel
+  margin read 0 through a null cast; fixed, see README). No zz_ files, no test files in user data, Nick's files
+  fingerprint 99e49b62. Screenshot C:/Temp/poser_round40_jump.png: standing vs apex, same camera (soles 0.000 / 0.242
+  m). Judged against real jumps first: the first apex shot had the arms crossed in front of the face touching the body
+  (red); the shoulder's swing leaves the sagittal plane past ~90 and stops at 135 (data/body_limits.json, Nick's), so
+  the apex uses swing 90 + tilt 30 (hands 1.61 m, over the head) - people reach ~160-180 deg of shoulder flexion there.
+  The trail asked for was dropped: on a vertical jump the hips' trail is a vertical line that hides the gap it should
+  show; the side-by-side shows it.

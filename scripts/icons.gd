@@ -59,6 +59,7 @@ const DRAW := {
 		["seg", Vector2(16, 13), Vector2(16, 20), 1.8], ["seg", Vector2(12, 10), Vector2(12, 3), 1.8], ["seg", Vector2(12, 3), Vector2(9, 6), 1.8], ["seg", Vector2(12, 3), Vector2(15, 6), 1.8]],
 	"put": [["seg", Vector2(5, 20), Vector2(19, 20), 1.8], ["seg", Vector2(8, 11), Vector2(16, 11), 1.8], ["seg", Vector2(8, 11), Vector2(8, 17), 1.8],
 		["seg", Vector2(16, 11), Vector2(16, 17), 1.8], ["seg", Vector2(8, 17), Vector2(16, 17), 1.8], ["seg", Vector2(12, 2), Vector2(12, 8), 1.8], ["seg", Vector2(12, 8), Vector2(9, 5), 1.8], ["seg", Vector2(12, 8), Vector2(15, 5), 1.8]],
+	"air": [["seg", Vector2(2, 21), Vector2(22, 21), 1.8], ["seg", Vector2(4, 19.0), Vector2(6, 12.9), 1.6], ["seg", Vector2(6, 12.9), Vector2(8, 8.5), 1.6], ["seg", Vector2(8, 8.5), Vector2(10, 5.9), 1.6], ["seg", Vector2(10, 5.9), Vector2(12, 5.0), 1.6], ["seg", Vector2(12, 5.0), Vector2(14, 5.9), 1.6], ["seg", Vector2(14, 5.9), Vector2(16, 8.5), 1.6], ["seg", Vector2(16, 8.5), Vector2(18, 12.9), 1.6], ["seg", Vector2(18, 12.9), Vector2(20, 19.0), 1.6]],
 	"close": [["seg", Vector2(6, 6), Vector2(18, 18), 2.0], ["seg", Vector2(18, 6), Vector2(6, 18), 2.0]],
 	"collision": [["ring", Vector2(9, 12), 6, 1.8], ["ring", Vector2(15, 12), 6, 1.8]],
 	"trail": [["disc", Vector2(3, 19), 1.4], ["disc", Vector2(5.5, 13.5), 1.6], ["disc", Vector2(9.5, 8.5), 1.8], ["disc", Vector2(15, 5.5), 2.0], ["disc", Vector2(21, 4.5), 2.4]],

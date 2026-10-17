@@ -505,6 +505,12 @@ func _apply(B: Body, t: float) -> void:
 			_ground(B)
 		B.apply_grip()
 		return
+	if on_floor and not flights().is_empty():   # VV1: a jump in the air: no floor, no pins, a parabola
+		var fl := flight_at(t)
+		if not fl.is_empty():
+			_fly(B, t, fl)
+			B.apply_grip()
+			return
 	put(B, sample(t))
 	if on_floor:
 		_ground(B)
@@ -800,6 +806,60 @@ func props_at(t: float, B: Body) -> Array:
 	return out
 
 
+## JUMPS (round 40, GATES VV1, #230). A card marked "air" is in the air at its arrival. A run of air cards between a
+## take-off card k and a landing card l is a FLIGHT from k's leave time T0 to l's arrival T1. In it there is no floor
+## and no pin: the limbs blend through the cards as ever, and the hips follow the ballistic path through their grounded
+## heights at both ends:  y(t) = lerp(y0, y1, u) + G/2 (t - T0)(T1 - t),  u = (t - T0) / (T1 - T0)
+## (a body in free fall: y'' = -G; the apex over level ground is G T^2 / 8, T = T1 - T0: 0.571 s -> 0.40 m)
+var _flight_memo := []   # [key, flights]
+
+
+## [{"k", "l", "t0", "t1"}] in time order (a run with no card before or after it is not a flight)
+func flights() -> Array:
+	var ts := times()
+	var key := "".join(cards.map(func(c): return "1" if c.get("air", false) else "0"))
+	if not _flight_memo.is_empty() and is_same(_flight_memo[0][0], ts) and _flight_memo[0][1] == key:
+		return _flight_memo[1]
+	var out := []
+	var i := 0
+	while i < cards.size():
+		if not cards[i].get("air", false):
+			i += 1
+			continue
+		var a := i
+		while i < cards.size() and cards[i].get("air", false):
+			i += 1
+		if a >= 1 and i < cards.size():
+			out.append({"k": a - 1, "l": i, "t0": float(ts[a - 1][2]), "t1": float(ts[i][1])})
+	_flight_memo = [[ts, key], out]
+	return out
+
+
+func flight_at(t: float) -> Dictionary:
+	for f in flights():
+		if t > float(f["t0"]) and t < float(f["t1"]):
+			return f
+	return {}
+
+
+## the body in the air: the cards' blend, the hips put on the parabola (the ends measured by posing B at T0 and T1
+## the ordinary way, cached per flight while the cards are the same)
+func _fly(B: Body, t: float, f: Dictionary) -> void:
+	if not f.has("y0"):
+		_apply(B, float(f["t0"]))
+		f["y0"] = (B.P["pelvis"] as Vector3).y
+		_apply(B, float(f["t1"]))
+		f["y1"] = (B.P["pelvis"] as Vector3).y
+	var t0: float = f["t0"]
+	var t1: float = f["t1"]
+	var u := (t - t0) / maxf(1e-6, t1 - t0)
+	put(B, sample(t))
+	B.fk()
+	var y: float = lerpf(f["y0"], f["y1"], u) + G / 2.0 * (t - t0) * (t1 - t)
+	B.offset.y += y - (B.P["pelvis"] as Vector3).y
+	B.fk()
+
+
 ## the parts that hold a prop at time t (not "through" it): {prop index: [part, ...]}
 func holding(t: float, B: Body) -> Dictionary:
 	var out := {}
@@ -1015,6 +1075,8 @@ func to_dict(B: Body) -> Dictionary:
 			cs[-1]["take"] = c["take"]   # UU2: only on a card that has one
 		if c.has("drop"):
 			cs[-1]["drop"] = c["drop"]
+		if c.get("air", false):
+			cs[-1]["air"] = true   # VV1: only when on
 	var out := {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
@@ -1039,7 +1101,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "lift": "free", "ease": "free",
-	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free"}
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "air": "free"}
 
 
 ## one card of a scene file, mirrored by MIRROR_CARD (M: a Body to mirror poses on); keys not on the list are copied
@@ -1098,6 +1160,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["take"] = {"prop": int(c["take"]["prop"]), "hands": hs if not hs.is_empty() else ["_r"]}
 		if c.has("drop"):
 			cards[-1]["drop"] = int(c["drop"])
+		if c.get("air", false):
+			cards[-1]["air"] = true
 
 
 ## SPINS (Nick 10-13: banned): key pairs where an arm rolls around itself more than Body.ROLL_STEP + 5 deg: the upper

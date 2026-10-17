@@ -447,3 +447,25 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   forearms forward, hands 48.5 cm apart (a 40 cm box between the forearms) at elbow height.
 - Found by that screenshot: a toe TIP 2 cm into a 1 m crate stack lifted the whole body onto it (_sole_low_set took
   each sole point's own surface). The toe tip now stands on what the ball of its foot stands on.
+
+## Round 40: jumps (GATES VV; UPGRADES_200 #230 airborne, #228 jump rule). The plan for 238-337 is UPGRADES_300.md
+- A card can be marked "air" (card["air"] = true, saved only when on; MIRROR_CARD "free"). Scene.flights(): each run of
+  air cards with a card before (k, take-off) and after (l, landing) is a flight from k's LEAVE to l's ARRIVAL
+  (times() rows are [move start, arrive, leave]). Memoised on times() identity + the air flags.
+- In a flight `_apply` skips the floor and the pins and calls `_fly`: the cards' blend as ever, the hips moved onto
+  y = lerp(y0, y1, u) + G/2 (t - T0)(T1 - t), y0 / y1 = the pelvis height when B is posed normally at T0 / T1 (cached
+  in the flight dict). Apex over level take-off/landing = G T^2 / 8. A scene with no air card never enters this path.
+- ANIMATE > JUMP > Airborne (toggle, icon "air", registry "Airborne: this card is in the air", one undo step): refused
+  on the first and last card; says the flight time and the height it means.
+- JUMP rule (rulebook `jumps` / `rule_jump`, not from the frame sample: it poses the scene itself): WARN when
+  G T^2 / 8 > 0.70 m, the deeper knee's most bend in the 0.5 s before take-off < 30 deg (no dip), or in the 0.25 s
+  after touchdown < 45 deg (stiff). Knee bend = angle between thigh (thigh->calf) and shin (calf->foot).
+- REAL PEOPLE: flight -> height h = g T^2/8 (Bosco; Asmussen & Bonde-Petersen); recreational CMJ 0.40 +- 0.11 m;
+  landing knee flexion soft 117 / stiff 77 deg (DeVita & Skelly 1992, PMID 1548984 - verified on PubMed; the link
+  first typed from memory was wrong). Our test jump: 0.40 m, dip 94, landing 94; Check finds nothing on it.
+- UPGRADES_300.md: 100 items (238-337) to match Maya/Blender by what an animator does (curves and part keys first),
+  from a docs survey of both apps; sources per section.
+- Found by small_window (the new JUMP group made the ANIMATE row 5 px too wide at 1280): `_top_fits` read the top
+  panel's right margin from `ui_tb.get_parent() as PanelContainer`, but since round 36 that parent is a VBox, so the
+  cast was null and the margin 0: the bar could run up to 10 px off the window. It now walks up to the nearest
+  PanelContainer. The test now prints WHAT is off the window (it failed naming nothing).
