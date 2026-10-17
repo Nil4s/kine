@@ -76,6 +76,16 @@ const CARRY_FLEX := [50.0, 130.0]   # deg elbow flexion: carried loads ride on b
 ## JUMP (round 40, GATES VV2, #228): from real jumps (sources in SRC)
 const JUMP_HIGH := 0.70    # m: over this the flight is a jump few people can make (CMJ 0.40 +- 0.11; elite ~0.70)
 const JUMP_LAND := 45.0    # deg: the deeper knee's most bend in the 0.25 s after touchdown under this = stiff
+# LANDING vs HEIGHT (round 41, GATES WW10, #312): the stiff bar rises with the fall (= apex height, level landing).
+# Verified points: DeVita & Skelly 1992 (PMID 1548984) 59 cm: stiff 77 / soft 117 deg of knee flexion; Rosen et al. 2015
+# (PMID 26665034) 40 cm drop jump, healthy controls: peak knee flexion 82.5 +- 9.0. No paper found gives a clean
+# bend-vs-height line, so the bar is MINE: JUMP_LAND at JUMP_FALL0 (0.40 m, the recreational jump, where the old bar
+# stood) rising straight to the stiffest measured landing, 77 deg, at 0.59 m, the same line beyond it (extrapolated,
+# stated), never past JUMP_LAND_MAX (a soft landing is 117).
+const JUMP_FALL0 := 0.40
+const JUMP_FALL1 := 0.59
+const JUMP_LAND1 := 77.0
+const JUMP_LAND_MAX := 110.0
 const JUMP_DIP := 30.0     # deg: the deeper knee's most bend in the 0.5 s before take-off under this = no dip
 const CARRY_H := 0.40      # m, hands' middle from the ankles' middle, along the floor (NIOSH: 25 ideal; 40 -> 25/H = 0.63)
 const PART_WORDS := {"pelvis": "hips", "hips_wide": "hips", "chest_wide": "chest", "spine_01": "lower back",
@@ -706,6 +716,12 @@ static func jumps(S: Scene, B: Body) -> Array:
 	return out
 
 
+## the least knee bend a landing from a fall of h metres should show: JUMP_LAND up to 0.40 m, then the line to 77 at 0.59 m
+static func land_bar(h: float) -> float:
+	var k := (JUMP_LAND1 - JUMP_LAND) / (JUMP_FALL1 - JUMP_FALL0)
+	return clampf(JUMP_LAND + k * (h - JUMP_FALL0), JUMP_LAND, JUMP_LAND_MAX)
+
+
 static func rule_jump(S: Scene, B: Body) -> Array:
 	var out := []
 	for j in jumps(S, B):
@@ -714,8 +730,9 @@ static func rule_jump(S: Scene, B: Body) -> Array:
 			w.append("%.2f s in the air means a %.2f m jump (people: 0.40 m = 0.57 s; over %.2f m is a rare athlete)" % [j["T"], j["h"], JUMP_HIGH])
 		if float(j["dip"]) < JUMP_DIP:
 			w.append("no dip before take-off: the knees bend only %.0f deg (people dip to ~90)" % j["dip"])
-		if float(j["land"]) < JUMP_LAND:
-			w.append("a stiff landing: the knees bend only %.0f deg after touchdown (people land soft on ~117, stiff is ~77)" % j["land"])
+		var bar := land_bar(float(j["h"]))
+		if float(j["land"]) < bar:
+			w.append("a stiff landing from %.2f m: the knees bend only %.0f deg after touchdown (a fall this high needs ~%.0f; people land soft on ~117, stiff is ~77 from 0.59 m)" % [j["h"], j["land"], bar])
 		if not w.is_empty():
 			out.append(_f("WARN", j["t0"], "JUMP", "%.2f-%.2f s: %s." % [j["t0"], j["t1"], "; ".join(w)], float(w.size())))
 			out[-1]["t1"] = j["t1"]
