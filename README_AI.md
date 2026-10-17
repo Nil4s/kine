@@ -418,3 +418,21 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   killed child skips main's `_exit_tree` and leaks user://poser_test_<pid>.cfg.
 - Known, not fixed: the soles dip up to 6.75 mm into the floor mid-move (Scene._apply plants after grounding); every
   scene has it; fixing it changes every scene's numbers, so it is its own item.
+
+## Round 39: carry, put down, gravity (GATES UU; UPGRADES_200 #206)
+- Nick asked "do we have gravity?": no physics engine; gravity as exact formulas (g = 9.81), the motion still cards.
+- Settling (props.gd `settle`, called by main's `_props_show` on every set change, and after a drag): each prop, lowest
+  first, rests on the highest top under its origin that is not above it, else the floor.
+- Carry marks live ON THE CARDS (inserting / deleting cards keeps them right): card["take"] = {"prop", "hands"},
+  card["drop"] = prop. Scene.carries() pairs them. NO grip is stored: it is the prop relative to the hand frame
+  (`hand_frame`: one hand's joint and rotation, or between both hands) on the take card, read by posing the body
+  there (`_carry_data`, memoised on times() identity + carries + props; the body is restored exactly).
+  `props_at(t, B)` = the set at t (held: in the hand frame; dropped: y0 - g dt^2 / 2 down to the top / floor under
+  it, keeping only its yaw; landed: stays). `solid_props()` = what the body may stand on (never a carried prop).
+  `holding(t, B)` = hand + forearm of the holding side(s), not "through" the prop from the take until RELEASE (0.1 s)
+  after the drop (on release the hand is still inside the grip; measured: 2 findings for 2 frames without it).
+- Check samples `S.props_at(t, B)` with `S.holding(t, B)` skipped. Mirror swaps the take hands (MIRROR_CARD).
+  _prop_del renumbers / drops the marks. Main `_props_pose()` moves the prop nodes to `props_at(playhead)` every frame
+  while any card carries.
+- SET > USE: Pick up (a hand within REACH 12 cm of the prop on the selected card; box / crate in both hands when both
+  are near; else refused with the distance), Put down (on a card where it is held; says how far it falls and how long).

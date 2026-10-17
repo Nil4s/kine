@@ -486,7 +486,7 @@ func apply(B: Body, t: float) -> void:
 
 
 func _ground(B: Body) -> void:
-	B.props = props   # TT2: the set it stands on
+	B.props = solid_props()   # TT2: the set it stands on (UU2: never on a prop it carries)
 	if floor_body:
 		B.ground_body()
 	else:
@@ -661,7 +661,160 @@ func clone() -> Scene:
 	c.cards = cards.duplicate(true)
 	for k in ["name", "natural", "spline", "on_floor", "floor_body", "pin", "fps", "moving_holds", "stepped", "loop"]:
 		c.set(k, get(k))
+	c.props = props   # the set (read only there)
 	return c
+
+
+## CARRY (round 39, GATES UU2 / UU3, #206). Written on the CARDS, so inserting, deleting or reordering cards keeps
+## them where they belong: card["take"] = {"prop": i, "hands": ["_r"] / ["_l", "_r"]} (the hands hold prop i from
+## this card's arrival on), card["drop"] = i (they let it go at this card's arrival). Nothing about the grip is
+## stored: it is where the prop is relative to the hand(s) on the take card, so editing that card re-grips it and
+## Mirror needs only the hands swapped. After the drop the prop FALLS: y(t) = y0 - G t^2 / 2 onto the top or floor
+## under it (at t = sqrt(2 h / G)), keeping only its turn about the vertical; then it stays there.
+const G := 9.81
+const RELEASE := 0.1   # s after letting go the holding hands are still not "through" it: it falls 4.9 cm, clear of a grip
+
+
+## [{"prop", "a" (take card), "b" (drop card, -1 = held to the end), "hands"}] in card order
+func carries() -> Array:
+	var out := []
+	for i in cards.size():
+		var tk = cards[i].get("take", null)
+		if not (tk is Dictionary and tk.has("prop")):
+			continue
+		var pi := int(tk["prop"])
+		var b := -1
+		for k in range(i + 1, cards.size()):
+			if int(cards[k].get("drop", -1)) == pi:
+				b = k
+				break
+		out.append({"prop": pi, "a": i, "b": b, "hands": Array(tk.get("hands", ["_r"]))})
+	return out
+
+
+## the props the body can stand on: every prop no card carries
+func solid_props() -> Array:
+	var held := {}
+	for c in carries():
+		held[c["prop"]] = true
+	if held.is_empty():
+		return props
+	var out := []
+	for i in props.size():
+		if not held.has(i):
+			out.append(props[i])
+	return out
+
+
+## the frame the prop is held in: one hand's (its joint, its rotation), or both hands' (between them; x from the
+## right hand to the left, up the hands' mean up)
+static func hand_frame(B: Body, hands: Array) -> Transform3D:
+	if hands.size() < 2:
+		var h := "hand" + String(hands[0])
+		return Transform3D(Basis(B.G[h] as Quaternion), B.P[h])
+	var pl: Vector3 = B.P["hand_l"]
+	var pr: Vector3 = B.P["hand_r"]
+	var x := (pl - pr).normalized()
+	var up := ((B.G["hand_l"] as Quaternion) * Vector3.UP + (B.G["hand_r"] as Quaternion) * Vector3.UP).normalized()
+	var z := x.cross(up).normalized()
+	if z.length() < 0.5:
+		z = x.cross(Vector3.FORWARD).normalized()
+	return Transform3D(Basis(x, z.cross(x), z), (pl + pr) / 2.0)
+
+
+var _carry_memo := []   # [key, [per carry: {"grip", "home", "drop", "land", "y0", "tf", "ta", "tb"}]]
+
+
+## per carry: the grip (the prop in the hand frame on the take card), where it is let go, where it lands. The body is
+## posed at the take and drop cards to read the hands, then put back exactly as it was
+func _carry_data(B: Body) -> Array:
+	var cs := carries()
+	var ts := times()
+	var key := [ts, JSON.stringify(cs), JSON.stringify(props.map(func(p): return Props.to_dict(p)))]
+	if not _carry_memo.is_empty() and is_same(_carry_memo[0][0], ts) and _carry_memo[0][1] == key[1] and _carry_memo[0][2] == key[2]:
+		return _carry_memo[1]
+	var st := B.state()
+	var bp := B.props
+	var rest := {}   # prop -> where it is now (its home, then where its last drop landed)
+	var out := []
+	var floor_of := solid_props()
+	for c in cs:
+		var pi: int = c["prop"]
+		if pi < 0 or pi >= props.size():
+			out.append({})
+			continue
+		var home: Transform3D = rest.get(pi, props[pi]["xf"])
+		var ta: float = ts[c["a"]][1]
+		apply(B, ta)
+		var grip := hand_frame(B, c["hands"]).affine_inverse() * home
+		var d := {"grip": grip, "home": home, "ta": ta, "tb": INF}
+		if int(c["b"]) >= 0:
+			var tb: float = ts[c["b"]][1]
+			apply(B, tb)
+			var rel := hand_frame(B, c["hands"]) * grip
+			var fx := rel.basis * Vector3(1, 0, 0)
+			var drop := Props.xf_at(rel.origin, rad_to_deg(atan2(-fx.z, fx.x)))
+			var y0 := maxf(0.0, drop.origin.y)
+			var land := 0.0
+			for q in floor_of:
+				for sup in Props.supports(q):
+					if Props._over(sup, drop.origin) and float(sup["y"]) <= y0 + 0.001:
+						land = maxf(land, float(sup["y"]))
+			drop.origin.y = y0
+			d["tb"] = tb
+			d["drop"] = drop
+			d["land"] = land
+			d["tf"] = sqrt(2.0 * (y0 - land) / G)
+			var lx := drop
+			lx.origin.y = land
+			rest[pi] = lx
+		out.append(d)
+	B.set_state(st)
+	B.props = bp
+	B.fk()
+	_carry_memo = [key, out]
+	return out
+
+
+## the set at time t, the body B posed at t: [Props dicts] in the same order as props (a carried prop in the hand, a
+## dropped one falling or landed). With no carries: props itself
+func props_at(t: float, B: Body) -> Array:
+	var cs := carries()
+	if cs.is_empty():
+		return props
+	var data := _carry_data(B)
+	var out := props.duplicate()
+	for k in cs.size():
+		var c: Dictionary = cs[k]
+		var d: Dictionary = data[k]
+		if d.is_empty() or t < float(d["ta"]):
+			continue
+		var pi: int = c["prop"]
+		if t < float(d["tb"]):
+			out[pi] = {"kind": props[pi]["kind"], "xf": hand_frame(B, c["hands"]) * (d["grip"] as Transform3D)}
+		else:
+			var xf: Transform3D = d["drop"]
+			var dt := t - float(d["tb"])
+			xf.origin.y = maxf(float(d["land"]), xf.origin.y - G * dt * dt / 2.0)
+			out[pi] = {"kind": props[pi]["kind"], "xf": xf}
+	return out
+
+
+## the parts that hold a prop at time t (not "through" it): {prop index: [part, ...]}
+func holding(t: float, B: Body) -> Dictionary:
+	var out := {}
+	var cs := carries()
+	if cs.is_empty():
+		return out
+	var data := _carry_data(B)
+	for k in cs.size():
+		var d: Dictionary = data[k]
+		if not d.is_empty() and t >= float(d["ta"]) and t < float(d["tb"]) + RELEASE:
+			var parts: Array = out.get(cs[k]["prop"], [])
+			for sd in cs[k]["hands"]:
+				parts += ["hand" + sd, "lowerarm" + sd]
+			out[cs[k]["prop"]] = parts
+	return out
 
 
 var _feet_cache := {}   # card i -> [its pose dict, feet] (the same dict object = still valid)
@@ -858,6 +1011,10 @@ func to_dict(B: Body) -> Dictionary:
 			cs[-1]["ease"] = c["ease"]
 		if not c.get("plant", []).is_empty():
 			cs[-1]["plant"] = c["plant"]
+		if c.has("take"):
+			cs[-1]["take"] = c["take"]   # UU2: only on a card that has one
+		if c.has("drop"):
+			cs[-1]["drop"] = c["drop"]
 	var out := {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
@@ -881,7 +1038,8 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"length_s": "free", "note": "free", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
-	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "lift": "free", "ease": "free"}
+	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "lift": "free", "ease": "free",
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free"}
 
 
 ## one card of a scene file, mirrored by MIRROR_CARD (M: a Body to mirror poses on); keys not on the list are copied
@@ -898,6 +1056,10 @@ static func mirror_card(c: Dictionary, M: Body) -> Dictionary:
 		out["steps"] = st
 	if c.has("plant"):
 		out["plant"] = c["plant"].map(func(sd): return "_r" if sd == "_l" else "_l")
+	if c.has("take"):
+		var hs: Array = c["take"].get("hands", ["_r"]).map(func(sd): return "_r" if sd == "_l" else "_l")
+		hs.sort()
+		out["take"] = {"prop": c["take"]["prop"], "hands": hs}
 	return out
 
 
@@ -931,6 +1093,11 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["ease"] = c["ease"]
 		if c.get("plant", []) is Array and not c.get("plant", []).is_empty():
 			cards[-1]["plant"] = c["plant"].filter(func(x): return x in ["_l", "_r"])
+		if c.get("take", null) is Dictionary and c["take"].has("prop"):
+			var hs: Array = Array(c["take"].get("hands", ["_r"])).filter(func(x): return x in ["_l", "_r"])
+			cards[-1]["take"] = {"prop": int(c["take"]["prop"]), "hands": hs if not hs.is_empty() else ["_r"]}
+		if c.has("drop"):
+			cards[-1]["drop"] = int(c["drop"])
 
 
 ## SPINS (Nick 10-13: banned): key pairs where an arm rolls around itself more than Body.ROLL_STEP + 5 deg: the upper

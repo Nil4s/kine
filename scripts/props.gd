@@ -176,7 +176,7 @@ static func mesh(p: Dictionary) -> Node3D:
 	mat.albedo_color = GREY
 	mat.roughness = 0.9
 	var kd := kind_of(p["kind"])
-	if kd.has("glb"):   # an imported model: the model itself, on the floor, centred, at the importer's scale
+	if String(kd.get("glb", "")) != "":   # an imported model: the model itself, on the floor, centred, at the importer's scale
 		var doc := GLTFDocument.new()
 		var st := GLTFState.new()
 		if doc.append_from_file(ProjectSettings.globalize_path(kd["glb"]), st) == OK:
@@ -246,6 +246,28 @@ static func rests_on(p: Dictionary, a: Vector3, b: Vector3, r: float) -> Diction
 ## does the capsule rest on any support of the prop?
 static func rests(p: Dictionary, a: Vector3, b: Vector3, r: float) -> bool:
 	return not rests_on(p, a, b, r).is_empty()
+
+
+## SETTLING (round 39, GATES UU1): every prop stands on the highest top under it that is not above it, or on the
+## floor; lowest first, so a box on a table follows the table. Moves the props in place; returns how many moved
+static func settle(props: Array) -> int:
+	var order := range(props.size())
+	order.sort_custom(func(a, b): return (props[a]["xf"] as Transform3D).origin.y < (props[b]["xf"] as Transform3D).origin.y)
+	var done := []
+	var moved := 0
+	for i in order:
+		var xf: Transform3D = props[i]["xf"]
+		var y := 0.0
+		for q in done:
+			for sup in supports(q):
+				if _over(sup, xf.origin) and float(sup["y"]) <= xf.origin.y + 0.001:
+					y = maxf(y, float(sup["y"]))
+		if absf(y - xf.origin.y) > 0.0001:
+			xf.origin.y = y
+			props[i]["xf"] = xf
+			moved += 1
+		done.append(props[i])
+	return moved
 
 
 ## the height p should stand at: the floor (0), or the highest support of another prop that p's origin is over

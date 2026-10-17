@@ -128,7 +128,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			"fy": minf((B.P["foot_l"] as Vector3).y, (B.P["foot_r"] as Vector3).y), "wep": B.wep_on, "kind": B.wep_kind,
 			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B)})
 		if not S.props.is_empty():
-			raw[-1]["pc"] = prop_hits(S.props, B)
+			raw[-1]["pc"] = prop_hits(S.props_at(t, B), B, S.holding(t, B))   # UU2: the set as it is now; holding hands are not through
 			raw[-1]["sg"] = seat_gap(S.props, B)
 			raw[-1]["fo"] = B.foot_state("_l")[2] or B.foot_state("_r")[2]
 		if contacts and not B.contacts().is_empty():
@@ -452,7 +452,7 @@ static func rule_balance(sm: Dictionary) -> Array:
 
 ## the body and the weapon inside the props, this frame: [[part, prop index, depth m], ...] deeper than PROP_WARN (a
 ## sole: SOLE_SINK). Less is RESTING on a top (a foot on a box, the hips on a seat, a hand flat on a table)
-static func prop_hits(props: Array, B: Body) -> Array:
+static func prop_hits(props: Array, B: Body, held := {}) -> Array:
 	var parts := []
 	for part in B.cap0:
 		if not (part.begins_with("thumb") or part.begins_with("index") or part.begins_with("middle") or part.begins_with("ring") or part.begins_with("pinky")):
@@ -466,6 +466,8 @@ static func prop_hits(props: Array, B: Body) -> Array:
 		var p: Dictionary = props[pi]
 		var ball := _ball(p)
 		for part in parts:
+			if part in held.get(pi, []):
+				continue
 			var c := B.cap(part)
 			var r: float = sole_rad(B, part)
 			if Body.seg_seg(c[0], c[1], ball[0], ball[0]) > float(ball[1]) + r:

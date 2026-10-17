@@ -1058,3 +1058,41 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   Fingerprint 99e49b62d06763c13a9bc3fde9ef185b. One poser_test_<pid>.cfg was left (11:15): the agent suite's driver
   (tests/agent_e2e.py) had TT5's kill race too; fixed the same way: agent alone left 1 before, 0 after (PASS, 28 s).
   README_AI Round 38. Screenshot sent: SET > Sit here on combo3 with a chair and a table.
+
+## UU. ROUND 39: CARRY, PUT DOWN, AND GRAVITY (UPGRADES_200 #206; Nick 10-17: "do we have gravity?" -> no physics
+## engine: gravity as exact formulas, g = 9.81 m/s^2, still editable as cards). Finishes JOBS.md job 6 "pick up a
+## box" up to its lifting-form rule (#229). The rule of the round holds: a scene with no carries plays as before.
+
+- [x] UU1 SETTLING: whenever the set changes (a prop deleted, moved, turned, undone, a scene loaded) every prop rests
+  on the highest top under it that is not above it, or on the floor: a box on a table drops to the floor when the
+  table is deleted. Test by numbers.
+  EVIDENCE: tests/carry_test.gd: a box on a table's top stays at 0.750 m; the table deleted -> the box drops to
+  0.000; Ctrl+Z -> table back, box on it again; a box 1 m in the air with nothing under -> the floor. Stub settle ->
+  0: FAIL 2. Called from _props_show (every set change, undo, load) and after a drag.
+- [x] UU2 PICK UP (#206): SET > Pick up, with a prop and a card picked: the hand(s) within 12 cm of it hold it from
+  that card on (both hands for a box or crate when both are near; else the nearer); out of reach -> refused in words
+  with the distance, nothing changed. The scene stores it ("carries": prop, from card, to card, hands, the grip) only
+  when there is one; Ctrl+Z; save / load; Mirror the scene swaps the hands and reflects the grip. While held the prop
+  moves with the hands on every card (raised 25 cm with the hands -> 25 cm; carried 1 m sideways -> 1 m), the feet
+  never stand on it, and the holding hands are not "through" it in Check.
+  EVIDENCE: carry_test (a window, clicked): a 10 cm pillar whose top is 1 cm into the right hand; Pick up on card 1
+  -> card["take"] = {prop 0, hands [_r]}, one undo step; the body's solid props exclude it; at card 2 (body 1 m
+  aside) it moved (1.0, 0.0, 0.0), at card 3 (25 cm up) (1.0, 0.25, 0.0) (1 mm bars); Check: 0 THROUGH A PROP;
+  save / load keeps the carry; Mirror -> hands [_l]; Ctrl+Z twice -> Put down, then Pick up gone; a box 130 cm off
+  -> "the hands are 130 cm from the box...", nothing changed. DIFFERS FROM THE GATE'S WORDS, on purpose: no
+  scene-level "carries" list and no stored grip; the marks live on the cards (inserting / deleting cards cannot shift
+  them) and the grip is re-read from the take card's pose, so Mirror needs only the hands swapped (nothing to reflect).
+  Found on the way: right after the release the hand is still in the grip for 2 frames (1.0 and 1.5 cm "through");
+  holding hands stay exempt RELEASE = 0.1 s after the drop (the prop has fallen 4.9 cm by then). Stubs: props_at ->
+  props FAIL 4; holding -> {} FAIL 1 (0.00-3.47 s, the forearm 1.6 cm in); RELEASE 0 FAIL 1.
+- [x] UU3 PUT DOWN AND FALL: SET > Put down on a later card ends the hold there. The prop is left where the hands let
+  go, keeps its turn about the vertical, and FALLS: y(t) = y0 - g t^2 / 2 until it lands on the top or floor under it
+  (at t = sqrt(2 h / g)), then stays. Test: the height at 3 times after the release against the formula (1 mm), and
+  resting on the floor after the landing time.
+  EVIDENCE: Put down clicked on card 4 -> card["drop"] = 0, says "falls 25 cm in 0.23 s onto the floor"; heights at
+  0.05, 0.10, 0.20 s after the release off the formula by at most 0.00 mm; on the floor after sqrt(2 h / g) = 0.226 s,
+  1 m aside where it was let go. Stub "lands at once" -> FAIL 1 (237.74 mm off).
+- [x] UU4 all suites PASS (run_par); Nick's files unchanged; no leftovers; README_AI Round 39; committed; a screenshot.
+  EVIDENCE: run_par -j 8: SUITES 115/115 PASS, 386 s (C:/Temp/par39; carry:w added; mirror_list holds the new card
+  keys). Fingerprint 99e49b62d06763c13a9bc3fde9ef185b; no zz_ / poser_test leftovers. README_AI Round 39. Screenshot
+  sent: a box taken from a crate in both hands and carried 0.9 m.

@@ -114,7 +114,7 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["TOOLS", ["Animator tools"]]],
-	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up"]]],
+	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -367,6 +367,8 @@ var ui_prop_btns := {}
 var ui_use_btns := {}         # TT3: Sit here / Step up (greyed by the picked prop's kind)
 const SIT_ON := ["chair", "stool", "bench"]
 const STEP_ON := ["box", "crate", "step", "stairs"]
+const REACH := 0.12          # UU2: a hand this close to a prop (m, its surface to the prop's) can take hold of it
+const TWO_HANDS := ["box", "crate"]   # held in both hands when both are near
 var _pick_t := INF            # how far along the ray _pick's part was (a prop in front of it wins the click)
 var dummy_mat: StandardMaterial3D
 var hit_tag: Label3D
@@ -1275,6 +1277,7 @@ func _process(dt: float) -> void:
 		var bt := bar_text()
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
+	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
 	if playing and not S.cards.is_empty():
 		playhead += dt
 		if playhead > _ps().length():
@@ -3146,7 +3149,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step"}
+	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -3497,6 +3500,8 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(dpb)
 	ui_use_btns["Sit here"] = _button("Sit here", _prop_sit, "a new card: the body sits on the picked chair, stool or bench (facing away from its back, feet on the floor)")
 	ui_use_btns["Step up"] = _button("Step up", _prop_step, "a new card: the nearer foot steps onto the picked box, step or stairs (the other stays on the floor)")
+	ui_use_btns["Pick up"] = _button("Pick up", _prop_take, "the hand(s) next to the picked prop hold it from the selected card on: it moves with them")
+	ui_use_btns["Put down"] = _button("Put down", _prop_put, "the hands let the prop go at the selected card: it falls onto what is under it (real gravity)")
 	for k in ui_use_btns:
 		ui_ribbon["SET"].add_child(ui_use_btns[k])
 	# VIEW
@@ -6003,7 +6008,8 @@ func _recover() -> void:
 ## ---------------------------------------------------------------- THE SET (round 37, GATES SS5 / SS6)
 ## The scene's props as nodes under ui_props_root (rebuilt whole: a set is a handful of boxes); the picked one tinted
 func _props_show() -> void:
-	B.props = S.props   # TT2: the live body stands on the set too
+	Props.settle(S.props)   # UU1: whatever changed, every prop rests on what is under it
+	B.props = S.solid_props()   # TT2: the live body stands on the set too (never on what it carries)
 	if ui_props_root == null:
 		return
 	for c in ui_props_root.get_children():
@@ -6026,6 +6032,9 @@ func _props_show() -> void:
 	if ui_use_btns.has("Sit here"):
 		_grey(ui_use_btns["Sit here"], "" if kind in SIT_ON else "pick a chair, a stool or a bench first (Add prop puts one in the set)")
 		_grey(ui_use_btns["Step up"], "" if kind in STEP_ON else "pick a box, a crate, a step or the stairs first (Add prop puts one in the set)")
+		_grey(ui_use_btns["Pick up"], "" if kind != "" and sel_card >= 0 else ("pick a card first: the body on it holds the prop" if kind != "" else "pick a prop first: click it in the view, or add one with Add prop"))
+		_grey(ui_use_btns["Put down"], "" if not _held_at(sel_card).is_empty() else "pick a card where a prop is held (after its Pick up card): the hands let it go there")
+	_props_pose()
 	if ui_browser != null:
 		ui_browser.refresh()
 
@@ -6113,6 +6122,7 @@ func _prop_release() -> void:
 		undo.pop_back()   # a click that only picked: no step
 		_history_rows()
 	else:
+		_props_show()   # UU1: what stood on it settles
 		var y: float = (S.props[_prop_drag["i"]]["xf"] as Transform3D).origin.y
 		_say("moved the %s%s" % [_prop_name(_prop_drag["i"]), "" if y < 0.001 else ": it stands on what is under it, %.0f cm up" % (y * 100.0)])
 		_doc_line()
@@ -6204,6 +6214,17 @@ func _prop_del() -> void:
 	_push_undo()
 	var nm := _prop_name(sel_prop)
 	S.props.remove_at(sel_prop)
+	for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
+		if c.has("take"):
+			if int(c["take"]["prop"]) == sel_prop:
+				c.erase("take")
+			elif int(c["take"]["prop"]) > sel_prop:
+				c["take"]["prop"] = int(c["take"]["prop"]) - 1
+		if c.has("drop"):
+			if int(c["drop"]) == sel_prop:
+				c.erase("drop")
+			elif int(c["drop"]) > sel_prop:
+				c["drop"] = int(c["drop"]) - 1
 	sel_prop = -1
 	_props_show()
 	_doc_line()
@@ -6272,6 +6293,86 @@ func _prop_step() -> void:
 		_say("the %s's top is out of the foot's reach (it misses by %.0f cm): move it closer to the feet, then Step up again" % [_prop_name(sel_prop), miss * 100.0])
 		return
 	_use_card("step up on the %s" % _prop_name(sel_prop), a)
+
+
+## PICK UP (UU2, #206): on the selected card, the hand(s) within REACH of the picked prop hold it from that card's
+## arrival on (a box or a crate in both hands when both are near). Out of reach: said with the distance, nothing
+## changed. One undo step. The grip is where the prop is in the hand(s) on this card: nothing else is stored
+func _prop_take() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size() or sel_card < 0:
+		return
+	var p: Dictionary = S.props[sel_prop]
+	_ps().apply(B, S.times()[sel_card][1])
+	var gap := {}
+	for sd in ["_l", "_r"]:
+		var c := B.cap("hand" + sd)
+		var best := INF
+		for pt in Props._samples(c[0], c[1]):
+			for sw in Props.solids(p):
+				best = minf(best, Props._sd(sw, pt))
+		gap[sd] = best - float(B.rad["hand" + sd])
+	var near: Array = ["_l", "_r"].filter(func(sd): return float(gap[sd]) <= REACH)
+	if near.is_empty():
+		_say("the hands are %.0f cm from the %s on card %d (a hand must be within %.0f cm): pose a hand next to it on this card, then Pick up" % [
+			minf(gap["_l"], gap["_r"]) * 100.0, _prop_name(sel_prop), sel_card + 1, REACH * 100.0])
+		return
+	if near.size() == 2 and not String(p["kind"]) in TWO_HANDS:
+		near = ["_l"] if float(gap["_l"]) < float(gap["_r"]) else ["_r"]
+	_push_undo()
+	S.cards[sel_card]["take"] = {"prop": sel_prop, "hands": near}
+	_rebuild_cards()
+	_props_show()
+	_refresh()
+	_doc_line()
+	_say("card %d: %s the %s from here on; Put down on a later card lets it go. Ctrl+Z takes it back" % [sel_card + 1,
+		"both hands hold" if near.size() == 2 else ("the left hand holds" if near[0] == "_l" else "the right hand holds"), _prop_name(sel_prop)])
+
+
+## the carry going on at card k's arrival (taken on an earlier card, not yet let go): {} = none
+func _held_at(k: int) -> Dictionary:
+	if k < 0:
+		return {}
+	for c in S.carries():
+		if int(c["a"]) < k and (int(c["b"]) < 0 or int(c["b"]) >= k):
+			return c
+	return {}
+
+
+## PUT DOWN (UU3): the hands let the held prop go at the selected card; it falls onto what is under it
+func _prop_put() -> void:
+	var c := _held_at(sel_card)
+	if c.is_empty():
+		return
+	_push_undo()
+	var pi: int = c["prop"]
+	for k in range(int(c["a"]) + 1, S.cards.size()):   # one drop per carry: an earlier or later one moves here
+		if int(S.cards[k].get("drop", -1)) == pi:
+			S.cards[k].erase("drop")
+	S.cards[sel_card]["drop"] = pi
+	_rebuild_cards()
+	_props_show()
+	_refresh()
+	_doc_line()
+	var d: Dictionary = {}
+	var cs := S.carries()
+	for k in cs.size():
+		if int(cs[k]["a"]) == int(c["a"]):
+			d = S._carry_data(B)[k]
+	var h := float(d.get("drop", Transform3D()).origin.y) - float(d.get("land", 0.0)) if d.has("drop") else 0.0
+	_say("card %d: the hands let the %s go; it falls %.0f cm in %.2f s onto %s. Ctrl+Z takes it back" % [sel_card + 1, _prop_name(pi),
+		h * 100.0, float(d.get("tf", 0.0)), "the floor" if float(d.get("land", 0.0)) < 0.001 else "what is under it"])
+
+
+## the set as it is at the playhead: carried props in the hands, dropped ones falling (every frame while any card
+## carries; the stored props are their homes)
+func _props_pose() -> void:
+	if ui_props_root == null or S.carries().is_empty():
+		return
+	var pa := _ps().props_at(playhead, B) if _ps() == S else S.props_at(playhead, B)
+	for i in pa.size():
+		var n := ui_props_root.get_node_or_null("prop_%d" % i)
+		if n != null:
+			(n as Node3D).transform = pa[i]["xf"]
 
 
 ## the posed body becomes a card after the selected one; what goes into a prop on it is said (TT1's own reading)
