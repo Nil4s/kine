@@ -103,6 +103,8 @@ func _init() -> void:
 	ok(lp.get_global_rect().end.x <= 240.0 + 1.0, "the panel ends at x %.0f (at most 240)" % lp.get_global_rect().end.x)
 	var tops := []
 	for c in br.get_root().get_children():
+		if not c.visible:
+			continue   # the Set folder (round 37) shows only when the scene has props
 		tops.append(c.get_text(0).get_slice(":", 0).get_slice("  ", 0))
 	ok(tops == ["Scene", "Poses", "Body", "Target dummy"] or tops == ["Scene", "Poses", "Body", "Weapon", "Target dummy"], "the top rows: %s" % [tops])
 	var hh := []

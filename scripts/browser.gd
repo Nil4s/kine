@@ -17,6 +17,7 @@ const FINGER_NAMES := ["thumb", "index", "middle", "ring", "pinky"]
 var m: Node
 var rows := {}   # part -> its TreeItem
 var _scene_root: TreeItem
+var _set_root: TreeItem   # round 37 (SS5): the scene's props, one row each (shown only when there are any)
 var _wep: TreeItem
 var _quiet := false
 var folders := []   # [the folder row, its parts]: a limb's eye and lock act on all of them (KK1)
@@ -107,6 +108,8 @@ func build() -> void:
 		_folder_buttons(gi, all)
 	_wep = _folder(root, "Weapon")
 	_part(_wep, "bat_handle", "handle (drag it to swing the weapon)")
+	_set_root = _folder(root, "Set")
+	_set_root.set_tooltip_text(0, "the scene's props: click one to pick it; SET adds, turns and deletes them")
 	_dummy = _folder(root, "Target dummy")
 	_dummy.set_metadata(0, {"menu": "dummy"})
 	_dummy.set_tooltip_text(0, "right-click: on / off, closer, farther, solid")
@@ -164,6 +167,17 @@ func _refresh_now() -> void:
 		var it := create_item(_scene_root)
 		it.set_text(0, "%d  %s" % [i + 1, m.S.cards[i]["name"]])
 		it.set_metadata(0, {"card": i})
+	# the set (SS5): one row per prop, the picked one in the accent colour
+	for c in _set_root.get_children():
+		c.free()
+	_set_root.visible = not m.S.props.is_empty()
+	_set_root.set_text(0, "Set  (%d)" % m.S.props.size())
+	for i in m.S.props.size():
+		var pr := create_item(_set_root)
+		pr.set_text(0, m._prop_name(i))
+		pr.set_metadata(0, {"prop": i})
+		if i == m.sel_prop:
+			pr.set_custom_color(0, Tok.c("accent"))
 	# the poses (RR3): Library (the starter and library poses), Mine (the ones you saved)
 	for f in [_lib, _mine]:
 		for c in f.get_children():
@@ -337,5 +351,7 @@ func _chosen() -> void:
 		m._say("%s selected (from the browser).  Drag in the view, or use the sliders on the right" % m.nice(md["part"]))
 	elif md.has("card"):
 		m._timeline_pick(md["card"])
+	elif md.has("prop"):
+		m._prop_select(md["prop"])
 	elif md.has("pose"):
 		m._pose_apply(md["pose"])

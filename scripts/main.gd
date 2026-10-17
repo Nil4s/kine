@@ -103,9 +103,9 @@ var ui_help: PanelContainer
 var ui_cmd: CommandSearch
 var ui_cube: ViewCube
 var ui_browser: Browser
-const RIBBON := ["POSE", "ANIMATE", "CHECK", "EXPORT", "VIEW"]   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
+const RIBBON := ["POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
 const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
-	"CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: .glb, .bvh, the game, a version",
+	"SET": "props to pose with: add, move, turn, delete, your own models", "CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: .glb, .bvh, the game, a version",
 	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)"}
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
@@ -114,6 +114,7 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["TOOLS", ["Animator tools"]]],
+	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -355,6 +356,15 @@ var findings := []
 const DetailTool := preload("res://tools/detail.gd")
 var dummy_on := true
 var dummy_node: Node3D
+# THE SET (round 37, SS5 / SS6): the scene's props (S.props) shown under ui_props_root; one picked (sel_prop, -1 none)
+const Importer := preload("res://scripts/importer.gd")
+const LIBRARY := "user://library"
+var library := LIBRARY        # a test's own: user://zz_lib_<pid>, removed on exit
+var ui_props_root: Node3D
+var sel_prop := -1
+var _prop_drag := {}
+var ui_prop_btns := {}
+var _pick_t := INF            # how far along the ray _pick's part was (a prop in front of it wins the click)
 var dummy_mat: StandardMaterial3D
 var hit_tag: Label3D
 var hit_dot: MeshInstance3D
@@ -999,6 +1009,12 @@ func _ready() -> void:
 	if testing:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
+		library = "user://zz_lib_%d" % OS.get_process_id()
+	ui_props_root = Node3D.new()
+	ui_props_root.name = "set"
+	add_child(ui_props_root)
+	_library_load()
+	get_window().files_dropped.connect(_on_drop)
 	if OS.get_environment("POSER_AUTOSAVE") != "":
 		autosave = OS.get_environment("POSER_AUTOSAVE")
 	var cf := ConfigFile.new()
@@ -1220,6 +1236,8 @@ func _exit_tree() -> void:
 		WorkerThreadPool.wait_for_task_completion(_dm_job["task"])
 	if settings != SETTINGS:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings))
+	if library != LIBRARY:
+		_rm_tree(library)   # SS6: a test's own library
 	# quitting with nothing unsaved: no autosave to offer next time. A test's own per-process file always goes
 	if not _unsaved() or (autosave != AUTOSAVE and OS.get_environment("POSER_AUTOSAVE") == ""):
 		_autosave_drop()
@@ -1851,6 +1869,7 @@ func _pick(mp: Vector2) -> String:
 		if res.y <= maxf(float(B.rad[j]) * 1.15, 0.014) and res.x < best_t:
 			best_t = res.x
 			best = j
+	_pick_t = best_t
 	return best
 
 
@@ -1882,6 +1901,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 				dragging = nav_tool
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
 				var j := _pick(mb.position)
+				var pp := _pick_prop(mb.position)
+				if int(pp[0]) >= 0 and (j == "" or float(pp[1]) < _pick_t):   # a prop in front of the body: the prop
+					_prop_press(int(pp[0]), mb.position, float(pp[1]))
+					return
+				if sel_prop >= 0:
+					sel_prop = -1
+					_props_show()
 				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
 					sel = j
 					playing = false
@@ -1916,6 +1942,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			var was := dragging
 			dragging = ""
 			_num_on = false
+			if was == "prop":
+				_prop_release()
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
 			if was == "orbit" and mb.button_index == MOUSE_BUTTON_RIGHT and not _rpress.is_empty():
 				if mb.position.distance_to(_rpress["at"]) < 5.0 and _rpress["part"] != "":
@@ -1932,6 +1960,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 	elif ev is InputEventMouseMotion and dragging != "":
 		var mm := ev as InputEventMouseMotion
 		var rel := mm.relative
+		if dragging == "prop":
+			_prop_move(mm.position)
+			return
 		if dragging == "orbit":
 			yaw -= rel.x * 0.4
 			pitch = clampf(pitch - rel.y * 0.4, -89.0, 89.0)
@@ -2186,7 +2217,8 @@ func _big_view() -> void:
 ## an undo step = the body AND the open scene's cards (10-14: a Fix or "+ tween" changes cards, so Ctrl+Z must bring
 ## them back). The cards come back only into the scene they were taken from: opening another scene makes them stale.
 func _snapshot() -> Dictionary:
-	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds}
+	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds,
+		"props": S.props.map(func(p): return Props.to_dict(p))}
 
 
 func _restore(u: Dictionary) -> void:
@@ -2194,6 +2226,11 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
 		_rebuild_cards()
+	if u["scene"] == S and u.has("props") and JSON.stringify(u["props"]) != JSON.stringify(S.props.map(func(p): return Props.to_dict(p))):
+		S.props = u["props"].map(func(q): return Props.from_dict(q))   # the set, undone like a card (SS5)
+		if sel_prop >= S.props.size():
+			sel_prop = -1
+		_props_show()
 	if u["scene"] == S and JSON.stringify(u["cards"]) != JSON.stringify(S.cards):
 		S.cards = u["cards"].duplicate(true)
 		sel_card = mini(u["sel"], S.cards.size() - 1)
@@ -3104,7 +3141,8 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Moving holds": "holds", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
-	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help"}
+	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
+	"Add prop": "prop", "Import model": "import", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -3435,6 +3473,24 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export .bvh", func(): _export_bvh(), "the scene as exports/<name>.bvh: motion capture, for Blender, Maya, MotionBuilder, Cascadeur (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("To game", _export_game, "the scene as the game's PoseTable (exports/)"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
+	# SET (round 37, SS5 / SS6): props to pose with
+	var ap := MenuButton.new()
+	ap.text = "Add prop"
+	ap.name = "menu_add_prop"
+	ap.flat = false
+	ap.focus_mode = Control.FOCUS_NONE
+	ap.tooltip_text = "put a prop in front of the body, on the floor: a box, a chair, a table, stairs, a bed... or one of your own models"
+	ap.about_to_popup.connect(_prop_menu_fill.bind(ap))
+	ap.get_popup().id_pressed.connect(_prop_menu_pick.bind(ap))
+	ui_ribbon["SET"].add_child(ap)
+	ui_ribbon["SET"].add_child(_button("Import model", _import_ask, "bring in your own .glb model (a box, furniture, an object): it is checked, copied into your library and put in the set. Or drop the file on the window"))
+	for tt in [["Turn left", -15.0], ["Turn right", 15.0]]:
+		var ptb := _button(tt[0], _prop_turn.bind(tt[1]), "turn the picked prop 15 degrees round its middle")
+		ui_prop_btns[tt[0]] = ptb
+		ui_ribbon["SET"].add_child(ptb)
+	var dpb := _button("Delete prop", _prop_del, "take the picked prop out of the scene (Ctrl+Z puts it back)")
+	ui_prop_btns["Delete prop"] = dpb
+	ui_ribbon["SET"].add_child(dpb)
 	# VIEW
 	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
 		ui_ribbon["VIEW"].add_child(_button(v[0], _view.bind(v[1])))
@@ -4311,6 +4367,9 @@ func _open_example(path: String) -> void:
 
 func _rebuild_cards() -> void:
 	_doc_line(true)   # RR1: a load or a new scene changes the strip's name
+	if sel_prop >= S.props.size():
+		sel_prop = -1
+	_props_show()   # SS5: the scene's set
 	if ui_cards == null:
 		return
 	_dummy_hits()   # the cards changed: the landed scene and its hits too
@@ -4943,6 +5002,8 @@ func _mirror_scene() -> void:
 	S2.from_dict(d)
 	var plan: String = "Mirror the scene (Scene.MIRROR_CARD on every card) from " + S.name
 	d = S2.to_dict(M)
+	if d.has("props"):   # MIRROR_SCENE "props": x and yaw negated
+		d["props"] = d["props"].map(func(q): return {"kind": q["kind"], "pos": [-float(q["pos"][0]), q["pos"][1], q["pos"][2]], "yaw": -float(q["yaw"])})
 	d["plan"] = plan
 	# the file name made safe (round 19: the raw name wrote "_wip/x" into scenes/_wip/_wip/, and "a:b" was a name Windows
 	# refuses); always in scenes/_wip, whatever folder the name gives
@@ -5723,7 +5784,7 @@ func _save_scene_now(nm: String) -> void:
 	B.set_state(keep)
 	var fname := safe_file(S.name) if safe_file(S.name) != "" else "scene_" + _stamp()
 	_write("res://scenes/%s.json" % fname, d)
-	_clean = JSON.stringify(S.cards)
+	_clean = _doc_key()
 	_autosave_drop()
 	scene_path = "res://scenes/%s.json" % fname
 	_lists()
@@ -5931,8 +5992,287 @@ func _recover() -> void:
 	_say("recovered '%s' (%d cards): it is not saved yet, Save scene keeps it" % [S.name, S.cards.size()])
 
 
+## ---------------------------------------------------------------- THE SET (round 37, GATES SS5 / SS6)
+## The scene's props as nodes under ui_props_root (rebuilt whole: a set is a handful of boxes); the picked one tinted
+func _props_show() -> void:
+	if ui_props_root == null:
+		return
+	for c in ui_props_root.get_children():
+		ui_props_root.remove_child(c)
+		c.queue_free()
+	var tint := StandardMaterial3D.new()
+	tint.albedo_color = Color(Tok.c("accent"), 0.35)
+	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for i in S.props.size():
+		var n := Props.mesh(S.props[i])
+		n.name = "prop_%d" % i
+		if i == sel_prop:
+			for mi in n.find_children("*", "MeshInstance3D", true, false):
+				(mi as MeshInstance3D).material_overlay = tint
+		ui_props_root.add_child(n)
+	for k in ui_prop_btns:
+		_grey(ui_prop_btns[k], "" if sel_prop >= 0 else "pick a prop first: click it in the view, or add one with Add prop")
+	if ui_browser != null:
+		ui_browser.refresh()
+
+
+## the prop under the mouse: [index, distance along the ray] ([-1, INF] none); a ray against each solid box
+func _pick_prop(mp: Vector2) -> Array:
+	var o := cam.project_ray_origin(mp)
+	var d := cam.project_ray_normal(mp)
+	var best := -1
+	var bt := INF
+	for i in S.props.size():
+		for sw in Props.solids(S.props[i]):
+			var inv: Transform3D = (sw["xf"] as Transform3D).affine_inverse()
+			var lo := inv * o
+			var ld := inv.basis * d
+			var h: Vector3 = sw["half"]
+			var t0 := -INF
+			var t1 := INF
+			var hit := true
+			for k in 3:
+				if absf(ld[k]) < 1e-9:
+					if absf(lo[k]) > h[k]:
+						hit = false
+						break
+				else:
+					var a := (-h[k] - lo[k]) / ld[k]
+					var b := (h[k] - lo[k]) / ld[k]
+					t0 = maxf(t0, minf(a, b))
+					t1 = minf(t1, maxf(a, b))
+			if hit and t1 >= maxf(t0, 0.0) and maxf(t0, 0.0) < bt:
+				bt = maxf(t0, 0.0)
+				best = i
+	return [best, bt]
+
+
+func _prop_name(i: int) -> String:
+	return String(S.props[i]["kind"]).replace("_", " ") if i >= 0 and i < S.props.size() else ""
+
+
+## a press on a prop: picked, and a drag moves it over the floor (snapped onto what it stands over); one undo step
+func _prop_press(i: int, mp: Vector2, t: float) -> void:
+	_step_hint = "Move prop"
+	_push_undo()
+	sel_prop = i
+	playing = false
+	var hp := cam.project_ray_origin(mp) + cam.project_ray_normal(mp) * t
+	var o: Vector3 = (S.props[i]["xf"] as Transform3D).origin
+	_prop_drag = {"i": i, "plane": hp.y, "off": Vector3(o.x - hp.x, 0.0, o.z - hp.z), "moved": false, "from": o}
+	dragging = "prop"
+	_end_teach()
+	_props_show()
+	_say_plain("the %s: drag to move it (it steps onto what it stands over); Turn left / right and Delete are in SET" % _prop_name(i))
+
+
+func _prop_move(mp: Vector2) -> void:
+	var o := cam.project_ray_origin(mp)
+	var d := cam.project_ray_normal(mp)
+	if absf(d.y) < 1e-4 or _prop_drag.is_empty():
+		return
+	var t := (float(_prop_drag["plane"]) - o.y) / d.y
+	if t <= 0.0:
+		return
+	var i: int = _prop_drag["i"]
+	var hp := o + d * t + (_prop_drag["off"] as Vector3)
+	var p: Dictionary = S.props[i]
+	var xf: Transform3D = p["xf"]
+	xf.origin = Vector3(hp.x, 0.0, hp.z)
+	p["xf"] = xf
+	var others := []
+	for k in S.props.size():
+		if k != i:
+			others.append(S.props[k])
+	xf.origin.y = Props.snap_y(p, others)
+	p["xf"] = xf
+	_prop_drag["moved"] = xf.origin.distance_to(_prop_drag["from"]) > 0.001   # a still mouse is a click, not a move
+	var n := ui_props_root.get_node_or_null("prop_%d" % i)
+	if n != null:
+		(n as Node3D).transform = xf
+
+
+func _prop_release() -> void:
+	if _prop_drag.is_empty():
+		return
+	if not _prop_drag["moved"]:
+		undo.pop_back()   # a click that only picked: no step
+		_history_rows()
+	else:
+		var y: float = (S.props[_prop_drag["i"]]["xf"] as Transform3D).origin.y
+		_say("moved the %s%s" % [_prop_name(_prop_drag["i"]), "" if y < 0.001 else ": it stands on what is under it, %.0f cm up" % (y * 100.0)])
+		_doc_line()
+	_prop_drag = {}
+
+
+func _prop_menu_fill(ap: MenuButton) -> void:
+	var pm := ap.get_popup()
+	pm.clear()
+	var cat := Props.catalogue()
+	for k in cat.size():
+		pm.add_item("%s   (%s)" % [String(cat[k][0]).replace("_", " "), cat[k][1]], k)
+		pm.set_item_metadata(k, cat[k][0])
+
+
+func _prop_menu_pick(id: int, ap: MenuButton) -> void:
+	var pm := ap.get_popup()
+	_step_hint = "Add prop"
+	_tour_inputs += 1
+	_prop_add(String(pm.get_item_metadata(pm.get_item_index(id))))
+
+
+## where a new prop goes: in front of the body, beside it first (the dummy stands straight ahead), the first spot
+## whose footprint keeps 10 cm clear of the dummy and of every other prop; none clear: the last spot tried
+func _prop_spot(kind: String) -> Vector3:
+	var o := Vector3(B.offset.x, 0.0, B.offset.z)
+	var spot := o
+	for dz in [1.0, 1.8, 2.6]:
+		for dx in [-1.0, 1.0, -1.9, 1.9, 0.0]:
+			spot = o + Vector3(dx, 0.0, dz)
+			var r := _foot(Props.make(kind, Props.xf_at(spot, 0.0))).grow(0.1)
+			var clear := not (dummy_on and r.grow(0.3).has_point(Vector2(T.xf.origin.x, T.xf.origin.z)))   # 0.3: the dummy's body
+			for q in S.props:
+				clear = clear and not r.intersects(_foot(q))
+			if clear:
+				return spot
+	return spot
+
+
+## a prop's footprint on the floor (x, z), from its solid boxes' corners
+func _foot(p: Dictionary) -> Rect2:
+	var r := Rect2()
+	var first := true
+	for sw in Props.solids(p):
+		var xf: Transform3D = sw["xf"]
+		var h: Vector3 = sw["half"]
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var c := xf * Vector3(h.x * sx, 0.0, h.z * sz)
+				if first:
+					r = Rect2(Vector2(c.x, c.z), Vector2.ZERO)
+					first = false
+				else:
+					r = r.expand(Vector2(c.x, c.z))
+	return r
+
+
+## a prop of the set in front of the body, on the floor (or on what it lands over); picked; one undo step
+func _prop_add(kind: String) -> void:
+	if not Props.has_kind(kind):
+		return
+	_push_undo()
+	var p := Props.make(kind, Props.xf_at(_prop_spot(kind), 0.0))
+	var xf: Transform3D = p["xf"]
+	xf.origin.y = Props.snap_y(p, S.props)
+	p["xf"] = xf
+	S.props.append(p)
+	sel_prop = S.props.size() - 1
+	_props_show()
+	_doc_line()
+	_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
+
+
+func _prop_turn(deg: float) -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		return
+	_push_undo()
+	var d := Props.to_dict(S.props[sel_prop])
+	d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
+	S.props[sel_prop] = Props.from_dict(d)
+	_props_show()
+	_doc_line()
+	_say("turned the %s to %.0f deg" % [_prop_name(sel_prop), float(d["yaw"])])
+
+
+func _prop_del() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		return
+	_push_undo()
+	var nm := _prop_name(sel_prop)
+	S.props.remove_at(sel_prop)
+	sel_prop = -1
+	_props_show()
+	_doc_line()
+	_say("deleted the %s: Ctrl+Z puts it back" % nm)
+
+
+## a row in the browser's Set: pick prop i (no undo step)
+func _prop_select(i: int) -> void:
+	if i < 0 or i >= S.props.size():
+		return
+	sel_prop = i
+	_props_show()
+	_say_plain("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i))
+
+
+## ---- IMPORT (SS6): a dropped file, or Import model's picker, goes through the importer (scripts/importer.gd)
+func _library_load() -> void:
+	for e in Importer.library_list(library)["props"]:
+		var r: Dictionary = Importer.inspect(e["path"])
+		if r["ok"]:
+			Props.register("my " + String(e["name"]), r["aabb"], e["path"], r["scale_factor"])
+
+
+func _on_drop(files: PackedStringArray) -> void:
+	for f in files:
+		_import_file(f)
+
+
+func _import_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.glb, *.gltf ; glTF models"])
+	fd.use_native_dialog = true
+	fd.title = "Import a model (.glb)"
+	fd.file_selected.connect(func(p): _import_file(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## checked, copied into the library (the original never changed), registered as a prop and put in the set. A
+## refusal: the reason on the status line, nothing changed. Returns the importer's answer
+func _import_file(path: String) -> Dictionary:
+	var r: Dictionary = Importer.inspect(path)
+	if not r["ok"]:
+		_say("could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), r["why"]])
+		return r
+	if r["kind"] == "rigged":
+		var aa: Dictionary = Importer.accept(path, "animation", library)
+		_say(("%s has a skeleton: importing animations comes later (UPGRADES #209); it was kept in your library. To use a model as a prop, drop one without a skeleton" % path.get_file()) if aa["ok"] else "could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), aa["why"]])
+		return aa
+	var a: Dictionary = Importer.accept(path, "prop", library)
+	if not a["ok"]:
+		_say("could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), a["why"]])
+		return a
+	var kind := "my " + String(a["path"]).get_file().get_basename()
+	Props.register(kind, r["aabb"], a["path"], r["scale_factor"])
+	_prop_add(kind)
+	_say("imported %s as a prop: it is in the set and in Add prop%s" % [path.get_file(), "" if String(r["scale_note"]) == "" else ". " + String(r["scale_note"])])
+	return a
+
+
+## a test's own library folder goes with it (never the user's)
+static func _rm_tree(dir: String) -> void:
+	var da := DirAccess.open(dir)
+	if da == null:
+		return
+	for f in da.get_files():
+		DirAccess.remove_absolute(dir.path_join(f))
+	for sub in da.get_directories():
+		_rm_tree(dir.path_join(sub))
+	DirAccess.remove_absolute(dir)
+
+
 func _unsaved() -> bool:
-	return not S.cards.is_empty() and JSON.stringify(S.cards) != _clean
+	return (not S.cards.is_empty() or not S.props.is_empty()) and _doc_key() != _clean
+
+
+## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37)
+func _doc_key() -> String:
+	return JSON.stringify(S.cards) + ("" if S.props.is_empty() else JSON.stringify(S.props.map(func(p): return Props.to_dict(p))))
 
 
 func _load_scene(path: String) -> void:
@@ -5942,6 +6282,8 @@ func _load_scene(path: String) -> void:
 	S = Scene.new()
 	if d.has("cards"):
 		S.from_dict(d)
+		if not S.props_skipped.is_empty():
+			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
 		for k in d.get("keys", []):
@@ -5961,7 +6303,7 @@ func _load_scene(path: String) -> void:
 	_dummy_hits()
 	sel_card = -1
 	playhead = 0.0
-	_clean = JSON.stringify(S.cards)
+	_clean = _doc_key()
 	if not _recovering:
 		_autosave_drop()   # opened a scene: what was unsaved was given up (it asks first, V3)
 	S.apply(B, 0.0)

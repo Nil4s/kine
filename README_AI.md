@@ -375,3 +375,24 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   pause. POSER_DRY=1 prints "LAUNCH ..." and starts nothing. pose.sh: the same for Linux / macOS. tests/launcher_test.
 - Body.last_stop {kind limit|contact, ...}: set by set_ang_safe (locked axes ignored); clear it before an edit, read it
   after. main.stop_words(st) turns it into "STOPPED: ..." on the drag's status line. tests/drag_stop_test.gd.
+
+## Round 37: the set, part 1, and a faster bench (GATES SS; UPGRADES_200 section I: #202, #213, #214)
+- Bench: `LOGS=C:/Temp/x python tools/run_par.py -j 8 [names]` runs the suites of tools/run_all.sh line 11 in 8
+  BELOW_NORMAL workers, then the SERIAL set (suites sharing moves/, trash/, exports, autosave, cli) one at a time.
+  About 2.5x the serial runner; `sh tools/run_all.sh` still works. New suites go on line 11 (EXTRA).
+- Props (scripts/props.gd, `class_name Props`, static): `KINDS` built-in kinds at real sizes (box, crate, table,
+  chair, stool, bench, step, stairs, ramp, wall, door_frame, railing, bed); a prop = {"kind", "xf"}; file form
+  `to_dict` {"kind", "pos", "yaw"}. `solids` (boxes), `supports` (tops), `snap_y(p, others)` (onto what it stands
+  over), `depth`/`rests_on` for later contact work. Imported models: `register(kind, aabb, glb, factor)` into
+  `EXTRA`; `has_kind`, `kind_of`, `catalogue()`.
+- Scene: `S.props` (saved as "props" only when non-empty, so old scenes write byte-for-byte as before);
+  `S.props_skipped` = kinds a file names that this library lacks (said on load). MIRROR_SCENE "props": x, yaw negated.
+- App (main.gd, "THE SET"): SET ribbon tab (Add prop MenuButton, Import model, Turn left/right 15 deg, Delete prop);
+  `sel_prop`; `_pick_prop` (ray vs oriented boxes) wins over the body only when nearer than `_pick` (`_pick_t`);
+  `dragging = "prop"` moves on the plane at the press height then `snap_y`; a still mouse is a click, not a step.
+  Undo snapshots carry "props"; `_doc_key()` (cards + props) is what "unsaved" compares. Browser "Set" folder.
+- Import (scripts/importer.gd, preloaded as `Importer`): `inspect` -> rigged / object / refused with `why`;
+  `accept` copies into the library (+ .licence.txt, never overwrites). main: `_on_drop` (window files_dropped) and
+  `_import_ask` (native picker) -> `_import_file`. Library `user://library`; tests get `user://zz_lib_<pid>`
+  (removed on exit). Rigged files are kept, not yet played (#209).
+- docs/JOBS.md: six Blender-vs-Poser jobs scored (routes checked against Blender 4.5.3 installed here).

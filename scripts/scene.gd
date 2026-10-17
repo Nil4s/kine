@@ -45,6 +45,8 @@ const LAG := 0.3
 const EASES := ["smooth", "linear", "in", "out", "snap"]   # a card's ease preset (EASE PRESETS above)
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
+var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
+var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var name := "scene"
 var natural := true
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
@@ -864,6 +866,8 @@ func to_dict(B: Body) -> Dictionary:
 		out["moving_holds"] = true   # the same: only when on
 	if loop:
 		out["loop"] = true   # the same
+	if not props.is_empty():
+		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
 	return out
 
 
@@ -873,7 +877,7 @@ func to_dict(B: Body) -> Dictionary:
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free",
-	"length_s": "free", "note": "free"}
+	"length_s": "free", "note": "free", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "lift": "free", "ease": "free"}
@@ -906,6 +910,13 @@ func from_dict(d: Dictionary) -> void:
 	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
+	props = []
+	props_skipped = []
+	for p in d.get("props", []):
+		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
+			props.append(Props.from_dict(p))
+		elif p is Dictionary:
+			props_skipped.append(String(p.get("kind", "?")))   # a model not in this library: said on load (main.gd)
 	cards = []
 	for c in d.get("cards", []):
 		cards.append({"name": c["name"], "pose": c["pose"], "move": float(c.get("move", -1.0)), "hold": float(c.get("hold", 0.3))})

@@ -917,3 +917,82 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   height follows its rows: place and width compared; a weapon out adds two rows), hover_hint (found by label_of; the
   bar says the label once, then the tooltip's hint), greyed_why (the audit opens the gear's box and the inspector's
   sections as it opens tabs: 5 distinct greyed controls again, as in round 35a). Fingerprint 99e49b62...; no zz_.
+
+## SS. ROUND 37: THE SET, PART 1, AND A FASTER BENCH (Nick 10-17: "yeah go ahead, cuz we can be pushing more updates
+## and tests, did u used gpu+cpu as i said"). UPGRADES_200 section I, the pieces that split by file: three agents in
+## their own worktrees (props, importer, the jobs list), the wiring into main.gd by one hand. Each new module has a
+## headless test that FAILS once on purpose (a stub) before it is ticked.
+- [x] SS1 THE RUNNER USES THE MACHINE: tools/run_par.py runs the suites of run_all.sh (the one list) with up to 8
+  workers at BELOW_NORMAL priority, suites that share files on disk after them, one at a time. Bar: the same verdict
+  for every suite as the serial run on the same code (or a named, explained difference), and the wall time printed
+  beside the serial run's.
+  EVIDENCE: run_par -j 8 on the round-36 code: SUITES 108/108 PASS in 466 s (logs C:/Temp/par1); the serial run on
+  the same app code (C:/Temp/rr36_full, test fixes since only in the 5 test files, each rerun PASS) took ~1161 s,
+  first to last log: 2.5x faster, the same verdicts. 17 suites that share files on disk (scenes list, moves/,
+  exports, the CLI's files) run serially after the batch; that tail is now the floor of the wall time.
+- [x] SS2 PROPS, THE MODULE (#201, #203, #204 as functions): scripts/props.gd: a starter set at REAL sizes built from
+  primitives (ours: CC0 by construction): box 40 cm, crate, table 75 cm high, chair seat 45 cm, stool, bench, step
+  and stairs with 18 cm risers, ramp, wall, door frame, railing, bed. A prop = kind + transform; to_dict / from_dict
+  (the scene's "props" list); its solid shapes (boxes) in world space; its SUPPORT surfaces (seat, table top, step
+  treads, box top, bed); a query: a capsule (a, b, r) -> how deep it is inside the prop, and whether it RESTS on a
+  support (within 2 cm above, not inside). Test (headless): every size measured from the built mesh; a capsule
+  through the table top is inside, one on the seat rests, one 10 cm above floats; round trip of the dict.
+  EVIDENCE (built by a Sonnet agent in its own files only; rerun by the lead): tests/props_test.gd PASS, 63 checks:
+  13 kinds measured from the BUILT mesh (box 0.40 cube, table top 0.75, chair seat 0.45, stairs risers 0.18 x 5,
+  door opening 0.90, bed 0.50); a capsule through the table top 7 cm deep, 10 cm above 0; on the seat 1 cm above
+  RESTS, 10 cm above / 2 cm inside / beside do not; yaw 90 answers right; dict round trip exact; a box over the
+  table snaps to 0.75. Stubs: depth -> 0 FAIL 6 (rerun by the lead: FAIL 6), rests -> true FAIL 5.
+- [x] SS3 IMPORT, THE MODULE (#208, #212, #213 part 3): scripts/importer.gd: a .glb read with Godot's GLTFDocument
+  -> its kind (has a skeleton or not), its bounds in metres, a scale verdict in words ("100x too big: made in
+  centimetres?"), a broken / empty file said in words, nothing changed; a library folder (user://library/props,
+  weapons, animations) read at start; an accepted file COPIED in (the original untouched), a licence note beside it.
+  Test (headless): fixtures written by the test itself (a 40 cm box, the same box at 100x, a skinned mannequin
+  exported by GltfExport, a file of junk bytes, an empty file); every verdict; the original's bytes unchanged.
+  EVIDENCE (Sonnet agent, own files only; rerun by the lead): tests/importer_test.gd PASS, 21 checks: the 40 cm box
+  -> object 0.40, no note; the 40 m box -> "About 100x too big ... made in centimetres", factor 0.01; 0.4 mm ->
+  factor 1000; the mannequin from GltfExport -> rigged, 65 bones, 1.829 m; junk / empty / missing / .txt / no mesh
+  -> a sentence, nothing written; accept copies (md5 equal), licence note beside it, original md5 unchanged, a
+  second accept -> crate_2. Stubs: scale note "" FAIL 2; copy skipped FAIL 4.
+- [x] SS4 docs/JOBS.md (#221): the first jobs (a walk cycle that loops, a 3-hit sword combo with feet planted, idle
+  breathing, a jump that lands, sitting down on a chair, picking up a box): each with Blender's route (menus, steps
+  counted), Poser's route today, the score CAN'T / CAN / FASTER, and which upgrade number would unlock it.
+  EVIDENCE: docs/JOBS.md (Sonnet agent): six jobs, scores walk cycle CAN, sword combo FASTER (bat / knife / staff;
+  no "sword" in the code), breathing CAN, jump CAN'T until verified (on_floor pins a foot every frame), sit on a
+  chair CAN'T, pick up a box CAN'T; top unlocks #201+#203+#204, #206, #225. A second agent checked every Blender
+  step against Blender 4.5.3 LTS installed here (its UI scripts, default keymap and bpy) and the manual's pages:
+  18 corrections (e.g. Paste Pose Flipped is Ctrl+Shift+V; "Make Cyclic (F-Modifier)"; Child Of targets the
+  armature with the bone named); claims it could not verify are marked "(unverified)". Caveat kept in the file:
+  "FASTER" is from step counts, not a timed first-timer (#222).
+- [x] SS5 PROPS IN THE APP (#202): a SET tab or Search: add any prop of the set in front of the body, on the floor;
+  pick it (click), move and turn it (drag, the ring), snap it to the floor or onto another prop; Delete; saved in
+  the scene file ("props") and loaded back; Mirror the scene mirrors them; every change one undo step. The browser
+  lists them ("Set"). Test by real clicks; an old scene with no "props" loads unchanged (Nick's files' fingerprint).
+  AMENDED (built, before the tick): turning is SET > Turn left / Turn right, 15 deg a click, not a drag ring; a
+  ring on the prop is left for a later round (the bat's ring code is per-bone, not per-object).
+  EVIDENCE: tests/set_test.gd PASS 17/17 (a window, real pushed clicks and drags): SET tab (Add prop menu, Import
+  model, Turn left/right, Delete prop greyed with a reason when nothing is picked); Add prop > table lands at
+  (-0.7, 0, 1.2), in front of the body, on the floor, picked, one undo step; the browser's Set row "table"; a real
+  drag on its top moves it 0.60 m sideways, one undo step, Ctrl+Z exact (0.0000 m); a click that only picks makes
+  no undo step (this check caught a real bug: a still mouse counted as a move); a box dragged over the table lands
+  ON it at 0.750 m; Turn right 15.0 deg; Delete and Ctrl+Z; a click on the head with no prop in front picks the
+  head and lets go of the prop; the file holds "props" and reads back the same; combo3 writes no "props" key;
+  Mirror the scene negates x and yaw. Stub fail: _pick_prop returning none -> SET TEST FAIL 9; restored, diff -q
+  clean. Fingerprint 99e49b62d06763c13a9bc3fde9ef185b unchanged.
+- [x] SS6 IMPORT IN THE APP (#213 ways 1-2): a file dropped on the window (files_dropped) and an Import button with a
+  file picker go through SS3: accepted -> it appears in the set's list; refused -> the reason on the status line,
+  nothing changed. Test: a drop driven through the same handler with the SS3 fixtures.
+  EVIDENCE: set_test (same run): a .glb written by GLTFDocument (0.3 x 0.5 x 0.3 m) passed to _on_drop, the
+  handler get_window().files_dropped is connected to: in the set as "my barrel", copied into the test's own library
+  (user://zz_lib_<pid>, removed on exit), the original's md5 unchanged, the status says "imported barrel.glb as a
+  prop"; its solid is its size exactly; a text file named junk.glb: "could not import junk.glb: That is not a valid
+  .glb model...", props and library unchanged. Stub fail: _on_drop doing nothing -> SET TEST FAIL 3. The Import
+  model button opens the native file picker into the same _import_file (not driven by the test: an OS dialog).
+- [x] SS7 all suites PASS (run_par); Nick's files unchanged; no zz_ leftovers; README_AI Round 37; committed.
+  EVIDENCE: run_par -j 8: SUITES 111/111 PASS, 430 s (logs C:/Temp/par37f; set:w added to run_all.sh EXTRA). The
+  first full run caught three audits on the new code (say_next: import refusals named no next step; confirm:
+  _import_file had no file policy; browser_tree: the hidden empty Set folder counted as a top row): all fixed
+  keeping the audit's meaning. The screenshot then showed new props landing on the dummy: _prop_spot now keeps a
+  new prop's footprint clear of the dummy and the other props (set_test check; stub "straight ahead" -> FAIL 1).
+  Fingerprint 99e49b62d06763c13a9bc3fde9ef185b; no zz_ in scenes/_wip, tests/ or user://. README_AI Round 37.
+  Found, not fixed: poser_test_<pid>.cfg files left in user:// by some suite even on a passing run (22 removed by
+  hand, the oldest 05:43, before this round): to trace next round.

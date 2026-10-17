@@ -29,6 +29,7 @@ func _init() -> void:
 	var policy := {"_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
 		"_save_scene_now": "asked by _save_scene when another file has the name", "_trash_now": "asked by _trash",
 		"_polish": "a NEW machine copy in scenes/_wip/", "_mirror_scene": "a NEW machine copy in scenes/_wip/",
+		"_import_file": "a COPY of the chosen file into the library (the original never written; never overwrites: _2)",
 		"_rename_pose": "refuses an existing name; the old name is free again", "_exit_tree": "the test's own settings file",
 		"_write": "the writer itself (callers above)", "_set_light": "the settings file (a preference, not work)", "_set_scale": "the settings file (a preference, not work)", "_save_settings": "the settings file", "_tour_end": "the settings file (tour done: a preference, not work)",
 		"autosave_now": "user://autosave.json only (never scenes/): a copy of unsaved work, atomic", "_autosave_drop": "removes only the autosave file and its .tmp", "_fold": "the settings file (the layout: a preference, not work)",
