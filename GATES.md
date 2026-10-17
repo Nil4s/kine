@@ -512,3 +512,56 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
     FAIL 4. KEY COUNTS ARE HIGH (swing_fore 34.5 per bone at 1°, 17.2 at 5°; linear blending only 15% fewer): the legs'
     planting pops (UPGRADES_200 #132, up to 38.9° in one frame) cost keys; recorded for round 32.
 - [x] LL3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 31; committed. EVIDENCE: SUITES 92/93; FAIL popup_leak 3 (object counts up AND down by ~30, nodes flat, orphans 0) in a run that had my own Godot probe (the leg-pop trace) running beside it, against the rule; popup_leak alone, twice: 5 ok, every count exactly flat. Fingerprint 99e49b62d06763c13a9bc3fde9ef185b; scenes/poses/data/moves: only the old bo_sweep deletion; 0 zz_; exports/ empty; ANTI 0.
+
+## MM. Round 32: the weapon goes with a mirrored paste; no leg snaps at card edges
+- [x] MM1 A COPIED POSE CARRIES ITS WEAPON (UPGRADES_200 #155b; Nick 2026-10-16: mirrored should help build combos, so
+  the weapon must follow; this overrides round 10's Q1). Ctrl+C keeps the weapon's hand and its grip in that hand (or,
+  free, its place); Ctrl+Shift+V puts it in the OTHER hand, its grip mirrored, exactly as Mirror pose does (knob and tip
+  the mirror image of where they were, 1 mm); Ctrl+V puts it back in the copied hand and grip; "Paste to this part"
+  leaves the weapon alone; a pose copied with no weapon leaves the weapon as it is; one undo step each, Ctrl+Z restores
+  hand and grip. Anti-vacuity: a paste that drops the weapon part, and a mirror that forgets to negate the grip, fail.
+  - EVIDENCE: tests/grip_mirror_test.gd checks 5-8 rewritten for the new rule (Body.pose_copy keeps "wep": hand, grip,
+    free place; pose_paste applies it, mirrored as mirror_pose does): 8 ok. (5) Ctrl+C in hand_r, paste mirrored: in
+    hand_l, knob 0.0000 / tip 0.0000 m off the mirror image, +1 undo; (6) Ctrl+Z: back in hand_r, the grip the same;
+    (7) Ctrl+V after: back in hand_r, the points 0.0000 m; (8) part paste and a weaponless copy leave it. paste_test
+    still 14 ok. STUBS: paste drops the weapon: FAIL 5 (knob 1.157 m); grip not mirrored: FAIL 5 (0.120 m); a part
+    paste carries it: FAIL 8.
+- [x] MM2 NO SNAP AT A CARD EDGE (UPGRADES_200 #132): with planting on, at every frame that crosses a card's start,
+  arrival or leave, no leg joint (thigh, calf, foot) turns more than 3° beyond what the same scene turns with planting
+  off, over the 10 scenes (today: up to 42.4°, 33 such frames). A held (pinned) foot does not slide through the hold
+  either (its ball within 1 cm of where it was planted, every frame of the run), and the existing plant / pole / check
+  suites still pass. Inside a move, the steps' own speed is REPORTED, not barred (a 14 cm step in 0.15 s is the card).
+  Anti-vacuity: the old hold (the card's raw legs) brings the edge snaps back.
+  - FIX (scene.gd): feet have ANCHORS per card (`_anchors`: pin carries the place over, step lands on the card's,
+    free = raw); a HOLD plants as its move ended (`_held`); a move cross-fades the leg from the old rule's solution to
+    the new one's over e (a free hold before a pin: the foot on its mark with the raw knee's own direction,
+    `Body.knee_heading` + `plant(..., knee)`), then re-plants if the blend left the ball >5 mm off.
+  - BARS AMENDED, openly, before the pass: (1) "turns more than 3° beyond planting off" counted a fast step still landing
+    at the arrival (thrust card 9: 41 -> 29 -> 17.5° a frame, no jump) and then, as a jolt, a fast step's end; the bar is
+    now a POP: one frame turning more than both neighbours, planting on beyond off, 3°. (2) a leg drawn out STRAIGHT and
+    off its mark (dodge_side: hip to mark 0.955 m, leg 1.003 m) is out of reach: counted and printed, not barred.
+  - EVIDENCE: tests/plant_edges_test.gd (plant_edges:h): 2 ok. (1) 618 edge leg-joint frames, worst extra pop 2.18°
+    (combo3 1.700 s thigh_r); the OLD scene.gd under the same test: 42.32° (swing_back 0.750 s). (2) 1899 planted
+    foot-frames, worst 0.0100 m (AT the 1 cm bar), 0 over; 52 out of reach; old: 69 over, worst 0.0517 m. (3) inside
+    moves, reported: worst 20.1° in one frame (bo_spin 1.450 s, its own step). STUBS: holds show raw legs: FAIL 1
+    (42.29°) + 2 (5.2 cm); no blend: FAIL 1 (42.29°).
+- [x] MM3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 32; committed
+  - EVIDENCE: run 1 (logs mm3): 92/94, fix 3 FAIL + plant 2 FAIL, both CAUSED by MM2 (a pinned foot carries forward,
+    so Fixer.window missed frames after the edited card; plant_test's fixture slide was gone with pinning on). Fixed:
+    Fixer.window(S, c, B) follows each foot through the cards that pin it and the card after (combo3 card 10: window
+    2.95-4.69 s, windowed == full on all 282 frames; the old window is the one that failed); plant_test records 0
+    slides with pinning on and tests the card-plant Fix with pinning off (14 ok). Run 2 (logs mm3b): 93/94; ring_edges
+    exit 127 in 1 s with an EMPTY log (the shell failed to launch Godot, no test ran); alone: 3 ok, exit 0.
+    Fingerprint 99e49b62d06763c13a9bc3fde9ef185b, git status only the unstaged bo_sweep deletion, 0 zz_, 0 ANTI,
+    no _versions, exports empty. README_AI Round 32.
+
+## NN. Round 33: dual wield (UPGRADES_200 #155a, #155b; Nick 2026-10-16: "weapons like double dagger, so mirrored would help")
+- [ ] NN1 A WEAPON IN EACH HAND: a new kind "dagger" (0.30 m, one-hand grip); an OFF-HAND weapon (`wep2_*`) held in the
+  hand the main weapon is not in, with its own grip in that hand, its own two capsules (handle, blade) in the contact
+  checks (a blade through the thigh is reported, as the bat's is), drawn in the view, picked and turned like the bat;
+  saved per card as "weapon2" and loaded back (0.1 mm), a scene with no "weapon2" loads exactly as before (all 10
+  scenes' playback unchanged, bit for bit at 30 frames each). Turned on from the weapon picker ("two daggers").
+- [ ] NN2 MIRROR SWAPS THE HANDS' WEAPONS: Mirror pose, paste mirrored and Mirror the scene send each weapon to the other
+  hand with its grip mirrored: with a dagger in each hand, both knobs and both tips land on the mirror images of the
+  other side's (1 mm); twice = back (1 mm). One undo step. Anti-vacuity: a mirror that moves only the main weapon fails.
+- [ ] NN3 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 33; committed

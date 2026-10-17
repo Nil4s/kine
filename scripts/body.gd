@@ -1228,7 +1228,8 @@ func foot_state(sd: String) -> Array:
 ##   loop: (flat foot) -> reach the ankle to ball_at - (ball - ankle) -> turn the thigh about its length by Newton's
 ##   step  dtwist = -err / (d err / d twist)  so the foot points where it pointed (flat feet only; a heel-up foot
 ##   pivots on its ball). Returns the miss (m).
-func plant(sd: String, ball_at: Vector3, head: float, flat: bool) -> float:
+## knee: the heading the knee should point along (NAN = the rule: the foot's heading if flat, else the hips' facing)
+func plant(sd: String, ball_at: Vector3, head: float, flat: bool, knee := NAN) -> float:
 	var th := "thigh" + sd
 	for it in 5:
 		if flat:
@@ -1237,10 +1238,21 @@ func plant(sd: String, ball_at: Vector3, head: float, flat: bool) -> float:
 		reach("foot" + sd, ball_at - d)
 		# a heel-up back foot pivots with the hips: its knee follows the hips' facing, not its own foot (that chases itself)
 		var hf: Vector3 = (G["pelvis"] as Quaternion) * Vector3(0, 0, 1)
-		knee_over_toes(sd, head if flat else atan2(hf.x, hf.z))
+		knee_over_toes(sd, knee if not is_nan(knee) else (head if flat else atan2(hf.x, hf.z)))
 		if ((P["ball" + sd] - ball_at) as Vector3).length() < IK_EPS:
 			break   # the knee turn left the ball on its mark: the next round would change nothing that shows
 	return ((P["ball" + sd] - ball_at) as Vector3).length()
+
+
+## the heading the knee points along now (the knee's offset from the hip -> ankle line, on the floor), or NAN if straight
+func knee_heading(sd: String) -> float:
+	var H: Vector3 = P["thigh" + sd]
+	var u: Vector3 = ((P["foot" + sd] - H) as Vector3).normalized()
+	var k: Vector3 = (P["calf" + sd] as Vector3) - H
+	k -= u * u.dot(k)
+	if k.length() < 0.01:
+		return NAN
+	return atan2(k.x, k.z)
 
 
 ## KNEE OVER THE TOES: swing the whole leg about the hip -> ankle line (the ankle stays put) until the knee points the
@@ -1313,8 +1325,13 @@ static func twin(j: String) -> String:
 ## is (x, y, z, w) -> (x, -y, -z, w) (the same rule weapon_to_hand uses for the left-hand grip); the hips' offset x
 ## flips; the weapon goes to the other hand, its place in the hand reflected the same way. Mirroring twice = the pose.
 ## COPY / PASTE POSE (round 10, GATES Q1): the body's angles and hip offset (not the weapon: it stays as it is)
+## the pose with ITS WEAPON (round 32, GATES MM1; Nick 2026-10-16 overrides round 10's Q1: a mirrored paste builds the
+## other side of a combo, so the weapon must follow): the hand and the grip in it, or the free weapon's place
 func pose_copy() -> Dictionary:
-	return {"ang": ang.duplicate(), "offset": offset}
+	var c := {"ang": ang.duplicate(), "offset": offset}
+	if wep_on:
+		c["wep"] = {"hand": wep_hand, "lpos": wep_lpos, "lrot": wep_lrot, "pos": wep_pos, "rot": wep_rot}
+	return c
 
 
 ## j and every joint below it (an upper arm -> the arm, forearm, hand and fingers)
@@ -1345,6 +1362,17 @@ func pose_paste(p: Dictionary, mirrored := false, only := []) -> void:
 	if only.is_empty():
 		var o: Vector3 = p["offset"]
 		offset = Vector3(-o.x, o.y, o.z) if mirrored else o
+		if wep_on and p.has("wep"):   # the weapon comes with the pose; mirrored = into the other hand, as mirror_pose
+			var w: Dictionary = p["wep"]
+			wep_hand = twin(w["hand"]) if mirrored and w["hand"] != "" else w["hand"]
+			var lp: Vector3 = w["lpos"]
+			var lr: Quaternion = w["lrot"]
+			var wp: Vector3 = w["pos"]
+			var wr: Quaternion = w["rot"]
+			wep_lpos = Vector3(-lp.x, lp.y, lp.z) if mirrored else lp
+			wep_lrot = Quaternion(lr.x, -lr.y, -lr.z, lr.w) if mirrored else lr
+			wep_pos = Vector3(-wp.x, wp.y, wp.z) if mirrored else wp
+			wep_rot = Quaternion(wr.x, -wr.y, -wr.z, wr.w) if mirrored else wr
 	fk()
 
 

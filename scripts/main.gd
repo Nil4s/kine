@@ -3880,7 +3880,7 @@ func _commands() -> Array:
 			"the picked card's move eases '%s'" % e)
 	add.call("Plant the left foot on this card", "", _toggle_plant.bind("_l"), "pin lock foot slide skate stick floor", true, "on/off: the left foot stays where it stood in the card before (no sliding)")
 	add.call("Plant the right foot on this card", "", _toggle_plant.bind("_r"), "pin lock foot slide skate stick floor", true, "on/off: the right foot stays where it stood in the card before (no sliding)")
-	add.call("Copy pose", "Ctrl+C", _copy_pose, "clipboard", false, "remember the body's pose (every angle and the hips) to paste on another card")
+	add.call("Copy pose", "Ctrl+C", _copy_pose, "clipboard", false, "remember the body's pose (every angle, the hips, and the weapon in its hand) to paste on another card; pasted mirrored, the weapon goes to the other hand")
 	add.call("Paste pose", "Ctrl+V", _paste_pose.bind(""), "clipboard", true, "the copied pose onto the body (Update keeps it on the card)")
 	add.call("Paste pose mirrored", "Ctrl+Shift+V", _paste_pose.bind("mirrored"), "clipboard flip left right", true, "the copied pose reflected left <-> right")
 	add.call("Paste to this part", "", _paste_pose.bind("part"), "clipboard arm leg only", true, "the copied pose on the picked part and the parts below it only (an arm, a leg)")

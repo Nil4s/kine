@@ -503,23 +503,70 @@ func _apply(B: Body, t: float) -> void:
 	if on_floor:
 		_ground(B)
 	if pin:
+		# NO SNAP AT A CARD EDGE (round 32, GATES MM2): every foot has an ANCHOR per card (_anchors: where it really
+		# stands, carried through a run of pinned cards); a move plants from the last card's anchor, and a HOLD plants
+		# exactly as its move ended. Before, a hold showed the card's raw legs, so the leg jumped from the planted
+		# solution to the raw one on arrival (up to 42 degrees in one frame) and back when the next move began.
 		var i := span(t)
-		if i > 0:
-			var a := _feet(B, i - 1)
-			var b := _feet(B, i)
+		var held := -1 if i > 0 else _held(t)
+		if i > 0 or held > 0:
+			var E := _anchors(B)
 			put(B, sample(t))
 			if on_floor:
 				_ground(B)
-			var e := _ease(clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0), 5)
-			for sd in ["_l", "_r"]:
-				if _pinned(i, sd, a[sd], b[sd]):
-					B.plant(sd, a[sd][0], a[sd][1], a[sd][3] and b[sd][3])
-				elif _steps(i).has(sd):
-					# a STEP: the toe base travels from where it stood to where it lands, lifted on an arc
-					#   at = lerp(a, b, e) + up * lift * sin(pi e)   (lift = the card's "lift", else LIFT)
-					var lift := float(cards[i].get("lift", LIFT))
-					var at: Vector3 = (a[sd][0] as Vector3).lerp(b[sd][0], e) + Vector3.UP * lift * sin(PI * e)
-					B.plant(sd, at, lerp_angle(a[sd][1], b[sd][1], e), false)
+			if i > 0:
+				var e := _ease(clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0), 5)
+				for sd in ["_l", "_r"]:
+					var a: Array = E[i - 1][sd]
+					var b: Array = E[i][sd]
+					if b[3] == "free" and a[3] == "free":
+						continue
+					# THE RULE CHANGES ACROSS THE MOVE, NEVER AT ITS EDGE: the leg as the hold before solved it (old)
+					# fades into the leg as this card solves it (new) over e, so both edges meet their holds exactly
+					var raw := {}
+					for j in _leg(sd):
+						raw[j] = B.ang[j]
+					var at: Vector3 = a[0]
+					var head: float = a[1]
+					if b[3] == "step":
+						# a STEP: the toe base travels from where it stood to where it lands, lifted on an arc
+						#   at = lerp(a, b, e) + up * lift * sin(pi e)   (lift = the card's "lift", else LIFT)
+						var lift := float(cards[i].get("lift", LIFT))
+						at = (a[0] as Vector3).lerp(b[0], e) + Vector3.UP * lift * sin(PI * e)
+						head = lerp_angle(a[1], b[1], e)
+					var new_leg := raw
+					if b[3] != "free":
+						B.plant(sd, at, head, b[2])
+						new_leg = {}
+						for j in _leg(sd):
+							new_leg[j] = B.ang[j]
+					# the old leg: planted as the hold before was; after a FREE hold, the foot on its mark with the raw
+					# leg's own knee direction (the raw leg itself would slide the foot off a pin as the move begins)
+					for j in _leg(sd):
+						B.ang[j] = raw[j]
+					B.fk()
+					var old_leg := raw
+					if a[3] != "free":
+						B.plant(sd, at, head, a[2])
+					elif b[3] == "pin":
+						B.plant(sd, at, head, false, B.knee_heading(sd))
+					if a[3] != "free" or b[3] == "pin":
+						old_leg = {}
+						for j in _leg(sd):
+							old_leg[j] = B.ang[j]
+					for j in _leg(sd):
+						B.ang[j] = (old_leg[j] as Vector3).lerp(new_leg[j], e)
+					B.fk()
+					if b[3] != "free" and ((B.P["ball" + sd] - at) as Vector3).length() > 0.005:
+						# a blend of two legs on the same mark can leave the foot off it (~1 cm): put it back (only then: a
+						# re-solve of a foot already on its mark would move the leg for nothing), keeping
+						# the blended knee's direction and foot angle
+						B.plant(sd, at, head, false, B.knee_heading(sd))
+			else:
+				for sd in ["_l", "_r"]:
+					var h: Array = E[held][sd]
+					if h[3] != "free":
+						B.plant(sd, h[0], h[1], h[2])
 	_planted(B, t)
 	B.apply_grip()
 
@@ -552,6 +599,44 @@ func _planted(B: Body, t: float) -> void:
 			B.set_state(keep)
 			B.fk()
 		B.plant(sd, at[0], at[1], at[3])
+
+
+static func _leg(sd: String) -> Array:
+	return ["thigh" + sd, "calf" + sd, "foot" + sd, "ball" + sd]
+
+
+## the card whose HOLD contains t (after its move, before the next card's; the last card from its arrival on), or -1
+func _held(t: float) -> int:
+	var ts := times()
+	for i in range(cards.size() - 1, -1, -1):
+		if t >= float(ts[i][1]) - 1e-6:
+			return i
+	return -1
+
+
+## each foot's ANCHOR per card: [{"_l": [ball position, heading, flat, how], "_r": ...}, ...]; how = "pin" (held where
+## it stood: the anchor carries over from the card before), "step" (lands on the card's own place), "free" (the
+## card's raw foot, no planting). Card 0 is "free". Loads cards into the body (through _feet): put the frame back after
+func _anchors(B: Body) -> Array:
+	var out := []
+	for i in cards.size():
+		var b := _feet(B, i)
+		var row := {}
+		for sd in ["_l", "_r"]:
+			var r: Array = b[sd]
+			if i == 0:
+				row[sd] = [r[0], r[1], r[3], "free"]
+				continue
+			var a: Array = _feet(B, i - 1)[sd]
+			var prev: Array = out[i - 1][sd]
+			if _pinned(i, sd, a, r):
+				row[sd] = [prev[0], prev[1], a[3] and r[3], "pin"]
+			elif _steps(i).has(sd):
+				row[sd] = [r[0], r[1], false, "step"]
+			else:
+				row[sd] = [r[0], r[1], r[3], "free"]
+		out.append(row)
+	return out
 
 
 ## the card the body is moving INTO at time t (-1 while holding still)

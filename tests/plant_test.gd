@@ -48,11 +48,19 @@ func _init() -> void:
 	m._rebuild_cards()
 	m._refresh()
 	var B: Body = m.ov.GB
+	# ROUND 32 (MM2): with automatic pinning ON, holds keep a pinned foot where its move put it, and combo3's creep is
+	# gone; recorded here. The card "plant" fix is a separate mechanism, so the fixture is the same scene with pinning OFF
+	m._check()
+	await process_frame
+	var pinned_slides: Array = m.findings.filter(func(x): return x["rule"] == "FOOT SLIDE")
+	ok(pinned_slides.is_empty(), "combo3 in spline, pinning ON: Check finds %d FOOT SLIDE (round 32 holds the feet)" % pinned_slides.size())
+	m.S.pin = false
+	m._refresh()
 	var plain := motion(m.S, B)
 	m._check()
 	await process_frame
 	var slides: Array = m.findings.filter(func(x): return x["rule"] == "FOOT SLIDE")
-	ok(slides.size() >= 1, "combo3 in spline: Check finds %d FOOT SLIDE %s" % [slides.size(), slides.map(func(x): return "%s %.2f-%.2f s %.1f cm" % [x.get("foot", "?"), x["t"], x.get("t1", -1.0), x["v"] * 100.0])])
+	ok(slides.size() >= 1, "combo3 in spline, pinning OFF: Check finds %d FOOT SLIDE %s" % [slides.size(), slides.map(func(x): return "%s %.2f-%.2f s %.1f cm" % [x.get("foot", "?"), x["t"], x.get("t1", -1.0), x["v"] * 100.0])])
 	if slides.is_empty():
 		print("PLANT TEST FAIL (no slide to fix)")
 		quit(1)

@@ -26,7 +26,7 @@ func window_exact(path: String, c: int, B: Body) -> void:
 	var a := Moves._flat(S.cards[c - 1]["pose"])
 	var b := Moves._flat(S.cards[c]["pose"])
 	Fixer._put(S, B, c, a, b, 0.4)
-	var w := Fixer.window(S, c)
+	var w := Fixer.window(S, c, B)
 	var t0 := Time.get_ticks_msec()
 	var part := Rulebook.sample(S, B, sm0, w.x, w.y)
 	var t1 := Time.get_ticks_msec()

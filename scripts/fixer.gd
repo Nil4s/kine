@@ -166,13 +166,30 @@ static func _flow(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 ## its slopes use the neighbours, and its joints read the curve up to Scene.LEAD x 5 = 75 ms AHEAD, so the window
 ## opens that much earlier: found when the window first missed 2.82-2.87 s on combo3_detail), one frame of margin.
 ## Everything outside is re-used from the sample before the edit (tests/fix_test.gd: windowed == full, bit for bit).
-static func window(S: Scene, c: int) -> Vector2:
+## PLANTED FEET CARRY FORWARD (round 32, MM2): with pinning on, a foot pinned on the cards after b stands where card c
+## put it (Scene._anchors), and a HOLD plants as its move ended; so the window runs on through every following card
+## that pins a foot, and the move after (a step or a free leg leaves FROM the pinned place), to that card's hold end (B: to read the anchors; its pose is kept)
+static func window(S: Scene, c: int, B: Body = null) -> Vector2:
 	var ts := S.times()
 	var k := 2 if S.spline else 1
 	var a: int = maxi(c - (k - 1), 0)
 	var b: int = mini(c + k, S.cards.size() - 1)
 	var lead := Scene.LEAD * 5.0 if S.spline else 0.0
-	return Vector2(float(ts[a][0]) - lead - 1.0 / Rulebook.FPS, float(ts[b][1]) + 1.0 / Rulebook.FPS)
+	var end := float(ts[b][1])
+	if S.pin and B != null:
+		var keep := B.state()
+		var E := S._anchors(B)
+		B.set_state(keep)
+		B.fk()
+		# per foot: still LIVE (its anchor came from the edit) while cards pin it; the move into any card reads the
+		# anchor before (a step starts from it, a free leg blends out of it), so that card is in; then a non-pin ends it
+		var live := {"_l": true, "_r": true}
+		while b + 1 < S.cards.size() and (live["_l"] or live["_r"]):
+			b += 1
+			for sd in live:
+				live[sd] = live[sd] and E[b][sd][3] == "pin"
+		end = float(ts[b][2]) if b < S.cards.size() - 1 else S.length()
+	return Vector2(float(ts[a][0]) - lead - 1.0 / Rulebook.FPS, end + 1.0 / Rulebook.FPS)
 
 
 ## the head travels too far: the card's trunk, neck and the hips' slide blended back toward the card before by the
@@ -183,7 +200,7 @@ static func _steady_head(f: Dictionary, S: Scene, B: Body, sm0: Dictionary) -> D
 	var a := Moves._flat(S.cards[c - 1]["pose"])
 	var orig: Dictionary = S.cards[c]["pose"].duplicate(true)
 	var b := Moves._flat(orig)
-	var w := window(S, c)
+	var w := window(S, c, B)
 	var base := Rulebook.sample(S, B, sm0, w.x, w.y, true)   # the window again, to count its contacts
 	var tip0 := _tip_in(base, S, c)
 	var lo := 0.0

@@ -3,8 +3,9 @@
 ## panel's sliders (the bat selected: the hip-row sliders are its position in the hand, bend / side / twist its turn).
 ## Mirror pose: the left hand holds it, the mirrored offset, the knob and the tip exactly the mirror image (x -> -x,
 ## 1 mm). Mirrored twice: the offset and the points back (1 mm). A save and a load keep the offset (the file holds
-## 0.1 mm). Ctrl+C then paste mirrored: the bat stays in its hand with its grip (round 10, Q1: a copied pose carries the
-## body, not the weapon), on that hand as it moves. Arms posed asymmetric first, so a mirror
+## 0.1 mm). PASTE CARRIES THE WEAPON (round 32, GATES MM1; Nick 10-16 overrides round 10's Q1): Ctrl+C, paste mirrored
+## puts the bat in the other hand, the mirror image (1 mm), one undo step, Ctrl+Z puts it back; Ctrl+V after it returns
+## it to the copied hand and grip; a paste to one part, or a copied pose with no weapon, leaves it. Arms posed asymmetric first, so a mirror
 ## that ignored the weapon could not land on the mirror image by chance.
 extends SceneTree
 
@@ -91,17 +92,38 @@ func _init() -> void:
 	var p3 := pts()
 	ok(m.B.wep_hand == "hand_r" and near(m.B.wep_lpos, lp, 0.0002) and near(p3[0], p0[0]) and near(p3[1], p0[1]),
 		"4 saved and loaded: in %s, the offset %.5f m off, the points %.4f / %.4f m off" % [m.B.wep_hand, m.B.wep_lpos.distance_to(lp), p3[0].distance_to(p0[0]), p3[1].distance_to(p0[1])])
-	# paste mirrored: the round-10 rule (Q1), a copied pose carries the body, not the weapon: it stays in its hand,
-	# its grip the same, and goes where that hand goes
+	# PASTE CARRIES THE WEAPON (round 32, MM1; Nick 10-16 overrides round 10's Q1): mirrored = into the other hand, the
+	# knob and tip the mirror image (as Mirror pose); plain = back in the copied hand and grip; a part = left alone;
+	# a pose with no weapon = left alone; Ctrl+Z puts hand and grip back
 	m._copy_pose()
+	var pc := pts()
 	var hand_p: String = m.B.wep_hand
 	var lp_p: Vector3 = m.B.wep_lpos
-	var lr_p: Quaternion = m.B.wep_lrot
-	var hand_pos0: Vector3 = m.B.P[hand_p]
+	var u0: int = m.undo.size()
 	m._paste_pose("mirrored")
 	await idle()
-	var moved_with_hand: float = (m.B.P[hand_p] as Vector3).distance_to(hand_pos0)
-	ok(m.B.wep_hand == hand_p and near(m.B.wep_lpos, lp_p, 1e-6) and m.B.wep_lrot.is_equal_approx(lr_p) and moved_with_hand > 0.05 and _on_hand(hand_p),
-		"5 Ctrl+C, paste mirrored (the arms swapped: the right hand moved %.3f m): the bat still in %s, its grip the same (%s), and on that hand" % [moved_with_hand, m.B.wep_hand, near(m.B.wep_lpos, lp_p, 1e-6)])
+	var pm := pts()
+	var mir_ok: bool = m.B.wep_hand == m.B.twin(hand_p) and near(pm[0], flip(pc[0])) and near(pm[1], flip(pc[1])) and _on_hand(m.B.wep_hand)
+	ok(mir_ok and m.undo.size() == u0 + 1, "5 Ctrl+C in %s, paste mirrored: in %s, knob %.4f / tip %.4f m off the mirror image, on that hand %s; +%d undo" % [hand_p, m.B.wep_hand, pm[0].distance_to(flip(pc[0])), pm[1].distance_to(flip(pc[1])), _on_hand(m.B.wep_hand), m.undo.size() - u0])
+	m._undo()
+	await idle()
+	var pu := pts()
+	ok(m.B.wep_hand == hand_p and near(m.B.wep_lpos, lp_p, 1e-6) and near(pu[0], pc[0]), "6 Ctrl+Z: back in %s, the grip the same, the knob %.4f m off" % [m.B.wep_hand, pu[0].distance_to(pc[0])])
+	m._paste_pose("mirrored")
+	m._paste_pose("")
+	await idle()
+	var pp := pts()
+	ok(m.B.wep_hand == hand_p and near(m.B.wep_lpos, lp_p, 1e-6) and near(pp[0], pc[0]) and near(pp[1], pc[1]), "7 then Ctrl+V: back in %s with the copied grip, knob %.4f / tip %.4f m off" % [m.B.wep_hand, pp[0].distance_to(pc[0]), pp[1].distance_to(pc[1])])
+	m._paste_pose("mirrored")
+	await idle()
+	var before: String = m.B.wep_hand
+	var lp_b: Vector3 = m.B.wep_lpos
+	m.sel = "upperarm_r"
+	m._paste_pose("part")
+	var nobody := {"ang": m.B.ang.duplicate(), "offset": m.B.offset}
+	m.pose_clip = nobody
+	m._paste_pose("mirrored")
+	await idle()
+	ok(m.B.wep_hand == before and near(m.B.wep_lpos, lp_b, 1e-6), "8 'Paste to this part' and a pose copied with no weapon leave it in %s, the grip the same (%s)" % [m.B.wep_hand, near(m.B.wep_lpos, lp_b, 1e-6)])
 	print("GRIP MIRROR: %d failed" % fails)
 	quit(1 if fails > 0 else 0)

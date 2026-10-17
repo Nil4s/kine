@@ -259,3 +259,23 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   (`B.state()`); listed in confirm / undo_audit / command_search as a file writer.
 - **Known**: 188-817 keys per scene at 1°. Foot planting makes legs jump up to 39° in one frame (UPGRADES_200 #132),
   which the export copies; that is round 32.
+
+## Round 32 (GATES.md section MM): the weapon goes with a paste; no leg snaps at card edges
+- **Paste carries the weapon** (Nick 2026-10-16, overriding round 10's Q1): `Body.pose_copy` keeps `"wep"` (hand,
+  grip in it, free place); `pose_paste` applies it when the body has a weapon on and the paste is whole; mirrored =
+  the other hand, grip mirrored as `mirror_pose`. A part paste or a weaponless copy leaves the weapon alone.
+- **Planting** (`Scene._apply`, pin on): `_anchors(B)` gives each foot per card [ball, heading, flat, how] with how
+  pin / step / free; a pin carries the place from the card before. A HOLD (`_held(t)`) plants as its move ended. A
+  move into card i cross-fades each leg from the old rule's solution (as the hold before was planted, or, after a free
+  hold into a pin, the foot on its mark with the raw knee's direction) to the new rule's, over the leg's ease e; if
+  that leaves the ball >5 mm off, it re-plants keeping the blended knee (`Body.knee_heading`, `plant(..., knee)`).
+- Why: holds used the cards' raw legs and moves the planted ones, so legs jumped up to 42° in one frame at every
+  move <-> hold edge, and the two knee rules (flat: foot heading; heel up: hips facing) switched at move starts.
+- `tests/plant_edges_test.gd` measures a POP (a frame turning more than both neighbours, planting on beyond off) at
+  card edges, and pinned-ball drift; steps' own speed inside moves is printed, not barred.
+- **Consequence for the Fixer** (found by the first MM3 run, fix_test 3 FAIL): a pinned foot now carries forward, so
+  a pose edit on card c moves frames after its window. `Fixer.window(S, c, B)` follows each foot: it stays LIVE while
+  cards pin it, and the card after it is in the window too (a step leaves from the pinned place; a free leg blends out
+  of it). combo3 card 10: window 2.95-3.49 -> 2.95-4.69 s, windowed == full on all 282 frames.
+- `tests/plant_test.gd`: its fixture slide (combo3 in spline, 4.9 cm) is gone with pinning on (recorded as a check);
+  the card "plant" Fix is tested with `S.pin = false`, where the slide is real.
