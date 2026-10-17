@@ -118,8 +118,8 @@ func _init() -> void:
 	m._refresh()
 	await idle(2)
 	var sliders_off: bool = not (m.ui_rows["bend"]["slider"] as HSlider).editable
-	ok(m.sel == J and wedge >= 0 and m.locked_parts.has(J) and lit and m.ui_title.text.contains("LOCKED") and m.ui_lock_btn.text == "Unlock this part" and sliders_off,
-		"1 a real right-click on the left forearm, the ring's Lock wedge (%d): locked %s, drawn %s (selected: %s, not plain SEL), title '%s', panel button '%s', sliders editable %s" % [wedge, m.locked_parts.keys(), col, sel_col, m.ui_title.text, m.ui_lock_btn.text, not sliders_off])
+	ok(m.sel == J and wedge >= 0 and m.locked_parts.has(J) and lit and m.ui_title.text.contains("LOCKED") and m.label_of(m.ui_lock_btn) == "Unlock this part" and sliders_off,
+		"1 a real right-click on the left forearm, the ring's Lock wedge (%d): locked %s, drawn %s (selected: %s, not plain SEL), title '%s', panel button '%s', sliders editable %s" % [wedge, m.locked_parts.keys(), col, sel_col, m.ui_title.text, m.label_of(m.ui_lock_btn), not sliders_off])
 	# 1b the slider set by value (a key or a script; editable=false only stops the mouse): the angle stays
 	(m.ui_rows["bend"]["slider"] as HSlider).value = 10.0
 	await idle(2)
@@ -157,7 +157,7 @@ func _init() -> void:
 	await click(m.ui_lock_btn)
 	var u1: int = m.undo.size()
 	await drag(J)
-	ok(not m.locked_parts.has(J) and not ang(J).is_equal_approx(a0) and m.undo.size() == u1 + 1 and m.ui_lock_btn.text == "Lock this part",
+	ok(not m.locked_parts.has(J) and not ang(J).is_equal_approx(a0) and m.undo.size() == u1 + 1 and m.label_of(m.ui_lock_btn) == "Lock this part",
 		"5 a real click on the panel's button: unlocked; a real drag turns it %s -> %s, +%d undo step" % [a0, ang(J), m.undo.size() - u1])
 	# 6 lock from the search
 	var cmd := {}

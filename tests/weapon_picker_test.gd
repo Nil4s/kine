@@ -99,11 +99,14 @@ func _init() -> void:
 	if not ps.is_empty():
 		for i in (ps[0] as OptionButton).item_count:
 			items.append((ps[0] as OptionButton).get_item_text(i).get_slice("   ", 0))
-	ok(gone.is_empty() and ps.size() == 2 and items == ["None", "Metal bat", "Bo staff", "Long hammer", "Dagger", "2 daggers"],
+	ok(gone.is_empty() and ps.size() == 1 and items == ["None", "Metal bat", "Bo staff", "Long hammer", "Dagger", "2 daggers"],
 		"1 the old weapon buttons gone (left: %s); %d pickers, rows %s" % [gone, ps.size(), items])
 	for p in ps:
 		(p as OptionButton).item_selected.connect(func(_k): fired += 1)
-	var left: OptionButton = m.find_child("Poses", true, false).find_child("opt_weapon", true, false)
+	# round 36 (RR3): the left panel's picker is gone (the browser is a tree); the inspector's WEAPON has the one picker
+	m._sec_open("WEAPON", true)
+	await idle(3)
+	var left: OptionButton = m.find_child("opt_weapon_panel", true, false)
 	var u0: int = m.undo.size()
 	var opened := await pick(left, 2)
 	ok(opened and m.B.wep_on and m.B.wep_kind == "staff" and m.undo.size() == u0 + 1 and shown() == "Bo staff",

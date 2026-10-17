@@ -61,7 +61,7 @@ func _init() -> void:
 	tl = m.ui_timeline
 	var L0: float = m.S.length()
 	print("     timeline %.0f px wide, %.1f px per second, scene %.2f s, %d cards" % [tl.size.x, tl.pps(), L0, m.S.cards.size()])
-	ok(tl.visible and tl.size.x > 600.0 and tl.size.y >= 40.0, "the timeline is in the window (%.0f x %.0f px)" % [tl.size.x, tl.size.y])
+	ok(tl.visible and tl.size.x > 600.0 and tl.size.y >= 30.0, "the timeline is in the window (round 36: on the one strip, 34 px) (%.0f x %.0f px)" % [tl.size.x, tl.size.y])
 	var k := tl.pps()
 
 	# M2: card 2's arrival edge +0.2 s -> its move 0.4 -> 0.6; card 3 starts 0.2 later; its own move unchanged

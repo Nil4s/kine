@@ -32,7 +32,7 @@ func _init() -> void:
 		"_rename_pose": "refuses an existing name; the old name is free again", "_exit_tree": "the test's own settings file",
 		"_write": "the writer itself (callers above)", "_set_light": "the settings file (a preference, not work)", "_set_scale": "the settings file (a preference, not work)", "_save_settings": "the settings file", "_tour_end": "the settings file (tour done: a preference, not work)",
 		"autosave_now": "user://autosave.json only (never scenes/): a copy of unsaved work, atomic", "_autosave_drop": "removes only the autosave file and its .tmp", "_fold": "the settings file (the layout: a preference, not work)",
-		"_set_hints": "the settings file (a preference, not work)",
+		"_set_hints": "the settings file (a preference, not work)", "_taught": "the settings file (look/taught: the first start is over; a preference, not work)",
 		"_recover_closed": "Discard button: removes the offered autosave (or the Later slot); Esc / x: MOVES it to <autosave>_later.json (kept, offered next start)",
 		"_offer_drop": "removes the offered autosave (or the Later slot) when unreadable or the same as its scene file",
 		"_recover": "removes the Later slot once its work is open again (the autosave holds it from there)",

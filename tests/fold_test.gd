@@ -85,8 +85,9 @@ func _init() -> void:
 	var rl: Control = m.ui_rails["left"]
 	ok(m.fold["left"] and not lp.visible and on_screen(rl) and rl.get_global_rect().size.x <= m.RAIL_W and saved("left") == true,
 		"a click on <<: the left panel folds to its rail (%d px wide, on screen %s), saved" % [rl.get_global_rect().size.x, on_screen(rl)])
-	ok(is_equal_approx(m.ui_bar.get_global_rect().position.x, m.lw() + 12) and is_equal_approx(m.ui_status.get_global_rect().position.x, m.lw() + 12),
-		"the status bar and the say strip move to the view's new left edge (%d)" % (m.lw() + 12))
+	# round 36 (RR5): one status line: its messages start at the view's left edge; the readout ends at the camera bar
+	ok(is_equal_approx(m.ui_status.get_global_rect().position.x, m.lw() + 12) and m.ui_bar.get_global_rect().position.x >= m.lw() + 12 and m.ui_bar.get_global_rect().end.x <= m.ui_nav.get_global_rect().position.x,
+		"the status line moves to the view's new left edge (%d), its readout still left of the camera bar" % (m.lw() + 12))
 	ok(body_off() < 4.0, "the body stays in the middle of the free view (%.1f px off)" % body_off())
 	await click(rl.find_child("open_left", true, false))
 	ok(not m.fold["left"] and lp.visible and not rl.visible and saved("left") == false, "the rail's >>: the panel back, saved")

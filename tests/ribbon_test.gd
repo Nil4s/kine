@@ -36,11 +36,10 @@ func click(b: Control) -> void:
 func find(t: String) -> Array:
 	for tab in m.RIBBON:
 		for c in m.ui_ribbon[tab].get_children():
-			if c is Button and c.text == t:
+			if c is Button and m.label_of(c) == t:   # round 36: icons only, the name kept as the label
 				return [c, tab]
-	var bar: Node = m.ui_ribbon["POSE"].get_parent()
-	for c in bar.get_children():
-		if c is Button and c.text == t:
+	for c in m.ui_top_right:
+		if c is Button and m.label_of(c) == t:
 			return [c, ""]
 	return [null, ""]
 

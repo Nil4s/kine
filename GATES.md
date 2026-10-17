@@ -791,3 +791,129 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   - EVIDENCE: run_all 102/102 PASS (C:/Temp/full35; launcher, drag_stop new; determinism PASS: the body.gd change
     moved nothing); Nick's files' fingerprint 99e49b62 (the house value), only the old bo_sweep deletion unstaged;
     no zz_ (repo, user data, %TEMP%); exports/ empty; README_AI "Round 35"; committed.
+
+## RR. Round 36: Fusion's calm (Nick 2026-10-17, after the round-35a screenshots: "I still think the ui/ux still far
+## from minimalist or organized as fusion 360. Thats a hard point cuz it has so much info that can becomes
+## overwhelming"). The direction he approved ("yeah go ahead"): the mockup C:/Temp/poser_morning/7_PROPOSAL_fusion_style.png.
+## The rule of the round: NOTHING IS REMOVED, ONLY MOVED (every tool one click away or in Search), and the words leave
+## the screen for the tooltips. Measured on the same two pictures as QQ4 (tools/layout_measure.gd, 1600 x 900).
+- [x] RR1 THE TOOLBAR, FUSION'S WAY: two thin rows, TOP_H 68 -> at most 76. Row 1 (28 px): POSER, the five tabs (small
+  words), the scene's name in the middle (its clips and length; a dot while it has unsaved changes), Undo / Redo /
+  History / Search / Help as ICONS ONLY. Row 2: the tab's tools as ICONS ONLY, in GROUPS, a small caption under each
+  group (POSE: CLIP / BODY / SHOW; ANIMATE: OVERLAYS / PLAYBACK / TOOLS; CHECK: GRADE / DUMMY; EXPORT: FILES / VERSION;
+  VIEW: CAMERA / DISPLAY); a caption is a menu of its group's tools by full name and key (Fusion's "CREATE ▾"). Every
+  icon's name and key in its tooltip and in the hover line. POSE gains CLIP (the card add, Enter) as its first tool.
+  Test (new tests/toolbar_test.gd, windowed): every ribbon tool and top-right button shows no text and has an icon and
+  a label (its old full name) that its tooltip carries; every caption sits under its own group (x overlaps its first
+  to last tool, y below them, inside TOP_H); a caption's menu item runs its tool (Collision from BODY's menu toggles
+  show_caps; Front from CAMERA's sets the view); the tabs are in row 1; the scene's name reads "combo3" with combo3
+  open and gets the dot after an edit. Old tests that found a button by its text find it by its label (the meaning
+  of each check kept). STUB: the round-35 _iconise (the text kept) -> FAIL.
+  - EVIDENCE: TOP_H 74 = STRIP_H 28 + TOOLS_H 30 + CAP_H 14 + 2. The strip: POSER, the tabs (RibbonTab: 12 px words, the
+    open one underlined in the accent), the scene ("combo3 · 12 clips · 4.67 s", worked out at most every 0.4 s: the
+    dot compares the cards as JSON), Undo / Redo / History / Search / Help as 28 x 24 icons. The tools: RIBBON_GROUPS,
+    a divider between groups, flat squares lit only on hover / when on; each caption a MenuButton placed under its
+    group (_place_caps, after every _fit_top / tab / resize) listing its tools by label; _run_tool shared with More.
+    label_of(b): the name an icon-only button keeps (meta "label"); _hover_hints and More read it; the tooltip leads
+    with it. POSE gains CLIP (icons.gd "clip"). tests/toolbar_test.gd (new, toolbar:w): 30 tools + 5 top-right icons
+    with no words; 13 captions each under its group; SHOW's caption menu toggles Collision, CAMERA's sets His right
+    (yaw -90) and lists its 6 tools by name; the strip reads "combo3 · 12 clips"; the dot off after opening, on after
+    an Update. Old tests moved from .text to label_of with each check's meaning kept: ribbon, icons (27 expected:
+    CLIP), hints, theme, symmetry, small_window (11: no compacting needed at 1280; 12: 12 extra tools to overflow,
+    picks one that IS in More: the first edit picked 'Extra tool 3', which no longer overflowed, and ran 12),
+    keyboard (F6's first control is now top_strip/tab_pose: the tabs moved into the strip). 18 suites PASS (toolbar,
+    ribbon, icons, small_window, hints, symmetry, theme, hover, hover_sync, search_one_list, nav_bar, browser_eye,
+    ring_edges, lock_part, keyboard, scene_list, names, clicks; earlier: empty_state, fold, tour, confirm). Found on
+    the way: two colour literals in the new theme lines (theme_test's audit) -> Tok.of("text:0.6"/"text:0.5").
+    STUB: `b.text = ""` removed (the words kept) -> FAIL 1 (all 35 named). The pre-round main.gd hangs the test on the
+    missing label_of (not counted as a stub). View share with all folded 70.7 % (35a: 71.2: the bar is 6 px taller);
+    RR6 measures the round. Picture: C:/Temp/poser_morning/8_rr1_toolbar.png.
+- [x] RR2 THE INSPECTOR: the right panel becomes a small floating box that shows ONLY while a part is picked: the
+  part's name, a lock and a close; its angles as one row each (name, slider, number in a box); a locked axis greyed,
+  not hidden; Reset / 90 / 45 / mirror as one row; the rest (the knee or elbow pole, fingers, the weapon and grip,
+  the math) in sections folded by default, each one click open. The teaching sentences ("more = arm swings forward")
+  go to the tooltips. Test: picking a part shows it, Esc / its x hides it; its height with every section folded is at
+  most 300 px; every control the old panel had is found in it (by label) and works through a click; no Label in it
+  longer than 40 characters while folded. Anti-vacuity: the round-35 panel fails the height and the long-label bars.
+  AMENDED before the work: a part is ALWAYS picked (the pelvis at the start), so "only while a part is picked" has no
+  case; the box stays docked at the right under the bar (tests and the cube's place lean on that edge), RIGHT_W 370 ->
+  at most 290, its height FITS its content (the view below it is the body's again); its x folds it to the PART rail
+  (round 35a's fold, remembered); a locked axis stays hidden as today (less on screen than greyed).
+  EVIDENCE (2026-10-17): tests/inspector_test.gd PASS 15/15 (real clicks): the box 284 x 222 (arm), 284 x 255 (hand,
+  its pole row), 284 x 287 (hips, 3 extra sliders), no visible Label over 40 chars; SWING's hint and the how-to are
+  tooltips; HANDS opens by a click (222 -> 332, the finger rows show; Fist ran) and folds back to 222; Reset, 45, the
+  mirrors, 90, NUMBERS > Show the math, the lock icon (label Lock -> Unlock), the weapon opens WEAPON (In right hand
+  on show), the x folds to the PART rail and the rail opens it. ANTI-VACUITY: the same bars on the pre-RR2 main.gd:
+  364 x 714 and 3-5 long labels for all three parts (fail); STUB (offset_bottom = the whole room) -> FAIL 4. Updated
+  with the meaning kept: lock_part (label_of), hints (the how-to is the title's tooltip: 3 texts), theme (a heading
+  label from the left panel). Green: inspector, lock_part, hints, theme, type_scale, fold, multi_select, side_colours,
+  grip_mirror, view_cube, browser, hover_sync, ring_edges, nav_bar, scene_list, keyboard, clicks, names, browser_eye.
+  Picture C:/Temp/poser_morning/9_rr2_inspector.png (left + bottom folded: 68.6 %).
+- [x] RR3 THE BROWSER: the left panel becomes one slim tree (Fusion's browser): Scene (its clips), Poses (Library /
+  Mine), Body parts, Weapons; rows 22 px; picking a pose applies it, a clip shows it, a part picks it (as today). The
+  pose buttons (Save / Rename / Delete / CLIP / the hand and dummy rows) move to the tree's right-click menu, the
+  ribbon, or the inspector; each found and working. Test: the old left panel's every button is found somewhere and
+  clicked; the tree's rows; the panel's width at most 240 px.
+  EVIDENCE (2026-10-17): tests/browser_tree_test.gd PASS 23/23 (real clicks and right-clicks): one tree, no tabs; the
+  panel ends at x 240; top rows Scene / Poses / Body / Weapon / Target dummy; rows 22 px; a clip row picks clip 3, a
+  part row selects head, a pose row applies it (arm 33). Save pose = the header's icon -> a name dialog -> moves/
+  zz_rr3_a + its row under Mine; a pose row's menu: CLIP (12 -> 13 clips), Rename... (dialog with the old name ->
+  zz_rr3_b), Delete pose (asks, then gone from moves/ and Mine; the test's trash copy removed). The inspector's
+  WEAPON: 2nd hand (grip on), Slide (toggled), Hand to the end (0.30 -> 0.09 m), the picker. The dummy row's menu:
+  On/off, Closer 1.50 -> 1.25, Farther, Solid; the row reads 'dummy 1.50 m out, see-through'. ANTI-VACUITY: the
+  same bars on the pre-RR3 files: 1 TabContainer, ends at x 250, rows 30 px (all fail); now 0 / 240 / 22.
+  FOUND ON THE WAY: Hand to the end with "weapon moves" on sent the hand UP the shaft (0.30 -> 2.10 m on the staff,
+  60 steps): slide_in_hand(-d) copied from _slide's key; fixed to slide_in_hand(d). Updated with meaning kept:
+  browser / browser_eye / browser_place / hover_sync (no tab to open), weapon_picker (one picker, in WEAPON), hints
+  (2 teaching texts: the pose line is the pose rows' tooltip). Green: those + keyboard, fold, confirm,
+  command_search, dummy_async, small_window, empty_state, tour, names, clicks, nav_bar, ring_edges, theme,
+  type_scale, hover, multi_select, inspector, toolbar, ribbon, icons, lock_part, sel_sets, dual_wield, grip_mirror,
+  pole, symmetry, search_one_list, empty_back, scene_list, examples, view_cube, side_colours.
+  Picture C:/Temp/poser_morning/10_rr3_browser.png.
+- [x] RR4 ONE TIMELINE, ONE CAMERA BAR: the bottom becomes one strip, at most 44 px with the clips panel folded:
+  first / previous / play / next / last / loop, the clips as blocks on the track, the time, the speed, Natural, a gear
+  menu for the rest (Smooth spline, tween, ease, + tween), and a button that opens the clip cards above it. Check /
+  Polish / Fix leave the play row (they are in CHECK and Search). The view's Orbit / Pan / - / + / Fit / Grid become one
+  small floating icon bar at the bottom centre of the view; the cube stands alone. Test: every old play-row and camera
+  control found and working; the strip's height; the camera bar inside the view, not over the inspector.
+  AMENDED (before ticking): the camera bar sits at the STATUS LINE's right end, not the bottom centre: at the bottom
+  centre nav_bar_test (HH2: the bar covers no body part) failed on combo3's calf_l / foot_l, and in the big view on
+  both legs; the opening view frames the whole body there.
+  EVIDENCE: tests/strip_test.gd PASS, 28 checks by real clicks (folded: ONE strip 42 px; First / Previous / Play /
+  Next / Last, Slower / Faster, Loop, Natural, the gear's Smooth / + tween, Clips -> cards, the fold back, Orbit /
+  Pan / zoom / Fit / Grid each by what it changes; Check / Polish / Fix off the strip and in CHECK). nav_bar_test
+  PASS on the new rule (combo3, big view, the empty scene, 1280 x 720: no part covered). Anti-vacuity on the RR3 code:
+  folded panel 112 px, not one row, nav rows 98 px (now 42 / one / 36 px). Fallout fixed with meaning kept: clicks
+  (Check through its tab: budget "check, apply a fix" 2 -> 3, WHY recorded), ui_scale (the strip shows all its
+  buttons; "UI size" found by label), timeline (34 px track), tour (Check found on the CHECK tab), keyboard. Found on
+  the way and fixed: "Hand to the end" in weapon-moves mode slid the hand UP the shaft (sign, 0.30 -> 2.10 m).
+- [x] RR5 QUIET WORDS: one status line, small and grey (a stop reason in amber); the yellow teaching strip only on a
+  first start and gone after the first pick or its x; the 3D part tag at most 18 px. Test: the label sizes; the hint
+  strip's first-start-only rule (settings with a pick recorded -> no strip).
+  EVIDENCE: tests/quiet_test.gd PASS: a fresh settings file shows the welcome (16 px, yellow box); a REAL click on
+  the head ends it and writes look/taught; messages 13 px grey (text:0.7) with no box, the readout 12 px, a STOPPED
+  message amber; messages, readout and camera bar on ONE row, apart; part tag 16 px, hit tag 18; a second boot on
+  the same settings shows no strip. The x: QQ3's remembered hints-off (hints_test PASS). Stub (no end on a pick):
+  FAIL 2. Probe on the RR3 code: message 16 px, readout 14 px, tag 30 px (all three bars fail); now 13 / 12 / 16.
+- [x] RR6 THE RESULT, MEASURED: with combo3 open and NOTHING folded (the inspector shown), the view's share at 1600 x
+  900 is at least 70 % (round 35a: 31.5 % open, 71.2 % folded); the before / after pictures for Nick in
+  C:/Temp/poser_morning (8_*); every round's controls are reachable (ribbon_test, the new tests).
+  AMENDED (2026-10-17, before ticking; the bar as worded cannot pass): with the clip CARDS open (the 256 px scene
+  panel), the ribbon (74) and the browser (240) alone leave at most (1600-240) x (900-74-256) / (1600 x 900) =
+  53.8 % before the inspector or a word is drawn, so "nothing folded >= 70 %" is arithmetically out of reach in this
+  design. Nick's approved mockup is the layout that is barred instead: the browser and the inspector SHOWN, the
+  timeline as ONE strip (the cards one click away, Clips), not first-start (layout_measure --m-taught) -> at least
+  70 %. Everything open is measured and REPORTED beside it, not barred.
+  EVIDENCE: tests/view_share_test.gd PASS: 72.3 % (browser, inspector and the one strip shown); everything open
+  49.5 % (reported; ceiling 53.8). What made it: the browser box fits its rows (Scene and the body's groups start
+  folded; a pick unfolds its group; a folder opened grows the box 527 -> 615 px and back; all open, it stops at the
+  scene panel and scrolls). Stub (box to the panel, as before): 68.4 %, FAIL 3. Round 35a for comparison: 31.5 %
+  open. browser_place's fixture re-based (Scene folded, Library and the left fingers open: the old fixture sat at
+  the scroll's maximum, so a theme's 5 px margin and a scene with one clip fewer clamped it).
+- [x] RR7 all suites PASS; Nick's files unchanged; no zz_ leftovers; README_AI Round 36; committed.
+  EVIDENCE: full run (C:/Temp/rr36_full) 103/108; the 5 failures were tests reading the old layout, fixed with their
+  meaning kept and each rerun PASS (main.gd unchanged since the run): confirm (`_taught` writes the settings: its
+  policy listed), empty_state (the camera centred above the status line: + 6 + LINE_H), empty_back (the browser's
+  height follows its rows: place and width compared; a weapon out adds two rows), hover_hint (found by label_of; the
+  bar says the label once, then the tooltip's hint), greyed_why (the audit opens the gear's box and the inspector's
+  sections as it opens tabs: 5 distinct greyed controls again, as in round 35a). Fingerprint 99e49b62...; no zz_.

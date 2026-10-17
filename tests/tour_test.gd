@@ -102,7 +102,10 @@ func _init() -> void:
 	await step(3, "play", func(): await key(KEY_SPACE))
 	m.playing = false
 	await step(4, "check", func():
-		var cb: Array = m.ui_root.find_children("*", "Button", true, false).filter(func(b): return b.text == "Check" and b.is_visible_in_tree())
+		# round 36 (RR4): Check is on the ribbon's CHECK tab (the card says so), an icon whose label is "Check"
+		m._ribbon("CHECK")
+		await idle()
+		var cb: Array = m.ui_root.find_children("*", "Button", true, false).filter(func(b): return m.label_of(b) == "Check" and b.is_visible_in_tree())
 		ok(cb.size() >= 1, "  the Check button is on screen")
 		cb[0].pressed.emit()
 		await process_frame)

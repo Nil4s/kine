@@ -38,7 +38,7 @@ func _init() -> void:
 				continue
 			all.append(b)
 			if b.icon == null:
-				no_icon.append(b.text)
+				no_icon.append(m.label_of(b))
 				continue
 			low = maxf(low, b.get_global_rect().end.y)
 			right = maxf(right, b.get_global_rect().end.x)
@@ -46,11 +46,11 @@ func _init() -> void:
 		ok(low <= m.TOP_H and right <= w, "%s: the buttons end at y %.0f (bar %d) and x %.0f (screen %.0f)" % [tab, low, m.TOP_H, right, w])
 	var help: Button = null
 	for t in ["Undo (Ctrl+Z)", "Redo (Ctrl+Y)", "Search (S)", "? Help"]:
-		for b in m.ui_root.get_child(0).get_child(0).get_children():
-			if b is Button and b.text == t:
+		for b in m.ui_top_right:   # round 36: the strip's small icons
+			if b is Button and m.label_of(b) == t:
 				all.append(b)
 				help = b
-	ok(all.size() >= 26, "%d ribbon buttons found (26 expected)" % all.size())
+	ok(all.size() >= 27, "%d ribbon buttons found (27 expected: round 36 added CLIP)" % all.size())
 	for b in all:
 		if b.icon == null:
 			continue
@@ -64,11 +64,11 @@ func _init() -> void:
 				full += 1 if a > 0.5 else 0
 		var share := float(full) / (img.get_width() * img.get_height())
 		if ink < 15.0 or share > 0.6:
-			thin.append("%s ink %.0f, %.0f%% solid" % [b.text, ink, share * 100.0])
+			thin.append("%s ink %.0f, %.0f%% solid" % [m.label_of(b), ink, share * 100.0])
 		var key := img.get_data().hex_encode().sha256_text()
 		if seen.has(key):
-			dup.append("%s = %s" % [b.text, seen[key]])
-		seen[key] = b.text
+			dup.append("%s = %s" % [m.label_of(b), seen[key]])
+		seen[key] = m.label_of(b)
 	ok(thin.is_empty(), "every icon has ink and is not a block %s" % [thin if not thin.is_empty() else ""])
 	ok(dup.is_empty(), "%d distinct pictures %s" % [seen.size(), dup if not dup.is_empty() else ""])
 	ok(help != null and help.get_global_rect().end.y <= m.TOP_H and help.get_global_rect().end.x <= w, "'? Help' inside the bar and on screen")

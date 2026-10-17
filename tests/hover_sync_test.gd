@@ -63,8 +63,10 @@ func _init() -> void:
 	m.tour_step = -1
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
+	m.ui_browser.open_all()   # round 36 (RR6): the tree starts with Scene and the body's groups folded; open them as a user would
+	await idle(2)
 	m._new_scene()
-	(m.ui_browser.get_parent() as TabContainer).current_tab = 1
+	pass   # round 36 (RR3): the tree is the whole left panel, no tab to open
 	m.sel = "upperarm_r"
 	m._refresh()
 	await idle(4)

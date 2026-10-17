@@ -1,6 +1,7 @@
 ## godot --path . -s tests/nav_bar_test.gd     (GATES HH2, UPGRADES #23; a real window, real clicks and drags)
-## A NAVIGATION BAR: combo3 open (a bat out). The block: under the ViewCube at the view's right edge, covering no body part,
-## clear of the say-line and the status bar: normal, big view, the empty scene, a 1280 x 720 window. Orbit by a real click, then a real left drag that STARTS ON A
+## A NAVIGATION BAR: combo3 open (a bat out). The bar (round 36, RR4/RR5: one row of icons at the status line's
+## right end; it was a block under the ViewCube), covering no body part, clear of the
+## cube, the line's messages and its readout: normal, big view, the empty scene, a 1280 x 720 window. Orbit by a real click, then a real left drag that STARTS ON A
 ## PART: the view turns, the part is not picked or turned; Esc = off, and a press on a part picks it again. Pan: a real
 ## drag slides the view (the angle kept); Pan again = off. + and -: zoom in and out. Fit, after zooming far out and
 ## panning away: every point of the body and the bat inside the clear view (between the ribbon and the bar, between
@@ -95,10 +96,11 @@ func placed() -> Array:
 	var nr: Rect2 = m.ui_nav.get_global_rect()
 	var vs := root.get_visible_rect().size
 	var x0 := 0.0 if m.big_view else float(m.LEFT_W)
-	var x1 := vs.x - (0.0 if m.big_view else float(m.RIGHT_W))
+	var x1 := vs.x   # round 36: the inspector is a box at the top right; the view runs to the window's edge below it
 	var view := Rect2(x0, m.TOP_H, x1 - x0, vs.y - m.bottom_h - m.TOP_H)
 	var cube: Rect2 = m.ui_cube.get_global_rect()
-	var under := nr.position.y >= cube.end.y and absf(nr.end.x - cube.end.x) < 2.0 and x1 - nr.end.x < 14.0
+	# round 36: in the status line's band (just above the scene panel), at its right end
+	var under: bool = vs.x - nr.end.x < 16.0 and nr.end.y <= vs.y - m.bottom_h and nr.position.y >= vs.y - m.bottom_h - 6 - m.LINE_H - 1
 	var clear_of: bool = not nr.intersects(cube) and not nr.intersects(m.ui_status.get_global_rect()) and not nr.intersects(m.ui_bar.get_global_rect())
 	var covers := []
 	for jn in Body.BODY:
@@ -145,7 +147,7 @@ func _init() -> void:
 	var ps := placed()
 	m.get_window().size = Vector2i(1600, 900)
 	await idle(6)
-	ok(pl[0] and pb[0] and pe[0] and ps[0], "1 the block under the cube, inside the view, clear of the cube, the say-line, the status bar and every body part: combo3 %s %s %s; big view %s %s; the empty scene %s %s; combo3 at 1280 x 720 %s %s %s" % [pl[0], pl[1], pl[2], pb[0], pb[2], pe[0], pe[2], ps[0], ps[1], ps[2]])
+	ok(pl[0] and pb[0] and pe[0] and ps[0], "1 the bar on the status line's right end, inside the view, clear of the cube, the line's texts and every body part: combo3 %s %s %s; big view %s %s; the empty scene %s %s; combo3 at 1280 x 720 %s %s %s" % [pl[0], pl[1], pl[2], pb[0], pb[2], pe[0], pe[2], ps[0], ps[1], ps[2]])
 	# Orbit
 	await click("nav_orbit")
 	var ang0: Dictionary = m.B.ang.duplicate()

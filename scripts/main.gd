@@ -13,16 +13,20 @@ const SEL := Color(0.25, 0.55, 1.0)
 const LIMIT := Color(1.0, 0.82, 0.15)
 const TOUCH := Color(1.0, 0.25, 0.2)
 const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10-12)
-const LEFT_W := 250
-const RIGHT_W := 370
-const BOTTOM_H := 321   # +52 for the timeline (round 6); +7 (round 7): a card with move AND hold rows needs 315 px of
-						# panel, it had 308 and ran 1 px off the window's bottom (tests/empty_state_test.gd measured it)
-const BOTTOM_FOLDED := 118   # the timeline and the play row (QQ4); tests/fold_test.gd holds their need to it
+const LEFT_W := 240   # round 36 (RR3): the browser; was 250
+const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sentences)
+const BOTTOM_H := 256   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
+const BOTTOM_FOLDED := 48   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
 const BOTTOM_EMPTY := 100   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
 							# and play row took a third of the screen for nothing)
 var ui_bh: HBoxContainer   # the bottom panel's header row (the scene's name and buttons): folded away with the cards
 var bottom_h := BOTTOM_H   # the bottom panel's height now: _layout_bottom() sets it and moves what sits on it
-const TOP_H := 68   # round 9: icon over label (Fusion's ribbon); was 46. tests/icons_test.gd keeps every button inside it
+const TOP_H := 74   # round 36 (RR1): two thin rows, Fusion's: the strip (tabs, the scene, the small icons) STRIP_H, then the
+## tools (icons only) over their group captions. Round 9 was one row of icon-over-label at 68; tests/icons_test.gd
+## keeps every button inside it
+const STRIP_H := 28
+const TOOLS_H := 30
+const CAP_H := 14
 const SETTINGS := "user://poser.cfg"   # what the poser remembers between runs (round 9: the theme)
 ## where settings are saved: under a test script (godot -s), a file of the test's own, read by nobody at boot, so
 ## the suites (run in parallel) never read or write Nick's setting, nor each other's (round 9: one did, a layout failed)
@@ -82,12 +86,14 @@ var ui_cards: HBoxContainer
 var ui_time: HSlider
 var ui_time_lbl: Label
 var ui_play: Button
+var ui_gear: PanelContainer   # RR4: the play options box (the gear opens it; a click elsewhere closes it)
+var ui_gear_btn: Button
 var ui_natural: CheckBox
 var ui_scene_name: LineEdit
 var ui_scenes: OptionButton
 var ui_tinted := []    # [label, Tok token]: the labels a theme switch re-tints (round 9)
 var ui_say_box: StyleBoxFlat
-var ui_bar_box: StyleBoxFlat
+var ui_bar_box: StyleBoxFlat   # RR5: none (the line has no box); kept for the retheme's null check
 var ui_find_box: StyleBoxFlat
 var world_env: Environment
 var floor_mat: StandardMaterial3D
@@ -101,6 +107,21 @@ const RIBBON := ["POSE", "ANIMATE", "CHECK", "EXPORT", "VIEW"]   # EXPORT: round
 const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
 	"CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: .glb, .bvh, the game, a version",
 	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)"}
+## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
+## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
+const RIBBON_GROUPS := {
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
+		["SHOW", ["Collision (C)"]]],
+	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
+		["TOOLS", ["Animator tools"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
+	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
+	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
+		["DISPLAY", ["Hints", "Light", "UI size"]]],
+}
+var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
+var ui_doc: Label         # the strip's middle: the scene's name, clips, length
+var ui_doc_dot: Label     # unsaved changes
 var ui_ribbon := {}        # tab -> its row of tools (round 7)
 var ui_ribbon_tabs := {}   # tab -> its tab button
 var ui_toggles := []       # [button, func -> is it on]: the ribbon's on/off buttons show their state (synced in _refresh)
@@ -172,9 +193,52 @@ func _sides_apply() -> void:
 
 ## THE SAY STRIP FITS ITS WORDS (QQ4): it was the view's whole width for one short line; now its width is the text's
 ## (and the close x), up to the view's width, where it wraps as before
+## RR5: the teaching strip (WELCOME, first start) is the yellow box above the line; anything else is said on the line
+## itself: small, grey, one line, left of the camera bar; a STOP reason in amber
+const LINE_FS := 13
+
+
+func _status_look() -> void:
+	var teach := ui_status.text == WELCOME
+	ui_status.add_theme_stylebox_override("normal", ui_say_box if teach else StyleBoxEmpty.new())
+	ui_status.add_theme_font_size_override("font_size", 16 if teach else LINE_FS)
+	ui_status.add_theme_color_override("font_color", Tok.c("say") if teach else (Tok.c("warn") if ui_status.text.contains("STOPPED") else Tok.of("text:0.7")))
+	ui_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var hx := ui_status.get_node_or_null("hints_close")
+	if hx != null:
+		hx.visible = teach
+	if not teach and ui_status.text != "" and _teach_pending:
+		_taught()
+
+
+## the first start is over: the first thing said after the welcome (a pick, a drag, a key) ends it, for good
+var _teach_pending := false
+
+
+func _end_teach() -> void:
+	if ui_status != null and ui_status.text == WELCOME:
+		_say_plain("")
+	if _teach_pending:
+		_taught()
+
+
+func _taught() -> void:
+	_teach_pending = false
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("look", "taught", true)
+	cf.save(settings)
+
+
 func _strip_fit() -> void:
 	if ui_status == null:
 		return
+	_status_look()
+	if ui_status.text != WELCOME:
+		_line_fit()
+		return
+	ui_status.offset_top = -bottom_h - 82
+	ui_status.offset_bottom = -bottom_h - 40
 	var room := get_viewport().get_visible_rect().size.x - lw() - rw() - 24
 	var f := ui_status.get_theme_font("font")
 	var fs := ui_status.get_theme_font_size("font_size")
@@ -534,8 +598,8 @@ func _num_apply() -> void:
 ## (first at the bottom centre: it sat over the feet at the opening view, hover_test caught it). Orbit and Pan
 ## are tools (while on, a left drag in the view orbits / pans; Esc or the button again = off); - + zoom; Fit frames the
 ## body (and the weapon when out) inside the view the panels leave; Grid shows / hides the floor grid. No undo steps
-const NAV_H := 30   # one button's height
-const NAV_W := 50
+const NAV_H := 28   # one button's height
+const NAV_W := 30   # RR4: an icon (was a 50-px word)
 var ui_nav: GridContainer
 var nav_tool := ""
 var grid_node: MeshInstance3D
@@ -544,39 +608,71 @@ var grid_node: MeshInstance3D
 func _build_nav() -> void:
 	ui_nav = GridContainer.new()
 	ui_nav.name = "nav_bar"
-	ui_nav.columns = 2
-	ui_nav.add_theme_constant_override("h_separation", 4)
-	ui_nav.add_theme_constant_override("v_separation", 4)
-	ui_nav.anchor_left = 1.0
-	ui_nav.anchor_right = 1.0
-	ui_nav.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	for b in [["nav_orbit", "Orbit", func(): _nav_set("orbit" if nav_tool != "orbit" else ""), "while on, a left drag turns the view round the body (Esc: off)", true],
-			["nav_pan", "Pan", func(): _nav_set("pan" if nav_tool != "pan" else ""), "while on, a left drag slides the view (Esc: off)", true],
-			["nav_out", "-", _nav_zoom.bind(1.0 / 0.8), "zoom out", false],
-			["nav_in", "+", _nav_zoom.bind(0.8), "zoom in", false],
-			["nav_fit", "Fit", _nav_fit, "frame the whole body (and the weapon) in the view", false],
-			["nav_grid", "Grid", _nav_grid, "show or hide the floor grid", true]]:
+	ui_nav.columns = 6   # RR4: one small icon bar at the view's bottom centre (Fusion's); was a 2 x 3 block under the cube
+	ui_nav.add_theme_constant_override("h_separation", 2)
+	for b in [["nav_orbit", "Orbit", func(): _nav_set("orbit" if nav_tool != "orbit" else ""), "while on, a left drag turns the view round the body (Esc: off)", true, "orbit"],
+			["nav_pan", "Pan", func(): _nav_set("pan" if nav_tool != "pan" else ""), "while on, a left drag slides the view (Esc: off)", true, "pan"],
+			["nav_out", "Zoom out (-)", _nav_zoom.bind(1.0 / 0.8), "zoom out", false, "zoom_out"],
+			["nav_in", "Zoom in (+)", _nav_zoom.bind(0.8), "zoom in", false, "zoom_in"],
+			["nav_fit", "Fit", _nav_fit, "frame the whole body (and the weapon) in the view", false, "fit"],
+			["nav_grid", "Grid", _nav_grid, "show or hide the floor grid", true, "grid"]]:
 		var bt := _button(b[1], b[2], b[3])
 		bt.name = b[0]
 		bt.toggle_mode = b[4]
 		bt.focus_mode = Control.FOCUS_NONE
-		bt.custom_minimum_size = Vector2(NAV_W, NAV_H)
-		bt.add_theme_font_size_override("font_size", 13)   # 3 rows fit above the say-line at 1280 x 720
+		_icon_only(bt, b[5], Vector2(NAV_W, NAV_H))
 		ui_nav.add_child(bt)
 	(ui_nav.get_node("nav_grid") as Button).set_pressed_no_signal(true)
 	ui_root.add_child(ui_nav)
 	_place_nav()
 
 
-## under the ViewCube, the view's right edge (the right panel hidden in the big view)
+## RR4 / RR5: at the status line's RIGHT end (the cube stands alone at the top right). Not the bottom centre the gate
+## first said: the opening view frames the whole body there and the bar covered its feet (HH2: the bar covers no part)
+const LINE_H := 32   # the status line's band above the scene panel
+
+
 func _place_nav() -> void:
 	if ui_nav == null:
 		return
-	var r := rw() + 10.0
-	ui_nav.offset_right = -r
-	ui_nav.offset_left = -r - (2 * NAV_W + 4)
-	ui_nav.offset_top = TOP_H + 8 + ViewCube.SIZE + 8
-	ui_nav.offset_bottom = ui_nav.offset_top + 3 * NAV_H + 8
+	var vs := get_viewport().get_visible_rect().size
+	var w := 6 * NAV_W + 5 * 2
+	ui_nav.offset_right = vs.x - 12
+	ui_nav.offset_left = ui_nav.offset_right - w
+	ui_nav.offset_top = vs.y - bottom_h - 6 - LINE_H + (LINE_H - NAV_H) * 0.5
+	ui_nav.offset_bottom = ui_nav.offset_top + NAV_H
+	_line_fit()
+
+
+## the line's two texts left of the camera bar: the messages from the view's left edge, the readout right-aligned
+## against the bar; the readout keeps its whole width up to half the room, the messages get the rest (each clipped
+## with an ellipsis)
+func _line_fit() -> void:
+	if ui_status == null or ui_bar == null or ui_nav == null:
+		return
+	var y0 := -bottom_h - 6 - LINE_H
+	var x0 := lw() + 12
+	var x1 := ui_nav.offset_left - 14
+	var f := ui_bar.get_theme_font("font")
+	var need := f.get_string_size(ui_bar.text, HORIZONTAL_ALIGNMENT_LEFT, -1, ui_bar.get_theme_font_size("font_size")).x + 4
+	var split := maxf(x1 - minf(need, (x1 - x0) * 0.5), x0)
+	ui_bar.anchor_left = 0.0
+	ui_bar.anchor_right = 0.0
+	ui_bar.offset_left = split   # as wide as its words (or half the room): the rest of the line is the view's
+	ui_bar.offset_right = x1
+	ui_bar.offset_top = y0
+	ui_bar.offset_bottom = -bottom_h - 6
+	if ui_status.text != WELCOME:
+		ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
+		ui_status.clip_text = true
+		ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		ui_status.anchor_right = 0.0
+		ui_status.offset_left = lw() + 12
+		var fs := ui_status.get_theme_font("font")
+		var said := fs.get_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, -1, LINE_FS).x + 4
+		ui_status.offset_right = minf(lw() + 12 + said, split - 16)   # as wide as its words
+		ui_status.offset_top = y0
+		ui_status.offset_bottom = -bottom_h - 6
 
 
 func _nav_set(t: String) -> void:
@@ -600,7 +696,7 @@ const FIT_FILL := 0.85
 func nav_clear_rect() -> Rect2:
 	var vs := get_viewport().get_visible_rect().size
 	var x0 := lw()
-	var x1 := vs.x - rw() - (2 * NAV_W + 24)   # the cube and the nav block's strip
+	var x1 := vs.x - rw() - (ViewCube.SIZE + 24)   # the cube's strip (RR4: the nav bar is at the bottom, under the say-line's band)
 	return Rect2(x0, TOP_H, x1 - x0, vs.y - bottom_h - 88 - TOP_H)   # above the say-line
 
 
@@ -848,6 +944,11 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	# the gear's box closes on a press outside it and its gear (RR4)
+	if ui_gear != null and ui_gear.visible and ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed:
+		var at := (ev as InputEventMouseButton).position
+		if not ui_gear.get_global_rect().has_point(at) and not ui_gear_btn.get_global_rect().has_point(at):
+			ui_gear.visible = false
 	if (ev is InputEventMouseButton or ev is InputEventKey) and ev.is_pressed() and not ev.is_echo():
 		_tour_inputs += 1
 		if tour_step >= 0 and ev is InputEventKey and (ev as InputEventKey).keycode == KEY_ESCAPE:
@@ -916,7 +1017,7 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
-	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _strip_fit.call_deferred())
+	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _place_nav.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
 	_body()
 	add_child(ov)
@@ -924,6 +1025,11 @@ func _ready() -> void:
 	_ui()
 	if not testing and not cf.get_value("look", "hints", true):
 		_set_hints(false, false)   # remembered (QQ3)
+	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
+	# test wrote "taught" into it)
+	_teach_pending = not cf.get_value("look", "taught", false)
+	if not _teach_pending and ui_status.text == WELCOME:
+		_say_plain("")
 	for k in fold:   # QQ4: a user's folds, remembered (the first start: FOLD_DEFAULT); a test starts open
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
 			_fold(k, true, false)
@@ -1122,6 +1228,7 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_keys_camera(dt)
 	_tour_poll()
 	_step_hint = ""   # a press that pushed no step must not name a later one
@@ -1286,8 +1393,8 @@ func _body() -> void:
 	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	tag.no_depth_test = true
 	tag.modulate = Color(0.55, 0.78, 1.0)
-	tag.outline_size = 8
-	tag.font_size = 30
+	tag.outline_size = 5
+	tag.font_size = 16   # RR5: the part's name on the body, small (was 30: a headline over the shoulder)
 	add_child(tag)
 	_dummy_build()
 
@@ -1357,7 +1464,7 @@ func _dummy_build() -> void:
 	hit_tag.no_depth_test = true
 	hit_tag.modulate = Color(1.0, 0.45, 0.35)
 	hit_tag.outline_size = 10
-	hit_tag.font_size = 34
+	hit_tag.font_size = 18   # RR5 (was 34)
 	add_child(hit_tag)
 	hit_dot = MeshInstance3D.new()
 	var sm := SphereMesh.new()
@@ -1420,11 +1527,14 @@ func _dummy_hits() -> void:
 	SL = null
 	if not dummy_on:
 		ui_dummy.text = "dummy off"
+		ui_browser.refresh()
 		return
 	if S.cards.size() < 2:
 		ui_dummy.text = _dummy_head(T.dist, solid)
+		ui_browser.refresh()
 		return
 	ui_dummy.text = _dummy_head(T.dist, solid) + "\nmeasuring the scene's hits..."
+	ui_browser.refresh()
 	if _dm_job.is_empty():
 		_dm_start()
 
@@ -1451,6 +1561,7 @@ func _dm_poll() -> void:
 			_dm_start()
 		return
 	ui_dummy.text = job["out"]["txt"]
+	ui_browser.refresh()
 	SL = job["out"]["SL"]
 	if SL != null:
 		ov.mark_dirty()   # what plays changed: the trail / speed graph pass follows it
@@ -1549,6 +1660,8 @@ func _refresh() -> void:
 	Overlays.pose_skeleton(skel, bone_idx, B)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
+	_doc_line()
+	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -1659,7 +1772,7 @@ func _cam() -> void:
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	cam.h_offset = (rw() - lw()) * 0.5 * mpp
-	cam.v_offset = (bottom_h - TOP_H) * 0.5 * mpp * -1.0
+	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
 
 
 ## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
@@ -1783,6 +1896,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_group_press(j, mb.ctrl_pressed, mb.position)
 					sel = j
 					_clicked_part = true   # the tour's step 1 (clicking the part already picked counts too)
+					_end_teach()   # RR5: the first pick ends the welcome, for good
 					dragging = "joint"
 					_grab = Vector3(NAN, NAN, NAN)
 					playing = false
@@ -2328,7 +2442,11 @@ func _hand_to_end() -> void:
 			if not B.slide_hand(d):
 				break
 		else:
-			B.slide_in_hand(-d)
+			# round 36: slide_in_hand moves the hand's place on the shaft BY d; this was -d (copied from _slide's
+			# key, where d is the weapon's move), so with "weapon moves" on the hand climbed to the far end
+			if B.hold_u() + d < 0.0:
+				break
+			B.slide_in_hand(d)
 			B.apply_grip()
 		n += 1
 	_say("main hand at %.2f m from the lower end%s" % [B.hold_u(), "" if B.hold_u() <= 0.1 else " (the arm can't follow further: turn the weapon or the body)"])
@@ -2568,17 +2686,61 @@ func _theme() -> Theme:
 	th.set_stylebox("panel", "PanelContainer", box.call(Tok.c("panel"), 8, 10))
 	# the top bar: the panel's colour with thin margins, so an icon-over-label button fits in TOP_H (round 9)
 	th.set_type_variation("TopBar", "PanelContainer")
-	var bar: StyleBoxFlat = box.call(Tok.c("panel"), 0, 4)
+	var bar: StyleBoxFlat = box.call(Tok.c("panel"), 0, 0)
 	bar.content_margin_left = 10
 	bar.content_margin_right = 10
+	bar.content_margin_bottom = 2
 	th.set_stylebox("panel", "TopBar", bar)
+	# the scene panel (RR4): thin top / bottom margins, so the folded strip is one 44-px row
+	th.set_type_variation("BottomBar", "PanelContainer")
+	var bb: StyleBoxFlat = box.call(Tok.c("panel"), 8, 8)
+	bb.content_margin_top = 4
+	bb.content_margin_bottom = 4
+	th.set_stylebox("panel", "BottomBar", bb)
 	# a ribbon button: the button's look with thin top/bottom margins (icon over label is two rows tall)
+	# round 36 (RR1): a FLAT square, lit only on hover / when on (Fusion's toolbar has no boxes at rest)
 	th.set_type_variation("Ribbon", "Button")
-	for st in [["normal", "btn"], ["hover", "btn_hover"], ["pressed", "accent"]]:
-		var rb: StyleBoxFlat = box.call(Tok.c(st[1]), 6, 6)
-		rb.content_margin_top = 2
-		rb.content_margin_bottom = 2
+	for st in [["normal", "panel"], ["hover", "btn_hover"], ["pressed", "accent"], ["hover_pressed", "accent"], ["disabled", "panel"]]:
+		var rb: StyleBoxFlat = box.call(Tok.c(st[1]), 4, 3)
 		th.set_stylebox(st[0], "Ribbon", rb)
+	# a tab: small words, no box; the open one underlined in the accent
+	th.set_type_variation("RibbonTab", "Button")
+	for st in ["normal", "hover", "pressed", "hover_pressed"]:
+		var tb2 := StyleBoxFlat.new()
+		tb2.bg_color = Tok.c("btn_hover") if st == "hover" else Tok.c("panel")
+		tb2.set_content_margin_all(4)
+		tb2.content_margin_left = 10
+		tb2.content_margin_right = 10
+		if st.contains("pressed"):
+			tb2.border_color = Tok.c("accent")
+			tb2.border_width_bottom = 2
+		th.set_stylebox(st, "RibbonTab", tb2)
+	th.set_font_size("font_size", "RibbonTab", 12)
+	th.set_color("font_color", "RibbonTab", Tok.of("text:0.6"))
+	th.set_color("font_hover_color", "RibbonTab", Tok.c("text"))
+	th.set_color("font_pressed_color", "RibbonTab", Tok.c("heading"))
+	th.set_color("font_hover_pressed_color", "RibbonTab", Tok.c("heading"))
+	# a section's header in the inspector (RR2): a hairline above, the words, no box
+	th.set_type_variation("Section", "Button")
+	for st in ["normal", "hover", "pressed", "hover_pressed"]:
+		var sx := StyleBoxFlat.new()
+		sx.bg_color = Tok.c("btn_hover") if st.begins_with("hover") else Tok.c("panel")
+		sx.border_color = Tok.c("btn")
+		sx.border_width_top = 1
+		sx.content_margin_top = 3
+		sx.content_margin_bottom = 2
+		sx.content_margin_left = 4
+		th.set_stylebox(st, "Section", sx)
+	th.set_color("font_color", "Section", Tok.of("text:0.6"))
+	th.set_color("font_hover_color", "Section", Tok.c("text"))
+	# a group's caption: tiny grey words under the group, no box
+	th.set_type_variation("RibbonCap", "MenuButton")
+	var capbox := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "hover_pressed"]:
+		th.set_stylebox(st, "RibbonCap", capbox)
+	th.set_font_size("font_size", "RibbonCap", 10)
+	th.set_color("font_color", "RibbonCap", Tok.of("text:0.5"))
+	th.set_color("font_hover_color", "RibbonCap", Tok.c("text"))
 	th.set_stylebox("normal", "Button", box.call(Tok.c("btn")))
 	th.set_stylebox("hover", "Button", box.call(Tok.c("btn_hover")))
 	th.set_stylebox("pressed", "Button", box.call(Tok.c("accent")))
@@ -2789,6 +2951,46 @@ func _fit_rows() -> void:
 		ui_play_extra[k].visible = false
 
 
+## THE TRANSPORT (RR4): the start / the end; the clip before / after the playhead (its arrival)
+func _go_end(last: bool) -> void:
+	playing = false
+	playhead = S.length() if last else 0.0
+	_ps().apply(B, playhead)
+	_refresh()
+
+
+func _go_card(dir: int) -> void:
+	if S.cards.is_empty():
+		return
+	var t := S.times()
+	var k := -1
+	if dir > 0:
+		for i in t.size():
+			if t[i][1] > playhead + 1e-3:
+				k = i
+				break
+	else:
+		for i in range(t.size() - 1, -1, -1):
+			if t[i][1] < playhead - 1e-3:
+				k = i
+				break
+	if k < 0:
+		k = 0 if dir < 0 else t.size() - 1
+	playing = false
+	_timeline_pick(k)
+
+
+func _gear_open() -> void:
+	if ui_gear.visible:
+		ui_gear.visible = false
+		return
+	var r := ui_gear_btn.get_global_rect()
+	var sz := ui_gear.get_combined_minimum_size()
+	ui_gear.position = Vector2(r.end.x - sz.x, r.position.y - sz.y - 6)
+	ui_gear.size = sz
+	ui_gear.visible = true
+
+
 func _set_scale(pct: int) -> void:
 	if not scale_fits(pct):
 		_say("UI size %d %% needs a window of at least %d x %d (this one is %d x %d): make the window bigger (maximise it), then choose it again" % [pct, MIN_ROOM.x * pct / 100, MIN_ROOM.y * pct / 100, get_window().size.x, get_window().size.y])
@@ -2831,7 +3033,7 @@ func _hints_apply() -> void:
 		else:
 			l.visible = hints_on
 	if ui_how != null:
-		ui_how.visible = hints_on
+		ui_how.visible = false   # RR2: how to use the part is the title's tooltip, never a line in the box
 	if ui_status != null:
 		if not hints_on and ui_status.text == WELCOME:
 			ui_status.text = ""
@@ -2857,7 +3059,9 @@ func _retheme() -> void:
 	for t in ui_ribbon_tabs:
 		(ui_ribbon_tabs[t] as Button).add_theme_color_override("font_pressed_color", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
 	ui_say_box.bg_color = Tok.c("say_bg")
-	ui_bar_box.bg_color = Tok.c("panel")
+	_strip_fit.call_deferred()   # RR5: the line's colour is chosen by what it says (after the tint loop)
+	if ui_bar_box != null:
+		ui_bar_box.bg_color = Tok.c("panel")
 	for r in ui_rails.values():
 		(r.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = Tok.c("panel")
 	ui_find_box.bg_color = Tok.c("float")
@@ -2900,7 +3104,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Moving holds": "holds", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
-	"To game": "export_game", "Save version": "version", "UI size": "size", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help"}
+	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -2910,30 +3114,57 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 var _hover_hint := ""
 
 
+## THE SCENE IN THE STRIP (round 36, RR1): its name, its clips and length; the dot while it has unsaved changes
+var _doc_t := 0   # the last time the strip was worked out (the dot compares the cards as JSON: not every drag frame)
+
+
+func _doc_line(force := false) -> void:
+	if ui_doc == null or (not force and Time.get_ticks_msec() - _doc_t < 400):
+		return
+	_doc_t = Time.get_ticks_msec()
+	var nm: String = S.name if S.name != "" else "untitled"
+	ui_doc.text = "%s   ·  %d clips  ·  %.2f s" % [nm, S.cards.size(), _ps().length()] if S.cards.size() > 0 else "%s   ·  no clips yet" % nm
+	ui_doc_dot.visible = _unsaved()
+
+
+## a button's name: its text, or for an icon-only one (round 36) the label it kept
+func label_of(b: Node) -> String:
+	return String(b.get_meta("label", b.get("text") if b.get("text") != null else ""))
+
+
 func _hover_hints() -> void:
 	for b in ui_root.find_children("*", "BaseButton", true, false):
-		if not (b is Button) or not ICON_OF.has((b as Button).text):
+		if not (b is Button) or not ICON_OF.has(label_of(b)):
 			continue
-		var t: String = b.text
+		var t: String = label_of(b)
 		if b.tooltip_text == "":
 			var key := t.get_slice("(", 1).trim_suffix(")") if t.contains("(") else "~"
 			for c in ui_cmd.commands:
 				if c["name"] == t or c["keys"] == key or (c["name"] as String).begins_with(t):
 					b.tooltip_text = c["desc"]
 					break
-		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, b.tooltip_text])
+		# the tooltip leads with the name (an icon has no words); the hover line keeps "name:  what it does"
+		if b.get_meta("label", "") != "" and not b.tooltip_text.begins_with(t):
+			b.tooltip_text = t + ("\n" + b.tooltip_text if b.tooltip_text != "" else "")
+		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, b.tooltip_text.trim_prefix(t + "\n").trim_prefix(t)])
 		b.mouse_exited.connect(func(): _hover_hint = "")
 
 
+## ICONS ONLY (round 36, GATES RR1): the words go to the label (tests and the caption menus find it there), the
+## tooltip and the hover line; the button is the icon on a flat square that lights on hover / when on
 func _iconise(b: Node) -> void:
-	if not (b is Button) or not ICON_OF.has(b.text):
+	if not (b is Button) or not ICON_OF.has(label_of(b)):
 		return
-	b.icon = Icons.tex(ICON_OF[b.text])
+	var t := label_of(b)
+	b.set_meta("label", t)
+	b.icon = Icons.tex(ICON_OF[t])
+	b.text = ""
 	b.theme_type_variation = "Ribbon"
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-	b.add_theme_font_size_override("font_size", 13)
-	b.add_theme_constant_override("h_separation", 2)
+	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
+	b.custom_minimum_size = Vector2(32, TOOLS_H)
+	if b.name.begins_with("@"):
+		b.name = "b_" + "_".join(t.to_lower().replace("(", " ").replace(")", " ").replace(".", " ").replace("?", "help").split(" ", false))
 
 
 ## DISABLED SAYS WHY (round 22, GATES CC3, UPGRADES #46): a control greyed out keeps its own tooltip and adds the
@@ -2972,8 +3203,8 @@ func _row(parent: Control, items: Array) -> HBoxContainer:
 
 ## ONE TYPE SCALE (round 25, GATES FF3, UPGRADES #40): the properties panel has two sizes, PROP_BIG (the part's name)
 ## and PROP_TXT (everything else), one weight; a value row reads label dim, value bright, its hint dim under them
-const PROP_BIG := 22
-const PROP_TXT := 15
+const PROP_BIG := 15   # round 36 (RR2): the inspector's two sizes, Fusion-small (round 25: 22 / 15)
+const PROP_TXT := 13
 
 
 ## a value row in parent: [name (dim), value (bright)] then the hint (dim, hidden when empty). Returns the three labels
@@ -2994,13 +3225,113 @@ func _set_prop(r: Array, name: String, value: String, hint := "") -> void:
 	(r[0] as Label).text = name
 	(r[1] as Label).text = value
 	(r[2] as Label).text = hint
-	(r[2] as Label).visible = hint != ""
+	(r[2] as Label).visible = false   # RR2: the words are the row's tooltip
+	(r[0] as Label).tooltip_text = hint
 
 
-func _section(parent: Control, t: String) -> void:
-	var s := HSeparator.new()
-	parent.add_child(s)
-	parent.add_child(_label(t, 15, "heading"))
+## A FOLDED SECTION (round 36, RR2): a thin rule, a header that opens / folds it (▸ / ▾), the rows under it; folded at
+## the start. Returns the box its rows go in. A weapon picked opens WEAPON (what the box is about then)
+var ui_secs := {}   # "HANDS" / "WEAPON" / "NUMBERS" -> [header button, body]
+
+
+func _section(parent: Control, t: String) -> VBoxContainer:
+	var body := VBoxContainer.new()
+	body.name = "sec_body_" + t.to_lower()
+	body.add_theme_constant_override("separation", 4)
+	body.visible = false
+	var hb := Button.new()
+	hb.name = "sec_" + t.to_lower()
+	hb.theme_type_variation = "Section"
+	hb.focus_mode = Control.FOCUS_NONE
+	hb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	hb.tooltip_text = "open / fold the %s rows" % t.to_lower()
+	hb.pressed.connect(func(): _sec_open(t, not body.visible))
+	parent.add_child(hb)
+	parent.add_child(body)
+	ui_secs[t] = [hb, body]
+	_sec_open(t, false)
+	return body
+
+
+func _sec_open(t: String, on: bool) -> void:
+	var hb: Button = ui_secs[t][0]
+	(ui_secs[t][1] as Control).visible = on
+	hb.text = ("\u25be  " if on else "\u25b8  ") + t
+	_insp_fit.call_deferred()
+
+
+## an icon button with no words: the words stay its label and lead its tooltip (as the ribbon's, RR1)
+func _icon_only(b: Button, icon: String, sz: Vector2) -> void:
+	b.set_meta("label", b.text)
+	b.tooltip_text = b.text + ("\n" + b.tooltip_text if b.tooltip_text != "" else "")
+	b.text = ""
+	b.icon = Icons.tex(icon)
+	b.theme_type_variation = "Ribbon"
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	b.expand_icon = true
+	b.custom_minimum_size = sz
+
+
+## a button showing short words: its full name stays its label and leads its tooltip
+func _short(b: Button, words: String) -> Button:
+	b.set_meta("label", b.text)
+	b.tooltip_text = b.text + ("
+" + b.tooltip_text if b.tooltip_text != "" else "")
+	b.text = words
+	return b
+
+
+## a button's label changes (the lock's Lock / Unlock): the words, the tooltip's lead
+func _set_label(b: Button, t: String) -> void:
+	var old := label_of(b)
+	b.set_meta("label", t)
+	b.tooltip_text = t + b.tooltip_text.trim_prefix(old)
+
+
+## the slider on its name's line, between the name and the number (RR2: one line per angle)
+func _row_slider(l: Array, s: HSlider) -> void:
+	var h := (l[0] as Label).get_parent() as HBoxContainer
+	h.add_theme_constant_override("separation", 6)
+	(l[0] as Label).custom_minimum_size.x = 80
+	(l[0] as Label).size_flags_horizontal = Control.SIZE_FILL   # the slider takes the free width, not the words
+	(l[1] as Label).size_flags_horizontal = Control.SIZE_FILL
+	(l[0] as Label).mouse_filter = Control.MOUSE_FILTER_PASS
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	s.custom_minimum_size = Vector2(60, 18)
+	h.add_child(s)
+	h.move_child(s, 1)
+	(l[1] as Label).custom_minimum_size.x = 50
+	(l[1] as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+
+## THE BOX FITS WHAT IT SHOWS (RR2): its height is its rows' (folded sections are one line each), up to the room above
+## the scene panel, where it scrolls
+var ui_insp: PanelContainer
+var ui_insp_vb: VBoxContainer
+
+
+## RR6: the browser box as tall as its shown rows (a folder opened grows it), never past the scene panel; the tree
+## scrolls inside it when the rows need more room than that
+func _browser_fit() -> void:
+	var lp: Control = ui_side_of.get("left")
+	if lp == null or ui_browser == null:
+		return
+	var vs := get_viewport().get_visible_rect().size
+	var sb := lp.get_theme_stylebox("panel")
+	var head: float = (lp.get_child(0) as Control).get_child(0).get_combined_minimum_size().y + 2.0
+	var want := head + ui_browser.content_h() + (sb.get_margin(SIDE_TOP) + sb.get_margin(SIDE_BOTTOM) if sb != null else 0.0)
+	lp.offset_bottom = minf(-bottom_h - 6.0, lp.offset_top + want - vs.y)
+
+
+func _insp_fit() -> void:
+	if ui_insp == null or ui_insp_vb == null:
+		return
+	ui_title.tooltip_text = ui_how.text   # how to use it: the name's tooltip
+	var sb := ui_insp.get_theme_stylebox("panel")
+	var want := ui_insp_vb.get_combined_minimum_size().y + (sb.get_margin(SIDE_TOP) + sb.get_margin(SIDE_BOTTOM) if sb != null else 0.0)
+	var room := get_viewport().get_visible_rect().size.y - bottom_h - 6.0 - ui_insp.offset_top - 6.0
+	ui_insp.offset_bottom = ui_insp.offset_top + minf(want, room)
 
 
 func _ui() -> void:
@@ -3018,10 +3349,27 @@ func _ui() -> void:
 	top.anchor_right = 1.0
 	top.offset_bottom = TOP_H
 	ui_root.add_child(top)
-	var tb := HBoxContainer.new()
-	tb.add_theme_constant_override("separation", 6)
-	top.add_child(tb)
-	tb.add_child(_label("POSER  ", 20, "heading"))
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", 0)
+	top.add_child(tv)
+	var strip := HBoxContainer.new()   # row 1: POSER, the tabs, the scene, the small icons
+	strip.name = "top_strip"
+	strip.custom_minimum_size.y = STRIP_H
+	strip.add_theme_constant_override("separation", 2)
+	tv.add_child(strip)
+	var tb := HBoxContainer.new()      # row 2: the tab's tools
+	tb.name = "top_tools"
+	tb.custom_minimum_size.y = TOOLS_H
+	tb.add_theme_constant_override("separation", 2)
+	tv.add_child(tb)
+	var caps := Control.new()          # row 3: the captions, each placed under its group (_place_caps)
+	caps.name = "ribbon_caps"
+	caps.custom_minimum_size.y = CAP_H
+	caps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tv.add_child(caps)
+	var logo := _label("POSER", 13, "heading")
+	logo.custom_minimum_size.x = 64
+	strip.add_child(logo)
 	# round 7, Fusion's ribbon: tabs, then that tab's tools; Undo / Redo / Search / Help always on the right. Nothing
 	# was removed: every button the bar had is in a tab (tests/ribbon_test.gd counts them), and the play row keeps its own
 	ui_ribbon = {}
@@ -3032,15 +3380,13 @@ func _ui() -> void:
 		tbtn.name = "tab_" + t.to_lower()   # U2 scopes: tab_check (the tab), ribbon_check/b_check (its button)
 		tbtn.toggle_mode = true
 		tbtn.button_group = group
-		tbtn.add_theme_font_size_override("font_size", 15)
-		tbtn.add_theme_color_override("font_pressed_color", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
+		tbtn.theme_type_variation = "RibbonTab"
 		ui_ribbon_tabs[t] = tbtn
-		tb.add_child(tbtn)
+		strip.add_child(tbtn)
 		var tools := HBoxContainer.new()
 		tools.add_theme_constant_override("separation", 6)
 		tools.name = "ribbon_" + t.to_lower()
 		ui_ribbon[t] = tools
-	tb.add_child(VSeparator.new())
 	for t in RIBBON:
 		tb.add_child(ui_ribbon[t])
 	var tog := func(tab: String, label: String, f: Callable, on: Callable, tip := ""):
@@ -3049,6 +3395,7 @@ func _ui() -> void:
 		ui_toggles.append([b, on])
 		ui_ribbon[tab].add_child(b)
 	# POSE
+	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
 	ui_ribbon["POSE"].add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed), "both arms relaxed: 25 degrees out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
@@ -3109,23 +3456,58 @@ func _ui() -> void:
 			us.get_popup().set_item_tooltip(k, "" if scale_fits(SCALES[k]) else GREY_TAG.strip_edges() + " %d %% needs a window of at least %d x %d: make the window bigger (maximise it)" % [SCALES[k], MIN_ROOM.x * SCALES[k] / 100, MIN_ROOM.y * SCALES[k] / 100])
 			us.get_popup().set_item_text(k, "%d %%" % SCALES[k] + ("" if scale_fits(SCALES[k]) else "   (needs a bigger window)")))
 	ui_ribbon["VIEW"].add_child(us)
-	# always there
+	# always there, in the strip: the scene in the middle, the small icons on the right
 	var fill := Control.new()
 	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tb.add_child(fill)
-	tb.add_child(_button("Undo (Ctrl+Z)", _undo))
+	strip.add_child(fill)
+	ui_doc_dot = _label("\u25cf", 11, "warn")
+	ui_doc_dot.tooltip_text = "changes not saved yet (Save scene keeps them; the autosave keeps them meanwhile)"
+	ui_doc_dot.mouse_filter = Control.MOUSE_FILTER_PASS
+	strip.add_child(ui_doc_dot)
+	ui_doc = _label("", 13, "text")
+	ui_doc.name = "doc_name"
+	strip.add_child(ui_doc)
+	var fill2 := Control.new()
+	fill2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	strip.add_child(fill2)
+	var right0 := strip.get_child_count()
+	strip.add_child(_button("Undo (Ctrl+Z)", _undo))
 	ui_hist_btn = _button("History", _toggle_history, "every change by name, newest on top: click one to go back (or forward) to exactly there")
-	tb.add_child(_button("Redo (Ctrl+Y)", _redo))
-	tb.add_child(ui_hist_btn)
-	tb.add_child(_button("Search (S)", func(): ui_cmd.open(), "type a few letters of any command: mirror, trail, check, staff...  Enter runs it"))
-	tb.add_child(_button("? Help", func(): ui_help.visible = not ui_help.visible, "every key and mouse move, on one page"))
+	strip.add_child(_button("Redo (Ctrl+Y)", _redo))
+	strip.add_child(ui_hist_btn)
+	strip.add_child(_button("Search (S)", func(): ui_cmd.open(), "type a few letters of any command: mirror, trail, check, staff...  Enter runs it"))
+	var hb := _button("? Help", func(): ui_help.visible = not ui_help.visible, "every key and mouse move, on one page")
+	strip.add_child(hb)
 	for t in RIBBON:
+		_group(t)
 		for b in ui_ribbon[t].get_children():
 			_iconise(b)
-	for b in tb.get_children().slice(tb.get_children().find(fill)):
+	ui_top_right = strip.get_children().slice(right0)
+	for b in ui_top_right:
 		_iconise(b)
+		(b as Control).custom_minimum_size = Vector2(28, STRIP_H - 4)
+	hb.name = "b_help"
+	var tfill := Control.new()
+	tfill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tb.add_child(tfill)
 	ui_tb = tb
-	ui_top_right = tb.get_children().slice(tb.get_children().find(fill) + 1)
+	for t in RIBBON:
+		ui_caps[t] = []
+		for g in RIBBON_GROUPS.get(t, []):
+			var cap := MenuButton.new()
+			cap.name = "cap_" + String(g[0]).to_lower()
+			cap.text = String(g[0]) + " \u25be"
+			cap.flat = true
+			cap.focus_mode = Control.FOCUS_NONE
+			cap.theme_type_variation = "RibbonCap"
+			cap.tooltip_text = "the %s tools by name" % String(g[0]).to_lower()
+			var tools: Array = ui_ribbon[t].get_children().filter(func(c): return c is Button and label_of(c) in g[1])
+			for i in tools.size():
+				cap.get_popup().add_item(label_of(tools[i]), i)
+			cap.get_popup().id_pressed.connect(func(i): _run_tool(tools[i], cap))
+			caps.add_child(cap)
+			ui_caps[t].append([cap, tools])
+	get_viewport().size_changed.connect(_place_caps.call_deferred)
 	ui_more = MenuButton.new()
 	ui_more.name = "b_more_tools"
 	ui_more.text = "More"
@@ -3134,7 +3516,7 @@ func _ui() -> void:
 	ui_more.visible = false
 	ui_more.get_popup().id_pressed.connect(_more_pick)
 	tb.add_child(ui_more)
-	tb.move_child(ui_more, tb.get_children().find(fill))
+	tb.move_child(ui_more, tb.get_children().find(tfill))
 	_ribbon("POSE")
 
 	# ---- left: poses
@@ -3147,57 +3529,50 @@ func _ui() -> void:
 	ui_root.add_child(lp)
 	ui_side.append(lp)
 	ui_side_of["left"] = lp
-	# Nick 10-13 "we can't see individual poses": the buttons below the list had squeezed it to nothing. The panel
-	# scrolls now and the list keeps its own height
-	var lsc := ScrollContainer.new()
-	lsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	# round 7: two tabs, Poses (as it was, the first) and Browser (Fusion's tree: every part by name, the clips)
-	var ltabs := TabContainer.new()
-	ltabs.focus_mode = Control.FOCUS_NONE
-	lp.add_child(ltabs)
-	lsc.name = "Poses"
-	ltabs.add_child(lsc)
+	# THE BROWSER (round 36, RR3; Fusion's): ONE slim tree, the left panel's whole content: Scene (its clips), Poses
+	# (Library / Mine), Body, Weapon, Target dummy. A row picks (a pose applies, a clip shows, a part is selected); its
+	# right-click menu has the rest (Rename / Delete / CLIP a pose, the dummy's Closer / Farther / Solid). The round-7
+	# Poses tab's list and name box stay the pose model (hidden): the tree shows the list, a name dialog holds the box
+	var lv := VBoxContainer.new()
+	lv.name = "browser_box"
+	lv.add_theme_constant_override("separation", 2)
+	lp.add_child(lv)
+	var lhd := HBoxContainer.new()
+	lhd.name = "browser_head"
+	lhd.add_theme_constant_override("separation", 2)
+	lv.add_child(lhd)
+	var bt := _label("BROWSER", PROP_TXT, "heading")
+	bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lhd.add_child(bt)
+	var sv := _button("Save pose", _pose_ask.bind("save"), "save the body as a pose (Ctrl+S): it asks the name")
+	sv.name = "b_save_pose"
+	_icon_only(sv, "save", Vector2(26, 24))
+	lhd.add_child(sv)
+	var xl := _button("Fold this box (the POSES rail opens it)", _fold.bind("left", true), "fold the browser to a thin rail: more room for the body (remembered)")
+	xl.name = "fold_left"
+	_icon_only(xl, "close", Vector2(26, 24))
+	lhd.add_child(xl)
+	ui_fold_btn["left"] = xl
 	ui_browser = Browser.new()
 	ui_browser.m = self
 	ui_browser.name = "Browser"
-	ltabs.add_child(ui_browser)
-	ltabs.tab_changed.connect(func(_t): ui_browser.refresh())   # it does not follow while hidden: catch up on show
-	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 6)
-	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lsc.add_child(lv)
-	lv.add_child(_label("1  POSES", 19, "heading"))
-	var pose_tip := _label("Click a pose: the body takes it.", 14, "text:0.65", true)
-	lv.add_child(pose_tip)
-	ui_hint_labels.append(pose_tip)
-	ui_poses = ItemList.new()
-	ui_poses.custom_minimum_size = Vector2(0, 240)
-	ui_poses.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	ui_poses.focus_mode = Control.FOCUS_NONE
-	ui_poses.item_selected.connect(func(i):
-		_push_undo()
-		_load_pose(ui_poses.get_item_metadata(i))
-		_refresh()
-		_say("the body is now in pose '%s'" % ui_poses.get_item_text(i)))
+	lv.add_child(ui_browser)
+	ui_poses = ItemList.new()   # the pose model: the tree's Poses rows are its items
+	ui_poses.visible = false
+	ui_poses.item_selected.connect(_pose_apply)
 	lv.add_child(ui_poses)
+	ui_name_dlg = ConfirmationDialog.new()
+	ui_name_dlg.name = "pose_name_dialog"
+	ui_name_dlg.min_size = Vector2i(320, 0)
 	ui_pose_name = LineEdit.new()
+	ui_pose_name.name = "edit_name"
 	ui_pose_name.placeholder_text = "name for the body's pose"
-	lv.add_child(ui_pose_name)
-	_row(lv, [_button("Save pose", _save_pose, "save the body as a pose (Ctrl+S)"),
-		_button("Rename", _rename_pose, "click one of YOUR poses in the list, type the new name above, press Rename")])
-	_row(lv, [_button("Delete pose", _delete_pose, "click a pose in the list, then Delete (it asks first; the file goes to the trash folder)")])
-	_row(lv, [_button("CLIP this pose  (Enter)", _card_add, "the body as it is now becomes the next clip in the scene below")])
-	lv.add_child(_label("WEAPON", 14, "heading"))
-	_row(lv, [_weapon_picker()])
-	_row(lv, [_button("2nd hand on/off (G)", _do.bind(_toggle_second), "the other hand on the shaft; [ ] slide it")])
-	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
-	_row(lv, [ui_slide_btn])
-	_row(lv, [_button("Hand to the end", _do.bind(_hand_to_end), "Nick 10-13: a long weapon swings from its end - the main hand slides to the lower end in 3 cm steps (the body follows, or the weapon moves: the toggle above)")])
-	lv.add_child(_label("TARGET DUMMY  (H)", 14, "dummy"))
-	_row(lv, [_button("On/off", _dummy_toggle, "a second mannequin out front: it turns red where the weapon is in it (H)"),
-		_button("Closer", _dummy_move.bind(-0.25), "the dummy 25 cm closer"), _button("Farther", _dummy_move.bind(0.25), "the dummy 25 cm farther")])
-	_row(lv, [_button("Solid / see-through", _dummy_solid, "solid: the swing stops on the dummy and rebounds (the scene plays as landed); see-through: the scene as you made it")])
-	ui_dummy = _label("dummy %.2f m out" % T.dist, 13, "dummy_text", true)
+	ui_name_dlg.add_child(ui_pose_name)
+	ui_name_dlg.register_text_enter(ui_pose_name)
+	ui_name_dlg.confirmed.connect(func(): _rename_pose() if _name_for == "rename" else _save_pose())
+	add_child(ui_name_dlg)
+	ui_dummy = _label("dummy %.2f m out" % T.dist, 13, "dummy_text", true)   # the dummy's readout: the tree's row shows it
+	ui_dummy.visible = false
 	lv.add_child(ui_dummy)
 
 	# ---- right: the selected part
@@ -3207,35 +3582,50 @@ func _ui() -> void:
 	rp.offset_left = -RIGHT_W
 	rp.offset_right = -6
 	rp.offset_top = TOP_H + 6
-	rp.anchor_bottom = 1.0
-	rp.offset_bottom = -BOTTOM_H - 6
+	rp.offset_bottom = TOP_H + 300   # _insp_fit: as tall as what it shows (RR2)
 	ui_root.add_child(rp)
 	ui_side.append(rp)
 	ui_side_of["right"] = rp
+	ui_insp = rp
 	_rail("left", "POSES")
 	_rail("right", "PART")
-	_fold_button("left")
-	_fold_button("right")
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS   # Nick 10-13 couldn't find the weapon rows below
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO   # a bar only when it is taller than the window allows
 	rp.add_child(sc)
 	var vb := VBoxContainer.new()
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.custom_minimum_size = Vector2(RIGHT_W - 34, 0)
-	vb.add_theme_constant_override("separation", 5)
+	vb.add_theme_constant_override("separation", 3)
 	sc.add_child(vb)
+	ui_insp_vb = vb
 	var pth := Theme.new()   # ONE TYPE SCALE (round 25, #40): the panel's buttons at the text size too
 	for t in ["Button", "OptionButton", "Label"]:
 		pth.set_font_size("font_size", t, PROP_TXT)
 	vb.theme = pth
-	vb.add_child(_label("2  SELECTED PART  (click the body)", PROP_TXT, "heading"))
-	ui_title = _label("", PROP_BIG, "text", true)
-	vb.add_child(ui_title)
+	# THE HEADER (RR2): the part's name, its lock, the x that folds the box to its rail; how to use it is the name's
+	# tooltip (ui_how keeps the words, hidden)
+	var hd := HBoxContainer.new()
+	hd.name = "insp_head"
+	hd.add_theme_constant_override("separation", 2)
+	vb.add_child(hd)
+	ui_title = _label("", PROP_BIG, "heading")
+	ui_title.clip_text = true
+	ui_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	ui_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_title.mouse_filter = Control.MOUSE_FILTER_PASS
+	hd.add_child(ui_title)
 	ui_lock_btn = _button("Lock this part", _toggle_lock.bind(""), "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
 	ui_lock_btn.name = "btn_lock_part"
-	vb.add_child(ui_lock_btn)
+	_icon_only(ui_lock_btn, "lock", Vector2(26, 24))
+	hd.add_child(ui_lock_btn)
+	var xb := _button("Fold this box (the PART rail opens it)", _fold.bind("right", true), "fold the inspector to a thin rail: more room for the body (remembered)")
+	xb.name = "fold_right"
+	_icon_only(xb, "close", Vector2(26, 24))
+	hd.add_child(xb)
+	ui_fold_btn["right"] = xb
 	ui_how = _label("", PROP_TXT, "info", true)
+	ui_how.visible = false
 	vb.add_child(ui_how)
 	for k in ["bend", "side", "twist"]:
 		var box := VBoxContainer.new()
@@ -3243,10 +3633,9 @@ func _ui() -> void:
 		var s := HSlider.new()
 		s.name = "slider_" + k   # by its axis: the label before it is the hint, and its words change with the part
 		s.step = 0.5
-		s.custom_minimum_size = Vector2(0, 24)
 		s.drag_started.connect(_push_undo)
 		s.value_changed.connect(_on_slider.bind(k))
-		box.add_child(s)
+		_row_slider(l, s)
 		vb.add_child(box)
 		ui_rows[k] = {"slider": s, "label": l, "box": box}
 	ui_hip_box = VBoxContainer.new()
@@ -3256,44 +3645,52 @@ func _ui() -> void:
 		var s := HSlider.new()
 		s.name = "slider_hip_%d" % k
 		s.step = 0.005
-		s.custom_minimum_size = Vector2(0, 24)
 		s.drag_started.connect(_push_undo)
 		s.value_changed.connect(_on_hip.bind(k))
-		ui_hip_box.add_child(s)
+		_row_slider(l, s)
 		ui_hips.append([s, l])
-	_row(vb, [_button("Reset (R)", _do.bind(_reset_part)), _button("90 (Q)", _do.bind(_snap.bind(90.0))),
-		_button("45", _do.bind(_snap.bind(45.0)))])
-	ui_pole_row = _row(vb, [_label("points", 15), _button("<", _do.bind(_pole.bind(-15.0)), "swing the elbow / knee 15 deg one way; the hand / foot stays (Ctrl+drag does it by hand)"),
+	# RR2: the part's actions on ONE row, short words; each keeps its full name (label, tooltip, Search)
+	var acts := _row(vb, [_short(_button("Reset (R)", _do.bind(_reset_part), "the part back to straight (0, 0, 0)"), "Reset"),
+		_short(_button("90 (Q)", _do.bind(_snap.bind(90.0)), "round the part's angles to the 90-degree steps its range allows"), "90"),
+		_short(_button("45", _do.bind(_snap.bind(45.0)), "round the part's angles to the 45-degree steps its range allows"), "45"),
+		_short(_button("Right to left (M)", _do.bind(B.mirror_side.bind("_r")), "the left arm and leg take the right ones' pose, reflected"), "R→L"),
+		_short(_button("Left to right (N)", _do.bind(B.mirror_side.bind("_l")), "the right arm and leg take the left ones' pose, reflected"), "L→R")])
+	acts.name = "insp_actions"
+	acts.add_theme_constant_override("separation", 3)
+	ui_pole_row = _row(vb, [_label("points", PROP_TXT), _button("<", _do.bind(_pole.bind(-15.0)), "swing the elbow / knee 15 deg one way; the hand / foot stays (Ctrl+drag does it by hand)"),
 		_button(">", _do.bind(_pole.bind(15.0)), "swing the elbow / knee 15 deg the other way; the hand / foot stays (Ctrl+drag does it by hand)")])
-	_row(vb, [_button("Right to left (M)", _do.bind(B.mirror_side.bind("_r"))),
-		_button("Left to right (N)", _do.bind(B.mirror_side.bind("_l")))])
-	_section(vb, "HANDS")
-	var frow := _row(vb, [_label("right:", 15), _button("Open", _do.bind(_fingers.bind("r", "open"))), _button("Grip", _do.bind(_fingers.bind("r", "grip"))),
+	var hands := _section(vb, "HANDS")
+	var frow := _row(hands, [_label("right:", PROP_TXT), _button("Open", _do.bind(_fingers.bind("r", "open"))), _button("Grip", _do.bind(_fingers.bind("r", "grip"))),
 		_button("Fist", _do.bind(_fingers.bind("r", "fist")))])
 	frow.name = "fingers_r"
-	frow = _row(vb, [_label("left:  ", 15), _button("Open", _do.bind(_fingers.bind("l", "open"))), _button("Grip", _do.bind(_fingers.bind("l", "grip"))),
+	frow = _row(hands, [_label("left:  ", PROP_TXT), _button("Open", _do.bind(_fingers.bind("l", "open"))), _button("Grip", _do.bind(_fingers.bind("l", "grip"))),
 		_button("Fist", _do.bind(_fingers.bind("l", "fist")))])
 	frow.name = "fingers_l"
-	vb.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
-	_section(vb, "WEAPON")
-	_row(vb, [_weapon_picker("opt_weapon_panel")])
-	_row(vb, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
-	_row(vb, [_button("Main hand down (,)", _do.bind(_slide.bind(-0.03)), "the hand slides toward the lower end; the weapon stays, the arm follows"),
+	hands.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
+	var wep := _section(vb, "WEAPON")
+	_row(wep, [_weapon_picker("opt_weapon_panel")])
+	_row(wep, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
+	_row(wep, [_button("Main hand down (,)", _do.bind(_slide.bind(-0.03)), "the hand slides toward the lower end; the weapon stays, the arm follows"),
 		_button("Main hand up (.)", _do.bind(_slide.bind(0.03)), "the hand slides toward the tip; the weapon stays, the arm follows")])
-	_row(vb, [_button("Lock bat to hand / Free it (L)", _do.bind(_bat_lock))])
-	_row(vb, [_button("Other hand on the bat (G)", _do.bind(func(): B.grip = not B.grip)),
+	_row(wep, [_button("Lock bat to hand / Free it (L)", _do.bind(_bat_lock))])
+	# from the old left panel (RR3)
+	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
+	_row(wep, [_short(_button("2nd hand on/off (G)", _do.bind(_toggle_second), "the other hand on the shaft; [ ] slide it"), "2nd hand"), ui_slide_btn])
+	_row(wep, [_button("Hand to the end", _do.bind(_hand_to_end), "Nick 10-13: a long weapon swings from its end - the main hand slides to the lower end in 3 cm steps (the body follows, or the weapon moves: the toggle above)")])
+	_row(wep, [_button("Other hand on the bat (G)", _do.bind(func(): B.grip = not B.grip)),
 		_button("Save grip as standard", _save_grip, "the bat's place in the hand + the fingers become the grip 'Bat in hand' uses")])
-	vb.add_child(_label("[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length", PROP_TXT, "text:0.55", true))
-	_section(vb, "NUMBERS")
+	wep.add_child(_label("[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length", PROP_TXT, "text:0.55", true))
+	var num := _section(vb, "NUMBERS")
 	ui_math_btn = _button("Show the math (for Claude)", func(): ui_math.visible = not ui_math.visible)
-	vb.add_child(ui_math_btn)
+	num.add_child(ui_math_btn)
 	ui_math = _label("", PROP_TXT, "text:0.6", true)
 	ui_math.visible = false
-	vb.add_child(ui_math)
+	num.add_child(ui_math)
 
 	# ---- bottom: the scene
 	var bp := PanelContainer.new()
 	ui_bp = bp
+	bp.theme_type_variation = "BottomBar"
 	bp.anchor_top = 1.0
 	bp.anchor_bottom = 1.0
 	bp.anchor_right = 1.0
@@ -3352,10 +3749,10 @@ func _ui() -> void:
 	ui_loop = CheckBox.new()
 	ui_loop.text = "Loop"
 	ui_loop.name = "check_loop"
+	ui_loop.add_theme_font_size_override("font_size", 13)
 	ui_loop.focus_mode = Control.FOCUS_NONE
 	ui_loop.tooltip_text = "ON: the scene plays round and round (a walk, an idle). CHECK then grades the seam: the end must meet the start."
 	ui_loop.toggled.connect(func(on): _push_undo(); S.loop = on; check_ran = false; _refresh())
-	bh.add_child(ui_loop)   # a property of the scene FILE: with its buttons (the play row has no room at 100 %)
 	bh.add_child(_button("New empty scene", _new_scene))
 	var fb := _button("Fold", _fold.bind("bottom", true), "fold the scene panel to the timeline and Play: more room for the body (remembered)")
 	fb.name = "fold_bottom"
@@ -3386,21 +3783,41 @@ func _ui() -> void:
 		else:
 			S.apply(B, minf(playhead, S.length()))   # live while dragging: the scene as made (the landed copy is rebuilt on release)
 			_refresh())
-	bv.add_child(ui_timeline)
+	# ONE STRIP (round 36, RR4): first / previous / play / next / last / loop, the clips on their track, the time, the
+	# speed, Natural, a gear for the rest (Smooth, tween, ease, + tween), the Clips button that opens the cards above
 	var ph := HBoxContainer.new()
 	ui_play_row = ph
 	ph.name = "play_row"
-	ph.add_theme_constant_override("separation", 8)
+	ph.add_theme_constant_override("separation", 4)
 	bv.add_child(ph)
-	ui_play = _button("  Play (Space)  ", _toggle_play)
+	for t in [["First clip (Home)", _go_end.bind(false), "first", "the start of the scene"],
+			["Previous clip", _go_card.bind(-1), "prev", "the clip before the playhead"]]:
+		var trb := _button(t[0], t[1], t[3])
+		_icon_only(trb, t[2], Vector2(30, 30))
+		ph.add_child(trb)
+	ui_play = _button("Play (Space)", _toggle_play, "play the scene from the playhead; Space again stops it")
+	ui_play.name = "b_play"
+	_icon_only(ui_play, "play", Vector2(34, 30))
 	ph.add_child(ui_play)
+	for t in [["Next clip", _go_card.bind(1), "next", "the clip after the playhead"],
+			["Last clip (End)", _go_end.bind(true), "last", "the end of the scene"]]:
+		var trb := _button(t[0], t[1], t[3])
+		_icon_only(trb, t[2], Vector2(30, 30))
+		ph.add_child(trb)
+	ui_timeline.custom_minimum_size = Vector2(0, 34)
+	ui_timeline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ph.add_child(ui_timeline)
 	var ob := _button("Clips", _fold.bind("bottom", false), "open the scene panel again: the clips and the scene's buttons")
 	ob.name = "open_bottom"
 	ob.visible = false
-	ph.add_child(ob)
+	ob.add_theme_font_size_override("font_size", 13)
+	ob.custom_minimum_size.y = 30
 	ui_fold_btn["bottom_open"] = ob
-	ph.add_child(_button("Slower", _speed.bind(1.1), "10% slower: the picked card, or the whole scene with no card picked (Save scene keeps it)"))
-	ph.add_child(_button("Faster", _speed.bind(1.0 / 1.1), "10% faster: the picked card, or the whole scene with no card picked (Save scene keeps it)"))
+	var sl := _short(_button("Slower", _speed.bind(1.1), "10% slower: the picked card, or the whole scene with no card picked (Save scene keeps it)"), "\u2212")
+	var fa := _short(_button("Faster", _speed.bind(1.0 / 1.1), "10% faster: the picked card, or the whole scene with no card picked (Save scene keeps it)"), "+")
+	for b in [sl, fa]:
+		b.custom_minimum_size = Vector2(26, 30)
+		b.theme_type_variation = "Ribbon"   # flat, thin margins: the strip stays one 34-px row
 	ui_time = HSlider.new()
 	ui_time.name = "slider_time"
 	ui_time.step = 0.01
@@ -3415,23 +3832,45 @@ func _ui() -> void:
 		_refresh())
 	ph.add_child(ui_time)
 	ui_time.visible = false   # round 6: the timeline above scrubs; two scrubbers is one too many
-	ui_time_lbl = _label("0.00 s", 15)
-	ui_time_lbl.custom_minimum_size = Vector2(130, 0)
+	ui_time_lbl = _label("0.00 s", 13, "text:0.75")
+	ui_time_lbl.custom_minimum_size = Vector2(104, 0)
+	ui_time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ph.add_child(ui_time_lbl)
+	ph.add_child(_label("speed", 12, "text:0.5"))
+	ph.add_child(sl)
+	ph.add_child(fa)
+	ph.add_child(ui_loop)   # the scene's Loop (a property of the file): on the strip, as an icon
 	ui_natural = CheckBox.new()
-	ui_natural.text = "Natural movement"
+	ui_natural.text = "Natural"
+	ui_natural.add_theme_font_size_override("font_size", 13)
 	ui_natural.button_pressed = true
 	ui_natural.focus_mode = Control.FOCUS_NONE
 	ui_natural.tooltip_text = "ON: the hips start first and the hands arrive last, like a real body. OFF: everything moves together."
 	ui_natural.toggled.connect(func(on): S.natural = on; _dummy_hits(); _ps().apply(B, playhead); _refresh())
 	ph.add_child(ui_natural)
+	# the gear: the rest of the play options, in a small box above it
+	ui_gear = PanelContainer.new()   # a panel on the UI, not a popup window: it takes the window's clicks like the rest
+	ui_gear.name = "play_options"
+	ui_gear.visible = false
+	ui_root.add_child(ui_gear)
+	var gv := VBoxContainer.new()
+	gv.add_theme_constant_override("separation", 6)
+	ui_gear.add_child(gv)
+	var gb := _button("Play options", _gear_open, "Smooth (spline), tween, ease, + tween")
+	gb.name = "b_gear"
+	_icon_only(gb, "gear", Vector2(30, 30))
+	ui_gear_btn = gb
+	ph.add_child(gb)
+	ph.add_child(ob)
 	ui_spline = CheckBox.new()
 	ui_spline.text = "Smooth (spline)"
 	ui_spline.focus_mode = Control.FOCUS_NONE
 	ui_spline.tooltip_text = "ON: one smooth curve through every card; only cards with a hold stop. OFF: the body eases to a stop at every card."
 	ui_spline.toggled.connect(func(on): S.spline = on; _rebuild_cards(); _ps().apply(B, playhead); _refresh())
-	ph.add_child(ui_spline)
-	ph.add_child(_label("tween", 14, "text:0.75"))
+	gv.add_child(ui_spline)
+	var tw := HBoxContainer.new()
+	gv.add_child(tw)
+	tw.add_child(_label("tween", 14, "text:0.75"))
 	ui_tween = HSlider.new()
 	ui_tween.min_value = -0.25
 	ui_tween.max_value = 1.25
@@ -3442,9 +3881,11 @@ func _ui() -> void:
 	ui_tween.tooltip_text = "TWEEN MACHINE: the picked card becomes a mix of the cards either side. Left = like the card before, right = like the card after, past the ends = overshoot. 'Update' keeps it."
 	ui_tween.value_changed.connect(func(v): if not _sync: _tween(v))
 	ui_tween.drag_ended.connect(func(_c): _tween_armed = false)
-	ph.add_child(ui_tween)
-	ph.add_child(_button("+ tween", _tween_add, "add an in-between card after the picked one, halfway to the next (then slide 'tween')"))
-	ph.add_child(_label("ease", 14, "text:0.75"))
+	tw.add_child(ui_tween)
+	tw.add_child(_button("+ tween", _tween_add, "add an in-between card after the picked one, halfway to the next (then slide 'tween')"))
+	var ew := HBoxContainer.new()
+	gv.add_child(ew)
+	ew.add_child(_label("ease", 14, "text:0.75"))
 	ui_ease = OptionButton.new()
 	ui_ease.name = "opt_ease"
 	ui_ease.focus_mode = Control.FOCUS_NONE
@@ -3452,16 +3893,12 @@ func _ui() -> void:
 		ui_ease.add_item(e)
 	ui_ease.tooltip_text = "how the move INTO the picked card eases: smooth (natural), linear, in (starts slow), out (ends slow), snap (holds, then jumps: a hit, a cut)"
 	ui_ease.item_selected.connect(func(k): if not _sync: _set_ease(Scene.EASES[k]))
-	ph.add_child(ui_ease)
-	ui_play_extra = [_button("Check", _check, "grade the scene against real recorded human motion (docs/MOTION_RULES.md); click a problem to jump to it"),
-		_button("Polish", _polish, "smooth the scene and add the in-between detail (~30 cards) into a NEW scene; yours is not touched"),
-		_button("Fix moves through the body", _clear_scene,
-		"where a move between two cards passes an arm or the bat through the body, add a pass-by card that goes around")]
-	for b in ui_play_extra:
-		ph.add_child(b)
+	ew.add_child(ui_ease)
+	ui_play_extra = []   # RR4: Check / Polish / Fix left the play row (the ribbon's CHECK tab, Search)
 
 	# ---- status line
 	ui_status = _label(WELCOME, 16, "say", true)
+	ui_status.name = "status_line"
 	ui_status.anchor_top = 1.0
 	ui_status.anchor_bottom = 1.0
 	ui_status.offset_top = -BOTTOM_H - 82
@@ -3493,7 +3930,7 @@ func _ui() -> void:
 	ui_status.add_theme_stylebox_override("normal", sb)
 	ui_root.add_child(ui_status)
 	# ---- status bar: one line, always there (Fusion's bottom bar)
-	ui_bar = _label("", 14, "text:0.8")
+	ui_bar = _label("", 12, "text:0.55")   # RR5: the readout, small and grey, on the status line's right
 	ui_bar.anchor_top = 1.0
 	ui_bar.anchor_bottom = 1.0
 	ui_bar.offset_top = -BOTTOM_H - 34
@@ -3503,13 +3940,11 @@ func _ui() -> void:
 	ui_bar.offset_right = -RIGHT_W - 12
 	ui_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_bar.clip_text = true
+	ui_bar.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	ui_bar.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	var bb := StyleBoxFlat.new()
-	bb.bg_color = Tok.c("panel")
-	ui_bar_box = bb
-	bb.set_corner_radius_all(4)
-	bb.content_margin_left = 10
-	bb.content_margin_right = 10
+	ui_bar.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var bb := StyleBoxEmpty.new()   # RR5: no box: quiet words on the view (Fusion's bottom bar)
+	ui_bar_box = null
 	ui_bar.add_theme_stylebox_override("normal", bb)
 	ui_root.add_child(ui_bar)
 	_build_nav()
@@ -3631,6 +4066,8 @@ func _lists() -> void:
 				continue
 			var i := ui_poses.add_item(f.get_basename().replace("_", " ") + {"res://poses": "", "res://poses/lib": "   (library)"}.get(dir, "   (yours)"))
 			ui_poses.set_item_metadata(i, path)
+	if ui_browser != null:
+		ui_browser.refresh()
 	ui_scenes.clear()
 	for dir in ["res://scenes", "res://moves"]:
 		var d := DirAccess.open(dir)
@@ -3709,7 +4146,9 @@ func _panel() -> void:
 		ui_ease.select(Scene.EASES.find(S.cards[sel_card].get("ease", "smooth")) if sel_card >= 0 and sel_card < S.cards.size() else 0)
 	if ui_timeline != null:
 		ui_timeline.queue_redraw()
-	ui_play.text = "  Stop (Space)  " if playing else "  Play (Space)  "
+	if label_of(ui_play) != ("Stop (Space)" if playing else "Play (Space)"):
+		_set_label(ui_play, "Stop (Space)" if playing else "Play (Space)")
+		ui_play.icon = Icons.tex("stop" if playing else "play")
 	_sync = false
 
 
@@ -3721,7 +4160,9 @@ func _panel_part() -> void:
 	if not sel_more.is_empty():
 		ui_title.text += "   + %d more" % sel_more.size()
 	ui_lock_btn.visible = true
-	ui_lock_btn.text = "Unlock this part" if locked_parts.has(sel) else "Lock this part"
+	_set_label(ui_lock_btn, "Unlock this part" if locked_parts.has(sel) else "Lock this part")
+	ui_lock_btn.toggle_mode = true
+	ui_lock_btn.set_pressed_no_signal(locked_parts.has(sel))
 	if locked_parts.has(sel):
 		ui_title.text += "   (LOCKED)"
 	if side_col(sel) != SIDE_MID:
@@ -3744,7 +4185,8 @@ func _panel_part() -> void:
 		row["slider"].value = vals[k]
 		var lk := locked_parts.has(sel)
 		row["slider"].editable = not lk
-		row["slider"].tooltip_text = (GREY_TAG + "this part is locked: right-click it > Unlock to change it") if lk else ""
+		var say0: String = L["say"].get(k, "")
+		row["slider"].tooltip_text = (GREY_TAG + "this part is locked: right-click it > Unlock to change it") if lk else say0.replace("+ = ", "more = ")
 		var say: String = L["say"].get(k, "")
 		_set_prop(row["label"], words[k], "%.0f deg" % vals[k], say.replace("+ = ", "more = "))
 	ui_hip_box.visible = sel == "pelvis"
@@ -3766,6 +4208,8 @@ func _panel_part() -> void:
 
 func _panel_bat() -> void:
 	ui_lock_btn.visible = false   # the weapon's own lock is L (part locks are for body parts)
+	if ui_secs.has("WEAPON") and not (ui_secs["WEAPON"][1] as Control).visible:
+		_sec_open("WEAPON", true)   # RR2: the weapon picked: its rows are what the box is about
 	var locked := B.wep_hand != ""
 	ui_title.remove_theme_color_override("font_color")
 	ui_title.text = {"metal_bat": "METAL BAT", "staff": "BO STAFF", "long_hammer": "LONG HAMMER"}.get(B.wep_kind, B.wep_kind.to_upper()) + "  " + ("(locked in the %s)" % nice(B.wep_hand) if locked else "(free)")
@@ -3866,6 +4310,7 @@ func _open_example(path: String) -> void:
 
 
 func _rebuild_cards() -> void:
+	_doc_line(true)   # RR1: a load or a new scene changes the strip's name
 	if ui_cards == null:
 		return
 	_dummy_hits()   # the cards changed: the landed scene and its hits too
@@ -4017,6 +4462,56 @@ func _ribbon(t: String) -> void:
 		ui_ribbon_tabs[k].set_pressed_no_signal(k == t)   # by hand: _no_signal does not release the group's others
 	_ribbon_tab = t
 	_fit_top()
+	_place_caps.call_deferred()
+
+
+## a tab's tools in its groups' order with a thin divider between groups (RR1); unnamed tools stay at the end
+func _group(t: String) -> void:
+	var row: HBoxContainer = ui_ribbon[t]
+	var at := 0
+	var gs: Array = RIBBON_GROUPS.get(t, [])
+	for gi in gs.size():
+		if gi > 0:
+			var sep := VSeparator.new()
+			sep.name = "group_sep"
+			sep.custom_minimum_size.x = 12
+			row.add_child(sep)
+			row.move_child(sep, at)
+			at += 1
+		for lab in gs[gi][1]:
+			for c in row.get_children():
+				if c is Button and label_of(c) == lab:
+					row.move_child(c, at)
+					at += 1
+					break
+
+
+## each caption under its group: from its first shown tool's left to its last's right; none shown -> hidden
+func _place_caps() -> void:
+	for t in ui_caps:
+		for pair in ui_caps[t]:
+			var cap: MenuButton = pair[0]
+			var shown: Array = (pair[1] as Array).filter(func(b): return (b as Control).is_visible_in_tree())
+			cap.visible = t == _ribbon_tab and not shown.is_empty()
+			if not cap.visible:
+				continue
+			var par := cap.get_parent() as Control
+			var x0: float = (shown[0] as Control).get_global_rect().position.x - par.global_position.x
+			var x1: float = (shown[-1] as Control).get_global_rect().end.x - par.global_position.x
+			cap.position = Vector2(x0, 0)
+			cap.size = Vector2(maxf(x1 - x0, cap.get_minimum_size().x), CAP_H)
+
+
+## a tool picked by name from a menu (a caption's, or More's): the same as pressing it; a menu tool opens its own
+## menu where the picker was
+func _run_tool(b: Control, at: Control) -> void:
+	if b is MenuButton:
+		var pm := (b as MenuButton).get_popup()
+		(b as MenuButton).about_to_popup.emit()
+		pm.position = Vector2i(at.get_screen_position() + Vector2(0, at.size.y))
+		pm.popup()
+	elif b is Button:
+		(b as Button).pressed.emit()
 
 
 ## THE TOP BAR ON A SMALL WINDOW (round 21, GATES BB1, UPGRADES #4): at 1280 x 720 the ANIMATE and VIEW tabs pushed
@@ -4066,6 +4561,7 @@ func _top_fits() -> bool:
 func _fit_top() -> void:
 	if ui_tb == null:
 		return
+	_place_caps.call_deferred()   # the captions follow whatever this pass hides
 	var all: Array = []
 	for t in RIBBON:
 		all.append_array(ui_ribbon[t].get_children())
@@ -4073,8 +4569,8 @@ func _fit_top() -> void:
 	for b in all:
 		if b is Button and b.has_meta("full"):
 			b.text = b.get_meta("full")
-	var tools: Array = ui_ribbon[_ribbon_tab].get_children()
-	for b in tools:
+	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button)
+	for b in ui_ribbon[_ribbon_tab].get_children():
 		(b as Control).visible = true
 	ui_more.visible = false
 	_more_tools = []
@@ -4094,25 +4590,23 @@ func _fit_top() -> void:
 		(tools[k] as Control).visible = false
 		_more_tools.push_front(tools[k])
 		k -= 1
+	var row: Array = ui_ribbon[_ribbon_tab].get_children()
+	for i in row.size():   # a group divider after the last shown tool goes too
+		if row[i] is VSeparator:
+			var after: Array = row.slice(i + 1).filter(func(c): return c is Button and (c as Control).visible)
+			(row[i] as Control).visible = not after.is_empty()
 	if _more_tools.is_empty():
 		ui_more.visible = false
 		return
 	var pm := ui_more.get_popup()
 	pm.clear()
 	for i in _more_tools.size():
-		pm.add_item(String(_more_tools[i].get("text")), i)
+		pm.add_item(label_of(_more_tools[i]), i)
 
 
 ## a tool picked from More: the same as pressing it (a menu tool opens its own menu where More is)
 func _more_pick(i: int) -> void:
-	var b: Control = _more_tools[i]
-	if b is MenuButton:
-		var pm := (b as MenuButton).get_popup()
-		(b as MenuButton).about_to_popup.emit()
-		pm.position = Vector2i(ui_more.get_screen_position() + Vector2(0, ui_more.size.y))
-		pm.popup()
-	elif b is Button:
-		(b as Button).pressed.emit()   # a toggle too: its action is on pressed, and _refresh lights it from the state
+	_run_tool(_more_tools[i], ui_more)   # a toggle too: its action is on pressed, and _refresh lights it from the state
 
 
 ## the bottom panel's height follows the scene: no clips = the scene row and the hint, nothing else. Everything that
@@ -4133,11 +4627,11 @@ func _layout_bottom() -> void:
 	ui_play_row.visible = not empty
 	ui_bp.offset_top = -bottom_h
 	for p in ui_side + ui_rails.values():
-		p.offset_bottom = -bottom_h - 6
-	ui_status.offset_top = -bottom_h - 82
-	ui_status.offset_bottom = -bottom_h - 40
-	ui_bar.offset_top = -bottom_h - 34
-	ui_bar.offset_bottom = -bottom_h - 6
+		if p != ui_insp and p != ui_side_of.get("left"):   # RR2 / RR6: the inspector and the browser are as tall as they need
+			p.offset_bottom = -bottom_h - 6
+	_insp_fit()
+	_browser_fit()
+	_strip_fit()   # RR5: the line's place follows the panel (the strip's too)
 	ui_graph.offset_bottom = -bottom_h - 92
 	ui_graph.offset_top = -bottom_h - 92 - 120
 	_place_nav()
@@ -5002,6 +5496,67 @@ func _save_pose_now(path: String) -> void:
 	_say("saved pose " + path.get_file())
 
 
+## THE BROWSER'S POSES (RR3): a pose row applies the pose; its menu renames / deletes it / makes a clip of it. Rename and
+## Save ask the name in a small dialog (the old panel's name box)
+var ui_name_dlg: ConfirmationDialog
+var _name_for := "save"
+
+
+func _pose_apply(i: int) -> void:
+	if ui_poses.get_selected_items() != PackedInt32Array([i]):
+		ui_poses.select(i)
+	_push_undo()
+	_load_pose(ui_poses.get_item_metadata(i))
+	_refresh()
+	_say("the body is now in pose '%s'" % ui_poses.get_item_text(i))
+
+
+func _pose_ask(what: String, i := -1) -> void:
+	if i >= 0:
+		ui_poses.select(i)
+	_name_for = what
+	ui_name_dlg.title = "Rename the pose" if what == "rename" else "Save the body as a pose"
+	ui_name_dlg.ok_button_text = "Rename" if what == "rename" else "Save pose"
+	ui_pose_name.text = ui_poses.get_item_text(i).get_slice("   ", 0) if what == "rename" and i >= 0 else ""
+	ui_name_dlg.popup_centered()
+	ui_pose_name.grab_focus.call_deferred()
+	ui_pose_name.select_all.call_deferred()
+
+
+## a browser row's right-click menu: [label, callable] items (main builds them; the tree only asks)
+var ui_ctx: PopupMenu
+var ui_ctx_items: Array = []
+
+
+func _row_menu(md: Dictionary, at: Vector2) -> void:
+	var items := []
+	if md.has("pose"):
+		var i: int = md["pose"]
+		items = [["Apply", _pose_apply.bind(i)], ["CLIP this pose (Enter)", func(): _pose_apply(i); _card_add()],
+			["Rename...", _pose_ask.bind("rename", i)], ["Delete pose", func(): ui_poses.select(i); _delete_pose()]]
+	elif md.get("menu", "") == "poses":
+		items = [["Save pose...", _pose_ask.bind("save")]]
+	elif md.get("menu", "") == "dummy":
+		items = [["On/off (H)", _dummy_toggle], ["Closer", _dummy_move.bind(-0.25)], ["Farther", _dummy_move.bind(0.25)],
+			["Solid / see-through", _dummy_solid]]
+	elif md.has("card"):
+		items = [["Show this clip", _timeline_pick.bind(md["card"])]]
+	if items.is_empty():
+		return
+	if ui_ctx == null:
+		ui_ctx = PopupMenu.new()
+		ui_ctx.name = "browser_menu"
+		ui_ctx.id_pressed.connect(func(id): (ui_ctx_items[id][1] as Callable).call())
+		add_child(ui_ctx)
+	ui_ctx.clear()
+	ui_ctx_items = items
+	for k in items.size():
+		ui_ctx.add_item(items[k][0], k)
+	ui_ctx.position = Vector2i(at)
+	ui_ctx.reset_size()
+	ui_ctx.popup()
+
+
 ## Nick 10-13: "the option to rename poses, now it's just random names, hard to find". Only his own (moves/):
 ## the library and the starter poses are named by the tools that use them.
 func _rename_pose() -> void:
@@ -5017,11 +5572,11 @@ func _rename_pose() -> void:
 	for bad in ["/", "\\", ":", "*", "?", "\"", "<", ">", "|", "."]:
 		nm = nm.replace(bad, "")
 	if nm == "":
-		_say("type the new name in the box above first")
+		_say("type the new name first")
 		return
 	var path := "res://moves/%s.json" % nm
 	if FileAccess.file_exists(path):
-		_say("a pose called '%s' already exists: type another name in the box above, then press Rename" % nm)
+		_say("a pose called '%s' already exists: pick it again > Rename... and type another name" % nm)
 		return
 	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(old), ProjectSettings.globalize_path(path))
 	if err != OK:

@@ -49,10 +49,12 @@ func _init() -> void:
 		for k in 3:
 			await process_frame
 		var off := off_screen()
-		var shown: int = m.ui_play_extra.filter(func(b): return b.visible).size()
-		ok(m.ui_scale == sc and is_equal_approx(m.get_window().content_scale_factor, sc / 100.0) and off.is_empty(), "%d %%: the UI is %s, nothing off the window %s (play row keeps %d of 3 extras)" % [sc, m.get_viewport().get_visible_rect().size, off, shown])
+		# round 36 (RR4): Check / Polish / Fix left the strip; the strip's own controls must all be on show instead
+		var strip: Array = m.ui_play_row.find_children("*", "Button", true, false).filter(func(b): return b.name != "open_bottom")
+		var shown: int = strip.filter(func(b): return b.is_visible_in_tree()).size()
+		ok(m.ui_scale == sc and is_equal_approx(m.get_window().content_scale_factor, sc / 100.0) and off.is_empty(), "%d %%: the UI is %s, nothing off the window %s (the strip shows %d of its buttons)" % [sc, m.get_viewport().get_visible_rect().size, off, shown])
 		if sc <= 100:
-			ok(shown == 3, "  at %d %% the play row keeps Check, Polish and Fix" % sc)
+			ok(shown == strip.size() and shown >= 9, "  at %d %% the strip shows every button (%d)" % [sc, shown])
 	var cf := ConfigFile.new()
 	cf.load(m.settings)
 	ok(cf.get_value("look", "scale", 0) == 125, "the size is saved in the settings (%s)" % cf.get_value("look", "scale", 0))
@@ -61,13 +63,13 @@ func _init() -> void:
 	ok(m.ui_scale == 125 and String(m.ui_status.text).contains("needs a window of at least 1920 x 1080"), "150 %% on 1600 x 900: refused, '%s'" % m.ui_status.text)
 	var us: MenuButton = null
 	for b in m.ui_root.find_children("*", "MenuButton", true, false):
-		if b.text == "UI size":
+		if m.label_of(b) == "UI size":
 			us = b
 	us.about_to_popup.emit()
 	var pm := us.get_popup()
 	ok(pm.is_item_disabled(3) and pm.get_item_text(3).contains("bigger window") and not pm.is_item_disabled(2) and pm.is_item_checked(2), "the menu: 150 greyed ('%s'), 125 on and ticked" % pm.get_item_text(3))
 	m._set_scale(100)
 	await process_frame
-	ok(off_screen().is_empty() and m.ui_play_extra.all(func(b): return b.visible), "back to 100 %: everything back, the play row whole")
+	ok(off_screen().is_empty() and m.ui_play_row.is_visible_in_tree(), "back to 100 %: everything back, the strip whole")
 	print("UI SCALE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

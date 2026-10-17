@@ -89,19 +89,19 @@ func _init() -> void:
 				await idle(2)
 				var off := off_screen()
 				var right: Array = m.ui_top_right.filter(func(b): return (b as Control).is_visible_in_tree())
-				var tools: Array = m.ui_ribbon[t].get_children().filter(func(c): return c is Control)
+				var tools: Array = m.ui_ribbon[t].get_children().filter(func(c): return c is Button)   # round 36: not the group dividers
 				# a tool not shown must be in More, by its label
 				var more: Array = []
 				if m.ui_more.is_visible_in_tree():
 					for i in m.ui_more.get_popup().item_count:
 						more.append(m.ui_more.get_popup().get_item_text(i))
-				var hidden := tools.filter(func(c): return not (c as Control).is_visible_in_tree() and not String(c.get("text")) in more).map(func(c): return String(c.get("text")) if c.get("text") != null else String(c.name))
+				var hidden := tools.filter(func(c): return not (c as Control).is_visible_in_tree() and not m.label_of(c) in more).map(func(c): return m.label_of(c))
 				n_more += more.size()
 				var over := []
 				for tl in tools:
 					for rb in right:
 						if (tl as Control).is_visible_in_tree() and (tl as Control).get_global_rect().intersects((rb as Control).get_global_rect()):
-							over.append([String(tl.get("text")), rb.text])
+							over.append([m.label_of(tl), m.label_of(rb)])
 				tools_n += tools.size()
 				if not off.is_empty() or not over.is_empty() or not hidden.is_empty() or right.size() != m.ui_top_right.size():
 					bad.append([t, off, over, hidden, right.size()])
@@ -109,15 +109,16 @@ func _init() -> void:
 			ok(bad.is_empty(), "%d x %d at %d %% (the UI %s): every tab (%d tools in all) on screen or in More (%d), none under the %d always-there buttons, nothing off the window (bad: %s)" % [size.x, size.y, sc, m.get_viewport().get_visible_rect().size, tools_n, n_more, m.ui_top_right.size(), bad])
 		m._set_scale(100)
 		await idle(4)
-	# compact, and More: at 1280 x 720 the labels lose their "(key)", the key kept in the tooltip; then four tools a test
-	# adds to ANIMATE overflow into More, which lists them, last first kept in order, and picking one runs it
+	# round 36: the tools are icons, so 1280 x 720 needs no compacting (the name and key stay in the label and the
+	# tooltip); four tools a test adds to ANIMATE still overflow into More, which lists them, and picking one runs it
 	m.get_window().size = Vector2i(1280, 720)
 	await idle(8)
 	await click(m.ui_ribbon_tabs["ANIMATE"])
-	var trail: Button = m.ui_ribbon["ANIMATE"].get_children().filter(func(b): return String(b.get("text")).begins_with("Trail"))[0]
-	ok(trail.text == "Trail" and "Trail (T)" in trail.tooltip_text, "11 compact at 1280: the label '%s', its key in the tooltip ('%s')" % [trail.text, trail.tooltip_text.left(40)])
+	var trail: Button = m.ui_ribbon["ANIMATE"].get_children().filter(func(b): return m.label_of(b).begins_with("Trail"))[0]
+	ok(trail.text == "" and m.label_of(trail) == "Trail (T)" and trail.tooltip_text.begins_with("Trail (T)") and not m.ui_more.visible,
+		"11 at 1280: an icon, its name and key in the label and the tooltip ('%s'), no More" % trail.tooltip_text.left(40))
 	var ran := []
-	for i in 4:
+	for i in 12:   # round 36: icons leave room, so it takes more than four to overflow
 		var b := Button.new()
 		b.text = "Extra tool %d" % (i + 1)
 		b.pressed.connect(func(): ran.append(i + 1))
@@ -128,17 +129,18 @@ func _init() -> void:
 	for i in m.ui_more.get_popup().item_count:
 		items.append(m.ui_more.get_popup().get_item_text(i))
 	var off := off_screen()
-	m._more_pick(items.find("Extra tool 3"))
+	var pick: String = items[1] if items.size() > 1 else "none"   # round 36: icons leave room, the overflow starts later
+	m._more_pick(items.find(pick))
 	await idle(2)
-	ok(m.ui_more.is_visible_in_tree() and "Extra tool 4" in items and "Extra tool 3" in items and items.size() >= 2 and off.is_empty() and ran == [3],
-		"12 four more tools on ANIMATE: More shows (%s), nothing off the window, picking 'Extra tool 3' ran it (%s)" % [items, ran])
-	for b in m.ui_ribbon["ANIMATE"].get_children().filter(func(b): return String(b.get("text")).begins_with("Extra tool")):
+	ok(m.ui_more.is_visible_in_tree() and "Extra tool 12" in items and items.size() >= 2 and off.is_empty() and ran == [int(pick.get_slice(" ", 2))],
+		"12 twelve more tools on ANIMATE: More shows (%s), nothing off the window, picking '%s' ran it (%s)" % [items, pick, ran])
+	for b in m.ui_ribbon["ANIMATE"].get_children().filter(func(b): return m.label_of(b).begins_with("Extra tool")):
 		b.free()
 	m.get_window().size = Vector2i(1600, 900)
 	await idle(8)
 	m._fit_top()
 	await idle(2)
-	ok(trail.text == "Trail (T)" and not m.ui_more.visible, "13 back at 1600 x 900: the full labels ('%s'), no More" % trail.text)
+	ok(m.label_of(trail) == "Trail (T)" and not m.ui_more.visible, "13 back at 1600 x 900: the label '%s', no More" % m.label_of(trail))
 	print("     screenshots: " + shots)
 	print("SMALL WINDOW: %d failed" % fails)
 	quit(1 if fails > 0 else 0)

@@ -32,6 +32,9 @@ func layout() -> Dictionary:
 		var c: Control = named[k]
 		# a hidden panel: only that it is hidden (its rect is not on screen, and Godot does not lay it out)
 		out[k] = ([true, c.get_global_rect()] if c.is_visible_in_tree() else [false]) if c != null else null
+		if c != null and c == m.ui_side_of.get("left") and c.is_visible_in_tree():   # round 36 (RR6): the browser is as
+			var r := c.get_global_rect()                                           # tall as its rows (a weapon out adds
+			out[k] = [true, r.position, r.size.x]                                  # two): its place and width, not its height
 	out["camera"] = [snappedf(m.cam.v_offset, 1e-5), snappedf(m.cam.h_offset, 1e-5)]
 	return out
 
@@ -47,7 +50,7 @@ func visit(state: String, what: String) -> void:
 	for k in now:
 		if var_to_str(now[k]) != var_to_str(first[state][k]):
 			diff.append([k, first[state][k], now[k]])
-	ok(diff.is_empty(), "%s again: %s - every panel's rect and the camera's centring as the first time (differ: %s)" % [state, what, diff])
+	ok(diff.is_empty(), "%s again: %s - every panel's rect and the camera's centring as the first time (differ: %s; weapon out %s)" % [state, what, diff, m.B.wep_on])
 
 
 func click(n: Control) -> void:

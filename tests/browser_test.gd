@@ -51,9 +51,11 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 	br = m.ui_browser
-	var tabs: TabContainer = br.get_parent()
-	ok(tabs.current_tab == 0 and tabs.get_tab_title(0) == "Poses" and m.ui_poses.is_visible_in_tree(), "the Poses tab is first and open (the left panel as it was)")
-	tabs.current_tab = 1
+	br.open_all()   # round 36 (RR6): Scene and the body's groups start folded; open them as a user would
+	await process_frame
+	await process_frame
+	# round 36 (RR3): the round-7 tabs are gone; the tree is the left panel and its Poses rows are the pose list
+	ok(br.is_visible_in_tree() and br._mine != null and br._lib.get_child_count() + br._mine.get_child_count() == m.ui_poses.item_count, "the tree shows, its Poses rows are the pose list (%d)" % m.ui_poses.item_count)
 	await process_frame
 	var missing := Body.ORDER.filter(func(j): return not br.rows.has(j))
 	ok(missing.is_empty() and br.rows.size() == Body.ORDER.size() + 1, "every joint has a row: %d rows (%d joints + the weapon handle), missing %s" % [br.rows.size(), Body.ORDER.size(), str(missing)])

@@ -46,6 +46,23 @@ func audit(state: String) -> void:
 				done[c.get_instance_id()] = true
 				shown.append(c)
 	m._ribbon("POSE")
+	# round 36: the gear's box (Smooth, tween, ease) and the inspector's folded sections are closed boxes, the same way
+	# a tab not open is: open each, take what it shows, close it again
+	var was_open := {}
+	for k in m.ui_secs:
+		was_open[k] = m.ui_secs[k][1].visible if m.ui_secs[k] is Array else false
+	if not m.ui_gear.visible:
+		m._gear_open()
+	for k in m.ui_secs:
+		m._sec_open(k, true)
+	await idle(1)
+	for c in m.ui_root.find_children("*", "Control", true, false):
+		if (c as Control).is_visible_in_tree() and not done.has(c.get_instance_id()):
+			done[c.get_instance_id()] = true
+			shown.append(c)
+	m._gear_open()
+	for k in m.ui_secs:
+		m._sec_open(k, was_open[k])
 	for c in shown:
 		var cc := c as Control
 		var off: bool = (cc.get("disabled") == true) or (cc.get("editable") == false and (cc is LineEdit or cc is SpinBox or cc is TextEdit))

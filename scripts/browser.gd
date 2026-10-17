@@ -22,6 +22,10 @@ var _quiet := false
 var folders := []   # [the folder row, its parts]: a limb's eye and lock act on all of them (KK1)
 var _lit: TreeItem   # the row lit because the view's mouse is on its part (KK2)
 var _hover_mine := false   # the hover came from the mouse on a row here
+var _poses_root: TreeItem   # RR3: Poses > Library / Mine, rows from main's pose list
+var _lib: TreeItem
+var _mine: TreeItem
+var _dummy: TreeItem
 var _pending := false   # a clip-row rebuild is queued for the next frame   # true while the tree follows the view (a selection made here must not loop back)
 
 
@@ -29,8 +33,12 @@ func _ready() -> void:
 	hide_root = true
 	focus_mode = Control.FOCUS_NONE
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_theme_font_size_override("font_size", 15)
+	add_theme_font_size_override("font_size", 13)   # RR3: rows of 22 px (Fusion's browser), was 15
+	add_theme_constant_override("v_separation", 2)
+	add_theme_constant_override("item_margin", 12)
+	add_theme_constant_override("draw_guides", 0)
 	item_selected.connect(_chosen)
+	item_collapsed.connect(func(_it): m._browser_fit.call_deferred())   # RR6: a folder opened or closed: the box follows
 	gui_input.connect(_motion)
 	mouse_exited.connect(_left)
 	build()
@@ -70,9 +78,14 @@ func build() -> void:
 	folders = []
 	_lit = null
 	var root := create_item()
+	_scene_root = _folder(root, "Scene", true)   # RR6: folded (the clips are on the strip below); a row = a click away
+	_poses_root = _folder(root, "Poses")
+	_poses_root.set_metadata(0, {"menu": "poses"})
+	_lib = _folder(_poses_root, "Library", true)
+	_mine = _folder(_poses_root, "Mine")
 	var body := _folder(root, "Body")
 	for g in GROUPS:
-		var gi := _folder(body, g[0])
+		var gi := _folder(body, g[0], true)   # RR6: folded; picking a part unfolds its group (_refresh_now)
 		var all: Array = g[1].duplicate()
 		for j in g[1]:
 			_part(gi, j)
@@ -94,7 +107,9 @@ func build() -> void:
 		_folder_buttons(gi, all)
 	_wep = _folder(root, "Weapon")
 	_part(_wep, "bat_handle", "handle (drag it to swing the weapon)")
-	_scene_root = _folder(root, "Scene")
+	_dummy = _folder(root, "Target dummy")
+	_dummy.set_metadata(0, {"menu": "dummy"})
+	_dummy.set_tooltip_text(0, "right-click: on / off, closer, farther, solid")
 	refresh()
 
 
@@ -107,8 +122,39 @@ func refresh() -> void:
 		_refresh_now.call_deferred()
 
 
+## every folder open but the finger folders and Library (as the tree was before RR6 folded Scene and the groups): a
+## test that clicks deep rows opens the tree first, as a user opens a folder
+func open_all() -> void:
+	var it := get_root().get_first_child() if get_root() != null else null
+	while it != null:
+		if it.get_text(0) != "fingers" and not it.get_text(0).begins_with("Library") and it.get_parent() != null and it.get_parent().get_text(0) != "fingers":
+			it.collapsed = false
+		it = it.get_next_in_tree()
+	m._browser_fit.call_deferred()
+
+
+## RR6: the height the rows need (the box fits them, as Fusion's browser does): the shown rows (a folded folder's
+## children are not shown) times a row's height, plus the tree's own margins
+func content_h() -> float:
+	var last: TreeItem = null
+	var n := 0
+	var it := get_root().get_first_child() if get_root() != null else null
+	while it != null:
+		if it.visible:
+			last = it
+			n += 1
+		it = it.get_next_visible(false)
+	var sb := get_theme_stylebox("panel")
+	var pad := 6.0 + (sb.get_margin(SIDE_TOP) + sb.get_margin(SIDE_BOTTOM) if sb != null else 0.0)
+	var r := get_item_area_rect(last) if last != null else Rect2()
+	if r.size.y > 0.0:   # laid out: the last shown row's bottom, unscrolled
+		return r.end.y + get_scroll().y + pad
+	return n * 24.0 + pad   # not laid out yet (the first frame): a row's height, generously
+
+
 func _refresh_now() -> void:
 	_pending = false
+	m._browser_fit.call_deferred()
 	if m == null or _scene_root == null:
 		return
 	for c in _scene_root.get_children():
@@ -118,6 +164,21 @@ func _refresh_now() -> void:
 		var it := create_item(_scene_root)
 		it.set_text(0, "%d  %s" % [i + 1, m.S.cards[i]["name"]])
 		it.set_metadata(0, {"card": i})
+	# the poses (RR3): Library (the starter and library poses), Mine (the ones you saved)
+	for f in [_lib, _mine]:
+		for c in f.get_children():
+			c.free()
+	if m.ui_poses != null:
+		for i in m.ui_poses.item_count:
+			var t: String = m.ui_poses.get_item_text(i)
+			var it := create_item(_mine if t.ends_with("(yours)") else _lib)
+			it.set_text(0, t.get_slice("   ", 0))
+			it.set_tooltip_text(0, "click: the body takes this pose; right-click: CLIP / Rename / Delete")
+			it.set_metadata(0, {"pose": i})
+	_lib.set_text(0, "Library  (%d)" % _lib.get_child_count())
+	_mine.set_text(0, "Mine  (%d)" % _mine.get_child_count())
+	if m.ui_dummy != null:
+		_dummy.set_text(0, "Target dummy: " + (m.ui_dummy.text.get_slice("\n", 0) if m.dummy_on else "off"))
 	follow()
 
 
@@ -230,6 +291,12 @@ func _light(it: TreeItem) -> void:
 
 
 func _motion(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT and (ev as InputEventMouseButton).pressed:
+		var r := get_item_at_position((ev as InputEventMouseButton).position)
+		if r != null and r.get_metadata(0) is Dictionary:
+			accept_event()
+			m._row_menu(r.get_metadata(0), get_screen_transform() * (ev as InputEventMouseButton).position)
+		return
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var at := (ev as InputEventMouseButton).position
 		var id := get_button_id_at_position(at)
@@ -270,3 +337,5 @@ func _chosen() -> void:
 		m._say("%s selected (from the browser).  Drag in the view, or use the sliders on the right" % m.nice(md["part"]))
 	elif md.has("card"):
 		m._timeline_pick(md["card"])
+	elif md.has("pose"):
+		m._pose_apply(md["pose"])

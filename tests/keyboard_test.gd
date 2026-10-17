@@ -73,7 +73,7 @@ func _init() -> void:
 
 	# F6: in
 	await key(KEY_F6)
-	ok(m.kb_nav and short(owner_path()) == "tab_pose", "F6: keyboard mode, the first control has focus (%s)" % short(owner_path()))
+	ok(m.kb_nav and short(owner_path()) == "top_strip/tab_pose", "F6: keyboard mode, the first control has focus (%s)" % short(owner_path()))
 
 	# Tab round the whole window
 	var seen := [short(owner_path())]

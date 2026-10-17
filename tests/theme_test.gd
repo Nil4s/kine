@@ -115,7 +115,8 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 	ok(Tok.dark and m.settings != "user://poser.cfg", "under a test: boots dark and saves to its own file (%s)" % m.settings)
-	var lbl: Label = m.ui_title.get_parent().get_child(0)   # "2 SELECTED PART": a heading label
+	# a heading label (round 36: the inspector's "2 SELECTED PART" heading is gone; the left panel's "1  POSES")
+	var lbl: Label = m.ui_tinted.filter(func(pr): return pr[1] == "heading" and pr[0] != m.ui_title and is_instance_valid(pr[0]))[0][0]
 	var heading0 := lbl.get_theme_color("font_color")
 	var btn0: Color = (m.ui_root.theme.get_stylebox("normal", "Button") as StyleBoxFlat).bg_color
 	var u0: int = m.undo.size()
@@ -123,7 +124,7 @@ func _init() -> void:
 	await process_frame
 	var light_btn: Button = null
 	for b in m.ui_ribbon["VIEW"].get_children():
-		if b is Button and b.text == "Light":
+		if b is Button and m.label_of(b) == "Light":
 			light_btn = b
 	ok(light_btn != null and light_btn.is_visible_in_tree(), "VIEW tab has a 'Light' button on screen")
 	var p := light_btn.get_global_rect().get_center()

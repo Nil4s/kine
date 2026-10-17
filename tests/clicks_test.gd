@@ -15,7 +15,7 @@ const BEFORE := {"open a scene (combo3)": 3, "slow one card down": 2, "raise the
 	"undo": 1, "save under a new name": 4}
 ## the count each task may take now: one more is a regression and FAILS
 const BUDGET := {"open a scene (combo3)": 2, "slow one card down": 2, "raise the right arm": 1, "mirror the pose": 1,
-	"add the pose as a card": 1, "name a card": 3, "put the bat in the right hand": 1, "check, apply a fix": 2,
+	"add the pose as a card": 1, "name a card": 3, "put the bat in the right hand": 1, "check, apply a fix": 3,
 	"undo": 1, "save under a new name": 3}
 ## why a task is not cut further
 const WHY := {"open a scene (combo3)": "cut: picking it opens it (it asks first when the open scene has unsaved changes). 2 = open the list + pick.",
@@ -24,7 +24,7 @@ const WHY := {"open a scene (combo3)": "cut: picking it opens it (it asks first 
 	"mirror the pose": "already one key.", "add the pose as a card": "already one key.",
 	"name a card": "cut from impossible: double-click the title, type, Enter (Esc or clicking away keeps the old name).",
 	"put the bat in the right hand": "cut: B now moves the bat into the right hand whichever hand held it (it took it off before); the button was 2 scrolls down.",
-	"check, apply a fix": "cut: each Fix sits right under its finding (its why line after it), so the next fix is in view when the first is refused. 2 = Check + the fix you choose.",
+	"check, apply a fix": "cut: each Fix sits right under its finding (its why line after it), so the next fix is in view when the first is refused. Round 36 (RR4, Nick's Fusion layout): Check left the play strip for the ribbon's CHECK tab, so 3 = the tab + Check + the fix (round 15 had 2; a key for Check would win it back).",
 	"undo": "already one key.",
 	"save under a new name": "cut: Enter in the name box saves. A new name has to be typed; re-saving under the same name is Ctrl+Shift+S, 1 key."}
 
@@ -231,7 +231,10 @@ func _init() -> void:
 
 	# 8 check the motion and apply the first fix
 	n = 0
-	if await click("play_row/b_check"):
+	# round 36 (RR4): Check left the play row for the ribbon's CHECK tab: one click more (the tab), budget 2 -> 3
+	if await click("top_strip/tab_check"):
+		n += 1
+	if await click("ribbon_check/b_check"):
 		n += 1
 	await idle()
 	var before := JSON.stringify(m.S.cards)
@@ -245,7 +248,7 @@ func _init() -> void:
 				await process_frame
 		if JSON.stringify(m.S.cards) != before:
 			break
-		await click("play_row/b_check")
+		await click("ribbon_check/b_check")
 	n += 1
 	await task("check, apply a fix", "Check, a fix's button" + ("" if tried <= 1 else " (%d were refused first: not counted)" % (tried - 1)), n, m.check_ran and JSON.stringify(m.S.cards) != before)
 

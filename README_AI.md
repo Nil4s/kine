@@ -322,6 +322,28 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - docs/EXPORT.md: per-engine guide (UE5, Unity, Godot, Blender) + NOT TESTED list. tests: glb_export, bvh_export,
   engine_names.
 
+## Round 36: Fusion-style layout (GATES RR; Nick 10-17: "still far from minimalist or organized as fusion 360")
+- Rule of the round: nothing removed, only moved; long words go to tooltips. `label_of(b)` = meta "label" or text;
+  `_icon_only(b, icon, sz)` keeps the label (tooltip leads with it); `_short(b, words)`; tests find buttons by
+  `label_of`, never by `.text`.
+- Inspector (RR2): `ui_insp` box at the top right, height `_insp_fit()` (content, capped); header = title (how-to in
+  its tooltip), lock, x. One row per angle (`_row_slider`), one action row, folded `_section()`s (`ui_secs`,
+  `_sec_open`). Right panel type sizes: PROP_BIG 15 (title) / PROP_TXT 13 only.
+- Browser (RR3): the left panel is ONE tree (scripts/browser.gd): Scene, Poses (Library / Mine), Body, Weapon,
+  Target dummy. Right-click a row -> `_row_menu` (PopupMenu `browser_menu`). `ui_poses` (hidden ItemList) is still
+  the pose model; names via `pose_name_dialog`. RR6: Scene and the body's groups start folded (a pick unfolds its
+  group); the box fits its rows (`content_h()`, `_browser_fit()`); tests that click deep rows call `open_all()`.
+- Bottom (RR4): one strip (`play_row`): First / Prev / Play / Next / Last, track, time, speed, Loop, Natural, gear
+  (`ui_gear` PanelContainer `play_options`: Smooth, tween, ease; a PopupPanel never got pushed clicks), Clips.
+  Check / Polish / Fix live in the CHECK ribbon only. BOTTOM_H 256, BOTTOM_FOLDED 48, timeline RULER 12.
+- Status line (RR4/RR5): messages left (13 px grey, amber when "STOPPED"; `_status_look`), readout `ui_bar` (12 px,
+  no box) right-aligned against the camera bar `ui_nav` (6 icons) at the line's right end (`_place_nav`,
+  `_line_fit`; LINE_H 32). Not bottom-centre: it covered the feet (nav_bar_test). `_cam` centres above the line.
+- First start (RR5): WELCOME (yellow box above the line) only until the first pick or message (`_end_teach`,
+  `_taught` -> settings look/taught). Part tag 16 px, hit tag 18.
+- Measured: tests/view_share_test.gd 72.3 % (browser + inspector + strip shown, combo3, 1600 x 900); all open 49.5 %
+  (ceiling 53.8, GATES RR6 amendment). layout_measure --m-taught skips the first-start strip.
+
 ## Round 35a: first start, quiet and roomy (GATES QQ; Nick 10-16: intros "keep blinking", "no option to close or skip", "not like fusion")
 - tools/startup_record.gd: the first 6 s recorded (events per frame + a PNG every 100 ms; --tour, --no-autosave,
   --press recover|discard|esc, --sweep moves the mouse). Own settings/autosave files, never the user's.

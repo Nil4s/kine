@@ -17,8 +17,8 @@ func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await process_frame
-	var btns: Array = m.ui_root.find_children("*", "BaseButton", true, false).filter(func(b): return b is Button and m.ICON_OF.has(b.text))
-	var none: Array = btns.filter(func(b): return b.tooltip_text.strip_edges().length() < 8).map(func(b): return b.text)
+	var btns: Array = m.ui_root.find_children("*", "BaseButton", true, false).filter(func(b): return b is Button and m.ICON_OF.has(m.label_of(b)))
+	var none: Array = btns.filter(func(b): return b.tooltip_text.strip_edges().length() < 8).map(func(b): return m.label_of(b))
 	ok(btns.size() >= m.ICON_OF.size() and none.is_empty(), "%d ribbon / top-bar buttons, every one with a hint (none: %s)" % [btns.size(), none])
 	var plain: String = m.bar_text()
 	await process_frame
@@ -27,12 +27,15 @@ func _init() -> void:
 		b.mouse_entered.emit()
 		await process_frame
 		var shown: String = m.ui_bar.text
-		if not (shown.begins_with(b.text) and shown.contains(b.tooltip_text)):
-			bad.append(b.text)
+		# round 36: an icon button's tooltip LEADS with its label (`_icon_only`); the bar says the label once, then the hint
+		var hint: String = b.tooltip_text.trim_prefix(m.label_of(b) + "
+").trim_prefix(m.label_of(b))
+		if not (shown.begins_with(m.label_of(b)) and shown.contains(hint) and hint.length() >= 8):
+			bad.append(m.label_of(b))
 		b.mouse_exited.emit()
 		await process_frame
 		if m.ui_bar.text != plain:
-			bad.append(b.text + " (stuck)")
+			bad.append(m.label_of(b) + " (stuck)")
 	ok(bad.is_empty(), "hover each: the bar shows '<button>:  <hint>'; leave: the normal bar is back (bad: %s)" % [bad])
 	btns[0].mouse_entered.emit()
 	await process_frame

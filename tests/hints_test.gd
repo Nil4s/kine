@@ -41,14 +41,17 @@ func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(6)
-	var texts: Array = m.ui_hint_labels + [m.ui_how, m.ui_status]
-	ok(texts.size() == 4 and texts.all(shown) and m.ui_status.text == m.WELCOME, "at the start all 4 teaching texts show (%s)" % [texts.map(shown)])
+	# round 36: the part's how-to line left the inspector for its title's tooltip (RR2), the pose list's "Click a pose"
+	# line left with the list (RR3: the pose rows' tooltip says it): 2 teaching texts on screen
+	var texts: Array = m.ui_hint_labels + [m.ui_status]
+	ok(texts.size() == 2 and texts.all(shown) and m.ui_status.text == m.WELCOME and not shown(m.ui_how) and m.ui_title.tooltip_text != "",
+		"at the start all 2 teaching texts show (%s); the how-to is the title's tooltip ('%s')" % [texts.map(shown), m.ui_title.tooltip_text.left(30)])
 	var x: Button = m.ui_status.find_child("hints_close", true, false)
 	ok(x != null and x.is_visible_in_tree() and m.get_viewport().get_visible_rect().encloses(x.get_global_rect()), "the strip has a close (x) on screen")
 	if x != null:
 		await click(x)
 	await idle()
-	ok(not m.hints_on and not texts.any(shown), "a click on the (x): hints off, none of the 4 shows (%s)" % [texts.map(shown)])
+	ok(not m.hints_on and not texts.any(shown), "a click on the (x): hints off, none of the 2 shows (%s)" % [texts.map(shown)])
 	var cf := ConfigFile.new()
 	cf.load(m.settings)
 	ok(cf.get_value("look", "hints", true) == false, "the choice is saved")
@@ -59,7 +62,7 @@ func _init() -> void:
 	m._say("a message about what you did")
 	await idle()
 	ok(shown(m.ui_status), "a message still shows on the strip with hints off")
-	var hb: Array = m.ui_ribbon["VIEW"].find_children("*", "Button", true, false).filter(func(b): return b.text == "Hints")
+	var hb: Array = m.ui_ribbon["VIEW"].find_children("*", "Button", true, false).filter(func(b): return m.label_of(b) == "Hints")
 	ok(hb.size() == 1, "VIEW has a Hints button")
 	if hb.size() == 1:
 		(m.ui_ribbon["VIEW"].get_parent() as Control).visible = true
@@ -68,7 +71,7 @@ func _init() -> void:
 		await click(hb[0])
 	await idle()
 	cf.load(m.settings)
-	ok(m.hints_on and (m.ui_hint_labels + [m.ui_how]).all(shown) and cf.get_value("look", "hints", false) == true, "VIEW > Hints: back on, saved")
+	ok(m.hints_on and m.ui_hint_labels.all(shown) and not shown(m.ui_how) and cf.get_value("look", "hints", false) == true, "VIEW > Hints: back on, saved")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("HINTS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

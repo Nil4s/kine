@@ -1,5 +1,6 @@
 ## godot --path . -s tools/layout_measure.gd -- [--m-size 1600x900] [--m-scene res://scenes/combo3.json] [--m-fold l,r,b]
-##        [--m-shot C:/Temp/qq4/x.png]  (own flag names: main.gd reads --scene and --shot itself)     (GATES QQ4)
+##        [--m-shot C:/Temp/qq4/x.png] [--m-taught]  (own flag names: main.gd reads --scene and --shot itself)     (GATES QQ4)
+## --m-taught (round 36, RR6): not a first start (the yellow welcome strip, first start only, is gone)
 ## ROOM TO WORK, MEASURED: the window at --size (100 % UI), the app as it starts (an empty scene) or with --scene open,
 ## with the panels named in --fold folded (l = left, r = right, b = bottom; needs round 35a). Every visible piece of
 ## chrome straight under the UI root (the ribbon, the side panels or their rails, the bottom panel, the say strip, the
@@ -34,6 +35,8 @@ func _init() -> void:
 		else:
 			for k in fo.split(","):
 				m._fold({"l": "left", "r": "right", "b": "bottom"}[k], true, false)
+	if OS.get_cmdline_user_args().has("--m-taught") and m.has_method("_end_teach"):
+		m._end_teach()
 	for i in 6:
 		await process_frame
 	var vs: Vector2 = root.get_visible_rect().size

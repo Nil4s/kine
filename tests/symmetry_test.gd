@@ -125,7 +125,7 @@ func _init() -> void:
 	var legs := ["thigh_l", "calf_l", "foot_l", "thigh_r", "calf_r", "foot_r"]
 	var legs0 := ang()
 
-	var b: Button = m.ui_ribbon["POSE"].get_children().filter(func(x): return x is Button and x.text == "Symmetry")[0]
+	var b: Button = m.ui_ribbon["POSE"].get_children().filter(func(x): return x is Button and m.label_of(x) == "Symmetry")[0]
 	await click(m.ui_ribbon_tabs["POSE"])
 	await click(b)
 	ok(m.symmetry and b.button_pressed and b.icon != null, "1 the Symmetry button (POSE, with its icon) clicked: on and lit")

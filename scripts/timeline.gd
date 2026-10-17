@@ -13,7 +13,7 @@ signal retime_started
 signal retimed(final: bool)
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 
-const RULER := 16.0      # px: the seconds ruler on top
+const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
 const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
 const SNAP := 0.05
