@@ -691,6 +691,7 @@ func clone() -> Scene:
 ## Mirror needs only the hands swapped. After the drop the prop FALLS: y(t) = y0 - G t^2 / 2 onto the top or floor
 ## under it (at t = sqrt(2 h / G)), keeping only its turn about the vertical; then it stays there.
 const G := 9.81
+const THROW_DT := 1.0 / 60.0   # WW8: the hand's velocity at the let-go is the held prop's drift over this long before it
 const RELEASE := 0.1   # s after letting go the holding hands are still not "through" it: it falls 4.9 cm, clear of a grip
 
 
@@ -769,6 +770,9 @@ func _carry_data(B: Body) -> Array:
 		var d := {"grip": grip, "home": home, "ta": ta, "tb": INF}
 		if int(c["b"]) >= 0:
 			var tb: float = ts[c["b"]][1]
+			var tp := maxf(ta, tb - THROW_DT)   # the held prop one frame before the let-go (WW8: its velocity)
+			apply(B, tp)
+			var before := hand_frame(B, c["hands"]) * grip
 			apply(B, tb)
 			var rel := hand_frame(B, c["hands"]) * grip
 			var fx := rel.basis * Vector3(1, 0, 0)
@@ -787,6 +791,16 @@ func _carry_data(B: Body) -> Array:
 			var lx := drop
 			lx.origin.y = land
 			rest[pi] = lx
+			# WW8 THROWN: a moving hand lets go with its velocity (and its turn about Y); a still one changes nothing
+			var v0 := (rel.origin - before.origin) / (tb - tp) if tb > tp else Vector3.ZERO
+			var bx := before.basis * Vector3(1, 0, 0)
+			var w0 := rad_to_deg(angle_difference(atan2(-bx.z, bx.x), atan2(-fx.z, fx.x))) / (tb - tp) if tb > tp else 0.0
+			if v0.length() > 1e-4 or absf(w0) > 1e-3:
+				var tr := Throw.trajectory(drop.origin, v0, floor_of, float(props[pi].get("e", Throw.E)))
+				d["tr"] = tr
+				d["w"] = w0
+				lx.origin = tr["rest"]
+				rest[pi] = lx
 		out.append(d)
 	B.set_state(st)
 	B.props = bp
@@ -814,6 +828,11 @@ func props_at(t: float, B: Body) -> Array:
 		else:
 			var xf: Transform3D = d["drop"]
 			var dt := t - float(d["tb"])
+			if d.has("tr"):
+				xf.origin = Throw.pos_at(d["tr"], dt)
+				xf.basis = Basis(Vector3.UP, deg_to_rad(float(d["w"]) * minf(dt, float(d["tr"]["t_rest"])))) * xf.basis
+				out[pi] = {"kind": props[pi]["kind"], "xf": xf}
+				continue
 			xf.origin.y = maxf(float(d["land"]), xf.origin.y - G * dt * dt / 2.0)
 			out[pi] = {"kind": props[pi]["kind"], "xf": xf}
 	return out
