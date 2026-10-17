@@ -4976,7 +4976,7 @@ func _marker_add() -> void:
 func _marker_delete() -> void:
 	var i := Markers.near(S.markers, playhead, 1.0 / float(S.fps))
 	if i < 0:
-		_say("no marker within one frame of the playhead: Ctrl+] / Ctrl+[ jump to one")
+		_say("no marker within one frame of the playhead: press Ctrl+] / Ctrl+[ to move onto one")
 		return
 	_push_undo()
 	var gone: Dictionary = S.markers[i]
@@ -4988,7 +4988,7 @@ func _marker_delete() -> void:
 func _marker_jump(fwd: bool) -> void:
 	var t := Markers.next_t(S.markers, playhead) if fwd else Markers.prev_t(S.markers, playhead)
 	if t < 0.0:
-		_say("no marker %s the playhead" % ("after" if fwd else "before"))
+		_say("no marker %s the playhead: press Ctrl+%s for the other way, or add one with Add marker" % (["after", "["] if fwd else ["before", "]"]))
 		return
 	playhead = t
 	_ps().apply(B, minf(playhead, _ps().length()))
@@ -5538,7 +5538,7 @@ func _polish() -> void:
 func _inbetween(op: String) -> void:
 	var why := Inbetween.refuse(S, sel_card, op)
 	if why != "":
-		_say("%s: %s" % [op, why])
+		_say("%s: %s. Pick a middle card (one with a card before and after it)" % [op, why])
 		return
 	_push_undo()
 	var js := Inbetween.joints_for(B, group())
@@ -5722,7 +5722,7 @@ func _fps_next() -> void:
 
 func _set_fps(f: int) -> void:
 	if f == S.fps:
-		_say("already at %d fps" % f)
+		_say("already at %d fps: run Frame rate: next to choose another" % f)
 		return
 	_push_undo()
 	S.fps = f
@@ -6657,11 +6657,16 @@ func _import_bvh(path: String) -> void:
 	var bv := BvhImport.load_file(path)
 	var r := BvhImport.to_scene(bv, B, 1, 1.0, safe_file(path.get_file().get_basename())) if bv["ok"] else bv
 	if not r["ok"]:
-		_say("could not import %s: %s" % [path.get_file(), r["why"]])
+		_say("could not import %s: %s. Try another .bvh, or export it again from Blender" % [path.get_file(), r["why"]])
 		return
 	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
 	d["plan"] = "BVH import of %s: %s" % [path.get_file(), r["text"]]
-	var out := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"]))
+	var base := safe_file(String(d["scene"]))
+	var out := "res://scenes/_wip/%s.json" % base
+	var n := 2
+	while FileAccess.file_exists(out):   # never over an earlier import: walk_2, walk_3 ...
+		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		n += 1
 	_write(out, d)
 	_load_scene(out)
 	_rebuild_cards()

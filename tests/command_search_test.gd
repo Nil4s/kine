@@ -69,8 +69,9 @@ func _init() -> void:
 	key(KEY_DOWN)
 	key(KEY_ENTER)
 	await process_frame
-	ok(names().slice(0, 6) == ["Front view", "His right view", "Top view", "Back view", "His left view", "Big view (hide the panels)"] and names().size() == 7 and names()[6] == "Stepped preview on/off",
-		"'view': the 5 views, Big view, then Stepped preVIEW last (inside a word ranks lower): %s" % str(names()))
+	ok(names().slice(0, 6) == ["Front view", "His right view", "Top view", "Back view", "His left view", "Big view (hide the panels)"] and names().size() >= 7 and names().has("Stepped preview on/off")
+		and names().slice(6).all(func(n): return n.to_lower().contains("preview")),
+		"'view': the 5 views, Big view, then the preVIEWs (inside a word ranks lower): %s" % str(names()))
 	ok(third == "Top view" and is_equal_approx(m.pitch, -89.0), "'view', Down, Down, Enter: '%s' ran (pitch %.0f)" % [third, m.pitch])
 	key(KEY_S)
 	await process_frame

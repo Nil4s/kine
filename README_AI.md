@@ -469,3 +469,27 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   panel's right margin from `ui_tb.get_parent() as PanelContainer`, but since round 36 that parent is a VBox, so the
   cast was null and the margin 0: the bar could run up to 10 px off the window. It now walks up to the nearest
   PanelContainer. The test now prints WHAT is off the window (it failed naming nothing).
+
+## Round 41: ten agents in parallel worktrees (GATES WW; UPGRADES_300 sections M-V first items)
+- Built in .claude/worktrees/<key> on branches r41-<key>, merged --no-ff by the lead; .claude/.gdignore keeps Godot
+  out of them. Lessons: an agent must never taskkill every Godot (one did; the others' runs died); a test must not open
+  scenes/bo_sweep.json (deleted in Nick's working copy); after a merge that adds a class_name run --import first.
+- WW1 PART KEYS (scripts/part_keys.gd): K keys the picked joint at the playhead; that joint follows its own monotone
+  PCHIP curve over the cards' blend, ends held. S.part_keys saved only when used, mirrored to the twin, in undo ("pk").
+- WW2 CURVES (scripts/curves.gd): UI-free Euler unwrap, Gaussian, zero-phase Butterworth, Decimate, Clean over
+  [t, value] tracks; each returns {track, report}. Curves.sample_scene_channel(S, B, joint, fps).
+- WW3 INBETWEEN (scripts/inbetween.gd): breakdowner push / relax toward the neighbouring cards.
+- WW4 FRAMES: click the time readout for frames; "Frame rate: next" steps 24/30/60 keeping card seconds (fps in undo);
+  Shift/Alt+click on the ruler set a preview range that Play and Loop stay inside. View only, never saved.
+- WW5 MARKERS (scripts/markers.gd): named cues on the ruler, Ctrl+] / Ctrl+[ jump, remapped by retime, saved only when
+  used, exported as game "events" {t_frac, name, kind}. No rename/kind UI yet (always "note").
+- WW6 PLAYBLAST: --playblast out.avi [--fps N] [--burn] writes an MJPEG AVI with a burn-in box; --record shares _record.
+- WW7 BVH IMPORT (scripts/bvh_import.gd): round trip 0.00004 deg; drop a .bvh to open it. Carries its own atan2
+  decompose because Body.decompose loses swings under ~0.05 deg (acos of a float32 w) - not fixed there yet.
+- WW8 THROW (scripts/throw.gd): a prop let go by a moving hand flies with the hand's 1/60 s velocity, bounces e = 0.3
+  (UNVERIFIED, mine), stops under a 2 cm rebound. A still hand keeps round 39's fall.
+- WW9 PEOPLE + LIFT FORM: docs/PEOPLE.md holds every real-human number the rules use with its link; LIFT FORM warns a
+  held stoop (hands below the knees, trunk > 60, knee < 30; Storari 2025, Shu 2007).
+- WW10 JUMP PHYSICS: the CoM, not the pelvis, rides the parabola; Rulebook.land_bar(h).
+- Open: Scene.loop not in undo; schema scene properties lack loop/props; carry memo ignores card poses; pelvis twist
+  in part keys not wrapped the short way; .cs export ignores events.

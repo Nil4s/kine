@@ -16,6 +16,7 @@ const ALLOW := {
 		["Color(1, 1, 1, 0.9 if sel else 0.6)", "the arrival tick ON a coloured block"],
 		["Color(0, 0, 0, 0.6), 1.0)", "the hold's end ON a coloured block"],
 		["Color(0, 0, 0, 0.8))", "the name's shadow ON a coloured block"],
+		["size.y), Color(0, 0, 0, 0.45))", "the preview range (WW4): a see-through scrim that darkens whatever is outside the range, in both themes"],
 		["Color(0.05, 0.05, 0.07) if sel else Color(1, 1, 1, 0.95)", "the name ON a coloured block"],
 		["12, Color(1, 1, 1, 0.9))", "a number ON a coloured block"],
 		["11, Color(1, 1, 1, 0.9))", "a narrow block's number ON the coloured block"],
