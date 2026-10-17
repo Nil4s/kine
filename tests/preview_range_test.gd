@@ -50,7 +50,7 @@ func _init() -> void:
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
 	tl = m.ui_timeline
-	m._load_scene("res://scenes/bo_sweep.json")
+	m._load_scene("res://scenes/combo3.json")   # not bo_sweep: deleted from the working copy
 	m._rebuild_cards()
 	m._refresh()
 	await idle(3)
