@@ -347,6 +347,9 @@ var ui_timeline: Timeline
 ## Each move reaches for THIS point; before, it reached for "where the hand is + this move", so whatever the limb
 ## could not follow (end of reach, the body in the way) was lost: mouse back where it grabbed, the left hand ended
 ## 516 mm away, a foot 673 (tests/hand_drag_test.gd). NAN = not set (a new drag sets it on its first move)
+var pv_in := -1.0    # WW4 PREVIEW RANGE: in / out seconds, -1 = not set. A view setting: never saved, never an undo step
+var pv_out := -1.0
+var frames_view := false   # WW4: the time readout in frames ("44 / 103 f") instead of seconds; a view setting
 var _grab := Vector3(NAN, NAN, NAN)   # the scene as one strip: drag edges to retime, click a block to pick it (scripts/timeline.gd)    # "Animator tools": the round-5 tools in one menu (the bottom row is full)
 var _sm := {}   # the sample the last Check took of S (a Fix re-uses it instead of re-playing the scene)
 var _fixing := false
@@ -1279,9 +1282,10 @@ func _process(dt: float) -> void:
 			ui_bar.text = bt
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
 	if playing and not S.cards.is_empty():
-		playhead += dt
-		if playhead > _ps().length():
-			playhead = 0.0
+		var stp := PreviewRange.tick(playhead, dt, _ps().length(), pv_in, pv_out, S.loop)   # WW4: inside the preview range, if one is set
+		playhead = stp["t"]
+		if stp["stop"]:
+			playing = false
 		_ps().apply(B, playhead)
 		_refresh()
 
@@ -2223,11 +2227,13 @@ func _big_view() -> void:
 ## an undo step = the body AND the open scene's cards (10-14: a Fix or "+ tween" changes cards, so Ctrl+Z must bring
 ## them back). The cards come back only into the scene they were taken from: opening another scene makes them stale.
 func _snapshot() -> Dictionary:
-	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds,
+	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p))}
 
 
 func _restore(u: Dictionary) -> void:
+	if u["scene"] == S and u.has("fps"):
+		S.fps = int(u["fps"])   # WW4: the frame rate is a scene setting, undone like a card
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
@@ -3846,6 +3852,7 @@ func _ui() -> void:
 		_ps().apply(B, playhead)
 		_refresh())
 	ui_timeline.picked.connect(_timeline_pick)
+	ui_timeline.range_set.connect(func(which: String, t: float): _pv_set(which, t))   # WW4: Shift+click / Alt+click on the ruler
 	ui_timeline.finding_picked.connect(_finding_mark)
 	ui_timeline.retime_started.connect(_push_undo)
 	ui_timeline.retimed.connect(func(final: bool):
@@ -3907,6 +3914,11 @@ func _ui() -> void:
 	ui_time_lbl.custom_minimum_size = Vector2(104, 0)
 	ui_time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ph.add_child(ui_time_lbl)
+	ui_time_lbl.mouse_filter = Control.MOUSE_FILTER_STOP   # WW4: a click on the readout flips seconds <-> frames
+	ui_time_lbl.tooltip_text = "click: show the time in seconds or in frames (at the scene's frame rate)"
+	ui_time_lbl.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			_toggle_frames())
 	ph.add_child(_label("speed", 12, "text:0.5"))
 	ph.add_child(sl)
 	ph.add_child(fa)
@@ -4191,7 +4203,7 @@ func bar_text() -> String:
 		if not sel_more.is_empty():
 			what += "   (+ %d more turn with it)" % sel_more.size()
 	var card := "no cards" if S.cards.is_empty() else ("card %d / %d" % [sel_card + 1, S.cards.size()] if sel_card >= 0 else "%d cards, none picked" % S.cards.size())
-	var t := "%.2f / %.2f s" % [playhead, _ps().length()]
+	var t := PreviewRange.time_text(playhead, _ps().length(), S.fps, frames_view)
 	var fails := findings.filter(func(f): return f["sev"] == "FAIL").size()
 	var chk := "Check: not run" if not check_ran else ("Check: clean" if findings.is_empty() else "Check: %d (%d must fix)" % [findings.size(), fails])
 	if check_ran and undo.size() != check_at:
@@ -4209,7 +4221,7 @@ func _panel() -> void:
 		_panel_part()
 	ui_time.max_value = maxf(_ps().length(), 0.01)
 	ui_time.value = playhead
-	ui_time_lbl.text = "%.2f / %.2f s" % [playhead, _ps().length()]
+	ui_time_lbl.text = PreviewRange.time_text(playhead, _ps().length(), S.fps, frames_view)
 	if ui_ease != null:
 		_grey(ui_ease, "this scene is Smooth (spline): one curve through every card sets the timing; turn Smooth off to ease card by card" if S.spline
 			else ("pick a card first (click one in the scene row): the ease is the move INTO that card" if sel_card < 0
@@ -4840,6 +4852,11 @@ func _commands() -> Array:
 	add.call("Add an in-between card", "", _tween_add, "tween", true, "a new card halfway between the picked card and the next")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
+	add.call("Preview range: start at the playhead", "", _pv_set.bind("in", -1.0), "in point loop section", false, "Play and Loop run only between the in and out points (a view setting: never saved, not an undo step). Also Shift+click on the ruler")
+	add.call("Preview range: end at the playhead", "", _pv_set.bind("out", -1.0), "out point loop section", false, "the out point at the playhead. Also Alt+click on the ruler")
+	add.call("Preview range: clear", "", _pv_set.bind("clear", -1.0), "in out full length", false, "Play and Loop use the whole scene again")
+	add.call("Time readout: seconds or frames", "", _toggle_frames, "timecode f s display", false, "flip the time readout between seconds and frames (a click on the readout does it too); a view setting")
+	add.call("Frame rate: next (24 / 30 / 60)", "", _fps_next, "fps film smooth", true, "the scene's frame rate steps 24, 30, 60 and round; every card keeps its seconds (the text says how many are then off a whole frame)")
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
@@ -5532,6 +5549,51 @@ func _card_move(i: int, d: int) -> void:
 	_refresh()
 
 
+## FRAMES + PREVIEW RANGE (WW4, #262/#263): view settings, see scripts/preview_range.gd
+func _toggle_frames() -> void:
+	frames_view = not frames_view
+	_say("the time shows in %s (click it to flip)" % ("frames, at %d fps" % S.fps if frames_view else "seconds"))
+	_refresh()
+
+
+func _pv_set(which: String, t: float) -> void:
+	if which == "clear":
+		pv_in = -1.0
+		pv_out = -1.0
+		_say("preview range cleared: Play and Loop use the whole scene")
+	else:
+		var at := playhead if t < 0.0 else t
+		if which == "in":
+			pv_in = at
+		else:
+			pv_out = at
+		var sp := PreviewRange.span(pv_in, pv_out, _ps().length())
+		if sp.is_empty():
+			_say("%s point at %.2f s; set the other one after it (the range must be longer than a frame)" % [which, at])
+		else:
+			_say("preview range %.2f to %.2f s: Play and Loop stay inside it (a view setting, not saved)" % [sp[0], sp[1]])
+	_refresh()
+
+
+func _fps_next() -> void:
+	var k: int = PreviewRange.FPS_CHOICES.find(S.fps)
+	_set_fps(PreviewRange.FPS_CHOICES[(k + 1) % PreviewRange.FPS_CHOICES.size()])
+
+
+func _set_fps(f: int) -> void:
+	if f == S.fps:
+		_say("already at %d fps" % f)
+		return
+	_push_undo()
+	S.fps = f
+	var off := PreviewRange.off_grid(S, f)
+	if off == 0:
+		_say("%d fps: every card keeps its seconds, all on whole frames" % f)
+	else:
+		_say("%d fps: every card keeps its seconds; %d card time%s not on a whole frame" % [f, off, " is" if off == 1 else "s are"])
+	_refresh()
+
+
 func _toggle_play() -> void:
 	if S.cards.size() < 2:
 		_say("a scene needs two cards or more to play: press Enter to add the body as a card (two at least), or open a scene in the list below")
@@ -5539,6 +5601,9 @@ func _toggle_play() -> void:
 	playing = not playing
 	if playing and playhead >= _ps().length() - 0.01:
 		playhead = 0.0
+	var sp := PreviewRange.span(pv_in, pv_out, _ps().length())
+	if playing and not sp.is_empty() and (playhead < sp[0] or playhead >= sp[1] - 0.01):
+		playhead = sp[0]   # WW4: Play starts inside the range
 	_refresh()
 
 
