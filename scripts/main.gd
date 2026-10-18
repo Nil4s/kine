@@ -922,6 +922,23 @@ func _export_bvh(dir := "res://exports") -> String:
 	return path
 
 
+## EXPORT .USDA (round 42, GATES XX9): the scene as exports/<scene>.usda (UsdExport): a UsdSkel SkelRoot, Skeleton and
+## SkelAnimation, one time sample per frame. Opens in Blender, Houdini, Maya, usdview, Omniverse.
+func _export_usd(dir := "res://exports") -> String:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	var nm := S.name if S.name != "" else "scene"
+	var path := "%s/%s.usda" % [dir, nm]
+	var r := UsdExport.write(S, B, path)
+	_refresh()
+	if r[0] != OK:
+		_say_plain("NOT DONE: the .usda could not be written (%s)" % error_string(r[0]))
+		return ""
+	_say_plain("exported %s.usda: %d joints, %d frames at %d fps (UsdSkel, Y up, metres; the weapons are not in it)" % [nm, r[1]["joints"], r[1]["frames"], S.fps])
+	return path
+
+
 func _versions_menu() -> void:
 	var pm := ui_versions.get_popup()
 	pm.clear()
@@ -4929,6 +4946,7 @@ func _commands() -> Array:
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
+	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")

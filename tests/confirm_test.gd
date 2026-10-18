@@ -40,6 +40,7 @@ func _init() -> void:
 		"_export_game": "exports/<scene>.json and .cs (a separate export folder; never a scene, pose or data file)",
 		"_export_glb": "exports/<scene>.glb (the export folder; never a scene, pose or data file)",
 		"_export_bvh": "exports/<scene>.bvh (the export folder; never a scene, pose or data file)",
+		"_export_usd": "exports/<scene>.usda (the export folder; never a scene, pose or data file)",
 		"_save_version": "always a NEW file scenes/_versions/<scene>/vNNN.json (the next number; never the scene's own file)"}
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd").split("\n")
 	var fn := ""
