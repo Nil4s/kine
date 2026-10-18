@@ -1298,6 +1298,33 @@ func hand_shape(side: String, kind: String) -> void:
 	fk()
 
 
+## BREATH (round 43, GATES YY6): quiet breathing as a small rise of the chest, added on top of whatever pose is shown.
+## People (Massaroni et al. 2015, IEEE EMBC 1291-4, DOI 10.1109/EMBC.2015.7318604: the physiological range their chest
+## wall simulator was set to): chest wall surface moves 1-8 mm in quiet breathing at 0.17-0.33 Hz (10-20 breaths a
+## minute; resting adults 12-20). Here: the chest (spine_03) leans back BREATH_CHEST deg at full inhale, which moves
+## the front of the chest ~5 mm (tests/breath_test.gd measures it), the neck turns it back so the head keeps its angle,
+## the clavicles lift BREATH_CLAV (MINE: no number). The breath is a raised cosine (inhale = exhale: MINE).
+const BREATH_CHEST := 1.8
+const BREATH_CLAV := 1.0
+const BREATH_DEFAULT := 15.0   # breaths a minute when switched on (the middle of people's 12-20)
+
+
+## how far into the breath at t seconds: 0 = out, 1 = in
+static func breath_at(t: float, rate: float) -> float:
+	return 0.5 - 0.5 * cos(TAU * t * rate / 60.0)
+
+
+func breathe(t: float, rate: float) -> void:
+	if rate <= 0.0:
+		return
+	var b := breath_at(t, rate)
+	ang["spine_03"] = clamp_ang("spine_03", (ang["spine_03"] as Vector3) + Vector3(-BREATH_CHEST * b, 0, 0))
+	ang["neck_01"] = clamp_ang("neck_01", (ang["neck_01"] as Vector3) + Vector3(BREATH_CHEST * b, 0, 0))
+	for sd in ["_r", "_l"]:
+		ang["clavicle" + sd] = clamp_ang("clavicle" + sd, (ang["clavicle" + sd] as Vector3) + Vector3(BREATH_CLAV * b, 0, 0))
+	fk()
+
+
 ## SHOULDERS THAT FOLLOW (round 43, GATES YY5): raising an arm brings the collarbone with it. McClure et al. 2001 (J
 ## Shoulder Elbow Surg 10:269-77; bone pins, 8 people, arm raised in the scapular plane 11 -> 147 deg): the clavicle
 ## ELEVATED ~10 deg and RETRACTED ~21 deg over the raise, the scapula moved "very little" in the first 30 deg, the

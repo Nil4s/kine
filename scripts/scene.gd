@@ -59,6 +59,7 @@ var props_skipped := []   # kinds the file named that this library does not have
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var name := "scene"
 var natural := true
+var breath := 0.0      # YY6: breaths a minute added on playback (Body.breathe); 0 = off (written only when on)
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
 var loop := false      # the scene plays round: CHECK grades the seam from the last frame to the first (round 16, W2)
 var on_floor := true   # every frame: the hips move up/down so the lowest sole touches the floor (Body.ground)
@@ -546,6 +547,7 @@ func apply(B: Body, t: float) -> void:
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	_apply(B, t)
+	B.breathe(t, breath)   # YY6: on top of the pose; nothing at 0
 	B.fast = was_fast
 
 
@@ -1015,7 +1017,7 @@ func span(t: float) -> int:
 func clone() -> Scene:
 	var c := Scene.new()
 	c.cards = cards.duplicate(true)
-	for k in ["name", "natural", "spline", "on_floor", "floor_body", "pin", "fps", "moving_holds", "stepped", "loop"]:
+	for k in ["name", "natural", "spline", "on_floor", "floor_body", "pin", "fps", "moving_holds", "stepped", "loop", "breath"]:
 		c.set(k, get(k))
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
@@ -1465,6 +1467,8 @@ func to_dict(B: Body) -> Dictionary:
 		out["moving_holds"] = true   # the same: only when on
 	if loop:
 		out["loop"] = true   # the same
+	if breath > 0.0:
+		out["breath"] = breath   # YY6: the same, only when on
 	if not props.is_empty():
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
 	if not part_keys.is_empty():
@@ -1479,7 +1483,7 @@ func to_dict(B: Body) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free",
+	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
@@ -1515,6 +1519,7 @@ func from_dict(d: Dictionary) -> void:
 	spline = bool(d.get("spline", false))
 	moving_holds = bool(d.get("moving_holds", false))
 	loop = bool(d.get("loop", false))
+	breath = float(d.get("breath", 0.0))
 	on_floor = bool(d.get("on_floor", true))
 	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))

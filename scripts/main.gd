@@ -2627,6 +2627,17 @@ func _on_back_slider(v: float, k: String) -> void:
 	_say("the back: %s %.0f deg over the spine, neck and head" % [{"bend": "forward", "side": "side", "twist": "twist"}[k], B.back_of(k)])
 
 
+## BREATH (YY6): step = -1 toggles (off <-> 15 a minute), else the rate changes by step (6..40 a minute)
+func _breath_set(step: float) -> void:
+	if step == -1.0:
+		S.breath = 0.0 if S.breath > 0.0 else Body.BREATH_DEFAULT
+	else:
+		S.breath = clampf((S.breath if S.breath > 0.0 else Body.BREATH_DEFAULT) + step, 6.0, 40.0)
+	_dummy_hits()   # the landed copy of the scene (SL) carries the rate too
+	_ps().apply(B, playhead)
+	_say("breathing: %s" % ("off" if S.breath <= 0.0 else "%.0f breaths a minute (people at rest 12-20), ~5 mm at the chest" % S.breath))
+
+
 ## a hand slider moved: the whole hand follows (the undo step was taken when the drag began)
 func _on_hand_slider(v: float, sd: String, k: String) -> void:
 	var cs := B.hand_curl_of(sd)
@@ -5168,6 +5179,9 @@ func _commands() -> Array:
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Point the right hand", "", _do.bind(_hand_point.bind("r")), "finger index point hand curl fist", true, "the right index straight, the other fingers and the thumb curled")
 	add.call("Point the left hand", "", _do.bind(_hand_point.bind("l")), "finger index point hand curl fist", true, "the left index straight, the other fingers and the thumb curled")
+	add.call("Breathing on/off", "", _do.bind(_breath_set.bind(-1.0)), "breath breathe chest idle alive rest", true, "the chest rises and falls as people's do at rest (15 a minute, ~5 mm at the chest), on top of every pose while it plays")
+	add.call("Breathe faster", "", _do.bind(_breath_set.bind(2.0)), "breath breathe rate quicker", true, "2 breaths a minute more (people at rest 12-20; after effort more)")
+	add.call("Breathe slower", "", _do.bind(_breath_set.bind(-2.0)), "breath breathe rate calmer", true, "2 breaths a minute fewer")
 	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")

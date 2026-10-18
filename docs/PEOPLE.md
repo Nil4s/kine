@@ -134,6 +134,11 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
   `GAIT_PHASE` 0.3 (all bars are ours, about 3 SD around the means; `GAIT_CROWN` 0.14 m head joint to crown is also ours).
 - Tested by: `tests/gait_test.gd`.
 
+### BREATH
+- Quiet breathing moves the chest wall surface 1-8 mm at 0.17-0.33 Hz (10-20 breaths a minute): Massaroni et al. 2015,
+  IEEE EMBC 1291-4, https://doi.org/10.1109/EMBC.2015.7318604 (round 43 YY6: the chest front moves 4.9 mm at 15/min).
+- The inhale/exhale shape (a raised cosine, in = out) and the 1 deg clavicle lift: MINE, no number.
+
 ### HANDS (round 43, YY3: not a Check rule; the numbers Body.hand_curl is built on)
 - Source: active finger flexion in 390 hands, Indian J Plast Surg 2024 [background] https://pmc.ncbi.nlm.nih.gov/articles/PMC11436331 ;
   the tip joint following the middle one, theta_DIP = 0.76 theta_PIP closing a fist (Hahn et al. 1995, index finger,

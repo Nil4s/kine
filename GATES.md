@@ -1432,7 +1432,7 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   neck); people do that with nothing touching, so Body's contact allowance gains a calibration pose at people's
   measured girdle extreme, for the CLAVICLE's pairs only. Stubs: follow on every edit -> FAIL 7; FOLLOW_FROM 0 -> FAIL
   1, 3; no girdle calibration -> FAIL 1, 2, 4. run_par -j 8 146/148 (r43_yy45), as YY4.
-- [ ] YY6 SMALL PARTS: a JAW (open / side) and a BREATH control (chest rise over spine_03 + clavicles, with a rate in
+- [x] YY6 SMALL PARTS: a JAW (open / side) and a BREATH control (chest rise over spine_03 + clavicles, with a rate in
   the timeline: people ~12-20 breaths/min at rest, checked source). New joints added to data/skeleton.json WITHOUT moving
   any existing joint; files without them load as before. Bars: jaw opening in mm vs a checked normal range; old scene
   byte for byte.
@@ -1440,6 +1440,14 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   head has no mouth; a jaw means re-cutting and re-weighting Nick's asset's head, not "light". Its numbers are kept for
   when a face comes: max mouth opening 47.1 mm (33.7-60.4, 700 adults, PMID 9043002), hinge rotation ~30 deg (axiography,
   50 people) / 32.1 (259). Breath needs no new joint (spine_03 + neck + clavicles), so no skeleton edit.
+  EVIDENCE: Body.breathe / breath_at (raised cosine, MINE), Scene.breath (written only when on; mirror "free"; clone),
+  played on top of every pose in Scene.apply; search "Breathing on/off" (15 a minute, people at rest 12-20), "Breathe
+  faster / slower" (+-2, 6..40), each one undo step (undo_audit green). People: Massaroni et al. 2015 (IEEE EMBC, DOI
+  10.1109/EMBC.2015.7318604): chest wall surface 1-8 mm at 0.17-0.33 Hz in quiet breathing. tests/breath_test.gd 5 ok:
+  chest front 4.91 mm at full inhale, 0 at exhale; period 4 s at 15/min; the head keeps its angle (0.04 deg, moves 5.4
+  mm), feet still; off bit for bit; 10 scenes load off with no key, on writes 14 and reads it back. Stub (no neck
+  counter-turn): FAIL 3 (head 1.80 deg). run_par -j 8 147/149 (C:/Temp/r43_yy6): popup_leak, hover, both PASS alone;
+  scenes/poses/data fingerprint unchanged.
 - [ ] YY7 REAL-HUMAN BAND in the curve editor: for a walk, the knee / hip / ankle normative curve (mean +- SD over the
   gait cycle, a checked source) drawn behind the joint's curve, time-normalised to the step. Bars: the band's points =
   the table's; a joint outside the band is listed.

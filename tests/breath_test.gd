@@ -48,7 +48,7 @@ func _init() -> void:
 	ok(mm >= 3.0 and mm <= 7.0 and out_mm < 1e-3, "1 the front of the chest moves %.2f mm at full inhale (people 1-8, aimed at 5) and %.4f mm at full exhale" % [mm, out_mm])
 	ok(absf(Body.breath_at(2.0, 15.0) - 1.0) < 1e-9 and Body.breath_at(4.0, 15.0) < 1e-9 and absf(Body.breath_at(2.0, 20.0) - Body.breath_at(5.0, 20.0)) < 1e-9,
 		"2 the period: 15 a minute = in at 2 s, out at 4 s; 20 a minute repeats every 3 s")
-	ok(head_deg < 0.05 and head_mm < 6.0 and feet < 1e-9, "3 the head keeps its angle (%.4f deg), moves %.2f mm; the feet %.1e m" % [head_deg, head_mm, feet])
+	ok(head_deg < 0.05 and head_mm < 6.0 and feet < 1e-9, "3 the head keeps its angle (%.4f deg), moves %.2f mm; the feet %.9f m" % [head_deg, head_mm, feet])
 	for j in base:
 		B.ang[j] = base[j]
 	B.breathe(2.0, 0.0)
