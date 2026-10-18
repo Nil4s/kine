@@ -7,7 +7,7 @@
 ##            +z the way the chest faces; plan "frame": "world" = from the floor centre, +z the way he stands)
 ##   "aim":   [x, y, z]  the way the bat points, knob -> tip
 ##   "two_hands": true/false  the free hand on the handle (grip at "grip_m" metres up from the knob)
-##   "heel_up": ["_r"]  that heel lifts (on the toes);  "steps": {"_l": [x, 0, z]} that foot steps (else feet planted)
+##   "heel_up": ["_r"]  that heel lifts (on the toes; "heel_deg": 15 how far, default 25);  "steps": {"_l": [x, 0, z]} that foot steps (else feet planted)
 ##   "fist": ["l"] / "open": ["l"] / "grip": ["l"]  a hand's shape
 ##   "pose":  "guard_bat"  start this clip from a standard pose (poses/lib/<name>.json); set/add/hand go on top
 ##   "lift":  0.13      how high the stepping foot rises mid-step (m; default 0.08)
@@ -84,7 +84,7 @@ func _init() -> void:
 		for sd in ["_l", "_r"]:
 			B.flat_foot(sd)
 		for sd in c.get("heel_up", []):
-			B.set_ang("foot" + sd, B.ang["foot" + sd] + Vector3(-25, 0, 0))
+			B.set_ang("foot" + sd, B.ang["foot" + sd] + Vector3(-float(c.get("heel_deg", 25.0)), 0, 0))
 			B.toes_flat(sd)
 		B.ground()
 		var aim := 0.0
@@ -119,6 +119,8 @@ func _init() -> void:
 		S.cards[-1]["steps"] = c.get("steps", {})
 		if c.has("lift"):
 			S.cards[-1]["lift"] = float(c["lift"])
+		if c.get("walk", false):
+			S.cards[-1]["walk"] = true   # the hips travel on one curve through the run (scene.gd WALK): no stop per step
 		var cs: Array = B.contacts().map(func(x): return "%s/%s %.0fmm" % [x[0], x[1], x[2] * 1000])
 		score += miss + aim / 100.0
 		report.append("  %-18s hand miss %.3f m  aim off %4.1f deg  2nd hand miss %.3f  contacts %s" % [c["name"], miss, aim, gm, cs])

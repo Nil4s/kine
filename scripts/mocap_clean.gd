@@ -19,7 +19,7 @@ const POP_SPEED := 1500.0   # deg/s: a joint that turns this fast INTO a frame a
 const POP_BACK := 0.5       # ...and the two neighbours are less than this fraction of that step apart
 const FLIP_DEG := 180.0     # deg: a rotation number that jumps more than this between frames while the rotation hardly changes
 const FLIP_ROT := 90.0      # deg: "hardly changes" = the real rotation moved less than this
-const TRIM := 2            # frames cut off the end of a contact (see contacts())
+const TRIM := 4            # frames cut off the end of a contact (see contacts())
 const HELD := 0.01         # m: a locked foot that still creeps more than this is reported as not held
 const THROUGH_MM := 5.0     # mm: parts inside each other deeper than this are a finding (Body.contacts already ignores under 1 mm)
 
@@ -95,7 +95,9 @@ static func contacts(fr: Dictionary) -> Array:
 			while i < n and down[i]:
 				i += 1
 			# the last TRIM frames are the toe-off: the foot is about to leave and the leg is at full stretch, where the planting
-			# solver misses by up to 7 mm (measured on the clean walk), so they are left to the capture
+			# solver misses by up to 7 mm (measured on the clean walk), so they are left to the capture. 2 -> 4 in round 43:
+			# the walk now pivots on the toes before it leaves (heel rise to toe-off ~0.13 s, as people), and planted flat
+			# through those frames the lock slid 1.67 cm (bar 1)
 			if i - 1 - TRIM - a + 1 >= MIN_RUN:
 				out.append({"foot": sd, "a": a, "b": i - 1 - TRIM})
 	out.sort_custom(func(x, y): return x["a"] < y["a"])

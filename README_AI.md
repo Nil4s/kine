@@ -491,7 +491,22 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   RHESUS data. Chin-to-chest targets stop short at contacts.
 - XX7 MOCAP CLEAN (mocap_clean.gd): foot lock in contacts (creep 3.8 -> 0.71 cm), pop / 360 flip finder.
 - XX8 GAIT (Check rule): step/height, cadence, arm swing, arm-leg phase vs real walkers (PEOPLE.md). FINDING:
-  walk_bat steps 0.30 m = 0.176 of height against 0.415 for real walkers -> WARN. Nick's scene: not re-cooked unasked.
+  walk_bat steps 0.30 m = 0.176 of height against 0.415 for real walkers -> WARN. Nick then asked ("make them real"):
+  re-cooked with a 0.36 m first step, steady steps 0.69 / 0.71 / 0.69 m (0.40 of the 1.74 m read height), 104
+  steps/min (0.57 s each), double support as people (lead hip 28 flexed / knee 5; trail hip 15 extended / knee 15,
+  heel up 15 via the new plan "heel_deg", cook default 25 unchanged), stop on standing legs. GAIT: no findings.
+  The real walk travels 2.45 m: it now starts 1.85 m back and stops with the hips 0.6 m out (the OLD walk ended
+  inside the default dummy at 1.5 m: a 0.02 m chest hit at 3.3 s); now 0.9 m short of it, the whole 3.51 s plays.
+- WALK LEGS (scene.gd TOE-OFF / STANCE / SWING, card flag "walk"; tests/walk_legs_test.gd): at real length the old
+  playback snapped the swing knee 1743 deg/s and folded the stance knee to 37-51 deg. Now: the hips' height follows
+  the stance leg (vault, knee 8), stance feet BUILT on their marks (_construct: reach the ankle, then pitch), toe-off
+  plantarflexes 20 deg with the knee floored at 38, swing on a delayed path. Measured vs people: mid-stance knee
+  4.8-9.4 (5-10 Perry), swing knee peak 65.9 (60-65), toe-off foot-ground 43-47 (49-68 by speed, PMID 41583941: still
+  low), swing foot 4.33 m/s (~4.4), pelvis rise 6 cm (people ~4-5: high), fastest knee 671 deg/s (first step from the
+  half step; steady steps 470), stance foot slide 3.1 mm (was 51). CONTROL in the test: walk flags off -> knee 50.9.
+  Gotchas: Body.plant iterates from the leg it is given and near a straight knee jumps branches (0 -> 21 deg in one
+  frame): seed it bent, or use reach (bisects on distance). A joint-angle blend between two legs on one mark is off
+  the mark (16 mm): re-put the ankle with reach.
 - XX9 USD (usd_export.gd, tools/export_usd.gd): exports/<scene>.usda as UsdSkel; read back by our own parser only (no
   pxr here). XX10 SHADING: "Shading: next" solid/matcap/silhouette/x-ray; playback shows real fps and dropped frames.
 - Lead fixes at merge: --shot forces the strip's line (a throttled 400 ms header made determinism flaky: 3.15 vs 3.45

@@ -1346,3 +1346,59 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   repo (XX9 never ran undo_audit) -> SKIP entry, file untracked, no exports/ after a rerun. House: fingerprint
   e74213bb9e6917b9d997704d62203396 (changed this round only by Nick's walk_bat/idle_bat fix); 0 zz_ files; app_userdata
   clean after removing 56 per-pid leftovers + zz_mc from agents' timed-out runs (all older than the clean run).
+
+## YY. ROUND 43: ANIMATOR'S TOOLS, LIGHT (Nick 10-17: "discover how blender/maya animations work ... simplify it for our
+## app, plus other stuff 3d human designers need that blender/maya dont offer"; "we can move plenty of parts but
+## lightly, not deep as maya"). Research: docs/ANIM_RESEARCH.md (Maya/Blender workflow mapped to what Poser
+## has; pain points with sources). Rules: ONE control per body region, not a rig: a slider or preset that drives several
+## joints in real-human proportions; every proportion, range and bar from a checked source written in docs/PEOPLE.md
+## first, or UNVERIFIED next to the number. Old scenes play, save and export byte for byte. Each gate: a test that FAILS
+## once on purpose (stub), run_par -j 8 green, committed. Order = priority; the 12 h loop works down it.
+
+- [x] YY0 WALK LEGS (round 42 carry-over, "make them real"): tests/walk_legs_test.gd vs people (Perry; PMID 41583941;
+  PMID 19502061), control arm (walk flags off -> stance knee 50.9) in every run; full suite green; committed.
+  EVIDENCE: walk_legs 9 ok: mid-stance knee 4.8-9.4 (people 5-10), swing knee peak 65.9 (60-65), toe-off foot-ground
+  43-47 (people 49-68: LOW, said), swing foot 4.33 m/s (~4.4), fastest knee 671 deg/s (the first step from the half
+  step; steady steps 470; bar 750, was 1743), stance slide 3.1 mm (bar 5, was 51), CONTROL knee 50.9 > 20. Pelvis rise
+  ~6 cm (people ~4-5 UNVERIFIED: Gard 2004's number not read). Suite found two walk_bat breaks, fixed: mocap_clean's
+  lock slid 1.67 cm (TRIM 2 -> 4 frames, ~0.13 s, the toe pivot left to the capture); plant_edges 4.2 deg at the stop
+  card and 8.0 at the half step (a hold after a WALK move now holds the move's last frame; card 0's free anchors count
+  as stance). undo_audit then caught _mocap_clean moving the body with nothing to do (now restores B.state()).
+- [x] YY1 LIVE BALANCE: the centre of mass dropped to the floor and the support polygon (the hull of the planted feet)
+  drawn under the body while posing and scrubbing; green inside, amber within 2 cm of the edge, red outside. Bars: the
+  drawn COM point equals Body's COM projection (mm); the hull equals the contacts' hull; a pose leaned past the toes
+  turns red; overlay off = pixels identical to before.
+  EVIDENCE: scripts/balance_view.gd, Shift+B / ANIMATE "Balance" / search "Balance on/off" / --balance.
+  tests/balance_view_test.gd 8 ok: the drawn COM point = Balance.com's (x, z) exactly, the polygon = Balance.read's (18
+  points), lines (18 + 3) x 2; balance_test's lean goes inside -> edge -> outside in that order, "OUTSIDE the feet by 5.7
+  cm"; lifted 30 cm = grey "in the air"; off = no surface, no reading. Stub EDGE 0: FAIL 5 (no amber). The 2 cm amber
+  band is MINE (no sway figure in mm found). Off = no surface (not a pixel diff). undo_audit caught Shift+B falling to
+  KEY_B (the bat): the shift case now comes first. Screens: walk_bat 1.1 s green on both feet, combo3 3.1 s green on one,
+  bo_spin 1.45 s RED (one toe, COM 28 cm out: the spin's momentum). run_par -j 8 141/144 (C:/Temp/r43_yy1): popup_leak,
+  hover, hover_sync, all PASS alone (load flakes: ~20 foreign python processes on the box; popup_leak and hover also
+  failed in the run before this gate's code).
+- [ ] YY2 PLANT FEET FOR ME: one command finds each foot's contacts over the scene (the mocap_clean contact rule) and
+  pins it there through each contact, previewed, applied as ONE undo step. Bars: a scene with a sliding foot (fixture)
+  goes from slide > 2 cm to < 3 mm; contacts found = the fixture's; Ctrl+Z restores byte for byte.
+- [ ] YY3 HANDS, ONE SLIDER: hand shapes relaxed / fist / point / grip / spread / flat, plus a CURL slider 0..1 that
+  bends all 15 joints of a hand at once in real proportions (MCP / PIP / DIP ranges from a checked source, DIP tied to
+  PIP as in people). Bars: curl 1 = each joint's measured max within limits; the shapes never cross fingers (no
+  fingertip inside another finger); mirror L/R exact.
+- [ ] YY4 SPINE AND NECK, ONE BEND: forward / side / twist for the whole back, shared over spine_01..03 + neck_01 by
+  real segment ranges (lumbar / thoracic / cervical from a checked source). Bars: the sum equals the asked bend; each
+  segment within its own range; 0 = the old pose exactly.
+- [ ] YY5 SHOULDERS THAT FOLLOW: raising an arm past ~30 deg brings the clavicle (shrug / reach) by the scapulohumeral
+  rhythm (~2:1 humerus:scapula, Inman 1944; checked before use), switchable, default ON only for new poses. Bars: the
+  ratio measured on an arm raise; old poses identical.
+- [ ] YY6 SMALL PARTS: a JAW (open / side) and a BREATH control (chest rise over spine_03 + clavicles, with a rate in
+  the timeline: people ~12-20 breaths/min at rest, checked source). New joints added to data/skeleton.json WITHOUT moving
+  any existing joint; files without them load as before. Bars: jaw opening in mm vs a checked normal range; old scene
+  byte for byte.
+- [ ] YY7 REAL-HUMAN BAND in the curve editor: for a walk, the knee / hip / ankle normative curve (mean +- SD over the
+  gait cycle, a checked source) drawn behind the joint's curve, time-normalised to the step. Bars: the band's points =
+  the table's; a joint outside the band is listed.
+- [ ] YY8 BLOCK -> SPLINE -> CHECK: one guided path: stepped keys (blocking), then "Spline" switches the scene to
+  smooth, then Check runs. Bars: stepped holds each key to the next; spline = the old playback; one undo step each.
+- [ ] YY9 LAYER (additive, one): a whole-scene offset layer with a weight (0..1) on top of the cards, non-destructive.
+  Bars: weight 0 = the scene byte for byte; weight 1 = base + offset per joint; save/load round trip.
+- [ ] YY10 MERGED: run_par -j 8 all PASS, no zz_ files, README_AI Round 43, committed and pushed.

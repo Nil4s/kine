@@ -4,7 +4,7 @@
  "bat_hand": "hand_r",
  "frame": "chest",
  "elbow_low": 3.0,
- "note": "walk start -> stop with the bat on the shoulder: half step, four 0.6 m strides, feet together. Hips turn into each step, the chest counters, the left arm swings against the left leg.",
+ "note": "walk start -> stop (starts 1.85 m back and stops with the hips 0.6 m out: the old walk ended inside the dummy at 1.5 m; now 0.9 m short of it, bat clear) with the bat on the shoulder: half step, three 0.70 m steps (0.415 of 1.70 m body height, PMID 19502061) at 0.57 s each (105 steps/min, PMID 29775941), feet together. Double support as people: lead hip 35 flexed, knee 18 (the card is foot-flat, just after heel strike: people ~30 / 15-20, the pelvis at its lowest); trail hip 12 extended, knee 22, heel rising. Hips turn into each step, the chest counters, the left arm swings against the left leg.",
  "clips": [
   {
    "name": "stand",
@@ -60,23 +60,28 @@
     -0.2,
     0.5,
     -0.85
+   ],
+   "hips": [
+    0,
+    0,
+    -1.85
    ]
   },
   {
    "name": "half step L",
-   "move": 0.45,
+   "move": 0.5,
    "hold": 0.0,
    "steps": {
     "_l": [
      0,
      0,
-     0.3
+     0.35
     ]
    },
    "hips": [
     0,
     0,
-    0.15
+    -1.675
    ],
    "heel_up": [
     "_r"
@@ -113,12 +118,12 @@
      0
     ],
     "thigh_l": [
-     30,
+     14,
      7,
      0
     ],
     "calf_l": [
-     40,
+     5,
      0,
      0
     ],
@@ -128,7 +133,7 @@
      0
     ],
     "calf_r": [
-     15,
+     8,
      0,
      0
     ]
@@ -143,23 +148,25 @@
     0.5,
     -0.85
    ],
-   "lift": 0.13
+   "lift": 0.06,
+   "heel_deg": 8,
+   "walk": true
   },
   {
    "name": "step R",
-   "move": 0.5,
+   "move": 0.57,
    "hold": 0.0,
    "steps": {
     "_r": [
      0,
      0,
-     0.6
+     1.05
     ]
    },
    "hips": [
     0,
     0,
-    0.45
+    -1.15
    ],
    "heel_up": [
     "_l"
@@ -196,22 +203,22 @@
      0
     ],
     "thigh_r": [
-     30,
+     35,
      7,
      0
     ],
     "calf_r": [
-     40,
+     18,
      0,
      0
     ],
     "thigh_l": [
-     -8,
+     -12,
      7,
      0
     ],
     "calf_l": [
-     15,
+     22,
      0,
      0
     ]
@@ -226,23 +233,25 @@
     0.5,
     -0.85
    ],
-   "lift": 0.13
+   "lift": 0.06,
+   "heel_deg": 15,
+   "walk": true
   },
   {
    "name": "step L",
-   "move": 0.5,
+   "move": 0.57,
    "hold": 0.0,
    "steps": {
     "_l": [
      0,
      0,
-     0.6
+     1.4
     ]
    },
    "hips": [
     0,
     0,
-    0.75
+    -0.45
    ],
    "heel_up": [
     "_r"
@@ -279,22 +288,22 @@
      0
     ],
     "thigh_l": [
-     30,
+     35,
      7,
      0
     ],
     "calf_l": [
-     40,
+     18,
      0,
      0
     ],
     "thigh_r": [
-     -8,
+     -12,
      7,
      0
     ],
     "calf_r": [
-     15,
+     22,
      0,
      0
     ]
@@ -309,23 +318,25 @@
     0.5,
     -0.85
    ],
-   "lift": 0.13
+   "lift": 0.06,
+   "heel_deg": 15,
+   "walk": true
   },
   {
    "name": "step R",
-   "move": 0.5,
+   "move": 0.57,
    "hold": 0.0,
    "steps": {
     "_r": [
      0,
      0,
-     0.6
+     1.4
     ]
    },
    "hips": [
     0,
     0,
-    1.05
+    0.25
    ],
    "heel_up": [
     "_l"
@@ -362,22 +373,22 @@
      0
     ],
     "thigh_r": [
-     30,
+     35,
      7,
      0
     ],
     "calf_r": [
-     40,
+     18,
      0,
      0
     ],
     "thigh_l": [
-     -8,
+     -12,
      7,
      0
     ],
     "calf_l": [
-     15,
+     22,
      0,
      0
     ]
@@ -392,23 +403,25 @@
     0.5,
     -0.85
    ],
-   "lift": 0.13
+   "lift": 0.06,
+   "heel_deg": 15,
+   "walk": true
   },
   {
    "name": "stop: feet together",
-   "move": 0.5,
+   "move": 0.6,
    "hold": 0.4,
    "steps": {
     "_l": [
      0,
      0,
-     0.3
+     0.7
     ]
    },
    "hips": [
     0,
     0,
-    1.2
+    0.6
    ],
    "set": {
     "pelvis": [
@@ -437,22 +450,22 @@
      0
     ],
     "thigh_l": [
-     30,
+     6,
      7,
      0
     ],
     "calf_l": [
-     40,
+     12,
      0,
      0
     ],
     "thigh_r": [
-     -8,
+     6,
      7,
      0
     ],
     "calf_r": [
-     15,
+     12,
      0,
      0
     ]
@@ -467,7 +480,8 @@
     0.5,
     -0.85
    ],
-   "lift": 0.13
+   "lift": 0.06,
+   "walk": true
   }
  ]
 }

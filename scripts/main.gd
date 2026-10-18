@@ -115,7 +115,7 @@ const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "tra
 const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]]],
-	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
+	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
@@ -323,6 +323,7 @@ func _fold_button(which: String) -> void:
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
+var bal := BalanceView.new()   # LIVE BALANCE (Shift+B, round 43 YY1): the feet's support and the COM over them
 var ui_tween: HSlider
 var ui_hist: PanelContainer        # UNDO HISTORY (round 11, #75)
 var ui_hist_list: VBoxContainer
@@ -1132,6 +1133,7 @@ func _ready() -> void:
 	_world()
 	_body()
 	add_child(ov)
+	add_child(bal)
 	ov.setup()
 	_ui()
 	if not testing and not cf.get_value("look", "hints", true):
@@ -1157,6 +1159,7 @@ func _ready() -> void:
 		for j in args[pi + 1].split(","):
 			ov.toggle_pin(j)
 	ov.onion_on = args.has("--onion")
+	bal.on = args.has("--balance")
 	ov.spacing_on = args.has("--spacing")
 	ov.graph_on = args.has("--graph")
 	stepped_view = args.has("--stepped")
@@ -1832,6 +1835,7 @@ func _refresh() -> void:
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
+	bal.show_body(B)
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty():
 		ov.trail(_ps())
 		ov.onion(_ps(), playhead)
@@ -2112,6 +2116,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_refresh()
 			# into the right hand, as its button says ("In right hand (B)"); already there = off (V3: a bat in the LEFT
 			# hand used to come off, so B, B to move it)
+			KEY_B when k.shift_pressed:   # before KEY_B (the bat): match takes the first pattern that fits
+				bal.on = not bal.on
+				_refresh()
+				_say(("%s.  Green = inside the feet, amber = within 2 cm of the edge, red = he tips, grey = in the air" % bal.words()) if bal.on else "balance off")
 			KEY_B: _do(func(): _bat_remove() if B.wep_on and B.wep_hand == "hand_r" else _bat_put("hand_r"))
 			KEY_L: _do(func(): _bat_lock())
 			KEY_F: _do(func(): _fingers_cycle())
@@ -3313,7 +3321,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
-	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Stepped": "stepped",
+	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
@@ -3623,6 +3631,7 @@ func _ui() -> void:
 	tog.call("ANIMATE", "Onion (O)", _press.bind(KEY_O), func(): return ov.onion_on, "the two cards before (orange, then red) and after (green, then cyan) as ghosts, the farther ones fainter")
 	tog.call("ANIMATE", "Spacing (Shift+O)", _tool.bind(1), func(): return ov.spacing_on, "arms + weapon every 0.1 s around the playhead: bunched = slow")
 	tog.call("ANIMATE", "Speed graph (Y)", _tool.bind(2), func(): return ov.graph_on)
+	tog.call("ANIMATE", "Balance (Shift+B)", _press.bind(KEY_B, true), func(): return bal.on, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
 	tog.call("ANIMATE", "Stepped", _tool.bind(3), func(): return stepped_view, "poses only, no in-betweens (blocking)")
 	tog.call("ANIMATE", "Moving holds", _tool.bind(4), func(): return S.moving_holds, "a held pose keeps drifting slightly toward the next")
 	tog.call("ANIMATE", "Airborne", _toggle_air, func(): return sel_card >= 0 and sel_card < S.cards.size() and S.cards[sel_card].get("air", false),
@@ -5023,6 +5032,7 @@ func _commands() -> Array:
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
 	add.call("Pin a trail on the picked part", "Shift+T", _press.bind(KEY_T, true), "path arc", false, "draw the picked body part's path over the scene (again removes it)")
+	add.call("Balance on/off", "Shift+B", _press.bind(KEY_B, true), "centre of mass com feet tip fall weight", false, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
 	add.call("Onion skin on/off", "O", _press.bind(KEY_O), "ghost before after", false, "ghosts of the card before (orange) and after (green)")
 	add.call("Spacing ghosts on/off", "Shift+O", _press.bind(KEY_O, true), "ghost timing", false, "ghosts every 0.1 s: bunched = slow, spread = fast")
 	add.call("Speed graph on/off", "Y", _press.bind(KEY_Y), "curve velocity", false, "tip, hips and head speed over the scene; click it to scrub")
@@ -5929,10 +5939,12 @@ func _mocap_clean() -> void:
 		_say("this scene has %d cards: clean-up reads a card per frame, like a .bvh import. Drop a .bvh on the window, or open an imported scene" % S.cards.size())
 		return
 	_push_undo()   # taken first, dropped again if nothing changed
+	var keep := B.state()   # the analysis plays the scene on B; with nothing to do the body goes back as it WAS (the
+	                        # playhead's pose is not always it: undo_audit, round 43, after the toe-off trim left nothing)
 	var r := MocapClean.clean(S, B, {})
 	if int(r["locked"]) + int(r["repaired"]) == 0:
 		undo.pop_back()
-		_ps().apply(B, playhead)
+		B.set_state(keep)
 		_say("%s. Nothing to plant or mend: no standing foot and no pop in this scene. Press Check for the other rules" % r["text"])
 		return
 	check_ran = false

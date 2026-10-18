@@ -25,6 +25,14 @@
 ##   card, so 30 cards would be 30 stops; this stops only where the body really does.
 ##   Overlap ("successive breaking of joints"): a joint of level L reads the curve LEAD * (5 - L) s AHEAD, so the hips
 ##   lead, the hands are exactly on the cards' times (the strike's timing is the cards'), the fingers trail.
+## WALK card ("walk": true; round 42, Nick: "make them real"): over a run of walk cards the HIPS' travel (the offset)
+##   is one curve through every card's offset at its arrival time, stopping only at the run's ends: a walking body
+##   keeps going (people's speed varies ~10 % over a stride), it does not stop at each step. Before, every move eased
+##   the travel to rest at its card and NATURAL's overlap let the hips finish the step in its first 70 % (x = u / 0.7)
+##   while the stepping foot waited (level 5): the hips ran 2.3 m/s past the back foot, the leg locked straight and the
+##   knee snapped ~54 deg in a frame (1628 deg/s; people's knee peaks ~400 in swing). Monotone cubic Hermite: interior
+##   slopes as _mono (harmonic mean of the two secants), 0 at both ends (from standing, to standing). Joints and feet
+##   keep their own easing. Saved only when set.
 ## EASE PRESETS (round 10, GATES Q2): a card's "ease" sets how the plain move INTO it eases. Absent = smooth (the
 ##   above). "linear": e = x; "in": e = x^3 (starts slow); "out": e = 1 - (1 - x)^3 (ends slow); "snap": e = 0 until the
 ##   card's arrival, then 1 (the pose before is held and the body jumps: a hit, a cut). x is the joint's own progress
@@ -198,7 +206,10 @@ func _sample_cards(t: float) -> Dictionary:
 			var a := Moves._flat(cards[i - 1]["pose"])
 			if _drifts(i - 1, ts):
 				a = _drift(i - 1, 1.0)
-			return blend(a, Moves._flat(cards[i]["pose"]), u, cards[i].get("ease", ""))
+			var r := blend(a, Moves._flat(cards[i]["pose"]), u, cards[i].get("ease", ""))
+			if bool(cards[i].get("walk", false)):
+				r["offset"] = _walk_offset(t, i, ts)
+			return r
 		if t < ts[i][2]:
 			if _drifts(i, ts):
 				return _drift(i, (t - ts[i][1]) / maxf(1e-6, ts[i][2] - ts[i][1]))
@@ -228,6 +239,48 @@ func _drift(i: int, f: float) -> Dictionary:
 
 func _flow(i: int) -> bool:
 	return i > 0 and i < cards.size() - 1 and bool(cards[i].get("flow", false))
+
+
+## WALK: the hips' offset at t inside the run of walk cards around move i (see WALK at the top)
+func _walk_offset(t: float, i: int, ts: Array) -> Vector3:
+	var p := i - 1
+	while p > 0 and bool(cards[p].get("walk", false)):
+		p -= 1
+	var q := i
+	while q < cards.size() - 1 and bool(cards[q + 1].get("walk", false)):
+		q += 1
+	var xs := [float(ts[p][2])]
+	var ys := [Moves._flat(cards[p]["pose"])["offset"] as Vector3]
+	for k in range(p + 1, q + 1):
+		xs.append(float(ts[k][1]))
+		ys.append(Moves._flat(cards[k]["pose"])["offset"] as Vector3)
+	var out := Vector3.ZERO
+	for c in 3:
+		var v := []
+		for y in ys:
+			v.append((y as Vector3)[c])
+		out[c] = _hermite0(xs, v, t)
+	return out
+
+
+## monotone cubic Hermite through (xs, ys), slope 0 at both ends (_mono's interior slopes)
+static func _hermite0(xs: Array, ys: Array, x: float) -> float:
+	var n := xs.size()
+	var d := []
+	for k in n - 1:
+		d.append((ys[k + 1] - ys[k]) / maxf(1e-6, xs[k + 1] - xs[k]))
+	var m := [0.0]
+	for k in range(1, n - 1):
+		m.append(0.0 if d[k - 1] * d[k] <= 0.0 else 2.0 / (1.0 / d[k - 1] + 1.0 / d[k]))
+	m.append(0.0)
+	var k := 0
+	while k < n - 2 and x > xs[k + 1]:
+		k += 1
+	var h: float = maxf(1e-6, xs[k + 1] - xs[k])
+	var s := clampf((x - xs[k]) / h, 0.0, 1.0)
+	var s2 := s * s
+	var s3 := s2 * s
+	return (2 * s3 - 3 * s2 + 1) * ys[k] + (s3 - 2 * s2 + s) * h * m[k] + (-2 * s3 + 3 * s2) * ys[k + 1] + (s3 - s2) * h * m[k + 1]
 
 
 ## the flow run around segment i: one easing over [the last normal card before, the first normal card after]; the
@@ -539,6 +592,8 @@ func _apply(B: Body, t: float) -> void:
 				_ground(B)
 			if i > 0:
 				var e := _ease(clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0), 5)
+				if walk_feet(i):
+					_vault(B, E[i - 1], E[i], clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0))
 				for sd in ["_l", "_r"]:
 					var a: Array = E[i - 1][sd]
 					var b: Array = E[i][sd]
@@ -555,8 +610,11 @@ func _apply(B: Body, t: float) -> void:
 						# a STEP: the toe base travels from where it stood to where it lands, lifted on an arc
 						#   at = lerp(a, b, e) + up * lift * sin(pi e)   (lift = the card's "lift", else LIFT)
 						var lift := float(cards[i].get("lift", LIFT))
-						at = (a[0] as Vector3).lerp(b[0], e) + Vector3.UP * lift * sin(PI * e)
-						head = lerp_angle(a[1], b[1], e)
+						var ep := e
+						if walk_feet(i):
+							ep = _swing_path(clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0))
+						at = (a[0] as Vector3).lerp(b[0], ep) + Vector3.UP * lift * sin(PI * ep)
+						head = lerp_angle(a[1], b[1], ep)
 					var new_leg := raw
 					if b[3] != "free":
 						B.plant(sd, at, head, b[2])
@@ -585,13 +643,294 @@ func _apply(B: Body, t: float) -> void:
 						# re-solve of a foot already on its mark would move the leg for nothing), keeping
 						# the blended knee's direction and foot angle
 						B.plant(sd, at, head, false, B.knee_heading(sd))
+					if b[3] == "pin" and walk_feet(i):
+						_stance(B, sd, at, head, clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0))
+					if b[3] == "step" and walk_feet(i):
+						_toe_off(B, sd, at, head, a[0], a[1], a[2], clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0))
 			else:
+				# the hold after a WALK move holds that move's last frame (its BUILT legs, s = 1): a plain plant here is
+				# another solution, and the legs jumped 4.2 deg as walk_bat's last step arrived (plant_edges)
+				var wk := walk_feet(held)
+				if wk:
+					_vault(B, E[held - 1], E[held], 1.0)
 				for sd in ["_l", "_r"]:
 					var h: Array = E[held][sd]
+					var h0: Array = E[held - 1][sd]
 					if h[3] != "free":
 						B.plant(sd, h[0], h[1], h[2])
+						if wk and h[3] == "pin":
+							_stance(B, sd, h[0], h[1], 1.0)
+						elif wk and h[3] == "step":
+							_toe_off(B, sd, h[0], h[1], h0[0], h0[1], h0[2], 1.0)
 	_planted(B, t)
 	B.apply_grip()
+
+
+## TOE-OFF (round 42, Nick: "make them real"; only on WALK cards, so every other step plays as before). The stepping
+## foot of a real walk does not slide off flat: its heel rises while the hips pass over it, it leaves the floor toes
+## last with the knee still bent, and it lands level. Here, over the move (s = 0..1):
+##   ANKLE: the card blend bent toward TOE_PLANTAR deg plantarflexed, fully by TOE_OFF_AT (the foot leaves: it waits
+##     that long under NATURAL's overlap, people's pre-swing ~ 0.2-0.25 of a step), held to TOE_HOLD, back to 0 by
+##     TOE_LEVEL. The move starts from, and ends in, the BUILT leg (_construct) the stance either side of it uses, so
+##     the two meet exactly at every card.
+##     People's ankle: ~20 deg plantarflexed at toe-off, neutral by mid-swing (Perry, Gait Analysis).
+##   KNEE: never less bent than TOE_KNEE around toe-off: where keeping the toes on their mark would lock the leg
+##     straight, the toes leave the mark instead (the ball slides toward the hip, bisection).
+##   TOES: bent back at the ball so the tips stay on the floor (people's MTP joint, ~50-60 deg at toe-off), unbending
+##     by TOE_LEVEL.
+## The foot-ground angle at toe-off this gives is set by the trailing shank, not steered: people at 4.5 km/h 60.3 +-
+## 5.1 deg (49.4 at 3 km/h, 68.5 at 6; 49 healthy adults, WalkinSense insoles, Eckelt et al. 2026, PMID 41583941).
+## Before: the trailing leg locked straight on its toes and the knee went 40 -> 0 -> 52 deg in four frames (1743 deg/s;
+## people's knee peaks ~400 in swing).
+const TOE_OFF := 60.3     # deg, people's foot-ground angle at toe-off at 4.5 km/h (the reference the test reads)
+const TOE_PLANTAR := 20.0 # deg: the ankle at toe-off, plantarflexed (absolute: the card's trail ankle is ~10 UP, and
+                          # adding 20 to it gave 10 down and a 38 deg foot-ground angle at lift-off; people ~60)
+const TOE_OFF_AT := 0.25
+const TOE_HOLD := 0.4     # early swing: the ankle stays down until the feet nearly pass (mine)
+const TOE_LEVEL := 0.65   # level by mid-swing, when the swinging foot passes the planted one (mine)
+const TOE_SEED := 20.0    # deg: the knee bend toe-off's plant starts from (not the straight branch)
+const TOE_KNEE := 38.0    # deg: the knee is still this bent as the toes leave (people ~35-40 at toe-off, Perry)
+
+
+func walk_feet(i: int) -> bool:
+	return bool(cards[i].get("walk", false))
+
+
+## STANCE (WALK moves; round 42, Nick: "make them real"). The cards are double support, the gait's low point. Between
+## them the hips used to travel at the cards' height while the IK bent the stance knee to fit: it folded to 37 deg as the
+## hips passed over the foot (people ~5-10 at mid-stance), and near full extension a two-bone knee is ill-conditioned (a
+## millimetre of hips = 20 deg of knee), so it flickered. People work the other way round: the stance leg is an inverted
+## pendulum and the HIPS' HEIGHT FOLLOWS THE LEG. So here, for the planted foot:
+##   SOLE: flat (people's foot is flat from foot flat to mid-stance), the heel rising from HEEL_FROM of the move to
+##     HEEL_END deg at the card (terminal stance: heel rise begins ~30-35 % of the gait cycle, Perry).
+##   KNEE: STANCE_KNEE (people ~5-10 at mid-stance, Perry); the hips' height is SOLVED for it in closed form (_vault),
+##     weighted by sin^2(pi s): zero, with zero speed, at both cards, so the cards are unchanged (the pelvis rises
+##     ~4-5 cm over the stance leg in people; this lifts what the leg says).
+##   The leg itself is BUILT (_construct), so the moves either side of a card meet in the same leg.
+const STANCE_KNEE := 8.0
+const VAULT_UP := 0.08     # m: the most the hips are lifted
+const VAULT_DOWN := 0.04   # m: the most they are lowered (a leg too far behind to keep its knee: the pendulum falls)
+const HEEL_FROM := 0.6
+const HEEL_END := 20.0
+
+
+## the stance side of a WALK move ("" if none): the foot pinned on the way into card i (also out of card 0, whose
+## anchors are all "free": the half step's standing foot is a stance foot too)
+static func _stance_side(A: Dictionary, E: Dictionary) -> String:
+	for x in ["_l", "_r"]:
+		if (E[x] as Array)[3] == "pin":
+			return x
+	return ""
+
+
+var _heel_now := 0.0   # the stance sole (deg, heel up) _vault chose for this frame; _stance plants with it
+
+
+## the ankle of a foot whose toe base is on `ball`, pointing `head`, its sole `sole` deg heel-up (pivot on the ball)
+static func _ankle_at(B: Body, sd: String, ball: Vector3, head: float, sole: float) -> Vector3:
+	var d0: Vector3 = (B.p0["foot" + sd] as Vector3) - (B.p0["ball" + sd] as Vector3)   # ball -> ankle, flat, facing +z
+	var turned := Basis(Vector3.UP, head) * Basis(Vector3.RIGHT, deg_to_rad(sole)) * d0
+	return ball + turned
+
+
+## the hips' lift (m) that puts the stance knee at STANCE_KNEE with the sole at the heel curve, in closed form: the
+## ankle from the ball and the sole, the hip -> ankle distance from the knee (the rest chain bent), the hip's height from
+## that distance and the horizontal gap, weighted by sin^2(pi s). Where the hips so placed are beyond a STRAIGHT leg's
+## reach (they have passed the foot) the heel goes up 1 deg at a time until they are not: the leg reaches by lifting its
+## heel, as people's does in terminal stance, never by leaving its mark.
+func _vault(B: Body, A: Dictionary, E: Dictionary, s: float) -> void:
+	_heel_now = 0.0   # never last frame's
+	var sd := _stance_side(A, E)
+	if sd == "":
+		return
+	var an: Array = E[sd]
+	_heel_now = (0.0 if an[2] else HEEL_END) * smoothstep(HEEL_FROM, 1.0, s)   # a card standing flat keeps its heel down
+	# hip -> ankle at a knee bend: the REST chain bent about the knee's axis (the knee is not on the hip-ankle line at rest,
+	# so the law of cosines on the two bone lengths is off 4 mm at 12 deg, 10 at 38; this matches the body exactly)
+	var u: Vector3 = (B.p0["calf" + sd] as Vector3) - (B.p0["thigh" + sd] as Vector3)
+	var v: Vector3 = (B.p0["foot" + sd] as Vector3) - (B.p0["calf" + sd] as Vector3)
+	var dd := (u + Basis(Vector3.RIGHT, deg_to_rad(STANCE_KNEE)) * v).length()
+	var d0 := (u + v).length()
+	var hip: Vector3 = B.P["thigh" + sd]
+	var w := pow(sin(PI * s), 2.0)
+	var lift := 0.0
+	for it in 45:
+		var ank := _ankle_at(B, sd, an[0], an[1], _heel_now)
+		var h := Vector2(hip.x - ank.x, hip.z - ank.z).length()
+		var dy := (ank.y + sqrt(maxf(0.0, dd * dd - h * h)) - hip.y) if h < dd else -1.0
+		var top := (ank.y + sqrt(maxf(0.0, d0 * d0 - h * h)) - hip.y) if h < d0 else -1.0   # a straight leg's reach
+		lift = clampf(dy, -VAULT_DOWN, VAULT_UP) * w
+		# the hips as they will stand (weighted) must be within a STRAIGHT leg's reach, 2 mm to spare: else the heel goes up
+		if lift <= top - 0.002 or _heel_now >= 44.0:
+			break
+		_heel_now += 1.0
+	B.offset.y += lift
+	B.fk()
+
+
+## the foot's pitch alone (bisection on its bend, the ankle staying) so the toe base is at the height of its mark
+static func _foot_pitch(B: Body, sd: String, at: Vector3) -> void:
+	var f := "foot" + sd
+	var r: Vector2 = B.lim[f]["bend"]
+	var v: Vector3 = B.ang[f]
+	var lo := r.x
+	var hi := r.y
+	for it in 16:
+		var m := (lo + hi) * 0.5
+		B.ang[f] = Vector3(m, v.y, v.z)
+		B.fk_some([f, "ball" + sd])
+		if (B.P["ball" + sd] as Vector3).y > at.y:
+			hi = m   # toes too high: point them down (heel up)
+		else:
+			lo = m
+	B.ang[f] = Vector3((lo + hi) * 0.5, v.y, v.z)
+	B.fk()
+
+
+## the stance leg: built on its mark with the sole _vault chose for this frame
+func _stance(B: Body, sd: String, at: Vector3, head: float, s: float) -> void:
+	_construct(B, sd, at, head, _heel_now)
+
+
+## A FOOT ON ITS MARK, BUILT (not searched): the ankle goes straight to where the sole puts it (reach bisects the knee on
+## DISTANCE, which stays well-conditioned at full stretch; Body.plant iterates from the leg it is given, and from a
+## straight leg that misses it turned the foot toes-up 9 deg with the ball 3 cm off its mark); then the foot's heading:
+## the leg swung about its hip -> ankle line (the ankle stays, the foot turns with it ~1:1) until the foot points along
+## its mark (pointing the KNEE there left this leg's toe-out: 4.3 deg, the ball 11 mm aside); then only the foot's pitch
+## (1-D, monotone) puts the ball on its mark. The result does not depend on the leg it starts from: the two moves either
+## side of a card both end / start in it, so they meet exactly.
+func _construct(B: Body, sd: String, at: Vector3, head: float, sole: float) -> void:
+	var f := "foot" + sd
+	B.reach(f, _ankle_at(B, sd, at, head, sole))
+	var kh := B.knee_heading(sd)
+	if is_nan(kh):
+		kh = head
+	for it in 4:
+		_foot_pitch(B, sd, at)
+		var dh := angle_difference(B.foot_heading(sd), head)
+		if absf(dh) < 0.002:
+			break
+		kh += dh
+		B.knee_over_toes(sd, kh)
+	if ((B.P["ball" + sd] - at) as Vector3).length() > 0.003:
+		B.plant(sd, at, head, false, B.knee_heading(sd))
+	B.toes_flat(sd)
+
+
+## the heel a foot standing on `at` needs at the card: `base` (the card's: HEEL_END if its heel is up, else 0), raised a
+## degree at a time while a STRAIGHT leg could not reach the hips with 2 mm to spare. _vault's own loop at s = 1 is
+## this, so a stance that ends at a card and the toe-off that starts from it agree
+func _heel_at_card(B: Body, sd: String, at: Vector3, head: float, base: float) -> float:
+	var u: Vector3 = (B.p0["calf" + sd] as Vector3) - (B.p0["thigh" + sd] as Vector3)
+	var v: Vector3 = (B.p0["foot" + sd] as Vector3) - (B.p0["calf" + sd] as Vector3)
+	var d0 := (u + v).length()
+	var hip: Vector3 = B.P["thigh" + sd]
+	var heel := base
+	while heel < 44.0:
+		var ank := _ankle_at(B, sd, at, head, heel)
+		var h := Vector2(hip.x - ank.x, hip.z - ank.z).length()
+		var top := (ank.y + sqrt(maxf(0.0, d0 * d0 - h * h)) - hip.y) if h < d0 else -1.0
+		if 0.0 <= top - 0.002:
+			break
+		heel += 1.0
+	return heel
+
+
+## a WALK step's swing foot along its path: from SWING_FROM of the move (just before the toes leave) to the card, on a
+## smoothstep (peak 1.5x its mean speed; NATURAL's smootherstep from 0.25 peaks at 1.875x over less time: a 0.70 m
+## step's foot crossed 1.4 m at ~6 m/s, people's swing foot peaks ~4.4 m/s at 1.25 m/s walking; this: 1.4 m in 0.85 x 0.57 s, peak 4.3)
+const SWING_FROM := 0.15
+
+
+static func _swing_path(s: float) -> float:
+	return smoothstep(SWING_FROM, 1.0, s)
+
+
+## 0 -> 1 by TOE_OFF_AT, 1 to TOE_HOLD, 0 by TOE_LEVEL: the shape of the ankle bump and the knee floor
+static func _toe_bump(s: float) -> float:
+	return smoothstep(0.0, TOE_OFF_AT, s) if s < TOE_HOLD else 1.0 - smoothstep(TOE_HOLD, TOE_LEVEL, s)
+
+
+func _toe_off(B: Body, sd: String, at: Vector3, head: float, from_at: Vector3, head0: float, from_flat: bool, s: float) -> void:
+	var f := "foot" + sd
+	var foot: Vector3 = B.ang[f]
+	B.ang[f] = B.clamp_ang(f, foot.lerp(Vector3(-TOE_PLANTAR, foot.y, foot.z), _toe_bump(s)))
+	# plant iterates from the leg it is given; from the sample's near-straight knee it stayed straight one frame and found
+	# 21 deg the next (calf 666 deg/s). Seeded bent, it finds the same branch every frame
+	var c := "calf" + sd
+	var kh := B.knee_heading(sd)
+	B.ang[c] = Vector3(maxf((B.ang[c] as Vector3).x, TOE_SEED), (B.ang[c] as Vector3).y, (B.ang[c] as Vector3).z)
+	B.fk()
+	B.plant(sd, at, head, false, kh if not is_nan(kh) else B.knee_heading(sd))
+	# both ends in the BUILT leg (_construct), as the stance either side of them: out of the card from its heel (the
+	# stance that ended there, _heel_at_card), BEFORE the knee floor lifts the toes (the blend re-plants on the path)
+	_toward_built(B, sd, from_at, head0, _heel_at_card(B, sd, from_at, head0, 0.0 if from_flat else HEEL_END), 1.0 - smoothstep(0.0, TOE_OFF_AT, s), at, head, true)
+	_knee_floor(B, sd, at, head, TOE_KNEE * _toe_bump(s))
+	var toe := "ball" + sd
+	var t0: Vector3 = B.ang[toe]
+	B.toes_flat(sd)
+	B.ang[toe] = t0.lerp(B.ang[toe] as Vector3, 1.0 - smoothstep(TOE_OFF_AT, TOE_LEVEL, s))
+	B.fk()
+	# ...and into a flat foot onto the next card (the stance that starts there)
+	_toward_built(B, sd, at, head, 0.0, smoothstep(TOE_LEVEL, 1.0, s), at, head, false)
+
+
+## the leg now blended w of the way into the BUILT leg on `at` with that sole (w = 1: exactly it), the ball then put on
+## the step's path point `path` if `replant`
+func _toward_built(B: Body, sd: String, at: Vector3, head: float, sole: float, w: float, path: Vector3, path_head: float, replant: bool) -> void:
+	if w <= 0.0:
+		return
+	var cur := {}
+	for j in _leg(sd):
+		cur[j] = B.ang[j]
+	_construct(B, sd, at, head, sole)
+	if w >= 1.0:
+		return
+	for j in _leg(sd):
+		B.ang[j] = (cur[j] as Vector3).lerp(B.ang[j], w)
+	B.fk()
+	# a blend of joint angles between two legs on the mark is not on it (16 mm aside, 6 mm into the floor): put the ball
+	# back on the step's path point. Only out of a card, where the foot stands; on the way in the blend lands exactly on
+	# the card (w = 1), and re-planting an arc point the leg cannot yet reach locked the knee straight (15 -> 0 -> 5)
+	# The ANKLE is moved by the ball's miss with reach (the knee bisected on distance): plant, iterating from a near-
+	# straight blended leg, jumped 0 -> 21 deg between two frames
+	for it in 8:
+		var miss: Vector3 = path - (B.P["ball" + sd] as Vector3)
+		if not replant or miss.length() < 0.0005:
+			break
+		B.reach("foot" + sd, (B.P["foot" + sd] as Vector3) + miss)
+
+
+## the knee no less bent than k: below it, the toe target slides toward the hip (bisection) until the knee bends that
+## much, the ball lifting off its mark. k is continuous in s, so the lift-off has no jump.
+func _knee_floor(B: Body, sd: String, at: Vector3, head: float, k: float) -> void:
+	var c := "calf" + sd
+	if (B.ang[c] as Vector3).x >= k:
+		return
+	var leg := {}
+	for j in _leg(sd):
+		leg[j] = B.ang[j]
+	var hip: Vector3 = B.P["thigh" + sd]
+	var kh := B.knee_heading(sd)   # read ONCE: re-read after each trial plant it drifts, and one frame flipped the thigh
+	var lo := 0.0
+	var hi := 0.5
+	for it in 16:
+		var m := (lo + hi) * 0.5
+		_try_leg(B, sd, leg, at.lerp(hip, m), head, kh)
+		if (B.ang[c] as Vector3).x >= k:
+			hi = m
+		else:
+			lo = m
+	_try_leg(B, sd, leg, at.lerp(hip, hi), head, kh)
+
+
+## every trial plant starts from the SAME leg: plant iterates from the leg it is given, and near full extension the
+## knee is so sensitive (1.7 mm closer = 11 deg) that a trial started from a straight leg stays straight
+func _try_leg(B: Body, sd: String, leg: Dictionary, to: Vector3, head: float, kh: float) -> void:
+	for j in leg:
+		B.ang[j] = leg[j]
+	B.fk()
+	B.plant(sd, to, head, false, kh)
 
 
 ## PLANTED FEET: the card whose move or hold contains t; for each foot it plants, back to the run's first card; the foot
@@ -1095,6 +1434,8 @@ func to_dict(B: Body) -> Dictionary:
 			"leave_s": snappedf(ts[i][2], 0.001), "pose": c["pose"]})
 		if c.get("flow", false):
 			cs[-1]["flow"] = true
+		if c.get("walk", false):
+			cs[-1]["walk"] = true
 		if c.has("steps"):
 			var st := {}
 			for sd in _steps(i):
@@ -1143,7 +1484,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
-	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "lift": "free", "ease": "free",
+	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
 	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "air": "free", "ktype": "free"}
 
 
@@ -1196,6 +1537,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["lift"] = float(c["lift"])
 		if c.get("flow", false):
 			cards[-1]["flow"] = true
+		if c.get("walk", false):
+			cards[-1]["walk"] = true
 		if String(c.get("ease", "smooth")) in EASES and c.get("ease", "smooth") != "smooth":
 			cards[-1]["ease"] = c["ease"]
 		if c.get("plant", []) is Array and not c.get("plant", []).is_empty():

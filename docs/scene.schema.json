@@ -271,6 +271,9 @@
     "flow": {
      "type": "boolean"
     },
+    "walk": {
+     "type": "boolean"
+    },
     "ease": {
      "enum": [
       "smooth",
