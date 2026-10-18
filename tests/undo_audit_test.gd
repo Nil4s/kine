@@ -61,6 +61,23 @@ func start(kind: String) -> void:
 		m.S.cards[1]["move"] = 0.4
 		m._rebuild_cards()
 		m._card_pick(0)
+	elif kind.begins_with("KEYS"):
+		# XX1: the right forearm has two part keys, the first under the playhead, set so that every interpolation / handle /
+		# infinity command has a different value to change to from one of the two starts (KEYS_A or KEYS_B)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.sel = "lowerarm_r"
+		PartKeys.put(m.S.part_keys, "lowerarm_r", m.playhead, Vector3(20, 0, 0))
+		PartKeys.put(m.S.part_keys, "lowerarm_r", m.playhead + 0.5, Vector3(60, 0, 0))
+		if kind == "KEYS_A":
+			PartKeys.set_interp(m.S.part_keys, "lowerarm_r", 0, "constant")
+			PartKeys.set_handle_type(m.S.part_keys, "lowerarm_r", 0, "auto")
+			PartKeys.set_inf(m.S.part_keys, "lowerarm_r", "cycle")
+		else:
+			PartKeys.set_interp(m.S.part_keys, "lowerarm_r", 0, "linear")
+			PartKeys.set_handle_type(m.S.part_keys, "lowerarm_r", 0, "free")
+			PartKeys.set_inf(m.S.part_keys, "lowerarm_r", "linear")
 	elif kind.begins_with("res://"):
 		m._load_scene(kind)
 		m._rebuild_cards()
@@ -161,7 +178,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break
