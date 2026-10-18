@@ -288,6 +288,28 @@ Neither app tells you a pose is wrong for a human. We do, and every bar comes fr
      biomechanics papers. These sharpen SEQUENCE and HIPS TURN, whose bars came from coaching texts.
 337. [REAL] A "show me a real one" button on any finding: the reference's numbers next to ours, and the link to
      the source.
+338. [RIG][REAL] ONE GRIP STANDARD FOR EVERY HANDLE, AND A MAGNETIC HAND (Nick 10-18: "a standard method for hands
+     and grips on weapons depending on how it's held, because the circumference of a grip is usually the same ...
+     dagger, sword, hammer, staff, bo, bow, rifle ... so we never have this issue with hands again"; "a magnetic
+     version for hands that could adapt within its limits to weapons and their limits of grip").
+     - A HANDLE is described, not drawn: its cross-section (round / oval / flat, diameter in mm), its length, and
+       which GRIP TYPES it takes (power grip round a shaft; the pistol-style grip of a rifle or bow; the light
+       precision hold of a dagger flipped in the fingers; the sliding hand on a staff or axe haft).
+     - A GRIP is solved from the hand and the handle: each finger closes round that diameter until it touches
+       (joint limits from real hands), the thumb wraps or lies along it, by type. Ten weapons become ten numbers
+       plus a type, not ten hand-posed files; a new weapon gets a hand that fits on day one.
+     - THE MAGNET: near a handle, a hand snaps into the grip and can SLIDE along it (and roll round it) within the
+       handle's grippable length and the arm's reach; pulled past its limits it lets go instead of breaking the arm.
+       It replaces today's per-weapon G / grip_u / grip2 special cases with one rule.
+     - SEEDED FROM NICK'S OWN FIXES, then checked against people: data/grips/metal_bat.json and staff.json (fitted
+       by Nick 10-12/13) and his long-axe left hand (scenes/axe_strike_pose.json, cards v0-v20: the second hand high
+       on the haft, 0.76-0.94 m of 1.2, the elbow opened). Each solved grip must reproduce his within a bar BEFORE it
+       replaces them.
+     - REAL HANDS FIRST (to read and cite before any number goes in): Napier's power vs precision grip
+       classification; handle-diameter studies (grip force against diameter, the comfortable range as a share of
+       hand length); hand anthropometry tables for finger lengths. Numbers only from the papers themselves.
+     - TEST: for every weapon, the fingers touch the handle and do not go inside it, the palm is on it, the grip
+       holds through a swing with no jump, and the magnet's slide stops at the handle's ends.
 
 ---
 

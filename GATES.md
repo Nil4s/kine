@@ -1676,3 +1676,31 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   frame (the worst and the 99th percentile, while playing and while scrubbing): name each hitch's cause by profiling
   (which call, how long), fix what is ours, and bar it: no frame over 50 ms after a tool is on (the turn-on frame
   itself reported); before and after numbers.
+
+## ROUND 47 (CC): ONE GRIP FOR EVERY HANDLE (UPGRADES_300 #338). Nick 10-18: "a standard method for hands and grips on
+weapons depending on how it's held ... so we never have this issue with hands again"; "a magnetic version for hands
+that could adapt within its limits". Research: docs/GRIP_RESEARCH.md (Napier 1956; Buchholz & Armstrong 1992; Gulke
+2010; Lee & Rim 1991; Lee & Jung 2015; Wu 2009; Maleki-Ghahfarokhi 2022; Negi 2025, all through PubMed with DOIs).
+- [x] CC0 LOCK BOTH HANDS IS SAVED: the second hand's grip (its turn round the shaft, its fingers, its place) goes into
+  each card's weapon (grip2) and comes back on load and in playback; before, it lived in memory and a reopened scene
+  re-solved the arm its own way. Nick's axe scene locked from his v0-v20 example.
+  EVIDENCE (tests/grip_save_test.gd, bo_spin card 9, the second hand turned 35 deg round the staff and locked): 1 the
+  card's weapon carries grip2 {hand,u,lpos,lrot,fingers}, palm 23 mm off the shaft, no key the schema does not know;
+  2 a body loaded from the JSON text holds the identical grip2; 3 a 2-card scene played on a body that never saw the
+  grip puts the second wrist 0.0 mm from the lock at t 0 / 0.5 / 1.0, the control (grip2 stripped) 13 mm; 4 playback
+  2.0 ms a frame. STUBS: no save in to_dict -> bars 1, 2, 3 FAIL; the playback fast path removed -> bar 4 FAIL (213 ms
+  a frame: fit_hand's contact search ran every frame, 245 ms a frame on Nick's locked axe scene, now 2.1 ms).
+  FOUND ON THE WAY (flip_survey on Nick's locked axe): the left wrist's twist sat at its limit and a grip past it
+  clamped onto the OTHER limit, 164 deg in one 60 fps frame (bar 105). Fixed: playback keeps the wrist rather than jump
+  > 90 deg, grip2 BLENDS between two locking cards (Body.grip2_mix: place, turn, fingers) and mirror_pose reflects
+  grip2 to the twin hand. Now worst 77 deg/frame, the mirror equal to its original. Nick's axe: left palm to shaft
+  median 26 mm in playback (58 before the lock), p90 65 (93). Suite 160/160 (C:/Temp/r47_cc0d).
+- [ ] CC1 THE WRAP: Body.wrap_fingers(hand, handle a-b, radius) bends each finger joint by joint (MCP, PIP, DIP) until
+  that segment touches the handle (Buchholz & Armstrong 1992). Bars: on every weapon's handle every finger touches
+  (within 3 mm) or is at its limit, none inside (> 1 mm); over 20-80 mm the MCP+PIP flexion falls as the diameter grows
+  (Lee & Rim 1991, Lee & Jung 2015); PIP the largest of the three on average (Gulke 2010); against Nick's hand-fitted
+  bat grip the mean joint difference is under 12 deg (Buchholz's own SD against real hands), reported joint by joint.
+- [ ] CC2 GRIP TYPES PER HANDLE: KINDS says which (power transverse, diagonal, precision); the thumb follows the type.
+- [ ] CC3 THE MAGNET: a hand brought within reach of a handle snaps onto it and can slide and roll along the grippable
+  part; pulled past the arm's reach or the handle's ends it lets go; no arm is bent past its limits to hold on.
+- [ ] CC4 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.

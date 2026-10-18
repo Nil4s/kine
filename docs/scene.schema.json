@@ -114,6 +114,19 @@
     },
     "grip_m": {
      "type": "number"
+    },
+    "grip2": {
+     "type": "object",
+     "description": "Lock both hands: the second hand's grip in the weapon's frame (hand, u = metres up the shaft, lpos, lrot, fingers)",
+     "properties": {
+      "hand": {"enum": ["hand_l", "hand_r"]},
+      "u": {"type": "number"},
+      "lpos": {"$ref": "#/$defs/vec3"},
+      "lrot": {"$ref": "#/$defs/quat"},
+      "fingers": {"type": "object"}
+     },
+     "required": ["hand", "lpos", "lrot", "fingers"],
+     "additionalProperties": false
     }
    },
    "dependentRequired": {

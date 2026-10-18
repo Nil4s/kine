@@ -739,10 +739,22 @@ func fit_hand(h: String, target: Vector3, want: Quaternion) -> float:
 				inside = maxf(inside, c[2])
 		return ((P[h] as Vector3).distance_to(target)) + 0.004 * turn + 5.0 * inside
 	reach(h, target)
+	var before: Vector3 = ang[h]
 	turn_world(h, (want * (G[h] as Quaternion).inverse()).normalized())
+	# PLAYBACK CONTINUITY (round 47, flip_survey on Nick's locked axe scene: the left wrist's twist at its limit, a grip
+	# asking past it wrapped through 180 and the clamp landed on the OTHER limit: 164 deg in one 60 fps frame against the
+	# 105 deg human bar): in playback the wrist keeps the in-between pose's angle rather than jump across its range
+	if fast:
+		var dv: Vector3 = (ang[h] as Vector3) - before
+		if absf(dv.x) > 90.0 or absf(dv.y) > 90.0 or absf(dv.z) > 90.0:
+			ang[h] = before
 	fk()
 	if (P[h] as Vector3).distance_to(target) < 0.01 and rad_to_deg((G[h] as Quaternion).angle_to(want)) < 8.0:
 		return (P[h] as Vector3).distance_to(target)   # the quick way did it (dragging stays smooth)   # the safe reach (stops at the body)
+	# PLAYBACK (B.fast: limits only, contacts measured, not avoided) keeps the quick way: the search below costs a whole
+	# body's FK and contacts per step, 245 ms a frame on Nick's locked axe scene (round 47) against 0.8 ms without it
+	if fast:
+		return (P[h] as Vector3).distance_to(target)
 	var js := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, h]
 	var best: float = cost.call()
 	for stp in [12.0, 6.0, 3.0, 1.5]:
@@ -1849,7 +1861,44 @@ func mirror_pose() -> void:
 		wep2_hand = twin(wep2_hand)
 		wep2_lpos.x = -wep2_lpos.x
 		wep2_lrot = Quaternion(wep2_lrot.x, -wep2_lrot.y, -wep2_lrot.z, wep2_lrot.w)
+	# Lock both hands' grip crosses too (round 47): it lives in the weapon's frame, which reflects like the weapon's place
+	# in the hand (x of the position flipped, the turn conjugated); its fingers go to the twin hand as the body's do
+	if not grip2.is_empty():
+		var g2 := grip2.duplicate(true)
+		g2["hand"] = twin(String(grip2["hand"]))
+		var lp := _v(grip2["lpos"])
+		g2["lpos"] = _p(Vector3(-lp.x, lp.y, lp.z))
+		var lr: Array = grip2["lrot"]
+		g2["lrot"] = _q(Quaternion(lr[0], -float(lr[1]), -float(lr[2]), lr[3]))
+		var fing := {}
+		for j in grip2.get("fingers", {}):
+			var a: Array = grip2["fingers"][j]
+			var q := compose(j, Vector3(a[0], a[1], a[2]))
+			var m := decompose(twin(j), Quaternion(q.x, -q.y, -q.z, q.w))
+			fing[twin(j)] = [snappedf(m.x, 0.1), snappedf(m.y, 0.1), snappedf(m.z, 0.1)]
+		g2["fingers"] = fing
+		grip2 = g2
 	fk()
+
+
+## two Lock-both-hands grips blended (round 47: between two cards that both lock, the second hand's turn, place and
+## fingers move from one grip to the next instead of snapping at the card: a finger turned 97 deg in one frame)
+static func grip2_mix(a: Dictionary, b: Dictionary, e: float) -> Dictionary:
+	if a.is_empty() or b.is_empty() or String(a.get("hand", "")) != String(b.get("hand", "")):
+		return a if e < 0.5 else b
+	var out := a.duplicate(true)
+	out["u"] = lerpf(float(a.get("u", 0.0)), float(b.get("u", 0.0)), e)
+	out["lpos"] = _p(_v(a["lpos"]).lerp(_v(b["lpos"]), e))
+	var ra: Array = a["lrot"]
+	var rb: Array = b["lrot"]
+	out["lrot"] = _q(Quaternion(ra[0], ra[1], ra[2], ra[3]).normalized().slerp(Quaternion(rb[0], rb[1], rb[2], rb[3]).normalized(), e))
+	var fing := {}
+	for j in a.get("fingers", {}):
+		var x: Array = a["fingers"][j]
+		var y: Array = b.get("fingers", {}).get(j, x)
+		fing[j] = [lerpf(x[0], y[0], e), lerpf(x[1], y[1], e), lerpf(x[2], y[2], e)]
+	out["fingers"] = fing
+	return out
 
 
 ## the pose as plain data: angles, rotations and positions, all readable
@@ -1870,6 +1919,11 @@ func to_dict() -> Dictionary:
 		var x := wep_xform()
 		w = {"kind": wep_kind, "length": wep_len, "hand": wep_hand, "knob": _p(x[0]), "tip": _p(wep_point(wep_len)),
 			"rot": _q(x[1]), "local_pos": _p(wep_lpos), "local_rot": _q(wep_lrot), "two_hand_grip": grip, "grip_m": grip_u}
+		# Lock both hands' grip (the second hand's turn round the shaft + its fingers) goes into the file (round 47, Nick
+		# 10-18 "lock hands in place ... so it can work": before, it lived in memory only and a reopened scene re-solved
+		# the second arm its own way)
+		if grip and not grip2.is_empty():
+			w["grip2"] = grip2.duplicate(true)
 	var out := {"offset": _p(offset), "joints": joints, "weapon": w, "contacts": con}
 	if wep2_on:
 		out["weapon2"] = wep2_dict()
@@ -1901,6 +1955,8 @@ func from_dict(d: Dictionary) -> void:
 		wep_lpos = _v(w.get("local_pos", [0, 0, 0]))
 		grip = bool(w.get("two_hand_grip", false))
 		grip_u = float(w.get("grip_m", grip_u))
+		if w.get("grip2") is Dictionary and not (w["grip2"] as Dictionary).is_empty():
+			grip2 = (w["grip2"] as Dictionary).duplicate(true)
 	put_wep2(wep2_flat(d.get("weapon2", {})))
 
 

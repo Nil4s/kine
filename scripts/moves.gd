@@ -77,7 +77,8 @@ static func _flat(p: Dictionary) -> Dictionary:
 		var k: Array = pw["knob"]
 		w = {"hand": pw.get("hand", ""), "pos": Vector3(k[0], k[1], k[2]), "rot": Quaternion(r[0], r[1], r[2], r[3]),
 			"local_pos": Vector3(lp[0], lp[1], lp[2]), "local_rot": Quaternion(lr[0], lr[1], lr[2], lr[3]),
-			"length": float(pw.get("length", 0.84)), "kind": String(pw.get("kind", "metal_bat")), "grip": bool(pw.get("two_hand_grip", false)), "grip_m": float(pw.get("grip_m", 0.18))}
+			"length": float(pw.get("length", 0.84)), "kind": String(pw.get("kind", "metal_bat")), "grip": bool(pw.get("two_hand_grip", false)), "grip_m": float(pw.get("grip_m", 0.18)),
+			"grip2": pw.get("grip2", {}) if pw.get("grip2") is Dictionary else {}}
 	return {"offset": Vector3(o[0], o[1], o[2]), "ang": ang, "weapon": w, "weapon2": Body.wep2_flat(p.get("weapon2", {}))}
 
 
@@ -116,6 +117,8 @@ func apply(B: Body, t: float) -> void:
 		B.wep_lrot = w["local_rot"]
 		B.grip = w["grip"]
 		B.grip_u = w["grip_m"]
+		if not (w.get("grip2", {}) as Dictionary).is_empty():
+			B.grip2 = w["grip2"]
 
 
 func to_dict(B: Body) -> Dictionary:

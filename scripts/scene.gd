@@ -505,6 +505,9 @@ func blend(a: Dictionary, b: Dictionary, u: float, kind := "") -> Dictionary:
 		# hands up to 31 cm off where the tracker had them, against 7 cm on the cards themselves)
 		if w["grip"] and w.has("grip_m") and wb.has("grip_m"):
 			w["grip_m"] = lerpf(float(a["weapon"]["grip_m"]), float(wb["grip_m"]), eb)
+		# and its saved grip (turn, place, fingers) blends too (round 47)
+		if w["grip"] and not (w.get("grip2", {}) as Dictionary).is_empty():
+			w["grip2"] = Body.grip2_mix(a["weapon"]["grip2"], wb.get("grip2", {}), eb)
 	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], eh), "ang": ang, "weapon": w,
 		"weapon2": Body.wep2_mix(a.get("weapon2", {}), b.get("weapon2", {}), eb)}
 
@@ -548,6 +551,8 @@ static func put(B: Body, s: Dictionary) -> void:
 		B.wep_lrot = w["local_rot"]
 		B.grip = w["grip"]
 		B.grip_u = w["grip_m"]
+		if not (w.get("grip2", {}) as Dictionary).is_empty():
+			B.grip2 = w["grip2"]   # the card's own Lock-both-hands grip (round 47)
 
 
 func apply(B: Body, t: float) -> void:
