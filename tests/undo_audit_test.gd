@@ -62,6 +62,18 @@ func start(kind: String) -> void:
 		m.S.cards[1]["move"] = 0.4
 		m._rebuild_cards()
 		m._card_pick(0)
+	elif kind == "SLIDE":
+		# YY2: a stand whose whole body creeps 15 cm over 2 s, so "Plant every sliding foot" has slides to plant
+		m.S = Scene.new()
+		m._reset_all()
+		m.S.add("stand", m.B.to_dict())
+		m.B.offset.z += 0.15
+		m.B.fk()
+		m.S.add("crept", m.B.to_dict())
+		m.S.cards[1]["move"] = 2.0
+		m.S.cards[1]["hold"] = 0.5
+		m._rebuild_cards()
+		m._card_pick(0)
 	elif kind.begins_with("KEYS"):
 		# XX1: the right forearm has two part keys, the first under the playhead, set so that every interpolation / handle /
 		# infinity command has a different value to change to from one of the two starts (KEYS_A or KEYS_B)
@@ -179,7 +191,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

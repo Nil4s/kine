@@ -5059,6 +5059,7 @@ func _commands() -> Array:
 	add.call("Time readout: seconds or frames", "", _toggle_frames, "timecode f s display", false, "flip the time readout between seconds and frames (a click on the readout does it too); a view setting")
 	add.call("Frame rate: next (24 / 30 / 60)", "", _fps_next, "fps film smooth", true, "the scene's frame rate steps 24, 30, 60 and round; every card keeps its seconds (the text says how many are then off a whole frame)")
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
+	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
@@ -5931,6 +5932,23 @@ func _loop_close() -> void:
 	_ps().apply(B, playhead)
 	_refresh()
 	_say("the last card is now a copy of the first: the loop's end meets its start. Check grades the speed across it too.")
+
+
+## PLANT EVERY SLIDING FOOT (round 43, GATES YY2): the work is Fixer.plant_all. One undo step, or none when it keeps nothing.
+func _plant_all() -> void:
+	_push_undo()
+	var keep := B.state()
+	var r := Fixer.plant_all(S, B)
+	B.set_state(keep)   # Check samples the scene on B: the body goes back as it was
+	if not r["kept"]:
+		undo.pop_back()
+		_say("%s. Press Check for the other rules" % r["msg"])
+		return
+	check_ran = false
+	_rebuild_cards()
+	_ps().apply(B, playhead)
+	_refresh()
+	_say("%s. One Ctrl+Z puts it back" % r["msg"])
 
 
 ## CLEAN UP MOCAP (round 42, GATES XX7): the work is in scripts/mocap_clean.gd. Needs a card per frame.

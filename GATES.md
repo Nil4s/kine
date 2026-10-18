@@ -1377,9 +1377,18 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   bo_spin 1.45 s RED (one toe, COM 28 cm out: the spin's momentum). run_par -j 8 141/144 (C:/Temp/r43_yy1): popup_leak,
   hover, hover_sync, all PASS alone (load flakes: ~20 foreign python processes on the box; popup_leak and hover also
   failed in the run before this gate's code).
-- [ ] YY2 PLANT FEET FOR ME: one command finds each foot's contacts over the scene (the mocap_clean contact rule) and
-  pins it there through each contact, previewed, applied as ONE undo step. Bars: a scene with a sliding foot (fixture)
-  goes from slide > 2 cm to < 3 mm; contacts found = the fixture's; Ctrl+Z restores byte for byte.
+- [x] YY2 PLANT FEET FOR ME: (restated 10-17 after reading the code: Check already offers "Fix: plant this foot" per
+  FOOT SLIDE finding, and "Clean up mocap" locks contacts on a card-per-frame scene; what a keyframed scene lacks is ALL
+  of them at once.) One command "Plant every sliding foot": Check's FOOT SLIDE findings, each planted by the same fix,
+  re-checked, as ONE undo step, the words saying how many and the worst slide before / after. Bars: a fixture whose
+  feet slide 15 cm goes to < 1 cm (plant_edges' pinned-foot bar) and 0 FOOT SLIDE findings; a clean scene changes nothing and makes no undo step;
+  Ctrl+Z restores the cards byte for byte.
+  EVIDENCE: Fixer.plant_all + search "Plant every sliding foot". tests/plant_all_test.gd 5 ok: the 15 cm creep -> Check
+  2 FOOT SLIDE (worst 15.0 cm) -> 0, kept; each ball 4.42 mm over the scene (the hips creep over straight legs, at full
+  reach: inside plant_edges' 1 cm, NOT under the 3 mm first written); poses untouched (plant lists only); a clean stand
+  keeps nothing, cards byte for byte. Stub (no _plant): FAIL 2 (2 -> 2, 150 mm). undo_audit: VACUOUS from every start
+  at first; a SLIDE start added (the creep), [SLIDE] 1 undo step, Ctrl+Z exact. run_par -j 8 144/145 (C:/Temp/r43_yy2):
+  small_window, PASS alone (load flake).
 - [ ] YY3 HANDS, ONE SLIDER: hand shapes relaxed / fist / point / grip / spread / flat, plus a CURL slider 0..1 that
   bends all 15 joints of a hand at once in real proportions (MCP / PIP / DIP ranges from a checked source, DIP tied to
   PIP as in people). Bars: curl 1 = each joint's measured max within limits; the shapes never cross fingers (no

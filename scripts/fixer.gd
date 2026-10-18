@@ -93,6 +93,35 @@ static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	return {"kept": true, "msg": "Fixed: " + did + extra, "before": all0, "after": all1}
 
 
+## PLANT EVERY SLIDING FOOT (round 43, GATES YY2): every FOOT SLIDE finding Check makes, each planted by the same fix
+## as its own "Fix: plant this foot" (_plant), then Check again. Kept only if the slides went down and nothing got worse
+## (must-fix count); otherwise the cards go back. {"kept", "n0", "n1", "worst0", "worst1" (m), "msg"}
+static func plant_all(S: Scene, B: Body) -> Dictionary:
+	var before := S.cards.duplicate(true)
+	var all0 := Rulebook.check(S, B, Rulebook.sample(S, B))
+	var sl0 := all0.filter(func(x): return x["rule"] == "FOOT SLIDE" and x.has("foot"))
+	var worst0 := 0.0
+	for f in sl0:
+		worst0 = maxf(worst0, float(f["v"]))
+	if sl0.is_empty():
+		return {"kept": false, "n0": 0, "n1": 0, "worst0": 0.0, "worst1": 0.0, "msg": "no foot slides here: nothing to plant"}
+	for f in sl0:
+		_plant(f, S, B)
+	var all1 := Rulebook.check(S, B, Rulebook.sample(S, B))
+	var sl1 := all1.filter(func(x): return x["rule"] == "FOOT SLIDE")
+	var worst1 := 0.0
+	for f in sl1:
+		worst1 = maxf(worst1, float(f["v"]))
+	var fails0 := all0.filter(func(x): return x["sev"] == "FAIL").size()
+	var fails1 := all1.filter(func(x): return x["sev"] == "FAIL").size()
+	if sl1.size() >= sl0.size() or fails1 > fails0:
+		S.cards = before
+		return {"kept": false, "n0": sl0.size(), "n1": sl1.size(), "worst0": worst0, "worst1": worst1,
+			"msg": "Not applied: planting did not help (FOOT SLIDE %d -> %d, must-fix %d -> %d)" % [sl0.size(), sl1.size(), fails0, fails1]}
+	return {"kept": true, "n0": sl0.size(), "n1": sl1.size(), "worst0": worst0, "worst1": worst1,
+		"msg": "Planted %d sliding feet: FOOT SLIDE %d -> %d, the worst %.1f -> %.1f cm" % [sl0.size(), sl0.size(), sl1.size(), worst0 * 100.0, worst1 * 100.0]}
+
+
 ## is x the same problem as f (after the fix moved times about)? same rule on the same card; a hitch: within 0.12 s
 static func _same_finding(f: Dictionary, x: Dictionary) -> bool:
 	if x["rule"] != f["rule"]:
