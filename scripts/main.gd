@@ -340,6 +340,7 @@ var stepped_view := false   # STEPPED preview (blocking): the scene plays card t
 var ui_bp: PanelContainer   # the bottom panel (the scene)
 var ui_card_row: ScrollContainer
 var ui_play_row: HBoxContainer
+var ui_curve: CurveEditor   # CURVE EDITOR (XX2): the picked part's part keys as curves, made on first use
 var ui_graph: Control       # SPEED GRAPH: tip / hips / head speed over the scene, cards marked, click to scrub
 var ui_tools: MenuButton
 var ui_timeline: Timeline
@@ -1711,6 +1712,7 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	_curve_sync()
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
 	_sym_prev = B.ang.duplicate()
@@ -2344,6 +2346,44 @@ func _key_part() -> void:
 	var t := clampf(playhead, 0.0, S.length())
 	_do(func(): PartKeys.put(S.part_keys, sel, t, B.ang[sel]))
 	_say("keyed %s at %.2f s  (%d key%s on it; Ctrl+Z takes it back)" % [sel, t, S.part_keys[sel].size(), "" if S.part_keys[sel].size() == 1 else "s"])
+
+
+## CURVE EDITOR (round 42, XX2, UPGRADES_300 #240): opens / closes the panel (scripts/curve_editor.gd) that draws the
+## picked part's part keys as curves; dragging a key there is one undo step
+func _curve_toggle() -> void:
+	if ui_curve == null:
+		ui_curve = CurveEditor.new()
+		ui_curve.anchor_top = 1.0
+		ui_curve.anchor_bottom = 1.0
+		ui_curve.anchor_right = 1.0
+		ui_curve.offset_bottom = -BOTTOM_H - 92 - 126
+		ui_curve.offset_top = ui_curve.offset_bottom - 190
+		ui_curve.visible = false
+		ui_curve.begin = _push_undo
+		ui_curve.limit = func(j, v): return B.clamp_ang(j, v)
+		ui_curve.changed = func(): S.apply(B, playhead); _refresh()
+		ui_root.add_child(ui_curve)
+	ui_curve.visible = not ui_curve.visible
+	_curve_sync()
+	if ui_curve.visible:
+		ui_curve.frame_all()
+	_say("curve editor open: drag a key to change its angle and time (Ctrl+Z takes a drag back)" if ui_curve.visible else "curve editor closed")
+
+
+func _curve_sync() -> void:
+	if ui_curve == null or not ui_curve.visible:
+		return
+	var moved: bool = ui_curve.scene != S or ui_curve.joint != sel
+	ui_curve.scene = S
+	ui_curve.joint = sel
+	ui_curve.playhead = playhead
+	ui_curve.fps = S.fps
+	ui_curve.offset_left = lw() + 12
+	ui_curve.offset_right = -rw() - 12
+	if moved:
+		ui_curve.sel_i = -1
+		ui_curve.frame_all()
+	ui_curve.queue_redraw()
 
 
 func _reset_part() -> void:
@@ -4876,6 +4916,7 @@ func _commands() -> Array:
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
 	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0, 0, 0)")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
+	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
 	add.call("Snap the part to 90", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90-degree steps its range allows")
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
