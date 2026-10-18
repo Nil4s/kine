@@ -2346,6 +2346,27 @@ func _key_part() -> void:
 	_say("keyed %s at %.2f s  (%d key%s on it; Ctrl+Z takes it back)" % [sel, t, S.part_keys[sel].size(), "" if S.part_keys[sel].size() == 1 else "s"])
 
 
+## KEY INTERPOLATION (round 42, XX1, UPGRADES_300 #241 #242 #247): set the picked part's key nearest the playhead
+## (kind "interp": constant / linear / bezier; "handle": auto_clamped / auto / vector / aligned / free) or the whole part's
+## INFINITY (kind "inf": hold / linear / cycle / cycle_offset). Logic lives in scripts/part_keys.gd. One undo step
+func _part_curve(kind: String, mode: String) -> void:
+	if not S.part_keys.has(sel):
+		_say("%s has no part keys: press K to key it, then set how its curve runs" % sel)
+		return
+	var idx := PartKeys.key_near(S.part_keys[sel], playhead)
+	if kind != "inf" and idx < 0:
+		_say("no %s key near the playhead (0.05 s): move the playhead onto a key, then set it" % sel)
+		return
+	_do(func():
+		if kind == "inf":
+			PartKeys.set_inf(S.part_keys, sel, mode)
+		elif kind == "interp":
+			PartKeys.set_interp(S.part_keys, sel, idx, mode)
+		else:
+			PartKeys.set_handle_type(S.part_keys, sel, idx, mode))
+	_say("%s %s: %s  (Ctrl+Z takes it back)" % [sel, kind, mode])
+
+
 func _reset_part() -> void:
 	if sel in Body.WEAPON:
 		return
@@ -4876,6 +4897,12 @@ func _commands() -> Array:
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
 	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0, 0, 0)")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
+	for ip in PartKeys.INTERPS:   # KEY INTERPOLATION (XX1)
+		add.call("Part key: " + ip + " interpolation", "", _part_curve.bind("interp", ip), "key curve blender graph " + ip, true, "the picked part's key at the playhead leaves toward the next key as " + ip)
+	for hd in PartKeys.HANDLES:
+		add.call("Part key: " + hd + " handle", "", _part_curve.bind("handle", hd), "key curve bezier blender graph " + hd, true, "the picked part's key at the playhead gets the " + hd + " bezier handle type")
+	for inf in PartKeys.INFS:
+		add.call("Part keys: " + inf + " infinity", "", _part_curve.bind("inf", inf), "key curve extrapolation blender graph repeat loop " + inf, true, "what the picked part's curve does before its first and after its last key: " + inf)
 	add.call("Snap the part to 90", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90-degree steps its range allows")
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")

@@ -432,6 +432,20 @@
         },
         "v": {
          "$ref": "#/$defs/vec3"
+        },
+        "interp": {
+         "enum": ["constant", "linear"],
+         "description": "XX1: how the curve leaves this key toward the next; absent = bezier"
+        },
+        "handle": {
+         "enum": ["auto", "vector", "aligned", "free"],
+         "description": "XX1: this key's bezier handle type; absent = auto_clamped (round 41's curve)"
+        },
+        "hin": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "[dt, d_bend, d_side, d_twist]: a bezier handle as an offset from its key (XX1)"},
+        "hout": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "[dt, d_bend, d_side, d_twist]: a bezier handle as an offset from its key (XX1)"},
+        "inf": {
+         "enum": ["linear", "cycle", "cycle_offset"],
+         "description": "XX1: on a joint's FIRST key: what the curve does outside its keys; absent = hold"
         }
        },
        "additionalProperties": false
