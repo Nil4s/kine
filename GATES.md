@@ -1483,4 +1483,7 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   plays the same; mirror = Body.mirror_pose on the twin (0.02). Stubs: weight ignored -> FAIL 3; no reflection -> FAIL 6.
   FOUND: Ctrl+Z did not bring back BREATH or the LAYER (the snapshot never held them, and the undo audit's fingerprint
   did not include them, so it passed): both added to _snapshot/_restore and to the audit's fingerprint (7 FAIL before).
-- [ ] YY10 MERGED: run_par -j 8 all PASS, no zz_ files, README_AI Round 43, committed and pushed.
+- [x] YY10 MERGED: run_par -j 8 all PASS, no zz_ files, README_AI Round 43, committed and pushed.
+  EVIDENCE: last suite 150/152 (C:/Temp/r43_yy789b) with hover + carry PASS alone; no tests/zz_* files; README_AI
+  "Round 43" written; one branch (poser-ui-rounds), no merge needed. PUSH: impossible, the repo has NO remote (git remote
+  -v is empty): committed locally, Nick told.

@@ -470,6 +470,31 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   cast was null and the margin 0: the bar could run up to 10 px off the window. It now walks up to the nearest
   PanelContainer. The test now prints WHAT is off the window (it failed naming nothing).
 
+## Round 43: animator tools, kept light (GATES YY; docs/ANIM_RESEARCH.md) - one instance, gate by gate
+- YY0 WALK LEGS + YY1 LIVE BALANCE (Shift+B: COM on the floor, support hull, green/amber/red/grey). YY2 "Plant every
+  sliding foot" (Check's slides planted at once, one undo step).
+- YY3 HANDS: curl / spread sliders, Point, Relaxed (Varghese 2020 resting cascade; DIP = 0.76 PIP, Hahn 1995).
+- YY4 BACK: one forward / side / twist slider over spine_01..head, shared by each joint's own range (thoracic share
+  UNVERIFIED). BACK shows for trunk parts, HANDS for limbs (one more header broke the 300 px inspector bar).
+- YY5 SHOULDERS FOLLOW (default on): an upper arm turned by hand past 30 deg lifts / draws back the clavicle to 10 / 15
+  (McClure 2001 bone pins: 10 / 21; 15 is the body's limit). NO SCAPULA in this body, so the GH:ST ratio is not
+  measurable: restated. The clavicle capsule sits 3.2 cm inside the neck at rest: contact allowance now calibrated at
+  people's girdle extreme for clavicle pairs only.
+- YY6 BREATH (Scene.breath, off by default): chest front 4.9 mm at 15/min (Massaroni 2015: 1-8 mm). JAW DEFERRED: the
+  mannequin has no jaw bone or mouth (numbers kept in GATES).
+- YY7 REAL WALKERS' BAND: refs/gait_band.json from Fukuchi 2018 open data (42 adults; tools/make_gait_band.py rebuilds
+  it from the 42 *walkOCang.txt files) drawn in the curve editor behind the body's hip / knee / ankle over one step
+  (scripts/gait_band.gd); "Compare the walk to real walkers" names joints > 2 SD for > 10 % of the step. FINDING, NOT
+  FIXED: walk_bat's knees read ~25-31 deg at 40-50 % of the cycle (people 4-8) and ankles ~40 % out; the body's cycle
+  starts at BALL landing, people's at heel strike (a few % lag, uncorrected), which explains part of the peak shift
+  (66 at 80 % vs 63 at 74 %) but not the late-stance bend. YY0's mid-stance bar (4.8-9.4) measures a different instant.
+- YY8 "Block: stepped keys" -> "Spline and check" (stepped is a view: never edits the scene). YY9 ONE LAYER: Scene.layer
+  (joint -> deg) x layer_w on top of the cards, before breath, then the grip; saved only when present; mirrored.
+- FIXED: Ctrl+Z did not restore breath or the layer; the undo audit's fingerprint lacked both (now in it). The audit
+  also resets the stepped VIEW per start (a Block trial left it on) and has LAYER / STEPPED starts.
+- Load flakes (pass alone): popup_leak, hover, small_window, weapon_picker, and NEW carry (clicks under load).
+- No git remote: every commit is local.
+
 ## Round 42: ten agents again (GATES XX; UPGRADES_300 #240-#333) + Nick's walk arm
 - NICK'S BUG (10-17, "the arm literally rotate to inside body pointing backwards"): walk_bat's bat arm was raised
   72-81 deg with the elbow 21-27 cm ABOVE the wrist, forearm pointing back into the chest (idle_bat the same, 89 deg).
