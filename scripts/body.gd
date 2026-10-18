@@ -277,10 +277,13 @@ func decompose(j: String, q: Quaternion) -> Vector3:
 	var qs := q * qt.inverse()
 	if qs.w < 0.0:
 		qs = Quaternion(-qs.x, -qs.y, -qs.z, -qs.w)
-	var s := sqrt(maxf(0.0, 1.0 - qs.w * qs.w))
+	# the angle from the VECTOR part (2 atan2(|v|, w)), not 2 acos(w): near w = 1 acos is ill-conditioned in float32 and
+	# lost every swing under ~0.05 deg (round 41, WW7's finding; tests/decompose_test.gd)
+	var v := Vector3(qs.x, qs.y, qs.z)
+	var vl := v.length()
 	var rv := Vector3.ZERO
-	if s > 1e-9:
-		rv = Vector3(qs.x, qs.y, qs.z) / s * (2.0 * acos(clampf(qs.w, -1.0, 1.0)))
+	if vl > 1e-12:
+		rv = v / vl * (2.0 * atan2(vl, qs.w))
 	var tw := 2.0 * atan2(Vector3(qt.x, qt.y, qt.z).dot(t), qt.w)
 	if tw > PI:
 		tw -= TAU
@@ -1068,6 +1071,13 @@ var roll_free := false    # the first key of a move has no key before it: no ste
 var roll_start := NAN     # with roll_free: the first key's forearm turn is held near this (cook --roll: the move's "lane")
 
 
+## ELBOW LOW (Nick 10-17, walk_bat): a weight per metre the elbow is above (wrist - ELBOW_UNDER). A person resting a
+## bat on the shoulder keeps the elbow down by the ribs and the hand up by the collarbone; with only the wrist and
+## the aim scored, the sweep raised the elbow to the shoulder and folded the forearm back into the chest. 0 = off.
+var elbow_low := 0.0
+const ELBOW_UNDER := 0.10
+
+
 func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, aw := 0.15) -> float:
 	var h := wep_hand
 	var sd := h.substr(h.length() - 2)
@@ -1118,6 +1128,8 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 								c += ((P[h] - at) as Vector3).length()
 							if use_dir:
 								c += aw * wep_axis().angle_to(dir)
+							if elbow_low > 0.0:
+								c += elbow_low * maxf(0.0, (P[la] as Vector3).y - ((P[h] as Vector3).y - ELBOW_UNDER))
 							for pr in prs:
 								c += 10.0 * maxf(0.0, depth(pr[0], pr[1]) - pr[2] - 0.001)
 							if grip:
@@ -1142,6 +1154,8 @@ func sweep_bat_arm(at: Vector3, dir: Vector3, use_at := true, use_dir := true, a
 			c += ((P[h] - at) as Vector3).length()
 		if use_dir:
 			c += aw * wep_axis().angle_to(dir)
+		if elbow_low > 0.0:
+			c += elbow_low * maxf(0.0, (P[la] as Vector3).y - ((P[h] as Vector3).y - ELBOW_UNDER))
 		if grip:
 			# cheap: the handle within the other arm's reach (solving that arm here made a cook take 25+ min)
 			c += 2.0 * maxf(0.0, (grip_point() - (P[ou] as Vector3)).length() - 0.42)

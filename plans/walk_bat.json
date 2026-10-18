@@ -3,6 +3,7 @@
  "base": "poses/stand.json",
  "bat_hand": "hand_r",
  "frame": "chest",
+ "elbow_low": 3.0,
  "note": "walk start -> stop with the bat on the shoulder: half step, four 0.6 m strides, feet together. Hips turn into each step, the chest counters, the left arm swings against the left leg.",
  "clips": [
   {

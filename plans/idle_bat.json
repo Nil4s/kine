@@ -2,6 +2,7 @@
  "name": "idle_bat",
  "base": "poses/stand.json",
  "bat_hand": "hand_r",
+ "elbow_low": 2.0,
  "note": "loop: the bat rests back over the right shoulder (a carry); weight shifts left and right over 4 s, the chest breathes. First = last clip.",
  "clips": [
   {

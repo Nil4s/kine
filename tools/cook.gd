@@ -48,6 +48,7 @@ func _init() -> void:
 	var ri := ua_.find("--roll")
 	if ri >= 0 and ri + 1 < ua_.size():
 		B.roll_start = float(ua_[ri + 1])
+	B.elbow_low = float(plan.get("elbow_low", 0.0))   # Body.ELBOW LOW: the elbow under the wrist (a bat on the shoulder)
 	var hips := Vector3.ZERO
 	for c in plan["clips"]:
 		for j in LEGS:
