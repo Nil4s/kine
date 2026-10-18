@@ -6,11 +6,13 @@
 ## by Body.fit_hand, inside every joint's limits (clamp_ang): it can fall short, never bend past.
 ##   snap   the wrist within one hand length (this body's hand_r, wrist to knuckles) of the shaft's axis, between its
 ##          grippable ends
-##   let go the wrist dragged 1.5 hand lengths off the axis, half a hand past an end, or the fitted wrist > 1.5 cm short
+##   held   the palm within 2 cm of the shaft's surface; a slide or roll the arm cannot make stops there (still held)
+##   let go the wrist dragged 1.5 hand lengths off the axis, half a hand past an end, or (snapping) no reachable place
 class_name GripMagnet
 extends RefCounted
 
 const REACH_MISS := 0.015   # the arm cannot get the wrist there: let go (slide_hand's own bar)
+const PALM_ON := 0.02       # the palm's distance from the shaft's surface that still holds it
 
 
 ## the hand's length on this body (wrist -> knuckles, rest pose) = the snap distance
@@ -29,12 +31,21 @@ static func span(B: Body) -> Vector2:
 
 
 ## the standard hand on a shaft, in the weapon's frame with the knob at 0: [wrist offset, turn] for hand h, from the
-## kind's grip file (the bat file when the kind has none; the left hand is its mirror, x flipped, as the file says)
+## kind's grip file: Nick's own second hand when the file has one for h (the staff), else the main hand's grip (the bat
+## file when the kind has none; the other hand is its mirror, x flipped, as the file says)
 static func template(B: Body, h: String) -> Array:
 	var path := "res://data/grips/%s.json" % B.wep_kind
 	if not FileAccess.file_exists(path):
 		path = "res://data/grips/metal_bat.json"
 	var g: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	# Nick's own second hand for this kind (the staff's "second", fitted from his two-hand pose) when it is this hand:
+	# already in the weapon's frame
+	var sec: Dictionary = g.get("second", {})
+	if not sec.is_empty() and String(sec.get("hand", "")) == h:
+		var w2 := Body._v(sec["lpos"])
+		w2.y = 0.0
+		var r2: Array = sec["lrot"]
+		return [w2, Quaternion(r2[0], r2[1], r2[2], r2[3]).normalized()]
 	var lp := Body._v(g["local_pos"])
 	var lr: Array = g["local_rot"]
 	var q := Quaternion(lr[0], lr[1], lr[2], lr[3]).normalized()
@@ -105,13 +116,18 @@ static func drag(B: Body, h: String, target: Vector3) -> String:
 		var ps := pose_at(B, h, uu, pp)
 		B.set_state(keep)
 		var miss := B.fit_hand(h, ps[0], ps[1])
-		if miss < best_miss - 1e-4:
-			best_miss = miss
+		# held means the PALM on the shaft, not only the wrist near its spot (a wrist that cannot turn far enough
+		# leaves the palm off the handle: round 47, the roll drag left it 2.7 cm off)
+		var bad := maxf(0.0, miss - REACH_MISS) + maxf(0.0, palm_off(B, h) - PALM_ON)
+		if bad < best_miss - 1e-5:
+			best_miss = bad
 			best = [uu, B.state()]
-		if miss <= REACH_MISS:
+		if bad <= 0.0:
 			break
-	if best_miss > REACH_MISS:
+	if best_miss > 0.0:
 		B.set_state(keep)
+		if holding:
+			return "held"   # the hand stops where it is: the arm cannot slide or roll it further (its limits)
 		return _let_go(B, h, target)
 	u = best[0]
 	B.set_state(best[1])
@@ -131,6 +147,12 @@ static func drag(B: Body, h: String, target: Vector3) -> String:
 	B.grip = true
 	B.grip_u = u
 	return "held" if holding else "snap"
+
+
+## the palm's distance from the shaft's surface (m; the palm as capture_second places it)
+static func palm_off(B: Body, h: String) -> float:
+	var palm: Vector3 = (B.P[h] as Vector3).lerp(B.E[h], 0.6) + (B.G[h] as Quaternion) * Vector3(0, -0.03, 0)
+	return float(shaft_coords(B, palm)[1]) - B.wep_r_handle
 
 
 ## where the holding hand is along the shaft (m from the knob)

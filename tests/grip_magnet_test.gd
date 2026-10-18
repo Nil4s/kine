@@ -4,9 +4,10 @@
 ##     its palm on the shaft (palm to the axis surface <= 2 cm), every fingertip wrapped (<= 3 mm or at its limit). Where
 ##     the arm cannot reach the asked place it takes the nearest one it can (<= 10 cm toward the body, <= 60 deg round)
 ##   2 SLIDE: the drag moved 10 cm along the shaft (toward the holding hand) in 1 cm steps, the hand follows: its place along the shaft moved
-##     10 +- 1.5 cm, held all the way
-##   3 ROLL: the drag carried 40 deg round the shaft in 5 deg steps: the hand's roll round the shaft moved >= 25 deg,
-##     held all the way
+##     10 +- 1.5 cm, held all the way, the palm still on the shaft (<= 2 cm)
+##   3 ROLL: the drag carried 40 deg round the shaft in 5 deg steps, each way: the hand rolls >= 25 deg the way the
+##     forearm has room (it turns ~80 each way; the other way it stops at its limit, still held), the palm on the shaft;
+##     at 0.70 m along the staff (slid there): at full reach the wrist has no roll left
 ##   4 LET GO: pulled straight off the staff it lets go at 1.5 hand lengths (grip off, grip2 empty); on the bat, snapped
 ##     where swing_fore's first card holds it and dragged up the handle toward the barrel, it holds to the handle's end and lets go half a hand past it
 ##   5 LIMITS: after every step of 1-4, every joint of the body inside its limits (ang == clamp_ang(ang))
@@ -82,16 +83,31 @@ func _init() -> void:
 		var st := GripMagnet.drag(B, "hand_l", at(ua - (i + 1) / 100.0, 0.04, side))
 		limits()
 		held = held and st == "held"
-	ok(held and absf(ua - B.grip_u - 0.10) <= 0.015, "2 slide: the hand moved %.1f cm along the shaft (toward the holding hand) for a 10 cm drag, held all the way (%s)" % [(ua - B.grip_u) * 100, held])
-	# 3 roll
-	var r0 := _roll()
-	held = true
-	for i in 8:
-		var st := GripMagnet.drag(B, "hand_l", at(B.grip_u, 0.04, side + deg_to_rad(5.0 * (i + 1))))
+	ok(held and absf(ua - B.grip_u - 0.10) <= 0.015 and palm_off() <= 0.02, "2 slide: the hand moved %.1f cm along the shaft (toward the holding hand) for a 10 cm drag, held all the way (%s), palm %.1f cm off the surface" % [(ua - B.grip_u) * 100, held, palm_off() * 100])
+	# 3 roll, both ways (the forearm turns ~80 deg each way: whichever way has room), at 0.70 m, the arm not at full
+	# stretch (at 0.85-0.95 m the wrist's twist is already at its limit: there is no roll left at full reach)
+	while B.grip_u > 0.705:
+		GripMagnet.drag(B, "hand_l", at(B.grip_u - 0.01, 0.04, side))
 		limits()
-		held = held and st == "held"
-	var dr := rad_to_deg(absf(angle_difference(_roll(), r0)))
-	ok(held and dr >= 25.0, "3 roll: the hand rolled %.0f deg round the shaft for a 40 deg drag, held all the way (%s)" % [dr, held])
+	var keep3 := B.state()
+	var keep3g := [B.grip, B.grip2.duplicate(true), B.grip_u]
+	var r0 := _roll()
+	var rolls := []
+	var palms := []
+	held = true
+	for sg in [1.0, -1.0]:
+		B.set_state(keep3)
+		B.grip = keep3g[0]
+		B.grip2 = (keep3g[1] as Dictionary).duplicate(true)
+		B.grip_u = keep3g[2]
+		for i in 8:
+			var st := GripMagnet.drag(B, "hand_l", at(B.grip_u, 0.04, side + sg * deg_to_rad(5.0 * (i + 1))))
+			limits()
+			held = held and st == "held"
+		rolls.append(rad_to_deg(absf(angle_difference(_roll(), r0))))
+		palms.append(palm_off())
+		print("     roll %+.0f: rolled %.0f deg, wrist twist %.0f (range -80..80), palm %.1f cm off" % [sg * 40, rolls[-1], (B.ang["hand_l"] as Vector3).z, palm_off() * 100])
+	ok(held and rolls.max() >= 25.0 and palms.max() <= 0.02, "3 roll: dragged 40 deg round each way the hand rolled %.0f / %.0f deg, held all the way (%s), palm on the shaft (worst %.1f cm)" % [rolls[0], rolls[1], held, palms.max() * 100])
 	# 4 let go: pulled straight off the shaft, then (on the bat, where the knob end is within reach) past an end
 	var out2 := ""
 	var rr := 0.04

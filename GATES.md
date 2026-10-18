@@ -1723,14 +1723,19 @@ that could adapt within its limits". Research: docs/GRIP_RESEARCH.md (Napier 195
   part; pulled past the arm's reach or the handle's ends it lets go; no arm is bent past its limits to hold on.
   EVIDENCE (tests/grip_magnet_test.gd; scripts/grip_magnet.gd, wired into the app's hand drag): 1 the left hand walked
   in to bo_spin's staff in 1 cm steps stays free until 12 cm off (one hand length, 12.2) and snaps, palm 0.4 cm from
-  the shaft's surface, every fingertip wrapped; 2 dragged 10 cm along: slid 10.0 cm, held; 3 carried 40 deg round:
-  rolled 40 deg, held; 4 pulled off the shaft it lets go at 19 cm (rule 1.5 hands = 18), and on the bat (swing_fore's
+  the shaft's surface, every fingertip wrapped; 2 dragged 10 cm along: slid 10.0 cm, held, palm on; 3 at 0.70 m,
+  carried 40 deg round each way: rolled 40 deg one way (wrist twist -80 -> -36), the other way stops at the wrist's
+  -80 limit after 9 deg, still held, palm within 0.2 cm; 4 pulled off the shaft it lets go at 19 cm (rule 1.5 hands = 18), and on the bat (swing_fore's
   card 1) it holds to the handle's end (0.40 m) and lets go 7.0 cm past it (rule half a hand = 6.1); 5 every joint of
   the body inside its limits after every step; 6 the bat's barrel is not a handle (a drag there stays free); 7 a real
   hand drag in the app (main._drag_joint) snaps and the line says SNAPPED. Where the arm cannot reach the place asked,
   it takes the nearest it can (<= 10 cm toward the body, <= 60 deg round; at 0.95 m on the staff only rolls near the
   drag side fit, the far side misses 13-25 cm). STUBS: never snaps -> bars 1, 2, 3, 4, 7 FAIL; never lets go -> bar 4
-  FAIL.
+  FAIL. FOLLOW-UP (the render showed the rolled hand riding on top of the staff): the first roll bar passed with the
+  palm 2.7 cm OFF the shaft (the wrist at its twist limit, the fit trading turn for place). Now a place is accepted only
+  with the palm within 2 cm, a roll the arm cannot make stops there still held, and the template is Nick's own second
+  hand when the grip file has one (the staff's). STUB (the old magnet): bar 3 FAIL, palm 2.4 cm off. Suite 163/163
+  (C:/Temp/r47_cc3b).
 - [x] CC4 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
   EVIDENCE: suite 163/163 (C:/Temp/r47_cc3). scenes/, poses/, data/: only scenes/axe_strike_pose.json changed (Nick's,
   untracked, as he asked: his hand standard and the lock; backups in the job tmp); the bo_sweep.json deletion is his,
