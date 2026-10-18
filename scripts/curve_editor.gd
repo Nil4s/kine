@@ -32,6 +32,7 @@ var sel_i := -1
 var _press := Vector2.ZERO
 var _dragging := false
 var _btn: Button
+var band := {}   # YY7: GaitBand.for_part() of the picked part (the people's band + the body's own line), {} = none
 
 
 func _init() -> void:
@@ -80,7 +81,19 @@ func y_to_v(y: float) -> float:
 ## fit the view: all keys' times and every curve's range (sampled, so a curve's bulge between keys is inside too)
 func frame_all() -> void:
 	var ks := keys()
-	if ks.is_empty():
+	if ks.is_empty() and band.get("ok", false):
+		# no keys, a walk: the view is the band's cycle, every point of it inside (YY7)
+		var pad := (float(band["t1"]) - float(band["t0"])) * 0.04
+		t0 = float(band["t0"]) - pad
+		t1 = float(band["t1"]) + pad
+		var lo := 1e9
+		var hi := -1e9
+		for i in 101:
+			lo = minf(lo, minf(float(band["mean"][i]) - 2.0 * float(band["sd"][i]), float(band["you"][i])))
+			hi = maxf(hi, maxf(float(band["mean"][i]) + 2.0 * float(band["sd"][i]), float(band["you"][i])))
+		v0 = lo - 4.0
+		v1 = hi + 4.0
+	elif ks.is_empty():
 		t0 = 0.0
 		t1 = maxf(scene.length() if scene != null else 1.0, 0.1)
 		v0 = -30.0
@@ -135,6 +148,36 @@ func polyline(c: int) -> PackedVector2Array:
 	return pts
 
 
+## REAL WALKERS' BAND (YY7): the people's mean +- k SD over the band's cycle, as one closed outline (upper edge left to
+## right, lower edge back), in local pixels; the body's own line over the same cycle with k = NAN
+func band_poly(k: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	if not band.get("ok", false):
+		return pts
+	for i in 101:
+		var t := lerpf(float(band["t0"]), float(band["t1"]), i / 100.0)
+		var v: float = float(band["you"][i]) if is_nan(k) else float(band["mean"][i]) + k * float(band["sd"][i])
+		pts.append(Vector2(t_to_x(t), v_to_y(v)))
+	if not is_nan(k):
+		for i in range(100, -1, -1):
+			var t := lerpf(float(band["t0"]), float(band["t1"]), i / 100.0)
+			pts.append(Vector2(t_to_x(t), v_to_y(float(band["mean"][i]) - k * float(band["sd"][i]))))
+	return pts
+
+
+func _draw_band() -> void:
+	if not band.get("ok", false):
+		return
+	var ink := Tok.c("ink")
+	draw_colored_polygon(band_poly(2.0), Color(ink, 0.07))
+	draw_colored_polygon(band_poly(1.0), Color(ink, 0.12))
+	draw_polyline(band_poly(NAN), Color(Tok.c("say"), 0.95), 2.5, true)
+	var name := "%s %s" % ["right" if band["side"] == "_r" else "left", band["joint"]]
+	var txt := "%s vs 42 real walkers (mean +-1 / 2 SD, Fukuchi 2018), one step %.2f-%.2f s: " % [name, band["t0"], band["t1"]]
+	txt += ("OUTSIDE 2 SD for %d %% of the step" % int(round(float(band["out"]) * 100.0))) if band["listed"] else ("inside (%d %% out)" % int(round(float(band["out"]) * 100.0)))
+	draw_string(get_theme_default_font(), Vector2(PAD_L + 4, plot().end.y - 6), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.c("say") if band["listed"] else Tok.dim(0.85))
+
+
 func key_pos(c: int, i: int) -> Vector2:
 	var k: Dictionary = keys()[i]
 	return Vector2(t_to_x(float(k["t"])), v_to_y((k["v"] as Vector3)[c]))
@@ -180,6 +223,9 @@ func _draw() -> void:
 		draw_line(Vector2(ph, p.position.y), Vector2(ph, p.end.y), Tok.c("say"), 1.5)
 	draw_string(f, Vector2(p.position.x, size.y - 5), "%.2f s" % t0, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
 	draw_string(f, Vector2(p.end.x - 40, size.y - 5), "%.2f s" % t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
+	_draw_band()
+	if ks.is_empty() and band.get("ok", false):
+		return
 	if ks.is_empty():
 		draw_string(f, Vector2(p.position.x + 20, p.position.y + p.size.y * 0.5), "no part keys on this part: pick it and press K at a time to key it", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Tok.dim(0.8))
 		return

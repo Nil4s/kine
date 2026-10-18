@@ -344,6 +344,7 @@ var stepped_view := false   # STEPPED preview (blocking): the scene plays card t
 var ui_bp: PanelContainer   # the bottom panel (the scene)
 var ui_card_row: ScrollContainer
 var ui_play_row: HBoxContainer
+var _band_sig := ""   # YY7: what the curve editor's people band was measured on (part + the scene's cards and keys)
 var ui_curve: CurveEditor   # CURVE EDITOR (XX2): the picked part's part keys as curves, made on first use
 var ui_graph: Control       # SPEED GRAPH: tip / hips / head speed over the scene, cards marked, click to scrub
 var ui_tools: MenuButton
@@ -2349,7 +2350,7 @@ func _big_view() -> void:
 func _snapshot() -> Dictionary:
 	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true)}
+		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w}
 
 
 func _restore(u: Dictionary) -> void:
@@ -2370,6 +2371,11 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
+	if u["scene"] == S and u.has("layer") and (u["breath"] != S.breath or u["layer"] != S.layer or u["layer_w"] != S.layer_w):
+		S.breath = u["breath"]   # BREATH (YY6) and the LAYER (YY9): scene settings, undone like a card (the undo audit
+		S.layer = u["layer"].duplicate()   # did not fingerprint them, so a lost breath / layer passed it)
+		S.layer_w = u["layer_w"]
+		_dummy_hits()
 	if u["scene"] == S and JSON.stringify(u["cards"]) != JSON.stringify(S.cards):
 		S.cards = u["cards"].duplicate(true)
 		sel_card = mini(u["sel"], S.cards.size() - 1)
@@ -2461,10 +2467,52 @@ func _curve_sync() -> void:
 	ui_curve.fps = S.fps
 	ui_curve.offset_left = lw() + 12
 	ui_curve.offset_right = -rw() - 12
+	var sig := "%s|%d" % [sel, hash(var_to_str([S.cards, S.part_keys]))]
+	if sig != _band_sig and not ui_curve._dragging:   # YY7: the people's band, measured again only when the scene changed
+		_band_sig = sig   # (never mid-drag, and the view is refitted only for a new part: a refit under the mouse moved the key)
+		ui_curve.band = GaitBand.for_part(S, sel) if GaitBand.joint_of(sel) != "" else {}
 	if moved:
 		ui_curve.sel_i = -1
 		ui_curve.frame_all()
 	ui_curve.queue_redraw()
+
+
+## BLOCK -> SPLINE -> CHECK (round 43, YY8; docs/ANIM_RESEARCH.md: animators block in stepped keys, add breakdowns
+## while still stepped, then spline and polish). One guided path over the parts Poser already has: BLOCK = the stepped
+## preview on (each card holds until the next); SPLINE = it off, so the scene plays exactly as before, and Check runs.
+## Each switch is the stepped toggle's own ONE undo step (it puts the scene's pose on the body); the scene is not edited.
+func _stage_block() -> void:
+	if S.cards.size() < 2:
+		_say("blocking needs a scene of two cards or more: press Enter to add the body as a card")
+		return
+	if stepped_view:
+		_say("already blocking (stepped): pose the key cards, then run 'Spline and check' from search")
+		return
+	_tool(3)
+	_say("1 BLOCK: each card holds until the next (stepped).  Pose the key cards, add breakdowns while it is stepped; then 'Spline and check'")
+
+
+func _stage_spline() -> void:
+	if S.cards.size() < 2:
+		_say("spline and check needs a scene of two cards or more: press Enter to add the body as a card")
+		return
+	var was := stepped_view
+	if stepped_view:
+		_tool(3)
+	_check()
+	_say("%s3 CHECK: %s" % ["2 SPLINE: in-betweens back, the scene's own playback.  " if was else "", "clean" if findings.is_empty() else "%d to look at (the list below)" % findings.size()])
+
+
+## YY7: every leg joint of the scene's walk against 42 real walkers; the ones outside named
+func _gait_compare() -> void:
+	var r := GaitBand.report(S)
+	if not r["ok"]:
+		_say("compare to real walkers: %s; open a walk (e.g. walk_bat) and search this again" % r["why"])
+		return
+	if r["listed"].is_empty():
+		_say("compare to real walkers: hips, knees and ankles all inside the people's band (2 SD) for 90 %% of the step; open the curve editor on a thigh, calf or foot to see the band")
+		return
+	_say("outside real walkers (more than 2 SD for over 10 %% of the step): %s; open the curve editor on it to see where" % ", ".join(r["listed"].map(func(x): return "%s %s %d %%" % [x["part"].right(1).replace("r", "right").replace("l", "left"), x["joint"], int(round(x["out"] * 100.0))])))
 
 
 ## KEY INTERPOLATION (round 42, XX1, UPGRADES_300 #241 #242 #247): set the picked part's key nearest the playhead
@@ -2625,6 +2673,44 @@ func _on_back_slider(v: float, k: String) -> void:
 	B.back_bend(k, v)
 	_refresh()
 	_say("the back: %s %.0f deg over the spine, neck and head" % [{"bend": "forward", "side": "side", "twist": "twist"}[k], B.back_of(k)])
+
+
+## LAYER (round 43, YY9): the body's change from what the scene plays at the playhead, added to the scene's one layer
+## (divided by the weight, so at this weight the change shows exactly; weight 0 becomes 1)
+func _layer_take() -> void:
+	if S.cards.size() < 2:
+		_say("a layer is over a scene: open one with two cards or more")
+		return
+	var now := B.ang.duplicate()
+	var PB := Body.new()
+	PB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	_ps().apply(PB, playhead)   # what plays here, layer included
+	if S.layer_w <= 0.0:
+		S.layer_w = 1.0
+	var n := 0
+	for j in now:
+		var d: Vector3 = (now[j] as Vector3) - (PB.ang[j] as Vector3)
+		if d.length() > 0.01:
+			S.layer[j] = (S.layer.get(j, Vector3.ZERO) as Vector3) + d / S.layer_w
+			n += 1
+	_dummy_hits()   # the landed copy (SL) carries the layer too
+	_ps().apply(B, playhead)
+	_say(("layer: %d part%s changed, over the whole scene at weight %.2f (cards untouched; 'Layer weaker' / 'Layer: delete')" % [n, "" if n == 1 else "s", S.layer_w]) if n > 0 else "layer: the body is what the scene plays here; turn a part first, then keep the change")
+
+
+## step: the weight change (clamped 0..1); -9 deletes the layer
+func _layer_weight(step: float) -> void:
+	if S.layer.is_empty():
+		_say("no layer: turn a part, then search 'Layer: keep this change through the whole scene'")
+		return
+	if step <= -9.0:
+		S.layer = {}
+		S.layer_w = 1.0
+	else:
+		S.layer_w = clampf(S.layer_w + step, 0.0, 1.0)
+	_dummy_hits()
+	_ps().apply(B, playhead)
+	_say("layer deleted: the cards play as they are" if S.layer.is_empty() else "layer weight %.2f (0 = the cards alone, 1 = the full change)" % S.layer_w)
 
 
 ## BREATH (YY6): step = -1 toggles (off <-> 15 a minute), else the rate changes by step (6..40 a minute)
@@ -5179,6 +5265,13 @@ func _commands() -> Array:
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Point the right hand", "", _do.bind(_hand_point.bind("r")), "finger index point hand curl fist", true, "the right index straight, the other fingers and the thumb curled")
 	add.call("Point the left hand", "", _do.bind(_hand_point.bind("l")), "finger index point hand curl fist", true, "the left index straight, the other fingers and the thumb curled")
+	add.call("Block: stepped keys", "", _stage_block, "block blocking stepped keys pose to pose stage plan", true, "step 1 of 3: every card holds until the next (no in-betweens), to pose the key cards and add breakdowns before smoothing")
+	add.call("Spline and check", "", _stage_spline, "spline smooth stage finish check polish blocking", true, "steps 2 and 3: the in-betweens come back (the scene's own playback) and Check grades the motion")
+	add.call("Compare the walk to real walkers", "", _gait_compare, "gait walk people real compare hip knee ankle band curve normal", false, "plays the walk and measures each hip, knee and ankle against 42 real walkers (Fukuchi 2018); names the ones outside")
+	add.call("Layer: keep this change through the whole scene", "", _do.bind(_layer_take), "layer additive offset tweak whole scene non destructive lean", true, "what you changed on the body here (against what the scene plays here) goes onto ONE layer over the whole scene; the cards are not touched")
+	add.call("Layer stronger", "", _do.bind(_layer_weight.bind(0.25)), "layer weight more additive", true, "the layer's weight +0.25 (0..1)")
+	add.call("Layer weaker", "", _do.bind(_layer_weight.bind(-0.25)), "layer weight less additive", true, "the layer's weight -0.25 (0 = the scene as the cards play it)")
+	add.call("Layer: delete", "", _do.bind(_layer_weight.bind(-9.0)), "layer remove clear additive", true, "the layer goes; the scene plays its cards again")
 	add.call("Breathing on/off", "", _do.bind(_breath_set.bind(-1.0)), "breath breathe chest idle alive rest", true, "the chest rises and falls as people's do at rest (15 a minute, ~5 mm at the chest), on top of every pose while it plays")
 	add.call("Breathe faster", "", _do.bind(_breath_set.bind(2.0)), "breath breathe rate quicker", true, "2 breaths a minute more (people at rest 12-20; after effort more)")
 	add.call("Breathe slower", "", _do.bind(_breath_set.bind(-2.0)), "breath breathe rate calmer", true, "2 breaths a minute fewer")
@@ -5541,6 +5634,8 @@ func _mirror_scene() -> void:
 	d["cards"] = d["cards"].map(func(c): return Scene.mirror_card(c, M))   # by Scene.MIRROR_CARD (round 19, Z1)
 	if d.has("part_keys"):
 		d["part_keys"] = PartKeys.mirror_file(d["part_keys"], M)   # MIRROR_SCENE "part_keys" (WW1)
+	if d.has("layer"):
+		d["layer"] = Scene.mirror_layer(d["layer"], M)   # MIRROR_SCENE "layer" (YY9)
 	B.set_state(keep)
 	var base := S.name.trim_suffix("_mirrored")
 	d["scene"] = base + "_mirrored" if not S.name.ends_with("_mirrored") else base

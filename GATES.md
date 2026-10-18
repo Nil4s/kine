@@ -1448,11 +1448,39 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   mm), feet still; off bit for bit; 10 scenes load off with no key, on writes 14 and reads it back. Stub (no neck
   counter-turn): FAIL 3 (head 1.80 deg). run_par -j 8 147/149 (C:/Temp/r43_yy6): popup_leak, hover, both PASS alone;
   scenes/poses/data fingerprint unchanged.
-- [ ] YY7 REAL-HUMAN BAND in the curve editor: for a walk, the knee / hip / ankle normative curve (mean +- SD over the
+- [x] YY7 REAL-HUMAN BAND in the curve editor: for a walk, the knee / hip / ankle normative curve (mean +- SD over the
   gait cycle, a checked source) drawn behind the joint's curve, time-normalised to the step. Bars: the band's points =
   the table's; a joint outside the band is listed.
-- [ ] YY8 BLOCK -> SPLINE -> CHECK: one guided path: stepped keys (blocking), then "Spline" switches the scene to
+  EVIDENCE (ticked after run_par): source = Fukuchi, Fukuchi & Duarte 2018 (PeerJ 6:e4640; data doi 10.6084/m9.figshare.
+  5722711, CC BY 4.0): 42 adults overground at comfortable speed, the 42 WBDS??walkOCang.txt files read out of the 687 MB
+  zip by HTTP range requests; tools/make_gait_band.py -> refs/gait_band.json (mean + SD at 101 points; knee peak 63.0 at
+  74 %, hip 32.4 at 89 %, ankle 13.6 at 46 %). scripts/gait_band.gd: the same three angles measured on the body (segment
+  in its parent's frame, side view, 0 at rest), one cycle = two landings of that foot (Rulebook.gait; the body's landing
+  is the BALL, people's 0 % is the heel: not corrected, stated). Curve editor: grey band +-1 / 2 SD, the body's line,
+  "OUTSIDE 2 SD for N % of the step" when > 10 % (MINE); search "Compare the walk to real walkers" names them.
+  tests/gait_band_test.gd 6 ok (table landmarks; drawn band = table 0.0000 px; measure 30/40/15 deg read exactly, signs
+  as people's; listing edge 11 vs 10 points; walk_bat both cycles + view fit; a changed walk lists more). Stubs: OUT_SD
+  20 -> FAIL 4, 6; knee sign flipped -> FAIL 3. FOUND: walk_bat's knees are bent ~30 deg in late stance (people 4-8):
+  knees out 51 % / 32 % of the step, ankles ~40 %, hips inside; not changed here. The first suite caught a real bug: a
+  key drag re-measured the band and refitted the view under the mouse (curve_editor FAIL 3): no refit, no re-measure
+  mid-drag.
+  SUITE (YY7-9 together, after the undo fix): run_par -j 8 150/152 (C:/Temp/r43_yy789b): hover (known) and carry, both
+  PASS alone (carry twice); carry failed under load in r43_yy7 too (other bars): a NEW load flake, clicks, watched.
+- [x] YY8 BLOCK -> SPLINE -> CHECK: one guided path: stepped keys (blocking), then "Spline" switches the scene to
   smooth, then Check runs. Bars: stepped holds each key to the next; spline = the old playback; one undo step each.
-- [ ] YY9 LAYER (additive, one): a whole-scene offset layer with a weight (0..1) on top of the cards, non-destructive.
+  EVIDENCE: search "Block: stepped keys" (the stepped preview on) and "Spline and check" (off, then Check); the scene
+  is not edited (stepped is a view); each switch is the stepped toggle's own undo step. tests/stage_test.gd 4 ok on
+  combo3: 33 of 33 in-gap times hold the card's pose; 24 of 24 times play as before; undo 1 / 0 (again) / 1, saved
+  scene unchanged; Check ran, 6 findings = Check on the scene. Stub (no Check): FAIL 4. Undo audit: Block from a start
+  between two cards, Spline from a stepped start (both new starts; the view now reset per start).
+- [x] YY9 LAYER (additive, one): a whole-scene offset layer with a weight (0..1) on top of the cards, non-destructive.
   Bars: weight 0 = the scene byte for byte; weight 1 = base + offset per joint; save/load round trip.
+  EVIDENCE: Scene.layer / layer_w / add_layer (after the cards, before breath, then the grip: a held weapon wins over a
+  layered arm), mirror_layer (MIRROR_SCENE "layer" SIDED, "layer_w" free), written only when there is a layer. Search
+  "Layer: keep this change through the whole scene" (the body's change from what plays here, / weight), "Layer
+  stronger / weaker" (+-0.25), "Layer: delete". tests/layer_test.gd 6 ok: weight 0 byte for byte over 30 times, 10 scenes
+  save with no key; weight 1 and 0.5 = cards + w x offset, 0.000000 deg, legs untouched; cards never written; save/load
+  plays the same; mirror = Body.mirror_pose on the twin (0.02). Stubs: weight ignored -> FAIL 3; no reflection -> FAIL 6.
+  FOUND: Ctrl+Z did not bring back BREATH or the LAYER (the snapshot never held them, and the undo audit's fingerprint
+  did not include them, so it passed): both added to _snapshot/_restore and to the audit's fingerprint (7 FAIL before).
 - [ ] YY10 MERGED: run_par -j 8 all PASS, no zz_ files, README_AI Round 43, committed and pushed.

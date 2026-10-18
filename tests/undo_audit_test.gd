@@ -37,17 +37,21 @@ func fp() -> String:
 	# the fingerprint moved with nothing done) and adds derived data (bad_frames) that re-plays the whole scene per call
 	var sd := {"cards": m.S.cards, "name": m.S.name, "natural": m.S.natural, "spline": m.S.spline, "on_floor": m.S.on_floor,
 		"floor_body": m.S.floor_body, "pin": m.S.pin, "fps": m.S.fps, "moving_holds": m.S.moving_holds,
-		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers}   # WW1, WW5
+		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers,   # WW1, WW5
+		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w}   # YY6, YY9
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
 
 ## start A: combo3 open, card 3 picked (its pose on the body), the right forearm picked and bent off any snap step
 ## start B: the same with no weapon and the left hand picked (for weapon / finger commands that need another start)
 ## start "res://scenes/x.json": that scene, card 2 picked, the left hand picked (a command vacuous from A and B)
+## start LAYER: combo3 0.13 s before card 3 arrives, with a layer (spine_03 +5 at weight 0.5): for Block and the layer commands
+## start STEPPED: the same, already blocking (the stepped view on): for "Spline and check"
 ## start THROUGH: two clean right-arm poses whose straight in-between goes through the body (for "Fix moves through
 ##   the body"; found by a seeded random search over legal arm poses: my hand-made swing first went round the body)
 func start(kind: String) -> void:
 	m.playing = false
+	m.stepped_view = false   # a VIEW (never undone): a Block trial left it on, and every later start then began blocking
 	if kind == "THROUGH":
 		m.S = Scene.new()
 		m._bat_remove()
@@ -91,6 +95,17 @@ func start(kind: String) -> void:
 			PartKeys.set_interp(m.S.part_keys, "lowerarm_r", 0, "linear")
 			PartKeys.set_handle_type(m.S.part_keys, "lowerarm_r", 0, "free")
 			PartKeys.set_inf(m.S.part_keys, "lowerarm_r", "linear")
+	elif kind == "LAYER" or kind == "STEPPED":
+		# YY8 / YY9: combo3 between two cards (so the stepped hold differs from the in-between) with a small layer on
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.layer = {"spine_03": Vector3(5, 0, 0)}
+		m.S.layer_w = 0.5
+		m.playhead = float(m.S.times()[2][1]) - 0.13
+		m.stepped_view = kind == "STEPPED"   # STEPPED: already blocking, for "Spline and check"
+		m._ps().apply(m.B, m.playhead)
+		m.sel = "lowerarm_r"
 	elif kind.begins_with("res://"):
 		m._load_scene(kind)
 		m._rebuild_cards()
@@ -191,7 +206,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

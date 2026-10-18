@@ -59,6 +59,8 @@ var props_skipped := []   # kinds the file named that this library does not have
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var name := "scene"
 var natural := true
+var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
+var layer_w := 1.0     # YY9: the layer's weight 0..1 (written only with a layer)
 var breath := 0.0      # YY6: breaths a minute added on playback (Body.breathe); 0 = off (written only when on)
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
 var loop := false      # the scene plays round: CHECK grades the seam from the last frame to the first (round 16, W2)
@@ -547,8 +549,34 @@ func apply(B: Body, t: float) -> void:
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	_apply(B, t)
+	add_layer(B)           # YY9: on top of the cards; nothing without a layer or at weight 0
 	B.breathe(t, breath)   # YY6: on top of the pose; nothing at 0
 	B.fast = was_fast
+
+
+## LAYER (round 43, GATES YY9; docs/ANIM_RESEARCH.md idea 4: Maya's animation layers, Blender's NLA): one whole-scene
+## offset on top of the cards, never written into them: each layered joint gets layer[j] x layer_w added to what the
+## cards play, within the joint's limits. Weight 0 or no layer: the body is not touched (byte for byte).
+func add_layer(B: Body) -> void:
+	if layer.is_empty() or layer_w <= 0.0:
+		return
+	for j in layer:
+		if B.ang.has(j):
+			B.ang[j] = B.clamp_ang(j, (B.ang[j] as Vector3) + (layer[j] as Vector3) * layer_w)
+	B.fk()
+	B.apply_grip()
+
+
+## the layer MIRRORED (MIRROR_SCENE "layer"): each joint's offset to its twin, reflected as an angle is (Body.mirror_pose)
+static func mirror_layer(d: Dictionary, M: Body) -> Dictionary:
+	var out := {}
+	for j in d:
+		var o := Body.twin(String(j))
+		var a: Array = d[j]
+		var q := M.compose(String(j), Vector3(float(a[0]), float(a[1]), float(a[2])))
+		var v := M.decompose(o, Quaternion(q.x, -q.y, -q.z, q.w))
+		out[o] = [snappedf(v.x, 0.01), snappedf(v.y, 0.01), snappedf(v.z, 0.01)]
+	return out
 
 
 func _ground(B: Body) -> void:
@@ -1022,6 +1050,8 @@ func clone() -> Scene:
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
 	c.markers = markers.duplicate(true)
+	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
+	c.layer_w = layer_w
 	return c
 
 
@@ -1469,6 +1499,13 @@ func to_dict(B: Body) -> Dictionary:
 		out["loop"] = true   # the same
 	if breath > 0.0:
 		out["breath"] = breath   # YY6: the same, only when on
+	if not layer.is_empty():   # YY9: only with a layer, so a scene without one saves as before
+		var ly := {}
+		for j in layer:
+			var v: Vector3 = layer[j]
+			ly[j] = [snappedf(v.x, 0.01), snappedf(v.y, 0.01), snappedf(v.z, 0.01)]
+		out["layer"] = ly
+		out["layer_w"] = layer_w
 	if not props.is_empty():
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
 	if not part_keys.is_empty():
@@ -1483,7 +1520,8 @@ func to_dict(B: Body) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free",
+	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "layer_w": "free",
+	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
@@ -1520,6 +1558,11 @@ func from_dict(d: Dictionary) -> void:
 	moving_holds = bool(d.get("moving_holds", false))
 	loop = bool(d.get("loop", false))
 	breath = float(d.get("breath", 0.0))
+	layer = {}
+	for j in d.get("layer", {}):
+		var a: Array = d["layer"][j]
+		layer[j] = Vector3(float(a[0]), float(a[1]), float(a[2]))
+	layer_w = clampf(float(d.get("layer_w", 1.0)), 0.0, 1.0)
 	on_floor = bool(d.get("on_floor", true))
 	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))
