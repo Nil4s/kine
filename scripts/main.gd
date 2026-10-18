@@ -1283,6 +1283,14 @@ func _ready() -> void:
 	i = args.find("--ribbon")   # --ribbon ANIMATE: open that ribbon tab (screenshots)
 	if i >= 0 and i + 1 < args.size():
 		_ribbon(args[i + 1])
+	i = args.find("--do")   # --do "Point the right hand": run that registered command, by its name (screenshots)
+	if i >= 0 and i + 1 < args.size():
+		for c in _commands():
+			if c["name"] == args[i + 1]:
+				(c["run"] as Callable).call()
+	i = args.find("--sec")   # --sec HANDS: open that inspector section (screenshots)
+	if i >= 0 and i + 1 < args.size() and ui_secs.has(args[i + 1]):
+		_sec_open(args[i + 1], true)
 	i = args.find("--cmd")   # --cmd text: the S search open with that typed (screenshots)
 	if i >= 0 and i + 1 < args.size():
 		ui_cmd.open()
@@ -1836,6 +1844,7 @@ func _refresh() -> void:
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
 	bal.show_body(B)
+	_hand_sliders_sync()
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty():
 		ov.trail(_ps())
 		ov.onion(_ps(), playhead)
@@ -2592,6 +2601,32 @@ func _fingers(side: String, kind: String) -> void:
 
 
 var _shape_i := {"l": 0, "r": 0}
+var ui_hand := {}   # "rcurl" / "rspread" / "lcurl" / "lspread" -> HSlider (YY3)
+
+
+## a hand slider moved: the whole hand follows (the undo step was taken when the drag began)
+func _on_hand_slider(v: float, sd: String, k: String) -> void:
+	var cs := B.hand_curl_of(sd)
+	if k == "curl":
+		B.hand_curl(sd, v, cs.y)
+	else:
+		B.hand_curl(sd, cs.x, v)
+	_refresh()
+	_say("%s hand: curl %.0f%%, spread %.0f%%" % ["right" if sd == "r" else "left", B.hand_curl_of(sd).x * 100.0, B.hand_curl_of(sd).y * 100.0])
+
+
+func _hand_point(sd: String) -> void:
+	B.hand_point(sd)
+	_say("%s hand: pointing (the index straight)" % ["right" if sd == "r" else "left"])
+
+
+## the hand sliders read the body back (no signal: a refresh is not a drag)
+func _hand_sliders_sync() -> void:
+	for sd in ["r", "l"]:
+		if ui_hand.has(sd + "curl"):
+			var cs := B.hand_curl_of(sd)
+			(ui_hand[sd + "curl"] as HSlider).set_value_no_signal(cs.x)
+			(ui_hand[sd + "spread"] as HSlider).set_value_no_signal(cs.y)
 func _fingers_cycle() -> void:
 	var side := "l" if sel.ends_with("_l") else "r"
 	_shape_i[side] = (_shape_i[side] + 1) % 3
@@ -3911,11 +3946,28 @@ func _ui() -> void:
 		_button(">", _do.bind(_pole.bind(15.0)), "swing the elbow / knee 15 deg the other way; the hand / foot stays (Ctrl+drag does it by hand)")])
 	var hands := _section(vb, "HANDS")
 	var frow := _row(hands, [_label("right:", PROP_TXT), _button("Open", _do.bind(_fingers.bind("r", "open"))), _button("Grip", _do.bind(_fingers.bind("r", "grip"))),
-		_button("Fist", _do.bind(_fingers.bind("r", "fist")))])
+		_button("Fist", _do.bind(_fingers.bind("r", "fist"))), _button("Relaxed", _do.bind(_fingers.bind("r", "relaxed")))])
 	frow.name = "fingers_r"
 	frow = _row(hands, [_label("left:  ", PROP_TXT), _button("Open", _do.bind(_fingers.bind("l", "open"))), _button("Grip", _do.bind(_fingers.bind("l", "grip"))),
-		_button("Fist", _do.bind(_fingers.bind("l", "fist")))])
+		_button("Fist", _do.bind(_fingers.bind("l", "fist"))), _button("Relaxed", _do.bind(_fingers.bind("l", "relaxed")))])
 	frow.name = "fingers_l"
+	# YY3: one CURL and one SPREAD slider per hand (Body.hand_curl, people's proportions), and Point
+	for sd in ["r", "l"]:
+		for k in ["curl", "spread"]:
+			var hl := _prop_row(hands)
+			_set_prop(hl, "%s %s" % ["right" if sd == "r" else "left", k], "")
+			var hs := HSlider.new()
+			hs.name = "hand_%s_%s" % [k, sd]
+			hs.min_value = 0.0
+			hs.max_value = 1.0
+			hs.step = 0.01
+			hs.drag_started.connect(_push_undo)
+			hs.value_changed.connect(_on_hand_slider.bind(sd, k))
+			_row_slider(hl, hs)
+			ui_hand[sd + k] = hs
+		var pb := _button("Point (%s)" % ["right" if sd == "r" else "left"], _do.bind(_hand_point.bind(sd)), "the index straight, the other fingers and the thumb curled")
+		pb.name = "b_point_" + sd   # the label's side is in brackets, which the auto-name drops: both would be b_point
+		_row(hands, [pb])
 	hands.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
 	var wep := _section(vb, "WEAPON")
 	_row(wep, [_weapon_picker("opt_weapon_panel")])
@@ -5059,6 +5111,8 @@ func _commands() -> Array:
 	add.call("Time readout: seconds or frames", "", _toggle_frames, "timecode f s display", false, "flip the time readout between seconds and frames (a click on the readout does it too); a view setting")
 	add.call("Frame rate: next (24 / 30 / 60)", "", _fps_next, "fps film smooth", true, "the scene's frame rate steps 24, 30, 60 and round; every card keeps its seconds (the text says how many are then off a whole frame)")
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
+	add.call("Point the right hand", "", _do.bind(_hand_point.bind("r")), "finger index point hand curl fist", true, "the right index straight, the other fingers and the thumb curled")
+	add.call("Point the left hand", "", _do.bind(_hand_point.bind("l")), "finger index point hand curl fist", true, "the left index straight, the other fingers and the thumb curled")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
@@ -5091,7 +5145,7 @@ func _commands() -> Array:
 	add.call("Weapon longer", "=", _do.bind(func(): B.set_weapon_len(B.wep_len + 0.05)), "length size", true, "the weapon 5 cm longer")
 	add.call("Fingers: next shape", "F", _press.bind(KEY_F), "hand open fist", true, "the picked side's fingers: open -> grip -> fist")
 	for side in [["r", "right"], ["l", "left"]]:
-		for f in ["open", "grip", "fist"]:
+		for f in ["open", "grip", "fist", "relaxed"]:
 			add.call("Fingers %s: %s" % [side[1], f], "", _do.bind(_fingers.bind(side[0], f)), "hand", true, "the %s hand's fingers: %s" % [side[1], f])
 	add.call("Shading: next", "", _shading_next, "solid matcap silhouette xray x-ray look material", false, "draw the body solid, matcap, silhouette or x-ray (a display setting, not saved in the scene)")
 	add.call("Light / dark theme", "", func(): _set_light(Tok.dark), "colour white bright night", false, "switch the light and dark look (remembered)")

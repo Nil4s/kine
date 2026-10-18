@@ -133,3 +133,23 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Used by: `Rulebook.gait`, `Rulebook.rule_gait`, consts `GAIT_STEP` 0.30-0.55, `GAIT_CAD` 75-135, `GAIT_ARM` 10-60 deg,
   `GAIT_PHASE` 0.3 (all bars are ours, about 3 SD around the means; `GAIT_CROWN` 0.14 m head joint to crown is also ours).
 - Tested by: `tests/gait_test.gd`.
+
+### HANDS (round 43, YY3: not a Check rule; the numbers Body.hand_curl is built on)
+- Source: active finger flexion in 390 hands, Indian J Plast Surg 2024 [background] https://pmc.ncbi.nlm.nih.gov/articles/PMC11436331 ;
+  the tip joint following the middle one, theta_DIP = 0.76 theta_PIP closing a fist (Hahn et al. 1995, index finger,
+  in the review table of [background] https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9541616/ ; other fingers' fitted slopes 0.41-0.76).
+- Numbers: knuckle (MCP) 84-87 deg -> CURL_MCP 85; middle joint (PIP) 97.2 (index) -> CURL_PIP 97.2; DIP = 0.76 PIP
+  -> 73.9 at curl 1. SPREAD (fan at the knuckles) is MINE, not data.
+- RELAXED: the resting finger cascade, Varghese et al., J Clin Diagn Res 2020;14(5):YC01-07, Table 13 (250 non-power-grip
+  workers, dominant hand, goniometer) [background] https://jcdr.net/articles/PDF/13677/ ; knuckle / middle / tip:
+  index 27.1 / 38.7 / 13.8, middle 33.2 / 40.7 / 14.2, ring 29.3 / 44.8 / 14.3, little 26.2 / 43.1 / 16.1. Thumb's rest MINE.
+- Used by: Body.hand_curl / hand_point / hand_curl_of; the HANDS curl and spread sliders.
+- Tested by: tests/hand_curl_test.gd.
+
+### WALK LEGS (round 43, YY0: what scene.gd's WALK playback is measured against)
+- Source: Perry, Gait Analysis (knee ~5-10 at mid-stance, 60-65 swing peak, ~35-40 at toe-off; ankle ~20 plantarflexed
+  at toe-off); foot-ground angle at toe-off 60.3 +- 5.1 at 4.5 km/h (49.4 at 3, 68.5 at 6), Eckelt et al. 2026, PMID
+  41583941; step length 0.415 of height, PMID 19502061.
+- Numbers: see tests/walk_legs_test.gd's header (bars and walk_bat's measured values).
+- Used by: Scene TOE-OFF / STANCE / SWING (cards with "walk").
+- Tested by: tests/walk_legs_test.gd, tests/gait_test.gd.

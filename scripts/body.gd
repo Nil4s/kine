@@ -1265,6 +1265,9 @@ func hold_bat(at: Vector3, dir: Vector3, use_at := true, use_dir := true, twist_
 ## curl one hand's fingers to a shape: "open" | "grip" (round a bat handle) | "fist". side = "l" or "r".
 ## values per joint: knuckle (01), middle (02), tip (03); thumb 01 also swings across the palm.
 func hand_shape(side: String, kind: String) -> void:
+	if kind == "relaxed":
+		hand_relaxed(side)
+		return
 	var c: Array = {"open": [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO],
 		"grip": [Vector3(70, 0, 0), Vector3(90, 0, 0), Vector3(50, 0, 0), Vector3(5, 0, 0), Vector3(35, 0, 0), Vector3(28, 0, 0)],
 		"fist": [Vector3(90, 0, 0), Vector3(105, 0, 0), Vector3(70, 0, 0), Vector3(30, -10, 0), Vector3(60, 0, 0), Vector3(48, 0, 0)]}[kind]
@@ -1278,6 +1281,70 @@ func hand_shape(side: String, kind: String) -> void:
 		var j := "thumb_0%d_%s" % [k + 1, side]
 		ang[j] = clamp_ang(j, c[3 + k])
 	fk()
+
+
+## HANDS, ONE SLIDER (round 43, GATES YY3; Nick: "move plenty of parts but lightly"): curl 0..1 bends the four
+## fingers' three joints at once in people's proportions, spread 0..1 fans them at the knuckles.
+##   CURL_MCP / CURL_PIP: people's mean active flexion, 390 hands (Indian J Plast Surg 2024, PMC11436331): knuckle (MCP)
+##     84-87 deg, middle joint (PIP) 97.2 (index).
+##   DIP_PER_PIP: the tip joint follows the middle one, theta_DIP = 0.76 theta_PIP closing a fist (Hahn et al. 1995, the
+##     index; table in PMC9541616). So curl 1 = MCP 85 / PIP 97 / DIP 74, inside this body's limits (90 / 105 / 80).
+##   The thumb goes from open to the fist's thumb (hand_shape) by the same curl.
+##   SPREAD: each finger's knuckle side angle at spread 1, away from the middle finger (MINE: proportions, not data;
+##     the limits are +-20).
+const CURL_MCP := 85.0
+const CURL_PIP := 97.2
+const DIP_PER_PIP := 0.76
+const SPREAD := {"index": 15.0, "middle": 0.0, "ring": -8.0, "pinky": -18.0}
+const THUMB_FIST := [Vector3(30, -10, 0), Vector3(60, 0, 0), Vector3(48, 0, 0)]
+## RELAXED (YY3): the resting finger cascade, each finger's own knuckle / middle / tip angles. Varghese et al., J Clin
+## Diagn Res 2020;14(5):YC01-07, Table 13: 250 non-power-grip workers, dominant hand, goniometer, seated, hand supported,
+## wrist 15-20 deg extended. The little finger curls most at the tip, the ring at the middle joint, the middle finger
+## at the knuckle, as in the paper. The thumb's rest is MINE (no number in the source).
+const RELAXED := {"index": [27.08, 38.74, 13.76], "middle": [33.21, 40.67, 14.20], "ring": [29.34, 44.83, 14.33], "pinky": [26.24, 43.07, 16.08]}
+const THUMB_RELAXED := [Vector3(10, 0, 0), Vector3(10, 0, 0), Vector3(10, 0, 0)]
+
+
+func hand_relaxed(side: String) -> void:
+	for f in RELAXED:
+		for k in 3:
+			var j := "%s_0%d_%s" % [f, k + 1, side]
+			ang[j] = clamp_ang(j, Vector3(RELAXED[f][k], 0, 0))
+	for k in 3:
+		var j := "thumb_0%d_%s" % [k + 1, side]
+		ang[j] = clamp_ang(j, THUMB_RELAXED[k])
+	fk()
+
+
+func hand_curl(side: String, curl: float, spread: float, fingers := ["index", "middle", "ring", "pinky"]) -> void:
+	curl = clampf(curl, 0.0, 1.0)
+	spread = clampf(spread, 0.0, 1.0)
+	for f in fingers:
+		var pip := CURL_PIP * curl
+		var v := [Vector3(CURL_MCP * curl, SPREAD[f] * spread, 0), Vector3(pip, 0, 0), Vector3(DIP_PER_PIP * pip, 0, 0)]
+		for k in 3:
+			var j := "%s_0%d_%s" % [f, k + 1, side]
+			ang[j] = clamp_ang(j, v[k])
+	if fingers.size() == 4:
+		for k in 3:
+			var j := "thumb_0%d_%s" % [k + 1, side]
+			ang[j] = clamp_ang(j, (THUMB_FIST[k] as Vector3) * curl)
+	fk()
+
+
+## POINT: the index straight, the other fingers and the thumb curled (a fist with the index out)
+func hand_point(side: String) -> void:
+	hand_curl(side, 1.0, 0.0)
+	hand_curl(side, 0.0, 0.0, ["index"])
+
+
+## the hand's curl and spread as the sliders read them back: the four middle joints' mean over CURL_PIP; the spread from
+## the pinky's knuckle side (the widest)
+func hand_curl_of(side: String) -> Vector2:
+	var s := 0.0
+	for f in ["index", "middle", "ring", "pinky"]:
+		s += (ang["%s_02_%s" % [f, side]] as Vector3).x
+	return Vector2(clampf(s / 4.0 / CURL_PIP, 0.0, 1.0), clampf((ang["pinky_01_" + side] as Vector3).y / SPREAD["pinky"], 0.0, 1.0))
 
 
 ## the lowest sole point's height above where it rests (m): heel (the ankle joint, minus its rest height) and toe tip

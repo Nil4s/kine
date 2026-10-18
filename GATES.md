@@ -1389,10 +1389,19 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   keeps nothing, cards byte for byte. Stub (no _plant): FAIL 2 (2 -> 2, 150 mm). undo_audit: VACUOUS from every start
   at first; a SLIDE start added (the creep), [SLIDE] 1 undo step, Ctrl+Z exact. run_par -j 8 144/145 (C:/Temp/r43_yy2):
   small_window, PASS alone (load flake).
-- [ ] YY3 HANDS, ONE SLIDER: hand shapes relaxed / fist / point / grip / spread / flat, plus a CURL slider 0..1 that
+- [x] YY3 HANDS, ONE SLIDER: hand shapes relaxed / fist / point / grip / spread / flat, plus a CURL slider 0..1 that
   bends all 15 joints of a hand at once in real proportions (MCP / PIP / DIP ranges from a checked source, DIP tied to
   PIP as in people). Bars: curl 1 = each joint's measured max within limits; the shapes never cross fingers (no
   fingertip inside another finger); mirror L/R exact.
+  EVIDENCE: Body.hand_curl / hand_point / hand_relaxed / hand_curl_of; HANDS panel: curl + spread sliders per hand,
+  Point (right/left), Relaxed; search "Point the right hand", "Fingers right: relaxed". tests/hand_curl_test.gd 9 ok:
+  curl 1 = MCP 85 / PIP 97.2 / DIP 73.9 on every finger (people 84-87 / 97.2, 390 hands, PMC11436331; DIP = 0.76 PIP,
+  Hahn 1995); DIP/PIP 0.76 at every curl; reads back 1e-4; fingertips never closer than 19.6 mm (curl 1 spread 1);
+  Point = index 0, middle 97.2; L = R mirrored 0.000000 m; old Fist unchanged; Relaxed = Varghese 2020 Table 13 (250
+  hands, resting cascade) joint by joint, the paper's order (middle MCP 33.2, ring PIP 44.8, little DIP 16.1). Stubs:
+  DIP_PER_PIP 1.0 -> FAIL 1, 2; little DIP 6.08 -> FAIL 9. SPREAD proportions and the thumb's rest are MINE (marked).
+  names caught both Point buttons auto-named b_point (fixed: b_point_r / _l). run_par -j 8 143/146 (C:/Temp/r43_yy3b):
+  hover, popup_leak, hover_sync, all PASS alone (load flakes).
 - [ ] YY4 SPINE AND NECK, ONE BEND: forward / side / twist for the whole back, shared over spine_01..03 + neck_01 by
   real segment ranges (lumbar / thoracic / cervical from a checked source). Bars: the sum equals the asked bend; each
   segment within its own range; 0 = the old pose exactly.
