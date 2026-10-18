@@ -4012,16 +4012,8 @@ func _ui() -> void:
 	ui_timeline.picked.connect(_timeline_pick)
 	ui_timeline.range_set.connect(func(which: String, t: float): _pv_set(which, t))   # WW4: Shift+click / Alt+click on the ruler
 	ui_timeline.finding_picked.connect(_finding_mark)
-	ui_timeline.retime_started.connect(func():
-		_push_undo()
-		_markers_hold())
-	ui_timeline.retimed.connect(func(final: bool):
-		_markers_follow()
-		if final:
-			_retimed()
-		else:
-			S.apply(B, minf(playhead, S.length()))   # live while dragging: the scene as made (the landed copy is rebuilt on release)
-			_refresh())
+	ui_timeline.retime_started.connect(_retime_begin)
+	ui_timeline.retimed.connect(_retime_step)
 	# ONE STRIP (round 36, RR4): first / previous / play / next / last / loop, the clips on their track, the time, the
 	# speed, Natural, a gear for the rest (Smooth, tween, ease, + tween), the Clips button that opens the cards above
 	var ph := HBoxContainer.new()
@@ -5015,6 +5007,8 @@ func _commands() -> Array:
 	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "flip", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
+	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
+	add.call("Cycle card key type", "", _ktype_cycle, "breakdown moving hold extreme key blender mark", true, "the picked card becomes the next kind of key: key, breakdown, moving hold, extreme (drawn on the dope sheet)")
 	add.call("Next marker", "Ctrl+]", _marker_jump.bind(true), "cue event flag jump", false, "the playhead jumps to the next marker")
 	add.call("Previous marker", "Ctrl+[", _marker_jump.bind(false), "cue event flag jump", false, "the playhead jumps to the marker before")
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
@@ -5135,6 +5129,72 @@ func _markers_follow() -> void:
 		S.markers = Markers.remap(_mk_list, _mk_old, S.times())
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
+
+
+## a retime drag begins / goes on (the timeline's edge and the dope sheet's card diamond share this: one undo step, the markers follow)
+func _retime_begin() -> void:
+	_push_undo()
+	_markers_hold()
+
+
+func _retime_step(final: bool) -> void:
+	_markers_follow()
+	if final:
+		_retimed()
+	else:
+		S.apply(B, minf(playhead, S.length()))   # live while dragging: the scene as made (the landed copy is rebuilt on release)
+		_refresh()
+
+
+## DOPE SHEET (round 42, GATES XX3, UPGRADES_300 #252 + #253; scripts/dope_sheet.gd): rows of key diamonds. "Dope sheet" opens
+## and closes it; "Cycle card key type" sets the picked card's Blender type (key > breakdown > moving hold > extreme); the sheet's
+## buttons set one directly. Dragging a card diamond retimes the card through the timeline's own path
+var ui_dope: DopeSheet
+
+
+func _dope_toggle() -> void:
+	if ui_dope == null:
+		ui_dope = DopeSheet.new()
+		ui_dope.m = self
+		ui_dope.retime_started.connect(_retime_begin)
+		ui_dope.retimed.connect(_retime_step)
+		ui_dope.picked.connect(_card_pick)
+		ui_root.add_child(ui_dope)
+	ui_dope.visible = not ui_dope.visible
+	if ui_dope.visible:
+		var vp := get_viewport().get_visible_rect().size
+		var sz := Vector2(minf(980.0, vp.x - 24.0), minf(250.0, vp.y - 24.0))
+		ui_dope.custom_minimum_size = sz
+		ui_dope.size = sz
+		ui_dope.position = Vector2(floorf((vp.x - sz.x) / 2.0), maxf(12.0, vp.y - sz.y - 150.0))
+		_say("dope sheet: drag a card diamond to retime it; Cycle card key type marks the picked card")
+	else:
+		_say("dope sheet closed")
+
+
+func _ktype_cycle() -> void:
+	if sel_card < 0 or sel_card >= S.cards.size():
+		_say("pick a card first: click a card on the timeline, then Cycle card key type")
+		return
+	_ktype_set(DopeSheet.next_kind(DopeSheet.kind_of(S.cards[sel_card])))
+
+
+func _ktype_set(kind: String) -> void:
+	if sel_card < 0 or sel_card >= S.cards.size():
+		_say("pick a card first: click a card on the timeline, then choose its key type")
+		return
+	if DopeSheet.kind_of(S.cards[sel_card]) == kind:
+		_say("card %d is already %s: choose another type, or pick another card" % [sel_card + 1, "a plain key" if kind == "key" else "a %s key" % DopeSheet.label_of(kind)])
+		return
+	_push_undo()
+	if kind == "key":
+		S.cards[sel_card].erase("ktype")   # a plain key is the absence of the field: the file stays as before
+	else:
+		S.cards[sel_card]["ktype"] = kind
+	if ui_dope != null:
+		ui_dope.canvas.queue_redraw()
+	_refresh()
+	_say("card %d is now %s.  Ctrl+Z undoes" % [sel_card + 1, "a plain key" if kind == "key" else "a %s key" % DopeSheet.label_of(kind)])
 
 
 ## the timing changed (timeline drag, a move/hold box): everything that was built from the old timing is rebuilt.
