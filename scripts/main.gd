@@ -357,6 +357,7 @@ var pv_in := -1.0    # WW4 PREVIEW RANGE: in / out seconds, -1 = not set. A view
 var pv_out := -1.0
 var frames_view := false   # WW4: the time readout in frames ("44 / 103 f") instead of seconds; a view setting
 var _grab := Vector3(NAN, NAN, NAN)   # the scene as one strip: drag edges to retime, click a block to pick it (scripts/timeline.gd)    # "Animator tools": the round-5 tools in one menu (the bottom row is full)
+var _magnet := ""   # the last hand drag's magnet step (GripMagnet.drag): what the status line says
 var _sm := {}   # the sample the last Check took of S (a Fix re-uses it instead of re-playing the scene)
 var _fixing := false
 var ui_find: PanelContainer   # CHECK: the rulebook's findings (scripts/rulebook.gd), each one a button to its moment
@@ -2199,7 +2200,12 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		if is_nan(_grab.x):
 			_grab = B.P[sel]
 		_grab += dw
-		B.reach(sel, _grab)
+		# THE MAGNET (round 47, GATES CC3): the free hand near the weapon the other hand holds snaps onto its handle,
+		# slides and rolls along it, lets go when pulled off (no weapon in the other hand: the plain reach, as before)
+		if sel in ["hand_r", "hand_l"]:
+			_magnet = GripMagnet.drag(B, sel, _grab)
+		else:
+			B.reach(sel, _grab)
 	else:
 		var p: Vector3 = B.P[sel]
 		var e: Vector3 = B.E[sel]
@@ -2213,6 +2219,13 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	_arm_edit = sel if sel.begins_with("upperarm") and not move else ""
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
+	if _magnet in ["snap", "held", "let go"] and tip and not move and not twist:
+		var mw := {"snap": "SNAPPED onto the %s: both hands hold it now (drag along it to slide, round it to roll, away to let go)",
+			"held": "SLIDING the hand on the %s", "let go": "LET GO of the %s"}
+		_say(String(mw[_magnet]) % B.wep_kind.replace("_", " "))
+		_magnet = ""
+		return
+	_magnet = ""
 	var what := "ROLLING" if twist else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING")))
 	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
 

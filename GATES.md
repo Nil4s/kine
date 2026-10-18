@@ -1719,6 +1719,19 @@ that could adapt within its limits". Research: docs/GRIP_RESEARCH.md (Napier 195
   handle, tip 17 mm from the fingers (power's 1); 4 precision on the bat handle: every fingertip touches, the proximal
   phalanges 13.9 mm off (power's 6.8: the bar is the 5 mm difference; "power < 3 mm" was written before measuring and
   the palm placement cannot lay them flat). STUB (the thumb ignores the type): bars 1, 3, 4 FAIL. Suite 162/162 (C:/Temp/r47_cc12).
-- [ ] CC3 THE MAGNET: a hand brought within reach of a handle snaps onto it and can slide and roll along the grippable
+- [x] CC3 THE MAGNET: a hand brought within reach of a handle snaps onto it and can slide and roll along the grippable
   part; pulled past the arm's reach or the handle's ends it lets go; no arm is bent past its limits to hold on.
-- [ ] CC4 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
+  EVIDENCE (tests/grip_magnet_test.gd; scripts/grip_magnet.gd, wired into the app's hand drag): 1 the left hand walked
+  in to bo_spin's staff in 1 cm steps stays free until 12 cm off (one hand length, 12.2) and snaps, palm 0.4 cm from
+  the shaft's surface, every fingertip wrapped; 2 dragged 10 cm along: slid 10.0 cm, held; 3 carried 40 deg round:
+  rolled 40 deg, held; 4 pulled off the shaft it lets go at 19 cm (rule 1.5 hands = 18), and on the bat (swing_fore's
+  card 1) it holds to the handle's end (0.40 m) and lets go 7.0 cm past it (rule half a hand = 6.1); 5 every joint of
+  the body inside its limits after every step; 6 the bat's barrel is not a handle (a drag there stays free); 7 a real
+  hand drag in the app (main._drag_joint) snaps and the line says SNAPPED. Where the arm cannot reach the place asked,
+  it takes the nearest it can (<= 10 cm toward the body, <= 60 deg round; at 0.95 m on the staff only rolls near the
+  drag side fit, the far side misses 13-25 cm). STUBS: never snaps -> bars 1, 2, 3, 4, 7 FAIL; never lets go -> bar 4
+  FAIL.
+- [x] CC4 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
+  EVIDENCE: suite 163/163 (C:/Temp/r47_cc3). scenes/, poses/, data/: only scenes/axe_strike_pose.json changed (Nick's,
+  untracked, as he asked: his hand standard and the lock; backups in the job tmp); the bo_sweep.json deletion is his,
+  not staged. No zz_ files in tests/ or scripts/ (the render script is deleted after the shots).
