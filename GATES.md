@@ -1740,3 +1740,50 @@ that could adapt within its limits". Research: docs/GRIP_RESEARCH.md (Napier 195
   EVIDENCE: suite 163/163 (C:/Temp/r47_cc3). scenes/, poses/, data/: only scenes/axe_strike_pose.json changed (Nick's,
   untracked, as he asked: his hand standard and the lock; backups in the job tmp); the bo_sweep.json deletion is his,
   not staged. No zz_ files in tests/ or scripts/ (the render script is deleted after the shots).
+
+## Round 48 (DD): the rest of the curve editor, UPGRADES_300 section M (#243, #246, #248, #249, #250, #251)
+Nick 10-18: "focus on the upgrades, plus 100+ maya/blender follow up". Definitions from Blender's manual source
+(projects.blender.org/blender/blender-manual, editors/graph_editor/fcurves/editing.rst, read 10-18: Key > Blend).
+- [x] DD0 MANY KEYS AT ONCE (#243): Shift+click adds or removes a key from the selection, a drag on empty plot draws a box
+  that selects every key dot inside it; dragging any selected key moves ALL selected keys by the same time and angle
+  change (whole frames; Ctrl snaps the dragged key's time to the nearest card), never past an unselected neighbour;
+  Alt+drag SCALES the selected keys, time about the playhead and angle about their mean. Every gesture is one undo step.
+  Bars from real input events in the panel, and a control: a plain click still picks one key.
+  EVIDENCE: tests/curve_multi_test.gd (real mouse events with Shift / Ctrl / Alt held), 6 bars: a box round the 3 middle
+  bend dots selects exactly them; a plain click selects 1, Shift+click adds then removes; the box selection dragged
+  +0.115 s / +5 deg moves all three by the same 0.1167 s (whole frames) and +5.00 deg, the ends 0, one undo step, Ctrl+Z
+  exact; Ctrl+drag toward 0.55 s lands on the card at 0.5000; dragged +0.6 s they stop at 0.998 < 1.0 (the neighbour);
+  Alt+drag 75 px left = times 0.3333 / 0.5667 about the playhead, 75 px up = bends 35 / 80 about the mean 50, 2 undo
+  steps. Control curve_editor_test still PASS. STUB (picked_keys = the dragged key only): bars 3 and 6 FAIL (time
+  changes [0, 0, 0.1167, 0, 0]; times 0.2 / 0.7 unscaled). Suite 166/166 (C:/Temp/r48_dd02).
+- [x] DD1 SHAPE TOOLS (#246), Blender's Key > Blend set on the selected keys, each with a factor: Breakdown, Blend to
+  Neighbor, Push Pull, Ease, Match Slope, Scale from Neighbor, Blend Offset. Each is checked against the manual's
+  sentence written as a formula in the test (independent of the code), touches only the selected keys, and is one
+  undo step.
+  EVIDENCE: scripts/key_blend.gd + the editor's "Shape" menu and factor box; tests/key_blend_test.gd: every tool's
+  numbers worked by hand from the manual's sentence on bends 0/10/30/50/40/20/0 with keys 2-4 selected (L = 10, R = 20):
+  breakdown 0/-1/1 -> 15/10/20; blend to neighbour +-0.5 -> 25,35,30 / 20,30,25; push/pull 0 -> 30,35,40, 2 -> 30,65,40;
+  match slope 1 -> 80,60,40, 0.5 -> 55,55,40; scale from neighbour 2 -> 50,90,70; blend offset +-1 -> 10,30,20; ease 0 ->
+  10.357, 15, 19.643 (an S), f 1 middle 19.34 > 15. Every one: the rest, side, twist and times untouched, one undo, Ctrl+Z
+  exact; a run with no left neighbour skipped and reported; the menu's 7 items, chosen through the popup with the factor
+  box. The header controls end at 17 px (a first version's 31 px SpinBox covered the plot top and ate curve_editor_test's
+  empty-plot click: caught by the suite, fixed). STUB (push/pull line through the neighbours instead of the first and
+  last selected): both push/pull bars FAIL. Suite 166/166 (C:/Temp/r48_dd02).
+- [x] DD2 CURVE MODIFIERS (#248): noise, stepped and limits on a joint's channel, non-destructive (the keys unchanged,
+  the modifier on top), each with a mix 0..1; saved in the file, played in playback and in every export.
+  EVIDENCE: part_keys.gd value_at / add_mod / remove_mod, "mods" on the first key (moves with put, _fix_inf, mirror,
+  file; docs/scene.schema.json), the editor's "Mods" menu and its drawn line = value_at. tests/curve_mods_test.gd 7 bars:
+  limits 20..60 = clamp(at) exactly (0.000000), mix 0.5 halfway (0.000004); removed = the bare keys byte for byte;
+  stepped 0.1 s = at(floor(t/0.1)*0.1) (0.000000), mix 0 = keys; noise 6 -> offset -2.65..0.57 (within +-3), largest
+  1/300 s step 0.064 (bar 0.18), ch 1 moves only the side; Scene.sample = value_at (0.000000), saved and loaded 0.0000,
+  no "mods" field without one; mirrored side limit 5..15 -> -15..-5; a key put before the first takes the stack along.
+  key_blend_test: the Mods menu adds limits 0..50 (the keys' range), mix = factor 0.25, at max 45 the drawn line tops at
+  45.00 and the scene plays at most 45.000, 3 undo steps back to the bare keys. STUB (Scene.sample ignores mods): bar 5
+  FAIL (30.56 deg). Suite 166/166 (C:/Temp/r48_dd02).
+- [ ] DD3 NORMALIZED AND STACKED VIEWS (#249): every channel fitted to -1..1, or one lane per channel; the keys stay
+  editable in both and a drag edits the real angle.
+- [ ] DD4 BAKE (#250): part keys and modifiers flattened into cards at a chosen rate; the baked scene plays within
+  0.5 deg of the original at every frame, and the part keys are gone.
+- [ ] DD5 THE WHY OF A CURVE (#251): spans of the curve where a Check rule fires on this joint (HITCH, TIP SPEED, ...)
+  drawn red with the rule's name; the span matches the rule's own times.
+- [ ] DD6 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.

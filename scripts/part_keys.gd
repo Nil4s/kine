@@ -28,6 +28,16 @@
 ##             adds last - first value)
 ## Segment i uses key i's "interp", key i's out handle and key i+1's in handle. The set is Blender's (Graph Editor F-curve
 ## interpolation, handle types, extrapolation; names from memory, the manual pages could not be read: unverified).
+## CURVE MODIFIERS (round 48, GATES DD2, UPGRADES_300 #248; Blender's F-Curve modifiers Noise, Stepped, Limits): a
+## joint's FIRST key may hold "mods": [{"type", "ch", "mix", ...}, ...], a stack applied in order ON TOP of the keys (the
+## keys themselves never change: delete the modifier and the curve is the keys again). "ch" 0 bend / 1 side / 2 twist /
+## -1 all three; "mix" 0..1 is Blender's Influence (the result = keys + (modified - keys) * mix).
+##   noise    "strength" deg peak to peak, "scale" s (the period of one bump), "phase", "seed": smooth value noise in
+##            -strength/2 .. +strength/2 added (Blender's Replace blend: noise centred on 0)
+##   stepped  "step" s, "offset" s: the curve read only at offset + k * step (held between): a stepped, on-twos look
+##   limits   "min" / "max" deg: the angle clamped into them
+## Like "inf" it lives on the first key, so it saves, undoes, copies and mirrors with the keys. value_at() is the curve WITH
+## the modifiers (the scene plays and exports it); at() stays the keys alone.
 ## In the FILE: "part_keys": {"<joint>": [{"t": 0.42, "v": [bend, side, twist]}, ...]}, written only when there is one
 ## (a scene without it saves and plays byte for byte as before).
 class_name PartKeys
@@ -37,6 +47,87 @@ const SAME_T := 0.001  # two keys closer than this (s) are the same key: keying 
 const INTERPS := ["bezier", "constant", "linear"]   # KEY INTERPOLATION (round 42, XX1): see the header
 const HANDLES := ["auto_clamped", "auto", "vector", "aligned", "free"]
 const INFS := ["hold", "linear", "cycle", "cycle_offset"]
+const MODS := ["noise", "stepped", "limits"]   # DD2
+
+
+## DD2: the joint's curve at time t WITH its modifier stack (see the header); without "mods" exactly at()
+static func value_at(keys: Array, t: float) -> Vector3:
+	var ms: Array = mods_of(keys)
+	if ms.is_empty():
+		return at(keys, t)
+	return _eval_upto(keys, ms, ms.size() - 1, t)
+
+
+static func mods_of(keys: Array) -> Array:
+	if keys.is_empty():
+		return []
+	var m = (keys[0] as Dictionary).get("mods", [])
+	return m if m is Array else []
+
+
+static func _eval_upto(keys: Array, ms: Array, k: int, t: float) -> Vector3:
+	if k < 0:
+		return at(keys, t)
+	var md: Dictionary = ms[k]
+	var before := _eval_upto(keys, ms, k - 1, t)
+	var after := before
+	var ty := String(md.get("type", ""))
+	if ty == "stepped":
+		var st := maxf(float(md.get("step", 0.1)), 1e-4)
+		var off := float(md.get("offset", 0.0))
+		after = _eval_upto(keys, ms, k - 1, off + floorf((t - off) / st + 1e-9) * st)
+	elif ty == "noise":
+		var sc := maxf(float(md.get("scale", 0.5)), 1e-4)
+		var x := t / sc + float(md.get("phase", 0.0))
+		for c in 3:
+			after[c] = before[c] + float(md.get("strength", 0.0)) * noise1(x, int(md.get("seed", 0)) * 3 + c)
+	elif ty == "limits":
+		for c in 3:
+			after[c] = clampf(before[c], float(md.get("min", -INF)), float(md.get("max", INF)))
+	var ch := int(md.get("ch", -1))
+	var mix := clampf(float(md.get("mix", 1.0)), 0.0, 1.0)
+	var out := before
+	for c in 3:
+		if ch < 0 or ch == c:
+			out[c] = before[c] + (after[c] - before[c]) * mix
+	return out
+
+
+## smooth 1D value noise in -0.5 .. 0.5: a hashed value at every whole x, smoothstep between (deterministic per seed)
+static func noise1(x: float, seed: int) -> float:
+	var i := floori(x)
+	var f := x - float(i)
+	var u := f * f * (3.0 - 2.0 * f)
+	return lerpf(_hash01(i, seed), _hash01(i + 1, seed), u) - 0.5
+
+
+static func _hash01(i: int, seed: int) -> float:
+	var h := (i * 374761393 + seed * 668265263) & 0x7fffffff
+	h = ((h ^ (h >> 13)) * 1274126177) & 0x7fffffff
+	h = h ^ (h >> 16)
+	return float(h & 0xffffff) / float(0xffffff)
+
+
+## DD2: add a modifier to joint j (on its first key); returns its index, or -1 (no keys / unknown type)
+static func add_mod(pk: Dictionary, j: String, md: Dictionary) -> int:
+	var keys: Array = pk.get(j, [])
+	if keys.is_empty() or not String(md.get("type", "")) in MODS:
+		return -1
+	var ms: Array = (keys[0] as Dictionary).get("mods", [])
+	ms.append(md.duplicate())
+	keys[0]["mods"] = ms
+	return ms.size() - 1
+
+
+static func remove_mod(pk: Dictionary, j: String, idx: int) -> bool:
+	var keys: Array = pk.get(j, [])
+	var ms := mods_of(keys)
+	if idx < 0 or idx >= ms.size():
+		return false
+	ms.remove_at(idx)
+	if ms.is_empty():
+		(keys[0] as Dictionary).erase("mods")
+	return true
 
 
 ## the angles a joint's keys give at time t (keys: [{"t", "v": Vector3}] sorted by t, at least one)
@@ -272,7 +363,7 @@ static func over(s: Dictionary, pk: Dictionary, t: float) -> Dictionary:
 	var ang: Dictionary = (s["ang"] as Dictionary).duplicate()
 	for j in pk:
 		if not (pk[j] as Array).is_empty():
-			ang[j] = at(pk[j], t)
+			ang[j] = value_at(pk[j], t)
 	out["ang"] = ang
 	return out
 
@@ -292,6 +383,9 @@ static func put(pk: Dictionary, j: String, t: float, v: Vector3) -> void:
 	if i == 0 and not keys.is_empty() and (keys[0] as Dictionary).has("inf"):
 		nk["inf"] = (keys[0] as Dictionary)["inf"]   # infinity lives on the first key: it moves to the new first
 		(keys[0] as Dictionary).erase("inf")
+	if i == 0 and not keys.is_empty() and (keys[0] as Dictionary).has("mods"):
+		nk["mods"] = (keys[0] as Dictionary)["mods"]   # DD2: so do the modifiers
+		(keys[0] as Dictionary).erase("mods")
 	keys.insert(i, nk)
 	pk[j] = keys
 
@@ -401,6 +495,8 @@ static func _extras_to_file(k: Dictionary, e: Dictionary) -> void:
 				e[side] = [snappedf(h.x, 0.001), snappedf(h.y, 0.01), snappedf(h.z, 0.01), snappedf(h.w, 0.01)]
 	if String(k.get("inf", "hold")) != "hold":
 		e["inf"] = k["inf"]
+	if k.get("mods") is Array and not (k["mods"] as Array).is_empty():
+		e["mods"] = (k["mods"] as Array).duplicate(true)   # DD2
 
 
 ## XX1: read them back (an unknown word is the default; handles are kept only for aligned / free)
@@ -421,6 +517,16 @@ static func _extras_from_file(src: Dictionary, k: Dictionary) -> void:
 				k["hout"] = Vector4(float(hout_[0]), float(hout_[1]), float(hout_[2]), float(hout_[3]))
 	if String(src.get("inf", "")) in INFS and src["inf"] != "hold":
 		k["inf"] = String(src["inf"])
+	if src.get("mods") is Array:   # DD2: unknown types dropped; numbers as floats, ch as an int
+		var ms := []
+		for md in src["mods"]:
+			if md is Dictionary and String(md.get("type", "")) in MODS:
+				var o := {}
+				for f in md:
+					o[f] = String(md[f]) if f == "type" else (int(md[f]) if f in ["ch", "seed"] else float(md[f]))
+				ms.append(o)
+		if not ms.is_empty():
+			k["mods"] = ms
 
 
 ## read the file's form back (unknown joints and malformed keys are dropped; sorted by t)
@@ -448,6 +554,11 @@ static func from_file(d: Variant) -> Dictionary:
 
 ## "inf" belongs to the first key: if the sort moved another key first, carry it there (a file with it elsewhere)
 static func _fix_inf(ks: Array) -> void:
+	for k in ks:   # DD2: the modifiers belong to the first key as well
+		if k != ks[0] and (k as Dictionary).has("mods"):
+			if not (ks[0] as Dictionary).has("mods"):
+				ks[0]["mods"] = k["mods"]
+			(k as Dictionary).erase("mods")
 	var m := ""
 	for k in ks:
 		if (k as Dictionary).has("inf"):
@@ -475,6 +586,17 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 			for f in ["interp", "handle", "inf"]:   # XX1: the interpolation fields go with the key
 				if k.has(f):
 					e[f] = k[f]
+			if k.get("mods") is Array:   # DD2: the modifiers too; a limit on side / twist is reflected (x, -y, -z)
+				var ms := []
+				for md in k["mods"]:
+					var mm: Dictionary = (md as Dictionary).duplicate()
+					if String(mm.get("type", "")) == "limits" and int(mm.get("ch", -1)) in [1, 2]:
+						var lo := -float(mm.get("max", INF))
+						var hi := -float(mm.get("min", -INF))
+						mm["min"] = lo
+						mm["max"] = hi
+					ms.append(mm)
+				e["mods"] = ms
 			for side in ["hin", "hout"]:   # a handle end is mirrored as a point (key + offset), then taken from the key (first order)
 				if k.get(side) is Array and (k[side] as Array).size() == 4:
 					var hh: Array = k[side]

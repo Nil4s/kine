@@ -463,6 +463,28 @@
         "inf": {
          "enum": ["linear", "cycle", "cycle_offset"],
          "description": "XX1: on a joint's FIRST key: what the curve does outside its keys; absent = hold"
+        },
+        "mods": {
+         "type": "array",
+         "description": "DD2: on a joint's FIRST key: a curve modifier stack applied in order on top of the keys (Blender's F-Curve modifiers); the keys are unchanged",
+         "items": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+           "type": {"enum": ["noise", "stepped", "limits"]},
+           "ch": {"type": "integer", "minimum": -1, "maximum": 2, "description": "0 bend, 1 side, 2 twist, -1 all three (default)"},
+           "mix": {"type": "number", "minimum": 0, "maximum": 1, "description": "Blender's Influence; default 1"},
+           "strength": {"type": "number", "description": "noise: degrees peak to peak"},
+           "scale": {"type": "number", "exclusiveMinimum": 0, "description": "noise: seconds per bump"},
+           "phase": {"type": "number"},
+           "seed": {"type": "integer"},
+           "step": {"type": "number", "exclusiveMinimum": 0, "description": "stepped: seconds held"},
+           "offset": {"type": "number", "description": "stepped: seconds"},
+           "min": {"type": "number", "description": "limits: degrees"},
+           "max": {"type": "number", "description": "limits: degrees"}
+          },
+          "additionalProperties": false
+         }
         }
        },
        "additionalProperties": false

@@ -2507,6 +2507,7 @@ func _curve_sync() -> void:
 	ui_curve.joint = sel
 	ui_curve.playhead = playhead
 	ui_curve.fps = S.fps
+	ui_curve.card_times = S.times().map(func(x): return float(x[1]))   # DD0: Ctrl-snap to the cards
 	ui_curve.offset_left = lw() + 12
 	ui_curve.offset_right = -rw() - 12
 	var sig := "%s|%d" % [sel, hash(var_to_str([S.cards, S.part_keys]))]

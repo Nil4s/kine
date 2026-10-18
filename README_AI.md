@@ -507,6 +507,11 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   the joint's first key). Registry "Part key: ..." commands, picked part's key within 0.05 s of the playhead.
 - XX2 CURVE EDITOR (curve_editor.gd): "Curve editor" draws the picked part's keys as X/Y/Z curves; drag = one undo step,
   whole frames, clamped to limits and neighbours. Overlaps the speed graph when both are open.
+- DD0-DD2 CURVE EDITOR, MANY KEYS (round 48): Shift+click / box select key dots; drag moves all selected (whole frames,
+  Ctrl = snap to a card, never past an unselected neighbour); Alt+drag scales (time about the playhead, angle about the
+  mean). "Shape" menu = Blender Key > Blend (scripts/key_blend.gd: breakdown, blend to neighbour, push/pull, ease, match
+  slope, scale from neighbour, blend offset) by the factor box. "Mods" = curve modifiers noise / stepped / limits with a
+  mix, on the joint's FIRST key as "mods" (PartKeys.value_at = keys + stack; at() = the keys alone; Scene.sample plays it).
 - XX3 DOPE SHEET (dope_sheet.gd): cards row + 8 part-group rows of diamonds; card["ktype"] key/breakdown/moving_hold/
   extreme (a mark only, saved only when not "key"); drag a card diamond to retime. Timeline + sheet share _retime_*.
 - XX4 BREAKDOWNER (breakdowner.gd): true per-joint slerp between neighbour cards, Shift+E slider -50..150 %, 25/50/75 %;
