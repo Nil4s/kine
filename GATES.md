@@ -1780,10 +1780,41 @@ Nick 10-18: "focus on the upgrades, plus 100+ maya/blender follow up". Definitio
   key_blend_test: the Mods menu adds limits 0..50 (the keys' range), mix = factor 0.25, at max 45 the drawn line tops at
   45.00 and the scene plays at most 45.000, 3 undo steps back to the bare keys. STUB (Scene.sample ignores mods): bar 5
   FAIL (30.56 deg). Suite 166/166 (C:/Temp/r48_dd02).
-- [ ] DD3 NORMALIZED AND STACKED VIEWS (#249): every channel fitted to -1..1, or one lane per channel; the keys stay
+- [x] DD3 NORMALIZED AND STACKED VIEWS (#249): every channel fitted to -1..1, or one lane per channel; the keys stay
   editable in both and a drag edits the real angle.
-- [ ] DD4 BAKE (#250): part keys and modifiers flattened into cards at a chosen rate; the baked scene plays within
+  EVIDENCE: curve_editor.gd view plain / normal / stacked (a "View" button in the header), cv_to_y / cy_to_v per angle,
+  ranges refitted when idle (not mid-gesture). tests/curve_views_test.gd (real clicks and drags), keys with ranges 60, 6
+  and 0.6 deg: normal view, every angle's line spans the shared +1 / -1 rows (worst 0.000 px; in degrees the twist was
+  1.03 px tall); stacked, every point in its own lane, lanes disjoint and in order; the lines map back to value_at
+  (0.000 px); a 40 px drag of the twist key in the normal view -> +0.1865 deg = 40 px of the TWIST's scale (0.00 px
+  error), bend / side / time untouched, 1 undo, Ctrl+Z exact; a 30 px side drag in lanes -> +4.5662 deg (0.00 px); three
+  clicks cycle back to degrees with every dot where it was. A first fit rule (< 1 deg widened to 1 deg) left the 0.6 deg
+  twist at a third of the height: bar 1 FAILED (25.7 px), cut to < 0.01 deg. STUB (cv_to_y ignores the view): bars 1
+  and 2 FAIL. Suites 169/169 (C:/Temp/r48_dd6).
+- [x] DD4 BAKE (#250): part keys and modifiers flattened into cards at a chosen rate; the baked scene plays within
   0.5 deg of the original at every frame, and the part keys are gone.
-- [ ] DD5 THE WHY OF A CURVE (#251): spans of the curve where a Check rule fires on this joint (HITCH, TIP SPEED, ...)
+  EVIDENCE: scripts/bake.gd (VISUAL keying: each card = Scene.apply's pose, the floor / pins / layer / breathing inside it,
+  so those switches go off and the report names them); registry "Bake to cards", one undo step (the snapshot now keeps
+  the playback switches). tests/bake_test.gd: a made 3-card scene with part keys + limits + noise, baked at 30 fps: 54
+  cards (= ceil(1.75 x 30) + 1), every joint at every frame within 0.0050 deg (bar 0.5), hips 0.00000 m, keys gone,
+  length 1.750 = 1.750; at 10 cards/s 4.1 deg (reported); Nick's swing_fore (pin + floor) + keys, baked: 0.0050 deg; the
+  baked file has no part_keys and reloads within 0.0000 deg; the command: 54 cards, pin / floor off, 1 undo step, Ctrl+Z
+  byte for byte. The FIRST version baked Scene.sample with the overlays left on: swing_fore's calf_l 63.1 deg off (the
+  pins plant per card, 70 cards planted 70 times) -> visual keying. STUB (undo without the switches): bar 5 FAIL.
+  refs/agent/serve_transcript.jsonl regenerated: the only change is the new command in the registry listing (checked
+  line by line: every other entry identical). Suites 169/169 (C:/Temp/r48_dd6).
+- [x] DD5 THE WHY OF A CURVE (#251): spans of the curve where a Check rule fires on this joint (HITCH, TIP SPEED, ...)
   drawn red with the rule's name; the span matches the rule's own times.
-- [ ] DD6 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
+  EVIDENCE: scripts/why.gd + the editor's red bands (named, labels stacked when they overlap) and red curve pieces;
+  main._curve_sync recomputes only when the scene changes, never mid-drag. tests/curve_why_test.gd on Nick's bo_spin
+  (read, cloned): both HITCH spans = the finding's time +- 3 frames at 60 (0.000000000 s); TIP SPEED = frames 93..97,
+  48.0..57.0 m/s over the 30 m/s cap, the outside neighbours 15.3 / 25.9 under it; calf_l gets only the hips-and-head
+  hitch, neck_01 no tip-only span, lowerarm_r all 3 tip spans; the editor's why = Why on that scene, and the screen inside
+  each band is redder than a clear column (red-green 0.059..0.067 vs -0.008); two equal cards: 0 spans, none painted.
+  Probe on 6 of Nick's scenes: the HITCH parts list parsed right in each (e.g. dodge_side "the head ... (the weapon tip)").
+  STUB (no paint + every span on every joint): bars 3 and 4 FAIL. Suites 169/169 (C:/Temp/r48_dd6).
+- [x] DD6 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
+  EVIDENCE: suite 169/169 (C:/Temp/r48_dd6b, after the last change: the header row's Frame all made 17 px and the WHY
+  names stacked, both seen in the round's screenshots). scenes/, poses/, data/: no change of mine (bo_sweep.json's
+  deletion and axe_strike_pose.json are Nick's, not staged); bo_spin and swing_fore only read. No zz_ files in tests/ or
+  scripts/. exports/scene.usda (15:02, unnamed 20-frame scene) is untracked and not mine to stage; left as found.

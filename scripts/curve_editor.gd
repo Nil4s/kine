@@ -41,6 +41,12 @@ var _dragging := false
 var _btn: Button
 var _shape: MenuButton      # DD1: Blender's Key > Blend tools on the selection (scripts/key_blend.gd)
 var _factor: SpinBox        # DD1: their factor
+var why := []              # DD5: this joint's Check spans [{"rule", "t0", "t1", "parts", "msg"}] (scripts/why.gd), painted red
+var view := "plain"         # DD3: "plain" (degrees, one plot) | "normal" (each angle fitted to -1..1) | "stacked" (a lane each)
+const VIEWS := ["plain", "normal", "stacked"]
+const VIEW_NAMES := {"plain": "View: degrees", "normal": "View: -1..1", "stacked": "View: lanes"}
+var _rng := [Vector2(-1, 1), Vector2(-1, 1), Vector2(-1, 1)]   # DD3: each angle's range (lo, hi) in the fitted views
+var _view_btn: Button
 var _mods: MenuButton       # DD2: the curve modifiers (Blender's F-Curve modifiers: noise, stepped, limits)
 const MOD_ITEMS := ["Add noise", "Add stepped (on twos)", "Add limits (the keys' range)", "Mix of the last = factor (0..1)", "Remove the last"]
 var last_shape := {}        # DD1: the last tool's report {"tool", "changed", "skipped"}
@@ -94,6 +100,9 @@ func _init() -> void:
 	for st in ["normal", "focus", "read_only"]:
 		le.add_theme_stylebox_override(st, flat_box)
 	_factor.custom_minimum_size = Vector2(64, 0)
+	_btn.add_theme_font_size_override("font_size", 11)   # round 48: the header row's height (a 35 px button hid the
+	for st in ["normal", "hover", "pressed", "focus"]:   # joint's name and the top lane's label)
+		_btn.add_theme_stylebox_override(st, flat_box)
 	_mods = MenuButton.new()
 	_mods.text = "Mods"
 	_mods.flat = false
@@ -106,6 +115,15 @@ func _init() -> void:
 		_mods.get_popup().add_item(MOD_ITEMS[k], k)
 	_mods.get_popup().id_pressed.connect(func(id): mod_item(id))
 	add_child(_mods)
+	_view_btn = Button.new()
+	_view_btn.text = VIEW_NAMES[view]
+	_view_btn.tooltip_text = "degrees on one plot / every angle fitted to -1..1 (Maya's normalized view) / one lane per angle (stacked); keys stay draggable in all three"
+	_view_btn.focus_mode = Control.FOCUS_NONE
+	_view_btn.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_view_btn.add_theme_stylebox_override(st, flat_box)
+	_view_btn.pressed.connect(func(): set_view(VIEWS[(VIEWS.find(view) + 1) % VIEWS.size()]))
+	add_child(_view_btn)
 
 
 func _notification(what: int) -> void:
@@ -114,9 +132,12 @@ func _notification(what: int) -> void:
 			_shape.reset_size()
 			_factor.reset_size()
 			_mods.reset_size()
+			_btn.reset_size()
+			_view_btn.reset_size()
 			_shape.position = Vector2(PAD_L + _btn.size.x + 160, 1)
 			_factor.position = Vector2(_shape.position.x + _shape.size.x + 4, 1)
 			_mods.position = Vector2(_factor.position.x + _factor.size.x + 8, 1)
+			_view_btn.position = Vector2(_mods.position.x + _mods.size.x + 8, 1)
 
 
 ## DD1: reshape the selected dots with a Key > Blend tool (KeyBlend), one undo step; the angles kept legal
@@ -210,6 +231,78 @@ func y_to_v(y: float) -> float:
 	return v1 - (y - p.position.y) / p.size.y * (v1 - v0)
 
 
+## DD3: switch the view (plain / normal / stacked) and refit each angle's range
+func set_view(v: String) -> void:
+	if not v in VIEWS:
+		return
+	view = v
+	if _view_btn != null:
+		_view_btn.text = VIEW_NAMES[v]
+		_view_btn.reset_size()
+	refit()
+	queue_redraw()
+
+
+## DD3: each angle's own range over the view's time span (the keys and the curve sampled, modifiers included); an angle
+## that does not move (< 0.01 deg: a held angle, float dust) gets 1 deg round its middle, so a flat line is not blown up
+## into noise; anything that moves is fitted, however small (a 0.6 deg twist fills the plot like a 60 deg bend)
+func refit() -> void:
+	var ks := keys()
+	for c in 3:
+		var lo := INF
+		var hi := -INF
+		for k in ks:
+			lo = minf(lo, (k["v"] as Vector3)[c])
+			hi = maxf(hi, (k["v"] as Vector3)[c])
+		if not ks.is_empty():
+			for i in 121:
+				var x := PartKeys.value_at(ks, t0 + (t1 - t0) * float(i) / 120.0)[c]
+				lo = minf(lo, x)
+				hi = maxf(hi, x)
+		if not is_finite(lo):
+			lo = -1.0
+			hi = 1.0
+		if hi - lo < 0.01:
+			var mid := (hi + lo) * 0.5
+			lo = mid - 0.5
+			hi = mid + 0.5
+		_rng[c] = Vector2(lo, hi)
+
+
+## DD3: the rect angle c is drawn in (the whole plot, or its lane in the stacked view)
+func lane(c: int) -> Rect2:
+	var p := plot()
+	if view != "stacked":
+		return p
+	var gap := 6.0
+	var h := (p.size.y - 2.0 * gap) / 3.0
+	return Rect2(p.position.x, p.position.y + c * (h + gap), p.size.x, h)
+
+
+## DD3: angle c's value -> y and back, in the current view (plain = v_to_y; fitted: the range lo..hi plus 7.5 % each side
+## fills the lane, so in the normal view lo is -1 and hi is +1 on one shared scale)
+func cv_to_y(c: int, v: float) -> float:
+	if view == "plain":
+		return v_to_y(v)
+	var r := lane(c)
+	var lo: float = _rng[c].x
+	var hi: float = _rng[c].y
+	var a := lo - (hi - lo) * 0.075
+	var b := hi + (hi - lo) * 0.075
+	return r.position.y + (b - v) / (b - a) * r.size.y
+
+
+func cy_to_v(c: int, y: float) -> float:
+	if view == "plain":
+		return y_to_v(y)
+	var r := lane(c)
+	var lo: float = _rng[c].x
+	var hi: float = _rng[c].y
+	var a := lo - (hi - lo) * 0.075
+	var b := hi + (hi - lo) * 0.075
+	return b - (y - r.position.y) / r.size.y * (b - a)
+
+
 ## fit the view: all keys' times and every curve's range (sampled, so a curve's bulge between keys is inside too)
 func frame_all() -> void:
 	var ks := keys()
@@ -257,6 +350,7 @@ func frame_all() -> void:
 		var vp := (hi - lo) * 0.1
 		v0 = lo - vp
 		v1 = hi + vp
+	refit()
 	queue_redraw()
 
 
@@ -276,7 +370,7 @@ func polyline(c: int) -> PackedVector2Array:
 			ts.append(float(k["t"]))
 	ts.sort()
 	for t in ts:
-		pts.append(Vector2(t_to_x(t), v_to_y(PartKeys.value_at(ks, t)[c])))
+		pts.append(Vector2(t_to_x(t), cv_to_y(c, PartKeys.value_at(ks, t)[c])))
 	return pts
 
 
@@ -312,7 +406,7 @@ func _draw_band() -> void:
 
 func key_pos(c: int, i: int) -> Vector2:
 	var k: Dictionary = keys()[i]
-	return Vector2(t_to_x(float(k["t"])), v_to_y((k["v"] as Vector3)[c]))
+	return Vector2(t_to_x(float(k["t"])), cv_to_y(c, (k["v"] as Vector3)[c]))
 
 
 ## the key dot under a point -> [channel, index] or [-1, -1]
@@ -339,13 +433,26 @@ func _draw() -> void:
 	var f := get_theme_default_font()
 	var ink := Tok.c("ink")
 	var ks := keys()
-	draw_string(f, Vector2(PAD_L + 76, 15), ("%s: %d key%s" % [joint, ks.size(), "" if ks.size() == 1 else "s"]) if joint != "" else "pick a part", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.dim(0.8))
+	draw_string(f, Vector2(PAD_L + _btn.size.x + 8, 15), ("%s: %d key%s" % [joint, ks.size(), "" if ks.size() == 1 else "s"]) if joint != "" else "pick a part", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.dim(0.8))
 	for c in 3:
 		draw_string(f, Vector2(size.x - 150 + c * 48, 15), ["X bend", "Y side", "Z twist"][c], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, _col(c))
+	if view != "plain" and _mode == "":
+		refit()   # DD3: the fitted ranges follow the keys (not during a gesture: the scale would slide under the mouse)
+	if view == "normal":
+		for g in [-1.0, 0.0, 1.0]:   # the shared -1 / 0 / +1 rows (angle 0's map: every angle's lo / mid / hi land there)
+			var y := cv_to_y(0, lerpf(_rng[0].x, _rng[0].y, (g + 1.0) * 0.5))
+			draw_line(Vector2(p.position.x, y), Vector2(p.end.x, y), Tok.c("grid_major") if g == 0.0 else Tok.c("grid"), 1.0)
+			draw_string(f, Vector2(2, y + 4), "%+d" % int(g) if g != 0.0 else "0", HORIZONTAL_ALIGNMENT_LEFT, PAD_L - 6, 11, Tok.dim(0.7))
+	elif view == "stacked":
+		for c in 3:
+			var r := lane(c)
+			draw_rect(r, Color(_col(c), 0.05), true)
+			draw_line(Vector2(r.position.x, r.end.y), Vector2(r.end.x, r.end.y), Tok.c("grid"), 1.0)
+			draw_string(f, Vector2(r.position.x + 4, r.position.y + 12), "%s  %.1f..%.1f deg" % [["X bend", "Y side", "Z twist"][c], _rng[c].x, _rng[c].y], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, _col(c))
 	# grid: a line every nice step in degrees, the zero line stronger
 	var step := _nice((v1 - v0) / 4.0)
 	var g := ceilf(v0 / step) * step
-	while g <= v1:
+	while g <= v1 and view == "plain":
 		var y := v_to_y(g)
 		draw_line(Vector2(p.position.x, y), Vector2(p.end.x, y), Tok.c("grid_major") if absf(g) < 1e-6 else Tok.c("grid"), 1.0)
 		draw_string(f, Vector2(2, y + 4), "%d" % int(round(g)), HORIZONTAL_ALIGNMENT_LEFT, PAD_L - 6, 11, Tok.dim(0.7))
@@ -356,6 +463,7 @@ func _draw() -> void:
 	draw_string(f, Vector2(p.position.x, size.y - 5), "%.2f s" % t0, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
 	draw_string(f, Vector2(p.end.x - 40, size.y - 5), "%.2f s" % t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.dim(0.7))
 	_draw_band()
+	_draw_why()
 	if ks.is_empty() and band.get("ok", false):
 		return
 	if ks.is_empty():
@@ -363,6 +471,7 @@ func _draw() -> void:
 		return
 	for c in 3:
 		draw_polyline(polyline(c), _col(c), 2.0, true)
+	_draw_why_lines()
 	for i in ks.size():
 		for c in 3:
 			var q := key_pos(c, i)
@@ -372,6 +481,45 @@ func _draw() -> void:
 	if _mode == "box":
 		draw_rect(_box.abs(), Tok.dim(0.15), true)
 		draw_rect(_box.abs(), Tok.dim(0.6), false, 1.0)
+
+
+## DD5: each span of a Check rule this joint moves: a red band over its time with the rule's name, and the curves inside
+## it drawn again in red (drawn after the lines: see _draw_why_lines)
+func why_rect(s: Dictionary) -> Rect2:
+	var p := plot()
+	var x0 := clampf(t_to_x(float(s["t0"])), p.position.x, p.end.x)
+	var x1 := clampf(t_to_x(float(s["t1"])), p.position.x, p.end.x)
+	return Rect2(x0, p.position.y, maxf(x1 - x0, 2.0), p.size.y)
+
+
+func _draw_why() -> void:
+	var f := get_theme_default_font()
+	var red := Tok.c("fail")
+	var taken := []   # [x0, x1, row] of the names already written: a name that would overlap one goes a row up
+	for s in why:
+		var r := why_rect(s)
+		if r.end.x <= plot().position.x or r.position.x >= plot().end.x:
+			continue
+		draw_rect(r, Color(red, 0.16), true)
+		var w := f.get_string_size(String(s["rule"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		var x0 := r.position.x + 3
+		var row := 0
+		while taken.any(func(q): return q[2] == row and x0 < q[1] + 4 and x0 + w > q[0] - 4):
+			row += 1
+		taken.append([x0, x0 + w, row])
+		draw_string(f, Vector2(x0, r.end.y - 6 - 14 * row), String(s["rule"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, red)
+
+
+func _draw_why_lines() -> void:
+	var red := Tok.c("fail")
+	for s in why:
+		for c in 3:
+			var seg := PackedVector2Array()
+			for q in polyline(c):
+				if q.x >= t_to_x(float(s["t0"])) and q.x <= t_to_x(float(s["t1"])):
+					seg.append(q)
+			if seg.size() >= 2:
+				draw_polyline(seg, red, 3.0, true)
 
 
 func _nice(x: float) -> float:
@@ -444,7 +592,10 @@ func _gui_input(ev: InputEvent) -> void:
 		if _mode == "scale":
 			scale_picked(1.0 + (mm.position.x - _press.x) / 150.0, 1.0 - (mm.position.y - _press.y) / 150.0)
 		else:
-			move_picked(x_to_t(mm.position.x) - x_to_t(_press.x), y_to_v(mm.position.y) - y_to_v(_press.y), mm.ctrl_pressed)
+			var dvs := Vector3.ZERO
+			for c in 3:   # DD3: each angle by its own scale (one in the plain view)
+				dvs[c] = cy_to_v(c, mm.position.y) - cy_to_v(c, _press.y)
+			move_picked(x_to_t(mm.position.x) - x_to_t(_press.x), dvs, mm.ctrl_pressed)
 		accept_event()
 	elif ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE and (sel_i >= 0 or not picked.is_empty()):
 		sel_ch = -1
@@ -467,7 +618,8 @@ func picked_keys() -> Array:
 ## move every selected dot from where the gesture began: dt (s) to each selected key's time, dv (deg) to each selected
 ## angle. The dragged key's new time is snapped (a whole frame, or with `to_card` the nearest card's time) and the same
 ## change goes to all; it is cut back so no moved key reaches an unselected neighbour.
-func move_picked(dt: float, dv: float, to_card := false) -> void:
+func move_picked(dt: float, dv: Variant, to_card := false) -> void:
+	var dv3: Vector3 = dv if dv is Vector3 else Vector3(float(dv), float(dv), float(dv))   # DD3: per angle
 	var ks := keys()
 	if _snap.size() != ks.size() or picked.is_empty():
 		return
@@ -498,7 +650,7 @@ func move_picked(dt: float, dv: float, to_card := false) -> void:
 		ks[i]["t"] = float(_snap[i][0]) + dt
 	for q in picked:
 		var nv: Vector3 = ks[q[1]]["v"]
-		nv[q[0]] = (_snap[q[1]][1] as Vector3)[q[0]] + dv
+		nv[q[0]] = (_snap[q[1]][1] as Vector3)[q[0]] + dv3[q[0]]
 		if limit.is_valid():
 			nv[q[0]] = (limit.call(joint, nv) as Vector3)[q[0]]
 		ks[q[1]]["v"] = nv

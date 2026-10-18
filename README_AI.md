@@ -512,6 +512,11 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   mean). "Shape" menu = Blender Key > Blend (scripts/key_blend.gd: breakdown, blend to neighbour, push/pull, ease, match
   slope, scale from neighbour, blend offset) by the factor box. "Mods" = curve modifiers noise / stepped / limits with a
   mix, on the joint's FIRST key as "mods" (PartKeys.value_at = keys + stack; at() = the keys alone; Scene.sample plays it).
+- DD3 views: "View" button cycles degrees / -1..1 (each angle fitted) / lanes; drags edit the real angle per its scale.
+- DD4 BAKE (bake.gd, "Bake to cards"): one card a frame = what Scene.apply plays (visual keying); floor, pins, layer,
+  breathing, natural, spline, stepped switched off because they are inside the cards; one undo step.
+- DD5 WHY (why.gd): red, named spans on the curve where HITCH (+-3 frames) or TIP SPEED (frames over the cap) fire for
+  a part this joint moves (tip: spine/arms/hands; hips: pelvis/legs; head: neck/head/spine).
 - XX3 DOPE SHEET (dope_sheet.gd): cards row + 8 part-group rows of diamonds; card["ktype"] key/breakdown/moving_hold/
   extreme (a mark only, saved only when not "key"); drag a card diamond to retime. Timeline + sheet share _retime_*.
 - XX4 BREAKDOWNER (breakdowner.gd): true per-joint slerp between neighbour cards, Shift+E slider -50..150 %, 25/50/75 %;

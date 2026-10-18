@@ -2364,7 +2364,11 @@ func _big_view() -> void:
 func _snapshot() -> Dictionary:
 	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w}
+		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
+
+
+const BAKE_FLAGS := ["on_floor", "pin", "spline", "stepped", "natural", "floor_body"]
 
 
 func _restore(u: Dictionary) -> void:
@@ -2385,6 +2389,9 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
+	if u["scene"] == S and u.has("flags"):
+		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
+			S.set(BAKE_FLAGS[k], u["flags"][k])
 	if u["scene"] == S and u.has("layer") and (u["breath"] != S.breath or u["layer"] != S.layer or u["layer_w"] != S.layer_w):
 		S.breath = u["breath"]   # BREATH (YY6) and the LAYER (YY9): scene settings, undone like a card (the undo audit
 		S.layer = u["layer"].duplicate()   # did not fingerprint them, so a lost breath / layer passed it)
@@ -2477,6 +2484,24 @@ func _ai_toggle() -> void:
 		ui_ai.stop()
 
 
+## BAKE (round 48, DD4, UPGRADES_300 #250): the open scene flattened into one card per frame (scripts/bake.gd), one undo step
+func _bake() -> void:
+	if S.cards.is_empty():
+		_say("nothing to bake: the scene has no cards yet. Add a card (pose the body, then + Card) first")
+		return
+	_step_hint = "Bake to cards"
+	_push_undo()
+	var GB := Body.new()
+	GB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var r := Bake.bake(S, GB, float(S.fps))
+	sel_card = clampi(sel_card, 0, S.cards.size() - 1)
+	_rebuild_cards()
+	_refresh()
+	_say("BAKED: %d cards became %d (one a frame at %d fps)%s; Ctrl+Z gives them back" % [r["was"], r["cards"], S.fps,
+		("; part keys on %d part%s folded in" % [r["part_keys"], "" if r["part_keys"] == 1 else "s"]) if r["part_keys"] > 0 else ""]
+		+ ("; turned off (now inside the cards): %s" % ", ".join(r["off"]) if not (r["off"] as Array).is_empty() else ""))
+
+
 ## CURVE EDITOR (round 42, XX2, UPGRADES_300 #240): opens / closes the panel (scripts/curve_editor.gd) that draws the
 ## picked part's part keys as curves; dragging a key there is one undo step
 func _curve_toggle() -> void:
@@ -2499,6 +2524,10 @@ func _curve_toggle() -> void:
 	_say("curve editor open: drag a key to change its angle and time (Ctrl+Z takes a drag back)" if ui_curve.visible else "curve editor closed")
 
 
+var _why_sig := 0
+var _why_all := []   # DD5: every HITCH / TIP SPEED span of the open scene (Why.spans)
+
+
 func _curve_sync() -> void:
 	if ui_curve == null or not ui_curve.visible:
 		return
@@ -2514,8 +2543,14 @@ func _curve_sync() -> void:
 	if sig != _band_sig and not ui_curve._dragging:   # YY7: the people's band, measured again only when the scene changed
 		_band_sig = sig   # (never mid-drag, and the view is refitted only for a new part: a refit under the mouse moved the key)
 		ui_curve.band = GaitBand.for_part(S, sel) if GaitBand.joint_of(sel) != "" else {}
+	var wsig := hash(var_to_str([S.cards, S.part_keys, S.spline, S.natural, S.pin, S.on_floor]))
+	if wsig != _why_sig and not ui_curve._dragging:   # DD5: the rules' spans, measured again only when the scene changed
+		_why_sig = wsig
+		_why_all = Why.spans(S, ov.GB)
+	ui_curve.why = Why.for_joint(_why_all, sel)
 	if moved:
 		ui_curve.sel_i = -1
+		ui_curve.picked = []   # DD0: a new part, a new set of dots (the old [angle, index] pairs meant the old part's keys)
 		ui_curve.frame_all()
 	ui_curve.queue_redraw()
 
@@ -5260,6 +5295,7 @@ func _commands() -> Array:
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
 	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0, 0, 0)")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
+	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
 	for ip in PartKeys.INTERPS:   # KEY INTERPOLATION (XX1)
 		add.call("Part key: " + ip + " interpolation", "", _part_curve.bind("interp", ip), "key curve blender graph " + ip, true, "the picked part's key at the playhead leaves toward the next key as " + ip)
