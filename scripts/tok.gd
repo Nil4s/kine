@@ -17,6 +17,7 @@ const DARK := {
 	"world": Color(0.11, 0.115, 0.13), "floor": Color(0.13, 0.135, 0.15), "grid": Color(0.19, 0.2, 0.23), "grid_major": Color(0.32, 0.33, 0.37),
 	"tl_bg": Color(0.07, 0.08, 0.1), "s_tip": Color(1.0, 0.55, 0.3), "s_hips": Color(0.45, 0.75, 1.0), "s_head": Color(0.75, 0.9, 0.5),
 	"cube": Color(0.55, 0.62, 0.75), "cube_edge": Color(0.9, 0.93, 1.0),
+	"ch_x": Color(1.0, 0.42, 0.4), "ch_y": Color(0.45, 0.85, 0.45), "ch_z": Color(0.45, 0.65, 1.0),   # XX2 curve editor: bend / side / twist
 }
 const LIGHT := {
 	"text": Color(0.1, 0.11, 0.13), "heading": Color(0.08, 0.3, 0.68), "info": Color(0.12, 0.27, 0.5), "say": Color(0.42, 0.27, 0.0),
@@ -29,6 +30,7 @@ const LIGHT := {
 	"world": Color(0.72, 0.74, 0.77), "floor": Color(0.66, 0.68, 0.71), "grid": Color(0.6, 0.62, 0.65), "grid_major": Color(0.48, 0.5, 0.54),
 	"tl_bg": Color(0.86, 0.87, 0.9), "s_tip": Color(0.8, 0.35, 0.05), "s_hips": Color(0.1, 0.38, 0.8), "s_head": Color(0.25, 0.5, 0.05),
 	"cube": Color(0.8, 0.84, 0.9), "cube_edge": Color(0.25, 0.3, 0.4),
+	"ch_x": Color(0.78, 0.12, 0.1), "ch_y": Color(0.1, 0.5, 0.12), "ch_z": Color(0.12, 0.3, 0.8),
 }
 
 static var dark := true
