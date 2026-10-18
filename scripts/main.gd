@@ -4885,6 +4885,8 @@ func _commands() -> Array:
 	add.call("Select: just one part", "", _select_set.bind([]), "group set single clear one", false, "back to the one part the panel shows")
 	add.call("Lock / unlock this part", "", _toggle_lock.bind(""), "freeze hold keep unlock protect", false, "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
 	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
+	add.call("Look at the picked prop", "", _look_at.bind("prop"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the picked prop (real gaze shifts: scripts/look_at.gd)")
+	add.call("Look at the camera", "", _look_at.bind("camera"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the camera")
 	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")
 	for e in Scene.EASES:
 		add.call("Ease: " + e, "", _set_ease.bind(e), "easing timing curve " + {"smooth": "natural", "linear": "constant even", "in": "slow start accelerate", "out": "slow end decelerate", "snap": "jump cut hit step"}[e], true,
@@ -5115,6 +5117,25 @@ func _copy_pose() -> void:
 
 
 ## how: "" = the whole pose, "mirrored", "part" = the picked part and below. One undo step; nothing copied = nothing done
+## LOOK AT (round 42, GATES XX6): the neck and head turn so the gaze points at the picked prop or at the camera
+## (scripts/look_at.gd). ONE undo step; the body has no eyes, so the whole turn is the neck's and head's
+func _look_at(what: String) -> void:
+	var t := Vector3.ZERO
+	if what == "prop":
+		if sel_prop < 0 or sel_prop >= S.props.size():
+			_say("pick a prop first: click it in the view (or Add prop), then Look at the picked prop")
+			return
+		t = ((S.props[sel_prop]["xf"] as Transform3D).origin) + Vector3(0, 0.3, 0)
+	else:
+		t = cam.global_position
+	var res := {}
+	_do(func(): res.merge(LookAt.solve(B, t), true))
+	var msg := "looking at the %s: turned the neck and head %.0f deg" % ["picked " + _prop_name(sel_prop) if what == "prop" else "camera", res["head_deg"]]
+	if not res["reachable"]:
+		msg += "; it is %.1f deg past what the neck and head reach: move the target nearer the front" % res["error"]
+	_say(msg + ".  Ctrl+Z undoes; Update keeps it on the card")
+
+
 func _paste_pose(how: String) -> void:
 	if pose_clip.is_empty():
 		_say("nothing copied yet: press Ctrl+C on the pose you want first, then Ctrl+V here")
