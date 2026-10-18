@@ -85,6 +85,9 @@ var ui_pose_name: LineEdit
 var ui_cards: HBoxContainer
 var ui_time: HSlider
 var ui_time_lbl: Label
+var ui_fps_lbl: Label   # XX10: the frames per second really reached while playing, and the dropped ones
+var shading := Shading.new()   # XX10: how the body is drawn (a view setting, never saved)
+var _was_playing := false
 var ui_play: Button
 var ui_gear: PanelContainer   # RR4: the play options box (the gear opens it; a click elsewhere closes it)
 var ui_gear_btn: Button
@@ -1053,6 +1056,27 @@ func _record(dir: String, fps: int, burn: bool, avi: String) -> int:
 	return n + 1
 
 
+## SHADING + FPS TRUTH (round 42, GATES XX10): the logic is in scripts/shading.gd
+func _shading_next() -> void:
+	var nxt := Shading.next_mode(shading.mode)
+	shading.set_mode(self, nxt)
+	_say("shading: %s (a view setting, not saved in the scene).  Shading: next goes on to %s" % [nxt, Shading.next_mode(nxt)])
+
+
+## each frame: while playing, count the frames and the dropped ones; the readout beside the time
+func _fps_poll(dt: float) -> void:
+	if playing and not _was_playing:
+		var hz := DisplayServer.screen_get_refresh_rate()
+		shading.meter.start(1.0 / (hz if hz > 0.0 else 60.0))
+	_was_playing = playing
+	if playing:
+		shading.meter.feed(dt)
+		if ui_fps_lbl != null and shading.meter.frames > 0:
+			var t := Shading.fps_text(shading.meter.stats())
+			if t != ui_fps_lbl.text:
+				ui_fps_lbl.text = t
+
+
 ## the scene the window plays: landed on the solid dummy, or as authored
 func _ps() -> Scene:
 	var p: Scene = SL if dummy_on and solid and SL != null else S
@@ -1334,6 +1358,7 @@ func _process(dt: float) -> void:
 			playing = false
 		_ps().apply(B, playhead)
 		_refresh()
+	_fps_poll(dt)
 
 
 # ---------------------------------------------------------------- 3D scene
@@ -3989,6 +4014,10 @@ func _ui() -> void:
 	ui_time_lbl.custom_minimum_size = Vector2(104, 0)
 	ui_time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ph.add_child(ui_time_lbl)
+	ui_fps_lbl = _label("", 13, "text:0.75")
+	ui_fps_lbl.name = "fps_readout"
+	ui_fps_lbl.tooltip_text = "the real frames per second while playing, and the frames that took more than 1.5 x the target time (dropped)"
+	ph.add_child(ui_fps_lbl)
 	ui_time_lbl.mouse_filter = Control.MOUSE_FILTER_STOP   # WW4: a click on the readout flips seconds <-> frames
 	ui_time_lbl.tooltip_text = "click: show the time in seconds or in frames (at the scene's frame rate)"
 	ui_time_lbl.gui_input.connect(func(ev: InputEvent):
@@ -4976,6 +5005,7 @@ func _commands() -> Array:
 	for side in [["r", "right"], ["l", "left"]]:
 		for f in ["open", "grip", "fist"]:
 			add.call("Fingers %s: %s" % [side[1], f], "", _do.bind(_fingers.bind(side[0], f)), "hand", true, "the %s hand's fingers: %s" % [side[1], f])
+	add.call("Shading: next", "", _shading_next, "solid matcap silhouette xray x-ray look material", false, "draw the body solid, matcap, silhouette or x-ray (a display setting, not saved in the scene)")
 	add.call("Light / dark theme", "", func(): _set_light(Tok.dark), "colour white bright night", false, "switch the light and dark look (remembered)")
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
