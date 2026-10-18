@@ -1402,16 +1402,44 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   DIP_PER_PIP 1.0 -> FAIL 1, 2; little DIP 6.08 -> FAIL 9. SPREAD proportions and the thumb's rest are MINE (marked).
   names caught both Point buttons auto-named b_point (fixed: b_point_r / _l). run_par -j 8 143/146 (C:/Temp/r43_yy3b):
   hover, popup_leak, hover_sync, all PASS alone (load flakes).
-- [ ] YY4 SPINE AND NECK, ONE BEND: forward / side / twist for the whole back, shared over spine_01..03 + neck_01 by
+- [x] YY4 SPINE AND NECK, ONE BEND: forward / side / twist for the whole back, shared over spine_01..03 + neck_01 by
   real segment ranges (lumbar / thoracic / cervical from a checked source). Bars: the sum equals the asked bend; each
   segment within its own range; 0 = the old pose exactly.
-- [ ] YY5 SHOULDERS THAT FOLLOW: raising an arm past ~30 deg brings the clavicle (shrug / reach) by the scapulohumeral
+  EVIDENCE: Body.back_bend / back_range / back_of; inspector BACK section (forward / side / twist sliders), shown for
+  the trunk parts only (HANDS for the limbs: one more header made the hips' box 314 tall, inspector_test caught it, now
+  287). Shares by EACH JOINT'S OWN RANGE in data/body_limits.json (spine_01..03, neck_01, head), so all reach their
+  limits together. People (Apti et al. 2023, 300 young adults): lumbar flex 69.9 / ext 40 / lateral 36 / rotation 38;
+  cervical 57.7 / 59.1 / 42 / 71. This body: spine bend -21..60, side +-21, twist +-51 (the hips carry the rest);
+  neck+head -55..60 / +-35 / +-75. THORACIC: no checked number (the meta-analysis PMC9026805 gives it only in figures)
+  -> UNVERIFIED, the segment shares are the body's own limits. tests/back_bend_test.gd 3 ok (bend -76..120, side
+  -56..56, twist -126..126: sum = ask 1e-4, in limits, share by range 1e-4, ends all at their limits, other axes kept,
+  idempotent). Stub (even 1/5 split): FAIL 3. run_par -j 8 146/148 (C:/Temp/r43_yy45): small_window, weapon_picker
+  (a real click under load), both PASS alone. (An earlier run, r43_yy4, does not count: core files were edited during it.)
+- [x] YY5 SHOULDERS THAT FOLLOW: raising an arm past ~30 deg brings the clavicle (shrug / reach) by the scapulohumeral
   rhythm (~2:1 humerus:scapula, Inman 1944; checked before use), switchable, default ON only for new poses. Bars: the
   ratio measured on an arm raise; old poses identical.
+  RESTATED: this body has NO scapula (the clavicle joint carries the girdle), so the GH:ST ratio cannot be measured on
+  it. The bars are the clavicle's own measured motion. McClure et al. 2001 (J Shoulder Elbow Surg 10:269, bone pins, 8
+  people, scapular plane 11 -> 147 deg): clavicle elevation ~10, retraction ~21, the scapula "very little" in the first
+  30 deg, GH:ST 1.7 (1.9 from 0). Inman 1944: 2:1 (2D radiographs), clavicle ~30 (method unclear) -> McClure used.
+  EVIDENCE: Body.shoulder_follow / arm_elevation / follow_clav; main: runs only when an UPPER ARM is turned by its
+  slider or drag (never a load, paste, play or hand pull); search "Shoulders follow the arm on/off", default ON.
+  tests/shoulder_follow_test.gd 8 ok: 0 under 30 deg; never down; at McClure's top (arm 148) up 10.0, back 15.0 (the
+  body's limit; people 21); fixed point 0.0000 deg; stopped by contact only at arm 175-176 (the overhead arm meets the
+  head); no contact on the raise; slider overhead -> clavicle 10 / 15, twin untouched; off -> 0; combo3 loads to the
+  same angles on / off; a hand pull identical on / off. FOUND ON THE WAY: the clavicle capsule sits 3.2 cm inside the
+  neck capsule at rest, so ANY shrug (by hand too) read as contact (10 up: 2 mm into the head; 15 back: 8 mm into the
+  neck); people do that with nothing touching, so Body's contact allowance gains a calibration pose at people's
+  measured girdle extreme, for the CLAVICLE's pairs only. Stubs: follow on every edit -> FAIL 7; FOLLOW_FROM 0 -> FAIL
+  1, 3; no girdle calibration -> FAIL 1, 2, 4. run_par -j 8 146/148 (r43_yy45), as YY4.
 - [ ] YY6 SMALL PARTS: a JAW (open / side) and a BREATH control (chest rise over spine_03 + clavicles, with a rate in
   the timeline: people ~12-20 breaths/min at rest, checked source). New joints added to data/skeleton.json WITHOUT moving
   any existing joint; files without them load as before. Bars: jaw opening in mm vs a checked normal range; old scene
   byte for byte.
+  RESTATED (decided): BREATH ONLY. The JAW is deferred: assets/mannequin.glb (Quaternius UAL2) has no jaw bone and its
+  head has no mouth; a jaw means re-cutting and re-weighting Nick's asset's head, not "light". Its numbers are kept for
+  when a face comes: max mouth opening 47.1 mm (33.7-60.4, 700 adults, PMID 9043002), hinge rotation ~30 deg (axiography,
+  50 people) / 32.1 (259). Breath needs no new joint (spine_03 + neck + clavicles), so no skeleton edit.
 - [ ] YY7 REAL-HUMAN BAND in the curve editor: for a walk, the knee / hip / ankle normative curve (mean +- SD over the
   gait cycle, a checked source) drawn behind the joint's curve, time-normalised to the step. Bars: the band's points =
   the table's; a joint outside the band is listed.

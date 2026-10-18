@@ -1288,6 +1288,16 @@ func _ready() -> void:
 		for c in _commands():
 			if c["name"] == args[i + 1]:
 				(c["run"] as Callable).call()
+	i = args.find("--back")   # --back bend:60,twist:30: the whole back bent that way (screenshots)
+	if i >= 0 and i + 1 < args.size():
+		for kv in args[i + 1].split(","):
+			B.back_bend(kv.get_slice(":", 0), float(kv.get_slice(":", 1)))
+		_refresh()
+	i = args.find("--slide")   # --slide upperarm_r,side,80: move that joint's slider, as a hand would (screenshots)
+	if i >= 0 and i + 1 < args.size():
+		var sl: PackedStringArray = args[i + 1].split(",")
+		sel = sl[0]
+		_on_slider(float(sl[2]), sl[1])
 	i = args.find("--sec")   # --sec HANDS: open that inspector section (screenshots)
 	if i >= 0 and i + 1 < args.size() and ui_secs.has(args[i + 1]):
 		_sec_open(args[i + 1], true)
@@ -2198,6 +2208,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		var ax := r1.cross(r2)
 		if ax.length() > 1e-9:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
+	_arm_edit = sel if sel.begins_with("upperarm") and not move else ""
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
 	var what := "ROLLING" if twist else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING")))
@@ -2287,6 +2298,9 @@ func _pose_words(text: String) -> Dictionary:
 
 
 func _after_edit() -> void:
+	if shoulder_follow and _arm_edit != "":   # YY5: only a hand edit of an upper arm; never a load, paste or play
+		B.shoulder_follow(_arm_edit.right(2))
+	_arm_edit = ""
 	if symmetry:
 		_mirror_changed()
 	B.apply_grip()
@@ -2298,6 +2312,8 @@ func _after_edit() -> void:
 ## an arm leaves the legs as they were, and the middle (its own twin) is never touched. Runs inside the edit's own undo
 ## step: one Ctrl+Z takes back both sides
 var symmetry := false
+var shoulder_follow := true   # YY5: raising an upper arm by hand brings its collarbone (Body.shoulder_follow)
+var _arm_edit := ""           # the upper arm the current slider / drag edit turned ("" = none): what follows it
 var _sym_prev := {}   # the angles at the last refresh: what an edit is measured against
 
 
@@ -2602,6 +2618,13 @@ func _fingers(side: String, kind: String) -> void:
 
 var _shape_i := {"l": 0, "r": 0}
 var ui_hand := {}   # "rcurl" / "rspread" / "lcurl" / "lspread" -> HSlider (YY3)
+var ui_back := {}   # "bend" / "side" / "twist" -> HSlider (YY4)
+
+
+func _on_back_slider(v: float, k: String) -> void:
+	B.back_bend(k, v)
+	_refresh()
+	_say("the back: %s %.0f deg over the spine, neck and head" % [{"bend": "forward", "side": "side", "twist": "twist"}[k], B.back_of(k)])
 
 
 ## a hand slider moved: the whole hand follows (the undo step was taken when the drag began)
@@ -2622,6 +2645,8 @@ func _hand_point(sd: String) -> void:
 
 ## the hand sliders read the body back (no signal: a refresh is not a drag)
 func _hand_sliders_sync() -> void:
+	for k in ui_back:
+		(ui_back[k] as HSlider).set_value_no_signal(B.back_of(k))
 	for sd in ["r", "l"]:
 		if ui_hand.has(sd + "curl"):
 			var cs := B.hand_curl_of(sd)
@@ -3968,6 +3993,22 @@ func _ui() -> void:
 		var pb := _button("Point (%s)" % ["right" if sd == "r" else "left"], _do.bind(_hand_point.bind(sd)), "the index straight, the other fingers and the thumb curled")
 		pb.name = "b_point_" + sd   # the label's side is in brackets, which the auto-name drops: both would be b_point
 		_row(hands, [pb])
+	# YY4: the whole back, one slider per way (Body.back_bend: shared by each joint's range)
+	var back := _section(vb, "BACK")
+	for k in ["bend", "side", "twist"]:
+		var bl := _prop_row(back)
+		_set_prop(bl, {"bend": "forward", "side": "side", "twist": "twist"}[k], "")
+		var bs := HSlider.new()
+		bs.name = "back_" + k
+		var br := B.back_range(k)
+		bs.min_value = br.x
+		bs.max_value = br.y
+		bs.step = 0.5
+		bs.drag_started.connect(_push_undo)
+		bs.value_changed.connect(_on_back_slider.bind(k))
+		_row_slider(bl, bs)
+		ui_back[k] = bs
+	back.add_child(_label("The spine, neck and head share the bend by their ranges: they reach their limits together.", PROP_TXT, "text:0.55", true))
 	hands.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
 	var wep := _section(vb, "WEAPON")
 	_row(wep, [_weapon_picker("opt_weapon_panel")])
@@ -4459,7 +4500,20 @@ func _panel() -> void:
 	_sync = false
 
 
+## a section's header (and its rows) shown only where it is about the picked part: BACK for the trunk, HANDS for the
+## limbs (round 43, YY4: one more header made the hips' box 314 tall, over the inspector's 300)
+func _sec_show(t: String, on: bool) -> void:
+	if not ui_secs.has(t):
+		return
+	(ui_secs[t][0] as Control).visible = on
+	if not on and (ui_secs[t][1] as Control).visible:
+		_sec_open(t, false)
+
+
 func _panel_part() -> void:
+	var trunk: bool = sel in ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head"]
+	_sec_show("BACK", trunk)
+	_sec_show("HANDS", not trunk)
 	var v: Vector3 = B.ang[sel]
 	var L: Dictionary = B.lim[sel]
 	var lims: Array = B.at_limit(sel)
@@ -4570,6 +4624,7 @@ func _on_slider(val: float, k: String) -> void:
 		"side": v.y = val
 		"twist": v.z = val
 	B.set_ang_safe(sel, v)
+	_arm_edit = sel if sel.begins_with("upperarm") else ""
 	_after_edit()
 
 
@@ -5113,6 +5168,7 @@ func _commands() -> Array:
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Point the right hand", "", _do.bind(_hand_point.bind("r")), "finger index point hand curl fist", true, "the right index straight, the other fingers and the thumb curled")
 	add.call("Point the left hand", "", _do.bind(_hand_point.bind("l")), "finger index point hand curl fist", true, "the left index straight, the other fingers and the thumb curled")
+	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")

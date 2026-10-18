@@ -31,14 +31,14 @@ func _init() -> void:
 			B.from_dict(B.to_dict())   # a fresh copy of nothing: the rest pose
 			for j in Body.BACK:
 				B.ang[j] = Vector3(1.5, -2.0, 3.0)   # off zero on every axis: the untouched axes must keep these
-			var ask := r.y * u if u >= 0.0 else -r.x * u
+			var ask: float = r.y * u if u >= 0.0 else -r.x * u
 			B.back_bend(axis, ask)
 			sum_ok = sum_ok and absf(B.back_of(axis) - ask) < 1e-4
 			for j in Body.BACK:
 				var v: Vector3 = B.ang[j]
 				var l: Vector2 = B.lim[j][axis]
 				lim_ok = lim_ok and v[ai] >= l.x - 1e-6 and v[ai] <= l.y + 1e-6
-				var want := (l.y / r.y if ask >= 0.0 else l.x / r.x) * ask
+				var want: float = (l.y / r.y if ask >= 0.0 else l.x / r.x) * ask
 				share_ok = share_ok and absf(v[ai] - want) < 1e-4
 				for o in 3:
 					if o != ai:

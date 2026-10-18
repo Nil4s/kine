@@ -249,6 +249,21 @@ func load_files(skel_path: String, limits_path: String) -> void:
 				continue
 			var key: String = pr[0] + "|" + pr[1]
 			allow[key] = maxf(allow.get(key, 0.0), depth(pr[0], pr[1]) + 0.002)
+	# THE GIRDLE AT PEOPLE'S MEASURED EXTREME (round 43, YY5): the clavicle capsule starts at the sternum under the neck
+	# and sits 3.2 cm inside the neck capsule at rest, so ANY shrug read as "contact" (10 up: 2 mm into the head; 15
+	# back: 8 mm into the neck). People raise the clavicle ~10 and draw it back ~21 with nothing touching (McClure et al.
+	# 2001, bone pins, 8 people), so that pose is neutral too: for the CLAVICLE's pairs only, the arms hanging and out
+	for arm in [Vector3.ZERO, Vector3(0, -90, 0)]:
+		for j in ORDER:
+			ang[j] = Vector3.ZERO
+		for sd in ["_r", "_l"]:
+			ang["upperarm" + sd] = arm
+			ang["clavicle" + sd] = clamp_ang("clavicle" + sd, Vector3(FOLLOW_ELEV, -FOLLOW_RETRACT, 0))
+		fk()
+		for pr in pairs:
+			if (pr[0].begins_with("clavicle") or pr[1].begins_with("clavicle")) and not (is_wep(pr[0]) or is_wep(pr[1])):
+				var key: String = pr[0] + "|" + pr[1]
+				allow[key] = maxf(allow.get(key, 0.0), depth(pr[0], pr[1]) + 0.002)
 	for j in ORDER:
 		ang[j] = Vector3.ZERO
 	wep_on = keep_on
@@ -1280,6 +1295,87 @@ func hand_shape(side: String, kind: String) -> void:
 	for k in 3:
 		var j := "thumb_0%d_%s" % [k + 1, side]
 		ang[j] = clamp_ang(j, c[3 + k])
+	fk()
+
+
+## SHOULDERS THAT FOLLOW (round 43, GATES YY5): raising an arm brings the collarbone with it. McClure et al. 2001 (J
+## Shoulder Elbow Surg 10:269-77; bone pins, 8 people, arm raised in the scapular plane 11 -> 147 deg): the clavicle
+## ELEVATED ~10 deg and RETRACTED ~21 deg over the raise, the scapula moved "very little" in the first 30 deg, the
+## retraction began near 25 deg (Inman 1944 gave ~30 deg of elevation, method unclear). This body has no scapula: the
+## clavicle joint carries the girdle. Here: nothing below FOLLOW_FROM, then linear to FOLLOW_TO (McClure's upward
+## rotation is near linear past 50; the linear form is MINE). Retraction stops at this body's limit, 15 (people 21).
+## The arm's elevation is measured from straight down in the CHEST's frame (humerothoracic, as McClure's x axis); the
+## clavicle tilts the arm, so it is solved to its own fixed point (FOLLOW_ITERS), and stops where it would meet the
+## neck or head (contact-safe).
+const FOLLOW_FROM := 30.0
+const FOLLOW_TO := 147.0
+const FOLLOW_ELEV := 10.0
+const FOLLOW_RETRACT := 21.0
+const FOLLOW_ITERS := 6
+
+
+## the arm's elevation (deg): its upper arm from straight down, in the chest's frame. 0 = hanging, 90 = out level
+func arm_elevation(sd: String) -> float:
+	var d: Vector3 = (G["spine_03"] as Quaternion).inverse() * ((P["lowerarm" + sd] - P["upperarm" + sd]) as Vector3)
+	return rad_to_deg(d.angle_to(Vector3.DOWN))
+
+
+## the clavicle (bend = up, side = forward) that goes with an arm raised e degrees
+func follow_clav(e: float) -> Vector3:
+	var f := clampf((e - FOLLOW_FROM) / (FOLLOW_TO - FOLLOW_FROM), 0.0, 1.0)
+	return Vector3(FOLLOW_ELEV * f, -FOLLOW_RETRACT * f, 0.0)
+
+
+## true = the clavicle reached what the arm asks; false = a contact (the raised arm meeting the head) stopped it short
+func shoulder_follow(sd: String) -> bool:
+	var c := "clavicle" + sd
+	ang[c] = Vector3.ZERO
+	fk()
+	var keep := last_stop
+	var reached := true
+	for i in FOLLOW_ITERS:
+		# contact-safe: set_ang_safe stops it where parts would meet (the clavicle's own girdle pairs are calibrated to
+		# people's measured shrug, below; what is left is real, e.g. an overhead arm meeting the head)
+		reached = set_ang_safe(c, follow_clav(arm_elevation(sd)))
+	last_stop = keep   # the arm edit's own stop words, not the follow's
+	return reached
+
+
+## THE BACK, ONE BEND (round 43, GATES YY4): forward / side / twist for the whole back at once, shared over the three
+## spine joints, the neck and the head IN PROPORTION TO EACH ONE'S RANGE that way (data/body_limits.json), so they all
+## reach their limits together and no one joint kinks while the others are straight. The sum is what was asked, up
+## to the sum of the limits. People for scale (Apti et al. 2023, 300 young adults, goniometer): lumbar flexion 69.9,
+## extension 40.0, lateral 36, rotation 38; cervical flexion 57.7, extension 59.1, lateral 42, rotation 71. This body:
+## spine_01..03 bend -21..60, side +-21, twist +-51 (stiffer than people's lumbar alone: the hips carry the rest); neck +
+## head bend -55..60, side +-35, twist +-75. Thoracic: no checked number (the meta-analysis's values are in figures).
+const BACK := ["spine_01", "spine_02", "spine_03", "neck_01", "head"]
+const BACK_AXIS := {"bend": 0, "side": 1, "twist": 2}
+
+
+## the back's range that way: Vector2(sum of the lows, sum of the highs)
+func back_range(axis: String) -> Vector2:
+	var r := Vector2.ZERO
+	for j in BACK:
+		r += lim[j][axis] as Vector2
+	return r
+
+
+func back_of(axis: String) -> float:
+	var s := 0.0
+	for j in BACK:
+		s += (ang[j] as Vector3)[BACK_AXIS[axis]]
+	return s
+
+
+func back_bend(axis: String, total: float) -> void:
+	var r := back_range(axis)
+	total = clampf(total, r.x, r.y)
+	for j in BACK:
+		var l: Vector2 = lim[j][axis]
+		var share := (l.y / r.y if r.y != 0.0 else 0.0) if total >= 0.0 else (l.x / r.x if r.x != 0.0 else 0.0)
+		var v: Vector3 = ang[j]
+		v[BACK_AXIS[axis]] = total * share
+		ang[j] = clamp_ang(j, v)
 	fk()
 
 
