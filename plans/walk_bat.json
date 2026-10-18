@@ -4,7 +4,7 @@
  "bat_hand": "hand_r",
  "frame": "chest",
  "elbow_low": 3.0,
- "note": "walk start -> stop (starts 1.85 m back and stops with the hips 0.6 m out: the old walk ended inside the dummy at 1.5 m; now 0.9 m short of it, bat clear) with the bat on the shoulder: half step, three 0.70 m steps (0.415 of 1.70 m body height, PMID 19502061) at 0.57 s each (105 steps/min, PMID 29775941), feet together. Double support as people: lead hip 35 flexed, knee 18 (the card is foot-flat, just after heel strike: people ~30 / 15-20, the pelvis at its lowest); trail hip 12 extended, knee 22, heel rising. Hips turn into each step, the chest counters, the left arm swings against the left leg.",
+ "note": "walk start -> stop (starts 1.85 m back and stops with the hips 0.6 m out: the old walk ended inside the dummy at 1.5 m; now 0.9 m short of it, bat clear) with the bat on the shoulder: half step, three 0.70 m steps (0.415 of 1.70 m body height, PMID 19502061) at 0.57 s each (105 steps/min, PMID 29775941), feet together. Double support as people (round 44 ZZ0): the card is the lead foot flat, 8 % of its cycle after the heel strike, the trailing leg at 58 % (Fukuchi 2018, 42 adults: lead hip 29.9 / knee 12.3, trail hip -7.4 / knee 22.6): lead hip 30, knee 12; trail hip 7 extended, knee 23, heel rising (heel_deg 10: at 15 the trailing toe tip was the lowest sole point and the lead foot stood 5-7 mm off the floor all through its stance). Before: 35 / 18 and -12 / 22 baked the hips 1.8 cm lower (the pelvis rose and fell 6.2 cm; people 3.9 +- 0.75 at this speed, Orendurff 2004). Hips turn into each step, the chest counters, the left arm swings against the left leg.",
  "clips": [
   {
    "name": "stand",
@@ -203,22 +203,22 @@
      0
     ],
     "thigh_r": [
-     35,
+     30,
      7,
      0
     ],
     "calf_r": [
-     18,
+     12,
      0,
      0
     ],
     "thigh_l": [
-     -12,
+     -7,
      7,
      0
     ],
     "calf_l": [
-     22,
+     23,
      0,
      0
     ]
@@ -234,7 +234,7 @@
     -0.85
    ],
    "lift": 0.06,
-   "heel_deg": 15,
+   "heel_deg": 10,
    "walk": true
   },
   {
@@ -288,22 +288,22 @@
      0
     ],
     "thigh_l": [
-     35,
+     30,
      7,
      0
     ],
     "calf_l": [
-     18,
+     12,
      0,
      0
     ],
     "thigh_r": [
-     -12,
+     -7,
      7,
      0
     ],
     "calf_r": [
-     22,
+     23,
      0,
      0
     ]
@@ -319,7 +319,7 @@
     -0.85
    ],
    "lift": 0.06,
-   "heel_deg": 15,
+   "heel_deg": 10,
    "walk": true
   },
   {
@@ -373,22 +373,22 @@
      0
     ],
     "thigh_r": [
-     35,
+     30,
      7,
      0
     ],
     "calf_r": [
-     18,
+     12,
      0,
      0
     ],
     "thigh_l": [
-     -12,
+     -7,
      7,
      0
     ],
     "calf_l": [
-     22,
+     23,
      0,
      0
     ]
@@ -404,7 +404,7 @@
     -0.85
    ],
    "lift": 0.06,
-   "heel_deg": 15,
+   "heel_deg": 10,
    "walk": true
   },
   {

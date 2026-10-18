@@ -81,7 +81,26 @@ static func cycle(S: Scene, B: Body, sd: String) -> Dictionary:
 			lands.append(int(p[0]))
 	if lands.size() < 2:
 		return {"ok": false, "why": "the %s foot lands %d time%s (a cycle needs 2)" % ["right" if f == 1 else "left", lands.size(), "" if lands.size() == 1 else "s"]}
-	return {"ok": true, "t0": lands[0] / Rulebook.FPS, "t1": lands[1] / Rulebook.FPS}
+	return {"ok": true, "t0": initial_contact(S, B, sd, lands[0] / Rulebook.FPS), "t1": initial_contact(S, B, sd, lands[1] / Rulebook.FPS)}
+
+
+## INITIAL CONTACT (round 44, ZZ1): people's 0 % is the HEEL touching down; Rulebook.gait times a landing by the BALL
+## (foot flat). From that landing, back in 1/120 s steps while the heel (the point under the ankle, Body.sole_low) is
+## within HEEL_DOWN of the floor, at most HEEL_BACK s: a flat landing moves 0-1 step, a heel strike back to the heel.
+const HEEL_DOWN := 0.01
+const HEEL_BACK := 0.3
+
+
+static func initial_contact(S: Scene, B: Body, sd: String, t: float) -> float:
+	var f := "foot" + sd
+	var up: float = (B.p0[f] as Vector3).y
+	var t0 := t
+	while t - t0 < HEEL_BACK and t0 > 0.0:
+		S.apply(B, t0 - 1.0 / 120.0)
+		if (B.P[f] as Vector3).y - up > HEEL_DOWN:
+			break
+		t0 -= 1.0 / 120.0
+	return t0
 
 
 ## the band for one body part of scene S: {"ok", "joint", "side", "t0", "t1", "mean", "sd", "you" (101 each),

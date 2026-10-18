@@ -34,6 +34,9 @@ func play(S: Scene, B: Body, pinned: bool) -> Array:
 		g["knee_r"] = B.ang["calf_r"]
 		g["ball_l"] = B.P["ball_l"]
 		g["ball_r"] = B.P["ball_r"]
+		for sd in ["_l", "_r"]:   # ZZ1: a foot rolling onto its heel holds the mark with the heel (the point under the ankle)
+			g["roll" + sd] = S.heel_roll(minf(k / 60.0, L), sd)
+			g["heel" + sd] = (B.P["foot" + sd] as Vector3).y - (B.p0["foot" + sd] as Vector3).y
 		out.append(g)
 	return out
 
@@ -44,6 +47,8 @@ func _init() -> void:
 	await process_frame
 	var B: Body = m.B
 	var edge_n := 0
+	var roll_n := 0
+	var roll_worst := 0.0
 	var edge_worst := 0.0
 	var edge_at := ""
 	var slide := 0.0
@@ -111,6 +116,13 @@ func _init() -> void:
 					if E[c][sd][3] == "pin" and absf((on[k]["knee" + sd] as Vector3).x) < 1.0 and (on[k]["ball" + sd] as Vector3).distance_to(E[c][sd][0]) > 0.01:
 						reach_n += 1
 						continue
+					# AMENDED (ZZ1, round 44): a foot still ROLLING onto its heel (Scene.heel_roll: from the heel strike to
+					# foot flat, carried just past the card) holds the mark with its heel, the ball still coming down: those
+					# frames are counted apart, the heel within 1 cm of the floor (it rolls on it, as people's heel rocker)
+					if E[c][sd][3] == "pin" and float(on[k]["roll" + sd]) > 0.0:
+						roll_n += 1
+						roll_worst = maxf(roll_worst, absf(float(on[k]["heel" + sd])))
+						continue
 					if E[c][sd][3] == "pin":
 						var d: float = (on[k]["ball" + sd] as Vector3).distance_to(E[c][sd][0])
 						slide_n += 1
@@ -121,6 +133,7 @@ func _init() -> void:
 							slide = d
 							slide_at = "%s %.3f s ball%s" % [f.get_basename(), t, sd]
 	ok(edge_n > 100 and edge_worst <= 3.0, "1 card edges: %d leg-joint frames crossing an edge over %d scenes; worst extra turn from planting %.2f deg (%s)" % [edge_n, names.size(), edge_worst, edge_at])
+	ok(roll_worst <= 0.01, "2b feet rolling onto the heel (ZZ1): %d foot-frames, the heel's worst height off the floor %.4f m (bar 0.01)" % [roll_n, roll_worst])
 	ok(slide_n > 100 and slide <= 0.01, "2 pinned feet: %d foot-frames planted (moves and holds); the ball's worst distance from where it was planted %.4f m (%s)" % [slide_n, slide, slide_at])
 	over.sort_custom(func(p, q): return p[0] > q[0])
 	for o in over.slice(0, 20):

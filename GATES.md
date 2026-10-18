@@ -1487,3 +1487,34 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   EVIDENCE: last suite 150/152 (C:/Temp/r43_yy789b) with hover + carry PASS alone; no tests/zz_* files; README_AI
   "Round 43" written; one branch (poser-ui-rounds), no merge needed. PUSH: impossible, the repo has NO remote (git remote
   -v is empty): committed locally, Nick told.
+
+## ROUND 44 (ZZ): the walk against real walkers (YY7's finding). Nick: "keep going". walk_bat's knees read ~30 deg bent
+## in late stance (people 4-8) because its hips drop 6.2 cm at double support (people's centre of mass rises and falls
+## 2.74 cm at 0.7 m/s to 4.83 at 1.6, Orendurff et al. 2004, PMID 15685471: ~3.9 at walk_bat's 1.21 m/s), and the stance
+## heel is forced 20 deg up at each card (Scene.HEEL_END), which shortens the trailing leg further.
+- [x] ZZ0 WALK DOUBLE SUPPORT FROM PEOPLE: plans/walk_bat.json's double-support legs set to people's at the card instant
+  (Fukuchi band at 0 % / 50 %: lead hip ~31 / knee near straight, trail hip ~-8 / knee ~10), re-cooked; Scene.HEEL_END
+  20 -> 0 (the heel rises only where the leg must reach, _heel_at_card / _vault). Bars: the hips' rise and fall over a
+  steady step within people's (interpolated at the walk's own speed, +-2 SD of Orendurff); the right knee's share
+  outside 2 SD at most half of the 51 % before, and 40-52 % of the cycle inside 2 SD; walk_legs / gait / plant_edges /
+  walk_arm still green (their people bars unchanged); scenes/poses fingerprint changes ONLY walk_bat.
+- [x] ZZ1 HEEL STRIKE (if ZZ0 lands): the lead foot lands heel first, toes up (people's ankle ~0 at heel strike, the
+  foot flat by the end of loading response), not flat with the ankle 22-26 deg down; bar: ankle at 0 % within 2 SD.
+  EVIDENCE ZZ0 (tests/walk_people_test.gd, registered): walk_bat legs 35/18 -> 30/12 lead, -12/22 -> -7/23 trail, heel_deg
+  15 -> 10 (the cook grounded on the trailing toe and floated the lead foot 5-7 mm), HEEL_END 20 -> 0. Scene: the stance
+  heel keeps the hips within reach of a knee bent by _reach_knee (straight early, STANCE_KNEE late, people's 22.6 at the
+  card: Fukuchi 58 %), and the vault weight is held through mid-stance and let down late (_vault_w; with sin^2 the hips sank
+  from mid-stance and the knee bent 16 at 44 %, people 4). The swing re-timed to people's: toe-off 0.25 -> 0.1 of the move
+  (the trail foot leaves at 62 % of its cycle, the card being the lead foot flat at 8 %), knee peak by 0.3, straight by
+  0.82; the push-off takes at least 0.1 s and the knee bends no faster than 400 deg/s (_toe_off_at). Bars: pelvis
+  rise and fall 5.35 cm (people 3.97 +- 0.75 at 1.23 m/s, Orendurff 2004 PMID 15685471, within 2 SD); knees outside 2 SD
+  right 0.040, left 0.030 of the cycle (bar 0.25; right was 0.51), 40-52 % inside at every point. STUB (the old sin^2
+  vault and no pre-swing knee): FAIL 2, 40-52 % outside. Fastest knee 653 deg/s (walk_legs bar 750; mocap_clean 1b green).
+  EVIDENCE ZZ1: the swinging foot reaches its mark heel first at HS_AT 0.92 of the move, toes HS_UP 26 up (the heel touches
+  at ~3 less as it rolls), and rolls flat 0.08 into the next move (people's foot flat at ~8 % of the cycle; ending the roll
+  at the card squeezed 26 deg into 0.046 s, 880 deg/s). GaitBand steps back from the ball's landing to the heel's
+  (initial_contact). Bars: every steady landing heel first (1.300/1.400, 1.887/1.970, 2.432/2.540 s heel/ball); foot-ground
+  angle at strike [22.5, 23.7, 22.6] deg (people 22.4 +- 3.7 at 4.42 km/h, Eckelt 2026 PMID 41583941, within 2 SD); ankle
+  at initial contact [-3.4, -1.5, -2.9] (people 1.5 +- 3.1; was -20, flat). STUB (HS_UP 0): FAIL 3, 4, 5 (ball first,
+  -2 deg, ankle -26). AMENDED plant_edges bar 2: a foot still rolling onto its heel (Scene.heel_roll) is counted apart,
+  the heel within 1 cm (worst 0.0005 m, 11 foot-frames); edges worst 2.18 deg. Suite: run_par -j 8, 153/153 PASS (C:/Temp/r44_zz).
