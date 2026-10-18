@@ -50,7 +50,27 @@ static func landmarks_of(B: Body) -> Array:
 		w.append(((B.E[MAP[k][0]] if MAP[k][1] else B.P[MAP[k][0]]) as Vector3) - hip if MAP.has(k) else Vector3.ZERO)
 	for sd in ["_l", "_r"]:
 		w[HEEL[sd]] = heel(B, sd) - hip
+	w[NOSE] = _head_pt(B, NOSE0) - hip
+	w[EAR["_l"]] = _head_pt(B, EAR0) + (B.G["head"] as Quaternion) * Vector3(EAR_W, 0, 0) - hip
+	w[EAR["_r"]] = _head_pt(B, EAR0) - (B.G["head"] as Quaternion) * Vector3(EAR_W, 0, 0) - hip
 	return w
+
+
+## the face's points as MediaPipe numbers them: 0 the NOSE (the front of the face, not the crown), 7 / 8 the ears. On our
+## head bone: the ears 40 % of the way from its base to the crown, 7.5 cm to each side; the nose 10.5 cm in front of their
+## midpoint (MediaPipe's own nose-to-ears distance on walk_bat's track: 0.105 m), 31 % up the bone (MediaPipe's median nose
+## elevation over the ears on the SIDE-view track of walk_bat, 11.6 deg; the 3/4 view read 52.7: its face depth is not
+## trustworthy, so the fit takes only the head's TURN from the face, below)
+const EAR := {"_l": 7, "_r": 8}
+const EAR0 := Vector3(0.0, 0.4, 0.0)      # (side m, fraction up the head bone, forward m)
+const NOSE0 := Vector3(0.0, 0.312, 0.105)
+const EAR_W := 0.075
+
+
+static func _head_pt(B: Body, at: Vector3) -> Vector3:
+	var p: Vector3 = B.p0["head"]
+	var rest := p + ((B.e0["head"] as Vector3) - p) * at.y + Vector3(at.x, 0.0, at.z)
+	return (B.P["head"] as Vector3) + (B.G["head"] as Quaternion) * (rest - p)
 
 
 ## the back of the heel at the sole (MediaPipe's 29 / 30): on the floor under the ankle's line, FOOT_LEN x height behind
@@ -279,24 +299,37 @@ static func _fit(B: Body, w: Array) -> void:
 	B.fk()
 	# landmarks are about the hips' midpoint; the body's points about its own: o maps one to the other
 	var o: Vector3 = ((B.P["thigh_l"] as Vector3) + (B.P["thigh_r"] as Vector3)) * 0.5
-	# the spine's bend: thirds of the turn that brings the shoulders' midpoint onto the landmarks' (from spine_01)
+	# the spine's bend: thirds of the turn that brings the shoulders' midpoint onto the landmarks' DIRECTION from the hips
+	# (directions only: the tracked person's trunk is not ours in length; matching the point bent ours forward)
 	for it in 2:
-		var smid0 := ((B.P["upperarm_l"] as Vector3) + (B.P["upperarm_r"] as Vector3)) * 0.5 - (B.P["spine_01"] as Vector3)
-		var want := sh_m + o - (B.P["spine_01"] as Vector3)
+		var smid0 := ((B.P["upperarm_l"] as Vector3) + (B.P["upperarm_r"] as Vector3)) * 0.5 - o
+		var want := sh_m - hip_m
 		var t3 := Quaternion.IDENTITY.slerp(Quaternion(smid0.normalized(), want.normalized()), 1.0 / 3.0)
 		for j in ["spine_01", "spine_02", "spine_03"]:
 			_set_world(B, j, (t3 * (B.G[j] as Quaternion)).normalized())
-	# the clavicles: each upper arm's joint onto its shoulder landmark
+	# the clavicles: each upper arm's joint toward its shoulder landmark's DIRECTION from the shoulders' midpoint, at our
+	# own shoulder width (directions only, as the spine)
+	var bsm := ((B.P["upperarm_l"] as Vector3) + (B.P["upperarm_r"] as Vector3)) * 0.5
 	for sd in ["_l", "_r"]:
 		var cj: String = "clavicle" + sd
-		_aim(B, cj, B.P[cj], B.P["upperarm" + sd], (w[SH[sd]] as Vector3) + o - (B.P[cj] as Vector3))
-	# neck and head: halves of the turn that points the head's end at landmark 0 (from the neck)
-	var hd: Vector3 = (w[NOSE] as Vector3) + o - (B.P["neck_01"] as Vector3)
-	var cur: Vector3 = (B.E["head"] as Vector3) - (B.P["neck_01"] as Vector3)
-	if cur.length() > 1e-6 and hd.length() > 1e-6:
-		var half := Quaternion.IDENTITY.slerp(Quaternion(cur.normalized(), hd.normalized()), 0.5)
-		_set_world(B, "neck_01", (half * (B.G["neck_01"] as Quaternion)).normalized())
-		_set_world(B, "head", (half * (B.G["head"] as Quaternion)).normalized())
+		var tgt := bsm + ((w[SH[sd]] as Vector3) - sh_m).normalized() * ((B.P["upperarm" + sd] as Vector3) - bsm).length()
+		_aim(B, cj, B.P[cj], B.P["upperarm" + sd], tgt - (B.P[cj] as Vector3))
+	# neck and head: the head TURNS where the face points (ears -> nose, about the trunk's up) and otherwise stays on the
+	# trunk: MediaPipe's face depth swings the nose's height over the ears by 40 deg with the camera (11.6 side-on, 52.7
+	# at 3/4 on the same walk), so its pitch and tilt are not read. Half the turn in the neck, the rest in the head
+	var em := ((w[EAR["_l"]] as Vector3) + (w[EAR["_r"]] as Vector3)) * 0.5
+	var fw := (w[NOSE] as Vector3) - em
+	var hu := up
+	if fw.length() > 1e-6 and hu.length() > 1e-6:
+		var B0p: Vector3 = B.p0["head"]
+		var e0 := B0p + ((B.e0["head"] as Vector3) - B0p) * EAR0.y
+		var n0 := B0p + ((B.e0["head"] as Vector3) - B0p) * NOSE0.y + Vector3(0.0, 0.0, NOSE0.z)
+		var sm0 := ((B.p0["upperarm_l"] as Vector3) + (B.p0["upperarm_r"] as Vector3)) * 0.5
+		var Wh := Quaternion(_frame(hu, fw) * _frame(r_up, n0 - e0).inverse()).normalized()
+		var rel := ((B.G["neck_01"] as Quaternion).inverse() * Wh).normalized()   # neck + head together, from the neck's now
+		var half := Quaternion.IDENTITY.slerp(rel, 0.5)
+		_set_world(B, "neck_01", ((B.G["neck_01"] as Quaternion) * half).normalized())
+		_set_world(B, "head", Wh)
 	for sd in ["_l", "_r"]:
 		_limb(B, "thigh" + sd, "calf" + sd, w[HIP[sd]], w[KN[sd]], w[AN[sd]], _rest_n(B, "calf" + sd), (w[TOE[sd]] as Vector3) - (w[AN[sd]] as Vector3))
 		_foot(B, sd, w)
@@ -407,3 +440,36 @@ static func to_scene(B: Body, fitted: Array, fps: float, every := 1, scene_name 
 		c["ease"] = "linear"
 		prev = i
 	return S
+
+
+## SPARSE CARDS (AA2): a card per frame is mocap, not something to edit. Keep a card every `every` frames and the last,
+## each with its "plant" list (MocapClean's contacts); the moves of the dropped cards add into the next kept card's move,
+## so the timing is unchanged. On walk_bat's track at every 5 (6 cards a second at 30 fps): 106 -> 22 cards, the planted
+## ball's slide 1.59 cm against 1.56 for the dense scene. Also keeping both sides of every contact change (33 cards)
+## measured the SAME slide (Scene._planted anchors on the first planted card, not the one before): inert, not kept.
+## every_for(fps) gives the step
+static func every_for(fps: float) -> int:
+	return maxi(1, int(round(fps / 6.0)))
+
+
+static func thin(S: Scene, every: int) -> Scene:
+	var n := S.cards.size()
+	var keep := {0: true, n - 1: true}
+	for i in n:
+		if i % maxi(1, every) == 0:
+			keep[i] = true
+	var T := Scene.new()
+	T.name = S.name
+	T.fps = S.fps
+	T.natural = S.natural
+	T.on_floor = S.on_floor
+	T.pin = S.pin
+	var mv := 0.0
+	for i in n:
+		mv += maxf(0.0, float(S.cards[i]["move"]))
+		if keep.has(i):
+			var c: Dictionary = S.cards[i].duplicate(true)
+			c["move"] = mv if i > 0 else -1.0
+			T.cards.append(c)
+			mv = 0.0
+	return T

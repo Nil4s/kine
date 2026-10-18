@@ -1552,5 +1552,50 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   Information only, not a re-registration: the same walk from the side (yaw -90) reads left 5.8, right 10.4, travel 2.29 m.
   What helped the import (kept): LEVEL (the camera's 10.7 deg tilt turned out; skipped under 6 deg) and each foot's own
   floor for the stance (the far foot never counted as planted: travel 0.16 -> 1.89 m).
-- [ ] AA2 "Animation from video..." in the app: pick a video, the tracker runs, the scene arrives with feet locked
+- [x] AA2 "Animation from video..." in the app: pick a video, the tracker runs, the scene arrives with feet locked
   (MocapClean) and sparse editable cards; a screenshot.
+  EVIDENCE (tests/video_ui_test.gd, video_ui:w, windowed): 1 ANIMATE has "From video" (its own icon), the search has
+  "Animation from video" (by video / mp4 / phone ...). 2 walk_bat_track.json dropped on the window -> a NEW scene in
+  scenes/_wip: 22 cards for 106 frames (bar 13..53), 3.50 s = the video, 9 cards with a planted foot, the planted ball's
+  slide 1.59 cm against 1.56 for the same file a card per frame (bar dense + 0.5 cm; the 1.5 cm bar first written came
+  from sampling at card times only: at 30 a second the DENSE scene itself read 1.56, so it measured the instrument, and
+  was re-registered against that control BEFORE the thinned row was trusted), the plan names MediaPipe. 2b UPRIGHT
+  (registered after the first real import came out hunched): the trunk's lean 3.1 deg from walk_bat's, the head's pitch
+  2.8 deg (bars 5 / 10); the old fit read 3.1 / 58.0. The head fix: MediaPipe's face depth swings the nose's height over
+  the ears by 40 deg with the camera (11.6 side-on, 52.7 at 3/4, same walk), so the head takes only its TURN from the
+  face; the spine and clavicles fit DIRECTIONS, not points (the tracked trunk is not ours in length). AA0's landmark
+  error moved 0.11 -> 0.80 cm (bar 1.5) with that. 3 refusals (no file; a Python that will not start), each naming the
+  next step. 4 the tracker runs as its own process, polled: a non-video comes back "found no person". End to end on a
+  real clip (walk45m.mp4): 10-11 s, 107 frames -> 23 cards, feet planted (34 contact frames). Sparse: a card every
+  fps/6 frames + the last; keeping both sides of each contact too (33 cards) measured the SAME slide: inert, removed.
+  STUBS: _import_pose refusing -> FAIL 2 (0 cards); thinning that drops the plant lists -> FAIL 2 (0 planted: the slide
+  measure alone reads 0 with nothing planted, the locked > 0 clause is what catches it); the old head fit -> FAIL 2b
+  (58.0). Policy suites caught the new code: confirm (two new file-writing functions had no write policy) and say_next
+  (5 messages without a next step); both fixed. Suite: run_par -j 8, 155/155 PASS (C:/Temp/r45_aa2c). Screenshots sent.
+
+## ROUND 46 (BB): AN AI ANIMATES IN THE APP, MONKEY STYLE. Nick 10-18: "we could push airllm locally first, and inside of
+## it we can push a bigger model, but the goal is a model like you or gpt or gemini be able to do it here as well, with the
+## ai monkey style I suggested early" (round 3: "so a monkey can create an animation with ease"). Nick: "go ahead, finish
+## AA2 then start round 46". What exists: poser_cli serve (tools/poser_cli.gd) + the MCP server (round 15, 12 tools) + the
+## agent test (T5: an agent built a 30-card fight to 0 MUST FIX through serve). What is missing: the AI INSIDE the window,
+## on the scene the user is looking at, with any model behind one switch. Local first: Ollama 0.18 is installed with
+## glm-4.7-flash (19 GB, a mixture of experts; 3B active) already pulled; AirLLM is installed but does not import (its
+## transformers is the wrong version). The RTX 3070 has 8 GB. API keys are typed by Nick into the settings, never by me.
+- [ ] BB0 ONE TOOL SET: serve's request handler (open / new / run / pose / state / measure / describe / check / diff /
+  validate / save / commands) moves out of tools/poser_cli.gd into scripts/agent_tools.gd (class AgentTools) that acts on
+  a GIVEN Scene + Body, so the CLI and the app run the same code. Test: serve, mcp, measure, agent suites unchanged, and
+  a fixed request script gives a BYTE-IDENTICAL transcript before and after the move.
+- [ ] BB1 ONE MODEL SWITCH: scripts/llm_client.gd: one "chat with tools" call; backends Ollama (local), Anthropic, OpenAI,
+  Gemini, each in its own wire format (tool calls in, tool results back). Test with a FAKE server on localhost per backend
+  that replies with a scripted tool call and checks the request it got (no network, no model): each backend's request
+  and its parsed tool call; refusals named (no server, bad key, a tool the model invented).
+- [ ] BB2 THE AI BOX: in the window, "Ask AI": type a sentence ("he waves, then sits"); the model and AgentTools take
+  turns on the LIVE scene; each tool call shows as one line and is its own named undo step; CHECK runs at the end and is
+  said; Stop works mid-run. Test with the scripted fake model on screen; a screenshot.
+- [ ] BB3 LOCAL MODEL, MEASURED: glm-4.7-flash through Ollama on three tasks (one pose: "both arms up like a goal
+  celebration"; a 6-card wave; T5's fight): tool calls, seconds, refusals, CHECK must-fix, and the poses compared to a
+  REAL reference with numbers. Bar: the pose task completes; the rest is a table, reported as measured.
+- [ ] BB4 AIRLLM, MEASURED: AirLLM repaired in its own venv (not the user site-packages), a bigger model served behind the
+  same switch; tokens a second and one task's wall time, as one more row. Reported, not barred.
+- [ ] BB5 CLOUD MODELS: Claude / GPT / Gemini with Nick's own key (typed by him into Settings); the same three tasks.
+  Waits on Nick's keys; the plumbing is BB1's.

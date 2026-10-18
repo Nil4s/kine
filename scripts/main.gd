@@ -116,7 +116,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]]],
+		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
@@ -1354,6 +1354,7 @@ func _process(dt: float) -> void:
 	_tour_poll()
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
+	_video_poll(dt)
 	_dm_poll()
 	_kb_poll()
 	_as_wait += dt
@@ -3483,7 +3484,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
-	"Add prop": "prop", "Import model": "import", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
+	"Add prop": "prop", "Import model": "import", "From video": "video", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put"}
 
 
@@ -3808,6 +3809,7 @@ func _ui() -> void:
 	pm.add_check_item("Moving holds  (a held pose keeps breathing)", 4)
 	pm.id_pressed.connect(_tool)
 	ui_ribbon["ANIMATE"].add_child(ui_tools)
+	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
 	# CHECK
 	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
@@ -5277,6 +5279,7 @@ func _commands() -> Array:
 	add.call("Breathe slower", "", _do.bind(_breath_set.bind(-2.0)), "breath breathe rate calmer", true, "2 breaths a minute fewer")
 	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
+	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
@@ -7191,8 +7194,100 @@ func _on_drop(files: PackedStringArray) -> void:
 	for f in files:
 		if f.to_lower().ends_with(".bvh"):
 			_import_bvh(f)
+		elif VIDEO_EXT.has(f.get_extension().to_lower()):
+			_import_video(f)
+		elif f.to_lower().ends_with(".json") and VideoImport.load_file(f)["ok"]:
+			_import_pose(f)
 		else:
 			_import_file(f)
+
+
+## ---- VIDEO TO ANIMATION (round 45, GATES AA2). A video goes to tools/see_video.py (MediaPipe, run as its own process
+## so the window keeps working: _video_poll); its pose.json comes back through _import_pose: VideoImport fits the body
+## per frame and rebuilds the travel, MocapClean plants the standing feet, and it opens as a NEW scene in scenes/_wip
+## (one card per frame, like a .bvh: Animator tools / Simplify make it sparse). Nothing else changes; one refusal line.
+const VIDEO_EXT := ["mp4", "mov", "avi", "webm", "mkv", "m4v"]
+var video_python := "python"   # the interpreter that has mediapipe + opencv (tests point it elsewhere to check refusals)
+var _video_pid := -1
+var _video_out := ""
+var _video_name := ""
+var _video_t := 0.0
+
+
+func _video_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.mp4, *.mov, *.avi, *.webm, *.mkv, *.m4v ; videos"])
+	fd.use_native_dialog = true
+	fd.title = "Animation from a video of a person"
+	fd.file_selected.connect(func(p): _import_video(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+func _import_video(path: String) -> void:
+	if _video_pid >= 0 and OS.is_process_running(_video_pid):
+		_say("still tracking %s: one video at a time; try again when it arrives" % _video_name)
+		return
+	if not FileAccess.file_exists(path):
+		_say("could not track %s: no such file; pick the video again" % path.get_file())
+		return
+	_video_name = path.get_file()
+	_video_out = OS.get_user_data_dir().path_join("video_track/%s.json" % safe_file(path.get_file().get_basename()))
+	DirAccess.make_dir_recursive_absolute(_video_out.get_base_dir())
+	if FileAccess.file_exists(_video_out):
+		DirAccess.remove_absolute(_video_out)
+	var tool := ProjectSettings.globalize_path("res://tools/see_video.py")
+	_video_pid = OS.create_process(video_python, PackedStringArray([tool, path, _video_out]))
+	if _video_pid < 0:
+		_say("could not track %s: \"%s\" did not start (it needs Python with mediapipe and opencv-python: run pip install mediapipe opencv-python)" % [_video_name, video_python])
+		return
+	_video_t = 0.0
+	_say("tracking %s: finding the person in every frame (about a second per second of video)..." % _video_name)
+
+
+func _video_poll(dt: float) -> void:
+	if _video_pid < 0:
+		return
+	_video_t += dt
+	if OS.is_process_running(_video_pid):
+		return
+	_video_pid = -1
+	if not FileAccess.file_exists(_video_out):
+		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
+		return
+	_import_pose(_video_out, _video_name)
+
+
+## a pose file (tools/see_video.py's) -> a new scene in scenes/_wip, opened. Returns the new scene's path ("" refused)
+func _import_pose(path: String, from := "") -> String:
+	var P := VideoImport.load_file(path)
+	if not P["ok"]:
+		_say("could not import %s: %s; pick a pose file the tracker wrote, or a video" % [(from if from != "" else path.get_file()), P["why"]])
+		return ""
+	var keep := B.state()
+	var fitted := VideoImport.solve(B, P["frames"])
+	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
+	var r := MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
+	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
+	B.set_state(keep)
+	var d: Dictionary = V.to_dict(B)
+	var src: String = from if from != "" else path.get_file()
+	d["plan"] = "Video import of %s: %d frames at %d fps tracked by MediaPipe (tools/see_video.py), fitted by VideoImport%s; %s" % [src, fitted.size(), V.fps, (", the camera's %.0f deg tilt levelled" % P["tilt"]) if float(P["tilt"]) > 0.0 else "", r["text"]]
+	var base := safe_file(String(d["scene"]))
+	var out := "res://scenes/_wip/%s.json" % base
+	var n := 2
+	while FileAccess.file_exists(out):   # never over an earlier import
+		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		n += 1
+	_write(out, d)
+	_load_scene(out)
+	_rebuild_cards()
+	_refresh()
+	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked). The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"])])
+	return out
 
 
 ## BVH IMPORT (round 41, GATES WW7): a dropped .bvh (a Poser export) becomes a NEW scene in scenes/_wip, opened. The
