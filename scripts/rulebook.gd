@@ -26,6 +26,7 @@ const SRC := {
 	"FLOATS": "the hips over a seat but not on it while no foot carries the body: our own bars, docs/MOTION_RULES.md",
 	"JUMP": "a flight of T seconds is a jump of g T^2 / 8 (Bosco; Asmussen & Bonde-Petersen): a recreational adult's countermovement jump is 0.40 +- 0.11 m (0.57 s); people dip to ~90 deg of knee bend before take-off and land soft on ~117 deg (stiff ~77; DeVita & Skelly 1992)",
 	"CARRY FORM": "a load carried in front in both hands is held close at knuckle-to-elbow height: upper arms near the trunk, elbows bent (Anderson et al. 2007, anterior load carriage; Snook 1978), hands near the body (NIOSH lifting equation: H 25 cm ideal, the multiplier 25/H)",
+	"GAIT": "a walk against real walkers (round 42, GATES XX8): step length 0.415 +- 0.038 of body height and 1.33 m/s at the preferred speed (Gait Posture 2009, 21 young adults, PMID 19502061); cadence 105.5 +- 5.2 steps/min (PMID 29775941) and 108 +- 7 (PMID 41879248); arm swing about 25-33 deg peak to peak at 4 km/h (PMID 40291287, PMID 23236504), the arms out of phase with each other and 1:1 with the legs at walking speeds (Kubo et al. 2004, PMID 15351887)",
 	"LIFT FORM": "reaching the floor with the hands: people who squat bend the knees deep (floor lifts peak at 86-115 deg of knee bend, Saraceni et al. 2021); a stoop (the lifting studies' own definition: knees 0-30 deg, Int J Sports Med 2025) with the trunk past 60 deg of flexion (where the back muscles go quiet and the passive tissues take the load, Shu et al. 2007) loads the spine more than a squat (Bazrgari et al. 2007)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
@@ -46,6 +47,7 @@ const WHY := {
 	"FLOATS": "Sitting means the seat carries the weight. Hips hovering over it, with nothing else holding him up, read as a ghost.",
 	"JUMP": "Air time IS the height: hang too long and he floats like the Moon. And a jump starts in a dip and ends in a squat; straight legs at either end read as a puppet on a string.",
 	"CARRY FORM": "Nobody carries a box on straight arms held out in front: it is held against the body, arms down at the sides, elbows bent. Anything else reads as fake at once.",
+	"GAIT": "A walk has a stride people know at a glance: steps about 0.4 of the body height, 100-110 a minute, the arms swinging against the legs. Half that cadence is a slow-motion shuffle, double that step is a stride-jump, and arms that swing with the same-side leg read as a march.",
 	"LIFT FORM": "Picking something off the floor with straight knees and a bent back is the lift that hurts backs, and it reads as careless. People bend the knees and keep the trunk more upright.",
 }
 const URL := {
@@ -63,6 +65,7 @@ const URL := {
 	"FLOATS": "res://docs/MOTION_RULES.md",
 	"CARRY FORM": "https://stacks.cdc.gov/view/cdc/189155",
 	"JUMP": "https://pubmed.ncbi.nlm.nih.gov/1548984/",
+	"GAIT": "https://pubmed.ncbi.nlm.nih.gov/19502061/",
 	"LIFT FORM": "https://pubmed.ncbi.nlm.nih.gov/17103232/",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
@@ -93,6 +96,16 @@ const JUMP_DIP := 30.0     # deg: the deeper knee's most bend in the 0.5 s befor
 ## LIFT FORM (round 41, GATES WW9, #229): hands below the knees, trunk flexed past LIFT_TRUNK with the knees bent under LIFT_KNEE
 const LIFT_TRUNK := 60.0   # deg: trunk flexion (hips to neck against vertical); Shu 2007 tested 45 vs 60 deg, the multifidus quiets as it grows
 const LIFT_KNEE := 30.0    # deg: the deeper knee's bend; the 2025 lifting study defines a stoop as knees 0-30 deg (squat free / 0-60 / 0-90)
+## GAIT (round 42, GATES XX8, #333): a walk = 4 or more alternating foot plants that travel 0.5 m or more with no flight
+const GAIT_STEP := [0.30, 0.55]   # step length / body height: people 0.415 +- 0.038 (PMID 19502061); the bar is ~3 SD each way, mine
+const GAIT_CAD := [75.0, 135.0]   # steps/min: people 105.5 +- 5.2 and 108 +- 7 (PMID 29775941, 41879248); slow to brisk walks, mine
+const GAIT_ARM := [10.0, 60.0]    # deg, peak to peak per arm: people ~25-33 +- 11 (PMID 40291287, 23236504); mine
+const GAIT_PHASE := 0.3           # r between an arm's and the SAME-side thigh's angle: people swing them against each other (r < 0)
+const GAIT_CROWN := 0.14          # m from the head joint to the top of the head (mine) for the body height
+const GAIT_STILL := 0.015         # m per 60 fps frame (0.9 m/s): a planted foot moves less
+const GAIT_PLANT := 4             # frames a foot stays down to count as a plant
+const GAIT_MOVED := 0.05         # m: a step shorter than this is feet brought together, not a stride
+const GAIT_FLIGHT := 6            # frames with both balls off the floor = a run, not a walk
 const CARRY_H := 0.40      # m, hands' middle from the ankles' middle, along the floor (NIOSH: 25 ideal; 40 -> 25/H = 0.63)
 const PART_WORDS := {"pelvis": "hips", "hips_wide": "hips", "chest_wide": "chest", "spine_01": "lower back",
 	"spine_02": "middle back", "spine_03": "chest", "neck_01": "neck", "head": "head", "clavicle": "shoulder",
@@ -156,7 +169,9 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			"hand_r": B.E["hand_r"], "gp": B.G["pelvis"], "gt": B.G["spine_03"],
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),
 			"fy": minf((B.P["foot_l"] as Vector3).y, (B.P["foot_r"] as Vector3).y), "wep": B.wep_on, "kind": B.wep_kind,
-			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B), "lf": lift_form(B)})
+			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B), "lf": lift_form(B),
+			"ga": [(B.P["lowerarm_l"] as Vector3) - (B.P["upperarm_l"] as Vector3), (B.P["lowerarm_r"] as Vector3) - (B.P["upperarm_r"] as Vector3),
+			(B.P["calf_l"] as Vector3) - (B.P["thigh_l"] as Vector3), (B.P["calf_r"] as Vector3) - (B.P["thigh_r"] as Vector3), (B.P["head"] as Vector3).y]})
 		if not S.props.is_empty():
 			raw[-1]["pc"] = prop_hits(S.props_at(t, B), B, S.holding(t, B))   # UU2: the set as it is now; holding hands are not through
 			raw[-1]["sg"] = seat_gap(S.props, B)
@@ -167,7 +182,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 	S.stepped = was_stepped
 	var out := {"t": [], "tip": [], "hips": [], "head": [], "hand_l": [], "hand_r": [], "w_pelvis": [], "w_trunk": [],
 		"w_weapon": [], "head_pos": [], "foot_y": [], "ball_l": [], "ball_r": [], "armed": false, "kind": "",
-		"spline": S.spline, "_raw": raw, "bad": bad, "balance": [], "both_down": [], "lift_form": []}
+		"spline": S.spline, "_raw": raw, "bad": bad, "balance": [], "both_down": [], "lift_form": [], "gait": []}
 	for i in n:
 		var now: Dictionary = raw[i]
 		var prev: Dictionary = raw[maxi(i - 1, 0)]
@@ -181,6 +196,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 		out["ball_r"].append(now["br"])
 		out["balance"].append(float(now["bal"]["margin"]))
 		out["lift_form"].append(now["lf"])
+		out["gait"].append(now["ga"])
 		out["both_down"].append(now["bal"]["down"].size() == 2)
 		if now.has("pc"):   # the set (TT1, TT4): only a scene with props has these keys
 			if not out.has("prop_hits"):
@@ -730,6 +746,146 @@ static func rule_lift_form(sm: Dictionary) -> Array:
 	return out
 
 
+## the swing angle of a limb vector about the walking direction (deg, forward positive, 0 = hanging down)
+static func _swing(v: Vector3, fwd: Vector3) -> float:
+	return rad_to_deg(atan2(v.dot(fwd), -v.y))
+
+
+static func _corr(a: Array, b: Array) -> float:
+	var n := a.size()
+	if n < 3:
+		return 0.0
+	var ma := 0.0
+	var mb := 0.0
+	for i in n:
+		ma += float(a[i])
+		mb += float(b[i])
+	ma /= n
+	mb /= n
+	var sab := 0.0
+	var saa := 0.0
+	var sbb := 0.0
+	for i in n:
+		sab += (float(a[i]) - ma) * (float(b[i]) - mb)
+		saa += (float(a[i]) - ma) * (float(a[i]) - ma)
+		sbb += (float(b[i]) - mb) * (float(b[i]) - mb)
+	return sab / sqrt(maxf(saa * sbb, 1e-12))
+
+
+## GAIT, measured: {"walk": false, "why"} or {"walk": true, "t0", "t1", "step" (x body height), "step_m", "cad" (steps/min),
+## "arm" (deg peak to peak, mean of both), "phase" (r, arm vs same-side thigh; people < 0), "steps", "height"}.
+## Plants are runs of a ball under FOOT_DOWN that moves under GAIT_STILL per frame for GAIT_PLANT frames; steps are
+## the alternating plants' distances along the walking direction (first plant to last)
+static func gait(sm: Dictionary) -> Dictionary:
+	if not sm.has("gait") or not sm.has("ball_l") or (sm["gait"] as Array).is_empty():
+		return {"walk": false, "why": "no gait series"}
+	var plants := []   # [frame, foot 0/1, position]
+	for f in 2:
+		var s: Array = sm["ball_l" if f == 0 else "ball_r"]
+		var i := 1
+		while i < s.size():
+			if not _planted(s, i):
+				i += 1
+				continue
+			var a := i
+			while i < s.size() and _planted(s, i):
+				i += 1
+			if i - a >= GAIT_PLANT:
+				plants.append([a, f, s[(a + i - 1) / 2]])   # the landing frame, and where the foot stood (the run's middle)
+	plants.sort_custom(func(x, y): return x[0] < y[0])
+	# a plant already down at the first frame has no known landing: it only serves as the reference of the first step
+	var real := []
+	var first := []
+	for p in plants:
+		if int(p[0]) <= 1:
+			first.append(p)
+		else:
+			real.append(p)
+	var seq := []
+	for p in real:
+		if seq.is_empty() or seq[-1][1] != p[1]:
+			seq.append(p)
+	for p in first:
+		if not seq.is_empty() and p[1] != seq[0][1]:
+			seq.push_front(p)
+			break
+	if seq.size() < 4:
+		return {"walk": false, "why": "%d alternating plants (a walk needs 4)" % seq.size()}
+	# the walking direction from plants of the SAME foot (two apart), so the width between the feet cancels
+	var d: Vector3 = ((seq[-1][2] as Vector3) - (seq[1][2] as Vector3)) + ((seq[-2][2] as Vector3) - (seq[0][2] as Vector3))
+	d.y = 0.0
+	if d.length() < 1.0:
+		return {"walk": false, "why": "travels %.2f m (a walk needs 0.5)" % (d.length() / 2.0)}
+	var fwd := d.normalized()
+	var i0: int = seq[0][0]
+	var i1: int = seq[-1][0]
+	while seq.size() > 4 and absf(((seq[-1][2] as Vector3) - (seq[-2][2] as Vector3)).dot(fwd)) < GAIT_MOVED:
+		seq.pop_back()   # the closing step that brings the feet together is not a stride
+	i1 = seq[-1][0]
+	var run := 0
+	for i in range(i0, i1 + 1):
+		var up: bool = (sm["ball_l"][i] as Vector3).y >= FOOT_DOWN and (sm["ball_r"][i] as Vector3).y >= FOOT_DOWN
+		run = run + 1 if up else 0
+		if run >= GAIT_FLIGHT:
+			return {"walk": false, "why": "both feet off the floor for %d frames: a run" % run}
+	var tot := 0.0
+	for k in range(1, seq.size()):
+		tot += absf(((seq[k][2] as Vector3) - (seq[k - 1][2] as Vector3)).dot(fwd))
+	var step_m := tot / (seq.size() - 1)
+	var dur := float(sm["t"][i1]) - float(sm["t"][seq[1][0]])   # the landings, first to last
+	var top := 0.0
+	for g in sm["gait"]:
+		top = maxf(top, float(g[4]))
+	var height := top + GAIT_CROWN
+	var al := []
+	var ar := []
+	var tl := []
+	var tr := []
+	for i in range(i0, i1 + 1):
+		var g: Array = sm["gait"][i]
+		al.append(_swing(g[0], fwd))
+		ar.append(_swing(g[1], fwd))
+		tl.append(_swing(g[2], fwd))
+		tr.append(_swing(g[3], fwd))
+	var span := func(a: Array) -> float: return float(a.max()) - float(a.min())
+	return {"walk": true, "t0": sm["t"][i0], "t1": sm["t"][i1], "step_m": step_m, "step": step_m / height,
+		"height": height, "cad": (seq.size() - 2) / dur * 60.0, "steps": seq.size() - 1, "seq": seq,
+		"arm": (span.call(al) + span.call(ar)) / 2.0, "phase": (_corr(al, tl) + _corr(ar, tr)) / 2.0}
+
+
+## a ball on the floor and not moving along it
+static func _planted(s: Array, i: int) -> bool:
+	var p: Vector3 = s[i]
+	var q: Vector3 = s[i - 1]
+	return p.y < FOOT_DOWN and Vector2(p.x - q.x, p.z - q.z).length() < GAIT_STILL
+
+
+## GAIT: a walk against real walkers; one WARN naming each measure outside the real range, with both numbers.
+## Arms are judged only with nothing in the hands (a weapon holds them still)
+static func rule_gait(sm: Dictionary) -> Array:
+	var g := gait(sm)
+	if not g["walk"]:
+		return []
+	var w := []
+	var st: float = g["step"]
+	if st < GAIT_STEP[0] or st > GAIT_STEP[1]:
+		w.append("steps %.2f of the body height (%.2f m; people walk 0.415 +- 0.038, bar %.2f-%.2f)" % [st, g["step_m"], GAIT_STEP[0], GAIT_STEP[1]])
+	var cad: float = g["cad"]
+	if cad < GAIT_CAD[0] or cad > GAIT_CAD[1]:
+		w.append("cadence %.0f steps/min (people 105-108, bar %.0f-%.0f)" % [cad, GAIT_CAD[0], GAIT_CAD[1]])
+	if not sm.get("armed", false):
+		var arm: float = g["arm"]
+		if arm < GAIT_ARM[0] or arm > GAIT_ARM[1]:
+			w.append("arm swing %.0f deg (people about 25-33, bar %.0f-%.0f)" % [arm, GAIT_ARM[0], GAIT_ARM[1]])
+		elif float(g["phase"]) > GAIT_PHASE:
+			w.append("each arm swings WITH its own leg (r %.2f; people swing it against the leg, r below 0)" % g["phase"])
+	if w.is_empty():
+		return []
+	var out := [_f("WARN", g["t0"], "GAIT", "%.2f-%.2f s walk: %s." % [g["t0"], g["t1"], "; ".join(w)], float(w.size()))]
+	out[-1]["t1"] = g["t1"]
+	return out
+
+
 ## the deeper knee's bend at time t (0 = straight): the angle between the thigh and the shin
 static func knee_bend(S: Scene, B: Body, t: float) -> float:
 	S.apply(B, t)
@@ -822,6 +978,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_floats(sm)
 	out += rule_carry_form(sm)
 	out += rule_lift_form(sm)
+	out += rule_gait(sm)
 	out += rule_jump(S, B)
 	for f in out:
 		f["card"] = card_at(S, f["t"])

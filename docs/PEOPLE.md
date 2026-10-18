@@ -116,3 +116,20 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Used by: `Rulebook.lift_form`, `Rulebook.rule_lift_form`, consts `LIFT_TRUNK` 60 deg and `LIFT_KNEE` 30 deg
   (the two bars are ours, set from those papers).
 - Tested by: `tests/lift_form_test.gd`.
+
+## GAIT
+- Sources (abstracts and full texts read this round): step length over height: Gait Posture 2009, effect of age on centre-of-mass
+  motion, 21 young adults, PMID 19502061 https://pubmed.ncbi.nlm.nih.gov/19502061/ (full text PMC3199953); cadence: PMID 29775941
+  https://pubmed.ncbi.nlm.nih.gov/29775941/ and PMID 41879248 https://pubmed.ncbi.nlm.nih.gov/41879248/ (controls); arm swing:
+  Yamaguchi et al. 2025, Cureus, PMID 40291287 https://pubmed.ncbi.nlm.nih.gov/40291287/ and PLoS One 2012, PMID 23236504
+  https://pubmed.ncbi.nlm.nih.gov/23236504/ ; arm-leg phase: Kubo et al. 2004, Biol Cybern, PMID 15351887
+  https://pubmed.ncbi.nlm.nih.gov/15351887/ (abstract: with speed the arm-to-leg frequency goes 2:1 to 1:1 and the two arms in-phase to out-of-phase).
+- Numbers: step length / height 0.415 +- 0.038 and 1.326 +- 0.133 m/s (height 1.73 +- 0.11 m, n 21); cadence 105.5 +- 5.2
+  steps/min (speed 1.21 +- 0.08 m/s, n 22) and 108 +- 7 (1.4 +- 0.1 m/s, n 27); arm swing peak to peak 28.6 +- 11.5 (right) /
+  33.1 +- 11.0 (left) deg at 4 km/h, n 21 men, sagittal rotation of the upper arm; a median 25.27 (2.3-31.8) right and 25.71
+  (5.2-38.2) left deg, n 10 healthy adults, at a median 3.82 km/h. The arm-leg counter-phase is read from the Kubo abstract
+  only (no r value in any source): a sign test, mine. Not found: a single paper giving step/height AND cadence AND shoulder
+  angle for one group, so the three come from three groups.
+- Used by: `Rulebook.gait`, `Rulebook.rule_gait`, consts `GAIT_STEP` 0.30-0.55, `GAIT_CAD` 75-135, `GAIT_ARM` 10-60 deg,
+  `GAIT_PHASE` 0.3 (all bars are ours, about 3 SD around the means; `GAIT_CROWN` 0.14 m head joint to crown is also ours).
+- Tested by: `tests/gait_test.gd`.
