@@ -24,14 +24,10 @@ func _init() -> void:
 		var t := minf(i / fps, S.length())
 		S.apply(B, t)
 		B.fk()
-		var hip: Vector3 = (B.P["thigh_l"] + B.P["thigh_r"]) * 0.5
+		# round 45 (AA0): the points are VideoImport.landmarks_of's (the same that reads them back), heels 29 / 30 included
 		var w := []
-		for k in 33:
-			if MAP.has(k):
-				var p: Vector3 = (B.E[MAP[k][0]] if MAP[k][1] else B.P[MAP[k][0]]) - hip
-				w.append([snappedf(p.x, 0.0001), snappedf(-p.y, 0.0001), snappedf(-p.z, 0.0001)])
-			else:
-				w.append([0.0, 0.0, 0.0])
+		for p in VideoImport.landmarks_of(B):
+			w.append([snappedf(p.x, 0.0001), snappedf(-p.y, 0.0001), snappedf(-p.z, 0.0001)])
 		frames.append({"t": snappedf(t, 0.001), "world": w, "tip_ms": 0.0})
 	DirAccess.make_dir_recursive_absolute(a[1])
 	FileAccess.open(a[1].path_join("pose.json"), FileAccess.WRITE).store_string(JSON.stringify({"fps": fps,

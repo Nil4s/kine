@@ -1518,3 +1518,39 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   at initial contact [-3.4, -1.5, -2.9] (people 1.5 +- 3.1; was -20, flat). STUB (HS_UP 0): FAIL 3, 4, 5 (ball first,
   -2 deg, ankle -26). AMENDED plant_edges bar 2: a foot still rolling onto its heel (Scene.heel_roll) is counted apart,
   the heel within 1 cm (worst 0.0005 m, 11 foot-frames); edges worst 2.18 deg. Suite: run_par -j 8, 153/153 PASS (C:/Temp/r44_zz).
+
+## ROUND 45 (AA): VIDEO TO ANIMATION. Nick 10-18: "finish the walk then start round 45 with video tracing"; "all good to
+## use the model for the pose" (MediaPipe PoseLandmarker heavy, run OUTSIDE the app: it writes pose.json, Poser reads it).
+## The goal (Nick): a full animator that is easy, for people with no $200/month and no 2000 hours of tutorials.
+- [x] AA0 POSE FILE -> SCENE ON A KNOWN ANSWER: scripts/video_import.gd (VideoImport) reads pose.json (33 MediaPipe world
+  landmarks, the hips at 0, y down) and fits the body per frame (pelvis/spine from the hip and shoulder lines, limbs aimed
+  with their hinge planes, feet at the toe tips); the travel rebuilt from the stance foot (MediaPipe's hips never move).
+  tests/video_import_test.gd on walk_bat's own landmarks: mean landmark error <= 1.5 cm, worst <= 4; hinge bends within
+  2 deg; travel within 5 %; the lower sole within 1 cm of the floor; one card per frame plays the fit back; bad files refused.
+  EVIDENCE (tests/video_import_test.gd, registered): landmarks 0.11 cm from the original on average, 0.57 worst; hinge bends
+  0.00 deg; travel 2.387 m of 2.450 (2.6 %); sole 0.0000 m off the floor; 106 cards play the fit back exactly (compared as
+  angle numbers: Quaternion.angle_to floors at 0.0685 deg on IDENTICAL angles in float32); three bad files refused. What
+  it took (first run 2.42 cm / 2.99 deg): the knee bend SEARCHED, not read off the landmarks' angle (our rest knee is off
+  the hip-ankle line); clavicles aimed at the shoulder points and the spine bent to bring the shoulders' midpoint on; the
+  heel's back added as landmarks 29 / 30 (foot length 0.152 H, Drillis & Contini) so the foot and the toe bend separate;
+  the travel from each foot's lower pivot (heel or toe joint). tools/export_landmarks.gd now writes VideoImport.landmarks_of
+  (one source). STUB (the fit leaves the body at rest): FAIL 1, 2, 3 (21.20 cm, 43.98 deg, 0.600 m). Suite: run_par -j 8,
+  154/154 PASS (C:/Temp/r45_aa0).
+- [ ] AA1 REAL PIXELS: walk_bat rendered (the app's own --record, yaw -40, 30 fps, 1600x900), the standing blue figure
+  painted out by its colour, tracked by MediaPipe (game repo tools/see/pose.py, heavy model), the track kept as a fixture
+  (refs/video/walk_bat_track.json) and imported by VideoImport. BARS, REGISTERED BEFORE THE NUMBERS (10-18): people's
+  single-phone MediaPipe knee error against a sensor system, Russo et al. 2026 (PMID 41977932, 27 adults): knee flexion
+  mean absolute error 4.10 +- 2.32 (right) / 3.15 +- 3.10 (left) deg, range of motion 4.55 / 4.15. Ours, per knee over
+  the clip: mean absolute error <= 8.2 deg (2 x 4.10) and the range of motion within 9.1 deg (2 x 4.55); the ankle
+  REPORTED only (their ankle agreement was poor); the walk's travel REPORTED (no published bar; ours).
+  FINDING (10-18, tests/video_pixels_test.gd, NOT in the suite while it fails): left knee 7.9 deg (PASS), range 54.5 vs
+  59.8; RIGHT knee 14.9 deg (FAIL), range 41.8 vs 59.4; ankles 13.6 / 25.0 (reported); travel 1.89 m of 2.45. The right
+  knee reads ~20 deg too bent when straight (true 12, read 31-33) and MediaPipe's OWN angles.csv says the same (25-42):
+  the tracker's depth for the far leg, not the fit. Its 3D bone lengths disagree by side (right thigh 0.341 m, left
+  0.423). Three depth rebuilds from the 2D points (Taylor 2000, known bone lengths, signs from MediaPipe; lengths from
+  MediaPipe, then from Drillis & Contini proportions) all came out WORSE (knees 23/18, 19/21, 13/29): cut, removed.
+  Information only, not a re-registration: the same walk from the side (yaw -90) reads left 5.8, right 10.4, travel 2.29 m.
+  What helped the import (kept): LEVEL (the camera's 10.7 deg tilt turned out; skipped under 6 deg) and each foot's own
+  floor for the stance (the far foot never counted as planted: travel 0.16 -> 1.89 m).
+- [ ] AA2 "Animation from video..." in the app: pick a video, the tracker runs, the scene arrives with feet locked
+  (MocapClean) and sparse editable cards; a screenshot.
