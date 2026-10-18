@@ -517,6 +517,16 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   breathing, natural, spline, stepped switched off because they are inside the cards; one undo step.
 - DD5 WHY (why.gd): red, named spans on the curve where HITCH (+-3 frames) or TIP SPEED (frames over the cap) fire for
   a part this joint moves (tip: spine/arms/hands; hips: pelvis/legs; head: neck/head/spine).
+- NA0 DOPE SHEET COPY: Shift-drag a card diamond = a copy dropped inside a move (the move is split, later cards keep
+  their arrivals); drag a part-key diamond = its keys by whole frames (stops a frame short of a neighbour), Shift = copy;
+  stepped view hides breakdowns and moving holds.
+- NA1 LAYERS (Scene.layers): each {name, mode add|over, w, wk [[t, w]] (keyed: curve x w), mute, solo, lock, v {joint:
+  deg, "offset": hips metres}}; played after the YY9 first layer, in order; any solo silences the rest. Commands
+  "Layer: new additive / new override / next / mute / solo / lock / key the weight here"; edits go to the active layer.
+- NA2 FIX ON A LAYER (layer_fix.gd): a HEAD QUIET fix as an additive layer (played difference at the card, weight fitted
+  per frame); exact at the card, close between cards (Check may still find it there: the plain Fix is the full one).
+- NA3 MERGE DOWN (layer_merge.gd, "Layer: merge down (into the cards)"): cards re-posed by a fixed-point pass so the
+  unlayered scene plays the layered one at every arrival; the every-frame miss is measured and said.
 - XX3 DOPE SHEET (dope_sheet.gd): cards row + 8 part-group rows of diamonds; card["ktype"] key/breakdown/moving_hold/
   extreme (a mark only, saved only when not "key"); drag a card diamond to retime. Timeline + sheet share _retime_*.
 - XX4 BREAKDOWNER (breakdowner.gd): true per-joint slerp between neighbour cards, Shift+E slider -50..150 %, 25/50/75 %;

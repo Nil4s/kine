@@ -10,6 +10,13 @@
 ## DRAG a card diamond left or right: its arrival moves by whole frames (Scene.fps), the way the timeline's arrival edge
 ## does (it sets the card's MOVE, so every later card and every marker follows). One undo step per drag. A click without
 ## a drag picks the card. The first card arrives at 0 and cannot be moved.
+## COPY AND PART KEYS (round 49, GATES NA0; Blender's Dope Sheet: Shift+D duplicates keys, G moves them):
+##   Shift-drag a card diamond: a COPY of that card lands where it is dropped (main._dope_copy): it must land inside a
+##   card's MOVE; that move is split in two, so every card after it arrives exactly when it did.
+##   Drag a part-key diamond: its keys (every joint in that diamond) move by whole frames, never onto or past a
+##   neighbour key of the same joint; Shift-drag leaves them and puts copies at the drop (main._dope_part).
+##   Both happen on release (a ghost diamond shows where), one undo step each.
+##   STEPPED PREVIEW on (Scene.stepped): the card row shows only keys and extremes, as Blender's stepped view does.
 ## This file draws and reads the mouse; main.gd owns the scene, the undo and the caches (the signals below).
 class_name DopeSheet
 extends PanelContainer
@@ -89,7 +96,7 @@ class DopeCanvas extends Control:
 	const GRAB := 7.0     # px: how near a card diamond the mouse must be to take it
 
 	var sheet: DopeSheet
-	var _drag := {}       # {"i", "x0", "pps", "move0", "n", "started"}
+	var _drag := {}       # {"i", "x0", "pps", "move0", "n", "started"}; NA0 adds "mode": "copy" | "part" (+ "row", "t", "joints", "x")
 	var _sig := ""
 
 	func _init() -> void:
@@ -134,6 +141,8 @@ class DopeCanvas extends Control:
 		var ts := S.times()
 		for i in S.cards.size():
 			var t: float = ts[i][1]
+			if S.stepped and DopeSheet.kind_of(S.cards[i]) in ["breakdown", "moving_hold"]:
+				continue   # NA0: the stepped view shows only keys and extremes
 			out.append({"row": -1, "i": i, "t": t, "x": x_of(t), "y": row_y(-1), "kind": DopeSheet.kind_of(S.cards[i]), "joints": []})
 		for r in DopeSheet.GROUPS.size():
 			var at := {}   # time (ms) -> index in out
@@ -166,12 +175,31 @@ class DopeCanvas extends Control:
 		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
 			if ev.pressed:
 				var i := card_hit(ev.position)
-				if i >= 0:
+				if i >= 0 and ev.shift_pressed:
+					_drag = {"mode": "copy", "i": i, "x0": ev.position.x, "x": ev.position.x, "pps": pps(), "started": false}
+				elif i >= 0:
 					_drag = {"i": i, "x0": ev.position.x, "pps": pps(), "move0": S.move_time(i), "n": 0, "started": false}
+				else:
+					var pd := part_hit(ev.position)
+					if not pd.is_empty():
+						_drag = {"mode": "part", "copy": ev.shift_pressed, "row": pd["row"], "t": pd["t"], "joints": pd["joints"],
+							"x0": ev.position.x, "x": ev.position.x, "pps": pps(), "started": false}
 				accept_event()
 			elif not _drag.is_empty():
 				var d := _drag
 				_drag = {}
+				if d.get("mode", "") == "copy":
+					if d["started"]:
+						sheet.m._dope_copy(int(d["i"]), snap_t(float(d["x"]), float(d["pps"])))
+					queue_redraw()
+					accept_event()
+					return
+				if d.get("mode", "") == "part":
+					if d["started"]:
+						sheet.m._dope_part(d["joints"], float(d["t"]), snap_t(float(d["x"]), float(d["pps"])), bool(d["copy"]))
+					queue_redraw()
+					accept_event()
+					return
 				if d["started"]:
 					sheet.retimed.emit(true)
 				else:
@@ -179,8 +207,29 @@ class DopeCanvas extends Control:
 				queue_redraw()
 				accept_event()
 		elif ev is InputEventMouseMotion and not _drag.is_empty():
-			drag_to(ev.position.x)
+			if _drag.has("mode"):   # NA0: a ghost follows the mouse; the edit happens on release
+				_drag["x"] = ev.position.x
+				_drag["started"] = _drag["started"] or absf(ev.position.x - float(_drag["x0"])) >= 3.0
+				queue_redraw()
+			else:
+				drag_to(ev.position.x)
 			accept_event()
+
+	## NA0: the time under x, on a whole frame
+	func snap_t(x: float, pp: float) -> float:
+		var S := _S()
+		var fps := float(maxi(1, S.fps))
+		return maxf(0.0, roundf((x - LBL) / pp * fps) / fps)
+
+	## NA0: the part-key diamond under p, or {}
+	func part_hit(p: Vector2) -> Dictionary:
+		var best := {}
+		var bd := GRAB
+		for d in diamonds():
+			if d["row"] >= 0 and absf(p.y - float(d["y"])) <= ROW_H * 0.5 and absf(p.x - float(d["x"])) <= bd:
+				bd = absf(p.x - float(d["x"]))
+				best = d
+		return best
 
 	## the drag so far, in whole frames n: the card's move is its move at the press plus n / fps. The press can start
 	## the drag only on a card after the first (it arrives at 0)
@@ -250,7 +299,13 @@ class DopeCanvas extends Control:
 					draw_arc(c, 11.0, 0.0, TAU, 20, Tok.c("focus"), 1.5)
 			else:
 				_shape(c, 4.0, Tok.c("heading"), false)
-		if not _drag.is_empty() and _drag["started"]:   # the drag's frames, beside the diamond
+		if not _drag.is_empty() and _drag.has("mode") and _drag["started"]:   # NA0: the ghost where it will land
+			var gt := snap_t(float(_drag["x"]), float(_drag["pps"]))
+			var gy := row_y(-1) if _drag["mode"] == "copy" else row_y(int(_drag["row"]))
+			_shape(Vector2(x_of(gt), gy), 6.0, Tok.c("say"), true)
+			var verb := "copy" if _drag["mode"] == "copy" or bool(_drag.get("copy", false)) else "move"
+			draw_string(font, Vector2(x_of(gt) + 10, gy + 4), "%s to %.2f s" % [verb, gt], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.c("say"))
+		elif not _drag.is_empty() and _drag["started"]:   # the drag's frames, beside the diamond
 			var di: int = _drag["i"]
 			var n: int = _drag["n"]
 			draw_string(font, Vector2(x_of(S.times()[di][1]) + 12, row_y(-1) + 4), "%+d fr" % n, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.c("say"))

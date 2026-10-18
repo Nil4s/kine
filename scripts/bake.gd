@@ -44,6 +44,9 @@ static func bake(S: Scene, B: Body, rate: float) -> Dictionary:
 	if not S.layer.is_empty():
 		off.append("layer")
 		S.layer = {}
+	if not S.layers.is_empty():
+		off.append("layers")   # NA1: baked in, so they go
+		S.layers = []
 	if S.breath > 0.0:
 		off.append("breath")
 		S.breath = 0.0

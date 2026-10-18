@@ -61,6 +61,7 @@ var name := "scene"
 var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
 var layer_w := 1.0     # YY9: the layer's weight 0..1 (written only with a layer)
+var layers := []       # NA1: more layers over it, in order (see add_layers); [] = none, and nothing is written
 var breath := 0.0      # YY6: breaths a minute added on playback (Body.breathe); 0 = off (written only when on)
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
 var loop := false      # the scene plays round: CHECK grades the seam from the last frame to the first (round 16, W2)
@@ -560,6 +561,7 @@ func apply(B: Body, t: float) -> void:
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	_apply(B, t)
 	add_layer(B)           # YY9: on top of the cards; nothing without a layer or at weight 0
+	add_layers(B, t)       # NA1: the further layers, in order; nothing without one
 	B.breathe(t, breath)   # YY6: on top of the pose; nothing at 0
 	B.fast = was_fast
 
@@ -568,13 +570,115 @@ func apply(B: Body, t: float) -> void:
 ## offset on top of the cards, never written into them: each layered joint gets layer[j] x layer_w added to what the
 ## cards play, within the joint's limits. Weight 0 or no layer: the body is not touched (byte for byte).
 func add_layer(B: Body) -> void:
-	if layer.is_empty() or layer_w <= 0.0:
+	if layer.is_empty() or layer_w <= 0.0 or any_solo():   # NA1: a soloed layer silences this one too
 		return
 	for j in layer:
 		if B.ang.has(j):
 			B.ang[j] = B.clamp_ang(j, (B.ang[j] as Vector3) + (layer[j] as Vector3) * layer_w)
 	B.fk()
 	B.apply_grip()
+
+
+## LAYERS (round 49, GATES NA1, UPGRADES_300 #254; Maya's animation layers: Additive / Override, Weight, Mute, Solo,
+## Lock; Blender's NLA: blend Add / Replace with an Influence that can be keyed). Each is a Dictionary:
+##   "name", "mode": "add" (v = an offset added, x weight) or "over" (v = the angle; the played angle goes to it by the
+##   weight: lerp(below, v, w)), "w" (0..1), "wk" (the weight KEYED: [[t, w], ...] in time order, linear between, held
+##   past the ends; with keys the weight is the keyed curve x "w", so "w" dials a keyed layer from none to all), "mute", "solo", "lock" (a locked layer refuses edits; the
+##   lock is checked by main.gd's layer commands), "v": {joint: Vector3 degrees}; "v" may also hold "offset": the
+##   hips' POSITION (Vector3 metres, Body.offset), added / blended the same way, and then the feet are put back on the
+##   floor (Scene._ground, when on_floor) as playback does after it moves the hips (NA2: a head fix moves the hips).
+## Played in list order over the cards and the YY9 layer (which stays the scene's first, additive one, so older files
+## keep loading and saving byte for byte). Any solo: only the soloed layers play (the YY9 one too is silenced).
+## Muted / weight 0: the layer does nothing, byte for byte.
+static func layer_weight(L: Dictionary, t: float) -> float:
+	var w := clampf(float(L.get("w", 1.0)), 0.0, 1.0)
+	var wk: Array = L.get("wk", [])
+	if wk.is_empty():
+		return w
+	return key_curve(wk, t) * w
+
+
+## the keyed weight curve alone at t ("w" not applied)
+static func key_curve(wk: Array, t: float) -> float:
+	if t <= float(wk[0][0]):
+		return clampf(float(wk[0][1]), 0.0, 1.0)
+	for i in range(1, wk.size()):
+		if t <= float(wk[i][0]):
+			var a: Array = wk[i - 1]
+			var b: Array = wk[i]
+			var u := (t - float(a[0])) / maxf(float(b[0]) - float(a[0]), 1e-9)
+			return clampf(lerpf(float(a[1]), float(b[1]), u), 0.0, 1.0)
+	return clampf(float(wk[-1][1]), 0.0, 1.0)
+
+
+func any_solo() -> bool:
+	for L in layers:
+		if bool(L.get("solo", false)):
+			return true
+	return false
+
+
+func add_layers(B: Body, t: float) -> void:
+	if layers.is_empty():
+		return
+	var solo := any_solo()
+	var touched := false
+	var moved := false
+	for L in layers:
+		if bool(L.get("mute", false)) or (solo and not bool(L.get("solo", false))):
+			continue
+		var w := layer_weight(L, t)
+		if w <= 0.0:
+			continue
+		for j in L.get("v", {}):
+			if j == "offset":
+				var o: Vector3 = L["v"][j]
+				B.offset = B.offset + o * w if String(L.get("mode", "add")) == "add" else B.offset.lerp(o, w)
+				moved = true
+				touched = true
+				continue
+			if not B.ang.has(j):
+				continue
+			var v: Vector3 = L["v"][j]
+			var a: Vector3 = B.ang[j]
+			B.ang[j] = B.clamp_ang(j, a + v * w if String(L.get("mode", "add")) == "add" else a.lerp(v, w))
+			touched = true
+	if touched:
+		B.fk()
+		if moved and on_floor:
+			_ground(B)
+		B.apply_grip()
+
+
+## a layer for the file (angles to 0.01; flags only when on; "wk" only with keys)
+static func layer_to_file(L: Dictionary) -> Dictionary:
+	var v := {}
+	for j in L.get("v", {}):
+		var x: Vector3 = L["v"][j]
+		var q := 0.0001 if j == "offset" else 0.01   # the hips' position in metres: to 0.1 mm, angles to 0.01 deg
+		v[j] = [snappedf(x.x, q), snappedf(x.y, q), snappedf(x.z, q)]
+	var out := {"name": String(L.get("name", "layer")), "mode": String(L.get("mode", "add")), "w": snappedf(float(L.get("w", 1.0)), 0.0001), "v": v}
+	for f in ["mute", "solo", "lock"]:
+		if bool(L.get(f, false)):
+			out[f] = true
+	if not (L.get("wk", []) as Array).is_empty():
+		out["wk"] = (L["wk"] as Array).map(func(k): return [snappedf(float(k[0]), 0.0001), snappedf(float(k[1]), 0.0001)])
+	return out
+
+
+static func layer_from_file(d: Dictionary) -> Dictionary:
+	var v := {}
+	for j in d.get("v", {}):
+		var a: Array = d["v"][j]
+		v[String(j)] = Vector3(float(a[0]), float(a[1]), float(a[2]))
+	var mode := String(d.get("mode", "add"))
+	var out := {"name": String(d.get("name", "layer")), "mode": mode if mode in ["add", "over"] else "add",
+		"w": clampf(float(d.get("w", 1.0)), 0.0, 1.0), "v": v, "mute": bool(d.get("mute", false)),
+		"solo": bool(d.get("solo", false)), "lock": bool(d.get("lock", false)), "wk": []}
+	for k in d.get("wk", []):
+		out["wk"].append([float(k[0]), clampf(float(k[1]), 0.0, 1.0)])
+	out["wk"].sort_custom(func(a, b): return a[0] < b[0])
+	return out
 
 
 ## the layer MIRRORED (MIRROR_SCENE "layer"): each joint's offset to its twin, reflected as an angle is (Body.mirror_pose)
@@ -1169,6 +1273,7 @@ func clone() -> Scene:
 	c.markers = markers.duplicate(true)
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
+	c.layers = layers.duplicate(true)   # NA1
 	return c
 
 
@@ -1623,6 +1728,8 @@ func to_dict(B: Body) -> Dictionary:
 			ly[j] = [snappedf(v.x, 0.01), snappedf(v.y, 0.01), snappedf(v.z, 0.01)]
 		out["layer"] = ly
 		out["layer_w"] = layer_w
+	if not layers.is_empty():   # NA1: only with a further layer
+		out["layers"] = layers.map(func(L): return Scene.layer_to_file(L))
 	if not props.is_empty():
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
 	if not part_keys.is_empty():
@@ -1639,6 +1746,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
+	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
@@ -1680,6 +1788,7 @@ func from_dict(d: Dictionary) -> void:
 		var a: Array = d["layer"][j]
 		layer[j] = Vector3(float(a[0]), float(a[1]), float(a[2]))
 	layer_w = clampf(float(d.get("layer_w", 1.0)), 0.0, 1.0)
+	layers = (d.get("layers", []) as Array).map(func(L): return Scene.layer_from_file(L))   # NA1
 	on_floor = bool(d.get("on_floor", true))
 	floor_body = bool(d.get("floor_body", false))
 	pin = bool(d.get("pin", true))

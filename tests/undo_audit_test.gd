@@ -38,7 +38,8 @@ func fp() -> String:
 	var sd := {"cards": m.S.cards, "name": m.S.name, "natural": m.S.natural, "spline": m.S.spline, "on_floor": m.S.on_floor,
 		"floor_body": m.S.floor_body, "pin": m.S.pin, "fps": m.S.fps, "moving_holds": m.S.moving_holds,
 		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers,   # WW1, WW5
-		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w}   # YY6, YY9
+		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
+		"layers": var_to_str(m.S.layers)}   # NA1
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
 
@@ -102,6 +103,8 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		m.S.layer = {"spine_03": Vector3(5, 0, 0)}
 		m.S.layer_w = 0.5
+		m.S.layers = [{"name": "Layer 2", "mode": "over", "w": 0.5, "wk": [], "mute": false, "solo": false, "lock": false, "v": {"head": Vector3(10, 0, 0)}}]   # NA1
+		m.layer_on = 0
 		m.playhead = float(m.S.times()[2][1]) - 0.13
 		m.stepped_view = kind == "STEPPED"   # STEPPED: already blocking, for "Spline and check"
 		m._ps().apply(m.B, m.playhead)

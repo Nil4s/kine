@@ -2365,6 +2365,7 @@ func _snapshot() -> Dictionary:
 	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"layers": S.layers.duplicate(true),
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2392,6 +2393,9 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("flags"):
 		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
 			S.set(BAKE_FLAGS[k], u["flags"][k])
+	if u["scene"] == S and u.has("layers") and var_to_str(u["layers"]) != var_to_str(S.layers):
+		S.layers = u["layers"].duplicate(true)   # NA1: the layers, undone like a card
+		_dummy_hits()
 	if u["scene"] == S and u.has("layer") and (u["breath"] != S.breath or u["layer"] != S.layer or u["layer_w"] != S.layer_w):
 		S.breath = u["breath"]   # BREATH (YY6) and the LAYER (YY9): scene settings, undone like a card (the undo audit
 		S.layer = u["layer"].duplicate()   # did not fingerprint them, so a lost breath / layer passed it)
@@ -2754,41 +2758,167 @@ func _on_back_slider(v: float, k: String) -> void:
 
 
 ## LAYER (round 43, YY9): the body's change from what the scene plays at the playhead, added to the scene's one layer
-## (divided by the weight, so at this weight the change shows exactly; weight 0 becomes 1)
+## (divided by the weight, so at this weight the change shows exactly; weight 0 becomes 1).
+## LAYERS (round 49, NA1): the change goes onto the ACTIVE layer (layer_on: -1 = the YY9 one, else S.layers[i]). An
+## additive layer adds (change / weight here); an OVERRIDE layer's angle is set so that lerp(below, angle, weight) is
+## the body now (below = what plays with this layer muted). A LOCKED layer refuses; weight 0 here refuses (nothing could show).
+var layer_on := -1
+
+
+func _layer_active() -> Dictionary:
+	return S.layers[layer_on] if layer_on >= 0 and layer_on < S.layers.size() else {}
+
+
+func _layer_name() -> String:
+	return String(_layer_active().get("name", "the first layer (additive)")) if layer_on >= 0 else "the first layer (additive)"
+
+
 func _layer_take() -> void:
 	if S.cards.size() < 2:
 		_say("a layer is over a scene: open one with two cards or more")
+		return
+	var L := _layer_active()
+	if bool(L.get("lock", false)):
+		_say("LOCKED: '%s' is locked; 'Layer: lock' unlocks it, or 'Layer: next' picks another" % _layer_name())
+		return
+	if not L.is_empty() and Scene.layer_weight(L, playhead) <= 0.0:
+		_say("'%s' has weight 0 here, so no change could show: use 'Layer stronger' first" % _layer_name())
 		return
 	var now := B.ang.duplicate()
 	var PB := Body.new()
 	PB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	_ps().apply(PB, playhead)   # what plays here, layer included
-	if S.layer_w <= 0.0:
-		S.layer_w = 1.0
 	var n := 0
-	for j in now:
-		var d: Vector3 = (now[j] as Vector3) - (PB.ang[j] as Vector3)
-		if d.length() > 0.01:
-			S.layer[j] = (S.layer.get(j, Vector3.ZERO) as Vector3) + d / S.layer_w
+	if L.is_empty():
+		if S.layer_w <= 0.0:
+			S.layer_w = 1.0
+		for j in now:
+			var d: Vector3 = (now[j] as Vector3) - (PB.ang[j] as Vector3)
+			if d.length() > 0.01:
+				S.layer[j] = (S.layer.get(j, Vector3.ZERO) as Vector3) + d / S.layer_w
+				n += 1
+	else:
+		var w := Scene.layer_weight(L, playhead)
+		var below := {}
+		if L["mode"] == "over":
+			var was: bool = L.get("mute", false)
+			L["mute"] = true
+			var QB := Body.new()
+			QB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+			_ps().apply(QB, playhead)
+			L["mute"] = was
+			below = QB.ang
+		for j in now:
+			var d: Vector3 = (now[j] as Vector3) - (PB.ang[j] as Vector3)
+			if d.length() <= 0.01:
+				continue
+			if L["mode"] == "add":
+				L["v"][j] = (L["v"].get(j, Vector3.ZERO) as Vector3) + d / w
+			else:
+				var bl: Vector3 = below[j]
+				L["v"][j] = bl + ((now[j] as Vector3) - bl) / w
 			n += 1
 	_dummy_hits()   # the landed copy (SL) carries the layer too
 	_ps().apply(B, playhead)
-	_say(("layer: %d part%s changed, over the whole scene at weight %.2f (cards untouched; 'Layer weaker' / 'Layer: delete')" % [n, "" if n == 1 else "s", S.layer_w]) if n > 0 else "layer: the body is what the scene plays here; turn a part first, then keep the change")
+	_say(("layer '%s': %d part%s changed, over the whole scene (cards untouched; 'Layer weaker' / 'Layer: delete')" % [_layer_name(), n, "" if n == 1 else "s"]) if n > 0 else "layer: the body is what the scene plays here; turn a part first, then keep the change")
 
 
-## step: the weight change (clamped 0..1); -9 deletes the layer
+## step: the ACTIVE layer's weight change (clamped 0..1); -9 deletes it. A layer with keyed weight changes the key at
+## the playhead (one is added there if none is)
 func _layer_weight(step: float) -> void:
-	if S.layer.is_empty():
+	var L := _layer_active()
+	if L.is_empty() and S.layer.is_empty():
 		_say("no layer: turn a part, then search 'Layer: keep this change through the whole scene'")
 		return
-	if step <= -9.0:
-		S.layer = {}
-		S.layer_w = 1.0
+	if bool(L.get("lock", false)):
+		_say("LOCKED: '%s' is locked; 'Layer: lock' unlocks it" % _layer_name())
+		return
+	if L.is_empty():
+		if step <= -9.0:
+			S.layer = {}
+			S.layer_w = 1.0
+		else:
+			S.layer_w = clampf(S.layer_w + step, 0.0, 1.0)
+	elif step <= -9.0:
+		S.layers.remove_at(layer_on)
+		layer_on = mini(layer_on, S.layers.size() - 1)
 	else:
-		S.layer_w = clampf(S.layer_w + step, 0.0, 1.0)
+		L["w"] = clampf(float(L["w"]) + step, 0.0, 1.0)   # a keyed layer: "w" scales its curve (NA2)
 	_dummy_hits()
 	_ps().apply(B, playhead)
-	_say("layer deleted: the cards play as they are" if S.layer.is_empty() else "layer weight %.2f (0 = the cards alone, 1 = the full change)" % S.layer_w)
+	if step <= -9.0:
+		_say("layer deleted; active now: %s" % _layer_name())
+	else:
+		_say("'%s' weight %.2f here (0 = the layers below alone, 1 = the full change)" % [_layer_name(), Scene.layer_weight(_layer_active(), playhead) if layer_on >= 0 else S.layer_w])
+
+
+## MERGE DOWN (round 49, NA3; scripts/layer_merge.gd): every layer into the cards, then the layers are gone. One undo step
+func _layer_merge() -> void:
+	if S.layer.is_empty() and S.layers.is_empty():
+		_say("no layers to merge: the cards already play everything. To add one, pose a part and use 'Layer: keep this change through the whole scene'")
+		return
+	if S.layers.any(func(L): return bool(L.get("lock", false))):
+		_say("LOCKED: a locked layer cannot be merged; unlock it first ('Layer: next', then 'Layer: lock')")
+		return
+	_step_hint = "Merge layers down"
+	_push_undo()
+	var r := LayerMerge.merge(S)
+	layer_on = -1
+	_rebuild_cards()
+	_dummy_hits()
+	_ps().apply(B, playhead)
+	_refresh()
+	_say("merged into %d card%s: at the cards' arrivals the scene plays as layered within %.3f deg (%d passes); between them within %.2f deg (%s). Ctrl+Z gives the layers back" % [r["cards"], "" if r["cards"] == 1 else "s", r["at_cards"], r["iters"], r["every_frame"], r["frame_at"]])
+
+
+## NA1: a new layer on top, made active ("add" or "over")
+func _layer_new(mode: String) -> void:
+	S.layers.append({"name": "Layer %d" % (S.layers.size() + 2), "mode": mode, "w": 1.0, "wk": [], "mute": false, "solo": false, "lock": false, "v": {}})
+	layer_on = S.layers.size() - 1
+	_say("new %s layer '%s' on top, active: pose a part, then 'Layer: keep this change through the whole scene'" % ["additive" if mode == "add" else "override", _layer_name()])
+
+
+## NA1: mute / solo / lock the active layer (the YY9 first layer has only its weight)
+func _layer_flag(f: String) -> void:
+	var L := _layer_active()
+	if L.is_empty():
+		_say("'%s' only has a weight; make a further layer ('Layer: new additive' / 'Layer: new override') or 'Layer: next'" % _layer_name())
+		return
+	L[f] = not bool(L.get(f, false))
+	_dummy_hits()
+	_ps().apply(B, playhead)
+	_say("'%s' %s %s" % [_layer_name(), f, "on" if L[f] else "off"])
+
+
+## NA1: the next layer becomes active (the first layer, then each of S.layers, round)
+func _layer_next() -> void:
+	layer_on = layer_on + 1 if layer_on + 1 < S.layers.size() else -1
+	var L := _layer_active()
+	var bits := []
+	for f in ["mute", "solo", "lock"]:
+		if bool(L.get(f, false)):
+			bits.append(f)
+	_say("active layer: %s%s%s" % [_layer_name(), (", " + String(L["mode"]).replace("add", "additive").replace("over", "override")) if not L.is_empty() else "",
+		(" [" + ", ".join(bits) + "]") if not bits.is_empty() else ""])
+
+
+## NA1: the active layer's weight KEYED at the playhead (to w, or to its weight here)
+func _layer_key_w(w := -1.0) -> void:
+	var L := _layer_active()
+	if L.is_empty() or bool(L.get("lock", false)):
+		_say("to key a weight, pick a further, unlocked layer ('Layer: next')" if L.is_empty() else "LOCKED: '%s' is locked; use 'Layer: lock' to unlock it" % _layer_name())
+		return
+	var wk: Array = L["wk"]
+	var v := (Scene.key_curve(wk, playhead) if not wk.is_empty() else float(L["w"])) if w < 0.0 else w
+	for k in wk:
+		if absf(float(k[0]) - playhead) < 1e-4:
+			k[1] = v
+			_say("'%s' weight key at %.2f s = %.2f" % [_layer_name(), playhead, v])
+			return
+	wk.append([playhead, v])
+	wk.sort_custom(func(a, b): return a[0] < b[0])
+	_dummy_hits()
+	_say("'%s' weight keyed at %.2f s = %.2f (%d keys; the weight now follows them)" % [_layer_name(), playhead, v, wk.size()])
 
 
 ## BREATH (YY6): step = -1 toggles (off <-> 15 a minute), else the rate changes by step (6..40 a minute)
@@ -5371,6 +5501,14 @@ func _commands() -> Array:
 	add.call("Spline and check", "", _stage_spline, "spline smooth stage finish check polish blocking", true, "steps 2 and 3: the in-betweens come back (the scene's own playback) and Check grades the motion")
 	add.call("Compare the walk to real walkers", "", _gait_compare, "gait walk people real compare hip knee ankle band curve normal", false, "plays the walk and measures each hip, knee and ankle against 42 real walkers (Fukuchi 2018); names the ones outside")
 	add.call("Layer: keep this change through the whole scene", "", _do.bind(_layer_take), "layer additive offset tweak whole scene non destructive lean", true, "what you changed on the body here (against what the scene plays here) goes onto ONE layer over the whole scene; the cards are not touched")
+	add.call("Layer: new additive", "", _do.bind(_layer_new.bind("add")), "layer add additive new animation layer", true, "a new additive layer on top, made active (Maya: animation layers)")
+	add.call("Layer: new override", "", _do.bind(_layer_new.bind("over")), "layer override replace new animation layer", true, "a new override layer on top: its angles replace what is below, by its weight")
+	add.call("Layer: next", "", _layer_next, "layer active select cycle animation layer", false, "the next layer becomes the one edits go to")
+	add.call("Layer: mute", "", _do.bind(_layer_flag.bind("mute")), "layer mute off silence", true, "the active layer stops playing (again: plays)")
+	add.call("Layer: solo", "", _do.bind(_layer_flag.bind("solo")), "layer solo only alone", true, "only soloed layers play over the cards (again: off)")
+	add.call("Layer: lock", "", _do.bind(_layer_flag.bind("lock")), "layer lock protect", true, "the active layer refuses edits (again: unlocks)")
+	add.call("Layer: key the weight here", "", _do.bind(_layer_key_w.bind(-1.0)), "layer weight key influence animate", true, "the active layer's weight keyed at the playhead; it follows its keys over time")
+	add.call("Layer: merge down (into the cards)", "", _layer_merge, "layer merge bake flatten collapse apply", true, "every layer goes into the cards' poses and the layers are removed (one undo step)")
 	add.call("Layer stronger", "", _do.bind(_layer_weight.bind(0.25)), "layer weight more additive", true, "the layer's weight +0.25 (0..1)")
 	add.call("Layer weaker", "", _do.bind(_layer_weight.bind(-0.25)), "layer weight less additive", true, "the layer's weight -0.25 (0 = the scene as the cards play it)")
 	add.call("Layer: delete", "", _do.bind(_layer_weight.bind(-9.0)), "layer remove clear additive", true, "the layer goes; the scene plays its cards again")
@@ -5496,6 +5634,65 @@ func _retime_step(final: bool) -> void:
 ## and closes it; "Cycle card key type" sets the picked card's Blender type (key > breakdown > moving hold > extreme); the sheet's
 ## buttons set one directly. Dragging a card diamond retimes the card through the timeline's own path
 var ui_dope: DopeSheet
+
+
+## NA0: a copy of card i arriving at time t. t must fall inside a card's MOVE (after its start, before its arrival): that
+## move is split, the copy arrives at t and the card that owned the move still arrives when it did. One undo step.
+func _dope_copy(i: int, t: float) -> bool:
+	var ts := S.times()
+	var k := -1
+	for j in range(1, S.cards.size()):
+		if t > float(ts[j][0]) + 1e-6 and t < float(ts[j][1]) - 1e-6:
+			k = j
+	if k < 0:
+		_say("NOT COPIED: drop the copy inside a move (between a card's hold and the next card's arrival), not on a card or a hold")
+		return false
+	_step_hint = "Copy card"
+	_push_undo()
+	var c: Dictionary = (S.cards[i] as Dictionary).duplicate(true)
+	c["name"] = "%s copy" % S.cards[i]["name"]
+	c["move"] = t - float(ts[k][0])
+	c["hold"] = 0.0
+	var arrive_k := float(ts[k][1])
+	S.cards.insert(k, c)
+	S.cards[k + 1]["move"] = arrive_k - t
+	_rebuild_cards()
+	_refresh()
+	_say("copied a card to %.2f s; the cards after it arrive when they did. Ctrl+Z takes it back" % t)
+	return true
+
+
+## NA0: the part keys of `joints` at t0 moved (or with `copy`, copied) to t1, whole frames. A moved key stops one frame
+## short of a neighbour of the same joint (never onto or past it); a copy onto an existing key replaces that key's value.
+## One undo step. Returns how many keys moved / were copied.
+func _dope_part(joints: Array, t0: float, t1: float, copy: bool) -> int:
+	if absf(t1 - t0) < 1e-6:
+		return 0
+	_step_hint = "Copy part keys" if copy else "Move part keys"
+	_push_undo()
+	var fr := 1.0 / float(maxi(S.fps, 1))
+	var n := 0
+	for j in joints:
+		var ks: Array = S.part_keys.get(j, [])
+		var idx := PartKeys.key_near(ks, t0, PartKeys.SAME_T)
+		if idx < 0:
+			continue
+		if copy:
+			var src: Dictionary = (ks[idx] as Dictionary).duplicate(true)
+			PartKeys.put(S.part_keys, j, t1, src["v"])
+			var ni := PartKeys.key_near(S.part_keys[j], t1, PartKeys.SAME_T)
+			for f in ["interp", "handle", "hin", "hout"]:
+				if src.has(f):
+					S.part_keys[j][ni][f] = src[f]
+			n += 1
+			continue
+		var lo := (float(ks[idx - 1]["t"]) + fr) if idx > 0 else 0.0
+		var hi := (float(ks[idx + 1]["t"]) - fr) if idx < ks.size() - 1 else INF
+		ks[idx]["t"] = clampf(t1, lo, hi)
+		n += 1
+	_refresh()
+	_say("%s %d part key%s from %.2f s to %.2f s. Ctrl+Z takes it back" % ["copied" if copy else "moved", n, "" if n == 1 else "s", t0, t1])
+	return n
 
 
 func _dope_toggle() -> void:
@@ -5741,6 +5938,12 @@ func _mirror_scene() -> void:
 		d["part_keys"] = PartKeys.mirror_file(d["part_keys"], M)   # MIRROR_SCENE "part_keys" (WW1)
 	if d.has("layer"):
 		d["layer"] = Scene.mirror_layer(d["layer"], M)   # MIRROR_SCENE "layer" (YY9)
+	for L in d.get("layers", []):
+		var o = L["v"].get("offset")
+		L["v"].erase("offset")
+		L["v"] = Scene.mirror_layer(L["v"], M)   # MIRROR_SCENE "layers" (NA1)
+		if o != null:
+			L["v"]["offset"] = [-float(o[0]), o[1], o[2]]   # the hips' position: sideways x negated (NA2)
 	B.set_state(keep)
 	var base := S.name.trim_suffix("_mirrored")
 	d["scene"] = base + "_mirrored" if not S.name.ends_with("_mirrored") else base
@@ -5924,6 +6127,11 @@ func _check(given = null) -> void:
 			fx.mouse_entered.connect(_fix_hover.bind(f))   # FIX PREVIEW (#79): a blue ghost of the result, nothing changed
 			fx.mouse_exited.connect(_fix_hover.bind({}))
 			ui_find_list.add_child(fx)
+			if f["rule"] == "HEAD QUIET":   # NA2: a pose fix can go onto a layer instead (timing fixes cannot)
+				var fl := _button("   ...or on a layer (the cards stay as they are)", _fix_layer.bind(f))
+				fl.name = "fixlayer_%d" % (fk + 1)
+				fl.add_theme_font_size_override("font_size", 12)
+				ui_find_list.add_child(fl)
 		else:
 			ui_find_list.add_child(_label("   no automatic fix: " + ("two cards fight here; change one of them" if f["rule"] == "HITCH" else "the foot creeps between two cards' stances: give the cards the same foot spot, or step it on purpose" if f["rule"] == "FOOT SLIDE" else "it is in the poses; change the cards around it"), 12, "text:0.5", true))
 		if Rulebook.WHY.has(f["rule"]):   # WHY + SOURCE (round 12, #78)
@@ -6037,6 +6245,34 @@ func _pv_poll() -> void:
 func _show_preview(f: Dictionary) -> void:
 	ov.fix_preview(S, _previews[f], playhead)
 	_say("PREVIEW: the blue ghost is this moment after '%s'.  Click to apply it (Ctrl+Z undoes)" % Fixer.label(f, S))
+
+
+## FIX ON A LAYER (round 49, GATES NA2; scripts/layer_fix.gd): the fix's pose change as additive layers, cards untouched
+func _fix_layer(f: Dictionary) -> void:
+	ov.fix_preview(S, [], 0.0)
+	_pv_hover = {}
+	if _fixing:
+		return
+	_fixing = true
+	_say("fixing %s on a layer... (it plays the scene to check the fix)" % f["rule"])
+	await get_tree().process_frame
+	var r := LayerFix.make(f, S, ov.GB, _sm)
+	if r["ok"]:
+		_step_hint = "Fix on a layer"
+		_push_undo()
+		S.layers.append_array(r["layers"])
+		layer_on = S.layers.size() - 1
+		_dummy_hits()
+		_ps().apply(B, playhead)
+		_check()
+	_refresh()
+	var tail := ""
+	if r["ok"]:   # the layer matches the fix AT the card; between cards it is close, not equal: say what Check now finds
+		var still := findings.filter(func(x): return Fixer._same_finding(f, x))
+		tail = ("   Check: %s is gone. " % f["rule"]) if still.is_empty() else ("   Check: %s is still found (a layer follows the fix at the card, only nearly between cards: the plain Fix is the full one). " % f["rule"])
+		tail += "'Layer weaker' dials it; Ctrl+Z undoes it"
+	_say(String(r["msg"]).replace("Fixed: ", "On a layer: ") + tail)
+	_fixing = false
 
 
 func _fix(f: Dictionary) -> void:
@@ -7476,6 +7712,7 @@ func _doc_key() -> String:
 
 func _load_scene(path: String) -> void:
 	scene_path = path
+	layer_on = -1   # NA1: edits go to the first layer of a newly opened scene
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	check_ran = false
 	S = Scene.new()

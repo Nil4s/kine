@@ -1818,3 +1818,71 @@ Nick 10-18: "focus on the upgrades, plus 100+ maya/blender follow up". Definitio
   names stacked, both seen in the round's screenshots). scenes/, poses/, data/: no change of mine (bo_sweep.json's
   deletion and axe_strike_pose.json are Nick's, not staged); bo_spin and swing_fore only read. No zz_ files in tests/ or
   scripts/. exports/scene.usda (15:02, unnamed 20-frame scene) is untracked and not mine to stage; left as found.
+
+## Round 49 (NA): dope sheet leftovers, several layers, fix on a layer, merge down (UPGRADES_300 N: #252-#256)
+Sources: Blender manual (Dope Sheet: Shift+D duplicate, keyframe types; NLA strips: blending Replace / Add, influence,
+mute, solo), Maya animation layers (Additive / Override, weight, mute, solo, lock; merge layers). Names as the sources
+use them; a behaviour the sources do not pin down is written as our own choice in the code's header.
+- [x] NA0 DOPE SHEET LEFTOVERS (#252, #253): Shift-drag a card diamond COPIES the card to where it is dropped (inside a
+  move: the cards after it arrive exactly when they did); a part-key diamond drags its keys by whole frames (never past a
+  neighbour) and Shift-drag copies them; with the stepped preview on, the card row shows only keys and extremes. One
+  undo step per gesture. Bars from real mouse events; control: a plain card drag still retimes.
+  EVIDENCE: tests/dope_copy_test.gd (w) 8 ok, real mouse events: Shift-drag card 1 to 0.80 s -> arrivals [0, 0.5, 0.8,
+  1.0, 1.5] (was [0, 0.5, 1.0, 1.5]), the copy carries card 1's pose, one undo step, Ctrl+Z byte for byte; a drop on a
+  hold refused ("NOT COPIED", no undo step); a part diamond +6 frames moves both arm joints' keys 0.4 -> 0.6, values kept;
+  dragged toward 1.3 s it stops at 0.8667 (one frame short of 0.9); Shift-drag copies to 1.2 s with the values; stepped
+  view shows cards [0, 1] of 4 (breakdown and moving hold hidden); control: a plain drag retimes 1.0 -> 1.1 s.
+  Stub (the move not split): FAIL 1, arrivals [0, 0.5, 0.8, 1.2, 1.7].
+- [x] NA1 LAYERS (#254): several layers over the cards, each additive or override, a weight that can be keyed over
+  time, mute, solo and lock; the old one-layer files load as one additive layer and save byte for byte as before when
+  untouched. Bars: weight 0 / mute = the base byte for byte; additive = base + w x offset; override = lerp(base, value,
+  w); solo plays only that layer; a locked layer refuses edits; keyed weight follows its keys.
+  EVIDENCE: Scene.layers / layer_weight / add_layers / layer_to_file / layer_from_file; commands "Layer: new additive",
+  "Layer: new override", "Layer: next", "Layer: mute", "Layer: solo", "Layer: lock", "Layer: key the weight here";
+  the YY9 layer stays the first (older files byte for byte: no "layers" key unless there is one). tests/layers_test.gd
+  7 ok on walk_bat: weight 0 and mute = base byte for byte at 30 times (control: weight 1 differs); additive w 0.5 worst
+  0.000000 deg; override lerp worst 0.000000 (w 0.5, 1) on spine_02, where an ADD would be 8.77 deg off; solo = a scene
+  with only that layer; keyed weight 0.5000 at L/2; a locked layer refuses ("LOCKED"), an override take plays the posed
+  angle within 0.0000 deg, Ctrl+Z empties it; save/load bit for bit; Mirror's list names "layers". Undo audit
+  fingerprints "layers". Stubs: no solo silencing -> FAIL 4; override played as add -> FAIL 3 and 6.
+  FOUND: the first override bar was on the head, which walk_bat holds at 0, so lerp and add were the same function
+  there; the stub caught it (bar 3 passed under it) and the bar moved to spine_02, with the add's distance printed.
+- [x] NA2 FIX ON A LAYER (#255): a Check fix can go onto a new layer instead of the cards: the cards byte for byte the
+  same, the layered scene plays what the fix made (within 0.5 deg), and its weight dials it from none to all.
+  EVIDENCE: scripts/layer_fix.gd (LayerFix.make), the "...or on a layer" button under a HEAD QUIET fix. The layer
+  holds what the FIXED scene PLAYS minus what the scene plays at the card's arrival, on the joints whose card angles
+  the fix changed (the trunk) plus the hips' position ("offset", new in a layer's "v"; the feet re-planted after it),
+  with the weight keyed per frame by least squares. tests/layer_fix_test.gd 5 ok on combo3_detail card 24: cards byte
+  for byte; at the arrival worst 0.0000 deg (bar 0.5; 13.54 without the layer); w 0 = the old scene byte for byte,
+  w 0.5 half; a TIP SPEED fix refused ("timing ... a layer holds angles only"). Stub (card angles, not played):
+  FAIL 2 at 2.31 deg, FAIL 3.
+  SCOPE OF THE 0.5 BAR: met at the card. BETWEEN the cards it is NOT met: trunk worst 3.18 deg, head at most 9.0 cm
+  from the fixed scene's (32.3 without), and Check still finds HEAD QUIET on the layered scene. Four tries (card
+  angles; played with legs; trunk only; + hips offset), then cut: mid-move the fix's change is larger than at the card,
+  and a weight stops at 1. The button says so after it runs ("still found ... the plain Fix is the full one").
+- [x] NA3 MERGE DOWN (#256): the layers baked into the cards (each card = what plays at its arrival); the merged scene
+  plays the layered one within a printed tolerance at every frame (bar 0.5 deg at the cards' own times); layers gone.
+  EVIDENCE: scripts/layer_merge.gd (LayerMerge.merge: a fixed-point pass, each card += what it misses at its arrival,
+  up to 6 times), "Layer: merge down (into the cards)". tests/layer_merge_test.gd 4 ok on walk_bat with three layers:
+  at the 6 arrivals worst 0.0000 deg after 1 pass (deleting the layers instead misses by 6.708), layers gone; every
+  frame within 0.0000 deg (constant weights); a keyed weight 0 -> 1: arrivals 0.0047 deg, every frame 0.7412 deg
+  (spine_03 at 3.500 s: the cards' own in-between is not the keyed curve; printed, as registered); the command is one
+  undo step, Ctrl+Z gives cards and layers back byte for byte, a locked layer refuses. Stub (no pass): FAIL 1 at 6.71
+  deg and FAIL 3 at 5.94.
+- [ ] NA6 THE HAND-DRAG FREEZE (Nick 10-18: "when u try to move one of the hands when position is all wrong, u get a
+  little freeze for 0.5 sec"). Measured first (tmp probe, under a running suite): GripMagnet.drag spends up to 9.6 s a
+  mouse step when no place on the shaft is reachable: each of its 11 candidate places runs Body.fit_hand's full joint
+  search (a whole body's contacts per step), and all 11 fail. Fix: rank the candidates the quick way (reach + turn),
+  search only the best one. Bars: worst drag step on that pose <= 100 ms measured with nothing else running (the 0.1 s
+  a response must take to feel instant: Miller 1968, Card et al. 1991, Nielsen 1993); the magnet's tests (snap, held,
+  let go, palm on the shaft) pass unchanged.
+- [x] NA4 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
+  EVIDENCE: run_par -j 8, C:/Temp/r49_na: 172/173, the one FAIL say_next (3 new layer refusals named no next step,
+  2 new success messages unlisted); fixed, say_next PASS, and layers / layer_merge / agent_tools re-run PASS (the
+  changed messages' readers). agent_tools' golden transcript regenerated: the only change is the 8 new layer commands
+  in the listing, nothing removed. Nick's files untouched (scenes/bo_sweep.json deletion, axe_strike_pose.json,
+  exports/, walk_bat.gif/sheet left unstaged as found).
+- [ ] NA5 (Nick 10-18, "an action chunk so it can target the next move with less noise"): the video import's per-frame
+  jitter. MediaPipe fits every frame alone; a One Euro filter (Casiez, Roussel, Vogel, CHI 2012) on the landmarks before
+  the fit, and a windowed fit (the chunk idea, offline). Bars: jitter (frame-to-frame acceleration of the wrists and
+  head) on the walk_bat track before / after, stated in cm/s^2; a strike's peak tip speed kept within 5 %.
