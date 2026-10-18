@@ -470,6 +470,36 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   cast was null and the margin 0: the bar could run up to 10 px off the window. It now walks up to the nearest
   PanelContainer. The test now prints WHAT is off the window (it failed naming nothing).
 
+## Round 42: ten agents again (GATES XX; UPGRADES_300 #240-#333) + Nick's walk arm
+- NICK'S BUG (10-17, "the arm literally rotate to inside body pointing backwards"): walk_bat's bat arm was raised
+  72-81 deg with the elbow 21-27 cm ABOVE the wrist, forearm pointing back into the chest (idle_bat the same, 89 deg).
+  Body.sweep_bat_arm scored only wrist, aim, roll, contacts: the elbow was free. Body.elbow_low (plan "elbow_low", 0 =
+  off, every other plan cooks as before) keeps the elbow under the wrist; now raised 1-10, elbow 9 cm under, forearm
+  forward. tests/walk_arm_test.gd. Fingerprint now e74213bb9e6917b9d997704d62203396 (only those two scenes changed).
+- Body.decompose: 2 atan2(|v|, w), not 2 acos(w) (WW7's finding): tiny swings no longer read 0. tests/decompose_test.gd.
+- XX1 KEY INTERPOLATION (part_keys.gd): per-key constant/linear/bezier, handles auto_clamped (PCHIP, the default; old
+  keys bit-identical) / auto / vector / aligned / free, per-joint infinity hold/linear/cycle/cycle_offset (stored on
+  the joint's first key). Registry "Part key: ..." commands, picked part's key within 0.05 s of the playhead.
+- XX2 CURVE EDITOR (curve_editor.gd): "Curve editor" draws the picked part's keys as X/Y/Z curves; drag = one undo step,
+  whole frames, clamped to limits and neighbours. Overlaps the speed graph when both are open.
+- XX3 DOPE SHEET (dope_sheet.gd): cards row + 8 part-group rows of diamonds; card["ktype"] key/breakdown/moving_hold/
+  extreme (a mark only, saved only when not "key"); drag a card diamond to retime. Timeline + sheet share _retime_*.
+- XX4 BREAKDOWNER (breakdowner.gd): true per-joint slerp between neighbour cards, Shift+E slider -50..150 %, 25/50/75 %;
+  paste flipped on selected parts / at 50 %.
+- XX5 FOOT ROLL (foot_roll.gd): heel / ball / toe pivots, drift <= 0.018 mm. Push-off ankle -15..-20 is UNVERIFIED.
+- XX6 LOOK-AT (look_at.gd): neck + head aim the gaze (the body has no eyes); head/eye split from Freedman & Sparks 1997,
+  RHESUS data. Chin-to-chest targets stop short at contacts.
+- XX7 MOCAP CLEAN (mocap_clean.gd): foot lock in contacts (creep 3.8 -> 0.71 cm), pop / 360 flip finder.
+- XX8 GAIT (Check rule): step/height, cadence, arm swing, arm-leg phase vs real walkers (PEOPLE.md). FINDING:
+  walk_bat steps 0.30 m = 0.176 of height against 0.415 for real walkers -> WARN. Nick's scene: not re-cooked unasked.
+- XX9 USD (usd_export.gd, tools/export_usd.gd): exports/<scene>.usda as UsdSkel; read back by our own parser only (no
+  pxr here). XX10 SHADING: "Shading: next" solid/matcap/silhouette/x-ray; playback shows real fps and dropped frames.
+- Lead fixes at merge: --shot forces the strip's line (a throttled 400 ms header made determinism flaky: 3.15 vs 3.45
+  s); "inbetween" search exact keywords; undo_audit skips the .usda export (it wrote exports/combo3.usda into the repo).
+- Lessons: an agent must run undo_audit + command_search even with "no new command" (two missed it); confirm_test needs
+  scenes/_wip, absent in fresh worktrees (agents reported "hangs"); killed test processes leave poser_test_<pid>.cfg in
+  app_userdata - clean them at the end of a round.
+
 ## Round 41: ten agents in parallel worktrees (GATES WW; UPGRADES_300 sections M-V first items)
 - Built in .claude/worktrees/<key> on branches r41-<key>, merged --no-ff by the lead; .claude/.gdignore keeps Godot
   out of them. Lessons: an agent must never taskkill every Godot (one did; the others' runs died); a test must not open

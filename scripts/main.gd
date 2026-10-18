@@ -1300,6 +1300,8 @@ func _ready() -> void:
 		var path: String = args[i + 1]
 		while not _pv_job.is_empty():   # --hover-fix: a preview being worked out is part of the picture
 			await get_tree().process_frame
+		_doc_line(true)   # the strip's length is throttled (400 ms): a shot taken inside the window showed the length
+		# from before the scene settled (walk_bat 3.15 s in one shot, 3.45 s in the next; tests/py/determinism.py, round 42)
 		await get_tree().process_frame
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
@@ -5038,7 +5040,7 @@ func _commands() -> Array:
 	add.call("Blend to rest pose", "", _inbetween.bind("rest"), "straight zero", true, "the selected parts (else the whole body) 25% of the way to the straight pose")
 	add.call("Blend to previous card", "Shift+Alt+E", _inbetween.bind("prev"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card before")
 	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
-	add.call("Add an in-between card", "", _tween_add, "tween", true, "a new card halfway between the picked card and the next")
+	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Preview range: start at the playhead", "", _pv_set.bind("in", -1.0), "in point loop section", false, "Play and Loop run only between the in and out points (a view setting: never saved, not an undo step). Also Shift+click on the ruler")

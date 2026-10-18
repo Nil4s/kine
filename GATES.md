@@ -1312,8 +1312,15 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   (bar 1); pop and flip found once each at their frames; clean walk_bat 0 / 0. Thresholds (3 cm, 0.2 m/s, 1500 deg/s)
   are the agent's, said so; FOOT SLIDE 2.5 cm bar is Karunratanakul 2023. Stubs FAIL 7 / 4 / 2. The release moves the
   whole creep into one frame (4.2 cm in the test) - noted, not fixed.
-- [ ] XX8 GAIT BARS (#333): a Check rule on walks: step length against height, cadence, arm swing. Bars from real
+- [x] XX8 GAIT BARS (#333): a Check rule on walks: step length against height, cadence, arm swing. Bars from real
   walking data (source checked); walk_bat measured and printed against them; a stub makes the rule test FAIL.
+  EVIDENCE: tests/gait_test.gd (h) 16 ok, re-run by the lead in the XX11 full run (C:/Temp/r42_full2, 142/142). People walk
+  0.415 of height / 108 per min / 30 deg gives no finding; half cadence -> "cadence 54"; 2x step -> "steps 0.83"; 9
+  shipped non-walk scenes 0 findings. Stub (agent): rule_gait -> [] FAIL 4. REAL PEOPLE: step 0.415 +- 0.038 of height
+  at 1.33 m/s (PMID 19502061, full text PMC3199953); cadence 105.5 +- 5.2 (PMID 29775941), 108 +- 7 (PMID 41879248); arm
+  swing ~25-33 deg peak to peak (PMID 40291287, 23236504); arms out of phase, 1:1 with legs (PMID 15351887, abstract).
+  Bars ~3 SD (step 0.30-0.55 H, cadence 75-135, arm 10-60 deg) are the agent's. FINDING: walk_bat steps 0.30 m = 0.176
+  of height, WARN (cadence 120, arm 27 deg, r -0.57): its steps are far shorter than real walkers'; bar not loosened.
 - [x] XX9 USD EXPORT (#327): the skeleton animation as USDA text (UsdSkel). Bars: it parses back (our reader) to the
   same joint rotations within 1e-4 deg; usdcat / pxr checks it if installed (said if not).
   EVIDENCE: tests/usd_export_test.gd (h) 13 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). Read back by its own USDA parser: rotations worst 3.1e-5 deg (combo3)
@@ -1327,5 +1334,15 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   full cycle differs by 0 pixels; matcap 38944 / x-ray 47304 pixels differ from solid; 60 frames of 1/60 s + one 100 ms
   frame = exactly 1 dropped, 55.385 fps; a real playback reads "playing 58.4 fps, ...". Stub FAIL 6 (silhouette 1144
   colours). Not saved, not undo. Not fixed: no ribbon button; a theme switch needs another "Shading: next".
-- [ ] XX11 MERGED: every branch in, all suites PASS (run_par -j 8), house checks, no leftovers, README_AI Round 42,
+- [x] XX11 MERGED: every branch in, all suites PASS (run_par -j 8), house checks, no leftovers, README_AI Round 42,
   committed, worktrees removed.
+  EVIDENCE: all ten branches merged into poser-ui-rounds (one main.gd conflict, interp vs curveed: both sides kept);
+  --import + parse check clean; run_par -j 8 SUITES 142/142 PASS, 468 s (C:/Temp/r42_full2). The first full run was
+  140/142 and both were real: (1) search_forgive: "inbetween" ranked the three Breakdowner commands over "Add an
+  in-between card" -> exact keywords added; (2) determinism: walk_bat shot rendered two ways - the strip's length is
+  throttled (400 ms), so a --shot could show 3.15 s (stale) instead of 3.45 s; --shot now forces _doc_line(true).
+  Proven: 8 parallel shots with the fix 8x 15d2651588 (3.45 s, = the timeline); with it stubbed 8x 53ac6ecd6b (3.15 s);
+  restored, diff -q clean. Also: undo_audit ran "Export animation (.usda)" for real and wrote exports/combo3.usda into the
+  repo (XX9 never ran undo_audit) -> SKIP entry, file untracked, no exports/ after a rerun. House: fingerprint
+  e74213bb9e6917b9d997704d62203396 (changed this round only by Nick's walk_bat/idle_bat fix); 0 zz_ files; app_userdata
+  clean after removing 56 per-pid leftovers + zz_mc from agents' timed-out runs (all older than the clean run).
