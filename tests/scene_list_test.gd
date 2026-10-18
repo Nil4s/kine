@@ -1,7 +1,7 @@
 ## godot --path . -s tests/scene_list_test.gd     (GATES P1; needs a window)
 ## (a) the scene dropdown shows the OPEN scene after every way of opening one (start-up --scene, Open, a scene saved
-##     under a new name), and an open scene that is not in the list (scenes/_wip) leaves NOTHING picked, so "Delete
-##     scene" cannot trash a different scene than the one on screen (it trashes the dropdown's pick).
+##     under a new name), a work copy in scenes/_wip included (listed since round 45, marked "work copy"), so "Delete
+##     scene" (it trashes the dropdown's pick) can only hit the scene on screen; with nothing picked it refuses.
 ## (b) the right panel's title names the weapon in the hand (staff, long hammer), not "METAL BAT" for all of them.
 extends SceneTree
 
@@ -32,7 +32,22 @@ func _init() -> void:
 		ok(shown() == p, "opened %s -> the dropdown shows '%s'" % [p.get_file(), shown().get_file()])
 	m._load_scene("res://scenes/_wip/combo3_detail.json")
 	await process_frame
-	ok(shown() == "", "opened a _wip scene (not in the list) -> nothing picked ('%s'), so Delete cannot hit another scene" % shown().get_file())
+	var wl := ""
+	for i in m.ui_scenes.item_count:
+		if String(m.ui_scenes.get_item_metadata(i)).ends_with("_wip/combo3_detail.json"):
+			wl = m.ui_scenes.get_item_text(i)
+	ok(shown() == "res://scenes/_wip/combo3_detail.json" and wl.ends_with("(work copy)"),
+		"opened a work copy -> the dropdown shows it ('%s', listed as '%s'), so Delete's pick is the scene on screen" % [shown().get_file(), wl])
+	# a work copy WRITTEN after the list was read (as an import, a mirror, a polish write and open theirs): opening it
+	# lists it and picks it (round 45: Nick's video import "doesn't show on open scene")
+	var fresh := "res://scenes/_wip/zz_scene_list_fresh.json"
+	DirAccess.copy_absolute(ProjectSettings.globalize_path("res://scenes/_wip/combo3_detail.json"), ProjectSettings.globalize_path(fresh))
+	m._load_scene(fresh)
+	await process_frame
+	ok(shown() == fresh, "a work copy written after the list was read, opened -> listed and shown ('%s')" % shown().get_file())
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(fresh))
+	m._lists()
+	m.ui_scenes.select(-1)
 	m._delete_scene()
 	# a press only ASKS (round 11: a dialog; before, a second press), so "the files are still there" would pass with
 	# the bug: the check is that Delete REFUSES (it has nothing picked), before any dialog

@@ -90,6 +90,11 @@ const KINDS := {
 	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false},
 	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true},
 	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true},
+	## round 45 (AA3, Nick 10-18's video: "a Viking with a double headed axe"): a Dane axe's combat haft is "between
+	## approx. 0.9 and 1.2 m", its cutting edge "generally between 20 and 30 cm", 1-2 kg (en.wikipedia.org/wiki/Dane_axe,
+	## read 10-18). The long end of the haft; a bit each side of the tip, 15 cm out, 6 cm round (a 12 cm edge drawn as a
+	## capsule: the head is a stand-in shape, the length and the reach are the reference's)
+	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true},
 }
 var wep_kind := "metal_bat"
 ## the SECOND hand's fitted grip for this kind (data/grips/<kind>.json "second", from Nick's pose by
@@ -508,8 +513,8 @@ func weapon_to_hand(h: String) -> void:
 		slide_in_hand(0.6)
 		grip = true
 		grip_u = 1.2
-	elif not own and wep_kind == "long_hammer":
-		# no hammer grip yet: the bat hand at the butt, the other hand 40 cm up (a sledge hold)
+	elif not own and wep_kind in ["long_hammer", "long_axe"]:
+		# no hammer / axe grip yet: the bat hand at the butt, the other hand 40 cm up (a sledge hold)
 		grip = true
 		grip_u = 0.4
 

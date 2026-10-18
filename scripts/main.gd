@@ -2617,7 +2617,7 @@ func _bat_put(h: String) -> void:
 ## ONE WEAPON PICKER (round 25, GATES FF1, Nick 10-16: "weapons could be a drop down list so it looks cleaner"): the
 ## same dropdown in both panels; picking = what the old buttons did (one undo step); _refresh makes every picker show
 ## what the body holds, whatever changed it (B, undo, a scene, the search); select() does not fire item_selected
-const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "0.84 m"], ["Bo staff", "staff", "1.8 m"], ["Long hammer", "long_hammer", "1.1 m"], ["Dagger", "dagger", "0.30 m"], ["2 daggers", "two_daggers", "0.3 m"]]
+const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "0.84 m"], ["Bo staff", "staff", "1.8 m"], ["Long hammer", "long_hammer", "1.1 m"], ["Long axe", "long_axe", "1.2 m"], ["Dagger", "dagger", "0.30 m"], ["2 daggers", "two_daggers", "0.3 m"]]
 var ui_weapon_pickers: Array[OptionButton] = []
 
 
@@ -2877,6 +2877,7 @@ func _kind(k: String) -> void:
 	sel = "bat_handle"
 	_say({"metal_bat": "metal bat (0.84 m)", "staff": "staff / bo (1.8 m): slide your hand along it with , and .  and put the other hand on with G, [ ]",
 		"long_hammer": "long hammer (1.1 m, steel head across the tip): G for both hands, [ ] to slide the other hand",
+		"long_axe": "long axe (1.2 m haft, a Dane axe's): G for both hands, [ ] to slide the other hand. Import a video now and he holds it in both",
 		"dagger": "dagger (0.30 m, one hand)"}[k])
 
 
@@ -4200,6 +4201,8 @@ func _ui() -> void:
 	ui_scenes.name = "opt_scene"
 	ui_scenes.focus_mode = Control.FOCUS_NONE
 	ui_scenes.custom_minimum_size = Vector2(170, 0)
+	ui_scenes.fit_to_longest_item = false   # round 45: a long work-copy name pushed the play row off a 1280 window
+	ui_scenes.clip_text = true
 	ui_scenes.item_selected.connect(_scene_picked)   # V3: picking a scene opens it (asks first if this one has unsaved changes)
 	bh.add_child(ui_scenes)
 	bh.add_child(_button("Open scene", func():
@@ -4545,7 +4548,9 @@ func _lists() -> void:
 	if ui_browser != null:
 		ui_browser.refresh()
 	ui_scenes.clear()
-	for dir in ["res://scenes", "res://moves"]:
+	# round 45 (Nick 10-18: his video import "doesn't show on open scene"): the work copies in scenes/_wip (imports,
+	# mirrors, polishes) are listed too, marked; opening one picks it, so Delete still trashes only the scene on screen
+	for dir in ["res://scenes", "res://moves", "res://scenes/_wip"]:
 		var d := DirAccess.open(dir)
 		if d == null:
 			continue
@@ -4555,13 +4560,17 @@ func _lists() -> void:
 			var path: String = dir + "/" + f
 			var txt := FileAccess.get_file_as_string(path)
 			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
-				ui_scenes.add_item(f.get_basename().replace("_", " "))
+				ui_scenes.add_item(f.get_basename().replace("_", " ") + ("   (work copy)" if dir.ends_with("_wip") else ""))
 				ui_scenes.set_item_metadata(ui_scenes.item_count - 1, path)
 	_show_open_scene()
 
 
 ## the dropdown shows the scene that is OPEN (round 9: it kept showing the first file, and Delete scene trashes the
-## dropdown's pick, not the open scene). An open scene that is not listed (scenes/_wip) = nothing picked.
+## dropdown's pick, not the open scene). An open scene that is not listed = nothing picked (scenes/_wip is listed
+## since round 45, marked "work copy").
+var _relisting := false
+
+
 func _show_open_scene() -> void:
 	if ui_scenes == null:
 		return
@@ -4569,6 +4578,11 @@ func _show_open_scene() -> void:
 	for i in ui_scenes.item_count:
 		if ui_scenes.get_item_metadata(i) == scene_path:
 			ui_scenes.select(i)
+	# a scene written since the list was read (an import, a mirror, a polish: each opens its new file): read it again
+	if ui_scenes.selected < 0 and not _relisting and scene_path.begins_with("res://") and FileAccess.file_exists(scene_path):
+		_relisting = true
+		_lists()
+		_relisting = false
 
 
 # ---------------------------------------------------------------- the right panel
@@ -5334,6 +5348,7 @@ func _commands() -> Array:
 	add.call("Weapon: metal bat", "", _do.bind(_kind.bind("metal_bat")), "", true, "switch the weapon to the metal bat (0.84 m)")
 	add.call("Weapon: bo staff", "", _do.bind(_kind.bind("staff")), "", true, "switch the weapon to the bo staff (1.8 m)")
 	add.call("Weapon: long hammer", "", _do.bind(_kind.bind("long_hammer")), "", true, "switch the weapon to the long hammer (1.1 m)")
+	add.call("Weapon: long axe", "", _do.bind(_kind.bind("long_axe")), "viking dane axe two handed", true, "switch the weapon to the long axe (1.2 m, a bit each side of the tip)")
 	add.call("Weapon in right hand", "B", _do.bind(_bat_put.bind("hand_r")), "bat", true, "the weapon into the right hand with its standard grip")
 	add.call("Weapon in left hand", "", _do.bind(_bat_put.bind("hand_l")), "bat", true, "the weapon into the left hand with its standard grip")
 	add.call("Remove the weapon", "", _do.bind(_bat_remove), "bat none", true, "take the weapon away")
@@ -7305,7 +7320,9 @@ func _import_pose(path: String, from := "") -> String:
 		_say("could not import %s: %s; pick a pose file the tracker wrote, or a video" % [(from if from != "" else path.get_file()), P["why"]])
 		return ""
 	var keep := B.state()
-	var fitted := VideoImport.solve(B, P["frames"])
+	# AA3: the weapon in his hand now (any but a dagger) is the one he holds in the video, in both hands
+	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
+	var fitted := VideoImport.solve(B, P["frames"], held)
 	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
 	var r := MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
 	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
@@ -7323,7 +7340,8 @@ func _import_pose(path: String, from := "") -> String:
 	_load_scene(out)
 	_rebuild_cards()
 	_refresh()
-	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked). The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"])])
+	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"]),
+		(", the %s in both hands" % held.replace("_", " ")) if held != "" else ". Holding a weapon in the video? Pick it first (Weapon: long axe ...), then import: he holds it in both hands"])
 	return out
 
 

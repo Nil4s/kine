@@ -500,6 +500,11 @@ func blend(a: Dictionary, b: Dictionary, u: float, kind := "") -> Dictionary:
 	if not w.is_empty() and not wb.is_empty():
 		w = w.duplicate()
 		w["grip"] = bool(a["weapon"].get("grip", false)) and bool(wb.get("grip", false))
+		# and while it holds at both ends, it SLIDES from one card's place on the shaft to the next (round 45, AA3: it
+		# stayed at the first card's place and jumped at the next; between the video axe clip's cards that put the
+		# hands up to 31 cm off where the tracker had them, against 7 cm on the cards themselves)
+		if w["grip"] and w.has("grip_m") and wb.has("grip_m"):
+			w["grip_m"] = lerpf(float(a["weapon"]["grip_m"]), float(wb["grip_m"]), eb)
 	return {"offset": (a["offset"] as Vector3).lerp(b["offset"], eh), "ang": ang, "weapon": w,
 		"weapon2": Body.wep2_mix(a.get("weapon2", {}), b.get("weapon2", {}), eb)}
 

@@ -79,8 +79,11 @@ func _init() -> void:
 	# every scene: nothing written, the same motion
 	var n := 0
 	var bad := []
+	# the bundled scenes (refs/shipped_scenes.txt): a scene Nick saves (a video import eases linearly) is not this sweep's
+	var shipped := FileAccess.get_file_as_string("res://refs/shipped_scenes.txt").split("
+", false)
 	for f in DirAccess.get_files_at("res://scenes"):
-		if not f.ends_with(".json"):
+		if not f.ends_with(".json") or not f in shipped:
 			continue
 		var d = JSON.parse_string(FileAccess.get_file_as_string("res://scenes/" + f))
 		if not d is Dictionary:

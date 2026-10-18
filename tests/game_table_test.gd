@@ -74,8 +74,12 @@ func _init() -> void:
 	await process_frame
 	B = m.B
 	var names := []
+	# the bundled scenes (refs/shipped_scenes.txt), not whatever Nick saves next to them (a video import keeps the real
+	# person's foot slide and linear eases)
+	var shipped := FileAccess.get_file_as_string("res://refs/shipped_scenes.txt").split("
+", false)
 	for f in DirAccess.get_files_at("res://scenes"):
-		if f.ends_with(".json") and not f.begins_with("zz_"):
+		if f.ends_with(".json") and not f.begins_with("zz_") and f in shipped:
 			names.append(f.get_basename())
 	names.sort()
 	var all_in := true

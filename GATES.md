@@ -1573,6 +1573,36 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   (58.0). Policy suites caught the new code: confirm (two new file-writing functions had no write policy) and say_next
   (5 messages without a next step); both fixed. Suite: run_par -j 8, 155/155 PASS (C:/Temp/r45_aa2c). Screenshots sent.
 
+- [x] AA3 HIS WEAPON IN BOTH HANDS (Nick 10-18, on a real video he picked: Matthew Thomas-Robinson, "Viking Locomotion -
+  Double Handed Axe", YouTube 4FEz6g_l7kg, 13.5-25.5 s: "we are only missing the two handed long axe he's using"). Pick
+  the weapon, then import: he holds it in both hands, the hands where the tracker saw them. Bars on MediaPipe's own
+  wrist-to-wrist distance; a stub fails each.
+  EVIDENCE (tests/video_grip_test.gd, video_grip:h; refs/video/axe_strike_track.json = the tracker's landmarks, 300
+  frames, no video kept). FOUND first: imported bare, the hands drifted apart: Poser's wrists 4-37 cm wider than
+  MediaPipe's at 8 moments (the fit keeps each arm's DIRECTION on our own shoulders and arm lengths, so two arms aimed
+  at one point land apart). BUILT: Weapon: long axe (Body.KINDS: haft 1.2 m, the long end of a Dane axe's combat haft
+  "approx. 0.9 and 1.2 m", edge "20 and 30 cm", en.wikipedia.org/wiki/Dane_axe read 10-18; a bit each side of the tip as
+  the video's description says, "a double headed axe"; the long hammer's sledge hold); VideoImport.solve(B, frames, held):
+  the bat hand (right, at the butt) aims the shaft along MediaPipe's right->left wrist line (closer than 10 cm: the last
+  frame's), the other hand holds it at MediaPipe's spacing (G), every card carries the weapon. 1 the kind and its
+  command; 2 DENSE |median| 0.043 m, |p90| 0.064 (bars 0.06 / 0.10), the bare control 0.105 (> 0.08), 300 of 300 cards
+  hold it in both hands; 3 SPARSE (61 cards, what the import keeps) on the cards 0.046 (bar 0.06), between 0.064 (bar
+  0.08), between p90 0.231 REPORTED: the two arms blend separately between the keys of a fast swing, the price of 6
+  editable cards a second (dense 0.064); 4 FOUND on the way and fixed in Scene.sample: between two cards that both hold
+  it the second hand stayed at the first card's place on the shaft and jumped at the next; it now SLIDES (grip_m half
+  way at the move's middle: 0.500); that took the between-card p90 from 0.31 to 0.23 m; 5 the import 11.2 s with the axe
+  against 7.2 s bare (bar 2.5x; FOUND: the hold ran with the full contact search, 136 s, until it ran in B.fast as the
+  fit does). STUBS: the hold removed -> FAIL 2, 3 (|median| 0.157 dense); the slide removed -> FAIL 4 only (0.300). The
+  serve transcript golden re-recorded: only line 1 changed, by the new weapon_long_axe command.
+  ALSO (Nick 10-18, after trying it): "it doesn't show on open scene": the Open scene list now lists scenes/_wip
+  (imports, mirrors, polishes) marked "(work copy)" and re-reads itself when a new file opens (scene_list_test: a
+  copy written after the list was read is listed and picked; stub -> FAIL); the dropdown no longer widens to its
+  longest name (a long work-copy name pushed the play row off a 1280 window: small_window and ui_scale FAILED, now
+  pass). Nick saved his edit as scenes/axe_strike_pose.json; three sweeps (ease, game_table, plant_edges) read EVERY
+  scene in scenes/ and failed on it (linear eases, the real person's 13 cm foot slide): they now read the bundled
+  list refs/shipped_scenes.txt (10 scenes), so a scene Nick saves cannot fail the suite. Nick's v0 hand standard
+  (both fists' 30 finger joints, the left wrist twist -80) copied to his 61 cards, as he asked.
+
 ## ROUND 46 (BB): AN AI ANIMATES IN THE APP, MONKEY STYLE. Nick 10-18: "we could push airllm locally first, and inside of
 ## it we can push a bigger model, but the goal is a model like you or gpt or gemini be able to do it here as well, with the
 ## ai monkey style I suggested early" (round 3: "so a monkey can create an animation with ease"). Nick: "go ahead, finish

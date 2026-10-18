@@ -357,15 +357,26 @@ static func _rest_n(B: Body, mid: String) -> Vector3:
 
 ## every frame fitted: [{"t", "ang": {joint: Vector3}, "offset": Vector3}], the travel rebuilt from the stance foot and the
 ## lower sole put on the floor
-static func solve(B: Body, frames: Array) -> Array:
+static func solve(B: Body, frames: Array, held := "") -> Array:
 	# pass 1: every frame's pose, and each foot's two pivots (the heel's back, the toe joint: people roll over the heel,
 	# then over the toes) with the hips at 0
 	var poses := []
 	var pivs := []
+	var grips := []
+	var d_prev := Vector3.ZERO
+	if held != "":
+		B.set_kind(held)
+		B.weapon_to_hand("hand_r")
 	for f in frames:
 		fit(B, f["w"])
+		if held != "":
+			var was := B.fast
+			B.fast = true   # as fit: limits only, no contact search per turn (136 s -> seconds on the 300-frame axe clip)
+			d_prev = _hold(B, f["w"], d_prev)
+			B.fast = was
+			grips.append(B.grip_u)
 		var a := {}
-		for j in Body.BODY:
+		for j in Body.BODY + (Body.FINGERS if held != "" else []):
 			a[j] = B.ang[j]
 		poses.append(a)
 		var piv := {}
@@ -404,8 +415,37 @@ static func solve(B: Body, frames: Array) -> Array:
 		B.offset = root
 		B.fk()
 		B.ground()
-		out.append({"t": frames[i]["t"], "ang": poses[i], "offset": B.offset})
+		var fr := {"t": frames[i]["t"], "ang": poses[i], "offset": B.offset}
+		if held != "":
+			B.grip_u = grips[i]
+			var x := B.wep_xform()
+			fr["weapon"] = {"kind": B.wep_kind, "length": B.wep_len, "hand": B.wep_hand, "knob": Body._p(x[0]), "rot": Body._q(x[1]),
+				"local_pos": Body._p(B.wep_lpos), "local_rot": Body._q(B.wep_lrot), "two_hand_grip": true, "grip_m": grips[i]}
+		out.append(fr)
 	return out
+
+
+## HIS WEAPON IN BOTH HANDS (round 45, GATES AA3; Nick 10-18's axe video: "we are only missing the two handed long axe
+## he's using"). The tracker sees no weapon, but it sees both wrists on it: the shaft runs from the bat hand (the right,
+## at the butt: the sledge hold Body gives a long hammer or axe) through the other wrist, and the other hand holds it as
+## far up as the tracker put that wrist. The fit alone kept each arm's DIRECTION on our own shoulders and arm lengths, so
+## two arms aimed at one point landed apart: on the axe clip it spread the wrists 4-37 cm wider than MediaPipe had them.
+## Wrists nearer than GRIP_MIN give no direction (a line through two points 10 cm apart, each a few cm off): the last
+## frame's is kept. Returns the shaft's direction
+const GRIP_MIN := 0.10
+static func _hold(B: Body, w: Array, d_prev: Vector3) -> Vector3:
+	var a: Vector3 = w[WR["_r"]]
+	var b: Vector3 = w[WR["_l"]]
+	var sp := a.distance_to(b)
+	var d := (b - a) / sp if sp >= GRIP_MIN else d_prev
+	if d == Vector3.ZERO:
+		d = (a - (w[EL["_r"]] as Vector3)).normalized()   # nothing yet: along the forearm
+	B.aim_weapon(d)
+	var u0 := B.hold_u()
+	B.grip = true
+	B.grip_u = clampf(u0 + sp, u0 + 0.08, B.wep_len - 0.12)
+	B.apply_grip()
+	return d
 
 
 ## the fitted frames -> a Scene, one card per frame (exact) or a card every `every` frames (BvhImport's rule), linear and
@@ -433,7 +473,10 @@ static func to_scene(B: Body, fitted: Array, fps: float, every := 1, scene_name 
 			var v: Vector3 = fr["ang"][j]
 			jd[j] = {"bend": v.x, "side": v.y, "twist": v.z}
 		var o: Vector3 = fr["offset"]
-		S.add("v%d" % i, {"joints": jd, "offset": [o.x, o.y, o.z]})
+		var pose := {"joints": jd, "offset": [o.x, o.y, o.z]}
+		if fr.has("weapon"):
+			pose["weapon"] = fr["weapon"]
+		S.add("v%d" % i, pose)
 		var c: Dictionary = S.cards[-1]
 		c["move"] = float(fr["t"]) - float(fitted[prev]["t"]) if i > 0 else -1.0
 		c["hold"] = 0.0

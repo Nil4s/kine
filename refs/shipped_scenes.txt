@@ -1,0 +1,10 @@
+bo_spin.json
+combo3.json
+dodge_side.json
+hit_react.json
+idle_bat.json
+strike_legs.json
+swing_back.json
+swing_fore.json
+thrust.json
+walk_bat.json
