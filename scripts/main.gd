@@ -4943,6 +4943,7 @@ func _commands() -> Array:
 	add.call("Time readout: seconds or frames", "", _toggle_frames, "timecode f s display", false, "flip the time readout between seconds and frames (a click on the readout does it too); a view setting")
 	add.call("Frame rate: next (24 / 30 / 60)", "", _fps_next, "fps film smooth", true, "the scene's frame rate steps 24, 30, 60 and round; every card keeps its seconds (the text says how many are then off a whole frame)")
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
+	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
@@ -5663,6 +5664,25 @@ func _loop_close() -> void:
 	_ps().apply(B, playhead)
 	_refresh()
 	_say("the last card is now a copy of the first: the loop's end meets its start. Check grades the speed across it too.")
+
+
+## CLEAN UP MOCAP (round 42, GATES XX7): the work is in scripts/mocap_clean.gd. Needs a card per frame.
+func _mocap_clean() -> void:
+	if S.cards.size() < 8:
+		_say("this scene has %d cards: clean-up reads a card per frame, like a .bvh import. Drop a .bvh on the window, or open an imported scene" % S.cards.size())
+		return
+	_push_undo()   # taken first, dropped again if nothing changed
+	var r := MocapClean.clean(S, B, {})
+	if int(r["locked"]) + int(r["repaired"]) == 0:
+		undo.pop_back()
+		_ps().apply(B, playhead)
+		_say("%s. Nothing to plant or mend: no standing foot and no pop in this scene. Press Check for the other rules" % r["text"])
+		return
+	check_ran = false
+	_rebuild_cards()
+	_ps().apply(B, playhead)
+	_refresh()
+	_say("%s. One Ctrl+Z puts it back" % r["text"])
 
 
 func _card_rename(i: int, nm: String) -> void:
