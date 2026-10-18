@@ -2032,6 +2032,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_step_hint = "Blend to previous card" if k.shift_pressed else "Relax to the in-between"
 			_inbetween("prev" if k.shift_pressed else "relax")
 			return
+		if k.shift_pressed and not k.ctrl_pressed and not k.alt_pressed and k.keycode == KEY_E:   # Shift+E the breakdowner slider (XX4)
+			_step_hint = "Breakdowner"
+			_breakdowner_popup()
+			return
 		var combo: String = ("Ctrl+" if k.ctrl_pressed else "") + ("Shift+" if k.shift_pressed else "") + KEY_WORD.get(k.keycode, OS.get_keycode_string(k.keycode))
 		for c in ui_cmd.commands:
 			if c["keys"] == combo:
@@ -4895,6 +4899,9 @@ func _commands() -> Array:
 	add.call("Copy pose", "Ctrl+C", _copy_pose, "clipboard", false, "remember the body's pose (every angle, the hips, and the weapon in its hand) to paste on another card; pasted mirrored, the weapon goes to the other hand")
 	add.call("Paste pose", "Ctrl+V", _paste_pose.bind(""), "clipboard", true, "the copied pose onto the body (Update keeps it on the card)")
 	add.call("Paste pose mirrored", "Ctrl+Shift+V", _paste_pose.bind("mirrored"), "clipboard flip left right", true, "the copied pose reflected left <-> right")
+	add.call("Paste flipped, selected parts", "", _paste_flipped.bind(1.0, true), "clipboard flip left right group only", true, "the copied pose reflected left <-> right, on the selected parts only (every other joint stays)")
+	add.call("Paste flipped 50%", "", _paste_flipped.bind(0.5, false), "clipboard flip left right blend half", true, "the copied pose reflected, half of the way from the current pose (angles only)")
+	add.call("Paste flipped 50%, selected parts", "", _paste_flipped.bind(0.5, true), "clipboard flip left right blend half group", true, "half of the way to the reflected copied pose, on the selected parts only")
 	add.call("Paste to this part", "", _paste_pose.bind("part"), "clipboard arm leg only", true, "the copied pose on the picked part and the parts below it only (an arm, a leg)")
 	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "flip", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
@@ -4912,6 +4919,10 @@ func _commands() -> Array:
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
+	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
+	add.call("Breakdowner 50%", "", _breakdowner.bind(0.5), "slerp neighbour tween halfway", true, "the picked card's pose (selected parts, else the whole body) halfway between the card before and the card after, joint by joint")
+	add.call("Breakdowner slider", "Shift+E", _breakdowner_popup, "slerp neighbour tween slider overshoot", false, "opens a slider: the picked card between the card before (0) and after (1), joint by joint; past the ends overshoots (-50% to 150%)")
+	add.call("Breakdowner 75%", "", _breakdowner.bind(0.75), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) three quarters of the way from the card before to the card after")
 	add.call("Push from the in-between", "Ctrl+E", _inbetween.bind("push"), "breakdown exaggerate tween", true, "the picked card's pose (the selected parts, else the whole body) moves 25% AWAY from the mix of its two neighbours; stops at joint limits and says so")
 	add.call("Relax to the in-between", "Alt+E", _inbetween.bind("relax"), "breakdown soften tween", true, "the picked card's pose moves 25% TOWARD the mix of its two neighbours (the selected parts, else the whole body)")
 	add.call("Blend to rest pose", "", _inbetween.bind("rest"), "straight zero", true, "the selected parts (else the whole body) 25% of the way to the straight pose")
@@ -5124,6 +5135,25 @@ func _paste_pose(how: String) -> void:
 		return
 	_do(func(): B.pose_paste(pose_clip, how == "mirrored", B.below(sel) if how == "part" else []))
 	_say({"": "pose pasted", "mirrored": "pose pasted, mirrored", "part": "pasted to the %s and below" % nice(sel)}[how] + ".  Ctrl+Z undoes; Update keeps it on the card")
+
+
+## PASTE FLIPPED WITH OPTIONS (round 42, GATES XX4, #282): the copied pose reflected, on the selected parts only and/or
+## at a factor; logic in breakdowner.gd; one undo step
+func _paste_flipped(f: float, selected_only: bool) -> void:
+	if pose_clip.is_empty():
+		_say("nothing copied yet: press Ctrl+C on the pose you want first, then paste it flipped here")
+		return
+	if selected_only and group().size() < 2 and not sel in Body.ORDER:
+		_say("pick a body part first (Ctrl+click for more): the flipped paste goes to the selected parts only")
+		return
+	var js: Array = group().filter(func(j): return j in Body.ORDER) if selected_only else []
+	_push_undo()
+	var n := Breakdowner.paste(B, pose_clip, true, js, f)
+	if S.on_floor:
+		S._ground(B)
+	B.apply_grip()
+	_refresh()
+	_say("pose pasted flipped %d%% on %s: %d joints moved.  Ctrl+Z undoes; Update keeps it on the card" % [round(f * 100.0), "%d parts" % js.size() if selected_only else "the whole body", n])
 
 
 func _tool(id: int) -> void:
@@ -5548,6 +5578,52 @@ func _inbetween(op: String) -> void:
 	B.apply_grip()
 	_refresh()
 	_say(Inbetween.describe(op, Inbetween.FACTOR, r, "%d parts" % js.size() if group().size() > 1 else "the whole body"))
+
+
+## BREAKDOWNER (round 42, GATES XX4, #278): logic in breakdowner.gd. _bd_armed keeps a slider drag to ONE undo step
+var _bd_armed := false
+var _bd_pop: PopupPanel = null
+
+
+func _breakdowner(f: float) -> void:
+	var why := Breakdowner.refuse(S, sel_card)
+	if why != "":
+		_say("breakdowner: %s. Pick a middle card" % why)
+		return
+	if not _bd_armed:
+		_push_undo()
+	var js := Inbetween.joints_for(B, group())
+	var r := Breakdowner.run(B, S, sel_card, f, js)
+	if S.on_floor:
+		S._ground(B)
+	B.apply_grip()
+	_refresh()
+	_say(Breakdowner.describe(f, r, "%d parts" % js.size() if group().size() > 1 else "the whole body") + ".  Ctrl+Z undoes; Update keeps it on the card")
+
+
+## Shift+E: a small slider, 0 = the card before, 1 = the card after, -0.5..1.5 overshoots. Closing it ends the undo step.
+func _breakdowner_popup() -> void:
+	var why := Breakdowner.refuse(S, sel_card)
+	if why != "":
+		_say("breakdowner: %s. Pick a middle card" % why)
+		return
+	if _bd_pop == null:
+		_bd_pop = PopupPanel.new()
+		var sl := HSlider.new()
+		sl.name = "bd_slider"
+		sl.min_value = Breakdowner.MIN_F
+		sl.max_value = Breakdowner.MAX_F
+		sl.step = 0.01
+		sl.value = 0.5
+		sl.custom_minimum_size = Vector2(260, 28)
+		sl.tooltip_text = "BREAKDOWNER: 0 = like the card before, 1 = like the card after, past the ends = overshoot"
+		sl.value_changed.connect(func(v): _breakdowner(v); _bd_armed = true)
+		_bd_pop.add_child(sl)
+		_bd_pop.popup_hide.connect(func(): _bd_armed = false)
+		add_child(_bd_pop)
+	_bd_armed = false
+	_bd_pop.popup(Rect2i(Vector2i(get_viewport().get_mouse_position()) - Vector2i(130, 20), Vector2i(280, 40)))
+	_say("breakdowner: drag the slider (0 = card before, 1 = card after, past the ends overshoots); Esc or a click away closes it")
 
 
 ## TWEEN MACHINE: the body = the picked card's two neighbours mixed by bias (Scene.mix_flat); Update keeps it
