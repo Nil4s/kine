@@ -84,17 +84,18 @@ const SEAT_CATCH := 0.15     # a seat catches a part whose lowest surface is les
 ## KINDS (Nick 10-13: "a long bat so I can position hands on a long hammer or a staff; Ghost is kind of a ninja"):
 ##   len m, handle = where the shaft's first capsule ends (m from the butt, <0 = len + it), r_handle / r_barrel = radii,
 ##   head = [half width across, radius] for a hammer head set ACROSS the shaft at the tip ([] = none), aim = the AIM rule
-##   applies (a staff is held in the middle and both ends strike: pointing one end back past you is how it's held)
+##   applies (a staff is held in the middle and both ends strike: pointing one end back past you is how it's held),
+##   grip = how the hand closes on it (GripWrap.TYPES, round 47 CC2: power across the palm; diagonal, the thumb along it)
 const KINDS := {
-	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true},
-	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false},
-	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true},
-	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true},
+	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true, "grip": "power"},
+	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false, "grip": "power"},
+	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true, "grip": "power"},
+	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true, "grip": "diagonal"},
 	## round 45 (AA3, Nick 10-18's video: "a Viking with a double headed axe"): a Dane axe's combat haft is "between
 	## approx. 0.9 and 1.2 m", its cutting edge "generally between 20 and 30 cm", 1-2 kg (en.wikipedia.org/wiki/Dane_axe,
 	## read 10-18). The long end of the haft; a bit each side of the tip, 15 cm out, 6 cm round (a 12 cm edge drawn as a
 	## capsule: the head is a stand-in shape, the length and the reach are the reference's)
-	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true},
+	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true, "grip": "power"},
 }
 var wep_kind := "metal_bat"
 ## the SECOND hand's fitted grip for this kind (data/grips/<kind>.json "second", from Nick's pose by
@@ -1883,6 +1884,11 @@ func mirror_pose() -> void:
 
 ## two Lock-both-hands grips blended (round 47: between two cards that both lock, the second hand's turn, place and
 ## fingers move from one grip to the next instead of snapping at the card: a finger turned 97 deg in one frame)
+## THE WRAP (round 47, GATES CC1/CC2): the fingers of hand h closed round the handle a-b of radius r (scripts/grip_wrap.gd)
+func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "") -> Dictionary:
+	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind))
+
+
 static func grip2_mix(a: Dictionary, b: Dictionary, e: float) -> Dictionary:
 	if a.is_empty() or b.is_empty() or String(a.get("hand", "")) != String(b.get("hand", "")):
 		return a if e < 0.5 else b

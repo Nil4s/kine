@@ -1695,12 +1695,30 @@ that could adapt within its limits". Research: docs/GRIP_RESEARCH.md (Napier 195
   > 90 deg, grip2 BLENDS between two locking cards (Body.grip2_mix: place, turn, fingers) and mirror_pose reflects
   grip2 to the twin hand. Now worst 77 deg/frame, the mirror equal to its original. Nick's axe: left palm to shaft
   median 26 mm in playback (58 before the lock), p90 65 (93). Suite 160/160 (C:/Temp/r47_cc0d).
-- [ ] CC1 THE WRAP: Body.wrap_fingers(hand, handle a-b, radius) bends each finger joint by joint (MCP, PIP, DIP) until
+- [x] CC1 THE WRAP: Body.wrap_fingers(hand, handle a-b, radius) bends each finger joint by joint (MCP, PIP, DIP) until
   that segment touches the handle (Buchholz & Armstrong 1992). Bars: on every weapon's handle every finger touches
   (within 3 mm) or is at its limit, none inside (> 1 mm); over 20-80 mm the MCP+PIP flexion falls as the diameter grows
   (Lee & Rim 1991, Lee & Jung 2015); PIP the largest of the three on average (Gulke 2010); against Nick's hand-fitted
   bat grip the mean joint difference is under 12 deg (Buchholz's own SD against real hands), reported joint by joint.
-- [ ] CC2 GRIP TYPES PER HANDLE: KINDS says which (power transverse, diagonal, precision); the thumb follows the type.
+  EVIDENCE (tests/grip_wrap_test.gd; scripts/grip_wrap.gd, Body.wrap_fingers): 1 every kind, each fingertip within
+  1.6 mm of the handle, nothing inside; 2 handle 20->80 mm: MCP+PIP falls on every finger (index 161 -> 79 deg);
+  3 sweep mean MCP 53 / PIP 58 / DIP 38 (Gulke: 28 / 43 / 26), PIP the largest; 4 against Nick's bat grip 10.7 deg mean
+  (thumb 17/18, 30/32); 5 one hand 19 ms (bar 100, Nielsen's instant-response limit: an edit, not a frame).
+  HOW IT GOT THERE (three closure rules, kept as data): joint by joint from the knuckle (B&A's order) over-bends the
+  MCP (82-90) -> 17.5 deg off; all joints together in Gulke's ratio stops everything when the tip touches (PIP 77) ->
+  19.6; that closure then SETTLED (every segment drawn onto the surface, least squares on the gaps) -> 13.9, and the
+  thumb from CC2 -> 10.7. A thumb stop on the index finger was INERT (the straight thumb already touches it) and was
+  reverted. REPORTED, not barred: Nick's own three hand-fitted hands (bat file, axe card v0 left and right) are 17-23
+  deg apart (he fits by eye against the mesh: the axe left hand's segments sink up to 10 mm, the right's float 12-23
+  mm); the held-out axe left hand, wrapped where he put it, is 18.4 deg from his. STUBS: no settle -> bar 4 FAIL
+  (17.3 deg).
+- [x] CC2 GRIP TYPES PER HANDLE: KINDS says which (power transverse, diagonal, precision); the thumb follows the type.
+  EVIDENCE (tests/grip_types_test.gd): 1 every kind names a type (bat, staff, long hammer, long axe: power; dagger:
+  diagonal, B&A's knife grip) and wrap_fingers uses the held kind's; 2 power: the thumb closes over the fingers, tip
+  1.0 mm from them, joints 17 / 30 deg (in the ratio of Nick's bat thumb); 3 diagonal: the thumb straight along the
+  handle, tip 17 mm from the fingers (power's 1); 4 precision on the bat handle: every fingertip touches, the proximal
+  phalanges 13.9 mm off (power's 6.8: the bar is the 5 mm difference; "power < 3 mm" was written before measuring and
+  the palm placement cannot lay them flat). STUB (the thumb ignores the type): bars 1, 3, 4 FAIL. Suite 162/162 (C:/Temp/r47_cc12).
 - [ ] CC3 THE MAGNET: a hand brought within reach of a handle snaps onto it and can slide and roll along the grippable
   part; pulled past the arm's reach or the handle's ends it lets go; no arm is bent past its limits to hold on.
 - [ ] CC4 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
