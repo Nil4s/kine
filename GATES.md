@@ -1595,13 +1595,44 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   THAT poser and undoing them put the cards back exactly; an unknown method -> -32601. (Gate text said "a given Scene +
   Body": it is a given POSER, the main node, since the steps ARE its buttons; written as built.) STUB: one rounding in
   describe (move_s to 0.01) -> FAIL 1 at line 6 (35774 of 35775 bytes). Suite: run_par -j 8, 156/156 PASS (C:/Temp/r46_bb0).
-- [ ] BB1 ONE MODEL SWITCH: scripts/llm_client.gd: one "chat with tools" call; backends Ollama (local), Anthropic, OpenAI,
+- [x] BB1 ONE MODEL SWITCH: scripts/llm_client.gd: one "chat with tools" call; backends Ollama (local), Anthropic, OpenAI,
   Gemini, each in its own wire format (tool calls in, tool results back). Test with a FAKE server on localhost per backend
   that replies with a scripted tool call and checks the request it got (no network, no model): each backend's request
   and its parsed tool call; refusals named (no server, bad key, a tool the model invented).
-- [ ] BB2 THE AI BOX: in the window, "Ask AI": type a sentence ("he waves, then sits"); the model and AgentTools take
+  EVIDENCE (tests/llm_client_test.gd, llm_client:h): a fake HTTP server inside the test (127.0.0.1, one step a frame:
+  HTTPRequest writes on later frames, so a blocking read starved it). One turn per backend carrying a user line, an
+  earlier tool call and its result: 1 ollama POST /api/chat (stream false, tool_calls / role tool + tool_name, no auth
+  header); 2 anthropic POST /v1/messages (system at the top, tool_use, the result as a user turn of tool_result,
+  x-api-key + anthropic-version 2023-06-01, input_schema); 3 openai POST /v1/chat/completions (arguments as a JSON
+  STRING, tool_call_id, Bearer key); 4 gemini POST /v1beta/models/<m>:generateContent (role model, functionCall /
+  functionResponse, x-goog-api-key, no additionalProperties, a tool with no parameters sends none). The key never in
+  the URL. Each scripted answer parsed back to pose {"text": "raise the right arm 90"} + its text. 5 refused, each
+  naming what to do: nothing listening -> "is Ollama running?" in 3.0 s (FOUND: through HTTPRequest alone Windows took
+  about 30 s to refuse a closed local port; a TCP probe of local addresses now answers within PROBE_S 3 s); HTTP 401 ->
+  "key was refused ... the AI box's model row"; anthropic with no key -> nothing sent; a made-up tool 'fly' -> "there is no
+  tool 'fly': the tools are ...". STUB: openai's arguments sent as an object, not a string -> FAIL 3 only. Suite: run_par -j 8, 158/158 PASS
+  (C:/Temp/r46_bb2b, together with BB2).
+- [x] BB2 THE AI BOX: in the window, "Ask AI": type a sentence ("he waves, then sits"); the model and AgentTools take
   turns on the LIVE scene; each tool call shows as one line and is its own named undo step; CHECK runs at the end and is
   said; Stop works mid-run. Test with the scripted fake model on screen; a screenshot.
+  EVIDENCE (tests/ai_box_test.gd, ai_box:w; scripts/ai_box.gd): ANIMATE > "Ask AI" (its own icon) and the search
+  open a box beside the part panel: the model row (backend, model, address; the key field is secret and kept in memory
+  only), the log, the typing line (focused), Ask, Stop. The model sees 7 tools (describe, pose, run, state, measure,
+  check, commands: no open / new / save, so it works on the scene on screen), the scene's describe in its system text
+  each turn, results cut at 6000 characters, at most 30 turns. With a SCRIPTED model on an empty scene: 1 the button,
+  the search entry, the focus; 2 "he raises his right arm, then bends the elbow" -> 4 turns built cards ["up", "bend"],
+  every call a line ("- pose raise the right arm 90", "- run add, name=up", ...), a made-up 'fly' refused in the box
+  ("x there is no tool 'fly': the tools are ..."), the end line "CHECK: 2 cards, 1.15 s; Check: 0 MUST FIX, 0 to look
+  at" and the model's sentence on the status line; 3 exactly 4 undo steps (pose, run, pose, run; fly / check change
+  nothing), named "AI: pose raise the right arm 90" ... (a call's several pushes collapse to ONE, named after it);
+  undoing all 4 empties the scene; 4 the model was sent the turn before's results (pose's "reached", the 'fly' refusal),
+  the 7 tools, and card 'up' in turn 2's scene text; 5 Stop while the model thinks: stops at once, "(stopped)", Ask is
+  on again, the cards unchanged; 6 backend / model saved in the TEST's own settings file (main.settings, never Nick's
+  poser.cfg), the key not in it. STUB: no collapse to one step -> FAIL 3 only (6 unnamed steps). FOUND on the way (by
+  undo_audit, after the box's typing line held focus): a command chosen from the search that runs its KEY (Lock weapon,
+  Second hand, Fingers: next shape) did NOTHING while any text box had focus: the typing guard now lets a chosen command
+  through (main._pressing). The serve transcript golden re-recorded: only line 1 (the command list) changed, by the new
+  ask_ai entry; the other 18 lines byte-identical. Screenshot sent (a 3-card wave, scripted). Suite: run_par -j 8, 158/158 PASS (C:/Temp/r46_bb2b).
 - [ ] BB3 LOCAL MODEL, MEASURED: glm-4.7-flash through Ollama on three tasks (one pose: "both arms up like a goal
   celebration"; a 6-card wave; T5's fight): tool calls, seconds, refusals, CHECK must-fix, and the poses compared to a
   REAL reference with numbers. Bar: the pose task completes; the rest is a table, reported as measured.
@@ -1609,3 +1640,9 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
   same switch; tokens a second and one task's wall time, as one more row. Reported, not barred.
 - [ ] BB5 CLOUD MODELS: Claude / GPT / Gemini with Nick's own key (typed by him into Settings); the same three tasks.
   Waits on Nick's keys; the plumbing is BB1's.
+- [ ] BB6 HITCHES (Nick 10-18: "app feels a little heavy when you start turning on all the animation stuff + other
+  tools; not heavy at all, it's just like it loads and gives some hiccups"): turn the ANIMATE / SHOW tools on one by
+  one (trail, onion, spacing, speed graph, balance, the dummy, ...) on a busy scene, measuring the frame time of every
+  frame (the worst and the 99th percentile, while playing and while scrubbing): name each hitch's cause by profiling
+  (which call, how long), fix what is ours, and bar it: no frame over 50 ms after a tool is on (the turn-on frame
+  itself reported); before and after numbers.

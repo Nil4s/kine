@@ -116,7 +116,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video"]]],
+		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video", "Ask AI"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
@@ -2091,7 +2091,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		_hover_at((ev as InputEventMouseMotion).position)
 	elif ev is InputEventKey and ev.pressed:
 		var k := ev as InputEventKey
-		if get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is SpinBox:
+		if not _pressing and (get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is SpinBox):
 			return
 		if k.unicode == 63 and not k.ctrl_pressed:   # "?" by the character typed, on any layout (Nick's ABNT2 too): X2
 			keys_overlay(ui_keys == null or not ui_keys.visible)
@@ -2434,6 +2434,34 @@ func _key_part() -> void:
 	var t := clampf(playhead, 0.0, S.length())
 	_do(func(): PartKeys.put(S.part_keys, sel, t, B.ang[sel]))
 	_say("keyed %s at %.2f s  (%d key%s on it; Ctrl+Z takes it back)" % [sel, t, S.part_keys[sel].size(), "" if S.part_keys[sel].size() == 1 else "s"])
+
+
+## ASK AI (round 46, GATES BB2): opens / closes the AI box (scripts/ai_box.gd) at the right, above the cards. The box
+## and its model live as long as the window; closing it while it works stops it
+var ui_ai: AiBox
+
+
+func _ai_toggle() -> void:
+	if ui_ai == null:
+		ui_ai = AiBox.new()
+		ui_ai.anchor_left = 1.0
+		ui_ai.anchor_right = 1.0
+		ui_ai.anchor_top = 1.0
+		ui_ai.anchor_bottom = 1.0
+		ui_ai.offset_right = -RIGHT_W - 12   # left of the part panel, as the undo history sits
+		ui_ai.offset_left = -RIGHT_W - 12 - 460
+		ui_ai.add_theme_stylebox_override("panel", ui_find_box)   # the floating panels' look (follows the theme)
+		ui_ai.offset_bottom = -BOTTOM_H - 92 - 12
+		ui_ai.offset_top = ui_ai.offset_bottom - 360
+		ui_ai.visible = false
+		ui_root.add_child(ui_ai)
+		ui_ai.setup(self)
+	ui_ai.visible = not ui_ai.visible
+	if ui_ai.visible:
+		ui_ai.ui_in.grab_focus()
+		_say("type what should happen and press Enter: the AI builds it here, one Ctrl+Z per step")
+	else:
+		ui_ai.stop()
 
 
 ## CURVE EDITOR (round 42, XX2, UPGRADES_300 #240): opens / closes the panel (scripts/curve_editor.gd) that draws the
@@ -3484,7 +3512,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
-	"Add prop": "prop", "Import model": "import", "From video": "video", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
+	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put"}
 
 
@@ -3809,6 +3837,7 @@ func _ui() -> void:
 	pm.add_check_item("Moving holds  (a held pose keeps breathing)", 4)
 	pm.id_pressed.connect(_tool)
 	ui_ribbon["ANIMATE"].add_child(ui_tools)
+	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
 	# CHECK
 	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
@@ -5107,12 +5136,19 @@ func _layout_bottom() -> void:
 
 
 ## a key, as if pressed in the view: a command that has a key runs through the key's own code, so the two never differ
+var _pressing := false   # a command chosen from the registry runs its key: no text box's focus may swallow it
+
+
 func _press(code: Key, shift := false) -> void:
 	var k := InputEventKey.new()
 	k.keycode = code
 	k.pressed = true
 	k.shift_pressed = shift
+	# round 46: with the AI box's typing line focused, "Lock weapon to hand" from the search did NOTHING (the key guard
+	# below is for TYPING; a chosen command is not typing). undo_audit found it: 3 commands vacuous
+	_pressing = true
 	_unhandled_input(k)
+	_pressing = false
 
 
 ## everything S can find: each runs what its button / key runs. "also" = other words people would type for it.
@@ -5279,6 +5315,7 @@ func _commands() -> Array:
 	add.call("Breathe slower", "", _do.bind(_breath_set.bind(-2.0)), "breath breathe rate calmer", true, "2 breaths a minute fewer")
 	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
+	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
