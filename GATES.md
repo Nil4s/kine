@@ -1257,31 +1257,75 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
 ## fields plays, saves and exports byte for byte as before. Body-moving gates carry a real-people bar with a checked
 ## source, or the report says UNVERIFIED next to the number.
 
-- [ ] XX1 KEY INTERPOLATION (#241, #242, #247): per part-key interpolation constant / linear / bezier, handle types
+- [x] XX1 KEY INTERPOLATION (#241, #242, #247): per part-key interpolation constant / linear / bezier, handle types
   auto-clamped (default, = round 41's curve exactly), auto, vector, aligned, free; infinity hold / linear / cycle / cycle
   with offset. Bars: auto-clamped never overshoots; constant holds to the next key's time; a cycle repeats to 1e-6; old
   part keys sample identically.
-- [ ] XX2 CURVE EDITOR (#240): one curve per channel (X red, Y green, Z blue) against time for the picked joint's part
+  EVIDENCE: tests/key_interp_test.gd (h) 32 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). 18,006 samples of 6 old-style key sets identical (==) to round
+  41's at(); auto_clamped overshoot 0 deg on a step set (auto, the control, 0.21); linear exact; cycle repeats to 0;
+  cycle-with-offset 6e-8; a hand-worked free bezier 30.000000; validator, mirror, clone keep the fields. Stubs (agent):
+  cycle-offset FAIL 2, constant FAIL 1. Infinity stored on the joint's first key. Blender option names from memory
+  (UNVERIFIED), auto_clamped = PCHIP (Fritsch-Carlson). undo_audit 136 ok with its KEYS starts. Mirror of handle ends is
+  first order only (said by the agent).
+- [x] XX2 CURVE EDITOR (#240): one curve per channel (X red, Y green, Z blue) against time for the picked joint's part
   keys; click a key, drag its value and time (snap to frame), one undo step per drag; frame-all. Bars: the drawn curve's
   pixels follow PartKeys' samples (worst error printed in px); a real drag moves a key by the expected amount.
-- [ ] XX3 DOPE SHEET (#252, #253): one row per part, diamonds for card keys and part keys; key type key / breakdown /
+  EVIDENCE: tests/curve_editor_test.gd (w) 19 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). Polyline vs PartKeys.at worst 0.0000 px over 1500 points; a real
+  drag to 0.615 s lands on frame 18 (0.600 s) at 80.000 deg; one undo step per drag, Ctrl+Z exact; a click adds no step;
+  empty scene 17828 bytes before and after. Stubs (agent): no snap FAIL 1, no undo push FAIL 2, lerp polyline FAIL 2.
+  Tokens ch_x/ch_y/ch_z added to Tok. Not fixed: overlaps the speed graph when both open.
+- [x] XX3 DOPE SHEET (#252, #253): one row per part, diamonds for card keys and part keys; key type key / breakdown /
   moving hold / extreme, saved only when set; drag a diamond to retime, one undo step. Bars: diamond x within 1 px of
   the key time; retime by drag moves the time by the dragged frames.
-- [ ] XX4 BREAKDOWNER + PASTE FLIPPED (#278, #282): a 0..100 % slider between the card before and after for the
+  EVIDENCE: tests/dope_sheet_test.gd (w) 29 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). Diamonds within 0.0000 px of their times; a real 5-frame drag moves
+  the arrival 0.166666667 s, later cards and markers follow, one undo step; ktype round-trips save/load/mirror, written
+  only when not "key" (byte-identical otherwise). Stubs (agent): no snap FAIL 4, no ktype write FAIL 3. The timeline's
+  retime lambdas were pulled out into _retime_begin/_retime_step so both share one path; timeline 23 ok, markers 27 ok.
+  Key-type looks are the agent's approximation of Blender (UNVERIFIED).
+- [x] XX4 BREAKDOWNER + PASTE FLIPPED (#278, #282): a 0..100 % slider between the card before and after for the
   picked card (past 0/100 = overshoot, shown); paste flipped with "selected parts only" and a factor. Bars: 50 % =
   the slerp midpoint to 1e-4 deg; selected-only leaves every other joint bit-identical.
-- [ ] XX5 FOOT ROLL (#270): one control rolls the foot about heel, ball and toe pivots. Bars from real gait (source
+  EVIDENCE: tests/breakdowner_test.gd (h) 12 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). 0.5 = an independent axis-angle slerp midpoint within 3.9e-5 deg on
+  all 52 joints; 0 / 1 = the neighbours within 9e-6; overshoot to -0.5..1.5 (said in the status line); selected-only
+  leaves the rest bit-identical; paste flipped at 1 = the old paste flipped exactly, at 0 = nothing. Stubs (agent): FAIL
+  4 and 1. Shift+E opens the slider (it was free).
+- [x] XX5 FOOT ROLL (#270): one control rolls the foot about heel, ball and toe pivots. Bars from real gait (source
   checked): the ankle and toe angles at heel strike and push-off against the reference, numbers printed.
-- [ ] XX6 LOOK-AT (#271): head and eyes aim at a target with a neck share; the eyes take small shifts alone. Bars from
+  EVIDENCE: tests/foot_roll_test.gd (h) 13 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). Pivot drift worst 0.018 mm over 15 rolls -20..80 on both feet (bar
+  1 mm); roll 0 = unchanged. REAL PEOPLE: heel strike ankle 0.11 deg (neutral; Guthrie, UW CME 2015 PDF, read by the
+  agent); toe extension at roll 40 = 40.0 deg against Miana 2021 44 +- 5 (PMID 34649787) and Hopson 1995 ~65 needed
+  (PMID 7738816), abstracts only; push-off ankle -17.65 deg against -15..-20 UNVERIFIED (the agent found only patent text;
+  the lead's search found no healthy-adult table it could open). Stub (agent) FAIL 4. No card field yet (FootRoll.apply
+  is a tool, not sampled).
+- [x] XX6 LOOK-AT (#271): head and eyes aim at a target with a neck share; the eyes take small shifts alone. Bars from
   real gaze-shift data (source checked): the head's share of a large shift and the eye-only range, numbers printed.
-- [ ] XX7 MOCAP FOOT LOCK + CLEANUP REPORT (#299, #305): contacts found by foot speed and height on an imported BVH and
+  EVIDENCE: tests/look_at_test.gd (h) 34 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). Seven reachable targets (yaw +-20..60, pitch -20..+25) hit within
+  0.010 deg (bar 0.5); 150 deg to the side reports its 64.8 deg error; straight ahead unchanged. REAL: Freedman & Sparks
+  1997 J Neurophysiol 77(5):2328 (PMID 9163361): no head under 20 deg, head share grows from 25 to 90, eye saturates
+  ~35 deg - RHESUS MONKEY data, human transfer UNVERIFIED; the body has no eyes so the whole shift goes to neck + head
+  (eyes mode returns eye angles for a future renderer). Stubs (agent) FAIL 5 and 7.
+- [x] XX7 MOCAP FOOT LOCK + CLEANUP REPORT (#299, #305): contacts found by foot speed and height on an imported BVH and
   planted; a report of pops, flips and limbs through the body with the frame and a fix. Bars: FOOT SLIDE before /
   after printed and reduced; a planted contact slides < 1 cm; a seeded pop is found at its frame.
+  EVIDENCE: tests/mocap_clean_test.gd (h) 25 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). On walk_bat exported to BVH with drift, 1 mm noise, a seeded +60 deg
+  pop (f40) and +360 deg flip (f70): FOOT SLIDE 5 findings (worst 4.1 cm) -> 0; creep inside contacts 3.8 -> 0.71 cm
+  (bar 1); pop and flip found once each at their frames; clean walk_bat 0 / 0. Thresholds (3 cm, 0.2 m/s, 1500 deg/s)
+  are the agent's, said so; FOOT SLIDE 2.5 cm bar is Karunratanakul 2023. Stubs FAIL 7 / 4 / 2. The release moves the
+  whole creep into one frame (4.2 cm in the test) - noted, not fixed.
 - [ ] XX8 GAIT BARS (#333): a Check rule on walks: step length against height, cadence, arm swing. Bars from real
   walking data (source checked); walk_bat measured and printed against them; a stub makes the rule test FAIL.
-- [ ] XX9 USD EXPORT (#327): the skeleton animation as USDA text (UsdSkel). Bars: it parses back (our reader) to the
+- [x] XX9 USD EXPORT (#327): the skeleton animation as USDA text (UsdSkel). Bars: it parses back (our reader) to the
   same joint rotations within 1e-4 deg; usdcat / pxr checks it if installed (said if not).
-- [ ] XX10 SHADING + FPS TRUTH (#318, #323): solid / matcap / silhouette / x-ray modes; playback shows the fps really
+  EVIDENCE: tests/usd_export_test.gd (h) 13 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). Read back by its own USDA parser: rotations worst 3.1e-5 deg (combo3)
+  and 2.2e-5 (walk_bat) over every frame and 52 joints (bar 1e-4); upAxis Y, metersPerUnit 1, fps and range match;
+  bind/rest transforms to 1e-5 m. Stub (w/x swapped) FAIL 2. pxr / usdcat NOT INSTALLED: no external validation; the
+  attribute types (matrix4d[], quatf[], half3[]) are from the agent's knowledge, not checked against the docs.
+  CLI: tools/export_usd.gd (like export_bvh), command "Export animation (.usda)" -> exports/.
+- [x] XX10 SHADING + FPS TRUTH (#318, #323): solid / matcap / silhouette / x-ray modes; playback shows the fps really
   reached and counts dropped frames. Bars: the silhouette frame has exactly 2 colours; a forced slow frame is counted.
+  EVIDENCE: tests/shading_test.gd (w) 24 ok, re-run by the lead on the merged branch (run_par -j 6, C:/Temp/r42_merge, 24/24 PASS). Silhouette frame exactly 2 colours (also with the dummy); solid after a
+  full cycle differs by 0 pixels; matcap 38944 / x-ray 47304 pixels differ from solid; 60 frames of 1/60 s + one 100 ms
+  frame = exactly 1 dropped, 55.385 fps; a real playback reads "playing 58.4 fps, ...". Stub FAIL 6 (silhouette 1144
+  colours). Not saved, not undo. Not fixed: no ribbon button; a theme switch needs another "Shading: next".
 - [ ] XX11 MERGED: every branch in, all suites PASS (run_par -j 8), house checks, no leftovers, README_AI Round 42,
   committed, worktrees removed.
