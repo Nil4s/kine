@@ -1113,6 +1113,8 @@ func to_dict(B: Body) -> Dictionary:
 			cs[-1]["drop"] = c["drop"]
 		if c.get("air", false):
 			cs[-1]["air"] = true   # VV1: only when on
+		if c.has("ktype"):
+			cs[-1]["ktype"] = c["ktype"]   # XX3: a key's Blender type (breakdown, moving_hold, extreme); never written for a plain key
 	var out := {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
@@ -1142,7 +1144,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "lift": "free", "ease": "free",
-	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "air": "free"}
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "air": "free", "ktype": "free"}
 
 
 ## one card of a scene file, mirrored by MIRROR_CARD (M: a Body to mirror poses on); keys not on the list are copied
@@ -1205,6 +1207,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["drop"] = int(c["drop"])
 		if c.get("air", false):
 			cards[-1]["air"] = true
+		if String(c.get("ktype", "")) in DopeSheet.TYPED:
+			cards[-1]["ktype"] = String(c["ktype"])   # XX3
 
 
 ## SPINS (Nick 10-13: banned): key pairs where an arm rolls around itself more than Body.ROLL_STEP + 5 deg: the upper
