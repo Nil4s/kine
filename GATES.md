@@ -1581,10 +1581,20 @@ pitch·yaw·roll·rest, segments eased with smoothstep. Poser's rest has the arm
 ## on the scene the user is looking at, with any model behind one switch. Local first: Ollama 0.18 is installed with
 ## glm-4.7-flash (19 GB, a mixture of experts; 3B active) already pulled; AirLLM is installed but does not import (its
 ## transformers is the wrong version). The RTX 3070 has 8 GB. API keys are typed by Nick into the settings, never by me.
-- [ ] BB0 ONE TOOL SET: serve's request handler (open / new / run / pose / state / measure / describe / check / diff /
+- [x] BB0 ONE TOOL SET: serve's request handler (open / new / run / pose / state / measure / describe / check / diff /
   validate / save / commands) moves out of tools/poser_cli.gd into scripts/agent_tools.gd (class AgentTools) that acts on
   a GIVEN Scene + Body, so the CLI and the app run the same code. Test: serve, mcp, measure, agent suites unchanged, and
   a fixed request script gives a BYTE-IDENTICAL transcript before and after the move.
+  EVIDENCE (tests/agent_tools_test.gd, agent_tools:h): refs/agent/serve_transcript.jsonl recorded BEFORE the move by
+  tests/py/serve_transcript.py (18 requests: every method, a 7-step build with names, pose, retime + undo + redo, state,
+  measure x6, check, validate, combo3 opened and edited, diff, check with findings; refused: a save onto Nick's
+  combo3, card=99, an unknown method), recorded twice first: byte-identical, so the bar can be bytes. 1 after the move:
+  35775 of 35775 bytes, identical. 2 one source: poser_cli.gd defines none of handle / request / step / measure /
+  findings; scripts/agent_tools.gd (AgentTools, on a given poser) all five; the CLI keeps only its verbs, its line
+  printing and stdin. 3 in the app's process: request() gives handle()'s result; a run of 3 steps was 3 undo steps on
+  THAT poser and undoing them put the cards back exactly; an unknown method -> -32601. (Gate text said "a given Scene +
+  Body": it is a given POSER, the main node, since the steps ARE its buttons; written as built.) STUB: one rounding in
+  describe (move_s to 0.01) -> FAIL 1 at line 6 (35774 of 35775 bytes). Suite: run_par -j 8, 156/156 PASS (C:/Temp/r46_bb0).
 - [ ] BB1 ONE MODEL SWITCH: scripts/llm_client.gd: one "chat with tools" call; backends Ollama (local), Anthropic, OpenAI,
   Gemini, each in its own wire format (tool calls in, tool results back). Test with a FAKE server on localhost per backend
   that replies with a scripted tool call and checks the request it got (no network, no model): each backend's request
