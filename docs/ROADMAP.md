@@ -99,7 +99,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 25. [x] Style transfer: heavier, older, tired, angry (top-25 #12)
 26. [ ] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
 27. [ ] Ragdoll to keys with pins (top-25 #14)
-28. [ ] Scene versions with a visual diff (top-25 #16)
+28. [x] Scene versions with a visual diff (top-25 #16): "Versions: compare with" lays an older version over the open scene (magenta ghost at the playhead), lists the changes per card, and marks the timeline where a joint differs over 2 deg; "Versions: restore this one" is one undo step (scripts/version_diff.gd, tests/version_diff_test.gd)
 29. [ ] Review links with frame comments (top-25 #17)
 30. [ ] Live co-editing, one animator per fighter (top-25 #18)
 31. [ ] Lip-sync from audio (top-25 #21)

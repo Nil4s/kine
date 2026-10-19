@@ -881,6 +881,11 @@ func _select_set(parts: Array) -> void:
 ## open scene as one undo step; the scene's own file changes only when it is saved
 var ui_versions: MenuButton
 var _version_paths: Array = []
+## COMPARE WITH (ROADMAP 28, scripts/version_diff.gd): an older version laid over the open scene while it is compared:
+## {"path", "name", "scene": Scene, "rows": card rows, "marks": frame marks}; {} = not comparing. Nothing is written.
+var vdiff := {}
+var ui_vdiff: PanelContainer
+var ui_vdiff_text: Label
 
 
 func versions_dir() -> String:
@@ -1126,13 +1131,79 @@ func _versions_menu() -> void:
 		var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_version_paths[i]))
 		var v: Dictionary = d.get("version", {})
 		pm.add_item("v%d   %s   %d cards" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size()], 100 + i)
+	# COMPARE WITH (ROADMAP 28): ids 50.. compare, 2 stops, 3 restores the one compared (ids 100.. restore a row)
+	if not _version_paths.is_empty():
+		pm.add_separator()
+		for i in mini(_version_paths.size(), 50):
+			pm.add_item("Versions: compare with v%d ..." % _version_n(_version_paths[i]), 50 + i)
+			pm.set_item_tooltip(pm.item_count - 1, "the version over the open scene: its body as a magenta ghost at the playhead, the changes card by card, and marks on the timeline where a joint differs by more than 2 deg")
+	if not vdiff.is_empty():
+		pm.add_separator()
+		pm.add_item("Versions: restore this one (v%d)" % _version_n(vdiff["path"]), 3)
+		pm.set_item_tooltip(pm.item_count - 1, "opens the compared version as the scene's cards, one undo step (the scene's file is not touched)")
+		pm.add_item("Versions: stop comparing", 2)
 
 
 func _version_picked(id: int) -> void:
 	if id == 0:
 		_save_version()
+	elif id == 2:
+		_vdiff_clear()
+	elif id == 3 and not vdiff.is_empty():
+		var p: String = vdiff["path"]
+		_vdiff_clear()
+		_open_version(p)
 	elif id >= 100 and id - 100 < _version_paths.size():
 		_open_version(_version_paths[id - 100])
+	elif id >= 50 and id < 100 and id - 50 < _version_paths.size():
+		_compare_version(_version_paths[id - 50])
+
+
+func _version_n(path: String) -> int:
+	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return int((d.get("version", {}) as Dictionary).get("n", 0)) if d is Dictionary else 0
+
+
+## COMPARE WITH (ROADMAP 28): the version laid over the open scene (ghost at the playhead, rows, timeline marks)
+func _compare_version(path: String) -> void:
+	var old := VersionDiff.load_scene(path)
+	if old == null:
+		_say_plain("NOT NOW: %s will not open as a scene" % path.get_file())
+		return
+	vdiff = {"path": path, "name": path.get_file().get_basename(), "scene": old}
+	_vdiff_update()
+	ui_timeline.queue_redraw()
+	_refresh()
+	var n_rows: int = vdiff["rows"].size()
+	_say_plain("comparing with %s: %d change%s, %d frame%s over 2 deg (magenta on the timeline).  Versions: stop comparing, to clear" % [vdiff["name"], n_rows, "" if n_rows == 1 else "s", vdiff["marks"].size(), "" if vdiff["marks"].size() == 1 else "s"])
+
+
+func _vdiff_clear() -> void:
+	vdiff = {}
+	ui_vdiff.visible = false
+	ui_timeline.queue_redraw()
+	_refresh()
+
+
+## the rows and the frame marks of the compared version against the open scene; the panel's text
+func _vdiff_update() -> void:
+	if vdiff.is_empty():
+		return
+	var old: Scene = vdiff["scene"]
+	vdiff["rows"] = VersionDiff.card_rows(old, S)
+	vdiff["marks"] = VersionDiff.frame_marks(old, S)
+	var lines := ["comparing: %s (%d cards)  vs  now (%d cards)" % [vdiff["name"], old.cards.size(), S.cards.size()]]
+	if vdiff["rows"].is_empty() and vdiff["marks"].is_empty():
+		lines.append("no differences: the two are the same")
+	for r in vdiff["rows"]:
+		var mark: String = {"added": "+ added    ", "removed": "- removed  ", "retimed": "~ retimed  ", "joints": "~ joints   "}[r["kind"]]
+		lines.append("%s%s  %s" % [mark, r["name"], r["detail"]])
+	var marks: Array = vdiff["marks"]
+	if not marks.is_empty():
+		lines.append("frames over 2 deg: %d, %.2f s to %.2f s" % [marks.size(), float(marks[0]["t"]), float(marks[-1]["t"])])
+	ui_vdiff_text.text = "
+".join(lines)
+	ui_vdiff.visible = true
 
 
 ## a version's cards into the open scene: one undo step, the scene then unsaved (its file untouched)
@@ -2300,6 +2371,7 @@ func _refresh() -> void:
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
 	ov.spacing(playhead)
+	ov.version_ghost(vdiff.get("scene", null), playhead)   # COMPARE WITH (ROADMAP 28): the version's body, magenta
 	var pulled: String = B.wep_hand if sel in Body.WEAPON else sel
 	ov.reach_marker(B.P[pulled] if B.P.has(pulled) else Vector3.ZERO, _grab, dragging == "joint" and not is_nan(_grab.x) and B.P.has(pulled))
 	if ui_graph != null:
@@ -2802,6 +2874,8 @@ func _pose_words(text: String) -> Dictionary:
 
 
 func _after_edit() -> void:
+	if not vdiff.is_empty():   # COMPARE WITH: the marks follow the open scene's edits
+		_vdiff_update()
 	if shoulder_follow and _arm_edit != "":   # YY5: only a hand edit of an upper arm; never a load, paste or play
 		B.shoulder_follow(_arm_edit.right(2))
 	_arm_edit = ""
@@ -6392,6 +6466,24 @@ func _ui() -> void:
 	ui_status.add_child(hx)
 	ui_status.add_theme_stylebox_override("normal", sb)
 	ui_root.add_child(ui_status)
+	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
+	ui_vdiff = PanelContainer.new()
+	ui_vdiff.name = "vdiff_panel"
+	ui_vdiff.visible = false
+	ui_vdiff.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_vdiff.set_anchors_preset(Control.PRESET_TOP_LEFT)   # over the 3D view, right of the browser column
+	ui_vdiff.offset_left = 256
+	ui_vdiff.offset_top = 96
+	ui_vdiff.custom_minimum_size = Vector2(400, 0)
+	var vsb := StyleBoxFlat.new()
+	vsb.bg_color = Color(0.06, 0.07, 0.09, 0.9)
+	vsb.set_corner_radius_all(6)
+	vsb.set_content_margin_all(8)
+	ui_vdiff.add_theme_stylebox_override("panel", vsb)
+	ui_vdiff_text = _label("", 13, "text:0.85", true)
+	ui_vdiff_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_vdiff.add_child(ui_vdiff_text)
+	ui_root.add_child(ui_vdiff)
 	# ---- status bar: one line, always there (Fusion's bottom bar)
 	ui_bar = _label("", 12, "text:0.55")   # RR5: the readout, small and grey, on the status line's right
 	ui_bar.anchor_top = 1.0
@@ -8633,6 +8725,8 @@ func _toggle_play() -> void:
 ## refresh, so the speed graph stayed up over the empty scene with the old scene's curves)
 func _new_scene() -> void:
 	_actors_home()   # TC3
+	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
+		_vdiff_clear()
 	S = Scene.new()
 	scene_path = ""
 	_show_open_scene()
@@ -10247,6 +10341,8 @@ func _doc_key() -> String:
 
 func _load_scene(path: String) -> void:
 	_actors_home()   # TC3: the opened file's hero goes on the hero's body; its actors are built from it
+	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
+		_vdiff_clear()
 	scene_path = path
 	layer_on = -1   # NA1: edits go to the first layer of a newly opened scene
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))

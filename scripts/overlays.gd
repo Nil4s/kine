@@ -19,7 +19,9 @@ const FIXED := Color(0.15, 0.65, 1.0, 0.6)   # the fix preview ghost: what a Fix
 ## away from the other side's (past: orange -> red, future: green -> cyan), so near/far and past/future read at a glance
 const PAST_FAR := Color(1.0, 0.25, 0.2, 0.13)
 const FUTURE_FAR := Color(0.2, 0.85, 1.0, 0.13)
-## ghost slots: [past near, future near, fix preview, past far, future far]; onion's [side][distance] -> slot
+## COMPARE WITH (ROADMAP 28): the older version laid over the open scene; magenta, so it is never mistaken for the onion
+const VERSION := Color(0.85, 0.3, 0.95, 0.45)
+## ghost slots: [past near, future near, fix preview, past far, future far, version]; onion's [side][distance] -> slot
 const ONION_SLOT := [[0, 3], [1, 4]]
 
 var trail_on := false
@@ -72,7 +74,7 @@ func setup() -> void:
 	_space_mesh = MeshInstance3D.new()
 	_space_mesh.mesh = ImmediateMesh.new()
 	add_child(_space_mesh)
-	for col in [BEFORE, AFTER, FIXED, PAST_FAR, FUTURE_FAR]:
+	for col in [BEFORE, AFTER, FIXED, PAST_FAR, FUTURE_FAR, VERSION]:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -376,6 +378,18 @@ func onion(S: Scene, t: float) -> void:
 				continue
 			S.apply(GB, float(ts[ci][1]))
 			_pose(_ghosts[ONION_SLOT[side][d]], GB)
+
+
+## COMPARE WITH (ROADMAP 28): the older version V posed at t as the magenta ghost (slot 5). Null = hidden. Its pose is left
+## in GB (the sampler), never in the edited body.
+func version_ghost(V: Scene, t: float) -> void:
+	var g: Array = _ghosts[5]
+	g[0].visible = false
+	g[3].visible = false
+	if V == null or V.cards.is_empty():
+		return
+	V.apply(GB, t)
+	_pose(g, GB)
 
 
 ## FIX PREVIEW: the scene as the fix would leave it (`cards`, from Fixer.propose), posed at t, as a blue ghost. The
