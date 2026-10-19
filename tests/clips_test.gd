@@ -187,7 +187,7 @@ func _init() -> void:
 	var keys_ok: bool = (d["clips"][0] as Dictionary).keys().all(func(k): return k in ["src", "start", "repeat", "speed", "bin", "bout", "type", "mask", "extra", "w", "mirror", "mute"])
 	var schema: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://docs/scene.schema.json"))
 	var sp: Dictionary = schema.get("$defs", {}).get("scene", {}).get("properties", {}).get("clips", {}).get("items", {}).get("properties", {})
-	ok(keys_ok and sp.keys().size() == 12 and Scene.MIRROR_SCENE.has("clips"), "6 every clip key is in the schema (%d) and on Mirror's list" % sp.size())
+	ok(keys_ok and sp.keys().size() == 13 and Scene.MIRROR_SCENE.has("clips"), "6 every clip key is in the schema (%d) and on Mirror's list" % sp.size())
 	var mf := Clips.mirror_file(d["clips"])
 	ok(mf[0]["mirror"] == true and mf[0]["mask"] == "arm_r" and Clips.mirror_file(mf) == d["clips"], "6 mirror: the source plays mirrored, arm_l -> arm_r, twice = the original")
 	S.clips = [Clips.make(SRC, 0.0, {"mirror": true})]

@@ -644,7 +644,8 @@
        "extra": {"enum": ["nothing", "hold", "hold_forward"]},
        "w": {"type": "number", "minimum": 0, "maximum": 1},
        "mirror": {"type": "boolean"},
-       "mute": {"type": "boolean"}
+       "mute": {"type": "boolean"},
+       "warp": {"type": "array", "maxItems": 6, "description": "CLIP WARPING (ROADMAP 83): interior knots [x, y] of the strip's time curve, x and y in 0..1, x increasing, y non-decreasing; the ends (0,0) and (1,1) are fixed. Written only when the curve is not linear. scripts/clips.gd warp_*", "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 1}}}
       },
       "additionalProperties": false
      }

@@ -48,6 +48,7 @@ const FINE := 0.01
 const AUDIO_H := 20.0    # px: the sound's waveform strip under the cards (only when the scene has a sound)
 const MIN_MOVE := 0.04   # s: a move can't be shorter (a 1-frame move at 30 fps is 0.033)
 const CLIP_H := 12.0     # px: one row per placed CLIP (scripts/clips.gd), under the cards
+const WARP_H := 58.0     # px: the picked clip's row is taller by this: its TIME WARP panel (ROADMAP 83; scripts/clips.gd warp_*)
 
 var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
 
@@ -238,6 +239,9 @@ func hit(p: Vector2) -> Dictionary:
 		return {}
 	if p.y < RULER:
 		return {"kind": "ruler"}
+	var wh := warp_hit(p)   # the picked clip's time curve: a knot (j) or its empty panel (j = -1)
+	if not wh.is_empty():
+		return wh
 	var ck := clip_at(p)
 	if ck >= 0:
 		return {"kind": "clip", "i": ck}
@@ -305,6 +309,8 @@ func _gui_input(ev: InputEvent) -> void:
 			match h["kind"]:
 				"clip":
 					_clip_press(h["i"], ev.position.x)
+				"warp":
+					_warp_press(h["i"], h["j"], ev.position)
 				"ruler" when ev.shift_pressed or ev.alt_pressed:
 					range_set.emit("in" if ev.shift_pressed else "out", t_of(ev.position.x))
 				"ruler":
@@ -333,6 +339,11 @@ func _gui_input(ev: InputEvent) -> void:
 				retimed.emit(true)
 			queue_redraw()
 			accept_event()
+	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed and m != null and m.get("clips_ui") != null:
+		var wh := warp_hit(ev.position)   # right-click a knot of the picked clip's time curve = take it out (one undo step)
+		if not wh.is_empty() and int(wh["j"]) >= 0:
+			m.clips_ui.warp_remove(int(wh["i"]), int(wh["j"]))
+			accept_event()
 	elif ev is InputEventMouseMotion:
 		if not _drag.is_empty() and _drag["kind"] == "shot":
 			_shot_cut_drag(ev.position.x)
@@ -350,6 +361,10 @@ func _gui_input(ev: InputEvent) -> void:
 			return
 		if _drag["kind"] == "clip":
 			_clip_drag(ev.position.x, ev.shift_pressed)
+			accept_event()
+			return
+		if _drag["kind"] == "warp":
+			_warp_drag(ev.position)
 			accept_event()
 			return
 		_retime_to(ev.position.x, ev.shift_pressed)
@@ -618,7 +633,7 @@ var _clip_px := 0.0      # px the clip rows take (added to the minimum height th
 
 
 func _clip_fit(S: Scene) -> void:
-	var want := S.clips.size() * CLIP_H + (2.0 if not S.clips.is_empty() else 0.0)
+	var want := _clip_rows_h(S)
 	if absf(want - _clip_px) > 0.1:
 		set_deferred("custom_minimum_size", Vector2(custom_minimum_size.x, custom_minimum_size.y + want - _clip_px))
 		_clip_px = want
@@ -636,15 +651,70 @@ func _clip_sel() -> int:
 	return int(cu.sel) if cu != null else -1
 
 
+## the rows' height: one per clip, the picked clip's taller by its warp panel
+func _clip_rows_h(S: Scene) -> float:
+	if S.clips.is_empty():
+		return 0.0
+	var h := S.clips.size() * CLIP_H + 2.0
+	if _clip_sel() >= 0 and _clip_sel() < S.clips.size():
+		h += WARP_H
+	return h
+
+
+## the top of clip k's row (rows stack from the bottom up: each clip's row, the picked one's panel under its bar)
+func _clip_y(k: int) -> float:
+	var S := _S()
+	var y := size.y - (AUDIO_H if not S.audio.is_empty() else 0.0) - _clip_px
+	var sel := _clip_sel()
+	for j in k:
+		y += CLIP_H + (WARP_H if j == sel else 0.0)
+	return y
+
+
 ## clip k's bar on the timeline
 func clip_rect(k: int) -> Rect2:
 	var S := _S()
 	var c: Dictionary = S.clips[k]
 	var e := Clips.source(String(c["src"]))
 	var L := float(e.get("len", 0.5))
-	var y := size.y - (AUDIO_H if not S.audio.is_empty() else 0.0) - _clip_px + k * CLIP_H
+	var y := _clip_y(k)
 	var x0 := x_of(float(c["start"]))
 	return Rect2(x0, y, maxf(x_of(float(c["start"]) + Clips.length_of(c, L)) - x0, 6.0), CLIP_H - 2.0)
+
+
+## the TIME WARP panel under the picked clip's bar: as wide as the strip (at least 96 px). Input time runs left to right
+## over the strip, the source's progress up
+func warp_rect(k: int) -> Rect2:
+	var r := clip_rect(k)
+	return Rect2(r.position.x, _clip_y(k) + CLIP_H, maxf(r.size.x, 96.0), WARP_H - 4.0)
+
+
+## the inner plot of the panel (6 px inside), and the mapping of a knot (x, y in 0..1) to px and back
+func warp_px(k: int, n: Vector2) -> Vector2:
+	var ir := warp_rect(k).grow(-6.0)
+	return Vector2(ir.position.x + n.x * ir.size.x, ir.end.y - n.y * ir.size.y)
+
+
+func warp_norm_of(k: int, p: Vector2) -> Vector2:
+	var ir := warp_rect(k).grow(-6.0)
+	return Vector2(clampf((p.x - ir.position.x) / ir.size.x, 0.0, 1.0), clampf((ir.end.y - p.y) / ir.size.y, 0.0, 1.0))
+
+
+## the picked clip's warp panel under p: {"kind": "warp", "i": clip, "j": the knot within 7 px (-1 = the empty panel)}, else {}
+func warp_hit(p: Vector2) -> Dictionary:
+	var S := _S()
+	var k := _clip_sel()
+	if S == null or k < 0 or k >= S.clips.size() or not warp_rect(k).has_point(p):
+		return {}
+	var ks := Clips.warp_clean((S.clips[k] as Dictionary).get("warp", []))
+	var best := -1
+	var bd := 7.0
+	for j in ks.size():
+		var d := warp_px(k, Vector2(float(ks[j][0]), float(ks[j][1]))).distance_to(p)
+		if d <= bd:
+			bd = d
+			best = j
+	return {"kind": "warp", "i": k, "j": best}
 
 
 func clip_at(p: Vector2) -> int:
@@ -662,6 +732,57 @@ func _clip_press(k: int, x: float) -> void:
 	if cu != null:
 		cu.sel = k
 	_drag = {"kind": "clip", "i": k, "x0": x, "pps": pps(), "start0": float(_S().clips[k]["start"]), "moved": false}
+	queue_redraw()
+
+
+## a knot grabbed (j) or a new knot made where the press was (j = -1): the undo step is pushed at the first change, as for a clip
+func _warp_press(k: int, j: int, p: Vector2) -> void:
+	var cu = m.get("clips_ui")
+	if cu != null:
+		cu.sel = k
+	var S := _S()
+	if j >= 0:
+		_drag = {"kind": "warp", "i": k, "j": j, "p0": p, "moved": false}
+		queue_redraw()
+		return
+	var ks := Clips.warp_clean((S.clips[k] as Dictionary).get("warp", []))
+	var n := warp_norm_of(k, p)
+	var nk := Clips.warp_add(ks, n.x, n.y)
+	if nk.size() == ks.size():
+		m._say("no knot added there: a curve keeps %d knots at most, and each stays clear of the ends and of the next knot" % Clips.WARP_MAX)
+		return
+	var bj := 0
+	var bdx := INF
+	for q in nk.size():
+		var dx := absf(float(nk[q][0]) - n.x)
+		if dx < bdx:
+			bdx = dx
+			bj = q
+	retime_started.emit()   # main pushes the ONE undo step here
+	S.clips[k]["warp"] = nk
+	_drag = {"kind": "warp", "i": k, "j": bj, "p0": p, "moved": true}
+	retimed.emit(false)
+	queue_redraw()
+
+
+## the knot follows the pointer, clamped so the curve stays monotone (Clips.warp_set)
+func _warp_drag(p: Vector2) -> void:
+	var k: int = _drag["i"]
+	var j: int = _drag["j"]
+	var S := _S()
+	if k >= S.clips.size():
+		return
+	if not _drag["moved"]:
+		if p.distance_to(_drag["p0"]) < 3.0:
+			return
+		_drag["moved"] = true
+		retime_started.emit()   # main pushes the ONE undo step here
+	var ks := Clips.warp_clean((S.clips[k] as Dictionary).get("warp", []))
+	if j >= ks.size():
+		return
+	var n := warp_norm_of(k, p)
+	S.clips[k]["warp"] = Clips.warp_set(ks, j, n.x, n.y)
+	retimed.emit(false)
 	queue_redraw()
 
 
@@ -763,6 +884,26 @@ func _draw_fd_strip(font: Font, y: float) -> void:
 			draw_string(font, Vector2(x0 + 2, y + FD_H - 2.0), str(n), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 3, 10, Tok.c("fd_ink"))
 
 
+## the picked clip's time curve on its panel: the dashed diagonal is linear (no warp), the curve is the warp (the source
+## progress against the strip progress), each knot a dot. The ends are fixed and drawn small
+func _draw_warp(k: int, S: Scene, font: Font) -> void:
+	var r := warp_rect(k)
+	draw_rect(r, Tok.of("tl_bg:0.9"))
+	draw_rect(r, Tok.c("focus"), false, 1.0)
+	draw_dashed_line(warp_px(k, Vector2(0, 0)), warp_px(k, Vector2(1, 1)), Tok.of("ink:0.35"), 1.0, 4.0)
+	var wk := Clips.warp_norm((S.clips[k] as Dictionary).get("warp", []))
+	var pts := PackedVector2Array()
+	for i in 33:
+		var x := i / 32.0
+		pts.append(warp_px(k, Vector2(x, Clips.warp_f(wk, x))))
+	draw_polyline(pts, Tok.c("focus"), 2.0)
+	for kn in Clips.warp_clean((S.clips[k] as Dictionary).get("warp", [])):
+		draw_circle(warp_px(k, Vector2(float(kn[0]), float(kn[1]))), 3.5, Tok.c("focus"))
+	draw_circle(warp_px(k, Vector2(0, 0)), 2.0, Tok.of("ink:0.6"))
+	draw_circle(warp_px(k, Vector2(1, 1)), 2.0, Tok.of("ink:0.6"))
+	draw_string(font, r.position + Vector2(4, 10), "time warp", HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 8.0, 8, Tok.of("ink:0.6"))
+
+
 func _draw_clips(S: Scene, font: Font) -> void:
 	var sel := _clip_sel()
 	for k in S.clips.size():
@@ -770,6 +911,8 @@ func _draw_clips(S: Scene, font: Font) -> void:
 		var r := clip_rect(k)
 		var e := Clips.source(String(c["src"]))
 		draw_rect(r, Tok.c("accent") if not bool(c.get("mute", false)) else Tok.of("ink:0.3"))
+		if k == sel:
+			_draw_warp(k, S, font)
 		if e.is_empty():
 			draw_string(font, Vector2(r.position.x + 3, r.position.y + 9), String(c["src"]).get_file() + ": file missing", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("on_accent"))
 			continue
