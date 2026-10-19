@@ -61,6 +61,119 @@ and forth.
 24. **Character mesh engine:** build your own characters with any proportions, and the rig follows.
 25. **Crash-proof by design:** every edit journaled, so no work is ever lost.
 
+## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
+
+Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
+Merged since the last full run: 0 / 20.
+
+### Wave A: what hurts now
+1. [~] Kill the toes curling up in walks: toe bend capped at real push-off (MTP ~44 deg walking) and only during push-off
+2. [ ] Crash-proof: every edit journaled; reopen after a crash at the last action (top-25 #25)
+3. [ ] Easy mode: a simple panel of 12 big actions (pose, key, play, undo, export) with the rest hidden; Expert mode shows all
+4. [ ] First-run tour: 60 s of guided steps on the mannequin (pose a hand, key, play)
+5. [ ] Hotkey cheat sheet overlay (hold ?) and a hotkey editor
+6. [ ] Better foot: heel / ball / toe-tip pivots as handles in the view (reverse foot you can grab), foot roll keyable
+7. [ ] Better skeleton: split toes (big toe vs the other four), a real ankle subtalar axis (inversion / eversion)
+8. [ ] Foot planting that just works: mark a foot planted over a time range, it stays put to 1 mm, the leg solves
+9. [ ] One-click engine delivery: UE5 / Unity / Godot presets, scale + axes + root motion checked (top-25 #19)
+10. [ ] "Could a human do this?": per-frame torque, balance and speed vs real-human data, with the reason (top-25 #1)
+11. [ ] Critique that points at frames: floaty, no anticipation, foot slide, twinning (top-25 #7)
+12. [ ] Fighting-game frame data: startup / active / recovery + hitboxes, exported (top-25 #2)
+13. [ ] Choreography timeline for 2+ fighters: exchanges, reach kept honest (top-25 #3)
+14. [ ] Automatic hit reactions from momentum, baked to cards (top-25 #4)
+15. [ ] Undo as a tree (top-25 #15)
+16. [ ] Phone video to clean animation: contacts locked, jitter off (top-25 #5)
+17. [ ] Ease presets measured from real motion (top-25 #20)
+18. [ ] Grips for any prop mesh (top-25 #10)
+19. [ ] Twinning check: left and right moving in perfect sync flagged
+20. [ ] Viewport playback at real time on heavy scenes (measure, then cache poses per frame)
+
+### Wave B: the innovations
+21. [ ] Live webcam puppeteering (top-25 #6)
+22. [ ] Type a move, get blocking (top-25 #8)
+23. [ ] Sketch a line of action -> pose (top-25 #9)
+24. [ ] Injury / load check for stunt teams (top-25 #11)
+25. [ ] Style transfer: heavier, older, tired, angry (top-25 #12)
+26. [ ] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
+27. [ ] Ragdoll to keys with pins (top-25 #14)
+28. [ ] Scene versions with a visual diff (top-25 #16)
+29. [ ] Review links with frame comments (top-25 #17)
+30. [ ] Live co-editing, one animator per fighter (top-25 #18)
+31. [ ] Lip-sync from audio (top-25 #21)
+32. [ ] Music beats as timeline markers, snap hits to them (top-25 #22)
+33. [ ] Motion-matching preview (top-25 #23)
+34. [ ] Character mesh engine (top-25 #24)
+35. [ ] Weapon trails drawn and exported (smear frames)
+36. [ ] Hitbox / hurtbox editor per frame
+37. [ ] Parry / clash detection between two weapons
+38. [ ] Distance-to-opponent guide (range rings)
+39. [ ] Fatigue: a long fight slows the moves per measured data
+40. [ ] Weight feel: heavy weapons slow the wind-up per mass
+
+### Wave C: complaints, beginners ("make it easy")
+41. [ ] Pose by dragging any part with sensible defaults (no axis picking)
+42. [ ] Auto-key toggle that is obvious (red frame)
+43. [ ] "What went wrong?" button: explains the last error in plain words
+44. [ ] Templates: walk, run, jump, punch, sword swing as starting scenes
+45. [ ] Undo that never surprises: names each step in the menu
+46. [ ] Snap a pose to the floor in one click
+47. [ ] Big timeline handles, retime by dragging a card's edge
+48. [ ] Preview at real speed vs every frame toggle, clearly labelled
+49. [ ] Tooltips with a 2-second video of the tool
+50. [ ] Save prompts: never lose a scene by closing the window
+51. [ ] Scene thumbnails in the browser
+52. [ ] Search everything (commands, poses, scenes) from one box
+53. [ ] Copy a pose between fighters
+54. [ ] One-click mirror of the whole animation
+55. [ ] Simple ease slider per card (no graph editor needed)
+56. [ ] Clear units everywhere (cm, deg, s, frames)
+57. [ ] Export dialog that says what each engine needs
+58. [ ] Dark / light theme and UI scale for laptops
+59. [ ] Recent files and autosave restore list
+60. [ ] Gentle errors: never a crash dialog, always a next step
+
+### Wave D: complaints, experts ("give me depth")
+61. [ ] Spline IK spine
+62. [ ] IK/FK snap per frame with no pop
+63. [ ] Space switching (hand in world / chest / weapon space) with no pop
+64. [ ] Euler filter / unroll for exported curves
+65. [ ] Tangent weights in the graph editor
+66. [ ] Breakdown keys and key types (key / breakdown / in-between) like Blender's
+67. [ ] Retime tool: scale a range around the playhead
+68. [ ] Key reduction slider with an error readout
+69. [ ] Editable motion trails (drag the arc)
+70. [ ] Per-part onion skin
+71. [ ] Corrective shapes on the mesh (elbow, knee)
+72. [ ] Skin weight paint for imported characters
+73. [ ] Finger pose library + per-finger curl sliders
+74. [ ] Face rig: brows, jaw, eyes, visemes
+75. [ ] Multi-shot camera sequencer
+76. [ ] Camera shake and rack focus
+77. [ ] Multi-track audio
+78. [ ] FBX export
+79. [ ] Alembic / USD layered export
+80. [ ] Batch export of many scenes
+81. [ ] Python-free scripting: macros recorded from commands
+82. [ ] Custom attributes on parts (keyable)
+83. [ ] Clip warping (time-warp a strip)
+84. [ ] Pose matching on clip transitions
+85. [ ] Rigid prop physics (a dropped sword falls)
+86. [ ] Cloth on a cape
+87. [ ] Hair strands follow-through
+88. [ ] Contact-aware IK: hand slides along a wall / table
+89. [ ] Multi-camera video mocap
+90. [ ] Hand capture from video
+91. [ ] Root motion editor (path curve on the floor)
+92. [ ] Walk / run generator along a path, real gait data
+93. [ ] Stairs and slopes: feet plant on uneven ground
+94. [ ] Sit / stand / get-up from the floor helpers
+95. [ ] Crowd: copy a fighter with variations
+96. [ ] Asset store of poses / moves (share and import)
+97. [ ] Timeline markers with notes
+98. [ ] Scene diff report (what changed, in words)
+99. [ ] Performance: 4 fighters at 60 fps playback
+100. [ ] Plugin API for new tools
+
 ## How to run it
 
 Waves of 10 agents (one machine runs about 10 Godot tests at once; main.gd merges are the other bottleneck), one
