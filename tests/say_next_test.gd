@@ -8,12 +8,18 @@ var fails := 0
 const NEXT := ["pick", "click", "press", "open", "lock", "put", "add", "turn", "move", "type", "tick", "untick", "use",
 	"select", "drag", "choose", "copy", "make", "free", "try", "give", "save", "close", "run"]
 ## exits that report something DONE (no next step is owed)
-const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
+const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "range %.2f-%.2f s at": "reports the retime it just made (ROADMAP 67)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
 	"(in trash/ if you want it back)": "reports the delete it just made",
+	"Auto-key: card %d takes the body": "reports the card it just wrote",
+	"all %d cards are on the floor now": "reports the snap it just made (Ctrl+Z named)", "the body is on the floor now (Ctrl+Z": "reports the snap it just made (Ctrl+Z named)",
 	"posed: %s%s": "reports the pose it just made (and where a limit stopped it)",
-	"weight key at %.2f s = %.2f": "reports the weight key it just changed (NA1)",
+	"weight key at %s = %.2f": "reports the weight key it just changed (NA1)",
 	"copied a card to %.2f s": "reports the copy it just made (NA0)",
 	"body: %s, %.1f cm tall": "reports the proportions it just set (PR1)",
+	# tonight's merges: these report what was just done (successes on the way out of a branch)
+	"Auto-key: card %d takes the body": "reports the body it just put on the card (auto-key)",
+	"all %d cards are on the floor now": "reports the snap it just made (floor snap; Ctrl+Z is named)",
+	"the body is on the floor now (Ctrl+Z": "reports the snap it just made (floor snap; Ctrl+Z is named)",
 	"_say(r[\"error\"])": "forwards PoseWords' error: each names the words to type instead (pose_words_test checks 5)"}
 
 

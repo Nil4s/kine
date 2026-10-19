@@ -49,7 +49,7 @@ func lit(j: String) -> bool:
 
 
 func head_hover() -> bool:
-	return (m.mats["head"] as StandardMaterial3D).albedo_color.is_equal_approx(Color(m.HOVER, 0.3))
+	return m.part_look("head") == "hover" and m.skin_col("head").is_equal_approx(Color(Tok.c("pick_hover"), 0.22))   # PRECISE PICK: on the skin
 
 
 func empty_view() -> Vector2:

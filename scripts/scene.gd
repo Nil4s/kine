@@ -63,6 +63,7 @@ const ALL_EASES := ["smooth", "linear", "in", "out", "snap", "reach", "strike", 
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offset" s, "gain_db"}; in the file only when there is one
+var face := {}        # THE FACE (ROADMAP 74, face.gd): {"brow_l", "jaw", "eye_yaw", ..., "vis_M"}: [{"t", "v": Vector3(x,0,0)}]; in the file as "face" only when keyed
 var lip := {}          # LIP-SYNC channel (ROADMAP 31, lip_sync.gd): {"jaw": [{"t", "v"}], "mouth": [{"t", "s"}]}; in the file only when baked
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var beats_audio := []  # MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): [{"t" (the sound's time), "down"}] sorted; in the file as "beats_audio" only when any
@@ -128,6 +129,27 @@ static func level(j: String) -> int:
 	if j.begins_with("hand") or j.begins_with("foot") or j.begins_with("ball"):
 		return 5
 	return 6
+
+
+## v as a finite float, else d (null, a string, NaN, +-inf)
+static func _num(v: Variant, d: float) -> float:
+	if (v is float or v is int) and is_finite(float(v)):
+		return float(v)
+	return d
+
+
+## a copy of a loaded value with every number that is NaN / infinite made 0
+static func _finite(v: Variant) -> Variant:
+	if v is float:
+		return v if is_finite(v) else 0.0
+	if v is Array:
+		return (v as Array).map(func(x): return _finite(x))
+	if v is Dictionary:
+		var o := {}
+		for k in v:
+			o[k] = _finite(v[k])
+		return o
+	return v
 
 
 func add(card_name: String, pose: Dictionary, at := -1) -> void:
@@ -781,7 +803,7 @@ func _ground(B: Body) -> void:
 
 
 func _apply(B: Body, t: float) -> void:
-	if stepped:
+	if stepped and not cards.is_empty():   # (no cards: nothing to hold; the blocking view of an empty scene is the plain pose)
 		var ts := times()
 		var k := 0
 		for i in cards.size():
@@ -1396,6 +1418,7 @@ func clone() -> Scene:
 	c.beats_audio = beats_audio.duplicate(true)
 	c.audio = audio.duplicate()
 	c.lip = lip.duplicate(true)
+	c.face = face.duplicate(true)   # ROADMAP 74: the face keys
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
@@ -1668,6 +1691,13 @@ func _feet(B: Body, i: int) -> Dictionary:
 	if c != null and is_same(c[0], cards[i]["pose"]):
 		return c[1]
 	var r := _feet_raw(B, i)
+	if cards[i].get("air", false):
+		# a card in the flight has no floor under it: the grounding in _feet_raw put its lowest foot on the floor, but neither
+		# foot is down, so none is a plant for the card before or after to pin to (the landing leg used to be pinned to where
+		# the flight card's grounding dropped it, 13 cm off its mark)
+		for sd in ["_l", "_r"]:
+			r[sd][2] = false
+			r[sd][3] = false
 	_feet_cache[i] = [cards[i]["pose"], r]
 	return r
 
@@ -1707,6 +1737,9 @@ func pin_cards(B: Body) -> int:
 	var n := 0
 	var prev := {}
 	for i in cards.size():
+		if cards[i].get("air", false):
+			prev = {}   # a card in the flight: both feet are off the floor, so no foot is pinned to the one before (the grounding in
+			continue    # _feet_raw would put the lowest foot on the floor and read it as planted)
 		var now := _feet_raw(B, i)
 		var moved := false
 		for sd in ["_l", "_r"]:
@@ -1906,6 +1939,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["beats_audio"] = BeatTrack.clean_list(beats_audio)   # ROADMAP 32: the music beats, only when there are any
 	if not audio.is_empty():
 		out["audio"] = AudioTrack.clean(audio)   # the sound: the same, only when there is one
+	if not face.is_empty():
+		out["face"] = Face.to_file(face)   # ROADMAP 74: the face keys, only when keyed
 	if not lip.is_empty():
 		out["lip"] = LipSync.to_file(lip)   # ROADMAP 31: the same, only when a lip-sync was baked
 	if not actors.is_empty():   # G1: the same, only with a second actor
@@ -1944,13 +1979,14 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
+	"face": "SIDED: Face.mirror_file (brow_l <-> brow_r, eye_yaw negated; jaw, visemes, blink and eye pitch free)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
-	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
+	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected; the back's spline key \"spine\" is its own twin: its mid and chest points x negated, its hip / chest twists negated)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
 	"shots": "SIDED: ShotCam.mirror_shots_file (every shot's camera mirrored as \"camera\"; the cut times and names free)",
@@ -2002,8 +2038,10 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 	d2["cards"] = d2["cards"].map(func(c): return Scene.mirror_card(c, M))
 	if d2.has("part_keys"):
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
+	if d2.has("face"):
+		d2["face"] = Face.mirror_file(d2["face"])   # ROADMAP 74: brow_l <-> brow_r, eye yaw negated
 	if d2.has("ik"):
-		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+		d2["ik"] = LimbIK.mirror_file(d2["ik"], M)   # as main._mirror_scene: hand_l <-> hand_r, points x negated
 	if d2.has("plants"):
 		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
 	if d2.has("drivers"):
@@ -2076,6 +2114,7 @@ func from_dict(d: Dictionary) -> void:
 	beats = Choreo.from_list(d.get("beats", []))   # ROADMAP 13
 	beats_audio = BeatTrack.clean_list(d.get("beats_audio", []))   # ROADMAP 32: absent = none
 	audio = AudioTrack.clean(d["audio"]) if d.get("audio") is Dictionary and String(d["audio"].get("path", "")) != "" else {}
+	face = Face.from_file(d.get("face", {}))   # ROADMAP 74: absent = none
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
 	props_skipped = []
@@ -2098,11 +2137,13 @@ func from_dict(d: Dictionary) -> void:
 			props_skipped.append(String(p.get("kind", "?")))   # a model not in this library: said on load (main.gd)
 	cards = []
 	for c in d.get("cards", []):
-		cards.append({"name": c["name"], "pose": c["pose"], "move": float(c.get("move", -1.0)), "hold": float(c.get("hold", 0.3))})
+		# a file can hold a number that is not one (null, 1e999, NaN from another tool): it becomes the default, so a
+		# bad card never reaches the maths (a NaN length made the whole timeline empty and the checks crash)
+		cards.append({"name": String(c.get("name", "card")), "pose": _finite(c["pose"]), "move": _num(c.get("move"), -1.0), "hold": maxf(0.0, _num(c.get("hold"), 0.3))})
 		if c.has("steps"):
 			cards[-1]["steps"] = c["steps"]
 		if c.has("lift"):
-			cards[-1]["lift"] = float(c["lift"])
+			cards[-1]["lift"] = _num(c["lift"], 0.0)
 		if c.get("flow", false):
 			cards[-1]["flow"] = true
 		if c.get("walk", false):
@@ -2139,5 +2180,5 @@ func spins() -> Array:
 				continue
 			var d: float = float((b[j] as Vector3).z) - float((a[j] as Vector3).z)
 			if absf(d) > Body.ROLL_STEP + 5.0:
-				out.append("%s -> %s: %s %s %+.0f" % [cards[i - 1]["name"], cards[i]["name"], j, "roll" if j.begins_with("upper") else "forearm turn", d])
+				out.append("%s -> %s: %s %s %+.0f°" % [cards[i - 1]["name"], cards[i]["name"], j, "roll" if j.begins_with("upper") else "forearm turn", d])
 	return out

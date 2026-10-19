@@ -104,11 +104,11 @@ static func _checks(root: Node3D, S: Scene, B: Body, id: String, an: String) -> 
 		H = maxf(H, (mi as MeshInstance3D).get_aabb().size.y)
 	if H >= 1.5 and H <= 2.0:
 		if id == "ue5":
-			out.append("OK    units: the file is metres; the mannequin is %.2f m, so UE5 shows %.0f cm with Import Uniform Scale 100 (the glTF default)" % [H, H * 100.0])
+			out.append("OK    units: the file is metres; the mannequin is %s, so UE5 shows %s with Import Uniform Scale 100 (the glTF default)" % [Units.len(H), Units.len(H)])
 		else:
-			out.append("OK    units: the file is metres, the mannequin is %.2f m, %s reads metres: no scale to set" % [H, p["label"]])
+			out.append("OK    units: the file is metres, the mannequin is %s, %s reads metres: no scale to set" % [Units.len(H), p["label"]])
 	else:
-		out.append("WRONG units: the mannequin is %.2f m tall (a person is 1.5 to 2.0 m); %s will show it at that size, so check the body proportions" % [H, p["label"]])
+		out.append("WRONG units: the mannequin is %s tall (a person is 150 to 200 cm); %s will show it at that size, so check the body proportions" % [Units.len(H), p["label"]])
 
 	# UP AXIS and FACING: from the rest skeleton in the file (glTF: +Y up, the front faces +Z)
 	if sk.find_bone("pelvis") >= 0 and _bone(sk, "head") >= 0 and sk.find_bone("foot_l") >= 0 and sk.find_bone("ball_l") >= 0:
@@ -117,9 +117,9 @@ static func _checks(root: Node3D, S: Scene, B: Body, id: String, an: String) -> 
 		var ft := sk.get_bone_global_rest(sk.find_bone("foot_l")).origin
 		var bl := sk.get_bone_global_rest(sk.find_bone("ball_l")).origin
 		if hd.y > pv.y and pv.y > ft.y + 0.3:
-			out.append("OK    up: standing in the file: head %.2f m, pelvis %.2f m, foot %.2f m (Y up; %s)" % [hd.y, pv.y, ft.y, "UE5 is Z up and converts it on import" if id == "ue5" else "%s keeps Y up" % p["label"]])
+			out.append("OK    up: standing in the file: head %s, pelvis %s, foot %s (Y up; %s)" % [Units.len(hd.y), Units.len(pv.y), Units.len(ft.y), "UE5 is Z up and converts it on import" if id == "ue5" else "%s keeps Y up" % p["label"]])
 		else:
-			out.append("WRONG up: the rest pose is not standing (head %.2f, pelvis %.2f, foot %.2f): %s would show it on its side or upside down" % [hd.y, pv.y, ft.y, p["label"]])
+			out.append("WRONG up: the rest pose is not standing (head %s, pelvis %s, foot %s): %s would show it on its side or upside down" % [Units.len(hd.y), Units.len(pv.y), Units.len(ft.y), p["label"]])
 		if bl.z > ft.z:
 			out.append("OK    facing: the toes point to +Z, the glTF front")
 		else:
@@ -142,19 +142,19 @@ static func _checks(root: Node3D, S: Scene, B: Body, id: String, an: String) -> 
 		drift = maxf(drift, Vector2(left.x, left.z).length())
 	if bool(p.get("root_motion", false)):
 		if sk.find_bone("root") >= 0:
-			out.append("OK    root motion: the pelvis travels %.3f m sideways; it is on the root bone, and the pelvis keeps its place (drift %.3f mm)" % [travel, drift])
+			out.append("OK    root motion: the pelvis travels %s sideways; it is on the root bone, and the pelvis keeps its place (drift %s)" % [Units.len(travel), Units.len(drift)])
 		else:
 			out.append("WRONG root motion: the file has no root bone, so the travel stays on the pelvis and %s will not move the character" % p["label"])
 	elif travel > 0.05:
-		out.append("WRONG root motion: the character travels %.2f m, but %s does not move it from the file: it plays on the spot unless the game moves it (UE5 export moves it onto the root bone)" % [travel, p["label"]])
+		out.append("WRONG root motion: the character travels %s, but %s does not move it from the file: it plays on the spot unless the game moves it (UE5 export moves it onto the root bone)" % [Units.len(travel), p["label"]])
 	else:
-		out.append("OK    root motion: the character travels %.2f m: nothing to move" % travel)
+		out.append("OK    root motion: the character travels %s: nothing to move" % Units.len(travel))
 
 	# FRAME RATE: a key on every frame at the scene's rate
 	if S.fps >= 1 and S.fps <= 120:
 		out.append("OK    frame rate: %d fps, a key on every frame (%d keys); the engine plays the same frames" % [S.fps, n + 1])
 	else:
-		out.append("WRONG frame rate: %d fps is outside 1-120; set the scene's fps" % S.fps)
+		out.append("WRONG frame rate: %d fps is outside 1 to 120 fps; set the scene's fps" % S.fps)
 
 	# ANIMATION NAME: the clip is named after the scene
 	var name_ok := an.length() <= 63 and an.is_valid_filename() and RegEx.create_from_string("^[A-Za-z0-9_]+$").search(an) != null
@@ -163,14 +163,14 @@ static func _checks(root: Node3D, S: Scene, B: Body, id: String, an: String) -> 
 	elif A == null:
 		out.append("WRONG animation name: the file has no clip named '%s'" % an)
 	else:
-		out.append("WRONG animation name: '%s' has characters %s renames: use letters, digits and _ (63 at most)" % [an, p["label"]])
+		out.append("WRONG animation name: '%s' has characters %s renames: use letters, digits and _ (at most 63 characters)" % [an, p["label"]])
 
 	# BONES: the count, the leaves engines ignore, and UE5's core names
 	var leaves := 0
 	for i in sk.get_bone_count():
 		if sk.get_bone_name(i).contains("leaf"):
 			leaves += 1
-	out.append("OK    bones: %d (%d leaf bones with no motion: %s ignores them)" % [sk.get_bone_count(), leaves, p["label"]])
+	out.append("OK    %d bones (%d leaf bones with no motion: %s ignores them)" % [sk.get_bone_count(), leaves, p["label"]])
 	if id == "ue5":
 		var missing := []
 		for nm in UE5_CORE:

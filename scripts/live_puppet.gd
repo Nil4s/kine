@@ -123,6 +123,9 @@ func poll(B: Body) -> Array:
 			_gone("the tracker stopped before it connected")
 		return done
 	_peer.poll()
+	if _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED:   # the tracker closed the socket: nothing to read (reading it is an engine error)
+		_gone("")
+		return done
 	var n := _peer.get_available_bytes()
 	if n > 0:
 		var r := _peer.get_partial_data(n)

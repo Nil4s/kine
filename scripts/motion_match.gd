@@ -405,10 +405,10 @@ static func coverage(db: Dictionary) -> Dictionary:
 		if cost > GOOD:
 			gaps.append(row)
 	var lines := PackedStringArray()
-	lines.append("MOTION MATCHING COVERAGE: %d of %d queries have a good match (cost <= %.1f sd); worst %.2f" % [
+	lines.append("MOTION MATCHING COVERAGE: %d of %d queries have a good match (cost <= %.1f sd); worst %.2f sd" % [
 		rows.size() - gaps.size(), rows.size(), GOOD, worst])
 	for row in rows:
-		lines.append("%s %4.1f m/s %5.0f deg  cost %.2f  best %s f%d" % ["  " if row["good"] else "GAP", row["speed"],
+		lines.append("%s %4.1f m/s %5.0f deg  cost %.2f sd  best %s at frame %d" % ["  " if row["good"] else "GAP", row["speed"],
 			row["deg"], row["cost"], row["clip"], row["frame"]])
 	return {"rows": rows, "gaps": gaps, "worst": worst, "text": "\n".join(lines)}
 

@@ -13,6 +13,14 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"save_scene": "writes scenes/ (a file, not an edit)", "polish_the_scene_new_copy": "writes + opens a copy in scenes/_wip",
 	"mirror_the_scene_left-handed_copy": "writes + opens a copy in scenes/_wip",
 	"ragdoll_fall_from_here_pins_picked_parts": "writes + opens a NEW scene in scenes/_wip (the body is put back first; the open scene is left as it is)",
+	"live_start_the_webcam_puppet": "starts the python webcam tracker, which then drives the body every frame (the later commands would read its drift as their own change); live_puppet_test runs it",
+	"mirror_the_scene_a_copy_in__wip": "writes + opens a copy in scenes/_wip (a file, not an edit)",
+	"review_export_a_review_page": "an async playblast over every frame (a minute+) that writes exports/review/ and leaves the app mid-export for the commands after it (a file, not an edit; review_test runs it and checks the app is back)",
+	"review_import_comments...": "opens a native file dialog (review_test runs the import itself)",
+	"hit_box_add_on_the_picked_part...": "opens a dialog; the edit is made by its OK (hit_boxes_test runs it and the one undo step)",
+	"hurt_box_shrink_grow_or_switch_off_the_picked_part...": "opens a dialog; the edit is made by its OK (hit_boxes_test runs it and the one undo step)",
+	"box_invincible_over_these_frames...": "opens a dialog; the edit is made by its OK (hit_boxes_test runs it and the one undo step)",
+	"box_edit_or_delete_a_box...": "opens a dialog; the edit is made by its OK or Delete (hit_boxes_test runs it)",
 	"export_to_game": "writes exports/<scene>.json and .cs (a file, not an edit; round 31)",
 	"export_animation_.glb": "writes exports/<scene>.glb (a file, not an edit; round 34)",
 	"export_animation_.bvh": "writes exports/<scene>.bvh (a file, not an edit; round 34)",
@@ -28,6 +36,84 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"weight_time_the_swing_to_the_weapon": "needs a hit marker on a card that holds a non-reference weapon (weight_feel_test runs it on the app and checks the one undo step)",
 	"beats_clear_the_beats": "needs beats on the timeline (beat_track_test covers the scene key they clear)",
 	"import_animation_fbx_glb_gltf_bvh_...": "opens a file dialog; the import writes + opens a NEW scene in scenes/_wip (anim_import_test runs it)"}
+
+## the start each command was first seen to change something from (read off the audit's own log): tried FIRST, so a
+## command that only changes from KEYS / SETS / HITS / ... is not run through every earlier start (each a build + the run).
+## Not a verdict: a command that changes nothing from its preferred start still goes through the whole cascade.
+const PREFER := {
+	"actor_remove_this_fighter": "ACTORS",
+	"audio_louder_+3_db": "AUDIO",
+	"audio_move_the_sound_to_start_at_the_playhead": "AUDIO",
+	"audio_quieter_-3_db": "AUDIO",
+	"audio_remove_the_sound": "AUDIO",
+	"body_the_mannequin's_own_proportions": "BODY",
+	"camera_lens_135_mm": "CAMERA",
+	"camera_lens_18_mm": "CAMERA",
+	"camera_lens_24_mm": "CAMERA",
+	"camera_lens_35_mm": "CAMERA",
+	"camera_lens_50_mm": "CAMERA",
+	"camera_lens_85_mm": "CAMERA",
+	"camera_remove_the_key_here": "CAMERA",
+	"clip_remove_the_picked_clip": "CLIPS",
+	"constraint_fade_in_over_6_frames": "CONS",
+	"constraint_fade_out_over_6_frames": "CONS",
+	"constraint_keep_the_picked_foot_above_the_floor": "CONS_FOOT",
+	"constraint_release_here_keeping_the_pose": "CONS",
+	"constraint_remove_the_picked_part's_constraint": "CONS",
+	"door_close_15_deg_key_here": "PROPS",
+	"door_open_15_deg_key_here": "PROPS",
+	"driver_factor_-1": "DRIVER",
+	"driver_factor_0.5": "DRIVER",
+	"driver_factor_2": "DRIVER",
+	"driver_remove_the_picked_part's_driver": "DRIVER",
+	"driver_the_picked_part_follows_the_source": "B",
+	"fingers_left_fist": "THROUGH",
+	"fingers_right_grip": "KEYS_A",
+	"fix_moves_through_the_body": "THROUGH",
+	"fix_offset_the_picked_side_by_3_frames": "TWIN",
+	"foot_plant_the_picked_foot_from_the_playhead_to_the_next_card": "CONS_FOOT",
+	"foot_plant_the_picked_foot_over_the_selected_range": "FOOT",
+	"foot_unplant": "FOOTPLANTED",
+	"grip_wrap_the_hand_round_the_picked_prop": "PROPS",
+	"hits_make_the_struck_fighter_react": "HITS",
+	"ik_release_the_picked_limb_here": "IK",
+	"ik_snap_fk_to_ik": "IK",
+	"keying_set_none_k_keys_the_one_part": "SETS_B",
+	"keying_set_use_the_picked_set_for_k": "SETS",
+	"layer_delete": "LAYER",
+	"layer_key_the_weight_here": "LAYER",
+	"layer_lock": "LAYER",
+	"layer_merge_down_into_the_cards": "LAYER",
+	"layer_mute": "LAYER",
+	"layer_solo": "LAYER",
+	"layer_stronger": "LAYER",
+	"layer_weaker": "LAYER",
+	"lip-sync_from_the_audio_track": "LIP",
+	"part_key_aligned_handle": "KEYS_A",
+	"part_key_auto_clamped_handle": "KEYS_A",
+	"part_key_auto_handle": "KEYS_B",
+	"part_key_bezier_interpolation": "KEYS_A",
+	"part_key_constant_interpolation": "KEYS_B",
+	"part_key_free_handle": "KEYS_A",
+	"part_key_linear_interpolation": "KEYS_A",
+	"part_key_vector_handle": "KEYS_A",
+	"part_keys_add_cycles_modifier": "KEYS_A",
+	"part_keys_cycle_infinity": "KEYS_B",
+	"part_keys_cycle_offset_infinity": "KEYS_A",
+	"part_keys_hold_infinity": "KEYS_A",
+	"part_keys_linear_infinity": "KEYS_A",
+	"paste_pose": "THROUGH",
+	"paste_to_this_part": "THROUGH",
+	"plant_every_sliding_foot": "SLIDE",
+	"prop_delete_its_keys": "PROPS",
+	"prop_key_its_place_here": "PROPS",
+	"secondary_bake": "SECONDARY",
+	"secondary_clear": "SECONDARY",
+	"sets_add_the_selected_parts_to_the_picked_set": "SETS_B",
+	"sets_delete_the_picked_set": "SETS",
+	"sets_mirror_the_picked_set_to_the_other_side": "SETS",
+	"sets_remove_the_selected_parts_from_the_picked_set": "SETS",
+	"spline_and_check": "STEPPED"}
 
 var fails := 0
 var m: Node
@@ -59,7 +145,7 @@ func fp() -> String:
 		"sets": var_to_str(m.S.sets),   # selection / keying sets (part_sets.gd)
 		"clips": var_to_str(m.S.clips),   # CLIPS (clips.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
-		"drivers": var_to_str(m.S.drivers), "secondary": var_to_str(m.S.secondary), "lip": var_to_str(m.S.lip),   # drivers, secondary motion, lip-sync
+		"drivers": var_to_str(m.S.drivers), "secondary": var_to_str(m.S.secondary), "lip": var_to_str(m.S.lip), "face": var_to_str(m.S.face),   # drivers, secondary motion, lip-sync, the face (face.gd)
 		"plants": var_to_str(m.S.plants.map(func(q): var c: Dictionary = q.duplicate(); c.erase("out"); return c)),   # foot plants, without "out" (a cache the first play writes into the plant)
 		"body": var_to_str(m.S.body), "p0": var_to_str(m.B.p0)}   # PR1: the proportions and the skeleton they make
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
@@ -155,6 +241,16 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		m.S.apply(m.B, m.playhead)
 		m.sel = "hand_l"
+	elif kind == "SPINE":
+		# ROADMAP 61: combo3 on card 3 with the back on the spline from card 1, the middle back picked (off needs a key to turn off)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(0)
+		m.S.apply(m.B, m.playhead)
+		SpineIK.pin(m.S, m.B, m.playhead)
+		m._card_pick(2)
+		m.S.apply(m.B, m.playhead)
+		m.sel = "spine_02"
 	elif kind.begins_with("CONS"):
 		# round 51: combo3 on card 3 with the left hand held to the right hand from card 1 and the head looking at the
 		# weapon, the left hand picked (fade / release / remove need a constraint)
@@ -367,12 +463,19 @@ func where(a: String, b: String) -> String:
 
 ## run one command from a start; returns "changed" / "same" and records the failures
 func trial(c: Dictionary, kind: String) -> String:
+	var t_s := Time.get_ticks_msec()
 	await start(kind)
+	if OS.get_cmdline_user_args().has("kinds"):
+		print("start %-10s %5d ms" % [kind, Time.get_ticks_msec() - t_s])
 	var f0 := fp()
 	var u0: int = m.undo.size()
+	var t_r := Time.get_ticks_msec()
 	(c["run"] as Callable).call()
+	var t_run := Time.get_ticks_msec() - t_r
 	await process_frame
 	await process_frame
+	if OS.get_cmdline_user_args().has("kinds") and Time.get_ticks_msec() - t_r > 500:
+		print("run   %-10s run %d ms, +2 frames %d ms" % [kind, t_run, Time.get_ticks_msec() - t_r - t_run])
 	m.playing = false
 	var f1 := fp()
 	var steps: int = m.undo.size() - u0
@@ -422,20 +525,33 @@ func _init() -> void:
 	var tested := 0
 	var vacuous := []
 	var only := ""
+	var from_id := ""
+	var t_cmd := 0
+	var t_prev := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("only="):
 			only = a.substr(5)
+		if a.begins_with("from="):   # resume the walk at this command id (a long audit measured in parts)
+			from_id = a.substr(5)
 	for c in cmds:
 		if only != "" and c["id"] != only:
 			continue
+		if from_id != "":
+			if c["id"] != from_id:
+				continue
+			from_id = ""
 		if SKIP.has(c["id"]):
 			print("skip %-38s %s" % [c["id"], SKIP[c["id"]]])
 			continue
 		if c["edits"]:
 			n_edit += 1
-		var r := await trial(c, "A")
+		if t_cmd > 0 and Time.get_ticks_msec() - t_cmd > 5000:
+			print("slow %-38s %.1f s" % [t_prev, (Time.get_ticks_msec() - t_cmd) / 1000.0])
+		t_cmd = Time.get_ticks_msec()
+		t_prev = c["id"]
+		var r := await trial(c, PREFER.get(c["id"], "A"))
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
+			for k in ["A", "B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "SPINE", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

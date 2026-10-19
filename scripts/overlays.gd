@@ -25,9 +25,24 @@ const VERSION := Color(0.85, 0.3, 0.95, 0.45)
 const ONION_SLOT := [[0, 3], [1, 4]]
 
 var trail_on := false
+var auto_pin := ""  # the part whose trail is on only while it is picked and T is on (main.gd _auto_pin_sync); Shift+T keeps it
 var pins := []      # body parts with a trail of their own (Shift+T on the selected part): the END of the part (forearm =
                     # the wrist, thigh = the knee, foot = the toes' base), the pelvis = the hips' centre
 var onion_on := false
+## PER-PART ONION (ROADMAP 70): with "picked parts only" on, the ghosts are only the picked parts (the whole body is not
+## drawn), onion_before frames before the playhead and onion_after after it, onion_step frames apart (at the scene's fps).
+## Each ghost frame is one rig: a mannequin split into its parts (split_parts), with only the picked pieces shown. The
+## alpha falls with the time distance (the nearest frame strongest), and past and future take Tok's onion_past / onion_future.
+var onion_parts_on := false
+var onion_picks := []       # body part names (Body.ORDER), in the order they were picked
+var onion_before := 2       # frames before the playhead (0..ONION_MAX)
+var onion_after := 2        # frames after it
+var onion_step := 1         # frames between two ghosts (1..ONION_STEP_MAX)
+const ONION_MAX := 5
+const ONION_STEP_MAX := 10
+const ONION_ALPHA_NEAR := 0.5
+const ONION_ALPHA_FAR := 0.12
+var _rigs := []             # [{node, sk, idx, pieces, mat}] one per ghost frame, pooled while the frame count stays
 ## SPACING GHOSTS (10-14, animators: "I can't see my spacing"): every SPACE_DT seconds around the playhead, the parts
 ## that TRAVEL: the weapon shaft + both forearms (unarmed: arms and legs), orange behind, green ahead, fading with
 ## distance. Bunched = slow, a wide fan = fast: the spacing chart, in 3D. (A whole stick body was tried first: a swing
@@ -365,6 +380,10 @@ func onion(S: Scene, t: float) -> void:
 		for k in side:
 			_ghosts[k][0].visible = false
 			_ghosts[k][3].visible = false
+	if onion_on and onion_parts_on:
+		_onion_rigs(S, t)
+		return
+	_free_rigs()
 	if not onion_on or S.cards.size() < 2:
 		return
 	var nb := neighbours(S, t)
@@ -378,6 +397,73 @@ func onion(S: Scene, t: float) -> void:
 				continue
 			S.apply(GB, float(ts[ci][1]))
 			_pose(_ghosts[ONION_SLOT[side][d]], GB)
+
+
+## PER-PART ONION: the frames' times, nearest first: before (side -1) then after (side +1). Frames past either end are left out.
+static func onion_times(t: float, length: float, fps: float, before: int, after: int, step: int) -> Array:
+	var out := []
+	for side in [-1, 1]:
+		var n := before if side < 0 else after
+		for k in range(1, n + 1):
+			var tk: float = t + side * k * step / fps
+			if tk >= -1e-6 and tk <= length + 1e-6:
+				out.append([clampf(tk, 0.0, length), side, k, n])
+	return out
+
+
+func _onion_rigs(S: Scene, t: float) -> void:
+	var fr := onion_times(t, S.length(), float(S.fps), onion_before, onion_after, onion_step)
+	while _rigs.size() > fr.size():
+		var dead: Dictionary = _rigs.pop_back()
+		dead.node.visible = false
+		dead.node.queue_free()
+	while _rigs.size() < fr.size():
+		_rigs.append(_new_rig())
+	for i in fr.size():
+		var f: Array = fr[i]
+		var r: Dictionary = _rigs[i]
+		r.t = float(f[0])
+		S.apply(GB, float(f[0]))
+		pose_skeleton(r.sk, r.idx, GB)
+		var col: Color = Tok.c("onion_past" if f[1] < 0 else "onion_future")
+		var fade := float(f[2] - 1) / float(maxi(1, int(f[3]) - 1))   # 0 at the nearest frame, 1 at the farthest
+		col.a = lerpf(ONION_ALPHA_NEAR, ONION_ALPHA_FAR, fade)
+		(r.mat as StandardMaterial3D).albedo_color = col
+		r.node.visible = true
+		for pj in r.pieces:
+			(r.pieces[pj] as MeshInstance3D).visible = onion_picks.has(pj)
+
+
+## one ghost rig: a mannequin in the ghost material, split into its parts; nothing shown until _onion_rigs picks them
+func _new_rig() -> Dictionary:
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_BACK
+	var mq := mannequin(self, m)
+	var pieces := split_parts(mq[0], mq[1], mq[2])
+	return {"node": mq[0], "sk": mq[1], "idx": mq[2], "pieces": pieces, "mat": m, "t": 0.0}
+
+
+func _free_rigs() -> void:
+	for r in _rigs:
+		r.node.visible = false
+		r.node.queue_free()
+	_rigs.clear()
+
+
+func has_rigs() -> bool:
+	return not _rigs.is_empty()
+
+
+## how many ghost meshes are on screen: the picked parts' pieces, on every ghost frame (0 once it is off)
+func onion_mesh_count() -> int:
+	var n := 0
+	for r in _rigs:
+		for pj in r.pieces:
+			if (r.pieces[pj] as MeshInstance3D).visible:
+				n += 1
+	return n
 
 
 ## COMPARE WITH (ROADMAP 28): the older version V posed at t as the magenta ghost (slot 5). Null = hidden. Its pose is left

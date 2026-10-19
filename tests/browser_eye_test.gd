@@ -133,6 +133,7 @@ func _init() -> void:
 	for c in (m.pieces["head"] as Node).get_parent().get_children():
 		if c is MeshInstance3D and not String(c.name).begins_with("piece_"):
 			orig = c
+	m.skp.set_looks({})   # PRECISE PICK: the picked part's light is on the pieces' skin only; this compares the geometry
 	var split_img := await shot()
 	var noise := diff(split_img, await shot())
 	for j in m.pieces:
@@ -156,7 +157,7 @@ func _init() -> void:
 	var u0: int = m.undo.size()
 	var arm: TreeItem = m.ui_browser.rows["upperarm_r"]
 	var clicked := await click_button(arm, 0)
-	var hid: bool = m.hidden_parts.has("upperarm_r") and not m.pieces["upperarm_r"].visible and not m.parts["upperarm_r"].visible
+	var hid: bool = m.hidden_parts.has("upperarm_r") and not m.pieces["upperarm_r"].visible and not (m.parts.has("upperarm_r") and m.parts["upperarm_r"].visible)
 	var icon_off: bool = arm.get_button(0, 0) == Icons.small("eye_off")
 	var u_btn: int = m.undo.size() - u0
 	var where := spot("upperarm_r")
@@ -193,7 +194,7 @@ func _init() -> void:
 	var under: Array = m.ui_browser._parts_of(fl)
 	u0 = m.undo.size()
 	await click_button(fl, 0)
-	var all_hid: bool = under.all(func(j): return m.hidden_parts.has(j) and m.pieces.get(j, m.parts[j]).visible == false)
+	var all_hid: bool = under.all(func(j): return m.hidden_parts.has(j) and (not m.pieces.has(j) or m.pieces[j].visible == false) and not (m.parts.has(j) and m.parts[j].visible))
 	var fingers_in: bool = under.has("index_02_l") and under.has("hand_l") and under.has("clavicle_l")
 	var arm_img := await shot()
 	await click_button(fl, 0)

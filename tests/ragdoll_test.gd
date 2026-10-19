@@ -160,8 +160,13 @@ func _init() -> void:
 	for i in 6:
 		await process_frame
 	DirAccess.make_dir_recursive_absolute(SHOT.get_base_dir())
-	var e: int = m.get_viewport().get_texture().get_image().save_png(SHOT)
-	ok(e == OK, "screenshot of the body at rest saved (%s)" % SHOT)
+	# under --headless the dummy renderer has no viewport texture: skip the screenshot, do not fail
+	var tex: Texture2D = m.get_viewport().get_texture()
+	if tex == null or tex.get_image() == null:
+		print("screenshot skipped (headless)")
+	else:
+		var e: int = tex.get_image().save_png(SHOT)
+		ok(e == OK, "screenshot of the body at rest saved (%s)" % SHOT)
 
 	print("ragdoll: %d FAIL" % fails)
 	quit(1 if fails > 0 else 0)

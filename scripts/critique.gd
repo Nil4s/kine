@@ -108,10 +108,10 @@ static func rule_floaty(sm: Dictionary) -> Array:
 		var t: float = s / FPS
 		var t1: float = e / FPS
 		if whole > bar:
-			out.append(_note(t, "FLOATY", "%.2f-%.2f s in the air: the centre of mass falls at only %.1f m/s^2 (gravity is 9.8; with nothing under him in the air he must fall at full pull). He floats. Shorten the air time, or bring the hips down faster." % [
+			out.append(_note(t, "FLOATY", "%.2f-%.2f s in the air: the centre of mass falls at only %.1f m/s^2 (gravity is 9.8 m/s^2; with nothing under him in the air he must fall at full pull). He floats. Shorten the air time, or bring the hips down faster." % [
 				t, t1, absf(whole)], absf(whole)))
 		else:
-			out.append(_note(t, "FLOATY", "%.2f s in the air at the start of the fall: the centre of mass drops at only %.1f m/s^2 in its first 0.15 s (gravity is 9.8: a body in the air falls at full pull, so the fall eases in and reads as floating). Start the fall at full speed: move the hips down faster at the take-off, or give the first 0.15 s a fast ease in." % [
+			out.append(_note(t, "FLOATY", "%.2f s in the air at the start of the fall: the centre of mass drops at only %.1f m/s^2 in its first 0.15 s (gravity is 9.8 m/s^2: a body in the air falls at full pull, so the fall eases in and reads as floating). Start the fall at full speed: move the hips down faster at the take-off, or give the first 0.15 s a fast ease in." % [
 				t1 - t, absf(head)], absf(head)))
 		out[-1]["t1"] = t1
 	return out
@@ -147,7 +147,7 @@ static func rule_stop(sm: Dictionary) -> Array:
 			continue
 		var what := "weapon tip" if sm.get("armed", false) else "hand"
 		var t: float = b / FPS
-		out.append(_note(t, "FOLLOW-THROUGH", "the %s stops dead after the hit: from %.1f m/s to under %.1f in %.0f ms (a real arm carries on and slows over about 0.2 s). Give the strike a slower ease out, or add a follow-through card after the hit, so the %s keeps going and slows." % [
+		out.append(_note(t, "FOLLOW-THROUGH", "the %s stops dead after the hit: from %.1f m/s to under %.1f m/s in %.0f ms (a real arm carries on and slows over about 0.2 s). Give the strike a slower ease out, or add a follow-through card after the hit, so the %s keeps going and slows." % [
 			what, s[b], 0.1 * v, (j - b) * 1000.0 / FPS, what], v))
 	return out
 

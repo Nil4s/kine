@@ -147,6 +147,6 @@ func update(B: Body, pW: Transform3D, others: Array) -> void:
 			im.surface_add_vertex(c + Vector3(cos(a) * float(ring["r"]), LIFT, sin(a) * float(ring["r"])))
 		im.surface_end()
 	var near: Dictionary = last["near"]
-	_label.text = "%.2f m to %s" % [float(near["gap"]), near["name"]]
+	_label.text = "%s to %s" % [Units.len(float(near["gap"])), near["name"]]
 	_label.position = c + Vector3(0, 2.0, 0)
 	_label.modulate = Tok.c("warn") if String(near["name"]) != "" and float(near["gap"]) <= float(last["reaches"]["step_in"]) else Tok.of("ink:0.7")

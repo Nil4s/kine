@@ -255,6 +255,30 @@ func _init() -> void:
 		names.append(String(c["name"]))
 	ok("Shots: add a shot from the current view at the playhead" in names and "Shots: delete the shot at the playhead" in names and "Shots: rename the shot at the playhead" in names, "8 the three Shots commands are in the command registry")
 
+	# 9 each shot has its own shake and rack focus (ROADMAP 76 on the shots): a shake on shot 2 is not on shot 1 or 3
+	m.playhead = 1.3
+	m._refresh()
+	var u9: int = m.undo.size()
+	m._shot_shake_here()
+	var fx1: Dictionary = m.S.shots[0].get("fx", {})
+	var fx2: Dictionary = m.S.shots[1].get("fx", {})
+	var fx3: Dictionary = m.S.shots[2].get("fx", {})
+	ok(m.undo.size() == u9 + 1 and (fx2.get("shake", []) as Array).size() == 1 and (fx1.get("shake", []) as Array).is_empty() and (fx3.get("shake", []) as Array).is_empty(), "9 the shake at 1.3 s is one undo step on shot 2 only (shots 1 and 3 have none)")
+	var k05: Dictionary = m.shot_at(0.5)
+	var k14: Dictionary = m.shot_at(1.4)
+	ok(var_to_str(m.shot_view_at(0.5)["xf"]) == var_to_str(ShotCam.xf(k05["pos"], k05["aim"])) and var_to_str(m.shot_view_at(1.4)["xf"]) != var_to_str(ShotCam.xf(k14["pos"], k14["aim"])), "  shot 1 at 0.5 s is the keyed camera, byte for byte; shot 2 at 1.4 s is shaken")
+	m.playhead = 2.6
+	m._refresh()
+	var u10: int = m.undo.size()
+	m._shot_focus_dist()
+	fx3 = m.S.shots[2].get("fx", {})
+	var kd: Dictionary = ShotCam.sample(m._shot_keys(), 2.6)
+	var want := maxf(ShotFx.DIST_MIN, (kd["pos"] as Vector3).distance_to(kd["aim"] as Vector3))
+	var got: float = m.shot_view_at(2.6)["focus"]
+	ok(m.undo.size() == u10 + 1 and (fx3.get("focus", []) as Array).size() == 1 and absf(got - want) < 1e-6 and (m.S.shots[1].get("fx", {}).get("focus", []) as Array).is_empty(), "  a rack-focus key at 2.6 s is on shot 3 only: focus %.3f m (want %.3f), one undo step" % [got, want])
+	m._undo()
+	ok((m.S.shots[2].get("fx", {}).get("focus", []) as Array).is_empty(), "  one Ctrl+Z takes the focus key back off shot 3")
+
 	for b in ["_cut"]:
 		_rm(ProjectSettings.globalize_path(base + b))
 	print("CAMSEQ TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

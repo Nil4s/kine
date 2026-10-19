@@ -221,7 +221,15 @@ func matches(kind: String, q: String) -> Array:
 				continue
 		hits.append([s, i, pool[i]])
 	if q != "":
-		hits.sort_custom(func(a, b): return a[0] > b[0] or (a[0] == b[0] and a[1] < b[1]))
+		# a tie: the row with a shortcut first (the common action: "flip" wants Shift+M's pose mirror, not the scene mirrors), then pool order
+		hits.sort_custom(func(a, b):
+			if a[0] != b[0]:
+				return a[0] > b[0]
+			var ka: bool = String(a[2].get("keys", "")) != ""
+			var kb: bool = String(b[2].get("keys", "")) != ""
+			if ka != kb:
+				return ka
+			return a[1] < b[1])
 	return hits.map(func(h): return h[2])
 
 

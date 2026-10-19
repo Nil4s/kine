@@ -51,6 +51,9 @@
 ## expression is the one that was there before (old files play bit for bit). A stack's modifiers each have their own range.
 ## Like "inf" it lives on the first key, so it saves, undoes, copies and mirrors with the keys. value_at() is the curve WITH
 ## the modifiers (the scene plays and exports it); at() stays the keys alone.
+## KEY TYPES (ROADMAP 66, Blender's keyframe types): "ktype" on a key = "key" (default, not stored) | "breakdown" (a pose
+## between two keys, the curve's own value there) | "inbetween" (a filler). The type changes how the key is drawn and what
+## "pick only main keys" selects; it never changes the curve, so a file without it plays and saves byte for byte as before.
 ## In the FILE: "part_keys": {"<joint>": [{"t": 0.42, "v": [bend, side, twist]}, ...]}, written only when there is one
 ## (a scene without it saves and plays byte for byte as before).
 class_name PartKeys
@@ -62,6 +65,7 @@ const HANDLES := ["auto_clamped", "auto", "vector", "aligned", "free"]
 const INFS := ["hold", "linear", "cycle", "cycle_offset"]
 const MODS := ["noise", "stepped", "limits", "cycles"]   # DD2; cycles GE4
 const CYCLE_MODES := ["none", "repeat", "offset", "mirror"]   # GE4: Blender's No Cycles / Repeat Motion / with Offset / Mirrored
+const KTYPES := ["key", "breakdown", "inbetween"]   # ROADMAP 66: a key's type (Blender's keyframe types); "key" is the default, not stored
 
 
 ## DD2: the joint's curve at time t WITH its modifier stack (see the header); without "mods" exactly at()
@@ -238,6 +242,38 @@ static func remove_mod(pk: Dictionary, j: String, idx: int) -> bool:
 	return true
 
 
+## ROADMAP 66: a key's type (the default "key" when absent or unknown)
+static func ktype_of(key: Dictionary) -> String:
+	var kt := String(key.get("ktype", "key"))
+	return kt if kt in KTYPES else "key"
+
+
+## ROADMAP 66: set key idx's type. "key" is the default, so it is erased rather than stored
+static func set_ktype(pk: Dictionary, j: String, idx: int, kt: String) -> bool:
+	if not pk.has(j) or idx < 0 or idx >= (pk[j] as Array).size() or not kt in KTYPES:
+		return false
+	var key: Dictionary = pk[j][idx]
+	if kt == "key":
+		key.erase("ktype")
+	else:
+		key["ktype"] = kt
+	return true
+
+
+## ROADMAP 66: a breakdown key on joint j at time t, its value the keys' own curve there (at(), the keys alone: the curve
+## does not move at t, and a modifier stack on top reads the same). False when t is not strictly inside the joint's keys
+## or a key already sits there (the caller then sets that key's type instead)
+static func add_breakdown(pk: Dictionary, j: String, t: float) -> bool:
+	var keys: Array = pk.get(j, [])
+	if keys.size() < 2 or t <= float(keys[0]["t"]) or t >= float(keys[keys.size() - 1]["t"]):
+		return false
+	if key_near(keys, t, SAME_T) >= 0:
+		return false
+	put(pk, j, t, at(keys, t))
+	var i := key_near(pk[j], t, SAME_T)
+	return set_ktype(pk, j, i, "breakdown")
+
+
 ## the angles a joint's keys give at time t (keys: [{"t", "v": Vector3}] sorted by t, at least one)
 static func at(keys: Array, t: float) -> Vector3:
 	var n := keys.size()
@@ -290,13 +326,9 @@ static func _bezier(keys: Array, i: int, t: float, mode: String) -> Vector3:
 	var b: Vector3 = keys[i + 1]["v"]
 	var ho: Vector4 = _handles(keys, i, mode)[1]
 	var hi: Vector4 = _handles(keys, i + 1, mode)[0]
-	# handle lengths in time stay inside the segment (and shrink together when they would cross, as Blender does)
-	var dto := clampf(ho.x, 0.0, h)
-	var dti := clampf(-hi.x, 0.0, h)
-	if dto + dti > h:
-		var f := h / (dto + dti)
-		dto *= f
-		dti *= f
+	var dd := _hdt(ho, hi, h)
+	var dto: float = dd[0]
+	var dti: float = dd[1]
 	var so := Vector3(ho.y, ho.z, ho.w) * (dto / ho.x if ho.x > 1e-9 else 0.0)
 	var si := Vector3(hi.y, hi.z, hi.w) * (dti / -hi.x if hi.x < -1e-9 else 0.0)
 	var x1 := t0 + dto
@@ -314,6 +346,29 @@ static func _bezier(keys: Array, i: int, t: float, mode: String) -> Vector3:
 			hiu = u
 	var w2 := 1.0 - u
 	return w2 * w2 * w2 * a + 3 * w2 * w2 * u * (a + so) + 3 * w2 * u * u * (b + si) + u * u * u * b
+
+
+## the two handles' lengths in time, kept inside the segment (and shrunk together when they would cross, as Blender does)
+static func _hdt(ho: Vector4, hi: Vector4, h: float) -> Array:
+	var dto := clampf(ho.x, 0.0, h)
+	var dti := clampf(-hi.x, 0.0, h)
+	if dto + dti > h:
+		var f := h / (dto + dti)
+		dto *= f
+		dti *= f
+	return [dto, dti]
+
+
+## TANGENT WEIGHTS (ROADMAP 65): x(u) of segment i's bezier at u, the time the curve has reached. Its two inner control
+## points sit inside [t_i, t_i+1] with the out one first (_hdt), so x never goes back: the curve never runs back in time
+static func bezier_x(keys: Array, i: int, u: float) -> float:
+	var mode := inf_of(keys)
+	var t0: float = keys[i]["t"]
+	var t1: float = keys[i + 1]["t"]
+	var h: float = maxf(1e-6, t1 - t0)
+	var dd := _hdt(_handles(keys, i, mode)[1], _handles(keys, i + 1, mode)[0], h)
+	var w := 1.0 - u
+	return w * w * w * t0 + 3 * w * w * u * (t0 + float(dd[0])) + 3 * w * u * u * (t1 - float(dd[1])) + u * u * u * t1
 
 
 ## t outside the keys' span, mode is not hold
@@ -429,6 +484,11 @@ static func _handles(keys: Array, k: int, mode: String) -> Array:
 		dvi = -sl * dti
 		dvo = sl * dto
 	return [Vector4(-dti, dvi.x, dvi.y, dvi.z), Vector4(dto, dvo.x, dvo.y, dvo.z)]
+
+
+## key k's two handles [in, out] as the curve uses them (Vector4(dt, d_bend, d_side, d_twist) offsets from the key)
+static func handles_of(keys: Array, k: int) -> Array:
+	return _handles(keys, k, inf_of(keys))
 
 
 ## the per-key / per-joint settings (defaults when absent: round 41's curve)
@@ -575,6 +635,52 @@ static func set_handle(pk: Dictionary, j: String, idx: int, side: String, hv: Ve
 	return true
 
 
+## TANGENT WEIGHTS (ROADMAP 65): key idx's handle on `side` ("in" / "out"), channel c, set by its LENGTH in time (s, the
+## weight: how long the curve keeps the slope) and the angle's change at the handle's end (dv, deg: the slope is dv / len).
+## The length is held inside the key's segment (0.02 of it .. all of it; the in handle of the first key and the out handle
+## of the last have no segment: false). The other two angles keep their slopes at the new length, so one drag changes one
+## angle's tangent and every angle's weight (the handle's length is one number per key side, as Blender's is per curve).
+## A key on auto / vector turns ALIGNED (set_handle): its other handle follows the slope; on "free" it stays put (broken)
+static func set_tangent(pk: Dictionary, j: String, idx: int, side: String, c: int, length: float, dv: float) -> bool:
+	if not pk.has(j) or idx < 0 or idx >= (pk[j] as Array).size() or not side in ["in", "out"] or c < 0 or c > 2:
+		return false
+	var keys: Array = pk[j]
+	var nb := idx - 1 if side == "in" else idx + 1
+	if nb < 0 or nb >= keys.size():
+		return false
+	var h := absf(float(keys[nb]["t"]) - float(keys[idx]["t"]))
+	var cur: Vector4 = _handles(keys, idx, inf_of(keys))[0 if side == "in" else 1]
+	var sl := Vector3(cur.y, cur.z, cur.w) / cur.x if absf(cur.x) > 1e-9 else Vector3.ZERO
+	var len := clampf(length, 0.02 * h, h)
+	var sgn := -1.0 if side == "in" else 1.0
+	sl[c] = dv / (sgn * len)
+	var d := sl * (sgn * len)
+	return set_handle(pk, j, idx, side, Vector4(sgn * len, d.x, d.y, d.z))
+
+
+## UNIFY: the key's two handles share one slope per angle (aligned); from broken (or a corner), the in handle turns to the out handle's
+## slope and keeps its own length. BREAK: the handles are free to point apart (the curve does not move when they are frozen)
+static func unify(pk: Dictionary, j: String, idx: int) -> bool:
+	if not pk.has(j) or idx < 0 or idx >= (pk[j] as Array).size():
+		return false
+	var key: Dictionary = pk[j][idx]
+	var was := handle_of(key)
+	if not set_handle_type(pk, j, idx, "aligned"):
+		return false
+	if was != "aligned":
+		var o: Vector4 = key["hout"]
+		var hi: Vector4 = key["hin"]
+		if absf(o.x) > 1e-9:
+			var sl := Vector3(o.y, o.z, o.w) / o.x
+			var dv := sl * hi.x
+			key["hin"] = Vector4(hi.x, dv.x, dv.y, dv.z)
+	return true
+
+
+static func break_handles(pk: Dictionary, j: String, idx: int) -> bool:
+	return set_handle_type(pk, j, idx, "free")
+
+
 ## the file's form: {"<joint>": [{"t", "v": [b, s, t]}]} (angles to 0.01 deg, times to 1 ms, as cards are written)
 static func to_file(pk: Dictionary) -> Dictionary:
 	var out := {}
@@ -592,6 +698,8 @@ static func to_file(pk: Dictionary) -> Dictionary:
 
 ## XX1: the interpolation fields, written only when not the default
 static func _extras_to_file(k: Dictionary, e: Dictionary) -> void:
+	if ktype_of(k) != "key":   # ROADMAP 66
+		e["ktype"] = ktype_of(k)
 	if interp_of(k) != "bezier":
 		e["interp"] = interp_of(k)
 	var ht := handle_of(k)
@@ -609,6 +717,8 @@ static func _extras_to_file(k: Dictionary, e: Dictionary) -> void:
 
 ## XX1: read them back (an unknown word is the default; handles are kept only for aligned / free)
 static func _extras_from_file(src: Dictionary, k: Dictionary) -> void:
+	if String(src.get("ktype", "")) in KTYPES and src["ktype"] != "key":   # ROADMAP 66
+		k["ktype"] = String(src["ktype"])
 	if String(src.get("interp", "")) in INTERPS and src["interp"] != "bezier":
 		k["interp"] = String(src["interp"])
 	var ht := String(src.get("handle", ""))
@@ -691,7 +801,7 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 			var q := M.compose(String(j), Vector3(float(a[0]), float(a[1]), float(a[2])))
 			var v := M.clamp_ang(o, M.decompose(o, Quaternion(q.x, -q.y, -q.z, q.w)))
 			var e := {"t": k["t"], "v": [snappedf(v.x, 0.01), snappedf(v.y, 0.01), snappedf(v.z, 0.01)]}
-			for f in ["interp", "handle", "inf"]:   # XX1: the interpolation fields go with the key
+			for f in ["interp", "handle", "inf", "ktype"]:   # XX1: the interpolation fields go with the key (ROADMAP 66: and the type)
 				if k.has(f):
 					e[f] = k[f]
 			if k.get("mods") is Array:   # DD2: the modifiers too; a limit on side / twist is reflected (x, -y, -z)

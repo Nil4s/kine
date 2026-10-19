@@ -60,13 +60,13 @@ const KINDS := {
 		[0.9, Vector2(0, 0.56), Vector2(0.9, 0.28)]]},
 	# the ramp is ONE sloped slab (12 degrees, 2 m long, 8 cm thick, 90 cm wide, about 50 cm high at the top), not a
 	# wedge: nothing under it is solid, and it has no support (a capsule on a slope is not "resting on a flat")
-	"ramp": {"label": "2 m long, 90 cm wide, rising 50 cm toward +Z", "solids": [
+	"ramp": {"label": "200 cm long, 90 cm wide, rising 50 cm toward +Z", "solids": [
 		[Vector3(0, 0.247, 0), Vector3(0.9, 0.08, 2.0), 12.0]], "supports": []},
-	"wall": {"label": "3 m x 2.4 m, 15 cm thick", "solids": [[Vector3(0, 1.2, 0), Vector3(3.0, 2.4, 0.15)]], "supports": []},
-	"door_frame": {"label": "90 cm x 2 m opening, frame 2.1 m high, 12 cm deep", "solids": [
+	"wall": {"label": "300 x 240 cm, 15 cm thick", "solids": [[Vector3(0, 1.2, 0), Vector3(3.0, 2.4, 0.15)]], "supports": []},
+	"door_frame": {"label": "90 x 200 cm opening, frame 210 cm high, 12 cm deep", "solids": [
 		[Vector3(0.5, 1.0, 0), Vector3(0.1, 2.0, 0.12)], [Vector3(-0.5, 1.0, 0), Vector3(0.1, 2.0, 0.12)],
 		[Vector3(0, 2.05, 0), Vector3(1.1, 0.1, 0.12)]], "supports": []},
-	"railing": {"label": "1.5 m long, handrail at 90 cm", "solids": [
+	"railing": {"label": "150 cm long, handrail at 90 cm", "solids": [
 		[Vector3(0.725, 0.45, 0), Vector3(0.05, 0.9, 0.05)], [Vector3(-0.725, 0.45, 0), Vector3(0.05, 0.9, 0.05)],
 		[Vector3(0, 0.875, 0), Vector3(1.5, 0.05, 0.05)], [Vector3(0, 0.45, 0), Vector3(1.4, 0.03, 0.03)]], "supports": []},
 	# GENERIC PROPS (GAP_ANALYSIS row 22; sizes and sources: docs/research/PROPS.md)
@@ -313,6 +313,12 @@ static func _over(sup: Dictionary, pt: Vector3, margin := 0.0) -> bool:
 
 
 ## the prop as a node: one MeshInstance3D box per solid, one neutral material. Add it to the scene as a child.
+## true when the prop is an imported model whose file is not there any more (it is drawn as its box instead)
+static func model_missing(p: Dictionary) -> bool:
+	var g := String(kind_of(p["kind"]).get("glb", ""))
+	return g != "" and not FileAccess.file_exists(g)
+
+
 static func mesh(p: Dictionary) -> Node3D:
 	var root := Node3D.new()
 	root.name = String(p["kind"])
@@ -321,7 +327,7 @@ static func mesh(p: Dictionary) -> Node3D:
 	mat.albedo_color = GREY
 	mat.roughness = 0.9
 	var kd := kind_of(p["kind"])
-	if String(kd.get("glb", "")) != "":   # an imported model: the model itself, on the floor, centred, at the importer's scale
+	if String(kd.get("glb", "")) != "" and not model_missing(p):   # an imported model: the model itself, on the floor, centred, at the importer's scale
 		var doc := GLTFDocument.new()
 		var st := GLTFState.new()
 		if doc.append_from_file(ProjectSettings.globalize_path(kd["glb"]), st) == OK:

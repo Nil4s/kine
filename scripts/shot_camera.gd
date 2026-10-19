@@ -101,12 +101,13 @@ static func frame_rect(free: Rect2) -> Rect2i:
 	return Rect2i(x, y, w, h)
 
 
-## the viewport camera set to show the shot camera at (pos, aim, f) inside `rect` of a viewport of size vs
-static func apply_to(c: Camera3D, pos: Vector3, aim: Vector3, f: float, rect: Rect2i, vs: Vector2) -> void:
+## the viewport camera set to show the shot camera (its transform tf: xf(pos, aim), shaken by shot_fx.gd) at focal length f
+## inside `rect` of a viewport of size vs
+static func apply_to(c: Camera3D, tf: Transform3D, f: float, rect: Rect2i, vs: Vector2) -> void:
 	c.h_offset = 0.0
 	c.v_offset = 0.0
 	c.keep_aspect = Camera3D.KEEP_HEIGHT
-	c.global_transform = xf(pos, aim)
+	c.global_transform = tf
 	var half := tan(deg_to_rad(fov_v(f)) * 0.5)
 	var cx := rect.position.x + rect.size.x * 0.5
 	var cy := rect.position.y + rect.size.y * 0.5
@@ -190,12 +191,17 @@ static func insert_index(shots: Array, t: float) -> int:
 
 ## an old one-camera scene: the one shot, cut at 0, with the default name
 static func is_legacy(shots: Array) -> bool:
-	return shots.size() == 1 and float(shots[0]["t"]) == 0.0 and String(shots[0]["name"]) == SHOT_NAME % 1
+	return shots.size() == 1 and float(shots[0]["t"]) == 0.0 and String(shots[0]["name"]) == SHOT_NAME % 1 and ShotFx.clean(shots[0].get("fx", {})).is_empty()
 
 
-## the shots as the file keeps them (the keys in the same form as to_file)
+## the shots as the file keeps them: the keys as "camera", the shot's shake and rack focus as "fx" (only when any)
 static func shots_to_file(shots: Array) -> Array:
-	return shots.map(func(s): return {"t": snappedf(float(s["t"]), 0.0001), "name": String(s["name"]), "camera": to_file(s["keys"])})
+	return shots.map(func(s):
+		var d := {"t": snappedf(float(s["t"]), 0.0001), "name": String(s["name"]), "camera": to_file(s["keys"])}
+		var fx: Dictionary = ShotFx.clean(s.get("fx", {}))
+		if not fx.is_empty():
+			d["fx"] = ShotFx.to_file(fx)
+		return d)
 
 
 static func shots_from_file(d: Dictionary) -> Array:
@@ -207,11 +213,12 @@ static func shots_from_file(d: Dictionary) -> Array:
 			var keys := from_file(s.get("camera", []))
 			if keys.is_empty():
 				continue
-			out.append({"t": maxf(0.0, float(s.get("t", 0.0))), "name": String(s.get("name", "")), "keys": keys})
-	elif d.has("camera"):   # the old one-camera file: one shot
+			out.append({"t": maxf(0.0, float(s.get("t", 0.0))), "name": String(s.get("name", "")), "keys": keys,
+				"fx": ShotFx.from_file(s.get("fx", {}))})
+	elif d.has("camera"):   # the old one-camera file: one shot (its camera_fx, from the shake build, is that shot's fx)
 		var keys := from_file(d["camera"])
 		if not keys.is_empty():
-			out.append({"t": 0.0, "name": SHOT_NAME % 1, "keys": keys})
+			out.append({"t": 0.0, "name": SHOT_NAME % 1, "keys": keys, "fx": ShotFx.from_file(d.get("camera_fx", {}))})
 	out.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
 	if not out.is_empty():
 		out[0]["t"] = 0.0
@@ -219,4 +226,33 @@ static func shots_from_file(d: Dictionary) -> Array:
 
 
 static func mirror_shots_file(d: Array) -> Array:
-	return d.map(func(s): return {"t": s["t"], "name": s["name"], "camera": mirror_file(s["camera"])})
+	return d.map(func(s):
+		var o := {"t": s["t"], "name": s["name"], "camera": mirror_file(s["camera"])}
+		if s.has("fx"):
+			o["fx"] = ShotFx.mirror_file(s["fx"])   # the shake's sideways parts and the focus parts to their twins
+		return o)
+
+
+## the keyed camera at t: the shot on at t (its keys sampled at t); {} = no shots
+static func at(shots: Array, t: float) -> Dictionary:
+	var i := shot_index(shots, t)
+	return {} if i < 0 else sample(shots[i]["keys"], t)
+
+
+## the effects (shake, focus) of the shot on at t; {} = no shots
+static func fx_at(shots: Array, t: float) -> Dictionary:
+	var i := shot_index(shots, t)
+	return {} if i < 0 else (shots[i].get("fx", {}) as Dictionary)
+
+
+## every time-stamped item of the shots (the cuts, the camera keys, the shake events, the focus keys), by reference:
+## the retime and the dumps move or read them all the same way
+static func time_items(shots: Array) -> Array:
+	var out := []
+	for s in shots:
+		out.append(s)
+		out.append_array(s["keys"])
+		var fx: Dictionary = s.get("fx", {})
+		out.append_array(fx.get("shake", []))
+		out.append_array(fx.get("focus", []))
+	return out
