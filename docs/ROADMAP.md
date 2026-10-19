@@ -67,7 +67,7 @@ Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after ev
 Merged since the last full run: 0 / 20.
 
 ### Wave A: what hurts now
-1. [~] Kill the toes curling up in walks: toe bend capped at real push-off (MTP ~44 deg walking) and only during push-off
+1. [x] Kill the toes curling up in walks: toe bend capped at real push-off (MTP ~44 deg walking) and only during push-off (wt-toes: scene.gd TOE_MTP_MAX / _toe_guard; tests/toes_walk_test.gd; docs/research/TOES.md)
 2. [ ] Crash-proof: every edit journaled; reopen after a crash at the last action (top-25 #25)
 3. [ ] Easy mode: a simple panel of 12 big actions (pose, key, play, undo, export) with the rest hidden; Expert mode shows all
 4. [ ] First-run tour: 60 s of guided steps on the mannequin (pose a hand, key, play)
