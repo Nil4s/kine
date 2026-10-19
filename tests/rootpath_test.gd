@@ -19,13 +19,17 @@
 ##   9 READ ONLY: reading the roots and sampling the path change no card (the cards' poses are the same before and after).
 ##  11 UI: the real main window (tests/foot_handles_test style: pushed mouse events): a press on card 3's root handle
 ##     takes it, a 45 px drag moves the root by the floor delta (1 mm), the other roots stay, one undo step, a bare press leaves none.
-##  10 SCREENSHOT: the path on the floor with its handles, whole body, saved to tmp/rootmotion.png (read and described in
-##     the report). Placement is the bar: the handles sit under the pelvis (8), the path runs through them.
+##  12 REACH, STANDING: both feet planted, the 50 cm drag: the live warning fires for both feet (worst miss > 10 cm) and the
+##     status line names them and the next step ("unplant the left and right feet or drag less").
+##  13 REACH, LUNGE: the bar 1 drag with only the front foot planted: no warning (the drag reaches).
+##  14 THE APP WINDOW on walk_bat (copied read-only to user://): the path over 6+ cards, a root handle and a heading arrow
+##     per card, the whole body in frame: saved to tmp/rootmotion_walk.png (read and described in the report). Placement
+##     is the bar in 8: the handles sit under the pelvis, the path runs through them.
 extends SceneTree
 
 const STANCE := {"thigh_l": Vector3(-6, 0, 0), "calf_l": Vector3(38, 0, 0), "foot_l": Vector3(25, 0, 0), "thigh_r": Vector3(-6, 0, 0), "calf_r": Vector3(38, 0, 0), "foot_r": Vector3(25, 0, 0)}
 const ZF := 0.35        # m: the planted front foot's ball, ahead of the start
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/rootmotion.png"
+const WALK_SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/rootmotion_walk.png"
 const HZ := 120.0
 
 var fails := 0
@@ -219,12 +223,39 @@ func run() -> void:
 		pelvis_h = minf(pelvis_h, (rr["p"] as Vector3).y)
 	ok(place_err < 0.001 and pelvis_h > 0.5, "8 placement: every handle under its pelvis, worst %.4f mm off; lowest pelvis %.3f m up (bar 1 mm, > 0.5 m)" % [place_err * 1000.0, pelvis_h])
 
-	# 10 SCREENSHOT: the path on the floor with its handles, the whole body at card index 2
-	var sh_ok := await shot(S, W)
-	ok(sh_ok, "10 screenshot: saved to %s (read it: the path, the handles, the body)" % SHOT)
+	# 12 REACH, STANDING: both feet planted (cards 1-3), the 50 cm drag of card 3: the warning names both feet
+	var st := body()
+	var sp := pose_of(st, STANCE, Vector3.ZERO)
+	var SS := Scene.new()
+	SS.fps = 30
+	SS.pin = false
+	SS.on_floor = true
+	for q in 4:
+		SS.add("stand%d" % q, sp.duplicate(true))
+	SS.cards[0]["move"] = 0.0
+	SS.cards[0]["hold"] = 0.4
+	for q in [1, 2, 3]:
+		SS.cards[q]["move"] = 1.0
+		SS.cards[q]["hold"] = 0.5
+		SS.cards[q]["plant"] = ["_l", "_r"]
+	var sr := RootPath.root_of(st, SS.cards[2]["pose"])
+	SS.cards[2]["pose"] = RootPath.posed(st, SS.cards[2]["pose"], (sr["xz"] as Vector2) + Vector2(0.0, 0.5), float(sr["heading"]))
+	var rep_s := RootPath.reach(SS, 2)
+	var msg := RootPath.reach_message(rep_s)
+	var both := rep_s.size() == 2
+	var worst_s := 0.0
+	for r in rep_s:
+		worst_s = maxf(worst_s, float(r["miss"]))
+	ok(both and worst_s > 0.1 and msg.contains("the left and right feet can't reach") and msg.contains("unplant the left and right feet or drag less"), "12 standing 50 cm drag, both feet planted: the warning fires for %d feet, worst miss %.0f cm (bar 10 cm); status: \"%s\"" % [rep_s.size(), worst_s * 100.0, msg])
+
+	# 13 REACH, LUNGE: the bar 1 drag (front foot planted only) reaches: no warning
+	var rl := RootPath.reach(S, 2)
+	ok(rl.is_empty(), "13 lunge 50 cm drag, the front foot planted: no warning (%d reports)" % rl.size())
 
 	# 11 THE UI: the real main window, real pushed mouse events on a root handle (the view toggle on)
 	await ui_section()
+	# 12 THE APP WINDOW on a walk: the whole body, the path over its cards, read by a person
+	await walk_section()
 	print("%s  (%d fails)" % ["PASS" if fails == 0 else "FAILED", fails])
 	quit(fails)
 
@@ -324,53 +355,38 @@ func ui_section() -> void:
 	await idle(1)
 
 
-func shot(S: Scene, W: Body) -> bool:
-	var vp := SubViewport.new()
-	vp.size = Vector2i(900, 640)
-	vp.transparent_bg = false
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	root.add_child(vp)
-	var world := Node3D.new()
-	vp.add_child(world)
-	var env := WorldEnvironment.new()
-	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0.13, 0.14, 0.16)
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.6, 0.6, 0.62)
-	env.environment = e
-	world.add_child(env)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, 30, 0)
-	world.add_child(sun)
-	var floor_m := MeshInstance3D.new()
-	var pl := PlaneMesh.new()
-	pl.size = Vector2(6, 5)
-	floor_m.mesh = pl
-	var fm := StandardMaterial3D.new()
-	fm.albedo_color = Color(0.22, 0.23, 0.25)
-	floor_m.material_override = fm
-	world.add_child(floor_m)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.72, 0.74, 0.78)
-	var parts: Array = Overlays.mannequin(world, mat)
-	var sk: Skeleton3D = parts[1]
-	W.from_dict(S.cards[2]["pose"])
-	Overlays.pose_skeleton(sk, parts[2], W)
-	var line := MeshInstance3D.new()
-	var im := ImmediateMesh.new()
-	line.mesh = im
-	world.add_child(line)
-	RootPath.draw(im, RootPath.played(S), RootPath.handles(RootPath.roots(S)), {"card": 2, "kind": "root"})
-	var cam := Camera3D.new()
-	cam.fov = 40
-	world.add_child(cam)
-	cam.look_at_from_position(Vector3(2.9, 2.3, 3.6), Vector3(0.25, 0.7, 0.3), Vector3.UP)
-	cam.make_current()
-	await process_frame
-	await process_frame
-	await RenderingServer.frame_post_draw
-	var img := vp.get_texture().get_image()
-	var err := img.save_png(SHOT)
-	vp.queue_free()
-	return err == OK
+## THE APP WINDOW ON A WALK (the coordinator's brief): walk_bat, read-only, copied into user:// and loaded; the root path on;
+## the whole body in frame, side on, with the path over its six cards. Saved as the full window's picture.
+func walk_section() -> void:
+	var src := FileAccess.get_file_as_string("res://scenes/walk_bat.json")
+	var f := FileAccess.open("user://rootpath_walk.json", FileAccess.WRITE)
+	f.store_string(src)
+	f.close()
+	m._load_scene("user://rootpath_walk.json")
+	m._rebuild_cards()
+	m.playing = false
+	m.hover_part = ""
+	m.root_path_on = false
+	m.playhead = m.S.length() * 0.5
+	m._ps().apply(m.B, m.playhead)
+	m.root_path_on = true
+	m._refresh()
+	var rs: Array = RootPath.roots(m.S)
+	var hs: Array = RootPath.handles(rs)
+	var lo := Vector2(1e9, 1e9)
+	var hi := Vector2(-1e9, -1e9)
+	for r in rs:
+		var xz: Vector2 = r["xz"]
+		lo = Vector2(minf(lo.x, xz.x), minf(lo.y, xz.y))
+		hi = Vector2(maxf(hi.x, xz.x), maxf(hi.y, xz.y))
+	var span := (hi - lo).length()
+	var centre := (lo + hi) * 0.5
+	m._turn_to(90.0, -6.0, maxf(3.6, span * 1.1 + 3.4), Vector3(centre.x, 0.85, centre.y), false)
+	await idle(6)
+	m._refresh()
+	await idle(2)
+	ok(hs.size() >= 6 and span >= 0.3, "12a the walk: %d cards with a root handle each, the path %.2f m across (bar 6 cards, 0.3 m)" % [hs.size(), span])
+	# 12c the handle turns the warning colour while a planted foot cannot reach (the colour the drawing uses)
+	ok(RootPath.handle_colour(true) == Tok.c("fail") and RootPath.handle_colour(false) == Tok.c("warn") and RootPath.handle_colour(true) != RootPath.handle_colour(false), "12c root handle colour: warning %s while a foot cannot reach, else %s" % [str(RootPath.handle_colour(true)), str(RootPath.handle_colour(false))])
+	var img := root.get_texture().get_image()
+	ok(img.save_png(WALK_SHOT) == OK, "12b the full app window saved to %s (read it)" % WALK_SHOT)

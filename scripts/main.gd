@@ -5197,8 +5197,8 @@ func _rp_draw() -> void:
 		return
 	var act := {}
 	if not _rp_drag.is_empty():
-		act = {"card": _rp_drag["card"], "kind": _rp_drag["kind"]}
-	RootPath.draw(im, _rp_path(), _rp_handles(), act)
+		act = {"card": _rp_drag["card"], "kind": _rp_drag["kind"], "warn": _rp_drag.get("warn", false)}
+	RootPath.draw(im, _rp_path(), _rp_handles(), act, cam)
 
 
 func _rp_toggle() -> void:
@@ -5254,8 +5254,14 @@ func _rp_move(mp: Vector2) -> void:
 		txt = "card %d now faces %.0f deg" % [i + 1, bearing]
 	S.cards[i]["pose"] = pose
 	_rp_drag["moved"] = true
+	# REACH, live: a planted foot that cannot hold its spot is said in the status line, and the handle turns the warning colour
+	var rep := RootPath.reach(S, i)
+	_rp_drag["warn"] = not rep.is_empty()
 	_retimed(false)
-	_say("%s   (release keeps it)" % txt)
+	if rep.is_empty():
+		_say("%s   (release keeps it)" % txt)
+	else:
+		_say(RootPath.reach_message(rep))
 
 
 func _rp_release() -> void:

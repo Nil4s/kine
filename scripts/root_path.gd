@@ -28,12 +28,13 @@ const FLOOR := 0.012          # m: the path and the handles drawn this high over
 const HEAD := 0.22            # m: the heading handle's length from its root
 const PICK_PX := 14.0         # px: a press this close to a handle takes it
 const SAMPLE_HZ := 8.0        # the played path is sampled at this rate (the curve between the cards)
-const SIZE := 0.03            # m: half edge of a handle's cross
 const SCALE_MIN := 0.25       # the scale command's range (a factor on the path length)
 const SCALE_MAX := 3.0
-const COL_PATH := Color(0.25, 0.85, 1.0)
-const COL_ROOT := Color(1.0, 0.85, 0.2)
-const COL_HEAD := Color(1.0, 0.42, 0.32)
+const PATH_PX := 3.0          # px: the path's width on the screen (a ribbon, so it reads at any zoom)
+const HANDLE_PX := 12.0       # px: a root handle is a dot this wide (a dot per card)
+const HANDLE_ON_PX := 16.0    # px: the dragged handle
+const TIP_PX := 7.0           # px: the heading arrow's tip
+const MISS_BAR := 0.01        # m: a planted foot held this far off its anchor (on the floor) cannot reach: the drag warns
 
 static var _work: Body = null   # a body of its own: reading and editing roots never touches the main body
 
@@ -187,34 +188,134 @@ static func floor_hit(cam: Camera3D, mp: Vector2):
 	return o + d * t
 
 
-## the path and its handles into `im` (lines). `active` = {card, kind} drawn bright; {} = none.
-static func draw(im: ImmediateMesh, path: Array, hs: Array, active: Dictionary) -> void:
-	if path.size() >= 2:
-		im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP, Overlays._mat())
-		im.surface_set_color(COL_PATH)
-		for p in path:
-			im.surface_add_vertex(p)
-		im.surface_end()
+## SCREEN SIZE: metres per pixel at point p, for the camera (perspective: the depth; orthographic: its size). A width or a
+## handle given in pixels is this times the pixel count, so it keeps its size on the screen at any zoom.
+static func m_per_px(cam: Camera3D, p: Vector3) -> float:
+	var h := float(cam.get_viewport().get_visible_rect().size.y)
+	if h <= 0.0:
+		return 0.002
+	if cam.projection == Camera3D.PROJECTION_ORTHOGONAL:
+		return cam.size / h
+	return maxf(cam.global_position.distance_to(p), 0.01) * 2.0 * tan(deg_to_rad(cam.fov) * 0.5) / h
+
+
+static var _mat_cache: StandardMaterial3D = null
+
+
+## the drawing material: vertex colours, unshaded, two-sided, seen through the body (the path is the point)
+static func _tri_mat() -> StandardMaterial3D:
+	if _mat_cache == null:
+		_mat_cache = StandardMaterial3D.new()
+		_mat_cache.vertex_color_use_as_albedo = true
+		_mat_cache.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_mat_cache.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_mat_cache.no_depth_test = true
+		_mat_cache.render_priority = 2
+	return _mat_cache
+
+
+## a ribbon of `px` pixels along the polyline pts, FACING THE CAMERA: each segment's width runs across the view (the cross of
+## the segment and the view ray), so it keeps its width on the screen at any pitch (a flat strip seen edge-on vanishes)
+static func _ribbon(im: ImmediateMesh, pts: Array, px: float, cam: Camera3D, c: Color) -> void:
+	var cp := cam.global_position
+	for k in range(pts.size() - 1):
+		var a: Vector3 = pts[k]
+		var b: Vector3 = pts[k + 1]
+		var d := b - a
+		if d.length() < 1e-6:
+			continue
+		var sa := d.cross(cp - a)
+		var sb := d.cross(cp - b)
+		if sa.length() < 1e-9 or sb.length() < 1e-9:
+			sa = Vector3.UP.cross(d)
+			sb = sa
+		var ha := sa.normalized() * (px * 0.5 * m_per_px(cam, a))
+		var hb := sb.normalized() * (px * 0.5 * m_per_px(cam, b))
+		for v in [a + ha, a - ha, b + hb, a - ha, b - hb, b + hb]:
+			im.surface_set_color(c)
+			im.surface_add_vertex(v)
+
+
+## a dot `px` pixels across, FACING THE CAMERA (a fan of triangles in the plane of the screen)
+static func _dot(im: ImmediateMesh, centre: Vector3, px: float, cam: Camera3D, c: Color) -> void:
+	var r := px * 0.5 * m_per_px(cam, centre)
+	var R := cam.global_transform.basis.x
+	var U := cam.global_transform.basis.y
+	var n := 16
+	for k in n:
+		var a0 := TAU * float(k) / float(n)
+		var a1 := TAU * float(k + 1) / float(n)
+		var p0 := centre + (R * sin(a0) + U * cos(a0)) * r
+		var p1 := centre + (R * sin(a1) + U * cos(a1)) * r
+		for v in [centre, p0, p1]:
+			im.surface_set_color(c)
+			im.surface_add_vertex(v)
+
+
+## the colour of a root handle: the warning colour (Tok fail) while the dragged card's planted feet cannot reach, else warn
+static func handle_colour(warning: bool) -> Color:
+	return Tok.c("fail") if warning else Tok.c("warn")
+
+
+## THE DRAWING, in one triangle surface: the played path as a ribbon PATH_PX wide, a dot per card's root (HANDLE_PX; the
+## dragged one HANDLE_ON_PX; a reach warning turns it the fail colour), and a heading arrow per card (a ribbon from the
+## root to a dot at the tip). Colours are Tok tokens. `active` = {card, kind, warn}; {} = none.
+static func draw(im: ImmediateMesh, path: Array, hs: Array, active: Dictionary, cam: Camera3D) -> void:
+	if path.is_empty() and hs.is_empty():
+		return
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _tri_mat())
+	_ribbon(im, path, PATH_PX, cam, Tok.c("info"))
 	for h in hs:
 		var on := int(h["card"]) == int(active.get("card", -1))
 		var root: Vector3 = h["root"]
 		var tip: Vector3 = h["tip"]
-		var s := SIZE * (1.4 if on and active.get("kind", "") == "root" else 1.0)
-		var c := COL_ROOT
-		c.a = 1.0 if on else 0.8
-		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
-		im.surface_set_color(c)
-		for ax in [Vector3.RIGHT, Vector3.BACK]:
-			im.surface_add_vertex(root - ax * s)
-			im.surface_add_vertex(root + ax * s)
-		im.surface_end()
-		var hc := COL_HEAD
-		hc.a = 1.0 if on else 0.8
-		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
-		im.surface_set_color(hc)
-		im.surface_add_vertex(root)
-		im.surface_add_vertex(tip)
-		for ax in [Vector3.RIGHT, Vector3.BACK]:
-			im.surface_add_vertex(tip - ax * s * 0.8)
-			im.surface_add_vertex(tip + ax * s * 0.8)
-		im.surface_end()
+		_ribbon(im, [root, tip], PATH_PX, cam, Tok.c("s_tip"))
+		_dot(im, tip, TIP_PX, cam, Tok.c("s_tip"))
+		_dot(im, root, HANDLE_ON_PX if on else HANDLE_PX, cam, handle_colour(on and bool(active.get("warn", false))))
+	im.surface_end()
+
+
+## REACH: the planted feet of card i that cannot hold their spot once its root has moved. Each planted run that holds a foot
+## through card i is checked at every card of the run (the middle of each hold): the foot's ball must stay on its anchor (the
+## ball where the card before the run put it, Scene._planted); a horizontal miss over MISS_BAR is a report.
+## Returns [{"foot": "_l" | "_r", "miss": m (worst), "card": i}], empty when every planted foot reaches.
+static func reach(S: Scene, i: int) -> Array:
+	var out := []
+	var B := work()
+	var ts: Array = S.times()
+	for sd in ["_l", "_r"]:
+		if not sd in S.cards[i].get("plant", []):
+			continue
+		var r := i
+		while r > 1 and sd in S.cards[r - 1].get("plant", []):
+			r -= 1
+		var e := i
+		while e + 1 < S.cards.size() and sd in S.cards[e + 1].get("plant", []):
+			e += 1
+		var anchor: Vector3 = S._feet(B, r - 1)[sd][0]
+		var worst := 0.0
+		for j in range(r, e + 1):
+			var t: float = (float(ts[j][1]) + float(ts[j][2])) * 0.5
+			S.apply(B, t)
+			var d: Vector3 = B.P["ball" + sd] - anchor
+			worst = maxf(worst, Vector2(d.x, d.z).length())
+		if worst > MISS_BAR:
+			out.append({"foot": sd, "miss": worst, "card": i})
+	return out
+
+
+## the status line for a reach report: which foot cannot reach, and the next step (the "Foot: unplant" command)
+static func reach_message(reports: Array) -> String:
+	if reports.is_empty():
+		return ""
+	var names := []
+	var worst := 0.0
+	var card := 0
+	for r in reports:
+		names.append("left" if r["foot"] == "_l" else "right")
+		worst = maxf(worst, float(r["miss"]))
+		card = int(r["card"])
+	var who := " and ".join(names)
+	var noun := "foot" if names.size() == 1 else "feet"
+	var verb := "can't" if names.size() == 1 else "can't"
+	return "the %s %s %s reach its planted spot from card %d (off by %.0f cm): unplant the %s %s or drag less" % [who, noun, verb, card + 1, worst * 100.0, who, noun]
