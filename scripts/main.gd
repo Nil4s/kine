@@ -8237,6 +8237,7 @@ func _commands() -> Array:
 	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
 	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
 	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10 % in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
+	add.call("Retime: scale the range around the playhead...", "", _retime_range_dialog, "retime range playhead scale stretch slow fast tempo speed time percent", true, "scale the cards and part keys in a range (the preview range from the ruler, or the picked cards) about the playhead, 50 to 200 %: the cards and keys after the range shift so nothing overlaps; one undo step (ROADMAP 67)")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Preview range: start at the playhead", "", _pv_set.bind("in", -1.0), "in point loop section", false, "Play and Loop run only between the in and out points (a view setting: never saved, not an undo step). Also Shift+click on the ruler")
@@ -8832,6 +8833,88 @@ func _mirror_scene() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), H.name])
+
+
+## RETIME A RANGE (ROADMAP 67; scripts/retime_range.gd). The range is the preview range (the ruler's in and out) or else the
+## picked cards; the cards and part keys in it scale about the playhead; the dialog asks for the percent. One undo step
+var ui_rr_dlg: ConfirmationDialog
+var ui_rr_slider: HSlider
+var ui_rr_val: Label
+var ui_rr_range: Label
+
+
+## the range to retime: [r0, r1] from the preview range, else from the picked cards, else []
+func _retime_range_span() -> Array:
+	var sp := PreviewRange.span(pv_in, pv_out, S.length())
+	if not sp.is_empty():
+		return sp
+	var rg := card_range()
+	if rg.is_empty():
+		return []
+	var ts := S.times()
+	return [float(ts[rg[0]][0]), float(ts[rg[-1]][2])]
+
+
+func _retime_range_dialog() -> void:
+	var sp := _retime_range_span()
+	if sp.is_empty():
+		_say("no range to retime: Shift+click the ruler for the in point and Alt+click for the out point, or pick two cards (Shift+click)")
+		return
+	if ui_rr_dlg == null:
+		ui_rr_dlg = ConfirmationDialog.new()
+		ui_rr_dlg.name = "retime_range_dialog"
+		ui_rr_dlg.title = "Retime: scale the range around the playhead"
+		ui_rr_dlg.min_size = Vector2i(440, 0)
+		var box := VBoxContainer.new()
+		ui_rr_range = Label.new()
+		box.add_child(ui_rr_range)
+		var h := HBoxContainer.new()
+		var l := Label.new()
+		l.text = "length"
+		h.add_child(l)
+		ui_rr_slider = HSlider.new()
+		ui_rr_slider.name = "slider_retime_range"
+		ui_rr_slider.min_value = 50.0
+		ui_rr_slider.max_value = 200.0
+		ui_rr_slider.step = 5.0
+		ui_rr_slider.custom_minimum_size = Vector2(200, 26)
+		ui_rr_slider.tooltip_text = "100 = as it is; 150 = the range takes half as long again. Cards and keys after the range shift so nothing overlaps"
+		ui_rr_val = Label.new()
+		ui_rr_slider.value_changed.connect(func(v): ui_rr_val.text = "%d %%" % roundi(v))
+		h.add_child(ui_rr_slider)
+		h.add_child(ui_rr_val)
+		box.add_child(h)
+		ui_rr_dlg.add_child(box)
+		ui_rr_dlg.confirmed.connect(func(): _retime_range(float(roundi(ui_rr_slider.value))))
+		add_child(ui_rr_dlg)
+	ui_rr_range.text = "range %.2f to %.2f s (%.2f s long); the playhead at %.2f s stays put" % [sp[0], sp[1], sp[1] - sp[0], clampf(playhead, 0.0, S.length())]
+	ui_rr_slider.value = 100.0
+	ui_rr_val.text = "100 %"
+	ui_rr_dlg.popup_centered()
+
+
+## scales the range about the playhead by pct %. "" = done, else what was wrong
+func _retime_range(pct: float) -> String:
+	var sp := _retime_range_span()
+	if sp.is_empty():
+		_say("no range to retime: Shift+click the ruler for the in point and Alt+click for the out point, or pick two cards (Shift+click)")
+		return "no range"
+	if pct == 100.0:
+		_say("100 %% is as it is: move the slider off 100 %% to retime the range")
+		return "as it is"
+	var p := clampf(playhead, 0.0, S.length())
+	var err := RetimeRange.check(S, sp[0], sp[1], p, pct)
+	if err != "":
+		_say("retime refused: %s. Move the playhead into the range, or stretch less, then try again" % err)
+		return err
+	_push_undo()
+	_markers_hold()
+	var n := RetimeRange.apply(S, sp[0], sp[1], p, pct)
+	_markers_follow()
+	_rebuild_cards()
+	_refresh()
+	_say("range %.2f-%.2f s at %.0f %%: %d cards and the part keys in it moved; the scene is now %.2f s (Ctrl+Z undoes)" % [sp[0], sp[1], pct, n, S.length()])
+	return ""
 
 
 ## FATIGUE (ROADMAP 39): asks for the fighter's fitness (0-100 %), then retimes every strike (cards the hit markers land on)
