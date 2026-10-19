@@ -8237,7 +8237,7 @@ func _commands() -> Array:
 	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
 	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
 	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10 % in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
-	add.call("Retime: scale the range around the playhead...", "", _retime_range_dialog, "retime range playhead scale stretch slow fast tempo speed time percent", true, "scale the cards and part keys in a range (the preview range from the ruler, or the picked cards) about the playhead, 50 to 200 %: the cards and keys after the range shift so nothing overlaps; one undo step (ROADMAP 67)")
+	add.call("Retime: scale the range around the playhead...", "", _retime_range_dialog, "retime range playhead scale stretch slow fast tempo speed time percent", true, "scale everything timed in a range (the preview range from the ruler, or the picked cards: cards, keys, plants, IK, layers, props, markers, camera) about the playhead, 50 to 200 %: what is after the range shifts so nothing overlaps; the audio stays put; one undo step (ROADMAP 67)")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Preview range: start at the playhead", "", _pv_set.bind("in", -1.0), "in point loop section", false, "Play and Loop run only between the in and out points (a view setting: never saved, not an undo step). Also Shift+click on the ruler")
@@ -8887,7 +8887,8 @@ func _retime_range_dialog() -> void:
 		ui_rr_dlg.add_child(box)
 		ui_rr_dlg.confirmed.connect(func(): _retime_range(float(roundi(ui_rr_slider.value))))
 		add_child(ui_rr_dlg)
-	ui_rr_range.text = "range %.2f to %.2f s (%.2f s long); the playhead at %.2f s stays put" % [sp[0], sp[1], sp[1] - sp[0], clampf(playhead, 0.0, S.length())]
+	ui_rr_range.text = "range %.2f to %.2f s (%.2f s long); the playhead at %.2f s stays put.
+Cards, keys, plants, IK, layers, props, markers and camera move with it. The audio stays where it is (it is the reference)." % [sp[0], sp[1], sp[1] - sp[0], clampf(playhead, 0.0, S.length())]
 	ui_rr_slider.value = 100.0
 	ui_rr_val.text = "100 %"
 	ui_rr_dlg.popup_centered()
@@ -8908,9 +8909,7 @@ func _retime_range(pct: float) -> String:
 		_say("retime refused: %s. Move the playhead into the range, or stretch less, then try again" % err)
 		return err
 	_push_undo()
-	_markers_hold()
-	var n := RetimeRange.apply(S, sp[0], sp[1], p, pct)
-	_markers_follow()
+	var n := RetimeRange.apply(S, sp[0], sp[1], p, pct)   # every timed thing in the scene moves on one map, markers too
 	_rebuild_cards()
 	_refresh()
 	_say("range %.2f-%.2f s at %.0f %%: %d cards and the part keys in it moved; the scene is now %.2f s (Ctrl+Z undoes)" % [sp[0], sp[1], pct, n, S.length()])

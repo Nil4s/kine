@@ -9,10 +9,11 @@
 ## overlap it, and so does a stretch that would start the range before 0 s. Move the playhead to the range's start,
 ## or stretch less, to get it through.
 ##
-## WHAT MOVES: the cards (each move and hold that intersects the range is rewritten from the warped boundaries, 1 ms,
-## a move never under 0.04 s as Scene.retime does) and the part keys (their times, the handles' dt inside the range,
-## and a modifier's range_start / range_end). WHAT DOES NOT: foot plants, layers, props, IK keys, drivers, audio: those
-## keep their own times (named in the report, not hidden).
+## WHAT MOVES, all on the same map: the cards (each move and hold that intersects the range is rewritten from the warped
+## boundaries, 1 ms, a move never under 0.04 s as Scene.retime does), part keys (times, the handles' dt inside the range,
+## a modifier's range_start / range_end), foot plants (t0, t1), IK keys, layer weight keys, prop keys, the shot camera,
+## lip sync, the choreography beats, the review notes (by frame), secondary-motion keys, clip strips (start), and markers.
+## WHAT STAYS: the audio and its music beats (the sound is the reference: they keep their own clock).
 class_name RetimeRange
 extends RefCounted
 
@@ -41,16 +42,42 @@ static func check(S: Scene, r0: float, r1: float, p: float, pct: float) -> Strin
 	if n0 < 0.0:
 		return "stretching %.2f-%.2f s about %.2f s would start it at %.2f s, before the scene starts" % [r0, r1, p, n0]
 	if n0 < r0 - 1e-9:
-		var xs := []
-		for ts in S.times():
-			xs.append_array([ts[0], ts[1], ts[2]])
-		for j in S.part_keys:
-			for key in S.part_keys[j]:
-				xs.append(float(key["t"]))
-		for x in xs:
+		for x in all_times(S):
 			if float(x) > n0 + 1e-9 and float(x) <= r0 + 1e-9:
 				return "stretching %.2f-%.2f s about %.2f s would run it back over the content at %.2f s before the range" % [r0, r1, p, float(x)]
 	return ""
+
+
+## every time the scene holds, in seconds (the overlap check reads them all)
+static func all_times(S: Scene) -> Array:
+	var xs := []
+	for ts in S.times():
+		xs.append_array([ts[0], ts[1], ts[2]])
+	for j in S.part_keys:
+		for key in S.part_keys[j]:
+			xs.append(float(key["t"]))
+	for j in S.ik:
+		for key in S.ik[j]:
+			xs.append(float(key["t"]))
+	for L in S.layers:
+		for kv in L.get("wk", []):
+			xs.append(float(kv[0]))
+	for pr in S.props:
+		for key in pr.get("keys", []):
+			xs.append(float(key["t"]))
+	for arr in [S.markers, S.camera, S.beats, S.lip.get("jaw", []), S.lip.get("mouth", [])]:
+		for d in arr:
+			xs.append(float(d["t"]))
+	for n in S.notes:
+		xs.append(float(n["frame"]) / float(maxi(S.fps, 1)))
+	for j in S.secondary.get("keys", {}):
+		for kv in S.secondary["keys"][j]:
+			xs.append(float(kv[0]))
+	for c in S.clips:
+		xs.append(float(c["start"]))
+	for p in S.plants:
+		xs.append_array([float(p["t0"]), float(p["t1"])])
+	return xs
 
 
 ## applies the retime. Assumes check() passed. Returns the number of cards rewritten (0 at 100 %: nothing is touched)
@@ -74,6 +101,29 @@ static func apply(S: Scene, r0: float, r1: float, p: float, pct: float) -> int:
 	for j in S.part_keys:
 		for key in S.part_keys[j]:
 			_warp_key(key, r0, r1, p, k)
+	var W := func(t: float) -> float: return warp(t, r0, r1, p, k)
+	for j in S.ik:
+		for key in S.ik[j]:
+			key["t"] = W.call(float(key["t"]))
+	for L in S.layers:
+		for kv in L.get("wk", []):
+			kv[0] = W.call(float(kv[0]))
+	for pr in S.props:
+		for key in pr.get("keys", []):
+			key["t"] = W.call(float(key["t"]))
+	for arr in [S.markers, S.camera, S.beats, S.lip.get("jaw", []), S.lip.get("mouth", [])]:
+		for d in arr:
+			d["t"] = W.call(float(d["t"]))
+	for n in S.notes:   # a note sits on a frame: the frame moves with the map, to the nearest frame
+		n["frame"] = roundi(W.call(float(n["frame"]) / float(maxi(S.fps, 1))) * float(maxi(S.fps, 1)))
+	for j in S.secondary.get("keys", {}):
+		for kv in S.secondary["keys"][j]:
+			kv[0] = W.call(float(kv[0]))
+	for c in S.clips:
+		c["start"] = W.call(float(c["start"]))
+	for pl in S.plants:
+		pl["t0"] = W.call(float(pl["t0"]))
+		pl["t1"] = W.call(float(pl["t1"]))
 	return changed
 
 

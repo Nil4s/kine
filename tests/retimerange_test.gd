@@ -10,6 +10,9 @@
 ##   8 the playhead outside the range, and a percent outside 10-1000, are refused.
 ##   9 a modifier's range_start/range_end move with the warp (2.0 -> 2.0, 2.5 -> 2.25 at 50 % about 2.0), its blend_in halves (0.2 -> 0.1),
 ##     and a handle's dt inside the range halves (0.4 -> 0.2).
+##  10 foot plants, IK keys and markers map on the cards' map (p 1.0, k 1.5): plant 1.4-2.4 -> 1.6-3.1; plant 3.5-4.5 -> 4.5-5.5;
+##     plant 0.2-0.8 unchanged; IK key 2.0 -> 2.5 (the same as card 2's arrival); IK key 4.0 -> 5.0; IK key 0.5 unchanged; marker 2.0 -> 2.5.
+##  11 one undo step (main's _push_undo / _undo): the retime adds one step, and undo restores every timed field byte for byte.
 extends SceneTree
 
 var fails := 0
@@ -33,7 +36,18 @@ func make() -> Scene:
 		{"t": 1.4, "v": Vector3(30, 0, 0)},
 		{"t": 4.0, "v": Vector3(40, 0, 0)},
 	]}
+	S.plants = [{"foot": "foot_l", "t0": 1.4, "t1": 2.4}, {"foot": "foot_r", "t0": 0.2, "t1": 0.8}, {"foot": "foot_l", "t0": 3.5, "t1": 4.5}]
+	S.ik = {"hand_r": [{"t": 0.5, "target": Vector3(0, 1, 0), "pole": Vector3(0, 0, 1), "w": 1.0},
+		{"t": 2.0, "target": Vector3(0, 1, 0), "pole": Vector3(0, 0, 1), "w": 1.0},
+		{"t": 4.0, "target": Vector3(0, 1, 0), "pole": Vector3(0, 0, 1), "w": 1.0}]}
+	S.markers = [{"t": 2.0, "name": "hit", "kind": "hit"}]
 	return S
+
+
+## every timed field of a scene, as bytes (bar 11)
+func dump_all(S: Scene) -> String:
+	return var_to_str([S.cards, S.part_keys, S.plants, S.ik, S.markers, S.layers, S.props.map(func(q): return Props.to_dict(q)),
+		S.camera, S.lip, S.beats, S.notes, S.secondary, S.clips])
 
 
 func key_t(S: Scene, joint: String, i: int) -> float:
@@ -63,6 +77,14 @@ func _init() -> void:
 	ok(absf(float(ts[2][1]) - 2.5) < 1e-3, "bar 4: card 2 arrival 2.0 -> %.4f s (want 2.5)" % float(ts[2][1]))
 	ok(absf(float(ts[3][1]) - 4.0) < 1e-3, "bar 4: card 3 arrival 3.0 -> %.4f s (want 4.0)" % float(ts[3][1]))
 	ok(absf(float(ts[4][1]) - 5.0) < 1e-3, "bar 4: card 4 arrival 4.0 -> %.4f s (want 5.0)" % float(ts[4][1]))
+	var pl: Array = S.plants
+	ok(absf(float(pl[0]["t0"]) - 1.6) < 1e-6 and absf(float(pl[0]["t1"]) - 3.1) < 1e-6, "bar 10: plant 1.4-2.4 -> %.3f-%.3f s (want 1.6-3.1)" % [float(pl[0]["t0"]), float(pl[0]["t1"])])
+	ok(absf(float(pl[2]["t0"]) - 4.5) < 1e-6 and absf(float(pl[2]["t1"]) - 5.5) < 1e-6, "bar 10: plant 3.5-4.5 -> %.3f-%.3f s (want 4.5-5.5)" % [float(pl[2]["t0"]), float(pl[2]["t1"])])
+	ok(var_to_str(pl[1]) == var_to_str({"foot": "foot_r", "t0": 0.2, "t1": 0.8}), "bar 10: plant 0.2-0.8 (before) is byte-identical")
+	var ik: Array = S.ik["hand_r"]
+	ok(absf(float(ik[1]["t"]) - 2.5) < 1e-6 and absf(float(ik[1]["t"]) - float(ts[2][1])) < 1e-3, "bar 10: IK key 2.0 -> %.4f s (card 2 arrival %.4f s)" % [float(ik[1]["t"]), float(ts[2][1])])
+	ok(absf(float(ik[2]["t"]) - 5.0) < 1e-6 and absf(float(ik[0]["t"]) - 0.5) < 1e-9, "bar 10: IK key 4.0 -> %.3f s (want 5.0); key 0.5 unchanged" % float(ik[2]["t"]))
+	ok(absf(float(S.markers[0]["t"]) - 2.5) < 1e-6, "bar 10: marker 2.0 -> %.3f s (want 2.5)" % float(S.markers[0]["t"]))
 	ok(absf(S.length() - (len0 + 1.0)) < 1e-3, "bar 3: the scene is %.4f s, one second longer than %.4f s" % [S.length(), len0])
 	ok(RetimeRange.apply(S, 1.0, 3.0, 1.0, 100.0) == 0, "bar 5: 100 % changes no card (checked on a fresh scene below)")
 
@@ -108,5 +130,34 @@ func _init() -> void:
 	var hout: Array = S5.part_keys["lowerarm_r"][2]["hout"]
 	ok(absf(float(hout[0]) - 0.2) < 1e-6, "bar 9: handle dt 0.4 -> %.3f (want 0.2)" % float(hout[0]))
 
+	# bar 11: the app's undo, byte for byte
+	var m = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(m)
+	for i in 4:
+		await process_frame
+	m.tour_step = -1
+	if m.ui_tour != null:
+		m.ui_tour.visible = false
+	m._load_scene("res://scenes/combo3.json")
+	m._rebuild_cards()
+	for i in 3:
+		await process_frame
+	var M := make()
+	m.S.cards = M.cards
+	m.S.part_keys = M.part_keys
+	m.S.plants = M.plants
+	m.S.ik = M.ik
+	m.S.markers = M.markers
+	m.S.layers = []
+	m.pv_in = 1.0
+	m.pv_out = 3.0
+	m.playhead = 1.0
+	var before := dump_all(m.S)
+	var steps: int = m.undo.size()
+	var err: String = m._retime_range(150.0)
+	ok(err == "" and m.undo.size() == steps + 1, "bar 11: the retime is one undo step (%d -> %d) %s" % [steps, m.undo.size(), err])
+	ok(dump_all(m.S) != before, "bar 11: the retime changed the timed fields")
+	m._undo()
+	ok(dump_all(m.S) == before, "bar 11: undo restores every timed field byte for byte")
 	print("RETIME RANGE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
