@@ -63,6 +63,7 @@ const ALL_EASES := ["smooth", "linear", "in", "out", "snap", "reach", "strike", 
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offset" s, "gain_db"}; in the file only when there is one
+var face := {}        # THE FACE (ROADMAP 74, face.gd): {"brow_l", "jaw", "eye_yaw", ..., "vis_M"}: [{"t", "v": Vector3(x,0,0)}]; in the file as "face" only when keyed
 var lip := {}          # LIP-SYNC channel (ROADMAP 31, lip_sync.gd): {"jaw": [{"t", "v"}], "mouth": [{"t", "s"}]}; in the file only when baked
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var beats_audio := []  # MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): [{"t" (the sound's time), "down"}] sorted; in the file as "beats_audio" only when any
@@ -1396,6 +1397,7 @@ func clone() -> Scene:
 	c.beats_audio = beats_audio.duplicate(true)
 	c.audio = audio.duplicate()
 	c.lip = lip.duplicate(true)
+	c.face = face.duplicate(true)   # ROADMAP 74: the face keys
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
@@ -1906,6 +1908,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["beats_audio"] = BeatTrack.clean_list(beats_audio)   # ROADMAP 32: the music beats, only when there are any
 	if not audio.is_empty():
 		out["audio"] = AudioTrack.clean(audio)   # the sound: the same, only when there is one
+	if not face.is_empty():
+		out["face"] = Face.to_file(face)   # ROADMAP 74: the face keys, only when keyed
 	if not lip.is_empty():
 		out["lip"] = LipSync.to_file(lip)   # ROADMAP 31: the same, only when a lip-sync was baked
 	if not actors.is_empty():   # G1: the same, only with a second actor
@@ -1945,6 +1949,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
+	"face": "SIDED: Face.mirror_file (brow_l <-> brow_r, eye_yaw negated; jaw, visemes, blink and eye pitch free)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
@@ -1999,6 +2004,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 	d2["cards"] = d2["cards"].map(func(c): return Scene.mirror_card(c, M))
 	if d2.has("part_keys"):
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
+	if d2.has("face"):
+		d2["face"] = Face.mirror_file(d2["face"])   # ROADMAP 74: brow_l <-> brow_r, eye yaw negated
 	if d2.has("ik"):
 		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
 	if d2.has("plants"):
@@ -2071,6 +2078,7 @@ func from_dict(d: Dictionary) -> void:
 	beats = Choreo.from_list(d.get("beats", []))   # ROADMAP 13
 	beats_audio = BeatTrack.clean_list(d.get("beats_audio", []))   # ROADMAP 32: absent = none
 	audio = AudioTrack.clean(d["audio"]) if d.get("audio") is Dictionary and String(d["audio"].get("path", "")) != "" else {}
+	face = Face.from_file(d.get("face", {}))   # ROADMAP 74: absent = none
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
 	props_skipped = []
