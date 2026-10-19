@@ -19,7 +19,7 @@ const DARK := {
 	"cube": Color(0.55, 0.62, 0.75), "cube_edge": Color(0.9, 0.93, 1.0),
 	"ch_x": Color(1.0, 0.42, 0.4), "ch_y": Color(0.45, 0.85, 0.45), "ch_z": Color(0.45, 0.65, 1.0),
 	"beat_down": Color(1.0, 0.8, 0.35, 0.95), "vdiff": Color(0.85, 0.3, 0.95, 0.9),   # timeline: the downbeats, the compared version's differing frames
-	"fd_startup": Color(0.3, 0.78, 0.38), "fd_active": Color(0.92, 0.28, 0.26), "fd_recovery": Color(0.3, 0.52, 0.95), "fd_ink": Color(0.05, 0.05, 0.07),   # the frame strip   # XX2 curve editor: bend / side / twist
+	"autokey": Color(1.0, 0.25, 0.22), "fd_startup": Color(0.3, 0.78, 0.38), "fd_active": Color(0.92, 0.28, 0.26), "fd_recovery": Color(0.3, 0.52, 0.95), "fd_ink": Color(0.05, 0.05, 0.07),   # the frame strip   # XX2 curve editor: bend / side / twist
 }
 const LIGHT := {
 	"text": Color(0.1, 0.11, 0.13), "heading": Color(0.08, 0.3, 0.68), "info": Color(0.12, 0.27, 0.5), "say": Color(0.42, 0.27, 0.0),
@@ -34,7 +34,7 @@ const LIGHT := {
 	"cube": Color(0.8, 0.84, 0.9), "cube_edge": Color(0.25, 0.3, 0.4),
 	"ch_x": Color(0.78, 0.12, 0.1), "ch_y": Color(0.1, 0.5, 0.12), "ch_z": Color(0.12, 0.3, 0.8),
 	"beat_down": Color(0.78, 0.5, 0.0, 0.95), "vdiff": Color(0.62, 0.1, 0.72, 0.9),
-	"fd_startup": Color(0.12, 0.55, 0.22), "fd_active": Color(0.8, 0.16, 0.14), "fd_recovery": Color(0.15, 0.38, 0.82), "fd_ink": Color(1, 1, 1),
+	"autokey": Color(0.82, 0.08, 0.08), "fd_startup": Color(0.12, 0.55, 0.22), "fd_active": Color(0.8, 0.16, 0.14), "fd_recovery": Color(0.15, 0.38, 0.82), "fd_ink": Color(1, 1, 1),
 }
 
 static var dark := true
