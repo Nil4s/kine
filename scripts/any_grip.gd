@@ -451,7 +451,32 @@ static func _open_clearance(B: Body, h: String, F: Callable) -> float:
 	for f in GripWrap.LONG:
 		for k in 3:
 			worst = minf(worst, gap(B, F, "%s_0%d%s" % [f, k + 1, sd]))
-	return worst
+	return minf(worst, _thumb_room(B, h, F))
+
+
+## how far the thumb is from the prop at its best base (the same base grid close_thumb searches; the base kept is the
+## one that leaves the most room, the thumb straight). The thumb opposes from outside: a base across the palm is only
+## used when it clears the prop
+static func _thumb_room(B: Body, h: String, F: Callable) -> float:
+	var sd := h.right(2)
+	var base := "thumb_01" + sd
+	var ch := [base, "thumb_02" + sd, "thumb_03" + sd]
+	var best := -INF
+	var best_v: Vector3 = B.ang[base]
+	for ax in [-20.0, 0.0, 20.0, 40.0, 60.0]:
+		for ay in [-60.0, -30.0, 0.0, 30.0, 60.0]:
+			for az in [-60.0, -30.0, 0.0, 30.0, 60.0]:
+				B.ang[base] = B.clamp_ang(base, Vector3(ax, ay, az))
+				B.fk_some(ch)
+				var room := INF
+				for j in ch:
+					room = minf(room, gap(B, F, j))
+				if room > best:
+					best = room
+					best_v = B.ang[base]
+	B.ang[base] = best_v
+	B.fk_some(ch)
+	return best
 
 
 ## PLACE the hand at the prop: the palm faces the nearest surface point, PALM_GAP off it, and the fingers start OUTSIDE
@@ -464,7 +489,7 @@ static func place_hand(B: Body, h: String, F: Dictionary) -> Dictionary:
 	var clear := 0.0
 	var miss := 0.0
 	var passes := 0
-	for pass_i in 5:
+	for pass_i in 8:
 		passes += 1
 		var q := _nearest(fn, B.palm_point(h))
 		var n := _grad(fn, q)
@@ -475,6 +500,7 @@ static func place_hand(B: Body, h: String, F: Dictionary) -> Dictionary:
 		if worst >= 0.0:
 			break
 		clear += -worst + 0.002
+	B.fk()
 	return {"wrist_m": miss, "palm_m": float(fn.call(B.palm_point(h))), "clear_m": clear, "passes": passes}
 
 

@@ -123,6 +123,12 @@ func _init() -> void:
 	ok(repb["pattern"] == "sphere", "2 a 22 cm ball is a spherical grasp (pattern %s)" % [repb["pattern"]])
 	ok((vb[1] as Array).is_empty(), "2 every fingertip on the ball (<= 3 mm) or at its limit; no finger segment inside by > 1 mm (bad: %s)" % [vb[1]])
 	ok((vb[2] as Array).is_empty(), "2 (NOT MET, known open) the thumb outside the ball too (thumb segments inside: %s)" % [vb[2]])
+	# the limit clause above lets a hand that never reaches the ball pass; a grasp needs every fingertip ON the ball
+	var on := 0
+	for f in GripWrap.LONG:
+		if float(repb[f][2][1]) <= 0.003:
+			on += 1
+	ok(on == 4, "2 every fingertip ON the ball (<= 3 mm, no limit allowance): %d of 4 (tips: %s)" % [on, ", ".join(vb[0])])
 	B.fast = false
 	# 3b the bat's wrap again, from the same body state as 3a (the arm the prop placements moved is put back)
 	B.set_state(keep)
