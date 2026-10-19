@@ -8,7 +8,7 @@ var fails := 0
 const NEXT := ["pick", "click", "press", "open", "lock", "put", "add", "turn", "move", "type", "tick", "untick", "use",
 	"select", "drag", "choose", "copy", "make", "free", "try", "give", "save", "close", "run"]
 ## exits that report something DONE (no next step is owed)
-const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
+const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "range %.2f-%.2f s at": "reports the retime it just made (ROADMAP 67)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
 	"(in trash/ if you want it back)": "reports the delete it just made",
 	"posed: %s%s": "reports the pose it just made (and where a limit stopped it)",
 	"weight key at %s = %.2f": "reports the weight key it just changed (NA1)",
