@@ -103,17 +103,17 @@ func _init() -> void:
 	# (4) what is left out is named: a prop, a sound, secondary motion (set in memory on the open scene, then taken back)
 	var S = m.S
 	var keep_props: Array = S.props.duplicate(true)
-	var keep_audio: Dictionary = S.audio.duplicate(true)
+	var keep_audio: Array = S.audio_tracks.duplicate(true)
 	var keep_sec: Dictionary = S.secondary.duplicate(true)
 	S.props = [{"kind": "chair", "xf": Transform3D.IDENTITY}]
-	S.audio = {"path": "res://x.wav", "offset": 0.0, "gain_db": 0.0}
+	S.audio_tracks = [{"path": "res://x.wav", "offset": 0.0, "gain_db": 0.0}]
 	S.secondary = {"items": [{"name": "ponytail_1"}], "keys": {}, "fps": S.fps}
 	var lines: Array = ui.checks("raw", "bvh")
 	var txt := "\n".join(lines)
 	ok(txt.contains("WARN  1 prop not in any export") and txt.contains("WARN  the sound track") and txt.contains("WARN  secondary motion (1 item)"),
 		"checklist names the prop, the sound and the secondary motion as left out")
 	S.props = keep_props
-	S.audio = keep_audio
+	S.audio_tracks = keep_audio
 	S.secondary = keep_sec
 
 	m.export_ui.dlg.hide()

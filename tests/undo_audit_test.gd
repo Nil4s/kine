@@ -44,6 +44,9 @@ const PREFER := {
 	"actor_remove_this_fighter": "ACTORS",
 	"audio_louder_+3_db": "AUDIO",
 	"audio_move_the_sound_to_start_at_the_playhead": "AUDIO",
+	"audio_mute_or_unmute_the_picked_track": "AUDIO",
+	"audio_solo_or_unsolo_the_picked_track": "AUDIO",
+	"audio_next_role_for_the_picked_track_music_voice_sfx": "AUDIO",
 	"audio_quieter_-3_db": "AUDIO",
 	"audio_remove_the_sound": "AUDIO",
 	"body_the_mannequin's_own_proportions": "BODY",
@@ -138,7 +141,7 @@ func fp() -> String:
 		"notes": m.S.notes,   # ROADMAP 29: the review notes
 		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
 		"layers": var_to_str(m.S.layers),   # NA1
-		"audio": var_to_str(m.S.audio),   # the sound on the timeline
+		"audio": var_to_str(m.S.audio_tracks),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
 		"cons": var_to_str(m.S.cons),   # constraints (round 51)
 		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))),   # the set: keys, a door's swing (row 22)
@@ -229,7 +232,7 @@ func start(kind: String) -> void:
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
 		m._card_pick(2)
-		m.S.audio = {"path": "res://zz_no_such_sound.wav", "offset": 0.3, "gain_db": 0.0}
+		m.S.audio_tracks = [{"path": "res://zz_no_such_sound.wav", "offset": 0.3, "gain_db": 0.0}]
 		m.sel = "lowerarm_r"
 	elif kind == "IK":
 		# IK: combo3 on card 3 (its arrival under the playhead) with the left hand pinned at card 1, so release and the
@@ -394,7 +397,7 @@ func start(kind: String) -> void:
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
 		m._card_pick(2)
-		m.S.audio = {"path": LIP_WAV, "offset": 0.0, "gain_db": 0.0}
+		m.S.audio_tracks = [{"path": LIP_WAV, "offset": 0.0, "gain_db": 0.0}]
 		m.sel = "lowerarm_r"
 	elif kind.begins_with("res://"):
 		m._load_scene(kind)
