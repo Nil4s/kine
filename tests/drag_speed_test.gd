@@ -10,6 +10,7 @@
 extends SceneTree
 
 var fails := 0
+const RATIO_BAR := 150.0   # measured 63-75 idle (4 runs) and 61-75 with 8 copies at once (283-505 ms): ~2x headroom
 
 
 func ok(c: bool, what: String) -> void:
@@ -78,18 +79,27 @@ func _init() -> void:
 	var first := 0
 	var rest := 0
 	var outs := {}
+	var ref := body()   # the yardstick, timed beside each step (the suite runs 8 at once: load hits both alike)
+	tangle(ref)
+	var worst_ratio := 0.0
 	for k in 12:
 		var target: Vector3 = (x[0] as Vector3) + q * Vector3(0.06, 0.25 + 0.03 * k, 0.0)
+		var tr := Time.get_ticks_usec()
+		for r in 5:
+			ref.penetration()
+		var unit := maxf(1.0, (Time.get_ticks_usec() - tr) / 5.0)
 		var t0 := Time.get_ticks_usec()
 		var r := GripMagnet.drag(A, "hand_l", target, true)
 		var us := Time.get_ticks_usec() - t0
+		worst_ratio = maxf(worst_ratio, us / unit)
 		w = maxi(w, us)
 		if k == 0:
 			first = us
 		else:
 			rest = maxi(rest, us)
 		outs[r] = outs.get(r, 0) + 1
-	ok(w < 400000, "2 a hand drag beside a held axe, arm tangled, 12 steps: worst step %.0f ms (bar 400 here): the first %.0f ms, the 11 after it at most %.0f ms; results %s" % [w / 1000.0, first / 1000.0, rest / 1000.0, outs])
+	print("     RATIO worst step / one whole-body penetration() timed beside it: %.1f" % worst_ratio)
+	ok(worst_ratio <= RATIO_BAR, "2 a hand drag beside a held axe, arm tangled, 12 steps: worst step %.1f x one whole-body penetration() timed beside it (bar %.0f: load-proof; idle that is ~100 ms); %.0f ms here, the first %.0f ms, the 11 after it at most %.0f ms; results %s" % [worst_ratio, RATIO_BAR, w / 1000.0, first / 1000.0, rest / 1000.0, outs])
 	# 3
 	var C := body()
 	tangle(C)
