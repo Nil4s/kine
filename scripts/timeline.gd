@@ -525,7 +525,7 @@ func bx_px() -> float:
 
 ## the boxes lane: attack boxes on the top row (red), vulnerable edits below (blue), invincible ranges (gold, hatched)
 func _draw_bx_lane(y: float) -> void:
-	var cols := {"hit": Color(0.92, 0.28, 0.26), "hurt": Color(0.3, 0.52, 0.95), "inv": Color(0.95, 0.8, 0.25)}
+	var cols := {"hit": Tok.c("fd_active"), "hurt": Tok.c("fd_recovery"), "inv": Tok.c("beat_down")}
 	for b in bx:
 		var x0 := x_of(float(b["t0"]))
 		var x1 := x_of(float(b["t1"]))
@@ -534,7 +534,7 @@ func _draw_bx_lane(y: float) -> void:
 		if b["kind"] == "inv":
 			var hx := x0
 			while hx < x1:   # hatching: invincible reads as a different thing from a blue edit
-				draw_line(Vector2(hx, row_y + 4.0), Vector2(minf(hx + 4.0, x1), row_y), Color(0.05, 0.05, 0.07, 0.7), 1.0)
+				draw_line(Vector2(hx, row_y + 4.0), Vector2(minf(hx + 4.0, x1), row_y), Tok.c("fd_ink"), 1.0)
 				hx += 6.0
 
 
