@@ -376,6 +376,7 @@ var ui_ease: OptionButton   # the picked card's ease preset (round 10, GATES Q2)
 var ui_spline: CheckBox
 var ui_loop: CheckBox
 var _tween_armed := false   # one undo step per drag of the tween slider
+var _ease_bias_armed := false   # ROADMAP 55: one undo step per drag of the card's "Slow in ... Slow out" slider
 var stepped_view := false   # STEPPED preview (blocking): the scene plays card to card with no in-betweens; never saved
 var ui_bp: PanelContainer   # the bottom panel (the scene)
 var ui_card_row: ScrollContainer
@@ -7336,6 +7337,7 @@ func _rebuild_cards() -> void:
 	for c in ui_cards.get_children():
 		ui_cards.remove_child(c)   # detach now: a freed card_3 would still hold its name for a frame
 		c.queue_free()
+	_ease_bias_armed = false   # a rebuild (pick, undo, any edit) ends the slider's drag: its next move gets its own undo step
 	_layout_bottom()
 	if S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
@@ -7399,12 +7401,70 @@ func _rebuild_cards() -> void:
 		hs.tooltip_text = "seconds the body stays still in this pose"
 		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false))
 		hh.add_child(hs)
+		if i == sel_card:
+			_card_ease_rows(v, i)   # ROADMAP 55: the picked card's ease: the presets, and the slow in / even / slow out slider
 		var bh := HBoxContainer.new()
 		v.add_child(bh)
 		bh.add_child(_button("<", _card_move.bind(i, -1), "move this card earlier"))
 		bh.add_child(_button(">", _card_move.bind(i, 1), "move this card later"))
 		bh.add_child(_button("Update", _card_update.bind(i), "replace this card's pose with the body as it is now"))
 		bh.add_child(_button("X", _card_del.bind(i), "delete this card"))
+
+
+## ROADMAP 55: the picked card's ease in its own box: a preset dropdown (the same ease key as the Play options' ease) and one
+## slider "Slow in ... Even ... Slow out" (Scene.ease_bias: -1 arrives slowly, 0 = the curve as it is, +1 leaves slowly).
+## The slider previews while it is dragged and is one undo step per drag; 0 erases the key (old scenes save unchanged)
+func _card_ease_rows(v: VBoxContainer, i: int) -> void:
+	var why := ""
+	if S.spline:
+		why = "this scene is Smooth (spline): one curve through every card sets the timing; turn Smooth off to ease card by card"
+	elif i == 0:
+		why = "the first card has no move into it: pick card 2 or later"
+	var er := HBoxContainer.new()
+	v.add_child(er)
+	er.add_child(_label("ease", 13, "text:0.7"))
+	var oe := OptionButton.new()
+	oe.name = "card_ease"
+	oe.focus_mode = Control.FOCUS_NONE
+	for e in Scene.ALL_EASES:
+		oe.add_item(e)
+	oe.select(Scene.ALL_EASES.find(String(S.cards[i].get("ease", "smooth"))))
+	oe.custom_minimum_size = Vector2(120, 0)
+	oe.tooltip_text = "the move INTO this card: smooth, linear, in, out, snap, or a measured real motion (reach, strike, throw, settle)"
+	oe.item_selected.connect(func(k): _set_ease(Scene.ALL_EASES[k]))
+	er.add_child(oe)
+	_grey(oe, why)
+	var br := HBoxContainer.new()
+	v.add_child(br)
+	br.add_child(_label("Slow in", 11, "text:0.6"))
+	var sl := HSlider.new()
+	sl.name = "card_ease_bias"
+	sl.min_value = -1.0
+	sl.max_value = 1.0
+	sl.step = 0.01
+	sl.value = float(S.cards[i].get("ease_bias", 0.0))
+	sl.custom_minimum_size = Vector2(84, 22)
+	sl.focus_mode = Control.FOCUS_NONE
+	sl.tooltip_text = "Slow in ... Even ... Slow out: the move INTO this card. Left = it arrives slowly (the first half covers most of the distance), middle = the ease as it is, right = it leaves slowly (the first half covers little).  Drag = a preview; one drag is one Ctrl+Z"
+	sl.value_changed.connect(func(x): _ease_bias_drag(i, x))
+	sl.drag_ended.connect(func(_c): _ease_bias_armed = false)
+	br.add_child(sl)
+	br.add_child(_label("Slow out", 11, "text:0.6"))
+	_grey(sl, why)
+
+
+## the slider moved on card i: the first move of a drag pushes the undo step; the rest of the drag previews it
+func _ease_bias_drag(i: int, x: float) -> void:
+	if i <= 0 or i >= S.cards.size() or S.spline:
+		return
+	if not _ease_bias_armed:
+		_push_undo()
+		_ease_bias_armed = true
+	Scene.set_ease_bias(S.cards[i], x)
+	_retimed(false)
+	var v := float(S.cards[i].get("ease_bias", 0.0))
+	var what := "even (the ease as it is)" if absf(v) < 0.005 else ("slow in: arrives slowly" if v < 0.0 else "slow out: leaves slowly")
+	_say("card %d: %+.2f, %s.  Ctrl+Z undoes" % [i + 1, v, what])
 
 
 ## (round 7) the four card edits push an undo step: a card's X could not be undone ("we always have ctrl+z")
@@ -7423,6 +7483,7 @@ func _card_add() -> void:
 func _card_pick(i: int) -> void:
 	_push_undo()
 	_tween_armed = false   # a new card: its first tween nudge gets its own undo step
+	_ease_bias_armed = false
 	sel_card = i
 	sel_end = -1
 	playing = false

@@ -40,6 +40,10 @@
 ##   and do not read it. Saved only when set, so older scenes save byte-identical.
 ##   MEASURED PRESETS (ROADMAP 17, scripts/ease_presets.gd, docs/research/EASE_PRESETS.md): "reach" (minimum-jerk),
 ##   "strike" (late peak), "throw" (proximal-to-distal peaks by joint level), "settle" (damped). Same save rule.
+##   EASE BIAS (ROADMAP 55, the "Slow in ... Even ... Slow out" slider): a card's "ease_bias" in -1..1 warps the progress x of
+##   its move into x^p, p = 2^(EASE_BIAS_OCTAVES * bias), before the curve (any ease but snap). -1 = slow in (arrives
+##   slowly: the first half covers most of the distance), +1 = slow out (leaves slowly), 0 = the curve as it is (the key
+##   is not written). Same ends, so the move still starts and lands on its cards. Saved only when set (set_ease_bias).
 ## PLANTED FEET (round 10, GATES Q3): a card's "plant": ["_l"] (or "_r", or both) holds that foot where it stood in
 ##   the card BEFORE the run of cards that plant it, for the whole run (every move into those cards and every hold):
 ##   the leg is re-solved every frame (Body.plant), the poses are not changed, so taking the plant off gives the old
@@ -53,6 +57,7 @@ extends RefCounted
 
 const LAG := 0.3
 const EASES := ["smooth", "linear", "in", "out", "snap"]   # a card's ease preset (EASE PRESETS above)
+const EASE_BIAS_OCTAVES := 1.5   # the ease_bias slider's reach: the progress warp is x^(2^(1.5 * bias)); see the header
 ## every ease a card can hold: the five above, then the measured-motion presets (scripts/ease_presets.gd, ROADMAP 17)
 const ALL_EASES := ["smooth", "linear", "in", "out", "snap", "reach", "strike", "throw", "settle"]
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
@@ -251,7 +256,7 @@ func _sample_cards(t: float) -> Dictionary:
 			var a := Moves._flat(cards[i - 1]["pose"])
 			if _drifts(i - 1, ts):
 				a = _drift(i - 1, 1.0)
-			var r := blend(a, Moves._flat(cards[i]["pose"]), u, cards[i].get("ease", ""))
+			var r := blend(a, Moves._flat(cards[i]["pose"]), u, cards[i].get("ease", ""), float(cards[i].get("ease_bias", 0.0)))
 			if bool(cards[i].get("walk", false)):
 				r["offset"] = _walk_offset(t, i, ts)
 			return r
@@ -516,10 +521,10 @@ func _curve(F: Dictionary, j: String, tt: float, ts: Array) -> Vector3:
 	return v
 
 
-func blend(a: Dictionary, b: Dictionary, u: float, kind := "") -> Dictionary:
+func blend(a: Dictionary, b: Dictionary, u: float, kind := "", bias := 0.0) -> Dictionary:
 	var ang := {}
 	for j in a["ang"]:
-		var e := _ease(u, level(j), kind)
+		var e := _ease(u, level(j), kind, bias)
 		ang[j] = (a["ang"][j] as Vector3).lerp(b["ang"].get(j, a["ang"][j]), e)
 		if j == "pelvis":
 			# the WHOLE BODY's turn takes the short way round (Nick 10-13: a spinning staff swing): keys at 0, 120, -120, 0
@@ -527,10 +532,10 @@ func blend(a: Dictionary, b: Dictionary, u: float, kind := "") -> Dictionary:
 			var tz: float = (a["ang"][j] as Vector3).z
 			var tb: float = (b["ang"].get(j, a["ang"][j]) as Vector3).z
 			ang[j].z = wrapf(tz + wrapf(tb - tz, -180.0, 180.0) * e, -180.0, 180.0)
-	var eh := _ease(u, 0, kind)
+	var eh := _ease(u, 0, kind, bias)
 	var w: Dictionary = a["weapon"].duplicate()
 	var wb: Dictionary = b["weapon"]
-	var eb := _ease(u, 5, kind)
+	var eb := _ease(u, 5, kind, bias)
 	if w.is_empty() or wb.is_empty() or w.get("hand", "") != wb.get("hand", ""):
 		w = a["weapon"] if eb < 0.5 else wb
 	else:
@@ -554,10 +559,12 @@ func blend(a: Dictionary, b: Dictionary, u: float, kind := "") -> Dictionary:
 		"weapon2": Body.wep2_mix(a.get("weapon2", {}), b.get("weapon2", {}), eb)}
 
 
-func _ease(u: float, lv: int, kind := "") -> float:
+func _ease(u: float, lv: int, kind := "", bias := 0.0) -> float:
 	if kind == "snap":
 		return 1.0 if u >= 1.0 else 0.0
 	var x := u if not natural else clampf((u - LAG * lv / 6.0) / (1.0 - LAG), 0.0, 1.0)
+	if bias != 0.0:   # ease_bias (ROADMAP 55): a power warp of the progress; 0 leaves x as it is, so old scenes are unchanged
+		x = pow(x, pow(2.0, EASE_BIAS_OCTAVES * bias))
 	match kind:
 		"linear":
 			return x
@@ -568,7 +575,7 @@ func _ease(u: float, lv: int, kind := "") -> float:
 	if EasePresets.has_kind(kind):
 		return EasePresets.progress(kind, x, lv)
 	if not natural:
-		return u * u * (3.0 - 2.0 * u)
+		return x * x * (3.0 - 2.0 * x)   # x = u here when not natural
 	return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
 
 
@@ -1756,7 +1763,7 @@ func clear(B: Body) -> int:
 		base = maxf(base, B.penetration())
 		for k in range(1, 20):
 			var u := k / 20.0
-			put(B, blend(a, b, u, cards[i].get("ease", "")))
+			put(B, blend(a, b, u, cards[i].get("ease", ""), float(cards[i].get("ease_bias", 0.0))))
 			B.apply_grip()
 			var p := B.penetration() - base
 			if p > 0.002 and p > worst:
@@ -1767,7 +1774,7 @@ func clear(B: Body) -> int:
 			i += 1
 			continue
 		# lift the arm(s) in the contacts out from the body until that frame is clean
-		put(B, blend(a, b, worst_u, cards[i].get("ease", "")))
+		put(B, blend(a, b, worst_u, cards[i].get("ease", ""), float(cards[i].get("ease_bias", 0.0))))
 		var arms := {}
 		for c in worst_c:
 			for part in [c[0], c[1]]:
@@ -1844,6 +1851,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["lift"] = c["lift"]
 		if c.get("ease", "smooth") != "smooth":
 			cs[-1]["ease"] = c["ease"]
+		if c.has("ease_bias"):
+			cs[-1]["ease_bias"] = c["ease_bias"]   # ROADMAP 55: set_ease_bias keeps it absent at 0
 		if not c.get("plant", []).is_empty():
 			cs[-1]["plant"] = c["plant"]
 		if c.has("take"):
@@ -1938,8 +1947,18 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"boxes": "SIDED: HitBoxes.mirror_file (a box's part to its twin, _l <-> _r; an attack box's offsets x negated; frames and damage free)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
-	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
+	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free",
 	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "air": "free", "ktype": "free"}
+
+
+## the ease_bias slider's value on one card (ROADMAP 55): clamped to -1..1 and rounded to 0.01; 0 erases the key, so a
+## card the slider never touched saves exactly as before
+static func set_ease_bias(c: Dictionary, v: float) -> void:
+	v = snappedf(clampf(v, -1.0, 1.0), 0.01)
+	if absf(v) < 0.005:
+		c.erase("ease_bias")
+	else:
+		c["ease_bias"] = v
 
 
 ## one card of a scene file, mirrored by MIRROR_CARD (M: a Body to mirror poses on); keys not on the list are copied
@@ -2074,6 +2093,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["walk"] = true
 		if String(c.get("ease", "smooth")) in ALL_EASES and c.get("ease", "smooth") != "smooth":
 			cards[-1]["ease"] = c["ease"]
+		if c.has("ease_bias") and absf(float(c["ease_bias"])) >= 0.005:
+			cards[-1]["ease_bias"] = clampf(float(c["ease_bias"]), -1.0, 1.0)
 		if c.get("plant", []) is Array and not c.get("plant", []).is_empty():
 			cards[-1]["plant"] = c["plant"].filter(func(x): return x in ["_l", "_r"])
 		if c.get("take", null) is Dictionary and c["take"].has("prop"):
