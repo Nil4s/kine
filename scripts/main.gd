@@ -2039,7 +2039,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px()
+	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.sp_px()
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
@@ -2096,6 +2096,7 @@ func _fd_refresh() -> void:
 	if ui_timeline != null:
 		var before := _tl_under_ruler()
 		ui_timeline.fd = _fd_data() if fd_on and not S.cards.is_empty() else {}
+		ui_timeline.sp = LimbIK.space_lane(S.ik, S.length()) if not S.ik.is_empty() else []   # ROADMAP 63: the space segments
 		ui_timeline.bx = HitBoxes.lanes(S.boxes, float(fd_fps)) if not S.boxes.is_empty() and not S.cards.is_empty() else []   # ROADMAP 36: the boxes lane
 		if before != _tl_under_ruler():
 			_tl_height()
@@ -4088,6 +4089,44 @@ func _ik_pin() -> void:
 	_say("pinned the %s at %s, at (%s, %s, %s): it stays there whatever the body does, its %s toward the pole (Ctrl+Z takes it back)" % [_ik_words(tip), Units.time(t, S.fps), Units.len(p.x), Units.len(p.y), Units.len(p.z), "elbow" if tip.begins_with("hand") else "knee"])
 
 
+## SPACE SWITCHING (ROADMAP 63): the picked hand / foot's target lives in the world, the chest, the pelvis, the held
+## weapon or the other hand from the playhead on; its tip stays where it is at this frame (one undo step)
+func _ik_space(space: String) -> void:
+	var tip := _ik_tip()
+	if space == "other":
+		if not tip.begins_with("hand"):
+			_say("only a hand follows the other hand: click a hand (or a part of that arm) first")
+			return
+		space = Body.twin(tip)
+	if tip == "":
+		_say("a space belongs to a hand or a foot: click a hand, a foot, or a part of that arm or leg first")
+		return
+	if S.cards.is_empty():
+		_say("IK keys live in a scene: open a scene, or press Enter to add the body as a card, then switch its space")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var r := {}
+	_do(func(): r.merge(LimbIK.switch_space(S, B, tip, t, space)))
+	if not r.get("ok", false):
+		_drop_undo()
+		match String(r.get("why", "")):
+			"no_weapon":
+				_say("there is no weapon at %.2f s to be a space: pick a weapon first, or choose chest / pelvis / world" % t)
+			"loop":
+				_say("that space would follow this %s round in a circle: pick another space, or switch the other limb to the world first" % _ik_words(tip))
+			"self":
+				_say("a limb cannot be in its own space: pick the chest, the pelvis, the weapon or the other hand")
+			_:
+				_say("that is not a space: choose world, chest, pelvis, weapon or the other hand")
+		return
+	_dummy_hits()
+	if String(r["why"]) == "same":
+		_drop_undo()
+		_say("the %s is already in %s space at %.2f s: nothing to switch" % [_ik_words(tip), space, t])
+		return
+	_say("the %s is in %s space from %.2f s (was %s%s): it moved %.2f mm at this frame, and follows %s from here (Ctrl+Z takes it back)" % [_ik_words(tip), space, t, r["from"], ", pinned first" if r["pinned"] else "", float(r["moved"]) * 1000.0, "nothing: it stays in the world" if space == "world" else "the " + space.replace("_l", " (left)").replace("_r", " (right)")])
+
+
 func _ik_release() -> void:
 	var tip := _ik_tip()
 	if tip == "":
@@ -4332,7 +4371,7 @@ func _ikh_pinned() -> Array:
 func _ikh_at(tip: String) -> Dictionary:
 	if not _ikh_drag.is_empty() and _ikh_drag["tip"] == tip:
 		return _ikh_drag
-	return LimbIK.sample(S.ik[tip], clampf(playhead, 0.0, S.length()))
+	return LimbIK.sample(S.ik[tip], clampf(playhead, 0.0, S.length()), LimbIK.frames(B))   # ROADMAP 63: a limb in a space is drawn in the world
 
 
 func _ikh_draw() -> void:
@@ -4391,10 +4430,11 @@ func _ikh_press(mp: Vector2) -> bool:
 	var tip: String = h[0]
 	var kind: String = h[1]
 	var t := clampf(playhead, 0.0, S.length())
-	var k := LimbIK.sample(S.ik[tip], t)
+	var fr := LimbIK.frames(B)
+	var k := LimbIK.sample(S.ik[tip], t, fr)
 	_step_hint = "Move the IK %s" % kind
 	_push_undo()
-	var d := {"tip": tip, "kind": kind, "target": k["target"], "pole": k["pole"], "w": k["w"], "moved": false}
+	var d := {"tip": tip, "kind": kind, "target": k["target"], "pole": k["pole"], "w": k["w"], "moved": false, "space": k.get("space", "world"), "fr": fr}
 	if k.has("rot"):
 		d["rot"] = k["rot"]
 	var p0: Vector3 = k[kind]
@@ -4507,6 +4547,9 @@ func _ikh_release() -> void:
 	var key := {"t": t, "target": d["target"], "pole": d["pole"], "w": d["w"]}
 	if d.has("rot"):
 		key["rot"] = d["rot"]
+	if d.get("space", "world") != "world":   # ROADMAP 63: keyed in the space the limb is in, so the run goes on
+		key.merge(LimbIK.to_local(key, d["fr"], d["space"]), true)
+		key["space"] = d["space"]
 	LimbIK.put(S.ik, d["tip"], key)
 	_dummy_hits()
 	_refresh()
@@ -8260,6 +8303,11 @@ func _commands() -> Array:
 	add.call("Snap to floor: all cards", "", _floor_snap.bind(true), "floor ground snap all cards every range sole foot knee lift sink", true, "every card moves straight up or down so its lowest point is on the floor; the joints stay; one undo step")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
+	add.call("IK space: world", "", func(): _ik_space("world"), "ik space switch world follow free hand foot parent child of", true, "the picked hand (or foot) stops following anything: its target is in the world from the playhead, and it does not move at this frame")
+	add.call("IK space: chest", "", func(): _ik_space("chest"), "ik space switch chest follow torso spine parent child of hand foot", true, "the picked hand (or foot) follows the chest from the playhead on (its target is stored relative to the chest); it does not move at this frame")
+	add.call("IK space: pelvis", "", func(): _ik_space("pelvis"), "ik space switch pelvis hips follow parent child of hand foot", true, "the picked hand (or foot) follows the pelvis from the playhead on; it does not move at this frame")
+	add.call("IK space: weapon", "", func(): _ik_space("weapon"), "ik space switch weapon bat sword follow hold second hand parent child of", true, "the picked hand follows the held weapon from the playhead on (use it for the hand that is NOT holding the weapon); it does not move at this frame")
+	add.call("IK space: other hand", "", func(): _ik_space("other"), "ik space switch other hand follow clap two hand parent child of", true, "the picked hand (or foot) follows the other hand from the playhead on; it does not move at this frame")
 	add.call("IK: release the picked limb here", "", _ik_release, "ik fk unpin unlock free let go release hand foot", true, "the pinned hand (or foot) follows the cards again from the card at the playhead: its pinned pose goes into that card first, so nothing jumps")
 	add.call("IK -> FK: match at this frame", "", _ik_to_fk, "ik fk switch match bake blend pop snap rigify", true, "the picked limb leaves IK here: its IK pose goes into the card at the playhead and the IK/FK blend is keyed 0, so the limb does not move at the switch")
 	add.call("FK -> IK: match at this frame", "", _ik_to_ik, "ik fk switch match blend pop snap rigify target pole", true, "the picked limb enters IK here: target and pole keyed on the FK hand/foot and elbow/knee, the IK/FK blend keyed 1, so the limb does not move at the switch")

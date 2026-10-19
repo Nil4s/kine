@@ -28,6 +28,11 @@ var fd: Dictionary = {}
 const BX_H := 9.0   # px: the lane's height (two rows of 4 px)
 var bx: Array = []
 
+## IK SPACES (ROADMAP 63; LimbIK.space_lane): main.gd sets `sp` ([] = none). One row per limb that has a key in a space, under
+## the boxes lane: a block per run of keys in one space, labelled with the limb and the space (world dim). Drawn only.
+const SP_H := 11.0   # px: one limb's row
+var sp: Array = []
+
 const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
 const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
@@ -426,6 +431,8 @@ func _draw() -> void:
 		_draw_fd_strip(font, RULER + 2.0)
 	if not bx.is_empty():
 		_draw_bx_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0))
+	if not sp.is_empty():
+		_draw_sp_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + bx_px(), font)
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
 	# cards are still yours but never play: shade them and say why (else the strip and the play time disagree silently)
 	var P: Scene = m._ps()
@@ -587,6 +594,31 @@ func box_at(p: Vector2) -> int:
 		if p.x >= x0 and p.x <= x1:
 			return int(b["i"])
 	return -1
+
+
+## the space lane's height (0 with no space keyed)
+func sp_px() -> float:
+	if sp.is_empty():
+		return 0.0
+	var rows := 0
+	for b in sp:
+		rows = maxi(rows, int(b["row"]) + 1)
+	return SP_H * rows + 3.0
+
+
+## the space segments: a block per run, "R hand: chest" in it (the words are the space's own name; world is dim)
+func _draw_sp_lane(y: float, font: Font) -> void:
+	var cols := {"world": Tok.of("ink:0.3"), "chest": Tok.c("fd_startup"), "pelvis": Tok.c("fd_recovery"), "weapon": Tok.c("fd_active"),
+		"hand_l": Tok.c("beat_down"), "hand_r": Tok.c("beat_down")}
+	for b in sp:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := x_of(float(b["t1"]))
+		var ry := y + SP_H * int(b["row"])
+		draw_rect(Rect2(x0, ry, maxf(x1 - x0 - 1.0, 2.0), SP_H - 1.0), Color(cols.get(b["space"], Tok.c("fd_ink")), 0.85))
+		var who := ("L " if String(b["tip"]).ends_with("_l") else "R ") + String(b["tip"]).split("_")[0]
+		var what := String(b["space"]).replace("hand_l", "left hand").replace("hand_r", "right hand")
+		if x1 - x0 > 36.0:
+			draw_string(font, Vector2(x0 + 3.0, ry + SP_H - 2.5), "%s: %s" % [who, what], HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4.0, 9, Tok.c("fd_ink"))
 
 
 ## the lane's height on the timeline (0 with no boxes)

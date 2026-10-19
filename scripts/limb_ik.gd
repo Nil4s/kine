@@ -24,6 +24,14 @@
 ## KEYS (Scene.ik): {"hand_l": [{"t", "target": Vector3, "pole": Vector3, "w": 0..1, "rot"?: Quaternion}, ...]} sorted
 ## by t. Target and pole follow PartKeys' monotone curve through their keys (held past the ends); the weight is
 ## LINEAR between keys (a fade over a span, Blender's influence); "rot" slerps between the two keys around t that have it.
+## SPACES (ROADMAP 63, Maya's space switching / Blender's Child Of on a rig control): a key may carry "space": "chest" |
+## "pelvis" | "weapon" | "hand_l" | "hand_r" (absent = "world"). Its target, pole and rot are then stored in THAT frame
+## (the space's origin and turn, read from the body as it stands when the limb is solved), so the hand follows the chest /
+## the bat / the other hand. A run of keys in one space is one curve in it (PartKeys' monotone spline, held past the ends);
+## between keys of different spaces the two runs' curves are put in the world at t and mixed linearly over the span.
+## switch_space() converts the target into the new space at t and keys it with a key one frame earlier holding the old
+## curve, so the tip does not move at t (no pop). The limbs are solved in dependency order (a hand in the other hand's
+## space, or in the weapon's space, after the hand that carries the weapon). No "space" key anywhere: nothing changes.
 ## Played by Scene.apply AFTER the cards, part keys, layers and breathing (play()). WEIGHT: per joint the angles go
 ## from the FK angles to the IK angles by w (a convex mix of two legal values stays legal). w = 0 (or no keys) leaves
 ## the body untouched, byte for byte.
@@ -33,6 +41,7 @@ extends RefCounted
 const LIMBS := ["hand_l", "hand_r", "foot_l", "foot_r"]
 const OFF_FADE := 0.3   # s: an FK offset kept on a release key fades out over this long (smoothstep)
 const OFF_MIN := 0.02   # deg: an unmatched joint under this is left to the 0.01-deg card rounding
+const SPACES := ["world", "chest", "pelvis", "weapon", "hand_l", "hand_r"]
 const SAME_T := 0.001   # keys closer than this are the same key (keying there again replaces it), as PartKeys
 
 
@@ -158,17 +167,57 @@ static func pole_from_pose(B: Body, tip: String) -> Vector3:
 	return R + (W - R) * 0.5 + off.normalized() * L
 
 
-## the limb's keys at time t: {"target", "pole", "w", "rot" (or absent)}
-static func sample(keys: Array, t: float) -> Dictionary:
+static func space_of(k: Dictionary) -> String:
+	return String(k.get("space", "world"))
+
+
+## the frames a space can name, in the world, as the body stands now: {"chest", "pelvis", "hand_l", "hand_r", "weapon"?}
+## (the weapon only while one is on). "world" is the identity and is not listed.
+static func frames(B: Body) -> Dictionary:
+	var out := {}
+	var src := {"chest": "spine_03", "pelvis": "pelvis", "hand_l": "hand_l", "hand_r": "hand_r"}
+	for n in src:
+		out[n] = Transform3D(Basis((B.G[src[n]] as Quaternion).normalized()), B.P[src[n]] as Vector3)
+	if B.wep_on:
+		var x := B.wep_xform()
+		out["weapon"] = Transform3D(Basis((x[1] as Quaternion).normalized()), x[0] as Vector3)
+	return out
+
+
+static func _frame(fr: Dictionary, space: String) -> Transform3D:
+	if space == "world" or not fr.has(space):
+		return Transform3D.IDENTITY
+	return fr[space]
+
+
+## a curve value {"target", "pole", "rot"?} through the transform X
+static func _conv(c: Dictionary, X: Transform3D) -> Dictionary:
+	var o := {"target": X * (c["target"] as Vector3), "pole": X * (c["pole"] as Vector3)}
+	if c.has("rot"):
+		o["rot"] = (X.basis.get_rotation_quaternion() * (c["rot"] as Quaternion)).normalized()
+	return o
+
+
+## a value in `space` put in the world / a world value taken into `space`
+static func to_world(c: Dictionary, fr: Dictionary, space: String) -> Dictionary:
+	return _conv(c, _frame(fr, space))
+
+
+static func to_local(c: Dictionary, fr: Dictionary, space: String) -> Dictionary:
+	return _conv(c, _frame(fr, space).affine_inverse())
+
+
+## the curve of keys `ks` (one space) at t: {"target", "pole", "rot"?}
+static func _curve(ks: Array, t: float) -> Dictionary:
 	var tk := []
 	var pk := []
-	for k in keys:
+	for k in ks:
 		tk.append({"t": k["t"], "v": k["target"]})
 		pk.append({"t": k["t"], "v": k["pole"]})
-	var out := {"target": PartKeys.at(tk, t), "pole": PartKeys.at(pk, t), "w": weight_at(keys, t)}
+	var out := {"target": PartKeys.at(tk, t), "pole": PartKeys.at(pk, t)}
 	var a = null
 	var b = null
-	for k in keys:
+	for k in ks:
 		if not k.has("rot"):
 			continue
 		if float(k["t"]) <= t:
@@ -180,6 +229,115 @@ static func sample(keys: Array, t: float) -> Dictionary:
 		out["rot"] = (a["rot"] as Quaternion).slerp(b["rot"], clampf(u, 0.0, 1.0))
 	elif a != null or b != null:
 		out["rot"] = (a if a != null else b)["rot"]
+	return out
+
+
+## the keys of the run (consecutive keys in one space) that key i is in
+static func _run(keys: Array, i: int) -> Array:
+	var sp := space_of(keys[i])
+	var lo := i
+	var hi := i
+	while lo > 0 and space_of(keys[lo - 1]) == sp:
+		lo -= 1
+	while hi < keys.size() - 1 and space_of(keys[hi + 1]) == sp:
+		hi += 1
+	return keys.slice(lo, hi + 1)
+
+
+## the limb's keys at time t IN THE SPACE they govern: {"target", "pole", "w", "rot"?, "space"}. Between keys of two
+## different spaces the value is in the world ("space": "world", the two runs mixed linearly over the span)
+static func sample_local(keys: Array, t: float, fr := {}) -> Dictionary:
+	var ia := -1
+	var ib := -1
+	for i in keys.size():
+		if float(keys[i]["t"]) <= t:
+			ia = i
+		else:
+			ib = i
+			break
+	var out: Dictionary
+	if ia >= 0 and ib >= 0 and space_of(keys[ia]) != space_of(keys[ib]):
+		var sa := space_of(keys[ia])
+		var sb := space_of(keys[ib])
+		var wa := to_world(_curve(_run(keys, ia), t), fr, sa)
+		var wb := to_world(_curve(_run(keys, ib), t), fr, sb)
+		var u := clampf((t - float(keys[ia]["t"])) / maxf(float(keys[ib]["t"]) - float(keys[ia]["t"]), 1e-9), 0.0, 1.0)
+		out = {"target": (wa["target"] as Vector3).lerp(wb["target"], u), "pole": (wa["pole"] as Vector3).lerp(wb["pole"], u), "space": "world"}
+		if wa.has("rot") and wb.has("rot"):
+			out["rot"] = (wa["rot"] as Quaternion).slerp(wb["rot"], u)
+		elif wa.has("rot") or wb.has("rot"):
+			out["rot"] = (wa if wa.has("rot") else wb)["rot"]
+	else:
+		var i := ia if ia >= 0 else ib
+		out = _curve(_run(keys, i), t) if i >= 0 else {"target": Vector3.ZERO, "pole": Vector3.ZERO}
+		out["space"] = space_of(keys[i]) if i >= 0 else "world"
+	out["w"] = weight_at(keys, t)
+	return out
+
+
+## the limb's keys at time t, in the WORLD: {"target", "pole", "w", "rot" (or absent), "space": the one governing t}.
+## fr: frames(B) (needed only when a key has a space)
+static func sample(keys: Array, t: float, fr := {}) -> Dictionary:
+	var l := sample_local(keys, t, fr)
+	if String(l["space"]) == "world":
+		return l
+	var w := to_world(l, fr, String(l["space"]))
+	w["w"] = l["w"]
+	w["space"] = l["space"]
+	return w
+
+
+## the limbs `tip` needs solved first: the hand(s) whose space a key names, the weapon's hand for a weapon space
+static func deps(ik: Dictionary, B: Body, tip: String) -> Array:
+	var out := []
+	for k in ik.get(tip, []):
+		var sp := space_of(k)
+		if sp == "weapon":
+			sp = B.wep_hand if B.wep_on else ""
+		if sp in LIMBS and sp != tip and not sp in out:
+			out.append(sp)
+	return out
+
+
+## would keying `tip` in `space` make a loop (it needs a limb that needs it, or the weapon its own hand carries)?
+static func loops(ik: Dictionary, B: Body, tip: String, space: String) -> bool:
+	var first := space
+	if space == "weapon":
+		first = B.wep_hand
+	if not first in LIMBS:
+		return false
+	var seen := []
+	var todo := [first]
+	while not todo.is_empty():
+		var l: String = todo.pop_back()
+		if l == tip:
+			return true
+		if l in seen:
+			continue
+		seen.append(l)
+		todo.append_array(deps(ik, B, l))
+	return false
+
+
+## the space segments of every limb that has a key in a space, for the timeline lane: [{"tip", "row", "space", "t0", "t1"}],
+## one row per such limb (its world stretches included). A segment runs from the first key of its run to the next run's
+## first key (the last one to `end`); [] = no space anywhere
+static func space_lane(ik: Dictionary, end: float) -> Array:
+	var out := []
+	var row := 0
+	for tip in LIMBS:
+		var ks: Array = ik.get(tip, [])
+		if not ks.any(func(k): return space_of(k) != "world"):
+			continue
+		var i := 0
+		while i < ks.size():
+			var j := i
+			while j + 1 < ks.size() and space_of(ks[j + 1]) == space_of(ks[i]):
+				j += 1
+			var t1 := float(ks[j + 1]["t"]) if j + 1 < ks.size() else maxf(end, float(ks[j]["t"]))
+			out.append({"tip": tip, "row": row, "space": space_of(ks[i]), "t0": float(ks[i]["t"]), "t1": t1})
+			i = j + 1
+		row += 1
 	return out
 
 
@@ -224,17 +382,26 @@ static func play(ik: Dictionary, B: Body, t: float) -> Dictionary:
 	var out := {}
 	if ik.is_empty():
 		return out
-	for tip in LIMBS:
-		var keys: Array = ik.get(tip, [])
-		if keys.is_empty():
-			continue
+	var todo := LIMBS.filter(func(l): return not (ik.get(l, []) as Array).is_empty())
+	var order := []
+	while not todo.is_empty():   # a limb after the limbs its spaces need (a loop is refused by the commands; here the first goes)
+		var pick: String = todo[0]
+		for l in todo:
+			if deps(ik, B, l).all(func(d): return not d in todo):
+				pick = l
+				break
+		todo.erase(pick)
+		order.append(pick)
+	for tip in order:
+		var keys: Array = ik[tip]
 		var ch := chain(B, tip)
 		var fo := off_at(keys, t)   # a release's leftover: IK minus FK at the switch, fading out; on the FK angles, under the mix
 		if not fo.is_empty():
 			for j in fo:
 				B.ang[j] = B.clamp_ang(j, (B.ang[j] as Vector3) + (fo[j] as Vector3))
 			B.fk()
-		var k := sample(keys, t)
+		var fr := frames(B) if keys.any(func(k): return k.has("space")) else {}
+		var k := sample(keys, t, fr)
 		var w: float = k["w"]
 		if w <= 0.0:
 			continue
@@ -304,7 +471,7 @@ static func _fk_at(S: Scene, B: Body, tip: String, t: float) -> void:
 
 ## a key at t - 1 frame holding the OLD curve there (target, pole, rot, weight as they played), unless a key is already
 ## within that frame: so a change keyed at t happens over the last frame, not over the whole span from the key before
-static func _hold_before(S: Scene, tip: String, t: float, fps: float, fallback: Dictionary) -> bool:
+static func _hold_before(S: Scene, tip: String, t: float, fps: float, fallback: Dictionary, fr := {}) -> bool:
 	var dt := 1.0 / maxf(fps, 1.0)
 	if t - dt < -1e-9:
 		return false
@@ -313,15 +480,18 @@ static func _hold_before(S: Scene, tip: String, t: float, fps: float, fallback: 
 		if float(k["t"]) > t - dt - SAME_T and float(k["t"]) < t - SAME_T:
 			return false
 	var key := fallback.duplicate()
+	key.erase("space")
 	key["t"] = t - dt
 	key["w"] = 0.0
 	if not ks.is_empty():
-		var s := sample(ks, t - dt)
+		var s := sample_local(ks, t - dt, fr)   # the old curve in the space it was in: a hold keeps the space
 		key["target"] = s["target"]
 		key["pole"] = s["pole"]
 		key["w"] = s["w"]
 		if s.has("rot"):
 			key["rot"] = s["rot"]
+		if s["space"] != "world":
+			key["space"] = s["space"]
 	put(S.ik, tip, key)
 	return true
 
@@ -332,7 +502,7 @@ static func _hold_before(S: Scene, tip: String, t: float, fps: float, fallback: 
 ## before t is kept (a key one frame earlier holds it). Returns {"target", "pole", "pre": a hold key was added}
 static func pin(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 	var key := {"t": t, "target": B.P[tip], "pole": pole_from_pose(B, tip), "w": 1.0, "rot": B.G[tip]}
-	var pre := _hold_before(S, tip, t, S.fps, key)
+	var pre := _hold_before(S, tip, t, S.fps, key, frames(B))
 	put(S.ik, tip, key)
 	return {"target": key["target"], "pole": key["pole"], "pre": pre}
 
@@ -441,7 +611,7 @@ static func release(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 			off[j] = [r["want"][j], B.ang[j]]   # [the IK angles at t, the FK angles that play there]
 	if not off.is_empty():
 		key["off"] = off
-	r["pre"] = _hold_before(S, tip, t, S.fps, key)
+	r["pre"] = _hold_before(S, tip, t, S.fps, key, frames(B))
 	put(S.ik, tip, key)
 	S.apply(B, t)
 	return r
@@ -454,7 +624,7 @@ static func snap_ik(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 	var w := weight_at(ks, t) if not ks.is_empty() else 0.0
 	_fk_at(S, B, tip, t)
 	var key := {"t": t, "target": B.P[tip], "pole": pole_from_pose(B, tip), "w": w, "rot": B.G[tip]}
-	_hold_before(S, tip, t, S.fps, key)
+	_hold_before(S, tip, t, S.fps, key, frames(B))
 	put(S.ik, tip, key)
 	S.apply(B, t)
 	return {"w": w}
@@ -482,6 +652,46 @@ static func to_ik(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 	return {"w": was, "pre": pre}
 
 
+## SWITCH SPACE (ROADMAP 63): from t on the limb's target / pole / tip turn live in `space` (SPACES). The curve as it plays
+## at t is converted into the new frame and keyed there, after a key one frame earlier holding the old curve in the old
+## space, so the tip is where it was at t (and just before it), and from t it follows the new space. A limb not in IK at t
+## is pinned where it is first. Returns {"ok", "why", "moved": the tip's move at t (m), "pinned": it was pinned first,
+## "from": the space it left}. B ends posed at t
+static func switch_space(S: Scene, B: Body, tip: String, t: float, space: String) -> Dictionary:
+	if not space in SPACES:
+		return {"ok": false, "why": "no_space"}
+	if space == tip:
+		return {"ok": false, "why": "self"}
+	S.apply(B, t)
+	if space == "weapon" and not B.wep_on:
+		return {"ok": false, "why": "no_weapon"}
+	if loops(S.ik, B, tip, space):
+		return {"ok": false, "why": "loop"}
+	var pinned := false
+	var ks: Array = S.ik.get(tip, [])
+	if ks.is_empty() or weight_at(ks, t) <= 0.0:
+		pin(S, B, tip, t)
+		S.apply(B, t)
+		pinned = true
+		ks = S.ik[tip]
+	var fr := frames(B)
+	var cur := sample(ks, t, fr)   # world, as it plays
+	var from := String(sample_local(ks, t, fr)["space"])
+	if from == space and not pinned:
+		return {"ok": true, "why": "same", "moved": 0.0, "pinned": false, "from": from}
+	var before: Vector3 = B.P[tip]
+	var world := {"target": cur["target"], "pole": cur["pole"], "rot": cur.get("rot", B.G[tip])}
+	var fb := {"target": world["target"], "pole": world["pole"], "w": cur["w"], "rot": world["rot"]}
+	_hold_before(S, tip, t, S.fps, fb, fr)
+	var loc := to_local(world, fr, space)
+	var key := {"t": t, "target": loc["target"], "pole": loc["pole"], "w": cur["w"], "rot": loc["rot"]}
+	if space != "world":
+		key["space"] = space
+	put(S.ik, tip, key)
+	S.apply(B, t)
+	return {"ok": true, "why": "", "moved": ((B.P[tip] as Vector3) - before).length(), "pinned": pinned, "from": from}
+
+
 ## IN THE FILE: "ik": {"hand_l": [{"t", "target": [x, y, z], "pole": [x, y, z], "w", "rot"?: [x, y, z, w]}]}, written
 ## only when there is a key (a scene without one saves byte for byte as before). t and w to 0.0001, points to 0.1 mm
 static func to_file(ik: Dictionary) -> Dictionary:
@@ -498,6 +708,8 @@ static func to_file(ik: Dictionary) -> Dictionary:
 				d["off"] = {}
 				for j in k["off"]:
 					d["off"][j] = [Body._p(k["off"][j][0]), Body._p(k["off"][j][1])]
+			if space_of(k) != "world":
+				d["space"] = space_of(k)
 			return d)
 	return out
 
@@ -522,6 +734,9 @@ static func from_file(d: Variant) -> Dictionary:
 				key["off"] = {}
 				for j in k["off"]:
 					key["off"][String(j)] = [Body._v(k["off"][j][0]), Body._v(k["off"][j][1])]
+			var sp := String(k.get("space", "world"))
+			if sp in SPACES and sp != "world":
+				key["space"] = sp
 			ks.append(key)
 		ks.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
 		if not ks.is_empty():
@@ -553,5 +768,7 @@ static func mirror_file(d: Dictionary, M: Body = null) -> Dictionary:
 							v = M.decompose(Body.twin(String(j)), Quaternion(q.x, -q.y, -q.z, q.w))
 						pair.append(Body._p(v))
 					m["off"][Body.twin(String(j))] = pair
+			if m.has("space"):
+				m["space"] = Body.twin(String(m["space"]))   # hand_l <-> hand_r; chest, pelvis, weapon are their own twins
 			return m)
 	return out
