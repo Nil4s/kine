@@ -8,6 +8,7 @@
 ##    angle is noise, so the re-solve is what keeps it continuous; it moves only the free direction there.
 ##  - hemisphere: quaternion sign continuity, dot(q_i, q_i-1) >= 0.
 ## clean = false returns the canonical decomposition, unchanged from the old writers.
+## xyz = true takes FBX's Euler XYZ order (the FBX writer's eEulerXYZ) instead of BVH's ZXY; the same passes apply.
 class_name RotClean
 extends RefCounted
 
@@ -26,6 +27,23 @@ static func mat(v: Vector3) -> PackedFloat64Array:
 		-cx * sy, sx, cx * cy])
 
 
+## the matrix of the angles in the chosen order: ZXY (BVH: M = Rz Rx Ry, v = (z, x, y)) or, with xyz, FBX's eEulerXYZ
+## (M = Rz(c) Ry(b) Rx(a), v = (a, b, c) = (X, Y, Z)), row-major, radians
+static func mat_e(v: Vector3, xyz := false) -> PackedFloat64Array:
+	if not xyz:
+		return mat(v)
+	var ca := cos(v.x)
+	var sa := sin(v.x)
+	var cb := cos(v.y)
+	var sb := sin(v.y)
+	var cc := cos(v.z)
+	var sc := sin(v.z)
+	return PackedFloat64Array([
+		cc * cb, cc * sb * sa - sc * ca, cc * sb * ca + sc * sa,
+		sc * cb, sc * sb * sa + cc * ca, sc * sb * ca - cc * sa,
+		-sb, cb * sa, cb * ca])
+
+
 ## the rotation matrix of a quaternion, row-major, in float64 (the quaternion's own components)
 static func mat_of(q: Quaternion) -> PackedFloat64Array:
 	var n := q.normalized()
@@ -42,11 +60,11 @@ static func mat_of(q: Quaternion) -> PackedFloat64Array:
 ## Gauss-Newton from start (radians) to the angles whose matrix is q's: [true, angles] or [false, start].
 ## The best iterate is kept: the target is a float32 quaternion, so its matrix is orthonormal only to ~1e-7, and near gimbal
 ## lock the residual valley is flat along the free direction, so the steps wander there.
-static func _solve(start: Vector3, q: Quaternion) -> Array:
+static func _solve(start: Vector3, q: Quaternion, xyz := false) -> Array:
 	var T := mat_of(q)
 	var v := start
 	var best := start
-	var best_res := _resid(start, T)
+	var best_res := _resid(start, T, xyz)
 	var h := 1e-6
 	for _it in 40:
 		if best_res < 1e-9:
@@ -56,13 +74,13 @@ static func _solve(start: Vector3, q: Quaternion) -> Array:
 		for c in 3:
 			var dv := Vector3.ZERO
 			dv[c] = h
-			var Mp := mat(v + dv)
-			var Mm := mat(v - dv)
+			var Mp := mat_e(v + dv, xyz)
+			var Mm := mat_e(v - dv, xyz)
 			var col := PackedFloat64Array()
 			for k in 9:
 				col.append((Mp[k] - Mm[k]) / (2.0 * h))
 			J.append(col)
-		var M := mat(v)
+		var M := mat_e(v, xyz)
 		var r := PackedFloat64Array()
 		for k in 9:
 			r.append(M[k] - T[k])
@@ -87,7 +105,7 @@ static func _solve(start: Vector3, q: Quaternion) -> Array:
 			break
 		var step := Vector3(d[1], d[2], d[3])
 		v += step
-		var res := _resid(v, T)
+		var res := _resid(v, T, xyz)
 		if res < best_res:
 			best_res = res
 			best = v
@@ -96,8 +114,8 @@ static func _solve(start: Vector3, q: Quaternion) -> Array:
 	return [best_res < 1e-6, best]
 
 
-static func _resid(v: Vector3, T: PackedFloat64Array) -> float:
-	var M := mat(v)
+static func _resid(v: Vector3, T: PackedFloat64Array, xyz := false) -> float:
+	var M := mat_e(v, xyz)
 	var res := 0.0
 	for k in 9:
 		res = maxf(res, absf(M[k] - T[k]))
@@ -123,9 +141,9 @@ static func _det3(M: Array) -> float:
 
 
 ## the largest entry difference (deg) between q's matrix and the matrix of the ZXY Euler triple e (deg), in float64
-static func err64(q: Quaternion, e: Vector3) -> float:
+static func err64(q: Quaternion, e: Vector3, xyz := false) -> float:
 	var A := mat_of(q)
-	var B := mat(Vector3(deg_to_rad(e.x), deg_to_rad(e.y), deg_to_rad(e.z)))
+	var B := mat_e(Vector3(deg_to_rad(e.x), deg_to_rad(e.y), deg_to_rad(e.z)), xyz)
 	var m := 0.0
 	for k in 9:
 		m = maxf(m, absf(A[k] - B[k]))
@@ -134,12 +152,12 @@ static func err64(q: Quaternion, e: Vector3) -> float:
 
 ## the per-frame ZXY Euler angles (degrees) of one joint's rotations, qs[i] = the frame i rotation.
 ## clean = false: the canonical solution of each frame (BvhExport.zxy).
-static func euler_track(qs: Array, clean := true) -> Array:
+static func euler_track(qs: Array, clean := true, xyz := false) -> Array:
 	var out := []
 	var prev := Vector3.ZERO   # degrees, the last written frame
 	for i in qs.size():
 		var q: Quaternion = qs[i]   # the writers normalize their rotations already (a second pass would move the last bits)
-		var e := BvhExport.zxy(q)
+		var e: Vector3 = FbxExport._euler_deg(Transform3D(Basis(q), Vector3.ZERO)) if xyz else BvhExport.zxy(q)
 		if clean and i > 0:
 			# the canonical solution shifted by whole turns, nearest to the previous frame
 			var c := e
@@ -147,8 +165,8 @@ static func euler_track(qs: Array, clean := true) -> Array:
 				var turns := roundf((prev[k] - c[k]) / 360.0)
 				if turns != 0.0:   # a zero stays as it was (-0.0 + 0.0 would print as 0.00000 where the canonical text has -0.00000)
 					c[k] += 360.0 * turns
-			var mc := err64(q, c)
-			var sol: Array = _solve(prev * (PI / 180.0), q)
+			var mc := err64(q, c, xyz)
+			var sol: Array = _solve(prev * (PI / 180.0), q, xyz)
 			if sol[0]:
 				var v: Vector3 = sol[1]
 				var th := v * (180.0 / PI)
@@ -156,7 +174,7 @@ static func euler_track(qs: Array, clean := true) -> Array:
 				# not a flip keeps its text); otherwise the continuous solution (the free direction of a gimbal lock, where the
 				# canonical solution is ~1e-4 deg off, or a flip's other branch)
 				var d := maxf(absf(c.x - th.x), maxf(absf(c.y - th.y), absf(c.z - th.z)))
-				e = c if (d < 1e-3 and mc <= err64(q, th) + 5e-5) else th
+				e = c if (d < 1e-3 and mc <= err64(q, th, xyz) + 5e-5) else th
 			else:
 				e = c
 		out.append(e)

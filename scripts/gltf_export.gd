@@ -154,6 +154,11 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 			anim.rotation_track_insert_key(wtr[w][1], t, x[1])
 			# a weapon put away is scaled to nothing (glTF has no "visible" channel)
 			anim.scale_track_insert_key(wtr[w][2], t, Vector3.ONE if on else Vector3.ZERO)
+	# quaternion sign continuity (RotClean.hemisphere, ROADMAP 64): every rotation key has dot >= 0 with the one before it,
+	# so an engine's interpolation takes the short way round (q and -q are the same rotation)
+	for tr in anim.get_track_count():
+		if anim.track_get_type(tr) == Animation.TYPE_ROTATION_3D:
+			_hemi(anim, tr)
 	# each shaft's length: the scene's (a weapon keeps its kind through a scene)
 	B.set_state(keep)
 	for w in wtr:
@@ -169,6 +174,16 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 
 
 ## write the scene as a .glb at path (res:// or absolute); OK or the error
+## the rotation keys of one track made sign-continuous in place (RotClean.hemisphere)
+static func _hemi(anim: Animation, tr: int) -> void:
+	var qs := []
+	for k in anim.track_get_key_count(tr):
+		qs.append(anim.track_get_key_value(tr, k))
+	var hq: Array = RotClean.hemisphere(qs, true)
+	for k in hq.size():
+		anim.track_set_key_value(tr, k, hq[k])
+
+
 static func write(S: Scene, B: Body, path: String, with_mesh := true) -> Error:
 	var err := _write(build(S, B, path.get_file().get_basename(), with_mesh), path)
 	if err == OK and not S.attrs.is_empty():
