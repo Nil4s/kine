@@ -262,14 +262,42 @@ static func _ident(name: String) -> String:
 
 ## writes exports/<name>.json and exports/<name>.cs; -> [json path, cs path, the table]
 static func write(S: Scene, B: Body, dir := "res://exports") -> Array:
+	return _write(S, B, dir, S.name, {})
+
+
+static func _write(S: Scene, B: Body, dir: String, name: String, placement: Dictionary) -> Array:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
 	var T := table(S, B)
-	var jp := "%s/%s.json" % [dir, S.name]
-	var cp := "%s/%s.cs" % [dir, S.name]
+	var jp := "%s/%s.json" % [dir, name]
+	var cp := "%s/%s.cs" % [dir, name]
+	var J := to_json(name, T)
+	var cs := to_csharp(name, T)
+	if not placement.is_empty():
+		J["placement"] = placement
+		cs = "        // %s placed at x %.3f m, z %.3f m, yaw %.2f deg in the hero's space (a PoseTable has no root position: place it yourself)\n" % [
+			name, placement["pos"][0], placement["pos"][1], placement["yaw"]] + cs
 	var f := FileAccess.open(jp, FileAccess.WRITE)
-	f.store_string(JSON.stringify(to_json(S.name, T), "\t"))
+	f.store_string(JSON.stringify(J, "\t"))
 	f.close()
 	f = FileAccess.open(cp, FileAccess.WRITE)
-	f.store_string(to_csharp(S.name, T))
+	f.store_string(cs)
 	f.close()
 	return [jp, cp, T]
+
+
+## TWO CHARACTERS (round 50, GATES TC6): one clip per actor, <dir>/<base>_<actor>.json / .cs, each from its own scene
+## over its own length (a PoseTable's t is a fraction of the move). A PoseTable has no root position or facing, so the
+## actor's placement goes into the JSON as "placement": {"pos": [x, z] m, "yaw" deg} (the hero's space) and into a
+## comment above the C#. actors = [{"name", "S", "B", "xf": Transform3D}]. -> [[json path, cs path, table], ...]
+static func write_actors(actors: Array, dir: String, base: String) -> Array:
+	var out := []
+	var used := {}
+	for a in actors:
+		var nm := "%s_%s" % [base, String(a["name"]).validate_filename().replace(" ", "_")]
+		while used.has(nm):
+			nm += "_"
+		used[nm] = true
+		var x: Transform3D = a["xf"]
+		var yaw := rad_to_deg(atan2(x.basis.z.x, x.basis.z.z))
+		out.append(_write(a["S"], a["B"], dir, nm, {"pos": [snappedf(x.origin.x, 0.0001), snappedf(x.origin.z, 0.0001)], "yaw": snappedf(yaw, 0.01)}))
+	return out
