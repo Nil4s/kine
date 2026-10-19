@@ -167,7 +167,8 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI"]]],
-	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
+	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
+		["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -2218,6 +2219,7 @@ func _world() -> void:
 	var floor := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(4, 4)
+	floor_pm = pm
 	floor.mesh = pm
 	var fm := StandardMaterial3D.new()
 	fm.albedo_color = Tok.c("floor")
@@ -2312,21 +2314,31 @@ const AXES := [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, AXIS_
 var axis_mesh: ImmediateMesh
 
 
-static func grid_alpha(p: Vector3) -> float:
-	return clampf((GRID_END - Vector2(p.x, p.z).length()) / (GRID_END - GRID_FULL), 0.0, 1.0)
+## ROADMAP 95: with a crowd the floor grows to cover every copy's feet (+0.5 m): the fade then runs over the square
+## (max of |x|, |z|) instead of the circle, and the grid's edge is the floor's edge
+var grid_end := GRID_END
+var grid_full := GRID_FULL
+var grid_square := false
+var floor_pm: PlaneMesh
+var crowd_half := 0.0   # the floor's half-size while a crowd is out (0 = the default floor)
+
+
+static func grid_alpha(p: Vector3, end := GRID_END, full := GRID_FULL, square := false) -> float:
+	var r := maxf(absf(p.x), absf(p.z)) if square else Vector2(p.x, p.z).length()
+	return clampf((end - r) / (end - full), 0.0, 1.0)
 
 
 func _grid() -> void:
 	grid_mesh.clear_surfaces()
 	grid_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	var n := int(round(GRID_END / GRID_STEP))
+	var n := int(ceil(grid_end / GRID_STEP - 0.000001))
 	for k in range(-n, n + 1):
 		var x := k * GRID_STEP
 		var c := Tok.c("grid_major") if k % 10 == 0 else Tok.c("grid")
 		for i in range(-n, n):
 			for seg in [[Vector3(x, 0, i * GRID_STEP), Vector3(x, 0, (i + 1) * GRID_STEP)], [Vector3(i * GRID_STEP, 0, x), Vector3((i + 1) * GRID_STEP, 0, x)]]:
-				var a0 := grid_alpha(seg[0])
-				var a1 := grid_alpha(seg[1])
+				var a0 := grid_alpha(seg[0], grid_end, grid_full, grid_square)
+				var a1 := grid_alpha(seg[1], grid_end, grid_full, grid_square)
 				if a0 <= 0.0 and a1 <= 0.0:
 					continue
 				grid_mesh.surface_set_color(Color(c, c.a * a0))
@@ -4636,13 +4648,45 @@ func _crowd_draw() -> void:
 	if S.crowd.is_empty():
 		if not crowd_men.is_empty():
 			_crowd_free()
+		if crowd_half > 0.0:
+			_floor_reset()
 		return
 	if stage_root == null:
 		return
 	_crowd_sync()
+	var ext := 0.0
 	for m in crowd_men:
 		Crowd.pose(m["c"], crowd_tb, m["B"], playhead, Body.ORDER)
 		Overlays.pose_skeleton(m["skel"], m["idx"], m["B"])
+		var X: Transform3D = Crowd.placement(m["c"])
+		for sd in ["_l", "_r"]:   # the feet: heel and toe of each, in the hero's space
+			for q in [Proportions.heel(m["B"], sd), Proportions.toe(m["B"], sd)]:
+				var p: Vector3 = X * q
+				ext = maxf(ext, maxf(absf(p.x), absf(p.z)))
+	_floor_fit(ext + 0.5)
+
+
+## ROADMAP 95: the floor's half-size is at least `half` (it grows as the feet walk; it is not shrunk while the crowd is
+## out, so the grid is not rebuilt each frame). The grid's fade ends at the floor's edge, in the square
+func _floor_fit(half: float) -> void:
+	if floor_pm == null or half <= crowd_half + 0.05 and crowd_half > 0.0:
+		return
+	crowd_half = maxf(half, 2.0)
+	floor_pm.size = Vector2(2.0 * crowd_half, 2.0 * crowd_half)
+	grid_end = crowd_half
+	grid_full = crowd_half - 0.5
+	grid_square = true
+	_grid()
+
+
+## ROADMAP 95: the crowd removed: the floor and the grid back to their own size (4 m square, the default fade)
+func _floor_reset() -> void:
+	crowd_half = 0.0
+	floor_pm.size = Vector2(4, 4)
+	grid_end = GRID_END
+	grid_full = GRID_FULL
+	grid_square = false
+	_grid()
 
 
 ## the file the open scene saves as: the hero's scene with every other actor in "actors" (TC1), whoever is active.
@@ -7978,6 +8022,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
+	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
@@ -8351,6 +8396,9 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
+	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
+	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
+	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
 	var ap := MenuButton.new()
 	ap.text = "Add prop"
 	ap.name = "menu_add_prop"

@@ -17,7 +17,8 @@
 ##   7 ONE UNDO STEP: make adds exactly one undo step; Ctrl+Z removes the crowd (none drawn), redo brings back the same 20.
 ##   8 EXPORT THROUGH actors_export: with the crowd, _export_actors gives the hero and 20 copies (21); the .glb read back by
 ##     GLTFDocument has 21 skeletons; the .bvh export writes 21 files.
-##   9 SHOT: the 20-fighter crowd in a wide view, UI hidden: user://zz_crowd_shot.png (or $CROWD_SHOT) for a read.
+##   9 FLOOR: every copy's heel and toe inside the floor rect (>= 0.5 m margin from the farthest); removed: floor 4 m again.
+##  10 SHOT: the 20-fighter crowd in a wide view, full app window: user://zz_crowd_shot.png (or $CROWD_SHOT).
 extends SceneTree
 
 var fails := 0
@@ -283,12 +284,40 @@ func _init() -> void:
 		DirAccess.remove_absolute(DIR_G + "/" + f)
 	DirAccess.remove_absolute(DIR_G)
 
-	# ---- 9 the shot: the wide view, UI hidden
+	# ---- 9 the floor: every copy's heel and toe (hero space, 3 playheads) inside the floor, 0.5 m of margin from the
+	# farthest one; with no crowd the floor is back at 4 m and the grid's fade at its default
+	m.S.crowd = {"n": 20, "seed": 7}
+	m._crowd_sync()
+	var h_floor: float = 0.0
+	var outside := 0
+	var far: float = 0.0
+	for pt in [0.3, 0.9, 1.7]:
+		m.playhead = pt
+		m._refresh()
+		await idle(1)
+		h_floor = m.floor_pm.size.x * 0.5
+		for mm in m.crowd_men:
+			var X: Transform3D = Crowd.placement(mm["c"])
+			for side in ["_l", "_r"]:
+				for q in [Proportions.heel(mm["B"], side), Proportions.toe(mm["B"], side)]:
+					var p: Vector3 = X * q
+					far = maxf(far, maxf(absf(p.x), absf(p.z)))
+					if absf(p.x) > h_floor or absf(p.z) > h_floor:
+						outside += 1
+	var margin: float = h_floor - far
+	m.S.crowd = {}
+	m._refresh()
+	await idle(1)
+	var back_floor: float = m.floor_pm.size.x
+	var back_grid: bool = is_equal_approx(m.grid_end, (load("res://scripts/main.gd") as Script).get_script_constant_map()["GRID_END"]) and not m.grid_square
+	ok(outside == 0 and margin >= 0.5 - 1e-3 and absf(back_floor - 4.0) < 1e-6 and back_grid,
+		"9 floor: every copy's heel and toe inside the floor rect at 3 playheads (%d outside, bar 0); the floor half %.2f m, the farthest foot %.2f m, margin %.2f m (bar >= 0.50); removed: floor %.1f m, grid fade at its default %s (bar 4 m, default)" % [outside, h_floor, far, margin, back_floor, back_grid])
+
+	# ---- 10 the shot: the full app window (UI visible), the wide view
 	m.S.crowd = {"n": 20, "seed": 7}
 	m._crowd_sync()
 	m.playhead = 0.9
 	m._refresh()
-	m.ui_root.visible = false
 	m._turn_to(0.0, -16.0, 15.0, Vector3(0, 0.9, 0), false)
 	await idle(8)
 	var img := root.get_texture().get_image()
@@ -296,8 +325,7 @@ func _init() -> void:
 	if shot == "":
 		shot = "user://zz_crowd_shot.png"
 	img.save_png(shot)
-	m.ui_root.visible = true
-	ok(img.get_size().x > 0, "9 shot: %s (%dx%d), 21 figures in view" % [shot, img.get_size().x, img.get_size().y])
+	ok(img.get_size().x > 0, "10 shot: %s (%dx%d), full app window, 21 figures in view" % [shot, img.get_size().x, img.get_size().y])
 
 	print("CROWD: %d fails" % fails)
 	m.queue_free()
