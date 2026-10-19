@@ -40,7 +40,10 @@ func click(c: Control) -> void:
 
 ## a real click opens the menu; [opened, its items as text]
 func open_menu() -> Array:
-	await click(m.ui_versions)
+	await click(m.ui_scene_btn)   # the Scene menu, then its Versions item
+	m.ui_scene_btn.get_popup().hide()
+	m._scene_menu_pick(2)
+	await idle(2)
 	var pm: PopupMenu = m.ui_versions.get_popup()
 	var opened := pm.visible
 	var items := []

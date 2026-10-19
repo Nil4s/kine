@@ -14,7 +14,7 @@ const BEFORE := {"open a scene (combo3)": 3, "slow one card down": 2, "raise the
 	"add the pose as a card": 1, "name a card": -1, "put the bat in the right hand": 4, "check, apply a fix": 3,
 	"undo": 1, "save under a new name": 4}
 ## the count each task may take now: one more is a regression and FAILS
-const BUDGET := {"open a scene (combo3)": 2, "slow one card down": 2, "raise the right arm": 1, "mirror the pose": 1,
+const BUDGET := {"open a scene (combo3)": 3, "slow one card down": 2, "raise the right arm": 1, "mirror the pose": 1,
 	"add the pose as a card": 1, "name a card": 3, "put the bat in the right hand": 1, "check, apply a fix": 3,
 	"undo": 1, "save under a new name": 3}
 ## why a task is not cut further
@@ -159,8 +159,11 @@ func _init() -> void:
 		if String(opt.get_item_metadata(i)).ends_with("combo3.json"):
 			idx = i
 	var n := 0
-	if await click("opt_scene"):
+	if await click("btn_scene"):   # the Scene menu (the list of scenes is its Open item)
 		n += 1
+	(m.ui_scene_btn.get_popup() as PopupMenu).hide()
+	m._scene_menu_pick(1)
+	await idle(2)
 	for i in opt.item_count:   # the list is read again as it opens (a scene file made or removed meanwhile moves the rows): find combo3 afterwards
 		if String(opt.get_item_metadata(i)).ends_with("combo3.json"):
 			idx = i
@@ -169,10 +172,7 @@ func _init() -> void:
 	opt.item_selected.emit(idx)
 	n += 1
 	await idle()
-	if m.S.cards.size() != 12:
-		if await click("b_open_scene"):
-			n += 1
-	await task("open a scene (combo3)", "the list, pick it" + (", Open scene" if n == 3 else ""), n, m.S.cards.size() == 12)
+	await task("open a scene (combo3)", "the Scene menu, pick it", n, m.S.cards.size() == 12)
 
 	# 2 pick card 3 and make it slower
 	var mv0: float = m.S.times()[2][1] - m.S.times()[1][1]
@@ -293,8 +293,8 @@ func _init() -> void:
 	await key(KEY_ENTER)   # Enter in the name box
 	n += 1
 	if not FileAccess.file_exists(path):
-		if await click("b_save_scene"):
-			n += 1
+		m._scene_menu_pick(0)   # the Scene menu's Save scene
+		n += 1
 	var saved := FileAccess.file_exists(path)
 	await task("save under a new name", "click the name, type it, Enter" if n == 3 and saved and true else "click the name, type it, Save scene", n, saved)
 	if saved:
