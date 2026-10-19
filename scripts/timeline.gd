@@ -702,9 +702,15 @@ func _draw() -> void:
 		var fx := x_of(float(mk["t"]))
 		var fc: Color = Tok.c(Markers.token_of(mk))
 		draw_line(Vector2(fx, 0), Vector2(fx, RULER), fc, 1.0)
-		draw_colored_polygon(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6)]), fc)
-		if mi == mark_sel:   # the marker whose popover is open: a light outline
-			draw_polyline(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6), Vector2(fx, 0)]), Tok.c("ink"), 1.5)
+		draw_rect(Rect2(fx, 0, 8, 10), fc)   # a filled flag, 10 px tall (ROADMAP 97: readable at a glance)
+		if mi == mark_sel:   # the marker whose popover is open: an outline around its flag
+			draw_rect(Rect2(fx - 1, -1, 10, 12), Tok.c("ink"), false, 1.5)
+		# the name beside the flag, when the space up to the next marker (or the ruler's end) fits it
+		var nxt := size.x if mi + 1 >= S.markers.size() else x_of(float(S.markers[mi + 1]["t"]))
+		var nm := String(mk["name"])
+		var tw := get_theme_default_font().get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+		if nxt - (fx + 10.0) >= tw + 4.0:
+			draw_string(get_theme_default_font(), Vector2(fx + 10.0, 9.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, fc)
 	# REVIEW NOTES (ROADMAP 29): a cyan square on the ruler at each comment's frame (note_t_at takes a click on it)
 	for nt in S.notes:
 		var nx := x_of(clampf(Review.time_of(int(nt["frame"]), S.fps), 0.0, L))
