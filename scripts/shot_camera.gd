@@ -100,12 +100,13 @@ static func frame_rect(free: Rect2) -> Rect2i:
 	return Rect2i(x, y, w, h)
 
 
-## the viewport camera set to show the shot camera at (pos, aim, f) inside `rect` of a viewport of size vs
-static func apply_to(c: Camera3D, pos: Vector3, aim: Vector3, f: float, rect: Rect2i, vs: Vector2) -> void:
+## the viewport camera set to show the shot camera (its transform tf: xf(pos, aim), shaken by shot_fx.gd) at focal length f
+## inside `rect` of a viewport of size vs
+static func apply_to(c: Camera3D, tf: Transform3D, f: float, rect: Rect2i, vs: Vector2) -> void:
 	c.h_offset = 0.0
 	c.v_offset = 0.0
 	c.keep_aspect = Camera3D.KEEP_HEIGHT
-	c.global_transform = xf(pos, aim)
+	c.global_transform = tf
 	var half := tan(deg_to_rad(fov_v(f)) * 0.5)
 	var cx := rect.position.x + rect.size.x * 0.5
 	var cy := rect.position.y + rect.size.y * 0.5

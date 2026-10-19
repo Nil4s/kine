@@ -3253,6 +3253,7 @@ func _snapshot() -> Dictionary:
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
+		"camera_fx": H.camera_fx.duplicate(true),   # its shake and rack focus (shot_fx.gd), undone with it
 		"beats": H.beats.duplicate(true),   # ROADMAP 13: the exchange's beats (the hero's), undone like a card
 		"notes": S.notes.duplicate(true),   # ROADMAP 29: the review notes, undone like a marker
 		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
@@ -3321,6 +3322,8 @@ func _restore(u: Dictionary) -> void:
 		_dummy_hits()
 	if u.has("camera") and var_to_str(u["camera"]) != var_to_str((u.get("hero", S) as Scene).camera):
 		(u.get("hero", S) as Scene).camera = u["camera"].duplicate(true)   # the shot camera, undone like a card
+	if u.has("camera_fx") and var_to_str(u["camera_fx"]) != var_to_str((u.get("hero", S) as Scene).camera_fx):
+		(u.get("hero", S) as Scene).camera_fx = u["camera_fx"].duplicate(true)   # its shake and rack focus, undone with it
 	if u["scene"] == S and u.has("clips") and var_to_str(u["clips"]) != var_to_str(S.clips):
 		S.clips = u["clips"].duplicate(true)   # CLIPS, undone like a card
 		_dummy_hits()
@@ -13067,6 +13070,8 @@ func _doc_key() -> String:
 	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
 	if not H.camera.is_empty():
 		k += "|cam" + var_to_str(H.camera)   # the shot camera: an unsaved change too
+	if not ShotFx.clean(H.camera_fx).is_empty():
+		k += "|fx" + var_to_str(H.camera_fx)   # its shake and rack focus (ROADMAP 76)
 	for a in H.actors:
 		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
 	return k
@@ -13125,6 +13130,7 @@ func _load_scene(path: String) -> void:
 var shot_through := false   # looking through the shot camera
 var ui_shot: ShotFrame      # the 16:9 frame and passepartout (scripts/shot_frame.gd)
 var _shot_fov := 40.0       # the viewport camera's own fov, put back when look-through ends
+var _shot_dof: CameraAttributesPractical   # the rack focus's depth of field (ROADMAP 76; _shot_dof_set)
 
 
 func _shot_commands(add: Callable) -> void:
@@ -13136,6 +13142,18 @@ func _shot_commands(add: Callable) -> void:
 	for mm in ShotCam.LENSES:
 		add.call("Camera: lens %d mm" % mm, "", _shot_lens.bind(float(mm)), "shot camera focal length zoom lens %d mm wide tele" % mm, true,
 			"the shot camera's focal length at the playhead: %d mm on a 36 mm sensor (%.1f deg across a 16:9 frame); keys it there if it has no key" % [mm, ShotCam.fov_h(mm)])
+	add.call("Camera: impact shake at the playhead", "", _shot_shake_here, "shot camera shake impact hit jolt vibrate quake tremor camera shake",
+		true, "a camera shake (ShotFx Impact preset: about 2 cm and 1 deg, 0.6 s, decaying) starts at the playhead; the shot camera must be keyed (ROADMAP 76)")
+	add.call("Camera: impact shakes on the hit markers", "", _shot_shake_markers, "shot camera shake impact hit markers jolt all",
+		true, "an Impact shake at every hit marker of the scene (a marker named or kinded hit or impact); one undo step")
+	add.call("Camera: remove the shake at the playhead", "", _shot_shake_remove, "shot camera shake remove delete unshake",
+		true, "the shake that starts at the playhead (within half a frame) goes")
+	add.call("Camera: focus distance here", "", _shot_focus_dist, "shot camera focus rack depth of field dof distance pivot blur",
+		true, "a rack-focus key at the playhead: the distance from the shot camera to where it looks (its aim point)")
+	add.call("Camera: focus on the selected part here", "", _shot_focus_part, "shot camera focus rack depth of field dof track part follow selected",
+		true, "a rack-focus key at the playhead that TRACKS the selected part: the focus distance is the camera-to-part distance at every frame until the next focus key")
+	add.call("Camera: remove the focus key here", "", _shot_focus_remove, "shot camera focus rack depth of field dof remove delete",
+		true, "the rack-focus key at the playhead (within half a frame) goes")
 
 
 func _shot_keys() -> Array:
@@ -13165,17 +13183,57 @@ func shot_at(t: float) -> Dictionary:
 	return {"pos": X * (k["pos"] as Vector3), "aim": X * (k["aim"] as Vector3), "f": k["f"]}
 
 
+## what the shot camera SHOWS at t (the playblast and look-through; the gizmo keeps shot_at, the keyed camera): {"xf"
+## (the transform, shaken by camera_fx's shake), "f", "focus" (m, the rack focus; NAN = no focus keys)}; {} = no keys
+func shot_view_at(t: float) -> Dictionary:
+	var k := shot_at(t)
+	if k.is_empty():
+		return k
+	var fx: Dictionary = _hero_scene().camera_fx
+	var xf := ShotCam.xf(k["pos"], k["aim"])
+	xf = ShotFx.shaken(xf, fx.get("shake", []), t)
+	var focus := NAN
+	var kp := ShotCam.sample(_shot_keys(), t)   # the keyed camera's position in the hero's space (the focus is measured from it)
+	if not fx.get("focus", []).is_empty() and not kp.is_empty():
+		var hero := _hero_scene()
+		focus = ShotFx.focus_at(fx["focus"], t,
+			func(tt: float) -> Vector3: return ShotCam.sample(_shot_keys(), tt)["pos"] as Vector3,
+			func(j: String, tt: float) -> Vector3: return ShotFx.part_at(hero, j, tt))
+	return {"xf": xf, "f": k["f"], "focus": focus}
+
+
+## the playhead's rack focus into the viewport camera's depth of field (Godot's CameraAttributesPractical): sharp at
+## `dist`, blurred on both sides; no focus (NAN) = no DOF (the camera's attributes are cleared)
+func _shot_dof_set(dist: float) -> void:
+	if cam == null:
+		return
+	if is_nan(dist):
+		cam.attributes = null
+		return
+	if _shot_dof == null:
+		_shot_dof = CameraAttributesPractical.new()
+		_shot_dof.dof_blur_far_enabled = true
+		_shot_dof.dof_blur_near_enabled = true
+		_shot_dof.dof_blur_far_transition = 1.5
+		_shot_dof.dof_blur_near_transition = 1.5
+		_shot_dof.dof_blur_amount = 0.08
+	_shot_dof.dof_blur_far_distance = dist
+	_shot_dof.dof_blur_near_distance = dist
+	cam.attributes = _shot_dof
+
+
 ## look-through: the viewport camera becomes the shot camera at the playhead. false = not looking through (no keys
 ## left: it turns itself off and the free view comes back)
 func _shot_apply() -> bool:
 	if not shot_through or cam == null:
 		return false
-	var k := shot_at(playhead)
+	var k := shot_view_at(playhead)
 	if k.is_empty():
 		_shot_off()
 		return false
 	var r := shot_rect()
-	ShotCam.apply_to(cam, k["pos"], k["aim"], k["f"], r, get_viewport().get_visible_rect().size)
+	ShotCam.apply_to(cam, k["xf"], k["f"], r, get_viewport().get_visible_rect().size)
+	_shot_dof_set(float(k["focus"]))
 	if ui_shot == null and ui_root != null:
 		ui_shot = ShotFrame.new()
 		ui_shot.name = "shot_frame"
@@ -13192,6 +13250,8 @@ func _shot_off() -> void:
 	shot_through = false
 	if ui_shot != null:
 		ui_shot.visible = false
+	if cam != null:
+		cam.attributes = null   # the free view has no rack focus (ROADMAP 76)
 	if was and cam != null:
 		cam.projection = Camera3D.PROJECTION_PERSPECTIVE
 		cam.fov = _shot_fov
@@ -13290,6 +13350,90 @@ func _shot_lens(mm: float) -> void:
 			k["f"] = mm
 			ShotCam.put(_shot_keys(), k))
 	_say("shot camera lens %.0f mm at %s (%.1f° across the 16:9 frame)%s" % [mm, Units.time(at_t, S.fps), ShotCam.fov_h(mm), "" if i >= 0 else ", a new key"])
+
+
+## ---- CAMERA SHAKE and RACK FOCUS (ROADMAP 76; scripts/shot_fx.gd): the hero's camera_fx, one undo step each ----------
+func _shot_fx_need_keys(what: String) -> bool:
+	if _shot_keys().is_empty():
+		_say("%s belongs to the shot camera: click 'Camera: key the shot camera from the view' first" % what)
+		return false
+	return true
+
+
+func _shot_shake_here() -> void:
+	if not _shot_fx_need_keys("the shake"):
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var e := ShotFx.impact(t, ShotFx.list(_hero_scene().camera_fx, "shake").size() + 1)
+	_do(func(): ShotCam.put(ShotFx.list(_hero_scene().camera_fx, "shake"), e))
+	_say("camera shake at %.2f s: Impact, about 2 cm and 1 deg on the shot camera for %.1f s, decaying (Ctrl+Z takes it back)" % [t, float(e["dur"])])
+
+
+func _shot_shake_markers() -> void:
+	var ts := []
+	for mk in S.markers:
+		var nm := String(mk.get("name", "")).to_lower()
+		var kd := String(mk.get("kind", "")).to_lower()
+		if nm.contains("hit") or nm.contains("impact") or kd.contains("hit") or kd.contains("impact"):
+			ts.append(float(mk["t"]))
+	if ts.is_empty():
+		_say("no hit markers in this scene: name a marker 'hit' or 'impact' (Markers: at the playhead), or put one shake at the playhead with 'Camera: impact shake at the playhead'")
+		return
+	if not _shot_fx_need_keys("the shakes"):
+		return
+	_do(func():
+		var L := ShotFx.list(_hero_scene().camera_fx, "shake")
+		for t in ts:
+			ShotCam.put(L, ShotFx.impact(float(t), L.size() + 1)))
+	_say("%d impact shake%s, one at each hit marker (%s); Ctrl+Z takes them all back" % [ts.size(), "" if ts.size() == 1 else "s", ", ".join(ts.map(func(x): return "%.2f s" % float(x)))])
+
+
+func _shot_shake_remove() -> void:
+	var L: Array = _hero_scene().camera_fx.get("shake", [])
+	var i := ShotCam.key_near(L, playhead, 0.5 / maxf(1.0, float(S.fps)) + 0.001)
+	if i < 0:
+		_say("no shake starts at the playhead: move the playhead onto a shake's start (%d in this scene), then remove it" % L.size())
+		return
+	var t := float(L[i]["t"])
+	_do(func(): ShotFx.list(_hero_scene().camera_fx, "shake").remove_at(i))
+	_say("removed the shake that starts at %.2f s" % t)
+
+
+func _shot_focus_dist() -> void:
+	if not _shot_fx_need_keys("the focus"):
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var k := ShotCam.sample(_shot_keys(), t)
+	var d := maxf(ShotFx.DIST_MIN, (k["pos"] as Vector3).distance_to(k["aim"] as Vector3))
+	var key := {"t": t, "dist": d}
+	_do(func(): ShotCam.put(ShotFx.list(_hero_scene().camera_fx, "focus"), key))
+	_say("rack focus at %.2f s: %.2f m, the distance to where the shot camera looks (between two focus keys the focus racks; 'look through' shows the blur)" % [t, d])
+
+
+func _shot_focus_part() -> void:
+	if not _shot_fx_need_keys("the focus"):
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var j := sel
+	var q := ShotFx.part_at(_hero_scene(), j, t)
+	if is_nan(q.x):
+		_say("'%s' has no point to focus on: select a joint (a hand, a foot, the head) in the body, then focus on it" % j)
+		return
+	var k := ShotCam.sample(_shot_keys(), t)
+	var key := {"t": t, "part": j}
+	_do(func(): ShotCam.put(ShotFx.list(_hero_scene().camera_fx, "focus"), key))
+	_say("focus tracks %s from %.2f s (%.2f m from the shot camera now); the blur follows it until the next focus key" % [j, t, (k["pos"] as Vector3).distance_to(q)])
+
+
+func _shot_focus_remove() -> void:
+	var L: Array = _hero_scene().camera_fx.get("focus", [])
+	var i := ShotCam.key_near(L, playhead, 0.5 / maxf(1.0, float(S.fps)) + 0.001)
+	if i < 0:
+		_say("no focus key at the playhead: move the playhead onto a focus key (%d in this scene), then remove it" % L.size())
+		return
+	var t := float(L[i]["t"])
+	_do(func(): ShotFx.list(_hero_scene().camera_fx, "focus").remove_at(i))
+	_say("removed the focus key at %.2f s" % t)
 
 
 ## THE PLAYBLAST THROUGH THE SHOT CAMERA: {} = the scene has none (the frames are the view, as before); else look-through
