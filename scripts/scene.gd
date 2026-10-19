@@ -1668,6 +1668,13 @@ func _feet(B: Body, i: int) -> Dictionary:
 	if c != null and is_same(c[0], cards[i]["pose"]):
 		return c[1]
 	var r := _feet_raw(B, i)
+	if cards[i].get("air", false):
+		# a card in the flight has no floor under it: the grounding in _feet_raw put its lowest foot on the floor, but neither
+		# foot is down, so none is a plant for the card before or after to pin to (the landing leg used to be pinned to where
+		# the flight card's grounding dropped it, 13 cm off its mark)
+		for sd in ["_l", "_r"]:
+			r[sd][2] = false
+			r[sd][3] = false
 	_feet_cache[i] = [cards[i]["pose"], r]
 	return r
 
@@ -1707,6 +1714,9 @@ func pin_cards(B: Body) -> int:
 	var n := 0
 	var prev := {}
 	for i in cards.size():
+		if cards[i].get("air", false):
+			prev = {}   # a card in the flight: both feet are off the floor, so no foot is pinned to the one before (the grounding in
+			continue    # _feet_raw would put the lowest foot on the floor and read it as planted)
 		var now := _feet_raw(B, i)
 		var moved := false
 		for sd in ["_l", "_r"]:
