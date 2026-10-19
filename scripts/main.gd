@@ -2021,6 +2021,43 @@ func _goto_hit(i: int) -> void:
 	_say("%.2f s: %s on the %s (%s), %.1f m/s" % [h["t"], h["kind"], h["zone"], h["on"], h["speed"]])
 
 
+## Hits: make the struck fighter react (ROADMAP 14, round 52). The first row of the fighters' report that lands on a body
+## part (a hit or a strike) turns its victim by the momentum it delivers (hit_reaction.gd); the reaction is baked as cards
+## over its window on the VICTIM's scene (made the active fighter first, so its own Ctrl+Z). One undo step.
+func _hit_react() -> void:
+	_actors_sync()
+	if not _fighters_on():
+		_say("Hits: make the struck fighter react needs two fighters: 'Actor: add a second fighter' first")
+		return
+	var pick := -1
+	for i in fighter_hits.size():
+		var r: Dictionary = fighter_hits[i]
+		if (r["kind"] == "hit" or r["kind"] == "struck") and not Body.is_wep(String(r["on"])):
+			pick = i
+			break
+	if pick < 0:
+		_say("no contact in the fighters' report lands on a body part to react to: swing into the other fighter (the report is in the browser's dummy row)")
+		return
+	var h: Dictionary = fighter_hits[pick]
+	var vk: int = 0 if h["by"] == "other" else int(h["vs"])   # the struck fighter
+	var sk: int = int(h["vs"]) if h["by"] == "other" else 0   # the striker
+	var r := HitReaction.react(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], h, actors_rt[sk]["B"])
+	if not r["ok"]:
+		_say("no reaction: %s" % r["why"])
+		return
+	_actor_set(vk)   # the struck fighter is the active one: its cards and body take the step, its Ctrl+Z undoes it
+	_push_undo()
+	S.cards = r["cards"]
+	_rebuild_cards()
+	ov.mark_dirty()
+	_refresh()
+	var J: Vector3 = r["J"]
+	_say("%s reacts to %s's %s at %.2f s (%s): impulse %.1f kg m/s (%.2f kg x %.1f m/s), its %s turns %.0f deg/s at most, the pelvis is shoved %.2f m/s; %.2f s of cards" % [
+		actors_rt[vk]["name"], actors_rt[sk]["name"], "weapon" if Body.is_wep(String(h["part"])) else String(h["part"]),
+		float(r["t0"]), h["zone"], J.length(), float(r["m_eff"]), float(r["v_rel"]), String(h["on"]), rad_to_deg(float(r["peak"])),
+		float(r["shove"]), float(r["t1"]) - float(r["t0"])])
+
+
 ## the weapon's radii + materials for its kind
 func _wep_look() -> void:
 	var hm := bat_handle.mesh as CylinderMesh
@@ -7046,6 +7083,7 @@ func _commands() -> Array:
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 1.5 m in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
+	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
