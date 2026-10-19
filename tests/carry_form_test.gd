@@ -95,7 +95,7 @@ func _init() -> void:
 	fs = Rulebook.check(S, body())
 	var w := fs.filter(func(f): return f["rule"] == "CARRY FORM")
 	print("THE OLD SCREENSHOT POSE: upper arms %.1f deg, elbows %.1f / %.1f, hands %.1f cm in front" % [bad["up"], bad["flex"][0], bad["flex"][1], float(bad["h"]) * 100.0])
-	ok(w.size() == 1 and w[0]["sev"] == "WARN" and String(w[0]["msg"]).contains("the upper arms are 52 deg out"), "the old screenshot's carry: WARN CARRY FORM ('%s')" % (String(w[0]["msg"]).left(150) if not w.is_empty() else "-"))
+	ok(w.size() == 1 and w[0]["sev"] == "WARN" and String(w[0]["msg"]).contains("the upper arms are 52° out"), "the old screenshot's carry: WARN CARRY FORM ('%s')" % (String(w[0]["msg"]).left(150) if not w.is_empty() else "-"))
 	# one hand: not this rule's business (a bag, a bucket hang on a straight arm)
 	S.cards[0]["take"] = {"prop": 0, "hands": ["_r"]}
 	ok(Rulebook.check(S, body()).filter(func(f): return f["rule"] == "CARRY FORM").is_empty(), "the same held in one hand: not graded by CARRY FORM")

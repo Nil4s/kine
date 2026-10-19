@@ -78,6 +78,7 @@ const PREFER := {
 	"hits_make_the_struck_fighter_react": "HITS",
 	"ik_release_the_picked_limb_here": "IK",
 	"ik_snap_fk_to_ik": "IK",
+	"ik_space_weapon": "IK",   # (the weapon follows the right hand: from start A that hand picked is a loop, and from B there is no weapon; the left hand of IK follows it)
 	"keying_set_none_k_keys_the_one_part": "SETS_B",
 	"keying_set_use_the_picked_set_for_k": "SETS",
 	"layer_delete": "LAYER",

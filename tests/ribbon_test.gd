@@ -6,7 +6,8 @@
 extends SceneTree
 
 const OLD_BAR := ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Undo (Ctrl+Z)", "Redo (Ctrl+Y)",
-	"Collision (C)", "Reset body", "Arms 25 deg", "Big view (Tab)", "Search (S)", "? Help", "Animator tools"]
+	"Collision (C)", "Reset body", "Arms 25°", "Big view (Tab)", "Search (S)", "? Help", "Animator tools"]
+## (units merge: the label says "Arms 25°" now, not "Arms 25 deg")
 
 var fails := 0
 var m: Node

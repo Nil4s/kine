@@ -47,6 +47,11 @@ func _init() -> void:
 		"_export_glb": "exports/<scene>.glb (the export folder; never a scene, pose or data file)",
 		"_export_bvh": "exports/<scene>.bvh (the export folder; never a scene, pose or data file)",
 		"_export_usd": "exports/<scene>.usda (the export folder; never a scene, pose or data file)",
+		"_export_review": "exports/review/<scene>_<date>[_N].html (the export folder, never over an earlier page: _2, _3; never a scene, pose or data file) and its own temp frames in user://review_frames, removed after",
+		"_onion_save": "the settings file only (user://poser.cfg onion section: a preference, not work)",
+		"_save_theme": "the settings file only (user://poser.cfg look section: a preference, not work)",
+		"_template_build_now": "a NEW scene in scenes/_wip/ (Templates.new_path never over an earlier one: _2, _3; the templates/ files are only read)",
+		"_wp_dab": "no file of its own (paints the in-memory skin weights); the remove_absolute lines the scan sees belong to the static _rm_tree below it, which deletes a test's own library folder (SS6)",
 		"_save_version": "always a NEW file scenes/_versions/<scene>/vNNN.json (the next number; never the scene's own file)"}
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd").split("\n")
 	var fn := ""

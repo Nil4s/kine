@@ -99,6 +99,27 @@ const ALLOW := [
 	{"file": "stunt_load.gd", "lit": "AJSM 33:492", "reason": "a journal citation (volume 33, page 492)"},
 	{"file": "moves.gd", "lit": "3-2u", "reason": "the smoothstep formula constant (e = u*u*(3-2u)), not a quantity"},
 	{"file": "weight_feel.gd", "lit": "(x%.2f)", "reason": "a dimensionless multiplier of the swing's weight"},
+	{"file": "main.gd", "lit": "exported %d .fbx", "reason": "a count of files"},
+	{"file": "main.gd", "lit": "binary FBX 7.4", "reason": "the FBX format version, a name not a quantity"},
+	{"file": "main.gd", "lit": "Blender 4.5", "reason": "a product version, a name not a quantity"},
+	# tonight's merges: counts, 0/1 blend values and product names (each a count or a dimensionless value, no unit)
+	{"file": "export_dialog.gd", "lit": "Unreal Engine 5", "reason": "a product name, not a quantity"},
+	{"file": "export_dialog.gd", "lit": "Godot 4", "reason": "a product name, not a quantity"},
+	{"file": "export_dialog.gd", "lit": "outside 1-120", "reason": "the legal fps range 1 to 120: the unit (fps) is in the same sentence"},
+	{"file": "export_dialog.gd", "lit": "%d prop%s not in any export", "reason": "a count of props"},
+	{"file": "face_ui.gd", "lit": "%d channel%s", "reason": "a count of face channels"},
+	{"file": "main.gd", "lit": "the blend keyed 0", "reason": "the IK/FK blend value 0 (all FK): a dimensionless fraction"},
+	{"file": "main.gd", "lit": "the blend keyed 1", "reason": "the IK/FK blend value 1 (all IK): a dimensionless fraction"},
+	{"file": "main.gd", "lit": "0 removes nothing", "reason": "a tolerance of zero: the line gives the unit (degrees) just before"},
+	{"file": "main.gd", "lit": "main key%s", "reason": "a count of keys"},
+	{"file": "main.gd", "lit": "%+.2f, %s.  Ctrl+Z undoes", "reason": "a dimensionless ease value from -1 to 1"},
+	{"file": "main.gd", "lit": "the IK/FK blend is keyed 0", "reason": "the IK/FK blend value 0: a dimensionless fraction"},
+	{"file": "main.gd", "lit": "the IK/FK blend keyed 1", "reason": "the IK/FK blend value 1: a dimensionless fraction"},
+	{"file": "main.gd", "lit": "the last 5 autosaves", "reason": "a count of autosaves"},
+	{"file": "main.gd", "lit": "Kine keeps the last %d", "reason": "a count of autosaves"},
+	{"file": "main.gd", "lit": "when %d newer ones are opened", "reason": "a count of scenes"},
+	{"file": "main.gd", "lit": "(%d dabs)", "reason": "a count of brush dabs"},
+	{"file": "main.gd", "lit": "impact shake%s", "reason": "a count of shakes"},
 ]
 
 ## the last word before a number, without a list bracket: "(r" -> "r"
@@ -126,6 +147,7 @@ const NOT_UI := {
 	"game_export.gd": "a game data file written to disk",
 	"agent_tools.gd": "the agent protocol (JSON-RPC), read by a program",
 	"llm_client.gd": "a web request body, not shown",
+	"fbx_export.gd": "a binary FBX file written to disk (format ids, connections), not the UI",
 	"review.gd": "an HTML page written to disk for the review report",
 }
 var scanned := 0      # numeric specs seen on UI lines

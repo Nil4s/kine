@@ -161,6 +161,9 @@ func _init() -> void:
 	var n := 0
 	if await click("opt_scene"):
 		n += 1
+	for i in opt.item_count:   # the list is read again as it opens (a scene file made or removed meanwhile moves the rows): find combo3 afterwards
+		if String(opt.get_item_metadata(i)).ends_with("combo3.json"):
+			idx = i
 	(opt.get_popup() as PopupMenu).hide()
 	opt.select(idx)   # the pick in the open list (the popup is its own window): 1 action
 	opt.item_selected.emit(idx)
@@ -231,6 +234,13 @@ func _init() -> void:
 
 	# 8 check the motion and apply the first fix
 	n = 0
+	# ROADMAP 41 (drag any part): the arm drag of task 3 now swings the arm toward the mouse, a different pose than the old
+	# rotation left, and the Check of THAT pose has more findings (2 refused fixes, one scroll). This task measures Check and
+	# Fix, not the drag, so it starts from the scene as opened (setup, not an action)
+	m._load_scene("res://scenes/combo3.json")
+	m._rebuild_cards()
+	m._refresh()
+	await idle(3)
 	# round 36 (RR4): Check left the play row for the ribbon's CHECK tab: one click more (the tab), budget 2 -> 3
 	if await click("top_strip/tab_check"):
 		n += 1

@@ -59,10 +59,11 @@ func _init() -> void:
 	var cmds := {}
 	for c in m._commands():
 		cmds[c["name"]] = c["run"]
-	for n in ["Copy right side to left", "Snap the part to 45", "Mirror the whole pose", "Arms down 25 deg", "Plant the right foot on this card", "Paste pose mirrored"]:
+	# the commands carry the degree sign since the units merge (Units: every angle shows its unit)
+	for n in ["Copy right side to left", "Snap the part to 45°", "Mirror the whole pose", "Arms down 25°", "Plant the right foot on this card", "Paste pose mirrored"]:
 		if n == "Paste pose mirrored":
 			cmds["Copy pose"].call()
-		if n == "Snap the part to 45":
+		if n == "Snap the part to 45°":
 			m.sel = "upperarm_r"
 		await run(n)
 		states.append(fp())

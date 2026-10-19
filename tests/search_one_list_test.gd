@@ -113,10 +113,12 @@ func _init() -> void:
 	ok(ran == runs.size(), "1 %d of %d commands run from the search (S, typed, a real Enter), the same one twice in a row 4 times" % [ran, runs.size()])
 
 	var cs: Array = m.ui_cmd.commands
-	var ids := cs.map(func(c): return c["id"])
-	var names := cs.map(func(c): return c["name"])
-	ok(cs.size() == n0 and dupes(ids).is_empty() and dupes(names).is_empty(),
-		"2 after 2 rounds of every tab, the theme and the scale switched and back, a scene opened: the registry %d commands as at start (%d), ids and names unique (dupes: %s %s)" % [cs.size(), n0, dupes(ids), dupes(names)])
+	# the recent merge: opening a scene adds one "File > Recent: <scene>" command, which is the feature; the rest must be as at start
+	var cs0: Array = cs.filter(func(c): return not String(c["name"]).begins_with("File > Recent:"))
+	var ids := cs0.map(func(c): return c["id"])
+	var names := cs0.map(func(c): return c["name"])
+	ok(cs0.size() == n0 and dupes(ids).is_empty() and dupes(names).is_empty(),
+		"2 after 2 rounds of every tab, the theme and the scale switched and back, a scene opened: the registry %d commands as at start (%d), ids and names unique (dupes: %s %s)" % [cs0.size(), n0, dupes(ids), dupes(names)])
 	await key(KEY_S, 115)
 	m.ui_cmd.box.text = ""
 	m.ui_cmd._filter()

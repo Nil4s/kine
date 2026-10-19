@@ -2936,7 +2936,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_grab = Vector3(NAN, NAN, NAN)
 					_pd = {}
 					_pd_mp = Vector2(NAN, NAN)
-					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j):
+					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j) and sel_more.is_empty():   # a SET (Select: spine, Ctrl+click) turns every member by the same change (the old drag): PartDrag spreads or swings a turn its own way
 						_pd = PartDrag.begin(B, j, cam.project_ray_origin(mb.position), cam.project_ray_normal(mb.position))
 					playing = false
 					_refresh()
@@ -4301,7 +4301,7 @@ func _ik_space(space: String) -> void:
 	_dummy_hits()
 	if String(r["why"]) == "same":
 		_drop_undo()
-		_say("the %s is already in %s space at %.2f s: nothing to switch" % [_ik_words(tip), space, t])
+		_say("the %s is already in %s space at %.2f s: nothing to switch; pick another space to move it" % [_ik_words(tip), space, t])
 		return
 	_say("the %s is in %s space from %.2f s (was %s%s): it moved %.2f mm at this frame, and follows %s from here (Ctrl+Z takes it back)" % [_ik_words(tip), space, t, r["from"], ", pinned first" if r["pinned"] else "", float(r["moved"]) * 1000.0, "nothing: it stays in the world" if space == "world" else "the " + space.replace("_l", " (left)").replace("_r", " (right)")])
 
@@ -4979,7 +4979,7 @@ func _trail_move(mp: Vector2) -> void:
 ## the picked body part's trail is shown while T is on, with no Shift+T needed (ROADMAP 69): pinned on pick, unpinned
 ## when the part or T goes. Shift+T on it makes it a pin (ov.auto_pin cleared)
 func _auto_pin_sync() -> void:
-	var want := sel if (ov.trail_on and not clean and sel in Body.BODY and not ov.pins.has(sel)) else ""
+	var want := sel if (ov.trail_on and not clean and sel in Body.BODY and (sel == ov.auto_pin or not ov.pins.has(sel))) else ""   # (its own auto pin is in pins: not a reason to drop it, or it flips every frame)
 	var cur: String = ov.auto_pin
 	if cur != "" and cur != want:
 		ov.auto_pin = ""
@@ -5468,7 +5468,7 @@ var _kr_last := ""
 
 func _keyreduce_popup() -> void:
 	if S.part_keys.is_empty():
-		_say("reduce keys: this scene has no part keys. Key a part first (K), or bring in a bake or a video import")
+		_say("reduce keys: this scene has no part keys. Press K to key a part first, or bring in a bake or a video import")
 		return
 	if _kr_pop == null:
 		_kr_pop = PopupPanel.new()
@@ -7816,7 +7816,7 @@ func _ui() -> void:
 	bp.add_child(bv)
 	var bh := HBoxContainer.new()
 	ui_bh = bh
-	bh.add_theme_constant_override("separation", 6)
+	bh.add_theme_constant_override("separation", 4)   # the template button made the row 3 px wider than a 1280 window at 125 %
 	bv.add_child(bh)
 	bh.add_child(_label("3  SCENE  (clips)", 19, "heading"))
 	var intro := _label("your clips in a row; Play and the body moves from clip to clip on its own", 14, "text:0.6")
@@ -7874,7 +7874,7 @@ func _ui() -> void:
 	ui_loop.tooltip_text = "ON: the scene plays round and round (a walk, an idle). CHECK then grades the seam: the end must meet the start."
 	ui_loop.toggled.connect(func(on): _push_undo(); S.loop = on; check_ran = false; _refresh())
 	bh.add_child(_button("New empty scene", _new_asked))
-	bh.add_child(_button("New from template...", _template_ask, "five starting scenes: walk, run, jump, punch, sword swing (each checked against real people's numbers); opens as a new scene in scenes/_wip"))
+	bh.add_child(_short(_button("New from template...", _template_ask, "five starting scenes: walk, run, jump, punch, sword swing (each checked against real people's numbers); opens as a new scene in scenes/_wip"), "Template..."))
 	var fb := _button("Fold", _fold.bind("bottom", true), "fold the scene panel to the timeline and Play: more room for the body (remembered)")
 	fb.name = "fold_bottom"
 	bh.add_child(fb)
@@ -9041,6 +9041,7 @@ func _commands() -> Array:
 	var c := []
 	var add := func(n: String, keys: String, f: Callable, also: String, edits: bool, desc: String):
 		var id := n.to_lower()
+		id = id.replace("°", "")   # the degree sign shown in a name is not part of its id (ids are ASCII: they cross the CLI pipe and stay what hotkeys.gd and the docs say)
 		for ch in ["/", "(", ")", ",", ":", "%"]:
 			id = id.replace(ch, " ")
 		c.append({"id": "_".join(id.split(" ", false)), "name": n, "keys": keys, "run": f, "also": also, "edits": edits, "desc": desc})
@@ -11614,7 +11615,7 @@ var _restore_shown := ""   # the autosave file whose picture the dialog shows
 func _restore_open() -> void:
 	_restore_rows = _ring_list()
 	if _restore_rows.is_empty():
-		_say("no autosaves kept yet: Kine keeps the last %d as you edit an unsaved scene (File > Restore... lists them)" % RING_N)
+		_say("no autosaves kept yet: Kine keeps the last %d as you edit an unsaved scene (open File > Restore... to list them)" % RING_N)
 		return
 	if ui_restore == null:
 		_restore_build()
@@ -13239,7 +13240,7 @@ func _wp_ui(bar: Control) -> void:
 
 func _wp_toggle() -> void:
 	if wp.is_empty():
-		_say("no skin to paint: Weight paint works on a body with a skin, the mannequin")
+		_say("no skin to paint: Weight paint works on a body with a skin: pick the mannequin")
 		return
 	wp_on = not wp_on
 	if wp_row != null:
@@ -13656,7 +13657,7 @@ func _shot_focus_dist() -> void:
 	var d := maxf(ShotFx.DIST_MIN, (k["pos"] as Vector3).distance_to(k["aim"] as Vector3))
 	var key := {"t": t, "dist": d}
 	_do(func(): ShotCam.put(ShotFx.list(_hero_scene().camera_fx, "focus"), key))
-	_say("rack focus at %.2f s: %.2f m, the distance to where the shot camera looks (between two focus keys the focus racks; 'look through' shows the blur)" % [t, d])
+	_say("rack focus at %.2f s: %s, the distance to where the shot camera looks (between two focus keys the focus racks; 'look through' shows the blur)" % [t, Units.len(d)])
 
 
 func _shot_focus_part() -> void:
@@ -13671,7 +13672,7 @@ func _shot_focus_part() -> void:
 	var k := ShotCam.sample(_shot_keys(), t)
 	var key := {"t": t, "part": j}
 	_do(func(): ShotCam.put(ShotFx.list(_hero_scene().camera_fx, "focus"), key))
-	_say("focus tracks %s from %.2f s (%.2f m from the shot camera now); the blur follows it until the next focus key" % [j, t, (k["pos"] as Vector3).distance_to(q)])
+	_say("focus tracks %s from %.2f s (%s from the shot camera now); the blur follows it until the next focus key" % [j, t, Units.len((k["pos"] as Vector3).distance_to(q))])
 
 
 func _shot_focus_remove() -> void:

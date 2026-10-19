@@ -27,6 +27,9 @@ const CAM := [30.0, -10.0, 5.0, Vector3(0, 0.95, 0.75)]   # the fixed one-actor 
 const BOTH := [70.0, -12.0, 4.6, Vector3(0, 0.95, 0.75)]  # both fighters side by side
 const REL := [40.0, -10.0, 3.5]                            # the drag's camera, relative to the body dragged
 const JD := "upperarm_r"
+# the drag goes OUT and up, away from the chest: the old (90, -60) pushed the arm across the body, into the clavicle / trunk-skin contact stops,
+# where it stops moves with float noise (0.85 deg between two identical drags). This test compares the two frames, not the contact solver.
+const DRAGV := Vector2(-90, -60)
 
 
 func ok(c: bool, what: String) -> void:
@@ -225,6 +228,7 @@ func _init() -> void:
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
 	await open_combo()
+
 	var shot_a := await shot3d()
 	if OS.get_environment("ZZ_TC4_BASE") != "":   # the pre-TC4 tree: its picture, then out (it has none of the rest)
 		shot_a.save_png("user://zz_tc4_base.png")
@@ -249,7 +253,7 @@ func _init() -> void:
 	await cam([REL[0], REL[1], REL[2], Vector3(0, 0.95, 0)])
 	var p0: Vector2 = centre_one(JD)
 	var a00 := ang_of(m.B)
-	await drag(p0, Vector2(90, -60))
+	await drag(p0, DRAGV)
 	var a01 := ang_of(m.B)
 	var sel0: String = m.sel
 	m._undo()
@@ -390,7 +394,7 @@ func _init() -> void:
 	var p1 := centre(1, JD)
 	var nn1 := nearest(p1)
 	var a10 := ang_of(B1)
-	await drag(p1, Vector2(90, -60))
+	await drag(p1, DRAGV)
 	var a11 := ang_of(B1)
 	var dd := delta_diff(a00, a01, a10, a11)
 	ok(m.actor_on == 1 and m.sel == JD and nn1 == [1, JD] and dd[0] <= 0.5 and dd[1] > 5.0,

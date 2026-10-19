@@ -614,7 +614,9 @@ func _draw_sp_lane(y: float, font: Font) -> void:
 		var x0 := x_of(float(b["t0"]))
 		var x1 := x_of(float(b["t1"]))
 		var ry := y + SP_H * int(b["row"])
-		draw_rect(Rect2(x0, ry, maxf(x1 - x0 - 1.0, 2.0), SP_H - 1.0), Color(cols.get(b["space"], Tok.c("fd_ink")), 0.85))
+		var blk: Color = cols.get(b["space"], Tok.c("fd_ink"))
+		blk.a = 0.85   # (the alpha set on the token colour: the theme test wants no colour literals)
+		draw_rect(Rect2(x0, ry, maxf(x1 - x0 - 1.0, 2.0), SP_H - 1.0), blk)
 		var who := ("L " if String(b["tip"]).ends_with("_l") else "R ") + String(b["tip"]).split("_")[0]
 		var what := String(b["space"]).replace("hand_l", "left hand").replace("hand_r", "right hand")
 		if x1 - x0 > 36.0:

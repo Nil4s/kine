@@ -98,7 +98,7 @@ func _init() -> void:
 	print("high jump: T %.2f s, %.2f m, landing bend %.0f deg | normal: T %.2f s, %.2f m, landing %.0f" % [jh[0]["T"], jh[0]["h"], jh[0]["land"], jl[0]["T"], jl[0]["h"], jl[0]["land"]])
 	var w := Rulebook.check(hi, body()).filter(func(f): return f["rule"] == "JUMP")
 	var msg := String(w[0]["msg"]) if not w.is_empty() else "-"
-	ok(w.size() == 1 and msg.contains("a stiff landing from %.2f m" % jh[0]["h"]) and msg.contains("%.0f deg" % jh[0]["land"]), "a high jump with a 94 deg landing: WARN names the height and the bend '%s'" % msg)
+	ok(w.size() == 1 and msg.contains("a stiff landing from %.0f cm" % (float(jh[0]["h"]) * 100.0)) and msg.contains("%.0f°" % jh[0]["land"]), "a high jump with a 94 deg landing: WARN names the height and the bend '%s'" % msg)
 	ok(Rulebook.check(lo, body()).filter(func(f): return f["rule"] == "JUMP").is_empty(), "the same 94 deg landing at 0.57 s: silent")
 	print("JUMP PHYSICS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

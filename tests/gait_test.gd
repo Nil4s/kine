@@ -96,13 +96,13 @@ func _init() -> void:
 	var big := walk(2.0 * 0.415 * 1.70, 108.0, 30.0)
 	say("DOUBLE STEP", Rulebook.gait(big))
 	f = found(big)
-	ok(one(f, "steps 0.8") and absf(Rulebook.gait(big)["step"] - 0.83) < 0.05, "  a 2x step: ONE WARN naming the step (0.83 of height) %s" % [f.map(func(x): return x["msg"])])
+	ok(one(f, "steps 83%") and absf(Rulebook.gait(big)["step"] - 0.83) < 0.05, "  a 2x step: ONE WARN naming the step (0.83 of height) %s" % [f.map(func(x): return x["msg"])])
 	if f.size() == 1:
 		print("   ", f[0]["msg"])
-		ok((f[0]["msg"] as String).contains("0.415"), "  and the people number")
+		ok((f[0]["msg"] as String).contains("41.5%"), "  and the people number")
 	# no arm swing, and arms with their own leg
 	f = found(walk(0.415 * 1.70, 108.0, 2.0))
-	ok(one(f, "arm swing 2 deg"), "  no arm swing (2 deg): ONE WARN naming it")
+	ok(one(f, "arm swing 2°"), "  no arm swing (2 deg): ONE WARN naming it")
 	var march := walk(0.415 * 1.70, 108.0, 30.0, -1.0)
 	say("MARCH", Rulebook.gait(march))
 	f = found(march)

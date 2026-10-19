@@ -117,7 +117,7 @@ func _init() -> void:
 	hi.cards[2]["move"] = 0.5
 	hi.cards[3]["move"] = 0.5
 	var w := Rulebook.check(hi, body()).filter(func(f): return f["rule"] == "JUMP")
-	ok(w.size() == 1 and String(w[0]["msg"]).contains("1.00 s in the air means a 1.23 m jump"), "a 1.0 s flight: WARN JUMP '%s'" % (String(w[0]["msg"]) if not w.is_empty() else "-"))
+	ok(w.size() == 1 and String(w[0]["msg"]).contains("1.00 s in the air means a 123 cm jump"), "a 1.0 s flight: WARN JUMP '%s'" % (String(w[0]["msg"]) if not w.is_empty() else "-"))
 	var stiff := jump()
 	stiff.cards[3]["pose"] = stiff.cards[4]["pose"]
 	w = Rulebook.check(stiff, body()).filter(func(f): return f["rule"] == "JUMP")
