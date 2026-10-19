@@ -664,3 +664,13 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   pose); an armature with no skinned mesh has no rest at all but its saved pose. Root motion is therefore measured from the origin.
 - Test: tests/anim_import_test.gd; fixture tests/fixtures/mixamo_rig.fbx (+ _ref.json) made by make_mixamo_fbx.py in Blender
   (regenerated into user:// on each run when Blender is installed; the committed one is used on CI). tests/fixtures has .gdignore.
+## Generic props (GAP_ANALYSIS row 22; docs/research/PROPS.md has every size with its source)
+- **Kinds** (scripts/props.gd `KINDS`): `ball` (size 5 football, a true sphere: a solid with `"r"`), `moving_box`
+  (U-Haul Small), `door` (a leaf hinged at its origin, `"swing"` deg, + toward +Z), plus the round-37 set and imports.
+- **Keys over time**: a prop's `"keys"` [{t, pos, yaw, swing}] play through `PartKeys.at` (`Props.posed(p, t)`);
+  `Scene.props_at(t, B)` returns the set as it is at t (keyed, carried, falling). An unkeyed prop is returned itself and
+  saves as before (kind, pos, yaw only). Search: "Prop: key its place here", "Prop: delete its keys", "Door: open /
+  close 15 deg (key here)". A keyed prop dragged or turned is keyed at the playhead; Shift+drag turns a prop.
+- **A prop as a target**: "Constraint: target the picked prop"; `Constraints.target_xf` reads `Scene.prop_xf_at`, so a
+  hand's Child Of on a CARRIED box follows the box (it used to follow its stored place).
+- **Mirror**: `Props.mirror_dict` (a door: yaw -> 180 - yaw, swing -> -swing, the hinge reflected).

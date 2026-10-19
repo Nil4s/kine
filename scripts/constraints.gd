@@ -12,6 +12,8 @@
 ##             floor: "foot_l" "foot_r"
 ##   "target": {"kind": "part", "part": <joint of this body>} | {"kind": "weapon"} | {"kind": "point", "at": Vector3}
 ##             | {"kind": "prop", "prop": <index in Scene.props>} | {"kind": "actor", "actor": k, "part": <joint>}
+##             (a prop target is the prop where it IS at t: in the hand that carries it, or where its keys put it;
+##             Scene.prop_xf_at. Before row 22 it was the prop's stored place, so a carried prop was not followed)
 ##             (k = the fighter's number in the hero's file: 0 = the hero, 1 = the first of "actors")
 ##   "offset": child_of only: {"pos": Vector3, "rot": Quaternion} = the owner's world transform in the target's frame,
 ##             taken ONCE when the constraint is made (Blender's "Set Inverse", stored on the constraint). Played:
@@ -131,8 +133,7 @@ static func target_xf(S: Scene, B: Body, tg: Dictionary, t: float):
 		"point":
 			return Transform3D(Basis(), tg["at"])
 		"prop":
-			var i := int(tg.get("prop", -1))
-			return (S.props[i]["xf"] as Transform3D) if i >= 0 and i < S.props.size() else null
+			return S.prop_xf_at(int(tg.get("prop", -1)), t, B)   # row 22: a carried / keyed prop where it is at t
 		"actor":
 			return _actor_target(S, tg, t)
 	return null

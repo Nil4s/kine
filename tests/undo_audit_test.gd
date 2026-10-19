@@ -46,6 +46,7 @@ func fp() -> String:
 		"audio": var_to_str(m.S.audio),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
 		"cons": var_to_str(m.S.cons),   # constraints (round 51)
+		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))),   # the set: keys, a door's swing (row 22)
 		"camera": var_to_str(m.S.camera),   # the shot camera (shot_camera.gd)
 		"sets": var_to_str(m.S.sets),   # selection / keying sets (part_sets.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
@@ -175,6 +176,16 @@ func start(kind: String) -> void:
 		if kind == "SETS_B":
 			m.S.sets["active"] = "swing"
 			PartSets.of(m).cur = {"kind": "select", "name": "arm_l"}
+	elif kind == "PROPS":   # row 22: a keyed door picked, the playhead between its keys (Prop / Door commands)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		var dr := Props.make("door", Props.xf_at(Vector3(1.2, 0.0, 0.8), 0.0))
+		Props.key_at(dr, 0.0, dr["xf"], 0.0)
+		Props.key_at(dr, 1.0, dr["xf"], 30.0)
+		m.S.props = [dr]
+		m.sel_prop = 0
+		m.playhead = 0.5
+		m._props_show()
 	elif kind == "BODY":   # PR1: a scene on a 5th-percentile woman (for "Body: the mannequin's own proportions")
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
@@ -289,6 +300,7 @@ func _init() -> void:
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
 			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "PROPS"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

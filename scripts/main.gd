@@ -392,7 +392,7 @@ var ui_use_btns := {}         # TT3: Sit here / Step up (greyed by the picked pr
 const SIT_ON := ["chair", "stool", "bench"]
 const STEP_ON := ["box", "crate", "step", "stairs"]
 const REACH := 0.12          # UU2: a hand this close to a prop (m, its surface to the prop's) can take hold of it
-const TWO_HANDS := ["box", "crate"]   # held in both hands when both are near
+const TWO_HANDS := ["box", "crate", "moving_box"]   # held in both hands when both are near
 var _pick_t := INF            # how far along the ray _pick's part was (a prop in front of it wins the click)
 var dummy_mat: StandardMaterial3D
 var hit_tag: Label3D
@@ -6836,6 +6836,11 @@ func _commands() -> Array:
 	add.call("IK: snap IK to FK", "", _ik_snap_ik, "ik fk match switch target pole rigify", true, "the picked limb's IK target and pole keyed at the playhead where the cards put the limb (the IK weight stays)")
 	add.call("Constraint: use the picked part as the target", "", _cons_pick_target, "constraint target parent child of follow look track blender", false, "the picked body part (or the weapon) becomes what the next Child Of follows or the head looks at (a choice, not an edit)")
 	add.call("Constraint: target the other fighter's head", "", _cons_target_fighter, "constraint target fighter actor opponent look track", false, "the other fighter's head becomes the target of the next constraint (two fighters)")
+	add.call("Constraint: target the picked prop", "", _cons_target_prop, "constraint target prop box door ball chair table carried hold", false, "the picked prop becomes the target of the next constraint (Child Of follows it where it is: carried in a hand, or moved by its keys)")
+	add.call("Prop: key its place here", "", _prop_key, "prop key keyframe animate move position turn door ball box set", true, "a key for the picked prop at the playhead: where it is and how it is turned (a door: its swing too); between keys it moves smoothly")
+	add.call("Prop: delete its keys", "", _prop_unkey, "prop key keyframe clear remove animation", true, "the picked prop's keys go: it stays where it is at the playhead")
+	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
+	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
 	add.call("Constraint: child of the target", "", _cons_child_of, "constraint child of parent follow hold attach hand foot hips prop door hip blender", true, "the picked hand, foot (or the hips) follows the target from the playhead on, keeping where it is from it now; the arm / leg bends to reach")
 	add.call("Constraint: head looks at the target", "", _cons_look, "constraint track to look at aim head gaze watch face blender", true, "the head turns to the target from the playhead (over 6 frames), never past the neck's limits")
 	add.call("Constraint: keep the picked foot above the floor", "", _cons_floor, "constraint floor ground foot limit sink through blender", true, "the picked foot never goes below the floor, whatever moves it")
@@ -8637,9 +8642,11 @@ func _prop_press(i: int, mp: Vector2, t: float) -> void:
 	_push_undo()
 	sel_prop = i
 	playing = false
+	_prop_live(i)
 	var hp := cam.project_ray_origin(mp) + cam.project_ray_normal(mp) * t
 	var o: Vector3 = (S.props[i]["xf"] as Transform3D).origin
-	_prop_drag = {"i": i, "plane": hp.y, "off": Vector3(o.x - hp.x, 0.0, o.z - hp.z), "moved": false, "from": o}
+	_prop_drag = {"i": i, "plane": hp.y, "off": Vector3(o.x - hp.x, 0.0, o.z - hp.z), "moved": false, "from": o,
+		"turn": Input.is_key_pressed(KEY_SHIFT), "yaw0": Props.yaw_of(S.props[i]["xf"]), "a0": atan2(hp.x - o.x, hp.z - o.z)}
 	dragging = "prop"
 	_end_teach()
 	_props_show()
@@ -8655,6 +8662,9 @@ func _prop_move(mp: Vector2) -> void:
 	if t <= 0.0:
 		return
 	var i: int = _prop_drag["i"]
+	if _prop_drag["turn"]:   # row 22: Shift+drag turns the prop about its middle, following the mouse round it
+		_prop_turn_drag(o + d * t)
+		return
 	var hp := o + d * t + (_prop_drag["off"] as Vector3)
 	var p: Dictionary = S.props[i]
 	var xf: Transform3D = p["xf"]
@@ -8679,6 +8689,7 @@ func _prop_release() -> void:
 		undo.pop_back()   # a click that only picked: no step
 		_history_rows()
 	else:
+		_prop_autokey(_prop_drag["i"])   # row 22: a keyed prop moved = a key at the playhead
 		_props_show()   # UU1: what stood on it settles
 		var y: float = (S.props[_prop_drag["i"]]["xf"] as Transform3D).origin.y
 		_say("moved the %s%s" % [_prop_name(_prop_drag["i"]), "" if y < 0.001 else ": it stands on what is under it, %.0f cm up" % (y * 100.0)])
@@ -8757,9 +8768,11 @@ func _prop_turn(deg: float) -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
 	_push_undo()
+	_prop_live(sel_prop)
 	var d := Props.to_dict(S.props[sel_prop])
 	d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
 	S.props[sel_prop] = Props.from_dict(d)
+	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
 	_say("turned the %s to %.0f deg" % [_prop_name(sel_prop), float(d["yaw"])])
@@ -8923,13 +8936,101 @@ func _prop_put() -> void:
 ## the set as it is at the playhead: carried props in the hands, dropped ones falling (every frame while any card
 ## carries; the stored props are their homes)
 func _props_pose() -> void:
-	if ui_props_root == null or S.carries().is_empty():
+	if ui_props_root == null or (S.carries().is_empty() and not Props.any_animated(S.props)):
 		return
 	var pa := _ps().props_at(playhead, B) if _ps() == S else S.props_at(playhead, B)
 	for i in pa.size():
 		var n := ui_props_root.get_node_or_null("prop_%d" % i)
-		if n != null:
-			(n as Node3D).transform = pa[i]["xf"]
+		if n != null and i != int(_prop_drag.get("i", -1)):   # the one being dragged shows where the mouse has it
+			Props.pose_node(n as Node3D, pa[i])
+
+
+## ---- GENERIC PROPS (GAP_ANALYSIS row 22): keys over time, the door's hinge, Shift+drag turns, a prop as a target
+const DOOR_MAX := 110.0   # deg either way: an interior door's leaf stops at the wall / its stop well before 180
+
+
+## a keyed prop's stored place set to where its keys have it at the playhead (so a drag or a turn starts from what is shown)
+func _prop_live(i: int) -> void:
+	if i < 0 or i >= S.props.size() or not Props.animated(S.props[i]):
+		return
+	var q := Props.posed(S.props[i], playhead)
+	S.props[i]["xf"] = q["xf"]
+	if q.has("swing"):
+		S.props[i]["swing"] = q["swing"]
+
+
+## after a move or a turn: a keyed prop gets a key at the playhead (Blender's auto-key on a keyed object)
+func _prop_autokey(i: int) -> void:
+	if i >= 0 and i < S.props.size() and Props.animated(S.props[i]):
+		Props.key_at(S.props[i], playhead, S.props[i]["xf"], float(S.props[i].get("swing", 0.0)))
+
+
+func _prop_turn_drag(hp: Vector3) -> void:
+	var i: int = _prop_drag["i"]
+	var xf: Transform3D = S.props[i]["xf"]
+	var a := atan2(hp.x - xf.origin.x, hp.z - xf.origin.z)
+	var yaw := float(_prop_drag["yaw0"]) + rad_to_deg(angle_difference(float(_prop_drag["a0"]), a))
+	yaw = snappedf(yaw, 5.0) if Input.is_key_pressed(KEY_CTRL) else yaw
+	S.props[i]["xf"] = Props.xf_at(xf.origin, yaw)
+	_prop_drag["moved"] = absf(angle_difference(deg_to_rad(float(_prop_drag["yaw0"])), deg_to_rad(yaw))) > 0.001
+	var n := ui_props_root.get_node_or_null("prop_%d" % i)
+	if n != null:
+		Props.pose_node(n as Node3D, S.props[i])
+
+
+func _prop_key() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		_say("pick a prop first: click it in the view (or Add prop), then Prop: key its place here")
+		return
+	var i := sel_prop
+	_do(func():
+		_prop_live(i)
+		Props.key_at(S.props[i], playhead, S.props[i]["xf"], float(S.props[i].get("swing", 0.0))))
+	_props_show()
+	_doc_line()
+	_say("keyed the %s at %.2f s (%d keys): move the playhead, drag or turn it, and it is keyed there too; Ctrl+Z takes it back" % [
+		_prop_name(sel_prop), playhead, (S.props[sel_prop]["keys"] as Array).size()])
+
+
+func _prop_unkey() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size() or not Props.animated(S.props[sel_prop]):
+		_say("pick a prop that has keys first (Prop: key its place here makes one), then delete its keys")
+		return
+	var i := sel_prop
+	_do(func():
+		_prop_live(i)
+		S.props[i].erase("keys"))
+	_props_show()
+	_doc_line()
+	_say("the %s's keys are gone: it stays where it was at %.2f s. Ctrl+Z puts them back" % [_prop_name(i), playhead])
+
+
+## the picked door's leaf turned by deg about its hinge, keyed at the playhead (a door with no keys gets a key at 0 s
+## first, shut as it stands, so the swing PLAYS from it)
+func _door_swing(deg: float) -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size() or not Props.hinged(S.props[sel_prop]):
+		_say("pick a door first: Add prop puts one in the set, click it in the view, then Door: open 15 deg")
+		return
+	var i := sel_prop
+	_do(func():
+		_prop_live(i)
+		var p: Dictionary = S.props[i]
+		if not Props.animated(p) and playhead > Props.SAME_T:
+			Props.key_at(p, 0.0, p["xf"], float(p.get("swing", 0.0)))
+		p["swing"] = clampf(float(p.get("swing", 0.0)) + deg, -DOOR_MAX, DOOR_MAX)
+		Props.key_at(p, playhead, p["xf"], float(p["swing"])))
+	_props_show()
+	_doc_line()
+	_say("the door is %.0f deg open at %.2f s (keyed): move the playhead and open or close it again to key the swing; Ctrl+Z takes it back" % [
+		float(S.props[i]["swing"]), playhead])
+
+
+func _cons_target_prop() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		_say("pick a prop first: click it in the view (or Add prop), then Constraint: target the picked prop")
+		return
+	cons_target = {"kind": "prop", "prop": sel_prop}
+	_say("constraint target: the %s (now pick the hand that follows it, then Constraint: child of the target)" % _prop_name(sel_prop))
 
 
 ## the posed body becomes a card after the selected one; what goes into a prop on it is said (TT1's own reading)
