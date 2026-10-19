@@ -130,6 +130,10 @@ var scene_path := ""   # the open scene's file ("" = never saved)
 var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
+var ui_why: PanelContainer   # WHAT WENT WRONG? (ROADMAP 43): the last refusal explained (scripts/whywrong.gd)
+var ui_why_box: VBoxContainer
+var _why_last: Dictionary = {}   # the last refusal or error: {text, cmd, part, frame, at}
+var _why_cmd := ""               # the command (or button) the user ran last: the refusal's "you tried"
 var ui_cmd: CommandSearch
 var ui_cube: ViewCube
 var ui_browser: Browser
@@ -2728,6 +2732,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		for c in ui_cmd.commands:
 			if c["keys"] == combo:
 				_step_hint = c["name"]
+				_why_cmd = c["name"]
 		if k.ctrl_pressed:
 			match k.keycode:
 				KEY_Z: _undo()
@@ -5393,6 +5398,9 @@ func _flash_cards(idx: Array) -> void:
 
 
 func _say(t: String) -> void:
+	if WhyWrong.is_problem(t):   # WHAT WENT WRONG? keeps the last refusal with its command, part and frame
+		_why_last = {"text": t, "cmd": _why_cmd if _why_cmd != "" else "a key press", "part": nice(sel),
+			"frame": roundi(playhead * float(S.fps)), "at": playhead}
 	if ui_status != null:
 		ui_status.text = t
 		ui_status.visible = hints_on or t != ""
@@ -5403,6 +5411,47 @@ func _say(t: String) -> void:
 		undo[-1]["name"] = step_name(t)
 		_tree.set_name(_tree.cur, step_name(t))   # the live step's node (the tree names what the lists name)
 		_history_rows()
+
+
+## WHAT WENT WRONG? (ROADMAP 43): the panel opens on the last refusal (or says nothing went wrong yet)
+func _why_toggle() -> void:
+	if ui_why.visible:
+		ui_why.visible = false
+		return
+	_why_show()
+
+
+func _why_show() -> void:
+	for c in ui_why_box.get_children():
+		ui_why_box.remove_child(c)
+		c.queue_free()
+	ui_why.visible = true
+	ui_why_box.add_child(_label("WHAT WENT WRONG?", 22, "heading"))
+	if _why_last.is_empty():
+		ui_why_box.add_child(_label("Nothing went wrong yet.  When a command refuses (it says 'pick a part first', 'needs two cards', 'NOT PLACED'...), this panel says what you tried, why it did not work, and the one next step.", 16, "text", true))
+		ui_why_box.add_child(_button("Close", func(): ui_why.visible = false))
+		_say_plain("Nothing went wrong yet")
+		return
+	var ex := WhyWrong.explain(String(_why_last["text"]))
+	ui_why_box.add_child(_label("You tried:  %s" % _why_last["cmd"], 16, "text", true))
+	ui_why_box.add_child(_label("Picked: %s, at frame %d (%.2f s)" % [_why_last["part"], _why_last["frame"], float(_why_last["at"])], 15, "text:0.7", true))
+	ui_why_box.add_child(_label("The app said:  \"%s\"" % _why_last["text"], 15, "text:0.7", true))
+	ui_why_box.add_child(_label("Why:  %s" % ex["why"], 16, "text", true))
+	ui_why_box.add_child(_button("Next: %s" % ex["step"], _why_step.bind(ex)))
+	ui_why_box.add_child(_button("Close", func(): ui_why.visible = false))
+
+
+## the one next step: runs its registry command where there is one, else puts its words on the status line
+func _why_step(ex: Dictionary) -> void:
+	ui_why.visible = false
+	var cmd: String = ex["cmd"]
+	for c in ui_cmd.commands:
+		if cmd != "" and c["name"] == cmd:
+			_step_hint = cmd
+			_why_cmd = cmd
+			(c["run"] as Callable).call()
+			return
+	_say_plain("next: %s" % ex["step"])
 
 
 ## what a step is called: what was said about it, else what was pressed, else "change"
@@ -5918,7 +5967,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd"}
+	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -5998,7 +6047,7 @@ func _button(t: String, f: Callable, tip := "") -> Button:
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = tip
-	b.pressed.connect(func(): _step_hint = t; _tour_inputs += 1)   # first: an undo step pushed by f is named after the button
+	b.pressed.connect(func(): _step_hint = t; _why_cmd = t; _tour_inputs += 1)   # first: an undo step pushed by f is named after the button
 	b.pressed.connect(f)
 	return b
 
@@ -6332,6 +6381,8 @@ func _ui() -> void:
 	strip.add_child(_button("Search (S)", func(): ui_cmd.open(), "type a few letters of any command: mirror, trail, check, staff...  Enter runs it"))
 	var hb := _button("? Help", func(): ui_help.visible = not ui_help.visible, "every key and mouse move, on one page")
 	strip.add_child(hb)
+	var wb := _button("What went wrong?", _why_toggle, "the last refusal or error, explained in plain words, with the one next step")
+	strip.add_child(wb)
 	for t in RIBBON:
 		_group(t)
 		for b in ui_ribbon[t].get_children():
@@ -6341,6 +6392,7 @@ func _ui() -> void:
 		_iconise(b)
 		(b as Control).custom_minimum_size = Vector2(28, STRIP_H - 4)
 	hb.name = "b_help"
+	wb.name = "b_why"
 	var tfill := Control.new()
 	tfill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tb.add_child(tfill)
@@ -6883,7 +6935,7 @@ func _ui() -> void:
 	ui_cmd.commands = _commands()
 	ui_cmd.pose_by_words = _pose_words
 	_hover_hints()
-	ui_cmd.running.connect(func(n): _step_hint = n)
+	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n)
 	ui_help = PanelContainer.new()
 	ui_help.name = "help_panel"
 	ui_help.anchor_left = 0.5
@@ -6910,6 +6962,19 @@ func _ui() -> void:
 	hv.add_child(_label("View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  F6 = the panels by keyboard (Tab moves, Enter presses, Esc back).  Mouse: right-drag = turn around, middle-drag = slide.", 15, "text:0.7", true))
 	hv.add_child(_button("Got it", func(): ui_help.visible = false))
 	ui_help.visible = false
+	# ---- WHAT WENT WRONG? (ROADMAP 43): the last refusal, what was tried, why, and the one next step (scripts/whywrong.gd)
+	ui_why = PanelContainer.new()
+	ui_why.name = "why_panel"
+	ui_why.anchor_left = 0.5
+	ui_why.anchor_right = 0.5
+	ui_why.offset_left = -260
+	ui_why.offset_right = 260
+	ui_why.offset_top = TOP_H + 30
+	ui_root.add_child(ui_why)
+	ui_why_box = VBoxContainer.new()
+	ui_why_box.custom_minimum_size = Vector2(500, 0)
+	ui_why.add_child(ui_why_box)
+	ui_why.visible = false
 	# ---- CHECK: the findings panel (top right of the view)
 	ui_find = PanelContainer.new()
 	ui_find.name = "check_panel"
@@ -7929,6 +7994,8 @@ func _commands() -> Array:
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
+	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
+	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
 	return Hotkeys.apply(c, hk.over)   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
 

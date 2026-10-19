@@ -128,6 +128,7 @@ const DRAW := {
 	"export_fd": [["box", Rect2(3, 11, 12, 10), 1.8], ["seg", Vector2(6, 14), Vector2(6, 18), 1.6], ["seg", Vector2(9, 14), Vector2(9, 18), 1.6], ["seg", Vector2(12, 14), Vector2(12, 18), 1.6],
 		["seg", Vector2(11, 12), Vector2(20, 3), 2], ["seg", Vector2(20, 3), Vector2(14, 3), 2], ["seg", Vector2(20, 3), Vector2(20, 9), 2]],
 	"help": [["arc", Vector2(12, 8.5), 4.5, 2.2, 160, 420], ["seg", Vector2(12, 13), Vector2(12, 16), 2.2], ["disc", Vector2(12, 20.5), 1.5]],
+	"whywrong": [["ring", Vector2(12, 12), 9, 2], ["seg", Vector2(12, 6.5), Vector2(12, 13.5), 2.4], ["disc", Vector2(12, 17.5), 1.5]],
 }
 
 static var _cache := {}
