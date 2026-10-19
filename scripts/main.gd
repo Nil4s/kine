@@ -1804,8 +1804,15 @@ func _process(dt: float) -> void:
 		# ROADMAP 77: while a track sounds, the audio clock drives the playhead (monotonic; the frame clock only
 		# stands in when no track sounds, at a loop or stop, or when the two disagree by more than a quarter second)
 		var ta := _audio_clock()
+		audio_from_clock = false
 		if ta >= 0.0 and play_clock.mode == PlaySpeed.REAL and not stp["stop"] and ta >= _a_before and absf(ta - playhead) < 0.25:
 			playhead = ta
+			audio_from_clock = true
+		# the mechanism gate (tests): each sounding track's audio clock minus the playhead, read the instant the playhead is set
+		audio_gap.resize(_a_players.size())
+		for i in _a_players.size():
+			var c := _audio_clock_of(i)
+			audio_gap[i] = (c - playhead) if c >= 0.0 else NAN
 		if stp["stop"]:
 			playing = false
 		_ps().apply(B, playhead)
@@ -12370,6 +12377,8 @@ const AUDIO_SLICE_EXTRA := 0.04   # s added to one frame for a scrub slice
 var audio_envs: Array = []      # per track: AudioTrack.envelope of its file ({} = not loaded)
 var audio_seeks := 0            # how many times Play (re)started a track's sound (tests)
 var audio_err := 0.0            # the track whose position is furthest from (playhead - offset), read right after the playhead moved (tests)
+var audio_gap: Array = []      # per track: its audio clock minus the playhead, read right after the playhead was set; NAN when not sounding (tests)
+var audio_from_clock := false  # this frame's playhead came from the audio clock (tests)
 var audio_slices := 0           # how many scrub slices were sounded (tests)
 var audio_pick := -1            # the track the Audio commands act on (picked by clicking its lane); -1 = none
 var mouth_mi: MeshInstance3D   # LIP-SYNC (ROADMAP 31): the mouth drawn on the head, from S.lip (lip_sync.gd); made on first use
@@ -12406,10 +12415,18 @@ func audio_position_of(i: int) -> float:
 ## since the last mix, less the output latency) plus its offset; -1.0 when no track sounds
 func _audio_clock() -> float:
 	for i in _a_players.size():
-		if i < _a_on.size() and _a_on[i] and _a_players[i].playing:
-			var pos: float = _a_players[i].get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
-			return pos + float(S.audio_tracks[i]["offset"])
+		var c := _audio_clock_of(i)
+		if c >= 0.0:
+			return c
 	return -1.0
+
+
+## one track's audio clock on the timeline (see _audio_clock); -1.0 when it is not sounding
+func _audio_clock_of(i: int) -> float:
+	if i < 0 or i >= _a_players.size() or i >= _a_on.size() or not _a_on[i] or not _a_players[i].playing:
+		return -1.0
+	var pos: float = _a_players[i].get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
+	return pos + float(S.audio_tracks[i]["offset"])
 
 
 ## every track's position (audio_position_of), in track order
@@ -12856,7 +12873,7 @@ func _audio_tick(before: float, dt: float) -> void:
 			_a_offs[i] = off
 			audio_seeks += 1
 		if _a_on[i] and p.playing:
-			var err := audio_position_of(i) - want   # against the true offset, not the seek's own value
+			var err := _audio_clock_of(i) - playhead
 			if absf(err) > absf(worst):
 				worst = err
 	audio_err = worst
