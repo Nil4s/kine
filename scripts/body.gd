@@ -1349,6 +1349,20 @@ func grip_wrist() -> Vector3:
 	return grip_point() + back
 
 
+## how far the free hand's wrist is (m) from where apply_grip aims it: the fitted second grip's spot (Lock both hands,
+## _fit_second's target) when there is one for that hand, else grip_wrist(). Nothing is moved. 0 with no second hand.
+## The number hold_bat's cost and _fit_second's "within 1 cm" test read: the app's own measure of a grip.
+func grip_miss() -> float:
+	if not (wep_on and grip and wep_hand != ""):
+		return 0.0
+	var other := "hand_l" if wep_hand == "hand_r" else "hand_r"
+	if not grip2.is_empty() and String(grip2.get("hand", "")) == other:
+		var x := wep_xform()
+		var lp := _v(grip2["lpos"]) * hand_s(other) + Vector3(0, grip_u, 0)
+		return (P[other] as Vector3).distance_to((x[0] as Vector3) + (x[1] as Quaternion) * lp)
+	return (P[other] as Vector3).distance_to(grip_wrist())
+
+
 ## HOLD THE BAT: both arms searched together so the bat hand's wrist is at `at`, the bat points along `dir` and (two
 ## hands) the free wrist is on the handle. cost = |wrist - at| + 0.06 * angle(axis, dir) [rad] + |free wrist - grip|.
 ## Returns [wrist miss m, aim off deg, free hand miss m].

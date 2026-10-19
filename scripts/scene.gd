@@ -203,6 +203,21 @@ func length() -> float:
 	return ts[-1][2] if not ts.is_empty() else 0.0
 
 
+## RETIME cards a..b (0-based, inclusive) to pct %: the move into each and its hold x pct/100, to 1 ms, a move never
+## under 0.04 s (main.retime's loop, round 16+1 GATES X1, moved here so TextBlocking retimes by the same op; main keeps
+## the checks, the undo step and the markers around it). Every move is read BEFORE any is written: an auto move reads
+## its neighbours. The caller checks the range and the percentage.
+func retime(a: int, b: int, pct: float) -> void:
+	var k := pct / 100.0
+	var mv := []
+	for i in range(a, b + 1):
+		mv.append(move_time(i) if i > 0 else 0.0)
+	for i in range(a, b + 1):
+		if i > 0:
+			cards[i]["move"] = snappedf(maxf(0.04, mv[i - a] * k), 0.001)
+		cards[i]["hold"] = snappedf(float(cards[i]["hold"]) * k, 0.001)
+
+
 ## the pose at time t: {"offset", "ang", "weapon"} (same shape as Moves.sample). PART KEYS (round 41, WW1) go on top
 ## of the card blend: a keyed joint's angles are its keys' curve (PartKeys.at); no part keys = the card blend as it was
 func sample(t: float) -> Dictionary:
