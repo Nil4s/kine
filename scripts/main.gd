@@ -1222,6 +1222,29 @@ func _export_usd(dir := "res://exports") -> String:
 	return path
 
 
+## EXPORT USD LAYERS (ROADMAP 79, GATES USDL): the scene as exports/<name>_usd/ (UsdExport.write_layers): a root <name>.usda
+## whose sublayers are the props and camera, the joint point cache (Points, not Alembic), one override per animation layer,
+## the base animation and the skeleton. Returns the root's path ("" when not written). One fighter only: with several, the
+## flat Export animation (.usda) holds them all.
+func _export_usd_layers(dir := "res://exports") -> String:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	if not _export_actors().is_empty():
+		_say_plain("NOT NOW: the layers are one fighter; with several fighters, Export animation (.usda) puts each one in its file")
+		return ""
+	var nm := S.name if S.name != "" else "scene"
+	var r := UsdExport.write_layers(S, B, dir, nm)
+	_refresh()
+	if r[0] != OK:
+		_say_plain("NOT DONE: the layers could not be written (%s); check the exports folder is writable" % error_string(r[0]))
+		return ""
+	var info: Dictionary = r[1]
+	_say_plain("exported %s_usd/: %d layer%s under %s (mute one in your DCC; a lower layer shows only once the one above it is muted), joints in %s_points.usda as a point cache (no Alembic: see the export dialog)" % [
+		UsdExport.prim_name(nm), info["layers"], "" if info["layers"] == 1 else "s", (info["root"] as String).get_file(), UsdExport.prim_name(nm)])
+	return info["root"]
+
+
 ## TWO CHARACTERS IN THE EXPORTS (round 50, GATES TC6): every fighter, hero first, with its own body, scene and placement
 ## (its xf in the hero's space); [] with one fighter, and the exports write what they always wrote
 func _export_actors() -> Array:
