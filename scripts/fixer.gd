@@ -53,6 +53,16 @@ static func propose(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Array:
 
 
 static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
+	# the cards are edited in place and re-sampled below: the app's pose bake holds the poses of the cards as they WERE and
+	# must not answer those samples (plant plot: "it did not remove the problem" while the bare Scene fix worked)
+	var baker := S.baker
+	S.baker = null
+	var r := _apply(f, S, B, sm0)
+	S.baker = baker
+	return r
+
+
+static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	var names := S.cards.map(func(c): return c["name"])
 	var before := S.cards.duplicate(true)
 	if sm0.is_empty():
@@ -97,6 +107,17 @@ static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 ## as its own "Fix: plant this foot" (_plant), then Check again. Kept only if the slides went down and nothing got worse
 ## (must-fix count); otherwise the cards go back. {"kept", "n0", "n1", "worst0", "worst1" (m), "msg"}
 static func plant_all(S: Scene, B: Body) -> Dictionary:
+	# the cards are edited in place below and Check re-samples them: the app's pose bake still holds the poses of the
+	# cards as they WERE (it re-bakes a frame later), so it must not answer these samples (undo_audit: "planting did not
+	# help (2 -> 2)" in the app while the same call on a bare Scene went 2 -> 0)
+	var baker := S.baker
+	S.baker = null
+	var r := _plant_all(S, B)
+	S.baker = baker
+	return r
+
+
+static func _plant_all(S: Scene, B: Body) -> Dictionary:
 	var before := S.cards.duplicate(true)
 	var all0 := Rulebook.check(S, B, Rulebook.sample(S, B))
 	var sl0 := all0.filter(func(x): return x["rule"] == "FOOT SLIDE" and x.has("foot"))

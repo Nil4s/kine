@@ -53,7 +53,7 @@ func _init() -> void:
 	# every tool: no words, an icon, a label its tooltip leads with
 	var words := []
 	var n := 0
-	for tab in m.RIBBON:
+	for tab in m.PAGE_ROW.values():   # the pages' rows (pages: VIEW is the View menu now, not a row on screen)
 		await click(m.ui_ribbon_tabs[tab])
 		await idle()
 		for b in m.ui_ribbon[tab].get_children():
@@ -85,9 +85,10 @@ func _init() -> void:
 	ok(words.is_empty() and n >= 27, "%d tools and %d top-right buttons: no words, an icon, the name in the tooltip %s" % [n, m.ui_top_right.size(), words if not words.is_empty() else ""])
 	# the tabs in the top row
 	var low := 0.0
-	for tab in m.RIBBON:
+	ok(m.ui_view_menu.get_global_rect().end.y <= m.STRIP_H + 1, "the View menu sits in the top row (it ends at y %.0f, the strip %d)" % [m.ui_view_menu.get_global_rect().end.y, m.STRIP_H])
+	for tab in m.PAGE_ROW.values():
 		low = maxf(low, m.ui_ribbon_tabs[tab].get_global_rect().end.y)
-	ok(low <= m.STRIP_H + 1, "the five tabs in the top row (they end at y %.0f, the strip %d)" % [low, m.STRIP_H])
+	ok(low <= m.get_viewport().get_visible_rect().size.y and m.ui_ribbon_tabs["POSE"].get_global_rect().position.y >= m.get_viewport().get_visible_rect().size.y - m.PAGE_H - 1, "the five page tabs are on the bar at the window's bottom (they end at y %.0f)" % low)
 	# a caption's menu runs its tool
 	await click(m.ui_ribbon_tabs["POSE"])
 	await idle()
@@ -101,8 +102,6 @@ func _init() -> void:
 	pm.hide()
 	await idle()
 	ok(shown and m.show_caps != c0, "SHOW's caption, clicked, opens its menu (%s); 'Collision (C)' from it: %s -> %s" % [shown, c0, m.show_caps])
-	await click(m.ui_ribbon_tabs["VIEW"])
-	await idle()
 	m.yaw = 33.0
 	f = cap_of("VIEW", "His right (2)")
 	pm = (f[0] as MenuButton).get_popup()

@@ -32,7 +32,12 @@ static func _sampler() -> Body:
 ## the body's joint angles (deg, Vector3) at t, sampled from the scene on the sampler body
 static func angles_at(S: Scene, t: float) -> Dictionary:
 	var B := _sampler()
+	# a diff reads the scene as its cards say, never the baked pose table: the table is dropped and rebuilt a frame AFTER an edit
+	# (main._bake_poll), so a diff made in that frame (a restore, then a compare) read the old pose (38 false marks on identical scenes)
+	var bk = S.baker
+	S.baker = null
 	S.apply(B, t)
+	S.baker = bk
 	var out := {}
 	for j in Body.ORDER:
 		out[j] = B.ang[j]

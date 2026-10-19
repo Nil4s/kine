@@ -19,6 +19,10 @@ const MASS := {"head": 6.94, "pelvis": 11.17, "spine_01": 8.165, "spine_02": 8.1
 const FEET := {"_l": ["foot_l", "ball_l"], "_r": ["foot_r", "ball_r"]}
 const TOUCH := 0.01   # m: a capsule this close to the floor counts as on it (the floor is y = 0)
 const RING := 12      # points around each footprint circle
+## the polygon's resolution: a margin smaller than this is inside what the model can tell. A foot counts as down within TOUCH (1 cm)
+## of the floor, so the heel/toe edge is uncertain by that much, and a 12-gon on a 6 cm capsule is 2 mm inside its circle;
+## 2 cm is also BalanceView's amber band. A lean past the feet by less than this is not a finding (human_limits TIPPING)
+const MARGIN_RES := 0.02
 
 
 static func com(B: Body) -> Vector3:

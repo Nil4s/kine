@@ -84,7 +84,7 @@ func _init() -> void:
 			var bad := []
 			var tools_n := 0
 			var n_more := 0
-			for t in m.RIBBON:
+			for t in m.PAGE_ROW.values():   # pages: VIEW is the View menu, not a row
 				await click(m.ui_ribbon_tabs[t])
 				await idle(2)
 				var off := off_screen()

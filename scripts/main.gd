@@ -16,9 +16,10 @@ const TOUCH := Color(1.0, 0.25, 0.2)
 const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10-12)
 const LEFT_W := 240   # round 36 (RR3): the browser; was 250
 const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sentences)
-const BOTTOM_H := 256   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
-const BOTTOM_FOLDED := 48   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
-const BOTTOM_EMPTY := 100   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
+const PAGE_H := 34   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
+const BOTTOM_H := 248 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
+const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
+const BOTTOM_EMPTY := 100 + PAGE_H   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
 							# and play row took a third of the screen for nothing)
 var ui_bh: HBoxContainer   # the bottom panel's header row (the scene's name and buttons): folded away with the cards
 var bottom_h := BOTTOM_H   # the bottom panel's height now: _layout_bottom() sets it and moves what sits on it
@@ -126,6 +127,7 @@ var ui_gear: PanelContainer   # RR4: the play options box (the gear opens it; a 
 var ui_gear_btn: Button
 var ui_natural: CheckBox
 var ui_scene_name: LineEdit
+var ui_scene_btn: MenuButton   # the one Scene menu (Save, Open, Versions, New, Template, Delete)
 var ui_scenes: OptionButton
 var thumbs: SceneThumbs   # ROADMAP 51: the pictures in the scene list (scripts/scene_thumbs.gd)
 var ui_tinted := []    # [label, Tok token]: the labels a theme switch re-tints (round 9)
@@ -168,7 +170,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI"]]],
+		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
@@ -176,6 +178,30 @@ const RIBBON_GROUPS := {
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes"]]],
 }
+## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
+## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
+## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
+## page: its tools are the "View" menu in the top bar, on every page. Layout values: true = folded, false = open; a key
+## a page does not name follows the user's own folds. The user's changes on a page are remembered for that page.
+const PAGES := ["POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER"]
+const PAGES_SOON := ["BODY", "MODEL", "SCULPT", "SURFACE"]
+const PAGE_ROW := {"POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT"}
+const PAGE_LAYOUT := {
+	"POSE": {},                                                  # the body and its inspector: as the user left them
+	"ANIMATE": {"bottom": false},                                # the scene strip and the timeline in full
+	"STAGE": {"left": false, "bottom": true},                    # the browser (props, cast) open, the strip a thin line
+	"CHECK": {"right": false, "bottom": true},                   # the inspector open (the findings), the strip a thin line
+	"DELIVER": {"left": true, "right": true, "bottom": true},    # the body big: only the export tools
+}
+const PAGE_TIPS := {"POSE": "pose one moment: the body, the inspector, the pose library", "ANIMATE": "cards, timeline, curves, overlays",
+	"STAGE": "the set and the cast: props, cameras, crowd, several fighters", "CHECK": "is it right: grade, human check, frame data",
+	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions"}
+var cur_page := "POSE"
+var base_fold := {"left": false, "right": false, "bottom": false}   # the user's own folds (a page that names none follows them)
+var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
+var ui_page_btns := {}     # page -> its button on the page bar
+var ui_page_bar: PanelContainer
+var ui_view_menu: MenuButton
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
 var ui_doc: Label         # the strip's middle: the scene's name, clips, length
 var ui_doc_dot: Label     # unsaved changes
@@ -221,7 +247,14 @@ func _fold(which: String, on: bool, save := true) -> void:
 	if save:
 		var cf := ConfigFile.new()
 		cf.load(settings)
-		cf.set_value("layout", "fold_" + which, on)
+		if PAGE_LAYOUT[cur_page].has(which):   # this page decides this panel: the user's choice is the page's own
+			if not page_fold.has(cur_page):
+				page_fold[cur_page] = {}
+			page_fold[cur_page][which] = on
+			cf.set_value("pages", cur_page + "_" + which, on)
+		else:
+			base_fold[which] = on
+			cf.set_value("layout", "fold_" + which, on)
 		cf.save(settings)
 
 
@@ -1896,6 +1929,7 @@ func _ready() -> void:
 	for k in fold:   # QQ4: a user's folds, remembered (the first start: FOLD_DEFAULT); a test starts open
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
 			_fold(k, true, false)
+	_pages_load(cf)
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
@@ -2036,7 +2070,10 @@ func _ready() -> void:
 		ui_ring.hover = 0
 	i = args.find("--ribbon")   # --ribbon ANIMATE: open that ribbon tab (screenshots)
 	if i >= 0 and i + 1 < args.size():
-		_ribbon(args[i + 1])
+		if PAGE_ROW.has(args[i + 1]):
+			_page_set(args[i + 1], false)   # a screenshot never rewrites the user's page
+		else:
+			_ribbon(args[i + 1])
 	i = args.find("--do")   # --do "Point the right hand": run that registered command, by its name (screenshots)
 	if i >= 0 and i + 1 < args.size():
 		for c in _commands():
@@ -2089,6 +2126,7 @@ func _exit_tree() -> void:
 	for sc in _bake_scenes():
 		if (sc as Scene).baker != null:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
+	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -2111,8 +2149,10 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
+	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
 	_keys_camera(dt)
 	if shot_through:
 		_shot_apply()   # THE SHOT CAMERA follows the playhead (play, scrub, an edit)
@@ -2464,7 +2504,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px()
+	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px()   # + the video confidence lane (VIDEO IQ)
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
@@ -2544,7 +2584,8 @@ func _fd_refresh() -> void:
 		ui_timeline.fd = _fd_data() if fd_on and not S.cards.is_empty() else {}
 		ui_timeline.sp = LimbIK.space_lane(S.ik, S.length()) if not S.ik.is_empty() else []   # ROADMAP 63: the space segments
 		ui_timeline.bx = HitBoxes.lanes(S.boxes, float(fd_fps)) if not S.boxes.is_empty() and not S.cards.is_empty() else []   # ROADMAP 36: the boxes lane
-		if before != _tl_under_ruler():
+		if before != _tl_under_ruler() or not is_equal_approx(_iq_seen, ui_timeline.iq_px()):
+			_iq_seen = ui_timeline.iq_px()
 			_tl_height()
 			_layout_bottom()   # the panel makes room for the frame strip and the lane, or gives it back
 		if not PerfStub.skip("timeline"):
@@ -2696,6 +2737,7 @@ var _bake_rr := 0
 func _bake_poll() -> void:
 	var t0 := Time.get_ticks_usec()
 	var live := _bake_scenes()
+	PoseBake.reap(live)   # a scene that left the stage leaves its worker running otherwise
 	var horizon := 0.0
 	for sc in live:
 		horizon = maxf(horizon, (sc as Scene).length())
@@ -3119,6 +3161,7 @@ func _refresh() -> void:
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
+	_iq_prints_draw()   # VIDEO IQ: the contacts the video import found, as footprints
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
 
 
@@ -3155,7 +3198,19 @@ func _cam() -> void:
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	cam.h_offset = (rw() - lw()) * 0.5 * mpp
 	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
+	_axis_labels_fit(vs)
 	_dummy_view()
+
+
+## the axis words are 3D text drawn over the whole window: one that falls below the free view (under the say-line, the
+## scene strip or the page bar) is hidden, so no 3D label sits on a bottom bar
+func _axis_labels_fit(vs: Vector2) -> void:
+	if stage_root == null or not is_inside_tree():
+		return
+	var floor_y := vs.y - bottom_h - LINE_H - 8.0
+	for c in stage_root.get_children():
+		if c is Label3D and String(c.name).begins_with("axis_"):
+			c.visible = not cam.is_position_behind((c as Label3D).global_position) and cam.unproject_position((c as Label3D).global_position).y < floor_y
 
 
 ## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
@@ -3176,7 +3231,17 @@ func _view_dir(d: Vector3, smooth := true) -> void:
 
 
 func _view_home(smooth := true) -> void:
-	_turn_to(HOME["yaw"], HOME["pitch"], HOME["dist"], HOME["target"], smooth)
+	_turn_to(HOME["yaw"], HOME["pitch"], _home_dist(), HOME["target"], smooth)
+
+
+## HOME's distance, but never so close that the body (feet to head: 1.9 m about the target) is cut by the panels: the free view is
+## the window minus the top bar, the bottom panel with its page bar and the status line. A small free view backs the camera off
+## (the page bar's 38 px cut the toes off at 1600 x 900 with the whole panel open); a big one keeps HOME's 4 m
+func _home_dist() -> float:
+	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
+	var free_h := vs.y - float(TOP_H + bottom_h + 6 + LINE_H) - 16.0
+	var need := 1.9 * vs.y / (2.0 * tan(deg_to_rad(cam.fov * 0.5)) * maxf(free_h, 100.0))
+	return maxf(float(HOME["dist"]), need)
 
 
 func _turn_to(y1: float, p1: float, d1: float, t1: Vector3, smooth: bool) -> void:
@@ -3262,6 +3327,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if pwui != null and pwui.on and pwui.input(ev):   # ROADMAP 92: a click on the floor adds a path point, Enter builds, Esc cancels
+		get_viewport().set_input_as_handled()
+		return
 	if ev is InputEventKey and not ev.pressed and hk != null:
 		hk.released(ev as InputEventKey)   # the ? that is held: its cheat sheet hides
 	if wp_on and _wp_input(ev):   # WEIGHT PAINT (ROADMAP 72): a press on the body paints, the rest of the mouse is the view's
@@ -3470,6 +3538,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 		match k.keycode:
 			KEY_S:
 				ui_cmd.open()
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.alt_pressed and not k.shift_pressed:   # Alt+1..5: the camera views, now that Shift+1..5 are the pages
+				_view(k.keycode - KEY_0)
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.shift_pressed:   # Shift+1..5: the pages
+				_page_set(PAGES[k.keycode - KEY_1])
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_view(k.keycode - KEY_0)
 			KEY_R: _do(func(): _reset_part())
@@ -3795,7 +3867,7 @@ func _snapshot() -> Dictionary:
 	var H := _hero_scene()
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
-	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
+	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
@@ -3809,6 +3881,7 @@ func _snapshot() -> Dictionary:
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
+		"iq": S.iq.duplicate(true),   # VIDEO IQ (video_iq.gd): the import's lane and contacts, undone with the cards
 		"attrs": S.attrs.duplicate(true),   # CUSTOM ATTRIBUTES (custom_attr.gd, ROADMAP 82), undone like a card
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
@@ -3825,13 +3898,32 @@ func _snapshot() -> Dictionary:
 const BAKE_FLAGS := ["on_floor", "pin", "spline", "stepped", "natural", "floor_body"]
 
 
+## the Scene objects a step may put back whole: Walk along a path makes a new scene and registers the old and the new one
+## here. Any other step belongs to the scene it was taken on and never pastes into another one (fix_window: "undo after
+## opening thrust leaves thrust's cards alone"); opening / making a scene empties the list.
+var swap_scenes: Array = []
+
+
 func _restore(u: Dictionary) -> void:
+	_bake_drop(u["scene"] if u.get("scene") is Scene else null)
 	if mm_ui != null:
 		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
 		_rebuild_cards()
+	if (u.get("swap", false) or swap_scenes.has(u["scene"])) and u["scene"] != S and actors_rt.is_empty() and u["scene"] is Scene:
+		# a step that swapped the whole scene (Walk along a path makes a NEW scene: it marks its step "swap" and registers both scenes in
+		# swap_scenes): undo/redo put that scene object back. Any other step never pastes into another scene (tests/fix_window_test.gd)
+		S = u["scene"]
+		scene_path = String(u.get("spath", ""))
+		sel_card = -1
+		if ui_scene_name != null:
+			ui_scene_name.text = S.name
+		ov.mark_dirty()
+		wt.mark_dirty()
+		_rebuild_cards()
+		_show_open_scene()
 	if u["scene"] == S and u.has("fps"):
 		S.fps = int(u["fps"])   # WW4: the frame rate is a scene setting, undone like a card
 	if u["scene"] == S and u.has("pbody") and u["pbody"] != S.body:
@@ -3863,6 +3955,8 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
+	if u["scene"] == S and u.has("iq") and var_to_str(u["iq"]) != var_to_str(S.iq):
+		S.iq = u["iq"].duplicate(true)   # VIDEO IQ, undone like a card
 	if u["scene"] == S and u.has("attrs") and var_to_str(u["attrs"]) != var_to_str(S.attrs):
 		S.attrs = u["attrs"].duplicate(true)   # CUSTOM ATTRIBUTES (ROADMAP 82), undone like a card
 		_attr_sig = ""
@@ -3942,7 +4036,31 @@ func _restore(u: Dictionary) -> void:
 	_refresh()
 
 
+## EDIT FUNNEL vs POSE BAKE: an edit changes the cards (or any field apply reads) in place; the bake poll notices only a frame
+## later, and until then Scene.apply would serve the poses of the content as it WAS (to Check, to a fix's re-sample, to the
+## next undo step). Every edit goes through _push_undo (and every undo/redo through _restore), so both drop the bakers
+## first; _bake_poll starts fresh ones from the new content.
+func _bake_drop(extra: Scene = null) -> void:
+	var seen := _bake_scenes()
+	if extra != null:
+		seen.append(extra)
+	for sc in seen:
+		if (sc as Scene).baker != null:
+			(sc as Scene).baker.stop()
+			(sc as Scene).baker = null
+
+
+## drop only the bakers whose content no longer matches their scene (~1 ms a scene)
+func _bake_validate() -> void:
+	for sc in _bake_scenes():
+		var bk: PoseBake = (sc as Scene).baker
+		if bk != null and bk.sig != PoseBake.signature(sc):
+			bk.stop()
+			(sc as Scene).baker = null
+
+
 func _push_undo() -> void:
+	_bake_drop()
 	if _macro_nest > 0:   # ROADMAP 81: a macro's edits share the one undo step, opened before its first edit
 		if _macro_pushed:
 			return
@@ -3977,6 +4095,8 @@ func _undo() -> void:
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
 		now["lib"] = u["lib"]
+	if u.get("swap", false):
+		now["swap"] = true   # a whole-scene swap goes back and forth
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
@@ -4000,6 +4120,8 @@ func _redo() -> void:
 	now["name"] = _step_label(r)
 	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
 		now["lib"] = r["lib"]
+	if r.get("swap", false):
+		now["swap"] = true
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
@@ -5047,6 +5169,76 @@ func _foot_unplant() -> void:
 	_say("the %s is free at %s: it follows the cards again (Ctrl+Z takes the plant back)" % [_ik_words(tip), Units.time(t, S.fps)])
 
 
+## ---- VIDEO IQ on the stage (scripts/video_iq.gd; Scene.iq). The confidence lane on the timeline and the detected contacts drawn
+## on the floor as footprints, ONE toggle (a view setting, not an edit). A footprint is the foot's sole outline at the spot the
+## import found the foot planted (Scene.iq["contacts"]: x, z, yaw), lit while the playhead is inside the contact; a hand contact is a ring.
+var iq_show := true
+var _iq_seen := 0.0   # the lane's height the panel was last laid out for
+var _iq_mesh: MeshInstance3D
+const IQ_FOOT := [[0.0, -0.095], [0.045, -0.075], [0.055, 0.02], [0.045, 0.10], [0.0, 0.125], [-0.045, 0.10], [-0.055, 0.02], [-0.045, -0.075]]   # m: heel -> ball -> toes, lateral x then forward z (an adult sole, 25 cm: Pheasant, Bodyspace)
+
+
+func _iq_toggle() -> void:
+	iq_show = not iq_show
+	_say("video confidence lane and footprints %s" % ("shown" if iq_show else "hidden: the same command brings them back"))
+	_refresh()
+	_layout_bottom()
+	ui_timeline.queue_redraw()
+
+
+## the footprints' outlines in world space: [{"part", "kind", "pts" (Vector3 ring), "on" (playhead inside), "c" (centre)}]
+func iq_prints() -> Array:
+	var out := []
+	if S == null or S.iq.is_empty():
+		return out
+	for c in S.iq.get("contacts", []):
+		var cx := float(c.get("x", 0.0))
+		var cz := float(c.get("z", 0.0))
+		var yaw := deg_to_rad(float(c.get("yaw", 0.0)))
+		var fw := Vector2(sin(yaw), cos(yaw))
+		var rt := Vector2(fw.y, -fw.x)
+		var pts := []
+		if c["kind"] == "foot":
+			for q in IQ_FOOT:
+				var l: Vector2 = Vector2(q[0], q[1])
+				var w := rt * l.x + fw * l.y
+				pts.append(Vector3(cx + w.x, 0.004, cz + w.y))
+		else:
+			for k in 10:
+				var a := TAU * k / 10.0
+				pts.append(Vector3(cx + cos(a) * 0.05, 0.004, cz + sin(a) * 0.05))
+		out.append({"part": c["part"], "kind": c["kind"], "pts": pts, "c": Vector3(cx, 0.0, cz), "on": playhead >= float(c["t0"]) - 1e-6 and playhead <= float(c["t1"]) + 1e-6})
+	return out
+
+
+func _iq_prints_draw() -> void:
+	if _iq_mesh == null:
+		_iq_mesh = MeshInstance3D.new()
+		_iq_mesh.name = "iq_prints"
+		_iq_mesh.mesh = ImmediateMesh.new()
+		add_child(_iq_mesh)
+	var im := _iq_mesh.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if clean or not iq_show or S == null or S.iq.is_empty():
+		return
+	for f in iq_prints():
+		var pts: Array = f["pts"]
+		var col := side_col(String(f["part"]))
+		im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, Overlays._mat())
+		im.surface_set_color(Color(col, 0.55 if f["on"] else 0.28))
+		for k in range(1, pts.size() - 1):
+			im.surface_add_vertex(pts[0])
+			im.surface_add_vertex(pts[k])
+			im.surface_add_vertex(pts[k + 1])
+		im.surface_end()
+		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+		im.surface_set_color(Color(col, 1.0 if f["on"] else 0.7))
+		for k in pts.size():
+			im.surface_add_vertex(pts[k])
+			im.surface_add_vertex(pts[(k + 1) % pts.size()])
+		im.surface_end()
+
+
 var _fp_line: MeshInstance3D   # the footprints under the planted feet (ROADMAP 8)
 
 
@@ -5664,6 +5856,21 @@ func _frh_release() -> void:
 		PartKeys.put(S.part_keys, j, t, B.ang[j])
 	_refresh()
 	_say("keyed the %s foot's roll on its %s at %s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], Units.time(t, S.fps)])
+## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
+var pwui: PathWalkUI
+
+
+func _pathwalk_start() -> void:
+	if pwui == null:
+		pwui = PathWalkUI.new()
+		add_child(pwui)
+		pwui.setup(self)
+	if actor_on != 0 and not _actor_set(0):
+		_say("Walk along a path works on the hero's scene: press Actor: switch to the next fighter until the hero is on screen")
+		return
+	pwui.start()
+
+
 ## ROOT MOTION EDITOR (ROADMAP 91; scripts/root_path.gd). View toggle "Root path on the floor": the played path as a curve on the
 ## floor, a yellow handle at each card's root and a red arrow for its facing. A press on a root handle and a drag moves that
 ## card's root on the floor; a press on an arrow turns its facing. One undo step per drag (pushed at the press, dropped when the
@@ -8130,7 +8337,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
+	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -8429,18 +8636,23 @@ func _ui() -> void:
 	ui_ribbon = {}
 	ui_ribbon_tabs = {}
 	var group := ButtonGroup.new()
+	ui_view_menu = MenuButton.new()   # the VIEW tools on every page (a small menu, not a page)
+	ui_view_menu.name = "view_menu"
+	ui_view_menu.text = "View"
+	ui_view_menu.flat = false
+	ui_view_menu.focus_mode = Control.FOCUS_NONE
+	ui_view_menu.theme_type_variation = "RibbonTab"
+	ui_view_menu.custom_minimum_size = Vector2(0, STRIP_H - 4)
+	ui_view_menu.tooltip_text = "the camera (front / sides / top / back, big view) and the display options: the same on every page"
+	ui_view_menu.about_to_popup.connect(_view_menu_fill)
+	ui_view_menu.get_popup().id_pressed.connect(_view_menu_pick)
+	strip.add_child(ui_view_menu)
 	for t in RIBBON:
-		var tbtn := _button(t, _ribbon.bind(t), RIBBON_TIPS[t])
-		tbtn.name = "tab_" + t.to_lower()   # U2 scopes: tab_check (the tab), ribbon_check/b_check (its button)
-		tbtn.toggle_mode = true
-		tbtn.button_group = group
-		tbtn.theme_type_variation = "RibbonTab"
-		ui_ribbon_tabs[t] = tbtn
-		strip.add_child(tbtn)
 		var tools := HBoxContainer.new()
 		tools.add_theme_constant_override("separation", 6)
 		tools.name = "ribbon_" + t.to_lower()
 		ui_ribbon[t] = tools
+	_build_page_bar()
 	for t in RIBBON:
 		tb.add_child(ui_ribbon[t])
 	var tog := func(tab: String, label: String, f: Callable, on: Callable, tip := ""):
@@ -8496,6 +8708,7 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror scene", _mirror_scene, "Mirror scene: a left-handed copy of this scene, saved in scenes/_wip and opened (yours is untouched)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
+	ui_ribbon["ANIMATE"].add_child(_button("Walk along a path...", _pathwalk_start, "Walk along a path: click points on the floor, pick Walk or Run and a speed, Enter builds the cards (makes a NEW scene, the open one stays, as ONE undo step; Esc cancels)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
 	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK
@@ -8889,7 +9102,7 @@ func _ui() -> void:
 	bp.offset_top = -BOTTOM_H
 	bp.offset_left = 6
 	bp.offset_right = -6
-	bp.offset_bottom = -6
+	bp.offset_bottom = -6 - PAGE_H
 	ui_root.add_child(bp)
 	var bv := VBoxContainer.new()
 	bv.add_theme_constant_override("separation", 6)
@@ -8898,54 +9111,58 @@ func _ui() -> void:
 	ui_bh = bh
 	bh.add_theme_constant_override("separation", 4)   # the template button made the row 3 px wider than a 1280 window at 125 %
 	bv.add_child(bh)
-	bh.add_child(_label("3  SCENE  (clips)", 19, "heading"))
-	var intro := _label("your clips in a row; Play and the body moves from clip to clip on its own", 14, "text:0.6")
-	intro.set_meta("hint_text", intro.text)   # hints off empties it (it keeps its width: the buttons do not move)
-	ui_hint_labels.append(intro)
-	intro.clip_text = true   # a narrow window (or a big UI size) shortens this line, never pushes the buttons off (round 11)
-	intro.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	intro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	intro.custom_minimum_size.x = 40
-	intro.size_flags_stretch_ratio = 20.0   # the free room goes to the words first (the spacer after it shares it 20:1)
-	bh.add_child(intro)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bh.add_child(sp)
-	ui_scene_name = LineEdit.new()
+	var hl := _label("3  SCENE", 19, "heading")
+	hl.tooltip_text = "your clips in a row; Play and the body moves from clip to clip on its own.  Click a picture to show that moment, drag one to move it, right-click for more"
+	hl.mouse_filter = Control.MOUSE_FILTER_PASS
+	bh.add_child(hl)
+	ui_scene_name = LineEdit.new()   # the scene's name, edited in place; Enter saves
 	ui_scene_name.placeholder_text = "scene name"
-	ui_scene_name.custom_minimum_size = Vector2(160, 0)
+	ui_scene_name.custom_minimum_size = Vector2(200, 0)
+	ui_scene_name.tooltip_text = "the scene's name: type here, Enter saves it under that name"
 	ui_scene_name.text_submitted.connect(func(_t): _step_hint = "Save scene"; _save_scene())   # Enter saves (V3: one action less)
 	bh.add_child(ui_scene_name)
-	bh.add_child(_button("Save scene", _save_scene))
-	ui_scenes = OptionButton.new()
+	# ONE Scene menu holds Save, Open, Versions, New, Template and Delete (the strip used to be eight text buttons)
+	ui_scene_btn = MenuButton.new()
+	ui_scene_btn.name = "btn_scene"
+	ui_scene_btn.set_meta("label", "Scene")
+	ui_scene_btn.icon = Icons.tex("scene_menu")
+	ui_scene_btn.flat = false
+	ui_scene_btn.focus_mode = Control.FOCUS_NONE
+	ui_scene_btn.custom_minimum_size = Vector2(36, 0)
+	ui_scene_btn.tooltip_text = "Scene: save, open, versions, new, template, delete"
+	var sm := ui_scene_btn.get_popup()
+	for it in SCENE_MENU:
+		sm.add_icon_item(Icons.small(it[2]), it[1], it[0])
+	sm.id_pressed.connect(_scene_menu_pick)
+	bh.add_child(ui_scene_btn)
+	ui_scenes = OptionButton.new()   # the list of scene files: the Open item shows its popup (it has no place in the row)
 	ui_scenes.name = "opt_scene"
 	ui_scenes.focus_mode = Control.FOCUS_NONE
 	ui_scenes.custom_minimum_size = Vector2(170, 0)
 	ui_scenes.fit_to_longest_item = false   # round 45: a long work-copy name pushed the play row off a 1280 window
 	ui_scenes.clip_text = true
+	ui_scenes.visible = false
 	ui_scenes.item_selected.connect(_scene_picked)   # V3: picking a scene opens it (asks first if this one has unsaved changes)
 	# ROADMAP 51: a picture of each scene's body in the list (scripts/scene_thumbs.gd); drawn when the list opens
 	thumbs = SceneThumbs.new()
 	thumbs.name = "scene_thumbs"
 	add_child(thumbs)
 	thumbs.made.connect(_thumb_made)
+	thumbs.made_pose.connect(_card_pic_made)
 	ui_scenes.get_popup().add_theme_constant_override("icon_max_width", SceneThumbs.SIZE.x)
-	ui_scenes.add_theme_constant_override("icon_max_width", 18)   # the CLOSED button shows the open scene's picture too: at full size it made the scene row 76 px tall and pushed the strip off the screen
 	ui_scenes.get_popup().about_to_popup.connect(_scenes_opening)
 	bh.add_child(ui_scenes)
-	bh.add_child(_button("Open scene", func():
-		if ui_scenes.selected >= 0:
-			_scene_picked(ui_scenes.selected)))   # ROADMAP 50: asks first when the open scene has unsaved changes
-	bh.add_child(_button("Delete scene", _delete_scene, "the scene picked in the list (it asks first; the file goes to the trash folder)"))
-	ui_versions = MenuButton.new()   # SCENE VERSIONS (round 29, JJ1)
+	ui_versions = MenuButton.new()   # SCENE VERSIONS (round 29, JJ1): its popup opens from the Scene menu's Versions item
 	ui_versions.name = "btn_versions"
 	ui_versions.text = "Versions"
-	ui_versions.flat = false
+	ui_versions.visible = false
 	ui_versions.focus_mode = Control.FOCUS_NONE
-	ui_versions.tooltip_text = "save the scene as it is now as a version, or go back to one (the scene's file is not touched)"
 	ui_versions.about_to_popup.connect(_versions_menu)
 	ui_versions.get_popup().id_pressed.connect(_version_picked)
 	bh.add_child(ui_versions)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bh.add_child(sp)
 	ui_loop = CheckBox.new()
 	ui_loop.text = "Loop"
 	ui_loop.name = "check_loop"
@@ -8953,10 +9170,12 @@ func _ui() -> void:
 	ui_loop.focus_mode = Control.FOCUS_NONE
 	ui_loop.tooltip_text = "ON: the scene plays round and round (a walk, an idle). CHECK then grades the seam: the end must meet the start."
 	ui_loop.toggled.connect(func(on): _push_undo(); S.loop = on; check_ran = false; _refresh())
-	bh.add_child(_button("New empty scene", _new_asked))
-	bh.add_child(_short(_button("New from template...", _template_ask, "five starting scenes: walk, run, jump, punch, sword swing (each checked against real people's numbers); opens as a new scene in scenes/_wip"), "Template..."))
-	var fb := _button("Fold", _fold.bind("bottom", true), "fold the scene panel to the timeline and Play: more room for the body (remembered)")
+	var fb := _button("", _fold.bind("bottom", true), "Fold: fold the scene panel to the timeline and Play: more room for the body (remembered)")
 	fb.name = "fold_bottom"
+	fb.set_meta("label", "Fold")
+	fb.icon = Icons.tex("fold_down")
+	fb.flat = true
+	fb.custom_minimum_size = Vector2(32, 0)
 	bh.add_child(fb)
 	ui_fold_btn["bottom"] = fb
 	var cs := ScrollContainer.new()
@@ -8965,7 +9184,7 @@ func _ui() -> void:
 	bv.add_child(cs)
 	ui_card_row = cs
 	ui_cards = HBoxContainer.new()
-	ui_cards.add_theme_constant_override("separation", 8)
+	ui_cards.add_theme_constant_override("separation", 2)
 	cs.add_child(ui_cards)
 	ui_timeline = Timeline.new()
 	ui_timeline.m = self
@@ -9816,7 +10035,7 @@ func _rebuild_cards() -> void:
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
 		for st in [["Clip this pose  (Enter)", _card_add, "the body as it is now becomes clip 1; pose the next moment and clip again, then Play"],
-				["Open a scene", func(): ui_scenes.show_popup(), "pick one of your scenes from the list"]]:
+				["Open a scene", _open_scene_popup, "pick one of your scenes from the list"]]:
 			var sb := _button(st[0], st[1], st[2])
 			sb.name = "start_" + ("clip" if st[0].begins_with("Clip") else "open")
 			sb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -9829,30 +10048,88 @@ func _rebuild_cards() -> void:
 			eb.add_theme_font_size_override("font_size", 13)   # fits the collapsed row (26 px): the empty panel keeps its height
 			ui_cards.add_child(eb)
 	var ts := S.times()
+	_pl_card = _play_card_idx()
 	for i in S.cards.size():
 		var c: Dictionary = S.cards[i]
 		var pc := PanelContainer.new()
 		pc.name = "card_%d" % (i + 1)   # a named scope: card_3/.../b_update (U2)
-		var st := StyleBoxFlat.new()
-		st.bg_color = Tok.c("card_sel") if i in card_range() else (Tok.c("card_passby") if c["name"] == "pass-by" else Tok.c("card"))
-		st.set_corner_radius_all(6)
-		st.set_content_margin_all(6)
-		pc.add_theme_stylebox_override("panel", st)
-		pc.custom_minimum_size = Vector2(196, 0)
+		pc.add_theme_stylebox_override("panel", _card_style(i))
+		pc.custom_minimum_size = Vector2(CARD_W, 0)
+		pc.set_drag_forwarding(Callable(), _card_can_drop.bind(i), _card_drop.bind(i))
 		ui_cards.add_child(pc)
 		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", 3)
+		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
-		var nb := _button("%d  %s" % [i + 1, c["name"]], _card_pick.bind(i), "show this moment (at %.2f s)" % ts[i][1])
+		# the picture IS the pick button: the pose on the body, the number and name under it
+		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
-		nb.tooltip_text += ".  Double-click to rename it"
+		nb.tooltip_text = "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
+		nb.flat = true
+		nb.clip_text = true
+		nb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		nb.add_theme_font_size_override("font_size", 11)
+		nb.add_theme_constant_override("icon_max_width", CARD_W - 8)
+		nb.add_theme_constant_override("h_separation", 0)
+		nb.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		nb.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+		nb.expand_icon = true
+		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
+		_card_flat(nb)
+		nb.set_drag_forwarding(_card_drag.bind(i), _card_can_drop.bind(i), _card_drop.bind(i))
+		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
+		var tex := thumbs.pose_picture(c["pose"])
+		if tex != null:
+			nb.icon = tex
 		v.add_child(nb)
+		# hover tools: Update and Delete (reorder is a drag, or the right-click menu)
+		var tools := HBoxContainer.new()
+		tools.name = "hover_tools"
+		tools.visible = false
+		tools.add_theme_constant_override("separation", 1)
+		tools.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+		tools.offset_left = -40
+		tools.offset_top = 1
+		tools.offset_right = -1
+		tools.offset_bottom = 20
+		for tl in [["b_update", "card_update", "Update: replace this card's pose with the body as it is now", _card_update.bind(i)],
+				["b_delete", "card_delete", "Delete this card (Ctrl+Z brings it back)", _card_del.bind(i)]]:
+			var hb := _button("", tl[3], tl[2])
+			hb.name = tl[0]
+			hb.set_meta("label", String(tl[2]).get_slice(":", 0).get_slice(" this", 0))
+			hb.icon = Icons.small(tl[1])
+			hb.custom_minimum_size = Vector2(19, 19)
+			tools.add_child(hb)
+		nb.add_child(tools)
+		pc.mouse_entered.connect(func(): tools.visible = true)
+		pc.mouse_exited.connect(func(): tools.visible = false)
+		# the timing as one line of text; a click opens the two boxes (move, hold) that edit it
+		var tb := _button(_card_timing(i), func(): _card_time_edit(i), "")
+		tb.name = "b_timing"
+		tb.flat = true
+		tb.clip_text = true
+		tb.add_theme_font_size_override("font_size", 10)
+		tb.add_theme_constant_override("h_separation", 0)
+		_card_flat(tb)
+		tb.tooltip_text = "seconds to get here from the card before + seconds the body then holds still.  Click to type them"
+		v.add_child(tb)
+		var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
+		pp.name = "time_edit"
+		pp.top_level = true
+		pp.visible = false
+		pp.z_index = 50
+		pp.mouse_exited.connect(func():
+			var fo := pp.get_viewport().gui_get_focus_owner()
+			if fo == null or not pp.is_ancestor_of(fo):
+				pp.visible = false)
+		var pv := VBoxContainer.new()
+		pp.add_child(pv)
 		if i > 0:
 			var mh := HBoxContainer.new()
-			v.add_child(mh)
+			pv.add_child(mh)
 			mh.add_child(_label("move", 13, "text:0.7"))
 			var ms := SpinBox.new()
+			ms.name = "spin_move"
 			ms.min_value = 0.0
 			ms.max_value = 5.0
 			ms.step = 0.05
@@ -9863,23 +10140,237 @@ func _rebuild_cards() -> void:
 			ms.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["move"] = x if x > 0.0 else -1.0; _markers_follow(); _retimed())
 			mh.add_child(ms)
 		var hh := HBoxContainer.new()
-		v.add_child(hh)
+		pv.add_child(hh)
 		hh.add_child(_label("hold", 13, "text:0.7"))
 		var hs := SpinBox.new()
+		hs.name = "spin_hold"
 		hs.min_value = 0.0
 		hs.max_value = 5.0
 		hs.step = 0.05
 		hs.value = c["hold"]
 		hs.suffix = "s"
+		hs.custom_minimum_size = Vector2(150, 0)
 		hs.tooltip_text = "seconds the body stays still in this pose"
-		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false))
+		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i))
 		hh.add_child(hs)
-		var bh := HBoxContainer.new()
-		v.add_child(bh)
-		bh.add_child(_button("<", _card_move.bind(i, -1), "move this card earlier"))
-		bh.add_child(_button(">", _card_move.bind(i, 1), "move this card later"))
-		bh.add_child(_button("Update", _card_update.bind(i), "replace this card's pose with the body as it is now"))
-		bh.add_child(_button("X", _card_del.bind(i), "delete this card"))
+		pc.add_child(pp)
+
+
+## a button on a card: no padding, only a light wash on hover (the card is the frame)
+func _card_flat(b: Button) -> void:
+	var e := StyleBoxFlat.new()
+	e.bg_color = Color(0, 0, 0, 0)
+	e.set_content_margin_all(1)
+	var h := e.duplicate() as StyleBoxFlat
+	h.bg_color = Color(Tok.c("btn_hover"), 0.5)
+	h.set_corner_radius_all(4)
+	for k in ["normal", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(k, e)
+	b.add_theme_stylebox_override("hover", h)
+	b.add_theme_stylebox_override("hover_pressed", h)
+
+
+const CARD_W := 91     # a card: the picture, "3 CONTACT", "0.4 s + hold 0.05": 17 fit a 1600 window (the old cards: 8)
+const CARD_PIC_H := 55
+var _pl_card := -1     # the card at the playhead (marked on the strip)
+
+
+## "0.4 s + hold 0.05": the time to get here (a ~ when it is automatic) and the hold; the first card has only a hold
+func _card_timing(i: int) -> String:
+	var c: Dictionary = S.cards[i]
+	var hold := "no hold"
+	if float(c["hold"]) > 0.0:
+		hold = "hold %s" % String.num(float(c["hold"]), 2)
+	if i == 0:
+		return hold
+	var mv: float = c["move"]
+	return "%s%s s + %s" % ["" if mv > 0.0 else "~", String.num(mv if mv > 0.0 else S.move_time(i), 2), hold]
+
+
+## the card's look: picked = blue, pass-by = brown, else plain; the card at the playhead has a gold frame and a lighter ground
+func _card_style(i: int) -> StyleBoxFlat:
+	var c: Dictionary = S.cards[i]
+	var st := StyleBoxFlat.new()
+	var here := i == _pl_card
+	st.bg_color = Tok.c("card_sel") if i in card_range() else (Tok.c("card_passby") if c["name"] == "pass-by" else (Tok.c("card_play_bg") if here else Tok.c("card")))
+	st.set_corner_radius_all(5)
+	st.set_content_margin_all(3)
+	st.set_border_width_all(2)
+	st.border_color = Tok.c("card_play") if here else Color(0, 0, 0, 0)
+	return st
+
+
+## the card whose pose the playhead has reached (-1: none)
+func _play_card_idx() -> int:
+	var ts := S.times()
+	var at := -1
+	for i in ts.size():
+		if float(ts[i][1]) <= playhead + 1e-4:
+			at = i
+	return at
+
+
+var _pl_seen := -1.0
+
+
+## the playhead moved: the gold frame goes to its card; while playing the strip scrolls so the card stays in view
+func _mark_play_card() -> void:
+	if ui_cards == null or S.cards.is_empty() or playhead == _pl_seen:
+		return
+	_pl_seen = playhead
+	var now := _play_card_idx()
+	if now != _pl_card:
+		var old := _pl_card
+		_pl_card = now
+		for k in [old, now]:
+			var pc := ui_cards.get_node_or_null("card_%d" % (k + 1)) as PanelContainer
+			if pc != null and k < S.cards.size():
+				pc.add_theme_stylebox_override("panel", _card_style(k))
+	if playing and now >= 0 and now < ui_cards.get_child_count():
+		var sc := ui_card_row
+		var pc := ui_cards.get_child(now) as Control
+		if pc.position.x < sc.scroll_horizontal or pc.position.x + pc.size.x > sc.scroll_horizontal + sc.size.x:
+			sc.scroll_horizontal = int(maxf(0.0, pc.position.x - 16.0))
+
+
+## a pose picture is ready: every card showing that pose gets it
+func _card_pic_made(key: String) -> void:
+	if ui_cards == null:
+		return
+	for pc in ui_cards.get_children():
+		var nb := pc.find_child("b_pick", true, false) as Button
+		if nb != null and nb.get_meta("pkey", "") == key:
+			var i := pc.get_index()
+			if i < S.cards.size():
+				nb.icon = thumbs.pose_picture(S.cards[i]["pose"])
+
+
+## click the timing text: the two boxes open above it
+func _card_time_edit(i: int) -> void:
+	var pc := ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
+	if pc == null:
+		return
+	var pp := pc.get_node("time_edit") as Control
+	for o in ui_cards.get_children():   # one open at a time
+		var other := o.get_node_or_null("time_edit") as Control
+		if other != null and other != pp:
+			other.visible = false
+	pp.visible = true
+	pp.reset_size()
+	pp.global_position = pc.get_global_rect().position + Vector2(0, -pp.size.y - 2)
+
+
+## drag a card's picture onto another card: it takes that place (one undo step)
+func _card_drag(_at: Vector2, i: int) -> Variant:
+	var l := Label.new()
+	l.text = "%d  %s" % [i + 1, S.cards[i]["name"]]
+	l.add_theme_font_size_override("font_size", 13)
+	if ui_cards.get_viewport().gui_is_dragging():
+		ui_cards.set_drag_preview(l)
+	else:
+		l.free()
+	return {"kine_card": i}
+
+
+func _card_can_drop(_at: Vector2, data: Variant, j: int) -> bool:
+	return data is Dictionary and (data as Dictionary).has("kine_card") and int(data["kine_card"]) != j
+
+
+func _card_drop(_at: Vector2, data: Variant, j: int) -> void:
+	_step_hint = "Move card"
+	_card_reorder(int(data["kine_card"]), j)
+
+
+func _card_reorder(i: int, j: int) -> void:
+	if i == j or i < 0 or j < 0 or i >= S.cards.size() or j >= S.cards.size():
+		_say("drag a card's picture onto another card to move it there")
+		return
+	_push_undo()
+	var c: Dictionary = S.cards[i]
+	S.cards.remove_at(i)
+	S.cards.insert(j, c)
+	sel_card = j
+	_rebuild_cards()
+	_refresh()
+	_say("card moved to place %d.  Ctrl+Z puts it back" % (j + 1))
+
+
+## right-click on a card: its menu
+var ui_card_menu: PopupMenu
+
+
+func _card_menu(i: int, at: Vector2) -> void:
+	if ui_card_menu == null:
+		ui_card_menu = PopupMenu.new()
+		ui_card_menu.name = "card_menu"
+		ui_root.add_child(ui_card_menu)
+		ui_card_menu.id_pressed.connect(_card_menu_pick)
+	ui_card_menu.clear()
+	ui_card_menu.set_meta("card", i)
+	ui_card_menu.add_icon_item(Icons.small("rename"), "Rename", 0)
+	ui_card_menu.add_icon_item(Icons.small("card_update"), "Update from the body", 1)
+	ui_card_menu.add_icon_item(Icons.small("move_l"), "Move earlier", 2)
+	ui_card_menu.add_icon_item(Icons.small("move_r"), "Move later", 3)
+	ui_card_menu.add_icon_item(Icons.small("card_delete"), "Delete this card", 4)
+	ui_card_menu.set_item_disabled(2, i == 0)
+	ui_card_menu.set_item_disabled(3, i >= S.cards.size() - 1)
+	ui_card_menu.popup(Rect2i(Vector2i(at), Vector2i(0, 0)))
+
+
+func _card_menu_pick(id: int) -> void:
+	var i := int(ui_card_menu.get_meta("card", -1))
+	if i < 0 or i >= S.cards.size():
+		return
+	match id:
+		0:
+			var nb := ui_cards.get_node_or_null("card_%d/b_pick" % (i + 1)) as Button
+			if nb != null:
+				_card_name_edit(i, nb)
+		1:
+			_step_hint = "Update"
+			_card_update(i)
+		2:
+			_step_hint = "Move card"
+			_card_move(i, -1)
+		3:
+			_step_hint = "Move card"
+			_card_move(i, 1)
+		4:
+			_step_hint = "Delete card"
+			_card_del(i)
+
+
+const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
+	[4, "New from template...", "template"], [5, "Delete scene", "trash"]]
+
+
+## the Scene menu: the same actions the eight buttons had, by the same names (the command search runs them too)
+func _scene_menu_pick(id: int) -> void:
+	var name_of: String = SCENE_MENU[id][1]
+	_step_hint = name_of
+	_why_cmd = name_of
+	_tour_inputs += 1
+	match id:
+		0:
+			_save_scene()
+		1:
+			_open_scene_popup()
+		2:
+			ui_versions.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
+			ui_versions.show_popup()
+		3:
+			_new_asked()
+		4:
+			_template_ask()
+		5:
+			_delete_scene()
+
+
+## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
+func _open_scene_popup() -> void:
+	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
+	ui_scenes.size = Vector2(260, 30)
+	ui_scenes.show_popup()
 
 
 ## ROADMAP 55: the picked card's "Slow in ... Even ... Slow out" slider (Scene.ease_bias: -1 arrives slowly, 0 = the curve as it
@@ -9984,14 +10475,122 @@ this part"), "run": _toggle_lock.bind(j)},
 	ui_ring.open(p, nice(j), its)
 
 
-## show one ribbon tab's tools
+## show one ribbon row. A page's row (SET is STAGE's) is a PAGE SWITCH; "VIEW" only shows the view row (tests, --ribbon)
 func _ribbon(t: String) -> void:
+	for p in PAGES:
+		if PAGE_ROW[p] == t or p == t:
+			_page_set(p)
+			return
+	_ribbon_row(t)
+
+
+func _ribbon_row(t: String) -> void:
 	for k in RIBBON:
 		ui_ribbon[k].visible = k == t
-		ui_ribbon_tabs[k].set_pressed_no_signal(k == t)   # by hand: _no_signal does not release the group's others
+	for p in PAGES:
+		ui_page_btns[p].set_pressed_no_signal(PAGE_ROW[p] == t)   # by hand: _no_signal does not release the group's others
 	_ribbon_tab = t
 	_fit_top()
 	_place_caps.call_deferred()
+
+
+## THE PAGE BAR: nine buttons, icon and name; the five that exist, then BODY / MODEL / SCULPT / SURFACE greyed (coming)
+func _build_page_bar() -> void:
+	var bar := PanelContainer.new()
+	bar.name = "page_bar"
+	bar.theme_type_variation = "BottomBar"
+	bar.anchor_top = 1.0
+	bar.anchor_bottom = 1.0
+	bar.anchor_right = 1.0
+	bar.offset_top = -PAGE_H
+	bar.grow_vertical = Control.GROW_DIRECTION_BEGIN   # never past the window's bottom edge, whatever the theme adds
+	ui_page_bar = bar
+	ui_root.add_child(bar)
+	var h := HBoxContainer.new()
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.add_theme_constant_override("separation", 4)
+	bar.add_child(h)
+	var group := ButtonGroup.new()
+	for p in PAGES + PAGES_SOON:
+		var b := Button.new()
+		b.name = ("tab_" + String(PAGE_ROW[p]).to_lower()) if PAGE_ROW.has(p) else ("page_" + p.to_lower())
+		b.text = p
+		b.icon = Icons.tex("page_" + p.to_lower())
+		b.focus_mode = Control.FOCUS_NONE
+		b.theme_type_variation = "RibbonTab"
+		b.custom_minimum_size = Vector2(104, PAGE_H - 10)
+		if PAGE_ROW.has(p):
+			var i := PAGES.find(p)
+			b.toggle_mode = true
+			b.button_group = group
+			b.tooltip_text = "%s page (Shift+%d): %s" % [p, i + 1, PAGE_TIPS[p]]
+			b.pressed.connect(func(): _step_hint = "Page: " + p; _page_set(p))
+			ui_page_btns[p] = b
+			ui_ribbon_tabs[PAGE_ROW[p]] = b
+		else:
+			b.tooltip_text = "coming: the modeling pages"
+			b.modulate = Color(1, 1, 1, 0.38)   # greyed, and no action
+		h.add_child(b)
+		if p == PAGES[-1]:
+			var sep := VSeparator.new()
+			sep.custom_minimum_size.x = 14
+			h.add_child(sep)
+
+
+## A PAGE (a view change: no undo step, the scene untouched): its ribbon row and its panels. Remembered in the settings file
+func _page_set(p: String, save := true) -> void:
+	if not PAGE_ROW.has(p):
+		return
+	cur_page = p
+	for k in fold:
+		fold[k] = _page_want(p, k)
+	_ribbon_row(PAGE_ROW[p])
+	_sides_apply()
+	_layout_bottom()
+	_fit_rows.call_deferred()
+	if save:
+		var cf := ConfigFile.new()
+		cf.load(settings)
+		if cf.get_value("layout", "page", "POSE") != p:
+			cf.set_value("layout", "page", p)
+			cf.save(settings)
+
+
+func _page_want(p: String, which: String) -> bool:
+	var o: Dictionary = page_fold.get(p, {})
+	if o.has(which):
+		return o[which]
+	return PAGE_LAYOUT[p].get(which, base_fold[which])
+
+
+## the user's pages from the settings file (their own folds per page, the page they left on)
+func _pages_load(cf: ConfigFile) -> void:
+	base_fold = fold.duplicate()
+	for p in PAGES:
+		for k in fold:
+			if cf.has_section_key("pages", p + "_" + k):
+				if not page_fold.has(p):
+					page_fold[p] = {}
+				page_fold[p][k] = cf.get_value("pages", p + "_" + k)
+	var pg: String = cf.get_value("layout", "page", "POSE")
+	if PAGE_ROW.has(pg) and pg != "POSE":
+		_page_set(pg, false)
+
+
+func _view_menu_fill() -> void:
+	var pm := ui_view_menu.get_popup()
+	pm.clear()
+	var i := 0
+	for b in ui_ribbon["VIEW"].get_children():
+		if b is Button:
+			pm.add_item(label_of(b), i)
+			if ICON_OF.has(label_of(b)):
+				pm.set_item_icon(pm.get_item_count() - 1, Icons.small(ICON_OF[label_of(b)]))
+		i += 1
+
+
+func _view_menu_pick(i: int) -> void:
+	_run_tool(ui_ribbon["VIEW"].get_child(i), ui_view_menu)
 
 
 ## a tab's tools in its groups' order with a thin divider between groups (RR1); unnamed tools stay at the end
@@ -10157,7 +10756,7 @@ func _layout_bottom() -> void:
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
 		ui_fold_btn["bottom"].visible = not empty
-	ui_card_row.custom_minimum_size.y = 26 if empty else 112
+	ui_card_row.custom_minimum_size.y = 26 if empty else 104
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty and not easy.on
 	ui_bp.offset_top = -bottom_h
@@ -10268,7 +10867,9 @@ func _commands() -> Array:
 			id = id.replace(ch, " ")
 		c.append({"id": "_".join(id.split(" ", false)), "name": n, "keys": keys, "run": f, "also": also, "edits": edits, "desc": desc})
 	for v in [["Front view", 1], ["His right view", 2], ["Top view", 3], ["Back view", 4], ["His left view", 5]]:
-		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s" % v[0].to_lower())
+		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s (Alt+%d too: Shift+1..5 are the pages)" % [v[0].to_lower(), v[1]])
+	for pi in PAGES.size():
+		add.call("Page: " + PAGES[pi], "Shift+%d" % (pi + 1), _press.bind(KEY_1 + pi, true), "page layout workspace screen tab switch " + String(PAGE_ROW[PAGES[pi]]).to_lower(), false, "the %s page: %s (a view change; the scene and the undo history are untouched)" % [PAGES[pi], PAGE_TIPS[PAGES[pi]]])
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
 	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", false, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
@@ -10374,6 +10975,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Walk along a path...", "", _pathwalk_start, "walk run path floor points curve gait jog sprint generate steps", true, "click points on the floor, pick walk or run and a speed, Enter builds the cards as ONE undo step")
 	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
 	for st in SEL_SETS:   # SELECTION SETS (round 28, GATES II2, UPGRADES #67)
@@ -10448,6 +11050,7 @@ func _commands() -> Array:
 	add.call("Speed graph on/off", "Y", _press.bind(KEY_Y), "curve velocity", false, "tip, hips and head speed over the scene; click it to scrub")
 	add.call("Stepped preview on/off", "", _tool.bind(3), "blocking poses", true, "play card to card with no in-betweens (view only, never saved)")
 	add.call("Moving holds on/off", "", _tool.bind(4), "drift", true, "during a hold the upper body drifts a little toward the next card (saved with the scene)")
+	add.call("Is this clip physically possible?", "", _feasible_check, "feasible possible impossible physics balance verdict pass fix kungfubot ballistic jump foot slide penetration", false, "one verdict for the clip: PASS / FIX (with the frames and the reason) / IMPOSSIBLE. KungfuBot's balance filter (first and last frame stable, no long unstable run), free fall in the air, foot slide per contact, self-penetration. See docs/research/ROBOT_MOTION.md")
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
@@ -10523,6 +11126,7 @@ func _commands() -> Array:
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Import from several cameras...", "", _multicam_ask, "video several cameras multi camera triangulate rig two videos mocap motion capture track person film record", false, "pick 2 to 4 videos of one person filmed at the same time: the rig is solved from the person, the joints triangulated, one undo step")
+	add.call("Video: confidence lane and footprints (show / hide)", "", _iq_toggle, "video confidence lane tracking lost footprints contacts floor plants timeline show hide", false, "a scene made from a video shows a lane under its cards coloured by how sure the tracker was (low spans named: click one to go there) and the foot contacts it found as footprints on the floor; this shows or hides both")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
@@ -11772,6 +12376,7 @@ func _check(given = null) -> void:
 	else:
 		# the scene AS MADE, not the dummy's landed version (_ps): the impact stop is the dummy's physics, not the
 		# animator's move, and a Fix edits S (10-14: grading SL made a fixed card's finding come back)
+		_bake_validate()   # a scene field set outside the funnel is not in the bake yet: Check must grade the scene as it is
 		_sm = Rulebook.sample(S, ov.GB)
 		findings = Rulebook.check(S, ov.GB, _sm)
 	check_ran = true
@@ -11786,6 +12391,12 @@ func _check(given = null) -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_button("Close", _close_findings))
+	if HumanLimits.on:   # the clip's verdict (scripts/feasible.gd)
+		var vf := findings.filter(func(f): return f["rule"] == "FEASIBLE")
+		var vword := "PASS" if vf.is_empty() else String(vf[0]["msg"]).split(" ")[0]
+		var vl := _label("Is this clip physically possible?  %s" % vword + ("" if vword == "PASS" else "  (the frames and reasons are below; click one)"), 16, "heading" if vword == "PASS" else "warn", true)
+		vl.name = "verdict"
+		ui_find_list.add_child(vl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
 	for fk in findings.size():
@@ -12045,6 +12656,7 @@ func _fix(f: Dictionary) -> void:
 	var t0 := Time.get_ticks_msec()
 	var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
 	if r["kept"]:
+		_bake_drop()   # the cards changed in place, not through _push_undo: the bake still holds the old poses
 		undo.append(u)
 		redo.clear()
 		_rebuild_cards()
@@ -12249,13 +12861,21 @@ func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
 		var r := card_range()
 		_say("cards %d-%d picked: Faster / Slower retime them all (a plain click picks one again)" % [r[0] + 1, r[-1] + 1])
 		return
+	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
+		nb.accept_event()
+		_card_menu(i, mb.global_position)
+		return
 	if not (ev is InputEventMouseButton and ev.double_click and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT):
 		return
 	nb.accept_event()
+	_card_name_edit(i, nb)
+
+
+func _card_name_edit(i: int, nb: Button) -> void:
 	var ed := LineEdit.new()
 	ed.name = "edit_card_name"
 	ed.text = S.cards[i]["name"]
-	ed.custom_minimum_size = nb.size
+	ed.custom_minimum_size = Vector2(nb.size.x, 24)
 	nb.get_parent().add_child(ed)
 	nb.get_parent().move_child(ed, nb.get_index())
 	nb.visible = false
@@ -12494,6 +13114,7 @@ func _new_scene() -> void:
 	_actors_home()   # TC3
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
+	swap_scenes = []
 	S = Scene.new()
 	scene_path = ""
 	_clean = _doc_key()   # the new empty scene is the saved state: nothing unsaved until it is edited (ROADMAP 50)
@@ -14555,6 +15176,16 @@ func _human_check() -> void:
 	_say(("Check now asks 'could a human do this?' too: joint speed and tipping against recorded limits (experimental)" if HumanLimits.on else "Check is back to the rulebook alone"))
 
 
+## "Is this clip physically possible?": Check with the feasibility verdict (scripts/feasible.gd) switched on
+func _feasible_check() -> void:
+	HumanLimits.on = true
+	_check()
+	if S.cards.size() < 2:
+		return   # Check said what to do (add cards); a "PASS" over nothing would be a false verdict
+	var vf := findings.filter(func(f): return f["rule"] == "FEASIBLE")
+	_say("physically possible? " + ("PASS: nothing here a body could not do" if vf.is_empty() else String(vf[0]["msg"]).split(" ")[0] + ": click a finding to jump to its frames and read the reason"))
+
+
 ## TWINNING (ROADMAP 19; scripts/twinning.gd): the mirror twins the default Check does not grade. Shown in the Check list.
 func _twin_check() -> void:
 	if S.cards.size() < 2:
@@ -14808,20 +15439,22 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	# AA3: the weapon in his hand now (any but a dagger) is the one he holds in the video, in both hands
 	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
 	var frames: Array = P["frames"]
-	var C := {}
-	if not raw:
-		C = VideoCleanup.run(frames, P["fps"], float(P.get("tilt", 0.0)))
-		frames = C["frames"]
-	var fitted := VideoImport.solve(B, frames, held, float(P["fps"]))
-	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
+	var base_name := safe_file((from if from != "" else path.get_file()).get_basename())
+	var fitted: Array
+	var V: Scene
 	var r := {"locked": 0, "text": ""}
 	if raw:
+		fitted = VideoImport.solve(B, frames, held, float(P["fps"]))
+		V = VideoImport.to_scene(B, fitted, P["fps"], 1, base_name)
 		r = MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
 		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
 	else:
-		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
-		V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(C["plants"]), V.fps)
-		r = {"locked": V.plants.size(), "text": VideoCleanup.report(V.plants.size(), C["jitter_raw"], C["jitter_clean"], C["tilt"])}
+		# VIDEO IQ: confidence, depth + limit repair, contacts -> plants, smart cards, and the lane / footprints for the timeline
+		var R := VideoIQ.process(B, P, held, base_name)
+		fitted = R["fitted"]
+		V = R["scene"]
+		V.iq = R["iq"]
+		r = {"locked": V.plants.size(), "text": R["text"]}
 	B.set_state(keep)
 	var d: Dictionary = V.to_dict(B)
 	var src: String = from if from != "" else path.get_file()
@@ -14959,13 +15592,12 @@ func _multicam_finish() -> void:
 	if obs.size() > 1 and float(obs[-1]["t"]) > float(obs[0]["t"]):
 		fps = float(obs.size() - 1) / (float(obs[-1]["t"]) - float(obs[0]["t"]))
 	var tilt := VideoImport.level(frames)
-	var C := VideoCleanup.run(frames, fps, tilt)
-	var fitted := VideoImport.solve(B, C["frames"], held)
-	var V := VideoImport.to_scene(B, fitted, fps, 1, "multicam")
-	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
-	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(C["plants"]), V.fps)
+	var R := VideoIQ.process(B, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam")
+	var fitted: Array = R["fitted"]
+	var V: Scene = R["scene"]
+	V.iq = R["iq"]
 	var locked := V.plants.size()
-	var text := VideoCleanup.report(locked, C["jitter_raw"], C["jitter_clean"], C["tilt"])
+	var text: String = R["text"]
 	B.set_state(keep)
 	var d: Dictionary = V.to_dict(B)
 	d["scene"] = S.name   # in place, as mirror-in-place: the open scene keeps its name
@@ -15341,6 +15973,7 @@ func _load_scene(path: String) -> void:
 	_actors_home()   # TC3: the opened file's hero goes on the hero's body; its actors are built from it
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
+	swap_scenes = []
 	scene_path = path
 	layer_on = -1   # NA1: edits go to the first layer of a newly opened scene
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))

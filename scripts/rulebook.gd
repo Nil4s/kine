@@ -31,6 +31,11 @@ const SRC := {
 	"JOINT SPEED": "a joint's turn against the PEAK turn recorded in sport (fast dynamic movements): shoulder internal rotation 6520 deg/s (collegiate pitchers, Fortenbaugh et al. 2009 review), upper trunk 1120 (same review), knee in a kick 1874 (Manolopoulos 2006, via a kick review); the hip is not graded (its 745 is a secondary kick mean); FAIL at 1.32 x the peak (mean + 2 SD with the SD of Campbell's shoulder table): docs/research/HUMAN_LIMITS.md",
 	"JOINT TORQUE": "the shoulder's net moment from inverse dynamics (forearm and hand with their rotational inertia from de Leva 1996 radii; a bat shared between the two hands) against the in-sport peak: shoulder internal rotation 67 Nm in pitching (Fleisig 1995, 26 skilled adults; scaled linearly with mass from 75 kg), FAIL at 1.32 x (docs/research/HUMAN_LIMITS.md). Knee not graded (no in-sport moment read)",
 	"TIPPING": "the centre of mass past the feet, with no hand or weapon holding it, for longer than a fall from its height takes: t = sqrt(2h/g) (our bar, the free-fall time of the centre of mass; docs/research/HUMAN_LIMITS.md)",
+	"FEASIBLE": "PASS / FIX / IMPOSSIBLE for the whole clip: KungfuBot's physics filter (Xie et al. 2025, arXiv:2506.12851: first and last frame stable, no unstable run of 100 frames, stable = centre of mass within 0.1 of the centre of pressure), free fall in the air (g = 9.81), foot slide per contact and self-penetration (docs/research/ROBOT_MOTION.md)",
+	"FEASIBLE BALANCE": "KungfuBot's whole-clip rule (Xie et al. 2025, Eq. 1 and Table 3): first and last frames stable, centre of mass within 0.1 m of the support, no unstable run of 100 frames (3.3 s at 30 fps)",
+	"FEASIBLE FLIGHT": "with no foot down the centre of mass follows free fall, y = y0 + v t - g t^2/2, g = 9.81, within 8 cm (our bar; docs/research/ROBOT_MOTION.md)",
+	"FEASIBLE SLIDE": "a planted foot may creep at most 25 mm per contact (Karunratanakul et al. 2023, arXiv:2310.08580)",
+	"FEASIBLE PENETRATION": "body capsules inside each other deeper than 20 mm (our bar, Body.contacts)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
 ## and WHERE the number comes from (the panel's "source" button opens it). The links are docs/MOTION_RULES.md's own
@@ -55,6 +60,11 @@ const WHY := {
 	"JOINT SPEED": "A joint turning faster than people turn that joint in sport: the eye reads it as a snap, not a body.",
 	"JOINT TORQUE": "More force at a joint than people's muscles give: the motion needs a machine, not a person.",
 	"TIPPING": "Leaning past the feet with nothing to grab: a real person is on the floor in the time a fall takes.",
+	"FEASIBLE": "One answer for the clip: could a body actually do it, as it is keyed? The reasons and the frames are listed.",
+	"FEASIBLE BALANCE": "A person has to start and end the clip standing, and cannot hang far outside their feet for long.",
+	"FEASIBLE FLIGHT": "In the air nothing pushes: the body follows a parabola. Hovering or swerving mid-jump reads as wires.",
+	"FEASIBLE SLIDE": "A planted foot that slides looks like ice skating, and a robot or a rig cannot follow it.",
+	"FEASIBLE PENETRATION": "Limbs passing through the body or each other cannot be done by a solid person or a robot.",
 }
 const URL := {
 	"SEQUENCE": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
@@ -76,6 +86,11 @@ const URL := {
 	"JOINT SPEED": "res://docs/research/HUMAN_LIMITS.md",
 	"JOINT TORQUE": "res://docs/research/HUMAN_LIMITS.md",
 	"TIPPING": "res://docs/research/HUMAN_LIMITS.md",
+	"FEASIBLE": "res://docs/research/ROBOT_MOTION.md",
+	"FEASIBLE BALANCE": "https://arxiv.org/abs/2506.12851",
+	"FEASIBLE FLIGHT": "res://docs/research/ROBOT_MOTION.md",
+	"FEASIBLE SLIDE": "https://arxiv.org/pdf/2310.08580",
+	"FEASIBLE PENETRATION": "res://docs/research/ROBOT_MOTION.md",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
 const PROP_WARN := 0.005   # m inside a prop: a WARN (Props.REST_SINK: less is resting on it)
@@ -175,7 +190,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 		if reuse and (t < t0 or t > t1):
 			raw.append(base["_raw"][i])
 			continue
-		S.apply(B, t)
+		S.apply_true(B, t)
 		raw.append({"tip": Overlays.tracked(B), "hips": B.P["pelvis"], "head": B.P["head"], "hand_l": B.E["hand_l"],
 			"hand_r": B.E["hand_r"], "gp": B.G["pelvis"], "gt": B.G["spine_03"],
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),
@@ -444,7 +459,7 @@ static func rule_loop(S: Scene, B: Body) -> Array:
 	var keep := B.state()
 	var at := {}
 	for t in [0.0, h, L - h, L]:
-		S.apply(B, t)
+		S.apply_true(B, t)
 		at[t] = [B.G.duplicate(), B.P.duplicate()]
 	B.set_state(keep)
 	var out := []
@@ -905,7 +920,7 @@ static func rule_gait(sm: Dictionary, S: Scene = null) -> Array:
 
 ## the deeper knee's bend at time t (0 = straight): the angle between the thigh and the shin
 static func knee_bend(S: Scene, B: Body, t: float) -> float:
-	S.apply(B, t)
+	S.apply_true(B, t)
 	var k := 0.0
 	for sd in ["_l", "_r"]:
 		var th: Vector3 = (B.P["calf" + sd] as Vector3) - (B.P["thigh" + sd] as Vector3)
@@ -1004,6 +1019,9 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	if HumanLimits.on:
 		out += HumanLimits.findings(S, B)   # ROADMAP 10: only when asked ("Check: could a human do this?"): the bars are
 		# not yet checked against the papers (a real bat swing read trunk 1087 deg/s vs a 601 bar; elite hitters reach ~900+)
+	if HumanLimits.on:   # "Is this clip physically possible?": the verdict (first) and its reasons, with their frames
+		var fz := Feasible.check(S, B)
+		out += Feasible.verdict_finding(S, fz) + fz["findings"]
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

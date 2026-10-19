@@ -8,6 +8,36 @@ const SIZE := 22
 ## shape: ["seg", a, b, width] | ["arc", centre, radius, width, from_deg, to_deg] | ["disc", centre, radius]
 ##        ["ring", centre, radius, width] | ["box", rect(pos, size), width (0 = filled)]
 const DRAW := {
+	# THE SCENE STRIP: the Scene menu, Fold, and a card's hover tools
+	"scene_menu": [["seg", Vector2(4, 7), Vector2(20, 7), 2.2], ["seg", Vector2(4, 12), Vector2(20, 12), 2.2], ["seg", Vector2(4, 17), Vector2(20, 17), 2.2]],
+	"fold_down": [["seg", Vector2(5, 9), Vector2(12, 16), 2.4], ["seg", Vector2(19, 9), Vector2(12, 16), 2.4]],
+	"card_update": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7, 10), Vector2(12, 15), 2.2], ["seg", Vector2(17, 10), Vector2(12, 15), 2.2], ["box", Rect2(4, 17.5, 16, 3), 1.6]],
+	"card_delete": [["seg", Vector2(6, 6), Vector2(18, 18), 2.4], ["seg", Vector2(18, 6), Vector2(6, 18), 2.4]],
+	"open": [["box", Rect2(3, 9, 18, 11), 1.8], ["box", Rect2(3, 5, 8, 4), 1.6]],
+	"trash": [["box", Rect2(6.5, 9, 11, 11), 1.8], ["seg", Vector2(4, 6.5), Vector2(20, 6.5), 2.0], ["seg", Vector2(9.5, 4), Vector2(14.5, 4), 2.0], ["seg", Vector2(10.5, 12), Vector2(10.5, 17), 1.4], ["seg", Vector2(13.5, 12), Vector2(13.5, 17), 1.4]],
+	"new_scene": [["box", Rect2(5, 3, 14, 18), 1.8], ["seg", Vector2(12, 9), Vector2(12, 16), 2.0], ["seg", Vector2(8.5, 12.5), Vector2(15.5, 12.5), 2.0]],
+	"template": [["box", Rect2(3.5, 3.5, 17, 17), 1.6], ["seg", Vector2(3.5, 9.5), Vector2(20.5, 9.5), 1.4], ["seg", Vector2(9.5, 9.5), Vector2(9.5, 20.5), 1.4]],
+	"move_l": [["seg", Vector2(15, 5), Vector2(8, 12), 2.4], ["seg", Vector2(8, 12), Vector2(15, 19), 2.4]],
+	"move_r": [["seg", Vector2(9, 5), Vector2(16, 12), 2.4], ["seg", Vector2(16, 12), Vector2(9, 19), 2.4]],
+	"rename": [["seg", Vector2(5, 19), Vector2(6.5, 14), 2.0], ["seg", Vector2(6.5, 14), Vector2(15, 5.5), 2.6], ["seg", Vector2(15, 5.5), Vector2(18.5, 9), 2.6], ["seg", Vector2(18.5, 9), Vector2(10, 17.5), 2.0], ["seg", Vector2(5, 19), Vector2(10, 17.5), 2.0]],
+	# PAGES (docs/PAGES_PLAN.md): the page bar's nine icons
+	"page_pose": [["disc", Vector2(12, 4.5), 2.6], ["seg", Vector2(12, 8), Vector2(12, 15), 2.4], ["seg", Vector2(12, 9.5), Vector2(5, 7), 2.0],
+		["seg", Vector2(12, 9.5), Vector2(19, 13), 2.0], ["seg", Vector2(12, 15), Vector2(8, 21), 2.0], ["seg", Vector2(12, 15), Vector2(16.5, 21), 2.0]],
+	"page_animate": [["box", Rect2(2.5, 14, 19, 6), 1.6], ["seg", Vector2(7, 14), Vector2(7, 20), 1.4], ["seg", Vector2(12, 14), Vector2(12, 20), 1.4],
+		["seg", Vector2(17, 14), Vector2(17, 20), 1.4], ["disc", Vector2(5, 7), 1.8], ["disc", Vector2(12, 5), 1.8], ["disc", Vector2(19, 8), 1.8],
+		["seg", Vector2(5, 7), Vector2(12, 5), 1.2], ["seg", Vector2(12, 5), Vector2(19, 8), 1.2]],
+	"page_stage": [["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(3, 20), Vector2(7, 12), 1.8], ["seg", Vector2(21, 20), Vector2(17, 12), 1.8],
+		["seg", Vector2(7, 12), Vector2(17, 12), 1.8], ["seg", Vector2(12, 3), Vector2(12, 9), 1.8], ["disc", Vector2(12, 10), 1.6]],
+	"page_check": [["ring", Vector2(12, 12), 9, 1.9], ["seg", Vector2(7.5, 12.5), Vector2(10.8, 16), 2.4], ["seg", Vector2(10.8, 16), Vector2(17, 8.5), 2.4]],
+	"page_deliver": [["box", Rect2(3.5, 13, 17, 7), 1.8], ["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7.5, 9.5), Vector2(12, 14.5), 2.2],
+		["seg", Vector2(16.5, 9.5), Vector2(12, 14.5), 2.2]],
+	"page_body": [["ring", Vector2(12, 6), 3, 1.8], ["arc", Vector2(12, 17), 7, 1.8, 180, 360], ["seg", Vector2(5, 17), Vector2(5, 21), 1.8], ["seg", Vector2(19, 17), Vector2(19, 21), 1.8]],
+	"page_model": [["seg", Vector2(12, 3), Vector2(21, 8), 1.8], ["seg", Vector2(21, 8), Vector2(21, 17), 1.8], ["seg", Vector2(21, 17), Vector2(12, 22), 1.8],
+		["seg", Vector2(12, 22), Vector2(3, 17), 1.8], ["seg", Vector2(3, 17), Vector2(3, 8), 1.8], ["seg", Vector2(3, 8), Vector2(12, 3), 1.8],
+		["seg", Vector2(12, 12), Vector2(12, 22), 1.4], ["seg", Vector2(12, 12), Vector2(3, 8), 1.4], ["seg", Vector2(12, 12), Vector2(21, 8), 1.4]],
+	"page_sculpt": [["disc", Vector2(12, 14), 7], ["arc", Vector2(12, 8), 4, 2, 200, 340], ["seg", Vector2(12, 3), Vector2(12, 6), 2.0]],
+	"page_surface": [["box", Rect2(3.5, 3.5, 17, 17), 1.8], ["seg", Vector2(3.5, 12), Vector2(20.5, 12), 1.4], ["seg", Vector2(12, 3.5), Vector2(12, 20.5), 1.4],
+		["disc", Vector2(7.7, 7.7), 1.6], ["disc", Vector2(16.3, 16.3), 1.6]],
 	"crowd": [["disc", Vector2(6, 6), 2.0], ["disc", Vector2(12, 5), 2.0], ["disc", Vector2(18, 6), 2.0], ["seg", Vector2(6, 9), Vector2(6, 17), 2.0], ["seg", Vector2(12, 8), Vector2(12, 18), 2.0], ["seg", Vector2(18, 9), Vector2(18, 17), 2.0]],
 	"reroll": [["arc", Vector2(12, 12), 7.5, 2.2, -60, 210], ["seg", Vector2(19.5, 5), Vector2(18.5, 10), 2.2], ["seg", Vector2(18.5, 10), Vector2(13.5, 9), 2.2], ["disc", Vector2(12, 12), 2.4]],
 	"crowd_remove": [["disc", Vector2(12, 5), 2.4], ["seg", Vector2(12, 8), Vector2(12, 16), 2.4], ["seg", Vector2(12, 10), Vector2(5, 15), 2.0], ["seg", Vector2(12, 10), Vector2(19, 15), 2.0], ["seg", Vector2(6, 21), Vector2(18, 21), 2.6]],
@@ -152,6 +182,8 @@ const DRAW := {
 	# ROADMAP 54: Mirror scene = a frame and its mirror copy (a dashed axis between); Mirror in place = one frame split by its axis
 	"mirror_scene": [["box", Rect2(2.5, 6.5, 7.5, 11), 1.6], ["box", Rect2(14, 6.5, 7.5, 11), 1.6], ["seg", Vector2(12, 3), Vector2(12, 21), 1.2],
 		["seg", Vector2(17.5, 18.5), Vector2(19.5, 21), 1.4], ["disc", Vector2(12, 3), 1.2]],
+	"pathwalk": [["seg", Vector2(3, 20), Vector2(9, 15), 1.8], ["seg", Vector2(9, 15), Vector2(15, 16), 1.8], ["seg", Vector2(15, 16), Vector2(21, 7), 1.8],
+		["disc", Vector2(3, 20), 1.6], ["disc", Vector2(21, 7), 1.6], ["disc", Vector2(10, 7), 2.0], ["seg", Vector2(10, 9), Vector2(10, 12), 1.8]],
 	"mirror_inplace": [["box", Rect2(5, 4, 14, 16), 1.6], ["seg", Vector2(12, 2), Vector2(12, 22), 1.2], ["seg", Vector2(9, 9), Vector2(5, 12), 1.6],
 		["seg", Vector2(5, 12), Vector2(9, 15), 1.6], ["seg", Vector2(15, 9), Vector2(19, 12), 1.6], ["seg", Vector2(19, 12), Vector2(15, 15), 1.6]],
 	# the search box's row kinds (ROADMAP 52, scripts/command_search.gd): a command prompt, a posed figure, a film frame

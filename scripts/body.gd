@@ -160,6 +160,21 @@ static func lim_key(j: String) -> String:
 	return src
 
 
+## the parsed data files, read ONCE (under a mutex) and handed out as copies: load_files runs on worker threads (the dummy's
+## measurement, the pose bake, the fix preview), and a file read there once came back empty ("Parse JSON failed", body.gd)
+static var _json_mu := Mutex.new()
+static var _json_cache := {}
+
+
+static func json_file(path: String) -> Variant:
+	_json_mu.lock()
+	if not _json_cache.has(path):
+		_json_cache[path] = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var v: Variant = _json_cache[path]
+	_json_mu.unlock()
+	return v.duplicate(true) if v is Dictionary or v is Array else v
+
+
 func load_files(skel_path: String, limits_path: String) -> void:
 	_fk_a = {}   # the rest points change: fk() recomputes every joint
 	_files = [skel_path, limits_path]
@@ -168,13 +183,13 @@ func load_files(skel_path: String, limits_path: String) -> void:
 	skin = {}
 	skin_c = {}
 	seg_s = {}
-	var skf: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(skel_path))
+	var skf: Dictionary = json_file(skel_path)
 	var sk: Dictionary = skf["joints"]
 	if skf.has("pelvis_parent"):
 		var rr: Array = skf["pelvis_parent"]["rot"]
 		root_rot = Quaternion(rr[0], rr[1], rr[2], rr[3])
 		root_pos = _v(skf["pelvis_parent"]["pos"])
-	var li: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(limits_path))
+	var li: Dictionary = json_file(limits_path)
 	for j in ORDER:
 		var d: Dictionary = sk[j]
 		parent[j] = d["parent"] if d["parent"] != null else ""
@@ -265,7 +280,7 @@ func load_files(skel_path: String, limits_path: String) -> void:
 	var calib := [{}, {"upperarm_r": Vector3(0, -90, 0), "upperarm_l": Vector3(0, -90, 0)},
 		{"upperarm_r": Vector3(0, -95, 0), "upperarm_l": Vector3(0, -95, 0)}]
 	if FileAccess.file_exists("res://data/skin_points.json"):
-		var sp: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/skin_points.json"))
+		var sp: Dictionary = json_file("res://data/skin_points.json")
 		for part in sp:
 			var pts := []
 			var c := Vector3.ZERO

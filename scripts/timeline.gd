@@ -254,7 +254,7 @@ func _shot_cut_drag(x: float) -> void:
 
 ## the diamonds' centre line (y)
 func _cam_y() -> float:
-	return size.y - audio_h() - CAM_R - 2.0
+	return size.y - audio_h() - iq_px() - CAM_R - 2.0
 
 
 ## the time of the camera key whose diamond is at p, or -1.0
@@ -354,6 +354,12 @@ func _gui_input(ev: InputEvent) -> void:
 			if sci == 0 or _in_shots_lane(ev.position):
 				_drag = {"kind": "scrub"}
 				scrubbed.emit(float(_shots()[sci]["t"]) if sci >= 0 else t_of(ev.position.x))
+				accept_event()
+				return
+			var iqs := iq_span_at(ev.position)   # VIDEO IQ: a click on the confidence lane = the playhead goes there; on a span, to its start
+			if iqs != -2:
+				scrubbed.emit(float(S.iq["spans"][iqs]["t0"]) if iqs >= 0 else t_of(ev.position.x))
+				_drag = {"kind": "scrub"}
 				accept_event()
 				return
 			var bxi := box_at(ev.position)   # ROADMAP 36: a click on the boxes lane picks that box
@@ -509,6 +515,56 @@ func _retime_to(x: float, fine: bool) -> void:
 	queue_redraw()
 
 
+## THE CONFIDENCE LANE (VIDEO IQ, scripts/video_iq.gd): one thin lane under the cards (above the sound lanes) when the scene came
+## from a video (Scene.iq) and the lane is on (main.iq_show, the "Video: confidence lane and footprints" command). A block per
+## frame coloured by the tracker's confidence (VideoIQ.lane_colour: green sure, gold unsure, red lost), the low spans named
+## ("left hand lost 2.1-2.6 s"). A click on the lane moves the playhead (to a span's start when it is on one)
+const IQ_H := 16.0   # px: the lane's height (a 5 px bar of confidence colours, the span names under it)
+const IQ_BAR := 5.0
+
+
+func iq_px() -> float:
+	var S := _S()
+	if S == null or m == null or not bool(m.get("iq_show")) or S.iq.is_empty() or not (S.iq.get("conf", null) is Array):
+		return 0.0
+	return IQ_H
+
+
+## the lane's rectangle (zero-size when it is not shown)
+func iq_rect() -> Rect2:
+	var h := iq_px()
+	return Rect2(0.0, size.y - audio_h() - h, size.x, h)
+
+
+## -2 = p is not on the lane; -1 = on the lane, on no span; else the span's index in Scene.iq["spans"]
+func iq_span_at(p: Vector2) -> int:
+	var r := iq_rect()
+	if r.size.y <= 0.0 or not r.has_point(p):
+		return -2
+	var t := t_of(p.x)
+	var sp_ := _S().iq.get("spans", []) as Array
+	for i in sp_.size():
+		if t >= float(sp_[i]["t0"]) - 1e-6 and t <= float(sp_[i]["t1"]) + 1.0 / maxf(float(_S().iq.get("fps", 30.0)), 1.0):
+			return i
+	return -1
+
+
+func _draw_iq_lane(S: Scene, font: Font) -> void:
+	var r := iq_rect()
+	var conf: Array = S.iq["conf"]
+	var dt := float(S.iq.get("dt", 1.0 / 30.0))
+	draw_rect(r, Tok.of("ink:0.08"))
+	for i in conf.size():
+		var xa := x_of(i * dt)
+		var xb := x_of((i + 1) * dt)
+		if xb < 0.0 or xa > size.x:
+			continue
+		draw_rect(Rect2(xa, r.position.y + 1.0, maxf(xb - xa, 1.0), IQ_BAR), VideoIQ.lane_colour(float(conf[i]) / 100.0))
+	for sp_ in S.iq.get("spans", []):
+		var xs := x_of(float(sp_["t0"]))
+		draw_string(font, Vector2(xs + 3.0, r.position.y + r.size.y - 1.0), String(sp_["text"]), HORIZONTAL_ALIGNMENT_LEFT, maxf(x_of(float(sp_["t1"])) - xs + 120.0, 60.0), 9, Tok.of("ink:0.85"))
+
+
 ## ROADMAP 77: the height of the sound lanes under the cards (one LANE_H per track)
 func audio_h() -> float:
 	var S := _S()
@@ -638,7 +694,7 @@ func _draw() -> void:
 	var y0 := RULER + 2.0 + fdh + bxh + shp
 	var ah := audio_h()
 	_clip_fit(S)
-	var h := size.y - y0 - 2.0 - ah - _clip_px
+	var h := size.y - y0 - 2.0 - ah - iq_px() - _clip_px
 	for i in S.cards.size():
 		var sel: bool = i == int(m.sel_card)
 		var base := Color(0.32, 0.5, 0.82) if i % 2 == 0 else Color(0.28, 0.6, 0.62)
@@ -685,6 +741,8 @@ func _draw() -> void:
 			draw_line(Vector2(hx + g, y0 + h * 0.35), Vector2(hx + g, y0 + h * 0.65), Tok.c("tl_bg"), 1.0)
 	if ah > 0.0:
 		_draw_audio_lanes(S, font)
+	if iq_px() > 0.0:
+		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
 	if not fd.is_empty():
 		_draw_fd_strip(font, RULER + 2.0)
@@ -850,7 +908,7 @@ func _clip_rows_h(S: Scene) -> float:
 ## the top of clip k's row (rows stack from the bottom up: each clip's row, the picked one's panel under its bar)
 func _clip_y(k: int) -> float:
 	var S := _S()
-	var y := size.y - audio_h() - _clip_px
+	var y := size.y - audio_h() - iq_px() - _clip_px
 	var sel := _clip_sel()
 	for j in k:
 		y += CLIP_H + (WARP_H if j == sel else 0.0)

@@ -6,6 +6,10 @@
 ## folder opened grows it by its rows, folded back it shrinks again, never past the scene panel.
 extends SceneTree
 
+## The bar was 70 % before the page bar (Resolve-style, 34 px + its margins = 38 px along the very bottom, 4.2 % of 900 px) took its
+## row: 71.8 % - 4.2 % = 67.6 %, measured. The bar is the old one minus that row (rounded down to 66), the page bar being intended.
+const VIEW_MIN := 66.0
+
 var fails := 0
 var m: Node
 
@@ -68,8 +72,8 @@ func _init() -> void:
 	await idle(6)
 	var lp: Control = m.ui_side_of["left"]
 	var s := share()
-	ok(m.ui_insp.is_visible_in_tree() and lp.is_visible_in_tree() and m.ui_play_row.is_visible_in_tree() and s >= 70.0,
-		"the browser, the inspector and the one strip shown: the view is %.1f %% of the window (at least 70); everything open %.1f %% (reported, not barred)" % [s, open])
+	ok(m.ui_insp.is_visible_in_tree() and lp.is_visible_in_tree() and m.ui_play_row.is_visible_in_tree() and s >= VIEW_MIN,
+		"the browser, the inspector and the one strip shown: the view is %.1f %% of the window (at least %.0f); everything open %.1f %% (reported, not barred)" % [s, VIEW_MIN, open])
 	var room: float = root.get_visible_rect().size.y - m.bottom_h - 6.0
 	var h0 := lp.get_global_rect().size.y
 	ok(lp.get_global_rect().end.y < room - 100.0, "  the browser as tall as its rows: %.0f px, ends at %.0f (the panel at %.0f)" % [h0, lp.get_global_rect().end.y, room])

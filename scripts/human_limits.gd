@@ -117,7 +117,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	var rows := []
 	for i in n:
 		var t := minf(i / FPS, S.length())
-		S.apply(B, t)
+		S.apply_true(B, t)
 		var row := {"rel": {}, "pts": {}}
 		for j in TURN:
 			var pr: Array = TURN[j]
@@ -352,7 +352,7 @@ const GAIT_SPEED := 1.0
 static func _tipping(sm: Dictionary, i: int) -> bool:
 	if sm.has("cv") and float(sm["cv"][i]) >= GAIT_SPEED:
 		return false
-	return float(sm["margin"][i]) < 0.0 and bool(sm["down"][i]) and not bool(sm["sup"][i])
+	return float(sm["margin"][i]) < -Balance.MARGIN_RES and bool(sm["down"][i]) and not bool(sm["sup"][i])
 
 
 static func _words(j: String) -> String:

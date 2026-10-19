@@ -35,7 +35,12 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"beats_snap_the_contact_cards_to_the_nearest_beat": "needs beats and hit markers on the scene (beat_track_test runs the snap on a clone and checks it)",
 	"weight_time_the_swing_to_the_weapon": "needs a hit marker on a card that holds a non-reference weapon (weight_feel_test runs it on the app and checks the one undo step)",
 	"beats_clear_the_beats": "needs beats on the timeline (beat_track_test covers the scene key they clear)",
-	"import_animation_fbx_glb_gltf_bvh_...": "opens a file dialog; the import writes + opens a NEW scene in scenes/_wip (anim_import_test runs it)"}
+	"import_animation_fbx_glb_gltf_bvh_...": "opens a file dialog; the import writes + opens a NEW scene in scenes/_wip (anim_import_test runs it)",
+	"shots_rename_the_shot_at_the_playhead": "opens a rename dialog; the edit is made by its OK (camseq_test renames through _shot_rename_to and checks the one undo step)",
+	"walk_along_a_path...": "opens the path mode (and, from a second fighter, switches to the hero); the scene is made by Enter as one undo step (pathwalk_ui_test runs it and its Ctrl+Z / Ctrl+Y, pathfix swaps the scene object)",
+	"root_path_scale_length...": "opens the scale dialog; the edit is made by its OK through _rp_scale (the slider is not an edit until OK)",
+	"retime_scale_the_range_around_the_playhead...": "opens the retime dialog; the edit is made by its OK (retimerange_test runs RetimeRange.apply and its one undo step)",
+	"reduce_part_keys_tolerance_slider": "opens the tolerance slider; the edit is made when it is kept (key_reduce_test drags it and checks the one undo step)"}
 
 ## the start each command was first seen to change something from (read off the audit's own log): tried FIRST, so a
 ## command that only changes from KEYS / SETS / HITS / ... is not run through every earlier start (each a build + the run).
@@ -143,7 +148,7 @@ func fp() -> String:
 	# the fingerprint moved with nothing done) and adds derived data (bad_frames) that re-plays the whole scene per call
 	var sd := {"cards": m.S.cards, "name": m.S.name, "natural": m.S.natural, "spline": m.S.spline, "on_floor": m.S.on_floor,
 		"floor_body": m.S.floor_body, "pin": m.S.pin, "fps": m.S.fps, "moving_holds": m.S.moving_holds,
-		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers,   # WW1, WW5
+		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers, "crowd": var_to_str(m.S.crowd),   # WW1, WW5; the crowd (ROADMAP 95, undone with the markers)
 		"notes": m.S.notes,   # ROADMAP 29: the review notes
 		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
 		"hair": var_to_str(m.S.hair), "cape": var_to_str(m.S.cape),   # HAIR (ROADMAP 87), CAPE (ROADMAP 86)
@@ -308,6 +313,44 @@ func start(kind: String) -> void:
 		m.S.cape = Cloth.bake_scene(m.S, m.B)
 		m.undo.clear()
 		m.redo.clear()
+	elif kind == "CROWD":   # Crowd: re-roll / remove need a crowd made on the fighter (its settings live in the scene)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m._crowd_make()
+		m.undo.clear()
+		m.redo.clear()
+	elif kind == "HITMK":   # Camera: impact shakes on the hit markers: a keyed shot camera and a marker named hit
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.shots = [{"t": 0.0, "name": "Shot 1", "keys": []}]
+		ShotCam.put(m.S.shots[0]["keys"], {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
+		ShotCam.put(m.S.shots[0]["keys"], {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
+		Markers.add(m.S.markers, 0.5, "hit")
+	elif kind == "KTYPE":   # Part key type: key needs a key at the playhead that is not already a key (a breakdown here)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.sel = "lowerarm_r"
+		PartKeys.put(m.S.part_keys, "lowerarm_r", m.playhead, Vector3(20, 0, 0))
+		PartKeys.set_ktype(m.S.part_keys, "lowerarm_r", 0, "breakdown")
+	elif kind == "BREAK":   # Breakdown: add a key in between: two keys either side of the playhead, none at it
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.sel = "lowerarm_r"
+		PartKeys.put(m.S.part_keys, "lowerarm_r", m.playhead - 0.25, Vector3(20, 0, 0))
+		PartKeys.put(m.S.part_keys, "lowerarm_r", m.playhead + 0.25, Vector3(60, 0, 0))
+	elif kind == "POSECOPY":   # Pose: copy to the other fighter: the hero is the active one, the second fighter the target
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m._actor_add()
+		while m.actor_on != 0:
+			m._actor_next()
+		m._card_pick(2)
+		m.sel = "lowerarm_r"
 	elif kind == "SHAKE":
 		# the CAMERA start with the shot's own fx (shake + rack focus) keyed AT the playhead: for their remove commands
 		# (a remove with nothing at the playhead refuses and changes nothing; this start gives it something to remove)
@@ -601,7 +644,7 @@ func _init() -> void:
 		t_prev = c["id"]
 		var r := await trial(c, PREFER.get(c["id"], "A"))
 		if r == "same" and c["edits"]:
-			for k in ["A", "B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "SPINE", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "SHAKE", "SIT", "HAIR", "CAPE", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
+			for k in ["A", "B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "SPINE", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "SHAKE", "SIT", "HAIR", "CAPE", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP", "CROWD", "HITMK", "KTYPE", "BREAK", "POSECOPY"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

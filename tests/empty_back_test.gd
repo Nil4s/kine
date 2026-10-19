@@ -86,13 +86,11 @@ func _init() -> void:
 	await visit("EMPTY", "at start")
 	open_combo()
 	await visit("SCENE", "combo3 opened")
-	var nb: Control = m.find_child("b_new_empty_scene", true, false)
-	if nb == null:
-		for b in m.find_children("*", "Button", true, false):
-			if (b as Button).text == "New empty scene":
-				nb = b
-	ok(nb != null and nb.is_visible_in_tree(), "  the 'New empty scene' button is on screen (%s)" % (nb.name if nb != null else "none"))
-	await click(nb)
+	ok(m.ui_scene_btn.is_visible_in_tree(), "  the Scene menu (New empty scene is its item) is on screen")
+	await click(m.ui_scene_btn)
+	m.ui_scene_btn.get_popup().hide()
+	m._scene_menu_pick(3)
+	await idle(3)
 	await visit("EMPTY", "New empty scene clicked")
 	open_combo()
 	await visit("SCENE", "combo3 opened again")

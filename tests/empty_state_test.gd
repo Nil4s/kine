@@ -26,12 +26,12 @@ func state(tag: String, want_empty: bool) -> void:
 			over += 1
 	if st.end.y > bp.position.y + 0.5:
 		over += 1
-	var want_h: float = m.BOTTOM_EMPTY if want_empty else m.BOTTOM_H
+	var want_h: float = m.BOTTOM_EMPTY if want_empty else m.BOTTOM_H   # every BOTTOM_ height includes the page bar (PAGE_H) under the panel
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
 	var mpp: float = 2.0 * m.dist * tan(deg_to_rad(m.cam.fov * 0.5)) / vs.y
 	var cam_ok: bool = is_equal_approx(m.cam.v_offset, -(want_h + 6 + m.LINE_H - m.TOP_H) * 0.5 * mpp)   # round 36 (RR5): centred above the status line
 	print("     %s: panel %.0f px tall (top at %.0f), timeline %s, play row %s, overlaps %d, camera centred %s" % [tag, bp.size.y, bp.position.y, m.ui_timeline.visible, m.ui_play_row.visible, over, cam_ok])
-	ok(absf(bp.size.y - (want_h - 6.0)) < 1.0 and m.ui_timeline.visible != want_empty and m.ui_play_row.visible != want_empty and over == 0 and cam_ok,
+	ok(absf(bp.size.y - (want_h - 6.0 - m.PAGE_H)) < 1.0 and m.ui_timeline.visible != want_empty and m.ui_play_row.visible != want_empty and over == 0 and cam_ok,
 		"%s: %s" % [tag, "collapsed (scene row + hint)" if want_empty else "full (cards, timeline, play row)"])
 
 
