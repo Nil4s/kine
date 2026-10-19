@@ -220,7 +220,8 @@ static func _shoulder_moment(rows: Array, sd: String, kg: Dictionary, sex: Strin
 	var loads := []   # [centre track, mass kg, accel track, I alpha track, share]
 	loads.append([fc, float(kg["forearm"]), _accel(fc, n), _rot(lo, wr, n, float(kg["forearm"]), float(KT[sex]["forearm"])), 1.0])
 	loads.append([hc, float(kg["hand"]), _accel(hc, n), _rot(wr, en, n, float(kg["hand"]), float(KT[sex]["hand"])), 1.0])
-	if bat > 0.0:
+	# the weapon can be off on some frames (dropped, taken, swapped by a later card): no bat load then
+	if bat > 0.0 and rows.all(func(r): return r["pts"].has("bat_com")):
 		var bc := []
 		var kn := []
 		var tp := []
