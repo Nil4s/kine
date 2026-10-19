@@ -150,7 +150,7 @@ const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "tra
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video", "Ask AI"]]],
@@ -959,7 +959,7 @@ func _export_game(dir := "res://exports") -> Array:
 	for s in T["tracks"]:
 		n += (T["tracks"][s] as Array).size()
 		w = maxf(w, T["worst"][s])
-	_say_plain("exported to the game: %s (%d keys on 11 bones, within %.2f degrees of Kine). The hands, feet and fingers do not reach the game" % [(out[0] as String).get_basename() + ".json / .cs", n, w])
+	_say_plain("exported to the game: %s (%d keys on 11 bones, within %.2f° of Kine). The hands, feet and fingers do not reach the game" % [(out[0] as String).get_basename() + ".json / .cs", n, w])
 	return out
 
 
@@ -1065,7 +1065,7 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 		how = " and %s.mp4" % nm
 	else:
 		how = ". No .mp4: ffmpeg (%s) failed on the frames; the PNGs are fine, run ffmpeg on them yourself" % ff
-	_say_plain("playblast: %d PNG frames at %d fps (%.2f to %.2f s) in %s%s" % [n, fps, sp[0], sp[1], dir, how])
+	_say_plain("playblast: %d PNG frames at %d fps (%s to %s) in %s%s" % [n, fps, Units.time(sp[0], S.fps), Units.time(sp[1], S.fps), dir, how])
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
 
 
@@ -1553,7 +1553,7 @@ func _ready() -> void:
 		_sync = false
 		_tween(float(args[i + 2]))
 	if args.has("--history"):   # the undo history panel, after a few named steps (shots)
-		for n in ["Copy right side to left", "Mirror the whole pose", "Arms down 25 deg"]:
+		for n in ["Copy right side to left", "Mirror the whole pose", "Arms down 25°"]:
 			for c in ui_cmd.commands:
 				if c["name"] == n:
 					_step_hint = n
@@ -1998,7 +1998,7 @@ func _dummy_refresh() -> void:
 	if not h.is_empty():
 		hit_dot.position = h["at"]
 		hit_tag.position = (h["at"] as Vector3) + Vector3(0, 0.12, 0)
-		hit_tag.text = "%s  (%.2f m up the weapon)" % [h["zone"], h["u"]]
+		hit_tag.text = "%s  (%s up the weapon)" % [h["zone"], Units.len(h["u"])]
 
 
 ## the timeline's height: its 34 px of rows, and the strips under the ruler (the frame strip, ROADMAP 12; the boxes lane, ROADMAP 36)
@@ -2044,8 +2044,8 @@ func _fd_cycle_fps() -> void:
 	var order := [24, 30, 60, 120]
 	fd_fps = order[(order.find(fd_fps) + 1) % order.size()]
 	if fd_btn != null:
-		fd_btn.tooltip_text = "Frame rate\nthe frame rate the frame data counts in (24, 30, 60, 120): now %d fps" % fd_fps
-	_say_plain("frame data now counts in %d fps (click again for the next: 24, 30, 60, 120)" % fd_fps)
+		fd_btn.tooltip_text = "Frame rate\nthe frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps
+	_say_plain("frame data now counts in %d fps (click again for the next: 24, 30, 60, 120 fps)" % fd_fps)
 	_refresh()
 
 
@@ -2116,7 +2116,7 @@ func _fd_export() -> void:
 	dlg.file_selected.connect(func(p):
 		var e := FrameData.write_json(data, p)
 		if e == OK:
-			_say_plain("frame data written: %s (startup %d, active %d, recovery %d at %d fps)" % [p.get_file(), data["startup"], data["active"], data["recovery"], data["fps"]])
+			_say_plain("frame data written: %s (startup %d f, active %d f, recovery %d f at %d fps)" % [p.get_file(), data["startup"], data["active"], data["recovery"], data["fps"]])
 		else:
 			_say_plain("NOT WRITTEN: %s could not be saved (error %d)" % [p.get_file(), e])
 		dlg.queue_free())
@@ -2328,7 +2328,7 @@ func _goto_hit(i: int) -> void:
 	playhead = float(h["t"])
 	_ps().apply(B, playhead)
 	_refresh()
-	_say("%.2f s: %s on the %s (%s), %.1f m/s" % [h["t"], h["kind"], h["zone"], h["on"], h["speed"]])
+	_say("%s: %s on the %s (%s), %.1f m/s" % [Units.time(h["t"], S.fps), h["kind"], h["zone"], h["on"], h["speed"]])
 
 
 ## Hits: make the struck fighter react (ROADMAP 14, round 52). The first row of the fighters' report that lands on a body
@@ -2363,10 +2363,10 @@ func _hit_react() -> void:
 	wt.mark_dirty()
 	_refresh()
 	var J: Vector3 = r["J"]
-	_say("%s reacts to %s's %s at %.2f s (%s): impulse %.1f kg m/s (%.2f kg x %.1f m/s), its %s turns %.0f deg/s at most, the pelvis is shoved %.2f m/s; %.2f s of cards" % [
+	_say("%s reacts to %s's %s at %s (%s): impulse %.1f kg m/s (%.2f kg x %.1f m/s), its %s turns %.0f°/s at most, the pelvis is shoved %.2f m/s; %s of cards" % [
 		actors_rt[vk]["name"], actors_rt[sk]["name"], "weapon" if Body.is_wep(String(h["part"])) else String(h["part"]),
-		float(r["t0"]), h["zone"], J.length(), float(r["m_eff"]), float(r["v_rel"]), String(h["on"]), rad_to_deg(float(r["peak"])),
-		float(r["shove"]), float(r["t1"]) - float(r["t0"])])
+		Units.time(float(r["t0"]), S.fps), h["zone"], J.length(), float(r["m_eff"]), float(r["v_rel"]), String(h["on"]), rad_to_deg(float(r["peak"])),
+		float(r["shove"]), Units.time(float(r["t1"]) - float(r["t0"]), S.fps)])
 
 
 ## the weapon's radii + materials for its kind
@@ -3035,7 +3035,7 @@ func _pose_words(text: String) -> Dictionary:
 				"stopped": absf(got - want[op["axis"]]) > 0.05}))
 	sel = r["ops"][-1]["joint"]
 	var stopped := rep.filter(func(x): return x["stopped"])
-	_say("posed: %s%s" % [text, ("   (stopped short: %s)" % ", ".join(stopped.map(func(x): return "%s %s %.0f of %.0f" % [nice(x["joint"]), x["axis"], x["reached"], x["asked"]]))) if not stopped.is_empty() else ""])
+	_say("posed: %s%s" % [text, ("   (stopped short: %s)" % ", ".join(stopped.map(func(x): return "%s %s %.0f° of %.0f°" % [nice(x["joint"]), x["axis"], x["reached"], x["asked"]]))) if not stopped.is_empty() else ""])
 	return {"ok": true, "ops": rep}
 
 
@@ -3131,7 +3131,7 @@ func _autokey_card() -> void:
 	if ci >= 0:
 		S.cards[ci]["pose"] = B.to_dict()
 		_rebuild_cards()
-		_say("Auto-key: card %d takes the body at %.2f s" % [ci + 1, playhead])
+		_say("Auto-key: card %d takes the body at %s" % [ci + 1, Units.time(playhead, S.fps)])
 		return
 	var at := S.cards.size()
 	var ts := S.times()
@@ -3146,7 +3146,7 @@ func _autokey_card() -> void:
 	sel_card = at
 	_rebuild_cards()
 	_refresh()
-	_say("Auto-key: card %d keyed at %.2f s" % [at + 1, playhead])
+	_say("Auto-key: card %d keyed at %s" % [at + 1, Units.time(playhead, S.fps)])
 
 
 func _big_view() -> void:
@@ -3754,7 +3754,7 @@ func _actor_add() -> void:
 	S.actors.append({"name": "fighter 2", "xf": {"pos": [0.0, 1.5], "yaw": 180.0}, "scene": S2})
 	_actors_build(B, S)
 	_refresh()
-	_say("a second fighter: '%s' (this scene mirrored), 1.5 m in front, facing this one.  'Actor: switch to the next fighter' poses it; Save scene keeps both" % S2.name)
+	_say("a second fighter: '%s' (this scene mirrored), 150 cm in front, facing this one.  'Actor: switch to the next fighter' poses it; Save scene keeps both" % S2.name)
 
 
 ## Actor: switch to the next fighter (not an undo step: which actor is active is a view, like the picked part)
@@ -4012,7 +4012,7 @@ func _key_part() -> void:
 		return
 	var t := clampf(playhead, 0.0, S.length())
 	_do(func(): PartKeys.put(S.part_keys, sel, t, B.ang[sel]))
-	_say("keyed %s at %.2f s  (%d key%s on it; Ctrl+Z takes it back)" % [sel, t, S.part_keys[sel].size(), "" if S.part_keys[sel].size() == 1 else "s"])
+	_say("keyed %s at %s  (%d key%s on it; Ctrl+Z takes it back)" % [sel, Units.time(t, S.fps), S.part_keys[sel].size(), "" if S.part_keys[sel].size() == 1 else "s"])
 
 
 ## IK / FK WITH POLE TARGETS (GAP_ANALYSIS row 13; scripts/limb_ik.gd). The picked part names the limb (an arm part or a
@@ -4038,7 +4038,7 @@ func _ik_pin() -> void:
 	_do(func(): r.merge(LimbIK.pin(S, B, tip, t)))
 	_dummy_hits()
 	var p: Vector3 = r["target"]
-	_say("pinned the %s at %.2f s, at (%.2f, %.2f, %.2f) m: it stays there whatever the body does, its %s toward the pole (Ctrl+Z takes it back)" % [_ik_words(tip), t, p.x, p.y, p.z, "elbow" if tip.begins_with("hand") else "knee"])
+	_say("pinned the %s at %s, at (%s, %s, %s): it stays there whatever the body does, its %s toward the pole (Ctrl+Z takes it back)" % [_ik_words(tip), Units.time(t, S.fps), Units.len(p.x), Units.len(p.y), Units.len(p.z), "elbow" if tip.begins_with("hand") else "knee"])
 
 
 func _ik_release() -> void:
@@ -4057,7 +4057,7 @@ func _ik_release() -> void:
 	var r := {}
 	_do(func(): r.merge(LimbIK.release(S, B, tip, t)))
 	_dummy_hits()
-	_say("released the %s at %.2f s: card %d now holds its pinned pose (off by %.2f deg at most), so it follows the cards from here without a jump" % [_ik_words(tip), t, int(r["card"]) + 1, float(r["residual"])])
+	_say("released the %s at %s: card %d now holds its pinned pose (off by %.2f° at most), so it follows the cards from here without a jump" % [_ik_words(tip), Units.time(t, S.fps), int(r["card"]) + 1, float(r["residual"])])
 
 
 func _ik_snap_fk() -> void:
@@ -4072,7 +4072,7 @@ func _ik_snap_fk() -> void:
 	var r := {}
 	_do(func(): r.merge(LimbIK.snap_fk(S, B, tip, t)))
 	_dummy_hits()
-	_say("card %d took the %s's IK pose (off by %.2f deg at most); its IK keys stay" % [int(r["card"]) + 1, _ik_words(tip), float(r["residual"])])
+	_say("card %d took the %s's IK pose (off by %.2f° at most); its IK keys stay" % [int(r["card"]) + 1, _ik_words(tip), float(r["residual"])])
 
 
 func _ik_snap_ik() -> void:
@@ -4087,7 +4087,7 @@ func _ik_snap_ik() -> void:
 	var r := {}
 	_do(func(): r.merge(LimbIK.snap_ik(S, B, tip, t)))
 	_dummy_hits()
-	_say("the %s's IK target and pole keyed at %.2f s where the cards put it (IK weight there %.2f)" % [_ik_words(tip), t, float(r["w"])])
+	_say("the %s's IK target and pole keyed at %s where the cards put it (IK weight there %.2f)" % [_ik_words(tip), Units.time(t, S.fps), float(r["w"])])
 
 
 ## FOOT PLANTS over a time range (ROADMAP 8; scripts/foot_plant.gd). The picked foot's sole holds where it is at the start
@@ -4117,7 +4117,7 @@ func _foot_plant_at(tip: String, t0: float, t1: float) -> void:
 	_dummy_hits()
 	var who := _ik_words(tip)
 	if (rep["bad"] as Array).is_empty():
-		_say("the %s is planted %.2f-%.2f s: its sole holds on every frame (worst %.2f mm, turn %.2f deg; Ctrl+Z takes it back)" % [who, t0, t1, float(rep["worst"]) * 1000.0, float(rep["turn_worst"])])
+		_say("the %s is planted %.2f-%.2f s: its sole holds on every frame (worst %.2f mm, turn %.2f°; Ctrl+Z takes it back)" % [who, t0, t1, float(rep["worst"]) * 1000.0, float(rep["turn_worst"])])
 	else:
 		var bad: Array = rep["bad"]
 		_say("the %s is planted %.2f-%.2f s, but its leg cannot reach the planted place on %d of %d frames (%.2f-%.2f s, worst %.0f mm): the foot slides there" % [who, t0, t1, bad.size(), int(rep["frames"]), float(bad[0][0]), float(bad[-1][0]), float(rep["worst"]) * 1000.0])
@@ -4157,13 +4157,13 @@ func _foot_unplant() -> void:
 		return
 	var t := clampf(playhead, 0.0, S.length())
 	if FootPlant.remove_at(S.plants, tip, t).size() == S.plants.size():
-		_say("no plant of the %s covers %.2f s: move the playhead into its planted range" % [_ik_words(tip), t])
+		_say("no plant of the %s covers %s: move the playhead into its planted range" % [_ik_words(tip), Units.time(t, S.fps)])
 		return
 	_do(func():
 		S.plants = FootPlant.remove_at(S.plants, tip, t)
 		S.apply(B, t))
 	_dummy_hits()
-	_say("the %s is free at %.2f s: it follows the cards again (Ctrl+Z takes the plant back)" % [_ik_words(tip), t])
+	_say("the %s is free at %s: it follows the cards again (Ctrl+Z takes the plant back)" % [_ik_words(tip), Units.time(t, S.fps)])
 
 
 var _fp_line: MeshInstance3D   # the footprints under the planted feet (ROADMAP 8)
@@ -4339,7 +4339,7 @@ func _ikh_press(mp: Vector2) -> bool:
 	playing = false
 	dragging = "ik_handle"
 	_refresh()
-	_say("IK %s of the %s: drag it; the %s follows. Release keys it at %.2f s" % [kind, _ik_words(tip), "hand" if tip.begins_with("hand") else "foot", t])
+	_say("IK %s of the %s: drag it; the %s follows. Release keys it at %s" % [kind, _ik_words(tip), "hand" if tip.begins_with("hand") else "foot", Units.time(t, S.fps)])
 	return true
 
 
@@ -4431,7 +4431,7 @@ func _ikh_release() -> void:
 	_dummy_hits()
 	_refresh()
 	var p: Vector3 = d[d["kind"]]
-	_say("keyed the %s's IK %s at %.2f s, at (%.2f, %.2f, %.2f) m (Ctrl+Z takes it back)" % [_ik_words(d["tip"]), d["kind"], t, p.x, p.y, p.z])
+	_say("keyed the %s's IK %s at %s, at (%s, %s, %s) (Ctrl+Z takes it back)" % [_ik_words(d["tip"]), d["kind"], Units.time(t, S.fps), Units.len(p.x), Units.len(p.y), Units.len(p.z)])
 
 
 ## REVERSE-FOOT HANDLES (ROADMAP item 6; scripts/foot_handles.gd, scripts/foot_roll.gd). A picked foot shows three handles
@@ -4483,7 +4483,7 @@ func _frh_press(mp: Vector2) -> bool:
 	playing = false
 	dragging = "foot_handle"
 	_refresh()
-	_say("ROLL the %s foot on its %s: drag up (the foot turns about that point); release keys it at %.2f s" % [nice(sel).to_lower(), kind, clampf(playhead, 0.0, S.length())])
+	_say("ROLL the %s foot on its %s: drag up (the foot turns about that point); release keys it at %s" % [nice(sel).to_lower(), kind, Units.time(clampf(playhead, 0.0, S.length()), S.fps)])
 	return true
 
 
@@ -4494,7 +4494,7 @@ func _frh_move(mp: Vector2) -> void:
 	_frh_drag["moved"] = true
 	var r := FootHandles.drag(B, _frh_drag["sd"], _frh_drag["kind"], _frh_drag["start"], _frh_drag["up"])
 	_after_edit()
-	_say("ROLLING the foot on its %s by %.1f deg%s" % [_frh_drag["kind"], float(r.get("roll", 0.0)),
+	_say("ROLLING the foot on its %s by %.1f°%s" % [_frh_drag["kind"], float(r.get("roll", 0.0)),
 		"     stopped at %.1f of %.1f deg: the leg cannot turn it further about that point" % [float(r["roll"]), float(r["asked"])] if r.get("stopped", false) else ""])
 
 
@@ -4512,7 +4512,7 @@ func _frh_release() -> void:
 	for j in FootHandles.keys_of(B, d["sd"]):
 		PartKeys.put(S.part_keys, j, t, B.ang[j])
 	_refresh()
-	_say("keyed the %s foot's roll on its %s at %.2f s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], t])
+	_say("keyed the %s foot's roll on its %s at %s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], Units.time(t, S.fps)])
 ## USER CONSTRAINTS (round 51, GATES CN; scripts/constraints.gd): Child Of, Track To (look at), Floor, on the scene's
 ## stack, played after IK. The TARGET is picked first ("Constraint: use the picked part as the target", a view setting,
 ## not undone), then the owner is the picked part. With no target picked: the other hand (Child Of), the other fighter's
@@ -4642,7 +4642,7 @@ func _cons_child_of() -> void:
 		return
 	_do(func(): Constraints.add_child_of(S, B, owner, tg, t))
 	_dummy_hits()
-	_say("the %s now follows %s from %.2f s, keeping where it is from it (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), _cons_tg_words(tg), t])
+	_say("the %s now follows %s from %s, keeping where it is from it (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), _cons_tg_words(tg), Units.time(t, S.fps)])
 
 
 func _cons_look() -> void:
@@ -4664,7 +4664,7 @@ func _cons_look() -> void:
 		return
 	_do(func(): Constraints.add_track_to(S, B, tg, t))
 	_dummy_hits()
-	_say("the head looks at %s from %.2f s (turning in over %d frames), never past the neck's limits" % [_cons_tg_words(tg), t, Constraints.FADE_FRAMES])
+	_say("the head looks at %s from %s (turning in over %d frames), never past the neck's limits" % [_cons_tg_words(tg), Units.time(t, S.fps), Constraints.FADE_FRAMES])
 
 
 func _cons_floor() -> void:
@@ -4689,7 +4689,7 @@ func _cons_fade(to: float) -> void:
 	var t := clampf(playhead, 0.0, S.length())
 	_do(func(): Constraints.fade(S, i, t, to))
 	_dummy_hits()
-	_say("the %s's constraint fades %s over %d frames from %.2f s" % [_cons_words(owner), "in" if to > 0.0 else "out", Constraints.FADE_FRAMES, t])
+	_say("the %s's constraint fades %s over %d frames from %s" % [_cons_words(owner), "in" if to > 0.0 else "out", Constraints.FADE_FRAMES, Units.time(t, S.fps)])
 
 
 func _cons_release() -> void:
@@ -4708,7 +4708,7 @@ func _cons_release() -> void:
 	var r := {}
 	_do(func(): r.merge(Constraints.release_keep(S, B, i, t)))
 	_dummy_hits()
-	_say("released the %s at %.2f s: card %d now holds the pose the constraint gave it (off by %.2f deg), so nothing jumps" % [_cons_words(owner), t, int(r.get("card", 0)) + 1, float(r.get("residual", 0.0))])
+	_say("released the %s at %s: card %d now holds the pose the constraint gave it (off by %.2f°), so nothing jumps" % [_cons_words(owner), Units.time(t, S.fps), int(r.get("card", 0)) + 1, float(r.get("residual", 0.0))])
 
 
 func _cons_remove() -> void:
@@ -4749,7 +4749,7 @@ func _drv_follow() -> void:
 	var d := {"driven": sel, "axis": 0, "source": drv_source, "src_axis": 0, "factor": 1.0, "offset": 0.0}
 	_do(func(): Drivers.put(S.drivers, d))
 	_dummy_hits()
-	_say("%s now follows %s x 1.0 (bend on bend, every frame; the factor presets change it; Ctrl+Z takes it back)" % [nice(sel), nice(drv_source)])
+	_say("%s now follows %s at factor 1.0 (bend on bend, every frame; the factor presets change it; Ctrl+Z takes it back)" % [nice(sel), nice(drv_source)])
 
 
 func _drv_factor(f: float) -> void:
@@ -4990,7 +4990,7 @@ func _stage_spline() -> void:
 	if stepped_view:
 		_tool(3)
 	_check()
-	_say("%s3 CHECK: %s" % ["2 SPLINE: in-betweens back, the scene's own playback.  " if was else "", "clean" if findings.is_empty() else "%d to look at (the list below)" % findings.size()])
+	_say("%s3 CHECK: %s" % ["2 SPLINE: in-betweens back, the scene's own playback.  " if was else "", "clean" if findings.is_empty() else "%d findings to look at (the list below)" % findings.size()])
 
 
 ## YY7: every leg joint of the scene's walk against 42 real walkers; the ones outside named
@@ -5053,7 +5053,7 @@ func _snap(step: float) -> void:
 			s -= step
 		out[k] = clampf(s, r.x, r.y)
 	B.set_ang_safe(sel, out)
-	_say("snapped the %s to %d-degree steps" % [nice(sel), int(step)])
+	_say("snapped the %s to %d° steps" % [nice(sel), int(step)])
 
 
 func _arms_relaxed() -> void:
@@ -5078,7 +5078,7 @@ func _bat_put(h: String) -> void:
 ## ONE WEAPON PICKER (round 25, GATES FF1, Nick 10-16: "weapons could be a drop down list so it looks cleaner"): the
 ## same dropdown in both panels; picking = what the old buttons did (one undo step); _refresh makes every picker show
 ## what the body holds, whatever changed it (B, undo, a scene, the search); select() does not fire item_selected
-const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "0.84 m"], ["Bo staff", "staff", "1.8 m"], ["Long hammer", "long_hammer", "1.1 m"], ["Long axe", "long_axe", "1.2 m"], ["Dagger", "dagger", "0.30 m"], ["2 daggers", "two_daggers", "0.3 m"]]
+const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "84 cm"], ["Bo staff", "staff", "180 cm"], ["Long hammer", "long_hammer", "110 cm"], ["Long axe", "long_axe", "120 cm"], ["Dagger", "dagger", "30 cm"], ["2 daggers", "two_daggers", "30 cm"]]
 var ui_weapon_pickers: Array[OptionButton] = []
 
 
@@ -5144,7 +5144,7 @@ func _bat_lock() -> void:
 		B.lock_weapon(h)
 		var off := B.capture_second()
 		if off >= 0.0 and off <= 0.05:
-			_say("LOCKED in BOTH hands (the %s holds it, the other hand keeps its grip at %.2f m): they move together. G lets the second hand go" % [nice(h), B.grip_u])
+			_say("LOCKED in BOTH hands (the %s holds it, the other hand keeps its grip at %s): they move together. G lets the second hand go" % [nice(h), Units.len(B.grip_u)])
 		else:
 			_say("LOCKED to the %s: it moves with the hand (the other hand isn't on the shaft%s)" % [nice(h), "" if off < 0.0 else ": %.0f cm off" % (off * 100.0)])
 
@@ -5162,7 +5162,7 @@ var ui_back := {}   # "bend" / "side" / "twist" -> HSlider (YY4)
 func _on_back_slider(v: float, k: String) -> void:
 	B.back_bend(k, v)
 	_refresh()
-	_say("the back: %s %.0f deg over the spine, neck and head" % [{"bend": "forward", "side": "side", "twist": "twist"}[k], B.back_of(k)])
+	_say("the back: %s %.0f° over the spine, neck and head" % [{"bend": "forward", "side": "side", "twist": "twist"}[k], B.back_of(k)])
 
 
 ## LAYER (round 43, YY9): the body's change from what the scene plays at the playhead, added to the scene's one layer
@@ -5276,7 +5276,7 @@ func _layer_merge() -> void:
 	_dummy_hits()
 	_ps().apply(B, playhead)
 	_refresh()
-	_say("merged into %d card%s: at the cards' arrivals the scene plays as layered within %.3f deg (%d passes); between them within %.2f deg (%s). Ctrl+Z gives the layers back" % [r["cards"], "" if r["cards"] == 1 else "s", r["at_cards"], r["iters"], r["every_frame"], r["frame_at"]])
+	_say("merged into %d card%s: at the cards' arrivals the scene plays as layered within %.3f° (%d passes); between them within %.2f° (%s). Ctrl+Z gives the layers back" % [r["cards"], "" if r["cards"] == 1 else "s", r["at_cards"], r["iters"], r["every_frame"], r["frame_at"]])
 
 
 ## NA1: a new layer on top, made active ("add" or "over")
@@ -5321,12 +5321,12 @@ func _layer_key_w(w := -1.0) -> void:
 	for k in wk:
 		if absf(float(k[0]) - playhead) < 1e-4:
 			k[1] = v
-			_say("'%s' weight key at %.2f s = %.2f" % [_layer_name(), playhead, v])
+			_say("'%s' weight key at %s = %.2f" % [_layer_name(), Units.time(playhead, S.fps), v])
 			return
 	wk.append([playhead, v])
 	wk.sort_custom(func(a, b): return a[0] < b[0])
 	_dummy_hits()
-	_say("'%s' weight keyed at %.2f s = %.2f (%d keys; the weight now follows them)" % [_layer_name(), playhead, v, wk.size()])
+	_say("'%s' weight keyed at %s = %.2f (%d keys; the weight now follows them)" % [_layer_name(), Units.time(playhead, S.fps), v, wk.size()])
 
 
 ## BREATH (YY6): step = -1 toggles (off <-> 15 a minute), else the rate changes by step (6..40 a minute)
@@ -5337,7 +5337,7 @@ func _breath_set(step: float) -> void:
 		S.breath = clampf((S.breath if S.breath > 0.0 else Body.BREATH_DEFAULT) + step, 6.0, 40.0)
 	_dummy_hits()   # the landed copy of the scene (SL) carries the rate too
 	_ps().apply(B, playhead)
-	_say("breathing: %s" % ("off" if S.breath <= 0.0 else "%.0f breaths a minute (people at rest 12-20), ~5 mm at the chest" % S.breath))
+	_say("breathing: %s" % ("off" if S.breath <= 0.0 else "%.0f breaths a minute (people at rest 12 to 20 breaths a minute), ~5 mm at the chest" % S.breath))
 
 
 ## a hand slider moved: the whole hand follows (the undo step was taken when the drag began)
@@ -5403,10 +5403,10 @@ func _slide(d: float) -> void:
 	if not slide_body:
 		B.slide_in_hand(-d)
 		B.apply_grip()
-		_say("the weapon slid in the hand: hand at %.2f m from the lower end" % B.hold_u())
+		_say("the weapon slid in the hand: hand at %s from the lower end" % Units.len(B.hold_u()))
 		return
 	if B.slide_hand(d):
-		_say("main hand at %.2f m from the lower end%s" % [B.hold_u(), ", the other hand re-gripped" if B.grip else ""])
+		_say("main hand at %s from the lower end%s" % [Units.len(B.hold_u()), ", the other hand re-gripped" if B.grip else ""])
 	else:
 		_say("the arm can't reach further that way: turn the weapon or move the body first")
 
@@ -5420,7 +5420,7 @@ func _toggle_second() -> void:
 	var off := B.capture_second()
 	if off < 0.0 or off > 0.05:
 		B.grip = true   # the fitted grip of this kind (or the rough reach) takes the hand to the shaft
-	_say("second hand on the weapon at %.2f m" % B.grip_u)
+	_say("second hand on the weapon at %s" % Units.len(B.grip_u))
 
 
 ## the main hand to the weapon's lower end (6 cm of shaft left below the fist), in 3 cm steps so the arm follows
@@ -5443,7 +5443,7 @@ func _hand_to_end() -> void:
 			B.slide_in_hand(d)
 			B.apply_grip()
 		n += 1
-	_say("main hand at %.2f m from the lower end%s" % [B.hold_u(), "" if B.hold_u() <= 0.1 else " (the arm can't follow further: turn the weapon or the body)"])
+	_say("main hand at %s from the lower end%s" % [Units.len(B.hold_u()), "" if B.hold_u() <= 0.1 else " (the arm can't follow further: turn the weapon or the body)"])
 
 
 func _slide_mode() -> void:
@@ -5462,10 +5462,10 @@ func _kind(k: String) -> void:
 	elif not B.wep_on:
 		B.weapon_to_hand("hand_r")
 	sel = "bat_handle"
-	_say({"metal_bat": "metal bat (0.84 m)", "staff": "staff / bo (1.8 m): slide your hand along it with , and .  and put the other hand on with G, [ ]",
-		"long_hammer": "long hammer (1.1 m, steel head across the tip): G for both hands, [ ] to slide the other hand",
+	_say({"metal_bat": "metal bat (84 cm)", "staff": "staff / bo (180 cm): slide your hand along it with , and .  and put the other hand on with G, [ ]",
+		"long_hammer": "long hammer (110 cm, steel head across the tip): G for both hands, [ ] to slide the other hand",
 		"long_axe": "long axe (1.2 m haft, a Dane axe's): G for both hands, [ ] to slide the other hand. Import a video now and he holds it in both",
-		"dagger": "dagger (0.30 m, one hand)"}[k])
+		"dagger": "dagger (30 cm, one hand)"}[k])
 
 
 ## DUAL WIELD (round 33, Nick 10-16): a dagger in each hand; the main one in the right (or the hand it is in now),
@@ -5479,7 +5479,7 @@ func _two_daggers() -> void:
 	B.wep2_kind = "dagger"
 	B.wep2_to_hand(B.twin(h))
 	sel = "bat_handle"
-	_say("two daggers: one in each hand (0.30 m). Mirror pose swaps them: the other hand leads")
+	_say("two daggers: one in each hand (30 cm). Mirror pose swaps them: the other hand leads")
 
 
 # ---------------------------------------------------------------- words
@@ -5522,7 +5522,7 @@ func _angles_words(j: String, v: Vector3) -> String:
 		var key: String = ["bend", "side", "twist"][k]
 		var r: Vector2 = L[key]
 		if r.y - r.x > 0.5:
-			out.append("%s %.0f" % [["swing", "raise/tilt", "roll"][k], v[k]])
+			out.append("%s %.0f°" % [["swing", "raise/tilt", "roll"][k], v[k]])
 	return "   ".join(out)
 
 
@@ -5622,7 +5622,7 @@ func _why_show() -> void:
 		return
 	var ex := WhyWrong.explain(String(_why_last["text"]))
 	ui_why_box.add_child(_label("You tried:  %s" % _why_last["cmd"], 16, "text", true))
-	ui_why_box.add_child(_label("Picked: %s, at frame %d (%.2f s)" % [_why_last["part"], _why_last["frame"], float(_why_last["at"])], 15, "text:0.7", true))
+	ui_why_box.add_child(_label("Picked: %s, at frame %d (%s)" % [_why_last["part"], _why_last["frame"], Units.time(float(_why_last["at"]), S.fps)], 15, "text:0.7", true))
 	ui_why_box.add_child(_label("The app said:  \"%s\"" % _why_last["text"], 15, "text:0.7", true))
 	ui_why_box.add_child(_label("Why:  %s" % ex["why"], 16, "text", true))
 	ui_why_box.add_child(_button("Next: %s" % ex["step"], _why_step.bind(ex)))
@@ -6050,7 +6050,7 @@ func _gear_open() -> void:
 
 func _set_scale(pct: int) -> void:
 	if not scale_fits(pct):
-		_say("UI size %d %% needs a window of at least %d x %d (this one is %d x %d): make the window bigger (maximise it), then choose it again" % [pct, MIN_ROOM.x * pct / 100, MIN_ROOM.y * pct / 100, get_window().size.x, get_window().size.y])
+		_say("UI size %d %% needs a window of at least %d x %d px (this one is %d x %d px): make the window bigger (maximise it), then choose it again" % [pct, MIN_ROOM.x * pct / 100, MIN_ROOM.y * pct / 100, get_window().size.x, get_window().size.y])
 		return
 	ui_scale = pct
 	get_window().content_scale_factor = pct / 100.0
@@ -6158,7 +6158,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -6185,7 +6185,7 @@ func _doc_line(force := false) -> void:
 		return
 	_doc_t = Time.get_ticks_msec()
 	var nm: String = S.name if S.name != "" else "untitled"
-	ui_doc.text = "%s   ·  %d clips  ·  %.2f s" % [nm, S.cards.size(), _ps().length()] if S.cards.size() > 0 else "%s   ·  no clips yet" % nm
+	ui_doc.text = "%s   ·  %d clips  ·  %s" % [nm, S.cards.size(), Units.time(_ps().length(), S.fps)] if S.cards.size() > 0 else "%s   ·  no clips yet" % nm
 	ui_doc_dot.visible = _unsaved()
 
 
@@ -6461,7 +6461,7 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
 	ui_ribbon["POSE"].add_child(_button("Snap to floor", _floor_snap, "lift or sink the picked card (or the body) so its lowest point touches the floor; the joints stay. Ctrl+Z takes it back"))
-	ui_ribbon["POSE"].add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed), "both arms relaxed: 25 degrees out from straight down"))
+	ui_ribbon["POSE"].add_child(_button("Arms 25°", _do.bind(_arms_relaxed), "both arms relaxed: 25° out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
@@ -6507,7 +6507,7 @@ func _ui() -> void:
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
-	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120): now %d fps" % fd_fps)
+	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export .glb", func(): _export_glb(), "the scene as exports/<name>.glb: one file with the mannequin and its animation, for Blender, Unreal, Unity, Godot (docs/EXPORT.md)"))
@@ -6527,7 +6527,7 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(ap)
 	ui_ribbon["SET"].add_child(_button("Import model", _import_ask, "bring in your own .glb model (a box, furniture, an object): it is checked, copied into your library and put in the set. Or drop the file on the window"))
 	for tt in [["Turn left", -15.0], ["Turn right", 15.0]]:
-		var ptb := _button(tt[0], _prop_turn.bind(tt[1]), "turn the picked prop 15 degrees round its middle")
+		var ptb := _button(tt[0], _prop_turn.bind(tt[1]), "turn the picked prop 15° round its middle")
 		ui_prop_btns[tt[0]] = ptb
 		ui_ribbon["SET"].add_child(ptb)
 	var dpb := _button("Delete prop", _prop_del, "take the picked prop out of the scene (Ctrl+Z puts it back)")
@@ -6558,7 +6558,7 @@ func _ui() -> void:
 		for k in SCALES.size():
 			us.get_popup().set_item_checked(k, SCALES[k] == ui_scale)
 			us.get_popup().set_item_disabled(k, not scale_fits(SCALES[k]))
-			us.get_popup().set_item_tooltip(k, "" if scale_fits(SCALES[k]) else GREY_TAG.strip_edges() + " %d %% needs a window of at least %d x %d: make the window bigger (maximise it)" % [SCALES[k], MIN_ROOM.x * SCALES[k] / 100, MIN_ROOM.y * SCALES[k] / 100])
+			us.get_popup().set_item_tooltip(k, "" if scale_fits(SCALES[k]) else GREY_TAG.strip_edges() + " %d %% needs a window of at least %d x %d px: make the window bigger (maximise it)" % [SCALES[k], MIN_ROOM.x * SCALES[k] / 100, MIN_ROOM.y * SCALES[k] / 100])
 			us.get_popup().set_item_text(k, "%d %%" % SCALES[k] + ("" if scale_fits(SCALES[k]) else "   (needs a bigger window)")))
 	ui_ribbon["VIEW"].add_child(us)
 	# always there, in the strip: the scene in the middle, the small icons on the right
@@ -6682,7 +6682,7 @@ func _ui() -> void:
 	ui_name_dlg.register_text_enter(ui_pose_name)
 	ui_name_dlg.confirmed.connect(func(): _rename_pose() if _name_for == "rename" else _save_pose())
 	add_child(ui_name_dlg)
-	ui_dummy = _label("dummy %.2f m out" % T.dist, 13, "dummy_text", true)   # the dummy's readout: the tree's row shows it
+	ui_dummy = _label("dummy %s out" % Units.len(T.dist), 13, "dummy_text", true)   # the dummy's readout: the tree's row shows it
 	ui_dummy.visible = false
 	lv.add_child(ui_dummy)
 
@@ -6761,9 +6761,9 @@ func _ui() -> void:
 		_row_slider(l, s)
 		ui_hips.append([s, l])
 	# RR2: the part's actions on ONE row, short words; each keeps its full name (label, tooltip, Search)
-	var acts := _row(vb, [_short(_button("Reset (R)", _do.bind(_reset_part), "the part back to straight (0, 0, 0)"), "Reset"),
-		_short(_button("90 (Q)", _do.bind(_snap.bind(90.0)), "round the part's angles to the 90-degree steps its range allows"), "90"),
-		_short(_button("45", _do.bind(_snap.bind(45.0)), "round the part's angles to the 45-degree steps its range allows"), "45"),
+	var acts := _row(vb, [_short(_button("Reset (R)", _do.bind(_reset_part), "the part back to straight (0°, 0°, 0°)"), "Reset"),
+		_short(_button("90° (Q)", _do.bind(_snap.bind(90.0)), "round the part's angles to the 90° steps its range allows"), "90°"),
+		_short(_button("45°", _do.bind(_snap.bind(45.0)), "round the part's angles to the 45° steps its range allows"), "45°"),
 		_short(_button("Right to left (M)", _do.bind(B.mirror_side.bind("_r")), "the left arm and leg take the right ones' pose, reflected"), "R→L"),
 		_short(_button("Left to right (N)", _do.bind(B.mirror_side.bind("_l")), "the right arm and leg take the left ones' pose, reflected"), "L→R")])
 	acts.name = "insp_actions"
@@ -6820,7 +6820,7 @@ func _ui() -> void:
 	# from the old left panel (RR3)
 	ui_slide_btn = _button("Slide , . : body follows", _slide_mode, "an option, not a rule: , . either move the hand along a weapon that stays put (the arm follows), or slide the weapon through a hand that stays put")
 	_row(wep, [_short(_button("2nd hand on/off (G)", _do.bind(_toggle_second), "the other hand on the shaft; [ ] slide it"), "2nd hand"), ui_slide_btn])
-	_row(wep, [_button("Hand to the end", _do.bind(_hand_to_end), "Nick 10-13: a long weapon swings from its end - the main hand slides to the lower end in 3 cm steps (the body follows, or the weapon moves: the toggle above)")])
+	_row(wep, [_button("Hand to the end", _do.bind(_hand_to_end), "ROADMAP 10-13: a long weapon swings from its end - the main hand slides to the lower end in 3 cm steps (the body follows, or the weapon moves: the toggle above)")])
 	_row(wep, [_button("Other hand on the bat (G)", _do.bind(func(): B.grip = not B.grip)),
 		_button("Save grip as standard", _save_grip, "the bat's place in the hand + the fingers become the grip 'Bat in hand' uses")])
 	wep.add_child(_label("[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length", PROP_TXT, "text:0.55", true))
@@ -7000,7 +7000,7 @@ func _ui() -> void:
 	ph.add_child(ui_mode_lbl)
 	ui_fps_lbl = _label("", 13, "text:0.75")
 	ui_fps_lbl.name = "fps_readout"
-	ui_fps_lbl.tooltip_text = "the real frames per second while playing, and the frames that took more than 1.5 x the target time (dropped)"
+	ui_fps_lbl.tooltip_text = "the real frames per second while playing, and the frames that took more than 1.5× the target time (dropped)"
 	ph.add_child(ui_fps_lbl)
 	ui_time_lbl.mouse_filter = Control.MOUSE_FILTER_STOP   # WW4: a click on the readout flips seconds <-> frames
 	ui_time_lbl.tooltip_text = "click: show the time in seconds or in frames (at the scene's frame rate)"
@@ -7181,7 +7181,7 @@ func _ui() -> void:
 	hv.add_child(_label("7  TIMELINE (under the clips).  Each clip is a block: solid = moving into the pose, striped = holding it.  Drag a block's edge to change how long it takes (later clips slide along); a clip with no hold: drag its edge right to pull one out.  Shift = fine steps.  Click a block to jump to that clip; drag the ruler to scrub.  Grab a HAND or FOOT and drag: the limb follows; past its reach a yellow line shows where you are pulling it.", 16, "text", true))
 	hv.add_child(_label("TOP BAR = TABS.  POSE (reset, relax, mirror, collision), ANIMATE (trail, onion, spacing, speed graph, stepped, moving holds, the Animator tools menu), CHECK (check, polish, fix, the dummy), VIEW (the five views, big view).  A lit button = that tool is on.  Undo, Redo, Search and Help are always on the right.", 16, "text", true))
 	hv.add_child(_label("BROWSER (left panel, 2nd tab).  Every part of the body by name, folded like the body (torso, arms with their fingers, legs), the weapon, and the scene's clips.  Click one: selected, the same as clicking it in the view (a finger joint is one click here).  Click in the view and its row lights up.  CUBE (top right of the view): click a face to look from that side.", 16, "text", true))
-	hv.add_child(_label("RIGHT-CLICK a part (click, don't drag: right-DRAG still turns the view): a ring around the mouse.  Up = Reset, then clockwise: Snap 90, Copy to the other side, CLIP this pose, Pin a trail, Snap 45.  Click one; the middle or Esc cancels.", 16, "text", true))
+	hv.add_child(_label("RIGHT-CLICK a part (click, don't drag: right-DRAG still turns the view): a ring around the mouse.  Up = Reset, then clockwise: Snap 90°, Copy to the other side, CLIP this pose, Pin a trail, Snap 45°.  Click one; the middle or Esc cancels.", 16, "text", true))
 	hv.add_child(_label("S = SEARCH.  Don't remember where something is?  Press S, type a word (mirror, trail, staff, slower...), Enter.  Every button and key is in it, with its shortcut.", 16, "say", true))
 	hv.add_child(_label("View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  F6 = the panels by keyboard (Tab moves, Enter presses, Esc back).  Mouse: right-drag = turn around, middle-drag = slide.", 15, "text:0.7", true))
 	hv.add_child(_button("Got it", func(): ui_help.visible = false))
@@ -7467,7 +7467,7 @@ func _panel_part() -> void:
 	if ui_math.visible:
 		var A := B.compose(sel, v)
 		var con: Array = B.contacts()
-		ui_math.text = "%s  bend %.2f side %.2f twist %.2f deg\nA (turn from rest, rest axes) %s\nG (turn from rest, now) %s\njoint %s   end %s\ncontacts: %s\n(MATH.md explains every number)" % [
+		ui_math.text = "%s  bend %.2f° side %.2f° twist %.2f°\nA (turn from rest, rest axes) %s\nG (turn from rest, now) %s\njoint %s   end %s\ncontacts: %s\n(MATH.md explains every number)" % [
 			sel, v.x, v.y, v.z, _qs(A), _qs(B.G[sel]), _vs(B.P[sel]), _vs(B.E[sel]),
 			"none" if con.is_empty() else ", ".join(con.map(func(c): return "%s/%s %.0f mm" % [c[0], c[1], c[2] * 1000.0]))]
 
@@ -8016,7 +8016,7 @@ func _commands() -> Array:
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
-	add.call("Mode: Easy (12 big buttons)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 big buttons stay (remembered)")
+	add.call("Mode: Easy (12 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 buttons stay large (remembered)")
 	add.call("Mode: Expert (every panel and tool)", "", easy.set_on.bind(false), "expert advanced full mode panels all tools", false, "every panel and tool back, as before (remembered)")
 	add.call("Edit: undo history...", "", _toggle_history, "steps list back forward", false, "every change by name, as a tree: branches where an edit came after an undo; click one to jump to exactly that state")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")
@@ -8025,7 +8025,7 @@ func _commands() -> Array:
 	add.call("Play / pause", "Space", _press.bind(KEY_SPACE), "run stop", false, "play the scene from the playhead, or stop it")
 	add.call("Big view (hide the panels)", "Tab", _press.bind(KEY_TAB), "fullscreen", false, "hide the side panels so the body gets the whole window")
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
-	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0, 0, 0)")
+	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0°, 0°, 0°)")
 	add.call("Snap to floor", "", _floor_snap, "floor ground snap stand sole foot knee lift sink drop touch pose root", true, "the picked card (or the body) moves straight up or down so its lowest point (sole, knee, hip or hand) is on the floor; the joints stay")
 	add.call("Snap to floor: all cards", "", _floor_snap.bind(true), "floor ground snap all cards every range sole foot knee lift sink", true, "every card moves straight up or down so its lowest point is on the floor; the joints stay; one undo step")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
@@ -8054,7 +8054,7 @@ func _commands() -> Array:
 	add.call("Driver: factor 2", "", _drv_factor.bind(2.0), "driver factor double scale ratio", true, "the picked part's driver: it follows its source at twice the source's angle")
 	add.call("Secondary: add a ponytail", "", _sec_add.bind("ponytail"), "secondary ponytail hair tail sway lag overshoot bake spring", true, "a ponytail hangs from the head and follows it with lag and overshoot; baked to keys")
 	add.call("Secondary: add a cloth strip", "", _sec_add.bind("cloth"), "secondary cloth strip belt flap sway lag overshoot bake spring", true, "a cloth strip hangs from the belt and follows the body; baked to keys")
-	add.call("Secondary: add a weapon flex (oak bo)", "", _sec_add.bind("bo"), "secondary weapon flex bo staff shaft wobble strike bend bake", true, "a 1.8 m oak bo clamped at the right hand bends and settles after a strike; baked to keys")
+	add.call("Secondary: add a weapon flex (oak bo)", "", _sec_add.bind("bo"), "secondary weapon flex bo staff shaft wobble strike bend bake", true, "a 180 cm oak bo clamped at the right hand bends and settles after a strike; baked to keys")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
 	add.call("Secondary: clear", "", _sec_clear, "secondary clear remove off delete chain", true, "takes every secondary item and its keys off the scene (Ctrl+Z puts them back)")
 	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
@@ -8080,8 +8080,8 @@ func _commands() -> Array:
 		add.call("Part key: " + hd + " handle", "", _part_curve.bind("handle", hd), "key curve bezier blender graph " + hd, true, "the picked part's key at the playhead gets the " + hd + " bezier handle type")
 	for inf in PartKeys.INFS:
 		add.call("Part keys: " + inf + " infinity", "", _part_curve.bind("inf", inf), "key curve extrapolation blender graph repeat loop " + inf, true, "what the picked part's curve does before its first and after its last key: " + inf)
-	add.call("Snap the part to 90", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90-degree steps its range allows")
-	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
+	add.call("Snap the part to 90°", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90° steps its range allows")
+	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	for st in SEL_SETS:   # SELECTION SETS (round 28, GATES II2, UPGRADES #67)
@@ -8121,14 +8121,14 @@ func _commands() -> Array:
 	for pk in Proportions.PRESETS:
 		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
 	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
-	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 1.5 m in front, turned to face this one (TC3; Save scene keeps both)")
+	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
-	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in m (ROADMAP 38)")
+	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
 	add.call("Check: weapon clashes", "", _weapon_clash, "clash parry pass through weapons bat swing contact sparks meet fighters", false, "finds where the two fighters' weapons meet over the timeline: CLASH, PARRY, or PASS-THROUGH (the weapons go through each other: must fix); a spark marks each contact, the report prints the time, point and speed (ROADMAP 37)")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
@@ -8165,20 +8165,20 @@ func _commands() -> Array:
 	add.call("Blend to previous card", "Shift+Alt+E", _inbetween.bind("prev"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card before")
 	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
 	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
-	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10 % in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
+	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10% in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Preview range: start at the playhead", "", _pv_set.bind("in", -1.0), "in point loop section", false, "Play and Loop run only between the in and out points (a view setting: never saved, not an undo step). Also Shift+click on the ruler")
 	add.call("Preview range: end at the playhead", "", _pv_set.bind("out", -1.0), "out point loop section", false, "the out point at the playhead. Also Alt+click on the ruler")
 	add.call("Preview range: clear", "", _pv_set.bind("clear", -1.0), "in out full length", false, "Play and Loop use the whole scene again")
 	add.call("Time readout: seconds or frames", "", _toggle_frames, "timecode f s display", false, "flip the time readout between seconds and frames (a click on the readout does it too); a view setting")
-	add.call("Frame rate: next (24 / 30 / 60)", "", _fps_next, "fps film smooth", true, "the scene's frame rate steps 24, 30, 60 and round; every card keeps its seconds (the text says how many are then off a whole frame)")
+	add.call("Frame rate: next (24, 30, 60 fps)", "", _fps_next, "fps film smooth", true, "the scene's frame rate steps 24, 30, 60 fps and round; every card keeps its seconds (the text says how many are then off a whole frame)")
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Point the right hand", "", _do.bind(_hand_point.bind("r")), "finger index point hand curl fist", true, "the right index straight, the other fingers and the thumb curled")
 	add.call("Point the left hand", "", _do.bind(_hand_point.bind("l")), "finger index point hand curl fist", true, "the left index straight, the other fingers and the thumb curled")
 	add.call("Block: stepped keys", "", _stage_block, "block blocking stepped keys pose to pose stage plan", true, "step 1 of 3: every card holds until the next (no in-betweens), to pose the key cards and add breakdowns before smoothing")
 	add.call("Spline and check", "", _stage_spline, "spline smooth stage finish check polish blocking", true, "steps 2 and 3: the in-betweens come back (the scene's own playback) and Check grades the motion")
-	add.call("Compare the walk to real walkers", "", _gait_compare, "gait walk people real compare hip knee ankle band curve normal", false, "plays the walk and measures each hip, knee and ankle against 42 real walkers (Fukuchi 2018); names the ones outside")
+	add.call("Compare the walk to real walkers", "", _gait_compare, "gait walk people real compare hip knee ankle band curve normal", false, "plays the walk and measures each hip, knee and ankle against the 42 walkers (Fukuchi 2018); names the ones outside")
 	add.call("Layer: keep this change through the whole scene", "", _do.bind(_layer_take), "layer additive offset tweak whole scene non destructive lean", true, "what you changed on the body here (against what the scene plays here) goes onto ONE layer over the whole scene; the cards are not touched")
 	add.call("Layer: new additive", "", _do.bind(_layer_new.bind("add")), "layer add additive new animation layer", true, "a new additive layer on top, made active (Maya: animation layers)")
 	add.call("Layer: new override", "", _do.bind(_layer_new.bind("over")), "layer override replace new animation layer", true, "a new override layer on top: its angles replace what is below, by its weight")
@@ -8191,8 +8191,8 @@ func _commands() -> Array:
 	add.call("Layer stronger", "", _do.bind(_layer_weight.bind(0.25)), "layer weight more additive", true, "the layer's weight +0.25 (0..1)")
 	add.call("Layer weaker", "", _do.bind(_layer_weight.bind(-0.25)), "layer weight less additive", true, "the layer's weight -0.25 (0 = the scene as the cards play it)")
 	add.call("Layer: delete", "", _do.bind(_layer_weight.bind(-9.0)), "layer remove clear additive", true, "the layer goes; the scene plays its cards again")
-	add.call("Breathing on/off", "", _do.bind(_breath_set.bind(-1.0)), "breath breathe chest idle alive rest", true, "the chest rises and falls as people's do at rest (15 a minute, ~5 mm at the chest), on top of every pose while it plays")
-	add.call("Breathe faster", "", _do.bind(_breath_set.bind(2.0)), "breath breathe rate quicker", true, "2 breaths a minute more (people at rest 12-20; after effort more)")
+	add.call("Breathing on/off", "", _do.bind(_breath_set.bind(-1.0)), "breath breathe chest idle alive rest", true, "the chest rises and falls as people's do at rest (15 breaths a minute, ~5 mm at the chest), on top of every pose while it plays")
+	add.call("Breathe faster", "", _do.bind(_breath_set.bind(2.0)), "breath breathe rate quicker", true, "2 breaths a minute more (people at rest 12 to 20 breaths a minute; after effort more)")
 	add.call("Breathe slower", "", _do.bind(_breath_set.bind(-2.0)), "breath breathe rate calmer", true, "2 breaths a minute fewer")
 	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
@@ -8200,7 +8200,7 @@ func _commands() -> Array:
 	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it appears under the timeline as a waveform, plays in step with Play and sounds a short slice as you drag the playhead")
 	add.call("Lip-sync: from the audio track", "", _lip_from_audio, "lip sync lipsync mouth jaw talk speech audio voice visemes timing", true, "bake a jaw and mouth shapes from the sound (a wav on the timeline): the loudness opens the jaw 0-15 deg, the zero-crossing rate picks closed, round, open or wide; one undo step")
 	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the sound off the timeline (the file stays on disk); one undo step")
-	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4x), up to +12 dB; in playback and the playblast; one undo step")
+	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4×), up to +12 dB; in playback and the playblast; one undo step")
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Beats: find the beats in the sound", "", _beats_find, "beats bpm tempo music beat grid downbeat bar audio", true, "find the beats and the tempo of the sound (a wav): marks on the timeline, bars marked when a 4/4 grid is evident; one undo step")
 	add.call("Beats: snap the contact cards to the nearest beat", "", _beats_snap, "beats snap contact hit strike align music sync", true, "move each hit (contact) card so it lands on its nearest beat; a card never moves more than 25 % of its own move, else nothing moves; one undo step")
@@ -8231,15 +8231,15 @@ func _commands() -> Array:
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
-	add.call("Arms down 25 deg", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25 degrees out from straight down")
+	add.call("Arms down 25°", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25° out from straight down")
 	add.call("Dummy on/off", "H", _press.bind(KEY_H), "target enemy mannequin", false, "show or hide the target dummy")
 	add.call("Dummy solid / see-through", "", _dummy_solid, "target", false, "solid: the weapon stops on the dummy (impact + rebound); see-through: it passes")
 	add.call("Dummy closer", "", _dummy_move.bind(-0.25), "target", false, "move the dummy 25 cm closer")
 	add.call("Dummy farther", "", _dummy_move.bind(0.25), "target", false, "move the dummy 25 cm farther")
-	add.call("Weapon: metal bat", "", _do.bind(_kind.bind("metal_bat")), "", true, "switch the weapon to the metal bat (0.84 m)")
-	add.call("Weapon: bo staff", "", _do.bind(_kind.bind("staff")), "", true, "switch the weapon to the bo staff (1.8 m)")
-	add.call("Weapon: long hammer", "", _do.bind(_kind.bind("long_hammer")), "", true, "switch the weapon to the long hammer (1.1 m)")
-	add.call("Weapon: long axe", "", _do.bind(_kind.bind("long_axe")), "viking dane axe two handed", true, "switch the weapon to the long axe (1.2 m, a bit each side of the tip)")
+	add.call("Weapon: metal bat", "", _do.bind(_kind.bind("metal_bat")), "", true, "switch the weapon to the metal bat (84 cm)")
+	add.call("Weapon: bo staff", "", _do.bind(_kind.bind("staff")), "", true, "switch the weapon to the bo staff (180 cm)")
+	add.call("Weapon: long hammer", "", _do.bind(_kind.bind("long_hammer")), "", true, "switch the weapon to the long hammer (110 cm)")
+	add.call("Weapon: long axe", "", _do.bind(_kind.bind("long_axe")), "viking dane axe two handed", true, "switch the weapon to the long axe (120 cm, a bit each side of the tip)")
 	add.call("Weapon in right hand", "B", _do.bind(_bat_put.bind("hand_r")), "bat", true, "the weapon into the right hand with its standard grip")
 	add.call("Weapon in left hand", "", _do.bind(_bat_put.bind("hand_l")), "bat", true, "the weapon into the left hand with its standard grip")
 	add.call("Remove the weapon", "", _do.bind(_bat_remove), "bat none", true, "take the weapon away")
@@ -8291,7 +8291,7 @@ func _rings_toggle() -> void:
 	_refresh()
 	if rings.on:
 		var r: Dictionary = rings.last["reaches"] if rings.last.has("reaches") else {}
-		_say("range rings on: arm %.2f m, arm + weapon %s, step-in %.2f m; the label is the other fighter's nearest part" % [float(r.get("arm", 0.0)), ("%.2f m" % float(r["weapon"])) if r.get("has_weapon", false) else "(no weapon held)", float(r.get("step_in", 0.0))])
+		_say("range rings on: arm %s, arm + weapon %s, step-in %s; the label is the other fighter's nearest part" % [Units.len(float(r.get("arm", 0.0))), Units.len(float(r["weapon"])) if r.get("has_weapon", false) else "(no weapon held)", Units.len(float(r.get("step_in", 0.0)))])
 	else:
 		_say("range rings off")
 
@@ -8385,7 +8385,7 @@ func _marker_add() -> void:
 	_push_undo()
 	var mk := Markers.add(S.markers, playhead)
 	_markers_changed()
-	_say("marker %s at %.2f s (note).  Ctrl+] / Ctrl+[ jump between markers; Ctrl+Z undoes" % [mk["name"], mk["t"]])
+	_say("marker %s at %s (note).  Ctrl+] / Ctrl+[ jump between markers; Ctrl+Z undoes" % [mk["name"], Units.time(mk["t"], S.fps)])
 
 
 func _marker_delete() -> void:
@@ -8397,7 +8397,7 @@ func _marker_delete() -> void:
 	var gone: Dictionary = S.markers[i]
 	S.markers.remove_at(i)
 	_markers_changed()
-	_say("marker %s at %.2f s deleted.  Ctrl+Z undoes" % [gone["name"], gone["t"]])
+	_say("marker %s at %s deleted.  Ctrl+Z undoes" % [gone["name"], Units.time(gone["t"], S.fps)])
 
 
 func _marker_jump(fwd: bool) -> void:
@@ -8509,7 +8509,7 @@ func _dope_part(joints: Array, t0: float, t1: float, copy: bool) -> int:
 		ks[idx]["t"] = clampf(t1, lo, hi)
 		n += 1
 	_refresh()
-	_say("%s %d part key%s from %.2f s to %.2f s. Ctrl+Z takes it back" % ["copied" if copy else "moved", n, "" if n == 1 else "s", t0, t1])
+	_say("%s %d part key%s from %s to %s. Ctrl+Z takes it back" % ["copied" if copy else "moved", n, "" if n == 1 else "s", Units.time(t0, S.fps), Units.time(t1, S.fps)])
 	return n
 
 
@@ -8587,7 +8587,7 @@ func _timeline_pick(i: int) -> void:
 func _pole(deg: float) -> void:
 	var w := "elbow" if sel.begins_with("hand") else "knee"
 	var got := B.swing_pole(sel, deg)
-	_say(("the %s swung %.0f deg; the %s stays where it was" % [w, got, nice(sel)]) if absf(got - deg) < 1.0
+	_say(("the %s swung %.0f°; the %s stays where it was" % [w, got, nice(sel)]) if absf(got - deg) < 1.0
 		else "the %s swung only %.0f of %.0f deg: the limb touches the body there or a joint is at its limit" % [w, got, deg])
 
 
@@ -8819,7 +8819,7 @@ func fatigue(fitness: float) -> String:
 	_markers_follow()
 	_rebuild_cards()
 	_refresh()
-	_say("fatigue at fitness %.2f: %d strikes slowed, the last to %.0f %% of its speed; the scene is now %.2f s.  Ctrl+Z undoes" % [S.fitness, p.size(), float(p[-1]["speed"]) * 100.0, _ps().length()])
+	_say("fatigue at fitness %.2f: %d strikes slowed, the last to %.0f %% of its speed; the scene is now %s.  Ctrl+Z undoes" % [S.fitness, p.size(), float(p[-1]["speed"]) * 100.0, Units.time(_ps().length(), S.fps)])
 	return ""
 
 
@@ -9048,7 +9048,7 @@ func _check(given = null) -> void:
 	var fails := findings.filter(func(f): return f["sev"] == "FAIL").size()
 	var head := HBoxContainer.new()
 	ui_find_list.add_child(head)
-	var title := _label("CHECK  -  " + ("clean: nothing here breaks the rulebook" if findings.is_empty() else "%d to look at (%d must fix)" % [findings.size(), fails]), 18, "heading" if findings.is_empty() else "warn")
+	var title := _label("CHECK  -  " + ("clean: nothing here breaks the rulebook" if findings.is_empty() else "%d findings to look at (%d must fix)" % [findings.size(), fails]), 18, "heading" if findings.is_empty() else "warn")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_button("Close", _close_findings))
@@ -9122,7 +9122,7 @@ func _critique() -> void:
 		var f: Dictionary = notes[k]
 		var b := Button.new()
 		b.name = "note_%d" % (k + 1)
-		b.text = "note  %.2f s  card %d '%s'  -  %s\n%s" % [f["t"], f["card"] + 1, S.cards[mini(f["card"], S.cards.size() - 1)]["name"], f["rule"], f["msg"]]
+		b.text = "note  %s  card %d '%s'  -  %s\n%s" % [Units.time(f["t"], S.fps), f["card"] + 1, S.cards[mini(f["card"], S.cards.size() - 1)]["name"], f["rule"], f["msg"]]
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_NONE
@@ -9157,7 +9157,7 @@ func _stunt_check() -> void:
 		var f: Dictionary = notes[k]
 		var b := Button.new()
 		b.name = "stunt_%d" % (k + 1)
-		b.text = "%.2f s  card %d  -  %s\n%s" % [f["t"], f["card"] + 1, f["rule"], f["msg"]]
+		b.text = "%s  card %d  -  %s\n%s" % [Units.time(f["t"], S.fps), f["card"] + 1, f["rule"], f["msg"]]
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_NONE
@@ -9195,7 +9195,7 @@ func _goto_finding(f: Dictionary) -> void:
 	_ps().apply(B, playhead)
 	_rebuild_cards()
 	_refresh()
-	_say("%s at %.2f s (card %d): %s" % [f["rule"], f["t"], sel_card + 1, f["msg"]])
+	_say("%s at %s (card %d): %s" % [f["rule"], Units.time(f["t"], S.fps), sel_card + 1, f["msg"]])
 
 
 ## FIX: the finding's fix (scripts/fixer.gd) on the open scene's cards: it only UPDATES cards (never adds or deletes
@@ -9625,7 +9625,7 @@ func _floor_snap(all := false) -> void:
 			FloorSnap.snap_all(S, B)
 			S.apply(B, playhead)
 			_rebuild_cards())
-		_say("all %d cards are on the floor now: the lowest point of each is at 0 (Ctrl+Z takes it back)" % n)
+		_say("all %d cards are on the floor now: the lowest point of each is at 0 cm (Ctrl+Z takes it back)" % n)
 		return
 	if S.cards.is_empty():
 		_do(func(): B.ground_body())
@@ -9640,7 +9640,7 @@ func _floor_snap(all := false) -> void:
 		S.cards[i]["pose"] = FloorSnap.snapped_pose(B, S.cards[i]["pose"])
 		S.apply(B, playhead)
 		_rebuild_cards())
-	_say("card %d is on the floor now: the lowest point at 0, the joints as they were (Ctrl+Z takes it back)" % (i + 1))
+	_say("card %d is on the floor now: the lowest point at 0 cm, the joints as they were (Ctrl+Z takes it back)" % (i + 1))
 
 
 func _card_del(i: int) -> void:
@@ -9685,9 +9685,9 @@ func _pv_set(which: String, t: float) -> void:
 			pv_out = at
 		var sp := PreviewRange.span(pv_in, pv_out, _ps().length())
 		if sp.is_empty():
-			_say("%s point at %.2f s; set the other one after it (the range must be longer than a frame)" % [which, at])
+			_say("%s point at %s; set the other one after it (the range must be longer than a frame)" % [which, Units.time(at, S.fps)])
 		else:
-			_say("preview range %.2f to %.2f s: Play and Loop stay inside it (a view setting, not saved)" % [sp[0], sp[1]])
+			_say("preview range %s to %s: Play and Loop stay inside it (a view setting, not saved)" % [Units.time(sp[0], S.fps), Units.time(sp[1], S.fps)])
 	_refresh()
 
 
@@ -9988,7 +9988,7 @@ func _speed(k: float) -> void:
 		c["hold"] = snappedf(float(c["hold"]) * k, 0.01)
 	_rebuild_cards()
 	_refresh()
-	_say("%s %s: the scene is now %.2f s (Save scene keeps it)" % ["card '%s'" % S.cards[sel_card]["name"] if idx.size() == 1 and sel_card >= 0 else ("cards %d-%d" % [idx[0] + 1, idx[-1] + 1] if idx.size() < S.cards.size() or sel_end >= 0 else "whole scene"), "slower" if k > 1.0 else "faster", _ps().length()])
+	_say("%s %s: the scene is now %s (Save scene keeps it)" % ["card '%s'" % S.cards[sel_card]["name"] if idx.size() == 1 and sel_card >= 0 else ("cards %d-%d" % [idx[0] + 1, idx[-1] + 1] if idx.size() < S.cards.size() or sel_end >= 0 else "whole scene"), "slower" if k > 1.0 else "faster", Units.time(_ps().length(), S.fps)])
 
 
 func _load_pose(path: String) -> void:
@@ -10052,7 +10052,7 @@ func _save_scene_now(nm: String) -> void:
 	_journal_saved()
 	_lists()
 	_refresh()
-	_say("saved scene %s: %d cards, %.2f s, %d frames with parts inside each other" % [H.name, H.cards.size(), H.length(), d["bad_frames"].size()])
+	_say("saved scene %s: %d cards, %s, %d frames with parts inside each other" % [H.name, H.cards.size(), Units.time(H.length(), S.fps), d["bad_frames"].size()])
 
 
 ## the scene list's pick: opens it at once when nothing would be lost, asks first when the scene open now has changes
@@ -10102,7 +10102,7 @@ func retime(a: int, b: int, pct: float) -> String:
 	_markers_follow()
 	_rebuild_cards()
 	_refresh()
-	_say("cards %d-%d at %.0f %%: the scene is now %.2f s (Save scene keeps it)" % [a + 1, b + 1, pct, _ps().length()])
+	_say("cards %d-%d at %.0f %%: the scene is now %s (Save scene keeps it)" % [a + 1, b + 1, pct, Units.time(_ps().length(), S.fps)])
 	return ""
 
 
@@ -10540,7 +10540,7 @@ func _prop_turn(deg: float) -> void:
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
-	_say("turned the %s to %.0f deg" % [_prop_name(sel_prop), float(d["yaw"])])
+	_say("turned the %s to %.0f°" % [_prop_name(sel_prop), float(d["yaw"])])
 
 
 func _prop_del() -> void:
@@ -10694,8 +10694,8 @@ func _prop_put() -> void:
 		if int(cs[k]["a"]) == int(c["a"]):
 			d = S._carry_data(B)[k]
 	var h := float(d.get("drop", Transform3D()).origin.y) - float(d.get("land", 0.0)) if d.has("drop") else 0.0
-	_say("card %d: the hands let the %s go; it falls %.0f cm in %.2f s onto %s. Ctrl+Z takes it back" % [sel_card + 1, _prop_name(pi),
-		h * 100.0, float(d.get("tf", 0.0)), "the floor" if float(d.get("land", 0.0)) < 0.001 else "what is under it"])
+	_say("card %d: the hands let the %s go; it falls %.0f cm in %s onto %s. Ctrl+Z takes it back" % [sel_card + 1, _prop_name(pi),
+		h * 100.0, Units.time(float(d.get("tf", 0.0)), S.fps), "the floor" if float(d.get("land", 0.0)) < 0.001 else "what is under it"])
 
 
 ## the set as it is at the playhead: carried props in the hands, dropped ones falling (every frame while any card
@@ -10753,8 +10753,8 @@ func _prop_key() -> void:
 		Props.key_at(S.props[i], playhead, S.props[i]["xf"], float(S.props[i].get("swing", 0.0))))
 	_props_show()
 	_doc_line()
-	_say("keyed the %s at %.2f s (%d keys): move the playhead, drag or turn it, and it is keyed there too; Ctrl+Z takes it back" % [
-		_prop_name(sel_prop), playhead, (S.props[sel_prop]["keys"] as Array).size()])
+	_say("keyed the %s at %s (%d keys): move the playhead, drag or turn it, and it is keyed there too; Ctrl+Z takes it back" % [
+		_prop_name(sel_prop), Units.time(playhead, S.fps), (S.props[sel_prop]["keys"] as Array).size()])
 
 
 ## GRIP ANY PROP (ROADMAP 18; scripts/any_grip.gd): the picked hand's fingers close round the picked prop at the playhead
@@ -10774,8 +10774,8 @@ func _grip_prop_cmd() -> void:
 		if float((rep[f] as Array)[2][1]) <= 0.003:
 			touch += 1
 	_props_show()
-	_say("%s hand wrapped round the %s (%s shape): %d of 4 fingertips on it, the rest at their limits or short; keyed at %.2f s; Ctrl+Z takes it back" % [
-		"left" if h == "hand_l" else "right", name, rep["pattern"], touch, t])
+	_say("%s hand wrapped round the %s (%s shape): %d of 4 fingertips on it, the rest at their limits or short; keyed at %s; Ctrl+Z takes it back" % [
+		"left" if h == "hand_l" else "right", name, rep["pattern"], touch, Units.time(t, S.fps)])
 
 
 func _prop_unkey() -> void:
@@ -10788,7 +10788,7 @@ func _prop_unkey() -> void:
 		S.props[i].erase("keys"))
 	_props_show()
 	_doc_line()
-	_say("the %s's keys are gone: it stays where it was at %.2f s. Ctrl+Z puts them back" % [_prop_name(i), playhead])
+	_say("the %s's keys are gone: it stays where it was at %s. Ctrl+Z puts them back" % [_prop_name(i), Units.time(playhead, S.fps)])
 
 
 ## the picked door's leaf turned by deg about its hinge, keyed at the playhead (a door with no keys gets a key at 0 s
@@ -10807,8 +10807,8 @@ func _door_swing(deg: float) -> void:
 		Props.key_at(p, playhead, p["xf"], float(p["swing"])))
 	_props_show()
 	_doc_line()
-	_say("the door is %.0f deg open at %.2f s (keyed): move the playhead and open or close it again to key the swing; Ctrl+Z takes it back" % [
-		float(S.props[i]["swing"]), playhead])
+	_say("the door is %.0f° open at %s (keyed): move the playhead and open or close it again to key the swing; Ctrl+Z takes it back" % [
+		float(S.props[i]["swing"]), Units.time(playhead, S.fps)])
 
 
 func _cons_target_prop() -> void:
@@ -10939,7 +10939,7 @@ func _audio_set(path: String) -> bool:
 	S.audio = {"path": path, "offset": 0.0, "gain_db": 0.0}
 	_audio_reload()
 	var env := audio_env
-	_say("sound added: %s, %.2f s from 0.00 s%s" % [path.get_file(), st.get_length(), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
+	_say("sound added: %s, %s from 0.00 s%s" % [path.get_file(), Units.time(st.get_length(), S.fps), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
 	_refresh()
 	return true
 
@@ -10963,7 +10963,7 @@ func _lip_from_audio() -> void:
 	for sh in (A["shape"] as PackedStringArray):
 		if sh != "M":
 			opened += 1
-	_say("lip-sync baked: %d mouth changes, %d of %d windows voiced, jaw 0-%d deg (Ctrl+Z removes it)" % [lip["mouth"].size(), opened, (A["shape"] as PackedStringArray).size(), int(LipSync.JAW_MAX)])
+	_say("lip-sync baked: %d mouth changes, %d of %d windows voiced, jaw 0-%d° (Ctrl+Z removes it)" % [lip["mouth"].size(), opened, (A["shape"] as PackedStringArray).size(), int(LipSync.JAW_MAX)])
 	_refresh()
 
 
@@ -11550,7 +11550,7 @@ func _shot_commands(add: Callable) -> void:
 		false, "the view shows the keyed shot camera at the playhead in a 16:9 frame (again: back to the free view); the playblast renders through it")
 	add.call("Camera: remove the key here", "", _shot_remove, "shot camera key delete remove unkey", true, "the shot camera's key at the playhead goes (the last one: the scene has no shot camera)")
 	for mm in ShotCam.LENSES:
-		add.call("Camera: lens %d mm" % mm, "", _shot_lens.bind(float(mm)), "shot camera focal length zoom lens mm %d wide tele" % mm, true,
+		add.call("Camera: lens %d mm" % mm, "", _shot_lens.bind(float(mm)), "shot camera focal length zoom lens %d mm wide tele" % mm, true,
 			"the shot camera's focal length at the playhead: %d mm on a 36 mm sensor (%.1f deg across a 16:9 frame); keys it there if it has no key" % [mm, ShotCam.fov_h(mm)])
 
 
@@ -11669,7 +11669,7 @@ func _shot_key_view() -> void:
 	var first := _shot_keys().is_empty()
 	_do(func(): ShotCam.put(_shot_keys(), key))
 	var p: Vector3 = key["pos"]
-	_say("shot camera keyed at %.2f s: lens at (%.2f, %.2f, %.2f) m, %.0f mm%s (Ctrl+Z takes it back)" % [t, p.x, p.y, p.z, float(key["f"]),
+	_say("shot camera keyed at %s: lens at (%s, %s, %s), %.0f mm%s (Ctrl+Z takes it back)" % [Units.time(t, S.fps), Units.len(p.x), Units.len(p.y), Units.len(p.z), float(key["f"]),
 		"; 'Camera: look through the shot camera' shows it" if first else ""])
 
 
@@ -11681,7 +11681,7 @@ func _shot_remove() -> void:
 		return
 	var t := float(ks[i]["t"])
 	_do(func(): _shot_keys().remove_at(i))
-	_say("removed the shot camera's key at %.2f s (%d left)%s" % [t, _shot_keys().size(), "; the scene has no shot camera now" if _shot_keys().is_empty() else ""])
+	_say("removed the shot camera's key at %s (%d left)%s" % [Units.time(t, S.fps), _shot_keys().size(), "; the scene has no shot camera now" if _shot_keys().is_empty() else ""])
 	if _shot_keys().is_empty():
 		_shot_off()
 
@@ -11695,7 +11695,7 @@ func _shot_lens(mm: float) -> void:
 	var t := clampf(playhead, 0.0, S.length())
 	var at_t := t if i < 0 else float(ks[i]["t"])
 	if i >= 0 and absf(float(ks[i]["f"]) - mm) < 1e-6:
-		_say("the shot camera's key at %.2f s is already %.0f mm: pick another lens, or move the playhead to another time" % [at_t, mm])
+		_say("the shot camera's key at %s is already %.0f mm: pick another lens, or move the playhead to another time" % [Units.time(at_t, S.fps), mm])
 		return
 	_do(func():
 		if i >= 0:
@@ -11705,7 +11705,7 @@ func _shot_lens(mm: float) -> void:
 			k["t"] = t
 			k["f"] = mm
 			ShotCam.put(_shot_keys(), k))
-	_say("shot camera lens %.0f mm at %.2f s (%.1f deg across the 16:9 frame)%s" % [mm, at_t, ShotCam.fov_h(mm), "" if i >= 0 else ", a new key"])
+	_say("shot camera lens %.0f mm at %s (%.1f° across the 16:9 frame)%s" % [mm, Units.time(at_t, S.fps), ShotCam.fov_h(mm), "" if i >= 0 else ", a new key"])
 
 
 ## THE PLAYBLAST THROUGH THE SHOT CAMERA: {} = the scene has none (the frames are the view, as before); else look-through

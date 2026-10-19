@@ -177,7 +177,7 @@ func set_on(v: bool, save := true) -> void:
 		m._fit_rows.call_deferred()
 	if save and m != null:
 		_set_cfg("mode", "easy" if on else "expert")
-		m._say("Easy mode: the 12 big buttons. Expert brings every panel back." if on else "Expert mode: every panel and tool is back.")
+		m._say("Easy mode: the 12 buttons, larger. Expert brings every panel back." if on else "Expert mode: every panel and tool is back.")
 
 
 func _set_cfg(key: String, v: Variant) -> void:

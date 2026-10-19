@@ -841,7 +841,7 @@ static func build(text: String, B: Body) -> Dictionary:
 				else:
 					part = part_of.call(float(f["t"]), ts)
 					if f.has("joint"):
-						why = "%s turned %.0f deg/s, faster than in the source" % [String(f["joint"]).replace("_", " "), f["v"]]
+						why = "%s turned %.0f°/s, faster than in the source" % [String(f["joint"]).replace("_", " "), f["v"]]
 						pct = clampf(float(f["v"]) / float(HumanLimits.SPEED[String(f["joint"]).split("_")[0]][0]) * 105.0, 110.0, 200.0)
 					else:
 						why = "%s (the Check), which the source did not have" % f["rule"]

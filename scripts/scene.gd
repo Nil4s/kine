@@ -1933,7 +1933,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
@@ -2113,5 +2113,5 @@ func spins() -> Array:
 				continue
 			var d: float = float((b[j] as Vector3).z) - float((a[j] as Vector3).z)
 			if absf(d) > Body.ROLL_STEP + 5.0:
-				out.append("%s -> %s: %s %s %+.0f" % [cards[i - 1]["name"], cards[i]["name"], j, "roll" if j.begins_with("upper") else "forearm turn", d])
+				out.append("%s -> %s: %s %s %+.0f°" % [cards[i - 1]["name"], cards[i]["name"], j, "roll" if j.begins_with("upper") else "forearm turn", d])
 	return out

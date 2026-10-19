@@ -726,7 +726,7 @@ func _plan_times(snap: Dictionary, ft: float, p: Vector2) -> Dictionary:
 			if float(nt[i]) < 0.0:
 				return {"ok": false, "why": "%s's key %d would go to %.3f s, before the start" % [j, i + 1, nt[i]]}
 			if i > 0 and float(nt[i]) - float(nt[i - 1]) < PartKeys.SAME_T * 2.0:
-				return {"ok": false, "why": "%s's keys %d and %d would meet or swap" % [j, i, i + 1]}
+				return {"ok": false, "why": "%s's key %d and key %d would meet or swap" % [j, i, i + 1]}
 		out[j] = nt
 	return {"ok": true, "times": out}
 

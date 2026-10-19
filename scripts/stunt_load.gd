@@ -149,8 +149,8 @@ static func report(sm: Dictionary) -> Array:
 			continue
 		var bw: float = r["bw"]
 		var verdict := "ABOVE" if bw > float(LAND_BW[1]) else ("within" if bw >= float(LAND_BW[0]) else "below")
-		out.append(_f("NOTE", tt, "LANDING LOAD", "%.2f s: impact %.2f m/s, stop %.3f m: peak vGRF %.1f BW (%.1f g) is %s the 3-7 BW drop-landing range (Dufek & Bates 1991; McNitt-Gray 1993, brief's cite, not verified)." % [
-			tt, float(r["v"]), float(r["d"]), bw, float(r["a"]) / GRAV, verdict], bw))
+		out.append(_f("NOTE", tt, "LANDING LOAD", "%.2f s: impact %.2f m/s, stop %s: peak vGRF %.1f BW (%.1f g) is %s the 3-7 BW drop-landing range (Dufek & Bates 1991; McNitt-Gray 1993, brief's cite, not verified)." % [
+			tt, float(r["v"]), Units.len(float(r["d"])), bw, float(r["a"]) / GRAV, verdict], bw))
 		var w := int(round(VALGUS_WIN * FPS))
 		var vl := -999.0
 		var vr := -999.0
@@ -159,7 +159,7 @@ static func report(sm: Dictionary) -> Array:
 			vr = maxf(vr, float(sm["vgr"][j]))
 		var side := "left" if vl >= vr else "right"
 		var vm := maxf(vl, vr)
-		out.append(_f("NOTE", tt, "KNEE VALGUS", "%.2f s: %s knee valgus %.1f deg in the first %.1f s of the landing: %s the 10 deg bar (ours; no Hewett 2005 cutoff read, ACL risk per Hewett et al. 2005, AJSM 33:492)." % [
+		out.append(_f("NOTE", tt, "KNEE VALGUS", "%.2f s: %s knee valgus %.1f° in the first %.1f s of the landing: %s the 10° bar (ours; no Hewett 2005 cutoff read, ACL risk per Hewett et al. 2005, AJSM 33:492)." % [
 			tt, side, vm, VALGUS_WIN, "over" if vm > VALGUS_BAR else "within"], vm))
 	# 2. L5/S1 compression over the NIOSH action limit, and the combined flexion + twist
 	var comp := []

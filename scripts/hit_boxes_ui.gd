@@ -189,7 +189,7 @@ func open(kind: String) -> void:
 	_rows["pick"][1].visible = false
 	ui_del.visible = false
 	_fill_defaults(kind)
-	dlg.title = "%s at %d" % [KIND_WORDS[kind], _frame_now()]
+	dlg.title = "%s at frame %d" % [KIND_WORDS[kind], _frame_now()]
 	dlg.popup_centered()
 
 
