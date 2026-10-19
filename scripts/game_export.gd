@@ -226,7 +226,7 @@ static func from_json(d: Dictionary) -> Dictionary:
 static func to_csharp(name: String, T: Dictionary) -> String:
 	var J := to_json(name, T)
 	var id := _ident(name)
-	var lines := ["        /// <summary>%s: exported from Poser (%.3f s, %d keys). Paste into Skills.</summary>" % [name, J["seconds"], _count(J)],
+	var lines := ["        /// <summary>%s: exported from Kine (%.3f s, %d keys). Paste into Skills.</summary>" % [name, J["seconds"], _count(J)],
 		"        public static readonly PoseTable %s = new PoseTable(" % id]
 	var blocks := []
 	for s in ORDER:

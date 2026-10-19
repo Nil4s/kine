@@ -1869,13 +1869,25 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   (spine_03 at 3.500 s: the cards' own in-between is not the keyed curve; printed, as registered); the command is one
   undo step, Ctrl+Z gives cards and layers back byte for byte, a locked layer refuses. Stub (no pass): FAIL 1 at 6.71
   deg and FAIL 3 at 5.94.
-- [ ] NA6 THE HAND-DRAG FREEZE (Nick 10-18: "when u try to move one of the hands when position is all wrong, u get a
+- [x] NA6 THE HAND-DRAG FREEZE (Nick 10-18: "when u try to move one of the hands when position is all wrong, u get a
   little freeze for 0.5 sec"). Measured first (tmp probe, under a running suite): GripMagnet.drag spends up to 9.6 s a
   mouse step when no place on the shaft is reachable: each of its 11 candidate places runs Body.fit_hand's full joint
   search (a whole body's contacts per step), and all 11 fail. Fix: rank the candidates the quick way (reach + turn),
   search only the best one. Bars: worst drag step on that pose <= 100 ms measured with nothing else running (the 0.1 s
   a response must take to feel instant: Miller 1968, Card et al. 1991, Nielsen 1993); the magnet's tests (snap, held,
   let go, palm on the shaft) pass unchanged.
+  EVIDENCE (tests/drag_speed_test.gd, tmp probe idle): three causes, three fixes.
+  (1) GripMagnet.drag: every place tried the quick way (B.fast); while the mouse moves (main.gd, quick=true) nothing
+  else runs; on release the full fit runs once, on the held place (it turns the wrist) or on at most SEARCH_MAX=3
+  places that came within SEARCH_NEAR=3 cm. (2) Body.set_ang_safe asked penetration() (every pair + every skin point)
+  ~12x a blocked step: now penetration_moving(j), only pairs touching the parts below j (and a held weapon); test 1:
+  200 random turns on 4 poses, its change equals penetration()'s within 0.000000000 m, 81 changed it (anti-vacuity);
+  stub (weapon left out of the moving set) -> FAIL 1 (0.27 m off). (3) Body.reach stops when a round makes no
+  progress; test 3: a blocked reach stops at 0.390 m, reaching again gets 0.390 m. Timing, idle, the probe pose
+  ("all wrong" arm, axe and bat): drag steps 3-42 s before -> worst 103 ms, mean 49-78 ms; release (full fit) worst
+  174 ms. A regression found on the way and fixed: quick-only tries left the wrist unrolled (grip_magnet test 3 rolled
+  10/7 deg, bar 25): the held place now gets the full fit on release -> rolled 37 deg. Suite C:/Temp/r49na6:
+  174/174 PASS (all windows now off screen, no consoles: tools/run_par.py, SHOW=1 to see them).
 - [x] NA4 all suites PASS; Nick's files unchanged except as asked; no zz_ leftovers.
   EVIDENCE: run_par -j 8, C:/Temp/r49_na: 172/173, the one FAIL say_next (3 new layer refusals named no next step,
   2 new success messages unlisted); fixed, say_next PASS, and layers / layer_merge / agent_tools re-run PASS (the

@@ -842,14 +842,20 @@ func contacts() -> Array:
 
 
 ## the trunk + head skin points vs the forearms, hands and bat: [[part, other, deepest point inside (m)], ...] (raw)
-func skin_raw() -> Array:
+func skin_raw(mv := {}) -> Array:   # mv (NA6): only what touches these parts ({} = all)
 	var out := []
 	if skin.is_empty():
 		return out
 	var caps := {}
+	var mv_skin := false   # NA6: does a skin part (the trunk / head) itself move? then every capsule is needed
+	for part in skin:
+		if mv.has(part):
+			mv_skin = true
 	for y in SKIN_VS:
 		if (y in WEAPON and not wep_on) or (y in WEAPON2 and not wep2_on):
 			continue
+		if not mv.is_empty() and not mv_skin and not mv.has(y):
+			continue   # NA6: neither side of this pair moves
 		caps[y] = cap(y)
 	for part in skin:
 		var g: Quaternion = G[part]
@@ -858,6 +864,8 @@ func skin_raw() -> Array:
 		var cen: Vector3 = pj + g * ((skin_c[part][0] as Vector3) - rj)
 		var br: float = skin_c[part][1]
 		for y in caps:
+			if not mv.is_empty() and not (mv.has(part) or mv.has(y)):
+				continue
 			var a: Vector3 = caps[y][0]
 			var b: Vector3 = caps[y][1]
 			var r: float = float(rad[y]) + (SKIN_HAND_PAD if (y as String).begins_with("hand") else 0.0)
@@ -880,6 +888,54 @@ func penetration() -> float:
 	var t := 0.0
 	for c in contacts():
 		t += float(c[2])
+	return t
+
+
+## THE HAND-DRAG FREEZE (round 49, GATES NA6; Nick 10-18: "a little freeze for 0.5 sec" moving a hand when the pose is
+## all wrong). set_ang_safe asks "did this turn push anything deeper in?" about a dozen times a blocked step, and each
+## ask summed EVERY pair and skin point of the body. Turning joint j moves only the parts below it (and a held weapon),
+## so every other pair's depth is the same before and after: the CHANGE is the change of this sum over the pairs that
+## touch a moving part. Same answer as penetration()'s difference (to float rounding), a fraction of the work.
+var _mv_cache := {}
+
+
+func moving_parts(j: String) -> Dictionary:
+	if _mv_cache.has(j):
+		return _mv_cache[j]
+	var mv := {}
+	for x in parent:
+		var y: String = x
+		while y != "":
+			if y == j:
+				mv[x] = true
+				break
+			y = parent.get(y, "")
+	if mv.has("hand_l") or mv.has("hand_r"):   # a held weapon goes with the hand (over-including is still exact)
+		for w in WEAPON + WEAPON2:
+			mv[w] = true
+	_mv_cache[j] = mv
+	return mv
+
+
+func penetration_moving(j: String) -> float:
+	var mv := moving_parts(j)
+	var t := 0.0
+	for pr in pairs:
+		if not (mv.has(pr[0]) or mv.has(pr[1])):
+			continue
+		if not wep_on and (pr[0] in WEAPON or pr[1] in WEAPON):
+			continue
+		if not wep2_on and (pr[0] in WEAPON2 or pr[1] in WEAPON2):
+			continue
+		if wep_on and grip and pr[0].begins_with("hand") and pr[1].begins_with("hand"):
+			continue
+		var d := depth(pr[0], pr[1]) - float(allow.get(pr[0] + "|" + pr[1], 0.0))
+		if d > 0.001:
+			t += d
+	for sc in skin_raw(mv):
+		var d2: float = float(sc[2]) - float(allow.get("skin:" + sc[0] + "|" + sc[1], 0.0))
+		if d2 > 0.001:
+			t += d2
 	return t
 
 
@@ -935,9 +991,9 @@ func set_ang_safe(j: String, v: Vector3) -> bool:
 			last_stop = {"kind": "limit", "joint": j, "axis": ["bend", "side", "twist"][k], "at": cl[k], "lo": r.x, "hi": r.y}
 			break
 	var old: Vector3 = ang[j]
-	var pen0 := penetration()
+	var pen0 := penetration_moving(j)   # NA6: only the pairs this turn can change
 	set_ang(j, v)
-	if penetration() <= pen0 + 1e-4:
+	if penetration_moving(j) <= pen0 + 1e-4:
 		return true
 	var target: Vector3 = ang[j]
 	var now := {}
@@ -954,7 +1010,7 @@ func set_ang_safe(j: String, v: Vector3) -> bool:
 	for i in 10:
 		var m := (lo + hi) * 0.5
 		set_ang(j, old.lerp(target, m))
-		if penetration() <= pen0 + 1e-4:
+		if penetration_moving(j) <= pen0 + 1e-4:
 			lo = m
 		else:
 			hi = m
@@ -973,6 +1029,7 @@ const IK_EPS := 1e-5
 func reach(tip: String, target: Vector3) -> float:
 	var mid: String = parent[tip]
 	var root: String = parent[mid]
+	var prev := INF
 	for it in 6:
 		var want := ((target - P[root]) as Vector3).length()
 		var r: Vector2 = lim[mid]["bend"]
@@ -995,8 +1052,12 @@ func reach(tip: String, target: Vector3) -> float:
 		var ax := r1.cross(r2)
 		if ax.length() > 1e-9:
 			turn_world(root, Quaternion(ax.normalized(), r1.angle_to(r2)))
-		if ((P[tip] - target) as Vector3).length() < IK_EPS:
+		var miss := ((P[tip] - target) as Vector3).length()
+		if miss < IK_EPS:
 			break   # there (round 13: the rounds after this moved nothing a file can hold, and cost 5 ms a frame)
+		if miss > prev - 1e-6:
+			break   # NA6: blocked (a limit or the body): the next rounds would redo the same stop (Nick's drag freeze)
+		prev = miss
 	return ((P[tip] - target) as Vector3).length()
 
 

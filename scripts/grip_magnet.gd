@@ -13,6 +13,9 @@ extends RefCounted
 
 const REACH_MISS := 0.015   # the arm cannot get the wrist there: let go (slide_hand's own bar)
 const PALM_ON := 0.02       # the palm's distance from the shaft's surface that still holds it
+const SEARCH_MAX := 3       # NA6: places searched at most (each ~0.1-0.25 s)
+const SEARCH_NEAR := 0.03   # NA6: the joint search runs only when the quick way came this close (m): its 12..1.5 deg
+                            # steps close a near miss; a place further off stays out of reach (it cost 0.6 s to learn)
 
 
 ## the hand's length on this body (wrist -> knuckles, rest pose) = the snap distance
@@ -84,7 +87,8 @@ static func roll_to(B: Body, h: String, ang: float) -> float:
 
 ## one step of a drag of hand h toward the wrist target `target` (world). Returns "free" (no weapon in the other hand,
 ## or not near it: the plain reach), "snap", "held" (slid / rolled), or "let go".
-static func drag(B: Body, h: String, target: Vector3) -> String:
+## quick (a mouse step, NA6): the places are tried the quick way only, never searched; main.gd searches once on release
+static func drag(B: Body, h: String, target: Vector3, quick := false) -> String:
 	var other := "hand_l" if h == "hand_r" else "hand_r"
 	if not (B.wep_on and B.wep_hand == other):
 		B.reach(h, target)
@@ -110,20 +114,45 @@ static func drag(B: Body, h: String, target: Vector3) -> String:
 	var toward := -1.0 if _main_u(B) < u else 1.0
 	var best := []
 	var best_miss := INF
+	# THE FREEZE (round 49, GATES NA6; Nick 10-18: "a little freeze for 0.5 sec" moving a hand when the pose is all
+	# wrong): every place used to run fit_hand's full joint search (a whole body's contacts a step), and when NONE was
+	# reachable all 11 ran: up to 9.6 s a mouse step. Now each place is tried the QUICK way (B.fast: reach + turn, no
+	# search), and only the best of them gets the search, once.
+	var was_fast := B.fast
+	var best_ps := []
+	var near := []   # [place, pose] the quick way got within SEARCH_NEAR, in the tries' order (the asked place first)
 	for t in tries:
 		var uu := clampf(u + toward * absf(float(t[0])), sp.x, sp.y)
 		var pp := phi + deg_to_rad(float(t[1]))
 		var ps := pose_at(B, h, uu, pp)
 		B.set_state(keep)
+		B.fast = true   # NA6: every place the quick way first (11 full fits on an unreachable pose were the freeze)
 		var miss := B.fit_hand(h, ps[0], ps[1])
+		B.fast = was_fast
 		# held means the PALM on the shaft, not only the wrist near its spot (a wrist that cannot turn far enough
 		# leaves the palm off the handle: round 47, the roll drag left it 2.7 cm off)
 		var bad := maxf(0.0, miss - REACH_MISS) + maxf(0.0, palm_off(B, h) - PALM_ON)
 		if bad < best_miss - 1e-5:
 			best_miss = bad
 			best = [uu, B.state()]
+			best_ps = ps
 		if bad <= 0.0:
 			break
+		if bad <= SEARCH_NEAR:
+			near.append([uu, ps])
+	if not quick and not was_fast:
+		# the full fit (the joint search, which also turns the wrist: the roll drag needs it), once the mouse lets go:
+		# held the quick way -> refit that one place; not held -> search the (at most SEARCH_MAX) places that came near
+		var todo := [[best[0], best_ps]] if best_miss <= 0.0 and not best_ps.is_empty() else near.slice(0, SEARCH_MAX)
+		for nb in todo:
+			B.set_state(keep)
+			var miss2 := B.fit_hand(h, nb[1][0], nb[1][1])
+			var bad2 := maxf(0.0, miss2 - REACH_MISS) + maxf(0.0, palm_off(B, h) - PALM_ON)
+			if bad2 <= 0.0 or bad2 < best_miss - 1e-5:
+				best_miss = bad2
+				best = [nb[0], B.state()]
+			if bad2 <= 0.0:
+				break
 	if best_miss > 0.0:
 		B.set_state(keep)
 		if holding:

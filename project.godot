@@ -1,8 +1,12 @@
-; Poser - the mannequin for planning moves (separate from the game on purpose)
+; Kine by Teschima Studios (was Poser) - the mannequin for planning moves (separate from the game on purpose)
 config_version=5
 
 [application]
-config/name="Poser"
+config/name="Kine"
+config/description="Kine by Teschima Studios: pose cards, real human limits, motion you can check"
+; the saved settings and autosave stay where they were under the old name
+config/use_custom_user_dir=true
+config/custom_user_dir_name="Godot/app_userdata/Poser"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.7")
 

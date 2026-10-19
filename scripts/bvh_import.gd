@@ -231,7 +231,7 @@ static func to_scene(bvh: Dictionary, B: Body, every := 1, scale := 1.0, scene_n
 		else:
 			not_mapped.append(j["name"])
 	if root_j == null:
-		return {"ok": false, "why": "the file has no joint named pelvis, so it is not a Poser export (joint names found: %s). Retargeting another skeleton is not supported yet" % ", ".join(PackedStringArray(joints.slice(0, 6).map(func(x): return x["name"])))}
+		return {"ok": false, "why": "the file has no joint named pelvis, so it is not a Kine export (joint names found: %s). Retargeting another skeleton is not supported yet" % ", ".join(PackedStringArray(joints.slice(0, 6).map(func(x): return x["name"])))}
 	var missing := []
 	for jn in Body.ORDER:
 		var found := false

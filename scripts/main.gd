@@ -887,7 +887,7 @@ func _export_game(dir := "res://exports") -> Array:
 	for s in T["tracks"]:
 		n += (T["tracks"][s] as Array).size()
 		w = maxf(w, T["worst"][s])
-	_say_plain("exported to the game: %s (%d keys on 11 bones, within %.2f degrees of Poser). The hands, feet and fingers do not reach the game" % [(out[0] as String).get_basename() + ".json / .cs", n, w])
+	_say_plain("exported to the game: %s (%d keys on 11 bones, within %.2f degrees of Kine). The hands, feet and fingers do not reach the game" % [(out[0] as String).get_basename() + ".json / .cs", n, w])
 	return out
 
 
@@ -2066,6 +2066,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if was == "joint" and not _gp.is_empty():
 				_group_release(mb.position)
 			if was == "joint" and not is_nan(_grab.x):
+				if sel in ["hand_r", "hand_l"] and B.wep_on and B.wep_hand != "" and B.wep_hand != sel:
+					var r := GripMagnet.drag(B, sel, _grab)   # NA6: the one full fit, on release (the drag was quick)
+					_after_edit()
+					if r != "free":
+						_say("the %s %s the %s" % [nice(sel), {"snap": "holds", "held": "holds", "let go": "let go of"}[r], B.wep_kind.replace("_", " ")])
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
 	elif ev is InputEventMouseMotion and dragging != "":
@@ -2203,7 +2208,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		# THE MAGNET (round 47, GATES CC3): the free hand near the weapon the other hand holds snaps onto its handle,
 		# slides and rolls along it, lets go when pulled off (no weapon in the other hand: the plain reach, as before)
 		if sel in ["hand_r", "hand_l"]:
-			_magnet = GripMagnet.drag(B, sel, _grab)
+			_magnet = GripMagnet.drag(B, sel, _grab, true)   # NA6: quick while the mouse moves; searched once on release
 		else:
 			B.reach(sel, _grab)
 	else:
@@ -7042,7 +7047,7 @@ func _recover_closed() -> void:
 		if from != _later_path():
 			DirAccess.rename_absolute(from, _later_path())
 			_as_last = ""
-		_say("the unsaved work is kept: it is offered again next time Poser starts")
+		_say("the unsaved work is kept: it is offered again next time Kine starts")
 
 
 func _offer_drop(fp: String) -> void:
@@ -7085,7 +7090,7 @@ func _recover_offer() -> void:
 	var nm: String = a["scene"].get("name", "")
 	if nm == "" and path != "":
 		nm = path.get_file().get_basename()
-	ui_recover.dialog_text = "Poser closed with unsaved work:
+	ui_recover.dialog_text = "Kine closed with unsaved work:
 '%s', %d cards, autosaved %s.
 Recover it?" % [
 		nm if nm != "" else "a new scene", a["scene"]["cards"].size(), String(a.get("at", "")).replace("T", " ")]

@@ -11,6 +11,10 @@ G = os.environ.get("G", "C:/Users/Nick/Tools/Godot/4.7.2/Godot_v4.7.2-stable_win
 LOGS = os.environ.get("LOGS", os.path.join(os.environ.get("TMP", "/tmp"), "poser_suites"))
 TIMEOUT = int(os.environ.get("TIMEOUT", "400"))
 BELOW_NORMAL = 0x00004000
+CREATE_NO_WINDOW = 0x08000000   # no console window per process (Nick 10-18: "170 windows opening is crazy")
+# window suites still need a real window to render, but it opens OFF the screen; SHOW=1 puts them back where you see them
+HIDE = os.environ.get("SHOW", "") == ""
+OFFSCREEN = ["--position", "-30000,-30000"]
 # shared state on disk (the scenes list, moves/ and trash/, exports, the CLI's files): kept out of the parallel batch
 SERIAL = {"scene_list", "browser_tree", "browser", "versions", "cli", "serve", "agent", "mcp", "glb_export",
           "bvh_export", "engine_names", "autosave", "names_disk", "launcher", "empty_paths", "confirm", "examples"}
@@ -31,12 +35,12 @@ def run(s):
     if not os.path.exists(os.path.join(HERE, f)):
         f = os.path.join("tests", name + ".gd")
     log = os.path.join(LOGS, name + ".log")
-    args = [G] + (["--headless"] if mode == "h" else []) + ["--path", ".", "-s", f]
+    args = [G] + (["--headless"] if mode == "h" else (OFFSCREEN if HIDE else [])) + ["--path", ".", "-s", f]
     t0 = time.time()
     why = ""
     with open(log, "w", encoding="utf-8", errors="replace") as fh:
         p = subprocess.Popen(args, cwd=HERE, stdout=fh, stderr=subprocess.STDOUT,
-                             creationflags=BELOW_NORMAL if os.name == "nt" else 0)
+                             creationflags=(BELOW_NORMAL | (CREATE_NO_WINDOW if HIDE else 0)) if os.name == "nt" else 0)
         seen = 0.0
         while p.poll() is None:
             time.sleep(1)

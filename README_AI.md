@@ -1,4 +1,4 @@
-# Poser for agents: one page
+# Kine by Teschima Studios (formerly Poser) for agents: one page
 
 The poser is a Godot 4.7.2 app (`main.tscn`, logic in `scripts/main.gd`) for posing a mannequin and animating it card by card.
 Nick's files: `scenes/*.json`, `poses/`, `data/`. **Never write them.** Put experiments in `scenes/_wip/`.

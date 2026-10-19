@@ -227,7 +227,7 @@ func check_html(folder: String, rows: Array, per: Dictionary, tot: Dictionary) -
 	var rules: Array = tot.keys()
 	rules.sort()
 	var h := PackedStringArray()
-	h.append("<!doctype html><html><head><meta charset=\"utf-8\"><title>Poser check: %s</title><style>" % e.call(folder.get_file()))
+	h.append("<!doctype html><html><head><meta charset=\"utf-8\"><title>Kine check: %s</title><style>" % e.call(folder.get_file()))
 	h.append("body{font:14px system-ui,sans-serif;margin:24px;color:#222;background:#fafafa}table{border-collapse:collapse;margin:8px 0 24px}")
 	h.append("td,th{border:1px solid #ccc;padding:3px 8px;text-align:left}th{background:#eee}.must{color:#b00;font-weight:600}.zero{color:#999}")
 	h.append("h2{margin-top:32px;font-size:17px}</style></head><body>")

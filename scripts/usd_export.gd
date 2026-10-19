@@ -40,14 +40,14 @@ static func text(S: Scene, B: Body) -> Array:
 		scl.append("(1, 1, 1)")
 	var fps := float(maxi(1, S.fps))
 	var n := int(ceil(S.length() * fps - 1e-6)) + 1
-	var h := PackedStringArray(["#usda 1.0", "(", "    defaultPrim = \"Poser\"", "    metersPerUnit = 1", "    upAxis = \"Y\"",
+	var h := PackedStringArray(["#usda 1.0", "(", "    defaultPrim = \"Kine\"", "    metersPerUnit = 1", "    upAxis = \"Y\"",
 		"    timeCodesPerSecond = %s" % _f(fps), "    framesPerSecond = %s" % _f(fps), "    startTimeCode = 0", "    endTimeCode = %d" % (n - 1),
-		"    doc = \"Poser scene %s\"" % S.name, ")", "", "def SkelRoot \"Poser\"", "{",
+		"    doc = \"Kine scene %s\"" % S.name, ")", "", "def SkelRoot \"Kine\"", "{",
 		"    def Skeleton \"Skel\" (", "        prepend apiSchemas = [\"SkelBindingAPI\"]", "    )", "    {",
 		"        uniform token[] joints = " + q.call(jt),
 		"        uniform matrix4d[] bindTransforms = " + q.call(bind),
 		"        uniform matrix4d[] restTransforms = " + q.call(rest),
-		"        rel skel:animationSource = </Poser/Skel/Anim>", "    }", "",
+		"        rel skel:animationSource = </Kine/Skel/Anim>", "    }", "",
 		"    def SkelAnimation \"Anim\"", "    {", "        uniform token[] joints = " + q.call(jt)])
 	var tr := PackedStringArray()
 	var ro := PackedStringArray()
