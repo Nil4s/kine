@@ -7419,6 +7419,7 @@ func _commands() -> Array:
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
+	add.call("Check: weapon clashes", "", _weapon_clash, "clash parry pass through weapons bat swing contact sparks meet fighters", false, "finds where the two fighters' weapons meet over the timeline: CLASH, PARRY, or PASS-THROUGH (the weapons go through each other: must fix); a spark marks each contact, the report prints the time, point and speed (ROADMAP 37)")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
 	add.call("Cycle card key type", "", _ktype_cycle, "breakdown moving hold extreme key blender mark", true, "the picked card becomes the next kind of key: key, breakdown, moving hold, extreme (drawn on the dope sheet)")
 	add.call("Next marker", "Ctrl+]", _marker_jump.bind(true), "cue event flag jump", false, "the playhead jumps to the next marker")
@@ -7593,6 +7594,38 @@ func _choreo_changed() -> void:
 	if ui_choreo != null and is_instance_valid(ui_choreo.win):
 		ui_choreo.refresh()
 	_refresh()
+
+
+## WEAPON CLASH (ROADMAP 37; scripts/weapon_clash.gd): where the two fighters' weapons meet over the timeline. A spark
+## marks each contact in the view; the report prints every event (time, frame, point, speed); a PASS-THROUGH is what
+## the animator must fix. The sparks of the last check are replaced by the next one.
+var clash_sparks := []   # MeshInstance3D: the sparks of the last check
+
+
+func _weapon_clash() -> void:
+	_actors_sync()
+	for sp in clash_sparks:
+		if is_instance_valid(sp):
+			sp.queue_free()
+	clash_sparks.clear()
+	var fs := Choreo.fighters_of(self)
+	if fs.size() < 2:
+		_say("Check: weapon clashes needs two fighters (Actor: add a second fighter first)")
+		return
+	var ev := WeaponClash.scan(fs, float((fs[0]["S"] as Scene).fps))
+	for e in ev:
+		var sp := WeaponClash.spark(e["point"])
+		add_child(sp)
+		clash_sparks.append(sp)
+		print(e["text"])
+	if ev.is_empty():
+		_say("Check: weapon clashes: none, the weapons never meet")
+		return
+	var through := 0
+	for e in ev:
+		if e["kind"] == "PASS-THROUGH":
+			through += 1
+	_say("Check: weapon clashes: %d (%d PASS-THROUGH, must fix). %s" % [ev.size(), through, ev[0]["text"]])
 
 
 ## MARKERS (round 41, GATES WW5, UPGRADES_300 #261): named moments on the timeline (Markers). Add / Delete at the playhead are
