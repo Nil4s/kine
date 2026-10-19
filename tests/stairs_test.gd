@@ -8,6 +8,12 @@
 ##   2 REACH: on every planted frame each planted leg's ankle is within its leg's length, and the planted ankle is within 1 mm
 ##     of its target (FootPlant.play's miss). The hips drop with the plant: the played hips (the same stride unplanted) are
 ##     more than 1 mm above the planted hips (anti-vacuity: the lower foot is out of reach of the played hips).
+##   7 TOE BEND (a box step, 17.8 cm top, front edge at z = +0.2): the left foot is planted with its ball 2 cm short of the front
+##     edge and its toes past it. On every planted frame: the ball's contact is on the top within 3 mm and the heel too; the
+##     toes bend DOWN over the edge at least 10 deg (the ball joint's bend, within its -30 deg limit); the toe tip is 5 cm or
+##     more below the top; the foot's axis is inside no prop by more than 2 mm.
+##   8 WEDGE (ramp15 is a wedge, not a slab): its top is on the floor at the low end (within 0.5 mm of the formula 0.00268 m at
+##     1 cm from the end, so no lip), 0.2679 m at the middle, 0.5332 m at 1 cm from the high end.
 ##   3 RAMP (ramp15, 15 degrees): both feet planted at mid-ramp. On every planted frame: each sole's normal is within 3 deg of
 ##     the ramp's normal, each sole point within 3 mm of the ramp, and no ankle, ball, calf or thigh is past its limit (the
 ##     clamp moves none of them by more than 0.01 deg). The ramp's slope is read from the ground's normal and must be 15 deg.
@@ -15,8 +21,12 @@
 ##     bit for bit the same as the same scene with no props (the body dictionary and the offset).
 ##   5 SNAP ON A STEP: a standing pose (both feet flat on a box step's 17.8 cm top) lifted 30 cm: after FloorSnap with the
 ##     set, the lowest sole point is on the top to within 1 mm, and the root moved down 0.30 - 0.178 = 0.122 m to within 1 mm.
-##   6 SCREENSHOT (windowed run only, POSER_STAIRS_PNG names the file): the stride on the stairs in the app, a whole-body side
-##     view. Placement is read by hand: the stance foot ON the tread, the other ON the floor below it.
+##   6 PLACEMENT (windowed run only; POSER_STAIRS_PNG names the screenshot): built through the app's own commands: the stairs
+##     added with the app's add (_prop_add) and put under the stride; the Target dummy off; played at t = 1 s. Read from the
+##     RENDERED mannequin's bones (the skeleton's global poses, not the body's numbers): each foot's sole points are heel
+##     (ankle less its rest height along its up) and ball (ball joint less its rest height). The left heel and ball are on
+##     tread 1 (their surface is at 17.8 cm) within 3 mm; the right heel and ball are on the floor within 3 mm. The rendered
+##     ankles are within 1 mm of the body's (anti-vacuity: the bones are the body's). Then a whole-body side view is saved.
 extends SceneTree
 
 var fails := 0
@@ -212,11 +222,55 @@ func _init() -> void:
 	ok(absf(low) <= 0.001, "5 after the snap the lowest sole point is on the top (within 1 mm)")
 	ok(absf(dropped - (0.3 - TREAD)) <= 0.001, "5 the root moved down 0.122 m, to the step (within 1 mm)")
 
-	# 6 SCREENSHOT: the stride on the stairs in the app, a whole-body side view (needs a window; POSER_STAIRS_PNG names the file)
+	# 7 TOE BEND ------------------------------------------------------------------------------------------------
+	# the ball 2 cm short of a box step's front edge (z = +0.2 local), the toes past it: the ball stays on the top, the toes bend
+	var c0 := scene(STRIDE, [], plants)
+	c0.apply(B, T0)
+	var ball_z := (sole_pts(B, "_l")[1] as Vector3).z
+	var toe_box := Props.make("step_code", Props.xf_at(Vector3(0, 0, ball_z - 0.02 - 0.2)))
+	var SO := scene(STRIDE, [toe_box], plants)
+	var worst_ball := 0.0
+	var worst_heel := 0.0
+	var min_bend := INF
+	var toe_low := INF
+	var worst_axis := 0.0
+	var ball_lim := 0.0
+	var nt := 0
+	for t in plant_times(SO):
+		SO.apply(B, t)
+		var props7: Array = SO.solid_props()
+		nt += 1
+		var sp := sole_pts(B, "_l")
+		worst_heel = maxf(worst_heel, absf(clearance(props7, sp[0])))
+		worst_ball = maxf(worst_ball, absf(clearance(props7, sp[1])))
+		var r7: Dictionary = SO.plant_last.get(0, {})
+		min_bend = minf(min_bend, float(r7.get("toe_bend", 0.0)))
+		toe_low = minf(toe_low, TREAD - (sp[2] as Vector3).y)
+		worst_axis = maxf(worst_axis, Props.depth(toe_box, B.P["foot_l"], B.E["ball_l"], 0.0))
+		ball_lim = minf(ball_lim, (B.ang["ball_l"] as Vector3).x)
+	print("toe: %d planted frames; heel %.2f mm, ball %.2f mm off the top (worst); toes bent %.1f deg at least; toe tip %.1f cm under the top at least; ball bend at most %.1f deg (limit -30); foot axis in the box %.2f mm" % [nt, worst_heel * 1000.0, worst_ball * 1000.0, min_bend, toe_low * 100.0, ball_lim, worst_axis * 1000.0])
+	ok(worst_ball <= 0.003 and worst_heel <= 0.003, "7 the ball and the heel stay on the step's top within 3 mm on every frame (worst %.2f, %.2f mm)" % [worst_ball * 1000.0, worst_heel * 1000.0])
+	ok(min_bend >= 10.0, "7 the toes bend down over the edge at least 10 deg on every frame (least %.1f deg)" % min_bend)
+	ok(ball_lim >= -30.01, "7 the ball's bend stays within its limit (-30 deg; most %.2f)" % ball_lim)
+	ok(toe_low >= 0.05, "7 the toe tip is 5 cm or more under the top it overhangs (%.1f cm)" % (toe_low * 100.0))
+	ok(worst_axis <= 0.002, "7 the foot's axis is inside the step by no more than 2 mm (%.2f mm)" % (worst_axis * 1000.0))
+
+	# 8 WEDGE: the ramp's top is a plane from the floor at its low end (no lip), 0.268 m at the middle
+	var wedge := [Props.make("ramp15", Props.xf_at(Vector3(0, 0, 0)))]
+	var top_lo := float(Props.surface_below(wedge, Vector3(0, 1.0, -0.99))["y"])
+	var top_mid := float(Props.surface_below(wedge, Vector3(0, 1.0, 0.0))["y"])
+	var top_hi := float(Props.surface_below(wedge, Vector3(0, 1.0, 0.99))["y"])
+	print("wedge: top %.2f mm at 1 cm from the low end, %.2f mm at the middle, %.2f mm at 1 cm from the high end" % [top_lo * 1000.0, top_mid * 1000.0, top_hi * 1000.0])
+	ok(absf(top_lo - 0.00268) <= 0.0005, "8 the wedge's top is on the floor at its low end (no lip): %.2f mm at 1 cm from it" % (top_lo * 1000.0))
+	ok(absf(top_mid - 0.26795) <= 0.0005, "8 the wedge's top is 26.8 cm up at the middle (%.2f mm)" % (top_mid * 1000.0))
+	ok(absf(top_hi - 0.53322) <= 0.0005, "8 the wedge's top is 53.3 cm up 1 cm from the high end (%.2f mm)" % (top_hi * 1000.0))
+
+	# 6 PLACEMENT, in the app, on the rendered bones (windowed run only); the whole-body side view is saved beside it
 	var png := OS.get_environment("POSER_STAIRS_PNG")
-	if png != "" and DisplayServer.get_name() != "headless":
-		await shot(S1, png)
-		print("screenshot: %s" % png)
+	if DisplayServer.get_name() != "headless":
+		await app_placement(png)
+	else:
+		print("placement: skipped (needs the app's window to read the rendered bones)")
 
 	print("RESULT %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(0 if fails == 0 else 1)
@@ -227,20 +281,65 @@ func idle(n := 3) -> void:
 		await process_frame
 
 
-## the app with the scene S (the stride on the stairs), its camera on the +X side looking back at the body: the feet along Z
-func shot(S: Scene, png: String) -> void:
+## the stride on the stairs, built in the app (its own add and its own pose), read on the rendered skeleton, then a side view
+func app_placement(png: String) -> void:
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(6)
 	m.tour_step = -1
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
-	m.S = S
+	m.dummy_on = false   # Target dummy: off
+	var plants := [{"foot": "foot_l", "t0": T0, "t1": T1}, {"foot": "foot_r", "t0": T0, "t1": T1}]
+	m.S = scene(STRIDE, [], plants)
 	m._rebuild_cards()
 	m.sel_card = 0
+	m._prop_add("stairs_code")   # the app's add: the stairs go in front of the body
+	var sp := 0   # the stairs are the first prop
+	# put tread 1 under the left sole, as a user drags it: a first guess, the body posed at t = 1 s, then the tread centred on the sole
+	m.S.props[sp]["xf"] = Props.xf_at(Vector3(0.089, 0, 0.329))
+	m._props_show()   # the app's own refresh after a move: the drawn stairs and the body's set follow the prop
+	m.S.apply(m.B, 1.0)
+	var lm: Vector3 = (sole_pts(m.B, "_l")[0] + sole_pts(m.B, "_l")[2]) * 0.5
+	m.S.props[sp]["xf"] = Props.xf_at(Vector3(lm.x, 0, lm.z - 0.14))
+	m._props_show()
 	m.playhead = 1.0
 	m._refresh()
-	m._turn_to(90.0, -4.0, 4.8, Vector3(0.09, 0.85, 0.42), false)   # the whole body (1.8 m) and the stairs in the free view
-	m._refresh()
 	await idle(4)
-	get_root().get_texture().get_image().save_png(png)
+	var skel: Skeleton3D = m.skel
+	skel.force_update_all_bone_transforms()
+	var rend := {}
+	for j in ["foot_l", "ball_l", "foot_r", "ball_r"]:
+		rend[j] = skel.global_transform * skel.get_bone_global_pose(int(m.bone_idx[j]))
+	# the body's frame from the rendered bone: the bone's world basis is its body frame times its rest basis, so the frame is
+	# rendered * rest^-1 (checked against the body's own G for every bone read, to 0.5 deg: the bones are the body's)
+	var frame := {}
+	var frame_err := 0.0
+	for j in ["foot_l", "ball_l", "foot_r", "ball_r"]:
+		var rb_: Basis = skel.get_bone_global_rest(int(m.bone_idx[j])).basis
+		var fr: Basis = (rend[j] as Transform3D).basis * rb_.inverse()
+		frame[j] = fr.get_rotation_quaternion()
+		frame_err = maxf(frame_err, rad_to_deg((frame[j] as Quaternion).angle_to(m.B.G[j] as Quaternion)))
+	# the rendered sole points: the ankle less its rest height along its up, the ball joint less its rest height along its up
+	var mapping := 0.0
+	for j in ["foot_l", "ball_l", "foot_r", "ball_r"]:
+		mapping = maxf(mapping, ((rend[j] as Transform3D).origin as Vector3).distance_to(m.B.P[j]))
+	var heel_l: Vector3 = (rend["foot_l"] as Transform3D).origin - (frame["foot_l"] as Quaternion) * Vector3(0, float((m.B.p0["foot_l"] as Vector3).y), 0)
+	var ball_l: Vector3 = (rend["ball_l"] as Transform3D).origin - (frame["ball_l"] as Quaternion) * Vector3(0, float((m.B.p0["ball_l"] as Vector3).y), 0)
+	var heel_r: Vector3 = (rend["foot_r"] as Transform3D).origin - (frame["foot_r"] as Quaternion) * Vector3(0, float((m.B.p0["foot_r"] as Vector3).y), 0)
+	var ball_r: Vector3 = (rend["ball_r"] as Transform3D).origin - (frame["ball_r"] as Quaternion) * Vector3(0, float((m.B.p0["ball_r"] as Vector3).y), 0)
+	var props_now: Array = m.S.solid_props()
+	var top_l := [float(Props.surface_below(props_now, heel_l)["y"]), float(Props.surface_below(props_now, ball_l)["y"])]
+	var dev_l := maxf(absf(heel_l.y - top_l[0]), absf(ball_l.y - top_l[1]))
+	var dev_r := maxf(absf(heel_r.y), absf(ball_r.y))
+	print("placement (rendered bones): left heel %.1f mm, ball %.1f mm, their surface %.1f / %.1f mm; right heel %.1f mm, ball %.1f mm; rendered vs body ankle/ball %.3f mm" % [heel_l.y * 1000.0, ball_l.y * 1000.0, top_l[0] * 1000.0, top_l[1] * 1000.0, heel_r.y * 1000.0, ball_r.y * 1000.0, mapping * 1000.0])
+	ok(mapping <= 0.001 and frame_err <= 0.5, "6 the rendered bones are the body's: ankles and balls within 1 mm (worst %.3f mm), frames within 0.5 deg (worst %.3f deg)" % [mapping * 1000.0, frame_err])
+	ok(absf(top_l[0] - TREAD) <= 0.001 and absf(top_l[1] - TREAD) <= 0.001, "6 the left foot's surface is tread 1 at 17.8 cm (%.1f and %.1f mm)" % [top_l[0] * 1000.0, top_l[1] * 1000.0])
+	ok(dev_l <= 0.003, "6 the left heel and ball sit on tread 1 within 3 mm (worst %.2f mm)" % (dev_l * 1000.0))
+	ok(dev_r <= 0.003, "6 the right heel and ball sit on the floor within 3 mm (worst %.2f mm)" % (dev_r * 1000.0))
+	if png != "":
+		m._turn_to(90.0, -4.0, 4.8, Vector3(0.09, 0.85, 0.42), false)   # the whole body (1.8 m) and the stairs in the free view
+		m._refresh()
+		await idle(4)
+		get_root().get_texture().get_image().save_png(png)
+		print("screenshot: %s" % png)

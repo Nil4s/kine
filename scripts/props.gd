@@ -5,7 +5,9 @@
 ## Each kind is DATA in KINDS:
 ##   "solids":   [center, size] or [center, size, pitch_deg]   boxes in the prop's local frame (pitch tilts a box about X,
 ##               positive = rising toward +Z; only the ramp uses it, as ONE sloped slab, not stairs)
-##   "supports": [height, centre_xz, size_xz]                   flat tops a body can rest on (the ramp has none)
+##   "wedges":   [centre, size W x H x L]                      triangular prisms, rising toward +Z from a flat underside (the
+##               ramps): the slope is walkable, nothing is under it, no support (ROADMAP 93)
+##   "supports": [height, centre_xz, size_xz]                   flat tops a body can rest on (the ramps have none)
 ##   "label":    the real-world size in words
 ##
 ## A query takes a plain capsule (a, b, r), so a body part and a weapon are answered the same way:
@@ -58,10 +60,11 @@ const KINDS := {
 		"supports": [[0.18, Vector2(0, -0.56), Vector2(0.9, 0.28)], [0.36, Vector2(0, -0.28), Vector2(0.9, 0.28)],
 		[0.54, Vector2(0, 0.0), Vector2(0.9, 0.28)], [0.72, Vector2(0, 0.28), Vector2(0.9, 0.28)],
 		[0.9, Vector2(0, 0.56), Vector2(0.9, 0.28)]]},
-	# the ramp is ONE sloped slab (12 degrees, 2 m long, 8 cm thick, 90 cm wide, about 50 cm high at the top), not a
-	# wedge: nothing under it is solid, and it has no support (a capsule on a slope is not "resting on a flat")
-	"ramp": {"label": "200 cm long, 90 cm wide, rising 50 cm toward +Z", "solids": [
-		[Vector3(0, 0.247, 0), Vector3(0.9, 0.08, 2.0), 12.0]], "supports": []},
+	# THE RAMP is a WEDGE (ROADMAP 93): a triangular prism, its underside flat on the floor, its top a plane from the floor
+	# at the low end up to 50 cm at the high end (2 m long, 90 cm wide). Nothing is under the slope and it has no support
+	# (a capsule on a slope is not "resting on a flat"). "wedges": [centre, size W x H x L]; the centre is H/2 up
+	"ramp": {"label": "200 cm long, 90 cm wide, rising 50 cm toward +Z (a wedge: flat underside on the floor)", "solids": [],
+		"wedges": [[Vector3(0, 0.25, 0), Vector3(0.9, 0.5, 2.0)]], "supports": []},
 	# GROUND PROPS (ROADMAP 93): the stair and step defaults are the building code's: a riser (rise) of 17.8 cm (7 in, under
 	# the IRC R311.7.5.1 maximum of 19.7 cm, 7 3/4 in) and a tread (run) of 28 cm (11 in, over the 25.4 cm / 10 in minimum)
 	"step_code": {"label": "box step, 60 x 40 cm, 17.8 cm riser (IRC R311.7.5.1)", "solids": [[Vector3(0, 0.089, 0), Vector3(0.6, 0.178, 0.4)]],
@@ -72,10 +75,9 @@ const KINDS := {
 		[Vector3(0, 0.267, 0.70), Vector3(0.9, 0.534, 0.28)], [Vector3(0, 0.356, 0.98), Vector3(0.9, 0.712, 0.28)]],
 		"supports": [[0.178, Vector2(0, 0.14), Vector2(0.9, 0.28)], [0.356, Vector2(0, 0.42), Vector2(0.9, 0.28)],
 		[0.534, Vector2(0, 0.70), Vector2(0.9, 0.28)], [0.712, Vector2(0, 0.98), Vector2(0.9, 0.28)]]},
-	# a 15 degree ramp, the same slab as "ramp" (2 m long, 90 cm wide, 8 cm thick); its low end's top is at the floor
-	# the slab rests on the floor by its low corner (0.04 cos15 + 1.0 sin15 = 0.2975 m up), so no part of the mesh is under the floor
-	"ramp15": {"label": "15 degree ramp, 200 cm long, 90 cm wide, rising toward +Z", "solids": [
-		[Vector3(0, 0.2975, 0), Vector3(0.9, 0.08, 2.0), 15.0]], "supports": []},
+	# a 15 degree ramp: the same wedge, H = 2.0 tan 15 = 0.535898 m, centre H/2 up (0.267949)
+	"ramp15": {"label": "15 degree wedge ramp, 200 cm long, 90 cm wide, rising toward +Z", "solids": [],
+		"wedges": [[Vector3(0, 0.267949, 0), Vector3(0.9, 0.535898, 2.0)]], "supports": []},
 	"wall": {"label": "300 x 240 cm, 15 cm thick", "solids": [[Vector3(0, 1.2, 0), Vector3(3.0, 2.4, 0.15)]], "supports": []},
 	"door_frame": {"label": "90 x 200 cm opening, frame 210 cm high, 12 cm deep", "solids": [
 		[Vector3(0.5, 1.0, 0), Vector3(0.1, 2.0, 0.12)], [Vector3(-0.5, 1.0, 0), Vector3(0.1, 2.0, 0.12)],
@@ -219,7 +221,34 @@ static func solids(p: Dictionary) -> Array:
 	for sp in kd.get("spheres", []):
 		var r: float = sp[1]
 		out.append({"xf": (p["xf"] as Transform3D) * Transform3D(Basis(), sp[0]), "half": Vector3(r, r, r), "r": r})
+	for w in kd.get("wedges", []):
+		var size: Vector3 = w[1]
+		out.append({"xf": (p["xf"] as Transform3D) * leaf_xf(p) * Transform3D(Basis(), w[0]), "half": size * 0.5,
+			"poly": wedge_profile(size), "w": size.x * 0.5})
 	return out
+
+
+## a wedge's profile in its own (z, y) plane, about its centre, counter-clockwise: the flat underside from the low end to
+## the high end, the high end's back, and the slope from the top back down to the low end. Rises toward +Z (the low end at -Z)
+static func wedge_profile(size: Vector3) -> PackedVector2Array:
+	var hz := size.z * 0.5
+	var hy := size.y * 0.5
+	return PackedVector2Array([Vector2(-hz, -hy), Vector2(hz, -hy), Vector2(hz, hy)])
+
+
+## 2D signed distance to a convex counter-clockwise polygon (negative inside)
+static func _sdf2(q: Vector2, poly: PackedVector2Array) -> float:
+	var best := INF
+	var inside := true
+	var n := poly.size()
+	for i in n:
+		var a: Vector2 = poly[i]
+		var e: Vector2 = poly[(i + 1) % n] - a
+		var t := clampf((q - a).dot(e) / maxf(e.length_squared(), 1e-12), 0.0, 1.0)
+		best = minf(best, (q - (a + e * t)).length())
+		if e.x * (q - a).y - e.y * (q - a).x < 0.0:
+			inside = false
+	return -best if inside else best
 
 
 # ---------------------------------------------------------------- GENERIC PROPS: hinge, keys over time (row 22)
@@ -368,6 +397,11 @@ static func mesh(p: Dictionary) -> Node3D:
 		var pitch := deg_to_rad(float(s[2])) if s.size() > 2 else 0.0
 		mi.transform = Transform3D(Basis(Vector3.RIGHT, -pitch), s[0])
 		holder.add_child(mi)
+	for w in kd.get("wedges", []):
+		var mi := MeshInstance3D.new()
+		mi.mesh = _wedge_mesh(w[1], mat)
+		mi.position = w[0]
+		holder.add_child(mi)
 	for sp in kd.get("spheres", []):
 		var mi := MeshInstance3D.new()
 		var sm := SphereMesh.new()
@@ -378,6 +412,43 @@ static func mesh(p: Dictionary) -> Node3D:
 		mi.position = sp[0]
 		holder.add_child(mi)
 	return root
+
+
+## a wedge's triangular prism as a mesh: two triangles at each end, two per profile edge along the length; each face's
+## normal is turned away from the prism's middle, so the faces point outward whatever their winding
+static func _wedge_mesh(size: Vector3, mat: Material) -> ArrayMesh:
+	var poly := wedge_profile(size)
+	var w := size.x * 0.5
+	var pts := []   # pts[2k] is profile point k at x = -w, pts[2k+1] the same at x = +w
+	for v in poly:
+		pts.append(Vector3(-w, v.y, v.x))
+		pts.append(Vector3(w, v.y, v.x))
+	var mid := Vector3.ZERO
+	for q in pts:
+		mid += q
+	mid /= float(pts.size())
+	var tris := []
+	tris.append([pts[0], pts[2], pts[4]])
+	tris.append([pts[1], pts[5], pts[3]])
+	for i in 3:
+		var j := (i + 1) % 3
+		tris.append([pts[2 * i], pts[2 * j], pts[2 * j + 1]])
+		tris.append([pts[2 * i], pts[2 * j + 1], pts[2 * i + 1]])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in tris:
+		var a: Vector3 = t[0]
+		var b: Vector3 = t[1]
+		var c: Vector3 = t[2]
+		var n := (b - a).cross(c - a).normalized()
+		if n.dot((a + b + c) / 3.0 - mid) < 0.0:
+			n = -n
+		for v in t:
+			st.set_normal(n)
+			st.add_vertex(v)
+	var am := st.commit()
+	am.surface_set_material(0, mat)
+	return am
 
 
 ## a node made by mesh() put where the prop is now (a posed prop: its place and, for a door, its leaf)
@@ -393,6 +464,10 @@ static func _sd(sw: Dictionary, pt: Vector3) -> float:
 	var l: Vector3 = (sw["xf"] as Transform3D).affine_inverse() * pt
 	if sw.has("r"):
 		return l.length() - float(sw["r"])
+	if sw.has("poly"):
+		var d2 := _sdf2(Vector2(l.z, l.y), sw["poly"])
+		var q := Vector2(d2, absf(l.x) - float(sw["w"]))
+		return Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0)
 	var h: Vector3 = sw["half"]
 	var q := Vector3(absf(l.x) - h.x, absf(l.y) - h.y, absf(l.z) - h.z)
 	return Vector3(maxf(q.x, 0.0), maxf(q.y, 0.0), maxf(q.z, 0.0)).length() + minf(maxf(q.x, maxf(q.y, q.z)), 0.0)
@@ -508,6 +583,9 @@ static func _faces_under(props: Array, x: float, z: float) -> Array:
 			if sw.has("r"):
 				continue
 			var X: Transform3D = sw["xf"]
+			if sw.has("poly"):
+				cands.append_array(_wedge_faces_under(sw, x, z))
+				continue
 			var h: Vector3 = sw["half"]
 			var ax := [X.basis.x.normalized(), X.basis.y.normalized(), X.basis.z.normalized()]
 			for i in 3:
@@ -523,6 +601,31 @@ static func _faces_under(props: Array, x: float, z: float) -> Array:
 					if absf(d.dot(ax[j])) <= h[j] + 1e-6 and absf(d.dot(ax[k])) <= h[k] + 1e-6:
 						cands.append({"y": y, "n": n})
 	return cands
+
+
+## a wedge's upward faces under (x, z): each profile edge whose outward normal points up (the slope) gives the height of its
+## plane on the vertical through (x, z), if that point is inside the edge's extent and within the wedge's width
+static func _wedge_faces_under(sw: Dictionary, x: float, z: float) -> Array:
+	var out := []
+	var X: Transform3D = sw["xf"]
+	var poly: PackedVector2Array = sw["poly"]
+	var inv := X.affine_inverse()
+	for i in poly.size():
+		var a: Vector2 = poly[i]
+		var b: Vector2 = poly[(i + 1) % poly.size()]
+		var e := b - a
+		# the outward normal of a counter-clockwise edge in (z, y) is (e.y, -e.x): as a 3D local vector (0, -e.x, e.y)
+		var n := (X.basis * Vector3(0.0, -e.x, e.y).normalized()).normalized()
+		if n.y < 0.5:
+			continue
+		var mid := (a + b) * 0.5
+		var c := X * Vector3(0.0, mid.y, mid.x)
+		var y := c.y - (n.x * (x - c.x) + n.z * (z - c.z)) / n.y
+		var lp := inv * Vector3(x, y, z)
+		var tpar := ((lp.z - a.x) * e.x + (lp.y - a.y) * e.y) / maxf(e.length_squared(), 1e-12)
+		if absf(lp.x) <= float(sw["w"]) + 1e-6 and tpar >= -1e-6 and tpar <= 1.0 + 1e-6:
+			out.append({"y": y, "n": n})
+	return out
 
 
 ## the height p should stand at: the floor (0), or the highest support of another prop that p's origin is over

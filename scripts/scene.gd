@@ -660,7 +660,7 @@ func apply(B: Body, t: float) -> void:
 	# FOOT PLANTS (ROADMAP 8, scripts/foot_plant.gd): after the IK pass, before the constraints. A planted foot holds the
 	# place it had at its t0; the pelvis is not touched. Nothing live (no plants, or none in range): the body is not touched
 	if not plant_refs.is_empty():
-		plant_last = FootPlant.play(B, plants, plant_refs, t, fps)
+		plant_last = FootPlant.play(B, plants, plant_refs, t, fps, solid_props() if not props.is_empty() else [])
 	# USER CONSTRAINTS (round 51, CN): after IK, in list order (Blender's stack runs on the finished animated pose);
 	# every angle they write goes through Body.clamp_ang, so the joint limits come last. None: nothing is touched
 	cons_last = []
