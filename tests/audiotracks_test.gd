@@ -100,67 +100,69 @@ func _init() -> void:
 	# INFO, not gated: the display gap (playhead vs each clock read later in the test, after the frame has drawn), the frame
 	# times, and the mixer's seconds per wall second. The display gap is one frame old by construction and grows with the
 	# machine's load (10 agents running tests make frames 20-70 ms), so it measures the load, not the mechanism.
-	S.audio_tracks = [{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": 0.5, "gain_db": 0.0}]
-	m._audio_reload()
-	m.pv_in = -1.0
-	m.pv_out = -1.0
-	m.playing = false
-	m.playhead = 0.2
-	m._ps().apply(m.B, 0.2)
-	await idle(2)
-	m.playing = true
-	var offs := [0.0, 0.5]
-	var set_gap := [0.0, 0.0]     # the gate: worst |audio clock + offset - playhead| read at set time
-	var set_n := [0, 0]
-	var disp_gap := [0.0, 0.0]    # info: the same, read later in the test
-	var dts := []
-	var from_clock := 0
-	var from_frame := 0
-	var ph_start: float = m.playhead
-	var t0 := Time.get_ticks_usec()
-	var clk0 := -1.0
-	var frames := 0
-	while Time.get_ticks_usec() - t0 < 3000000 and m.playing:
-		await process_frame
-		frames += 1
-		if clk0 < 0.0:
-			clk0 = m._audio_clock_of(0)   # the first frame the track sounds: the mixer's clock starts here
-			t0 = Time.get_ticks_usec()
-		dts.append(m.get_process_delta_time())
-		if m.audio_from_clock:
-			from_clock += 1
-		else:
-			from_frame += 1
-		for i in 2:
-			if i < m.audio_gap.size() and not is_nan(float(m.audio_gap[i])) and m.audio_from_clock:
-				set_gap[i] = maxf(set_gap[i], absf(float(m.audio_gap[i])))
-				set_n[i] += 1
-		var ph: float = m.playhead
-		for i in 2:
-			var c: float = m._audio_clock_of(i)
-			if c >= 0.0:
-				disp_gap[i] = maxf(disp_gap[i], absf(c - ph))
-	var wall := (Time.get_ticks_usec() - t0) / 1000000.0
-	var clk1: float = m._audio_clock_of(0)
-	var mixer_rate := (clk1 - clk0) / wall if clk0 >= 0.0 and clk1 >= 0.0 else -1.0
-	var played: float = m.playhead - ph_start
-	var still_playing: bool = m.playing
-	m.playing = false
-	await idle(1)
-	var dt_mean := 0.0
-	var dt_max := 0.0
-	for d in dts:
-		dt_mean += float(d)
-		dt_max = maxf(dt_max, float(d))
-	dt_mean /= maxf(dts.size(), 1)
-	print("     INFO sync: %d frames in %.2f s; playhead from the audio clock on %d frames, from the frame clock on %d; playhead moved %.3f s" % [frames, wall, from_clock, from_frame, played])
-	print("     INFO mixer: %.3f seconds of audio per wall second (1.000 = real time; a throttled mixer shows here)" % mixer_rate)
-	print("     INFO frames: mean %.1f ms, worst %.1f ms" % [dt_mean * 1000.0, dt_max * 1000.0])
-	print("     INFO display gap (playhead vs each clock read later, one frame old by construction): A %.1f ms, B %.1f ms" % [disp_gap[0] * 1000.0, disp_gap[1] * 1000.0])
-	var worst := maxf(set_gap[0], set_gap[1])
-	ok(set_n[0] > 0 and set_n[1] > 0, "2a both tracks sounded and were set from the audio clock (A %d frames, B %d frames)" % [set_n[0], set_n[1]])
-	ok(still_playing and played > 2.5, "2b the playhead ran the whole 3 s from 0.2 s (moved %.3f s; the mixer rate is printed above)" % played)
-	ok(set_n[0] > 0 and set_n[1] > 0 and worst < 0.005, "2c mechanism: at set time, |audio clock + offset - playhead| over 3 s, both tracks: A worst %.2f ms, B worst %.2f ms (bar 5 ms)" % [set_gap[0] * 1000.0, set_gap[1] * 1000.0])
+	for boff in [0.5, 1.1]:   # B starts at two different points: the start compensation is checked at both
+		S.audio_tracks = [{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": boff, "gain_db": 0.0}]
+		m._audio_reload()
+		m.pv_in = -1.0
+		m.pv_out = -1.0
+		m.playing = false
+		m.playhead = 0.2
+		m._ps().apply(m.B, 0.2)
+		await idle(2)
+		m.playing = true
+		var offs := [0.0, boff]
+		var set_gap := [0.0, 0.0]     # the gate: worst |audio clock + offset - playhead| read at set time
+		var set_n := [0, 0]
+		var disp_gap := [0.0, 0.0]    # info: the same, read later in the test
+		var dts := []
+		var from_clock := 0
+		var from_frame := 0
+		var ph_start: float = m.playhead
+		var t0 := Time.get_ticks_usec()
+		var clk0 := -1.0
+		var frames := 0
+		while Time.get_ticks_usec() - t0 < 3000000 and m.playing:
+			await process_frame
+			frames += 1
+			if clk0 < 0.0:
+				clk0 = m._audio_clock_of(0)   # the first frame the track sounds: the mixer's clock starts here
+				t0 = Time.get_ticks_usec()
+			dts.append(m.get_process_delta_time())
+			if m.audio_from_clock:
+				from_clock += 1
+			else:
+				from_frame += 1
+			for i in 2:
+				if i < m.audio_gap.size() and not is_nan(float(m.audio_gap[i])) and m.audio_from_clock:
+					set_gap[i] = maxf(set_gap[i], absf(float(m.audio_gap[i])))
+					set_n[i] += 1
+			var ph: float = m.playhead
+			for i in 2:
+				var c: float = m._audio_clock_of(i)
+				if c >= 0.0:
+					disp_gap[i] = maxf(disp_gap[i], absf(c - ph))
+		var wall := (Time.get_ticks_usec() - t0) / 1000000.0
+		var clk1: float = m._audio_clock_of(0)
+		var mixer_rate := (clk1 - clk0) / wall if clk0 >= 0.0 and clk1 >= 0.0 else -1.0
+		var played: float = m.playhead - ph_start
+		var still_playing: bool = m.playing
+		m.playing = false
+		await idle(1)
+		var dt_mean := 0.0
+		var dt_max := 0.0
+		for d in dts:
+			dt_mean += float(d)
+			dt_max = maxf(dt_max, float(d))
+		dt_mean /= maxf(dts.size(), 1)
+		print("     INFO sync: %d frames in %.2f s; playhead from the audio clock on %d frames, from the frame clock on %d; playhead moved %.3f s" % [frames, wall, from_clock, from_frame, played])
+		print("     INFO mixer: %.3f seconds of audio per wall second (1.000 = real time; a throttled mixer shows here)" % mixer_rate)
+		print("     INFO frames: mean %.1f ms, worst %.1f ms" % [dt_mean * 1000.0, dt_max * 1000.0])
+		print("     INFO display gap (playhead vs each clock read later, one frame old by construction): A %.1f ms, B %.1f ms" % [disp_gap[0] * 1000.0, disp_gap[1] * 1000.0])
+		var worst := maxf(set_gap[0], set_gap[1])
+		ok(set_n[0] > 0 and set_n[1] > 0, "2a B offset %.1f s: both tracks sounded and were set from the audio clock (A %d frames, B %d frames)" % [boff, set_n[0], set_n[1]])
+		ok(still_playing and played > 2.5, "2b B offset %.1f s: the playhead ran the whole 3 s from 0.2 s (moved %.3f s; the mixer rate is printed above)" % [boff, played])
+		ok(set_n[0] > 0 and set_n[1] > 0 and worst < 0.005, "2c B offset %.1f s: mechanism: at set time, |audio clock + offset - playhead| over 3 s, both tracks: A worst %.2f ms, B worst %.2f ms (bar 5 ms)" % [boff, set_gap[0] * 1000.0, set_gap[1] * 1000.0])
+
 
 	# ---- (3) mute and solo: the player volume
 	var pl: Array = m._a_players

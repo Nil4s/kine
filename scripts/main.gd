@@ -12868,7 +12868,9 @@ func _audio_tick(before: float, dt: float) -> void:
 			_a_on[i] = false
 		elif jumped or not _a_on[i] or not p.playing or absf(off - _a_offs[i]) > 1e-6:
 			_a_slice_until = 0
-			p.play(want)
+			# play() takes effect at the next mix, and what it plays reaches the speaker one output latency later: start the
+			# stream where it will be when it is heard, so a track that starts mid-playback is not audibly late
+			p.play(want + AudioServer.get_time_to_next_mix() + AudioServer.get_output_latency())
 			_a_on[i] = true
 			_a_offs[i] = off
 			audio_seeks += 1
