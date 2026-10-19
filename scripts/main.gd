@@ -2735,6 +2735,7 @@ func _refresh() -> void:
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
+	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
@@ -5426,6 +5427,144 @@ func _sec_draw() -> void:
 				im.surface_add_vertex(p - ax * 0.012)
 				im.surface_add_vertex(p + ax * 0.012)
 		im.surface_end()
+
+
+## HAIR STRANDS (ROADMAP 87; scripts/hair.gd). A ponytail of verlet strands rooted on the back of the head. "Hair: add a
+## ponytail" sets S.hair and bakes it in one undo step: the sim runs over the scene's frames (the head and the body capsules
+## at each frame) and the node points are kept in hair_frames, drawn at the playhead. Bake again after the animation
+## changes (the file keeps the parameters, not the frames). Ctrl+Z takes the hair back.
+var hair_frames: Array = []   # per scene frame: the strands' node points, flat (Hair.sim)
+var hair_scene := -1          # the scene the frames were baked for (its instance id): another scene draws nothing
+var _hair_line: MeshInstance3D
+
+
+func _hair_add() -> void:
+	var h := Hair.preset("ponytail")
+	_do(func(): S.hair = h)
+	_hair_bake()
+	_say("added a ponytail (%d strands of %d segments) and baked it over %d frames (Ctrl+Z takes it back)" % [int(h["strands"]), int(h["n"]), hair_frames.size()])
+
+
+func _hair_clear() -> void:
+	if S.hair.is_empty():
+		_say("no hair to clear: run Hair: add a ponytail to add one")
+		return
+	_do(func(): S.hair = {})
+	hair_frames = []
+	_say("took the hair off the scene (Ctrl+Z puts it back)")
+
+
+## the head mesh's triangle corners in rest space (the same as _face_geo reads), for the roots
+func _head_pts() -> PackedVector3Array:
+	var pts := PackedVector3Array()
+	if not pieces.has("head"):
+		return pts
+	var mesh: Mesh = (pieces["head"] as MeshInstance3D).mesh
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		for i in ix:
+			pts.append(vs[i])
+	return pts
+
+
+## BAKE: the head's frame and the body capsules at every scene frame (S.apply, the body put back as it was; pose, when given,
+## sets the body for a time instead: the test's head turn), then the sim. Returns the frames and keeps them for the view.
+func _hair_bake(pose := Callable()) -> Array:
+	hair_frames = []
+	hair_scene = -1
+	if S == null or S.hair.is_empty():
+		return hair_frames
+	var p: Dictionary = S.hair
+	var pts := _head_pts()
+	var keep := B.state()
+	var fps := S.fps
+	var L := S.length()
+	var nf := maxi(int(ceil(L * float(fps) - 1e-6)), 1) + 1
+	var head := []
+	var caps := []
+	var roots := []
+	for k in nf:
+		var t := minf(float(k) / float(fps), L)
+		if pose.is_valid():
+			pose.call(t)
+		else:
+			S.apply(B, t)
+		head.append([B.P["head"], B.G["head"]])
+		var cs := []
+		for part in Hair.CAPS:
+			var c: Array = B.cap(part)
+			cs.append([c[0], c[1], float(B.rad[part])])
+		caps.append(cs)
+		if k == 0:
+			roots = Hair.roots(pts, p, B.p0["head"])
+	B.set_state(keep)
+	if roots.is_empty():
+		_say("no head mesh to put the hair on: the strands need the head piece")
+		return hair_frames
+	hair_frames = Hair.sim(roots, p, fps, head, caps)
+	hair_scene = S.get_instance_id()
+	return hair_frames
+
+
+## the overlay: each strand is a tapered tube (6 mm at the root, 2 mm at the tip; 6 sides a node), lit like the body in the
+## hair token's colour, drawn at the playhead. The bundle is the strands' ring at the tie (Hair.roots)
+var _hair_mat: StandardMaterial3D
+
+
+func _hair_draw() -> void:
+	if _hair_line == null:
+		_hair_line = MeshInstance3D.new()
+		_hair_line.name = "hair"
+		_hair_line.mesh = ImmediateMesh.new()
+		add_child(_hair_line)
+	if _hair_mat == null:
+		_hair_mat = StandardMaterial3D.new()
+		_hair_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_hair_mat.roughness = 0.55
+	_hair_mat.albedo_color = Tok.c("hair")
+	var im := _hair_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if S == null or S.hair.is_empty() or hair_frames.is_empty() or hair_scene != S.get_instance_id() or clean:
+		return
+	var p: Dictionary = S.hair
+	var n := int(p["n"])
+	var N := n + 1
+	var pts := Hair.at(hair_frames, clampf(playhead, 0.0, S.length()), S.fps)
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _hair_mat)
+	const SIDES := 6
+	for s in int(p["strands"]):
+		var prev: Array = []
+		for i in N:
+			var a: Vector3 = pts[s * N + maxi(i - 1, 0)]
+			var b: Vector3 = pts[s * N + mini(i + 1, n)]
+			var c: Vector3 = pts[s * N + i]
+			var T := (b - a)
+			if T.length() < 1e-9:
+				T = Vector3(0, -1, 0)
+			T = T.normalized()
+			var ref := Vector3.RIGHT if absf(T.dot(Vector3.UP)) > 0.9 else Vector3.UP
+			var side := T.cross(ref).normalized()
+			var upv := side.cross(T).normalized()
+			var r := lerpf(0.003, 0.001, float(i) / float(n))   # 6 mm at the root, 2 mm at the tip
+			var ring: Array = []
+			for k in SIDES:
+				var ang := TAU * float(k) / float(SIDES)
+				var dir := side * cos(ang) + upv * sin(ang)
+				ring.append([c + dir * r, dir])
+			if not prev.is_empty():
+				for k in SIDES:
+					var k2 := (k + 1) % SIDES
+					var q0: Array = prev[k]
+					var q1: Array = prev[k2]
+					var r0: Array = ring[k]
+					var r1: Array = ring[k2]
+					for v in [q0, r0, r1, q0, r1, q1]:
+						im.surface_set_normal(v[1])
+						im.surface_add_vertex(v[0])
+			prev = ring
+	im.surface_end()
 
 
 ## ASK AI (round 46, GATES BB2): opens / closes the AI box (scripts/ai_box.gd) at the right, above the cards. The box
@@ -9267,6 +9406,8 @@ func _commands() -> Array:
 	add.call("Secondary: add a ponytail", "", _sec_add.bind("ponytail"), "secondary ponytail hair tail sway lag overshoot bake spring", true, "a ponytail hangs from the head and follows it with lag and overshoot; baked to keys")
 	add.call("Secondary: add a cloth strip", "", _sec_add.bind("cloth"), "secondary cloth strip belt flap sway lag overshoot bake spring", true, "a cloth strip hangs from the belt and follows the body; baked to keys")
 	add.call("Secondary: add a weapon flex (oak bo)", "", _sec_add.bind("bo"), "secondary weapon flex bo staff shaft wobble strike bend bake", true, "a 180 cm oak bo clamped at the right hand bends and settles after a strike; baked to keys")
+	add.call("Hair: add a ponytail", "", _hair_add, "hair ponytail strands tail verlet follow head bake sway", true, "a ponytail of 8 strands rooted on the back of the head, simulated with gravity and collision; baked to frames")
+	add.call("Hair: take the hair off", "", _hair_clear, "hair ponytail strands clear remove off", true, "removes the hair strands from the scene (Ctrl+Z puts them back)")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
 	add.call("Secondary: clear", "", _sec_clear, "secondary clear remove off delete chain", true, "takes every secondary item and its keys off the scene (Ctrl+Z puts them back)")
 	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
