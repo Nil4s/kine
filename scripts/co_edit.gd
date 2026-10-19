@@ -102,7 +102,7 @@ func may_edit(f: int) -> String:
 		return ""
 	if f < 0 or f >= fighters.size():
 		return "there is no fighter %d" % f
-	return "fighter %d is animated by the other side: read only here (you animate fighter %d)" % [f, own]
+	return "fighter %d is animated by the other side: read only here (you animate fighter %d: pick it to edit)" % [f, own]
 
 
 ## an edit to a fighter: refused with a message unless it is the one this side owns. Returns "" when done.

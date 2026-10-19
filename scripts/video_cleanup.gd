@@ -14,6 +14,7 @@
 class_name VideoCleanup
 extends RefCounted
 
+const SEAT_TOL := 0.008   # m: a plant's held sole is this near the floor (reachable moves t0 on to a sample that is)
 const PLANT_H := 0.02      # m: a sole this close to its floor is down (the brief's 2 cm)
 const PLANT_V := 0.15      # m/s: and the middle of the foot moves this slowly (the brief's 0.15 m/s)
 const PLANT_MIN := 3       # frames: a shorter run is a tap, not a plant (the brief's 3)
@@ -154,6 +155,22 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 	var dt := 1.0 / maxf(fps, 1.0)
 	var step := dt / 4.0
 	V.plants = plants
+	# A PLANTED FOOT IS ON THE FLOOR: a plant holds the sole exactly as it stands at t0 (FootPlant), and a video's first frames of
+	# a plant can have the sole up to 2 cm above the floor (the foot still rolling down). t0 moves on to the first sample at
+	# which the body's own sole (ball, heel) is within SEAT_TOL of the floor (y = 0, the scene's on_floor), so the hold keeps the
+	# foot where it stands on the ground; the foot's turn is the played one. A plant that never gets there keeps its t0
+	V.plants = []
+	for p in plants:
+		var sd: String = String(p["foot"]).right(2)
+		var t := float(p["t0"])
+		while t < float(p["t1"]) - PLANT_MIN * dt:
+			V.apply(B, t)
+			if minf((B.P["ball" + sd] as Vector3).y, FootRoll.heel_point(B, sd).y) <= SEAT_TOL:
+				break
+			t += step
+		if t < float(p["t1"]) - PLANT_MIN * dt:
+			p["t0"] = t
+	V.plants = plants
 	for p in plants:
 		for _g in 40:
 			var r := FootPlant.scan(V, B, p, step)
@@ -239,11 +256,17 @@ static func jitter(frames: Array) -> float:
 
 ## the whole cleanup. frames are VideoImport.parse's {"t", "w"}. Returns {"frames" (cleaned, same form), "plants" (FootPlant
 ## form, before REACH), "tilt" (deg the floor was turned by), "jitter_raw", "jitter_clean" (deg/frame)}
-static func run(frames: Array, fps: float) -> Dictionary:
+static func run(frames: Array, fps: float, levelled := 0.0) -> Dictionary:
 	var jit_raw := jitter(frames)
 	var sm := smooth(frames, fps)
 	var nrm := plane_normal(planted_points(sm, detect(sm, fps)))
 	var tilt := rad_to_deg(nrm.angle_to(Vector3.UP))
+	# VideoImport.level already turned the clip (levelled = the degrees it removed, 6 and up): a second fit through the planted
+	# soles, which span ~0.4 m with 10 cm of height spread, is ill-conditioned and turned the body 13 deg more. The floor turn
+	# is for a clip the import left alone (a small tilt, below LEVEL_MIN). The decision prints
+	if levelled > 0.0:
+		print("video cleanup: floor turn skipped, VideoImport.level already turned the clip %.1f deg (the soles' plane would have turned it %.1f deg more)" % [levelled, tilt])
+		tilt = 0.0
 	if tilt > 0.0:
 		var R := Quaternion(nrm, Vector3.UP)
 		for f in sm:

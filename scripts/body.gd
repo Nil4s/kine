@@ -325,7 +325,7 @@ func compose(j: String, v: Vector3) -> Quaternion:
 
 ## the joint's rotation A -> (bend, side, twist) degrees. A = swing * twist about w_ax (t_ax, except the feet).
 ## The feet: the twist axis is not perpendicular to the swing axes, so the bone-axis split below does not invert
-## compose(); there the roll is solved (Newton on the swing's component along the bone, which is zero at the answer).
+## compose(); there the roll is solved (the swing's component along the bone is zero at the answer; closed form).
 func decompose(j: String, q: Quaternion) -> Vector3:
 	if w_ax[j] == t_ax[j]:
 		return _decompose_bone(j, q)
@@ -334,17 +334,16 @@ func decompose(j: String, q: Quaternion) -> Vector3:
 	var qv := Vector3(q.x, q.y, q.z)
 	if absf(qv.dot(t)) < 1e-5:   # no roll (the swing has no component along the bone): the bone split is exact here
 		return _decompose_bone(j, q)
-	var th := 0.0
-	for it in 40:
-		var fv := _sub_part(q, w, t, th)
-		var h := 1e-6
-		var der := (_sub_part(q, w, t, th + h) - fv) / h
-		if absf(der) < 1e-12:
-			break
-		var step := fv / der
-		th -= step
-		if absf(step) < 1e-12:
-			break
+	# the bone-axis part is f(th) = A cos(th/2) + B sin(th/2) exactly (the product is linear in the half-angle's cos and sin), so the
+	# root is closed-form: A = f(0), B = f(pi), th = 2 atan2(-A, B). (A forward-difference Newton with h = 1e-6 lost the slope in float32
+	# and returned th = 0 for an 18 deg roll: tests/math_test.gd round trip 18.5 deg.) The sign of S is fixed below.
+	var fa := _sub_part(q, w, t, 0.0)
+	var fb := _sub_part(q, w, t, PI)
+	var th := 2.0 * atan2(-fa, fb)
+	if th > PI:
+		th -= TAU
+	elif th < -PI:
+		th += TAU
 	var S := q * Quaternion(w, -th)
 	if S.w < 0.0:
 		S = -S

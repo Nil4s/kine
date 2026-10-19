@@ -26,7 +26,7 @@ func _init(main: Node) -> void:
 
 func commands(add: Callable) -> void:
 	add.call("Motion matching: preview", "", toggle, "motion matching preview wasd steer locomotion blend trajectory game controller run walk",
-		false, "steer a target with W A S D (Shift runs): the body plays the nearest frame of your scenes, cross-fading every 0.1 s; the status line shows the clip, the frame and the match cost (your scenes are only read)")
+		true, "steer a target with W A S D (Shift runs): the body plays the nearest frame of your scenes, cross-fading every 0.1 s; the status line shows the clip, the frame and the match cost (your scenes are only read; starting it is one undo step: Ctrl+Z ends it and gives the pose back)")
 	add.call("Motion matching: coverage report", "", coverage_report, "motion matching coverage gaps report directions speeds clips missing",
 		false, "which directions and speeds have no good match in your scenes (cost above 1.0 sd): the clips to add")
 
@@ -50,9 +50,16 @@ func toggle() -> void:
 		m._say("motion matching: none of your scenes has cards to match")
 		return
 	m.playing = false
+	m._step_hint = "Motion matching preview"
+	m._push_undo()   # the preview moves the body: one step, so Ctrl+Z ends it and puts the pose back
 	player = MotionMatch.Player.new(db, 0)
 	_acc = 1.0
 	m._say("motion matching preview: W A S D steer, Shift runs; toggle it again to stop")
+
+
+## the preview ends without touching the body (undo, redo and opening a scene put the body back themselves)
+func halt() -> void:
+	player = null
 
 
 func tick(dt: float) -> void:

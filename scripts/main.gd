@@ -141,12 +141,12 @@ const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "tra
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
-		["SHOW", ["Collision (C)"]], ["LIBRARY", ["Pose library"]]],
+		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video", "Ask AI"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
-	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "UI size", "Easy mode"]]],
 }
@@ -1926,7 +1926,8 @@ func _fd_cycle_fps() -> void:
 	var order := [24, 30, 60, 120]
 	fd_fps = order[(order.find(fd_fps) + 1) % order.size()]
 	if fd_btn != null:
-		fd_btn.text = "%d fps" % fd_fps
+		fd_btn.tooltip_text = "Frame rate\nthe frame rate the frame data counts in (24, 30, 60, 120): now %d fps" % fd_fps
+	_say_plain("frame data now counts in %d fps (click again for the next: 24, 30, 60, 120)" % fd_fps)
 	_refresh()
 
 
@@ -2216,14 +2217,14 @@ func _hit_react() -> void:
 			pick = i
 			break
 	if pick < 0:
-		_say("no contact in the fighters' report lands on a body part to react to: swing into the other fighter (the report is in the browser's dummy row)")
+		_say("no contact in the fighters' report lands on a body part to react to: swing into the other fighter, or pick a stronger hit (the report is in the browser's dummy row)")
 		return
 	var h: Dictionary = fighter_hits[pick]
 	var vk: int = 0 if h["by"] == "other" else int(h["vs"])   # the struck fighter
 	var sk: int = int(h["vs"]) if h["by"] == "other" else 0   # the striker
 	var r := HitReaction.react(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], h, actors_rt[sk]["B"])
 	if not r["ok"]:
-		_say("no reaction: %s" % r["why"])
+		_say("no reaction: %s (pick a fighter with a contact, then try again)" % r["why"])
 		return
 	_actor_set(vk)   # the struck fighter is the active one: its cards and body take the step, its Ctrl+Z undoes it
 	_push_undo()
@@ -2967,6 +2968,8 @@ const BAKE_FLAGS := ["on_floor", "pin", "spline", "stepped", "natural", "floor_b
 
 
 func _restore(u: Dictionary) -> void:
+	if mm_ui != null:
+		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
@@ -3229,7 +3232,7 @@ func _actor_set(k: int) -> bool:
 	if k == actor_on or k < 0 or k >= actors_rt.size():
 		return false
 	if co != null and co.connected() and co.may_edit(k) != "":
-		_say(co.may_edit(k))   # ROADMAP 30: the other animator's fighter is read only here
+		_say(co.may_edit(k) + " Or press Co-edit: stop to animate it yourself.")   # ROADMAP 30: the other animator's fighter is read only here
 		return false
 	actors_rt[actor_on]["t"] = playhead
 	actor_on = k
@@ -3321,7 +3324,7 @@ func _co_dialogs() -> void:
 func _co_host_ask() -> void:
 	_co_dialogs()
 	if co != null:
-		_say("a live co-edit is on already (%s): Co-edit: stop ends it" % _co_where)
+		_say("a live co-edit is on already (%s): press Co-edit: stop to end it" % _co_where)
 		return
 	ui_co_dlg.popup_centered()
 
@@ -3329,14 +3332,14 @@ func _co_host_ask() -> void:
 func _co_join_ask() -> void:
 	_co_dialogs()
 	if co != null:
-		_say("a live co-edit is on already (%s): Co-edit: stop ends it" % _co_where)
+		_say("a live co-edit is on already (%s): press Co-edit: stop to end it" % _co_where)
 		return
 	ui_co_join_dlg.popup_centered()
 
 
 func _co_stop_cmd() -> void:
 	if co == null:
-		_say("no live co-edit is on")
+		_say("no live co-edit is on: run Co-edit: host or Co-edit: join to start one")
 		return
 	_co_stop()
 	_say("live co-edit stopped: both scenes keep their work")
@@ -3346,7 +3349,7 @@ func _co_join_text(t: String) -> void:
 	var s := t.strip_edges()
 	var i := s.rfind(":")
 	if i <= 0 or not s.substr(i + 1).is_valid_int():
-		_say("write the host's address and port as address:port, e.g. 192.168.0.10:4242")
+		_say("write the host's address and port as address:port, e.g. 192.168.0.10:4242 (type it in the box)")
 		return
 	_co_join(s.substr(0, i), int(s.substr(i + 1)))
 
@@ -3360,7 +3363,7 @@ func _co_fighters() -> void:
 func _co_host(port: int, lan_confirmed: bool) -> void:
 	_co_stop(false)
 	if port <= 0 or port > 65535:
-		_say("the port is a number from 1 to 65535")
+		_say("the port is a number from 1 to 65535: type it again")
 		return
 	_actors_sync()
 	if actors_rt.size() < 2:
@@ -3387,7 +3390,7 @@ func _co_host(port: int, lan_confirmed: bool) -> void:
 func _co_join(addr: String, port: int) -> void:
 	_co_stop(false)
 	if port <= 0 or port > 65535:
-		_say("the port is a number from 1 to 65535")
+		_say("the port is a number from 1 to 65535: type it again")
 		return
 	_actors_sync()
 	co = CoEdit.new()
@@ -4172,7 +4175,7 @@ func _loa_apply(pts: Array, mirror: bool) -> Dictionary:
 	_after_edit()
 	_refresh()
 	var lim_txt := "" if (rep["limits"] as Array).is_empty() else ", at a limit: " + ", ".join(rep["limits"])
-	_say("LINE OF ACTION%s: spine, neck and head within %.1f mm of the stroke; the support knee %.0f mm off%s (Ctrl+Z undoes)" % [" (mirrored)" if mirror else "", float(rep["worst"]) * 1000.0, float(rep["knee"]) * 1000.0, lim_txt])
+	_say("LINE OF ACTION%s: spine, neck and head within %.1f mm of the stroke; the support knee %.0f mm off%s (press Ctrl+Z to undo)" % [" (mirrored)" if mirror else "", float(rep["worst"]) * 1000.0, float(rep["knee"]) * 1000.0, lim_txt])
 	return rep
 
 
@@ -4566,7 +4569,7 @@ func _sec_bake() -> void:
 
 func _sec_clear() -> void:
 	if (S.secondary.get("items", []) as Array).is_empty():
-		_say("no secondary motion to clear")
+		_say("no secondary motion to clear: run Secondary: add a ponytail to add one")
 		return
 	_do(func(): S.secondary = {})
 	_dummy_hits()
@@ -5828,6 +5831,8 @@ func _retheme() -> void:
 	for r in ui_rails.values():
 		(r.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = Tok.c("panel")
 	ui_find_box.bg_color = Tok.c("float")
+	if ui_vdiff != null and ui_vdiff.has_theme_stylebox_override("panel"):
+		(ui_vdiff.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = Tok.c("float")
 	world_env.background_color = Tok.c("world")
 	floor_mat.albedo_color = Tok.c("floor")
 	_grid()
@@ -5869,7 +5874,8 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy"}
+	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy",
+	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -6165,7 +6171,7 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
 	ui_ribbon["POSE"].add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed), "both arms relaxed: 25 degrees out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
-	ui_ribbon["POSE"].add_child(_button("Line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
+	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
@@ -6207,7 +6213,7 @@ func _ui() -> void:
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
-	fd_btn = _button("%d fps" % fd_fps, _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120)")
+	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export .glb", func(): _export_glb(), "the scene as exports/<name>.glb: one file with the mannequin and its animation, for Blender, Unreal, Unity, Godot (docs/EXPORT.md)"))
@@ -6785,7 +6791,7 @@ func _ui() -> void:
 	ui_vdiff.offset_top = 96
 	ui_vdiff.custom_minimum_size = Vector2(400, 0)
 	var vsb := StyleBoxFlat.new()
-	vsb.bg_color = Color(0.06, 0.07, 0.09, 0.9)
+	vsb.bg_color = Tok.c("float")
 	vsb.set_corner_radius_all(6)
 	vsb.set_content_margin_all(8)
 	ui_vdiff.add_theme_stylebox_override("panel", vsb)
@@ -7637,7 +7643,7 @@ func _commands() -> Array:
 	for v in [["Front view", 1], ["His right view", 2], ["Top view", 3], ["Back view", 4], ["His left view", 5]]:
 		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s" % v[0].to_lower())
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
-	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", true, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
+	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", false, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
@@ -8557,7 +8563,7 @@ func _check(given = null) -> void:
 ## the rulebook's findings, Check and its Fix are untouched (findings / check_ran are not set here)
 func _critique() -> void:
 	if S.cards.size() < 2:
-		_say("Critique needs a scene of two cards or more")
+		_say("Critique needs a scene of two cards or more: add a card first")
 		return
 	var notes := Critique.check(S, ov.GB)
 	for c in ui_find_list.get_children():
@@ -8592,7 +8598,7 @@ func _critique() -> void:
 ## ROADMAP 24: the stunt-load report (StuntLoad, scripts/stunt_load.gd): landing g, knee valgus, spine, neck. NOTE only
 func _stunt_check() -> void:
 	if S.cards.size() < 2:
-		_say("Stunt load needs a scene of two cards or more")
+		_say("Stunt load needs a scene of two cards or more: add a card first")
 		return
 	var notes := StuntLoad.findings(S, ov.GB)
 	for c in ui_find_list.get_children():
@@ -9390,7 +9396,7 @@ static func safe_file(nm: String) -> String:
 
 func _save_scene_now(nm: String) -> void:
 	if co != null and co.connected() and not co.is_host:
-		_say("live co-edit: the host saves the scene (your fighter's work is on its side too)")
+		_say("live co-edit: the host saves the scene (your fighter's work is on its side too): ask the host to save, or save your own copy under another name")
 		return
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
@@ -10310,7 +10316,7 @@ func _lip_from_audio() -> void:
 		return
 	var r := LipSync.read_wav(String(S.audio.get("path", "")))
 	if not r["ok"]:
-		_say("lip-sync: %s" % r["why"])
+		_say("lip-sync: %s (try another sound)" % r["why"])
 		return
 	var off := float(S.audio.get("offset", 0.0))
 	var A := LipSync.analyse(LipSync.windows(r["mono"], int(r["rate"])))
@@ -10374,7 +10380,7 @@ func _human_check() -> void:
 ## TWINNING (ROADMAP 19; scripts/twinning.gd): the mirror twins the default Check does not grade. Shown in the Check list.
 func _twin_check() -> void:
 	if S.cards.size() < 2:
-		_say("Check: twinning needs a scene of two cards or more")
+		_say("Check: twinning needs a scene of two cards or more: add a card first")
 		return
 	var f := Twinning.findings(S, ov.GB)
 	_check(f)
@@ -10390,7 +10396,7 @@ func _twin_fix() -> void:
 	for f in Twinning.findings(S, ov.GB):
 		ranges.append({"kind": f["kind"], "t0": f["t0"], "t1": f["t1"]})
 	if ranges.is_empty():
-		_say("no twinning to fix: Check: twinning lists none")
+		_say("no twinning to fix: Check: twinning lists none, so pick another check")
 		return
 	_push_undo()   # one undo step for the whole offset
 	var n := Twinning.offset(S, ov.GB, side, ranges)
@@ -10424,7 +10430,7 @@ func _beats_find() -> void:
 		return
 	var r := BeatTrack.analyze(_a_player.stream)
 	if not r["ok"]:
-		_say("beats: %s" % r["msg"])
+		_say("beats: %s (try another sound)" % r["msg"])
 		return
 	_push_undo()
 	S.beats_audio = r["beats"]
@@ -10447,7 +10453,7 @@ func _beats_snap() -> void:
 	var trial := S.clone()
 	var r := BeatTrack.snap(trial, S.beats_audio, float(S.audio.get("offset", 0.0)))
 	if not r["ok"]:
-		_say(r["msg"])
+		_say(r["msg"] + " (pick other cards, or add a hit marker)")
 		return
 	var worst := 0.0
 	for mv in r["moves"]:
@@ -10462,7 +10468,7 @@ func _beats_snap() -> void:
 
 func _beats_clear() -> void:
 	if S.beats_audio.is_empty():
-		_say("no beats on the timeline to clear")
+		_say("no beats on the timeline to clear: run Beats: find the beats in the sound first")
 		return
 	_push_undo()
 	S.beats_audio = []
@@ -10613,7 +10619,7 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	var frames: Array = P["frames"]
 	var C := {}
 	if not raw:
-		C = VideoCleanup.run(frames, P["fps"])
+		C = VideoCleanup.run(frames, P["fps"], float(P.get("tilt", 0.0)))
 		frames = C["frames"]
 	var fitted := VideoImport.solve(B, frames, held)
 	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
@@ -10658,7 +10664,7 @@ func _live_toggle() -> void:
 	live.python = video_python
 	var why := live.start(ProjectSettings.globalize_path("res://tools/live_pose.py"))
 	if why != "":
-		_say("live: could not start the webcam puppet: %s" % why)
+		_say("live: could not start the webcam puppet: %s (try again, or pick another camera)" % why)
 		return
 	_live_said = false
 	_say("live: the webcam puppet is starting on 127.0.0.1:%d. Stand where the camera sees your whole body: the mannequin follows you. Live: record / stop keeps what you do" % live.port)
@@ -10676,15 +10682,15 @@ func _live_end(why: String) -> void:
 
 func _live_record() -> void:
 	if not live.running:
-		_say("live: start the webcam puppet first (Live: start the webcam puppet)")
+		_say("live: start the webcam puppet first (run Live: start the webcam puppet)")
 		return
 	if not live.recording:
 		live.record_start()
-		_say("live: recording. Live: record / stop again keeps the take as a new scene")
+		_say("live: recording. Press Live: record / stop again to keep the take as a new scene")
 		return
 	var r := live.record_stop(B)
 	if not r["ok"]:
-		_say("live: the take was not kept: %s" % r["why"])
+		_say("live: the take was not kept: %s (try recording again)" % r["why"])
 		return
 	_load_scene(r["path"])
 	_rebuild_cards()
@@ -10833,6 +10839,10 @@ func _doc_key() -> String:
 
 
 func _load_scene(path: String) -> void:
+	var probe: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+	if not (probe is Dictionary):   # a missing, empty or non-JSON file is refused with a message, not a crash
+		_say_plain("NOT NOW: %s is not a scene file (missing, empty or not JSON)" % path.get_file())
+		return
 	_actors_home()   # TC3: the opened file's hero goes on the hero's body; its actors are built from it
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()

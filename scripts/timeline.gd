@@ -290,7 +290,7 @@ func _draw_beats(S: Scene, y: float, h: float) -> void:
 		if x < -1.0 or x > size.x + 1.0:
 			continue
 		if b["down"]:
-			draw_line(Vector2(x, y), Vector2(x, y + h), Color(1.0, 0.8, 0.35, 0.95), 1.5)
+			draw_line(Vector2(x, y), Vector2(x, y + h), Tok.c("beat_down"), 1.5)
 		else:
 			draw_line(Vector2(x, y + h * 0.55), Vector2(x, y + h), Tok.of("ink:0.45"), 1.0)
 
@@ -386,7 +386,7 @@ func _draw() -> void:
 	if m != null and not m.vdiff.is_empty():
 		for mk in m.vdiff["marks"]:
 			var xv := x_of(float(mk["t"]))
-			draw_line(Vector2(xv, 0.0), Vector2(xv, RULER + 2.0), Color(0.85, 0.3, 0.95, 0.9), 2.0)
+			draw_line(Vector2(xv, 0.0), Vector2(xv, RULER + 2.0), Tok.c("vdiff"), 2.0)
 	for mk in marks():
 		var fail: bool = mk[1].any(func(i): return m.findings[i]["sev"] == "FAIL")
 		var c := Tok.c("fail") if fail else Tok.c("warn")
@@ -492,14 +492,14 @@ func _clip_drag(x: float, fine: bool) -> void:
 ## the frame strip: one block per phase over its frames (time = frame / fps), its count in the block
 func _draw_fd_strip(font: Font, y: float) -> void:
 	var fps := float(fd["fps"])
-	var cols := {"startup": Color(0.3, 0.78, 0.38), "active": Color(0.92, 0.28, 0.26), "recovery": Color(0.3, 0.52, 0.95)}
+	var cols := {"startup": Tok.c("fd_startup"), "active": Tok.c("fd_active"), "recovery": Tok.c("fd_recovery")}
 	for sp in FrameData.spans(fd):
 		var x0 := x_of(float(sp["f0"]) / fps)
 		var x1 := x_of(float(sp["f1"]) / fps)
 		var n := int(sp["f1"]) - int(sp["f0"])
 		if sp["kind"] == "active":
 			# a multi-hit span: the frames with a hitbox out are full red, the gaps between them dim
-			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), Color(cols["active"], 0.22))
+			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), Color(Tok.c("fd_active"), 0.22))
 			for f in range(int(sp["f0"]), int(sp["f1"])):
 				if fd["frames"][f]["active"]:
 					var fx := x_of(float(f) / fps)
@@ -507,9 +507,9 @@ func _draw_fd_strip(font: Font, y: float) -> void:
 		else:
 			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), cols[sp["kind"]])
 		if x1 - x0 > 46.0:
-			draw_string(font, Vector2(x0 + 3, y + FD_H - 2.0), "%s %d" % [sp["kind"], n], HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4, 10, Color(0.05, 0.05, 0.07))
+			draw_string(font, Vector2(x0 + 3, y + FD_H - 2.0), "%s %d" % [sp["kind"], n], HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4, 10, Tok.c("fd_ink"))
 		elif x1 - x0 > 14.0:
-			draw_string(font, Vector2(x0 + 2, y + FD_H - 2.0), str(n), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 3, 10, Color(0.05, 0.05, 0.07))
+			draw_string(font, Vector2(x0 + 2, y + FD_H - 2.0), str(n), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 3, 10, Tok.c("fd_ink"))
 
 
 func _draw_clips(S: Scene, font: Font) -> void:

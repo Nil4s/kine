@@ -172,13 +172,27 @@ static func play(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) 
 		var was := {}
 		for j in joints:
 			was[j] = B.ang[j]
-		var r := LimbIK.solve(B, foot, ref["P"], ref["pole"], ref["G"])
+		# the leg (hip, knee) is solved with the limits as ever; the foot and the ball are NOT clamped: a plant is a hold, like a
+		# pin, and the subtalar roll (-8..25 deg, ROADMAP 7) cannot take the roll a flat foot needs when the hips move far from
+		# it (20 cm sideways asks 26 deg of eversion, the limit is 8), so a clamp left the sole 165 mm and 57 deg off its place.
+		# A joint the hold took past its range is listed in "clamped" (never hidden)
+		var r := LimbIK.solve(B, foot, ref["P"], ref["pole"])
+		B.fk()
+		var vf := B.decompose(foot, ((B.G[LimbIK.chain(B, foot)[1]] as Quaternion).inverse() * (ref["G"] as Quaternion)).normalized())
+		var of: Vector3 = B.ang[foot]
+		while vf.z - of.z > 180.0:
+			vf.z -= 360.0
+		while vf.z - of.z < -180.0:
+			vf.z += 360.0
+		if (B.clamp_ang(foot, vf) - vf).length() > 1e-4:
+			r["clamped"].append(foot)
+		B.ang[foot] = vf
+		B.fk()
 		# the ball (toe joint) keeps its world turn: the sole stays flat where it was at t0
-		var gf: Quaternion = B.G[foot]
-		var vb := B.decompose(ball, (gf.inverse() * (ref["Gb"] as Quaternion)).normalized())
+		var vb := B.decompose(ball, ((B.G[foot] as Quaternion).inverse() * (ref["Gb"] as Quaternion)).normalized())
 		if (B.clamp_ang(ball, vb) - vb).length() > 1e-4:
 			r["clamped"].append(ball)
-		B.ang[ball] = B.clamp_ang(ball, vb)
+		B.ang[ball] = vb
 		B.fk()
 		if w < 1.0:
 			for j in joints:

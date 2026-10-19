@@ -118,6 +118,15 @@ const DRAW := {
 		["disc", Vector2(15.5, 11), 1.3], ["disc", Vector2(18, 14), 1.3]],
 	"version": [["ring", Vector2(13, 13), 7.5, 1.8], ["seg", Vector2(13, 13), Vector2(13, 8), 1.8], ["seg", Vector2(13, 13), Vector2(16.5, 15), 1.8],
 		["arc", Vector2(13, 13), 10.5, 1.4, 150, 250]],
+	# frame data / line of action (ROADMAP 12, 23)
+	"loa": [["arc", Vector2(12, 12), 11, 2, 100, 260], ["disc", Vector2(15, 3.5), 2], ["disc", Vector2(7, 12), 1.5], ["disc", Vector2(15, 20.5), 1.5]],
+	"loa_sketch": [["seg", Vector2(4, 20), Vector2(9, 11), 2], ["seg", Vector2(9, 11), Vector2(15, 14), 2], ["seg", Vector2(15, 14), Vector2(20, 4), 2],
+		["disc", Vector2(4, 20), 1.6], ["seg", Vector2(17, 17), Vector2(21, 21), 1.8], ["seg", Vector2(21, 17), Vector2(17, 21), 1.8]],
+	"fd": [["box", Rect2(2.5, 9, 6, 6), 0], ["box", Rect2(9, 9, 6, 6), 1.6], ["box", Rect2(15.5, 9, 6, 6), 1.6], ["seg", Vector2(3, 19), Vector2(21, 19), 1.4], ["seg", Vector2(3, 5), Vector2(21, 5), 1.4]],
+	"fd_boxes": [["box", Rect2(3, 3, 11, 11), 1.8], ["box", Rect2(10, 10, 11, 11), 1.8], ["disc", Vector2(8.5, 8.5), 1.6]],
+	"fd_rate": [["ring", Vector2(12, 13), 8, 1.8], ["seg", Vector2(12, 13), Vector2(16, 9), 2], ["seg", Vector2(9, 3), Vector2(15, 3), 2], ["disc", Vector2(12, 13), 1.4]],
+	"export_fd": [["box", Rect2(3, 11, 12, 10), 1.8], ["seg", Vector2(6, 14), Vector2(6, 18), 1.6], ["seg", Vector2(9, 14), Vector2(9, 18), 1.6], ["seg", Vector2(12, 14), Vector2(12, 18), 1.6],
+		["seg", Vector2(11, 12), Vector2(20, 3), 2], ["seg", Vector2(20, 3), Vector2(14, 3), 2], ["seg", Vector2(20, 3), Vector2(20, 9), 2]],
 	"help": [["arc", Vector2(12, 8.5), 4.5, 2.2, 160, 420], ["seg", Vector2(12, 13), Vector2(12, 16), 2.2], ["disc", Vector2(12, 20.5), 1.5]],
 }
 
