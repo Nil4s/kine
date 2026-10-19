@@ -297,6 +297,11 @@
       "snap"
      ]
     },
+    "ease_bias": {
+     "type": "number",
+     "minimum": -1,
+     "maximum": 1
+    },
     "plant": {
      "type": "array",
      "items": {
