@@ -7063,6 +7063,7 @@ func _commands() -> Array:
 	add.call("Moving holds on/off", "", _tool.bind(4), "drift", true, "during a hold the upper body drifts a little toward the next card (saved with the scene)")
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check (experimental: the limits are still being verified)")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
+	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
 	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
@@ -7733,6 +7734,42 @@ func _check(given = null) -> void:
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))   # ends above the status line (round 9: the bar moved it up)
 	ui_find.visible = true
 	_say("check: " + ("clean" if findings.is_empty() else "%d findings, %d must fix.  Click one to jump to it." % [findings.size(), fails]))
+
+
+## CRITIQUE (ROADMAP 11): the animation-craft notes (scripts/critique.gd) in their own section of the CHECK panel. Notes only:
+## the rulebook's findings, Check and its Fix are untouched (findings / check_ran are not set here)
+func _critique() -> void:
+	if S.cards.size() < 2:
+		_say("Critique needs a scene of two cards or more")
+		return
+	var notes := Critique.check(S, ov.GB)
+	for c in ui_find_list.get_children():
+		ui_find_list.remove_child(c)
+		c.queue_free()
+	var head := HBoxContainer.new()
+	ui_find_list.add_child(head)
+	var title := _label("CRITIQUE  -  " + ("nothing to note in the craft rules" if notes.is_empty() else "%d notes (never must-fix)" % notes.size()), 18, "heading")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_button("Close", _close_findings))
+	ui_find_list.add_child(_label("Animation craft, from the twelve principles: notes, not errors. Click one to jump to its moment.", 13, "text:0.6", true))
+	for k in notes.size():
+		var f: Dictionary = notes[k]
+		var b := Button.new()
+		b.name = "note_%d" % (k + 1)
+		b.text = "note  %.2f s  card %d '%s'  -  %s\n%s" % [f["t"], f["card"] + 1, S.cards[mini(f["card"], S.cards.size() - 1)]["name"], f["rule"], f["msg"]]
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(380, 0)
+		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_color_override("font_color", Tok.of("text:0.85"))
+		b.pressed.connect(_goto_finding.bind(f))
+		ui_find_list.add_child(b)
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 110.0 * notes.size(), 60.0,
+		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))
+	ui_find.visible = true
+	_say("critique: " + ("nothing to note" if notes.is_empty() else "%d notes (never must-fix). Click one to jump to it." % notes.size()))
 
 
 ## Check is fresh: it ran, and nothing has been changed since (an edit pushes an undo step; an undo takes one away)
