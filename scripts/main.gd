@@ -4062,6 +4062,39 @@ func _ik_release() -> void:
 	_say("released the %s at %.2f s: card %d now holds its pinned pose (off by %.2f deg at most), so it follows the cards from here without a jump" % [_ik_words(tip), t, int(r["card"]) + 1, float(r["residual"])])
 
 
+func _ik_to_fk() -> void:
+	var tip := _ik_tip()
+	if tip == "":
+		_say("IK -> FK matches a hand or foot: click a hand, a foot, or a part of that arm or leg first")
+		return
+	var ks: Array = S.ik.get(tip, [])
+	var t := clampf(playhead, 0.0, S.length())
+	if ks.is_empty() or LimbIK.weight_at(ks, t) <= 0.0:
+		_say("the %s is already FK here: use 'FK -> IK: match at this frame' to put it in IK, or move the playhead to where it is in IK" % _ik_words(tip))
+		return
+	if LimbIK.card_at(S, t) < 0:
+		_say("IK -> FK writes the pose into a card: click a card (the playhead goes onto it), or press Enter to add one here")
+		return
+	var r := {}
+	_do(func(): r.merge(LimbIK.to_fk(S, B, tip, t)))
+	_dummy_hits()
+	_say("the %s is FK from %.2f s: card %d holds its IK pose (off by %.2f deg at most), the blend keyed 0, nothing jumps (Ctrl+Z takes it back)" % [_ik_words(tip), t, int(r["card"]) + 1, float(r["residual"])])
+
+
+func _ik_to_ik() -> void:
+	var tip := _ik_tip()
+	if tip == "":
+		_say("FK -> IK matches a hand or foot: click a hand, a foot, or a part of that arm or leg first")
+		return
+	if S.cards.is_empty():
+		_say("IK keys live in a scene: open a scene, or press Enter to add the body as a card first")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	_do(func(): LimbIK.to_ik(S, B, tip, t))
+	_dummy_hits()
+	_say("the %s is IK from %.2f s: target and pole keyed where the FK limb is, the blend keyed 1, nothing jumps (Ctrl+Z takes it back)" % [_ik_words(tip), t])
+
+
 func _ik_snap_fk() -> void:
 	var tip := _ik_tip()
 	if tip == "" or not S.ik.has(tip):
@@ -8100,6 +8133,8 @@ func _commands() -> Array:
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
 	add.call("IK: release the picked limb here", "", _ik_release, "ik fk unpin unlock free let go release hand foot", true, "the pinned hand (or foot) follows the cards again from the card at the playhead: its pinned pose goes into that card first, so nothing jumps")
+	add.call("IK -> FK: match at this frame", "", _ik_to_fk, "ik fk switch match bake blend pop snap rigify", true, "the picked limb leaves IK here: its IK pose goes into the card at the playhead and the IK/FK blend is keyed 0, so the limb does not move at the switch")
+	add.call("FK -> IK: match at this frame", "", _ik_to_ik, "ik fk switch match blend pop snap rigify target pole", true, "the picked limb enters IK here: target and pole keyed on the FK hand/foot and elbow/knee, the IK/FK blend keyed 1, so the limb does not move at the switch")
 	add.call("IK: snap FK to IK", "", _ik_snap_fk, "ik fk match switch visual key rigify card", true, "the card at the playhead takes the picked limb's IK pose (what you see), the IK keys stay")
 	add.call("IK: snap IK to FK", "", _ik_snap_ik, "ik fk match switch target pole rigify", true, "the picked limb's IK target and pole keyed at the playhead where the cards put the limb (the IK weight stays)")
 	add.call("Constraint: use the picked part as the target", "", _cons_pick_target, "constraint target parent child of follow look track blender", false, "the picked body part (or the weapon) becomes what the next Child Of follows or the head looks at (a choice, not an edit)")

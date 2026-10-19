@@ -31,6 +31,8 @@ class_name LimbIK
 extends RefCounted
 
 const LIMBS := ["hand_l", "hand_r", "foot_l", "foot_r"]
+const OFF_FADE := 0.3   # s: an FK offset kept on a release key fades out over this long (smoothstep)
+const OFF_MIN := 0.02   # deg: an unmatched joint under this is left to the 0.01-deg card rounding
 const SAME_T := 0.001   # keys closer than this are the same key (keying there again replaces it), as PartKeys
 
 
@@ -196,6 +198,26 @@ static func weight_at(keys: Array, t: float) -> float:
 	return clampf(float(keys[-1]["w"]), 0.0, 1.0)
 
 
+## the FK offset a release left at or before t, faded: {joint: Vector3 deg} ({} = none, or faded out)
+static func off_at(keys: Array, t: float) -> Dictionary:
+	var k = null
+	for c in keys:
+		if float(c["t"]) <= t + SAME_T:
+			k = c
+		else:
+			break
+	if k == null or not k.has("off"):
+		return {}
+	var u := (t - float(k["t"])) / OFF_FADE
+	if u >= 1.0:
+		return {}
+	var f := 1.0 - smoothstep(0.0, 1.0, maxf(u, 0.0))
+	var out := {}
+	for j in k["off"]:
+		out[j] = ((k["off"][j][0] as Vector3) - (k["off"][j][1] as Vector3)) * f
+	return out
+
+
 ## THE IK PASS (Scene.apply, last): every keyed limb with weight > 0 solved, then mixed with its FK angles by the
 ## weight. Returns {tip: solve()'s report + "w"} for the limbs that ran ({} = the body was not touched)
 static func play(ik: Dictionary, B: Body, t: float) -> Dictionary:
@@ -206,11 +228,16 @@ static func play(ik: Dictionary, B: Body, t: float) -> Dictionary:
 		var keys: Array = ik.get(tip, [])
 		if keys.is_empty():
 			continue
+		var ch := chain(B, tip)
+		var fo := off_at(keys, t)   # a release's leftover: IK minus FK at the switch, fading out; on the FK angles, under the mix
+		if not fo.is_empty():
+			for j in fo:
+				B.ang[j] = B.clamp_ang(j, (B.ang[j] as Vector3) + (fo[j] as Vector3))
+			B.fk()
 		var k := sample(keys, t)
 		var w: float = k["w"]
 		if w <= 0.0:
 			continue
-		var ch := chain(B, tip)
 		var was := {}
 		for j in ch:
 			was[j] = B.ang[j]
@@ -333,9 +360,11 @@ static func snap_fk(S: Scene, B: Body, tip: String, t: float, fk_at := Callable(
 	var M := Body.new()
 	M.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var res := INF
+	var best_res := INF
+	var best_pose: Dictionary = (S.cards[i]["pose"] as Dictionary).duplicate(true)
 	# a fixed point: what plays at t is not always the card's own number (a spline scene's upper arm reads its curve a
 	# little ahead, a layer adds to it), so the card moves by the difference until the played FK meets the IK (4 at most)
-	for it in 4:
+	for it in 8:
 		if fk_at.is_valid():
 			fk_at.call()
 		else:
@@ -344,6 +373,9 @@ static func snap_fk(S: Scene, B: Body, tip: String, t: float, fk_at := Callable(
 		for j in ch:
 			var dv: Vector3 = ((B.ang[j] as Vector3) - (want[j] as Vector3)).abs()
 			res = maxf(res, dv[dv.max_axis_index()])
+		if res < best_res:
+			best_res = res
+			best_pose = (S.cards[i]["pose"] as Dictionary).duplicate(true)
 		if res < 0.005:
 			break
 		var pose: Dictionary = (S.cards[i]["pose"] as Dictionary).duplicate(true)
@@ -368,8 +400,23 @@ static func snap_fk(S: Scene, B: Body, tip: String, t: float, fk_at := Callable(
 	for j in ch:
 		var dv: Vector3 = ((B.ang[j] as Vector3) - (want[j] as Vector3)).abs()
 		res = maxf(res, dv[dv.max_axis_index()])
+	if res > best_res + 1e-6:
+		# the last edit was not the best one (a joint the scene solves itself, e.g. a planted foot's leg, does not follow
+		# its card, and the edits then wander): keep the card that came closest
+		S.cards[i]["pose"] = best_pose
+		if fk_at.is_valid():
+			fk_at.call()
+		else:
+			_fk_at(S, B, tip, t)
+		res = 0.0
+		for j in ch:
+			var dv2: Vector3 = ((B.ang[j] as Vector3) - (want[j] as Vector3)).abs()
+			res = maxf(res, dv2[dv2.max_axis_index()])
+	var left := {}   # per joint: IK minus the FK that plays now (what the card could not take)
+	for j in ch:
+		left[j] = (want[j] as Vector3) - (B.ang[j] as Vector3)
 	S.apply(B, t)
-	return {"ok": true, "card": i, "residual": res}
+	return {"ok": true, "card": i, "residual": res, "left": left, "want": want}
 
 
 ## RELEASE: snap FK to IK at t, then the weight keyed 0 at t (after a key one frame earlier that holds the IK as it
@@ -385,6 +432,15 @@ static func release(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 		return r
 	_fk_at(S, B, tip, t)   # the FK now = the IK at t
 	var key := {"t": t, "target": B.P[tip], "pole": pole_from_pose(B, tip), "w": 0.0, "rot": B.G[tip]}
+	# what the card could not take (a planted foot's leg is solved by the scene, not read from its card) rides on the key
+	# as an offset that fades out over OFF_FADE: the limb is on the IK pose at t and eases onto the cards after it
+	var off := {}
+	for j in (r["left"] as Dictionary):
+		var d: Vector3 = r["left"][j]
+		if d.abs()[d.abs().max_axis_index()] > OFF_MIN:
+			off[j] = [r["want"][j], B.ang[j]]   # [the IK angles at t, the FK angles that play there]
+	if not off.is_empty():
+		key["off"] = off
 	r["pre"] = _hold_before(S, tip, t, S.fps, key)
 	put(S.ik, tip, key)
 	S.apply(B, t)
@@ -404,6 +460,28 @@ static func snap_ik(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 	return {"w": w}
 
 
+## IK -> FK, MATCH AT THIS FRAME (ROADMAP 62): the limb leaves IK at t with no pop. The IK pose at t is baked into the
+## card under the playhead (snap_fk) and the blend keyed 0 there, after a key one frame earlier holding the IK as it was,
+## so the limb's world pose is the same just before and just after the switch. Needs the playhead on a card and the limb in IK
+static func to_fk(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
+	return release(S, B, tip, t)
+
+
+## FK -> IK, MATCH AT THIS FRAME (ROADMAP 62): the limb enters IK at t with no pop. Target, pole and tip turn keyed where
+## the FK hand / foot and elbow / knee are NOW (what the cards, part keys and layers play, the limb's own IK off), the blend
+## keyed 1 there; a key one frame earlier holds the old curve (blend 0 on an FK limb), so the blend rises over that frame
+## while the IK pose already equals the FK pose. Works on any frame (no card needed). Returns {"w": the blend before, "pre"}
+static func to_ik(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
+	var ks: Array = S.ik.get(tip, [])
+	var was := weight_at(ks, t) if not ks.is_empty() else 0.0
+	_fk_at(S, B, tip, t)
+	var key := {"t": t, "target": B.P[tip], "pole": pole_from_pose(B, tip), "w": 1.0, "rot": B.G[tip]}
+	var pre := _hold_before(S, tip, t, S.fps, key)
+	put(S.ik, tip, key)
+	S.apply(B, t)
+	return {"w": was, "pre": pre}
+
+
 ## IN THE FILE: "ik": {"hand_l": [{"t", "target": [x, y, z], "pole": [x, y, z], "w", "rot"?: [x, y, z, w]}]}, written
 ## only when there is a key (a scene without one saves byte for byte as before). t and w to 0.0001, points to 0.1 mm
 static func to_file(ik: Dictionary) -> Dictionary:
@@ -416,6 +494,10 @@ static func to_file(ik: Dictionary) -> Dictionary:
 				"w": snappedf(clampf(float(k["w"]), 0.0, 1.0), 0.0001)}
 			if k.has("rot"):
 				d["rot"] = Body._q(k["rot"])
+			if k.has("off"):
+				d["off"] = {}
+				for j in k["off"]:
+					d["off"][j] = [Body._p(k["off"][j][0]), Body._p(k["off"][j][1])]
 			return d)
 	return out
 
@@ -436,6 +518,10 @@ static func from_file(d: Variant) -> Dictionary:
 			if k.has("rot") and k["rot"] is Array and (k["rot"] as Array).size() == 4:
 				var r: Array = k["rot"]
 				key["rot"] = Quaternion(float(r[0]), float(r[1]), float(r[2]), float(r[3])).normalized()
+			if k.has("off") and k["off"] is Dictionary:
+				key["off"] = {}
+				for j in k["off"]:
+					key["off"][String(j)] = [Body._v(k["off"][j][0]), Body._v(k["off"][j][1])]
 			ks.append(key)
 		ks.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
 		if not ks.is_empty():
@@ -446,7 +532,7 @@ static func from_file(d: Variant) -> Dictionary:
 ## MIRRORED (Scene.MIRROR_SCENE "ik"), on the FILE form: each limb's keys to its twin (hand_l <-> hand_r), every point's
 ## x negated (the body's mirror plane is x = 0), the tip rotation reflected as Body.mirror_pose reflects a turn
 ## (q.x, -q.y, -q.z, q.w); times and weights as they were
-static func mirror_file(d: Dictionary) -> Dictionary:
+static func mirror_file(d: Dictionary, M: Body = null) -> Dictionary:
 	var out := {}
 	for tip in d:
 		var o := Body.twin(String(tip))
@@ -456,5 +542,16 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 				m[f] = [-float(k[f][0]), float(k[f][1]), float(k[f][2])]
 			if k.has("rot"):
 				m["rot"] = [float(k["rot"][0]), -float(k["rot"][1]), -float(k["rot"][2]), float(k["rot"][3])]
+			if k.has("off"):   # the kept joint angles (IK, FK) to the twin joint, reflected as Body.mirror_pose reflects a turn
+				m["off"] = {}
+				for j in k["off"]:
+					var pair := []
+					for a in k["off"][j]:
+						var v := Body._v(a)
+						if M != null:
+							var q := M.compose(String(j), v)
+							v = M.decompose(Body.twin(String(j)), Quaternion(q.x, -q.y, -q.z, q.w))
+						pair.append(Body._p(v))
+					m["off"][Body.twin(String(j))] = pair
 			return m)
 	return out

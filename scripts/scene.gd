@@ -2000,7 +2000,7 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 	if d2.has("part_keys"):
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
 	if d2.has("ik"):
-		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+		d2["ik"] = LimbIK.mirror_file(d2["ik"], M)   # as main._mirror_scene: hand_l <-> hand_r, points x negated
 	if d2.has("plants"):
 		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
 	if d2.has("drivers"):
