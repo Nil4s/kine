@@ -1691,12 +1691,13 @@ func clear(B: Body) -> int:
 	return added
 
 
-func to_dict(B: Body) -> Dictionary:
+## frames = false: no bad_frames (the whole-scene collision playback, seconds on a long scene): the autosave's quick copy
+func to_dict(B: Body, frames := true) -> Dictionary:
 	# the file records the REAL motion: the stepped preview is a view setting (round 8: saving during it wrote the
 	# stepped playback's bad_frames into the file)
 	var was := stepped
 	stepped = false
-	var bad := check(B)
+	var bad := check(B) if frames else []
 	stepped = was
 	var ts := times()
 	var cs := []
@@ -1731,6 +1732,8 @@ func to_dict(B: Body) -> Dictionary:
 	var out := {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
+	if not frames:
+		out.erase("bad_frames")   # key order of the rest kept: a full save is byte-identical to before
 	if spline:
 		out["spline"] = true   # written only when on, so every older scene saves byte-identical
 	if moving_holds:
@@ -1758,7 +1761,7 @@ func to_dict(B: Body) -> Dictionary:
 		out["audio"] = AudioTrack.clean(audio)   # the sound: the same, only when there is one
 	if not actors.is_empty():   # G1: the same, only with a second actor
 		out["actors"] = actors.map(func(a): return {"name": a["name"], "xf": {"pos": [float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": float(a["xf"]["yaw"])},
-			"scene": (a["scene"] as Scene).to_dict(B)})
+			"scene": (a["scene"] as Scene).to_dict(B, frames)})
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
 	return out

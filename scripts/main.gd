@@ -2970,12 +2970,12 @@ func _pick_actor(mp: Vector2) -> Array:
 
 ## the file the open scene saves as: the hero's scene with every other actor in "actors" (TC1), whoever is active.
 ## The hero's body is kept and put back (to_dict poses it)
-func _scene_dict() -> Dictionary:
+func _scene_dict(frames := true) -> Dictionary:
 	_actors_sync()
 	var H := _hero_scene()
 	var hb := _hero_body()
 	var keep := hb.state()
-	var d := H.to_dict(hb)
+	var d := H.to_dict(hb, frames)
 	hb.set_state(keep)
 	return d
 
@@ -7590,7 +7590,8 @@ func retime(a: int, b: int, pct: float) -> String:
 func autosave_now() -> bool:
 	if not _unsaved():
 		return false
-	var d := _scene_dict()   # TC3: the hero's file with its actors (the body kept)
+	var d := _scene_dict(false)   # TC3: the hero's file with its actors (the body kept). No bad_frames: that whole-scene
+	# collision playback froze the app 1.4-7 s every 15 s on a two-fighter combo3; Save scene still writes them
 	var what := JSON.stringify([d, scene_path])   # what is held, without the time: the same twice = no write
 	if what == _as_last:
 		return false
