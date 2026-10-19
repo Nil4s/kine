@@ -584,6 +584,7 @@ func apply(B: Body, t: float) -> void:
 	_apply(B, t)
 	if not clips.is_empty():
 		Clips.play(self, B, t)   # CLIPS (GAP row 12): base motion over the cards, under the layers (order: scripts/clips.gd)
+	_toe_guard(B, t)       # the walk's toes: never past the first MTP's range, and level while the foot is in the air
 	add_layer(B)           # YY9: on top of the cards; nothing without a layer or at weight 0
 	add_layers(B, t)       # NA1: the further layers, in order; nothing without one
 	B.breathe(t, breath)   # YY6: on top of the pose; nothing at 0
@@ -865,8 +866,8 @@ func _apply(B: Body, t: float) -> void:
 ##     People's ankle: ~20 deg plantarflexed at toe-off, neutral by mid-swing (Perry, Gait Analysis).
 ##   KNEE: never less bent than TOE_KNEE around toe-off: where keeping the toes on their mark would lock the leg
 ##     straight, the toes leave the mark instead (the ball slides toward the hip, bisection).
-##   TOES: bent back at the ball so the tips stay on the floor (people's MTP joint, ~50-60 deg at toe-off), unbending
-##     by TOE_LEVEL.
+##   TOES: bent back at the ball so the tips stay on the floor, held to TOE_MTP_MAX (45, the first MTP's walking peak),
+##     unbending within TOE_UNBEND of leaving the floor (the toe guard in _toe_guard holds the same limits every frame).
 ## The foot-ground angle at toe-off this gives is set by the trailing shank, not steered: people at 4.5 km/h 60.3 +-
 ## 5.1 deg (49.4 at 3 km/h, 68.5 at 6; 49 healthy adults, WalkinSense insoles, Eckelt et al. 2026, PMID 41583941).
 ## Before: the trailing leg locked straight on its toes and the knee went 40 -> 0 -> 52 deg in four frames (1743 deg/s;
@@ -882,6 +883,8 @@ const TOE_RATE := 400.0   # deg/s: the knee's bend to TOE_KNEE no faster than pe
 const TOE_MIN_T := 0.1    # s: the push-off (ankle to TOE_PLANTAR, the toes unbending) takes at least this (people ~0.1 s,
                           # 50-62 % of a ~1.1 s cycle); in 0.057 s the ankle and toes turned 840-880 deg/s
 const TOE_HOLD := 0.3     # early swing: the ankle stays down until here (people's knee peaks ~73 % = 0.3 of the move)
+const TOE_MTP_MAX := 45.0  # deg: the first MTP (toe joint) at push-off, never past it (Miana 2021 ~40-45 walking; Nawoczenski 1999 ~42)
+const TOE_UNBEND := 0.15  # move share over which the toes go back to level after they leave the floor (early swing: MTP ~0 by ~0.1 s, Perry)
 const TOE_LEVEL := 0.5    # level by mid-swing (people's ankle back to neutral ~75-80 % of the cycle)
 const SWING_STRAIGHT := 0.82   # the swing knee's floor reaches 0 here (people ~5 deg at 95 % of the cycle)
 const TOE_SEED := 20.0    # deg: the knee bend toe-off's plant starts from (not the straight branch)
@@ -1125,6 +1128,33 @@ static func _toe_bump(s: float, off := TOE_OFF_AT) -> float:
 	return smoothstep(0.0, off, s) if s < TOE_HOLD else 1.0 - smoothstep(TOE_HOLD, TOE_LEVEL, s)
 
 
+## THE TOE LIMIT ON A WALK (round 45, GATES toes; Nick: "nobody moves foot fingers all the way up to walk"). The toe joint
+## (ball) is blended and re-planted by four writers (_toe_off, _construct's heel roll, the card blend, the knee floor), and
+## their sum read 59 deg at push-off and 20-43 deg with the foot 2-6 cm up in the air. So on a walk, after all of them:
+##   on the floor (lift < 1 cm): the toe bend is held to TOE_MTP_MAX (the first MTP's walking peak, 40-45; Miana 2021,
+##     Nawoczenski 1999 ~42), never less than -30 (the joint limit)
+##   in the air (lift > 2 cm): |bend| <= TOE_AIR_MAX (~0: the toes are not flexed in swing; Perry 1992 MTP ~0 in swing)
+##   between: a smooth blend of the two (the ball's lift is the ball joint's own height, which the toe angle does not move)
+const TOE_AIR_MAX := 10.0
+func _toe_guard(B: Body, t: float) -> void:
+	var i := span(t)
+	var h := _held(t)
+	if not ((i > 0 and walk_feet(i)) or (h > 0 and walk_feet(h))):
+		return
+	var moved := false
+	for sd in ["_l", "_r"]:
+		var toe: String = "ball" + sd
+		var a: Vector3 = B.ang[toe]
+		var lift: float = (B.P[toe] as Vector3).y - (B.p0[toe] as Vector3).y
+		var w := smoothstep(0.01, 0.02, lift)
+		var x := lerpf(clampf(a.x, -30.0, TOE_MTP_MAX), clampf(a.x, -TOE_AIR_MAX, TOE_AIR_MAX), w)
+		if absf(x - a.x) > 1e-6:
+			B.ang[toe] = Vector3(x, a.y, a.z)
+			moved = true
+	if moved:
+		B.fk()
+
+
 func _toe_off(B: Body, sd: String, at: Vector3, head: float, from_at: Vector3, head0: float, from_flat: bool, s: float, to_at: Vector3, to_head: float, carry := false, mt := 0.57) -> void:
 	var f := "foot" + sd
 	var heel0 := _heel_at_card(B, sd, from_at, head0, 0.0 if from_flat else HEEL_END, from_flat)
@@ -1147,7 +1177,11 @@ func _toe_off(B: Body, sd: String, at: Vector3, head: float, from_at: Vector3, h
 	var toe := "ball" + sd
 	var t0: Vector3 = B.ang[toe]
 	B.toes_flat(sd)
-	B.ang[toe] = t0.lerp(B.ang[toe] as Vector3, 1.0 - smoothstep(off, TOE_LEVEL, s))
+	# the first MTP never past TOE_MTP_MAX: toes_flat bisects the tips onto the floor with whatever the trailing ankle gives
+	# (59 deg here at push-off, a real first MTP peaks at 40-45 walking)
+	B.ang[toe] = Vector3(minf((B.ang[toe] as Vector3).x, TOE_MTP_MAX), (B.ang[toe] as Vector3).y, (B.ang[toe] as Vector3).z)
+	# the toes unbend as the foot leaves the floor: level within TOE_UNBEND of the move (early swing), not by mid-swing
+	B.ang[toe] = t0.lerp(B.ang[toe] as Vector3, 1.0 - smoothstep(off, off + TOE_UNBEND, s))
 	B.fk()
 	# ...and onto the next card's mark HEEL FIRST (ZZ1): toward the leg on its heel, toes HS_UP up, reached at HS_AT; from
 	# there the heel stays and the foot rolls flat by the card (the stance that starts there)

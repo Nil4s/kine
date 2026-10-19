@@ -77,6 +77,12 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 4. [~] First-run tour: 60 s of guided steps on the mannequin (pose a hand, key, play)
 5. [~] Hotkey cheat sheet overlay (hold ?) and a hotkey editor
 6. [~] Better foot: heel / ball / toe-tip pivots as handles in the view (reverse foot you can grab), foot roll keyable
+1. [x] Kill the toes curling up in walks: toe bend capped at real push-off (MTP ~44 deg walking) and only during push-off (wt-toes: scene.gd TOE_MTP_MAX / _toe_guard; tests/toes_walk_test.gd; docs/research/TOES.md)
+2. [ ] Crash-proof: every edit journaled; reopen after a crash at the last action (top-25 #25)
+3. [ ] Easy mode: a simple panel of 12 big actions (pose, key, play, undo, export) with the rest hidden; Expert mode shows all
+4. [ ] First-run tour: 60 s of guided steps on the mannequin (pose a hand, key, play)
+5. [ ] Hotkey cheat sheet overlay (hold ?) and a hotkey editor
+6. [ ] Better foot: heel / ball / toe-tip pivots as handles in the view (reverse foot you can grab), foot roll keyable
 7. [ ] Better skeleton: split toes (big toe vs the other four), a real ankle subtalar axis (inversion / eversion)
 8. [x] Foot planting that just works: mark a foot planted over a time range, it stays put to 1 mm, the leg solves
 9. [x] One-click engine delivery: UE5 / Unity / Godot presets, scale + axes + root motion checked (top-25 #19)
