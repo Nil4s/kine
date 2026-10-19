@@ -354,6 +354,7 @@ var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
+var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
 var bal := BalanceView.new()   # LIVE BALANCE (Shift+B, round 43 YY1): the feet's support and the COM over them
 var ui_tween: HSlider
 var ui_hist: PanelContainer        # UNDO HISTORY (round 11, #75)
@@ -1391,9 +1392,11 @@ func _ready() -> void:
 	add_child(wt)
 	add_child(bal)
 	add_child(loa)
+	add_child(rings)
 	ov.setup()
 	wt.setup()
 	loa.setup()
+	rings.setup()
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
 	_ui()
@@ -2427,6 +2430,7 @@ func _refresh() -> void:
 	_pose_others()
 	_actors_draw()
 	_fighters_mark()
+	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
@@ -7801,6 +7805,7 @@ func _commands() -> Array:
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
+	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in m (ROADMAP 38)")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
 	add.call("Check: weapon clashes", "", _weapon_clash, "clash parry pass through weapons bat swing contact sparks meet fighters", false, "finds where the two fighters' weapons meet over the timeline: CLASH, PARRY, or PASS-THROUGH (the weapons go through each other: must fix); a spark marks each contact, the report prints the time, point and speed (ROADMAP 37)")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
@@ -7936,6 +7941,30 @@ func _commands() -> Array:
 ## EXCHANGE VIEW (ROADMAP 13; scripts/choreo.gd, scripts/choreo_view.gd): one row per fighter, the beats, the reach and
 ## guard report. Its own Window; every edit here is one undo step (the beats with the hero, a shift with its fighter)
 var ui_choreo = null   # ChoreoView while its window is open
+
+
+## ROADMAP 38: the range rings (scripts/range_rings.gd): the picked fighter's rings against the others, drawn on the floor
+func _rings_draw() -> void:
+	var others := []
+	if rings.on and actors_rt.size() >= 2 and stage_root != null and actor_on < actors_rt.size():
+		for k in actors_rt.size():
+			if k != actor_on:
+				others.append({"name": actors_rt[k]["name"], "B": actors_rt[k]["B"], "W": stage_root.transform * (actors_rt[k]["xf"] as Transform3D)})
+	var pW := stage_root.transform * (actors_rt[actor_on]["xf"] as Transform3D) if (rings.on and actors_rt.size() >= 2 and stage_root != null and actor_on < actors_rt.size()) else Transform3D.IDENTITY
+	rings.update(B, pW, others)
+
+
+func _rings_toggle() -> void:
+	if not rings.on and actors_rt.size() < 2:
+		_say("the range rings need two fighters: Actor: add a second fighter first")
+		return
+	rings.on = not rings.on
+	_refresh()
+	if rings.on:
+		var r: Dictionary = rings.last["reaches"] if rings.last.has("reaches") else {}
+		_say("range rings on: arm %.2f m, arm + weapon %s, step-in %.2f m; the label is the other fighter's nearest part" % [float(r.get("arm", 0.0)), ("%.2f m" % float(r["weapon"])) if r.get("has_weapon", false) else "(no weapon held)", float(r.get("step_in", 0.0))])
+	else:
+		_say("range rings off")
 
 
 func _choreo_open() -> void:
