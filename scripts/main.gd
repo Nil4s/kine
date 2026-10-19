@@ -16,9 +16,10 @@ const TOUCH := Color(1.0, 0.25, 0.2)
 const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10-12)
 const LEFT_W := 240   # round 36 (RR3): the browser; was 250
 const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sentences)
-const BOTTOM_H := 256   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
-const BOTTOM_FOLDED := 48   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
-const BOTTOM_EMPTY := 100   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
+const PAGE_H := 30   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
+const BOTTOM_H := 256 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
+const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
+const BOTTOM_EMPTY := 100 + PAGE_H   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
 							# and play row took a third of the screen for nothing)
 var ui_bh: HBoxContainer   # the bottom panel's header row (the scene's name and buttons): folded away with the cards
 var bottom_h := BOTTOM_H   # the bottom panel's height now: _layout_bottom() sets it and moves what sits on it
@@ -176,6 +177,30 @@ const RIBBON_GROUPS := {
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes"]]],
 }
+## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
+## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
+## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
+## page: its tools are the "View" menu in the top bar, on every page. Layout values: true = folded, false = open; a key
+## a page does not name follows the user's own folds. The user's changes on a page are remembered for that page.
+const PAGES := ["POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER"]
+const PAGES_SOON := ["BODY", "MODEL", "SCULPT", "SURFACE"]
+const PAGE_ROW := {"POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT"}
+const PAGE_LAYOUT := {
+	"POSE": {},                                                  # the body and its inspector: as the user left them
+	"ANIMATE": {"bottom": false},                                # the scene strip and the timeline in full
+	"STAGE": {"left": false, "bottom": true},                    # the browser (props, cast) open, the strip a thin line
+	"CHECK": {"right": false, "bottom": true},                   # the inspector open (the findings), the strip a thin line
+	"DELIVER": {"left": true, "right": true, "bottom": true},    # the body big: only the export tools
+}
+const PAGE_TIPS := {"POSE": "pose one moment: the body, the inspector, the pose library", "ANIMATE": "cards, timeline, curves, overlays",
+	"STAGE": "the set and the cast: props, cameras, crowd, several fighters", "CHECK": "is it right: grade, human check, frame data",
+	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions"}
+var cur_page := "POSE"
+var base_fold := {"left": false, "right": false, "bottom": false}   # the user's own folds (a page that names none follows them)
+var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
+var ui_page_btns := {}     # page -> its button on the page bar
+var ui_page_bar: PanelContainer
+var ui_view_menu: MenuButton
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
 var ui_doc: Label         # the strip's middle: the scene's name, clips, length
 var ui_doc_dot: Label     # unsaved changes
@@ -221,7 +246,14 @@ func _fold(which: String, on: bool, save := true) -> void:
 	if save:
 		var cf := ConfigFile.new()
 		cf.load(settings)
-		cf.set_value("layout", "fold_" + which, on)
+		if PAGE_LAYOUT[cur_page].has(which):   # this page decides this panel: the user's choice is the page's own
+			if not page_fold.has(cur_page):
+				page_fold[cur_page] = {}
+			page_fold[cur_page][which] = on
+			cf.set_value("pages", cur_page + "_" + which, on)
+		else:
+			base_fold[which] = on
+			cf.set_value("layout", "fold_" + which, on)
 		cf.save(settings)
 
 
@@ -1896,6 +1928,7 @@ func _ready() -> void:
 	for k in fold:   # QQ4: a user's folds, remembered (the first start: FOLD_DEFAULT); a test starts open
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
 			_fold(k, true, false)
+	_pages_load(cf)
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
@@ -2036,7 +2069,10 @@ func _ready() -> void:
 		ui_ring.hover = 0
 	i = args.find("--ribbon")   # --ribbon ANIMATE: open that ribbon tab (screenshots)
 	if i >= 0 and i + 1 < args.size():
-		_ribbon(args[i + 1])
+		if PAGE_ROW.has(args[i + 1]):
+			_page_set(args[i + 1], false)   # a screenshot never rewrites the user's page
+		else:
+			_ribbon(args[i + 1])
 	i = args.find("--do")   # --do "Point the right hand": run that registered command, by its name (screenshots)
 	if i >= 0 and i + 1 < args.size():
 		for c in _commands():
@@ -3470,6 +3506,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		match k.keycode:
 			KEY_S:
 				ui_cmd.open()
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.shift_pressed:   # Shift+1..5: the pages
+				_page_set(PAGES[k.keycode - KEY_1])
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_view(k.keycode - KEY_0)
 			KEY_R: _do(func(): _reset_part())
@@ -8429,18 +8467,21 @@ func _ui() -> void:
 	ui_ribbon = {}
 	ui_ribbon_tabs = {}
 	var group := ButtonGroup.new()
+	ui_view_menu = MenuButton.new()   # the VIEW tools on every page (a small menu, not a page)
+	ui_view_menu.name = "view_menu"
+	ui_view_menu.text = "View"
+	ui_view_menu.flat = false
+	ui_view_menu.focus_mode = Control.FOCUS_NONE
+	ui_view_menu.tooltip_text = "the camera (front / sides / top / back, big view) and the display options: the same on every page"
+	ui_view_menu.about_to_popup.connect(_view_menu_fill)
+	ui_view_menu.get_popup().id_pressed.connect(_view_menu_pick)
+	strip.add_child(ui_view_menu)
 	for t in RIBBON:
-		var tbtn := _button(t, _ribbon.bind(t), RIBBON_TIPS[t])
-		tbtn.name = "tab_" + t.to_lower()   # U2 scopes: tab_check (the tab), ribbon_check/b_check (its button)
-		tbtn.toggle_mode = true
-		tbtn.button_group = group
-		tbtn.theme_type_variation = "RibbonTab"
-		ui_ribbon_tabs[t] = tbtn
-		strip.add_child(tbtn)
 		var tools := HBoxContainer.new()
 		tools.add_theme_constant_override("separation", 6)
 		tools.name = "ribbon_" + t.to_lower()
 		ui_ribbon[t] = tools
+	_build_page_bar()
 	for t in RIBBON:
 		tb.add_child(ui_ribbon[t])
 	var tog := func(tab: String, label: String, f: Callable, on: Callable, tip := ""):
@@ -8889,7 +8930,7 @@ func _ui() -> void:
 	bp.offset_top = -BOTTOM_H
 	bp.offset_left = 6
 	bp.offset_right = -6
-	bp.offset_bottom = -6
+	bp.offset_bottom = -6 - PAGE_H
 	ui_root.add_child(bp)
 	var bv := VBoxContainer.new()
 	bv.add_theme_constant_override("separation", 6)
@@ -9984,14 +10025,121 @@ this part"), "run": _toggle_lock.bind(j)},
 	ui_ring.open(p, nice(j), its)
 
 
-## show one ribbon tab's tools
+## show one ribbon row. A page's row (SET is STAGE's) is a PAGE SWITCH; "VIEW" only shows the view row (tests, --ribbon)
 func _ribbon(t: String) -> void:
+	for p in PAGES:
+		if PAGE_ROW[p] == t or p == t:
+			_page_set(p)
+			return
+	_ribbon_row(t)
+
+
+func _ribbon_row(t: String) -> void:
 	for k in RIBBON:
 		ui_ribbon[k].visible = k == t
-		ui_ribbon_tabs[k].set_pressed_no_signal(k == t)   # by hand: _no_signal does not release the group's others
+	for p in PAGES:
+		ui_page_btns[p].set_pressed_no_signal(PAGE_ROW[p] == t)   # by hand: _no_signal does not release the group's others
 	_ribbon_tab = t
 	_fit_top()
 	_place_caps.call_deferred()
+
+
+## THE PAGE BAR: nine buttons, icon and name; the five that exist, then BODY / MODEL / SCULPT / SURFACE greyed (coming)
+func _build_page_bar() -> void:
+	var bar := PanelContainer.new()
+	bar.name = "page_bar"
+	bar.theme_type_variation = "BottomBar"
+	bar.anchor_top = 1.0
+	bar.anchor_bottom = 1.0
+	bar.anchor_right = 1.0
+	bar.offset_top = -PAGE_H
+	ui_page_bar = bar
+	ui_root.add_child(bar)
+	var h := HBoxContainer.new()
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.add_theme_constant_override("separation", 4)
+	bar.add_child(h)
+	var group := ButtonGroup.new()
+	for p in PAGES + PAGES_SOON:
+		var b := Button.new()
+		b.name = ("tab_" + String(PAGE_ROW[p]).to_lower()) if PAGE_ROW.has(p) else ("page_" + p.to_lower())
+		b.text = p
+		b.icon = Icons.tex("page_" + p.to_lower())
+		b.focus_mode = Control.FOCUS_NONE
+		b.theme_type_variation = "RibbonTab"
+		b.custom_minimum_size = Vector2(104, PAGE_H - 6)
+		if PAGE_ROW.has(p):
+			var i := PAGES.find(p)
+			b.toggle_mode = true
+			b.button_group = group
+			b.tooltip_text = "%s page (Shift+%d): %s" % [p, i + 1, PAGE_TIPS[p]]
+			b.pressed.connect(func(): _step_hint = "Page: " + p; _page_set(p))
+			ui_page_btns[p] = b
+			ui_ribbon_tabs[PAGE_ROW[p]] = b
+		else:
+			b.tooltip_text = "coming: the modeling pages"
+			b.modulate = Color(1, 1, 1, 0.38)   # greyed, and no action
+		h.add_child(b)
+		if p == PAGES[-1]:
+			var sep := VSeparator.new()
+			sep.custom_minimum_size.x = 14
+			h.add_child(sep)
+
+
+## A PAGE (a view change: no undo step, the scene untouched): its ribbon row and its panels. Remembered in the settings file
+func _page_set(p: String, save := true) -> void:
+	if not PAGE_ROW.has(p):
+		return
+	cur_page = p
+	for k in fold:
+		fold[k] = _page_want(p, k)
+	_ribbon_row(PAGE_ROW[p])
+	_sides_apply()
+	_layout_bottom()
+	_fit_rows.call_deferred()
+	if save:
+		var cf := ConfigFile.new()
+		cf.load(settings)
+		if cf.get_value("layout", "page", "POSE") != p:
+			cf.set_value("layout", "page", p)
+			cf.save(settings)
+
+
+func _page_want(p: String, which: String) -> bool:
+	var o: Dictionary = page_fold.get(p, {})
+	if o.has(which):
+		return o[which]
+	return PAGE_LAYOUT[p].get(which, base_fold[which])
+
+
+## the user's pages from the settings file (their own folds per page, the page they left on)
+func _pages_load(cf: ConfigFile) -> void:
+	base_fold = fold.duplicate()
+	for p in PAGES:
+		for k in fold:
+			if cf.has_section_key("pages", p + "_" + k):
+				if not page_fold.has(p):
+					page_fold[p] = {}
+				page_fold[p][k] = cf.get_value("pages", p + "_" + k)
+	var pg: String = cf.get_value("layout", "page", "POSE")
+	if PAGE_ROW.has(pg) and pg != "POSE":
+		_page_set(pg, false)
+
+
+func _view_menu_fill() -> void:
+	var pm := ui_view_menu.get_popup()
+	pm.clear()
+	var i := 0
+	for b in ui_ribbon["VIEW"].get_children():
+		if b is Button:
+			pm.add_item(label_of(b), i)
+			if ICON_OF.has(label_of(b)):
+				pm.set_item_icon(pm.get_item_count() - 1, Icons.small(ICON_OF[label_of(b)]))
+		i += 1
+
+
+func _view_menu_pick(i: int) -> void:
+	_run_tool(ui_ribbon["VIEW"].get_child(i), ui_view_menu)
 
 
 ## a tab's tools in its groups' order with a thin divider between groups (RR1); unnamed tools stay at the end
@@ -10269,6 +10417,8 @@ func _commands() -> Array:
 		c.append({"id": "_".join(id.split(" ", false)), "name": n, "keys": keys, "run": f, "also": also, "edits": edits, "desc": desc})
 	for v in [["Front view", 1], ["His right view", 2], ["Top view", 3], ["Back view", 4], ["His left view", 5]]:
 		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s" % v[0].to_lower())
+	for pi in PAGES.size():
+		add.call("Page: " + PAGES[pi], "Shift+%d" % (pi + 1), _press.bind(KEY_1 + pi, true), "page layout workspace screen tab switch " + String(PAGE_ROW[PAGES[pi]]).to_lower(), false, "the %s page: %s (a view change; the scene and the undo history are untouched)" % [PAGES[pi], PAGE_TIPS[PAGES[pi]]])
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
 	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", false, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")

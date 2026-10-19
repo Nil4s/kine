@@ -53,11 +53,12 @@ func _init() -> void:
 	var w: float = m.get_viewport().get_visible_rect().size.x
 	var help: Button = find("? Help")[0]
 	# each tab: opened by a click, the only one lit, its row the only one shown, everything on screen
-	for tab in m.RIBBON:
-		await click(m.ui_ribbon_tabs[tab])
-		var lit: Array = m.RIBBON.filter(func(k): return m.ui_ribbon_tabs[k].button_pressed)
+	# (pages: the tabs are the page bar's buttons along the bottom; VIEW is the View menu on every page, not a page)
+	for tab in m.PAGES:
+		await click(m.ui_page_btns[tab])
+		var lit: Array = m.PAGES.filter(func(k): return m.ui_page_btns[k].button_pressed)
 		var shown: Array = m.RIBBON.filter(func(k): return m.ui_ribbon[k].visible)
-		ok(lit == [tab] and shown == [tab] and help.get_global_rect().end.x <= w, "click %s: lit %s, shown %s, '? Help' ends at %.0f of %.0f" % [tab, lit, shown, help.get_global_rect().end.x, w])
+		ok(lit == [tab] and shown == [m.PAGE_ROW[tab]] and help.get_global_rect().end.x <= w, "click %s: lit %s, shown %s, '? Help' ends at %.0f of %.0f" % [tab, lit, shown, help.get_global_rect().end.x, w])
 	# every old button: found, its tab opened, clicked at its pixels
 	var found := 0
 	for t in OLD_BAR:
@@ -66,6 +67,15 @@ func _init() -> void:
 		if b == null:
 			ok(false, "'%s' is GONE from the bar" % t)
 			continue
+		if f[1] == "VIEW":   # the View menu lists it (and runs it): the effect is checked below
+			var pm: PopupMenu = m.ui_view_menu.get_popup()
+			m._view_menu_fill()
+			var listed := false
+			for i in pm.item_count:
+				listed = listed or pm.get_item_text(i) == t
+			ok(listed, "  '%s': in the View menu, on every page" % t)
+			found += 1
+			continue
 		if f[1] != "":
 			await click(m.ui_ribbon_tabs[f[1]])
 		ok(b.is_visible_in_tree() and b.get_global_rect().end.x <= w, "  '%s': in %s, on screen" % [t, f[1] if f[1] != "" else "the always-there group"])
@@ -73,9 +83,13 @@ func _init() -> void:
 	ok(found == OLD_BAR.size(), "all %d of the old bar's %d buttons are there" % [found, OLD_BAR.size()])
 	# their effects, clicked
 	m.yaw = 33.0
-	await click(m.ui_ribbon_tabs["VIEW"])
-	await click(find("His right (2)")[0])
-	ok(is_equal_approx(m.yaw, -90.0), "VIEW > 'His right (2)': yaw %.0f" % m.yaw)
+	await click(m.ui_page_btns["ANIMATE"])   # the View menu works from any page
+	m._view_menu_fill()
+	var pm2: PopupMenu = m.ui_view_menu.get_popup()
+	for i in pm2.item_count:
+		if pm2.get_item_text(i) == "His right (2)":
+			pm2.id_pressed.emit(pm2.get_item_id(i))
+	ok(is_equal_approx(m.yaw, -90.0), "View menu > 'His right (2)' (on the ANIMATE page): yaw %.0f" % m.yaw)
 	await click(m.ui_ribbon_tabs["POSE"])
 	var caps0: bool = m.show_caps
 	await click(find("Collision (C)")[0])

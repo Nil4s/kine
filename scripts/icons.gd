@@ -8,6 +8,24 @@ const SIZE := 22
 ## shape: ["seg", a, b, width] | ["arc", centre, radius, width, from_deg, to_deg] | ["disc", centre, radius]
 ##        ["ring", centre, radius, width] | ["box", rect(pos, size), width (0 = filled)]
 const DRAW := {
+	# PAGES (docs/PAGES_PLAN.md): the page bar's nine icons
+	"page_pose": [["disc", Vector2(12, 4.5), 2.6], ["seg", Vector2(12, 8), Vector2(12, 15), 2.4], ["seg", Vector2(12, 9.5), Vector2(5, 7), 2.0],
+		["seg", Vector2(12, 9.5), Vector2(19, 13), 2.0], ["seg", Vector2(12, 15), Vector2(8, 21), 2.0], ["seg", Vector2(12, 15), Vector2(16.5, 21), 2.0]],
+	"page_animate": [["box", Rect2(2.5, 14, 19, 6), 1.6], ["seg", Vector2(7, 14), Vector2(7, 20), 1.4], ["seg", Vector2(12, 14), Vector2(12, 20), 1.4],
+		["seg", Vector2(17, 14), Vector2(17, 20), 1.4], ["disc", Vector2(5, 7), 1.8], ["disc", Vector2(12, 5), 1.8], ["disc", Vector2(19, 8), 1.8],
+		["seg", Vector2(5, 7), Vector2(12, 5), 1.2], ["seg", Vector2(12, 5), Vector2(19, 8), 1.2]],
+	"page_stage": [["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(3, 20), Vector2(7, 12), 1.8], ["seg", Vector2(21, 20), Vector2(17, 12), 1.8],
+		["seg", Vector2(7, 12), Vector2(17, 12), 1.8], ["seg", Vector2(12, 3), Vector2(12, 9), 1.8], ["disc", Vector2(12, 10), 1.6]],
+	"page_check": [["ring", Vector2(12, 12), 9, 1.9], ["seg", Vector2(7.5, 12.5), Vector2(10.8, 16), 2.4], ["seg", Vector2(10.8, 16), Vector2(17, 8.5), 2.4]],
+	"page_deliver": [["box", Rect2(3.5, 13, 17, 7), 1.8], ["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7.5, 9.5), Vector2(12, 14.5), 2.2],
+		["seg", Vector2(16.5, 9.5), Vector2(12, 14.5), 2.2]],
+	"page_body": [["ring", Vector2(12, 6), 3, 1.8], ["arc", Vector2(12, 17), 7, 1.8, 180, 360], ["seg", Vector2(5, 17), Vector2(5, 21), 1.8], ["seg", Vector2(19, 17), Vector2(19, 21), 1.8]],
+	"page_model": [["seg", Vector2(12, 3), Vector2(21, 8), 1.8], ["seg", Vector2(21, 8), Vector2(21, 17), 1.8], ["seg", Vector2(21, 17), Vector2(12, 22), 1.8],
+		["seg", Vector2(12, 22), Vector2(3, 17), 1.8], ["seg", Vector2(3, 17), Vector2(3, 8), 1.8], ["seg", Vector2(3, 8), Vector2(12, 3), 1.8],
+		["seg", Vector2(12, 12), Vector2(12, 22), 1.4], ["seg", Vector2(12, 12), Vector2(3, 8), 1.4], ["seg", Vector2(12, 12), Vector2(21, 8), 1.4]],
+	"page_sculpt": [["disc", Vector2(12, 14), 7], ["arc", Vector2(12, 8), 4, 2, 200, 340], ["seg", Vector2(12, 3), Vector2(12, 6), 2.0]],
+	"page_surface": [["box", Rect2(3.5, 3.5, 17, 17), 1.8], ["seg", Vector2(3.5, 12), Vector2(20.5, 12), 1.4], ["seg", Vector2(12, 3.5), Vector2(12, 20.5), 1.4],
+		["disc", Vector2(7.7, 7.7), 1.6], ["disc", Vector2(16.3, 16.3), 1.6]],
 	"crowd": [["disc", Vector2(6, 6), 2.0], ["disc", Vector2(12, 5), 2.0], ["disc", Vector2(18, 6), 2.0], ["seg", Vector2(6, 9), Vector2(6, 17), 2.0], ["seg", Vector2(12, 8), Vector2(12, 18), 2.0], ["seg", Vector2(18, 9), Vector2(18, 17), 2.0]],
 	"reroll": [["arc", Vector2(12, 12), 7.5, 2.2, -60, 210], ["seg", Vector2(19.5, 5), Vector2(18.5, 10), 2.2], ["seg", Vector2(18.5, 10), Vector2(13.5, 9), 2.2], ["disc", Vector2(12, 12), 2.4]],
 	"crowd_remove": [["disc", Vector2(12, 5), 2.4], ["seg", Vector2(12, 8), Vector2(12, 16), 2.4], ["seg", Vector2(12, 10), Vector2(5, 15), 2.0], ["seg", Vector2(12, 10), Vector2(19, 15), 2.0], ["seg", Vector2(6, 21), Vector2(18, 21), 2.6]],
