@@ -1,6 +1,9 @@
-## AUDIO TRACK (GAP_ANALYSIS row 23): one sound on the timeline, like Blender's and Maya's audio strip.
-## The scene keeps {"path", "offset", "gain_db"} (Scene.audio, only when there is a sound); main.gd plays it in step with
-## the playhead and plays a short slice on a scrub; the timeline draws the peak envelope this file computes ONCE on load.
+## AUDIO TRACKS (GAP_ANALYSIS row 23; ROADMAP 77): the sounds on the timeline, one lane per track, like Blender's and Maya's audio strips.
+## The scene keeps Scene.audio_tracks: a list of {"path", "offset" s, "gain_db", "role" ("music" | "voice" | "sfx"), "mute", "solo"}.
+## In the file the list is written as the old single "audio" dictionary when it is ONE plain track (path, offset, gain_db: an
+## old scene saves back byte-identical), otherwise as an array of those dictionaries. Music beats read the music track, lip sync
+## the voice track (the first track when none is tagged voice, so an old scene still lip-syncs). main.gd plays each track
+## in step with the playhead; the timeline draws the peak envelope this file computes ONCE on load.
 ## Pure helpers: no node, no scene. WAV is decoded for the envelope (8 and 16 bit PCM, mono / stereo); ogg and mp3 play
 ## but are not decoded (Godot gives no PCM for them): the timeline shows a flat bar with the file name and says so.
 class_name AudioTrack
@@ -9,10 +12,90 @@ extends RefCounted
 const BUCKET := 0.01        # s: one envelope bucket (10 ms)
 const EXTS := ["wav", "ogg", "mp3"]
 const MAX_PER_BUCKET := 128   # samples read per bucket at most (a long song stays fast; a short test file is exact)
+const ROLES := ["music", "voice", "sfx"]
+const MUTE_DB := -80.0      # the volume of a silent track (Godot's floor for a player)
 
 
 static func clean(a: Dictionary) -> Dictionary:
-	return {"path": String(a.get("path", "")), "offset": snappedf(float(a.get("offset", 0.0)), 0.001), "gain_db": snappedf(float(a.get("gain_db", 0.0)), 0.01)}
+	var out := {"path": String(a.get("path", "")), "offset": snappedf(float(a.get("offset", 0.0)), 0.001), "gain_db": snappedf(float(a.get("gain_db", 0.0)), 0.01)}
+	var role := String(a.get("role", "music"))
+	if role != "music":
+		out["role"] = role if ROLES.has(role) else "sfx"
+	if bool(a.get("mute", false)):
+		out["mute"] = true
+	if bool(a.get("solo", false)):
+		out["solo"] = true
+	return out
+
+
+## the tracks that have a file, cleaned (a track with no path is dropped)
+static func clean_list(a: Array) -> Array:
+	var out := []
+	for t in a:
+		if t is Dictionary and String((t as Dictionary).get("path", "")) != "":
+			out.append(clean(t))
+	return out
+
+
+## the scene file's "audio" value: the old dictionary for ONE plain track (path, offset, gain_db only), else an array; null = none
+static func to_file(tracks: Array) -> Variant:
+	var list := clean_list(tracks)
+	if list.is_empty():
+		return null
+	if list.size() == 1 and (list[0] as Dictionary).size() == 3:
+		return list[0]
+	return list
+
+
+## the tracks from the file's "audio" value: a dictionary (the old single sound) or an array; anything else = none
+static func from_file(v: Variant) -> Array:
+	if v is Dictionary:
+		return clean_list([v])
+	if v is Array:
+		return clean_list(v)
+	return []
+
+
+## the index of the first track with this role; "voice" falls back to the first track (an old scene's one sound); -1 = none
+static func index_of_role(tracks: Array, role: String) -> int:
+	for i in tracks.size():
+		if String(tracks[i].get("role", "music")) == role:
+			return i
+	return 0 if role == "voice" and not tracks.is_empty() else -1
+
+
+## which tracks sound: not muted, and when any track is soloed only the soloed ones (one bool per track)
+static func audible(tracks: Array) -> Array:
+	var any_solo := false
+	for t in tracks:
+		any_solo = any_solo or bool(t.get("solo", false))
+	var out := []
+	for t in tracks:
+		out.append(not bool(t.get("mute", false)) and (not any_solo or bool(t.get("solo", false))))
+	return out
+
+
+## the tracks that sound (for the playblast's mix)
+static func audible_list(tracks: Array) -> Array:
+	var on := audible(tracks)
+	var out := []
+	for i in tracks.size():
+		if on[i]:
+			out.append(tracks[i])
+	return out
+
+
+## the lane's name: the file name, the role when it is not music, MUTED / SOLO
+static func label(t: Dictionary) -> String:
+	var role := String(t.get("role", "music"))
+	var s := String(t.get("path", "")).get_file()
+	if role != "music":
+		s += "  [%s]" % role
+	if bool(t.get("mute", false)):
+		s += "  MUTED"
+	if bool(t.get("solo", false)):
+		s += "  SOLO"
+	return s
 
 
 ## the stream for a path, or null (no file, unknown kind, undecodable)

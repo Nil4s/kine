@@ -1090,7 +1090,7 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 		how = ""
 	elif ff == "":
 		how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Export playblast (video) again, or set POSER_FFMPEG to ffmpeg.exe"
-	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], S.audio, sp[0]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), sp[0]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
 		mp4 = "%s/%s.mp4" % [gdir, nm]
 		how = " and %s.mp4" % nm
 	else:
@@ -2052,7 +2052,7 @@ func _dummy_refresh() -> void:
 
 ## the timeline's height: its 34 px of rows, and the strips under the ruler (the frame strip, ROADMAP 12; the boxes lane, ROADMAP 36)
 func _tl_height() -> void:
-	ui_timeline.custom_minimum_size.y = 34.0 + (Timeline.AUDIO_H if _a_path != "" else 0.0) + ui_timeline.clip_px() + _tl_under_ruler()
+	ui_timeline.custom_minimum_size.y = 34.0 + Timeline.LANE_H * S.audio_tracks.size() + ui_timeline.clip_px() + _tl_under_ruler()
 
 
 ## the px under the ruler that the frame strip and the boxes lane take (0 with neither on)
@@ -3254,7 +3254,7 @@ func _snapshot() -> Dictionary:
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
-		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
+		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
@@ -3340,8 +3340,9 @@ func _restore(u: Dictionary) -> void:
 		S.face = u["face"].duplicate(true)   # THE FACE (ROADMAP 74), undone like a card
 	if u["scene"] == S and u.has("boxes") and var_to_str(u["boxes"]) != var_to_str(S.boxes):
 		S.boxes = u["boxes"].duplicate(true)   # HIT / HURT BOXES (ROADMAP 36), undone like a card (the view and the lane follow in _refresh)
-	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
-		S.audio = u["audio"].duplicate()   # the sound, undone like a card
+	if u["scene"] == S and u.has("audio_tracks") and var_to_str(u["audio_tracks"]) != var_to_str(S.audio_tracks):
+		S.audio_tracks = u["audio_tracks"].duplicate(true)   # the sounds, undone like a card
+		audio_pick = -1
 		_audio_reload()
 	if u["scene"] == S and u.has("beats_audio") and var_to_str(u["beats_audio"]) != var_to_str(S.beats_audio):
 		S.beats_audio = u["beats_audio"].duplicate(true)   # ROADMAP 32: the music beats, undone like a card
@@ -7775,6 +7776,9 @@ func _ui() -> void:
 	ui_timeline.finding_picked.connect(_finding_mark)
 	ui_timeline.retime_started.connect(_retime_begin)
 	ui_timeline.retimed.connect(_retime_step)
+	ui_timeline.audio_drag_started.connect(func(_i: int): _push_undo())   # ROADMAP 77: one undo step per offset drag
+	ui_timeline.audio_picked_lane.connect(func(i: int): audio_pick = i; ui_timeline.queue_redraw())
+	ui_timeline.audio_name.connect(func(i: int): audio_pick = i; _audio_flag(i, "mute"))   # a lane's name: mute / unmute it
 	# ONE STRIP (round 36, RR4): first / previous / play / next / last / loop, the clips on their track, the time, the
 	# speed, Natural, a gear for the rest (Smooth, tween, ease, + tween), the Clips button that opens the cards above
 	var ph := HBoxContainer.new()
@@ -9136,15 +9140,18 @@ func _commands() -> Array:
 	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
-	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it appears under the timeline as a waveform, plays in step with Play and sounds a short slice as you drag the playhead")
+	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it is added as a track, one lane under the timeline (a waveform; drag the lane to set its offset, click its name to mute it); it plays in step with Play and sounds a short slice as you drag the playhead")
 	add.call("Lip-sync: from the audio track", "", _lip_from_audio, "lip sync lipsync mouth jaw talk speech audio voice visemes timing", true, "bake a jaw and mouth shapes from the sound (a wav on the timeline): the loudness opens the jaw 0-15 deg, the zero-crossing rate picks closed, round, open or wide; one undo step")
-	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the sound off the timeline (the file stays on disk); one undo step")
+	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the picked track off the timeline (click its lane first; with one track there is nothing to pick); the file stays on disk; one undo step")
 	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4×), up to +12 dB; in playback and the playblast; one undo step")
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Beats: find the beats in the sound", "", _beats_find, "beats bpm tempo music beat grid downbeat bar audio", true, "find the beats and the tempo of the sound (a wav): marks on the timeline, bars marked when a 4/4 grid is evident; one undo step")
 	add.call("Beats: snap the contact cards to the nearest beat", "", _beats_snap, "beats snap contact hit strike align music sync", true, "move each hit (contact) card so it lands on its nearest beat; a card never moves more than 25 % of its own move, else nothing moves; one undo step")
 	add.call("Weight: time the swing to the weapon", "", _weight_feel, "weight heavy light weapon mass inertia swing slow fast windup recovery hammer dagger bat feel", true, "retime the wind-up and recovery of the swing by the held weapon's moment of inertia about the shoulder (a heavy weapon is slower, a light one quicker; Cross & Bower: time goes as I^0.27); the hit card and its pose stay; one undo step")
 	add.call("Beats: clear the beats", "", _beats_clear, "beats clear remove music", true, "take the beat marks off the timeline; one undo step")
+	add.call("Audio: mute or unmute the picked track", "", _audio_mute_picked, "audio sound track mute silence unmute lane", true, "the picked track (click its lane) silent or sounding again, in Play, the scrub and the playblast; one undo step")
+	add.call("Audio: solo or unsolo the picked track", "", _audio_solo_picked, "audio sound track solo only isolate lane", true, "the picked track soloed: only soloed tracks sound (in Play, the scrub and the playblast); one undo step")
+	add.call("Audio: next role for the picked track (music, voice, sfx)", "", _audio_role_next, "audio sound track role music voice sfx lip sync beats", true, "the picked track's role cycles music -> voice -> sfx: the beats read the music track, the lip sync the voice track; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
@@ -12350,46 +12357,80 @@ func _on_drop(files: PackedStringArray) -> void:
 			_import_file(f)
 
 
-## ---- AUDIO TRACK (GAP_ANALYSIS row 23). The scene keeps S.audio = {"path", "offset", "gain_db"}; the stream and its peak
-## envelope (AudioTrack, computed once per file) live here, not in the file. Play: the AudioStreamPlayer plays from
-## (playhead - offset), re-seeked when the playhead jumps; a drag of the ruler plays one short slice per frame.
+## ---- AUDIO TRACKS (GAP_ANALYSIS row 23; ROADMAP 77; scripts/audio_track.gd). The scene keeps S.audio_tracks: a list of
+## {"path", "offset", "gain_db", "role", "mute", "solo"}. Each track's stream, its peak envelope and its AudioStreamPlayer live
+## here, not in the file. Play: every audible track plays from (playhead - its offset), re-seeked when the playhead jumps or its
+## offset moves; a muted track (or one left out by a solo) sits at AudioTrack.MUTE_DB. A drag of the ruler sounds one slice per frame.
 const AUDIO_SLICE_EXTRA := 0.04   # s added to one frame for a scrub slice
-var audio_env := {}             # AudioTrack.envelope of the loaded sound; {} = none
-var audio_seeks := 0            # how many times Play (re)started the sound (tests)
-var audio_err := 0.0            # sound position - wanted position (s), read right after the playhead moved this frame (tests)
+var audio_envs: Array = []      # per track: AudioTrack.envelope of its file ({} = not loaded)
+var audio_seeks := 0            # how many times Play (re)started a track's sound (tests)
+var audio_err := 0.0            # the track whose position is furthest from (playhead - offset), read right after the playhead moved (tests)
 var audio_slices := 0           # how many scrub slices were sounded (tests)
-var _a_player: AudioStreamPlayer
+var audio_pick := -1            # the track the Audio commands act on (picked by clicking its lane); -1 = none
 var mouth_mi: MeshInstance3D   # LIP-SYNC (ROADMAP 31): the mouth drawn on the head, from S.lip (lip_sync.gd); made on first use
-var _a_path := "<unset>"        # the path the stream was loaded for (a change reloads it: open, undo, remove)
-var _a_on := false              # the player is running for Play
+var _a_players: Array = []      # one AudioStreamPlayer per track (made on load)
+var _a_sig := "<unset>"         # the track files the players were made for: a change reloads them (open, undo, add, remove)
+var _a_on: Array = []           # per track: its player runs for Play
+var _a_offs: Array = []         # per track: the offset it was last started with (a moved offset re-seeks it)
 var _a_after := -1.0            # the playhead at the end of the last tick (a different one now = the user moved it)
-var _a_slice_until := 0         # msec when the scrub slice stops
+var _a_slice_until := 0         # msec when the scrub slices stop
 var _a_slice_frame := -1
 
 
-func audio_stream() -> AudioStream:
-	return _a_player.stream if _a_player != null else null
+func _a_sig_now() -> String:
+	var out := PackedStringArray()
+	for t in S.audio_tracks:
+		out.append(String(t.get("path", "")))
+	return "\n".join(out)
 
 
-## where the sound is, in its own seconds; -1 when it is not sounding. The engine mixes in chunks, so its position is up to
+## the stream of track i (null = none)
+func audio_stream(i := 0) -> AudioStream:
+	return _a_players[i].stream if i >= 0 and i < _a_players.size() else null
+
+
+## where track i's sound is, in its own seconds; -1 = not sounding. The engine mixes in chunks, so its position is up to
 ## a chunk old: the class reference says to add the time since the last mix (the output latency is not taken off)
-func audio_position() -> float:
-	if _a_player == null or not _a_player.playing:
+func audio_position_of(i: int) -> float:
+	if i < 0 or i >= _a_players.size() or not _a_players[i].playing:
 		return -1.0
-	return _a_player.get_playback_position() + AudioServer.get_time_since_last_mix()
+	return _a_players[i].get_playback_position() + AudioServer.get_time_since_last_mix()
+
+
+## every track's position (audio_position_of), in track order
+func audio_positions() -> Array:
+	var out := []
+	for i in _a_players.size():
+		out.append(audio_position_of(i))
+	return out
 
 
 func _audio_reload() -> void:
-	_a_path = String(S.audio.get("path", ""))
-	_a_on = false
+	_a_sig = _a_sig_now()
+	var n := S.audio_tracks.size()
+	while _a_players.size() > n:
+		var gone: AudioStreamPlayer = _a_players.pop_back()
+		gone.stop()
+		gone.queue_free()
+	while _a_players.size() < n:
+		var made := AudioStreamPlayer.new()
+		made.name = "audio_track_%d" % _a_players.size()
+		add_child(made)
+		_a_players.append(made)
+	audio_envs = []
+	_a_on = []
+	_a_offs = []
+	for i in n:
+		var path := String(S.audio_tracks[i]["path"])
+		var p: AudioStreamPlayer = _a_players[i]
+		p.stop()
+		p.stream = AudioTrack.load_stream(path)
+		audio_envs.append({} if path == "" else AudioTrack.envelope(p.stream, path))
+		_a_on.append(false)
+		_a_offs.append(float(S.audio_tracks[i]["offset"]))
 	_a_slice_until = 0
-	if _a_player == null:
-		_a_player = AudioStreamPlayer.new()
-		_a_player.name = "audio_track"
-		add_child(_a_player)
-	_a_player.stop()
-	_a_player.stream = AudioTrack.load_stream(_a_path)
-	audio_env = {} if _a_path == "" else AudioTrack.envelope(_a_player.stream, _a_path)
+	if audio_pick >= n:
+		audio_pick = -1
 	if ui_timeline != null:
 		_tl_height()
 		ui_timeline.queue_redraw()
@@ -12408,8 +12449,8 @@ func _audio_ask() -> void:
 	fd.popup_centered(Vector2i(800, 500))
 
 
-## put a sound on the timeline (one undo step). Returns true when it loaded
-func _audio_set(path: String) -> bool:
+## add a sound as a new track (one undo step). role "" = music when no track is music yet, else sfx. Returns true when it loaded
+func _audio_set(path: String, role := "") -> bool:
 	if not AudioTrack.EXTS.has(path.get_extension().to_lower()):
 		_say("could not add %s: it is not a wav, ogg or mp3; pick one of those" % path.get_file())
 		return false
@@ -12417,26 +12458,91 @@ func _audio_set(path: String) -> bool:
 	if st == null:
 		_say("could not add %s: the file is missing or Godot cannot read it; pick another wav, ogg or mp3" % path.get_file())
 		return false
+	var r := role
+	if r == "":
+		r = "sfx" if AudioTrack.index_of_role(S.audio_tracks, "music") >= 0 else "music"
 	_push_undo()
-	S.audio = {"path": path, "offset": 0.0, "gain_db": 0.0}
+	S.audio_tracks.append(AudioTrack.clean({"path": path, "role": r}))
+	audio_pick = S.audio_tracks.size() - 1
 	_audio_reload()
-	var env := audio_env
-	_say("sound added: %s, %s from 0.00 s%s" % [path.get_file(), Units.time(st.get_length(), S.fps), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
+	var env: Dictionary = audio_envs[audio_pick]
+	_say("sound added as track %d (%s): %s, %s from 0.00 s%s" % [audio_pick + 1, r, path.get_file(), Units.time(st.get_length(), S.fps), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
 	_refresh()
 	return true
+
+
+## the track an Audio command acts on: the one picked on its lane, or the only one. -1 = none (the message says what to do)
+func _audio_target() -> int:
+	if S.audio_tracks.is_empty():
+		_say("no sound on the timeline: run Audio: add a sound file first")
+		return -1
+	if audio_pick >= 0 and audio_pick < S.audio_tracks.size():
+		return audio_pick
+	if S.audio_tracks.size() == 1:
+		return 0
+	_say("pick a track first: click its lane on the timeline (its name mutes it), then run this again")
+	return -1
+
+
+## a track's yes / no flag (mute, solo): toggled, one undo step
+func _audio_flag(i: int, key: String) -> void:
+	var on := not bool(S.audio_tracks[i].get(key, false))
+	_push_undo()
+	if on:
+		S.audio_tracks[i][key] = true
+	else:
+		S.audio_tracks[i].erase(key)
+	var nm: String = String(S.audio_tracks[i]["path"]).get_file()
+	if key == "mute":
+		_say("%s is %s (Ctrl+Z puts it back)" % [nm, "muted: silent in Play, the scrub and the playblast" if on else "sounding again"])
+	else:
+		_say("%s is %s (Ctrl+Z puts it back)" % [nm, "soloed: only the soloed tracks sound" if on else "not soloed"])
+	if ui_timeline != null:
+		ui_timeline.queue_redraw()
+	_refresh()
+
+
+func _audio_mute_picked() -> void:
+	var i := _audio_target()
+	if i >= 0:
+		_audio_flag(i, "mute")
+
+
+func _audio_solo_picked() -> void:
+	var i := _audio_target()
+	if i >= 0:
+		_audio_flag(i, "solo")
+
+
+## the role cycles music -> voice -> sfx. Music: the beats read it; voice: the lip sync reads it; sfx: plays and mixes only
+func _audio_role_next() -> void:
+	var i := _audio_target()
+	if i < 0:
+		return
+	var r := String(S.audio_tracks[i].get("role", "music"))
+	var nxt: String = AudioTrack.ROLES[(AudioTrack.ROLES.find(r) + 1) % AudioTrack.ROLES.size()]
+	_push_undo()
+	S.audio_tracks[i]["role"] = nxt
+	var what: String = {"music": "the beats read it (Beats: find the beats in the sound)", "voice": "the lip sync reads it (Lip-sync: from the audio track)", "sfx": "it plays and mixes; nothing else reads it"}[nxt]
+	_say("track %d is now the %s track: %s (Ctrl+Z puts it back)" % [i + 1, nxt, what])
+	if ui_timeline != null:
+		ui_timeline.queue_redraw()
+	_refresh()
 
 
 ## ---- LIP-SYNC (ROADMAP 31; scripts/lip_sync.gd). The channel S.lip is baked from the sound on the timeline; the mouth
 ## is a dark shape on the head: its width from the mouth shape, its opening from the jaw channel.
 func _lip_from_audio() -> void:
-	if S.audio.is_empty():
+	var i := AudioTrack.index_of_role(S.audio_tracks, "voice")   # ROADMAP 77: the voice track (the first track when none is tagged voice)
+	if i < 0:
 		_say("no sound on the timeline: run Audio: add a sound file first (a wav)")
 		return
-	var r := LipSync.read_wav(String(S.audio.get("path", "")))
+	var t: Dictionary = S.audio_tracks[i]
+	var r := LipSync.read_wav(String(t["path"]))
 	if not r["ok"]:
 		_say("lip-sync: %s (try another sound)" % r["why"])
 		return
-	var off := float(S.audio.get("offset", 0.0))
+	var off := float(t["offset"])
 	var A := LipSync.analyse(LipSync.windows(r["mono"], int(r["rate"])))
 	var lip := LipSync.bake(A, S.fps, off, maxf(S.length(), off + float(r["length"])))
 	_push_undo()
@@ -12447,7 +12553,6 @@ func _lip_from_audio() -> void:
 			opened += 1
 	_say("lip-sync baked: %d mouth changes, %d of %d windows voiced, jaw 0-%d° (Ctrl+Z removes it)" % [lip["mouth"].size(), opened, (A["shape"] as PackedStringArray).size(), int(LipSync.JAW_MAX)])
 	_refresh()
-
 
 ## THE FACE on the head (ROADMAP 74; scripts/face.gd): the brows (L/R), the eyes (look + blink), and the mouth (the jaw and
 ## the viseme shape). Drawn at the playhead from the face keys and the lip-sync channel (the lip sync drives the jaw and the
@@ -12548,15 +12653,16 @@ func _face_draw() -> void:
 
 
 func _audio_remove() -> void:
-	if S.audio.is_empty():
-		_say("no sound on the timeline: run Audio: add a sound file first")
+	var i := _audio_target()
+	if i < 0:
 		return
 	_push_undo()
-	S.audio = {}
+	var nm: String = String(S.audio_tracks[i]["path"]).get_file()
+	S.audio_tracks.remove_at(i)
+	audio_pick = -1
 	_audio_reload()
-	_say("sound removed from the timeline (the file is still on disk; add it again to bring it back)")
+	_say("track removed from the timeline: %s (the file is still on disk; add it again to bring it back)" % nm)
 	_refresh()
-
 
 ## the sound's loudness in steps of 3 dB (about 1.4x the amplitude), -30 .. +12 dB; saved as gain_db, used by playback
 ## and mixed into the playblast's mp4 (PlayblastExport.args). One undo step
@@ -12598,27 +12704,26 @@ func _twin_fix() -> void:
 
 
 func _audio_gain(step: float) -> void:
-	if S.audio.is_empty():
-		_say("no sound on the timeline: run Audio: add a sound file first")
+	var i := _audio_target()
+	if i < 0:
 		return
-	var g := clampf(float(S.audio.get("gain_db", 0.0)) + step, -30.0, 12.0)
-	if absf(g - float(S.audio.get("gain_db", 0.0))) < 1e-6:
+	var cur := float(S.audio_tracks[i]["gain_db"])
+	var g := clampf(cur + step, -30.0, 12.0)
+	if absf(g - cur) < 1e-6:
 		_say("the sound is already as %s as it goes (%+.0f dB): try the other way" % ["loud" if step > 0 else "quiet", g])
 		return
 	_push_undo()
-	S.audio["gain_db"] = g
-	if _a_player != null:
-		_a_player.volume_db = g
+	S.audio_tracks[i]["gain_db"] = g
 	_say("the sound is at %+.0f dB now (0 = as recorded; Ctrl+Z puts it back)" % g)
 	_refresh()
 
-
 ## MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): the beats of the sound, kept in the scene as "beats_audio"
 func _beats_find() -> void:
-	if S.audio.is_empty() or _a_player == null or _a_player.stream == null:
-		_say("no sound on the timeline: run Audio: add a sound file first (beats need a wav)")
+	var mi := AudioTrack.index_of_role(S.audio_tracks, "music")
+	if mi < 0 or audio_stream(mi) == null:
+		_say("no music track on the timeline: run Audio: add a sound file first (beats need a wav with the music role)")
 		return
-	var r := BeatTrack.analyze(_a_player.stream)
+	var r := BeatTrack.analyze(audio_stream(mi))
 	if not r["ok"]:
 		_say("beats: %s (try another sound)" % r["msg"])
 		return
@@ -12633,7 +12738,6 @@ func _beats_find() -> void:
 		ui_timeline.queue_redraw()
 	_refresh()
 
-
 ## snaps each contact card (the card a hit marker sits on) onto its nearest beat; one undo step. Runs on a clone first:
 ## when any card would need more than 25 % of its move, nothing changes and the message says why
 func _beats_snap() -> void:
@@ -12641,7 +12745,8 @@ func _beats_snap() -> void:
 		_say("no beats yet: run Beats: find the beats in the sound first")
 		return
 	var trial := S.clone()
-	var r := BeatTrack.snap(trial, S.beats_audio, float(S.audio.get("offset", 0.0)))
+	var mi := AudioTrack.index_of_role(S.audio_tracks, "music")
+	var r := BeatTrack.snap(trial, S.beats_audio, float(S.audio_tracks[mi]["offset"]) if mi >= 0 else 0.0)
 	if not r["ok"]:
 		_say(r["msg"] + " (pick other cards, or add a hit marker)")
 		return
@@ -12654,7 +12759,6 @@ func _beats_snap() -> void:
 	_markers_follow()
 	_retimed()
 	_say("%d contact card(s) snapped onto the beat (largest move %.0f ms).  Ctrl+Z undoes" % [r["contacts"], worst * 1000.0])
-
 
 ## WEIGHT FEEL (ROADMAP 40; scripts/weight_feel.gd): the swing's wind-up and recovery by the held weapon's inertia
 func _weight_feel() -> void:
@@ -12684,70 +12788,87 @@ func _beats_clear() -> void:
 
 
 func _audio_to_playhead() -> void:
-	if S.audio.is_empty():
-		_say("no sound on the timeline: run Audio: add a sound file first")
+	var i := _audio_target()
+	if i < 0:
 		return
 	var t := snappedf(playhead, 0.001)
-	if absf(t - float(S.audio["offset"])) < 1e-6:
-		_say("the sound already starts at %.2f s: click the timeline to move the playhead, then run this again" % t)
+	if absf(t - float(S.audio_tracks[i]["offset"])) < 1e-6:
+		_say("the track already starts at %.2f s: click the timeline to move the playhead, then run this again" % t)
 		return
 	_push_undo()
-	S.audio["offset"] = t
-	_say("the sound now starts at %.2f s (Ctrl+Z puts it back)" % t)
+	S.audio_tracks[i]["offset"] = t
+	_say("the track now starts at %.2f s (Ctrl+Z puts it back)" % t)
 	_refresh()
-
 
 ## keep the sound in step with the playhead. before = the playhead before this frame's advance, dt = the advance
 func _audio_tick(before: float, dt: float) -> void:
-	if String(S.audio.get("path", "")) != _a_path:
+	if _a_sig_now() != _a_sig:
 		_audio_reload()
-	if _a_player == null or _a_player.stream == null or S.audio.is_empty():
+	if _a_players.is_empty():
 		_a_after = playhead
 		return
-	_a_player.volume_db = float(S.audio.get("gain_db", 0.0))
+	var aud := AudioTrack.audible(S.audio_tracks)
+	for i in _a_players.size():
+		_a_players[i].volume_db = float(S.audio_tracks[i]["gain_db"]) if aud[i] else AudioTrack.MUTE_DB
 	if not playing:
-		if _a_on:
-			_a_player.stop()
-			_a_on = false
+		for i in _a_players.size():
+			if _a_on[i]:
+				_a_players[i].stop()
+				_a_on[i] = false
 		if _a_slice_until > 0 and Time.get_ticks_msec() >= _a_slice_until:
-			_a_player.stop()
+			for p in _a_players:
+				p.stop()
 			_a_slice_until = 0
 		_a_after = playhead
 		return
-	var want := playhead - float(S.audio["offset"])
 	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > dt + 1e-4
-	if want < 0.0 or want >= _a_player.stream.get_length():
-		if _a_on or _a_player.playing:
-			_a_player.stop()
-		_a_on = false
-	elif jumped or not _a_on or not _a_player.playing:
-		_a_slice_until = 0
-		_a_player.play(want)
-		_a_on = true
-		audio_seeks += 1
-	if _a_on and _a_player.playing:
-		audio_err = audio_position() - (playhead - float(S.audio["offset"]))   # against the true offset, not the seek's own value
+	var worst := 0.0
+	for i in _a_players.size():
+		var p: AudioStreamPlayer = _a_players[i]
+		if p.stream == null:
+			continue
+		var off := float(S.audio_tracks[i]["offset"])
+		var want := playhead - off
+		if want < 0.0 or want >= p.stream.get_length():
+			if _a_on[i] or p.playing:
+				p.stop()
+			_a_on[i] = false
+		elif jumped or not _a_on[i] or not p.playing or absf(off - _a_offs[i]) > 1e-6:
+			_a_slice_until = 0
+			p.play(want)
+			_a_on[i] = true
+			_a_offs[i] = off
+			audio_seeks += 1
+		if _a_on[i] and p.playing:
+			var err := audio_position_of(i) - want   # against the true offset, not the seek's own value
+			if absf(err) > absf(worst):
+				worst = err
+	audio_err = worst
 	_a_after = playhead
-
 
 ## the playhead was dragged (not playing): sound ~1 frame + 40 ms of it, at most one slice per rendered frame
 func _audio_scrub() -> void:
-	if _a_player == null or _a_player.stream == null or S.audio.is_empty() or playing:
+	if _a_players.is_empty() or playing:
 		return
 	var fr := Engine.get_process_frames()
 	if fr == _a_slice_frame:
 		return
 	_a_slice_frame = fr
-	var want := playhead - float(S.audio["offset"])
-	if want < 0.0 or want >= _a_player.stream.get_length():
-		_a_player.stop()
-		_a_slice_until = 0
-		return
-	_a_player.volume_db = float(S.audio.get("gain_db", 0.0))
-	_a_player.play(want)
-	_a_slice_until = Time.get_ticks_msec() + int(round((1.0 / maxf(S.fps, 1) + AUDIO_SLICE_EXTRA) * 1000.0))
-	audio_slices += 1
-
+	var aud := AudioTrack.audible(S.audio_tracks)
+	var any := false
+	for i in _a_players.size():
+		var p: AudioStreamPlayer = _a_players[i]
+		p.volume_db = float(S.audio_tracks[i]["gain_db"]) if aud[i] else AudioTrack.MUTE_DB
+		var want := playhead - float(S.audio_tracks[i]["offset"])
+		_a_on[i] = false
+		if p.stream == null or not aud[i] or want < 0.0 or want >= p.stream.get_length():
+			p.stop()
+			continue
+		p.play(want)
+		any = true
+	if any:
+		audio_slices += 1
+	_a_slice_until = Time.get_ticks_msec() + int(round((1.0 / maxf(S.fps, 1) + AUDIO_SLICE_EXTRA) * 1000.0)) if any else 0
 
 ## ---- VIDEO TO ANIMATION (round 45, GATES AA2). A video goes to tools/see_video.py (MediaPipe, run as its own process
 ## so the window keeps working: _video_poll); its pose.json comes back through _import_pose: VideoImport fits the body

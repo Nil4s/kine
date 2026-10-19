@@ -48,23 +48,37 @@ static func _winget_ffmpeg() -> String:
 	return ""
 
 
-## the ffmpeg arguments: the PNG sequence in dir -> mp4 (H.264, yuv420p; odd sizes padded to even). audio = Scene.audio
-## ({"path", "offset", "gain_db"}) or {}: the sound is muxed in so it starts at its offset on the scene's clock; t0 = the
-## scene time of the first frame (a preview range). A sound that starts before t0 is cut with -ss, one after it is
-## delayed with -itsoffset. No usable sound file = the same arguments as without
-static func args(dir: String, fps: int, mp4: String, audio := {}, t0 := 0.0) -> PackedStringArray:
+## the ffmpeg arguments: the PNG sequence in dir -> mp4 (H.264, yuv420p; odd sizes padded to even). audio = the sounding
+## tracks (AudioTrack.audible_list: a list of {"path", "offset", "gain_db"}; one such dictionary also does): each is muxed in
+## so it starts at its offset on the scene's clock; t0 = the scene time of the first frame (a preview range). A sound that
+## starts before t0 is cut with -ss, one after it is delayed with -itsoffset. One sound: the same arguments as before;
+## several: each gets its gain, and amix sums them. No usable sound file = the same arguments as without
+static func args(dir: String, fps: int, mp4: String, audio: Variant = [], t0 := 0.0) -> PackedStringArray:
+	var tracks: Array = audio if audio is Array else [audio]
 	var a := PackedStringArray(["-y", "-loglevel", "error", "-framerate", str(fps), "-i", dir + "/frame_%04d.png"])
-	var snd := sound_path(audio)
-	if snd != "":
-		var d := float(audio.get("offset", 0.0)) - t0
+	var snds := []
+	for t in tracks:
+		var snd := sound_path(t)
+		if snd == "":
+			continue
+		var d := float(t.get("offset", 0.0)) - t0
 		if d > 1e-4:
 			a.append_array(["-itsoffset", "%.4f" % d])
 		elif d < -1e-4:
 			a.append_array(["-ss", "%.4f" % -d])
 		a.append_array(["-i", snd])
+		snds.append(t)
 	a.append_array(["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-c:v", "libx264", "-pix_fmt", "yuv420p"])
-	if snd != "":
-		a.append_array(["-af", "volume=%.2fdB" % float(audio.get("gain_db", 0.0)), "-c:a", "aac", "-shortest"])
+	if snds.size() == 1:
+		a.append_array(["-af", "volume=%.2fdB" % float(snds[0].get("gain_db", 0.0)), "-c:a", "aac", "-shortest"])
+	elif snds.size() > 1:
+		var chain := PackedStringArray()
+		var ins := ""
+		for k in snds.size():
+			chain.append("[%d:a]volume=%.2fdB[a%d]" % [k + 1, float(snds[k].get("gain_db", 0.0)), k])
+			ins += "[a%d]" % k
+		chain.append("%samix=inputs=%d:duration=longest:normalize=0[aout]" % [ins, snds.size()])
+		a.append_array(["-filter_complex", ";".join(chain), "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-shortest"])
 	a.append(mp4)
 	return a
 
@@ -79,6 +93,6 @@ static func sound_path(audio: Dictionary) -> String:
 
 
 ## encode the PNG sequence in dir to an .mp4. Returns the exit code
-static func encode(ffmpeg: String, dir: String, fps: int, mp4: String, audio := {}, t0 := 0.0) -> int:
+static func encode(ffmpeg: String, dir: String, fps: int, mp4: String, audio: Variant = [], t0 := 0.0) -> int:
 	var out := []
 	return OS.execute(ffmpeg, args(dir, fps, mp4, audio, t0), out, true)

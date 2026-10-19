@@ -192,7 +192,7 @@ func _init() -> void:
 	await idle(2)
 	ok(m.S.lip.is_empty() and JSON.stringify(m.S.to_dict(m.B)) == before, "5c Ctrl+Z (undo) removes the channel: the scene saves exactly as before")
 	write_bytes(BAD, PackedByteArray([79, 103, 103, 83]))
-	m.S.audio = {"path": ProjectSettings.globalize_path(BAD), "offset": 0.0, "gain_db": 0.0}   # an .ogg that is not one: _audio_set would refuse it
+	m.S.audio_tracks = [{"path": ProjectSettings.globalize_path(BAD), "offset": 0.0, "gain_db": 0.0}]   # an .ogg that is not one: _audio_set would refuse it
 	m.S.lip = {}
 	m._lip_from_audio()
 	ok(m.S.lip.is_empty(), "5d a sound that is not a readable wav bakes nothing")

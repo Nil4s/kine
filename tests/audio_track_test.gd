@@ -40,7 +40,7 @@ func cmd(id: String) -> void:
 
 
 func fp() -> String:
-	return JSON.stringify(m.S.cards) + "|" + JSON.stringify(m.S.audio) + "|" + str(m.S.fps)
+	return JSON.stringify(m.S.cards) + "|" + JSON.stringify(m.S.audio_tracks) + "|" + str(m.S.fps)
 
 
 func _init() -> void:
@@ -79,8 +79,8 @@ func _init() -> void:
 	m.undo.clear()
 	ok(m._audio_set(WAV), "1c the generated WAV loads (%s)" % m.audio_stream())
 	ok(m.audio_stream() is AudioStreamWAV and absf(m.audio_stream().get_length() - 4.0) < 0.01, "1d it is an AudioStreamWAV of %.3f s" % m.audio_stream().get_length())
-	S.audio["offset"] = 0.25
-	S.audio["gain_db"] = -3.0
+	S.audio_tracks[0]["offset"] = 0.25
+	S.audio_tracks[0]["gain_db"] = -3.0
 	var out := S.to_dict(m.B)
 	var js := JSON.stringify(out)
 	var tmp := "user://zz_audio_scene.json"
@@ -88,17 +88,17 @@ func _init() -> void:
 	tf.store_string(js)
 	tf.close()
 	m._load_scene(tmp)
-	var a2: Dictionary = m.S.audio
+	var a2: Dictionary = m.S.audio_tracks[0]
 	ok(a2.get("path", "") == WAV and absf(float(a2.get("offset", -1)) - 0.25) < 1e-6 and absf(float(a2.get("gain_db", 0)) + 3.0) < 1e-6,
 		"1e save -> reload keeps the audio key: %s" % JSON.stringify(a2))
 	await idle(2)
-	ok(m.audio_stream() != null and m.audio_env.get("ok", false), "1f the reload loads the sound and its envelope")
+	ok(m.audio_stream() != null and m.audio_envs[0].get("ok", false), "1f the reload loads the sound and its envelope")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 	m._load_scene("res://scenes/combo3.json")
 	m._rebuild_cards()
 	S = m.S
 	await idle(2)
-	ok(m.audio_stream() == null and m.audio_env.is_empty(), "1g opening a scene with no sound drops the sound")
+	ok(m.audio_stream() == null and m.audio_envs.is_empty(), "1g opening a scene with no sound drops the sound")
 
 	# ---- (2) the envelope
 	var st := AudioTrack.load_stream(WAV)
@@ -150,7 +150,7 @@ func _init() -> void:
 	var before_start := 0
 	var n_samp := 0
 	for off in [0.0, 0.5]:
-		S.audio["offset"] = off
+		S.audio_tracks[0]["offset"] = off
 		m.pv_in = -1.0
 		m.pv_out = -1.0
 		m.playing = false
@@ -166,7 +166,7 @@ func _init() -> void:
 		while Time.get_ticks_msec() - t_start < 2000 and m.playing:
 			await process_frame   # m.audio_err is read by _audio_tick the instant the playhead moved (reading from here adds a phase offset)
 			var want: float = m.playhead - off
-			var pos: float = m.audio_position()
+			var pos: float = m.audio_position_of(0)
 			if want < 0.0:
 				if pos >= 0.0:
 					early += 1
@@ -181,10 +181,10 @@ func _init() -> void:
 			ok(early == 0, "3b offset 0.5 s: nothing plays before 0.5 s (%d early frames)" % early)
 		else:
 			ok(m.audio_seeks - seeks0 <= 2, "3c the sound started once for the whole play (%d starts)" % (m.audio_seeks - seeks0))
-		ok(m.audio_position() < 0.0, "3d paused: the sound stops")
+		ok(m.audio_position_of(0) < 0.0, "3d paused: the sound stops")
 		worst = maxf(worst, worst_off)
 	# a jump while playing re-seeks
-	S.audio["offset"] = 0.0
+	S.audio_tracks[0]["offset"] = 0.0
 	m.playhead = 0.0
 	m._toggle_play()
 	await idle(10)
@@ -194,7 +194,7 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 	var want2: float = m.playhead
-	var pos2: float = m.audio_position()
+	var pos2: float = m.audio_position_of(0)
 	ok(m.audio_seeks == s0 + 1 and absf(pos2 - want2) <= 2.0 / fps, "3e (within 2 frames: the first reading after a start is chunk-quantised) jumping the playhead while playing re-seeks (position %.3f vs playhead %.3f)" % [pos2, want2])
 	m._toggle_play()
 	await idle(2)
@@ -203,9 +203,9 @@ func _init() -> void:
 	for k in 3:
 		m.ui_timeline.scrubbed.emit(0.6 + 0.01 * k)
 	ok(m.audio_slices - sl0 == 1, "3f three scrub events in one frame sound one slice (%d)" % (m.audio_slices - sl0))
-	ok(m.audio_position() >= 0.0, "3g the slice is sounding")
+	ok(m.audio_position_of(0) >= 0.0, "3g the slice is sounding")
 	var t_slice := Time.get_ticks_msec()
-	while m.audio_position() >= 0.0 and Time.get_ticks_msec() - t_slice < 1000:
+	while m.audio_position_of(0) >= 0.0 and Time.get_ticks_msec() - t_slice < 1000:
 		await process_frame
 	var slice_ms := Time.get_ticks_msec() - t_slice
 	var want_ms := 1000.0 / fps + 40.0
@@ -215,7 +215,7 @@ func _init() -> void:
 	await process_frame
 	m.ui_timeline.scrubbed.emit(0.81)
 	ok(m.audio_slices - sl0 == 3, "3i one slice per rendered frame while dragging (%d slices over 3 frames' events)" % (m.audio_slices - sl0))
-	m._a_player.stop()
+	m._a_players[0].stop()
 
 	# ---- (4) undo
 	m.undo.clear()
@@ -225,7 +225,7 @@ func _init() -> void:
 	await idle(2)
 	m.undo.clear()
 	var f0 := fp()
-	ok(m._audio_set(WAV) and m.undo.size() == 1 and S.audio.get("path", "") == WAV, "4a add: one undo step")
+	ok(m._audio_set(WAV) and m.undo.size() == 1 and S.audio_tracks[0].get("path", "") == WAV, "4a add: one undo step")
 	var f_added := fp()
 	m._undo()
 	await idle(2)
@@ -236,14 +236,14 @@ func _init() -> void:
 	m.playhead = 1.25
 	var u0: int = m.undo.size()
 	cmd("audio_move_the_sound_to_start_at_the_playhead")
-	ok(m.undo.size() == u0 + 1 and absf(float(S.audio["offset"]) - 1.25) < 1e-6, "4d move: one undo step, offset %.3f" % float(S.audio["offset"]))
+	ok(m.undo.size() == u0 + 1 and absf(float(S.audio_tracks[0]["offset"]) - 1.25) < 1e-6, "4d move: one undo step, offset %.3f" % float(S.audio_tracks[0]["offset"]))
 	m._undo()
 	ok(fp() == f_added, "4e Ctrl+Z puts the offset back exactly")
 	m._redo()
 	var f_moved := fp()
 	u0 = m.undo.size()
 	cmd("audio_remove_the_sound")
-	ok(m.undo.size() == u0 + 1 and S.audio.is_empty(), "4f remove: one undo step")
+	ok(m.undo.size() == u0 + 1 and S.audio_tracks.is_empty(), "4f remove: one undo step")
 	m._undo()
 	await idle(2)
 	ok(fp() == f_moved and m.audio_stream() != null, "4g Ctrl+Z restores the sound exactly, stream and all")
