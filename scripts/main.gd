@@ -145,6 +145,8 @@ var ui_why_box: VBoxContainer
 var _why_last: Dictionary = {}   # the last refusal or error: {text, cmd, part, frame, at}
 var _why_cmd := ""               # the command (or button) the user ran last: the refusal's "you tried"
 var ui_cmd: CommandSearch
+var plugins: Plugins               # ROADMAP 100: user plugins (scripts/plugins.gd); none loads until it is switched on
+var ui_plugins: PluginsPanel       # the Plugins panel (scripts/plugins_panel.gd): the list and the switches
 ## MACROS (ROADMAP 81; scripts/macros.gd): palette steps recorded in order, saved by name in macros_file. Playing one is
 ## ONE undo step (_push_undo opens it once, at the first edit of the play). rec_label = the REC indicator while recording
 var macros_file := "user://macros.json"
@@ -8908,7 +8910,15 @@ func _ui() -> void:
 	ui_cmd = CommandSearch.new()
 	ui_cmd.offset_top = TOP_H + 10
 	ui_root.add_child(ui_cmd)
-	ui_cmd.commands = _commands()
+	plugins = Plugins.new()
+	plugins.host = {"scene": func(): return S, "clamp": func(j, v): return B.clamp_ang(j, v), "has_joint": func(j): return B.lim.has(j),
+		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run}
+	plugins.scan()
+	ui_plugins = PluginsPanel.new()
+	ui_plugins.plugins = plugins
+	ui_plugins.say_fn = _say
+	ui_root.add_child(ui_plugins)
+	ui_cmd.commands = _commands() + plugins.command_rows()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
 	_hover_hints()
@@ -9959,6 +9969,7 @@ func _commands() -> Array:
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
 	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", false, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
+	add.call("Plugins: enable or disable plugins", "", func(): ui_plugins.toggle(), "plugin plugins api extension addon add-on scripts script", false, "the user plugins (user://plugins): each one's manifest, an enable switch (off by default), and what a plugin can do")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
@@ -12490,6 +12501,34 @@ func _macro_indicator() -> void:
 	rec_label.text = "REC  %s   %d step%s   (Stop macro recording saves it)" % [rec_name, rec_steps.size(), "" if rec_steps.size() == 1 else "s"]
 
 
+## ROADMAP 100: a plugin's command is ONE undo step, the macro play's way: its edits join the step opened before the
+## first one (_push_undo is a no-op after it inside a command). A plugin that fails is disabled; its message is said
+func _plugin_run(i: int, cid: String) -> void:
+	var step := plugins.step_name(i, cid)
+	_macro_nest = 1
+	_macro_pushed = false
+	var msg := plugins.run(i, cid)
+	var opened := _macro_pushed
+	_macro_nest = 0
+	if opened:
+		undo[-1]["name"] = step   # the status line would name it otherwise (the drag's step is named the same way)
+		_tree.set_name(_tree.cur, step)
+		_after_edit()
+	_rebuild_cards()
+	_refresh()
+	if msg != "":
+		_say(msg)
+	elif not opened:
+		_say("plugin command done: it changed nothing")
+	else:
+		_say("plugin command done: one undo step (Ctrl+Z takes it back)")
+
+
+## the S box's plugin rows follow the switches (a plugin switched on, off, or disabled itself)
+func _plugins_changed() -> void:
+	ui_cmd.commands = _commands() + plugins.command_rows()
+
+
 func _macro_play(nm: String) -> void:
 	var mac := Macros.find(macros, nm)
 	if mac.is_empty():
@@ -12768,7 +12807,7 @@ func _recent_changed() -> void:
 		_fill_scene_list()
 		_show_open_scene()
 	if ui_cmd != null:
-		ui_cmd.commands = _commands()
+		ui_cmd.commands = _commands() + plugins.command_rows()
 
 
 ## File > Recent: a scene from the list, opened as the list's pick would open it
