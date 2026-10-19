@@ -3002,6 +3002,7 @@ func _snapshot() -> Dictionary:
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
+		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
@@ -3058,6 +3059,8 @@ func _restore(u: Dictionary) -> void:
 		S.sets = u["sets"].duplicate(true)   # selection / keying sets (part_sets.gd), undone like a card
 		if ui_browser != null:
 			ui_browser.refresh()
+	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
+		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
 	if u["scene"] == S and u.has("plants") and var_to_str(u["plants"]) != var_to_str(S.plants):
 		S.plants = u["plants"].duplicate(true)   # foot plants (ROADMAP 8), undone like a card
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):

@@ -12,6 +12,7 @@ extends SceneTree
 const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "writes poses/ (a file, not an edit)",
 	"save_scene": "writes scenes/ (a file, not an edit)", "polish_the_scene_new_copy": "writes + opens a copy in scenes/_wip",
 	"mirror_the_scene_left-handed_copy": "writes + opens a copy in scenes/_wip",
+	"ragdoll_fall_from_here_pins_picked_parts": "writes + opens a NEW scene in scenes/_wip (the body is put back first; the open scene is left as it is)",
 	"export_to_game": "writes exports/<scene>.json and .cs (a file, not an edit; round 31)",
 	"export_animation_.glb": "writes exports/<scene>.glb (a file, not an edit; round 34)",
 	"export_animation_.bvh": "writes exports/<scene>.bvh (a file, not an edit; round 34)",
@@ -29,6 +30,8 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 
 var fails := 0
 var m: Node
+var hit_row := {}   # start HITS: the contact the fighters' report holds once the start has settled
+const LIP_WAV := "user://zz_audit_lip.wav"   # start LIP: a generated 16 kHz wav (user:// only; removed at the end)
 
 
 func ok(c: bool, what: String) -> void:
@@ -54,6 +57,8 @@ func fp() -> String:
 		"sets": var_to_str(m.S.sets),   # selection / keying sets (part_sets.gd)
 		"clips": var_to_str(m.S.clips),   # CLIPS (clips.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
+		"drivers": var_to_str(m.S.drivers), "secondary": var_to_str(m.S.secondary), "lip": var_to_str(m.S.lip),   # drivers, secondary motion, lip-sync
+		"plants": var_to_str(m.S.plants.map(func(q): var c: Dictionary = q.duplicate(); c.erase("out"); return c)),   # foot plants, without "out" (a cache the first play writes into the plant)
 		"body": var_to_str(m.S.body), "p0": var_to_str(m.B.p0)}   # PR1: the proportions and the skeleton they make
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
@@ -211,6 +216,86 @@ func start(kind: String) -> void:
 		m._actor_next()
 		m._card_pick(2)
 		m.sel = "lowerarm_r"
+	elif kind == "DRIVER":
+		# a driver on the left upper arm that follows the right one (factor 1), the driven part picked (Driver: factor, remove)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		Drivers.put(m.S.drivers, {"driven": "upperarm_l", "axis": 0, "source": "upperarm_r", "src_axis": 0, "factor": 1.0, "offset": 0.0})
+		m.S.apply(m.B, m.playhead)
+		m.sel = "upperarm_l"
+	elif kind == "SECONDARY":
+		# a ponytail on the scene that was added but not baked (Secondary: bake writes its keys; clear takes it off)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.secondary = SecondaryMotion.with_item({}, SecondaryMotion.preset("ponytail"))
+		m.sel = "lowerarm_r"
+	elif kind == "FOOT" or kind == "FOOTPLANTED":
+		# the left foot picked, cards 2..4 selected as a range; FOOTPLANTED: a plant of that foot already covers the playhead
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(1)
+		m.sel_card = 1
+		m.sel_end = mini(3, m.S.cards.size() - 1)
+		m._range_of = 1
+		m.sel = "foot_l"
+		if kind == "FOOTPLANTED":
+			m.S.plants = FootPlant.add([], {"foot": "foot_l", "t0": maxf(m.playhead - 0.05, 0.0), "t1": m.playhead + 0.4})
+			m.S.apply(m.B, m.playhead)   # the first play writes the plant's "out" frames: the fingerprint must start after that
+	elif kind == "HITS":
+		# two fighters (the second stands still), the hero's bat landing on the second one's head: the report holds that contact
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		var sb := Body.new()
+		sb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		sb.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
+		sb.ground()
+		var pose := sb.to_dict()
+		var s2 := Scene.new()
+		s2.from_dict({"scene": "zz_audit_stand", "fps": 30, "cards": [{"name": "a", "pose": pose, "move": -1.0, "hold": 2.0},
+			{"name": "b", "pose": pose, "move": 0.5, "hold": 3.0}]})
+		m.S.actors.append({"name": "fighter 2", "xf": {"pos": [0.0, 1.2], "yaw": 180.0}, "scene": s2})
+		m._actors_sync()
+		m._actor_next()   # the struck fighter is the active one, as the command makes it (so undo comes back to the same actor)
+		m._card_pick(1)
+		var vrow: Dictionary = m.actors_rt[1]
+		var xf2: Transform3D = vrow["xf"]
+		var vb: Body = vrow["B"]
+		var cap: Array = vb.cap("head")
+		var mid := ((cap[0] as Vector3) + (cap[1] as Vector3)) * 0.5
+		hit_row = {"t": 1.0, "kind": "hit", "zone": "X", "part": "bat_barrel", "on": "head", "by": "hero", "vs": 1, "u": 0.6,
+			"depth": 0.01, "speed": 12.0, "at": xf2 * (mid + Vector3(-float(vb.rad["head"]), 0, 0)), "vec": xf2.basis * Vector3(12.0, 0, 0)}
+		m.sel = "lowerarm_r"
+	elif kind == "TWIN":
+		# the two arms swing as exact mirrors (part keys), the left one picked: Check: twinning flags it, the fix offsets it
+		m.S = Scene.new()
+		m._bat_remove()
+		m._reset_all()
+		var rest: Dictionary = m.B.to_dict()
+		m.S.name = "zz_audit_twin"
+		for nm in ["rest", "rest2", "rest3"]:
+			m.S.add(nm, rest)
+		for c in m.S.cards:
+			c["move"] = 0.6
+		var fr := {"upperarm_r": [{"t": 0.2, "v": [0, 0, 0]}, {"t": 0.7, "v": [110, 0, 0]}, {"t": 1.3, "v": [0, 0, 0]}, {"t": 1.8, "v": [-20, 0, 0]}],
+			"lowerarm_r": [{"t": 0.2, "v": [0, 0, 0]}, {"t": 0.7, "v": [70, 0, 0]}, {"t": 1.3, "v": [0, 0, 0]}, {"t": 1.8, "v": [40, 0, 0]}]}
+		var fl := PartKeys.mirror_file(fr, m.B)
+		var both := fr.duplicate()
+		for j in fl:
+			both[j] = fl[j]
+		m.S.part_keys = PartKeys.from_file(both)
+		m._rebuild_cards()
+		m._card_pick(0)
+		m.sel = "upperarm_l"
+	elif kind == "LIP":
+		# a generated wav on the audio track (user://): Lip-sync: from the audio track bakes a jaw and mouth channel
+		lip_wav()
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.audio = {"path": LIP_WAV, "offset": 0.0, "gain_db": 0.0}
+		m.sel = "lowerarm_r"
 	elif kind.begins_with("res://"):
 		m._load_scene(kind)
 		m._rebuild_cards()
@@ -231,6 +316,42 @@ func start(kind: String) -> void:
 	m.undo.clear()
 	m.redo.clear()
 	await process_frame
+	if kind == "HITS":
+		m.fighter_hits = [hit_row]   # after the settle: an edit (or the dummy's job) replaces the report
+
+
+## start LIP: a 3 s, 16 kHz, 16-bit mono wav, a 200 Hz tone opened and closed 5 times a second (written to user:// once)
+func lip_wav() -> void:
+	if FileAccess.file_exists(LIP_WAV):
+		return
+	var rate := 16000
+	var pcm := PackedByteArray()
+	pcm.resize(3 * rate * 2)
+	for i in 3 * rate:
+		var t := float(i) / rate
+		var v := 0.0
+		if t >= 0.5 and t < 2.5:
+			v = 0.5 * 0.5 * (1.0 - cos(TAU * 5.0 * (t - 0.5))) * sin(TAU * 200.0 * t)
+		pcm.encode_s16(i * 2, int(round(clampf(v, -1.0, 1.0) * 32767.0)))
+	var h := PackedByteArray()
+	h.resize(44)
+	h.encode_u32(0, 0x46464952)
+	h.encode_u32(4, 36 + pcm.size())
+	h.encode_u32(8, 0x45564157)
+	h.encode_u32(12, 0x20746d66)
+	h.encode_u32(16, 16)
+	h.encode_u16(20, 1)
+	h.encode_u16(22, 1)
+	h.encode_u32(24, rate)
+	h.encode_u32(28, rate * 2)
+	h.encode_u16(32, 2)
+	h.encode_u16(34, 16)
+	h.encode_u32(36, 0x61746164)
+	h.encode_u32(40, pcm.size())
+	h.append_array(pcm)
+	var f := FileAccess.open(LIP_WAV, FileAccess.WRITE)
+	f.store_buffer(h)
+	f.close()
 
 
 ## where two fingerprints first differ (printed under a failure, so the failure says WHAT did not come back)
@@ -311,7 +432,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break
@@ -342,5 +463,6 @@ func _init() -> void:
 		m._undo()
 		await process_frame
 		ok(changed and m.undo.size() == u0 and fp() == f, "card button: changed %s, one Ctrl+Z puts it back exactly: %s" % [changed, fp() == f])
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(LIP_WAV))
 	print("UNDO AUDIT %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
