@@ -15,6 +15,9 @@
 ##   8 NO PLANTS: a scene without plants writes no "plants" key and plays the same frames as before the feature
 ##     (the same scene with the list cleared and re-read from its file).
 ##   9 ONE PLANT PER FOOT: FootPlant.add over an overlapping range takes the older plant off.
+##  11 MOVING RELEASE (ROADMAP 8 fix): released at 2.0 s while the body is moving, the sole's largest step in the release
+##     ramp (120 Hz) is <= the scene's own largest step; the ramp is FootPlant.out_frames (BLEND to OUT_MAX frames). The
+##     numbers print; a release whose distance needs more than OUT_MAX frames cannot meet it and says so.
 extends SceneTree
 
 var fails := 0
@@ -166,7 +169,7 @@ func _init() -> void:
 	ok(not fire_u.is_empty(), "2b ANTI-VACUITY: FOOT SLIDE fires on the unplanted scene (%d findings)" % fire_u.size())
 
 	# 3 edges: the blend window at each edge, the sole's largest step there, against the scene's own largest step
-	var blend := float(FootPlant.BLEND) / S1.fps
+	var blend := float(maxi(int(S1.plants[0].get("out", FootPlant.BLEND)), int(S1.plants[1].get("out", FootPlant.BLEND)))) / S1.fps
 	var edge_step := 0.0
 	for k in range(1, rows.size()):
 		var t := tf(k)
@@ -175,7 +178,7 @@ func _init() -> void:
 			continue
 		for sd in ["_l", "_r"]:
 			edge_step = maxf(edge_step, ((rows[k]["ball" + sd] as Vector3) - (rows[k - 1]["ball" + sd] as Vector3)).length())
-	print("edges: largest sole step in the 3-frame blends %.3f mm per frame; the scene's own largest step %.3f mm" % [edge_step * 1000.0, step_free * 1000.0])
+	print("edges: largest sole step in the release and entry ramps %.3f mm per frame; the scene's own largest step %.3f mm" % [edge_step * 1000.0, step_free * 1000.0])
 	ok(edge_step <= step_free + 1e-9, "3 the edges move no more than the scene's own largest step (%.3f <= %.3f mm)" % [edge_step * 1000.0, step_free * 1000.0])
 
 	# the release mid-slide (not barred): the plant ends while the body is still moving, so the foot must jump back to
@@ -184,12 +187,14 @@ func _init() -> void:
 	S4.plants = FootPlant.from_file([{"foot": "foot_l", "t0": T0, "t1": 2.0}, {"foot": "foot_r", "t0": T0, "t1": 2.0}])
 	var rows4 := play(S4, B)
 	var mid_step := 0.0
-	var blend4 := float(FootPlant.BLEND) / S4.fps
+	var out4 := int(S4.plants[0].get("out", FootPlant.BLEND))
+	var blend4 := float(out4) / S4.fps
 	for k in range(1, rows4.size()):
 		var t := tf(k)
 		if t >= 2.0 - blend4 - 1e-9 and t <= 2.0 + blend4 + 1e-9:
 			mid_step = maxf(mid_step, ((rows4[k]["ball_l"] as Vector3) - (rows4[k - 1]["ball_l"] as Vector3)).length())
-	print("release MID-SLIDE at 2.0 s (not barred): the left sole's largest step in the blend %.2f mm per 120 Hz frame, against the scene's own %.2f mm" % [mid_step * 1000.0, step_free * 1000.0])
+	print("release MID-SLIDE at 2.0 s: the release ramp is %d frames (BLEND %d, cap %d); the left sole's largest step in it %.2f mm per 120 Hz frame, against the scene's own largest %.2f mm" % [out4, FootPlant.BLEND, FootPlant.OUT_MAX, mid_step * 1000.0, step_free * 1000.0])
+	ok(mid_step <= step_free + 1e-9, "11 MOVING RELEASE at 2.0 s: the sole steps no more than the scene's own largest step in the ramp (%.2f <= %.2f mm, ramp %d frames%s)" % [mid_step * 1000.0, step_free * 1000.0, out4, ", CAPPED" if out4 >= FootPlant.OUT_MAX else ""])
 
 	# 4 the pelvis
 	var off_bad := 0.0

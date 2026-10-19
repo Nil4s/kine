@@ -6,9 +6,10 @@
 ## its side); the pelvis is never touched. The pose at t0 is the scene as it plays there with the plants OFF (IK pins
 ## and cards included), so plants do not read each other.
 ##
-## EDGES: the weight ramps 0 -> 1 (smoothstep) over BLEND frames BEFORE t0 and 1 -> 0 over BLEND frames AFTER t1, at the
-## scene's fps. Between the leg's free motion and its planted one the joint angles are mixed by that weight (the same
-## mix LimbIK.play uses for IK weight), so nothing pops at a range edge.
+## EDGES: the weight ramps 0 -> 1 (smoothstep) over BLEND frames BEFORE t0 and 1 -> 0 AFTER t1, at the scene's fps. The
+## release ramp is OUT frames long, adapted per plant by out_frames (below; BLEND at least). Between the leg's free motion
+## and its planted one the joint angles are mixed by that weight (the same mix LimbIK.play uses for IK weight), so
+## nothing pops at a range edge.
 ##
 ## ORDER in Scene.apply (write it here and in Scene.apply): the cards, layers, breathing, drivers, the IK pass, THEN the
 ## plants (after the IK pass: a planted foot holds the place it had at t0, over a pin on the same foot), THEN the
@@ -20,7 +21,10 @@
 class_name FootPlant
 extends RefCounted
 
-const BLEND := 3          # frames, at the scene's fps, over which a plant eases on before t0 and off after t1
+const BLEND := 3          # frames, at the scene's fps, over which a plant eases on before t0 and off after t1 (the least)
+const OUT_MAX := 12       # frames: the longest release ramp (out_frames)
+const NEAR_S := 0.5       # s either side of t1 over which the scene's own largest foot step is read (out_frames)
+const SMOOTH_SLOPE := 1.5 # the smoothstep's steepest slope: its per-frame step is SMOOTH_SLOPE * distance / frames at most
 const MISS_BAR := 0.001   # m: a frame whose ankle is more than this from its pin is reported by scan()
 const FEET := ["foot_l", "foot_r"]
 
@@ -73,18 +77,67 @@ static func remove_at(plants: Array, foot: String, t: float) -> Array:
 	return out
 
 
-## the plant's weight at t, 0..1: 1 over [t0, t1], smoothstep over BLEND frames either side, 0 further out
+## THE RELEASE RAMP (ROADMAP 8 fix). A release while the body moves: the sole is held at its t0 place and the free sole is
+## D away at t1, so the blend carries it D over its ramp. Over BLEND frames that pops up to 25 mm a frame. So the ramp is
+## made long enough that its step stays within the scene's own largest per-frame foot step near t1:
+##   n = ceil(SMOOTH_SLOPE * D / S_max), clamped to [BLEND, OUT_MAX].
+## D = the planted sole (heel, ball) at t1 against where it was held at t0 (the larger of the two); S_max = the largest
+## per-frame step of either sole (heel, ball, both feet) over NEAR_S either side of t1, read with the plants off. The cap is
+## OUT_MAX: a longer ramp would ease a slide the eye reads as the foot sliding, so a D too big for the cap is left (the
+## test prints both numbers). The poses are read once per scene state and cached on S (_plant_out), keyed on what they
+## depend on.
+static func out_frames(S: Scene, B: Body, idx: int) -> int:
+	var p: Dictionary = S.plants[idx]
+	var sig := hash(var_to_str([S.cards, S.part_keys, S.ik, S.layers, S.fps, S.pin, S.on_floor, String(p["foot"]), float(p["t0"]), float(p["t1"])]))
+	var c: Dictionary = S._plant_out.get(idx, {})
+	if c.get("sig", 0) == sig:
+		return int(c["n"])
+	var fps := maxi(S.fps, 1)
+	var sd := String(p["foot"]).right(2)
+	var t1 := float(p["t1"])
+	var nw := int(round(NEAR_S * fps))
+	S._plants_off = true
+	S.apply(B, float(p["t0"]))
+	var held := [FootRoll.heel_point(B, sd), B.P["ball" + sd]]   # the sole where the plant holds it
+	var d := 0.0
+	var s_max := 0.0
+	var prev := []
+	for k in range(-nw, nw + 1):
+		S.apply(B, clampf(t1 + float(k) / fps, 0.0, S.length()))
+		var now := []
+		for s in ["_l", "_r"]:
+			for q in [FootRoll.heel_point(B, s), B.P["ball" + s]]:
+				now.append(q)
+		if k == 0:   # the free sole at t1 (heel, ball of this foot) against the held one
+			var base := 0 if sd == "_l" else 2
+			d = maxf((now[base] as Vector3).distance_to(held[0]), (now[base + 1] as Vector3).distance_to(held[1]))
+		if not prev.is_empty():
+			for i in now.size():
+				s_max = maxf(s_max, (now[i] as Vector3).distance_to(prev[i]))
+		prev = now
+	S._plants_off = false
+	var n := BLEND
+	if s_max > 1e-7 and d > 0.0:
+		n = clampi(int(ceil(SMOOTH_SLOPE * d / s_max)), BLEND, OUT_MAX)
+	S._plant_out[idx] = {"sig": sig, "n": n}
+	return n
+
+
+## the plant's weight at t, 0..1: 1 over [t0, t1], smoothstep over BLEND frames before t0, over p.out (out_frames, BLEND
+## if not read yet) frames after t1, 0 further out
 static func weight(p: Dictionary, t: float, fps: int) -> float:
-	var b := float(BLEND) / float(maxi(fps, 1))
+	var f := float(maxi(fps, 1))
+	var b := float(BLEND) / f
+	var bo := float(int(p.get("out", BLEND))) / f
 	var t0 := float(p["t0"])
 	var t1 := float(p["t1"])
-	if t < t0 - b or t > t1 + b:
+	if t < t0 - b or t > t1 + bo:
 		return 0.0
 	var u := 1.0
 	if t < t0:
 		u = clampf((t - (t0 - b)) / b, 0.0, 1.0)
 	elif t > t1:
-		u = clampf(((t1 + b) - t) / b, 0.0, 1.0)
+		u = clampf(((t1 + bo) - t) / bo, 0.0, 1.0)
 	return u * u * (3.0 - 2.0 * u)
 
 
@@ -95,6 +148,8 @@ static func refs(S: Scene, B: Body, t: float) -> Dictionary:
 	var out := {}
 	for i in S.plants.size():
 		var p: Dictionary = S.plants[i]
+		if t > float(p["t1"]) and t <= float(p["t1"]) + float(OUT_MAX) / maxi(S.fps, 1) + 1e-9:
+			p["out"] = out_frames(S, B, i)   # the release ramp of this plant (its poses cached on S)
 		if weight(p, t, S.fps) <= 0.0:
 			continue
 		var foot := String(p["foot"])
