@@ -3586,6 +3586,55 @@ func _cons_remove() -> void:
 	_say("removed the %s's constraint (Ctrl+Z puts it back)" % _cons_words(owner))
 
 
+## USER DRIVERS (GAP_ANALYSIS row 15; scripts/drivers.gd): the picked part's bend follows another part's bend, every frame
+## (driven = source * factor + offset). The SOURCE is picked first ("Driver: use the picked part as the source", a view
+## choice, not undone), then the follower is the picked part. Every edit is one undo step
+var drv_source := ""
+
+
+func _drv_pick_source() -> void:
+	if not B.lim.has(sel):
+		_say("click a body part first, then use it as the driver's source")
+		return
+	drv_source = sel
+	_say("driver source: %s (now pick the part that follows it, then 'Driver: the picked part follows the source')" % nice(sel))
+
+
+func _drv_follow() -> void:
+	if not B.lim.has(sel):
+		_say("click the part that follows first, then 'Driver: the picked part follows the source'")
+		return
+	if drv_source == "" or not B.lim.has(drv_source):
+		_say("no driver source yet: click the part that drives, then 'Driver: use the picked part as the source'")
+		return
+	if drv_source == sel:
+		_say("a part cannot drive itself: pick another source")
+		return
+	var d := {"driven": sel, "axis": 0, "source": drv_source, "src_axis": 0, "factor": 1.0, "offset": 0.0}
+	_do(func(): Drivers.put(S.drivers, d))
+	_dummy_hits()
+	_say("%s now follows %s x 1.0 (bend on bend, every frame; the factor presets change it; Ctrl+Z takes it back)" % [nice(sel), nice(drv_source)])
+
+
+func _drv_factor(f: float) -> void:
+	var i := Drivers.on(S.drivers, sel)
+	if i < 0:
+		_say("no driver on the picked part: click the part that follows, then 'Driver: the picked part follows the source'")
+		return
+	_do(func(): S.drivers[i]["factor"] = f)
+	_dummy_hits()
+	_say("%s follows %s x %s now (Ctrl+Z takes it back)" % [nice(sel), nice(String(S.drivers[i]["source"])), str(f)])
+
+
+func _drv_remove() -> void:
+	if Drivers.on(S.drivers, sel) < 0:
+		_say("no driver on the picked part: nothing to take off")
+		return
+	_do(func(): Drivers.remove_on(S.drivers, sel))
+	_dummy_hits()
+	_say("removed the driver on %s (Ctrl+Z puts it back)" % nice(sel))
+
+
 ## ASK AI (round 46, GATES BB2): opens / closes the AI box (scripts/ai_box.gd) at the right, above the cards. The box
 ## and its model live as long as the window; closing it while it works stops it
 var ui_ai: AiBox
@@ -6592,6 +6641,12 @@ func _commands() -> Array:
 	add.call("Constraint: fade in over 6 frames", "", _cons_fade.bind(1.0), "constraint influence on key blend", true, "the picked part's constraint goes from what it is at the playhead to fully on over 6 frames")
 	add.call("Constraint: release here keeping the pose", "", _cons_release, "constraint apply visual key release let go keep transform card", true, "the held hand / foot's pose at the playhead goes into the card there, then its constraint is off: it follows the cards without a jump")
 	add.call("Constraint: remove the picked part's constraint", "", _cons_remove, "constraint delete remove clear", true, "the last constraint on the picked hand, foot, hips or head is taken off")
+	add.call("Driver: use the picked part as the source", "", _drv_pick_source, "driver drive follow source expression link blender", false, "the picked part becomes what the next driver's follower reads (a choice, not an edit)")
+	add.call("Driver: the picked part follows the source", "", _drv_follow, "driver drive follow link expression factor blender", true, "the picked part's bend follows the source's bend every frame, factor 1.0 (the factor presets change it)")
+	add.call("Driver: factor 0.5", "", _drv_factor.bind(0.5), "driver factor half scale ratio", true, "the picked part's driver: it follows its source at half the source's angle")
+	add.call("Driver: factor 2", "", _drv_factor.bind(2.0), "driver factor double scale ratio", true, "the picked part's driver: it follows its source at twice the source's angle")
+	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
+	add.call("Driver: remove the picked part's driver", "", _drv_remove, "driver delete remove clear", true, "the picked part stops following its source (its angle is the card's again)")
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")

@@ -61,6 +61,7 @@ var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vect
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
+var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
 var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakref to the hero's (actor targets); null = the hero
@@ -575,6 +576,10 @@ func apply(B: Body, t: float) -> void:
 	add_layer(B)           # YY9: on top of the cards; nothing without a layer or at weight 0
 	add_layers(B, t)       # NA1: the further layers, in order; nothing without one
 	B.breathe(t, breath)   # YY6: on top of the pose; nothing at 0
+	# USER DRIVERS (drivers.gd): after the cards, layers and breathing, BEFORE IK and the constraints, as Blender evaluates
+	# drivers before constraints: a driven joint is an input to the stack above it. Nothing without one (never called)
+	if not drivers.is_empty():
+		Drivers.play(drivers, B)
 	ik_last = {}
 	if not ik.is_empty():   # IK (GAP_ANALYSIS row 13): last, so a pinned hand stays pinned over everything above
 		ik_last = LimbIK.play(ik, B, t)
@@ -1307,6 +1312,7 @@ func clone() -> Scene:
 		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
+	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
 	c.body = body.duplicate(true)   # PR1
 	return c
@@ -1378,7 +1384,7 @@ var _carry_memo := []   # [key, [per carry: {"grip", "home", "drop", "land", "y0
 func _carry_data(B: Body) -> Array:
 	var cs := carries()
 	var ts := times()
-	var key := [ts, JSON.stringify(cs), JSON.stringify(props.map(func(p): return Props.to_dict(p))), var_to_str(part_keys), var_to_str(ik) + var_to_str(cons)]
+	var key := [ts, JSON.stringify(cs), JSON.stringify(props.map(func(p): return Props.to_dict(p))), var_to_str(part_keys), var_to_str(ik) + var_to_str(cons) + var_to_str(drivers)]
 	if not _carry_memo.is_empty() and is_same(_carry_memo[0][0], ts) and _carry_memo[0][1] == key[1] and _carry_memo[0][2] == key[2] 			and _carry_memo[0][3] == key[3] and _carry_memo[0][4] == key[4]:   # a keyed hand moves the grip (WW1)
 		return _carry_memo[1]
 	var st := B.state()
@@ -1781,6 +1787,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			"scene": (a["scene"] as Scene).to_dict(B, frames)})
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
+	if not drivers.is_empty():
+		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cons.is_empty():
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
 	if not camera.is_empty():
@@ -1801,6 +1809,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
+	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)"}
@@ -1841,6 +1850,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
 	if d2.has("ik"):
 		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+	if d2.has("drivers"):
+		d2["drivers"] = Drivers.mirror_file(d2["drivers"], M)   # user drivers (drivers.gd), before S2 reads the file
 	if d2.has("constraints"):
 		d2["constraints"] = Constraints.mirror_file(d2["constraints"])   # round 51: owners / parts to twins, offsets reflected
 	if d2.has("camera"):
@@ -1899,6 +1910,7 @@ func from_dict(d: Dictionary) -> void:
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
+	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():
 		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
