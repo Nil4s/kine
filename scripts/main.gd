@@ -12388,6 +12388,12 @@ var mouth_mi: MeshInstance3D   # LIP-SYNC (ROADMAP 31): the mouth drawn on the h
 var _a_streams: Array = []      # per track: its AudioStream (AudioTrack.load_stream); null = none
 var _a_pcm: Array = []         # per track: its stream decoded at the mix rate (AudioTrack.decode), made on load; a re-mix only sums these
 var audio_decode_usec := 0     # how long the last load took to decode the tracks, usec (tests)
+var audio_swap_usec := 0       # the main thread's time to swap a finished premix in, usec (tests)
+var _a_task := -1              # the WorkerThreadPool task building the next premix (-1 = none in flight)
+var _a_result: Array = []      # the task's output: [PCM bytes]
+var _a_job_key := "<unset>"   # the state the task's premix is built for; it becomes _a_key when swapped in
+var _a_job_rate := 0
+var _a_job_t0 := 0
 var _a_paths: Array = []        # the paths the streams were loaded for (a change of files reloads at once)
 var _a_mixer: AudioStreamPlayer # the one player: plays the premix (made on first use)
 var _a_mix_len := 0.0           # s: the premix's length; 0 = nothing to play
@@ -12464,8 +12470,10 @@ func _audio_reload() -> void:
 
 
 ## mixes the sounding tracks into the premix now; the player starts it again from the playhead on the next tick
+## starts a premix on a worker thread (the old one keeps playing); _audio_swap puts it in when it is ready
 func _audio_remix_now() -> void:
-	var t0 := Time.get_ticks_usec()
+	if _a_task >= 0:
+		return   # one is being built: the state is checked again once it is swapped in
 	var on := AudioTrack.audible(S.audio_tracks)
 	var rate := int(AudioServer.get_mix_rate())
 	var pcms := []
@@ -12476,20 +12484,46 @@ func _audio_remix_now() -> void:
 			pcms.append(_a_pcm[i])
 			starts.append(int(round(float(S.audio_tracks[i]["offset"]) * rate)))
 			gains.append(db_to_linear(float(S.audio_tracks[i]["gain_db"])))
-	var mixer := _audio_mixer()
-	mixer.stop()
 	if pcms.is_empty():
+		var mixer := _audio_mixer()
+		mixer.stop()
 		mixer.stream = null
 		_a_mix_len = 0.0
-	else:
-		var w := AudioTrack.mix_pcm(pcms, starts, gains, rate)
-		mixer.stream = w
-		_a_mix_len = w.get_length()
-	_a_key = _a_key_now()
+		_a_key = _a_key_now()
+		audio_mixes += 1
+		_a_after = -1.0
+		_a_slice_until = 0
+		return
+	_a_job_key = _a_key_now()
+	_a_job_rate = rate
+	_a_result = [null]
+	_a_job_t0 = Time.get_ticks_usec()
+	_a_task = WorkerThreadPool.add_task(AudioTrack.mix_bytes.bind(pcms, starts, gains, _a_result), false, "premix")
+
+
+## the finished premix goes in on the main thread: one stream swap, and the player plays it from the current playhead
+func _audio_swap() -> void:
+	WorkerThreadPool.wait_for_task_completion(_a_task)
+	_a_task = -1
+	var t0 := Time.get_ticks_usec()
+	var w := AudioTrack.wav_of(_a_result[0], _a_job_rate)
+	var mixer := _audio_mixer()
+	mixer.stream = w
+	_a_mix_len = w.get_length()
+	_a_key = _a_job_key
 	audio_mixes += 1
-	audio_mix_usec = Time.get_ticks_usec() - t0
-	_a_after = -1.0
+	audio_mix_usec = Time.get_ticks_usec() - _a_job_t0
+	_a_result = []
+	if playing and playhead >= 0.0 and playhead < _a_mix_len:
+		mixer.play(playhead)   # the one seek
+		_a_after = playhead
+	else:
+		mixer.stop()
+		_a_after = -1.0
 	_a_slice_until = 0
+	audio_swap_usec = Time.get_ticks_usec() - t0
+
+
 
 
 func _audio_ask() -> void:
@@ -12858,6 +12892,8 @@ func _audio_to_playhead() -> void:
 
 ## keep the sound in step with the playhead. before = the playhead before this frame's advance, dt = the advance
 func _audio_tick(before: float, dt: float) -> void:
+	if _a_task >= 0 and WorkerThreadPool.is_task_completed(_a_task):
+		_audio_swap()
 	var key := _a_key_now()
 	if key != _a_last_key:
 		_a_last_key = key

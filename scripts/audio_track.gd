@@ -221,8 +221,9 @@ static func decode(stream: AudioStream, rate: int) -> PackedFloat32Array:
 	return out
 
 
-## the sum of decoded tracks: pcms[i] at start sample starts[i], scaled by gains[i] (linear), clipped to full scale
-static func mix_pcm(pcms: Array, starts: Array, gains: Array, rate: int) -> AudioStreamWAV:
+## the sum of decoded tracks: pcms[i] at start sample starts[i], scaled by gains[i] (linear), clipped to full scale, as 16-bit
+## stereo PCM bytes. Pure arrays, no nodes, so it may run on a worker thread: its result goes to out[0].
+static func mix_bytes(pcms: Array, starts: Array, gains: Array, out: Array) -> void:
 	var frames := 0
 	for i in pcms.size():
 		frames = maxi(frames, int(starts[i]) + int(pcms[i].size() / 2))
@@ -241,12 +242,24 @@ static func mix_pcm(pcms: Array, starts: Array, gains: Array, rate: int) -> Audi
 	pcm.resize(frames * 4)
 	for q in frames * 2:
 		pcm.encode_s16(2 * q, int(round(clampf(buf[q], -1.0, 1.0) * 32767.0)))
+	out[0] = pcm
+
+
+## the 16-bit stereo WAV stream of mix_bytes' PCM at rate (main thread: the stream is a resource)
+static func wav_of(pcm: PackedByteArray, rate: int) -> AudioStreamWAV:
 	var w := AudioStreamWAV.new()
 	w.format = AudioStreamWAV.FORMAT_16_BITS
 	w.mix_rate = rate
 	w.stereo = true
 	w.data = pcm
 	return w
+
+
+## the sum of decoded tracks as a stream (mix_bytes + wav_of, on this thread)
+static func mix_pcm(pcms: Array, starts: Array, gains: Array, rate: int) -> AudioStreamWAV:
+	var out := [null]
+	mix_bytes(pcms, starts, gains, out)
+	return wav_of(out[0], rate)
 
 
 ## decode every stream at its offset (s) with its gain (dB) and sum them: decode() + mix_pcm() in one call

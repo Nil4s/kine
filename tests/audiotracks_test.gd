@@ -12,7 +12,8 @@
 ##      lane sits inside the window and the bottom panel at 1600x900 and 1280x720; screenshot of the three lanes
 ##  (6) playblast: two tracks mux as two inputs (B delayed by its offset, its gain) summed by amix; a muted track is left out
 ##  (7) premix: a click at t = 0 of each track lands in the mix at its offset within 1 sample (three tracks, one mix);
-##      re-mix of three 10 s tracks takes under 50 ms (printed)
+##      the re-mix runs on a worker thread: no frame over 50 ms while it runs (7c); the swapped premix still has the onsets
+##      and the set-time gap (7c, 7d); the 150 ms re-mix of three 10 s tracks is INFO (7b)
 extends SceneTree
 
 var fails := 0
@@ -77,6 +78,13 @@ func rms(t0: float, t1: float) -> float:
 		sum += l * l + r * r
 		n += 2
 	return sqrt(sum / maxf(float(n), 1.0))
+
+
+## waits until a premix in flight is swapped in and matches the tracks now (or 4 s)
+func wait_swap() -> void:
+	var t_w := Time.get_ticks_msec()
+	while (m._a_task >= 0 or m._a_key != m._a_key_now()) and Time.get_ticks_msec() - t_w < 4000:
+		await process_frame
 
 
 ## the drop in dB from a level to a level (a silence is 200 dB down, not infinite)
@@ -159,6 +167,7 @@ func _init() -> void:
 	for boff in [0.5, 1.1]:
 		S.audio_tracks = [{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": boff, "gain_db": 0.0}]
 		m._audio_reload()
+		await wait_swap()
 		m.pv_in = -1.0
 		m.pv_out = -1.0
 		m.playing = false
@@ -214,11 +223,13 @@ func _init() -> void:
 	# ---- (3) mute and solo: the energy leaves the premix. A alone sounds in 0..0.4 s; B alone in 4.1..4.4 s (A ends at 4.0 s).
 	S.audio_tracks = [{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": 0.5, "gain_db": 0.0}]
 	m._audio_reload()
+	await wait_swap()
 	var pre_a := rms(0.0, 0.4)
 	var pre_b := rms(4.1, 4.4)
 	ok(pre_a > 0.1 and pre_b > 0.1, "3-pre both tracks are in the premix (A alone %.3f, B alone %.3f RMS)" % [pre_a, pre_b])
 	S.audio_tracks[1]["mute"] = true
 	m._audio_remix_now()
+	await wait_swap()
 	var post_b := rms(4.1, 4.4)
 	var d_b := drop_db(pre_b, post_b)
 	ok(d_b > 60.0, "3a mute B: B's energy leaves the premix: its window drops %.1f dB (bar > 60 dB)" % d_b)
@@ -226,10 +237,12 @@ func _init() -> void:
 	S.audio_tracks[1].erase("mute")
 	S.audio_tracks[1]["solo"] = true
 	m._audio_remix_now()
+	await wait_swap()
 	var d_a := drop_db(pre_a, rms(0.0, 0.4))
 	ok(d_a > 60.0 and absf(drop_db(pre_b, rms(4.1, 4.4))) < 0.1, "3c solo on B: A's energy leaves the premix (%.1f dB down); B keeps its level" % d_a)
 	S.audio_tracks[1].erase("solo")
 	m._audio_remix_now()
+	await wait_swap()
 	ok(absf(drop_db(pre_a, rms(0.0, 0.4))) < 0.1 and absf(drop_db(pre_b, rms(4.1, 4.4))) < 0.1, "3d unsolo: both tracks are back at their levels")
 
 	# ---- (4) undo: one step each, Ctrl+Z restores the scene exactly
@@ -289,6 +302,7 @@ func _init() -> void:
 	# three tracks: the layout must show every lane (the timeline is the bottom panel and grows by one row per track)
 	S.audio_tracks.append(AudioTrack.clean({"path": WAV_B, "offset": 0.25, "gain_db": -6.0, "role": "sfx"}))
 	m._audio_reload()
+	await wait_swap()
 	await idle(3)
 	ok(tl.audio_h() == tl.LANE_H * 3.0, "5f three tracks: %.0f px of lanes" % tl.audio_h())
 	for sz in [Vector2i(1600, 900), Vector2i(1280, 720)]:
@@ -376,15 +390,86 @@ func _init() -> void:
 	var w10 := AudioTrack.mix_pcm(pcms, starts, gains, rate)
 	var mix_ms := (Time.get_ticks_usec() - t_mix) / 1000.0
 	print("     INFO decode of three 10 s tracks (once, on load): %.1f ms" % dec_ms)
-	print("     INFO re-mix of three 10 s tracks (offsets 0, 0.5, 1.1 s, summed and clipped): %.1f ms, mixed length %.2f s" % [mix_ms, w10.get_length()])
-	ok(mix_ms < 50.0, "7b re-mix of three 10 s tracks: %.1f ms (target < 50 ms)" % mix_ms)
+	print("     INFO 7b re-mix of three 10 s tracks, pure mix on this thread (offsets 0, 0.5, 1.1 s): %.1f ms, mixed length %.2f s" % [mix_ms, w10.get_length()])
 	for p in names:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
+	# ---- (7c, 7d) the live app: three 10 s tracks, re-mixed on a worker thread while the frames keep going.
+	# GATE 7c: no frame over 50 ms while the re-mix runs. Then the swapped premix puts each click at its offset (within 1 sample),
+	# and GATE 7d: the set-time gap of the swapped premix stays under 5 ms.
+	var ck := [WAV_A, WAV_B, WAV_C]
+	for i in 3:
+		var samp := PackedFloat32Array()
+		samp.resize(rate * 10)
+		samp[0] = 0.9   # a click on the first sample of each track
+		write_wav(ck[i], rate, samp)
+	S.audio_tracks = [{"path": WAV_A, "offset": 0.25, "gain_db": 0.0}, {"path": WAV_B, "offset": 0.5, "gain_db": 0.0}, {"path": WAV_C, "offset": 1.1, "gain_db": 0.0}]
+	m.playing = false
+	m._audio_reload()
+	var worst_re := 0.0
+	var re_frames := 0
+	var t_prev := Time.get_ticks_usec()
+	var t_w7 := Time.get_ticks_msec()
+	while m._a_task >= 0 and Time.get_ticks_msec() - t_w7 < 5000:
+		await process_frame
+		var now := Time.get_ticks_usec()
+		worst_re = maxf(worst_re, (now - t_prev) / 1000.0)
+		t_prev = now
+		re_frames += 1
+	await wait_swap()
+	print("     INFO re-mix on a worker: worst frame %.1f ms over %d frames while it ran; the swap on the main thread %.2f ms; the re-mix itself %.1f ms" % [worst_re, re_frames, m.audio_swap_usec / 1000.0, m.audio_mix_usec / 1000.0])
+	ok(re_frames > 0 and worst_re < 50.0, "7c no frame over 50 ms while a re-mix runs: worst %.1f ms over %d frames (bar 50 ms)" % [worst_re, re_frames])
+
+	var offs7 := [0.25, 0.5, 1.1]
+	var on7 := true
+	var on7_txt := ""
+	var w7 := premix()
+	for off in offs7:
+		var e := int(round(float(off) * rate))
+		var found := -1
+		for k in range(maxi(0, e - 50), e + 50):
+			if absf(float(w7.data.decode_s16(4 * k)) / 32768.0) > 0.5:
+				found = k
+				break
+		on7_txt += " %.4f s -> sample %d (want %d);" % [off, found, e]
+		if found < 0 or absf(float(found - e)) > 1.0:
+			on7 = false
+	ok(on7, "7c the swapped premix: each click lands at its offset within 1 sample:%s" % on7_txt)
+
+	m._ps().apply(m.B, 0.2)
+	m.pv_in = -1.0
+	m.pv_out = -1.0
+	m.playing = false
+	m.playhead = 0.2
+	await idle(2)
+	m.playing = true
+	var g7 := [0.0, 0.0, 0.0]
+	var n7 := [0, 0, 0]
+	var c7 := -1.0
+	var t7 := 0
+	while m.playing and (c7 < 0.0 or Time.get_ticks_usec() - t7 < 2000000):
+		await process_frame
+		if c7 < 0.0:
+			c7 = m._audio_clock()
+			t7 = Time.get_ticks_usec()
+		if m.audio_from_clock:
+			for i in 3:
+				if i < m.audio_gap.size() and not is_nan(float(m.audio_gap[i])):
+					g7[i] = maxf(g7[i], absf(float(m.audio_gap[i])))
+					n7[i] += 1
+	m.playing = false
+	await idle(1)
+	var worst7 := maxf(g7[0], maxf(g7[1], g7[2]))
+	ok(n7[0] > 0 and n7[1] > 0 and n7[2] > 0 and worst7 < 0.005, "7d after the swap: set-time gap over 2 s, three tracks: worst %.2f / %.2f / %.2f ms (bar 5 ms)" % [g7[0] * 1000.0, g7[1] * 1000.0, g7[2] * 1000.0])
+	for p in ck:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 
 	# ---- restore the stage for the next suite
 	S.audio_tracks = []
 	m._audio_reload()
+	await wait_swap()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(WAV_A))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(WAV_B))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(WAV_C))
 	print("AUDIOTRACKS TEST %s" % ["PASS" if fails == 0 else "FAIL %d" % fails])
 	quit(fails)
