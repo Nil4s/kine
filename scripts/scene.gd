@@ -1404,6 +1404,8 @@ func span(t: float) -> int:
 ## "xf": {"pos": [x, z], "yaw": deg} (where actor k stands in actor 0's space, like Dummy.xf), "scene": Scene}.
 ## Empty = one actor; the file key "actors" is written only when there are any, so every older file saves byte-identical
 var actors := []
+## CROWD (ROADMAP 95, scripts/crowd.gd): {"n": copies, "seed": int} or {} (none). The key "crowd" is written only when there is one
+var crowd := {}
 
 
 ## a scene of its own with the same settings and a deep copy of the cards (for work off the main thread: the fix
@@ -2008,6 +2010,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 	if not actors.is_empty():   # G1: the same, only with a second actor
 		out["actors"] = actors.map(func(a): return {"name": a["name"], "xf": {"pos": [float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": float(a["xf"]["yaw"])},
 			"scene": (a["scene"] as Scene).to_dict(B, frames)})
+	if not crowd.is_empty():
+		out["crowd"] = crowd.duplicate(true)   # ROADMAP 95: the crowd settings, only when there is one
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
 	if not plants.is_empty():
@@ -2156,6 +2160,7 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 
 func from_dict(d: Dictionary) -> void:
 	actors = []
+	crowd = (d["crowd"] as Dictionary).duplicate(true) if d.get("crowd") is Dictionary else {}   # ROADMAP 95
 	for a in d.get("actors", []):   # G1: each nested scene by this same from_dict
 		var xf: Dictionary = a.get("xf", {})
 		var pp: Array = xf.get("pos", [0.0, 0.0])
