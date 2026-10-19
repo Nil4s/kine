@@ -35,6 +35,14 @@ const AUTOSAVE := "user://autosave.json"   # the unsaved scene, every 15 s (roun
 var autosave := AUTOSAVE   # a test's own (POSER_AUTOSAVE names one; otherwise per process, removed on exit)
 var _as_wait := 0.0
 var _as_last := ""
+const JOURNAL := "user://journal"   # ROADMAP 2 (CRASH-PROOF): one .jsonl per scene, trimmed on save (scripts/journal.gd)
+var journal_dir := JOURNAL
+var journal_on := false   # on in the app; a test runs it only when POSER_JOURNAL names its own folder
+var journal := Journal.new()
+var _jpending := false    # an undo step was pushed or undone since the last journal entry
+var journal_offer := {}   # a session that did not quit cleanly: {state, t, path, n} (File: restore unsaved work)
+var quit_clean := true    # false = the window goes without a clean quit (a test's simulated kill)
+var journal_capture_us := 0   # the scene's capture for the journal, summed (us): the numbers the journal test prints
 
 var B := Body.new()
 var S := Scene.new()
@@ -1252,6 +1260,11 @@ func _ready() -> void:
 	get_window().files_dropped.connect(_on_drop)
 	if OS.get_environment("POSER_AUTOSAVE") != "":
 		autosave = OS.get_environment("POSER_AUTOSAVE")
+	var jenv := OS.get_environment("POSER_JOURNAL")   # a test's own folder (never user://journal)
+	journal_on = jenv != "" or not testing
+	journal_dir = jenv if jenv != "" else JOURNAL
+	if journal_on:
+		_journal_boot()
 	var cf := ConfigFile.new()
 	var light: bool = cf.load(settings) == OK and not testing and cf.get_value("look", "light", false)
 	if OS.get_cmdline_user_args().has("--light") or OS.get_cmdline_user_args().has("--dark"):   # shots and tests choose
@@ -1479,6 +1492,12 @@ func _exit_tree() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings))
 	if library != LIBRARY:
 		_rm_tree(library)   # SS6: a test's own library
+	if journal_on:
+		if not _unsaved():
+			journal.trim()   # nothing unsaved: the journal has nothing to give back
+		if quit_clean:
+			journal.set_session(true)   # a clean quit: the next start offers nothing
+		journal.close()
 	# quitting with nothing unsaved: no autosave to offer next time. A test's own per-process file always goes
 	if not _unsaved() or (autosave != AUTOSAVE and OS.get_environment("POSER_AUTOSAVE") == ""):
 		_autosave_drop()
@@ -1501,6 +1520,8 @@ func _process(dt: float) -> void:
 	if _as_wait >= 15.0:
 		_as_wait = 0.0
 		autosave_now()
+	if _jpending and dragging == "":
+		_journal_write()   # an edit no _do ended (a slider, the end of a drag, an undo): its result, once settled
 	if hover_part != "" or hover_fighter >= 0:   # the mouse went onto a panel (it eats the motion, so the view never hears it leave)
 		var hc := get_viewport().gui_get_hovered_control()
 		if dragging != "" or (hc != null and hc != ui_browser and hc.mouse_filter == Control.MOUSE_FILTER_STOP):   # the Browser lights a part itself (KK2)
@@ -2562,6 +2583,7 @@ func _do(f: Callable) -> void:
 	f.call()
 	_lock_keep(keep)   # a locked part keeps its angles through Reset, Mirror, Snap, a pose... (round 26, GG3)
 	_after_edit()
+	_journal_write()   # ROADMAP 2: the scene as this edit left it, in the journal
 
 
 ## WORDS TO A POSE (round 13, #93): "raise the right arm 90, bend the left elbow 45" (scripts/pose_words.gd). ONE undo
@@ -2714,6 +2736,8 @@ func _restore(u: Dictionary) -> void:
 
 
 func _push_undo() -> void:
+	if _jpending:
+		_journal_write()   # the scene now is the last step's result: journaled before this step changes anything
 	var u := _snapshot()
 	if _step_hint != "":
 		u["hint"] = step_name(_step_hint)
@@ -2723,6 +2747,7 @@ func _push_undo() -> void:
 	if undo.size() > 60:
 		undo.pop_front()
 	redo.clear()
+	_jpending = true
 
 
 func _undo() -> void:
@@ -2738,6 +2763,7 @@ func _undo() -> void:
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
 	_history_rows()
+	_jpending = true
 
 
 func _redo() -> void:
@@ -2752,6 +2778,7 @@ func _redo() -> void:
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
 	_history_rows()
+	_jpending = true
 
 
 # ---------------------------------------------------------------- actors (round 50, GATES TC3)
@@ -6776,6 +6803,7 @@ func _commands() -> Array:
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
@@ -8160,6 +8188,7 @@ func _save_scene_now(nm: String) -> void:
 	_clean = _doc_key()
 	_autosave_drop()
 	scene_path = "res://scenes/%s.json" % fname
+	_journal_saved()
 	_lists()
 	_refresh()
 	_say("saved scene %s: %d cards, %.2f s, %d frames with parts inside each other" % [H.name, H.cards.size(), H.length(), d["bad_frames"].size()])
@@ -8255,6 +8284,82 @@ func _autosave_drop() -> void:
 	_as_last = ""
 
 
+## THE JOURNAL (ROADMAP 2, CRASH-PROOF; scripts/journal.gd): the scene after every edit, so a crash loses no edit that
+## was made. Written by _do, by the next undo step, and by the frame that ends a drag or an undo (_process)
+func _journal_write() -> void:
+	_jpending = false
+	if not journal_on:
+		return
+	if journal.path != scene_path or journal.dir != journal_dir:
+		journal.open(journal_dir, scene_path)
+	var t0 := Time.get_ticks_usec()
+	var st := _scene_dict(false)
+	journal_capture_us += Time.get_ticks_usec() - t0
+	journal.append(st)
+
+
+## a save: the work is on disk now, so the journal of the scene (and of the file it became) is dropped
+func _journal_saved() -> void:
+	if not journal_on:
+		return
+	journal.trim()
+	journal.open(journal_dir, scene_path)
+	journal.trim()
+
+
+## start: a session that did not quit cleanly leaves its journals behind. The newest journal newer than its scene's
+## file is offered (journal_offer); every journal is moved aside to .old, so this session starts its own
+func _journal_boot() -> void:
+	journal.dir = journal_dir
+	var was_clean := journal.session_clean()
+	journal.set_session(false)
+	if was_clean:
+		return
+	var best := {}
+	for f in DirAccess.get_files_at(journal_dir):
+		if not f.ends_with(".jsonl"):
+			continue
+		var fp := journal_dir.path_join(f)
+		var r := Journal.restore(fp)
+		if not r.is_empty():
+			var saved := -1
+			if r["path"] != "" and FileAccess.file_exists(r["path"]):
+				saved = int(FileAccess.get_modified_time(r["path"]))
+			if int(r["t"]) > saved and (best.is_empty() or int(r["t"]) > int(best["t"])):
+				best = Journal.restore(fp, saved)
+		DirAccess.rename_absolute(ProjectSettings.globalize_path(fp), ProjectSettings.globalize_path(fp) + ".old")
+	if not best.is_empty():
+		journal_offer = best
+		_journal_offer_say.call_deferred()
+
+
+func _journal_offer_say() -> void:
+	if journal_offer.is_empty():
+		return
+	var local := int(journal_offer["t"]) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60
+	_say("Restore the work from %s (%d edits after the last save): File: restore unsaved work" % [
+		Time.get_datetime_string_from_unix_time(local, true), int(journal_offer["n"])])
+
+
+## File: restore unsaved work: the scene as the last journaled edit left it, still unsaved (Save scene keeps it).
+## The journal goes on from it, whole, so a second crash is covered too; the moved-aside files are dropped
+func _journal_restore() -> void:
+	if journal_offer.is_empty():
+		_say("no unsaved work to restore: no session was left without a clean quit")
+		return
+	var o := journal_offer
+	journal_offer = {}
+	_restore_work({"scene": o["state"], "path": o["path"]})
+	if journal_on:
+		for f in DirAccess.get_files_at(journal_dir):
+			if f.ends_with(".old"):
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(journal_dir.path_join(f)))
+		journal.open(journal_dir, scene_path)
+		journal.force_full()
+		_journal_write()
+	_say("restored the work from the journal (%d edits): it is not saved yet, Save scene keeps it" % int(o["n"]))
+
+
 var ui_recover: ConfirmationDialog
 var _recovering := false   # Recover opens the scene's file under the autosave: that open must not drop the autosave
 
@@ -8340,6 +8445,11 @@ func _recover() -> void:
 	var a: Dictionary = ui_recover.get_meta("autosave")
 	if ui_recover.get_meta("from", "") == _later_path():
 		DirAccess.remove_absolute(_later_path())   # it is open again; the autosave holds it from here
+	_restore_work(a)
+
+
+## the unsaved work a dict holds ({"scene", "path"}) comes back, still unsaved (Recover, and File: restore unsaved work)
+func _restore_work(a: Dictionary) -> void:
 	var path: String = a.get("path", "")
 	_clean = "[]"
 	_actors_home()   # TC3
@@ -9163,6 +9273,8 @@ func _load_scene(path: String) -> void:
 	_clean = _doc_key()
 	if not _recovering:
 		_autosave_drop()   # opened a scene: what was unsaved was given up (it asks first, V3)
+		if journal_on:
+			journal.trim()   # ... and its journal goes with it
 	S.apply(B, 0.0)
 
 
