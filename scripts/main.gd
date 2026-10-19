@@ -119,6 +119,7 @@ var ui_gear_btn: Button
 var ui_natural: CheckBox
 var ui_scene_name: LineEdit
 var ui_scenes: OptionButton
+var thumbs: SceneThumbs   # ROADMAP 51: the pictures in the scene list (scripts/scene_thumbs.gd)
 var ui_tinted := []    # [label, Tok token]: the labels a theme switch re-tints (round 9)
 var ui_say_box: StyleBoxFlat
 var ui_bar_box: StyleBoxFlat   # RR5: none (the line has no box); kept for the retheme's null check
@@ -6675,6 +6676,13 @@ func _ui() -> void:
 	ui_scenes.fit_to_longest_item = false   # round 45: a long work-copy name pushed the play row off a 1280 window
 	ui_scenes.clip_text = true
 	ui_scenes.item_selected.connect(_scene_picked)   # V3: picking a scene opens it (asks first if this one has unsaved changes)
+	# ROADMAP 51: a picture of each scene's body in the list (scripts/scene_thumbs.gd); drawn when the list opens
+	thumbs = SceneThumbs.new()
+	thumbs.name = "scene_thumbs"
+	add_child(thumbs)
+	thumbs.made.connect(_thumb_made)
+	ui_scenes.get_popup().add_theme_constant_override("icon_max_width", SceneThumbs.SIZE.x)
+	ui_scenes.get_popup().about_to_popup.connect(_scenes_opening)
 	bh.add_child(ui_scenes)
 	bh.add_child(_button("Open scene", func():
 		if ui_scenes.selected >= 0:
@@ -7071,6 +7079,27 @@ func _lists() -> void:
 				ui_scenes.add_item(f.get_basename().replace("_", " ") + ("   (work copy)" if dir.ends_with("_wip") else ""))
 				ui_scenes.set_item_metadata(ui_scenes.item_count - 1, path)
 	_show_open_scene()
+
+
+## the list opens: each scene's picture is asked for (a cached one is set at once, the rest are drawn a frame apart)
+func _scenes_opening() -> void:
+	if thumbs == null:
+		return
+	for i in ui_scenes.item_count:
+		thumbs.request(ui_scenes.get_item_metadata(i))
+
+
+## a scene's picture is ready: its row in the list gets it (the row is found by its file, so a re-list in between is safe)
+func _thumb_made(path: String) -> void:
+	if ui_scenes == null or thumbs == null:
+		return
+	var tex := thumbs.picture(path)
+	if tex == null:
+		return
+	var pop := ui_scenes.get_popup()
+	for i in ui_scenes.item_count:
+		if ui_scenes.get_item_metadata(i) == path:
+			pop.set_item_icon(i, tex)
 
 
 ## the dropdown shows the scene that is OPEN (round 9: it kept showing the first file, and Delete scene trashes the
