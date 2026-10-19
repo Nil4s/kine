@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 17 / 20 (version diff; stunt load report; full run 1 on 10-18 night: 172/206 under load, every timeout passed alone, 9 real breaks fixed; then merged: undo tree, human limits v2, ease presets, frame data, better skeleton, critique, twinning, phone video cleanup, choreography, hit reactions, style transfer, any-prop grips, line of action, webcam puppet, playback cache).
+Merged since the last full run: 18 / 20 (motion-matching preview; version diff; stunt load report; full run 1 on 10-18 night: 172/206 under load, every timeout passed alone, 9 real breaks fixed; then merged: undo tree, human limits v2, ease presets, frame data, better skeleton, critique, twinning, phone video cleanup, choreography, hit reactions, style transfer, any-prop grips, line of action, webcam puppet, playback cache).
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -104,7 +104,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 30. [~] Live co-editing, one animator per fighter (top-25 #18)
 31. [~] Lip-sync from audio (top-25 #21)
 32. [~] Music beats as timeline markers, snap hits to them (top-25 #22)
-33. [~] Motion-matching preview (top-25 #23)
+33. [x] Motion-matching preview (top-25 #23)
 34. [ ] Character mesh engine (top-25 #24) (held: Nick plans this as its own engine after Kine is done; same UE5 skeleton names)
 35. [~] Weapon trails drawn and exported (smear frames)
 36. [ ] Hitbox / hurtbox editor per frame
