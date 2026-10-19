@@ -81,6 +81,36 @@ func _S() -> Scene:
 	return m.S if m != null else null
 
 
+## THE SHOT CAMERA's keys on the strip (scripts/shot_gizmo.gd draws the camera itself): a camera-coloured diamond on the
+## strip's bottom edge at each key's time, above the sound's strip. Only the scene's own keys (main.gd _hero_scene)
+const CAM_R := 4.0   # px: the diamond's half-size
+
+
+func cam_times() -> Array:
+	var out := []
+	if m == null or _S() == null:
+		return out
+	for k in m._hero_scene().camera:
+		out.append(float(k["t"]))
+	return out
+
+
+## the diamonds' centre line (y)
+func _cam_y() -> float:
+	var ah := AUDIO_H if not _S().audio.is_empty() else 0.0
+	return size.y - ah - CAM_R - 2.0
+
+
+## the time of the camera key whose diamond is at p, or -1.0
+func cam_key_at(p: Vector2) -> float:
+	if cam_times().is_empty() or absf(p.y - _cam_y()) > CAM_R + 2.0:
+		return -1.0
+	for t in cam_times():
+		if absf(p.x - x_of(float(t))) <= CAM_R + 1.0:
+			return float(t)
+	return -1.0
+
+
 ## seconds -> x. During a drag the scale is frozen (the strip would otherwise rescale under the mouse as it grows)
 func pps() -> float:
 	if _drag.has("pps"):
@@ -133,6 +163,11 @@ func _gui_input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
 		if ev.pressed:
+			var kt := cam_key_at(ev.position)   # THE SHOT CAMERA: a click on its diamond = the playhead to that key
+			if kt >= 0.0:
+				scrubbed.emit(kt)
+				accept_event()
+				return
 			var fs := mark_at(ev.position)
 			if not fs.is_empty():
 				finding_picked.emit(fs[0])
@@ -328,6 +363,11 @@ func _draw() -> void:
 		var fc: Color = Markers.COLORS.get(String(mk["kind"]), Color.WHITE)
 		draw_line(Vector2(fx, 0), Vector2(fx, RULER), fc, 1.0)
 		draw_colored_polygon(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6)]), fc)
+	# THE SHOT CAMERA's keys: a camera-coloured diamond at each key's time (cam_key_at takes a click on it)
+	var cy := _cam_y()
+	for t in cam_times():
+		var cx := x_of(float(t))
+		draw_colored_polygon(PackedVector2Array([Vector2(cx, cy - CAM_R), Vector2(cx + CAM_R, cy), Vector2(cx, cy + CAM_R), Vector2(cx - CAM_R, cy)]), ShotGizmo.COLOR)
 	# playhead
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)

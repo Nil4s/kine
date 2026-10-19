@@ -1597,6 +1597,7 @@ func _world() -> void:
 	cam = Camera3D.new()
 	cam.fov = 40
 	add_child(cam)
+	ShotGizmo.attach(self)   # THE SHOT CAMERA's body in the 3D view (scripts/shot_gizmo.gd)
 	_cam()
 
 
