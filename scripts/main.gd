@@ -2,7 +2,8 @@
 ##
 ## Screen:  top bar = views + undo |  left = POSES (click one to put the body in it) |  right = the SELECTED PART
 ##          (sliders in words) + HANDS & BAT |  bottom = the SCENE (pose cards in a row; the poser moves between them).
-## Mouse:   click a part = select;  drag = rotate it;  Shift+drag = roll it;  drag a hand/foot = the whole limb follows
+## Mouse:   click a part = select;  drag = the natural thing for that part (head looks, hips move the body with the feet planted,
+##          spine bends along its length, a limb swings toward the mouse; scripts/part_drag.gd);  Shift+drag = roll it;  drag a hand/foot = the whole limb follows
 ##          (Alt: only the wrist/ankle);  Ctrl+drag the hips = move the body;  the bat: free = drag/Shift/Alt, locked =
 ##          dragging it moves the hand.   Right-drag = orbit, middle-drag = pan, wheel = zoom.
 ## Keys:    shown on every button (Q snap, R reset, L lock bat, F fingers, G 2 hands, Space play, Ctrl+Z undo ...).
@@ -405,6 +406,8 @@ var pv_in := -1.0    # WW4 PREVIEW RANGE: in / out seconds, -1 = not set. A view
 var pv_out := -1.0
 var frames_view := false   # WW4: the time readout in frames ("44 / 103 f") instead of seconds; a view setting
 var _grab := Vector3(NAN, NAN, NAN)   # the scene as one strip: drag edges to retime, click a block to pick it (scripts/timeline.gd)    # "Animator tools": the round-5 tools in one menu (the bottom row is full)
+var _pd := {}   # ROADMAP 41 (scripts/part_drag.gd): the plain drag's handle on the pressed part; {} = none
+var _pd_mp := Vector2(NAN, NAN)   # the mouse as the last move left it (the drag pulls the handle to its ray)
 var _magnet := ""   # the last hand drag's magnet step (GripMagnet.drag): what the status line says
 var _sm := {}   # the sample the last Check took of S (a Fix re-uses it instead of re-playing the scene)
 var _fixing := false
@@ -2733,6 +2736,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_end_teach()   # RR5: the first pick ends the welcome, for good
 					dragging = "joint"
 					_grab = Vector3(NAN, NAN, NAN)
+					_pd = {}
+					_pd_mp = Vector2(NAN, NAN)
+					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j):
+						_pd = PartDrag.begin(B, j, cam.project_ray_origin(mb.position), cam.project_ray_normal(mb.position))
 					playing = false
 					_refresh()
 			elif mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -2810,6 +2817,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_cam()
 		elif dragging == "joint" and not _num_on:   # a typed angle holds the part (HH1)
 			var before: Vector3 = B.ang[sel] if not sel in Body.WEAPON else Vector3.ZERO
+			_pd_mp = mm.position
 			_drag_joint(rel, mm.shift_pressed, mm.ctrl_pressed, mm.alt_pressed)
 			_group_follow(before)
 			if _lock_keep(_drag_locks):   # a hand's reach can turn a locked arm: it stays
@@ -2934,6 +2942,11 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 			_magnet = GripMagnet.drag(B, sel, _grab, true)   # NA6: quick while the mouse moves; searched once on release
 		else:
 			B.reach(sel, _grab)
+	elif not _pd.is_empty() and not is_nan(_pd_mp.x) and _pd.get("part", "") == sel:
+		var follow := Callable()
+		if shoulder_follow and sel.begins_with("upperarm"):
+			follow = func(): B.shoulder_follow(sel.right(2))   # YY5, inside the rounds so the handle still lands on the mouse
+		PartDrag.move(B, _pd, cam.project_ray_origin(_pd_mp), cam.project_ray_normal(_pd_mp), follow)   # ROADMAP 41: any part, no mode
 	else:
 		var p: Vector3 = B.P[sel]
 		var e: Vector3 = B.E[sel]
@@ -2944,7 +2957,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		var ax := r1.cross(r2)
 		if ax.length() > 1e-9:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
-	_arm_edit = sel if sel.begins_with("upperarm") and not move else ""
+	_arm_edit = sel if sel.begins_with("upperarm") and not move and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
 	if _magnet in ["snap", "held", "let go"] and tip and not move and not twist:
@@ -2954,7 +2967,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		_magnet = ""
 		return
 	_magnet = ""
-	var what := "ROLLING" if twist else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING")))
+	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
 	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
 
 

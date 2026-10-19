@@ -72,16 +72,33 @@ func _init() -> void:
 	var toward: Vector2 = (m.cam.unproject_position(m.B.P["spine_03"]) - p)
 	var s1 := await drag(p, toward.normalized() * 12.0 + Vector2(0, 6), 40)
 	ok(m.sel == "upperarm_r", "the press picked the right upper arm (%s)" % m.sel)
-	ok("STOPPED" in s1 and "meets the" in s1, "1 the arm dragged into the body: '%s'" % s1.strip_edges())
+	ok("STOPPED" in s1 and ("meets the" in s1 or "at its limit" in s1),   # ROADMAP 41: swung toward the mouse, the arm may reach its range before the body
+	 "1 the arm dragged into the body: '%s'" % s1.strip_edges())
 	m._reset_all()
 	m._refresh()
 	await idle()
-	# (2) the right forearm swung round, far past the elbow's range
-	var q := spot("lowerarm_r", 0.8)
-	var s2 := await drag(q, Vector2(0, -14), 40)
-	ok(m.sel == "lowerarm_r", "the press picked the right forearm (%s)" % m.sel)
-	ok("STOPPED" in s2 and "at its limit" in s2 and m.nice("lowerarm_r") in s2, "2 the forearm past the elbow's range: '%s'" % s2.strip_edges())
+	# (2) the left shin swung back and up, far past the knee's range (side view: a knee bends in the picture's plane;
+	# ROADMAP 41 swings a part toward the mouse in the view plane, and a front-view elbow bends across the view)
+	m.yaw = 90.0
+	m._cam()
+	await idle()
+	var q := spot("calf_l", 0.8)
+	m.B.set_ang("calf_l", Vector3(60, 0, 0))
+	m.B.fk()
+	m._refresh()
+	await idle()
+	var way := (spot("calf_l", 0.8) - q).normalized()   # the screen direction a knee bend goes
 	m._reset_all()
+	m._refresh()
+	m._cam()
+	await idle()
+	var up := (way * 0.3 + Vector2(0, -1)).normalized()   # up and a little back: past 145 deg
+	var s2 := await drag(q, up * 14.0, 40)
+	ok(m.sel == "calf_l", "the press picked the left shin (%s)" % m.sel)
+	ok("STOPPED" in s2 and "at its limit" in s2 and m.nice("calf_l") in s2, "2 the shin past the knee's range: '%s'" % s2.strip_edges())
+	m._reset_all()
+	m.yaw = 0.0
+	m._cam()
 	m._refresh()
 	await idle()
 	# (3) a small drag in free air
