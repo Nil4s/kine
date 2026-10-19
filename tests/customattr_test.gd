@@ -170,7 +170,7 @@ func _init() -> void:
 	# 8 the inspector: the rows are in the right panel, the slider is drawn in it
 	m.playhead = t1
 	m.sel = "hand_r"
-	m._sec_open("ATTRIBUTES", true)
+	m._sec_open("NUMBERS", true)   # the attribute rows live in the NUMBERS box (one header less on every part's panel)
 	if m.dummy_on:
 		m._dummy_toggle()   # the dummy stands in the front view and hides the hero: off for the picture
 	m._refresh()

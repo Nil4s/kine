@@ -52,6 +52,8 @@ func _init() -> void:
 		"_save_theme": "the settings file only (user://poser.cfg look section: a preference, not work)",
 		"_template_build_now": "a NEW scene in scenes/_wip/ (Templates.new_path never over an earlier one: _2, _3; the templates/ files are only read)",
 		"_wp_dab": "no file of its own (paints the in-memory skin weights); the remove_absolute lines the scan sees belong to the static _rm_tree below it, which deletes a test's own library folder (SS6)",
+		"_multicam_start": "the tracker's pose files in user://video_track/ only (its own: each old <video>.json there is removed before that video is tracked; never scenes/)",
+		"_shot_cut_drag": "no file of its own: on the drag's end it calls _journal_write (the journal only: user://journal, the crash-recovery log, never scenes/); the drag itself writes nothing",
 		"_save_version": "always a NEW file scenes/_versions/<scene>/vNNN.json (the next number; never the scene's own file)"}
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd").split("\n")
 	var fn := ""

@@ -6072,7 +6072,7 @@ var _cape_timer: Timer = null
 
 func _cape_add() -> void:
 	if _cape_job != null:
-		_say("the cape is already baking (%d%%): 'Cape: cancel the bake' stops it" % int(_cape_job.progress() * 100.0))
+		_say("the cape is already baking (%d%%): click 'Cape: cancel the bake' to stop it" % int(_cape_job.progress() * 100.0))
 		return
 	_cape_job = ClothJob.start(S)
 	if _cape_timer == null:
@@ -6091,7 +6091,7 @@ func _cape_tick() -> void:
 		return
 	if job.stage == 0:
 		if job.cancelled():
-			_cape_drop("the cape bake was cancelled: the scene keeps its last cape")
+			_cape_drop("the cape bake was cancelled: the scene keeps its last cape (click 'Cape: add to the back' to bake a new one)")
 			return
 		if job.sample_for(8000):   # 8 ms of sampling a tick: the UI keeps its frames
 			job.start_sim()
@@ -6100,10 +6100,10 @@ func _cape_tick() -> void:
 		_cape_job = null
 		var cape := job.take_result()
 		if cape.is_empty():
-			_say("the cape bake was cancelled: the scene keeps its last cape")
+			_say("the cape bake was cancelled: the scene keeps its last cape (click 'Cape: add to the back' to bake a new one)")
 			return
 		if job.owner != S:
-			_say("the scene changed during the bake, so the cape was not applied: bake it again on this scene")
+			_say("the scene changed during the bake, so the cape was not applied: click 'Cape: add to the back' to bake it again on this scene")
 			return
 		_do(func(): S.cape = cape)
 		_dummy_hits()
@@ -6141,7 +6141,7 @@ func _cape_export() -> void:
 		return
 	var p := Cloth.save_json(S.cape, "cape.json")
 	if p == "":
-		_say("could not write the cape file under the user folder: check the disk, then export again")
+		_say("could not write the cape file under the user folder: free up disk space there, then try again")
 		return
 	_say("exported the cape's vertices for every frame to %s (one list of 192 points per frame)" % p)
 
@@ -8731,7 +8731,8 @@ func _ui() -> void:
 	back.add_child(_label("The spine, neck and head share the bend by their ranges: they reach their limits together.", PROP_TXT, "text:0.55", true))
 	hands.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
 	# ROADMAP 82: CUSTOM ATTRIBUTES on the picked part (custom_attr.gd): "+ attribute" defines one; its slider keys the value at the playhead
-	var attrs_sec := _section(vb, "ATTRIBUTES")
+	# its rows go in the NUMBERS box (added below): a header of its own made the pelvis box 314 px, over the 300 bar
+	var attrs_sec := VBoxContainer.new()
 	attrs_sec.add_child(_label("A value on this part, keyed per card like an angle (grip 0 .. 1). The engine reads it from the .glb.", PROP_TXT, "text:0.55", true))
 	ui_attr_box = VBoxContainer.new()
 	ui_attr_box.name = "attr_rows"
@@ -8766,6 +8767,7 @@ func _ui() -> void:
 	ui_math = _label("", PROP_TXT, "text:0.6", true)
 	ui_math.visible = false
 	num.add_child(ui_math)
+	num.add_child(attrs_sec)
 
 	# ---- bottom: the scene
 	var bp := PanelContainer.new()
@@ -12929,7 +12931,7 @@ func _macro_play(nm: String) -> void:
 		_say("there is no macro called '%s': type 'macro' in the S box to see the saved ones" % nm)
 		return
 	if rec_name != "":
-		_say("stop recording first: '%s' cannot play while '%s' is being recorded (Stop macro recording)" % [nm, rec_name])
+		_say("click 'Stop macro recording' first: '%s' cannot play while '%s' is being recorded" % [nm, rec_name])
 		return
 	var steps: Array = mac["steps"]
 	_macro_nest = 1
@@ -14765,7 +14767,7 @@ func _multicam_start(paths: PackedStringArray) -> void:
 		_say("still tracking the cameras: one set at a time; try again when it arrives")
 		return
 	if paths.size() < 2 or paths.size() > MULTI_MAX:
-		_say("several cameras needs 2 to %d videos of the same person, filmed at once: you picked %d" % [MULTI_MAX, paths.size()])
+		_say("several cameras needs 2 to %d videos of the same person, filmed at once: pick that many (you picked %d)" % [MULTI_MAX, paths.size()])
 		return
 	for p in paths:
 		if not FileAccess.file_exists(p):

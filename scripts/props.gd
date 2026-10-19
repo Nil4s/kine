@@ -76,7 +76,7 @@ const KINDS := {
 		"supports": [[0.178, Vector2(0, 0.14), Vector2(0.9, 0.28)], [0.356, Vector2(0, 0.42), Vector2(0.9, 0.28)],
 		[0.534, Vector2(0, 0.70), Vector2(0.9, 0.28)], [0.712, Vector2(0, 0.98), Vector2(0.9, 0.28)]]},
 	# a 15 degree ramp: the same wedge, H = 2.0 tan 15 = 0.535898 m, centre H/2 up (0.267949)
-	"ramp15": {"label": "15 degree wedge ramp, 200 cm long, 90 cm wide, rising toward +Z", "solids": [],
+	"ramp15": {"label": "15 deg wedge ramp, 200 cm long, 90 cm wide, rising toward +Z", "solids": [],
 		"wedges": [[Vector3(0, 0.267949, 0), Vector3(0.9, 0.535898, 2.0)]], "supports": []},
 	"wall": {"label": "300 x 240 cm, 15 cm thick", "solids": [[Vector3(0, 1.2, 0), Vector3(3.0, 2.4, 0.15)]], "supports": []},
 	"door_frame": {"label": "90 x 200 cm opening, frame 210 cm high, 12 cm deep", "solids": [
@@ -551,7 +551,10 @@ static func surface_below(props: Array, pt: Vector3) -> Dictionary:
 	cands.sort_custom(func(a, b): return float(a["y"]) > float(b["y"]))
 	for c in cands:
 		var h := float(c["y"])
-		if h > pt.y + SNAP_UP:
+		# SNAP_UP caps a surface the point is OUTSIDE of (a table top over a foot). A point INSIDE the solid whose top this
+		# is (a sole sunk into a 40 cm box, put at the floor by the ground pass) is lifted onto that top at any height
+		var inside: bool = c.has("sw") and _sd(c["sw"], pt) < -REST_SINK
+		if h > pt.y + SNAP_UP and not inside:
 			continue
 		if not _column_blocked(props, pt.x, pt.z, h + 0.01, pt.y):
 			return c
@@ -604,7 +607,7 @@ static func _faces_under(props: Array, x: float, z: float) -> Array:
 					var j := (i + 1) % 3
 					var k := (i + 2) % 3
 					if absf(d.dot(ax[j])) <= h[j] + 1e-6 and absf(d.dot(ax[k])) <= h[k] + 1e-6:
-						cands.append({"y": y, "n": n})
+						cands.append({"y": y, "n": n, "sw": sw})
 	return cands
 
 
@@ -629,7 +632,7 @@ static func _wedge_faces_under(sw: Dictionary, x: float, z: float) -> Array:
 		var lp := inv * Vector3(x, y, z)
 		var tpar := ((lp.z - a.x) * e.x + (lp.y - a.y) * e.y) / maxf(e.length_squared(), 1e-12)
 		if absf(lp.x) <= float(sw["w"]) + 1e-6 and tpar >= -1e-6 and tpar <= 1.0 + 1e-6:
-			out.append({"y": y, "n": n})
+			out.append({"y": y, "n": n, "sw": sw})
 	return out
 
 
