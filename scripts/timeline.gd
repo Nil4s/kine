@@ -17,6 +17,12 @@ signal retimed(final: bool)
 signal range_set(which: String, t: float)   # WW4: Shift+click on the ruler = in point, Alt+click = out point
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 signal box_picked(i: int)   # ROADMAP 36: a box on the boxes lane clicked: the index into S.boxes
+signal shot_cut(i: int, t: float, final: bool)   # ROADMAP 75: shot i's cut dragged to t (final = the mouse went up)
+
+## THE SHOTS LANE (ROADMAP 75; main.gd _shot_*): one row under the boxes lane, a segment per shot from its cut to the next
+## (the shot on at the playhead is lit). A cut is its segment's left edge: drag it (whole frames, between its neighbours) to
+## move it; a click on the lane scrubs. Drawn only when the scene has shots (main sets nothing: it reads the hero's list).
+const SHOTS_H := 12.0   # px: the lane's height
 
 ## FRAME DATA (ROADMAP 12; scripts/frame_data.gd): main.gd sets `fd` (the analysis, {} = off) and the strip shows its
 ## startup (green), active (red) and recovery (blue) in frames, under the ruler. Drawn only; the numbers are FrameData's.
@@ -114,9 +120,76 @@ func cam_times() -> Array:
 	var out := []
 	if m == null or _S() == null:
 		return out
-	for k in m._hero_scene().camera:
-		out.append(float(k["t"]))
+	for sh in m._hero_scene().shots:
+		for k in sh["keys"]:
+			out.append(float(k["t"]))
 	return out
+
+
+## THE SHOTS LANE (ROADMAP 75): the hero's shots ([] = none), the lane's height and top
+func _shots() -> Array:
+	return m._hero_scene().shots if m != null and _S() != null else []
+
+
+func shots_px() -> float:
+	return SHOTS_H + 3.0 if not _shots().is_empty() else 0.0
+
+
+func _shots_y() -> float:
+	return RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + bx_px()
+
+
+func _in_shots_lane(p: Vector2) -> bool:
+	return not _shots().is_empty() and p.y >= _shots_y() and p.y <= _shots_y() + SHOTS_H
+
+
+## the index of the shot whose cut is under p on the shots lane (within 6 px), or -1
+func shot_cut_at(p: Vector2) -> int:
+	if not _in_shots_lane(p):
+		return -1
+	var best := -1
+	var bd := 6.0
+	var sh := _shots()
+	for i in sh.size():
+		var d := absf(p.x - x_of(float(sh[i]["t"])))
+		if d <= bd:
+			best = i
+			bd = d
+	return best
+
+
+## the lane's segments: a bar per shot from its cut to the next cut (or the end); the one on at the playhead is lit
+func _draw_shots_lane(y: float) -> void:
+	var sh := _shots()
+	var font := get_theme_default_font()
+	var L := _S().length()
+	var on: int = m.shot_now_index()
+	for i in sh.size():
+		var x0 := x_of(float(sh[i]["t"]))
+		var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else L)
+		var act := i == on
+		draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 2.0), SHOTS_H), Tok.c("accent") if act else Tok.of("ink:0.22"))
+		draw_line(Vector2(x0, y - 1.0), Vector2(x0, y + SHOTS_H + 1.0), Tok.c("ink"), 2.0 if i > 0 else 1.0)   # the cut
+		var label := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(sh[i]["name"])]
+		if x1 - x0 > 16.0:
+			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), label, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+
+
+## a shot's cut dragged to x: whole frames, never onto its neighbours' cuts (the order stays)
+func _shot_cut_drag(x: float) -> void:
+	var sh := _shots()
+	var i: int = _drag["i"]
+	if not _drag["moved"]:
+		if absf(x - float(_drag["x0"])) < 3.0:
+			return
+		_drag["moved"] = true
+	var fps := float(_S().fps)
+	var lo := roundi(float(sh[i - 1]["t"]) * fps) + 1
+	var hi := roundi(float(sh[i + 1]["t"]) * fps) - 1 if i + 1 < sh.size() else roundi(_S().length() * fps)
+	var fr := clampi(roundi(t_of(x) * fps), lo, maxi(lo, hi))
+	_drag["t"] = float(fr) / fps
+	shot_cut.emit(i, float(_drag["t"]), false)
+	queue_redraw()
 
 
 ## the diamonds' centre line (y)
@@ -205,6 +278,17 @@ func _gui_input(ev: InputEvent) -> void:
 				finding_picked.emit(fs[0])
 				accept_event()
 				return
+			var sci := shot_cut_at(ev.position)   # ROADMAP 75: a cut on the shots lane = scrub there; a later cut is dragged
+			if sci > 0:
+				_drag = {"kind": "shot", "i": sci, "x0": ev.position.x, "moved": false, "t": float(_shots()[sci]["t"])}
+				scrubbed.emit(float(_shots()[sci]["t"]))
+				accept_event()
+				return
+			if sci == 0 or _in_shots_lane(ev.position):
+				_drag = {"kind": "scrub"}
+				scrubbed.emit(float(_shots()[sci]["t"]) if sci >= 0 else t_of(ev.position.x))
+				accept_event()
+				return
 			var bxi := box_at(ev.position)   # ROADMAP 36: a click on the boxes lane picks that box
 			if bxi >= 0:
 				box_picked.emit(bxi)
@@ -230,6 +314,12 @@ func _gui_input(ev: InputEvent) -> void:
 						"alt": ev.alt_pressed, "move0": S.move_time(i), "hold0": float(S.cards[i]["hold"]),
 						"nmove0": S.move_time(i + 1) if i + 1 < S.cards.size() else 0.0}
 			accept_event()
+		elif not _drag.is_empty() and _drag["kind"] == "shot":
+			if _drag["moved"]:
+				shot_cut.emit(int(_drag["i"]), float(_drag["t"]), true)
+			_drag = {}
+			queue_redraw()
+			accept_event()
 		elif not _drag.is_empty():
 			var was: String = _drag.get("kind", "")
 			var moved: bool = _drag.get("moved", true)
@@ -239,9 +329,13 @@ func _gui_input(ev: InputEvent) -> void:
 			queue_redraw()
 			accept_event()
 	elif ev is InputEventMouseMotion:
+		if not _drag.is_empty() and _drag["kind"] == "shot":
+			_shot_cut_drag(ev.position.x)
+			accept_event()
+			return
 		if _drag.is_empty():
 			var h := hit(ev.position)
-			mouse_default_cursor_shape = Control.CURSOR_HSIZE if h.get("kind", "") in ["move", "hold", "edge0"] else Control.CURSOR_ARROW
+			mouse_default_cursor_shape = Control.CURSOR_HSIZE if h.get("kind", "") in ["move", "hold", "edge0"] or shot_cut_at(ev.position) > 0 else Control.CURSOR_ARROW
 			if h != _hover:
 				_hover = h
 				queue_redraw()
@@ -370,7 +464,10 @@ func _draw() -> void:
 		k += 1
 	var fdh := FD_H + 3.0 if not fd.is_empty() else 0.0   # FRAME DATA (ROADMAP 12): the strip sits under the ruler
 	var bxh := bx_px()   # HIT / HURT BOXES (ROADMAP 36): the lane sits under the frame strip
-	var y0 := RULER + 2.0 + fdh + bxh
+	var shp := shots_px()   # THE SHOTS LANE (ROADMAP 75): under the boxes lane
+	if shp > 0.0:
+		_draw_shots_lane(_shots_y())
+	var y0 := RULER + 2.0 + fdh + bxh + shp
 	var ah := AUDIO_H if not S.audio.is_empty() else 0.0
 	_clip_fit(S)
 	var h := size.y - y0 - 2.0 - ah - _clip_px

@@ -609,6 +609,21 @@
       "additionalProperties": false
      }
     },
+    "shots": {
+     "type": "array",
+     "description": "THE SHOTS (ROADMAP 75): the cuts of a multi-shot scene, sorted by t; the first at 0. Each shot's camera is a keyed camera (the same keys as camera). Written only when there are shots and they are not the one default shot (that one is written as camera). scripts/shot_camera.gd",
+     "minItems": 1,
+     "items": {
+      "type": "object",
+      "required": ["t", "name", "camera"],
+      "properties": {
+       "t": {"type": "number", "minimum": 0},
+       "name": {"type": "string"},
+       "camera": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["t", "pos", "aim", "f"], "properties": {"t": {"type": "number", "minimum": 0}, "pos": {"$ref": "#/$defs/vec3"}, "aim": {"$ref": "#/$defs/vec3"}, "f": {"type": "number", "minimum": 8, "maximum": 600}}, "additionalProperties": false}}
+      },
+      "additionalProperties": false
+     }
+    },
     "clips": {
      "type": "array",
      "description": "CLIPS (GAP_ANALYSIS row 12; Blender NLA strips / Maya Time Editor clips): other scene or move files placed by reference as strips; written only when there are any. Strip length = L x repeat / speed (L = the source's length); inside it the source plays at lt = u - k L, u = (t - start) x speed, k = min(floor(u / L), repeat - 1); weight = w x clamp((t - start) / bin) x clamp((end - t) / bout); cycle k's hips moved by k x the cycle's step over the floor. scripts/clips.gd",

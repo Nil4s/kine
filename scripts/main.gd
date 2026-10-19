@@ -2012,7 +2012,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px()
+	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px()
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
@@ -3176,7 +3176,7 @@ func _snapshot() -> Dictionary:
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
-		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
+		"shots": H.shots.duplicate(true),   # THE SHOTS (ROADMAP 75; shot_camera.gd), the hero's, undone like a card
 		"beats": H.beats.duplicate(true),   # ROADMAP 13: the exchange's beats (the hero's), undone like a card
 		"notes": S.notes.duplicate(true),   # ROADMAP 29: the review notes, undone like a marker
 		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
@@ -3240,8 +3240,10 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
 		S.cons = u["cons"].duplicate(true)   # constraints (round 51), undone like a card
 		_dummy_hits()
-	if u.has("camera") and var_to_str(u["camera"]) != var_to_str((u.get("hero", S) as Scene).camera):
-		(u.get("hero", S) as Scene).camera = u["camera"].duplicate(true)   # the shot camera, undone like a card
+	if u.has("shots") and var_to_str(u["shots"]) != var_to_str((u.get("hero", S) as Scene).shots):
+		(u.get("hero", S) as Scene).shots = u["shots"].duplicate(true)   # the shots and their cameras, undone like a card (ROADMAP 75)
+		if ui_timeline != null:
+			ui_timeline.queue_redraw()
 	if u["scene"] == S and u.has("clips") and var_to_str(u["clips"]) != var_to_str(S.clips):
 		S.clips = u["clips"].duplicate(true)   # CLIPS, undone like a card
 		_dummy_hits()
@@ -6938,6 +6940,7 @@ func _ui() -> void:
 	ui_timeline.finding_picked.connect(_finding_mark)
 	ui_timeline.retime_started.connect(_retime_begin)
 	ui_timeline.retimed.connect(_retime_step)
+	ui_timeline.shot_cut.connect(_shot_cut_drag)   # ROADMAP 75: a cut on the shots lane dragged
 	# ONE STRIP (round 36, RR4): first / previous / play / next / last / loop, the clips on their track, the time, the
 	# speed, Natural, a gear for the rest (Smooth, tween, ease, + tween), the Clips button that opens the cards above
 	var ph := HBoxContainer.new()
@@ -11726,8 +11729,8 @@ func _unsaved() -> bool:
 func _doc_key() -> String:
 	var H := _hero_scene()
 	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
-	if not H.camera.is_empty():
-		k += "|cam" + var_to_str(H.camera)   # the shot camera: an unsaved change too
+	if not H.shots.is_empty():
+		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
 	for a in H.actors:
 		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
 	return k
@@ -11796,10 +11799,139 @@ func _shot_commands(add: Callable) -> void:
 	for mm in ShotCam.LENSES:
 		add.call("Camera: lens %d mm" % mm, "", _shot_lens.bind(float(mm)), "shot camera focal length zoom lens mm %d wide tele" % mm, true,
 			"the shot camera's focal length at the playhead: %d mm on a 36 mm sensor (%.1f deg across a 16:9 frame); keys it there if it has no key" % [mm, ShotCam.fov_h(mm)])
+	add.call("Shots: add a shot from the current view at the playhead", "", _shot_add, "shot shots cut new add camera angle view playhead",
+		true, "a cut at the playhead's frame: a new shot whose camera is the view as it is now, on from there to the next cut (the first shot starts at 0 s)")
+	add.call("Shots: delete the shot at the playhead", "", _shot_delete, "shot shots cut delete remove", true,
+		"the shot on at the playhead goes; the shot before it runs on to the next cut")
+	add.call("Shots: rename the shot at the playhead", "", _shot_rename_ask, "shot shots name rename title label", true,
+		"type the shot's name (it shows on the SHOTS lane)")
 
 
+## THE SHOTS (ROADMAP 75; shot_camera.gd): the scene's list of cuts, each shot with its own camera. The first shot always
+## starts at 0 s. Each command is ONE undo step (_do); a cut dragged on the lane takes one at its first move (_shot_cut_drag).
+var ui_shot_dlg: ConfirmationDialog
+var ui_shot_name: LineEdit
+var _shot_rename_i := -1
+var _shot_drag_undo := false   # a cut's drag has taken its undo step (at its first move)
+
+
+func _shot_shots() -> Array:
+	return _hero_scene().shots
+
+
+## the shot on at the playhead (-1 = the scene has no shots)
+func shot_now_index() -> int:
+	return ShotCam.shot_index(_shot_shots(), playhead)
+
+
+## the camera track of the shot on at the playhead ([] = none)
 func _shot_keys() -> Array:
-	return _hero_scene().camera
+	var i := shot_now_index()
+	return _shot_shots()[i]["keys"] if i >= 0 else []
+
+
+## the first shot, when the scene has none (inside an edit's undo step)
+func _shot_ensure() -> void:
+	if _shot_shots().is_empty():
+		_shot_shots().append({"t": 0.0, "name": ShotCam.SHOT_NAME % 1, "keys": []})
+
+
+## a shot is gone: the first shot starts at 0 s again
+func _shot_drop(i: int) -> void:
+	_shot_shots().remove_at(i)
+	if not _shot_shots().is_empty():
+		_shot_shots()[0]["t"] = 0.0
+
+
+func _shot_add() -> void:
+	if _hero_scene().cards.is_empty():
+		_say("a shot is taken from a scene: open a scene, or press Enter to add the body as a card, then add a shot")
+		return
+	var fps := float(S.fps)
+	var first := _shot_shots().is_empty()
+	var fr := 0 if first else roundi(clampf(playhead, 0.0, S.length()) * fps)   # a cut lands on a whole frame
+	var t := float(fr) / fps
+	if not first and fr <= 0:
+		_say("the first shot starts at 0 s: move the playhead past 0 s, then add a shot there")
+		return
+	for sh in _shot_shots():
+		if roundi(float(sh["t"]) * fps) == fr:
+			_say("a shot already starts at %.2f s (%s): move the playhead to another frame, then add a shot" % [t, sh["name"]])
+			return
+	var key := ShotCam.sample(_shot_keys(), t) if shot_through else _shot_view_key(t)
+	key["t"] = t
+	var idx := ShotCam.insert_index(_shot_shots(), t)
+	var nm := ShotCam.SHOT_NAME % (_shot_shots().size() + 1)
+	_do(func(): _shot_shots().insert(idx, {"t": t, "name": nm, "keys": [key]}))
+	_say("%s: a cut at %.2f s, the view from there (%.0f mm); Ctrl+Z takes it back" % [nm, t, float(key["f"])])
+
+
+func _shot_delete() -> void:
+	var i := shot_now_index()
+	if i < 0:
+		_say("no shots yet: 'Shots: add a shot from the current view at the playhead' makes the first one")
+		return
+	var nm := String(_shot_shots()[i]["name"])
+	_do(func(): _shot_drop(i))
+	_say("deleted %s (%d left)%s" % [nm, _shot_shots().size(), "; the scene has no shots now" if _shot_shots().is_empty() else ""])
+	if _shot_shots().is_empty():
+		_shot_off()
+
+
+## the rename dialog (the shot on at the playhead); its OK is _shot_rename_to
+func _shot_rename_ask() -> void:
+	var i := shot_now_index()
+	if i < 0:
+		_say("no shots yet: 'Shots: add a shot from the current view at the playhead' makes the first one, then rename it")
+		return
+	if ui_shot_dlg == null:
+		ui_shot_dlg = ConfirmationDialog.new()
+		ui_shot_dlg.title = "Rename the shot"
+		ui_shot_dlg.ok_button_text = "Rename"
+		ui_shot_dlg.min_size = Vector2i(320, 0)
+		ui_shot_name = LineEdit.new()
+		ui_shot_name.name = "edit_shot_name"
+		ui_shot_name.placeholder_text = "name for the shot"
+		ui_shot_dlg.add_child(ui_shot_name)
+		ui_shot_dlg.register_text_enter(ui_shot_name)
+		ui_shot_dlg.confirmed.connect(func(): _shot_rename_to(_shot_rename_i, ui_shot_name.text))
+		add_child(ui_shot_dlg)
+	_shot_rename_i = i
+	ui_shot_name.text = String(_shot_shots()[i]["name"])
+	ui_shot_dlg.popup_centered()
+	ui_shot_name.select_all()
+	ui_shot_name.grab_focus()
+
+
+## shot i's name: one undo step; an empty name is refused (the old one stays)
+func _shot_rename_to(i: int, nm: String) -> void:
+	nm = nm.strip_edges()
+	if i < 0 or i >= _shot_shots().size() or nm == "":
+		_say("the shot's name is empty: type a name, then Rename")
+		return
+	if String(_shot_shots()[i]["name"]) == nm:
+		return
+	_do(func(): _shot_shots()[i]["name"] = nm)
+	_say("the shot is called %s now (Ctrl+Z takes it back)" % nm)
+
+
+## a cut dragged on the SHOTS lane (timeline.gd shot_cut): the first move takes the one undo step, the rest move that cut
+func _shot_cut_drag(i: int, t: float, final: bool) -> void:
+	var sh := _shot_shots()
+	if i <= 0 or i >= sh.size():
+		return
+	if not _shot_drag_undo:
+		_push_undo()
+		_shot_drag_undo = true
+	sh[i]["t"] = t
+	if final:
+		_shot_drag_undo = false
+		_after_edit()
+		_journal_write()
+		_say("the cut to %s is at %.2f s (Ctrl+Z takes it back)" % [sh[i]["name"], t])
+	ui_timeline.queue_redraw()
+	if shot_through:
+		_shot_apply()
 
 
 ## the free part of the view (between the panels), or the whole viewport in a clean render (playblast, --clean)
@@ -11818,7 +11950,10 @@ func shot_rect() -> Rect2i:
 
 ## the shot camera at t in the RENDER's space (the stage under the active fighter): {"pos", "aim", "f"}; {} = none
 func shot_at(t: float) -> Dictionary:
-	var k := ShotCam.sample(_shot_keys(), t)
+	var i := ShotCam.shot_index(_shot_shots(), t)   # the shot on at t (ROADMAP 75): its camera, in the render's space
+	if i < 0:
+		return {}
+	var k := ShotCam.sample(_shot_shots()[i]["keys"], t)
 	if k.is_empty():
 		return k
 	var X := _stage_xf()
@@ -11882,7 +12017,7 @@ func _shot_toggle() -> void:
 		_shot_off()
 		_say("back to the free view: orbit, pan and zoom move the view again (the shot camera stays keyed)")
 		return
-	if _shot_keys().is_empty():
+	if _shot_shots().is_empty():
 		_say("this scene has no shot camera yet: frame the view, then use 'Camera: key the shot camera from the view'")
 		return
 	_shot_fov = cam.fov
@@ -11910,8 +12045,10 @@ func _shot_key_view() -> void:
 	var t := clampf(playhead, 0.0, S.length())
 	var key := ShotCam.sample(_shot_keys(), t) if shot_through else _shot_view_key(t)
 	key["t"] = t
-	var first := _shot_keys().is_empty()
-	_do(func(): ShotCam.put(_shot_keys(), key))
+	var first := _shot_shots().is_empty()
+	_do(func():
+		_shot_ensure()
+		ShotCam.put(_shot_keys(), key))
 	var p: Vector3 = key["pos"]
 	_say("shot camera keyed at %.2f s: lens at (%.2f, %.2f, %.2f) m, %.0f mm%s (Ctrl+Z takes it back)" % [t, p.x, p.y, p.z, float(key["f"]),
 		"; 'Camera: look through the shot camera' shows it" if first else ""])
@@ -11924,9 +12061,14 @@ func _shot_remove() -> void:
 		_say("no shot camera key at the playhead: move the playhead onto a camera key (%d in this scene), then remove it" % ks.size())
 		return
 	var t := float(ks[i]["t"])
-	_do(func(): _shot_keys().remove_at(i))
-	_say("removed the shot camera's key at %.2f s (%d left)%s" % [t, _shot_keys().size(), "; the scene has no shot camera now" if _shot_keys().is_empty() else ""])
-	if _shot_keys().is_empty():
+	var si := shot_now_index()
+	var last := ks.size() == 1   # the shot's last key: the shot goes with it
+	_do(func():
+		_shot_keys().remove_at(i)
+		if _shot_keys().is_empty():
+			_shot_drop(si))
+	_say("removed the shot camera's key at %.2f s%s" % [t, "; that was the shot's last key, so the shot is gone" if last else ""])
+	if _shot_shots().is_empty():
 		_shot_off()
 
 
@@ -11955,7 +12097,7 @@ func _shot_lens(mm: float) -> void:
 ## THE PLAYBLAST THROUGH THE SHOT CAMERA: {} = the scene has none (the frames are the view, as before); else look-through
 ## is on for the render (the panels are hidden, so the frame is the largest 16:9 in the window) and each image is cut to it
 func _shot_blast_begin() -> Dictionary:
-	if _shot_keys().is_empty():
+	if _shot_shots().is_empty():
 		return {}
 	var was := shot_through
 	if not was:

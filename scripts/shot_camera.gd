@@ -1,6 +1,7 @@
 ## shot_camera.gd - THE SHOT CAMERA (docs/GAP_ANALYSIS.md row 21; numbers and sources: docs/research/SHOT_CAMERA.md).
 ##
-## A scene may hold ONE keyed camera: Scene.camera = [{"t": s, "pos": Vector3, "aim": Vector3, "f": mm}, ...] sorted by t.
+## A SHOT holds a keyed camera: its keys = [{"t": s, "pos": Vector3, "aim": Vector3, "f": mm}, ...] sorted by t. The scene holds
+## a list of shots with cut times (Scene.shots, ROADMAP 75, at the end of this file); the shot on at the playhead is the camera.
 ## pos = where the lens is, aim = the point it looks at (Blender's Track To), both in the HERO's world space (metres,
 ## y up, +z his front); f = focal length in mm on a 36 mm wide sensor (Blender's default, sensor fit to the width of a
 ## 16:9 frame). No roll: the camera's up is the world's up.
@@ -12,7 +13,7 @@
 ## multiple of 18 px, so both sides are even) inside the free part of the view. The viewport's own camera is set so the
 ## shot camera's view lands exactly in that rectangle: a perspective frustum whose height at the near plane covers the
 ## whole viewport at the frame's scale, shifted so the axis goes through the frame's centre (Camera3D FRUSTUM mode).
-## In the FILE: "camera": [{"t", "pos": [x, y, z], "aim": [x, y, z], "f"}], written only when there is one.
+## In the FILE: "camera": [{"t", "pos": [x, y, z], "aim": [x, y, z], "f"}] for one shot; "shots" for more (see SHOTS below).
 class_name ShotCam
 extends RefCounted
 
@@ -156,3 +157,66 @@ static func from_file(d: Variant) -> Array:
 static func mirror_file(d: Array) -> Array:
 	return d.map(func(k): return {"t": k["t"], "pos": [-float(k["pos"][0]), k["pos"][1], k["pos"][2]],
 		"aim": [-float(k["aim"][0]), k["aim"][1], k["aim"][2]], "f": k["f"]})
+
+
+# ---------------------------------------------------------------- SHOTS (ROADMAP 75)
+## A scene holds a LIST of shots, sorted by their cut time: [{"t": s, "name": String, "keys": [camera keys]}]. Shot i is on
+## from its cut t until the next cut, and its camera is its keys (sample above). shots[0].t is always 0: the first shot
+## starts the scene. A shot's keys are the old camera track, so a shot can still move its camera between keys.
+## FILE: a scene with exactly one shot (cut 0, named SHOT_NAME % 1) is written as the old "camera" array, so an old file
+## loads and saves byte-identical; any other list is written as "shots": [{"t", "name", "camera": [keys]}].
+const SHOT_NAME := "Shot %d"
+
+
+## the index of the shot on at time t (the last cut at or before t; a cut within a millionth of a second counts); -1 = none
+static func shot_index(shots: Array, t: float) -> int:
+	if shots.is_empty():
+		return -1
+	var idx := 0
+	for i in shots.size():
+		if float(shots[i]["t"]) <= t + SAME_T * 1e-3:
+			idx = i
+	return idx
+
+
+## the index where a shot cut at t goes (the shots stay sorted by cut time)
+static func insert_index(shots: Array, t: float) -> int:
+	var n := 0
+	for s in shots:
+		if float(s["t"]) < t:
+			n += 1
+	return n
+
+
+## an old one-camera scene: the one shot, cut at 0, with the default name
+static func is_legacy(shots: Array) -> bool:
+	return shots.size() == 1 and float(shots[0]["t"]) == 0.0 and String(shots[0]["name"]) == SHOT_NAME % 1
+
+
+## the shots as the file keeps them (the keys in the same form as to_file)
+static func shots_to_file(shots: Array) -> Array:
+	return shots.map(func(s): return {"t": snappedf(float(s["t"]), 0.0001), "name": String(s["name"]), "camera": to_file(s["keys"])})
+
+
+static func shots_from_file(d: Dictionary) -> Array:
+	var out := []
+	if d.has("shots") and d["shots"] is Array:
+		for s in d["shots"]:
+			if not s is Dictionary:
+				continue
+			var keys := from_file(s.get("camera", []))
+			if keys.is_empty():
+				continue
+			out.append({"t": maxf(0.0, float(s.get("t", 0.0))), "name": String(s.get("name", "")), "keys": keys})
+	elif d.has("camera"):   # the old one-camera file: one shot
+		var keys := from_file(d["camera"])
+		if not keys.is_empty():
+			out.append({"t": 0.0, "name": SHOT_NAME % 1, "keys": keys})
+	out.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
+	if not out.is_empty():
+		out[0]["t"] = 0.0
+	return out
+
+
+static func mirror_shots_file(d: Array) -> Array:
+	return d.map(func(s): return {"t": s["t"], "name": s["name"], "camera": mirror_file(s["camera"])})
