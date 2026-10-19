@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 4 / 20 (units; copy pose; templates; drag any part; ). Full run 3 (2026-10-19): 195/216 run (a stray EXTRA=" cut 13 suites; repaired in 3793066), re-run of 34 failed or skipped: 19 load, 15 real, all fixed in b8d3f1e.
+Merged since the last full run: 6 / 20 (theme and ui scale; export dialog; units; copy pose; templates; drag any part; ). Full run 3 (2026-10-19): 195/216 run (a stray EXTRA=" cut 13 suites; repaired in 3793066), re-run of 34 failed or skipped: 19 load, 15 real, all fixed in b8d3f1e.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -130,8 +130,8 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 54. [x] One-click mirror of the whole animation
 55. [x] Simple ease slider per card (no graph editor needed)
 56. [x] Clear units everywhere (cm, deg, s, frames)
-57. [ ] Export dialog that says what each engine needs
-58. [ ] Dark / light theme and UI scale for laptops
+57. [x] Export dialog that says what each engine needs
+58. [x] Dark / light theme and UI scale for laptops
 59. [ ] Recent files and autosave restore list
 60. [ ] Gentle errors: never a crash dialog, always a next step
 
