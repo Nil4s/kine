@@ -446,6 +446,24 @@
       }
      }
     },
+    "drivers": {
+     "type": "array",
+     "description": "USER DRIVERS (GAP_ANALYSIS row 15; scripts/drivers.gd): driven = source * factor + offset, per axis (0 bend, 1 side, 2 twist), in degrees; played after the cards, layers and breathing, before IK and constraints. from = the source counts only above it (max(source - from, 0)). Written only when there is one, in list order.",
+     "items": {
+      "type": "object",
+      "required": ["driven", "axis", "source", "src_axis", "factor"],
+      "properties": {
+       "driven": {"type": "string", "enum": ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r", "thumb_01_l", "thumb_02_l", "thumb_03_l", "index_01_l", "index_02_l", "index_03_l", "middle_01_l", "middle_02_l", "middle_03_l", "ring_01_l", "ring_02_l", "ring_03_l", "pinky_01_l", "pinky_02_l", "pinky_03_l", "thumb_01_r", "thumb_02_r", "thumb_03_r", "index_01_r", "index_02_r", "index_03_r", "middle_01_r", "middle_02_r", "middle_03_r", "ring_01_r", "ring_02_r", "ring_03_r", "pinky_01_r", "pinky_02_r", "pinky_03_r"]},
+       "axis": {"type": "integer", "minimum": 0, "maximum": 2},
+       "source": {"type": "string", "enum": ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r", "thumb_01_l", "thumb_02_l", "thumb_03_l", "index_01_l", "index_02_l", "index_03_l", "middle_01_l", "middle_02_l", "middle_03_l", "ring_01_l", "ring_02_l", "ring_03_l", "pinky_01_l", "pinky_02_l", "pinky_03_l", "thumb_01_r", "thumb_02_r", "thumb_03_r", "index_01_r", "index_02_r", "index_03_r", "middle_01_r", "middle_02_r", "middle_03_r", "ring_01_r", "ring_02_r", "ring_03_r", "pinky_01_r", "pinky_02_r", "pinky_03_r"]},
+       "src_axis": {"type": "integer", "minimum": 0, "maximum": 2},
+       "factor": {"type": "number"},
+       "offset": {"type": "number"},
+       "from": {"type": "number"}
+      },
+      "additionalProperties": false
+     }
+    },
     "constraints": {
      "type": "array",
      "description": "USER CONSTRAINTS (round 51, CN; scripts/constraints.gd): a stack played in order after IK; written only when there is one. type child_of: owner (a hand, a foot or the pelvis) follows target x offset (the owner in the target's frame, stored when made); track_to: the head aims at the target within the neck's limits; floor: a foot never below height (m). w = influence 0..1, wk = keyed influence [[t, w], ...] (linear between, times w), mute = off.",
