@@ -62,7 +62,7 @@ not none:
 
 Inside the span the modifier changes nothing. `add_mod` puts Cycles first and refuses a second one, following
 Blender's rule. Not implemented: Blender's cycle-aware automatic handles at the wrap (our auto handles see only the
-keys), and the restricted frame range.
+keys).
 
 Manual, Noise: "Replace: adds noise in the range [-0.5, 0.5]. Scale: the horizontal scale ... Strength: the vertical
 scale. Offset: offsets the noise in time. Phase: adjusts the random seed. Depth: how detailed the noise function is."
@@ -75,3 +75,20 @@ Kine (DD2's noise plus offset and depth), per angle c:
 - With no `offset` and depth 0, the expression is DD2's own, so older files play bit for bit as before.
 - Influence ("mix") is DD2's: `keys + (modified - keys) * mix`.
 - Limits (DD2) and Stepped (DD2) are unchanged.
+
+## Restrict Frame Range (GE5), any modifier
+Manual, Restrict Frame Range: the modifier applies only inside a frame range, with Blend In / Out "to fade the influence
+in and out" over a number of frames from the range's start and end.
+
+Kine: optional fields on a modifier, `range_start` and `range_end` (seconds; both present = a range, end clamped to at
+least the start) and `blend_in` / `blend_out` (seconds, written only when above 0). With w(t) = 0 outside the range,
+ramping linearly 0 -> 1 over blend_in from the start and 1 -> 0 over blend_out before the end (where the two ramps meet
+the smaller one holds: our choice), the modifier's influence is `mix * w(t)`. A modifier with no range has w = 1 and
+keeps its old expression, so old scenes play bit for bit. The curve drawn is value_at, so the ramp shows on it; the plot
+is shaded outside the range and the start and end are marked. The Mods menu sets it on the picked part's last modifier
+(start / end at the playhead, 0.25 s blends, clear). Not done: a per-modifier numeric panel, and Blender's own rule for
+blends longer than the range (ours is the minimum of the two ramps).
+
+Shape (GE5): with Channels on, the Shape menu (KeyBlend's tools) acts on the selected dots of every channel, each part's
+dots as its own keys, one undo step. The interpolation and handle-type commands (palette: "Part key: ... interpolation /
+handle") still act on the one key at the playhead.

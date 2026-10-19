@@ -609,7 +609,11 @@
            "before_n": {"type": "integer", "minimum": 0, "description": "cycles (GE4): copies before, 0 = for ever"},
            "after_n": {"type": "integer", "minimum": 0, "description": "cycles (GE4): copies after, 0 = for ever"},
            "min": {"type": "number", "description": "limits: degrees"},
-           "max": {"type": "number", "description": "limits: degrees"}
+           "max": {"type": "number", "description": "limits: degrees"},
+           "range_start": {"type": "number", "minimum": 0, "description": "GE5: Restrict Frame Range, seconds; with range_end, the only times the modifier applies. Absent = everywhere"},
+           "range_end": {"type": "number", "minimum": 0, "description": "GE5: Restrict Frame Range, seconds (clamped to >= range_start)"},
+           "blend_in": {"type": "number", "minimum": 0, "description": "GE5: seconds over which the influence ramps up from range_start (written only when > 0)"},
+           "blend_out": {"type": "number", "minimum": 0, "description": "GE5: seconds over which the influence ramps down to range_end (written only when > 0)"}
           },
           "additionalProperties": false
          }
