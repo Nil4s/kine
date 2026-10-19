@@ -373,10 +373,53 @@ static func is_wep(part: String) -> bool:
 	return part in WEAPON or part in WEAPON2
 
 
+const PALM_DROP := Vector3(0, -0.03, 0)   # the palm's centre, in the hand's frame (m, default body)
+
+## HAND SCALE (round 52, PROPORTIONS follow-up): every hand-LOCAL offset (the knob's place in the hand, the second
+## wrist's place on the shaft, the palm point) is stored in default-body metres and multiplied by the hand's segment
+## scale where it is used, so a small hand holds the shaft as a small hand does. 1.0 on a default body (bit for bit).
+func hand_s(h: String) -> float:
+	return float(seg_s.get(h, 1.0))
+
+
+## the hand's palm centre in the hand's frame, default-hand metres (the rest vector to 60 % of the hand, plus the drop)
+func _palm_canon(h: String) -> Vector3:
+	return 0.6 * ((e0[h] - p0[h]) as Vector3) / hand_s(h) + PALM_DROP
+
+
+## the knob's place in the hand's frame (m from the wrist) from the stored lpos and the bat's turn lrot. The place scales with
+## the hand (s * lpos), but the palm's standoff from the bat's axis does not: a palm is soft tissue, not a length, so a
+## small hand would float (1 - s) x its standoff off the bat (5 mm, round 52). The correction moves the knob across the
+## bat's axis only, so the palm sits at the same distance from it as on the default hand. 1.0 = lpos itself, exactly.
+func knob_in_hand(lpos: Vector3, lrot: Quaternion, h: String) -> Vector3:
+	var s := hand_s(h)
+	if s == 1.0:
+		return lpos
+	var a := lrot * Vector3.UP
+	var w := _palm_canon(h) - lpos
+	return lpos * s + (s - 1.0) * (w - a * w.dot(a))
+
+
+## the inverse of knob_in_hand: the stored lpos for a knob at k (hand frame, m from the wrist) with the bat's turn lrot
+func lpos_from_knob(k: Vector3, lrot: Quaternion, h: String) -> Vector3:
+	var s := hand_s(h)
+	if s == 1.0:
+		return k
+	var a := lrot * Vector3.UP
+	var pc := _palm_canon(h)
+	var kpar := a * k.dot(a)
+	return kpar / s + (k - kpar) - (s - 1.0) * (pc - a * pc.dot(a))
+
+
+## the palm's centre in the world: the hand's middle (P -> E at 60 %) and 3 cm down the hand's own y, scaled by the hand
+func palm_point(h: String) -> Vector3:
+	return (P[h] as Vector3).lerp(E[h], 0.6) + (G[h] as Quaternion) * (PALM_DROP * hand_s(h))
+
+
 ## the off-hand weapon's butt position and rotation now
 func wep2_xform() -> Array:
 	var g: Quaternion = G[wep2_hand]
-	return [(P[wep2_hand] as Vector3) + g * wep2_lpos, g * wep2_lrot]
+	return [(P[wep2_hand] as Vector3) + g * knob_in_hand(wep2_lpos, wep2_lrot, wep2_hand), g * wep2_lrot]
 
 
 func wep2_point(d: float) -> Vector3:
@@ -458,7 +501,7 @@ func put_wep2(w: Dictionary) -> void:
 func wep_xform() -> Array:
 	if wep_hand != "":
 		var g: Quaternion = G[wep_hand]
-		return [(P[wep_hand] as Vector3) + g * wep_lpos, g * wep_lrot]
+		return [(P[wep_hand] as Vector3) + g * knob_in_hand(wep_lpos, wep_lrot, wep_hand), g * wep_lrot]
 	return [wep_pos, wep_rot]
 
 
@@ -470,7 +513,7 @@ func lock_weapon(h: String) -> void:
 	wep_rot = x[1]
 	var g: Quaternion = G[h]
 	wep_lrot = g.inverse() * wep_rot
-	wep_lpos = g.inverse() * (wep_pos - (P[h] as Vector3))
+	wep_lpos = lpos_from_knob(g.inverse() * (wep_pos - (P[h] as Vector3)), wep_lrot, h)
 	wep_hand = h
 
 
@@ -539,7 +582,7 @@ func _weapon_to_hand_rough(h: String) -> void:
 	wep_on = true
 	wep_hand = ""
 	var g: Quaternion = G[h]
-	var palm: Vector3 = (P[h] as Vector3).lerp(E[h], 0.6) + g * Vector3(0, -0.03, 0)
+	var palm: Vector3 = palm_point(h)
 	var axis: Vector3 = (g * Vector3(0, 0, 1)).normalized()
 	wep_rot = Quaternion(Vector3.UP, axis)
 	wep_pos = palm - axis * 0.06
@@ -599,7 +642,7 @@ func set_kind(kind: String) -> void:
 func slide_in_hand(d: float) -> void:
 	if wep_hand == "":
 		return
-	wep_lpos += wep_lrot * Vector3(0, -d, 0)
+	wep_lpos += wep_lrot * Vector3(0, -d, 0) / hand_s(wep_hand)
 	grip_u = clampf(grip_u + d, 0.0, wep_len)
 
 
@@ -670,7 +713,7 @@ func apply_grip() -> float:
 func _fit_second(h: String) -> float:
 	var x := wep_xform()
 	var q: Quaternion = x[1]
-	var lp := _v(grip2["lpos"]) + Vector3(0, grip_u, 0)
+	var lp := _v(grip2["lpos"]) * hand_s(h) + Vector3(0, grip_u, 0)
 	var target: Vector3 = (x[0] as Vector3) + q * lp
 	var lr: Array = grip2["lrot"]
 	var want: Quaternion = (q * Quaternion(lr[0], lr[1], lr[2], lr[3])).normalized()
@@ -693,7 +736,7 @@ func capture_second() -> float:
 	var x := wep_xform()
 	var q: Quaternion = x[1]
 	var k: Vector3 = x[0]
-	var palm: Vector3 = (P[o] as Vector3).lerp(E[o], 0.6) + (G[o] as Quaternion) * Vector3(0, -0.03, 0)
+	var palm: Vector3 = palm_point(o)
 	var pl := q.inverse() * (palm - k)
 	var off := Vector2(pl.x, pl.z).length()
 	if off > 0.05 or pl.y < 0.0 or pl.y > wep_len:
@@ -704,7 +747,7 @@ func capture_second() -> float:
 		if j.ends_with(o.right(2)):
 			var v: Vector3 = ang[j]
 			fing[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
-	grip2 = {"hand": o, "u": snappedf(pl.y, 0.001), "lpos": _p(wl - Vector3(0, pl.y, 0)),
+	grip2 = {"hand": o, "u": snappedf(pl.y, 0.001), "lpos": _p((wl - Vector3(0, pl.y, 0)) / hand_s(o)),
 		"lrot": _q((q.inverse() * (G[o] as Quaternion)).normalized()), "fingers": fing}
 	grip = true
 	grip_u = pl.y
@@ -735,7 +778,7 @@ func slide_hand(d: float) -> bool:
 	# the weapon where it was: its place in the hand from the hand's new spot
 	var g: Quaternion = G[h]
 	wep_lrot = (g.inverse() * q).normalized()
-	wep_lpos = g.inverse() * (knob - (P[h] as Vector3))
+	wep_lpos = lpos_from_knob(g.inverse() * (knob - (P[h] as Vector3)), wep_lrot, h)
 	apply_grip()
 	return true
 

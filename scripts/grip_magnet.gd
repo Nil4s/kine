@@ -45,7 +45,7 @@ static func template(B: Body, h: String) -> Array:
 	# already in the weapon's frame
 	var sec: Dictionary = g.get("second", {})
 	if not sec.is_empty() and String(sec.get("hand", "")) == h:
-		var w2 := Body._v(sec["lpos"])
+		var w2 := Body._v(sec["lpos"]) * B.hand_s(h)   # the file's offset is default-hand metres (round 52)
 		w2.y = 0.0
 		var r2: Array = sec["lrot"]
 		return [w2, Quaternion(r2[0], r2[1], r2[2], r2[3]).normalized()]
@@ -56,7 +56,8 @@ static func template(B: Body, h: String) -> Array:
 		lp.x = -lp.x
 		q = Quaternion(q.x, -q.y, -q.z, q.w)
 	var t := q.inverse()   # the hand's turn in the weapon's frame
-	var w := -(t * lp)
+	var kh := B.knob_in_hand(lp, q, h)   # the file's knob in default-hand metres, this hand's size and palm here (round 52)
+	var w := -(t * kh)
 	w.y = 0.0   # the file's own place along the shaft (the staff's 0.30 m) is not the template's: u says where
 	return [w, t]
 
@@ -171,7 +172,7 @@ static func drag(B: Body, h: String, target: Vector3, quick := false) -> String:
 	var x := B.wep_xform()
 	var q: Quaternion = x[1]
 	var wl: Vector3 = q.inverse() * ((B.P[h] as Vector3) - (x[0] as Vector3))
-	B.grip2 = {"hand": h, "u": snappedf(u, 0.001), "lpos": Body._p(wl - Vector3(0, u, 0)),
+	B.grip2 = {"hand": h, "u": snappedf(u, 0.001), "lpos": Body._p((wl - Vector3(0, u, 0)) / B.hand_s(h)),
 		"lrot": Body._q((q.inverse() * (B.G[h] as Quaternion)).normalized()), "fingers": fing}
 	B.grip = true
 	B.grip_u = u
@@ -180,8 +181,7 @@ static func drag(B: Body, h: String, target: Vector3, quick := false) -> String:
 
 ## the palm's distance from the shaft's surface (m; the palm as capture_second places it)
 static func palm_off(B: Body, h: String) -> float:
-	var palm: Vector3 = (B.P[h] as Vector3).lerp(B.E[h], 0.6) + (B.G[h] as Quaternion) * Vector3(0, -0.03, 0)
-	return float(shaft_coords(B, palm)[1]) - B.wep_r_handle
+	return float(shaft_coords(B, B.palm_point(h))[1]) - B.wep_r_handle
 
 
 ## where the holding hand is along the shaft (m from the knob)
