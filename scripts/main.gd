@@ -6176,6 +6176,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25 deg"
 ## on it. The words: its tooltip; else the registry command it is (same name, its shortcut in "(X)", or a name that
 ## starts with it). Leaving puts the normal bar back (bar_text reads _hover_hint first)
 var _hover_hint := ""
+var tips: TipVideo
 
 
 ## THE SCENE IN THE STRIP (round 36, RR1): its name, its clips and length; the dot while it has unsaved changes
@@ -7162,6 +7163,10 @@ func _ui() -> void:
 	ui_cmd.commands = _commands()
 	ui_cmd.pose_by_words = _pose_words
 	_hover_hints()
+	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
+	tips.name = "tips"
+	add_child(tips)
+	tips.attach_all(self, ui_root)
 	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n)
 	ui_help = PanelContainer.new()
 	ui_help.name = "help_panel"

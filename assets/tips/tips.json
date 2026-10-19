@@ -1,0 +1,136 @@
+{
+	"clips": {
+		"balance": {
+			"buttons": [
+				"Balance (Shift+B)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "balance.png",
+			"view": "view"
+		},
+		"critique": {
+			"buttons": [
+				"Check"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "critique.png",
+			"view": "bottom"
+		},
+		"export": {
+			"buttons": [
+				"Export .glb",
+				"Export .bvh"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "export.png",
+			"view": "view"
+		},
+		"foot_plant": {
+			"buttons": [],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "foot_plant.png",
+			"view": "bottom"
+		},
+		"ik_drag": {
+			"buttons": [],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "ik_drag.png",
+			"view": "view"
+		},
+		"key": {
+			"buttons": [
+				"CLIP this pose (Enter)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "key.png",
+			"view": "bottom"
+		},
+		"mirror": {
+			"buttons": [
+				"Mirror pose (Shift+M)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "mirror.png",
+			"view": "view"
+		},
+		"onion": {
+			"buttons": [
+				"Onion (O)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "onion.png",
+			"view": "view"
+		},
+		"pick": {
+			"buttons": [
+				"Lock this part"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "pick.png",
+			"view": "view"
+		},
+		"playback": {
+			"buttons": [
+				"Play (Space)",
+				"Stop (Space)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"names": [
+				"b_play"
+			],
+			"sheet": "playback.png",
+			"view": "bottom"
+		},
+		"retime": {
+			"buttons": [],
+			"cols": 6,
+			"frames": 30,
+			"names": [
+				"b_slower"
+			],
+			"sheet": "retime.png",
+			"view": "bottom"
+		},
+		"speed_graph": {
+			"buttons": [
+				"Speed graph (Y)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "speed_graph.png",
+			"view": "view"
+		},
+		"trail": {
+			"buttons": [
+				"Trail (T)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "trail.png",
+			"view": "view"
+		},
+		"undo": {
+			"buttons": [
+				"Undo (Ctrl+Z)"
+			],
+			"cols": 6,
+			"frames": 30,
+			"sheet": "undo.png",
+			"view": "view"
+		}
+	},
+	"fps": 15,
+	"generated_by": "tools/make_tip_clips.gd",
+	"h": 200,
+	"w": 320
+}
