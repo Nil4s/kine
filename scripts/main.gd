@@ -6175,7 +6175,7 @@ func _panel_bat() -> void:
 	ui_how.text = ("LOCKED: the sliders shift the %s inside the hand.  Dragging the %s moves the hand.  'Free it' to move it alone." % [w, w] if locked
 		else "FREE: drag = move it,  Shift+drag = turn it,  Alt+drag = spin it.  When it sits right in the fingers: 'Lock bat to hand' (any weapon).")
 	var q: Quaternion = B.wep_lrot if locked else B.wep_rot
-	var pos: Vector3 = B.wep_lpos if locked else B.wep_pos
+	var pos: Vector3 = B.knob_in_hand(B.wep_lpos, B.wep_lrot, B.wep_hand) if locked else B.wep_pos   # the sliders read metres in this hand
 	var e: Vector3 = Basis(q).get_euler() * (180.0 / PI)
 	var words := {"bend": "TILT forward / back", "side": "TURN left / right", "twist": "TILT sideways"}
 	var vals := {"bend": e.x, "side": e.y, "twist": e.z}
@@ -6241,7 +6241,7 @@ func _bat_from_sliders() -> void:
 	var pos := Vector3(ui_hips[0][0].value, ui_hips[1][0].value, ui_hips[2][0].value)
 	if B.wep_hand != "":
 		B.wep_lrot = q
-		B.wep_lpos = pos
+		B.wep_lpos = B.lpos_from_knob(pos, B.wep_lrot, B.wep_hand)   # stored in default-hand metres (round 52)
 	else:
 		B.wep_rot = q
 		B.wep_pos = pos

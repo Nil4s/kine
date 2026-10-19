@@ -15,7 +15,7 @@ func _init() -> void:
 	var x := B.wep_xform()
 	var q: Quaternion = x[1]
 	var k: Vector3 = x[0]
-	var palm: Vector3 = (B.P[o] as Vector3).lerp(B.E[o], 0.6) + (B.G[o] as Quaternion) * Vector3(0, -0.03, 0)
+	var palm: Vector3 = B.palm_point(o)
 	var pl := q.inverse() * (palm - k)
 	var off := Vector2(pl.x, pl.z).length()
 	if off > 0.05:
@@ -33,7 +33,7 @@ func _init() -> void:
 			fing_main[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
 	var d := {"_note": "%s grip fitted from Nick's pose %s (tools/grip_from_pose.gd)" % [B.wep_kind, f], "weapon": B.wep_kind,
 		"hand": h, "local_pos": Body._p(B.wep_lpos), "local_rot": Body._q(B.wep_lrot), "fingers": fing_main, "other_hand_m": -1.0,
-		"second": {"hand": o, "u": snappedf(pl.y, 0.001), "lpos": Body._p(wl - Vector3(0, pl.y, 0)),
+		"second": {"hand": o, "u": snappedf(pl.y, 0.001), "lpos": Body._p((wl - Vector3(0, pl.y, 0)) / B.hand_s(o)),
 			"lrot": Body._q((q.inverse() * (B.G[o] as Quaternion)).normalized()), "fingers": fing}}
 	FileAccess.open("res://data/grips/%s.json" % B.wep_kind, FileAccess.WRITE).store_string(JSON.stringify(d, " "))
 	print("GRIP %s: main %s, second %s at %.2f m (palm %.1f cm off the axis), main hand at %.2f m" % [B.wep_kind, h, o, pl.y, off * 100.0,
