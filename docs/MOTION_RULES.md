@@ -64,6 +64,9 @@ Measured on real scenes (`tests/fix_test.gd`): combo3's head fix eases card 10 9
 15), and the tip drops 44.7 -> 31.0 m/s with it. The same fix on the polished combo3 is REFUSED (it would create a
 SEQUENCE FAIL and move the lurch to card 26): the 30-card version spreads the lurch over several cards.
 
+## Is this clip physically possible? (scripts/feasible.gd; Check, with "Check: could a human do this?" on)
+One verdict per clip: PASS / FIX (the frames and the reason) / IMPOSSIBLE. Balance: the whole-clip filter of KungfuBot ([Xie et al. 2025, Eq. 1 and Table 3](https://arxiv.org/abs/2506.12851)): first and last frame stable, no run of 100 unstable frames (read as 30 fps, 3.3 s; the paper prints no units), stable = centre of mass within 0.1 (read as metres) of the centre of pressure; here the CoP is the nearest point of the support polygon, so the filter is lenient. In the air (no foot or hand down) the COM must follow free fall, g = 9.81, within 8 cm (MINE). Foot slide: 25 mm per contact ([Karunratanakul et al. 2023](https://arxiv.org/pdf/2310.08580)). Self-penetration: 20 mm (MINE). TIPPING no longer fires under 2 cm past the feet (the support polygon's resolution, Balance.MARGIN_RES).
+
 ## Not graded yet
 Walk cadence (normal adults ~80-135 steps/min) has no walk scene with steps to read. Recorded numbers for kicks,
 throws and falls are not in yet.
