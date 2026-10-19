@@ -94,7 +94,7 @@ func _notification(what: int) -> void:
 func _place() -> void:
 	_multi_btn.reset_size()
 	_keys_menu.reset_size()
-	_multi_btn.position = Vector2(_view_btn.position.x + _view_btn.size.x + 8, 1)
+	_multi_btn.position = Vector2(_break.position.x + _break.size.x + 8, 1)   # ROADMAP 65: after Unify / Break
 	_keys_menu.position = Vector2(_multi_btn.position.x + _multi_btn.size.x + 8, 1)
 
 
