@@ -2715,6 +2715,7 @@ func _snapshot() -> Dictionary:
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
+		"beats": H.beats.duplicate(true),   # ROADMAP 13: the exchange's beats (the hero's), undone like a card
 		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
 		"clips": S.clips.duplicate(true),   # CLIPS (clips.gd), undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
@@ -2740,6 +2741,10 @@ func _restore(u: Dictionary) -> void:
 		S.markers = u["markers"].duplicate(true)   # WW5: the markers, undone like a card
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
+	if u.has("beats") and u.get("hero") == _hero_scene() and var_to_str(u["beats"]) != var_to_str(_hero_scene().beats):
+		_hero_scene().beats = u["beats"].duplicate(true)   # ROADMAP 13: the beats, undone like a card
+		if ui_choreo != null and is_instance_valid(ui_choreo.win):
+			ui_choreo.refresh()
 	if u["scene"] == S and u.has("props") and JSON.stringify(u["props"]) != JSON.stringify(S.props.map(func(p): return Props.to_dict(p))):
 		S.props = u["props"].map(func(q): return Props.from_dict(q))   # the set, undone like a card (SS5)
 		if sel_prop >= S.props.size():
@@ -7048,6 +7053,7 @@ func _commands() -> Array:
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
+	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
 	add.call("Cycle card key type", "", _ktype_cycle, "breakdown moving hold extreme key blender mark", true, "the picked card becomes the next kind of key: key, breakdown, moving hold, extreme (drawn on the dope sheet)")
 	add.call("Next marker", "Ctrl+]", _marker_jump.bind(true), "cue event flag jump", false, "the playhead jumps to the next marker")
@@ -7159,6 +7165,62 @@ func _commands() -> Array:
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
 	return Hotkeys.apply(c, hk.over)   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
+
+
+## EXCHANGE VIEW (ROADMAP 13; scripts/choreo.gd, scripts/choreo_view.gd): one row per fighter, the beats, the reach and
+## guard report. Its own Window; every edit here is one undo step (the beats with the hero, a shift with its fighter)
+var ui_choreo = null   # ChoreoView while its window is open
+
+
+func _choreo_open() -> void:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		_say("the exchange view needs two fighters: Actor: add a second fighter first")
+		return
+	if ui_choreo != null and is_instance_valid(ui_choreo.win):
+		ui_choreo.win.grab_focus()
+		return
+	ui_choreo = ChoreoView.open(self)
+
+
+## a fighter's whole timeline moved by dt seconds (Choreo.shift). Its scene is made the active one first, so the undo
+## step holds its cards. False (nothing done, no undo step) when the shift is not possible
+func _choreo_shift(k: int, dt: float) -> bool:
+	_actors_sync()
+	if k < 0 or k >= actors_rt.size() or absf(dt) < 0.001:
+		return false
+	var probe: Scene = (actors_rt[k]["S"] as Scene).clone()
+	if Choreo.shift(probe, dt) == 0.0:
+		return false
+	_actor_go(k)
+	_push_undo()
+	Choreo.shift(S, dt)
+	_rebuild_cards()
+	_dummy_hits()
+	_refresh()
+	return true
+
+
+## the hero's beats: add one at t (who strikes whom), or delete the one at index i. One undo step each
+func _choreo_beat_add(t: float, by: int, on: int, name: String) -> void:
+	_push_undo()
+	Choreo.add(_hero_scene().beats, t, by, on, name)
+	_choreo_changed()
+
+
+func _choreo_beat_del(i: int) -> void:
+	var bs: Array = _hero_scene().beats
+	if i < 0 or i >= bs.size():
+		return
+	_push_undo()
+	bs.remove_at(i)
+	_choreo_changed()
+
+
+func _choreo_changed() -> void:
+	if ui_choreo != null and is_instance_valid(ui_choreo.win):
+		ui_choreo.refresh()
+	_refresh()
 
 
 ## MARKERS (round 41, GATES WW5, UPGRADES_300 #261): named moments on the timeline (Markers). Add / Delete at the playhead are
