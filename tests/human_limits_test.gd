@@ -4,6 +4,8 @@
 ## 2. the shipped walk (scenes/walk_bat.json, read only) must flag nothing from these three rules;
 ## 3. the tipping bar on hand-built series: 30 cm past the feet for 1 s flags, for 0.1 s does not, and a hand on
 ##    something stands it down. (Series, not a real body: the body lean is already covered by balance_test.)
+## 4. Nick's real bat swing (scenes/combo3.json, read only): its joint speeds against the in-sport bars, printed as margins;
+##    passes when no joint-speed FAIL (a WARN is a peak over the in-sport peak, not an impossible frame).
 extends SceneTree
 
 var fails := 0
@@ -30,11 +32,12 @@ func _init() -> void:
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	B.fk()
 
-	# the limits as printed (the numbers the findings quote)
-	var kn := HumanLimits.knee_limit(75.0)
-	var sh := HumanLimits.shoulder_limit(75.0)
-	ok(absf(kn - 184.7) < 1e-6 and absf(sh - 52.5) < 1e-6,
-		"0 bars at 75 kg: knee %.1f Nm (mean 184.7), shoulder %.1f Nm (0.70 Nm/kg x 75)" % [kn, sh])
+	# the bars as printed (the numbers the findings quote)
+	var sb := HumanLimits.shoulder_bars(75.0)
+	ok(absf(float(sb[0]) - 67.0) < 1e-6 and absf(float(sb[1]) - 67.0 * HumanLimits.FAIL_K) < 1e-6,
+		"0 torque bar at 75 kg: shoulder %.1f Nm (in-sport peak 67), FAIL %.1f" % [sb[0], sb[1]])
+	ok(absf(HumanLimits.bars("shoulder")[0] - 6520.0) < 1e-6 and absf(HumanLimits.bars("trunk")[0] - 1120.0) < 1e-6,
+		"0 speed bars: shoulder 6520, trunk 1120 deg/s (in-sport peaks); FAIL = %.3f x" % HumanLimits.FAIL_K)
 
 	# 1. the swing
 	var S := Scene.new()
@@ -51,8 +54,8 @@ func _init() -> void:
 		peak_sp = maxf(peak_sp, float(v))
 	for v in tq:
 		peak_tq = maxf(peak_tq, float(v))
-	print("     swing: shoulder_r peak turn %.0f deg/s (bar 4766 / FAIL 6310), peak moment %.0f Nm (bar %.1f / FAIL %.1f)" % [
-		peak_sp, peak_tq, sh, sh * HumanLimits.SHOULDER_NM_KG[1] / HumanLimits.SHOULDER_NM_KG[0]])
+	print("     swing: shoulder_r peak turn %.0f deg/s (bar %.0f / FAIL %.0f), peak moment %.0f Nm (bar %.1f / FAIL %.1f)" % [
+		peak_sp, HumanLimits.bars("shoulder")[0], HumanLimits.bars("shoulder")[1], peak_tq, sb[0], sb[1]])
 	var fs := HumanLimits.findings(S, B, sm, true)
 	var sp_f := fs.filter(func(f): return f["rule"] == "JOINT SPEED" and "shoulder r" in f["msg"])
 	var tq_f := fs.filter(func(f): return f["rule"] == "JOINT TORQUE" and "shoulder r" in f["msg"])
@@ -94,6 +97,25 @@ func _init() -> void:
 	ok(tip_h.is_empty(), "6 the 1 s lean with a hand on something: not flagged")
 	var tip_nd := HumanLimits.rule_tipping({"t": t, "margin": m1, "h": h, "down": dn.map(func(_x): return false), "sup": sup})
 	ok(tip_nd.is_empty(), "7 the 1 s lean with no foot down (a jump): not graded here")
+
+	# 4. Nick's bat swing: the speed bars against the real swing (margins printed, read only)
+	var C := Scene.new()
+	C.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/combo3.json")))
+	var cm := HumanLimits.sample(C, B)
+	var cf := HumanLimits.findings(C, B, cm)
+	for j in cm["speed"]:
+		var kind: String = String(j).split("_")[0]
+		var pk := 0.0
+		for v in cm["speed"][j]:
+			pk = maxf(pk, float(v))
+		var bar: Array = HumanLimits.bars(kind)
+		print("     combo3 %-11s peak %6.0f deg/s  WARN %5.0f (margin %+5.1f%%)  FAIL %5.0f" % [
+			j, pk, bar[0], (pk / float(bar[0]) - 1.0) * 100.0, bar[1]])
+	var cspeed := cf.filter(func(f): return f["rule"] == "JOINT SPEED")
+	var cfail := cspeed.filter(func(f): return f["sev"] == "FAIL")
+	for f in cspeed:
+		print("     combo3 finding: %s t=%.2f %s" % [f["sev"], f["t"], f["msg"]])
+	ok(cfail.is_empty(), "8 combo3 bat swing (read only): no joint-speed FAIL with the in-sport bars (%d WARN, %d FAIL)" % [cspeed.size() - cfail.size(), cfail.size()])
 
 	print("HUMAN LIMITS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(1 if fails > 0 else 0)
