@@ -2778,6 +2778,7 @@ func _refresh() -> void:
 	_sph_draw()   # ROADMAP 61: the back's spline curve and its three handles
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
+	_rp_draw()   # ROADMAP 91: the root path on the floor and its handles (View toggle)
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
@@ -2948,6 +2949,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
 				if hitbox_ui != null and hitbox_ui.press(mb.position):   # ROADMAP 36: a box's handle, or a box picked in the view, takes the press
 					return
+				if _rp_press(mb.position):   # ROADMAP 91: a root handle or a facing arrow of the root path takes the press
+					return
 				if _frh_press(mb.position):   # ROADMAP 6: a foot's roll handle takes the press
 					return
 				if _sph_press(mb.position):   # ROADMAP 61: a spine spline handle takes the press
@@ -3024,6 +3027,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_loa_release(mb.shift_pressed)
 			if was == "foot_handle":
 				_frh_release()
+			if was == "root_path":
+				_rp_release()   # ROADMAP 91: one undo step per drag
 			if was == "box_handle" and hitbox_ui != null:
 				hitbox_ui.release()   # ROADMAP 36: one undo step for a moved box handle
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
@@ -3066,6 +3071,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "foot_handle":
 			_frh_move(mm.position)
+			return
+		if dragging == "root_path":
+			_rp_move(mm.position)
 			return
 		if dragging == "box_handle":
 			hitbox_ui.move(mm.position)
@@ -5160,6 +5168,198 @@ func _frh_release() -> void:
 		PartKeys.put(S.part_keys, j, t, B.ang[j])
 	_refresh()
 	_say("keyed the %s foot's roll on its %s at %s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], Units.time(t, S.fps)])
+## ROOT MOTION EDITOR (ROADMAP 91; scripts/root_path.gd). View toggle "Root path on the floor": the played path as a curve on the
+## floor, a yellow handle at each card's root and a red arrow for its facing. A press on a root handle and a drag moves that
+## card's root on the floor; a press on an arrow turns its facing. One undo step per drag (pushed at the press, dropped when the
+## mouse never moved). The planted feet re-solve at play time (Scene._planted), so the card poses are all that is written.
+var root_path_on := false
+var _rp_line: MeshInstance3D
+var _rp_drag := {}          # the drag: {card, kind ("root" | "head"), start (the card's pose at the press), xz0, head0, hit0, moved}
+var _rp_cache := {"poses": [], "len": -1.0, "path": []}   # the played path: rebuilt when a card's pose or the length changes
+var ui_rp_dlg: ConfirmationDialog
+var ui_rp_slider: HSlider
+var ui_rp_val: Label
+
+
+## the root handles of the scene as it stands (one per card)
+func _rp_handles() -> Array:
+	return RootPath.handles(RootPath.roots(S))
+
+
+## the played path, sampled through the scene; cached until a card's pose (by identity) or the length changes
+func _rp_path() -> Array:
+	var ps: Array = _rp_cache["poses"]
+	var same := ps.size() == S.cards.size() and is_equal_approx(float(_rp_cache["len"]), S.length())
+	if same:
+		for i in S.cards.size():
+			if not is_same(ps[i], S.cards[i]["pose"]):
+				same = false
+				break
+	if not same:
+		var poses := []
+		for c in S.cards:
+			poses.append(c["pose"])
+		_rp_cache = {"poses": poses, "len": S.length(), "path": RootPath.played(S)}
+	return _rp_cache["path"]
+
+
+func _rp_draw() -> void:
+	if _rp_line == null:
+		_rp_line = MeshInstance3D.new()
+		_rp_line.name = "root_path"
+		_rp_line.mesh = ImmediateMesh.new()
+		add_child(_rp_line)
+	var im := _rp_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if not root_path_on or clean or S == null or S.cards.is_empty():
+		return
+	var act := {}
+	if not _rp_drag.is_empty():
+		act = {"card": _rp_drag["card"], "kind": _rp_drag["kind"], "warn": _rp_drag.get("warn", false)}
+	RootPath.draw(im, _rp_path(), _rp_handles(), act, cam)
+
+
+func _rp_toggle() -> void:
+	root_path_on = not root_path_on
+	_refresh()
+	if root_path_on:
+		_say("root path on: drag a yellow handle to move a card's root on the floor, a red arrow to turn its facing (one undo step each)")
+	else:
+		_say("root path off")
+
+
+## a press on a root handle (move) or a heading arrow (turn) of the path: one undo step, dropped if the mouse never moves
+func _rp_press(mp: Vector2) -> bool:
+	if not root_path_on or clean or S == null or S.cards.is_empty():
+		return false
+	var h := RootPath.hit(cam, mp, _rp_handles())
+	if h.is_empty():
+		return false
+	var hit0 = RootPath.floor_hit(cam, mp)
+	if hit0 == null:
+		return false
+	var i := int(h["card"])
+	var r := RootPath.root_of(RootPath.work(), S.cards[i]["pose"])
+	_step_hint = "Move card %d's root" % (i + 1) if h["kind"] == "root" else "Turn card %d's facing" % (i + 1)
+	_push_undo()
+	_rp_drag = {"card": i, "kind": h["kind"], "start": S.cards[i]["pose"].duplicate(true), "xz0": r["xz"], "head0": r["heading"], "hit0": hit0, "moved": false}
+	playing = false
+	dragging = "root_path"
+	_refresh()
+	_say("%s: drag the mouse on the floor; release keeps it (Ctrl+Z takes it back)" % _step_hint)
+	return true
+
+
+func _rp_move(mp: Vector2) -> void:
+	if _rp_drag.is_empty():
+		return
+	var p = RootPath.floor_hit(cam, mp)
+	if p == null:
+		return
+	var i := int(_rp_drag["card"])
+	var W := RootPath.work()
+	var xz0: Vector2 = _rp_drag["xz0"]
+	var pose: Dictionary
+	var txt := ""
+	if _rp_drag["kind"] == "root":
+		var h0: Vector3 = _rp_drag["hit0"]
+		var xz := xz0 + Vector2(p.x - h0.x, p.z - h0.z)
+		pose = RootPath.posed(W, _rp_drag["start"], xz, float(_rp_drag["head0"]))
+		txt = "card %d's root moved %.0f cm on the floor" % [i + 1, (xz - xz0).length() * 100.0]
+	else:
+		var bearing := rad_to_deg(atan2(p.x - xz0.x, p.z - xz0.y))
+		pose = RootPath.posed(W, _rp_drag["start"], xz0, bearing)
+		txt = "card %d now faces %.0f deg" % [i + 1, bearing]
+	S.cards[i]["pose"] = pose
+	_rp_drag["moved"] = true
+	# REACH, live: a planted foot that cannot hold its spot is said in the status line, and the handle turns the warning colour
+	var rep := RootPath.reach(S, i)
+	_rp_drag["warn"] = not rep.is_empty()
+	_retimed(false)
+	if rep.is_empty():
+		_say("%s   (release keeps it)" % txt)
+	else:
+		_say(RootPath.reach_message(rep))
+
+
+func _rp_release() -> void:
+	var d := _rp_drag
+	_rp_drag = {}
+	if d.is_empty():
+		return
+	if not d["moved"]:
+		_drop_undo()
+		_refresh()
+		return
+	_retimed()
+	_say("root path: card %d %s   (Ctrl+Z takes it back in one step)" % [int(d["card"]) + 1, "moved" if d["kind"] == "root" else "turned"])
+
+
+## one root-path command as one undo step; n = how many cards it moved (0 = nothing to do, nothing kept)
+func _rp_edit(what: String, fn: Callable, none: String) -> void:
+	if S == null or S.cards.size() < 2:
+		_say("the root path needs two cards or more: make a pose and add it as a card first")
+		return
+	_step_hint = what
+	_push_undo()
+	var n: int = fn.call()
+	if n == 0:
+		_drop_undo()
+		_refresh()
+		_say(none)
+		return
+	_retimed()
+	_say("%s: %d card(s) moved   (Ctrl+Z takes it back in one step)" % [what, n])
+
+
+func _rp_straighten() -> void:
+	_rp_edit("Straighten root path", func(): return RootPath.straighten(S),
+		"the root path is already straight, or its first and last cards stand on one spot: drag a card's yellow handle off the line first")
+
+
+func _rp_scale(k: float) -> void:
+	_rp_edit("Scale root path length to %d %%" % roundi(k * 100.0), func(): return RootPath.scale_length(S, k),
+		"the root path length is as it is: move the slider off 100 % and press OK")
+
+
+## SCALE LENGTH: a slider (25 to 300 %) about the first card's root; the path keeps its headings and its card times
+func _rp_scale_dialog() -> void:
+	if S == null or S.cards.size() < 2:
+		_say("the root path needs two cards or more: make a pose and add it as a card first")
+		return
+	if ui_rp_dlg == null:
+		ui_rp_dlg = ConfirmationDialog.new()
+		ui_rp_dlg.name = "root_path_scale_dialog"
+		ui_rp_dlg.title = "Root path: scale its length"
+		ui_rp_dlg.min_size = Vector2i(420, 0)
+		var box := VBoxContainer.new()
+		var lab := Label.new()
+		lab.text = "Every card's root moves about the first card's root by this factor. The headings and the card times stay."
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD
+		box.add_child(lab)
+		var h := HBoxContainer.new()
+		var l := Label.new()
+		l.text = "length"
+		h.add_child(l)
+		ui_rp_slider = HSlider.new()
+		ui_rp_slider.name = "slider_root_path_scale"
+		ui_rp_slider.min_value = RootPath.SCALE_MIN * 100.0
+		ui_rp_slider.max_value = RootPath.SCALE_MAX * 100.0
+		ui_rp_slider.step = 5.0
+		ui_rp_slider.custom_minimum_size = Vector2(200, 26)
+		ui_rp_val = Label.new()
+		ui_rp_slider.value_changed.connect(func(v): ui_rp_val.text = "%d %%" % roundi(v))
+		h.add_child(ui_rp_slider)
+		h.add_child(ui_rp_val)
+		box.add_child(h)
+		ui_rp_dlg.add_child(box)
+		ui_rp_dlg.confirmed.connect(func(): _rp_scale(ui_rp_slider.value / 100.0))
+		add_child(ui_rp_dlg)
+	ui_rp_slider.value = 100.0
+	ui_rp_val.text = "100 %"
+	ui_rp_dlg.popup_centered()
+
+
 ## USER CONSTRAINTS (round 51, GATES CN; scripts/constraints.gd): Child Of, Track To (look at), Floor, on the scene's
 ## stack, played after IK. The TARGET is picked first ("Constraint: use the picked part as the target", a view setting,
 ## not undone), then the owner is the picked part. With no target picked: the other hand (Child Of), the other fighter's
@@ -9688,6 +9888,9 @@ func _commands() -> Array:
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
+	add.call("Root path on the floor: show / hide", "", _rp_toggle, "root motion path trajectory travel floor curve handles pelvis hips root editor", false, "the root motion path on the floor: the travel of the hips as a curve, a yellow handle at each card's root (drag it to move the card on the floor) and a red arrow for its facing (drag to turn it); one undo step per drag (ROADMAP 91)")
+	add.call("Root path: straighten", "", _rp_straighten, "root motion path straighten line straight chord bend curve", true, "the cards between the first and the last root move onto the straight line between those two roots, keeping their places along it; the ends and the headings stay; one undo step (ROADMAP 91)")
+	add.call("Root path: scale length...", "", _rp_scale_dialog, "root motion path scale length longer shorter stretch factor percent travel distance", true, "every card's root moves about the first card's root by the factor you pick (25 to 300 %): the path gets longer or shorter, its headings and card times stay; one undo step (ROADMAP 91)")
 	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
 	add.call("Check: weapon clashes", "", _weapon_clash, "clash parry pass through weapons bat swing contact sparks meet fighters", false, "finds where the two fighters' weapons meet over the timeline: CLASH, PARRY, or PASS-THROUGH (the weapons go through each other: must fix); a spark marks each contact, the report prints the time, point and speed (ROADMAP 37)")
