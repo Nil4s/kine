@@ -30,6 +30,23 @@ var hz := 0.0            # seconds the table covers
 var hits := 0
 var misses := 0
 
+## every baker with a task in flight (main thread only). A scene that is swapped out (File > New, Open, a test's m.S = ...)
+## takes its baker with it, and that baker's worker was still running at quit: the exit crashed (0xC0000005) in the
+## engine tearing down the objects the worker read. main stops these at quit and when their scene leaves play.
+static var running: Array = []
+
+
+static func stop_all() -> void:
+	for b in running.duplicate():
+		(b as PoseBake).stop()
+
+
+## stop every baker whose scene is not among `live` (its scene was replaced)
+static func reap(live: Array) -> void:
+	for b in running.duplicate():
+		if not live.has((b as PoseBake).scene):
+			(b as PoseBake).stop()
+
 
 ## the fields apply reads, as bytes (compared whole). A live Scene's runtime memos are not content and are left out.
 static func signature(S: Scene) -> PackedByteArray:
@@ -76,6 +93,8 @@ func start(S: Scene, from_t: float, horizon := 0.0) -> void:
 	var m := mu
 	var g := grid
 	var nn := n
+	if not running.has(self):
+		running.append(self)
 	task = WorkerThreadPool.add_task(func():
 		var BB := Body.new()
 		BB.load_files(SKEL, LIMS)
@@ -97,6 +116,7 @@ func stop() -> void:
 		cancel[0] = true
 		WorkerThreadPool.wait_for_task_completion(task)
 	task = -1
+	running.erase(self)
 	cancel = [false]
 	buf = []
 	n = 0
