@@ -38,6 +38,8 @@
 ##   card's arrival, then 1 (the pose before is held and the body jumps: a hit, a cut). x is the joint's own progress
 ##   (with NATURAL's overlap) or u (PLAIN); snap ignores the overlap. Flow runs and spline scenes have their own curves
 ##   and do not read it. Saved only when set, so older scenes save byte-identical.
+##   MEASURED PRESETS (ROADMAP 17, scripts/ease_presets.gd, docs/research/EASE_PRESETS.md): "reach" (minimum-jerk),
+##   "strike" (late peak), "throw" (proximal-to-distal peaks by joint level), "settle" (damped). Same save rule.
 ## PLANTED FEET (round 10, GATES Q3): a card's "plant": ["_l"] (or "_r", or both) holds that foot where it stood in
 ##   the card BEFORE the run of cards that plant it, for the whole run (every move into those cards and every hold):
 ##   the leg is re-solved every frame (Body.plant), the poses are not changed, so taking the plant off gives the old
@@ -51,6 +53,8 @@ extends RefCounted
 
 const LAG := 0.3
 const EASES := ["smooth", "linear", "in", "out", "snap"]   # a card's ease preset (EASE PRESETS above)
+## every ease a card can hold: the five above, then the measured-motion presets (scripts/ease_presets.gd, ROADMAP 17)
+const ALL_EASES := ["smooth", "linear", "in", "out", "snap", "reach", "strike", "throw", "settle"]
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offset" s, "gain_db"}; in the file only when there is one
@@ -541,6 +545,8 @@ func _ease(u: float, lv: int, kind := "") -> float:
 			return x * x * x
 		"out":
 			return 1.0 - (1.0 - x) * (1.0 - x) * (1.0 - x)
+	if EasePresets.has_kind(kind):
+		return EasePresets.progress(kind, x, lv)
 	if not natural:
 		return u * u * (3.0 - 2.0 * u)
 	return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
@@ -2018,7 +2024,7 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["flow"] = true
 		if c.get("walk", false):
 			cards[-1]["walk"] = true
-		if String(c.get("ease", "smooth")) in EASES and c.get("ease", "smooth") != "smooth":
+		if String(c.get("ease", "smooth")) in ALL_EASES and c.get("ease", "smooth") != "smooth":
 			cards[-1]["ease"] = c["ease"]
 		if c.get("plant", []) is Array and not c.get("plant", []).is_empty():
 			cards[-1]["plant"] = c["plant"].filter(func(x): return x in ["_l", "_r"])
