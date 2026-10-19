@@ -6963,6 +6963,7 @@ func _commands() -> Array:
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
+	add.call("Import animation (fbx / glb / gltf / bvh)...", "", _anim_import_ask, "fbx mixamo unreal ue4 ue5 glb gltf bvh animation import retarget skeleton rig mocap motion capture clip", false, "pick an animation file from another skeleton (Mixamo, Unreal, Blender ...): its bones are matched to ours by name, its rest pose and size are allowed for, and it arrives as a NEW scene of cards in scenes/_wip (yours untouched). Or drop the file on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
@@ -8966,8 +8967,12 @@ func _library_load() -> void:
 
 func _on_drop(files: PackedStringArray) -> void:
 	for f in files:
-		if f.to_lower().ends_with(".bvh"):
+		if f.to_lower().ends_with(".bvh") and AnimImport.is_kine_bvh(f):
 			_import_bvh(f)
+		elif f.to_lower().ends_with(".bvh"):
+			_import_anim(f)
+		elif f.get_extension().to_lower() == "fbx":
+			_import_anim(f)
 		elif VIDEO_EXT.has(f.get_extension().to_lower()):
 			_import_video(f)
 		elif f.to_lower().ends_with(".json") and VideoImport.load_file(f)["ok"]:
@@ -9260,6 +9265,43 @@ func _import_bvh(path: String) -> void:
 	_say("imported %s as scenes/_wip/%s: %s" % [path.get_file(), out.get_file(), r["text"]])
 
 
+## ANIMATION IMPORT FROM OTHER SKELETONS (GAP_ANALYSIS row 26): .fbx / .glb / .gltf / .bvh -> a NEW scene in scenes/_wip,
+## opened. The work is in scripts/anim_import.gd (method: docs/research/RETARGET.md); a refusal changes nothing.
+func _anim_import_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.fbx, *.glb, *.gltf, *.bvh ; animations"])
+	fd.use_native_dialog = true
+	fd.title = "Import an animation (Mixamo, Unreal, Blender ...)"
+	fd.file_selected.connect(func(p): _import_anim(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## returns the new scene's path ("" refused)
+func _import_anim(path: String) -> String:
+	var r := AnimImport.import_file(path, B, safe_file(path.get_file().get_basename()))
+	if not r["ok"]:
+		_say("could not import %s: %s. Try another file, or export it again as .fbx with its mesh (Mixamo: With Skin)" % [path.get_file(), r["why"]])
+		return ""
+	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
+	d["plan"] = "Animation import of %s: %s. %s" % [path.get_file(), r["text"], r["report"]]
+	var base := safe_file(String(d["scene"]))
+	var out := "res://scenes/_wip/%s.json" % base
+	var n := 2
+	while FileAccess.file_exists(out):   # never over an earlier import
+		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		n += 1
+	_write(out, d)
+	_load_scene(out)
+	_rebuild_cards()
+	_refresh()
+	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"]])
+	return out
+
+
 func _import_ask() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
@@ -9280,6 +9322,9 @@ func _import_file(path: String) -> Dictionary:
 	if not r["ok"]:
 		_say("could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), r["why"]])
 		return r
+	if r["kind"] == "rigged" and AnimImport.load_source(path)["ok"]:   # a skeleton WITH an animation: the animation import
+		var o := _import_anim(path)
+		return {"ok": o != "", "path": o, "why": "" if o != "" else "refused (the reason is on the status line)"}
 	if r["kind"] == "rigged":
 		var aa: Dictionary = Importer.accept(path, "animation", library)
 		_say(("%s has a skeleton: importing animations comes later (UPGRADES #209); it was kept in your library. To use a model as a prop, drop one without a skeleton" % path.get_file()) if aa["ok"] else "could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), aa["why"]])

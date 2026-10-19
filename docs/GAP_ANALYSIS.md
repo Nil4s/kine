@@ -38,7 +38,7 @@ Each row is HAVE (works and is tested), PART (exists but short of the reference)
 | 23 | **Audio track, scrub with sound** | **LACK** | 0 hits for AudioStream; lip-sync and timing to music are impossible |
 | 24 | **Render / playblast to video or images** | **LACK** | video only as input (import); no .mp4 or PNG-sequence output to show a client |
 | 25 | Export glb / usd / bvh / game | HAVE | 4 exporters with round-trip tests |
-| 26 | Import other animation (bvh, fbx) | PART | bvh (Kine skeleton only); no fbx; retarget from other skeletons limited |
+| 26 | Import other animation (bvh, fbx) | HAVE | "Import animation (fbx / glb / gltf / bvh)...": Mixamo / UE / Godot / Blender / DAZ / Biped names, rest-pose difference and leg-length scaling (scripts/anim_import.gd, docs/research/RETARGET.md, tests/anim_import_test.gd). Tested on a Blender-made Mixamo-named rig, not yet on a real Mixamo or UE download. Not done: root motion on a parent node, morphs, several clips at once |
 | 27 | Mocap / video to animation | HAVE (beyond Blender) | Animation from video, Clean up mocap |
 | 28 | Physics plausibility checks | HAVE (beyond both) | Check / Polish / rulebook with sources, balance, collisions |
 | 29 | Undo history | HAVE | Undo history panel |
