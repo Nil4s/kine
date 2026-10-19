@@ -2330,6 +2330,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_ikh_move(mm.position)
 			return
 		if dragging == "orbit":
+			if shot_through:
+				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
 			yaw -= rel.x * 0.4
 			pitch = clampf(pitch - rel.y * 0.4, -89.0, 89.0)
 			_cam()
@@ -6646,6 +6648,8 @@ func _commands() -> Array:
 	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
 	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it appears under the timeline as a waveform, plays in step with Play and sounds a short slice as you drag the playhead")
 	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the sound off the timeline (the file stays on disk); one undo step")
+	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4x), up to +12 dB; in playback and the playblast; one undo step")
+	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
@@ -8742,6 +8746,24 @@ func _audio_remove() -> void:
 	_refresh()
 
 
+## the sound's loudness in steps of 3 dB (about 1.4x the amplitude), -30 .. +12 dB; saved as gain_db, used by playback
+## and mixed into the playblast's mp4 (PlayblastExport.args). One undo step
+func _audio_gain(step: float) -> void:
+	if S.audio.is_empty():
+		_say("no sound on the timeline: run Audio: add a sound file first")
+		return
+	var g := clampf(float(S.audio.get("gain_db", 0.0)) + step, -30.0, 12.0)
+	if absf(g - float(S.audio.get("gain_db", 0.0))) < 1e-6:
+		_say("the sound is already as %s as it goes (%+.0f dB): try the other way" % ["loud" if step > 0 else "quiet", g])
+		return
+	_push_undo()
+	S.audio["gain_db"] = g
+	if _a_player != null:
+		_a_player.volume_db = g
+	_say("the sound is at %+.0f dB now (0 = as recorded; Ctrl+Z puts it back)" % g)
+	_refresh()
+
+
 func _audio_to_playhead() -> void:
 	if S.audio.is_empty():
 		_say("no sound on the timeline: run Audio: add a sound file first")
@@ -9100,6 +9122,25 @@ func _shot_off() -> void:
 		cam.projection = Camera3D.PROJECTION_PERSPECTIVE
 		cam.fov = _shot_fov
 		_cam()
+
+
+## leave look-through with the free view put where the shot camera is (its aim the pivot), so an orbit starts from the
+## camera's own view instead of jumping back (Blender: orbiting in camera view leaves it at the camera)
+func _shot_hand_over() -> void:
+	var k := shot_at(playhead)
+	_shot_off()
+	if k.is_empty():
+		return
+	var d: Vector3 = (k["pos"] as Vector3) - (k["aim"] as Vector3)
+	if d.length() < 1e-4:
+		return
+	target = k["aim"]
+	dist = d.length()
+	d = d.normalized()
+	pitch = clampf(rad_to_deg(-asin(clampf(d.y, -1.0, 1.0))), -89.0, 89.0)
+	yaw = rad_to_deg(atan2(d.x, d.z))
+	_cam()
+	_say("left the shot camera's view (orbiting): the free view starts where the camera was; 'Camera: look through' goes back")
 
 
 func _shot_toggle() -> void:
