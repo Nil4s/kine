@@ -71,7 +71,7 @@ func ang(j: String) -> Vector3:
 
 
 func col(j: String) -> Color:
-	return (m.mats[j] as StandardMaterial3D).albedo_color
+	return m.skin_col(j)   # PRECISE PICK: the light is on the part's own skin
 
 
 func members() -> Array:
