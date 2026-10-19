@@ -2148,11 +2148,41 @@ func _dummy_refresh() -> void:
 	var h := T.touch(B) if dummy_on else {}
 	hit_tag.visible = not h.is_empty()
 	hit_dot.visible = not h.is_empty()
-	dummy_mat.albedo_color = Color(0.85, 0.3, 0.25) if not h.is_empty() else Color(0.45, 0.5, 0.58)
+	_dummy_ghost_update(h)
 	if not h.is_empty():
 		hit_dot.position = h["at"]
 		hit_tag.position = (h["at"] as Vector3) + Vector3(0, 0.12, 0)
 		hit_tag.text = "%s  (%s up the weapon)" % [h["zone"], Units.len(h["u"])]
+
+
+## THE DUMMY NEVER HIDES THE FIGHTER (Nick 10-19: in the front view it stood between the camera and the hero). The
+## dummy has to stay out front (the weapon swings at it), so it is the dummy that gives way: while any of the hero's
+## joints is behind one of the dummy's parts as seen from the camera it is drawn as a ghost (GHOST_A of opaque), the
+## hero fully readable through it; the hit red stays visible (HIT_A). The view where nothing is behind it: solid.
+const GHOST_A := 0.22
+const HIT_A := 0.45
+var dummy_ghost := false
+
+
+func _dummy_occludes() -> bool:
+	if not dummy_on or dummy_node == null or cam == null:
+		return false
+	var co := cam.transform.origin
+	for j in B.P:
+		var q: Vector3 = B.P[j]
+		for part in Dummy.ZONES:
+			var c: Array = T.cap(part)
+			if Body.seg_seg(co, q, c[0], c[1]) < float(T.D.rad[part]):
+				return true
+	return false
+
+
+func _dummy_ghost_update(h: Dictionary) -> void:
+	dummy_ghost = _dummy_occludes()
+	var col := Color(0.85, 0.3, 0.25) if not h.is_empty() else Color(0.45, 0.5, 0.58)
+	col.a = (HIT_A if not h.is_empty() else GHOST_A) if dummy_ghost else 1.0
+	dummy_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if dummy_ghost else BaseMaterial3D.TRANSPARENCY_DISABLED
+	dummy_mat.albedo_color = col
 
 
 ## the timeline's height: its 34 px of rows, and the strips under the ruler (the frame strip, ROADMAP 12; the boxes lane, ROADMAP 36)
@@ -7139,6 +7169,11 @@ func _doc_line(force := false) -> void:
 	if ui_doc == null or (not force and Time.get_ticks_msec() - _doc_t < 400):
 		return
 	_doc_t = Time.get_ticks_msec()
+	# ONE TRUTH for "does the scene have clips": the strip and the panel read S.cards, and when some path changed the
+	# cards without rebuilding the panel (the strip said "12 clips" over a panel saying "No clips yet"), the panel catches up
+	if ui_cards != null and _cards_shown_empty != S.cards.is_empty() and not _in_rebuild:
+		_rebuild_cards()
+		return
 	var nm: String = S.name if S.name != "" else "untitled"
 	ui_doc.text = "%s   ·  %d clips  ·  %s" % [nm, S.cards.size(), Units.time(_ps().length(), S.fps)] if S.cards.size() > 0 else "%s   ·  no clips yet" % nm
 	ui_doc_dot.visible = _unsaved()
@@ -8736,8 +8771,15 @@ func _open_example(path: String) -> void:
 	_say("example '%s' opened as a copy: press Play to watch it, change any card, Save scene keeps yours as '%s'" % [path.get_file().get_basename(), S.name])
 
 
+var _cards_shown_empty := true   # what the panel was last built as: the beginner's "No clips yet" (true) or the cards
+var _in_rebuild := false
+
+
 func _rebuild_cards() -> void:
+	_in_rebuild = true
+	_cards_shown_empty = S.cards.is_empty()
 	_doc_line(true)   # RR1: a load or a new scene changes the strip's name
+	_in_rebuild = false
 	if sel_prop >= S.props.size():
 		sel_prop = -1
 	_props_show()   # SS5: the scene's set
