@@ -366,6 +366,11 @@ func _draw() -> void:
 		draw_rect(Rect2(bx - 3, y0 + 2, tw + 8, 18), Color(0, 0, 0, 0.85))
 		draw_string(font, Vector2(bx + 1, y0 + 16), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.95, 0.5))
 	# the findings' marks, over the ruler
+	# COMPARE WITH (ROADMAP 28): the frames where the compared version differs (a joint over 2 deg): magenta ticks on the ruler
+	if m != null and not m.vdiff.is_empty():
+		for mk in m.vdiff["marks"]:
+			var xv := x_of(float(mk["t"]))
+			draw_line(Vector2(xv, 0.0), Vector2(xv, RULER + 2.0), Color(0.85, 0.3, 0.95, 0.9), 2.0)
 	for mk in marks():
 		var fail: bool = mk[1].any(func(i): return m.findings[i]["sev"] == "FAIL")
 		var c := Tok.c("fail") if fail else Tok.c("warn")
