@@ -86,6 +86,8 @@ static func _head(title: String, fps: float, n: int) -> PackedStringArray:
 ## one Skeleton + SkelAnimation (lines, indented by pad) under the prim at root, n samples at fps over 0..L
 static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, root: String) -> PackedStringArray:
 	var keep := B.state()
+	if B.body != S.body:
+		B.set_proportions(S.body)   # PR2: bind and rest transforms are the scene's own body's (put back at the end)
 	var paths := {}
 	var joints := PackedStringArray()
 	for j in Body.ORDER:   # ORDER lists parents before children

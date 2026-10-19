@@ -128,6 +128,12 @@ var G := {}            # joint -> Quaternion
 var P := {}            # joint -> Vector3
 var E := {}            # joint -> Vector3 (end point)
 
+## PROPORTIONS (round 51, GATES PR; scripts/proportions.gd): {} = the body data/skeleton.json describes; else the
+## scene's "body" dict (stature, segment scales, sex, mass). seg_s: joint -> the uniform scale its rest points got.
+var body := {}
+var seg_s := {}
+var _files := []
+
 
 ## which entry of body_limits.json a joint uses: left = its right twin; fingers share "finger_01..03", thumbs "thumb_0k"
 static func lim_key(j: String) -> String:
@@ -141,6 +147,12 @@ static func lim_key(j: String) -> String:
 
 
 func load_files(skel_path: String, limits_path: String) -> void:
+	_files = [skel_path, limits_path]
+	pairs = []   # PR1: loaded again by set_proportions, so nothing may pile up from the last load
+	allow = {}
+	skin = {}
+	skin_c = {}
+	seg_s = {}
 	var skf: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(skel_path))
 	var sk: Dictionary = skf["joints"]
 	if skf.has("pelvis_parent"):
@@ -242,6 +254,8 @@ func load_files(skel_path: String, limits_path: String) -> void:
 				r = maxf(r, (q - c).length())
 			skin[part] = pts
 			skin_c[part] = [c, r]
+	if not body.is_empty():
+		Proportions.scale_rest(self)   # PR1: every rest point scaled, BEFORE the neutral poses measure the allowances
 	for pose in calib:
 		for j in ORDER:
 			ang[j] = pose.get(j, Vector3.ZERO)
@@ -2034,6 +2048,28 @@ func from_dict(d: Dictionary) -> void:
 ## THE POSE, LOSSLESS (round 8, for undo): to_dict rounds for the files (0.01 deg, 0.1 mm), so an undo through it
 ## re-solved from rounded numbers and a chain of undos drifted (tests/undo_fuzz_test.gd: 0.1 mm, 4th decimal of G)
 func state() -> Dictionary:
+	if not body.is_empty():   # PR1: only a body with proportions carries them (a default body's state is as before)
+		var s := _state0()
+		s["body"] = body.duplicate(true)
+		return s
+	return _state0()
+
+
+## PROPORTIONS (PR1): the rest skeleton rebuilt for these proportions ({} = the default body); the pose is kept
+## (the same angles, the same offset, the weapon as it was). Loading again is ~ms; nothing happens when unchanged.
+func set_proportions(d: Dictionary) -> void:
+	var nd := Proportions.clean(d)
+	if nd == body or _files.is_empty():
+		return
+	var keep := _state0()
+	body = nd
+	load_files(_files[0], _files[1])
+	_below = {}
+	_mv_cache = {}
+	_set_state0(keep)
+
+
+func _state0() -> Dictionary:
 	return {"ang": ang.duplicate(), "offset": offset, "wep_on": wep_on, "wep_kind": wep_kind, "wep_len": wep_len,
 		"wep_pos": wep_pos, "wep_rot": wep_rot, "wep_hand": wep_hand, "wep_lpos": wep_lpos, "wep_lrot": wep_lrot,
 		"grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true), "wep2_on": wep2_on, "wep2_kind": wep2_kind,
@@ -2041,6 +2077,11 @@ func state() -> Dictionary:
 
 
 func set_state(s: Dictionary) -> void:
+	set_proportions(s.get("body", {}))   # PR1: an undo step taken on other proportions puts them back first
+	_set_state0(s)
+
+
+func _set_state0(s: Dictionary) -> void:
 	ang = (s["ang"] as Dictionary).duplicate()
 	offset = s["offset"]
 	set_kind(s["wep_kind"])

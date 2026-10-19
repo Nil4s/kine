@@ -58,6 +58,8 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 	var placed := xf != Transform3D.IDENTITY
 	var xq := xf.basis.get_rotation_quaternion()
 	var keep := B.state()
+	if B.body != S.body:
+		B.set_proportions(S.body)   # PR2: the OFFSETs are the scene's own body's bones (put back at the end)
 	var kids := {}
 	for j in Body.ORDER:
 		kids[j] = []

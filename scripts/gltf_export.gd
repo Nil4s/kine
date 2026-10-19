@@ -26,6 +26,10 @@ static func _mannequin(with_mesh: bool) -> Node3D:
 ## the scene as a node tree ready for GLTFDocument (B is posed through the scene; its state is put back)
 static func build(S: Scene, B: Body, anim_name: String, with_mesh := true) -> Node3D:
 	var man := _mannequin(with_mesh)
+	var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
+	if B.body != S.body:
+		B.set_proportions(S.body)   # PR2: the scene's own body (put back with the state at the end)
+	Proportions.bake_mannequin(man, sk, B)   # the proportions in the file's rest skeleton and mesh (default: nothing)
 	var anim := Animation.new()
 	anim.length = S.length()
 	_animate(S, B, man, anim, "", S.length(), float(S.fps))
@@ -63,6 +67,10 @@ static func build_actors(actors: Array, anim_name: String, with_mesh := true) ->
 		man.name = nm + " mannequin"
 		place.add_child(man)
 		var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
+		var ab: Body = a["B"]
+		if ab.body != (a["S"] as Scene).body:
+			ab.set_proportions((a["S"] as Scene).body)   # PR2: each fighter's own body
+		Proportions.bake_mannequin(man, sk, ab)
 		sk.get_parent().name = nm   # the node Blender makes the armature from: the armature is named by the actor
 		_animate(a["S"], a["B"], man, anim, String(root.get_path_to(man)) + "/", L, fps, nm + " ")
 	var ap := AnimationPlayer.new()

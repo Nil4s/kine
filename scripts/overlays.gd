@@ -172,6 +172,7 @@ static func split_parts(man: Node3D, sk: Skeleton3D, idx: Dictionary) -> Diction
 
 ## write a body's pose into a mannequin's skeleton (glTF local rotations, the pelvis's position)
 static func pose_skeleton(sk: Skeleton3D, idx: Dictionary, b: Body) -> void:
+	Proportions.scale_skeleton(sk, idx, b)   # PR1: the mesh takes the body's proportions (nothing for the default body)
 	for j in Body.ORDER:
 		if idx[j] >= 0:
 			sk.set_bone_pose_rotation(idx[j], b.gltf_local(j))

@@ -1996,6 +1996,9 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 	var d := b - a
 	var L := d.length()
 	if capsule:
+		if (not B.seg_s.is_empty() or mi.has_meta("pr")) and (mi.mesh as CapsuleMesh).radius != r:
+			(mi.mesh as CapsuleMesh).radius = r   # PR1: proportions change a part's radius (a default body: as before)
+			mi.set_meta("pr", true)
 		(mi.mesh as CapsuleMesh).height = maxf(L + 2.0 * r, 2.0 * r + 0.001)
 	else:
 		(mi.mesh as CylinderMesh).height = maxf(L, 0.001)
@@ -2619,7 +2622,7 @@ func _snapshot() -> Dictionary:
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
-		"body": B.state(), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
+		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
@@ -2638,6 +2641,9 @@ func _restore(u: Dictionary) -> void:
 		_rebuild_cards()
 	if u["scene"] == S and u.has("fps"):
 		S.fps = int(u["fps"])   # WW4: the frame rate is a scene setting, undone like a card
+	if u["scene"] == S and u.has("pbody") and u["pbody"] != S.body:
+		S.body = u["pbody"].duplicate(true)   # PR1: the proportions, undone like a card (the body's come back in its state)
+		ov.mark_dirty()
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
@@ -6572,6 +6578,10 @@ func _commands() -> Array:
 	add.call("Paste flipped 50%, selected parts", "", _paste_flipped.bind(0.5, true), "clipboard flip left right blend half group", true, "half of the way to the reflected copied pose, on the selected parts only")
 	add.call("Paste to this part", "", _paste_pose.bind("part"), "clipboard arm leg only", true, "the copied pose on the picked part and the parts below it only (an arm, a leg)")
 	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "flip", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
+	add.call("Body: proportions...", "", _proportions_dialog, "proportions height stature tall short size body limbs arm leg length character ansur woman man female male", false, "a small dialog: a preset (ANSUR II 5th / 50th / 95th, woman or man) or a stature; the cards keep their angles, the feet stay on the floor (PR1)")
+	for pk in Proportions.PRESETS:
+		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
+	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 1.5 m in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
@@ -9192,3 +9202,77 @@ func _shot_blast_image(sb: Dictionary, img: Image) -> Image:
 func _shot_blast_end(sb: Dictionary) -> void:
 	if not sb.is_empty() and not sb["was"]:
 		_shot_off()
+## ---- PROPORTIONS (round 51, GATES PR; scripts/proportions.gd) ----------------------------------------------------
+## "Body: proportions..." opens a small dialog (a preset, the stature in cm); OK sets the scene's body: ONE undo step.
+## The cards are RETARGETED (Proportions.retarget: every angle kept, the hips raised or lowered so the soles stand where
+## they stood); world IK targets stay where they are and the new limbs reach them where they can.
+var ui_prop_dlg: ConfirmationDialog
+var ui_prop_preset: OptionButton
+var ui_prop_stature: SpinBox
+const PROP_KEYS := ["", "female_5", "female_50", "female_95", "male_5", "male_50", "male_95", "custom"]
+
+
+func _proportions_dialog() -> void:
+	if ui_prop_dlg == null:
+		ui_prop_dlg = ConfirmationDialog.new()
+		ui_prop_dlg.name = "proportions_dialog"
+		ui_prop_dlg.title = "Body: proportions"
+		ui_prop_dlg.min_size = Vector2i(340, 0)
+		var v := VBoxContainer.new()
+		ui_prop_preset = OptionButton.new()
+		ui_prop_preset.name = "opt_preset"
+		for k in PROP_KEYS:
+			ui_prop_preset.add_item("the mannequin as shipped (%.1f cm)" % (Proportions.DEFAULT_STATURE * 100.0) if k == "" else ("custom stature" if k == "custom"
+				else "%s (ANSUR II, %.1f cm)" % [Proportions.PRESET_NAMES[k], float(Proportions.PRESETS[k]["stature"]) * 100.0]))
+		ui_prop_preset.item_selected.connect(func(i):
+			var k: String = PROP_KEYS[i]
+			if k != "custom":
+				ui_prop_stature.set_value_no_signal((Proportions.DEFAULT_STATURE if k == "" else float(Proportions.PRESETS[k]["stature"])) * 100.0))
+		v.add_child(ui_prop_preset)
+		var h := HBoxContainer.new()
+		var l := Label.new()
+		l.text = "stature (cm)"
+		h.add_child(l)
+		ui_prop_stature = SpinBox.new()
+		ui_prop_stature.name = "spin_stature"
+		ui_prop_stature.min_value = 100.0
+		ui_prop_stature.max_value = 230.0
+		ui_prop_stature.step = 0.1
+		ui_prop_stature.value_changed.connect(func(_x): ui_prop_preset.select(PROP_KEYS.size() - 1))
+		h.add_child(ui_prop_stature)
+		v.add_child(h)
+		ui_prop_dlg.add_child(v)
+		ui_prop_dlg.confirmed.connect(func():
+			var k: String = PROP_KEYS[ui_prop_preset.selected]
+			if k == "":
+				proportions_set({})
+			elif k == "custom":
+				var d := S.body.duplicate(true)
+				d.erase("preset")
+				d["stature"] = ui_prop_stature.value / 100.0
+				proportions_set(d)
+			else:
+				proportions_set(Proportions.preset(k)))
+		add_child(ui_prop_dlg)
+	var at := PROP_KEYS.find(String(S.body.get("preset", ""))) if not S.body.is_empty() else 0
+	ui_prop_preset.select(at if at >= 0 else PROP_KEYS.size() - 1)
+	ui_prop_stature.set_value_no_signal(float(S.body.get("stature", Proportions.DEFAULT_STATURE)) * 100.0)
+	ui_prop_dlg.popup_centered()
+
+
+## the scene's proportions -> d ({} = the default body): cards retargeted, one undo step. Returns what was set.
+func proportions_set(d: Dictionary) -> Dictionary:
+	var nd := Proportions.clean(d)
+	if nd == S.body:
+		_say("the body already has these proportions: pick another preset or stature in 'Body: proportions...'")
+		return nd
+	_do(func():
+		Proportions.retarget(S, B, nd)
+		B.set_proportions(nd)   # the pose as it was, on the new bones
+		_dummy_hits()
+		ov.mark_dirty()
+		if not S.cards.is_empty():
+			S.apply(B, playhead))
+	var st := float(nd.get("stature", Proportions.DEFAULT_STATURE))
+	_say("body: %s, %.1f cm tall; every card keeps its angles, the feet stay on the floor (Ctrl+Z takes it back)" % [Proportions.PRESET_NAMES.get(String(nd.get("preset", "")), "the mannequin as shipped" if nd.is_empty() else "custom"), st * 100.0])
+	return nd

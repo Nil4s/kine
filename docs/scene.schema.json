@@ -407,6 +407,22 @@
     "plan": {
      "type": "string"
     },
+    "body": {
+     "type": "object",
+     "description": "PROPORTIONS (round 51, scripts/proportions.gd): the body this scene is animated on; written only when not the mannequin as shipped. stature = metres, floor to the top of the head; scale = per segment, multiplies that segment's bones, capsules and mesh (uniformly; missing = 1); sex picks de Leva 1996's mass table; mass = kg; preset = the ANSUR II preset it came from. data/skeleton.json is never edited.",
+     "properties": {
+      "stature": {"type": "number", "minimum": 0.5, "maximum": 2.5},
+      "scale": {
+       "type": "object",
+       "propertyNames": {"enum": ["upper_arm", "forearm", "hand", "thigh", "shank", "foot", "trunk", "head"]},
+       "additionalProperties": {"type": "number", "minimum": 0.5, "maximum": 2.0}
+      },
+      "sex": {"enum": ["male", "female"]},
+      "mass": {"type": "number"},
+      "preset": {"enum": ["female_5", "female_50", "female_95", "male_5", "male_50", "male_95"]}
+     },
+     "additionalProperties": false
+    },
     "ik": {
      "type": "object",
      "description": "IK / FK with pole targets (GAP_ANALYSIS row 13): per limb (named by its tip), keys over time; written only when there is one. Each key: t = seconds, target = where the wrist / ankle goes (world, m), pole = a point the elbow / knee bends toward (world, m), w = IK weight 0..1 (linear between keys), rot = the hand / foot world rotation (optional). scripts/limb_ik.gd",
