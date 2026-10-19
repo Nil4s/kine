@@ -97,7 +97,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 23. [x] Sketch a line of action -> pose (top-25 #9)
 24. [ ] Injury / load check for stunt teams (top-25 #11)
 25. [x] Style transfer: heavier, older, tired, angry (top-25 #12)
-26. [ ] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
+26. [x] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13). ponytail and cloth strip are planar N-pendulum chains (gravity, mass-proportional damping zeta 0.2 / 0.3, ours); the oak bo is one cantilever mode from E, I, L, rho (f1 4.32 Hz); keys at 120 Hz in the scene "secondary" block (scripts/secondary_motion.gd, tests/secondary_motion_test.gd). Not yet: the keyed joints are not on Body, so engine exports do not write them
 27. [ ] Ragdoll to keys with pins (top-25 #14)
 28. [ ] Scene versions with a visual diff (top-25 #16)
 29. [ ] Review links with frame comments (top-25 #17)

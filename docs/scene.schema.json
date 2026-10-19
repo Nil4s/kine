@@ -475,6 +475,43 @@
       "additionalProperties": false
      }
     },
+    "secondary": {
+     "type": "object",
+     "description": "SECONDARY MOTION (ROADMAP 26; scripts/secondary_motion.gd): chains (a ponytail, a cloth strip: a chain of segments hanging from a joint, mass-proportional damping) and rods (a flexible oak bo: one cantilever bending mode). keys = the segments' angles relative to the one before, in degrees about dir x sway, one every 1/120 s (t in seconds; a spline through the keys on replay); fps = the frame rate the attach path was sampled at. Written only when there is an item.",
+     "properties": {
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "name": {"type": "string", "minLength": 1},
+         "kind": {"enum": ["chain", "rod"]},
+         "attach": {"type": "string", "description": "a Body joint the item hangs from"},
+         "off": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "the root's offset in the attach joint's frame, m"},
+         "sway": {"enum": ["x", "z"]},
+         "n": {"type": "integer", "minimum": 1, "maximum": 12},
+         "len": {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
+         "zeta": {"type": "number", "minimum": 0, "maximum": 1},
+         "mass": {"type": "number", "exclusiveMinimum": 0, "description": "chain: kg a node"},
+         "E": {"type": "number", "exclusiveMinimum": 0, "description": "rod: Pa"},
+         "d": {"type": "number", "exclusiveMinimum": 0, "description": "rod: solid round diameter, m"},
+         "rho": {"type": "number", "exclusiveMinimum": 0, "description": "rod: kg/m3"}
+        },
+        "required": ["name", "kind", "attach", "off", "sway", "n", "len", "zeta"],
+        "additionalProperties": false
+       }
+      },
+      "keys": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "array",
+        "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
+       }
+      },
+      "fps": {"type": "integer", "minimum": 1}
+     },
+     "additionalProperties": false
+    },
     "drivers": {
      "type": "array",
      "description": "USER DRIVERS (GAP_ANALYSIS row 15; scripts/drivers.gd): driven = source * factor + offset, per axis (0 bend, 1 side, 2 twist), in degrees; played after the cards, layers and breathing, before IK and constraints. from = the source counts only above it (max(source - from, 0)). Written only when there is one, in list order.",
