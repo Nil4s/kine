@@ -7776,6 +7776,7 @@ func _commands() -> Array:
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
+	add.call("Block out a move from words...", "", _words_ask, "text type words phrase prompt describe blocking block out attack move overhead sweep thrust jab uppercut hook axe bat staff hammer dagger step lunge", false, "type a move (\"overhead axe strike, step in\", \"fast jab\", \"staff sweep right\"): the closest of your saved attacks is retrieved and adapted by the app's own ops (mirror, weapon swap + grip, step, retime to docs/ATTACK_RULES.md) into a NEW blocked-out scene in scenes/_wip (ready, anticipation, strike, follow-through, recovery), opened; the status says what it started from and what it could not find")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
 	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
 	add.call("Breakdowner 50%", "", _breakdowner.bind(0.5), "slerp neighbour tween halfway", true, "the picked card's pose (selected parts, else the whole body) halfway between the card before and the card after, joint by joint")
@@ -8370,6 +8371,55 @@ func _style_save(style: String, pct: float) -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("style %s at %d%%: saved as %s and opened; '%s' is untouched" % [style, int(round(pct)), path.get_file(), H.name])
+
+
+## TYPE A MOVE, GET BLOCKING (ROADMAP 22): a line of words -> a blocked-out scene in scenes/_wip, opened. The work is
+## scripts/text_blocking.gd: the closest of Nick's saved attack segments (scenes/, read only) retrieved and adapted by
+## the app's own ops (Scene.mirror_card, Body.set_kind + weapon_to_hand + apply_grip / hold_bat, the card's steps +
+## Scene.pin_cards, Scene.retime to docs/ATTACK_RULES.md); the status says which and what it could not find
+var ui_words_dlg: ConfirmationDialog
+var ui_words: LineEdit
+
+
+func _words_ask() -> void:
+	if ui_words_dlg == null:
+		ui_words_dlg = ConfirmationDialog.new()
+		ui_words_dlg.name = "words_dialog"
+		ui_words_dlg.title = "Block out a move from words"
+		ui_words_dlg.ok_button_text = "Block it out"
+		ui_words_dlg.min_size = Vector2i(440, 0)
+		ui_words = LineEdit.new()
+		ui_words.name = "edit_words"
+		ui_words.placeholder_text = "overhead axe strike, step in   /   fast jab   /   staff sweep right"
+		ui_words_dlg.add_child(ui_words)
+		ui_words_dlg.register_text_enter(ui_words)
+		ui_words_dlg.confirmed.connect(_words_build)
+		add_child(ui_words_dlg)
+	ui_words_dlg.popup_centered()
+	ui_words.grab_focus.call_deferred()
+	ui_words.select_all.call_deferred()
+
+
+func _words_build() -> void:
+	var text := ui_words.text.strip_edges()
+	if text == "":
+		_say("Block out a move from words needs some words: an attack (overhead, sweep, thrust, jab, uppercut, hook), a weapon (axe, bat, staff, hammer, dagger; none = a fist), a side (left / right), a step (step in, step back, lunge), a speed (fast, heavy, slow)")
+		return
+	var W := Body.new()   # a scratch body: the build poses it card by card; the live body takes the opened scene
+	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var r: Dictionary = TextBlocking.build(text, W)
+	if not r["ok"]:
+		_say("'%s': %s" % [text, r["error"]])
+		return
+	var S2: Scene = r["scene"]
+	var path := TextBlocking.unique_path("res://scenes/_wip", TextBlocking.slug(text))
+	var d := S2.to_dict(W)
+	d["plan"] = "Block out a move from words '%s': %s" % [text, r["status"]]
+	_write(path, d)
+	_load_scene(path)
+	_rebuild_cards()
+	_refresh()
+	_say("'%s' blocked out as %s and opened (%d cards: %s). %s" % [text, path.get_file(), S2.cards.size(), ", ".join(S2.cards.map(func(c): return String(c["name"]).get_slice(":", 0))), r["status"]])
 
 
 ## SPEED GRAPH: three strips (small multiples, each its own scale: the tip moves metres where the head moves
@@ -9455,14 +9505,7 @@ func retime(a: int, b: int, pct: float) -> String:
 		return "retime by 10 to 1000 %% (100 = as it is), not %s" % pct
 	_push_undo()
 	_markers_hold()
-	var k := pct / 100.0
-	var mv := []
-	for i in range(a, b + 1):
-		mv.append(S.move_time(i) if i > 0 else 0.0)   # read every move BEFORE writing any: an auto move reads its neighbours
-	for i in range(a, b + 1):
-		if i > 0:
-			S.cards[i]["move"] = snappedf(maxf(0.04, mv[i - a] * k), 0.001)
-		S.cards[i]["hold"] = snappedf(float(S.cards[i]["hold"]) * k, 0.001)
+	S.retime(a, b, pct)   # the loop lives in Scene.retime (TextBlocking retimes a blocking by the same op)
 	_markers_follow()
 	_rebuild_cards()
 	_refresh()

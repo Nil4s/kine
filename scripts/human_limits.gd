@@ -279,6 +279,7 @@ static func rule_speed(sm: Dictionary) -> Array:
 				"%.2f-%.2f s: %s turns %.0f deg/s, %.0f%% over the fastest peak recorded in sport for a %s (%.0f deg/s; FAIL past %.0f)." % [
 					t0, t1, _words(j), pk, (pk / float(bar[0]) - 1.0) * 100.0, kind, float(bar[0]), float(bar[1])], pk))
 			out[-1]["t1"] = t1
+			out[-1]["joint"] = j   # TextBlocking matches a blocking's findings to its source's by joint
 	return out
 
 
