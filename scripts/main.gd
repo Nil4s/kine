@@ -158,7 +158,7 @@ const RIBBON_GROUPS := {
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
-		["DISPLAY", ["Hints", "Light", "UI size", "Easy mode"]]],
+		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode"]]],
 }
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
 var ui_doc: Label         # the strip's middle: the scene's name, clips, length
@@ -1462,14 +1462,25 @@ func _ready() -> void:
 	if journal_on:
 		_journal_boot()
 	var cf := ConfigFile.new()
-	var light: bool = cf.load(settings) == OK and not testing and cf.get_value("look", "light", false)
+	cf.load(settings)
+	# THE THEME (ROADMAP 58): "system" on a first start (Windows' dark mode), or the user's own "light" / "dark". A test
+	# starts dark (its settings file is its own); a light flag saved by an older build is the user's explicit choice
+	var pref := "dark" if testing else "system"
+	if cf.has_section_key("look", "light"):
+		pref = "light" if cf.get_value("look", "light", false) else "dark"
+	theme_pref = String(cf.get_value("look", "theme", pref))
 	if OS.get_cmdline_user_args().has("--light") or OS.get_cmdline_user_args().has("--dark"):   # shots and tests choose
-		light = OS.get_cmdline_user_args().has("--light")
-	Tok.set_dark(not light)
-	var pct: int = int(cf.get_value("look", "scale", 100)) if not testing else 100
+		theme_pref = "light" if OS.get_cmdline_user_args().has("--light") else "dark"
+	if theme_pref not in ["system", "light", "dark"]:
+		theme_pref = "system"
+	Tok.set_dark(_theme_wanted())
+	# THE SCALE (ROADMAP 58): the saved one (the user chose it), or a test's 100, or on a first start the screen's pick,
+	# made once the ribbon is built (_auto_scale_now). Nothing is saved for the pick: it is made again each start
+	var pct := 100 if testing else (int(cf.get_value("look", "scale", 0)) if cf.has_section_key("look", "scale") else 0)
 	var si := OS.get_cmdline_user_args().find("--scale")   # shots and tests choose
 	if si >= 0 and si + 1 < OS.get_cmdline_user_args().size():
 		pct = int(OS.get_cmdline_user_args()[si + 1])
+	scale_auto = pct not in SCALES
 	ui_scale = pct if pct in SCALES else 100
 	while not scale_fits(ui_scale):   # remembered from a bigger screen: the largest that fits this one
 		ui_scale = SCALES[SCALES.find(ui_scale) - 1]
@@ -1492,6 +1503,8 @@ func _ready() -> void:
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
 	_ui()
+	if scale_auto:
+		_auto_scale_now()
 	if not testing and not cf.get_value("look", "hints", true):
 		_set_hints(false, false)   # remembered (QQ3)
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
@@ -5996,6 +6009,34 @@ func scale_fits(pct: int) -> bool:
 	return pct <= 100 or Vector2(get_window().size) / (pct / 100.0) >= MIN_ROOM - Vector2(1, 1)
 
 
+## FIRST-START SCALE (ROADMAP 58): the size a screen gets when the user has not chosen one. Pure, so a test injects
+## sizes. want: 150 on a 4K-class screen (2880 px wide, or 140+ dpi), 125 on a HiDPI laptop (110+ dpi), else 100.
+## Then the largest SCALES step at or below want that the window leaves room for: the layout's MIN_ROOM, and the whole
+## top bar (ribbon_w, in the layout's own px) so no tab's tools run off the right edge. 1366 x 728 gives 100 (the top bar
+## needs 751 px).
+static func auto_scale(win: Vector2, screen: Vector2, dpi: float, ribbon_w: float) -> int:
+	var want := 100
+	if screen.x >= 2880.0 or dpi >= 140.0:
+		want = 150
+	elif dpi >= 110.0:
+		want = 125
+	var best := 90
+	for p in SCALES:   # ascending
+		if p <= want and win.x / (p / 100.0) >= maxf(ribbon_w, MIN_ROOM.x) - 1.0 and win.y / (p / 100.0) >= MIN_ROOM.y - 1.0:
+			best = p
+	return best
+
+
+## the pick for the window as it is now, and the size it is set to (not saved: a first start only)
+func _auto_scale_now() -> void:
+	var ribbon_w := ui_top_bar.get_combined_minimum_size().x if ui_top_bar != null else 0.0
+	var pick := auto_scale(Vector2(get_window().size), Vector2(DisplayServer.screen_get_size()), DisplayServer.screen_get_dpi(), ribbon_w)
+	ui_scale = pick
+	get_window().content_scale_factor = pick / 100.0
+	_fit_rows.call_deferred()
+	_fit_top.call_deferred()
+
+
 func _fit_rows() -> void:
 	if ui_play_row == null:
 		return
@@ -6053,6 +6094,7 @@ func _set_scale(pct: int) -> void:
 		_say("UI size %d %% needs a window of at least %d x %d (this one is %d x %d): make the window bigger (maximise it), then choose it again" % [pct, MIN_ROOM.x * pct / 100, MIN_ROOM.y * pct / 100, get_window().size.x, get_window().size.y])
 		return
 	ui_scale = pct
+	scale_auto = false   # the user chose it: remembered, and no longer picked from the screen
 	get_window().content_scale_factor = pct / 100.0
 	var cf := ConfigFile.new()
 	cf.load(settings)
@@ -6097,14 +6139,61 @@ func _hints_apply() -> void:
 		ui_status.visible = hints_on or ui_status.text != ""
 
 
-func _set_light(on: bool) -> void:
-	Tok.set_dark(not on)
-	_retheme()
+## THE THEME PREFERENCE (ROADMAP 58): "system" (follows Windows' dark mode), "light" or "dark". Saved as look/theme; the
+## old look/light flag is kept in step so a build without this still reads the same palette
+var theme_pref := "system"
+var scale_auto := false      # no size chosen yet: _auto_scale_now picks it from the screen
+var sys_dark_probe := Callable()   # a test stubs the system's dark flag here; empty = DisplayServer.is_dark_mode()
+
+
+func _system_dark() -> bool:
+	return bool(sys_dark_probe.call()) if sys_dark_probe.is_valid() else DisplayServer.is_dark_mode()
+
+
+## the palette the current preference asks for: true = dark
+func _theme_wanted() -> bool:
+	match theme_pref:
+		"light":
+			return false
+		"dark":
+			return true
+	return _system_dark()
+
+
+func _save_theme(extra := {}) -> void:
 	var cf := ConfigFile.new()
 	cf.load(settings)
-	cf.set_value("look", "light", on)
+	cf.set_value("look", "theme", theme_pref)
+	cf.set_value("look", "light", not Tok.dark)
+	for k in extra:
+		cf.set_value("look", k, extra[k])
 	cf.save(settings)
+
+
+func _set_light(on: bool) -> void:
+	theme_pref = "light" if on else "dark"
+	Tok.set_dark(not on)
+	_retheme()
+	_save_theme()
 	_say("light theme (VIEW > Light again for dark)" if on else "dark theme")
+
+
+## VIEW > Follow system: on = the palette is Windows' (dark or light, re-read when the window gets focus); off = the
+## palette it has now, kept as an explicit choice
+func _set_theme_system(on: bool) -> void:
+	theme_pref = "system" if on else ("dark" if Tok.dark else "light")
+	if on and _theme_wanted() != Tok.dark:
+		Tok.set_dark(_theme_wanted())
+		_retheme()
+	_save_theme()
+	_say(("theme follows Windows (%s now)" % ("dark" if Tok.dark else "light")) if on else "theme fixed to %s (VIEW > Follow system to follow Windows again)" % theme_pref)
+
+
+## a window that gets focus again picks up a change of Windows' dark mode, while the preference is "system"
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN and theme_pref == "system" and ui_root != null and _theme_wanted() != Tok.dark:
+		Tok.set_dark(_theme_wanted())
+		_retheme()
 
 
 ## everything built with the old palette takes the new one
@@ -6162,7 +6251,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25 deg"
 	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
-	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
+	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy",
@@ -6545,6 +6634,7 @@ func _ui() -> void:
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
+	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
 	tog.call("VIEW", "Easy mode", func(): easy.set_on(not easy.on), func(): return easy.on, "Easy: the 12 big buttons, the panels hidden (a fresh start is Easy). Off = Expert: every panel and tool, as before (remembered)")
 	var us := MenuButton.new()
 	us.text = "UI size"
