@@ -612,8 +612,7 @@ func end_blend() -> void:
 	readout.text = "0 %"
 	var what := "'%s'%s%s" % [_nm(picked), " flipped" if _flip else "", "" if _only.is_empty() else " on %d selected part%s" % [_only.size(), "" if _only.size() == 1 else "s"]]
 	if f <= 0.0:
-		m.undo.pop_back()
-		m._history_rows()
+		m._drop_undo()
 		m._say("blend 0 %%: nothing changed. Drag further right on %s's picture to mix it in" % _nm(picked))
 		return
 	if f >= 1.0:
@@ -628,8 +627,7 @@ func cancel_blend() -> void:
 		return
 	m.B.set_state(_base)
 	_base = {}
-	m.undo.pop_back()
-	m._history_rows()
+	m._drop_undo()
 	m._after_edit()
 	slider.set_value_no_signal(0)
 	readout.text = "0 %"
