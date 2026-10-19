@@ -7290,6 +7290,7 @@ func _commands() -> Array:
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
+	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Import animation (fbx / glb / gltf / bvh)...", "", _anim_import_ask, "fbx mixamo unreal ue4 ue5 glb gltf bvh animation import retarget skeleton rig mocap motion capture clip", false, "pick an animation file from another skeleton (Mixamo, Unreal, Blender ...): its bones are matched to ours by name, its rest pose and size are allowed for, and it arrives as a NEW scene of cards in scenes/_wip (yours untouched). Or drop the file on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
@@ -9741,22 +9742,23 @@ var _video_pid := -1
 var _video_out := ""
 var _video_name := ""
 var _video_t := 0.0
+var _video_raw := false   # "import raw": the tracker's frames go straight to the fit, no VideoCleanup (jitter, floor, plants)
 
 
-func _video_ask() -> void:
+func _video_ask(raw := false) -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
 	fd.filters = PackedStringArray(["*.mp4, *.mov, *.avi, *.webm, *.mkv, *.m4v ; videos"])
 	fd.use_native_dialog = true
 	fd.title = "Animation from a video of a person"
-	fd.file_selected.connect(func(p): _import_video(p); fd.queue_free())
+	fd.file_selected.connect(func(p): _import_video(p, raw); fd.queue_free())
 	fd.canceled.connect(fd.queue_free)
 	add_child(fd)
 	fd.popup_centered(Vector2i(800, 500))
 
 
-func _import_video(path: String) -> void:
+func _import_video(path: String, raw := false) -> void:
 	if _video_pid >= 0 and OS.is_process_running(_video_pid):
 		_say("still tracking %s: one video at a time; try again when it arrives" % _video_name)
 		return
@@ -9764,6 +9766,7 @@ func _import_video(path: String) -> void:
 		_say("could not track %s: no such file; pick the video again" % path.get_file())
 		return
 	_video_name = path.get_file()
+	_video_raw = raw
 	_video_out = OS.get_user_data_dir().path_join("video_track/%s.json" % safe_file(path.get_file().get_basename()))
 	DirAccess.make_dir_recursive_absolute(_video_out.get_base_dir())
 	if FileAccess.file_exists(_video_out):
@@ -9787,11 +9790,13 @@ func _video_poll(dt: float) -> void:
 	if not FileAccess.file_exists(_video_out):
 		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
 		return
-	_import_pose(_video_out, _video_name)
+	_import_pose(_video_out, _video_name, _video_raw)
 
 
-## a pose file (tools/see_video.py's) -> a new scene in scenes/_wip, opened. Returns the new scene's path ("" refused)
-func _import_pose(path: String, from := "") -> String:
+## a pose file (tools/see_video.py's) -> a new scene in scenes/_wip, opened. Returns the new scene's path ("" refused).
+## The cleanup (VideoCleanup: One Euro jitter, the floor level, foot plants held where the leg reaches) is the default;
+## raw = true is "import raw", the tracker's frames as they came (MocapClean's card lock instead)
+func _import_pose(path: String, from := "", raw := false) -> String:
 	var P := VideoImport.load_file(path)
 	if not P["ok"]:
 		_say("could not import %s: %s; pick a pose file the tracker wrote, or a video" % [(from if from != "" else path.get_file()), P["why"]])
@@ -9799,10 +9804,21 @@ func _import_pose(path: String, from := "") -> String:
 	var keep := B.state()
 	# AA3: the weapon in his hand now (any but a dagger) is the one he holds in the video, in both hands
 	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
-	var fitted := VideoImport.solve(B, P["frames"], held)
+	var frames: Array = P["frames"]
+	var C := {}
+	if not raw:
+		C = VideoCleanup.run(frames, P["fps"])
+		frames = C["frames"]
+	var fitted := VideoImport.solve(B, frames, held)
 	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
-	var r := MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
-	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
+	var r := {"locked": 0, "text": ""}
+	if raw:
+		r = MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
+		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
+	else:
+		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
+		V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(C["plants"]), V.fps)
+		r = {"locked": V.plants.size(), "text": VideoCleanup.report(V.plants.size(), C["jitter_raw"], C["jitter_clean"], C["tilt"])}
 	B.set_state(keep)
 	var d: Dictionary = V.to_dict(B)
 	var src: String = from if from != "" else path.get_file()
