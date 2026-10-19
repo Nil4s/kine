@@ -40,7 +40,7 @@ const JOINT_KEYS := ["bend", "side", "twist", "A", "G", "pos", "end", "at_limit"
 ## a saved scene's own keys (scene.gd to_dict). Not accepted: "actors" (other scenes), "audio" (a file), anything else
 const SCENE_KEYS := ["scene", "natural", "on_floor", "floor_body", "pin", "fps", "length_s", "cards", "bad_frames", "note", "plan",
 	"spline", "moving_holds", "loop", "fitness", "breath", "layer", "layer_w", "layers", "props", "part_keys", "markers", "notes",
-	"beats", "beats_audio", "face", "attrs", "lip", "ik", "plants", "drivers", "secondary", "hair", "cape", "constraints", "body",
+	"beats", "beats_audio", "face", "attrs", "iq", "lip", "ik", "plants", "drivers", "secondary", "hair", "cape", "constraints", "body",
 	"shots", "clips", "sets", "camera", "boxes"]
 const CARD_KEYS := ["name", "move", "hold", "arrive_s", "leave_s", "pose", "flow", "walk", "steps", "lift", "ease", "ease_bias",
 	"plant", "take", "drop", "drop_rig", "air", "ktype", "weight_i"]

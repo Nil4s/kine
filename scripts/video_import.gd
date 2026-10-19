@@ -32,6 +32,7 @@ const KN := {"_l": 25, "_r": 26}
 const AN := {"_l": 27, "_r": 28}
 const TOE := {"_l": 31, "_r": 32}
 const HEEL := {"_l": 29, "_r": 30}
+const LOCK_JUMP := 0.05   # m: the hips move at most this much in a frame to the locked answer; more is blended halfway
 const FOOT_LEN := 0.152   # x standing height: foot length (Drillis & Contini 1966, the segment table in Winter's Biomechanics
                           # and Motor Control of Human Movement): the heel's back is that far behind the toe tip
 
@@ -110,6 +111,11 @@ static func parse(txt: String) -> Dictionary:
 		for p in f["w"]:
 			w.append(Vector3(p.x, -p.y, -p.z))   # MediaPipe y down -> ours (180 deg about x)
 		var e := {"t": f["t"], "w": w}
+		if (f["im"] as Array).size() >= 33 and (f["im"][0] as Array).size() >= 3:
+			var vs := []   # VIDEO IQ: the tracker's own visibility per landmark (0..1), read by VideoIQ.confidence
+			for q in f["im"]:
+				vs.append(float(q[2]))
+			e["vis"] = vs
 		if f["hd"] is Dictionary:
 			# ROADMAP 90: each hand's 21 world points, ours (the same 180 deg about x). A hand without 21 points is no hand
 			var hd := {}
@@ -125,7 +131,8 @@ static func parse(txt: String) -> Dictionary:
 	if out.size() < 2:
 		return _fail("the pose file has %d usable frames (the tracker found nobody?)" % out.size())
 	var tilt := level(out)
-	return {"ok": true, "why": "", "fps": float(d.get("fps", 30.0)), "frames": out, "tilt": tilt}
+	# VIDEO IQ: the camera's depth direction in the frames' axes now (the level turned the clip by `tilt` from the camera's z)
+	return {"ok": true, "why": "", "fps": float(d.get("fps", 30.0)), "frames": out, "tilt": tilt, "axis": _axis}
 
 
 ## LEVEL: MediaPipe's world axes follow the CAMERA, so a camera looking down tips the whole person (walk_bat's render: 10 deg
@@ -137,7 +144,11 @@ const LEVEL_MIN := 6.0   # deg: below this the clip's "up" is the person's lean,
                          # landmarks: 1.2; its MediaPipe track from the app's camera: 10.7)
 
 
+static var _axis := Vector3(0, 0, 1)   # the camera's depth direction after the last level() (VideoIQ.fix_depth reads it from parse)
+
+
 static func level(frames: Array) -> float:
+	_axis = Vector3(0, 0, 1)
 	var m := Vector3.ZERO
 	for f in frames:
 		var w: Array = f["w"]
@@ -151,6 +162,7 @@ static func level(frames: Array) -> float:
 	var R := Quaternion(m.normalized(), Vector3.UP)
 	if rad_to_deg(R.get_angle()) < LEVEL_MIN:
 		return 0.0   # within a walker's own lean: the file is level already (an exported Poser scene is)
+	_axis = R * Vector3(0, 0, 1)
 	for f in frames:
 		var w: Array = f["w"]
 		for k in w.size():
@@ -378,7 +390,7 @@ static func _rest_n(B: Body, mid: String) -> Vector3:
 
 ## every frame fitted: [{"t", "ang": {joint: Vector3}, "offset": Vector3}], the travel rebuilt from the stance foot and the
 ## lower sole put on the floor
-static func solve(B: Body, frames: Array, held := "", fps := 30.0) -> Array:
+static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}) -> Array:
 	# pass 1: every frame's pose, and each foot's two pivots (the heel's back, the toe joint: people roll over the heel,
 	# then over the toes) with the hips at 0
 	var poses := []
@@ -444,10 +456,35 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0) -> Array:
 					poses[i][j] = d[j]
 	# pass 2: the stance foot (the nearer its floor, this frame and the last summed) stays put; the hips move the opposite
 	# way by its lower pivot's move (the one it rolls over)
+	# VIDEO IQ (contact = VideoIQ.contacts' "piv": {"_l0" (left heel), "_l1" (left ball), "_r0", "_r1": [bool per frame]}): a pivot that is
+	# down is LOCKED instead: each of the two pivots of a foot in contact that is on its floor gets a world anchor the first frame it lands, and the hips are put where the
+	# anchors hold the pivots still (the mean of the anchors' answers). No step is integrated, so no error accumulates
+	# along a stance: the foot-lock of IK-based foot-skate cleanup (Kovar, Schreiner & Gleicher 2002, "Footskate cleanup for motion
+	# capture editing"), here on the root instead of the leg
 	var out := []
 	var root := Vector3.ZERO
+	var anchor := {}
+	var lockd := not contact.is_empty()
 	for i in poses.size():
-		if i > 0:
+		if lockd:
+			var sols := []
+			for sd in ["_l", "_r"]:
+				for k in 2:
+					var key := "%s%d" % [sd, k]
+					var p: Vector3 = pivs[i][sd][k]
+					if bool(contact[key][i]):
+						if not anchor.has(key):
+							anchor[key] = Vector3(root.x + p.x, 0.0, root.z + p.z)
+						sols.append(Vector3((anchor[key] as Vector3).x - p.x, 0.0, (anchor[key] as Vector3).z - p.z))
+					else:
+						anchor.erase(key)
+			if not sols.is_empty():
+				var mean := Vector3.ZERO
+				for sv in sols:
+					mean += sv as Vector3
+				mean /= float(sols.size())
+				root = mean if i == 0 or (mean - root).length() < LOCK_JUMP else root.lerp(mean, 0.5)
+		elif i > 0:
 			var lo := {}
 			for sd in ["_l", "_r"]:
 				lo[sd] = 0.0
