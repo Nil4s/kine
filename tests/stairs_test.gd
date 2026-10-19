@@ -10,7 +10,7 @@
 ##     more than 1 mm above the planted hips (anti-vacuity: the lower foot is out of reach of the played hips).
 ##   7 TOE BEND (a box step, 17.8 cm top, front edge at z = +0.2): the left foot is planted with its ball 2 cm short of the front
 ##     edge and its toes past it. On every planted frame: the ball's contact is on the top within 3 mm and the heel too; the
-##     toes bend DOWN over the edge at least 10 deg (the ball joint's bend, within its -30 deg limit); the toe tip is 5 cm or
+##     toes bend DOWN over the edge at least 10 deg (the ball joint's bend, within its -30 deg limit); the toe tip is 3 cm or
 ##     more below the top; the foot's axis is inside no prop by more than 2 mm.
 ##   8 WEDGE (ramp15 is a wedge, not a slab): its top is on the floor at the low end (within 0.5 mm of the formula 0.00268 m at
 ##     1 cm from the end, so no lip), 0.2679 m at the middle, 0.5332 m at 1 cm from the high end.
@@ -252,7 +252,9 @@ func _init() -> void:
 	ok(worst_ball <= 0.003 and worst_heel <= 0.003, "7 the ball and the heel stay on the step's top within 3 mm on every frame (worst %.2f, %.2f mm)" % [worst_ball * 1000.0, worst_heel * 1000.0])
 	ok(min_bend >= 10.0, "7 the toes bend down over the edge at least 10 deg on every frame (least %.1f deg)" % min_bend)
 	ok(ball_lim >= -30.01, "7 the ball's bend stays within its limit (-30 deg; most %.2f)" % ball_lim)
-	ok(toe_low >= 0.05, "7 the toe tip is 5 cm or more under the top it overhangs (%.1f cm)" % (toe_low * 100.0))
+	# the toes are ~7 cm long and stop at their -30 deg limit, so the tip can drop at most ~7 * sin 30 = 3.5 cm (+ ball give):
+	# the old 5 cm bar was past what the joint allows (coordinator, 2026-10-19). 3 cm = bent to near the limit
+	ok(toe_low >= 0.03, "7 the toe tip is 3 cm or more under the top it overhangs (%.1f cm)" % (toe_low * 100.0))
 	ok(worst_axis <= 0.002, "7 the foot's axis is inside the step by no more than 2 mm (%.2f mm)" % (worst_axis * 1000.0))
 
 	# 8 WEDGE: the ramp's top is a plane from the floor at its low end (no lip), 0.268 m at the middle
