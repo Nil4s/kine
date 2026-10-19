@@ -280,6 +280,21 @@ func _draw_audio(S: Scene, font: Font, y: float, h: float) -> void:
 	draw_line(Vector2(x0, y), Vector2(x0, y + h), Tok.of("ink:0.6"), 1.0)
 
 
+## MUSIC BEATS (ROADMAP 32): a thin mark per beat across the sound strip; a bar's first beat (down) is full height and warm
+func _draw_beats(S: Scene, y: float, h: float) -> void:
+	if S.beats_audio.is_empty() or S.audio.is_empty():
+		return
+	var off := float(S.audio.get("offset", 0.0))
+	for b in S.beats_audio:
+		var x := x_of(float(b["t"]) + off)
+		if x < -1.0 or x > size.x + 1.0:
+			continue
+		if b["down"]:
+			draw_line(Vector2(x, y), Vector2(x, y + h), Color(1.0, 0.8, 0.35, 0.95), 1.5)
+		else:
+			draw_line(Vector2(x, y + h * 0.55), Vector2(x, y + h), Tok.of("ink:0.45"), 1.0)
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -340,6 +355,7 @@ func _draw() -> void:
 			draw_string(font, Vector2(xm0 + 2, y0 + h * 0.5 + 5), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, w - 2, 11, Color(1, 1, 1, 0.9))
 	if ah > 0.0:
 		_draw_audio(S, font, size.y - ah, ah - 1.0)
+		_draw_beats(S, size.y - ah, ah - 1.0)
 	_draw_clips(S, font)
 	if not fd.is_empty():
 		_draw_fd_strip(font, RULER + 2.0)
