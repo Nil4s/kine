@@ -97,16 +97,19 @@ const SEAT_CATCH := 0.15     # a seat catches a part whose lowest surface is les
 ##   head = [half width across, radius] for a hammer head set ACROSS the shaft at the tip ([] = none), aim = the AIM rule
 ##   applies (a staff is held in the middle and both ends strike: pointing one end back past you is how it's held),
 ##   grip = how the hand closes on it (GripWrap.TYPES, round 47 CC2: power across the palm; diagonal, the thumb along it)
+## WEIGHT (ROADMAP 40, scripts/weight_feel.gd): "mass" kg, "com" = the centre of mass as a fraction of len from the butt, "k" = the
+##   radius of gyration about the centre of mass as a fraction of len (a uniform rod is 0.289). Bat 32 oz (0.91 kg);
+##   quarterstaff ~1.4 kg; the hammer 2.5 kg with its head at the tip; Dane axe 1-2 kg (above); a dagger ~0.3 kg
 const KINDS := {
-	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true, "grip": "power"},
-	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false, "grip": "power"},
-	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true, "grip": "power"},
-	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true, "grip": "diagonal"},
+	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true, "grip": "power", "mass": 0.90, "com": 0.65, "k": 0.25},
+	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false, "grip": "power", "mass": 1.40, "com": 0.50, "k": 0.289},
+	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true, "grip": "power", "mass": 2.50, "com": 0.80, "k": 0.20},
+	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true, "grip": "diagonal", "mass": 0.30, "com": 0.35, "k": 0.25},
 	## round 45 (AA3, Nick 10-18's video: "a Viking with a double headed axe"): a Dane axe's combat haft is "between
 	## approx. 0.9 and 1.2 m", its cutting edge "generally between 20 and 30 cm", 1-2 kg (en.wikipedia.org/wiki/Dane_axe,
 	## read 10-18). The long end of the haft; a bit each side of the tip, 15 cm out, 6 cm round (a 12 cm edge drawn as a
 	## capsule: the head is a stand-in shape, the length and the reach are the reference's)
-	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true, "grip": "power"},
+	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true, "grip": "power", "mass": 1.80, "com": 0.78, "k": 0.20},
 }
 var wep_kind := "metal_bat"
 ## the SECOND hand's fitted grip for this kind (data/grips/<kind>.json "second", from Nick's pose by
