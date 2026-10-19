@@ -481,6 +481,16 @@
       "additionalProperties": false
      }
     },
+    "sets": {
+     "type": "object",
+     "description": "SELECTION SETS and KEYING SETS (GAP_ANALYSIS rows 9, 6): named groups of body parts; written only when there is one. select = name -> parts (a click selects exactly them); keying = name -> parts (with one active, K keys every body part in it at the playhead, one undo step); active = the active keying set's name. Mirror swaps each part to its twin and a name ending _l / _r to the other. scripts/part_sets.gd",
+     "properties": {
+      "select": {"type": "object", "additionalProperties": {"type": "array", "minItems": 1, "items": {"type": "string"}}},
+      "keying": {"type": "object", "additionalProperties": {"type": "array", "minItems": 1, "items": {"type": "string"}}},
+      "active": {"type": "string"}
+     },
+     "additionalProperties": false
+    },
     "camera": {
      "type": "array",
      "description": "THE SHOT CAMERA (GAP_ANALYSIS row 21): one keyed camera; written only when there is one. Each key: t = seconds, pos = where the lens is (world, m), aim = the point it looks at (world, m), f = focal length in mm on a 36 mm wide sensor, 16:9 frame (fov_v = 2 atan(20.25 / 2 / f)). Between keys pos, aim and f follow the part keys' monotone curve. scripts/shot_camera.gd",

@@ -46,6 +46,7 @@ func fp() -> String:
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
 		"cons": var_to_str(m.S.cons),   # constraints (round 51)
 		"camera": var_to_str(m.S.camera),   # the shot camera (shot_camera.gd)
+		"sets": var_to_str(m.S.sets),   # selection / keying sets (part_sets.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
 		"body": var_to_str(m.S.body), "p0": var_to_str(m.B.p0)}   # PR1: the proportions and the skeleton they make
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
@@ -159,6 +160,20 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		ShotCam.put(m.S.camera, {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
 		ShotCam.put(m.S.camera, {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
+	elif kind.begins_with("SETS"):
+		# selection / keying sets (part_sets.gd): a selection set "arm_l", a keying set "swing" (active in SETS_B); SETS picks
+		# the keying set with a member selected (remove / delete / mirror / use for K), SETS_B the selection set with a
+		# part outside it selected (add) and "swing" active (none)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.sets = {"select": {"arm_l": ["upperarm_l", "lowerarm_l", "hand_l"]}, "keying": {"swing": ["upperarm_r", "lowerarm_r", "hand_r"]}}
+		m.sel = "lowerarm_r"
+		m.sel_more = []
+		PartSets.of(m).cur = {"kind": "keying", "name": "swing"}
+		if kind == "SETS_B":
+			m.S.sets["active"] = "swing"
+			PartSets.of(m).cur = {"kind": "select", "name": "arm_l"}
 	elif kind == "BODY":   # PR1: a scene on a 5th-percentile woman (for "Body: the mannequin's own proportions")
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
@@ -272,7 +287,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

@@ -2629,6 +2629,7 @@ func _snapshot() -> Dictionary:
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
+		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2662,6 +2663,10 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
 		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
 		_dummy_hits()
+	if u["scene"] == S and u.has("sets") and var_to_str(u["sets"]) != var_to_str(S.sets):
+		S.sets = u["sets"].duplicate(true)   # selection / keying sets (part_sets.gd), undone like a card
+		if ui_browser != null:
+			ui_browser.refresh()
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
 		S.cons = u["cons"].duplicate(true)   # constraints (round 51), undone like a card
 		_dummy_hits()
@@ -3078,6 +3083,8 @@ func _scene_dict(frames := true) -> Dictionary:
 ## KEY ONE PART (round 41, WW1, UPGRADES #239): K keys the picked part's 3 angles at the playhead as a PART KEY
 ## (scripts/part_keys.gd); keying the same time again replaces it. One undo step
 func _key_part() -> void:
+	if PartSets.of(self).key_active():   # an active KEYING SET: K keys all its parts (part_sets.gd); none: the one part, below
+		return
 	if not sel in Body.BODY or S.cards.is_empty():
 		_say("K keys a BODY part at the playhead: open a scene with cards and click a part first")
 		return
@@ -6559,6 +6566,7 @@ func _commands() -> Array:
 	for st in SEL_SETS:   # SELECTION SETS (round 28, GATES II2, UPGRADES #67)
 		add.call("Select: " + st, "", _select_set.bind(SEL_SETS[st]), "group set several parts together " + st, false, "select %s together: a drag on any of them turns them all" % st)
 	add.call("Select: just one part", "", _select_set.bind([]), "group set single clear one", false, "back to the one part the panel shows")
+	PartSets.of(self).commands(add)   # the user's own SELECTION SETS and KEYING SETS (scripts/part_sets.gd)
 	add.call("Lock / unlock this part", "", _toggle_lock.bind(""), "freeze hold keep unlock protect", false, "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
 	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
 	add.call("Look at the picked prop", "", _look_at.bind("prop"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the picked prop (real gaze shifts: scripts/look_at.gd)")
@@ -7850,6 +7858,8 @@ func _row_menu(md: Dictionary, at: Vector2) -> void:
 		items = [["Show this clip", _timeline_pick.bind(md["card"])]]
 	elif md.has("hit"):
 		items = [["Go to this contact", _goto_hit.bind(md["hit"])]]
+	elif md.has("pset") or String(md.get("menu", "")).begins_with("psets"):
+		items = PartSets.of(self).menu(md)   # selection / keying sets (part_sets.gd)
 	if items.is_empty():
 		return
 	if ui_ctx == null:
