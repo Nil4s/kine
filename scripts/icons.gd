@@ -54,6 +54,7 @@ const DRAW := {
 	"prop": [["box", Rect2(4, 10, 16, 10), 1.8], ["seg", Vector2(4, 10), Vector2(8, 5), 1.6], ["seg", Vector2(20, 10), Vector2(16, 5), 1.6],
 		["seg", Vector2(8, 5), Vector2(16, 5), 1.6]],
 	"ai": [["box", Rect2(3, 4, 16, 11), 1.8], ["seg", Vector2(7, 15), Vector2(6, 20), 1.8], ["seg", Vector2(6, 20), Vector2(11, 15), 1.8], ["seg", Vector2(7, 9.5), Vector2(15, 9.5), 1.8]],
+	"cameras": [["box", Rect2(1, 4, 8, 6), 1.5], ["box", Rect2(1, 12, 8, 6), 1.5], ["box", Rect2(11, 4, 8, 6), 1.5], ["box", Rect2(11, 12, 8, 6), 1.5]],   # ROADMAP 89: several cameras, four small ones
 	"video": [["box", Rect2(3, 7, 13, 10), 1.8], ["seg", Vector2(16, 10), Vector2(21, 7), 1.8], ["seg", Vector2(16, 14), Vector2(21, 17), 1.8], ["seg", Vector2(21, 7), Vector2(21, 17), 1.8]],
 	"import": [["seg", Vector2(12, 3), Vector2(12, 14), 2.0], ["seg", Vector2(7, 9), Vector2(12, 14), 2.0], ["seg", Vector2(17, 9), Vector2(12, 14), 2.0],
 		["seg", Vector2(4, 15), Vector2(4, 20), 1.8], ["seg", Vector2(4, 20), Vector2(20, 20), 1.8], ["seg", Vector2(20, 20), Vector2(20, 15), 1.8]],

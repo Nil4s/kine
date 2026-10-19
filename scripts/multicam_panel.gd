@@ -7,6 +7,7 @@ extends Control
 var cams: Array = []          # [{"name", "C": Vector3 (m), "rms": px, "views": int}]
 var pose: Array = []          # 33 world points (y up, hips at 0) of the frame shown
 var rms_frame := -1.0         # px: that frame's mean reprojection error
+var truth: Array = []         # optional: the same frame's truth (33 points, the same axes), drawn in red under the reconstruction (yellow-green)
 var frame_t := 0.0
 const LIST_W := 300.0
 const PAD := 16.0
@@ -77,8 +78,15 @@ func _draw() -> void:
 	var r := skel_rect()
 	draw_rect(r, Tok.of("graph_bg"))
 	draw_string(font, Vector2(r.position.x + 8.0, r.position.y + 18.0), "reconstructed at %.2f s, %.2f px" % [frame_t, rms_frame], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Tok.of("info"))
+	if truth.size() == 33:
+		draw_string(font, Vector2(r.position.x + 8.0, r.position.y + 34.0), "red: the truth   yellow-green: the reconstruction", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.of("ch_x"))
 	if pose.size() < 33:
 		return
+	if truth.size() == 33:
+		for b in BONES:
+			draw_line(to_screen(truth[b[0]], r), to_screen(truth[b[1]], r), Tok.of("ch_x"), 2.0)
+		for j in [25, 26, 13, 14, 15, 16]:
+			draw_circle(to_screen(truth[j], r), 3.0, Tok.of("ch_x"))
 	for b in BONES:
 		draw_line(to_screen(pose[b[0]], r), to_screen(pose[b[1]], r), Tok.of("s_head"), 3.0)
 	for j in [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 31, 32]:

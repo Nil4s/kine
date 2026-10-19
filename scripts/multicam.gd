@@ -46,12 +46,14 @@ static func on_ring(name: String, K: Dictionary, yaw: float, pitch: float, r: fl
 	return cam_at(name, K, C, target)
 
 
-## the rig from its parameters: p = [r0, yaw1, pitch1, r1, yaw2, pitch2, r2, ...]. Camera 0 is at yaw 0, pitch 0, radius r0
+## the rig from its parameters: p = [pitch0, r0, yaw1, pitch1, r1, yaw2, pitch2, r2, ...] (deg, m). Camera 0 is at yaw 0 (the
+## yaw gauge: a turn about the vertical moves nothing the fit can see), but its PITCH is free: gravity and the floor fix it
+## (see _cost), not the gauge
 static func rig(Ks: Array, p: Array, target := TARGET) -> Array:
 	var cams := []
-	cams.append(on_ring("cam0", Ks[0], 0.0, 0.0, float(p[0]), target))
+	cams.append(on_ring("cam0", Ks[0], 0.0, float(p[0]), float(p[1]), target))
 	for c in range(1, Ks.size()):
-		var k := 1 + 3 * (c - 1)
+		var k := 2 + 3 * (c - 1)
 		cams.append(on_ring("cam%d" % c, Ks[c], float(p[k]), float(p[k + 1]), float(p[k + 2]), target))
 	return cams
 
@@ -173,10 +175,12 @@ static func triangulate_frame(cams: Array, obs_cams: Array, joints := JOINTS) ->
 
 
 ## every frame. obs = [{"t", "cams": [...]}] (see triangulate_frame). A joint that cannot be solved holds its last value.
-## Returns {"ok", "frames": [{"t", "w"}] (33 points, hips at 0, y up: VideoImport.parse's layout), "rms": per frame px,
+## Returns {"ok", "frames": [{"t", "w"}] (33 points, hips at 0, y up: VideoImport.parse's layout), "hips": the hips' midpoint
+## before that centring (rig world), "rms": per frame px,
 ## "mean_rms" px, "cam_rms": per camera px, "rejected": views dropped, "fails": joint solves that failed}
 static func triangulate_all(cams: Array, obs: Array, joints := JOINTS) -> Dictionary:
 	var frames := []
+	var hips := []
 	var rms := []
 	var cam_ss := []
 	var cam_n := []
@@ -211,6 +215,7 @@ static func triangulate_all(cams: Array, obs: Array, joints := JOINTS) -> Dictio
 				fails += 1
 				X[j] = last[j]
 		var hip: Vector3 = ((X[23] as Vector3) + (X[24] as Vector3)) * 0.5
+		hips.append(hip)
 		var w := []
 		for i in 33:
 			w.append(((X[i] as Vector3) - hip) if joints.has(i) else Vector3.ZERO)
@@ -223,72 +228,298 @@ static func triangulate_all(cams: Array, obs: Array, joints := JOINTS) -> Dictio
 	var cam_rms := []
 	for c in cams.size():
 		cam_rms.append(sqrt(float(cam_ss[c]) / maxi(int(cam_n[c]), 1)))
-	return {"ok": frames.size() >= 2, "frames": frames, "rms": rms, "mean_rms": mean, "cam_rms": cam_rms,
+	return {"ok": frames.size() >= 2, "frames": frames, "hips": hips, "rms": rms, "mean_rms": mean, "cam_rms": cam_rms,
 		"rejected": rejected, "fails": fails}
 
 
-## the rig's fit to the observations: mean squared reprojection (px^2) over every used view, plus BONE_K times the mean
-## squared bone-length error (ratio - 1) over the bones in `pairs` ([a, b, metres]). The bones are what fix the scale
+## the rig's fit to the observations. Four terms, all in the rig's own frame (its world is gravity-up by the constraints below):
+##   reprojection: mean squared error (px^2) over every used view
+##   bones: BONE_K x the mean squared (ratio - 1) over the bones in `pairs` ([a, b, metres]): this fixes the scale
+##   gravity: the standing body's trunk is vertical ON AVERAGE over the clip (a person stands; a tilted camera tilts the
+##     whole body): GRAV_K x the squared horizontal part of the mean trunk direction. This is what identifies the cameras'
+##     pitch. It needs a STANDING clip: a walker leans forward ~4-5 deg on average and would read as a tilted rig
+##   floor: the lowest sole (heel or toe, either foot) is at one height in every frame: FLOOR_K x its variance (m^2). A
+##     rig that is wrong in yaw or pitch makes the stance foot rise and fall
+const GRAV_K := 1.0e5
+const FLOOR_K := 1.0e5
+static var _parts := []   # the last _cost's four terms (reprojection, bones, gravity, floor): for the test's printout
 static func _cost(Ks: Array, p: Array, sub: Array, pairs: Array) -> float:
 	var cams := rig(Ks, p)
 	var ss := 0.0
 	var nn := 0
 	var bl := 0.0
 	var nb := 0
+	var trunk := Vector3.ZERO
+	var nt := 0
+	var floor_h := []
+	var blen := []   # per bone: the sum of its length over the frames (a rigid bone is one length: the per-frame noise averages out)
+	var bn := []
+	for pr in pairs:
+		blen.append(0.0)
+		bn.append(0)
+
 	for fr in sub:
-		var res := triangulate_frame(cams, fr["cams"])
 		var X := {}
-		for j in res:
-			if res[j]["ok"]:
-				X[j] = res[j]["X"]
-				for e in res[j]["errs"]:
-					ss += float(e) * float(e)
-					nn += 1
-		for pr in pairs:
+		for j in JOINTS:
+			var views := []
+			for c in fr["cams"].size():
+				var co = fr["cams"][c]
+				if co != null and float((co["conf"] as Array)[j]) > 0.0:
+					views.append({"c": c, "uv": (co["uv"] as Array)[j], "w": float((co["conf"] as Array)[j])})
+			var r := triangulate(cams, views)
+			# every view counts, the rejected ones too, each truncated at OUTLIER_PX^2: a wrong rig must not win by having
+			# its bad views dropped as outliers (the rejection made the cost drop with a worse rig)
+			var solved: bool = r["ok"]
+			if solved:
+				X[j] = r["X"]
+			for vw in views:
+				var e := 0.0
+				if solved:
+					e = minf(_err(cams, vw, r["X"] as Vector3), OUTLIER_PX)
+				else:
+					e = OUTLIER_PX
+				ss += e * e
+				nn += 1
+		for k in pairs.size():
+			var pr: Array = pairs[k]
 			if X.has(pr[0]) and X.has(pr[1]):
-				var ratio := ((X[pr[0]] as Vector3) - (X[pr[1]] as Vector3)).length() / float(pr[2])
-				bl += (ratio - 1.0) * (ratio - 1.0)
-				nb += 1
-	return ss / maxf(float(nn), 1.0) + BONE_K * bl / maxf(float(nb), 1.0)
+				blen[k] += ((X[pr[0]] as Vector3) - (X[pr[1]] as Vector3)).length()
+				bn[k] += 1
+		if X.has(11) and X.has(12) and X.has(23) and X.has(24):
+			var hip: Vector3 = ((X[23] as Vector3) + (X[24] as Vector3)) * 0.5
+			trunk += ((((X[11] as Vector3) + (X[12] as Vector3)) * 0.5) - hip).normalized()
+			nt += 1
+		if X.has(29) and X.has(30) and X.has(31) and X.has(32):
+			floor_h.append(minf(minf((X[29] as Vector3).y, (X[30] as Vector3).y), minf((X[31] as Vector3).y, (X[32] as Vector3).y)))
+	for k in pairs.size():
+		if int(bn[k]) > 0:
+			var ratio := (float(blen[k]) / float(bn[k])) / float(pairs[k][2])
+			bl += (ratio - 1.0) * (ratio - 1.0)
+			nb += 1
+	var grav := 0.0
+	if nt > 0:
+		var tm := Vector2(trunk.x, trunk.z) / float(nt)
+		grav = tm.length_squared()
+	var fvar := 0.0
+	if floor_h.size() > 1:
+		var m := 0.0
+		for h in floor_h:
+			m += float(h)
+		m /= floor_h.size()
+		for h in floor_h:
+			fvar += (float(h) - m) * (float(h) - m)
+		fvar /= floor_h.size()
+	_parts = [ss / maxf(float(nn), 1.0), BONE_K * bl / maxf(float(nb), 1.0), GRAV_K * grav, FLOOR_K * fvar]
+	return ss / maxf(float(nn), 1.0) + BONE_K * bl / maxf(float(nb), 1.0) + GRAV_K * grav + FLOOR_K * fvar
 
 
-## the extrinsics from the person's own keypoints: coordinate descent on the rig parameters p (see rig), from p0 (a rough ring:
-## the yaws about 360/N apart, the radii a few metres). `pairs` are [a, b, metres] for the bones. Up to `sample` frames of
-## obs are used (evenly spaced). Returns {"p", "cost", "cams", "sweeps"}
-static func solve_extrinsics(Ks: Array, p0: Array, obs: Array, pairs: Array, sample := 8) -> Dictionary:
-	var sub := []
-	var step_i := maxi(1, obs.size() / maxi(1, sample))
-	for i in range(0, obs.size(), step_i):
-		sub.append(obs[i])
+## the same four terms as _cost, as RESIDUALS (a sum of squares: the reprojection error of every view in px, the bone
+## ratios x sqrt(BONE_K), the gravity x sqrt(GRAV_K), the floor's deviation per frame x sqrt(FLOOR_K / frames)). Every view
+## is kept (no outlier cut): the fit must be smooth in the rig's parameters for the Jacobian
+static func _resid(Ks: Array, p: Array, sub: Array, pairs: Array) -> Array:
+	var cams := rig(Ks, p)
+	var out := []
+	var blen := []
+	var bn := []
+	for pr in pairs:
+		blen.append(0.0)
+		bn.append(0)
+	var tm := Vector2.ZERO
+	var nt := 0
+	var floor_h := []
+	for fr in sub:
+		var X := {}
+		for j in JOINTS:
+			var views := []
+			for c in fr["cams"].size():
+				var co = fr["cams"][c]
+				if co != null and float((co["conf"] as Array)[j]) > 0.0:
+					views.append({"c": c, "uv": (co["uv"] as Array)[j], "w": float((co["conf"] as Array)[j])})
+			var Xj = _solve(cams, views)
+			if Xj == null:
+				for vw in views:
+					out.append(0.0)
+					out.append(0.0)
+				continue
+			X[j] = Xj
+			for vw in views:
+				var q := project(cams[vw["c"]], Xj as Vector3)
+				out.append(q.x - (vw["uv"] as Vector2).x)
+				out.append(q.y - (vw["uv"] as Vector2).y)
+		for k in pairs.size():
+			var pr: Array = pairs[k]
+			if X.has(pr[0]) and X.has(pr[1]):
+				blen[k] += ((X[pr[0]] as Vector3) - (X[pr[1]] as Vector3)).length()
+				bn[k] += 1
+		if X.has(11) and X.has(12) and X.has(23) and X.has(24):
+			var hip: Vector3 = ((X[23] as Vector3) + (X[24] as Vector3)) * 0.5
+			var d: Vector3 = ((((X[11] as Vector3) + (X[12] as Vector3)) * 0.5) - hip).normalized()
+			tm += Vector2(d.x, d.z)
+			nt += 1
+		if X.has(29) and X.has(30) and X.has(31) and X.has(32):
+			floor_h.append(minf(minf((X[29] as Vector3).y, (X[30] as Vector3).y), minf((X[31] as Vector3).y, (X[32] as Vector3).y)))
+	for k in pairs.size():
+		if int(bn[k]) > 0:
+			out.append(sqrt(BONE_K) * ((float(blen[k]) / float(bn[k])) / float(pairs[k][2]) - 1.0))
+	if nt > 0:
+		out.append(sqrt(GRAV_K) * tm.x / float(nt))
+		out.append(sqrt(GRAV_K) * tm.y / float(nt))
+	if floor_h.size() > 1:
+		var m := 0.0
+		for h in floor_h:
+			m += float(h)
+		m /= floor_h.size()
+		for h in floor_h:
+			out.append(sqrt(FLOOR_K / float(floor_h.size())) * (float(h) - m))
+	return out
+
+
+static func _ss(r: Array) -> float:
+	var t := 0.0
+	for x in r:
+		t += float(x) * float(x)
+	return t
+
+
+## the linear system A x = b (Gauss-Jordan, partial pivoting); zeros when it is singular
+static func _solve_lin(A: Array, b: Array) -> Array:
+	var n := b.size()
+	var M := []
+	for i in n:
+		var row: Array = (A[i] as Array).duplicate()
+		row.append(b[i])
+		M.append(row)
+	for c in n:
+		var piv := c
+		for r in range(c + 1, n):
+			if absf(float(M[r][c])) > absf(float(M[piv][c])):
+				piv = r
+		var tmp = M[c]
+		M[c] = M[piv]
+		M[piv] = tmp
+		var d := float(M[c][c])
+		if absf(d) < 1e-30:
+			var z := []
+			for i in n:
+				z.append(0.0)
+			return z
+		for r in n:
+			if r != c:
+				var f := float(M[r][c]) / d
+				for k in range(c, n + 1):
+					M[r][k] = float(M[r][k]) - f * float(M[c][k])
+	var x := []
+	for i in n:
+		x.append(float(M[i][n]) / float(M[i][i]))
+	return x
+
+
+## Levenberg-Marquardt on _resid from p0: the Jacobian by forward differences, the damping (lambda) up after a rejected step
+## and down after an accepted one. Returns {"p", "cost" (sum of squares), "sweeps" (iterations)}
+static func _lm(Ks: Array, p0: Array, sub: Array, pairs: Array, iters: int) -> Dictionary:
 	var p := p0.duplicate()
-	var step := []
-	for k in p.size():
-		step.append(0.1 if k % 3 == 0 else 2.0)   # radii (m) and angles (deg) move in their own units
-	var best := _cost(Ks, p, sub, pairs)
-	var sweeps := 0
-	while sweeps < 200:
-		sweeps += 1
-		var improved := false
-		for k in p.size():
-			for s in [1.0, -1.0]:
-				var q := p.duplicate()
-				q[k] = float(q[k]) + s * float(step[k])
-				var c := _cost(Ks, q, sub, pairs)
-				if c < best:
-					best = c
-					p = q
-					improved = true
-					break
-		if not improved:
-			for k in step.size():
-				step[k] = float(step[k]) * 0.5
-			var tiny := true
-			for k in step.size():
-				if float(step[k]) > 0.02:
-					tiny = false
-			if tiny:
+	var r := _resid(Ks, p, sub, pairs)
+	var f := _ss(r)
+	var lam := 1.0e-2
+	var it := 0
+	while it < iters:
+		it += 1
+		var n := p.size()
+		var m := r.size()
+		var J := []
+		for k in n:
+			var q := p.duplicate()
+			q[k] = float(q[k]) + 1.0e-3
+			var rk := _resid(Ks, q, sub, pairs)
+			var col := []
+			for i in m:
+				col.append((float(rk[i]) - float(r[i])) / 1.0e-3)
+			J.append(col)
+		var A := []
+		var g := []
+		for k in n:
+			var row := []
+			for l in n:
+				var v := 0.0
+				for i in m:
+					v += float(J[k][i]) * float(J[l][i])
+				row.append(v)
+			A.append(row)
+			var gv := 0.0
+			for i in m:
+				gv += float(J[k][i]) * float(r[i])
+			g.append(-gv)
+		var accepted := false
+		var step_max := 0.0
+		for tries in 12:
+			var M := []
+			for k in n:
+				var row: Array = (A[k] as Array).duplicate()
+				row[k] = float(row[k]) * (1.0 + lam) + 1.0e-9
+				M.append(row)
+			var d := _solve_lin(M, g)
+			var q := p.duplicate()
+			for k in n:
+				q[k] = float(q[k]) + float(d[k])
+			var rq := _resid(Ks, q, sub, pairs)
+			var fq := _ss(rq)
+			if fq < f:
+				p = q
+				r = rq
+				f = fq
+				lam = maxf(lam / 3.0, 1.0e-7)
+				accepted = true
+				for k in n:
+					step_max = maxf(step_max, absf(float(d[k])))
 				break
-	return {"p": p, "cost": best, "cams": rig(Ks, p), "sweeps": sweeps}
+			lam *= 4.0
+		if not accepted or step_max < 1.0e-6:
+			break
+	return {"p": p, "cost": f, "sweeps": it}
+
+
+## the extrinsics from the person's own keypoints. Two stages. (1) A coarse GRID, camera by camera: each non-reference
+## camera's yaw (+-30 deg about its ring start, 10 deg steps) and pitch (-5..15 deg), and camera 0's pitch (-5..10), scored
+## on `sample` evenly spaced frames: a greedy descent from the ring stalls in a valley (camera 1 sat 15-17 deg off in the
+## test). (2) Levenberg-Marquardt from the grid's best on ALL the frames (_lm). `pairs` are [a, b, metres] for the bones.
+## p0 is the ring: [pitch0, r0, yaw1, pitch1, r1, ...]. Returns {"p", "cost" (of _cost), "cams", "sweeps"}
+## max_frames > 0 caps the frames the Levenberg-Marquardt stage reads (evenly spaced): a 300-frame clip in GDScript takes
+## minutes; the app uses 120. 0 = every frame (the test's 24 are all of them)
+static func solve_extrinsics(Ks: Array, p0: Array, obs: Array, pairs: Array, sample := 8, max_frames := 0) -> Dictionary:
+	var coarse := []
+	var sc := maxi(1, obs.size() / maxi(1, sample))
+	for i in range(0, obs.size(), sc):
+		coarse.append(obs[i])
+	var bestp := p0.duplicate()
+	var bc := INF
+	for pt in [-5.0, 0.0, 5.0, 10.0]:
+		var q := p0.duplicate()
+		q[0] = pt
+		var cq := _cost(Ks, q, coarse, pairs)
+		if cq < bc:
+			bc = cq
+			bestp = q
+	for c in range(1, Ks.size()):
+		var k := 2 + 3 * (c - 1)
+		bc = INF
+		var cur := bestp.duplicate()
+		for dy in [-30.0, -20.0, -10.0, 0.0, 10.0, 20.0, 30.0]:
+			for pt in [-5.0, 0.0, 5.0, 10.0, 15.0]:
+				var q := cur.duplicate()
+				q[k] = float(p0[k]) + dy
+				q[k + 1] = pt
+				var cq := _cost(Ks, q, coarse, pairs)
+				if cq < bc:
+					bc = cq
+					bestp = q
+	var lm_obs := obs
+	if max_frames > 0 and obs.size() > max_frames:
+		lm_obs = []
+		var st := float(obs.size()) / float(max_frames)
+		for i in max_frames:
+			lm_obs.append(obs[int(i * st)])
+	var res := _lm(Ks, bestp, lm_obs, pairs, 25)
+	return {"p": res["p"], "cost": _cost(Ks, res["p"], obs, pairs), "cams": rig(Ks, res["p"]), "sweeps": res["sweeps"]}
 
 
 ## the bones' lengths of one frame of the 33 points (metres), the scale the rig is checked against: pairs with `scale`
@@ -297,6 +528,41 @@ static func bone_pairs(w: Array, scale := 1.0) -> Array:
 	var out := []
 	for b in BONES:
 		out.append([b[0], b[1], (w[b[0]] as Vector3).distance_to(w[b[1]] as Vector3) * scale])
+	return out
+
+
+## the bones of the mannequin standing at rest, as bone_pairs gives them. height 0 (the default: the app has no height field
+## yet) keeps the mannequin's own size; a height in m scales every bone by height / the mannequin's standing height. The rest
+## pose is restored after. The bones fix the rig's scale: a person of another height than the mannequin puts the rig at the
+## wrong distance unless the height is given
+static func rest_bones(B: Body, height := 0.0) -> Array:
+	var keep := {}
+	for j in B.ang:
+		keep[j] = B.ang[j]
+		B.ang[j] = Vector3.ZERO
+	B.fk()
+	var w := VideoImport.landmarks_of(B)
+	var body_h := maxf((w[0] as Vector3).y - minf((w[29] as Vector3).y, (w[30] as Vector3).y), 0.5)
+	for j in keep:
+		B.ang[j] = keep[j]
+	B.fk()
+	var scale := 1.0 if height <= 0.0 else height / body_h
+	return bone_pairs(w, scale)
+
+
+## how many frames each camera saw each joint of the JOINTS with confidence > 0 (the panel's "joints seen")
+static func views_per_cam(obs: Array, n: int) -> Array:
+	var out := []
+	for c in n:
+		out.append(0)
+	for fr in obs:
+		for c in mini(n, (fr["cams"] as Array).size()):
+			var co = fr["cams"][c]
+			if co == null:
+				continue
+			for j in JOINTS:
+				if float((co["conf"] as Array)[j]) > 0.0:
+					out[c] += 1
 	return out
 
 
