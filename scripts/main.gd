@@ -2735,6 +2735,7 @@ func _refresh() -> void:
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
+	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
@@ -3407,6 +3408,7 @@ func _snapshot() -> Dictionary:
 		"markers": S.markers.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
+		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
@@ -3471,6 +3473,8 @@ func _restore(u: Dictionary) -> void:
 		_attr_refresh()   # the rows of an undone add go, and come back on redo, without waiting for the next refresh
 	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
+	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
+		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
 		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
 		_dummy_hits()
@@ -5396,6 +5400,65 @@ func _sec_clear() -> void:
 	_do(func(): S.secondary = {})
 	_dummy_hits()
 	_say("took the secondary motion off the scene (Ctrl+Z puts it back)")
+
+
+## CAPE (ROADMAP item 86; scripts/cloth.gd). An optional cape on the back, pinned at the shoulders and simulated as a cloth
+## grid (12 x 16) that collides with the body's capsules. "Cape: add to the back" bakes it over the scene's frames in one
+## undo step (S.cape); the view draws the baked frame at the playhead. Bake again after the animation changes. Taking it
+## off and exporting are one step / no step.
+var _cape_mi: MeshInstance3D
+var _cape_mat: StandardMaterial3D
+
+
+func _cape_add() -> void:
+	_say("baking the cape over %.1f s: the cloth is simulated frame by frame, this takes a moment" % S.length())
+	var cape := Cloth.bake_scene(S, B)
+	_do(func(): S.cape = cape)
+	_dummy_hits()
+	_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back)" % [(cape["frames"] as Array).size(), S.fps])
+
+
+func _cape_clear() -> void:
+	if S.cape.is_empty():
+		_say("no cape to take off: 'Cape: add to the back' first")
+		return
+	_do(func(): S.cape = {})
+	_say("took the cape off (Ctrl+Z puts it back)")
+
+
+func _cape_export() -> void:
+	if S.cape.is_empty():
+		_say("no cape to export: 'Cape: add to the back' first")
+		return
+	var p := Cloth.save_json(S.cape, "cape.json")
+	if p == "":
+		_say("could not write the cape file under the user folder: check the disk, then export again")
+		return
+	_say("exported the cape's vertices for every frame to %s (one list of 192 points per frame)" % p)
+
+
+func _cape_draw() -> void:
+	if _cape_mi == null:
+		_cape_mat = StandardMaterial3D.new()
+		_cape_mat.cull_mode = BaseMaterial3D.CULL_DISABLED   # the cloth is seen from both sides
+		_cape_mat.albedo_color = Color(0.42, 0.1, 0.16)
+		_cape_mat.roughness = 0.9
+		_cape_mi = MeshInstance3D.new()
+		_cape_mi.name = "cape"
+		_cape_mi.mesh = ImmediateMesh.new()
+		add_child(_cape_mi)
+	var im := _cape_mi.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if S == null or S.cape.is_empty():
+		_cape_mi.visible = false
+		return
+	_cape_mi.visible = true
+	var v := Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
+	var f := Cloth.faces()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _cape_mat)
+	for k in f.size():
+		im.surface_add_vertex(v[f[k]])
+	im.surface_end()
 
 
 ## the overlay: each item's chain at the playhead, from its baked keys (at rest when not baked yet)
@@ -9267,6 +9330,9 @@ func _commands() -> Array:
 	add.call("Secondary: add a ponytail", "", _sec_add.bind("ponytail"), "secondary ponytail hair tail sway lag overshoot bake spring", true, "a ponytail hangs from the head and follows it with lag and overshoot; baked to keys")
 	add.call("Secondary: add a cloth strip", "", _sec_add.bind("cloth"), "secondary cloth strip belt flap sway lag overshoot bake spring", true, "a cloth strip hangs from the belt and follows the body; baked to keys")
 	add.call("Secondary: add a weapon flex (oak bo)", "", _sec_add.bind("bo"), "secondary weapon flex bo staff shaft wobble strike bend bake", true, "a 180 cm oak bo clamped at the right hand bends and settles after a strike; baked to keys")
+	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
+	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
+	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
 	add.call("Secondary: clear", "", _sec_clear, "secondary clear remove off delete chain", true, "takes every secondary item and its keys off the scene (Ctrl+Z puts them back)")
 	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
