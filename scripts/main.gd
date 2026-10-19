@@ -7039,6 +7039,8 @@ func _commands() -> Array:
 	add.call("Paste flipped 50%, selected parts", "", _paste_flipped.bind(0.5, true), "clipboard flip left right blend half group", true, "half of the way to the reflected copied pose, on the selected parts only")
 	add.call("Paste to this part", "", _paste_pose.bind("part"), "clipboard arm leg only", true, "the copied pose on the picked part and the parts below it only (an arm, a leg)")
 	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "flip", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
+	for st in StyleTransfer.STYLES:
+		add.call("Style: make it " + st + "...", "", _style_dialog.bind(st), "style transfer make it %s heavier older tired angrier walk" % st, false, "a copy of this scene in the style (timing, spacing, posture; ROADMAP 25), with an intensity 0-100 %; saved in scenes/_wip and opened (yours untouched)")
 	add.call("Body: proportions...", "", _proportions_dialog, "proportions height stature tall short size body limbs arm leg length character ansur woman man female male", false, "a small dialog: a preset (ANSUR II 5th / 50th / 95th, woman or man) or a stature; the cards keep their angles, the feet stay on the floor (PR1)")
 	for pk in Proportions.PRESETS:
 		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
@@ -7546,6 +7548,48 @@ func _mirror_scene() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), H.name])
+
+
+## STYLE TRANSFER (ROADMAP 25): "Style: make it <older | tired | heavy | angry>" asks for the intensity (0-100 %), then saves
+## a NEW scene in scenes/_wip and opens it (yours untouched). The logic is StyleTransfer.make (scripts/style_transfer.gd).
+func _style_dialog(style: String) -> void:
+	if S.cards.size() < 2:
+		_say("Style needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
+		return
+	ui_style_name = style
+	if ui_style_dlg == null:
+		ui_style_dlg = ConfirmationDialog.new()
+		ui_style_dlg.name = "style_dialog"
+		ui_style_dlg.title = "Style transfer"
+		ui_style_dlg.min_size = Vector2i(340, 0)
+		var h := HBoxContainer.new()
+		var l := Label.new()
+		l.text = "intensity (%)"
+		h.add_child(l)
+		ui_style_pct = SpinBox.new()
+		ui_style_pct.name = "spin_style_pct"
+		ui_style_pct.min_value = 0.0
+		ui_style_pct.max_value = 100.0
+		ui_style_pct.step = 1.0
+		ui_style_pct.value = 100.0
+		h.add_child(ui_style_pct)
+		ui_style_dlg.add_child(h)
+		ui_style_dlg.confirmed.connect(func(): _style_save(ui_style_name, ui_style_pct.value))
+		add_child(ui_style_dlg)
+	ui_style_dlg.title = "Style transfer: " + style
+	ui_style_dlg.popup_centered()
+
+
+## the style made from the hero's scene file, into scenes/_wip/<name>_<style>.json, opened (as _mirror_scene does)
+func _style_save(style: String, pct: float) -> void:
+	var H := _hero_scene()   # TC3: the file is the hero's scene (with its actors), whoever is active
+	var d := StyleTransfer.make(_scene_dict(), style, pct)
+	var path := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/")
+	_write(path, d)
+	_load_scene(path)
+	_rebuild_cards()
+	_refresh()
+	_say("style %s at %d%%: saved as %s and opened; '%s' is untouched" % [style, int(round(pct)), path.get_file(), H.name])
 
 
 ## SPEED GRAPH: three strips (small multiples, each its own scale: the tip moves metres where the head moves
@@ -9949,6 +9993,9 @@ func _shot_blast_end(sb: Dictionary) -> void:
 var ui_prop_dlg: ConfirmationDialog
 var ui_prop_preset: OptionButton
 var ui_prop_stature: SpinBox
+var ui_style_dlg: ConfirmationDialog
+var ui_style_pct: SpinBox
+var ui_style_name := ""
 const PROP_KEYS := ["", "female_5", "female_50", "female_95", "male_5", "male_50", "male_95", "custom"]
 
 
