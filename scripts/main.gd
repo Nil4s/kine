@@ -573,7 +573,7 @@ func part_look(j: String, touching := {}) -> String:
 		return "lock"
 	if touching.has(j):
 		return "touch"
-	if j in Body.ORDER and B.P.has(j) and not B.at_limit(j).is_empty():
+	if j in Body.ORDER and B.P.has(j) and B.limit_fade(j) > 0.0:   # the limit tint: only in the last 10% of the range (Body.limit_fade)
 		return "limit"
 	return ""
 
@@ -2932,6 +2932,10 @@ func _refresh() -> void:
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
 				looks[j] = _look_of(lk)
+				if lk == "limit":   # the tint of the joint's own part, at the strength of how far into its last 10% it is
+					var lc: Color = looks[j][0]
+					lc.a *= B.limit_fade(j)
+					looks[j][0] = lc
 				if lk == "sel" and locked_parts.has(j):   # picked AND locked: the pick's colour greyed toward the lock's
 					looks[j][0] = Color(Tok.c("pick_sel").lerp(Tok.c("pick_lock"), 0.4), looks[j][0].a)
 			if pieces.has(j):
@@ -2948,7 +2952,7 @@ func _refresh() -> void:
 		_place(parts[j], c[0], c[1], B.rad[j])
 		var col := Color(0.62, 0.63, 0.66, 0.25 if show_caps else 0.0)
 		if lk == "limit" or lk == "touch":   # the Collision view shows what the capsules collide with
-			col = Color(LIMIT if lk == "limit" else TOUCH, 0.45)
+			col = Color(LIMIT if lk == "limit" else TOUCH, 0.45 * (B.limit_fade(j) if lk == "limit" else 1.0))
 		if not body:   # the weapon (not skinned): its capsule is its light
 			if lk == "lock":
 				col = Color(LOCK_COL, 0.45)

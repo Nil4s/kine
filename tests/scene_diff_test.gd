@@ -8,6 +8,7 @@
 ##   two 30-card scenes -> the report in < 200 ms
 ##   comparing (the panel, a row click, Show both) writes nothing: the scene file's bytes and the open scene are the same
 ##   a row click lands on its card and selects its joint; Show both ghosts the older card's pose at that card's time
+##   the ghost is translucent (alpha 0.35), writes no depth, and is grown 4 mm along its normals (no z-fight with the body)
 ## With shot=<png> the panel with a ghosted pose, whole body, is saved to that file (the one shot).
 extends SceneTree
 
@@ -163,6 +164,14 @@ func _init() -> void:
 	m.ui_sdiff_both.button_pressed = true
 	m._view_home(false)
 	await idle(3)
+	# 14 the ghost's material (it sits on the body's own surfaces: a z-fight unless it is grown and writes no depth)
+	var gmats := []
+	for gmi in m.ov._ghosts[5][0].find_children("*", "MeshInstance3D", true, false):
+		gmats.append((gmi as MeshInstance3D).material_override)
+	var g0 := gmats[0] as StandardMaterial3D if not gmats.is_empty() else null
+	var all_same := g0 != null and gmats.all(func(x): return x == g0)
+	ok(all_same and g0.depth_draw_mode == BaseMaterial3D.DEPTH_DRAW_DISABLED and g0.grow and absf(g0.grow_amount - Overlays.VERSION_GROW) < 1e-9 and absf(g0.albedo_color.a - 0.35) < 1e-6,
+		"14 the diff ghost: %d meshes, alpha %.2f, depth write off, grown %.3f m (want 0.35, off, 0.004)" % [gmats.size(), g0.albedo_color.a if g0 != null else -1.0, g0.grow_amount if g0 != null else -1.0])
 	print("shot numbers: open scene lowerarm_r %s, ghost lowerarm_r %s, open hand_r P %s, ghost hand_r P %s, playhead %.2f" % [
 		str(m.B.ang["lowerarm_r"]), str(m.ov.GB.ang["lowerarm_r"]), str(m.B.P["hand_r"]), str(m.ov.GB.P["hand_r"]), m.playhead])
 	for a in OS.get_cmdline_user_args():
