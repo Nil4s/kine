@@ -147,7 +147,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video", "Ask AI"]]],
+		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
@@ -5971,7 +5971,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
+	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -6300,6 +6300,9 @@ func _ui() -> void:
 	pm.add_check_item("Moving holds  (a held pose keeps breathing)", 4)
 	pm.id_pressed.connect(_tool)
 	ui_ribbon["ANIMATE"].add_child(ui_tools)
+	# ROADMAP 54: the two mirrors one click away (the menu item above stays): a copy in _wip, or the open scene itself
+	ui_ribbon["ANIMATE"].add_child(_button("Mirror scene", _mirror_scene, "Mirror scene: a left-handed copy of this scene, saved in scenes/_wip and opened (yours is untouched)"))
+	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
 	# CHECK
@@ -7827,6 +7830,8 @@ func _commands() -> Array:
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Mirror in place", "", _mirror_in_place, "mirror flip left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
+	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
 	for st in SEL_SETS:   # SELECTION SETS (round 28, GATES II2, UPGRADES #67)
 		add.call("Select: " + st, "", _select_set.bind(SEL_SETS[st]), "group set several parts together " + st, false, "select %s together: a drag on any of them turns them all" % st)
 	add.call("Select: just one part", "", _select_set.bind([]), "group set single clear one", false, "back to the one part the panel shows")
@@ -8490,14 +8495,7 @@ func _mirror_scene() -> void:
 	if H.cards.size() < 2:
 		_say("Mirror the scene needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
-	var M := Body.new()
-	M.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-	# Scene.mirror_file (TC1): cards by Scene.MIRROR_CARD (round 19, Z1), part_keys (WW1), ik, layer (YY9), layers with
-	# the hips' offset x negated (NA1, NA2), props x and yaw negated, each actor's scene and place; the name toggles
-	# "_mirrored"; bad_frames recomputed on the mirrored motion (the original's named the wrong side). The live body is
-	# kept (lossless, round 8)
-	var d := Scene.mirror_file(_scene_dict(), M)
-	d["plan"] = "Mirror the scene (Scene.MIRROR_CARD on every card) from " + H.name
+	var d := _mirrored_dict()
 	# the file name made safe (round 19: the raw name wrote "_wip/x" into scenes/_wip/_wip/, and "a:b" was a name Windows
 	# refuses); always in scenes/_wip, whatever folder the name gives
 	var path := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/")
@@ -8506,6 +8504,47 @@ func _mirror_scene() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), H.name])
+
+
+## THE MIRROR (ROADMAP 54): the hero's scene mirrored, as the file that Mirror the scene writes and Mirror in place
+## applies. Scene.mirror_file does the work; the live body is not touched (lossless, round 8)
+func _mirrored_dict() -> Dictionary:
+	var M := Body.new()
+	M.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	# Scene.mirror_file (TC1): cards by Scene.MIRROR_CARD (round 19, Z1), part_keys (WW1), ik, layer (YY9), layers with
+	# the hips' offset x negated (NA1, NA2), props x and yaw negated, each actor's scene and place; the name toggles
+	# "_mirrored"; bad_frames recomputed on the mirrored motion (the original's named the wrong side)
+	var d := Scene.mirror_file(_scene_dict(), M)
+	d["plan"] = "Mirror the scene (Scene.MIRROR_CARD on every card) from " + _hero_scene().name
+	return d
+
+
+## MIRROR IN PLACE (ROADMAP 54): the open scene mirrored left <-> right, the same dict as Mirror the scene, applied to
+## the open scene itself as ONE undo step. The name stays and nothing is written: Save scene keeps it. An actor on
+## screen is brought to the hero first (the mirror is the hero's file, as Mirror the scene does)
+func _mirror_in_place() -> void:
+	if actor_on != 0 and not _actor_set(0):
+		_say("Mirror in place works on the hero's scene: switch to the hero first (Actor: switch to the next fighter)")
+		return
+	if S.cards.size() < 2:
+		_say("Mirror in place needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
+		return
+	var d := _mirrored_dict()
+	d["scene"] = S.name   # the mirror's name ("_mirrored") is for the copy; in place the scene keeps its own
+	d.erase("plan")
+	var n := S.cards.size()
+	_do(func():
+		S.from_dict(d)   # the same reader as a load: the open scene object stays, so Ctrl+Z puts its cards back into it
+		actors_rt = []   # the actors are the file's now: built again from S.actors (their bodies posed from their scenes)
+		actor_on = 0
+		_actors_sync()
+		sel_card = mini(sel_card, S.cards.size() - 1)
+		ov.mark_dirty()
+		wt.mark_dirty()
+		_dummy_hits()
+		_rebuild_cards()
+		S.apply(B, playhead))
+	_say("mirrored in place: the whole scene left <-> right, %d cards.  Ctrl+Z takes it back in one step; nothing is saved until you save" % n)
 
 
 ## STYLE TRANSFER (ROADMAP 25): "Style: make it <older | tired | heavy | angry>" asks for the intensity (0-100 %), then saves
