@@ -152,12 +152,7 @@ static func refs(S: Scene, B: Body, t: float) -> Dictionary:
 			p["out"] = out_frames(S, B, i)   # the release ramp of this plant (its poses cached on S)
 		if weight(p, t, S.fps) <= 0.0:
 			continue
-		var foot := String(p["foot"])
-		var ball := "ball" + foot.right(2)
-		S._plants_off = true
-		S.apply(B, float(p["t0"]))
-		S._plants_off = false
-		out[i] = {"P": B.P[foot], "G": B.G[foot], "Gb": B.G[ball], "pole": LimbIK.pole_from_pose(B, foot)}
+		out[i] = PoseCache.plant_ref(S, B, i)   # the same values, cached while the scene's inputs are unchanged (pose_cache.gd)
 	return out
 
 
