@@ -552,6 +552,18 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var wp := {}             # WEIGHT PAINT (ROADMAP 72): the mannequin's skin weights, scripts/skin_paint.gd
+var wp_on := false
+var wp_bind := -1        # the skin bind index of the bone the brush works on
+var wp_mode := "add"     # add | subtract | smooth
+var wp_radius := 0.08    # metres, on the skin
+var wp_strength := 0.25  # per dab, at the centre
+var wp_stroke := false
+var wp_key := "mannequin"  # the sidecar's name under user://weights
+var wp_centres := []     # the brush centres of the last stroke (the test reads them)
+var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, shown while Weight paint is on
+var wp_bone_pick: OptionButton
+var wp_mode_pick: OptionButton
 var hidden_parts := {}
 
 
@@ -1847,6 +1859,7 @@ func _body() -> void:
 	skel = mq[1]
 	bone_idx = mq[2]
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
+	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var mi := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
@@ -2674,6 +2687,8 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and not ev.pressed and hk != null:
 		hk.released(ev as InputEventKey)   # the ? that is held: its cheat sheet hides
+	if wp_on and _wp_input(ev):   # WEIGHT PAINT (ROADMAP 72): a press on the body paints, the rest of the mouse is the view's
+		return
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.pressed and ui_cmd.visible:
@@ -3170,6 +3185,7 @@ func _snapshot() -> Dictionary:
 		"markers": S.markers.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
+		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
@@ -3235,6 +3251,8 @@ func _restore(u: Dictionary) -> void:
 			ui_browser.refresh()
 	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
+	if u.has("skin_w") and not wp.is_empty():
+		SkinPaint.restore(wp, u["skin_w"])
 	if u["scene"] == S and u.has("plants") and var_to_str(u["plants"]) != var_to_str(S.plants):
 		S.plants = u["plants"].duplicate(true)   # foot plants (ROADMAP 8), undone like a card
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
@@ -6161,7 +6179,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
-	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
+	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
@@ -6474,6 +6492,9 @@ func _ui() -> void:
 		"the current line of action, faint: head, spine, pelvis, support knee and ankle. A C or an S shows the pose's shape")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
 		"see the capsules the body collides with. Yellow = a joint at its limit, red = touching another part")
+	tog.call("POSE", "Weight paint", _wp_toggle, func(): return wp_on,
+		"paint how much each bone moves each part of the skin: the body shows the picked bone's weight as a heat map (dark = none, orange = all). Drag on the body with the brush; Ctrl+Z takes a stroke back")
+	_wp_ui(tb)
 	# ANIMATE
 	tog.call("ANIMATE", "Trail (T)", _press.bind(KEY_T), func(): return ov.trail_on, "the weapon tip's path, one dot per frame, blue slow to red fast")
 	tog.call("ANIMATE", "Onion (O)", _press.bind(KEY_O), func(): return ov.onion_on, "the two cards before (orange, then red) and after (green, then cyan) as ghosts, the farther ones fainter")
@@ -11702,6 +11723,135 @@ func _import_file(path: String) -> Dictionary:
 	_prop_add(kind)
 	_say("imported %s as a prop: it is in the set and in Add prop%s" % [path.get_file(), "" if String(r["scale_note"]) == "" else ". " + String(r["scale_note"])])
 	return a
+
+
+## ---- WEIGHT PAINT (ROADMAP 72): the skin of the body, painted. One stroke = one undo step; the weights are saved on release
+## to user://weights/<key>.weights.json (the mannequin's own file is never written) and applied again on the next load.
+func _wp_setup() -> void:
+	wp = SkinPaint.read(pieces.values(), skel)
+	if wp.is_empty() or wp["skin"] == null:
+		wp = {}
+		return
+	SkinPaint.load_into(wp, wp_key)
+	SkinPaint.apply(wp)
+	if wp_bind < 0:
+		wp_bind = _wp_bind_of("lowerarm_r")
+
+
+## the skin's bind index of a body joint (-1 when the skin does not bind it)
+func _wp_bind_of(j: String) -> int:
+	if wp.is_empty() or not bone_idx.has(j):
+		return -1
+	var skin: Skin = wp["skin"]
+	var nm := skel.get_bone_name(int(bone_idx[j]))
+	for k in skin.get_bind_count():
+		if skin.get_bind_name(k) == nm:
+			return k
+	return -1
+
+
+## the Bone and Brush lists and the two sliders: their own row on the toolbar, shown only while Weight paint is on
+func _wp_ui(bar: Control) -> void:
+	var pose := HBoxContainer.new()
+	pose.name = "weight_paint_row"
+	pose.add_theme_constant_override("separation", 6)
+	pose.visible = false
+	bar.add_child(pose)
+	wp_row = pose
+	wp_bone_pick = OptionButton.new()
+	wp_bone_pick.tooltip_text = "the bone the brush adds, takes or smooths. While Weight paint is on the body shows this bone's weight"
+	for j in Body.ORDER:
+		var k := _wp_bind_of(j)
+		if k >= 0:
+			wp_bone_pick.add_item(nice(j))
+			wp_bone_pick.set_item_metadata(wp_bone_pick.item_count - 1, k)
+			if k == wp_bind:
+				wp_bone_pick.select(wp_bone_pick.item_count - 1)
+	wp_bone_pick.item_selected.connect(func(i: int):
+		wp_bind = int(wp_bone_pick.get_item_metadata(i))
+		_wp_show())
+	pose.add_child(wp_bone_pick)
+	wp_mode_pick = OptionButton.new()
+	wp_mode_pick.tooltip_text = "Add: the bone gains weight; Subtract: it loses; Smooth: it evens out with its neighbours"
+	for m in ["Add", "Subtract", "Smooth"]:
+		wp_mode_pick.add_item(m)
+	wp_mode_pick.item_selected.connect(func(i: int):
+		wp_mode = ["add", "subtract", "smooth"][i])
+	pose.add_child(wp_mode_pick)
+	var rad := HSlider.new()
+	rad.min_value = 0.02
+	rad.max_value = 0.3
+	rad.step = 0.005
+	rad.value = wp_radius
+	rad.custom_minimum_size = Vector2(90, 0)
+	rad.tooltip_text = "brush radius on the skin (metres): the paint reaches this far from the mouse"
+	rad.value_changed.connect(func(v: float): wp_radius = v)
+	pose.add_child(rad)
+	var stn := HSlider.new()
+	stn.min_value = 0.05
+	stn.max_value = 1.0
+	stn.step = 0.01
+	stn.value = wp_strength
+	stn.custom_minimum_size = Vector2(90, 0)
+	stn.tooltip_text = "brush strength: how much weight one dab moves at the centre of the brush"
+	stn.value_changed.connect(func(v: float): wp_strength = v)
+	pose.add_child(stn)
+
+
+func _wp_toggle() -> void:
+	if wp.is_empty():
+		_say("no skin to paint: Weight paint works on a body with a skin, the mannequin")
+		return
+	wp_on = not wp_on
+	if wp_row != null:
+		wp_row.visible = wp_on
+	_wp_show()
+	_say("weight paint on: pick a bone in Bone, then drag on the body. The colour shows that bone's weight: dark = none, orange = all" if wp_on else "weight paint off")
+
+
+## the body's colours follow the picked bone while the mode is on; off = the body as it was
+func _wp_show() -> void:
+	if not wp.is_empty():
+		SkinPaint.apply(wp, wp_bind if wp_on else -1)
+
+
+## a left press on the body starts a stroke (and one undo step); a press off the body is the view's. True = taken
+func _wp_input(ev: InputEvent) -> bool:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var mb := ev as InputEventMouseButton
+		if mb.pressed:
+			if wp_bind < 0:
+				_say("pick a bone first: choose one in the Bone list, then press on the body")
+				return true
+			SkinPaint.refresh(wp)   # the stroke lands on the shape the body has when it starts
+			var hit = SkinPaint.pick(wp, mb.position, cam)
+			if hit == null:
+				return false
+			_push_undo()
+			wp_stroke = true
+			wp_centres = []
+			_wp_dab(hit)
+			return true
+		if wp_stroke:
+			wp_stroke = false
+			var saved := SkinPaint.save(wp, wp_key)
+			_say(("weight stroke done (%d dabs), the weights are saved" % wp_centres.size()) if saved else "weight stroke done, but the weights could not be saved (the disk is full or read-only): free some space, then paint again")
+			return true
+		return false
+	if ev is InputEventMouseMotion and wp_stroke:
+		var hit = SkinPaint.pick(wp, (ev as InputEventMouseMotion).position, cam)
+		if hit != null:
+			_wp_dab(hit)
+		return true
+	return false
+
+
+## one brush dab at c: every surface's weights move for the picked bone, then the meshes are redrawn
+func _wp_dab(c: Vector3) -> void:
+	wp_centres.append(c)
+	for s in wp["surfs"]:
+		SkinPaint.paint(s, s["pos"], c, wp_radius, wp_bind, wp_strength, wp_mode)
+	SkinPaint.apply(wp, wp_bind if wp_on else -1)
 
 
 ## a test's own library folder goes with it (never the user's)
