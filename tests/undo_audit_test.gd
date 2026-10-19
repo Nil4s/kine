@@ -49,6 +49,7 @@ func fp() -> String:
 		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))),   # the set: keys, a door's swing (row 22)
 		"camera": var_to_str(m.S.camera),   # the shot camera (shot_camera.gd)
 		"sets": var_to_str(m.S.sets),   # selection / keying sets (part_sets.gd)
+		"clips": var_to_str(m.S.clips),   # CLIPS (clips.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
 		"body": var_to_str(m.S.body), "p0": var_to_str(m.B.p0)}   # PR1: the proportions and the skeleton they make
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
@@ -62,6 +63,7 @@ func fp() -> String:
 ## start IK: combo3 on card 3 with the left hand pinned at card 1 (for IK release and the two snaps)
 ## start CONS: combo3 on card 3, the left hand held to the right hand and the head on the weapon (round 51 constraints)
 ## start CAMERA: combo3 on card 3 with two shot-camera keys, one under the playhead (lens / remove the key here)
+## start CLIPS: combo3 on card 3 with a walk clip placed on its legs, picked (for "Clip: remove the picked clip")
 ## start BODY: combo3 on the 5th-percentile woman's proportions (PR1: for the command back to the mannequin's own)
 ## start ACTORS: combo3 with a second fighter added, switched to it (TC3: for "Actor: remove this fighter")
 ## start THROUGH: two clean right-arm poses whose straight in-between goes through the body (for "Fix moves through
@@ -186,6 +188,13 @@ func start(kind: String) -> void:
 		m.sel_prop = 0
 		m.playhead = 0.5
 		m._props_show()
+	elif kind == "CLIPS":
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.clips = [Clips.make("scenes/walk_bat.json", 0.2, {"mask": "legs"})]
+		m.clips_ui.sel = 0
+		m.sel = "lowerarm_r"
 	elif kind == "BODY":   # PR1: a scene on a 5th-percentile woman (for "Body: the mannequin's own proportions")
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
@@ -301,6 +310,7 @@ func _init() -> void:
 		if r == "same" and c["edits"]:
 			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B"] + more:
 			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "PROPS"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "CLIPS", "BODY"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

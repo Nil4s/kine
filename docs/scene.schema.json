@@ -539,6 +539,30 @@
       "additionalProperties": false
      }
     },
+    "clips": {
+     "type": "array",
+     "description": "CLIPS (GAP_ANALYSIS row 12; Blender NLA strips / Maya Time Editor clips): other scene or move files placed by reference as strips; written only when there are any. Strip length = L x repeat / speed (L = the source's length); inside it the source plays at lt = u - k L, u = (t - start) x speed, k = min(floor(u / L), repeat - 1); weight = w x clamp((t - start) / bin) x clamp((end - t) / bout); cycle k's hips moved by k x the cycle's step over the floor. scripts/clips.gd",
+     "minItems": 1,
+     "items": {
+      "type": "object",
+      "required": ["src", "start"],
+      "properties": {
+       "src": {"type": "string", "minLength": 1},
+       "start": {"type": "number", "minimum": 0},
+       "repeat": {"type": "integer", "minimum": 1},
+       "speed": {"type": "number", "exclusiveMinimum": 0},
+       "bin": {"type": "number", "minimum": 0},
+       "bout": {"type": "number", "minimum": 0},
+       "type": {"enum": ["replace", "add"]},
+       "mask": {"enum": ["all", "legs", "upper", "arms", "arm_l", "arm_r"]},
+       "extra": {"enum": ["nothing", "hold", "hold_forward"]},
+       "w": {"type": "number", "minimum": 0, "maximum": 1},
+       "mirror": {"type": "boolean"},
+       "mute": {"type": "boolean"}
+      },
+      "additionalProperties": false
+     }
+    },
     "part_keys": {
      "type": "object",
      "description": "PART KEYS (round 41, WW1): one joint's own keys over the card blend; written only when there is one. Each key: t = seconds into the scene, v = [bend, side, twist] degrees. scripts/part_keys.gd",
