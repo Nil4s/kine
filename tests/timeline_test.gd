@@ -85,7 +85,7 @@ func _init() -> void:
 	drag(tl.x_of(ts()[1][1]), 0.033 * k, true)
 	var fine: float = m.S.move_time(1)
 	m._undo()
-	ok(is_equal_approx(snapped, 0.45) and is_equal_approx(fine, 0.43), "snap: +0.033 s -> %.2f (0.05 steps), with Shift %.2f (0.01 steps)" % [snapped, fine])
+	ok(is_equal_approx(snapped, 0.4 + 1.0 / 30.0) and is_equal_approx(fine, 0.43), "snap (ROADMAP 47: whole frames): +0.033 s = 1 f -> %.4f, with Shift %.2f (0.01 steps)" % [snapped, fine])
 
 	# a zero hold (card 3 CONTACT): right pulls a hold out, left shortens the move
 	ok(float(m.S.cards[2]["hold"]) == 0.0, "card 3 has no hold (the edge is shared)")
@@ -93,7 +93,7 @@ func _init() -> void:
 	ok(is_equal_approx(float(m.S.cards[2]["hold"]), 0.1) and is_equal_approx(m.S.move_time(2), m3), "  drag RIGHT: a 0.10 s hold pulled out (hold %.2f, move still %.2f)" % [m.S.cards[2]["hold"], m.S.move_time(2)])
 	m._undo()
 	drag(tl.x_of(ts()[2][1]), -0.05 * k)
-	ok(is_equal_approx(m.S.move_time(2), 0.1) and float(m.S.cards[2]["hold"]) == 0.0, "  drag LEFT: the move 0.15 -> %.2f, still no hold" % m.S.move_time(2))
+	ok(is_equal_approx(m.S.move_time(2), 0.15 - 2.0 / 30.0) and float(m.S.cards[2]["hold"]) == 0.0, "  drag LEFT: the move 0.15 -> %.2f, still no hold" % m.S.move_time(2))
 	m._undo()
 
 	# clamps: a hold can't go below 0, a move can't go below MIN_MOVE
@@ -109,7 +109,7 @@ func _init() -> void:
 	m.S.cards[4]["move"] = -1.0
 	var auto: float = m.S.move_time(4)
 	drag(tl.x_of(ts()[4][1]), 0.1 * k)
-	ok(is_equal_approx(m.S.move_time(4), snappedf(auto + 0.1, 0.05)) and float(m.S.cards[4]["move"]) > 0.0, "card 5 on auto (%.2f s): dragged +0.1 -> set to %.2f" % [auto, m.S.move_time(4)])
+	ok(is_equal_approx(m.S.move_time(4), auto + 0.1) and float(m.S.cards[4]["move"]) > 0.0, "card 5 on auto (%.2f s): dragged +0.1 -> set to %.2f" % [auto, m.S.move_time(4)])
 	m._undo()
 	m.S.cards[4]["move"] = 0.3
 

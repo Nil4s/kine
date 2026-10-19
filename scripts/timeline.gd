@@ -2,7 +2,10 @@
 ## (solid: the body travelling into the card's pose) then its HOLD (hatched: standing in it). The tick at the end of a
 ## move is the pose itself. Drag a card's arrival edge = its move time; drag the end of its hold = its hold time; every
 ## later card slides along (ripple). A card with no hold: drag its edge RIGHT to pull a hold out, LEFT to shorten the
-## move. Snaps to 0.05 s (Shift: 0.01). Click a block = pick that card at its pose; click or drag the ruler = scrub.
+## move. Each card has a HANDLE on its right edge (ROADMAP 47: 12 px wide, lit on hover and while dragged); the drag snaps
+## to whole frames (S.fps; Shift: 0.01 s) and reads "+4 f (0.13 s)" beside the edge. ALT-drag a handle changes only that
+## gap: the card's hold and the next card's move trade the time, so no card after the pair moves (clamped, never crossing).
+## Click a block = pick that card at its pose; click or drag the ruler = scrub.
 ## This file only draws and reads the mouse; main.gd owns the scene, undo and the caches (the signals below).
 class_name Timeline
 extends Control
@@ -28,7 +31,8 @@ var bx: Array = []
 const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
 const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
-const SNAP := 0.05
+const HANDLE_W := 12.0   # px: a card's right-edge handle (ROADMAP 47); hit within half of it either side
+const SNAP := 0.05       # s: the clips' snap (a retime snaps to frames, see _retime_to)
 const FINE := 0.01
 const AUDIO_H := 20.0    # px: the sound's waveform strip under the cards (only when the scene has a sound)
 const MIN_MOVE := 0.04   # s: a move can't be shorter (a 1-frame move at 30 fps is 0.033)
@@ -77,6 +81,9 @@ func _get_tooltip(at: Vector2) -> String:
 		var c: Dictionary = _S().clips[ck]
 		return "clip %s from %.2f s (%s, blend in %.2f s / out %.2f s)\ndrag: move it in time; click, then 'Clip: edit the picked clip...' to change it" % [
 			Clips.label(c), float(c["start"]), c["type"], float(c["bin"]), float(c["bout"])]
+	var hv := hit(at) if at.y >= RULER and fs.is_empty() else {}
+	if hv.get("kind", "") in ["hold", "edge0"]:
+		return "card %d's right edge: drag = retime it in frames (every later card follows)\nAlt-drag = this gap only (the next card's move gives or takes the time)" % (int(hv["i"]) + 1)
 	if fs.is_empty():
 		return tooltip_text
 	var lines := []
@@ -218,9 +225,10 @@ func _gui_input(ev: InputEvent) -> void:
 					picked.emit(h["i"])
 				_:
 					var i: int = h["i"]
-					_drag = {"kind": h["kind"], "i": i, "x0": ev.position.x, "pps": pps(),
-						"move0": S.move_time(i), "hold0": float(S.cards[i]["hold"])}
-					retime_started.emit()
+					# retime_started (the one undo step) is emitted at the first real change, not the press: a click moves nothing
+					_drag = {"kind": h["kind"], "i": i, "x0": ev.position.x, "pps": pps(), "moved": false, "d": 0.0,
+						"alt": ev.alt_pressed, "move0": S.move_time(i), "hold0": float(S.cards[i]["hold"]),
+						"nmove0": S.move_time(i + 1) if i + 1 < S.cards.size() else 0.0}
 			accept_event()
 		elif not _drag.is_empty():
 			var was: String = _drag.get("kind", "")
@@ -249,21 +257,51 @@ func _gui_input(ev: InputEvent) -> void:
 		accept_event()
 
 
-## the drag, as card values: snapped to SNAP (FINE with Shift), measured from where the drag began
+## the drag, as card values. The DELTA from where the drag began snaps to whole frames (S.fps; Shift: FINE seconds).
+## A plain drag RIPPLES: the card's hold (or its move) takes the delta and every later card shifts by it. ALT (gap mode)
+## moves only the gap: a hold handle gives the delta to the NEXT card's move (its arrival stays put), an arrival edge
+## gives it to the card's own hold. Each side is clamped so no hold or move goes negative and no card crosses another.
 func _retime_to(x: float, fine: bool) -> void:
 	var S := _S()
 	var i: int = _drag["i"]
-	var dt: float = (x - float(_drag["x0"])) / float(_drag["pps"])
+	var n := S.cards.size()
+	var dx: float = x - float(_drag["x0"])
 	if _drag["kind"] == "edge0":
-		if absf(x - float(_drag["x0"])) < 3.0:
+		if absf(dx) < 3.0:
 			return
-		_drag["kind"] = "hold" if dt > 0.0 else "move"   # no hold yet: right pulls one out, left shortens the move
-	var q := FINE if fine else SNAP
-	if _drag["kind"] == "move":
-		var mv := maxf(MIN_MOVE, snappedf(float(_drag["move0"]) + dt, q))
-		S.cards[i]["move"] = mv
+		_drag["kind"] = "hold" if dx > 0.0 else "move"   # no hold yet: right pulls one out, left shortens the move
+	var fps := float(S.fps)
+	var dt: float = dx / float(_drag["pps"])
+	var d: float = snappedf(dt, FINE) if fine else roundf(dt * fps) / fps
+	var kind: String = _drag["kind"]
+	var h0: float = _drag["hold0"]
+	var m0: float = _drag["move0"]
+	var gap: bool = bool(_drag["alt"]) and (kind == "move" or i < n - 1)   # the last card has no next gap: alt = plain
+	if kind == "hold" and gap:
+		d = clampf(d, -h0, float(_drag["nmove0"]) - MIN_MOVE)
+	elif kind == "hold":
+		d = maxf(d, -h0)
+	elif gap:
+		d = clampf(d, MIN_MOVE - m0, h0)
 	else:
-		S.cards[i]["hold"] = maxf(0.0, snappedf(float(_drag["hold0"]) + dt, q))
+		d = maxf(d, MIN_MOVE - m0)
+	if not _drag["moved"]:
+		if is_zero_approx(d):
+			return
+		_drag["moved"] = true
+		retime_started.emit()   # main pushes the ONE undo step here, before anything changes
+	if kind == "hold" and gap:
+		S.cards[i]["hold"] = h0 + d
+		S.cards[i + 1]["move"] = float(_drag["nmove0"]) - d
+	elif kind == "hold":
+		S.cards[i]["hold"] = h0 + d
+	elif gap:
+		S.cards[i]["move"] = m0 + d
+		S.cards[i]["hold"] = h0 - d
+	else:
+		S.cards[i]["move"] = m0 + d
+	_drag["d"] = d
+	_drag["gap"] = gap
 	retimed.emit(false)
 	queue_redraw()
 
@@ -370,6 +408,16 @@ func _draw() -> void:
 			draw_string(font, Vector2(xm0 + 4, y0 + h * 0.5 + 5), name, HORIZONTAL_ALIGNMENT_LEFT, w - 6, 12, Color(0.05, 0.05, 0.07) if sel else Color(1, 1, 1, 0.95))
 		elif w > 8.0:
 			draw_string(font, Vector2(xm0 + 2, y0 + h * 0.5 + 5), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, w - 2, 11, Color(1, 1, 1, 0.9))
+	# ROADMAP 47: the right-edge handle of every card, HANDLE_W px wide (the hit area is the same width). Idle = a muted strip
+	# with two grip lines; lit (focus colour) while the pointer is on it or it is being dragged
+	var hov_i := int(_hover.get("i", -1)) if _hover.get("kind", "") in ["hold", "edge0"] else -1
+	var drag_i := int(_drag.get("i", -1)) if _drag.get("kind", "") in ["hold", "edge0"] else -1
+	for i in S.cards.size():
+		var hx := x_of(ts[i][2])
+		var lit: bool = i == hov_i or i == drag_i
+		draw_rect(Rect2(hx - HANDLE_W * 0.5, y0, HANDLE_W, h), Tok.c("focus") if lit else Tok.of("ink:0.3"))
+		for g in [-1.5, 1.5]:
+			draw_line(Vector2(hx + g, y0 + h * 0.35), Vector2(hx + g, y0 + h * 0.65), Tok.c("tl_bg"), 1.0)
 	if ah > 0.0:
 		_draw_audio(S, font, size.y - ah, ah - 1.0)
 		_draw_beats(S, size.y - ah, ah - 1.0)
@@ -392,10 +440,11 @@ func _draw() -> void:
 		var hxe := x_of(ts[hi][2] if _hover["kind"] == "hold" else ts[hi][1])
 		draw_line(Vector2(hxe, y0), Vector2(hxe, y0 + h), Color(1, 0.95, 0.5), 3.0)
 	# the value being dragged, beside the edge
-	if not _drag.is_empty() and _drag["kind"] in ["move", "hold"]:
+	if not _drag.is_empty() and _drag["kind"] in ["move", "hold"] and _drag.get("moved", false):
 		var di: int = _drag["i"]
 		var ex := x_of(ts[di][2] if _drag["kind"] == "hold" else ts[di][1])
-		var txt := "%s %.2f s" % [_drag["kind"], S.move_time(di) if _drag["kind"] == "move" else float(S.cards[di]["hold"])]
+		var dd := float(_drag["d"])
+		var txt := "%s%+d f (%.2f s)" % ["gap " if _drag.get("gap", false) else "", roundi(dd * float(S.fps)), dd]
 		var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 		var bx := clampf(ex + 6, 2, size.x - tw - 10)
 		draw_rect(Rect2(bx - 3, y0 + 2, tw + 8, 18), Color(0, 0, 0, 0.85))
