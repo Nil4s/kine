@@ -8247,6 +8247,8 @@ func _ui() -> void:
 	ui_timeline.box_picked.connect(_bx_pick)   # ROADMAP 36: a box on the boxes lane picked
 	ui_timeline.range_set.connect(func(which: String, t: float): _pv_set(which, t))   # WW4: Shift+click / Alt+click on the ruler
 	ui_timeline.finding_picked.connect(_finding_mark)
+	ui_timeline.marker_moved.connect(_marker_moved)   # ROADMAP 97: a marker flag dragged (one undo step per drag)
+	ui_timeline.marker_picked.connect(_marker_open)   # ROADMAP 97: a marker flag clicked: the playhead there, its popover open
 	ui_timeline.retime_started.connect(_retime_begin)
 	ui_timeline.retimed.connect(_retime_step)
 	ui_timeline.shot_cut.connect(_shot_cut_drag)   # ROADMAP 75: a cut on the shots lane dragged
@@ -9677,6 +9679,8 @@ func _commands() -> Array:
 	add.call("Cycle card key type", "", _ktype_cycle, "breakdown moving hold extreme key blender mark", true, "the picked card becomes the next kind of key: key, breakdown, moving hold, extreme (drawn on the dope sheet)")
 	add.call("Next marker", "Ctrl+]", _marker_jump.bind(true), "cue event flag jump", false, "the playhead jumps to the next marker")
 	add.call("Previous marker", "Ctrl+[", _marker_jump.bind(false), "cue event flag jump", false, "the playhead jumps to the marker before")
+	add.call("Markers: list and jump to one...", "", _markers_list_open, "markers list jump go find cue note name colour", false, "a list of every marker (name, time, kind, the first line of its note): pick one and the playhead jumps to it exactly (ROADMAP 97)")
+	add.call("Marker: edit the one at the playhead...", "", _marker_edit_at_playhead, "marker note notes edit rename colour color delete popover text cue", false, "opens the marker within one frame of the playhead: its name, a note of several lines, its colour and Delete (ROADMAP 97)")
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
 	add.call("Trail: weapon ribbon on/off", "", _wtrail_ribbon, "trail weapon ribbon sweep blade swipe arc path", false, "a ribbon swept by the bat between its knob and its tip over the last 6 frames, fading; drawn only where the tip is faster than 8 m/s (not the motion trail, T)")
@@ -9970,6 +9974,198 @@ func _marker_jump(fwd: bool) -> void:
 	_ps().apply(B, minf(playhead, _ps().length()))
 	_refresh()
 	_say("marker at %.2f s" % t)
+
+
+## ROADMAP 97: the marker notes. A click on a flag (or 'Marker: edit the one at the playhead') opens its popover: name,
+## note (several lines), colour (Tok mk_*) and Delete. Each commit is one undo step; dragging a flag is one undo step
+## (the first frame moved takes the snapshot, the mouse going up ends it); a click without a drag only moves the playhead.
+var _mk_drag_open := false
+var mk_pop: PopupPanel = null
+var mk_ui := {}
+var mk_i := -1
+var mk_color := ""
+var mk_list_pop: PopupPanel = null
+var mk_list: ItemList = null
+
+
+## a flag dragged to t (whole frames): the first move takes the undo snapshot; done = the mouse went up (the list is sorted again)
+func _marker_moved(i: int, t: float, done: bool) -> void:
+	if i < 0 or i >= S.markers.size():
+		return
+	if not _mk_drag_open:
+		_push_undo()
+		_mk_drag_open = true
+	S.markers[i]["t"] = t
+	if done:
+		S.markers.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
+		_mk_drag_open = false
+		_say("marker %s moved to %s (frame %d).  Ctrl+Z undoes" % [S.markers[i]["name"], Units.time(t, S.fps), Markers.frame_of(t, S.fps)])
+	_markers_changed()
+
+
+## the playhead exactly on marker i (no rounding), and its popover open
+func _marker_open(i: int) -> void:
+	if i < 0 or i >= S.markers.size():
+		return
+	_marker_goto(i)
+	_mk_pop_show(i)
+
+
+func _marker_goto(i: int) -> void:
+	playing = false
+	playhead = float(S.markers[i]["t"])
+	_ps().apply(B, minf(playhead, _ps().length()))
+	_refresh()
+
+
+func _marker_edit_at_playhead() -> void:
+	var i := Markers.near(S.markers, playhead, 1.0 / float(S.fps))
+	if i < 0:
+		_say("no marker within one frame of the playhead: press Ctrl+] / Ctrl+[ to move onto one, or pick one from Markers: list and jump to one")
+		return
+	_mk_pop_show(i)
+
+
+func _mk_pop_build() -> void:
+	mk_pop = PopupPanel.new()
+	mk_pop.name = "MarkerPopover"
+	var box := StyleBoxFlat.new()   # the Tok float panel, opaque enough to read over the timeline
+	box.bg_color = Tok.c("float")
+	box.set_corner_radius_all(4)
+	box.set_content_margin_all(8)
+	mk_pop.add_theme_stylebox_override("panel", box)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	mk_pop.add_child(v)
+	var head := Label.new()
+	v.add_child(head)
+	mk_ui["head"] = head
+	var nm := LineEdit.new()
+	nm.placeholder_text = "name (m1, hit, ...)"
+	nm.custom_minimum_size = Vector2(300, 0)
+	nm.text_submitted.connect(func(_t): _mk_commit_open())
+	v.add_child(nm)
+	mk_ui["name"] = nm
+	var note := TextEdit.new()
+	note.placeholder_text = "a note for this moment (several lines are fine)"
+	note.custom_minimum_size = Vector2(300, 96)
+	note.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	v.add_child(note)
+	mk_ui["note"] = note
+	var sw := HBoxContainer.new()
+	sw.add_theme_constant_override("separation", 6)
+	v.add_child(sw)
+	for c in Markers.PALETTE:
+		var b := Button.new()
+		b.text = c
+		b.tooltip_text = "colour: %s" % c
+		b.modulate = Tok.c("mk_" + c)
+		b.pressed.connect(_mk_pick_color.bind(c))
+		sw.add_child(b)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	v.add_child(row)
+	var del := Button.new()
+	del.text = "Delete marker"
+	del.pressed.connect(_mk_delete_open)
+	row.add_child(del)
+	var done := Button.new()
+	done.text = "Done"
+	done.pressed.connect(func(): mk_pop.hide())
+	row.add_child(done)
+	mk_pop.popup_hide.connect(_mk_pop_hidden)
+	add_child(mk_pop)
+
+
+func _mk_pop_show(i: int) -> void:
+	if mk_pop == null:
+		_mk_pop_build()
+	mk_i = i
+	var mk: Dictionary = S.markers[i]
+	mk_color = String(mk.get("color", Markers.KIND_COLOR.get(String(mk["kind"]), "gold")))
+	(mk_ui["head"] as Label).text = "%s: %s, frame %d" % [mk["name"], Units.time(mk["t"], S.fps), Markers.frame_of(float(mk["t"]), S.fps)]
+	(mk_ui["name"] as LineEdit).text = String(mk["name"])
+	(mk_ui["note"] as TextEdit).text = String(mk.get("note", ""))
+	ui_timeline.mark_sel = i
+	ui_timeline.queue_redraw()
+	# the timeline sits at the bottom of the window: the popover opens ABOVE its ruler, at the marker's time (fixed size: a popup sized before layout is empty)
+	var gp := ui_timeline.get_global_rect().position
+	var sz := Vector2i(340, 262)
+	var x := clampf(ui_timeline.x_of(clampf(float(mk["t"]), 0.0, S.length())) - 20.0, 0.0, maxf(ui_timeline.size.x - 340.0, 0.0))
+	var y := maxf(gp.y - float(sz.y) - 6.0, 0.0)
+	mk_pop.popup(Rect2i(Vector2i(int(gp.x + x), int(y)), sz))
+
+
+## the popover's fields -> marker i: one undo step when anything changed; -> true when it did
+func _mk_commit(i: int, name: String, note: String, color: String) -> bool:
+	if i < 0 or i >= S.markers.size():
+		return false
+	var cur: Dictionary = S.markers[i]
+	var nw := Markers.with(cur, name, note, color)
+	if JSON.stringify(nw) == JSON.stringify(cur):
+		return false
+	_push_undo()
+	S.markers[i] = nw
+	_markers_changed()
+	return true
+
+
+func _mk_pick_color(c: String) -> void:
+	mk_color = c
+	_mk_commit_open()
+
+
+func _mk_commit_open() -> void:
+	if mk_i >= 0:
+		_mk_commit(mk_i, (mk_ui["name"] as LineEdit).text, (mk_ui["note"] as TextEdit).text, mk_color)
+
+
+func _mk_pop_hidden() -> void:
+	_mk_commit_open()
+	mk_i = -1
+	ui_timeline.mark_sel = -1
+	ui_timeline.queue_redraw()
+
+
+func _mk_delete_open() -> void:
+	if mk_i < 0 or mk_i >= S.markers.size():
+		mk_pop.hide()
+		return
+	var gone: Dictionary = S.markers[mk_i]
+	_push_undo()
+	S.markers.remove_at(mk_i)
+	mk_i = -1
+	mk_pop.hide()
+	_markers_changed()
+	_say("marker %s deleted.  Ctrl+Z undoes" % gone["name"])
+
+
+func _markers_list_open() -> void:
+	if S.markers.is_empty():
+		_say("no markers in this scene yet: put the playhead on the moment and press Add marker at the playhead")
+		return
+	if mk_list_pop == null:
+		mk_list_pop = PopupPanel.new()
+		mk_list = ItemList.new()
+		mk_list.custom_minimum_size = Vector2(480, 280)
+		mk_list.item_selected.connect(_markers_list_pick)
+		mk_list_pop.add_child(mk_list)
+		add_child(mk_list_pop)
+	mk_list.clear()
+	for mk in S.markers:
+		var line := "%s    %s    %s" % [mk["name"], Units.time(mk["t"], S.fps), mk["kind"]]
+		if mk.has("note"):
+			line += "    " + String(mk["note"]).split("
+")[0]
+		mk_list.add_item(line)
+		mk_list.set_item_custom_fg_color(mk_list.item_count - 1, Tok.c(Markers.token_of(mk)))
+	mk_list_pop.popup_centered(Vector2i(500, 300))
+
+
+func _markers_list_pick(i: int) -> void:
+	mk_list_pop.hide()
+	_marker_goto(i)
+	_say("marker %s at %s" % [S.markers[i]["name"], Units.time(S.markers[i]["t"], S.fps)])
 
 
 func _markers_changed() -> void:

@@ -175,6 +175,10 @@ static func write(S: Scene, B: Body, path: String, with_mesh := true) -> Error:
 		# ROADMAP 82: the custom attributes as node extras ("poser_attrs") on the part's node; no attrs = the file as before
 		var abs := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
 		err = CustomAttr.add_glb_extras(abs, S.attrs)["err"]
+	if err == OK and not S.markers.is_empty():
+		# ROADMAP 97: the markers (name, kind, t, frame, note, color) as extras "poser_markers" on the animation
+		var abs_m := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
+		err = Markers.add_glb_extras(abs_m, S.markers, S.fps)
 	return err
 
 
