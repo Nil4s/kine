@@ -634,6 +634,22 @@
       "additionalProperties": false
      }
     },
+    "attrs": {
+     "type": "object",
+     "description": "CUSTOM ATTRIBUTES (ROADMAP 82, scripts/custom_attr.gd): named float values on a part (\"<part>.<name>\"), keyed per card like a joint angle; min < max, default in range; keys: t = seconds, v = the value. Written only when there is one.",
+     "propertyNames": {"pattern": "^[a-z_0-9]+\\.[a-z][a-z0-9_]{0,23}$"},
+     "additionalProperties": {
+      "type": "object",
+      "required": ["min", "max", "default", "keys"],
+      "properties": {
+       "min": {"type": "number"},
+       "max": {"type": "number"},
+       "default": {"type": "number"},
+       "keys": {"type": "array", "items": {"type": "object", "required": ["t", "v"], "properties": {"t": {"type": "number", "minimum": 0}, "v": {"type": "number"}}, "additionalProperties": false}}
+      },
+      "additionalProperties": false
+     }
+    },
     "part_keys": {
      "type": "object",
      "description": "PART KEYS (round 41, WW1): one joint's own keys over the card blend; written only when there is one. Each key: t = seconds into the scene, v = [bend, side, twist] degrees. scripts/part_keys.gd",
