@@ -190,6 +190,8 @@ static func position(j: Dictionary, row: PackedFloat64Array, scale := 1.0) -> Ve
 ## of 1 is 0, so every swing under ~0.05 deg vanished (round 41: 0.03 deg at a pelvis, measured). Same split, same result
 ## elsewhere; Body.decompose itself is left as it was.
 static func decompose(B: Body, j: String, q: Quaternion) -> Vector3:
+	if B.w_ax[j] != B.t_ax[j]:   # the feet: the roll is about the subtalar axis, not the bone (Body.decompose solves it)
+		return B.decompose(j, q)
 	var t: Vector3 = B.t_ax[j]
 	var pr := Vector3(q.x, q.y, q.z).dot(t) * t
 	var qt := Quaternion(pr.x, pr.y, pr.z, q.w)
