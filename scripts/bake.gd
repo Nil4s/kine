@@ -50,6 +50,9 @@ static func bake(S: Scene, B: Body, rate: float) -> Dictionary:
 	if S.breath > 0.0:
 		off.append("breath")
 		S.breath = 0.0
+	if not S.ik.is_empty():
+		off.append("ik")   # the IK pass played into the baked cards: left on it would act a second time
+		S.ik = {}
 	S.cards = cards
 	S.part_keys = {}
 	return {"cards": cards.size(), "was": was, "part_keys": had, "off": off}

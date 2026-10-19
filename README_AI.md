@@ -470,6 +470,25 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   cast was null and the margin 0: the bar could run up to 10 px off the window. It now walks up to the nearest
   PanelContainer. The test now prints WHAT is off the window (it failed naming nothing).
 
+## IK / FK with pole targets (docs/GAP_ANALYSIS.md row 13; how Blender / Rigify do it: docs/research/BLENDER_IK.md)
+- `scripts/limb_ik.gd` (`LimbIK`, static): limbs named by their tip `hand_l/r`, `foot_l/r` (chain = upperarm/lowerarm/hand,
+  thigh/calf/foot). `solve(B, tip, target, pole, rot)`: closed form. The hinge's bend from the root-tip distance (law of
+  cosines about the hinge's own bend axis, limits as candidates), then the root turned rigidly so the tip points at the
+  target and the elbow lies in the root-target-pole plane (Blender's pole pre-rotation). Clamped by `clamp_ang`; it
+  REPORTS the miss and the clamped joints. Out of reach: straightens toward the target. `pole_from_pose` = Rigify's snap.
+- `Scene.ik` = {tip: [{t, target, pole, w, rot?}]}: target/pole on PartKeys' monotone curve, weight linear between keys,
+  rot slerped. Played LAST in `Scene.apply` (after cards, part keys, layers, breathing); per joint FK -> IK angles mixed by
+  w. No keys or w = 0: the body is not touched (every scene in scenes/ plays byte-identical, 880 frames). `S.ik_last` =
+  what the pass did. File key "ik" only when keyed (schema, MIRROR_SCENE, clone, bake clears it, undo snapshots "ik").
+- Commands: "IK: pin the picked hand/foot here" (keys from the body as it is now; a key one frame earlier holds the old
+  curve), "IK: release the picked limb here" (needs the playhead on a card: the IK pose is written into that card, a
+  fixed point so spline lead / layers are met, then weight 0 at t), "IK: snap FK to IK", "IK: snap IK to FK". A snap pins
+  the card's own and next card's AUTO move time to its current value, so the timeline does not shift.
+- Known: a pinned GRIP hand fights apply_grip (the other hand is skipped only when it is pinned itself); a pinned foot
+  overrides the floor / pin planting (IK runs after them); no IK handles drawn in the view yet (commands only);
+  release / snap FK refuse off a card (part keys would change the whole joint's curve before the pin).
+- tests/ik_pin_test.gd (ik_pin:h).
+
 ## Round 43: animator tools, kept light (GATES YY; docs/ANIM_RESEARCH.md) - one instance, gate by gate
 - YY0 WALK LEGS + YY1 LIVE BALANCE (Shift+B: COM on the floor, support hull, green/amber/red/grey). YY2 "Plant every
   sliding foot" (Check's slides planted at once, one undo step).

@@ -1928,3 +1928,17 @@ use them; a behaviour the sources do not pin down is written as our own choice i
 - [ ] TC4 window: second mannequin, click to switch, the view re-rooted without a jump.
 - [ ] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
 - [ ] TC6 export per actor with its placement; Blender re-import within 1 cm.
+
+## Round 50 (IK): animator IK/FK with pole targets (docs/GAP_ANALYSIS.md gap 13; docs/research/BLENDER_IK.md)
+
+- [x] IK1 keyable two-bone IK per limb (target, pole, weight; closed form, joint limits honoured), applied after FK,
+  part keys and layers; commands pin / release / snap FK to IK / snap IK to FK; saved only when present; mirrored; undone.
+  EVIDENCE: tests/ik_pin_test.gd 14 ok (agent, worktree; merged with TC1 by me: scene.gd conflicts kept both sides, and
+  Scene.mirror_file now mirrors IK keys too). The table: the chest turns 53.4 deg, the pinned wrist within 0.0003 mm
+  (unpinned it drifts 29.5 cm); pole plane 0.0000 deg, pole turned 90 -> plane 90.000 deg; weight 0 and all 11 scenes
+  (880 frames) bit-identical; release adds 0.0050 deg (a naive release adds 59.56); 0 joints past limits; 200 random
+  targets worst 0.00567 mm. Stub (the IK pass skipped), run by me after the merge: FAIL 1 (294.6 mm), 2a (17.8 deg),
+  4. Suites after the merge: ik_pin, actors_file, mirror_list, mirror, schema, undo_audit (168 ok), say_next,
+  agent_tools, command_search, bake, autosave PASS. OPEN: no viewport IK handle (commands only); a pinned foot
+  overrides foot planting; a pinned grip hand fights the weapon grip; release/snap need the playhead on a card;
+  the Blender side-by-side comparison not run yet.

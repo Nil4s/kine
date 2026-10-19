@@ -396,6 +396,29 @@
     "plan": {
      "type": "string"
     },
+    "ik": {
+     "type": "object",
+     "description": "IK / FK with pole targets (GAP_ANALYSIS row 13): per limb (named by its tip), keys over time; written only when there is one. Each key: t = seconds, target = where the wrist / ankle goes (world, m), pole = a point the elbow / knee bends toward (world, m), w = IK weight 0..1 (linear between keys), rot = the hand / foot world rotation (optional). scripts/limb_ik.gd",
+     "propertyNames": {
+      "enum": ["hand_l", "hand_r", "foot_l", "foot_r"]
+     },
+     "additionalProperties": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "object",
+       "required": ["t", "target", "pole", "w"],
+       "properties": {
+        "t": {"type": "number", "minimum": 0},
+        "target": {"$ref": "#/$defs/vec3"},
+        "pole": {"$ref": "#/$defs/vec3"},
+        "w": {"type": "number", "minimum": 0, "maximum": 1},
+        "rot": {"$ref": "#/$defs/quat"}
+       },
+       "additionalProperties": false
+      }
+     }
+    },
     "part_keys": {
      "type": "object",
      "description": "PART KEYS (round 41, WW1): one joint's own keys over the card blend; written only when there is one. Each key: t = seconds into the scene, v = [bend, side, twist] degrees. scripts/part_keys.gd",
