@@ -58,6 +58,8 @@ var actor_on := 0     # which actor B and S are
 var stage_root: Node3D
 const ACTOR_TINTS := [Color(0.47, 0.58, 0.74), Color(0.5, 0.68, 0.52), Color(0.74, 0.5, 0.48), Color(0.62, 0.52, 0.74)]
 var actor_men := []   # per actor k: {"node", "skel", "idx", "wep": [handle, barrel]} under stage_root; empty with one actor
+var co: CoEdit = null   # ROADMAP 30: live co-editing (scripts/co_edit.gd); null when not hosting or joined
+var _co_seen := ""   # the session state last said in the status line
 var _dummy_auto := false   # the dummy put away because there are 2+ fighters (the other fighter is the target)
 var _dummy_keep := true    # what dummy_on was before that
 var parts := {}         # part -> MeshInstance3D (its collision capsule): click target + highlight
@@ -1541,6 +1543,7 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_keys_camera(dt)
 	if shot_through:
@@ -2957,6 +2960,7 @@ func _push_undo() -> void:
 		_tree.trim_root()
 	redo.clear()
 	_jpending = true
+	_co_sync()
 
 
 func _undo() -> void:
@@ -2975,6 +2979,7 @@ func _undo() -> void:
 	_toast("Undid: " + now["name"])
 	_history_rows()
 	_jpending = true
+	_co_sync()
 
 
 func _redo() -> void:
@@ -2992,6 +2997,7 @@ func _redo() -> void:
 	_toast("Redid: " + now["name"])
 	_history_rows()
 	_jpending = true
+	_co_sync()
 
 
 ## an edit that moved nothing is taken back out: its step, and its node in the tree
@@ -3122,6 +3128,9 @@ func _actor_set(k: int) -> bool:
 	_actors_sync()
 	if k == actor_on or k < 0 or k >= actors_rt.size():
 		return false
+	if co != null and co.connected() and co.may_edit(k) != "":
+		_say(co.may_edit(k))   # ROADMAP 30: the other animator's fighter is read only here
+		return false
 	actors_rt[actor_on]["t"] = playhead
 	actor_on = k
 	B = actors_rt[k]["B"]
@@ -3162,16 +3171,104 @@ static func _same_actors(a: Array, b: Array) -> bool:
 
 ## THE HOOK (TC3): every refresh, each actor that is not active is posed from its own scene at the playhead (once per
 ## playhead: an actor left keeps its own edits until the playhead moves). Drawing them is TC4. One actor: returns at once
+## LIVE CO-EDITING (ROADMAP 30, scripts/co_edit.gd). The host's owned fighter is the active one at hosting; the joiner's
+## is the active one at joining. The other fighter is drawn at its peer's playhead and cannot be made active here.
+func _co_fighters() -> void:
+	_actors_sync()
+	if co != null:
+		co.fighters = actors_rt.map(func(a): return a["S"])
+
+
+func _co_host(port: int, lan_confirmed: bool) -> void:
+	_co_stop()
+	_actors_sync()
+	if actors_rt.size() < 2:
+		_say("live co-edit needs two fighters: add a second one first")
+		return
+	var bind := CoEdit.lan_address() if lan_confirmed else CoEdit.LOOPBACK   # the LAN only after the user confirmed
+	if lan_confirmed and bind == "":
+		bind = CoEdit.LOOPBACK
+		_say("no LAN address found: hosting on this machine only")
+	co = CoEdit.new()
+	co.on_applied = Callable(self, "_co_applied")
+	_co_fighters()
+	var err := co.host(port, bind, actor_on)
+	if err != "":
+		_say(err)
+		co = null
+		return
+	var addrs := CoEdit.addresses()
+	_say_plain("live co-edit: hosting on %s:%d, fighter %d is yours. Join with one of: %s" % [bind, port, actor_on + 1, addrs])
+
+
+func _co_join(addr: String, port: int) -> void:
+	_co_stop()
+	_actors_sync()
+	co = CoEdit.new()
+	co.on_applied = Callable(self, "_co_applied")
+	_co_fighters()
+	var err := co.join(addr, port, actor_on)
+	if err != "":
+		_say(err)
+		co = null
+		return
+	_say_plain("live co-edit: joining %s:%d as fighter %d" % [addr, port, actor_on + 1])
+
+
+func _co_stop() -> void:
+	if co != null:
+		co.close()
+		co = null
+		_co_seen = ""
+		for a in actors_rt:
+			a.erase("pt")
+		_pose_others()
+
+
+## the peer's cards or playhead arrived: that fighter is drawn again
+func _co_applied(f: int, what: String) -> void:
+	_actors_sync()
+	if co == null or f < 0 or f >= actors_rt.size() or f == actor_on:
+		return
+	if what == "t":
+		actors_rt[f]["pt"] = co.peer_t
+	else:
+		actors_rt[f]["t"] = -INF   # its cards changed: it is posed again
+	_pose_others()
+	_refresh()
+
+
+## once a frame: the socket, the states said once, the owned fighter's playhead to the peer
+func _co_tick() -> void:
+	if co == null:
+		return
+	_co_fighters()
+	co.poll()
+	if co.state != _co_seen:
+		_co_seen = co.state
+		_say_plain("live co-edit: %s%s" % [co.state, (" (" + co.note + ")") if co.note != "" else ""])
+	if co.connected():
+		co.set_t(playhead)
+
+
+func _co_sync() -> void:
+	if co == null or not co.connected():
+		return
+	_co_fighters()
+	co.sync_owned()
+
+
 func _pose_others() -> void:
 	if actors_rt.is_empty() and S.actors.is_empty():
 		return
 	_actors_sync()
 	for k in actors_rt.size():
 		var a: Dictionary = actors_rt[k]
-		if k == actor_on or a["t"] == playhead:
+		var at: float = a.get("pt", playhead)   # ROADMAP 30: a co-edit peer's own playhead, else the shared one
+		if k == actor_on or a["t"] == at:
 			continue
-		(a["S"] as Scene).apply(a["B"], playhead)
-		a["t"] = playhead
+		(a["S"] as Scene).apply(a["B"], at)
+		a["t"] = at
 
 
 ## made active, shown: the cards row is that actor's scene
@@ -8911,6 +9008,9 @@ static func safe_file(nm: String) -> String:
 
 
 func _save_scene_now(nm: String) -> void:
+	if co != null and co.connected() and not co.is_host:
+		_say("live co-edit: the host saves the scene (your fighter's work is on its side too)")
+		return
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
