@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 4 / 20 (ragdoll; hitbox; clash; text_blocking). Full run 2 (2026-10-19): 211/228, all 17 failures fixed in 91480a2, 1f23fad, cd40527.
+Merged since the last full run: 17 / 20 (ease_slider; save_prompt; weight_feel; thumbnails; undo_names; real_speed; autokey; retime_handles; floor_snap; review; fatigue; what went wrong; range rings; ragdoll; hitbox; clash; text_blocking). Full run 2 (2026-10-19): 211/228, all 17 failures fixed in 91480a2, 1f23fad, cd40527.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -100,7 +100,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 26. [x] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
 27. [x] Ragdoll to keys with pins (top-25 #14)
 28. [x] Scene versions with a visual diff (top-25 #16): "Versions: compare with" lays an older version over the open scene (magenta ghost at the playhead), lists the changes per card, and marks the timeline where a joint differs over 2 deg; "Versions: restore this one" is one undo step (scripts/version_diff.gd, tests/version_diff_test.gd)
-29. [~] Review links with frame comments (top-25 #17)
+29. [x] Review links with frame comments (top-25 #17)
 30. [x] Live co-editing, one animator per fighter (top-25 #18)
 31. [x] Lip-sync from audio (top-25 #21)
 32. [x] Music beats as timeline markers, snap hits to them (top-25 #22)
@@ -109,26 +109,26 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 35. [x] Weapon trails drawn and exported (smear frames)
 36. [x] Hitbox / hurtbox editor per frame
 37. [x] Parry / clash detection between two weapons
-38. [ ] Distance-to-opponent guide (range rings)
-39. [ ] Fatigue: a long fight slows the moves per measured data
-40. [ ] Weight feel: heavy weapons slow the wind-up per mass
+38. [x] Distance-to-opponent guide (range rings)
+39. [x] Fatigue: a long fight slows the moves per measured data
+40. [x] Weight feel: heavy weapons slow the wind-up per mass
 
 ### Wave C: complaints, beginners ("make it easy")
 41. [ ] Pose by dragging any part with sensible defaults (no axis picking)
-42. [ ] Auto-key toggle that is obvious (red frame)
-43. [ ] "What went wrong?" button: explains the last error in plain words
+42. [x] Auto-key toggle that is obvious (red frame)
+43. [x] "What went wrong?" button: explains the last error in plain words
 44. [ ] Templates: walk, run, jump, punch, sword swing as starting scenes
-45. [ ] Undo that never surprises: names each step in the menu
-46. [ ] Snap a pose to the floor in one click
-47. [ ] Big timeline handles, retime by dragging a card's edge
-48. [ ] Preview at real speed vs every frame toggle, clearly labelled
+45. [x] Undo that never surprises: names each step in the menu
+46. [x] Snap a pose to the floor in one click
+47. [x] Big timeline handles, retime by dragging a card's edge
+48. [x] Preview at real speed vs every frame toggle, clearly labelled
 49. [ ] Tooltips with a 2-second video of the tool
-50. [ ] Save prompts: never lose a scene by closing the window
-51. [ ] Scene thumbnails in the browser
+50. [x] Save prompts: never lose a scene by closing the window
+51. [x] Scene thumbnails in the browser
 52. [ ] Search everything (commands, poses, scenes) from one box
 53. [ ] Copy a pose between fighters
 54. [ ] One-click mirror of the whole animation
-55. [ ] Simple ease slider per card (no graph editor needed)
+55. [x] Simple ease slider per card (no graph editor needed)
 56. [ ] Clear units everywhere (cm, deg, s, frames)
 57. [ ] Export dialog that says what each engine needs
 58. [ ] Dark / light theme and UI scale for laptops
