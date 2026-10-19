@@ -2401,6 +2401,7 @@ func _dummy_refresh() -> void:
 	dummy_node.visible = dummy_on
 	dummy_node.transform = T.xf
 	var h := T.touch(B) if dummy_on else {}
+	dummy_hit = h
 	hit_tag.visible = not h.is_empty()
 	hit_dot.visible = not h.is_empty()
 	_dummy_ghost_update(h)
@@ -2417,6 +2418,14 @@ func _dummy_refresh() -> void:
 const GHOST_A := 0.22
 const HIT_A := 0.45
 var dummy_ghost := false
+var dummy_hit := {}   # the last refresh's hit (T.touch), kept so the ghost can be worked out again when the camera turns
+
+
+## the ghost depends on WHERE THE CAMERA IS, so it is worked out again with every camera move (it was only refreshed with
+## the pose: a view turned after the last refresh kept the ghost of the old camera, and the same view drew two ways)
+func _dummy_view() -> void:
+	if dummy_node != null and dummy_mat != null:
+		_dummy_ghost_update(dummy_hit)
 
 
 func _dummy_occludes() -> bool:
@@ -3059,6 +3068,7 @@ func _keys_camera(dt: float) -> void:
 ## the camera looks at the body, shifted so the body sits in the middle of the free space between the panels
 func _cam() -> void:
 	if shot_through and _shot_apply():
+		_dummy_view()
 		return   # THE SHOT CAMERA: looking through it, the view is the keyed camera (_shot_apply)
 	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
@@ -3066,6 +3076,7 @@ func _cam() -> void:
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	cam.h_offset = (rw() - lw()) * 0.5 * mpp
 	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
+	_dummy_view()
 
 
 ## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
@@ -3712,6 +3723,7 @@ func _snapshot() -> Dictionary:
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
+		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
@@ -3780,6 +3792,10 @@ func _restore(u: Dictionary) -> void:
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
+	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
+		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
+		_hair_bake()
+		ov.mark_dirty()
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
 		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
 		_dummy_hits()
@@ -4600,7 +4616,7 @@ func _crowd_reroll() -> void:
 ## Crowd: remove the copies (the fighter stays). One undo step
 func _crowd_remove() -> void:
 	if S.crowd.is_empty():
-		_say_plain("NOT NOW: there is no crowd to remove")
+		_say_plain("NOT NOW: there is no crowd to remove: make one first with 'Crowd: make 20 copies of this fighter' (a move of two cards at least)")
 		return
 	_do(func(): S.crowd = {})
 	_refresh()
@@ -15638,8 +15654,17 @@ func _shot_lens(mm: float) -> void:
 
 
 ## ---- CAMERA SHAKE and RACK FOCUS (ROADMAP 76; scripts/shot_fx.gd): each shot's own fx, one undo step each ----------
-## _shot_fx() = the shot on at the playhead's fx: its own shake and rack focus (made in the shot when it has none)
+## _shot_fx() = the shot on at the playhead's fx: its own shake and rack focus. READ ONLY ({} when there is none): a read
+## that wrote an empty fx into the shot changed the scene with no undo step (the undo audit's camera rows)
 func _shot_fx() -> Dictionary:
+	var i := shot_now_index()
+	if i < 0:
+		return {}
+	return _shot_shots()[i].get("fx", {})
+
+
+## the same fx, made in the shot when it has none: call ONLY inside _do (the write belongs to that one undo step)
+func _shot_fx_make() -> Dictionary:
 	var i := shot_now_index()
 	if i < 0:
 		return {}
@@ -15660,8 +15685,8 @@ func _shot_shake_here() -> void:
 	if not _shot_fx_need_keys("the shake"):
 		return
 	var t := clampf(playhead, 0.0, S.length())
-	var e := ShotFx.impact(t, ShotFx.list(_shot_fx(), "shake").size() + 1)
-	_do(func(): ShotCam.put(ShotFx.list(_shot_fx(), "shake"), e))
+	var e := ShotFx.impact(t, _shot_fx().get("shake", []).size() + 1)
+	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "shake"), e))
 	_say("camera shake at %.2f s: Impact, about 2 cm and 1 deg on the shot camera for %.1f s, decaying (Ctrl+Z takes it back)" % [t, float(e["dur"])])
 
 
@@ -15678,7 +15703,7 @@ func _shot_shake_markers() -> void:
 	if not _shot_fx_need_keys("the shakes"):
 		return
 	_do(func():
-		var L := ShotFx.list(_shot_fx(), "shake")
+		var L := ShotFx.list(_shot_fx_make(), "shake")
 		for t in ts:
 			ShotCam.put(L, ShotFx.impact(float(t), L.size() + 1)))
 	_say("%d impact shake%s, one at each hit marker (%s); Ctrl+Z takes them all back" % [ts.size(), "" if ts.size() == 1 else "s", ", ".join(ts.map(func(x): return "%.2f s" % float(x)))])
@@ -15691,7 +15716,7 @@ func _shot_shake_remove() -> void:
 		_say("no shake starts at the playhead: move the playhead onto a shake's start (%d in this scene), then remove it" % L.size())
 		return
 	var t := float(L[i]["t"])
-	_do(func(): ShotFx.list(_shot_fx(), "shake").remove_at(i))
+	_do(func(): ShotFx.list(_shot_fx_make(), "shake").remove_at(i))
 	_say("removed the shake that starts at %.2f s" % t)
 
 
@@ -15702,7 +15727,7 @@ func _shot_focus_dist() -> void:
 	var k := ShotCam.sample(_shot_keys(), t)
 	var d := maxf(ShotFx.DIST_MIN, (k["pos"] as Vector3).distance_to(k["aim"] as Vector3))
 	var key := {"t": t, "dist": d}
-	_do(func(): ShotCam.put(ShotFx.list(_shot_fx(), "focus"), key))
+	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "focus"), key))
 	_say("rack focus at %.2f s: %s, the distance to where the shot camera looks (between two focus keys the focus racks; 'look through' shows the blur)" % [t, Units.len(d)])
 
 
@@ -15717,7 +15742,7 @@ func _shot_focus_part() -> void:
 		return
 	var k := ShotCam.sample(_shot_keys(), t)
 	var key := {"t": t, "part": j}
-	_do(func(): ShotCam.put(ShotFx.list(_shot_fx(), "focus"), key))
+	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "focus"), key))
 	_say("focus tracks %s from %.2f s (%s from the shot camera now); the blur follows it until the next focus key" % [j, t, Units.len((k["pos"] as Vector3).distance_to(q))])
 
 
@@ -15728,7 +15753,7 @@ func _shot_focus_remove() -> void:
 		_say("no focus key at the playhead: move the playhead onto a focus key (%d in this scene), then remove it" % L.size())
 		return
 	var t := float(L[i]["t"])
-	_do(func(): ShotFx.list(_shot_fx(), "focus").remove_at(i))
+	_do(func(): ShotFx.list(_shot_fx_make(), "focus").remove_at(i))
 	_say("removed the focus key at %.2f s" % t)
 
 
