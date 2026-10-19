@@ -12,6 +12,14 @@ extends RefCounted
 var m: Node            # main.gd
 var dlg: ConfirmationDialog
 var _edit := -1        # the index of the box being edited, -1 = a new one
+var sel := -1         # the PICKED box (index into S.boxes): the lane, a click in the view or the dialog sets it; -1 = none
+var _drag := {}       # a handle drag: {kind: "a" / "b" / "rad", i, p0, off, n, moved}
+var _line: MeshInstance3D   # the handles drawn in the view
+const HANDLE_PX := 12.0     # px: a press this close to a handle takes it
+const CLICK_PX := 10.0      # px: a press this close to a hit box's axis picks it
+const SNAP := 0.001         # m: the drag snaps every offset and radius to 1 mm
+const HCOLS := {"a": Color(0.4, 1.0, 0.5), "b": Color(0.4, 0.9, 1.0), "rad": Color(1.0, 0.6, 0.25)}
+const HSIZE := 0.045        # m: the half size of a handle's cross
 var _kind := "hit"     # "hit" / "hurt" / "inv" of the dialog as it is
 var _rows := {}        # field name -> [Label, Control]: shown or hidden by the kind
 var ui_kind: OptionButton
@@ -218,6 +226,7 @@ func open_edit() -> void:
 
 func _pick_to(i: int) -> void:
 	_edit = i
+	sel = i
 	ui_pick.select(i)
 	_fill(m.S.boxes[i])
 
@@ -243,6 +252,7 @@ func _put(e: Dictionary, idx: int) -> void:
 	else:
 		L[idx] = e
 	m.S.boxes = HitBoxes.clean(L)
+	sel = mini(idx if idx >= 0 else L.size() - 1, L.size() - 1)   # the box just made or changed is the picked one
 	m._refresh()
 
 
@@ -258,4 +268,166 @@ func _remove(idx: int) -> void:
 	var L: Array = m.S.boxes.duplicate(true)
 	L.remove_at(idx)
 	m.S.boxes = L
+	sel = -1
 	m._refresh()
+
+
+## PICK: the box with index i is the picked one (the lane, a click in the view); its handles show on its frames
+func pick(i: int) -> void:
+	if m.S == null or i < 0 or i >= m.S.boxes.size():
+		return
+	sel = i
+	m._say("box picked: %s   (drag its ends or its radius handle in the view)" % HitBoxes.describe(m.S.boxes[i]))
+	m._refresh()
+
+
+## the picked box's capsule now as {a, b, r} (a hit box: its ends; a single-part hurt edit: that body capsule, radius x scale)
+func _capsule(e: Dictionary) -> Dictionary:
+	if String(e["kind"]) == "hit":
+		return HitBoxes.hit_cap(m.B, e)
+	var c: Array = m.B.cap(String(e["part"]))
+	return {"a": c[0], "b": c[1], "r": float(m.B.rad[String(e["part"])]) * float(e.get("scale", 1.0))}
+
+
+## the handles of the picked box on this frame: {a, b, rad (the radius handle), r, c}, or {} when none is picked, it is not on
+## this frame, or it is a hurt edit with no single part ("*" and off boxes have no size to drag)
+func handles() -> Dictionary:
+	if sel < 0 or m.S == null or sel >= m.S.boxes.size():
+		return {}
+	var e: Dictionary = m.S.boxes[sel]
+	if not HitBoxes._in(e, _frame_now()):
+		return {}
+	if String(e["kind"]) == "hurt" and (String(e["part"]) == HitBoxes.ALL or bool(e.get("off", false))):
+		return {}
+	var c := _capsule(e)
+	var a: Vector3 = c["a"]
+	var b: Vector3 = c["b"]
+	var r: float = c["r"]
+	return {"a": a, "b": b, "rad": (a + b) * 0.5 + m.cam.global_basis.x * r, "r": r, "c": c}
+
+
+func _near(mp: Vector2, p: Vector3) -> bool:
+	return not m.cam.is_position_behind(p) and m.cam.unproject_position(p).distance_to(mp) <= HANDLE_PX
+
+
+## the index of a hit box whose axis is under the mouse on this frame, or -1 (the nearest in screen space)
+func _box_under(mp: Vector2) -> int:
+	var best := -1
+	var best_d := CLICK_PX
+	var f := _frame_now()
+	for i in m.S.boxes.size():
+		var e: Dictionary = m.S.boxes[i]
+		if String(e["kind"]) != "hit" or not HitBoxes._in(e, f):
+			continue
+		var c := _capsule(e)
+		if m.cam.is_position_behind(c["a"]) or m.cam.is_position_behind(c["b"]):
+			continue
+		var pa: Vector2 = m.cam.unproject_position(c["a"])
+		var pb: Vector2 = m.cam.unproject_position(c["b"])
+		var d := Geometry2D.get_closest_point_to_segment(mp, pa, pb).distance_to(mp)
+		if d <= best_d:
+			best_d = d
+			best = i
+	return best
+
+
+## a press in the view: a handle of the picked box takes it (one undo step, dropped if the mouse never moves); else a click
+## on a hit box's axis picks that box. Returns true when the press belongs to the boxes.
+func press(mp: Vector2) -> bool:
+	var h := handles()
+	var kind := ""
+	for k in ["a", "b", "rad"]:
+		if not h.is_empty() and _near(mp, h[k]):
+			kind = k
+			break
+	if kind == "":
+		var i := _box_under(mp)
+		if i >= 0:
+			pick(i)
+			return true
+		return false
+	var p0: Vector3 = h[kind]
+	var n: Vector3 = m.cam.global_basis.z   # the view plane through the handle
+	var hit = m._ikh_plane(m.cam.project_ray_origin(mp), m.cam.project_ray_normal(mp), p0, n)
+	if hit == null:
+		return false
+	m._step_hint = "Move the box's %s" % ("radius" if kind == "rad" else "end " + kind)
+	m._push_undo()
+	_drag = {"kind": kind, "i": sel, "p0": p0, "off": p0 - (hit as Vector3), "n": n, "moved": false}
+	m.dragging = "box_handle"
+	return true
+
+
+## the drag: the handle follows the mouse over the view plane through where it was pressed. An end moves its offset in the
+## part's frame (snapped to 1 mm); the radius is the distance from the mouse to the box's axis (1 mm; a hurt edit gets its scale).
+func move(mp: Vector2) -> void:
+	if _drag.is_empty():
+		return
+	var hit = m._ikh_plane(m.cam.project_ray_origin(mp), m.cam.project_ray_normal(mp), _drag["p0"], _drag["n"])
+	if hit == null:
+		return
+	var at: Vector3 = (hit as Vector3) + (_drag["off"] as Vector3)
+	var i: int = _drag["i"]
+	var L: Array = m.S.boxes.duplicate(true)
+	var e: Dictionary = L[i]
+	var kind: String = _drag["kind"]
+	if kind == "rad":
+		var c := _capsule(e)
+		var r := snappedf(maxf(Geometry3D.get_closest_point_to_segment(at, c["a"], c["b"]).distance_to(at), SNAP), SNAP)
+		if String(e["kind"]) == "hit":
+			e["r"] = r
+		else:
+			e["scale"] = clampf(r / float(m.B.rad[String(e["part"])]), HitBoxes.SCALE_MIN, HitBoxes.SCALE_MAX)
+	else:
+		var part := String(e["part"])
+		var q := HitBoxes.part_frame(m.B, part)
+		var base: Vector3 = (m.B.cap(part)[0] if kind == "a" else m.B.cap(part)[1])
+		var loc := q.inverse() * (at - base)
+		e["da" if kind == "a" else "db"] = [snappedf(loc.x, SNAP), snappedf(loc.y, SNAP), snappedf(loc.z, SNAP)]
+	L[i] = e
+	m.S.boxes = L
+	_drag["moved"] = true
+	m._refresh()
+	m._say("MOVING the box's %s: %s" % [("radius" if kind == "rad" else "end " + kind), HitBoxes.describe(e)])
+
+
+## the release: a drag that moved is one undo step; a press with no move is not an edit
+func release() -> void:
+	var d := _drag
+	_drag = {}
+	if d.is_empty():
+		return
+	if not d["moved"]:
+		m._drop_undo()
+	m._refresh()
+
+
+## the handles drawn into the view: a line between the ends, and a cross at each end and at the radius handle
+func draw_handles() -> void:
+	if m.S == null or m.cam == null:
+		return
+	if _line == null:
+		_line = MeshInstance3D.new()
+		_line.name = "box_handles"
+		_line.mesh = ImmediateMesh.new()
+		m.add_child(_line)
+	var im := _line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	var h := handles()
+	if h.is_empty():
+		return
+	var active := String(_drag["kind"]) if not _drag.is_empty() else ""
+	im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+	im.surface_set_color(Color(1, 1, 1, 0.6))
+	im.surface_add_vertex(h["a"])
+	im.surface_add_vertex(h["b"])
+	im.surface_end()
+	for k in ["a", "b", "rad"]:
+		var p: Vector3 = h[k]
+		var s := HSIZE * (1.5 if k == active else 1.0)
+		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+		im.surface_set_color(HCOLS[k])
+		for ax in [Vector3.RIGHT, Vector3.UP, Vector3.BACK]:
+			im.surface_add_vertex(p - ax * s)
+			im.surface_add_vertex(p + ax * s)
+		im.surface_end()

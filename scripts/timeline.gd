@@ -13,6 +13,7 @@ signal retime_started
 signal retimed(final: bool)
 signal range_set(which: String, t: float)   # WW4: Shift+click on the ruler = in point, Alt+click = out point
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
+signal box_picked(i: int)   # ROADMAP 36: a box on the boxes lane clicked: the index into S.boxes
 
 ## FRAME DATA (ROADMAP 12; scripts/frame_data.gd): main.gd sets `fd` (the analysis, {} = off) and the strip shows its
 ## startup (green), active (red) and recovery (blue) in frames, under the ruler. Drawn only; the numbers are FrameData's.
@@ -190,6 +191,11 @@ func _gui_input(ev: InputEvent) -> void:
 			var fs := mark_at(ev.position)
 			if not fs.is_empty():
 				finding_picked.emit(fs[0])
+				accept_event()
+				return
+			var bxi := box_at(ev.position)   # ROADMAP 36: a click on the boxes lane picks that box
+			if bxi >= 0:
+				box_picked.emit(bxi)
 				accept_event()
 				return
 			var h := hit(ev.position)
@@ -479,6 +485,21 @@ func _clip_drag(x: float, fine: bool) -> void:
 	_S().clips[int(_drag["i"])]["start"] = t
 	retimed.emit(false)
 	queue_redraw()
+
+
+## the index (into S.boxes) of the box on the boxes lane under p, or -1
+func box_at(p: Vector2) -> int:
+	if bx.is_empty():
+		return -1
+	var y0 := RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0)
+	if p.y < y0 or p.y > y0 + BX_H:
+		return -1
+	for b in bx:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := maxf(x_of(float(b["t1"])), x0 + 2.0)
+		if p.x >= x0 and p.x <= x1:
+			return int(b["i"])
+	return -1
 
 
 ## the lane's height on the timeline (0 with no boxes)

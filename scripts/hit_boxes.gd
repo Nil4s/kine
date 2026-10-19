@@ -165,13 +165,14 @@ static func hurt_list(B: Body, boxes: Array, f: int) -> Array:
 ## (t = frame / fps; t1 is the END of the last frame, so a 10-14 range is [10 / fps, 15 / fps))
 static func lanes(boxes: Array, fps: float) -> Array:
 	var out := []
-	for e in boxes:
+	for i in boxes.size():
+		var e: Dictionary = boxes[i]
 		var kind := "hit"
 		var row := 0
 		if String(e.get("kind", "")) == "hurt":
 			row = 1
 			kind = "inv" if is_invincible(e) else "hurt"
-		out.append({"row": row, "kind": kind, "t0": float(e["f0"]) / fps, "t1": float(int(e["f1"]) + 1) / fps})
+		out.append({"row": row, "kind": kind, "t0": float(e["f0"]) / fps, "t1": float(int(e["f1"]) + 1) / fps, "i": i})
 	return out
 
 

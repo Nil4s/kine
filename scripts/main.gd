@@ -1918,6 +1918,13 @@ var fd_btn: Button = null
 var hitbox_ui: HitBoxesUI   # HIT / HURT BOXES (ROADMAP 36): the commands and the dialog (scripts/hit_boxes_ui.gd)
 
 
+## a box picked on the timeline's lane (ROADMAP 36): its handles show in the view
+func _bx_pick(i: int) -> void:
+	if hitbox_ui == null:
+		hitbox_ui = HitBoxesUI.new(self)
+	hitbox_ui.pick(i)
+
+
 func _fd_toggle() -> void:
 	fd_on = not fd_on
 	_refresh()
@@ -2411,6 +2418,8 @@ func _refresh() -> void:
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
+	if hitbox_ui != null:
+		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
 
@@ -2566,6 +2575,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				loa.begin(mb.position)
 				dragging = "loa"
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
+				if hitbox_ui != null and hitbox_ui.press(mb.position):   # ROADMAP 36: a box's handle, or a box picked in the view, takes the press
+					return
 				if _frh_press(mb.position):   # ROADMAP 6: a foot's roll handle takes the press
 					return
 				if _ikh_press(mb.position):   # IK2: an IK handle drawn here takes the press
@@ -2627,6 +2638,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_loa_release(mb.shift_pressed)
 			if was == "foot_handle":
 				_frh_release()
+			if was == "box_handle" and hitbox_ui != null:
+				hitbox_ui.release()   # ROADMAP 36: one undo step for a moved box handle
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
 			if was == "orbit" and mb.button_index == MOUSE_BUTTON_RIGHT and not _rpress.is_empty():
 				if mb.position.distance_to(_rpress["at"]) < 5.0 and _rpress["part"] != "":
@@ -2659,6 +2672,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "foot_handle":
 			_frh_move(mm.position)
+			return
+		if dragging == "box_handle":
+			hitbox_ui.move(mm.position)
 			return
 		if dragging == "orbit":
 			if shot_through:
@@ -6337,6 +6353,7 @@ func _ui() -> void:
 		_audio_scrub()
 		_refresh())
 	ui_timeline.picked.connect(_timeline_pick)
+	ui_timeline.box_picked.connect(_bx_pick)   # ROADMAP 36: a box on the boxes lane picked
 	ui_timeline.range_set.connect(func(which: String, t: float): _pv_set(which, t))   # WW4: Shift+click / Alt+click on the ruler
 	ui_timeline.finding_picked.connect(_finding_mark)
 	ui_timeline.retime_started.connect(_retime_begin)

@@ -221,6 +221,46 @@ func app_part() -> void:
 	ok(m.S.boxes.is_empty() and m.undo.size() == u2 + 1, "7 delete: one undo step")
 	m._undo()
 	ok(m.S.boxes.size() == 1, "7 Ctrl+Z brings the box back")
+	# 7b the lane picks the box; a press on its end handle, a move and a release (through main's input) move the end 5 cm
+	# along the view, within 1 mm; the drag is one undo step and Ctrl+Z puts the end back
+	m.playhead = 12.0 / 60.0
+	m.S.apply(m.B, m.playhead)
+	m._refresh()
+	var tl0: Timeline = m.ui_timeline
+	var lp := InputEventMouseButton.new()
+	lp.button_index = MOUSE_BUTTON_LEFT
+	lp.pressed = true
+	lp.position = Vector2(tl0.x_of(float(tl0.bx[0]["t0"]) + 0.01), Timeline.RULER + 2.0 + 2.0)
+	tl0._gui_input(lp)
+	ok(m.hitbox_ui.sel == 0, "7b a click on the box's lane picks it (sel %d)" % m.hitbox_ui.sel)
+	var a_old: Vector3 = (m.hitbox_ui.handles() as Dictionary)["a"]
+	var want: Vector3 = a_old + m.cam.global_basis.x * 0.05
+	var sp: Vector2 = m.cam.unproject_position(a_old)
+	var sq: Vector2 = m.cam.unproject_position(want)
+	var u4: int = m.undo.size()
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = sp
+	m._unhandled_input(press)
+	var mv := InputEventMouseMotion.new()
+	mv.position = sp.lerp(sq, 0.5)
+	m._unhandled_input(mv)
+	mv.position = sq
+	m._unhandled_input(mv)
+	var rel := InputEventMouseButton.new()
+	rel.button_index = MOUSE_BUTTON_LEFT
+	rel.pressed = false
+	rel.position = sq
+	m._unhandled_input(rel)
+	var a_new: Vector3 = HitBoxes.hit_cap(m.B, m.S.boxes[0])["a"]
+	var err := (a_new - want).length()
+	ok(err < 0.001 and absf((a_new - a_old).length() - 0.05) < 0.001 and m.undo.size() == u4 + 1,
+		"7b the end's handle, dragged, moves the end 5 cm along the view: %.3f mm from the target, one undo step" % (err * 1000.0))
+	m._undo()
+	ok(not m.S.boxes[0].has("da") and (HitBoxes.hit_cap(m.B, m.S.boxes[0])["a"] - a_old).length() < 1e-9,
+		"7b Ctrl+Z puts the end back where it was")
+	m._redo()
 	# an invincible range and the picked hurt edit, then the view with the boxes drawn at frame 12
 	m.sel = "head"
 	m.hitbox_ui.open("hurt")
@@ -242,6 +282,11 @@ func app_part() -> void:
 		await process_frame
 	ok(tl.bx.size() == 3, "7 the lane shows three boxes (hit, hurt, invincible)")
 	m.hitbox_ui.dlg.hide()   # the dialog is shut for the picture: the view and the lane show
+	m.hitbox_ui.pick(0)   # the attack box is picked: its handles show on frame 12
+	m.playhead = 12.0 / 60.0
+	m.S.apply(m.B, m.playhead)
+	m._refresh()
+	ok(not (m.hitbox_ui.handles() as Dictionary).is_empty(), "7 the picked box's handles show on its frames")
 	for i in 2:
 		await process_frame
 	for a in OS.get_cmdline_user_args():
