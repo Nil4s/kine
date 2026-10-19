@@ -2126,6 +2126,7 @@ func _exit_tree() -> void:
 	for sc in _bake_scenes():
 		if (sc as Scene).baker != null:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
+	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -2735,6 +2736,7 @@ var _bake_rr := 0
 func _bake_poll() -> void:
 	var t0 := Time.get_ticks_usec()
 	var live := _bake_scenes()
+	PoseBake.reap(live)   # a scene that left the stage leaves its worker running otherwise
 	var horizon := 0.0
 	for sc in live:
 		horizon = maxf(horizon, (sc as Scene).length())
