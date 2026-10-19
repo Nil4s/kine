@@ -171,6 +171,7 @@ static func _vars(B: Body, s: String) -> Array:
 
 ## the chain's joint points with the angles as they now stand (the pelvis, the spine, the leg; not the arms)
 static func _chain(B: Body, s: String) -> void:
+	B._fk_a = {}   # ROADMAP 99: this writes G / P / E itself, outside the dirty-tracked fk()
 	for j in ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head", "thigh" + s, "calf" + s, "foot" + s]:
 		var A := B.compose(j, B.ang[j])
 		var pj: String = B.parent[j]

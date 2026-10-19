@@ -161,6 +161,7 @@ static func lim_key(j: String) -> String:
 
 
 func load_files(skel_path: String, limits_path: String) -> void:
+	_fk_a = {}   # the rest points change: fk() recomputes every joint
 	_files = [skel_path, limits_path]
 	pairs = []   # PR1: loaded again by set_proportions, so nothing may pile up from the last load
 	allow = {}
@@ -1278,6 +1279,7 @@ func search(js: Array, cost: Callable, pen0 := -1.0) -> float:
 ## FK for a few joints only (an arm), parents first: the same math as fk(), for fast sweeps
 func fk_some(js: Array) -> void:
 	for j in js:
+		_fk_a.erase(j)
 		var A := compose(j, ang[j])
 		var pj: String = parent[j]
 		G[j] = G[pj] * A
@@ -2049,6 +2051,7 @@ func fk_sub(j: String) -> void:
 				js.append(k)
 		_below[j] = js
 	for k in js:
+		_fk_a.erase(k)
 		var A := compose(k, ang[k])
 		var pk: String = parent[k]
 		if pk == "":
@@ -2060,10 +2063,26 @@ func fk_sub(j: String) -> void:
 		E[k] = P[k] + G[k] * (e0[k] - p0[k])
 
 
+## DIRTY-TRACKED FK (ROADMAP 99): a joint is recomputed only when its own angles changed (compared float by float: Vector3 ==
+## is approximate in this build), or its parent was recomputed, or (the root) the offset moved. _fk_a is the angles G / P / E
+## were last computed for; whatever else writes G / P / E or the rest points clears it (load_files, Proportions, _chain,
+## fk_some, fk_sub, PoseBake.restore sets it to the angles it restores). Same values bit for bit as the full pass.
+var _fk_a := {}
+var _fk_off := Vector3.ZERO
+
+
 func fk() -> void:
+	var dirty := {}
+	var root_same := _fk_off.x == offset.x and _fk_off.y == offset.y and _fk_off.z == offset.z
 	for j in ORDER:
-		var A := compose(j, ang[j])
+		var a: Vector3 = ang[j]
 		var pj: String = parent[j]
+		var prev = _fk_a.get(j)
+		if prev != null and (a.x == prev.x and a.y == prev.y and a.z == prev.z) and (root_same if pj == "" else not dirty.has(pj)):
+			continue
+		dirty[j] = true
+		_fk_a[j] = a
+		var A := compose(j, a)
 		if pj == "":
 			G[j] = A
 			P[j] = p0[j] + offset
@@ -2071,6 +2090,7 @@ func fk() -> void:
 			G[j] = G[pj] * A
 			P[j] = P[pj] + G[pj] * (p0[j] - p0[pj])
 		E[j] = P[j] + G[j] * (e0[j] - p0[j])
+	_fk_off = offset
 
 
 ## the glTF node's local rotation for this pose: W[j] = G[j] * W0[j] -> L[j] = W0[parent]^-1 * A[j] * W0[j]
@@ -2330,7 +2350,7 @@ func set_state(s: Dictionary) -> void:
 	_set_state0(s)
 
 
-func _set_state0(s: Dictionary) -> void:
+func _set_state0(s: Dictionary, do_fk := true) -> void:
 	ang = (s["ang"] as Dictionary).duplicate()
 	offset = s["offset"]
 	set_kind(s["wep_kind"])
@@ -2349,7 +2369,8 @@ func _set_state0(s: Dictionary) -> void:
 	wep2_hand = s.get("wep2_hand", "hand_l")
 	wep2_lpos = s.get("wep2_lpos", Vector3.ZERO)
 	wep2_lrot = s.get("wep2_lrot", Quaternion.IDENTITY)
-	fk()
+	if do_fk:
+		fk()
 
 
 static func _q(q: Quaternion) -> Array:

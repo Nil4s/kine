@@ -2086,6 +2086,9 @@ func _ready() -> void:
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	for sc in _bake_scenes():
+		if (sc as Scene).baker != null:
+			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -2122,6 +2125,7 @@ func _process(dt: float) -> void:
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	_dm_poll()
+	_bake_poll()
 	_kb_poll()
 	_as_wait += dt
 	if _as_wait >= 15.0:
@@ -2166,7 +2170,8 @@ func _process(dt: float) -> void:
 		if stp["stop"]:
 			playing = false
 		if not PerfStub.skip("body"):
-			_ps().apply(B, playhead)
+			var ps := _ps()
+			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
 		_refresh()
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
@@ -2502,6 +2507,27 @@ func _fd_data() -> Dictionary:
 	return fd_cache["fd"]
 
 
+## ROADMAP 99: while a scene plays, redraw the whole timeline only when something on it besides the playhead moved
+## (the key below: the edit counter, the cards and their times, the selection, the size and zoom, the palette ...);
+## otherwise only the playhead overlay (Timeline.playhead_redraw). Not playing: always the whole timeline, as before.
+var _tl_key := []
+
+
+func _tl_play_redraw() -> void:
+	if not playing:
+		_tl_key = []
+		ui_timeline.queue_redraw()
+		return
+	var key := [_dm_gen, S, S.cards.size(), S.times(), sel_card, S.length(), ui_timeline.size, ui_timeline.pps(), ui_timeline.x_of(0.0), auto_key,
+		Tok.c("tl_bg"), Tok.c("ink"), fd_cache.get("key", null), ui_timeline.fd.size(), ui_timeline.bx.size(), ui_timeline.sp.size(), fd_on,
+		vdiff.size(), pv_in, pv_out, S.markers.size(), S.audio_tracks.size(), ui_timeline.clip_px(), _tl_under_ruler()]
+	if key == _tl_key:
+		ui_timeline.playhead_redraw()
+		return
+	_tl_key = key
+	ui_timeline.queue_redraw()
+
+
 ## the strip and the boxes for this refresh (both off: nothing is analysed)
 func _fd_refresh() -> void:
 	if ui_timeline != null:
@@ -2513,7 +2539,7 @@ func _fd_refresh() -> void:
 			_tl_height()
 			_layout_bottom()   # the panel makes room for the frame strip and the lane, or gives it back
 		if not PerfStub.skip("timeline"):
-			ui_timeline.queue_redraw()
+			_tl_play_redraw()
 	if not fd_boxes or S.cards.is_empty():
 		if fd_node != null:
 			fd_node.visible = false
@@ -2637,6 +2663,55 @@ func _dm_start() -> void:
 	var so := solid
 	job["task"] = WorkerThreadPool.add_task(func(): job["out"] = _dummy_measure(sc, d, y, so))
 	_dm_job = job
+
+
+## ROADMAP 99: every scene that plays (the fighters', or the open one) keeps a baked pose table (scripts/pose_bake.gd). A table is
+## dropped and re-baked from the playhead when the scene's content signature differs (checked every frame: the edit funnel
+## _dummy_hits bumps _dm_gen, and an edit that does not go through it is still caught by the signature). Off in PerfStub "bake".
+var bake_on := true
+var bake_sigs_ms := 0.0   # what the signature checks cost this frame (read by tests)
+
+
+func _bake_scenes() -> Array:
+	var out := []
+	if actors_rt.size() >= 2:
+		for a in actors_rt:
+			out.append(a["S"])
+	else:
+		out.append(S)
+	return out
+
+
+var _bake_rr := 0
+
+func _bake_poll() -> void:
+	var t0 := Time.get_ticks_usec()
+	var live := _bake_scenes()
+	var horizon := 0.0
+	for sc in live:
+		horizon = maxf(horizon, (sc as Scene).length())
+	# a signature is ~1 ms a scene: playing, one scene a frame in turn (and at once after an edit through the funnel,
+	# _dm_gen); not playing, all of them (nothing else is running then)
+	var edited := _bake_gen != _dm_gen
+	_bake_gen = _dm_gen
+	_bake_rr += 1
+	for i in live.size():
+		var sc_s: Scene = live[i]
+		if not bake_on or PerfStub.skip("bake") or not PoseBake.eligible(sc_s):
+			if sc_s.baker != null:
+				sc_s.baker.stop()
+				sc_s.baker = null
+			continue
+		if sc_s.baker == null:
+			sc_s.baker = PoseBake.new()
+			sc_s.baker.start(sc_s, playhead, horizon)
+		elif edited or not playing or _bake_rr % live.size() == i:
+			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon:
+				sc_s.baker.start(sc_s, playhead, horizon)   # the content changed: the old table is dropped, a new bake starts at the playhead
+	bake_sigs_ms = (Time.get_ticks_usec() - t0) / 1000.0
+
+
+var _bake_gen := -1
 
 
 ## called every frame: a finished job lands if it is the newest; a stale one starts the next
@@ -4320,6 +4395,8 @@ func _pose_others() -> void:
 	for k in actors_rt.size():
 		var a: Dictionary = actors_rt[k]
 		var at: float = a.get("pt", playhead)   # ROADMAP 30: a co-edit peer's own playhead, else the shared one
+		if playing:
+			at = (a["S"] as Scene).play_t(at)   # ROADMAP 99: playback evaluates on the bake grid (Scene.play_t)
 		if k == actor_on or a["t"] == at:
 			continue
 		if not PerfStub.skip("body"):
@@ -8063,7 +8140,18 @@ func _doc_line(force := false) -> void:
 		return
 	var nm: String = S.name if S.name != "" else "untitled"
 	ui_doc.text = "%s   ·  %d clips  ·  %s" % [nm, S.cards.size(), Units.time(_ps().length(), S.fps)] if S.cards.size() > 0 else "%s   ·  no clips yet" % nm
+	# ROADMAP 99: _unsaved() serialises every fighter's cards (25 ms with four). While a scene plays nothing is edited unless it
+	# goes through the edit funnel (_dm_gen), so the dot is re-read only when that moved (or when not playing, as before)
+	var H := _hero_scene()
+	if playing and _dot_gen == _dm_gen and _dot_hero == H:
+		return
+	_dot_gen = _dm_gen
+	_dot_hero = H
 	ui_doc_dot.visible = _unsaved()
+
+
+var _dot_gen := -1
+var _dot_hero: Scene = null
 
 
 ## a button's name: its text, or for an icon-only one (round 36) the label it kept

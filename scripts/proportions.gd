@@ -178,6 +178,7 @@ static func scale_rest(B: Body) -> void:
 		B.skin_c[part] = [mp.call(part, B.skin_c[part][0]), float(B.skin_c[part][1]) * float(s[part])]
 	for j in Body.ORDER:
 		B.p0[j] = p1[j]
+	B._fk_a = {}   # ROADMAP 99: the rest points moved, every joint is computed again
 	B.seg_s = s
 
 

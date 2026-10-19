@@ -633,9 +633,27 @@ static func put(B: Body, s: Dictionary) -> void:
 			B.grip2 = w["grip2"]   # the card's own Lock-both-hands grip (round 47)
 
 
+## ROADMAP 99: the baked pose table (PoseBake) of this scene, or null (the app sets it; a clone never has one)
+var baker: PoseBake = null
+
+
+## the time playback evaluates for a playhead at t: the nearest tick of the bake grid (a 60 Hz display cannot show a finer
+## step; at most half a display frame). Live and baked solves both use it, so they cannot differ.
+func play_t(t: float) -> float:
+	var g := float(PoseBake.grid_for(fps))
+	return roundf(t * g) / g
+
+
 func apply(B: Body, t: float) -> void:
 	if B.body != body:
 		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body
+	if baker != null:
+		var e = baker.entry(t)
+		if e != null:
+			baker.hits += 1
+			baker.restore(self, B, e)
+			return
+		baker.misses += 1
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	plant_last = {}

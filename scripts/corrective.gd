@@ -171,7 +171,26 @@ func attach(meshes: Array, sk: Skeleton3D) -> void:
 			arrs.append(src.surface_get_arrays(si))
 			flags.append(src.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
 			mats.append(src.surface_get_material(si))
-		_entries.append([m, src, arrs, flags, mats, wd])
+		# ROADMAP 99: which joints can change what THIS piece draws: those whose affected vertices its triangles use. The app's 52
+		# pieces each draw one body part; an elbow bending rebuilds the few pieces at the elbow, not all 52
+		var deps := []
+		for jt in JOINTS:
+			var hit := false
+			for si in arrs.size():
+				var idx = (arrs[si] as Array)[Mesh.ARRAY_INDEX]
+				var used := {}
+				if idx != null:
+					for v in (idx as PackedInt32Array):
+						used[v] = true
+				for v in (wd[si]["aff"][jt[0]] as PackedInt32Array):
+					if idx == null or used.has(v):
+						hit = true
+						break
+				if hit:
+					break
+			if hit:
+				deps.append(jt[0])
+		_entries.append([m, src, arrs, flags, mats, wd, deps, null])
 
 
 ## a bone's rest origin in the skeleton's space: the rest transforms of its chain, root first. Not
@@ -214,9 +233,15 @@ func update(B: Body) -> void:
 	_last = dr
 	for e in _entries:
 		var mi: MeshInstance3D = e[0]
+		var sub := {}   # the drives of the joints this piece depends on: unchanged = nothing to rebuild
+		for k in e[6]:
+			sub[k] = dr[k]
+		if e[7] == sub:
+			continue
+		e[7] = sub
 		var any := false
 		for jt in JOINTS:
-			if float(dr[jt[0]]) > 0.0:
+			if sub.has(jt[0]) and float(dr[jt[0]]) > 0.0:
 				any = true
 		if not any:
 			if mi.mesh != e[1]:
@@ -231,7 +256,7 @@ func update(B: Body) -> void:
 			var wd: Dictionary = e[5][si]
 			for jt in JOINTS:
 				var k: float = float(dr[jt[0]])
-				if k <= 0.0:
+				if k <= 0.0 or not sub.has(jt[0]):
 					continue
 				var dv: PackedVector3Array = wd["dirs"][jt[0]]
 				var ai: PackedInt32Array = wd["aff"][jt[0]]
