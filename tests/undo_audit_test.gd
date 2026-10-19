@@ -20,7 +20,8 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"save_a_version": "writes scenes/_versions/<scene>/ (a file, not an edit; round 29)",
 	"new_empty_scene": "replaces the scene (the open one stays on disk); not an edit of it",
 	"look_at_the_picked_prop": "needs a picked prop (no start picks one); the same _look_at path is audited by look_at_the_camera and its solve by look_at_test",
-	"play_pause": "plays (the playhead moves the body by design); stopped at once below"}
+	"play_pause": "plays (the playhead moves the body by design); stopped at once below",
+	"audio_add_a_sound_file_wav_ogg_mp3": "opens a file dialog (audio_track_test runs the add itself: one undo step)"}
 
 var fails := 0
 var m: Node
@@ -41,6 +42,7 @@ func fp() -> String:
 		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers,   # WW1, WW5
 		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
 		"layers": var_to_str(m.S.layers),   # NA1
+		"audio": var_to_str(m.S.audio),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik)}   # IK keys (limb_ik.gd)
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
@@ -111,6 +113,13 @@ func start(kind: String) -> void:
 		m.playhead = float(m.S.times()[2][1]) - 0.13
 		m.stepped_view = kind == "STEPPED"   # STEPPED: already blocking, for "Spline and check"
 		m._ps().apply(m.B, m.playhead)
+		m.sel = "lowerarm_r"
+	elif kind == "AUDIO":
+		# the sound commands need a sound on the timeline (a path with no file: the scene still holds it and the commands edit it)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.audio = {"path": "res://zz_no_such_sound.wav", "offset": 0.3, "gain_db": 0.0}
 		m.sel = "lowerarm_r"
 	elif kind == "IK":
 		# IK: combo3 on card 3 (its arrival under the playhead) with the left hand pinned at card 1, so release and the
@@ -223,7 +232,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "AUDIO"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

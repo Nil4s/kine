@@ -956,7 +956,7 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "") -> D
 	var how := ""
 	if ff == "":
 		how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Export playblast (video) again, or set POSER_FFMPEG to ffmpeg.exe"
-	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], S.audio, sp[0]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
 		mp4 = "%s/%s.mp4" % [gdir, nm]
 		how = " and %s.mp4" % nm
 	else:
@@ -1432,6 +1432,7 @@ func _process(dt: float) -> void:
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
+	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
 		var stp := PreviewRange.tick(playhead, dt, _ps().length(), pv_in, pv_out, S.loop)   # WW4: inside the preview range, if one is set
 		playhead = stp["t"]
@@ -1439,6 +1440,7 @@ func _process(dt: float) -> void:
 			playing = false
 		_ps().apply(B, playhead)
 		_refresh()
+	_audio_tick(_a_before, dt)
 	_fps_poll(dt)
 
 
@@ -2425,6 +2427,7 @@ func _snapshot() -> Dictionary:
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
+		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2452,6 +2455,9 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
 		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
 		_dummy_hits()
+	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
+		S.audio = u["audio"].duplicate()   # the sound, undone like a card
+		_audio_reload()
 	if u["scene"] == S and u.has("flags"):
 		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
 			S.set(BAKE_FLAGS[k], u["flags"][k])
@@ -4563,6 +4569,7 @@ func _ui() -> void:
 		playing = false
 		playhead = t
 		_ps().apply(B, playhead)
+		_audio_scrub()
 		_refresh())
 	ui_timeline.picked.connect(_timeline_pick)
 	ui_timeline.range_set.connect(func(which: String, t: float): _pv_set(which, t))   # WW4: Shift+click / Alt+click on the ruler
@@ -5659,6 +5666,9 @@ func _commands() -> Array:
 	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
+	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it appears under the timeline as a waveform, plays in step with Play and sounds a short slice as you drag the playhead")
+	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the sound off the timeline (the file stays on disk); one undo step")
+	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
@@ -6768,6 +6778,7 @@ func _toggle_play() -> void:
 		_say("a scene needs two cards or more to play: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
 	playing = not playing
+	_a_after = -1.0   # the sound starts (or stops) with the next frame
 	if playing and playhead >= _ps().length() - 0.01:
 		playhead = 0.0
 	var sp := PreviewRange.span(pv_in, pv_out, _ps().length())
@@ -7682,6 +7693,158 @@ func _on_drop(files: PackedStringArray) -> void:
 			_import_pose(f)
 		else:
 			_import_file(f)
+
+
+## ---- AUDIO TRACK (GAP_ANALYSIS row 23). The scene keeps S.audio = {"path", "offset", "gain_db"}; the stream and its peak
+## envelope (AudioTrack, computed once per file) live here, not in the file. Play: the AudioStreamPlayer plays from
+## (playhead - offset), re-seeked when the playhead jumps; a drag of the ruler plays one short slice per frame.
+const AUDIO_SLICE_EXTRA := 0.04   # s added to one frame for a scrub slice
+var audio_env := {}             # AudioTrack.envelope of the loaded sound; {} = none
+var audio_seeks := 0            # how many times Play (re)started the sound (tests)
+var audio_err := 0.0            # sound position - wanted position (s), read right after the playhead moved this frame (tests)
+var audio_slices := 0           # how many scrub slices were sounded (tests)
+var _a_player: AudioStreamPlayer
+var _a_path := "<unset>"        # the path the stream was loaded for (a change reloads it: open, undo, remove)
+var _a_on := false              # the player is running for Play
+var _a_after := -1.0            # the playhead at the end of the last tick (a different one now = the user moved it)
+var _a_slice_until := 0         # msec when the scrub slice stops
+var _a_slice_frame := -1
+
+
+func audio_stream() -> AudioStream:
+	return _a_player.stream if _a_player != null else null
+
+
+## where the sound is, in its own seconds; -1 when it is not sounding. The engine mixes in chunks, so its position is up to
+## a chunk old: the class reference says to add the time since the last mix (the output latency is not taken off)
+func audio_position() -> float:
+	if _a_player == null or not _a_player.playing:
+		return -1.0
+	return _a_player.get_playback_position() + AudioServer.get_time_since_last_mix()
+
+
+func _audio_reload() -> void:
+	_a_path = String(S.audio.get("path", ""))
+	_a_on = false
+	_a_slice_until = 0
+	if _a_player == null:
+		_a_player = AudioStreamPlayer.new()
+		_a_player.name = "audio_track"
+		add_child(_a_player)
+	_a_player.stop()
+	_a_player.stream = AudioTrack.load_stream(_a_path)
+	audio_env = {} if _a_path == "" else AudioTrack.envelope(_a_player.stream, _a_path)
+	if ui_timeline != null:
+		ui_timeline.custom_minimum_size.y = 34.0 + (Timeline.AUDIO_H if _a_path != "" else 0.0)
+		ui_timeline.queue_redraw()
+
+
+func _audio_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.wav, *.ogg, *.mp3 ; sounds"])
+	fd.use_native_dialog = true
+	fd.title = "A sound for the timeline"
+	fd.file_selected.connect(func(p): _audio_set(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## put a sound on the timeline (one undo step). Returns true when it loaded
+func _audio_set(path: String) -> bool:
+	if not AudioTrack.EXTS.has(path.get_extension().to_lower()):
+		_say("could not add %s: it is not a wav, ogg or mp3; pick one of those" % path.get_file())
+		return false
+	var st := AudioTrack.load_stream(path)
+	if st == null:
+		_say("could not add %s: the file is missing or Godot cannot read it; pick another wav, ogg or mp3" % path.get_file())
+		return false
+	_push_undo()
+	S.audio = {"path": path, "offset": 0.0, "gain_db": 0.0}
+	_audio_reload()
+	var env := audio_env
+	_say("sound added: %s, %.2f s from 0.00 s%s" % [path.get_file(), st.get_length(), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
+	_refresh()
+	return true
+
+
+func _audio_remove() -> void:
+	if S.audio.is_empty():
+		_say("no sound on the timeline: run Audio: add a sound file first")
+		return
+	_push_undo()
+	S.audio = {}
+	_audio_reload()
+	_say("sound removed from the timeline (the file is still on disk; add it again to bring it back)")
+	_refresh()
+
+
+func _audio_to_playhead() -> void:
+	if S.audio.is_empty():
+		_say("no sound on the timeline: run Audio: add a sound file first")
+		return
+	var t := snappedf(playhead, 0.001)
+	if absf(t - float(S.audio["offset"])) < 1e-6:
+		_say("the sound already starts at %.2f s: click the timeline to move the playhead, then run this again" % t)
+		return
+	_push_undo()
+	S.audio["offset"] = t
+	_say("the sound now starts at %.2f s (Ctrl+Z puts it back)" % t)
+	_refresh()
+
+
+## keep the sound in step with the playhead. before = the playhead before this frame's advance, dt = the advance
+func _audio_tick(before: float, dt: float) -> void:
+	if String(S.audio.get("path", "")) != _a_path:
+		_audio_reload()
+	if _a_player == null or _a_player.stream == null or S.audio.is_empty():
+		_a_after = playhead
+		return
+	_a_player.volume_db = float(S.audio.get("gain_db", 0.0))
+	if not playing:
+		if _a_on:
+			_a_player.stop()
+			_a_on = false
+		if _a_slice_until > 0 and Time.get_ticks_msec() >= _a_slice_until:
+			_a_player.stop()
+			_a_slice_until = 0
+		_a_after = playhead
+		return
+	var want := playhead - float(S.audio["offset"])
+	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > dt + 1e-4
+	if want < 0.0 or want >= _a_player.stream.get_length():
+		if _a_on or _a_player.playing:
+			_a_player.stop()
+		_a_on = false
+	elif jumped or not _a_on or not _a_player.playing:
+		_a_slice_until = 0
+		_a_player.play(want)
+		_a_on = true
+		audio_seeks += 1
+	if _a_on and _a_player.playing:
+		audio_err = audio_position() - (playhead - float(S.audio["offset"]))   # against the true offset, not the seek's own value
+	_a_after = playhead
+
+
+## the playhead was dragged (not playing): sound ~1 frame + 40 ms of it, at most one slice per rendered frame
+func _audio_scrub() -> void:
+	if _a_player == null or _a_player.stream == null or S.audio.is_empty() or playing:
+		return
+	var fr := Engine.get_process_frames()
+	if fr == _a_slice_frame:
+		return
+	_a_slice_frame = fr
+	var want := playhead - float(S.audio["offset"])
+	if want < 0.0 or want >= _a_player.stream.get_length():
+		_a_player.stop()
+		_a_slice_until = 0
+		return
+	_a_player.volume_db = float(S.audio.get("gain_db", 0.0))
+	_a_player.play(want)
+	_a_slice_until = Time.get_ticks_msec() + int(round((1.0 / maxf(S.fps, 1) + AUDIO_SLICE_EXTRA) * 1000.0))
+	audio_slices += 1
 
 
 ## ---- VIDEO TO ANIMATION (round 45, GATES AA2). A video goes to tools/see_video.py (MediaPipe, run as its own process
