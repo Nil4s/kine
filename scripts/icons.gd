@@ -134,6 +134,11 @@ const DRAW := {
 		["seg", Vector2(11, 12), Vector2(20, 3), 2], ["seg", Vector2(20, 3), Vector2(14, 3), 2], ["seg", Vector2(20, 3), Vector2(20, 9), 2]],
 	"help": [["arc", Vector2(12, 8.5), 4.5, 2.2, 160, 420], ["seg", Vector2(12, 13), Vector2(12, 16), 2.2], ["disc", Vector2(12, 20.5), 1.5]],
 	"whywrong": [["ring", Vector2(12, 12), 9, 2], ["seg", Vector2(12, 6.5), Vector2(12, 13.5), 2.4], ["disc", Vector2(12, 17.5), 1.5]],
+	# ROADMAP 54: Mirror scene = a frame and its mirror copy (a dashed axis between); Mirror in place = one frame split by its axis
+	"mirror_scene": [["box", Rect2(2.5, 6.5, 7.5, 11), 1.6], ["box", Rect2(14, 6.5, 7.5, 11), 1.6], ["seg", Vector2(12, 3), Vector2(12, 21), 1.2],
+		["seg", Vector2(17.5, 18.5), Vector2(19.5, 21), 1.4], ["disc", Vector2(12, 3), 1.2]],
+	"mirror_inplace": [["box", Rect2(5, 4, 14, 16), 1.6], ["seg", Vector2(12, 2), Vector2(12, 22), 1.2], ["seg", Vector2(9, 9), Vector2(5, 12), 1.6],
+		["seg", Vector2(5, 12), Vector2(9, 15), 1.6], ["seg", Vector2(15, 9), Vector2(19, 12), 1.6], ["seg", Vector2(19, 12), Vector2(15, 15), 1.6]],
 }
 
 static var _cache := {}
