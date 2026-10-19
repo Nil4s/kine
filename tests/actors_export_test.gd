@@ -21,10 +21,12 @@ const BASE := {   # sha256 of the scene file with CR removed (a checkout may add
 		"bvh": "ad7d293652f24ecfeef223a9f2ec8ceb36f71e72c9d1dd9daf85a686321fa213",
 		"json": "b63904ebc461805fdf2701d9b8dfeaedc7593180a9e584206c44d47578e02bf2",
 		"cs": "86f2376b3a023bf90074d90d6abb31296a096ecb565bb0cab5dfea3670581832"}],
+	# walk_bat glb/usda/bvh re-baselined at 88eb4c1 (toe cap): the ONLY change vs the pre-TC6 bvh is the ball_l/ball_r channels
+	# (verified: bvh channels and glb animation tracks differ ONLY on ball_l/ball_r; glb nodes, skins, meshes identical; the glb hash is for the test's order, combo3 then walk_bat on one Body). json/cs hashes are unchanged.
 	"walk_bat": ["bc08fc8cdc71607353dff4612c4eb6721af3e2c02da252714eeb7fdddfc9b693", {
-		"glb": "1654f3184b4230e32c5ad052a4c50ce15c0fb49502b02d3c7f972c49f66adb2a",
-		"usda": "83576e96c758e00e26351ddbd8bf5d6504d064481eeab4517d4801d760e6c821",
-		"bvh": "42f9625ebff2ed84ff7126248dac06e65f0304fa404be99573cbd56d5d9dd576",
+		"glb": "07a4fd9b26b16418c8f7959019624e27076f929376b855b0cb3664bcae4edb04",
+		"usda": "3a6f911c2c7b262ffb27669f547cb920865c8d0ffc91bd22766f65e5194f9ddf",
+		"bvh": "3777eeb6b3763cbb3c7c57999ad667e01604fa8fbebe3e0b12c5cff78bffb862",
 		"json": "1dc574ca319d52f7f7ee662f1446b432b0f7218877fb325c020aec524ba90f14",
 		"cs": "6e8a5a6532c0f3d302f3668e58dbad2fdc4adb11b9efad1593527e809fe7c42e"}],
 }

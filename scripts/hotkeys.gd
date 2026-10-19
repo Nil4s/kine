@@ -106,7 +106,7 @@ static func built_in(cmds: Array, combo: String) -> Dictionary:
 	if combo == "":
 		return {}
 	for c in cmds:
-		if String(c["default"]) == combo:
+		if String(c.get("default", c["keys"])) == combo:
 			return c
 	return {}
 
@@ -218,10 +218,10 @@ func dispatch(k: InputEventKey) -> bool:
 		m.keys_overlay(true)
 		hold = k.keycode
 		return true
-	if String(c["default"]) == combo:
+	if String(c.get("default", c["keys"])) == combo:
 		return false   # still its own key: main's own match runs it, as it always did
 	m._step_hint = String(c["name"])
-	synth = String(c["default"])
+	synth = String(c.get("default", c["keys"]))
 	(c["run"] as Callable).call()
 	synth = ""
 	return true

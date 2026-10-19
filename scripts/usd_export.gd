@@ -28,9 +28,7 @@ static func text(S: Scene, B: Body) -> Array:
 	h.append_array(PackedStringArray(["def SkelRoot \"Kine\"", "{"]))
 	h.append_array(_skel(S, B, n, fps, S.length(), "    ", "/Kine"))
 	h.append("}")
-	return ["
-".join(h) + "
-", {"frames": n, "joints": Body.ORDER.size(), "fps": S.fps}]
+	return ["\n".join(h) + "\n", {"frames": n, "joints": Body.ORDER.size(), "fps": S.fps}]
 
 
 ## TWO CHARACTERS (round 50, GATES TC6): every actor in one stage. actors = [{"name", "S", "B", "xf": Transform3D}].
@@ -62,9 +60,7 @@ static func text_actors(actors: Array, title: String) -> Array:
 		h.append_array(_skel(a["S"], a["B"], n, fps, L, "        ", "/Kine/" + pn))
 		h.append("    }")
 	h.append("}")
-	return ["
-".join(h) + "
-", {"frames": n, "joints": Body.ORDER.size(), "fps": int(fps), "prims": prims}]
+	return ["\n".join(h) + "\n", {"frames": n, "joints": Body.ORDER.size(), "fps": int(fps), "prims": prims}]
 
 
 ## an actor's name as a USD prim name (letters, digits, "_"; not starting with a digit)
