@@ -87,6 +87,7 @@ var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
 var layer_w := 1.0     # YY9: the layer's weight 0..1 (written only with a layer)
 var layers := []       # NA1: more layers over it, in order (see add_layers); [] = none, and nothing is written
+var fitness := 0.5     # FATIGUE (ROADMAP 39; scripts/fatigue.gd): 0..1, how well the fighter keeps his speed over a long fight; 0.5 = the elite fighters measured; in the file only when not 0.5
 var breath := 0.0      # YY6: breaths a minute added on playback (Body.breathe); 0 = off (written only when on)
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
 var loop := false      # the scene plays round: CHECK grades the seam from the last frame to the first (round 16, W2)
@@ -1377,7 +1378,7 @@ var actors := []
 func clone() -> Scene:
 	var c := Scene.new()
 	c.cards = cards.duplicate(true)
-	for k in ["name", "natural", "spline", "on_floor", "floor_body", "pin", "fps", "moving_holds", "stepped", "loop", "breath"]:
+	for k in ["name", "natural", "spline", "on_floor", "floor_body", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness"]:
 		c.set(k, get(k))
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
@@ -1865,6 +1866,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["moving_holds"] = true   # the same: only when on
 	if loop:
 		out["loop"] = true   # the same
+	if fitness != 0.5:
+		out["fitness"] = fitness   # ROADMAP 39: only when not the default
 	if breath > 0.0:
 		out["breath"] = breath   # YY6: the same, only when on
 	if not layer.is_empty():   # YY9: only with a layer, so a scene without one saves as before
@@ -1921,7 +1924,7 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
+	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
@@ -2026,6 +2029,7 @@ func from_dict(d: Dictionary) -> void:
 	moving_holds = bool(d.get("moving_holds", false))
 	loop = bool(d.get("loop", false))
 	breath = float(d.get("breath", 0.0))
+	fitness = clampf(float(d.get("fitness", 0.5)), 0.0, 1.0)
 	body = Proportions.clean(d["body"]) if d.get("body") is Dictionary else {}   # PR1: absent = the default body
 	layer = {}
 	for j in d.get("layer", {}):
