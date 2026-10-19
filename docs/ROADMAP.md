@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 13 / 20 (hand capture from video; dropped sword rigid physics; cape cloth (background bake); contact IK (hand on wall/table); hair ponytail; pose matching on transitions; clip warp; custom attributes; macros; batch export; camera sequencer (per-shot shake/focus); USD layers (pxr-checked; Alembic not written); FBX export (binary, Blender-checked)). Full run 4 (2026-10-19): 237/271 under load; re-run of 34 alone: 7 load or time-outs, 27 real (UI layout, units wording, duplicate keys, trail rebuilds, a pick drag), fixes in progress; proportions waits on Nick (skeleton.json hip height). Merged after run 4: corrective seam weld, face on the head, precise pick on the skin.
+Merged since the last full run: 14 / 20 (Euler unroll for exports; hand capture from video; dropped sword rigid physics; cape cloth (background bake); contact IK (hand on wall/table); hair ponytail; pose matching on transitions; clip warp; custom attributes; macros; batch export; camera sequencer (per-shot shake/focus); USD layers (pxr-checked; Alembic not written); FBX export (binary, Blender-checked)). Full run 4 (2026-10-19): 237/271 under load; re-run of 34 alone: 7 load or time-outs, 27 real (UI layout, units wording, duplicate keys, trail rebuilds, a pick drag), fixes in progress; proportions waits on Nick (skeleton.json hip height). Merged after run 4: corrective seam weld, face on the head, precise pick on the skin.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -139,7 +139,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 61. [x] Spline IK spine
 62. [x] IK/FK snap per frame with no pop
 63. [x] Space switching (hand in world / chest / weapon space) with no pop
-64. [ ] Euler filter / unroll for exported curves
+64. [x] Euler filter / unroll for exported curves
 65. [x] Tangent weights in the graph editor
 66. [x] Breakdown keys and key types (key / breakdown / in-between) like Blender's
 67. [x] Retime tool: scale a range around the playhead
