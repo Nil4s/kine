@@ -12888,7 +12888,9 @@ func _prop_put() -> void:
 	for k in range(int(c["a"]) + 1, S.cards.size()):   # one drop per carry: an earlier or later one moves here
 		if int(S.cards[k].get("drop", -1)) == pi:
 			S.cards[k].erase("drop")
+			S.cards[k].erase("drop_rig")
 	S.cards[sel_card]["drop"] = pi
+	S.bake_drop(B, sel_card)   # ROADMAP 85: a sword let go over the floor falls as a rigid body, baked on this card
 	_rebuild_cards()
 	_props_show()
 	_refresh()
@@ -12898,6 +12900,11 @@ func _prop_put() -> void:
 	for k in cs.size():
 		if int(cs[k]["a"]) == int(c["a"]):
 			d = S._carry_data(B)[k]
+	if d.has("rig"):   # ROADMAP 85: a rod falls as a rigid body; its baked fall ends where it lies
+		var n := int((d["rig"]["poses"] as PackedFloat64Array).size() / 7)
+		_say("card %d: the hands let the %s go; it falls as a rigid body and lies on the floor after %s. Ctrl+Z takes it back" % [
+			sel_card + 1, _prop_name(pi), Units.time(float(n - 1) * RigidDrop.DT, S.fps)])
+		return
 	var h := float(d.get("drop", Transform3D()).origin.y) - float(d.get("land", 0.0)) if d.has("drop") else 0.0
 	_say("card %d: the hands let the %s go; it falls %.0f cm in %s onto %s. Ctrl+Z takes it back" % [sel_card + 1, _prop_name(pi),
 		h * 100.0, Units.time(float(d.get("tf", 0.0)), S.fps), "the floor" if float(d.get("land", 0.0)) < 0.001 else "what is under it"])
