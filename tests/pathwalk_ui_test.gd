@@ -4,6 +4,7 @@
 ##   2 Esc cancels: the scene is untouched, the panel hidden
 ##   3 a click on the floor (the real mouse event, through the camera) adds a point; Enter with a 90-degree path builds the walk:
 ##     the scene has the walk's cards, and ONE Ctrl+Z puts the old scene back (same card count, same name)
+##     (BUILD MAKES A NEW SCENE 'path walk 1': the open scene object is untouched; undo puts that very scene back)
 ##   4 the speed box is clamped to the cited range: walk 0.6-1.6, run 3.0-4.0
 ##   5 a bend tighter than the generator allows is refused in the status line with a next step, the scene untouched
 ##   6 Run builds a scene with air cards (flights) in one undo step too
@@ -48,6 +49,7 @@ func _run() -> void:
 	await idle(2)
 	var name0: String = m.S.name
 	var n0: int = m.S.cards.size()
+	var old_scene = m.S
 	# 1 ribbon + icon + group + search
 	var btn: Button = null
 	for b in m.ui_ribbon["ANIMATE"].get_children():
@@ -120,10 +122,11 @@ func _run() -> void:
 	await idle(2)
 	var built: int = m.S.cards.size()
 	var walk_cards: bool = built > n0 and String(m.S.cards[1]["name"]).begins_with("pivot")
-	var undo_n: int = m.undo.size()
+	var new_ok: bool = m.S != old_scene and String(m.S.name) == "path walk 1" and m.scene_path == "" and old_scene.cards.size() == n0 and old_scene.name == name0
+	ok(new_ok, "3c Enter made a NEW scene '%s' (unsaved); the open scene '%s' still has its %d cards" % [m.S.name, old_scene.name, old_scene.cards.size()])
 	m._undo()
 	await idle(2)
-	ok(walk_cards and m.S.cards.size() == n0 and m.S.name == name0, "3b Enter built %d cards; ONE Ctrl+Z gives back %d cards named '%s'" % [built, m.S.cards.size(), m.S.name])
+	ok(walk_cards and m.S == old_scene and m.S.cards.size() == n0 and m.S.name == name0, "3b Enter built %d cards; ONE Ctrl+Z gives back %d cards named '%s'" % [built, m.S.cards.size(), m.S.name])
 	m._redo()
 	await idle(2)
 	# 7 the picture: the walk replayed, the app's own view
@@ -161,6 +164,7 @@ func _run() -> void:
 	m._load_scene("res://scenes/combo3.json")
 	await idle(2)
 	var n1: int = m.S.cards.size()
+	var old1 = m.S
 	m._pathwalk_start()
 	ui.mode_pick.select(1)
 	ui._mode_changed()
@@ -171,6 +175,43 @@ func _run() -> void:
 	var fl: int = m.S.flights().size()
 	m._undo()
 	await idle(2)
-	ok(fl >= 5 and m.S.cards.size() == n1, "6 Run: %d flights in the built scene; one Ctrl+Z restores %d cards" % [fl, m.S.cards.size()])
+	ok(fl >= 5 and m.S == old1 and m.S.cards.size() == n1, "6 Run: %d flights in the built scene; one Ctrl+Z restores %d cards" % [fl, m.S.cards.size()])
+	# 8 a RUN along a curved path, mid-flight: both feet off the floor, the whole body, the path and footprints drawn
+	m._load_scene("res://scenes/combo3.json")
+	await idle(2)
+	m._pathwalk_start()
+	ui.mode_pick.select(1)
+	ui._mode_changed()
+	var curve_pts := []
+	for i in 13:
+		curve_pts.append(Vector3(0, 0, 8.0 * i / 12.0))   # 8 m straight, then a quarter circle of radius 5 m, then 6 m straight
+	for i in range(1, 16):
+		var ph := (PI / 2.0) * i / 15.0
+		curve_pts.append(Vector3(5.0 - 5.0 * cos(ph), 0, 8.0 + 5.0 * sin(ph)))
+	for i in range(1, 11):
+		curve_pts.append(Vector3(5.0 + 6.0 * i / 10.0, 0, 13.0))
+	for p in curve_pts:
+		ui.add_point(p)
+	ui.input(key(KEY_ENTER))
+	await idle(2)
+	var fls: Array = m.S.flights()
+	var fi := fls.size() - 3   # a flight on the bend
+	var tf: float = (float(fls[fi]["t0"]) + float(fls[fi]["t1"])) * 0.5
+	m.playhead = tf
+	m.S.apply(m.B, tf)
+	m._refresh()
+	var hip8: Vector3 = m.B.offset + Vector3(0, 0.9, 0)
+	m.cam.look_at_from_position(hip8 + Vector3(-4.0, 2.2, 3.0), hip8)
+	await idle(3)
+	var img8 := root.get_texture().get_image()
+	if img8 != null and not img8.is_empty():
+		img8.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/pathfix.png")
+	var up_l: float = m.B.P["ball_l"].y
+	var up_r: float = m.B.P["ball_r"].y
+	var cv8 := PathWalk.curve(curve_pts)
+	var near8 := INF
+	for q in cv8["p"]:
+		near8 = minf(near8, Vector2((q as Vector3).x - m.B.offset.x, (q as Vector3).z - m.B.offset.z).length())
+	ok(up_l > 0.08 and up_r > 0.08 and near8 <= 0.15 and ui.marks.size() > 8, "8 run mid-flight on the bend: balls %.2f / %.2f m up (both off the floor), hips %.3f m from the path, %d footprints drawn" % [up_l, up_r, near8, ui.marks.size()])
 	print("PATH WALK UI TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

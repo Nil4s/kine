@@ -1,6 +1,6 @@
 ## path_walk_ui.gd - the UI of "Walk along a path..." (ROADMAP 92). ANIMATE > MAKE. Click points on the floor (each click adds
-## a point; the line is the path), a small panel picks Walk or Run and the speed, Enter builds the cards and replaces the
-## open scene as ONE undo step (Ctrl+Z puts the old scene back), Esc cancels. The generators are PathWalk and PathRun; their
+## a point; the line is the path), a small panel picks Walk or Run and the speed, Enter builds the cards into a NEW unsaved scene
+## as ONE undo step (the open scene is untouched; Ctrl+Z goes back to it), Esc cancels. The generators are PathWalk and PathRun; their
 ## refusals (a bend too tight, a path too short, a speed out of range) come back in the status line with the next step.
 ## Speed ranges: walk 0.6-1.6 m/s (the walk poses' range, measured at 1.3), run 3.0-4.0 m/s (numbers measured at 3.5; PathRun).
 class_name PathWalkUI
@@ -14,6 +14,7 @@ var panel: PanelContainer
 var mode_pick: OptionButton
 var speed_box: SpinBox
 var line: MeshInstance3D
+var made := 0                    # new scenes made this session (names them "path walk 1", ...)
 var marks: Array = []            # [[position, heading]] of each landing of the last build, drawn as footprints
 
 
@@ -119,7 +120,8 @@ func finish() -> void:
 		m._say("%s" % r["why"])   # stays in path mode so the points can be changed
 		return
 	var d: Dictionary = r["scene"]
-	d["scene"] = m.S.name   # the open scene keeps its name (Ctrl+Z restores the cards, not a name)
+	made += 1
+	d["scene"] = "path %s %d" % [mode(), made]   # a NEW scene (unsaved): the open one is left as it was
 	var n: int = d["cards"].size()
 	var verb := mode()
 	var metres: float = float(r["covered"])
@@ -129,9 +131,12 @@ func finish() -> void:
 	var keep := pts
 	pts = []
 	m._do(func():
+		m._actors_home()
+		m.S = Scene.new()   # the old Scene object rides in the undo step: Ctrl+Z puts it back whole, name and file too
 		m.S.from_dict(d)
-		m.actors_rt = []
-		m.actor_on = 0
+		m.scene_path = ""
+		if m.ui_scene_name != null:
+			m.ui_scene_name.text = m.S.name
 		m._actors_sync()
 		m.sel_card = 0
 		m.ov.mark_dirty()
@@ -149,7 +154,7 @@ func finish() -> void:
 		var s_k := step * 0.5 + (k - 1) * step
 		marks.append([PathRun._foot(c, sd, s_k) if verb == "run" else PathWalk.foot(c, sd, s_k), PathWalk.heading(c, s_k)])
 	_draw_pts(keep)
-	m._say("%s along the path: %d cards, %.1f m at %.1f m/s.  Ctrl+Z puts the old scene back in one step; nothing is saved until you save" % [verb, n, metres, sp])
+	m._say("%s along the path: %d cards, %.1f m at %.1f m/s.  the open scene is untouched; Ctrl+Z goes back to it in one step; the new scene is not saved until you save it" % [verb, n, metres, sp])
 
 
 func _draw() -> void:

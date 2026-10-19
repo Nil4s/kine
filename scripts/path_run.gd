@@ -138,7 +138,7 @@ static func _card(B: Body, c: Dictionary, base: Dictionary, name: String, sd: St
 		B.ang["thigh" + sd] = Vector3(sw.x, 4.0 * sgn, 0.0)
 		B.ang["calf" + sd] = Vector3(sw.y, 0.0, 0.0)
 		B.ang["foot" + sd] = Vector3(sw.y - sw.x + 10.0, 0.0, 0.0)
-		var s2 := _sw(0.392)
+		var s2 := _sw(0.30)   # the leading leg is still folded at mid-flight (knee ~55): at 0.392 it was straight and its foot hung 5 cm off the floor
 		B.ang["thigh" + osd] = Vector3(s2.x, -4.0 * sgn, 0.0)
 		B.ang["calf" + osd] = Vector3(s2.y, 0.0, 0.0)
 		B.ang["foot" + osd] = Vector3(s2.y - s2.x + 5.0, 0.0, 0.0)
@@ -172,14 +172,35 @@ static func _card(B: Body, c: Dictionary, base: Dictionary, name: String, sd: St
 		var ball_at := _foot(c, sd, m)
 		ball_at.y = (B.p0["ball" + sd] as Vector3).y
 		B.plant(sd, ball_at, PathWalk.heading(c, m), true)   # a flat foot: the toe-off heel-up plant left the toe tip 9 cm under the floor and lifted the body
+		# the ankle stops at its limit (25 deg), so mid-stance / toe-off cannot lie flat: the heel comes up (plantarflexion) and
+		# the toe tip dipped through the floor, which the floor step answered by lifting the whole body (the ball rode 2-4 cm up
+		# and the foot stopped counting as down). The toes now bend at the ball (dorsiflexion, as in a real toe-off) until the
+		# toe tip is as high as the ball: the toes lie on the floor, the ball stays within a centimetre of it
+		_toes_flat(B, sd)
 		if omode != "swing":
 			var os_m := m - 0.3 if omode == "stand" else m + 0.2 + 0.0
 			var ob := _foot(c, osd, os_m)
 			ob.y = (B.p0["ball" + osd] as Vector3).y
 			B.plant(osd, ob, PathWalk.heading(c, os_m), true)
+			_toes_flat(B, osd)
 		B.fk()
 	var card := {"name": name, "pose": B.to_dict(), "move": move, "hold": hold,
 		"arrive_s": snappedf(arrive, 0.01), "leave_s": snappedf(arrive + hold, 0.01), "walk": false}
 	if air:
 		card["air"] = true
 	return card
+
+
+## bend the toes at the ball joint until the toe tip is as high as the ball (a planted foot with its heel up keeps the toes on the floor)
+static func _toes_flat(B: Body, sd: String) -> void:
+	var best := 0.0
+	var gap := INF
+	for a in range(-70, 71, 2):
+		B.ang["ball" + sd] = Vector3(float(a), 0.0, 0.0)
+		B.fk()
+		var g := absf((B.E["ball" + sd] as Vector3).y - (B.P["ball" + sd] as Vector3).y)
+		if g < gap - 1e-6 or (absf(g - gap) <= 1e-6 and absf(a) < absf(best)):
+			gap = g
+			best = float(a)
+	B.ang["ball" + sd] = Vector3(best, 0.0, 0.0)
+	B.fk()
