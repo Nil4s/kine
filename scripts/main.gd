@@ -2989,7 +2989,7 @@ func _snapshot() -> Dictionary:
 	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"markers": S.markers.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
@@ -3073,6 +3073,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("flags"):
 		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
 			S.set(BAKE_FLAGS[k], u["flags"][k])
+	if u["scene"] == S and u.has("fitness"):
+		S.fitness = u["fitness"]   # FATIGUE (ROADMAP 39): the fitness slider, undone with the retime it came with
 	if u["scene"] == S and u.has("layers") and var_to_str(u["layers"]) != var_to_str(S.layers):
 		S.layers = u["layers"].duplicate(true)   # NA1: the layers, undone like a card
 		_dummy_hits()
@@ -7837,6 +7839,7 @@ func _commands() -> Array:
 	add.call("Blend to previous card", "Shift+Alt+E", _inbetween.bind("prev"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card before")
 	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
 	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
+	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10 % in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Preview range: start at the playhead", "", _pv_set.bind("in", -1.0), "in point loop section", false, "Play and Loop run only between the in and out points (a view setting: never saved, not an undo step). Also Shift+click on the ruler")
@@ -8410,6 +8413,59 @@ func _mirror_scene() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), H.name])
+
+
+## FATIGUE (ROADMAP 39): asks for the fighter's fitness (0-100 %), then retimes every strike (cards the hit markers land on)
+## by Fatigue.plan. One undo step. "" = done, else what was wrong
+var ui_fat_dlg: ConfirmationDialog
+var ui_fat_slider: HSlider
+var ui_fat_val: Label
+
+
+func _fatigue_dialog() -> void:
+	if Fatigue.strike_cards(S).is_empty():
+		_say("Fatigue needs the strikes marked: put a hit marker on each strike card (Marker: hit), then try again")
+		return
+	if ui_fat_dlg == null:
+		ui_fat_dlg = ConfirmationDialog.new()
+		ui_fat_dlg.name = "fatigue_dialog"
+		ui_fat_dlg.title = "Fatigue: slow the fight as it goes"
+		ui_fat_dlg.min_size = Vector2i(380, 0)
+		var h := HBoxContainer.new()
+		var l := Label.new()
+		l.text = "fitness"
+		h.add_child(l)
+		ui_fat_slider = HSlider.new()
+		ui_fat_slider.name = "slider_fitness"
+		ui_fat_slider.min_value = 0.0
+		ui_fat_slider.max_value = 1.0
+		ui_fat_slider.step = 0.05
+		ui_fat_slider.custom_minimum_size = Vector2(180, 26)
+		ui_fat_slider.tooltip_text = "0.5 = the elite fighters measured (about 10 % slower strikes after a long fight); 1 = no slowing; 0 = twice as much"
+		ui_fat_val = Label.new()
+		ui_fat_slider.value_changed.connect(func(v): ui_fat_val.text = "%.2f  (end of fight: %.0f %% slower)" % [v, Fatigue.decline(1.0, v) * 100.0])
+		h.add_child(ui_fat_slider)
+		h.add_child(ui_fat_val)
+		ui_fat_dlg.add_child(h)
+		ui_fat_dlg.confirmed.connect(func(): fatigue(ui_fat_slider.value))
+		add_child(ui_fat_dlg)
+	ui_fat_slider.value = S.fitness
+	ui_fat_slider.value_changed.emit(S.fitness)
+	ui_fat_dlg.popup_centered()
+
+
+func fatigue(fitness: float) -> String:
+	if Fatigue.strike_cards(S).is_empty():
+		return "no strikes marked: put a hit marker on each strike card first"
+	_push_undo()
+	_markers_hold()
+	S.fitness = clampf(fitness, 0.0, 1.0)
+	var p := Fatigue.apply(S, S.fitness)
+	_markers_follow()
+	_rebuild_cards()
+	_refresh()
+	_say("fatigue at fitness %.2f: %d strikes slowed, the last to %.0f %% of its speed; the scene is now %.2f s.  Ctrl+Z undoes" % [S.fitness, p.size(), float(p[-1]["speed"]) * 100.0, _ps().length()])
+	return ""
 
 
 ## STYLE TRANSFER (ROADMAP 25): "Style: make it <older | tired | heavy | angry>" asks for the intensity (0-100 %), then saves
