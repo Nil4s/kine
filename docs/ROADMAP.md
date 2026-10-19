@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 11 / 20 (spline ik spine; tangents; space switching; ikfk snap; recent files; theme and ui scale; export dialog; units; copy pose; templates; drag any part; ). Full run 3 (2026-10-19): 195/216 run (a stray EXTRA=" cut 13 suites; repaired in 3793066), re-run of 34 failed or skipped: 19 load, 15 real, all fixed in b8d3f1e.
+Merged since the last full run: 13 / 20 (per-part onion; key reduction; spline ik spine; tangents; space switching; ikfk snap; recent files; theme and ui scale; export dialog; units; copy pose; templates; drag any part; ). Full run 3 (2026-10-19): 195/216 run (a stray EXTRA=" cut 13 suites; repaired in 3793066), re-run of 34 failed or skipped: 19 load, 15 real, all fixed in b8d3f1e.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -143,9 +143,9 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 65. [x] Tangent weights in the graph editor
 66. [ ] Breakdown keys and key types (key / breakdown / in-between) like Blender's
 67. [ ] Retime tool: scale a range around the playhead
-68. [ ] Key reduction slider with an error readout
+68. [x] Key reduction slider with an error readout
 69. [ ] Editable motion trails (drag the arc)
-70. [ ] Per-part onion skin
+70. [x] Per-part onion skin
 71. [ ] Corrective shapes on the mesh (elbow, knee)
 72. [ ] Skin weight paint for imported characters
 73. [ ] Finger pose library + per-finger curl sliders
