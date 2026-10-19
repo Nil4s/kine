@@ -152,6 +152,12 @@ static func load_file(path: String) -> Dictionary:
 
 
 ## an orthonormal frame: x along a, y as near b as it can be
+## a rotation from a frame: orthonormalized first. A frame from two nearly parallel vectors, or one off by rounding, is not
+## normalized, and Godot's Quaternion(Basis) refuses it with "Basis ... must be normalized" (walk_bat's leg frames did)
+static func _quat(m: Basis) -> Quaternion:
+	return Quaternion(m.orthonormalized())
+
+
 static func _frame(a: Vector3, b: Vector3) -> Basis:
 	var x := a.normalized()
 	var y := (b - x * b.dot(x)).normalized()
@@ -199,11 +205,11 @@ static func _limb(B: Body, root: String, mid: String, a: Vector3, b: Vector3, c:
 		# a leg: near straight it has no knee plane, but the foot points where the knee does (the plane of thigh and foot)
 		var sd := root.right(2)
 		var f0: Vector3 = (B.e0["ball" + sd] as Vector3) - (B.p0["foot" + sd] as Vector3)
-		arc = Quaternion(_frame(d, toe) * _frame(d0, f0).inverse())
+		arc = _quat(_frame(d, toe) * _frame(d0, f0).inverse())
 	var w := smoothstep(STRAIGHT, PLANE_AT, bend)
 	var W := arc
 	if w > 0.0:
-		var pl := Quaternion(_frame(d, d.cross(e).normalized().cross(d)) * _frame(d0, n0.cross(d0)).inverse())
+		var pl := _quat(_frame(d, d.cross(e).normalized().cross(d)) * _frame(d0, n0.cross(d0)).inverse())
 		W = arc.slerp(pl, w)
 	_set_world(B, root, W.normalized())
 	# the hinge: the bend (its axis only) whose lower bone points nearest e. Searched, not read off the landmarks' angle:
@@ -232,7 +238,7 @@ static func _foot(B: Body, sd: String, w: Array) -> void:
 	var fw0 := (B.e0["ball" + sd] as Vector3) - heel0(B, sd)
 	if up.length() < 1e-6 or fw.length() < 1e-6:
 		return
-	_set_world(B, f, Quaternion(_frame(up, fw) * _frame(up0, fw0).inverse()).normalized())
+	_set_world(B, f, _quat(_frame(up, fw) * _frame(up0, fw0).inverse()).normalized())
 	var b := "ball" + sd
 	var e := (w[TOE[sd]] as Vector3) - (w[AN[sd]] as Vector3) - ((B.P[b] as Vector3) - (B.P[f] as Vector3))
 	var r: Vector2 = B.lim[b]["bend"]
@@ -289,9 +295,9 @@ static func _fit(B: Body, w: Array) -> void:
 	var r_sh: Vector3 = (B.p0["upperarm_l"] as Vector3) - (B.p0["upperarm_r"] as Vector3)
 	var r_up: Vector3 = ((B.p0["upperarm_l"] as Vector3) + (B.p0["upperarm_r"] as Vector3)) * 0.5 - ((B.p0["thigh_l"] as Vector3) + (B.p0["thigh_r"] as Vector3)) * 0.5
 	# the pelvis, then the spine's turn to the shoulders' frame in thirds
-	var Wp := Quaternion(_frame(w[HIP["_l"]] - w[HIP["_r"]], up) * _frame(r_hip, r_up).inverse())
+	var Wp := _quat(_frame(w[HIP["_l"]] - w[HIP["_r"]], up) * _frame(r_hip, r_up).inverse())
 	_set_world(B, "pelvis", Wp)
-	var Wc := Quaternion(_frame(w[SH["_l"]] - w[SH["_r"]], up) * _frame(r_sh, r_up).inverse())
+	var Wc := _quat(_frame(w[SH["_l"]] - w[SH["_r"]], up) * _frame(r_sh, r_up).inverse())
 	var q := ((B.G["pelvis"] as Quaternion).inverse() * Wc).normalized()
 	var third := Quaternion.IDENTITY.slerp(q, 1.0 / 3.0)
 	for j in ["spine_01", "spine_02", "spine_03"]:
@@ -309,10 +315,12 @@ static func _fit(B: Body, w: Array) -> void:
 			_set_world(B, j, (t3 * (B.G[j] as Quaternion)).normalized())
 	# the clavicles: each upper arm's joint toward its shoulder landmark's DIRECTION from the shoulders' midpoint, at our
 	# own shoulder width (directions only, as the spine)
-	var bsm := ((B.P["upperarm_l"] as Vector3) + (B.P["upperarm_r"] as Vector3)) * 0.5
+	# (round 46) the target is the landmark itself, on the body's own hips (o): the clavicle's joint is turned so the arm's joint
+	# lies toward the landmark FROM the clavicle. The old target (the body's shoulder midpoint plus our width) moved the
+	# arm by the spine's error, and walk_bat's clavicle came out -4.7 deg against the source's -10
 	for sd in ["_l", "_r"]:
 		var cj: String = "clavicle" + sd
-		var tgt := bsm + ((w[SH[sd]] as Vector3) - sh_m).normalized() * ((B.P["upperarm" + sd] as Vector3) - bsm).length()
+		var tgt: Vector3 = o + ((w[SH[sd]] as Vector3) - hip_m)
 		_aim(B, cj, B.P[cj], B.P["upperarm" + sd], tgt - (B.P[cj] as Vector3))
 	# neck and head: the head TURNS where the face points (ears -> nose, about the trunk's up) and otherwise stays on the
 	# trunk: MediaPipe's face depth swings the nose's height over the ears by 40 deg with the camera (11.6 side-on, 52.7
@@ -325,7 +333,7 @@ static func _fit(B: Body, w: Array) -> void:
 		var e0 := B0p + ((B.e0["head"] as Vector3) - B0p) * EAR0.y
 		var n0 := B0p + ((B.e0["head"] as Vector3) - B0p) * NOSE0.y + Vector3(0.0, 0.0, NOSE0.z)
 		var sm0 := ((B.p0["upperarm_l"] as Vector3) + (B.p0["upperarm_r"] as Vector3)) * 0.5
-		var Wh := Quaternion(_frame(hu, fw) * _frame(r_up, n0 - e0).inverse()).normalized()
+		var Wh := _quat(_frame(hu, fw) * _frame(r_up, n0 - e0).inverse()).normalized()
 		var rel := ((B.G["neck_01"] as Quaternion).inverse() * Wh).normalized()   # neck + head together, from the neck's now
 		var half := Quaternion.IDENTITY.slerp(rel, 0.5)
 		_set_world(B, "neck_01", ((B.G["neck_01"] as Quaternion) * half).normalized())
