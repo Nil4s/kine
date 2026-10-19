@@ -495,9 +495,11 @@ static func every_for(fps: float) -> int:
 	return maxi(1, int(round(fps / 6.0)))
 
 
-static func thin(S: Scene, every: int) -> Scene:
+## extra: more card indices to keep (AnimImport's refinement: the frames the even spacing would blend wrong)
+static func thin(S: Scene, every: int, extra := {}) -> Scene:
 	var n := S.cards.size()
 	var keep := {0: true, n - 1: true}
+	keep.merge(extra)
 	for i in n:
 		if i % maxi(1, every) == 0:
 			keep[i] = true

@@ -652,3 +652,15 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   (never edited); `Scene.apply` puts the scene's body on whatever plays it. Commands: "Body: proportions..." (dialog),
   "Body: 5th percentile woman" ... "Body: 95th percentile man" (ANSUR II), "Body: the mannequin's own proportions".
   `Proportions.retarget(S, B, body)` keeps every angle and moves the hips so the soles stand where they stood.
+
+## ANIMATION IMPORT FROM OTHER SKELETONS (GAP_ANALYSIS row 26; method + sources docs/research/RETARGET.md)
+- `scripts/anim_import.gd` (`AnimImport`): `load_source` (FBXDocument / GLTFDocument / BvhImport.parse -> global transforms per frame),
+  `map_bones` (Mixamo / UE / Godot / Blender / DAZ / Biped names via `classify`; the spine by STRUCTURE), `retarget` (world
+  deltas, rest-pose difference by bone direction, root motion x leg-length ratio, hips about the file's origin), `cards`
+  (MocapClean only on a FOOT SLIDE, `VideoImport.thin` + `refine` to 1 deg / 5 mm), `import_file` (all of it).
+- main: command "Import animation (fbx / glb / gltf / bvh)..." (`_anim_import_ask`) -> `_import_anim` writes a NEW scene in
+  scenes/_wip; a dropped .fbx, a non-Kine .bvh, or a rigged + animated .glb goes there too.
+- GOTCHA: Godot's FBX reader takes the root bone's rest TRANSLATION from the pose the file was saved in (rotations from the bind
+  pose); an armature with no skinned mesh has no rest at all but its saved pose. Root motion is therefore measured from the origin.
+- Test: tests/anim_import_test.gd; fixture tests/fixtures/mixamo_rig.fbx (+ _ref.json) made by make_mixamo_fbx.py in Blender
+  (regenerated into user:// on each run when Blender is installed; the committed one is used on CI). tests/fixtures has .gdignore.

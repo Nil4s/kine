@@ -21,7 +21,8 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"new_empty_scene": "replaces the scene (the open one stays on disk); not an edit of it",
 	"look_at_the_picked_prop": "needs a picked prop (no start picks one); the same _look_at path is audited by look_at_the_camera and its solve by look_at_test",
 	"play_pause": "plays (the playhead moves the body by design); stopped at once below",
-	"audio_add_a_sound_file_wav_ogg_mp3": "opens a file dialog (audio_track_test runs the add itself: one undo step)"}
+	"audio_add_a_sound_file_wav_ogg_mp3": "opens a file dialog (audio_track_test runs the add itself: one undo step)",
+	"import_animation_fbx_glb_gltf_bvh_...": "opens a file dialog; the import writes + opens a NEW scene in scenes/_wip (anim_import_test runs it)"}
 
 var fails := 0
 var m: Node
