@@ -527,7 +527,7 @@
           "type": "object",
           "required": ["type"],
           "properties": {
-           "type": {"enum": ["noise", "stepped", "limits"]},
+           "type": {"enum": ["noise", "stepped", "limits", "cycles"]},
            "ch": {"type": "integer", "minimum": -1, "maximum": 2, "description": "0 bend, 1 side, 2 twist, -1 all three (default)"},
            "mix": {"type": "number", "minimum": 0, "maximum": 1, "description": "Blender's Influence; default 1"},
            "strength": {"type": "number", "description": "noise: degrees peak to peak"},
@@ -535,7 +535,12 @@
            "phase": {"type": "number"},
            "seed": {"type": "integer"},
            "step": {"type": "number", "exclusiveMinimum": 0, "description": "stepped: seconds held"},
-           "offset": {"type": "number", "description": "stepped: seconds"},
+           "offset": {"type": "number", "description": "stepped: seconds; noise (GE4): the noise moved in time, seconds"},
+           "depth": {"type": "integer", "minimum": 0, "description": "noise (GE4): extra octaves"},
+           "before": {"enum": ["none", "repeat", "offset", "mirror"], "description": "cycles (GE4): before the first key"},
+           "after": {"enum": ["none", "repeat", "offset", "mirror"], "description": "cycles (GE4): after the last key"},
+           "before_n": {"type": "integer", "minimum": 0, "description": "cycles (GE4): copies before, 0 = for ever"},
+           "after_n": {"type": "integer", "minimum": 0, "description": "cycles (GE4): copies after, 0 = for ever"},
            "min": {"type": "number", "description": "limits: degrees"},
            "max": {"type": "number", "description": "limits: degrees"}
           },
