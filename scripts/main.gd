@@ -6043,7 +6043,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -6345,6 +6345,7 @@ func _ui() -> void:
 	# POSE
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
+	ui_ribbon["POSE"].add_child(_button("Snap to floor", _floor_snap, "lift or sink the picked card (or the body) so its lowest point touches the floor; the joints stay. Ctrl+Z takes it back"))
 	ui_ribbon["POSE"].add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed), "both arms relaxed: 25 degrees out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
@@ -7851,6 +7852,8 @@ func _commands() -> Array:
 	add.call("Big view (hide the panels)", "Tab", _press.bind(KEY_TAB), "fullscreen", false, "hide the side panels so the body gets the whole window")
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
 	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0, 0, 0)")
+	add.call("Snap to floor", "", _floor_snap, "floor ground snap stand sole foot knee lift sink drop touch pose root", true, "the picked card (or the body) moves straight up or down so its lowest point (sole, knee, hip or hand) is on the floor; the joints stay")
+	add.call("Snap to floor: all cards", "", _floor_snap.bind(true), "floor ground snap all cards every range sole foot knee lift sink", true, "every card moves straight up or down so its lowest point is on the floor; the joints stay; one undo step")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
 	add.call("IK: release the picked limb here", "", _ik_release, "ik fk unpin unlock free let go release hand foot", true, "the pinned hand (or foot) follows the cards again from the card at the playhead: its pinned pose goes into that card first, so nothing jumps")
@@ -9432,6 +9435,36 @@ func _card_update(i: int) -> void:
 		S.cards[i]["name"] = "pose %d" % (i + 1)
 	_rebuild_cards()
 	_say("card %d updated from the body" % (i + 1))
+
+
+## SNAP TO FLOOR (ROADMAP 46): the picked card (or the body when no card is picked, or there are no cards) moves straight
+## up or down so its lowest capsule point is on the floor; the joints stay. all = every card. One undo step
+func _floor_snap(all := false) -> void:
+	if all:
+		if S.cards.is_empty():
+			_say("no cards to snap: pose the body and press Enter to add it as a card, or use 'Snap to floor' for the body alone")
+			return
+		var n := S.cards.size()
+		_do(func():
+			FloorSnap.snap_all(S, B)
+			S.apply(B, playhead)
+			_rebuild_cards())
+		_say("all %d cards are on the floor now: the lowest point of each is at 0 (Ctrl+Z takes it back)" % n)
+		return
+	if S.cards.is_empty():
+		_do(func(): B.ground_body())
+		_say("the body is on the floor now (Ctrl+Z takes it back)")
+		return
+	if sel_card < 0:
+		_do(func(): B.ground_body())
+		_say("the body is on the floor now, but no card is picked: click a card, then 'Update' keeps it there (Ctrl+Z takes it back)")
+		return
+	var i := sel_card
+	_do(func():
+		S.cards[i]["pose"] = FloorSnap.snapped_pose(B, S.cards[i]["pose"])
+		S.apply(B, playhead)
+		_rebuild_cards())
+	_say("card %d is on the floor now: the lowest point at 0, the joints as they were (Ctrl+Z takes it back)" % (i + 1))
 
 
 func _card_del(i: int) -> void:
