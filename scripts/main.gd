@@ -10667,7 +10667,9 @@ func _mk_pop_build() -> void:
 	mk_pop = PopupPanel.new()
 	mk_pop.name = "MarkerPopover"
 	var box := StyleBoxFlat.new()   # the Tok float panel, opaque enough to read over the timeline
-	box.bg_color = Tok.c("float")
+	box.bg_color = Tok.c("mk_panel")   # opaque: the timeline and the cards behind it must not show through
+	box.set_border_width_all(1)
+	box.border_color = Tok.c("mk_border")
 	box.set_corner_radius_all(4)
 	box.set_content_margin_all(8)
 	mk_pop.add_theme_stylebox_override("panel", box)
