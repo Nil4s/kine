@@ -270,7 +270,9 @@ func part4() -> void:
 	var u0: int = m.undo.size()
 	# a real drag of the chest handle
 	var pc := proj(k["target"])
-	var d := Vector2(-60.0, -6.0)   # toward the screen's left (the hero faces +z; the side view has +z to the left)
+	# 8 cm back of the chest, in METRES not pixels: a fixed pixel drag is a different distance at every viewport size (headless 38 mm
+	# off the live control, windowed 20 mm: the same 60 px asked for 13 cm in one and 11 cm in the other, past the spine joints' limits)
+	var d := proj((k["target"] as Vector3) + Vector3(0.0, 0.006, -0.08)) - pc   # the side view has +z to the left
 	await mouse(pc, true)
 	var worst := 0.0
 	var live_n := 0
