@@ -465,6 +465,22 @@
       "additionalProperties": false
      }
     },
+    "camera": {
+     "type": "array",
+     "description": "THE SHOT CAMERA (GAP_ANALYSIS row 21): one keyed camera; written only when there is one. Each key: t = seconds, pos = where the lens is (world, m), aim = the point it looks at (world, m), f = focal length in mm on a 36 mm wide sensor, 16:9 frame (fov_v = 2 atan(20.25 / 2 / f)). Between keys pos, aim and f follow the part keys' monotone curve. scripts/shot_camera.gd",
+     "minItems": 1,
+     "items": {
+      "type": "object",
+      "required": ["t", "pos", "aim", "f"],
+      "properties": {
+       "t": {"type": "number", "minimum": 0},
+       "pos": {"$ref": "#/$defs/vec3"},
+       "aim": {"$ref": "#/$defs/vec3"},
+       "f": {"type": "number", "minimum": 8, "maximum": 600}
+      },
+      "additionalProperties": false
+     }
+    },
     "part_keys": {
      "type": "object",
      "description": "PART KEYS (round 41, WW1): one joint's own keys over the card blend; written only when there is one. Each key: t = seconds into the scene, v = [bend, side, twist] degrees. scripts/part_keys.gd",

@@ -45,6 +45,7 @@ func fp() -> String:
 		"audio": var_to_str(m.S.audio),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
 		"cons": var_to_str(m.S.cons),   # constraints (round 51)
+		"camera": var_to_str(m.S.camera),   # the shot camera (shot_camera.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards])}   # TC3: the second fighter
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
@@ -56,6 +57,7 @@ func fp() -> String:
 ## start STEPPED: the same, already blocking (the stepped view on): for "Spline and check"
 ## start IK: combo3 on card 3 with the left hand pinned at card 1 (for IK release and the two snaps)
 ## start CONS: combo3 on card 3, the left hand held to the right hand and the head on the weapon (round 51 constraints)
+## start CAMERA: combo3 on card 3 with two shot-camera keys, one under the playhead (lens / remove the key here)
 ## start ACTORS: combo3 with a second fighter added, switched to it (TC3: for "Actor: remove this fighter")
 ## start THROUGH: two clean right-arm poses whose straight in-between goes through the body (for "Fix moves through
 ##   the body"; found by a seeded random search over legal arm poses: my hand-made swing first went round the body)
@@ -148,6 +150,14 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		m.S.apply(m.B, m.playhead)
 		m.sel = "foot_l" if kind == "CONS_FOOT" else "hand_l"   # CONS_FOOT: a foot picked (the floor constraint)
+	elif kind == "CAMERA":
+		# the shot camera: combo3 on card 3 with two camera keys, one under the playhead (for its lens / remove commands)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		ShotCam.put(m.S.camera, {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
+		ShotCam.put(m.S.camera, {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
+		m.sel = "lowerarm_r"
 	elif kind == "ACTORS":
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
@@ -255,7 +265,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

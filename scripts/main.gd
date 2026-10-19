@@ -965,13 +965,16 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "") -> D
 	clean = true
 	_sides_apply()
 	ui_root.visible = false
+	var shot := _shot_blast_begin()   # THE SHOT CAMERA: when the scene has one, every frame is ITS view, the 16:9 frame
 	for f in n:
 		playhead = PlayblastExport.time_of(f, sp[0], sp[1], fps)
 		_ps().apply(B, playhead)
 		_refresh()
+		_shot_blast_frame(shot)
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
-		get_viewport().get_texture().get_image().save_png("%s/frame_%04d.png" % [gdir, f])
+		_shot_blast_image(shot, get_viewport().get_texture().get_image()).save_png("%s/frame_%04d.png" % [gdir, f])
+	_shot_blast_end(shot)
 	ui_root.visible = true
 	clean = keep_clean
 	_sides_apply()
@@ -1469,6 +1472,8 @@ func _exit_tree() -> void:
 func _process(dt: float) -> void:
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_keys_camera(dt)
+	if shot_through:
+		_shot_apply()   # THE SHOT CAMERA follows the playhead (play, scrub, an edit)
 	_tour_poll()
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
@@ -2122,6 +2127,8 @@ func _keys_camera(dt: float) -> void:
 
 ## the camera looks at the body, shifted so the body sits in the middle of the free space between the panels
 func _cam() -> void:
+	if shot_through and _shot_apply():
+		return   # THE SHOT CAMERA: looking through it, the view is the keyed camera (_shot_apply)
 	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
@@ -2618,6 +2625,7 @@ func _snapshot() -> Dictionary:
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
+		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2651,6 +2659,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
 		S.cons = u["cons"].duplicate(true)   # constraints (round 51), undone like a card
 		_dummy_hits()
+	if u.has("camera") and var_to_str(u["camera"]) != var_to_str((u.get("hero", S) as Scene).camera):
+		(u.get("hero", S) as Scene).camera = u["camera"].duplicate(true)   # the shot camera, undone like a card
 	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
 		S.audio = u["audio"].duplicate()   # the sound, undone like a card
 		_audio_reload()
@@ -6524,6 +6534,7 @@ func _commands() -> Array:
 	add.call("Constraint: fade in over 6 frames", "", _cons_fade.bind(1.0), "constraint influence on key blend", true, "the picked part's constraint goes from what it is at the playhead to fully on over 6 frames")
 	add.call("Constraint: release here keeping the pose", "", _cons_release, "constraint apply visual key release let go keep transform card", true, "the held hand / foot's pose at the playhead goes into the card there, then its constraint is off: it follows the cards without a jump")
 	add.call("Constraint: remove the picked part's constraint", "", _cons_remove, "constraint delete remove clear", true, "the last constraint on the picked hand, foot, hips or head is taken off")
+	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
 	add.call("Graph editor: every keyed part (channels)", "", _graph_cmd.bind("multi"), "graph editor channels multi several parts curves all f-curves blender", false, "the curve editor shows every part with part keys at once, one coloured channel per part and angle; click a channel to hide or show it (GE1)")
@@ -8958,6 +8969,8 @@ func _unsaved() -> bool:
 func _doc_key() -> String:
 	var H := _hero_scene()
 	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
+	if not H.camera.is_empty():
+		k += "|cam" + var_to_str(H.camera)   # the shot camera: an unsaved change too
 	for a in H.actors:
 		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
 	return k
@@ -8997,3 +9010,185 @@ func _load_scene(path: String) -> void:
 	if not _recovering:
 		_autosave_drop()   # opened a scene: what was unsaved was given up (it asks first, V3)
 	S.apply(B, 0.0)
+
+
+# ---------------------------------------------------------------- THE SHOT CAMERA (docs/GAP_ANALYSIS.md row 21; GATES SC)
+## scripts/shot_camera.gd holds the keys' maths; here: the commands, look-through and the playblast's use of it. The keys
+## are the HERO's scene's (the file's top level), in the hero's world; with another fighter active the stage moves, and
+## the camera with it (_stage_xf). Look-through is a VIEW: never saved, never an undo step.
+var shot_through := false   # looking through the shot camera
+var ui_shot: ShotFrame      # the 16:9 frame and passepartout (scripts/shot_frame.gd)
+var _shot_fov := 40.0       # the viewport camera's own fov, put back when look-through ends
+
+
+func _shot_commands(add: Callable) -> void:
+	add.call("Camera: key the shot camera from the view", "", _shot_key_view, "shot camera key keyframe film cinema lens frame record angle view animate",
+		true, "the shot camera keyed at the playhead where the view is now (looking at the view's pivot, its framing as the lens); while looking through, the camera as it plays there")
+	add.call("Camera: look through the shot camera", "", _shot_toggle, "shot camera view through active numpad 0 frame 16:9 passepartout film",
+		false, "the view shows the keyed shot camera at the playhead in a 16:9 frame (again: back to the free view); the playblast renders through it")
+	add.call("Camera: remove the key here", "", _shot_remove, "shot camera key delete remove unkey", true, "the shot camera's key at the playhead goes (the last one: the scene has no shot camera)")
+	for mm in ShotCam.LENSES:
+		add.call("Camera: lens %d mm" % mm, "", _shot_lens.bind(float(mm)), "shot camera focal length zoom lens mm %d wide tele" % mm, true,
+			"the shot camera's focal length at the playhead: %d mm on a 36 mm sensor (%.1f deg across a 16:9 frame); keys it there if it has no key" % [mm, ShotCam.fov_h(mm)])
+
+
+func _shot_keys() -> Array:
+	return _hero_scene().camera
+
+
+## the free part of the view (between the panels), or the whole viewport in a clean render (playblast, --clean)
+func _shot_free() -> Rect2:
+	var vs := get_viewport().get_visible_rect().size
+	if clean or ui_root == null or not ui_root.visible:
+		return Rect2(Vector2.ZERO, vs)
+	var top := float(TOP_H) + 8.0
+	var bot := float(bottom_h + 6 + LINE_H) + 8.0
+	return Rect2(lw() + 8.0, top, maxf(64.0, vs.x - lw() - rw() - 16.0), maxf(36.0, vs.y - top - bot))
+
+
+func shot_rect() -> Rect2i:
+	return ShotCam.frame_rect(_shot_free())
+
+
+## the shot camera at t in the RENDER's space (the stage under the active fighter): {"pos", "aim", "f"}; {} = none
+func shot_at(t: float) -> Dictionary:
+	var k := ShotCam.sample(_shot_keys(), t)
+	if k.is_empty():
+		return k
+	var X := _stage_xf()
+	return {"pos": X * (k["pos"] as Vector3), "aim": X * (k["aim"] as Vector3), "f": k["f"]}
+
+
+## look-through: the viewport camera becomes the shot camera at the playhead. false = not looking through (no keys
+## left: it turns itself off and the free view comes back)
+func _shot_apply() -> bool:
+	if not shot_through or cam == null:
+		return false
+	var k := shot_at(playhead)
+	if k.is_empty():
+		_shot_off()
+		return false
+	var r := shot_rect()
+	ShotCam.apply_to(cam, k["pos"], k["aim"], k["f"], r, get_viewport().get_visible_rect().size)
+	if ui_shot == null and ui_root != null:
+		ui_shot = ShotFrame.new()
+		ui_shot.name = "shot_frame"
+		ui_root.add_child(ui_shot)
+		ui_root.move_child(ui_shot, 0)   # under every panel
+	if ui_shot != null:
+		ui_shot.visible = not clean
+		ui_shot.show_rect(r, "SHOT CAMERA  %.0f mm  16:9" % float(k["f"]))
+	return true
+
+
+func _shot_off() -> void:
+	var was := shot_through
+	shot_through = false
+	if ui_shot != null:
+		ui_shot.visible = false
+	if was and cam != null:
+		cam.projection = Camera3D.PROJECTION_PERSPECTIVE
+		cam.fov = _shot_fov
+		_cam()
+
+
+func _shot_toggle() -> void:
+	if shot_through:
+		_shot_off()
+		_say("back to the free view: orbit, pan and zoom move the view again (the shot camera stays keyed)")
+		return
+	if _shot_keys().is_empty():
+		_say("this scene has no shot camera yet: frame the view, then use 'Camera: key the shot camera from the view'")
+		return
+	_shot_fov = cam.fov
+	shot_through = true
+	_shot_apply()
+	var k := ShotCam.sample(_shot_keys(), playhead)
+	_say("looking through the shot camera (%.0f mm, 16:9 frame); the playblast renders this. Run it again to get the free view back" % float(k["f"]))
+
+
+## the key the current view makes: the lens where the view's rendered origin is (its pan offset included), aimed at the
+## view's pivot (target), the focal length that frames in the 16:9 frame what the view shows across the same height
+func _shot_view_key(t: float) -> Dictionary:
+	var vs := get_viewport().get_visible_rect().size
+	var r := shot_rect()
+	var Xi := _stage_xf().affine_inverse()
+	var o: Vector3 = cam.get_camera_transform().origin
+	var fv := rad_to_deg(2.0 * atan(tan(deg_to_rad(cam.fov) * 0.5) * float(r.size.y) / vs.y))
+	return {"t": t, "pos": Xi * o, "aim": Xi * target, "f": clampf(ShotCam.f_for_fov_v(fv), ShotCam.F_MIN, ShotCam.F_MAX)}
+
+
+func _shot_key_view() -> void:
+	if _hero_scene().cards.is_empty():
+		_say("the shot camera is keyed in a scene: open a scene, or press Enter to add the body as a card, then key the camera")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var key := ShotCam.sample(_shot_keys(), t) if shot_through else _shot_view_key(t)
+	key["t"] = t
+	var first := _shot_keys().is_empty()
+	_do(func(): ShotCam.put(_shot_keys(), key))
+	var p: Vector3 = key["pos"]
+	_say("shot camera keyed at %.2f s: lens at (%.2f, %.2f, %.2f) m, %.0f mm%s (Ctrl+Z takes it back)" % [t, p.x, p.y, p.z, float(key["f"]),
+		"; 'Camera: look through the shot camera' shows it" if first else ""])
+
+
+func _shot_remove() -> void:
+	var ks := _shot_keys()
+	var i := ShotCam.key_near(ks, playhead, 0.5 / maxf(1.0, float(S.fps)) + 0.001)
+	if i < 0:
+		_say("no shot camera key at the playhead: move the playhead onto a camera key (%d in this scene), then remove it" % ks.size())
+		return
+	var t := float(ks[i]["t"])
+	_do(func(): _shot_keys().remove_at(i))
+	_say("removed the shot camera's key at %.2f s (%d left)%s" % [t, _shot_keys().size(), "; the scene has no shot camera now" if _shot_keys().is_empty() else ""])
+	if _shot_keys().is_empty():
+		_shot_off()
+
+
+func _shot_lens(mm: float) -> void:
+	var ks := _shot_keys()
+	if ks.is_empty():
+		_say("the lens belongs to the shot camera: use 'Camera: key the shot camera from the view' first, then pick a lens")
+		return
+	var i := ShotCam.key_near(ks, playhead, 0.5 / maxf(1.0, float(S.fps)) + 0.001)
+	var t := clampf(playhead, 0.0, S.length())
+	var at_t := t if i < 0 else float(ks[i]["t"])
+	if i >= 0 and absf(float(ks[i]["f"]) - mm) < 1e-6:
+		_say("the shot camera's key at %.2f s is already %.0f mm: pick another lens, or move the playhead to another time" % [at_t, mm])
+		return
+	_do(func():
+		if i >= 0:
+			_shot_keys()[i]["f"] = mm
+		else:
+			var k := ShotCam.sample(_shot_keys(), t)
+			k["t"] = t
+			k["f"] = mm
+			ShotCam.put(_shot_keys(), k))
+	_say("shot camera lens %.0f mm at %.2f s (%.1f deg across the 16:9 frame)%s" % [mm, at_t, ShotCam.fov_h(mm), "" if i >= 0 else ", a new key"])
+
+
+## THE PLAYBLAST THROUGH THE SHOT CAMERA: {} = the scene has none (the frames are the view, as before); else look-through
+## is on for the render (the panels are hidden, so the frame is the largest 16:9 in the window) and each image is cut to it
+func _shot_blast_begin() -> Dictionary:
+	if _shot_keys().is_empty():
+		return {}
+	var was := shot_through
+	if not was:
+		_shot_fov = cam.fov
+	shot_through = true
+	_shot_apply()
+	return {"was": was, "rect": shot_rect()}
+
+
+func _shot_blast_frame(sb: Dictionary) -> void:
+	if not sb.is_empty():
+		_shot_apply()
+
+
+func _shot_blast_image(sb: Dictionary, img: Image) -> Image:
+	return img if sb.is_empty() else img.get_region(sb["rect"])
+
+
+func _shot_blast_end(sb: Dictionary) -> void:
+	if not sb.is_empty() and not sb["was"]:
+		_shot_off()

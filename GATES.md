@@ -2044,3 +2044,21 @@ Bars written BEFORE the code (tests/constraints_test.gd; numbers below are bars,
   floor are bit-identical to no constraint (it pushes, never pulls); influence 0 bit-identical.
 STUB runs DROPPED (Nick, 10-18: feature first, test ceremony last); anti-vacuity checks stand in for them.
 EVIDENCE tests/constraints_test.gd 16 ok: CN1 0.0006 mm / 0.097 deg at 240 Hz (unconstrained 10.3 cm off), w 0 bit-identical; 6-frame fade 22.5 mm/frame vs bar 80.1 (1-frame cut 88.8); release keeping the pose 0.027 mm; file round trip 0.0045 mm, mirror 0.0045 mm, 11 scenes / 880 frames bit-identical. CN2 17 in-range targets within 0.18 deg, 19 outside all at a limit, other fighter's head 0.018 deg. CN3 foot >= -0.000 mm (-66.3 mm without), 127 above-floor steps bit-identical. 0 joints past limits. undo_audit 182 ok, say_next, agent_tools (transcript: only the 9 new commands differ), ik_pin, schema, bake, mirror_list, command_search PASS.
+
+## Round 51 (SC): shot camera (docs/GAP_ANALYSIS.md gap 21; docs/research/SHOT_CAMERA.md)
+
+Bars set before the code. A 50 mm lens on a 36 mm sensor gives fov_v = 2 atan(20.25/2/50), matched within 0.01 deg.
+A projected point lands within 0.5 px of Camera3D.unproject_position. Between keys the position is the PCHIP within
+1 mm. Look-through matches a reference render with 0 px differing, and so does each playblast frame against
+look-through. The file round-trips, the camera mirrors, and each edit is one undo step. A scene with no camera
+plays back unchanged.
+- [x] SC1 keyed camera (pos, aim, f mm; PCHIP between keys), the lens maths, and a frustum that puts the shot in a
+  16:9 frame.
+- [x] SC2 look-through (a passepartout frame) and the playblast through the camera (16:9 frames).
+- [x] SC3 the file key "camera" (only when present), the schema, the mirror, the undo steps and the refusals.
+  EVIDENCE: tests/shot_camera_test.gd 28 ok, 0 failed. fov_v(50) = 22.8952 deg (the formula gives 22.8952), fov_h = 39.5978.
+  The rendered frame's angle is off by at most 0.00000 deg. 96 points against unproject_position: worst 0.0002 px. The PCHIP
+  path at 10 times: worst 0.0000 mm, aim 0.00001 deg. Look-through against a reference Camera3D: 0 px differ. Playblast
+  frames 0/12/24 against look-through: 0 px differ, 25 frames at 16:9. Round trip and schema hold, the mirror's error is 0,
+  and lens, add and remove are one undo step each. With no camera, the frame equals the scrub (0 px). undo_audit: 182 ok
+  run alone in 331 s; with 4 workers it hit the 400 s cap. say_next, agent_tools, schema and mirror_list PASS. No stub run.
