@@ -31,6 +31,7 @@ class_name LimbIK
 extends RefCounted
 
 const LIMBS := ["hand_l", "hand_r", "foot_l", "foot_r"]
+const KEYED := ["hand_l", "hand_r", "foot_l", "foot_r", "spine"]   # the names a scene's "ik" may hold: "spine" is the back's spline IK (spine_ik.gd)
 const SAME_T := 0.001   # keys closer than this are the same key (keying there again replaces it), as PartKeys
 
 
@@ -202,6 +203,10 @@ static func play(ik: Dictionary, B: Body, t: float) -> Dictionary:
 	var out := {}
 	if ik.is_empty():
 		return out
+	if ik.has(SpineIK.KEY):   # the back first: a pinned hand stays pinned over a moving chest
+		var sr := SpineIK.play(ik[SpineIK.KEY], B, t)
+		if not sr.is_empty():
+			out[SpineIK.KEY] = sr
 	for tip in LIMBS:
 		var keys: Array = ik.get(tip, [])
 		if keys.is_empty():
@@ -408,7 +413,7 @@ static func snap_ik(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 ## only when there is a key (a scene without one saves byte for byte as before). t and w to 0.0001, points to 0.1 mm
 static func to_file(ik: Dictionary) -> Dictionary:
 	var out := {}
-	for tip in LIMBS:
+	for tip in KEYED:
 		if not ik.has(tip) or (ik[tip] as Array).is_empty():
 			continue
 		out[tip] = (ik[tip] as Array).map(func(k):
@@ -416,6 +421,9 @@ static func to_file(ik: Dictionary) -> Dictionary:
 				"w": snappedf(clampf(float(k["w"]), 0.0, 1.0), 0.0001)}
 			if k.has("rot"):
 				d["rot"] = Body._q(k["rot"])
+			if k.has("twist"):
+				var tw := SpineIK._tw(k)
+				d["twist"] = [snappedf(tw.x, 0.0001), snappedf(tw.y, 0.0001)]
 			return d)
 	return out
 
@@ -425,7 +433,7 @@ static func from_file(d: Variant) -> Dictionary:
 	if not d is Dictionary:
 		return out
 	for tip in d:
-		if not String(tip) in LIMBS or not d[tip] is Array:
+		if not String(tip) in KEYED or not d[tip] is Array:
 			continue
 		var ks := []
 		for k in d[tip]:
@@ -436,6 +444,8 @@ static func from_file(d: Variant) -> Dictionary:
 			if k.has("rot") and k["rot"] is Array and (k["rot"] as Array).size() == 4:
 				var r: Array = k["rot"]
 				key["rot"] = Quaternion(float(r[0]), float(r[1]), float(r[2]), float(r[3])).normalized()
+			if k.has("twist") and k["twist"] is Array and (k["twist"] as Array).size() == 2:
+				key["twist"] = [float(k["twist"][0]), float(k["twist"][1])]   # the back's hip / chest twist (spine_ik.gd)
 			ks.append(key)
 		ks.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
 		if not ks.is_empty():
@@ -456,5 +466,7 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 				m[f] = [-float(k[f][0]), float(k[f][1]), float(k[f][2])]
 			if k.has("rot"):
 				m["rot"] = [float(k["rot"][0]), -float(k["rot"][1]), -float(k["rot"][2]), float(k["rot"][3])]
+			if k.has("twist"):
+				m["twist"] = [-float(k["twist"][0]), -float(k["twist"][1])]   # a turn about the vertical reverses in the mirror
 			return m)
 	return out

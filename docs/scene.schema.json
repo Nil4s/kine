@@ -458,9 +458,9 @@
     },
     "ik": {
      "type": "object",
-     "description": "IK / FK with pole targets (GAP_ANALYSIS row 13): per limb (named by its tip), keys over time; written only when there is one. Each key: t = seconds, target = where the wrist / ankle goes (world, m), pole = a point the elbow / knee bends toward (world, m), w = IK weight 0..1 (linear between keys), rot = the hand / foot world rotation (optional). scripts/limb_ik.gd",
+     "description": "IK / FK with pole targets (GAP_ANALYSIS row 13): per limb (named by its tip), keys over time; written only when there is one. Each key: t = seconds, target = where the wrist / ankle goes (world, m), pole = a point the elbow / knee bends toward (world, m), w = IK weight 0..1 (linear between keys), rot = the hand / foot world rotation (optional). \"spine\" = the back's spline IK (scripts/spine_ik.gd): target = the chest control, pole = the mid-back control, twist = [hip, chest] degrees. scripts/limb_ik.gd",
      "propertyNames": {
-      "enum": ["hand_l", "hand_r", "foot_l", "foot_r"]
+      "enum": ["hand_l", "hand_r", "foot_l", "foot_r", "spine"]
      },
      "additionalProperties": {
       "type": "array",
@@ -473,7 +473,8 @@
         "target": {"$ref": "#/$defs/vec3"},
         "pole": {"$ref": "#/$defs/vec3"},
         "w": {"type": "number", "minimum": 0, "maximum": 1},
-        "rot": {"$ref": "#/$defs/quat"}
+        "rot": {"$ref": "#/$defs/quat"},
+        "twist": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
        },
        "additionalProperties": false
       }
