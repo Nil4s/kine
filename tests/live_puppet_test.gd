@@ -53,6 +53,11 @@ func _init() -> void:
 		frames.append({"t": snappedf(i / FPS, 0.0001), "world": w})
 	replay_path = "user://live_src_test.json"
 	FileAccess.open(replay_path, FileAccess.WRITE).store_string(JSON.stringify({"fps": FPS, "frames": frames}))
+	# takes from an earlier run are cleared first, so the name check starts from nothing
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(REC_DIR))
+	var old := DirAccess.open(REC_DIR)
+	for f in old.get_files():
+		old.remove(f)
 	live.rec_dir = REC_DIR
 	print("walk_bat: %d frames at 30 fps (%.2f s) -> %s" % [n_frames, S.length(), replay_path])
 

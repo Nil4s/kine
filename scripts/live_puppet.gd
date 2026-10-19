@@ -14,9 +14,13 @@ class_name LivePuppet
 extends RefCounted
 
 const TOOL := "res://tools/live_pose.py"
-const MIN_CUT := 1.0     # Hz: the cutoff while still (the tracker's jitter)
-const BETA := 4.0        # Hz per m/s of a landmark's speed: a fast move keeps up (a metre a second: cutoff 5 Hz, about 30 ms of lag)
-const D_CUT := 1.0       # Hz: the speed estimate's own smoothing
+# One Euro settings (scripts/live_one_euro.gd). Chosen by a sweep on walk_bat's exact landmarks: with a 1 Hz speed
+# estimate the cutoff rises after a toe step, so the filter lagged 11 cm; a 10 Hz speed estimate with beta 30 brings the
+# worst landmark to 2.3 cm, which is the fit's own 2.1 cm floor on that clip (beta 100 gave 2.16 cm but stops smoothing
+# webcam jitter at 0.3 m/s). Still-body smoothing: cutoff 1 Hz.
+const MIN_CUT := 1.0     # Hz: the cutoff while still
+const BETA := 30.0       # Hz per m/s of a landmark's speed
+const D_CUT := 10.0      # Hz: the smoothing of the speed estimate
 const PORT_LO := 49152   # the dynamic port range: a port is picked at random from it, and another if it is taken
 const PORT_HI := 65000
 const WINDOW := 60       # frames the fps and latency readouts average over
@@ -34,43 +38,13 @@ var ended := false       # the tracker has gone (its replay ended, its camera st
 var _server: TCPServer
 var _peer: StreamPeerTCP
 var _buf := ""
-var _filters := []       # N_LM x 3 OneEuro, one per coordinate
+var _filters := []       # N_LM x 3 LiveOneEuro, one per coordinate
 var _last_t := -1.0
 var _take := []          # recorded frames: {"i", "t", "lm", "ang", "offset"}
 var _lat := []           # camera-to-pose milliseconds, the last WINDOW frames
 var _stamps := []        # msec the body was posed, the last WINDOW frames
 var frames_posed := 0
 var frames_lost := 0     # frames with no body in view (the pose is held)
-
-
-class OneEuro:
-	var mincut: float
-	var beta: float
-	var dcut: float
-	var _x := 0.0
-	var _dx := 0.0
-	var _on := false
-
-	func _init(m: float, b: float, d: float) -> void:
-		mincut = m
-		beta = b
-		dcut = d
-
-	static func _alpha(cut: float, dt: float) -> float:
-		return 1.0 / (1.0 + (1.0 / (TAU * cut)) / dt)
-
-	func step(x: float, dt: float) -> float:
-		if not _on:
-			_on = true
-			_x = x
-			_dx = 0.0
-			return x
-		dt = maxf(dt, 0.001)
-		var ad := _alpha(dcut, dt)
-		_dx = ad * ((x - _x) / dt) + (1.0 - ad) * _dx
-		var a := _alpha(mincut + beta * absf(_dx), dt)
-		_x = a * x + (1.0 - a) * _x
-		return _x
 
 
 ## a port on 127.0.0.1 that nothing else holds: the listener is the only thing that ever binds it
@@ -193,14 +167,14 @@ func _frame(B: Body, msg: Dictionary) -> Dictionary:
 		pts.append(Vector3(float(p[0]), -float(p[1]), -float(p[2])))   # MediaPipe y down -> ours (VideoImport.parse's flip)
 	if _filters.is_empty():
 		for k in N_LM * 3:
-			_filters.append(OneEuro.new(MIN_CUT, BETA, D_CUT))
+			_filters.append(LiveOneEuro.new(MIN_CUT, BETA, D_CUT))
 	var dt := (t - _last_t) if _last_t >= 0.0 else 1.0 / 30.0
 	_last_t = t
 	for k in N_LM:
 		var v: Vector3 = pts[k]
-		var fx := _filters[3 * k] as OneEuro
-		var fy := _filters[3 * k + 1] as OneEuro
-		var fz := _filters[3 * k + 2] as OneEuro
+		var fx := _filters[3 * k] as LiveOneEuro
+		var fy := _filters[3 * k + 1] as LiveOneEuro
+		var fz := _filters[3 * k + 2] as LiveOneEuro
 		pts[k] = Vector3(fx.step(v.x, dt), fy.step(v.y, dt), fz.step(v.z, dt))
 	VideoImport.fit(B, pts)
 	B.offset = Vector3.ZERO
@@ -256,7 +230,10 @@ func record_stop(B: Body, name := "live_webcam") -> Dictionary:
 	var span := float(_take[-1]["t"]) - float(_take[0]["t"])
 	var fps := (n - 1) / span if span > 0.0 else 30.0
 	var V := VideoImport.to_scene(B, _take, fps, 1, name)
-	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
+	# the video import's even spacing, REFINED as the FBX import refines it (AnimImport.refine: the frame the cards would
+	# blend worst is kept, until every angle is within 1 deg and the hips within 5 mm of the straight blend)
+	var every := VideoImport.every_for(V.fps)
+	V = VideoImport.thin(V, every, AnimImport.refine(V, every))
 	var d: Dictionary = V.to_dict(B)
 	d["plan"] = "Live webcam take: %d frames in %.1f s (%.1f fps), tracked by MediaPipe (tools/live_pose.py) and fitted by VideoImport; %d cards" % [n, span, fps, V.cards.size()]
 	var path := unique_path(rec_dir, name)
