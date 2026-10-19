@@ -2941,6 +2941,7 @@ func _snapshot() -> Dictionary:
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
+		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
 		"beats": H.beats.duplicate(true),   # ROADMAP 13: the exchange's beats (the hero's), undone like a card
@@ -3002,6 +3003,10 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
 		S.audio = u["audio"].duplicate()   # the sound, undone like a card
 		_audio_reload()
+	if u["scene"] == S and u.has("beats_audio") and var_to_str(u["beats_audio"]) != var_to_str(S.beats_audio):
+		S.beats_audio = u["beats_audio"].duplicate(true)   # ROADMAP 32: the music beats, undone like a card
+		if ui_timeline != null:
+			ui_timeline.queue_redraw()
 	if u["scene"] == S and u.has("flags"):
 		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
 			S.set(BAKE_FLAGS[k], u["flags"][k])
@@ -7490,6 +7495,9 @@ func _commands() -> Array:
 	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the sound off the timeline (the file stays on disk); one undo step")
 	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4x), up to +12 dB; in playback and the playblast; one undo step")
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
+	add.call("Beats: find the beats in the sound", "", _beats_find, "beats bpm tempo music beat grid downbeat bar audio", true, "find the beats and the tempo of the sound (a wav): marks on the timeline, bars marked when a 4/4 grid is evident; one undo step")
+	add.call("Beats: snap the contact cards to the nearest beat", "", _beats_snap, "beats snap contact hit strike align music sync", true, "move each hit (contact) card so it lands on its nearest beat; a card never moves more than 25 % of its own move, else nothing moves; one undo step")
+	add.call("Beats: clear the beats", "", _beats_clear, "beats clear remove music", true, "take the beat marks off the timeline; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
@@ -10073,6 +10081,61 @@ func _audio_gain(step: float) -> void:
 	if _a_player != null:
 		_a_player.volume_db = g
 	_say("the sound is at %+.0f dB now (0 = as recorded; Ctrl+Z puts it back)" % g)
+	_refresh()
+
+
+## MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): the beats of the sound, kept in the scene as "beats_audio"
+func _beats_find() -> void:
+	if S.audio.is_empty() or _a_player == null or _a_player.stream == null:
+		_say("no sound on the timeline: run Audio: add a sound file first (beats need a wav)")
+		return
+	var r := BeatTrack.analyze(_a_player.stream)
+	if not r["ok"]:
+		_say("beats: %s" % r["msg"])
+		return
+	_push_undo()
+	S.beats_audio = r["beats"]
+	var nd := 0
+	for b in r["beats"]:
+		if b["down"]:
+			nd += 1
+	_say("beats: %d at %.1f BPM%s.  Beats: snap the contact cards moves hits onto them.  Ctrl+Z undoes" % [r["beats"].size(), float(r["bpm"]), (", %d bars (4/4 grid) marked" % nd) if nd > 0 else ", no 4/4 grid evident (every beat plain)"])
+	if ui_timeline != null:
+		ui_timeline.queue_redraw()
+	_refresh()
+
+
+## snaps each contact card (the card a hit marker sits on) onto its nearest beat; one undo step. Runs on a clone first:
+## when any card would need more than 25 % of its move, nothing changes and the message says why
+func _beats_snap() -> void:
+	if S.beats_audio.is_empty():
+		_say("no beats yet: run Beats: find the beats in the sound first")
+		return
+	var trial := S.clone()
+	var r := BeatTrack.snap(trial, S.beats_audio, float(S.audio.get("offset", 0.0)))
+	if not r["ok"]:
+		_say(r["msg"])
+		return
+	var worst := 0.0
+	for mv in r["moves"]:
+		worst = maxf(worst, absf(float(mv[1])))
+	_push_undo()
+	_markers_hold()
+	S.cards = trial.cards
+	_markers_follow()
+	_retimed()
+	_say("%d contact card(s) snapped onto the beat (largest move %.0f ms).  Ctrl+Z undoes" % [r["contacts"], worst * 1000.0])
+
+
+func _beats_clear() -> void:
+	if S.beats_audio.is_empty():
+		_say("no beats on the timeline to clear")
+		return
+	_push_undo()
+	S.beats_audio = []
+	if ui_timeline != null:
+		ui_timeline.queue_redraw()
+	_say("beat marks taken off the timeline (Ctrl+Z puts them back)")
 	_refresh()
 
 
