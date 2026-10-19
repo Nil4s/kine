@@ -9,6 +9,7 @@ const W := 640
 var plugins: Plugins
 var say_fn: Callable
 var _body: VBoxContainer
+var _where: Label
 
 
 func _ready() -> void:
@@ -42,12 +43,9 @@ func _ready() -> void:
 	_body = VBoxContainer.new()
 	_body.custom_minimum_size = Vector2(W - 44, 0)
 	scr.add_child(_body)
-	var shown := PackedStringArray()
-	for r in plugins.roots:
-		shown.append(ProjectSettings.globalize_path(String(r)))
-	var where := _label("Folders: " + ", ".join(shown), 12, "text:0.7")
-	where.custom_minimum_size = Vector2(W - 40, 0)
-	outer.add_child(where)
+	_where = _label("", 12, "text:0.7")
+	_where.custom_minimum_size = Vector2(W - 40, 0)
+	outer.add_child(_where)
 	rebuild()
 
 
@@ -74,6 +72,10 @@ func close() -> void:
 func rebuild() -> void:
 	if _body == null:
 		return
+	var shown := PackedStringArray()   # the folders as this Plugins object searches them (not as they were at start)
+	for r in plugins.roots:
+		shown.append(ProjectSettings.globalize_path(String(r)))
+	_where.text = "Folders: " + ", ".join(shown)
 	for ch in _body.get_children():
 		_body.remove_child(ch)
 		ch.queue_free()

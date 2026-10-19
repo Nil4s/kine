@@ -8913,6 +8913,7 @@ func _ui() -> void:
 	plugins = Plugins.new()
 	plugins.host = {"scene": func(): return S, "clamp": func(j, v): return B.clamp_ang(j, v), "has_joint": func(j): return B.lim.has(j),
 		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run}
+	plugins.configure(["user://plugins", "res://examples/plugins"], "user://plugins.json", "user://plugins")   # the app's own folders
 	plugins.scan()
 	ui_plugins = PluginsPanel.new()
 	ui_plugins.plugins = plugins

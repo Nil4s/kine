@@ -8,11 +8,19 @@ extends RefCounted
 
 const MANIFEST_KEYS := ["name", "version", "author", "api", "commands"]
 
-var roots: Array = ["user://plugins", "res://examples/plugins"]   # installed plugins, then the ones shipped in the repo
-var data_root := "user://plugins"    # plugin data is user://plugins/<name>/data/ (a test may move the root)
-var state_file := "user://plugins.json"
+## the folders, the settings file and the data root are PARAMETERS (configure): the app passes the user's, a test passes its
+## own temp folders, so a test never reads or writes the real user folder or the real plugins.json
+var roots: Array = []                # the folders searched, in order (the app: user://plugins, then res://examples/plugins)
+var data_root := ""                  # plugin data is <data_root>/<name>/data/
+var state_file := ""                 # the enable switches (a preference, not work)
 var host: Dictionary = {}            # "scene", "clamp", "has_joint", "begin", "say", "changed", "run": Callables from main
 var found: Array = []                # one record per plugin folder, see _record
+
+
+func configure(folders: Array, settings_file: String, data_folder: String) -> void:
+	roots = folders
+	state_file = settings_file
+	data_root = data_folder
 
 
 ## read every root again (the folders, their manifests, the enable switches). Loads nothing: a disabled plugin is never loaded
@@ -35,7 +43,7 @@ func scan() -> void:
 			if why != "":
 				rec["enabled"] = false
 				rec["error"] = why
-	_save_state()
+				_save_state()   # a switch that no longer works is saved off; nothing else is written by a scan
 
 
 func _record(root: String, folder: String, on: Dictionary) -> Dictionary:
@@ -138,16 +146,24 @@ func run(i: int, cid: String) -> String:
 	var api: PluginAPI = rec["api"]
 	api.failed = false
 	api.fail_msg = ""
-	rec["obj"].command(api, cid)
+	# a command returns true when it is done (documented in docs/PLUGINS.md). api.fail stops it with a reason. A GDScript
+	# runtime error (a null value, a bad index) cannot be caught in GDScript: the call then gives null, which is not true,
+	# so it is a failure too, and the console shows the line that errored
+	var ret = rec["obj"].command(api, cid)
 	if api.failed:
-		unload(rec)
-		rec["enabled"] = false
-		_save_state()
-		rec["fault"] = _msg(rec, "stopped in command '%s': %s. It is disabled now" % [cid, api.fail_msg],
-			"fix plugin.gd, then turn the plugin on again in Plugins")
-		_changed()
-		return rec["fault"]
+		return _disable(rec, "stopped in command '%s': %s" % [cid, api.fail_msg])
+	if ret != true:
+		return _disable(rec, "command '%s' did not finish: it returned %s instead of true. Either it hit an error in plugin.gd (the console shows the line) or it returned without true" % [cid, str(ret)])
 	return ""
+
+
+func _disable(rec: Dictionary, why: String) -> String:
+	unload(rec)
+	rec["enabled"] = false
+	_save_state()
+	rec["fault"] = _msg(rec, why + ". It is disabled now", "fix plugin.gd, then turn the plugin on again in Plugins")
+	_changed()
+	return rec["fault"]
 
 
 ## the S box rows: each enabled, loaded plugin's commands, the plugin's name first ("Mirror All Cards: Mirror every card")
@@ -195,6 +211,8 @@ func _save_state() -> void:
 	for rec in found:
 		if rec["enabled"]:
 			on[rec["folder"]] = true
+	if state_file == "":
+		return
 	var f := FileAccess.open(state_file, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(on, "  "))

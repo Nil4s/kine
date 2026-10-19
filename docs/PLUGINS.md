@@ -70,6 +70,19 @@ func command(api, id: String) -> void:
 `command(api, id)` runs when the user picks one of the plugin's rows. `api` is the plugin API object (below). The
 plugin must `extends RefCounted` (or nothing).
 
+**A command must return `true` when it is done.** Any other return (`false`, nothing, or a value) disables the plugin
+with a message. This is how a plain GDScript error is caught: GDScript has no try, but a command that hits an error
+returns nothing, and that is not `true`. Return `false` after `api.fail(...)` for a failure you expect:
+
+```gdscript
+func command(api, id: String) -> bool:
+	var r: Dictionary = api.set_joint(0, "lowerarm_l", Vector3(90, 0, 0))
+	if not r["ok"]:
+		api.fail(r["why"])
+		return false
+	return true
+```
+
 ## What a command can do
 
 Each command is **one undo step**. Its edits all join it, the step is named after the S box row, and one Ctrl+Z takes
@@ -112,9 +125,9 @@ letter, a `\`, an empty part. Subfolders inside the data folder are fine (`sub/n
 | `api.log(text)` | a line on the status bar, prefixed with the plugin's name |
 | `api.fail(text)` | the command cannot go on. **The plugin is disabled** and the message is shown with its name and a next step. The app keeps running |
 
-Use `api.fail` for a failure you expect (a card that is not there, a file you cannot read). A plain GDScript error (a null
-value, a bad index) is printed by Godot to the console; the command stops at that line and the app keeps running, but
-the plugin is not switched off automatically. Check the results of the calls above, and call `fail` when they say no.
+Use `api.fail` for a failure you expect (a card that is not there, a file you cannot read). A GDScript runtime error (a
+null value, a bad index) also disables the plugin: the command then does not return `true`, and the message says so
+(Godot's console shows the line that failed). Check the results of the calls above, and call `fail` when they say no.
 
 ### What a plugin cannot reach
 
@@ -133,6 +146,7 @@ classes directly) is not stopped by the app. That is why the warning is in the p
 | `plugin.gd` does not compile | the panel and the status bar name the plugin and say to fix the script. The plugin is off |
 | `plugin.gd` has no `command(api, id)` | the same, with the function to add |
 | a command calls `api.fail` | the status bar: `Plugin '<name>' stopped in command '<id>': <message>. It is disabled now. Next step: ...`. The plugin is off and its rows leave the S box |
+| a command errors, or does not return `true` | the same, with `did not finish: it returned <value> instead of true`. The plugin is off |
 
 ## Example
 
