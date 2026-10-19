@@ -3850,7 +3850,7 @@ func _snapshot() -> Dictionary:
 	var H := _hero_scene()
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
-	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
+	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
@@ -3887,6 +3887,17 @@ func _restore(u: Dictionary) -> void:
 		ov.mark_dirty()
 		wt.mark_dirty()
 		_rebuild_cards()
+	if u["scene"] != S and actors_rt.is_empty() and u["scene"] is Scene:
+		# a step that swapped the whole scene (Walk along a path makes a NEW scene): undo/redo put that scene object back
+		S = u["scene"]
+		scene_path = String(u.get("spath", ""))
+		sel_card = -1
+		if ui_scene_name != null:
+			ui_scene_name.text = S.name
+		ov.mark_dirty()
+		wt.mark_dirty()
+		_rebuild_cards()
+		_show_open_scene()
 	if u["scene"] == S and u.has("fps"):
 		S.fps = int(u["fps"])   # WW4: the frame rate is a scene setting, undone like a card
 	if u["scene"] == S and u.has("pbody") and u["pbody"] != S.body:
@@ -8571,7 +8582,7 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror scene", _mirror_scene, "Mirror scene: a left-handed copy of this scene, saved in scenes/_wip and opened (yours is untouched)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
-	ui_ribbon["ANIMATE"].add_child(_button("Walk along a path...", _pathwalk_start, "Walk along a path: click points on the floor, pick Walk or Run and a speed, Enter builds the cards (replaces the open scene as ONE undo step; Esc cancels)"))
+	ui_ribbon["ANIMATE"].add_child(_button("Walk along a path...", _pathwalk_start, "Walk along a path: click points on the floor, pick Walk or Run and a speed, Enter builds the cards (makes a NEW scene, the open one stays, as ONE undo step; Esc cancels)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
 	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK

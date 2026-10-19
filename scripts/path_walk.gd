@@ -26,7 +26,7 @@ const SAMPLE := 0.002         # m: the smoothed path is sampled every 2 mm
 const SWING := 0.7            # the share of a step period the stepping foot is in the air (its card's move); the rest is PIVOTS double-support cards
 const PIVOTS := 3             # double-support cards before each step: the facing is keyed every 1/(PIVOTS+1) of a step, not once per step
 const MIN_RADIUS := 0.8        # m: a tighter arc than this is refused (the walk steps can't turn it: the facing lags past 10 deg, the feet slide)
-const YAW_LAG := 0.1          # m: a card's facing is the tangent this far BEHIND its hips (sweep on the 90 deg arc: 0 -> 15.6 deg, 0.05 -> 13.7, 0.10 -> 11.9, 0.15 -> 13.7)
+const YAW_LAG := 0.12          # m: a card's facing is the tangent this far BEHIND its hips (sweep on the 90 deg arc: 0 -> 15.6 deg, 0.05 -> 13.7, 0.10 -> 11.9, 0.15 -> 13.7)
 
 
 ## the walk's numbers at a speed: {"step" (m), "cadence" (steps/min), "time" (s per step)}
