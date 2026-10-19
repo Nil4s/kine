@@ -54,7 +54,7 @@ static func weapons_of(S: Scene) -> Array:
 ## TWO CHARACTERS (round 50, GATES TC6): xf places the actor (the root's position and rotation channels carry it, the
 ## rest of the hierarchy follows); L / fps_in > 0 sample 0..L at fps_in (the scene shared by every actor) instead of the
 ## scene's own length and fps. The defaults write exactly what a one-actor export always wrote.
-static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_in := -1) -> Array:
+static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_in := -1, clean := true) -> Array:
 	var placed := xf != Transform3D.IDENTITY
 	var xq := xf.basis.get_rotation_quaternion()
 	var keep := B.state()
@@ -116,13 +116,20 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 	var worst_rt := 0.0
 	var checks := {}
 	var at := [0, n / 3, (2 * n) / 3, n - 1]
+	# pass 1: every frame's rotation and position per channel group (the rotations are unrolled per joint in pass 2)
+	var qs := []   # per group: its frames' rotations
+	var ps := []   # per group: its frames' position text ("" when the group has none)
+	for _k in order.size():
+		qs.append([])
+		ps.append([])
 	for i in n:
 		S.apply(B, minf(i / fps, span))
 		B.fk()
-		var row := PackedStringArray()
-		for oj in order:
+		for k in order.size():
+			var oj: String = order[k]
 			var j: String = oj
 			var q: Quaternion
+			var pt := ""
 			if "|" in oj:
 				# a weapon: its knob and rotation in its hand's frame (at the hand when put away)
 				var w: String = oj.get_slice("|", 0)
@@ -135,18 +142,16 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 					var x: Array = B.wep_xform() if w == "weapon" else B.wep2_xform()
 					lp = Gh.inverse() * ((x[0] as Vector3) - (B.P[hand] as Vector3))
 					q = (Gh.inverse() * (x[1] as Quaternion)).normalized()
-				row.append("%.6f %.6f %.6f" % [lp.x, lp.y, lp.z])
+				pt = "%.6f %.6f %.6f" % [lp.x, lp.y, lp.z]
 			else:
 				if B.parent[j] == "":
 					var p: Vector3 = xf * (B.P[j] as Vector3) if placed else B.P[j]
-					row.append("%.6f %.6f %.6f" % [p.x, p.y, p.z])
+					pt = "%.6f %.6f %.6f" % [p.x, p.y, p.z]
 				q = B.compose(j, B.ang[j]).normalized()
 				if placed and B.parent[j] == "":
 					q = (xq * q).normalized()
-			var e := zxy(q)
-			worst_rt = maxf(worst_rt, rt_err(q, from_zxy(e)))
-			row.append("%.5f %.5f %.5f" % [e.x, e.y, e.z])
-		h.append(" ".join(row))
+			qs[k].append(q)
+			ps[k].append(pt)
 		if i in at:
 			var f := {}
 			for oj in order:
@@ -155,12 +160,27 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 					f[oj] = [p.x, p.y, p.z]
 			checks[str(i)] = f
 	B.set_state(keep)
+	# pass 2: the Euler channels, unrolled per joint (RotClean) unless clean is off
+	var tracks := []
+	for k in order.size():
+		tracks.append(RotClean.euler_track(qs[k], clean))
+	var rows := PackedStringArray()
+	for i in n:
+		var row := PackedStringArray()
+		for k in order.size():
+			if ps[k][i] != "":
+				row.append(ps[k][i])
+			var e: Vector3 = tracks[k][i]
+			worst_rt = maxf(worst_rt, rt_err(qs[k][i], from_zxy(e)))
+			row.append("%.5f %.5f %.5f" % [e.x, e.y, e.z])
+		rows.append(" ".join(row))
+	h.append_array(rows)
 	return ["\n".join(h) + "\n", {"frames": n, "joints": order.size(), "worst_rt": worst_rt, "at": checks, "fps": S.fps}]
 
 
 ## write the scene as BVH at path (res:// or absolute): [OK or the error, info]
-static func write(S: Scene, B: Body, path: String, xf := Transform3D.IDENTITY, L := -1.0, fps_in := -1) -> Array:
-	var r := text(S, B, xf, L, fps_in)
+static func write(S: Scene, B: Body, path: String, xf := Transform3D.IDENTITY, L := -1.0, fps_in := -1, clean := true) -> Array:
+	var r := text(S, B, xf, L, fps_in, clean)
 	var abs := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
 	DirAccess.make_dir_recursive_absolute(abs.get_base_dir())
 	var fa := FileAccess.open(abs, FileAccess.WRITE)
@@ -174,7 +194,7 @@ static func write(S: Scene, B: Body, path: String, xf := Transform3D.IDENTITY, L
 ## TWO CHARACTERS (TC6): one .bvh per actor (a BVH holds one skeleton): <dir>/<base>_<actor>.bvh, each placed at its xf,
 ## all over the same time range (0 .. the longest scene, the hero's fps). actors = [{"name", "S", "B", "xf"}].
 ## -> [[path, OK or the error, info], ...]
-static func write_actors(actors: Array, dir: String, base: String) -> Array:
+static func write_actors(actors: Array, dir: String, base: String, clean := true) -> Array:
 	var L := 0.0
 	for a in actors:
 		L = maxf(L, (a["S"] as Scene).length())
@@ -187,6 +207,6 @@ static func write_actors(actors: Array, dir: String, base: String) -> Array:
 			nm += "_"
 		used[nm] = true
 		var path := "%s/%s.bvh" % [dir, nm]
-		var r := write(a["S"], a["B"], path, a["xf"], L, fps)
+		var r := write(a["S"], a["B"], path, a["xf"], L, fps, clean)
 		out.append([path, r[0], r[1]])
 	return out
