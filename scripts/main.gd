@@ -170,7 +170,7 @@ const RIBBON_GROUPS := {
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
-		["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
+		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -8030,7 +8030,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
+	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
@@ -8427,6 +8427,11 @@ func _ui() -> void:
 	ui_use_btns["Pick up"] = _button("Pick up", _prop_take, "the hand(s) next to the picked prop hold it from the selected card on: it moves with them")
 	ui_use_btns["Put down"] = _button("Put down", _prop_put, "the hands let the prop go at the selected card: it falls onto what is under it (real gravity)")
 	for k in ui_use_btns:
+		ui_ribbon["SET"].add_child(ui_use_btns[k])
+	ui_use_btns["Sit down"] = _button("Sit down", _rise_sit_down, "a run of cards: from standing the body sits down on the picked chair, stool or bench (the sit-to-stand backwards, feet planted; one undo step)")
+	ui_use_btns["Stand up"] = _button("Stand up", _rise_stand_up, "a run of cards: from sitting on the picked chair, stool or bench the body stands up (trunk 45 deg forward at seat-off, feet planted; one undo step)")
+	ui_use_btns["Get up"] = _button("Get up", _rise_get_up, "a run of cards: from lying on the back, the body rolls to the side, hands and knees, half-kneel, stand (one undo step; the scene plays without floor grounding)")
+	for k in ["Sit down", "Stand up", "Get up"]:
 		ui_ribbon["SET"].add_child(ui_use_btns[k])
 	# VIEW
 	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
@@ -10167,6 +10172,9 @@ func _commands() -> Array:
 	add.call("Edit: undo history...", "", _toggle_history, "steps list back forward", false, "every change by name, as a tree: branches where an edit came after an undo; click one to jump to exactly that state")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")
 	add.call("Pose library", "", PoseLibrary.toggle.bind(self), "poses thumbnails pictures grid blend mix flipped mirrored apply studio library", false, "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped, only the selected parts")
+	add.call("Sit down on the chair", "", _rise_sit_down, "sit down seat chair stool bench lower", true, "a run of cards: from standing the body sits down on the picked chair, stool or bench (the sit-to-stand backwards; one undo step)")
+	add.call("Stand up", "", _rise_stand_up, "stand rise sit-to-stand chair stool bench", true, "a run of cards: from sitting on the picked chair, stool or bench the body stands up, trunk 45 deg forward at seat-off (one undo step)")
+	add.call("Get up from the floor", "", _rise_get_up, "get up rise floor lying supine roll kneel half-kneel stand VanSant", true, "a run of cards: from lying on the back the body rolls to the side, hands and knees, half-kneel, stand (one undo step)")
 	add.call("CLIP this pose (add a card)", "Enter", _press.bind(KEY_ENTER), "key frame add new", true, "add the body as a new card after the picked one")
 	add.call("Play / pause", "Space", _press.bind(KEY_SPACE), "run stop", false, "play the scene from the playhead, or stop it")
 	add.call("Big view (hide the panels)", "Tab", _press.bind(KEY_TAB), "fullscreen", false, "hide the side panels so the body gets the whole window")
@@ -13430,6 +13438,8 @@ func _props_show() -> void:
 	var kind := String(S.props[sel_prop]["kind"]) if sel_prop >= 0 and sel_prop < S.props.size() else ""
 	if ui_use_btns.has("Sit here"):
 		_grey(ui_use_btns["Sit here"], "" if kind in SIT_ON else "pick a chair, a stool or a bench first (Add prop puts one in the set)")
+		for k in ["Sit down", "Stand up"]:
+			_grey(ui_use_btns[k], "" if kind in SIT_ON else "pick a chair, a stool or a bench first (Add prop puts one in the set)")
 		_grey(ui_use_btns["Step up"], "" if kind in STEP_ON else "pick a box, a crate, a step or the stairs first (Add prop puts one in the set)")
 		_grey(ui_use_btns["Pick up"], "" if kind != "" and sel_card >= 0 else ("pick a card first: the body on it holds the prop" if kind != "" else "pick a prop first: click it in the view, or add one with Add prop"))
 		_grey(ui_use_btns["Put down"], "" if not _held_at(sel_card).is_empty() else "pick a card where a prop is held (after its Pick up card): the hands let it go there")
@@ -13666,6 +13676,76 @@ func _prop_sit() -> void:
 			var ball: Vector3 = fs[0]
 			B.plant(sd, Vector3(ball.x, (B.p0["ball" + sd] as Vector3).y, ball.z), fs[1], true)
 	_use_card("sit on the %s" % _prop_name(sel_prop), a)
+
+
+## ---- SIT DOWN / STAND UP / GET UP FROM THE FLOOR (ROADMAP 94; the keys are made in scripts/rise.gd)
+## each adds a run of cards after the picked one as ONE undo step; a refusal says what to pick
+func _rise_prop_ok(verb: String) -> bool:
+	if actor_on != 0:
+		_say("%s works on the hero's scene: press Actor: switch to the next fighter until the hero is on screen" % verb)
+		return false
+	if sel_prop < 0 or sel_prop >= S.props.size() or not String(S.props[sel_prop]["kind"]) in SIT_ON:
+		_say("%s needs a chair, a stool or a bench: pick one in the view (Add prop puts one in the set), then %s again" % [verb, verb])
+		return false
+	return true
+
+
+func _rise_add(r: Dictionary, flags: Dictionary) -> void:
+	var at := sel_card + 1 if sel_card >= 0 else S.cards.size()
+	var first := at
+	_do(func():
+		var i := at
+		for c in r["cards"]:
+			S.add(c["name"], c["pose"], i)
+			var cd: Dictionary = S.cards[mini(i, S.cards.size() - 1)]
+			cd["move"] = c["move"] if i > at else 0.5   # the way in to the run is a short half second
+			cd["hold"] = 0.0
+			if not (c["plant"] as Array).is_empty():
+				cd["plant"] = c["plant"]
+			if c.has("ease"):
+				cd["ease"] = c["ease"]
+			i += 1
+		for k in flags:
+			S.set(k, flags[k])
+		sel_card = first
+		playhead = S.times()[sel_card][1]
+		_rebuild_cards()
+		S.apply(B, playhead))
+
+
+func _rise_sit_down() -> void:
+	if not _rise_prop_ok("Sit down"):
+		return
+	var keep: Dictionary = B.state()
+	var r := Rise.sit_down(B, S.props[sel_prop])
+	B.set_state(keep)
+	var n: int = (r["cards"] as Array).size()
+	_rise_add(r, {})
+	_say("added %d cards: the body sits down on the %s in %.1f s, feet planted. Ctrl+Z takes the whole run back" % [n, _prop_name(sel_prop), Rise.DUR])
+
+
+func _rise_stand_up() -> void:
+	if not _rise_prop_ok("Stand up"):
+		return
+	var keep: Dictionary = B.state()
+	var r := Rise.stand_up(B, S.props[sel_prop])
+	B.set_state(keep)
+	var n: int = (r["cards"] as Array).size()
+	_rise_add(r, {})
+	_say("added %d cards: the body stands up from the %s in %.1f s (trunk %.0f deg forward at seat-off, feet planted). Ctrl+Z takes the whole run back" % [n, _prop_name(sel_prop), Rise.DUR, Rise.TRUNK_PEAK])
+
+
+func _rise_get_up() -> void:
+	if actor_on != 0:
+		_say("Get up works on the hero's scene: press Actor: switch to the next fighter until the hero is on screen")
+		return
+	var keep: Dictionary = B.state()
+	var p: Vector3 = B.P["pelvis"]
+	var r := Rise.get_up(B, Vector2(p.x, p.z))
+	B.set_state(keep)
+	var n: int = (r["cards"] as Array).size()
+	_rise_add(r, r["report"]["scene"])
+	_say("added %d cards: lying on the back, rolled to the side, hands and knees, half-kneel, stand (%.0f s). This scene now plays with natural and floor grounding off (the lifts are in the cards). Ctrl+Z takes it all back" % [n, Rise.FLOOR_DUR])
 
 
 ## STEP UP (TT3, #205): a new card: the foot nearer the picked box / step / stairs stands on its lowest top, 12 cm in
