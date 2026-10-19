@@ -2,7 +2,7 @@
 ## The app's side of the hand poses (main.gd _hand_pose through _do). Bars, stated before measuring:
 ##   1 ONE UNDO STEP: a fist on the picked right hand at 2.0 s adds exactly one undo step.
 ##   2 KEYED: after the fist, each of the right hand's 15 joints has exactly one key at the playhead, equal to the body's
-##     angle there (1e-6 deg); the index's middle joint reads 97.2 (the curl model's fist).
+##     angle there (1e-6 deg); the index's middle joint reads 105 (the fist's PIP at its limit).
 ##   3 UNDO RESTORES: Ctrl+Z (_undo) puts every keyed joint's key list back as it was (none at 2.0 s) and the body back
 ##     (1e-6 deg).
 ##   4 POINT: the point pose keys the index straight (middle joint < 1 deg) and the middle finger curled (> 90 deg).
@@ -74,7 +74,7 @@ func _init() -> void:
 			one_key = false
 	ok(one_key, "2a KEYED: each of the 15 right-hand joints has exactly one key at %.2f s" % t)
 	var mid: float = (m.B.ang["index_02_r"] as Vector3).x
-	ok(absf(mid - 97.2) < 1e-3, "2b the index middle joint at the fist reads %.4f deg (curl model 97.2)" % mid)
+	ok(absf(mid - 105.0) < 1e-3, "2b the index middle joint at the fist reads %.4f deg (the fist's PIP at its 105 limit)" % mid)
 	var kv_ok := true
 	for j in joints:
 		for k in (m.S.part_keys[j] as Array):
@@ -83,7 +83,11 @@ func _init() -> void:
 	ok(kv_ok, "2c each key's value equals the body's angle at that joint (1e-6 deg)")
 
 	m._sec_open("HANDS", true)   # the panel with the per-finger sliders and the pose buttons, open for the shot
+	# a close-up from the side, the picked hand in front (the body no longer hides it)
+	m._turn_to(-90.0, -8.0, 0.9, m.B.P["hand_r"] + m.B.offset, false)
 	await idle(3)
+	var close: Image = m.get_viewport().get_texture().get_image()
+	close.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/fingers_fist_closeup.png")
 	var img: Image = m.get_viewport().get_texture().get_image()
 	img.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/fingers_fist.png")
 	shots(img, "fist")

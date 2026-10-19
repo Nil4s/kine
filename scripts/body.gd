@@ -1694,7 +1694,6 @@ const FINGERS4 := ["index", "middle", "ring", "pinky"]
 ## per pose: c = the curls of index, middle, ring, pinky; t = the thumb's curl; s = the spread (0..1)
 const POSE_CURL := {
 	"open": {"c": [0.0, 0.0, 0.0, 0.0], "t": 0.0, "s": 0.0},
-	"fist": {"c": [1.0, 1.0, 1.0, 1.0], "t": 1.0, "s": 0.0},
 	"point": {"c": [0.0, 1.0, 1.0, 1.0], "t": 1.0, "s": 0.0},
 	"pinch": {"c": [0.0, 0.2, 0.2, 0.2], "t": 0.0, "s": 0.0},
 	"claw": {"c": [0.5, 0.5, 0.5, 0.5], "t": 0.3, "s": 0.6},
@@ -1705,6 +1704,16 @@ const POSE_CURL := {
 ## 3.6 cm (ok) on the curl model). Thumb_01..03 then index_01..03, bend / side / twist. The thumb's tip joints are nearly
 ## straight (thumb_03 -0.6): the thumb reaches across to the index tip, the index curls to meet it.
 const POSE_TI := {"pinch": [Vector3(-15.4, -10.0, -1.2), Vector3(14.7, 0, 0), Vector3(-0.6, 0, 0), Vector3(9.0, 0, 0), Vector3(66.9, 0, 0), Vector3(48.2, 0, 0)], "ok": [Vector3(-15.4, -10.0, -1.2), Vector3(14.7, 0, 0), Vector3(-0.6, 0, 0), Vector3(9.0, 0, 0), Vector3(66.9, 0, 0), Vector3(48.2, 0, 0)]}
+## THE FIST (ROADMAP 73 fix; tools/fist_mesh.gd measures it on the DRAWN palm, the skinned mannequin): the fingertips sit
+## 1.0 to 1.3 cm outside the palm skin on the right hand (the curl model's fist left index 2.0 cm, pinky 1.8, thumb 4.5 cm;
+## the thumb's twist and abduction move the palm skin the index sits on, so they were tuned together). Index PIP and pinky
+## MCP sit at their limits. Per finger MCP / PIP / DIP and the thumb's bend / side / twist (index, middle, ring, pinky,
+## thumb_01..03), found by the grid and search in tools/fist_mesh.gd; the left hand takes the thumb's twist mirrored.
+const POSE_FIST := [Vector3(90, 0, 0), Vector3(105, 0, 0), Vector3(69.4, 0, 0),
+	Vector3(88.5, 0, 0), Vector3(100.2, 0, 0), Vector3(73.9, 0, 0),
+	Vector3(85.8, 0, 0), Vector3(97.2, 0, 0), Vector3(73.9, 0, 0),
+	Vector3(90, 0, 0), Vector3(91.2, 0, 0), Vector3(73.9, 0, 0),
+	Vector3(5, -8, -12), Vector3(60, 0, 0), Vector3(80, 0, 0)]
 const GRIP_GULKE := [28.0, 43.0, 26.0]   # MCP, PIP, DIP: Gulke et al. 2010, the mean during a grip
 const GRIP_THUMB := [Vector3(5, 0, 0), Vector3(35, 0, 0), Vector3(28, 0, 0)]   # hand_shape's grip thumb
 
@@ -1732,6 +1741,19 @@ func hand_pose(side: String, name: String) -> void:
 		for k in 3:
 			var tj := "thumb_0%d_%s" % [k + 1, side]
 			ang[tj] = clamp_ang(tj, GRIP_THUMB[k])
+		fk()
+		return
+	if name == "fist":
+		var fj := FINGERS4 + ["thumb"]
+		var k := 0
+		for f in fj:
+			for n in 3:
+				var j := "%s_0%d_%s" % [f, n + 1, side]
+				var fv: Vector3 = POSE_FIST[k]
+				if side == "l" and f == "thumb" and n == 0:
+					fv.z = -fv.z   # the left twist is mirrored (body_limits)
+				ang[j] = clamp_ang(j, fv)
+				k += 1
 		fk()
 		return
 	var p: Dictionary = POSE_CURL[name]

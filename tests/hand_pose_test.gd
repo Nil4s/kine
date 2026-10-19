@@ -12,11 +12,16 @@
 ##     its neighbours alone.
 ##   7 THUMB: the thumb follows its own curl (thumb_02 at curl 1 = 60 deg, the table's value) and no spread.
 ##   8 PINCH / OK: the thumb tip and the index tip within 1 cm (world, default skeleton), both hands, printed in mm.
-##   9 FIST: each fingertip within 2 cm of the palm: the distance from the tip to the hand capsule's surface (the palm
-##     capsule's axis minus its radius; negative = inside). The palm-centre distance is printed too, for the record.
+##   9 FIST ON THE DRAWN PALM: the skinned mannequin (assets/mannequin.glb, posed and skinned as tools/mesh_truth.gd does).
+##     Each fingertip's distance to the palm-side triangles of the hand's skin, signed: + = outside the palm, - = through
+##     it. Bar: every fingertip, both hands, from 0 to +1.5 cm. Printed in cm.
 extends SceneTree
 
 var fails := 0
+var man: Node3D
+var skel: Skeleton3D
+var bone_idx := {}
+var surf := []
 
 
 func ok(c: bool, what: String) -> void:
@@ -32,7 +37,173 @@ func fresh() -> Body:
 	return b
 
 
-func _init() -> void:
+## ---- the drawn palm (the fist bar): the skinned mannequin, posed and skinned as tools/mesh_truth.gd does ----
+func setup_mesh() -> void:
+	man = (load("res://assets/mannequin.glb") as PackedScene).instantiate()
+	get_root().add_child(man)
+	skel = man.find_children("*", "Skeleton3D", true, false)[0]
+	for j in Body.ORDER:
+		bone_idx[j] = skel.find_bone("Head" if j == "head" else j)
+	for mi in man.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		var sk: Skin = m.skin
+		var to_world := Transform3D.IDENTITY
+		var nd: Node = skel
+		while nd != null and nd != man.get_parent():
+			if nd is Node3D:
+				to_world = (nd as Node3D).transform * to_world
+			nd = nd.get_parent()
+		for s in m.mesh.get_surface_count():
+			var arr: Array = m.mesh.surface_get_arrays(s)
+			var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var BI: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+			var BW: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+			var per := BI.size() / V.size()
+			var names := []
+			for v in V.size():
+				var best := 0
+				for k in per:
+					if BW[v * per + k] > BW[v * per + best]:
+						best = k
+				var bname: String = sk.get_bind_name(BI[v * per + best])
+				if bname == "":
+					bname = skel.get_bone_name(sk.get_bind_bone(BI[v * per + best]))
+				names.append(bname)
+			surf.append([sk, to_world, V, arr[Mesh.ARRAY_NORMAL], BI, BW, per, names, arr[Mesh.ARRAY_INDEX]])
+
+
+func _global(bi: int, gp: Dictionary) -> Transform3D:
+	if gp.has(bi):
+		return gp[bi]
+	var t := skel.get_bone_pose(bi)
+	var par := skel.get_bone_parent(bi)
+	if par >= 0:
+		t = _global(par, gp) * t
+	gp[bi] = t
+	return t
+
+
+## the closest point on triangle (a, b, c) to p (Ericson, Real-Time Collision Detection 5.1.5)
+func closest_on_tri(p: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Vector3:
+	var ab := b - a
+	var ac := c - a
+	var ap := p - a
+	var d1 := ab.dot(ap)
+	var d2 := ac.dot(ap)
+	if d1 <= 0.0 and d2 <= 0.0:
+		return a
+	var bp := p - b
+	var d3 := ab.dot(bp)
+	var d4 := ac.dot(bp)
+	if d3 >= 0.0 and d4 <= d3:
+		return b
+	var vc := d1 * d4 - d3 * d2
+	if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+		return a + ab * (d1 / (d1 - d3))
+	var cp := p - c
+	var d5 := ab.dot(cp)
+	var d6 := ac.dot(cp)
+	if d6 >= 0.0 and d5 <= d6:
+		return c
+	var vb := d5 * d2 - d1 * d6
+	if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+		return a + ac * (d2 / (d2 - d6))
+	var va := d3 * d6 - d5 * d4
+	if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+		var w := (d4 - d3) / ((d4 - d3) + (d5 - d6))
+		return b + (c - b) * w
+	var denom := 1.0 / (va + vb + vc)
+	return a + ab * (vb * denom) + ac * (vc * denom)
+
+
+## each fingertip's signed distance (m) to the palm-side triangles of the posed hand skin (+ = outside the palm).
+## The tip is the distal skin point of the finger's last bone farthest from its root (the fingertip's end).
+func tips_signed(Bm: Body, side: String) -> Dictionary:
+	for j in Body.ORDER:
+		if bone_idx[j] >= 0:
+			skel.set_bone_pose_rotation(bone_idx[j], Bm.gltf_local(j))
+	skel.set_bone_pose_position(bone_idx["pelvis"], Bm.gltf_pelvis_pos())
+	var gp := {}
+	for bi in skel.get_bone_count():
+		gp[bi] = _global(bi, gp)
+	var c_dir: Vector3 = AnyGrip.curl_dir(fresh(), "hand_" + side)   # the side the palm faces (the fingers curl toward it)
+	var sfx := "_" + side
+	var palm_tri := []
+	var fin := {}
+	for sf in surf:
+		var sk: Skin = sf[0]
+		var xf := {}
+		for b in sk.get_bind_count():
+			var bn := sk.get_bind_bone(b)
+			if bn < 0:
+				bn = skel.find_bone(sk.get_bind_name(b))
+			xf[b] = (sf[1] as Transform3D) * (gp[bn] as Transform3D) * sk.get_bind_pose(b)
+		var V: PackedVector3Array = sf[2]
+		var N: PackedVector3Array = sf[3]
+		var BI: PackedInt32Array = sf[4]
+		var BW: PackedFloat32Array = sf[5]
+		var per: int = sf[6]
+		var names: Array = sf[7]
+		var IX: PackedInt32Array = sf[8]
+		var posed := PackedVector3Array()
+		var pnorm := PackedVector3Array()
+		posed.resize(V.size())
+		pnorm.resize(V.size())
+		for v in V.size():
+			var nm: String = names[v]
+			if not nm.ends_with(sfx) and nm != "hand" + sfx:
+				continue
+			var p := Vector3.ZERO
+			var nn := Vector3.ZERO
+			for k in per:
+				var w: float = BW[v * per + k]
+				if w <= 0.0:
+					continue
+				var t: Transform3D = xf[BI[v * per + k]]
+				p += (t * V[v]) * w
+				nn += (t.basis * N[v]) * w
+			posed[v] = p
+			pnorm[v] = nn.normalized()
+			for f in ["index", "middle", "ring", "pinky", "thumb"]:
+				if nm == f + "_03" + sfx:   # the last bone's skin: the fingertip
+					if not fin.has(f):
+						fin[f] = []
+					fin[f].append(p)
+		for tri in range(0, IX.size(), 3):
+			var a: int = IX[tri]
+			var b2: int = IX[tri + 1]
+			var d2: int = IX[tri + 2]
+			if names[a] == "hand" + sfx and names[b2] == "hand" + sfx and names[d2] == "hand" + sfx:
+				var fn: Vector3 = ((posed[b2] - posed[a]).cross(posed[d2] - posed[a])).normalized()
+				var nv: Vector3 = (pnorm[a] + pnorm[b2] + pnorm[d2]).normalized()
+				if fn.dot(nv) < 0.0:
+					fn = -fn
+				if fn.dot(c_dir) > 0.2:
+					palm_tri.append([posed[a], posed[b2], posed[d2], fn])
+	var out := {}
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		var pts: Array = fin.get(f, [])
+		var root: Vector3 = (gp[skel.find_bone(f + ("_01" if f != "thumb" else "_02") + sfx)] as Transform3D).origin
+		var tip := Vector3.ZERO
+		var far := -1.0
+		for q in pts:
+			var dd: float = (q as Vector3).distance_to(root)
+			if dd > far:
+				far = dd
+				tip = q
+		var best := INF
+		var sdv := 0.0
+		for tr in palm_tri:
+			var qq: Vector3 = closest_on_tri(tip, tr[0], tr[1], tr[2])
+			var dq: float = tip.distance_to(qq)
+			if dq < best:
+				best = dq
+				sdv = (tip - qq).dot(tr[3])
+		out[f] = sdv
+	return out
+
+
+func _initialize() -> void:
 	var B := fresh()
 	# 1 limits, both hands, every pose
 	var worst_out := 0.0
@@ -147,23 +318,23 @@ func _init() -> void:
 			line.append("%s %s %.2f mm" % [pn, side, d * 1000.0])
 	ok(worst_p < 0.01, "8 PINCH / OK tip gap (world): %s (bar 10 mm)" % ", ".join(line))
 
-	# 9 fist: each fingertip to the hand capsule's surface, and to the palm centre (printed)
-	var F2 := fresh()
-	F2.hand_pose("r", "fist")
-	var hc: Array = F2.cap("hand_r")
-	var rr := float(F2.rad["hand_r"])
-	var worst_f := -INF
-	var surf := []
-	var centre := []
-	for f in ["index", "middle", "ring", "pinky", "thumb"]:
-		var tip: Vector3 = (F2.cap("%s_03_r" % f) as Array)[1]
-		var ab: Vector3 = (hc[1] as Vector3) - (hc[0] as Vector3)
-		var t := clampf((tip - (hc[0] as Vector3)).dot(ab) / maxf(ab.length_squared(), 1e-12), 0.0, 1.0)
-		var sg := tip.distance_to((hc[0] as Vector3) + ab * t) - rr
-		worst_f = maxf(worst_f, sg)
-		surf.append("%s %.1f" % [f, sg * 100.0])
-		centre.append("%s %.1f" % [f, tip.distance_to(F2.palm_point("hand_r")) * 100.0])
-	ok(worst_f <= 0.02, "9 FIST fingertip to palm surface (cm): %s; worst %.2f cm (bar 2 cm). To palm centre (cm, for the record): %s" % [", ".join(surf), worst_f * 100.0, ", ".join(centre)])
+	# 9 fist on the drawn palm, both hands: each fingertip's signed distance to the palm skin (+ = outside)
+	setup_mesh()
+	var lo := INF
+	var hi := -INF
+	var rows := []
+	for side in ["r", "l"]:
+		var Fm := fresh()
+		Fm.hand_pose(side, "fist")
+		var rep := tips_signed(Fm, side)
+		var parts := []
+		for f in ["index", "middle", "ring", "pinky", "thumb"]:
+			var x: float = rep[f]
+			lo = minf(lo, x)
+			hi = maxf(hi, x)
+			parts.append("%s %+.2f" % [f, x * 100.0])
+		rows.append("%s: %s" % ["right" if side == "r" else "left", ", ".join(parts)])
+	ok(lo >= 0.0 and hi <= 0.015, "9 FIST ON THE DRAWN PALM (cm, + = outside): %s; range %+.2f to %+.2f (bar 0 to +1.5)" % [" | ".join(rows), lo * 100.0, hi * 100.0])
 
 	print("hand_pose_test: %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(fails)
