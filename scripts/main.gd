@@ -1127,7 +1127,7 @@ func _review_import_ask() -> void:
 func _review_import(path: String) -> int:
 	var r := Review.from_comments(FileAccess.get_file_as_string(path))
 	if not r["ok"]:
-		_say("could not import %s: %s" % [path.get_file(), r["why"]])
+		_say("could not import %s: %s (choose the .json a review page saved)" % [path.get_file(), r["why"]])
 		return -1
 	var before := S.notes.size()
 	_push_undo()
@@ -5029,11 +5029,16 @@ func _part_curve(kind: String, mode: String) -> void:
 
 
 func _reset_part() -> void:
-	if sel in Body.WEAPON:
+	if sel in Body.WEAPON or not B.ang.has(sel):
+		_say("nothing to reset: pick a body part first (click it on the figure)")
 		return
+	var was: Vector3 = B.ang[sel]
+	var off: Vector3 = B.offset
 	if sel == "pelvis":
 		B.offset = Vector3.ZERO
 	B.set_ang_safe(sel, Vector3.ZERO)
+	if was.is_zero_approx() and off.is_equal_approx(B.offset):
+		_say("the %s is already straight: drag it to bend it, or pick another part" % nice(sel))
 
 
 ## snap the selected joint's free angles to the nearest 90 (or 45) the range allows; it stops at contact
@@ -8801,7 +8806,7 @@ func _tool(id: int) -> void:
 			wt.mark_dirty()
 			_ps().apply(B, playhead)
 			_refresh()
-			_say("STEPPED: each card's pose holds until the next one arrives (no in-betweens).  Check still grades the real motion" if stepped_view else "stepped preview off: in-betweens back")
+			_say("STEPPED: each card's pose holds until the next one arrives (no in-betweens).  Press Check to grade the real motion" if stepped_view else "stepped preview off: in-betweens back")
 		4:
 			_push_undo()
 			S.moving_holds = not S.moving_holds
@@ -8905,7 +8910,7 @@ func _mirrored_dict() -> Dictionary:
 ## screen is brought to the hero first (the mirror is the hero's file, as Mirror the scene does)
 func _mirror_in_place() -> void:
 	if actor_on != 0 and not _actor_set(0):
-		_say("Mirror in place works on the hero's scene: switch to the hero first (Actor: switch to the next fighter)")
+		_say("Mirror in place works on the hero's scene: press Actor: switch to the next fighter until the hero is up, then try again")
 		return
 	if S.cards.size() < 2:
 		_say("Mirror in place needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
@@ -10578,6 +10583,9 @@ func _restore_work(a: Dictionary) -> void:
 
 ## ---------------------------------------------------------------- THE SET (round 37, GATES SS5 / SS6)
 ## The scene's props as nodes under ui_props_root (rebuilt whole: a set is a handful of boxes); the picked one tinted
+var _gone_said := {}   # prop kinds whose missing model file was already said
+
+
 func _props_show() -> void:
 	Props.settle(S.props)   # UU1: whatever changed, every prop rests on what is under it
 	B.props = S.solid_props()   # TT2: the live body stands on the set too (never on what it carries)
@@ -10592,6 +10600,9 @@ func _props_show() -> void:
 	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for i in S.props.size():
 		var n := Props.mesh(S.props[i])
+		if Props.model_missing(S.props[i]) and not _gone_said.has(S.props[i]["kind"]):
+			_gone_said[S.props[i]["kind"]] = true
+			_say_plain("the model file of the %s is missing: it is drawn as a box. Open the importer and add the model again, or delete the prop" % S.props[i]["kind"])
 		n.name = "prop_%d" % i
 		if i == sel_prop:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):

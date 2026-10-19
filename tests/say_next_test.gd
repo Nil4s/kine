@@ -10,6 +10,8 @@ const NEXT := ["pick", "click", "press", "open", "lock", "put", "add", "turn", "
 ## exits that report something DONE (no next step is owed)
 const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
 	"(in trash/ if you want it back)": "reports the delete it just made",
+	"Auto-key: card %d takes the body": "reports the card it just wrote",
+	"all %d cards are on the floor now": "reports the snap it just made (Ctrl+Z named)", "the body is on the floor now (Ctrl+Z": "reports the snap it just made (Ctrl+Z named)",
 	"posed: %s%s": "reports the pose it just made (and where a limit stopped it)",
 	"weight key at %.2f s = %.2f": "reports the weight key it just changed (NA1)",
 	"copied a card to %.2f s": "reports the copy it just made (NA0)",
