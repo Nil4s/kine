@@ -4,3 +4,5 @@ trash/
 scenes/_wip/
 godot.path
 godot/
+poses/**/*.png
+moves/*.png

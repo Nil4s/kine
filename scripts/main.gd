@@ -128,7 +128,7 @@ const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "tra
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
-		["SHOW", ["Collision (C)"]]],
+		["SHOW", ["Collision (C)"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video", "Ask AI"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
@@ -4794,7 +4794,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put"}
+	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -5089,6 +5089,7 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
 	ui_ribbon["POSE"].add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed), "both arms relaxed: 25 degrees out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
+	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
@@ -6521,6 +6522,7 @@ func _commands() -> Array:
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Undo history", "", _toggle_history, "steps list back forward", false, "every change by name, newest on top: click one to go back (or forward) to exactly there")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")
+	add.call("Pose library", "", PoseLibrary.toggle.bind(self), "poses thumbnails pictures grid blend mix flipped mirrored apply studio library", false, "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped, only the selected parts")
 	add.call("CLIP this pose (add a card)", "Enter", _press.bind(KEY_ENTER), "key frame add new", true, "add the body as a new card after the picked one")
 	add.call("Play / pause", "Space", _press.bind(KEY_SPACE), "run stop", false, "play the scene from the playhead, or stop it")
 	add.call("Big view (hide the panels)", "Tab", _press.bind(KEY_TAB), "fullscreen", false, "hide the side panels so the body gets the whole window")
@@ -7842,7 +7844,7 @@ func _row_menu(md: Dictionary, at: Vector2) -> void:
 		items = [["Apply", _pose_apply.bind(i)], ["CLIP this pose (Enter)", func(): _pose_apply(i); _card_add()],
 			["Rename...", _pose_ask.bind("rename", i)], ["Delete pose", func(): ui_poses.select(i); _delete_pose()]]
 	elif md.get("menu", "") == "poses":
-		items = [["Save pose...", _pose_ask.bind("save")]]
+		items = [["Save pose...", _pose_ask.bind("save")], ["Pose library (pictures)...", PoseLibrary.toggle.bind(self)]]
 	elif md.get("menu", "") == "dummy":
 		items = [["On/off (H)", _dummy_toggle], ["Closer", _dummy_move.bind(-0.25)], ["Farther", _dummy_move.bind(0.25)],
 			["Solid / see-through", _dummy_solid]]
