@@ -1696,10 +1696,15 @@ const POSE_CURL := {
 	"open": {"c": [0.0, 0.0, 0.0, 0.0], "t": 0.0, "s": 0.0},
 	"fist": {"c": [1.0, 1.0, 1.0, 1.0], "t": 1.0, "s": 0.0},
 	"point": {"c": [0.0, 1.0, 1.0, 1.0], "t": 1.0, "s": 0.0},
-	"pinch": {"c": [0.5, 0.2, 0.2, 0.2], "t": 0.5, "s": 0.0},
+	"pinch": {"c": [0.0, 0.2, 0.2, 0.2], "t": 0.0, "s": 0.0},
 	"claw": {"c": [0.5, 0.5, 0.5, 0.5], "t": 0.3, "s": 0.6},
-	"ok": {"c": [0.6, 0.0, 0.0, 0.0], "t": 0.6, "s": 0.3},
+	"ok": {"c": [0.0, 0.0, 0.0, 0.0], "t": 0.0, "s": 0.3},
 }
+## PINCH and OK (ROADMAP 73 fix, tools/pose_tune.gd): the thumb and index joints that bring the two tips together, found
+## by a search inside the limits (random start, coordinate descent; the tip gap came out 0.1 mm, from 3.2 cm (pinch) and
+## 3.6 cm (ok) on the curl model). Thumb_01..03 then index_01..03, bend / side / twist. The thumb's tip joints are nearly
+## straight (thumb_03 -0.6): the thumb reaches across to the index tip, the index curls to meet it.
+const POSE_TI := {"pinch": [Vector3(-15.4, -10.0, -1.2), Vector3(14.7, 0, 0), Vector3(-0.6, 0, 0), Vector3(9.0, 0, 0), Vector3(66.9, 0, 0), Vector3(48.2, 0, 0)], "ok": [Vector3(-15.4, -10.0, -1.2), Vector3(14.7, 0, 0), Vector3(-0.6, 0, 0), Vector3(9.0, 0, 0), Vector3(66.9, 0, 0), Vector3(48.2, 0, 0)]}
 const GRIP_GULKE := [28.0, 43.0, 26.0]   # MCP, PIP, DIP: Gulke et al. 2010, the mean during a grip
 const GRIP_THUMB := [Vector3(5, 0, 0), Vector3(35, 0, 0), Vector3(28, 0, 0)]   # hand_shape's grip thumb
 
@@ -1733,6 +1738,14 @@ func hand_pose(side: String, name: String) -> void:
 	for i in 4:
 		finger_curl(side, FINGERS4[i], p["c"][i], p["s"])
 	finger_curl(side, "thumb", p["t"])
+	if POSE_TI.has(name):
+		var tn := ["thumb_01", "thumb_02", "thumb_03", "index_01", "index_02", "index_03"]
+		for i in 6:
+			var j := "%s_%s" % [tn[i], side]
+			var v: Vector3 = (POSE_TI[name] as Array)[i]
+			if side == "l":
+				v.z = -v.z   # the left hand's twist is mirrored (body_limits: the left twist range is negated)
+			ang[j] = clamp_ang(j, v)
 	fk()
 
 

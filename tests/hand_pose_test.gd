@@ -7,10 +7,13 @@
 ##     body.gd CURL_*; Indian J Plast Surg 2024 PMC11436331, Hahn 1995 PMC9541616) and of hand_shape("fist") (90 / 105 / 70).
 ##   4 GRIP: the grip pose's index joints are Gulke 2010's 28 / 43 / 26 deg exactly (1e-6).
 ##   5 MIRROR: each pose on the right hand, then mirror_side to the left: every joint of the left matches the right within
-##     0.05 deg; and the same pose applied to the left hand matches within 0.05 deg.
+##     0.05 deg; and the same pose applied to the left hand is the right's reflected (twist negated) within 0.05 deg.
 ##   6 READBACK: finger_curl_of reads back the curl set for every finger at 0.3 and 0.8 (1e-4), and a finger's curl leaves
 ##     its neighbours alone.
 ##   7 THUMB: the thumb follows its own curl (thumb_02 at curl 1 = 60 deg, the table's value) and no spread.
+##   8 PINCH / OK: the thumb tip and the index tip within 1 cm (world, default skeleton), both hands, printed in mm.
+##   9 FIST: each fingertip within 2 cm of the palm: the distance from the tip to the hand capsule's surface (the palm
+##     capsule's axis minus its radius; negative = inside). The palm-centre distance is printed too, for the record.
 extends SceneTree
 
 var fails := 0
@@ -90,7 +93,8 @@ func _init() -> void:
 		M.fk()
 		for j in M.hand_joints("r"):
 			var jl: String = j.substr(0, j.length() - 2) + "_l"
-			var d: Vector3 = ((M.ang[jl] as Vector3) - (M.ang[j] as Vector3)).abs()
+			var rv: Vector3 = M.ang[j]
+			var d: Vector3 = ((M.ang[jl] as Vector3) - Vector3(rv.x, rv.y, -rv.z)).abs()   # mirror_side negates twist
 			worst_m = maxf(worst_m, maxf(d.x, maxf(d.y, d.z)))
 		var O := fresh()
 		O.hand_pose("l", pn)
@@ -98,7 +102,9 @@ func _init() -> void:
 		Lh.hand_pose("r", pn)
 		for j in Lh.hand_joints("r"):
 			var jl2: String = j.substr(0, j.length() - 2) + "_l"
-			var d2: Vector3 = ((O.ang[jl2] as Vector3) - (Lh.ang[j] as Vector3)).abs()
+			var rv: Vector3 = Lh.ang[j]
+			var mirrored := Vector3(rv.x, rv.y, -rv.z)   # the left hand's twist is the right's, negated
+			var d2: Vector3 = ((O.ang[jl2] as Vector3) - mirrored).abs()
 			worst_o = maxf(worst_o, maxf(d2.x, maxf(d2.y, d2.z)))
 	ok(worst_m < 0.05, "5a MIRROR: each pose on the right, mirrored to the left: worst joint difference %.4f deg (bar 0.05)" % worst_m)
 	ok(worst_o < 0.05, "5b the same pose on the left hand as on the right: worst difference %.4f deg (bar 0.05)" % worst_o)
@@ -128,6 +134,36 @@ func _init() -> void:
 	var th := [(T.ang["thumb_01_r"] as Vector3), (T.ang["thumb_02_r"] as Vector3), (T.ang["thumb_03_r"] as Vector3)]
 	ok(absf(th[1].x - 60.0) < 1e-6 and absf(th[2].x - 48.0) < 1e-6 and absf(th[0].x - 30.0) < 1e-6 and absf(th[0].y + 10.0) < 1e-6,
 		"7 THUMB at curl 1: %.1f / %.1f / %.1f deg (table 30 / 60 / 48); thumb_01 side %.1f (table -10, the spread-free thumb)" % [th[0].x, th[1].x, th[2].x, th[0].y])
+
+	# 8 pinch / ok: thumb tip to index tip, both hands
+	var worst_p := 0.0
+	var line := []
+	for pn in ["pinch", "ok"]:
+		for side in ["r", "l"]:
+			var P := fresh()
+			P.hand_pose(side, pn)
+			var d: float = ((P.cap("thumb_03_" + side) as Array)[1] - (P.cap("index_03_" + side) as Array)[1]).length()
+			worst_p = maxf(worst_p, d)
+			line.append("%s %s %.2f mm" % [pn, side, d * 1000.0])
+	ok(worst_p < 0.01, "8 PINCH / OK tip gap (world): %s (bar 10 mm)" % ", ".join(line))
+
+	# 9 fist: each fingertip to the hand capsule's surface, and to the palm centre (printed)
+	var F2 := fresh()
+	F2.hand_pose("r", "fist")
+	var hc: Array = F2.cap("hand_r")
+	var rr := float(F2.rad["hand_r"])
+	var worst_f := -INF
+	var surf := []
+	var centre := []
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		var tip: Vector3 = (F2.cap("%s_03_r" % f) as Array)[1]
+		var ab: Vector3 = (hc[1] as Vector3) - (hc[0] as Vector3)
+		var t := clampf((tip - (hc[0] as Vector3)).dot(ab) / maxf(ab.length_squared(), 1e-12), 0.0, 1.0)
+		var sg := tip.distance_to((hc[0] as Vector3) + ab * t) - rr
+		worst_f = maxf(worst_f, sg)
+		surf.append("%s %.1f" % [f, sg * 100.0])
+		centre.append("%s %.1f" % [f, tip.distance_to(F2.palm_point("hand_r")) * 100.0])
+	ok(worst_f <= 0.02, "9 FIST fingertip to palm surface (cm): %s; worst %.2f cm (bar 2 cm). To palm centre (cm, for the record): %s" % [", ".join(surf), worst_f * 100.0, ", ".join(centre)])
 
 	print("hand_pose_test: %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(fails)
