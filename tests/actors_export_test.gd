@@ -15,13 +15,16 @@ const BAR := 0.01
 const ENDS := ["hand_l", "hand_r", "foot_l", "foot_r", "head"]
 ## one-actor exports of the pre-TC6 writers (commit 7ddd976), and the scene files they were made from
 const BASE := {   # sha256 of the scene file with CR removed (a checkout may add CRLF), then of each pre-TC6 export
+	# .usda RE-BASELINED (ROADMAP 79, wt-usdlayers): skel:animationSource pointed at </Kine/Skel/Anim>, a prim that does not exist
+	# (the SkelAnimation is a sibling of the Skeleton, at </Kine/Anim>), so a USD tool could not bind the animation. Fixed in
+	# UsdExport._skel. Checked: reverting only that line gives the old hashes exactly (combo3 f20c1f44, walk_bat a17d4f2f).
 	# RE-BASELINED after ccd0d48 (diffed file by file against exports made at ccd0d48; every difference is one of two commits):
 	#  f8a3023 toe guard smoothstep: walk_bat ball_l/ball_r rotations change (bvh Xrotation up to 16.6 deg, usda ball quats, glb ball tracks); nothing else.
 	#  149c083 foot twist = subtalar roll (merged 97d8598): the Newton solve leaves foot_r Zrotation as -0.00000 where it was 0.00000 (combo3.bvh 36 values,
 	#  combo3.usda signed zeros); numerically identical to f8a3023's file, the text differs only in the sign of a zero. Hierarchy, joint count, glb nodes unchanged.
 	"combo3": ["e5dcf25a7d716b00c886e86b1ee94f0a7697bdc0b57c37c0c88dc69bbcdc4bea", {
 		"glb": "499ee1e47f3e46dd807f3945900ccadd8a0beabb2b0ddaae821adf871b0ccf2e",
-		"usda": "f20c1f44928f5f32ccde0c1a9e67bc7f5d823f6b00b4c3346c4f08f3bbbcecfa",
+		"usda": "6b0ff8a08d617274189ea739640a8624616bbfc5dba6caa9bdc6bee1f1e897db",
 		"bvh": "f9e16271177a6125506064c1bc448cf81cce670754255dc816d807f7f2d13ceb",
 		"json": "b63904ebc461805fdf2701d9b8dfeaedc7593180a9e584206c44d47578e02bf2",
 		"cs": "86f2376b3a023bf90074d90d6abb31296a096ecb565bb0cab5dfea3670581832"}],
@@ -29,7 +32,7 @@ const BASE := {   # sha256 of the scene file with CR removed (a checkout may add
 	# (verified: bvh channels and glb animation tracks differ ONLY on ball_l/ball_r; glb nodes, skins, meshes identical; the glb hash is for the test's order, combo3 then walk_bat on one Body). json/cs hashes are unchanged.
 	"walk_bat": ["bc08fc8cdc71607353dff4612c4eb6721af3e2c02da252714eeb7fdddfc9b693", {
 		"glb": "00db85d36237c50e1204c00e5e63c2859e5b471d4e964579430fc2964cfca27f",
-		"usda": "a17d4f2f18075e3a2479f7f504a582b207b47e01d0a38d8e2603d86999c65eb8",
+		"usda": "4901ec33c4dacaa09d8df19ca97ed1a619ecc1ee09fbbc0a671408aa2443009d",
 		"bvh": "af9163e5dde2d8b14fa17e35fab27a22e41cfb4ba05d89f02ca6efbd00ca3336",
 		"json": "1dc574ca319d52f7f7ee662f1446b432b0f7218877fb325c020aec524ba90f14",
 		"cs": "6e8a5a6532c0f3d302f3668e58dbad2fdc4adb11b9efad1593527e809fe7c42e"}],

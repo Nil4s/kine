@@ -15,7 +15,7 @@ var ui_info: Label
 var ui_checks: Label
 var ui_app: Label
 
-## run: "engine:<id>" (EngineExport preset: root motion, units, pre-flight), "glb", "bvh", "usda" or "game" (the PoseTable)
+## run: "engine:<id>" (EngineExport preset: root motion, units, pre-flight), "glb", "bvh", "usda", "usda_layers" (ROADMAP 79) or "game" (the PoseTable)
 const TARGETS := [
 	{"id": "ue5", "label": "Unreal Engine 5", "engine": "ue5",
 		"formats": [{"name": "glTF 2.0 (.glb), named _ue5", "run": "engine:ue5"},
@@ -37,8 +37,8 @@ const TARGETS := [
 		"formats": [{"name": "glTF 2.0 (.glb): File > Import > glTF 2.0", "run": "glb"}, {"name": "BVH (.bvh): File > Import > Motion Capture", "run": "bvh"}],
 		"app": "The .glb holds one armature with an action named after the scene, a key on every frame. The .bvh holds every joint on every frame, scale 1.0. Both checked with Blender 4.5's own importers (docs/EXPORT.md)."},
 	{"id": "maya", "label": "Maya / MotionBuilder", "engine": "",
-		"needs": "MotionBuilder reads BVH as motion capture. Maya has no BVH import in its base install: use a BVH plugin, or the FBX route through Blender (docs/EXPORT.md). Maya reads USD through its own importer. Neither was opened for this export.",
-		"formats": [{"name": "BVH (.bvh): motion capture", "run": "bvh"}, {"name": "USD (.usda): UsdSkel skeleton animation", "run": "usda"},
+		"needs": "MotionBuilder reads BVH as motion capture. Maya has no BVH import in its base install: use a BVH plugin, or the FBX route through Blender (docs/EXPORT.md). Maya reads USD through its own importer. Neither was opened for this export. ALEMBIC (.abc) IS NOT WRITTEN: it needs the Ogawa binary writer, a large format build this app does not carry. The joints go out as a USD point cache instead (the USD layers format: <name>_points.usda, a Points prim per frame, metres), which Maya reads through its USD importer.",
+		"formats": [{"name": "BVH (.bvh): motion capture", "run": "bvh"}, {"name": "USD (.usda): UsdSkel skeleton animation", "run": "usda"}, {"name": "USD layers (folder): root .usda, one .usda per layer", "run": "usda_layers"},
 			{"name": "FBX 7.4 (.fbx): File > Import > FBX", "run": "fbx",
 				"needs": "Maya and MotionBuilder read binary FBX 7.4 in centimetres, Y up: File > Import. The bones are joints with a bind pose, and their rotations are curves (Euler XYZ). Unverified: neither was opened on this file.",
 				"app": "Centimetres, Y up, the bones as joints with their keys on every frame; one file per fighter, each at its place. The weapons and props are not in it."}],
@@ -49,7 +49,7 @@ const TARGETS := [
 		"app": "One file: the mannequin, its skin, its one animation (a key on every frame) and the weapons as animated nodes. With several fighters, each one is its own armature at its place."},
 	{"id": "raw", "label": "Raw data", "engine": "",
 		"needs": "For your own code. BVH is text: the joint hierarchy and each frame's channels. USD is text: one time sample per frame. The PoseTable is the ARPG's keys (degrees from its rest, eased) for 11 bones; its C# is the one the ARPG's Unity 6 project reads.",
-		"formats": [{"name": "BVH (.bvh): every joint, every frame", "run": "bvh"}, {"name": "USD (.usda): UsdSkel", "run": "usda"}, {"name": "PoseTable (.json + .cs): the ARPG", "run": "game"}],
+		"formats": [{"name": "BVH (.bvh): every joint, every frame", "run": "bvh"}, {"name": "USD (.usda): UsdSkel", "run": "usda"}, {"name": "PoseTable (.json + .cs): the ARPG", "run": "game"}, {"name": "USD layers (folder): root .usda, one .usda per layer", "run": "usda_layers"}],
 		"app": "Written by the same writers the old commands used (the same bytes). The hands, feet and fingers do not reach the PoseTable; the weapons are not in the .usda."},
 ]
 
@@ -222,12 +222,18 @@ func checks(id: String, run: String) -> Array:
 			out.append("OK    weapons: animated nodes (weapon, weapon2) with a plain shaft")
 		elif run == "bvh":
 			out.append("OK    weapons: joints under the hand that holds them")
-		elif run == "usda":
+		elif run == "usda" or run == "usda_layers":
 			out.append("WARN  weapons are not in the .usda: the file holds the body only")
 		elif run.begins_with("fbx"):
 			out.append("WARN  weapons are not in the .fbx: the file holds the body only")
 		else:
 			out.append("WARN  weapons are not in the PoseTable: its 11 bones are the body; the bat's edge points come with the engine exports (weapon trail .json)")
+	if run == "usda_layers":
+		var nl := S.layers.size() + (0 if S.layer.is_empty() else 1)
+		out.append("OK    layers: the stack, the YY9 one first; each is its own file, and a mute is exact from the top only" if nl > 0 else "OK    layers: none in this scene; the base animation is the whole pose")
+		if nl > 1:
+			out.append("WARN  a lower layer muted under a live layer above it changes nothing in the DCC: the layer above carries the whole pose")
+		out.append("WARN  the joint point cache is a Points prim, not Alembic: it is not an Alembic file")
 	var sec := int((S.secondary.get("items", []) as Array).size())
 	if sec > 0:
 		out.append("WARN  secondary motion (%d item%s) is not in exports: the file has the poses, and the app's swing on top is not written" % [sec, "" if sec == 1 else "s"])
@@ -266,6 +272,8 @@ func export_now(id: String, fi: int, dir: String) -> Variant:
 			return m._export_bvh(dir)
 		"usda":
 			return m._export_usd(dir)
+		"usda_layers":
+			return m._export_usd_layers(dir)
 		"game":
 			return m._export_game(dir)
 	return ""
