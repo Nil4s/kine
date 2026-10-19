@@ -162,7 +162,7 @@ const RIBBON_GROUPS := {
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
-		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode"]]],
+		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes"]]],
 }
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
 var ui_doc: Label         # the strip's middle: the scene's name, clips, length
@@ -572,6 +572,8 @@ var wp_centres := []     # the brush centres of the last stroke (the test reads 
 var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, shown while Weight paint is on
 var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
+var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
+var dummy_corr := Corrective.new()   # the same on the dummy
 var hidden_parts := {}
 
 
@@ -1889,6 +1891,7 @@ func _body() -> void:
 	bone_idx = mq[2]
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
+	corr.attach(pieces.values(), skel)
 	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var mi := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
@@ -2009,6 +2012,8 @@ func _dummy_build() -> void:
 	var dq := Overlays.mannequin(self, dummy_mat)
 	dummy_node = dq[0]
 	Overlays.pose_skeleton(dq[1], dq[2], T.D)
+	dummy_corr.attach(dq[0].find_children("*", "MeshInstance3D", true, false), dq[1])
+	dummy_corr.update(T.D)
 	hit_tag = Label3D.new()
 	hit_tag.pixel_size = 0.0009
 	hit_tag.fixed_size = true
@@ -2480,6 +2485,7 @@ func _refresh() -> void:
 		sel_more = []
 	_sym_prev = B.ang.duplicate()
 	Overlays.pose_skeleton(skel, bone_idx, B)
+	corr.update(B)
 	_lip_draw()   # ROADMAP 31: the jaw and mouth shape of the sound at the playhead
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -6959,7 +6965,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear",
+	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
@@ -7348,6 +7354,8 @@ func _ui() -> void:
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
+	tog.call("VIEW", "Corrective shapes", func(): corr.on = not corr.on; dummy_corr.on = corr.on; _refresh(); dummy_corr.update(T.D), func(): return corr.on,
+		"the elbows and knees keep their volume as they bend: the skin pushes out along its normals as the bend goes 0 -> 140 deg (scripts/corrective.gd). Off = the plain skinning, which pinches at a bent joint")
 	tog.call("VIEW", "Easy mode", func(): easy.set_on(not easy.on), func(): return easy.on, "Easy: the 12 big buttons, the panels hidden (a fresh start is Easy). Off = Expert: every panel and tool, as before (remembered)")
 	var us := MenuButton.new()
 	us.text = "UI size"

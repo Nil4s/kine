@@ -99,6 +99,7 @@ const DRAW := {
 	"big": [["seg", Vector2(3, 3), Vector2(9, 3), 2], ["seg", Vector2(3, 3), Vector2(3, 9), 2], ["seg", Vector2(21, 3), Vector2(15, 3), 2], ["seg", Vector2(21, 3), Vector2(21, 9), 2],
 		["seg", Vector2(3, 21), Vector2(9, 21), 2], ["seg", Vector2(3, 21), Vector2(3, 15), 2], ["seg", Vector2(21, 21), Vector2(15, 21), 2], ["seg", Vector2(21, 21), Vector2(21, 15), 2]],
 	"auto_theme": [["ring", Vector2(12, 12), 9, 2], ["seg", Vector2(12, 3), Vector2(12, 21), 2.2], ["disc", Vector2(16.5, 12), 4.5]],
+	"corrective": [["seg", Vector2(4, 20), Vector2(12, 12), 2.2], ["seg", Vector2(12, 12), Vector2(20, 4), 2.2], ["ring", Vector2(12, 12), 4.5, 1.5]],
 	"light": [["disc", Vector2(12, 12), 4], ["seg", Vector2(12, 2), Vector2(12, 5), 1.8], ["seg", Vector2(12, 19), Vector2(12, 22), 1.8], ["seg", Vector2(2, 12), Vector2(5, 12), 1.8],
 		["seg", Vector2(19, 12), Vector2(22, 12), 1.8], ["seg", Vector2(5, 5), Vector2(7, 7), 1.8], ["seg", Vector2(17, 17), Vector2(19, 19), 1.8],
 		["seg", Vector2(19, 5), Vector2(17, 7), 1.8], ["seg", Vector2(5, 19), Vector2(7, 17), 1.8]],
