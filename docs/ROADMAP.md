@@ -64,46 +64,39 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 18 / 20 (pose library, Mixamo/UE import + retarget, props (door, box, ball), Easy mode + tour, crash journal, hotkeys, clips as strips, toes fix, human limits (experimental), foot handles, pose library + thumbnails + blend, foot planting, engine export presets, selection + keying sets, fighter hover + dagger, shot-camera gizmo + timeline keys, graph Shape on
-selected keys + modifier ranges, user drivers, grips scale with hand size).
+Merged since the last full run: 15 / 20 (full run 1 on 10-18 night: 172/206 under load, every timeout passed alone, 9 real breaks fixed; then merged: undo tree, human limits v2, ease presets, frame data, better skeleton, critique, twinning, phone video cleanup, choreography, hit reactions, style transfer, any-prop grips, line of action, webcam puppet, playback cache).
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
 
 ### Wave A: what hurts now
-1. [x] Kill the toes curling up in walks: toe bend capped at real push-off (MTP ~44 deg walking) and only during push-off
 2. [x] Crash-proof: every edit journaled; reopen after a crash at the last action (top-25 #25)
 3. [x] Easy mode: a simple panel of 12 big actions (pose, key, play, undo, export) with the rest hidden; Expert mode shows all
 4. [x] First-run tour: 60 s of guided steps on the mannequin (pose a hand, key, play)
 5. [x] Hotkey cheat sheet overlay (hold ?) and a hotkey editor
 6. [x] Better foot: heel / ball / toe-tip pivots as handles in the view (reverse foot you can grab), foot roll keyable
 1. [x] Kill the toes curling up in walks: toe bend capped at real push-off (MTP ~44 deg walking) and only during push-off (wt-toes: scene.gd TOE_MTP_MAX / _toe_guard; tests/toes_walk_test.gd; docs/research/TOES.md)
-2. [ ] Crash-proof: every edit journaled; reopen after a crash at the last action (top-25 #25)
-3. [ ] Easy mode: a simple panel of 12 big actions (pose, key, play, undo, export) with the rest hidden; Expert mode shows all
-4. [ ] First-run tour: 60 s of guided steps on the mannequin (pose a hand, key, play)
-5. [ ] Hotkey cheat sheet overlay (hold ?) and a hotkey editor
-6. [ ] Better foot: heel / ball / toe-tip pivots as handles in the view (reverse foot you can grab), foot roll keyable
-7. [~] Better skeleton: split toes (big toe vs the other four), a real ankle subtalar axis (inversion / eversion)
+7. [x] Better skeleton: split toes (big toe vs the other four), a real ankle subtalar axis (inversion / eversion)
 8. [x] Foot planting that just works: mark a foot planted over a time range, it stays put to 1 mm, the leg solves
 9. [x] One-click engine delivery: UE5 / Unity / Godot presets, scale + axes + root motion checked (top-25 #19)
 10. [~] (in, experimental: behind its command until its bars are checked against the papers) "Could a human do this?": per-frame torque, balance and speed vs real-human data, with the reason (top-25 #1)
-11. [~] Critique that points at frames: floaty, no anticipation, foot slide, twinning (top-25 #7)
-12. [~] Fighting-game frame data: startup / active / recovery + hitboxes, exported (top-25 #2)
-13. [~] Choreography timeline for 2+ fighters: exchanges, reach kept honest (top-25 #3)
-14. [~] Automatic hit reactions from momentum, baked to cards (top-25 #4)
-15. [~] Undo as a tree (top-25 #15)
-16. [ ] Phone video to clean animation: contacts locked, jitter off (top-25 #5)
-17. [~] Ease presets measured from real motion (top-25 #20)
-18. [ ] Grips for any prop mesh (top-25 #10)
+11. [x] Critique that points at frames: floaty, no anticipation, foot slide, twinning (top-25 #7)
+12. [x] Fighting-game frame data: startup / active / recovery + hitboxes, exported (top-25 #2)
+13. [x] Choreography timeline for 2+ fighters: exchanges, reach kept honest (top-25 #3)
+14. [x] Automatic hit reactions from momentum, baked to cards (top-25 #4)
+15. [x] Undo as a tree (top-25 #15)
+16. [x] Phone video to clean animation: contacts locked, jitter off (top-25 #5)
+17. [x] Ease presets measured from real motion (top-25 #20)
+18. [x] Grips for any prop mesh (top-25 #10)
 19. [x] Twinning check: left and right moving in perfect sync flagged (wt-twinning: scripts/twinning.gd, "Check: twinning" and "Fix: offset the picked side by 3 frames"; docs/research/TWINNING.md)
-20. [~] Viewport playback at real time on heavy scenes (measure, then cache poses per frame)
+20. [x] Viewport playback at real time on heavy scenes (measure, then cache poses per frame)
 
 ### Wave B: the innovations
-21. [~] Live webcam puppeteering (top-25 #6): helper + socket + fit + record built; no camera here, the test is camera-free (see the commit)
-22. [ ] Type a move, get blocking (top-25 #8)
+21. [x] Live webcam puppeteering (top-25 #6): helper + socket + fit + record built; no camera here, the test is camera-free (see the commit)
+22. [~] Type a move, get blocking (top-25 #8) (restarted 10-18 night: retrieve-and-adapt from saved moves; the IK-from-scratch try missed by up to 52 cm)
 23. [x] Sketch a line of action -> pose (top-25 #9)
 24. [ ] Injury / load check for stunt teams (top-25 #11)
-25. [ ] Style transfer: heavier, older, tired, angry (top-25 #12)
+25. [x] Style transfer: heavier, older, tired, angry (top-25 #12)
 26. [ ] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
 27. [ ] Ragdoll to keys with pins (top-25 #14)
 28. [ ] Scene versions with a visual diff (top-25 #16)
