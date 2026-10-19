@@ -114,6 +114,8 @@ const DRAW := {
 	"unlock": [["box", Rect2(5, 11, 14, 10), 0], ["arc", Vector2(12, 8), 5, 2.2, 180, 330], ["seg", Vector2(7, 8), Vector2(7, 11), 2.2]],
 	"hints": [["ring", Vector2(12, 10), 7.5, 1.8], ["seg", Vector2(8, 16), Vector2(5, 22), 1.8], ["seg", Vector2(5, 22), Vector2(12.5, 17.5), 1.8],
 		["disc", Vector2(12, 7), 1.3], ["seg", Vector2(12, 10), Vector2(12, 13.5), 1.8]],
+	"export": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7.5, 8.5), Vector2(12, 3), 2.2], ["seg", Vector2(16.5, 8.5), Vector2(12, 3), 2.2],
+		["seg", Vector2(3, 13), Vector2(3, 21), 2.2], ["seg", Vector2(21, 13), Vector2(21, 21), 2.2], ["seg", Vector2(3, 21), Vector2(21, 21), 2.2]],
 	"export_glb": [["box", Rect2(3, 9, 12, 12), 1.8], ["seg", Vector2(10, 14), Vector2(20, 4), 2], ["seg", Vector2(20, 4), Vector2(14, 4), 2],
 		["seg", Vector2(20, 4), Vector2(20, 10), 2]],
 	"export_bvh": [["disc", Vector2(6, 5), 2.2], ["seg", Vector2(6, 8), Vector2(6, 15), 2], ["seg", Vector2(6, 15), Vector2(3, 21), 1.8],
