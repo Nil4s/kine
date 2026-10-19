@@ -44,6 +44,27 @@ To put the motion on *your* character (the **Humanoid** avatar, Mecanim retarget
 2. To retarget it to another humanoid, open the Advanced Import Settings and select the `Skeleton3D`. Under Retarget, add a **BoneMap** with the profile **SkeletonProfileHumanoid**; the UE-style names fill it in automatically (check Hips → `pelvis`, Head → `head`). Do the same on your character, and the animation plays on both.
 3. Poser's own test does exactly this read: `tests/glb_export_test.gd`.
 
+## Weapon trail points (sidecar JSON, ROADMAP 35)
+
+When the scene holds a weapon, every engine export (`Export for Unreal 5 / Unity / Godot`) also writes
+`<name>_<engine>_weapon_trail.json` next to the `.glb`. It is not a mesh and not in the .glb: it is the two edge points of the bat
+on every frame, so a game can draw its own sweep ribbon between them.
+
+```json
+{"format": "kine-weapon-trail-1", "scene": "combo3", "fps": 30, "units": "m", "up": "+Y",
+ "frames": [{"t": 0.0, "held": true, "base": [x, y, z], "tip": [x, y, z], "speed": 0.0}, ...]}
+```
+
+- `base` is the knob end (the butt, the grip side), `tip` is the far end of the bat. Frame `i` is at `t = i / fps`.
+- Metres, Y up, in the same space as the `.glb`'s root (the mannequin's own space; the weapon node in the file sits there too).
+  The UE5 preset's root motion moves only the body, not the weapon, so these points match the file's `weapon` node in all presets.
+- `held` is false on frames with no bat in a hand; then `base` and `tip` are `null`.
+- `speed` is the tip's speed in m/s (frame to frame), for the game to threshold a ribbon on, as the app does (8 m/s).
+- Tested by `tests/weapon_trail_test.gd`: the points equal the body's own weapon points on every held frame within 0.1 mm.
+
+This is not the motion trail (T) in the app, which draws the tip's path as dots. The app's ribbon ("Trail: weapon ribbon") and its
+smear frames ("Trail: smear frames") are for the playblast and the view only; the game builds its own from this file.
+
 ## Blender (and FBX for any engine)
 
 1. Set the scene frame rate to the animation's (Poser's default is **30**) **before** importing, because the importer turns seconds into frames at the scene's rate. Then File → Import → **glTF 2.0** and pick the `.glb`. You get one armature with an action named after the scene.
