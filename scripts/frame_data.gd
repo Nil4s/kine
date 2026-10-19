@@ -11,6 +11,9 @@
 ## +Z) or, with a dummy, the horizontal direction from the hero to it.
 ## HITBOXES (active frames only): the weapon's two capsules (Body.cap bat_handle / bat_barrel, radii B.rad), or with no
 ## weapon the striker's two limb capsules. HURTBOXES (every frame): the body capsules (Body.BODY + Body.WIDE).
+## HIT / HURT BOXES (ROADMAP 36, hit_boxes.gd): the scene's boxes are added on the frames they cover. A hit box the user
+## drew is in "hitboxes" with src "box" whether or not the frame is active (the active frames stay the auto-detected
+## ones); the hurtboxes are the body's capsules with the edits applied (off = left out, scale = the radius times).
 ## Units: metres, +Y up (the body's own space).
 class_name FrameData
 extends RefCounted
@@ -31,7 +34,10 @@ static func analyze(S: Scene, B: Body, fps := FPS, dummy: Dummy = null) -> Dicti
 	var raw := []
 	for f in N:
 		S.apply(B, float(f) / float(fps))
-		raw.append(_sample(B, dummy))
+		var s := _sample(B, dummy)
+		s["hurt"] = HitBoxes.hurt_list(B, S.boxes, f)   # the body's capsules, with the scene's hurt edits (none = as before)
+		s["authored"] = HitBoxes.hit_list(B, S.boxes, f)   # the hit boxes the user drew on this frame
+		raw.append(s)
 	# the key: the weapon when one is held in the scene, else the striking limb with the fastest tip
 	var key := "weapon"
 	var any_wep := false
@@ -77,6 +83,7 @@ static func analyze(S: Scene, B: Body, fps := FPS, dummy: Dummy = null) -> Dicti
 				first = f
 			last = f
 			hit = _hitboxes(raw[f], key)
+		hit.append_array(raw[f]["authored"])
 		frames.append({"f": f, "t": float(f) / float(fps), "active": act, "speed": speed,
 			"hitboxes": hit, "hurtboxes": raw[f]["hurt"]})
 	var startup := N
@@ -86,8 +93,11 @@ static func analyze(S: Scene, B: Body, fps := FPS, dummy: Dummy = null) -> Dicti
 		startup = first
 		active = last - first + 1
 		recovery = N - last - 1
-	return {"fps": fps, "n": N, "striker": key, "dir": dir, "startup": startup, "active": active,
+	var out := {"fps": fps, "n": N, "striker": key, "dir": dir, "startup": startup, "active": active,
 		"recovery": recovery, "first": first, "last": last, "gaps": active - nact, "frames": frames}
+	if not S.boxes.is_empty():
+		out["boxes"] = HitBoxes.to_file(S.boxes)   # the scene's own boxes (absent when there are none: the export is as before)
+	return out
 
 
 ## one frame's raw measurements (the body as posed now)
@@ -160,17 +170,26 @@ static func _v3(v: Vector3) -> Array:
 static func _caps_json(caps: Array) -> Array:
 	var out := []
 	for c in caps:
-		out.append({"a": _v3(c["a"]), "b": _v3(c["b"]), "r": snappedf(float(c["r"]), 1e-6)})
+		var o := {"a": _v3(c["a"]), "b": _v3(c["b"]), "r": snappedf(float(c["r"]), 1e-6)}
+		if c.has("src"):   # a hit box the user drew (hit_boxes.gd): its part, damage and hitstun ride with it
+			o["src"] = c["src"]
+			o["part"] = c["part"]
+			o["damage"] = snappedf(float(c["damage"]), 1e-3)
+			o["hitstun"] = int(c["hitstun"])
+		out.append(o)
 	return out
 
 
-## the JSON-ready dictionary: {fps, startup, active, recovery, frames: [{f, active, hitboxes, hurtboxes}]}
+## the JSON-ready dictionary: {fps, startup, active, recovery, frames: [{f, active, hitboxes, hurtboxes}], boxes (when the scene has any)}
 static func to_json(fd: Dictionary) -> Dictionary:
 	var frames := []
 	for fr in fd["frames"]:
 		frames.append({"f": fr["f"], "active": fr["active"], "hitboxes": _caps_json(fr["hitboxes"]),
 			"hurtboxes": _caps_json(fr["hurtboxes"])})
-	return {"fps": fd["fps"], "startup": fd["startup"], "active": fd["active"], "recovery": fd["recovery"], "frames": frames}
+	var out := {"fps": fd["fps"], "startup": fd["startup"], "active": fd["active"], "recovery": fd["recovery"], "frames": frames}
+	if fd.has("boxes"):
+		out["boxes"] = fd["boxes"]   # the scene's boxes (hit_boxes.gd), as the scene file keeps them
+	return out
 
 
 ## writes the JSON to `path` (a user's chosen file). Returns an Error.

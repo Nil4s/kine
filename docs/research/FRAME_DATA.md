@@ -39,3 +39,28 @@ wiki glossaries before quoting them publicly.
   frame data counts from the input, which the scene does not have.
 - Kine's active frames are a speed threshold, not a hitbox that the game authors. The threshold is a choice, and the bat's
   real strike speed is 10-20 m/s or more.
+
+## Hit and hurt boxes per frame (ROADMAP 36)
+
+The user draws boxes over frame ranges; the export carries them next to the automatic frame data. The maths is
+`scripts/hit_boxes.gd`, the commands and dialog `scripts/hit_boxes_ui.gd`. Frames are the frame data's fps (`f / fps` seconds).
+
+- **Attack box (hit)**: a capsule riding on a part (any body capsule, the bat's `bat_handle` / `bat_barrel`, or the off-hand
+  `wep2_*`). Its ends are the part's capsule ends moved by optional offsets `da` and `db`, in the part's own frame, so it
+  moves with the part. `r` overrides the radius. `damage` and `hitstun` (frames) ride with it.
+- **Vulnerable edit (hurt)**: a body capsule's radius times `scale` (shrink below 1, grow above 1) over a frame range.
+- **Off (hurt, `off: true`)**: that capsule has no hurtbox for those frames. Part `*` with off is **invincible**.
+- Ranges are inclusive (`f0` to `f1`). Without any edit the hurtboxes are one capsule per body segment, as before.
+
+**Scene file**: the key `boxes`, a list of these entries, written only when there is one (a scene without it saves as before).
+Mirror swaps the twin part and negates the x of the attack box offsets.
+
+**Export** (the frame data JSON, same file, extra fields only when boxes exist):
+- top level `boxes`: the scene's entries as the file keeps them.
+- each frame's `hitboxes`: the automatic hitboxes on active frames, plus the user's attack boxes on the frames they cover.
+  An attack box has `"src": "box"`, `"part"`, `"damage"` and `"hitstun"`; the automatic ones have only `a`, `b`, `r`.
+- each frame's `hurtboxes`: the body's capsules with the edits applied (an invincible frame has none).
+- `a` and `b` are in metres, Y up, in the body's own space.
+
+**Limits**: attack and vulnerable volumes are capsules only, not boxes. Attack boxes do not change which frames are active:
+startup, active and recovery stay the automatic measure.
