@@ -489,6 +489,19 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   release / snap FK refuse off a card (part keys would change the whole joint's curve before the pin).
 - tests/ik_pin_test.gd (ik_pin:h).
 
+## Shot camera (GATES SC; docs/GAP_ANALYSIS.md row 21; docs/research/SHOT_CAMERA.md)
+- `Scene.camera` = [{t, pos, aim, f mm}], in the hero's world. Between keys, pos, aim and f follow `PartKeys.at`
+  (PCHIP). The lens is 36 mm wide and the frame 16:9, so fov_v = 2 atan(20.25 / 2 / f) (`scripts/shot_camera.gd`).
+  The file key "camera" is written only when a camera exists. It is in the schema, is mirrored (x negated) and cloned,
+  and the undo snapshot "camera" holds it.
+- Commands: "Camera: key the shot camera from the view" (the view's origin, aimed at its pivot, a lens that frames
+  the same height), "Camera: look through the shot camera" (a view toggle: `main.shot_through`; orbit does nothing
+  while it is on), "Camera: remove the key here", and "Camera: lens 18/24/35/50/85/135 mm".
+- Look-through: `ShotCam.apply_to` gives the view camera a shifted frustum, so the shot lands in `main.shot_rect()`
+  (the largest 16:9 in the free view). `ShotFrame` draws the passepartout. Export playblast renders through the
+  camera when one exists, cropped to the frame (16:9). Scenes without a camera render as before.
+- tests/shot_camera_test.gd (shot_camera:w).
+
 ## Round 43: animator tools, kept light (GATES YY; docs/ANIM_RESEARCH.md) - one instance, gate by gate
 - YY0 WALK LEGS + YY1 LIVE BALANCE (Shift+B: COM on the floor, support hull, green/amber/red/grey). YY2 "Plant every
   sliding foot" (Check's slides planted at once, one undo step).

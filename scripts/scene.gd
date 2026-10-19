@@ -59,6 +59,7 @@ var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; 
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
+var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var name := "scene"
 var natural := true
@@ -1292,6 +1293,7 @@ func clone() -> Scene:
 	for a in actors:   # G1: deep (each actor's own scene is cloned, its xf copied)
 		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
+	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
 	return c
 
 
@@ -1761,6 +1763,8 @@ func to_dict(B: Body) -> Dictionary:
 			"scene": (a["scene"] as Scene).to_dict(B)})
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
+	if not camera.is_empty():
+		out["camera"] = ShotCam.to_file(camera)   # the shot camera: the same, only when there is one
 	return out
 
 
@@ -1775,7 +1779,8 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
-	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)"}
+	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
+	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
@@ -1813,6 +1818,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
 	if d2.has("ik"):
 		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+	if d2.has("camera"):
+		d2["camera"] = ShotCam.mirror_file(d2["camera"])   # the shot camera across x = 0
 	if d2.has("layer"):
 		d2["layer"] = Scene.mirror_layer(d2["layer"], M)
 	for L in d2.get("layers", []):
@@ -1866,6 +1873,7 @@ func from_dict(d: Dictionary) -> void:
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
+	camera = ShotCam.from_file(d.get("camera", []))   # the shot camera: absent = none
 	for p in d.get("props", []):
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))

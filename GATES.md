@@ -1984,3 +1984,21 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   agent_tools, command_search, bake, autosave PASS. OPEN: no viewport IK handle (commands only); a pinned foot
   overrides foot planting; a pinned grip hand fights the weapon grip; release/snap need the playhead on a card;
   the Blender side-by-side comparison not run yet.
+
+## Round 51 (SC): shot camera (docs/GAP_ANALYSIS.md gap 21; docs/research/SHOT_CAMERA.md)
+
+Bars set before the code. A 50 mm lens on a 36 mm sensor gives fov_v = 2 atan(20.25/2/50), matched within 0.01 deg.
+A projected point lands within 0.5 px of Camera3D.unproject_position. Between keys the position is the PCHIP within
+1 mm. Look-through matches a reference render with 0 px differing, and so does each playblast frame against
+look-through. The file round-trips, the camera mirrors, and each edit is one undo step. A scene with no camera
+plays back unchanged.
+- [x] SC1 keyed camera (pos, aim, f mm; PCHIP between keys), the lens maths, and a frustum that puts the shot in a
+  16:9 frame.
+- [x] SC2 look-through (a passepartout frame) and the playblast through the camera (16:9 frames).
+- [x] SC3 the file key "camera" (only when present), the schema, the mirror, the undo steps and the refusals.
+  EVIDENCE: tests/shot_camera_test.gd 28 ok, 0 failed. fov_v(50) = 22.8952 deg (the formula gives 22.8952), fov_h = 39.5978.
+  The rendered frame's angle is off by at most 0.00000 deg. 96 points against unproject_position: worst 0.0002 px. The PCHIP
+  path at 10 times: worst 0.0000 mm, aim 0.00001 deg. Look-through against a reference Camera3D: 0 px differ. Playblast
+  frames 0/12/24 against look-through: 0 px differ, 25 frames at 16:9. Round trip and schema hold, the mirror's error is 0,
+  and lens, add and remove are one undo step each. With no camera, the frame equals the scrub (0 px). undo_audit: 182 ok
+  run alone in 331 s; with 4 workers it hit the 400 s cap. say_next, agent_tools, schema and mirror_list PASS. No stub run.
