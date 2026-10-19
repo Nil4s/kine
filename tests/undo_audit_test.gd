@@ -16,6 +16,7 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"export_animation_.glb": "writes exports/<scene>.glb (a file, not an edit; round 34)",
 	"export_animation_.bvh": "writes exports/<scene>.bvh (a file, not an edit; round 34)",
 	"export_animation_.usda": "writes exports/<scene>.usda (a file, not an edit; round 42)",
+	"export_playblast_video": "writes exports/playblast/ frame by frame over many frames (a file, not an edit; round 50 PL0: its own test checks the app is back after)",
 	"save_a_version": "writes scenes/_versions/<scene>/ (a file, not an edit; round 29)",
 	"new_empty_scene": "replaces the scene (the open one stays on disk); not an edit of it",
 	"look_at_the_picked_prop": "needs a picked prop (no start picks one); the same _look_at path is audited by look_at_the_camera and its solve by look_at_test",
