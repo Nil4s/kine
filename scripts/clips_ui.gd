@@ -8,6 +8,9 @@
 ##   "Clip: warp ..."                 ROADMAP 83: the picked clip's time curve as a preset (linear, ease in, ease out, slow-mo
 ##                                    middle). The curve itself is on the strip when picked: drag a knot, click empty space
 ##                                    to add one, right-click a knot to take it out (timeline.gd; scripts/clips.gd warp_*)
+##   "Clip: match pose to the clip before"  ROADMAP 84: the picked clip starts at the source frame (within 0.5 s) whose pose is
+##                                    closest to the clip before's end, its walk is moved and turned onto that end, and the blend
+##                                    across the seam is 0.2 s; the clip before holds into the seam (scripts/pose_match.gd)
 ## The timeline (timeline.gd) draws the bars and drags them in time.
 class_name ClipsUI
 extends RefCounted
@@ -51,6 +54,8 @@ func commands(add: Callable) -> void:
 		false, "the picked clip starts fast and slows down at its end (its time curve bows up)")
 	add.call("Clip: warp slow-mo middle", "", warp_preset.bind("slow_mid"), "clip strip warp time curve slow motion middle",
 		false, "the picked clip is slow in the middle and fast at both ends (slow motion through the middle of the strip)")
+	add.call("Clip: match pose to the clip before", "", match_pose.bind(-1), "clip strip match pose transition seam blend foot walk smooth pop join",
+		false, "the picked clip starts at the frame (within 0.5 s) whose pose is closest to the clip before's end, moved onto its place and turned to its heading, with a 0.2 s blend (no pop at the seam)")
 
 
 ## the files a dialog offers: scenes (scene files: scenes/, scenes/_wip, moves/ with cards) or moves (poses and keyed moves)
@@ -204,6 +209,35 @@ func edit(k: int, opts: Dictionary) -> void:
 		S.clips[k] = c
 		_replay())
 	m._say("clip %s changed (Ctrl+Z takes it back)" % Clips.label(c))
+
+
+## ROADMAP 84: the picked clip (or clip k) matched to the clip before it: ONE undo step. Says what the match did
+func match_pose(k := -1) -> void:
+	var S: Scene = m.S
+	if k < 0:
+		k = _picked()
+		if k < 0:
+			return
+	if k >= S.clips.size():
+		return
+	var r := PoseMatch.plan(S, k)
+	if r.has("err"):
+		m._say(String(r["err"]))
+		return
+	var A: Dictionary = S.clips[int(r["A"])]
+	var B: Dictionary = S.clips[k]
+	if r["A2"] == A and r["B2"] == B:
+		m._say("the clip already starts matched to the clip before: drag or edit the clips to match again")
+		return
+	var ia: int = int(r["A"])
+	var A2: Dictionary = r["A2"]
+	var B2: Dictionary = r["B2"]
+	m._do(func():
+		S.clips[ia] = A2
+		S.clips[k] = B2
+		_replay())
+	m._say("clip %s matched: starts at source %.2f s (pose %.1f deg from the clip before's end), turned %.1f deg, %.2f s blend (Ctrl+Z takes it back)" % [
+		Clips.label(B2), float(B2["match"]["lt0"]), float(r["d"]), float(r["yaw"]), float(B2["bin"])])
 
 
 ## the picked clip, or the reason there is none (a message names the next step)
