@@ -16,7 +16,7 @@ const TOUCH := Color(1.0, 0.25, 0.2)
 const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10-12)
 const LEFT_W := 240   # round 36 (RR3): the browser; was 250
 const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sentences)
-const PAGE_H := 30   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
+const PAGE_H := 34   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
 const BOTTOM_H := 256 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
 const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
 const BOTTOM_EMPTY := 100 + PAGE_H   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
@@ -3191,7 +3191,19 @@ func _cam() -> void:
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	cam.h_offset = (rw() - lw()) * 0.5 * mpp
 	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
+	_axis_labels_fit(vs)
 	_dummy_view()
+
+
+## the axis words are 3D text drawn over the whole window: one that falls below the free view (under the say-line, the
+## scene strip or the page bar) is hidden, so no 3D label sits on a bottom bar
+func _axis_labels_fit(vs: Vector2) -> void:
+	if stage_root == null or not is_inside_tree():
+		return
+	var floor_y := vs.y - bottom_h - LINE_H - 8.0
+	for c in stage_root.get_children():
+		if c is Label3D and String(c.name).begins_with("axis_"):
+			c.visible = not cam.is_position_behind((c as Label3D).global_position) and cam.unproject_position((c as Label3D).global_position).y < floor_y
 
 
 ## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
@@ -3506,6 +3518,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		match k.keycode:
 			KEY_S:
 				ui_cmd.open()
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.alt_pressed and not k.shift_pressed:   # Alt+1..5: the camera views, now that Shift+1..5 are the pages
+				_view(k.keycode - KEY_0)
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.shift_pressed:   # Shift+1..5: the pages
 				_page_set(PAGES[k.keycode - KEY_1])
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
@@ -8472,6 +8486,8 @@ func _ui() -> void:
 	ui_view_menu.text = "View"
 	ui_view_menu.flat = false
 	ui_view_menu.focus_mode = Control.FOCUS_NONE
+	ui_view_menu.theme_type_variation = "RibbonTab"
+	ui_view_menu.custom_minimum_size = Vector2(0, STRIP_H - 4)
 	ui_view_menu.tooltip_text = "the camera (front / sides / top / back, big view) and the display options: the same on every page"
 	ui_view_menu.about_to_popup.connect(_view_menu_fill)
 	ui_view_menu.get_popup().id_pressed.connect(_view_menu_pick)
@@ -10053,6 +10069,7 @@ func _build_page_bar() -> void:
 	bar.anchor_bottom = 1.0
 	bar.anchor_right = 1.0
 	bar.offset_top = -PAGE_H
+	bar.grow_vertical = Control.GROW_DIRECTION_BEGIN   # never past the window's bottom edge, whatever the theme adds
 	ui_page_bar = bar
 	ui_root.add_child(bar)
 	var h := HBoxContainer.new()
@@ -10067,7 +10084,7 @@ func _build_page_bar() -> void:
 		b.icon = Icons.tex("page_" + p.to_lower())
 		b.focus_mode = Control.FOCUS_NONE
 		b.theme_type_variation = "RibbonTab"
-		b.custom_minimum_size = Vector2(104, PAGE_H - 6)
+		b.custom_minimum_size = Vector2(104, PAGE_H - 10)
 		if PAGE_ROW.has(p):
 			var i := PAGES.find(p)
 			b.toggle_mode = true
@@ -10416,7 +10433,7 @@ func _commands() -> Array:
 			id = id.replace(ch, " ")
 		c.append({"id": "_".join(id.split(" ", false)), "name": n, "keys": keys, "run": f, "also": also, "edits": edits, "desc": desc})
 	for v in [["Front view", 1], ["His right view", 2], ["Top view", 3], ["Back view", 4], ["His left view", 5]]:
-		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s" % v[0].to_lower())
+		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s (Alt+%d too: Shift+1..5 are the pages)" % [v[0].to_lower(), v[1]])
 	for pi in PAGES.size():
 		add.call("Page: " + PAGES[pi], "Shift+%d" % (pi + 1), _press.bind(KEY_1 + pi, true), "page layout workspace screen tab switch " + String(PAGE_ROW[PAGES[pi]]).to_lower(), false, "the %s page: %s (a view change; the scene and the undo history are untouched)" % [PAGES[pi], PAGE_TIPS[PAGES[pi]]])
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")

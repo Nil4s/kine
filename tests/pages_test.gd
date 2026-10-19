@@ -101,6 +101,14 @@ func _init() -> void:
 		await click(m.ui_page_btns[p])
 		var bp: Rect2 = m.ui_bp.get_global_rect()
 		ok(bp.end.y <= bar.get_global_rect().position.y + 0.5, "8 %s: the scene strip ends at %.0f, the page bar starts at %.0f" % [p, bp.end.y, bar.get_global_rect().position.y])
+	# 3D labels stay off the bottom bars: every axis word still shown is above the free view's bottom, on every page
+	var low_lab := true
+	for p in m.PAGES:
+		await click(m.ui_page_btns[p])
+		for c in m.stage_root.get_children():
+			if c is Label3D and String(c.name).begins_with("axis_") and c.visible:
+				low_lab = low_lab and m.cam.unproject_position(c.global_position).y < vs.y - m.bottom_h - 4.0
+	ok(low_lab, "8 no axis label is drawn over the scene strip or the page bar (on any page)")
 	# 4 search finds every command, on every page (the search is main's one registry list)
 	var cs: CommandSearch = m.ui_cmd
 	var missing := 0
