@@ -7337,6 +7337,7 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check (experimental: the limits are still being verified)")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
+	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
@@ -8146,6 +8147,41 @@ func _critique() -> void:
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))
 	ui_find.visible = true
 	_say("critique: " + ("nothing to note" if notes.is_empty() else "%d notes (never must-fix). Click one to jump to it." % notes.size()))
+
+
+## ROADMAP 24: the stunt-load report (StuntLoad, scripts/stunt_load.gd): landing g, knee valgus, spine, neck. NOTE only
+func _stunt_check() -> void:
+	if S.cards.size() < 2:
+		_say("Stunt load needs a scene of two cards or more")
+		return
+	var notes := StuntLoad.findings(S, ov.GB)
+	for c in ui_find_list.get_children():
+		ui_find_list.remove_child(c)
+		c.queue_free()
+	var head := HBoxContainer.new()
+	ui_find_list.add_child(head)
+	var title := _label("STUNT LOAD REPORT  -  %d notes (never must-fix)" % notes.size(), 18, "heading")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_button("Close", _close_findings))
+	ui_find_list.add_child(_label("Loads a performer would take, from the motion: landing (vGRF in body weights), knee valgus, spine (NIOSH 3400 N, ours), neck. Bars and sources: docs/research/STUNT_LOAD.md. Click one to jump to its moment.", 13, "text:0.6", true))
+	for k in notes.size():
+		var f: Dictionary = notes[k]
+		var b := Button.new()
+		b.name = "stunt_%d" % (k + 1)
+		b.text = "%.2f s  card %d  -  %s\n%s" % [f["t"], f["card"] + 1, f["rule"], f["msg"]]
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(380, 0)
+		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_color_override("font_color", Tok.of("text:0.85"))
+		b.pressed.connect(_goto_finding.bind(f))
+		ui_find_list.add_child(b)
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 110.0 * notes.size(), 60.0,
+		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))
+	ui_find.visible = true
+	_say("stunt load: %d notes (never must-fix). Click one to jump to it." % notes.size())
 
 
 ## Check is fresh: it ran, and nothing has been changed since (an edit pushes an undo step; an undo takes one away)
