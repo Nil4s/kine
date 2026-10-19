@@ -17,6 +17,11 @@
 ##   CYCLES (GE4)    the Mods menu gets "Add cycles": Blender's Cycles modifier (PartKeys header). The drawn line is
 ##                   value_at, so the repeats (and any noise) are drawn as they play; a channel with modifiers says so
 ##                   in its row.
+##   SHAPE (GE5)     with Channels on, the Shape menu reshapes the selected dots of EVERY channel (each part's own keys,
+##                   KeyBlend's tools, one undo step); the single-part view keeps its own picked dots.
+##   RANGE (GE5)     the Mods menu's last four items set the last modifier's Restrict Frame Range on the picked part:
+##                   start / end at the playhead, blend 0.25 s in and out, clear. A ranged modifier shades the plot
+##                   outside its range and marks its start and end (the curve drawn is value_at, so it shows the ramp).
 class_name GraphEditor
 extends CurveEditor
 
@@ -42,6 +47,7 @@ var _gbox := Rect2()
 var _gscene: Scene = null
 var _multi_btn: Button
 var _keys_menu: MenuButton
+const RANGE_ITEMS := ["Range of the last modifier: start at the playhead", "Range of the last modifier: end at the playhead", "Range of the last modifier: blend 0.25 s in and out", "Range of the last modifier: clear"]   # GE5
 const KEY_ITEMS := ["Scale time x factor (about the pivot)", "Scale value x factor (about the pivot)", "Pivot: 2D cursor / box centre", "Cursor value to selection", "Normalize view on / off", "Select all keys", "Show every channel"]
 
 
@@ -75,6 +81,8 @@ func _ready() -> void:   # the parent's header controls exist by now (they are m
 	_keys_menu.get_popup().id_pressed.connect(func(id): key_item(id))
 	add_child(_keys_menu)
 	_mods.get_popup().add_item("Add cycles (repeat before and after)", MOD_ITEMS.size())
+	for k in RANGE_ITEMS.size():   # GE5
+		_mods.get_popup().add_item(RANGE_ITEMS[k], MOD_ITEMS.size() + 1 + k)
 	_place.call_deferred()
 
 
@@ -107,6 +115,8 @@ func set_normalize(on: bool) -> void:
 
 ## the Mods menu's extra item: the Cycles modifier on the picked part (repeat before and after, for ever)
 func mod_item(id: int) -> int:
+	if id > MOD_ITEMS.size():
+		return _range_item(id - MOD_ITEMS.size() - 1)
 	if id != MOD_ITEMS.size():
 		return super.mod_item(id)
 	if keys().is_empty() or scene == null:
@@ -120,6 +130,106 @@ func mod_item(id: int) -> int:
 	if changed.is_valid():
 		changed.call()
 	return r
+
+
+## GE5: the last modifier of the picked part gets / loses a frame range (Blender's Restrict Frame Range). An unset start or
+## end takes the keyed span's first / last time; one undo step. Returns the modifier's index or -1
+func _range_item(k: int) -> int:
+	if keys().is_empty() or scene == null:
+		return -1
+	var ms := PartKeys.mods_of(keys())
+	if ms.is_empty():
+		return -1
+	var idx := ms.size() - 1
+	var md: Dictionary = ms[idx]
+	var tf := float(keys()[0]["t"])
+	var tl := float(keys()[-1]["t"])
+	var s := float(md["range_start"]) if md.has("range_start") else tf
+	var e := float(md["range_end"]) if md.has("range_end") else tl
+	var bi := float(md.get("blend_in", 0.0))
+	var bo := float(md.get("blend_out", 0.0))
+	match k:
+		0:
+			s = playhead
+		1:
+			e = playhead
+		2:
+			bi = 0.25
+			bo = 0.25
+		3:
+			if begin.is_valid():
+				begin.call()
+			PartKeys.clear_range(scene.part_keys, joint, idx)
+			_after_mod()
+			return idx
+	if begin.is_valid():
+		begin.call()
+	PartKeys.set_range(scene.part_keys, joint, idx, s, e, bi, bo)
+	_after_mod()
+	return idx
+
+
+func _after_mod() -> void:
+	_refit_multi()
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+
+
+## GE5: the Shape menu (KeyBlend's tools) on the selected dots of every channel in the channels view: each part's dots go
+## to the tool as its own keys, one undo step, the joint limits kept. The single-part view is the parent's
+func shape(tool: String, f: float) -> Dictionary:
+	if not multi:
+		return super.shape(tool, f)
+	if msel.is_empty() or scene == null:
+		last_shape = {"tool": tool, "changed": 0, "skipped": 0}
+		return last_shape
+	if begin.is_valid():
+		begin.call()
+	var by := {}
+	for q in msel:
+		if not by.has(q[0]):
+			by[q[0]] = []
+		(by[q[0]] as Array).append([q[1], q[2]])
+	var n_ch := 0
+	var n_skip := 0
+	for j in by:
+		var ks: Array = scene.part_keys[j]
+		var r := KeyBlend.apply(ks, by[j], tool, f)
+		n_ch += int(r["changed"])
+		n_skip += int(r["skipped"])
+		if limit.is_valid():
+			for q in by[j]:
+				var v: Vector3 = ks[q[1]]["v"]
+				v[q[0]] = (limit.call(j, v) as Vector3)[q[0]]
+				ks[q[1]]["v"] = v
+	last_shape = {"tool": tool, "changed": n_ch, "skipped": n_skip}
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+	return last_shape
+
+
+## GE5: shade the plot outside a modifier's frame range and mark its start and end (every ranged modifier of part j)
+func _draw_ranges(j: String, col: Color) -> void:
+	if scene == null or not scene.part_keys.has(j):
+		return
+	var p := plot()
+	for md in PartKeys.mods_of(scene.part_keys[j]):
+		if not md.has("range_start") or not md.has("range_end"):
+			continue
+		var s := float(md["range_start"])
+		var e := maxf(float(md["range_end"]), s)
+		var xs := t_to_x(s)
+		var xe := t_to_x(e)
+		var shade := Color(0.0, 0.0, 0.0, 0.22)
+		if xs > p.position.x:
+			draw_rect(Rect2(p.position.x, p.position.y, minf(xs, p.end.x) - p.position.x, p.size.y), shade)
+		if xe < p.end.x:
+			draw_rect(Rect2(maxf(xe, p.position.x), p.position.y, p.end.x - maxf(xe, p.position.x), p.size.y), shade)
+		for x in [xs, xe]:
+			if x >= p.position.x and x <= p.end.x:
+				draw_dashed_line(Vector2(x, p.position.y), Vector2(x, p.end.y), Color(col, 0.7), 1.0, 3.0)
 
 
 func key_item(id: int) -> void:
@@ -349,6 +459,8 @@ func frame_all() -> void:
 func _draw() -> void:
 	if not multi:
 		super._draw()
+		if scene != null and joint != "" and scene.part_keys.has(joint):
+			_draw_ranges(joint, Tok.c("say"))   # GE5
 		return
 	if scene != _gscene:
 		_gscene = scene
@@ -407,6 +519,8 @@ func _draw() -> void:
 	for ch in cs:
 		if not is_hidden(ch[0], ch[1]):
 			draw_polyline(ch_polyline(ch[0], ch[1]), ch_col(ch[0], ch[1]), 2.0, true)
+	for j in parts():   # GE5
+		_draw_ranges(j, Tok.c("say"))
 	if dots:
 		for ch in cs:
 			if is_hidden(ch[0], ch[1]):

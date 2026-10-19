@@ -44,6 +44,11 @@
 ##   noise    (GE4 additions, both optional so older stacks play bit for bit) "offset" s: the noise moved in time
 ##            (x = (t - offset) / scale + phase); "depth" n >= 0: n extra octaves, each twice as fast and half as strong,
 ##            normalised so the sum stays in -strength/2 .. +strength/2
+## RESTRICT FRAME RANGE (GE5, Blender's "Restrict Frame Range" on a modifier), any modifier, optional: "range_start" /
+## "range_end" (s; both present = a range, end clamped to >= start) and "blend_in" / "blend_out" (s, written only when > 0).
+## The modifier's influence is 0 outside [range_start, range_end], ramps linearly 0 -> 1 over blend_in from the start and
+## 1 -> 0 over blend_out before the end (the two ramps' minimum where they meet). No range fields = everywhere, and the
+## expression is the one that was there before (old files play bit for bit). A stack's modifiers each have their own range.
 ## Like "inf" it lives on the first key, so it saves, undoes, copies and mirrors with the keys. value_at() is the curve WITH
 ## the modifiers (the scene plays and exports it); at() stays the keys alone.
 ## In the FILE: "part_keys": {"<joint>": [{"t": 0.42, "v": [bend, side, twist]}, ...]}, written only when there is one
@@ -78,6 +83,9 @@ static func _eval_upto(keys: Array, ms: Array, k: int, t: float) -> Vector3:
 	if k < 0:
 		return at(keys, t)
 	var md: Dictionary = ms[k]
+	var w := range_weight(md, t)   # GE5: outside its range a modifier does nothing (the stack below stands)
+	if w <= 0.0:
+		return _eval_upto(keys, ms, k - 1, t)
 	var before := _eval_upto(keys, ms, k - 1, t)
 	var after := before
 	var ty := String(md.get("type", ""))
@@ -107,11 +115,58 @@ static func _eval_upto(keys: Array, ms: Array, k: int, t: float) -> Vector3:
 			after[c] = clampf(before[c], float(md.get("min", -INF)), float(md.get("max", INF)))
 	var ch := int(md.get("ch", -1))
 	var mix := clampf(float(md.get("mix", 1.0)), 0.0, 1.0)
+	if w < 1.0:   # GE5: the blend ramps scale the influence
+		mix *= w
 	var out := before
 	for c in 3:
 		if ch < 0 or ch == c:
 			out[c] = before[c] + (after[c] - before[c]) * mix
 	return out
+
+
+## GE5: a modifier's influence at time t from its frame range: 1 with no range, 0 outside it, the blend ramps between
+static func range_weight(md: Dictionary, t: float) -> float:
+	if not (md.has("range_start") and md.has("range_end")):
+		return 1.0
+	var s := float(md["range_start"])
+	var e := maxf(float(md["range_end"]), s)
+	if t < s or t > e:
+		return 0.0
+	var w := 1.0
+	var bi := float(md.get("blend_in", 0.0))
+	var bo := float(md.get("blend_out", 0.0))
+	if bi > 1e-9:
+		w = minf(w, (t - s) / bi)
+	if bo > 1e-9:
+		w = minf(w, (e - t) / bo)
+	return clampf(w, 0.0, 1.0)
+
+
+## GE5: give stack entry idx of joint j the frame range [s, e] with blend in / out (s; 0 = none). False if no such modifier
+static func set_range(pk: Dictionary, j: String, idx: int, s: float, e: float, bi: float, bo: float) -> bool:
+	var ms := mods_of(pk.get(j, []))
+	if idx < 0 or idx >= ms.size():
+		return false
+	var md: Dictionary = ms[idx]
+	md["range_start"] = s
+	md["range_end"] = maxf(e, s)
+	md.erase("blend_in")
+	md.erase("blend_out")
+	if bi > 1e-9:
+		md["blend_in"] = bi
+	if bo > 1e-9:
+		md["blend_out"] = bo
+	return true
+
+
+## GE5: take a modifier's frame range away (it applies everywhere again; the fields are not stored)
+static func clear_range(pk: Dictionary, j: String, idx: int) -> bool:
+	var ms := mods_of(pk.get(j, []))
+	if idx < 0 or idx >= ms.size():
+		return false
+	for f in ["range_start", "range_end", "blend_in", "blend_out"]:
+		(ms[idx] as Dictionary).erase(f)
+	return true
 
 
 ## GE4: the Cycles modifier at stack index k (see the header): the stack below it read inside the keyed span
