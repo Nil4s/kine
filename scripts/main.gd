@@ -2388,6 +2388,7 @@ func _refresh() -> void:
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
+	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
 
@@ -2938,6 +2939,7 @@ func _snapshot() -> Dictionary:
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
+		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
@@ -2981,6 +2983,8 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
+	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
+		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
 		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
 		_dummy_hits()
@@ -4304,6 +4308,76 @@ func _drv_remove() -> void:
 	_do(func(): Drivers.remove_on(S.drivers, sel))
 	_dummy_hits()
 	_say("removed the driver on %s (Ctrl+Z puts it back)" % nice(sel))
+
+
+## SECONDARY MOTION (ROADMAP item 26; scripts/secondary_motion.gd). A ponytail, a cloth strip or an oak bo hangs from a
+## joint and follows it with lag and overshoot. "Secondary: add ..." adds the item AND bakes it in one undo step: the sim
+## runs over the scene's frames and the keys are written to the scene (S.secondary). The view draws the baked chain at the
+## playhead; before a bake the chain shows at rest. Bake again after the animation changes.
+var _sec_line: MeshInstance3D
+
+
+func _sec_attach_now(item: Dictionary) -> Vector3:
+	return SecondaryMotion.attach_point(B, item)
+
+
+func _sec_add(key: String) -> void:
+	var item := SecondaryMotion.preset(key)
+	item["name"] = SecondaryMotion.free_name(S.secondary, String(item["name"]))
+	var sec := SecondaryMotion.with_item(S.secondary, item)
+	sec = SecondaryMotion.bake_scene(S, B, sec)
+	_do(func(): S.secondary = sec)
+	_dummy_hits()
+	_say("added the %s and baked it: %d frames of keys (Ctrl+Z takes it back)" % [String(item["name"]), S.length() * S.fps + 1])
+
+
+func _sec_bake() -> void:
+	if (S.secondary.get("items", []) as Array).is_empty():
+		_say("no secondary motion yet: 'Secondary: add a ponytail' (or a cloth strip, or a weapon flex) first")
+		return
+	var sec := SecondaryMotion.bake_scene(S, B, S.secondary)
+	_do(func(): S.secondary = sec)
+	_dummy_hits()
+	_say("baked %d secondary item(s) to keys (Ctrl+Z takes it back)" % (S.secondary.get("items", []) as Array).size())
+
+
+func _sec_clear() -> void:
+	if (S.secondary.get("items", []) as Array).is_empty():
+		_say("no secondary motion to clear")
+		return
+	_do(func(): S.secondary = {})
+	_dummy_hits()
+	_say("took the secondary motion off the scene (Ctrl+Z puts it back)")
+
+
+## the overlay: each item's chain at the playhead, from its baked keys (at rest when not baked yet)
+func _sec_draw() -> void:
+	if _sec_line == null:
+		_sec_line = MeshInstance3D.new()
+		_sec_line.name = "secondary"
+		_sec_line.mesh = ImmediateMesh.new()
+		add_child(_sec_line)
+	var im := _sec_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	var items: Array = S.secondary.get("items", []) if S != null else []
+	if items.is_empty() or clean:
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var cols := [Color(0.35, 0.85, 1.0, 0.9), Color(1.0, 0.6, 0.25, 0.9), Color(0.6, 1.0, 0.45, 0.9)]
+	for k in items.size():
+		var item: Dictionary = items[k]
+		var th := SecondaryMotion.replay(S.secondary, item, t)
+		var pts := SecondaryMotion.points(item, _sec_attach_now(item), th)
+		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+		im.surface_set_color(cols[k % cols.size()])
+		for i in pts.size() - 1:
+			im.surface_add_vertex(pts[i])
+			im.surface_add_vertex(pts[i + 1])
+		for p in pts:   # a small cross at every node: the joints the baked keys drive
+			for ax in [Vector3.RIGHT, Vector3.UP, Vector3.BACK]:
+				im.surface_add_vertex(p - ax * 0.012)
+				im.surface_add_vertex(p + ax * 0.012)
+		im.surface_end()
 
 
 ## ASK AI (round 46, GATES BB2): opens / closes the AI box (scripts/ai_box.gd) at the right, above the cards. The box
@@ -7361,6 +7435,11 @@ func _commands() -> Array:
 	add.call("Driver: the picked part follows the source", "", _drv_follow, "driver drive follow link expression factor blender", true, "the picked part's bend follows the source's bend every frame, factor 1.0 (the factor presets change it)")
 	add.call("Driver: factor 0.5", "", _drv_factor.bind(0.5), "driver factor half scale ratio", true, "the picked part's driver: it follows its source at half the source's angle")
 	add.call("Driver: factor 2", "", _drv_factor.bind(2.0), "driver factor double scale ratio", true, "the picked part's driver: it follows its source at twice the source's angle")
+	add.call("Secondary: add a ponytail", "", _sec_add.bind("ponytail"), "secondary ponytail hair tail sway lag overshoot bake spring", true, "a ponytail hangs from the head and follows it with lag and overshoot; baked to keys")
+	add.call("Secondary: add a cloth strip", "", _sec_add.bind("cloth"), "secondary cloth strip belt flap sway lag overshoot bake spring", true, "a cloth strip hangs from the belt and follows the body; baked to keys")
+	add.call("Secondary: add a weapon flex (oak bo)", "", _sec_add.bind("bo"), "secondary weapon flex bo staff shaft wobble strike bend bake", true, "a 1.8 m oak bo clamped at the right hand bends and settles after a strike; baked to keys")
+	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
+	add.call("Secondary: clear", "", _sec_clear, "secondary clear remove off delete chain", true, "takes every secondary item and its keys off the scene (Ctrl+Z puts them back)")
 	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
 	add.call("Driver: remove the picked part's driver", "", _drv_remove, "driver delete remove clear", true, "the picked part stops following its source (its angle is the card's again)")
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)

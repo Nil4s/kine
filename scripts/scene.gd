@@ -75,6 +75,7 @@ var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: 
 var _plants_off := false   # set while FootPlant.refs reads the pose at a plant's t0: the plants do not play then
 var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n"}} (the release ramp, read once per scene state)
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
+var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
 var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakref to the hero's (actor targets); null = the hero
@@ -1378,6 +1379,7 @@ func clone() -> Scene:
 	c.plants = plants.duplicate(true)   # foot plants (foot_plant.gd)
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
+	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
 	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
 	c.clips = clips.duplicate(true)   # CLIPS (clips.gd)
@@ -1880,6 +1882,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["plants"] = FootPlant.to_file(plants)   # foot plants: the same, only when there is one
 	if not drivers.is_empty():
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
+	if not secondary.is_empty():
+		out["secondary"] = SecondaryMotion.to_file(secondary)   # secondary motion: the same, only when there is an item
 	if not cons.is_empty():
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
 	if not camera.is_empty():
@@ -1905,6 +1909,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
+	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
@@ -1952,6 +1957,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
 	if d2.has("drivers"):
 		d2["drivers"] = Drivers.mirror_file(d2["drivers"], M)   # user drivers (drivers.gd), before S2 reads the file
+	if d2.has("secondary"):
+		d2["secondary"] = SecondaryMotion.mirror_file(d2["secondary"])   # secondary motion (secondary_motion.gd)
 	if d2.has("constraints"):
 		d2["constraints"] = Constraints.mirror_file(d2["constraints"])   # round 51: owners / parts to twins, offsets reflected
 	if d2.has("camera"):
@@ -2019,6 +2026,7 @@ func from_dict(d: Dictionary) -> void:
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
+	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():
 		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
