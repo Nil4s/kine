@@ -110,7 +110,7 @@ func _init() -> void:
 		if n.get_meta("label", "") != "":
 			shown.append(n.get_meta("label"))
 	ok(shown.size() == 12 and LABELS.all(func(l): return l in shown) and bts.size() == 12, "Easy shows exactly the 12 labelled buttons: %s" % str(shown))
-	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube")
+	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube %s" % str(range(panels().size()).filter(func(i): return panels()[i].visible)))
 	ok(m.ui_bp.visible, "the bottom panel (timeline and cards) stays: the tour and Play need it")
 	ok(m.lw() == 0.0 and m.rw() == 0.0, "the body view takes the room the hidden side panels had")
 	ok(m.easy.button("Open") != null and m.easy.button("Save").pressed.get_connections().size() > 0, "Open and Save are wired (their dialogs are not run here)")

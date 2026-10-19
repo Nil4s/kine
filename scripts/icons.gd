@@ -22,6 +22,7 @@ const DRAW := {
 	"play": [["seg", Vector2(8, 5), Vector2(8, 19), 2.4], ["seg", Vector2(8, 5), Vector2(19, 12), 2.4], ["seg", Vector2(8, 19), Vector2(19, 12), 2.4],
 		["seg", Vector2(10.5, 8.5), Vector2(10.5, 15.5), 3], ["seg", Vector2(13, 10), Vector2(13, 14), 3]],
 	"stop": [["box", Rect2(6, 6, 12, 12), 0]],
+	"easy": [["ring", Vector2(12, 12), 9, 2], ["disc", Vector2(8.5, 9.5), 1.6], ["disc", Vector2(15.5, 9.5), 1.6], ["arc", Vector2(12, 12), 5, 2, 20, 160]],
 	"poselib": [["box", Rect2(2.5, 2.5, 8.5, 8.5), 1.5], ["box", Rect2(13, 2.5, 8.5, 8.5), 1.5], ["box", Rect2(2.5, 13, 8.5, 8.5), 1.5],
 		["box", Rect2(13, 13, 8.5, 8.5), 1.5], ["disc", Vector2(6.75, 5.6), 1.3], ["seg", Vector2(6.75, 7), Vector2(6.75, 9.5), 1.3],
 		["disc", Vector2(17.25, 5.6), 1.3], ["seg", Vector2(17.25, 7), Vector2(19.5, 8.8), 1.3]],

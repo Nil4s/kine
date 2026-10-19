@@ -52,7 +52,7 @@ func _init() -> void:
 	cs.box.text = ""
 	await type("mirr")
 	print("     'mirr' -> %s" % str(names()))
-	ok(cs.shown.size() >= 3 and names().all(func(x): return x.to_lower().contains("mirr") or x.contains("side")), "'mirr' lists only mirror commands (%d)" % cs.shown.size())
+	ok(cs.shown.size() >= 3 and m.ui_cmd.shown.all(func(c): return (c["name"] + " " + str(c.get("also", ""))).to_lower().contains("mirr") or c["name"].contains("side")), "'mirr' lists only mirror commands (%d)" % cs.shown.size())
 	cs.box.text = ""
 	await type("trail")
 	ok(names()[0] == "Motion trail on/off", "'trail': first is '%s'" % names()[0])
@@ -70,7 +70,7 @@ func _init() -> void:
 	key(KEY_ENTER)
 	await process_frame
 	ok(names().slice(0, 6) == ["Front view", "His right view", "Top view", "Back view", "His left view", "Big view (hide the panels)"] and names().size() >= 7 and names().has("Stepped preview on/off")
-		and names().slice(6).all(func(n): return n.to_lower().contains("preview")),
+		and m.ui_cmd.shown.slice(6).all(func(c): return (c["name"] + " " + str(c.get("also", ""))).to_lower().contains("view")),
 		"'view': the 5 views, Big view, then the preVIEWs (inside a word ranks lower): %s" % str(names()))
 	ok(third == "Top view" and is_equal_approx(m.pitch, -89.0), "'view', Down, Down, Enter: '%s' ran (pitch %.0f)" % [third, m.pitch])
 	key(KEY_S)

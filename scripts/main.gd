@@ -144,7 +144,7 @@ const RIBBON_GROUPS := {
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game"]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
-		["DISPLAY", ["Hints", "Light", "UI size"]]],
+		["DISPLAY", ["Hints", "Light", "UI size", "Easy mode"]]],
 }
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
 var ui_doc: Label         # the strip's middle: the scene's name, clips, length
@@ -3333,7 +3333,7 @@ func _foot_plant_at(tip: String, t0: float, t1: float) -> void:
 		_say("a foot plant needs a card after the first: add the body as a card, then plant")
 		return
 	if t1 - t0 < 1.0 / float(maxi(S.fps, 1)):
-		_say("nothing to plant: that range has no time in it")
+		_say("nothing to plant: that range has no time in it. Drag a range on the timeline first")
 		return
 	var p := {"foot": tip, "t0": t0, "t1": t1}
 	var rep := {}
@@ -3963,7 +3963,7 @@ func _drv_factor(f: float) -> void:
 
 func _drv_remove() -> void:
 	if Drivers.on(S.drivers, sel) < 0:
-		_say("no driver on the picked part: nothing to take off")
+		_say("no driver on the picked part: nothing to take off. Pick the driven part first")
 		return
 	_do(func(): Drivers.remove_on(S.drivers, sel))
 	_dummy_hits()
@@ -5230,7 +5230,7 @@ const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Sh
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib"}
+	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -6851,7 +6851,6 @@ func _layout_bottom() -> void:
 	ui_bh.visible = not folded and not easy.on
 	if not empty:
 		bottom_h += int(ui_timeline.clip_px())   # CLIPS: the panel grows by the strips' rows (none: as before)
-	ui_bh.visible = not folded
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
@@ -8663,7 +8662,7 @@ func _journal_offer_say() -> void:
 ## The journal goes on from it, whole, so a second crash is covered too; the moved-aside files are dropped
 func _journal_restore() -> void:
 	if journal_offer.is_empty():
-		_say("no unsaved work to restore: no session was left without a clean quit")
+		_say("no unsaved work to restore: no session was left without a clean quit. Open a scene to start")
 		return
 	var o := journal_offer
 	journal_offer = {}

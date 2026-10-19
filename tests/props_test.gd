@@ -22,7 +22,11 @@ func boxes(n: Node3D) -> Array:
 	var out := []
 	for c in n.get_children():
 		var mi := c as MeshInstance3D
-		out.append(mi.transform * mi.mesh.get_aabb())
+		if mi and mi.mesh:
+			out.append(mi.transform * mi.mesh.get_aabb())
+		elif c is Node3D:
+			for b in boxes(c):
+				out.append((c as Node3D).transform * b)
 	return out
 
 
