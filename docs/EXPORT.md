@@ -79,13 +79,12 @@ smear frames ("Trail: smear frames") are for the playblast and the view only; th
 
 ## FBX straight from the app (Export... → Unreal Engine 5 / Unity / Maya)
 
-Export... writes an **ASCII FBX 7.4** (`scripts/fbx_export.gd`, `FbxExport`): the same skeleton and keys as the `.glb`, the UE5 bone names, one take named after the scene, a rotation curve set (X, Y, Z in degrees, Euler XYZ) per animated bone, the pelvis's position curves, in **centimetres** (UnitScaleFactor 1.0), Y up. Every key is on a frame, as in the `.glb`. The weapons, props, sound and camera are not in it.
+Export... writes a **binary FBX 7.4** (`scripts/fbx_export.gd`, `FbxExport`): the same skeleton and keys as the `.glb`, the UE5 bone names, one take named after the scene, a rotation curve set (X, Y, Z in degrees, Euler XYZ) per animated bone, the pelvis's position curves, in **centimetres** (UnitScaleFactor 1.0), Y up. Every key is on a frame, as in the `.glb`. The weapons, props, sound and camera are not in it. The ASCII text of the same tree is a debug view: `FbxExport.write(..., ascii = true)`.
 
-- **Blender 4.5 cannot import ASCII FBX** ("ASCII FBX files are not supported"). Blender takes the `.glb` above, or an FBX that Blender itself wrote (the steps above).
 - **Unreal 5**: the root-motion preset writes `<scene>_ue5.fbx` with the travel on the root bone.
-- **Unity** and **Maya** read ASCII FBX; see the line the dialog shows for each.
+- **Unity**, **Maya** and **Blender 4.5** read it; each dialog line says what that engine needs. Blender reads the binary; it refuses ASCII FBX.
 
-How it was checked: `tests/fbx_export_test.gd` writes the FBX and the `.glb` for `combo3`, and `tests/py/fbx_check.py` (a reader of its own, `python -I`) reads the FBX text back: the 65 bone names and their order are the `.glb`'s skin joints, the parents match, every curve has the `.glb`'s 142 keys, and 9 samples (3 bones at 3 frames) read back within 0.01° of the body's local rotation (worst 0.000010°). The Blender check (`tests/py/fbx_blender_check.py`) needs Blender's binary FBX, so `tests/py/fbx_to_binary.py` re-encodes the same tree as binary for it; Blender's FBX importer and its glTF importer then agree on every bone's head (0.00000 m) and direction (0.0000°) at those frames.
+How it was checked: `tests/fbx_export_test.gd` writes the binary FBX and the `.glb` for `combo3`, and the ASCII debug view of the same scene. `tests/py/fbx_check.py` (a reader of its own, `python -I`) reads the ASCII back: the 65 bone names and their order are the `.glb`'s skin joints, the parents match, every curve has the `.glb`'s 142 keys, and 9 samples (3 bones at 3 frames) read back within 0.01° of the body's local rotation (worst 0.000010°). `tests/py/fbx_blender_check.py` then imports the app's own binary file in Blender 4.5 next to the `.glb`: every bone's head agrees to 0.00000 m and its direction to 0.0000°, at those frames, and the sampled bones move (0.135 m of head travel), so the check is not on a rest pose.
 
 ## Any other tool
 

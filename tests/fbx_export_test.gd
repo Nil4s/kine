@@ -32,8 +32,14 @@ func _init() -> void:
 	var fbx := "%s/combo3.fbx" % DIR
 	var glb := "%s/combo3.glb" % DIR
 	var keep := B.state()
-	var r := FbxExport.write(S, B, fbx)
-	ok(r["err"] == OK, "1 the .fbx is written (err %d, %d bones, %d curves, %d keys per curve)" % [r["err"], (r["bones"] as PackedStringArray).size(), r["curves"], r["keys"]])
+	var r := FbxExport.write(S, B, fbx)   # binary: the app's default, the file Blender reads
+	ok(r["err"] == OK and r["format"] == "binary", "1 the .fbx is written as binary (err %d, %s, %d bytes, %d bones, %d curves, %d keys per curve)" % [r["err"], r["format"], r["size"], (r["bones"] as PackedStringArray).size(), r["curves"], r["keys"]])
+	var head := FileAccess.get_file_as_bytes(ProjectSettings.globalize_path(fbx)).slice(0, 20).get_string_from_ascii()
+	ok(head == "Kaydara FBX Binary  ", "1b the file starts with the binary FBX header (\"%s\")" % head)
+	# the ASCII debug view of the same tree: the file the Python reader checks
+	var fbx_ascii := "%s/combo3_ascii.fbx" % DIR
+	var ra := FbxExport.write(S, B, fbx_ascii, false, Transform3D.IDENTITY, "", true)
+	ok(ra["err"] == OK and ra["format"] == "ascii", "1c the ASCII debug export of the same scene is written (err %d, %d bytes)" % [ra["err"], ra["size"]])
 	var eg := GltfExport.write(S, B, glb)
 	ok(eg == OK, "2 the reference .glb is written (err %d)" % eg)
 	# the body's own numbers at 3 frames: first, middle, last (the glb's sample times, k / fps capped at the length)
@@ -56,7 +62,7 @@ func _init() -> void:
 	f.close()
 	var py := ProjectSettings.globalize_path("res://tests/py/fbx_check.py")
 	var out: Array = []
-	var code := OS.execute("python", PackedStringArray(["-I", py, ProjectSettings.globalize_path(fbx), ProjectSettings.globalize_path(glb), ProjectSettings.globalize_path(exp_path)]), out, true)
+	var code := OS.execute("python", PackedStringArray(["-I", py, ProjectSettings.globalize_path(fbx_ascii), ProjectSettings.globalize_path(glb), ProjectSettings.globalize_path(exp_path)]), out, true)
 	for o in out:
 		for line in String(o).split("\n"):
 			if line.strip_edges() != "":

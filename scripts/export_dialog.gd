@@ -20,12 +20,14 @@ const TARGETS := [
 	{"id": "ue5", "label": "Unreal Engine 5", "engine": "ue5",
 		"formats": [{"name": "glTF 2.0 (.glb), named _ue5", "run": "engine:ue5"},
 			{"name": "FBX 7.4 (.fbx), named _ue5, root motion", "run": "fbx:ue5",
-				"needs": "UE5 imports the FBX as a Skeletal Mesh with Import Animations on. The file is in centimetres, which is UE5's unit: keep Import Uniform Scale at 1. The travel is on the root bone, as in the .glb. Unverified in-engine: UE5 was never opened on this file."}],
+				"needs": "UE5 imports the FBX as a Skeletal Mesh with Import Animations on. Its unit is the centimetre, as in the file: keep Import Uniform Scale at 1. The travel is on the root bone, as in the .glb. Unverified in-engine: UE5 was never opened on this file.",
+				"app": "Root motion: the pelvis's sideways travel is moved onto the root bone, so the pelvis keeps its place. Centimetres in the file (binary FBX 7.4, the app's default), UE5 bone names. The weapons and props are not in it."}],
 		"app": "Root motion: the pelvis's sideways travel is moved onto the root bone, so the pelvis keeps its place. Units: the file is metres, and UE5's glTF import scales them to centimetres with Import Uniform Scale 100 (unverified in-engine). Up: the file is Y up, UE5 is Z up and converts on import (unverified in-engine). Bones: UE5 Mannequin names, checked against UE5's core list. Unverified in-engine: UE5 was never opened on this file."},
 	{"id": "unity", "label": "Unity", "engine": "unity",
 		"formats": [{"name": "glTF 2.0 (.glb), named _unity, for glTFast", "run": "engine:unity"},
 			{"name": "FBX 7.4 (.fbx), named _unity", "run": "fbx",
-				"needs": "Unity's FBX importer reads the centimetres and converts them (Convert Units on). Rig: Generic, for the clip on any rig; Humanoid needs an Avatar that maps the UE5 names (pelvis, spine_01, upperarm_l ...) by hand. Unverified in-engine: Unity was never opened on this file."}],
+				"needs": "Unity's FBX importer reads the file in centimetres and converts them (Convert Units on). Rig: Generic plays the clip on any rig; Humanoid needs an Avatar that maps the UE5 names (pelvis, spine_01, upperarm_l ...) by hand. Unverified in-engine: Unity was never opened on this file.",
+				"app": "Centimetres in the file, Y up, nothing moved: the clip moves the hips (no root motion). Bones: UE5 names. Binary FBX 7.4. The weapons and props are not in it."}],
 		"app": "Metres and Y up, as the file is: nothing is moved, the clip moves the hips. Unverified in-engine: Unity was never opened on this file. A Humanoid avatar needs the FBX route (Blender, docs/EXPORT.md)."},
 	{"id": "godot", "label": "Godot 4", "engine": "godot",
 		"formats": [{"name": "glTF 2.0 (.glb), named _godot", "run": "engine:godot"}],
@@ -38,7 +40,8 @@ const TARGETS := [
 		"needs": "MotionBuilder reads BVH as motion capture. Maya has no BVH import in its base install: use a BVH plugin, or the FBX route through Blender (docs/EXPORT.md). Maya reads USD through its own importer. Neither was opened for this export.",
 		"formats": [{"name": "BVH (.bvh): motion capture", "run": "bvh"}, {"name": "USD (.usda): UsdSkel skeleton animation", "run": "usda"},
 			{"name": "FBX 7.4 (.fbx): File > Import > FBX", "run": "fbx",
-				"needs": "Maya reads ASCII FBX 7.4 in centimetres, Y up: File > Import, with the bones as joints and their rotations as curves (Euler XYZ). MotionBuilder reads it as a skeleton too. Unverified: neither was opened on this file."}],
+				"needs": "Maya and MotionBuilder read binary FBX 7.4 in centimetres, Y up: File > Import. The bones are joints with a bind pose, and their rotations are curves (Euler XYZ). Unverified: neither was opened on this file.",
+				"app": "Centimetres, Y up, the bones as joints with their keys on every frame; one file per fighter, each at its place. The weapons and props are not in it."}],
 		"app": "The .bvh holds one skeleton per file: every joint on every frame, metres, Y up, rotation order Z X Y. With several fighters, one .bvh each, placed where they stand. The .usda is UsdSkel with one time sample per frame; the weapons are not in it."},
 	{"id": "web", "label": "Web / three.js", "engine": "",
 		"needs": "A web app loads the .glb with three.js (GLTFLoader) or Babylon.js: glTF 2.0, metres, Y up, the front to +Z. Unverified in-engine: no browser loaded this file.",
@@ -184,9 +187,10 @@ func text_of(id: String, fi: int) -> Dictionary:
 	var f: Dictionary = fs[clampi(fi, 0, fs.size() - 1)]
 	var S: Scene = m.S
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
-	var fneeds := String(f.get("needs", ""))   # a format's own line (its engine's needs for that file type)
-	var needs := needs_of(t) if fneeds == "" else "%s\n\nFBX: %s" % [needs_of(t), fneeds]
-	return {"id": id, "format": String(f["name"]), "needs": needs, "app": String(t["app"]), "fps": fps_s,
+	# a format with its own "needs" / "app" replaces the target's (they describe that file type: glTF's scale is not FBX's)
+	var needs := String(f["needs"]) if f.has("needs") else needs_of(t)
+	var app := String(f["app"]) if f.has("app") else String(t["app"])
+	return {"id": id, "format": String(f["name"]), "needs": needs, "app": app, "fps": fps_s,
 		"checks": checks(id, String(f["run"]))}
 
 
@@ -202,6 +206,12 @@ func checks(id: String, run: String) -> Array:
 	var eng := String(t.get("engine", ""))
 	if eng != "":
 		out.append_array(EngineExport.preflight(S, B, eng, S.name if S.name != "" else "scene"))
+		if run.begins_with("fbx"):
+			# the engine's pre-flight describes the .glb's units (metres, scale 100); the FBX is centimetres at scale 1
+			for i in out.size():
+				var l := String(out[i])
+				if l.begins_with("OK    units:") or l.begins_with("WRONG units:"):
+					out[i] = l.replace("the file is metres; the mannequin is", "the file is centimetres; the mannequin is").replace("with Import Uniform Scale 100 (the glTF default)", "at Import Uniform Scale 1 (the FBX is centimetres)")
 	else:
 		if S.fps >= 1 and S.fps <= 120:
 			out.append("OK    frame rate: %d fps, a key on every frame (%d keys)" % [S.fps, int(ceil(S.length() * S.fps - 1e-6)) + 1])

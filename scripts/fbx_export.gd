@@ -1,4 +1,4 @@
-## FBX EXPORT (ROADMAP 78). A scene -> ASCII FBX 7.4 (.fbx): the mannequin's skeleton with UE5 bone names (the same names
+## FBX EXPORT (ROADMAP 78). A scene -> binary FBX 7.4 (.fbx; the ASCII text is a debug view): the mannequin's skeleton with UE5 bone names (the same names
 ## and the same rest pose as the .glb, GltfExport), one take named after the scene, and the animation on every frame of the
 ## glb's own keys: a rotation curve set (X, Y, Z in degrees, Euler XYZ) per animated bone, and the pelvis's position curves
 ## (centimetres). Godot has no FBX writer, so this writes the text itself; the tree and the keys come from GltfExport.build,
@@ -20,7 +20,9 @@ const TIME_MODE := {120: 1, 60: 3, 50: 4, 48: 5, 30: 6, 24: 11, 96: 15, 72: 16}
 ## root_motion as the engine presets (the pelvis's travel on the "root" bone). xf places the rig (a root Null, for
 ## several fighters); root_name names that Null (default: the scene). Returns {"err", "path", "bones" (PackedStringArray,
 ## the names in the file), "keys" (keys per curve), "curves" (animation curves written), "text"}.
-static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "") -> Dictionary:
+## BINARY by default (Unreal, Unity, Maya and Blender 4.5 all read it; Blender refuses ASCII). ascii = true writes the
+## ASCII text instead, a debug view of the same tree (tests/py/fbx_check.py reads it). The "format" key says which.
+static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false) -> Dictionary:
 	var keep := B.state()
 	var an := S.name if S.name != "" else "scene"
 	var man := GltfExport.build(S, B, an, false, root_motion)
@@ -35,14 +37,17 @@ static func write(S: Scene, B: Body, path: String, root_motion := false, xf := T
 	var err := OK
 	var abs := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
 	DirAccess.make_dir_recursive_absolute(abs.get_base_dir())
+	var data: PackedByteArray = (out["text"] as String).to_utf8_buffer() if ascii else to_binary(out["text"])
 	var f := FileAccess.open(abs, FileAccess.WRITE)
 	if f == null:
 		err = FileAccess.get_open_error()
 	else:
-		f.store_string(out["text"])
+		f.store_buffer(data)
 		f.close()
 	out["err"] = err
 	out["path"] = path
+	out["format"] = "ascii" if ascii else "binary"
+	out["size"] = data.size()
 	return out
 
 
@@ -291,3 +296,243 @@ static func _f(v: float) -> String:
 
 static func _esc(s: String) -> String:
 	return s.replace("\"", "'")
+
+
+## ---- BINARY FBX 7.4 (the default output) -------------------------------------------------------------------------------
+## The ASCII text above, re-encoded node by node: the same tree, so the binary cannot differ from the debug ASCII.
+## Value types as FBX writes them: ids and KTime int64 ('L'), other integers int32 ('I'), decimals float64 ('D'),
+## KeyTime int64 arrays, KeyValueFloat float32, KeyAttr int32 / float32, matrices float64, T / Y bool. An object's name
+## "Class::name" is written "name" + NUL + SOH + "Class" (Blender's reader needs that). Little-endian, uncompressed.
+const ID_NODES := ["Model", "NodeAttribute", "AnimationCurveNode", "AnimationCurve", "Pose", "AnimationStack", "AnimationLayer", "Document"]
+const ARRAY_CODE := {"KeyTime": "l", "KeyValueFloat": "f", "KeyAttrFlags": "i", "KeyAttrDataFloat": "f", "KeyAttrRefCount": "i", "Matrix": "d"}
+
+
+## the FBX text as binary FBX 7.4 bytes
+static func to_binary(text: String) -> PackedByteArray:
+	var top: Array = _block(_tokens(text), 0)[0]
+	var out := "Kaydara FBX Binary  ".to_ascii_buffer()
+	out.append(0)
+	out.append(0x1a)
+	out.append(0)
+	out.append_array(_u32(7400))
+	for node in top:
+		out.append_array(_rec(node, out.size()))
+	out.append_array(_null13())
+	for k in 16:
+		out.append(0)
+	return out
+
+
+## the ASCII text as tokens: [kind, text] with kind "S" (quoted), "P" (punctuation), "W" (a word or number)
+static func _tokens(src: String) -> Array:
+	var b := src.to_utf8_buffer()
+	var out := []
+	var i := 0
+	var n := b.size()
+	while i < n:
+		var c := b[i]
+		if c == 32 or c == 9 or c == 13 or c == 10:
+			i += 1
+		elif c == 59:   # ; a comment to the end of the line
+			while i < n and b[i] != 10:
+				i += 1
+		elif c == 34:   # "..."
+			var j := i + 1
+			while b[j] != 34:
+				j += 1
+			out.append(["S", b.slice(i + 1, j).get_string_from_utf8()])
+			i = j + 1
+		elif c == 123 or c == 125 or c == 58 or c == 44 or c == 42:   # { } : , *
+			out.append(["P", char(c)])
+			i += 1
+		else:
+			var j := i
+			while j < n and not (b[j] in [32, 9, 13, 10, 123, 125, 58, 44, 42, 34]):
+				j += 1
+			out.append(["W", b.slice(i, j).get_string_from_utf8()])
+			i = j
+	return out
+
+
+## the nodes of a block from token i, up to its closing brace: [nodes, index after it]. A node is
+## {name, values (each [kind, text], or {"arr": PackedStringArray} for a '*N { a: ... }' array), children}
+static func _block(toks: Array, i: int) -> Array:
+	var nodes := []
+	while i < toks.size():
+		if toks[i] == ["P", "}"]:
+			return [nodes, i + 1]
+		var name: String = toks[i][1]
+		i += 2   # the name and its colon
+		var values := []
+		var children := []
+		if toks[i] == ["P", "*"]:
+			var r := _block(toks, i + 3)   # '*', the count, then the block
+			i = r[1]
+			var arr := PackedStringArray()
+			for cn in r[0]:
+				for v in cn["values"]:
+					if v is Dictionary:
+						arr.append_array((v as Dictionary)["arr"])
+					else:
+						arr.append((v as Array)[1])
+			values.append({"arr": arr})
+		else:
+			while true:
+				var k: String = toks[i][0]
+				var is_node: bool = k == "W" and i + 1 < toks.size() and toks[i + 1] == ["P", ":"]
+				if k == "P" or is_node:
+					break
+				values.append([k, toks[i][1]])
+				i += 1
+				if toks[i] == ["P", ","]:
+					i += 1
+					continue
+				break
+			if i < toks.size() and toks[i] == ["P", "{"]:
+				var r2 := _block(toks, i + 1)
+				children = r2[0]
+				i = r2[1]
+		nodes.append({"name": name, "values": values, "children": children})
+	return [nodes, i]
+
+
+## one node record (FBX 7.4: 32-bit offsets), starting at byte start of the file
+static func _rec(node: Dictionary, start: int) -> PackedByteArray:
+	var name_b: PackedByteArray = String(node["name"]).to_utf8_buffer()
+	var props := _props(node)
+	var header := 13 + name_b.size()
+	var cur := start + header + props.size()
+	var kids := PackedByteArray()
+	for ch in node["children"]:
+		var r := _rec(ch, cur)
+		kids.append_array(r)
+		cur += r.size()
+	if not (node["children"] as Array).is_empty():
+		kids.append_array(_null13())
+	var end := start + header + props.size() + kids.size()
+	var out := _u32(end)
+	out.append_array(_u32((node["values"] as Array).size()))
+	out.append_array(_u32(props.size()))
+	out.append(name_b.size())
+	out.append_array(name_b)
+	out.append_array(props)
+	out.append_array(kids)
+	return out
+
+
+static func _props(node: Dictionary) -> PackedByteArray:
+	var name: String = node["name"]
+	var vals: Array = node["values"]
+	var out := PackedByteArray()
+	var is_ktime: bool = name == "P" and vals.size() > 1 and vals[1] is Array and (vals[1] as Array)[1] == "KTime"
+	for idx in vals.size():
+		var v = vals[idx]
+		if v is Dictionary:
+			out.append_array(_enc_array(ARRAY_CODE.get(name, "d"), (v as Dictionary)["arr"]))
+			continue
+		var force_long: bool = (ID_NODES.has(name) and idx == 0) or (name == "C" and (idx == 1 or idx == 2)) \
+			or name in ["PoseNode", "Node", "RootNode"] or (is_ktime and idx >= 4)
+		out.append_array(_enc_scalar((v as Array)[0], (v as Array)[1], force_long, name == "Default"))
+	return out
+
+
+static func _enc_scalar(kind: String, s: String, force_long: bool, as_double: bool) -> PackedByteArray:
+	var out := PackedByteArray()
+	if kind == "S":
+		var bytes := PackedByteArray()
+		if s.contains("::"):   # "Class::name" -> "name" NUL SOH "Class"
+			var at := s.find("::")
+			bytes = s.substr(at + 2).to_utf8_buffer()
+			bytes.append(0)
+			bytes.append(1)
+			bytes.append_array(s.substr(0, at).to_utf8_buffer())
+		else:
+			bytes = s.to_utf8_buffer()
+		out.append_array("S".to_ascii_buffer())
+		out.append_array(_u32(bytes.size()))
+		out.append_array(bytes)
+		return out
+	if s == "T" or s == "Y":
+		out.append_array("C".to_ascii_buffer())
+		out.append(1)
+		return out
+	if s.is_valid_int():
+		var v := s.to_int()
+		if as_double:
+			return _cat(_tag("D"), _f64(float(v)))
+		if force_long or absi(v) >= 2147483648:
+			return _cat(_tag("L"), _s64(v))
+		return _cat(_tag("I"), _s32(v))
+	return _cat(_tag("D"), _f64(s.to_float()))
+
+
+static func _enc_array(code: String, arr: PackedStringArray) -> PackedByteArray:
+	var n := arr.size()
+	var data := PackedByteArray()
+	match code:
+		"l":
+			data.resize(8 * n)
+			for k in n:
+				data.encode_s64(8 * k, arr[k].to_int())
+		"f":
+			data.resize(4 * n)
+			for k in n:
+				data.encode_float(4 * k, arr[k].to_float())
+		"i":
+			data.resize(4 * n)
+			for k in n:
+				data.encode_s32(4 * k, arr[k].to_int())
+		_:
+			data.resize(8 * n)
+			for k in n:
+				data.encode_double(8 * k, arr[k].to_float())
+	var out := _tag(code)
+	out.append_array(_u32(n))
+	out.append_array(_u32(0))   # encoding: raw
+	out.append_array(_u32(data.size()))
+	out.append_array(data)
+	return out
+
+
+static func _cat(a: PackedByteArray, b: PackedByteArray) -> PackedByteArray:
+	var r := a.duplicate()
+	r.append_array(b)
+	return r
+
+
+static func _tag(c: String) -> PackedByteArray:
+	return c.to_ascii_buffer()
+
+
+static func _u32(v: int) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.resize(4)
+	b.encode_u32(0, v)
+	return b
+
+
+static func _s32(v: int) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.resize(4)
+	b.encode_s32(0, v)
+	return b
+
+
+static func _s64(v: int) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.resize(8)
+	b.encode_s64(0, v)
+	return b
+
+
+static func _f64(v: float) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.resize(8)
+	b.encode_double(0, v)
+	return b
+
+
+static func _null13() -> PackedByteArray:
+	var b := PackedByteArray()
+	b.resize(13)
+	return b
