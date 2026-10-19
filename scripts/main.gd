@@ -370,6 +370,9 @@ var ui_tween: HSlider
 var ui_hist: PanelContainer        # UNDO HISTORY (round 11, #75)
 var ui_hist_list: VBoxContainer
 var ui_hist_btn: Button
+const HIST_SHOWN := 10             # ROADMAP 45: the History panel lists the newest 10 steps
+var ui_undo_btn: Button            # ROADMAP 45: its tooltip is "Undo: <the step it takes back>"
+var ui_redo_btn: Button
 var _step_hint := ""   # what the user just pressed (a button's text, a command's name, a shortcut's command): the undo
                        # step's name when nothing is said about it (#75)
 const KEY_WORD := {KEY_BRACKETLEFT: "[", KEY_BRACKETRIGHT: "]", KEY_COMMA: ",", KEY_PERIOD: ".", KEY_MINUS: "-", KEY_EQUAL: "="}
@@ -2717,6 +2720,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_num_axis = 0
 					_num_text = ""   # each drag types afresh
 					_push_undo()
+					undo[-1]["name"] = "Drag " + nice(j)   # ROADMAP 45: the drag's step is named by what it moved
+					_tree.set_name(_tree.cur, undo[-1]["name"])
+					_undo_tips()
 					_group_press(j, mb.ctrl_pressed, mb.position)
 					sel = j
 					_clicked_part = true   # the tour's step 1 (clicking the part already picked counts too)
@@ -3279,6 +3285,7 @@ func _push_undo() -> void:
 	_step_hint = ""
 	undo.append(u)
 	_tree.push(u)   # a new branch node when there was a redo: the abandoned future stays in the tree
+	_undo_tips()
 	_history_rows.call_deferred()
 	if undo.size() > 60:
 		undo.pop_front()
@@ -3302,6 +3309,7 @@ func _undo() -> void:
 	_restore(u)
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
+	_undo_tips()
 	_history_rows()
 	_jpending = true
 	_co_sync()
@@ -3320,6 +3328,7 @@ func _redo() -> void:
 	_restore(r)
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
+	_undo_tips()
 	_history_rows()
 	_jpending = true
 	_co_sync()
@@ -3330,6 +3339,7 @@ func _drop_undo() -> void:
 	_tree_sync()
 	undo.pop_back()
 	_tree.drop_cur()
+	_undo_tips()
 	_history_rows.call_deferred()
 
 
@@ -3342,6 +3352,7 @@ func _squash_undo(n0: int, step: String) -> void:
 	_tree.squash(n0)
 	undo[n0]["hint"] = step
 	_tree.set_hint(_tree.cur, step)
+	_undo_tips()
 	_history_rows.call_deferred()
 
 
@@ -3382,6 +3393,7 @@ func _tree_go(id: int) -> void:
 		redo.append(e2)
 	_restore(target)
 	_say("history: %d step%s done" % [undo.size(), "" if undo.size() == 1 else "s"])
+	_undo_tips()
 	_history_rows()
 	_jpending = true
 
@@ -5584,6 +5596,7 @@ func _say(t: String) -> void:
 	if not undo.is_empty() and not undo[-1].has("name") and not t.begins_with("undone") and not t.begins_with("redone"):
 		undo[-1]["name"] = step_name(t)
 		_tree.set_name(_tree.cur, step_name(t))   # the live step's node (the tree names what the lists name)
+		_undo_tips()
 		_history_rows()
 
 
@@ -5628,6 +5641,14 @@ func _why_step(ex: Dictionary) -> void:
 	_say_plain("next: %s" % ex["step"])
 
 
+## ROADMAP 45: the Undo and Redo buttons say what they will take back: "Undo: Drag left hand", "Redo: Retime: 3 cards"
+func _undo_tips() -> void:
+	if ui_undo_btn == null or ui_redo_btn == null:
+		return
+	ui_undo_btn.tooltip_text = ("Undo: " + _step_label(undo[-1])) if not undo.is_empty() else "Undo (Ctrl+Z)\nnothing to undo yet"
+	ui_redo_btn.tooltip_text = ("Redo: " + _step_label(redo[-1])) if not redo.is_empty() else "Redo (Ctrl+Y)\nnothing to redo yet"
+
+
 ## what a step is called: what was said about it, else what was pressed, else "change"
 static func _step_label(u: Dictionary) -> String:
 	var n := String(u.get("name", u.get("hint", "change")))
@@ -5660,9 +5681,12 @@ func _history_rows() -> void:
 		ui_hist_list.remove_child(c)
 		c.queue_free()
 	var rows := _tree.listing()
+	var total := rows.size()
+	if rows.size() > HIST_SHOWN:   # ROADMAP 45: the newest HIST_SHOWN steps (Ctrl+Z reaches the older ones)
+		rows = rows.slice(0, HIST_SHOWN)
 	var head := HBoxContainer.new()
 	ui_hist_list.add_child(head)
-	var title := _label("HISTORY  -  %d step%s" % [rows.size(), "" if rows.size() == 1 else "s"], 16, "heading")
+	var title := _label("HISTORY  -  %s" % ("last %d of %d steps" % [rows.size(), total] if total > HIST_SHOWN else "%d step%s" % [total, "" if total == 1 else "s"]), 16, "heading")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_button("Close", _toggle_history))
@@ -6551,9 +6575,12 @@ func _ui() -> void:
 	fill2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	strip.add_child(fill2)
 	var right0 := strip.get_child_count()
-	strip.add_child(_button("Undo (Ctrl+Z)", _undo))
+	ui_undo_btn = _button("Undo (Ctrl+Z)", _undo)
+	strip.add_child(ui_undo_btn)
 	ui_hist_btn = _button("History", _toggle_history, "every change by name, newest on top: click one to go back (or forward) to exactly there")
-	strip.add_child(_button("Redo (Ctrl+Y)", _redo))
+	ui_redo_btn = _button("Redo (Ctrl+Y)", _redo)
+	strip.add_child(ui_redo_btn)
+	_undo_tips()
 	strip.add_child(ui_hist_btn)
 	strip.add_child(_button("Search (S)", func(): ui_cmd.open(), "type a few letters of any command: mirror, trail, check, staff...  Enter runs it"))
 	var hb := _button("? Help", func(): ui_help.visible = not ui_help.visible, "every key and mouse move, on one page")
