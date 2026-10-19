@@ -125,6 +125,7 @@ func _init() -> void:
 	m.ui_scenes.show_popup()
 	await process_frame
 	await wait_pictures(3.0)
+	await th.settle()   # the cache reads are lazy now (a few per frame after the list is up); the old icons still show meanwhile
 	ok(all_pictures(), "second open: every picture is back")
 	ok(th.renders - r1 == 0, "second open drew %d pictures (0 = all from the cache)" % (th.renders - r1))
 	ok(th.disk_hits - h1 == files.size(), "second open read %d pictures from user://thumbs" % (th.disk_hits - h1))

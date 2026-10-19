@@ -14,6 +14,10 @@ const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROAD
 	"weight key at %.2f s = %.2f": "reports the weight key it just changed (NA1)",
 	"copied a card to %.2f s": "reports the copy it just made (NA0)",
 	"body: %s, %.1f cm tall": "reports the proportions it just set (PR1)",
+	# tonight's merges: these report what was just done (successes on the way out of a branch)
+	"Auto-key: card %d takes the body": "reports the body it just put on the card (auto-key)",
+	"all %d cards are on the floor now": "reports the snap it just made (floor snap; Ctrl+Z is named)",
+	"the body is on the floor now (Ctrl+Z": "reports the snap it just made (floor snap; Ctrl+Z is named)",
 	"_say(r[\"error\"])": "forwards PoseWords' error: each names the words to type instead (pose_words_test checks 5)"}
 
 

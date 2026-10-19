@@ -34,7 +34,7 @@ for s in $pick; do
   code=$?
   [ -n "$why" ] && code=124
   t=$(( $(date +%s) - t0 ))
-  oks=$(grep -c "^ok" "$log"); fails=$(grep -cE "^FAIL|^[A-Z_ ]+ FAIL" "$log"); errs=$(grep -c "SCRIPT ERROR" "$log")
+  oks=$(grep -c "^ok" "$log"); fails=$(grep -cE "^FAIL([^S]|$)|^[A-Z_ ]+ FAIL" "$log"); errs=$(grep -c "SCRIPT ERROR" "$log")
   verdict=PASS
   if [ $code -ne 0 ] || [ "$fails" -gt 0 ] || [ "$errs" -gt 0 ]; then verdict=FAIL; bad=$((bad+1)); fi
   n=$((n+1))

@@ -65,7 +65,7 @@ func audit(state: String) -> void:
 		m._sec_open(k, was_open[k])
 	for c in shown:
 		var cc := c as Control
-		var off: bool = (cc.get("disabled") == true) or (cc.get("editable") == false and (cc is LineEdit or cc is SpinBox or cc is TextEdit))
+		var off: bool = (cc.get("disabled") == true) or (cc.get("editable") == false and (cc is LineEdit or cc is SpinBox or cc is TextEdit or cc is Slider))   # Slider: the per-card ease slider is greyed by editable=false
 		var why := reason(cc.tooltip_text)
 		if off:
 			greyed += 1

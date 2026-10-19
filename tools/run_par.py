@@ -63,7 +63,7 @@ def run(s):
     code = 124 if why else p.returncode
     txt = open(log, encoding="utf-8", errors="replace").read().splitlines()
     oks = sum(1 for l in txt if l.startswith("ok"))
-    fails = sum(1 for l in txt if l.startswith("FAIL") or re.match(r"^[A-Z_ ]+ FAIL", l))
+    fails = sum(1 for l in txt if (l.startswith("FAIL") and not l.startswith("FAILS")) or re.match(r"^[A-Z_ ]+ FAIL", l))
     errs = sum(1 for l in txt if "SCRIPT ERROR" in l)
     ok = code == 0 and fails == 0 and errs == 0
     line = "%-4s %-15s ok %-4d fail %-3d script-errors %-3d exit %-3d %4ds %s" % (

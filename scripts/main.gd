@@ -383,6 +383,7 @@ var _pv_hover := {}   # the finding whose Fix button the mouse is on ({} = none)
 var _pv_gen := 0      # bumped by every Check: a job started before it is stale
 var ui_pole_row: HBoxContainer   # "points": swing the elbow / knee, the hand / foot held (round 10, GATES Q5)
 var ui_ease: OptionButton   # the picked card's ease preset (round 10, GATES Q2)
+var ui_ease_bias: HSlider   # ROADMAP 55: the picked card's Slow in / Slow out slider (Play options)
 var ui_spline: CheckBox
 var ui_loop: CheckBox
 var _tween_armed := false   # one undo step per drag of the tween slider
@@ -1127,7 +1128,7 @@ func _review_import_ask() -> void:
 func _review_import(path: String) -> int:
 	var r := Review.from_comments(FileAccess.get_file_as_string(path))
 	if not r["ok"]:
-		_say("could not import %s: %s" % [path.get_file(), r["why"]])
+		_say("could not import %s: %s; pick the .json a review page saved" % [path.get_file(), r["why"]])
 		return -1
 	var before := S.notes.size()
 	_push_undo()
@@ -6241,6 +6242,9 @@ NOT NOW: "
 func _grey(c: Control, why: String) -> void:
 	var base: String = c.tooltip_text.get_slice(GREY_TAG, 0)
 	c.set("disabled", why != "")
+	if c is Slider:   # a slider has no `disabled`: editable=false greys it (the ease slider on each card)
+		(c as Slider).editable = why == ""
+		c.modulate.a = 1.0 if why == "" else 0.5
 	c.tooltip_text = base + (GREY_TAG + why if why != "" else "")
 
 
@@ -6888,6 +6892,7 @@ func _ui() -> void:
 	add_child(thumbs)
 	thumbs.made.connect(_thumb_made)
 	ui_scenes.get_popup().add_theme_constant_override("icon_max_width", SceneThumbs.SIZE.x)
+	ui_scenes.add_theme_constant_override("icon_max_width", 18)   # the CLOSED button shows the open scene's picture too: at full size it made the scene row 76 px tall and pushed the strip off the screen
 	ui_scenes.get_popup().about_to_popup.connect(_scenes_opening)
 	bh.add_child(ui_scenes)
 	bh.add_child(_button("Open scene", func():
@@ -7069,6 +7074,7 @@ func _ui() -> void:
 	ui_ease.tooltip_text = "how the move INTO the picked card eases: smooth (natural), linear, in (starts slow), out (ends slow), snap (holds, then jumps: a hit, a cut); reach / strike / throw / settle: measured from real motion (docs/research/EASE_PRESETS.md)"
 	ui_ease.item_selected.connect(func(k): if not _sync: _set_ease(Scene.ALL_EASES[k]))
 	ew.add_child(ui_ease)
+	_gear_ease_bias(gv)
 	ui_play_extra = []   # RR4: Check / Polish / Fix left the play row (the ribbon's CHECK tab, Search)
 
 	# ---- status line
@@ -7406,6 +7412,15 @@ func _panel() -> void:
 			else ("pick a card first (click one in the scene row): the ease is the move INTO that card" if sel_card < 0
 			else ("the first card has no move into it: pick card 2 or later" if sel_card == 0 else "")))
 		ui_ease.select(Scene.ALL_EASES.find(S.cards[sel_card].get("ease", "smooth")) if sel_card >= 0 and sel_card < S.cards.size() else 0)
+		if ui_ease_bias != null:
+			var bwhy: String = "" if (not S.spline and sel_card > 0) else "pick card 2 or later with Smooth off: the slider shapes the move INTO a card"
+			_grey(ui_ease_bias, bwhy)
+			var bv := float(S.cards[sel_card].get("ease_bias", 0.0)) if sel_card > 0 and sel_card < S.cards.size() else 0.0
+			if not is_equal_approx(ui_ease_bias.value, bv) and not _ease_bias_armed:
+				var was := _sync
+				_sync = true
+				ui_ease_bias.value = bv
+				_sync = was
 	if ui_timeline != null:
 		ui_timeline.queue_redraw()
 	if label_of(ui_play) != ("Stop (Space)" if playing else "Play (Space)"):
@@ -7664,8 +7679,6 @@ func _rebuild_cards() -> void:
 		hs.tooltip_text = "seconds the body stays still in this pose"
 		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false))
 		hh.add_child(hs)
-		if i == sel_card:
-			_card_ease_rows(v, i)   # ROADMAP 55: the picked card's ease: the presets, and the slow in / even / slow out slider
 		var bh := HBoxContainer.new()
 		v.add_child(bh)
 		bh.add_child(_button("<", _card_move.bind(i, -1), "move this card earlier"))
@@ -7674,46 +7687,27 @@ func _rebuild_cards() -> void:
 		bh.add_child(_button("X", _card_del.bind(i), "delete this card"))
 
 
-## ROADMAP 55: the picked card's ease in its own box: a preset dropdown (the same ease key as the Play options' ease) and one
-## slider "Slow in ... Even ... Slow out" (Scene.ease_bias: -1 arrives slowly, 0 = the curve as it is, +1 leaves slowly).
+## ROADMAP 55: the picked card's "Slow in ... Even ... Slow out" slider (Scene.ease_bias: -1 arrives slowly, 0 = the curve as it
+## is, +1 leaves slowly). It sits in the Play options under the ease dropdown, NOT in the card: two more rows made the picked
+## card 51 px taller than the bottom panel's budget (BOTTOM_H), the panel ran off the screen and the strip's buttons with it.
 ## The slider previews while it is dragged and is one undo step per drag; 0 erases the key (old scenes save unchanged)
-func _card_ease_rows(v: VBoxContainer, i: int) -> void:
-	var why := ""
-	if S.spline:
-		why = "this scene is Smooth (spline): one curve through every card sets the timing; turn Smooth off to ease card by card"
-	elif i == 0:
-		why = "the first card has no move into it: pick card 2 or later"
-	var er := HBoxContainer.new()
-	v.add_child(er)
-	er.add_child(_label("ease", 13, "text:0.7"))
-	var oe := OptionButton.new()
-	oe.name = "card_ease"
-	oe.focus_mode = Control.FOCUS_NONE
-	for e in Scene.ALL_EASES:
-		oe.add_item(e)
-	oe.select(Scene.ALL_EASES.find(String(S.cards[i].get("ease", "smooth"))))
-	oe.custom_minimum_size = Vector2(120, 0)
-	oe.tooltip_text = "the move INTO this card: smooth, linear, in, out, snap, or a measured real motion (reach, strike, throw, settle)"
-	oe.item_selected.connect(func(k): _set_ease(Scene.ALL_EASES[k]))
-	er.add_child(oe)
-	_grey(oe, why)
+func _gear_ease_bias(gv: Control) -> void:
 	var br := HBoxContainer.new()
-	v.add_child(br)
+	gv.add_child(br)
 	br.add_child(_label("Slow in", 11, "text:0.6"))
 	var sl := HSlider.new()
 	sl.name = "card_ease_bias"
 	sl.min_value = -1.0
 	sl.max_value = 1.0
 	sl.step = 0.01
-	sl.value = float(S.cards[i].get("ease_bias", 0.0))
-	sl.custom_minimum_size = Vector2(84, 22)
+	sl.custom_minimum_size = Vector2(110, 22)
 	sl.focus_mode = Control.FOCUS_NONE
-	sl.tooltip_text = "Slow in ... Even ... Slow out: the move INTO this card. Left = it arrives slowly (the first half covers most of the distance), middle = the ease as it is, right = it leaves slowly (the first half covers little).  Drag = a preview; one drag is one Ctrl+Z"
-	sl.value_changed.connect(func(x): _ease_bias_drag(i, x))
+	sl.tooltip_text = "Slow in ... Even ... Slow out: the move INTO the picked card. Left = it arrives slowly (the first half covers most of the distance), middle = the ease as it is, right = it leaves slowly (the first half covers little).  Drag = a preview; one drag is one Ctrl+Z"
+	sl.value_changed.connect(func(x): if not _sync: _ease_bias_drag(sel_card, x))
 	sl.drag_ended.connect(func(_c): _ease_bias_armed = false)
 	br.add_child(sl)
 	br.add_child(_label("Slow out", 11, "text:0.6"))
-	_grey(sl, why)
+	ui_ease_bias = sl
 
 
 ## the slider moved on card i: the first move of a drag pushes the undo step; the rest of the drag previews it
@@ -8153,7 +8147,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45-degree steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
-	add.call("Mirror in place", "", _mirror_in_place, "mirror flip left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
+	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
 	for st in SEL_SETS:   # SELECTION SETS (round 28, GATES II2, UPGRADES #67)
 		add.call("Select: " + st, "", _select_set.bind(SEL_SETS[st]), "group set several parts together " + st, false, "select %s together: a drag on any of them turns them all" % st)
@@ -8164,7 +8158,7 @@ func _commands() -> Array:
 	add.call("Auto-key on / off", "Ctrl+K", _toggle_autokey, "auto key keyframe record toggle card", false, "while on, a pose change made at the playhead keys a card there (or updates the card on that frame); the 3D view gets a red frame")
 	add.call("Look at the picked prop", "", _look_at.bind("prop"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the picked prop (real gaze shifts: scripts/look_at.gd)")
 	add.call("Look at the camera", "", _look_at.bind("camera"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the camera")
-	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")
+	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "mirror flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")
 	for e in Scene.ALL_EASES:
 		add.call("Ease: " + e, "", _set_ease.bind(e), "easing timing curve " + {"smooth": "natural", "linear": "constant even", "in": "slow start accelerate", "out": "slow end decelerate", "snap": "jump cut hit step", "reach": "real arm reach minimum jerk bell", "strike": "punch hit late peak", "throw": "swing pitch proximal distal sequence whip", "settle": "land damped spring sway"}[e], true,
 			"the picked card's move eases '%s'" % e)
@@ -8185,7 +8179,7 @@ func _commands() -> Array:
 	add.call("Paste flipped 50%", "", _paste_flipped.bind(0.5, false), "clipboard flip left right blend half", true, "the copied pose reflected, half of the way from the current pose (angles only)")
 	add.call("Paste flipped 50%, selected parts", "", _paste_flipped.bind(0.5, true), "clipboard flip left right blend half group", true, "half of the way to the reflected copied pose, on the selected parts only")
 	add.call("Paste to this part", "", _paste_pose.bind("part"), "clipboard arm leg only", true, "the copied pose on the picked part and the parts below it only (an arm, a leg)")
-	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "flip", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
+	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "left handed copy", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
 	for st in StyleTransfer.STYLES:
 		add.call("Style: make it " + st + "...", "", _style_dialog.bind(st), "style transfer make it %s heavier older tired angrier walk" % st, false, "a copy of this scene in the style (timing, spacing, posture; ROADMAP 25), with an intensity 0-100 %; saved in scenes/_wip and opened (yours untouched)")
 	add.call("Body: proportions...", "", _proportions_dialog, "proportions height stature tall short size body limbs arm leg length character ansur woman man female male", false, "a small dialog: a preset (ANSUR II 5th / 50th / 95th, woman or man) or a stature; the cards keep their angles, the feet stay on the floor (PR1)")
@@ -8905,7 +8899,7 @@ func _mirrored_dict() -> Dictionary:
 ## screen is brought to the hero first (the mirror is the hero's file, as Mirror the scene does)
 func _mirror_in_place() -> void:
 	if actor_on != 0 and not _actor_set(0):
-		_say("Mirror in place works on the hero's scene: switch to the hero first (Actor: switch to the next fighter)")
+		_say("Mirror in place works on the hero's scene: press Actor: switch to the next fighter until the hero is on screen")
 		return
 	if S.cards.size() < 2:
 		_say("Mirror in place needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
