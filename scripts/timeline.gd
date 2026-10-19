@@ -93,6 +93,13 @@ func mark_at(p: Vector2) -> Array:
 
 
 func _get_tooltip(at: Vector2) -> String:
+	if _in_shots_lane(at):   # ROADMAP 75: a shot on the lane names itself in full (its label may be cut to fit)
+		var si := _shot_at_x(at.x)
+		if si >= 0:
+			var sh := _shots()
+			var end_t := float(sh[si + 1]["t"]) if si + 1 < sh.size() else _S().length()
+			return "shot %d: %s (%.2f s to %.2f s)
+click to scrub there; drag a cut to move it" % [si + 1, String(sh[si]["name"]), float(sh[si]["t"]), end_t]
 	var mi := marker_at(at) if m != null else -1   # ROADMAP 97: a marker's flag shows its note (its name when it has none)
 	if mi >= 0:
 		var mk: Dictionary = _S().markers[mi]
@@ -183,14 +190,45 @@ func _draw_shots_lane(y: float) -> void:
 	var L := _S().length()
 	var on: int = m.shot_now_index()
 	for i in sh.size():
-		var x0 := x_of(float(sh[i]["t"]))
-		var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else L)
+		var sp := _shot_span(i)
+		var x0 := sp.x
+		var x1 := sp.y
 		var act := i == on
 		draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 2.0), SHOTS_H), Tok.c("accent") if act else Tok.of("ink:0.22"))
 		draw_line(Vector2(x0, y - 1.0), Vector2(x0, y + SHOTS_H + 1.0), Tok.c("ink"), 2.0 if i > 0 else 1.0)   # the cut
-		var label := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(sh[i]["name"])]
 		if x1 - x0 > 16.0:
-			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), label, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), shot_label_fit(i, x1 - x0), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+
+
+## shot i's segment on the lane in x: from its cut to the next cut (or the end of the scene)
+func _shot_span(i: int) -> Vector2:
+	var sh := _shots()
+	var x0 := x_of(float(sh[i]["t"]))
+	var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else _S().length())
+	return Vector2(x0, x1)
+
+
+## the shot whose segment covers x on the lane, or -1
+func _shot_at_x(x: float) -> int:
+	for i in _shots().size():
+		var sp := _shot_span(i)
+		if x >= sp.x and x < sp.y:
+			return i
+	return -1
+
+
+## the label drawn on shot i's segment, "n name" (the first shot also says SHOTS). It is cut with an ellipsis ONLY when the
+## segment is narrower than the label; the full name is then the tooltip (_get_tooltip)
+func shot_label_fit(i: int, box_w: float) -> String:
+	var font := get_theme_default_font()
+	var full := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(_shots()[i]["name"])]
+	var avail := box_w - 5.0
+	if font.get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x <= avail:
+		return full
+	var t := full
+	while t.length() > 0 and font.get_string_size(t + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x > avail:
+		t = t.substr(0, t.length() - 1)
+	return t + "…" if t.length() > 0 else ""
 
 
 ## a shot's cut dragged to x: whole frames, never onto its neighbours' cuts (the order stays)

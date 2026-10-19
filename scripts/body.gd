@@ -407,6 +407,23 @@ func at_limit(j: String) -> Array:
 	return out
 
 
+## LIMIT TINT FADE: how far joint j is into the LAST 10% of its range on any axis, 0 (not yet) .. 1 (at the stop). The
+## yellow limit tint on the part is drawn at this strength, so it fades in over the last tenth and is full at the stop
+func limit_fade(j: String) -> float:
+	var v: Vector3 = ang[j]
+	var f := 0.0
+	for k in [["bend", v.x], ["side", v.y], ["twist", v.z]]:
+		var r: Vector2 = lim[j][k[0]]
+		var span := r.y - r.x
+		if span <= 0.5:
+			continue
+		var band := 0.1 * span
+		var lo_f := clampf((r.x + band - float(k[1])) / band, 0.0, 1.0) if r.x != 0.0 else 0.0
+		var hi_f := clampf((float(k[1]) - (r.y - band)) / band, 0.0, 1.0) if r.y != 0.0 else 0.0
+		f = maxf(f, maxf(lo_f, hi_f))
+	return f
+
+
 func set_ang(j: String, v: Vector3) -> void:
 	ang[j] = clamp_ang(j, v)
 	fk_sub(j)
