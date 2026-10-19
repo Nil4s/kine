@@ -1,6 +1,8 @@
 ## S = COMMAND SEARCH (round 7, Fusion 360's "S" box). Type a few letters: the commands whose name has them all show,
 ## with their shortcut; Enter or a click runs one. Nothing to remember: every tool is one word away.
 ## The commands are main's own (main._commands()): each runs exactly what its button or key runs.
+## ROADMAP 52: typed words also find the saved poses, scenes and moves (main._search_files), each row with its kind's icon;
+## "pose:" / "scene:" / "command:" in front keeps one kind.
 class_name CommandSearch
 extends PanelContainer
 
@@ -31,9 +33,14 @@ var recent: Array = []   # names of the last commands run, newest first (shown o
 
 ## each: {"name": String, "keys": String, "run": Callable, "also": String (extra words it answers to)}
 var commands: Array = []
+## ROADMAP 52: the saved files as rows {"name", "kind" ("pose" / "scene"), "also", "desc", "run"}; main's files_provider
+## lists them each time the box opens (not per keystroke). KINDS: the words a "kind:" prefix may start with
+const KINDS := ["command", "pose", "scene"]
+var files_provider: Callable
+var files: Array = []
 var box: LineEdit
 var list: Tree
-var shown: Array = []   # the commands in the list now, in order
+var shown: Array = []   # the rows in the list now, in order
 
 
 func _ready() -> void:
@@ -66,6 +73,7 @@ func _ready() -> void:
 func open() -> void:
 	visible = true
 	box.text = ""
+	files = files_provider.call() if files_provider.is_valid() else []
 	_filter()
 	box.grab_focus()
 
@@ -79,13 +87,22 @@ func close() -> void:
 ## the other words: name whole word 12 > name SYNONYM 9 (+1 per further synonym) > name word start 8 > name typo 7 >
 ## name substring 4 > other-words hit (start 3, synonym 2, substring/typo 1). The best source counts for each word
 func score(c: Dictionary, q: String) -> int:
-	var name := String(c["name"]).to_lower()
-	var also := String(c.get("also", "")).to_lower()
+	return _score(c, _query_words(q))
+
+
+func _score(c: Dictionary, qwords: PackedStringArray) -> int:
+	if not c.has("_name"):   # read once per row: the lowercase name and other words, and their words (the search runs per keystroke)
+		c["_name"] = String(c["name"]).to_lower()
+		c["_also"] = String(c.get("also", "")).to_lower()
+		c["_name_w"] = _words_of(c["_name"])
+		c["_also_w"] = _words_of(c["_also"])
+	var name: String = c["_name"]
+	var also: String = c["_also"]
 	var s := 0
-	for w in q.to_lower().split(" ", false):
-		var best := _word_score(name, w, true)
+	for w in qwords:
+		var best := _word_score(name, c["_name_w"], w, true)
 		if best < 12:
-			best = maxi(best, _word_score(also, w, false))
+			best = maxi(best, _word_score(also, c["_also_w"], w, false))
 		if best <= 0:
 			return -1
 		s += best
@@ -93,8 +110,7 @@ func score(c: Dictionary, q: String) -> int:
 
 
 ## how well word w matches text (a name or the other words): 0 = not at all. In the name the tiers sit above the other words'
-func _word_score(text: String, w: String, is_name: bool) -> int:
-	var words := text.replace("(", " ").replace(")", " ").replace("/", " ").replace("-", " ").replace(":", " ").split(" ", false)
+func _word_score(text: String, words: PackedStringArray, w: String, is_name: bool) -> int:
 	var best := 0
 	var at := text.find(w)
 	if at >= 0:
@@ -105,9 +121,11 @@ func _word_score(text: String, w: String, is_name: bool) -> int:
 		else:
 			best = 4 if is_name else 1
 	var syns := 0
-	for syn in SYNONYMS.get(w, []):
-		if text.find(syn) >= 0:
-			syns += 1
+	var syn_of = SYNONYMS.get(w)
+	if syn_of != null:
+		for syn in syn_of:
+			if text.find(syn) >= 0:
+				syns += 1
 	if syns > 0:
 		best = maxi(best, (8 + syns) if is_name else 2)
 	if best == 0 and w.length() >= 4:
@@ -118,55 +136,122 @@ func _word_score(text: String, w: String, is_name: bool) -> int:
 	return best
 
 
+## the words a name / other-words text is read as (a bracket, slash, dash, colon or space ends one). Kept on the row
+## (score) so each keystroke does not split the names again (ROADMAP 52: the search runs over every item per keystroke)
+static func _words_of(text: String) -> PackedStringArray:
+	return text.replace("(", " ").replace(")", " ").replace("/", " ").replace("-", " ").replace(":", " ").split(" ", false)
+
+
+var _q_last := ""
+var _q_words := PackedStringArray()
+
+
+func _query_words(q: String) -> PackedStringArray:
+	if q != _q_last:
+		_q_last = q
+		_q_words = q.to_lower().split(" ", false)
+	return _q_words
+
+
 ## a and b one edit apart: one letter changed, added, dropped, or two neighbours swapped
 static func typo1(a: String, b: String) -> bool:
 	if a == b or absi(a.length() - b.length()) > 1:
 		return false
+	# (code units, no new strings: this runs for every word of every item on each keystroke)
 	if a.length() == b.length():
-		var diff := []
+		var n := 0
+		var d0 := -1
+		var d1 := -1
 		for i in a.length():
-			if a[i] != b[i]:
-				diff.append(i)
-		return diff.size() == 1 or (diff.size() == 2 and diff[1] == diff[0] + 1 and a[diff[0]] == b[diff[1]] and a[diff[1]] == b[diff[0]])
+			if a.unicode_at(i) != b.unicode_at(i):
+				n += 1
+				if n == 1:
+					d0 = i
+				elif n == 2:
+					d1 = i
+				else:
+					return false
+		if n == 1:
+			return true
+		return d1 == d0 + 1 and a.unicode_at(d0) == b.unicode_at(d1) and a.unicode_at(d1) == b.unicode_at(d0)
+	# one letter added or dropped: the longer one with one letter taken out is the shorter one
 	var lo := a if a.length() < b.length() else b
 	var hi := b if lo == a else a
-	for i in hi.length():
-		if hi.left(i) + hi.substr(i + 1) == lo:
-			return true
-	return false
+	var i := 0
+	var j := 0
+	var skipped := false
+	while i < hi.length() and j < lo.length():
+		if hi.unicode_at(i) == lo.unicode_at(j):
+			j += 1
+		elif skipped:
+			return false
+		else:
+			skipped = true
+		i += 1
+	return true
+
+
+## the box's rows (ROADMAP 52): the commands, then the saved files (poses, scenes, moves: files_provider). A typed
+## "pose:" / "scene:" / "command:" in front keeps one kind and the words after it search that kind. The empty search
+## lists the commands (recent first, #74); typed words search the commands AND the files
+## what the box holds: [kind, words]. "pose: bat" = ["pose", "bat"]; a kind word that is not a kind is just words
+static func parse_box(raw_text: String) -> Array:
+	var raw := raw_text.strip_edges()
+	var colon := raw.find(":")
+	if colon > 0 and raw.left(colon).strip_edges().to_lower() in KINDS:
+		return [raw.left(colon).strip_edges().to_lower(), raw.substr(colon + 1).strip_edges()]
+	return ["", raw]
+
+
+## the rows that answer a search (no words: every row of the kind, or the commands): better hits first, a tie keeps the
+## pool's order (commands, then files). kind "" = any kind; q = the words after the "kind:" prefix. No drawing here
+func matches(kind: String, q: String) -> Array:
+	var pool: Array = []
+	if kind == "" or kind == "command":
+		pool.append_array(commands)
+	if kind != "command" and (q != "" or kind != ""):
+		pool.append_array(files.filter(func(c): return kind == "" or c["kind"] == kind))
+	var qwords := _query_words(q)
+	var hits := []   # [score, pool index, row]
+	for i in pool.size():
+		var s := 0
+		if q != "":
+			s = _score(pool[i], qwords)
+			if s < 0:
+				continue
+		hits.append([s, i, pool[i]])
+	if q != "":
+		hits.sort_custom(func(a, b): return a[0] > b[0] or (a[0] == b[0] and a[1] < b[1]))
+	return hits.map(func(h): return h[2])
 
 
 func _filter() -> void:
-	var q := box.text.strip_edges()
-	shown = []
-	for c in commands:
-		if q == "" or score(c, q) >= 0:
-			shown.append(c)
-	if q == "":   # the empty search: the recent ones first (#74)
+	var typed := parse_box(box.text)
+	var kind: String = typed[0]
+	var q: String = typed[1]
+	shown = matches(kind, q)
+	if q == "" and kind == "":   # the empty search: the recent ones first (#74)
 		var top := []
 		for n in recent:
 			for c in shown:
 				if c["name"] == n:
 					top.append(c)
 		shown = top + shown.filter(func(c): return not c["name"] in recent)
-	if q != "":
-		# better hits first; a tie keeps the list's own order (sort_custom is not stable, so the order is the tiebreak)
-		var at := {}
-		for i in commands.size():
-			at[commands[i]["name"]] = i
-		shown.sort_custom(func(a, b):
-			var sa := score(a, q)
-			var sb := score(b, q)
-			return sa > sb or (sa == sb and at[a["name"]] < at[b["name"]]))
-	if q != "" and pose_by_words.is_valid() and PoseWords.parse(q)["ok"]:
+	if q != "" and kind == "" and pose_by_words.is_valid() and PoseWords.parse(q)["ok"]:
 		shown.push_front({"name": "Pose: " + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
 			"desc": "turn the joints as the words say (scripts/pose_words.gd): one undo step"})
 	list.clear()
 	var root := list.create_item()
 	for c in shown:
 		var it := list.create_item(root)
+		var k: String = c.get("kind", "command")
 		it.set_text(0, c["name"])
-		it.set_text(1, ("recent   " if q == "" and c["name"] in recent else "") + c.get("keys", ""))
+		it.set_icon(0, Icons.small("kind_" + k))   # the kind's icon (scripts/icons.gd), tinted like the headings
+		it.set_icon_modulate(0, Tok.c("heading"))
+		if k == "command":
+			it.set_text(1, ("recent   " if q == "" and kind == "" and c["name"] in recent else "") + c.get("keys", ""))
+		else:
+			it.set_text(1, k)   # a file row's tag: its kind
 		it.set_custom_color(1, Tok.c("heading"))
 		it.set_tooltip_text(0, c.get("desc", ""))   # the registry's one-line "what it does" (round 8)
 	if shown.size() > 0:
@@ -208,7 +293,7 @@ func _run(i: int) -> void:
 	if i < 0 or i >= shown.size():
 		return
 	var c: Dictionary = shown[i]
-	if not c.get("words", false):   # a typed pose is not a command to list again
+	if c.get("kind", "command") == "command" and not c.get("words", false):   # a typed pose or a file is not a command to list again
 		recent.erase(c["name"])
 		recent.push_front(c["name"])
 		recent = recent.slice(0, RECENT_N)

@@ -139,6 +139,12 @@ const DRAW := {
 		["seg", Vector2(17.5, 18.5), Vector2(19.5, 21), 1.4], ["disc", Vector2(12, 3), 1.2]],
 	"mirror_inplace": [["box", Rect2(5, 4, 14, 16), 1.6], ["seg", Vector2(12, 2), Vector2(12, 22), 1.2], ["seg", Vector2(9, 9), Vector2(5, 12), 1.6],
 		["seg", Vector2(5, 12), Vector2(9, 15), 1.6], ["seg", Vector2(15, 9), Vector2(19, 12), 1.6], ["seg", Vector2(19, 12), Vector2(15, 15), 1.6]],
+	# the search box's row kinds (ROADMAP 52, scripts/command_search.gd): a command prompt, a posed figure, a film frame
+	"kind_command": [["seg", Vector2(3, 6), Vector2(10, 12), 2.0], ["seg", Vector2(10, 12), Vector2(3, 18), 2.0], ["seg", Vector2(12, 18), Vector2(21, 18), 2.0]],
+	"kind_pose": [["disc", Vector2(12, 4.5), 2.6], ["seg", Vector2(12, 8), Vector2(12, 15), 2.4], ["seg", Vector2(12, 9.5), Vector2(5, 13), 2.0],
+		["seg", Vector2(12, 9.5), Vector2(19, 4), 2.0], ["seg", Vector2(12, 15), Vector2(8, 22), 2.0], ["seg", Vector2(12, 15), Vector2(16, 22), 2.0]],
+	"kind_scene": [["box", Rect2(2, 4, 20, 16), 1.6], ["box", Rect2(6, 7.5, 12, 9), 1.2], ["disc", Vector2(4.5, 6), 0.9], ["disc", Vector2(19.5, 6), 0.9],
+		["disc", Vector2(4.5, 18), 0.9], ["disc", Vector2(19.5, 18), 0.9]],
 }
 
 static var _cache := {}
