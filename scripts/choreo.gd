@@ -229,6 +229,15 @@ static func report(fighters: Array, beats: Array) -> Array:
 	return out
 
 
+## the fighters of the open scene for the reports (the hero first, xf IDENTITY): [{"name", "S", "xf"}] from m.actors_rt
+## (the exchange view and the weapon clash check both read them this way)
+static func fighters_of(m: Node) -> Array:
+	var out := []
+	for a in m.actors_rt:
+		out.append({"name": "hero" if out.is_empty() else String(a["name"]), "S": a["S"], "xf": a["xf"]})
+	return out
+
+
 # ---------------------------------------------------------------- the time shift
 
 ## a Body posed by scene S at t (its pose dictionary)

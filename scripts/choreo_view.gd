@@ -93,10 +93,7 @@ func _process(delta: float) -> void:
 
 ## the fighters: [{"name", "S", "xf"}], hero first (the hero's xf is the identity)
 func fighters() -> Array:
-	var out := []
-	for a in m.actors_rt:
-		out.append({"name": "hero" if out.is_empty() else String(a["name"]), "S": a["S"], "xf": a["xf"]})
-	return out
+	return Choreo.fighters_of(m)
 
 
 func beats() -> Array:
