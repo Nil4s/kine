@@ -64,8 +64,21 @@ static func export(S: Scene, B: Body, id: String, dir: String, report := Callabl
 	var abs_path := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
 	DirAccess.make_dir_recursive_absolute(abs_path.get_base_dir())
 	var err := GltfExport._write(root, path)   # frees root
+	# WEAPON TRAILS (ROADMAP 35): the bat's two edge points per frame, next to the .glb, when the scene holds a weapon
+	var trail := ""
+	if err == OK:
+		var sc := WeaponTrail.sidecar(S, B, an)
+		if not sc.is_empty():
+			trail = path.get_basename() + "_weapon_trail.json"
+			var abs_t := ProjectSettings.globalize_path(trail) if trail.begins_with("res://") or trail.begins_with("user://") else trail
+			var f := FileAccess.open(abs_t, FileAccess.WRITE)
+			if f == null:
+				trail = ""
+			else:
+				f.store_string(JSON.stringify(sc, "	"))
+				f.close()
 	B.set_state(keep)
-	return {"path": path, "err": err, "lines": lines, "wrong": wrong}
+	return {"path": path, "err": err, "lines": lines, "wrong": wrong, "trail": trail}
 
 
 static func _bone(sk: Skeleton3D, nm: String) -> int:

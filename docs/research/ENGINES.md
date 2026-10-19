@@ -44,6 +44,11 @@ The three presets in `scripts/engine_export.gd` (EngineExport) and the menu comm
 | Import dock | **Root Scale** (default 1), applied to the meshes with **Apply Root Scale** | Godot 4 docs, import configuration (fetched) |
 | Root motion | None: the clip moves the hips | Engine behaviour |
 
+## Weapon trail sidecar (all presets, ROADMAP 35)
+Written next to the .glb when the scene holds a weapon: `<name>_<engine>_weapon_trail.json`, per frame the bat's knob end (`base`)
+and tip, in metres, Y up, the .glb's space, plus the tip speed. The format and the game's use are in `docs/EXPORT.md`.
+`tests/weapon_trail_test.gd` reads the file back and checks each point against the body within 0.1 mm.
+
 ## Pre-flight checks (all presets)
 
 - units: mannequin height from the file's mesh, 1.5 to 2.0 m (WRONG otherwise)

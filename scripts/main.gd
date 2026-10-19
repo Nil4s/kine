@@ -349,6 +349,7 @@ func _fold_button(which: String) -> void:
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
+var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var bal := BalanceView.new()   # LIVE BALANCE (Shift+B, round 43 YY1): the feet's support and the COM over them
 var ui_tween: HSlider
@@ -1146,6 +1147,7 @@ func _open_version(path: String) -> void:
 		S.apply(B, 0.0))
 	playhead = 0.0
 	ov.mark_dirty()
+	wt.mark_dirty()
 	_rebuild_cards()
 	_refresh()
 	_say_plain("back to version %d: %d cards (Ctrl+Z undoes; Save scene keeps it)" % [d.get("version", {}).get("n", 0), S.cards.size()])
@@ -1312,9 +1314,11 @@ func _ready() -> void:
 	_world()
 	_body()
 	add_child(ov)
+	add_child(wt)
 	add_child(bal)
 	add_child(loa)
 	ov.setup()
+	wt.setup()
 	loa.setup()
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
@@ -2005,6 +2009,7 @@ func _dm_poll() -> void:
 	SL = job["out"]["SL"]
 	if SL != null:
 		ov.mark_dirty()   # what plays changed: the trail / speed graph pass follows it
+		wt.mark_dirty()
 		_refresh()        # (the pass runs when the window redraws its overlays)
 
 
@@ -2148,6 +2153,7 @@ func _hit_react() -> void:
 	S.cards = r["cards"]
 	_rebuild_cards()
 	ov.mark_dirty()
+	wt.mark_dirty()
 	_refresh()
 	var J: Vector3 = r["J"]
 	_say("%s reacts to %s's %s at %.2f s (%s): impulse %.1f kg m/s (%.2f kg x %.1f m/s), its %s turns %.0f deg/s at most, the pelvis is shoved %.2f m/s; %.2f s of cards" % [
@@ -2300,6 +2306,7 @@ func _refresh() -> void:
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
 	ov.spacing(playhead)
+	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
 	var pulled: String = B.wep_hand if sel in Body.WEAPON else sel
 	ov.reach_marker(B.P[pulled] if B.P.has(pulled) else Vector3.ZERO, _grab, dragging == "joint" and not is_nan(_grab.x) and B.P.has(pulled))
 	if ui_graph != null:
@@ -2646,6 +2653,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_T:
 				ov.trail_on = not ov.trail_on
 				ov.mark_dirty()
+				wt.mark_dirty()
 				_refresh()
 				_say(ov.info if ov.trail_on else "motion trail off")
 			KEY_O when k.shift_pressed:
@@ -2876,12 +2884,14 @@ const BAKE_FLAGS := ["on_floor", "pin", "spline", "stepped", "natural", "floor_b
 func _restore(u: Dictionary) -> void:
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
+		wt.mark_dirty()
 		_rebuild_cards()
 	if u["scene"] == S and u.has("fps"):
 		S.fps = int(u["fps"])   # WW4: the frame rate is a scene setting, undone like a card
 	if u["scene"] == S and u.has("pbody") and u["pbody"] != S.body:
 		S.body = u["pbody"].duplicate(true)   # PR1: the proportions, undone like a card (the body's come back in its state)
 		ov.mark_dirty()
+		wt.mark_dirty()
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
@@ -3178,6 +3188,7 @@ func _pose_others() -> void:
 func _actor_go(k: int) -> void:
 	if _actor_set(k):
 		ov.mark_dirty()
+		wt.mark_dirty()
 		_rebuild_cards()
 	_refresh()
 
@@ -3234,6 +3245,7 @@ func _actor_remove() -> void:
 	H.actors.remove_at(k - 1)
 	_actors_build(B, H)
 	ov.mark_dirty()
+	wt.mark_dirty()
 	_rebuild_cards()
 	_refresh()
 	_say("removed %s; the hero is active (Ctrl+Z brings it back)" % nm)
@@ -6806,6 +6818,7 @@ func _rebuild_cards() -> void:
 		return
 	_dummy_hits()   # the cards changed: the landed scene and its hits too
 	ov.mark_dirty()
+	wt.mark_dirty()
 	if ui_browser != null:
 		ui_browser.refresh()
 	for c in ui_cards.get_children():
@@ -7139,6 +7152,19 @@ func _layout_bottom() -> void:
 var _pressing := false   # a command chosen from the registry runs its key: no text box's focus may swallow it
 
 
+## WEAPON TRAILS (ROADMAP 35): the two toggles; the ribbon and the smear are drawn by wt (scripts/weapon_trail.gd)
+func _wtrail_ribbon() -> void:
+	wt.ribbon_on = not wt.ribbon_on
+	_refresh()
+	_say(("weapon ribbon on: the bat's sweep over the last %d frames, where the tip is faster than %.0f m/s.  %s" % [wt.n_frames, wt.speed_min, wt.info]) if wt.ribbon_on else "weapon ribbon off")
+
+
+func _wtrail_smear() -> void:
+	wt.smear_on = not wt.smear_on
+	_refresh()
+	_say(("smear frames on: a stretched copy of the bat on the frames where the tip moves more than %.0f cm.  %s" % [wt.smear_min * 100.0, wt.info]) if wt.smear_on else "smear frames off")
+
+
 func _press(code: Key, shift := false) -> void:
 	var k := InputEventKey.new()
 	k.keycode = code
@@ -7327,6 +7353,8 @@ func _commands() -> Array:
 	add.call("Previous marker", "Ctrl+[", _marker_jump.bind(false), "cue event flag jump", false, "the playhead jumps to the marker before")
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
+	add.call("Trail: weapon ribbon on/off", "", _wtrail_ribbon, "trail weapon ribbon sweep blade swipe arc path", false, "a ribbon swept by the bat between its knob and its tip over the last 6 frames, fading; drawn only where the tip is faster than 8 m/s (not the motion trail, T)")
+	add.call("Trail: smear frames on/off", "", _wtrail_smear, "trail smear frames motion blur ghost stretch playblast", false, "on a fast frame (the tip moves more than 20 cm in one frame) a ghosted, stretched copy of the bat from the frame before, in the playblast too")
 	add.call("Pin a trail on the picked part", "Shift+T", _press.bind(KEY_T, true), "path arc", false, "draw the picked body part's path over the scene (again removes it)")
 	add.call("Balance on/off", "Shift+B", _press.bind(KEY_B, true), "centre of mass com feet tip fall weight", false, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
 	add.call("Onion skin on/off", "O", _press.bind(KEY_O), "ghost before after", false, "ghosts of the card before (orange) and after (green)")
@@ -7684,6 +7712,7 @@ func _retimed(rebuild := true) -> void:
 	else:
 		_dummy_hits()
 		ov.mark_dirty()
+		wt.mark_dirty()
 	if ui_find != null and ui_find.visible:
 		ui_find.visible = false   # the findings were for the old timing
 		_say("timing changed: press Check again to grade the new timing.  Ctrl+Z undoes the change")
@@ -7831,17 +7860,20 @@ func _tool(id: int) -> void:
 		1:
 			ov.spacing_on = not ov.spacing_on
 			ov.mark_dirty()
+			wt.mark_dirty()
 			_refresh()
 			_say("spacing ghosts every 0.1 s: orange = before, green = after.  Bunched = slow, spread = fast" if ov.spacing_on else "spacing ghosts off")
 		2:
 			ov.graph_on = not ov.graph_on
 			ov.mark_dirty()
+			wt.mark_dirty()
 			_refresh()
 			_say("speed graph: tip, hips, head over the scene; the grey lines are the cards.  Click it to move the playhead" if ov.graph_on else "speed graph off")
 		3:
 			_push_undo()   # round 8 (undo audit): it puts the scene's pose on the body; a pose not yet on a card was lost
 			stepped_view = not stepped_view
 			ov.mark_dirty()
+			wt.mark_dirty()
 			_ps().apply(B, playhead)
 			_refresh()
 			_say("STEPPED: each card's pose holds until the next one arrives (no in-betweens).  Check still grades the real motion" if stepped_view else "stepped preview off: in-betweens back")
@@ -9235,6 +9267,7 @@ func _restore_work(a: Dictionary) -> void:
 		ui_scene_name.text = S.name
 	_show_open_scene()
 	ov.mark_dirty()
+	wt.mark_dirty()
 	_dummy_hits()
 	sel_card = -1
 	playhead = 0.0
@@ -10308,6 +10341,7 @@ func _load_scene(path: String) -> void:
 		ui_spline.set_pressed_no_signal(S.spline)
 		ui_loop.set_pressed_no_signal(S.loop)
 	ov.mark_dirty()
+	wt.mark_dirty()
 	_dummy_hits()
 	sel_card = -1
 	playhead = 0.0
@@ -10590,6 +10624,7 @@ func proportions_set(d: Dictionary) -> Dictionary:
 		B.set_proportions(nd)   # the pose as it was, on the new bones
 		_dummy_hits()
 		ov.mark_dirty()
+		wt.mark_dirty()
 		if not S.cards.is_empty():
 			S.apply(B, playhead))
 	var st := float(nd.get("stature", Proportions.DEFAULT_STATURE))
