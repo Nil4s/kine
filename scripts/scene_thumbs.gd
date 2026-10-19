@@ -70,7 +70,7 @@ func _intake() -> void:
 		return
 	_intaking = true
 	while not _pending.is_empty():
-		await get_tree().process_frame
+		await _frame()
 		var t0 := Time.get_ticks_usec()
 		while not _pending.is_empty() and Time.get_ticks_usec() - t0 < INTAKE_US:
 			_look(_pending.pop_front())
@@ -116,11 +116,11 @@ func _pump() -> void:
 	while not _queue.is_empty():
 		var path: String = _queue.pop_front()
 		while _drawing:
-			await get_tree().process_frame
+			await _frame()
 		_drawing = true
 		await _render(path)
 		_drawing = false
-		await get_tree().process_frame
+		await _frame()
 	_busy = false
 
 
@@ -149,11 +149,17 @@ func request_pose(pose: Dictionary) -> String:
 	return key
 
 
+## the next frame, from the main loop: the node itself may have left the tree meanwhile (the gentle test rebuilds the whole app
+## around a running thumbnail pump: get_tree() was null on the next line and the pump died on a script error)
+func _frame() -> Signal:
+	return (Engine.get_main_loop() as SceneTree).process_frame
+
+
 func _ppump() -> void:
 	if _pbusy:
 		return
 	_pbusy = true
-	await get_tree().process_frame   # never on the frame that asked
+	await _frame()   # never on the frame that asked
 	while not _pq.is_empty():
 		var q: Array = _pq.pop_front()
 		var key: String = q[0]
@@ -175,21 +181,27 @@ func _ppump() -> void:
 			if img != null and not img.is_empty():
 				_ptex[key] = ImageTexture.create_from_image(img)
 		made_pose.emit(key)
-		await get_tree().process_frame
+		await _frame()
 	_pbusy = false
 
 
 ## the picture of a pose, drawn now on the thumbnail stage (two frames); null when it cannot be drawn
 func draw_pose(pose: Dictionary) -> Image:
 	while _drawing:
-		await get_tree().process_frame
+		await _frame()
 	_drawing = true
 	_stage()
 	_tb.from_dict(pose)
 	Overlays.pose_skeleton(_sk, _idx, _tb)
-	await get_tree().process_frame
+	await _frame()
+	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
+		_drawing = false
+		return null
 	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	await RenderingServer.frame_post_draw
+	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
+		_drawing = false
+		return null
 	var img := _vp.get_texture().get_image()
 	_drawing = false
 	return img
@@ -198,7 +210,7 @@ func draw_pose(pose: Dictionary) -> Image:
 ## wait until every queued picture is drawn (tests)
 func settle() -> void:
 	while _pbusy or not _pq.is_empty() or _busy or _intaking or not _pending.is_empty() or not _queue.is_empty():
-		await get_tree().process_frame
+		await _frame()
 
 
 func _stage() -> void:
@@ -265,9 +277,13 @@ func _render(path: String) -> void:
 	_stage()
 	_tb.from_dict((cards[i] as Dictionary)["pose"])
 	Overlays.pose_skeleton(_sk, _idx, _tb)
-	await get_tree().process_frame
+	await _frame()
+	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
+		return
 	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	await RenderingServer.frame_post_draw
+	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
+		return
 	var img := _vp.get_texture().get_image()
 	if img == null or img.is_empty():
 		return

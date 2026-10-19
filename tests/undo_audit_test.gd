@@ -37,6 +37,7 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"beats_clear_the_beats": "needs beats on the timeline (beat_track_test covers the scene key they clear)",
 	"import_animation_fbx_glb_gltf_bvh_...": "opens a file dialog; the import writes + opens a NEW scene in scenes/_wip (anim_import_test runs it)",
 	"shots_rename_the_shot_at_the_playhead": "opens a rename dialog; the edit is made by its OK (camseq_test renames through _shot_rename_to and checks the one undo step)",
+	"walk_along_a_path...": "opens the path mode (and, from a second fighter, switches to the hero); the scene is made by Enter as one undo step (pathwalk_ui_test runs it and its Ctrl+Z / Ctrl+Y, pathfix swaps the scene object)",
 	"root_path_scale_length...": "opens the scale dialog; the edit is made by its OK through _rp_scale (the slider is not an edit until OK)",
 	"retime_scale_the_range_around_the_playhead...": "opens the retime dialog; the edit is made by its OK (retimerange_test runs RetimeRange.apply and its one undo step)",
 	"reduce_part_keys_tolerance_slider": "opens the tolerance slider; the edit is made when it is kept (key_reduce_test drags it and checks the one undo step)"}
