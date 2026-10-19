@@ -14,6 +14,7 @@ var ui_format: OptionButton
 var ui_info: Label
 var ui_checks: Label
 var ui_app: Label
+var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 
 ## run: "engine:<id>" (EngineExport preset: root motion, units, pre-flight), "glb", "bvh", "usda", "usda_layers" (ROADMAP 79) or "game" (the PoseTable)
 const TARGETS := [
@@ -136,7 +137,23 @@ func _build() -> void:
 	ui_target.item_selected.connect(_on_target)
 	ui_format.item_selected.connect(_on_format)
 	dlg.confirmed.connect(_on_export)
+	# ROADMAP 80: Batch... exports many scenes from scenes/ in one go (scripts/batch_dialog.gd); the open scene is not touched
+	dlg.add_button("Batch...", false, "batch")
+	dlg.custom_action.connect(_on_custom)
 	m.add_child(dlg)
+
+
+func _on_custom(action: StringName) -> void:
+	if action == &"batch":
+		open_batch()
+
+
+func open_batch() -> void:
+	if batch_ui == null:
+		batch_ui = BatchDialog.new(m)
+	if dlg != null:
+		dlg.hide()
+	batch_ui.open()
 
 
 func open() -> void:
