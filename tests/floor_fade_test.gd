@@ -50,7 +50,7 @@ func _init() -> void:
 	ok(worst <= 0.01 and longest <= 0.1 + 1e-6 and full > 100 and part > 100 and zero > 0,
 		"1 the grid: %d vertices, each alpha = the fade rule (worst off %.4f), pieces at most %.3f m; full %d, fading %d, zero at the edge %d" % [v.size(), worst, longest, full, part, zero])
 	var gi: MeshInstance3D = null
-	for mi in m.find_children("*", "MeshInstance3D", false, false):
+	for mi in m.stage_root.find_children("*", "MeshInstance3D", false, false):   # TC4: the floor lives under the stage
 		if (mi as MeshInstance3D).mesh == g:
 			gi = mi
 	ok(gi != null and (gi.material_override as StandardMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_ALPHA, "2 the grid's material blends alpha")
@@ -73,7 +73,7 @@ func _init() -> void:
 		for i in range(0, av.size(), 2):
 			if i != axis and av[i].distance_to(tip) < 1e-4 and av[i + 1].distance_to(tip) < 0.1 and same(ac[i], col):
 				heads += 1
-		var lab: Label3D = m.get_node_or_null("axis_" + String(dir[1]))
+		var lab: Label3D = m.stage_root.get_node_or_null("axis_" + String(dir[1]))
 		var lab_ok := lab != null and lab.text.begins_with(dir[1]) and lab.position.distance_to(tip) < 0.2 and same(lab.modulate, col)
 		found[dir[1]] = [strongest == dir[2], heads, lab_ok]
 	ok(found.size() == 3 and found.values().all(func(f): return f[0] and f[1] == 2 and f[2]),

@@ -1950,7 +1950,23 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   Stubs: _undo + _restore not switching actor -> FAIL 2 (Ctrl+Z 2 lands on actor 1; actor 0's pre-edit body put onto
   actor 1: the "never the other's state" check was widened from "edited" to "edited or before" after this run, it missed
   it); _pose_others empty -> FAIL 2 (bar 1 worst 106 deg, moves 0; bar 3 reopened 0 actors: actors_rt is built lazily).
-- [ ] TC4 window: second mannequin, click to switch, the view re-rooted without a jump.
+- [x] TC4 window: second mannequin, click to switch, the view re-rooted without a jump.
+  EVIDENCE: tests/actors_view_test.gd 13 ok (agent, worktree; a window, real mouse events). The active fighter stays at the
+  origin (skel, every pick / drag as before); main.stage_root holds the floor, grid, axes, letters, both lights and the
+  other fighters' mannequins (Overlays.mannequin + a bat, posed by Overlays.pose_skeleton from their Body) and carries the
+  inverse of the active one's xf; _stage_sync moves the camera (target, yaw) by the same rigid step. _pick_actor: the ray
+  into each other fighter's body space, _pick's test, nearest wins -> _actor_go + the press goes on as a press on that part.
+  (1) fighter 2's bones = its Body.P at its xf: worst 0.001 mm at 3 scrubbed playheads + 3 while playing; with fighter 2
+  active the hero's mannequin 0.0007 mm. (2) 4 switches (command both ways, click both ways): 5 landmarks (heads, pelvises,
+  fighter 2's hand) moved <= 0.0001 px. (3) 20/20 clicks on fighter 2's parts made it active with that part; 20/20 on the
+  active hero's parts kept it (targets = parts the test's own ray test finds nearest under their centre and in the view).
+  (4) press on fighter 2's upperarm_r (it becomes active) + 10-step drag = the same drag on the hero alone: worst 0.0000
+  deg over changes up to 10.1 deg. (5) one actor: 8 nodes under the stage before and after add + remove; screenshot (UI
+  hidden) before vs after add + remove 0 px differ, and vs the pre-TC4 build (ZZ_TC4_BASE=1 run on HEAD's main.gd) 0 of
+  1,440,000 px. (6) dummy off and hidden with 2 fighters, back on with 1. floor_fade_test now finds the floor under the stage.
+  Stubs: no camera compensation -> FAIL 2 (bar 2 602.4 px; bar 4 48.8 deg); others posed without xf + dummy not brought
+  back -> FAIL 4 (bar 1 1847 mm, bar 2, bar 6, bar 5 picture 53,024 px). Not done: props stay with the ACTIVE scene (they
+  are S.props, in the active body's space), the other fighters' off-hand dagger and hover are not drawn.
 - [ ] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
 - [ ] TC6 export per actor with its placement; Blender re-import within 1 cm.
 

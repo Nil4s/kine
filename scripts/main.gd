@@ -44,6 +44,13 @@ var S := Scene.new()
 ## actor, and nothing anywhere does any extra work (_pose_others returns at once).
 var actors_rt := []   # [{"name", "B": Body, "S": Scene, "xf": Transform3D (in the hero's space), "t": playhead last posed at}]
 var actor_on := 0     # which actor B and S are
+## THE SECOND FIGHTER ON SCREEN (TC4): the active actor is drawn by skel at the world origin (every pick, drag and
+## projection assumes it); stage_root (the floor, its axes, the lights, the other fighters) carries the inverse of the
+## active actor's placement, and the camera moves with it when that changes, so nothing on screen jumps
+var stage_root: Node3D
+var actor_men := []   # per actor k: {"node", "skel", "idx", "wep": [handle, barrel]} under stage_root; empty with one actor
+var _dummy_auto := false   # the dummy put away because there are 2+ fighters (the other fighter is the target)
+var _dummy_keep := true    # what dummy_on was before that
 var parts := {}         # part -> MeshInstance3D (its collision capsule): click target + highlight
 var mats := {}
 var dots := {}
@@ -1451,6 +1458,9 @@ func _process(dt: float) -> void:
 # ---------------------------------------------------------------- 3D scene
 
 func _world() -> void:
+	stage_root = Node3D.new()   # TC4: the floor, its axes and the lights (identity with one actor: _stage_sync)
+	stage_root.name = "stage"
+	add_child(stage_root)
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
 	e.background_mode = Environment.BG_COLOR
@@ -1465,11 +1475,11 @@ func _world() -> void:
 	sun.rotation_degrees = Vector3(-50, 35, 0)
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
-	add_child(sun)
+	stage_root.add_child(sun)
 	var back := DirectionalLight3D.new()
 	back.rotation_degrees = Vector3(-30, 200, 0)
 	back.light_energy = 0.45
-	add_child(back)
+	stage_root.add_child(back)
 	var im := ImmediateMesh.new()
 	var gm := MeshInstance3D.new()
 	gm.mesh = im
@@ -1486,9 +1496,9 @@ func _world() -> void:
 	amat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	amat.vertex_color_use_as_albedo = true
 	am.material_override = amat
-	add_child(am)
+	stage_root.add_child(am)
 	_grid()
-	add_child(gm)
+	stage_root.add_child(gm)
 	grid_node = gm
 	var floor := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
@@ -1499,7 +1509,7 @@ func _world() -> void:
 	floor_mat = fm
 	floor.material_override = fm
 	floor.position.y = -0.002
-	add_child(floor)
+	stage_root.add_child(floor)
 	for lab in [["X  his left", Vector3(0.72, 0.01, 0), AXES[0][1]], ["Y  up", Vector3(0, AXIS_Y + 0.05, 0), AXES[1][1]], ["Z  he faces this way", Vector3(0, 0.01, 0.74), AXES[2][1]]]:
 		var l := Label3D.new()
 		l.name = "axis_" + String(lab[0]).left(1)
@@ -1508,7 +1518,7 @@ func _world() -> void:
 		l.modulate = lab[2]
 		l.pixel_size = 0.0018
 		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		add_child(l)
+		stage_root.add_child(l)
 	cam = Camera3D.new()
 	cam.fov = 40
 	add_child(cam)
@@ -1840,6 +1850,7 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	_actors_view()
 	_curve_sync()
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
@@ -1931,6 +1942,7 @@ func _refresh() -> void:
 		ui_graph.queue_redraw()
 	_panel()
 	_pose_others()
+	_actors_draw()
 
 
 # ---------------------------------------------------------------- camera
@@ -2074,6 +2086,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
 				var j := _pick(mb.position)
 				var pp := _pick_prop(mb.position)
+				var pa := _pick_actor(mb.position)   # TC4: another fighter's part, nearer than ours: it becomes the active one
+				if int(pa[0]) >= 0 and (j == "" or float(pa[2]) < _pick_t) and (int(pp[0]) < 0 or float(pa[2]) < float(pp[1])):
+					_actor_go(int(pa[0]))   # the view does not move (_stage_sync); the press goes on as a press on that part
+					_say_plain("fighter %d of %d (%s): edits, cards and Ctrl+Z are this one's now" % [actor_on + 1, actors_rt.size(), "the hero" if actor_on == 0 else actors_rt[actor_on]["name"]])
+					j = String(pa[1])
+					_pick_t = float(pa[2])
+					pp = [-1, INF]
 				if int(pp[0]) >= 0 and (j == "" or float(pp[1]) < _pick_t):   # a prop in front of the body: the prop
 					_prop_press(int(pp[0]), mb.position, float(pp[1]))
 					return
@@ -2603,6 +2622,7 @@ func _actor_set(k: int) -> bool:
 	B = actors_rt[k]["B"]
 	S = actors_rt[k]["S"]
 	sel_card = mini(sel_card, S.cards.size() - 1)
+	_stage_sync()   # TC4: the new active actor at the origin, the view moved with it (no jump)
 	return true
 
 
@@ -2730,6 +2750,121 @@ func actor_contacts(k: int) -> Array:
 	if k < 1 or k >= actors_rt.size():
 		return []
 	return (actors_rt[0]["B"] as Body).cross_contacts(actors_rt[k]["B"], actors_rt[k]["xf"])
+
+
+## the stage's transform: the inverse of the active actor's placement (the identity for the hero and with one actor)
+func _stage_xf() -> Transform3D:
+	if actor_on > 0 and actor_on < actors_rt.size():
+		return (actors_rt[actor_on]["xf"] as Transform3D).affine_inverse()
+	return Transform3D.IDENTITY
+
+
+## the stage put under the active actor; the camera moved by the same rigid step (a turn about Y and a shift: the
+## actors' placements are only that), so every point of the world stays where it was on screen
+func _stage_sync() -> void:
+	if stage_root == null:
+		return
+	var want := _stage_xf()
+	var had := stage_root.transform
+	if want == had:
+		return
+	stage_root.transform = want
+	var D := want * had.affine_inverse()
+	if _view_tw != null and _view_tw.is_valid():
+		_view_tw.kill()
+	target = D * target
+	yaw = wrapf(yaw + rad_to_deg(atan2(D.basis.z.x, D.basis.z.z)), -180.0, 180.0)
+	_cam()
+
+
+## start of every refresh: the actor list in step, the dummy away with 2+ fighters (back with one), the stage placed.
+## One actor: returns at once
+func _actors_view() -> void:
+	if actors_rt.is_empty() and S.actors.is_empty() and actor_men.is_empty() and not _dummy_auto:
+		return
+	_actors_sync()
+	var many := actors_rt.size() >= 2
+	if many != _dummy_auto:
+		_dummy_auto = many
+		if many:
+			_dummy_keep = dummy_on
+			dummy_on = false
+		else:
+			dummy_on = _dummy_keep
+		_dummy_hits()
+	_stage_sync()
+
+
+## end of every refresh: each fighter that is not active drawn as a mannequin at its placement, posed from its body
+## (posed by _pose_others), with its weapon. One actor: nothing exists and nothing is done
+func _actors_draw() -> void:
+	if actors_rt.is_empty() and actor_men.is_empty():
+		return
+	_stage_sync()
+	while actor_men.size() > actors_rt.size():
+		(actor_men.pop_back()["node"] as Node).queue_free()
+	while actor_men.size() < actors_rt.size():
+		actor_men.append(_actor_man())
+	for k in actor_men.size():
+		var mq: Dictionary = actor_men[k]
+		var n: Node3D = mq["node"]
+		n.visible = k != actor_on
+		if k == actor_on:
+			continue
+		var b: Body = actors_rt[k]["B"]
+		n.transform = actors_rt[k]["xf"]
+		Overlays.pose_skeleton(mq["skel"], mq["idx"], b)
+		var w: Array = mq["wep"]
+		for mi in w:
+			(mi as MeshInstance3D).visible = b.wep_on
+		if b.wep_on:
+			_place(w[0], b.wep_point(0.0), b.wep_point(b.wep_handle), 0.0, false)
+			_place(w[1], b.wep_point(b.wep_handle), b.wep_point(b.wep_len), 0.0, false)
+
+
+## one other fighter's mannequin (made as the dummy's is: Overlays.mannequin) and its weapon, under the stage
+func _actor_man() -> Dictionary:
+	var root := Node3D.new()
+	root.name = "fighter_%d" % actor_men.size()
+	stage_root.add_child(root)
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Color(0.66, 0.6, 0.56)   # a shade off the active fighter's skin: which one you pose is plain
+	skin.roughness = 0.6
+	var mq := Overlays.mannequin(root, skin)
+	var w := []
+	for r in [[B.wep_r_handle, B.wep_r_handle, "tape"], [B.wep_r_barrel, B.wep_r_handle, "metal"]]:
+		var mi := MeshInstance3D.new()
+		var c := CylinderMesh.new()
+		c.top_radius = r[0]
+		c.bottom_radius = r[1]
+		mi.mesh = c
+		mi.material_override = wep_mats[r[2]]
+		root.add_child(mi)
+		w.append(mi)
+	return {"node": root, "skel": mq[1], "idx": mq[2], "wep": w}
+
+
+## a click on a fighter that is not active (TC4): [k, part, t along the ray] of the nearest part hit; [-1, "", INF] none.
+## The ray is taken into that fighter's body space (stage * its placement); the test is _pick's
+func _pick_actor(mp: Vector2) -> Array:
+	var best := [-1, "", INF]
+	if actors_rt.size() < 2 or stage_root == null:
+		return best
+	var o := cam.project_ray_origin(mp)
+	var d := cam.project_ray_normal(mp)
+	for k in actors_rt.size():
+		if k == actor_on:
+			continue
+		var inv: Transform3D = (stage_root.transform * (actors_rt[k]["xf"] as Transform3D)).affine_inverse()
+		var lo := inv * o
+		var ld := inv.basis * d
+		var b: Body = actors_rt[k]["B"]
+		for j in Body.ORDER:
+			var c: Array = b.cap(j)
+			var res := _ray_seg(lo, ld, c[0], c[1])
+			if res.y <= maxf(float(b.rad[j]) * 1.15, 0.014) and res.x < float(best[2]):
+				best = [k, j, res.x]
+	return best
 
 
 ## the file the open scene saves as: the hero's scene with every other actor in "actors" (TC1), whoever is active.
