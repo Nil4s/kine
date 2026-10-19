@@ -8108,7 +8108,7 @@ func _weapon_clash() -> void:
 		clash_sparks.append(sp)
 		print(e["text"])
 	if ev.is_empty():
-		_say("Check: weapon clashes: none, the weapons never meet")
+		_say("Check: weapon clashes: none, the weapons never meet: move a swing into the other fighter's weapon to test one")
 		return
 	var through := 0
 	for e in ev:
@@ -8586,7 +8586,7 @@ func _words_build() -> void:
 	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var r: Dictionary = TextBlocking.build(text, W)
 	if not r["ok"]:
-		_say("'%s': %s" % [text, r["error"]])
+		_say("'%s': %s: type a move like 'overhead axe strike, step in'" % [text, r["error"]])
 		return
 	var S2: Scene = r["scene"]
 	var path := TextBlocking.unique_path("res://scenes/_wip", TextBlocking.slug(text))
