@@ -655,13 +655,13 @@ func apply(B: Body, t: float) -> void:
 		Drivers.play(drivers, B)
 	ik_last = {}
 	if not ik.is_empty():   # IK (GAP_ANALYSIS row 13): last, so a pinned hand stays pinned over everything above
-		ik_last = LimbIK.play(ik, B, t)
+		ik_last = LimbIK.play(ik, B, t) if not PerfStub.skip("ik_plants") else {}
 		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
 			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
 	# FOOT PLANTS (ROADMAP 8, scripts/foot_plant.gd): after the IK pass, before the constraints. A planted foot holds the
 	# place it had at its t0; the pelvis is not touched. Nothing live (no plants, or none in range): the body is not touched
 	if not plant_refs.is_empty():
-		plant_last = FootPlant.play(B, plants, plant_refs, t, fps)
+		plant_last = FootPlant.play(B, plants, plant_refs, t, fps) if not PerfStub.skip("ik_plants") else {}
 	# USER CONSTRAINTS (round 51, CN): after IK, in list order (Blender's stack runs on the finished animated pose);
 	# every angle they write goes through Body.clamp_ang, so the joint limits come last. None: nothing is touched
 	cons_last = []

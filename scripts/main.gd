@@ -2151,7 +2151,8 @@ func _process(dt: float) -> void:
 			audio_gap.append((cg - playhead) if cg >= 0.0 else NAN)
 		if stp["stop"]:
 			playing = false
-		_ps().apply(B, playhead)
+		if not PerfStub.skip("body"):
+			_ps().apply(B, playhead)
 		_refresh()
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
@@ -2486,7 +2487,8 @@ func _fd_refresh() -> void:
 		if before != _tl_under_ruler():
 			_tl_height()
 			_layout_bottom()   # the panel makes room for the frame strip and the lane, or gives it back
-		ui_timeline.queue_redraw()
+		if not PerfStub.skip("timeline"):
+			ui_timeline.queue_redraw()
 	if not fd_boxes or S.cards.is_empty():
 		if fd_node != null:
 			fd_node.visible = false
@@ -2714,7 +2716,7 @@ static func _fighters_measure(hs: Scene, others: Array) -> Dictionary:
 ## the contact NOW between the hero and the other fighters, drawn as the dummy's is (the red dot and the tag), after the
 ## others are posed. One fighter: returns at once (the dummy's own drawing stands)
 func _fighters_mark() -> void:
-	if not _fighters_on() or hit_tag == null:
+	if not _fighters_on() or hit_tag == null or PerfStub.skip("hits"):
 		return
 	var hb: Body = actors_rt[0]["B"]
 	var best := []
@@ -2878,7 +2880,8 @@ func _refresh() -> void:
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
 	_sym_prev = B.ang.duplicate()
-	Overlays.pose_skeleton(skel, bone_idx, B)
+	if not PerfStub.skip("skinning"):
+		Overlays.pose_skeleton(skel, bone_idx, B)
 	corr.update(B)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
@@ -2985,7 +2988,8 @@ func _refresh() -> void:
 	if ui_graph != null:
 		ui_graph.visible = ov.graph_on and S.cards.size() >= 2
 		ui_graph.queue_redraw()
-	_panel()
+	if not PerfStub.skip("ui"):
+		_panel()
 	_pose_others()
 	_actors_draw()
 	_fighters_mark()
@@ -4262,7 +4266,8 @@ func _pose_others() -> void:
 		var at: float = a.get("pt", playhead)   # ROADMAP 30: a co-edit peer's own playhead, else the shared one
 		if k == actor_on or a["t"] == at:
 			continue
-		(a["S"] as Scene).apply(a["B"], at)
+		if not PerfStub.skip("body"):
+			(a["S"] as Scene).apply(a["B"], at)
 		a["t"] = at
 
 
@@ -4413,7 +4418,8 @@ func _actors_draw() -> void:
 			continue
 		var b: Body = actors_rt[k]["B"]
 		n.transform = actors_rt[k]["xf"]
-		Overlays.pose_skeleton(mq["skel"], mq["idx"], b)
+		if not PerfStub.skip("skinning"):
+			Overlays.pose_skeleton(mq["skel"], mq["idx"], b)
 		var tag: Label3D = mq["tag"]
 		tag.text = String(actors_rt[k]["name"])
 		tag.position = b.P["head"] + Vector3(0, 0.28, 0)
