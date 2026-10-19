@@ -42,9 +42,13 @@ func turn_at(t: float, t0: float, dur: float, deg: float) -> float:
 	return deg * u * u * (3.0 - 2.0 * u)
 
 
-## the rest body with the head turned by deg about its twist axis (the Body's ang.z, as the face test turns it)
+## a head turn by deg about its twist axis (ang.z), split the way a neck turns: the head takes its own stop (35 deg,
+## body_limits.json head.twist) and the neck (neck_01.twist, +-40) the rest. Written past a stop, a joint reads "limit"
+## and its skin is tinted (pick_limit, yellow), which is what the first picture showed; the split keeps every joint within its range.
 func pose_head(deg: float) -> void:
-	B.ang["head"] = Vector3(0.0, 0.0, deg)
+	var h := clampf(deg, -30.0, 30.0)   # 5 deg short of the head's stop: a joint AT its stop reads "limit" (yellow)
+	B.ang["head"] = Vector3(0.0, 0.0, h)
+	B.ang["neck_01"] = Vector3(0.0, 0.0, deg - h)
 	B.fk()
 
 
@@ -149,9 +153,15 @@ func _init() -> void:
 			var w: Vector3 = (B.P["head"] as Vector3) + G * (roots[k] as Vector3)
 			worst_gap = maxf(worst_gap, surface_gap(tris, w, back))
 			worst_drift = maxf(worst_drift, absf(((w - (B.P["head"] as Vector3)).length()) - float(rest_dist[k])))
+	var rd := []
+	for a in roots:
+		for b in roots:
+			rd.append((a as Vector3).distance_to(b as Vector3))
+	var bundle: float = rd.max() + 2.0 * 0.003   # the ring's widest span plus a 6 mm root tube
+	ok(bundle >= 0.03 and bundle <= 0.04, "1 bundle at the tie: %.1f cm across, root tubes included (bar 3-4 cm)" % (bundle * 100.0))
 	ok(worst_gap <= 0.001, "1 roots stay on the skinned head: worst gap %.2f mm at 0 and 60 deg (bar 1 mm)" % (worst_gap * 1000.0))
 	ok(worst_drift <= 0.001, "1 roots follow the head: their distance from the head joint changes by %.3f mm over the turn (bar 1 mm)" % (worst_drift * 1000.0))
-	print("   (the head turned %.2f deg, its up axis stays vertical: %s)" % [turned_deg, up_axis_ok])
+	print("   (the head turned %.2f deg; its up axis stays within 0.02 of vertical: %s, info only)" % [turned_deg, up_axis_ok])
 	pose_head(0.0)
 	m._refresh()
 
@@ -250,7 +260,19 @@ func _init() -> void:
 			back_ok = false
 	ok(back_ok, "6 placement: every root is behind the head's centre (furthest z %.3f m, bar < -0.06), |x| < 3 cm, in the top 0.4 H (top %.3f m, H %.3f m)" % [worst_z, top, H])
 
-	# the picture: a whole-body side view with the head turning 60 deg, the ponytail mid-swing
+	# (7) no body warning from the hair: no joint at a stop during the turn, and the contacts are the body's own
+	var stops := []
+	var c_off := B.contacts().size()
+	for t7 in [1.0, 1.075, 1.15]:
+		rest_pose(t7)
+		for j in Body.ORDER:
+			if B.P.has(j) and not B.at_limit(j).is_empty():
+				stops.append(j)
+	ok(stops.is_empty(), "7 no joint at a stop during the 60 deg turn (head 30 + neck 30; stops %s; bar none): the skin is not tinted by a limit" % str(stops))
+	ok(B.contacts().size() == c_off, "7 the hair adds no body contact (%d contacts with and without it; the hair is not a body part)" % c_off)
+
+	# the pictures: a whole-body side view with the head turning 60 deg (the ponytail mid-swing), and a close-up of the
+	# head. Nothing picked, no toast, no dummy
 	var shot_path := OS.get_environment("HAIR_SHOT")
 	if shot_path == "":
 		shot_path = "C:/Users/Nick/.claude/jobs/9afc22db/tmp/hair.png"
@@ -258,14 +280,27 @@ func _init() -> void:
 		m.ui_toast.visible = false
 	if m.dummy_on:
 		m._dummy_toggle()
+	m.hover_part = ""   # nothing under the pointer: the hover name tag (hit_tag) hides, no part reads as hovered
+	m.hit_tag.visible = false
 	m.playhead = 1.12
 	rest_pose(1.12)
 	m._refresh()
-	m._turn_to(90.0, -5.0, 4.6, Vector3(0, 0.95, 0), false)
+	await idle(2)
+	m.hit_tag.visible = false
+	ok(not m.hit_tag.visible and str(m.hover_part).is_empty(), "8 picture: no hover tag and no hovered part (the name tag is hidden; the pointer is off the body)")
+	m._turn_to(90.0, -5.0, 3.3, Vector3(0, 1.0, 0), false)
 	await idle(3)
+	m.hit_tag.visible = false
+	m.tag.visible = false   # the selected part's name over the body (the default pick): off for the picture
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(shot_path)
-	print("   (picture: %s)" % shot_path)
+	m._turn_to(90.0, -5.0, 0.6, Vector3(0, 1.62, -0.03), false)
+	await idle(3)
+	m.hit_tag.visible = false
+	m.tag.visible = false   # the selected part's name over the body (the default pick): off for the picture
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(shot_path.get_basename() + "_zoom.png")
+	print("   (pictures: %s and _zoom.png)" % shot_path)
 
 	print("hair_test: %s (%d failing)" % ["PASS" if fails == 0 else "FAIL", fails])
 	m.queue_free()

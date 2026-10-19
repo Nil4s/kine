@@ -5508,26 +5508,62 @@ func _hair_bake(pose := Callable()) -> Array:
 	return hair_frames
 
 
-## the overlay: each strand's nodes at the playhead (one line per segment, a cross at each node, like the secondary chains)
+## the overlay: each strand is a tapered tube (6 mm at the root, 2 mm at the tip; 6 sides a node), lit like the body in the
+## hair token's colour, drawn at the playhead. The bundle is the strands' ring at the tie (Hair.roots)
+var _hair_mat: StandardMaterial3D
+
+
 func _hair_draw() -> void:
 	if _hair_line == null:
 		_hair_line = MeshInstance3D.new()
 		_hair_line.name = "hair"
 		_hair_line.mesh = ImmediateMesh.new()
 		add_child(_hair_line)
+	if _hair_mat == null:
+		_hair_mat = StandardMaterial3D.new()
+		_hair_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_hair_mat.roughness = 0.55
+	_hair_mat.albedo_color = Tok.c("hair")
 	var im := _hair_line.mesh as ImmediateMesh
 	im.clear_surfaces()
 	if S == null or S.hair.is_empty() or hair_frames.is_empty() or hair_scene != S.get_instance_id() or clean:
 		return
 	var p: Dictionary = S.hair
-	var N := int(p["n"]) + 1
+	var n := int(p["n"])
+	var N := n + 1
 	var pts := Hair.at(hair_frames, clampf(playhead, 0.0, S.length()), S.fps)
-	im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
-	im.surface_set_color(Tok.c("ink"))
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _hair_mat)
+	const SIDES := 6
 	for s in int(p["strands"]):
-		for i in N - 1:
-			im.surface_add_vertex(pts[s * N + i])
-			im.surface_add_vertex(pts[s * N + i + 1])
+		var prev: Array = []
+		for i in N:
+			var a: Vector3 = pts[s * N + maxi(i - 1, 0)]
+			var b: Vector3 = pts[s * N + mini(i + 1, n)]
+			var c: Vector3 = pts[s * N + i]
+			var T := (b - a)
+			if T.length() < 1e-9:
+				T = Vector3(0, -1, 0)
+			T = T.normalized()
+			var ref := Vector3.RIGHT if absf(T.dot(Vector3.UP)) > 0.9 else Vector3.UP
+			var side := T.cross(ref).normalized()
+			var upv := side.cross(T).normalized()
+			var r := lerpf(0.003, 0.001, float(i) / float(n))   # 6 mm at the root, 2 mm at the tip
+			var ring: Array = []
+			for k in SIDES:
+				var ang := TAU * float(k) / float(SIDES)
+				var dir := side * cos(ang) + upv * sin(ang)
+				ring.append([c + dir * r, dir])
+			if not prev.is_empty():
+				for k in SIDES:
+					var k2 := (k + 1) % SIDES
+					var q0: Array = prev[k]
+					var q1: Array = prev[k2]
+					var r0: Array = ring[k]
+					var r1: Array = ring[k2]
+					for v in [q0, r0, r1, q0, r1, q1]:
+						im.surface_set_normal(v[1])
+						im.surface_add_vertex(v[0])
+			prev = ring
 	im.surface_end()
 
 

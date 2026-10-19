@@ -31,7 +31,7 @@ const WARM := 1.5   # s: the strands settle in the first pose before the scene's
 ## the body capsules the strands collide with (Body.cap / Body.rad part names)
 const CAPS := ["head", "neck_01", "spine_01", "spine_02", "spine_03", "chest_wide", "clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r"]
 const PRESETS := {
-	"ponytail": {"name": "ponytail", "strands": 8, "n": 10, "seg": 0.03, "spread": 0.012, "tie": 0.25, "rest": [0.0, -1.0, -0.5]},
+	"ponytail": {"name": "ponytail", "strands": 12, "n": 10, "seg": 0.03, "spread": 0.014, "tie": 0.25, "rest": [0.0, -1.0, -0.5]},
 }
 
 
