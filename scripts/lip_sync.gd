@@ -1,7 +1,7 @@
 ## lip_sync.gd - LIP-SYNC FROM AUDIO (ROADMAP 31, top-25 #21). Pure helpers: no node, no scene.
 ## The scene keeps Scene.lip = {"jaw": [{"t", "v": Vector3(open_deg, 0, 0)}], "mouth": [{"t", "s": "M"|"A"|"O"|"E"}]}
 ## (the key shape of Scene.part_keys, so PartKeys.at is the curve). "jaw" is a CHANNEL, not a Body joint: the mannequin
-## has no jaw bone (data/skeleton.json is untouched). The mouth is drawn on the head from the channel (main.gd _lip_draw).
+## has no jaw bone (data/skeleton.json is untouched). The mouth is drawn on the head from the channel (main.gd _face_draw; the brows and eyes too, scripts/face.gd).
 ## Saved only when there is one (a scene without it writes no "lip" key, byte for byte as before).
 ##
 ## FROM THE AUDIO (WAV only: Godot does not decode ogg / mp3 for us, so they say so and bake nothing):

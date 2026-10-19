@@ -2486,7 +2486,7 @@ func _refresh() -> void:
 	_sym_prev = B.ang.duplicate()
 	Overlays.pose_skeleton(skel, bone_idx, B)
 	corr.update(B)
-	_lip_draw()   # ROADMAP 31: the jaw and mouth shape of the sound at the playhead
+	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
 	_doc_line()
@@ -3256,6 +3256,7 @@ func _snapshot() -> Dictionary:
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
+		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
@@ -3335,6 +3336,8 @@ func _restore(u: Dictionary) -> void:
 		_dummy_hits()
 	if u["scene"] == S and u.has("lip") and var_to_str(u["lip"]) != var_to_str(S.lip):
 		S.lip = u["lip"].duplicate(true)   # the lip-sync channel, undone like a card
+	if u["scene"] == S and u.has("face") and var_to_str(u["face"]) != var_to_str(S.face):
+		S.face = u["face"].duplicate(true)   # THE FACE (ROADMAP 74), undone like a card
 	if u["scene"] == S and u.has("boxes") and var_to_str(u["boxes"]) != var_to_str(S.boxes):
 		S.boxes = u["boxes"].duplicate(true)   # HIT / HURT BOXES (ROADMAP 36), undone like a card (the view and the lane follow in _refresh)
 	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
@@ -8973,6 +8976,9 @@ func _commands() -> Array:
 	if clips_ui == null:
 		clips_ui = ClipsUI.new(self)
 	clips_ui.commands(add)   # CLIPS placed as strips (GAP row 12; scripts/clips_ui.gd)
+	if face_ui == null:
+		face_ui = FaceUI.new(self)
+	face_ui.commands(add)   # THE FACE panel (ROADMAP 74; scripts/face_ui.gd)
 	if hitbox_ui == null:
 		hitbox_ui = HitBoxesUI.new(self)
 	hitbox_ui.commands(add)   # HIT / HURT BOXES per frame (ROADMAP 36; scripts/hit_boxes_ui.gd)
@@ -12432,11 +12438,54 @@ func _lip_from_audio() -> void:
 	_refresh()
 
 
-## the mouth at the playhead: hidden with no channel; else placed at the head's front, turned with the head
-func _lip_draw() -> void:
-	if S.lip.is_empty():
+## THE FACE on the head (ROADMAP 74; scripts/face.gd): the brows (L/R), the eyes (look + blink), and the mouth (the jaw and
+## the viseme shape). Drawn at the playhead from the face keys and the lip-sync channel (the lip sync drives the jaw and the
+## visemes when it is there). While the Face panel is open its sliders are the preview. Nothing shows with neither.
+var face_root: Node3D           # the brows and eyes (made on first use)
+var face_brow: Array = []       # [brow_l, brow_r] MeshInstance3D (BoxMesh)
+var face_eye: Array = []        # [eye_l, eye_r] (sclera, SphereMesh)
+var face_pupil: Array = []      # [pupil_l, pupil_r]
+var face_ui: FaceUI
+
+
+func _face_make() -> void:
+	face_root = Node3D.new()
+	face_root.name = "face_parts"
+	add_child(face_root)
+	for i in 2:
+		var b := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(1, 1, 1)
+		b.mesh = bm
+		b.material_override = StandardMaterial3D.new()
+		b.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		face_root.add_child(b)
+		face_brow.append(b)
+		var e := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.5
+		sm.height = 1.0
+		e.mesh = sm
+		e.material_override = StandardMaterial3D.new()
+		e.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		face_root.add_child(e)
+		face_eye.append(e)
+		var p := MeshInstance3D.new()
+		p.mesh = sm
+		p.material_override = StandardMaterial3D.new()
+		p.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		face_root.add_child(p)
+		face_pupil.append(p)
+
+
+func _face_draw() -> void:
+	var live := face_ui != null and face_ui.live()
+	var on := live or not S.lip.is_empty() or not S.face.is_empty()
+	if not on:
 		if mouth_mi != null:
 			mouth_mi.visible = false
+		if face_root != null:
+			face_root.visible = false
 		return
 	if mouth_mi == null:
 		mouth_mi = MeshInstance3D.new()
@@ -12444,18 +12493,47 @@ func _lip_draw() -> void:
 		sm.radius = 0.5
 		sm.height = 1.0
 		mouth_mi.mesh = sm
-		var mm := StandardMaterial3D.new()
-		mm.albedo_color = Color(0.24, 0.07, 0.07)
-		mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mouth_mi.material_override = mm
+		mouth_mi.material_override = StandardMaterial3D.new()
+		mouth_mi.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		add_child(mouth_mi)
-	var jaw := LipSync.jaw_at(S.lip, playhead)
-	var sz := LipSync.mouth_size(LipSync.shape_at(S.lip, playhead), jaw)
+	if face_root == null:
+		_face_make()
+	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else Face.at(S.face, S.lip, playhead)
 	var c: Array = B.cap("head")
 	var g: Quaternion = B.G["head"]
 	var front: Vector3 = g * Vector3(0, 0, 1)
+	var up: Vector3 = g * Vector3(0, 1, 0)
+	var left: Vector3 = g * Vector3(1, 0, 0)   # +X = the hero's LEFT (data/skeleton.json)
+	var r := float(B.rad["head"])
+	var mid: Vector3 = ((c[0] as Vector3) + (c[1] as Vector3)) * 0.5
+	var ink: Color = Tok.c("ink")
+	var pupil_c: Color = Tok.c("accent")
+	var white: Color = Tok.c("text")
+	var blink := float(P["blink"])
+	face_root.visible = true
+	for side in 2:
+		var sx := 1.0 if side == 0 else -1.0   # side 0 = the left (+X), 1 = the right
+		var key := "brow_l" if side == 0 else "brow_r"
+		var v := float(P[key])
+		var bpos := mid + front * r * 0.92 + up * (r * 0.6 + r * 0.1 * v) + left * (r * 0.32 * sx)
+		var tilt := -clampf(v, -1.0, 1.0) * 0.3 * sx
+		var bb: MeshInstance3D = face_brow[side]
+		(bb.material_override as StandardMaterial3D).albedo_color = ink
+		bb.transform = Transform3D(Basis(g) * Basis(Vector3(0, 0, 1), tilt) * Basis.from_scale(Vector3(r * 0.4, r * 0.045, r * 0.08)), bpos)
+		var epos := mid + front * r * 0.9 + up * (r * 0.2) + left * (r * 0.33 * sx)
+		var eb: MeshInstance3D = face_eye[side]
+		(eb.material_override as StandardMaterial3D).albedo_color = white
+		eb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(r * 0.3, r * 0.3 * (1.0 - 0.9 * blink), r * 0.2)), epos)
+		var look := left * sin(deg_to_rad(float(P["eye_yaw_deg"]))) + up * sin(deg_to_rad(float(P["eye_pitch_deg"])))
+		var pb: MeshInstance3D = face_pupil[side]
+		(pb.material_override as StandardMaterial3D).albedo_color = pupil_c
+		pb.visible = blink < 0.5
+		pb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(r * 0.14, r * 0.14, r * 0.1)), epos + front * r * 0.12 + look * r * 0.12)
+	var jaw := float(P["jaw_deg"])
+	var sz := Face.mouth_size(String(P["mouth"]), jaw)
+	(mouth_mi.material_override as StandardMaterial3D).albedo_color = Tok.c("fail")
 	mouth_mi.visible = true
-	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(sz), ((c[0] as Vector3) + (c[1] as Vector3)) * 0.5 + front * float(B.rad["head"]) * 1.35)
+	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(sz), mid + front * r * 1.35)
 
 
 func _audio_remove() -> void:

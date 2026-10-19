@@ -145,7 +145,7 @@ func fp() -> String:
 		"sets": var_to_str(m.S.sets),   # selection / keying sets (part_sets.gd)
 		"clips": var_to_str(m.S.clips),   # CLIPS (clips.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
-		"drivers": var_to_str(m.S.drivers), "secondary": var_to_str(m.S.secondary), "lip": var_to_str(m.S.lip),   # drivers, secondary motion, lip-sync
+		"drivers": var_to_str(m.S.drivers), "secondary": var_to_str(m.S.secondary), "lip": var_to_str(m.S.lip), "face": var_to_str(m.S.face),   # drivers, secondary motion, lip-sync, the face (face.gd)
 		"plants": var_to_str(m.S.plants.map(func(q): var c: Dictionary = q.duplicate(); c.erase("out"); return c)),   # foot plants, without "out" (a cache the first play writes into the plant)
 		"body": var_to_str(m.S.body), "p0": var_to_str(m.B.p0)}   # PR1: the proportions and the skeleton they make
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
