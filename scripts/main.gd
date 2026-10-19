@@ -6979,6 +6979,7 @@ func _commands() -> Array:
 	add.call("Constraint: target the picked prop", "", _cons_target_prop, "constraint target prop box door ball chair table carried hold", false, "the picked prop becomes the target of the next constraint (Child Of follows it where it is: carried in a hand, or moved by its keys)")
 	add.call("Prop: key its place here", "", _prop_key, "prop key keyframe animate move position turn door ball box set", true, "a key for the picked prop at the playhead: where it is and how it is turned (a door: its swing too); between keys it moves smoothly")
 	add.call("Prop: delete its keys", "", _prop_unkey, "prop key keyframe clear remove animation", true, "the picked prop's keys go: it stays where it is at the playhead")
+	add.call("Grip: wrap the hand round the picked prop", "", _grip_prop_cmd, "grip wrap hand fingers close round prop ball box cylinder any shape keyframe", true, "the picked hand's fingers close round the picked prop's surface (any shape; a ball, a cylinder, a box, an imported model) and the thumb opposes; the finger poses are keyed at the playhead; one undo step")
 	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
 	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
 	add.call("Constraint: child of the target", "", _cons_child_of, "constraint child of parent follow hold attach hand foot hips prop door hip blender", true, "the picked hand, foot (or the hips) follows the target from the playhead on, keeping where it is from it now; the arm / leg bends to reach")
@@ -9218,6 +9219,27 @@ func _prop_key() -> void:
 	_doc_line()
 	_say("keyed the %s at %.2f s (%d keys): move the playhead, drag or turn it, and it is keyed there too; Ctrl+Z takes it back" % [
 		_prop_name(sel_prop), playhead, (S.props[sel_prop]["keys"] as Array).size()])
+
+
+## GRIP ANY PROP (ROADMAP 18; scripts/any_grip.gd): the picked hand's fingers close round the picked prop at the playhead
+## (its surface, any shape), the thumb opposing; the finger and thumb poses are keyed there. One undo step
+func _grip_prop_cmd() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		_say("pick a prop first: click it in the view, then Grip: wrap the hand round the picked prop")
+		return
+	var h := "hand_l" if sel.ends_with("_l") else "hand_r"
+	var t := clampf(playhead, 0.0, S.length())
+	var F := AnyGrip.field_of(Props.posed(S.props[sel_prop], t))
+	var name := _prop_name(sel_prop)
+	var rep := {}
+	_do(func(): rep.merge(AnyGrip.grip_prop(B, h, F, S.part_keys, t)))
+	var touch := 0
+	for f in GripWrap.LONG:
+		if float((rep[f] as Array)[2][1]) <= 0.003:
+			touch += 1
+	_props_show()
+	_say("%s hand wrapped round the %s (%s shape): %d of 4 fingertips on it, the rest at their limits or short; keyed at %.2f s; Ctrl+Z takes it back" % [
+		"left" if h == "hand_l" else "right", name, rep["pattern"], touch, t])
 
 
 func _prop_unkey() -> void:
