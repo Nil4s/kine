@@ -1780,6 +1780,24 @@ func ground_body() -> void:
 	fk()
 
 
+## SNAP TO FLOOR (ROADMAP 46): how far the root must move (m, + = up) so the body's lowest contact touches its floor.
+## Two floors, both the app's own: a SOLE point (heel, ball) stands on its rest height, Body.ground()'s floor (on_floor
+## scenes, the default); a capsule of any other part (knee, hip, hand) stands on y = 0, Body.ground_body()'s floor
+## (floor_body scenes). The body moves by the smaller of the two (a body never sinks through either): the first contact
+## touches and nothing else goes under. Fingers and feet's capsules aside (the soles are the sole points, as in sole_low).
+func floor_shift() -> float:
+	fk()
+	var cap := INF
+	for j in ORDER:
+		if j.begins_with("thumb") or j.begins_with("index") or j.begins_with("middle") or j.begins_with("ring") or j.begins_with("pinky"):
+			continue
+		if j.begins_with("foot") or j.begins_with("ball"):
+			continue
+		var r: float = float(rad.get(j, 0.03))
+		cap = minf(cap, minf((P[j] as Vector3).y, (E[j] as Vector3).y) - r)
+	return minf(minf(foot_sole_low("_l"), foot_sole_low("_r")), cap)
+
+
 ## FLAT FOOT: the ankle's bend that puts the toes' ball back at the heel's height difference it has at rest
 ## (bisection: the ball rises as the bend grows). Toes off = the toes bend so their tip touches the floor too.
 func flat_foot(sd: String) -> void:
