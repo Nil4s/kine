@@ -2,11 +2,16 @@
 ## timeline, the way an editor drops a cue: [{"t": seconds, "name": String, "kind": "hit"|"step"|"swoosh"|"note"}] sorted
 ## by t. The game that plays an export fires its own sound / spark / camera shake on them ("events" in the game JSON,
 ## t as a fraction of the length). They are written to the scene file only when there are any (old scenes save as before).
-## All static: the Scene holds the array (Scene.markers), main.gd owns the undo and the commands.
+## ROADMAP 97: a marker may also carry "note" (free text, several lines; in the file only when not empty) and "color"
+## (one of PALETTE: "red" | "green" | "blue" | "gold", the Tok tokens mk_*; absent = the colour of its kind). The .glb
+## export puts them on its first animation as extras "poser_markers" (glTF extras are what engines read; BVH has no
+## place for them, so BVH carries none). All static: the Scene holds the array (Scene.markers), main.gd owns the undo.
 class_name Markers
 
 const KINDS := ["hit", "step", "swoosh", "note"]
-const COLORS := {"hit": Color(0.95, 0.3, 0.25), "step": Color(0.35, 0.75, 0.4), "swoosh": Color(0.35, 0.65, 0.95), "note": Color(0.9, 0.8, 0.3)}
+const PALETTE := ["red", "green", "blue", "gold"]
+const KIND_COLOR := {"hit": "red", "step": "green", "swoosh": "blue", "note": "gold"}
+const NOTE_MAX := 2000   # characters kept of a marker's note
 
 
 static func sorted(ms: Array) -> Array:
@@ -15,10 +20,39 @@ static func sorted(ms: Array) -> Array:
 	return out
 
 
-## one marker, cleaned (a bad kind is a note, a missing name is "m<i+1>")
+## one marker, cleaned (a bad kind is a note, a missing name is "m<i+1>"; note and color only when set)
 static func clean(d: Dictionary, i := 0) -> Dictionary:
 	var k := String(d.get("kind", "note"))
-	return {"t": maxf(0.0, float(d.get("t", 0.0))), "name": String(d.get("name", "m%d" % (i + 1))), "kind": k if k in KINDS else "note"}
+	var out := {"t": maxf(0.0, float(d.get("t", 0.0))), "name": String(d.get("name", "m%d" % (i + 1))), "kind": k if k in KINDS else "note"}
+	var note := String(d.get("note", ""))
+	if note != "":
+		out["note"] = note.left(NOTE_MAX)
+	var c := String(d.get("color", ""))
+	if c in PALETTE:
+		out["color"] = c
+	return out
+
+
+## the Tok token a marker is drawn in: its own colour, else its kind's
+static func token_of(mk: Dictionary) -> String:
+	var c := String(mk.get("color", ""))
+	if c in PALETTE:
+		return "mk_" + c
+	return "mk_" + String(KIND_COLOR.get(String(mk.get("kind", "note")), "gold"))
+
+
+## the marker with its name, note and colour replaced (a blank name keeps the old one; a blank note removes it); a new dict
+static func with(mk: Dictionary, name: String, note: String, color: String) -> Dictionary:
+	var d := mk.duplicate(true)
+	if name.strip_edges() != "":
+		d["name"] = name.strip_edges()
+	d.erase("note")
+	if note != "":
+		d["note"] = note
+	d.erase("color")
+	if color in PALETTE:
+		d["color"] = color
+	return clean(d)
 
 
 ## the file's list -> clean, sorted (anything not a dictionary with a t is dropped)
@@ -46,6 +80,15 @@ static func add(ms: Array, t: float, name := "", kind := "note") -> Dictionary:
 	ms.append(mk)
 	ms.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
 	return mk
+
+
+## the time of a whole frame (ROADMAP 97: a dragged marker lands on frames): frame = round(t * fps)
+static func frame_of(t: float, fps: int) -> int:
+	return roundi(t * float(maxi(fps, 1)))
+
+
+static func time_of_frame(f: int, fps: int) -> float:
+	return snappedf(float(f) / float(maxi(fps, 1)), 1e-6)
 
 
 ## the index of the marker nearest to t within tol seconds, else -1
@@ -113,3 +156,64 @@ static func events(ms: Array, length: float) -> Array:
 	for x in ms:
 		out.append({"t_frac": snappedf(clampf(float(x["t"]) / maxf(length, 1e-6), 0.0, 1.0), 0.0001), "name": x["name"], "kind": x["kind"]})
 	return out
+
+
+## the .glb's list: name, kind, t (seconds), frame, and note / color when the marker has them
+static func glb_list(ms: Array, fps: int) -> Array:
+	var out := []
+	for x in ms:
+		var d := {"name": String(x["name"]), "kind": String(x["kind"]), "t": snappedf(float(x["t"]), 1e-6), "frame": frame_of(float(x["t"]), fps)}
+		if x.has("note"):
+			d["note"] = String(x["note"])
+		if x.has("color"):
+			d["color"] = String(x["color"])
+		out.append(d)
+	return out
+
+
+## THE GLB EXTRAS (ROADMAP 97): the markers as extras "poser_markers" on the file's first animation (glTF 2.0 lets
+## every object carry extras). Rewrites the .glb's JSON chunk; the binary chunk is copied as it is. No markers, or a
+## file with no animation, = the file untouched. OK or the error.
+static func add_glb_extras(path: String, ms: Array, fps: int) -> Error:
+	if ms.is_empty():
+		return OK
+	var b := FileAccess.get_file_as_bytes(path)
+	if b.size() < 20 or b.slice(0, 4).get_string_from_ascii() != "glTF":
+		return ERR_FILE_CORRUPT
+	var jlen := b.decode_u32(12)
+	if b.slice(16, 20).get_string_from_ascii() != "JSON":
+		return ERR_FILE_CORRUPT
+	var doc: Variant = JSON.parse_string(b.slice(20, 20 + jlen).get_string_from_utf8())
+	if not doc is Dictionary:
+		return ERR_FILE_CORRUPT
+	var anims: Array = (doc as Dictionary).get("animations", [])
+	if anims.is_empty():
+		return OK
+	var ex: Dictionary = (anims[0] as Dictionary).get("extras", {})
+	ex["poser_markers"] = glb_list(ms, fps)
+	(anims[0] as Dictionary)["extras"] = ex
+	var jb := JSON.stringify(doc, "", false).to_utf8_buffer()
+	while jb.size() % 4 != 0:
+		jb.append(0x20)   # the JSON chunk pads with spaces (glTF 2.0 section 3.6.1)
+	var rest := b.slice(20 + jlen)
+	var outb := PackedByteArray()
+	outb.append_array("glTF".to_ascii_buffer())
+	outb.append_array(_u32(2))
+	outb.append_array(_u32(12 + 8 + jb.size() + rest.size()))
+	outb.append_array(_u32(jb.size()))
+	outb.append_array("JSON".to_ascii_buffer())
+	outb.append_array(jb)
+	outb.append_array(rest)
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return FileAccess.get_open_error()
+	f.store_buffer(outb)
+	f.close()
+	return OK
+
+
+static func _u32(v: int) -> PackedByteArray:
+	var a := PackedByteArray()
+	a.resize(4)
+	a.encode_u32(0, v)
+	return a
