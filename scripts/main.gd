@@ -1003,8 +1003,8 @@ func _export_engine(id: String, dir := "res://exports") -> String:
 ## range (or the whole scene), saved as exports/playblast/<scene>_<stamp>/frame_0000.png ... and, when ffmpeg is found
 ## (PATH, POSER_FFMPEG or the argument), as <scene>.mp4 beside them. Each frame is posed by _ps().apply + _refresh, the
 ## path play and scrub use, so frame k is what the view shows at its time. The panels are hidden while it renders.
-## Returns {"dir", "frames", "mp4", "ffmpeg"}; {} when refused.
-func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "") -> Dictionary:
+## Returns {"dir", "frames", "mp4", "ffmpeg"}; {} when refused. with_mp4 = false: the PNG frames only (the review page's frames)
+func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with_mp4 := true) -> Dictionary:
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a playblast needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return {}
@@ -1042,10 +1042,12 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "") -> D
 	playhead = keep_t
 	playing = keep_playing
 	_refresh()
-	var ff := PlayblastExport.find_ffmpeg(ffmpeg_path)
+	var ff := PlayblastExport.find_ffmpeg(ffmpeg_path) if with_mp4 else ""
 	var mp4 := ""
 	var how := ""
-	if ff == "":
+	if not with_mp4:
+		how = ""
+	elif ff == "":
 		how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Export playblast (video) again, or set POSER_FFMPEG to ffmpeg.exe"
 	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], S.audio, sp[0]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
 		mp4 = "%s/%s.mp4" % [gdir, nm]
@@ -1054,6 +1056,74 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "") -> D
 		how = ". No .mp4: ffmpeg (%s) failed on the frames; the PNGs are fine, run ffmpeg on them yourself" % ff
 	_say_plain("playblast: %d PNG frames at %d fps (%.2f to %.2f s) in %s%s" % [n, fps, sp[0], sp[1], dir, how])
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
+
+
+## REVIEW WITH FRAME COMMENTS (ROADMAP 29; scripts/review.gd): the playblast's frames (the same capture, no mp4, the frames
+## kept in a temporary folder and removed after) -> ONE self-contained page, root/<scene>_<date>.html (never over an
+## earlier one). Returns the page's path; "" when refused. Nothing leaves the machine.
+func _export_review(root_dir := Review.DIR) -> String:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a review page needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
+		return ""
+	var fps: int = S.fps
+	var first := roundi(PlayblastExport.span(pv_in, pv_out, _ps().length())[0] * float(fps))   # the scene frame of the first page frame
+	var rs: Dictionary = await _export_playblast("user://review_frames", "", false)
+	if rs.is_empty():
+		return ""
+	var gdir: String = rs["dir"]
+	var n: int = rs["frames"]
+	var uris := []
+	for f in n:
+		var png := "%s/frame_%04d.png" % [gdir, f]
+		var u := Review.frame_uri(png)
+		if u != "":
+			uris.append(u)
+		DirAccess.remove_absolute(png)
+	DirAccess.remove_absolute(gdir)
+	if uris.size() != n:
+		_say_plain("NOT DONE: %d of %d frames could not be read back for the page; nothing was written" % [n - uris.size(), n])
+		return ""
+	var date := Time.get_date_string_from_system()
+	var dir_abs := ProjectSettings.globalize_path(root_dir)
+	DirAccess.make_dir_recursive_absolute(dir_abs)
+	var out := Review.page_path(safe_file(S.name) if S.name != "" else "scene", date, root_dir)
+	var fh := FileAccess.open(out, FileAccess.WRITE)
+	if fh == null:
+		_say_plain("NOT DONE: the page %s could not be written: close anything using it, and run Review: export a review page again" % out)
+		return ""
+	fh.store_string(Review.html(S.name if S.name != "" else "scene", fps, first, uris, date))
+	fh.close()
+	_say_plain("review page: %d frames at %d fps in %s. Open it in any browser; comments are kept there, and Download comments writes a .json to import back" % [n, fps, out])
+	return out
+
+
+func _review_import_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.json ; review comments"])
+	fd.use_native_dialog = true
+	fd.title = "Import review comments (.json)"
+	fd.file_selected.connect(func(p): _review_import(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## the comments of a review page's .json as notes on this scene: one undo step; the ones already here are not doubled.
+## Returns the number added, -1 when refused (the reason on the status line, nothing changed)
+func _review_import(path: String) -> int:
+	var r := Review.from_comments(FileAccess.get_file_as_string(path))
+	if not r["ok"]:
+		_say("could not import %s: %s" % [path.get_file(), r["why"]])
+		return -1
+	var before := S.notes.size()
+	_push_undo()
+	S.notes = Review.merge(S.notes, r["notes"])
+	_markers_changed()
+	var added := S.notes.size() - before
+	_say("imported %d comments from %s as notes on the timeline (%d were already there): click one to jump. Ctrl+Z undoes" % [r["notes"].size(), path.get_file(), r["notes"].size() - added])
+	return added
 
 
 ## EXPORT .BVH (round 34, GATES OO2): the scene as exports/<scene>.bvh (BvhExport, the writer tools/export_bvh.gd uses):
@@ -3009,6 +3079,7 @@ func _snapshot() -> Dictionary:
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
 		"beats": H.beats.duplicate(true),   # ROADMAP 13: the exchange's beats (the hero's), undone like a card
+		"notes": S.notes.duplicate(true),   # ROADMAP 29: the review notes, undone like a marker
 		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
 		"clips": S.clips.duplicate(true),   # CLIPS (clips.gd), undone like a card
 		"boxes": S.boxes.duplicate(true),   # HIT / HURT BOXES (hit_boxes.gd), undone like a card
@@ -3037,6 +3108,10 @@ func _restore(u: Dictionary) -> void:
 		_rebuild_cards()
 	if u["scene"] == S and u.has("markers") and JSON.stringify(u["markers"]) != JSON.stringify(S.markers):
 		S.markers = u["markers"].duplicate(true)   # WW5: the markers, undone like a card
+		if ui_timeline != null:
+			ui_timeline.queue_redraw()
+	if u["scene"] == S and u.has("notes") and JSON.stringify(u["notes"]) != JSON.stringify(S.notes):
+		S.notes = u["notes"].duplicate(true)   # ROADMAP 29: the review notes, undone like a marker
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
 	if u.has("beats") and u.get("hero") == _hero_scene() and var_to_str(u["beats"]) != var_to_str(_hero_scene().beats):
@@ -7971,6 +8046,8 @@ func _commands() -> Array:
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
+	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
+	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")

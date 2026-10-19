@@ -188,6 +188,11 @@ func _gui_input(ev: InputEvent) -> void:
 				scrubbed.emit(kt)
 				accept_event()
 				return
+			var nt := note_t_at(ev.position)   # ROADMAP 29: a review note's mark on the ruler = the playhead to its frame
+			if nt >= 0.0:
+				scrubbed.emit(nt)
+				accept_event()
+				return
 			var fs := mark_at(ev.position)
 			if not fs.is_empty():
 				finding_picked.emit(fs[0])
@@ -424,6 +429,10 @@ func _draw() -> void:
 		var fc: Color = Markers.COLORS.get(String(mk["kind"]), Color.WHITE)
 		draw_line(Vector2(fx, 0), Vector2(fx, RULER), fc, 1.0)
 		draw_colored_polygon(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6)]), fc)
+	# REVIEW NOTES (ROADMAP 29): a cyan square on the ruler at each comment's frame (note_t_at takes a click on it)
+	for nt in S.notes:
+		var nx := x_of(clampf(Review.time_of(int(nt["frame"]), S.fps), 0.0, L))
+		draw_rect(Rect2(nx - 3, 0, 6, 6), Review.COLOR)
 	# THE SHOT CAMERA's keys: a camera-coloured diamond at each key's time (cam_key_at takes a click on it)
 	var cy := _cam_y()
 	for t in cam_times():
@@ -433,6 +442,19 @@ func _draw() -> void:
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)
 	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
+
+
+## ROADMAP 29: the time of the review note whose mark is under p (on the ruler), or -1
+func note_t_at(p: Vector2) -> float:
+	var S := _S()
+	if S == null or S.cards.is_empty() or S.notes.is_empty() or p.y < 0.0 or p.y > RULER:
+		return -1.0
+	var L := S.length()
+	for nt in S.notes:
+		var t := clampf(Review.time_of(int(nt["frame"]), S.fps), 0.0, L)
+		if absf(x_of(t) - p.x) <= 4.0:
+			return t
+	return -1.0
 
 
 # ---------------------------------------------------------------- CLIPS (GAP_ANALYSIS row 12; scripts/clips.gd)

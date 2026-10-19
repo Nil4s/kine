@@ -61,6 +61,7 @@ var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offse
 var lip := {}          # LIP-SYNC channel (ROADMAP 31, lip_sync.gd): {"jaw": [{"t", "v"}], "mouth": [{"t", "s"}]}; in the file only when baked
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var beats_audio := []  # MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): [{"t" (the sound's time), "down"}] sorted; in the file as "beats_audio" only when any
+var notes := []       # REVIEW (ROADMAP 29; scripts/review.gd): comments on frames [{"frame", "text"}] by frame; in the file as "notes" only when any
 var beats := []       # CHOREOGRAPHY (ROADMAP 13; scripts/choreo.gd): the exchange's named moments [{"t", "name", "by", "on"}] on the HERO's scene; in the file as "beats" only when any
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
@@ -1383,6 +1384,7 @@ func clone() -> Scene:
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
 	c.markers = markers.duplicate(true)
+	c.notes = notes.duplicate(true)
 	c.beats = beats.duplicate(true)
 	c.beats_audio = beats_audio.duplicate(true)
 	c.audio = audio.duplicate()
@@ -1885,6 +1887,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
 	if not markers.is_empty():
 		out["markers"] = markers.duplicate(true)   # WW5: the same, only when there are any
+	if not notes.is_empty():
+		out["notes"] = notes.duplicate(true)   # ROADMAP 29: the same, only when there are any
 	if not beats.is_empty():
 		out["beats"] = Choreo.to_list(beats)   # ROADMAP 13: the same, only when there are any
 	if not beats_audio.is_empty():
@@ -1927,7 +1931,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
@@ -2042,6 +2046,7 @@ func from_dict(d: Dictionary) -> void:
 	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
 	markers = Markers.from_list(d.get("markers", []))
+	notes = Review.notes_from_list(d.get("notes", []))   # ROADMAP 29
 	beats = Choreo.from_list(d.get("beats", []))   # ROADMAP 13
 	beats_audio = BeatTrack.clean_list(d.get("beats_audio", []))   # ROADMAP 32: absent = none
 	audio = AudioTrack.clean(d["audio"]) if d.get("audio") is Dictionary and String(d["audio"].get("path", "")) != "" else {}
