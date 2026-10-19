@@ -26,7 +26,7 @@ func _init() -> void:
 	root.add_child(m)
 	await process_frame
 	# (1) the audit, from the source
-	var policy := {"_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
+	var policy := {"_ring_push": "user://autosave_N.json only (the rotating autosaves, RING_N = 5; never scenes/)", "_recent_note": "the settings file (File > Recent: a preference, not work)", "_restore_copy": "a NEW scene in scenes/_wip/ (never over a file: _2, _3)", "_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
 		"_save_scene_now": "asked by _save_scene when another file has the name", "_trash_now": "asked by _trash",
 		"_polish": "a NEW machine copy in scenes/_wip/", "_template_build": "a NEW scene in scenes/_wip/ (never over an earlier one: _2, _3; the templates/ files are only read)", "_words_build": "a NEW machine copy in scenes/_wip/ (the move built from words)", "_ragdoll_fall": "a NEW machine copy in scenes/_wip/ (<name>_ragdoll[_N], never overwrites)", "_style_save": "a NEW machine copy in scenes/_wip/ (the style's own file; the scene it came from is untouched)", "_mirror_scene": "a NEW machine copy in scenes/_wip/", "_import_bvh": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)",
 		"_import_pose": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_anim": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_video": "the tracker's pose file in user://video_track/ (its own, replaced per video)",

@@ -34,6 +34,8 @@ const SETTINGS := "user://poser.cfg"   # what the poser remembers between runs (
 var settings := SETTINGS
 const AUTOSAVE := "user://autosave.json"   # the unsaved scene, every 15 s (round 16, W1): never in scenes/
 var autosave := AUTOSAVE   # a test's own (POSER_AUTOSAVE names one; otherwise per process, removed on exit)
+const RECENT_N := 10   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first (settings [recent] scenes)
+const RING_N := 5      # File > Restore... (ROADMAP 59): the last autosaves, rotating: user://autosave_1.json is the newest
 var _as_wait := 0.0
 var _as_last := ""
 const JOURNAL := "user://journal"   # ROADMAP 2 (CRASH-PROOF): one .jsonl per scene, trimmed on save (scripts/journal.gd)
@@ -7408,7 +7410,20 @@ func _lists() -> void:
 			ui_poses.set_item_metadata(i, path)
 	if ui_browser != null:
 		ui_browser.refresh()
+	_fill_scene_list()
+	_show_open_scene()
+
+
+## THE DROPDOWN'S ROWS (ROADMAP 59): the recent scenes first, then every scene; the open scene is selected by _show_open_scene
+## (the last row with its file wins, so the picked row is the one in the list proper)
+func _fill_scene_list() -> void:
 	ui_scenes.clear()
+	for p in _recent_list():   # File > Recent (ROADMAP 59): the last scenes opened or saved, first and marked; a missing one greyed
+		var i := ui_scenes.item_count
+		var miss := not FileAccess.file_exists(p)
+		ui_scenes.add_item(p.get_file().get_basename().replace("_", " ") + ("   (missing)" if miss else "   (recent)"))
+		ui_scenes.set_item_metadata(i, p)
+		ui_scenes.set_item_disabled(i, miss)
 	# round 45 (Nick 10-18: his video import "doesn't show on open scene"): the work copies in scenes/_wip (imports,
 	# mirrors, polishes) are listed too, marked; opening one picks it, so Delete still trashes only the scene on screen
 	for dir in ["res://scenes", "res://moves", "res://scenes/_wip"]:
@@ -7423,7 +7438,6 @@ func _lists() -> void:
 			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
 				ui_scenes.add_item(f.get_basename().replace("_", " ") + ("   (work copy)" if dir.ends_with("_wip") else ""))
 				ui_scenes.set_item_metadata(ui_scenes.item_count - 1, path)
-	_show_open_scene()
 
 
 ## the list opens: each scene's picture is asked for (a cached one is set at once, the rest are drawn a frame apart)
@@ -7450,6 +7464,8 @@ func _fit_scene_list() -> void:
 
 ## a scene's picture is ready: its row in the list gets it (the row is found by its file, so a re-list in between is safe)
 func _thumb_made(path: String) -> void:
+	if path == _restore_shown and ui_restore_pic != null and thumbs != null:   # the Restore... dialog's picture
+		ui_restore_pic.texture = thumbs.picture(path)
 	if ui_scenes == null or thumbs == null:
 		return
 	var tex := thumbs.picture(path)
@@ -8402,6 +8418,13 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
+		var miss := not FileAccess.file_exists(p)
+		var how := "%s is not on disk any more: File > Recent drops it when %d newer scenes are opened" % [p.get_file(), RECENT_N]
+		if not miss:
+			how = "open %s (the same as picking it in the scene list)" % p.get_file()
+		add.call("File > Recent: " + p.get_file().get_basename().replace("_", " ") + ("  (missing)" if miss else ""), "", _open_recent.bind(p), "recent open scene file again last", false, how)
+	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
@@ -10455,6 +10478,7 @@ func _save_scene_now(nm: String) -> void:
 	_clean = _doc_key()
 	_autosave_drop()
 	scene_path = "res://scenes/%s.json" % fname
+	_recent_note(scene_path)
 	_journal_saved()
 	_lists()
 	_refresh()
@@ -10588,6 +10612,7 @@ func autosave_now() -> bool:
 	if DirAccess.rename_absolute(fp + ".tmp", fp) != OK:
 		return false
 	_as_last = what
+	_ring_push(fp)
 	return true
 
 
@@ -10597,6 +10622,177 @@ func _autosave_drop() -> void:
 		if FileAccess.file_exists(q):
 			DirAccess.remove_absolute(q)
 	_as_last = ""
+
+
+## RESTORE... (ROADMAP 59): every autosave written is also kept as the newest of RING_N rotating copies:
+## user://autosave_1.json (the newest) .. user://autosave_5.json (the oldest; the next write drops it). A copy of the
+## autosave file's bytes. A save or a quit does not drop them: the history is what Restore... is for, and it is bounded
+func _ring_path(n: int) -> String:
+	return autosave.get_basename() + "_%d.json" % n
+
+
+func _ring_push(fp: String) -> void:
+	if FileAccess.file_exists(_ring_path(RING_N)):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_ring_path(RING_N)))
+	for n in range(RING_N - 1, 0, -1):
+		if FileAccess.file_exists(_ring_path(n)):
+			DirAccess.rename_absolute(ProjectSettings.globalize_path(_ring_path(n)), ProjectSettings.globalize_path(_ring_path(n + 1)))
+	DirAccess.copy_absolute(fp, ProjectSettings.globalize_path(_ring_path(1)))
+
+
+## the kept autosaves, newest first: {path, at, name, cards, a} (a = the file's {scene, path, at}); unreadable ones skipped
+func _ring_list() -> Array:
+	var out := []
+	for n in range(1, RING_N + 1):
+		var p := _ring_path(n)
+		if not FileAccess.file_exists(p):
+			continue
+		var a: Variant = JSON.parse_string(FileAccess.get_file_as_string(p))
+		if not (a is Dictionary) or not (a.get("scene") is Dictionary) or not (a["scene"] as Dictionary).has("cards"):
+			continue
+		out.append({"path": p, "at": String(a.get("at", "")), "name": String(a["scene"].get("name", "")) if String(a["scene"].get("name", "")) != "" else String(a.get("path", "")).get_file().get_basename(), "cards": (a["scene"]["cards"] as Array).size(), "a": a})
+	return out
+
+
+## File > Restore...: the kept autosaves as a list (newest first) with a picture of the picked one. The copy is made by
+## _restore_copy, after the scene on screen is saved or given up (it asks)
+var ui_restore: AcceptDialog
+var ui_restore_list: ItemList
+var ui_restore_pic: TextureRect
+var ui_restore_info: Label
+var _restore_rows: Array = []
+var _restore_shown := ""   # the autosave file whose picture the dialog shows
+
+
+func _restore_open() -> void:
+	_restore_rows = _ring_list()
+	if _restore_rows.is_empty():
+		_say("no autosaves kept yet: Kine keeps the last %d as you edit an unsaved scene (File > Restore... lists them)" % RING_N)
+		return
+	if ui_restore == null:
+		_restore_build()
+	ui_restore_list.clear()
+	for r in _restore_rows:
+		ui_restore_list.add_item("%s   %s   %d cards" % [r["at"], r["name"] if r["name"] != "" else "(no name)", r["cards"]])
+	ui_restore_list.select(0)
+	_restore_pick(0)
+	ui_restore.popup_centered()
+
+
+func _restore_build() -> void:
+	ui_restore = AcceptDialog.new()
+	ui_restore.name = "restore_dialog"
+	ui_restore.title = "Restore an autosave"
+	ui_restore.ok_button_text = "Open as a new copy"
+	ui_restore.min_size = Vector2i(620, 440)
+	ui_restore.size = Vector2i(620, 440)   # the buttons sit at its foot: the content must not push them off the window
+	var vb := VBoxContainer.new()
+	vb.name = "restore_box"
+	vb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vb.offset_bottom = -60
+	ui_restore.add_child(vb)
+	ui_restore_list = ItemList.new()
+	ui_restore_list.name = "restore_list"
+	ui_restore_list.custom_minimum_size = Vector2(0, 160)
+	ui_restore_list.item_selected.connect(_restore_pick)
+	vb.add_child(ui_restore_list)
+	var hb := HBoxContainer.new()
+	hb.name = "restore_row"
+	vb.add_child(hb)
+	ui_restore_pic = TextureRect.new()
+	ui_restore_pic.name = "restore_pic"
+	ui_restore_pic.custom_minimum_size = Vector2(SceneThumbs.SIZE.x * 3, SceneThumbs.SIZE.y * 3)
+	ui_restore_pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ui_restore_pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hb.add_child(ui_restore_pic)
+	ui_restore_info = Label.new()
+	ui_restore_info.name = "restore_info"
+	ui_restore_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_restore_info.custom_minimum_size = Vector2(280, 0)
+	ui_restore_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(ui_restore_info)
+	ui_restore.confirmed.connect(_restore_go)
+	add_child(ui_restore)
+
+
+## the picked autosave: its time, scene, cards; its picture (drawn at once when cached, else when its turn comes)
+func _restore_pick(i: int) -> void:
+	if i < 0 or i >= _restore_rows.size():
+		return
+	var r: Dictionary = _restore_rows[i]
+	_restore_shown = r["path"]
+	ui_restore_info.text = "autosaved %s\n'%s', %d cards\nOpens as a NEW copy in scenes/_wip. The scene you have open and its file are not touched" % [
+		r["at"], r["name"] if r["name"] != "" else "(no name)", r["cards"]]
+	if thumbs != null:
+		thumbs.request(r["path"])
+		ui_restore_pic.texture = thumbs.picture(r["path"])
+
+
+func _restore_go() -> void:
+	var sel := ui_restore_list.get_selected_items()
+	if sel.is_empty():
+		_say("pick an autosave in the list, then Open as a new copy")
+		return
+	var r: Dictionary = _restore_rows[sel[0]]
+	var go := func(): _restore_copy(r)
+	if _unsaved():
+		_ask_save(_scene_label(), go)   # asks first: opening replaces the scene on screen
+	else:
+		go.call()
+
+
+## the autosave as a NEW scene in scenes/_wip, named after its scene (never over a file: _2, _3), opened as a clean copy
+func _restore_copy(r: Dictionary) -> void:
+	var a: Dictionary = r["a"]
+	var nm := safe_file(String(r["name"])).trim_prefix("_wip/")
+	var path := TextBlocking.unique_path("res://scenes/_wip", (nm if nm != "" else "autosave") + "_restored")
+	_write(path, a["scene"])
+	_load_scene(path)
+	_rebuild_cards()
+	_refresh()
+	_say("restored the autosave from %s as scenes/_wip/%s: %d cards. Your scenes are untouched" % [r["at"], path.get_file(), r["cards"]])
+
+
+## RECENT (ROADMAP 59): the scenes opened or saved, newest first, at most RECENT_N, in the settings file [recent] scenes.
+## A test's own settings file is the one written (never poser.cfg). A missing file stays listed, marked (missing), until
+## RECENT_N newer scenes push it out
+func _recent_list() -> Array:
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	var out := []
+	for p in cf.get_value("recent", "scenes", []):
+		out.append(String(p))
+	return out
+
+
+func _recent_note(path: String) -> void:
+	if path == "":
+		return
+	var l := _recent_list()
+	l.erase(path)
+	l.push_front(path)
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("recent", "scenes", l.slice(0, RECENT_N))
+	cf.save(settings)
+	_recent_changed()
+
+
+## the scene list and the palette's File > Recent group show the new order at once
+func _recent_changed() -> void:
+	if ui_scenes != null:
+		_fill_scene_list()
+		_show_open_scene()
+	if ui_cmd != null:
+		ui_cmd.commands = _commands()
+
+
+## File > Recent: a scene from the list, opened as the list's pick would open it
+func _open_recent(path: String) -> void:
+	if not FileAccess.file_exists(path):
+		_say("%s is not on disk any more (moved or deleted): open another scene; it leaves File > Recent when %d newer ones are opened" % [path.get_file(), RECENT_N])
+		return
+	_open_scene_file(path)
 
 
 ## THE JOURNAL (ROADMAP 2, CRASH-PROOF; scripts/journal.gd): the scene after every edit, so a crash loses no edit that
@@ -11977,6 +12173,7 @@ func _load_scene(path: String) -> void:
 		S.name = d.get("name", "move")
 	if ui_scene_name != null:
 		ui_scene_name.text = S.name
+	_recent_note(path)
 	_show_open_scene()
 	if ui_natural != null:
 		ui_natural.set_pressed_no_signal(S.natural)   # the boxes show THIS scene's settings (10-14: they kept the last ones)

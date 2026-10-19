@@ -173,6 +173,8 @@ func _render(path: String) -> void:
 		return
 	var sha := FileAccess.get_sha256(path)
 	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if d is Dictionary and not (d as Dictionary).has("cards") and (d as Dictionary).get("scene") is Dictionary:
+		d = (d as Dictionary)["scene"]   # an autosave (File > Restore..., ROADMAP 59): drawn from the scene it holds
 	if not (d is Dictionary) or not (d as Dictionary).has("cards"):
 		return
 	var cards: Array = (d as Dictionary)["cards"]
