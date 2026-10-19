@@ -208,7 +208,7 @@ func _fill_defaults(kind: String) -> void:
 func open_edit() -> void:
 	var L: Array = m.S.boxes
 	if L.is_empty():
-		m._say("there are no hit or hurt boxes yet: Hit box or Hurt box adds one on the picked part")
+		m._say("there are no hit or hurt boxes yet: press Hit box or Hurt box to add one on the picked part")
 		return
 	if dlg == null:
 		_build()

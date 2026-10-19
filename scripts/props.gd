@@ -313,6 +313,12 @@ static func _over(sup: Dictionary, pt: Vector3, margin := 0.0) -> bool:
 
 
 ## the prop as a node: one MeshInstance3D box per solid, one neutral material. Add it to the scene as a child.
+## true when the prop is an imported model whose file is not there any more (it is drawn as its box instead)
+static func model_missing(p: Dictionary) -> bool:
+	var g := String(kind_of(p["kind"]).get("glb", ""))
+	return g != "" and not FileAccess.file_exists(g)
+
+
 static func mesh(p: Dictionary) -> Node3D:
 	var root := Node3D.new()
 	root.name = String(p["kind"])
@@ -321,7 +327,7 @@ static func mesh(p: Dictionary) -> Node3D:
 	mat.albedo_color = GREY
 	mat.roughness = 0.9
 	var kd := kind_of(p["kind"])
-	if String(kd.get("glb", "")) != "":   # an imported model: the model itself, on the floor, centred, at the importer's scale
+	if String(kd.get("glb", "")) != "" and not model_missing(p):   # an imported model: the model itself, on the floor, centred, at the importer's scale
 		var doc := GLTFDocument.new()
 		var st := GLTFState.new()
 		if doc.append_from_file(ProjectSettings.globalize_path(kd["glb"]), st) == OK:

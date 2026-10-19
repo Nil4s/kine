@@ -132,6 +132,27 @@ static func level(j: String) -> int:
 	return 6
 
 
+## v as a finite float, else d (null, a string, NaN, +-inf)
+static func _num(v: Variant, d: float) -> float:
+	if (v is float or v is int) and is_finite(float(v)):
+		return float(v)
+	return d
+
+
+## a copy of a loaded value with every number that is NaN / infinite made 0
+static func _finite(v: Variant) -> Variant:
+	if v is float:
+		return v if is_finite(v) else 0.0
+	if v is Array:
+		return (v as Array).map(func(x): return _finite(x))
+	if v is Dictionary:
+		var o := {}
+		for k in v:
+			o[k] = _finite(v[k])
+		return o
+	return v
+
+
 func add(card_name: String, pose: Dictionary, at := -1) -> void:
 	var c := {"name": card_name, "pose": pose, "move": -1.0, "hold": 0.3}
 	if at < 0 or at >= cards.size():
@@ -783,7 +804,7 @@ func _ground(B: Body) -> void:
 
 
 func _apply(B: Body, t: float) -> void:
-	if stepped:
+	if stepped and not cards.is_empty():   # (no cards: nothing to hold; the blocking view of an empty scene is the plain pose)
 		var ts := times()
 		var k := 0
 		for i in cards.size():
@@ -2118,11 +2139,13 @@ func from_dict(d: Dictionary) -> void:
 			props_skipped.append(String(p.get("kind", "?")))   # a model not in this library: said on load (main.gd)
 	cards = []
 	for c in d.get("cards", []):
-		cards.append({"name": c["name"], "pose": c["pose"], "move": float(c.get("move", -1.0)), "hold": float(c.get("hold", 0.3))})
+		# a file can hold a number that is not one (null, 1e999, NaN from another tool): it becomes the default, so a
+		# bad card never reaches the maths (a NaN length made the whole timeline empty and the checks crash)
+		cards.append({"name": String(c.get("name", "card")), "pose": _finite(c["pose"]), "move": _num(c.get("move"), -1.0), "hold": maxf(0.0, _num(c.get("hold"), 0.3))})
 		if c.has("steps"):
 			cards[-1]["steps"] = c["steps"]
 		if c.has("lift"):
-			cards[-1]["lift"] = float(c["lift"])
+			cards[-1]["lift"] = _num(c["lift"], 0.0)
 		if c.get("flow", false):
 			cards[-1]["flow"] = true
 		if c.get("walk", false):
