@@ -3196,6 +3196,7 @@ func _snapshot() -> Dictionary:
 		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
 		"clips": S.clips.duplicate(true),   # CLIPS (clips.gd), undone like a card
 		"boxes": S.boxes.duplicate(true),   # HIT / HURT BOXES (hit_boxes.gd), undone like a card
+		"others": actors_rt.map(func(a): return {"S": a["S"], "cards": (a["S"] as Scene).cards.duplicate(true)}),   # ROADMAP 53: every fighter's cards (a copy writes the other one's)
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -3289,6 +3290,13 @@ func _restore(u: Dictionary) -> void:
 		_rebuild_cards()
 		if ui_find != null and ui_find.visible:
 			_check()   # the findings were for the cards just put back
+	for e in u.get("others", []):   # ROADMAP 53: the other fighters' cards, undone as well; re-posed at the playhead
+		var oS: Scene = e["S"]
+		if oS != S and var_to_str(e["cards"]) != var_to_str(oS.cards):
+			oS.cards = e["cards"].duplicate(true)
+			for a in actors_rt:
+				if a["S"] == oS:
+					a["t"] = NAN
 	_refresh()
 
 
@@ -8202,6 +8210,8 @@ func _commands() -> Array:
 	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 1.5 m in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
+	add.call("Pose: copy to the other fighter", "", _pose_to_other.bind(false), "copy pose fighter actor other duplicate transfer", true, "the active fighter's pose at the playhead goes onto the other fighter's card at that moment (a card is made if none); one Ctrl+Z")
+	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
@@ -8768,6 +8778,29 @@ func _paste_pose(how: String) -> void:
 
 ## PASTE FLIPPED WITH OPTIONS (round 42, GATES XX4, #282): the copied pose reflected, on the selected parts only and/or
 ## at a factor; logic in breakdowner.gd; one undo step
+## Pose: copy to the other fighter (ROADMAP 53; scripts/pose_copy.gd): the active fighter's pose at the playhead goes onto the
+## other fighter's card at that moment (a card is made there when none is). One undo step. mirrored = the app's own mirror
+func _pose_to_other(mirrored: bool) -> void:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		_say("there is one fighter: use 'Actor: add a second fighter' first, then copy the pose to it")
+		return
+	var k := (actor_on + 1) % actors_rt.size()
+	if co != null and co.connected() and co.may_edit(k) != "":
+		_say(co.may_edit(k) + " Or press Co-edit: stop to animate it yourself.")
+		return
+	var TB: Body = actors_rt[k]["B"]
+	var TS: Scene = actors_rt[k]["S"]
+	var t := playhead
+	var at := [0]
+	_do(func():
+		at[0] = PoseCopy.copy(B, S, TB, TS, t, mirrored, false)
+		actors_rt[k]["t"] = NAN   # the other fighter is posed again from its new card
+	)
+	var who := "the hero" if k == 0 else String(actors_rt[k]["name"])
+	_say("pose copied%s to %s: its card %d at %.2f s.  Ctrl+Z undoes" % [" mirrored" if mirrored else "", who, at[0] + 1, t])
+
+
 func _paste_flipped(f: float, selected_only: bool) -> void:
 	if pose_clip.is_empty():
 		_say("nothing copied yet: press Ctrl+C on the pose you want first, then paste it flipped here")
