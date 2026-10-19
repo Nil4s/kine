@@ -111,7 +111,7 @@ func _init() -> void:
 	var WO := Transform3D(Basis(), Vector3(arm + 0.5, 0, 0))
 	rings.update(P1, Transform3D.IDENTITY, [{"name": "opponent", "B": P2, "W": WO}])
 	var g := float(rings.last["near"]["gap"])
-	ok(rings._label.text == "%.2f m to opponent" % g, "4a label reads \"%s\" (the report's gap, 2 decimals)" % rings._label.text)
+	ok(rings._label.text == "%s to opponent" % Units.len(g), "4a label reads \"%s\" (the report's gap in cm, Units.len)" % rings._label.text)
 	ok(rings._mesh.visible, "4b the rings show with two fighters")
 	rings.update(P1, Transform3D.IDENTITY, [])
 	ok(not rings._mesh.visible and not rings._label.visible, "4c the rings and label hide with one fighter")

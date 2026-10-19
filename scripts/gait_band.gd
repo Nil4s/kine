@@ -80,7 +80,7 @@ static func cycle(S: Scene, B: Body, sd: String) -> Dictionary:
 		if int(p[1]) == f and int(p[0]) > 1:
 			lands.append(int(p[0]))
 	if lands.size() < 2:
-		return {"ok": false, "why": "the %s foot lands %d time%s (a cycle needs 2)" % ["right" if f == 1 else "left", lands.size(), "" if lands.size() == 1 else "s"]}
+		return {"ok": false, "why": "the %s foot lands %d time%s (a cycle needs 2 landings)" % ["right" if f == 1 else "left", lands.size(), "" if lands.size() == 1 else "s"]}
 	return {"ok": true, "t0": initial_contact(S, B, sd, lands[0] / Rulebook.FPS), "t1": initial_contact(S, B, sd, lands[1] / Rulebook.FPS)}
 
 

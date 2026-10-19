@@ -11,7 +11,7 @@ const NEXT := ["pick", "click", "press", "open", "lock", "put", "add", "turn", "
 const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
 	"(in trash/ if you want it back)": "reports the delete it just made",
 	"posed: %s%s": "reports the pose it just made (and where a limit stopped it)",
-	"weight key at %.2f s = %.2f": "reports the weight key it just changed (NA1)",
+	"weight key at %s = %.2f": "reports the weight key it just changed (NA1)",
 	"copied a card to %.2f s": "reports the copy it just made (NA0)",
 	"body: %s, %.1f cm tall": "reports the proportions it just set (PR1)",
 	# tonight's merges: these report what was just done (successes on the way out of a branch)

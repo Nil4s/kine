@@ -138,7 +138,7 @@ static func card_rows(A: Scene, B: Scene) -> Array:
 		var t_new := float(tb[ib][1])
 		if ca["move"] != cb["move"] or ca["hold"] != cb["hold"] or ca.get("flow", false) != cb.get("flow", false):
 			out.append({"kind": "retimed", "name": cb["name"], "t": t_new,
-				"detail": "%.2f s -> %.2f s (move %s -> %s, hold %.2f -> %.2f)" % [t_old, t_new, str(ca["move"]), str(cb["move"]), float(ca["hold"]), float(cb["hold"])]})
+				"detail": "%.2f s -> %.2f s (move %s -> %s, hold %.2f s -> %.2f s)" % [t_old, t_new, str(ca["move"]), str(cb["move"]), float(ca["hold"]), float(cb["hold"])]})
 		if ca["pose"] != cb["pose"]:
 			var ch := changed_joints(ca["pose"], cb["pose"])
 			if not ch.is_empty():
@@ -149,7 +149,7 @@ static func card_rows(A: Scene, B: Scene) -> Array:
 						deg = ch[j]
 						big = j
 				out.append({"kind": "joints", "name": cb["name"], "t": t_new, "joint": big, "deg": deg, "n": ch.size(),
-					"detail": "%s %.1f deg (%d joint%s)" % [big, deg, ch.size(), "" if ch.size() == 1 else "s"]})
+					"detail": "%s %.1f° (%d joint%s)" % [big, deg, ch.size(), "" if ch.size() == 1 else "s"]})
 	return out
 
 

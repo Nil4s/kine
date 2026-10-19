@@ -81,7 +81,7 @@ func _init() -> void:
 	var marks: Array = m.vdiff.get("marks", [])
 	ok(marks.size() > 0 and float(marks[-1]["t"]) >= 2.3 and float(marks[0]["t"]) < 1.3,
 		"3 frame marks where a joint differs over 2 deg: %d, from %.2f s to %.2f s" % [marks.size(), float(marks[0]["t"]) if marks.size() > 0 else -1.0, float(marks[-1]["t"]) if marks.size() > 0 else -1.0])
-	ok(m.ui_vdiff.visible and "~ retimed" in m.ui_vdiff_text.text and "~ joints" in m.ui_vdiff_text.text and "lowerarm_r 30.0 deg" in m.ui_vdiff_text.text,
+	ok(m.ui_vdiff.visible and "~ retimed" in m.ui_vdiff_text.text and "~ joints" in m.ui_vdiff_text.text and "lowerarm_r 30.0°" in m.ui_vdiff_text.text,
 		"4 the diff list is on screen (%s): %s" % [m.ui_vdiff.visible, m.ui_vdiff_text.text.replace("
 ", " | ")])
 	# the ghost: the old version's body at the playhead, joint by joint (angles and positions), 0 diff

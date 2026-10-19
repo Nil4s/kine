@@ -291,7 +291,7 @@ static func rule_sequence(sm: Dictionary, st: Dictionary) -> Array:
 	var t: float = sm["t"][pk]
 	var wp: float = sm["w_pelvis"][ip]
 	if wp < HIPS_MIN:
-		out.append(_f("WARN", t, "HIPS TURN", "the hips barely turn into this swing: %.0f deg/s at most (real hitters ~389, bar %.0f). The arms swing alone." % [wp, HIPS_MIN]))
+		out.append(_f("WARN", t, "HIPS TURN", "the hips barely turn into this swing: %.0f°/s at most (real hitters ~389°/s, bar %.0f°/s). The arms swing alone." % [wp, HIPS_MIN]))
 	elif it + tol < ip or iw + tol < ip:
 		out.append(_f("FAIL" if iw + tol < ip else "WARN", t, "SEQUENCE", "the hips turn LATE: their fastest moment is %.0f ms after the %s's. Real swings go hips -> chest -> weapon." % [(ip - mini(it, iw)) * 1000.0 / FPS, "weapon" if iw < it else "chest"]))
 	elif iw + tol < it:
@@ -317,7 +317,7 @@ static func rule_head(sm: Dictionary, st: Dictionary) -> Array:
 			at = i
 	if far <= HEAD_WARN:
 		return []
-	return [_f("FAIL" if far > HEAD_FAIL else "WARN", sm["t"][at], "HEAD QUIET", "the head travels %.0f cm during the swing (real hitters ~9; bar %.0f cm). Keep the head still and let the hips and arms do the work." % [far * 100.0, HEAD_WARN * 100.0], far)]
+	return [_f("FAIL" if far > HEAD_FAIL else "WARN", sm["t"][at], "HEAD QUIET", "the head travels %.0f cm during the swing (real hitters ~9 cm; bar %.0f cm). Keep the head still and let the hips and arms do the work." % [far * 100.0, HEAD_WARN * 100.0], far)]
 
 
 ## TIP SPEED + STRIKE FRAMES: attack_timing's tables for this weapon
@@ -331,10 +331,10 @@ static func rule_weapon(sm: Dictionary, st: Dictionary) -> Array:
 	var v: float = sm["tip"][st["pk"]]
 	var t: float = sm["t"][st["pk"]]
 	if v > cap:
-		out.append(_f("FAIL", t, "TIP SPEED", "the %s's tip hits %.1f m/s; a real one tops out near %.0f. Give this move more time (the card's 'move')." % [kind.replace("_", " "), v, cap], v))
+		out.append(_f("FAIL", t, "TIP SPEED", "the %s's tip hits %.1f m/s; a real one tops out near %.0f m/s. Give this move more time (the card's 'move')." % [kind.replace("_", " "), v, cap], v))
 	var frames30: float = (st["b"] - st["a"] + 1) * 30.0 / FPS
 	if frames30 > budget + 0.5:
-		out.append(_f("WARN", t, "STRIKE FRAMES", "the swing itself lasts %.0f frames at 30 fps (budget %d for a %s): it reads slow. Shorten the strike card's move." % [frames30, budget, kind.replace("_", " ")], frames30))
+		out.append(_f("WARN", t, "STRIKE FRAMES", "the swing itself lasts %.0f frames at 30 fps (budget %d frames for a %s): it reads slow. Shorten the strike card's move." % [frames30, budget, kind.replace("_", " ")], frames30))
 	return out
 
 
@@ -347,7 +347,7 @@ static func rule_fist(sm: Dictionary) -> Array:
 		var i := _argmax(sm[k], 0, sm[k].size() - 1)
 		var v: float = sm[k][i]
 		if v > FIST_WARN:
-			out.append(_f("FAIL" if v > FIST_FAIL else "WARN", sm["t"][i], "FIST SPEED", "the %s hand moves at %.1f m/s, faster than boxers' fastest punch (12 on average; bar %.1f). It will read as a pop." % ["left" if k == "hand_l" else "right", v, FIST_WARN if v <= FIST_FAIL else FIST_FAIL], v))
+			out.append(_f("FAIL" if v > FIST_FAIL else "WARN", sm["t"][i], "FIST SPEED", "the %s hand moves at %.1f m/s, faster than boxers' fastest punch (12 m/s on average; bar %.1f m/s). It will read as a pop." % ["left" if k == "hand_l" else "right", v, FIST_WARN if v <= FIST_FAIL else FIST_FAIL], v))
 	return out
 
 
@@ -478,7 +478,7 @@ static func rule_loop(S: Scene, B: Body) -> Array:
 			_nice(wj) if wj != "" else "-", wd, _nice(wp) if wp != "" else "-", wg * 100.0, LOOP_DEG, LOOP_GAP * 100.0], maxf(wd, wg * 100.0)))
 		out[-1]["joint"] = wj
 	if vjump > LOOP_JUMP:
-		out.append(_f("WARN", L, "LOOP SEAM", "across the loop's seam the %s's speed jumps %.2f m/s (%.2f m/s at the end, %.2f at the start; over %.1f is a hitch every lap). End and start the same way: both on a hold, or the same move through the first card." % [
+		out.append(_f("WARN", L, "LOOP SEAM", "across the loop's seam the %s's speed jumps %.2f m/s (%.2f m/s at the end, %.2f m/s at the start; over %.1f m/s is a hitch every lap). End and start the same way: both on a hold, or the same move through the first card." % [
 			_nice(vj), vjump, v_end.length(), v_start.length(), LOOP_JUMP], vjump))
 		out[-1]["joint"] = vj
 	return out
@@ -691,12 +691,12 @@ static func rule_carry_form(sm: Dictionary) -> Array:
 		if d.is_empty():
 			return w
 		if float(d["up"]) > CARRY_UP:
-			w.append("the upper arms are %.0f deg out from the sides (people carry with them down, under %.0f)" % [d["up"], CARRY_UP])
+			w.append("the upper arms are %.0f° out from the sides (people carry with them down, under %.0f°)" % [d["up"], CARRY_UP])
 		var fl: Array = d["flex"]
 		if minf(fl[0], fl[1]) < CARRY_FLEX[0] or maxf(fl[0], fl[1]) > CARRY_FLEX[1]:
-			w.append("the elbows bend %.0f / %.0f deg (people carry on bent elbows, %.0f-%.0f)" % [fl[0], fl[1], CARRY_FLEX[0], CARRY_FLEX[1]])
+			w.append("the elbows bend %.0f° / %.0f° (people carry on bent elbows, %.0f-%.0f°)" % [fl[0], fl[1], CARRY_FLEX[0], CARRY_FLEX[1]])
 		if float(d["h"]) > CARRY_H:
-			w.append("the hands are %.0f cm in front of the ankles (people hold a load against the body: NIOSH 25 cm ideal, over %.0f is far)" % [float(d["h"]) * 100.0, CARRY_H * 100.0])
+			w.append("the hands are %.0f cm in front of the ankles (people hold a load against the body: NIOSH 25 cm ideal, over %.0f cm is far)" % [float(d["h"]) * 100.0, CARRY_H * 100.0])
 		return w
 	var i := 0
 	while i < cf.size():
@@ -751,7 +751,7 @@ static func rule_lift_form(sm: Dictionary) -> Array:
 				worst = lf[i]
 			i += 1
 		if i - a >= FLOAT_RUN:
-			out.append(_f("WARN", sm["t"][a], "LIFT FORM", "%.2f-%.2f s: hands below the knees with the back bent %.0f deg and the knees only %.0f deg: lift with the legs (people squatting to the floor bend the knees 86-115 deg; a stoop is knees under %.0f with the back past %.0f)." % [
+			out.append(_f("WARN", sm["t"][a], "LIFT FORM", "%.2f-%.2f s: hands below the knees with the back bent %.0f° and the knees only %.0f°: lift with the legs (people squatting to the floor bend the knees 86-115°; a stoop is knees under %.0f° with the back past %.0f°)." % [
 				sm["t"][a], sm["t"][i - 1], worst["trunk"], worst["bend"], LIFT_KNEE, LIFT_TRUNK], float(worst["trunk"])))
 			out[-1]["t1"] = sm["t"][i - 1]
 	return out
@@ -821,12 +821,12 @@ static func gait(sm: Dictionary) -> Dictionary:
 			seq.push_front(p)
 			break
 	if seq.size() < 4:
-		return {"walk": false, "why": "%d alternating plants (a walk needs 4)" % seq.size()}
+		return {"walk": false, "why": "%d alternating plants (a walk needs 4 plants)" % seq.size()}
 	# the walking direction from plants of the SAME foot (two apart), so the width between the feet cancels
 	var d: Vector3 = ((seq[-1][2] as Vector3) - (seq[1][2] as Vector3)) + ((seq[-2][2] as Vector3) - (seq[0][2] as Vector3))
 	d.y = 0.0
 	if d.length() < 1.0:
-		return {"walk": false, "why": "travels %.2f m (a walk needs 0.5)" % (d.length() / 2.0)}
+		return {"walk": false, "why": "travels %s (a walk needs 50 cm)" % Units.len(d.length() / 2.0)}
 	var fwd := d.normalized()
 	var i0: int = seq[0][0]
 	var i1: int = seq[-1][0]
@@ -886,16 +886,16 @@ static func rule_gait(sm: Dictionary, S: Scene = null) -> Array:
 	var w := []
 	var st: float = g["step"]
 	if st < GAIT_STEP[0] or st > GAIT_STEP[1]:
-		w.append("steps %.2f of the body height (%.2f m; people walk 0.415 +- 0.038, bar %.2f-%.2f)" % [st, g["step_m"], GAIT_STEP[0], GAIT_STEP[1]])
+		w.append("steps %.0f%% of the body height (%s a step; people walk 41.5%% +- 3.8%%, bar %.0f-%.0f%%)" % [st * 100.0, Units.len(float(g["step_m"])), GAIT_STEP[0] * 100.0, GAIT_STEP[1] * 100.0])
 	var cad: float = g["cad"]
 	if cad < GAIT_CAD[0] or cad > GAIT_CAD[1]:
-		w.append("cadence %.0f steps/min (people 105-108, bar %.0f-%.0f)" % [cad, GAIT_CAD[0], GAIT_CAD[1]])
+		w.append("cadence %.0f steps/min (people 105-108 steps/min, bar %.0f-%.0f steps/min)" % [cad, GAIT_CAD[0], GAIT_CAD[1]])
 	if not sm.get("armed", false):
 		var arm: float = g["arm"]
 		if arm < GAIT_ARM[0] or arm > GAIT_ARM[1]:
-			w.append("arm swing %.0f deg (people about 25-33, bar %.0f-%.0f)" % [arm, GAIT_ARM[0], GAIT_ARM[1]])
+			w.append("arm swing %.0f° (people about 25-33°, bar %.0f-%.0f°)" % [arm, GAIT_ARM[0], GAIT_ARM[1]])
 		elif float(g["phase"]) > GAIT_PHASE:
-			w.append("each arm swings WITH its own leg (r %.2f; people swing it against the leg, r below 0)" % g["phase"])
+			w.append("each arm swings WITH its own leg (r %.2f; people swing it against the leg: a negative r)" % g["phase"])
 	if w.is_empty():
 		return []
 	var out := [_f("WARN", g["t0"], "GAIT", "%.2f-%.2f s walk: %s." % [g["t0"], g["t1"], "; ".join(w)], float(w.size()))]
@@ -948,12 +948,12 @@ static func rule_jump(S: Scene, B: Body) -> Array:
 	for j in jumps(S, B):
 		var w := []
 		if float(j["h"]) > JUMP_HIGH:
-			w.append("%.2f s in the air means a %.2f m jump (people: 0.40 m = 0.57 s; over %.2f m is a rare athlete)" % [j["T"], j["h"], JUMP_HIGH])
+			w.append("%.2f s in the air means a %s jump (people: 40 cm = 0.57 s; over %s is a rare athlete)" % [j["T"], Units.len(float(j["h"])), Units.len(JUMP_HIGH)])
 		if float(j["dip"]) < JUMP_DIP:
-			w.append("no dip before take-off: the knees bend only %.0f deg (people dip to ~90)" % j["dip"])
+			w.append("no dip before take-off: the knees bend only %.0f° (people dip to ~90°)" % j["dip"])
 		var bar := land_bar(float(j["h"]))
 		if float(j["land"]) < bar:
-			w.append("a stiff landing from %.2f m: the knees bend only %.0f deg after touchdown (a fall this high needs ~%.0f; people land soft on ~117, stiff is ~77 from 0.59 m)" % [j["h"], j["land"], bar])
+			w.append("a stiff landing from %s: the knees bend only %.0f° after touchdown (a fall this high needs ~%.0f°; people land soft on ~117°, stiff is ~77° from 59 cm)" % [Units.len(float(j["h"])), j["land"], bar])
 		if not w.is_empty():
 			out.append(_f("WARN", j["t0"], "JUMP", "%.2f-%.2f s: %s." % [j["t0"], j["t1"], "; ".join(w)], float(w.size())))
 			out[-1]["t1"] = j["t1"]
