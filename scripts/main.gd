@@ -150,6 +150,8 @@ var _sync := false
 var big_view := false
 var clean := false          # recording: no highlights, no name tag
 var ui_side: Array = []      # the panels Tab hides
+var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
+var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
 
 ## ROOM TO WORK (round 35a, GATES QQ4; Nick 10-16 "not like fusion that is more minimalist, more space to design"):
 ## each side panel folds to a RAIL_W rail (one click on its << / >>; the rail's own button opens it), the bottom panel
@@ -165,11 +167,11 @@ var ui_side_of := {}    # "left" / "right" -> the panel
 
 
 func lw() -> float:
-	return 0.0 if big_view else float(RAIL_W if fold["left"] else LEFT_W)
+	return 0.0 if big_view or easy.on else float(RAIL_W if fold["left"] else LEFT_W)
 
 
 func rw() -> float:
-	return 0.0 if big_view else float(RAIL_W if fold["right"] else RIGHT_W)
+	return 0.0 if big_view or easy.on else float(RAIL_W if fold["right"] else RIGHT_W)
 
 
 func _fold(which: String, on: bool, save := true) -> void:
@@ -187,11 +189,11 @@ func _fold(which: String, on: bool, save := true) -> void:
 ## every side piece shown or hidden, and everything that sits beside the panels moved to the view's new edges
 func _sides_apply() -> void:
 	for k in ui_side_of:
-		ui_side_of[k].visible = not big_view and not fold[k] and not clean
+		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on
 		if ui_rails.has(k):
-			ui_rails[k].visible = not big_view and fold[k] and not clean
+			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on
 		if ui_fold_btn.has(k):
-			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean
+			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on
 	if ui_status == null:
 		return
 	for c in [ui_bar, ui_graph]:
@@ -1256,6 +1258,9 @@ func _ready() -> void:
 				Names.give(n)
 			else:
 				_name_later.call_deferred(n))
+	easy = EasyMode.new()   # first: lw() / rw() read easy.on while the world is built (scripts/easy_mode.gd)
+	easy.m = self
+	add_child(easy)
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var testing: bool = Engine.get_main_loop().get_script() != null
 	if testing:
@@ -1304,7 +1309,9 @@ func _ready() -> void:
 			_fold(k, true, false)
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
-	if (not testing and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
+	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
+	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
+	if (not testing and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
 		_tour_after_recover.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
 	var args := OS.get_cmdline_user_args()
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):
@@ -5339,6 +5346,7 @@ func _ui() -> void:
 	top.theme_type_variation = "TopBar"
 	top.anchor_right = 1.0
 	top.offset_bottom = TOP_H
+	ui_top_bar = top
 	ui_root.add_child(top)
 	var tv := VBoxContainer.new()
 	tv.add_theme_constant_override("separation", 0)
@@ -5462,6 +5470,7 @@ func _ui() -> void:
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
+	tog.call("VIEW", "Easy mode", func(): easy.set_on(not easy.on), func(): return easy.on, "Easy: the 12 big buttons, the panels hidden (a fresh start is Easy). Off = Expert: every panel and tool, as before (remembered)")
 	var us := MenuButton.new()
 	us.text = "UI size"
 	us.flat = false
@@ -6711,14 +6720,14 @@ func _layout_bottom() -> void:
 	var empty := S.cards.is_empty()
 	var folded: bool = fold["bottom"] and not empty
 	bottom_h = BOTTOM_EMPTY if empty else (BOTTOM_FOLDED if folded else BOTTOM_H)
-	ui_bh.visible = not folded
+	ui_bh.visible = not folded and not easy.on
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
 		ui_fold_btn["bottom"].visible = not empty
 	ui_card_row.custom_minimum_size.y = 26 if empty else 112
 	ui_timeline.visible = not empty
-	ui_play_row.visible = not empty
+	ui_play_row.visible = not empty and not easy.on
 	ui_bp.offset_top = -bottom_h
 	for p in ui_side + ui_rails.values():
 		if p != ui_insp and p != ui_side_of.get("left"):   # RR2 / RR6: the inspector and the browser are as tall as they need
@@ -6821,6 +6830,9 @@ func _commands() -> Array:
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
+	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
+	add.call("Mode: Easy (12 big buttons)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 big buttons stay (remembered)")
+	add.call("Mode: Expert (every panel and tool)", "", easy.set_on.bind(false), "expert advanced full mode panels all tools", false, "every panel and tool back, as before (remembered)")
 	add.call("Undo history", "", _toggle_history, "steps list back forward", false, "every change by name, newest on top: click one to go back (or forward) to exactly there")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")
 	add.call("Pose library", "", PoseLibrary.toggle.bind(self), "poses thumbnails pictures grid blend mix flipped mirrored apply studio library", false, "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped, only the selected parts")
