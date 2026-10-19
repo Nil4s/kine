@@ -53,6 +53,16 @@ static func propose(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Array:
 
 
 static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
+	# the cards are edited in place and re-sampled below: the app's pose bake holds the poses of the cards as they WERE and
+	# must not answer those samples (plant plot: "it did not remove the problem" while the bare Scene fix worked)
+	var baker := S.baker
+	S.baker = null
+	var r := _apply(f, S, B, sm0)
+	S.baker = baker
+	return r
+
+
+static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	var names := S.cards.map(func(c): return c["name"])
 	var before := S.cards.duplicate(true)
 	if sm0.is_empty():

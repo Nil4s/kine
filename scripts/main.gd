@@ -3887,14 +3887,21 @@ func _snapshot() -> Dictionary:
 const BAKE_FLAGS := ["on_floor", "pin", "spline", "stepped", "natural", "floor_body"]
 
 
+## the Scene objects a step may put back whole: Walk along a path makes a new scene and registers the old and the new one
+## here. Any other step belongs to the scene it was taken on and never pastes into another one (fix_window: "undo after
+## opening thrust leaves thrust's cards alone"); opening / making a scene empties the list.
+var swap_scenes: Array = []
+
+
 func _restore(u: Dictionary) -> void:
+	_bake_drop(u["scene"] if u.get("scene") is Scene else null)
 	if mm_ui != null:
 		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
 		_rebuild_cards()
-	if u["scene"] != S and actors_rt.is_empty() and u["scene"] is Scene:
+	if u["scene"] != S and actors_rt.is_empty() and u["scene"] is Scene and swap_scenes.has(u["scene"]):
 		# a step that swapped the whole scene (Walk along a path makes a NEW scene): undo/redo put that scene object back
 		S = u["scene"]
 		scene_path = String(u.get("spath", ""))
@@ -4017,7 +4024,31 @@ func _restore(u: Dictionary) -> void:
 	_refresh()
 
 
+## EDIT FUNNEL vs POSE BAKE: an edit changes the cards (or any field apply reads) in place; the bake poll notices only a frame
+## later, and until then Scene.apply would serve the poses of the content as it WAS (to Check, to a fix's re-sample, to the
+## next undo step). Every edit goes through _push_undo (and every undo/redo through _restore), so both drop the bakers
+## first; _bake_poll starts fresh ones from the new content.
+func _bake_drop(extra: Scene = null) -> void:
+	var seen := _bake_scenes()
+	if extra != null:
+		seen.append(extra)
+	for sc in seen:
+		if (sc as Scene).baker != null:
+			(sc as Scene).baker.stop()
+			(sc as Scene).baker = null
+
+
+## drop only the bakers whose content no longer matches their scene (~1 ms a scene)
+func _bake_validate() -> void:
+	for sc in _bake_scenes():
+		var bk: PoseBake = (sc as Scene).baker
+		if bk != null and bk.sig != PoseBake.signature(sc):
+			bk.stop()
+			(sc as Scene).baker = null
+
+
 func _push_undo() -> void:
+	_bake_drop()
 	if _macro_nest > 0:   # ROADMAP 81: a macro's edits share the one undo step, opened before its first edit
 		if _macro_pushed:
 			return
@@ -11079,7 +11110,7 @@ func _commands() -> Array:
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Import from several cameras...", "", _multicam_ask, "video several cameras multi camera triangulate rig two videos mocap motion capture track person film record", false, "pick 2 to 4 videos of one person filmed at the same time: the rig is solved from the person, the joints triangulated, one undo step")
-	add.call("Video: confidence lane and footprints (show / hide)", "", _iq_toggle, "video confidence lane tracking lost footprints contacts floor plants timeline show hide", true, "a scene made from a video shows a lane under its cards coloured by how sure the tracker was (low spans named: click one to go there) and the foot contacts it found as footprints on the floor; this shows or hides both")
+	add.call("Video: confidence lane and footprints (show / hide)", "", _iq_toggle, "video confidence lane tracking lost footprints contacts floor plants timeline show hide", false, "a scene made from a video shows a lane under its cards coloured by how sure the tracker was (low spans named: click one to go there) and the foot contacts it found as footprints on the floor; this shows or hides both")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
@@ -12329,6 +12360,7 @@ func _check(given = null) -> void:
 	else:
 		# the scene AS MADE, not the dummy's landed version (_ps): the impact stop is the dummy's physics, not the
 		# animator's move, and a Fix edits S (10-14: grading SL made a fixed card's finding come back)
+		_bake_validate()   # a scene field set outside the funnel is not in the bake yet: Check must grade the scene as it is
 		_sm = Rulebook.sample(S, ov.GB)
 		findings = Rulebook.check(S, ov.GB, _sm)
 	check_ran = true
@@ -12608,6 +12640,7 @@ func _fix(f: Dictionary) -> void:
 	var t0 := Time.get_ticks_msec()
 	var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
 	if r["kept"]:
+		_bake_drop()   # the cards changed in place, not through _push_undo: the bake still holds the old poses
 		undo.append(u)
 		redo.clear()
 		_rebuild_cards()
@@ -13065,6 +13098,7 @@ func _new_scene() -> void:
 	_actors_home()   # TC3
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
+	swap_scenes = []
 	S = Scene.new()
 	scene_path = ""
 	_clean = _doc_key()   # the new empty scene is the saved state: nothing unsaved until it is edited (ROADMAP 50)
@@ -15130,6 +15164,8 @@ func _human_check() -> void:
 func _feasible_check() -> void:
 	HumanLimits.on = true
 	_check()
+	if S.cards.size() < 2:
+		return   # Check said what to do (add cards); a "PASS" over nothing would be a false verdict
 	var vf := findings.filter(func(f): return f["rule"] == "FEASIBLE")
 	_say("physically possible? " + ("PASS: nothing here a body could not do" if vf.is_empty() else String(vf[0]["msg"]).split(" ")[0] + ": click a finding to jump to its frames and read the reason"))
 
@@ -15921,6 +15957,7 @@ func _load_scene(path: String) -> void:
 	_actors_home()   # TC3: the opened file's hero goes on the hero's body; its actors are built from it
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
+	swap_scenes = []
 	scene_path = path
 	layer_on = -1   # NA1: edits go to the first layer of a newly opened scene
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))

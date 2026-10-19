@@ -132,8 +132,10 @@ func finish() -> void:
 	pts = []
 	m._do(func():
 		m._actors_home()
+		var old_s: Scene = m.S
 		m.S = Scene.new()   # the old Scene object rides in the undo step: Ctrl+Z puts it back whole, name and file too
 		m.S.from_dict(d)
+		m.swap_scenes = [old_s, m.S]   # the only two scenes this step's undo / redo may swap between
 		m.scene_path = ""
 		if m.ui_scene_name != null:
 			m.ui_scene_name.text = m.S.name

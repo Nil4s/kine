@@ -493,9 +493,12 @@ func fix_preview(S: Scene, cards: Array, t: float) -> void:
 	if cards.is_empty():
 		return
 	var orig := S.cards
+	var baker := S.baker
+	S.baker = null   # the pose bake holds the cards as they ARE: it would draw the unfixed pose as the "fixed" ghost
 	S.cards = cards
 	S.apply(GB, t)
 	S.cards = orig
+	S.baker = baker
 	_pose(g, GB)
 
 
