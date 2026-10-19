@@ -7083,10 +7083,24 @@ func _lists() -> void:
 
 ## the list opens: each scene's picture is asked for (a cached one is set at once, the rest are drawn a frame apart)
 func _scenes_opening() -> void:
-	if thumbs == null:
+	if thumbs != null:
+		for i in ui_scenes.item_count:
+			thumbs.request(ui_scenes.get_item_metadata(i))
+	_fit_scene_list.call_deferred()   # once the popup has its place: its size is set after it is shown
+
+
+## the list is never taller than the window (less a margin): past that it scrolls, and the open scene is in view
+func _fit_scene_list() -> void:
+	await get_tree().process_frame   # the popup is given its own size on the show: after that frame
+	var pop := ui_scenes.get_popup()
+	if not pop.visible:
 		return
-	for i in ui_scenes.item_count:
-		thumbs.request(ui_scenes.get_item_metadata(i))
+	var cap := int(get_viewport().get_visible_rect().size.y) - 16
+	pop.max_size = Vector2i(0, cap)
+	pop.size = Vector2i(pop.size.x, mini(pop.size.y, cap))
+	await get_tree().process_frame
+	if ui_scenes.selected >= 0:
+		pop.scroll_to_item(ui_scenes.selected)
 
 
 ## a scene's picture is ready: its row in the list gets it (the row is found by its file, so a re-list in between is safe)

@@ -66,6 +66,12 @@ func wait_pictures(secs: float) -> float:
 	return (Time.get_ticks_msec() - t0) / 1000.0
 
 
+## the list's vertical scroll bar (null when it has none)
+func _vscroll(pop: PopupMenu) -> VScrollBar:
+	var l := pop.find_children("*", "VScrollBar", true, false)
+	return l[0] as VScrollBar if not l.is_empty() else null
+
+
 func clear_cache() -> void:
 	var d := DirAccess.open("user://thumbs")
 	if d == null:
@@ -148,6 +154,35 @@ func _init() -> void:
 	var c1 := th.renders - c0
 	ok(c1 == 1 and th.picture(copy) != null, "changed copy: %d draw(s) (1 = that copy only)" % c1)
 	ok(FileAccess.file_exists(SceneThumbs.cache_path(FileAccess.get_sha256(copy))), "its new picture is cached under its new hash")
+
+	# SMALL WINDOW: the list is never taller than the window, scrolls to every scene, and opens on the open scene
+	m.ui_scenes.get_popup().hide()
+	m.get_window().size = Vector2i(1024, 600)
+	for _i in 4:
+		await process_frame
+	var pop: PopupMenu = m.ui_scenes.get_popup()
+	m.ui_scenes.select(files.size() - 1)
+	m.ui_scenes.show_popup()
+	for _i in 4:
+		await process_frame
+	var vp := Vector2(root.get_visible_rect().size)
+	var r := Rect2(Vector2(pop.position), Vector2(pop.size))
+	ok(r.position.x >= 0 and r.position.y >= 0 and r.end.x <= vp.x and r.end.y <= vp.y,
+		"small window %s: the list %s lies inside it" % [vp, r])
+	var sb := _vscroll(pop)
+	ok(sb != null and sb.max_value > sb.page, "the list scrolls (content %.0f, shown %.0f)" % [sb.max_value if sb else 0.0, sb.page if sb else 0.0])
+	ok(sb != null and sb.value > 0.0, "opened with the last (open) scene in view (scroll %.0f)" % (sb.value if sb else 0.0))
+	sb.value = 0.0
+	await process_frame
+	pop.scroll_to_item(files.size() - 1)
+	for _i in 3:
+		await process_frame
+	ok(sb.value > 0.0, "the last scene is reachable: scrolled down to it (value %.0f of max %.0f)" % [sb.value, sb.max_value])
+	sb.value = sb.max_value
+	await process_frame
+	ok(sb.value + sb.page >= sb.max_value - 0.5, "...and the list's end (the last scene) is in view at the bottom (value %.0f, page %.0f)" % [sb.value, sb.page])
+	pop.hide()
+	m.get_window().size = Vector2i(1152, 648)
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(copy))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(COPY_DIR))
