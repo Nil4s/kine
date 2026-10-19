@@ -1454,6 +1454,7 @@ func _ready() -> void:
 	add_child(ui_props_root)
 	_library_load()
 	get_window().files_dropped.connect(_on_drop)
+	get_tree().set_auto_accept_quit(false)   # ROADMAP 50: the window's close asks first (_notification below)
 	if OS.get_environment("POSER_AUTOSAVE") != "":
 		autosave = OS.get_environment("POSER_AUTOSAVE")
 	var jenv := OS.get_environment("POSER_JOURNAL")   # a test's own folder (never user://journal)
@@ -1701,13 +1702,13 @@ func _exit_tree() -> void:
 	if library != LIBRARY:
 		_rm_tree(library)   # SS6: a test's own library
 	if journal_on:
-		if not _unsaved():
-			journal.trim()   # nothing unsaved: the journal has nothing to give back
+		if not _unsaved() or _discarding:
+			journal.trim()   # nothing unsaved (or Don't save was chosen): the journal has nothing to give back
 		if quit_clean:
 			journal.set_session(true)   # a clean quit: the next start offers nothing
 		journal.close()
 	# quitting with nothing unsaved: no autosave to offer next time. A test's own per-process file always goes
-	if not _unsaved() or (autosave != AUTOSAVE and OS.get_environment("POSER_AUTOSAVE") == ""):
+	if not _unsaved() or _discarding or (autosave != AUTOSAVE and OS.get_environment("POSER_AUTOSAVE") == ""):
 		_autosave_drop()
 	if autosave != AUTOSAVE and OS.get_environment("POSER_AUTOSAVE") == "" and FileAccess.file_exists(_later_path()):
 		DirAccess.remove_absolute(_later_path())
@@ -6886,9 +6887,7 @@ func _ui() -> void:
 	bh.add_child(ui_scenes)
 	bh.add_child(_button("Open scene", func():
 		if ui_scenes.selected >= 0:
-			_load_scene(ui_scenes.get_item_metadata(ui_scenes.selected))
-			_rebuild_cards()
-			_refresh()))
+			_scene_picked(ui_scenes.selected)))   # ROADMAP 50: asks first when the open scene has unsaved changes
 	bh.add_child(_button("Delete scene", _delete_scene, "the scene picked in the list (it asks first; the file goes to the trash folder)"))
 	ui_versions = MenuButton.new()   # SCENE VERSIONS (round 29, JJ1)
 	ui_versions.name = "btn_versions"
@@ -6906,7 +6905,7 @@ func _ui() -> void:
 	ui_loop.focus_mode = Control.FOCUS_NONE
 	ui_loop.tooltip_text = "ON: the scene plays round and round (a walk, an idle). CHECK then grades the seam: the end must meet the start."
 	ui_loop.toggled.connect(func(on): _push_undo(); S.loop = on; check_ran = false; _refresh())
-	bh.add_child(_button("New empty scene", _new_scene))
+	bh.add_child(_button("New empty scene", _new_asked))
 	var fb := _button("Fold", _fold.bind("bottom", true), "fold the scene panel to the timeline and Play: more room for the body (remembered)")
 	fb.name = "fold_bottom"
 	bh.add_child(fb)
@@ -8229,7 +8228,7 @@ func _commands() -> Array:
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
-	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")
+	add.call("New empty scene", "", _new_asked, "", false, "start a new scene with no cards (the open one stays on disk)")
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
 	add.call("Arms down 25 deg", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25 degrees out from straight down")
 	add.call("Dummy on/off", "H", _press.bind(KEY_H), "target enemy mannequin", false, "show or hide the target dummy")
@@ -9762,6 +9761,7 @@ func _new_scene() -> void:
 		_vdiff_clear()
 	S = Scene.new()
 	scene_path = ""
+	_clean = _doc_key()   # the new empty scene is the saved state: nothing unsaved until it is edited (ROADMAP 50)
 	_show_open_scene()
 	check_ran = false
 	sel_card = -1
@@ -9935,6 +9935,89 @@ func _confirm(msg: String, ok_text: String, f: Callable) -> void:
 	_say(msg.get_slice("\n", 0))
 
 
+## SAVE PROMPTS (ROADMAP 50): the window's close, New and opening another scene ask "Save changes to <name>?" when the
+## open scene has unsaved changes: Save (then the same thing goes on), Don't save (it goes on and the work is thrown
+## away, its autosave and journal with it), Cancel (nothing happens, the scene stays open). Nothing unsaved: no dialog.
+## A crash or a kill never reaches this code: the journal still offers the work at the next start.
+var ui_save_ask: ConfirmationDialog
+var _save_ask_then: Callable      # what goes on after Save or Don't save
+var _save_ask_quit := false       # the question is for the window's close: Don't save then quits without a dialog
+var _discarding := false          # Don't save on the way out: the exit drops the autosave and the journal too
+var quit_fn: Callable             # a test's stand-in for get_tree().quit() (empty in the app)
+var save_hook: Callable           # a test's stand-in for Save (the real one writes scenes/, which a test never does)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:   # the X, Alt+F4, the OS: the app decides (set_auto_accept_quit is off)
+		_close_asked()
+
+
+func _close_asked() -> void:
+	if ui_save_ask != null and ui_save_ask.visible:
+		return   # already asking
+	if _unsaved():
+		_ask_save(_scene_label(), _quit_app, true)
+	else:
+		_quit_app()
+
+
+func _quit_app() -> void:
+	if quit_fn.is_valid():
+		quit_fn.call()
+		return
+	get_tree().quit()
+
+
+func _scene_label() -> String:
+	var H := _hero_scene()
+	return H.name if H.name != "" else "this scene"
+
+
+## asks Save / Don't save / Cancel about the open scene, then calls `then` (not on Cancel). Pressing Esc or the X is Cancel
+func _ask_save(what: String, then: Callable, quitting := false) -> void:
+	if ui_save_ask == null:
+		ui_save_ask = ConfirmationDialog.new()
+		ui_save_ask.title = "Unsaved changes"
+		ui_save_ask.dialog_autowrap = true
+		ui_save_ask.min_size = Vector2i(440, 0)
+		ui_save_ask.ok_button_text = "Save"
+		ui_save_ask.add_button("Don't save", false, "discard")
+		ui_save_ask.confirmed.connect(func(): _save_ask_choose("save"))
+		ui_save_ask.custom_action.connect(func(a: StringName): _save_ask_choose(String(a)))
+		ui_save_ask.canceled.connect(func(): _save_ask_choose("cancel"))
+		add_child(ui_save_ask)
+	_save_ask_then = then
+	_save_ask_quit = quitting
+	ui_save_ask.dialog_text = "Save changes to %s?\nThey are not saved yet. Don't save throws them away." % what
+	ui_save_ask.popup_centered()
+	_say("Save changes to %s? Save keeps them, Don't save throws them away, Cancel keeps the scene open" % what)
+
+
+## how = "save" | "discard" | "cancel" (the dialog's buttons, and what a test calls)
+func _save_ask_choose(how: String) -> void:
+	ui_save_ask.hide()
+	var then := _save_ask_then
+	_save_ask_then = Callable()
+	if how == "cancel" or not then.is_valid():
+		_say("kept open: the scene stays as it is (Save scene keeps your work)")
+		return
+	if how == "discard":
+		_discarding = _save_ask_quit
+		_autosave_drop()   # the work goes: no Recover offer for it next start
+		if journal_on:
+			journal.trim()
+		then.call()
+		return
+	if save_hook.is_valid():
+		save_hook.call()
+	else:
+		_save_scene()
+	if _unsaved():   # the save did not happen (an empty name, a co-edit guest, or a replace question is up now)
+		_say("not saved yet, so the scene stays open: answer the question, or Save scene, then close or open again")
+		return
+	then.call()
+
+
 func _trash(path: String) -> void:
 	_confirm("Move '%s' to the trash folder?\nIt is kept in trash/ (put it back by hand); Ctrl+Z can't bring it back." % path.get_file().get_basename(),
 		"Move to trash", _trash_now.bind(path))
@@ -10066,11 +10149,17 @@ func _scene_picked(i: int) -> void:
 		_rebuild_cards()
 		_refresh()
 	if _unsaved():
-		_confirm("Open '%s'?
-The changes to '%s' aren't saved, and opening can't be undone." % [path.get_file().get_basename(), S.name if S.name != "" else "this scene"],
-			"Open it", go)
+		_ask_save(_scene_label(), go)   # ROADMAP 50: Save / Don't save / Cancel
 	else:
 		go.call()
+
+
+## New empty scene: asks first when the open scene has unsaved changes (ROADMAP 50)
+func _new_asked() -> void:
+	if _unsaved():
+		_ask_save(_scene_label(), _new_scene)
+	else:
+		_new_scene()
 
 
 var _clean := "[]"   # the cards as last opened or saved: anything else is unsaved work

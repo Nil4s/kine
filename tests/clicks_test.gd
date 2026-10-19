@@ -261,10 +261,10 @@ func _init() -> void:
 	opt.select(oi)
 	opt.item_selected.emit(oi)
 	await idle()
-	ok(JSON.stringify(m.S.cards) == cards_now and m.ui_confirm != null and m.ui_confirm.visible,
-		"picking a scene with unsaved changes asks first, and opens nothing until told (asked: %s)" % (m.ui_confirm != null and m.ui_confirm.visible))
-	if m.ui_confirm != null:
-		m.ui_confirm.hide()
+	ok(JSON.stringify(m.S.cards) == cards_now and m.ui_save_ask != null and m.ui_save_ask.visible,
+		"picking a scene with unsaved changes asks first (Save changes to ...), and opens nothing until told (asked: %s)" % (m.ui_save_ask != null and m.ui_save_ask.visible))
+	if m.ui_save_ask != null:
+		m._save_ask_choose("cancel")   # ROADMAP 50: Cancel keeps this scene open
 
 	# 9 undo it
 	var bf := JSON.stringify(m.S.cards)
