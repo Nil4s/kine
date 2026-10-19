@@ -158,3 +158,39 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Numbers: see tests/walk_legs_test.gd's header (bars and walk_bat's measured values).
 - Used by: Scene TOE-OFF / STANCE / SWING (cards with "walk").
 - Tested by: tests/walk_legs_test.gd, tests/gait_test.gd.
+
+## JOINT SPEED
+- What it checks: each frame, how fast a joint turns (its rotation relative to the part it hangs from: shoulder, knee, hip,
+  trunk) against the fastest turn recorded in a person. Opt-in with "Check: could a human do this?".
+- Source: `docs/research/HUMAN_LIMITS.md`. Shoulder internal rotation 4766 +- 772 deg/s (Campbell, ISBS); knee in a kick
+  1874 deg/s (Manolopoulos 2006) and hip 745 deg/s (Nunome 2002), both via a kick review's table; trunk 601 deg/s (ISBS 2015).
+- Numbers: WARN over the recorded peak (shoulder 4766, knee 1874, hip 745, trunk 601 deg/s); FAIL over 6310, 2184, 1117,
+  901. The shoulder and knee FAIL bars come from the sources' spread; the hip and trunk FAIL bars are MINE (1.5x). Elbow and
+  neck are not graded (no verified number).
+- What to do: give the turn more time (move the cards apart), or shorten the swing; a snap that fast reads as a cut, not a body.
+- Used by: `HumanLimits.rule_speed`, consts `SPEED`, `TURN`; `Rulebook.check` when the human-limits check is on.
+- Tested by: `tests/human_limits_test.gd`.
+
+## JOINT TORQUE
+- What it checks: the net moment at the knee and the shoulder from inverse dynamics (point masses, de Leva 1996 shares;
+  rotation left out, so a lower bound) against recorded strength. OFF in the default Check (it read 508 Nm at the shoulder
+  for a two-handed bat swing, because the model hangs the whole bat on each arm), on when asked for.
+- Source: `docs/research/HUMAN_LIMITS.md`. Men's isokinetic knee extension at 60 deg/s 184.7 +- 44.1 Nm (healthy adults,
+  mixed-age excerpt); shoulder internal rotation 0.70 +- 0.15 Nm/kg at 60 deg/s (handball study excerpt).
+- Numbers: WARN over the mean (knee 184.7 Nm for 75 kg, scaled by (mass/75)^(2/3); shoulder 0.70 Nm/kg x mass); FAIL over
+  mean + 2 SD (273 Nm; 1.00 Nm/kg). The mass scaling is MINE. A fast motion is compared with a slow strength test.
+- What to do: lighten what is held, share it between two hands, or give the move more time; a torque flagged on a heavy
+  two-hand swing may be the model's lack of load sharing, not the pose.
+- Used by: `HumanLimits.rule_torque`, `knee_limit`, `shoulder_limit`, consts `KNEE_NM`, `SHOULDER_NM_KG`.
+- Tested by: `tests/human_limits_test.gd`.
+
+## TIPPING
+- What it checks: the centre of mass past the support polygon, with a foot down and no hand or weapon holding on, for
+  longer than a fall takes.
+- Source: the free-fall time of the centre of mass from its height, t = sqrt(2h/g): MINE, as a bar (generous: a stumble
+  that is caught is allowed). Context in `docs/research/HUMAN_LIMITS.md`.
+- Numbers: FAIL when the run lasts longer than t = sqrt(2h/g), about 0.43 s at h 0.9 m. A hand or the weapon within 2 cm of
+  a surface (or the floor) counts as holding on.
+- What to do: bring a foot under the weight, put a hand on something, or shorten the lean.
+- Used by: `HumanLimits.rule_tipping`, consts `GRAV`, `TOUCH`.
+- Tested by: `tests/human_limits_test.gd`.

@@ -353,7 +353,10 @@ func _init() -> void:
 	for j in t0.slice(0, 20):
 		await click(centre(0, j))
 		tried0 += 1
-		if m.actor_on == 0 and m.sel == j:
+		# the foot's reverse-foot handles (ROADMAP 6, FootHandles): with a foot picked, its BALL handle sits on the toe joint,
+		# so a click at the ball part's centre is a press on that handle, which keeps the FOOT picked (main._frh_press).
+		var via_handle: bool = (j == "ball_l" or j == "ball_r") and m.sel == "foot" + j.right(2)
+		if m.actor_on == 0 and (m.sel == j or via_handle):
 			hit0 += 1
 		else:
 			miss.append("%s -> actor %d %s" % [j, m.actor_on, m.sel])
