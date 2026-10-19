@@ -97,10 +97,9 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 23. [x] Sketch a line of action -> pose (top-25 #9)
 24. [x] Injury / load check for stunt teams (top-25 #11)
 25. [x] Style transfer: heavier, older, tired, angry (top-25 #12)
-<<<<<<< HEAD
 26. [~] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
 27. [~] Ragdoll to keys with pins (top-25 #14)
-28. [x] Scene versions with a visual diff (top-25 #16)
+28. [x] Scene versions with a visual diff (top-25 #16): "Versions: compare with" lays an older version over the open scene (magenta ghost at the playhead), lists the changes per card, and marks the timeline where a joint differs over 2 deg; "Versions: restore this one" is one undo step (scripts/version_diff.gd, tests/version_diff_test.gd)
 29. [~] Review links with frame comments (top-25 #17)
 30. [~] Live co-editing, one animator per fighter (top-25 #18)
 31. [~] Lip-sync from audio (top-25 #21)
@@ -108,29 +107,6 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 33. [~] Motion-matching preview (top-25 #23)
 34. [ ] Character mesh engine (top-25 #24) (held: Nick plans this as its own engine after Kine is done; same UE5 skeleton names)
 35. [~] Weapon trails drawn and exported (smear frames)
-||||||| f7e8d11
-26. [ ] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
-27. [ ] Ragdoll to keys with pins (top-25 #14)
-28. [ ] Scene versions with a visual diff (top-25 #16)
-29. [ ] Review links with frame comments (top-25 #17)
-30. [ ] Live co-editing, one animator per fighter (top-25 #18)
-31. [ ] Lip-sync from audio (top-25 #21)
-32. [ ] Music beats as timeline markers, snap hits to them (top-25 #22)
-33. [ ] Motion-matching preview (top-25 #23)
-34. [ ] Character mesh engine (top-25 #24)
-35. [ ] Weapon trails drawn and exported (smear frames)
-=======
-26. [ ] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
-27. [ ] Ragdoll to keys with pins (top-25 #14)
-28. [x] Scene versions with a visual diff (top-25 #16): "Versions: compare with" lays an older version over the open scene (magenta ghost at the playhead), lists the changes per card, and marks the timeline where a joint differs over 2 deg; "Versions: restore this one" is one undo step (scripts/version_diff.gd, tests/version_diff_test.gd)
-29. [ ] Review links with frame comments (top-25 #17)
-30. [ ] Live co-editing, one animator per fighter (top-25 #18)
-31. [ ] Lip-sync from audio (top-25 #21)
-32. [ ] Music beats as timeline markers, snap hits to them (top-25 #22)
-33. [ ] Motion-matching preview (top-25 #23)
-34. [ ] Character mesh engine (top-25 #24)
-35. [ ] Weapon trails drawn and exported (smear frames)
->>>>>>> wt-vdiff
 36. [ ] Hitbox / hurtbox editor per frame
 37. [ ] Parry / clash detection between two weapons
 38. [ ] Distance-to-opponent guide (range rings)
