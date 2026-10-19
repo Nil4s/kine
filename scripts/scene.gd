@@ -1463,7 +1463,10 @@ func carries() -> Array:
 			if int(cards[k].get("drop", -1)) == pi:
 				b = k
 				break
-		out.append({"prop": pi, "a": i, "b": b, "hands": Array(tk.get("hands", ["_r"]))})
+		var cr := {"prop": pi, "a": i, "b": b, "hands": Array(tk.get("hands", ["_r"]))}
+		if b >= 0 and cards[b].has("drop_rig"):
+			cr["drop_rig"] = cards[b]["drop_rig"]   # ROADMAP 85: the rigid fall baked on the drop card
+		out.append(cr)
 	return out
 
 
@@ -1551,6 +1554,12 @@ func _carry_data(B: Body) -> Array:
 			var v0 := (rel.origin - before.origin) / (tb - tp) if tb > tp else Vector3.ZERO
 			var bx := before.basis * Vector3(1, 0, 0)
 			var w0 := rad_to_deg(angle_difference(atan2(-bx.z, bx.x), atan2(-fx.z, fx.x))) / (tb - tp) if tb > tp else 0.0
+			if RigidDrop.rod(props[pi]) and land < 0.001:   # ROADMAP 85: a sword let go over the floor falls as a rigid body
+				d["rig"] = _rig(c, rel, v0, RigidDrop.spin(before.basis, rel.basis, tb - tp))
+				lx = d["rig"]["rest_xf"]
+				rest[pi] = lx
+				out.append(d)
+				continue
 			if v0.length() > 1e-4 or absf(w0) > 1e-3:
 				var tr := Throw.trajectory(drop.origin, v0, floor_of, float(props[pi].get("e", Throw.E)))
 				d["tr"] = tr
@@ -1567,6 +1576,45 @@ func _carry_data(B: Body) -> Array:
 
 
 var _carry_busy := false
+
+
+## ROADMAP 85: the rigid fall of a rod let go on card c (rel: its transform at the let-go, v0 and w0 its velocities). A
+## fall BAKED on the card ("drop_rig", its release state "in" the same to 1e-5) is read back as it was written; any other
+## is simulated (RigidDrop, 240 Hz, deterministic). {"poses", "rest_xf", "in"}
+func _rig(c: Dictionary, rel: Transform3D, v0: Vector3, w0: Vector3) -> Dictionary:
+	var body := RigidDrop.sword_body()
+	var com := RigidDrop.com_xf(rel, float(body["R"]))   # the sim runs on the centre of mass; the prop's origin is R below it
+	var q := com.basis.orthonormalized().get_rotation_quaternion()
+	var inp := [com.origin.x, com.origin.y, com.origin.z, q.x, q.y, q.z, q.w, v0.x, v0.y, v0.z, w0.x, w0.y, w0.z]
+	var st = c.get("drop_rig", null)
+	if st is Dictionary and (st.get("in", []) as Array).size() == 13:
+		var same := true
+		for i in 13:
+			same = same and absf(float(st["in"][i]) - float(inp[i])) < 1e-5
+		if same:
+			var poses := RigidDrop.from_array(st["poses"])
+			return {"poses": poses, "rest_xf": RigidDrop.prop_xf(RigidDrop.last_xf(poses), float(body["R"])), "in": st["in"]}
+	var r := RigidDrop.simulate(com.origin, q, v0, w0, body)
+	r["rest_xf"] = RigidDrop.prop_xf(r["rest_xf"], float(body["R"]))
+	r["in"] = inp
+	return r
+
+
+## ROADMAP 85: BAKE the rigid fall of card k's drop (k must be a put-down card; the drop is the caller's one undo step):
+## the simulated poses are written on card k as "drop_rig" (1 micrometre), so the file and the scrubber read the same
+## numbers. Returns false when that drop is not a rigid one (its card keeps no "drop_rig")
+func bake_drop(B: Body, k: int) -> bool:
+	cards[k].erase("drop_rig")
+	_carry_memo = []
+	var cs := carries()
+	var data := _carry_data(B)
+	for j in cs.size():
+		if int(cs[j]["b"]) == k and data[j].has("rig"):
+			var rg: Dictionary = data[j]["rig"]
+			cards[k]["drop_rig"] = {"in": RigidDrop.to_array(PackedFloat64Array(rg["in"])), "poses": RigidDrop.to_array(rg["poses"])}
+			_carry_memo = []
+			return true
+	return false
 
 
 ## GENERIC PROPS (row 22): prop i's world transform at t, the body B posed at t: in the hand(s) while a card carries
@@ -1599,6 +1647,9 @@ func props_at(t: float, B: Body) -> Array:
 		else:
 			var xf: Transform3D = d["drop"]
 			var dt := t - float(d["tb"])
+			if d.has("rig"):   # ROADMAP 85: the baked rigid fall, read back at t
+				out[pi] = {"kind": props[pi]["kind"], "xf": RigidDrop.prop_xf(RigidDrop.pose_at(d["rig"]["poses"], dt), float(RigidDrop.sword_body()["R"]))}
+				continue
 			if d.has("tr"):
 				xf.origin = Throw.pos_at(d["tr"], dt)
 				xf.basis = Basis(Vector3.UP, deg_to_rad(float(d["w"]) * minf(dt, float(d["tr"]["t_rest"])))) * xf.basis
@@ -1897,6 +1948,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["take"] = c["take"]   # UU2: only on a card that has one
 		if c.has("drop"):
 			cs[-1]["drop"] = c["drop"]
+		if c.has("drop_rig"):
+			cs[-1]["drop_rig"] = c["drop_rig"]   # ROADMAP 85: only on a drop that fell as a rigid body
 		if c.get("air", false):
 			cs[-1]["air"] = true   # VV1: only when on
 		if c.has("ktype"):
@@ -2001,7 +2054,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free",
-	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "air": "free", "ktype": "free", "weight_i": "free"}
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free"}
 
 
 ## the ease_bias slider's value on one card (ROADMAP 55): clamped to -1..1 and rounded to 0.01; 0 erases the key, so a
@@ -2032,6 +2085,8 @@ static func mirror_card(c: Dictionary, M: Body) -> Dictionary:
 		var hs: Array = c["take"].get("hands", ["_r"]).map(func(sd): return "_r" if sd == "_l" else "_l")
 		hs.sort()
 		out["take"] = {"prop": c["take"]["prop"], "hands": hs}
+	if c.has("drop_rig"):
+		out["drop_rig"] = RigidDrop.mirror_rig(c["drop_rig"])
 	return out
 
 
@@ -2167,6 +2222,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["take"] = {"prop": int(c["take"]["prop"]), "hands": hs if not hs.is_empty() else ["_r"]}
 		if c.has("drop"):
 			cards[-1]["drop"] = int(c["drop"])
+		if c.get("drop_rig", null) is Dictionary and c["drop_rig"].get("poses", null) is Array and c["drop_rig"].get("in", null) is Array:
+			cards[-1]["drop_rig"] = {"in": c["drop_rig"]["in"], "poses": c["drop_rig"]["poses"]}   # ROADMAP 85: the baked fall
 		if c.get("air", false):
 			cards[-1]["air"] = true
 		if String(c.get("ktype", "")) in DopeSheet.TYPED:

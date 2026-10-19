@@ -75,6 +75,11 @@ const KINDS := {
 	# a size 5 football: circumference 68-70 cm, 410-450 g (IFAB Law 2): the middle, 69 cm (d = 21.96 cm), 430 g
 	"ball": {"label": "football, size 5: 22 cm, 430 g (IFAB Law 2)", "solids": [], "spheres": [[Vector3(0, 0.1098, 0), 0.1098]],
 		"supports": [], "mass": 0.43},
+	# ROADMAP 85: a sword, a steel rod 0.90 m between its end centres, radius 1.5 cm (RigidDrop.sword_body). Its origin is
+	# on the floor like every kind, the box is 1.5 cm above it (the centre of mass when it lies flat) and its long axis
+	# runs along the prop's local X. "rod" marks it: let go over the floor it falls as a rigid body (RigidDrop, 240 Hz)
+	"sword": {"label": "sword, 90 cm blade and grip, 1.1 kg steel (drops as a rigid body)", "solids": [[Vector3(0, 0.015, 0), Vector3(0.93, 0.03, 0.03)]],
+		"supports": [], "mass": 1.1, "rod": true},
 	# a door LEAF, 32 x 80 in (0.813 x 2.032 m), 1 3/8 in (35 mm) thick (US interior standard): the origin is the HINGE
 	# axis on the floor, the leaf runs along +X from it; "swing" (deg, keyable) turns it about the hinge, + toward +Z
 	"door": {"label": "door 81 x 203 cm, hinged at its left edge (US 32 x 80 in)", "solids": [[Vector3(0.4064, 1.016, 0), Vector3(0.8128, 2.032, 0.035)]],
