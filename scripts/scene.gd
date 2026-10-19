@@ -58,6 +58,7 @@ const ALL_EASES := ["smooth", "linear", "in", "out", "snap", "reach", "strike", 
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offset" s, "gain_db"}; in the file only when there is one
+var lip := {}          # LIP-SYNC channel (ROADMAP 31, lip_sync.gd): {"jaw": [{"t", "v"}], "mouth": [{"t", "s"}]}; in the file only when baked
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var beats := []       # CHOREOGRAPHY (ROADMAP 13; scripts/choreo.gd): the exchange's named moments [{"t", "name", "by", "on"}] on the HERO's scene; in the file as "beats" only when any
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
@@ -1365,6 +1366,7 @@ func clone() -> Scene:
 	c.markers = markers.duplicate(true)
 	c.beats = beats.duplicate(true)
 	c.audio = audio.duplicate()
+	c.lip = lip.duplicate(true)
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
@@ -1863,6 +1865,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["beats"] = Choreo.to_list(beats)   # ROADMAP 13: the same, only when there are any
 	if not audio.is_empty():
 		out["audio"] = AudioTrack.clean(audio)   # the sound: the same, only when there is one
+	if not lip.is_empty():
+		out["lip"] = LipSync.to_file(lip)   # ROADMAP 31: the same, only when a lip-sync was baked
 	if not actors.is_empty():   # G1: the same, only with a second actor
 		out["actors"] = actors.map(func(a): return {"name": a["name"], "xf": {"pos": [float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": float(a["xf"]["yaw"])},
 			"scene": (a["scene"] as Scene).to_dict(B, frames)})
@@ -2003,6 +2007,7 @@ func from_dict(d: Dictionary) -> void:
 	markers = Markers.from_list(d.get("markers", []))
 	beats = Choreo.from_list(d.get("beats", []))   # ROADMAP 13
 	audio = AudioTrack.clean(d["audio"]) if d.get("audio") is Dictionary and String(d["audio"].get("path", "")) != "" else {}
+	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none

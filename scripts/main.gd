@@ -2294,6 +2294,7 @@ func _refresh() -> void:
 		sel_more = []
 	_sym_prev = B.ang.duplicate()
 	Overlays.pose_skeleton(skel, bone_idx, B)
+	_lip_draw()   # ROADMAP 31: the jaw and mouth shape of the sound at the playhead
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
 	_doc_line()
@@ -2939,6 +2940,7 @@ func _snapshot() -> Dictionary:
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
+		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
 		"beats": H.beats.duplicate(true),   # ROADMAP 13: the exchange's beats (the hero's), undone like a card
@@ -2995,6 +2997,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("clips") and var_to_str(u["clips"]) != var_to_str(S.clips):
 		S.clips = u["clips"].duplicate(true)   # CLIPS, undone like a card
 		_dummy_hits()
+	if u["scene"] == S and u.has("lip") and var_to_str(u["lip"]) != var_to_str(S.lip):
+		S.lip = u["lip"].duplicate(true)   # the lip-sync channel, undone like a card
 	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
 		S.audio = u["audio"].duplicate()   # the sound, undone like a card
 		_audio_reload()
@@ -7482,6 +7486,7 @@ func _commands() -> Array:
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
 	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it appears under the timeline as a waveform, plays in step with Play and sounds a short slice as you drag the playhead")
+	add.call("Lip-sync: from the audio track", "", _lip_from_audio, "lip sync lipsync mouth jaw talk speech audio voice visemes timing", true, "bake a jaw and mouth shapes from the sound (a wav on the timeline): the loudness opens the jaw 0-15 deg, the zero-crossing rate picks closed, round, open or wide; one undo step")
 	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the sound off the timeline (the file stays on disk); one undo step")
 	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4x), up to +12 dB; in playback and the playblast; one undo step")
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
@@ -9889,6 +9894,7 @@ var audio_seeks := 0            # how many times Play (re)started the sound (tes
 var audio_err := 0.0            # sound position - wanted position (s), read right after the playhead moved this frame (tests)
 var audio_slices := 0           # how many scrub slices were sounded (tests)
 var _a_player: AudioStreamPlayer
+var mouth_mi: MeshInstance3D   # LIP-SYNC (ROADMAP 31): the mouth drawn on the head, from S.lip (lip_sync.gd); made on first use
 var _a_path := "<unset>"        # the path the stream was loaded for (a change reloads it: open, undo, remove)
 var _a_on := false              # the player is running for Play
 var _a_after := -1.0            # the playhead at the end of the last tick (a different one now = the user moved it)
@@ -9953,6 +9959,55 @@ func _audio_set(path: String) -> bool:
 	_say("sound added: %s, %.2f s from 0.00 s%s" % [path.get_file(), st.get_length(), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
 	_refresh()
 	return true
+
+
+## ---- LIP-SYNC (ROADMAP 31; scripts/lip_sync.gd). The channel S.lip is baked from the sound on the timeline; the mouth
+## is a dark shape on the head: its width from the mouth shape, its opening from the jaw channel.
+func _lip_from_audio() -> void:
+	if S.audio.is_empty():
+		_say("no sound on the timeline: run Audio: add a sound file first (a wav)")
+		return
+	var r := LipSync.read_wav(String(S.audio.get("path", "")))
+	if not r["ok"]:
+		_say("lip-sync: %s" % r["why"])
+		return
+	var off := float(S.audio.get("offset", 0.0))
+	var A := LipSync.analyse(LipSync.windows(r["mono"], int(r["rate"])))
+	var lip := LipSync.bake(A, S.fps, off, maxf(S.length(), off + float(r["length"])))
+	_push_undo()
+	S.lip = lip
+	var opened := 0
+	for sh in (A["shape"] as PackedStringArray):
+		if sh != "M":
+			opened += 1
+	_say("lip-sync baked: %d mouth changes, %d of %d windows voiced, jaw 0-%d deg (Ctrl+Z removes it)" % [lip["mouth"].size(), opened, (A["shape"] as PackedStringArray).size(), int(LipSync.JAW_MAX)])
+	_refresh()
+
+
+## the mouth at the playhead: hidden with no channel; else placed at the head's front, turned with the head
+func _lip_draw() -> void:
+	if S.lip.is_empty():
+		if mouth_mi != null:
+			mouth_mi.visible = false
+		return
+	if mouth_mi == null:
+		mouth_mi = MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.5
+		sm.height = 1.0
+		mouth_mi.mesh = sm
+		var mm := StandardMaterial3D.new()
+		mm.albedo_color = Color(0.24, 0.07, 0.07)
+		mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mouth_mi.material_override = mm
+		add_child(mouth_mi)
+	var jaw := LipSync.jaw_at(S.lip, playhead)
+	var sz := LipSync.mouth_size(LipSync.shape_at(S.lip, playhead), jaw)
+	var c: Array = B.cap("head")
+	var g: Quaternion = B.G["head"]
+	var front: Vector3 = g * Vector3(0, 0, 1)
+	mouth_mi.visible = true
+	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(sz), ((c[0] as Vector3) + (c[1] as Vector3)) * 0.5 + front * float(B.rad["head"]) * 1.35)
 
 
 func _audio_remove() -> void:
