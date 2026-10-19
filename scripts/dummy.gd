@@ -132,6 +132,7 @@ func landed(S: Scene, B: Body) -> Array:
 	L.floor_body = S.floor_body
 	L.pin = S.pin
 	L.fps = S.fps
+	L.body = S.body   # PR2: the proportions go with the copy too
 	var ts: Array = S.times()
 	var last := -1
 	for i in S.cards.size():

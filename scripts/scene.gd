@@ -73,6 +73,7 @@ var floor_body := false   # with on_floor: the whole body's lowest point instead
 var pin := true        # feet that stay put between two clips are planted: they don't slide while the body turns
 const STEP := 0.12     # a toe base that moves more than this (m, along the floor) between clips = a step, not planted
 var fps := 30
+var body := {}         # PROPORTIONS (round 51, PR1; scripts/proportions.gd): {} = the default body; in the file only when not
 ## MOVING HOLDS (10-14, the animators' "dead hold" complaint; opt-in, saved): during a card's hold the UPPER body keeps
 ## drifting toward the next card, HOLD_DRIFT of the way (smoothstep), so a held pose never freezes; the move out
 ## starts from the drifted pose (no jump). Hips, legs and the hips' offset stay: a drifting hip would slide the
@@ -560,6 +561,8 @@ static func put(B: Body, s: Dictionary) -> void:
 
 
 func apply(B: Body, t: float) -> void:
+	if B.body != body:
+		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	_apply(B, t)
@@ -1292,6 +1295,7 @@ func clone() -> Scene:
 	for a in actors:   # G1: deep (each actor's own scene is cloned, its xf copied)
 		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
+	c.body = body.duplicate(true)   # PR1
 	return c
 
 
@@ -1761,6 +1765,8 @@ func to_dict(B: Body) -> Dictionary:
 			"scene": (a["scene"] as Scene).to_dict(B)})
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
+	if not body.is_empty():
+		out["body"] = body.duplicate(true)   # PR1: proportions, only when not the default body
 	return out
 
 
@@ -1769,7 +1775,7 @@ func to_dict(B: Body) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "layer_w": "free",
+	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
@@ -1850,6 +1856,7 @@ func from_dict(d: Dictionary) -> void:
 	moving_holds = bool(d.get("moving_holds", false))
 	loop = bool(d.get("loop", false))
 	breath = float(d.get("breath", 0.0))
+	body = Proportions.clean(d["body"]) if d.get("body") is Dictionary else {}   # PR1: absent = the default body
 	layer = {}
 	for j in d.get("layer", {}):
 		var a: Array = d["layer"][j]

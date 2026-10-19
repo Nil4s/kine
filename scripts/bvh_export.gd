@@ -53,6 +53,8 @@ static func weapons_of(S: Scene) -> Array:
 ## [x, y, z]}} at 4 frames}]. B is posed through the scene; its state is put back.
 static func text(S: Scene, B: Body) -> Array:
 	var keep := B.state()
+	if B.body != S.body:
+		B.set_proportions(S.body)   # PR2: the OFFSETs are the scene's own body's bones (put back at the end)
 	var kids := {}
 	for j in Body.ORDER:
 		kids[j] = []

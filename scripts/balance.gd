@@ -22,6 +22,8 @@ const RING := 12      # points around each footprint circle
 
 
 static func com(B: Body) -> Vector3:
+	if not B.body.is_empty():
+		return Proportions.com(B)   # PR2: a body with proportions: de Leva's table for its sex, scaled (proportions.gd)
 	var s := Vector3.ZERO
 	var w := 0.0
 	for j in MASS:

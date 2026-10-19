@@ -1984,3 +1984,25 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   agent_tools, command_search, bake, autosave PASS. OPEN: no viewport IK handle (commands only); a pinned foot
   overrides foot planting; a pinned grip hand fights the weapon grip; release/snap need the playhead on a card;
   the Blender side-by-side comparison not run yet.
+
+## Round 51 (PR): proportions (docs/GAP_ANALYSIS.md row 17; numbers and sources: docs/research/PROPORTIONS.md)
+Bars (written before code; tests/proportions_test.gd): (1) every bone = default x its segment's scale and every capsule
+radius / length the same, within 0.1 mm; the skinned mesh's stature within 5 mm of the asked; the mannequin's bones on
+Body.P within 0.1 mm; at the 50th man the six limb segments / stature = Drillis & Contini within 0.0005. (2) a target at
+98 % of the scaled arm reached (miss < 3 mm), 105 % not, 5th woman and 95th man. (3) standing COM height / stature
+within 1 % of Croskey 1922 (men 0.5618, women 0.5544). (4) BVH / glb / USD bone offsets = the scaled skeleton within
+0.1 mm. (5) no "body" key: state(), BVH, USD, glb bytes identical. (6) retarget: angles kept, lowest sole within 5 mm at
+every card, a pinned hand on its target within 1 mm where reachable; one undo step, undo exact.
+- [ ] PR1 a body has proportions: stature + 8 segment scales, scene key "body" (only when not default; schema), skeleton,
+  capsules, skin points, mesh and COM scale with it; ANSUR II presets; "Body: proportions..." dialog + one command per
+  preset, one undo step each.
+- [ ] PR2 downstream uses the scaled body (reach / IK, grips, contacts, balance, planting, rules: they read B.p0 / cap0
+  / rad; exporters: BVH, USD, glb with the proportions baked into the rest skeleton and mesh).
+- [ ] PR3 retarget: angles kept, hips moved so the soles stand as high as before, IK targets held where reachable.
+- EVIDENCE: proportions_test 49 ok / 2 FAIL. Pass: bones 0.0001 mm, capsules 0.0001 mm, mesh stature 1.5254 / 1.7554 /
+  1.8704 m vs 1.525 / 1.755 / 1.870, mannequin 0.0011 mm, fractions 0.1860 0.1460 0.1080 0.2450 0.2460 0.1520 (trunk
+  0.2729 vs 0.288 and head 0.1852 vs 0.182 reported: the mannequin's ankle is 0.057 H high); reach 98 % miss 0.002 mm,
+  105 % miss 25.4 / 31.1 mm; BVH 0.0007 mm, glb 0.0010 mm (+ its baked mesh 1.5254 m tall), USD 0.0000 mm; default
+  bit-identical (and vs the pre-round code: 11 scenes, every frame's state() + COM, to_dict, BVH, USD, glb bytes: 55 of
+  55 hashes equal); retarget sole 0.046 / 0.034 mm, IK miss 0.000 mm, undo / redo exact. FAIL: (3) COM man 0.5717
+  (+1.76 %), woman 0.5692 (+2.68 %). Boxes left open for that. Screenshot: 5th woman and 95th man as two actors.

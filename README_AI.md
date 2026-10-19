@@ -602,3 +602,10 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - WW10 JUMP PHYSICS: the CoM, not the pelvis, rides the parabola; Rulebook.land_bar(h).
 - Open: Scene.loop not in undo; schema scene properties lack loop/props; carry memo ignores card poses; pelvis twist
   in part keys not wrapped the short way; .cs export ignores events.
+
+## Round 51 (GATES PR): proportions
+- A scene may carry `"body": {"stature": m, "scale": {segment: k}, "sex", "mass", "preset"}` (scripts/proportions.gd; only
+  written when not the mannequin as shipped). `Body.set_proportions(d)` rebuilds the rest skeleton from data/skeleton.json
+  (never edited); `Scene.apply` puts the scene's body on whatever plays it. Commands: "Body: proportions..." (dialog),
+  "Body: 5th percentile woman" ... "Body: 95th percentile man" (ANSUR II), "Body: the mannequin's own proportions".
+  `Proportions.retarget(S, B, body)` keeps every angle and moves the hips so the soles stand where they stood.

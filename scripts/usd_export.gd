@@ -23,6 +23,8 @@ static func _m(t: Vector3) -> String:
 ## the scene as USDA text: [text, {"frames", "joints", "fps"}]. B is posed through the scene; its state is put back.
 static func text(S: Scene, B: Body) -> Array:
 	var keep := B.state()
+	if B.body != S.body:
+		B.set_proportions(S.body)   # PR2: bind and rest transforms are the scene's own body's (put back at the end)
 	var paths := {}
 	var joints := PackedStringArray()
 	for j in Body.ORDER:   # ORDER lists parents before children

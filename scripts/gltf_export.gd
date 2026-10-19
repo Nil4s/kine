@@ -22,6 +22,9 @@ static func build(S: Scene, B: Body, anim_name: String, with_mesh := true) -> No
 			mi.get_parent().remove_child(mi)
 			mi.free()
 	var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
+	if B.body != S.body:
+		B.set_proportions(S.body)   # PR2: the scene's own body (put back with the state at the end)
+	Proportions.bake_mannequin(man, sk, B)   # the proportions in the file's rest skeleton and mesh (default: nothing)
 	var sk_path := String(man.get_path_to(sk))
 	var anim := Animation.new()
 	anim.length = S.length()

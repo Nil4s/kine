@@ -44,7 +44,8 @@ func fp() -> String:
 		"layers": var_to_str(m.S.layers),   # NA1
 		"audio": var_to_str(m.S.audio),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
-		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards])}   # TC3: the second fighter
+		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
+		"body": var_to_str(m.S.body), "p0": var_to_str(m.B.p0)}   # PR1: the proportions and the skeleton they make
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
 
@@ -54,6 +55,7 @@ func fp() -> String:
 ## start LAYER: combo3 0.13 s before card 3 arrives, with a layer (spine_03 +5 at weight 0.5): for Block and the layer commands
 ## start STEPPED: the same, already blocking (the stepped view on): for "Spline and check"
 ## start IK: combo3 on card 3 with the left hand pinned at card 1 (for IK release and the two snaps)
+## start BODY: combo3 on the 5th-percentile woman's proportions (PR1: for the command back to the mannequin's own)
 ## start ACTORS: combo3 with a second fighter added, switched to it (TC3: for "Actor: remove this fighter")
 ## start THROUGH: two clean right-arm poses whose straight in-between goes through the body (for "Fix moves through
 ##   the body"; found by a seeded random search over legal arm poses: my hand-made swing first went round the body)
@@ -134,6 +136,12 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		m.S.apply(m.B, m.playhead)
 		m.sel = "hand_l"
+	elif kind == "BODY":   # PR1: a scene on a 5th-percentile woman (for "Body: the mannequin's own proportions")
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m.proportions_set(Proportions.preset("female_5"))
+		m._card_pick(2)
+		m.sel = "lowerarm_r"
 	elif kind == "ACTORS":
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
@@ -241,7 +249,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "ACTORS", "AUDIO"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "ACTORS", "AUDIO", "BODY"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break
