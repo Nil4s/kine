@@ -6937,6 +6937,7 @@ func _ui() -> void:
 	ui_cmd.offset_top = TOP_H + 10
 	ui_root.add_child(ui_cmd)
 	ui_cmd.commands = _commands()
+	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
 	_hover_hints()
 	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n)
@@ -9683,7 +9684,12 @@ func _save_scene_now(nm: String) -> void:
 ## the scene list's pick: opens it at once when nothing would be lost, asks first when the scene open now has changes
 ## that are not saved (opening can't be undone)
 func _scene_picked(i: int) -> void:
-	var path: String = ui_scenes.get_item_metadata(i)
+	_open_scene_file(ui_scenes.get_item_metadata(i))
+
+
+## opens a scene file the one way every pick does (the scene list, the S box's scene rows): at once, or asking first
+## when the scene open now has unsaved changes
+func _open_scene_file(path: String) -> void:
 	if path == scene_path and _unsaved() == false:
 		return
 	var go := func():
@@ -9696,6 +9702,50 @@ The changes to '%s' aren't saved, and opening can't be undone." % [path.get_file
 			"Open it", go)
 	else:
 		go.call()
+
+
+## THE S BOX'S FILES (ROADMAP 52): the saved poses and scenes, listed the way _lists() lists them (poses/lib, poses,
+## moves/ for a pose file; scenes, moves/ and scenes/_wip for a scene file: a file with cards or keys is a scene). Read
+## when the box opens, not per keystroke
+func _search_files() -> Array:
+	var rows := []
+	var scene := {}   # path -> is a scene file (each file read once)
+	for dir in ["res://poses/lib", "res://poses", "res://moves", "res://scenes", "res://scenes/_wip"]:
+		var d := DirAccess.open(dir)
+		if d == null:
+			continue
+		var files := Array(d.get_files())
+		files.sort()
+		for f in files:
+			if not f.ends_with(".json"):
+				continue
+			var path: String = dir + "/" + f
+			if not scene.has(path):
+				var txt := FileAccess.get_file_as_string(path)
+				scene[path] = txt.contains("\"keys\"") or txt.contains("\"cards\"")
+			var is_scene: bool = scene[path]
+			# poses/ holds pose files and scenes/ scene files; moves/ holds both (each goes to the list the app shows it in)
+			if (is_scene and dir.begins_with("res://poses")) or (not is_scene and dir.begins_with("res://scenes")):
+				continue
+			rows.append(_file_row(path, "scene" if is_scene else "pose"))
+	return rows
+
+
+func _file_row(path: String, kind: String) -> Dictionary:
+	var nm := path.get_file().get_basename().replace("_", " ")
+	if kind == "pose":
+		return {"name": nm, "kind": kind, "also": "pose", "keys": "", "run": _search_pose.bind(path),
+			"desc": "%s: the body takes this pose (one undo step)" % path}
+	return {"name": nm, "kind": kind, "also": "scene", "keys": "", "run": _open_scene_file.bind(path),
+		"desc": "%s: opens the scene (asks first when this one has unsaved changes)" % path}
+
+
+## a pose row of the S box: the body takes the pose, one undo step (the same as a pick in the Poses list)
+func _search_pose(path: String) -> void:
+	_push_undo()
+	_load_pose(path)
+	_refresh()
+	_say("the body is now in pose '%s'" % path.get_file().get_basename().replace("_", " "))
 
 
 var _clean := "[]"   # the cards as last opened or saved: anything else is unsaved work

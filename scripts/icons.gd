@@ -129,6 +129,12 @@ const DRAW := {
 		["seg", Vector2(11, 12), Vector2(20, 3), 2], ["seg", Vector2(20, 3), Vector2(14, 3), 2], ["seg", Vector2(20, 3), Vector2(20, 9), 2]],
 	"help": [["arc", Vector2(12, 8.5), 4.5, 2.2, 160, 420], ["seg", Vector2(12, 13), Vector2(12, 16), 2.2], ["disc", Vector2(12, 20.5), 1.5]],
 	"whywrong": [["ring", Vector2(12, 12), 9, 2], ["seg", Vector2(12, 6.5), Vector2(12, 13.5), 2.4], ["disc", Vector2(12, 17.5), 1.5]],
+	# the search box's row kinds (ROADMAP 52, scripts/command_search.gd): a command prompt, a posed figure, a film frame
+	"kind_command": [["seg", Vector2(3, 6), Vector2(10, 12), 2.0], ["seg", Vector2(10, 12), Vector2(3, 18), 2.0], ["seg", Vector2(12, 18), Vector2(21, 18), 2.0]],
+	"kind_pose": [["disc", Vector2(12, 4.5), 2.6], ["seg", Vector2(12, 8), Vector2(12, 15), 2.4], ["seg", Vector2(12, 9.5), Vector2(5, 13), 2.0],
+		["seg", Vector2(12, 9.5), Vector2(19, 4), 2.0], ["seg", Vector2(12, 15), Vector2(8, 22), 2.0], ["seg", Vector2(12, 15), Vector2(16, 22), 2.0]],
+	"kind_scene": [["box", Rect2(2, 4, 20, 16), 1.6], ["box", Rect2(6, 7.5, 12, 9), 1.2], ["disc", Vector2(4.5, 6), 0.9], ["disc", Vector2(19.5, 6), 0.9],
+		["disc", Vector2(4.5, 18), 0.9], ["disc", Vector2(19.5, 18), 0.9]],
 }
 
 static var _cache := {}
