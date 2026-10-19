@@ -349,6 +349,7 @@ func _fold_button(which: String) -> void:
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
+var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var bal := BalanceView.new()   # LIVE BALANCE (Shift+B, round 43 YY1): the feet's support and the COM over them
 var ui_tween: HSlider
 var ui_hist: PanelContainer        # UNDO HISTORY (round 11, #75)
@@ -1312,7 +1313,9 @@ func _ready() -> void:
 	_body()
 	add_child(ov)
 	add_child(bal)
+	add_child(loa)
 	ov.setup()
+	loa.setup()
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
 	_ui()
@@ -2306,6 +2309,7 @@ func _refresh() -> void:
 	_actors_draw()
 	_fighters_mark()
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
+	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
@@ -2452,8 +2456,15 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if mb.pressed:
 			hover_part = ""   # a press ends the hover (the drag shows the selection)
 			_fh_clear()
+			if loa.armed and mb.button_index != MOUSE_BUTTON_LEFT:
+				loa.armed = false   # ROADMAP 23: any other press cancels the line-of-action stroke
+				_say("line of action cancelled")
 			if mb.button_index == MOUSE_BUTTON_LEFT and nav_tool != "":   # the nav bar's Orbit / Pan tool (HH2)
 				dragging = nav_tool
+			elif mb.button_index == MOUSE_BUTTON_LEFT and loa.armed:
+				loa.armed = false
+				loa.begin(mb.position)
+				dragging = "loa"
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
 				if _frh_press(mb.position):   # ROADMAP 6: a foot's roll handle takes the press
 					return
@@ -2512,6 +2523,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_prop_release()
 			if was == "ik_handle":
 				_ikh_release()
+			if was == "loa":
+				_loa_release(mb.shift_pressed)
 			if was == "foot_handle":
 				_frh_release()
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
@@ -2540,6 +2553,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "ik_handle":
 			_ikh_move(mm.position)
+			return
+		if dragging == "loa":
+			loa.add_point(mm.position)
 			return
 		if dragging == "foot_handle":
 			_frh_move(mm.position)
@@ -3816,6 +3832,36 @@ func _ikh_pose() -> Dictionary:
 
 
 ## release: the dragged point keyed at the playhead (weight and hand turn as they were there); no move = no undo step
+## ROADMAP 23: the next left drag on the view is one line-of-action stroke (scripts/line_of_action.gd)
+func _loa_arm() -> void:
+	loa.armed = true
+	loa.on = true
+	_refresh()
+	_say("LINE OF ACTION: drag one stroke on the view, from the head down to the planted foot. Shift on release mirrors the lean. A right click cancels")
+
+
+func _loa_release(mirror: bool) -> void:
+	var pts := loa.take_stroke()
+	if pts.size() < 3:
+		_say("line of action: the stroke was a click, not a line. Drag again")
+		return
+	_loa_apply(pts, mirror)
+
+
+## one stroke = one undo step (Ctrl+Z puts the pose back as it was before the drag)
+func _loa_apply(pts: Array, mirror: bool) -> Dictionary:
+	_push_undo()
+	var rep: Dictionary = loa.apply(B, cam, pts, mirror)
+	if rep.is_empty():
+		_say("line of action: the stroke is too short to bend the body. Drag a longer line")
+		return rep
+	_after_edit()
+	_refresh()
+	var lim_txt := "" if (rep["limits"] as Array).is_empty() else ", at a limit: " + ", ".join(rep["limits"])
+	_say("LINE OF ACTION%s: spine, neck and head within %.1f mm of the stroke; the support knee %.0f mm off%s (Ctrl+Z undoes)" % [" (mirrored)" if mirror else "", float(rep["worst"]) * 1000.0, float(rep["knee"]) * 1000.0, lim_txt])
+	return rep
+
+
 func _ikh_release() -> void:
 	var d := _ikh_drag
 	_ikh_drag = {}
@@ -5735,9 +5781,12 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
 	ui_ribbon["POSE"].add_child(_button("Arms 25 deg", _do.bind(_arms_relaxed), "both arms relaxed: 25 degrees out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
+	ui_ribbon["POSE"].add_child(_button("Line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
+	tog.call("POSE", "Line of action", func(): loa.on = not loa.on; _refresh(), func(): return loa.on,
+		"the current line of action, faint: head, spine, pelvis, support knee and ankle. A C or an S shows the pose's shape")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
 		"see the capsules the body collides with. Yellow = a joint at its limit, red = touching another part")
 	# ANIMATE
@@ -7168,6 +7217,7 @@ func _commands() -> Array:
 	for v in [["Front view", 1], ["His right view", 2], ["Top view", 3], ["Back view", 4], ["His left view", 5]]:
 		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s" % v[0].to_lower())
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
+	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", true, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")

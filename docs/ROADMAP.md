@@ -101,7 +101,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 ### Wave B: the innovations
 21. [ ] Live webcam puppeteering (top-25 #6)
 22. [ ] Type a move, get blocking (top-25 #8)
-23. [ ] Sketch a line of action -> pose (top-25 #9)
+23. [x] Sketch a line of action -> pose (top-25 #9)
 24. [ ] Injury / load check for stunt teams (top-25 #11)
 25. [ ] Style transfer: heavier, older, tired, angry (top-25 #12)
 26. [ ] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
