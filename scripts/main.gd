@@ -2104,6 +2104,7 @@ func _refresh() -> void:
 	_actors_draw()
 	_fighters_mark()
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
+	_cons_draw()   # CN: each active constraint's line from the part to what it follows
 
 
 # ---------------------------------------------------------------- camera
@@ -3381,6 +3382,55 @@ func _ikh_release() -> void:
 ## not undone), then the owner is the picked part. With no target picked: the other hand (Child Of), the other fighter's
 ## head or else the weapon (look at). Every edit is one undo step
 var cons_target := {}
+
+
+## CONSTRAINTS ON SCREEN (Blender draws a dashed relationship line from a constrained bone to its target): for each
+## constraint on at the playhead, a line from its owner to its target in the owner's side colour, faded by the
+## influence; Child Of solid, look-at (Track To) dashed from between the eyes; Floor a cross on the floor under the foot.
+## A view only: nothing saved, no undo
+var _cons_line: MeshInstance3D
+
+
+func _cons_draw() -> void:
+	if _cons_line == null:
+		_cons_line = MeshInstance3D.new()
+		_cons_line.name = "constraint_lines"
+		_cons_line.mesh = ImmediateMesh.new()
+		add_child(_cons_line)
+	var im := _cons_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if clean or S == null or S.cons.is_empty():
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	for c in S.cons:
+		var w := Constraints.weight(c, t)
+		if w <= 0.0 or c.get("mute", false):
+			continue
+		var owner := String(c["owner"])
+		var col := Color(side_col(owner) if owner.ends_with("_l") or owner.ends_with("_r") else Color(1.0, 0.85, 0.3), 0.35 + 0.65 * w)
+		var ty := String(c["type"])
+		var a: Vector3 = LookAt.eye_point(B) if ty == "track_to" else B.P[owner]
+		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+		im.surface_set_color(col)
+		if ty == "floor":
+			var y := float(c.get("height", 0.0))
+			var f := Vector3(a.x, y, a.z)
+			for d in [Vector3(0.06, 0, 0), Vector3(0, 0, 0.06)]:
+				im.surface_add_vertex(f - d)
+				im.surface_add_vertex(f + d)
+			im.surface_add_vertex(a)
+			im.surface_add_vertex(f)
+		else:
+			var x = Constraints.target_xf(S, B, c.get("target", {}), t)
+			if x == null:
+				im.surface_end()
+				continue
+			var b: Vector3 = (x as Transform3D).origin
+			var n := 1 if ty == "child_of" else maxi(2, int(ceil(a.distance_to(b) / 0.03)))
+			for k in range(0, n, 1 if n == 1 else 2):   # look-at dashed: 3 cm on, 3 cm off
+				im.surface_add_vertex(a.lerp(b, float(k) / n))
+				im.surface_add_vertex(a.lerp(b, minf(1.0, float(k + 1) / n)))
+		im.surface_end()
 
 
 func _cons_words(owner: String) -> String:
