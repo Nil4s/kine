@@ -2064,3 +2064,101 @@ static func _q(q: Quaternion) -> Array:
 
 static func _p(v: Vector3) -> Array:
 	return [snappedf(v.x, 0.0001), snappedf(v.y, 0.0001), snappedf(v.z, 0.0001)]
+
+
+# ---------------------------------------------------------------- two bodies (Round 50 TC2, GATES.md)
+## BODY-VS-BODY CONTACT. `cross_contacts(other, xf)`: every capsule of this body (its weapons too, when on) against every
+## capsule of `other`, which stands where `xf` puts it (other's space -> this body's space). No allowances: two separate
+## bodies do not overlap at rest. Fingers and the skin points are left out (as in `pairs`); the WIDE chest/hip capsules
+## are in. Pure: neither body changes.
+## Broad phase 1: one sphere per body (centred on the pelvis, radius = the body's reach, or the weapon's if longer);
+## broad phase 2: one sphere per capsule; only the pairs whose spheres meet get the segment-segment test.
+## Returns [[my_part, other_part, depth (m), kind, zone], ...] for depth > CROSS_MIN, deepest first. kind:
+##   "hit"    my weapon on the other's body (zone = the other part's Dummy zone: HEAD, CHEST, BELLY, HIPS, ...)
+##   "struck" the other's weapon on my body (zone = my part's zone)
+##   "clash"  weapon on weapon
+##   "block"  forearm/hand on forearm/hand
+##   "touch"  any other body-on-body overlap
+const CROSS_MIN := 0.001
+const CROSS_BODY_R := 1.5   # pelvis -> farthest capsule surface, any pose within the limits (tests/cross_contact_test.gd prints the observed max)
+const CROSS_ARM_END := ["lowerarm_l", "lowerarm_r", "hand_l", "hand_r"]
+const CROSS_WIDE_ZONE := {"chest_wide": "CHEST", "hips_wide": "HIPS"}
+
+
+## the parts that take part now (fingers aside; weapons when on)
+func cross_parts() -> Array:
+	var out: Array = BODY.duplicate()
+	out.append_array(WIDE.keys())
+	if wep_on:
+		out.append_array(WEAPON)
+	if wep2_on:
+		out.append_array(WEAPON2)
+	return out
+
+
+## [centre, radius] of the sphere round the whole body (and its weapons) in this body's own space
+func cross_sphere() -> Array:
+	var c: Vector3 = P["pelvis"]
+	var r := CROSS_BODY_R
+	if wep_on:
+		r = maxf(r, ((wep_xform()[0] as Vector3) - c).length() + wep_len + 0.25)
+	if wep2_on:
+		r = maxf(r, (wep2_point(0.0) - c).length() + wep2_len() + 0.25)
+	return [c, r]
+
+
+## the capsules that take part, carried by `xf`: [[part, end a, end b, radius, sphere centre, sphere radius], ...]
+func cross_caps(xf := Transform3D.IDENTITY) -> Array:
+	var out := []
+	for part in cross_parts():
+		var c: Array = cap(part)
+		var a: Vector3 = xf * (c[0] as Vector3)
+		var b: Vector3 = xf * (c[1] as Vector3)
+		var r: float = rad[part]
+		out.append([part, a, b, r, (a + b) * 0.5, a.distance_to(b) * 0.5 + r])
+	return out
+
+
+static func cross_zone(part: String) -> String:
+	return CROSS_WIDE_ZONE.get(part, Dummy.ZONES.get(part, ""))
+
+
+static func cross_kind(mine: String, theirs: String) -> String:
+	var wm := is_wep(mine)
+	var wt := is_wep(theirs)
+	if wm and wt:
+		return "clash"
+	if wm:
+		return "hit"
+	if wt:
+		return "struck"
+	if mine in CROSS_ARM_END and theirs in CROSS_ARM_END:
+		return "block"
+	return "touch"
+
+
+func cross_contacts(other: Body, xf: Transform3D) -> Array:
+	var out := []
+	var sa: Array = cross_sphere()
+	var sb: Array = other.cross_sphere()
+	var rr: float = float(sa[1]) + float(sb[1])
+	if (sa[0] as Vector3).distance_squared_to(xf * (sb[0] as Vector3)) > rr * rr:
+		return out
+	var A: Array = cross_caps()
+	var B: Array = other.cross_caps(xf)
+	for p in A:
+		for q in B:
+			var rs: float = float(p[5]) + float(q[5])
+			if (p[4] as Vector3).distance_squared_to(q[4]) > rs * rs:
+				continue
+			var d: float = float(p[3]) + float(q[3]) - seg_seg(p[1], p[2], q[1], q[2])
+			if d > CROSS_MIN:
+				var kind := cross_kind(p[0], q[0])
+				var zone := ""
+				if kind == "hit":
+					zone = cross_zone(q[0])
+				elif kind == "struck":
+					zone = cross_zone(p[0])
+				out.append([p[0], q[0], d, kind, zone])
+	out.sort_custom(func(x, y): return x[2] > y[2])
+	return out
