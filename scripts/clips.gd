@@ -31,6 +31,11 @@
 ## being the scene's own action; layers are adjustments on top of the base (Maya's animation layers sit over the
 ## clips), and IK and constraints correct the FINISHED pose (Blender runs them after the NLA). Later clips sit over
 ## earlier ones (Blender: upper tracks over lower).
+## MATCH (ROADMAP 84, scripts/pose_match.gd): "match" = {"lt0", "pa", "pb", "yaw"}, written only on a clip that was matched to
+## the clip before it. The source starts at its own time lt0 (the frame that matched the seam) and loops from there (the
+## strip keeps its length; time past the source's end wraps, the cycles' root steps still count). Its root is moved so that
+## its hips at lt0 (pb, the source's floor position there) sit at pa (the previous clip's hips at the seam), and its pelvis
+## twist turns by yaw, the walk turning about pb with it (yaw_sign: which way a twist turns the walk). Replace clips only.
 ## Each source is played by its own Scene.apply on a scratch body (floor, pins, its own layers and IK included), so a
 ## clip at weight 1, mask all, plays the source exactly as opening the file would. The weapon stays the cards'.
 class_name Clips
@@ -104,6 +109,9 @@ static func clean(c: Dictionary) -> Dictionary:
 	var wp := warp_norm(c.get("warp", []))
 	if not wp.is_empty():
 		out["warp"] = wp
+	var mt := match_norm(c.get("match", {}))
+	if not mt.is_empty():
+		out["match"] = mt
 	if not out["type"] in TYPES:
 		out["type"] = "replace"
 	if not out["mask"] in MASK_NAMES:
@@ -331,6 +339,53 @@ static func warp_add(knots: Array, x: float, y: float) -> Array:
 	return warp_clean(ks)
 
 
+# ---------------------------------------------------------------- match (ROADMAP 84)
+
+## a stored match as the file keeps it: {"lt0" >= 0 s, "pa" [x, z], "pb" [x, z] (m), "yaw" deg in -180..180}; {} when invalid
+static func match_norm(a) -> Dictionary:
+	if not a is Dictionary or not (a as Dictionary).has("lt0") or not (a as Dictionary).has("pa") or not (a as Dictionary).has("pb"):
+		return {}
+	var pa = a["pa"]
+	var pb = a["pb"]
+	if not (pa is Array and (pa as Array).size() >= 2 and pb is Array and (pb as Array).size() >= 2):
+		return {}
+	var q := func(x: float) -> float: return snappedf(x, 0.0001)
+	return {"lt0": q.call(maxf(0.0, float(a["lt0"]))), "pa": [q.call(float(pa[0])), q.call(float(pa[1]))],
+		"pb": [q.call(float(pb[0])), q.call(float(pb[1]))], "yaw": q.call(wrapf(float(a.get("yaw", 0.0)), -180.0, 180.0))}
+
+
+## which way a pelvis twist turns the walk: +1 or -1, read off the body (the pelvis's facing turned by +10 deg of twist),
+## so the walk turns WITH the body whatever the joint's axis convention is. Measured once
+static var _yaw_sign := 0.0
+static func yaw_sign() -> float:
+	if _yaw_sign == 0.0:
+		var Q := Body.new()
+		Q.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		Q.fk()
+		var f0 := _fwd(Q)
+		Q.ang["pelvis"] = Vector3(0, 0, 10)
+		Q.fk()
+		var f1 := _fwd(Q)
+		var plus := Basis(Vector3.UP, deg_to_rad(10.0)) * f0
+		_yaw_sign = 1.0 if plus.distance_to(f1) <= (Basis(Vector3.UP, deg_to_rad(-10.0)) * f0).distance_to(f1) else -1.0
+	return _yaw_sign
+
+
+static func _fwd(Q: Body) -> Vector3:
+	var f: Vector3 = Q.G["pelvis"] * Vector3.RIGHT
+	f.y = 0.0
+	return f.normalized()
+
+
+## the hips' floor place off (source space, cycles counted) moved by a match: pa + R (off - pb), R the walk's turn by yaw
+static func align(off: Vector3, mt: Dictionary) -> Vector3:
+	var pa: Array = mt["pa"]
+	var pb: Array = mt["pb"]
+	var d := Vector3(off.x - float(pb[0]), 0.0, off.z - float(pb[1]))
+	var r := Basis(Vector3.UP, deg_to_rad(yaw_sign() * float(mt["yaw"]))) * d
+	return Vector3(float(pa[0]) + r.x, off.y, float(pa[1]) + r.z)
+
+
 # ---------------------------------------------------------------- timing
 
 static func length_of(c: Dictionary, L: float) -> float:
@@ -346,20 +401,31 @@ static func at(c: Dictionary, L: float, t: float) -> Dictionary:
 	var bi := float(c["bin"])
 	var bo := float(c["bout"])
 	var inf := float(c["w"])
+	var mt: Dictionary = c.get("match", {})   # ROADMAP 84: a matched clip starts at lt0 and loops (see the header)
+	var lt0 := float(mt["lt0"]) if not mt.is_empty() else 0.0
 	if t < s0:
 		if c["extra"] != "hold":
 			return {}
-		return {"lt": 0.0, "k": 0, "w": inf * (0.0 if bi > 0.0 else 1.0)}
+		return {"lt": lt0, "k": 0, "w": inf * (0.0 if bi > 0.0 else 1.0)}
 	if t > E:
 		if c["extra"] == "nothing":
 			return {}
+		if not mt.is_empty():   # the loop's last frame: the same place lt0 on the cycle after the last
+			return {"lt": lt0, "k": r, "w": inf * (0.0 if bo > 0.0 else 1.0)}
 		return {"lt": L, "k": r - 1, "w": inf * (0.0 if bo > 0.0 else 1.0)}
 	var u := (t - s0) * v
 	var wk := warp_norm(c.get("warp", []))
 	if not wk.is_empty():
 		u = warp_f(wk, clampf((t - s0) / (L * r / v), 0.0, 1.0)) * L * r   # the strip's progress through the curve
-	var k := mini(int(floor(u / L)), r - 1)
-	var lt := clampf(u - k * L, 0.0, L)
+	var k: int
+	var lt: float
+	if mt.is_empty():
+		k = mini(int(floor(u / L)), r - 1)
+		lt = clampf(u - k * L, 0.0, L)
+	else:
+		u += lt0
+		k = int(floor(u / L))
+		lt = fposmod(u, L)
 	var w := inf
 	if bi > 0.0:
 		w *= clampf((t - s0) / bi, 0.0, 1.0)
@@ -396,11 +462,16 @@ static func play(S: Scene, B: Body, t: float) -> void:
 			o0 = Q.offset
 		_pose_src(e, float(a["lt"]), mirror, Q)
 		var off := Q.offset + step * int(a["k"])
+		var mt: Dictionary = c.get("match", {}) if c["type"] == "replace" else {}   # ROADMAP 84
+		if not mt.is_empty() and mask_root(c["mask"]):
+			off = align(off, mt)
 		for j in mask_joints(c["mask"]):
 			if not B.ang.has(j) or not Q.ang.has(j):
 				continue
 			var x: Vector3 = B.ang[j]
 			var y: Vector3 = Q.ang[j]
+			if j == "pelvis" and not mt.is_empty():
+				y.z += float(mt["yaw"])   # the walk turned as the match says
 			var r := x + y * w if c["type"] == "add" else x + Scene._d(x, y, j) * w
 			if j == "pelvis":
 				r.z = wrapf(r.z, -180.0, 180.0)
