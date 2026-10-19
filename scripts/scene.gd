@@ -634,9 +634,27 @@ static func put(B: Body, s: Dictionary) -> void:
 			B.grip2 = w["grip2"]   # the card's own Lock-both-hands grip (round 47)
 
 
+## ROADMAP 99: the baked pose table (PoseBake) of this scene, or null (the app sets it; a clone never has one)
+var baker: PoseBake = null
+
+
+## the time playback evaluates for a playhead at t: the nearest tick of the bake grid (a 60 Hz display cannot show a finer
+## step; at most half a display frame). Live and baked solves both use it, so they cannot differ.
+func play_t(t: float) -> float:
+	var g := float(PoseBake.grid_for(fps))
+	return roundf(t * g) / g
+
+
 func apply(B: Body, t: float) -> void:
 	if B.body != body:
 		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body
+	if baker != null:
+		var e = baker.entry(t)
+		if e != null:
+			baker.hits += 1
+			baker.restore(self, B, e)
+			return
+		baker.misses += 1
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	plant_last = {}
@@ -656,13 +674,13 @@ func apply(B: Body, t: float) -> void:
 		Drivers.play(drivers, B)
 	ik_last = {}
 	if not ik.is_empty():   # IK (GAP_ANALYSIS row 13): last, so a pinned hand stays pinned over everything above
-		ik_last = LimbIK.play(ik, B, t)
+		ik_last = LimbIK.play(ik, B, t) if not PerfStub.skip("ik_plants") else {}
 		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
 			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
 	# FOOT PLANTS (ROADMAP 8, scripts/foot_plant.gd): after the IK pass, before the constraints. A planted foot holds the
 	# place it had at its t0; the pelvis is not touched. Nothing live (no plants, or none in range): the body is not touched
 	if not plant_refs.is_empty():
-		plant_last = FootPlant.play(B, plants, plant_refs, t, fps, solid_props() if not props.is_empty() else [])
+		plant_last = FootPlant.play(B, plants, plant_refs, t, fps, solid_props() if not props.is_empty() else []) if not PerfStub.skip("ik_plants") else {}
 	# USER CONSTRAINTS (round 51, CN): after IK, in list order (Blender's stack runs on the finished animated pose);
 	# every angle they write goes through Body.clamp_ang, so the joint limits come last. None: nothing is touched
 	cons_last = []

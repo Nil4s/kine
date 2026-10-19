@@ -146,14 +146,34 @@ func _init() -> void:
 	m.pieces["lowerarm_l"].visible = false
 	var less_img := await shot()
 	m._refresh()
-	var same := diff(split_img, one_img)
+	var same := diff(split_img, one_img)   # the corrective shapes ON (the default): what the user sees
+	# THE BAR IS MEASURED WITH THE CORRECTIVE SHAPES OFF. They (ROADMAP 71, scripts/corrective.gd) push the PIECES out
+	# along the skin at a bent elbow and knee; the single mesh is never corrected, so with them on the two differ by
+	# design. Off, both sides are the same plain skinning, and that is what "the split renders as the single mesh" means.
+	# With them on, the difference is printed and must sit at the joints (corrective_test has its own bars).
+	m.corr.on = false
+	m.corr.update(m.B)
+	m.skp.set_looks({})   # the refresh above put the head's pick light back on the pieces: cleared, as at the first comparison
+	await idle(2)
+	var off_split := await shot()
+	for j in m.pieces:
+		m.pieces[j].visible = false
+	orig.visible = true
+	var off_one := await shot()
+	orig.visible = false
+	for j in m.pieces:
+		m.pieces[j].visible = true
+	var off := diff(off_split, off_one)
+	m.corr.on = true
+	m.corr.update(m.B)
+	m._refresh()
+	print("     corrective shapes off: split vs single %d of %d samples off (worst %.0f/255); on: %d off (the elbows and knees pushed out)" % [off[1], off[2], off[0], same[1]])
 	var seen := diff(split_img, less_img)
 	# AMENDED bar (KK1): "no pixel off" failed at 7 of ~137k samples, single pixels on the outline (separate pieces
 	# draw in another order, so an edge shared at equal depth can go the other way); the bar is now: the render's own
-	# noise 0, and at most 0.05% of the samples off; AMENDED again to 0.1% (the corrective-shape merge: a bent joint's seam between two pieces
-	# draws a few more single edge pixels than the one mesh: 80 of 152475 at the joints, none inside a limb)
-	ok(orig != null and m.pieces.size() >= 40 and noise[1] == 0 and same[1] <= same[2] * 0.001 and seen[1] > 100,
-		"1 %d pieces; the render's own noise %d pixels; split vs the single mesh: %d of %d samples off (worst channel %.0f/255); the left arm's pieces hidden: %d off (the comparison sees a change)" % [m.pieces.size(), noise[1], same[1], same[2], same[0], seen[1]])
+	# noise 0, and at most 0.1% of the samples off, with the corrective shapes off (see above)
+	ok(orig != null and m.pieces.size() >= 40 and noise[1] == 0 and off[1] <= off[2] * 0.001 and seen[1] > 100,
+		"1 %d pieces; the render's own noise %d pixels; split vs the single mesh (corrective shapes off): %d of %d samples off (worst channel %.0f/255; corrective on: %d off at the elbows and knees); the left arm's pieces hidden: %d off (the comparison sees a change)" % [m.pieces.size(), noise[1], off[1], off[2], off[0], same[1], seen[1]])
 	# (2) the right upper arm's eye
 	var u0: int = m.undo.size()
 	var arm: TreeItem = m.ui_browser.rows["upperarm_r"]

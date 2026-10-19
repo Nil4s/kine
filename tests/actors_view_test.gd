@@ -113,6 +113,24 @@ func shot3d() -> Image:
 	return img
 
 
+## the box of the pixels that differ, and how many: [x0, y0, x1, y1, count]
+func diff_box(a: Image, b: Image) -> Array:
+	var x0 := 1 << 30
+	var y0 := 1 << 30
+	var x1 := -1
+	var y1 := -1
+	var n := 0
+	for y in a.get_height():
+		for x in a.get_width():
+			if a.get_pixel(x, y) != b.get_pixel(x, y):
+				n += 1
+				x0 = mini(x0, x)
+				y0 = mini(y0, y)
+				x1 = maxi(x1, x)
+				y1 = maxi(y1, y)
+	return [x0, y0, x1, y1, n]
+
+
 func pixels_differ(a: Image, b: Image) -> int:
 	if a.get_size() != b.get_size():
 		return -1
@@ -418,6 +436,12 @@ func _init() -> void:
 	await idle(2)
 	var shot_b := await shot3d()
 	var nd := pixels_differ(shot_a, shot_b)
+	if nd != 0:   # where they differ: the box and the count per 8x8 block row (the picture's own diagnosis)
+		shot_a.save_png("user://zz_tc5_before.png")
+		shot_b.save_png("user://zz_tc5_after.png")
+		print("     before: %s" % ProjectSettings.globalize_path("user://zz_tc5_before.png"))
+		print("     after:  %s" % ProjectSettings.globalize_path("user://zz_tc5_after.png"))
+		print("     differing box (x0 y0 x1 y1, count): %s" % str(diff_box(shot_a, shot_b)))
 	ok(nd == 0, "5: one actor before the add vs after add + remove, same camera, 3D view: %d pixels differ" % nd)
 	print("ACTORS VIEW %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

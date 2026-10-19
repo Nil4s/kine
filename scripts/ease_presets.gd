@@ -25,6 +25,7 @@ const SETTLE_WN := 8.0        # natural frequency in move-lengths: rad per move
 ## the speed-profile exponent K of the skewed family
 const K := 4.0
 const TABLE_N := 1000
+static var _mu := Mutex.new()
 static var _tables := {}      # peak fraction (rounded to 1e-6) -> PackedFloat64Array of e at x = i / TABLE_N
 
 
@@ -51,9 +52,11 @@ static func progress(kind: String, x: float, lv := 0) -> float:
 ## normalised to 1 at s = 1. Tabulated once per p (Simpson's rule), read back by linear interpolation: deterministic.
 static func _skew(x: float, p: float) -> float:
 	var key := snappedf(p, 0.000001)
+	_mu.lock()   # ROADMAP 99: the pose bake (a worker thread) and the main thread both fill this cache
 	if not _tables.has(key):
 		_tables[key] = _table(key)
 	var tab: PackedFloat64Array = _tables[key]
+	_mu.unlock()
 	var f := x * TABLE_N
 	var i := mini(int(f), TABLE_N - 1)
 	var w := f - float(i)
