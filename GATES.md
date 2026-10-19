@@ -1984,3 +1984,14 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   agent_tools, command_search, bake, autosave PASS. OPEN: no viewport IK handle (commands only); a pinned foot
   overrides foot planting; a pinned grip hand fights the weapon grip; release/snap need the playhead on a card;
   the Blender side-by-side comparison not run yet.
+
+## Round 51 (GE): graph editor (docs/GAP_ANALYSIS.md #7; definitions docs/research/GRAPH_EDITOR.md from Blender's manual)
+Bars set before code: (1) every visible channel's drawn line through its keys within 1 px, read from pixels; (2) a box
+selects exactly the dots inside it (brute force), scale x2 about the pivot is exact, one undo step, Ctrl+Z bit for bit;
+(3) normalized top / bottom on the +-1 rows within 1 px, the scene unchanged byte for byte; (4) Cycles v(t + kP) = v(t)
+within 1e-6 for k = -2..3; Noise: same seed identical, strength 0 bit-identical, |offset| <= strength / 2; (5) scenes
+without the new fields play bit-identically. Nick 10-18: feature first, no stub runs this round.
+- [x] GE1 channels (scripts/graph_editor.gd, "Graph editor: every keyed part"): tests/graph_editor_test.gd 18 keys from pixels, worst 0.47 px; a real row click hides a channel (0 of 3 keys keep its colour).
+- [x] GE2 box select + scale about the pivot (2D cursor / box centre; Keys menu, Alt+drag): box = brute force (4 of 18 dots); time and value error 0 exactly; 1 undo step; Ctrl+Z bit for bit; a swapping scale refused.
+- [x] GE3 normalize ("Graph editor: normalize"): 6 channels' top / bottom pixels within 0.50 px of the +-1 rows; save dict identical before / during / after.
+- [x] GE4 Cycles (repeat / offset / mirror, counts; "Part keys: add Cycles modifier", Mods menu) + noise offset / depth: worst 0.000000000 at k = -2..3, in Scene.sample at 23 points; same-seed identical, strength 0 bit-identical, largest offset 2.243 <= 3. (5): full-precision sample dumps of all 11 scenes and of a scene with DD2's noise / stepped / limits identical before and after (cmp). Suites graph_editor, undo_audit (176), say_next, agent_tools, command_search, schema, keyboard, graph_read, curve_why, dope_sheet, curve_editor/multi/mods/views, key_blend PASS (schema failed once in parallel on the shared user://schema_cases, then passed alone). Transcript: only the 3 new commands differ.

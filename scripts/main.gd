@@ -3015,7 +3015,7 @@ func _bake() -> void:
 ## picked part's part keys as curves; dragging a key there is one undo step
 func _curve_toggle() -> void:
 	if ui_curve == null:
-		ui_curve = CurveEditor.new()
+		ui_curve = GraphEditor.new()   # GE: the curve editor plus channels, pivot scale, normalize, cycles (graph_editor.gd)
 		ui_curve.anchor_top = 1.0
 		ui_curve.anchor_bottom = 1.0
 		ui_curve.anchor_right = 1.0
@@ -3031,6 +3031,33 @@ func _curve_toggle() -> void:
 	if ui_curve.visible:
 		ui_curve.frame_all()
 	_say("curve editor open: drag a key to change its angle and time (Ctrl+Z takes a drag back)" if ui_curve.visible else "curve editor closed")
+
+
+## GRAPH EDITOR (round 51, GE1-GE4; scripts/graph_editor.gd): the channels view, the normalized view, the Cycles modifier
+func _graph_cmd(what: String) -> void:
+	if what == "cycles":
+		if not S.part_keys.has(sel):
+			_say("%s has no part keys: press K to key it, then add the Cycles modifier" % sel)
+			return
+		if PartKeys.mods_of(S.part_keys[sel]).any(func(x): return String(x.get("type", "")) == "cycles"):
+			_say("%s already repeats (a Cycles modifier): open the curve editor's Mods menu to remove it" % sel)
+			return
+		_do(func(): PartKeys.add_mod(S.part_keys, sel, {"type": "cycles", "ch": -1, "before": "repeat", "after": "repeat", "before_n": 0, "after_n": 0, "mix": 1.0}))
+		if ui_curve != null and ui_curve.visible:
+			ui_curve.frame_all()
+		_say("%s now repeats its keys before and after them (Cycles)  (Ctrl+Z takes it back)" % sel)
+	elif ui_curve == null or not ui_curve.visible:
+		_curve_toggle()
+	if what == "cycles":
+		pass
+	elif what == "multi":
+		var ge := ui_curve as GraphEditor
+		ge.set_multi(not ge.multi)
+		_say("graph editor: %s" % ("every keyed part, one channel per part and angle; click a channel to hide it" if ge.multi else "the picked part only"))
+	else:
+		var ge := ui_curve as GraphEditor
+		ge.set_normalize(not ge.normalize)
+		_say("graph editor: %s" % ("each curve fitted to -1..1 (the keys are not changed)" if ge.normalize else "degrees"))
 
 
 var _why_sig := 0
@@ -5937,6 +5964,9 @@ func _commands() -> Array:
 	add.call("IK: snap IK to FK", "", _ik_snap_ik, "ik fk match switch target pole rigify", true, "the picked limb's IK target and pole keyed at the playhead where the cards put the limb (the IK weight stays)")
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
+	add.call("Graph editor: every keyed part (channels)", "", _graph_cmd.bind("multi"), "graph editor channels multi several parts curves all f-curves blender", false, "the curve editor shows every part with part keys at once, one coloured channel per part and angle; click a channel to hide or show it (GE1)")
+	add.call("Graph editor: normalize", "", _graph_cmd.bind("normalize"), "graph editor normalize normalise -1 1 fit scale curves", false, "draw every curve fitted to -1..1 (display only: the keys are not changed) (GE3)")
+	add.call("Part keys: add Cycles modifier", "", _graph_cmd.bind("cycles"), "cycles cycle repeat loop modifier f-curve graph part keys blender", true, "the picked part's keyed span repeats before and after itself, for ever (Blender's Cycles modifier; the keys are not changed) (GE4)")
 	for ip in PartKeys.INTERPS:   # KEY INTERPOLATION (XX1)
 		add.call("Part key: " + ip + " interpolation", "", _part_curve.bind("interp", ip), "key curve blender graph " + ip, true, "the picked part's key at the playhead leaves toward the next key as " + ip)
 	for hd in PartKeys.HANDLES:

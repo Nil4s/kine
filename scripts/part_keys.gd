@@ -36,6 +36,14 @@
 ##            -strength/2 .. +strength/2 added (Blender's Replace blend: noise centred on 0)
 ##   stepped  "step" s, "offset" s: the curve read only at offset + k * step (held between): a stepped, on-twos look
 ##   limits   "min" / "max" deg: the angle clamped into them
+##   cycles   (round 51, GE4; Blender's Cycles modifier) "before" / "after": "none" | "repeat" | "offset" | "mirror",
+##            "before_n" / "after_n": how many copies (0 = for ever). The keyed span tf..tl (period P = tl - tf) repeats
+##            outside it: lap L = floor((t - tf) / P), u = tf + (t - tf) - L * P, read the stack below at u ("mirror": odd
+##            laps read tf + tl - u; "offset": + L * (below(tl) - below(tf))). Past the count the last copy's end is held.
+##            Like Blender's it belongs FIRST in the stack (add_mod puts it there; one per joint).
+##   noise    (GE4 additions, both optional so older stacks play bit for bit) "offset" s: the noise moved in time
+##            (x = (t - offset) / scale + phase); "depth" n >= 0: n extra octaves, each twice as fast and half as strong,
+##            normalised so the sum stays in -strength/2 .. +strength/2
 ## Like "inf" it lives on the first key, so it saves, undoes, copies and mirrors with the keys. value_at() is the curve WITH
 ## the modifiers (the scene plays and exports it); at() stays the keys alone.
 ## In the FILE: "part_keys": {"<joint>": [{"t": 0.42, "v": [bend, side, twist]}, ...]}, written only when there is one
@@ -47,7 +55,8 @@ const SAME_T := 0.001  # two keys closer than this (s) are the same key: keying 
 const INTERPS := ["bezier", "constant", "linear"]   # KEY INTERPOLATION (round 42, XX1): see the header
 const HANDLES := ["auto_clamped", "auto", "vector", "aligned", "free"]
 const INFS := ["hold", "linear", "cycle", "cycle_offset"]
-const MODS := ["noise", "stepped", "limits"]   # DD2
+const MODS := ["noise", "stepped", "limits", "cycles"]   # DD2; cycles GE4
+const CYCLE_MODES := ["none", "repeat", "offset", "mirror"]   # GE4: Blender's No Cycles / Repeat Motion / with Offset / Mirrored
 
 
 ## DD2: the joint's curve at time t WITH its modifier stack (see the header); without "mods" exactly at()
@@ -78,9 +87,21 @@ static func _eval_upto(keys: Array, ms: Array, k: int, t: float) -> Vector3:
 		after = _eval_upto(keys, ms, k - 1, off + floorf((t - off) / st + 1e-9) * st)
 	elif ty == "noise":
 		var sc := maxf(float(md.get("scale", 0.5)), 1e-4)
-		var x := t / sc + float(md.get("phase", 0.0))
+		var x := (t - float(md.get("offset", 0.0))) / sc + float(md.get("phase", 0.0)) if md.has("offset") else t / sc + float(md.get("phase", 0.0))
+		var depth := int(md.get("depth", 0))
 		for c in 3:
-			after[c] = before[c] + float(md.get("strength", 0.0)) * noise1(x, int(md.get("seed", 0)) * 3 + c)
+			var nz := noise1(x, int(md.get("seed", 0)) * 3 + c)
+			if depth > 0:   # GE4: octaves, normalised (weights 1, 1/2, 1/4 ... summing to 1)
+				var amp := 1.0
+				var tot := 1.0
+				for o in range(1, depth + 1):
+					amp *= 0.5
+					tot += amp
+					nz += amp * noise1(x * pow(2.0, o), int(md.get("seed", 0)) * 3 + c + 7919 * o)
+				nz /= tot
+			after[c] = before[c] + float(md.get("strength", 0.0)) * nz
+	elif ty == "cycles":
+		after = _cycles(keys, ms, k, md, t)
 	elif ty == "limits":
 		for c in 3:
 			after[c] = clampf(before[c], float(md.get("min", -INF)), float(md.get("max", INF)))
@@ -91,6 +112,32 @@ static func _eval_upto(keys: Array, ms: Array, k: int, t: float) -> Vector3:
 		if ch < 0 or ch == c:
 			out[c] = before[c] + (after[c] - before[c]) * mix
 	return out
+
+
+## GE4: the Cycles modifier at stack index k (see the header): the stack below it read inside the keyed span
+static func _cycles(keys: Array, ms: Array, k: int, md: Dictionary, t: float) -> Vector3:
+	var n := keys.size()
+	var tf: float = keys[0]["t"]
+	var tl: float = keys[n - 1]["t"]
+	var per := tl - tf
+	if n < 2 or per < 1e-6 or (t >= tf and t <= tl):
+		return _eval_upto(keys, ms, k - 1, t)
+	var aft := t > tl
+	var mode := String(md.get("after" if aft else "before", "repeat"))
+	if mode == "none" or not mode in CYCLE_MODES:
+		return _eval_upto(keys, ms, k - 1, t)
+	var cnt := int(md.get("after_n" if aft else "before_n", 0))
+	var lap := floorf((t - tf) / per)
+	var u := clampf(tf + ((t - tf) - lap * per), tf, tl)
+	if cnt > 0 and absf(lap) > cnt:   # past the last copy: hold its end
+		lap = float(cnt) if aft else -float(cnt)
+		u = tl if aft else tf
+	if mode == "mirror" and int(absf(lap)) % 2 == 1:
+		u = tf + tl - u
+	var r := _eval_upto(keys, ms, k - 1, u)
+	if mode == "offset":
+		r += lap * (_eval_upto(keys, ms, k - 1, tl) - _eval_upto(keys, ms, k - 1, tf))
+	return r
 
 
 ## smooth 1D value noise in -0.5 .. 0.5: a hashed value at every whole x, smoothstep between (deterministic per seed)
@@ -114,6 +161,12 @@ static func add_mod(pk: Dictionary, j: String, md: Dictionary) -> int:
 	if keys.is_empty() or not String(md.get("type", "")) in MODS:
 		return -1
 	var ms: Array = (keys[0] as Dictionary).get("mods", [])
+	if String(md["type"]) == "cycles":   # GE4: Blender's rule: Cycles first, one per curve
+		if ms.any(func(x): return String(x.get("type", "")) == "cycles"):
+			return -1
+		ms.insert(0, md.duplicate())
+		keys[0]["mods"] = ms
+		return 0
 	ms.append(md.duplicate())
 	keys[0]["mods"] = ms
 	return ms.size() - 1
@@ -523,7 +576,7 @@ static func _extras_from_file(src: Dictionary, k: Dictionary) -> void:
 			if md is Dictionary and String(md.get("type", "")) in MODS:
 				var o := {}
 				for f in md:
-					o[f] = String(md[f]) if f == "type" else (int(md[f]) if f in ["ch", "seed"] else float(md[f]))
+					o[f] = String(md[f]) if f in ["type", "before", "after"] else (int(md[f]) if f in ["ch", "seed", "depth", "before_n", "after_n"] else float(md[f]))
 				ms.append(o)
 		if not ms.is_empty():
 			k["mods"] = ms
