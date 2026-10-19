@@ -422,6 +422,7 @@ var _grab := Vector3(NAN, NAN, NAN)   # the scene as one strip: drag edges to re
 var _pd := {}   # ROADMAP 41 (scripts/part_drag.gd): the plain drag's handle on the pressed part; {} = none
 var _pd_mp := Vector2(NAN, NAN)   # the mouse as the last move left it (the drag pulls the handle to its ray)
 var _magnet := ""   # the last hand drag's magnet step (GripMagnet.drag): what the status line says
+var ik_contact := false   # ROADMAP 88: on, a hand dragged with a wall / table in the set slides along it (ContactIK), not through
 var _sm := {}   # the sample the last Check took of S (a Fix re-uses it instead of re-playing the scene)
 var _fixing := false
 var ui_find: PanelContainer   # CHECK: the rulebook's findings (scripts/rulebook.gd), each one a button to its moment
@@ -3159,9 +3160,13 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		if is_nan(_grab.x):
 			_grab = B.P[sel]
 		_grab += dw
+		# CONTACT (ROADMAP 88): a hand with contact on and a wall / table in the set is held on the nearest face, palm on it
+		var faces: Array = ContactIK.surfaces(S.props) if ik_contact and sel in ["hand_r", "hand_l"] else []
 		# THE MAGNET (round 47, GATES CC3): the free hand near the weapon the other hand holds snaps onto its handle,
 		# slides and rolls along it, lets go when pulled off (no weapon in the other hand: the plain reach, as before)
-		if sel in ["hand_r", "hand_l"]:
+		if not faces.is_empty():
+			ContactIK.reach(B, sel, _grab, faces)
+		elif sel in ["hand_r", "hand_l"]:
 			_magnet = GripMagnet.drag(B, sel, _grab, true)   # NA6: quick while the mouse moves; searched once on release
 		else:
 			B.reach(sel, _grab)
@@ -4289,6 +4294,12 @@ func _ik_pin() -> void:
 
 ## SPACE SWITCHING (ROADMAP 63): the picked hand / foot's target lives in the world, the chest, the pelvis, the held
 ## weapon or the other hand from the playhead on; its tip stays where it is at this frame (one undo step)
+## ROADMAP 88: contact mode on / off (no body change: no undo step). Read by _drag_joint for the hands.
+func _ik_contact_toggle() -> void:
+	ik_contact = not ik_contact
+	_say("CONTACT ON: a hand you drag slides along the nearest wall or table in the set, palm on it" if ik_contact else "CONTACT OFF: a hand you drag pulls through everything, as before")
+
+
 func _ik_space(space: String) -> void:
 	var tip := _ik_tip()
 	if space == "other":
@@ -9235,6 +9246,7 @@ func _commands() -> Array:
 	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
 	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
+	add.call("IK: contact mode on/off (a hand slides on a wall or table)", "", _ik_contact_toggle, "ik contact wall table slide surface palm hand drag touch", false, "while on, a hand you drag is held on the nearest wall or table of the set with its palm on the surface, so it slides along it instead of passing through; off = the plain pull")
 	add.call("IK space: world", "", func(): _ik_space("world"), "ik space switch world follow free hand foot parent child of", true, "the picked hand (or foot) stops following anything: its target is in the world from the playhead, and it does not move at this frame")
 	add.call("IK space: chest", "", func(): _ik_space("chest"), "ik space switch chest follow torso spine parent child of hand foot", true, "the picked hand (or foot) follows the chest from the playhead on (its target is stored relative to the chest); it does not move at this frame")
 	add.call("IK space: pelvis", "", func(): _ik_space("pelvis"), "ik space switch pelvis hips follow parent child of hand foot", true, "the picked hand (or foot) follows the pelvis from the playhead on; it does not move at this frame")
