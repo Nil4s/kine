@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 8 / 20 (foot planting, engine export presets, selection + keying sets, fighter hover + dagger, shot-camera gizmo + timeline keys, graph Shape on
+Merged since the last full run: 9 / 20 (pose library + thumbnails + blend, foot planting, engine export presets, selection + keying sets, fighter hover + dagger, shot-camera gizmo + timeline keys, graph Shape on
 selected keys + modifier ranges, user drivers, grips scale with hand size).
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
@@ -81,7 +81,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 8. [x] Foot planting that just works: mark a foot planted over a time range, it stays put to 1 mm, the leg solves
 9. [x] One-click engine delivery: UE5 / Unity / Godot presets, scale + axes + root motion checked (top-25 #19)
 10. [~] "Could a human do this?": per-frame torque, balance and speed vs real-human data, with the reason (top-25 #1)
-11. [ ] Critique that points at frames: floaty, no anticipation, foot slide, twinning (top-25 #7)
+11. [~] Critique that points at frames: floaty, no anticipation, foot slide, twinning (top-25 #7)
 12. [ ] Fighting-game frame data: startup / active / recovery + hitboxes, exported (top-25 #2)
 13. [ ] Choreography timeline for 2+ fighters: exchanges, reach kept honest (top-25 #3)
 14. [ ] Automatic hit reactions from momentum, baked to cards (top-25 #4)
