@@ -143,7 +143,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25 deg", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video", "Ask AI"]]],
+		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MAKE", ["From video", "Ask AI"]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export .glb", "Export .bvh", "To game", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
@@ -212,6 +212,7 @@ func _sides_apply() -> void:
 	for c in [ui_bar, ui_graph]:
 		c.offset_left = lw() + 12
 		c.offset_right = -rw() - 12
+	_place_akey_frame()
 	_strip_fit()
 	if ui_find != null:
 		ui_find.offset_left = lw() + 12
@@ -641,6 +642,7 @@ func _num_key(k: InputEventKey) -> bool:
 			dragging = ""
 			_num_on = false
 			_after_edit()
+			_autokey_card()
 		KEY_ESCAPE:
 			B.set_state(_num_start)
 			_drop_undo()
@@ -1384,7 +1386,7 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
-	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _place_nav.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
+	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
 	_body()
 	add_child(ov)
@@ -2331,6 +2333,8 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 func _refresh() -> void:
 	_actors_view()
 	_curve_sync()
+	if ui_akey != null and auto_key:
+		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
 	_sym_prev = B.ang.duplicate()
@@ -2671,6 +2675,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 						_say("the %s %s the %s" % [nice(sel), {"snap": "holds", "held": "holds", "let go": "let go of"}[r], B.wep_kind.replace("_", " ")])
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
+			if was == "joint":
+				_autokey_card()   # ROADMAP 42: the drag that moved the body keys a card at the playhead (its undo step is the press's)
 	elif ev is InputEventMouseMotion and dragging != "":
 		var mm := ev as InputEventMouseMotion
 		var rel := mm.relative
@@ -2731,6 +2737,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if k.ctrl_pressed:
 			match k.keycode:
 				KEY_Z: _undo()
+				KEY_K: _toggle_autokey()   # ROADMAP 42: auto-key on / off (Ctrl+K)
 				KEY_Y: _redo()
 				KEY_S: _save_scene() if k.shift_pressed else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3)
 				KEY_E: _inbetween("push")   # Ctrl+E push from the in-between (WW3)
@@ -2900,6 +2907,7 @@ func _do(f: Callable) -> void:
 	var keep := _lock_snap()
 	f.call()
 	_lock_keep(keep)   # a locked part keeps its angles through Reset, Mirror, Snap, a pose... (round 26, GG3)
+	_autokey_card()   # ROADMAP 42: with auto-key on, the change keys a card at the playhead (same undo step)
 	_after_edit()
 	_journal_write()   # ROADMAP 2: the scene as this edit left it, in the journal
 
@@ -2971,6 +2979,73 @@ func _toggle_symmetry() -> void:
 	symmetry = not symmetry
 	_refresh()
 	_say("symmetry ON: drag a part on one side and its twin on the other side follows, reflected" if symmetry else "symmetry off: each side moves on its own")
+
+
+## AUTO-KEY (ROADMAP 42): while on, a pose change made at the playhead keys a card there. A card whose arrival or hold
+## holds the playhead takes the body as its pose; otherwise a new card goes into the sequence at the playhead. A view
+## setting: not saved, and it is not an undo step of its own (the change it keys is one step with it)
+var auto_key := false
+var ui_akey: Control   # the red frame round the 3D view while auto-key is on (the view's edges, Tok "autokey")
+
+
+func _toggle_autokey() -> void:
+	auto_key = not auto_key
+	if ui_akey != null:
+		ui_akey.visible = auto_key
+		ui_akey.queue_redraw()
+	_refresh()
+	_say("Auto-key ON: changes make keys" if auto_key else "Auto-key off: changes stay in the body until you key them")
+
+
+## the frame sits on the 3D view: between the side panels, under the top bar, above the status line and the timeline
+func _build_akey_frame() -> void:
+	ui_akey = Control.new()
+	ui_akey.name = "autokey_frame"
+	ui_akey.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_akey.visible = auto_key
+	ui_akey.draw.connect(func(): ui_akey.draw_rect(Rect2(Vector2(2, 2), ui_akey.size - Vector2(4, 4)), Tok.c("autokey"), false, 4.0))   # inset: the 4 px band lies inside the view
+	ui_root.add_child(ui_akey)
+	ui_root.move_child(ui_akey, -1)   # drawn over the panels that touch the view's edges
+	_place_akey_frame()
+
+
+func _place_akey_frame() -> void:
+	if ui_akey == null:
+		return
+	var vs := get_viewport().get_visible_rect().size
+	ui_akey.offset_left = lw()
+	ui_akey.offset_right = vs.x - rw()
+	ui_akey.offset_top = TOP_H
+	ui_akey.offset_bottom = vs.y - bottom_h - LINE_H - 6
+	ui_akey.queue_redraw()
+
+
+## a change to the body at the playhead, once it is made (the undo step is already pushed: it covers the card too)
+func _autokey_card() -> void:
+	if not auto_key or undo.is_empty():
+		return
+	if undo.back().get("body") == B.state():
+		return   # nothing moved: no card
+	var ci := LimbIK.card_at(S, playhead)
+	if ci >= 0:
+		S.cards[ci]["pose"] = B.to_dict()
+		_rebuild_cards()
+		_say("Auto-key: card %d takes the body at %.2f s" % [ci + 1, playhead])
+		return
+	var at := S.cards.size()
+	var ts := S.times()
+	for i in ts.size():
+		if playhead < float(ts[i][1]) - 0.001:
+			at = i
+			break
+	var prev_end := float(ts[at - 1][2]) if at > 0 else 0.0
+	S.add("auto key %d" % (S.cards.size() + 1), B.to_dict(), at)
+	if at > 0:
+		S.cards[at]["move"] = snappedf(maxf(0.04, playhead - prev_end), 0.001)   # the card arrives at the playhead
+	sel_card = at
+	_rebuild_cards()
+	_refresh()
+	_say("Auto-key: card %d keyed at %.2f s" % [at + 1, playhead])
 
 
 func _big_view() -> void:
@@ -5912,7 +5987,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reset body": "reset", "Arms 25 deg": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Hints": "hints", "Export .glb": "export_glb", "Export .bvh": "export_bvh",
 	"To game": "export_game", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
@@ -6230,6 +6305,8 @@ func _ui() -> void:
 	tog.call("ANIMATE", "Balance (Shift+B)", _press.bind(KEY_B, true), func(): return bal.on, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
 	tog.call("ANIMATE", "Stepped", _tool.bind(3), func(): return stepped_view, "poses only, no in-betweens (blocking)")
 	tog.call("ANIMATE", "Moving holds", _tool.bind(4), func(): return S.moving_holds, "a held pose keeps drifting slightly toward the next")
+	tog.call("ANIMATE", "Auto-key (Ctrl+K)", _toggle_autokey, func(): return auto_key,
+		"auto-key: a pose change at the playhead keys a card there (or updates the card on that frame). On = a red frame round the view and a red playhead")
 	tog.call("ANIMATE", "Airborne", _toggle_air, func(): return sel_card >= 0 and sel_card < S.cards.size() and S.cards[sel_card].get("air", false),
 		"the picked card is in the air: from the card before to the card after, no foot touches the floor and the hips fly a real arc (g = 9.81)")
 	# "Mirror the scene" lives in the Animator tools menu at the end of this row (a button for it too ran the bar off the screen)
@@ -6866,6 +6943,7 @@ func _ui() -> void:
 	ui_bar.add_theme_stylebox_override("normal", bb)
 	ui_root.add_child(ui_bar)
 	_build_nav()
+	_build_akey_frame()
 
 	# ---- help
 	ui_cube = ViewCube.new()
@@ -7764,6 +7842,7 @@ func _commands() -> Array:
 	PartSets.of(self).commands(add)   # the user's own SELECTION SETS and KEYING SETS (scripts/part_sets.gd)
 	add.call("Lock / unlock this part", "", _toggle_lock.bind(""), "freeze hold keep unlock protect", false, "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
 	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
+	add.call("Auto-key on / off", "Ctrl+K", _toggle_autokey, "auto key keyframe record toggle card", false, "while on, a pose change made at the playhead keys a card there (or updates the card on that frame); the 3D view gets a red frame")
 	add.call("Look at the picked prop", "", _look_at.bind("prop"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the picked prop (real gaze shifts: scripts/look_at.gd)")
 	add.call("Look at the camera", "", _look_at.bind("camera"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the camera")
 	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")

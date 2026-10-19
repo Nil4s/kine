@@ -431,7 +431,7 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(cx, cy - CAM_R), Vector2(cx + CAM_R, cy), Vector2(cx, cy + CAM_R), Vector2(cx - CAM_R, cy)]), ShotGizmo.COLOR)
 	# playhead
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
-	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)
+	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("autokey") if m.auto_key else Tok.c("ink"), 2.0)   # ROADMAP 42: red while auto-key is on
 	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
 
 
