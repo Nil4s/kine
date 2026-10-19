@@ -3085,8 +3085,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_R: _do(func(): _reset_part())
 			KEY_Q: _do(func(): _snap(45.0 if k.shift_pressed else 90.0))
 			KEY_M when k.shift_pressed: _tool(0)
-			KEY_M: _do(func(): B.mirror_side("_r"))
-			KEY_N: _do(func(): B.mirror_side("_l"))
+			KEY_M: _do(func(): _mirror_side("_r"))
+			KEY_N: _do(func(): _mirror_side("_l"))
 			KEY_C:
 				show_caps = not show_caps
 				_refresh()
@@ -3413,6 +3413,7 @@ func _snapshot() -> Dictionary:
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
+		"attrs": S.attrs.duplicate(true),   # CUSTOM ATTRIBUTES (custom_attr.gd, ROADMAP 82), undone like a card
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"shots": H.shots.duplicate(true),   # THE SHOTS (ROADMAP 75; shot_camera.gd), the hero's, undone like a card
@@ -3464,6 +3465,10 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
+	if u["scene"] == S and u.has("attrs") and var_to_str(u["attrs"]) != var_to_str(S.attrs):
+		S.attrs = u["attrs"].duplicate(true)   # CUSTOM ATTRIBUTES (ROADMAP 82), undone like a card
+		_attr_sig = ""
+		_attr_refresh()   # the rows of an undone add go, and come back on redo, without waiting for the next refresh
 	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
@@ -7324,6 +7329,13 @@ func _row_slider(l: Array, s: HSlider) -> void:
 ## the scene panel, where it scrolls
 var ui_insp: PanelContainer
 var ui_insp_vb: VBoxContainer
+var ui_attr_box: VBoxContainer   # ROADMAP 82: the picked part's attribute rows (one slider each, value at the playhead)
+var ui_attr_name: LineEdit       # the "+ attribute" form: name, min, max, default
+var ui_attr_min: LineEdit
+var ui_attr_max: LineEdit
+var ui_attr_def: LineEdit
+var ui_attr_sliders := {}        # attribute id -> [slider, prop row]
+var _attr_sig := ""              # the rows shown: rebuilt only when the part or its attributes change (a drag keeps its slider)
 
 
 ## RR6: the browser box as tall as its shown rows (a folder opened grows it), never past the scene panel; the tree
@@ -7725,8 +7737,8 @@ func _ui() -> void:
 	var acts := _row(vb, [_short(_button("Reset (R)", _do.bind(_reset_part), "the part back to straight (0°, 0°, 0°)"), "Reset"),
 		_short(_button("90° (Q)", _do.bind(_snap.bind(90.0)), "round the part's angles to the 90° steps its range allows"), "90°"),
 		_short(_button("45°", _do.bind(_snap.bind(45.0)), "round the part's angles to the 45° steps its range allows"), "45°"),
-		_short(_button("Right to left (M)", _do.bind(B.mirror_side.bind("_r")), "the left arm and leg take the right ones' pose, reflected"), "R→L"),
-		_short(_button("Left to right (N)", _do.bind(B.mirror_side.bind("_l")), "the right arm and leg take the left ones' pose, reflected"), "L→R")])
+		_short(_button("Right to left (M)", _do.bind(_mirror_side.bind("_r")), "the left arm and leg take the right ones' pose, reflected"), "R→L"),
+		_short(_button("Left to right (N)", _do.bind(_mirror_side.bind("_l")), "the right arm and leg take the left ones' pose, reflected"), "L→R")])
 	acts.name = "insp_actions"
 	acts.add_theme_constant_override("separation", 3)
 	ui_pole_row = _row(vb, [_label("points", PROP_TXT), _button("<", _do.bind(_pole.bind(-15.0)), "swing the elbow / knee 15 deg one way; the hand / foot stays (Ctrl+drag does it by hand)"),
@@ -7793,6 +7805,23 @@ func _ui() -> void:
 		ui_back[k] = bs
 	back.add_child(_label("The spine, neck and head share the bend by their ranges: they reach their limits together.", PROP_TXT, "text:0.55", true))
 	hands.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
+	# ROADMAP 82: CUSTOM ATTRIBUTES on the picked part (custom_attr.gd): "+ attribute" defines one; its slider keys the value at the playhead
+	var attrs_sec := _section(vb, "ATTRIBUTES")
+	attrs_sec.add_child(_label("A value on this part, keyed per card like an angle (grip 0 .. 1). The engine reads it from the .glb.", PROP_TXT, "text:0.55", true))
+	ui_attr_box = VBoxContainer.new()
+	ui_attr_box.name = "attr_rows"
+	attrs_sec.add_child(ui_attr_box)
+	ui_attr_name = LineEdit.new()
+	ui_attr_name.name = "attr_name"
+	ui_attr_name.placeholder_text = "name, e.g. grip"
+	ui_attr_name.tooltip_text = "the attribute's name: letters, digits or _, starting with a letter"
+	ui_attr_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_attr_min = _attr_field("attr_min", "0", "the lowest value the slider reaches")
+	ui_attr_max = _attr_field("attr_max", "1", "the highest value the slider reaches")
+	ui_attr_def = _attr_field("attr_default", "0", "the value with no card keyed (between min and max)")
+	_row(attrs_sec, [_label("name", PROP_TXT, "text:0.6"), ui_attr_name])
+	_row(attrs_sec, [_label("min", PROP_TXT, "text:0.6"), ui_attr_min, _label("max", PROP_TXT, "text:0.6"), ui_attr_max])
+	_row(attrs_sec, [_label("default", PROP_TXT, "text:0.6"), ui_attr_def, _button("+ attribute", _attr_add, "add the attribute to the picked part: one undo step (Ctrl+Z takes it back)")])
 	var wep := _section(vb, "WEAPON")
 	_row(wep, [_weapon_picker("opt_weapon_panel")])
 	_row(wep, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
@@ -8393,6 +8422,115 @@ func bar_text() -> String:
 	return "   |   ".join([what, card, t, chk])
 
 
+func _attr_field(nm: String, v: String, tip: String) -> LineEdit:
+	var e := LineEdit.new()
+	e.name = nm
+	e.text = v
+	e.custom_minimum_size.x = 56
+	e.tooltip_text = tip
+	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return e
+
+
+## ROADMAP 82: the picked part's attributes. The rows are rebuilt only when the part or its attributes change, so a drag
+## keeps its slider; the values follow the playhead on every refresh.
+func _attr_refresh() -> void:
+	if ui_attr_box == null:
+		return
+	var names: Array = CustomAttr.names_on(S.attrs, sel) if sel in Body.ORDER else []
+	var sig := sel + "|" + str(names)
+	for n in names:
+		var a: Dictionary = S.attrs[CustomAttr.id_of(sel, n)]
+		sig += "|%s:%s:%s" % [a["min"], a["max"], a["default"]]
+	if sig != _attr_sig:
+		_attr_sig = sig
+		for c in ui_attr_box.get_children():
+			ui_attr_box.remove_child(c)
+			c.queue_free()
+		ui_attr_sliders.clear()
+		for n in names:
+			var id := CustomAttr.id_of(sel, n)
+			var a: Dictionary = S.attrs[id]
+			var box := VBoxContainer.new()
+			var r := _prop_row(box)
+			var s := HSlider.new()
+			s.name = "attr_" + n
+			s.min_value = float(a["min"])
+			s.max_value = float(a["max"])
+			s.step = 0.01
+			s.drag_started.connect(_push_undo)
+			s.value_changed.connect(_on_attr.bind(id))
+			_row_slider(r, s)
+			s.add_theme_stylebox_override("slider", _attr_track())   # a track that shows at 0 in both palettes
+			ui_attr_box.add_child(box)
+			ui_attr_sliders[id] = [s, r]
+			_row(box, [_button("delete %s" % n, _do.bind(_attr_delete.bind(id)), "remove %s from %s and its keys: one undo step (Ctrl+Z brings it back)" % [n, sel])])
+	for n in names:
+		var id := CustomAttr.id_of(sel, n)
+		var t := clampf(playhead, 0.0, S.length())
+		var v := CustomAttr.value_at(S.attrs, id, t)
+		var keys: Array = S.attrs[id]["keys"]
+		(ui_attr_sliders[id][0] as HSlider).set_value_no_signal(v)
+		_set_prop(ui_attr_sliders[id][1], n, "%.2f" % v,
+			"%s on %s: %d key%s; the value at the playhead. Drag the slider to key it there" % [n, sel, keys.size(), "" if keys.size() == 1 else "s"])
+
+
+## the slider's track: a text-tinted strip (Tok "text:0.45"), so it reads at value 0 in the dark and the light palette
+func _attr_track() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.of("text:0.45")
+	sb.set_corner_radius_all(3)
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	return sb
+
+
+## "delete" on an attribute row (one undo step)
+func _attr_delete(id: String) -> void:
+	CustomAttr.remove(S.attrs, id)
+	_say("deleted %s on %s (Ctrl+Z brings it back with its keys)" % [CustomAttr.name_of(id), CustomAttr.part_of(id)])
+
+
+## a slider of an attribute: the value is keyed at the playhead (a drag is one undo step: its start takes the step)
+func _on_attr(v: float, id: String) -> void:
+	if _sync or S.cards.is_empty():
+		return
+	CustomAttr.key(S.attrs, id, clampf(playhead, 0.0, S.length()), v)
+	_after_edit()
+
+
+## "+ attribute": the picked part gets the named attribute (one undo step). An error names the fix and changes nothing
+func _attr_add() -> void:
+	var part := sel
+	if not (part in Body.ORDER):
+		_say("pick a BODY part first: the attribute goes on a joint (hand_r, upperarm_l ...)")
+		return
+	var nums := [ui_attr_min.text, ui_attr_max.text, ui_attr_def.text]
+	var what := ["min", "max", "default"]
+	for k in 3:
+		if not (nums[k] as String).is_valid_float():
+			_say("%s is a number, e.g. 0 or 0.5 (type it in the %s box)" % [what[k], what[k]])
+			return
+	var mn := float(nums[0])
+	var mx := float(nums[1])
+	var df := float(nums[2])
+	var nm := ui_attr_name.text.strip_edges().to_lower()
+	var probe: Dictionary = S.attrs.duplicate(true)
+	var e := CustomAttr.define(probe, part, nm, mn, mx, df)
+	if e != "":
+		_say(e)
+		return
+	_do(func(): CustomAttr.define(S.attrs, part, nm, mn, mx, df))
+	ui_attr_name.text = ""
+	_say("added %s on %s (%s to %s, default %s): drag its slider at a card to key a value" % [nm, part, mn, mx, df])
+
+
+## the pose's mirror (M / N, the buttons) and its attributes: the source side's attributes are copied to the twin parts
+func _mirror_side(from_side: String) -> void:
+	B.mirror_side(from_side)
+	CustomAttr.copy_side(S.attrs, from_side)
+
+
 func _panel() -> void:
 	if ui_title == null:
 		return
@@ -8401,6 +8539,7 @@ func _panel() -> void:
 		_panel_bat()
 	else:
 		_panel_part()
+	_attr_refresh()   # ROADMAP 82: the picked part's attribute sliders at the playhead
 	ui_time.max_value = maxf(_ps().length(), 0.01)
 	ui_time.value = playhead
 	ui_time_lbl.text = PreviewRange.time_text(playhead, _ps().length(), S.fps, frames_view)
@@ -8773,7 +8912,7 @@ func _ring_open(j: String, p: Vector2) -> void:
 (Q)", "run": _do.bind(_snap.bind(90.0))},
 		{"name": ("Copy to
 %s side" % other[side]) if side != "" else "Mirror
-whole pose", "run": _do.bind(B.mirror_side.bind(side)) if side != "" else _tool.bind(0)},
+whole pose", "run": _do.bind(_mirror_side.bind(side)) if side != "" else _tool.bind(0)},
 		{"name": "CLIP
 this pose", "run": _card_add},
 		{"name": "Pin a

@@ -170,7 +170,12 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 
 ## write the scene as a .glb at path (res:// or absolute); OK or the error
 static func write(S: Scene, B: Body, path: String, with_mesh := true) -> Error:
-	return _write(build(S, B, path.get_file().get_basename(), with_mesh), path)
+	var err := _write(build(S, B, path.get_file().get_basename(), with_mesh), path)
+	if err == OK and not S.attrs.is_empty():
+		# ROADMAP 82: the custom attributes as node extras ("poser_attrs") on the part's node; no attrs = the file as before
+		var abs := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
+		err = CustomAttr.add_glb_extras(abs, S.attrs)["err"]
+	return err
 
 
 ## every actor in one .glb at path (build_actors); OK or the error
