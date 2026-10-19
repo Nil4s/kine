@@ -17,6 +17,15 @@
 ## checked in bar 0). The bone global poses are composed here (parent global * pose, parents first), not read from
 ## Skeleton3D.get_bone_global_pose: in this headless run the engine's cache did not follow set_bone_pose_rotation.
 ## Bar 0: the file's vertices are the skin at the file's own rest (max deviation printed).
+## corrfix (the seam crack, Nick's screenshot: dark slits along the bent elbow's seams with the corrective on), bars
+## stated before measuring:
+##   7 SEAM: over every group of vertices sharing a rest position (within 1e-5 m; the file splits a vertex at hard edges
+##     and UV seams), the max spread of the deformed positions with the corrective ON, both elbows and both knees at
+##     120 deg, is < 0.05 mm. The same measure with the weld OFF (the old code) is printed and must exceed 0.05 mm, so
+##     the bar is not vacuous.
+##   8 VOLUME still holds: elbow drop with the corrective <= 8.5 % (bar 3's X/3 at X = 25.5 %), and the knee's thigh
+##     section 2 cm above the knee at 120 deg is not more than 2 % below straight
+##   9 drive 0 (straight) leaves the ORIGINAL mesh: byte-identical to the file's surfaces
 extends SceneTree
 
 var fails := 0
@@ -251,6 +260,74 @@ func _init() -> void:
 	print("knee at 120 deg: %d meshes rebuilt, %d vertices moved more than 0.5 mm by the corrective" % [knee_rebuilt, knee_moved])
 	ok(knee_moved > 0, "bar 5: at 120 deg the knee's corrective moves vertices")
 
+	# bar 7: the seam
+	mi.mesh = src
+	var groups := _seam_groups(src)
+	var spread := {}
+	for wl in [false, true]:
+		var sc := Corrective.new()
+		sc.weld = wl
+		sc.attach([mi], sk)
+		_straight_limbs(B)
+		for j in ["lowerarm_l", "lowerarm_r", "calf_l", "calf_r"]:
+			B.ang[j] = Vector3(120.0, B.ang[j].y, B.ang[j].z)
+		sc.update(B)
+		Overlays.pose_skeleton(sk, idx, B)
+		var ps := skinned(mi.mesh as ArrayMesh, sk, skin, globals(sk))
+		var worst := 0.0
+		var cracked := 0
+		for g in groups:
+			var s := 0.0
+			for a in g:
+				for b in g:
+					s = maxf(s, ps[a].distance_to(ps[b]))
+			worst = maxf(worst, s)
+			if s >= 0.00005:
+				cracked += 1
+		spread[wl] = worst
+		print("seam, weld %s: %d groups sharing a rest position, worst spread %.4f mm, %d groups over 0.05 mm" % ["ON" if wl else "OFF (old)", groups.size(), worst * 1000.0, cracked])
+		mi.mesh = src
+	ok(spread[false] >= 0.00005, "bar 7a: without the weld the seams open (%.4f mm >= 0.05 mm: the bar is not vacuous)" % (spread[false] * 1000.0))
+	ok(spread[true] < 0.00005, "bar 7: with the weld every seam stays shut (worst %.4f mm < 0.05 mm)" % (spread[true] * 1000.0))
+
+	# bar 8: the volume numbers still hold (bar 3's elbow, and the knee against straight)
+	ok(drop_on <= 8.5, "bar 8a: the elbow drop with the corrective is <= 8.5 %% (%.1f %%)" % drop_on)
+	var vc := Corrective.new()
+	vc.attach([mi], sk)
+	_straight_limbs(B)
+	vc.update(B)
+	Overlays.pose_skeleton(sk, idx, B)
+	var gK := globals(sk)
+	var knee: Vector3 = (gK[idx["calf_l"]] as Transform3D).origin
+	var hip: Vector3 = (gK[idx["thigh_l"]] as Transform3D).origin
+	var kn := (hip - knee).normalized()
+	var KP := knee + kn * 0.02
+	var own_k := own_tris(src, sk, skin, idx["thigh_l"])
+	var K0 := section_area(skinned(mi.mesh as ArrayMesh, sk, skin, gK), own_k, KP, kn)
+	B.ang["calf_l"] = Vector3(120.0, B.ang["calf_l"].y, B.ang["calf_l"].z)
+	vc.update(B)
+	Overlays.pose_skeleton(sk, idx, B)
+	var K1 := section_area(skinned(mi.mesh as ArrayMesh, sk, skin, globals(sk)), own_k, KP, kn)
+	var kdrop := (K0 - K1) / K0 * 100.0
+	print("thigh section 2 cm above the knee: straight %.6f m2, 120 deg corrected %.6f m2 -> drop %.1f %%" % [K0, K1, kdrop])
+	ok(kdrop <= 2.0, "bar 8b: the corrected 120 deg knee is not more than 2 %% below straight (%.1f %%)" % kdrop)
+
+	# bar 9: drive 0 gives the file's own mesh, byte for byte
+	mi.mesh = src
+	var zc := Corrective.new()
+	zc.attach([mi], sk)
+	_straight_limbs(B)
+	B.ang["calf_l"] = Vector3(120.0, 0.0, 0.0)
+	zc.update(B)   # bent first, so the straight update has something to undo
+	_straight_limbs(B)
+	zc.update(B)
+	var orig := []
+	var now := []
+	for si in src.get_surface_count():
+		orig.append(src.surface_get_arrays(si))
+		now.append((mi.mesh as ArrayMesh).surface_get_arrays(si))
+	ok(_bytes(orig) == _bytes(now), "bar 9: drive 0 leaves the file's mesh byte-identical")
+
 	print("RESULT %s (%d fail)" % ["PASS" if fails == 0 else "FAIL", fails])
 	# with a window (not --headless): the picture, two mannequins with the left elbow at 120 deg, left without the
 	# corrective and right with it, saved for the record
@@ -317,6 +394,25 @@ func _process(_delta: float) -> bool:
 		print("screenshot saved: %s (%d x %d)" % [SHOT, img.get_width(), img.get_height()])
 		quit(1 if fails > 0 else 0)
 	return false
+
+
+## the groups (>= 2 vertices) sharing one rest position within 1e-5 m, indices into skinned()'s concatenation
+static func _seam_groups(m: ArrayMesh) -> Array:
+	var by := {}
+	var base := 0
+	for si in m.get_surface_count():
+		var vs: PackedVector3Array = m.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+		for v in vs.size():
+			var k := Vector3i((vs[v] / 1e-5).round())
+			if not by.has(k):
+				by[k] = []
+			by[k].append(base + v)
+		base += vs.size()
+	var out := []
+	for k in by:
+		if by[k].size() > 1:
+			out.append(by[k])
+	return out
 
 
 static func _all_idx(m: ArrayMesh) -> PackedInt32Array:

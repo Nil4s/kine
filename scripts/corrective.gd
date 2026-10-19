@@ -17,14 +17,17 @@ class_name Corrective
 extends RefCounted
 
 const FULL_DEG := 140.0    # the bend at which the corrective is fully on
-const AMP := 0.012         # m: the outward push at full drive, at the joint (tuned by tests/corrective_test.gd)
+const AMP := 0.013         # m: the outward push at full drive, at the joint (tuned by tests/corrective_test.gd; 0.012
+                           # before the weld: the welded smooth normal points a little less across the limb)
 const R0 := 0.02           # m: full weight this close to the joint centre
 const R1 := 0.10           # m: no weight past this distance
+const WELD_EPS := 1e-5     # m: vertices this close at rest are one point of the skin (see _weld)
 ## the four joints: [key, distal bone (its origin is the joint centre, its Body.ang x is the bend), proximal bone]
 const JOINTS := [["elbow_l", "lowerarm_l", "upperarm_l"], ["elbow_r", "lowerarm_r", "upperarm_r"],
 	["knee_l", "calf_l", "thigh_l"], ["knee_r", "calf_r", "thigh_r"]]
 
 var on := true             # View > Display > Corrective shapes
+var weld := true           # one push per rest position (tests turn it off to show the seam crack it fixes)
 var _entries := []         # [mesh instance, rest ArrayMesh, rest surface arrays, flags, materials, dirs, aff] per mesh
 var _last := {}            # joint key -> the drive last written (no rebuild when nothing changed)
 var rebuilds := 0          # how many mesh rebuilds the last updates made (tests: 0 at straight joints)
@@ -39,7 +42,7 @@ static func drive_of(bend_deg: float) -> float:
 ## THE WEIGHT, per vertex, from the rest mesh: [{key: PackedVector3Array dir, key_aff: PackedInt32Array}] per
 ## surface. dir = w(v) * n(v) for the vertices the joint reaches; aff = those vertex indices. Pure: no scene needed
 ## beyond the skeleton's rest pose.
-static func weights(sk: Skeleton3D, skin: Skin, src: ArrayMesh) -> Array:
+static func weights(sk: Skeleton3D, skin: Skin, src: ArrayMesh, weld := true) -> Array:
 	var binds := []
 	for k in skin.get_bind_count():
 		var bb := skin.get_bind_bone(k)
@@ -90,8 +93,62 @@ static func weights(sk: Skeleton3D, skin: Skin, src: ArrayMesh) -> Array:
 				ai.append(v)
 			dirs[key] = dv
 			aff[key] = ai
-		out.append({"dirs": dirs, "aff": aff})
+		out.append({"dirs": dirs, "aff": aff, "vs": vs, "ns": ns})
+	if weld:
+		_weld(out)
+	for o in out:
+		o.erase("vs")
+		o.erase("ns")
 	return out
+
+
+## THE WELD (corrfix): the mannequin's file splits a vertex where its hard edges and UV seams run (8546 vertices,
+## several copies at one rest position, each with its own face normal). Pushed along their own normals the copies
+## part and the seam opens into a dark slit at a bent elbow. So every copy at one rest position (within WELD_EPS)
+## gets ONE push: the normalised sum of the copies' normals (the smooth normal there) times the copies' mean weight.
+## Across surfaces too. A single vertex keeps its own normal and weight.
+static func _weld(out: Array) -> void:
+	var groups := {}   # position key -> [[surface, vertex], ...]
+	for si in out.size():
+		var vs: PackedVector3Array = out[si]["vs"]
+		for v in vs.size():
+			var k := Vector3i((vs[v] / WELD_EPS).round())
+			if not groups.has(k):
+				groups[k] = []
+			groups[k].append(Vector2i(si, v))
+	for jt in JOINTS:
+		var key: String = jt[0]
+		var touched := {}   # surface -> {vertex: true} newly affected
+		for k in groups:
+			var g: Array = groups[k]
+			if g.size() < 2:
+				continue
+			var nsum := Vector3.ZERO
+			var wsum := 0.0
+			for m in g:
+				var o: Dictionary = out[m.x]
+				var ns: PackedVector3Array = o["ns"]
+				var n: Vector3 = ns[m.y] if ns.size() == (o["vs"] as PackedVector3Array).size() else Vector3.UP
+				nsum += n
+				wsum += (o["dirs"][key] as PackedVector3Array)[m.y].length()
+			if wsum <= 0.0:
+				continue
+			var nn := nsum.normalized() if nsum.length() > 1e-6 else Vector3.UP
+			var d := nn * (wsum / g.size())
+			for m in g:
+				var dv: PackedVector3Array = out[m.x]["dirs"][key]
+				if dv[m.y] == Vector3.ZERO:
+					if not touched.has(m.x):
+						touched[m.x] = {}
+					touched[m.x][m.y] = true
+				dv[m.y] = d
+				out[m.x]["dirs"][key] = dv
+		for si in touched:
+			var ai: PackedInt32Array = out[si]["aff"][key]
+			for v in touched[si]:
+				ai.append(v)
+			ai.sort()
+			out[si]["aff"][key] = ai
 
 
 ## the meshes to correct (each MeshInstance3D with a skin, a skeleton): remembers each one's rest mesh
@@ -103,9 +160,9 @@ func attach(meshes: Array, sk: Skeleton3D) -> void:
 		if m == null or m.skin == null or not (m.mesh is ArrayMesh):
 			continue
 		var src := m.mesh as ArrayMesh
-		var key := "%d|%s" % [m.skin.get_instance_id(), str(_vcounts(src))]
+		var key := "%d|%s|%s" % [m.skin.get_instance_id(), str(_vcounts(src)), weld]
 		if not _wcache.has(key):
-			_wcache[key] = weights(sk, m.skin, src)   # a split piece has the same skin and vertices as its source
+			_wcache[key] = weights(sk, m.skin, src, weld)   # a split piece has the same skin and vertices as its source
 		var wd: Array = _wcache[key]
 		var arrs := []
 		var flags := []
