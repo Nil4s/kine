@@ -38,7 +38,10 @@ const FLOOR_DUR := 3.0        # s, the get-up (ours)
 const FLOOR_STEPS := 40       # blends between the named floor poses: the scene's straight blend between two keys stays clear
 const FLOOR_MM := 0.01        # m: a part this far into the floor is a finding (the roadmap's 1 cm bar)
 const SIDE_ROLL := 45.0      # deg: the propped side-lying roll
-const HALF_LEAN := 10.0      # deg: the half-kneel's trunk lean, over the three spine joints
+const HALF_LEAN := 0.0   # deg: trunk upright over the front thigh (a lean touches the thigh)      # deg: the half-kneel's trunk lean, over the three spine joints
+const KNEEL_TWIST := 40.0    # deg: the kneel's upper arms are pre-turned so the reach does not have to spend the whole twist range
+const SIT_BACK := 0.12       # m: the long-sit's hands are this far behind the shoulders
+const HAND_AHEAD := 0.25     # m: the hands are set this far ahead of the shoulders (leans the forearm so the wrist stays inside its range)
 const HAND_R := 0.047         # m: the hand's radius; its centre this high = the palm on the floor
 
 
@@ -267,9 +270,17 @@ static func _roll_side(B: Body) -> void:
 
 ## the joint's bend (and side, when `sides`) over its range that leaves its parts the least inside the floor: the search
 ## the knees, toes and hands use. parts = the capsules' names (their ends minus radii). Sets the joint to the best.
-static func _least_into_floor(B: Body, j: String, parts: Array, sides := true) -> float:
-	var rb: Vector2 = B.lim[j]["bend"]
-	var rs: Vector2 = B.lim[j]["side"]
+const USE_MAX := 0.88        # a joint is kept inside this share of its range at the anchors (the bar is 0.90)
+
+
+## a joint's range shrunk to USE_MAX of each side's stop (a stop at 0 stays)
+static func _inside(r: Vector2) -> Vector2:
+	return Vector2(r.x * USE_MAX if r.x < 0.0 else r.x, r.y * USE_MAX if r.y > 0.0 else r.y)
+
+
+static func _least_into_floor(B: Body, j: String, parts: Array, sides := true, touch := false) -> float:
+	var rb: Vector2 = _inside(B.lim[j]["bend"])
+	var rs: Vector2 = _inside(B.lim[j]["side"])
 	var v: Vector3 = B.ang[j]
 	var best := INF
 	var bm := v
@@ -278,15 +289,95 @@ static func _least_into_floor(B: Body, j: String, parts: Array, sides := true) -
 			var m := Vector3(lerpf(rb.x, rb.y, k / 40.0), lerpf(rs.x, rs.y, q / 12.0) if sides else v.y, v.z)
 			B.ang[j] = m
 			B.fk()
-			var d := 0.0
+			var d := -INF   # the deepest part's depth into the floor (negative = every part is held off it)
 			for p in parts:
 				d = maxf(d, float(B.rad.get(p, 0.03)) - minf((B.P[p] as Vector3).y, (B.E[p] as Vector3).y))
-			if d < best:
-				best = d
+			# touch: the best angle is the one that lays the parts ON the floor (in it costs three times held off it); else the
+			# least penetration, the first of equal ones (a foot held clear takes the end of its range: toes pointed, as kneeling does)
+			var cost := (d * 3.0 if d > 0.0 else -d) if touch else maxf(d, 0.0)
+			if cost < best:
+				best = cost
 				bm = m
 	B.ang[j] = bm
 	B.fk()
 	return best
+
+
+## how far into its range the most-used joint is: each angle's share of the way from 0 to the limit on the side it lies
+## (the same stops Body.at_limit tints; a limit AT 0 is not counted). Returns {"use": 0..1, "joint": name, "axis": name}.
+static func limit_use(B: Body) -> Dictionary:
+	var worst := {"use": 0.0, "joint": "", "axis": ""}
+	for j in Body.ORDER:
+		if j == "pelvis" or not B.lim.has(j) or not B.ang.has(j):   # the pelvis is the root: its pitch is the body's lying angle
+			continue
+		var v: Vector3 = B.ang[j]
+		for k in [["bend", v.x], ["side", v.y], ["twist", v.z]]:
+			var r: Vector2 = B.lim[j][k[0]]
+			var f := 0.0
+			if k[1] > 0.0 and r.y > 0.0:
+				f = k[1] / r.y
+			elif k[1] < 0.0 and r.x < 0.0:
+				f = k[1] / r.x
+			if r.y - r.x > 0.5 and f > worst["use"]:
+				worst = {"use": f, "joint": j, "axis": k[0]}
+	return worst
+
+
+## the arm set so the hand's centre is HAND_R above the floor (the palm down) a little ahead of the shoulder, by a grid search of
+## the shoulder's three angles and the elbow, each kept inside USE_MAX of its range (the reach solver spends a whole range)
+static func _arm_to_floor(B: Body, sd: String) -> void:
+	var ua := "upperarm" + sd
+	var la := "lowerarm" + sd
+	var rb := _inside(B.lim[ua]["bend"])
+	var rs := _inside(B.lim[ua]["side"])
+	var rt := _inside(B.lim[ua]["twist"])
+	var re := _inside(B.lim[la]["bend"])
+	var rw := _inside(B.lim["hand" + sd]["bend"])
+	var sh: Vector3 = B.P[ua]
+	var best := INF
+	var bv := Vector3.ZERO
+	var be := 0.0
+	for ib in 9:
+		for is_ in 9:
+			for it in 5:
+				var v := Vector3(lerpf(rb.x, rb.y, ib / 8.0), lerpf(rs.x, rs.y, is_ / 8.0), lerpf(rt.x, rt.y, it / 4.0))
+				B.ang[ua] = v
+				for ie in 7:
+					var e := lerpf(0.0, minf(re.y, 90.0), ie / 6.0)
+					B.ang[la] = Vector3(e, 0, 0)
+					B.fk()
+					var h: Vector3 = B.P["hand" + sd]
+					var low_best := INF   # the hand's lowest surface with the wrist turned to either end of its range
+					for wr in [rw.x, rw.y]:
+						B.ang["hand" + sd] = Vector3(wr, 0, 0)
+						B.fk()
+						var lw := minf((B.P["hand" + sd] as Vector3).y, (B.E["hand" + sd] as Vector3).y) - float(B.rad["hand" + sd])
+						low_best = minf(low_best, absf(lw) if lw >= 0.0 else -3.0 * lw)
+					var c := low_best + 0.5 * absf(h.x - sh.x) + 0.3 * absf(h.z - (sh.z + HAND_AHEAD))
+					if c < best:
+						best = c
+						bv = v
+						be = e
+	B.ang[ua] = bv
+	B.ang[la] = Vector3(be, 0, 0)
+	B.fk()
+	var bw := 0.0
+	var bc := INF
+	for ie in 61:   # then the elbow alone, finely, with the wrist at its own best, until the hand's lowest surface touches
+		B.ang[la] = Vector3(lerpf(0.0, re.y, ie / 60.0), 0, 0)
+		for iw in 9:
+			var wr := lerpf(rw.x, rw.y, iw / 8.0)
+			B.ang["hand" + sd] = Vector3(wr, 0, 0)
+			B.fk()
+			var lw := minf((B.P["hand" + sd] as Vector3).y, (B.E["hand" + sd] as Vector3).y) - float(B.rad["hand" + sd])
+			var cc := absf(lw) if lw >= 0.0 else -3.0 * lw
+			if cc < bc:
+				bc = cc
+				be = lerpf(0.0, re.y, ie / 60.0)
+				bw = wr
+	B.ang[la] = Vector3(be, 0, 0)
+	B.ang["hand" + sd] = Vector3(bw, 0, 0)
+	B.fk()
 
 
 ## the kneel: the knees and hands on the floor (see the block above). Returns the misses left (m).
@@ -315,13 +406,10 @@ static func _kneel(B: Body) -> Dictionary:
 	B.offset.y = (lo + hi) * 0.5
 	B.fk()
 	var knee_miss := absf(((B.P["calf_l"] as Vector3).y + (B.P["calf_r"] as Vector3).y) * 0.5 - thigh_r)
-	for sd in ["_l", "_r"]:   # the arms straight down from the shoulders (side -90 = down at his side): hands land under them
-		B.ang["upperarm" + sd] = Vector3(0, -90, 0)
-		B.ang["lowerarm" + sd] = Vector3.ZERO
-	B.fk()
-	for sd in ["_l", "_r"]:
-		var sh: Vector3 = B.P["upperarm" + sd]
-		B.reach("hand" + sd, Vector3(sh.x, HAND_R, sh.z))
+	for sd in ["l", "r"]:   # fingers nearly straight and a little spread: the palm and fingers lie on the floor
+		B.hand_curl(sd, 0.05, 0.2)
+	for sd in ["_l", "_r"]:   # the arms down to the floor: a search over the shoulder and elbow inside USE_MAX of their ranges
+		_arm_to_floor(B, sd)
 	B.fk()
 	var hand_miss := 0.0
 	for sd in ["_l", "_r"]:
@@ -330,10 +418,10 @@ static func _kneel(B: Body) -> Dictionary:
 		_least_into_floor(B, "foot" + sd, ["foot" + sd, "ball" + sd], false)
 		_least_into_floor(B, "ball" + sd, ["ball" + sd], false)
 	for sd in ["_l", "_r"]:   # a fist on the floor (the knuckles), then the wrist that leaves the fist least inside it
-		B.hand_pose(sd.right(1), "fist")
+		B.hand_curl(sd.right(1), 0.05, 0.2)
 		var parts := ["hand" + sd]
 		parts.append_array(B.hand_joints(sd.right(1)))
-		_least_into_floor(B, "hand" + sd, parts)
+		_least_into_floor(B, "hand" + sd, parts, true, true)
 	return {"knee": knee_miss, "hand": hand_miss}
 
 
@@ -347,7 +435,7 @@ static func _kneel(B: Body) -> Dictionary:
 
 
 
-const FLOOR_KEYS := ["supine", "side", "side-sit", "kneel", "half-kneel", "stand"]
+const FLOOR_KEYS := ["supine", "side", "prop", "side-sit", "kneel", "half-kneel", "stand"]
 const BLEND_SAMPLES := 12    # points checked along the straight blend between two neighbouring keys
 const MAX_SPLIT := 5         # a blend is split at most this many times (32 pieces)
 const FLOOR_TOL := 0.004     # m: a blend this deep into the floor is split again (the bar is FLOOR_MM)
@@ -388,7 +476,7 @@ static func support_margin(B: Body) -> float:
 static func _lie_back_arms_down(B: Body, xz: Vector2) -> void:
 	_lie_on_back(B, xz)
 	for sd in ["_l", "_r"]:
-		B.ang["upperarm" + sd] = Vector3(0, -90, 0)
+		B.ang["upperarm" + sd] = Vector3(0, -70, 0)
 		B.ang["lowerarm" + sd] = Vector3.ZERO
 	B.fk()
 	B.ground_body()
@@ -398,19 +486,19 @@ static func _lie_back_arms_down(B: Body, xz: Vector2) -> void:
 ## (shin upright, thigh a little above level: the hips come out about 0.45 m up, the front knee higher), the trunk upright with a
 ## slight lean, the arms at the sides. Solved by scanning (tests found the front-leg angles that put the rear knee on the floor
 ## with the hip at 0.45 m); the body is then lowered until its lowest part touches (_settle), the feet's ankles and toes laid flat.
-const HALF_FRONT := [110.0, 105.0]   # deg: the front thigh's and shin's bend
-const HALF_REAR_BACK := -20.0        # deg: the rear thigh's bend (hip extension), so the knee reaches the floor
+const HALF_FRONT := [96.0, 85.0]   # deg: the front thigh's and shin's bend (scan: rear knee 1.2 cm off the floor, COM 7 cm inside)
+const HALF_REAR_BACK := -15.0         # deg: the rear thigh's bend (hip extension), so the knee reaches the floor
 
 
-static func _half(B: Body) -> Dictionary:
+static func _half(B: Body, thr := HALF_FRONT[0], cr := HALF_FRONT[1], tl := HALF_REAR_BACK) -> Dictionary:
 	B.props = []
 	B.ang["pelvis"] = Vector3.ZERO
 	for j in SPINE:
 		B.ang[j] = Vector3(HALF_LEAN / 3.0, 0, 0)
-	B.ang["thigh_l"] = Vector3(HALF_REAR_BACK, 0, 0)
-	B.ang["calf_l"] = Vector3(90.0 + HALF_REAR_BACK, 0, 0)   # the shin level on the floor (thigh back by 20 deg)
-	B.ang["thigh_r"] = Vector3(HALF_FRONT[0], 0, 0)
-	B.ang["calf_r"] = Vector3(HALF_FRONT[1], 0, 0)
+	B.ang["thigh_l"] = Vector3(tl, 0, 0)
+	B.ang["calf_l"] = Vector3(90.0 + tl, 0, 0)   # the shin level on the floor (thigh back by 20 deg)
+	B.ang["thigh_r"] = Vector3(thr, 0, 0)
+	B.ang["calf_r"] = Vector3(cr, 0, 0)
 	for sd in FEET:
 		B.ang["foot" + sd] = Vector3.ZERO
 		B.ang["ball" + sd] = Vector3.ZERO
@@ -447,28 +535,39 @@ static func _side_sit(B: Body, th := 85.0, cf := 0.0) -> void:
 	B.fk()
 	_settle(B)
 	var sh: Vector3 = B.P["upperarm_r"]
-	B.reach("hand_r", Vector3(sh.x - 0.1, HAND_R, sh.z - 0.3))
-	B.reach("hand_l", Vector3((B.P["upperarm_l"] as Vector3).x + 0.1, HAND_R, (B.P["upperarm_l"] as Vector3).z - 0.3))
+	B.reach("hand_r", Vector3(sh.x - 0.1, HAND_R, sh.z - SIT_BACK))
+	B.reach("hand_l", Vector3((B.P["upperarm_l"] as Vector3).x + 0.1, HAND_R, (B.P["upperarm_l"] as Vector3).z - SIT_BACK))
 	B.fk()
 	_settle(B)
 
 
-## SIDE (propped): the body rolled 45 deg onto its right side (pelvis twist while lying), the lower arm bent up by the chest, the
-## top knee brought forward and the top hand reached to the floor ahead of the chest. A full 90 deg roll hangs the torso on the
-## shoulder joint (the model's shoulder sits 19 cm below the spine axis: tests found no 90 deg arm/leg choice with the COM
-## inside the contacts), so the rolling-through pose is the propped 45 deg one: its contacts are the lower shoulder, thigh,
-## the top hand and the top knee (hull of 8 contact points, COM 6.7 cm inside).
+## SIDE (propped): the body rolled 45 deg onto its right side (pelvis twist while lying). The lower arm props it: upper arm
+## down and back, elbow bent 90 deg, the forearm on the floor under the chest. The top hand is planted on the floor beside the
+## chest (the push of VanSant's upper-extremity patterns), elbow bent 70 deg. Angles found by a scan for: hand within 1 cm of the
+## floor, forearm within 4 cm, COM inside the contacts, no joint above 90% of its range (the roll itself is the root's, not a joint's).
+## A full 90 deg roll hangs the torso on the shoulder joint (the model's shoulder sits 19 cm below the spine axis), so the roll is 45.
 static func _side(B: Body) -> void:
 	B.ang["pelvis"] = Vector3(-90.0, 0.0, -SIDE_ROLL)
-	B.ang["upperarm_r"] = Vector3(90, 0, 0)
+	B.ang["upperarm_r"] = Vector3(30, -45, 0)
+	B.ang["lowerarm_r"] = Vector3(90, 0, 0)
+	B.ang["upperarm_l"] = Vector3(110.8, 59.4, -33.0)
+	B.ang["lowerarm_l"] = Vector3(86.9, 0, 0)
 	B.ang["thigh_l"] = Vector3(30, 0, 0)
 	B.ang["calf_l"] = Vector3(100, 0, 0)
+	B.hand_curl("l", 0.05, 0.2)   # the pushing hand lies flat, fingers straight
+	B.hand_pose("r", "relaxed")
 	B.fk()
 	B.ground_body()
-	var sh: Vector3 = B.P["upperarm_l"]
-	B.reach("hand_l", Vector3(sh.x - 0.15, 0.05, sh.z + 0.15))
+	var parts := ["hand_l"]   # the wrist that lays the pushing hand and its fingers on the floor, then the body down onto it
+	parts.append_array(B.hand_joints("l"))
+	for it in 3:
+		_least_into_floor(B, "hand_l", parts, true, true)
+		B.ground_body()
+	var hand_in := 0.0   # the fingers are not part of the body's grounding: lift the body by what they are still in
+	for p in parts:
+		hand_in = maxf(hand_in, float(B.rad.get(p, 0.03)) - minf((B.P[p] as Vector3).y, (B.E[p] as Vector3).y))
+	B.offset.y += maxf(hand_in, 0.0)
 	B.fk()
-	B.ground_body()
 
 
 ## slides the body on the floor so its COM sits over the centre of its support (a rigid shift, no joint changes)
@@ -564,7 +663,18 @@ static func get_up(B: Body, xz: Vector2) -> Dictionary:
 	_side(B)
 	anchors.append(_snap(B))
 	_side_sit(B)
+	var sit_snap := _snap(B)
+	_restore(B, anchors[1])   # the PROP between them: the trunk half-raised and both hands planted on the floor (VanSant: the push)
+	for j in anchors[1][0]:
+		B.ang[j] = (anchors[1][0][j] as Vector3).lerp(sit_snap[0][j], 0.5)
+	B.fk()
+	for sd in ["_l", "_r"]:
+		_arm_to_floor(B, sd)
+	B.ground_body()
+	_clear_floor(B)
 	anchors.append(_snap(B))
+	_restore(B, sit_snap)
+	anchors.append(sit_snap)
 	_kneel(B)
 	anchors.append(_snap(B))
 	_half(B)

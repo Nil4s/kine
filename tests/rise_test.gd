@@ -125,10 +125,13 @@ func _init() -> void:
 	ok(worst_key <= 0.01 and worst_s <= 0.01, "7 floor: the cards' depth at most %.1f mm; the raw blend at 60 Hz through %.1f s, %.1f mm (at %.2f s); bar 10 mm" % [worst_key * 1000.0, t_g, worst_s * 1000.0, worst_t])
 
 	# (8) kneel: the hands on their marks, the thighs on the floor
-	B.from_dict(gkeys[g["report"]["anchors"][3]])   # the kneel anchor (the fourth)
-	var hand_miss := 0.0
+	B.from_dict(gkeys[g["report"]["anchors"][4]])   # the kneel anchor (the fifth)
+	var hand_miss := 0.0   # each hand's (palm and fingers) lowest surface from the floor
 	for sd in ["_l", "_r"]:
-		hand_miss = maxf(hand_miss, absf((B.P["hand" + sd] as Vector3).y - Rise.HAND_R))
+		var lo := INF
+		for p in ["hand" + sd] + B.hand_joints(sd.right(1)):
+			lo = minf(lo, minf((B.P[p] as Vector3).y, (B.E[p] as Vector3).y) - float(B.rad.get(p, 0.03)))
+		hand_miss = maxf(hand_miss, absf(lo))
 	var thigh_miss := 0.0
 	for sd in ["_l", "_r"]:
 		var tl := minf((B.P["thigh" + sd] as Vector3).y, (B.E["thigh" + sd] as Vector3).y) - float(B.rad["thigh" + sd])
@@ -143,7 +146,27 @@ func _init() -> void:
 	var com_ok := true
 	for m in anchor_m:
 		com_ok = com_ok and float(m) >= 0.0
-	ok(com_ok, "10 COM over the support at supine, side, side-sit, kneel, half-kneel, stand: margins %s m (bar >= 0)" % str(anchor_m))
+	ok(com_ok, "10 COM over the support at supine, side, prop, side-sit, kneel, half-kneel, stand: margins %s m (bar >= 0)" % str(anchor_m))
+
+	# (11) no joint above 90% of its range at any anchor (Rise.limit_use: the share of the way from 0 to the stop; the pelvis is the root)
+	var worst_use := 0.0
+	var worst_at := ""
+	for k in g["report"]["anchors"]:
+		B.from_dict(gkeys[k])
+		var lu := Rise.limit_use(B)
+		if float(lu["use"]) > worst_use:
+			worst_use = float(lu["use"])
+			worst_at = "%s %s.%s" % [gcards[k]["name"], lu["joint"], lu["axis"]]
+	ok(worst_use <= 0.90 + 1e-6, "11 joints inside 90%% of their range at every anchor: the worst is %.1f%% (%s)" % [worst_use * 100.0, worst_at])
+
+	# (12) the side anchor: the top hand planted (palm or fingers within 1 cm of the floor) and the lower forearm propping with the elbow bent 90 deg
+	B.from_dict(gkeys[g["report"]["anchors"][1]])
+	var hand_low := INF
+	for p in ["hand_l"] + B.hand_joints("l"):
+		hand_low = minf(hand_low, minf((B.P[p] as Vector3).y, (B.E[p] as Vector3).y) - float(B.rad.get(p, 0.03)))
+	var fore_low := minf((B.P["lowerarm_r"] as Vector3).y, (B.E["lowerarm_r"] as Vector3).y) - float(B.rad["lowerarm_r"])
+	var elbow_r: float = (B.ang["lowerarm_r"] as Vector3).x
+	ok(absf(hand_low) <= 0.01 and fore_low <= 0.04 and absf(elbow_r - 90.0) <= 10.0, "12 side: top hand %.1f mm from the floor (bar 10), lower forearm %.1f mm up (bar 40), lower elbow %.0f deg (bar 80-100)" % [hand_low * 1000.0, fore_low * 1000.0, elbow_r])
 
 	# (9) the sheet: four frames of the get-up, whole body, as joint capsules (printed; the screenshot script reads them)
 	var FS := RAW
