@@ -94,3 +94,22 @@ static part is plausible; the dynamic part is what is unverified.
 - Mass: the sport papers' body masses were not read, so the torque and the knee bar scale with mass by MY choice.
 - The shoulder moment leaves out the upper arm; the bat's mass, centre and the hand split are MINE.
 - Tipping: the support polygon's error is as large as the margins it grades (section 3).
+
+## 6. Verification pass (wt-humancheck, 2026-10-19): each number against its paper
+
+| threshold | used | paper says | source | verdict |
+|---|---|---|---|---|
+| shoulder speed WARN | 6520 deg/s | "maximum shoulder internal rotation velocity (arm speed)" fastball 6520, collegiate pitchers (review text read) | Fortenbaugh, Fleisig, Andrews 2009, Sports Health 1(4):314, PMC3445126 | matches; a published group value, secondary (primary Fleisig et al., not read) |
+| trunk speed WARN | 1120 deg/s | "pelvis and upper trunk rotation velocities (600 and 1120 deg/s)" fastballs | same review | matches (upper trunk vs pelvis, same as TURN spine_03 vs pelvis, roughly: spine_03 is the upper trunk) |
+| knee speed WARN | 1874 deg/s | Table 4, Males Amateur, 1874 (SD 155); other studies in the table 1100-1805 | Manolopoulos 2006 as tabulated in the JSSM 6(2):154 soccer-kick review | matches, but it is a group MEAN, not an individual peak: a low bar; Nick's fast kicks WARN/FAIL on it. Use as "typical amateur", not "impossible" |
+| FAIL factor 1.324 | mean + 2 SD with Campbell's shoulder SD/mean | knee SD/mean in the table is 155/1874 = 0.083 (FAIL would be 2184 on its own SD) | Manolopoulos via JSSM | mine; the knee's own SD gives a tighter FAIL (2184) than the shared factor (2481). Left shared, flagged here |
+| shoulder torque WARN | 67 Nm at 75 kg | "67 N-m of shoulder internal rotation torque" (and 64 N-m elbow varus), 26 highly skilled adult pitchers, abstract | Fleisig et al. 1995, AJSM 23(2):233 | matches the abstract; the mass scaling and the 1.324 FAIL are mine |
+| shoulder torque MODEL | inverse dynamics at 60 fps | the 67 Nm is a joint-torque from 1000 Hz+ film with the upper arm included; ours gives 745-1269 Nm on Nick's swings | n/a | NOT validated: 10-20x the paper's number on real scenes. Stays opt-in (with_torque) |
+| tipping | sqrt(2h/g) | not from a paper; Winter 1995: in walking/running the CoM leaves the base of support, so gait frames (CoM speed >= 1 m/s) are skipped | Winter 1995, Gait & Posture 3:193 | mine; flags 4 of 11 of Nick's scenes at margins the foot polygon cannot resolve. Stays experimental |
+| "~7000 deg/s" shoulder (brief) | not used | not found in a source that could be opened | | unverified |
+| hip 745 deg/s | not graded | | | unverified |
+
+Decision: the speed rule (shoulder, trunk, knee) is checked and its message now names the source; the experimental gate on the
+command stays because the torque model and tipping are not validated and the knee bar is a mean. Test: tests/human_limits_test.gd
+items 3 (walk flags nothing), 9 (knee at 3 x 1874 deg/s -> FAIL on knee_r naming Manolopoulos 2006), 10 (0.9 x -> clean). The
+shoulder cannot be tested at 3 x: 3 x 6520 deg/s is 326 deg per 60 fps frame, more than a rotation can show.

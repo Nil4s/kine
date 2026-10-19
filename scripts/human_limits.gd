@@ -31,11 +31,20 @@ const TURN := {"shoulder_r": ["upperarm_r", "clavicle_r"], "shoulder_l": ["upper
 ## the hip is NOT graded: its only number (745 deg/s, Nunome 2002) is a kick mean of high-school players quoted by a review,
 ## not a sport peak read from the paper, and Nick's swings turn the hip past it with nothing verified to say what a person can do
 ## deg/s per joint kind: the PEAK recorded in sport (the WARN bar). Sources: docs/research/HUMAN_LIMITS.md
+## Checked against the papers (wt-humancheck, 2026-10-19):
+##  shoulder 6520: Fortenbaugh, Fleisig & Andrews 2009, Sports Health 1(4):314 (PMC3445126), text read: "maximum shoulder internal
+##    rotation velocity ... fastball 6520" deg/s, collegiate pitchers. A population PEAK-of-the-mean, joint = glenohumeral internal rotation.
+##  trunk 1120: same review, "upper trunk rotation velocity (fastball) 1120 deg/s", collegiate pitchers. Maps 1:1 to the WARN bar.
+##  knee 1874: Manolopoulos 2006 as printed in the soccer-kick review (JSSM 6:154, Table 4): amateur males, maximum knee extension
+##    angular velocity 1874 deg/s, SD 155 -- a group MEAN, not an individual peak (other rows 1100-1805). A mean is a LOW bar for a peak.
+const SPEED_SRC := {"shoulder": "Fortenbaugh 2009, pitching", "knee": "Manolopoulos 2006, kicking", "trunk": "Fortenbaugh 2009, pitching"}
 const SPEED := {"shoulder": 6520.0,   # internal rotation, collegiate fastball (Fortenbaugh 2009 review, primary not read)
 	"knee": 1874.0,                    # extension in a soccer kick (Manolopoulos 2006, via a kick review's Table 4)
 	"trunk": 1120.0}                   # upper trunk rotation, collegiate fastball (Fortenbaugh 2009 review, primary not read)
 ## Nm at the shoulder for a REF_MASS pitcher: shoulder internal rotation torque, the mean of 26 skilled adult pitchers
-## in the acceleration of the pitch (Fleisig 1995, AJSM 23:233, abstract read). Sources: docs/research/HUMAN_LIMITS.md
+## in the acceleration of the pitch (Fleisig 1995, AJSM 23:233, abstract read: "67 N-m of shoulder internal rotation torque" and
+## 64 N-m elbow varus, 26 highly skilled adult pitchers, just before maximum external rotation). The paper's body mass was not read,
+## so the linear mass scaling is mine. Sources: docs/research/HUMAN_LIMITS.md
 const SHOULDER_IR_NM := 67.0
 ## de Leva 1996 Table 4, radii of gyration (transverse = mean of sagittal and transverse, / segment length), by sex:
 ## the forearm (elbow -> wrist) and the hand (wrist -> fingertip, the 'Hand*' row of the table)
@@ -281,8 +290,8 @@ static func rule_speed(sm: Dictionary) -> Array:
 			var t0: float = sm["t"][r["a"]]
 			var t1: float = sm["t"][r["b"]]
 			out.append(_f(sev, t0, "JOINT SPEED",
-				"%.2f-%.2f s: %s turns %.0f deg/s, %.0f%% over the fastest peak recorded in sport for a %s (%.0f deg/s; FAIL past %.0f)." % [
-					t0, t1, _words(j), pk, (pk / float(bar[0]) - 1.0) * 100.0, kind, float(bar[0]), float(bar[1])], pk))
+				"%.2f-%.2f s: %s turns %.0f deg/s, %.0f%% over the fastest peak recorded in sport for a %s (%.0f deg/s, %s; FAIL past %.0f)." % [
+					t0, t1, _words(j), pk, (pk / float(bar[0]) - 1.0) * 100.0, kind, float(bar[0]), SPEED_SRC[kind], float(bar[1])], pk))
 			out[-1]["t1"] = t1
 			out[-1]["joint"] = j   # TextBlocking matches a blocking's findings to its source's by joint
 	return out
