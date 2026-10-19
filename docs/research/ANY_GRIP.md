@@ -51,19 +51,23 @@ wrist cannot make (measured: a cylinder straight out along the reach left the pa
 
 - 4 cm cylinder (12 cm tall, 24 sides, a mesh): classed cylinder; fingertips at +0.1, -0.9, +0.2, +1.2 mm of the
   surface (all within 3 mm); no finger segment inside; the thumb's tip on the surface (+1.0 mm).
-- 22 cm ball (props.gd "ball"): classed sphere, but NOT grasped. To put every segment outside the ball (the thumb
-  base lies 3 cm lateral of the palm centre, where a 22 cm sphere curves in by ~3 cm), the palm backs off to
-  163 mm from the surface, and the fingers stop at their limits 48 to 107 mm short. The old "or at its limit" rule
-  passed that; the test now also requires every fingertip ON the ball (<= 3 mm), and that check fails.
-  Cause: a rigid, flat palm cannot wrap a 22 cm sphere with its thumb outside. A real hand cups (the palm arches,
-  the thumb splays); the rig has no cupped palm yet.
+- 22 cm ball (props.gd "ball"): classed sphere and grasped by a searched hand placement
+  (AnyGrip.search_sphere: palm at R + 6 cm along 26 directions, 3 rolls of the flexion axis; each placed and
+  wrapped; the placement with the least summed fingertip and thumb-tip distance from the surface is kept, +1000 for any
+  segment inside). Fingertips -0.6, +0.4, -0.1, +0.0 mm; thumb tip +0.6 mm; no segment inside. Strict bar: every
+  fingertip ON the ball (<= 3 mm), no limit allowance.
+  Span: the thumb tip to the little fingertip with the hand open is 172.8 mm at the bat-grip pose. The tips cover an
+  arc of the ball, not its chord, so a 22 cm ball is held though the span is shorter than its diameter.
+  Earlier attempt (the rigid flat placement, one direction): the palm backed off to 163 mm and the fingers stopped at
+  their limits; that placement is not used.
+- 9 cm ball: the same search; fingertips +0.1, -0.0, +0.1, +0.1 mm; thumb +1.0 mm.
 - Weapon wrap: GripWrap.wrap rows are bit-identical before and after the prop wraps.
 - Keys: key_hand puts the 15 finger and thumb joints at the playhead.
 - Timing: the mesh field for the cylinder about 0.4 s; the wrap 0.1 to 0.2 s; the ball's wrap 0.1 s.
 
 ## What is not done
 
-- The spherical grasp of a 22 cm ball (above): needs a cupped palm, or a different palm placement.
+- Cupped palm: the rig stays flat; the 22 cm ball is held by the searched placement, not a cupped palm.
 - Hook and lateral grasps for a box edge (only the shape classes above).
 - A prop lying flat or on its side: place_hand takes the flexion axis up (or forward when the palm faces straight up
   or down), so a horizontal cylinder is not placed with its own axis.
