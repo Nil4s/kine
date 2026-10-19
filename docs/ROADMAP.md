@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 20 / 20 (search everything; tooltip videos; mirror in place; ease_slider; save_prompt; weight_feel; thumbnails; undo_names; real_speed; autokey; retime_handles; floor_snap; review; fatigue; what went wrong; range rings; ragdoll; hitbox; clash; text_blocking). Full run 2 (2026-10-19): 211/228, all 17 failures fixed in 91480a2, 1f23fad, cd40527.
+Merged since the last full run: 0 / 20 (). Full run 3 (2026-10-19): 195/216 run (a stray EXTRA=" cut 13 suites; repaired in 3793066), re-run of 34 failed or skipped: 19 load, 15 real, all fixed in b8d3f1e.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
