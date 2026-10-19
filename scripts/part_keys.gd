@@ -51,6 +51,9 @@
 ## expression is the one that was there before (old files play bit for bit). A stack's modifiers each have their own range.
 ## Like "inf" it lives on the first key, so it saves, undoes, copies and mirrors with the keys. value_at() is the curve WITH
 ## the modifiers (the scene plays and exports it); at() stays the keys alone.
+## KEY TYPES (ROADMAP 66, Blender's keyframe types): "ktype" on a key = "key" (default, not stored) | "breakdown" (a pose
+## between two keys, the curve's own value there) | "inbetween" (a filler). The type changes how the key is drawn and what
+## "pick only main keys" selects; it never changes the curve, so a file without it plays and saves byte for byte as before.
 ## In the FILE: "part_keys": {"<joint>": [{"t": 0.42, "v": [bend, side, twist]}, ...]}, written only when there is one
 ## (a scene without it saves and plays byte for byte as before).
 class_name PartKeys
@@ -62,6 +65,7 @@ const HANDLES := ["auto_clamped", "auto", "vector", "aligned", "free"]
 const INFS := ["hold", "linear", "cycle", "cycle_offset"]
 const MODS := ["noise", "stepped", "limits", "cycles"]   # DD2; cycles GE4
 const CYCLE_MODES := ["none", "repeat", "offset", "mirror"]   # GE4: Blender's No Cycles / Repeat Motion / with Offset / Mirrored
+const KTYPES := ["key", "breakdown", "inbetween"]   # ROADMAP 66: a key's type (Blender's keyframe types); "key" is the default, not stored
 
 
 ## DD2: the joint's curve at time t WITH its modifier stack (see the header); without "mods" exactly at()
@@ -236,6 +240,38 @@ static func remove_mod(pk: Dictionary, j: String, idx: int) -> bool:
 	if ms.is_empty():
 		(keys[0] as Dictionary).erase("mods")
 	return true
+
+
+## ROADMAP 66: a key's type (the default "key" when absent or unknown)
+static func ktype_of(key: Dictionary) -> String:
+	var kt := String(key.get("ktype", "key"))
+	return kt if kt in KTYPES else "key"
+
+
+## ROADMAP 66: set key idx's type. "key" is the default, so it is erased rather than stored
+static func set_ktype(pk: Dictionary, j: String, idx: int, kt: String) -> bool:
+	if not pk.has(j) or idx < 0 or idx >= (pk[j] as Array).size() or not kt in KTYPES:
+		return false
+	var key: Dictionary = pk[j][idx]
+	if kt == "key":
+		key.erase("ktype")
+	else:
+		key["ktype"] = kt
+	return true
+
+
+## ROADMAP 66: a breakdown key on joint j at time t, its value the keys' own curve there (at(), the keys alone: the curve
+## does not move at t, and a modifier stack on top reads the same). False when t is not strictly inside the joint's keys
+## or a key already sits there (the caller then sets that key's type instead)
+static func add_breakdown(pk: Dictionary, j: String, t: float) -> bool:
+	var keys: Array = pk.get(j, [])
+	if keys.size() < 2 or t <= float(keys[0]["t"]) or t >= float(keys[keys.size() - 1]["t"]):
+		return false
+	if key_near(keys, t, SAME_T) >= 0:
+		return false
+	put(pk, j, t, at(keys, t))
+	var i := key_near(pk[j], t, SAME_T)
+	return set_ktype(pk, j, i, "breakdown")
 
 
 ## the angles a joint's keys give at time t (keys: [{"t", "v": Vector3}] sorted by t, at least one)
@@ -592,6 +628,8 @@ static func to_file(pk: Dictionary) -> Dictionary:
 
 ## XX1: the interpolation fields, written only when not the default
 static func _extras_to_file(k: Dictionary, e: Dictionary) -> void:
+	if ktype_of(k) != "key":   # ROADMAP 66
+		e["ktype"] = ktype_of(k)
 	if interp_of(k) != "bezier":
 		e["interp"] = interp_of(k)
 	var ht := handle_of(k)
@@ -609,6 +647,8 @@ static func _extras_to_file(k: Dictionary, e: Dictionary) -> void:
 
 ## XX1: read them back (an unknown word is the default; handles are kept only for aligned / free)
 static func _extras_from_file(src: Dictionary, k: Dictionary) -> void:
+	if String(src.get("ktype", "")) in KTYPES and src["ktype"] != "key":   # ROADMAP 66
+		k["ktype"] = String(src["ktype"])
 	if String(src.get("interp", "")) in INTERPS and src["interp"] != "bezier":
 		k["interp"] = String(src["interp"])
 	var ht := String(src.get("handle", ""))
@@ -691,7 +731,7 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 			var q := M.compose(String(j), Vector3(float(a[0]), float(a[1]), float(a[2])))
 			var v := M.clamp_ang(o, M.decompose(o, Quaternion(q.x, -q.y, -q.z, q.w)))
 			var e := {"t": k["t"], "v": [snappedf(v.x, 0.01), snappedf(v.y, 0.01), snappedf(v.z, 0.01)]}
-			for f in ["interp", "handle", "inf"]:   # XX1: the interpolation fields go with the key
+			for f in ["interp", "handle", "inf", "ktype"]:   # XX1: the interpolation fields go with the key (ROADMAP 66: and the type)
 				if k.has(f):
 					e[f] = k[f]
 			if k.get("mods") is Array:   # DD2: the modifiers too; a limit on side / twist is reflected (x, -y, -z)
