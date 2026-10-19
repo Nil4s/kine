@@ -104,7 +104,7 @@ static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, 
 		pad + "    uniform token[] joints = " + q.call(jt),
 		pad + "    uniform matrix4d[] bindTransforms = " + q.call(bind),
 		pad + "    uniform matrix4d[] restTransforms = " + q.call(rest),
-		pad + "    rel skel:animationSource = <%s/Skel/Anim>" % root, pad + "}", "",
+		pad + "    rel skel:animationSource = <%s/Anim>" % root, pad + "}", "",
 		pad + "def SkelAnimation \"Anim\"", pad + "{", pad + "    uniform token[] joints = " + q.call(jt)])
 	var tr := PackedStringArray()
 	var ro := PackedStringArray()
@@ -172,8 +172,11 @@ static func _upto(S: Scene, units: Array, p: int) -> Scene:
 
 
 ## the header every layer file opens with: "#usda 1.0" and its layer metadata (which part of the set it is)
-static func _hdr_lines(part: String) -> PackedStringArray:
-	return PackedStringArray(["#usda 1.0", "(", "    customLayerData = {", "        string kine_part = \"%s\"" % part, "    }", ")", ""])
+## the time metadata is in every layer too: USD rescales a sublayer whose timeCodesPerSecond differs from the root's
+## (a 30 fps root over a layer without it reads the layer's frame 71 at stage frame 88.75), so each layer repeats the root's
+static func _hdr_lines(part: String, fps: float) -> PackedStringArray:
+	return PackedStringArray(["#usda 1.0", "(", "    customLayerData = {", "        string kine_part = \"%s\"" % part, "    }",
+		"    timeCodesPerSecond = %s" % _f(fps), "    framesPerSecond = %s" % _f(fps), ")", ""])
 
 
 static func _xfm(x: Transform3D) -> String:
@@ -279,11 +282,11 @@ static func write_layers(S: Scene, B: Body, dir: String, nm: String) -> Array:
 		sc.append("(1, 1, 1)")
 	var jline := "[" + ", ".join(jt) + "]"
 	var files := {}   # file name -> text
-	var sk_head := "\n".join(_hdr_lines("skeleton")) + "\ndef SkelRoot \"Kine\"\n{\n    def Skeleton \"Skel\" (\n        prepend apiSchemas = [\"SkelBindingAPI\"]\n    )\n    {\n"
+	var sk_head := "\n".join(_hdr_lines("skeleton", fps)) +"\ndef SkelRoot \"Kine\"\n{\n    def Skeleton \"Skel\" (\n        prepend apiSchemas = [\"SkelBindingAPI\"]\n    )\n    {\n"
 	var sk_body := "        uniform token[] joints = %s\n        uniform matrix4d[] bindTransforms = [%s]\n        uniform matrix4d[] restTransforms = [%s]\n" % [jline, ", ".join(bind), ", ".join(rest)]
 	files[pn + "_skeleton.usda"] = sk_head + sk_body + "        rel skel:animationSource = </Kine/Anim>\n    }\n}\n"
 	var units := _units(S)
-	var bl := _hdr_lines("base") + PackedStringArray(["over \"Kine\"", "{"])
+	var bl := _hdr_lines("base", fps) +PackedStringArray(["over \"Kine\"", "{"])
 	var bs := _samples(_upto(S, units, -1), B, n, fps, L, "            ")
 	bl.append_array(_anim("def SkelAnimation \"Anim\"", jline, bs[0], bs[1], "half3[] scales = [" + ", ".join(sc) + "]"))
 	bl.append("}")
@@ -293,16 +296,16 @@ static func write_layers(S: Scene, B: Body, dir: String, nm: String) -> Array:
 		var muted := src >= 0 and bool(S.layers[src].get("mute", false))
 		var s := _samples(_upto(S, units, k), B, n, fps, L, "            ")
 		var lf := PackedStringArray(["#usda 1.0", "(", "    customLayerData = {", "        string kine_layer = \"%s\"" % String(units[k]["label"]).c_escape(),
-			"        bool kine_muted = %s" % ("true" if muted else "false"), "    }", ")", "", "over \"Kine\"", "{"])
+			"        bool kine_muted = %s" % ("true" if muted else "false"), "    }", "    timeCodesPerSecond = %s" % _f(fps), "    framesPerSecond = %s" % _f(fps), ")", "", "over \"Kine\"", "{"])
 		lf.append_array(_anim("over \"Anim\"", jline, s[0], s[1], ""))
 		lf.append("}")
 		files["%s_layer_%02d_%s.usda" % [pn, k, prim_name(String(units[k]["label"]))]] = "\n".join(lf) + "\n"
-	var pts := _hdr_lines("points") + PackedStringArray(["over \"Kine\"", "{", "    def Points \"JointCache\"", "    {",
+	var pts := _hdr_lines("points", fps) +PackedStringArray(["over \"Kine\"", "{", "    def Points \"JointCache\"", "    {",
 		"        uniform token[] kine:joints = " + jline, "        float[] widths = [" + ", ".join(wd) + "]", "        point3f[] points.timeSamples = {"])
 	pts.append_array(_points(S, B, n, fps, L, "            "))
 	pts.append_array(PackedStringArray(["        }", "    }", "}"]))
 	files[pn + "_points.usda"] = "\n".join(pts) + "\n"
-	var pc := _hdr_lines("props")
+	var pc := _hdr_lines("props", fps)
 	if not S.props.is_empty():
 		pc.append_array(PackedStringArray(["def Xform \"Props\"", "{"]))
 		for k in S.props.size():
