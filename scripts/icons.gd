@@ -152,6 +152,8 @@ const DRAW := {
 	# ROADMAP 54: Mirror scene = a frame and its mirror copy (a dashed axis between); Mirror in place = one frame split by its axis
 	"mirror_scene": [["box", Rect2(2.5, 6.5, 7.5, 11), 1.6], ["box", Rect2(14, 6.5, 7.5, 11), 1.6], ["seg", Vector2(12, 3), Vector2(12, 21), 1.2],
 		["seg", Vector2(17.5, 18.5), Vector2(19.5, 21), 1.4], ["disc", Vector2(12, 3), 1.2]],
+	"pathwalk": [["seg", Vector2(3, 20), Vector2(9, 15), 1.8], ["seg", Vector2(9, 15), Vector2(15, 16), 1.8], ["seg", Vector2(15, 16), Vector2(21, 7), 1.8],
+		["disc", Vector2(3, 20), 1.6], ["disc", Vector2(21, 7), 1.6], ["disc", Vector2(10, 7), 2.0], ["seg", Vector2(10, 9), Vector2(10, 12), 1.8]],
 	"mirror_inplace": [["box", Rect2(5, 4, 14, 16), 1.6], ["seg", Vector2(12, 2), Vector2(12, 22), 1.2], ["seg", Vector2(9, 9), Vector2(5, 12), 1.6],
 		["seg", Vector2(5, 12), Vector2(9, 15), 1.6], ["seg", Vector2(15, 9), Vector2(19, 12), 1.6], ["seg", Vector2(19, 12), Vector2(15, 15), 1.6]],
 	# the search box's row kinds (ROADMAP 52, scripts/command_search.gd): a command prompt, a posed figure, a film frame
