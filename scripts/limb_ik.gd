@@ -314,8 +314,9 @@ static func pin(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 ## what the IK shows there. FK at t is the card the playhead is on (its pose), plus whatever plays over it (part keys,
 ## layers), so each joint's card angle moves by (IK - FK as played): a joint with part keys gets a part key at t instead.
 ## Needs the playhead on a card. B ends posed at t as the scene now plays. Returns {"ok", "card", "residual": the
-## largest angle (deg) the FK at t still differs from the IK, read back with the IK off}
-static func snap_fk(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
+## largest angle (deg) the FK at t still differs from the IK, read back with the IK off}. fk_at (round 51): what "the
+## limb's FK at t" is, posed on B (default: the scene with this limb's IK off; Constraints.release_keep: one constraint off)
+static func snap_fk(S: Scene, B: Body, tip: String, t: float, fk_at := Callable()) -> Dictionary:
 	var i := card_at(S, t)
 	if i < 0:
 		return {"ok": false, "card": -1, "residual": INF}
@@ -335,7 +336,10 @@ static func snap_fk(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 	# a fixed point: what plays at t is not always the card's own number (a spline scene's upper arm reads its curve a
 	# little ahead, a layer adds to it), so the card moves by the difference until the played FK meets the IK (4 at most)
 	for it in 4:
-		_fk_at(S, B, tip, t)
+		if fk_at.is_valid():
+			fk_at.call()
+		else:
+			_fk_at(S, B, tip, t)
 		res = 0.0
 		for j in ch:
 			var dv: Vector3 = ((B.ang[j] as Vector3) - (want[j] as Vector3)).abs()
@@ -356,7 +360,10 @@ static func snap_fk(S: Scene, B: Body, tip: String, t: float) -> Dictionary:
 			if ch.any(func(c): return j in M.below(c)):
 				pose["joints"][j] = fresh["joints"][j]   # the chain and what hangs off it: angles, and the positions they make
 		S.cards[i]["pose"] = pose
-	_fk_at(S, B, tip, t)
+	if fk_at.is_valid():
+		fk_at.call()
+	else:
+		_fk_at(S, B, tip, t)
 	res = 0.0
 	for j in ch:
 		var dv: Vector3 = ((B.ang[j] as Vector3) - (want[j] as Vector3)).abs()

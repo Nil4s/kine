@@ -2617,6 +2617,7 @@ func _snapshot() -> Dictionary:
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
+		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2646,6 +2647,9 @@ func _restore(u: Dictionary) -> void:
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
 		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
+		_dummy_hits()
+	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
+		S.cons = u["cons"].duplicate(true)   # constraints (round 51), undone like a card
 		_dummy_hits()
 	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
 		S.audio = u["audio"].duplicate()   # the sound, undone like a card
@@ -2747,6 +2751,7 @@ func _actors_build(hero_B: Body, hero_S: Scene) -> void:
 			b.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 			b.fk()
 		actors_rt.append({"name": a["name"], "B": b, "S": a["scene"], "xf": actor_xf(a["xf"]), "t": NAN})
+	Constraints.link(hero_S)   # round 51: each fighter's scene can read the others (a head that looks at the other fighter)
 
 
 ## actors_rt kept in step with the open scene: a scene opened, made new or recovered (or an agent's "new" that sets S
@@ -3353,6 +3358,164 @@ func _ikh_release() -> void:
 	_refresh()
 	var p: Vector3 = d[d["kind"]]
 	_say("keyed the %s's IK %s at %.2f s, at (%.2f, %.2f, %.2f) m (Ctrl+Z takes it back)" % [_ik_words(d["tip"]), d["kind"], t, p.x, p.y, p.z])
+## USER CONSTRAINTS (round 51, GATES CN; scripts/constraints.gd): Child Of, Track To (look at), Floor, on the scene's
+## stack, played after IK. The TARGET is picked first ("Constraint: use the picked part as the target", a view setting,
+## not undone), then the owner is the picked part. With no target picked: the other hand (Child Of), the other fighter's
+## head or else the weapon (look at). Every edit is one undo step
+var cons_target := {}
+
+
+func _cons_words(owner: String) -> String:
+	if owner == "pelvis":
+		return "hips"
+	if owner == "head":
+		return "head"
+	return _ik_words(owner)
+
+
+func _cons_tg_words(tg: Dictionary) -> String:
+	match String(tg.get("kind", "")):
+		"part":
+			return nice(String(tg["part"]))
+		"weapon":
+			return "the weapon"
+		"actor":
+			return "fighter %d's %s" % [int(tg["actor"]) + 1, nice(String(tg.get("part", "head")))]
+		"point":
+			return "a spot in the world"
+		"prop":
+			return "prop %d" % (int(tg["prop"]) + 1)
+	return "?"
+
+
+## the picked part's owner for an existing constraint (fade / release / remove): its limb's hand / foot, the hips, the head
+func _cons_owner_picked() -> String:
+	for ty in ["child_of", "track_to"]:
+		var o := Constraints.owner_of(ty, sel)
+		if o != "" and Constraints.last_on(S, o) >= 0:
+			return o
+	return ""
+
+
+func _cons_pick_target() -> void:
+	if sel in Body.WEAPON:
+		cons_target = {"kind": "weapon"}
+	elif B.lim.has(sel):
+		cons_target = {"kind": "part", "part": sel}
+	else:
+		_say("click a body part or the weapon first, then use the picked part as the target")
+		return
+	_say("constraint target: %s (now pick the part that follows it, or the head to look at it)" % _cons_tg_words(cons_target))
+
+
+func _cons_target_fighter() -> void:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		_say("there is no other fighter: add one with 'Actor: add a second fighter' first")
+		return
+	cons_target = {"kind": "actor", "actor": 1 if actor_on == 0 else 0, "part": "head"}
+	_say("constraint target: %s" % _cons_tg_words(cons_target))
+
+
+func _cons_child_of() -> void:
+	var owner := Constraints.owner_of("child_of", sel)
+	if owner == "":
+		_say("Child Of moves a hand, a foot or the hips: click one of them (or a part of that arm or leg) first")
+		return
+	if S.cards.is_empty():
+		_say("constraints live in a scene: open a scene, or press Enter to add the body as a card first")
+		return
+	var tg := cons_target
+	if tg.is_empty() or Constraints.bad_target(B, owner, tg) != "":
+		tg = {"kind": "part", "part": Body.twin(owner)} if owner.begins_with("hand") else {"kind": "point", "at": B.P[owner]}
+	var why := Constraints.bad_target(B, owner, tg)
+	if why != "":
+		_say("the %s cannot follow %s (%s): pick another target with 'Constraint: use the picked part as the target'" % [_cons_words(owner), _cons_tg_words(tg), why])
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	if Constraints.target_xf(S, B, tg, t) == null:
+		_say("%s is not there now: pick another target with 'Constraint: use the picked part as the target'" % _cons_tg_words(tg))
+		return
+	_do(func(): Constraints.add_child_of(S, B, owner, tg, t))
+	_dummy_hits()
+	_say("the %s now follows %s from %.2f s, keeping where it is from it (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), _cons_tg_words(tg), t])
+
+
+func _cons_look() -> void:
+	if S.cards.is_empty():
+		_say("constraints live in a scene: open a scene, or press Enter to add the body as a card first")
+		return
+	_actors_sync()
+	var tg := cons_target
+	if tg.is_empty() or Constraints.bad_target(B, "head", tg) != "":
+		if actors_rt.size() >= 2:
+			tg = {"kind": "actor", "actor": 1 if actor_on == 0 else 0, "part": "head"}
+		elif B.wep_on:
+			tg = {"kind": "weapon"}
+		else:
+			tg = {"kind": "point", "at": LookAt.eye_point(B) + LookAt.head_forward(B) * 2.0}
+	var t := clampf(playhead, 0.0, S.length())
+	if Constraints.bad_target(B, "head", tg) != "" or Constraints.target_xf(S, B, tg, t) == null:
+		_say("the head cannot look at %s now: pick another target with 'Constraint: use the picked part as the target'" % _cons_tg_words(tg))
+		return
+	_do(func(): Constraints.add_track_to(S, B, tg, t))
+	_dummy_hits()
+	_say("the head looks at %s from %.2f s (turning in over %d frames), never past the neck's limits" % [_cons_tg_words(tg), t, Constraints.FADE_FRAMES])
+
+
+func _cons_floor() -> void:
+	var owner := Constraints.owner_of("floor", sel)
+	if owner == "":
+		_say("the floor keeps a foot up: click a foot or a part of that leg first")
+		return
+	if S.cards.is_empty():
+		_say("constraints live in a scene: open a scene, or press Enter to add the body as a card first")
+		return
+	_do(func(): Constraints.add_floor(S, owner))
+	_dummy_hits()
+	_say("the %s never goes below the floor now (Ctrl+Z takes it back)" % _cons_words(owner))
+
+
+func _cons_fade(to: float) -> void:
+	var owner := _cons_owner_picked()
+	if owner == "":
+		_say("no constraint on the picked part: click a part that has one, or add one with 'Constraint: child of the target'")
+		return
+	var i := Constraints.last_on(S, owner)
+	var t := clampf(playhead, 0.0, S.length())
+	_do(func(): Constraints.fade(S, i, t, to))
+	_dummy_hits()
+	_say("the %s's constraint fades %s over %d frames from %.2f s" % [_cons_words(owner), "in" if to > 0.0 else "out", Constraints.FADE_FRAMES, t])
+
+
+func _cons_release() -> void:
+	var owner := _cons_owner_picked()
+	if owner == "" or not owner in LimbIK.LIMBS:
+		_say("release keeping the pose works on a held hand or foot: click one that has a Child Of, or fade the constraint out instead")
+		return
+	var i := Constraints.last_on(S, owner)
+	var t := clampf(playhead, 0.0, S.length())
+	if Constraints.weight(S.cons[i], t) <= 0.0:
+		_say("the %s's constraint is off here: move the playhead to where it holds, then release" % _cons_words(owner))
+		return
+	if LimbIK.card_at(S, t) < 0:
+		_say("release writes the pose into a card: click a card (the playhead goes onto it), or press Enter to add one here, then release")
+		return
+	var r := {}
+	_do(func(): r.merge(Constraints.release_keep(S, B, i, t)))
+	_dummy_hits()
+	_say("released the %s at %.2f s: card %d now holds the pose the constraint gave it (off by %.2f deg), so nothing jumps" % [_cons_words(owner), t, int(r.get("card", 0)) + 1, float(r.get("residual", 0.0))])
+
+
+func _cons_remove() -> void:
+	var owner := _cons_owner_picked()
+	if owner == "":
+		_say("no constraint on the picked part: click a part that has one (a held hand or foot, the hips, the head)")
+		return
+	var i := Constraints.last_on(S, owner)
+	_do(func(): S.cons.remove_at(i))
+	_dummy_hits()
+	_say("removed the %s's constraint (Ctrl+Z puts it back)" % _cons_words(owner))
 
 
 ## ASK AI (round 46, GATES BB2): opens / closes the AI box (scripts/ai_box.gd) at the right, above the cards. The box
@@ -6352,6 +6515,15 @@ func _commands() -> Array:
 	add.call("IK: release the picked limb here", "", _ik_release, "ik fk unpin unlock free let go release hand foot", true, "the pinned hand (or foot) follows the cards again from the card at the playhead: its pinned pose goes into that card first, so nothing jumps")
 	add.call("IK: snap FK to IK", "", _ik_snap_fk, "ik fk match switch visual key rigify card", true, "the card at the playhead takes the picked limb's IK pose (what you see), the IK keys stay")
 	add.call("IK: snap IK to FK", "", _ik_snap_ik, "ik fk match switch target pole rigify", true, "the picked limb's IK target and pole keyed at the playhead where the cards put the limb (the IK weight stays)")
+	add.call("Constraint: use the picked part as the target", "", _cons_pick_target, "constraint target parent child of follow look track blender", false, "the picked body part (or the weapon) becomes what the next Child Of follows or the head looks at (a choice, not an edit)")
+	add.call("Constraint: target the other fighter's head", "", _cons_target_fighter, "constraint target fighter actor opponent look track", false, "the other fighter's head becomes the target of the next constraint (two fighters)")
+	add.call("Constraint: child of the target", "", _cons_child_of, "constraint child of parent follow hold attach hand foot hips prop door hip blender", true, "the picked hand, foot (or the hips) follows the target from the playhead on, keeping where it is from it now; the arm / leg bends to reach")
+	add.call("Constraint: head looks at the target", "", _cons_look, "constraint track to look at aim head gaze watch face blender", true, "the head turns to the target from the playhead (over 6 frames), never past the neck's limits")
+	add.call("Constraint: keep the picked foot above the floor", "", _cons_floor, "constraint floor ground foot limit sink through blender", true, "the picked foot never goes below the floor, whatever moves it")
+	add.call("Constraint: fade out over 6 frames", "", _cons_fade.bind(0.0), "constraint influence off release let go key blend", true, "the picked part's constraint goes from what it is at the playhead to off over 6 frames (no pop)")
+	add.call("Constraint: fade in over 6 frames", "", _cons_fade.bind(1.0), "constraint influence on key blend", true, "the picked part's constraint goes from what it is at the playhead to fully on over 6 frames")
+	add.call("Constraint: release here keeping the pose", "", _cons_release, "constraint apply visual key release let go keep transform card", true, "the held hand / foot's pose at the playhead goes into the card there, then its constraint is off: it follows the cards without a jump")
+	add.call("Constraint: remove the picked part's constraint", "", _cons_remove, "constraint delete remove clear", true, "the last constraint on the picked hand, foot, hips or head is taken off")
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
 	add.call("Graph editor: every keyed part (channels)", "", _graph_cmd.bind("multi"), "graph editor channels multi several parts curves all f-curves blender", false, "the curve editor shows every part with part keys at once, one coloured channel per part and angle; click a channel to hide or show it (GE1)")

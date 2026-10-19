@@ -60,6 +60,11 @@ var props_skipped := []   # kinds the file named that this library does not have
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
+var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
+var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
+var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakref to the hero's (actor targets); null = the hero
+var cons_me := 0       # runtime: this scene's fighter number in the hero's file (0 = the hero)
+var _cons_scratch := {}   # runtime: fighter number -> a Body another fighter's scene is posed on (actor targets)
 var name := "scene"
 var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
@@ -571,6 +576,11 @@ func apply(B: Body, t: float) -> void:
 		ik_last = LimbIK.play(ik, B, t)
 		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
 			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
+	# USER CONSTRAINTS (round 51, CN): after IK, in list order (Blender's stack runs on the finished animated pose);
+	# every angle they write goes through Body.clamp_ang, so the joint limits come last. None: nothing is touched
+	cons_last = []
+	if not cons.is_empty():
+		cons_last = Constraints.play(self, B, t)
 	B.fast = was_fast
 
 
@@ -1292,6 +1302,7 @@ func clone() -> Scene:
 	for a in actors:   # G1: deep (each actor's own scene is cloned, its xf copied)
 		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
+	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	return c
 
 
@@ -1361,7 +1372,7 @@ var _carry_memo := []   # [key, [per carry: {"grip", "home", "drop", "land", "y0
 func _carry_data(B: Body) -> Array:
 	var cs := carries()
 	var ts := times()
-	var key := [ts, JSON.stringify(cs), JSON.stringify(props.map(func(p): return Props.to_dict(p))), var_to_str(part_keys), var_to_str(ik)]
+	var key := [ts, JSON.stringify(cs), JSON.stringify(props.map(func(p): return Props.to_dict(p))), var_to_str(part_keys), var_to_str(ik) + var_to_str(cons)]
 	if not _carry_memo.is_empty() and is_same(_carry_memo[0][0], ts) and _carry_memo[0][1] == key[1] and _carry_memo[0][2] == key[2] 			and _carry_memo[0][3] == key[3] and _carry_memo[0][4] == key[4]:   # a keyed hand moves the grip (WW1)
 		return _carry_memo[1]
 	var st := B.state()
@@ -1764,6 +1775,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			"scene": (a["scene"] as Scene).to_dict(B, frames)})
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
+	if not cons.is_empty():
+		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
 	return out
 
 
@@ -1778,7 +1791,8 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
-	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)"}
+	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
+	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
@@ -1816,6 +1830,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
 	if d2.has("ik"):
 		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+	if d2.has("constraints"):
+		d2["constraints"] = Constraints.mirror_file(d2["constraints"])   # round 51: owners / parts to twins, offsets reflected
 	if d2.has("layer"):
 		d2["layer"] = Scene.mirror_layer(d2["layer"], M)
 	for L in d2.get("layers", []):
@@ -1869,6 +1885,9 @@ func from_dict(d: Dictionary) -> void:
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
+	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
+	if not actors.is_empty():
+		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
 	for p in d.get("props", []):
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))

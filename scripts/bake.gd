@@ -53,6 +53,9 @@ static func bake(S: Scene, B: Body, rate: float) -> Dictionary:
 	if not S.ik.is_empty():
 		off.append("ik")   # the IK pass played into the baked cards: left on it would act a second time
 		S.ik = {}
+	if not S.cons.is_empty():
+		off.append("constraints")   # round 51: played into the baked cards, the same reason
+		S.cons = []
 	S.cards = cards
 	S.part_keys = {}
 	return {"cards": cards.size(), "was": was, "part_keys": had, "off": off}

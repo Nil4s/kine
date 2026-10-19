@@ -2013,3 +2013,34 @@ without the new fields play bit-identically. Nick 10-18: feature first, no stub 
 - [x] GE2 box select + scale about the pivot (2D cursor / box centre; Keys menu, Alt+drag): box = brute force (4 of 18 dots); time and value error 0 exactly; 1 undo step; Ctrl+Z bit for bit; a swapping scale refused.
 - [x] GE3 normalize ("Graph editor: normalize"): 6 channels' top / bottom pixels within 0.50 px of the +-1 rows; save dict identical before / during / after.
 - [x] GE4 Cycles (repeat / offset / mirror, counts; "Part keys: add Cycles modifier", Mods menu) + noise offset / depth: worst 0.000000000 at k = -2..3, in Scene.sample at 23 points; same-seed identical, strength 0 bit-identical, largest offset 2.243 <= 3. (5): full-precision sample dumps of all 11 scenes and of a scene with DD2's noise / stepped / limits identical before and after (cmp). Suites graph_editor, undo_audit (176), say_next, agent_tools, command_search, schema, keyboard, graph_read, curve_why, dope_sheet, curve_editor/multi/mods/views, key_blend PASS (schema failed once in parallel on the shared user://schema_cases, then passed alone). Transcript: only the 3 new commands differ.
+## Round 51 (CN): user constraints (docs/GAP_ANALYSIS.md upgrade #3; docs/research/BLENDER_CONSTRAINTS.md)
+A constraint list on the scene ("constraints", stack order), played in Scene.apply AFTER the cards, part keys, layers,
+breathing and IK, one after the other in list order, every angle written through the joint limits (Body.clamp_ang), so
+the limits are the last word. Influence 0..1 per constraint, keyable ("wk", linear between keys, as a layer's weight).
+Bars written BEFORE the code (tests/constraints_test.gd; numbers below are bars, not results):
+- [x] CN1 CHILD OF: a hand, a foot or the hips follows a target (a part of the same body, the weapon, a world point, a
+  prop, a part of the other fighter) keeping the offset it had when the constraint was set (stored at creation: Blender's
+  Set Inverse); a hand / foot reaches it with the limb's IK (LimbIK.solve), so the arm bends instead of the hand detaching.
+  Bars: (1) a played scene whose target moves: at influence 1 the owner's world transform = target x stored offset within
+  1 mm and 0.5 deg at every frame of a 240 Hz sweep (anti-vacuity: without the constraint it is off by > 5 cm); at
+  influence 0 the pose is bit-identical to the unconstrained playback at every frame. (2) NO POP: influence keyed 1 -> 0
+  over 6 frames: the owner's frame-to-frame speed never exceeds 2x the largest speed it has in the unconstrained playback
+  (anti-vacuity: the same release keyed over 1 frame exceeds it); "release keeping the pose" (the constrained pose written
+  into the card at the playhead, then influence 0) moves the hand < 1 mm at the release frame. (4) FILE: saved under
+  "constraints" only when there is one (schema updated), reloaded equal, mirrored by Scene.mirror_file (left / right
+  swapped: the mirrored owner plays at the mirrored place within 1 mm), every add / edit / remove command one undo step
+  (undo_audit). (5) a scene without constraints plays bit-identically to the same scene with the pass stubbed out (and
+  every scene in scenes/ with a muted / influence-0 constraint added plays bit-identically). LIMITS: no joint past its
+  limits on any frame.
+- [x] CN2 TRACK TO (look at): the head (neck_01 + head, LookAt's solve) aims at a target (a part of this body, the
+  weapon, a point, a part of the other fighter), influence keyable. Bars: (3) whenever the target is inside the neck's
+  range (an independent brute-force search over legal neck + head angles finds a pose within 1 deg), the head's forward
+  points at it within 2 deg; outside it at least one neck / head angle sits AT its limit (within 0.5 deg) and no angle is
+  past a limit of data/body_limits.json on any frame. (4) and (5) as CN1. Two fighters: the hero's head tracks the other
+  fighter's head (target posed from its own scene at its placement) within 2 deg while it is in range.
+- [x] CN3 FLOOR: a foot never below the floor (plus a height), influence keyable; reuses Body's sole points (sole_low)
+  and LimbIK's leg solve. Bars: at influence 1 the foot's lowest sole point >= height - 0.5 mm at every frame of a 240 Hz
+  sweep of a scene whose foot dips below it (anti-vacuity: > 2 cm below without it); frames where the foot is above the
+  floor are bit-identical to no constraint (it pushes, never pulls); influence 0 bit-identical.
+STUB runs DROPPED (Nick, 10-18: feature first, test ceremony last); anti-vacuity checks stand in for them.
+EVIDENCE tests/constraints_test.gd 16 ok: CN1 0.0006 mm / 0.097 deg at 240 Hz (unconstrained 10.3 cm off), w 0 bit-identical; 6-frame fade 22.5 mm/frame vs bar 80.1 (1-frame cut 88.8); release keeping the pose 0.027 mm; file round trip 0.0045 mm, mirror 0.0045 mm, 11 scenes / 880 frames bit-identical. CN2 17 in-range targets within 0.18 deg, 19 outside all at a limit, other fighter's head 0.018 deg. CN3 foot >= -0.000 mm (-66.3 mm without), 127 above-floor steps bit-identical. 0 joints past limits. undo_audit 182 ok, say_next, agent_tools (transcript: only the 9 new commands differ), ik_pin, schema, bake, mirror_list, command_search PASS.

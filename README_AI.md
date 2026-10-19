@@ -496,6 +496,30 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 - Known: release / snap FK refuse off a card (part keys would change the whole joint's curve before the pin).
 - tests/ik_pin_test.gd (ik_pin:h).
 
+## User constraints (round 51, GATES CN; docs/research/BLENDER_CONSTRAINTS.md, learned from, no Blender code)
+- `scripts/constraints.gd` (`Constraints`, static). `Scene.cons` = a STACK (list) of {type, owner, target, offset?, w,
+  wk, mute?, height?}. Types: `child_of` (a hand / foot via LimbIK.solve, or the pelvis: owner = target x offset, the
+  offset stored when made = Blender's Set Inverse), `track_to` (the head: LookAt.solve + a pattern search on neck + head,
+  inside the limits), `floor` (a foot: Body.foot_sole_low, lifted by LimbIK with the foot's turn kept; pushes, never
+  pulls). Targets: a part of this body, the weapon, a world point, a prop, another fighter's part (`{"kind": "actor"}`:
+  that fighter's scene posed at t at its placement; `Constraints.link(hero)` gives each fighter's scene a weakref to
+  the hero; main._actors_build calls it). Influence = a layer's weight (Scene.layer_weight: "wk" keys x "w").
+- EVALUATION ORDER in `Scene.apply`: cards -> part keys -> layers -> breathing -> IK -> constraints in list order ->
+  joint limits. Why: Blender runs the constraint stack on the finished animated pose, top to bottom, each one seeing the
+  one above; a constraint corrects what was keyed (IK included), it is not an input to it. Limits last: every angle a
+  constraint writes goes through Body.clamp_ang, so no constraint drags a joint past its range.
+- Influence blend: per joint angles animated -> constrained by w (continuous: a keyed fade has no pop); hips: position
+  lerp + rotation slerp in world space. w 0 / muted / none: the body is not touched (byte for byte).
+- Commands ("Constraint: ..."): use the picked part as the target / target the other fighter's head (choices, no undo),
+  child of the target (default target: the other hand; on from the playhead, 0 one frame before), head looks at the
+  target (default: the other fighter's head, else the weapon; fades in over 6 frames), keep the picked foot above the
+  floor, fade out / fade in over 6 frames, release here keeping the pose (Constraints.release_keep: LimbIK.snap_fk with
+  that constraint off writes the pose into the card, then influence 0), remove. Each edit one undo step ("cons").
+- File key "constraints" only when present (schema, MIRROR_SCENE via Constraints.mirror_file, clone, bake clears it).
+- Known: no chest / eyes share for Track To; release keeping the pose is hands / feet only (hips: fade instead); a
+  prop target is the prop's own place (a carried prop's moving place is not read); no viewport drawing of constraints.
+- tests/constraints_test.gd (constraints:h).
+
 ## Round 43: animator tools, kept light (GATES YY; docs/ANIM_RESEARCH.md) - one instance, gate by gate
 - YY0 WALK LEGS + YY1 LIVE BALANCE (Shift+B: COM on the floor, support hull, green/amber/red/grey). YY2 "Plant every
   sliding foot" (Check's slides planted at once, one undo step).

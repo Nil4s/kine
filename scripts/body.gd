@@ -1553,11 +1553,15 @@ func hand_curl_of(side: String) -> Vector2:
 func sole_low() -> float:
 	if not props.is_empty():
 		return _sole_low_set()
+	return minf(foot_sole_low("_l"), foot_sole_low("_r"))
+
+
+## one foot's lowest sole point above the floor (sole_low's three points: heel, toe tip, ball; round 51 CN3's floor)
+func foot_sole_low(sd: String) -> float:
 	var low := INF
-	for sd in ["_l", "_r"]:
-		low = minf(low, (P["foot" + sd] as Vector3).y - (p0["foot" + sd] as Vector3).y)
-		low = minf(low, (E["ball" + sd] as Vector3).y - (e0["ball" + sd] as Vector3).y)
-		low = minf(low, (P["ball" + sd] as Vector3).y - (p0["ball" + sd] as Vector3).y)
+	low = minf(low, (P["foot" + sd] as Vector3).y - (p0["foot" + sd] as Vector3).y)
+	low = minf(low, (E["ball" + sd] as Vector3).y - (e0["ball" + sd] as Vector3).y)
+	low = minf(low, (P["ball" + sd] as Vector3).y - (p0["ball" + sd] as Vector3).y)
 	return low
 
 
