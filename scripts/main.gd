@@ -5158,6 +5158,7 @@ func _fingers(side: String, kind: String) -> void:
 
 var _shape_i := {"l": 0, "r": 0}
 var ui_hand := {}   # "rcurl" / "rspread" / "lcurl" / "lspread" -> HSlider (YY3)
+var ui_finger := {}   # "rthumb" / "rindex" ... "lpinky" -> HSlider (ROADMAP 73: one curl per finger)
 var ui_back := {}   # "bend" / "side" / "twist" -> HSlider (YY4)
 
 
@@ -5358,6 +5359,50 @@ func _hand_point(sd: String) -> void:
 	_say("%s hand: pointing (the index straight)" % ["right" if sd == "r" else "left"])
 
 
+## one finger's curl slider moved (ROADMAP 73): that finger bends at the hand's spread; the other fingers stay
+func _on_finger_slider(v: float, sd: String, f: String) -> void:
+	B.finger_curl(sd, f, v, B.hand_curl_of(sd).y)
+	B.fk()
+	_refresh()
+	_say("%s %s: curl %.0f%%" % ["right" if sd == "r" else "left", f, v * 100.0])
+
+
+## the hand a pose goes on (ROADMAP 73): the picked part's side when it is a hand or finger part; "" = pick one first
+func _hand_side_of_sel() -> String:
+	var hand := sel.begins_with("hand_")
+	for f in ["thumb_", "index_", "middle_", "ring_", "pinky_"]:
+		hand = hand or sel.begins_with(f)
+	if not hand:
+		return ""
+	return "l" if sel.ends_with("_l") else "r"
+
+
+## a pose button or palette entry (ROADMAP 73): no hand picked = no undo step (the message says what to pick)
+func _pose_pick(pname: String) -> void:
+	if _hand_side_of_sel() == "":
+		_say("pick a hand or finger part first: the %s pose goes on that hand" % pname)
+		return
+	_do(_hand_pose.bind(pname))
+
+
+## a named hand pose (ROADMAP 73): ONE undo step (_do). With cards in the scene, the hand's 15 joints are keyed at the
+## playhead the way K keys a part (PartKeys.put); with no cards the pose just goes on the hand
+func _hand_pose(pname: String) -> void:
+	var side := _hand_side_of_sel()
+	if side == "":
+		_say("pick a hand or finger part first: the %s pose goes on that hand" % pname)
+		return
+	B.hand_pose(side, pname)
+	var side_name := "right" if side == "r" else "left"
+	if S.cards.is_empty():
+		_say("%s hand: %s pose (no cards yet, so nothing is keyed: open a scene with cards to key it)" % [side_name, pname])
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	for j in B.hand_joints(side):
+		PartKeys.put(S.part_keys, j, t, B.ang[j])
+	_say("%s hand: %s pose, keyed at %.2f s (15 joints; Ctrl+Z takes it back)" % [side_name, pname, t])
+
+
 ## the hand sliders read the body back (no signal: a refresh is not a drag)
 func _hand_sliders_sync() -> void:
 	for k in ui_back:
@@ -5367,6 +5412,9 @@ func _hand_sliders_sync() -> void:
 			var cs := B.hand_curl_of(sd)
 			(ui_hand[sd + "curl"] as HSlider).set_value_no_signal(cs.x)
 			(ui_hand[sd + "spread"] as HSlider).set_value_no_signal(cs.y)
+		for f in ["thumb", "index", "middle", "ring", "pinky"]:
+			if ui_finger.has(sd + f):
+				(ui_finger[sd + f] as HSlider).set_value_no_signal(B.finger_curl_of(sd, f))
 func _fingers_cycle() -> void:
 	var side := "l" if sel.ends_with("_l") else "r"
 	_shape_i[side] = (_shape_i[side] + 1) % 3
@@ -6800,6 +6848,27 @@ func _ui() -> void:
 		var pb := _button("Point (%s)" % ["right" if sd == "r" else "left"], _do.bind(_hand_point.bind(sd)), "the index straight, the other fingers and the thumb curled")
 		pb.name = "b_point_" + sd   # the label's side is in brackets, which the auto-name drops: both would be b_point
 		_row(hands, [pb])
+	# ROADMAP 73: one curl slider per finger (thumb too) per hand (Body.finger_curl), then the named poses (Body.hand_pose)
+	for sd in ["r", "l"]:
+		for f in ["thumb", "index", "middle", "ring", "pinky"]:
+			var fl := _prop_row(hands)
+			_set_prop(fl, "%s %s curl" % ["right" if sd == "r" else "left", f], "")
+			var fs := HSlider.new()
+			fs.name = "finger_%s_%s" % [f, sd]
+			fs.min_value = 0.0
+			fs.max_value = 1.0
+			fs.step = 0.01
+			fs.drag_started.connect(_push_undo)
+			fs.value_changed.connect(_on_finger_slider.bind(sd, f))
+			_row_slider(fl, fs)
+			ui_finger[sd + f] = fs
+	for half in [Body.POSE_NAMES.slice(0, 4), Body.POSE_NAMES.slice(4)]:
+		var prow: Array = []
+		for pn in half:
+			var pbn := _button(pn, _pose_pick.bind(pn), "the picked hand (or the hand of the picked finger) goes to the %s pose; with cards, its joints are keyed at the playhead" % pn)
+			pbn.name = "b_pose_" + pn
+			prow.append(pbn)
+		_row(hands, prow)
 	# YY4: the whole back, one slider per way (Body.back_bend: shared by each joint's range)
 	var back := _section(vb, "BACK")
 	for k in ["bend", "side", "twist"]:
@@ -8247,6 +8316,14 @@ func _commands() -> Array:
 	add.call("Loop: close the seam", "", _loop_close, "timing", true, "the last card becomes a copy of the first, so a loop's end meets its start (and Loop is turned on)")
 	add.call("Point the right hand", "", _do.bind(_hand_point.bind("r")), "finger index point hand curl fist", true, "the right index straight, the other fingers and the thumb curled")
 	add.call("Point the left hand", "", _do.bind(_hand_point.bind("l")), "finger index point hand curl fist", true, "the left index straight, the other fingers and the thumb curled")
+	add.call("Hand pose: relaxed", "", _pose_pick.bind("relaxed"), "hand pose finger relaxed", true, "the picked hand (or the hand of the picked finger) to the relaxed pose; with cards, keyed at the playhead")
+	add.call("Hand pose: open", "", _pose_pick.bind("open"), "hand pose finger open", true, "the picked hand (or the hand of the picked finger) to the open pose; with cards, keyed at the playhead")
+	add.call("Hand pose: fist", "", _pose_pick.bind("fist"), "hand pose finger fist", true, "the picked hand (or the hand of the picked finger) to the fist pose; with cards, keyed at the playhead")
+	add.call("Hand pose: point", "", _pose_pick.bind("point"), "hand pose finger point", true, "the picked hand (or the hand of the picked finger) to the point pose; with cards, keyed at the playhead")
+	add.call("Hand pose: pinch", "", _pose_pick.bind("pinch"), "hand pose finger pinch", true, "the picked hand (or the hand of the picked finger) to the pinch pose; with cards, keyed at the playhead")
+	add.call("Hand pose: claw", "", _pose_pick.bind("claw"), "hand pose finger claw", true, "the picked hand (or the hand of the picked finger) to the claw pose; with cards, keyed at the playhead")
+	add.call("Hand pose: ok", "", _pose_pick.bind("ok"), "hand pose finger ok", true, "the picked hand (or the hand of the picked finger) to the ok pose; with cards, keyed at the playhead")
+	add.call("Hand pose: grip", "", _pose_pick.bind("grip"), "hand pose finger grip", true, "the picked hand (or the hand of the picked finger) to the grip pose; with cards, keyed at the playhead")
 	add.call("Block: stepped keys", "", _stage_block, "block blocking stepped keys pose to pose stage plan", true, "step 1 of 3: every card holds until the next (no in-betweens), to pose the key cards and add breakdowns before smoothing")
 	add.call("Spline and check", "", _stage_spline, "spline smooth stage finish check polish blocking", true, "steps 2 and 3: the in-betweens come back (the scene's own playback) and Check grades the motion")
 	add.call("Compare the walk to real walkers", "", _gait_compare, "gait walk people real compare hip knee ankle band curve normal", false, "plays the walk and measures each hip, knee and ankle against 42 real walkers (Fukuchi 2018); names the ones outside")

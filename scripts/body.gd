@@ -1649,18 +1649,90 @@ func hand_relaxed(side: String) -> void:
 
 
 func hand_curl(side: String, curl: float, spread: float, fingers := ["index", "middle", "ring", "pinky"]) -> void:
-	curl = clampf(curl, 0.0, 1.0)
-	spread = clampf(spread, 0.0, 1.0)
 	for f in fingers:
-		var pip := CURL_PIP * curl
-		var v := [Vector3(CURL_MCP * curl, SPREAD[f] * spread, 0), Vector3(pip, 0, 0), Vector3(DIP_PER_PIP * pip, 0, 0)]
-		for k in 3:
-			var j := "%s_0%d_%s" % [f, k + 1, side]
-			ang[j] = clamp_ang(j, v[k])
+		finger_curl(side, f, curl, spread)
 	if fingers.size() == 4:
+		finger_curl(side, "thumb", curl)
+	fk()
+
+
+## ONE FINGER (ROADMAP 73, the per-finger curl sliders): curl 0..1 on the same model as hand_curl (knuckle CURL_MCP,
+## middle CURL_PIP, tip DIP_PER_PIP x middle), spread 0..1 along SPREAD[f]. f = "thumb": THUMB_FIST x curl, no spread.
+## The caller calls fk() once at the end.
+func finger_curl(side: String, f: String, curl: float, spread := 0.0) -> void:
+	curl = clampf(curl, 0.0, 1.0)
+	if f == "thumb":
 		for k in 3:
-			var j := "thumb_0%d_%s" % [k + 1, side]
-			ang[j] = clamp_ang(j, (THUMB_FIST[k] as Vector3) * curl)
+			var tj := "thumb_0%d_%s" % [k + 1, side]
+			ang[tj] = clamp_ang(tj, (THUMB_FIST[k] as Vector3) * curl)
+		return
+	spread = clampf(spread, 0.0, 1.0)
+	var pip := CURL_PIP * curl
+	var v := [Vector3(CURL_MCP * curl, SPREAD[f] * spread, 0), Vector3(pip, 0, 0), Vector3(DIP_PER_PIP * pip, 0, 0)]
+	for k in 3:
+		var j := "%s_0%d_%s" % [f, k + 1, side]
+		ang[j] = clamp_ang(j, v[k])
+
+
+## one finger's curl as its sliders read it back: the middle joint over CURL_PIP (the thumb: its middle joint over 60)
+func finger_curl_of(side: String, f: String) -> float:
+	if f == "thumb":
+		return clampf((ang["thumb_02_" + side] as Vector3).x / (THUMB_FIST[1] as Vector3).x, 0.0, 1.0)
+	return clampf((ang["%s_02_%s" % [f, side]] as Vector3).x / CURL_PIP, 0.0, 1.0)
+
+
+## THE HAND POSE LIBRARY (ROADMAP 73). A pose: each finger's curl (the finger_curl model above), the thumb's curl, and the
+## spread. Sources, stated per pose:
+##   fist, point: the curl model (CURL_MCP / CURL_PIP / DIP_PER_PIP, cited above); point = the index straight.
+##   relaxed: hand_relaxed (Varghese et al. 2020, Table 13).
+##   grip (a handle in the palm): Gulke et al. 2010, J Hand Surg Am 35:797, the mean flexion of 48 people gripping five
+##     cylinder sizes, MCP 28 / PIP 43 / DIP 26 deg (the numbers docs/GRIP_RESEARCH.md quotes), the thumb as hand_shape's grip.
+##   open (flat, fingers together), pinch, claw, OK: MINE (proportions, no number from a source). They are tested against
+##     the joint limits only, not against people.
+const POSE_NAMES := ["relaxed", "open", "fist", "point", "pinch", "claw", "ok", "grip"]
+const FINGERS4 := ["index", "middle", "ring", "pinky"]
+## per pose: c = the curls of index, middle, ring, pinky; t = the thumb's curl; s = the spread (0..1)
+const POSE_CURL := {
+	"open": {"c": [0.0, 0.0, 0.0, 0.0], "t": 0.0, "s": 0.0},
+	"fist": {"c": [1.0, 1.0, 1.0, 1.0], "t": 1.0, "s": 0.0},
+	"point": {"c": [0.0, 1.0, 1.0, 1.0], "t": 1.0, "s": 0.0},
+	"pinch": {"c": [0.5, 0.2, 0.2, 0.2], "t": 0.5, "s": 0.0},
+	"claw": {"c": [0.5, 0.5, 0.5, 0.5], "t": 0.3, "s": 0.6},
+	"ok": {"c": [0.6, 0.0, 0.0, 0.0], "t": 0.6, "s": 0.3},
+}
+const GRIP_GULKE := [28.0, 43.0, 26.0]   # MCP, PIP, DIP: Gulke et al. 2010, the mean during a grip
+const GRIP_THUMB := [Vector3(5, 0, 0), Vector3(35, 0, 0), Vector3(28, 0, 0)]   # hand_shape's grip thumb
+
+
+## the picked hand's joints: four fingers then the thumb, three joints each
+func hand_joints(side: String) -> Array:
+	var out := []
+	for f in FINGERS4 + ["thumb"]:
+		for k in 3:
+			out.append("%s_0%d_%s" % [f, k + 1, side])
+	return out
+
+
+## a named pose on one hand (ROADMAP 73). Every joint goes through clamp_ang: a pose outside the limits is clipped and
+## the test says so. name must be in POSE_NAMES.
+func hand_pose(side: String, name: String) -> void:
+	if name == "relaxed":
+		hand_relaxed(side)
+		return
+	if name == "grip":
+		for f in FINGERS4:
+			for k in 3:
+				var j := "%s_0%d_%s" % [f, k + 1, side]
+				ang[j] = clamp_ang(j, Vector3(GRIP_GULKE[k], 0, 0))
+		for k in 3:
+			var tj := "thumb_0%d_%s" % [k + 1, side]
+			ang[tj] = clamp_ang(tj, GRIP_THUMB[k])
+		fk()
+		return
+	var p: Dictionary = POSE_CURL[name]
+	for i in 4:
+		finger_curl(side, FINGERS4[i], p["c"][i], p["s"])
+	finger_curl(side, "thumb", p["t"])
 	fk()
 
 
