@@ -102,7 +102,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 28. [ ] Scene versions with a visual diff (top-25 #16)
 29. [ ] Review links with frame comments (top-25 #17)
 30. [ ] Live co-editing, one animator per fighter (top-25 #18)
-31. [ ] Lip-sync from audio (top-25 #21)
+31. [x] Lip-sync from audio (top-25 #21): "Lip-sync: from the audio track" bakes a jaw channel (0-15 deg) and mouth shapes (M/A/O/E) from a wav on the timeline; tests/lip_sync_test.gd
 32. [ ] Music beats as timeline markers, snap hits to them (top-25 #22)
 33. [ ] Motion-matching preview (top-25 #23)
 34. [ ] Character mesh engine (top-25 #24)
