@@ -145,6 +145,15 @@ var ui_why_box: VBoxContainer
 var _why_last: Dictionary = {}   # the last refusal or error: {text, cmd, part, frame, at}
 var _why_cmd := ""               # the command (or button) the user ran last: the refusal's "you tried"
 var ui_cmd: CommandSearch
+## MACROS (ROADMAP 81; scripts/macros.gd): palette steps recorded in order, saved by name in macros_file. Playing one is
+## ONE undo step (_push_undo opens it once, at the first edit of the play). rec_label = the REC indicator while recording
+var macros_file := "user://macros.json"
+var macros: Array = []
+var rec_name := ""             # the macro being recorded ("" = not recording)
+var rec_steps: Array = []
+var rec_label: Label
+var _macro_nest := 0           # > 0 while a macro plays
+var _macro_pushed := false     # the play's one undo step is already open
 var ui_cube: ViewCube
 var ui_browser: Browser
 const RIBBON := ["POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
@@ -1586,10 +1595,12 @@ func _ready() -> void:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
 		library = "user://zz_lib_%d" % OS.get_process_id()
+		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
 	ui_props_root = Node3D.new()
 	ui_props_root.name = "set"
 	add_child(ui_props_root)
 	_library_load()
+	macros = Macros.load_file(macros_file)   # ROADMAP 81
 	get_window().files_dropped.connect(_on_drop)
 	get_tree().set_auto_accept_quit(false)   # ROADMAP 50: the window's close asks first (_notification below)
 	if OS.get_environment("POSER_AUTOSAVE") != "":
@@ -3522,6 +3533,10 @@ func _restore(u: Dictionary) -> void:
 
 
 func _push_undo() -> void:
+	if _macro_nest > 0:   # ROADMAP 81: a macro's edits share the one undo step, opened before its first edit
+		if _macro_pushed:
+			return
+		_macro_pushed = true
 	_tree_sync()
 	if _jpending:
 		_journal_write()   # the scene now is the last step's result: journaled before this step changes anything
@@ -8133,7 +8148,16 @@ func _ui() -> void:
 	tips.name = "tips"
 	add_child(tips)
 	tips.attach_all(self, ui_root)
-	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n)
+	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n; _macro_note(n))
+	rec_label = _label("", 16, "fail")   # ROADMAP 81: the REC indicator, shown only while a macro is recorded
+	rec_label.anchor_left = 0.5
+	rec_label.anchor_right = 0.5
+	rec_label.offset_left = -260
+	rec_label.offset_right = 260
+	rec_label.offset_top = TOP_H + 4
+	rec_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rec_label.visible = false
+	ui_root.add_child(rec_label)
 	ui_help = PanelContainer.new()
 	ui_help.name = "help_panel"
 	ui_help.anchor_left = 0.5
@@ -9051,6 +9075,9 @@ func _commands() -> Array:
 	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", false, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
+	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
+	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
+	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
 	add.call("Mode: Easy (12 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 buttons stay large (remembered)")
@@ -11486,6 +11513,10 @@ func _search_files() -> Array:
 			if (is_scene and dir.begins_with("res://poses")) or (not is_scene and dir.begins_with("res://scenes")):
 				continue
 			rows.append(_file_row(path, "scene" if is_scene else "pose"))
+	for mac in macros:   # ROADMAP 81: each saved macro is a row "Macro: <name>"
+		var nm: String = mac["name"]
+		rows.append({"name": Macros.ROW + nm, "kind": "macro", "also": "macro play recorded", "keys": "", "run": _macro_play.bind(nm),
+			"desc": "%d steps, played on the part picked now: ONE undo step (Ctrl+Z takes all of it back)" % mac["steps"].size()})
 	return rows
 
 
@@ -11496,6 +11527,112 @@ func _file_row(path: String, kind: String) -> Dictionary:
 			"desc": "%s: the body takes this pose (one undo step)" % path}
 	return {"name": nm, "kind": kind, "also": "scene", "keys": "", "run": _open_scene_file.bind(path),
 		"desc": "%s: opens the scene (asks first when this one has unsaved changes)" % path}
+
+
+## MACROS (ROADMAP 81). Record: each palette command run while recording is a step; the words of a "Pose: ..." row are
+## kept too. Play: the steps run in order on the part picked NOW (a step that needs a part stops the macro, naming the
+## step, when none is picked); the whole play is one undo step. Undo / Redo / the macro commands are never steps.
+const MACRO_SKIP := ["Record macro", "Stop macro recording", "Play macro...", "Undo", "Redo"]
+
+
+func _macro_record() -> void:
+	if rec_name != "":
+		_say("already recording '%s': run the commands, then Stop macro recording" % rec_name)
+		return
+	rec_name = Macros.new_name(macros)
+	rec_steps = []
+	_macro_indicator()
+	_say("recording '%s': each palette command you run is a step. Stop macro recording saves it" % rec_name)
+
+
+func _macro_stop() -> void:
+	if rec_name == "":
+		_say("not recording: run Record macro first, then the commands, then Stop macro recording")
+		return
+	var nm := rec_name
+	var n := rec_steps.size()
+	if n > 0:
+		macros.append({"name": nm, "steps": rec_steps})
+	rec_name = ""
+	rec_steps = []
+	_macro_indicator()
+	if n == 0:
+		_say("'%s' has no steps, so nothing was saved: Record macro, run a command, then Stop" % nm)
+	elif Macros.save_file(macros_file, macros):
+		_say("saved '%s' with %d steps: type 'macro' in the S box to play it on any part" % [nm, n])
+	else:
+		_say("'%s' is kept for this session only: %s could not be written" % [nm, macros_file])
+
+
+## a palette command or a Pose: row run while recording becomes a step (main's running signal, before it runs)
+func _macro_note(n: String) -> void:
+	if rec_name == "" or _macro_nest > 0 or n in MACRO_SKIP or n.begins_with(Macros.ROW):
+		return
+	var c := _command_named(n)
+	if not c.is_empty():
+		var has := B.ang.has(sel)
+		rec_steps.append({"name": n, "words": "", "part": sel if has else "", "needs_part": bool(c["edits"]) and has})
+	elif n.begins_with("Pose: "):
+		rec_steps.append({"name": n, "words": n.substr(6), "part": "", "needs_part": false})
+	else:
+		return   # a saved pose or scene row is not a command: not a step
+	_macro_indicator()
+
+
+func _command_named(n: String) -> Dictionary:
+	for c in ui_cmd.commands:
+		if c["name"] == n:
+			return c
+	return {}
+
+
+func _macro_indicator() -> void:
+	rec_label.visible = rec_name != ""
+	rec_label.text = "REC  %s   %d step%s   (Stop macro recording saves it)" % [rec_name, rec_steps.size(), "" if rec_steps.size() == 1 else "s"]
+
+
+func _macro_play(nm: String) -> void:
+	var mac := Macros.find(macros, nm)
+	if mac.is_empty():
+		_say("there is no macro called '%s': type 'macro' in the S box to see the saved ones" % nm)
+		return
+	if rec_name != "":
+		_say("stop recording first: '%s' cannot play while '%s' is being recorded (Stop macro recording)" % [nm, rec_name])
+		return
+	var steps: Array = mac["steps"]
+	_macro_nest = 1
+	_macro_pushed = false
+	_step_hint = Macros.ROW + nm   # the one undo step is named after the macro
+	var stop := ""
+	var done := 0
+	for i in steps.size():
+		var st: Dictionary = steps[i]
+		var where := "step %d of %d (%s)" % [i + 1, steps.size(), st["name"]]
+		if st["needs_part"] and not B.ang.has(sel):
+			stop = "stopped at %s: it needs a body part picked, and none is (the weapon or nothing is). Pick a body part, then run %s%s again" % [where, Macros.ROW, nm]
+			break
+		if st["words"] != "":
+			var r: Dictionary = _pose_words(st["words"])
+			if not r["ok"]:
+				stop = "stopped at %s: %s" % [where, String(r["error"])]
+				break
+		else:
+			var c := _command_named(st["name"])
+			if c.is_empty():
+				stop = "stopped at %s: that command is gone. Record the macro again" % where
+				break
+			(c["run"] as Callable).call()
+		done += 1
+	var opened := _macro_pushed   # an edit ran: the play's one undo step exists
+	_macro_nest = 0
+	_step_hint = ""
+	_refresh()
+	if stop == "":
+		_say("played '%s': %d steps, one undo step (Ctrl+Z takes it back)" % [nm, done])
+	elif opened:
+		_say("Macro '%s' %s. The %d step(s) before it are one undo step: Ctrl+Z takes them back" % [nm, stop, done])
+	else:
+		_say("Macro '%s' %s. Nothing in the scene changed" % [nm, stop])
 
 
 ## a pose row of the S box: the body takes the pose, one undo step (the same as a pick in the Poses list)
