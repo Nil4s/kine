@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 0 / 20 (). Full run 3 (2026-10-19): 195/216 run (a stray EXTRA=" cut 13 suites; repaired in 3793066), re-run of 34 failed or skipped: 19 load, 15 real, all fixed in b8d3f1e.
+Merged since the last full run: 2 / 20 (templates; drag any part; ). Full run 3 (2026-10-19): 195/216 run (a stray EXTRA=" cut 13 suites; repaired in 3793066), re-run of 34 failed or skipped: 19 load, 15 real, all fixed in b8d3f1e.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -114,10 +114,10 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 40. [x] Weight feel: heavy weapons slow the wind-up per mass
 
 ### Wave C: complaints, beginners ("make it easy")
-41. [ ] Pose by dragging any part with sensible defaults (no axis picking)
+41. [x] Pose by dragging any part with sensible defaults (no axis picking)
 42. [x] Auto-key toggle that is obvious (red frame)
 43. [x] "What went wrong?" button: explains the last error in plain words
-44. [ ] Templates: walk, run, jump, punch, sword swing as starting scenes
+44. [x] Templates: walk, run, jump, punch, sword swing as starting scenes
 45. [x] Undo that never surprises: names each step in the menu
 46. [x] Snap a pose to the floor in one click
 47. [x] Big timeline handles, retime by dragging a card's edge
