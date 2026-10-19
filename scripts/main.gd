@@ -10448,6 +10448,7 @@ func _commands() -> Array:
 	add.call("Speed graph on/off", "Y", _press.bind(KEY_Y), "curve velocity", false, "tip, hips and head speed over the scene; click it to scrub")
 	add.call("Stepped preview on/off", "", _tool.bind(3), "blocking poses", true, "play card to card with no in-betweens (view only, never saved)")
 	add.call("Moving holds on/off", "", _tool.bind(4), "drift", true, "during a hold the upper body drifts a little toward the next card (saved with the scene)")
+	add.call("Is this clip physically possible?", "", _feasible_check, "feasible possible impossible physics balance verdict pass fix kungfubot ballistic jump foot slide penetration", false, "one verdict for the clip: PASS / FIX (with the frames and the reason) / IMPOSSIBLE. KungfuBot's balance filter (first and last frame stable, no long unstable run), free fall in the air, foot slide per contact, self-penetration. See docs/research/ROBOT_MOTION.md")
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
@@ -11786,6 +11787,12 @@ func _check(given = null) -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_button("Close", _close_findings))
+	if HumanLimits.on:   # the clip's verdict (scripts/feasible.gd)
+		var vf := findings.filter(func(f): return f["rule"] == "FEASIBLE")
+		var vword := "PASS" if vf.is_empty() else String(vf[0]["msg"]).split(" ")[0]
+		var vl := _label("Is this clip physically possible?  %s" % vword + ("" if vword == "PASS" else "  (the frames and reasons are below; click one)"), 16, "heading" if vword == "PASS" else "warn", true)
+		vl.name = "verdict"
+		ui_find_list.add_child(vl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
 	for fk in findings.size():
@@ -14553,6 +14560,14 @@ func _human_check() -> void:
 	HumanLimits.on = not HumanLimits.on
 	_check()
 	_say(("Check now asks 'could a human do this?' too: joint speed and tipping against recorded limits (experimental)" if HumanLimits.on else "Check is back to the rulebook alone"))
+
+
+## "Is this clip physically possible?": Check with the feasibility verdict (scripts/feasible.gd) switched on
+func _feasible_check() -> void:
+	HumanLimits.on = true
+	_check()
+	var vf := findings.filter(func(f): return f["rule"] == "FEASIBLE")
+	_say("physically possible? " + ("PASS: nothing here a body could not do" if vf.is_empty() else String(vf[0]["msg"]).split(" ")[0] + ": click a finding to jump to its frames and read the reason"))
 
 
 ## TWINNING (ROADMAP 19; scripts/twinning.gd): the mirror twins the default Check does not grade. Shown in the Check list.
