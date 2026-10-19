@@ -65,7 +65,7 @@ static func all_times(S: Scene) -> Array:
 	for pr in S.props:
 		for key in pr.get("keys", []):
 			xs.append(float(key["t"]))
-	for arr in [S.markers, S.camera, S.beats, S.lip.get("jaw", []), S.lip.get("mouth", [])]:
+	for arr in [S.markers, ShotCam.time_items(S.shots), S.beats, S.lip.get("jaw", []), S.lip.get("mouth", [])]:
 		for d in arr:
 			xs.append(float(d["t"]))
 	for n in S.notes:
@@ -111,7 +111,7 @@ static func apply(S: Scene, r0: float, r1: float, p: float, pct: float) -> int:
 	for pr in S.props:
 		for key in pr.get("keys", []):
 			key["t"] = W.call(float(key["t"]))
-	for arr in [S.markers, S.camera, S.beats, S.lip.get("jaw", []), S.lip.get("mouth", [])]:
+	for arr in [S.markers, ShotCam.time_items(S.shots), S.beats, S.lip.get("jaw", []), S.lip.get("mouth", [])]:
 		for d in arr:
 			d["t"] = W.call(float(d["t"]))
 	for n in S.notes:   # a note sits on a frame: the frame moves with the map, to the nearest frame

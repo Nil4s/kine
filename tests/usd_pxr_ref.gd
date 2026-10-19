@@ -21,8 +21,8 @@ func _init() -> void:
 		{"name": "fix", "mode": "add", "w": 1.0, "v": {"spine_01": Vector3(12, 0, 0), "upperarm_r": Vector3(0, 0, 25)}},
 		{"name": "lean", "mode": "over", "w": 1.0, "wk": [[0.0, 0.0], [0.6, 1.0], [1.2, 0.3]], "v": {"neck_01": Vector3(-20, 0, 0), "head": Vector3(0, 15, 0)}},
 	]
-	S.camera = [{"t": 0.0, "pos": Vector3(0.6, 1.4, 3.0), "aim": Vector3(0, 1.0, 0), "f": 50.0},
-		{"t": 1.0, "pos": Vector3(1.2, 1.5, 2.5), "aim": Vector3(0, 1.1, 0), "f": 35.0}]
+	S.shots = [{"t": 0.0, "name": "Shot 1", "keys": [{"t": 0.0, "pos": Vector3(0.6, 1.4, 3.0), "aim": Vector3(0, 1.0, 0), "f": 50.0},
+		{"t": 1.0, "pos": Vector3(1.2, 1.5, 2.5), "aim": Vector3(0, 1.1, 0), "f": 35.0}]}]
 	var fps := float(S.fps)
 	var n := int(ceil(S.length() * fps - 1e-6)) + 1
 	var w1 := UsdExport.write_layers(S, B, abs, NM)

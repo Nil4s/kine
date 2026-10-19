@@ -76,8 +76,7 @@ var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "targe
 var sets := {}         # SELECTION + KEYING SETS (GAP_ANALYSIS rows 9, 6): {"select": {name: [parts]}, "keying": {..}, "active"}; scripts/part_sets.gd
 var clips := []        # CLIPS (GAP_ANALYSIS row 12): other scenes / moves placed as strips, by reference; scripts/clips.gd
 var boxes := []        # HIT / HURT BOXES per frame (ROADMAP 36): the file's "boxes" key; scripts/hit_boxes.gd
-var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
-var camera_fx := {}    # the shot camera's SHAKE and RACK FOCUS (ROADMAP 76): {"shake": [impact events], "focus": [keys]}; scripts/shot_fx.gd; in the file as "camera_fx" only when any
+var shots := []        # THE SHOTS (ROADMAP 75): [{"t" cut s, "name", "keys": the shot camera [{"t", "pos", "aim", "f" mm}]}]; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var plants := []      # FOOT PLANTS over a time range (ROADMAP 8): [{"foot", "t0", "t1"}] by t0; scripts/foot_plant.gd; in the file as "plants" (only when any)
 var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: miss, ball turn, weight, clamped); {} = nothing
@@ -1430,8 +1429,7 @@ func clone() -> Scene:
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
-	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
-	c.camera_fx = camera_fx.duplicate(true)   # its shake and rack focus (shot_fx.gd)
+	c.shots = shots.duplicate(true)   # the shots and their cameras (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
 	c.clips = clips.duplicate(true)   # CLIPS (clips.gd)
 	c.boxes = boxes.duplicate(true)   # HIT / HURT BOXES (hit_boxes.gd)
@@ -1958,10 +1956,10 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["secondary"] = SecondaryMotion.to_file(secondary)   # secondary motion: the same, only when there is an item
 	if not cons.is_empty():
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
-	if not camera.is_empty():
-		out["camera"] = ShotCam.to_file(camera)   # the shot camera: the same, only when there is one
-	if not ShotFx.clean(camera_fx).is_empty():
-		out["camera_fx"] = ShotFx.to_file(camera_fx)   # its shake and rack focus: the same, only when there are any
+	if ShotCam.is_legacy(shots):
+		out["camera"] = ShotCam.to_file(shots[0]["keys"])   # one shot: the old one-camera form (an old file saves the same)
+	elif not shots.is_empty():
+		out["shots"] = ShotCam.shots_to_file(shots)   # the shots, only when there are any (ROADMAP 75)
 	if not PartSets.clean(sets).is_empty():
 		out["sets"] = PartSets.to_file(sets)   # selection / keying sets: the same, only when there is one
 	if not clips.is_empty():
@@ -1991,6 +1989,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected; the back's spline key \"spine\" is its own twin: its mid and chest points x negated, its hip / chest twists negated)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
+	"shots": "SIDED: ShotCam.mirror_shots_file (every shot's camera mirrored as \"camera\"; the cut times and names free)",
 	"sets": "SIDED: PartSets.mirror_file (every part to its twin; a set named \"_l\" / \"_r\" takes its twin's name, the active keying set too)",
 	"clips": "SIDED: Clips.mirror_file (each clip's source plays mirrored: the flag toggles; a one-arm mask goes to the other arm; times free)",
 	"boxes": "SIDED: HitBoxes.mirror_file (a box's part to its twin, _l <-> _r; an attack box's offsets x negated; frames and damage free)"}
@@ -2053,8 +2052,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["constraints"] = Constraints.mirror_file(d2["constraints"])   # round 51: owners / parts to twins, offsets reflected
 	if d2.has("camera"):
 		d2["camera"] = ShotCam.mirror_file(d2["camera"])   # the shot camera across x = 0
-	if d2.has("camera_fx"):
-		d2["camera_fx"] = ShotFx.mirror_file(d2["camera_fx"])   # its shake (x, yaw, roll flip) and focus parts to their twins
+	if d2.has("shots"):
+		d2["shots"] = ShotCam.mirror_shots_file(d2["shots"])   # every shot's camera across x = 0 (ROADMAP 75)
 	if d2.has("sets"):
 		d2["sets"] = PartSets.mirror_file(d2["sets"])   # selection / keying sets: parts to twins, "_l" / "_r" names swapped
 	if d2.has("boxes"):
@@ -2127,8 +2126,7 @@ func from_dict(d: Dictionary) -> void:
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():
 		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
-	camera = ShotCam.from_file(d.get("camera", []))   # the shot camera: absent = none
-	camera_fx = ShotFx.from_file(d.get("camera_fx", {}))   # its shake and rack focus: absent = none
+	shots = ShotCam.shots_from_file(d)   # the shots (ROADMAP 75); an old "camera" = one shot; absent = none
 	sets = PartSets.from_file(d.get("sets", {}))   # selection / keying sets: absent = none
 	clips = Clips.from_file(d.get("clips", []))   # CLIPS: absent = none
 	boxes = HitBoxes.from_file(d.get("boxes", []))   # HIT / HURT BOXES: absent = none

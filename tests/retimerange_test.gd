@@ -47,7 +47,7 @@ func make() -> Scene:
 ## every timed field of a scene, as bytes (bar 11)
 func dump_all(S: Scene) -> String:
 	return var_to_str([S.cards, S.part_keys, S.plants, S.ik, S.markers, S.layers, S.props.map(func(q): return Props.to_dict(q)),
-		S.camera, S.lip, S.beats, S.notes, S.secondary, S.clips])
+		ShotCam.time_items(S.shots), S.lip, S.beats, S.notes, S.secondary, S.clips])
 
 
 func key_t(S: Scene, joint: String, i: int) -> float:

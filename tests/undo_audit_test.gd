@@ -142,7 +142,7 @@ func fp() -> String:
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
 		"cons": var_to_str(m.S.cons),   # constraints (round 51)
 		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))),   # the set: keys, a door's swing (row 22)
-		"camera": var_to_str(m.S.camera),   # the shot camera (shot_camera.gd)
+		"shots": var_to_str(m.S.shots),   # the shots and their cameras (shot_camera.gd, ROADMAP 75)
 		"sets": var_to_str(m.S.sets),   # selection / keying sets (part_sets.gd)
 		"clips": var_to_str(m.S.clips),   # CLIPS (clips.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
@@ -269,8 +269,9 @@ func start(kind: String) -> void:
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
 		m._card_pick(2)
-		ShotCam.put(m.S.camera, {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
-		ShotCam.put(m.S.camera, {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
+		m.S.shots = [{"t": 0.0, "name": "Shot 1", "keys": []}]
+		ShotCam.put(m.S.shots[0]["keys"], {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
+		ShotCam.put(m.S.shots[0]["keys"], {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
 	elif kind.begins_with("SETS"):
 		# selection / keying sets (part_sets.gd): a selection set "arm_l", a keying set "swing" (active in SETS_B); SETS picks
 		# the keying set with a member selected (remove / delete / mirror / use for K), SETS_B the selection set with a

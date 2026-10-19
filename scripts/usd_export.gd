@@ -224,7 +224,7 @@ static func _camera(S: Scene, n: int, fps: float, L: float, ind: String) -> Arra
 	var tr := PackedStringArray()
 	var fo := PackedStringArray()
 	for i in n:
-		var k := ShotCam.sample(S.camera, minf(i / fps, L))
+		var k := ShotCam.at(S.shots, minf(i / fps, L))
 		tr.append("%s%d: %s," % [ind, i, _xfm(ShotCam.xf(k["pos"], k["aim"]))])
 		fo.append("%s%d: %s," % [ind, i, _f(float(k["f"]))])
 	return [tr, fo]
@@ -313,7 +313,7 @@ static func write_layers(S: Scene, B: Body, dir: String, nm: String) -> Array:
 			pc.append_array(PackedStringArray(["    def Xform \"Prop_%d_%s\"" % [k, prim_name(String(p["kind"]))], "    {",
 				"        matrix4d xformOp:transform = " + _xfm(p["xf"]), "        uniform token[] xformOpOrder = [\"xformOp:transform\"]", "    }"]))
 		pc.append("}")
-	if not S.camera.is_empty():
+	if not S.shots.is_empty():
 		var cam := _camera(S, n, fps, L, "            ")
 		pc.append_array(PackedStringArray(["def Camera \"Shot\"", "{", "    float horizontalAperture = 36", "    float verticalAperture = 20.25",
 			"    float focalLength.timeSamples = {"]))

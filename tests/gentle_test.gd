@@ -54,7 +54,7 @@ func fp() -> String:
 	var sd := {"cards": m.S.cards, "name": m.S.name, "natural": m.S.natural, "spline": m.S.spline, "on_floor": m.S.on_floor,
 		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers, "notes": m.S.notes, "layer": var_to_str(m.S.layer),
 		"layers": var_to_str(m.S.layers), "audio": var_to_str(m.S.audio), "ik": var_to_str(m.S.ik), "cons": var_to_str(m.S.cons),
-		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))), "camera": var_to_str(m.S.camera),
+		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))), "shots": var_to_str(m.S.shots),
 		"sets": var_to_str(m.S.sets), "clips": var_to_str(m.S.clips), "drivers": var_to_str(m.S.drivers),
 		"secondary": var_to_str(m.S.secondary), "lip": var_to_str(m.S.lip), "plants": var_to_str(m.S.plants),
 		"body": var_to_str(m.S.body), "fps": m.S.fps, "n_actors": m.S.actors.size()}

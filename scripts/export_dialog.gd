@@ -245,7 +245,7 @@ func checks(id: String, run: String) -> Array:
 		out.append("OK    props: none in this scene")
 	if not S.audio.is_empty():
 		out.append("WARN  the sound track is not in any export: import the sound into the engine yourself")
-	if not S.camera.is_empty():
+	if not S.shots.is_empty():
 		out.append("WARN  the shot camera is not in any export")
 	var fighters: int = (m._export_actors() as Array).size()
 	if fighters > 1:

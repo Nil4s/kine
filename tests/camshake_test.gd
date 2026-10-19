@@ -44,6 +44,7 @@ func _init() -> void:
 	var S := Scene.new()
 	S.name = "zz_camshake"
 	S.fps = 24
+	S.shots = [{"t": 0.0, "name": "Shot 1", "keys": [], "fx": {}}]   # one shot: the camera, its shake and focus (ROADMAP 75 + 76)
 	S.add("c0", pose(0, 0))
 	S.add("c1", pose(70, 80))
 	for i in 2:
@@ -56,9 +57,9 @@ func _init() -> void:
 	m._refresh()
 	await idle(3)
 	var L := S.length()
-	ShotCam.put(S.camera, {"t": 0.0, "pos": Vector3(2.8, 1.3, -1.2), "aim": Vector3(0, 1.0, 0), "f": 50.0})
-	ShotCam.put(S.camera, {"t": 0.2, "pos": Vector3(3.0, 1.1, 0.6), "aim": Vector3(0.1, 0.9, 0.05), "f": 35.0})
-	ShotCam.put(S.camera, {"t": L, "pos": Vector3(-2.6, 1.6, -1.5), "aim": Vector3(0, 1.2, -0.1), "f": 85.0})
+	ShotCam.put(S.shots[0]["keys"], {"t": 0.0, "pos": Vector3(2.8, 1.3, -1.2), "aim": Vector3(0, 1.0, 0), "f": 50.0})
+	ShotCam.put(S.shots[0]["keys"], {"t": 0.2, "pos": Vector3(3.0, 1.1, 0.6), "aim": Vector3(0.1, 0.9, 0.05), "f": 35.0})
+	ShotCam.put(S.shots[0]["keys"], {"t": L, "pos": Vector3(-2.6, 1.6, -1.5), "aim": Vector3(0, 1.2, -0.1), "f": 85.0})
 	m._refresh()
 	await idle(3)
 
@@ -94,7 +95,7 @@ func _init() -> void:
 	ok(ShotFx.shake_at(evs, 0.4).is_empty() and ShotFx.shake_at(evs, 1.2).is_empty(), "  and it is absent before its start and after its end")
 
 	# 2: the shot camera's view outside every shake is the keyed camera, byte for byte; inside it is shaken
-	S.camera_fx = {"shake": evs, "focus": []}
+	S.shots[0]["fx"] = {"shake": evs, "focus": []}
 	var outside_ok := true
 	var inside_differs := false
 	for t in [0.0, 0.3, 0.45, 1.2, L + 2.0]:   # the scene ends at L (0.5 s), the shake starts there: its own start is not outside
@@ -108,14 +109,14 @@ func _init() -> void:
 			inside_differs = true
 	ok(outside_ok, "2 outside every shake the shot view is byte-identical to the keyed camera (0 s, 0.3, 0.45, 1.2, 2.5 s)")
 	ok(inside_differs, "  inside the shake (0.6 s, 0.7 s) the view moves")
-	S.camera_fx = {}
+	S.shots[0]["fx"] = {}
 
 	# 5: a focus-on-part key tracks the part: the focus is the camera-to-part distance within 1 cm at 3 times
 	m.sel = "upperarm_r"
-	S.camera_fx = {"shake": [], "focus": [{"t": 0.0, "part": "upperarm_r"}]}
+	S.shots[0]["fx"] = {"shake": [], "focus": [{"t": 0.0, "part": "upperarm_r"}]}
 	var worst := 0.0
 	for t in [0.0, 0.35, L]:
-		var keyed: Vector3 = ShotCam.sample(S.camera, t)["pos"]
+		var keyed: Vector3 = ShotCam.sample(S.shots[0]["keys"], t)["pos"]
 		var part: Vector3 = ShotFx.part_at(S, "upperarm_r", t)
 		var truth := keyed.distance_to(part)
 		var got: float = m.shot_view_at(t)["focus"]
@@ -124,26 +125,26 @@ func _init() -> void:
 	print("  worst focus error %.2f mm" % (worst * 1000.0))
 
 	# 6: one undo step per command
-	S.camera_fx = {}
+	S.shots[0]["fx"] = {}
 	m.playhead = 0.2
 	m._refresh()
 	var n0: int = m.undo.size()
 	m._shot_shake_here()
 	var n1: int = m.undo.size()
-	ok(n1 == n0 + 1 and (S.camera_fx.get("shake", []) as Array).size() == 1, "6 the impact shake is one undo step (%d -> %d steps, %d shake)" % [n0, n1, (S.camera_fx.get("shake", []) as Array).size()])
+	ok(n1 == n0 + 1 and (S.shots[0]["fx"].get("shake", []) as Array).size() == 1, "6 the impact shake is one undo step (%d -> %d steps, %d shake)" % [n0, n1, (S.shots[0]["fx"].get("shake", []) as Array).size()])
 	m._undo()
-	ok((S.camera_fx.get("shake", []) as Array).is_empty(), "  undo takes the shake back")
+	ok((S.shots[0]["fx"].get("shake", []) as Array).is_empty(), "  undo takes the shake back")
 	m.playhead = 0.35
 	m._refresh()
 	n0 = m.undo.size()
 	m._shot_focus_part()
 	n1 = m.undo.size()
-	ok(n1 == n0 + 1 and (S.camera_fx.get("focus", []) as Array).size() == 1, "6 the focus-on-part key is one undo step (%d -> %d steps)" % [n0, n1])
+	ok(n1 == n0 + 1 and (S.shots[0]["fx"].get("focus", []) as Array).size() == 1, "6 the focus-on-part key is one undo step (%d -> %d steps)" % [n0, n1])
 	m._undo()
-	ok((S.camera_fx.get("focus", []) as Array).is_empty(), "  undo takes the focus key back")
+	ok((S.shots[0]["fx"].get("focus", []) as Array).is_empty(), "  undo takes the focus key back")
 
 	# 7: look-through puts the depth of field on the camera at the focus distance; the free view has none
-	S.camera_fx = {"shake": [], "focus": [{"t": 0.0, "dist": 2.0}, {"t": L, "part": "upperarm_r"}]}
+	S.shots[0]["fx"] = {"shake": [], "focus": [{"t": 0.0, "dist": 2.0}, {"t": L, "part": "upperarm_r"}]}
 	m.playhead = 0.1
 	m._refresh()
 	m._shot_toggle()

@@ -51,9 +51,10 @@ func _init() -> void:
 	m._refresh()
 	await idle(3)
 	var L := S.length()
-	ShotCam.put(S.camera, {"t": 0.0, "pos": Vector3(2.8, 1.3, -1.2), "aim": Vector3(0, 1.0, 0), "f": 50.0})
-	ShotCam.put(S.camera, {"t": 0.2, "pos": Vector3(3.0, 1.1, 0.6), "aim": Vector3(0.1, 0.9, 0.05), "f": 35.0})
-	ShotCam.put(S.camera, {"t": L, "pos": Vector3(-2.6, 1.6, -1.5), "aim": Vector3(0, 1.2, -0.1), "f": 85.0})
+	S.shots = [{"t": 0.0, "name": "Shot 1", "keys": []}]   # one shot: its camera is the three keys below
+	ShotCam.put(S.shots[0]["keys"], {"t": 0.0, "pos": Vector3(2.8, 1.3, -1.2), "aim": Vector3(0, 1.0, 0), "f": 50.0})
+	ShotCam.put(S.shots[0]["keys"], {"t": 0.2, "pos": Vector3(3.0, 1.1, 0.6), "aim": Vector3(0.1, 0.9, 0.05), "f": 35.0})
+	ShotCam.put(S.shots[0]["keys"], {"t": L, "pos": Vector3(-2.6, 1.6, -1.5), "aim": Vector3(0, 1.2, -0.1), "f": 85.0})
 	m._refresh()
 	await idle(3)
 
@@ -91,8 +92,8 @@ func _init() -> void:
 
 	# 3 timeline diamonds
 	var tl: Timeline = m.ui_timeline
-	ok(tl.cam_times().size() == S.camera.size(), "3 one timeline diamond per camera key: %d of %d" % [tl.cam_times().size(), S.camera.size()])
-	for k in S.camera:
+	ok(tl.cam_times().size() == S.shots[0]["keys"].size(), "3 one timeline diamond per camera key: %d of %d" % [tl.cam_times().size(), S.shots[0]["keys"].size()])
+	for k in S.shots[0]["keys"]:
 		var t := float(k["t"])
 		var at := Vector2(tl.x_of(t), tl._cam_y())
 		ok(absf(tl.cam_key_at(at) - t) < 1e-6, "  the diamond at %.2f s is clickable" % t)

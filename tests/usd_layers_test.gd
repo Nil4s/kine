@@ -74,8 +74,8 @@ func _init() -> void:
 		{"name": "fix", "mode": "add", "w": 1.0, "v": {"spine_01": Vector3(12, 0, 0), "upperarm_r": Vector3(0, 0, 25)}},
 		{"name": "lean", "mode": "over", "w": 1.0, "wk": [[0.0, 0.0], [0.6, 1.0], [1.2, 0.3]], "v": {"neck_01": Vector3(-20, 0, 0), "head": Vector3(0, 15, 0)}},
 	]
-	S.camera = [{"t": 0.0, "pos": Vector3(0.6, 1.4, 3.0), "aim": Vector3(0, 1.0, 0), "f": 50.0},
-		{"t": 1.0, "pos": Vector3(1.2, 1.5, 2.5), "aim": Vector3(0, 1.1, 0), "f": 35.0}]
+	S.shots = [{"t": 0.0, "name": "Shot 1", "keys": [{"t": 0.0, "pos": Vector3(0.6, 1.4, 3.0), "aim": Vector3(0, 1.0, 0), "f": 50.0},
+		{"t": 1.0, "pos": Vector3(1.2, 1.5, 2.5), "aim": Vector3(0, 1.1, 0), "f": 35.0}]}]
 	var fps := float(S.fps)
 	var n := int(ceil(S.length() * fps - 1e-6)) + 1
 	var frames := [0, n / 2, n - 1]
@@ -204,7 +204,7 @@ func _init() -> void:
 			cam_ok = false
 			break
 		var t := minf(i / fps, S.length())
-		var k := ShotCam.sample(S.camera, t)
+		var k := ShotCam.at(S.shots, t)
 		var origin := Vector3(cam_tr[i][12], cam_tr[i][13], cam_tr[i][14])
 		worst_cam = maxf(worst_cam, origin.distance_to(k["pos"]))
 		worst_cam = maxf(worst_cam, absf(float(fo[i]) - float(k["f"])))
@@ -216,7 +216,7 @@ func _init() -> void:
 	await process_frame
 	app._load_scene("res://scenes/combo3.json")
 	app.S.layers = S.layers.duplicate(true)
-	app.S.camera = S.camera.duplicate(true)
+	app.S.shots = S.shots.duplicate(true)
 	var out: String = app._export_usd_layers(DIR)
 	var cmd_ok := out != "" and FileAccess.file_exists(out) and UT.parse(read(out)).has("meta")
 	var cmd_sub := 0

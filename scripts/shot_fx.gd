@@ -1,7 +1,7 @@
 ## shot_fx.gd - CAMERA SHAKE and RACK FOCUS on the shot camera (ROADMAP 76). The keys' maths lives in shot_camera.gd;
-## this file holds the two things a shot can add on top of it. They sit in the scene's "camera_fx" sub-dictionary, next to
-## (not inside) the camera keys, so the camera list itself keeps its shape:
-##   camera_fx = {"shake": [impact events], "focus": [focus keys]}
+## this file holds the two things a shot can add on top of it. Each SHOT (ShotCam, shot_camera.gd) carries its own fx next to
+## its camera keys, so every shot has its own shake and rack focus (ROADMAP 75):
+##   shot.fx = {"shake": [impact events], "focus": [focus keys]}
 ##
 ## SHAKE: an event {"t" (start s), "dur" (s), "cm" Vector3 (x right, y up, z forward of the camera, cm), "deg" Vector3
 ## (pitch, yaw, roll of the camera, deg), "hz" (the base frequency), "decay" (e-folds over the event), "seed", "name"}.
@@ -164,7 +164,7 @@ static func _dist(k: Dictionary, t: float, cam_at: Callable, part_at_fn: Callabl
 	return maxf(DIST_MIN, float(k["dist"]))
 
 
-## the keys and shakes as the file holds them ("camera_fx" in the scene file; only when either is not empty)
+## the keys and shakes as the file holds them (the shot's "fx" in the scene file; only when either is not empty)
 static func clean(fx: Dictionary) -> Dictionary:
 	var out := {}
 	if not (fx.get("shake", []) as Array).is_empty():
@@ -225,7 +225,7 @@ static func from_file(d: Variant) -> Dictionary:
 	return out
 
 
-## MIRROR (Scene.MIRROR_SCENE "camera_fx", on the file form): the body mirrors across x = 0, so the shake's sideways
+## MIRROR (ShotCam.mirror_shots_file, each shot's "fx" on the file form): the body mirrors across x = 0, so the shake's sideways
 ## offset (x), yaw and roll flip, and a part key moves to its twin (Body.twin: _l <-> _r). Times, sizes and seeds stay.
 static func mirror_file(d: Dictionary) -> Dictionary:
 	var out := {}
