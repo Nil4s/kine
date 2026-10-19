@@ -95,7 +95,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 16. [ ] Phone video to clean animation: contacts locked, jitter off (top-25 #5)
 17. [~] Ease presets measured from real motion (top-25 #20)
 18. [ ] Grips for any prop mesh (top-25 #10)
-19. [~] Twinning check: left and right moving in perfect sync flagged
+19. [x] Twinning check: left and right moving in perfect sync flagged (wt-twinning: scripts/twinning.gd, "Check: twinning" and "Fix: offset the picked side by 3 frames"; docs/research/TWINNING.md)
 20. [~] Viewport playback at real time on heavy scenes (measure, then cache poses per frame)
 
 ### Wave B: the innovations
