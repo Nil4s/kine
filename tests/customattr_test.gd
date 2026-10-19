@@ -78,12 +78,14 @@ func _init() -> void:
 	m._attr_add()
 	ok(S.attrs.has(id) and m.undo.size() == u0 + 1, "1c '+ attribute' adds hand_r.grip (0 .. 1, default 0): one undo step %s" % (m.undo.size() - u0))
 	m._undo()
-	ok(not S.attrs.has(id), "1d Ctrl+Z takes the attribute back")
-	m.ui_attr_name.text = "grip"
-	m._attr_add()
-	ok(S.attrs.has(id) and (S.attrs[id]["keys"] as Array).is_empty(), "1e the same form adds it again, with no keys")
+	m._refresh()
+	ok(not S.attrs.has(id) and m.ui_attr_box.get_child_count() == 0 and not m.ui_attr_sliders.has(id),
+		"1d Ctrl+Z of the add: the attribute AND its row are gone (rows %d)" % m.ui_attr_box.get_child_count())
+	m._redo()
 	m._refresh()
 	await process_frame
+	ok(S.attrs.has(id) and (S.attrs[id]["keys"] as Array).is_empty() and m.ui_attr_sliders.has(id),
+		"1e Ctrl+Y of the add: the attribute and its row are back, with no keys")
 
 	# 2 keys by the slider: a drag at card 1 (0) and at card 3 (1), one undo step per drag
 	var sl: HSlider = m.ui_attr_sliders[id][0]
@@ -169,16 +171,49 @@ func _init() -> void:
 	m.playhead = t1
 	m.sel = "hand_r"
 	m._sec_open("ATTRIBUTES", true)
+	if m.dummy_on:
+		m._dummy_toggle()   # the dummy stands in the front view and hides the hero: off for the picture
+	m._refresh()
+	await create_timer(4.0).timeout   # the toast of the last step fades: the picture shows the panel, not a toast
 	m._refresh()
 	for i in 4:
 		await process_frame
+	sl = m.ui_attr_sliders[id][0]
 	var rp: Control = m.ui_insp
 	var rr: Rect2 = Rect2(rp.get_global_rect())
 	var inside: bool = rr.encloses(Rect2(sl.get_global_rect()))
 	var name_row_in: bool = rr.encloses(Rect2(m.ui_attr_name.get_global_rect()))
 	var box_ok: bool = m.ui_attr_box.get_child_count() == 1 and sl.is_visible_in_tree()
 	m.get_viewport().get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/customattr.png")
-	ok(inside and name_row_in and box_ok, "8 the grip slider and the attribute form sit inside the right inspector panel (slider %s, form %s); screenshot saved" % [inside, name_row_in])
+	var toast_gone: bool = m.ui_toast == null or not m.ui_toast.visible
+	ok(inside and name_row_in and box_ok and toast_gone, "8 the grip slider and the attribute form sit inside the right inspector panel (slider %s, form %s), no toast on the picture (%s); screenshot saved" % [inside, name_row_in, toast_gone])
+
+	# 9 delete: the row's own button; one undo step; Ctrl+Z gives the attribute, its keys and its row back
+	var del: Button = null
+	for b in m.ui_attr_box.find_children("*", "Button", true, false):
+		if (b as Button).text.begins_with("delete"):
+			del = b
+	var nkeys: int = (S.attrs[id]["keys"] as Array).size()
+	u0 = m.undo.size()
+	if del != null:
+		del.pressed.emit()
+	m._refresh()
+	ok(del != null and not S.attrs.has(id) and m.undo.size() == u0 + 1 and m.ui_attr_box.get_child_count() == 0,
+		"9a the 'delete grip' button removes hand_r.grip and its row: one undo step (%d)" % (m.undo.size() - u0))
+	m._undo()
+	m._refresh()
+	ok(S.attrs.has(id) and (S.attrs[id]["keys"] as Array).size() == nkeys and m.ui_attr_sliders.has(id),
+		"9b Ctrl+Z brings the attribute back with its %d keys and its row" % nkeys)
+
+	# 10 the slider track is visible at 0 in both palettes (contrast 3:1 or more against the panel)
+	var track: StyleBoxFlat = m.ui_attr_sliders[id][0].get_theme_stylebox("slider")
+	var was_dark: bool = Tok.dark
+	Tok.set_dark(true)
+	var cd := Tok.contrast(track.bg_color, Tok.c("panel"))
+	Tok.set_dark(false)
+	var cl := Tok.contrast(track.bg_color, Tok.c("panel"))
+	Tok.set_dark(was_dark)
+	ok(cd >= 3.0 and cl >= 3.0, "10 the slider track (text:0.45) against the panel: dark %.2f, light %.2f (bar 3.0)" % [cd, cl])
 
 	print("CUSTOMATTR %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(fails)

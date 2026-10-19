@@ -3458,6 +3458,7 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("attrs") and var_to_str(u["attrs"]) != var_to_str(S.attrs):
 		S.attrs = u["attrs"].duplicate(true)   # CUSTOM ATTRIBUTES (ROADMAP 82), undone like a card
 		_attr_sig = ""
+		_attr_refresh()   # the rows of an undone add go, and come back on redo, without waiting for the next refresh
 	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
@@ -8436,8 +8437,10 @@ func _attr_refresh() -> void:
 			s.drag_started.connect(_push_undo)
 			s.value_changed.connect(_on_attr.bind(id))
 			_row_slider(r, s)
+			s.add_theme_stylebox_override("slider", _attr_track())   # a track that shows at 0 in both palettes
 			ui_attr_box.add_child(box)
 			ui_attr_sliders[id] = [s, r]
+			_row(box, [_button("delete %s" % n, _do.bind(_attr_delete.bind(id)), "remove %s from %s and its keys: one undo step (Ctrl+Z brings it back)" % [n, sel])])
 	for n in names:
 		var id := CustomAttr.id_of(sel, n)
 		var t := clampf(playhead, 0.0, S.length())
@@ -8446,6 +8449,22 @@ func _attr_refresh() -> void:
 		(ui_attr_sliders[id][0] as HSlider).set_value_no_signal(v)
 		_set_prop(ui_attr_sliders[id][1], n, "%.2f" % v,
 			"%s on %s: %d key%s; the value at the playhead. Drag the slider to key it there" % [n, sel, keys.size(), "" if keys.size() == 1 else "s"])
+
+
+## the slider's track: a text-tinted strip (Tok "text:0.45"), so it reads at value 0 in the dark and the light palette
+func _attr_track() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.of("text:0.45")
+	sb.set_corner_radius_all(3)
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	return sb
+
+
+## "delete" on an attribute row (one undo step)
+func _attr_delete(id: String) -> void:
+	CustomAttr.remove(S.attrs, id)
+	_say("deleted %s on %s (Ctrl+Z brings it back with its keys)" % [CustomAttr.name_of(id), CustomAttr.part_of(id)])
 
 
 ## a slider of an attribute: the value is keyed at the playhead (a drag is one undo step: its start takes the step)

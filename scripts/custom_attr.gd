@@ -93,6 +93,11 @@ static func key(attrs: Dictionary, id: String, t: float, v: float) -> bool:
 	return true
 
 
+## deletes the attribute and its keys; false if there is no such attribute
+static func remove(attrs: Dictionary, id: String) -> bool:
+	return attrs.erase(id)
+
+
 ## the attribute names on one part, sorted
 static func names_on(attrs: Dictionary, part: String) -> Array:
 	var out := []
