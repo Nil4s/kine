@@ -130,6 +130,10 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	custom_minimum_size = Vector2(0, 46)
 	clip_contents = true
+	_ph.mouse_filter = Control.MOUSE_FILTER_IGNORE   # ROADMAP 99: the playhead overlay (clicks go to the timeline)
+	_ph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ph.draw.connect(_draw_playhead)
+	add_child(_ph)
 
 
 func _S() -> Scene:
@@ -758,10 +762,25 @@ func _draw() -> void:
 	for t in cam_times():
 		var cx := x_of(float(t))
 		draw_colored_polygon(PackedVector2Array([Vector2(cx, cy - CAM_R), Vector2(cx + CAM_R, cy), Vector2(cx, cy + CAM_R), Vector2(cx - CAM_R, cy)]), ShotGizmo.COLOR)
-	# playhead
-	var px := x_of(clampf(float(m.playhead), 0.0, L))
-	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("autokey") if m.auto_key else Tok.c("ink"), 2.0)   # ROADMAP 42: red while auto-key is on
-	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
+	_ph.queue_redraw()   # the playhead is its own overlay (see _draw_playhead): a full redraw refreshes it too
+
+
+## ROADMAP 99: THE PLAYHEAD OVERLAY. While a scene plays only the playhead moves, so the app redraws this small child (a line
+## and a flag) every frame instead of the whole timeline (m._tl_play_redraw decides when nothing else changed).
+var _ph := Control.new()
+
+
+func playhead_redraw() -> void:
+	_ph.queue_redraw()
+
+
+func _draw_playhead() -> void:
+	var S := _S()
+	if S == null or S.cards.size() < 1:
+		return
+	var px := x_of(clampf(float(m.playhead), 0.0, S.length()))
+	_ph.draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("autokey") if m.auto_key else Tok.c("ink"), 2.0)   # ROADMAP 42: red while auto-key is on
+	_ph.draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
 
 
 ## ROADMAP 97: the index of the marker whose flag is under p (on the ruler), or -1
