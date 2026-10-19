@@ -174,7 +174,86 @@ static func _pack(clips: Array) -> Dictionary:
 	# the rows as 9 Vector3 chunks (3 dims each), pre-scaled by the weights: a distance is then a plain squared length
 	db["zf"] = _chunks_all(db, 0)
 	db["zt"] = _chunks_all(db, 1)
+	db["ix"] = [_index(db["zf"], nfr), _index(db["zt"], nfr)]
 	return db
+
+
+## THE INDEX (exact nearest neighbour, ROADMAP 33 speed): the rows are grouped into K ~ sqrt(n) buckets around centroids
+## (evenly spaced seeds, then two re-centrings: the clips are continuous, so neighbouring frames share a bucket). Each bucket
+## keeps its radius and each row its distance to the bucket's centroid. A search measures the query to every centroid, visits the
+## buckets nearest-first and stops when a bucket's lower bound (distance - radius) cannot beat the best; inside a bucket a row
+## is skipped when |query-centroid - row-centroid| (the triangle inequality) cannot beat it either. Both are lower bounds on the
+## true distance, so the result is the brute-force argmin (ties to the lower row, as the scan did); EPS absorbs float rounding.
+const EPS := 1e-4
+
+
+static func _index(zs: PackedVector3Array, n: int) -> Dictionary:
+	var k := clampi(int(roundf(sqrt(float(n)))), 1, 64)
+	var cen := PackedVector3Array()
+	cen.resize(k * 9)
+	for c in k:
+		var src := mini((c * n) / k + n / (2 * k), n - 1)
+		for j in 9:
+			cen[c * 9 + j] = zs[src * 9 + j]
+	var owner := PackedInt32Array()
+	owner.resize(n)
+	for pass_i in 3:
+		for i in n:
+			var bd := INF
+			var bc := 0
+			for c in k:
+				var s := 0.0
+				var j := 0
+				while j < 9:
+					s += (zs[i * 9 + j] - cen[c * 9 + j]).length_squared()
+					if s >= bd:
+						break
+					j += 1
+				if j == 9:
+					bd = s
+					bc = c
+			owner[i] = bc
+		if pass_i == 2:
+			break
+		var sum := PackedVector3Array()
+		sum.resize(k * 9)
+		var cnt := PackedInt32Array()
+		cnt.resize(k)
+		for i in n:
+			var c := owner[i]
+			cnt[c] += 1
+			for j in 9:
+				sum[c * 9 + j] += zs[i * 9 + j]
+		for c in k:
+			if cnt[c] > 0:
+				for j in 9:
+					cen[c * 9 + j] = sum[c * 9 + j] / float(cnt[c])
+	# rows grouped by bucket (ascending row index inside a bucket), their distance to the centroid, the bucket radius
+	var start := PackedInt32Array()
+	start.resize(k + 1)
+	for i in n:
+		start[owner[i] + 1] += 1
+	for c in k:
+		start[c + 1] += start[c]
+	var fill := start.duplicate()
+	var rows := PackedInt32Array()
+	rows.resize(n)
+	for i in n:
+		rows[fill[owner[i]]] = i
+		fill[owner[i]] += 1
+	var dm := PackedFloat32Array()
+	dm.resize(n)
+	var rad := PackedFloat32Array()
+	rad.resize(k)
+	for c in k:
+		for p in range(start[c], start[c + 1]):
+			var i := rows[p]
+			var s := 0.0
+			for j in 9:
+				s += (zs[i * 9 + j] - cen[c * 9 + j]).length_squared()
+			dm[p] = sqrt(s)
+			rad[c] = maxf(rad[c], dm[p])
+	return {"k": k, "cen": cen, "rad": rad, "start": start, "rows": rows, "dm": dm}
 
 
 ## the per-dimension scale for a set of groups: sqrt of the group's weight, 0 outside the set. Groups are averaged,
@@ -233,25 +312,58 @@ static func query_of(db: Dictionary, g: int, v: Vector3) -> PackedFloat32Array:
 	return q
 
 
-## the nearest frame by brute force over every row (9 chunks each), early exit when a row cannot beat the best so far.
-## Returns [frame, squared weighted distance]
+## the nearest frame, exactly the brute-force argmin over every row (ties to the lower row), found through the bucket index
+## (see _index). Returns [frame, squared weighted distance]
 static func search(db: Dictionary, qc: PackedVector3Array, which: int) -> Array:
 	var zs: PackedVector3Array = db["zf"] if which == W_FULL else db["zt"]
-	var n: int = db["n"]
+	var ix: Dictionary = (db["ix"] as Array)[which]
+	var k: int = ix["k"]
+	var cen: PackedVector3Array = ix["cen"]
+	var rad: PackedFloat32Array = ix["rad"]
+	var start: PackedInt32Array = ix["start"]
+	var rows: PackedInt32Array = ix["rows"]
+	var dm: PackedFloat32Array = ix["dm"]
+	# the query to every centroid, and the buckets' lower bounds, visited nearest-first (selection: a few buckets are enough)
+	var dq := PackedFloat32Array()
+	dq.resize(k)
+	var lb := PackedFloat32Array()
+	lb.resize(k)
+	for c in k:
+		var s := 0.0
+		var base := c * 9
+		for j in 9:
+			s += (cen[base + j] - qc[j]).length_squared()
+		dq[c] = sqrt(s)
+		lb[c] = maxf(dq[c] - rad[c], 0.0)
 	var best := INF
 	var bi := -1
-	for i in n:
-		var base := i * 9
-		var s := 0.0
+	for _v in k:
 		var c := 0
-		while c < 9:
-			s += (zs[base + c] - qc[c]).length_squared()
-			if s >= best:
-				break
-			c += 1
-		if c == 9:
-			best = s
-			bi = i
+		var lo := INF
+		for t in k:
+			if lb[t] < lo:
+				lo = lb[t]
+				c = t
+		if lo >= INF or lo * lo > best * (1.0 + EPS) + 1e-9:
+			break
+		lb[c] = INF
+		var dc := dq[c]
+		for p in range(start[c], start[c + 1]):
+			var gap := dc - dm[p]
+			if gap * gap > best * (1.0 + EPS) + 1e-9:
+				continue
+			var i := rows[p]
+			var base := i * 9
+			var s := 0.0
+			var j := 0
+			while j < 9:
+				s += (zs[base + j] - qc[j]).length_squared()
+				if s > best:
+					break
+				j += 1
+			if j == 9 and (s < best or (s == best and i < bi)):
+				best = s
+				bi = i
 	return [bi, best]
 
 

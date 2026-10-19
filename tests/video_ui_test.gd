@@ -43,6 +43,23 @@ func slide_of(S: Scene, B: Body) -> float:
 	return worst
 
 
+## the same for the scene's foot plants (scripts/foot_plant.gd; the phone-video cleanup records its plants there, not
+## as cards' "plant"): the worst the ball moves on the floor within a plant, from where it stood at the plant's t0
+func slide_plants(S: Scene, B: Body) -> float:
+	var worst := 0.0
+	for p in S.plants:
+		var bn := "ball" + String(p["foot"]).trim_prefix("foot")
+		S.apply(B, float(p["t0"]))
+		var a: Vector3 = B.P[bn]
+		var tt: float = float(p["t0"])
+		while tt <= minf(float(p["t1"]), S.length()):
+			S.apply(B, tt)
+			var b: Vector3 = B.P[bn]
+			worst = maxf(worst, Vector2(b.x - a.x, b.z - a.z).length())
+			tt += 1.0 / 30.0
+	return worst
+
+
 func _init() -> void:
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -73,12 +90,15 @@ func _init() -> void:
 	for c in m.S.cards:
 		if not (c.get("plant", []) as Array).is_empty():
 			locked += 1
+	# the cleanup (on by default) plants feet in the scene's "plants" (time ranges), the raw path in cards' "plant":
+	# count both, and measure the slide of both
+	locked += m.S.plants.size()
 	var nf: int = P["frames"].size()
 	var dur: float = float(P["frames"][-1]["t"]) - float(P["frames"][0]["t"])
 	var nc: int = m.S.cards.size()
 	var B1 := Body.new()
 	B1.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-	var slide := slide_of(m.S, B1)
+	var slide := maxf(slide_of(m.S, B1), slide_plants(m.S, B1))
 	# the control: the same pose file as one card per frame, MocapClean'd, measured the same way (the 1.5 cm bar first
 	# registered here came from sampling at card times only; at 30 a second the DENSE scene itself reads 1.56 cm)
 	var D := VideoImport.to_scene(B1, VideoImport.solve(B1, P["frames"]), P["fps"], 1, "zz")

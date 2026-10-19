@@ -106,19 +106,38 @@ func _init() -> void:
 	ok(rows.size() == 1 + 8 * MotionMatch.COVER_SPEEDS.size(), "5 coverage: %d queries (1 standing + 8 directions x %d speeds), %d gaps (cost > %.1f)" % [
 		rows.size(), MotionMatch.COVER_SPEEDS.size(), (cov["gaps"] as Array).size(), MotionMatch.GOOD])
 	print(cov["text"])
-	# 6
+	# 6 (the database and its index are built above and not timed; one untimed call first so the first-call cost of the
+	# script and the allocator is not read as the search's). Exactness: every query's argmin must equal a brute-force scan
+	MotionMatch.search(db, MotionMatch.chunks(db, MotionMatch.query_of(db, 0, Vector3.ZERO), MotionMatch.W_FULL), MotionMatch.W_FULL)
 	var tq := 0.0
 	var worst_ms := 0.0
+	var mism := 0
+	var zf: PackedVector3Array = db["zf"]
 	for k in 200:
 		var g := (k * 37) % n
-		var qk := MotionMatch.chunks(db, MotionMatch.query_of(db, g, Vector3(0.0, 0.0, walk_speed * float(k % 3))), MotionMatch.W_FULL)
+		var wt := MotionMatch.W_FULL if k % 4 != 3 else MotionMatch.W_TRAJ
+		var qk := MotionMatch.chunks(db, MotionMatch.query_of(db, g, Vector3(0.0, 0.0, walk_speed * float(k % 3))), wt)
 		var ts := Time.get_ticks_usec()
-		MotionMatch.search(db, qk, MotionMatch.W_FULL)
+		var rk := MotionMatch.search(db, qk, wt)
 		var ms := float(Time.get_ticks_usec() - ts) / 1000.0
-		tq += ms
-		worst_ms = maxf(worst_ms, ms)
-	var mean_ms := tq / 200.0
-	ok(mean_ms < 2.0, "6 search over the full database (%d frames): mean %.3f ms, worst %.3f ms (bar 2 ms)" % [n, mean_ms, worst_ms])
+		if wt == MotionMatch.W_FULL:
+			tq += ms
+			worst_ms = maxf(worst_ms, ms)
+		var bf := INF
+		var bfi := -1
+		for i in n:
+			var sq := MotionMatch.row_sq(db, qk, i, wt)
+			if sq < bf:
+				bf = sq
+				bfi = i
+		if int(rk[0]) != bfi:
+			mism += 1
+	var nt := 0
+	for k in 200:
+		if k % 4 != 3:
+			nt += 1
+	var mean_ms := tq / float(nt)
+	ok(mean_ms < 2.0 and mism == 0, "6 search over the full database (%d frames): mean %.3f ms, worst %.3f ms (bar 2 ms); argmin differs from brute force on %d of 200 queries (bar 0)" % [n, mean_ms, worst_ms, mism])
 	# 7
 	var pl := MotionMatch.Player.new(db, walk if walk >= 0 else 0)
 	var finite7 := true
