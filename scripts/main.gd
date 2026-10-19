@@ -1123,6 +1123,9 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	if hk != null and hk.take_input(ev):   # the hotkey editor: a key for the row being set, or Esc closes it
+		get_viewport().set_input_as_handled()
+		return
 	# the gear's box closes on a press outside it and its gear (RR4)
 	if ui_gear != null and ui_gear.visible and ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed:
 		var at := (ev as InputEventMouseButton).position
@@ -1274,6 +1277,8 @@ func _ready() -> void:
 	add_child(ov)
 	add_child(bal)
 	ov.setup()
+	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
+	hk.load_from(settings)
 	_ui()
 	if not testing and not cf.get_value("look", "hints", true):
 		_set_hints(false, false)   # remembered (QQ3)
@@ -2258,6 +2263,8 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if ev is InputEventKey and not ev.pressed and hk != null:
+		hk.released(ev as InputEventKey)   # the ? that is held: its cheat sheet hides
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.pressed and ui_cmd.visible:
@@ -2372,8 +2379,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var k := ev as InputEventKey
 		if not _pressing and (get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is SpinBox):
 			return
-		if k.unicode == 63 and not k.ctrl_pressed:   # "?" by the character typed, on any layout (Nick's ABNT2 too): X2
-			keys_overlay(ui_keys == null or not ui_keys.visible)
+		if hk.dispatch(k):   # a key the user gave a command (or a built-in key that moved away): scripts/hotkeys.gd
 			return
 		if k.keycode == KEY_ESCAPE and ui_keys != null and ui_keys.visible:
 			keys_overlay(false)
@@ -6634,6 +6640,7 @@ func _press(code: Key, shift := false) -> void:
 ## it opens (a command given a key shows up with nothing else to change), grouped by what you hold: plain keys,
 ## Shift + a key, Ctrl + a key. ? opens and closes it, Esc closes it
 var ui_keys: PanelContainer
+var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
 
 
 func keys_overlay(on: bool) -> void:
@@ -6654,22 +6661,19 @@ func keys_overlay(on: bool) -> void:
 		ch.queue_free()
 	var v := VBoxContainer.new()
 	ui_keys.add_child(v)
-	v.add_child(_label("EVERY KEY  (? or Esc closes this; S finds the rest by name)", 16, "heading"))
+	v.add_child(_label("EVERY KEY  (hold ? to see it, let go to hide it; Esc closes it; S finds the rest by name)", 16, "heading"))
 	var scr := ScrollContainer.new()   # capped to the room (at 125 % the UI has 720 px): it scrolls rather than run off
 	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	v.add_child(scr)
-	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 28)
+	var cols := HFlowContainer.new()   # the areas wrap to the width: a row of them, then the next row
+	cols.add_theme_constant_override("h_separation", 28)
+	cols.add_theme_constant_override("v_separation", 14)
 	scr.add_child(cols)
-	var keyed: Array = ui_cmd.commands.filter(func(c): return String(c["keys"]) != "")
-	for g in [["KEYS", func(k: String): return not k.begins_with("Shift+") and not k.begins_with("Ctrl+")],
-			["SHIFT + KEY", func(k: String): return k.begins_with("Shift+")], ["CTRL + KEY", func(k: String): return k.begins_with("Ctrl+")]]:
-		var rows: Array = keyed.filter(func(c): return g[1].call(String(c["keys"])))
-		if rows.is_empty():
-			continue
+	for g in Hotkeys.cheat_groups(ui_cmd.commands):   # [area, rows]: grouped by what the command is for (scripts/hotkeys.gd)
+		var rows: Array = g[1]
 		var gv := VBoxContainer.new()
 		cols.add_child(gv)
-		gv.add_child(_label(g[0], 14, "text:0.7"))
+		gv.add_child(_label(String(g[0]).to_upper(), 14, "text:0.7"))
 		var grid := GridContainer.new()
 		grid.columns = 2
 		grid.add_theme_constant_override("h_separation", 12)
@@ -6680,8 +6684,7 @@ func keys_overlay(on: bool) -> void:
 			grid.add_child(kl)
 			grid.add_child(_label(String(c["name"]), 15, "text"))
 	var room := get_viewport().get_visible_rect().size - Vector2(60, 60)
-	var want := cols.get_combined_minimum_size()
-	scr.custom_minimum_size = Vector2(minf(want.x, room.x - 28), minf(want.y, room.y - 28 - 40))
+	scr.custom_minimum_size = Vector2(minf(1100.0, room.x - 28), minf(640.0, room.y - 68))
 	ui_keys.reset_size()
 	ui_keys.position = ((get_viewport().get_visible_rect().size - ui_keys.size) / 2.0).floor()   # centred, after its size is known
 
@@ -6877,7 +6880,8 @@ func _commands() -> Array:
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
-	return c
+	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
+	return Hotkeys.apply(c, hk.over)   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
 
 
 ## MARKERS (round 41, GATES WW5, UPGRADES_300 #261): named moments on the timeline (Markers). Add / Delete at the playhead are
