@@ -105,8 +105,8 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 31. [~] Lip-sync from audio (top-25 #21)
 32. [~] Music beats as timeline markers, snap hits to them (top-25 #22)
 33. [~] Motion-matching preview (top-25 #23)
-34. [ ] Character mesh engine (top-25 #24)
-35. [ ] Weapon trails drawn and exported (smear frames)
+34. [ ] Character mesh engine (top-25 #24) (held: Nick plans this as its own engine after Kine is done; same UE5 skeleton names)
+35. [~] Weapon trails drawn and exported (smear frames)
 36. [ ] Hitbox / hurtbox editor per frame
 37. [ ] Parry / clash detection between two weapons
 38. [ ] Distance-to-opponent guide (range rings)
