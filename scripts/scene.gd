@@ -1261,6 +1261,12 @@ func span(t: float) -> int:
 	return -1
 
 
+## TWO-CHARACTER (G1): further actors beside this one (this scene is actor 0, the hero). Each {"name": String,
+## "xf": {"pos": [x, z], "yaw": deg} (where actor k stands in actor 0's space, like Dummy.xf), "scene": Scene}.
+## Empty = one actor; the file key "actors" is written only when there are any, so every older file saves byte-identical
+var actors := []
+
+
 ## a scene of its own with the same settings and a deep copy of the cards (for work off the main thread: the fix
 ## preview). Caches start empty
 func clone() -> Scene:
@@ -1274,6 +1280,8 @@ func clone() -> Scene:
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
+	for a in actors:   # G1: deep (each actor's own scene is cloned, its xf copied)
+		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	return c
 
 
@@ -1736,6 +1744,9 @@ func to_dict(B: Body) -> Dictionary:
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
 	if not markers.is_empty():
 		out["markers"] = markers.duplicate(true)   # WW5: the same, only when there are any
+	if not actors.is_empty():   # G1: the same, only with a second actor
+		out["actors"] = actors.map(func(a): return {"name": a["name"], "xf": {"pos": [float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": float(a["xf"]["yaw"])},
+			"scene": (a["scene"] as Scene).to_dict(B)})
 	return out
 
 
@@ -1748,6 +1759,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
+	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
@@ -1776,7 +1788,45 @@ static func mirror_card(c: Dictionary, M: Body) -> Dictionary:
 	return out
 
 
+## a whole scene FILE mirrored (the dict main's Mirror the scene builds, plus the actors, G1): cards, part_keys, layer, layers,
+## props, and each actor's scene by the same, its xf x and yaw negated. The name toggles "_mirrored" so twice is the original.
+## The caller adds "plan". M is a scratch Body (its pose is overwritten; the caller keeps its own state)
+static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
+	var d2: Dictionary = d.duplicate(true)
+	d2["cards"] = d2["cards"].map(func(c): return Scene.mirror_card(c, M))
+	if d2.has("part_keys"):
+		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
+	if d2.has("layer"):
+		d2["layer"] = Scene.mirror_layer(d2["layer"], M)
+	for L in d2.get("layers", []):
+		var o = L["v"].get("offset")
+		L["v"].erase("offset")
+		L["v"] = Scene.mirror_layer(L["v"], M)
+		if o != null:
+			L["v"]["offset"] = [-float(o[0]), o[1], o[2]]
+	var nm := String(d2.get("scene", "scene"))
+	d2["scene"] = nm.trim_suffix("_mirrored") if nm.ends_with("_mirrored") else nm + "_mirrored"
+	var acts: Array = d2.get("actors", [])
+	d2.erase("actors")
+	var S2 := Scene.new()
+	S2.from_dict(d2)
+	var out := S2.to_dict(M)   # bad_frames recomputed on the mirrored motion
+	if out.has("props"):
+		out["props"] = out["props"].map(func(q): return {"kind": q["kind"], "pos": [-float(q["pos"][0]), q["pos"][1], q["pos"][2]], "yaw": -float(q["yaw"])})
+	if not acts.is_empty():
+		out["actors"] = acts.map(func(a): return {"name": a["name"], "xf": {"pos": [-float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": -float(a["xf"]["yaw"])},
+			"scene": Scene.mirror_file(a["scene"], M)})
+	return out
+
+
 func from_dict(d: Dictionary) -> void:
+	actors = []
+	for a in d.get("actors", []):   # G1: each nested scene by this same from_dict
+		var xf: Dictionary = a.get("xf", {})
+		var pp: Array = xf.get("pos", [0.0, 0.0])
+		var sc := Scene.new()
+		sc.from_dict(a.get("scene", {}))
+		actors.append({"name": String(a.get("name", "B")), "xf": {"pos": [float(pp[0]), float(pp[1])], "yaw": float(xf.get("yaw", 0.0))}, "scene": sc})
 	name = d.get("scene", "scene")
 	natural = bool(d.get("natural", true))
 	spline = bool(d.get("spline", false))

@@ -345,6 +345,28 @@
       "additionalProperties": false
      }
     },
+    "actors": {
+     "type": "array",
+     "description": "further characters (two-character scenes, G1); the top level is actor 0. Written only when there is more than one actor",
+     "items": {
+      "type": "object",
+      "required": ["name", "xf", "scene"],
+      "properties": {
+       "name": {"type": "string"},
+       "xf": {
+        "type": "object",
+        "required": ["pos", "yaw"],
+        "properties": {
+         "pos": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+         "yaw": {"type": "number"}
+        },
+        "additionalProperties": false
+       },
+       "scene": {"$ref": "#/$defs/scene"}
+      },
+      "additionalProperties": false
+     }
+    },
     "moving_holds": {
      "type": "boolean"
     },
