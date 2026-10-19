@@ -2,13 +2,14 @@
 ## Bars written before the first run:
 ##  (1) file: an old scene's single "audio" dictionary loads as ONE track (role music) and saves back byte-identical;
 ##      two tracks save as a list under "audio" and load back to the same JSON
-##  (2) sync: track A at offset 0, track B at offset 0.5 s, playhead from 1.0 s, playing: A and B sit 0.5 s apart within one audio
-##      frame (1 / fps). Reported, not gated: each sits at (playhead - offset) to within one render frame plus the output latency
-##      (the playhead moves once per rendered frame; the audio clock runs on its own)
+##  (2) sync: A at offset 0, B at 0.5 s, playhead from 0.2 s, 3 s of playback: while a track sounds the audio clock drives the
+##      playhead; each track's audio clock (position + time since last mix - output latency + offset) stays within one frame
+##      (1 / fps) of the playhead, worst printed for both tracks
 ##  (3) mute: a muted track's player volume_db is MUTE_DB (silent: <= -80 dB); the other keeps its gain (0 dB).
 ##      solo on B: A goes silent, B keeps sounding; unsolo: A is back at its gain
 ##  (4) undo: add, mute, role and an offset drag are one undo step each; Ctrl+Z restores the scene exactly
-##  (5) lanes: one lane per track (LANE_H each); a click on B's name mutes it; a click on A's lane picks it; screenshot of the lanes
+##  (5) lanes: one lane per track (LANE_H each); a click on B's name mutes it; a click on A's lane picks it; with three tracks every
+##      lane sits inside the window and the bottom panel at 1600x900 and 1280x720; screenshot of the three lanes
 ##  (6) playblast: two tracks mux as two inputs (B delayed by its offset, its gain) summed by amix; a muted track is left out
 extends SceneTree
 
@@ -92,43 +93,50 @@ func _init() -> void:
 	ok(JSON.stringify(S.to_dict(m.B)) == JSON.stringify(d2), "1e the list loads back and saves the same")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
-	# ---- (2) sync: A at 0 s, B at 0.5 s, the playhead from 1.0 s, playing for a few frames
+	# ---- (2) sync: A at 0 s, B at 0.5 s, the playhead from 0.2 s, playing 3 s. While a track sounds the AUDIO clock drives the
+	# playhead (main.gd _audio_clock: the player's position + time since the last mix - output latency + its offset).
+	# gap_i = that track's audio clock - the playhead, every rendered frame it sounds; worst |gap| is gated at one frame.
 	S.audio_tracks = [{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": 0.5, "gain_db": 0.0}]
 	m._audio_reload()
 	m.pv_in = -1.0
 	m.pv_out = -1.0
 	m.playing = false
-	m.playhead = 1.0
-	m._ps().apply(m.B, 1.0)
+	m.playhead = 0.2
+	m._ps().apply(m.B, 0.2)
 	await idle(2)
 	m.playing = true
-	var rel_worst := 0.0   # |(A - B) - 0.5 s|: the two players against each other (the offset's own test)
-	var abs_worst := 0.0   # |player - (playhead - offset)| beyond one render frame plus the engine's output latency
-	var lat := AudioServer.get_output_latency()
-	var first_ph := -1.0
-	var lines := []
-	for k in 6:
+	var offs := [0.0, 0.5]
+	var gap_worst := [0.0, 0.0]
+	var n_frames := [0, 0]
+	var ph_start: float = m.playhead
+	var t0 := Time.get_ticks_msec()
+	var frames := 0
+	var dropped := 0
+	while Time.get_ticks_msec() - t0 < 3000:
 		await process_frame
+		frames += 1
 		var ph: float = m.playhead
-		var dt: float = m.get_process_delta_time()
-		var pos: Array = m.audio_positions()
-		if first_ph < 0.0:
-			first_ph = ph
-		if float(pos[0]) < 0.0 or float(pos[1]) < 0.0:
-			lines.append("playhead %.3f: not sounding" % ph)
-			continue
-		rel_worst = maxf(rel_worst, absf((float(pos[0]) - float(pos[1])) - 0.5))
-		var e := maxf(absf(float(pos[0]) - ph), absf(float(pos[1]) - (ph - 0.5)))
-		abs_worst = maxf(abs_worst, e - dt - lat)
-		lines.append("playhead %.3f  A %.3f  B %.3f  (frame %.1f ms)" % [ph, float(pos[0]), float(pos[1]), dt * 1000.0])
+		var lat := AudioServer.get_output_latency()
+		for i in 2:
+			var p: AudioStreamPlayer = m._a_players[i]
+			if not (p.playing and m._a_on[i]):
+				continue
+			var pos := p.get_playback_position() + AudioServer.get_time_since_last_mix() - lat + float(offs[i])
+			gap_worst[i] = maxf(gap_worst[i], absf(pos - ph))
+			n_frames[i] += 1
+		if not m.playing:
+			dropped += 1
+			break
+	var played: float = m.playhead - ph_start
+	var still_playing: bool = m.playing
 	m.playing = false
 	await idle(1)
-	for l in lines:
-		print("     " + l)
-	print("     relative: worst |(A - B) - 0.5 s| = %.3f ms (bar 1 frame = %.1f ms); absolute: worst |player - (playhead - offset)| beyond one render frame + output latency (%.1f ms) = %.1f ms" % [rel_worst * 1000.0, 1000.0 / fps, lat * 1000.0, abs_worst * 1000.0])
-	ok(rel_worst <= 1.0 / fps, "2a the two players sit 0.5 s apart: the offsets hold within one audio frame (worst %.3f ms)" % (rel_worst * 1000.0))
-	ok(first_ph >= 1.0 and first_ph < 1.0 + 0.25, "2b play started at the playhead 1.0 s (first frame at %.3f s)" % first_ph)
-	print("     2c REPORTED, NOT GATED: each player against playhead - offset: worst %.1f ms beyond one render frame + output latency (%.1f ms). The playhead moves once per rendered frame and the audio clock does not, so the gap swings about one frame either side; the single-track audio_track test gates the same measure at 1 frame and fails it on the base commit too" % [abs_worst * 1000.0, lat * 1000.0])
+	var bar := 1.0 / fps
+	var worst := maxf(gap_worst[0], gap_worst[1])
+	print("     sync: %d frames in %.2f s of playback, playhead moved %.3f s; frames sounding A %d, B %d; worst |gap|: A %.2f ms, B %.2f ms (bar 1 frame = %.1f ms at %d fps)" % [frames, (Time.get_ticks_msec() - t0) / 1000.0, played, n_frames[0], n_frames[1], gap_worst[0] * 1000.0, gap_worst[1] * 1000.0, bar * 1000.0, fps])
+	ok(n_frames[0] > 0 and n_frames[1] > 0, "2a both tracks sounded during the 3 s (A %d frames, B %d frames)" % [n_frames[0], n_frames[1]])
+	ok(still_playing and dropped == 0 and played > 2.5, "2b the playhead ran the whole 3 s from 0.2 s (moved %.3f s)" % played)
+	ok(worst < bar, "2c sync: worst |audio clock - playhead| over 3 s, both tracks, is %.2f ms (bar %.1f ms = one frame at %d fps)" % [worst * 1000.0, bar * 1000.0, fps])
 
 	# ---- (3) mute and solo: the player volume
 	var pl: Array = m._a_players
@@ -172,7 +180,7 @@ func _init() -> void:
 	m._redo()
 	ok(absf(float(S.audio_tracks[0]["offset"]) - 0.75) < 1e-6, "4h redo brings it back")
 
-	# ---- (5) lanes, the name click and the pick, and the screenshot
+	# ---- (5) lanes: the name click and the pick, then three tracks: every lane inside the window at 1600x900 and 1280x720
 	m._undo()   # the offset back to 0 s
 	await idle(2)
 	m.audio_pick = -1
@@ -193,20 +201,40 @@ func _init() -> void:
 	_click(lane_a_body, false)
 	await idle(2)
 	ok(m.audio_pick == 0, "5e a click on A's lane picks track A (pick %d)" % m.audio_pick)
-	# the timeline is the bottom panel: at 1600x900 its lowest lane falls off the window, so the picture is taken at 1600x1200
-	DisplayServer.window_set_size(Vector2i(1600, 1200))
+
+	# three tracks: the layout must show every lane (the timeline is the bottom panel and grows by one row per track)
+	S.audio_tracks.append(AudioTrack.clean({"path": WAV_B, "offset": 0.25, "gain_db": -6.0, "role": "sfx"}))
+	m._audio_reload()
+	await idle(3)
+	ok(tl.audio_h() == tl.LANE_H * 3.0, "5f three tracks: %.0f px of lanes" % tl.audio_h())
+	for sz in [Vector2i(1600, 900), Vector2i(1280, 720)]:
+		DisplayServer.window_set_size(sz)
+		await idle(10)
+		var win := Vector2(DisplayServer.window_get_size())
+		var bp: Rect2 = m.ui_bp.get_global_rect()
+		var tlr: Rect2 = tl.get_global_rect()
+		var all_in := true
+		var low := 0.0
+		for i in 3:
+			var lr := Rect2(tlr.position.x, tlr.position.y + tlr.size.y - tl.audio_h() + i * tl.LANE_H, tlr.size.x, tl.LANE_H)
+			low = maxf(low, lr.end.y)
+			# inside the window and inside the bottom panel (nothing covers it)
+			if lr.end.y > win.y or lr.position.y < bp.position.y or lr.end.y > bp.end.y + 0.5 or lr.position.y < 0.0:
+				all_in = false
+		ok(all_in and tlr.end.y <= win.y, "5g at %dx%d: all 3 lanes inside the window and the bottom panel (lowest lane ends at %.0f of %.0f px; timeline bottom %.0f)" % [sz.x, sz.y, low, win.y, tlr.end.y])
+	# the picture: 1600x900, all three lanes in view
+	DisplayServer.window_set_size(Vector2i(1600, 900))
 	await idle(10)
 	tl.queue_redraw()
 	await idle(2)
 	await RenderingServer.frame_post_draw
 	var img: Image = root.get_texture().get_image()
 	var r: Rect2 = tl.get_global_rect()
-	# the timeline's rect, clamped to what the window shows (its lowest lane can fall below the window edge)
-	var vis := int(root.get_visible_rect().size.y) - int(r.position.y)
+	var vis := int(DisplayServer.window_get_size().y) - int(r.position.y)
 	var crop := img.get_region(Rect2i(int(r.position.x), int(r.position.y), int(r.size.x), mini(int(r.size.y), vis)))
 	crop.resize(crop.get_width() * 2, crop.get_height() * 2, Image.INTERPOLATE_NEAREST)   # 2x: the lanes are 14 px each
 	var saved := crop.save_png(SHOT)
-	ok(saved == OK and FileAccess.file_exists(SHOT), "5f the lanes are saved to %s (%dx%d, 2x; the window shows %d of the timeline's %d px)" % [SHOT.get_file(), crop.get_width(), crop.get_height(), mini(int(r.size.y), vis), int(r.size.y)])
+	ok(saved == OK and FileAccess.file_exists(SHOT), "5h the three lanes are saved to %s (%dx%d, 2x)" % [SHOT.get_file(), crop.get_width(), crop.get_height()])
 
 	# ---- (6) the playblast mixes the sounding tracks: one input each, delayed by its offset, summed with amix
 	var pa := PlayblastExport.args("d", 30, "o.mp4", AudioTrack.audible_list([{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": 0.5, "gain_db": -3.0}]), 0.0)

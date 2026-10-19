@@ -1801,6 +1801,11 @@ func _process(dt: float) -> void:
 		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
 		var stp := play_clock.advance(playhead, dt, S.fps, _ps().length(), pv_in, pv_out, S.loop)
 		playhead = stp["t"]
+		# ROADMAP 77: while a track sounds, the audio clock drives the playhead (monotonic; the frame clock only
+		# stands in when no track sounds, at a loop or stop, or when the two disagree by more than a quarter second)
+		var ta := _audio_clock()
+		if ta >= 0.0 and play_clock.mode == PlaySpeed.REAL and not stp["stop"] and ta >= _a_before and absf(ta - playhead) < 0.25:
+			playhead = ta
 		if stp["stop"]:
 			playing = false
 		_ps().apply(B, playhead)
@@ -8807,7 +8812,7 @@ func _layout_bottom() -> void:
 	bottom_h = BOTTOM_EMPTY if empty else (BOTTOM_FOLDED if folded else BOTTOM_H)
 	ui_bh.visible = not folded and not easy.on
 	if not empty:
-		bottom_h += int(ui_timeline.clip_px() + _tl_under_ruler())   # CLIPS: the panel grows by the strips' rows (none: as before); the frame strip and the boxes lane too (ROADMAP 12 / 36)
+		bottom_h += int(ui_timeline.clip_px() + _tl_under_ruler() + ui_timeline.audio_h())   # CLIPS: the panel grows by the strips' rows (none: as before); the frame strip, the boxes lane and one row per audio track too (ROADMAP 12 / 36 / 77)
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
@@ -12397,6 +12402,16 @@ func audio_position_of(i: int) -> float:
 	return _a_players[i].get_playback_position() + AudioServer.get_time_since_last_mix()
 
 
+## the playhead as the audio clock reads it: the first sounding track's position (the mixer's read point, plus the time
+## since the last mix, less the output latency) plus its offset; -1.0 when no track sounds
+func _audio_clock() -> float:
+	for i in _a_players.size():
+		if i < _a_on.size() and _a_on[i] and _a_players[i].playing:
+			var pos: float = _a_players[i].get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
+			return pos + float(S.audio_tracks[i]["offset"])
+	return -1.0
+
+
 ## every track's position (audio_position_of), in track order
 func audio_positions() -> Array:
 	var out := []
@@ -12433,6 +12448,7 @@ func _audio_reload() -> void:
 		audio_pick = -1
 	if ui_timeline != null:
 		_tl_height()
+		_layout_bottom()   # ROADMAP 77: each audio track adds a lane row; the panel makes room for it
 		ui_timeline.queue_redraw()
 
 
@@ -12821,7 +12837,7 @@ func _audio_tick(before: float, dt: float) -> void:
 			_a_slice_until = 0
 		_a_after = playhead
 		return
-	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > dt + 1e-4
+	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > maxf(dt, 0.25) + 1e-4   # ROADMAP 77: the audio clock may step past one frame; only a larger leap is a jump
 	var worst := 0.0
 	for i in _a_players.size():
 		var p: AudioStreamPlayer = _a_players[i]
