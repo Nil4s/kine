@@ -3171,8 +3171,86 @@ static func _same_actors(a: Array, b: Array) -> bool:
 
 ## THE HOOK (TC3): every refresh, each actor that is not active is posed from its own scene at the playhead (once per
 ## playhead: an actor left keeps its own edits until the playhead moves). Drawing them is TC4. One actor: returns at once
-## LIVE CO-EDITING (ROADMAP 30, scripts/co_edit.gd). The host's owned fighter is the active one at hosting; the joiner's
-## is the active one at joining. The other fighter is drawn at its peer's playhead and cannot be made active here.
+## LIVE CO-EDITING (ROADMAP 30, scripts/co_edit.gd). Commands: "Co-edit: host" (a confirm first; then it listens on every
+## network address, so other computers can join; the port is typed in the dialog), "Co-edit: join" (address:port),
+## "Co-edit: stop". The host's owned fighter is the active one when it hosts; the joiner's is the active one when it
+## joins. The other fighter is drawn at its peer's playhead and cannot be made active here (_actor_set refuses it).
+var ui_co_line: Label
+var ui_co_dlg: ConfirmationDialog
+var ui_co_port: LineEdit
+var ui_co_join_dlg: ConfirmationDialog
+var ui_co_addr: LineEdit
+var _co_where := ""       # the address:port the session is on (the host's, or the one joined)
+var _co_line_text := ""   # the status line's text as last set (set only when it changes)
+
+
+func _co_dialogs() -> void:
+	if ui_co_dlg != null:
+		return
+	ui_co_dlg = ConfirmationDialog.new()
+	ui_co_dlg.name = "co_host_dialog"
+	ui_co_dlg.title = "Host a live co-edit"
+	ui_co_dlg.dialog_autowrap = true
+	ui_co_dlg.min_size = Vector2i(440, 0)
+	ui_co_dlg.dialog_text = "Other computers on your network can connect while hosting.\nEach side animates one fighter. The host saves the scene.\nPort (the guests type address:port):"
+	ui_co_dlg.ok_button_text = "Host on the network"
+	ui_co_port = LineEdit.new()
+	ui_co_port.name = "co_port"
+	ui_co_port.text = "4242"
+	ui_co_dlg.add_child(ui_co_port)
+	ui_co_dlg.register_text_enter(ui_co_port)
+	ui_co_dlg.confirmed.connect(func(): _co_host(int(ui_co_port.text), true))
+	ui_co_dlg.canceled.connect(func(): _say("live co-edit: not hosted"))
+	add_child(ui_co_dlg)
+	ui_co_join_dlg = ConfirmationDialog.new()
+	ui_co_join_dlg.name = "co_join_dialog"
+	ui_co_join_dlg.title = "Join a live co-edit"
+	ui_co_join_dlg.dialog_autowrap = true
+	ui_co_join_dlg.min_size = Vector2i(440, 0)
+	ui_co_join_dlg.dialog_text = "The host's address and port, as the host's status line shows them (address:port):"
+	ui_co_join_dlg.ok_button_text = "Join"
+	ui_co_addr = LineEdit.new()
+	ui_co_addr.name = "co_addr"
+	ui_co_addr.placeholder_text = "192.168.0.10:4242"
+	ui_co_join_dlg.add_child(ui_co_addr)
+	ui_co_join_dlg.register_text_enter(ui_co_addr)
+	ui_co_join_dlg.confirmed.connect(func(): _co_join_text(ui_co_addr.text))
+	add_child(ui_co_join_dlg)
+
+
+func _co_host_ask() -> void:
+	_co_dialogs()
+	if co != null:
+		_say("a live co-edit is on already (%s): Co-edit: stop ends it" % _co_where)
+		return
+	ui_co_dlg.popup_centered()
+
+
+func _co_join_ask() -> void:
+	_co_dialogs()
+	if co != null:
+		_say("a live co-edit is on already (%s): Co-edit: stop ends it" % _co_where)
+		return
+	ui_co_join_dlg.popup_centered()
+
+
+func _co_stop_cmd() -> void:
+	if co == null:
+		_say("no live co-edit is on")
+		return
+	_co_stop()
+	_say("live co-edit stopped: both scenes keep their work")
+
+
+func _co_join_text(t: String) -> void:
+	var s := t.strip_edges()
+	var i := s.rfind(":")
+	if i <= 0 or not s.substr(i + 1).is_valid_int():
+		_say("write the host's address and port as address:port, e.g. 192.168.0.10:4242")
+		return
+	_co_join(s.substr(0, i), int(s.substr(i + 1)))
+
+
 func _co_fighters() -> void:
 	_actors_sync()
 	if co != null:
@@ -3180,29 +3258,37 @@ func _co_fighters() -> void:
 
 
 func _co_host(port: int, lan_confirmed: bool) -> void:
-	_co_stop()
+	_co_stop(false)
+	if port <= 0 or port > 65535:
+		_say("the port is a number from 1 to 65535")
+		return
 	_actors_sync()
 	if actors_rt.size() < 2:
 		_say("live co-edit needs two fighters: add a second one first")
 		return
-	var bind := CoEdit.lan_address() if lan_confirmed else CoEdit.LOOPBACK   # the LAN only after the user confirmed
-	if lan_confirmed and bind == "":
-		bind = CoEdit.LOOPBACK
-		_say("no LAN address found: hosting on this machine only")
 	co = CoEdit.new()
 	co.on_applied = Callable(self, "_co_applied")
 	_co_fighters()
+	var bind := "*" if lan_confirmed else CoEdit.LOOPBACK   # confirmed: every network address, the LAN included
 	var err := co.host(port, bind, actor_on)
 	if err != "":
 		_say(err)
 		co = null
 		return
-	var addrs := CoEdit.addresses()
-	_say_plain("live co-edit: hosting on %s:%d, fighter %d is yours. Join with one of: %s" % [bind, port, actor_on + 1, addrs])
+	var where: Array = []
+	if lan_confirmed:
+		for a in CoEdit.addresses().split(", ", false):
+			where.append("%s:%d" % [a, port])
+	_co_where = ", ".join(where) if not where.is_empty() else "127.0.0.1:%d" % port
+	_say("live co-edit: hosting, fighter %d is yours. Join at %s" % [actor_on + 1, _co_where])
+	_co_status()
 
 
 func _co_join(addr: String, port: int) -> void:
-	_co_stop()
+	_co_stop(false)
+	if port <= 0 or port > 65535:
+		_say("the port is a number from 1 to 65535")
+		return
 	_actors_sync()
 	co = CoEdit.new()
 	co.on_applied = Callable(self, "_co_applied")
@@ -3212,18 +3298,45 @@ func _co_join(addr: String, port: int) -> void:
 		_say(err)
 		co = null
 		return
-	_say_plain("live co-edit: joining %s:%d as fighter %d" % [addr, port, actor_on + 1])
+	_co_where = "%s:%d" % [addr, port]
+	_say("live co-edit: joining %s as fighter %d" % [_co_where, actor_on + 1])
+	_co_status()
 
 
-func _co_stop() -> void:
+func _co_stop(say := true) -> void:
 	if co != null:
 		co.close()
 		co = null
 		_co_seen = ""
+		_co_where = ""
 		for a in actors_rt:
 			a.erase("pt")
 		_pose_others()
+	_co_status()
+	if say:
+		_say("live co-edit stopped")
 
+
+## the status line: who animates which fighter, and the peer's connection (hidden without a session)
+func _co_status() -> void:
+	var t := ""
+	if co != null:
+		var peer := "fighter %d" % (co.peer_own + 1) if co.peer_own >= 0 else "fighter ?"
+		var link := ""
+		match co.state:
+			"connected":
+				link = "connected (%s)" % _co_where
+			"listening":
+				link = "waiting for a guest at %s" % _co_where
+			"connecting", "handshaking":
+				link = "connecting to %s" % _co_where
+			_:
+				link = "not connected: %s" % co.note if co.note != "" else "not connected"
+		t = "CO-EDIT   you animate fighter %d   |   %s is the other animator's (read only)   |   peer: %s" % [co.own + 1, peer, link]
+	if t != _co_line_text and ui_co_line != null:
+		_co_line_text = t
+		ui_co_line.text = t
+		ui_co_line.visible = t != ""
 
 ## the peer's cards or playhead arrived: that fighter is drawn again
 func _co_applied(f: int, what: String) -> void:
@@ -3249,6 +3362,7 @@ func _co_tick() -> void:
 		_say_plain("live co-edit: %s%s" % [co.state, (" (" + co.note + ")") if co.note != "" else ""])
 	if co.connected():
 		co.set_t(playhead)
+	_co_status()
 
 
 func _co_sync() -> void:
@@ -6489,6 +6603,10 @@ func _ui() -> void:
 	ui_status.add_child(hx)
 	ui_status.add_theme_stylebox_override("normal", sb)
 	ui_root.add_child(ui_status)
+	ui_co_line = Label.new()   # ROADMAP 30: who animates which fighter, the peer's state (hidden without a session)
+	ui_co_line.name = "co_line"
+	ui_co_line.visible = false
+	ui_root.add_child(ui_co_line)
 	# ---- status bar: one line, always there (Fusion's bottom bar)
 	ui_bar = _label("", 12, "text:0.55")   # RR5: the readout, small and grey, on the status line's right
 	ui_bar.anchor_top = 1.0
@@ -7490,6 +7608,9 @@ func _commands() -> Array:
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
 	add.call("Import animation (fbx / glb / gltf / bvh)...", "", _anim_import_ask, "fbx mixamo unreal ue4 ue5 glb gltf bvh animation import retarget skeleton rig mocap motion capture clip", false, "pick an animation file from another skeleton (Mixamo, Unreal, Blender ...): its bones are matched to ours by name, its rest pose and size are allowed for, and it arrives as a NEW scene of cards in scenes/_wip (yours untouched). Or drop the file on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
+	add.call("Co-edit: host (one animator per fighter)...", "", _co_host_ask, "co edit live coedit host network lan share multiplayer together", false, "host a live session on your network: one animator per fighter, the host saves the scene (asks first)")
+	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
+	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
