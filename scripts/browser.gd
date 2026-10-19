@@ -27,6 +27,7 @@ var _poses_root: TreeItem   # RR3: Poses > Library / Mine, rows from main's pose
 var _lib: TreeItem
 var _mine: TreeItem
 var _dummy: TreeItem
+var _psets := {}   # "select" / "keying" -> the folder of the scene's selection / keying sets (scripts/part_sets.gd)
 var _pending := false   # a clip-row rebuild is queued for the next frame   # true while the tree follows the view (a selection made here must not loop back)
 
 
@@ -106,6 +107,12 @@ func build() -> void:
 			_folder_buttons(fi, hand)
 			all += hand
 		_folder_buttons(gi, all)
+	var sets_root := _folder(root, "Sets")   # the user's named groups of parts (GAP_ANALYSIS rows 9, 6)
+	sets_root.set_tooltip_text(0, "selection sets (a click selects their parts) and keying sets (K keys the active one's parts)")
+	for k in PartSets.KINDS:
+		_psets[k] = _folder(sets_root, k)
+		_psets[k].set_metadata(0, {"menu": "psets_" + k})
+		_psets[k].set_tooltip_text(0, "right-click: a new %s from the selected parts" % PartSets.WORD[k])
 	_wep = _folder(root, "Weapon")
 	_part(_wep, "bat_handle", "handle (drag it to swing the weapon)")
 	_set_root = _folder(root, "Set")
@@ -178,6 +185,10 @@ func _refresh_now() -> void:
 		pr.set_metadata(0, {"prop": i})
 		if i == m.sel_prop:
 			pr.set_custom_color(0, Tok.c("accent"))
+	for k in _psets:   # the scene's selection / keying sets, a row each
+		for c in _psets[k].get_children():
+			c.free()
+		PartSets.of(m).fill(self, _psets[k], k)
 	# the poses (RR3): Library (the starter and library poses), Mine (the ones you saved)
 	for f in [_lib, _mine]:
 		for c in f.get_children():
@@ -369,3 +380,5 @@ func _chosen() -> void:
 		m._pose_apply(md["pose"])
 	elif md.has("hit"):
 		m._goto_hit(md["hit"])
+	elif md.has("pset"):
+		PartSets.of(m).pick(md["kind"], md["pset"])

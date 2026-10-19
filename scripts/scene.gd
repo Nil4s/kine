@@ -59,6 +59,7 @@ var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; 
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
+var sets := {}         # SELECTION + KEYING SETS (GAP_ANALYSIS rows 9, 6): {"select": {name: [parts]}, "keying": {..}, "active"}; scripts/part_sets.gd
 var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
@@ -1314,6 +1315,7 @@ func clone() -> Scene:
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
+	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
 	c.body = body.duplicate(true)   # PR1
 	return c
 
@@ -1793,6 +1795,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
 	if not camera.is_empty():
 		out["camera"] = ShotCam.to_file(camera)   # the shot camera: the same, only when there is one
+	if not PartSets.clean(sets).is_empty():
+		out["sets"] = PartSets.to_file(sets)   # selection / keying sets: the same, only when there is one
 	if not body.is_empty():
 		out["body"] = body.duplicate(true)   # PR1: proportions, only when not the default body
 	return out
@@ -1812,7 +1816,8 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
-	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)"}
+	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
+	"sets": "SIDED: PartSets.mirror_file (every part to its twin; a set named \"_l\" / \"_r\" takes its twin's name, the active keying set too)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
@@ -1856,6 +1861,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["constraints"] = Constraints.mirror_file(d2["constraints"])   # round 51: owners / parts to twins, offsets reflected
 	if d2.has("camera"):
 		d2["camera"] = ShotCam.mirror_file(d2["camera"])   # the shot camera across x = 0
+	if d2.has("sets"):
+		d2["sets"] = PartSets.mirror_file(d2["sets"])   # selection / keying sets: parts to twins, "_l" / "_r" names swapped
 	if d2.has("layer"):
 		d2["layer"] = Scene.mirror_layer(d2["layer"], M)
 	for L in d2.get("layers", []):
@@ -1915,6 +1922,7 @@ func from_dict(d: Dictionary) -> void:
 	if not actors.is_empty():
 		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
 	camera = ShotCam.from_file(d.get("camera", []))   # the shot camera: absent = none
+	sets = PartSets.from_file(d.get("sets", {}))   # selection / keying sets: absent = none
 	for p in d.get("props", []):
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))

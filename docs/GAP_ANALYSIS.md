@@ -16,10 +16,10 @@ Each row is HAVE (works and is tested), PART (exists but short of the reference)
 | 3 | Graph Editor (F-curves) | PART | "Curve editor" shows one part's keys; no multi-channel view, box-select, scale-keys, normalize, F-curve modifiers (noise, cycles, limits) |
 | 4 | Dope Sheet | HAVE | dope sheet, copy / move keys (NA0) |
 | 5 | Timeline, preview range, fps, markers | HAVE | preview range, 24/30/60, markers |
-| 6 | Keying Sets | LACK | no named groups of channels to key together |
+| 6 | Keying Sets | HAVE (part level) | named keying sets of parts, one active, K keys them all at the playhead in one undo step (scripts/part_sets.gd, tests/sets_test.gd, docs/research/SETS.md); no per-channel paths |
 | 7 | Pose: copy / paste / flipped, propagate | HAVE | Copy / Paste / Paste flipped; "keep this change through the whole scene" |
 | 8 | Pose Library | PART | Save pose plus a Poses list; no thumbnails, no blend-in-a-pose slider |
-| 9 | Selection Sets / bone collections | LACK | "Select:" presets only; no user-named sets |
+| 9 | Selection Sets / bone collections | HAVE | user-named selection sets in the browser's Sets list: new from selection, select, add / remove, rename, delete, mirror; saved in the scene (scripts/part_sets.gd, tests/sets_test.gd) |
 | 10 | In-betweens (push, relax, breakdown) | HAVE | Breakdowner, Push, Relax, Blend to … |
 | 11 | Motion Paths | HAVE | Motion trail, pin a trail |
 | 12 | NLA (actions, strips, blending) | PART | Layers: add / override / weight / mute / solo / merge (NA1-NA3); **no reusable actions / clips placed as strips** (a walk cycle reused across scenes) |
