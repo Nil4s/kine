@@ -7063,6 +7063,8 @@ func _commands() -> Array:
 	add.call("Moving holds on/off", "", _tool.bind(4), "drift", true, "during a hold the upper body drifts a little toward the next card (saved with the scene)")
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check (experimental: the limits are still being verified)")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
+	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
+	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
 	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
@@ -9403,6 +9405,36 @@ func _human_check() -> void:
 	HumanLimits.on = not HumanLimits.on
 	_check()
 	_say(("Check now asks 'could a human do this?' too: joint speed and tipping against recorded limits (experimental)" if HumanLimits.on else "Check is back to the rulebook alone"))
+
+
+## TWINNING (ROADMAP 19; scripts/twinning.gd): the mirror twins the default Check does not grade. Shown in the Check list.
+func _twin_check() -> void:
+	if S.cards.size() < 2:
+		_say("Check: twinning needs a scene of two cards or more")
+		return
+	var f := Twinning.findings(S, ov.GB)
+	_check(f)
+	_say("twinning: nothing moves as a mirror twin for 0.3 s or more" if f.is_empty() else "twinning: %d range(s) listed in Check; 'Fix: offset the picked side by 3 frames' offsets the picked side" % f.size())
+
+
+func _twin_fix() -> void:
+	var side := "l" if sel.ends_with("_l") else ("r" if sel.ends_with("_r") else "")
+	if side == "":
+		_say("pick a left or right arm or leg part first: the side to offset (picked: %s)" % sel)
+		return
+	var ranges := []
+	for f in Twinning.findings(S, ov.GB):
+		ranges.append({"kind": f["kind"], "t0": f["t0"], "t1": f["t1"]})
+	if ranges.is_empty():
+		_say("no twinning to fix: Check: twinning lists none")
+		return
+	_push_undo()   # one undo step for the whole offset
+	var n := Twinning.offset(S, ov.GB, side, ranges)
+	_refresh()
+	var left := Twinning.findings(S, ov.GB)
+	_check(left)
+	_say("offset the %s side by %d frames over %d range(s): %d joint(s) moved, %d twin range(s) left (Ctrl+Z undoes it)" % [
+		"left" if side == "l" else "right", Twinning.OFFSET, ranges.size(), n, left.size()])
 
 
 func _audio_gain(step: float) -> void:
