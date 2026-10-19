@@ -23,7 +23,7 @@ Each row is HAVE (works and is tested), PART (exists but short of the reference)
 | 10 | In-betweens (push, relax, breakdown) | HAVE | Breakdowner, Push, Relax, Blend to … |
 | 11 | Motion Paths | HAVE | Motion trail, pin a trail |
 | 12 | NLA (actions, strips, blending) | PART | Layers: add / override / weight / mute / solo / merge (NA1-NA3); **no reusable actions / clips placed as strips** (a walk cycle reused across scenes) |
-| 13 | **IK / FK switch per limb, pole targets** | **LACK** | `reach` is IK used internally; the animator cannot set a limb to IK with a pole and key the IK target. This is the core of Maya / Blender character animation |
+| 13 | **IK / FK switch per limb, pole targets** | **PARTIAL** (IK pin / release / snaps, keyable target, pole, weight: scripts/limb_ik.gd, tests/ik_pin_test.gd; no in-view handles yet) | Was: `reach` is IK used internally; the animator cannot set a limb to IK with a pole and key the IK target. This is the core of Maya / Blender character animation |
 | 14 | **Constraints** (Child Of, Copy Transforms, Track To, Limit Rotation, Floor) | **PART** | weapon lock = a hard-wired Child Of; joint limits = Limit Rotation; foot plant = Floor-like. **No general constraint the user can add, key on / off, or blend** (e.g. a hand holding a door, a hand on a hip) |
 | 15 | Drivers | LACK | "shoulders follow the arm" is one hard-wired driver; no user drivers |
 | 16 | Armatures: own rig / bones | LACK | one fixed skeleton (UE5 Manny names) |

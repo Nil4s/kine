@@ -2424,7 +2424,7 @@ func _snapshot() -> Dictionary:
 	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
-		"layers": S.layers.duplicate(true),
+		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2449,6 +2449,9 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
+	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
+		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
+		_dummy_hits()
 	if u["scene"] == S and u.has("flags"):
 		for k in BAKE_FLAGS.size():   # DD4: Ctrl+Z on a bake gives the floor, the pins, spline ... back
 			S.set(BAKE_FLAGS[k], u["flags"][k])
@@ -2517,6 +2520,81 @@ func _key_part() -> void:
 	var t := clampf(playhead, 0.0, S.length())
 	_do(func(): PartKeys.put(S.part_keys, sel, t, B.ang[sel]))
 	_say("keyed %s at %.2f s  (%d key%s on it; Ctrl+Z takes it back)" % [sel, t, S.part_keys[sel].size(), "" if S.part_keys[sel].size() == 1 else "s"])
+
+
+## IK / FK WITH POLE TARGETS (GAP_ANALYSIS row 13; scripts/limb_ik.gd). The picked part names the limb (an arm part or a
+## finger: that hand; a leg part: that foot). Each command is one undo step
+func _ik_tip() -> String:
+	return LimbIK.limb_of(sel)
+
+
+func _ik_words(tip: String) -> String:
+	return ("left " if tip.ends_with("_l") else "right ") + ("hand" if tip.begins_with("hand") else "foot")
+
+
+func _ik_pin() -> void:
+	var tip := _ik_tip()
+	if tip == "":
+		_say("IK pins a hand or a foot: click a hand, a foot, or a part of that arm or leg first")
+		return
+	if S.cards.is_empty():
+		_say("IK keys live in a scene: open a scene, or press Enter to add the body as a card, then pin")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var r := {}
+	_do(func(): r.merge(LimbIK.pin(S, B, tip, t)))
+	_dummy_hits()
+	var p: Vector3 = r["target"]
+	_say("pinned the %s at %.2f s, at (%.2f, %.2f, %.2f) m: it stays there whatever the body does, its %s toward the pole (Ctrl+Z takes it back)" % [_ik_words(tip), t, p.x, p.y, p.z, "elbow" if tip.begins_with("hand") else "knee"])
+
+
+func _ik_release() -> void:
+	var tip := _ik_tip()
+	if tip == "":
+		_say("release lets a pinned hand or foot go: click that hand or foot (or a part of its limb) first")
+		return
+	var ks: Array = S.ik.get(tip, [])
+	var t := clampf(playhead, 0.0, S.length())
+	if ks.is_empty() or LimbIK.weight_at(ks, t) <= 0.0:
+		_say("the %s is not pinned here: use 'IK: pin the picked hand/foot here' first, or move the playhead to where it is pinned" % _ik_words(tip))
+		return
+	if LimbIK.card_at(S, t) < 0:
+		_say("release writes the pose into a card: click a card (the playhead goes onto it), or press Enter to add one here, then release")
+		return
+	var r := {}
+	_do(func(): r.merge(LimbIK.release(S, B, tip, t)))
+	_dummy_hits()
+	_say("released the %s at %.2f s: card %d now holds its pinned pose (off by %.2f deg at most), so it follows the cards from here without a jump" % [_ik_words(tip), t, int(r["card"]) + 1, float(r["residual"])])
+
+
+func _ik_snap_fk() -> void:
+	var tip := _ik_tip()
+	if tip == "" or not S.ik.has(tip):
+		_say("snap FK to IK needs a limb with IK keys: click a pinned hand or foot, or use 'IK: pin the picked hand/foot here' first")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	if LimbIK.card_at(S, t) < 0:
+		_say("snap FK to IK writes into a card: click a card (the playhead goes onto it), or press Enter to add one here")
+		return
+	var r := {}
+	_do(func(): r.merge(LimbIK.snap_fk(S, B, tip, t)))
+	_dummy_hits()
+	_say("card %d took the %s's IK pose (off by %.2f deg at most); its IK keys stay" % [int(r["card"]) + 1, _ik_words(tip), float(r["residual"])])
+
+
+func _ik_snap_ik() -> void:
+	var tip := _ik_tip()
+	if tip == "":
+		_say("snap IK to FK keys a hand or foot's IK target: click a hand, a foot, or a part of that arm or leg first")
+		return
+	if S.cards.is_empty():
+		_say("IK keys live in a scene: open a scene, or press Enter to add the body as a card first")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var r := {}
+	_do(func(): r.merge(LimbIK.snap_ik(S, B, tip, t)))
+	_dummy_hits()
+	_say("the %s's IK target and pole keyed at %.2f s where the cards put it (IK weight there %.2f)" % [_ik_words(tip), t, float(r["w"])])
 
 
 ## ASK AI (round 46, GATES BB2): opens / closes the AI box (scripts/ai_box.gd) at the right, above the cards. The box
@@ -5484,6 +5562,10 @@ func _commands() -> Array:
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
 	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0, 0, 0)")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
+	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
+	add.call("IK: release the picked limb here", "", _ik_release, "ik fk unpin unlock free let go release hand foot", true, "the pinned hand (or foot) follows the cards again from the card at the playhead: its pinned pose goes into that card first, so nothing jumps")
+	add.call("IK: snap FK to IK", "", _ik_snap_fk, "ik fk match switch visual key rigify card", true, "the card at the playhead takes the picked limb's IK pose (what you see), the IK keys stay")
+	add.call("IK: snap IK to FK", "", _ik_snap_ik, "ik fk match switch target pole rigify", true, "the picked limb's IK target and pole keyed at the playhead where the cards put the limb (the IK weight stays)")
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
 	for ip in PartKeys.INTERPS:   # KEY INTERPOLATION (XX1)
@@ -5996,6 +6078,8 @@ func _mirror_scene() -> void:
 	d["cards"] = d["cards"].map(func(c): return Scene.mirror_card(c, M))   # by Scene.MIRROR_CARD (round 19, Z1)
 	if d.has("part_keys"):
 		d["part_keys"] = PartKeys.mirror_file(d["part_keys"], M)   # MIRROR_SCENE "part_keys" (WW1)
+	if d.has("ik"):
+		d["ik"] = LimbIK.mirror_file(d["ik"])   # MIRROR_SCENE "ik": hand_l <-> hand_r, points x negated
 	if d.has("layer"):
 		d["layer"] = Scene.mirror_layer(d["layer"], M)   # MIRROR_SCENE "layer" (YY9)
 	for L in d.get("layers", []):

@@ -57,6 +57,8 @@ var markers := []      # named moments on the timeline (round 41, WW5; Markers):
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
+var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
+var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var name := "scene"
 var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
@@ -563,6 +565,11 @@ func apply(B: Body, t: float) -> void:
 	add_layer(B)           # YY9: on top of the cards; nothing without a layer or at weight 0
 	add_layers(B, t)       # NA1: the further layers, in order; nothing without one
 	B.breathe(t, breath)   # YY6: on top of the pose; nothing at 0
+	ik_last = {}
+	if not ik.is_empty():   # IK (GAP_ANALYSIS row 13): last, so a pinned hand stays pinned over everything above
+		ik_last = LimbIK.play(ik, B, t)
+		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
+			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
 	B.fast = was_fast
 
 
@@ -1274,6 +1281,7 @@ func clone() -> Scene:
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
+	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
 	return c
 
 
@@ -1343,8 +1351,8 @@ var _carry_memo := []   # [key, [per carry: {"grip", "home", "drop", "land", "y0
 func _carry_data(B: Body) -> Array:
 	var cs := carries()
 	var ts := times()
-	var key := [ts, JSON.stringify(cs), JSON.stringify(props.map(func(p): return Props.to_dict(p))), var_to_str(part_keys)]
-	if not _carry_memo.is_empty() and is_same(_carry_memo[0][0], ts) and _carry_memo[0][1] == key[1] and _carry_memo[0][2] == key[2] 			and _carry_memo[0][3] == key[3]:   # a keyed hand moves the grip (WW1)
+	var key := [ts, JSON.stringify(cs), JSON.stringify(props.map(func(p): return Props.to_dict(p))), var_to_str(part_keys), var_to_str(ik)]
+	if not _carry_memo.is_empty() and is_same(_carry_memo[0][0], ts) and _carry_memo[0][1] == key[1] and _carry_memo[0][2] == key[2] 			and _carry_memo[0][3] == key[3] and _carry_memo[0][4] == key[4]:   # a keyed hand moves the grip (WW1)
 		return _carry_memo[1]
 	var st := B.state()
 	var bp := B.props
@@ -1736,6 +1744,8 @@ func to_dict(B: Body) -> Dictionary:
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
 	if not markers.is_empty():
 		out["markers"] = markers.duplicate(true)   # WW5: the same, only when there are any
+	if not ik.is_empty():
+		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
 	return out
 
 
@@ -1748,7 +1758,8 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
-	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)"}
+	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
+	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
@@ -1797,6 +1808,7 @@ func from_dict(d: Dictionary) -> void:
 	props = []
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
+	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
 	for p in d.get("props", []):
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))

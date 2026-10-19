@@ -42,6 +42,8 @@ func _init() -> void:
 	m.S.moving_holds = true
 	m.S.loop = true
 	m._rebuild_cards()
+	m.S.apply(m.B, float(m.S.times()[2][1]))
+	LimbIK.pin(m.S, m.B, "hand_l", float(m.S.times()[2][1]))   # IK keys (limb_ik.gd): the left hand pinned at card 3
 	var keep: Dictionary = m.B.state()
 	var orig: Dictionary = JSON.parse_string(JSON.stringify(m.S.to_dict(m.B)))
 	m.B.set_state(keep)
@@ -58,7 +60,7 @@ func _init() -> void:
 			for k in c:
 				ck[k] = true
 	var off := sk.keys().filter(func(k): return not Scene.MIRROR_SCENE.has(k)) + ck.keys().filter(func(k): return not Scene.MIRROR_CARD.has(k))
-	ok(off.is_empty() and ck.has("plant") and ck.has("steps") and sk.has("loop"),
+	ok(off.is_empty() and ck.has("plant") and ck.has("steps") and sk.has("loop") and sk.has("ik"),
 		"1 every key written is on mirror's list: %d scene keys, %d card keys over %d files and to_dict (off the list: %s)" % [sk.size(), ck.size(), files.size(), off])
 
 	# mirror through the window's command
@@ -77,6 +79,14 @@ func _init() -> void:
 		for k in Scene.MIRROR_CARD:
 			if Scene.MIRROR_CARD[k] == "free" and JSON.stringify(orig["cards"][i].get(k)) != JSON.stringify(mir["cards"][i].get(k)):
 				diff.append([i + 1, k, orig["cards"][i].get(k), mir["cards"][i].get(k)])
+	var oik: Array = orig["ik"]["hand_l"]
+	var mik: Array = mir.get("ik", {}).get("hand_r", [])
+	var ik_ok: bool = mir.get("ik", {}).keys() == ["hand_r"] and mik.size() == oik.size()
+	for i in mini(oik.size(), mik.size()):
+		for f in ["target", "pole"]:
+			ik_ok = ik_ok and absf(float(mik[i][f][0]) + float(oik[i][f][0])) < 1e-6 and absf(float(mik[i][f][1]) - float(oik[i][f][1])) < 1e-6 and absf(float(mik[i][f][2]) - float(oik[i][f][2])) < 1e-6
+		ik_ok = ik_ok and float(mik[i]["t"]) == float(oik[i]["t"]) and float(mik[i]["w"]) == float(oik[i]["w"])
+	ok(ik_ok, "4b the IK keys: the left hand's %d keys are the right hand's, target and pole x negated, times and weights as they were (%s)" % [oik.size(), mir.get("ik", {}).keys()])
 	ok(diff.is_empty(), "4 every side-free field byte-identical, the scene's and each of %d cards' (differ: %s)" % [orig["cards"].size(), diff])
 	var S2 := Scene.new()
 	S2.from_dict(mir)
@@ -101,8 +111,8 @@ func _init() -> void:
 		for j in a["ang"]:
 			var dv: Vector3 = ((a["ang"][j] as Vector3) - (b["ang"][j] as Vector3)).abs()
 			worst = maxf(worst, maxf(dv.x, maxf(dv.y, dv.z)))
-	ok(worst < 0.01 and JSON.stringify(back["cards"][2].get("plant")) == JSON.stringify(orig["cards"][2]["plant"]) and JSON.stringify(back["cards"][3]["steps"]) == JSON.stringify(orig["cards"][3]["steps"]),
-		"6 mirrored twice: the scene back (the poses within %.4f deg, the plant and the step as they were)" % worst)
+	ok(worst < 0.01 and JSON.stringify(back["cards"][2].get("plant")) == JSON.stringify(orig["cards"][2]["plant"]) and JSON.stringify(back["cards"][3]["steps"]) == JSON.stringify(orig["cards"][3]["steps"]) and JSON.stringify(back.get("ik")) == JSON.stringify(orig["ik"]),
+		"6 mirrored twice: the scene back (the poses within %.4f deg, the plant, the step and the IK keys as they were)" % worst)
 	for p in [mp, "res://scenes/_wip/zz_z1.json"]:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
