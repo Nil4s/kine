@@ -549,11 +549,20 @@ func _draw() -> void:
 		draw_polyline(polyline(c), _col(c), 2.0, true)
 	_draw_why_lines()
 	for i in ks.size():
+		var kt := PartKeys.ktype_of(ks[i])   # ROADMAP 66: a breakdown is a small diamond, an in-between a small ring; a key a dot
 		for c in 3:
 			var q := key_pos(c, i)
 			var on := (c == sel_ch and i == sel_i) or is_picked(c, i)
-			draw_circle(q, 5.5 if on else 4.0, ink if on else _col(c))
-			draw_arc(q, 5.5 if on else 4.0, 0.0, TAU, 16, _col(c) if on else Tok.c("tl_bg"), 1.5)
+			var r := 5.5 if on else 4.0
+			if kt == "breakdown":
+				var dm := PackedVector2Array([q + Vector2(0, -r), q + Vector2(r, 0), q + Vector2(0, r), q + Vector2(-r, 0)])
+				draw_colored_polygon(dm, ink if on else _col(c))
+				draw_polyline(PackedVector2Array([dm[0], dm[1], dm[2], dm[3], dm[0]]), Tok.c("kt_break"), 1.5)
+			elif kt == "inbetween":
+				draw_arc(q, r * 0.75, 0.0, TAU, 16, ink if on else _col(c), 2.0)
+			else:
+				draw_circle(q, r, ink if on else _col(c))
+				draw_arc(q, r, 0.0, TAU, 16, _col(c) if on else Tok.c("tl_bg"), 1.5)
 	for i in handle_keys():   # ROADMAP 65: the picked keys' tangent handles, a line and a square at each end
 		for c in 3:
 			for side in ["in", "out"]:
@@ -742,6 +751,23 @@ func picked_keys() -> Array:
 			out.append(q[1])
 	out.sort()
 	return out
+
+
+## ROADMAP 66: "pick only main keys": the picks become every "key" (not a breakdown or in-between) on all three angles,
+## so a drag or scale retimes just the keys and the breakdowns stay where they are
+func pick_main_keys() -> int:
+	var ks := keys()
+	picked = []
+	var n := 0
+	for i in ks.size():
+		if PartKeys.ktype_of(ks[i]) == "key":
+			n += 1
+			for c in 3:
+				picked.append([c, i])
+	sel_ch = -1
+	sel_i = -1
+	queue_redraw()
+	return n
 
 
 ## move every selected dot from where the gesture began: dt (s) to each selected key's time, dv (deg) to each selected

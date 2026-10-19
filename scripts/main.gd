@@ -5436,6 +5436,55 @@ func _part_curve(kind: String, mode: String) -> void:
 	_say("%s %s: %s  (Ctrl+Z takes it back)" % [sel, kind, mode])
 
 
+## ROADMAP 66: set the TYPE of the picked part's key(s) ("key" / "breakdown" / "inbetween"): the curve editor's picks on
+## this part when it is open with some, else the key nearest the playhead. One undo step (saved and mirrored with the keys)
+func _part_ktype(kt: String) -> void:
+	if not S.part_keys.has(sel) or (S.part_keys[sel] as Array).is_empty():
+		_say("%s has no part keys: press K to key it, then set its type" % sel)
+		return
+	var idxs := []
+	if ui_curve != null and ui_curve.visible and ui_curve.joint == sel:
+		idxs = ui_curve.picked_keys()
+	if idxs.is_empty():
+		var i := PartKeys.key_near(S.part_keys[sel], playhead)
+		if i >= 0:
+			idxs = [i]
+	if idxs.is_empty():
+		_say("no %s key near the playhead (0.05 s): move the playhead onto a key, or pick keys in the curve editor, then set the type" % sel)
+		return
+	_do(func():
+		for i in idxs:
+			PartKeys.set_ktype(S.part_keys, sel, i, kt))
+	_say("%d %s key%s set to %s  (Ctrl+Z takes it back)" % [idxs.size(), sel, "" if idxs.size() == 1 else "s", kt])
+
+
+## ROADMAP 66: "Breakdown: add a key at the playhead in between": a breakdown key on the picked part at the playhead, its
+## angles the curve's own there, so the pose does not change. Needs the playhead strictly between two of its keys
+func _part_breakdown() -> void:
+	if not S.part_keys.has(sel) or (S.part_keys[sel] as Array).size() < 2:
+		_say("%s needs two part keys to put a breakdown between them: press K at two times, then try again" % sel)
+		return
+	var keys: Array = S.part_keys[sel]
+	var t := clampf(playhead, 0.0, S.length())
+	if t <= float(keys[0]["t"]) or t >= float(keys[keys.size() - 1]["t"]):
+		_say("the playhead is outside %s's keys (%.2f to %.2f s): move it between two of them" % [sel, float(keys[0]["t"]), float(keys[keys.size() - 1]["t"])])
+		return
+	if PartKeys.key_near(keys, t, PartKeys.SAME_T) >= 0:
+		_say("a key is already at %.2f s on %s: pick it and set its type (key / breakdown / inbetween)" % [t, sel])
+		return
+	_do(func(): PartKeys.add_breakdown(S.part_keys, sel, t))
+	_say("breakdown added on %s at %.2f s, on the curve  (Ctrl+Z takes it back)" % [sel, t])
+
+
+## ROADMAP 66: "pick only main keys" in the curve editor: the picks become the "key"s only, so a retime moves just them
+func _curve_main_keys() -> void:
+	if ui_curve == null or not ui_curve.visible:
+		_say("open the curve editor first (Curve editor), then pick only main keys")
+		return
+	var n: int = ui_curve.pick_main_keys()
+	_say("picked %d main key%s; breakdowns and in-betweens are left out of the pick" % [n, "" if n == 1 else "s"])
+
+
 func _reset_part() -> void:
 	if sel in Body.WEAPON:
 		return
@@ -8768,6 +8817,10 @@ func _commands() -> Array:
 		add.call("Part key: " + hd + " handle", "", _part_curve.bind("handle", hd), "key curve bezier blender graph " + hd, true, "the picked part's key at the playhead gets the " + hd + " bezier handle type")
 	for inf in PartKeys.INFS:
 		add.call("Part keys: " + inf + " infinity", "", _part_curve.bind("inf", inf), "key curve extrapolation blender graph repeat loop " + inf, true, "what the picked part's curve does before its first and after its last key: " + inf)
+	for kt in PartKeys.KTYPES:   # ROADMAP 66: the key types (key / breakdown / inbetween)
+		add.call("Part key type: " + kt, "", _part_ktype.bind(kt), "key type keyframe breakdown inbetween main " + kt, true, "the picked part's key (or the curve editor's picked keys on it) becomes a " + kt + " key")
+	add.call("Breakdown: add a key at the playhead in between", "", _part_breakdown, "breakdown in between key add playhead interpolated pose blender", true, "a breakdown key on the picked part at the playhead, on its curve: the pose does not change")
+	add.call("Curve editor: pick only main keys", "", _curve_main_keys, "pick select main keys only retime breakdown inbetween curve", false, "the curve editor picks just its main keys (not breakdowns or in-betweens), so a drag retimes only them")
 	add.call("Snap the part to 90°", "Q", _press.bind(KEY_Q), "round", true, "round the picked part's angles to the 90° steps its range allows")
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
@@ -9201,7 +9254,7 @@ func _dope_part(joints: Array, t0: float, t1: float, copy: bool) -> int:
 			var src: Dictionary = (ks[idx] as Dictionary).duplicate(true)
 			PartKeys.put(S.part_keys, j, t1, src["v"])
 			var ni := PartKeys.key_near(S.part_keys[j], t1, PartKeys.SAME_T)
-			for f in ["interp", "handle", "hin", "hout"]:
+			for f in ["interp", "handle", "hin", "hout", "ktype"]:   # ROADMAP 66: a copy keeps the type
 				if src.has(f):
 					S.part_keys[j][ni][f] = src[f]
 			n += 1

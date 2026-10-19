@@ -150,11 +150,14 @@ class DopeCanvas extends Control:
 				for k in S.part_keys.get(j, []):
 					var t: float = k["t"]
 					var key := int(round(t * 1000.0))
+					var kt := PartKeys.ktype_of(k)   # ROADMAP 66: a diamond shows a main key if any joint's key there is one
 					if at.has(key):
 						out[at[key]]["joints"].append(j)
+						if kt == "key":
+							out[at[key]]["ktype"] = "key"
 					else:
 						at[key] = out.size()
-						out.append({"row": r, "i": -1, "t": t, "x": x_of(t), "y": row_y(r), "kind": "part", "joints": [j]})
+						out.append({"row": r, "i": -1, "t": t, "x": x_of(t), "y": row_y(r), "kind": "part", "joints": [j], "ktype": kt})
 		return out
 
 	func card_hit(p: Vector2) -> int:
@@ -297,8 +300,14 @@ class DopeCanvas extends Control:
 						_shape(c, 6.5, Tok.c("accent"), false)
 				if sel:
 					draw_arc(c, 11.0, 0.0, TAU, 20, Tok.c("focus"), 1.5)
-			else:
-				_shape(c, 4.0, Tok.c("heading"), false)
+			else:   # ROADMAP 66: a part key's type: a breakdown is a small gold diamond, an in-between a small hollow one
+				match String(d.get("ktype", "key")):
+					"breakdown":
+						_shape(c, 3.0, Tok.c("kt_break"), false)
+					"inbetween":
+						_shape(c, 3.5, Tok.c("kt_between"), true)
+					_:
+						_shape(c, 4.0, Tok.c("heading"), false)
 		if not _drag.is_empty() and _drag.has("mode") and _drag["started"]:   # NA0: the ghost where it will land
 			var gt := snap_t(float(_drag["x"]), float(_drag["pps"]))
 			var gy := row_y(-1) if _drag["mode"] == "copy" else row_y(int(_drag["row"]))
