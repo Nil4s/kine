@@ -645,10 +645,19 @@ func play_t(t: float) -> float:
 	return roundf(t * g) / g
 
 
+## apply WITHOUT the baked pose table: what the cards say now. The table is dropped and re-made a frame after an edit (main._bake_poll),
+## so a grader (Check, Fix, Feasible, the version diff) that reads the scene in that frame must not take its poses from the table
+func apply_true(B: Body, t: float) -> void:
+	var bk := baker
+	baker = null
+	apply(B, t)
+	baker = bk
+
+
 func apply(B: Body, t: float) -> void:
 	if B.body != body:
 		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body
-	if baker != null:
+	if baker != null and PoseBake.serving:
 		var e = baker.entry(t)
 		if e != null:
 			baker.hits += 1

@@ -59,7 +59,7 @@ static func build(pts: Array, speed: float) -> Dictionary:
 	var c := PathWalk.curve(pts)
 	var r_min := PathWalk.min_radius(c)
 	if r_min < MIN_RADIUS:
-		return {"ok": false, "why": "the path turns on a %.2f m radius; a run needs at least %.1f m. Widen the bend (move the points out)" % [r_min, MIN_RADIUS]}
+		return {"ok": false, "why": "the path turns on a %s radius; a run needs at least %s. Widen the bend (move the points out)" % [Units.len(r_min), Units.len(MIN_RADIUS)]}
 	var tm := timing()
 	var T: float = tm["T"]
 	var Ts: float = tm["stance"]
@@ -68,7 +68,7 @@ static func build(pts: Array, speed: float) -> Dictionary:
 	var D: float = c["len"]
 	var N := int(floor((D - 0.5 - L * 0.5) / L)) + 1
 	if N < 3:
-		return {"ok": false, "why": "the path is %.1f m: a run needs three strides (%.1f m) on it. Draw a longer path" % [D, 3.0 * L + 1.0]}
+		return {"ok": false, "why": "the path is %s: a run needs three strides (%s) on it. Draw a longer path" % [Units.len(D), Units.len(3.0 * L + 1.0)]}
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var base: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(BASE))

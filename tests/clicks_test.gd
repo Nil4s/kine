@@ -242,7 +242,7 @@ func _init() -> void:
 	m._refresh()
 	await idle(3)
 	# round 36 (RR4): Check left the play row for the ribbon's CHECK tab: one click more (the tab), budget 2 -> 3
-	if await click("top_strip/tab_check"):
+	if await click("page_bar/tab_check"):
 		n += 1
 	if await click("ribbon_check/b_check"):
 		n += 1
@@ -282,6 +282,10 @@ func _init() -> void:
 	await task("undo", "Ctrl+Z", 1, JSON.stringify(m.S.cards) != bf)
 
 	# 10 save the scene under a new name (scenes/_wip: never Nick's files)
+	# the CHECK page (task 8) folds the cards and the scene name away by design (docs/PAGES_PLAN.md): the task starts on the POSE page,
+	# where the name box is, as a person saving a scene would (setup, not an action)
+	m._page_set("POSE")
+	await idle(3)
 	n = 0
 	if await click("edit_scene_name"):
 		n += 1

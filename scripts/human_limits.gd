@@ -117,7 +117,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	var rows := []
 	for i in n:
 		var t := minf(i / FPS, S.length())
-		S.apply(B, t)
+		S.apply_true(B, t)
 		var row := {"rel": {}, "pts": {}}
 		for j in TURN:
 			var pr: Array = TURN[j]

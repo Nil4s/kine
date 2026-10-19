@@ -108,7 +108,7 @@ func input(ev: InputEvent) -> bool:
 func add_point(p: Vector3) -> void:
 	pts.append(Vector3(p.x, 0.0, p.z))
 	_draw()
-	m._say("%d point%s on the path (%.1f m so far): click more, Enter builds the %s, Esc cancels" % [pts.size(), "" if pts.size() == 1 else "s", PathWalk.curve(pts)["len"] if pts.size() > 1 else 0.0, mode()])
+	m._say("point count: %d (%s so far): click more, Enter builds the %s, Esc cancels" % [pts.size(), Units.len(PathWalk.curve(pts)["len"] if pts.size() > 1 else 0.0), mode()])
 
 
 func finish() -> void:
@@ -147,6 +147,8 @@ func finish() -> void:
 		m._rebuild_cards()
 		m.playhead = 0.0
 		m.S.apply(m.B, 0.0))
+	if not m.undo.is_empty():
+		m.undo[-1]["swap"] = true   # this step swaps the whole Scene object: undo and redo put it back (main._restore)
 	marks = []
 	var c := PathWalk.curve(keep)
 	var step: float = r["step"]
@@ -156,7 +158,7 @@ func finish() -> void:
 		var s_k := step * 0.5 + (k - 1) * step
 		marks.append([PathRun._foot(c, sd, s_k) if verb == "run" else PathWalk.foot(c, sd, s_k), PathWalk.heading(c, s_k)])
 	_draw_pts(keep)
-	m._say("%s along the path: %d cards, %.1f m at %.1f m/s.  the open scene is untouched; Ctrl+Z goes back to it in one step; the new scene is not saved until you save it" % [verb, n, metres, sp])
+	m._say("%s along the path: %d cards, %s at %.1f m/s.  the open scene is untouched; Ctrl+Z goes back to it in one step; the new scene is not saved until you save it" % [verb, n, Units.len(metres), sp])
 
 
 func _draw() -> void:

@@ -130,6 +130,15 @@ const ALLOW := [
 	{"file": "main.gd", "lit": "needs 2 to %d videos", "reason": "a count of videos (2 is the least, MULTI_MAX the most): the scan reads the 2 before 'to %d' as unitless"},
 	{"file": "rise.gd", "lit": "rising %d/%d", "reason": "a key index of the rise: stage k of the NKEY-1 keys (a count of keys, not a quantity)"},
 	{"file": "plugins.gd", "lit": "Godot error %d", "reason": "an error code the engine gives, not a quantity"},
+	# round-6 merges (page bar, card strip, path run/walk, feasibility): keys, card names, counts
+	{"file": "main.gd", "lit": "card moved to place %d", "reason": "a 1-based position in the strip: an index"},
+	{"file": "main.gd", "lit": "page (Shift+%d)", "reason": "a keyboard key 1 to 5: a key name"},
+	{"file": "main.gd", "lit": "(Alt+%d too", "reason": "a keyboard key 1 to 5: a key name"},
+	{"file": "main.gd", "lit": "Shift+%d", "reason": "a keyboard key 1 to 5: a key name"},
+	{"file": "path_run.gd", "lit": "%s %s %d", "reason": "a card name: the stride number is an index"},
+	{"file": "path_run.gd", "lit": "air %d", "reason": "a card name: the stride number is an index"},
+	{"file": "path_walk.gd", "lit": "pivot %d.%d", "reason": "a card name: step and pivot indices"},
+	{"file": "feasible.gd", "lit": "%d problem%s", "reason": "a count of problems found"},
 ]
 
 ## the last word before a number, without a list bracket: "(r" -> "r"

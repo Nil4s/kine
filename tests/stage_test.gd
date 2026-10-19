@@ -38,6 +38,9 @@ func _init() -> void:
 	var u1: int = m.undo.size()
 	m._stage_block()
 	var u1b: int = m.undo.size()
+	# the app's pose bake drops its table and re-bakes a frame AFTER an edit (main._bake_poll, ROADMAP 99): drop it here, as that poll
+	# does, so the poses below are the stepped cards' own and not the table of the cards as they were (no frames: they would move the body)
+	m.S.baker = null
 	var ts: Array = m.S.times()
 	var held := 0
 	var bad := []
