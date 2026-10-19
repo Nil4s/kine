@@ -982,6 +982,17 @@ var _version_paths: Array = []
 var vdiff := {}
 var ui_vdiff: PanelContainer
 var ui_vdiff_text: Label
+## SCENE DIFF REPORT (ROADMAP 98, scripts/scene_report.gd): two versions (or a version and the open scene) in words. Read only:
+## the panel's rows are data; a click moves the playhead and the selection; 'Show both' ghosts the older card through vdiff.
+var ui_sdiff: PanelContainer
+var ui_sdiff_a: OptionButton
+var ui_sdiff_b: OptionButton
+var ui_sdiff_head: Label
+var ui_sdiff_list: VBoxContainer
+var ui_sdiff_both: CheckBox
+var _sdiff_paths: Array = []   # the options: "" = the open scene, then the versions (newest first)
+var _sdiff_rows: Array = []
+var _sdiff_a: Scene = null     # the older side as loaded (null when it is the open scene)
 
 
 func versions_dir() -> String:
@@ -1369,6 +1380,9 @@ func _versions_menu() -> void:
 		var v: Dictionary = d.get("version", {})
 		pm.add_item("v%d   %s   %d cards" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size()], 100 + i)
 	# COMPARE WITH (ROADMAP 28): ids 50.. compare, 2 stops, 3 restores the one compared (ids 100.. restore a row)
+	pm.add_separator()
+	pm.add_item("Diff report: what changed, in words...", 4)   # ROADMAP 98: two versions, or one and the open scene
+	pm.set_item_tooltip(pm.item_count - 1, "a readable list of what changed between two versions (or a version and the open scene): cards added, removed, moved, joints, timing, props, markers, notes, settings. Read only")
 	if not _version_paths.is_empty():
 		pm.add_separator()
 		for i in mini(_version_paths.size(), 50):
@@ -1382,7 +1396,9 @@ func _versions_menu() -> void:
 
 
 func _version_picked(id: int) -> void:
-	if id == 0:
+	if id == 4:   # ROADMAP 98: the diff report (ids 0..3 are taken, 50.. compare, 100.. restore)
+		_sdiff_open()
+	elif id == 0:
 		_save_version()
 	elif id == 2:
 		_vdiff_clear()
@@ -1420,6 +1436,206 @@ func _vdiff_clear() -> void:
 	ui_vdiff.visible = false
 	ui_timeline.queue_redraw()
 	_refresh()
+
+
+## DIFF REPORT (ROADMAP 98, scripts/scene_report.gd): the panel, built once. Top left of the view, like the compare list.
+func _sdiff_build() -> void:
+	ui_sdiff = PanelContainer.new()
+	ui_sdiff.name = "sdiff_panel"
+	ui_sdiff.visible = false
+	ui_sdiff.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	ui_sdiff.offset_left = 256
+	ui_sdiff.offset_top = 96
+	ui_sdiff.custom_minimum_size = Vector2(330, 0)   # narrow: the body in the view stays clear of it
+	var ssb := StyleBoxFlat.new()
+	ssb.bg_color = Tok.c("float")
+	ssb.set_corner_radius_all(6)
+	ssb.set_content_margin_all(8)
+	ui_sdiff.add_theme_stylebox_override("panel", ssb)
+	var col := VBoxContainer.new()
+	ui_sdiff.add_child(col)
+	col.add_child(_label("Diff report", 15, "text", false))
+	var ra := HBoxContainer.new()
+	col.add_child(ra)
+	ra.add_child(_label("older", 13, "text:0.85", false))
+	ui_sdiff_a = OptionButton.new()
+	ui_sdiff_a.name = "sdiff_old"
+	ui_sdiff_a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_sdiff_a.tooltip_text = "the older side: a saved version, or the open scene"
+	ui_sdiff_a.item_selected.connect(func(_i): _sdiff_run())
+	ra.add_child(ui_sdiff_a)
+	var rb := HBoxContainer.new()
+	col.add_child(rb)
+	rb.add_child(_label("newer", 13, "text:0.85", false))
+	ui_sdiff_b = OptionButton.new()
+	ui_sdiff_b.name = "sdiff_new"
+	ui_sdiff_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_sdiff_b.tooltip_text = "the newer side: the open scene (click a row to jump there) or a saved version (read only)"
+	ui_sdiff_b.item_selected.connect(func(_i): _sdiff_run())
+	rb.add_child(ui_sdiff_b)
+	ui_sdiff_head = _label("", 13, "text:0.85", true)
+	col.add_child(ui_sdiff_head)
+	var scroll := ScrollContainer.new()
+	scroll.name = "sdiff_scroll"
+	scroll.custom_minimum_size = Vector2(314, 300)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(scroll)
+	ui_sdiff_list = VBoxContainer.new()
+	ui_sdiff_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(ui_sdiff_list)
+	var foot := HBoxContainer.new()
+	col.add_child(foot)
+	ui_sdiff_both = CheckBox.new()
+	ui_sdiff_both.name = "sdiff_both"
+	ui_sdiff_both.text = "Show both"
+	ui_sdiff_both.tooltip_text = "ghost the older version's pose over the open scene at the card of the row you picked (magenta)"
+	ui_sdiff_both.toggled.connect(_sdiff_both_toggled)
+	foot.add_child(ui_sdiff_both)
+	var close := Button.new()
+	close.name = "sdiff_close"
+	close.text = "Close"
+	close.tooltip_text = "close the diff report (the scenes are not touched)"
+	close.pressed.connect(_sdiff_close)
+	foot.add_child(close)
+	ui_root.add_child(ui_sdiff)
+
+
+## a label for one option: the open scene, or a version (its number, the time it was saved, its cards)
+func _sdiff_label(p: String) -> String:
+	if p == "":
+		return "now (the open scene)"
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(p))
+	var v: Dictionary = d.get("version", {}) if d is Dictionary else {}
+	return "v%d  %s  %d cards" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size()]
+
+
+## the report opens on the newest version against the open scene (the usual question: what did I change since I saved)
+func _sdiff_open(old_paths := []) -> void:   # old_paths: the saved versions offered (the test's seam; {} = this scene's versions)
+	_sdiff_paths = [""]
+	_sdiff_paths.append_array(old_paths if not old_paths.is_empty() else versions())
+	ui_sdiff_a.clear()
+	ui_sdiff_b.clear()
+	for i in _sdiff_paths.size():
+		ui_sdiff_a.add_item(_sdiff_label(_sdiff_paths[i]), i)
+		ui_sdiff_b.add_item(_sdiff_label(_sdiff_paths[i]), i)
+	ui_sdiff_a.select(1 if _sdiff_paths.size() > 1 else 0)
+	ui_sdiff_b.select(0)
+	ui_sdiff.visible = true
+	_sdiff_run()
+	if _sdiff_paths.size() == 1:
+		_say_plain("no versions to compare yet: Versions, 'Save a version now' keeps this scene to compare with later")
+
+
+## the rows of the two picked sides: the older (A) against the newer (B). Nothing is written.
+func _sdiff_run() -> void:
+	var pa: String = _sdiff_paths[ui_sdiff_a.selected]
+	var pb: String = _sdiff_paths[ui_sdiff_b.selected]
+	var A: Scene = S if pa == "" else VersionDiff.load_scene(pa)
+	var Bs: Scene = S if pb == "" else VersionDiff.load_scene(pb)
+	if A == null or Bs == null:
+		_say_plain("NOT NOW: %s will not open as a scene: pick another version" % (pa if A == null else pb).get_file())
+		return
+	_sdiff_a = A
+	_sdiff_rows = SceneReport.report(A, Bs, func(j): return nice(j))
+	for c in ui_sdiff_list.get_children():
+		ui_sdiff_list.remove_child(c)
+		c.queue_free()
+	var head := "No changes: %s and %s are the same (%d cards each)" % [_sdiff_label(pa), _sdiff_label(pb), Bs.cards.size()]
+	if not _sdiff_rows.is_empty():
+		var nj := 0
+		for r in _sdiff_rows:
+			if r["kind"] == "joint":
+				nj += 1
+		head = "%d changes (%d joints over 0.5 deg), %s is newer.  Click a row to go to its card" % [_sdiff_rows.size(), nj, _sdiff_label(pb)]
+		if pb != "":
+			head += "  (jumps work on the open scene: pick 'now' as the newer side)"
+	ui_sdiff_head.text = head
+	if _sdiff_rows.is_empty():
+		_sdiff_line("nothing differs in the cards, the poses, the timing, the props, markers, notes or settings")
+	for k in _sdiff_rows.size():
+		var r: Dictionary = _sdiff_rows[k]
+		var b := Button.new()
+		b.name = "sdiff_row_%d" % k
+		b.flat = true
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.text = r["text"]
+		b.clip_text = true
+		b.focus_mode = Control.FOCUS_NONE
+		if int(r["card"]) < 0:
+			b.disabled = true
+			b.tooltip_text = "the card is not in the newer side, so there is no place to jump to"
+		else:
+			b.tooltip_text = "go to card %d and select %s" % [int(r["card"]) + 1, String(r["joint"]) if r["joint"] != "" else "the card"]
+			b.pressed.connect(_sdiff_jump.bind(k))
+		ui_sdiff_list.add_child(b)
+	if ui_sdiff_both.button_pressed and _sdiff_last_card() >= 0:
+		_sdiff_ghost(_sdiff_rows[_sdiff_last_card()])
+
+
+## a plain line in the list (no row)
+func _sdiff_line(t: String) -> void:
+	var l := _label(t, 13, "text:0.85", true)
+	ui_sdiff_list.add_child(l)
+
+
+## the row index of the last jump (-1 = none): the ghost follows it
+var _sdiff_last := -1
+
+
+func _sdiff_last_card() -> int:
+	return _sdiff_last if _sdiff_last >= 0 and _sdiff_last < _sdiff_rows.size() else -1
+
+
+## a row clicked: the playhead and the card selected in the open scene, the joint selected too (the body is posed from
+## the scene; nothing is written)
+func _sdiff_jump(k: int) -> void:
+	var r: Dictionary = _sdiff_rows[k]
+	var c: int = int(r["card"])
+	if c < 0:
+		return
+	if ui_sdiff_b.selected != 0:
+		_say_plain("jumps work on the open scene: pick 'now' as the newer side of the diff report")
+		return
+	_sdiff_last = k
+	sel_card = c
+	sel_end = -1
+	playing = false
+	playhead = float(r["t"])
+	if r["joint"] != "":
+		sel = r["joint"]
+	_ps().apply(B, playhead)
+	_rebuild_cards()
+	if ui_sdiff_both.button_pressed:
+		_sdiff_ghost(r)
+	_refresh()
+	_say_plain("card %d '%s'%s" % [c + 1, S.cards[c]["name"], ("  -  " + nice(r["joint"]) if r["joint"] != "" else "")])
+
+
+## SHOW BOTH: the older side's pose at the older card, ghosted (magenta) over the open scene at the picked row's card.
+## A card that is not in the older side has no ghost to show.
+func _sdiff_ghost(r: Dictionary) -> void:
+	var has: bool = float(r["ta"]) >= 0.0 and _sdiff_a != null
+	vdiff = {"path": "", "name": "older", "scene": _sdiff_a if has else null, "ghost_t": float(r["ta"]) if has else 0.0, "sdiff": true,
+		"rows": [], "marks": []}   # the timeline reads the compare's marks: none here
+	_refresh()
+
+
+func _sdiff_both_toggled(on: bool) -> void:
+	if on:
+		var k := _sdiff_last_card()
+		if k >= 0:
+			_sdiff_ghost(_sdiff_rows[k])
+	elif vdiff.get("sdiff", false):
+		vdiff = {}
+		_refresh()
+
+
+func _sdiff_close() -> void:
+	ui_sdiff.visible = false
+	ui_sdiff_both.set_pressed_no_signal(false)
+	if vdiff.get("sdiff", false):
+		vdiff = {}
+		_refresh()
 
 
 ## the rows and the frame marks of the compared version against the open scene; the panel's text
@@ -2762,7 +2978,7 @@ func _refresh() -> void:
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
 	ov.spacing(playhead)
-	ov.version_ghost(vdiff.get("scene", null), playhead)   # COMPARE WITH (ROADMAP 28): the version's body, magenta
+	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
 	var pulled: String = B.wep_hand if sel in Body.WEAPON else sel
 	ov.reach_marker(B.P[pulled] if B.P.has(pulled) else Vector3.ZERO, _grab, dragging == "joint" and not is_nan(_grab.x) and B.P.has(pulled))
@@ -8653,6 +8869,7 @@ func _ui() -> void:
 	ui_vdiff_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_vdiff.add_child(ui_vdiff_text)
 	ui_root.add_child(ui_vdiff)
+	_sdiff_build()   # ROADMAP 98: the diff report panel (Versions, Diff report)
 	ui_co_line = Label.new()   # ROADMAP 30: who animates which fighter, the peer's state (hidden without a session)
 	ui_co_line.name = "co_line"
 	ui_co_line.visible = false
