@@ -12386,6 +12386,9 @@ var _a_players: Array = []      # one AudioStreamPlayer per track (made on load)
 var _a_sig := "<unset>"         # the track files the players were made for: a change reloads them (open, undo, add, remove)
 var _a_on: Array = []           # per track: its player runs for Play
 var _a_offs: Array = []         # per track: the offset it was last started with (a moved offset re-seeks it)
+var audio_start_usec: Array = []  # per track: the wall time (usec) its last start was requested (tests)
+var _a_corr: Array = []         # per track: corrective seeks made since its start (at most two)
+var _a_settled: Array = []      # per track: its start has been checked against the audio clock (or its corrections are used up)
 var _a_after := -1.0            # the playhead at the end of the last tick (a different one now = the user moved it)
 var _a_slice_until := 0         # msec when the scrub slices stop
 var _a_slice_frame := -1
@@ -12419,6 +12422,17 @@ func _audio_clock() -> float:
 		if c >= 0.0:
 			return c
 	return -1.0
+
+
+## keeps the per-track start arrays the length of the track list (new tracks start settled, with no corrections)
+func _a_fit() -> void:
+	var n := _a_players.size()
+	while audio_start_usec.size() < n:
+		audio_start_usec.append(0)
+	while _a_corr.size() < n:
+		_a_corr.append(0)
+	while _a_settled.size() < n:
+		_a_settled.append(true)
 
 
 ## one track's audio clock on the timeline (see _audio_clock); -1.0 when it is not sounding
@@ -12874,7 +12888,23 @@ func _audio_tick(before: float, dt: float) -> void:
 			_a_on[i] = true
 			_a_offs[i] = off
 			audio_seeks += 1
+			_a_fit()
+			audio_start_usec[i] = Time.get_ticks_usec()
+			_a_corr[i] = 0
+			_a_settled[i] = false
+		_a_fit()
 		if _a_on[i] and p.playing:
+			# closing the loop on the start: on the first frame the stream's position is non-zero, compare its audio clock
+			# with the playhead; if it is off by more than 5 ms, seek once to where it should be now (at most two corrections)
+			if not _a_settled[i] and p.get_playback_position() > 0.0:
+				var g: float = float(audio_gap[i]) if i < audio_gap.size() else NAN   # the set-time gap: the same reading the gate uses
+				if is_nan(g):
+					pass
+				elif absf(g) > 0.005 and _a_corr[i] < 2:
+					p.seek(want + AudioServer.get_time_to_next_mix() + AudioServer.get_output_latency())
+					_a_corr[i] += 1
+				else:
+					_a_settled[i] = true
 			var err := _audio_clock_of(i) - playhead
 			if absf(err) > absf(worst):
 				worst = err
