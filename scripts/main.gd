@@ -7317,6 +7317,7 @@ func _commands() -> Array:
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 1.5 m in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
+	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
@@ -8329,6 +8330,47 @@ func _polish() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("polished: %d cards -> %d, one smooth curve.  Saved as %s; your '%s' is untouched.  Press Check to see what is left." % [n0, D.cards.size(), path.get_file(), base])
+
+
+## RAGDOLL (ROADMAP 27, round 53): the body as it stands now goes limp and falls under gravity (ragdoll.gd, a deterministic
+## position-based solver), the picked parts held in place (a pin is a particle of infinite mass where the part was). The
+## fall is baked as cards (30 per second) into a NEW scene in scenes/_wip, opened; the live body and your scene are untouched.
+func _ragdoll_fall() -> void:
+	var pins: Array = []
+	for j in group():
+		if Ragdoll.is_sim(String(j)):
+			pins.append(String(j))
+	_say("ragdoll: falling%s..." % (" with %s held" % ", ".join(pins) if not pins.is_empty() else ""))
+	await get_tree().process_frame
+	var keep := B.state()
+	var keep_ang: Dictionary = B.ang.duplicate()
+	var R := Ragdoll.new()
+	R.setup(B, pins)
+	R.run(4.0)
+	var cards := R.bake(keep_ang, Ragdoll.CARD_FPS)
+	var rest := R.t_rest
+	var contact := R.t_contact
+	B.set_state(keep)
+	var C := Scene.new()
+	var base := safe_file(S.name.trim_suffix("_ragdoll") + "_ragdoll")
+	C.from_dict({"scene": base, "fps": Ragdoll.CARD_FPS, "cards": cards})
+	C.on_floor = false   # the solver is the floor and the feet: playback must not re-ground or re-plant them
+	C.pin = false
+	var d := C.to_dict(B)
+	d["plan"] = "Ragdoll (scripts/ragdoll.gd) from %s, pins: %s" % [S.name, ", ".join(pins) if not pins.is_empty() else "none"]
+	var out := "res://scenes/_wip/%s.json" % base
+	var n := 2
+	while FileAccess.file_exists(out):   # never over an earlier fall: _ragdoll_2, _ragdoll_3 ...
+		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		n += 1
+	_write(out, d)
+	_load_scene(out)
+	_rebuild_cards()
+	_refresh()
+	_say("ragdoll: %d cards, first floor contact %s, %s. Saved as %s; your '%s' is untouched." % [
+		cards.size(), "%.2f s" % contact if contact >= 0.0 else "none",
+		"at rest at %.2f s" % rest if rest >= 0.0 else "still moving at 4 s",
+		out.get_file(), S.name])
 
 
 ## PUSH / RELAX / BLEND TO REST / BLEND TO NEIGHBOUR (round 41, GATES WW3, #279 #280): logic in inbetween.gd; one undo step
