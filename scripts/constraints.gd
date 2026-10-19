@@ -274,10 +274,14 @@ static func _track_to(S: Scene, B: Body, c: Dictionary, w: float, t: float) -> D
 	if T == null:
 		return {}
 	var at: Vector3 = (T as Transform3D).origin
-	var was := {"neck_01": B.ang["neck_01"], "head": B.ang["head"]}
+	var was := {"spine_03": B.ang["spine_03"], "neck_01": B.ang["neck_01"], "head": B.ang["head"]}
 	var r := LookAt.solve(B, at)
 	if float(r["error"]) > 0.2:
 		r["error"] = _aim_refine(B, at)
+	if float(r["error"]) > CHEST_AFTER:
+		# the head alone cannot get there (neck and head at their stops): the chest turns too, as a body does for a
+		# target behind the shoulder, inside the chest's own limits (body_limits.json spine_03)
+		r["error"] = _aim_refine(B, at, ["spine_03", "neck_01", "head"])
 	_mix(B, was, w)
 	var clamped := []
 	for j in was:
@@ -289,8 +293,11 @@ static func _track_to(S: Scene, B: Body, c: Dictionary, w: float, t: float) -> D
 ## LookAt's alternating swings stop where ONE joint meets a stop; near the edge of the range another split of the turn
 ## between neck and head can still aim closer. A pattern search on the six neck + head angles (each kept inside its
 ## limits), steps 2 -> 0.05 deg, from LookAt's answer: never worse than it. Returns the aim error left (deg)
-static func _aim_refine(B: Body, at: Vector3) -> float:
-	var js := ["neck_01", "head"]
+const CHEST_AFTER := 2.0   # deg of aim still missing after neck + head: then the chest joins the turn
+
+
+static func _aim_refine(B: Body, at: Vector3, js := ["neck_01", "head"]) -> float:
+	var root: String = js[0]
 	var best := LookAt.amplitude(B, at)
 	var step := 2.0
 	var evals := 0
@@ -298,7 +305,7 @@ static func _aim_refine(B: Body, at: Vector3) -> float:
 		var moved := true
 		while moved and evals < 400:
 			moved = false
-			for k in 6:
+			for k in js.size() * 3:
 				var j: String = js[k / 3]
 				for sg in [-1.0, 1.0]:
 					var old: Vector3 = B.ang[j]
@@ -308,7 +315,7 @@ static func _aim_refine(B: Body, at: Vector3) -> float:
 					if v == old:
 						continue
 					B.ang[j] = v
-					B.fk_sub("neck_01")
+					B.fk_sub(root)
 					evals += 1
 					var e := LookAt.amplitude(B, at)
 					if e < best - 1e-6:
@@ -316,7 +323,7 @@ static func _aim_refine(B: Body, at: Vector3) -> float:
 						moved = true
 					else:
 						B.ang[j] = old
-						B.fk_sub("neck_01")
+						B.fk_sub(root)
 		step *= 0.5
 	return best
 

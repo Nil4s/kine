@@ -208,7 +208,8 @@ func _init() -> void:
 		St.apply(B, tt)
 		lim_w = maxf(lim_w, limit_worst(B))
 		var err := LookAt.amplitude(B, tgt)
-		var at_lim: bool = not B.at_limit("neck_01").is_empty() or not B.at_limit("head").is_empty()
+		# past the neck's range the chest joins (Constraints.CHEST_AFTER): reached, or the chest at its stop as well
+		var at_lim: bool = err <= 2.0 or ((not B.at_limit("neck_01").is_empty() or not B.at_limit("head").is_empty()) and not B.at_limit("spine_03").is_empty())
 		if best <= 1.0:
 			n_in += 1
 			worst_in = maxf(worst_in, err)
@@ -219,7 +220,7 @@ func _init() -> void:
 		else:
 			n_mid += 1
 	ok(n_in >= 5 and worst_in <= 2.0, "3 TRACK TO: %d targets inside the neck's range (brute force <= 1 deg): the head aims within %.3f deg at worst (bar 2)" % [n_in, worst_in])
-	ok(n_out >= 5 and bad_out.is_empty(), "3 outside (%d targets, brute force > 3 deg; %d between 1 and 3 not graded): a neck / head angle at its limit every time %s" % [n_out, n_mid, bad_out])
+	ok(n_out >= 5 and bad_out.is_empty(), "3 outside the neck's range (%d targets, neck + head brute force > 3 deg; %d between 1 and 3 not graded): the chest turned in and reached it (<= 2 deg), or neck / head AND chest are at their stops, every time %s" % [n_out, n_mid, bad_out])
 	# two fighters: the hero's head on the other fighter's head, at 24 fps over the scene
 	var H := hold_scene(B)
 	var other := hold_scene(B)
