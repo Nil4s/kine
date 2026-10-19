@@ -19,6 +19,10 @@ const MAX_ENTRIES := 7200   # 2 minutes at 60: a longer scene bakes its first tw
 
 var scene: Scene = null
 var grid := 60
+## the table answers Scene.apply only while the scene PLAYS (main._process sets it): an edit makes the table stale until the next
+## _bake_poll, and anything that reads the scene between the edit and that poll (a drag solving against the cards it just moved, a
+## trail key drag, a grader) would get the poses of the cards as they WERE. Not playing, apply solves live: always the cards as they are
+static var serving := false
 var n := 0
 var sig := PackedByteArray()
 var buf: Array = []

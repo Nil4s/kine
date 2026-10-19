@@ -71,9 +71,9 @@ func _init() -> void:
 	await key(KEY_TAB)
 	await idle()
 
-	# F6: in
+	# F6: in. The POSE tab is a page-bar button since round 6 (the pages moved from the top strip to the bar along the bottom): F6 still lands on it
 	await key(KEY_F6)
-	ok(m.kb_nav and short(owner_path()) == "top_strip/tab_pose", "F6: keyboard mode, the first control has focus (%s)" % short(owner_path()))
+	ok(m.kb_nav and short(owner_path()) == "page_bar/tab_pose", "F6: keyboard mode, the first control has focus (%s)" % short(owner_path()))
 
 	# Tab round the whole window
 	var seen := [short(owner_path())]

@@ -96,7 +96,10 @@ func _init() -> void:
 		var c := await counts()
 		# no growth over the first 100, and exactly flat over the next 100 (a count can DROP while something timed
 		# elsewhere finishes: traced, search's objects fell 3399 -> 3395 at cycle 8 whatever was open; a leak grows)
-		ok(b[0] <= a[0] and b[1] <= a[1] and b[2] <= a[2] and c == b,
+		# round 6: the card strip's thumbnails and the video lane finish background work on their own clock, so the object count
+		# (not the node or orphan count, which stay exactly flat) wanders by 1 to 3 between two reads whatever is open. A leak
+		# grows with the cycles (100 cycles = at least 100): the objects get a slack of 5 per 100 cycles, nodes and orphans none.
+		ok(b[0] <= a[0] and b[1] <= a[1] and b[2] <= a[2] + 5 and c[0] == b[0] and c[1] == b[1] and c[2] <= b[2] + 5,
 			"%-6s opened and closed 100 + 100 times: nodes %d -> %d -> %d, orphan nodes %d -> %d -> %d, objects %d -> %d -> %d" % [what, a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]])
 	print("POPUP LEAK: %d failed" % fails)
 	quit(1 if fails > 0 else 0)

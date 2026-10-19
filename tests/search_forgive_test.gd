@@ -50,7 +50,9 @@ func _init() -> void:
 	for pair in [["mirorr", "Mirror the whole pose"], ["onoin", "Onion skin on/off"], ["trial", "Motion trail on/off"], ["chekc", "Check the motion"],
 			["plish", "Polish the scene (new copy)"], ["dummmy", "Dummy on/off"], ["weapn", "Remove the weapon"], ["patse", "Paste pose"],
 			["undp", "Undo"], ["spedd graph", "Speed graph on/off"]]:
-		var t := top(pair[0], 3)
+		# 'chekc' also fits the three new CHECK commands (Page: CHECK, Check: weapon clashes, Check: could a human do this?), all one
+		# swap away and all legitimately first: it is looked for in the top 6 (round 6 added the page bar and the check switches)
+		var t := top(pair[0], 6 if pair[0] == "chekc" else 3)
 		ok(pair[1] in t or (pair[0] == "weapn" and t.any(func(x): return "eapon" in x)), "typo '%s' -> %s %s" % [pair[0], pair[1], t])
 	ok(top("zzqx", 99).is_empty() and top("bat", 99).size() < cs.size() / 2, "nonsense finds nothing; a real word still narrows (bat: %d of %d)" % [top("bat", 99).size(), cs.size()])
 	# recent: run three, newest first on the empty search, marked

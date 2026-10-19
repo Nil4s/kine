@@ -190,7 +190,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 		if reuse and (t < t0 or t > t1):
 			raw.append(base["_raw"][i])
 			continue
-		S.apply(B, t)
+		S.apply_true(B, t)
 		raw.append({"tip": Overlays.tracked(B), "hips": B.P["pelvis"], "head": B.P["head"], "hand_l": B.E["hand_l"],
 			"hand_r": B.E["hand_r"], "gp": B.G["pelvis"], "gt": B.G["spine_03"],
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),
@@ -459,7 +459,7 @@ static func rule_loop(S: Scene, B: Body) -> Array:
 	var keep := B.state()
 	var at := {}
 	for t in [0.0, h, L - h, L]:
-		S.apply(B, t)
+		S.apply_true(B, t)
 		at[t] = [B.G.duplicate(), B.P.duplicate()]
 	B.set_state(keep)
 	var out := []
@@ -920,7 +920,7 @@ static func rule_gait(sm: Dictionary, S: Scene = null) -> Array:
 
 ## the deeper knee's bend at time t (0 = straight): the angle between the thigh and the shin
 static func knee_bend(S: Scene, B: Body, t: float) -> float:
-	S.apply(B, t)
+	S.apply_true(B, t)
 	var k := 0.0
 	for sd in ["_l", "_r"]:
 		var th: Vector3 = (B.P["calf" + sd] as Vector3) - (B.P["thigh" + sd] as Vector3)

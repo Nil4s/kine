@@ -128,14 +128,14 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 	var c := curve(pts)
 	var r_min := min_radius(c)
 	if r_min < MIN_RADIUS:
-		return {"ok": false, "why": "the path turns on a %.2f m radius; the walk needs at least %.1f m. Widen the bend (move the points out) or add points on the straight part before it" % [r_min, MIN_RADIUS]}
+		return {"ok": false, "why": "the path turns on a %s radius; the walk needs at least %s. Widen the bend (move the points out) or add points on the straight part before it" % [Units.len(r_min), Units.len(MIN_RADIUS)]}
 	var nums := step_numbers(speed, height)
 	var L: float = nums["step"]
 	var T: float = nums["time"]
 	var D: float = c["len"]
 	var N := int(floor((D - L * 0.5) / L)) + 1   # landings k = 1..N at s = L/2 + (k-1) L
 	if N < 2:
-		return {"ok": false, "why": "the path is %.2f m: a walk needs two steps (%.2f m) on it" % [D, 2.0 * L]}
+		return {"ok": false, "why": "the path is %s: a walk needs two steps (%s) on it" % [Units.len(D), Units.len(2.0 * L)]}
 	var donor: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DONOR))
 	var dc: Array = donor["cards"]
 	var B := Body.new()

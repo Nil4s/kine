@@ -2148,6 +2148,7 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
@@ -3228,7 +3229,17 @@ func _view_dir(d: Vector3, smooth := true) -> void:
 
 
 func _view_home(smooth := true) -> void:
-	_turn_to(HOME["yaw"], HOME["pitch"], HOME["dist"], HOME["target"], smooth)
+	_turn_to(HOME["yaw"], HOME["pitch"], _home_dist(), HOME["target"], smooth)
+
+
+## HOME's distance, but never so close that the body (feet to head: 1.9 m about the target) is cut by the panels: the free view is
+## the window minus the top bar, the bottom panel with its page bar and the status line. A small free view backs the camera off
+## (the page bar's 38 px cut the toes off at 1600 x 900 with the whole panel open); a big one keeps HOME's 4 m
+func _home_dist() -> float:
+	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
+	var free_h := vs.y - float(TOP_H + bottom_h + 6 + LINE_H) - 16.0
+	var need := 1.9 * vs.y / (2.0 * tan(deg_to_rad(cam.fov * 0.5)) * maxf(free_h, 100.0))
+	return maxf(float(HOME["dist"]), need)
 
 
 func _turn_to(y1: float, p1: float, d1: float, t1: Vector3, smooth: bool) -> void:
@@ -3892,8 +3903,9 @@ func _restore(u: Dictionary) -> void:
 		ov.mark_dirty()
 		wt.mark_dirty()
 		_rebuild_cards()
-	if u["scene"] != S and actors_rt.is_empty() and u["scene"] is Scene:
-		# a step that swapped the whole scene (Walk along a path makes a NEW scene): undo/redo put that scene object back
+	if u.get("swap", false) and u["scene"] != S and actors_rt.is_empty() and u["scene"] is Scene:
+		# a step that swapped the whole scene (Walk along a path makes a NEW scene, and marks its step "swap"): undo/redo put that scene
+		# object back. A step WITHOUT the mark never pastes into another scene (a scene opened since: tests/fix_window_test.gd)
 		S = u["scene"]
 		scene_path = String(u.get("spath", ""))
 		sel_card = -1
@@ -4050,6 +4062,8 @@ func _undo() -> void:
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
 		now["lib"] = u["lib"]
+	if u.get("swap", false):
+		now["swap"] = true   # a whole-scene swap goes back and forth
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
@@ -4073,6 +4087,8 @@ func _redo() -> void:
 	now["name"] = _step_label(r)
 	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
 		now["lib"] = r["lib"]
+	if r.get("swap", false):
+		now["swap"] = true
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)

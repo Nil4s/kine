@@ -42,7 +42,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 		"pen": [], "pen_pair": []}
 	for i in n:
 		var t := minf(i / FPS, S.length())
-		S.apply(B, t)
+		S.apply_true(B, t)
 		var bal := Balance.read(B)
 		out["t"].append(t)
 		out["com"].append(bal["com"])
@@ -127,7 +127,7 @@ static func rule_flight(sm: Dictionary, fps: int) -> Array:
 			var worst := _parabola_miss(sm, a, b)
 			if worst > BALLISTIC_TOL:
 				var imp := worst > IMPOSSIBLE_TOL
-				out.append(_f("FAIL", sm["t"][a], "FEASIBLE FLIGHT", "%s: in the air the centre of mass leaves a free-fall path (g = %.2f) by up to %.0f cm (bar %.0f cm): nothing pushes off in the air, so it cannot %s." % [
+				out.append(_f("FAIL", sm["t"][a], "FEASIBLE FLIGHT", "%s: in the air the centre of mass leaves a free-fall path (g = %.2f m/s^2) by up to %.0f cm (bar %.0f cm): nothing pushes off in the air, so it cannot %s." % [
 					_fr(sm, a, b, fps), GRAV, worst * 100.0, BALLISTIC_TOL * 100.0, "float or swerve like this" if imp else "move like this"], worst))
 				out[-1]["t1"] = sm["t"][b]
 				if imp:

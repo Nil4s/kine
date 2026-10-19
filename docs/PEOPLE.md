@@ -194,3 +194,43 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - What to do: bring a foot under the weight, put a hand on something, or shorten the lean.
 - Used by: `HumanLimits.rule_tipping`, consts `GRAV`, `TOUCH`.
 - Tested by: `tests/human_limits_test.gd`.
+
+## FEASIBLE
+- What it checks: one answer for the whole clip, PASS / FIX / IMPOSSIBLE: could a body actually do it as keyed? It lists the reasons and the frames.
+- Source: KungfuBot's physics filter (Xie et al. 2025, arXiv:2506.12851), with free fall in the air, foot slide per contact and self-penetration below.
+- Numbers: the four rules below; any FAIL from them makes the verdict.
+- What to do: read the listed reasons; each names its own fix.
+- Used by: `Feasible.check`, `Feasible.verdict_finding`.
+- Tested by: `tests/feasible_test.gd`.
+
+## FEASIBLE BALANCE
+- What it checks: the clip starts and ends standing, and the centre of mass never stays far outside the support for long.
+- Source: KungfuBot (Xie et al. 2025, Eq. 1 and Table 3).
+- Numbers: centre of mass within 0.1 m of the support; no unstable run of 100 frames (3.3 s at 30 fps).
+- What to do: end on a stable pose, or bring a foot under the weight sooner.
+- Used by: `Feasible.rule_balance`, consts `EPS_STAB`, `EPS_N_FRAMES`.
+- Tested by: `tests/feasible_test.gd`.
+
+## FEASIBLE FLIGHT
+- What it checks: with no foot down the centre of mass follows free fall.
+- Source: ballistics, y = y0 + v t - g t^2/2; the 8 cm tolerance is MINE, as a bar (limbs moved in the air shift the centre by a few cm). See `docs/research/ROBOT_MOTION.md`.
+- Numbers: g = 9.81 m/s^2; FAIL above 8 cm off the parabola; a miss over 40 cm is read as a hover, not a jump.
+- What to do: give the jump a real take-off and landing, or keep the body on a parabola in the air.
+- Used by: `Feasible.rule_flight`, consts `GRAV`, `BALLISTIC_TOL`.
+- Tested by: `tests/feasible_test.gd`.
+
+## FEASIBLE SLIDE
+- What it checks: a planted foot creeps along the floor.
+- Source: Karunratanakul et al. 2023 (arXiv:2310.08580).
+- Numbers: at most 25 mm per contact.
+- What to do: lock the foot or move the body with it.
+- Used by: `Feasible.rule_slide`, const `SLIDE_FIX`.
+- Tested by: `tests/feasible_test.gd`.
+
+## FEASIBLE PENETRATION
+- What it checks: body capsules inside each other.
+- Source: MINE, as a bar (`Body.contacts`; props use 2 cm too).
+- Numbers: FAIL deeper than 20 mm.
+- What to do: move the limb out of the body.
+- Used by: `Feasible.rule_pen`, const `PEN_FIX`.
+- Tested by: `tests/feasible_test.gd`.
