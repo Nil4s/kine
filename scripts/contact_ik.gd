@@ -11,6 +11,8 @@
 class_name ContactIK
 extends RefCounted
 
+const LEAD := 0.0005   # m: the forearm's underside sits this far off the face at the wrist (the forearm clears by 0.5 mm)
+
 
 ## the contact faces of the props: [{"c": face centre, "n": outward normal, "a", "b": in-face axes, "ha", "hb": half
 ## extents}]. Spheres (the ball) are not surfaces. A prop with no solids gives none.
@@ -77,32 +79,58 @@ static func _arc(a: Vector3, b: Vector3) -> Quaternion:
 	return Quaternion(a.cross(b).normalized(), acos(d))
 
 
-## put the hand's wrist on the nearest face of `surfs` for the raw wrist target `raw`: the palm turned to the face, the
-## wrist one hand radius off it (less the 60 % point's lean, so the palm itself lands on the face), the limb solved to it
-## with its elbow kept on the side it bends now (LimbIK.pole_from_pose). Returns {"on": false} with no surface, else
-## {"on", "miss" (tip to the wrist target, m), "gap" (palm gap after the solve, m), "tip_gap", "clamped", "n", "c"}.
+## the signed gap of every arm capsule (upper arm, forearm, hand) to the face (c, n): the least of them (m). The forearm
+## is thicker than the hand (Body.rad), so at the wrist it is the forearm that reaches the face first.
+static func arm_gap(B: Body, tip: String, c: Vector3, n: Vector3) -> float:
+	var mid: String = B.parent[tip]
+	var root: String = B.parent[mid]
+	var P := B.P
+	var g := n.dot((P[root] as Vector3) - c) - float(B.rad[root])
+	g = minf(g, minf(n.dot((P[root] as Vector3) - c), n.dot((P[mid] as Vector3) - c)) - float(B.rad[root]))
+	g = minf(g, minf(n.dot((P[mid] as Vector3) - c), n.dot((P[tip] as Vector3) - c)) - float(B.rad[mid]))
+	g = minf(g, minf(n.dot((P[tip] as Vector3) - c), n.dot((B.E[tip] as Vector3) - c)) - float(B.rad[tip]))
+	return g
+
+
+## put the hand on the nearest face of `surfs` for the raw wrist target `raw`, with the WHOLE ARM clear of it. The palm is
+## turned to the face. The wrist sits one forearm radius off the face (less LEAD), because the forearm is the thicker capsule
+## and would otherwise be the part that reaches the face first; the hand then leans its knuckle end off the face by the
+## difference (a degree or two), so the palm stays within about 3 mm of it. The limb is solved with LimbIK.solve and its
+## elbow kept on the side it bends now (LimbIK.pole_from_pose); the wrist is corrected to its height after the solve, so a
+## joint limit that stops the turn is reported, not hidden. Returns {"on": false} with no surface, else {"on", "miss"
+## (the wrist from the mouse's point on the face, m), "gap" (palm), "tip_gap" (hand capsule), "arm_gap" (every arm capsule),
+## "clamped", "n", "c"}.
 static func reach(B: Body, tip: String, raw: Vector3, surfs: Array) -> Dictionary:
 	var pr := project(raw, surfs)
 	if pr.is_empty():
 		return {"on": false}
 	var n: Vector3 = pr["n"]
 	var c: Vector3 = pr["c"]
+	var S: Vector3 = pr["S"]
 	var g: Quaternion = (B.G[tip] as Quaternion).normalized()
 	var palm_dir := (g * Body.PALM_DROP).normalized()   # the palm's outward normal now (Body.palm_point's side)
 	var q := _arc(palm_dir, -n) * g                     # the palm turned to face the surface, the hand's roll kept least
-	var bone: Vector3 = (B.E[tip] as Vector3) - (B.P[tip] as Vector3)
-	var lean := 0.6 * n.dot(_arc(palm_dir, -n) * bone)   # the 60 % point's height above the wrist once the hand is turned
-	var wrist: Vector3 = (pr["S"] as Vector3) + n * (float(B.rad[tip]) - lean)
+	var rh := float(B.rad[tip])
+	var rf := float(B.rad[B.parent[tip]])
+	var d := maxf(rh, rf - LEAD)                        # the wrist's height off the face: the forearm clears it
+	var u := rh - d                                     # the knuckle end's lean off the face (<= 0): palm within 3 mm
+	var vf := _arc(palm_dir, -n) * ((B.E[tip] as Vector3) - (B.P[tip] as Vector3))   # the bone once the palm is turned flat
+	var kv := vf.cross(n)
+	var kl := kv.length()
+	var qt := q
+	if kl > 1e-9:
+		var al := clampf((u - n.dot(vf)) / kl, -0.5, 0.5)   # the small turn that puts the bone's face-normal part at u
+		qt = (Quaternion(kv / kl, al) * q).normalized()
 	var pole := LimbIK.pole_from_pose(B, tip)
-	var w := (pr["S"] as Vector3) + n * (float(B.rad[tip]) - lean)
+	var w := S + n * d
 	var r := {}
-	for it in 4:   # a wrist that stops at its limit cannot turn the palm all the way: the wrist moves by the palm's gap
-		r = LimbIK.solve(B, tip, w, pole, q)
-		var gap := palm_gap(B, tip, c, n)
-		if absf(gap) < 0.0002:
+	for it in 4:   # a limit that stops the wrist leaves it off its height: the wrist moves by the miss, and the solve repeats
+		r = LimbIK.solve(B, tip, w, pole, qt)
+		var err := n.dot((B.P[tip] as Vector3) - c) - d
+		if absf(err) < 0.0002:
 			break
-		w -= n * gap
-	var inplane := ((B.P[tip] as Vector3) - (pr["S"] as Vector3))
+		w -= n * err
+	var inplane := ((B.P[tip] as Vector3) - S)
 	inplane -= n * n.dot(inplane)   # how far the wrist is from where the mouse put it, along the face (m)
 	return {"on": true, "miss": inplane.length(), "clamped": r["clamped"], "n": n, "c": c,
-		"gap": palm_gap(B, tip, c, n), "tip_gap": tip_gap(B, tip, c, n)}
+		"gap": palm_gap(B, tip, c, n), "tip_gap": tip_gap(B, tip, c, n), "arm_gap": arm_gap(B, tip, c, n)}

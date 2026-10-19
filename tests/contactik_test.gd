@@ -44,6 +44,7 @@ func _init() -> void:
 
 	var worst_palm := 0.0
 	var worst_tip := INF
+	var worst_arm := INF
 	var worst_miss := 0.0
 	var worst_elbow := 0.0
 	var z0 := (B.P[h] as Vector3).z
@@ -54,6 +55,7 @@ func _init() -> void:
 		n = r["n"]
 		worst_palm = maxf(worst_palm, absf(ContactIK.palm_gap(B, h, c, n)))
 		worst_tip = minf(worst_tip, ContactIK.tip_gap(B, h, c, n))
+		worst_arm = minf(worst_arm, ContactIK.arm_gap(B, h, c, n))
 		worst_miss = maxf(worst_miss, float(r["miss"]))
 		var ang: Vector3 = B.ang[mid]
 		worst_elbow = maxf(worst_elbow, (B.clamp_ang(mid, ang) - ang).length())
@@ -62,6 +64,8 @@ func _init() -> void:
 		% [slid * 100.0, worst_palm * 1000.0, worst_tip * 1000.0, worst_miss * 1000.0, worst_elbow])
 	ok(slid >= 0.29, "slide: the hand moved %.1f cm along the wall (bar 30 cm)" % (slid * 100.0))
 	ok(worst_palm <= 0.003, "palm: within %.2f mm of the wall plane at every step (bar 3 mm)" % (worst_palm * 1000.0))
+	ok(worst_arm >= -0.001, "arm: every arm capsule (upper arm, forearm, hand) clear of the wall: worst %.2f mm (bar -1 mm)" % (worst_arm * 1000.0))
+	ok(Rulebook.prop_hits(m.S.props, B).is_empty(), "app check: no body part in the wall after the slide (the app's own check)")
 	ok(worst_tip >= -0.001, "no penetration: worst capsule gap %.2f mm (bar -1 mm)" % (worst_tip * 1000.0))
 	ok(worst_miss <= 0.005, "follows the mouse: worst wrist miss %.2f mm (bar 5 mm)" % (worst_miss * 1000.0))
 	ok(worst_elbow < 1e-3, "elbow: inside its joint limits at every step (worst excess %.5f deg)" % worst_elbow)
@@ -140,16 +144,13 @@ func _init() -> void:
 	print("table: palm gap %.2f mm, wrist %s, top at %.3f, forearm-upper arm angle %.1f deg (180 = straight)"
 		% [ContactIK.palm_gap(B, h, tc, tn) * 1000.0, wrist, top_y, 180.0 - bend])
 	ok(absf(ContactIK.palm_gap(B, h, tc, tn)) <= 0.003, "table: the palm is ON the top, gap %.2f mm (bar 3 mm)" % (ContactIK.palm_gap(B, h, tc, tn) * 1000.0))
-	ok(absf(wrist.y - (top_y + float(B.rad[h]))) <= 0.004, "table: the wrist sits one hand radius above the top (%.3f m)" % wrist.y)
-	# the contact rule uses the HAND's capsule (Body.rad): the forearm capsule is 7 mm thicker (5.4 cm against 4.7 cm), so
-	# at the wrist junction the forearm's underside can sit that far into the top. That is the one known overlap, measured
+	var d_wrist := maxf(float(B.rad[h]), float(B.rad["lowerarm_r"]) - 0.0005)
+	ok(absf(wrist.y - (top_y + d_wrist)) <= 0.002, "table: the wrist sits one forearm radius (less 0.5 mm) above the top: %.4f m (bar 2 mm)" % (wrist.y - top_y))
+	var arm_t := ContactIK.arm_gap(B, h, tc, tn)
 	var hits: Array = Rulebook.prop_hits(m.S.props, B)
-	var other := hits.filter(func(hh): return String(hh[0]) != "lowerarm_r")
-	var fore := hits.filter(func(hh): return String(hh[0]) == "lowerarm_r")
-	var fore_depth := float(fore[0][2]) if not fore.is_empty() else 0.0
-	print("table: body parts in a prop: %d; forearm overlap %.1f mm; the rest %d" % [hits.size(), fore_depth * 1000.0, other.size()])
-	ok(other.is_empty(), "table: no body part but the forearm is in the chair or the table (%d other hits)" % other.size())
-	ok(fore_depth <= float(B.rad["lowerarm_r"]) - float(B.rad[h]) + 0.001, "table: the forearm's overlap at the wrist, %.1f mm, is no more than its extra radius (%.1f mm)" % [fore_depth * 1000.0, (float(B.rad["lowerarm_r"]) - float(B.rad[h])) * 1000.0])
+	print("table: arm gap %.2f mm; app check hits %s" % [arm_t * 1000.0, str(hits)])
+	ok(arm_t >= -0.001, "table: every arm capsule (upper arm, forearm, hand) clear of the top: worst %.2f mm (bar -1 mm)" % (arm_t * 1000.0))
+	ok(hits.is_empty(), "table: the app's own check reports no body part in the chair or table (%d hits)" % hits.size())
 	ok(absf(wrist.x - table_at.x) <= 0.6 and absf(wrist.z - table_at.z) <= 0.35, "table: the hand is over the table top, not beside it")
 	ok(180.0 - bend > 20.0 and 180.0 - bend < 150.0, "table: the arm is bent, not straight or folded (%.1f deg)" % (180.0 - bend))
 
@@ -157,6 +158,8 @@ func _init() -> void:
 	m._use_card("hand flat on the table", pre)
 	B.props = m.S.solid_props()
 	# the whole body, three quarters from the front: the chair, the table, the arm bent on the top
+	m.dummy_on = false   # the target dummy put away: the picture is the seated body and the table
+	m._dummy_refresh()
 	m.yaw = -35.0
 	m.pitch = -10.0
 	m.dist = 4.2
@@ -167,7 +170,7 @@ func _init() -> void:
 	img.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/contactik.png")
 	ok(img != null and img.get_width() > 0, "screenshot: saved to the jobs tmp folder")
 	var hp_after: Vector3 = B.P[h]
-	ok(absf(ContactIK.palm_gap(B, h, tc, tn)) <= 0.003 and absf(hp_after.y - (top_y + float(B.rad[h]))) <= 0.004, "placement: after the card, the hand is still on the table top (gap %.2f mm)" % (ContactIK.palm_gap(B, h, tc, tn) * 1000.0))
+	ok(absf(ContactIK.palm_gap(B, h, tc, tn)) <= 0.003 and absf(hp_after.y - (top_y + d_wrist)) <= 0.002, "placement: after the card, the hand is still on the table top (gap %.2f mm)" % (ContactIK.palm_gap(B, h, tc, tn) * 1000.0))
 
 	print("%s  (%d fail)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(fails)
