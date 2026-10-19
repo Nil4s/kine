@@ -5224,6 +5224,77 @@ func _bake() -> void:
 		+ ("; turned off (now inside the cards): %s" % ", ".join(r["off"]) if not (r["off"] as Array).is_empty() else ""))
 
 
+## KEY REDUCTION (ROADMAP 68, scripts/key_reduce.gd): a tolerance slider over every joint's part keys. The readout says
+## how many keys stay and where the worst error is. A drag previews on the scene; the first change takes ONE undo step
+## (_kr_armed); closing the panel keeps the result.
+var _kr_armed := false
+var _kr_pop: PopupPanel = null
+var _kr_slider: HSlider = null
+var _kr_orig := {}
+var _kr_readout: Label = null
+var _kr_last := ""
+
+
+func _keyreduce_popup() -> void:
+	if S.part_keys.is_empty():
+		_say("reduce keys: this scene has no part keys. Key a part first (K), or bring in a bake or a video import")
+		return
+	if _kr_pop == null:
+		_kr_pop = PopupPanel.new()
+		var box := VBoxContainer.new()
+		var lab := Label.new()
+		lab.text = "Reduce keys: tolerance (deg)"
+		box.add_child(lab)
+		_kr_slider = HSlider.new()
+		_kr_slider.min_value = 0.0
+		_kr_slider.max_value = 5.0
+		_kr_slider.step = 0.05
+		_kr_slider.custom_minimum_size = Vector2(300, 28)
+		_kr_slider.tooltip_text = "REDUCE KEYS: the most a key's removal may move the curve (on any angle channel). 0 removes nothing"
+		_kr_slider.value_changed.connect(_kr_drag)
+		box.add_child(_kr_slider)
+		_kr_readout = Label.new()
+		box.add_child(_kr_readout)
+		_kr_pop.add_child(box)
+		_kr_pop.popup_hide.connect(_kr_done)
+		add_child(_kr_pop)
+	_kr_orig = S.part_keys.duplicate(true)
+	_kr_armed = false
+	_kr_slider.set_value_no_signal(0.5)
+	_kr_last = _kr_text(KeyReduce.reduce(_kr_orig, 0.5))
+	_kr_readout.text = _kr_last
+	_kr_pop.popup_centered(Vector2i(340, 100))
+	_say("reduce keys: drag the tolerance (deg); the readout shows the keys that stay and the worst error. Esc or a click away keeps it; Ctrl+Z takes it back")
+
+
+func _kr_drag(v: float) -> void:
+	if not _kr_armed:
+		_step_hint = "Reduce keys"
+		_push_undo()
+		_kr_armed = true
+	var r := KeyReduce.reduce(_kr_orig, v)
+	S.part_keys = r["pk"]
+	_kr_last = _kr_text(r)
+	_kr_readout.text = _kr_last
+	_refresh()
+
+
+func _kr_done() -> void:
+	if _kr_armed:
+		_say("REDUCED the part keys: %s. Ctrl+Z gives them back" % _kr_last)
+	else:
+		_say("reduce keys: nothing changed (drag the tolerance to thin the keys)")
+	_kr_armed = false
+	_refresh()
+
+
+func _kr_text(r: Dictionary) -> String:
+	var s := "%d -> %d keys, worst error %.2f deg" % [int(r["before"]), int(r["after"]), float(r["worst"])]
+	if String(r["joint"]) != "":
+		s += " at %.2f s (%s)" % [float(r["t"]), String(r["joint"])]
+	return s
+
+
 ## CURVE EDITOR (round 42, XX2, UPGRADES_300 #240): opens / closes the panel (scripts/curve_editor.gd) that draws the
 ## picked part's part keys as curves; dragging a key there is one undo step
 func _curve_toggle() -> void:
@@ -8567,6 +8638,7 @@ func _commands() -> Array:
 		mm_ui = MotionMatchUI.new(self)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
+	add.call("Reduce part keys (tolerance slider)", "", _keyreduce_popup, "reduce keys key reduction thin decimate simplify dense bake video import tolerance error curve slider", true, "drop the part keys the curve can lose within a tolerance in degrees (every angle channel); the readout shows keys kept and the worst error; one undo step (ROADMAP 68)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
 	add.call("Graph editor: every keyed part (channels)", "", _graph_cmd.bind("multi"), "graph editor channels multi several parts curves all f-curves blender", false, "the curve editor shows every part with part keys at once, one coloured channel per part and angle; click a channel to hide or show it (GE1)")
 	add.call("Graph editor: normalize", "", _graph_cmd.bind("normalize"), "graph editor normalize normalise -1 1 fit scale curves", false, "draw every curve fitted to -1..1 (display only: the keys are not changed) (GE3)")
