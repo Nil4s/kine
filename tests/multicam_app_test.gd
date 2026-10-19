@@ -89,6 +89,7 @@ func _run() -> void:
 	m.multicam_python = "python"
 	# 2 refused
 	var before: int = m.S.cards.size()
+	var d_before := JSON.stringify(m.S.to_dict(m.B))   # VIDEO IQ: the whole scene before, to compare byte for byte after the undo
 	m._multicam_start(PackedStringArray([vids[0]]))
 	var refused1: bool = m.ui_status.text.contains("needs 2 to 4")
 	m._multicam_start(PackedStringArray([vids[0], vids[1], vids[2], vids[0], vids[1]]))
@@ -103,6 +104,7 @@ func _run() -> void:
 	var after: int = m.S.cards.size()
 	print("     status: %s" % m.ui_status.text)
 	ok(landed and after != before and after > 1, "3 three videos tracked, landed as one edit: %d cards became %d (%.1f s)" % [before, after, (Time.get_ticks_msec() - t0) / 1000.0])
+	var iq_in: bool = (m.S.iq.get("conf", null) is Array) and not (m.S.iq.get("contacts", null) == null)
 	# the panel
 	var win: Window = m._mc_win
 	var panel: MultiCamPanel = null
@@ -131,5 +133,6 @@ func _run() -> void:
 	# the undo: one step back to the cards before
 	m._undo()
 	ok(m.S.cards.size() == before, "3 Ctrl+Z takes the import back in one step: %d cards again" % m.S.cards.size())
+	ok(iq_in and JSON.stringify(m.S.to_dict(m.B)) == d_before and m.S.iq.is_empty(), "3b VIDEO IQ: the import carried its confidence lane and contacts (Scene.iq), and the one undo restored the scene exactly (iq in %s, iq now %d keys)" % [iq_in, m.S.iq.size()])
 	print("multicam_app: %s" % ("PASS" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails > 0 else 0)

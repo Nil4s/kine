@@ -90,6 +90,8 @@ static func smooth(frames: Array, fps: float) -> Array:
 	var out := []
 	for i in n:
 		var o := {"t": frames[i]["t"], "w": []}
+		if frames[i].has("vis"):
+			o["vis"] = frames[i]["vis"]   # VIDEO IQ: the tracker's visibility rides along
 		if frames[i].has("hands"):
 			o["hands"] = frames[i]["hands"]   # ROADMAP 90: the hands are not smoothed here (HandImport smooths the finger angles)
 		out.append(o)

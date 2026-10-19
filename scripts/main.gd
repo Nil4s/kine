@@ -2502,7 +2502,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px()
+	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px()   # + the video confidence lane (VIDEO IQ)
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
@@ -2582,7 +2582,8 @@ func _fd_refresh() -> void:
 		ui_timeline.fd = _fd_data() if fd_on and not S.cards.is_empty() else {}
 		ui_timeline.sp = LimbIK.space_lane(S.ik, S.length()) if not S.ik.is_empty() else []   # ROADMAP 63: the space segments
 		ui_timeline.bx = HitBoxes.lanes(S.boxes, float(fd_fps)) if not S.boxes.is_empty() and not S.cards.is_empty() else []   # ROADMAP 36: the boxes lane
-		if before != _tl_under_ruler():
+		if before != _tl_under_ruler() or not is_equal_approx(_iq_seen, ui_timeline.iq_px()):
+			_iq_seen = ui_timeline.iq_px()
 			_tl_height()
 			_layout_bottom()   # the panel makes room for the frame strip and the lane, or gives it back
 		if not PerfStub.skip("timeline"):
@@ -3157,6 +3158,7 @@ func _refresh() -> void:
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
+	_iq_prints_draw()   # VIDEO IQ: the contacts the video import found, as footprints
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
 
 
@@ -3866,6 +3868,7 @@ func _snapshot() -> Dictionary:
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
+		"iq": S.iq.duplicate(true),   # VIDEO IQ (video_iq.gd): the import's lane and contacts, undone with the cards
 		"attrs": S.attrs.duplicate(true),   # CUSTOM ATTRIBUTES (custom_attr.gd, ROADMAP 82), undone like a card
 		"beats_audio": S.beats_audio.duplicate(true),   # ROADMAP 32: the music beats, undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
@@ -3931,6 +3934,8 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
+	if u["scene"] == S and u.has("iq") and var_to_str(u["iq"]) != var_to_str(S.iq):
+		S.iq = u["iq"].duplicate(true)   # VIDEO IQ, undone like a card
 	if u["scene"] == S and u.has("attrs") and var_to_str(u["attrs"]) != var_to_str(S.attrs):
 		S.attrs = u["attrs"].duplicate(true)   # CUSTOM ATTRIBUTES (ROADMAP 82), undone like a card
 		_attr_sig = ""
@@ -5113,6 +5118,76 @@ func _foot_unplant() -> void:
 		S.apply(B, t))
 	_dummy_hits()
 	_say("the %s is free at %s: it follows the cards again (Ctrl+Z takes the plant back)" % [_ik_words(tip), Units.time(t, S.fps)])
+
+
+## ---- VIDEO IQ on the stage (scripts/video_iq.gd; Scene.iq). The confidence lane on the timeline and the detected contacts drawn
+## on the floor as footprints, ONE toggle (a view setting, not an edit). A footprint is the foot's sole outline at the spot the
+## import found the foot planted (Scene.iq["contacts"]: x, z, yaw), lit while the playhead is inside the contact; a hand contact is a ring.
+var iq_show := true
+var _iq_seen := 0.0   # the lane's height the panel was last laid out for
+var _iq_mesh: MeshInstance3D
+const IQ_FOOT := [[0.0, -0.095], [0.045, -0.075], [0.055, 0.02], [0.045, 0.10], [0.0, 0.125], [-0.045, 0.10], [-0.055, 0.02], [-0.045, -0.075]]   # m: heel -> ball -> toes, lateral x then forward z (an adult sole, 25 cm: Pheasant, Bodyspace)
+
+
+func _iq_toggle() -> void:
+	iq_show = not iq_show
+	_say("video confidence lane and footprints %s" % ("shown" if iq_show else "hidden: the same command brings them back"))
+	_refresh()
+	_layout_bottom()
+	ui_timeline.queue_redraw()
+
+
+## the footprints' outlines in world space: [{"part", "kind", "pts" (Vector3 ring), "on" (playhead inside), "c" (centre)}]
+func iq_prints() -> Array:
+	var out := []
+	if S == null or S.iq.is_empty():
+		return out
+	for c in S.iq.get("contacts", []):
+		var cx := float(c.get("x", 0.0))
+		var cz := float(c.get("z", 0.0))
+		var yaw := deg_to_rad(float(c.get("yaw", 0.0)))
+		var fw := Vector2(sin(yaw), cos(yaw))
+		var rt := Vector2(fw.y, -fw.x)
+		var pts := []
+		if c["kind"] == "foot":
+			for q in IQ_FOOT:
+				var l: Vector2 = Vector2(q[0], q[1])
+				var w := rt * l.x + fw * l.y
+				pts.append(Vector3(cx + w.x, 0.004, cz + w.y))
+		else:
+			for k in 10:
+				var a := TAU * k / 10.0
+				pts.append(Vector3(cx + cos(a) * 0.05, 0.004, cz + sin(a) * 0.05))
+		out.append({"part": c["part"], "kind": c["kind"], "pts": pts, "c": Vector3(cx, 0.0, cz), "on": playhead >= float(c["t0"]) - 1e-6 and playhead <= float(c["t1"]) + 1e-6})
+	return out
+
+
+func _iq_prints_draw() -> void:
+	if _iq_mesh == null:
+		_iq_mesh = MeshInstance3D.new()
+		_iq_mesh.name = "iq_prints"
+		_iq_mesh.mesh = ImmediateMesh.new()
+		add_child(_iq_mesh)
+	var im := _iq_mesh.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if clean or not iq_show or S == null or S.iq.is_empty():
+		return
+	for f in iq_prints():
+		var pts: Array = f["pts"]
+		var col := side_col(String(f["part"]))
+		im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, Overlays._mat())
+		im.surface_set_color(Color(col, 0.55 if f["on"] else 0.28))
+		for k in range(1, pts.size() - 1):
+			im.surface_add_vertex(pts[0])
+			im.surface_add_vertex(pts[k])
+			im.surface_add_vertex(pts[k + 1])
+		im.surface_end()
+		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+		im.surface_set_color(Color(col, 1.0 if f["on"] else 0.7))
+		for k in pts.size():
+			im.surface_add_vertex(pts[k])
+			im.surface_add_vertex(pts[(k + 1) % pts.size()])
+		im.surface_end()
 
 
 var _fp_line: MeshInstance3D   # the footprints under the planted feet (ROADMAP 8)
@@ -11002,6 +11077,7 @@ func _commands() -> Array:
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Import from several cameras...", "", _multicam_ask, "video several cameras multi camera triangulate rig two videos mocap motion capture track person film record", false, "pick 2 to 4 videos of one person filmed at the same time: the rig is solved from the person, the joints triangulated, one undo step")
+	add.call("Video: confidence lane and footprints (show / hide)", "", _iq_toggle, "video confidence lane tracking lost footprints contacts floor plants timeline show hide", true, "a scene made from a video shows a lane under its cards coloured by how sure the tracker was (low spans named: click one to go there) and the foot contacts it found as footprints on the floor; this shows or hides both")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
@@ -15309,20 +15385,22 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	# AA3: the weapon in his hand now (any but a dagger) is the one he holds in the video, in both hands
 	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
 	var frames: Array = P["frames"]
-	var C := {}
-	if not raw:
-		C = VideoCleanup.run(frames, P["fps"], float(P.get("tilt", 0.0)))
-		frames = C["frames"]
-	var fitted := VideoImport.solve(B, frames, held, float(P["fps"]))
-	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
+	var base_name := safe_file((from if from != "" else path.get_file()).get_basename())
+	var fitted: Array
+	var V: Scene
 	var r := {"locked": 0, "text": ""}
 	if raw:
+		fitted = VideoImport.solve(B, frames, held, float(P["fps"]))
+		V = VideoImport.to_scene(B, fitted, P["fps"], 1, base_name)
 		r = MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
 		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
 	else:
-		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
-		V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(C["plants"]), V.fps)
-		r = {"locked": V.plants.size(), "text": VideoCleanup.report(V.plants.size(), C["jitter_raw"], C["jitter_clean"], C["tilt"])}
+		# VIDEO IQ: confidence, depth + limit repair, contacts -> plants, smart cards, and the lane / footprints for the timeline
+		var R := VideoIQ.process(B, P, held, base_name)
+		fitted = R["fitted"]
+		V = R["scene"]
+		V.iq = R["iq"]
+		r = {"locked": V.plants.size(), "text": R["text"]}
 	B.set_state(keep)
 	var d: Dictionary = V.to_dict(B)
 	var src: String = from if from != "" else path.get_file()
@@ -15460,13 +15538,12 @@ func _multicam_finish() -> void:
 	if obs.size() > 1 and float(obs[-1]["t"]) > float(obs[0]["t"]):
 		fps = float(obs.size() - 1) / (float(obs[-1]["t"]) - float(obs[0]["t"]))
 	var tilt := VideoImport.level(frames)
-	var C := VideoCleanup.run(frames, fps, tilt)
-	var fitted := VideoImport.solve(B, C["frames"], held)
-	var V := VideoImport.to_scene(B, fitted, fps, 1, "multicam")
-	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
-	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(C["plants"]), V.fps)
+	var R := VideoIQ.process(B, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam")
+	var fitted: Array = R["fitted"]
+	var V: Scene = R["scene"]
+	V.iq = R["iq"]
 	var locked := V.plants.size()
-	var text := VideoCleanup.report(locked, C["jitter_raw"], C["jitter_clean"], C["tilt"])
+	var text: String = R["text"]
 	B.set_state(keep)
 	var d: Dictionary = V.to_dict(B)
 	d["scene"] = S.name   # in place, as mirror-in-place: the open scene keeps its name

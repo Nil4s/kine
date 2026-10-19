@@ -72,6 +72,7 @@ var beats := []       # CHOREOGRAPHY (ROADMAP 13; scripts/choreo.gd): the exchan
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
+var iq := {}          # VIDEO IQ (scripts/video_iq.gd): what the video import knew, {"conf" lane, "spans", "contacts", "keys"...}; in the file as "iq" only when any
 var attrs := {}       # CUSTOM ATTRIBUTES (ROADMAP 82, custom_attr.gd): {"<part>.<name>": {"min", "max", "default", "keys": [{"t", "v": Vector3(x,0,0)}]}}; in the file as "attrs" only when any
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var sets := {}         # SELECTION + KEYING SETS (GAP_ANALYSIS rows 9, 6): {"select": {name: [parts]}, "keying": {..}, "active"}; scripts/part_sets.gd
@@ -1443,6 +1444,7 @@ func clone() -> Scene:
 	c.lip = lip.duplicate(true)
 	c.face = face.duplicate(true)   # ROADMAP 74: the face keys
 	c.attrs = attrs.duplicate(true)   # ROADMAP 82: the custom attributes
+	c.iq = iq.duplicate(true)   # VIDEO IQ: the import's confidence lane and contacts
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
@@ -2021,6 +2023,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["audio"] = af
 	if not face.is_empty():
 		out["face"] = Face.to_file(face)   # ROADMAP 74: the face keys, only when keyed
+	if not iq.is_empty():
+		out["iq"] = VideoIQ.to_file(iq)   # VIDEO IQ: only when the scene came from a video
 	if not attrs.is_empty():
 		out["attrs"] = CustomAttr.to_file(attrs)   # ROADMAP 82: the custom attributes, only when there are any
 	if not lip.is_empty():
@@ -2070,6 +2074,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
+	"iq": "SIDED: VideoIQ.mirror_file (the lost-part spans and the contacts move to their twin side: hand_l <-> hand_r, foot_l <-> foot_r, x negated; the lane and times free)",
 	"attrs": "SIDED: CustomAttr.mirror_file (each attribute's id moves to its twin part: hand_r.grip -> hand_l.grip; min, max, default and keys free)",
 	"face": "SIDED: Face.mirror_file (brow_l <-> brow_r, eye_yaw negated; jaw, visemes, blink and eye pitch free)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
@@ -2129,6 +2134,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 	d2["cards"] = d2["cards"].map(func(c): return Scene.mirror_card(c, M))
 	if d2.has("part_keys"):
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
+	if d2.has("iq"):
+		d2["iq"] = VideoIQ.mirror_file(d2["iq"])   # VIDEO IQ: spans and contacts to their twin side
 	if d2.has("attrs"):
 		d2["attrs"] = CustomAttr.mirror_file(d2["attrs"])   # ROADMAP 82: each attribute to its twin part
 	if d2.has("face"):
@@ -2209,6 +2216,7 @@ func from_dict(d: Dictionary) -> void:
 	beats_audio = BeatTrack.clean_list(d.get("beats_audio", []))   # ROADMAP 32: absent = none
 	audio_tracks = AudioTrack.from_file(d.get("audio", null))   # ROADMAP 77: a dictionary (one sound, as before) or a list
 	face = Face.from_file(d.get("face", {}))   # ROADMAP 74: absent = none
+	iq = VideoIQ.from_file(d.get("iq", {}))   # VIDEO IQ: absent = none
 	attrs = CustomAttr.from_file(d.get("attrs", {}))   # ROADMAP 82: absent = none
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
