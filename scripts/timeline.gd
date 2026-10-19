@@ -19,6 +19,11 @@ signal finding_picked(i: int)   # a finding's mark clicked: the index into m.fin
 const FD_H := 11.0   # px: the strip's height
 var fd: Dictionary = {}
 
+## HIT / HURT BOXES (ROADMAP 36; scripts/hit_boxes.gd lanes): main.gd sets `bx` ([] = none). Two rows under the frame strip:
+## the attack boxes in red (top), the vulnerable edits in blue and the invincible ranges in gold (bottom). Drawn only.
+const BX_H := 9.0   # px: the lane's height (two rows of 4 px)
+var bx: Array = []
+
 const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
 const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
@@ -300,7 +305,8 @@ func _draw() -> void:
 			draw_string(font, Vector2(x + 2, 11), str(snappedf(k * 0.1, 0.1)) + "s", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.of("ink:0.45"))
 		k += 1
 	var fdh := FD_H + 3.0 if not fd.is_empty() else 0.0   # FRAME DATA (ROADMAP 12): the strip sits under the ruler
-	var y0 := RULER + 2.0 + fdh
+	var bxh := bx_px()   # HIT / HURT BOXES (ROADMAP 36): the lane sits under the frame strip
+	var y0 := RULER + 2.0 + fdh + bxh
 	var ah := AUDIO_H if not S.audio.is_empty() else 0.0
 	_clip_fit(S)
 	var h := size.y - y0 - 2.0 - ah - _clip_px
@@ -343,6 +349,8 @@ func _draw() -> void:
 	_draw_clips(S, font)
 	if not fd.is_empty():
 		_draw_fd_strip(font, RULER + 2.0)
+	if not bx.is_empty():
+		_draw_bx_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0))
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
 	# cards are still yours but never play: shade them and say why (else the strip and the play time disagree silently)
 	var P: Scene = m._ps()
@@ -471,6 +479,26 @@ func _clip_drag(x: float, fine: bool) -> void:
 	_S().clips[int(_drag["i"])]["start"] = t
 	retimed.emit(false)
 	queue_redraw()
+
+
+## the lane's height on the timeline (0 with no boxes)
+func bx_px() -> float:
+	return BX_H + 3.0 if not bx.is_empty() else 0.0
+
+
+## the boxes lane: attack boxes on the top row (red), vulnerable edits below (blue), invincible ranges (gold, hatched)
+func _draw_bx_lane(y: float) -> void:
+	var cols := {"hit": Color(0.92, 0.28, 0.26), "hurt": Color(0.3, 0.52, 0.95), "inv": Color(0.95, 0.8, 0.25)}
+	for b in bx:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := x_of(float(b["t1"]))
+		var row_y := y + (0.0 if int(b["row"]) == 0 else 5.0)
+		draw_rect(Rect2(x0, row_y, maxf(x1 - x0 - 1.0, 2.0), 4.0), cols[b["kind"]])
+		if b["kind"] == "inv":
+			var hx := x0
+			while hx < x1:   # hatching: invincible reads as a different thing from a blue edit
+				draw_line(Vector2(hx, row_y + 4.0), Vector2(minf(hx + 4.0, x1), row_y), Color(0.05, 0.05, 0.07, 0.7), 1.0)
+				hx += 6.0
 
 
 ## the frame strip: one block per phase over its frames (time = frame / fps), its count in the block

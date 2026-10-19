@@ -1896,6 +1896,18 @@ func _dummy_refresh() -> void:
 		hit_tag.text = "%s  (%.2f m up the weapon)" % [h["zone"], h["u"]]
 
 
+## the timeline's height: its 34 px of rows, and the strips under the ruler (the frame strip, ROADMAP 12; the boxes lane, ROADMAP 36)
+func _tl_height() -> void:
+	ui_timeline.custom_minimum_size.y = 34.0 + (Timeline.AUDIO_H if _a_path != "" else 0.0) + ui_timeline.clip_px() + _tl_under_ruler()
+
+
+## the px under the ruler that the frame strip and the boxes lane take (0 with neither on)
+func _tl_under_ruler() -> float:
+	if ui_timeline == null:
+		return 0.0
+	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px()
+
+
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
 var fd_on := false           # the frame strip on the timeline
 var fd_boxes := false        # the hitboxes / hurtboxes drawn in the view
@@ -1903,6 +1915,7 @@ var fd_fps := 60             # the game's frame rate the counts use (a setting: 
 var fd_cache := {}           # {"key": the scene + dummy + fps it was made for, "fd": FrameData.analyze's result}
 var fd_node: MeshInstance3D = null
 var fd_btn: Button = null
+var hitbox_ui: HitBoxesUI   # HIT / HURT BOXES (ROADMAP 36): the commands and the dialog (scripts/hit_boxes_ui.gd)
 
 
 func _fd_toggle() -> void:
@@ -1926,7 +1939,7 @@ func _fd_cycle_fps() -> void:
 ## the frame data of the scene as it is now (a fresh body: the live one is not moved). Made again only when the cards,
 ## the dummy or the frame rate change
 func _fd_data() -> Dictionary:
-	var key := "%d|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-"]
+	var key := "%d|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes)]
 	if String(fd_cache.get("key", "")) != key:
 		var Bc := Body.new()
 		Bc.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -1939,7 +1952,12 @@ func _fd_data() -> Dictionary:
 ## the strip and the boxes for this refresh (both off: nothing is analysed)
 func _fd_refresh() -> void:
 	if ui_timeline != null:
+		var before := _tl_under_ruler()
 		ui_timeline.fd = _fd_data() if fd_on and not S.cards.is_empty() else {}
+		ui_timeline.bx = HitBoxes.lanes(S.boxes, float(fd_fps)) if not S.boxes.is_empty() and not S.cards.is_empty() else []   # ROADMAP 36: the boxes lane
+		if before != _tl_under_ruler():
+			_tl_height()
+			_layout_bottom()   # the panel makes room for the frame strip and the lane, or gives it back
 		ui_timeline.queue_redraw()
 	if not fd_boxes or S.cards.is_empty():
 		if fd_node != null:
@@ -1948,8 +1966,14 @@ func _fd_refresh() -> void:
 	var fd := _fd_data()
 	var fr: Dictionary = FrameData.frame_at(fd, playhead)
 	var groups := [[fr["hurtboxes"], Color(0.6, 0.7, 0.85)]]
+	var auto_hits := []   # the auto-detected hitboxes (active frames) and the user's own hit boxes (any frame, ROADMAP 36)
+	var own_hits := []
+	for c in fr["hitboxes"]:
+		(own_hits if c.has("src") else auto_hits).append(c)
 	if fr["active"]:
-		groups.append([fr["hitboxes"], Color(1.0, 0.3, 0.25)])
+		groups.append([auto_hits, Color(1.0, 0.3, 0.25)])
+	if not own_hits.is_empty():
+		groups.append([own_hits, Color(1.0, 0.75, 0.2)])
 	if fd_node == null:
 		fd_node = MeshInstance3D.new()
 		var m := StandardMaterial3D.new()
@@ -2944,6 +2968,7 @@ func _snapshot() -> Dictionary:
 		"beats": H.beats.duplicate(true),   # ROADMAP 13: the exchange's beats (the hero's), undone like a card
 		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
 		"clips": S.clips.duplicate(true),   # CLIPS (clips.gd), undone like a card
+		"boxes": S.boxes.duplicate(true),   # HIT / HURT BOXES (hit_boxes.gd), undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2995,6 +3020,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("clips") and var_to_str(u["clips"]) != var_to_str(S.clips):
 		S.clips = u["clips"].duplicate(true)   # CLIPS, undone like a card
 		_dummy_hits()
+	if u["scene"] == S and u.has("boxes") and var_to_str(u["boxes"]) != var_to_str(S.boxes):
+		S.boxes = u["boxes"].duplicate(true)   # HIT / HURT BOXES (ROADMAP 36), undone like a card (the view and the lane follow in _refresh)
 	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
 		S.audio = u["audio"].duplicate()   # the sound, undone like a card
 		_audio_reload()
@@ -7209,7 +7236,7 @@ func _layout_bottom() -> void:
 	bottom_h = BOTTOM_EMPTY if empty else (BOTTOM_FOLDED if folded else BOTTOM_H)
 	ui_bh.visible = not folded and not easy.on
 	if not empty:
-		bottom_h += int(ui_timeline.clip_px())   # CLIPS: the panel grows by the strips' rows (none: as before)
+		bottom_h += int(ui_timeline.clip_px() + _tl_under_ruler())   # CLIPS: the panel grows by the strips' rows (none: as before); the frame strip and the boxes lane too (ROADMAP 12 / 36)
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
@@ -7358,6 +7385,9 @@ func _commands() -> Array:
 	if clips_ui == null:
 		clips_ui = ClipsUI.new(self)
 	clips_ui.commands(add)   # CLIPS placed as strips (GAP row 12; scripts/clips_ui.gd)
+	if hitbox_ui == null:
+		hitbox_ui = HitBoxesUI.new(self)
+	hitbox_ui.commands(add)   # HIT / HURT BOXES per frame (ROADMAP 36; scripts/hit_boxes_ui.gd)
 	if mm_ui == null:
 		mm_ui = MotionMatchUI.new(self)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
@@ -9920,7 +9950,7 @@ func _audio_reload() -> void:
 	_a_player.stream = AudioTrack.load_stream(_a_path)
 	audio_env = {} if _a_path == "" else AudioTrack.envelope(_a_player.stream, _a_path)
 	if ui_timeline != null:
-		ui_timeline.custom_minimum_size.y = 34.0 + (Timeline.AUDIO_H if _a_path != "" else 0.0) + ui_timeline.clip_px()
+		_tl_height()
 		ui_timeline.queue_redraw()
 
 

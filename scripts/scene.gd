@@ -66,6 +66,7 @@ var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vect
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var sets := {}         # SELECTION + KEYING SETS (GAP_ANALYSIS rows 9, 6): {"select": {name: [parts]}, "keying": {..}, "active"}; scripts/part_sets.gd
 var clips := []        # CLIPS (GAP_ANALYSIS row 12): other scenes / moves placed as strips, by reference; scripts/clips.gd
+var boxes := []        # HIT / HURT BOXES per frame (ROADMAP 36): the file's "boxes" key; scripts/hit_boxes.gd
 var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var plants := []      # FOOT PLANTS over a time range (ROADMAP 8): [{"foot", "t0", "t1"}] by t0; scripts/foot_plant.gd; in the file as "plants" (only when any)
@@ -1377,6 +1378,7 @@ func clone() -> Scene:
 	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
 	c.clips = clips.duplicate(true)   # CLIPS (clips.gd)
+	c.boxes = boxes.duplicate(true)   # HIT / HURT BOXES (hit_boxes.gd)
 	c.body = body.duplicate(true)   # PR1
 	return c
 
@@ -1880,6 +1882,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["sets"] = PartSets.to_file(sets)   # selection / keying sets: the same, only when there is one
 	if not clips.is_empty():
 		out["clips"] = Clips.to_file(clips)   # CLIPS: the same, only when there are any
+	if not boxes.is_empty():
+		out["boxes"] = HitBoxes.to_file(boxes)   # HIT / HURT BOXES (ROADMAP 36): the same, only when there are any
 	if not body.is_empty():
 		out["body"] = body.duplicate(true)   # PR1: proportions, only when not the default body
 	return out
@@ -1902,7 +1906,8 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
 	"sets": "SIDED: PartSets.mirror_file (every part to its twin; a set named \"_l\" / \"_r\" takes its twin's name, the active keying set too)",
-	"clips": "SIDED: Clips.mirror_file (each clip's source plays mirrored: the flag toggles; a one-arm mask goes to the other arm; times free)"}
+	"clips": "SIDED: Clips.mirror_file (each clip's source plays mirrored: the flag toggles; a one-arm mask goes to the other arm; times free)",
+	"boxes": "SIDED: HitBoxes.mirror_file (a box's part to its twin, _l <-> _r; an attack box's offsets x negated; frames and damage free)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
@@ -1950,6 +1955,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["camera"] = ShotCam.mirror_file(d2["camera"])   # the shot camera across x = 0
 	if d2.has("sets"):
 		d2["sets"] = PartSets.mirror_file(d2["sets"])   # selection / keying sets: parts to twins, "_l" / "_r" names swapped
+	if d2.has("boxes"):
+		d2["boxes"] = HitBoxes.mirror_file(d2["boxes"])   # HIT / HURT BOXES: parts to twins, offsets reflected
 	if d2.has("clips"):
 		d2["clips"] = Clips.mirror_file(d2["clips"])   # CLIPS: each source plays mirrored
 	if d2.has("layer"):
@@ -2015,6 +2022,7 @@ func from_dict(d: Dictionary) -> void:
 	camera = ShotCam.from_file(d.get("camera", []))   # the shot camera: absent = none
 	sets = PartSets.from_file(d.get("sets", {}))   # selection / keying sets: absent = none
 	clips = Clips.from_file(d.get("clips", []))   # CLIPS: absent = none
+	boxes = HitBoxes.from_file(d.get("boxes", []))   # HIT / HURT BOXES: absent = none
 	for p in d.get("props", []):
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))
