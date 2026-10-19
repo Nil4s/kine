@@ -2513,6 +2513,7 @@ func _refresh() -> void:
 	_dummy_refresh()
 	bal.show_body(B)
 	_hand_sliders_sync()
+	_auto_pin_sync()
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty():
 		ov.trail(_ps())
 		ov.onion(_ps(), playhead)
@@ -2885,6 +2886,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_T when k.shift_pressed:
 				if not sel in Body.BODY:
 					_say("Shift+T pins a trail on a BODY part: click one first (the weapon's own trail is T)")
+				elif sel == ov.auto_pin:
+					ov.auto_pin = ""   # the trail shown while picked becomes a pin: it stays when another part is picked
+					_refresh()
+					_say("trail on %s pinned: it stays when you pick another part.  Shift+T again removes it." % sel)
 				else:
 					var on := ov.toggle_pin(sel)
 					_refresh()
@@ -4478,6 +4483,20 @@ func _trail_move(mp: Vector2) -> void:
 		_say(msg)
 
 
+## the picked body part's trail is shown while T is on, with no Shift+T needed (ROADMAP 69): pinned on pick, unpinned
+## when the part or T goes. Shift+T on it makes it a pin (ov.auto_pin cleared)
+func _auto_pin_sync() -> void:
+	var want := sel if (ov.trail_on and not clean and sel in Body.BODY and not ov.pins.has(sel)) else ""
+	var cur: String = ov.auto_pin
+	if cur != "" and cur != want:
+		ov.auto_pin = ""
+		if ov.pins.has(cur):
+			ov.toggle_pin(cur)
+	if want != "" and ov.auto_pin == "":
+		ov.toggle_pin(want)
+		ov.auto_pin = want
+
+
 func _trail_release() -> void:
 	var moved := trail_edit.end()
 	if not moved:
@@ -4487,7 +4506,7 @@ func _trail_release() -> void:
 	_after_edit()
 	ov.mark_dirty()
 	_refresh()
-	_say("trail key moved (Ctrl+Z takes it back in one step)")
+	_say("%s   (Ctrl+Z takes it back in one step)" % trail_edit.last)
 
 
 ## REVERSE-FOOT HANDLES (ROADMAP item 6; scripts/foot_handles.gd, scripts/foot_roll.gd). A picked foot shows three handles

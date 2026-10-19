@@ -25,6 +25,7 @@ const VERSION := Color(0.85, 0.3, 0.95, 0.45)
 const ONION_SLOT := [[0, 3], [1, 4]]
 
 var trail_on := false
+var auto_pin := ""  # the part whose trail is on only while it is picked and T is on (main.gd _auto_pin_sync); Shift+T keeps it
 var pins := []      # body parts with a trail of their own (Shift+T on the selected part): the END of the part (forearm =
                     # the wrist, thigh = the knee, foot = the toes' base), the pelvis = the hips' centre
 var onion_on := false

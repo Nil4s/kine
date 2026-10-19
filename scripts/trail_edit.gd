@@ -20,6 +20,7 @@ const AXIS_NAMES := ["bend", "side", "twist"]   # Body.lim's keys, in Vector3 (b
 const MAX_CHAIN := 5     # the part's joint and up to this many ancestors (the hips are never driven here)
 
 var drag := {}           # the drag in progress; {} = none
+var last := ""           # the last status line the drag wrote (the release repeats it: an out-of-reach gap stays shown)
 var _W: Body = null      # the body the solve reads (never the live body)
 var _F: Body = null      # a second body for the IK's FK reads
 
@@ -166,8 +167,9 @@ func move(S: Scene, cam: Camera3D, mp: Vector2) -> String:
 	var miss := _move_ik(S, goal) if drag["route"] == "ik" else _move_rot(S, goal)
 	var part: String = drag["part"]
 	var moved := (goal - (drag["p0"] as Vector3)).length()
-	return "MOVING the %s at card %d: %.1f cm%s" % [part.replace("_", " "), int(drag["card"]) + 1, moved * 100.0,
-		("   out of reach by %.1f cm" % (miss * 100.0)) if miss > 0.002 else ""]
+	last = "MOVING the %s at card %d: %.1f cm%s" % [part.replace("_", " "), int(drag["card"]) + 1, moved * 100.0,
+		("   out of reach by %.1f mm: the limits stop it here, drag less" % (miss * 1000.0)) if miss > 0.002 else ""]
+	return last
 
 
 ## the IK route: the card's key gets the goal as its target (weight 1); the rest of the IK keys are as they were
