@@ -42,10 +42,10 @@ func _init() -> void:
 	root.add_child(m)
 	await idle(6)
 	# round 36: the part's how-to line left the inspector for its title's tooltip (RR2), the pose list's "Click a pose"
-	# line left with the list (RR3: the pose rows' tooltip says it): 2 teaching texts on screen
+	# line left with the list (RR3: the pose rows' tooltip says it): 2 teaching texts on screen; the scene strip caption left too: 1
 	var texts: Array = m.ui_hint_labels + [m.ui_status]
-	ok(texts.size() == 2 and texts.all(shown) and m.ui_status.text == m.WELCOME and not shown(m.ui_how) and m.ui_title.tooltip_text != "",
-		"at the start all 2 teaching texts show (%s); the how-to is the title's tooltip ('%s')" % [texts.map(shown), m.ui_title.tooltip_text.left(30)])
+	ok(texts.size() == 1 and texts.all(shown) and m.ui_status.text == m.WELCOME and not shown(m.ui_how) and m.ui_title.tooltip_text != "",
+		"at the start all 1 teaching text shows (the strip caption left with the Scene menu rework; its words are the heading's tooltip) (%s); the how-to is the title's tooltip ('%s')" % [texts.map(shown), m.ui_title.tooltip_text.left(30)])
 	var x: Button = m.ui_status.find_child("hints_close", true, false)
 	ok(x != null and x.is_visible_in_tree() and m.get_viewport().get_visible_rect().encloses(x.get_global_rect()), "the strip has a close (x) on screen")
 	if x != null:

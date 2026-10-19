@@ -17,7 +17,7 @@ const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10
 const LEFT_W := 240   # round 36 (RR3): the browser; was 250
 const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sentences)
 const PAGE_H := 34   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
-const BOTTOM_H := 256 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
+const BOTTOM_H := 248 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
 const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
 const BOTTOM_EMPTY := 100 + PAGE_H   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
 							# and play row took a third of the screen for nothing)
@@ -127,6 +127,7 @@ var ui_gear: PanelContainer   # RR4: the play options box (the gear opens it; a 
 var ui_gear_btn: Button
 var ui_natural: CheckBox
 var ui_scene_name: LineEdit
+var ui_scene_btn: MenuButton   # the one Scene menu (Save, Open, Versions, New, Template, Delete)
 var ui_scenes: OptionButton
 var thumbs: SceneThumbs   # ROADMAP 51: the pictures in the scene list (scripts/scene_thumbs.gd)
 var ui_tinted := []    # [label, Tok token]: the labels a theme switch re-tints (round 9)
@@ -2149,6 +2150,7 @@ func _exit_tree() -> void:
 func _process(dt: float) -> void:
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
+	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
 	_keys_camera(dt)
 	if shot_through:
 		_shot_apply()   # THE SHOT CAMERA follows the playhead (play, scrub, an edit)
@@ -8985,54 +8987,58 @@ func _ui() -> void:
 	ui_bh = bh
 	bh.add_theme_constant_override("separation", 4)   # the template button made the row 3 px wider than a 1280 window at 125 %
 	bv.add_child(bh)
-	bh.add_child(_label("3  SCENE  (clips)", 19, "heading"))
-	var intro := _label("your clips in a row; Play and the body moves from clip to clip on its own", 14, "text:0.6")
-	intro.set_meta("hint_text", intro.text)   # hints off empties it (it keeps its width: the buttons do not move)
-	ui_hint_labels.append(intro)
-	intro.clip_text = true   # a narrow window (or a big UI size) shortens this line, never pushes the buttons off (round 11)
-	intro.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	intro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	intro.custom_minimum_size.x = 40
-	intro.size_flags_stretch_ratio = 20.0   # the free room goes to the words first (the spacer after it shares it 20:1)
-	bh.add_child(intro)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bh.add_child(sp)
-	ui_scene_name = LineEdit.new()
+	var hl := _label("3  SCENE", 19, "heading")
+	hl.tooltip_text = "your clips in a row; Play and the body moves from clip to clip on its own.  Click a picture to show that moment, drag one to move it, right-click for more"
+	hl.mouse_filter = Control.MOUSE_FILTER_PASS
+	bh.add_child(hl)
+	ui_scene_name = LineEdit.new()   # the scene's name, edited in place; Enter saves
 	ui_scene_name.placeholder_text = "scene name"
-	ui_scene_name.custom_minimum_size = Vector2(160, 0)
+	ui_scene_name.custom_minimum_size = Vector2(200, 0)
+	ui_scene_name.tooltip_text = "the scene's name: type here, Enter saves it under that name"
 	ui_scene_name.text_submitted.connect(func(_t): _step_hint = "Save scene"; _save_scene())   # Enter saves (V3: one action less)
 	bh.add_child(ui_scene_name)
-	bh.add_child(_button("Save scene", _save_scene))
-	ui_scenes = OptionButton.new()
+	# ONE Scene menu holds Save, Open, Versions, New, Template and Delete (the strip used to be eight text buttons)
+	ui_scene_btn = MenuButton.new()
+	ui_scene_btn.name = "btn_scene"
+	ui_scene_btn.set_meta("label", "Scene")
+	ui_scene_btn.icon = Icons.tex("scene_menu")
+	ui_scene_btn.flat = false
+	ui_scene_btn.focus_mode = Control.FOCUS_NONE
+	ui_scene_btn.custom_minimum_size = Vector2(36, 0)
+	ui_scene_btn.tooltip_text = "Scene: save, open, versions, new, template, delete"
+	var sm := ui_scene_btn.get_popup()
+	for it in SCENE_MENU:
+		sm.add_icon_item(Icons.small(it[2]), it[1], it[0])
+	sm.id_pressed.connect(_scene_menu_pick)
+	bh.add_child(ui_scene_btn)
+	ui_scenes = OptionButton.new()   # the list of scene files: the Open item shows its popup (it has no place in the row)
 	ui_scenes.name = "opt_scene"
 	ui_scenes.focus_mode = Control.FOCUS_NONE
 	ui_scenes.custom_minimum_size = Vector2(170, 0)
 	ui_scenes.fit_to_longest_item = false   # round 45: a long work-copy name pushed the play row off a 1280 window
 	ui_scenes.clip_text = true
+	ui_scenes.visible = false
 	ui_scenes.item_selected.connect(_scene_picked)   # V3: picking a scene opens it (asks first if this one has unsaved changes)
 	# ROADMAP 51: a picture of each scene's body in the list (scripts/scene_thumbs.gd); drawn when the list opens
 	thumbs = SceneThumbs.new()
 	thumbs.name = "scene_thumbs"
 	add_child(thumbs)
 	thumbs.made.connect(_thumb_made)
+	thumbs.made_pose.connect(_card_pic_made)
 	ui_scenes.get_popup().add_theme_constant_override("icon_max_width", SceneThumbs.SIZE.x)
-	ui_scenes.add_theme_constant_override("icon_max_width", 18)   # the CLOSED button shows the open scene's picture too: at full size it made the scene row 76 px tall and pushed the strip off the screen
 	ui_scenes.get_popup().about_to_popup.connect(_scenes_opening)
 	bh.add_child(ui_scenes)
-	bh.add_child(_button("Open scene", func():
-		if ui_scenes.selected >= 0:
-			_scene_picked(ui_scenes.selected)))   # ROADMAP 50: asks first when the open scene has unsaved changes
-	bh.add_child(_button("Delete scene", _delete_scene, "the scene picked in the list (it asks first; the file goes to the trash folder)"))
-	ui_versions = MenuButton.new()   # SCENE VERSIONS (round 29, JJ1)
+	ui_versions = MenuButton.new()   # SCENE VERSIONS (round 29, JJ1): its popup opens from the Scene menu's Versions item
 	ui_versions.name = "btn_versions"
 	ui_versions.text = "Versions"
-	ui_versions.flat = false
+	ui_versions.visible = false
 	ui_versions.focus_mode = Control.FOCUS_NONE
-	ui_versions.tooltip_text = "save the scene as it is now as a version, or go back to one (the scene's file is not touched)"
 	ui_versions.about_to_popup.connect(_versions_menu)
 	ui_versions.get_popup().id_pressed.connect(_version_picked)
 	bh.add_child(ui_versions)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bh.add_child(sp)
 	ui_loop = CheckBox.new()
 	ui_loop.text = "Loop"
 	ui_loop.name = "check_loop"
@@ -9040,10 +9046,12 @@ func _ui() -> void:
 	ui_loop.focus_mode = Control.FOCUS_NONE
 	ui_loop.tooltip_text = "ON: the scene plays round and round (a walk, an idle). CHECK then grades the seam: the end must meet the start."
 	ui_loop.toggled.connect(func(on): _push_undo(); S.loop = on; check_ran = false; _refresh())
-	bh.add_child(_button("New empty scene", _new_asked))
-	bh.add_child(_short(_button("New from template...", _template_ask, "five starting scenes: walk, run, jump, punch, sword swing (each checked against real people's numbers); opens as a new scene in scenes/_wip"), "Template..."))
-	var fb := _button("Fold", _fold.bind("bottom", true), "fold the scene panel to the timeline and Play: more room for the body (remembered)")
+	var fb := _button("", _fold.bind("bottom", true), "Fold: fold the scene panel to the timeline and Play: more room for the body (remembered)")
 	fb.name = "fold_bottom"
+	fb.set_meta("label", "Fold")
+	fb.icon = Icons.tex("fold_down")
+	fb.flat = true
+	fb.custom_minimum_size = Vector2(32, 0)
 	bh.add_child(fb)
 	ui_fold_btn["bottom"] = fb
 	var cs := ScrollContainer.new()
@@ -9052,7 +9060,7 @@ func _ui() -> void:
 	bv.add_child(cs)
 	ui_card_row = cs
 	ui_cards = HBoxContainer.new()
-	ui_cards.add_theme_constant_override("separation", 8)
+	ui_cards.add_theme_constant_override("separation", 2)
 	cs.add_child(ui_cards)
 	ui_timeline = Timeline.new()
 	ui_timeline.m = self
@@ -9903,7 +9911,7 @@ func _rebuild_cards() -> void:
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
 		for st in [["Clip this pose  (Enter)", _card_add, "the body as it is now becomes clip 1; pose the next moment and clip again, then Play"],
-				["Open a scene", func(): ui_scenes.show_popup(), "pick one of your scenes from the list"]]:
+				["Open a scene", _open_scene_popup, "pick one of your scenes from the list"]]:
 			var sb := _button(st[0], st[1], st[2])
 			sb.name = "start_" + ("clip" if st[0].begins_with("Clip") else "open")
 			sb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -9916,30 +9924,88 @@ func _rebuild_cards() -> void:
 			eb.add_theme_font_size_override("font_size", 13)   # fits the collapsed row (26 px): the empty panel keeps its height
 			ui_cards.add_child(eb)
 	var ts := S.times()
+	_pl_card = _play_card_idx()
 	for i in S.cards.size():
 		var c: Dictionary = S.cards[i]
 		var pc := PanelContainer.new()
 		pc.name = "card_%d" % (i + 1)   # a named scope: card_3/.../b_update (U2)
-		var st := StyleBoxFlat.new()
-		st.bg_color = Tok.c("card_sel") if i in card_range() else (Tok.c("card_passby") if c["name"] == "pass-by" else Tok.c("card"))
-		st.set_corner_radius_all(6)
-		st.set_content_margin_all(6)
-		pc.add_theme_stylebox_override("panel", st)
-		pc.custom_minimum_size = Vector2(196, 0)
+		pc.add_theme_stylebox_override("panel", _card_style(i))
+		pc.custom_minimum_size = Vector2(CARD_W, 0)
+		pc.set_drag_forwarding(Callable(), _card_can_drop.bind(i), _card_drop.bind(i))
 		ui_cards.add_child(pc)
 		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", 3)
+		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
-		var nb := _button("%d  %s" % [i + 1, c["name"]], _card_pick.bind(i), "show this moment (at %.2f s)" % ts[i][1])
+		# the picture IS the pick button: the pose on the body, the number and name under it
+		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
-		nb.tooltip_text += ".  Double-click to rename it"
+		nb.tooltip_text = "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
+		nb.flat = true
+		nb.clip_text = true
+		nb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		nb.add_theme_font_size_override("font_size", 11)
+		nb.add_theme_constant_override("icon_max_width", CARD_W - 8)
+		nb.add_theme_constant_override("h_separation", 0)
+		nb.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		nb.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+		nb.expand_icon = true
+		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
+		_card_flat(nb)
+		nb.set_drag_forwarding(_card_drag.bind(i), _card_can_drop.bind(i), _card_drop.bind(i))
+		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
+		var tex := thumbs.pose_picture(c["pose"])
+		if tex != null:
+			nb.icon = tex
 		v.add_child(nb)
+		# hover tools: Update and Delete (reorder is a drag, or the right-click menu)
+		var tools := HBoxContainer.new()
+		tools.name = "hover_tools"
+		tools.visible = false
+		tools.add_theme_constant_override("separation", 1)
+		tools.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+		tools.offset_left = -40
+		tools.offset_top = 1
+		tools.offset_right = -1
+		tools.offset_bottom = 20
+		for tl in [["b_update", "card_update", "Update: replace this card's pose with the body as it is now", _card_update.bind(i)],
+				["b_delete", "card_delete", "Delete this card (Ctrl+Z brings it back)", _card_del.bind(i)]]:
+			var hb := _button("", tl[3], tl[2])
+			hb.name = tl[0]
+			hb.set_meta("label", String(tl[2]).get_slice(":", 0).get_slice(" this", 0))
+			hb.icon = Icons.small(tl[1])
+			hb.custom_minimum_size = Vector2(19, 19)
+			tools.add_child(hb)
+		nb.add_child(tools)
+		pc.mouse_entered.connect(func(): tools.visible = true)
+		pc.mouse_exited.connect(func(): tools.visible = false)
+		# the timing as one line of text; a click opens the two boxes (move, hold) that edit it
+		var tb := _button(_card_timing(i), func(): _card_time_edit(i), "")
+		tb.name = "b_timing"
+		tb.flat = true
+		tb.clip_text = true
+		tb.add_theme_font_size_override("font_size", 10)
+		tb.add_theme_constant_override("h_separation", 0)
+		_card_flat(tb)
+		tb.tooltip_text = "seconds to get here from the card before + seconds the body then holds still.  Click to type them"
+		v.add_child(tb)
+		var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
+		pp.name = "time_edit"
+		pp.top_level = true
+		pp.visible = false
+		pp.z_index = 50
+		pp.mouse_exited.connect(func():
+			var fo := pp.get_viewport().gui_get_focus_owner()
+			if fo == null or not pp.is_ancestor_of(fo):
+				pp.visible = false)
+		var pv := VBoxContainer.new()
+		pp.add_child(pv)
 		if i > 0:
 			var mh := HBoxContainer.new()
-			v.add_child(mh)
+			pv.add_child(mh)
 			mh.add_child(_label("move", 13, "text:0.7"))
 			var ms := SpinBox.new()
+			ms.name = "spin_move"
 			ms.min_value = 0.0
 			ms.max_value = 5.0
 			ms.step = 0.05
@@ -9950,23 +10016,237 @@ func _rebuild_cards() -> void:
 			ms.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["move"] = x if x > 0.0 else -1.0; _markers_follow(); _retimed())
 			mh.add_child(ms)
 		var hh := HBoxContainer.new()
-		v.add_child(hh)
+		pv.add_child(hh)
 		hh.add_child(_label("hold", 13, "text:0.7"))
 		var hs := SpinBox.new()
+		hs.name = "spin_hold"
 		hs.min_value = 0.0
 		hs.max_value = 5.0
 		hs.step = 0.05
 		hs.value = c["hold"]
 		hs.suffix = "s"
+		hs.custom_minimum_size = Vector2(150, 0)
 		hs.tooltip_text = "seconds the body stays still in this pose"
-		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false))
+		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i))
 		hh.add_child(hs)
-		var bh := HBoxContainer.new()
-		v.add_child(bh)
-		bh.add_child(_button("<", _card_move.bind(i, -1), "move this card earlier"))
-		bh.add_child(_button(">", _card_move.bind(i, 1), "move this card later"))
-		bh.add_child(_button("Update", _card_update.bind(i), "replace this card's pose with the body as it is now"))
-		bh.add_child(_button("X", _card_del.bind(i), "delete this card"))
+		pc.add_child(pp)
+
+
+## a button on a card: no padding, only a light wash on hover (the card is the frame)
+func _card_flat(b: Button) -> void:
+	var e := StyleBoxFlat.new()
+	e.bg_color = Color(0, 0, 0, 0)
+	e.set_content_margin_all(1)
+	var h := e.duplicate() as StyleBoxFlat
+	h.bg_color = Color(Tok.c("btn_hover"), 0.5)
+	h.set_corner_radius_all(4)
+	for k in ["normal", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(k, e)
+	b.add_theme_stylebox_override("hover", h)
+	b.add_theme_stylebox_override("hover_pressed", h)
+
+
+const CARD_W := 91     # a card: the picture, "3 CONTACT", "0.4 s + hold 0.05": 17 fit a 1600 window (the old cards: 8)
+const CARD_PIC_H := 55
+var _pl_card := -1     # the card at the playhead (marked on the strip)
+
+
+## "0.4 s + hold 0.05": the time to get here (a ~ when it is automatic) and the hold; the first card has only a hold
+func _card_timing(i: int) -> String:
+	var c: Dictionary = S.cards[i]
+	var hold := "no hold"
+	if float(c["hold"]) > 0.0:
+		hold = "hold %s" % String.num(float(c["hold"]), 2)
+	if i == 0:
+		return hold
+	var mv: float = c["move"]
+	return "%s%s s + %s" % ["" if mv > 0.0 else "~", String.num(mv if mv > 0.0 else S.move_time(i), 2), hold]
+
+
+## the card's look: picked = blue, pass-by = brown, else plain; the card at the playhead has a gold frame and a lighter ground
+func _card_style(i: int) -> StyleBoxFlat:
+	var c: Dictionary = S.cards[i]
+	var st := StyleBoxFlat.new()
+	var here := i == _pl_card
+	st.bg_color = Tok.c("card_sel") if i in card_range() else (Tok.c("card_passby") if c["name"] == "pass-by" else (Tok.c("card_play_bg") if here else Tok.c("card")))
+	st.set_corner_radius_all(5)
+	st.set_content_margin_all(3)
+	st.set_border_width_all(2)
+	st.border_color = Tok.c("card_play") if here else Color(0, 0, 0, 0)
+	return st
+
+
+## the card whose pose the playhead has reached (-1: none)
+func _play_card_idx() -> int:
+	var ts := S.times()
+	var at := -1
+	for i in ts.size():
+		if float(ts[i][1]) <= playhead + 1e-4:
+			at = i
+	return at
+
+
+var _pl_seen := -1.0
+
+
+## the playhead moved: the gold frame goes to its card; while playing the strip scrolls so the card stays in view
+func _mark_play_card() -> void:
+	if ui_cards == null or S.cards.is_empty() or playhead == _pl_seen:
+		return
+	_pl_seen = playhead
+	var now := _play_card_idx()
+	if now != _pl_card:
+		var old := _pl_card
+		_pl_card = now
+		for k in [old, now]:
+			var pc := ui_cards.get_node_or_null("card_%d" % (k + 1)) as PanelContainer
+			if pc != null and k < S.cards.size():
+				pc.add_theme_stylebox_override("panel", _card_style(k))
+	if playing and now >= 0 and now < ui_cards.get_child_count():
+		var sc := ui_card_row
+		var pc := ui_cards.get_child(now) as Control
+		if pc.position.x < sc.scroll_horizontal or pc.position.x + pc.size.x > sc.scroll_horizontal + sc.size.x:
+			sc.scroll_horizontal = int(maxf(0.0, pc.position.x - 16.0))
+
+
+## a pose picture is ready: every card showing that pose gets it
+func _card_pic_made(key: String) -> void:
+	if ui_cards == null:
+		return
+	for pc in ui_cards.get_children():
+		var nb := pc.find_child("b_pick", true, false) as Button
+		if nb != null and nb.get_meta("pkey", "") == key:
+			var i := pc.get_index()
+			if i < S.cards.size():
+				nb.icon = thumbs.pose_picture(S.cards[i]["pose"])
+
+
+## click the timing text: the two boxes open above it
+func _card_time_edit(i: int) -> void:
+	var pc := ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
+	if pc == null:
+		return
+	var pp := pc.get_node("time_edit") as Control
+	for o in ui_cards.get_children():   # one open at a time
+		var other := o.get_node_or_null("time_edit") as Control
+		if other != null and other != pp:
+			other.visible = false
+	pp.visible = true
+	pp.reset_size()
+	pp.global_position = pc.get_global_rect().position + Vector2(0, -pp.size.y - 2)
+
+
+## drag a card's picture onto another card: it takes that place (one undo step)
+func _card_drag(_at: Vector2, i: int) -> Variant:
+	var l := Label.new()
+	l.text = "%d  %s" % [i + 1, S.cards[i]["name"]]
+	l.add_theme_font_size_override("font_size", 13)
+	if ui_cards.get_viewport().gui_is_dragging():
+		ui_cards.set_drag_preview(l)
+	else:
+		l.free()
+	return {"kine_card": i}
+
+
+func _card_can_drop(_at: Vector2, data: Variant, j: int) -> bool:
+	return data is Dictionary and (data as Dictionary).has("kine_card") and int(data["kine_card"]) != j
+
+
+func _card_drop(_at: Vector2, data: Variant, j: int) -> void:
+	_step_hint = "Move card"
+	_card_reorder(int(data["kine_card"]), j)
+
+
+func _card_reorder(i: int, j: int) -> void:
+	if i == j or i < 0 or j < 0 or i >= S.cards.size() or j >= S.cards.size():
+		_say("drag a card's picture onto another card to move it there")
+		return
+	_push_undo()
+	var c: Dictionary = S.cards[i]
+	S.cards.remove_at(i)
+	S.cards.insert(j, c)
+	sel_card = j
+	_rebuild_cards()
+	_refresh()
+	_say("card moved to place %d.  Ctrl+Z puts it back" % (j + 1))
+
+
+## right-click on a card: its menu
+var ui_card_menu: PopupMenu
+
+
+func _card_menu(i: int, at: Vector2) -> void:
+	if ui_card_menu == null:
+		ui_card_menu = PopupMenu.new()
+		ui_card_menu.name = "card_menu"
+		ui_root.add_child(ui_card_menu)
+		ui_card_menu.id_pressed.connect(_card_menu_pick)
+	ui_card_menu.clear()
+	ui_card_menu.set_meta("card", i)
+	ui_card_menu.add_icon_item(Icons.small("rename"), "Rename", 0)
+	ui_card_menu.add_icon_item(Icons.small("card_update"), "Update from the body", 1)
+	ui_card_menu.add_icon_item(Icons.small("move_l"), "Move earlier", 2)
+	ui_card_menu.add_icon_item(Icons.small("move_r"), "Move later", 3)
+	ui_card_menu.add_icon_item(Icons.small("card_delete"), "Delete this card", 4)
+	ui_card_menu.set_item_disabled(2, i == 0)
+	ui_card_menu.set_item_disabled(3, i >= S.cards.size() - 1)
+	ui_card_menu.popup(Rect2i(Vector2i(at), Vector2i(0, 0)))
+
+
+func _card_menu_pick(id: int) -> void:
+	var i := int(ui_card_menu.get_meta("card", -1))
+	if i < 0 or i >= S.cards.size():
+		return
+	match id:
+		0:
+			var nb := ui_cards.get_node_or_null("card_%d/b_pick" % (i + 1)) as Button
+			if nb != null:
+				_card_name_edit(i, nb)
+		1:
+			_step_hint = "Update"
+			_card_update(i)
+		2:
+			_step_hint = "Move card"
+			_card_move(i, -1)
+		3:
+			_step_hint = "Move card"
+			_card_move(i, 1)
+		4:
+			_step_hint = "Delete card"
+			_card_del(i)
+
+
+const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
+	[4, "New from template...", "template"], [5, "Delete scene", "trash"]]
+
+
+## the Scene menu: the same actions the eight buttons had, by the same names (the command search runs them too)
+func _scene_menu_pick(id: int) -> void:
+	var name_of: String = SCENE_MENU[id][1]
+	_step_hint = name_of
+	_why_cmd = name_of
+	_tour_inputs += 1
+	match id:
+		0:
+			_save_scene()
+		1:
+			_open_scene_popup()
+		2:
+			ui_versions.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
+			ui_versions.show_popup()
+		3:
+			_new_asked()
+		4:
+			_template_ask()
+		5:
+			_delete_scene()
+
+
+## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
+func _open_scene_popup() -> void:
+	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
+	ui_scenes.size = Vector2(260, 30)
+	ui_scenes.show_popup()
 
 
 ## ROADMAP 55: the picked card's "Slow in ... Even ... Slow out" slider (Scene.ease_bias: -1 arrives slowly, 0 = the curve as it
@@ -10352,7 +10632,7 @@ func _layout_bottom() -> void:
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
 		ui_fold_btn["bottom"].visible = not empty
-	ui_card_row.custom_minimum_size.y = 26 if empty else 112
+	ui_card_row.custom_minimum_size.y = 26 if empty else 104
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty and not easy.on
 	ui_bp.offset_top = -bottom_h
@@ -12454,13 +12734,21 @@ func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
 		var r := card_range()
 		_say("cards %d-%d picked: Faster / Slower retime them all (a plain click picks one again)" % [r[0] + 1, r[-1] + 1])
 		return
+	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
+		nb.accept_event()
+		_card_menu(i, mb.global_position)
+		return
 	if not (ev is InputEventMouseButton and ev.double_click and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT):
 		return
 	nb.accept_event()
+	_card_name_edit(i, nb)
+
+
+func _card_name_edit(i: int, nb: Button) -> void:
 	var ed := LineEdit.new()
 	ed.name = "edit_card_name"
 	ed.text = S.cards[i]["name"]
-	ed.custom_minimum_size = nb.size
+	ed.custom_minimum_size = Vector2(nb.size.x, 24)
 	nb.get_parent().add_child(ed)
 	nb.get_parent().move_child(ed, nb.get_index())
 	nb.visible = false

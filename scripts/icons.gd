@@ -8,6 +8,18 @@ const SIZE := 22
 ## shape: ["seg", a, b, width] | ["arc", centre, radius, width, from_deg, to_deg] | ["disc", centre, radius]
 ##        ["ring", centre, radius, width] | ["box", rect(pos, size), width (0 = filled)]
 const DRAW := {
+	# THE SCENE STRIP: the Scene menu, Fold, and a card's hover tools
+	"scene_menu": [["seg", Vector2(4, 7), Vector2(20, 7), 2.2], ["seg", Vector2(4, 12), Vector2(20, 12), 2.2], ["seg", Vector2(4, 17), Vector2(20, 17), 2.2]],
+	"fold_down": [["seg", Vector2(5, 9), Vector2(12, 16), 2.4], ["seg", Vector2(19, 9), Vector2(12, 16), 2.4]],
+	"card_update": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7, 10), Vector2(12, 15), 2.2], ["seg", Vector2(17, 10), Vector2(12, 15), 2.2], ["box", Rect2(4, 17.5, 16, 3), 1.6]],
+	"card_delete": [["seg", Vector2(6, 6), Vector2(18, 18), 2.4], ["seg", Vector2(18, 6), Vector2(6, 18), 2.4]],
+	"open": [["box", Rect2(3, 9, 18, 11), 1.8], ["box", Rect2(3, 5, 8, 4), 1.6]],
+	"trash": [["box", Rect2(6.5, 9, 11, 11), 1.8], ["seg", Vector2(4, 6.5), Vector2(20, 6.5), 2.0], ["seg", Vector2(9.5, 4), Vector2(14.5, 4), 2.0], ["seg", Vector2(10.5, 12), Vector2(10.5, 17), 1.4], ["seg", Vector2(13.5, 12), Vector2(13.5, 17), 1.4]],
+	"new_scene": [["box", Rect2(5, 3, 14, 18), 1.8], ["seg", Vector2(12, 9), Vector2(12, 16), 2.0], ["seg", Vector2(8.5, 12.5), Vector2(15.5, 12.5), 2.0]],
+	"template": [["box", Rect2(3.5, 3.5, 17, 17), 1.6], ["seg", Vector2(3.5, 9.5), Vector2(20.5, 9.5), 1.4], ["seg", Vector2(9.5, 9.5), Vector2(9.5, 20.5), 1.4]],
+	"move_l": [["seg", Vector2(15, 5), Vector2(8, 12), 2.4], ["seg", Vector2(8, 12), Vector2(15, 19), 2.4]],
+	"move_r": [["seg", Vector2(9, 5), Vector2(16, 12), 2.4], ["seg", Vector2(16, 12), Vector2(9, 19), 2.4]],
+	"rename": [["seg", Vector2(5, 19), Vector2(6.5, 14), 2.0], ["seg", Vector2(6.5, 14), Vector2(15, 5.5), 2.6], ["seg", Vector2(15, 5.5), Vector2(18.5, 9), 2.6], ["seg", Vector2(18.5, 9), Vector2(10, 17.5), 2.0], ["seg", Vector2(5, 19), Vector2(10, 17.5), 2.0]],
 	# PAGES (docs/PAGES_PLAN.md): the page bar's nine icons
 	"page_pose": [["disc", Vector2(12, 4.5), 2.6], ["seg", Vector2(12, 8), Vector2(12, 15), 2.4], ["seg", Vector2(12, 9.5), Vector2(5, 7), 2.0],
 		["seg", Vector2(12, 9.5), Vector2(19, 13), 2.0], ["seg", Vector2(12, 15), Vector2(8, 21), 2.0], ["seg", Vector2(12, 15), Vector2(16.5, 21), 2.0]],

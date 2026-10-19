@@ -159,7 +159,7 @@ func _init() -> void:
 	var card: Control = m.ui_cards.get_child(10)
 	var vis: bool = card.position.x - sc.scroll_horizontal >= -1.0 and card.position.x + card.size.x - sc.scroll_horizontal <= sc.size.x + 1.0
 	ok(m.sel_card == 10 and absf(m.playhead - float(t11[1])) < 1e-6, "click in card 11's block: card %d picked, playhead %.2f s (its pose)" % [m.sel_card + 1, m.playhead])
-	ok(vis and sc.scroll_horizontal > 0, "  the card row scrolled to it (scroll %d px, card fully in view: %s)" % [sc.scroll_horizontal, vis])
+	ok(vis and (sc.scroll_horizontal > 0 or m.ui_cards.size.x <= sc.size.x), "  the card row shows it (scroll %d px, card fully in view: %s; the 12 picture cards all fit at this width, the scroll is tested in cardstrip)" % [sc.scroll_horizontal, vis])
 	# the ruler scrubs
 	mouse("down", tl.x_of(2.0), 6.0)
 	mouse("move", tl.x_of(3.0), 6.0)

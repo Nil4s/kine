@@ -9,6 +9,7 @@ class_name SceneThumbs
 extends Node
 
 signal made(path: String)   # a picture is ready for this scene file (memory or disk or drawn)
+signal made_pose(key: String)   # a picture is ready for this POSE (the strip's cards): key = pose_key(pose)
 
 const SIZE := Vector2i(96, 64)
 const DIR := "user://thumbs"
@@ -27,6 +28,10 @@ var _vp: SubViewport
 var _sk: Skeleton3D
 var _idx := {}
 var _tb: Body
+var _ptex := {}           # pose key -> ImageTexture (the strip's cards)
+var _pq: Array = []       # [key, pose] waiting for a draw or a disk read
+var _pbusy := false
+var _drawing := false     # the one stage draws one picture at a time (scenes and poses share it)
 
 
 func _ready() -> void:
@@ -110,14 +115,89 @@ func _pump() -> void:
 	_busy = true
 	while not _queue.is_empty():
 		var path: String = _queue.pop_front()
+		while _drawing:
+			await get_tree().process_frame
+		_drawing = true
 		await _render(path)
+		_drawing = false
 		await get_tree().process_frame
 	_busy = false
 
 
+## THE STRIP'S CARDS: a picture of ONE POSE, cached by the hash of the pose itself (memory and user://thumbs/p_<hash>.png),
+## so a card that is moved, renamed, retimed or duplicated never draws again; only an Update (a new pose) does. Drawn one
+## per frame like the scene pictures, after the frame that asked, so a rebuild of the strip never waits for them.
+static func pose_key(pose: Dictionary) -> String:
+	return JSON.stringify(pose, "", true).sha256_text()
+
+
+## the picture of this pose if it is at hand (memory), else null
+func pose_picture(pose: Dictionary) -> Texture2D:
+	return _ptex.get(pose_key(pose))
+
+
+## ask for the picture of a pose; made_pose(key) says when it is there. Returns the key
+func request_pose(pose: Dictionary) -> String:
+	var key := pose_key(pose)
+	if _ptex.has(key):
+		return key
+	for q in _pq:
+		if q[0] == key:
+			return key
+	_pq.append([key, pose])
+	_ppump()
+	return key
+
+
+func _ppump() -> void:
+	if _pbusy:
+		return
+	_pbusy = true
+	await get_tree().process_frame   # never on the frame that asked
+	while not _pq.is_empty():
+		var q: Array = _pq.pop_front()
+		var key: String = q[0]
+		if not _ptex.has(key):
+			var f := "%s/p_%s.png" % [DIR, key]
+			var img: Image = null
+			if FileAccess.file_exists(f):
+				img = Image.load_from_file(f)
+				if img != null and not img.is_empty():
+					disk_hits += 1
+			if img == null or img.is_empty():
+				var t0 := Time.get_ticks_usec()
+				img = await draw_pose(q[1])
+				if img != null and not img.is_empty():
+					DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR))
+					img.save_png(ProjectSettings.globalize_path(f))
+					renders += 1
+					render_ms.append((Time.get_ticks_usec() - t0) / 1000.0)
+			if img != null and not img.is_empty():
+				_ptex[key] = ImageTexture.create_from_image(img)
+		made_pose.emit(key)
+		await get_tree().process_frame
+	_pbusy = false
+
+
+## the picture of a pose, drawn now on the thumbnail stage (two frames); null when it cannot be drawn
+func draw_pose(pose: Dictionary) -> Image:
+	while _drawing:
+		await get_tree().process_frame
+	_drawing = true
+	_stage()
+	_tb.from_dict(pose)
+	Overlays.pose_skeleton(_sk, _idx, _tb)
+	await get_tree().process_frame
+	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	await RenderingServer.frame_post_draw
+	var img := _vp.get_texture().get_image()
+	_drawing = false
+	return img
+
+
 ## wait until every queued picture is drawn (tests)
 func settle() -> void:
-	while _busy or _intaking or not _pending.is_empty() or not _queue.is_empty():
+	while _pbusy or not _pq.is_empty() or _busy or _intaking or not _pending.is_empty() or not _queue.is_empty():
 		await get_tree().process_frame
 
 
