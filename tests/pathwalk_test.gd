@@ -153,6 +153,17 @@ func _run() -> void:
 	ok(fg <= 10.0, "5 facing follows the path tangent on the 90 deg turn: worst gap %.1f deg (bar 10)" % fg)
 	var sl2 := slide(SB, BB)
 	ok(sl2 < 0.01, "6 standing feet on the turn: worst slide %.1f mm (bar < 10 mm)" % (sl2 * 1000.0))
+	# 8 a tight turn is refused, with the number and the next step
+	var tight := []
+	for i in 21:
+		tight.append(Vector3(0, 0, 2.0 * i / 20.0))
+	for i in range(1, 24):
+		var phi := (PI / 2.0) * i / 23.0
+		tight.append(Vector3(0.5 - 0.5 * cos(phi), 0, 2.0 + 0.5 * sin(phi)))
+	for i in range(1, 26):
+		tight.append(Vector3(0.5 + 2.5 * i / 25.0, 0, 2.5))
+	var refused := PathWalk.build(tight, 1.3)
+	ok(not refused["ok"] and String(refused["why"]).contains("radius"), "8 a 0.5 m bend is refused: %s" % refused.get("why", "built"))
 	if DisplayServer.get_name() != "headless":
 		await shot(turn, b["r"], SB, BB)
 	# 7 placement: where each landing's ball really is when its card arrives, against the mark the walk was given

@@ -25,6 +25,7 @@ const HOLD_STOP := 0.4        # s: the stance after the last step (walk_bat's st
 const SAMPLE := 0.002         # m: the smoothed path is sampled every 2 mm
 const SWING := 0.7            # the share of a step period the stepping foot is in the air (its card's move); the rest is PIVOTS double-support cards
 const PIVOTS := 3             # double-support cards before each step: the facing is keyed every 1/(PIVOTS+1) of a step, not once per step
+const MIN_RADIUS := 0.8        # m: a tighter arc than this is refused (the walk steps can't turn it: the facing lags past 10 deg, the feet slide)
 const YAW_LAG := 0.1          # m: a card's facing is the tangent this far BEHIND its hips (sweep on the 90 deg arc: 0 -> 15.6 deg, 0.05 -> 13.7, 0.10 -> 11.9, 0.15 -> 13.7)
 
 
@@ -52,6 +53,21 @@ static func curve(pts: Array) -> Dictionary:
 	for i in range(1, P.size()):
 		s[i] = s[i - 1] + (P[i] as Vector3).distance_to(P[i - 1])
 	return {"p": P, "s": s, "len": s[s.size() - 1] if s.size() > 0 else 0.0}
+
+
+## the tightest turn of the path: the smallest radius over 0.2 m of arc (m); INF for a straight path
+static func min_radius(c: Dictionary) -> float:
+	var best := INF
+	var L: float = c["len"]
+	var s := 0.1
+	while s < L - 0.1:
+		var a := heading(c, s - 0.1)
+		var b := heading(c, s + 0.1)
+		var dth := absf(wrapf(b - a, -PI, PI))
+		if dth > 1e-6:
+			best = minf(best, 0.2 / dth)
+		s += 0.05
+	return best
 
 
 static func _flat(v) -> Vector3:
@@ -110,6 +126,9 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 	if speed < 0.6 or speed > 1.6:
 		return {"ok": false, "why": "walk speed %.2f m/s is outside what the walk's poses carry (0.6-1.6 m/s)" % speed}
 	var c := curve(pts)
+	var r_min := min_radius(c)
+	if r_min < MIN_RADIUS:
+		return {"ok": false, "why": "the path turns on a %.2f m radius; the walk needs at least %.1f m. Widen the bend (move the points out) or add points on the straight part before it" % [r_min, MIN_RADIUS]}
 	var nums := step_numbers(speed, height)
 	var L: float = nums["step"]
 	var T: float = nums["time"]
