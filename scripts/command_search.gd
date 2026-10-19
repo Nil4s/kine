@@ -35,7 +35,7 @@ var recent: Array = []   # names of the last commands run, newest first (shown o
 var commands: Array = []
 ## ROADMAP 52: the saved files as rows {"name", "kind" ("pose" / "scene"), "also", "desc", "run"}; main's files_provider
 ## lists them each time the box opens (not per keystroke). KINDS: the words a "kind:" prefix may start with
-const KINDS := ["command", "pose", "scene"]
+const KINDS := ["command", "pose", "scene", "macro"]   # ROADMAP 81: "macro:" lists the recorded macros
 var files_provider: Callable
 var files: Array = []
 var box: LineEdit
@@ -76,6 +76,14 @@ func open() -> void:
 	files = files_provider.call() if files_provider.is_valid() else []
 	_filter()
 	box.grab_focus()
+
+
+## the box opened with text already in it (ROADMAP 81: "Play macro..." opens it on "macro:" to list the macros)
+func open_with(text: String) -> void:
+	open()
+	box.text = text
+	box.caret_column = text.length()
+	_filter()
 
 
 func close() -> void:
