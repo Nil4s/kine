@@ -220,6 +220,34 @@ func _init() -> void:
 			quiet = quiet and same(B, R, all) and B.offset == R.offset
 	ok(quiet, "7 a muted clip and a weight-0 clip leave the body bit for bit")
 
+	# 9 clips are played from worker threads too (dummy / fighters measure, pose bake): four threads posing the same
+	# walk through the shared scratch bodies give each the serial answer (undo_audit crashed on this race)
+	var ser := []
+	var times_t := [0.3, 0.9, 1.5, 2.1]
+	var Sc := target()
+	Sc.clips = [Clips.make(SRC, 0.0, {"mask": "legs"})]
+	for t in times_t:
+		Sc.apply(B, t)
+		ser.append(str(B.ang))
+	var outs := [[], [], [], []]
+	var tasks := []
+	for w in 4:
+		var sc := Sc.clone()
+		var o: Array = outs[w]
+		tasks.append(WorkerThreadPool.add_task(func():
+			var WB := body()
+			for rep in 12:
+				for t in times_t:
+					sc.apply(WB, t)
+					if rep == 11:
+						o.append(str(WB.ang))))
+	for tk in tasks:
+		WorkerThreadPool.wait_for_task_completion(tk)
+	var race_ok := true
+	for w in 4:
+		race_ok = race_ok and (outs[w] as Array) == ser
+	ok(race_ok, "9 four threads playing a clip at once each get the serial answer (bar: 4 of 4 equal)")
+
 	await app_part()
 	print("CLIPS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
