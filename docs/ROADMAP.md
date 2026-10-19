@@ -99,7 +99,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 20. [~] Viewport playback at real time on heavy scenes (measure, then cache poses per frame)
 
 ### Wave B: the innovations
-21. [ ] Live webcam puppeteering (top-25 #6)
+21. [~] Live webcam puppeteering (top-25 #6): helper + socket + fit + record built; no camera here, the test is camera-free (see the commit)
 22. [ ] Type a move, get blocking (top-25 #8)
 23. [ ] Sketch a line of action -> pose (top-25 #9)
 24. [ ] Injury / load check for stunt teams (top-25 #11)

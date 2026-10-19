@@ -1544,6 +1544,7 @@ func _process(dt: float) -> void:
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
 	_video_poll(dt)
+	_live_poll(dt)
 	_dm_poll()
 	_kb_poll()
 	_as_wait += dt
@@ -7112,6 +7113,8 @@ func _commands() -> Array:
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
+	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
+	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
 	add.call("Import animation (fbx / glb / gltf / bvh)...", "", _anim_import_ask, "fbx mixamo unreal ue4 ue5 glb gltf bvh animation import retarget skeleton rig mocap motion capture clip", false, "pick an animation file from another skeleton (Mixamo, Unreal, Blender ...): its bones are matched to ours by name, its rest pose and size are allowed for, and it arrives as a NEW scene of cards in scenes/_wip (yours untouched). Or drop the file on the window")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
@@ -9576,6 +9579,67 @@ func _import_pose(path: String, from := "") -> String:
 	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"]),
 		(", the %s in both hands" % held.replace("_", " ")) if held != "" else ". Holding a weapon in the video? Pick it first (Weapon: long axe ...), then import: he holds it in both hands"])
 	return out
+
+
+## ---- LIVE WEBCAM PUPPET (roadmap 21; scripts/live_puppet.gd). The webcam's tracker (tools/live_pose.py, MediaPipe) sends the
+## person's landmarks over 127.0.0.1 and the body follows him, every frame, through the video import's fit. "Live: record /
+## stop" keeps the take as a NEW scene in scenes/_wip, opened as a video import's is (never over one). Nothing else changes.
+var live := LivePuppet.new()
+var _live_said := false
+
+
+func _live_toggle() -> void:
+	if live.running:
+		_live_end("the webcam puppet is off")
+		return
+	live.python = video_python
+	var why := live.start(ProjectSettings.globalize_path("res://tools/live_pose.py"))
+	if why != "":
+		_say("live: could not start the webcam puppet: %s" % why)
+		return
+	_live_said = false
+	_say("live: the webcam puppet is starting on 127.0.0.1:%d. Stand where the camera sees your whole body: the mannequin follows you. Live: record / stop keeps what you do" % live.port)
+
+
+## the take is kept first when one is running, then the tracker stops and the socket closes
+func _live_end(why: String) -> void:
+	if live.recording:
+		_live_record()
+	var f := live.fps()
+	var lat := live.latency_ms()
+	live.stop()
+	_say("live: %s (posed %d frames at %.0f fps; camera to pose %.0f ms mean, %.0f ms worst)" % [why, live.frames_posed, f, lat[0], lat[1]])
+
+
+func _live_record() -> void:
+	if not live.running:
+		_say("live: start the webcam puppet first (Live: start the webcam puppet)")
+		return
+	if not live.recording:
+		live.record_start()
+		_say("live: recording. Live: record / stop again keeps the take as a new scene")
+		return
+	var r := live.record_stop(B)
+	if not r["ok"]:
+		_say("live: the take was not kept: %s" % r["why"])
+		return
+	_load_scene(r["path"])
+	_rebuild_cards()
+	_refresh()
+	_say("live: the take is the new scene scenes/_wip/%s: %d frames at %.0f fps in %d cards. Check it, then move its cards like any others" % [String(r["path"]).get_file(), r["frames"], r["fps"], r["cards"]])
+
+
+func _live_poll(_dt: float) -> void:
+	if not live.running:
+		return
+	var got := live.poll(B)
+	if not got.is_empty():
+		if not _live_said:
+			_live_said = true
+			_say("live: the body follows you")
+		_refresh()
+	if live.ended:
+		_live_end(live.error if live.error != "" else "the tracker stopped")
 
 
 ## BVH IMPORT (round 41, GATES WW7): a dropped .bvh (a Poser export) becomes a NEW scene in scenes/_wip, opened. The
