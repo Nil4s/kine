@@ -4461,7 +4461,7 @@ func _ui() -> void:
 	caps.custom_minimum_size.y = CAP_H
 	caps.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tv.add_child(caps)
-	var logo := _label("POSER", 13, "heading")
+	var logo := _label("KINE", 13, "heading")
 	logo.custom_minimum_size.x = 64
 	strip.add_child(logo)
 	# round 7, Fusion's ribbon: tabs, then that tab's tools; Undo / Redo / Search / Help always on the right. Nothing
