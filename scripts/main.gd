@@ -1809,10 +1809,10 @@ func _process(dt: float) -> void:
 			playhead = ta
 			audio_from_clock = true
 		# the mechanism gate (tests): each sounding track's audio clock minus the playhead, read the instant the playhead is set
-		audio_gap.resize(_a_players.size())
-		for i in _a_players.size():
-			var c := _audio_clock_of(i)
-			audio_gap[i] = (c - playhead) if c >= 0.0 else NAN
+		var cg := _audio_clock()   # the mechanism gate (tests): the premix's clock minus the playhead, read the instant the playhead is set
+		audio_gap = []
+		for i in S.audio_tracks.size():
+			audio_gap.append((cg - playhead) if cg >= 0.0 else NAN)
 		if stp["stop"]:
 			playing = false
 		_ps().apply(B, playhead)
@@ -12370,117 +12370,126 @@ func _on_drop(files: PackedStringArray) -> void:
 
 
 ## ---- AUDIO TRACKS (GAP_ANALYSIS row 23; ROADMAP 77; scripts/audio_track.gd). The scene keeps S.audio_tracks: a list of
-## {"path", "offset", "gain_db", "role", "mute", "solo"}. Each track's stream, its peak envelope and its AudioStreamPlayer live
-## here, not in the file. Play: every audible track plays from (playhead - its offset), re-seeked when the playhead jumps or its
-## offset moves; a muted track (or one left out by a solo) sits at AudioTrack.MUTE_DB. A drag of the ruler sounds one slice per frame.
+## {"path", "offset", "gain_db", "role", "mute", "solo"}. The sounding tracks are mixed offline into ONE stream (AudioTrack.mix:
+## each at its offset and gain, summed, clipped) and ONE player plays that premix from the playhead. The playhead follows the
+## player's own clock, so the tracks are in step by construction. A change is mixed once it has been quiet for AUDIO_MIX_QUIET
+## (a drag of an offset mixes once, at its end); adding, removing, opening and undo mix at once. Lip sync and beats read their
+## own track's stream, not the premix.
 const AUDIO_SLICE_EXTRA := 0.04   # s added to one frame for a scrub slice
+const AUDIO_MIX_QUIET := 150000   # usec: a change is mixed after this long without another change
 var audio_envs: Array = []      # per track: AudioTrack.envelope of its file ({} = not loaded)
-var audio_seeks := 0            # how many times Play (re)started a track's sound (tests)
-var audio_err := 0.0            # the track whose position is furthest from (playhead - offset), read right after the playhead moved (tests)
-var audio_gap: Array = []      # per track: its audio clock minus the playhead, read right after the playhead was set; NAN when not sounding (tests)
-var audio_from_clock := false  # this frame's playhead came from the audio clock (tests)
+var audio_mixes := 0            # how many premixes were built (tests)
+var audio_mix_usec := 0         # how long the last premix took to build, usec (tests)
+var audio_gap: Array = []       # per track: the premix's audio clock minus the playhead, read right after the playhead was set; NAN when not playing (tests). All tracks share one clock.
+var audio_from_clock := false   # this frame's playhead came from the audio clock (tests)
 var audio_slices := 0           # how many scrub slices were sounded (tests)
 var audio_pick := -1            # the track the Audio commands act on (picked by clicking its lane); -1 = none
 var mouth_mi: MeshInstance3D   # LIP-SYNC (ROADMAP 31): the mouth drawn on the head, from S.lip (lip_sync.gd); made on first use
-var _a_players: Array = []      # one AudioStreamPlayer per track (made on load)
-var _a_sig := "<unset>"         # the track files the players were made for: a change reloads them (open, undo, add, remove)
-var _a_on: Array = []           # per track: its player runs for Play
-var _a_offs: Array = []         # per track: the offset it was last started with (a moved offset re-seeks it)
-var audio_start_usec: Array = []  # per track: the wall time (usec) its last start was requested (tests)
-var _a_corr: Array = []         # per track: corrective seeks made since its start (at most two)
-var _a_settled: Array = []      # per track: its start has been checked against the audio clock (or its corrections are used up)
+var _a_streams: Array = []      # per track: its AudioStream (AudioTrack.load_stream); null = none
+var _a_pcm: Array = []         # per track: its stream decoded at the mix rate (AudioTrack.decode), made on load; a re-mix only sums these
+var audio_decode_usec := 0     # how long the last load took to decode the tracks, usec (tests)
+var _a_paths: Array = []        # the paths the streams were loaded for (a change of files reloads at once)
+var _a_mixer: AudioStreamPlayer # the one player: plays the premix (made on first use)
+var _a_mix_len := 0.0           # s: the premix's length; 0 = nothing to play
+var _a_key := "<unset>"         # the state the premix was built for (path, offset, gain and audibility per track)
+var _a_last_key := "<unset>"    # the key seen last frame (a change restarts the quiet period)
+var _a_key_at := 0              # usec when the key last changed
 var _a_after := -1.0            # the playhead at the end of the last tick (a different one now = the user moved it)
-var _a_slice_until := 0         # msec when the scrub slices stop
+var _a_slice_until := 0         # msec when the scrub slice stops
 var _a_slice_frame := -1
 
 
-func _a_sig_now() -> String:
-	var out := PackedStringArray()
-	for t in S.audio_tracks:
-		out.append(String(t.get("path", "")))
-	return "\n".join(out)
+## the state the premix depends on: each track's file, offset, gain and whether it sounds (role does not change the mix)
+func _a_key_now() -> String:
+	var on := AudioTrack.audible(S.audio_tracks)
+	var out := []
+	for i in S.audio_tracks.size():
+		var t: Dictionary = S.audio_tracks[i]
+		out.append([String(t.get("path", "")), float(t.get("offset", 0.0)), float(t.get("gain_db", 0.0)), on[i]])
+	return var_to_str(out)
 
 
 ## the stream of track i (null = none)
 func audio_stream(i := 0) -> AudioStream:
-	return _a_players[i].stream if i >= 0 and i < _a_players.size() else null
+	return _a_streams[i] if i >= 0 and i < _a_streams.size() else null
 
 
-## where track i's sound is, in its own seconds; -1 = not sounding. The engine mixes in chunks, so its position is up to
-## a chunk old: the class reference says to add the time since the last mix (the output latency is not taken off)
-func audio_position_of(i: int) -> float:
-	if i < 0 or i >= _a_players.size() or not _a_players[i].playing:
+func _audio_mixer() -> AudioStreamPlayer:
+	if _a_mixer == null:
+		_a_mixer = AudioStreamPlayer.new()
+		_a_mixer.name = "audio_mix"
+		add_child(_a_mixer)
+	return _a_mixer
+
+
+## the premix's position on the timeline (the playhead's time), -1.0 when it is not playing
+func audio_mix_position() -> float:
+	if _a_mixer == null or not _a_mixer.playing:
 		return -1.0
-	return _a_players[i].get_playback_position() + AudioServer.get_time_since_last_mix()
+	return _a_mixer.get_playback_position() + AudioServer.get_time_since_last_mix()
 
 
-## the playhead as the audio clock reads it: the first sounding track's position (the mixer's read point, plus the time
-## since the last mix, less the output latency) plus its offset; -1.0 when no track sounds
+## the playhead as the audio clock reads it: the premix's read point, plus the time since the last mix, less the output
+## latency (the premix's time is the timeline's time); -1.0 when it is not playing
 func _audio_clock() -> float:
-	for i in _a_players.size():
-		var c := _audio_clock_of(i)
-		if c >= 0.0:
-			return c
-	return -1.0
-
-
-## keeps the per-track start arrays the length of the track list (new tracks start settled, with no corrections)
-func _a_fit() -> void:
-	var n := _a_players.size()
-	while audio_start_usec.size() < n:
-		audio_start_usec.append(0)
-	while _a_corr.size() < n:
-		_a_corr.append(0)
-	while _a_settled.size() < n:
-		_a_settled.append(true)
-
-
-## one track's audio clock on the timeline (see _audio_clock); -1.0 when it is not sounding
-func _audio_clock_of(i: int) -> float:
-	if i < 0 or i >= _a_players.size() or i >= _a_on.size() or not _a_on[i] or not _a_players[i].playing:
+	if _a_mixer == null or not _a_mixer.playing:
 		return -1.0
-	var pos: float = _a_players[i].get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
-	return pos + float(S.audio_tracks[i]["offset"])
+	return _a_mixer.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
 
 
-## every track's position (audio_position_of), in track order
-func audio_positions() -> Array:
-	var out := []
-	for i in _a_players.size():
-		out.append(audio_position_of(i))
-	return out
-
-
+## the tracks' files changed (open, add, remove, undo): load every stream and its envelope, and mix at once
 func _audio_reload() -> void:
-	_a_sig = _a_sig_now()
 	var n := S.audio_tracks.size()
-	while _a_players.size() > n:
-		var gone: AudioStreamPlayer = _a_players.pop_back()
-		gone.stop()
-		gone.queue_free()
-	while _a_players.size() < n:
-		var made := AudioStreamPlayer.new()
-		made.name = "audio_track_%d" % _a_players.size()
-		add_child(made)
-		_a_players.append(made)
+	_a_streams = []
+	_a_pcm = []
+	_a_paths = []
 	audio_envs = []
-	_a_on = []
-	_a_offs = []
+	var t0 := Time.get_ticks_usec()
+	var rate := int(AudioServer.get_mix_rate())
 	for i in n:
 		var path := String(S.audio_tracks[i]["path"])
-		var p: AudioStreamPlayer = _a_players[i]
-		p.stop()
-		p.stream = AudioTrack.load_stream(path)
-		audio_envs.append({} if path == "" else AudioTrack.envelope(p.stream, path))
-		_a_on.append(false)
-		_a_offs.append(float(S.audio_tracks[i]["offset"]))
-	_a_slice_until = 0
+		var st: AudioStream = AudioTrack.load_stream(path)
+		_a_streams.append(st)
+		_a_pcm.append(AudioTrack.decode(st, rate) if st != null else PackedFloat32Array())
+		_a_paths.append(path)
+		audio_envs.append({} if path == "" else AudioTrack.envelope(st, path))
+	audio_decode_usec = Time.get_ticks_usec() - t0
 	if audio_pick >= n:
 		audio_pick = -1
+	_audio_remix_now()
 	if ui_timeline != null:
 		_tl_height()
 		_layout_bottom()   # ROADMAP 77: each audio track adds a lane row; the panel makes room for it
 		ui_timeline.queue_redraw()
+
+
+## mixes the sounding tracks into the premix now; the player starts it again from the playhead on the next tick
+func _audio_remix_now() -> void:
+	var t0 := Time.get_ticks_usec()
+	var on := AudioTrack.audible(S.audio_tracks)
+	var rate := int(AudioServer.get_mix_rate())
+	var pcms := []
+	var starts := []
+	var gains := []
+	for i in S.audio_tracks.size():
+		if on[i] and i < _a_pcm.size() and not (_a_pcm[i] as PackedFloat32Array).is_empty():
+			pcms.append(_a_pcm[i])
+			starts.append(int(round(float(S.audio_tracks[i]["offset"]) * rate)))
+			gains.append(db_to_linear(float(S.audio_tracks[i]["gain_db"])))
+	var mixer := _audio_mixer()
+	mixer.stop()
+	if pcms.is_empty():
+		mixer.stream = null
+		_a_mix_len = 0.0
+	else:
+		var w := AudioTrack.mix_pcm(pcms, starts, gains, rate)
+		mixer.stream = w
+		_a_mix_len = w.get_length()
+	_a_key = _a_key_now()
+	audio_mixes += 1
+	audio_mix_usec = Time.get_ticks_usec() - t0
+	_a_after = -1.0
+	_a_slice_until = 0
 
 
 func _audio_ask() -> void:
@@ -12849,91 +12858,54 @@ func _audio_to_playhead() -> void:
 
 ## keep the sound in step with the playhead. before = the playhead before this frame's advance, dt = the advance
 func _audio_tick(before: float, dt: float) -> void:
-	if _a_sig_now() != _a_sig:
+	var key := _a_key_now()
+	if key != _a_last_key:
+		_a_last_key = key
+		_a_key_at = Time.get_ticks_usec()
+	var paths := []
+	for t in S.audio_tracks:
+		paths.append(String(t.get("path", "")))
+	if paths != _a_paths:
 		_audio_reload()
-	if _a_players.is_empty():
-		_a_after = playhead
-		return
-	var aud := AudioTrack.audible(S.audio_tracks)
-	for i in _a_players.size():
-		_a_players[i].volume_db = float(S.audio_tracks[i]["gain_db"]) if aud[i] else AudioTrack.MUTE_DB
-	if not playing:
-		for i in _a_players.size():
-			if _a_on[i]:
-				_a_players[i].stop()
-				_a_on[i] = false
+	elif key != _a_key and Time.get_ticks_usec() - _a_key_at >= AUDIO_MIX_QUIET:
+		_audio_remix_now()
+	var mixer := _audio_mixer()
+	if _a_mix_len <= 0.0 or not playing:
+		if mixer.playing and not playing:
+			mixer.stop()
 		if _a_slice_until > 0 and Time.get_ticks_msec() >= _a_slice_until:
-			for p in _a_players:
-				p.stop()
+			mixer.stop()
 			_a_slice_until = 0
 		_a_after = playhead
 		return
-	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > maxf(dt, 0.25) + 1e-4   # ROADMAP 77: the audio clock may step past one frame; only a larger leap is a jump
-	var worst := 0.0
-	for i in _a_players.size():
-		var p: AudioStreamPlayer = _a_players[i]
-		if p.stream == null:
-			continue
-		var off := float(S.audio_tracks[i]["offset"])
-		var want := playhead - off
-		if want < 0.0 or want >= p.stream.get_length():
-			if _a_on[i] or p.playing:
-				p.stop()
-			_a_on[i] = false
-		elif jumped or not _a_on[i] or not p.playing or absf(off - _a_offs[i]) > 1e-6:
-			_a_slice_until = 0
-			# play() takes effect at the next mix, and what it plays reaches the speaker one output latency later: start the
-			# stream where it will be when it is heard, so a track that starts mid-playback is not audibly late
-			p.play(want + AudioServer.get_time_to_next_mix() + AudioServer.get_output_latency())
-			_a_on[i] = true
-			_a_offs[i] = off
-			audio_seeks += 1
-			_a_fit()
-			audio_start_usec[i] = Time.get_ticks_usec()
-			_a_corr[i] = 0
-			_a_settled[i] = false
-		_a_fit()
-		if _a_on[i] and p.playing:
-			# closing the loop on the start: on the first frame the stream's position is non-zero, compare its audio clock
-			# with the playhead; if it is off by more than 5 ms, seek once to where it should be now (at most two corrections)
-			if not _a_settled[i] and p.get_playback_position() > 0.0:
-				var g: float = float(audio_gap[i]) if i < audio_gap.size() else NAN   # the set-time gap: the same reading the gate uses
-				if is_nan(g):
-					pass
-				elif absf(g) > 0.005 and _a_corr[i] < 2:
-					p.seek(want + AudioServer.get_time_to_next_mix() + AudioServer.get_output_latency())
-					_a_corr[i] += 1
-				else:
-					_a_settled[i] = true
-			var err := _audio_clock_of(i) - playhead
-			if absf(err) > absf(worst):
-				worst = err
-	audio_err = worst
+	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > maxf(dt, 0.25) + 1e-4   # the audio clock may step past one frame; only a larger leap is a jump
+	if playhead < 0.0 or playhead >= _a_mix_len:
+		if mixer.playing:
+			mixer.stop()
+		_a_after = playhead
+		return
+	if jumped or not mixer.playing:
+		_a_slice_until = 0
+		mixer.play(playhead)
 	_a_after = playhead
 
-## the playhead was dragged (not playing): sound ~1 frame + 40 ms of it, at most one slice per rendered frame
+
+## the playhead was dragged (not playing): one slice of the premix per rendered frame, ~1 frame + 40 ms of it
 func _audio_scrub() -> void:
-	if _a_players.is_empty() or playing:
+	if _a_mix_len <= 0.0 or playing:
 		return
 	var fr := Engine.get_process_frames()
 	if fr == _a_slice_frame:
 		return
 	_a_slice_frame = fr
-	var aud := AudioTrack.audible(S.audio_tracks)
-	var any := false
-	for i in _a_players.size():
-		var p: AudioStreamPlayer = _a_players[i]
-		p.volume_db = float(S.audio_tracks[i]["gain_db"]) if aud[i] else AudioTrack.MUTE_DB
-		var want := playhead - float(S.audio_tracks[i]["offset"])
-		_a_on[i] = false
-		if p.stream == null or not aud[i] or want < 0.0 or want >= p.stream.get_length():
-			p.stop()
-			continue
-		p.play(want)
-		any = true
-	if any:
-		audio_slices += 1
-	_a_slice_until = Time.get_ticks_msec() + int(round((1.0 / maxf(S.fps, 1) + AUDIO_SLICE_EXTRA) * 1000.0)) if any else 0
+	var mixer := _audio_mixer()
+	if playhead < 0.0 or playhead >= _a_mix_len:
+		mixer.stop()
+		_a_slice_until = 0
+		return
+	mixer.play(playhead)
+	audio_slices += 1
+	_a_slice_until = Time.get_ticks_msec() + int(round((1.0 / maxf(S.fps, 1) + AUDIO_SLICE_EXTRA) * 1000.0))
 
 ## ---- VIDEO TO ANIMATION (round 45, GATES AA2). A video goes to tools/see_video.py (MediaPipe, run as its own process
 ## so the window keeps working: _video_poll); its pose.json comes back through _import_pose: VideoImport fits the body

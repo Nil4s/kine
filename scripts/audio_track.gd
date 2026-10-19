@@ -13,7 +13,7 @@ const BUCKET := 0.01        # s: one envelope bucket (10 ms)
 const EXTS := ["wav", "ogg", "mp3"]
 const MAX_PER_BUCKET := 128   # samples read per bucket at most (a long song stays fast; a short test file is exact)
 const ROLES := ["music", "voice", "sfx"]
-const MUTE_DB := -80.0      # the volume of a silent track (Godot's floor for a player)
+const MIX_CHUNK := 4096       # frames read from a stream per call when the premix is built
 
 
 static func clean(a: Dictionary) -> Dictionary:
@@ -166,6 +166,99 @@ static func envelope(stream: AudioStream, path: String) -> Dictionary:
 	out["mx"] = mx
 	out["mn"] = mn
 	return out
+
+
+## THE PREMIX (ROADMAP 77). decode() reads a stream once through its own playback, at the mix rate, so any format Godot
+## plays works; the playback is some frames late (playback_delay), and decode() takes that out so sample k of the result is
+## stream time k / rate. mix_pcm() sums decoded tracks at their start samples with their gains and clips the sum to full scale,
+## as one 16-bit stereo WAV: sample 0 is t = 0 of the timeline.
+static var _delay := {}   # per mix rate: the frames a playback is late by (measured once)
+
+
+## the frames a playback of a stream at this rate is late by (an impulse at frame 0 comes out at this frame)
+static func playback_delay(rate: int) -> int:
+	if _delay.has(rate):
+		return _delay[rate]
+	var probe := AudioStreamWAV.new()
+	probe.format = AudioStreamWAV.FORMAT_16_BITS
+	probe.mix_rate = rate
+	probe.stereo = false
+	var pcm := PackedByteArray()
+	pcm.resize(64 * 2)
+	pcm.encode_s16(0, 32767)
+	probe.data = pcm
+	var pb := probe.instantiate_playback()
+	pb.start(0.0)
+	var v: PackedVector2Array = pb.mix_audio(1.0, 64)
+	var d := 0
+	for j in v.size():
+		if v[j].x > 0.5:
+			d = j
+			break
+	_delay[rate] = d
+	return d
+
+
+## the stream as interleaved stereo float samples at rate, sample k = stream time k / rate (length = its length)
+static func decode(stream: AudioStream, rate: int) -> PackedFloat32Array:
+	var n := int(round(stream.get_length() * rate))
+	var out := PackedFloat32Array()
+	out.resize(n * 2)
+	var d := playback_delay(rate)
+	var pb := stream.instantiate_playback()
+	pb.start(0.0)
+	var got := 0   # playback frames read so far; playback frame j is stream frame j - d
+	while got < n + d:
+		var v: PackedVector2Array = pb.mix_audio(1.0, mini(MIX_CHUNK, n + d - got))
+		if v.is_empty():
+			break
+		for j in v.size():
+			var idx := got + j - d
+			if idx >= 0 and idx < n:
+				out[2 * idx] = v[j].x
+				out[2 * idx + 1] = v[j].y
+		got += v.size()
+	return out
+
+
+## the sum of decoded tracks: pcms[i] at start sample starts[i], scaled by gains[i] (linear), clipped to full scale
+static func mix_pcm(pcms: Array, starts: Array, gains: Array, rate: int) -> AudioStreamWAV:
+	var frames := 0
+	for i in pcms.size():
+		frames = maxi(frames, int(starts[i]) + int(pcms[i].size() / 2))
+	var buf := PackedFloat32Array()
+	buf.resize(frames * 2)
+	for i in pcms.size():
+		var src: PackedFloat32Array = pcms[i]
+		var s0: int = int(starts[i])
+		var g: float = float(gains[i])
+		var n := int(src.size() / 2)
+		for k in n:
+			var o := 2 * (s0 + k)
+			buf[o] += src[2 * k] * g
+			buf[o + 1] += src[2 * k + 1] * g
+	var pcm := PackedByteArray()
+	pcm.resize(frames * 4)
+	for q in frames * 2:
+		pcm.encode_s16(2 * q, int(round(clampf(buf[q], -1.0, 1.0) * 32767.0)))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = rate
+	w.stereo = true
+	w.data = pcm
+	return w
+
+
+## decode every stream at its offset (s) with its gain (dB) and sum them: decode() + mix_pcm() in one call
+static func mix(streams: Array, offsets: Array, gains_db: Array, rate: int) -> AudioStreamWAV:
+	var pcms := []
+	var starts := []
+	var gains := []
+	for i in streams.size():
+		pcms.append(decode(streams[i], rate))
+		starts.append(int(round(float(offsets[i]) * rate)))
+		gains.append(db_to_linear(float(gains_db[i])))
+	return mix_pcm(pcms, starts, gains, rate)
 
 
 ## the loudest absolute value (0..1) in sound time t0..t1 (the timeline's column), 0 when outside

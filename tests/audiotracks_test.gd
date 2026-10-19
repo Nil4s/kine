@@ -2,21 +2,25 @@
 ## Bars written before the first run:
 ##  (1) file: an old scene's single "audio" dictionary loads as ONE track (role music) and saves back byte-identical;
 ##      two tracks save as a list under "audio" and load back to the same JSON
-##  (2) sync: A at offset 0, B at 0.5 s, playhead from 0.2 s, 3 s of playback: while a track sounds the audio clock drives the
-##      playhead; each track's audio clock (position + time since last mix - output latency + offset) stays within one frame
-##      (1 / fps) of the playhead, worst printed for both tracks
-##  (3) mute: a muted track's player volume_db is MUTE_DB (silent: <= -80 dB); the other keeps its gain (0 dB).
-##      solo on B: A goes silent, B keeps sounding; unsolo: A is back at its gain
+##  (2) sync (PREMIX): the sounding tracks are mixed into ONE stream and one player plays it; the playhead follows that player's
+##      clock. Gate: at the moment the playhead is set, the premix clock minus the playhead is within 5 ms over 3 s, with B's
+##      offset at 0.5 s and at 1.1 s. INFO: the display gap (read later in the test), frame times, the mixer's seconds per second
+##  (3) mute and solo: a muted track's energy leaves the premix: the RMS of its own window drops by more than 60 dB; the other
+##      track keeps its level (within 0.1 dB); solo on B removes A the same way
 ##  (4) undo: add, mute, role and an offset drag are one undo step each; Ctrl+Z restores the scene exactly
 ##  (5) lanes: one lane per track (LANE_H each); a click on B's name mutes it; a click on A's lane picks it; with three tracks every
 ##      lane sits inside the window and the bottom panel at 1600x900 and 1280x720; screenshot of the three lanes
 ##  (6) playblast: two tracks mux as two inputs (B delayed by its offset, its gain) summed by amix; a muted track is left out
+##  (7) premix: a click at t = 0 of each track lands in the mix at its offset within 1 sample (three tracks, one mix);
+##      re-mix of three 10 s tracks takes under 50 ms (printed)
 extends SceneTree
 
 var fails := 0
 var m: Node
 const WAV_A := "user://zz_mt_a.wav"
 const WAV_B := "user://zz_mt_b.wav"
+const WAV_C := "user://zz_mt_c.wav"
+const WAV_CLK := "user://zz_mt_click.wav"
 const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/audiotracks.png"
 
 
@@ -51,8 +55,64 @@ func _click(p: Vector2, pressed: bool) -> void:
 	m.ui_timeline._gui_input(ev)
 
 
+## the premix's stream (the one the player plays), or null
+func premix() -> AudioStreamWAV:
+	if m._a_mixer == null:
+		return null
+	return m._a_mixer.stream as AudioStreamWAV
+
+
+## RMS (both channels) of the premix over t0..t1 seconds; 0 when there is no premix
+func rms(t0: float, t1: float) -> float:
+	var w := premix()
+	if w == null:
+		return 0.0
+	var a := maxi(0, int(t0 * w.mix_rate))
+	var b := mini(int(t1 * w.mix_rate), w.data.size() / 4)
+	var sum := 0.0
+	var n := 0
+	for k in range(a, b):
+		var l := float(w.data.decode_s16(4 * k)) / 32768.0
+		var r := float(w.data.decode_s16(4 * k + 2)) / 32768.0
+		sum += l * l + r * r
+		n += 2
+	return sqrt(sum / maxf(float(n), 1.0))
+
+
+## the drop in dB from a level to a level (a silence is 200 dB down, not infinite)
+func drop_db(before: float, after: float) -> float:
+	return 20.0 * log(maxf(before, 1e-12) / maxf(after, 1e-12)) / log(10.0)
+
+
+## a 16-bit mono WAV file of the given sample values (the mix rate, so no resampling is in the way)
+func write_wav(path: String, rate: int, samples: PackedFloat32Array) -> void:
+	var pcm := PackedByteArray()
+	pcm.resize(samples.size() * 2)
+	for i in samples.size():
+		pcm.encode_s16(i * 2, int(round(clampf(samples[i], -1.0, 1.0) * 32767.0)))
+	var h := PackedByteArray()
+	h.resize(44)
+	h.encode_u32(0, 0x46464952)
+	h.encode_u32(4, 36 + pcm.size())
+	h.encode_u32(8, 0x45564157)
+	h.encode_u32(12, 0x20746d66)
+	h.encode_u32(16, 16)
+	h.encode_u16(20, 1)
+	h.encode_u16(22, 1)
+	h.encode_u32(24, rate)
+	h.encode_u32(28, rate * 2)
+	h.encode_u16(32, 2)
+	h.encode_u16(34, 16)
+	h.encode_u32(36, 0x61746164)
+	h.encode_u32(40, pcm.size())
+	h.append_array(pcm)
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_buffer(h)
+	f.close()
+
+
 func _init() -> void:
-	# SILENT: the master bus is muted; the players still run and their positions still advance
+	# SILENT: the master bus is muted; the player still runs and its position still advances
 	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), true)
 	var fa := FileAccess.open(WAV_A, FileAccess.WRITE)
 	fa.store_buffer(AudioTrack.sine_wav_bytes(44100, 4.0, 1000.0, 0.8, 0.0, 0.0))
@@ -93,14 +153,10 @@ func _init() -> void:
 	ok(JSON.stringify(S.to_dict(m.B)) == JSON.stringify(d2), "1e the list loads back and saves the same")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
-	# ---- (2) sync: A at 0 s, B at 0.5 s, the playhead from 0.2 s, playing 3 s.
-	# MECHANISM GATE (the bar): at the moment the playhead is set from the audio clock, each track's audio clock plus its offset
-	# is within 5 ms of the playhead (main.gd audio_gap, read right after the set). Frames where the playhead came from the
-	# frame clock are counted, not gated.
-	# INFO, not gated: the display gap (playhead vs each clock read later in the test, after the frame has drawn), the frame
-	# times, and the mixer's seconds per wall second. The display gap is one frame old by construction and grows with the
-	# machine's load (10 agents running tests make frames 20-70 ms), so it measures the load, not the mechanism.
-	for boff in [0.5, 1.1]:   # B starts at two different points: the start compensation is checked at both
+	# ---- (2) sync: A at 0 s, B at 0.5 s or 1.1 s, the playhead from 0.2 s, playing 3 s, both through the one premix.
+	# GATE: at the moment the playhead is set from the premix's clock, that clock minus the playhead is within 5 ms, for each track.
+	# INFO: the display gap (read later in the test), the frame times, and the mixer's seconds per wall second.
+	for boff in [0.5, 1.1]:
 		S.audio_tracks = [{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": boff, "gain_db": 0.0}]
 		m._audio_reload()
 		m.pv_in = -1.0
@@ -110,45 +166,33 @@ func _init() -> void:
 		m._ps().apply(m.B, 0.2)
 		await idle(2)
 		m.playing = true
-		var offs := [0.0, boff]
-		var set_gap := [0.0, 0.0]     # the gate: worst |audio clock + offset - playhead| read at set time
+		var set_gap := [0.0, 0.0]
 		var set_n := [0, 0]
-		var trans_gap := [0.0, 0.0]   # info: the start transient (first 0.25 s after a track starts)
-		var disp_gap := [0.0, 0.0]    # info: the same, read later in the test
+		var disp_gap := 0.0
 		var dts := []
-		var from_clock := 0
-		var from_frame := 0
 		var ph_start: float = m.playhead
-		var t0 := Time.get_ticks_usec()
 		var clk0 := -1.0
+		var t0 := 0
 		var frames := 0
-		while Time.get_ticks_usec() - t0 < 3000000 and m.playing:
+		while m.playing and (clk0 < 0.0 or Time.get_ticks_usec() - t0 < 3000000):
 			await process_frame
 			frames += 1
-			if clk0 < 0.0:
-				clk0 = m._audio_clock_of(0)   # the first frame the track sounds: the mixer's clock starts here
-				t0 = Time.get_ticks_usec()
 			dts.append(m.get_process_delta_time())
+			if clk0 < 0.0:
+				clk0 = m._audio_clock()   # the first frame the premix sounds: the mixer's clock starts here
+				t0 = Time.get_ticks_usec()
 			if m.audio_from_clock:
-				from_clock += 1
-			else:
-				from_frame += 1
-			for i in 2:
-				if i < m.audio_gap.size() and not is_nan(float(m.audio_gap[i])) and m.audio_from_clock:
-					var since := (Time.get_ticks_usec() - int(m.audio_start_usec[i])) / 1000000.0
-					if i == 0 or since >= 0.25:
-						set_gap[i] = maxf(set_gap[i], absf(float(m.audio_gap[i])))   # the gate: after the stream has settled
+				for i in 2:
+					if i < m.audio_gap.size() and not is_nan(float(m.audio_gap[i])):
+						set_gap[i] = maxf(set_gap[i], absf(float(m.audio_gap[i])))
 						set_n[i] += 1
-					else:
-						trans_gap[i] = maxf(trans_gap[i], absf(float(m.audio_gap[i])))   # INFO: the first 0.25 s after the start
 			var ph: float = m.playhead
-			for i in 2:
-				var c: float = m._audio_clock_of(i)
-				if c >= 0.0:
-					disp_gap[i] = maxf(disp_gap[i], absf(c - ph))
+			var c: float = m._audio_clock()
+			if c >= 0.0:
+				disp_gap = maxf(disp_gap, absf(c - ph))
 		var wall := (Time.get_ticks_usec() - t0) / 1000000.0
-		var clk1: float = m._audio_clock_of(0)
-		var mixer_rate := (clk1 - clk0) / wall if clk0 >= 0.0 and clk1 >= 0.0 else -1.0
+		var clk1: float = m._audio_clock()
+		var mixer_rate := (clk1 - clk0) / wall if clk0 >= 0.0 and clk1 >= 0.0 and wall > 0.0 else -1.0
 		var played: float = m.playhead - ph_start
 		var still_playing: bool = m.playing
 		m.playing = false
@@ -159,30 +203,34 @@ func _init() -> void:
 			dt_mean += float(d)
 			dt_max = maxf(dt_max, float(d))
 		dt_mean /= maxf(dts.size(), 1)
-		print("     INFO sync: %d frames in %.2f s; playhead from the audio clock on %d frames, from the frame clock on %d; playhead moved %.3f s" % [frames, wall, from_clock, from_frame, played])
-		print("     INFO mixer: %.3f seconds of audio per wall second (1.000 = real time; a throttled mixer shows here)" % mixer_rate)
-		print("     INFO B start transient (first 0.25 s after its start, not gated): worst %.1f ms" % (trans_gap[1] * 1000.0))
-		print("     INFO frames: mean %.1f ms, worst %.1f ms" % [dt_mean * 1000.0, dt_max * 1000.0])
-		print("     INFO display gap (playhead vs each clock read later, one frame old by construction): A %.1f ms, B %.1f ms" % [disp_gap[0] * 1000.0, disp_gap[1] * 1000.0])
+		print("     INFO B offset %.1f s: %d frames, the premix sounded for %.2f s; playhead moved %.3f s" % [boff, frames, wall, played])
+		print("     INFO B offset %.1f s: mixer %.3f seconds of audio per wall second (1.000 = real time)" % [boff, mixer_rate])
+		print("     INFO B offset %.1f s: frames mean %.1f ms, worst %.1f ms; display gap (read a frame later) worst %.1f ms" % [boff, dt_mean * 1000.0, dt_max * 1000.0, disp_gap * 1000.0])
 		var worst := maxf(set_gap[0], set_gap[1])
-		ok(set_n[0] > 0 and set_n[1] > 0, "2a B offset %.1f s: both tracks sounded and were set from the audio clock (A %d frames, B %d frames)" % [boff, set_n[0], set_n[1]])
-		ok(still_playing and played > 2.5, "2b B offset %.1f s: the playhead ran the whole 3 s from 0.2 s (moved %.3f s; the mixer rate is printed above)" % [boff, played])
-		ok(set_n[0] > 0 and set_n[1] > 0 and worst < 0.005, "2c B offset %.1f s: mechanism: at set time, after 0.25 s from the start, |audio clock + offset - playhead|, both tracks: A worst %.2f ms, B worst %.2f ms (bar 5 ms)" % [boff, set_gap[0] * 1000.0, set_gap[1] * 1000.0])
+		ok(set_n[0] > 0 and set_n[1] > 0, "2a B offset %.1f s: both tracks sounded through the premix (%d and %d frames set from its clock)" % [boff, set_n[0], set_n[1]])
+		ok(still_playing and played > 2.5, "2b B offset %.1f s: the playhead ran the whole 3 s from 0.2 s (moved %.3f s)" % [boff, played])
+		ok(set_n[0] > 0 and set_n[1] > 0 and worst < 0.005, "2c B offset %.1f s: mechanism: premix clock minus the playhead, set-time, over 3 s: A worst %.2f ms, B worst %.2f ms (bar 5 ms)" % [boff, set_gap[0] * 1000.0, set_gap[1] * 1000.0])
 
-
-	# ---- (3) mute and solo: the player volume
-	var pl: Array = m._a_players
-	m._audio_flag(1, "mute")
-	await idle(2)
-	ok(float(pl[1].volume_db) <= AudioTrack.MUTE_DB + 0.01 and float(pl[1].volume_db) <= -80.0, "3a muted B: its player is silent (%.1f dB)" % float(pl[1].volume_db))
-	ok(absf(float(pl[0].volume_db) - 0.0) < 1e-6, "3b A keeps its gain (%.1f dB)" % float(pl[0].volume_db))
-	m._audio_flag(1, "mute")
-	m._audio_flag(1, "solo")
-	await idle(2)
-	ok(float(pl[0].volume_db) <= -80.0 and absf(float(pl[1].volume_db)) < 1e-6, "3c solo on B: A is silent (%.1f dB), B sounds (%.1f dB)" % [float(pl[0].volume_db), float(pl[1].volume_db)])
-	m._audio_flag(1, "solo")
-	await idle(2)
-	ok(absf(float(pl[0].volume_db)) < 1e-6, "3d unsolo: A sounds again")
+	# ---- (3) mute and solo: the energy leaves the premix. A alone sounds in 0..0.4 s; B alone in 4.1..4.4 s (A ends at 4.0 s).
+	S.audio_tracks = [{"path": WAV_A, "offset": 0.0, "gain_db": 0.0}, {"path": WAV_B, "offset": 0.5, "gain_db": 0.0}]
+	m._audio_reload()
+	var pre_a := rms(0.0, 0.4)
+	var pre_b := rms(4.1, 4.4)
+	ok(pre_a > 0.1 and pre_b > 0.1, "3-pre both tracks are in the premix (A alone %.3f, B alone %.3f RMS)" % [pre_a, pre_b])
+	S.audio_tracks[1]["mute"] = true
+	m._audio_remix_now()
+	var post_b := rms(4.1, 4.4)
+	var d_b := drop_db(pre_b, post_b)
+	ok(d_b > 60.0, "3a mute B: B's energy leaves the premix: its window drops %.1f dB (bar > 60 dB)" % d_b)
+	ok(absf(drop_db(pre_a, rms(0.0, 0.4))) < 0.1, "3b A keeps its level while B is muted (within 0.1 dB)")
+	S.audio_tracks[1].erase("mute")
+	S.audio_tracks[1]["solo"] = true
+	m._audio_remix_now()
+	var d_a := drop_db(pre_a, rms(0.0, 0.4))
+	ok(d_a > 60.0 and absf(drop_db(pre_b, rms(4.1, 4.4))) < 0.1, "3c solo on B: A's energy leaves the premix (%.1f dB down); B keeps its level" % d_a)
+	S.audio_tracks[1].erase("solo")
+	m._audio_remix_now()
+	ok(absf(drop_db(pre_a, rms(0.0, 0.4))) < 0.1 and absf(drop_db(pre_b, rms(4.1, 4.4))) < 0.1, "3d unsolo: both tracks are back at their levels")
 
 	# ---- (4) undo: one step each, Ctrl+Z restores the scene exactly
 	m.undo.clear()
@@ -212,7 +260,7 @@ func _init() -> void:
 	m._redo()
 	ok(absf(float(S.audio_tracks[0]["offset"]) - 0.75) < 1e-6, "4h redo brings it back")
 
-	# ---- (5) lanes: the name click and the pick, then three tracks: every lane inside the window at 1600x900 and 1280x720
+	# ---- (5) lanes, the name click and the pick, then three tracks: every lane inside the window at 1600x900 and 1280x720
 	m._undo()   # the offset back to 0 s
 	await idle(2)
 	m.audio_pick = -1
@@ -223,7 +271,11 @@ func _init() -> void:
 	_click(lane_b, false)
 	await idle(2)
 	ok(bool(S.audio_tracks[1].get("mute", false)) and m.undo.size() == u2 + 1, "5b a click on B's name mutes B: one undo step")
-	ok(float(pl[1].volume_db) <= -80.0, "5c B's player is silent after the name click")
+	# the premix is rebuilt once the tracks have been quiet for AUDIO_MIX_QUIET (a drag mixes once, at its end)
+	var t_w := Time.get_ticks_msec()
+	while m._a_key != m._a_key_now() and Time.get_ticks_msec() - t_w < 2000:
+		await process_frame
+	ok(m._a_key == m._a_key_now() and absf(drop_db(pre_b, rms(4.1, 4.4))) > 60.0, "5c the mute reaches the premix: B's window drops %.1f dB" % drop_db(pre_b, rms(4.1, 4.4)))
 	_click(lane_b, true)
 	_click(lane_b, false)
 	await idle(1)
@@ -274,6 +326,60 @@ func _init() -> void:
 	ok(fc.contains("amix=inputs=2") and fc.contains("[2:a]volume=-3.00dB[a1]") and pa.has("-itsoffset") and pa.count("-i") == 3, "6a two tracks: one -i each (%d), the second delayed 0.5 s, its gain -3 dB, summed by amix: %s" % [pa.count("-i"), fc])
 	var muted_list := AudioTrack.audible_list([{"path": WAV_A, "offset": 0.0, "gain_db": 0.0, "mute": true}, {"path": WAV_B, "offset": 0.5, "gain_db": 0.0}])
 	ok(muted_list.size() == 1 and String(muted_list[0]["path"]) == WAV_B, "6b a muted track is left out of the playblast; the solo rule keeps only the soloed one")
+
+	# ---- (7) the premix: onsets at the offsets, and the re-mix time for three 10 s tracks
+	var rate := int(AudioServer.get_mix_rate())
+	var clk := PackedFloat32Array()
+	clk.resize(rate)   # one second: a click on the first sample, silence after
+	clk[0] = 0.9
+	write_wav(WAV_CLK, rate, clk)
+	var click := AudioTrack.load_stream(WAV_CLK)
+	var offs := [0.25, 0.5, 1.1]
+	var one := AudioTrack.mix([click, click, click], offs, [0.0, 0.0, 0.0], rate)
+	var on_ok := true
+	var on_txt := ""
+	var pcm := one.data
+	for off in offs:
+		var e := int(round(float(off) * rate))
+		var found := -1
+		for k in range(maxi(0, e - 50), e + 50):
+			if absf(float(pcm.decode_s16(4 * k)) / 32768.0) > 0.5:
+				found = k
+				break
+		on_txt += " %.4f s -> sample %d (want %d);" % [off, found, e]
+		if found < 0 or absf(float(found - e)) > 1.0:
+			on_ok = false
+	ok(on_ok, "7a onsets: a click at t=0 of each track lands at its offset within 1 sample:%s" % on_txt)
+	for p in [WAV_CLK]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
+	var big_offs := [0.0, 0.5, 1.1]
+	var big: Array = []
+	var names := [WAV_A, WAV_B, WAV_C]
+	var tones := [1000.0, 440.0, 220.0]
+	for i in 3:
+		var f := FileAccess.open(names[i], FileAccess.WRITE)
+		f.store_buffer(AudioTrack.sine_wav_bytes(rate, 10.0, tones[i], 0.5, 0.0, 0.0))
+		f.close()
+		big.append(AudioTrack.load_stream(names[i]))
+	# the decode happens once, when a track loads; a re-mix only sums the decoded tracks (timed here)
+	var t_dec := Time.get_ticks_usec()
+	var pcms := []
+	for st in big:
+		pcms.append(AudioTrack.decode(st, rate))
+	var dec_ms := (Time.get_ticks_usec() - t_dec) / 1000.0
+	var starts := []
+	for off in big_offs:
+		starts.append(int(round(float(off) * rate)))
+	var gains := [1.0, db_to_linear(-3.0), db_to_linear(-6.0)]
+	var t_mix := Time.get_ticks_usec()
+	var w10 := AudioTrack.mix_pcm(pcms, starts, gains, rate)
+	var mix_ms := (Time.get_ticks_usec() - t_mix) / 1000.0
+	print("     INFO decode of three 10 s tracks (once, on load): %.1f ms" % dec_ms)
+	print("     INFO re-mix of three 10 s tracks (offsets 0, 0.5, 1.1 s, summed and clipped): %.1f ms, mixed length %.2f s" % [mix_ms, w10.get_length()])
+	ok(mix_ms < 50.0, "7b re-mix of three 10 s tracks: %.1f ms (target < 50 ms)" % mix_ms)
+	for p in names:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 
 	# ---- restore the stage for the next suite
 	S.audio_tracks = []
