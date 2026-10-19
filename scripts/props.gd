@@ -62,6 +62,20 @@ const KINDS := {
 	# wedge: nothing under it is solid, and it has no support (a capsule on a slope is not "resting on a flat")
 	"ramp": {"label": "200 cm long, 90 cm wide, rising 50 cm toward +Z", "solids": [
 		[Vector3(0, 0.247, 0), Vector3(0.9, 0.08, 2.0), 12.0]], "supports": []},
+	# GROUND PROPS (ROADMAP 93): the stair and step defaults are the building code's: a riser (rise) of 17.8 cm (7 in, under
+	# the IRC R311.7.5.1 maximum of 19.7 cm, 7 3/4 in) and a tread (run) of 28 cm (11 in, over the 25.4 cm / 10 in minimum)
+	"step_code": {"label": "box step, 60 x 40 cm, 17.8 cm riser (IRC R311.7.5.1)", "solids": [[Vector3(0, 0.089, 0), Vector3(0.6, 0.178, 0.4)]],
+		"supports": [[0.178, Vector2(0, 0), Vector2(0.6, 0.4)]]},
+	# 4 steps: tread k spans z (k-1) x 28 .. k x 28 cm, its top k x 17.8 cm; the stair rises toward +Z, its first riser at z = 0
+	"stairs_code": {"label": "4 steps, 17.8 cm risers, 28 cm treads, 90 cm wide, rising toward +Z (IRC R311.7)", "solids": [
+		[Vector3(0, 0.089, 0.14), Vector3(0.9, 0.178, 0.28)], [Vector3(0, 0.178, 0.42), Vector3(0.9, 0.356, 0.28)],
+		[Vector3(0, 0.267, 0.70), Vector3(0.9, 0.534, 0.28)], [Vector3(0, 0.356, 0.98), Vector3(0.9, 0.712, 0.28)]],
+		"supports": [[0.178, Vector2(0, 0.14), Vector2(0.9, 0.28)], [0.356, Vector2(0, 0.42), Vector2(0.9, 0.28)],
+		[0.534, Vector2(0, 0.70), Vector2(0.9, 0.28)], [0.712, Vector2(0, 0.98), Vector2(0.9, 0.28)]]},
+	# a 15 degree ramp, the same slab as "ramp" (2 m long, 90 cm wide, 8 cm thick); its low end's top is at the floor
+	# the slab rests on the floor by its low corner (0.04 cos15 + 1.0 sin15 = 0.2975 m up), so no part of the mesh is under the floor
+	"ramp15": {"label": "15 degree ramp, 200 cm long, 90 cm wide, rising toward +Z", "solids": [
+		[Vector3(0, 0.2975, 0), Vector3(0.9, 0.08, 2.0), 15.0]], "supports": []},
 	"wall": {"label": "300 x 240 cm, 15 cm thick", "solids": [[Vector3(0, 1.2, 0), Vector3(3.0, 2.4, 0.15)]], "supports": []},
 	"door_frame": {"label": "90 x 200 cm opening, frame 210 cm high, 12 cm deep", "solids": [
 		[Vector3(0.5, 1.0, 0), Vector3(0.1, 2.0, 0.12)], [Vector3(-0.5, 1.0, 0), Vector3(0.1, 2.0, 0.12)],
@@ -444,6 +458,71 @@ static func settle(props: Array) -> int:
 			moved += 1
 		done.append(props[i])
 	return moved
+
+
+## THE SURFACE A SOLE POINT IS ON (ROADMAP 93): the point is at pt.y (its real height). The surface is the HIGHEST candidate
+## that is no higher than pt.y + SNAP_UP, with a clear column between it and the point (a slab's underside, a step's
+## riser, a table top above a foot, all block the floor below them). A point inside a solid is lifted onto that solid's top.
+## {"y": height, "n": the surface's normal}; the floor when nothing else qualifies
+const SNAP_UP := 0.25   # m: the highest a sole is lifted onto a surface (a step of 17.8 cm and a foot's penetration)
+
+static func surface_below(props: Array, pt: Vector3) -> Dictionary:
+	var cands := _faces_under(props, pt.x, pt.z)
+	cands.sort_custom(func(a, b): return float(a["y"]) > float(b["y"]))
+	for c in cands:
+		var h := float(c["y"])
+		if h > pt.y + SNAP_UP:
+			continue
+		if not _column_blocked(props, pt.x, pt.z, h + 0.01, pt.y):
+			return c
+	return {"y": 0.0, "n": Vector3.UP}
+
+
+## the column of points (x, z, y) for y from y0 up to y1, 1 cm apart: is any of them inside a solid (by more than REST_SINK)?
+static func _column_blocked(props: Array, x: float, z: float, y0: float, y1: float) -> bool:
+	if y1 < y0:
+		return false
+	var n := maxi(1, ceili((y1 - y0) / 0.01))
+	for k in n + 1:
+		var q := Vector3(x, minf(y0 + k * 0.01, y1), z)
+		if _inside_any(props, q):
+			return true
+	return false
+
+
+## is a point inside any solid of the set (by more than REST_SINK)?
+static func _inside_any(props: Array, q: Vector3) -> bool:
+	for p in props:
+		for sw in solids(p):
+			if _sd(sw, q) < -REST_SINK:
+				return true
+	return false
+
+
+## every candidate surface under the (x, z) column: the floor (y = 0, normal up) and each box's upward-facing face whose
+## rectangle the vertical through (x, z) meets. [{"y", "n"}]
+static func _faces_under(props: Array, x: float, z: float) -> Array:
+	var cands := [{"y": 0.0, "n": Vector3.UP}]
+	for p in props:
+		for sw in solids(p):
+			if sw.has("r"):
+				continue
+			var X: Transform3D = sw["xf"]
+			var h: Vector3 = sw["half"]
+			var ax := [X.basis.x.normalized(), X.basis.y.normalized(), X.basis.z.normalized()]
+			for i in 3:
+				for s in [-1.0, 1.0]:
+					var n: Vector3 = ax[i] * s
+					if n.y < 0.5:
+						continue
+					var c: Vector3 = X.origin + n * h[i]
+					var y := c.y - (n.x * (x - c.x) + n.z * (z - c.z)) / n.y
+					var d := Vector3(x, y, z) - c
+					var j := (i + 1) % 3
+					var k := (i + 2) % 3
+					if absf(d.dot(ax[j])) <= h[j] + 1e-6 and absf(d.dot(ax[k])) <= h[k] + 1e-6:
+						cands.append({"y": y, "n": n})
+	return cands
 
 
 ## the height p should stand at: the floor (0), or the highest support of another prop that p's origin is over

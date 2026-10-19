@@ -3,8 +3,11 @@
 ## "plants", written only when there is one). Over [t0, t1] the foot's SOLE stays where it was at t0: the ankle's world
 ## point, the foot's world turn and the ball's (toe joint's) world turn are those of the played pose at t0, held every
 ## frame. The leg is re-solved with LimbIK.solve (the closed form, the pole taken from the pose at t0, so the knee keeps
-## its side); the pelvis is never touched. The pose at t0 is the scene as it plays there with the plants OFF (IK pins
-## and cards included), so plants do not read each other.
+## its side); the pelvis is never touched (on flat ground). The pose at t0 is the scene as it plays there with the plants OFF (IK
+## pins and cards included), so plants do not read each other.
+## GROUND (ROADMAP 93): with a set in the scene, a planted sole stands on the surface under it (ground_ref: a tread, a ramp's
+## slope) and the hips drop, never rise, so no ground-planted leg is stretched (_lower_for_reach). With no props, or a plant
+## grounded on bare floor, neither runs: the plant is exactly as before.
 ##
 ## EDGES: the weight ramps 0 -> 1 (smoothstep) over BLEND frames BEFORE t0 and 1 -> 0 AFTER t1, at the scene's fps. The
 ## release ramp is OUT frames long, adapted per plant by out_frames (below; BLEND at least). Between the leg's free motion
@@ -152,30 +155,129 @@ static func refs(S: Scene, B: Body, t: float) -> Dictionary:
 			p["out"] = out_frames(S, B, i)   # the release ramp of this plant (its poses cached on S)
 		if weight(p, t, S.fps) <= 0.0:
 			continue
-		out[i] = PoseCache.plant_ref(S, B, i)   # the same values, cached while the scene's inputs are unchanged (pose_cache.gd)
+		var r: Dictionary = PoseCache.plant_ref(S, B, i)   # the same values, cached while the scene's inputs are unchanged (pose_cache.gd)
+		if not S.props.is_empty():
+			r = ground_ref(S.solid_props(), r)   # ROADMAP 93: on a surface that is not the floor, the sole goes onto it
+		out[i] = r
 	return out
+
+
+## THE GROUND REFERENCE (ROADMAP 93): a planted sole stands on the surface under it (a step's tread, a ramp), not on y = 0.
+## The reference's sole (heel = ankle minus its rest height along the foot's own up, the ball, the toe tip) is read where
+## the plant starts. On a surface that is not the floor the foot is turned flat onto that surface's normal (about the ankle,
+## the heading kept: the sole parallel to the slope), then the whole foot moves so its lowest sole point touches the surface
+## under it. The ankle is the leg's target (LimbIK.solve) and the foot's turn the reference's. A plant with no surface under
+## it but the floor is returned as it was (byte for byte): no "ground" flag, nothing moved.
+static func ground_ref(props: Array, r: Dictionary) -> Dictionary:
+	if not r.has("BP"):
+		return r
+	var P: Vector3 = r["P"]
+	var G: Quaternion = r["G"]
+	var Gb: Quaternion = r["Gb"]
+	var h := float(r["h"])
+	var rb := float(r["rb"])
+	var re := float(r["re"])
+	# the three sole contacts: the heel is the ankle minus its rest height along the foot's up; the ball and the toe tip are
+	# their joint points minus their rest heights along the ball's up (at rest each contact is on the floor, as the body's
+	# own grounding measures them: Body.foot_sole_low)
+	var contacts := [P - G * Vector3(0, h, 0), (r["BP"] as Vector3) - Gb * Vector3(0, rb, 0), (r["BE"] as Vector3) - Gb * Vector3(0, re, 0)]
+	# the gate: a sole with a surface other than the floor under it, or a sole off its surface (in the air or in it). A
+	# sole on bare floor and touching it is returned as it was, so a plant on bare floor is unchanged
+	var off := false
+	var lowest := INF
+	for q in contacts:
+		var g := Props.surface_below(props, q as Vector3)
+		if float(g["y"]) != 0.0 or (g["n"] as Vector3) != Vector3.UP:
+			off = true   # a surface other than the floor under this contact
+		lowest = minf(lowest, (q as Vector3).y - float(g["y"]))
+	if absf(lowest) > 0.001:
+		off = true   # the lowest contact is in the air or in the floor: the foot is not on its ground
+	if not off:
+		return r
+	var n_cur := G * Vector3.UP   # the sole's normal now (a flat foot: up)
+	var n_s: Vector3 = Props.surface_below(props, ((contacts[0] as Vector3) + (contacts[1] as Vector3)) * 0.5)["n"]
+	var q_arc := _arc(n_cur, n_s)
+	var G2 := (q_arc * G).normalized()
+	var Gb2 := (q_arc * Gb).normalized()
+	var BP2: Vector3 = P + q_arc * ((r["BP"] as Vector3) - P)
+	var BE2: Vector3 = P + q_arc * ((r["BE"] as Vector3) - P)
+	var pts := [P - G2 * Vector3(0, h, 0), BP2 - Gb2 * Vector3(0, rb, 0), BE2 - Gb2 * Vector3(0, re, 0)]
+	var c := INF
+	for q in pts:
+		c = minf(c, (q as Vector3).y - float(Props.surface_below(props, q as Vector3)["y"]))
+	return {"P": P + Vector3(0, -c, 0), "G": G2, "Gb": Gb2, "pole": r["pole"], "ground": true}
+
+
+## the shortest turn that takes unit direction a onto b (identity when they are the same)
+static func _arc(a: Vector3, b: Vector3) -> Quaternion:
+	a = a.normalized()
+	b = b.normalized()
+	var d := clampf(a.dot(b), -1.0, 1.0)
+	if d > 1.0 - 1e-9:
+		return Quaternion.IDENTITY
+	if d < -1.0 + 1e-9:
+		var ax := a.cross(Vector3.RIGHT)
+		if ax.length() < 1e-6:
+			ax = a.cross(Vector3.BACK)
+		return Quaternion(ax.normalized(), PI)
+	return Quaternion(a.cross(b).normalized(), acos(d))
+
+
+## GROUND REACH (ROADMAP 93): a leg planted on a surface must reach its ankle target; the hips DROP (never rise) until no
+## ground-planted leg is stretched past LEG_SLACK of its length. Lowering the hips shortens every hip-to-ankle distance (the
+## ankles are world points, the hips above them), so the stance legs share the drop: a foot on a step and one on the floor
+## below it pull the pelvis down to where both reach. Scaled by the plant's weight, so the drop eases in with the plant.
+const LEG_SLACK := 0.995   # the stance leg may reach this fraction of its length (a knee never locks straight)
+const DROP_STEPS := 24     # rounds of the drop (each lowers the hips by the worst overstretch)
+
+static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> void:
+	var any_ground := false
+	var wmax := 0.0
+	for i in refs_:
+		if bool(refs_[i].get("ground", false)):
+			any_ground = true
+			wmax = maxf(wmax, weight(plants[i], t, fps))
+	if not any_ground or wmax <= 0.0:
+		return
+	B.fk()
+	for _k in DROP_STEPS:
+		var over := 0.0
+		for i in refs_:
+			if not bool(refs_[i].get("ground", false)):
+				continue
+			var foot := String(plants[i]["foot"])
+			var ch := LimbIK.chain(B, foot)
+			var reach := (B.p0[ch[1]] as Vector3).distance_to(B.p0[ch[0]] as Vector3) + (B.p0[foot] as Vector3).distance_to(B.p0[ch[1]] as Vector3)
+			over = maxf(over, (B.P[ch[0]] as Vector3).distance_to(refs_[i]["P"] as Vector3) - reach * LEG_SLACK)
+		if over <= 1e-6:
+			break
+		B.offset.y -= over * wmax
+		B.fk()
 
 
 ## THE PLANT PASS (Scene.apply, after the IK pass): each live plant's leg solved onto its reference, mixed with the
 ## played angles by its weight. Returns {index: {"foot", "w", "miss" (m: the ankle to its pin), "ball_turn" (deg: the
-## ball's turn off its pin), "clamped": joints a limit changed, "inline"}}. B.offset is never written
+## ball's turn off its pin), "clamped": joints a limit changed, "inline"}}. B.offset is never written (a ground plant lowers it, _lower_for_reach)
 static func play(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> Dictionary:
 	var out := {}
+	_lower_for_reach(B, plants, refs_, t, fps)
 	for i in refs_:
 		var p: Dictionary = plants[i]
 		var w := weight(p, t, fps)
 		var foot := String(p["foot"])
 		var ball := "ball" + foot.right(2)
 		var ref: Dictionary = refs_[i]
+		var ground := bool(ref.get("ground", false))   # ROADMAP 93: a sole on a surface that is not the floor
 		var joints := LimbIK.chain(B, foot)
 		joints.append(ball)
 		var was := {}
 		for j in joints:
 			was[j] = B.ang[j]
-		# the leg (hip, knee) is solved with the limits as ever; the foot and the ball are NOT clamped: a plant is a hold, like a
-		# pin, and the subtalar roll (-8..25 deg, ROADMAP 7) cannot take the roll a flat foot needs when the hips move far from
-		# it (20 cm sideways asks 26 deg of eversion, the limit is 8), so a clamp left the sole 165 mm and 57 deg off its place.
-		# A joint the hold took past its range is listed in "clamped" (never hidden)
+		# the leg (hip, knee) is solved with the limits as ever; the foot and the ball are NOT clamped on the floor: a plant is a
+		# hold, like a pin, and the subtalar roll (-8..25 deg, ROADMAP 7) cannot take the roll a flat foot needs when the hips move
+		# far from it (20 cm sideways asks 26 deg of eversion, the limit is 8), so a clamp left the sole 165 mm and 57 deg off its
+		# place. A joint the hold took past its range is listed in "clamped" (never hidden). ROADMAP 93: a sole on a step or a ramp
+		# keeps its ankle and ball inside their limits (the residual tilt then shows in the test, never hidden)
 		var r := LimbIK.solve(B, foot, ref["P"], ref["pole"])
 		B.fk()
 		var vf := B.decompose(foot, ((B.G[LimbIK.chain(B, foot)[1]] as Quaternion).inverse() * (ref["G"] as Quaternion)).normalized())
@@ -185,13 +287,17 @@ static func play(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) 
 		while vf.z - of.z < -180.0:
 			vf.z += 360.0
 		if (B.clamp_ang(foot, vf) - vf).length() > 1e-4:
-			r["clamped"].append(foot)
+			r["clamped"].append(foot)   # reported whether or not the ground takes it off the limit (a sole on a slope needs its ankle)
+		if ground:
+			vf = B.clamp_ang(foot, vf)
 		B.ang[foot] = vf
 		B.fk()
 		# the ball (toe joint) keeps its world turn: the sole stays flat where it was at t0
 		var vb := B.decompose(ball, ((B.G[foot] as Quaternion).inverse() * (ref["Gb"] as Quaternion)).normalized())
 		if (B.clamp_ang(ball, vb) - vb).length() > 1e-4:
 			r["clamped"].append(ball)
+		if ground:
+			vb = B.clamp_ang(ball, vb)
 		B.ang[ball] = vb
 		B.fk()
 		if w < 1.0:
