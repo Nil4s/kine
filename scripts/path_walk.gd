@@ -147,6 +147,7 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 	cards.append(_card(B, c, dc[0], "stand", {}, -1.0, HOLD_START, cur, false, 0.0))
 	arrive = HOLD_START
 	var last := 0.0
+	var prev_donor: Dictionary = dc[0]   # the pose the body is in when the period starts: the stand, then the card of the step before
 	for k in range(1, N + 1):
 		var sd := "_l" if k % 2 == 1 else "_r"
 		var s_k := L * 0.5 + (k - 1) * L
@@ -167,12 +168,13 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 		for j in PIVOTS:
 			var f := float(j + 1) / (PIVOTS + 1)
 			arrive += (1.0 - SWING) * T / PIVOTS
-			cards.append(_card(B, c, dc[0], "pivot %d.%d" % [k, j + 1], {}, (1.0 - SWING) * T / PIVOTS, 0.0, cur, true, arrive, lerpf(h0, h1, f)))
+			cards.append(_card(B, c, prev_donor, "pivot %d.%d" % [k, j + 1], {}, (1.0 - SWING) * T / PIVOTS, 0.0, cur, true, arrive, h0, h0))
 		var name := "step %s %d" % ["L" if sd == "_l" else "R", k]
 		arrive += SWING * T
 		cur[sd] = s_k
 		cards.append(_card(B, c, donor_card, name, {sd: [off.x, off.y, off.z]}, SWING * T, 0.0, cur, true, arrive))
 		last = s_k
+		prev_donor = donor_card
 	# the stop: the foot that stepped before the last one comes up to the last mark (feet together)
 	var behind := "_r" if N % 2 == 1 else "_l"
 	var stop_off := foot(c, behind, last) - foot(c, behind, cur[behind])
@@ -205,10 +207,10 @@ static func _hip_s(marks: Dictionary) -> float:
 
 
 static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps: Dictionary, move: float, hold: float,
-		marks: Dictionary, walk: bool, arrive: float, s_hip_in := NAN) -> Dictionary:
+		marks: Dictionary, walk: bool, arrive: float, s_hip_in := NAN, s_yaw_in := NAN) -> Dictionary:
 	var s_hip := _hip_s(marks) if is_nan(s_hip_in) else s_hip_in
 	B.from_dict(donor["pose"])
-	B.turn_world("pelvis", Quaternion(Vector3.UP, heading(c, s_hip - YAW_LAG)))
+	B.turn_world("pelvis", Quaternion(Vector3.UP, heading(c, (s_hip if is_nan(s_yaw_in) else s_yaw_in) - YAW_LAG)))
 	var o: Vector3 = at(c, s_hip)
 	B.offset = Vector3(o.x, B.offset.y, o.z)
 	B.fk()
