@@ -888,6 +888,12 @@ func _export_game(dir := "res://exports") -> Array:
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: export to the game needs at least 2 cards (a move)")
 		return []
+	var acts := _export_actors()
+	if not acts.is_empty():   # TC6: one clip per fighter
+		var rs := GameExport.write_actors(acts, dir, _export_base())
+		_refresh()
+		_say_plain("exported to the game, one clip per fighter: %s (each PoseTable in its own frame; its placement is in the .json as \"placement\")" % ", ".join(rs.map(func(r): return (r[0] as String).get_file() + " / " + (r[1] as String).get_file())))
+		return rs
 	var keep := B.state()
 	var out := GameExport.write(S, B, dir)
 	B.set_state(keep)
@@ -909,6 +915,16 @@ func _export_glb(dir := "res://exports") -> String:
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
+	var acts := _export_actors()
+	if not acts.is_empty():   # TC6: every fighter in one file, each armature named by its fighter, at its placement
+		var mp := "%s/%s.glb" % [dir, _export_base()]
+		var e := GltfExport.write_actors(acts, mp)
+		_refresh()
+		if e != OK:
+			_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(e))
+			return ""
+		_say_plain("exported %s: %d fighters (%s), one armature each at its place, one animation. Opens in Godot, Blender, Unreal 5; Unity via glTFast" % [mp.get_file(), acts.size(), ", ".join(acts.map(func(a): return a["name"]))])
+		return mp
 	var nm := S.name if S.name != "" else "scene"
 	var path := "%s/%s.glb" % [dir, nm]
 	var keep := B.state()
@@ -982,6 +998,16 @@ func _export_bvh(dir := "res://exports") -> String:
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
+	var acts := _export_actors()
+	if not acts.is_empty():   # TC6: a BVH holds one skeleton, so one file per fighter, placed by its root channels
+		var rs := BvhExport.write_actors(acts, dir, _export_base())
+		_refresh()
+		var bad := rs.filter(func(r): return r[1] != OK)
+		if not bad.is_empty():
+			_say_plain("NOT DONE: %s could not be written (%s)" % [(bad[0][0] as String).get_file(), error_string(bad[0][1])])
+			return ""
+		_say_plain("exported one .bvh per fighter: %s (%d frames at %d fps each, placed where they stand). Opens in Blender, MotionBuilder, Cascadeur and any retargeter" % [", ".join(rs.map(func(r): return (r[0] as String).get_file())), rs[0][2]["frames"], rs[0][2]["fps"]])
+		return rs[0][0]
 	var nm := S.name if S.name != "" else "scene"
 	var path := "%s/%s.bvh" % [dir, nm]
 	var r := BvhExport.write(S, B, path)
@@ -1000,6 +1026,16 @@ func _export_usd(dir := "res://exports") -> String:
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
+	var acts := _export_actors()
+	if not acts.is_empty():   # TC6: every fighter in one stage, a SkelRoot each at its placement
+		var mp := "%s/%s.usda" % [dir, _export_base()]
+		var mr := UsdExport.write_actors(acts, mp)
+		_refresh()
+		if mr[0] != OK:
+			_say_plain("NOT DONE: the .usda could not be written (%s)" % error_string(mr[0]))
+			return ""
+		_say_plain("exported %s: %d fighters (%s), a UsdSkel each at its place, %d frames at %d fps (Y up, metres; the weapons are not in it)" % [mp.get_file(), acts.size(), ", ".join(mr[1]["prims"]), mr[1]["frames"], mr[1]["fps"]])
+		return mp
 	var nm := S.name if S.name != "" else "scene"
 	var path := "%s/%s.usda" % [dir, nm]
 	var r := UsdExport.write(S, B, path)
@@ -1009,6 +1045,21 @@ func _export_usd(dir := "res://exports") -> String:
 		return ""
 	_say_plain("exported %s.usda: %d joints, %d frames at %d fps (UsdSkel, Y up, metres; the weapons are not in it)" % [nm, r[1]["joints"], r[1]["frames"], S.fps])
 	return path
+
+
+## TWO CHARACTERS IN THE EXPORTS (round 50, GATES TC6): every fighter, hero first, with its own body, scene and placement
+## (its xf in the hero's space); [] with one fighter, and the exports write what they always wrote
+func _export_actors() -> Array:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		return []
+	return actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]})
+
+
+## the file name of a multi-fighter export: the hero's scene, whoever is active
+func _export_base() -> String:
+	var nm := _hero_scene().name
+	return safe_file(nm) if nm != "" else "scene"
 
 
 func _versions_menu() -> void:

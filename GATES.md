@@ -1969,7 +1969,8 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   back -> FAIL 4 (bar 1 1847 mm, bar 2, bar 6, bar 5 picture 53,024 px). Not done: props stay with the ACTIVE scene (they
   are S.props, in the active body's space), the other fighters' off-hand dagger and hover are not drawn.
 - [ ] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
-- [ ] TC6 export per actor with its placement; Blender re-import within 1 cm.
+- [x] TC6 export per actor with its placement; Blender re-import within 1 cm.
+  EVIDENCE: tests/actors_export_test.gd 9 ok (combo3 + fighter 2 at (0.4, 1.3) m yaw 150): .glb one armature per fighter (named by it), GLTFDocument worst 0.0015 mm over 520 joint-reads, Blender 4.5's own importer hands/feet/head 0.0010 mm; .usda a SkelRoot each, parsed 0.0006 mm; .bvh one per fighter, re-parsed 0.0009 mm, Blender 0.0010 mm; game one clip each + "placement"; one-actor exports byte-identical (15 sha256); messages name all 8 files. No stub run (dropped by Nick's priority change).
 
 ## Round 50 (IK): animator IK/FK with pole targets (docs/GAP_ANALYSIS.md gap 13; docs/research/BLENDER_IK.md)
 
