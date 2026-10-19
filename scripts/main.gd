@@ -2094,6 +2094,7 @@ func _refresh() -> void:
 	_pose_others()
 	_actors_draw()
 	_fighters_mark()
+	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
 
 
 # ---------------------------------------------------------------- camera
@@ -2235,6 +2236,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if mb.button_index == MOUSE_BUTTON_LEFT and nav_tool != "":   # the nav bar's Orbit / Pan tool (HH2)
 				dragging = nav_tool
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
+				if _ikh_press(mb.position):   # IK2: an IK handle drawn here takes the press
+					return
 				var j := _pick(mb.position)
 				var pp := _pick_prop(mb.position)
 				var pa := _pick_actor(mb.position)   # TC4: another fighter's part, nearer than ours: it becomes the active one
@@ -2286,6 +2289,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_num_on = false
 			if was == "prop":
 				_prop_release()
+			if was == "ik_handle":
+				_ikh_release()
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
 			if was == "orbit" and mb.button_index == MOUSE_BUTTON_RIGHT and not _rpress.is_empty():
 				if mb.position.distance_to(_rpress["at"]) < 5.0 and _rpress["part"] != "":
@@ -2309,6 +2314,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var rel := mm.relative
 		if dragging == "prop":
 			_prop_move(mm.position)
+			return
+		if dragging == "ik_handle":
+			_ikh_move(mm.position)
 			return
 		if dragging == "orbit":
 			yaw -= rel.x * 0.4
@@ -3115,6 +3123,221 @@ func _ik_snap_ik() -> void:
 	_do(func(): r.merge(LimbIK.snap_ik(S, B, tip, t)))
 	_dummy_hits()
 	_say("the %s's IK target and pole keyed at %.2f s where the cards put it (IK weight there %.2f)" % [_ik_words(tip), t, float(r["w"])])
+
+
+## IN-VIEW IK HANDLES (round 50, GATES IK2; docs/research/BLENDER_IK.md section g). Each limb pinned at the playhead
+## (IK weight > 0) shows a cube at its target and a sphere at its pole, a dashed line from the elbow / knee to the pole
+## (Maya's pole vector line, Blender's dashed relationship line). Drawn on top of the body; a press inside one takes it
+## (nowhere else: every other click goes to _pick as before). Dragging the target moves it in the view plane (a foot's
+## on its floor plane: horizontal through it), dragging the pole swings the elbow / knee; the limb is solved each mouse
+## move (LimbIK.solve, mixed by the weight as playback does). Release keys the target / pole at the playhead: one undo step
+const IKH_CUBE := 0.06    # m, the target cube's edge
+const IKH_BALL := 0.03    # m, the pole sphere's radius
+var _ikh_root: Node3D
+var _ikh_nodes := {}      # tip -> [cube, sphere]
+var _ikh_line: MeshInstance3D
+var _ikh_drag := {}       # the drag: {tip, kind "target"/"pole", target, pole, rot?, w, n, p0, off, fk?, moved}
+
+
+func _ikh_build() -> void:
+	_ikh_root = Node3D.new()
+	_ikh_root.name = "ik_handles"
+	add_child(_ikh_root)
+	for tip in LimbIK.LIMBS:
+		var col := side_col(tip)
+		var mc := StandardMaterial3D.new()
+		mc.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mc.no_depth_test = true
+		mc.render_priority = 3
+		mc.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mc.albedo_color = Color(col, 0.55)
+		var cube := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3.ONE * IKH_CUBE
+		cube.mesh = bm
+		cube.material_override = mc
+		var ball := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = IKH_BALL
+		sm.height = IKH_BALL * 2.0
+		ball.mesh = sm
+		ball.material_override = mc
+		_ikh_root.add_child(cube)
+		_ikh_root.add_child(ball)
+		_ikh_nodes[tip] = [cube, ball]
+	_ikh_line = MeshInstance3D.new()
+	_ikh_line.mesh = ImmediateMesh.new()
+	_ikh_root.add_child(_ikh_line)
+
+
+## the limbs pinned at the playhead (IK weight > 0 there), in LimbIK.LIMBS order
+func _ikh_pinned() -> Array:
+	var out := []
+	if S == null or S.ik.is_empty():
+		return out
+	var t := clampf(playhead, 0.0, S.length())
+	for tip in LimbIK.LIMBS:
+		var ks: Array = S.ik.get(tip, [])
+		if not ks.is_empty() and LimbIK.weight_at(ks, t) > 0.0:
+			out.append(tip)
+	return out
+
+
+## the limb's target and pole as drawn: the drag's live points, or its keys sampled at the playhead
+func _ikh_at(tip: String) -> Dictionary:
+	if not _ikh_drag.is_empty() and _ikh_drag["tip"] == tip:
+		return _ikh_drag
+	return LimbIK.sample(S.ik[tip], clampf(playhead, 0.0, S.length()))
+
+
+func _ikh_draw() -> void:
+	if _ikh_root == null:
+		_ikh_build()
+	var on := [] if clean else _ikh_pinned()
+	var im := _ikh_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	for tip in LimbIK.LIMBS:
+		var nd: Array = _ikh_nodes[tip]
+		var vis: bool = tip in on
+		(nd[0] as Node3D).visible = vis
+		(nd[1] as Node3D).visible = vis
+		if not vis:
+			continue
+		var k := _ikh_at(tip)
+		(nd[0] as Node3D).position = k["target"]
+		(nd[1] as Node3D).position = k["pole"]
+		var a: Vector3 = B.P[B.parent[tip]]   # the elbow / knee
+		var b: Vector3 = k["pole"]
+		var n := maxi(2, int(ceil(a.distance_to(b) / 0.025)))
+		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+		im.surface_set_color(side_col(tip))
+		for s in range(0, n, 2):   # dashed: 2.5 cm on, 2.5 cm off
+			im.surface_add_vertex(a.lerp(b, float(s) / n))
+			im.surface_add_vertex(a.lerp(b, minf(1.0, float(s + 1) / n)))
+		im.surface_end()
+
+
+## the handle under the mouse: [tip, "target" / "pole"] or [] (inside its drawn footprint: the cube's half edge, the
+## sphere's radius, at its depth; the nearest to the eye wins)
+func _ikh_hit(mp: Vector2) -> Array:
+	var best := []
+	var best_d := INF
+	var vh := get_viewport().get_visible_rect().size.y
+	var fwd := -cam.global_basis.z
+	for tip in ([] if clean else _ikh_pinned()):
+		var k := _ikh_at(tip)
+		for kind in ["target", "pole"]:
+			var p: Vector3 = k[kind]
+			var depth := (p - cam.global_position).dot(fwd)
+			if depth <= cam.near:
+				continue
+			var r_px := (IKH_CUBE * 0.5 if kind == "target" else IKH_BALL) / (depth * tan(deg_to_rad(cam.fov * 0.5))) * vh * 0.5
+			if cam.unproject_position(p).distance_to(mp) <= r_px and depth < best_d:
+				best_d = depth
+				best = [tip, kind]
+	return best
+
+
+## a press on a handle starts its drag (one undo step pushed now, dropped again if the mouse never moves); false = no handle
+func _ikh_press(mp: Vector2) -> bool:
+	var h := _ikh_hit(mp)
+	if h.is_empty():
+		return false
+	var tip: String = h[0]
+	var kind: String = h[1]
+	var t := clampf(playhead, 0.0, S.length())
+	var k := LimbIK.sample(S.ik[tip], t)
+	_step_hint = "Move the IK %s" % kind
+	_push_undo()
+	var d := {"tip": tip, "kind": kind, "target": k["target"], "pole": k["pole"], "w": k["w"], "moved": false}
+	if k.has("rot"):
+		d["rot"] = k["rot"]
+	var p0: Vector3 = k[kind]
+	var o := cam.project_ray_origin(mp)
+	var rd := cam.project_ray_normal(mp)
+	var n := cam.global_basis.z   # the view plane through the handle
+	if kind == "target" and tip.begins_with("foot") and absf(rd.y) > 0.05:
+		n = Vector3.UP   # a foot's target slides on its floor plane (horizontal through it)
+	d["n"] = n
+	d["p0"] = p0
+	var hit = _ikh_plane(o, rd, p0, n)
+	d["off"] = (p0 - hit) if hit != null else Vector3.ZERO
+	if float(k["w"]) < 1.0:   # the limb's FK at t, to mix with as playback does (LimbIK.play)
+		var F := Body.new()
+		F.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		LimbIK._fk_at(S, F, tip, t)
+		d["fk"] = {}
+		for j in LimbIK.chain(B, tip):
+			d["fk"][j] = F.ang[j]
+	_ikh_drag = d
+	sel = tip
+	playing = false
+	dragging = "ik_handle"
+	_refresh()
+	_say("IK %s of the %s: drag it; the %s follows. Release keys it at %.2f s" % [kind, _ik_words(tip), "hand" if tip.begins_with("hand") else "foot", t])
+	return true
+
+
+static func _ikh_plane(o: Vector3, d: Vector3, p0: Vector3, n: Vector3) -> Variant:
+	var den := d.dot(n)
+	if absf(den) < 1e-6:
+		return null
+	var s := (p0 - o).dot(n) / den
+	return null if s < 0.0 else o + d * s
+
+
+func _ikh_move(mp: Vector2) -> void:
+	if _ikh_drag.is_empty():
+		return
+	var hit = _ikh_plane(cam.project_ray_origin(mp), cam.project_ray_normal(mp), _ikh_drag["p0"], _ikh_drag["n"])
+	if hit == null:
+		return
+	_ikh_drag[_ikh_drag["kind"]] = (hit as Vector3) + (_ikh_drag["off"] as Vector3)
+	_ikh_drag["moved"] = true
+	var r := _ikh_pose()
+	_refresh()
+	var tip: String = _ikh_drag["tip"]
+	_say("MOVING the IK %s of the %s%s" % [_ikh_drag["kind"], _ik_words(tip),
+		("     out of reach by %.1f cm" % (float(r["miss"]) * 100.0)) if float(r["miss"]) > 0.002 else ""])
+
+
+## the dragged limb solved onto the live target / pole (and mixed by the weight). IK3: the pin wins over the grip; the
+## weapon hand moved, the other hand follows the weapon unless it is pinned itself (as Scene.apply)
+func _ikh_pose() -> Dictionary:
+	var tip: String = _ikh_drag["tip"]
+	var r := LimbIK.solve(B, tip, _ikh_drag["target"], _ikh_drag["pole"], _ikh_drag.get("rot", null))
+	if _ikh_drag.has("fk"):
+		var w: float = _ikh_drag["w"]
+		for j in _ikh_drag["fk"]:
+			B.ang[j] = (_ikh_drag["fk"][j] as Vector3).lerp(B.ang[j], w)
+		B.fk()
+		r["miss"] = ((B.P[tip] as Vector3) - (_ikh_drag["target"] as Vector3)).length()
+	var other := "hand_l" if B.wep_hand == "hand_r" else "hand_r"
+	if B.wep_on and B.grip and B.wep_hand == tip and not other in _ikh_pinned():
+		B.apply_grip()
+	return r
+
+
+## release: the dragged point keyed at the playhead (weight and hand turn as they were there); no move = no undo step
+func _ikh_release() -> void:
+	var d := _ikh_drag
+	_ikh_drag = {}
+	if d.is_empty():
+		return
+	if not d["moved"]:
+		undo.pop_back()
+		_history_rows.call_deferred()
+		_refresh()
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var key := {"t": t, "target": d["target"], "pole": d["pole"], "w": d["w"]}
+	if d.has("rot"):
+		key["rot"] = d["rot"]
+	LimbIK.put(S.ik, d["tip"], key)
+	_dummy_hits()
+	_refresh()
+	var p: Vector3 = d[d["kind"]]
+	_say("keyed the %s's IK %s at %.2f s, at (%.2f, %.2f, %.2f) m (Ctrl+Z takes it back)" % [_ik_words(d["tip"]), d["kind"], t, p.x, p.y, p.z])
 
 
 ## ASK AI (round 46, GATES BB2): opens / closes the AI box (scripts/ai_box.gd) at the right, above the cards. The box

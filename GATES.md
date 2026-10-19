@@ -1988,3 +1988,17 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   agent_tools, command_search, bake, autosave PASS. OPEN: no viewport IK handle (commands only); a pinned foot
   overrides foot planting; a pinned grip hand fights the weapon grip; release/snap need the playhead on a card;
   the Blender side-by-side comparison not run yet.
+- [x] IK2 in-view IK handles (tests/ik_handles_test.gd, a window, real mouse events). Bars: (1) a cube at each pinned
+  limb's target and a sphere at its pole, projected within 1 px of the keyed points, only for limbs pinned at the
+  playhead (none without IK); (2) a scripted drag of a hand's target: the wrist within 3 mm of the target at every mouse
+  step (reachable), the target within 1 mm of the mouse ray; a foot's target stays on its floor plane (y within 1 mm);
+  (3) a pole drag: the elbow within 2 deg of the root-target-pole plane, on the pole's side, and it moved; (4) release:
+  one undo step per drag, the key at the playhead, Ctrl+Z restores body + IK keys bit for bit; (5) 20 clicks on body
+  parts away from the handles pick the part 20/20; a click on a handle drawn over the hand takes the handle; (7) ik_pin
+  and undo_audit still pass.
+- [x] IK3 which wins: a pinned foot vs foot plant, a pinned hand vs the weapon two-hand grip. Rule (Blender: bone
+  constraints are solved before the IK tree, iksolver_plugin.cc:286 "as last we do an IK pass"): the pin wins; the
+  weapon hand pinned, the free grip hand still follows the weapon. Bars (6): pinned ankle / wrist within 1 mm of the pin at
+  every frame of the plant run / grip scene (anti-vacuity: unpinned > 5 cm away); weapon hand pinned: the off hand on
+  its grip as without the pin (within 1 mm of where apply_grip puts it).
+  EVIDENCE (IK2+IK3): tests/ik_handles_test.gd 11 ok: handles 0.0000 px off, drawn for the 2 pinned limbs only; hand drag wrist 0.0003 mm off target, 0.0005 mm off the ray (9.8 cm); foot drag y 0.0000 mm, ankle 0.0008 mm, ray 0.0006 mm; pole drag plane 0.0000 deg, pole side, elbow moved 1.9 cm; undo 2->3->4->5, Ctrl+Z x3 bit for bit; 20/20 clicks; IK3 pinned ankle 0.0003 mm / grip hand 0.0002 mm off the pin (unpinned >= 10 cm), weapon hand pinned: off hand re-grip 11.5 mm vs 31.3 mm unpinned. ik_pin 14 ok, undo_audit PASS. No stub run (dropped by Nick's priority change).
