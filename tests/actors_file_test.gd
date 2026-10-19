@@ -99,13 +99,13 @@ func _init() -> void:
 		# new key's doing: every OTHER key the file holds must come back equal, and no "actors" may appear
 		one_way = true
 		var back1 := rt(orig)
-		var df := first_diff(norm(orig), back1, "$", 0.0, ["plan", "bad_frames", "length_s", "note"])
+		var df := first_diff(norm(orig), back1, "$", 0.0, ["plan", "bad_frames", "length_s", "note", "arrive_s", "leave_s"])
 		one_way = false
 		if df == "" and back1.has("actors"):
 			df = "an \"actors\" key appeared"
 		if df != "":
 			differ.append("%s: %s" % [p.get_file(), df])
-	ok(files.size() > 10 and differ.is_empty(), "2 %d scene files (scenes/, _archive/): load -> to_dict equals the file on every key it holds (plan, note, length_s, bad_frames aside; keys an old file lacks are not compared); %d differ %s" % [files.size(), differ.size(), differ.slice(0, 4)])
+	ok(files.size() > 10 and differ.is_empty(), "2 %d scene files (scenes/, _archive/): load -> to_dict equals the file on every key it holds (plan, note and the derived length_s, arrive_s, leave_s, bad_frames aside; keys an old file lacks are not compared); %d differ %s" % [files.size(), differ.size(), differ.slice(0, 4)])
 	ok(not rt(read("res://scenes/combo3.json")).has("actors"), "2b a one-actor scene writes no \"actors\" key")
 
 	# 3 schema

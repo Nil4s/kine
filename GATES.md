@@ -1911,3 +1911,20 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   run by me after the agent changed the scrub check): FAIL 2 (diff 0.00000) and the scrub check FAILS (0.001170).
   OPEN: the .mp4 branch has never run: ffmpeg is not installed here (winget install Gyan.FFmpeg); folder names have
   1 s resolution.
+
+## Round 50 (TC): two characters in one scene (docs/GAP_ANALYSIS.md gap 20; plan: 43 single-actor sites, 6 gates)
+
+- [x] TC1 the file format: an optional "actors" list [{name, xf {pos [x, z], yaw}, scene}] beside the top level (= actor
+  0, unchanged); written only with a second actor; schema, mirror rule, deep clone.
+  EVIDENCE: tests/actors_file_test.gd 9 ok (agent, worktree, merged; re-run by me on the real tree with scenes/_wip):
+  a two-actor dict round-trips identical (206,258 chars); 36 scene files load -> save equal on every stored key except
+  the derived ones (length_s, arrive_s, leave_s, bad_frames: two _wip files carry stale arrive_s from older timing
+  rules); a misspelled "xff" is rejected; mirror twice = original (0.011), once negates x and yaw; clone is deep.
+  Stub (actors branch off in to_dict), run by me: FAIL 1 ("$.actors only in A"). mirror_list, schema, mirror,
+  autosave, versions, scene_list PASS. OPEN: main.gd's own _mirror_scene does not use Scene.mirror_file yet (TC3).
+- [ ] TC2 cross-body contact Body.cross_contacts(other, xf): 0 at 1.5 m apart, penetration at 0.2 m, a staff thrust
+  agrees with Dummy.touch on part and zone; within 1 mm of brute force, < 1 ms a frame after culling.
+- [ ] TC3 actors in main (no UI): active swap, the other actor posed each refresh, undo tagged by actor.
+- [ ] TC4 window: second mannequin, click to switch, the view re-rooted without a jump.
+- [ ] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
+- [ ] TC6 export per actor with its placement; Blender re-import within 1 cm.
