@@ -6222,8 +6222,9 @@ func _set_theme_system(on: bool) -> void:
 
 
 ## a window that gets focus again picks up a change of Windows' dark mode, while the preference is "system"
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_IN and theme_pref == "system" and ui_root != null and _theme_wanted() != Tok.dark:
+## (called from the one _notification, next to the close request)
+func _focus_theme() -> void:
+	if theme_pref == "system" and ui_root != null and _theme_wanted() != Tok.dark:
 		Tok.set_dark(_theme_wanted())
 		_retheme()
 
@@ -10270,6 +10271,8 @@ var save_hook: Callable           # a test's stand-in for Save (the real one wri
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:   # the X, Alt+F4, the OS: the app decides (set_auto_accept_quit is off)
 		_close_asked()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		_focus_theme()
 
 
 func _close_asked() -> void:
