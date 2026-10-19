@@ -472,6 +472,8 @@ func _kb_poll() -> void:
 ## mouse is lit HOVER (the selected one keeps SEL) and named on the status line; a press, a drag or a panel ends it
 const HOVER := Color(0.92, 0.94, 1.0)   # pale, far from SEL's blue
 var hover_part := ""
+var hover_fighter := -1   # FIGHTER HOVER: the other fighter (actors_rt index) whose part the mouse is on, -1 none
+var hover_fpart := ""     # ... and that part
 ## THE BAR DOES NOT FLICKER (round 35a, GATES QQ2): the status line names the hovered part through _bar_hover, which
 ## takes hover_part only once it has RESTED: BAR_REST on a part, BAR_LEAVE off the body (so a pointer crossing the
 ## body names nothing, and one sliding off a part for an instant does not wipe its name). The light on the body is
@@ -485,9 +487,24 @@ var _bar_want_t := 0.0
 
 func _hover_at(p: Vector2) -> void:
 	var j := _pick(p)   # only called with no drag on (a drag's motion goes to the drag)
-	if j != hover_part:
+	var fk := -1   # FIGHTER HOVER: a part of another fighter nearer than the active one's (the click's rule, _unhandled_input)
+	var fj := ""
+	var pa := _pick_actor(p) if actors_rt.size() >= 2 else [-1, "", INF]
+	if int(pa[0]) >= 0 and (j == "" or float(pa[2]) < _pick_t):
+		fk = int(pa[0])
+		fj = String(pa[1])
+		j = ""
+	if j != hover_part or fk != hover_fighter or fj != hover_fpart:
 		hover_part = j
+		hover_fighter = fk
+		hover_fpart = fj
 		_refresh()
+
+
+## the fighter hover off (a press, a panel, the mouse gone): nothing of another fighter is lit
+func _fh_clear() -> void:
+	hover_fighter = -1
+	hover_fpart = ""
 
 
 ## LOCK A PART (round 26, GATES GG3, UPGRADES #24): a locked part is picked but never grabbed, keeps its angles through
@@ -1484,10 +1501,11 @@ func _process(dt: float) -> void:
 	if _as_wait >= 15.0:
 		_as_wait = 0.0
 		autosave_now()
-	if hover_part != "":   # the mouse went onto a panel (it eats the motion, so the view never hears it leave)
+	if hover_part != "" or hover_fighter >= 0:   # the mouse went onto a panel (it eats the motion, so the view never hears it leave)
 		var hc := get_viewport().gui_get_hovered_control()
 		if dragging != "" or (hc != null and hc != ui_browser and hc.mouse_filter == Control.MOUSE_FILTER_STOP):   # the Browser lights a part itself (KK2)
 			hover_part = ""
+			_fh_clear()
 			_refresh()
 	var now := Time.get_ticks_msec() / 1000.0
 	if hover_part != _bar_want:
@@ -2245,6 +2263,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			ui_cmd.close()   # a click in the view puts the search away
 		if mb.pressed:
 			hover_part = ""   # a press ends the hover (the drag shows the selection)
+			_fh_clear()
 			if mb.button_index == MOUSE_BUTTON_LEFT and nav_tool != "":   # the nav bar's Orbit / Pan tool (HH2)
 				dragging = nav_tool
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
@@ -3008,6 +3027,7 @@ func _actors_draw() -> void:
 		if b.wep_on:
 			_place(w[0], b.wep_point(0.0), b.wep_point(b.wep_handle), 0.0, false)
 			_place(w[1], b.wep_point(b.wep_handle), b.wep_point(b.wep_len), 0.0, false)
+		_fh_draw(k, b)   # the off-hand weapon and the fighter-hover light (own functions, below _actor_man)
 
 
 ## one other fighter's mannequin (made as the dummy's is: Overlays.mannequin) and its weapon, under the stage
@@ -3040,7 +3060,58 @@ func _actor_man() -> Dictionary:
 		mi.material_override = wep_mats[r[2]]
 		root.add_child(mi)
 		w.append(mi)
-	return {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag}
+	var mdict := {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag}
+	mdict.merge(_fh_meshes(root))
+	return mdict
+
+
+## FIGHTER HOVER AND THE OFF-HAND WEAPON OF A FIGHTER THAT IS NOT ACTIVE: the same two cylinders as the active body's
+## (d2_handle, d2_blade: the dagger's look), and one translucent capsule per fighter for the hovered part (the light
+## HOVER, as _refresh lights the active body's). Both live under the fighter's node, so the node's visibility covers them
+func _fh_meshes(root: Node3D) -> Dictionary:
+	var tape: Material = wep_mats["tape"]
+	var steel: Material = wep_mats["steel"]
+	var w2 := []
+	for r in [[0.013, 0.013, tape], [0.004, 0.011, steel]]:
+		var mi := MeshInstance3D.new()
+		var c := CylinderMesh.new()
+		c.top_radius = r[0]
+		c.bottom_radius = r[1]
+		mi.mesh = c
+		mi.material_override = r[2]
+		root.add_child(mi)
+		w2.append(mi)
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color(HOVER, 0.3)
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.no_depth_test = false
+	var hov := MeshInstance3D.new()
+	hov.mesh = CapsuleMesh.new()
+	hov.material_override = hm
+	hov.visible = false
+	root.add_child(hov)
+	return {"wep2": w2, "hov": hov}
+
+
+## one fighter that is not active, this refresh: its off-hand weapon where its body holds it, and the hovered part's light
+## (only when the mouse is on that fighter: hover_fighter)
+func _fh_draw(k: int, b: Body) -> void:
+	var mq: Dictionary = actor_men[k]
+	var w2: Array = mq["wep2"]
+	for mi in w2:
+		(mi as MeshInstance3D).visible = b.wep2_on
+	if b.wep2_on:
+		var hu := float(Body.KINDS[b.wep2_kind]["handle"])
+		_place(w2[0], b.wep2_point(0.0), b.wep2_point(hu), 0.0, false)
+		_place(w2[1], b.wep2_point(hu), b.wep2_point(b.wep2_len()), 0.0, false)
+	var hov: MeshInstance3D = mq["hov"]
+	var j := hover_fpart if k == hover_fighter else ""
+	hov.visible = j != "" and b.P.has(j)
+	if hov.visible:
+		var c: Array = b.cap(j)
+		(hov.mesh as CapsuleMesh).radius = float(b.rad[j])
+		_place(hov, c[0], c[1], float(b.rad[j]))
 
 
 ## a click on a fighter that is not active (TC4): [k, part, t along the ray] of the nearest part hit; [-1, "", INF] none.
