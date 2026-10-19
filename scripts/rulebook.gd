@@ -989,7 +989,9 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_lift_form(sm)
 	out += rule_gait(sm)
 	out += rule_jump(S, B)
-	out += HumanLimits.findings(S, B)   # ROADMAP 10: joint speed, joint torque, tipping (scripts/human_limits.gd)
+	if HumanLimits.on:
+		out += HumanLimits.findings(S, B)   # ROADMAP 10: only when asked ("Check: could a human do this?"): the bars are
+		# not yet checked against the papers (a real bat swing read trunk 1087 deg/s vs a 601 bar; elite hitters reach ~900+)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

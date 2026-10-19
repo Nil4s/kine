@@ -18,10 +18,8 @@ Each row is HAVE (works and is tested), PART (exists but short of the reference)
 | 5 | Timeline, preview range, fps, markers | HAVE | preview range, 24/30/60, markers |
 | 6 | Keying Sets | HAVE (part level) | named keying sets of parts, one active, K keys them all at the playhead in one undo step (scripts/part_sets.gd, tests/sets_test.gd, docs/research/SETS.md); no per-channel paths |
 | 7 | Pose: copy / paste / flipped, propagate | HAVE | Copy / Paste / Paste flipped; "keep this change through the whole scene" |
-| 8 | Pose Library | PART | Save pose plus a Poses list; no thumbnails, no blend-in-a-pose slider |
 | 9 | Selection Sets / bone collections | HAVE | user-named selection sets in the browser's Sets list: new from selection, select, add / remove, rename, delete, mirror; saved in the scene (scripts/part_sets.gd, tests/sets_test.gd) |
 | 8 | Pose Library | HAVE | "Pose library": a thumbnail per pose (off screen, cached as <pose>.png, remade on change), apply / flipped / drag-to-blend 0-100 % / slider, selected parts only (tests/pose_library_test.gd; docs/research/POSE_LIBRARY.md). No subtract / extrapolate blend, no folders |
-| 9 | Selection Sets / bone collections | LACK | "Select:" presets only; no user-named sets |
 | 10 | In-betweens (push, relax, breakdown) | HAVE | Breakdowner, Push, Relax, Blend to … |
 | 11 | Motion Paths | HAVE | Motion trail, pin a trail |
 | 12 | NLA (actions, strips, blending) | **HAVE** (clips: scripts/clips.gd, tests/clips_test.gd; docs/research/NLA.md) | Layers (NA1-NA3) + CLIPS: another scene / move placed by reference as a strip (start, repeat, speed, blend in / out, replace / add, body-part mask, hold / nothing, root motion carried across repeats), dragged on the timeline. Was: no reusable actions. Not done: combine / subtract / multiply, keyed influence or strip time, transitions |

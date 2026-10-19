@@ -53,7 +53,7 @@ func _init() -> void:
 		peak_tq = maxf(peak_tq, float(v))
 	print("     swing: shoulder_r peak turn %.0f deg/s (bar 4766 / FAIL 6310), peak moment %.0f Nm (bar %.1f / FAIL %.1f)" % [
 		peak_sp, peak_tq, sh, sh * HumanLimits.SHOULDER_NM_KG[1] / HumanLimits.SHOULDER_NM_KG[0]])
-	var fs := HumanLimits.findings(S, B, sm)
+	var fs := HumanLimits.findings(S, B, sm, true)
 	var sp_f := fs.filter(func(f): return f["rule"] == "JOINT SPEED" and "shoulder r" in f["msg"])
 	var tq_f := fs.filter(func(f): return f["rule"] == "JOINT TORQUE" and "shoulder r" in f["msg"])
 	ok(sp_f.size() >= 1, "1 swing: shoulder_r speed flagged (%d finding(s)): %s" % [sp_f.size(), sp_f[0]["msg"] if sp_f.size() > 0 else "none"])

@@ -10,6 +10,7 @@
 class_name HumanLimits
 extends RefCounted
 
+static var on := false   # in the default Check only after "Check: could a human do this?" (rulebook.gd)
 const FPS := 60.0
 const GRAV := 9.81
 const REF_MASS := 75.0      # kg (mine): the mass the absolute knee bar is quoted for; scaled as mass^(2/3)
@@ -247,14 +248,18 @@ static func _words(j: String) -> String:
 
 
 ## every human-limit finding of a scene (sorted by time, card set as Rulebook.check does)
-static func findings(S: Scene, B: Body, sm := {}) -> Array:
+## with_torque: JOINT TORQUE is OFF in the default Check (Nick's combo3 bat swing read 508 Nm at the shoulder against a
+## 53 Nm isokinetic bar: the model hangs the whole bat on each arm, has no two-hand load sharing and compares a fast
+## swing with a slow strength test, so it shouts MUST FIX on real motion). Speed and tipping stay on
+static func findings(S: Scene, B: Body, sm := {}, with_torque := false) -> Array:
 	if S.cards.size() < 2:
 		return []
 	if sm.is_empty():
 		sm = sample(S, B)
 	var out := []
 	out += rule_speed(sm)
-	out += rule_torque(sm)
+	if with_torque:
+		out += rule_torque(sm)
 	out += rule_tipping(sm)
 	for f in out:
 		f["card"] = Rulebook.card_at(S, f["t"])

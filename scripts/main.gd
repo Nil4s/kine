@@ -6971,6 +6971,7 @@ func _commands() -> Array:
 	add.call("Speed graph on/off", "Y", _press.bind(KEY_Y), "curve velocity", false, "tip, hips and head speed over the scene; click it to scrub")
 	add.call("Stepped preview on/off", "", _tool.bind(3), "blocking poses", true, "play card to card with no in-betweens (view only, never saved)")
 	add.call("Moving holds on/off", "", _tool.bind(4), "drift", true, "during a hold the upper body drifts a little toward the next card (saved with the scene)")
+	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check (experimental: the limits are still being verified)")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
@@ -9307,6 +9308,13 @@ func _audio_remove() -> void:
 
 ## the sound's loudness in steps of 3 dB (about 1.4x the amplitude), -30 .. +12 dB; saved as gain_db, used by playback
 ## and mixed into the playblast's mp4 (PlayblastExport.args). One undo step
+## ROADMAP 10: the human-limits rules in or out of Check (HumanLimits.on), then Check again
+func _human_check() -> void:
+	HumanLimits.on = not HumanLimits.on
+	_check()
+	_say(("Check now asks 'could a human do this?' too: joint speed and tipping against recorded limits (experimental)" if HumanLimits.on else "Check is back to the rulebook alone"))
+
+
 func _audio_gain(step: float) -> void:
 	if S.audio.is_empty():
 		_say("no sound on the timeline: run Audio: add a sound file first")
