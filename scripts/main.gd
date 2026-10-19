@@ -111,6 +111,11 @@ var ui_cards: HBoxContainer
 var ui_time: HSlider
 var ui_time_lbl: Label
 var ui_fps_lbl: Label   # XX10: the frames per second really reached while playing, and the dropped ones
+var play_clock := PlaySpeed.new()   # ROADMAP 48: REAL SPEED or EVERY FRAME (a view setting, never saved, not an undo step)
+var play_delay := 0.0   # the test's simulated slow frame: seconds each playing frame costs on top (0 = none)
+var ui_mode_btn: Button   # ROADMAP 48: the playback mode, as its icon and words; a click changes it
+var ui_mode_lbl: Label    # ROADMAP 48: "Real speed: dropping N frames" / "Every frame: 0.6x speed"
+var _mode_painted := ""   # the mode and palette the bar's colours were last set for
 var shading := Shading.new()   # XX10: how the body is drawn (a view setting, never saved)
 var _was_playing := false
 var ui_play: Button
@@ -1401,6 +1406,13 @@ func _fps_poll(dt: float) -> void:
 			var t := Shading.fps_text(shading.meter.stats())
 			if t != ui_fps_lbl.text:
 				ui_fps_lbl.text = t
+	# ROADMAP 48: the mode's words and colour; "dropping N frames" while real speed is skipping
+	_mode_paint()
+	if ui_mode_lbl != null:
+		var mt := play_clock.label_now()
+		if mt != ui_mode_lbl.text:
+			ui_mode_lbl.text = mt
+			ui_mode_lbl.add_theme_color_override("font_color", Tok.c("warn") if play_clock.mode == PlaySpeed.REAL and play_clock.dropped > 0 else Tok.c("info" if play_clock.mode == PlaySpeed.REAL else "say"))
 
 
 ## the scene the window plays: landed on the solid dummy, or as authored
@@ -1737,12 +1749,15 @@ func _process(dt: float) -> void:
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
-		var stp := PreviewRange.tick(playhead, dt, _ps().length(), pv_in, pv_out, S.loop)   # WW4: inside the preview range, if one is set
+		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
+		var stp := play_clock.advance(playhead, dt, S.fps, _ps().length(), pv_in, pv_out, S.loop)
 		playhead = stp["t"]
 		if stp["stop"]:
 			playing = false
 		_ps().apply(B, playhead)
 		_refresh()
+		if play_delay > 0.0:
+			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
 	_fps_poll(dt)
 
@@ -6937,6 +6952,17 @@ func _ui() -> void:
 	ui_time_lbl.custom_minimum_size = Vector2(104, 0)
 	ui_time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ph.add_child(ui_time_lbl)
+	# ROADMAP 48: the playback mode, as an icon and words, and the readout beside it ("dropping N frames")
+	ui_mode_btn = _button("Real speed", _mode_toggle, "")
+	ui_mode_btn.name = "b_play_mode"
+	ui_mode_btn.add_theme_font_size_override("font_size", 13)
+	ui_mode_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ui_mode_btn.add_theme_constant_override("icon_max_width", 18)
+	ph.add_child(ui_mode_btn)
+	ui_mode_lbl = _label("Real speed", 13, "info")
+	ui_mode_lbl.name = "play_mode_readout"
+	ui_mode_lbl.tooltip_text = "the playback mode: real speed keeps wall-clock time (dropped frames are counted); every frame shows each frame in order (its speed is shown)"
+	ph.add_child(ui_mode_lbl)
 	ui_fps_lbl = _label("", 13, "text:0.75")
 	ui_fps_lbl.name = "fps_readout"
 	ui_fps_lbl.tooltip_text = "the real frames per second while playing, and the frames that took more than 1.5 x the target time (dropped)"
@@ -9624,7 +9650,37 @@ func _toggle_play() -> void:
 	var sp := PreviewRange.span(pv_in, pv_out, _ps().length())
 	if playing and not sp.is_empty() and (playhead < sp[0] or playhead >= sp[1] - 0.01):
 		playhead = sp[0]   # WW4: Play starts inside the range
+	if playing:
+		play_clock.start(play_clock.mode)   # ROADMAP 48: each pass counts its own dropped frames and speed
 	_refresh()
+
+
+## ROADMAP 48: REAL SPEED / EVERY FRAME, the playback mode. A view setting: the scene is not changed, no undo step.
+func _mode_toggle() -> void:
+	var nxt := PlaySpeed.next_mode(play_clock.mode)
+	play_clock.start(nxt)
+	_mode_paint()
+	var what := "the playhead keeps wall-clock time: a slow machine skips frames" if nxt == PlaySpeed.REAL else "each frame is shown once, in order, even when that is slower than real time"
+	_say("%s: %s.  Click again for %s" % [PlaySpeed.label(nxt, 0, 0.0), what, "Every frame" if nxt == PlaySpeed.REAL else "Real speed"])
+
+
+## the mode's icon, words and colour on the bar (Tok: info for real speed, say for every frame), set when either changes
+func _mode_paint() -> void:
+	if ui_mode_btn == null:
+		return
+	var key := "%s|%s" % [play_clock.mode, Tok.dark]
+	if key == _mode_painted:
+		return
+	_mode_painted = key
+	var real := play_clock.mode == PlaySpeed.REAL
+	ui_mode_btn.text = "Real speed" if real else "Every frame"
+	ui_mode_btn.icon = Icons.tex("realtime" if real else "frames")
+	ui_mode_btn.tooltip_text = "Real speed: the playhead keeps wall-clock time (a slow machine skips frames).\nEvery frame: each frame is shown once, in order, even when slower than real time.\nclick: change it"
+	var col := Tok.c("info" if real else "say")
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "icon_normal_color", "icon_hover_color", "icon_pressed_color"]:
+		ui_mode_btn.add_theme_color_override(k, col)
+	if ui_mode_lbl != null:
+		ui_mode_lbl.add_theme_color_override("font_color", col)   # the base colour; the poll sets "warn" while frames drop
 
 
 ## NEW EMPTY SCENE (one function for its button and its registry entry; round 20, GATES AA3: the two copies did not
