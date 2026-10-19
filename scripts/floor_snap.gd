@@ -2,16 +2,19 @@
 ## Only the root (the card's "offset") changes: every joint angle stays as it is. The floors are the app's own (see
 ## Body.floor_shift): a sole stands on Body.ground()'s floor, a knee / hip / hand capsule on y = 0 (Body.ground_body()'s).
 ## So a standing pose snaps to exactly what Body.ground() gives it, and a kneeling pose rests on its knee surface.
-## Limit: props are not considered (a seat under a lifted body is passed through); Body.ground() handles the set.
+## Props (ROADMAP 93): with a set, the soles stand on the surface under them (Body.floor_shift); a seat under a lifted body
+## is still passed through (only the soles are measured against the set).
 class_name FloorSnap
 
 
 ## the card pose d with its root raised or sunk so its lowest point is on the floor. Joints, weapons and contacts are
 ## copied as they are; only the offset's height changes. B is used as scratch (its pose is replaced)
-static func snapped_pose(B: Body, d: Dictionary) -> Dictionary:
+## props (ROADMAP 93): the set the pose stands on; its soles land on the surfaces under them (a step's tread, a ramp)
+static func snapped_pose(B: Body, d: Dictionary, props := []) -> Dictionary:
 	if d.is_empty() or not d.has("joints"):
 		return d
 	B.from_dict(d)
+	B.props = props
 	var shift := B.floor_shift()
 	var o: Array = d.get("offset", [0, 0, 0])
 	var out := d.duplicate(true)
@@ -27,7 +30,7 @@ static func snap_all(S: Scene, B: Body) -> int:
 		var d: Dictionary = c["pose"]
 		if d.is_empty() or not d.has("joints"):
 			continue
-		var nd := snapped_pose(B, d)
+		var nd := snapped_pose(B, d, S.solid_props())
 		if absf(float((nd["offset"] as Array)[1]) - float((d["offset"] as Array)[1])) > 0.00001:
 			moved += 1
 		c["pose"] = nd

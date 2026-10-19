@@ -1820,23 +1820,12 @@ func _sole_low_set() -> float:
 ## the surface under a point (world x, z): the floor (0) or a support's top, the LOWEST one at which the point, `up`
 ## metres above it, is not inside a prop: a foot over a box stands on its top; a foot under a table or between a
 ## chair's legs stays on the floor
-func surface_at(pt: Vector3, up: float) -> float:
-	var hs := [0.0]
-	for p in props:
-		for s in Props.supports(p):
-			if Props._over(s, pt):
-				hs.append(float(s["y"]))
-	hs.sort()
-	for h in hs:
-		var q := Vector3(pt.x, h + up, pt.z)
-		var inside := false
-		for p in props:
-			for sw in Props.solids(p):
-				if Props._sd(sw, q) < -Props.REST_SINK:
-					inside = true
-		if not inside:
-			return h
-	return hs[-1]
+## ROADMAP 93: the surface under the point itself (its real height, Props.surface_below): a step's tread, a ramp's slope, a
+## box top, the floor. Every caller passes the point where it is (a sole, a hand, a barrel tip), so `up` (its rest height) is
+## no longer probed; it is kept so the callers read as before
+func surface_at(pt: Vector3, _up: float) -> float:
+	return float(Props.surface_below(props, pt)["y"])
+
 
 
 ## how far the hips and thighs must rise to sit ON a seat they sink into (0 = none): the part of each capsule that is
@@ -1905,6 +1894,8 @@ func floor_shift() -> float:
 			continue
 		var r: float = float(rad.get(j, 0.03))
 		cap = minf(cap, minf((P[j] as Vector3).y, (E[j] as Vector3).y) - r)
+	if not props.is_empty():   # ROADMAP 93: the soles stand on the surfaces under them (a step's tread, a ramp), not on y = 0
+		return minf(_sole_low_set(), cap)
 	return minf(minf(foot_sole_low("_l"), foot_sole_low("_r")), cap)
 
 
