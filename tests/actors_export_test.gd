@@ -14,14 +14,14 @@ const DIR := "user://zz_actors_export"
 const BAR := 0.01
 const ENDS := ["hand_l", "hand_r", "foot_l", "foot_r", "head"]
 ## one-actor exports of the pre-TC6 writers (commit 7ddd976), and the scene files they were made from
-const BASE := {
-	"combo3": ["31cbcf4d17c55edf1b1dda70d3aa48091d5eb6872cc667e12b9a1e34518e03e8", {
+const BASE := {   # sha256 of the scene file with CR removed (a checkout may add CRLF), then of each pre-TC6 export
+	"combo3": ["e5dcf25a7d716b00c886e86b1ee94f0a7697bdc0b57c37c0c88dc69bbcdc4bea", {
 		"glb": "499ee1e47f3e46dd807f3945900ccadd8a0beabb2b0ddaae821adf871b0ccf2e",
 		"usda": "c74f8bca9d2ecb2f45f1b2a2132e1b44871cfda3e7c714e49390f30b547a358e",
 		"bvh": "ad7d293652f24ecfeef223a9f2ec8ceb36f71e72c9d1dd9daf85a686321fa213",
 		"json": "b63904ebc461805fdf2701d9b8dfeaedc7593180a9e584206c44d47578e02bf2",
 		"cs": "86f2376b3a023bf90074d90d6abb31296a096ecb565bb0cab5dfea3670581832"}],
-	"walk_bat": ["9c866f8e705cf90a9dc71172ee2d614054da5a446e9c87acf3f3e59efb6b51d4", {
+	"walk_bat": ["bc08fc8cdc71607353dff4612c4eb6721af3e2c02da252714eeb7fdddfc9b693", {
 		"glb": "1654f3184b4230e32c5ad052a4c50ce15c0fb49502b02d3c7f972c49f66adb2a",
 		"usda": "83576e96c758e00e26351ddbd8bf5d6504d064481eeab4517d4801d760e6c821",
 		"bvh": "42f9625ebff2ed84ff7126248dac06e65f0304fa404be99573cbd56d5d9dd576",
@@ -89,7 +89,7 @@ func _init() -> void:
 	var diffs := []
 	var stale := []
 	for sn in BASE:
-		if FileAccess.get_sha256("res://scenes/%s.json" % sn) != BASE[sn][0]:
+		if FileAccess.get_file_as_string("res://scenes/%s.json" % sn).replace("", "").sha256_text() != BASE[sn][0]:
 			stale.append(sn)
 			continue
 		var S1 := Scene.new()
