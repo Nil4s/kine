@@ -1930,7 +1930,26 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   mean 0.032 ms apart, 0.39 ms close (bar 1 ms); state() and P unchanged. Body sphere 1.5 m vs farthest seen 1.347 m.
   Stubs: broad phase always rejects -> FAIL 7 (0.2 m, staff, brute-force set); xf dropped -> FAIL 4 (1.5 m: 104 contacts,
   set, depth 204 mm, purity). Fingers and skin points are not in cross contacts.
-- [ ] TC3 actors in main (no UI): active swap, the other actor posed each refresh, undo tagged by actor.
+- [x] TC3 actors in main (no UI): active swap, the other actor posed each refresh, undo tagged by actor.
+  EVIDENCE: tests/actors_main_test.gd 22 ok (agent, worktree; headless). main keeps B / S as the ACTIVE actor; actors_rt
+  (actor 0 = the hero = the file's top level) is built from S.actors; _pose_others (end of _refresh) poses each other
+  actor from its own scene once per playhead; snapshots carry "actor" + the actor list, _undo/_redo/_restore switch first.
+  Commands: Actor: add a second fighter (this scene by Scene.mirror_file, 1.5 m in front, yaw 180; a third refused),
+  switch to the next fighter (a view, no undo step), remove this fighter (not the hero). (1) combo3 + add: actor 1 =
+  Scene.apply of its own scene at 5 playheads, worst 0.0 (it moves 105 deg between them); the hero's state() bit-identical
+  to a one-actor session. (2) edit 0, switch, edit 1, Ctrl+Z x2: each undo on its own actor (active 1 then 0), state()
+  and cards back exactly, no body ever holds the other's state; Ctrl+Y x2 puts both back. (3) the save dict (Save scene,
+  autosave, versions and Mirror the scene all use main._scene_dict now: the hero's file whoever is active) to user:// and
+  reopened: 2 actors, xf {pos [0, 1.5], yaw 180}, actor scene to_dict equal (131,025 chars); one actor writes no
+  "actors"; _doc_key sees the actors (one actor: the same string as before). (4) one actor, 100 _refresh at the median
+  call: 371.40 ms hook vs 369.90 ms stubbed (+0.41 %), A/A control +0.48 %; 100 hook calls alone 43 us. A first
+  instrument (means of 12 rounds of 100) read +6.8 % and, under the parallel suites, A/A -4.5 %: noise, so the bar is
+  read on medians of 1100 interleaved pairs. (5) main.actor_contacts(1): 0 contacts at 1.5 m; at 0.2 m 13 torso pairs,
+  all "touch", deepest 8.3 cm. _mirror_scene now uses Scene.mirror_file (TC1's OPEN closed; mirror suite 12 ok).
+  undo_audit: add [A] and remove [new start ACTORS] one undo step, put back exactly; fp now includes S.actors.
+  Stubs: _undo + _restore not switching actor -> FAIL 2 (Ctrl+Z 2 lands on actor 1; actor 0's pre-edit body put onto
+  actor 1: the "never the other's state" check was widened from "edited" to "edited or before" after this run, it missed
+  it); _pose_others empty -> FAIL 2 (bar 1 worst 106 deg, moves 0; bar 3 reopened 0 actors: actors_rt is built lazily).
 - [ ] TC4 window: second mannequin, click to switch, the view re-rooted without a jump.
 - [ ] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
 - [ ] TC6 export per actor with its placement; Blender re-import within 1 cm.

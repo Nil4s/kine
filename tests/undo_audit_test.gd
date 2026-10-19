@@ -41,7 +41,8 @@ func fp() -> String:
 		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers,   # WW1, WW5
 		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
 		"layers": var_to_str(m.S.layers),   # NA1
-		"ik": var_to_str(m.S.ik)}   # IK keys (limb_ik.gd)
+		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
+		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards])}   # TC3: the second fighter
 	return JSON.stringify(m.B.to_dict()) + "|" + JSON.stringify(sd)
 
 
@@ -51,6 +52,7 @@ func fp() -> String:
 ## start LAYER: combo3 0.13 s before card 3 arrives, with a layer (spine_03 +5 at weight 0.5): for Block and the layer commands
 ## start STEPPED: the same, already blocking (the stepped view on): for "Spline and check"
 ## start IK: combo3 on card 3 with the left hand pinned at card 1 (for IK release and the two snaps)
+## start ACTORS: combo3 with a second fighter added, switched to it (TC3: for "Actor: remove this fighter")
 ## start THROUGH: two clean right-arm poses whose straight in-between goes through the body (for "Fix moves through
 ##   the body"; found by a seeded random search over legal arm poses: my hand-made swing first went round the body)
 func start(kind: String) -> void:
@@ -123,6 +125,13 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		m.S.apply(m.B, m.playhead)
 		m.sel = "hand_l"
+	elif kind == "ACTORS":
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._actor_add()
+		m._actor_next()
+		m._card_pick(2)
+		m.sel = "lowerarm_r"
 	elif kind.begins_with("res://"):
 		m._load_scene(kind)
 		m._rebuild_cards()
@@ -223,7 +232,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "ACTORS"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break
