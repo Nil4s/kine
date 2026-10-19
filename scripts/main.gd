@@ -956,6 +956,23 @@ func _export_glb(dir := "res://exports") -> String:
 	return path
 
 
+## EXPORT FOR AN ENGINE (ROADMAP item 9): the pre-flight report prints line by line BEFORE the file is written; the
+## logic and the checks are in scripts/engine_export.gd (EngineExport), the needs in docs/research/ENGINES.md.
+func _export_engine(id: String, dir := "res://exports") -> String:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	var keep := B.state()
+	var r: Dictionary = EngineExport.export(S, B, id, dir, func(lines): for l in lines: print(l))   # every line to the console (the log)
+	B.set_state(keep)
+	_refresh()
+	if r["err"] != OK:
+		_say_plain("NOT DONE: the file could not be written (%s)" % error_string(r["err"]))
+		return ""
+	_say_plain("exported %s for %s: %d checks, %d WRONG. %s" % [String(r["path"]).get_file(), EngineExport.preset(id)["label"], (r["lines"] as Array).size(), r["wrong"], EngineExport.preset(id)["needs"]])
+	return r["path"]
+
+
 ## EXPORT PLAYBLAST (VIDEO): the scene from the CURRENT camera, one image per frame at the scene's fps over the preview
 ## range (or the whole scene), saved as exports/playblast/<scene>_<stamp>/frame_0000.png ... and, when ffmpeg is found
 ## (PATH, POSER_FFMPEG or the argument), as <scene>.mp4 beside them. Each frame is posed by _ps().apply + _refresh, the
@@ -6833,6 +6850,9 @@ func _commands() -> Array:
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
+	add.call("Export for Unreal 5...", "", _export_engine.bind("ue5"), "unreal ue5 engine export glb root motion scale centimetres manny delivery", false, "the scene as exports/<scene>_ue5.glb for Unreal 5: root motion on the root bone, units checked (the pre-flight report prints first; docs/research/ENGINES.md)")
+	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
+	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")

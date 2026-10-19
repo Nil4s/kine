@@ -24,7 +24,7 @@ static func _mannequin(with_mesh: bool) -> Node3D:
 
 
 ## the scene as a node tree ready for GLTFDocument (B is posed through the scene; its state is put back)
-static func build(S: Scene, B: Body, anim_name: String, with_mesh := true) -> Node3D:
+static func build(S: Scene, B: Body, anim_name: String, with_mesh := true, root_motion := false) -> Node3D:
 	var man := _mannequin(with_mesh)
 	var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
 	if B.body != S.body:
@@ -32,7 +32,7 @@ static func build(S: Scene, B: Body, anim_name: String, with_mesh := true) -> No
 	Proportions.bake_mannequin(man, sk, B)   # the proportions in the file's rest skeleton and mesh (default: nothing)
 	var anim := Animation.new()
 	anim.length = S.length()
-	_animate(S, B, man, anim, "", S.length(), float(S.fps))
+	_animate(S, B, man, anim, "", S.length(), float(S.fps), "", root_motion)
 	var ap := AnimationPlayer.new()
 	ap.name = "AnimationPlayer"
 	man.add_child(ap)
@@ -84,7 +84,7 @@ static func build_actors(actors: Array, anim_name: String, with_mesh := true) ->
 
 ## one actor's tracks into anim (paths prefixed by its node's path from the player's root), one key per frame over
 ## 0..L at fps; the weapon nodes added under man
-static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: String, L: float, fps_in: float, wpre := "") -> void:
+static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: String, L: float, fps_in: float, wpre := "", root_motion := false) -> void:
 	var keep := B.state()
 	var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
 	var sk_path := pre + String(man.get_path_to(sk))
@@ -97,6 +97,13 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 		rot[j] = tr
 	var pos := anim.add_track(Animation.TYPE_POSITION_3D)
 	anim.track_set_path(pos, NodePath("%s:pelvis" % sk_path))
+	# ROOT MOTION (engine presets, engine_export.gd): the pelvis's horizontal travel moved onto the "root" bone (UE5 Manny's root
+	# motion bone), so the pelvis keeps its height and its horizontal place. Off unless asked, and only with a root bone.
+	var rtr := -1
+	if root_motion and sk.find_bone("root") >= 0:
+		rtr = anim.add_track(Animation.TYPE_POSITION_3D)
+		anim.track_set_path(rtr, NodePath("%s:root" % sk_path))
+	var P0 := Vector3.ZERO   # the pelvis at frame 0 (set in the key loop, after the first pose)
 	# the weapons: present when the scene ever holds one
 	var wtr := {}
 	for w in ["weapon", "weapon2"]:
@@ -130,7 +137,16 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 		S.apply(B, t)
 		for j in rot:
 			anim.rotation_track_insert_key(rot[j], t, B.gltf_local(j))
-		anim.position_track_insert_key(pos, t, B.gltf_pelvis_pos())
+		var pp := B.gltf_pelvis_pos()
+		if rtr >= 0:
+			# the scene's pelvis travel since frame 0, horizontal only (Y is the height, kept on the pelvis)
+			if k == 0:
+				P0 = B.P["pelvis"]
+			var D: Vector3 = B.P["pelvis"] - P0
+			var T := Vector3(D.x, 0.0, D.z)
+			anim.position_track_insert_key(rtr, t, T)
+			pp -= B.root_rot.inverse() * T   # the pelvis's local place with the travel taken off it
+		anim.position_track_insert_key(pos, t, pp)
 		for w in wtr:
 			var on: bool = B.wep_on if w == "weapon" else B.wep2_on
 			var x: Array = (B.wep_xform() if w == "weapon" else B.wep2_xform()) if on else [Vector3.ZERO, Quaternion.IDENTITY]
