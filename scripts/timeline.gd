@@ -18,11 +18,16 @@ signal range_set(which: String, t: float)   # WW4: Shift+click on the ruler = in
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 signal box_picked(i: int)   # ROADMAP 36: a box on the boxes lane clicked: the index into S.boxes
 signal shot_cut(i: int, t: float, final: bool)   # ROADMAP 75: shot i's cut dragged to t (final = the mouse went up)
+signal marker_moved(i: int, t: float, done: bool)   # ROADMAP 97: marker i dragged to t (whole frames; done = the mouse went up)
+signal marker_picked(i: int)   # ROADMAP 97: a marker clicked without a drag: the index into S.markers (main opens its popover)
 
 ## THE SHOTS LANE (ROADMAP 75; main.gd _shot_*): one row under the boxes lane, a segment per shot from its cut to the next
 ## (the shot on at the playhead is lit). A cut is its segment's left edge: drag it (whole frames, between its neighbours) to
 ## move it; a click on the lane scrubs. Drawn only when the scene has shots (main sets nothing: it reads the hero's list).
 const SHOTS_H := 12.0   # px: the lane's height
+signal audio_picked_lane(i: int)   # ROADMAP 77: a sound lane clicked (not its name): the index into S.audio_tracks
+signal audio_name(i: int)   # ROADMAP 77: a sound lane's NAME clicked: that track is muted / unmuted
+signal audio_drag_started(i: int)   # ROADMAP 77: a lane dragged past 3 px: main pushes the ONE undo step here
 
 ## FRAME DATA (ROADMAP 12; scripts/frame_data.gd): main.gd sets `fd` (the analysis, {} = off) and the strip shows its
 ## startup (green), active (red) and recovery (blue) in frames, under the ruler. Drawn only; the numbers are FrameData's.
@@ -45,7 +50,7 @@ const GRAB := 6.0        # px: how close counts as "on an edge"
 const HANDLE_W := 12.0   # px: a card's right-edge handle (ROADMAP 47); hit within half of it either side
 const SNAP := 0.05       # s: the clips' snap (a retime snaps to frames, see _retime_to)
 const FINE := 0.01
-const AUDIO_H := 20.0    # px: the sound's waveform strip under the cards (only when the scene has a sound)
+const LANE_H := 14.0     # px: one sound lane (ROADMAP 77: one thin lane per track, under the cards, track 0 on top)
 const MIN_MOVE := 0.04   # s: a move can't be shorter (a 1-frame move at 30 fps is 0.033)
 const CLIP_H := 12.0     # px: one row per placed CLIP (scripts/clips.gd), under the cards
 const WARP_H := 58.0     # px: the picked clip's row is taller by this: its TIME WARP panel (ROADMAP 83; scripts/clips.gd warp_*)
@@ -54,6 +59,7 @@ var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
 
 var _drag := {}          # {"kind": "move"/"hold"/"edge0"/"scrub", "i", "x0", "v0", "pps", "t0"}
 var _hover := {}
+var mark_sel := -1         # ROADMAP 97: the marker whose popover is open (outlined on the ruler), -1 = none
 
 ## FINDINGS ON THE TIMELINE (round 23, GATES DD3, UPGRADES #30): after Check each finding is a diamond in the ruler at
 ## its time (FAIL red, WARN amber); findings within MARK_PX of each other share one mark with their count; a click on
@@ -87,6 +93,19 @@ func mark_at(p: Vector2) -> Array:
 
 
 func _get_tooltip(at: Vector2) -> String:
+	if _in_shots_lane(at):   # ROADMAP 75: a shot on the lane names itself in full (its label may be cut to fit)
+		var si := _shot_at_x(at.x)
+		if si >= 0:
+			var sh := _shots()
+			var end_t := float(sh[si + 1]["t"]) if si + 1 < sh.size() else _S().length()
+			return "shot %d: %s (%.2f s to %.2f s)
+click to scrub there; drag a cut to move it" % [si + 1, String(sh[si]["name"]), float(sh[si]["t"]), end_t]
+	var mi := marker_at(at) if m != null else -1   # ROADMAP 97: a marker's flag shows its note (its name when it has none)
+	if mi >= 0:
+		var mk: Dictionary = _S().markers[mi]
+		if mk.has("note"):
+			return String(mk["note"])
+		return "%s (%s) at %s: click to edit it, drag to move it" % [mk["name"], mk["kind"], Units.time(mk["t"], _S().fps)]
 	var fs := mark_at(at)
 	var ck := clip_at(at) if at.y >= RULER else -1
 	if ck >= 0:
@@ -111,6 +130,10 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	custom_minimum_size = Vector2(0, 46)
 	clip_contents = true
+	_ph.mouse_filter = Control.MOUSE_FILTER_IGNORE   # ROADMAP 99: the playhead overlay (clicks go to the timeline)
+	_ph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ph.draw.connect(_draw_playhead)
+	add_child(_ph)
 
 
 func _S() -> Scene:
@@ -171,14 +194,45 @@ func _draw_shots_lane(y: float) -> void:
 	var L := _S().length()
 	var on: int = m.shot_now_index()
 	for i in sh.size():
-		var x0 := x_of(float(sh[i]["t"]))
-		var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else L)
+		var sp := _shot_span(i)
+		var x0 := sp.x
+		var x1 := sp.y
 		var act := i == on
 		draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 2.0), SHOTS_H), Tok.c("accent") if act else Tok.of("ink:0.22"))
 		draw_line(Vector2(x0, y - 1.0), Vector2(x0, y + SHOTS_H + 1.0), Tok.c("ink"), 2.0 if i > 0 else 1.0)   # the cut
-		var label := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(sh[i]["name"])]
 		if x1 - x0 > 16.0:
-			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), label, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), shot_label_fit(i, x1 - x0), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+
+
+## shot i's segment on the lane in x: from its cut to the next cut (or the end of the scene)
+func _shot_span(i: int) -> Vector2:
+	var sh := _shots()
+	var x0 := x_of(float(sh[i]["t"]))
+	var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else _S().length())
+	return Vector2(x0, x1)
+
+
+## the shot whose segment covers x on the lane, or -1
+func _shot_at_x(x: float) -> int:
+	for i in _shots().size():
+		var sp := _shot_span(i)
+		if x >= sp.x and x < sp.y:
+			return i
+	return -1
+
+
+## the label drawn on shot i's segment, "n name" (the first shot also says SHOTS). It is cut with an ellipsis ONLY when the
+## segment is narrower than the label; the full name is then the tooltip (_get_tooltip)
+func shot_label_fit(i: int, box_w: float) -> String:
+	var font := get_theme_default_font()
+	var full := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(_shots()[i]["name"])]
+	var avail := box_w - 5.0
+	if font.get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x <= avail:
+		return full
+	var t := full
+	while t.length() > 0 and font.get_string_size(t + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x > avail:
+		t = t.substr(0, t.length() - 1)
+	return t + "…" if t.length() > 0 else ""
 
 
 ## a shot's cut dragged to x: whole frames, never onto its neighbours' cuts (the order stays)
@@ -200,8 +254,7 @@ func _shot_cut_drag(x: float) -> void:
 
 ## the diamonds' centre line (y)
 func _cam_y() -> float:
-	var ah := AUDIO_H if not _S().audio.is_empty() else 0.0
-	return size.y - ah - CAM_R - 2.0
+	return size.y - audio_h() - CAM_R - 2.0
 
 
 ## the time of the camera key whose diamond is at p, or -1.0
@@ -282,6 +335,11 @@ func _gui_input(ev: InputEvent) -> void:
 				scrubbed.emit(nt)
 				accept_event()
 				return
+			var mki := marker_at(ev.position)   # ROADMAP 97: a marker's flag: a click opens it, a drag moves it by whole frames
+			if mki >= 0:
+				_drag = {"kind": "marker", "i": mki, "x0": ev.position.x, "f0": Markers.frame_of(float(S.markers[mki]["t"]), S.fps), "moved": false}
+				accept_event()
+				return
 			var fs := mark_at(ev.position)
 			if not fs.is_empty():
 				finding_picked.emit(fs[0])
@@ -301,6 +359,16 @@ func _gui_input(ev: InputEvent) -> void:
 			var bxi := box_at(ev.position)   # ROADMAP 36: a click on the boxes lane picks that box
 			if bxi >= 0:
 				box_picked.emit(bxi)
+				accept_event()
+				return
+			var al := audio_lane_at(ev.position)   # ROADMAP 77: a sound lane; its name mutes, the rest picks and drags the offset
+			if al >= 0:
+				if audio_name_at(ev.position):
+					audio_name.emit(al)
+				else:
+					audio_picked_lane.emit(al)
+					_drag = {"kind": "audio", "i": al, "x0": ev.position.x, "pps": pps(), "moved": false, "off0": float(S.audio_tracks[al]["offset"])}
+					queue_redraw()
 				accept_event()
 				return
 			var h := hit(ev.position)
@@ -331,11 +399,20 @@ func _gui_input(ev: InputEvent) -> void:
 			_drag = {}
 			queue_redraw()
 			accept_event()
+		elif not _drag.is_empty() and _drag["kind"] == "marker":
+			var mi: int = _drag["i"]
+			if _drag["moved"]:
+				marker_moved.emit(mi, Markers.time_of_frame(int(_drag["last"]), S.fps), true)
+			else:
+				marker_picked.emit(mi)
+			_drag = {}
+			queue_redraw()
+			accept_event()
 		elif not _drag.is_empty():
 			var was: String = _drag.get("kind", "")
 			var moved: bool = _drag.get("moved", true)
 			_drag = {}
-			if was != "scrub" and moved:
+			if was != "scrub" and was != "audio" and moved:
 				retimed.emit(true)
 			queue_redraw()
 			accept_event()
@@ -359,12 +436,24 @@ func _gui_input(ev: InputEvent) -> void:
 		if _drag["kind"] == "scrub":
 			scrubbed.emit(t_of(ev.position.x))
 			return
+		if _drag["kind"] == "marker":
+			var f := clampi(Markers.frame_of(t_of(ev.position.x), S.fps), 0, Markers.frame_of(S.length(), S.fps))
+			if f != int(_drag.get("last", _drag["f0"])):
+				_drag["last"] = f
+				_drag["moved"] = true
+				marker_moved.emit(int(_drag["i"]), Markers.time_of_frame(f, S.fps), false)
+			accept_event()
+			return
 		if _drag["kind"] == "clip":
 			_clip_drag(ev.position.x, ev.shift_pressed)
 			accept_event()
 			return
 		if _drag["kind"] == "warp":
 			_warp_drag(ev.position)
+			accept_event()
+			return
+		if _drag["kind"] == "audio":
+			_audio_drag(ev.position.x, ev.shift_pressed)
 			accept_event()
 			return
 		_retime_to(ev.position.x, ev.shift_pressed)
@@ -420,16 +509,74 @@ func _retime_to(x: float, fine: bool) -> void:
 	queue_redraw()
 
 
-## the sound under the cards: its peak envelope from the offset on (computed once by AudioTrack.envelope), or a flat bar
-## with the file name when it cannot be decoded (ogg / mp3) or the file is gone
-func _draw_audio(S: Scene, font: Font, y: float, h: float) -> void:
-	var env: Dictionary = m.audio_env
-	var off := float(S.audio.get("offset", 0.0))
+## ROADMAP 77: the height of the sound lanes under the cards (one LANE_H per track)
+func audio_h() -> float:
+	var S := _S()
+	return LANE_H * S.audio_tracks.size() if S != null else 0.0
+
+
+## the sound lane under p (an index into S.audio_tracks), or -1
+func audio_lane_at(p: Vector2) -> int:
+	var S := _S()
+	if S == null or S.audio_tracks.is_empty():
+		return -1
+	var y0 := size.y - audio_h()
+	if p.y < y0 or p.y >= size.y:
+		return -1
+	return clampi(int(floor((p.y - y0) / LANE_H)), 0, S.audio_tracks.size() - 1)
+
+
+## the lane's name: a box from the lane's start (or the timeline's left edge) over the name's text
+func audio_name_rect(i: int) -> Rect2:
+	var S := _S()
+	var t: Dictionary = S.audio_tracks[i]
+	var y := size.y - audio_h() + i * LANE_H
+	var x0 := maxf(x_of(float(t["offset"])), 0.0)
+	var w := get_theme_default_font().get_string_size(AudioTrack.label(t), HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x + 8.0
+	return Rect2(x0, y, w, LANE_H)
+
+
+func audio_name_at(p: Vector2) -> bool:
+	var i := audio_lane_at(p)
+	return i >= 0 and audio_name_rect(i).has_point(p)
+
+
+## the offset drag: snapped to whole frames (Shift: 1 ms), never before the scene's start
+func _audio_drag(x: float, fine: bool) -> void:
+	var S := _S()
+	var i := int(_drag["i"])
+	if not _drag["moved"]:
+		if absf(x - float(_drag["x0"])) < 3.0:
+			return
+		_drag["moved"] = true
+		audio_drag_started.emit(i)   # main pushes the ONE undo step here
+	var q := 0.001 if fine else 1.0 / maxf(S.fps, 1)
+	S.audio_tracks[i]["offset"] = maxf(0.0, snappedf(float(_drag["off0"]) + (x - float(_drag["x0"])) / float(_drag["pps"]), q))
+	queue_redraw()
+
+
+## the sound lanes, one per track. Each shows its peak envelope from its offset on (computed once by AudioTrack.envelope),
+## or a flat bar with the file name when it cannot be decoded (ogg / mp3) or the file is gone. A picked lane is lit; a muted one is dim
+func _draw_audio_lanes(S: Scene, font: Font) -> void:
+	var y0 := size.y - audio_h()
+	for i in S.audio_tracks.size():
+		_draw_lane(S, font, i, y0 + i * LANE_H, LANE_H)
+	# the music beats (ROADMAP 32) sit on the music track's lane
+	var mi := AudioTrack.index_of_role(S.audio_tracks, "music")
+	if mi >= 0:
+		_draw_beats(S, y0 + mi * LANE_H, LANE_H - 1.0, float(S.audio_tracks[mi]["offset"]))
+
+
+func _draw_lane(S: Scene, font: Font, i: int, y: float, h: float) -> void:
+	var t: Dictionary = S.audio_tracks[i]
+	var env: Dictionary = m.audio_envs[i] if i < m.audio_envs.size() else {}
+	var off := float(t.get("offset", 0.0))
 	var len_s := float(env.get("length", 0.0))
 	var x0 := x_of(off)
-	var nm := String(S.audio.get("path", "")).get_file()
-	draw_rect(Rect2(0, y, size.x, h), Tok.of("ink:0.06"))
-	if env.get("ok", false):
+	var muted: bool = not AudioTrack.audible(S.audio_tracks)[i]
+	var picked: bool = i == int(m.audio_pick)
+	draw_rect(Rect2(0, y, size.x, h), Tok.of("ink:0.14") if picked else Tok.of("ink:0.06"))
+	if env.get("ok", false) and not muted:
 		var mid := y + h * 0.5
 		var col := Tok.of("ink:0.55")
 		var x := maxf(x0, 0.0)
@@ -439,20 +586,21 @@ func _draw_audio(S: Scene, font: Font, y: float, h: float) -> void:
 			var hh := maxf(p * h * 0.5, 0.5)
 			draw_line(Vector2(x, mid - hh), Vector2(x, mid + hh), col, 1.0)
 			x += 1.0
-		draw_string(font, Vector2(maxf(x0, 0.0) + 3, y + 10), nm, HORIZONTAL_ALIGNMENT_LEFT, 160, 9, Tok.of("ink:0.5"))
-	else:
+	elif not muted:
 		var wbar := maxf(x_of(off + len_s) - x0, 40.0) if len_s > 0.0 else 40.0
-		draw_rect(Rect2(maxf(x0, 0.0), y + h * 0.5 - 2.0, minf(wbar, size.x), 4.0), Tok.of("ink:0.4"))
-		var why := ": no waveform for this format" if len_s > 0.0 else " (file missing)"
-		draw_string(font, Vector2(maxf(x0, 0.0) + 3, y + h * 0.5 - 4.0), nm + why, HORIZONTAL_ALIGNMENT_LEFT, size.x, 9, Tok.of("ink:0.6"))
+		draw_rect(Rect2(maxf(x0, 0.0), y + h * 0.5 - 1.0, minf(wbar, size.x), 2.0), Tok.of("ink:0.4"))
+	var why := ""
+	if not env.get("ok", false):
+		why = ": no waveform for this format" if len_s > 0.0 else " (file missing)"
+	var label_c := Tok.c("focus") if picked else Tok.of("ink:0.6")
+	draw_string(font, Vector2(maxf(x0, 0.0) + 3, y + h - 3.0), AudioTrack.label(t) + why, HORIZONTAL_ALIGNMENT_LEFT, size.x, 9, label_c)
 	draw_line(Vector2(x0, y), Vector2(x0, y + h), Tok.of("ink:0.6"), 1.0)
 
 
-## MUSIC BEATS (ROADMAP 32): a thin mark per beat across the sound strip; a bar's first beat (down) is full height and warm
-func _draw_beats(S: Scene, y: float, h: float) -> void:
-	if S.beats_audio.is_empty() or S.audio.is_empty():
+## MUSIC BEATS (ROADMAP 32): a thin mark per beat across the music lane; a bar's first beat (down) is full height and warm
+func _draw_beats(S: Scene, y: float, h: float, off: float) -> void:
+	if S.beats_audio.is_empty():
 		return
-	var off := float(S.audio.get("offset", 0.0))
 	for b in S.beats_audio:
 		var x := x_of(float(b["t"]) + off)
 		if x < -1.0 or x > size.x + 1.0:
@@ -488,7 +636,7 @@ func _draw() -> void:
 	if shp > 0.0:
 		_draw_shots_lane(_shots_y())
 	var y0 := RULER + 2.0 + fdh + bxh + shp
-	var ah := AUDIO_H if not S.audio.is_empty() else 0.0
+	var ah := audio_h()
 	_clip_fit(S)
 	var h := size.y - y0 - 2.0 - ah - _clip_px
 	for i in S.cards.size():
@@ -536,8 +684,7 @@ func _draw() -> void:
 		for g in [-1.5, 1.5]:
 			draw_line(Vector2(hx + g, y0 + h * 0.35), Vector2(hx + g, y0 + h * 0.65), Tok.c("tl_bg"), 1.0)
 	if ah > 0.0:
-		_draw_audio(S, font, size.y - ah, ah - 1.0)
-		_draw_beats(S, size.y - ah, ah - 1.0)
+		_draw_audio_lanes(S, font)
 	_draw_clips(S, font)
 	if not fd.is_empty():
 		_draw_fd_strip(font, RULER + 2.0)
@@ -591,12 +738,21 @@ func _draw() -> void:
 		draw_rect(Rect2(xa0, 0, xb0 - xa0, 3), Tok.c("warn"))
 		draw_line(Vector2(xa0, 0), Vector2(xa0, size.y), Tok.c("warn"), 1.0)
 		draw_line(Vector2(xb0, 0), Vector2(xb0, size.y), Tok.c("warn"), 1.0)
-	# MARKERS (round 41, WW5): a small flag on the ruler at each marker's time, coloured by its kind
-	for mk in S.markers:
+	# MARKERS (round 41, WW5): a small flag on the ruler at each marker's time, coloured by its colour (ROADMAP 97) or kind
+	for mi in S.markers.size():
+		var mk: Dictionary = S.markers[mi]
 		var fx := x_of(float(mk["t"]))
-		var fc: Color = Markers.COLORS.get(String(mk["kind"]), Color.WHITE)
+		var fc: Color = Tok.c(Markers.token_of(mk))
 		draw_line(Vector2(fx, 0), Vector2(fx, RULER), fc, 1.0)
-		draw_colored_polygon(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6)]), fc)
+		draw_rect(Rect2(fx, 0, 8, 10), fc)   # a filled flag, 10 px tall (ROADMAP 97: readable at a glance)
+		if mi == mark_sel:   # the marker whose popover is open: an outline around its flag
+			draw_rect(Rect2(fx - 1, -1, 10, 12), Tok.c("ink"), false, 1.5)
+		# the name beside the flag, when the space up to the next marker (or the ruler's end) fits it
+		var nxt := size.x if mi + 1 >= S.markers.size() else x_of(float(S.markers[mi + 1]["t"]))
+		var nm := String(mk["name"])
+		var tw := get_theme_default_font().get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+		if nxt - (fx + 10.0) >= tw + 4.0:
+			draw_string(get_theme_default_font(), Vector2(fx + 10.0, 9.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, fc)
 	# REVIEW NOTES (ROADMAP 29): a cyan square on the ruler at each comment's frame (note_t_at takes a click on it)
 	for nt in S.notes:
 		var nx := x_of(clampf(Review.time_of(int(nt["frame"]), S.fps), 0.0, L))
@@ -606,10 +762,40 @@ func _draw() -> void:
 	for t in cam_times():
 		var cx := x_of(float(t))
 		draw_colored_polygon(PackedVector2Array([Vector2(cx, cy - CAM_R), Vector2(cx + CAM_R, cy), Vector2(cx, cy + CAM_R), Vector2(cx - CAM_R, cy)]), ShotGizmo.COLOR)
-	# playhead
-	var px := x_of(clampf(float(m.playhead), 0.0, L))
-	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("autokey") if m.auto_key else Tok.c("ink"), 2.0)   # ROADMAP 42: red while auto-key is on
-	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
+	_ph.queue_redraw()   # the playhead is its own overlay (see _draw_playhead): a full redraw refreshes it too
+
+
+## ROADMAP 99: THE PLAYHEAD OVERLAY. While a scene plays only the playhead moves, so the app redraws this small child (a line
+## and a flag) every frame instead of the whole timeline (m._tl_play_redraw decides when nothing else changed).
+var _ph := Control.new()
+
+
+func playhead_redraw() -> void:
+	_ph.queue_redraw()
+
+
+func _draw_playhead() -> void:
+	var S := _S()
+	if S == null or S.cards.size() < 1:
+		return
+	var px := x_of(clampf(float(m.playhead), 0.0, S.length()))
+	_ph.draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("autokey") if m.auto_key else Tok.c("ink"), 2.0)   # ROADMAP 42: red while auto-key is on
+	_ph.draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
+
+
+## ROADMAP 97: the index of the marker whose flag is under p (on the ruler), or -1
+func marker_at(p: Vector2) -> int:
+	var S := _S()
+	if S == null or S.cards.is_empty() or S.markers.is_empty() or p.y < 0.0 or p.y >= RULER:
+		return -1
+	var best := -1
+	var bd := 4.0
+	for i in S.markers.size():
+		var d := absf(x_of(clampf(float(S.markers[i]["t"]), 0.0, S.length())) - p.x)
+		if d <= bd:
+			bd = d
+			best = i
+	return best
 
 
 ## ROADMAP 29: the time of the review note whose mark is under p (on the ruler), or -1
@@ -664,7 +850,7 @@ func _clip_rows_h(S: Scene) -> float:
 ## the top of clip k's row (rows stack from the bottom up: each clip's row, the picked one's panel under its bar)
 func _clip_y(k: int) -> float:
 	var S := _S()
-	var y := size.y - (AUDIO_H if not S.audio.is_empty() else 0.0) - _clip_px
+	var y := size.y - audio_h() - _clip_px
 	var sel := _clip_sel()
 	for j in k:
 		y += CLIP_H + (WARP_H if j == sel else 0.0)

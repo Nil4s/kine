@@ -145,6 +145,8 @@ var ui_why_box: VBoxContainer
 var _why_last: Dictionary = {}   # the last refusal or error: {text, cmd, part, frame, at}
 var _why_cmd := ""               # the command (or button) the user ran last: the refusal's "you tried"
 var ui_cmd: CommandSearch
+var plugins: Plugins               # ROADMAP 100: user plugins (scripts/plugins.gd); none loads until it is switched on
+var ui_plugins: PluginsPanel       # the Plugins panel (scripts/plugins_panel.gd): the list and the switches
 ## MACROS (ROADMAP 81; scripts/macros.gd): palette steps recorded in order, saved by name in macros_file. Playing one is
 ## ONE undo step (_push_undo opens it once, at the first edit of the play). rec_label = the REC indicator while recording
 var macros_file := "user://macros.json"
@@ -167,7 +169,8 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI"]]],
-	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
+	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
+		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -570,7 +573,7 @@ func part_look(j: String, touching := {}) -> String:
 		return "lock"
 	if touching.has(j):
 		return "touch"
-	if j in Body.ORDER and B.P.has(j) and not B.at_limit(j).is_empty():
+	if j in Body.ORDER and B.P.has(j) and B.limit_fade(j) > 0.0:   # the limit tint: only in the last 10% of the range (Body.limit_fade)
 		return "limit"
 	return ""
 
@@ -982,6 +985,17 @@ var _version_paths: Array = []
 var vdiff := {}
 var ui_vdiff: PanelContainer
 var ui_vdiff_text: Label
+## SCENE DIFF REPORT (ROADMAP 98, scripts/scene_report.gd): two versions (or a version and the open scene) in words. Read only:
+## the panel's rows are data; a click moves the playhead and the selection; 'Show both' ghosts the older card through vdiff.
+var ui_sdiff: PanelContainer
+var ui_sdiff_a: OptionButton
+var ui_sdiff_b: OptionButton
+var ui_sdiff_head: Label
+var ui_sdiff_list: VBoxContainer
+var ui_sdiff_both: CheckBox
+var _sdiff_paths: Array = []   # the options: "" = the open scene, then the versions (newest first)
+var _sdiff_rows: Array = []
+var _sdiff_a: Scene = null     # the older side as loaded (null when it is the open scene)
 
 
 func versions_dir() -> String:
@@ -1184,7 +1198,7 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 		how = ""
 	elif ff == "":
 		how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Export playblast (video) again, or set POSER_FFMPEG to ffmpeg.exe"
-	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], S.audio, sp[0]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), sp[0]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
 		mp4 = "%s/%s.mp4" % [gdir, nm]
 		how = " and %s.mp4" % nm
 	else:
@@ -1343,9 +1357,20 @@ func _export_usd_layers(dir := "res://exports") -> String:
 ## (its xf in the hero's space); [] with one fighter, and the exports write what they always wrote
 func _export_actors() -> Array:
 	_actors_sync()
-	if actors_rt.size() < 2:
-		return []
-	return actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]})
+	if S.crowd.is_empty():
+		if actors_rt.size() < 2:
+			return []
+		return actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]})
+	# ROADMAP 95: a crowd is exported as one more actor per copy, beside the fighter itself (the hero, then the others)
+	var acts := []
+	if actors_rt.is_empty():
+		acts.append({"name": "hero", "S": S, "B": B, "xf": Transform3D.IDENTITY})
+	else:
+		acts.append_array(actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]}))
+	_crowd_sync()
+	for m in crowd_men:
+		acts.append({"name": "crowd_%02d" % int(m["k"]), "S": m["sc"], "B": m["B"], "xf": Crowd.placement(m["c"])})
+	return acts
 
 
 ## the file name of a multi-fighter export: the hero's scene, whoever is active
@@ -1369,6 +1394,9 @@ func _versions_menu() -> void:
 		var v: Dictionary = d.get("version", {})
 		pm.add_item("v%d   %s   %d cards" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size()], 100 + i)
 	# COMPARE WITH (ROADMAP 28): ids 50.. compare, 2 stops, 3 restores the one compared (ids 100.. restore a row)
+	pm.add_separator()
+	pm.add_item("Diff report: what changed, in words...", 4)   # ROADMAP 98: two versions, or one and the open scene
+	pm.set_item_tooltip(pm.item_count - 1, "a readable list of what changed between two versions (or a version and the open scene): cards added, removed, moved, joints, timing, props, markers, notes, settings. Read only")
 	if not _version_paths.is_empty():
 		pm.add_separator()
 		for i in mini(_version_paths.size(), 50):
@@ -1382,7 +1410,9 @@ func _versions_menu() -> void:
 
 
 func _version_picked(id: int) -> void:
-	if id == 0:
+	if id == 4:   # ROADMAP 98: the diff report (ids 0..3 are taken, 50.. compare, 100.. restore)
+		_sdiff_open()
+	elif id == 0:
 		_save_version()
 	elif id == 2:
 		_vdiff_clear()
@@ -1420,6 +1450,206 @@ func _vdiff_clear() -> void:
 	ui_vdiff.visible = false
 	ui_timeline.queue_redraw()
 	_refresh()
+
+
+## DIFF REPORT (ROADMAP 98, scripts/scene_report.gd): the panel, built once. Top left of the view, like the compare list.
+func _sdiff_build() -> void:
+	ui_sdiff = PanelContainer.new()
+	ui_sdiff.name = "sdiff_panel"
+	ui_sdiff.visible = false
+	ui_sdiff.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	ui_sdiff.offset_left = 256
+	ui_sdiff.offset_top = 96
+	ui_sdiff.custom_minimum_size = Vector2(330, 0)   # narrow: the body in the view stays clear of it
+	var ssb := StyleBoxFlat.new()
+	ssb.bg_color = Tok.c("float")
+	ssb.set_corner_radius_all(6)
+	ssb.set_content_margin_all(8)
+	ui_sdiff.add_theme_stylebox_override("panel", ssb)
+	var col := VBoxContainer.new()
+	ui_sdiff.add_child(col)
+	col.add_child(_label("Diff report", 15, "text", false))
+	var ra := HBoxContainer.new()
+	col.add_child(ra)
+	ra.add_child(_label("older", 13, "text:0.85", false))
+	ui_sdiff_a = OptionButton.new()
+	ui_sdiff_a.name = "sdiff_old"
+	ui_sdiff_a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_sdiff_a.tooltip_text = "the older side: a saved version, or the open scene"
+	ui_sdiff_a.item_selected.connect(func(_i): _sdiff_run())
+	ra.add_child(ui_sdiff_a)
+	var rb := HBoxContainer.new()
+	col.add_child(rb)
+	rb.add_child(_label("newer", 13, "text:0.85", false))
+	ui_sdiff_b = OptionButton.new()
+	ui_sdiff_b.name = "sdiff_new"
+	ui_sdiff_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_sdiff_b.tooltip_text = "the newer side: the open scene (click a row to jump there) or a saved version (read only)"
+	ui_sdiff_b.item_selected.connect(func(_i): _sdiff_run())
+	rb.add_child(ui_sdiff_b)
+	ui_sdiff_head = _label("", 13, "text:0.85", true)
+	col.add_child(ui_sdiff_head)
+	var scroll := ScrollContainer.new()
+	scroll.name = "sdiff_scroll"
+	scroll.custom_minimum_size = Vector2(314, 300)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(scroll)
+	ui_sdiff_list = VBoxContainer.new()
+	ui_sdiff_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(ui_sdiff_list)
+	var foot := HBoxContainer.new()
+	col.add_child(foot)
+	ui_sdiff_both = CheckBox.new()
+	ui_sdiff_both.name = "sdiff_both"
+	ui_sdiff_both.text = "Show both"
+	ui_sdiff_both.tooltip_text = "ghost the older version's pose over the open scene at the card of the row you picked (magenta)"
+	ui_sdiff_both.toggled.connect(_sdiff_both_toggled)
+	foot.add_child(ui_sdiff_both)
+	var close := Button.new()
+	close.name = "sdiff_close"
+	close.text = "Close"
+	close.tooltip_text = "close the diff report (the scenes are not touched)"
+	close.pressed.connect(_sdiff_close)
+	foot.add_child(close)
+	ui_root.add_child(ui_sdiff)
+
+
+## a label for one option: the open scene, or a version (its number, the time it was saved, its cards)
+func _sdiff_label(p: String) -> String:
+	if p == "":
+		return "now (the open scene)"
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(p))
+	var v: Dictionary = d.get("version", {}) if d is Dictionary else {}
+	return "v%d  %s  %d cards" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size()]
+
+
+## the report opens on the newest version against the open scene (the usual question: what did I change since I saved)
+func _sdiff_open(old_paths := []) -> void:   # old_paths: the saved versions offered (the test's seam; {} = this scene's versions)
+	_sdiff_paths = [""]
+	_sdiff_paths.append_array(old_paths if not old_paths.is_empty() else versions())
+	ui_sdiff_a.clear()
+	ui_sdiff_b.clear()
+	for i in _sdiff_paths.size():
+		ui_sdiff_a.add_item(_sdiff_label(_sdiff_paths[i]), i)
+		ui_sdiff_b.add_item(_sdiff_label(_sdiff_paths[i]), i)
+	ui_sdiff_a.select(1 if _sdiff_paths.size() > 1 else 0)
+	ui_sdiff_b.select(0)
+	ui_sdiff.visible = true
+	_sdiff_run()
+	if _sdiff_paths.size() == 1:
+		_say_plain("no versions to compare yet: Versions, 'Save a version now' keeps this scene to compare with later")
+
+
+## the rows of the two picked sides: the older (A) against the newer (B). Nothing is written.
+func _sdiff_run() -> void:
+	var pa: String = _sdiff_paths[ui_sdiff_a.selected]
+	var pb: String = _sdiff_paths[ui_sdiff_b.selected]
+	var A: Scene = S if pa == "" else VersionDiff.load_scene(pa)
+	var Bs: Scene = S if pb == "" else VersionDiff.load_scene(pb)
+	if A == null or Bs == null:
+		_say_plain("NOT NOW: %s will not open as a scene: pick another version" % (pa if A == null else pb).get_file())
+		return
+	_sdiff_a = A
+	_sdiff_rows = SceneReport.report(A, Bs, func(j): return nice(j))
+	for c in ui_sdiff_list.get_children():
+		ui_sdiff_list.remove_child(c)
+		c.queue_free()
+	var head := "No changes: %s and %s are the same (%d cards each)" % [_sdiff_label(pa), _sdiff_label(pb), Bs.cards.size()]
+	if not _sdiff_rows.is_empty():
+		var nj := 0
+		for r in _sdiff_rows:
+			if r["kind"] == "joint":
+				nj += 1
+		head = "%d changes (%d joints over 0.5 deg), %s is newer.  Click a row to go to its card" % [_sdiff_rows.size(), nj, _sdiff_label(pb)]
+		if pb != "":
+			head += "  (jumps work on the open scene: pick 'now' as the newer side)"
+	ui_sdiff_head.text = head
+	if _sdiff_rows.is_empty():
+		_sdiff_line("nothing differs in the cards, the poses, the timing, the props, markers, notes or settings")
+	for k in _sdiff_rows.size():
+		var r: Dictionary = _sdiff_rows[k]
+		var b := Button.new()
+		b.name = "sdiff_row_%d" % k
+		b.flat = true
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.text = r["text"]
+		b.clip_text = true
+		b.focus_mode = Control.FOCUS_NONE
+		if int(r["card"]) < 0:
+			b.disabled = true
+			b.tooltip_text = "the card is not in the newer side, so there is no place to jump to"
+		else:
+			b.tooltip_text = "go to card %d and select %s" % [int(r["card"]) + 1, String(r["joint"]) if r["joint"] != "" else "the card"]
+			b.pressed.connect(_sdiff_jump.bind(k))
+		ui_sdiff_list.add_child(b)
+	if ui_sdiff_both.button_pressed and _sdiff_last_card() >= 0:
+		_sdiff_ghost(_sdiff_rows[_sdiff_last_card()])
+
+
+## a plain line in the list (no row)
+func _sdiff_line(t: String) -> void:
+	var l := _label(t, 13, "text:0.85", true)
+	ui_sdiff_list.add_child(l)
+
+
+## the row index of the last jump (-1 = none): the ghost follows it
+var _sdiff_last := -1
+
+
+func _sdiff_last_card() -> int:
+	return _sdiff_last if _sdiff_last >= 0 and _sdiff_last < _sdiff_rows.size() else -1
+
+
+## a row clicked: the playhead and the card selected in the open scene, the joint selected too (the body is posed from
+## the scene; nothing is written)
+func _sdiff_jump(k: int) -> void:
+	var r: Dictionary = _sdiff_rows[k]
+	var c: int = int(r["card"])
+	if c < 0:
+		return
+	if ui_sdiff_b.selected != 0:
+		_say_plain("jumps work on the open scene: pick 'now' as the newer side of the diff report")
+		return
+	_sdiff_last = k
+	sel_card = c
+	sel_end = -1
+	playing = false
+	playhead = float(r["t"])
+	if r["joint"] != "":
+		sel = r["joint"]
+	_ps().apply(B, playhead)
+	_rebuild_cards()
+	if ui_sdiff_both.button_pressed:
+		_sdiff_ghost(r)
+	_refresh()
+	_say_plain("card %d '%s'%s" % [c + 1, S.cards[c]["name"], ("  -  " + nice(r["joint"]) if r["joint"] != "" else "")])
+
+
+## SHOW BOTH: the older side's pose at the older card, ghosted (magenta) over the open scene at the picked row's card.
+## A card that is not in the older side has no ghost to show.
+func _sdiff_ghost(r: Dictionary) -> void:
+	var has: bool = float(r["ta"]) >= 0.0 and _sdiff_a != null
+	vdiff = {"path": "", "name": "older", "scene": _sdiff_a if has else null, "ghost_t": float(r["ta"]) if has else 0.0, "sdiff": true,
+		"rows": [], "marks": []}   # the timeline reads the compare's marks: none here
+	_refresh()
+
+
+func _sdiff_both_toggled(on: bool) -> void:
+	if on:
+		var k := _sdiff_last_card()
+		if k >= 0:
+			_sdiff_ghost(_sdiff_rows[k])
+	elif vdiff.get("sdiff", false):
+		vdiff = {}
+		_refresh()
+
+
+func _sdiff_close() -> void:
+	ui_sdiff.visible = false
+	ui_sdiff_both.set_pressed_no_signal(false)
+	if vdiff.get("sdiff", false):
+		vdiff = {}
+		_refresh()
 
 
 ## the rows and the frame marks of the compared version against the open scene; the panel's text
@@ -1856,6 +2086,9 @@ func _ready() -> void:
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	for sc in _bake_scenes():
+		if (sc as Scene).baker != null:
+			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -1887,10 +2120,12 @@ func _process(dt: float) -> void:
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
 	_video_poll(dt)
+	_multicam_poll(dt)
 	_live_poll(dt)
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	_dm_poll()
+	_bake_poll()
 	_kb_poll()
 	_as_wait += dt
 	if _as_wait >= 15.0:
@@ -1920,9 +2155,23 @@ func _process(dt: float) -> void:
 		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
 		var stp := play_clock.advance(playhead, dt, S.fps, _ps().length(), pv_in, pv_out, S.loop)
 		playhead = stp["t"]
+		# ROADMAP 77: while a track sounds, the audio clock drives the playhead (monotonic; the frame clock only
+		# stands in when no track sounds, at a loop or stop, or when the two disagree by more than a quarter second)
+		var ta := _audio_clock()
+		audio_from_clock = false
+		if ta >= 0.0 and play_clock.mode == PlaySpeed.REAL and not stp["stop"] and ta >= _a_before and absf(ta - playhead) < 0.25:
+			playhead = ta
+			audio_from_clock = true
+		# the mechanism gate (tests): each sounding track's audio clock minus the playhead, read the instant the playhead is set
+		var cg := _audio_clock()   # the mechanism gate (tests): the premix's clock minus the playhead, read the instant the playhead is set
+		audio_gap = []
+		for i in S.audio_tracks.size():
+			audio_gap.append((cg - playhead) if cg >= 0.0 else NAN)
 		if stp["stop"]:
 			playing = false
-		_ps().apply(B, playhead)
+		if not PerfStub.skip("body"):
+			var ps := _ps()
+			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
 		_refresh()
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
@@ -1978,6 +2227,7 @@ func _world() -> void:
 	var floor := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(4, 4)
+	floor_pm = pm
 	floor.mesh = pm
 	var fm := StandardMaterial3D.new()
 	fm.albedo_color = Tok.c("floor")
@@ -2072,21 +2322,31 @@ const AXES := [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, AXIS_
 var axis_mesh: ImmediateMesh
 
 
-static func grid_alpha(p: Vector3) -> float:
-	return clampf((GRID_END - Vector2(p.x, p.z).length()) / (GRID_END - GRID_FULL), 0.0, 1.0)
+## ROADMAP 95: with a crowd the floor grows to cover every copy's feet (+0.5 m): the fade then runs over the square
+## (max of |x|, |z|) instead of the circle, and the grid's edge is the floor's edge
+var grid_end := GRID_END
+var grid_full := GRID_FULL
+var grid_square := false
+var floor_pm: PlaneMesh
+var crowd_half := 0.0   # the floor's half-size while a crowd is out (0 = the default floor)
+
+
+static func grid_alpha(p: Vector3, end := GRID_END, full := GRID_FULL, square := false) -> float:
+	var r := maxf(absf(p.x), absf(p.z)) if square else Vector2(p.x, p.z).length()
+	return clampf((end - r) / (end - full), 0.0, 1.0)
 
 
 func _grid() -> void:
 	grid_mesh.clear_surfaces()
 	grid_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	var n := int(round(GRID_END / GRID_STEP))
+	var n := int(ceil(grid_end / GRID_STEP - 0.000001))
 	for k in range(-n, n + 1):
 		var x := k * GRID_STEP
 		var c := Tok.c("grid_major") if k % 10 == 0 else Tok.c("grid")
 		for i in range(-n, n):
 			for seg in [[Vector3(x, 0, i * GRID_STEP), Vector3(x, 0, (i + 1) * GRID_STEP)], [Vector3(i * GRID_STEP, 0, x), Vector3((i + 1) * GRID_STEP, 0, x)]]:
-				var a0 := grid_alpha(seg[0])
-				var a1 := grid_alpha(seg[1])
+				var a0 := grid_alpha(seg[0], grid_end, grid_full, grid_square)
+				var a1 := grid_alpha(seg[1], grid_end, grid_full, grid_square)
 				if a0 <= 0.0 and a1 <= 0.0:
 					continue
 				grid_mesh.surface_set_color(Color(c, c.a * a0))
@@ -2147,6 +2407,7 @@ func _dummy_refresh() -> void:
 	dummy_node.visible = dummy_on
 	dummy_node.transform = T.xf
 	var h := T.touch(B) if dummy_on else {}
+	dummy_hit = h
 	hit_tag.visible = not h.is_empty()
 	hit_dot.visible = not h.is_empty()
 	_dummy_ghost_update(h)
@@ -2163,6 +2424,14 @@ func _dummy_refresh() -> void:
 const GHOST_A := 0.22
 const HIT_A := 0.45
 var dummy_ghost := false
+var dummy_hit := {}   # the last refresh's hit (T.touch), kept so the ghost can be worked out again when the camera turns
+
+
+## the ghost depends on WHERE THE CAMERA IS, so it is worked out again with every camera move (it was only refreshed with
+## the pose: a view turned after the last refresh kept the ghost of the old camera, and the same view drew two ways)
+func _dummy_view() -> void:
+	if dummy_node != null and dummy_mat != null:
+		_dummy_ghost_update(dummy_hit)
 
 
 func _dummy_occludes() -> bool:
@@ -2188,7 +2457,7 @@ func _dummy_ghost_update(h: Dictionary) -> void:
 
 ## the timeline's height: its 34 px of rows, and the strips under the ruler (the frame strip, ROADMAP 12; the boxes lane, ROADMAP 36)
 func _tl_height() -> void:
-	ui_timeline.custom_minimum_size.y = 34.0 + (Timeline.AUDIO_H if _a_path != "" else 0.0) + ui_timeline.clip_px() + _tl_under_ruler()
+	ui_timeline.custom_minimum_size.y = 34.0 + Timeline.LANE_H * S.audio_tracks.size() + ui_timeline.clip_px() + _tl_under_ruler()
 
 
 ## the px under the ruler that the frame strip and the boxes lane take (0 with neither on)
@@ -2247,6 +2516,27 @@ func _fd_data() -> Dictionary:
 	return fd_cache["fd"]
 
 
+## ROADMAP 99: while a scene plays, redraw the whole timeline only when something on it besides the playhead moved
+## (the key below: the edit counter, the cards and their times, the selection, the size and zoom, the palette ...);
+## otherwise only the playhead overlay (Timeline.playhead_redraw). Not playing: always the whole timeline, as before.
+var _tl_key := []
+
+
+func _tl_play_redraw() -> void:
+	if not playing:
+		_tl_key = []
+		ui_timeline.queue_redraw()
+		return
+	var key := [_dm_gen, S, S.cards.size(), S.times(), sel_card, S.length(), ui_timeline.size, ui_timeline.pps(), ui_timeline.x_of(0.0), auto_key,
+		Tok.c("tl_bg"), Tok.c("ink"), fd_cache.get("key", null), ui_timeline.fd.size(), ui_timeline.bx.size(), ui_timeline.sp.size(), fd_on,
+		vdiff.size(), pv_in, pv_out, S.markers.size(), S.audio_tracks.size(), ui_timeline.clip_px(), _tl_under_ruler()]
+	if key == _tl_key:
+		ui_timeline.playhead_redraw()
+		return
+	_tl_key = key
+	ui_timeline.queue_redraw()
+
+
 ## the strip and the boxes for this refresh (both off: nothing is analysed)
 func _fd_refresh() -> void:
 	if ui_timeline != null:
@@ -2257,7 +2547,8 @@ func _fd_refresh() -> void:
 		if before != _tl_under_ruler():
 			_tl_height()
 			_layout_bottom()   # the panel makes room for the frame strip and the lane, or gives it back
-		ui_timeline.queue_redraw()
+		if not PerfStub.skip("timeline"):
+			_tl_play_redraw()
 	if not fd_boxes or S.cards.is_empty():
 		if fd_node != null:
 			fd_node.visible = false
@@ -2383,6 +2674,55 @@ func _dm_start() -> void:
 	_dm_job = job
 
 
+## ROADMAP 99: every scene that plays (the fighters', or the open one) keeps a baked pose table (scripts/pose_bake.gd). A table is
+## dropped and re-baked from the playhead when the scene's content signature differs (checked every frame: the edit funnel
+## _dummy_hits bumps _dm_gen, and an edit that does not go through it is still caught by the signature). Off in PerfStub "bake".
+var bake_on := true
+var bake_sigs_ms := 0.0   # what the signature checks cost this frame (read by tests)
+
+
+func _bake_scenes() -> Array:
+	var out := []
+	if actors_rt.size() >= 2:
+		for a in actors_rt:
+			out.append(a["S"])
+	else:
+		out.append(S)
+	return out
+
+
+var _bake_rr := 0
+
+func _bake_poll() -> void:
+	var t0 := Time.get_ticks_usec()
+	var live := _bake_scenes()
+	var horizon := 0.0
+	for sc in live:
+		horizon = maxf(horizon, (sc as Scene).length())
+	# a signature is ~1 ms a scene: playing, one scene a frame in turn (and at once after an edit through the funnel,
+	# _dm_gen); not playing, all of them (nothing else is running then)
+	var edited := _bake_gen != _dm_gen
+	_bake_gen = _dm_gen
+	_bake_rr += 1
+	for i in live.size():
+		var sc_s: Scene = live[i]
+		if not bake_on or PerfStub.skip("bake") or not PoseBake.eligible(sc_s):
+			if sc_s.baker != null:
+				sc_s.baker.stop()
+				sc_s.baker = null
+			continue
+		if sc_s.baker == null:
+			sc_s.baker = PoseBake.new()
+			sc_s.baker.start(sc_s, playhead, horizon)
+		elif edited or not playing or _bake_rr % live.size() == i:
+			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon:
+				sc_s.baker.start(sc_s, playhead, horizon)   # the content changed: the old table is dropped, a new bake starts at the playhead
+	bake_sigs_ms = (Time.get_ticks_usec() - t0) / 1000.0
+
+
+var _bake_gen := -1
+
+
 ## called every frame: a finished job lands if it is the newest; a stale one starts the next
 func _dm_poll() -> void:
 	if _dm_job.is_empty() or not WorkerThreadPool.is_task_completed(_dm_job["task"]):
@@ -2485,7 +2825,7 @@ static func _fighters_measure(hs: Scene, others: Array) -> Dictionary:
 ## the contact NOW between the hero and the other fighters, drawn as the dummy's is (the red dot and the tag), after the
 ## others are posed. One fighter: returns at once (the dummy's own drawing stands)
 func _fighters_mark() -> void:
-	if not _fighters_on() or hit_tag == null:
+	if not _fighters_on() or hit_tag == null or PerfStub.skip("hits"):
 		return
 	var hb: Body = actors_rt[0]["B"]
 	var best := []
@@ -2649,7 +2989,8 @@ func _refresh() -> void:
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
 	_sym_prev = B.ang.duplicate()
-	Overlays.pose_skeleton(skel, bone_idx, B)
+	if not PerfStub.skip("skinning"):
+		Overlays.pose_skeleton(skel, bone_idx, B)
 	corr.update(B)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
@@ -2678,6 +3019,10 @@ func _refresh() -> void:
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
 				looks[j] = _look_of(lk)
+				if lk == "limit":   # the tint of the joint's own part, at the strength of how far into its last 10% it is
+					var lc: Color = looks[j][0]
+					lc.a *= B.limit_fade(j)
+					looks[j][0] = lc
 				if lk == "sel" and locked_parts.has(j):   # picked AND locked: the pick's colour greyed toward the lock's
 					looks[j][0] = Color(Tok.c("pick_sel").lerp(Tok.c("pick_lock"), 0.4), looks[j][0].a)
 			if pieces.has(j):
@@ -2694,7 +3039,7 @@ func _refresh() -> void:
 		_place(parts[j], c[0], c[1], B.rad[j])
 		var col := Color(0.62, 0.63, 0.66, 0.25 if show_caps else 0.0)
 		if lk == "limit" or lk == "touch":   # the Collision view shows what the capsules collide with
-			col = Color(LIMIT if lk == "limit" else TOUCH, 0.45)
+			col = Color(LIMIT if lk == "limit" else TOUCH, 0.45 * (B.limit_fade(j) if lk == "limit" else 1.0))
 		if not body:   # the weapon (not skinned): its capsule is its light
 			if lk == "lock":
 				col = Color(LOCK_COL, 0.45)
@@ -2749,24 +3094,28 @@ func _refresh() -> void:
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
 	ov.spacing(playhead)
-	ov.version_ghost(vdiff.get("scene", null), playhead)   # COMPARE WITH (ROADMAP 28): the version's body, magenta
+	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
 	var pulled: String = B.wep_hand if sel in Body.WEAPON else sel
 	ov.reach_marker(B.P[pulled] if B.P.has(pulled) else Vector3.ZERO, _grab, dragging == "joint" and not is_nan(_grab.x) and B.P.has(pulled))
 	if ui_graph != null:
 		ui_graph.visible = ov.graph_on and S.cards.size() >= 2
 		ui_graph.queue_redraw()
-	_panel()
+	if not PerfStub.skip("ui"):
+		_panel()
 	_pose_others()
 	_actors_draw()
+	_crowd_draw()   # ROADMAP 95: the crowd's copies of this fighter's clip (none without a crowd)
 	_fighters_mark()
 	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
 	_sph_draw()   # ROADMAP 61: the back's spline curve and its three handles
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
+	_rp_draw()   # ROADMAP 91: the root path on the floor and its handles (View toggle)
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
+	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
@@ -2798,6 +3147,7 @@ func _keys_camera(dt: float) -> void:
 ## the camera looks at the body, shifted so the body sits in the middle of the free space between the panels
 func _cam() -> void:
 	if shot_through and _shot_apply():
+		_dummy_view()
 		return   # THE SHOT CAMERA: looking through it, the view is the keyed camera (_shot_apply)
 	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
@@ -2805,6 +3155,7 @@ func _cam() -> void:
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	cam.h_offset = (rw() - lw()) * 0.5 * mpp
 	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
+	_dummy_view()
 
 
 ## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
@@ -2934,6 +3285,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
 				if hitbox_ui != null and hitbox_ui.press(mb.position):   # ROADMAP 36: a box's handle, or a box picked in the view, takes the press
 					return
+				if _rp_press(mb.position):   # ROADMAP 91: a root handle or a facing arrow of the root path takes the press
+					return
 				if _frh_press(mb.position):   # ROADMAP 6: a foot's roll handle takes the press
 					return
 				if _sph_press(mb.position):   # ROADMAP 61: a spine spline handle takes the press
@@ -3010,6 +3363,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_loa_release(mb.shift_pressed)
 			if was == "foot_handle":
 				_frh_release()
+			if was == "root_path":
+				_rp_release()   # ROADMAP 91: one undo step per drag
 			if was == "box_handle" and hitbox_ui != null:
 				hitbox_ui.release()   # ROADMAP 36: one undo step for a moved box handle
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
@@ -3052,6 +3407,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "foot_handle":
 			_frh_move(mm.position)
+			return
+		if dragging == "root_path":
+			_rp_move(mm.position)
 			return
 		if dragging == "box_handle":
 			hitbox_ui.move(mm.position)
@@ -3440,13 +3798,15 @@ func _snapshot() -> Dictionary:
 	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"markers": S.markers.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
+		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
+		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
-		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
+		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
 		"lip": S.lip.duplicate(true),   # the lip-sync channel (lip_sync.gd), undone like a card
 		"face": S.face.duplicate(true),   # THE FACE keys (face.gd), undone like a card
 		"attrs": S.attrs.duplicate(true),   # CUSTOM ATTRIBUTES (custom_attr.gd, ROADMAP 82), undone like a card
@@ -3486,6 +3846,8 @@ func _restore(u: Dictionary) -> void:
 		S.markers = u["markers"].duplicate(true)   # WW5: the markers, undone like a card
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
+	if u["scene"] == S and u.has("crowd") and var_to_str(u["crowd"]) != var_to_str(S.crowd):
+		S.crowd = (u["crowd"] as Dictionary).duplicate(true)   # ROADMAP 95: the crowd, undone like a marker
 	if u["scene"] == S and u.has("notes") and JSON.stringify(u["notes"]) != JSON.stringify(S.notes):
 		S.notes = u["notes"].duplicate(true)   # ROADMAP 29: the review notes, undone like a marker
 		if ui_timeline != null:
@@ -3507,6 +3869,12 @@ func _restore(u: Dictionary) -> void:
 		_attr_refresh()   # the rows of an undone add go, and come back on redo, without waiting for the next refresh
 	if u["scene"] == S and u.has("secondary") and var_to_str(u["secondary"]) != var_to_str(S.secondary):
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
+	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
+		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
+	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
+		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
+		_hair_bake()
+		ov.mark_dirty()
 	if u["scene"] == S and u.has("ik") and var_to_str(u["ik"]) != var_to_str(S.ik):
 		S.ik = u["ik"].duplicate(true)   # IK keys (limb_ik.gd), undone like a card
 		_dummy_hits()
@@ -3537,8 +3905,9 @@ func _restore(u: Dictionary) -> void:
 		S.face = u["face"].duplicate(true)   # THE FACE (ROADMAP 74), undone like a card
 	if u["scene"] == S and u.has("boxes") and var_to_str(u["boxes"]) != var_to_str(S.boxes):
 		S.boxes = u["boxes"].duplicate(true)   # HIT / HURT BOXES (ROADMAP 36), undone like a card (the view and the lane follow in _refresh)
-	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
-		S.audio = u["audio"].duplicate()   # the sound, undone like a card
+	if u["scene"] == S and u.has("audio_tracks") and var_to_str(u["audio_tracks"]) != var_to_str(S.audio_tracks):
+		S.audio_tracks = u["audio_tracks"].duplicate(true)   # the sounds, undone like a card
+		audio_pick = -1
 		_audio_reload()
 	if u["scene"] == S and u.has("beats_audio") and var_to_str(u["beats_audio"]) != var_to_str(S.beats_audio):
 		S.beats_audio = u["beats_audio"].duplicate(true)   # ROADMAP 32: the music beats, undone like a card
@@ -3606,9 +3975,13 @@ func _undo() -> void:
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
 	var now := _snapshot()
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
+	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
+		now["lib"] = u["lib"]
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	if u.has("lib"):
+		PosePack.lib_move(u["lib"], true, library)
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
 	_undo_tips()
@@ -3625,15 +3998,35 @@ func _redo() -> void:
 	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
 	var now := _snapshot()
 	now["name"] = _step_label(r)
+	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
+		now["lib"] = r["lib"]
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	if r.has("lib"):
+		PosePack.lib_move(r["lib"], false, library)
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
 	_undo_tips()
 	_history_rows()
 	_jpending = true
 	_co_sync()
+
+
+## ROADMAP 96: Share scene as a pack...: the saved scene (scenes/<name>.json) packed for someone else; nothing is changed here
+func _share_scene_pack() -> void:
+	var p := "res://scenes/%s.json" % S.name
+	if not FileAccess.file_exists(p):
+		_say("this scene is not saved yet: Save scene first, then Share scene as a pack... packs the saved file")
+		return
+	PosePack.share_scene_ask(self, p)
+
+
+## ROADMAP 96: an import into the library is ONE undo step (no body change); its files ride on the step as "lib"
+func _push_undo_lib(files: Array) -> void:
+	_push_undo()
+	if not undo.is_empty():
+		undo[-1]["lib"] = files
 
 
 ## an edit that moved nothing is taken back out: its step, and its node in the tree
@@ -4018,9 +4411,12 @@ func _pose_others() -> void:
 	for k in actors_rt.size():
 		var a: Dictionary = actors_rt[k]
 		var at: float = a.get("pt", playhead)   # ROADMAP 30: a co-edit peer's own playhead, else the shared one
+		if playing:
+			at = (a["S"] as Scene).play_t(at)   # ROADMAP 99: playback evaluates on the bake grid (Scene.play_t)
 		if k == actor_on or a["t"] == at:
 			continue
-		(a["S"] as Scene).apply(a["B"], at)
+		if not PerfStub.skip("body"):
+			(a["S"] as Scene).apply(a["B"], at)
 		a["t"] = at
 
 
@@ -4171,7 +4567,8 @@ func _actors_draw() -> void:
 			continue
 		var b: Body = actors_rt[k]["B"]
 		n.transform = actors_rt[k]["xf"]
-		Overlays.pose_skeleton(mq["skel"], mq["idx"], b)
+		if not PerfStub.skip("skinning"):
+			Overlays.pose_skeleton(mq["skel"], mq["idx"], b)
 		var tag: Label3D = mq["tag"]
 		tag.text = String(actors_rt[k]["name"])
 		tag.position = b.P["head"] + Vector3(0, 0.28, 0)
@@ -4270,6 +4667,131 @@ func _pick_actor(mp: Vector2) -> Array:
 		if String(hit[0]) != "" and float(hit[1]) < float(best[2]):
 			best = [k, String(hit[0]), float(hit[1])]
 	return best
+
+
+# ---------------------------------------------------------------- crowd (ROADMAP 95, scripts/crowd.gd)
+var crowd_men := []   # per copy: {"k", "node", "skel", "idx", "c" (its variation), "sc" (its scene), "B" (its body)} under stage_root
+var crowd_key := ""   # what the copies were made from (the scene as saved, the crowd settings): made again when it changes
+var crowd_tb := {}    # the fighter's clip as a pose table (Crowd.bake): what every copy plays
+
+
+## Crowd: make copies of this fighter (DEFAULT_N, seed 1). One undo step
+func _crowd_make(n := Crowd.DEFAULT_N) -> void:
+	_actors_sync()
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a crowd copies a clip: make a move first (two cards at least), then 'Crowd: make 20 copies of this fighter'")
+		return
+	_do(func(): S.crowd = {"n": clampi(n, 1, Crowd.MAX_N), "seed": 1})
+	_refresh()
+	_say_plain("crowd: %d copies of this fighter, scattered without overlap, each with its own time, speed, joint noise, mirror and stature (ANSUR II). 'Crowd: re-roll' gives a new crowd; Ctrl+Z undoes" % int(S.crowd["n"]))
+
+
+## Crowd: re-roll: the same crowd with the next seed (new places, timings, speeds, mirrors, statures). One undo step
+func _crowd_reroll() -> void:
+	if S.crowd.is_empty():
+		_say_plain("NOT NOW: there is no crowd yet: use 'Crowd: make 20 copies of this fighter' first")
+		return
+	_do(func(): S.crowd = {"n": S.crowd["n"], "seed": int(S.crowd["seed"]) + 1})
+	_refresh()
+	_say_plain("crowd re-rolled: seed %d" % int(S.crowd["seed"]))
+
+
+## Crowd: remove the copies (the fighter stays). One undo step
+func _crowd_remove() -> void:
+	if S.crowd.is_empty():
+		_say_plain("NOT NOW: there is no crowd to remove: make one first with 'Crowd: make 20 copies of this fighter' (a move of two cards at least)")
+		return
+	_do(func(): S.crowd = {})
+	_refresh()
+	_say_plain("crowd removed: the fighter alone again (Ctrl+Z brings the crowd back)")
+
+
+## the copies made or made again when the scene or the crowd settings change (the key is the scene as it saves)
+func _crowd_sync() -> void:
+	if S.crowd.is_empty():
+		_crowd_free()
+		return
+	var key := str(hash(var_to_bytes([_scene_dict(false), S.crowd])))
+	if key == crowd_key and not crowd_men.is_empty():
+		return
+	if dragging != "" and not crowd_men.is_empty():
+		return   # ROADMAP 95: a drag makes no table: the copies are made again on the release
+	_crowd_free()
+	crowd_key = key
+	var src := S.clone()
+	src.actors = []
+	src.crowd = {}
+	crowd_tb = Crowd.bake(src)
+	var sets := Crowd.make(int(S.crowd["n"]), int(S.crowd["seed"]), Body.ORDER)
+	for k in sets.size():
+		var c: Dictionary = sets[k]
+		var sc := Crowd.scene_for(S, c)
+		var b := Body.new()
+		b.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		b.set_proportions(sc.body)   # this copy's stature (Proportions: the same path as a scene's body)
+		var root := Node3D.new()
+		root.name = "crowd_%02d" % k
+		root.transform = Crowd.placement(c)
+		stage_root.add_child(root)
+		var skin := StandardMaterial3D.new()
+		skin.albedo_color = Crowd.TINTS[k % Crowd.TINTS.size()]
+		skin.roughness = 0.6
+		var mq := Overlays.mannequin(root, skin)
+		crowd_men.append({"k": k, "node": root, "skel": mq[1], "idx": mq[2], "c": c, "sc": sc, "B": b})
+
+
+## the copies gone (their nodes freed, the list cleared)
+func _crowd_free() -> void:
+	for m in crowd_men:
+		(m["node"] as Node).queue_free()
+	crowd_men = []
+	crowd_key = ""
+
+
+## end of every refresh: each copy posed at the hero's playhead and drawn. No crowd: nothing exists and nothing is done
+func _crowd_draw() -> void:
+	if S.crowd.is_empty():
+		if not crowd_men.is_empty():
+			_crowd_free()
+		if crowd_half > 0.0:
+			_floor_reset()
+		return
+	if stage_root == null:
+		return
+	_crowd_sync()
+	var ext := 0.0
+	for m in crowd_men:
+		Crowd.pose(m["c"], crowd_tb, m["B"], playhead, Body.ORDER)
+		Overlays.pose_skeleton(m["skel"], m["idx"], m["B"])
+		var X: Transform3D = Crowd.placement(m["c"])
+		for sd in ["_l", "_r"]:   # the feet: heel and toe of each, in the hero's space
+			for q in [Proportions.heel(m["B"], sd), Proportions.toe(m["B"], sd)]:
+				var p: Vector3 = X * q
+				ext = maxf(ext, maxf(absf(p.x), absf(p.z)))
+	_floor_fit(ext + 0.5)
+
+
+## ROADMAP 95: the floor's half-size is at least `half` (it grows as the feet walk; it is not shrunk while the crowd is
+## out, so the grid is not rebuilt each frame). The grid's fade ends at the floor's edge, in the square
+func _floor_fit(half: float) -> void:
+	if floor_pm == null or half <= crowd_half + 0.05 and crowd_half > 0.0:
+		return
+	crowd_half = maxf(half, 2.0)
+	floor_pm.size = Vector2(2.0 * crowd_half, 2.0 * crowd_half)
+	grid_end = crowd_half
+	grid_full = crowd_half - 0.5
+	grid_square = true
+	_grid()
+
+
+## ROADMAP 95: the crowd removed: the floor and the grid back to their own size (4 m square, the default fade)
+func _floor_reset() -> void:
+	crowd_half = 0.0
+	floor_pm.size = Vector2(4, 4)
+	grid_end = GRID_END
+	grid_full = GRID_FULL
+	grid_square = false
+	_grid()
 
 
 ## the file the open scene saves as: the hero's scene with every other actor in "actors" (TC1), whoever is active.
@@ -5142,6 +5664,198 @@ func _frh_release() -> void:
 		PartKeys.put(S.part_keys, j, t, B.ang[j])
 	_refresh()
 	_say("keyed the %s foot's roll on its %s at %s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], Units.time(t, S.fps)])
+## ROOT MOTION EDITOR (ROADMAP 91; scripts/root_path.gd). View toggle "Root path on the floor": the played path as a curve on the
+## floor, a yellow handle at each card's root and a red arrow for its facing. A press on a root handle and a drag moves that
+## card's root on the floor; a press on an arrow turns its facing. One undo step per drag (pushed at the press, dropped when the
+## mouse never moved). The planted feet re-solve at play time (Scene._planted), so the card poses are all that is written.
+var root_path_on := false
+var _rp_line: MeshInstance3D
+var _rp_drag := {}          # the drag: {card, kind ("root" | "head"), start (the card's pose at the press), xz0, head0, hit0, moved}
+var _rp_cache := {"poses": [], "len": -1.0, "path": []}   # the played path: rebuilt when a card's pose or the length changes
+var ui_rp_dlg: ConfirmationDialog
+var ui_rp_slider: HSlider
+var ui_rp_val: Label
+
+
+## the root handles of the scene as it stands (one per card)
+func _rp_handles() -> Array:
+	return RootPath.handles(RootPath.roots(S))
+
+
+## the played path, sampled through the scene; cached until a card's pose (by identity) or the length changes
+func _rp_path() -> Array:
+	var ps: Array = _rp_cache["poses"]
+	var same := ps.size() == S.cards.size() and is_equal_approx(float(_rp_cache["len"]), S.length())
+	if same:
+		for i in S.cards.size():
+			if not is_same(ps[i], S.cards[i]["pose"]):
+				same = false
+				break
+	if not same:
+		var poses := []
+		for c in S.cards:
+			poses.append(c["pose"])
+		_rp_cache = {"poses": poses, "len": S.length(), "path": RootPath.played(S)}
+	return _rp_cache["path"]
+
+
+func _rp_draw() -> void:
+	if _rp_line == null:
+		_rp_line = MeshInstance3D.new()
+		_rp_line.name = "root_path"
+		_rp_line.mesh = ImmediateMesh.new()
+		add_child(_rp_line)
+	var im := _rp_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if not root_path_on or clean or S == null or S.cards.is_empty():
+		return
+	var act := {}
+	if not _rp_drag.is_empty():
+		act = {"card": _rp_drag["card"], "kind": _rp_drag["kind"], "warn": _rp_drag.get("warn", false)}
+	RootPath.draw(im, _rp_path(), _rp_handles(), act, cam)
+
+
+func _rp_toggle() -> void:
+	root_path_on = not root_path_on
+	_refresh()
+	if root_path_on:
+		_say("root path on: drag a yellow handle to move a card's root on the floor, a red arrow to turn its facing (one undo step each)")
+	else:
+		_say("root path off")
+
+
+## a press on a root handle (move) or a heading arrow (turn) of the path: one undo step, dropped if the mouse never moves
+func _rp_press(mp: Vector2) -> bool:
+	if not root_path_on or clean or S == null or S.cards.is_empty():
+		return false
+	var h := RootPath.hit(cam, mp, _rp_handles())
+	if h.is_empty():
+		return false
+	var hit0 = RootPath.floor_hit(cam, mp)
+	if hit0 == null:
+		return false
+	var i := int(h["card"])
+	var r := RootPath.root_of(RootPath.work(), S.cards[i]["pose"])
+	_step_hint = "Move card %d's root" % (i + 1) if h["kind"] == "root" else "Turn card %d's facing" % (i + 1)
+	_push_undo()
+	_rp_drag = {"card": i, "kind": h["kind"], "start": S.cards[i]["pose"].duplicate(true), "xz0": r["xz"], "head0": r["heading"], "hit0": hit0, "moved": false}
+	playing = false
+	dragging = "root_path"
+	_refresh()
+	_say("%s: drag the mouse on the floor; release keeps it (Ctrl+Z takes it back)" % _step_hint)
+	return true
+
+
+func _rp_move(mp: Vector2) -> void:
+	if _rp_drag.is_empty():
+		return
+	var p = RootPath.floor_hit(cam, mp)
+	if p == null:
+		return
+	var i := int(_rp_drag["card"])
+	var W := RootPath.work()
+	var xz0: Vector2 = _rp_drag["xz0"]
+	var pose: Dictionary
+	var txt := ""
+	if _rp_drag["kind"] == "root":
+		var h0: Vector3 = _rp_drag["hit0"]
+		var xz := xz0 + Vector2(p.x - h0.x, p.z - h0.z)
+		pose = RootPath.posed(W, _rp_drag["start"], xz, float(_rp_drag["head0"]))
+		txt = "card %d's root moved %.0f cm on the floor" % [i + 1, (xz - xz0).length() * 100.0]
+	else:
+		var bearing := rad_to_deg(atan2(p.x - xz0.x, p.z - xz0.y))
+		pose = RootPath.posed(W, _rp_drag["start"], xz0, bearing)
+		txt = "card %d now faces %.0f deg" % [i + 1, bearing]
+	S.cards[i]["pose"] = pose
+	_rp_drag["moved"] = true
+	# REACH, live: a planted foot that cannot hold its spot is said in the status line, and the handle turns the warning colour
+	var rep := RootPath.reach(S, i)
+	_rp_drag["warn"] = not rep.is_empty()
+	_retimed(false)
+	if rep.is_empty():
+		_say("%s   (release keeps it)" % txt)
+	else:
+		_say(RootPath.reach_message(rep))
+
+
+func _rp_release() -> void:
+	var d := _rp_drag
+	_rp_drag = {}
+	if d.is_empty():
+		return
+	if not d["moved"]:
+		_drop_undo()
+		_refresh()
+		return
+	_retimed()
+	_say("root path: card %d %s   (Ctrl+Z takes it back in one step)" % [int(d["card"]) + 1, "moved" if d["kind"] == "root" else "turned"])
+
+
+## one root-path command as one undo step; n = how many cards it moved (0 = nothing to do, nothing kept)
+func _rp_edit(what: String, fn: Callable, none: String) -> void:
+	if S == null or S.cards.size() < 2:
+		_say("the root path needs two cards or more: make a pose and add it as a card first")
+		return
+	_step_hint = what
+	_push_undo()
+	var n: int = fn.call()
+	if n == 0:
+		_drop_undo()
+		_refresh()
+		_say(none)
+		return
+	_retimed()
+	_say("%s: %d card(s) moved   (Ctrl+Z takes it back in one step)" % [what, n])
+
+
+func _rp_straighten() -> void:
+	_rp_edit("Straighten root path", func(): return RootPath.straighten(S),
+		"the root path is already straight, or its first and last cards stand on one spot: drag a card's yellow handle off the line first")
+
+
+func _rp_scale(k: float) -> void:
+	_rp_edit("Scale root path length to %d %%" % roundi(k * 100.0), func(): return RootPath.scale_length(S, k),
+		"the root path length is as it is: move the slider off 100 % and press OK")
+
+
+## SCALE LENGTH: a slider (25 to 300 %) about the first card's root; the path keeps its headings and its card times
+func _rp_scale_dialog() -> void:
+	if S == null or S.cards.size() < 2:
+		_say("the root path needs two cards or more: make a pose and add it as a card first")
+		return
+	if ui_rp_dlg == null:
+		ui_rp_dlg = ConfirmationDialog.new()
+		ui_rp_dlg.name = "root_path_scale_dialog"
+		ui_rp_dlg.title = "Root path: scale its length"
+		ui_rp_dlg.min_size = Vector2i(420, 0)
+		var box := VBoxContainer.new()
+		var lab := Label.new()
+		lab.text = "Every card's root moves about the first card's root by this factor. The headings and the card times stay."
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD
+		box.add_child(lab)
+		var h := HBoxContainer.new()
+		var l := Label.new()
+		l.text = "length"
+		h.add_child(l)
+		ui_rp_slider = HSlider.new()
+		ui_rp_slider.name = "slider_root_path_scale"
+		ui_rp_slider.min_value = RootPath.SCALE_MIN * 100.0
+		ui_rp_slider.max_value = RootPath.SCALE_MAX * 100.0
+		ui_rp_slider.step = 5.0
+		ui_rp_slider.custom_minimum_size = Vector2(200, 26)
+		ui_rp_val = Label.new()
+		ui_rp_slider.value_changed.connect(func(v): ui_rp_val.text = "%d %%" % roundi(v))
+		h.add_child(ui_rp_slider)
+		h.add_child(ui_rp_val)
+		box.add_child(h)
+		ui_rp_dlg.add_child(box)
+		ui_rp_dlg.confirmed.connect(func(): _rp_scale(ui_rp_slider.value / 100.0))
+		add_child(ui_rp_dlg)
+	ui_rp_slider.value = 100.0
+	ui_rp_val.text = "100 %"
+	ui_rp_dlg.popup_centered()
+
+
 ## USER CONSTRAINTS (round 51, GATES CN; scripts/constraints.gd): Child Of, Track To (look at), Floor, on the scene's
 ## stack, played after IK. The TARGET is picked first ("Constraint: use the picked part as the target", a view setting,
 ## not undone), then the owner is the picked part. With no target picked: the other hand (Child Of), the other fighter's
@@ -5438,6 +6152,121 @@ func _sec_clear() -> void:
 	_do(func(): S.secondary = {})
 	_dummy_hits()
 	_say("took the secondary motion off the scene (Ctrl+Z puts it back)")
+
+
+## CAPE (ROADMAP item 86; scripts/cloth.gd). An optional cape on the back, pinned at the shoulders and simulated as a cloth
+## grid (12 x 16) that collides with the body's capsules. "Cape: add to the back" bakes it over the scene's frames in one
+## undo step (S.cape); the view draws the baked frame at the playhead. Bake again after the animation changes. Taking it
+## off and exporting are one step / no step.
+var _cape_mi: MeshInstance3D
+var _cape_mat: StandardMaterial3D
+
+
+## THE BAKE RUNS IN THE BACKGROUND (round 86b, cloth_job.gd): sampling in 8 ms slices on this thread, the simulation on a
+## worker task. A 60 Hz timer polls it; the result is applied here, in one undo step, when it is done. The scene keeps its
+## last cape until then.
+var _cape_job: ClothJob = null
+var _cape_timer: Timer = null
+
+
+func _cape_add() -> void:
+	if _cape_job != null:
+		_say("the cape is already baking (%d%%): click 'Cape: cancel the bake' to stop it" % int(_cape_job.progress() * 100.0))
+		return
+	_cape_job = ClothJob.start(S)
+	if _cape_timer == null:
+		_cape_timer = Timer.new()
+		_cape_timer.wait_time = 1.0 / 60.0
+		_cape_timer.timeout.connect(_cape_tick)
+		add_child(_cape_timer)
+	_cape_timer.start()
+	_say("baking the cape over %.1f s in the background (0%%): the scene keeps its last cape until it is done" % S.length())
+
+
+func _cape_tick() -> void:
+	var job := _cape_job
+	if job == null:
+		_cape_timer.stop()
+		return
+	if job.stage == 0:
+		if job.cancelled():
+			_cape_drop("the cape bake was cancelled: the scene keeps its last cape (click 'Cape: add to the back' to bake a new one)")
+			return
+		if job.sample_for(8000):   # 8 ms of sampling a tick: the UI keeps its frames
+			job.start_sim()
+	if job.poll() == 2:
+		_cape_timer.stop()
+		_cape_job = null
+		var cape := job.take_result()
+		if cape.is_empty():
+			_say("the cape bake was cancelled: the scene keeps its last cape (click 'Cape: add to the back' to bake a new one)")
+			return
+		if job.owner != S:
+			_say("the scene changed during the bake, so the cape was not applied: click 'Cape: add to the back' to bake it again on this scene")
+			return
+		_do(func(): S.cape = cape)
+		_dummy_hits()
+		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back)" % [(cape["frames"] as Array).size(), S.fps])
+		return
+	if Engine.get_process_frames() % 15 == 0:   # the progress line, about four times a second
+		_say("baking the cape: %d%%  (Cape: cancel the bake stops it; the scene keeps its last cape)" % int(job.progress() * 100.0))
+
+
+func _cape_drop(msg: String) -> void:
+	_cape_job = null
+	_cape_timer.stop()
+	_say(msg)
+
+
+func _cape_cancel() -> void:
+	if _cape_job == null:
+		_say("no cape bake is running: 'Cape: add to the back' starts one")
+		return
+	_cape_job.cancel()
+	_say("cancelling the cape bake: the scene keeps its last cape")
+
+
+func _cape_clear() -> void:
+	if S.cape.is_empty():
+		_say("no cape to take off: 'Cape: add to the back' first")
+		return
+	_do(func(): S.cape = {})
+	_say("took the cape off (Ctrl+Z puts it back)")
+
+
+func _cape_export() -> void:
+	if S.cape.is_empty():
+		_say("no cape to export: 'Cape: add to the back' first")
+		return
+	var p := Cloth.save_json(S.cape, "cape.json")
+	if p == "":
+		_say("could not write the cape file under the user folder: free up disk space there, then try again")
+		return
+	_say("exported the cape's vertices for every frame to %s (one list of 192 points per frame)" % p)
+
+
+func _cape_draw() -> void:
+	if _cape_mi == null:
+		_cape_mat = StandardMaterial3D.new()
+		_cape_mat.cull_mode = BaseMaterial3D.CULL_DISABLED   # the cloth is seen from both sides
+		_cape_mat.albedo_color = Color(0.42, 0.1, 0.16)
+		_cape_mat.roughness = 0.9
+		_cape_mi = MeshInstance3D.new()
+		_cape_mi.name = "cape"
+		_cape_mi.mesh = ImmediateMesh.new()
+		add_child(_cape_mi)
+	var im := _cape_mi.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if S == null or S.cape.is_empty():
+		_cape_mi.visible = false
+		return
+	_cape_mi.visible = true
+	var v := Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
+	var f := Cloth.faces()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _cape_mat)
+	for k in f.size():
+		im.surface_add_vertex(v[f[k]])
+	im.surface_end()
 
 
 ## the overlay: each item's chain at the playhead, from its baked keys (at rest when not baked yet)
@@ -7298,8 +8127,9 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
-	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
+	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
+	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
+	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
@@ -7326,7 +8156,18 @@ func _doc_line(force := false) -> void:
 		return
 	var nm: String = S.name if S.name != "" else "untitled"
 	ui_doc.text = "%s   ·  %d clips  ·  %s" % [nm, S.cards.size(), Units.time(_ps().length(), S.fps)] if S.cards.size() > 0 else "%s   ·  no clips yet" % nm
+	# ROADMAP 99: _unsaved() serialises every fighter's cards (25 ms with four). While a scene plays nothing is edited unless it
+	# goes through the edit funnel (_dm_gen), so the dot is re-read only when that moved (or when not playing, as before)
+	var H := _hero_scene()
+	if playing and _dot_gen == _dm_gen and _dot_hero == H:
+		return
+	_dot_gen = _dm_gen
+	_dot_hero = H
 	ui_doc_dot.visible = _unsaved()
+
+
+var _dot_gen := -1
+var _dot_hero: Scene = null
 
 
 ## a button's name: its text, or for an icon-only one (round 36) the label it kept
@@ -7656,6 +8497,7 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
+	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK
 	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
@@ -7670,6 +8512,9 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
+	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
+	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
+	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
 	var ap := MenuButton.new()
 	ap.text = "Add prop"
 	ap.name = "menu_add_prop"
@@ -7692,6 +8537,11 @@ func _ui() -> void:
 	ui_use_btns["Pick up"] = _button("Pick up", _prop_take, "the hand(s) next to the picked prop hold it from the selected card on: it moves with them")
 	ui_use_btns["Put down"] = _button("Put down", _prop_put, "the hands let the prop go at the selected card: it falls onto what is under it (real gravity)")
 	for k in ui_use_btns:
+		ui_ribbon["SET"].add_child(ui_use_btns[k])
+	ui_use_btns["Sit down"] = _button("Sit down", _rise_sit_down, "a run of cards: from standing the body sits down on the picked chair, stool or bench (the sit-to-stand backwards, feet planted; one undo step)")
+	ui_use_btns["Stand up"] = _button("Stand up", _rise_stand_up, "a run of cards: from sitting on the picked chair, stool or bench the body stands up (trunk 45 deg forward at seat-off, feet planted; one undo step)")
+	ui_use_btns["Get up"] = _button("Get up", _rise_get_up, "a run of cards: from lying on the back, the body rolls to the side, hands and knees, half-kneel, stand (one undo step; the scene plays without floor grounding)")
+	for k in ["Sit down", "Stand up", "Get up"]:
 		ui_ribbon["SET"].add_child(ui_use_btns[k])
 	# VIEW
 	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
@@ -7991,7 +8841,8 @@ func _ui() -> void:
 	back.add_child(_label("The spine, neck and head share the bend by their ranges: they reach their limits together.", PROP_TXT, "text:0.55", true))
 	hands.add_child(_label("Fingers one by one: click a finger on the body (zoom in with the wheel).", PROP_TXT, "text:0.55", true))
 	# ROADMAP 82: CUSTOM ATTRIBUTES on the picked part (custom_attr.gd): "+ attribute" defines one; its slider keys the value at the playhead
-	var attrs_sec := _section(vb, "ATTRIBUTES")
+	# its rows go in the NUMBERS box (added below): a header of its own made the pelvis box 314 px, over the 300 bar
+	var attrs_sec := VBoxContainer.new()
 	attrs_sec.add_child(_label("A value on this part, keyed per card like an angle (grip 0 .. 1). The engine reads it from the .glb.", PROP_TXT, "text:0.55", true))
 	ui_attr_box = VBoxContainer.new()
 	ui_attr_box.name = "attr_rows"
@@ -8026,6 +8877,7 @@ func _ui() -> void:
 	ui_math = _label("", PROP_TXT, "text:0.6", true)
 	ui_math.visible = false
 	num.add_child(ui_math)
+	num.add_child(attrs_sec)
 
 	# ---- bottom: the scene
 	var bp := PanelContainer.new()
@@ -8128,9 +8980,14 @@ func _ui() -> void:
 	ui_timeline.box_picked.connect(_bx_pick)   # ROADMAP 36: a box on the boxes lane picked
 	ui_timeline.range_set.connect(func(which: String, t: float): _pv_set(which, t))   # WW4: Shift+click / Alt+click on the ruler
 	ui_timeline.finding_picked.connect(_finding_mark)
+	ui_timeline.marker_moved.connect(_marker_moved)   # ROADMAP 97: a marker flag dragged (one undo step per drag)
+	ui_timeline.marker_picked.connect(_marker_open)   # ROADMAP 97: a marker flag clicked: the playhead there, its popover open
 	ui_timeline.retime_started.connect(_retime_begin)
 	ui_timeline.retimed.connect(_retime_step)
 	ui_timeline.shot_cut.connect(_shot_cut_drag)   # ROADMAP 75: a cut on the shots lane dragged
+	ui_timeline.audio_drag_started.connect(func(_i: int): _push_undo())   # ROADMAP 77: one undo step per offset drag
+	ui_timeline.audio_picked_lane.connect(func(i: int): audio_pick = i; ui_timeline.queue_redraw())
+	ui_timeline.audio_name.connect(func(i: int): audio_pick = i; _audio_flag(i, "mute"))   # a lane's name: mute / unmute it
 	# ONE STRIP (round 36, RR4): first / previous / play / next / last / loop, the clips on their track, the time, the
 	# speed, Natural, a gear for the rest (Smooth, tween, ease, + tween), the Clips button that opens the cards above
 	var ph := HBoxContainer.new()
@@ -8316,6 +9173,7 @@ func _ui() -> void:
 	ui_vdiff_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_vdiff.add_child(ui_vdiff_text)
 	ui_root.add_child(ui_vdiff)
+	_sdiff_build()   # ROADMAP 98: the diff report panel (Versions, Diff report)
 	ui_co_line = Label.new()   # ROADMAP 30: who animates which fighter, the peer's state (hidden without a session)
 	ui_co_line.name = "co_line"
 	ui_co_line.visible = false
@@ -8354,7 +9212,16 @@ func _ui() -> void:
 	ui_cmd = CommandSearch.new()
 	ui_cmd.offset_top = TOP_H + 10
 	ui_root.add_child(ui_cmd)
-	ui_cmd.commands = _commands()
+	plugins = Plugins.new()
+	plugins.host = {"scene": func(): return S, "clamp": func(j, v): return B.clamp_ang(j, v), "has_joint": func(j): return B.lim.has(j),
+		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run}
+	plugins.configure(["user://plugins", "res://examples/plugins"], "user://plugins.json", "user://plugins")   # the app's own folders
+	plugins.scan()
+	ui_plugins = PluginsPanel.new()
+	ui_plugins.plugins = plugins
+	ui_plugins.say_fn = _say
+	ui_root.add_child(ui_plugins)
+	ui_cmd.commands = _commands() + plugins.command_rows()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
 	_hover_hints()
@@ -9285,7 +10152,7 @@ func _layout_bottom() -> void:
 	bottom_h = BOTTOM_EMPTY if empty else (BOTTOM_FOLDED if folded else BOTTOM_H)
 	ui_bh.visible = not folded and not easy.on
 	if not empty:
-		bottom_h += int(ui_timeline.clip_px() + _tl_under_ruler())   # CLIPS: the panel grows by the strips' rows (none: as before); the frame strip and the boxes lane too (ROADMAP 12 / 36)
+		bottom_h += int(ui_timeline.clip_px() + _tl_under_ruler() + ui_timeline.audio_h())   # CLIPS: the panel grows by the strips' rows (none: as before); the frame strip, the boxes lane and one row per audio track too (ROADMAP 12 / 36 / 77)
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
@@ -9405,6 +10272,7 @@ func _commands() -> Array:
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
 	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", false, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
+	add.call("Plugins: enable or disable plugins", "", func(): ui_plugins.toggle(), "plugin plugins api extension addon add-on scripts script", false, "the user plugins (user://plugins): each one's manifest, an enable switch (off by default), and what a plugin can do")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
@@ -9416,6 +10284,9 @@ func _commands() -> Array:
 	add.call("Edit: undo history...", "", _toggle_history, "steps list back forward", false, "every change by name, as a tree: branches where an edit came after an undo; click one to jump to exactly that state")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")
 	add.call("Pose library", "", PoseLibrary.toggle.bind(self), "poses thumbnails pictures grid blend mix flipped mirrored apply studio library", false, "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped, only the selected parts")
+	add.call("Sit down on the chair", "", _rise_sit_down, "sit down seat chair stool bench lower", true, "a run of cards: from standing the body sits down on the picked chair, stool or bench (the sit-to-stand backwards; one undo step)")
+	add.call("Stand up", "", _rise_stand_up, "stand rise sit-to-stand chair stool bench", true, "a run of cards: from sitting on the picked chair, stool or bench the body stands up, trunk 45 deg forward at seat-off (one undo step)")
+	add.call("Get up from the floor", "", _rise_get_up, "get up rise floor lying supine roll kneel half-kneel stand VanSant", true, "a run of cards: from lying on the back the body rolls to the side, hands and knees, half-kneel, stand (one undo step)")
 	add.call("CLIP this pose (add a card)", "Enter", _press.bind(KEY_ENTER), "key frame add new", true, "add the body as a new card after the picked one")
 	add.call("Play / pause", "Space", _press.bind(KEY_SPACE), "run stop", false, "play the scene from the playhead, or stop it")
 	add.call("Big view (hide the panels)", "Tab", _press.bind(KEY_TAB), "fullscreen", false, "hide the side panels so the body gets the whole window")
@@ -9462,6 +10333,10 @@ func _commands() -> Array:
 	add.call("Secondary: add a weapon flex (oak bo)", "", _sec_add.bind("bo"), "secondary weapon flex bo staff shaft wobble strike bend bake", true, "a 180 cm oak bo clamped at the right hand bends and settles after a strike; baked to keys")
 	add.call("Hair: add a ponytail", "", _hair_add, "hair ponytail strands tail verlet follow head bake sway", true, "a ponytail of 8 strands rooted on the back of the head, simulated with gravity and collision; baked to frames")
 	add.call("Hair: take the hair off", "", _hair_clear, "hair ponytail strands clear remove off", true, "removes the hair strands from the scene (Ctrl+Z puts them back)")
+	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
+	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
+	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
+	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
 	add.call("Secondary: clear", "", _sec_clear, "secondary clear remove off delete chain", true, "takes every secondary item and its keys off the scene (Ctrl+Z puts them back)")
 	add.call("Driver: factor -1", "", _drv_factor.bind(-1.0), "driver factor negative mirror invert opposite", true, "the picked part's driver: it moves the opposite way to its source")
@@ -9539,6 +10414,9 @@ func _commands() -> Array:
 		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
 	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
+	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
+	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
+	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Pose: copy to the other fighter", "", _pose_to_other.bind(false), "copy pose fighter actor other duplicate transfer", true, "the active fighter's pose at the playhead goes onto the other fighter's card at that moment (a card is made if none); one Ctrl+Z")
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
@@ -9547,6 +10425,9 @@ func _commands() -> Array:
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
+	add.call("Root path on the floor: show / hide", "", _rp_toggle, "root motion path trajectory travel floor curve handles pelvis hips root editor", false, "the root motion path on the floor: the travel of the hips as a curve, a yellow handle at each card's root (drag it to move the card on the floor) and a red arrow for its facing (drag to turn it); one undo step per drag (ROADMAP 91)")
+	add.call("Root path: straighten", "", _rp_straighten, "root motion path straighten line straight chord bend curve", true, "the cards between the first and the last root move onto the straight line between those two roots, keeping their places along it; the ends and the headings stay; one undo step (ROADMAP 91)")
+	add.call("Root path: scale length...", "", _rp_scale_dialog, "root motion path scale length longer shorter stretch factor percent travel distance", true, "every card's root moves about the first card's root by the factor you pick (25 to 300 %): the path gets longer or shorter, its headings and card times stay; one undo step (ROADMAP 91)")
 	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
 	add.call("Check: weapon clashes", "", _weapon_clash, "clash parry pass through weapons bat swing contact sparks meet fighters", false, "finds where the two fighters' weapons meet over the timeline: CLASH, PARRY, or PASS-THROUGH (the weapons go through each other: must fix); a spark marks each contact, the report prints the time, point and speed (ROADMAP 37)")
@@ -9554,6 +10435,8 @@ func _commands() -> Array:
 	add.call("Cycle card key type", "", _ktype_cycle, "breakdown moving hold extreme key blender mark", true, "the picked card becomes the next kind of key: key, breakdown, moving hold, extreme (drawn on the dope sheet)")
 	add.call("Next marker", "Ctrl+]", _marker_jump.bind(true), "cue event flag jump", false, "the playhead jumps to the next marker")
 	add.call("Previous marker", "Ctrl+[", _marker_jump.bind(false), "cue event flag jump", false, "the playhead jumps to the marker before")
+	add.call("Markers: list and jump to one...", "", _markers_list_open, "markers list jump go find cue note name colour", false, "a list of every marker (name, time, kind, the first line of its note): pick one and the playhead jumps to it exactly (ROADMAP 97)")
+	add.call("Marker: edit the one at the playhead...", "", _marker_edit_at_playhead, "marker note notes edit rename colour color delete popover text cue", false, "opens the marker within one frame of the playhead: its name, a note of several lines, its colour and Delete (ROADMAP 97)")
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
 	add.call("Trail: weapon ribbon on/off", "", _wtrail_ribbon, "trail weapon ribbon sweep blade swipe arc path", false, "a ribbon swept by the bat between its knob and its tip over the last 6 frames, fading; drawn only where the tip is faster than 8 m/s (not the motion trail, T)")
@@ -9625,17 +10508,21 @@ func _commands() -> Array:
 	add.call("Shoulders follow the arm on/off", "", func(): shoulder_follow = not shoulder_follow; _say("shoulders follow the arm: %s (raising an upper arm past 30 deg lifts and draws back its collarbone, as people's do)" % ("ON" if shoulder_follow else "OFF")), "clavicle collarbone shrug scapula rhythm shoulder", false, "raising an upper arm by hand brings its collarbone up and back (McClure 2001); off = the collarbone stays where you put it")
 	add.call("Plant every sliding foot", "", _plant_all, "foot slide skate plant lock feet contact fix all", true, "Check's foot slides, every one planted at once (each as its own Fix would), checked again; one undo step")
 	add.call("Ask AI", "", _ai_toggle, "ai llm model chat prompt type words describe gpt claude gemini ollama assistant agent generate make animate", false, "type what should happen and an AI builds the cards on this scene, one Ctrl+Z per step")
-	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it appears under the timeline as a waveform, plays in step with Play and sounds a short slice as you drag the playhead")
+	add.call("Audio: add a sound file (wav / ogg / mp3)", "", _audio_ask, "audio sound music wav ogg mp3 voice track waveform lip sync timing import", false, "pick a sound file: it is added as a track, one lane under the timeline (a waveform; drag the lane to set its offset, click its name to mute it); it plays in step with Play and sounds a short slice as you drag the playhead")
 	add.call("Lip-sync: from the audio track", "", _lip_from_audio, "lip sync lipsync mouth jaw talk speech audio voice visemes timing", true, "bake a jaw and mouth shapes from the sound (a wav on the timeline): the loudness opens the jaw 0-15 deg, the zero-crossing rate picks closed, round, open or wide; one undo step")
-	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the sound off the timeline (the file stays on disk); one undo step")
+	add.call("Audio: remove the sound", "", _audio_remove, "audio sound delete clear track waveform", true, "take the picked track off the timeline (click its lane first; with one track there is nothing to pick); the file stays on disk; one undo step")
 	add.call("Audio: louder (+3 dB)", "", _audio_gain.bind(3.0), "audio sound volume gain louder up db", true, "the sound 3 dB louder (about 1.4×), up to +12 dB; in playback and the playblast; one undo step")
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Beats: find the beats in the sound", "", _beats_find, "beats bpm tempo music beat grid downbeat bar audio", true, "find the beats and the tempo of the sound (a wav): marks on the timeline, bars marked when a 4/4 grid is evident; one undo step")
 	add.call("Beats: snap the contact cards to the nearest beat", "", _beats_snap, "beats snap contact hit strike align music sync", true, "move each hit (contact) card so it lands on its nearest beat; a card never moves more than 25 % of its own move, else nothing moves; one undo step")
 	add.call("Weight: time the swing to the weapon", "", _weight_feel, "weight heavy light weapon mass inertia swing slow fast windup recovery hammer dagger bat feel", true, "retime the wind-up and recovery of the swing by the held weapon's moment of inertia about the shoulder (a heavy weapon is slower, a light one quicker; Cross & Bower: time goes as I^0.27); the hit card and its pose stay; one undo step")
 	add.call("Beats: clear the beats", "", _beats_clear, "beats clear remove music", true, "take the beat marks off the timeline; one undo step")
+	add.call("Audio: mute or unmute the picked track", "", _audio_mute_picked, "audio sound track mute silence unmute lane", true, "the picked track (click its lane) silent or sounding again, in Play, the scrub and the playblast; one undo step")
+	add.call("Audio: solo or unsolo the picked track", "", _audio_solo_picked, "audio sound track solo only isolate lane", true, "the picked track soloed: only soloed tracks sound (in Play, the scrub and the playblast); one undo step")
+	add.call("Audio: next role for the picked track (music, voice, sfx)", "", _audio_role_next, "audio sound track role music voice sfx lip sync beats", true, "the picked track's role cycles music -> voice -> sfx: the beats read the music track, the lip sync the voice track; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
+	add.call("Import from several cameras...", "", _multicam_ask, "video several cameras multi camera triangulate rig two videos mocap motion capture track person film record", false, "pick 2 to 4 videos of one person filmed at the same time: the rig is solved from the person, the joints triangulated, one undo step")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
@@ -9645,6 +10532,7 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Share scene as a pack...", "", _share_scene_pack, "share scene pack asset store kinepack export send", false, "the saved scene as one .kinepack file (cards, timings, markers, props) to send to someone; Import pack... reads it")
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
 		var miss := not FileAccess.file_exists(p)
 		var how := "%s is not on disk any more: File > Recent drops it when %d newer scenes are opened" % [p.get_file(), RECENT_N]
@@ -9847,6 +10735,200 @@ func _marker_jump(fwd: bool) -> void:
 	_ps().apply(B, minf(playhead, _ps().length()))
 	_refresh()
 	_say("marker at %.2f s" % t)
+
+
+## ROADMAP 97: the marker notes. A click on a flag (or 'Marker: edit the one at the playhead') opens its popover: name,
+## note (several lines), colour (Tok mk_*) and Delete. Each commit is one undo step; dragging a flag is one undo step
+## (the first frame moved takes the snapshot, the mouse going up ends it); a click without a drag only moves the playhead.
+var _mk_drag_open := false
+var mk_pop: PopupPanel = null
+var mk_ui := {}
+var mk_i := -1
+var mk_color := ""
+var mk_list_pop: PopupPanel = null
+var mk_list: ItemList = null
+
+
+## a flag dragged to t (whole frames): the first move takes the undo snapshot; done = the mouse went up (the list is sorted again)
+func _marker_moved(i: int, t: float, done: bool) -> void:
+	if i < 0 or i >= S.markers.size():
+		return
+	if not _mk_drag_open:
+		_push_undo()
+		_mk_drag_open = true
+	S.markers[i]["t"] = t
+	if done:
+		S.markers.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
+		_mk_drag_open = false
+		_say("marker %s moved to %s (frame %d).  Ctrl+Z undoes" % [S.markers[i]["name"], Units.time(t, S.fps), Markers.frame_of(t, S.fps)])
+	_markers_changed()
+
+
+## the playhead exactly on marker i (no rounding), and its popover open
+func _marker_open(i: int) -> void:
+	if i < 0 or i >= S.markers.size():
+		return
+	_marker_goto(i)
+	_mk_pop_show(i)
+
+
+func _marker_goto(i: int) -> void:
+	playing = false
+	playhead = float(S.markers[i]["t"])
+	_ps().apply(B, minf(playhead, _ps().length()))
+	_refresh()
+
+
+func _marker_edit_at_playhead() -> void:
+	var i := Markers.near(S.markers, playhead, 1.0 / float(S.fps))
+	if i < 0:
+		_say("no marker within one frame of the playhead: press Ctrl+] / Ctrl+[ to move onto one, or pick one from Markers: list and jump to one")
+		return
+	_mk_pop_show(i)
+
+
+func _mk_pop_build() -> void:
+	mk_pop = PopupPanel.new()
+	mk_pop.name = "MarkerPopover"
+	var box := StyleBoxFlat.new()   # the Tok float panel, opaque enough to read over the timeline
+	box.bg_color = Tok.c("mk_panel")   # opaque: the timeline and the cards behind it must not show through
+	box.set_border_width_all(1)
+	box.border_color = Tok.c("mk_border")
+	box.set_corner_radius_all(4)
+	box.set_content_margin_all(8)
+	mk_pop.add_theme_stylebox_override("panel", box)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	mk_pop.add_child(v)
+	var head := Label.new()
+	v.add_child(head)
+	mk_ui["head"] = head
+	var nm := LineEdit.new()
+	nm.placeholder_text = "name (m1, hit, ...)"
+	nm.custom_minimum_size = Vector2(300, 0)
+	nm.text_submitted.connect(func(_t): _mk_commit_open())
+	v.add_child(nm)
+	mk_ui["name"] = nm
+	var note := TextEdit.new()
+	note.placeholder_text = "a note for this moment (several lines are fine)"
+	note.custom_minimum_size = Vector2(300, 96)
+	note.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	v.add_child(note)
+	mk_ui["note"] = note
+	var sw := HBoxContainer.new()
+	sw.add_theme_constant_override("separation", 6)
+	v.add_child(sw)
+	for c in Markers.PALETTE:
+		var b := Button.new()
+		b.text = c
+		b.tooltip_text = "colour: %s" % c
+		b.modulate = Tok.c("mk_" + c)
+		b.pressed.connect(_mk_pick_color.bind(c))
+		sw.add_child(b)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	v.add_child(row)
+	var del := Button.new()
+	del.text = "Delete marker"
+	del.pressed.connect(_mk_delete_open)
+	row.add_child(del)
+	var done := Button.new()
+	done.text = "Done"
+	done.pressed.connect(func(): mk_pop.hide())
+	row.add_child(done)
+	mk_pop.popup_hide.connect(_mk_pop_hidden)
+	add_child(mk_pop)
+
+
+func _mk_pop_show(i: int) -> void:
+	if mk_pop == null:
+		_mk_pop_build()
+	mk_i = i
+	var mk: Dictionary = S.markers[i]
+	mk_color = String(mk.get("color", Markers.KIND_COLOR.get(String(mk["kind"]), "gold")))
+	(mk_ui["head"] as Label).text = "%s: %s, frame %d" % [mk["name"], Units.time(mk["t"], S.fps), Markers.frame_of(float(mk["t"]), S.fps)]
+	(mk_ui["name"] as LineEdit).text = String(mk["name"])
+	(mk_ui["note"] as TextEdit).text = String(mk.get("note", ""))
+	ui_timeline.mark_sel = i
+	ui_timeline.queue_redraw()
+	# the timeline sits at the bottom of the window: the popover opens ABOVE its ruler, at the marker's time (fixed size: a popup sized before layout is empty)
+	var gp := ui_timeline.get_global_rect().position
+	var sz := Vector2i(340, 262)
+	var x := clampf(ui_timeline.x_of(clampf(float(mk["t"]), 0.0, S.length())) - 20.0, 0.0, maxf(ui_timeline.size.x - 340.0, 0.0))
+	var y := maxf(gp.y - float(sz.y) - 6.0, 0.0)
+	mk_pop.popup(Rect2i(Vector2i(int(gp.x + x), int(y)), sz))
+
+
+## the popover's fields -> marker i: one undo step when anything changed; -> true when it did
+func _mk_commit(i: int, name: String, note: String, color: String) -> bool:
+	if i < 0 or i >= S.markers.size():
+		return false
+	var cur: Dictionary = S.markers[i]
+	var nw := Markers.with(cur, name, note, color)
+	if JSON.stringify(nw) == JSON.stringify(cur):
+		return false
+	_push_undo()
+	S.markers[i] = nw
+	_markers_changed()
+	return true
+
+
+func _mk_pick_color(c: String) -> void:
+	mk_color = c
+	_mk_commit_open()
+
+
+func _mk_commit_open() -> void:
+	if mk_i >= 0:
+		_mk_commit(mk_i, (mk_ui["name"] as LineEdit).text, (mk_ui["note"] as TextEdit).text, mk_color)
+
+
+func _mk_pop_hidden() -> void:
+	_mk_commit_open()
+	mk_i = -1
+	ui_timeline.mark_sel = -1
+	ui_timeline.queue_redraw()
+
+
+func _mk_delete_open() -> void:
+	if mk_i < 0 or mk_i >= S.markers.size():
+		mk_pop.hide()
+		return
+	var gone: Dictionary = S.markers[mk_i]
+	_push_undo()
+	S.markers.remove_at(mk_i)
+	mk_i = -1
+	mk_pop.hide()
+	_markers_changed()
+	_say("marker %s deleted.  Ctrl+Z undoes" % gone["name"])
+
+
+func _markers_list_open() -> void:
+	if S.markers.is_empty():
+		_say("no markers in this scene yet: put the playhead on the moment and press Add marker at the playhead")
+		return
+	if mk_list_pop == null:
+		mk_list_pop = PopupPanel.new()
+		mk_list = ItemList.new()
+		mk_list.custom_minimum_size = Vector2(480, 280)
+		mk_list.item_selected.connect(_markers_list_pick)
+		mk_list_pop.add_child(mk_list)
+		add_child(mk_list_pop)
+	mk_list.clear()
+	for mk in S.markers:
+		var line := "%s    %s    %s" % [mk["name"], Units.time(mk["t"], S.fps), mk["kind"]]
+		if mk.has("note"):
+			line += "    " + String(mk["note"]).split("
+")[0]
+		mk_list.add_item(line)
+		mk_list.set_item_custom_fg_color(mk_list.item_count - 1, Tok.c(Markers.token_of(mk)))
+	mk_list_pop.popup_centered(Vector2i(500, 300))
+
+
+func _markers_list_pick(i: int) -> void:
+	mk_list_pop.hide()
+	_marker_goto(i)
+	_say("marker %s at %s" % [S.markers[i]["name"], Units.time(S.markers[i]["t"], S.fps)])
 
 
 func _markers_changed() -> void:
@@ -11925,13 +13007,41 @@ func _macro_indicator() -> void:
 	rec_label.text = "REC  %s   %d step%s   (Stop macro recording saves it)" % [rec_name, rec_steps.size(), "" if rec_steps.size() == 1 else "s"]
 
 
+## ROADMAP 100: a plugin's command is ONE undo step, the macro play's way: its edits join the step opened before the
+## first one (_push_undo is a no-op after it inside a command). A plugin that fails is disabled; its message is said
+func _plugin_run(i: int, cid: String) -> void:
+	var step := plugins.step_name(i, cid)
+	_macro_nest = 1
+	_macro_pushed = false
+	var msg := plugins.run(i, cid)
+	var opened := _macro_pushed
+	_macro_nest = 0
+	if opened:
+		undo[-1]["name"] = step   # the status line would name it otherwise (the drag's step is named the same way)
+		_tree.set_name(_tree.cur, step)
+		_after_edit()
+	_rebuild_cards()
+	_refresh()
+	if msg != "":
+		_say(msg)
+	elif not opened:
+		_say("plugin command done: it changed nothing")
+	else:
+		_say("plugin command done: one undo step (Ctrl+Z takes it back)")
+
+
+## the S box's plugin rows follow the switches (a plugin switched on, off, or disabled itself)
+func _plugins_changed() -> void:
+	ui_cmd.commands = _commands() + plugins.command_rows()
+
+
 func _macro_play(nm: String) -> void:
 	var mac := Macros.find(macros, nm)
 	if mac.is_empty():
 		_say("there is no macro called '%s': type 'macro' in the S box to see the saved ones" % nm)
 		return
 	if rec_name != "":
-		_say("stop recording first: '%s' cannot play while '%s' is being recorded (Stop macro recording)" % [nm, rec_name])
+		_say("click 'Stop macro recording' first: '%s' cannot play while '%s' is being recorded" % [nm, rec_name])
 		return
 	var steps: Array = mac["steps"]
 	_macro_nest = 1
@@ -12203,7 +13313,7 @@ func _recent_changed() -> void:
 		_fill_scene_list()
 		_show_open_scene()
 	if ui_cmd != null:
-		ui_cmd.commands = _commands()
+		ui_cmd.commands = _commands() + plugins.command_rows()
 
 
 ## File > Recent: a scene from the list, opened as the list's pick would open it
@@ -12440,6 +13550,8 @@ func _props_show() -> void:
 	var kind := String(S.props[sel_prop]["kind"]) if sel_prop >= 0 and sel_prop < S.props.size() else ""
 	if ui_use_btns.has("Sit here"):
 		_grey(ui_use_btns["Sit here"], "" if kind in SIT_ON else "pick a chair, a stool or a bench first (Add prop puts one in the set)")
+		for k in ["Sit down", "Stand up"]:
+			_grey(ui_use_btns[k], "" if kind in SIT_ON else "pick a chair, a stool or a bench first (Add prop puts one in the set)")
 		_grey(ui_use_btns["Step up"], "" if kind in STEP_ON else "pick a box, a crate, a step or the stairs first (Add prop puts one in the set)")
 		_grey(ui_use_btns["Pick up"], "" if kind != "" and sel_card >= 0 else ("pick a card first: the body on it holds the prop" if kind != "" else "pick a prop first: click it in the view, or add one with Add prop"))
 		_grey(ui_use_btns["Put down"], "" if not _held_at(sel_card).is_empty() else "pick a card where a prop is held (after its Pick up card): the hands let it go there")
@@ -12678,6 +13790,76 @@ func _prop_sit() -> void:
 	_use_card("sit on the %s" % _prop_name(sel_prop), a)
 
 
+## ---- SIT DOWN / STAND UP / GET UP FROM THE FLOOR (ROADMAP 94; the keys are made in scripts/rise.gd)
+## each adds a run of cards after the picked one as ONE undo step; a refusal says what to pick
+func _rise_prop_ok(verb: String) -> bool:
+	if actor_on != 0:
+		_say("%s works on the hero's scene: press Actor: switch to the next fighter until the hero is on screen" % verb)
+		return false
+	if sel_prop < 0 or sel_prop >= S.props.size() or not String(S.props[sel_prop]["kind"]) in SIT_ON:
+		_say("%s needs a chair, a stool or a bench: pick one in the view (Add prop puts one in the set), then %s again" % [verb, verb])
+		return false
+	return true
+
+
+func _rise_add(r: Dictionary, flags: Dictionary) -> void:
+	var at := sel_card + 1 if sel_card >= 0 else S.cards.size()
+	var first := at
+	_do(func():
+		var i := at
+		for c in r["cards"]:
+			S.add(c["name"], c["pose"], i)
+			var cd: Dictionary = S.cards[mini(i, S.cards.size() - 1)]
+			cd["move"] = c["move"] if i > at else 0.5   # the way in to the run is a short half second
+			cd["hold"] = 0.0
+			if not (c["plant"] as Array).is_empty():
+				cd["plant"] = c["plant"]
+			if c.has("ease"):
+				cd["ease"] = c["ease"]
+			i += 1
+		for k in flags:
+			S.set(k, flags[k])
+		sel_card = first
+		playhead = S.times()[sel_card][1]
+		_rebuild_cards()
+		S.apply(B, playhead))
+
+
+func _rise_sit_down() -> void:
+	if not _rise_prop_ok("Sit down"):
+		return
+	var keep: Dictionary = B.state()
+	var r := Rise.sit_down(B, S.props[sel_prop])
+	B.set_state(keep)
+	var n: int = (r["cards"] as Array).size()
+	_rise_add(r, {})
+	_say("added %d cards: the body sits down on the %s in %.1f s, feet planted. Ctrl+Z takes the whole run back" % [n, _prop_name(sel_prop), Rise.DUR])
+
+
+func _rise_stand_up() -> void:
+	if not _rise_prop_ok("Stand up"):
+		return
+	var keep: Dictionary = B.state()
+	var r := Rise.stand_up(B, S.props[sel_prop])
+	B.set_state(keep)
+	var n: int = (r["cards"] as Array).size()
+	_rise_add(r, {})
+	_say("added %d cards: the body stands up from the %s in %.1f s (trunk %.0f deg forward at seat-off, feet planted). Ctrl+Z takes the whole run back" % [n, _prop_name(sel_prop), Rise.DUR, Rise.TRUNK_PEAK])
+
+
+func _rise_get_up() -> void:
+	if actor_on != 0:
+		_say("Get up works on the hero's scene: press Actor: switch to the next fighter until the hero is on screen")
+		return
+	var keep: Dictionary = B.state()
+	var p: Vector3 = B.P["pelvis"]
+	var r := Rise.get_up(B, Vector2(p.x, p.z))
+	B.set_state(keep)
+	var n: int = (r["cards"] as Array).size()
+	_rise_add(r, r["report"]["scene"])
+	_say("added %d cards: lying on the back, rolled to the side, hands and knees, half-kneel, stand (%.0f s). This scene now plays with natural and floor grounding off (the lifts are in the cards). Ctrl+Z takes it all back" % [n, Rise.FLOOR_DUR])
+
+
 ## STEP UP (TT3, #205): a new card: the foot nearer the picked box / step / stairs stands on its lowest top, 12 cm in
 ## from the edge nearest the body; the other stays. A top out of the leg's reach is refused in words, nothing changed
 func _prop_step() -> void:
@@ -12765,7 +13947,9 @@ func _prop_put() -> void:
 	for k in range(int(c["a"]) + 1, S.cards.size()):   # one drop per carry: an earlier or later one moves here
 		if int(S.cards[k].get("drop", -1)) == pi:
 			S.cards[k].erase("drop")
+			S.cards[k].erase("drop_rig")
 	S.cards[sel_card]["drop"] = pi
+	S.bake_drop(B, sel_card)   # ROADMAP 85: a sword let go over the floor falls as a rigid body, baked on this card
 	_rebuild_cards()
 	_props_show()
 	_refresh()
@@ -12775,6 +13959,11 @@ func _prop_put() -> void:
 	for k in cs.size():
 		if int(cs[k]["a"]) == int(c["a"]):
 			d = S._carry_data(B)[k]
+	if d.has("rig"):   # ROADMAP 85: a rod falls as a rigid body; its baked fall ends where it lies
+		var n := int((d["rig"]["poses"] as PackedFloat64Array).size() / 7)
+		_say("card %d: the hands let the %s go; it falls as a rigid body and lies on the floor after %s. Ctrl+Z takes it back" % [
+			sel_card + 1, _prop_name(pi), Units.time(float(n - 1) * RigidDrop.DT, S.fps)])
+		return
 	var h := float(d.get("drop", Transform3D()).origin.y) - float(d.get("land", 0.0)) if d.has("drop") else 0.0
 	_say("card %d: the hands let the %s go; it falls %.0f cm in %s onto %s. Ctrl+Z takes it back" % [sel_card + 1, _prop_name(pi),
 		h * 100.0, Units.time(float(d.get("tf", 0.0)), S.fps), "the floor" if float(d.get("land", 0.0)) < 0.001 else "what is under it"])
@@ -12950,49 +14139,161 @@ func _on_drop(files: PackedStringArray) -> void:
 			_import_file(f)
 
 
-## ---- AUDIO TRACK (GAP_ANALYSIS row 23). The scene keeps S.audio = {"path", "offset", "gain_db"}; the stream and its peak
-## envelope (AudioTrack, computed once per file) live here, not in the file. Play: the AudioStreamPlayer plays from
-## (playhead - offset), re-seeked when the playhead jumps; a drag of the ruler plays one short slice per frame.
+## ---- AUDIO TRACKS (GAP_ANALYSIS row 23; ROADMAP 77; scripts/audio_track.gd). The scene keeps S.audio_tracks: a list of
+## {"path", "offset", "gain_db", "role", "mute", "solo"}. The sounding tracks are mixed offline into ONE stream (AudioTrack.mix:
+## each at its offset and gain, summed, clipped) and ONE player plays that premix from the playhead. The playhead follows the
+## player's own clock, so the tracks are in step by construction. A change is mixed once it has been quiet for AUDIO_MIX_QUIET
+## (a drag of an offset mixes once, at its end); adding, removing, opening and undo mix at once. Lip sync and beats read their
+## own track's stream, not the premix.
 const AUDIO_SLICE_EXTRA := 0.04   # s added to one frame for a scrub slice
-var audio_env := {}             # AudioTrack.envelope of the loaded sound; {} = none
-var audio_seeks := 0            # how many times Play (re)started the sound (tests)
-var audio_err := 0.0            # sound position - wanted position (s), read right after the playhead moved this frame (tests)
+const AUDIO_MIX_QUIET := 150000   # usec: a change is mixed after this long without another change
+var audio_envs: Array = []      # per track: AudioTrack.envelope of its file ({} = not loaded)
+var audio_mixes := 0            # how many premixes were built (tests)
+var audio_mix_usec := 0         # how long the last premix took to build, usec (tests)
+var audio_gap: Array = []       # per track: the premix's audio clock minus the playhead, read right after the playhead was set; NAN when not playing (tests). All tracks share one clock.
+var audio_from_clock := false   # this frame's playhead came from the audio clock (tests)
 var audio_slices := 0           # how many scrub slices were sounded (tests)
-var _a_player: AudioStreamPlayer
+var audio_pick := -1            # the track the Audio commands act on (picked by clicking its lane); -1 = none
 var mouth_mi: MeshInstance3D   # LIP-SYNC (ROADMAP 31): the mouth drawn on the head, from S.lip (lip_sync.gd); made on first use
-var _a_path := "<unset>"        # the path the stream was loaded for (a change reloads it: open, undo, remove)
-var _a_on := false              # the player is running for Play
+var _a_streams: Array = []      # per track: its AudioStream (AudioTrack.load_stream); null = none
+var _a_pcm: Array = []         # per track: its stream decoded at the mix rate (AudioTrack.decode), made on load; a re-mix only sums these
+var audio_decode_usec := 0     # how long the last load took to decode the tracks, usec (tests)
+var audio_swap_usec := 0       # the main thread's time to swap a finished premix in, usec (tests)
+var _a_task := -1              # the WorkerThreadPool task building the next premix (-1 = none in flight)
+var _a_result: Array = []      # the task's output: [PCM bytes]
+var _a_job_key := "<unset>"   # the state the task's premix is built for; it becomes _a_key when swapped in
+var _a_job_rate := 0
+var _a_job_t0 := 0
+var _a_paths: Array = []        # the paths the streams were loaded for (a change of files reloads at once)
+var _a_mixer: AudioStreamPlayer # the one player: plays the premix (made on first use)
+var _a_mix_len := 0.0           # s: the premix's length; 0 = nothing to play
+var _a_key := "<unset>"         # the state the premix was built for (path, offset, gain and audibility per track)
+var _a_last_key := "<unset>"    # the key seen last frame (a change restarts the quiet period)
+var _a_key_at := 0              # usec when the key last changed
 var _a_after := -1.0            # the playhead at the end of the last tick (a different one now = the user moved it)
 var _a_slice_until := 0         # msec when the scrub slice stops
 var _a_slice_frame := -1
 
 
-func audio_stream() -> AudioStream:
-	return _a_player.stream if _a_player != null else null
+## the state the premix depends on: each track's file, offset, gain and whether it sounds (role does not change the mix)
+func _a_key_now() -> String:
+	var on := AudioTrack.audible(S.audio_tracks)
+	var out := []
+	for i in S.audio_tracks.size():
+		var t: Dictionary = S.audio_tracks[i]
+		out.append([String(t.get("path", "")), float(t.get("offset", 0.0)), float(t.get("gain_db", 0.0)), on[i]])
+	return var_to_str(out)
 
 
-## where the sound is, in its own seconds; -1 when it is not sounding. The engine mixes in chunks, so its position is up to
-## a chunk old: the class reference says to add the time since the last mix (the output latency is not taken off)
-func audio_position() -> float:
-	if _a_player == null or not _a_player.playing:
+## the stream of track i (null = none)
+func audio_stream(i := 0) -> AudioStream:
+	return _a_streams[i] if i >= 0 and i < _a_streams.size() else null
+
+
+func _audio_mixer() -> AudioStreamPlayer:
+	if _a_mixer == null:
+		_a_mixer = AudioStreamPlayer.new()
+		_a_mixer.name = "audio_mix"
+		add_child(_a_mixer)
+	return _a_mixer
+
+
+## the premix's position on the timeline (the playhead's time), -1.0 when it is not playing
+func audio_mix_position() -> float:
+	if _a_mixer == null or not _a_mixer.playing:
 		return -1.0
-	return _a_player.get_playback_position() + AudioServer.get_time_since_last_mix()
+	return _a_mixer.get_playback_position() + AudioServer.get_time_since_last_mix()
 
 
+## the playhead as the audio clock reads it: the premix's read point, plus the time since the last mix, less the output
+## latency (the premix's time is the timeline's time); -1.0 when it is not playing
+func _audio_clock() -> float:
+	if _a_mixer == null or not _a_mixer.playing:
+		return -1.0
+	return _a_mixer.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
+
+
+## the tracks' files changed (open, add, remove, undo): load every stream and its envelope, and mix at once
 func _audio_reload() -> void:
-	_a_path = String(S.audio.get("path", ""))
-	_a_on = false
-	_a_slice_until = 0
-	if _a_player == null:
-		_a_player = AudioStreamPlayer.new()
-		_a_player.name = "audio_track"
-		add_child(_a_player)
-	_a_player.stop()
-	_a_player.stream = AudioTrack.load_stream(_a_path)
-	audio_env = {} if _a_path == "" else AudioTrack.envelope(_a_player.stream, _a_path)
+	var n := S.audio_tracks.size()
+	_a_streams = []
+	_a_pcm = []
+	_a_paths = []
+	audio_envs = []
+	var t0 := Time.get_ticks_usec()
+	var rate := int(AudioServer.get_mix_rate())
+	for i in n:
+		var path := String(S.audio_tracks[i]["path"])
+		var st: AudioStream = AudioTrack.load_stream(path)
+		_a_streams.append(st)
+		_a_pcm.append(AudioTrack.decode(st, rate) if st != null else PackedFloat32Array())
+		_a_paths.append(path)
+		audio_envs.append({} if path == "" else AudioTrack.envelope(st, path))
+	audio_decode_usec = Time.get_ticks_usec() - t0
+	if audio_pick >= n:
+		audio_pick = -1
+	_audio_remix_now()
 	if ui_timeline != null:
 		_tl_height()
+		_layout_bottom()   # ROADMAP 77: each audio track adds a lane row; the panel makes room for it
 		ui_timeline.queue_redraw()
+
+
+## mixes the sounding tracks into the premix now; the player starts it again from the playhead on the next tick
+## starts a premix on a worker thread (the old one keeps playing); _audio_swap puts it in when it is ready
+func _audio_remix_now() -> void:
+	if _a_task >= 0:
+		return   # one is being built: the state is checked again once it is swapped in
+	var on := AudioTrack.audible(S.audio_tracks)
+	var rate := int(AudioServer.get_mix_rate())
+	var pcms := []
+	var starts := []
+	var gains := []
+	for i in S.audio_tracks.size():
+		if on[i] and i < _a_pcm.size() and not (_a_pcm[i] as PackedFloat32Array).is_empty():
+			pcms.append(_a_pcm[i])
+			starts.append(int(round(float(S.audio_tracks[i]["offset"]) * rate)))
+			gains.append(db_to_linear(float(S.audio_tracks[i]["gain_db"])))
+	if pcms.is_empty():
+		var mixer := _audio_mixer()
+		mixer.stop()
+		mixer.stream = null
+		_a_mix_len = 0.0
+		_a_key = _a_key_now()
+		audio_mixes += 1
+		_a_after = -1.0
+		_a_slice_until = 0
+		return
+	_a_job_key = _a_key_now()
+	_a_job_rate = rate
+	_a_result = [null]
+	_a_job_t0 = Time.get_ticks_usec()
+	_a_task = WorkerThreadPool.add_task(AudioTrack.mix_bytes.bind(pcms, starts, gains, _a_result), false, "premix")
+
+
+## the finished premix goes in on the main thread: one stream swap, and the player plays it from the current playhead
+func _audio_swap() -> void:
+	WorkerThreadPool.wait_for_task_completion(_a_task)
+	_a_task = -1
+	var t0 := Time.get_ticks_usec()
+	var w := AudioTrack.wav_of(_a_result[0], _a_job_rate)
+	var mixer := _audio_mixer()
+	mixer.stream = w
+	_a_mix_len = w.get_length()
+	_a_key = _a_job_key
+	audio_mixes += 1
+	audio_mix_usec = Time.get_ticks_usec() - _a_job_t0
+	_a_result = []
+	if playing and playhead >= 0.0 and playhead < _a_mix_len:
+		mixer.play(playhead)   # the one seek
+		_a_after = playhead
+	else:
+		mixer.stop()
+		_a_after = -1.0
+	_a_slice_until = 0
+	audio_swap_usec = Time.get_ticks_usec() - t0
+
+
 
 
 func _audio_ask() -> void:
@@ -13008,8 +14309,8 @@ func _audio_ask() -> void:
 	fd.popup_centered(Vector2i(800, 500))
 
 
-## put a sound on the timeline (one undo step). Returns true when it loaded
-func _audio_set(path: String) -> bool:
+## add a sound as a new track (one undo step). role "" = music when no track is music yet, else sfx. Returns true when it loaded
+func _audio_set(path: String, role := "") -> bool:
 	if not AudioTrack.EXTS.has(path.get_extension().to_lower()):
 		_say("could not add %s: it is not a wav, ogg or mp3; pick one of those" % path.get_file())
 		return false
@@ -13017,26 +14318,91 @@ func _audio_set(path: String) -> bool:
 	if st == null:
 		_say("could not add %s: the file is missing or Godot cannot read it; pick another wav, ogg or mp3" % path.get_file())
 		return false
+	var r := role
+	if r == "":
+		r = "sfx" if AudioTrack.index_of_role(S.audio_tracks, "music") >= 0 else "music"
 	_push_undo()
-	S.audio = {"path": path, "offset": 0.0, "gain_db": 0.0}
+	S.audio_tracks.append(AudioTrack.clean({"path": path, "role": r}))
+	audio_pick = S.audio_tracks.size() - 1
 	_audio_reload()
-	var env := audio_env
-	_say("sound added: %s, %s from 0.00 s%s" % [path.get_file(), Units.time(st.get_length(), S.fps), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
+	var env: Dictionary = audio_envs[audio_pick]
+	_say("sound added as track %d (%s): %s, %s from 0.00 s%s" % [audio_pick + 1, r, path.get_file(), Units.time(st.get_length(), S.fps), "" if env.get("ok", false) else " (ogg / mp3 / compressed wav have no waveform here: a flat bar with the name stands in; it still plays)"])
 	_refresh()
 	return true
+
+
+## the track an Audio command acts on: the one picked on its lane, or the only one. -1 = none (the message says what to do)
+func _audio_target() -> int:
+	if S.audio_tracks.is_empty():
+		_say("no sound on the timeline: run Audio: add a sound file first")
+		return -1
+	if audio_pick >= 0 and audio_pick < S.audio_tracks.size():
+		return audio_pick
+	if S.audio_tracks.size() == 1:
+		return 0
+	_say("pick a track first: click its lane on the timeline (its name mutes it), then run this again")
+	return -1
+
+
+## a track's yes / no flag (mute, solo): toggled, one undo step
+func _audio_flag(i: int, key: String) -> void:
+	var on := not bool(S.audio_tracks[i].get(key, false))
+	_push_undo()
+	if on:
+		S.audio_tracks[i][key] = true
+	else:
+		S.audio_tracks[i].erase(key)
+	var nm: String = String(S.audio_tracks[i]["path"]).get_file()
+	if key == "mute":
+		_say("%s is %s (Ctrl+Z puts it back)" % [nm, "muted: silent in Play, the scrub and the playblast" if on else "sounding again"])
+	else:
+		_say("%s is %s (Ctrl+Z puts it back)" % [nm, "soloed: only the soloed tracks sound" if on else "not soloed"])
+	if ui_timeline != null:
+		ui_timeline.queue_redraw()
+	_refresh()
+
+
+func _audio_mute_picked() -> void:
+	var i := _audio_target()
+	if i >= 0:
+		_audio_flag(i, "mute")
+
+
+func _audio_solo_picked() -> void:
+	var i := _audio_target()
+	if i >= 0:
+		_audio_flag(i, "solo")
+
+
+## the role cycles music -> voice -> sfx. Music: the beats read it; voice: the lip sync reads it; sfx: plays and mixes only
+func _audio_role_next() -> void:
+	var i := _audio_target()
+	if i < 0:
+		return
+	var r := String(S.audio_tracks[i].get("role", "music"))
+	var nxt: String = AudioTrack.ROLES[(AudioTrack.ROLES.find(r) + 1) % AudioTrack.ROLES.size()]
+	_push_undo()
+	S.audio_tracks[i]["role"] = nxt
+	var what: String = {"music": "the beats read it (Beats: find the beats in the sound)", "voice": "the lip sync reads it (Lip-sync: from the audio track)", "sfx": "it plays and mixes; nothing else reads it"}[nxt]
+	_say("track %d is now the %s track: %s (Ctrl+Z puts it back)" % [i + 1, nxt, what])
+	if ui_timeline != null:
+		ui_timeline.queue_redraw()
+	_refresh()
 
 
 ## ---- LIP-SYNC (ROADMAP 31; scripts/lip_sync.gd). The channel S.lip is baked from the sound on the timeline; the mouth
 ## is a dark shape on the head: its width from the mouth shape, its opening from the jaw channel.
 func _lip_from_audio() -> void:
-	if S.audio.is_empty():
+	var i := AudioTrack.index_of_role(S.audio_tracks, "voice")   # ROADMAP 77: the voice track (the first track when none is tagged voice)
+	if i < 0:
 		_say("no sound on the timeline: run Audio: add a sound file first (a wav)")
 		return
-	var r := LipSync.read_wav(String(S.audio.get("path", "")))
+	var t: Dictionary = S.audio_tracks[i]
+	var r := LipSync.read_wav(String(t["path"]))
 	if not r["ok"]:
 		_say("lip-sync: %s (try another sound)" % r["why"])
 		return
-	var off := float(S.audio.get("offset", 0.0))
+	var off := float(t["offset"])
 	var A := LipSync.analyse(LipSync.windows(r["mono"], int(r["rate"])))
 	var lip := LipSync.bake(A, S.fps, off, maxf(S.length(), off + float(r["length"])))
 	_push_undo()
@@ -13047,7 +14413,6 @@ func _lip_from_audio() -> void:
 			opened += 1
 	_say("lip-sync baked: %d mouth changes, %d of %d windows voiced, jaw 0-%d° (Ctrl+Z removes it)" % [lip["mouth"].size(), opened, (A["shape"] as PackedStringArray).size(), int(LipSync.JAW_MAX)])
 	_refresh()
-
 
 ## THE FACE on the head (ROADMAP 74; scripts/face.gd): the brows (L/R), the eyes (look + blink), and the mouth (the jaw and
 ## the viseme shape). Drawn at the playhead from the face keys and the lip-sync channel (the lip sync drives the jaw and the
@@ -13170,15 +14535,16 @@ func face_at(rest: Vector3) -> Vector3:
 
 
 func _audio_remove() -> void:
-	if S.audio.is_empty():
-		_say("no sound on the timeline: run Audio: add a sound file first")
+	var i := _audio_target()
+	if i < 0:
 		return
 	_push_undo()
-	S.audio = {}
+	var nm: String = String(S.audio_tracks[i]["path"]).get_file()
+	S.audio_tracks.remove_at(i)
+	audio_pick = -1
 	_audio_reload()
-	_say("sound removed from the timeline (the file is still on disk; add it again to bring it back)")
+	_say("track removed from the timeline: %s (the file is still on disk; add it again to bring it back)" % nm)
 	_refresh()
-
 
 ## the sound's loudness in steps of 3 dB (about 1.4x the amplitude), -30 .. +12 dB; saved as gain_db, used by playback
 ## and mixed into the playblast's mp4 (PlayblastExport.args). One undo step
@@ -13220,27 +14586,26 @@ func _twin_fix() -> void:
 
 
 func _audio_gain(step: float) -> void:
-	if S.audio.is_empty():
-		_say("no sound on the timeline: run Audio: add a sound file first")
+	var i := _audio_target()
+	if i < 0:
 		return
-	var g := clampf(float(S.audio.get("gain_db", 0.0)) + step, -30.0, 12.0)
-	if absf(g - float(S.audio.get("gain_db", 0.0))) < 1e-6:
+	var cur := float(S.audio_tracks[i]["gain_db"])
+	var g := clampf(cur + step, -30.0, 12.0)
+	if absf(g - cur) < 1e-6:
 		_say("the sound is already as %s as it goes (%+.0f dB): try the other way" % ["loud" if step > 0 else "quiet", g])
 		return
 	_push_undo()
-	S.audio["gain_db"] = g
-	if _a_player != null:
-		_a_player.volume_db = g
+	S.audio_tracks[i]["gain_db"] = g
 	_say("the sound is at %+.0f dB now (0 = as recorded; Ctrl+Z puts it back)" % g)
 	_refresh()
 
-
 ## MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): the beats of the sound, kept in the scene as "beats_audio"
 func _beats_find() -> void:
-	if S.audio.is_empty() or _a_player == null or _a_player.stream == null:
-		_say("no sound on the timeline: run Audio: add a sound file first (beats need a wav)")
+	var mi := AudioTrack.index_of_role(S.audio_tracks, "music")
+	if mi < 0 or audio_stream(mi) == null:
+		_say("no music track on the timeline: run Audio: add a sound file first (beats need a wav with the music role)")
 		return
-	var r := BeatTrack.analyze(_a_player.stream)
+	var r := BeatTrack.analyze(audio_stream(mi))
 	if not r["ok"]:
 		_say("beats: %s (try another sound)" % r["msg"])
 		return
@@ -13255,7 +14620,6 @@ func _beats_find() -> void:
 		ui_timeline.queue_redraw()
 	_refresh()
 
-
 ## snaps each contact card (the card a hit marker sits on) onto its nearest beat; one undo step. Runs on a clone first:
 ## when any card would need more than 25 % of its move, nothing changes and the message says why
 func _beats_snap() -> void:
@@ -13263,7 +14627,8 @@ func _beats_snap() -> void:
 		_say("no beats yet: run Beats: find the beats in the sound first")
 		return
 	var trial := S.clone()
-	var r := BeatTrack.snap(trial, S.beats_audio, float(S.audio.get("offset", 0.0)))
+	var mi := AudioTrack.index_of_role(S.audio_tracks, "music")
+	var r := BeatTrack.snap(trial, S.beats_audio, float(S.audio_tracks[mi]["offset"]) if mi >= 0 else 0.0)
 	if not r["ok"]:
 		_say(r["msg"] + " (pick other cards, or add a hit marker)")
 		return
@@ -13276,7 +14641,6 @@ func _beats_snap() -> void:
 	_markers_follow()
 	_retimed()
 	_say("%d contact card(s) snapped onto the beat (largest move %.0f ms).  Ctrl+Z undoes" % [r["contacts"], worst * 1000.0])
-
 
 ## WEIGHT FEEL (ROADMAP 40; scripts/weight_feel.gd): the swing's wind-up and recovery by the held weapon's inertia
 func _weight_feel() -> void:
@@ -13306,70 +14670,70 @@ func _beats_clear() -> void:
 
 
 func _audio_to_playhead() -> void:
-	if S.audio.is_empty():
-		_say("no sound on the timeline: run Audio: add a sound file first")
+	var i := _audio_target()
+	if i < 0:
 		return
 	var t := snappedf(playhead, 0.001)
-	if absf(t - float(S.audio["offset"])) < 1e-6:
-		_say("the sound already starts at %.2f s: click the timeline to move the playhead, then run this again" % t)
+	if absf(t - float(S.audio_tracks[i]["offset"])) < 1e-6:
+		_say("the track already starts at %.2f s: click the timeline to move the playhead, then run this again" % t)
 		return
 	_push_undo()
-	S.audio["offset"] = t
-	_say("the sound now starts at %.2f s (Ctrl+Z puts it back)" % t)
+	S.audio_tracks[i]["offset"] = t
+	_say("the track now starts at %.2f s (Ctrl+Z puts it back)" % t)
 	_refresh()
-
 
 ## keep the sound in step with the playhead. before = the playhead before this frame's advance, dt = the advance
 func _audio_tick(before: float, dt: float) -> void:
-	if String(S.audio.get("path", "")) != _a_path:
+	if _a_task >= 0 and WorkerThreadPool.is_task_completed(_a_task):
+		_audio_swap()
+	var key := _a_key_now()
+	if key != _a_last_key:
+		_a_last_key = key
+		_a_key_at = Time.get_ticks_usec()
+	var paths := []
+	for t in S.audio_tracks:
+		paths.append(String(t.get("path", "")))
+	if paths != _a_paths:
 		_audio_reload()
-	if _a_player == null or _a_player.stream == null or S.audio.is_empty():
-		_a_after = playhead
-		return
-	_a_player.volume_db = float(S.audio.get("gain_db", 0.0))
-	if not playing:
-		if _a_on:
-			_a_player.stop()
-			_a_on = false
+	elif key != _a_key and Time.get_ticks_usec() - _a_key_at >= AUDIO_MIX_QUIET:
+		_audio_remix_now()
+	var mixer := _audio_mixer()
+	if _a_mix_len <= 0.0 or not playing:
+		if mixer.playing and not playing:
+			mixer.stop()
 		if _a_slice_until > 0 and Time.get_ticks_msec() >= _a_slice_until:
-			_a_player.stop()
+			mixer.stop()
 			_a_slice_until = 0
 		_a_after = playhead
 		return
-	var want := playhead - float(S.audio["offset"])
-	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > dt + 1e-4
-	if want < 0.0 or want >= _a_player.stream.get_length():
-		if _a_on or _a_player.playing:
-			_a_player.stop()
-		_a_on = false
-	elif jumped or not _a_on or not _a_player.playing:
+	var jumped := _a_after < 0.0 or absf(before - _a_after) > 1e-4 or playhead < before - 1e-6 or playhead - before > maxf(dt, 0.25) + 1e-4   # the audio clock may step past one frame; only a larger leap is a jump
+	if playhead < 0.0 or playhead >= _a_mix_len:
+		if mixer.playing:
+			mixer.stop()
+		_a_after = playhead
+		return
+	if jumped or not mixer.playing:
 		_a_slice_until = 0
-		_a_player.play(want)
-		_a_on = true
-		audio_seeks += 1
-	if _a_on and _a_player.playing:
-		audio_err = audio_position() - (playhead - float(S.audio["offset"]))   # against the true offset, not the seek's own value
+		mixer.play(playhead)
 	_a_after = playhead
 
 
-## the playhead was dragged (not playing): sound ~1 frame + 40 ms of it, at most one slice per rendered frame
+## the playhead was dragged (not playing): one slice of the premix per rendered frame, ~1 frame + 40 ms of it
 func _audio_scrub() -> void:
-	if _a_player == null or _a_player.stream == null or S.audio.is_empty() or playing:
+	if _a_mix_len <= 0.0 or playing:
 		return
 	var fr := Engine.get_process_frames()
 	if fr == _a_slice_frame:
 		return
 	_a_slice_frame = fr
-	var want := playhead - float(S.audio["offset"])
-	if want < 0.0 or want >= _a_player.stream.get_length():
-		_a_player.stop()
+	var mixer := _audio_mixer()
+	if playhead < 0.0 or playhead >= _a_mix_len:
+		mixer.stop()
 		_a_slice_until = 0
 		return
-	_a_player.volume_db = float(S.audio.get("gain_db", 0.0))
-	_a_player.play(want)
-	_a_slice_until = Time.get_ticks_msec() + int(round((1.0 / maxf(S.fps, 1) + AUDIO_SLICE_EXTRA) * 1000.0))
+	mixer.play(playhead)
 	audio_slices += 1
-
+	_a_slice_until = Time.get_ticks_msec() + int(round((1.0 / maxf(S.fps, 1) + AUDIO_SLICE_EXTRA) * 1000.0))
 
 ## ---- VIDEO TO ANIMATION (round 45, GATES AA2). A video goes to tools/see_video.py (MediaPipe, run as its own process
 ## so the window keeps working: _video_poll); its pose.json comes back through _import_pose: VideoImport fits the body
@@ -13448,7 +14812,7 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	if not raw:
 		C = VideoCleanup.run(frames, P["fps"], float(P.get("tilt", 0.0)))
 		frames = C["frames"]
-	var fitted := VideoImport.solve(B, frames, held)
+	var fitted := VideoImport.solve(B, frames, held, float(P["fps"]))
 	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
 	var r := {"locked": 0, "text": ""}
 	if raw:
@@ -13475,6 +14839,179 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"]),
 		(", the %s in both hands" % held.replace("_", " ")) if held != "" else ". Holding a weapon in the video? Pick it first (Weapon: long axe ...), then import: he holds it in both hands"])
 	return out
+
+
+## ---- SEVERAL CAMERAS (roadmap 89; scripts/multicam.gd). Two to four videos of ONE person, filmed at the same time from
+## different places. Each goes to tools/see_video.py (python -I, one after another: the window keeps working, _multicam_poll);
+## the pose files are read as MultiCam.obs_from_poses, the rig is solved from the person's own keypoints (MultiCam.solve_extrinsics:
+## the bones' known lengths, gravity, one floor), every joint triangulated (MultiCam.triangulate_all), and the frames go through
+## the single-view path (VideoCleanup, VideoImport.solve, thin). They land as ONE edit on the open scene (the mirror-in-place
+## pattern): Ctrl+Z takes them back, and nothing is saved until you save. A panel shows the cameras and the reconstructed pose.
+const MULTI_MAX := 4
+const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most this many frames (GDScript: a 300-frame clip takes minutes)
+var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
+var multicam_tool := "res://tools/see_video.py"
+var _mc_videos: Array = []
+var _mc_outs: Array = []
+var _mc_i := -1                  # the camera being tracked, or -1 when idle
+var _mc_pid := -1
+var _mc_win: Window = null       # the panel's window (one at a time)
+var mc_last := {}                # the last rig solved: {"cams", "H"} (the hips' mean in the rig's world; the panel's origin)
+
+
+func _multicam_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILES
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.mp4, *.mov, *.avi, *.webm, *.mkv, *.m4v ; videos"])
+	fd.use_native_dialog = true
+	fd.title = "Several cameras of one person (2 to 4 videos, filmed at the same time)"
+	fd.files_selected.connect(func(ps): _multicam_start(ps); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+func _multicam_start(paths: PackedStringArray) -> void:
+	if _mc_i >= 0:
+		_say("still tracking the cameras: one set at a time; try again when it arrives")
+		return
+	if paths.size() < 2 or paths.size() > MULTI_MAX:
+		_say("several cameras needs 2 to %d videos of the same person, filmed at once: pick that many (you picked %d)" % [MULTI_MAX, paths.size()])
+		return
+	for p in paths:
+		if not FileAccess.file_exists(p):
+			_say("could not track %s: no such file; pick the videos again" % p.get_file())
+			return
+	var dir := OS.get_user_data_dir().path_join("video_track")
+	DirAccess.make_dir_recursive_absolute(dir)
+	_mc_videos = Array(paths)
+	_mc_outs = []
+	for p in paths:
+		var out := dir.path_join("multicam_%s.json" % safe_file(p.get_file().get_basename()))
+		if FileAccess.file_exists(out):
+			DirAccess.remove_absolute(out)
+		_mc_outs.append(out)
+	_mc_i = 0
+	_multicam_track_next()
+
+
+func _multicam_track_next() -> void:
+	var args := MultiCam.track_args(ProjectSettings.globalize_path(multicam_tool), _mc_videos[_mc_i], _mc_outs[_mc_i])
+	_mc_pid = OS.create_process(multicam_python, args)
+	if _mc_pid < 0:
+		_multicam_end("could not track camera %d (%s): the interpreter \"%s\" did not start (it needs Python with mediapipe and opencv-python)" % [_mc_i + 1, _mc_videos[_mc_i].get_file(), multicam_python])
+		return
+	_say("tracking camera %d of %d (%s): finding the person in every frame..." % [_mc_i + 1, _mc_videos.size(), _mc_videos[_mc_i].get_file()])
+
+
+func _multicam_end(why: String) -> void:
+	_mc_i = -1
+	_mc_pid = -1
+	_say(why)
+
+
+func _multicam_poll(_dt: float) -> void:
+	if _mc_i < 0 or _mc_pid < 0 or OS.is_process_running(_mc_pid):
+		return
+	_mc_pid = -1
+	if not FileAccess.file_exists(_mc_outs[_mc_i]):
+		_multicam_end("could not track camera %d (%s): the tracker found no person, or could not read the video" % [_mc_i + 1, _mc_videos[_mc_i].get_file()])
+		return
+	_mc_i += 1
+	if _mc_i < _mc_videos.size():
+		_multicam_track_next()
+	else:
+		_multicam_finish()
+
+
+## all the cameras are tracked: solve the rig, triangulate, clean and fit exactly as a single view, land as one edit
+func _multicam_finish() -> void:
+	var texts := []
+	for o in _mc_outs:
+		texts.append(FileAccess.get_file_as_string(o))
+	var L := MultiCam.obs_from_poses(texts)
+	if not L["ok"]:
+		_multicam_end("could not use the cameras: %s" % L["why"])
+		return
+	var obs: Array = L["obs"]
+	var n := _mc_videos.size()
+	var Ks := []
+	for sz in L["sizes"]:
+		Ks.append(MultiCam.intrinsics(int(sz[0]), int(sz[1])))
+	var p0 := [0.0, 3.0]   # a ring: camera 0 at yaw 0, the others evenly round, 3 m out, level
+	for c in range(1, n):
+		p0.append(360.0 * c / n)
+		p0.append(0.0)
+		p0.append(3.0)
+	var keep := B.state()
+	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
+	var pairs := MultiCam.rest_bones(B)
+	var sol := MultiCam.solve_extrinsics(Ks, p0, obs, pairs, 8, MULTI_FRAMES)
+	var cams: Array = sol["cams"]
+	var tri := MultiCam.triangulate_all(cams, obs)
+	if not tri["ok"]:
+		B.set_state(keep)
+		_multicam_end("the cameras did not agree on the person: fewer than 2 frames could be triangulated. Check that every camera sees the whole body")
+		return
+	var frames: Array = tri["frames"]
+	var fps := 30.0
+	if obs.size() > 1 and float(obs[-1]["t"]) > float(obs[0]["t"]):
+		fps = float(obs.size() - 1) / (float(obs[-1]["t"]) - float(obs[0]["t"]))
+	var tilt := VideoImport.level(frames)
+	var C := VideoCleanup.run(frames, fps, tilt)
+	var fitted := VideoImport.solve(B, C["frames"], held)
+	var V := VideoImport.to_scene(B, fitted, fps, 1, "multicam")
+	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
+	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(C["plants"]), V.fps)
+	var locked := V.plants.size()
+	var text := VideoCleanup.report(locked, C["jitter_raw"], C["jitter_clean"], C["tilt"])
+	B.set_state(keep)
+	var d: Dictionary = V.to_dict(B)
+	d["scene"] = S.name   # in place, as mirror-in-place: the open scene keeps its name
+	var names := []
+	for v in _mc_videos:
+		names.append(String(v).get_file())
+	d["plan"] = "Several cameras: %d videos (%s), rig solved by MultiCam from the person's keypoints (bones, gravity, one floor; %d of %d frames), %d frames triangulated, %.2f px mean reprojection; fitted by VideoImport; %s" % [n, ", ".join(names), mini(MULTI_FRAMES, obs.size()), obs.size(), frames.size(), float(tri["mean_rms"]), text]
+	_do(func():
+		S.from_dict(d)
+		sel_card = mini(sel_card, S.cards.size() - 1)
+		ov.mark_dirty()
+		wt.mark_dirty()
+		_dummy_hits()
+		_rebuild_cards()
+		_refresh()
+		S.apply(B, playhead))
+	# the panel: the cameras (their places with the person at the origin), the reconstructed pose at the clip's middle
+	var views := MultiCam.views_per_cam(obs, n)
+	var H := Vector3.ZERO
+	for h in tri["hips"]:
+		H += h as Vector3
+	H /= maxf(1.0, float(tri["hips"].size()))
+	var info := []
+	mc_last = {"cams": cams, "H": H}
+	for c in cams.size():
+		info.append({"name": "camera %d" % (c + 1), "C": (cams[c]["C"] as Vector3) - H, "rms": float(tri["cam_rms"][c]), "views": int(views[c])})
+	var mid := frames.size() / 2
+	_multicam_show(info, frames[mid]["w"], float(frames[mid]["t"]), float(tri["rms"][mid]))
+	_mc_i = -1
+	_say("imported %d cameras as one edit on this scene: %d frames, %.2f px mean reprojection; the panel shows where each camera stands. Ctrl+Z takes it back; nothing is saved until you save" % [n, frames.size(), float(tri["mean_rms"])])
+
+
+func _multicam_show(info: Array, pose: Array, t: float, rms: float) -> void:
+	if _mc_win != null and is_instance_valid(_mc_win):
+		_mc_win.queue_free()
+	var win := Window.new()
+	win.title = "Several cameras: the import"
+	win.size = Vector2i(900, 560)
+	var panel := MultiCamPanel.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	win.add_child(panel)
+	add_child(win)
+	win.close_requested.connect(win.queue_free)
+	panel.set_result(info, pose, t, rms)
+	win.popup_centered()
+	_mc_win = win
 
 
 ## ---- LIVE WEBCAM PUPPET (roadmap 21; scripts/live_puppet.gd). The webcam's tracker (tools/live_pose.py, MediaPipe) sends the
@@ -14211,8 +15748,17 @@ func _shot_lens(mm: float) -> void:
 
 
 ## ---- CAMERA SHAKE and RACK FOCUS (ROADMAP 76; scripts/shot_fx.gd): each shot's own fx, one undo step each ----------
-## _shot_fx() = the shot on at the playhead's fx: its own shake and rack focus (made in the shot when it has none)
+## _shot_fx() = the shot on at the playhead's fx: its own shake and rack focus. READ ONLY ({} when there is none): a read
+## that wrote an empty fx into the shot changed the scene with no undo step (the undo audit's camera rows)
 func _shot_fx() -> Dictionary:
+	var i := shot_now_index()
+	if i < 0:
+		return {}
+	return _shot_shots()[i].get("fx", {})
+
+
+## the same fx, made in the shot when it has none: call ONLY inside _do (the write belongs to that one undo step)
+func _shot_fx_make() -> Dictionary:
 	var i := shot_now_index()
 	if i < 0:
 		return {}
@@ -14233,8 +15779,8 @@ func _shot_shake_here() -> void:
 	if not _shot_fx_need_keys("the shake"):
 		return
 	var t := clampf(playhead, 0.0, S.length())
-	var e := ShotFx.impact(t, ShotFx.list(_shot_fx(), "shake").size() + 1)
-	_do(func(): ShotCam.put(ShotFx.list(_shot_fx(), "shake"), e))
+	var e := ShotFx.impact(t, _shot_fx().get("shake", []).size() + 1)
+	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "shake"), e))
 	_say("camera shake at %.2f s: Impact, about 2 cm and 1 deg on the shot camera for %.1f s, decaying (Ctrl+Z takes it back)" % [t, float(e["dur"])])
 
 
@@ -14251,7 +15797,7 @@ func _shot_shake_markers() -> void:
 	if not _shot_fx_need_keys("the shakes"):
 		return
 	_do(func():
-		var L := ShotFx.list(_shot_fx(), "shake")
+		var L := ShotFx.list(_shot_fx_make(), "shake")
 		for t in ts:
 			ShotCam.put(L, ShotFx.impact(float(t), L.size() + 1)))
 	_say("%d impact shake%s, one at each hit marker (%s); Ctrl+Z takes them all back" % [ts.size(), "" if ts.size() == 1 else "s", ", ".join(ts.map(func(x): return "%.2f s" % float(x)))])
@@ -14264,7 +15810,7 @@ func _shot_shake_remove() -> void:
 		_say("no shake starts at the playhead: move the playhead onto a shake's start (%d in this scene), then remove it" % L.size())
 		return
 	var t := float(L[i]["t"])
-	_do(func(): ShotFx.list(_shot_fx(), "shake").remove_at(i))
+	_do(func(): ShotFx.list(_shot_fx_make(), "shake").remove_at(i))
 	_say("removed the shake that starts at %.2f s" % t)
 
 
@@ -14275,7 +15821,7 @@ func _shot_focus_dist() -> void:
 	var k := ShotCam.sample(_shot_keys(), t)
 	var d := maxf(ShotFx.DIST_MIN, (k["pos"] as Vector3).distance_to(k["aim"] as Vector3))
 	var key := {"t": t, "dist": d}
-	_do(func(): ShotCam.put(ShotFx.list(_shot_fx(), "focus"), key))
+	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "focus"), key))
 	_say("rack focus at %.2f s: %s, the distance to where the shot camera looks (between two focus keys the focus racks; 'look through' shows the blur)" % [t, Units.len(d)])
 
 
@@ -14290,7 +15836,7 @@ func _shot_focus_part() -> void:
 		return
 	var k := ShotCam.sample(_shot_keys(), t)
 	var key := {"t": t, "part": j}
-	_do(func(): ShotCam.put(ShotFx.list(_shot_fx(), "focus"), key))
+	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "focus"), key))
 	_say("focus tracks %s from %.2f s (%s from the shot camera now); the blur follows it until the next focus key" % [j, t, Units.len((k["pos"] as Vector3).distance_to(q))])
 
 
@@ -14301,7 +15847,7 @@ func _shot_focus_remove() -> void:
 		_say("no focus key at the playhead: move the playhead onto a focus key (%d in this scene), then remove it" % L.size())
 		return
 	var t := float(L[i]["t"])
-	_do(func(): ShotFx.list(_shot_fx(), "focus").remove_at(i))
+	_do(func(): ShotFx.list(_shot_fx_make(), "focus").remove_at(i))
 	_say("removed the focus key at %.2f s" % t)
 
 

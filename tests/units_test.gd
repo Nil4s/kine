@@ -41,6 +41,9 @@ const COUNT_NOUNS := {  # a number before one of these words is a count (no unit
 	"move": "how many moves", "view": "how many views", "views": "how many views",
 	"undo": "how many undo steps", "undos": "how many undo steps", "pick": "how many picks",
 	"picks": "how many picks", "tip": "how many tips", "tips": "how many tips",
+	"videos": "how many videos (2 to 4 cameras of one person)", "letters": "how many letters (a note's length limit)",
+	"knots": "how many knots on a curve", "strands": "how many hair strands", "segments": "how many hair segments",
+	"usable": "how many usable frames (a pose file's frames the tracker could read)", "picked": "how many were picked",
 	"must": "a count of must-fix findings",
 	"WRONG": "a count of failed checks", "PASS-THROUGH": "a count of clashes that pass through",
 	"gap": "how many gaps", "gaps": "how many gaps", "check": "how many checks", "checks": "how many checks",
@@ -58,12 +61,12 @@ const COUNT_NOUNS := {  # a number before one of these words is a count (no unit
 }
 ## a 1-based index of a thing ("card 3", "fighter 2 of 2", "marker 4"): the number names a position, not a quantity
 const INDEX_BEFORE := ["card", "cards", "fighter", "marker", "clip", "step", "steps", "hit", "pose", "row", "item", "note", "pass", "range", "roadmap", "round", "upgrades",
-	"#", "key", "set", "layer", "view", "tip", "camera", "bone", "fingertip", "sound", "frame", "version", "no.", "clip's"]
+	"#", "key", "set", "layer", "view", "tip", "camera", "bone", "fingertip", "sound", "frame", "version", "no.", "clip's", "track", "tracks"]
 ## a number right after one of these words is a count (no unit), with its reason
 ## a dimensionless quantity named by the word before it: a factor, a weight from 0 to 1, a correlation r
 const DIMENSIONLESS_BEFORE := {"factor": "a dimensionless factor (a multiplier; 1 = no change)", "weight": "a layer weight from 0 to 1: dimensionless",
 	"r": "a correlation coefficient r: dimensionless", "fitness": "a fitness value from 0 to 1: dimensionless"}
-const COUNT_BEFORE := ["must-fix", "FOOT SLIDE", "became", "count:", "clashes:", "beats:", "->", "→"]
+const COUNT_BEFORE := ["must-fix", "FOOT SLIDE", "became", "count:", "clashes:", "beats:", "picked", "->", "→"]
 
 ## the explicit allow list: a literal (substring) in a file that shows a unitless number, and why it is allowed
 const ALLOW := [
@@ -120,6 +123,13 @@ const ALLOW := [
 	{"file": "main.gd", "lit": "when %d newer ones are opened", "reason": "a count of scenes"},
 	{"file": "main.gd", "lit": "(%d dabs)", "reason": "a count of brush dabs"},
 	{"file": "main.gd", "lit": "impact shake%s", "reason": "a count of shakes"},
+	# tonight's merges (crowd, camera solve, attributes): an identifier, a 0..1 value and a typed example, no unit
+	{"file": "main.gd", "lit": "re-rolled: seed %d", "reason": "a random seed: an identifier that picks the crowd's layout, not a quantity"},
+	{"file": "main.gd", "lit": "(grip 0 .. 1)", "reason": "a custom attribute's range example: a dimensionless value from 0 to 1"},
+	{"file": "main.gd", "lit": "is a number, e.g. 0 or 0.5", "reason": "an example of a typed value in a hint (what to type), not a reading"},
+	{"file": "main.gd", "lit": "needs 2 to %d videos", "reason": "a count of videos (2 is the least, MULTI_MAX the most): the scan reads the 2 before 'to %d' as unitless"},
+	{"file": "rise.gd", "lit": "rising %d/%d", "reason": "a key index of the rise: stage k of the NKEY-1 keys (a count of keys, not a quantity)"},
+	{"file": "plugins.gd", "lit": "Godot error %d", "reason": "an error code the engine gives, not a quantity"},
 ]
 
 ## the last word before a number, without a list bracket: "(r" -> "r"

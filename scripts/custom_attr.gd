@@ -41,16 +41,16 @@ static func check_name(aname: String) -> String:
 		return "type a name first (grip, fist_hold ...)"
 	var re := RegEx.create_from_string("^[a-z][a-z0-9_]{0,%d}$" % (MAX_NAME - 1))
 	if re.search(n) == null:
-		return "a name is 1 to %d letters, digits or _, starting with a letter (grip, fist_hold)" % MAX_NAME
+		return "type a name of 1 to %d letters, digits or _, starting with a letter (grip, fist_hold)" % MAX_NAME
 	return ""
 
 
 ## "" when the range is usable, else what to change
 static func check_range(mn: float, mx: float, def: float) -> String:
 	if not (mn < mx):
-		return "min must be below max (the slider runs from min to max)"
+		return "type a min below the max (the slider runs from min to max)"
 	if def < mn or def > mx:
-		return "default must be between min and max (%s .. %s)" % [mn, mx]
+		return "type a default between min and max (%s .. %s)" % [mn, mx]
 	return ""
 
 

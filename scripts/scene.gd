@@ -62,7 +62,7 @@ const EASE_BIAS_OCTAVES := 1.5   # the ease_bias slider's reach: the progress wa
 const ALL_EASES := ["smooth", "linear", "in", "out", "snap", "reach", "strike", "throw", "settle"]
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
-var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offset" s, "gain_db"}; in the file only when there is one
+var audio_tracks: Array = []   # the sounds on the timeline (AudioTrack, ROADMAP 77): [{"path", "offset" s, "gain_db", "role", "mute", "solo"}]; in the file as "audio" only when there is one
 var face := {}        # THE FACE (ROADMAP 74, face.gd): {"brow_l", "jaw", "eye_yaw", ..., "vis_M"}: [{"t", "v": Vector3(x,0,0)}]; in the file as "face" only when keyed
 var lip := {}          # LIP-SYNC channel (ROADMAP 31, lip_sync.gd): {"jaw": [{"t", "v"}], "mouth": [{"t", "s"}]}; in the file only when baked
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
@@ -84,6 +84,7 @@ var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: 
 var _plants_off := false   # set while FootPlant.refs reads the pose at a plant's t0: the plants do not play then
 var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n"}} (the release ramp, read once per scene state)
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
+var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth frames; in the file as "cape" only when baked
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
@@ -632,9 +633,27 @@ static func put(B: Body, s: Dictionary) -> void:
 			B.grip2 = w["grip2"]   # the card's own Lock-both-hands grip (round 47)
 
 
+## ROADMAP 99: the baked pose table (PoseBake) of this scene, or null (the app sets it; a clone never has one)
+var baker: PoseBake = null
+
+
+## the time playback evaluates for a playhead at t: the nearest tick of the bake grid (a 60 Hz display cannot show a finer
+## step; at most half a display frame). Live and baked solves both use it, so they cannot differ.
+func play_t(t: float) -> float:
+	var g := float(PoseBake.grid_for(fps))
+	return roundf(t * g) / g
+
+
 func apply(B: Body, t: float) -> void:
 	if B.body != body:
 		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body
+	if baker != null:
+		var e = baker.entry(t)
+		if e != null:
+			baker.hits += 1
+			baker.restore(self, B, e)
+			return
+		baker.misses += 1
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	plant_last = {}
@@ -654,13 +673,13 @@ func apply(B: Body, t: float) -> void:
 		Drivers.play(drivers, B)
 	ik_last = {}
 	if not ik.is_empty():   # IK (GAP_ANALYSIS row 13): last, so a pinned hand stays pinned over everything above
-		ik_last = LimbIK.play(ik, B, t)
+		ik_last = LimbIK.play(ik, B, t) if not PerfStub.skip("ik_plants") else {}
 		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
 			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
 	# FOOT PLANTS (ROADMAP 8, scripts/foot_plant.gd): after the IK pass, before the constraints. A planted foot holds the
 	# place it had at its t0; the pelvis is not touched. Nothing live (no plants, or none in range): the body is not touched
 	if not plant_refs.is_empty():
-		plant_last = FootPlant.play(B, plants, plant_refs, t, fps)
+		plant_last = FootPlant.play(B, plants, plant_refs, t, fps, solid_props() if not props.is_empty() else []) if not PerfStub.skip("ik_plants") else {}
 	# USER CONSTRAINTS (round 51, CN): after IK, in list order (Blender's stack runs on the finished animated pose);
 	# every angle they write goes through Body.clamp_ang, so the joint limits come last. None: nothing is touched
 	cons_last = []
@@ -1403,6 +1422,8 @@ func span(t: float) -> int:
 ## "xf": {"pos": [x, z], "yaw": deg} (where actor k stands in actor 0's space, like Dummy.xf), "scene": Scene}.
 ## Empty = one actor; the file key "actors" is written only when there are any, so every older file saves byte-identical
 var actors := []
+## CROWD (ROADMAP 95, scripts/crowd.gd): {"n": copies, "seed": int} or {} (none). The key "crowd" is written only when there is one
+var crowd := {}
 
 
 ## a scene of its own with the same settings and a deep copy of the cards (for work off the main thread: the fix
@@ -1418,7 +1439,7 @@ func clone() -> Scene:
 	c.notes = notes.duplicate(true)
 	c.beats = beats.duplicate(true)
 	c.beats_audio = beats_audio.duplicate(true)
-	c.audio = audio.duplicate()
+	c.audio_tracks = audio_tracks.duplicate(true)
 	c.lip = lip.duplicate(true)
 	c.face = face.duplicate(true)   # ROADMAP 74: the face keys
 	c.attrs = attrs.duplicate(true)   # ROADMAP 82: the custom attributes
@@ -1433,6 +1454,7 @@ func clone() -> Scene:
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
+	c.cape = cape.duplicate(true)   # the cape (cloth.gd)
 	c.shots = shots.duplicate(true)   # the shots and their cameras (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
 	c.clips = clips.duplicate(true)   # CLIPS (clips.gd)
@@ -1465,7 +1487,10 @@ func carries() -> Array:
 			if int(cards[k].get("drop", -1)) == pi:
 				b = k
 				break
-		out.append({"prop": pi, "a": i, "b": b, "hands": Array(tk.get("hands", ["_r"]))})
+		var cr := {"prop": pi, "a": i, "b": b, "hands": Array(tk.get("hands", ["_r"]))}
+		if b >= 0 and cards[b].has("drop_rig"):
+			cr["drop_rig"] = cards[b]["drop_rig"]   # ROADMAP 85: the rigid fall baked on the drop card
+		out.append(cr)
 	return out
 
 
@@ -1553,6 +1578,12 @@ func _carry_data(B: Body) -> Array:
 			var v0 := (rel.origin - before.origin) / (tb - tp) if tb > tp else Vector3.ZERO
 			var bx := before.basis * Vector3(1, 0, 0)
 			var w0 := rad_to_deg(angle_difference(atan2(-bx.z, bx.x), atan2(-fx.z, fx.x))) / (tb - tp) if tb > tp else 0.0
+			if RigidDrop.rod(props[pi]) and land < 0.001:   # ROADMAP 85: a sword let go over the floor falls as a rigid body
+				d["rig"] = _rig(c, rel, v0, RigidDrop.spin(before.basis, rel.basis, tb - tp))
+				lx = d["rig"]["rest_xf"]
+				rest[pi] = lx
+				out.append(d)
+				continue
 			if v0.length() > 1e-4 or absf(w0) > 1e-3:
 				var tr := Throw.trajectory(drop.origin, v0, floor_of, float(props[pi].get("e", Throw.E)))
 				d["tr"] = tr
@@ -1569,6 +1600,45 @@ func _carry_data(B: Body) -> Array:
 
 
 var _carry_busy := false
+
+
+## ROADMAP 85: the rigid fall of a rod let go on card c (rel: its transform at the let-go, v0 and w0 its velocities). A
+## fall BAKED on the card ("drop_rig", its release state "in" the same to 1e-5) is read back as it was written; any other
+## is simulated (RigidDrop, 240 Hz, deterministic). {"poses", "rest_xf", "in"}
+func _rig(c: Dictionary, rel: Transform3D, v0: Vector3, w0: Vector3) -> Dictionary:
+	var body := RigidDrop.sword_body()
+	var com := RigidDrop.com_xf(rel, float(body["R"]))   # the sim runs on the centre of mass; the prop's origin is R below it
+	var q := com.basis.orthonormalized().get_rotation_quaternion()
+	var inp := [com.origin.x, com.origin.y, com.origin.z, q.x, q.y, q.z, q.w, v0.x, v0.y, v0.z, w0.x, w0.y, w0.z]
+	var st = c.get("drop_rig", null)
+	if st is Dictionary and (st.get("in", []) as Array).size() == 13:
+		var same := true
+		for i in 13:
+			same = same and absf(float(st["in"][i]) - float(inp[i])) < 1e-5
+		if same:
+			var poses := RigidDrop.from_array(st["poses"])
+			return {"poses": poses, "rest_xf": RigidDrop.prop_xf(RigidDrop.last_xf(poses), float(body["R"])), "in": st["in"]}
+	var r := RigidDrop.simulate(com.origin, q, v0, w0, body)
+	r["rest_xf"] = RigidDrop.prop_xf(r["rest_xf"], float(body["R"]))
+	r["in"] = inp
+	return r
+
+
+## ROADMAP 85: BAKE the rigid fall of card k's drop (k must be a put-down card; the drop is the caller's one undo step):
+## the simulated poses are written on card k as "drop_rig" (1 micrometre), so the file and the scrubber read the same
+## numbers. Returns false when that drop is not a rigid one (its card keeps no "drop_rig")
+func bake_drop(B: Body, k: int) -> bool:
+	cards[k].erase("drop_rig")
+	_carry_memo = []
+	var cs := carries()
+	var data := _carry_data(B)
+	for j in cs.size():
+		if int(cs[j]["b"]) == k and data[j].has("rig"):
+			var rg: Dictionary = data[j]["rig"]
+			cards[k]["drop_rig"] = {"in": RigidDrop.to_array(PackedFloat64Array(rg["in"])), "poses": RigidDrop.to_array(rg["poses"])}
+			_carry_memo = []
+			return true
+	return false
 
 
 ## GENERIC PROPS (row 22): prop i's world transform at t, the body B posed at t: in the hand(s) while a card carries
@@ -1601,6 +1671,9 @@ func props_at(t: float, B: Body) -> Array:
 		else:
 			var xf: Transform3D = d["drop"]
 			var dt := t - float(d["tb"])
+			if d.has("rig"):   # ROADMAP 85: the baked rigid fall, read back at t
+				out[pi] = {"kind": props[pi]["kind"], "xf": RigidDrop.prop_xf(RigidDrop.pose_at(d["rig"]["poses"], dt), float(RigidDrop.sword_body()["R"]))}
+				continue
 			if d.has("tr"):
 				xf.origin = Throw.pos_at(d["tr"], dt)
 				xf.basis = Basis(Vector3.UP, deg_to_rad(float(d["w"]) * minf(dt, float(d["tr"]["t_rest"])))) * xf.basis
@@ -1899,6 +1972,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["take"] = c["take"]   # UU2: only on a card that has one
 		if c.has("drop"):
 			cs[-1]["drop"] = c["drop"]
+		if c.has("drop_rig"):
+			cs[-1]["drop_rig"] = c["drop_rig"]   # ROADMAP 85: only on a drop that fell as a rigid body
 		if c.get("air", false):
 			cs[-1]["air"] = true   # VV1: only when on
 		if c.has("ktype"):
@@ -1941,8 +2016,9 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["beats"] = Choreo.to_list(beats)   # ROADMAP 13: the same, only when there are any
 	if not beats_audio.is_empty():
 		out["beats_audio"] = BeatTrack.clean_list(beats_audio)   # ROADMAP 32: the music beats, only when there are any
-	if not audio.is_empty():
-		out["audio"] = AudioTrack.clean(audio)   # the sound: the same, only when there is one
+	var af = AudioTrack.to_file(audio_tracks)   # the sounds: the old dictionary for one plain track, else a list; only when there are any
+	if af != null:
+		out["audio"] = af
 	if not face.is_empty():
 		out["face"] = Face.to_file(face)   # ROADMAP 74: the face keys, only when keyed
 	if not attrs.is_empty():
@@ -1952,12 +2028,16 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 	if not actors.is_empty():   # G1: the same, only with a second actor
 		out["actors"] = actors.map(func(a): return {"name": a["name"], "xf": {"pos": [float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": float(a["xf"]["yaw"])},
 			"scene": (a["scene"] as Scene).to_dict(B, frames)})
+	if not crowd.is_empty():
+		out["crowd"] = crowd.duplicate(true)   # ROADMAP 95: the crowd settings, only when there is one
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
 	if not plants.is_empty():
 		out["plants"] = FootPlant.to_file(plants)   # foot plants: the same, only when there is one
 	if not drivers.is_empty():
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
+	if not cape.is_empty():
+		out["cape"] = Cloth.to_file(cape)   # the cape: the baked frames, only when there is one
 	if not secondary.is_empty():
 		out["secondary"] = SecondaryMotion.to_file(secondary)   # secondary motion: the same, only when there is an item
 	if not hair.is_empty():
@@ -2005,7 +2085,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free",
-	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "air": "free", "ktype": "free", "weight_i": "free"}
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free"}
 
 
 ## the ease_bias slider's value on one card (ROADMAP 55): clamped to -1..1 and rounded to 0.01; 0 erases the key, so a
@@ -2036,6 +2116,8 @@ static func mirror_card(c: Dictionary, M: Body) -> Dictionary:
 		var hs: Array = c["take"].get("hands", ["_r"]).map(func(sd): return "_r" if sd == "_l" else "_l")
 		hs.sort()
 		out["take"] = {"prop": c["take"]["prop"], "hands": hs}
+	if c.has("drop_rig"):
+		out["drop_rig"] = RigidDrop.mirror_rig(c["drop_rig"])
 	return out
 
 
@@ -2096,6 +2178,7 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 
 func from_dict(d: Dictionary) -> void:
 	actors = []
+	crowd = (d["crowd"] as Dictionary).duplicate(true) if d.get("crowd") is Dictionary else {}   # ROADMAP 95
 	for a in d.get("actors", []):   # G1: each nested scene by this same from_dict
 		var xf: Dictionary = a.get("xf", {})
 		var pp: Array = xf.get("pos", [0.0, 0.0])
@@ -2124,7 +2207,7 @@ func from_dict(d: Dictionary) -> void:
 	notes = Review.notes_from_list(d.get("notes", []))   # ROADMAP 29
 	beats = Choreo.from_list(d.get("beats", []))   # ROADMAP 13
 	beats_audio = BeatTrack.clean_list(d.get("beats_audio", []))   # ROADMAP 32: absent = none
-	audio = AudioTrack.clean(d["audio"]) if d.get("audio") is Dictionary and String(d["audio"].get("path", "")) != "" else {}
+	audio_tracks = AudioTrack.from_file(d.get("audio", null))   # ROADMAP 77: a dictionary (one sound, as before) or a list
 	face = Face.from_file(d.get("face", {}))   # ROADMAP 74: absent = none
 	attrs = CustomAttr.from_file(d.get("attrs", {}))   # ROADMAP 82: absent = none
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
@@ -2136,6 +2219,7 @@ func from_dict(d: Dictionary) -> void:
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
+	cape = Cloth.from_file(d.get("cape", {}))   # the cape: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():
 		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
@@ -2172,6 +2256,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["take"] = {"prop": int(c["take"]["prop"]), "hands": hs if not hs.is_empty() else ["_r"]}
 		if c.has("drop"):
 			cards[-1]["drop"] = int(c["drop"])
+		if c.get("drop_rig", null) is Dictionary and c["drop_rig"].get("poses", null) is Array and c["drop_rig"].get("in", null) is Array:
+			cards[-1]["drop_rig"] = {"in": c["drop_rig"]["in"], "poses": c["drop_rig"]["poses"]}   # ROADMAP 85: the baked fall
 		if c.get("air", false):
 			cards[-1]["air"] = true
 		if String(c.get("ktype", "")) in DopeSheet.TYPED:

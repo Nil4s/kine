@@ -8,6 +8,9 @@ const SIZE := 22
 ## shape: ["seg", a, b, width] | ["arc", centre, radius, width, from_deg, to_deg] | ["disc", centre, radius]
 ##        ["ring", centre, radius, width] | ["box", rect(pos, size), width (0 = filled)]
 const DRAW := {
+	"crowd": [["disc", Vector2(6, 6), 2.0], ["disc", Vector2(12, 5), 2.0], ["disc", Vector2(18, 6), 2.0], ["seg", Vector2(6, 9), Vector2(6, 17), 2.0], ["seg", Vector2(12, 8), Vector2(12, 18), 2.0], ["seg", Vector2(18, 9), Vector2(18, 17), 2.0]],
+	"reroll": [["arc", Vector2(12, 12), 7.5, 2.2, -60, 210], ["seg", Vector2(19.5, 5), Vector2(18.5, 10), 2.2], ["seg", Vector2(18.5, 10), Vector2(13.5, 9), 2.2], ["disc", Vector2(12, 12), 2.4]],
+	"crowd_remove": [["disc", Vector2(12, 5), 2.4], ["seg", Vector2(12, 8), Vector2(12, 16), 2.4], ["seg", Vector2(12, 10), Vector2(5, 15), 2.0], ["seg", Vector2(12, 10), Vector2(19, 15), 2.0], ["seg", Vector2(6, 21), Vector2(18, 21), 2.6]],
 	"reset": [["arc", Vector2(12, 12), 7.5, 2.2, -60, 210], ["seg", Vector2(19.5, 5), Vector2(18.5, 10), 2.2], ["seg", Vector2(18.5, 10), Vector2(13.5, 9), 2.2]],
 	"arms": [["disc", Vector2(12, 4.5), 2.6], ["seg", Vector2(12, 8), Vector2(12, 16), 2.4], ["seg", Vector2(12, 9.5), Vector2(5, 15), 2.0],
 		["seg", Vector2(12, 9.5), Vector2(19, 15), 2.0], ["seg", Vector2(12, 16), Vector2(8.5, 22), 2.0], ["seg", Vector2(12, 16), Vector2(15.5, 22), 2.0]],
@@ -54,6 +57,7 @@ const DRAW := {
 	"prop": [["box", Rect2(4, 10, 16, 10), 1.8], ["seg", Vector2(4, 10), Vector2(8, 5), 1.6], ["seg", Vector2(20, 10), Vector2(16, 5), 1.6],
 		["seg", Vector2(8, 5), Vector2(16, 5), 1.6]],
 	"ai": [["box", Rect2(3, 4, 16, 11), 1.8], ["seg", Vector2(7, 15), Vector2(6, 20), 1.8], ["seg", Vector2(6, 20), Vector2(11, 15), 1.8], ["seg", Vector2(7, 9.5), Vector2(15, 9.5), 1.8]],
+	"cameras": [["box", Rect2(1, 4, 8, 6), 1.5], ["box", Rect2(1, 12, 8, 6), 1.5], ["box", Rect2(11, 4, 8, 6), 1.5], ["box", Rect2(11, 12, 8, 6), 1.5]],   # ROADMAP 89: several cameras, four small ones
 	"video": [["box", Rect2(3, 7, 13, 10), 1.8], ["seg", Vector2(16, 10), Vector2(21, 7), 1.8], ["seg", Vector2(16, 14), Vector2(21, 17), 1.8], ["seg", Vector2(21, 7), Vector2(21, 17), 1.8]],
 	"import": [["seg", Vector2(12, 3), Vector2(12, 14), 2.0], ["seg", Vector2(7, 9), Vector2(12, 14), 2.0], ["seg", Vector2(17, 9), Vector2(12, 14), 2.0],
 		["seg", Vector2(4, 15), Vector2(4, 20), 1.8], ["seg", Vector2(4, 20), Vector2(20, 20), 1.8], ["seg", Vector2(20, 20), Vector2(20, 15), 1.8]],
@@ -61,6 +65,12 @@ const DRAW := {
 	"turn_l": [["arc", Vector2(12, 12), 7.5, 2.0, -30, 240], ["seg", Vector2(4.5, 5), Vector2(5.5, 10), 2.0], ["seg", Vector2(5.5, 10), Vector2(10.5, 9), 2.0]],
 	"delete": [["box", Rect2(7, 8, 10, 13), 1.6], ["seg", Vector2(5, 7), Vector2(19, 7), 1.8], ["seg", Vector2(10, 4), Vector2(14, 4), 1.8],
 		["seg", Vector2(10, 11), Vector2(10, 18), 1.4], ["seg", Vector2(14, 11), Vector2(14, 18), 1.4]],
+	"sit_down": [["disc", Vector2(11, 5), 2.4], ["seg", Vector2(11, 8), Vector2(11, 15), 2.2], ["seg", Vector2(11, 15), Vector2(18, 15), 2.0], ["seg", Vector2(18, 15), Vector2(18, 21), 2.0],
+		["seg", Vector2(4, 5), Vector2(4, 15), 1.8], ["seg", Vector2(4, 15), Vector2(1.8, 12.5), 1.8], ["seg", Vector2(4, 15), Vector2(6.2, 12.5), 1.8]],
+	"stand_up": [["disc", Vector2(13, 4), 2.4], ["seg", Vector2(13, 7), Vector2(13, 14), 2.2], ["seg", Vector2(13, 14), Vector2(10, 21), 2.0], ["seg", Vector2(13, 14), Vector2(16, 21), 2.0],
+		["seg", Vector2(4, 20), Vector2(4, 8), 1.8], ["seg", Vector2(4, 8), Vector2(1.8, 10.5), 1.8], ["seg", Vector2(4, 8), Vector2(6.2, 10.5), 1.8]],
+	"get_up": [["seg", Vector2(2, 21), Vector2(22, 21), 1.8], ["disc", Vector2(9, 6), 2.4], ["seg", Vector2(9, 9), Vector2(12, 15), 2.2], ["seg", Vector2(12, 15), Vector2(17, 16), 2.0],
+		["seg", Vector2(17, 16), Vector2(17, 20), 2.0], ["seg", Vector2(10, 10), Vector2(13, 17), 1.8], ["seg", Vector2(13, 17), Vector2(13, 20), 1.8]],
 	"sit": [["seg", Vector2(7, 3), Vector2(7, 21), 1.8], ["seg", Vector2(7, 13), Vector2(18, 13), 1.8], ["seg", Vector2(18, 13), Vector2(18, 21), 1.8],
 		["disc", Vector2(13, 7), 2.4]],
 	"step": [["seg", Vector2(3, 20), Vector2(9, 20), 1.8], ["seg", Vector2(9, 20), Vector2(9, 14), 1.8], ["seg", Vector2(9, 14), Vector2(15, 14), 1.8],

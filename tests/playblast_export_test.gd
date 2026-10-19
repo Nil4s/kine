@@ -166,7 +166,7 @@ func _init() -> void:
 		# 0.5-1.0 (the sound cut with -ss) -> loud from 0, stops 0.3. Bar: 1 frame (1/fps) on each edge
 		var wavp := ProjectSettings.globalize_path(base + "_tone.wav")
 		_tone_wav(wavp)
-		S.audio = {"path": wavp, "offset": 0.3, "gain_db": 0.0}
+		S.audio_tracks = [{"path": wavp, "offset": 0.3, "gain_db": 0.0}]
 		var fr := 1.0 / S.fps
 		var r6: Dictionary = await m._export_playblast(base + "_f", "")
 		var e6 := _edges(ff, probe, r6.get("mp4", ""), ProjectSettings.globalize_path(base + "_f.raw"))
@@ -180,7 +180,7 @@ func _init() -> void:
 		ok(absf(e7[1]) <= fr and absf(e7[2] - 0.3) <= fr, "3b preview range 0.5-1.0: the sound is cut to the range: loud from %.3f s to %.3f s (want 0.000 / 0.300)" % [e7[1], e7[2]])
 		m.pv_in = -1.0
 		m.pv_out = -1.0
-		S.audio = {}
+		S.audio_tracks = []
 		for f in [wavp, ProjectSettings.globalize_path(base + "_f.raw"), ProjectSettings.globalize_path(base + "_g.raw")]:
 			DirAccess.remove_absolute(f)
 	else:

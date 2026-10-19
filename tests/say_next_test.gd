@@ -19,7 +19,13 @@ const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROAD
 	"all %d cards are on the floor now": "reports the snap it just made (floor snap; Ctrl+Z is named)",
 	"the body is on the floor now (Ctrl+Z": "reports the snap it just made (floor snap; Ctrl+Z is named)",
 	"_say(msg)": "forwards trail_edit.begin's message: each names the drag to do next (trail_edit.gd lines 122-139)",
-	"_say(r[\"error\"])": "forwards PoseWords' error: each names the words to type instead (pose_words_test checks 5)"}
+	"_say(r[\"error\"])": "forwards PoseWords' error: each names the words to type instead (pose_words_test checks 5)",
+	# the cape bake's success line (it reports the cape it just put on; Ctrl+Z is named)
+	"the cape is on the back:": "reports the cape it just baked (Ctrl+Z is named)",
+	# forwarders: the caller's message names the next step (_rp_straighten / _rp_scale name the handle or the slider;
+	# CustomAttr.define names what to type or pick: custom_attr.gd check_name / check_range / define)
+	"_say(none)": "forwards _rp_edit's message: each caller names the handle or the slider to move next (_rp_straighten, _rp_scale)",
+	"_say(e)": "forwards CustomAttr.define's error: each names what to type or pick next (custom_attr.gd)"}
 
 
 func ok(c: bool, what: String) -> void:

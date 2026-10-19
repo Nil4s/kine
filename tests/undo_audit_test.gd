@@ -44,6 +44,9 @@ const PREFER := {
 	"actor_remove_this_fighter": "ACTORS",
 	"audio_louder_+3_db": "AUDIO",
 	"audio_move_the_sound_to_start_at_the_playhead": "AUDIO",
+	"audio_mute_or_unmute_the_picked_track": "AUDIO",
+	"audio_solo_or_unsolo_the_picked_track": "AUDIO",
+	"audio_next_role_for_the_picked_track_music_voice_sfx": "AUDIO",
 	"audio_quieter_-3_db": "AUDIO",
 	"audio_remove_the_sound": "AUDIO",
 	"body_the_mannequin's_own_proportions": "BODY",
@@ -54,6 +57,12 @@ const PREFER := {
 	"camera_lens_50_mm": "CAMERA",
 	"camera_lens_85_mm": "CAMERA",
 	"camera_remove_the_key_here": "CAMERA",
+	"sit_down_on_the_chair": "SIT",
+	"hair_take_the_hair_off": "HAIR",
+	"cape_take_off": "CAPE",
+	"stand_up": "SIT",
+	"camera_remove_the_focus_key_here": "SHAKE",
+	"camera_remove_the_shake_at_the_playhead": "SHAKE",
 	"clip_remove_the_picked_clip": "CLIPS",
 	"constraint_fade_in_over_6_frames": "CONS",
 	"constraint_fade_out_over_6_frames": "CONS",
@@ -137,8 +146,9 @@ func fp() -> String:
 		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers,   # WW1, WW5
 		"notes": m.S.notes,   # ROADMAP 29: the review notes
 		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
+		"hair": var_to_str(m.S.hair), "cape": var_to_str(m.S.cape),   # HAIR (ROADMAP 87), CAPE (ROADMAP 86)
 		"layers": var_to_str(m.S.layers),   # NA1
-		"audio": var_to_str(m.S.audio),   # the sound on the timeline
+		"audio": var_to_str(m.S.audio_tracks),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
 		"cons": var_to_str(m.S.cons),   # constraints (round 51)
 		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))),   # the set: keys, a door's swing (row 22)
@@ -160,6 +170,8 @@ func fp() -> String:
 ## start IK: combo3 on card 3 with the left hand pinned at card 1 (for IK release and the two snaps)
 ## start CONS: combo3 on card 3, the left hand held to the right hand and the head on the weapon (round 51 constraints)
 ## start CAMERA: combo3 on card 3 with two shot-camera keys, one under the playhead (lens / remove the key here)
+## start SIT: combo3 on card 3 with a chair picked (sit down / stand up need a picked chair)
+## start SHAKE: the CAMERA start with the shot's shake and rack focus keyed at the playhead (their remove commands)
 ## start CLIPS: combo3 on card 3 with a walk clip placed on its legs, picked (for "Clip: remove the picked clip")
 ## start BODY: combo3 on the 5th-percentile woman's proportions (PR1: for the command back to the mannequin's own)
 ## start ACTORS: combo3 with a second fighter added, switched to it (TC3: for "Actor: remove this fighter")
@@ -229,7 +241,7 @@ func start(kind: String) -> void:
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
 		m._card_pick(2)
-		m.S.audio = {"path": "res://zz_no_such_sound.wav", "offset": 0.3, "gain_db": 0.0}
+		m.S.audio_tracks = [{"path": "res://zz_no_such_sound.wav", "offset": 0.3, "gain_db": 0.0}]
 		m.sel = "lowerarm_r"
 	elif kind == "IK":
 		# IK: combo3 on card 3 (its arrival under the playhead) with the left hand pinned at card 1, so release and the
@@ -270,6 +282,39 @@ func start(kind: String) -> void:
 		m._rebuild_cards()
 		m._card_pick(2)
 		m.S.shots = [{"t": 0.0, "name": "Shot 1", "keys": []}]
+		ShotCam.put(m.S.shots[0]["keys"], {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
+		ShotCam.put(m.S.shots[0]["keys"], {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
+	elif kind == "SIT":
+		# SIT DOWN / STAND UP (ROADMAP 94): combo3 on card 3 with a chair picked (the rise commands work on a picked chair,
+		# stool or bench; with nothing picked they refuse and change nothing)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.props = [Props.make("chair", Props.xf_at(Vector3.ZERO, 0.0))]
+		m.sel_prop = 0
+	elif kind == "HAIR":
+		# HAIR (ROADMAP 87): combo3 on card 3 with a ponytail added and baked, so "Hair: take the hair off" has strands to take
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m._hair_add()
+		m.undo.clear()
+		m.redo.clear()
+	elif kind == "CAPE":
+		# CAPE (ROADMAP 86): combo3 on card 3 with a cape baked (synchronously, the same bake the background job makes)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.cape = Cloth.bake_scene(m.S, m.B)
+		m.undo.clear()
+		m.redo.clear()
+	elif kind == "SHAKE":
+		# the CAMERA start with the shot's own fx (shake + rack focus) keyed AT the playhead: for their remove commands
+		# (a remove with nothing at the playhead refuses and changes nothing; this start gives it something to remove)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(2)
+		m.S.shots = [{"t": 0.0, "name": "Shot 1", "keys": [], "fx": {"shake": [ShotFx.impact(m.playhead, 1)], "focus": [{"t": m.playhead, "dist": 2.5}]}}]
 		ShotCam.put(m.S.shots[0]["keys"], {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
 		ShotCam.put(m.S.shots[0]["keys"], {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
 	elif kind.begins_with("SETS"):
@@ -394,7 +439,7 @@ func start(kind: String) -> void:
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
 		m._card_pick(2)
-		m.S.audio = {"path": LIP_WAV, "offset": 0.0, "gain_db": 0.0}
+		m.S.audio_tracks = [{"path": LIP_WAV, "offset": 0.0, "gain_db": 0.0}]
 		m.sel = "lowerarm_r"
 	elif kind.begins_with("res://"):
 		m._load_scene(kind)
@@ -473,6 +518,10 @@ func trial(c: Dictionary, kind: String) -> String:
 	var t_r := Time.get_ticks_msec()
 	(c["run"] as Callable).call()
 	var t_run := Time.get_ticks_msec() - t_r
+	var waited := 0   # a background job (the cape bake, ClothJob) lands its one undo step frames later: wait for it
+	while m.get("_cape_job") != null and waited < 3000:
+		await process_frame
+		waited += 1
 	await process_frame
 	await process_frame
 	if OS.get_cmdline_user_args().has("kinds") and Time.get_ticks_msec() - t_r > 500:
@@ -552,7 +601,7 @@ func _init() -> void:
 		t_prev = c["id"]
 		var r := await trial(c, PREFER.get(c["id"], "A"))
 		if r == "same" and c["edits"]:
-			for k in ["A", "B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "SPINE", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
+			for k in ["A", "B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "SPINE", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "SHAKE", "SIT", "HAIR", "CAPE", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

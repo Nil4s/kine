@@ -47,6 +47,18 @@ func _build() -> void:
 	lp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lp.custom_minimum_size = Vector2(600, 0)
 	v.add_child(lp)
+	var sel := HBoxContainer.new()
+	var b_all := Button.new()
+	b_all.name = "batch_select_all"
+	b_all.text = "Select all"
+	b_all.pressed.connect(_set_all.bind(true))
+	sel.add_child(b_all)
+	var b_none := Button.new()
+	b_none.name = "batch_select_none"
+	b_none.text = "Select none"
+	b_none.pressed.connect(_set_all.bind(false))
+	sel.add_child(b_none)
+	v.add_child(sel)
 	var sc := ScrollContainer.new()
 	sc.name = "batch_list"
 	sc.custom_minimum_size = Vector2(600, 240)
@@ -57,6 +69,7 @@ func _build() -> void:
 		var cb := CheckBox.new()
 		cb.name = "pick_" + String(p).get_file().get_basename()
 		cb.text = String(p).get_file()
+		cb.toggled.connect(_on_pick_changed.unbind(1))
 		list.add_child(cb)
 		picks.append([cb, p])
 	if picks.is_empty():
@@ -85,6 +98,7 @@ func _build() -> void:
 	ui_dir.text = BatchExport.DEFAULT_DIR
 	ui_dir.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ui_dir.tooltip_text = "res://scenes/_wip/<name>, user://<name> or a full path outside the project. Never scenes/ itself."
+	ui_dir.text_changed.connect(_on_pick_changed.unbind(1))   # a refused folder fixed by typing: the old refusal goes too
 	rd.add_child(ui_dir)
 	v.add_child(rd)
 	ui_run = Button.new()
@@ -111,6 +125,20 @@ func open() -> void:
 	if dlg == null:
 		_build()
 	dlg.popup_centered()
+
+
+## Select all / Select none: tick or clear every scene, then the same stale-line reset as a single tick
+func _set_all(on: bool) -> void:
+	for pk in picks:
+		(pk[0] as CheckBox).set_pressed_no_signal(on)
+	_on_pick_changed()
+
+
+## any change of the selection drops the old line (a refusal such as "NOT NOW: tick at least one scene" is no longer true)
+func _on_pick_changed() -> void:
+	if ui_status == null or running:
+		return
+	ui_status.text = "%d of %d scenes ticked. Pick the format and folder, then Export batch." % [_picked().size(), picks.size()]
 
 
 func _picked() -> Array:

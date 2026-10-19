@@ -123,6 +123,26 @@ func _init() -> void:
 	var bd: BatchDialog = ui.batch_ui
 	await process_frame
 	ok(bd.picks.size() >= 3, "(6) the batch dialog lists %d scenes" % bd.picks.size())
+	# (6b) select none / select all, and the stale refusal line is dropped on the first tick after it
+	var b_all := bd.dlg.find_child("batch_select_all", true, false) as Button
+	var b_none := bd.dlg.find_child("batch_select_none", true, false) as Button
+	ok(b_all != null and b_none != null, "(6b) Select all and Select none buttons exist")
+	b_none.pressed.emit()
+	await bd._on_run()
+	ok(bd.ui_status.text.begins_with("NOT NOW"), "(6b) an empty run is refused: %s" % bd.ui_status.text)
+	(bd.picks[0][0] as CheckBox).button_pressed = true
+	ok(not bd.ui_status.text.begins_with("NOT NOW"), "(6b) after ticking one scene the old refusal is gone: %s" % bd.ui_status.text)
+	bd.ui_dir.text = "res://scenes"
+	await bd._on_run()
+	ok(bd.ui_status.text.begins_with("NOT NOW: a batch never writes"), "(6b) a scenes/ folder is refused: %s" % bd.ui_status.text.split("
+")[0])
+	bd.ui_dir.text = UI_OUT
+	bd.ui_dir.text_changed.emit(UI_OUT)   # what typing in the box does (a code set of .text does not emit it)
+	ok(not bd.ui_status.text.begins_with("NOT NOW"), "(6b) fixing the folder drops the old refusal line")
+	b_all.pressed.emit()
+	ok(bd._picked().size() == bd.picks.size(), "(6b) Select all ticks all %d scenes" % bd.picks.size())
+	b_none.pressed.emit()
+	ok(bd._picked().is_empty(), "(6b) Select none clears every tick")
 	for pk in bd.picks:
 		(pk[0] as CheckBox).button_pressed = PICKS.has(pk[1])
 	bd.ui_dir.text = UI_OUT
@@ -134,6 +154,8 @@ func _init() -> void:
 	await bd._on_run()
 	ok(bd.ui_status.text.begins_with("NOT NOW: a batch never writes into scenes/"), "(6) scenes/ typed in the folder box is refused on the spot")
 	bd.ui_dir.text = UI_OUT
+	bd.ui_dir.text_changed.emit(UI_OUT)   # the person fixes the folder by typing: the refusal line goes
+	ok(not bd.ui_status.text.begins_with("NOT NOW"), "(6c) the panel shows no stale refusal after the folder is fixed")
 
 	# (7) the panel, as the person sees it
 	bd.dlg.popup_centered(Vector2i(680, 700))

@@ -161,6 +161,7 @@ static func lim_key(j: String) -> String:
 
 
 func load_files(skel_path: String, limits_path: String) -> void:
+	_fk_a = {}   # the rest points change: fk() recomputes every joint
 	_files = [skel_path, limits_path]
 	pairs = []   # PR1: loaded again by set_proportions, so nothing may pile up from the last load
 	allow = {}
@@ -405,6 +406,23 @@ func at_limit(j: String) -> Array:
 		if r.y - r.x > 0.5 and (lo or hi):
 			out.append(k[0])
 	return out
+
+
+## LIMIT TINT FADE: how far joint j is into the LAST 10% of its range on any axis, 0 (not yet) .. 1 (at the stop). The
+## yellow limit tint on the part is drawn at this strength, so it fades in over the last tenth and is full at the stop
+func limit_fade(j: String) -> float:
+	var v: Vector3 = ang[j]
+	var f := 0.0
+	for k in [["bend", v.x], ["side", v.y], ["twist", v.z]]:
+		var r: Vector2 = lim[j][k[0]]
+		var span := r.y - r.x
+		if span <= 0.5:
+			continue
+		var band := 0.1 * span
+		var lo_f := clampf((r.x + band - float(k[1])) / band, 0.0, 1.0) if r.x != 0.0 else 0.0
+		var hi_f := clampf((float(k[1]) - (r.y - band)) / band, 0.0, 1.0) if r.y != 0.0 else 0.0
+		f = maxf(f, maxf(lo_f, hi_f))
+	return f
 
 
 func set_ang(j: String, v: Vector3) -> void:
@@ -1261,6 +1279,7 @@ func search(js: Array, cost: Callable, pen0 := -1.0) -> float:
 ## FK for a few joints only (an arm), parents first: the same math as fk(), for fast sweeps
 func fk_some(js: Array) -> void:
 	for j in js:
+		_fk_a.erase(j)
 		var A := compose(j, ang[j])
 		var pj: String = parent[j]
 		G[j] = G[pj] * A
@@ -1820,23 +1839,12 @@ func _sole_low_set() -> float:
 ## the surface under a point (world x, z): the floor (0) or a support's top, the LOWEST one at which the point, `up`
 ## metres above it, is not inside a prop: a foot over a box stands on its top; a foot under a table or between a
 ## chair's legs stays on the floor
-func surface_at(pt: Vector3, up: float) -> float:
-	var hs := [0.0]
-	for p in props:
-		for s in Props.supports(p):
-			if Props._over(s, pt):
-				hs.append(float(s["y"]))
-	hs.sort()
-	for h in hs:
-		var q := Vector3(pt.x, h + up, pt.z)
-		var inside := false
-		for p in props:
-			for sw in Props.solids(p):
-				if Props._sd(sw, q) < -Props.REST_SINK:
-					inside = true
-		if not inside:
-			return h
-	return hs[-1]
+## ROADMAP 93: the surface under the point itself (its real height, Props.surface_below): a step's tread, a ramp's slope, a
+## box top, the floor. Every caller passes the point where it is (a sole, a hand, a barrel tip), so `up` (its rest height) is
+## no longer probed; it is kept so the callers read as before
+func surface_at(pt: Vector3, _up: float) -> float:
+	return float(Props.surface_below(props, pt)["y"])
+
 
 
 ## how far the hips and thighs must rise to sit ON a seat they sink into (0 = none): the part of each capsule that is
@@ -1905,6 +1913,8 @@ func floor_shift() -> float:
 			continue
 		var r: float = float(rad.get(j, 0.03))
 		cap = minf(cap, minf((P[j] as Vector3).y, (E[j] as Vector3).y) - r)
+	if not props.is_empty():   # ROADMAP 93: the soles stand on the surfaces under them (a step's tread, a ramp), not on y = 0
+		return minf(_sole_low_set(), cap)
 	return minf(minf(foot_sole_low("_l"), foot_sole_low("_r")), cap)
 
 
@@ -2041,6 +2051,7 @@ func fk_sub(j: String) -> void:
 				js.append(k)
 		_below[j] = js
 	for k in js:
+		_fk_a.erase(k)
 		var A := compose(k, ang[k])
 		var pk: String = parent[k]
 		if pk == "":
@@ -2052,10 +2063,26 @@ func fk_sub(j: String) -> void:
 		E[k] = P[k] + G[k] * (e0[k] - p0[k])
 
 
+## DIRTY-TRACKED FK (ROADMAP 99): a joint is recomputed only when its own angles changed (compared float by float: Vector3 ==
+## is approximate in this build), or its parent was recomputed, or (the root) the offset moved. _fk_a is the angles G / P / E
+## were last computed for; whatever else writes G / P / E or the rest points clears it (load_files, Proportions, _chain,
+## fk_some, fk_sub, PoseBake.restore sets it to the angles it restores). Same values bit for bit as the full pass.
+var _fk_a := {}
+var _fk_off := Vector3.ZERO
+
+
 func fk() -> void:
+	var dirty := {}
+	var root_same := _fk_off.x == offset.x and _fk_off.y == offset.y and _fk_off.z == offset.z
 	for j in ORDER:
-		var A := compose(j, ang[j])
+		var a: Vector3 = ang[j]
 		var pj: String = parent[j]
+		var prev = _fk_a.get(j)
+		if prev != null and (a.x == prev.x and a.y == prev.y and a.z == prev.z) and (root_same if pj == "" else not dirty.has(pj)):
+			continue
+		dirty[j] = true
+		_fk_a[j] = a
+		var A := compose(j, a)
 		if pj == "":
 			G[j] = A
 			P[j] = p0[j] + offset
@@ -2063,6 +2090,7 @@ func fk() -> void:
 			G[j] = G[pj] * A
 			P[j] = P[pj] + G[pj] * (p0[j] - p0[pj])
 		E[j] = P[j] + G[j] * (e0[j] - p0[j])
+	_fk_off = offset
 
 
 ## the glTF node's local rotation for this pose: W[j] = G[j] * W0[j] -> L[j] = W0[parent]^-1 * A[j] * W0[j]
@@ -2322,7 +2350,7 @@ func set_state(s: Dictionary) -> void:
 	_set_state0(s)
 
 
-func _set_state0(s: Dictionary) -> void:
+func _set_state0(s: Dictionary, do_fk := true) -> void:
 	ang = (s["ang"] as Dictionary).duplicate()
 	offset = s["offset"]
 	set_kind(s["wep_kind"])
@@ -2341,7 +2369,8 @@ func _set_state0(s: Dictionary) -> void:
 	wep2_hand = s.get("wep2_hand", "hand_l")
 	wep2_lpos = s.get("wep2_lpos", Vector3.ZERO)
 	wep2_lrot = s.get("wep2_lrot", Quaternion.IDENTITY)
-	fk()
+	if do_fk:
+		fk()
 
 
 static func _q(q: Quaternion) -> Array:

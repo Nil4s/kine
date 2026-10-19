@@ -21,12 +21,12 @@ static func _m(t: Vector3) -> String:
 
 
 ## the scene as USDA text: [text, {"frames", "joints", "fps"}]. B is posed through the scene; its state is put back.
-static func text(S: Scene, B: Body) -> Array:
+static func text(S: Scene, B: Body, clean := true) -> Array:
 	var fps := float(maxi(1, S.fps))
 	var n := int(ceil(S.length() * fps - 1e-6)) + 1
 	var h := _head(S.name, fps, n)
 	h.append_array(PackedStringArray(["def SkelRoot \"Kine\"", "{"]))
-	h.append_array(_skel(S, B, n, fps, S.length(), "    ", "/Kine"))
+	h.append_array(_skel(S, B, n, fps, S.length(), "    ", "/Kine", clean))
 	h.append("}")
 	return ["\n".join(h) + "\n", {"frames": n, "joints": Body.ORDER.size(), "fps": S.fps}]
 
@@ -36,7 +36,7 @@ static func text(S: Scene, B: Body) -> Array:
 ## its xformOp:transform (the actor's xf, row-vector: the translation is the last row), each with its own Skeleton and
 ## SkelAnimation sampled from its own scene over the same time range (0 .. the longest scene, the hero's fps).
 ## -> [text, {"frames", "joints", "fps", "prims": [prim names]}]
-static func text_actors(actors: Array, title: String) -> Array:
+static func text_actors(actors: Array, title: String, clean := true) -> Array:
 	var L := 0.0
 	for a in actors:
 		L = maxf(L, (a["S"] as Scene).length())
@@ -57,7 +57,7 @@ static func text_actors(actors: Array, title: String) -> Array:
 				_f(bx.x.x), _f(bx.x.y), _f(bx.x.z), _f(bx.y.x), _f(bx.y.y), _f(bx.y.z), _f(bx.z.x), _f(bx.z.y), _f(bx.z.z),
 				_f(x.origin.x), _f(x.origin.y), _f(x.origin.z)],
 			"        uniform token[] xformOpOrder = [\"xformOp:transform\"]"]))
-		h.append_array(_skel(a["S"], a["B"], n, fps, L, "        ", "/Kine/" + pn))
+		h.append_array(_skel(a["S"], a["B"], n, fps, L, "        ", "/Kine/" + pn, clean))
 		h.append("    }")
 	h.append("}")
 	return ["\n".join(h) + "\n", {"frames": n, "joints": Body.ORDER.size(), "fps": int(fps), "prims": prims}]
@@ -80,7 +80,7 @@ static func _head(title: String, fps: float, n: int) -> PackedStringArray:
 
 
 ## one Skeleton + SkelAnimation (lines, indented by pad) under the prim at root, n samples at fps over 0..L
-static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, root: String) -> PackedStringArray:
+static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, root: String, clean := true) -> PackedStringArray:
 	var keep := B.state()
 	if B.body != S.body:
 		B.set_proportions(S.body)   # PR2: bind and rest transforms are the scene's own body's (put back at the end)
@@ -108,17 +108,28 @@ static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, 
 		pad + "def SkelAnimation \"Anim\"", pad + "{", pad + "    uniform token[] joints = " + q.call(jt)])
 	var tr := PackedStringArray()
 	var ro := PackedStringArray()
+	# the rotations per joint, then the sign continuity pass (RotClean.hemisphere: dot with the previous frame >= 0)
+	var qa := []
+	for _j in Body.ORDER.size():
+		qa.append([])
 	for i in n:
 		S.apply(B, minf(i / fps, L))
 		B.fk()
 		var t := PackedStringArray()
-		var r := PackedStringArray()
-		for j in Body.ORDER:
+		for jj in Body.ORDER.size():
+			var j: String = Body.ORDER[jj]
 			var off: Vector3 = B.P[j] if B.parent[j] == "" else (B.p0[j] as Vector3) - (B.p0[B.parent[j]] as Vector3)
 			t.append("(%s, %s, %s)" % [_f(off.x), _f(off.y), _f(off.z)])
-			var a := B.compose(j, B.ang[j]).normalized()
-			r.append("(%s, %s, %s, %s)" % [_f(a.w), _f(a.x), _f(a.y), _f(a.z)])
+			qa[jj].append(B.compose(j, B.ang[j]).normalized())
 		tr.append(pad + "        %d: %s," % [i, q.call(t)])
+	var hq := []
+	for jj in Body.ORDER.size():
+		hq.append(RotClean.hemisphere(qa[jj], clean))
+	for i in n:
+		var r := PackedStringArray()
+		for jj in Body.ORDER.size():
+			var a: Quaternion = hq[jj][i]
+			r.append("(%s, %s, %s, %s)" % [_f(a.w), _f(a.x), _f(a.y), _f(a.z)])
 		ro.append(pad + "        %d: %s," % [i, q.call(r)])
 	h.append(pad + "    float3[] translations.timeSamples = {")
 	h.append_array(tr)

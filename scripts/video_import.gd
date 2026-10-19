@@ -11,7 +11,8 @@
 ##             twist is the limb's, not a shortest arc's; a near-straight limb has no plane: blended to the shortest arc
 ##   calf, forearm      the hinge's bend only (the angle between the two bones), the sign the joint allows
 ##   foot      aimed at the foot tip (31 / 32)
-##   hands, fingers, clavicles: rest (the 33-point layout has no hand frame)
+##   hands, fingers, clavicles: rest (the 33-point layout has no hand frame), unless the file has hands (ROADMAP 90): then the
+##             fingers are fitted by HandImport (each hand on its own frame, so the arm does not enter it); clavicles stay rest
 ## THE TRAVEL: MediaPipe's hips are always at 0, so a tracked walk walks on the spot. The root is rebuilt from the feet:
 ## each frame the LOWER foot is the stance foot and stays where it was, the hips move the opposite way (people's stance
 ## foot does not slide: the same idea as MocapClean's foot lock). The height: the lower sole on the floor (Body.ground).
@@ -103,12 +104,24 @@ static func parse(txt: String) -> Dictionary:
 		var w := []
 		for p in f["world"]:
 			w.append(Vector3(float(p[0]), float(p[1]), float(p[2])))
-		raw.append({"t": float(f.get("t", 0.0)), "w": w, "im": f.get("image", [])})
+		raw.append({"t": float(f.get("t", 0.0)), "w": w, "im": f.get("image", []), "hd": f.get("hands", null)})
 	for f in raw:
 		var w := []
 		for p in f["w"]:
 			w.append(Vector3(p.x, -p.y, -p.z))   # MediaPipe y down -> ours (180 deg about x)
-		out.append({"t": f["t"], "w": w})
+		var e := {"t": f["t"], "w": w}
+		if f["hd"] is Dictionary:
+			# ROADMAP 90: each hand's 21 world points, ours (the same 180 deg about x). A hand without 21 points is no hand
+			var hd := {}
+			for sd in ["l", "r"]:
+				if (f["hd"] as Dictionary).has(sd) and ((f["hd"][sd] as Dictionary).get("world", []) as Array).size() == 21:
+					var hp := []
+					for p in f["hd"][sd]["world"]:
+						hp.append(Vector3(float(p[0]), -float(p[1]), -float(p[2])))
+					hd[sd] = hp
+			if not hd.is_empty():
+				e["hands"] = hd
+		out.append(e)
 	if out.size() < 2:
 		return _fail("the pose file has %d usable frames (the tracker found nobody?)" % out.size())
 	var tilt := level(out)
@@ -365,7 +378,7 @@ static func _rest_n(B: Body, mid: String) -> Vector3:
 
 ## every frame fitted: [{"t", "ang": {joint: Vector3}, "offset": Vector3}], the travel rebuilt from the stance foot and the
 ## lower sole put on the floor
-static func solve(B: Body, frames: Array, held := "") -> Array:
+static func solve(B: Body, frames: Array, held := "", fps := 30.0) -> Array:
 	# pass 1: every frame's pose, and each foot's two pivots (the heel's back, the toe joint: people roll over the heel,
 	# then over the toes) with the hips at 0
 	var poses := []
@@ -375,8 +388,26 @@ static func solve(B: Body, frames: Array, held := "") -> Array:
 	if held != "":
 		B.set_kind(held)
 		B.weapon_to_hand("hand_r")
+	# ROADMAP 90: the hands, when the file has any (no "hands" key anywhere: nothing below runs and the body is as before)
+	var has_hands := false
+	for f in frames:
+		if (f as Dictionary).has("hands"):
+			has_hands = true
+			break
+	var hraw := {"l": [], "r": []}
+	var hprev := {"l": {}, "r": {}}
 	for f in frames:
 		fit(B, f["w"])
+		if has_hands:
+			var hd: Dictionary = f.get("hands", {})
+			for sd in ["l", "r"]:
+				var got := {}
+				if hd.has(sd):
+					var H := HandImport.fit_hand(B, sd, hd[sd], hprev[sd])
+					if not H.is_empty():
+						got = H["ang"]
+						hprev[sd] = got
+				hraw[sd].append(got if not got.is_empty() else null)
 		if held != "":
 			var was := B.fast
 			B.fast = true   # as fit: limits only, no contact search per turn (136 s -> seconds on the 300-frame axe clip)
@@ -401,6 +432,16 @@ static func solve(B: Body, frames: Array, held := "") -> Array:
 			hs.append(minf((pv[sd][0] as Vector3).y, (pv[sd][1] as Vector3).y))
 		hs.sort()
 		floor[sd] = hs[int(0.1 * (hs.size() - 1))]
+	# the hands: filled over the gaps (hold, then ease) and smoothed on the clean path's One Euro filter, then into each frame's pose
+	if has_hands:
+		var fin := {}
+		for sd in ["l", "r"]:
+			fin[sd] = HandImport.smooth(HandImport.fill(hraw[sd], fps, sd), fps)
+		for i in poses.size():
+			for sd in ["l", "r"]:
+				var d: Dictionary = fin[sd][i]
+				for j in d:
+					poses[i][j] = d[j]
 	# pass 2: the stance foot (the nearer its floor, this frame and the last summed) stays put; the hips move the opposite
 	# way by its lower pivot's move (the one it rolls over)
 	var out := []

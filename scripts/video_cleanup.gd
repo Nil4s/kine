@@ -89,7 +89,10 @@ static func smooth(frames: Array, fps: float) -> Array:
 	var n := frames.size()
 	var out := []
 	for i in n:
-		out.append({"t": frames[i]["t"], "w": []})
+		var o := {"t": frames[i]["t"], "w": []}
+		if frames[i].has("hands"):
+			o["hands"] = frames[i]["hands"]   # ROADMAP 90: the hands are not smoothed here (HandImport smooths the finger angles)
+		out.append(o)
 	for k in 33:
 		var g := _group(k)
 		var xs := []

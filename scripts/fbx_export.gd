@@ -4,7 +4,8 @@
 ## (centimetres). Godot has no FBX writer, so this writes the text itself; the tree and the keys come from GltfExport.build,
 ## so the file cannot drift from the .glb. Centimetres (UnitScaleFactor 1.0: an FBX unit is a centimetre, 100 would be a metre), Y up, the front to +Z as the glb.
 ## Not in the file: the weapons (they are animated nodes in the .glb only) and the props, the sound and the camera.
-## Euler order is FBX's eEulerXYZ: R = Rz(c) * Ry(b) * Rx(a) for the three angles (X = a, Y = b, Z = c).
+## Euler order is FBX's eEulerXYZ: R = Rz(c) * Ry(b) * Rx(a) for the three angles (X = a, Y = b, Z = c). The rotation
+## curves are unrolled (RotClean, ROADMAP 64): each channel continuous frame to frame, no 360-degree steps or flips.
 ## Checked by tests/fbx_export_test.gd (a Python reader in tests/py/fbx_check.py) and, when Blender is installed, by
 ## tests/py/fbx_blender_check.py run in Blender 4.5 (docs/EXPORT.md).
 class_name FbxExport
@@ -220,12 +221,20 @@ static func _curves_for(tr: int, A: Animation, rot: bool) -> Array:
 	var n := A.track_get_key_count(tr)
 	var times := PackedStringArray()
 	var vals := [PackedStringArray(), PackedStringArray(), PackedStringArray()]
+	# a rotation track: the keys' Euler XYZ unrolled per channel (RotClean: nearest the previous key, no 360 jumps,
+	# no flips between the two solutions at a gimbal), so an engine's interpolation takes the short way round
+	var eu := []
+	if rot:
+		var qs := []
+		for k in n:
+			qs.append(A.track_get_key_value(tr, k) as Quaternion)
+		eu = RotClean.euler_track(qs, true, true)
 	for k in n:
 		times.append(str(int(round(A.track_get_key_time(tr, k) * KTIME))))
 		var v = A.track_get_key_value(tr, k)
 		var xyz: Vector3
 		if rot:
-			xyz = _euler_deg(Transform3D(Basis(v as Quaternion), Vector3.ZERO))
+			xyz = eu[k]
 		else:
 			xyz = (v as Vector3) * CM
 		vals[0].append(_f(xyz.x))
