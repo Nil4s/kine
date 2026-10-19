@@ -12,7 +12,7 @@
 ##       grounding OFF (the raw blend; with it on, the check would pass by the grounding lifting the body).
 ##   (8) kneel: each hand's centre 5 mm from its floor mark; each thigh's lowest point 5 mm from the floor.
 ##   (9) a sheet of four frames (supine, rolling, on the side, kneel) is printed as FRAME lines (joint capsules).
-## The stand from hands and knees is NOT built: the get-up stops at the kneel (the report says so).
+## The get-up is kneel -> half-kneel -> stand (9 cards: 5 anchors and a blend between each pair).
 extends SceneTree
 
 var fails := 0
@@ -122,7 +122,7 @@ func _init() -> void:
 	ok(worst_key <= 0.01 and worst_s <= 0.01, "7 floor: the cards' depth at most %.1f mm; the raw blend at 60 Hz through %.1f s, %.1f mm (at %.2f s); bar 10 mm" % [worst_key * 1000.0, t_g, worst_s * 1000.0, worst_t])
 
 	# (8) kneel: the hands on their marks, the thighs on the floor
-	B.from_dict(gkeys[gkeys.size() - 1])
+	B.from_dict(gkeys[4])   # the kneel anchor: states 0 supine, 1 roll, 2 side, 3 roll, 4 kneel, 5 blend, 6 half-kneel, 7 blend, 8 stand
 	var hand_miss := 0.0
 	for sd in ["_l", "_r"]:
 		hand_miss = maxf(hand_miss, absf((B.P["hand" + sd] as Vector3).y - Rise.HAND_R))
@@ -131,6 +131,16 @@ func _init() -> void:
 		var tl := minf((B.P["thigh" + sd] as Vector3).y, (B.E["thigh" + sd] as Vector3).y) - float(B.rad["thigh" + sd])
 		thigh_miss = maxf(thigh_miss, absf(tl))
 	ok(hand_miss < 0.005 and thigh_miss < 0.005, "8 kneel: hands %.1f mm, thighs %.1f mm from the floor (bar 5 mm)" % [hand_miss * 1000.0, thigh_miss * 1000.0])
+
+	# (10) COM over the support at each anchor (Rise.support_margin: the app's foot footprints plus the floor contacts)
+	var anchor_m := []
+	for k in [0, 2, 4, 6, 8]:
+		B.from_dict(gkeys[k])
+		anchor_m.append(snappedf(Rise.support_margin(B), 0.001))
+	var com_ok := true
+	for m in anchor_m:
+		com_ok = com_ok and float(m) >= 0.0
+	ok(com_ok, "10 COM over the support at supine, side, kneel, half-kneel, stand: margins %s m (bar >= 0)" % str(anchor_m))
 
 	# (9) the sheet: four frames of the get-up, whole body, as joint capsules (printed; the screenshot script reads them)
 	var FS := scene_of(gcards, true, true)   # played through the app's floor-body grounding, as the get-up plays
