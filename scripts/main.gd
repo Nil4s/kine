@@ -15162,6 +15162,8 @@ func _human_check() -> void:
 func _feasible_check() -> void:
 	HumanLimits.on = true
 	_check()
+	if S.cards.size() < 2:
+		return   # Check said what to do (add cards); a "PASS" over nothing would be a false verdict
 	var vf := findings.filter(func(f): return f["rule"] == "FEASIBLE")
 	_say("physically possible? " + ("PASS: nothing here a body could not do" if vf.is_empty() else String(vf[0]["msg"]).split(" ")[0] + ": click a finding to jump to its frames and read the reason"))
 
