@@ -430,6 +430,41 @@
       }
      }
     },
+    "constraints": {
+     "type": "array",
+     "description": "USER CONSTRAINTS (round 51, CN; scripts/constraints.gd): a stack played in order after IK; written only when there is one. type child_of: owner (a hand, a foot or the pelvis) follows target x offset (the owner in the target's frame, stored when made); track_to: the head aims at the target within the neck's limits; floor: a foot never below height (m). w = influence 0..1, wk = keyed influence [[t, w], ...] (linear between, times w), mute = off.",
+     "items": {
+      "type": "object",
+      "required": ["type", "owner", "w"],
+      "properties": {
+       "type": {"enum": ["child_of", "track_to", "floor"]},
+       "owner": {"enum": ["hand_l", "hand_r", "foot_l", "foot_r", "pelvis", "head"]},
+       "target": {
+        "type": "object",
+        "required": ["kind"],
+        "properties": {
+         "kind": {"enum": ["part", "weapon", "point", "prop", "actor"]},
+         "part": {"type": "string"},
+         "at": {"$ref": "#/$defs/vec3"},
+         "prop": {"type": "integer", "minimum": 0},
+         "actor": {"type": "integer", "minimum": 0}
+        },
+        "additionalProperties": false
+       },
+       "offset": {
+        "type": "object",
+        "required": ["pos", "rot"],
+        "properties": {"pos": {"$ref": "#/$defs/vec3"}, "rot": {"$ref": "#/$defs/quat"}},
+        "additionalProperties": false
+       },
+       "w": {"type": "number", "minimum": 0, "maximum": 1},
+       "wk": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}},
+       "mute": {"type": "boolean"},
+       "height": {"type": "number"}
+      },
+      "additionalProperties": false
+     }
+    },
     "part_keys": {
      "type": "object",
      "description": "PART KEYS (round 41, WW1): one joint's own keys over the card blend; written only when there is one. Each key: t = seconds into the scene, v = [bend, side, twist] degrees. scripts/part_keys.gd",
