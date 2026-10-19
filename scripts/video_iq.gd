@@ -597,6 +597,44 @@ static func locate(B: Body, fitted: Array, list: Array) -> Array:
 	return out
 
 
+## where each contact is on the floor AS THE SCENE PLAYS IT (the footprints are drawn here): the final scene V (cards + plants)
+## at the contact's middle (the middle of its overlap with a plant of the same foot when there is one: the planted foot stands
+## still there), the sole's middle (heel, ball) for a foot, the hand for a hand. "t" = the time read. The dense fit's own
+## spot (locate) can be 10 cm from where the planted, sparse scene puts the foot
+static func locate_played(B: Body, V: Scene, list: Array) -> Array:
+	var keep := B.state()
+	var out := []
+	for c in list:
+		var a := float(c["t0"])
+		var b := float(c["t1"])
+		for p in V.plants:
+			if p["foot"] == c["part"] and float(p["t0"]) < b and float(p["t1"]) > a:
+				a = maxf(a, float(p["t0"]))
+				b = minf(b, float(p["t1"]))
+				break
+		var t := (a + b) * 0.5
+		V.apply(B, t)
+		B.fk()
+		var d: Dictionary = c.duplicate()
+		var sd: String = String(c["part"]).right(2)
+		if c["kind"] == "foot":
+			var hl := VideoImport.heel(B, sd)
+			var bl: Vector3 = B.P["ball" + sd]
+			d["x"] = snappedf((hl.x + bl.x) * 0.5, 0.001)
+			d["z"] = snappedf((hl.z + bl.z) * 0.5, 0.001)
+			d["y"] = snappedf(minf(hl.y, bl.y), 0.001)
+			d["yaw"] = snappedf(rad_to_deg(atan2(bl.x - hl.x, bl.z - hl.z)), 0.1)
+		else:
+			var hp: Vector3 = B.P["hand" + sd]
+			d["x"] = snappedf(hp.x, 0.001)
+			d["z"] = snappedf(hp.z, 0.001)
+			d["y"] = snappedf(hp.y, 0.001)
+		d["t"] = snappedf(t, 0.001)
+		out.append(d)
+	B.set_state(keep)
+	return out
+
+
 # ============================================================== 3 SMART KEYS =============================================
 
 ## the joints whose world position the replay error is read on
@@ -745,7 +783,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	var sk := smart_cards(B, dense, fitted)
 	var V: Scene = sk["scene"]
 	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps)), V.fps)
-	var located := locate(B, fitted, K["list"])
+	var located := locate_played(B, V, K["list"])
 	var feet := 0
 	var hands := 0
 	for c in located:
