@@ -1887,6 +1887,7 @@ func _process(dt: float) -> void:
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
 	_video_poll(dt)
+	_multicam_poll(dt)
 	_live_poll(dt)
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
@@ -7417,7 +7418,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
-	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
+	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
@@ -7775,6 +7776,7 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
+	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK
 	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
@@ -9759,6 +9761,7 @@ func _commands() -> Array:
 	add.call("Beats: clear the beats", "", _beats_clear, "beats clear remove music", true, "take the beat marks off the timeline; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
+	add.call("Import from several cameras...", "", _multicam_ask, "video several cameras multi camera triangulate rig two videos mocap motion capture track person film record", false, "pick 2 to 4 videos of one person filmed at the same time: the rig is solved from the person, the joints triangulated, one undo step")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
@@ -13605,6 +13608,179 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"]),
 		(", the %s in both hands" % held.replace("_", " ")) if held != "" else ". Holding a weapon in the video? Pick it first (Weapon: long axe ...), then import: he holds it in both hands"])
 	return out
+
+
+## ---- SEVERAL CAMERAS (roadmap 89; scripts/multicam.gd). Two to four videos of ONE person, filmed at the same time from
+## different places. Each goes to tools/see_video.py (python -I, one after another: the window keeps working, _multicam_poll);
+## the pose files are read as MultiCam.obs_from_poses, the rig is solved from the person's own keypoints (MultiCam.solve_extrinsics:
+## the bones' known lengths, gravity, one floor), every joint triangulated (MultiCam.triangulate_all), and the frames go through
+## the single-view path (VideoCleanup, VideoImport.solve, thin). They land as ONE edit on the open scene (the mirror-in-place
+## pattern): Ctrl+Z takes them back, and nothing is saved until you save. A panel shows the cameras and the reconstructed pose.
+const MULTI_MAX := 4
+const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most this many frames (GDScript: a 300-frame clip takes minutes)
+var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
+var multicam_tool := "res://tools/see_video.py"
+var _mc_videos: Array = []
+var _mc_outs: Array = []
+var _mc_i := -1                  # the camera being tracked, or -1 when idle
+var _mc_pid := -1
+var _mc_win: Window = null       # the panel's window (one at a time)
+var mc_last := {}                # the last rig solved: {"cams", "H"} (the hips' mean in the rig's world; the panel's origin)
+
+
+func _multicam_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILES
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.mp4, *.mov, *.avi, *.webm, *.mkv, *.m4v ; videos"])
+	fd.use_native_dialog = true
+	fd.title = "Several cameras of one person (2 to 4 videos, filmed at the same time)"
+	fd.files_selected.connect(func(ps): _multicam_start(ps); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+func _multicam_start(paths: PackedStringArray) -> void:
+	if _mc_i >= 0:
+		_say("still tracking the cameras: one set at a time; try again when it arrives")
+		return
+	if paths.size() < 2 or paths.size() > MULTI_MAX:
+		_say("several cameras needs 2 to %d videos of the same person, filmed at once: you picked %d" % [MULTI_MAX, paths.size()])
+		return
+	for p in paths:
+		if not FileAccess.file_exists(p):
+			_say("could not track %s: no such file; pick the videos again" % p.get_file())
+			return
+	var dir := OS.get_user_data_dir().path_join("video_track")
+	DirAccess.make_dir_recursive_absolute(dir)
+	_mc_videos = Array(paths)
+	_mc_outs = []
+	for p in paths:
+		var out := dir.path_join("multicam_%s.json" % safe_file(p.get_file().get_basename()))
+		if FileAccess.file_exists(out):
+			DirAccess.remove_absolute(out)
+		_mc_outs.append(out)
+	_mc_i = 0
+	_multicam_track_next()
+
+
+func _multicam_track_next() -> void:
+	var args := MultiCam.track_args(ProjectSettings.globalize_path(multicam_tool), _mc_videos[_mc_i], _mc_outs[_mc_i])
+	_mc_pid = OS.create_process(multicam_python, args)
+	if _mc_pid < 0:
+		_multicam_end("could not track camera %d (%s): the interpreter \"%s\" did not start (it needs Python with mediapipe and opencv-python)" % [_mc_i + 1, _mc_videos[_mc_i].get_file(), multicam_python])
+		return
+	_say("tracking camera %d of %d (%s): finding the person in every frame..." % [_mc_i + 1, _mc_videos.size(), _mc_videos[_mc_i].get_file()])
+
+
+func _multicam_end(why: String) -> void:
+	_mc_i = -1
+	_mc_pid = -1
+	_say(why)
+
+
+func _multicam_poll(_dt: float) -> void:
+	if _mc_i < 0 or _mc_pid < 0 or OS.is_process_running(_mc_pid):
+		return
+	_mc_pid = -1
+	if not FileAccess.file_exists(_mc_outs[_mc_i]):
+		_multicam_end("could not track camera %d (%s): the tracker found no person, or could not read the video" % [_mc_i + 1, _mc_videos[_mc_i].get_file()])
+		return
+	_mc_i += 1
+	if _mc_i < _mc_videos.size():
+		_multicam_track_next()
+	else:
+		_multicam_finish()
+
+
+## all the cameras are tracked: solve the rig, triangulate, clean and fit exactly as a single view, land as one edit
+func _multicam_finish() -> void:
+	var texts := []
+	for o in _mc_outs:
+		texts.append(FileAccess.get_file_as_string(o))
+	var L := MultiCam.obs_from_poses(texts)
+	if not L["ok"]:
+		_multicam_end("could not use the cameras: %s" % L["why"])
+		return
+	var obs: Array = L["obs"]
+	var n := _mc_videos.size()
+	var Ks := []
+	for sz in L["sizes"]:
+		Ks.append(MultiCam.intrinsics(int(sz[0]), int(sz[1])))
+	var p0 := [0.0, 3.0]   # a ring: camera 0 at yaw 0, the others evenly round, 3 m out, level
+	for c in range(1, n):
+		p0.append(360.0 * c / n)
+		p0.append(0.0)
+		p0.append(3.0)
+	var keep := B.state()
+	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
+	var pairs := MultiCam.rest_bones(B)
+	var sol := MultiCam.solve_extrinsics(Ks, p0, obs, pairs, 8, MULTI_FRAMES)
+	var cams: Array = sol["cams"]
+	var tri := MultiCam.triangulate_all(cams, obs)
+	if not tri["ok"]:
+		B.set_state(keep)
+		_multicam_end("the cameras did not agree on the person: fewer than 2 frames could be triangulated. Check that every camera sees the whole body")
+		return
+	var frames: Array = tri["frames"]
+	var fps := 30.0
+	if obs.size() > 1 and float(obs[-1]["t"]) > float(obs[0]["t"]):
+		fps = float(obs.size() - 1) / (float(obs[-1]["t"]) - float(obs[0]["t"]))
+	var tilt := VideoImport.level(frames)
+	var C := VideoCleanup.run(frames, fps, tilt)
+	var fitted := VideoImport.solve(B, C["frames"], held)
+	var V := VideoImport.to_scene(B, fitted, fps, 1, "multicam")
+	V = VideoImport.thin(V, VideoImport.every_for(V.fps))
+	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(C["plants"]), V.fps)
+	var locked := V.plants.size()
+	var text := VideoCleanup.report(locked, C["jitter_raw"], C["jitter_clean"], C["tilt"])
+	B.set_state(keep)
+	var d: Dictionary = V.to_dict(B)
+	d["scene"] = S.name   # in place, as mirror-in-place: the open scene keeps its name
+	var names := []
+	for v in _mc_videos:
+		names.append(String(v).get_file())
+	d["plan"] = "Several cameras: %d videos (%s), rig solved by MultiCam from the person's keypoints (bones, gravity, one floor; %d of %d frames), %d frames triangulated, %.2f px mean reprojection; fitted by VideoImport; %s" % [n, ", ".join(names), mini(MULTI_FRAMES, obs.size()), obs.size(), frames.size(), float(tri["mean_rms"]), text]
+	_do(func():
+		S.from_dict(d)
+		sel_card = mini(sel_card, S.cards.size() - 1)
+		ov.mark_dirty()
+		wt.mark_dirty()
+		_dummy_hits()
+		_rebuild_cards()
+		_refresh()
+		S.apply(B, playhead))
+	# the panel: the cameras (their places with the person at the origin), the reconstructed pose at the clip's middle
+	var views := MultiCam.views_per_cam(obs, n)
+	var H := Vector3.ZERO
+	for h in tri["hips"]:
+		H += h as Vector3
+	H /= maxf(1.0, float(tri["hips"].size()))
+	var info := []
+	mc_last = {"cams": cams, "H": H}
+	for c in cams.size():
+		info.append({"name": "camera %d" % (c + 1), "C": (cams[c]["C"] as Vector3) - H, "rms": float(tri["cam_rms"][c]), "views": int(views[c])})
+	var mid := frames.size() / 2
+	_multicam_show(info, frames[mid]["w"], float(frames[mid]["t"]), float(tri["rms"][mid]))
+	_mc_i = -1
+	_say("imported %d cameras as one edit on this scene: %d frames, %.2f px mean reprojection; the panel shows where each camera stands. Ctrl+Z takes it back; nothing is saved until you save" % [n, frames.size(), float(tri["mean_rms"])])
+
+
+func _multicam_show(info: Array, pose: Array, t: float, rms: float) -> void:
+	if _mc_win != null and is_instance_valid(_mc_win):
+		_mc_win.queue_free()
+	var win := Window.new()
+	win.title = "Several cameras: the import"
+	win.size = Vector2i(900, 560)
+	var panel := MultiCamPanel.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	win.add_child(panel)
+	add_child(win)
+	win.close_requested.connect(win.queue_free)
+	panel.set_result(info, pose, t, rms)
+	win.popup_centered()
+	_mc_win = win
 
 
 ## ---- LIVE WEBCAM PUPPET (roadmap 21; scripts/live_puppet.gd). The webcam's tracker (tools/live_pose.py, MediaPipe) sends the
