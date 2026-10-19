@@ -38,7 +38,13 @@ var _as_last := ""
 
 var B := Body.new()
 var S := Scene.new()
-var parts := {}          # part -> MeshInstance3D (its collision capsule): click target + highlight
+## TWO CHARACTERS IN MAIN (round 50, GATES TC3): B and S are always THE ACTIVE actor, so every edit, undo step and view
+## works on whoever is active unchanged. actors_rt is the runtime list built from the hero's S.actors (TC1): actor 0 =
+## the hero (the file's top level, at the identity), actor k = S.actors[k - 1] with a Body of its own. Empty = one
+## actor, and nothing anywhere does any extra work (_pose_others returns at once).
+var actors_rt := []   # [{"name", "B": Body, "S": Scene, "xf": Transform3D (in the hero's space), "t": playhead last posed at}]
+var actor_on := 0     # which actor B and S are
+var parts := {}         # part -> MeshInstance3D (its collision capsule): click target + highlight
 var mats := {}
 var dots := {}
 var skel: Skeleton3D     # the mannequin's skeleton (assets/mannequin.glb, Quaternius UAL2, CC0)
@@ -862,9 +868,7 @@ func versions() -> Array:
 func _save_version() -> void:
 	var list := versions()
 	var n := 1 if list.is_empty() else (list[0] as String).get_file().get_basename().substr(1).to_int() + 1
-	var keep := B.state()
-	var d := S.to_dict(B)
-	B.set_state(keep)
+	var d := _scene_dict()   # TC3: the hero's file with its actors, whoever is active (the body kept)
 	d["version"] = {"n": n, "saved": Time.get_datetime_string_from_system(false, true)}
 	var path := "%s/v%03d.json" % [versions_dir(), n]
 	_write(path, d)
@@ -1924,6 +1928,7 @@ func _refresh() -> void:
 		ui_graph.visible = ov.graph_on and S.cards.size() >= 2
 		ui_graph.queue_redraw()
 	_panel()
+	_pose_others()
 
 
 # ---------------------------------------------------------------- camera
@@ -2421,7 +2426,12 @@ func _big_view() -> void:
 ## an undo step = the body AND the open scene's cards (10-14: a Fix or "+ tween" changes cards, so Ctrl+Z must bring
 ## them back). The cards come back only into the scene they were taken from: opening another scene makes them stale.
 func _snapshot() -> Dictionary:
-	return {"body": B.state(), "scene": S, "cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
+	_actors_sync()
+	var H := _hero_scene()
+	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
+	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
+	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
+		"body": B.state(), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
@@ -2432,6 +2442,9 @@ const BAKE_FLAGS := ["on_floor", "pin", "spline", "stepped", "natural", "floor_b
 
 
 func _restore(u: Dictionary) -> void:
+	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
+		ov.mark_dirty()
+		_rebuild_cards()
 	if u["scene"] == S and u.has("fps"):
 		S.fps = int(u["fps"])   # WW4: the frame rate is a scene setting, undone like a card
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
@@ -2489,6 +2502,7 @@ func _undo() -> void:
 		_say("nothing to undo yet: click a part and drag it, and Ctrl+Z will take that back")
 		return
 	var u: Dictionary = undo.pop_back()
+	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
 	var now := _snapshot()
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	redo.append(now)
@@ -2502,6 +2516,7 @@ func _redo() -> void:
 	if redo.is_empty():
 		return
 	var r: Dictionary = redo.pop_back()
+	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
 	var now := _snapshot()
 	now["name"] = _step_label(r)
 	undo.append(now)
@@ -2509,6 +2524,218 @@ func _redo() -> void:
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
 	_history_rows()
+
+
+# ---------------------------------------------------------------- actors (round 50, GATES TC3)
+
+## a file xf {"pos": [x, z], "yaw": deg} as the transform from that actor's body space into the hero's
+static func actor_xf(xf: Dictionary) -> Transform3D:
+	var p: Array = xf.get("pos", [0.0, 0.0])
+	return Transform3D(Basis(Vector3.UP, deg_to_rad(float(xf.get("yaw", 0.0)))), Vector3(float(p[0]), 0.0, float(p[1])))
+
+
+## the hero's scene (actor 0): what the file is, whoever is active
+func _hero_scene() -> Scene:
+	if actors_rt.size() > actor_on and actors_rt[actor_on]["S"] == S:
+		return actors_rt[0]["S"]
+	return S
+
+
+## the hero's body, whoever is active
+func _hero_body() -> Body:
+	return B if _hero_scene() == S else actors_rt[0]["B"]
+
+
+## actors_rt made from hero_S.actors (each actor keeps the Body it had: a rebuild never resets a pose)
+func _actors_build(hero_B: Body, hero_S: Scene) -> void:
+	var had := {}
+	for a in actors_rt:
+		had[a["S"]] = a["B"]
+	actors_rt = []
+	if hero_S.actors.is_empty():
+		return
+	actors_rt.append({"name": "hero", "B": hero_B, "S": hero_S, "xf": Transform3D.IDENTITY, "t": NAN})
+	for a in hero_S.actors:
+		var b: Body = had.get(a["scene"])
+		if b == null:   # a body of its own, made as the hero's (_ready); posed from its scene by _pose_others
+			b = Body.new()
+			b.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+			b.fk()
+		actors_rt.append({"name": a["name"], "B": b, "S": a["scene"], "xf": actor_xf(a["xf"]), "t": NAN})
+
+
+## actors_rt kept in step with the open scene: a scene opened, made new or recovered (or an agent's "new" that sets S
+## straight) is the hero now, with the actors its file lists
+func _actors_sync() -> void:
+	if actors_rt.is_empty():
+		actor_on = 0
+		if not S.actors.is_empty():
+			_actors_build(B, S)
+		return
+	if actor_on >= actors_rt.size() or actors_rt[actor_on]["S"] != S or actors_rt[actor_on]["B"] != B:
+		actor_on = 0
+		actors_rt = []
+		_actors_build(B, S)
+
+
+## back to the hero and one actor list no more (before a scene is opened, made new or recovered)
+func _actors_home() -> void:
+	if not actors_rt.is_empty() and actor_on != 0 and actors_rt[actor_on]["S"] == S:
+		B = actors_rt[0]["B"]
+		S = actors_rt[0]["S"]
+	actor_on = 0
+	actors_rt = []
+
+
+## B and S become actor k's (quiet: no refresh). The actor left keeps its pose until the playhead moves
+func _actor_set(k: int) -> bool:
+	_actors_sync()
+	if k == actor_on or k < 0 or k >= actors_rt.size():
+		return false
+	actors_rt[actor_on]["t"] = playhead
+	actor_on = k
+	B = actors_rt[k]["B"]
+	S = actors_rt[k]["S"]
+	sel_card = mini(sel_card, S.cards.size() - 1)
+	return true
+
+
+## an undo / redo step's actors put back (an add or a remove undone), then its actor made active. True if B / S changed
+func _actors_restore(u: Dictionary) -> bool:
+	if not u.has("actor"):
+		return false
+	_actors_sync()
+	var H := _hero_scene()
+	var moved := false
+	if u.get("hero") == H and not _same_actors(u["hero_actors"], H.actors):
+		if actor_on != 0:
+			B = actors_rt[0]["B"]
+			S = actors_rt[0]["S"]
+			actor_on = 0
+			moved = true
+		H.actors = (u["hero_actors"] as Array).duplicate()
+		actors_rt = (u["rt"] as Array).map(func(a): return (a as Dictionary).duplicate())
+		for a in actors_rt:
+			a["t"] = NAN   # posed again at the playhead
+	return _actor_set(int(u["actor"])) or moved
+
+
+static func _same_actors(a: Array, b: Array) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if a[i]["scene"] != b[i]["scene"]:
+			return false
+	return true
+
+
+## THE HOOK (TC3): every refresh, each actor that is not active is posed from its own scene at the playhead (once per
+## playhead: an actor left keeps its own edits until the playhead moves). Drawing them is TC4. One actor: returns at once
+func _pose_others() -> void:
+	if actors_rt.is_empty() and S.actors.is_empty():
+		return
+	_actors_sync()
+	for k in actors_rt.size():
+		var a: Dictionary = actors_rt[k]
+		if k == actor_on or a["t"] == playhead:
+			continue
+		(a["S"] as Scene).apply(a["B"], playhead)
+		a["t"] = playhead
+
+
+## made active, shown: the cards row is that actor's scene
+func _actor_go(k: int) -> void:
+	if _actor_set(k):
+		ov.mark_dirty()
+		_rebuild_cards()
+	_refresh()
+
+
+## Actor: add a second fighter: a mirrored copy of this scene (Scene.mirror_file), 1.5 m in front, turned to face this
+## one. One undo step
+func _actor_add() -> void:
+	_actors_sync()
+	if actors_rt.size() >= 2:
+		_say("there are two fighters already (the most for now): use 'Actor: switch to the next fighter' to pose the other one, or 'Actor: remove this fighter' on it first")
+		return
+	if S.cards.is_empty():
+		_say("the second fighter is a mirrored copy of this scene: press Enter to add the body as a card first, or open a scene in the list below")
+		return
+	_push_undo()
+	var keep := B.state()   # lossless: to_dict poses the body it is given
+	var d := S.to_dict(B)
+	B.set_state(keep)
+	d.erase("actors")
+	var M := Body.new()
+	M.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var S2 := Scene.new()
+	S2.from_dict(Scene.mirror_file(d, M))
+	S.actors.append({"name": "fighter 2", "xf": {"pos": [0.0, 1.5], "yaw": 180.0}, "scene": S2})
+	_actors_build(B, S)
+	_refresh()
+	_say("a second fighter: '%s' (this scene mirrored), 1.5 m in front, facing this one.  'Actor: switch to the next fighter' poses it; Save scene keeps both" % S2.name)
+
+
+## Actor: switch to the next fighter (not an undo step: which actor is active is a view, like the picked part)
+func _actor_next() -> void:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		_say("there is one fighter: use 'Actor: add a second fighter' to make another")
+		return
+	_actor_go((actor_on + 1) % actors_rt.size())
+	_say("fighter %d of %d (%s): edits, cards and Ctrl+Z are this one's now" % [actor_on + 1, actors_rt.size(), "the hero" if actor_on == 0 else actors_rt[actor_on]["name"]])
+
+
+## Actor: remove this fighter (not the hero: the hero is the scene file itself). One undo step
+func _actor_remove() -> void:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		_say("there is one fighter, the scene itself: use 'Actor: add a second fighter' to make another")
+		return
+	if actor_on == 0:
+		_say("the hero is the scene itself and stays: use 'Actor: switch to the next fighter', then remove that one")
+		return
+	_push_undo()
+	var k := actor_on
+	var nm: String = actors_rt[k]["name"]
+	var H: Scene = actors_rt[0]["S"]
+	_actor_set(0)
+	H.actors.remove_at(k - 1)
+	_actors_build(B, H)
+	ov.mark_dirty()
+	_rebuild_cards()
+	_refresh()
+	_say("removed %s; the hero is active (Ctrl+Z brings it back)" % nm)
+
+
+## actor k placed (pos [x, z] metres, yaw degrees, in the hero's space): its file xf and its runtime transform
+func actor_place(k: int, pos: Vector2, yaw: float) -> void:
+	_actors_sync()
+	if k < 1 or k >= actors_rt.size():
+		return
+	var H: Scene = actors_rt[0]["S"]
+	H.actors[k - 1]["xf"] = {"pos": [pos.x, pos.y], "yaw": yaw}
+	actors_rt[k]["xf"] = actor_xf(H.actors[k - 1]["xf"])
+
+
+## CROSS CONTACT (TC2, wired for TC5): the hero's body against actor k's, at its placement (Body.cross_contacts rows)
+func actor_contacts(k: int) -> Array:
+	_actors_sync()
+	if k < 1 or k >= actors_rt.size():
+		return []
+	return (actors_rt[0]["B"] as Body).cross_contacts(actors_rt[k]["B"], actors_rt[k]["xf"])
+
+
+## the file the open scene saves as: the hero's scene with every other actor in "actors" (TC1), whoever is active.
+## The hero's body is kept and put back (to_dict poses it)
+func _scene_dict() -> Dictionary:
+	_actors_sync()
+	var H := _hero_scene()
+	var hb := _hero_body()
+	var keep := hb.state()
+	var d := H.to_dict(hb)
+	hb.set_state(keep)
+	return d
 
 
 ## KEY ONE PART (round 41, WW1, UPGRADES #239): K keys the picked part's 3 angles at the playhead as a PART KEY
@@ -5600,6 +5827,9 @@ func _commands() -> Array:
 	add.call("Paste flipped 50%, selected parts", "", _paste_flipped.bind(0.5, true), "clipboard flip left right blend half group", true, "half of the way to the reflected copied pose, on the selected parts only")
 	add.call("Paste to this part", "", _paste_pose.bind("part"), "clipboard arm leg only", true, "the copied pose on the picked part and the parts below it only (an arm, a leg)")
 	add.call("Mirror the scene (left-handed copy)", "", _tool.bind(5), "flip", false, "a reflected copy of the scene, saved in scenes/_wip and opened (yours untouched)")
+	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 1.5 m in front, turned to face this one (TC3; Save scene keeps both)")
+	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
+	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
@@ -6068,37 +6298,18 @@ func _tool(id: int) -> void:
 
 ## the whole scene mirrored, card by card (and each card's steps), into scenes/_wip/<name>_mirrored.json, opened
 func _mirror_scene() -> void:
-	if S.cards.size() < 2:
+	var H := _hero_scene()   # TC3: the file is the hero's scene (with its actors), whoever is active
+	if H.cards.size() < 2:
 		_say("Mirror the scene needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
-	var keep := B.state()   # lossless (round 8): to_dict rounds, so the live body jumped a rounding step
-	var d := S.to_dict(B)
 	var M := Body.new()
 	M.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-	d["cards"] = d["cards"].map(func(c): return Scene.mirror_card(c, M))   # by Scene.MIRROR_CARD (round 19, Z1)
-	if d.has("part_keys"):
-		d["part_keys"] = PartKeys.mirror_file(d["part_keys"], M)   # MIRROR_SCENE "part_keys" (WW1)
-	if d.has("ik"):
-		d["ik"] = LimbIK.mirror_file(d["ik"])   # MIRROR_SCENE "ik": hand_l <-> hand_r, points x negated
-	if d.has("layer"):
-		d["layer"] = Scene.mirror_layer(d["layer"], M)   # MIRROR_SCENE "layer" (YY9)
-	for L in d.get("layers", []):
-		var o = L["v"].get("offset")
-		L["v"].erase("offset")
-		L["v"] = Scene.mirror_layer(L["v"], M)   # MIRROR_SCENE "layers" (NA1)
-		if o != null:
-			L["v"]["offset"] = [-float(o[0]), o[1], o[2]]   # the hips' position: sideways x negated (NA2)
-	B.set_state(keep)
-	var base := S.name.trim_suffix("_mirrored")
-	d["scene"] = base + "_mirrored" if not S.name.ends_with("_mirrored") else base
-	# the file's own record of the mirrored motion (bad_frames names parts: the original's were the wrong side)
-	var S2 := Scene.new()
-	S2.from_dict(d)
-	var plan: String = "Mirror the scene (Scene.MIRROR_CARD on every card) from " + S.name
-	d = S2.to_dict(M)
-	if d.has("props"):   # MIRROR_SCENE "props": x and yaw negated
-		d["props"] = d["props"].map(func(q): return {"kind": q["kind"], "pos": [-float(q["pos"][0]), q["pos"][1], q["pos"][2]], "yaw": -float(q["yaw"])})
-	d["plan"] = plan
+	# Scene.mirror_file (TC1): cards by Scene.MIRROR_CARD (round 19, Z1), part_keys (WW1), ik, layer (YY9), layers with
+	# the hips' offset x negated (NA1, NA2), props x and yaw negated, each actor's scene and place; the name toggles
+	# "_mirrored"; bad_frames recomputed on the mirrored motion (the original's named the wrong side). The live body is
+	# kept (lossless, round 8)
+	var d := Scene.mirror_file(_scene_dict(), M)
+	d["plan"] = "Mirror the scene (Scene.MIRROR_CARD on every card) from " + H.name
 	# the file name made safe (round 19: the raw name wrote "_wip/x" into scenes/_wip/_wip/, and "a:b" was a name Windows
 	# refuses); always in scenes/_wip, whatever folder the name gives
 	var path := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/")
@@ -6106,7 +6317,7 @@ func _mirror_scene() -> void:
 	_load_scene(path)
 	_rebuild_cards()
 	_refresh()
-	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), S.name])
+	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), H.name])
 
 
 ## SPEED GRAPH: three strips (small multiples, each its own scale: the tip moves metres where the head moves
@@ -6779,6 +6990,7 @@ func _toggle_play() -> void:
 ## NEW EMPTY SCENE (one function for its button and its registry entry; round 20, GATES AA3: the two copies did not
 ## refresh, so the speed graph stayed up over the empty scene with the old scene's curves)
 func _new_scene() -> void:
+	_actors_home()   # TC3
 	S = Scene.new()
 	scene_path = ""
 	_show_open_scene()
@@ -7016,7 +7228,7 @@ func _load_pose(path: String) -> void:
 
 
 func _save_scene() -> void:
-	if S.cards.is_empty():
+	if _hero_scene().cards.is_empty():
 		_say("the scene is empty: press Enter to add the body as a card, then Save scene")
 		return
 	var nm := ui_scene_name.text.strip_edges()
@@ -7053,18 +7265,17 @@ static func safe_file(nm: String) -> String:
 
 
 func _save_scene_now(nm: String) -> void:
-	S.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
-	var keep := B.state()   # lossless (round 8): to_dict rounds, so the live body jumped a rounding step
-	var d := S.to_dict(B)
-	B.set_state(keep)
-	var fname := safe_file(S.name) if safe_file(S.name) != "" else "scene_" + _stamp()
+	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
+	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
+	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
+	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	_write("res://scenes/%s.json" % fname, d)
 	_clean = _doc_key()
 	_autosave_drop()
 	scene_path = "res://scenes/%s.json" % fname
 	_lists()
 	_refresh()
-	_say("saved scene %s: %d cards, %.2f s, %d frames with parts inside each other" % [S.name, S.cards.size(), S.length(), d["bad_frames"].size()])
+	_say("saved scene %s: %d cards, %.2f s, %d frames with parts inside each other" % [H.name, H.cards.size(), H.length(), d["bad_frames"].size()])
 
 
 ## the scene list's pick: opens it at once when nothing would be lost, asks first when the scene open now has changes
@@ -7130,9 +7341,7 @@ func retime(a: int, b: int, pct: float) -> String:
 func autosave_now() -> bool:
 	if not _unsaved():
 		return false
-	var keep := B.state()
-	var d := S.to_dict(B)
-	B.set_state(keep)
+	var d := _scene_dict()   # TC3: the hero's file with its actors (the body kept)
 	var what := JSON.stringify([d, scene_path])   # what is held, without the time: the same twice = no write
 	if what == _as_last:
 		return false
@@ -7245,6 +7454,7 @@ func _recover() -> void:
 		DirAccess.remove_absolute(_later_path())   # it is open again; the autosave holds it from here
 	var path: String = a.get("path", "")
 	_clean = "[]"
+	_actors_home()   # TC3
 	if path != "" and FileAccess.file_exists(path):
 		_recovering = true
 		_load_scene(path)   # sets _clean to the disk version
@@ -7846,15 +8056,22 @@ static func _rm_tree(dir: String) -> void:
 
 
 func _unsaved() -> bool:
-	return (not S.cards.is_empty() or not S.props.is_empty()) and _doc_key() != _clean
+	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
+	return (not H.cards.is_empty() or not H.props.is_empty()) and _doc_key() != _clean
 
 
-## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37)
+## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37); with
+## a second actor (TC3) each actor's name, place and cards too (one actor: the same string as before)
 func _doc_key() -> String:
-	return JSON.stringify(S.cards) + ("" if S.props.is_empty() else JSON.stringify(S.props.map(func(p): return Props.to_dict(p))))
+	var H := _hero_scene()
+	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
+	for a in H.actors:
+		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
+	return k
 
 
 func _load_scene(path: String) -> void:
+	_actors_home()   # TC3: the opened file's hero goes on the hero's body; its actors are built from it
 	scene_path = path
 	layer_on = -1   # NA1: edits go to the first layer of a newly opened scene
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
