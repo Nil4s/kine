@@ -61,6 +61,9 @@ var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vect
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
+var plants := []      # FOOT PLANTS over a time range (ROADMAP 8): [{"foot", "t0", "t1"}] by t0; scripts/foot_plant.gd; in the file as "plants" (only when any)
+var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: miss, ball turn, weight, clamped); {} = nothing
+var _plants_off := false   # set while FootPlant.refs reads the pose at a plant's t0: the plants do not play then
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
@@ -572,6 +575,10 @@ func apply(B: Body, t: float) -> void:
 		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
+	plant_last = {}
+	var plant_refs := {}
+	if not plants.is_empty() and not _plants_off:
+		plant_refs = FootPlant.refs(self, B, t)   # FOOT PLANTS: the sole at each live plant's t0 (plants off), read before the pose at t
 	_apply(B, t)
 	add_layer(B)           # YY9: on top of the cards; nothing without a layer or at weight 0
 	add_layers(B, t)       # NA1: the further layers, in order; nothing without one
@@ -585,6 +592,10 @@ func apply(B: Body, t: float) -> void:
 		ik_last = LimbIK.play(ik, B, t)
 		if not ik_last.is_empty() and B.wep_on and B.grip and B.wep_hand != "" and not ik_last.has("hand_l" if B.wep_hand == "hand_r" else "hand_r"):
 			B.apply_grip()   # the weapon hand moved: the other hand follows it onto the bat (unless it is pinned itself)
+	# FOOT PLANTS (ROADMAP 8, scripts/foot_plant.gd): after the IK pass, before the constraints. A planted foot holds the
+	# place it had at its t0; the pelvis is not touched. Nothing live (no plants, or none in range): the body is not touched
+	if not plant_refs.is_empty():
+		plant_last = FootPlant.play(B, plants, plant_refs, t, fps)
 	# USER CONSTRAINTS (round 51, CN): after IK, in list order (Blender's stack runs on the finished animated pose);
 	# every angle they write goes through Body.clamp_ang, so the joint limits come last. None: nothing is touched
 	cons_last = []
@@ -1311,6 +1322,7 @@ func clone() -> Scene:
 	for a in actors:   # G1: deep (each actor's own scene is cloned, its xf copied)
 		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
+	c.plants = plants.duplicate(true)   # foot plants (foot_plant.gd)
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
@@ -1787,6 +1799,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			"scene": (a["scene"] as Scene).to_dict(B, frames)})
 	if not ik.is_empty():
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
+	if not plants.is_empty():
+		out["plants"] = FootPlant.to_file(plants)   # foot plants: the same, only when there is one
 	if not drivers.is_empty():
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cons.is_empty():
@@ -1810,6 +1824,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
+	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)"}
@@ -1850,6 +1865,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
 	if d2.has("ik"):
 		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+	if d2.has("plants"):
+		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
 	if d2.has("drivers"):
 		d2["drivers"] = Drivers.mirror_file(d2["drivers"], M)   # user drivers (drivers.gd), before S2 reads the file
 	if d2.has("constraints"):
@@ -1910,6 +1927,7 @@ func from_dict(d: Dictionary) -> void:
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
+	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():
