@@ -12,6 +12,12 @@
 ##   "extra"   extrapolation: "nothing" (no effect outside the strip), "hold" (first frame before, last after),
 ##             "hold_forward" (last frame after only)
 ##   "w"       influence 0..1;  "mirror" the source plays mirrored (Mirror the scene sets it);  "mute"
+##   "warp"    CLIP WARPING (ROADMAP 83): the strip's time curve, interior knots [[x, y], ...] (x, y in 0..1, x increasing,
+##             y non-decreasing; the ends (0,0) and (1,1) are fixed). It maps the strip's own progress p = (t - start) / D to
+##             the source's progress q = warp(p): u = q x L x repeat, so the source plays at warp(p) of its length over
+##             the whole strip. Monotone piecewise cubic (Fritsch-Butland): no overshoot, never runs backwards. Empty
+##             (or every knot on the diagonal) = linear = no warp, bit for bit; the key is written only when there is one.
+##             The strip's length D does not change: a warp moves the poses, not the bar
 ## TIMING (Blender's strip time, nla: action clip time): the source lasts L s; the strip lasts D = L x repeat / speed and
 ## ends at E = start + D. At t inside it: u = (t - start) x speed, cycle k = min(floor(u / L), repeat - 1), the source's
 ## own time lt = u - k L (so t = E gives lt = L of the last cycle, the source's last frame, not its first).
@@ -33,6 +39,12 @@ extends RefCounted
 const TYPES := ["replace", "add"]
 const EXTRA := ["nothing", "hold", "hold_forward"]
 const MASK_NAMES := ["all", "legs", "upper", "arms", "arm_l", "arm_r"]
+## the warp presets (the picked clip's knots); linear = none. Values read off the curve shapes they name
+const WARP_PRESETS := {"linear": [], "ease_in": [[0.25, 0.0625], [0.5, 0.25], [0.75, 0.5625]],
+	"ease_out": [[0.25, 0.4375], [0.5, 0.75], [0.75, 0.9375]], "slow_mid": [[0.25, 0.35], [0.5, 0.5], [0.75, 0.65]]}
+const WARP_MAX := 6        # interior knots at most
+const WARP_EPS := 0.001    # a drag keeps a knot this far (x) from its neighbours and from the ends
+const WARP_KEEP := 0.000001   # the file keeps a knot only this far inside its neighbours (x): validity, not the drag's margin
 const MAX_DEPTH := 3   # a source that places clips of its own plays them too, this deep at most (a loop stops here)
 
 static var _cache := {}    # src path -> {"mt": modified time, "scene": Scene, "len": s, "d": {mirror: root step}}
@@ -89,6 +101,9 @@ static func clean(c: Dictionary) -> Dictionary:
 		"bin": maxf(0.0, float(c.get("bin", 0.0))), "bout": maxf(0.0, float(c.get("bout", 0.0))),
 		"type": String(c.get("type", "replace")), "mask": String(c.get("mask", "all")), "extra": String(c.get("extra", "nothing")),
 		"w": clampf(float(c.get("w", 1.0)), 0.0, 1.0), "mirror": bool(c.get("mirror", false)), "mute": bool(c.get("mute", false))}
+	var wp := warp_norm(c.get("warp", []))
+	if not wp.is_empty():
+		out["warp"] = wp
 	if not out["type"] in TYPES:
 		out["type"] = "replace"
 	if not out["mask"] in MASK_NAMES:
@@ -108,6 +123,8 @@ static func to_file(clips: Array) -> Array:
 		d["bin"] = snappedf(d["bin"], 0.0001)
 		d["bout"] = snappedf(d["bout"], 0.0001)
 		d["w"] = snappedf(d["w"], 0.0001)
+		if d.has("warp"):
+			d["warp"] = warp_norm((d["warp"] as Array).map(func(k): return [snappedf(k[0], 0.0001), snappedf(k[1], 0.0001)]))
 		return d)
 
 
@@ -207,6 +224,113 @@ static func root_step(e: Dictionary, mirror: bool) -> Vector3:
 	return v
 
 
+# ---------------------------------------------------------------- warp (ROADMAP 83)
+
+## the knots as they are kept while a drag runs: [x, y] pairs inside (0, 1), x strictly increasing, y non-decreasing in 0..1,
+## at most WARP_MAX. Invalid entries are dropped; a knot on the diagonal stays (a drag may pass over it)
+static func warp_clean(a) -> Array:
+	var pts := []
+	if a is Array:
+		for k in a:
+			if k is Array and (k as Array).size() >= 2:
+				pts.append([clampf(float(k[0]), 0.0, 1.0), clampf(float(k[1]), 0.0, 1.0)])
+	pts.sort_custom(func(p, q): return p[0] < q[0])
+	var out := []
+	var last_x := 0.0
+	var last_y := 0.0
+	for p in pts:
+		if p[0] <= last_x + WARP_KEEP or p[0] >= 1.0 - WARP_KEEP or p[1] < last_y:
+			continue
+		out.append([p[0], maxf(p[1], last_y)])
+		last_x = p[0]
+		last_y = p[1]
+		if out.size() >= WARP_MAX:
+			break
+	return out
+
+
+## the knots as the file keeps them: warp_clean, and [] when every knot is on the diagonal (linear = no warp)
+static func warp_norm(a) -> Array:
+	var o := warp_clean(a)
+	for p in o:
+		if p[0] != p[1]:
+			return o
+	return []
+
+
+## the warp curve at p in 0..1: monotone cubic Hermite through (0,0), the knots and (1,1)
+static func warp_f(knots: Array, p: float) -> float:
+	if knots.is_empty():
+		return clampf(p, 0.0, 1.0)
+	var xs := [0.0]
+	var ys := [0.0]
+	for k in knots:
+		xs.append(float(k[0]))
+		ys.append(float(k[1]))
+	xs.append(1.0)
+	ys.append(1.0)
+	var n := xs.size()
+	var dl := []   # the secant of each interval
+	var h := []
+	for i in n - 1:
+		h.append(float(xs[i + 1]) - float(xs[i]))
+		dl.append((float(ys[i + 1]) - float(ys[i])) / float(h[i]))
+	var m := []    # the tangent at each point (Fritsch-Butland: a harmonic mean, zero where the secants change sign)
+	m.append(float(dl[0]))
+	for i in range(1, n - 1):
+		var d0: float = dl[i - 1]
+		var d1: float = dl[i]
+		if d0 * d1 <= 0.0:
+			m.append(0.0)
+		else:
+			var w1: float = 2.0 * float(h[i]) + float(h[i - 1])
+			var w2: float = float(h[i]) + 2.0 * float(h[i - 1])
+			m.append((w1 + w2) / (w1 / d0 + w2 / d1))
+	m.append(float(dl[n - 2]))
+	var x := clampf(p, 0.0, 1.0)
+	for i in n - 1:
+		if x <= float(xs[i + 1]) or i == n - 2:
+			var s := (x - float(xs[i])) / float(h[i])
+			var s2 := s * s
+			var s3 := s2 * s
+			var hh: float = h[i]
+			return (2 * s3 - 3 * s2 + 1) * float(ys[i]) + (s3 - 2 * s2 + s) * hh * float(m[i]) 				+ (-2 * s3 + 3 * s2) * float(ys[i + 1]) + (s3 - s2) * hh * float(m[i + 1])
+	return 1.0
+
+
+## knot i moved to (x, y): clamped between its neighbours (x strictly between, y between theirs and 0..1), so the curve
+## stays monotone whatever the drag. Returns the new knots (warp_clean'd)
+static func warp_set(knots: Array, i: int, x: float, y: float) -> Array:
+	var ks: Array = warp_clean(knots).duplicate(true)
+	if i < 0 or i >= ks.size():
+		return ks
+	var prev := float(ks[i - 1][0]) if i > 0 else 0.0
+	var next := float(ks[i + 1][0]) if i < ks.size() - 1 else 1.0
+	var yl := float(ks[i - 1][1]) if i > 0 else 0.0
+	var yr := float(ks[i + 1][1]) if i < ks.size() - 1 else 1.0
+	var nx := clampf(x, prev + WARP_EPS, next - WARP_EPS) if next - prev >= 2.0 * WARP_EPS else (prev + next) * 0.5
+	ks[i] = [nx, clampf(y, yl, yr)]
+	return warp_clean(ks)
+
+
+## a knot added at (x, y), its place in x order; refused (the knots unchanged) when there are WARP_MAX or x is too near an end or a knot
+static func warp_add(knots: Array, x: float, y: float) -> Array:
+	var ks: Array = warp_clean(knots).duplicate(true)
+	if ks.size() >= WARP_MAX:
+		return ks
+	var j := 0
+	while j < ks.size() and float(ks[j][0]) < x:
+		j += 1
+	var prev := float(ks[j - 1][0]) if j > 0 else 0.0
+	var next := float(ks[j][0]) if j < ks.size() else 1.0
+	if x < prev + WARP_EPS or x > next - WARP_EPS:
+		return ks
+	var yl := float(ks[j - 1][1]) if j > 0 else 0.0
+	var yr := float(ks[j][1]) if j < ks.size() else 1.0
+	ks.insert(j, [x, clampf(y, yl, yr)])
+	return warp_clean(ks)
+
+
 # ---------------------------------------------------------------- timing
 
 static func length_of(c: Dictionary, L: float) -> float:
@@ -231,6 +355,9 @@ static func at(c: Dictionary, L: float, t: float) -> Dictionary:
 			return {}
 		return {"lt": L, "k": r - 1, "w": inf * (0.0 if bo > 0.0 else 1.0)}
 	var u := (t - s0) * v
+	var wk := warp_norm(c.get("warp", []))
+	if not wk.is_empty():
+		u = warp_f(wk, clampf((t - s0) / (L * r / v), 0.0, 1.0)) * L * r   # the strip's progress through the curve
 	var k := mini(int(floor(u / L)), r - 1)
 	var lt := clampf(u - k * L, 0.0, L)
 	var w := inf
