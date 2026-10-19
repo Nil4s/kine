@@ -3,7 +3,7 @@
 ## 100; standing, the COM is 53-58% of his height up (the anthropometric range) and over the middle of his feet; the
 ## polygon distance on a unit square; the rule on series built by hand (the run length, one foot down); a lean that
 ## moves the COM forward step by step until it is past the toes, which CHECK then finds, the frames named; and the
-## shipped scenes' base rate pinned (only bo_spin, once).
+## shipped scenes' base rate pinned (none: bo_spin's opening stance is 2.0 cm past the edge, under the bar).
 extends SceneTree
 
 var fails := 0
@@ -89,13 +89,18 @@ func _init() -> void:
 	for fn in d.get_files():
 		if not fn.ends_with(".json"):
 			continue
+		var jd: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://scenes/" + fn))
+		if not (jd is Dictionary) or not (jd as Dictionary).has("cards"):
+			continue   # not a scene file (a pose or an empty file): nothing to grade
 		var Sc := Scene.new()
-		Sc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/" + fn)))
+		Sc.from_dict(jd)
 		var n := Rulebook.check(Sc, B).filter(func(x): return x["rule"] == "BALANCE")
 		if n.size() > 0:
 			hits[fn] = n.map(func(x): return snappedf(x["t"], 0.01))
 	B.set_state(keep)
-	ok(hits.keys() == ["bo_spin.json"] and hits["bo_spin.json"] == [0.0], "10 the shipped scenes: only bo_spin, once: its opening stance (%s)" % hits)
+	# was "only bo_spin, once: its opening stance" (3.8 cm past the edge). 149c083 (foot twist = subtalar roll, merged 97d8598) turns bo_spin's
+	# twisted feet about the right axis and the opening margin is 2.0 cm, under the 3 cm bar: no shipped scene has a BALANCE finding now.
+	ok(hits.is_empty(), "10 the shipped scenes: none has a BALANCE finding (bo_spin's opening stance is 2.0 cm past the edge, under the 3 cm bar) (%s)" % hits)
 	var Sb := Scene.new()
 	Sb.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/bo_spin.json")))
 	var smb := Rulebook.sample(Sb, B)
@@ -105,8 +110,8 @@ func _init() -> void:
 		if smb["both_down"][i]:
 			deep = maxf(deep, -smb["balance"][i])
 	B.set_state(keep)
-	ok(fb.size() == 1 and absf(fb[0]["t1"] - 0.283) < 0.01 and absf(fb[0]["v"] - 0.038) < 0.001 and deep > 0.1,
-		"11 bo_spin's finding is the opening stance, %.1f cm for %.2f s; its deepest, %.1f cm, is too short to report" % [
-		fb[0]["v"] * 100.0 if fb.size() > 0 else 0.0, fb[0]["t1"] if fb.size() > 0 else 0.0, deep * 100.0])
+	ok(fb.is_empty() and absf(smb["balance"][0] + 0.020) < 0.002 and bool(smb["both_down"][0]) and deep > 0.1,
+		"11 bo_spin's opening stance is %.1f cm past the edge with both feet down (under the 3 cm bar, no finding); its deepest, %.1f cm, is too short to report" % [
+		-smb["balance"][0] * 100.0, deep * 100.0])
 	print("BALANCE: %d failed" % fails)
 	quit(1 if fails > 0 else 0)
