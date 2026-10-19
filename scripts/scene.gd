@@ -1132,7 +1132,9 @@ static func _toe_bump(s: float, off := TOE_OFF_AT) -> float:
 ## THE TOE LIMIT ON A WALK (round 45, GATES toes; Nick: "nobody moves foot fingers all the way up to walk"). The toe joint
 ## (ball) is blended and re-planted by four writers (_toe_off, _construct's heel roll, the card blend, the knee floor), and
 ## their sum read 59 deg at push-off and 20-43 deg with the foot 2-6 cm up in the air. So on a walk, after all of them:
-##   on the floor (lift < 1 cm): the toe bend is held to TOE_MTP_MAX (the first MTP's walking peak, 40-45; Miana 2021,
+##   (the limit eases from the floor's to the air's over the ball's first 2 cm of lift, not 1-2 cm: the 1-2 cm window was crossed in
+##    one or two frames and the toe snapped 29 deg per frame, 863 deg/s, which mocap_clean 1b reads as a pop; now ~700)
+##   on the floor (lift ~0): the toe bend is held to TOE_MTP_MAX (the first MTP's walking peak, 40-45; Miana 2021,
 ##     Nawoczenski 1999 ~42), never less than -30 (the joint limit)
 ##   in the air (lift > 2 cm): |bend| <= TOE_AIR_MAX (~0: the toes are not flexed in swing; Perry 1992 MTP ~0 in swing)
 ##   between: a smooth blend of the two (the ball's lift is the ball joint's own height, which the toe angle does not move)
@@ -1147,7 +1149,7 @@ func _toe_guard(B: Body, t: float) -> void:
 		var toe: String = "ball" + sd
 		var a: Vector3 = B.ang[toe]
 		var lift: float = (B.P[toe] as Vector3).y - (B.p0[toe] as Vector3).y
-		var w := smoothstep(0.01, 0.02, lift)
+		var w := smoothstep(0.0, 0.02, lift)
 		var x := lerpf(clampf(a.x, -30.0, TOE_MTP_MAX), clampf(a.x, -TOE_AIR_MAX, TOE_AIR_MAX), w)
 		if absf(x - a.x) > 1e-6:
 			B.ang[toe] = Vector3(x, a.y, a.z)

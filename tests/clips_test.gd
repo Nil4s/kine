@@ -14,7 +14,7 @@
 ##   8 in the app: place / remove are ONE undo step each, a drag on the bar moves it (one step), the strip is drawn
 extends SceneTree
 
-const BASE_HASH := "4070ef4b97d86fefca43d335b5963ed2"   # tests/ hash of combo3 + walk_bat with no clips on poser-ui-rounds c0ea5e4
+const BASE_HASH := "caaff2e7fb3fea766505ed63b31cb573"   # tests/ hash of combo3 + walk_bat with no clips. Re-baselined from 4070ef4b97d86fefca43d335b5963ed2 (poser-ui-rounds c0ea5e4): 88eb4c1 (toe cap TOE_MTP_MAX 45 + _toe_guard) legitimately changed walk_bat, and only the ball_l/ball_r angles (47 of 106 frames; every other joint bit-identical, combo3 unchanged), then the guard blend was eased (lift 0-2 cm)
 const SRC := "scenes/walk_bat.json"
 var fails := 0
 
