@@ -48,6 +48,7 @@ var actor_on := 0     # which actor B and S are
 ## projection assumes it); stage_root (the floor, its axes, the lights, the other fighters) carries the inverse of the
 ## active actor's placement, and the camera moves with it when that changes, so nothing on screen jumps
 var stage_root: Node3D
+const ACTOR_TINTS := [Color(0.47, 0.58, 0.74), Color(0.5, 0.68, 0.52), Color(0.74, 0.5, 0.48), Color(0.62, 0.52, 0.74)]
 var actor_men := []   # per actor k: {"node", "skel", "idx", "wep": [handle, barrel]} under stage_root; empty with one actor
 var _dummy_auto := false   # the dummy put away because there are 2+ fighters (the other fighter is the target)
 var _dummy_keep := true    # what dummy_on was before that
@@ -2974,6 +2975,9 @@ func _actors_draw() -> void:
 		var b: Body = actors_rt[k]["B"]
 		n.transform = actors_rt[k]["xf"]
 		Overlays.pose_skeleton(mq["skel"], mq["idx"], b)
+		var tag: Label3D = mq["tag"]
+		tag.text = String(actors_rt[k]["name"])
+		tag.position = b.P["head"] + Vector3(0, 0.28, 0)
 		var w: Array = mq["wep"]
 		for mi in w:
 			(mi as MeshInstance3D).visible = b.wep_on
@@ -2988,9 +2992,20 @@ func _actor_man() -> Dictionary:
 	root.name = "fighter_%d" % actor_men.size()
 	stage_root.add_child(root)
 	var skin := StandardMaterial3D.new()
-	skin.albedo_color = Color(0.66, 0.6, 0.56)   # a shade off the active fighter's skin: which one you pose is plain
+	# a colour of its own per fighter (Maya / Blender give each character a wire colour): blue, green, red, violet;
+	# the active one keeps the plain skin, so which one you pose is plain at a glance
+	skin.albedo_color = ACTOR_TINTS[actor_men.size() % ACTOR_TINTS.size()]
 	skin.roughness = 0.6
 	var mq := Overlays.mannequin(root, skin)
+	var tag := Label3D.new()   # the fighter's name over its head (click the body to pose it)
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.no_depth_test = true
+	tag.fixed_size = true
+	tag.pixel_size = 0.0012
+	tag.font_size = 22
+	tag.outline_size = 6
+	tag.modulate = skin.albedo_color.lightened(0.35)
+	root.add_child(tag)
 	var w := []
 	for r in [[B.wep_r_handle, B.wep_r_handle, "tape"], [B.wep_r_barrel, B.wep_r_handle, "metal"]]:
 		var mi := MeshInstance3D.new()
@@ -3001,7 +3016,7 @@ func _actor_man() -> Dictionary:
 		mi.material_override = wep_mats[r[2]]
 		root.add_child(mi)
 		w.append(mi)
-	return {"node": root, "skel": mq[1], "idx": mq[2], "wep": w}
+	return {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag}
 
 
 ## a click on a fighter that is not active (TC4): [k, part, t along the ray] of the nearest part hit; [-1, "", INF] none.
