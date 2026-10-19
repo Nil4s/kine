@@ -367,6 +367,7 @@ func _fold_button(which: String) -> void:
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
+var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail are drag handles: scripts/trail_edit.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
@@ -2541,6 +2542,7 @@ func _refresh() -> void:
 	_dummy_refresh()
 	bal.show_body(B)
 	_hand_sliders_sync()
+	_auto_pin_sync()
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty() or ov.has_rigs():
 		ov.trail(_ps())
 		ov.onion(_ps(), playhead)
@@ -2727,6 +2729,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					return
 				if _sph_press(mb.position):   # ROADMAP 61: a spine spline handle takes the press
 					return
+				if _trail_press(mb.position):   # ROADMAP 69: a key dot on a pinned part's trail takes the press
+					return
 				if _ikh_press(mb.position):   # IK2: an IK handle drawn here takes the press
 					return
 				var j := _pick(mb.position)
@@ -2791,6 +2795,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_ikh_release()
 			if was == "spine_handle":
 				_sph_release()
+			if was == "trail_key":
+				_trail_release()
 			if was == "loa":
 				_loa_release(mb.shift_pressed)
 			if was == "foot_handle":
@@ -2828,6 +2834,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "spine_handle":
 			_sph_move(mm.position)
+			return
+		if dragging == "trail_key":
+			_trail_move(mm.position)
 			return
 		if dragging == "loa":
 			loa.add_point(mm.position)
@@ -2919,6 +2928,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_T when k.shift_pressed:
 				if not sel in Body.BODY:
 					_say("Shift+T pins a trail on a BODY part: click one first (the weapon's own trail is T)")
+				elif sel == ov.auto_pin:
+					ov.auto_pin = ""   # the trail shown while picked becomes a pin: it stays when another part is picked
+					_refresh()
+					_say("trail on %s pinned: it stays when you pick another part.  Shift+T again removes it." % sel)
 				else:
 					var on := ov.toggle_pin(sel)
 					_refresh()
@@ -4770,6 +4783,66 @@ func _spine_off() -> void:
 		_say("the back is not on the spline here: use 'Spine IK: spline the back here' first, or move the playhead to where it is on")
 		return
 	_say("spline IK off at %.2f s: the back follows the cards again over the last frame (Ctrl+Z takes it back)" % t)
+
+
+## EDITABLE TRAILS (ROADMAP 69; scripts/trail_edit.gd). A press on a key dot (a card's moment) of a pinned part's trail
+## takes it; the dragged part moves at that key, the trail redraws as the mouse moves. One undo step per drag, pushed at
+## the press and dropped again when the mouse never moved.
+func _trail_press(mp: Vector2) -> bool:
+	if clean or S == null or ov.pins.is_empty() or S.cards.size() < 2:
+		return false
+	var d: Dictionary = trail_edit.hit(cam, S, ov.pins, mp)
+	if d.is_empty():
+		return false
+	_push_undo()
+	var msg := trail_edit.begin(S, cam, mp, d)
+	if trail_edit.drag.is_empty():
+		_drop_undo()
+		_say(msg)
+		return true
+	undo[-1]["name"] = "Drag trail key of " + nice(d["part"])
+	_tree.set_name(_tree.cur, undo[-1]["name"])
+	sel = d["part"]
+	playhead = clampf(float(d["t"]), 0.0, S.length())
+	playing = false
+	dragging = "trail_key"
+	_refresh()
+	_say(msg)
+	return true
+
+
+func _trail_move(mp: Vector2) -> void:
+	var msg := trail_edit.move(S, cam, mp)
+	ov.mark_dirty()   # the trail is rebuilt from the keys as they stand now
+	_refresh()
+	if msg != "":
+		_say(msg)
+
+
+## the picked body part's trail is shown while T is on, with no Shift+T needed (ROADMAP 69): pinned on pick, unpinned
+## when the part or T goes. Shift+T on it makes it a pin (ov.auto_pin cleared)
+func _auto_pin_sync() -> void:
+	var want := sel if (ov.trail_on and not clean and sel in Body.BODY and not ov.pins.has(sel)) else ""
+	var cur: String = ov.auto_pin
+	if cur != "" and cur != want:
+		ov.auto_pin = ""
+		if ov.pins.has(cur):
+			ov.toggle_pin(cur)
+	if want != "" and ov.auto_pin == "":
+		ov.toggle_pin(want)
+		ov.auto_pin = want
+
+
+func _trail_release() -> void:
+	var moved := trail_edit.end()
+	if not moved:
+		_drop_undo()
+		_refresh()
+		return
+	_after_edit()
+	ov.mark_dirty()
+	_refresh()
+	_say("%s   (Ctrl+Z takes it back in one step)" % trail_edit.last)
 
 
 ## REVERSE-FOOT HANDLES (ROADMAP item 6; scripts/foot_handles.gd, scripts/foot_roll.gd). A picked foot shows three handles
