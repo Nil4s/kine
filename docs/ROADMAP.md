@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 5 / 20 (fighter hover + dagger, shot-camera gizmo + timeline keys, graph Shape on
+Merged since the last full run: 6 / 20 (selection + keying sets, fighter hover + dagger, shot-camera gizmo + timeline keys, graph Shape on
 selected keys + modifier ranges, user drivers, grips scale with hand size).
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
@@ -75,7 +75,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 2. [~] Crash-proof: every edit journaled; reopen after a crash at the last action (top-25 #25)
 3. [~] Easy mode: a simple panel of 12 big actions (pose, key, play, undo, export) with the rest hidden; Expert mode shows all
 4. [~] First-run tour: 60 s of guided steps on the mannequin (pose a hand, key, play)
-5. [ ] Hotkey cheat sheet overlay (hold ?) and a hotkey editor
+5. [~] Hotkey cheat sheet overlay (hold ?) and a hotkey editor
 6. [ ] Better foot: heel / ball / toe-tip pivots as handles in the view (reverse foot you can grab), foot roll keyable
 7. [ ] Better skeleton: split toes (big toe vs the other four), a real ankle subtalar axis (inversion / eversion)
 8. [~] Foot planting that just works: mark a foot planted over a time range, it stays put to 1 mm, the leg solves
