@@ -85,8 +85,9 @@ var dragging := ""
 var playhead := 0.0
 var playing := false
 var sel_card := -1
-var undo := []
-var redo := []
+var undo := []   # the current branch, back: the state before each step (Ctrl+Z walks it)
+var redo := []   # the current branch, forward: the states Ctrl+Z left (Ctrl+Y walks it)
+var _tree := UndoTree.new()   # UNDO AS A TREE (ROADMAP 15, scripts/undo_tree.gd): every step, and the branches they make
 
 # ui
 var ui_root: Control
@@ -637,7 +638,7 @@ func _num_key(k: InputEventKey) -> bool:
 			_after_edit()
 		KEY_ESCAPE:
 			B.set_state(_num_start)
-			undo.pop_back()
+			_drop_undo()
 			dragging = ""
 			_num_on = false
 			_refresh()
@@ -832,8 +833,7 @@ func _group_release(at: Vector2) -> void:
 	_gp = {}
 	if not gp["ctrl"] or at.distance_to(gp["at"]) >= 4.0:
 		return
-	undo.pop_back()   # a selection change is not an edit
-	_history_rows.call_deferred()
+	_drop_undo()   # a selection change is not an edit
 	var was: Array = gp["was"]
 	var j: String = gp["part"]
 	if was.has(j) and was.size() > 1:
@@ -2788,6 +2788,7 @@ func _restore(u: Dictionary) -> void:
 
 
 func _push_undo() -> void:
+	_tree_sync()
 	if _jpending:
 		_journal_write()   # the scene now is the last step's result: journaled before this step changes anything
 	var u := _snapshot()
@@ -2795,14 +2796,17 @@ func _push_undo() -> void:
 		u["hint"] = step_name(_step_hint)
 	_step_hint = ""
 	undo.append(u)
+	_tree.push(u)   # a new branch node when there was a redo: the abandoned future stays in the tree
 	_history_rows.call_deferred()
 	if undo.size() > 60:
 		undo.pop_front()
+		_tree.trim_root()
 	redo.clear()
 	_jpending = true
 
 
 func _undo() -> void:
+	_tree_sync()
 	if undo.is_empty():
 		_say("nothing to undo yet: click a part and drag it, and Ctrl+Z will take that back")
 		return
@@ -2811,6 +2815,7 @@ func _undo() -> void:
 	var now := _snapshot()
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	redo.append(now)
+	_tree.step_back(now)
 	_restore(u)
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
@@ -2819,6 +2824,7 @@ func _undo() -> void:
 
 
 func _redo() -> void:
+	_tree_sync()
 	if redo.is_empty():
 		return
 	var r: Dictionary = redo.pop_back()
@@ -2826,9 +2832,71 @@ func _redo() -> void:
 	var now := _snapshot()
 	now["name"] = _step_label(r)
 	undo.append(now)
+	_tree.step_forward(now)
 	_restore(r)
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
+	_history_rows()
+	_jpending = true
+
+
+## an edit that moved nothing is taken back out: its step, and its node in the tree
+func _drop_undo() -> void:
+	_tree_sync()
+	undo.pop_back()
+	_tree.drop_cur()
+	_history_rows.call_deferred()
+
+
+## the undo list cut to n0 + 1 entries, so the steps since state n0 are ONE step named `step` (ai_box's calls)
+func _squash_undo(n0: int, step: String) -> void:
+	_tree_sync()
+	if n0 < 0 or undo.size() <= n0:
+		return
+	undo.resize(n0 + 1)
+	_tree.squash(n0)
+	undo[n0]["hint"] = step
+	_tree.set_hint(_tree.cur, step)
+	_history_rows.call_deferred()
+
+
+## the tree and the lists must agree: the lists are what Ctrl+Z / Ctrl+Y read, so when something outside the tree
+## changed them (a list cleared, or cut), the tree is rebuilt from the lists: the same states, the same names
+func _tree_sync() -> void:
+	if _tree.path().size() - 1 == undo.size() and _tree.forward().size() == redo.size():
+		return
+	_tree.reset()
+	for i in undo.size():   # undo[i] = the state before step i + 1: push labels the node it makes with its name / hint
+		_tree.push(undo[i])
+	var p := _tree.cur
+	for j in range(redo.size() - 1, -1, -1):   # redo[-1] is the state right after the live one; its name is its own
+		p = _tree.add(p, redo[j], redo[j])
+
+
+## the History panel's click: the work goes to node `id` (any step, on any branch). One action, not an undo step: the
+## lists are rebuilt from the tree, so Ctrl+Z walks back from there along the branch the node is on
+func _tree_go(id: int) -> void:
+	_tree_sync()
+	if id == _tree.cur or not _tree.has(id) or _tree.node(id)["state"] == null:
+		return
+	var target: Dictionary = _tree.node(id)["state"]
+	_actor_set(int(target.get("actor", 0)))
+	var now := _snapshot()
+	_tree.jump(id, now)
+	undo.clear()
+	redo.clear()
+	var p := _tree.path()
+	for i in p.size() - 1:
+		var e: Dictionary = _tree.node(p[i])["state"]
+		e["name"] = _step_label(_tree.node(p[i + 1]))
+		undo.append(e)
+	var fw := _tree.forward()
+	for k in range(fw.size() - 1, -1, -1):
+		var e2: Dictionary = _tree.node(fw[k])["state"]
+		e2["name"] = _step_label(_tree.node(fw[k]))
+		redo.append(e2)
+	_restore(target)
+	_say("history: %d step%s done" % [undo.size(), "" if undo.size() == 1 else "s"])
 	_history_rows()
 	_jpending = true
 
@@ -3617,8 +3685,7 @@ func _ikh_release() -> void:
 	if d.is_empty():
 		return
 	if not d["moved"]:
-		undo.pop_back()
-		_history_rows.call_deferred()
+		_drop_undo()
 		_refresh()
 		return
 	var t := clampf(playhead, 0.0, S.length())
@@ -3703,8 +3770,7 @@ func _frh_release() -> void:
 	if d.is_empty():
 		return
 	if not d["moved"]:
-		undo.pop_back()
-		_history_rows.call_deferred()
+		_drop_undo()
 		_refresh()
 		return
 	var t := clampf(playhead, 0.0, S.length())
@@ -4722,6 +4788,7 @@ func _say(t: String) -> void:
 	# arm", "card 12: the right foot planted"...); its first clause, without the numbers that follow
 	if not undo.is_empty() and not undo[-1].has("name") and not t.begins_with("undone") and not t.begins_with("redone"):
 		undo[-1]["name"] = step_name(t)
+		_tree.set_name(_tree.cur, step_name(t))   # the live step's node (the tree names what the lists name)
 		_history_rows()
 
 
@@ -4747,32 +4814,38 @@ func _toggle_history() -> void:
 	_history_rows()
 
 
-## the history list: future steps (redo, dimmed) on top, then "now", then the past, newest first. A row = go there
+## the History panel: every step of the tree (ROADMAP 15), newest first. A branch is indented under the step it left;
+## the live step is marked "> "; a step off the current branch is dimmed. A row = jump to that state (not an undo step)
 func _history_rows() -> void:
 	if ui_hist == null or not ui_hist.visible:
 		return
+	_tree_sync()
 	for c in ui_hist_list.get_children():
 		ui_hist_list.remove_child(c)
 		c.queue_free()
+	var rows := _tree.listing()
 	var head := HBoxContainer.new()
 	ui_hist_list.add_child(head)
-	var title := _label("HISTORY  -  %d step%s" % [undo.size(), "" if undo.size() == 1 else "s"], 16, "heading")
+	var title := _label("HISTORY  -  %d step%s" % [rows.size(), "" if rows.size() == 1 else "s"], 16, "heading")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_button("Close", _toggle_history))
-	for k in redo.size():   # redo[0] is the farthest future
-		var b := _button("   " + _step_label(redo[k]), _history_go.bind(undo.size() + redo.size() - k))
-		b.name = "step_%d" % (undo.size() + redo.size() - k)   # U2: the step it goes to
-		b.modulate.a = 0.55
+	var on_path := {}
+	for id in _tree.path():
+		on_path[id] = true
+	for r in rows:
+		var id: int = r["id"]
+		var pad := ""
+		for _i in int(r["col"]):
+			pad += "   "   # em spaces: a branch is visibly indented (four ASCII spaces are a few pixels)
+		var b := _button(pad + ("> " if id == _tree.cur else "   ") + _step_label(_tree.node(id)) + "   " + String(_tree.node(id)["time"]), _tree_go.bind(id))
+		b.name = "step_%d" % id   # U2: the step it goes to
+		if not on_path.has(id) and not _tree.forward().has(id):
+			b.modulate.a = 0.55   # a branch off the current one
 		_hist_row(b)
-	ui_hist_list.add_child(_label("> now", 14, "heading"))
-	for i in range(undo.size() - 1, -1, -1):
-		var hb := _button(_step_label(undo[i]), _history_go.bind(i))
-		hb.name = "step_%d" % i
-		_hist_row(hb)
-	if undo.is_empty() and redo.is_empty():
+	if rows.is_empty():
 		ui_hist_list.add_child(_label("nothing yet: every change you make shows up here", 13, "text:0.6", true))
-	(ui_hist.get_child(0) as ScrollContainer).custom_minimum_size.y = clampf(70.0 + 40.0 * (undo.size() + redo.size()), 110.0, 420.0)
+	(ui_hist.get_child(0) as ScrollContainer).custom_minimum_size.y = clampf(70.0 + 40.0 * rows.size(), 110.0, 420.0)
 	ui_hist.reset_size()
 
 
@@ -4787,13 +4860,12 @@ func _hist_row(b: Button) -> void:
 	ui_hist_list.add_child(b)
 
 
-## go to the state with `n` steps done (undo / redo one at a time, so the stacks stay exactly as Ctrl+Z / Ctrl+Y leave them)
+## go to the state with `n` steps done, along the current branch (the steps back, then the steps forward)
 func _history_go(n: int) -> void:
-	while undo.size() > n:
-		_undo()
-	while undo.size() < n and not redo.is_empty():
-		_redo()
-	_say("history: %d step%s done" % [undo.size(), "" if undo.size() == 1 else "s"])
+	_tree_sync()
+	var full := _tree.path() + _tree.forward()
+	if n >= 0 and n < full.size():
+		_tree_go(full[n])
 
 
 # ---------------------------------------------------------------- ui building
@@ -6961,7 +7033,7 @@ func _commands() -> Array:
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
 	add.call("Mode: Easy (12 big buttons)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 big buttons stay (remembered)")
 	add.call("Mode: Expert (every panel and tool)", "", easy.set_on.bind(false), "expert advanced full mode panels all tools", false, "every panel and tool back, as before (remembered)")
-	add.call("Undo history", "", _toggle_history, "steps list back forward", false, "every change by name, newest on top: click one to go back (or forward) to exactly there")
+	add.call("Edit: undo history...", "", _toggle_history, "steps list back forward", false, "every change by name, as a tree: branches where an edit came after an undo; click one to jump to exactly that state")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")
 	add.call("Pose library", "", PoseLibrary.toggle.bind(self), "poses thumbnails pictures grid blend mix flipped mirrored apply studio library", false, "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped, only the selected parts")
 	add.call("CLIP this pose (add a card)", "Enter", _press.bind(KEY_ENTER), "key frame add new", true, "add the body as a new card after the picked one")

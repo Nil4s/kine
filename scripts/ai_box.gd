@@ -262,9 +262,7 @@ func _one_step(n0: int, step: String) -> void:
 	n0 = clampi(n0, 0, u.size())
 	if u.size() <= n0:
 		return
-	u.resize(n0 + 1)
-	u[n0]["hint"] = main.step_name(step)
-	main._history_rows.call_deferred()
+	main._squash_undo(n0, main.step_name(step))   # the lists and the tree: the steps since n0 are one step
 
 
 func _check_line() -> String:

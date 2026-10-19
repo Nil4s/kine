@@ -1,7 +1,8 @@
 ## godot --path . -s tests/history_test.gd     (GATES R2; needs a window)
 ## UNDO HISTORY: six named edits -> six rows with those names, newest on top; clicking a row goes to exactly that step
 ## (the body and cards byte-identical to the state recorded right after it); clicking the newest goes back to the end;
-## names survive undo / redo; a new edit after going back drops the future (as Ctrl+Z then an edit does).
+## names survive undo / redo; a new edit after going back starts a branch and keeps the future (ROADMAP 15: a tree).
+## A row is the step that made that state: clicking it goes to the state after that step.
 extends SceneTree
 
 var fails := 0
@@ -24,6 +25,11 @@ func rows() -> Array:
 		if c is Button and c.text != "Close":
 			out.append(c.text.strip_edges())
 	return out
+
+
+## a row's name: its text without the live marker and the time (the tree's rows carry both)
+func names(rs: Array) -> Array:
+	return rs.map(func(x): return String(x).trim_prefix("> ").get_slice("   ", 0).strip_edges())
 
 
 ## run a command the way a user does from the S box (so the step is named as it would be)
@@ -64,23 +70,23 @@ func _init() -> void:
 	print("     rows: %s" % [r])
 	ok(r.size() == 6 and m.undo.size() == 6, "6 edits -> 6 rows")
 	ok(r[0].to_lower().contains("mirror") and r[0].to_lower().contains("paste") or r[0].to_lower().contains("pasted"), "  newest on top, named for what it did: '%s'" % r[0])
-	ok(not r.any(func(x): return x == "change"), "  every row has a real name (none fell back to 'change')")
-	# click row 4 from the top = the state after edit 3
+	ok(not names(r).any(func(x): return x == "change"), "  every row has a real name (none fell back to 'change')")
+	# click row 4 from the top = the step it names (edit 3): the state after edit 3, byte-identical
 	var btns: Array = m.ui_hist_list.get_children().filter(func(c): return c is Button and c.text != "Close")
 	btns[3].pressed.emit()
 	await process_frame
-	ok(fp() == states[2] and m.undo.size() == 2 and m.redo.size() == 4, "click row 4: exactly the state after edit 2 of 6 (byte-identical), 4 steps ahead to redo")
+	ok(fp() == states[3] and m.undo.size() == 3 and m.redo.size() == 3, "click row 4 (the step 'edit 3'): exactly the state after edit 3 of 6 (byte-identical), 3 steps ahead to redo")
 	var r2 := rows()
-	ok(r2.size() == 6 and r2.slice(0, 4) == r.slice(0, 4), "  the 4 undone steps stay listed above 'now', same names")
-	# click the newest (top, a future row) -> back to the end
+	ok(r2.size() == 6 and names(r2) == names(r), "  the 6 steps stay listed, same names, the live one marked")
+	# click the newest (top) -> back to the end
 	m.ui_hist_list.get_children().filter(func(c): return c is Button and c.text != "Close")[0].pressed.emit()
 	await process_frame
 	ok(fp() == states[6] and m.undo.size() == 6 and m.redo.is_empty(), "click the newest: back to the end, byte-identical")
-	ok(rows() == r, "  the names came back unchanged through undo and redo")
-	# go back 2 and make a new edit: the future goes
+	ok(names(rows()) == names(r), "  the names came back unchanged through undo and redo")
+	# go back 2 and make a new edit: a branch, the 2 undone steps stay in the tree (ROADMAP 15)
 	m._history_go(4)
 	await run("Reset body")
-	ok(m.redo.is_empty() and rows().size() == 5, "back to step 4, then a new edit: the 2 undone steps are gone, 5 rows")
-	ok(cmds.has("Undo history"), "'Undo history' is in the command search")
+	ok(m.redo.is_empty() and rows().size() == 7, "back to step 4, then a new edit: a branch; the 2 undone steps are kept, 7 rows")
+	ok(cmds.has("Edit: undo history..."), "'Edit: undo history...' is in the command search")
 	print("HISTORY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
