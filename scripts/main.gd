@@ -1016,6 +1016,47 @@ func _export_glb(dir := "res://exports") -> String:
 	return path
 
 
+## EXPORT .FBX (ROADMAP 78): the scene as binary FBX 7.4 (FbxExport, the ASCII text is a debug view only): the skeleton with UE5 bone names, one take, the
+## rotations and the pelvis on every frame, in centimetres. root_motion (the Unreal preset, "_ue5") moves the pelvis's
+## travel onto the root bone. Several fighters: one .fbx each, its rig placed where it stands (a root null). The
+## weapons and props are not in it. Blender 4.5 reads this binary file; it cannot read ASCII FBX.
+func _export_fbx(dir := "res://exports", root_motion := false) -> String:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
+		return ""
+	var sfx := "_ue5" if root_motion else ""
+	var acts := _export_actors()
+	var first := ""
+	var bones := 0
+	var frames := 0
+	if not acts.is_empty():
+		for a in acts:
+			var p := "%s/%s%s_%s.fbx" % [dir, _export_base(), sfx, safe_file(String(a["name"]))]
+			var r := FbxExport.write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]))
+			if r["err"] != OK:
+				_refresh()
+				_say_plain("NOT DONE: %s could not be written (%s)" % [p.get_file(), error_string(r["err"])])
+				return ""
+			if first == "":
+				first = p
+				bones = (r["bones"] as PackedStringArray).size()
+				frames = int(r["keys"])
+		_refresh()
+		_say_plain("exported %d .fbx, one per fighter, each at its place: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up. The weapons are not in them" % [acts.size(), bones, frames, S.fps])
+		return first
+	var nm := S.name if S.name != "" else "scene"
+	var path := "%s/%s%s.fbx" % [dir, nm, sfx]
+	var keep := B.state()
+	var r2 := FbxExport.write(S, B, path, root_motion)
+	B.set_state(keep)
+	_refresh()
+	if r2["err"] != OK:
+		_say_plain("NOT DONE: the .fbx could not be written (%s)" % error_string(r2["err"]))
+		return ""
+	_say_plain("exported %s.fbx: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s. The weapons and props are not in it" % [nm, (r2["bones"] as PackedStringArray).size(), int(r2["keys"]), S.fps, ", root motion on the root bone" if root_motion else ""])
+	return path
+
+
 ## EXPORT FOR AN ENGINE (ROADMAP item 9): the pre-flight report prints line by line BEFORE the file is written; the
 ## logic and the checks are in scripts/engine_export.gd (EngineExport), the needs in docs/research/ENGINES.md.
 func _export_engine(id: String, dir := "res://exports") -> String:
@@ -9167,6 +9208,7 @@ func _commands() -> Array:
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
+	add.call("Export animation (.fbx)", "", _export_fbx, "fbx autodesk maya motionbuilder unity unreal ue5 blender export skeleton binary", false, "the scene as exports/<scene>.fbx: binary FBX 7.4 in centimetres, the skeleton with UE5 bone names and the animation. Unreal, Unity, Maya and Blender 4.5 read it")
 	add.call("Export for Unreal 5...", "", _export_engine.bind("ue5"), "unreal ue5 engine export glb root motion scale centimetres manny delivery", false, "the scene as exports/<scene>_ue5.glb for Unreal 5: root motion on the root bone, units checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
