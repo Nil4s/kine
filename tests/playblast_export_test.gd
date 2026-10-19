@@ -160,6 +160,29 @@ func _init() -> void:
 				"-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", mp4], out, true)
 			n = int(String(out[0]).strip_edges()) if not out.is_empty() else -1
 		ok(mp4 != "" and FileAccess.file_exists(mp4) and n == want, "3 the .mp4 exists (%s) and ffprobe counts %d frames (want %d)" % [mp4.get_file(), n, want])
+		# 3b THE SOUND IS IN THE VIDEO, AT ITS PLACE. A test tone with a gap (sound time: tone 0-0.5 s, quiet 0.5-1.0, tone
+		# 1.0-3.0) placed at offset 0.3 s: on the scene's clock the tone runs 0.3-0.8 s. Read back from the .mp4 by decoding
+		# its audio (ffmpeg) and finding the loud 10 ms windows: whole scene -> starts 0.3, stops 0.8; preview range
+		# 0.5-1.0 (the sound cut with -ss) -> loud from 0, stops 0.3. Bar: 1 frame (1/fps) on each edge
+		var wavp := ProjectSettings.globalize_path(base + "_tone.wav")
+		_tone_wav(wavp)
+		S.audio = {"path": wavp, "offset": 0.3, "gain_db": 0.0}
+		var fr := 1.0 / S.fps
+		var r6: Dictionary = await m._export_playblast(base + "_f", "")
+		var e6 := _edges(ff, probe, r6.get("mp4", ""), ProjectSettings.globalize_path(base + "_f.raw"))
+		print("     AUDIO whole scene: stream start %.4f, loud from %.4f to %.4f s (want 0.3 to 0.8)" % e6)
+		ok(absf(e6[1] - 0.3) <= fr and absf(e6[2] - 0.8) <= fr, "3b the sound is muxed at its offset: loud from %.3f s to %.3f s (want 0.300 / 0.800, bar 1 frame = %.1f ms)" % [e6[1], e6[2], fr * 1000])
+		m.pv_in = 0.5
+		m.pv_out = 1.0
+		var r7: Dictionary = await m._export_playblast(base + "_g", "")
+		var e7 := _edges(ff, probe, r7.get("mp4", ""), ProjectSettings.globalize_path(base + "_g.raw"))
+		print("     AUDIO preview 0.5-1.0: stream start %.4f, loud from %.4f to %.4f s (want 0.0 to 0.3)" % e7)
+		ok(absf(e7[1]) <= fr and absf(e7[2] - 0.3) <= fr, "3b preview range 0.5-1.0: the sound is cut to the range: loud from %.3f s to %.3f s (want 0.000 / 0.300)" % [e7[1], e7[2]])
+		m.pv_in = -1.0
+		m.pv_out = -1.0
+		S.audio = {}
+		for f in [wavp, ProjectSettings.globalize_path(base + "_f.raw"), ProjectSettings.globalize_path(base + "_g.raw")]:
+			DirAccess.remove_absolute(f)
 	else:
 		print("     BRANCH: ffmpeg NOT found (PATH and POSER_FFMPEG): PNG only")
 		ok(r1.get("mp4", "x") == "" and said.contains("ffmpeg") and said.contains("install") and said.contains("No .mp4"), "3 no ffmpeg: no .mp4, and the message says how to get it: %s" % said.right(150))
@@ -173,7 +196,7 @@ func _init() -> void:
 	ok(r5.is_empty() and m.ui_status.text.contains("NOT NOW") and m.ui_status.text.contains("press Enter"), "  an empty scene is refused and says what to do: %s" % m.ui_status.text.left(90))
 	m.S = S0
 
-	for b in ["_a", "_b", "_c", "_d", "_e"]:
+	for b in ["_a", "_b", "_c", "_d", "_e", "_f", "_g"]:
 		_rm(ProjectSettings.globalize_path(base + b))
 	print("PLAYBLAST EXPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
@@ -187,3 +210,61 @@ func _rm(p: String) -> void:
 	for f in DirAccess.get_files_at(p):
 		DirAccess.remove_absolute(p + "/" + f)
 	DirAccess.remove_absolute(p)
+
+
+## 8 kHz mono 16-bit: a 1 kHz tone at half scale over [0, 0.5) and [1.0, 3.0) s, quiet between
+func _tone_wav(p: String) -> void:
+	var sr := 8000
+	var n := sr * 3
+	var f := FileAccess.open(p, FileAccess.WRITE)
+	f.store_buffer("RIFF".to_ascii_buffer())
+	f.store_32(36 + n * 2)
+	f.store_buffer("WAVEfmt ".to_ascii_buffer())
+	f.store_32(16)
+	f.store_16(1)
+	f.store_16(1)
+	f.store_32(sr)
+	f.store_32(sr * 2)
+	f.store_16(2)
+	f.store_16(16)
+	f.store_buffer("data".to_ascii_buffer())
+	f.store_32(n * 2)
+	for i in n:
+		var t := float(i) / sr
+		var v := 0.5 * sin(TAU * 1000.0 * t) if (t < 0.5 or t >= 1.0) else 0.0
+		f.store_16(int(round(v * 32767.0)) & 0xFFFF)
+	f.close()
+
+
+## [stream start, first loud time, end of that first loud run] in the .mp4's audio, on the video's clock. Loud = a 10 ms
+## window with RMS above 10 % of full scale. [-1, -1, -1] = no audio stream
+func _edges(ff: String, probe: String, mp4: String, raw: String) -> Array:
+	if mp4 == "" or not FileAccess.file_exists(mp4):
+		return [-1.0, -1.0, -1.0]
+	var out := []
+	OS.execute(probe if FileAccess.file_exists(probe) else "ffprobe", ["-v", "error", "-select_streams", "a:0", "-show_entries",
+		"stream=start_time", "-of", "csv=p=0", mp4], out, true)
+	var st_s := String(out[0]).strip_edges() if not out.is_empty() else ""
+	if st_s == "" or not st_s.is_valid_float():
+		return [-1.0, -1.0, -1.0]
+	var st := float(st_s)
+	OS.execute(ff, ["-y", "-v", "error", "-i", mp4, "-map", "0:a:0", "-ac", "1", "-ar", "8000", "-f", "s16le", raw], [], true)
+	var b := FileAccess.get_file_as_bytes(raw)
+	var w := 80
+	var on := -1.0
+	var off := -1.0
+	for k in range(0, b.size() / 2 - w, w):
+		var acc := 0.0
+		for i in w:
+			var v := b.decode_s16((k + i) * 2) / 32768.0
+			acc += v * v
+		var loud := sqrt(acc / w) > 0.1
+		var t := st + float(k) / 8000.0
+		if loud and on < 0.0:
+			on = t
+		elif not loud and on >= 0.0:
+			off = t
+			break
+	if on >= 0.0 and off < 0.0:
+		off = st + float(b.size() / 2) / 8000.0
+	return [st, on, off]

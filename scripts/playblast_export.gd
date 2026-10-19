@@ -31,6 +31,20 @@ static func find_ffmpeg(configured := "") -> String:
 		var line: String = String(out[0]).strip_edges().split("\n")[0].strip_edges()
 		if line != "":
 			return line
+	return _winget_ffmpeg()
+
+
+## winget's install of Gyan.FFmpeg (found even before a new login puts it on PATH)
+static func _winget_ffmpeg() -> String:
+	var pk := OS.get_environment("LOCALAPPDATA").replace("\\", "/") + "/Microsoft/WinGet/Packages"
+	if OS.get_name() != "Windows" or not DirAccess.dir_exists_absolute(pk):
+		return ""
+	for d in DirAccess.get_directories_at(pk):
+		if d.begins_with("Gyan.FFmpeg"):
+			for v in DirAccess.get_directories_at(pk + "/" + d):
+				var exe := "%s/%s/%s/bin/ffmpeg.exe" % [pk, d, v]
+				if FileAccess.file_exists(exe):
+					return exe
 	return ""
 
 

@@ -1902,6 +1902,7 @@ use them; a behaviour the sources do not pin down is written as our own choice i
 ## Round 50 (PL): the scene leaves the app (docs/GAP_ANALYSIS.md, gap 24: no playblast)
 
 - [x] PL0 Export playblast (video): the scene as the app plays it (the same _ps().apply + _refresh path), from the
+  - 10-18 ffmpeg 9.0.2 installed (winget Gyan.FFmpeg; find_ffmpeg also finds the winget install before PATH refreshes). The mp4 branch now RUNS: ffprobe counts 25 frames (want 25). New 3b: a gapped test tone at offset 0.3 s read back from the .mp4's decoded audio: loud 0.292-0.802 s (want 0.3/0.8, bar 1 frame = 41.7 ms); preview range 0.5-1.0 (sound cut with -ss): 0.000-0.300 (want 0/0.3). Stub (offset ignored): 0.000-0.500 and 0.500-0.512 -> FAIL 2.
   current camera, over the preview range or the whole scene, to exports/playblast/<scene>_<time>/frame_NNNN.png, and
   an .mp4 when ffmpeg is found (argument, POSER_FFMPEG, PATH). Frames: round((b - a) * fps) + 1, frame k at
   min(a + k / fps, b). Bars: the frame count, the body moves (mean |diff| > 0.0005), two exports pixel-identical,
