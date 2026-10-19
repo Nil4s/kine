@@ -107,8 +107,8 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 33. [x] Motion-matching preview (top-25 #23)
 34. [ ] Character mesh engine (top-25 #24) (held: Nick plans this as its own engine after Kine is done; same UE5 skeleton names)
 35. [~] Weapon trails drawn and exported (smear frames)
-36. [ ] Hitbox / hurtbox editor per frame
-37. [ ] Parry / clash detection between two weapons
+36. [~] Hitbox / hurtbox editor per frame
+37. [~] Parry / clash detection between two weapons
 38. [ ] Distance-to-opponent guide (range rings)
 39. [ ] Fatigue: a long fight slows the moves per measured data
 40. [ ] Weight feel: heavy weapons slow the wind-up per mass
