@@ -342,7 +342,7 @@ static func wrap(B: Body, h: String, F: Dictionary, shape := "") -> Dictionary:
 ## the command: wrap the hand round the prop, then key every finger and thumb joint at time t (PartKeys, one undo step
 ## is the caller's). Returns the wrap's report.
 static func grip_prop(B: Body, h: String, F: Dictionary, pk: Dictionary, t: float) -> Dictionary:
-	var rep: Dictionary = wrap(B, h, F)
+	var rep: Dictionary = AnyGrip.wrap(B, h, F)
 	key_hand(B, h, pk, t)
 	return rep
 
@@ -399,11 +399,11 @@ static func _nearest(F: Callable, p: Vector3) -> Vector3:
 ## ORIENT the hand for a prop whose surface faces it along dn (the curl direction, into the prop): the flexion axis
 ## up (or forward when dn is vertical), the fingers tangent to the surface (f = d x a). The curl is measured on the
 ## rig (the knuckle bent 10 deg, the fingertip's motion), so the joint frames need not be known.
-static func _orient(B: Body, h: String, dn: Vector3) -> void:
+static func _orient(B: Body, h: String, dn: Vector3, aw0 := Vector3.UP) -> void:
 	var sd := h.right(2)
-	var aw := Vector3.UP
+	var aw := aw0
 	if absf(dn.dot(aw)) > 0.7:
-		aw = Vector3.FORWARD
+		aw = Vector3.FORWARD if absf(aw0.dot(Vector3.FORWARD)) < 0.7 else Vector3.RIGHT
 	aw = (aw - dn * aw.dot(dn)).normalized()
 	var fw := dn.cross(aw).normalized()   # d = a x f  =>  f = d x a
 	_open(B, h)
@@ -484,7 +484,7 @@ static func _thumb_room(B: Body, h: String, F: Callable) -> float:
 ## wrist is moved by the arm's own IK (Body.fit_hand), which also turns the hand, so the orientation is redone each
 ## pass. Returns {"wrist_m": how far the wrist is from where the arm wanted it, "palm_m": the palm's signed distance
 ## from the surface, "clear_m": how far the palm backed off to free the fingers, "passes": placement passes}.
-static func place_hand(B: Body, h: String, F: Dictionary) -> Dictionary:
+static func place_hand(B: Body, h: String, F: Dictionary, aw0 := Vector3.UP) -> Dictionary:
 	var fn: Callable = F["sd"]
 	var clear := 0.0
 	var miss := 0.0
@@ -493,7 +493,7 @@ static func place_hand(B: Body, h: String, F: Dictionary) -> Dictionary:
 		passes += 1
 		var q := _nearest(fn, B.palm_point(h))
 		var n := _grad(fn, q)
-		_orient(B, h, -n)
+		_orient(B, h, -n, aw0)
 		var want := q + n * (PALM_GAP + clear)
 		miss = B.fit_hand(h, (B.P[h] as Vector3) + (want - B.palm_point(h)), B.G[h])
 		var worst := _open_clearance(B, h, fn)
@@ -660,3 +660,66 @@ class MeshField:
 		return s
 
 
+# ---------------------------------------------------------------- a small ball: the search for the hand's place
+
+## THE SPAN: the distance from the thumb's tip to the little finger's tip with the hand open (m). A ball wider than this
+## cannot be held by the fingertips and thumb spread over it (the hand cannot reach round it)
+static func span_of(B: Body, h: String) -> float:
+	var sd := h.right(2)
+	_open(B, h)
+	return (B.E["thumb_03" + sd] as Vector3).distance_to(B.E["pinky_03" + sd] as Vector3)
+
+
+## the sphere search (the 22 cm ball): the palm is put at R + 6 cm from the centre along each of 26 directions, with
+## three rolls of the flexion axis (up, forward, right); each placement is placed (place_hand) and wrapped; the score is
+## the summed distance of the four fingertips and the thumb tip from the surface (no limit allowance), +1000 when any
+## segment is inside. The best placement is left in place. Returns {"score", "tips": [...], "thumb_m", "dir", "roll", "rep"}.
+static func search_sphere(B: Body, h: String, c: Vector3, R: float, F: Dictionary) -> Dictionary:
+	var sd := h.right(2)
+	var keep := B.state()
+	var best := {"score": INF}
+	var dirs := []
+	for x in [-1, 0, 1]:
+		for y in [-1, 0, 1]:
+			for z in [-1, 0, 1]:
+				if x != 0 or y != 0 or z != 0:
+					dirs.append(Vector3(x, y, z).normalized())
+	var rolls := [Vector3.UP, Vector3.FORWARD, Vector3.RIGHT]
+	var fast_was := B.fast
+	B.fast = true
+	for u in dirs:
+		for ri in rolls.size():
+			B.set_state(keep)
+			# the palm goes to its start place: R + 6 cm out along u, the palm turned to face the centre
+			_orient(B, h, -u, rolls[ri])
+			var target: Vector3 = c + u * (R + 0.06)
+			B.fit_hand(h, (B.P[h] as Vector3) + (target - B.palm_point(h)), B.G[h])
+			place_hand(B, h, F, rolls[ri])
+			var rep: Dictionary = AnyGrip.wrap(B, h, F)
+			var score := 0.0
+			var inside := false
+			for f in GripWrap.LONG:
+				var g := float((rep[f][2] as Array)[1])
+				score += maxf(g, 0.0)
+				for row in rep[f]:
+					if float(row[1]) < -0.001:
+						inside = true
+			var tg := float(rep["thumb"][1][1])
+			score += maxf(tg, 0.0)
+			for row in rep["thumb"]:
+				if float(row[1]) < -0.001:
+					inside = true
+			if inside:
+				score += 1000.0
+			if score < float(best["score"]):
+				var tips := []
+				for f in GripWrap.LONG:
+					tips.append(float((rep[f][2] as Array)[1]))
+				best = {"score": score, "tips": tips, "thumb_m": tg, "dir": u, "roll": rolls[ri], "rep": rep,
+					"state": B.state(), "inside": inside}
+	B.fast = fast_was
+	if best.has("state"):
+		B.set_state(best["state"])
+	else:
+		B.set_state(keep)
+	return best

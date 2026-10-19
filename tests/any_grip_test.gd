@@ -104,31 +104,35 @@ func _init() -> void:
 	for j in pk:
 		keyed += 1
 	ok(keyed == 15 and is_equal_approx(float(pk["index_02_r"][0]["t"]), 0.5), "4 key_hand keys the 15 finger and thumb joints at the playhead (got %d)" % [keyed])
-	# 2 the 22 cm ball
+	# 2 the balls: the hand's place is searched (AnyGrip.search_sphere: 26 palm directions x 3 rolls, each placed and
+	# wrapped, scored by the fingertip and thumb-tip distances from the surface); the bar is strict: every fingertip ON the
+	# ball (<= 3 mm, no limit allowance), no segment inside. The span (thumb tip to little finger tip, hand open) against
+	# the arc the tips must cover (the chord of the ball's surface between them) is printed
+	B.set_state(keep2)   # the span is measured in the bat-grip pose the balls start from (not after the cylinder)
+	var span := AnyGrip.span_of(B, "hand_r")
+	for D in [0.22, 0.09]:
+		B.set_state(keep2)
+		var bc: Vector3 = palm + reach * (D / 2.0 + 0.03)
+		var bp := Props.make("ball", Props.xf_at(Vector3(bc.x, bc.y - D / 2.0, bc.z)))
+		var FB := AnyGrip.field_of(bp)
+		var tb := Time.get_ticks_msec()
+		var best: Dictionary = AnyGrip.search_sphere(B, "hand_r", bc, D / 2.0, FB)
+		var arc: float = D / 2.0 * 2.0 * asin(clampf(span / D, 0.0, 1.0))
+		print("     ball %.0f cm (search %d s): span %.1f mm (thumb tip to little tip, open) vs the arc between them %.1f mm" % [
+			D * 100.0, (Time.get_ticks_msec() - tb) / 1000, span * 1000.0, arc * 1000.0])
+		var tips := []
+		var on := 0
+		for g in best["tips"]:
+			tips.append("%+.1f" % [float(g) * 1000.0])
+			if float(g) <= 0.003:
+				on += 1
+		var pat: String = (best["rep"] as Dictionary)["pattern"]
+		print("     placed: palm dir %s, roll %s; fingertips (index, middle, ring, pinky) %s mm; thumb tip %+.1f mm" % [
+			best["dir"], best["roll"], ", ".join(tips), float(best["thumb_m"]) * 1000.0])
+		ok(pat == "sphere", "2 a %.0f cm ball is a spherical grasp (pattern %s)" % [D * 100.0, pat])
+		ok(on == 4 and not bool(best["inside"]), "2 %.0f cm ball: every fingertip ON it (<= 3 mm, no limit allowance; %d of 4) and no segment inside" % [D * 100.0, on])
+		ok(float(best["thumb_m"]) <= 0.003, "2 %.0f cm ball: the thumb tip on it (<= 3 mm; %+.1f mm)" % [D * 100.0, float(best["thumb_m"]) * 1000.0])
 	B.set_state(keep2)
-	# the ball sits on the body's side of the palm (the thigh is there): the arm is placed by the quick reach (fast, as
-	# the playback does); the wrap itself is the same closure either way
-	B.fast = true
-	var ball_c := palm + reach * 0.13
-	var bp := Props.make("ball", Props.xf_at(Vector3(ball_c.x, ball_c.y - 0.1098, ball_c.z)))
-	t0 = Time.get_ticks_msec()
-	var FB := AnyGrip.field_of(bp)
-	var plb := AnyGrip.place_hand(B, "hand_r", FB)
-	var repb := AnyGrip.wrap(B, "hand_r", FB)
-	var tb := Time.get_ticks_msec() - t0
-	var vb := _verdict(repb)
-	print("     ball: %d ms; placed: wrist %.1f mm off the arm's aim, palm %+.1f mm from the surface" % [
-		tb, float(plb["wrist_m"]) * 1000.0, float(plb["palm_m"]) * 1000.0])
-	print("     pattern %s; fingertips: %s" % [repb["pattern"], ", ".join(vb[0])])
-	ok(repb["pattern"] == "sphere", "2 a 22 cm ball is a spherical grasp (pattern %s)" % [repb["pattern"]])
-	ok((vb[1] as Array).is_empty(), "2 every fingertip on the ball (<= 3 mm) or at its limit; no finger segment inside by > 1 mm (bad: %s)" % [vb[1]])
-	ok((vb[2] as Array).is_empty(), "2 (NOT MET, known open) the thumb outside the ball too (thumb segments inside: %s)" % [vb[2]])
-	# the limit clause above lets a hand that never reaches the ball pass; a grasp needs every fingertip ON the ball
-	var on := 0
-	for f in GripWrap.LONG:
-		if float(repb[f][2][1]) <= 0.003:
-			on += 1
-	ok(on == 4, "2 every fingertip ON the ball (<= 3 mm, no limit allowance): %d of 4 (tips: %s)" % [on, ", ".join(vb[0])])
 	B.fast = false
 	# 3b the bat's wrap again, from the same body state as 3a (the arm the prop placements moved is put back)
 	B.set_state(keep)
