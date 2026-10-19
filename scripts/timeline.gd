@@ -19,6 +19,7 @@ const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
 const SNAP := 0.05
 const FINE := 0.01
+const AUDIO_H := 20.0    # px: the sound's waveform strip under the cards (only when the scene has a sound)
 const MIN_MOVE := 0.04   # s: a move can't be shorter (a 1-frame move at 30 fps is 0.033)
 
 var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
@@ -195,6 +196,34 @@ func _retime_to(x: float, fine: bool) -> void:
 	queue_redraw()
 
 
+## the sound under the cards: its peak envelope from the offset on (computed once by AudioTrack.envelope), or a flat bar
+## with the file name when it cannot be decoded (ogg / mp3) or the file is gone
+func _draw_audio(S: Scene, font: Font, y: float, h: float) -> void:
+	var env: Dictionary = m.audio_env
+	var off := float(S.audio.get("offset", 0.0))
+	var len_s := float(env.get("length", 0.0))
+	var x0 := x_of(off)
+	var nm := String(S.audio.get("path", "")).get_file()
+	draw_rect(Rect2(0, y, size.x, h), Tok.of("ink:0.06"))
+	if env.get("ok", false):
+		var mid := y + h * 0.5
+		var col := Tok.of("ink:0.55")
+		var x := maxf(x0, 0.0)
+		var x1 := minf(x_of(off + len_s), size.x)
+		while x < x1:
+			var p := AudioTrack.peak(env, t_of(x) - off, t_of(x + 1.0) - off)
+			var hh := maxf(p * h * 0.5, 0.5)
+			draw_line(Vector2(x, mid - hh), Vector2(x, mid + hh), col, 1.0)
+			x += 1.0
+		draw_string(font, Vector2(maxf(x0, 0.0) + 3, y + 10), nm, HORIZONTAL_ALIGNMENT_LEFT, 160, 9, Tok.of("ink:0.5"))
+	else:
+		var wbar := maxf(x_of(off + len_s) - x0, 40.0) if len_s > 0.0 else 40.0
+		draw_rect(Rect2(maxf(x0, 0.0), y + h * 0.5 - 2.0, minf(wbar, size.x), 4.0), Tok.of("ink:0.4"))
+		var why := ": no waveform for this format" if len_s > 0.0 else " (file missing)"
+		draw_string(font, Vector2(maxf(x0, 0.0) + 3, y + h * 0.5 - 4.0), nm + why, HORIZONTAL_ALIGNMENT_LEFT, size.x, 9, Tok.of("ink:0.6"))
+	draw_line(Vector2(x0, y), Vector2(x0, y + h), Tok.of("ink:0.6"), 1.0)
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -215,7 +244,8 @@ func _draw() -> void:
 			draw_string(font, Vector2(x + 2, 11), str(snappedf(k * 0.1, 0.1)) + "s", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.of("ink:0.45"))
 		k += 1
 	var y0 := RULER + 2.0
-	var h := size.y - y0 - 2.0
+	var ah := AUDIO_H if not S.audio.is_empty() else 0.0
+	var h := size.y - y0 - 2.0 - ah
 	for i in S.cards.size():
 		var sel: bool = i == int(m.sel_card)
 		var base := Color(0.32, 0.5, 0.82) if i % 2 == 0 else Color(0.28, 0.6, 0.62)
@@ -250,6 +280,8 @@ func _draw() -> void:
 			draw_string(font, Vector2(xm0 + 4, y0 + h * 0.5 + 5), name, HORIZONTAL_ALIGNMENT_LEFT, w - 6, 12, Color(0.05, 0.05, 0.07) if sel else Color(1, 1, 1, 0.95))
 		elif w > 8.0:
 			draw_string(font, Vector2(xm0 + 2, y0 + h * 0.5 + 5), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, w - 2, 11, Color(1, 1, 1, 0.9))
+	if ah > 0.0:
+		_draw_audio(S, font, size.y - ah, ah - 1.0)
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
 	# cards are still yours but never play: shade them and say why (else the strip and the play time disagree silently)
 	var P: Scene = m._ps()

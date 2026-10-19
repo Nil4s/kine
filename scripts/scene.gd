@@ -53,6 +53,7 @@ const LAG := 0.3
 const EASES := ["smooth", "linear", "in", "out", "snap"]   # a card's ease preset (EASE PRESETS above)
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
+var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offset" s, "gain_db"}; in the file only when there is one
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
@@ -1284,6 +1285,7 @@ func clone() -> Scene:
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
 	c.markers = markers.duplicate(true)
+	c.audio = audio.duplicate()
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
@@ -1752,6 +1754,8 @@ func to_dict(B: Body) -> Dictionary:
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
 	if not markers.is_empty():
 		out["markers"] = markers.duplicate(true)   # WW5: the same, only when there are any
+	if not audio.is_empty():
+		out["audio"] = AudioTrack.clean(audio)   # the sound: the same, only when there is one
 	if not actors.is_empty():   # G1: the same, only with a second actor
 		out["actors"] = actors.map(func(a): return {"name": a["name"], "xf": {"pos": [float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": float(a["xf"]["yaw"])},
 			"scene": (a["scene"] as Scene).to_dict(B)})
@@ -1768,7 +1772,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)"}
@@ -1857,6 +1861,7 @@ func from_dict(d: Dictionary) -> void:
 	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
 	markers = Markers.from_list(d.get("markers", []))
+	audio = AudioTrack.clean(d["audio"]) if d.get("audio") is Dictionary and String(d["audio"].get("path", "")) != "" else {}
 	props = []
 	props_skipped = []
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none

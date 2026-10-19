@@ -331,6 +331,17 @@
     "spline": {
      "type": "boolean"
     },
+    "audio": {
+     "type": "object",
+     "description": "the sound on the timeline; only when there is one. offset = seconds where it starts",
+     "required": ["path"],
+     "properties": {
+      "path": {"type": "string"},
+      "offset": {"type": "number"},
+      "gain_db": {"type": "number"}
+     },
+     "additionalProperties": false
+    },
     "markers": {
      "type": "array",
      "description": "named moments on the timeline (round 41); only when any",

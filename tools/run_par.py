@@ -15,11 +15,12 @@ CREATE_NO_WINDOW = 0x08000000   # no console window per process (Nick 10-18: "17
 # window suites still need a real window to render, but it opens OFF the screen; SHOW=1 puts them back where you see them
 HIDE = os.environ.get("SHOW", "") == ""
 OFFSCREEN = ["--position", "-30000,-30000"]
+REAL_AUDIO = {"audio_track"}   # mutes the Master bus itself; its sync bar needs the real driver (Dummy reports position in ~70 ms chunks)
 SILENT = ["--audio-driver", "Dummy"]   # no test makes a sound on Nick's speakers (10-18: "we have beep sounds")
 # shared state on disk (the scenes list, moves/ and trash/, exports, the CLI's files): kept out of the parallel batch
 SERIAL = {"scene_list", "browser_tree", "browser", "versions", "cli", "serve", "agent", "mcp", "glb_export",
           "bvh_export", "engine_names", "autosave", "names_disk", "launcher", "empty_paths", "confirm", "examples",
-          "actors_file"}   # reads every file in scenes/ while others write there (r50b: parsed a half-written file)
+          "actors_file", "audio_track"}   # audio_track: real-time sync, needs a quiet machine; actors_file reads every file in scenes/ while others write there (r50b: parsed a half-written file)
 
 
 def suites():
@@ -37,7 +38,7 @@ def run(s):
     if not os.path.exists(os.path.join(HERE, f)):
         f = os.path.join("tests", name + ".gd")
     log = os.path.join(LOGS, name + ".log")
-    args = [G] + (["--headless"] if mode == "h" else (OFFSCREEN if HIDE else [])) + (SILENT if HIDE else []) + ["--path", ".", "-s", f]
+    args = [G] + (["--headless"] if mode == "h" else (OFFSCREEN if HIDE else [])) + (SILENT if HIDE and name not in REAL_AUDIO else []) + ["--path", ".", "-s", f]
     t0 = time.time()
     why = ""
     with open(log, "w", encoding="utf-8", errors="replace") as fh:
