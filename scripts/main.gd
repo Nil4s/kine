@@ -1343,6 +1343,8 @@ func _ready() -> void:
 	ov.onion_on = args.has("--onion")
 	bal.on = args.has("--balance")
 	ov.spacing_on = args.has("--spacing")
+	fd_on = args.has("--frame-data")   # FRAME DATA (ROADMAP 12): --frame-data = the strip and the boxes (shots)
+	fd_boxes = fd_on
 	ov.graph_on = args.has("--graph")
 	stepped_view = args.has("--stepped")
 	var i := args.find("--pose")
@@ -1816,6 +1818,98 @@ func _dummy_refresh() -> void:
 		hit_tag.text = "%s  (%.2f m up the weapon)" % [h["zone"], h["u"]]
 
 
+# ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)
+var fd_on := false           # the frame strip on the timeline
+var fd_boxes := false        # the hitboxes / hurtboxes drawn in the view
+var fd_fps := 60             # the game's frame rate the counts use (a setting: the "fps" button)
+var fd_cache := {}           # {"key": the scene + dummy + fps it was made for, "fd": FrameData.analyze's result}
+var fd_node: MeshInstance3D = null
+var fd_btn: Button = null
+
+
+func _fd_toggle() -> void:
+	fd_on = not fd_on
+	_refresh()
+
+
+func _fd_boxes_toggle() -> void:
+	fd_boxes = not fd_boxes
+	_refresh()
+
+
+func _fd_cycle_fps() -> void:
+	var order := [24, 30, 60, 120]
+	fd_fps = order[(order.find(fd_fps) + 1) % order.size()]
+	if fd_btn != null:
+		fd_btn.text = "%d fps" % fd_fps
+	_refresh()
+
+
+## the frame data of the scene as it is now (a fresh body: the live one is not moved). Made again only when the cards,
+## the dummy or the frame rate change
+func _fd_data() -> Dictionary:
+	var key := "%d|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-"]
+	if String(fd_cache.get("key", "")) != key:
+		var Bc := Body.new()
+		Bc.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		Bc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
+		Bc.ground()
+		fd_cache = {"key": key, "fd": FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
+	return fd_cache["fd"]
+
+
+## the strip and the boxes for this refresh (both off: nothing is analysed)
+func _fd_refresh() -> void:
+	if ui_timeline != null:
+		ui_timeline.fd = _fd_data() if fd_on and not S.cards.is_empty() else {}
+		ui_timeline.queue_redraw()
+	if not fd_boxes or S.cards.is_empty():
+		if fd_node != null:
+			fd_node.visible = false
+		return
+	var fd := _fd_data()
+	var fr: Dictionary = FrameData.frame_at(fd, playhead)
+	var groups := [[fr["hurtboxes"], Color(0.6, 0.7, 0.85)]]
+	if fr["active"]:
+		groups.append([fr["hitboxes"], Color(1.0, 0.3, 0.25)])
+	if fd_node == null:
+		fd_node = MeshInstance3D.new()
+		var m := StandardMaterial3D.new()
+		m.vertex_color_use_as_albedo = true
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.no_depth_test = true
+		fd_node.material_override = m
+		add_child(fd_node)
+	fd_node.mesh = FrameData.wire(groups)
+	fd_node.visible = true
+
+
+## the frame data as JSON, where the user picks (never in scenes/)
+func _fd_export() -> void:
+	if S.cards.is_empty():
+		_say_plain("no frame data: the scene has no cards")
+		return
+	var data := _fd_data()
+	var dlg := FileDialog.new()
+	dlg.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	dlg.access = FileDialog.ACCESS_FILESYSTEM
+	dlg.filters = PackedStringArray(["*.json ; frame data"])
+	dlg.current_file = "%s_frames.json" % S.name
+	dlg.current_dir = ProjectSettings.globalize_path("res://exports")
+	dlg.title = "Export frame data (json)"
+	dlg.use_native_dialog = true
+	dlg.file_selected.connect(func(p):
+		var e := FrameData.write_json(data, p)
+		if e == OK:
+			_say_plain("frame data written: %s (startup %d, active %d, recovery %d at %d fps)" % [p.get_file(), data["startup"], data["active"], data["recovery"], data["fps"]])
+		else:
+			_say_plain("NOT WRITTEN: %s could not be saved (error %d)" % [p.get_file(), e])
+		dlg.queue_free())
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered(Vector2i(800, 500))
+
+
 ## the dummy on/off and its range; the scene's hits listed (time, zone, speed of the spot that lands)
 func _dummy_toggle() -> void:
 	dummy_on = not dummy_on
@@ -2090,6 +2184,7 @@ func _refresh() -> void:
 	_doc_line()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
+	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
 	var touching := {}
@@ -5563,10 +5658,15 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
 	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
+	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
+	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
+	fd_btn = _button("%d fps" % fd_fps, _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120)")
+	ui_ribbon["CHECK"].add_child(fd_btn)
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export .glb", func(): _export_glb(), "the scene as exports/<name>.glb: one file with the mannequin and its animation, for Blender, Unreal, Unity, Godot (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export .bvh", func(): _export_bvh(), "the scene as exports/<name>.bvh: motion capture, for Blender, Maya, MotionBuilder, Cascadeur (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("To game", _export_game, "the scene as the game's PoseTable (exports/)"))
+	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
 	var ap := MenuButton.new()

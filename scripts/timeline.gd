@@ -14,6 +14,11 @@ signal retimed(final: bool)
 signal range_set(which: String, t: float)   # WW4: Shift+click on the ruler = in point, Alt+click = out point
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 
+## FRAME DATA (ROADMAP 12; scripts/frame_data.gd): main.gd sets `fd` (the analysis, {} = off) and the strip shows its
+## startup (green), active (red) and recovery (blue) in frames, under the ruler. Drawn only; the numbers are FrameData's.
+const FD_H := 11.0   # px: the strip's height
+var fd: Dictionary = {}
+
 const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
 const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
@@ -294,7 +299,8 @@ func _draw() -> void:
 		if major:
 			draw_string(font, Vector2(x + 2, 11), str(snappedf(k * 0.1, 0.1)) + "s", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.of("ink:0.45"))
 		k += 1
-	var y0 := RULER + 2.0
+	var fdh := FD_H + 3.0 if not fd.is_empty() else 0.0   # FRAME DATA (ROADMAP 12): the strip sits under the ruler
+	var y0 := RULER + 2.0 + fdh
 	var ah := AUDIO_H if not S.audio.is_empty() else 0.0
 	_clip_fit(S)
 	var h := size.y - y0 - 2.0 - ah - _clip_px
@@ -335,6 +341,8 @@ func _draw() -> void:
 	if ah > 0.0:
 		_draw_audio(S, font, size.y - ah, ah - 1.0)
 	_draw_clips(S, font)
+	if not fd.is_empty():
+		_draw_fd_strip(font, RULER + 2.0)
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
 	# cards are still yours but never play: shade them and say why (else the strip and the play time disagree silently)
 	var P: Scene = m._ps()
@@ -458,6 +466,29 @@ func _clip_drag(x: float, fine: bool) -> void:
 	_S().clips[int(_drag["i"])]["start"] = t
 	retimed.emit(false)
 	queue_redraw()
+
+
+## the frame strip: one block per phase over its frames (time = frame / fps), its count in the block
+func _draw_fd_strip(font: Font, y: float) -> void:
+	var fps := float(fd["fps"])
+	var cols := {"startup": Color(0.3, 0.78, 0.38), "active": Color(0.92, 0.28, 0.26), "recovery": Color(0.3, 0.52, 0.95)}
+	for sp in FrameData.spans(fd):
+		var x0 := x_of(float(sp["f0"]) / fps)
+		var x1 := x_of(float(sp["f1"]) / fps)
+		var n := int(sp["f1"]) - int(sp["f0"])
+		if sp["kind"] == "active":
+			# a multi-hit span: the frames with a hitbox out are full red, the gaps between them dim
+			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), Color(cols["active"], 0.22))
+			for f in range(int(sp["f0"]), int(sp["f1"])):
+				if fd["frames"][f]["active"]:
+					var fx := x_of(float(f) / fps)
+					draw_rect(Rect2(fx, y, maxf(x_of(float(f + 1) / fps) - fx - 1.0, 1.0), FD_H), cols["active"])
+		else:
+			draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 1.0), FD_H), cols[sp["kind"]])
+		if x1 - x0 > 46.0:
+			draw_string(font, Vector2(x0 + 3, y + FD_H - 2.0), "%s %d" % [sp["kind"], n], HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4, 10, Color(0.05, 0.05, 0.07))
+		elif x1 - x0 > 14.0:
+			draw_string(font, Vector2(x0 + 2, y + FD_H - 2.0), str(n), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 3, 10, Color(0.05, 0.05, 0.07))
 
 
 func _draw_clips(S: Scene, font: Font) -> void:
