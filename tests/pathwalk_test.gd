@@ -160,9 +160,13 @@ func _run() -> void:
 	var ts_b := SB.times()
 	var N := int(b["r"]["steps"]) - 1
 	var Lb: float = b["r"]["step"]
+	var landing_t := []
+	for i in SB.cards.size():
+		if String(SB.cards[i]["name"]).begins_with("step"):
+			landing_t.append(ts_b[i][1])
 	for k in range(1, N + 1):
 		var sd := "_l" if k % 2 == 1 else "_r"
-		SB.apply(BB, ts_b[k][1])
+		SB.apply(BB, landing_t[k - 1])
 		var mark := PathWalk.foot(cb, sd, Lb * 0.5 + (k - 1) * Lb)
 		var ball: Vector3 = BB.P["ball" + sd]
 		place = maxf(place, Vector2(ball.x - mark.x, ball.z - mark.z).length())
@@ -194,7 +198,7 @@ func shot(pts: Array, r: Dictionary, S: Scene, B: Body) -> void:
 	vp.add_child(key)
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 7.5
+	cam.size = 4.6
 	cam.near = 0.05
 	cam.far = 40.0
 	vp.add_child(cam)
@@ -256,6 +260,10 @@ func shot(pts: Array, r: Dictionary, S: Scene, B: Body) -> void:
 	var k_mid := int(ts.size() * 0.6)
 	S.apply(B, ts[k_mid][1])
 	Overlays.pose_skeleton(mq[1], mq[2], B)
+	# the camera on the body: the whole figure is about 1/3 of the frame's height
+	var hip: Vector3 = B.offset + Vector3(0, 0.85, 0)
+	cam.size = 4.6
+	cam.look_at_from_position(hip + Vector3(-3.0, 4.2, 4.6), hip)
 	await get_root().get_tree().process_frame
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	await RenderingServer.frame_post_draw

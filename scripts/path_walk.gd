@@ -23,6 +23,8 @@ const HIP_BACK := 0.115       # m: the hips sit this far behind the midpoint of 
 const HOLD_START := 0.3       # s: the stand before the first step (walk_bat)
 const HOLD_STOP := 0.4        # s: the stance after the last step (walk_bat's stop)
 const SAMPLE := 0.002         # m: the smoothed path is sampled every 2 mm
+const SWING := 0.7            # the share of a step period the stepping foot is in the air (its card's move); the rest is PIVOTS double-support cards
+const PIVOTS := 3             # double-support cards before each step: the facing is keyed every 1/(PIVOTS+1) of a step, not once per step
 const YAW_LAG := 0.1          # m: a card's facing is the tangent this far BEHIND its hips (sweep on the 90 deg arc: 0 -> 15.6 deg, 0.05 -> 13.7, 0.10 -> 11.9, 0.15 -> 13.7)
 
 
@@ -138,10 +140,19 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 			donor_card = dc[3] if sd == "_l" else dc[4]
 		var off := foot(c, sd, s_k) - foot(c, sd, cur[sd])   # the foot's own mark now, to its new one
 		off.y = 0.0
+		# the period T: PIVOTS double-support cards (both feet on their marks, the body turning on them), then the step (move SWING T)
+		var h0 := _hip_s(cur)
+		var after := cur.duplicate()
+		after[sd] = s_k
+		var h1 := _hip_s(after)
+		for j in PIVOTS:
+			var f := float(j + 1) / (PIVOTS + 1)
+			arrive += (1.0 - SWING) * T / PIVOTS
+			cards.append(_card(B, c, dc[0], "pivot %d.%d" % [k, j + 1], {}, (1.0 - SWING) * T / PIVOTS, 0.0, cur, true, arrive, lerpf(h0, h1, f)))
 		var name := "step %s %d" % ["L" if sd == "_l" else "R", k]
-		arrive += T
+		arrive += SWING * T
 		cur[sd] = s_k
-		cards.append(_card(B, c, donor_card, name, {sd: [off.x, off.y, off.z]}, T, 0.0, cur, true, arrive))
+		cards.append(_card(B, c, donor_card, name, {sd: [off.x, off.y, off.z]}, SWING * T, 0.0, cur, true, arrive))
 		last = s_k
 	# the stop: the foot that stepped before the last one comes up to the last mark (feet together)
 	var behind := "_r" if N % 2 == 1 else "_l"
@@ -150,6 +161,7 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 	cur[behind] = last
 	arrive += T
 	cards.append(_card(B, c, dc[5], "stop: feet together", {behind: [stop_off.x, stop_off.y, stop_off.z]}, T, HOLD_STOP, cur, true, arrive))
+
 	var out := {}
 	for key in ["fps", "on_floor", "floor_body", "natural", "pin", "bad_frames", "note"]:
 		if donor.has(key):
@@ -165,13 +177,17 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 ## YAW_LAG), then each foot PLANTED on its mark (ball on the path's point LAT to its side, toes along the tangent there).
 ## marks: {"_l": s, "_r": s} where each foot stands along the path. The donor's own legs put the stepping foot where its
 ## rigid turn leaves it, which is straight ahead on a curve, so the legs are re-solved to the marks.
-static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps: Dictionary, move: float, hold: float,
-		marks: Dictionary, walk: bool, arrive: float) -> Dictionary:
+## the hips' arc position for a set of marks: their midpoint, HIP_BACK behind
+static func _hip_s(marks: Dictionary) -> float:
 	var s_mid := 0.0
 	for sd in marks:
 		s_mid += float(marks[sd])
-	s_mid /= maxf(1.0, float(marks.size()))
-	var s_hip := s_mid - HIP_BACK
+	return s_mid / maxf(1.0, float(marks.size())) - HIP_BACK
+
+
+static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps: Dictionary, move: float, hold: float,
+		marks: Dictionary, walk: bool, arrive: float, s_hip_in := NAN) -> Dictionary:
+	var s_hip := _hip_s(marks) if is_nan(s_hip_in) else s_hip_in
 	B.from_dict(donor["pose"])
 	B.turn_world("pelvis", Quaternion(Vector3.UP, heading(c, s_hip - YAW_LAG)))
 	var o: Vector3 = at(c, s_hip)
@@ -181,7 +197,7 @@ static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps
 		var s: float = marks[sd]
 		var ball_at := foot(c, sd, s)
 		ball_at.y = (B.p0["ball" + sd] as Vector3).y
-		var flat: bool = not steps.has(sd) and bool(B.foot_state(sd)[2])
+		var flat := true   # the toe base on its mark on the floor; a heel-first step lands with the heel up, so the ball is the low point
 		B.plant(sd, ball_at, heading(c, s), flat)
 	B.fk()
 	var card := {"name": name, "pose": B.to_dict(), "move": move, "hold": hold,
