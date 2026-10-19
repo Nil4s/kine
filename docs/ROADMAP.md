@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 23 / 20 (live co-editing; weapon trails; secondary motion; music beats; lip-sync; motion-matching preview; version diff; stunt load report; full run 1 on 10-18 night: 172/206 under load, every timeout passed alone, 9 real breaks fixed; then merged: undo tree, human limits v2, ease presets, frame data, better skeleton, critique, twinning, phone video cleanup, choreography, hit reactions, style transfer, any-prop grips, line of action, webcam puppet, playback cache).
+Merged since the last full run: 4 / 20 (ragdoll; hitbox; clash; text_blocking). Full run 2 (2026-10-19): 211/228, all 17 failures fixed in 91480a2, 1f23fad, cd40527.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -93,12 +93,12 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 
 ### Wave B: the innovations
 21. [x] Live webcam puppeteering (top-25 #6): helper + socket + fit + record built; no camera here, the test is camera-free (see the commit)
-22. [~] Type a move, get blocking (top-25 #8) (restarted 10-18 night: retrieve-and-adapt from saved moves; the IK-from-scratch try missed by up to 52 cm)
+22. [x] Type a move, get blocking (top-25 #8) (restarted 10-18 night: retrieve-and-adapt from saved moves; the IK-from-scratch try missed by up to 52 cm)
 23. [x] Sketch a line of action -> pose (top-25 #9)
 24. [x] Injury / load check for stunt teams (top-25 #11)
 25. [x] Style transfer: heavier, older, tired, angry (top-25 #12)
 26. [x] Secondary motion baked to keys: hair, cloth, weapon wobble (top-25 #13)
-27. [~] Ragdoll to keys with pins (top-25 #14)
+27. [x] Ragdoll to keys with pins (top-25 #14)
 28. [x] Scene versions with a visual diff (top-25 #16): "Versions: compare with" lays an older version over the open scene (magenta ghost at the playhead), lists the changes per card, and marks the timeline where a joint differs over 2 deg; "Versions: restore this one" is one undo step (scripts/version_diff.gd, tests/version_diff_test.gd)
 29. [~] Review links with frame comments (top-25 #17)
 30. [x] Live co-editing, one animator per fighter (top-25 #18)
@@ -107,8 +107,8 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 33. [x] Motion-matching preview (top-25 #23)
 34. [ ] Character mesh engine (top-25 #24) (held: Nick plans this as its own engine after Kine is done; same UE5 skeleton names)
 35. [x] Weapon trails drawn and exported (smear frames)
-36. [~] Hitbox / hurtbox editor per frame
-37. [~] Parry / clash detection between two weapons
+36. [x] Hitbox / hurtbox editor per frame
+37. [x] Parry / clash detection between two weapons
 38. [ ] Distance-to-opponent guide (range rings)
 39. [ ] Fatigue: a long fight slows the moves per measured data
 40. [ ] Weight feel: heavy weapons slow the wind-up per mass
