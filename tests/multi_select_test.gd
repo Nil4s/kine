@@ -52,8 +52,8 @@ func click(j: String, ctrl := false) -> void:
 	await btn(MOUSE_BUTTON_LEFT, false, p, ctrl)
 
 
-func drag(j: String, step: Vector2, ctrl := false) -> void:
-	var p := spot(j)
+func drag(j: String, step: Vector2, ctrl := false, f := 0.5) -> void:
+	var p := spot(j, f)
 	await btn(MOUSE_BUTTON_LEFT, true, p, ctrl)
 	for i in 5:
 		p += step
@@ -61,9 +61,9 @@ func drag(j: String, step: Vector2, ctrl := false) -> void:
 	await btn(MOUSE_BUTTON_LEFT, false, p, ctrl)
 
 
-func spot(j: String) -> Vector2:
+func spot(j: String, f := 0.5) -> Vector2:
 	var c: Array = m.B.cap(j)
-	return m.cam.unproject_position((c[0] + c[1]) * 0.5)
+	return m.cam.unproject_position((c[0] as Vector3).lerp(c[1], f))
 
 
 func ang(j: String) -> Vector3:
@@ -71,7 +71,7 @@ func ang(j: String) -> Vector3:
 
 
 func col(j: String) -> Color:
-	return (m.mats[j] as StandardMaterial3D).albedo_color
+	return m.skin_col(j)   # PRECISE PICK: the light is on the part's own skin
 
 
 func members() -> Array:
@@ -130,7 +130,7 @@ func _init() -> void:
 	ok(ang("thigh_r").is_equal_approx(r0) and not (ang("thigh_l") as Vector3).is_equal_approx(a0["thigh_l"]), "5 the right thigh locked, a drag on the left: it turned %s, the locked one stayed %s" % [ang("thigh_l"), ang("thigh_r")])
 	var ua := ang("upperarm_r")
 	var la := ang("lowerarm_r")
-	await drag("hand_r", Vector2(12, 0), true)
+	await drag("hand_r", Vector2(12, 0), true, 0.9)   # ROADMAP 41: the forearm now swings toward the mouse too, so press the hand itself
 	ok(not ang("upperarm_r").is_equal_approx(ua) or not ang("lowerarm_r").is_equal_approx(la), "6 a Ctrl+drag on the right hand: the elbow swung (upper arm %s -> %s, forearm %s -> %s)" % [ua, ang("upperarm_r"), la, ang("lowerarm_r")])
 	await click("thigh_l")
 	await click("thigh_r", true)

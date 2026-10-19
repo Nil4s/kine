@@ -458,9 +458,9 @@
     },
     "ik": {
      "type": "object",
-     "description": "IK / FK with pole targets (GAP_ANALYSIS row 13): per limb (named by its tip), keys over time; written only when there is one. Each key: t = seconds, target = where the wrist / ankle goes (world, m), pole = a point the elbow / knee bends toward (world, m), w = IK weight 0..1 (linear between keys), rot = the hand / foot world rotation (optional). scripts/limb_ik.gd",
+     "description": "IK / FK with pole targets (GAP_ANALYSIS row 13): per limb (named by its tip), keys over time; written only when there is one. Each key: t = seconds, target = where the wrist / ankle goes (world, m), pole = a point the elbow / knee bends toward (world, m), w = IK weight 0..1 (linear between keys), rot = the hand / foot world rotation (optional). \"spine\" = the back's spline IK (scripts/spine_ik.gd): target = the chest control, pole = the mid-back control, twist = [hip, chest] degrees. scripts/limb_ik.gd",
      "propertyNames": {
-      "enum": ["hand_l", "hand_r", "foot_l", "foot_r"]
+      "enum": ["hand_l", "hand_r", "foot_l", "foot_r", "spine"]
      },
      "additionalProperties": {
       "type": "array",
@@ -473,7 +473,8 @@
         "target": {"$ref": "#/$defs/vec3"},
         "pole": {"$ref": "#/$defs/vec3"},
         "w": {"type": "number", "minimum": 0, "maximum": 1},
-        "rot": {"$ref": "#/$defs/quat"}
+        "rot": {"$ref": "#/$defs/quat"},
+        "twist": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
        },
        "additionalProperties": false
       }
@@ -609,6 +610,21 @@
       "additionalProperties": false
      }
     },
+    "shots": {
+     "type": "array",
+     "description": "THE SHOTS (ROADMAP 75): the cuts of a multi-shot scene, sorted by t; the first at 0. Each shot's camera is a keyed camera (the same keys as camera). Written only when there are shots and they are not the one default shot (that one is written as camera). scripts/shot_camera.gd",
+     "minItems": 1,
+     "items": {
+      "type": "object",
+      "required": ["t", "name", "camera"],
+      "properties": {
+       "t": {"type": "number", "minimum": 0},
+       "name": {"type": "string"},
+       "camera": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["t", "pos", "aim", "f"], "properties": {"t": {"type": "number", "minimum": 0}, "pos": {"$ref": "#/$defs/vec3"}, "aim": {"$ref": "#/$defs/vec3"}, "f": {"type": "number", "minimum": 8, "maximum": 600}}, "additionalProperties": false}}
+      },
+      "additionalProperties": false
+     }
+    },
     "clips": {
      "type": "array",
      "description": "CLIPS (GAP_ANALYSIS row 12; Blender NLA strips / Maya Time Editor clips): other scene or move files placed by reference as strips; written only when there are any. Strip length = L x repeat / speed (L = the source's length); inside it the source plays at lt = u - k L, u = (t - start) x speed, k = min(floor(u / L), repeat - 1); weight = w x clamp((t - start) / bin) x clamp((end - t) / bout); cycle k's hips moved by k x the cycle's step over the floor. scripts/clips.gd",
@@ -628,7 +644,24 @@
        "extra": {"enum": ["nothing", "hold", "hold_forward"]},
        "w": {"type": "number", "minimum": 0, "maximum": 1},
        "mirror": {"type": "boolean"},
-       "mute": {"type": "boolean"}
+       "mute": {"type": "boolean"},
+       "warp": {"type": "array", "maxItems": 6, "description": "CLIP WARPING (ROADMAP 83): interior knots [x, y] of the strip's time curve, x and y in 0..1, x increasing, y non-decreasing; the ends (0,0) and (1,1) are fixed. Written only when the curve is not linear. scripts/clips.gd warp_*", "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 1}}}
+      },
+      "additionalProperties": false
+     }
+    },
+    "attrs": {
+     "type": "object",
+     "description": "CUSTOM ATTRIBUTES (ROADMAP 82, scripts/custom_attr.gd): named float values on a part (\"<part>.<name>\"), keyed per card like a joint angle; min < max, default in range; keys: t = seconds, v = the value. Written only when there is one.",
+     "propertyNames": {"pattern": "^[a-z_0-9]+\\.[a-z][a-z0-9_]{0,23}$"},
+     "additionalProperties": {
+      "type": "object",
+      "required": ["min", "max", "default", "keys"],
+      "properties": {
+       "min": {"type": "number"},
+       "max": {"type": "number"},
+       "default": {"type": "number"},
+       "keys": {"type": "array", "items": {"type": "object", "required": ["t", "v"], "properties": {"t": {"type": "number", "minimum": 0}, "v": {"type": "number"}}, "additionalProperties": false}}
       },
       "additionalProperties": false
      }

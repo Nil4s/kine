@@ -26,9 +26,9 @@ func _init() -> void:
 	root.add_child(m)
 	await process_frame
 	# (1) the audit, from the source
-	var policy := {"_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
+	var policy := {"_ring_push": "user://autosave_N.json only (the rotating autosaves, RING_N = 5; never scenes/)", "_recent_note": "the settings file (File > Recent: a preference, not work)", "_restore_copy": "a NEW scene in scenes/_wip/ (never over a file: _2, _3)", "_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
 		"_save_scene_now": "asked by _save_scene when another file has the name", "_trash_now": "asked by _trash",
-		"_polish": "a NEW machine copy in scenes/_wip/", "_words_build": "a NEW machine copy in scenes/_wip/ (the move built from words)", "_ragdoll_fall": "a NEW machine copy in scenes/_wip/ (<name>_ragdoll[_N], never overwrites)", "_style_save": "a NEW machine copy in scenes/_wip/ (the style's own file; the scene it came from is untouched)", "_mirror_scene": "a NEW machine copy in scenes/_wip/", "_import_bvh": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)",
+		"_polish": "a NEW machine copy in scenes/_wip/", "_template_build": "a NEW scene in scenes/_wip/ (never over an earlier one: _2, _3; the templates/ files are only read)", "_words_build": "a NEW machine copy in scenes/_wip/ (the move built from words)", "_ragdoll_fall": "a NEW machine copy in scenes/_wip/ (<name>_ragdoll[_N], never overwrites)", "_style_save": "a NEW machine copy in scenes/_wip/ (the style's own file; the scene it came from is untouched)", "_mirror_scene": "a NEW machine copy in scenes/_wip/", "_import_bvh": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)",
 		"_import_pose": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_anim": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_video": "the tracker's pose file in user://video_track/ (its own, replaced per video)",
 		"_import_file": "a COPY of the chosen file into the library (the original never written; never overwrites: _2)",
 		"_rename_pose": "refuses an existing name; the old name is free again", "_exit_tree": "the test's own settings file",
@@ -47,6 +47,11 @@ func _init() -> void:
 		"_export_glb": "exports/<scene>.glb (the export folder; never a scene, pose or data file)",
 		"_export_bvh": "exports/<scene>.bvh (the export folder; never a scene, pose or data file)",
 		"_export_usd": "exports/<scene>.usda (the export folder; never a scene, pose or data file)",
+		"_export_review": "exports/review/<scene>_<date>[_N].html (the export folder, never over an earlier page: _2, _3; never a scene, pose or data file) and its own temp frames in user://review_frames, removed after",
+		"_onion_save": "the settings file only (user://poser.cfg onion section: a preference, not work)",
+		"_save_theme": "the settings file only (user://poser.cfg look section: a preference, not work)",
+		"_template_build_now": "a NEW scene in scenes/_wip/ (Templates.new_path never over an earlier one: _2, _3; the templates/ files are only read)",
+		"_wp_dab": "no file of its own (paints the in-memory skin weights); the remove_absolute lines the scan sees belong to the static _rm_tree below it, which deletes a test's own library folder (SS6)",
 		"_save_version": "always a NEW file scenes/_versions/<scene>/vNNN.json (the next number; never the scene's own file)"}
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd").split("\n")
 	var fn := ""

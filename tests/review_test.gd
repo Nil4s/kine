@@ -52,8 +52,12 @@ func _init() -> void:
 	ok(jpgs == n, "2 the page holds %d frames (one JPEG per playblast frame, %d expected)" % [jpgs, n])
 	ok(txt.begins_with("<!doctype html>") and txt.count("<html") == 1 and txt.count("</html>") == 1 and txt.count("<script>") == 1 and txt.count("</script>") == 1,
 		"3 valid single document: doctype, one html, one script block")
-	ok(not txt.to_lower().contains("http") and not txt.contains("<script src") and not txt.contains("<link") and not txt.contains("@import"),
-		"4 no external URL or script or stylesheet (grep http: %s)" % txt.to_lower().contains("http"))
+	# the JPEG frames are base64: "http" can occur in them by chance (any 4 letters do), so the URL check strips the
+	# data: payloads first (a new render of the frames made "HttP" appear in one; the page text has none)
+	var b64 := RegEx.create_from_string("base64,[A-Za-z0-9+/=]*")
+	var txt_nob64 := b64.sub(txt, "base64,", true)
+	ok(not txt_nob64.to_lower().contains("http") and not txt.contains("<script src") and not txt.contains("<link") and not txt.contains("@import"),
+		"4 no external URL or script or stylesheet (grep http outside the image data: %s)" % txt_nob64.to_lower().contains("http"))
 	ok(page.get_file().begins_with(S.name) and page.get_file().ends_with(".html") and page.begins_with(tmp),
 		"5 named for the scene, under the root: %s" % page.get_file())
 	var left := []

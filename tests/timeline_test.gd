@@ -92,7 +92,8 @@ func _init() -> void:
 	drag(tl.x_of(ts()[2][1]), 0.1 * k)
 	ok(is_equal_approx(float(m.S.cards[2]["hold"]), 0.1) and is_equal_approx(m.S.move_time(2), m3), "  drag RIGHT: a 0.10 s hold pulled out (hold %.2f, move still %.2f)" % [m.S.cards[2]["hold"], m.S.move_time(2)])
 	m._undo()
-	drag(tl.x_of(ts()[2][1]), -0.05 * k)
+	# -0.052 s, not -0.05: that is exactly 1.5 frames, a rounding TIE that float32 mouse positions decide at random
+	drag(tl.x_of(ts()[2][1]), -0.052 * k)
 	ok(is_equal_approx(m.S.move_time(2), 0.15 - 2.0 / 30.0) and float(m.S.cards[2]["hold"]) == 0.0, "  drag LEFT: the move 0.15 -> %.2f, still no hold" % m.S.move_time(2))
 	m._undo()
 

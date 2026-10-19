@@ -35,9 +35,15 @@ func move(p: Vector2, rel: Vector2) -> void:
 	root.push_input(e)
 
 
-## the screen point of a part's middle (its capsule's centre), checked to pick that part
+## the screen point of a part's middle (its capsule's centre), checked to pick that part. PRECISE PICK: the pick is the
+## skin, so where another part's skin covers the centre (a resting hand's thumb on the forearm) the point slides along
+## the part's axis to the first spot whose skin is the part's own
 func spot(j: String) -> Vector2:
 	var c: Array = m.B.cap(j)
+	for f in [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8]:
+		var p: Vector2 = m.cam.unproject_position((c[0] as Vector3).lerp(c[1], f))
+		if m._pick(p) == j:
+			return p
 	return m.cam.unproject_position((c[0] + c[1]) * 0.5)
 
 
@@ -118,6 +124,7 @@ func _init() -> void:
 	# the actions
 	m.B.ang[j] = Vector3(70, 0, 0)
 	m.B.fk()
+	m._refresh()   # the view drawn in that pose (the pick reads the skin as drawn)
 	await choose(j, "Reset")
 	ok((m.B.ang[j] as Vector3).length() < 1e-4, "Reset wedge: forearm bend 70 -> %.1f" % m.B.ang[j].x)
 	m._undo()
@@ -129,10 +136,12 @@ func _init() -> void:
 	ok((m.B.ang["lowerarm_r"] as Vector3).is_equal_approx(r0), "  Ctrl+Z: the right forearm back")
 	m.B.ang[j] = Vector3(52, 0, 0)
 	m.B.fk()
+	m._refresh()   # the view drawn in that pose (the pick reads the skin as drawn)
 	await choose(j, "Snap 90")
 	ok(is_equal_approx(m.B.ang[j].x, 90.0) or is_equal_approx(m.B.ang[j].x, 0.0), "Snap 90: bend 52 -> %.0f" % m.B.ang[j].x)
 	m.B.ang[j] = Vector3.ZERO   # straight again: bent 90, the hand's capsule sat over the forearm's middle and was picked
 	m.B.fk()
+	m._refresh()   # the view drawn in that pose (the pick reads the skin as drawn)
 	await choose(j, "Pin a")
 	ok(j in m.ov.pins, "Pin a trail: the forearm has its own trail (%s)" % str(m.ov.pins))
 	var n0: int = m.S.cards.size()

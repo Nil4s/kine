@@ -27,6 +27,9 @@ const CAM := [30.0, -10.0, 5.0, Vector3(0, 0.95, 0.75)]   # the fixed one-actor 
 const BOTH := [70.0, -12.0, 4.6, Vector3(0, 0.95, 0.75)]  # both fighters side by side
 const REL := [40.0, -10.0, 3.5]                            # the drag's camera, relative to the body dragged
 const JD := "upperarm_r"
+# the drag goes OUT and up, away from the chest: the old (90, -60) pushed the arm across the body, into the clavicle / trunk-skin contact stops,
+# where it stops moves with float noise (0.85 deg between two identical drags). This test compares the two frames, not the contact solver.
+const DRAGV := Vector2(-90, -60)
 
 
 func ok(c: bool, what: String) -> void:
@@ -166,8 +169,9 @@ func worst_px(a: Array, b: Array) -> float:
 	return w
 
 
-## the test's own pick: [actor, part] of the nearest capsule under screen point p over every fighter (the active one's
-## weapon too, as _pick takes it), or [-1, ""]
+## the test's own pick: [actor, part] of the nearest thing under screen point p over every fighter: a body part is its
+## SKIN (PRECISE PICK: each fighter's SkinPick, the posed mesh; tests/precise_pick_test.gd checks it against a brute
+## force), the active one's weapon its capsule (as _pick takes it), or [-1, ""]
 func nearest(p: Vector2) -> Array:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
@@ -176,8 +180,12 @@ func nearest(p: Vector2) -> Array:
 	for k in m.actors_rt.size():
 		var b: Body = m.actors_rt[k]["B"]
 		var X := body_to_world(k)
-		var cand: Array = Body.ORDER + (Body.WEAPON if b.wep_on and k == m.actor_on else [])
-		for j in cand:
+		var sp: SkinPick = m.skp if k == m.actor_on else m.actor_men[k]["skp"]
+		var h: Array = sp.pick(o, d)
+		if String(h[0]) != "" and float(h[1]) < bt:
+			bt = float(h[1])
+			best = [k, String(h[0])]
+		for j in (Body.WEAPON if b.wep_on and k == m.actor_on else []):
 			var c: Array = b.cap(j)
 			var r: Vector2 = m._ray_seg(o, d, X * (c[0] as Vector3), X * (c[1] as Vector3))
 			if r.y <= maxf(float(b.rad[j]) * 1.15, 0.014) and r.x < bt:
@@ -220,6 +228,7 @@ func _init() -> void:
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
 	await open_combo()
+
 	var shot_a := await shot3d()
 	if OS.get_environment("ZZ_TC4_BASE") != "":   # the pre-TC4 tree: its picture, then out (it has none of the rest)
 		shot_a.save_png("user://zz_tc4_base.png")
@@ -244,7 +253,7 @@ func _init() -> void:
 	await cam([REL[0], REL[1], REL[2], Vector3(0, 0.95, 0)])
 	var p0: Vector2 = centre_one(JD)
 	var a00 := ang_of(m.B)
-	await drag(p0, Vector2(90, -60))
+	await drag(p0, DRAGV)
 	var a01 := ang_of(m.B)
 	var sel0: String = m.sel
 	m._undo()
@@ -385,7 +394,7 @@ func _init() -> void:
 	var p1 := centre(1, JD)
 	var nn1 := nearest(p1)
 	var a10 := ang_of(B1)
-	await drag(p1, Vector2(90, -60))
+	await drag(p1, DRAGV)
 	var a11 := ang_of(B1)
 	var dd := delta_diff(a00, a01, a10, a11)
 	ok(m.actor_on == 1 and m.sel == JD and nn1 == [1, JD] and dd[0] <= 0.5 and dd[1] > 5.0,

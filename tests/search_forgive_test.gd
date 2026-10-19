@@ -38,8 +38,9 @@ func _init() -> void:
 	m.ui_cmd.open()
 	await process_frame
 	# synonyms: the word people type -> the command they mean
+	# (keytypes merge: plain "inbetween" now exactly names "Part key type: inbetween", so the card command is asked with "card" too)
 	for pair in [["keyframe", "CLIP this pose (add a card)"], ["flip", "Mirror the whole pose"], ["rewind", "Undo"],
-			["pin foot", "Plant the left foot on this card"], ["dark", "Light / dark theme"], ["inbetween", "Add an in-between card"],
+			["pin foot", "Plant the left foot on this card"], ["dark", "Light / dark theme"], ["inbetween card", "Add an in-between card"],
 			["duplicate pose", "Copy pose"], ["screenshot", ""], ["sword", "Weapon: metal bat"]]:
 		var t := top(pair[0], 3)
 		if pair[1] == "":

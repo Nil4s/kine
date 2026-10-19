@@ -35,7 +35,7 @@ var recent: Array = []   # names of the last commands run, newest first (shown o
 var commands: Array = []
 ## ROADMAP 52: the saved files as rows {"name", "kind" ("pose" / "scene"), "also", "desc", "run"}; main's files_provider
 ## lists them each time the box opens (not per keystroke). KINDS: the words a "kind:" prefix may start with
-const KINDS := ["command", "pose", "scene"]
+const KINDS := ["command", "pose", "scene", "macro"]   # ROADMAP 81: "macro:" lists the recorded macros
 var files_provider: Callable
 var files: Array = []
 var box: LineEdit
@@ -76,6 +76,14 @@ func open() -> void:
 	files = files_provider.call() if files_provider.is_valid() else []
 	_filter()
 	box.grab_focus()
+
+
+## the box opened with text already in it (ROADMAP 81: "Play macro..." opens it on "macro:" to list the macros)
+func open_with(text: String) -> void:
+	open()
+	box.text = text
+	box.caret_column = text.length()
+	_filter()
 
 
 func close() -> void:
@@ -130,7 +138,7 @@ func _word_score(text: String, words: PackedStringArray, w: String, is_name: boo
 		best = maxi(best, (8 + syns) if is_name else 2)
 	if best == 0 and w.length() >= 4:
 		for word in words:
-			if typo1(w, word) or (word.length() > w.length() and typo1(w, word.left(w.length()))):
+			if typo1(w, word) or (word.length() > w.length() and typo1(w, word, w.length())):
 				best = 7 if is_name else 1
 				break
 	return best
@@ -154,15 +162,19 @@ func _query_words(q: String) -> PackedStringArray:
 
 
 ## a and b one edit apart: one letter changed, added, dropped, or two neighbours swapped
-static func typo1(a: String, b: String) -> bool:
-	if a == b or absi(a.length() - b.length()) > 1:
+static func typo1(a: String, b: String, blen := -1) -> bool:
+	# blen >= 0: b is read as its first blen letters only (the prefix check, with no new string made: the search runs
+	# this for every word of every item on each keystroke, and a "walk" typed once cost 5 ms over 404 items)
+	var la := a.length()
+	var lb := b.length() if blen < 0 else mini(blen, b.length())
+	if absi(la - lb) > 1 or (la == lb and blen < 0 and a == b):
 		return false
-	# (code units, no new strings: this runs for every word of every item on each keystroke)
-	if a.length() == b.length():
+	# (code units, no new strings)
+	if la == lb:
 		var n := 0
 		var d0 := -1
 		var d1 := -1
-		for i in a.length():
+		for i in la:
 			if a.unicode_at(i) != b.unicode_at(i):
 				n += 1
 				if n == 1:
@@ -171,17 +183,22 @@ static func typo1(a: String, b: String) -> bool:
 					d1 = i
 				else:
 					return false
+		if n == 0:
+			return false   # equal (the old a == b test)
 		if n == 1:
 			return true
 		return d1 == d0 + 1 and a.unicode_at(d0) == b.unicode_at(d1) and a.unicode_at(d1) == b.unicode_at(d0)
 	# one letter added or dropped: the longer one with one letter taken out is the shorter one
-	var lo := a if a.length() < b.length() else b
-	var hi := b if lo == a else a
+	var a_lo := la < lb
+	var lo_len := la if a_lo else lb
+	var hi_len := lb if a_lo else la
 	var i := 0
 	var j := 0
 	var skipped := false
-	while i < hi.length() and j < lo.length():
-		if hi.unicode_at(i) == lo.unicode_at(j):
+	while i < hi_len and j < lo_len:
+		var hc := b.unicode_at(i) if a_lo else a.unicode_at(i)
+		var lc := a.unicode_at(j) if a_lo else b.unicode_at(j)
+		if hc == lc:
 			j += 1
 		elif skipped:
 			return false
@@ -221,7 +238,15 @@ func matches(kind: String, q: String) -> Array:
 				continue
 		hits.append([s, i, pool[i]])
 	if q != "":
-		hits.sort_custom(func(a, b): return a[0] > b[0] or (a[0] == b[0] and a[1] < b[1]))
+		# a tie: the row with a shortcut first (the common action: "flip" wants Shift+M's pose mirror, not the scene mirrors), then pool order
+		hits.sort_custom(func(a, b):
+			if a[0] != b[0]:
+				return a[0] > b[0]
+			var ka: bool = String(a[2].get("keys", "")) != ""
+			var kb: bool = String(b[2].get("keys", "")) != ""
+			if ka != kb:
+				return ka
+			return a[1] < b[1])
 	return hits.map(func(h): return h[2])
 
 

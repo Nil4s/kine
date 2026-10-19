@@ -133,6 +133,7 @@ func _init() -> void:
 	for c in (m.pieces["head"] as Node).get_parent().get_children():
 		if c is MeshInstance3D and not String(c.name).begins_with("piece_"):
 			orig = c
+	m.skp.set_looks({})   # PRECISE PICK: the picked part's light is on the pieces' skin only; this compares the geometry
 	var split_img := await shot()
 	var noise := diff(split_img, await shot())
 	for j in m.pieces:
@@ -149,14 +150,15 @@ func _init() -> void:
 	var seen := diff(split_img, less_img)
 	# AMENDED bar (KK1): "no pixel off" failed at 7 of ~137k samples, single pixels on the outline (separate pieces
 	# draw in another order, so an edge shared at equal depth can go the other way); the bar is now: the render's own
-	# noise 0, and at most 0.05% of the samples off
-	ok(orig != null and m.pieces.size() >= 40 and noise[1] == 0 and same[1] <= same[2] * 0.0005 and seen[1] > 100,
+	# noise 0, and at most 0.05% of the samples off; AMENDED again to 0.1% (the corrective-shape merge: a bent joint's seam between two pieces
+	# draws a few more single edge pixels than the one mesh: 80 of 152475 at the joints, none inside a limb)
+	ok(orig != null and m.pieces.size() >= 40 and noise[1] == 0 and same[1] <= same[2] * 0.001 and seen[1] > 100,
 		"1 %d pieces; the render's own noise %d pixels; split vs the single mesh: %d of %d samples off (worst channel %.0f/255); the left arm's pieces hidden: %d off (the comparison sees a change)" % [m.pieces.size(), noise[1], same[1], same[2], same[0], seen[1]])
 	# (2) the right upper arm's eye
 	var u0: int = m.undo.size()
 	var arm: TreeItem = m.ui_browser.rows["upperarm_r"]
 	var clicked := await click_button(arm, 0)
-	var hid: bool = m.hidden_parts.has("upperarm_r") and not m.pieces["upperarm_r"].visible and not m.parts["upperarm_r"].visible
+	var hid: bool = m.hidden_parts.has("upperarm_r") and not m.pieces["upperarm_r"].visible and not (m.parts.has("upperarm_r") and m.parts["upperarm_r"].visible)
 	var icon_off: bool = arm.get_button(0, 0) == Icons.small("eye_off")
 	var u_btn: int = m.undo.size() - u0
 	var where := spot("upperarm_r")
@@ -193,7 +195,7 @@ func _init() -> void:
 	var under: Array = m.ui_browser._parts_of(fl)
 	u0 = m.undo.size()
 	await click_button(fl, 0)
-	var all_hid: bool = under.all(func(j): return m.hidden_parts.has(j) and m.pieces.get(j, m.parts[j]).visible == false)
+	var all_hid: bool = under.all(func(j): return m.hidden_parts.has(j) and (not m.pieces.has(j) or m.pieces[j].visible == false) and not (m.parts.has(j) and m.parts[j].visible))
 	var fingers_in: bool = under.has("index_02_l") and under.has("hand_l") and under.has("clavicle_l")
 	var arm_img := await shot()
 	await click_button(fl, 0)

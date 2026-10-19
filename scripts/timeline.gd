@@ -17,6 +17,12 @@ signal retimed(final: bool)
 signal range_set(which: String, t: float)   # WW4: Shift+click on the ruler = in point, Alt+click = out point
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 signal box_picked(i: int)   # ROADMAP 36: a box on the boxes lane clicked: the index into S.boxes
+signal shot_cut(i: int, t: float, final: bool)   # ROADMAP 75: shot i's cut dragged to t (final = the mouse went up)
+
+## THE SHOTS LANE (ROADMAP 75; main.gd _shot_*): one row under the boxes lane, a segment per shot from its cut to the next
+## (the shot on at the playhead is lit). A cut is its segment's left edge: drag it (whole frames, between its neighbours) to
+## move it; a click on the lane scrubs. Drawn only when the scene has shots (main sets nothing: it reads the hero's list).
+const SHOTS_H := 12.0   # px: the lane's height
 
 ## FRAME DATA (ROADMAP 12; scripts/frame_data.gd): main.gd sets `fd` (the analysis, {} = off) and the strip shows its
 ## startup (green), active (red) and recovery (blue) in frames, under the ruler. Drawn only; the numbers are FrameData's.
@@ -28,6 +34,11 @@ var fd: Dictionary = {}
 const BX_H := 9.0   # px: the lane's height (two rows of 4 px)
 var bx: Array = []
 
+## IK SPACES (ROADMAP 63; LimbIK.space_lane): main.gd sets `sp` ([] = none). One row per limb that has a key in a space, under
+## the boxes lane: a block per run of keys in one space, labelled with the limb and the space (world dim). Drawn only.
+const SP_H := 11.0   # px: one limb's row
+var sp: Array = []
+
 const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
 const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
@@ -37,6 +48,7 @@ const FINE := 0.01
 const AUDIO_H := 20.0    # px: the sound's waveform strip under the cards (only when the scene has a sound)
 const MIN_MOVE := 0.04   # s: a move can't be shorter (a 1-frame move at 30 fps is 0.033)
 const CLIP_H := 12.0     # px: one row per placed CLIP (scripts/clips.gd), under the cards
+const WARP_H := 58.0     # px: the picked clip's row is taller by this: its TIME WARP panel (ROADMAP 83; scripts/clips.gd warp_*)
 
 var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
 
@@ -114,9 +126,76 @@ func cam_times() -> Array:
 	var out := []
 	if m == null or _S() == null:
 		return out
-	for k in m._hero_scene().camera:
-		out.append(float(k["t"]))
+	for sh in m._hero_scene().shots:
+		for k in sh["keys"]:
+			out.append(float(k["t"]))
 	return out
+
+
+## THE SHOTS LANE (ROADMAP 75): the hero's shots ([] = none), the lane's height and top
+func _shots() -> Array:
+	return m._hero_scene().shots if m != null and _S() != null else []
+
+
+func shots_px() -> float:
+	return SHOTS_H + 3.0 if not _shots().is_empty() else 0.0
+
+
+func _shots_y() -> float:
+	return RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + bx_px()
+
+
+func _in_shots_lane(p: Vector2) -> bool:
+	return not _shots().is_empty() and p.y >= _shots_y() and p.y <= _shots_y() + SHOTS_H
+
+
+## the index of the shot whose cut is under p on the shots lane (within 6 px), or -1
+func shot_cut_at(p: Vector2) -> int:
+	if not _in_shots_lane(p):
+		return -1
+	var best := -1
+	var bd := 6.0
+	var sh := _shots()
+	for i in sh.size():
+		var d := absf(p.x - x_of(float(sh[i]["t"])))
+		if d <= bd:
+			best = i
+			bd = d
+	return best
+
+
+## the lane's segments: a bar per shot from its cut to the next cut (or the end); the one on at the playhead is lit
+func _draw_shots_lane(y: float) -> void:
+	var sh := _shots()
+	var font := get_theme_default_font()
+	var L := _S().length()
+	var on: int = m.shot_now_index()
+	for i in sh.size():
+		var x0 := x_of(float(sh[i]["t"]))
+		var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else L)
+		var act := i == on
+		draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 2.0), SHOTS_H), Tok.c("accent") if act else Tok.of("ink:0.22"))
+		draw_line(Vector2(x0, y - 1.0), Vector2(x0, y + SHOTS_H + 1.0), Tok.c("ink"), 2.0 if i > 0 else 1.0)   # the cut
+		var label := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(sh[i]["name"])]
+		if x1 - x0 > 16.0:
+			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), label, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+
+
+## a shot's cut dragged to x: whole frames, never onto its neighbours' cuts (the order stays)
+func _shot_cut_drag(x: float) -> void:
+	var sh := _shots()
+	var i: int = _drag["i"]
+	if not _drag["moved"]:
+		if absf(x - float(_drag["x0"])) < 3.0:
+			return
+		_drag["moved"] = true
+	var fps := float(_S().fps)
+	var lo := roundi(float(sh[i - 1]["t"]) * fps) + 1
+	var hi := roundi(float(sh[i + 1]["t"]) * fps) - 1 if i + 1 < sh.size() else roundi(_S().length() * fps)
+	var fr := clampi(roundi(t_of(x) * fps), lo, maxi(lo, hi))
+	_drag["t"] = float(fr) / fps
+	shot_cut.emit(i, float(_drag["t"]), false)
+	queue_redraw()
 
 
 ## the diamonds' centre line (y)
@@ -160,6 +239,9 @@ func hit(p: Vector2) -> Dictionary:
 		return {}
 	if p.y < RULER:
 		return {"kind": "ruler"}
+	var wh := warp_hit(p)   # the picked clip's time curve: a knot (j) or its empty panel (j = -1)
+	if not wh.is_empty():
+		return wh
 	var ck := clip_at(p)
 	if ck >= 0:
 		return {"kind": "clip", "i": ck}
@@ -205,6 +287,17 @@ func _gui_input(ev: InputEvent) -> void:
 				finding_picked.emit(fs[0])
 				accept_event()
 				return
+			var sci := shot_cut_at(ev.position)   # ROADMAP 75: a cut on the shots lane = scrub there; a later cut is dragged
+			if sci > 0:
+				_drag = {"kind": "shot", "i": sci, "x0": ev.position.x, "moved": false, "t": float(_shots()[sci]["t"])}
+				scrubbed.emit(float(_shots()[sci]["t"]))
+				accept_event()
+				return
+			if sci == 0 or _in_shots_lane(ev.position):
+				_drag = {"kind": "scrub"}
+				scrubbed.emit(float(_shots()[sci]["t"]) if sci >= 0 else t_of(ev.position.x))
+				accept_event()
+				return
 			var bxi := box_at(ev.position)   # ROADMAP 36: a click on the boxes lane picks that box
 			if bxi >= 0:
 				box_picked.emit(bxi)
@@ -216,6 +309,8 @@ func _gui_input(ev: InputEvent) -> void:
 			match h["kind"]:
 				"clip":
 					_clip_press(h["i"], ev.position.x)
+				"warp":
+					_warp_press(h["i"], h["j"], ev.position)
 				"ruler" when ev.shift_pressed or ev.alt_pressed:
 					range_set.emit("in" if ev.shift_pressed else "out", t_of(ev.position.x))
 				"ruler":
@@ -230,6 +325,12 @@ func _gui_input(ev: InputEvent) -> void:
 						"alt": ev.alt_pressed, "move0": S.move_time(i), "hold0": float(S.cards[i]["hold"]),
 						"nmove0": S.move_time(i + 1) if i + 1 < S.cards.size() else 0.0}
 			accept_event()
+		elif not _drag.is_empty() and _drag["kind"] == "shot":
+			if _drag["moved"]:
+				shot_cut.emit(int(_drag["i"]), float(_drag["t"]), true)
+			_drag = {}
+			queue_redraw()
+			accept_event()
 		elif not _drag.is_empty():
 			var was: String = _drag.get("kind", "")
 			var moved: bool = _drag.get("moved", true)
@@ -238,10 +339,19 @@ func _gui_input(ev: InputEvent) -> void:
 				retimed.emit(true)
 			queue_redraw()
 			accept_event()
+	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed and m != null and m.get("clips_ui") != null:
+		var wh := warp_hit(ev.position)   # right-click a knot of the picked clip's time curve = take it out (one undo step)
+		if not wh.is_empty() and int(wh["j"]) >= 0:
+			m.clips_ui.warp_remove(int(wh["i"]), int(wh["j"]))
+			accept_event()
 	elif ev is InputEventMouseMotion:
+		if not _drag.is_empty() and _drag["kind"] == "shot":
+			_shot_cut_drag(ev.position.x)
+			accept_event()
+			return
 		if _drag.is_empty():
 			var h := hit(ev.position)
-			mouse_default_cursor_shape = Control.CURSOR_HSIZE if h.get("kind", "") in ["move", "hold", "edge0"] else Control.CURSOR_ARROW
+			mouse_default_cursor_shape = Control.CURSOR_HSIZE if h.get("kind", "") in ["move", "hold", "edge0"] or shot_cut_at(ev.position) > 0 else Control.CURSOR_ARROW
 			if h != _hover:
 				_hover = h
 				queue_redraw()
@@ -251,6 +361,10 @@ func _gui_input(ev: InputEvent) -> void:
 			return
 		if _drag["kind"] == "clip":
 			_clip_drag(ev.position.x, ev.shift_pressed)
+			accept_event()
+			return
+		if _drag["kind"] == "warp":
+			_warp_drag(ev.position)
 			accept_event()
 			return
 		_retime_to(ev.position.x, ev.shift_pressed)
@@ -370,7 +484,10 @@ func _draw() -> void:
 		k += 1
 	var fdh := FD_H + 3.0 if not fd.is_empty() else 0.0   # FRAME DATA (ROADMAP 12): the strip sits under the ruler
 	var bxh := bx_px()   # HIT / HURT BOXES (ROADMAP 36): the lane sits under the frame strip
-	var y0 := RULER + 2.0 + fdh + bxh
+	var shp := shots_px()   # THE SHOTS LANE (ROADMAP 75): under the boxes lane
+	if shp > 0.0:
+		_draw_shots_lane(_shots_y())
+	var y0 := RULER + 2.0 + fdh + bxh + shp
 	var ah := AUDIO_H if not S.audio.is_empty() else 0.0
 	_clip_fit(S)
 	var h := size.y - y0 - 2.0 - ah - _clip_px
@@ -426,6 +543,8 @@ func _draw() -> void:
 		_draw_fd_strip(font, RULER + 2.0)
 	if not bx.is_empty():
 		_draw_bx_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0))
+	if not sp.is_empty():
+		_draw_sp_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + bx_px(), font)
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
 	# cards are still yours but never play: shade them and say why (else the strip and the play time disagree silently)
 	var P: Scene = m._ps()
@@ -514,7 +633,7 @@ var _clip_px := 0.0      # px the clip rows take (added to the minimum height th
 
 
 func _clip_fit(S: Scene) -> void:
-	var want := S.clips.size() * CLIP_H + (2.0 if not S.clips.is_empty() else 0.0)
+	var want := _clip_rows_h(S)
 	if absf(want - _clip_px) > 0.1:
 		set_deferred("custom_minimum_size", Vector2(custom_minimum_size.x, custom_minimum_size.y + want - _clip_px))
 		_clip_px = want
@@ -532,15 +651,70 @@ func _clip_sel() -> int:
 	return int(cu.sel) if cu != null else -1
 
 
+## the rows' height: one per clip, the picked clip's taller by its warp panel
+func _clip_rows_h(S: Scene) -> float:
+	if S.clips.is_empty():
+		return 0.0
+	var h := S.clips.size() * CLIP_H + 2.0
+	if _clip_sel() >= 0 and _clip_sel() < S.clips.size():
+		h += WARP_H
+	return h
+
+
+## the top of clip k's row (rows stack from the bottom up: each clip's row, the picked one's panel under its bar)
+func _clip_y(k: int) -> float:
+	var S := _S()
+	var y := size.y - (AUDIO_H if not S.audio.is_empty() else 0.0) - _clip_px
+	var sel := _clip_sel()
+	for j in k:
+		y += CLIP_H + (WARP_H if j == sel else 0.0)
+	return y
+
+
 ## clip k's bar on the timeline
 func clip_rect(k: int) -> Rect2:
 	var S := _S()
 	var c: Dictionary = S.clips[k]
 	var e := Clips.source(String(c["src"]))
 	var L := float(e.get("len", 0.5))
-	var y := size.y - (AUDIO_H if not S.audio.is_empty() else 0.0) - _clip_px + k * CLIP_H
+	var y := _clip_y(k)
 	var x0 := x_of(float(c["start"]))
 	return Rect2(x0, y, maxf(x_of(float(c["start"]) + Clips.length_of(c, L)) - x0, 6.0), CLIP_H - 2.0)
+
+
+## the TIME WARP panel under the picked clip's bar: as wide as the strip (at least 96 px). Input time runs left to right
+## over the strip, the source's progress up
+func warp_rect(k: int) -> Rect2:
+	var r := clip_rect(k)
+	return Rect2(r.position.x, _clip_y(k) + CLIP_H, maxf(r.size.x, 96.0), WARP_H - 4.0)
+
+
+## the inner plot of the panel (6 px inside), and the mapping of a knot (x, y in 0..1) to px and back
+func warp_px(k: int, n: Vector2) -> Vector2:
+	var ir := warp_rect(k).grow(-6.0)
+	return Vector2(ir.position.x + n.x * ir.size.x, ir.end.y - n.y * ir.size.y)
+
+
+func warp_norm_of(k: int, p: Vector2) -> Vector2:
+	var ir := warp_rect(k).grow(-6.0)
+	return Vector2(clampf((p.x - ir.position.x) / ir.size.x, 0.0, 1.0), clampf((ir.end.y - p.y) / ir.size.y, 0.0, 1.0))
+
+
+## the picked clip's warp panel under p: {"kind": "warp", "i": clip, "j": the knot within 7 px (-1 = the empty panel)}, else {}
+func warp_hit(p: Vector2) -> Dictionary:
+	var S := _S()
+	var k := _clip_sel()
+	if S == null or k < 0 or k >= S.clips.size() or not warp_rect(k).has_point(p):
+		return {}
+	var ks := Clips.warp_clean((S.clips[k] as Dictionary).get("warp", []))
+	var best := -1
+	var bd := 7.0
+	for j in ks.size():
+		var d := warp_px(k, Vector2(float(ks[j][0]), float(ks[j][1]))).distance_to(p)
+		if d <= bd:
+			bd = d
+			best = j
+	return {"kind": "warp", "i": k, "j": best}
 
 
 func clip_at(p: Vector2) -> int:
@@ -558,6 +732,57 @@ func _clip_press(k: int, x: float) -> void:
 	if cu != null:
 		cu.sel = k
 	_drag = {"kind": "clip", "i": k, "x0": x, "pps": pps(), "start0": float(_S().clips[k]["start"]), "moved": false}
+	queue_redraw()
+
+
+## a knot grabbed (j) or a new knot made where the press was (j = -1): the undo step is pushed at the first change, as for a clip
+func _warp_press(k: int, j: int, p: Vector2) -> void:
+	var cu = m.get("clips_ui")
+	if cu != null:
+		cu.sel = k
+	var S := _S()
+	if j >= 0:
+		_drag = {"kind": "warp", "i": k, "j": j, "p0": p, "moved": false}
+		queue_redraw()
+		return
+	var ks := Clips.warp_clean((S.clips[k] as Dictionary).get("warp", []))
+	var n := warp_norm_of(k, p)
+	var nk := Clips.warp_add(ks, n.x, n.y)
+	if nk.size() == ks.size():
+		m._say("no knot added there: a curve keeps %d knots at most, and each stays clear of the ends and of the next knot" % Clips.WARP_MAX)
+		return
+	var bj := 0
+	var bdx := INF
+	for q in nk.size():
+		var dx := absf(float(nk[q][0]) - n.x)
+		if dx < bdx:
+			bdx = dx
+			bj = q
+	retime_started.emit()   # main pushes the ONE undo step here
+	S.clips[k]["warp"] = nk
+	_drag = {"kind": "warp", "i": k, "j": bj, "p0": p, "moved": true}
+	retimed.emit(false)
+	queue_redraw()
+
+
+## the knot follows the pointer, clamped so the curve stays monotone (Clips.warp_set)
+func _warp_drag(p: Vector2) -> void:
+	var k: int = _drag["i"]
+	var j: int = _drag["j"]
+	var S := _S()
+	if k >= S.clips.size():
+		return
+	if not _drag["moved"]:
+		if p.distance_to(_drag["p0"]) < 3.0:
+			return
+		_drag["moved"] = true
+		retime_started.emit()   # main pushes the ONE undo step here
+	var ks := Clips.warp_clean((S.clips[k] as Dictionary).get("warp", []))
+	if j >= ks.size():
+		return
+	var n := warp_norm_of(k, p)
+	S.clips[k]["warp"] = Clips.warp_set(ks, j, n.x, n.y)
+	retimed.emit(false)
 	queue_redraw()
 
 
@@ -587,6 +812,33 @@ func box_at(p: Vector2) -> int:
 		if p.x >= x0 and p.x <= x1:
 			return int(b["i"])
 	return -1
+
+
+## the space lane's height (0 with no space keyed)
+func sp_px() -> float:
+	if sp.is_empty():
+		return 0.0
+	var rows := 0
+	for b in sp:
+		rows = maxi(rows, int(b["row"]) + 1)
+	return SP_H * rows + 3.0
+
+
+## the space segments: a block per run, "R hand: chest" in it (the words are the space's own name; world is dim)
+func _draw_sp_lane(y: float, font: Font) -> void:
+	var cols := {"world": Tok.of("ink:0.3"), "chest": Tok.c("fd_startup"), "pelvis": Tok.c("fd_recovery"), "weapon": Tok.c("fd_active"),
+		"hand_l": Tok.c("beat_down"), "hand_r": Tok.c("beat_down")}
+	for b in sp:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := x_of(float(b["t1"]))
+		var ry := y + SP_H * int(b["row"])
+		var blk: Color = cols.get(b["space"], Tok.c("fd_ink"))
+		blk.a = 0.85   # (the alpha set on the token colour: the theme test wants no colour literals)
+		draw_rect(Rect2(x0, ry, maxf(x1 - x0 - 1.0, 2.0), SP_H - 1.0), blk)
+		var who := ("L " if String(b["tip"]).ends_with("_l") else "R ") + String(b["tip"]).split("_")[0]
+		var what := String(b["space"]).replace("hand_l", "left hand").replace("hand_r", "right hand")
+		if x1 - x0 > 36.0:
+			draw_string(font, Vector2(x0 + 3.0, ry + SP_H - 2.5), "%s: %s" % [who, what], HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4.0, 9, Tok.c("fd_ink"))
 
 
 ## the lane's height on the timeline (0 with no boxes)
@@ -632,6 +884,26 @@ func _draw_fd_strip(font: Font, y: float) -> void:
 			draw_string(font, Vector2(x0 + 2, y + FD_H - 2.0), str(n), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 3, 10, Tok.c("fd_ink"))
 
 
+## the picked clip's time curve on its panel: the dashed diagonal is linear (no warp), the curve is the warp (the source
+## progress against the strip progress), each knot a dot. The ends are fixed and drawn small
+func _draw_warp(k: int, S: Scene, font: Font) -> void:
+	var r := warp_rect(k)
+	draw_rect(r, Tok.of("tl_bg:0.9"))
+	draw_rect(r, Tok.c("focus"), false, 1.0)
+	draw_dashed_line(warp_px(k, Vector2(0, 0)), warp_px(k, Vector2(1, 1)), Tok.of("ink:0.35"), 1.0, 4.0)
+	var wk := Clips.warp_norm((S.clips[k] as Dictionary).get("warp", []))
+	var pts := PackedVector2Array()
+	for i in 33:
+		var x := i / 32.0
+		pts.append(warp_px(k, Vector2(x, Clips.warp_f(wk, x))))
+	draw_polyline(pts, Tok.c("focus"), 2.0)
+	for kn in Clips.warp_clean((S.clips[k] as Dictionary).get("warp", [])):
+		draw_circle(warp_px(k, Vector2(float(kn[0]), float(kn[1]))), 3.5, Tok.c("focus"))
+	draw_circle(warp_px(k, Vector2(0, 0)), 2.0, Tok.of("ink:0.6"))
+	draw_circle(warp_px(k, Vector2(1, 1)), 2.0, Tok.of("ink:0.6"))
+	draw_string(font, r.position + Vector2(4, 10), "time warp", HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 8.0, 8, Tok.of("ink:0.6"))
+
+
 func _draw_clips(S: Scene, font: Font) -> void:
 	var sel := _clip_sel()
 	for k in S.clips.size():
@@ -639,6 +911,8 @@ func _draw_clips(S: Scene, font: Font) -> void:
 		var r := clip_rect(k)
 		var e := Clips.source(String(c["src"]))
 		draw_rect(r, Tok.c("accent") if not bool(c.get("mute", false)) else Tok.of("ink:0.3"))
+		if k == sel:
+			_draw_warp(k, S, font)
 		if e.is_empty():
 			draw_string(font, Vector2(r.position.x + 3, r.position.y + 9), String(c["src"]).get_file() + ": file missing", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("on_accent"))
 			continue

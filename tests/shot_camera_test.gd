@@ -130,7 +130,7 @@ func _init() -> void:
 	m._shot_toggle()
 	ok(not m.shot_through and String(m.ui_status.text).contains("use"), "4 look-through with no camera is refused and says what to use: %s" % String(m.ui_status.text).left(90))
 	m._shot_lens(85.0)
-	ok(S.camera.is_empty() and String(m.ui_status.text).contains("first"), "  a lens with no camera is refused: %s" % String(m.ui_status.text).left(90))
+	ok(S.shots.is_empty() and String(m.ui_status.text).contains("first"), "  a lens with no camera is refused: %s" % String(m.ui_status.text).left(90))
 
 	# 5 no camera: the playblast is as before
 	var base := "user://zz_sc_%d" % run_id
@@ -156,15 +156,16 @@ func _init() -> void:
 	m._refresh()
 	var u0: int = m.undo.size()
 	m._shot_key_view()
-	ok(S.camera.size() == 1 and m.undo.size() == u0 + 1, "4 key the shot camera from the view: 1 key, %d undo step" % (m.undo.size() - u0))
-	var vk: Dictionary = S.camera[0]
+	ok(S.shots[0]["keys"].size() == 1 and m.undo.size() == u0 + 1, "4 key the shot camera from the view: 1 key, %d undo step" % (m.undo.size() - u0))
+	var vk: Dictionary = S.shots[0]["keys"][0]
 	ok((vk["aim"] as Vector3).distance_to(m.target) < 1e-6 and (vk["pos"] as Vector3).distance_to(m.cam.get_camera_transform().origin) < 1e-6,
 		"  the key is the view: lens at the view's origin, aimed at its pivot, %.1f mm" % float(vk["f"]))
 	m._undo()
-	ok(S.camera.is_empty(), "  one Ctrl+Z takes it back (keys %d)" % S.camera.size())
-	# the test's keys (the commands make them the same way: ShotCam.put)
+	ok(S.shots.is_empty(), "  one Ctrl+Z takes it back (shots %d)" % S.shots.size())
+	# the test's keys (the commands make them the same way: ShotCam.put), in one shot
+	S.shots = [{"t": 0.0, "name": "Shot 1", "keys": []}]
 	for i in 3:
-		ShotCam.put(S.camera, {"t": KT[i], "pos": KP[i], "aim": KA[i], "f": KF[i]})
+		ShotCam.put(S.shots[0]["keys"], {"t": KT[i], "pos": KP[i], "aim": KA[i], "f": KF[i]})
 
 	# 1 the lens
 	var want_v := rad_to_deg(2.0 * atan((36.0 / (16.0 / 9.0)) / 2.0 / 50.0))
@@ -180,7 +181,7 @@ func _init() -> void:
 		look(t)
 		await idle(1)
 		var r: Rect2i = m.shot_rect()
-		var k := ShotCam.sample(S.camera, t)
+		var k := ShotCam.sample(S.shots[0]["keys"], t)
 		var cx := r.position.x + r.size.x * 0.5
 		# two points on rays turned +-fov_v/2 about the camera's x axis from its axis must land on the frame's top and
 		# bottom edge (Camera3D.unproject_position: the projection the render uses); the miss in px as degrees
@@ -300,13 +301,13 @@ func _init() -> void:
 	ok(mm < 1e-9 and JSON.stringify(back["camera"]) == JSON.stringify(d["camera"]), "  mirror: pos / aim x negated, y and lens kept (error %.9f); twice = the original" % mm)
 	# undo: lens, remove (each one step, back exactly)
 	for step in [["Camera: lens 135 mm", func(): m._shot_lens(135.0)], ["lens between keys (adds a key)", func(): m.playhead = 0.2; m._shot_lens(24.0)], ["Camera: remove the key here", func(): m.playhead = 0.5; m._shot_remove()]]:
-		var before := var_to_str(S.camera)
+		var before := var_to_str(S.shots[0]["keys"])
 		var u1: int = m.undo.size()
 		step[1].call()
-		var changed := var_to_str(S.camera) != before
+		var changed := var_to_str(S.shots[0]["keys"]) != before
 		var steps: int = m.undo.size() - u1
 		m._undo()
-		ok(changed and steps == 1 and var_to_str(S.camera) == before, "  %s: changed %s, %d undo step, one Ctrl+Z puts it back exactly" % [step[0], changed, steps])
+		ok(changed and steps == 1 and var_to_str(S.shots[0]["keys"]) == before, "  %s: changed %s, %d undo step, one Ctrl+Z puts it back exactly" % [step[0], changed, steps])
 	m.playhead = 0.33
 	m._shot_remove()
 	ok(String(m.ui_status.text).contains("move the playhead"), "  remove with no key at the playhead is refused: %s" % String(m.ui_status.text).left(80))

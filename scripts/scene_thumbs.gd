@@ -20,6 +20,9 @@ var render_ms: Array = []   # measured: the milliseconds each draw took
 var _tex := {}            # scene path -> {"sha": String, "tex": ImageTexture}
 var _queue: Array = []
 var _busy := false
+var _pending: Array = []
+var _intaking := false
+const INTAKE_US := 4000
 var _vp: SubViewport
 var _sk: Skeleton3D
 var _idx := {}
@@ -49,6 +52,27 @@ static func cache_path(sha: String) -> String:
 ## the scene's picture if it is at hand: from memory, or read from the disk cache (no draw). Otherwise the file is
 ## queued and drawn when its turn comes; made is emitted for the picture when it is ready
 func request(path: String) -> void:
+	# nothing is read here: opening the list only notes the paths. The hash, the cache read and the draw all happen
+	# a few at a time on the frames AFTER the list is up (35 file hashes + PNG reads on the open frame were 80+ ms)
+	if not _pending.has(path):
+		_pending.append(path)
+	_intake()
+
+
+## the notes of request(), a time budget per frame: memory hit, disk hit (made at once), or queued for a draw
+func _intake() -> void:
+	if _intaking:
+		return
+	_intaking = true
+	while not _pending.is_empty():
+		await get_tree().process_frame
+		var t0 := Time.get_ticks_usec()
+		while not _pending.is_empty() and Time.get_ticks_usec() - t0 < INTAKE_US:
+			_look(_pending.pop_front())
+	_intaking = false
+
+
+func _look(path: String) -> void:
 	var sha := FileAccess.get_sha256(path)
 	if sha == "":
 		return
@@ -93,7 +117,7 @@ func _pump() -> void:
 
 ## wait until every queued picture is drawn (tests)
 func settle() -> void:
-	while _busy or not _queue.is_empty():
+	while _busy or _intaking or not _pending.is_empty() or not _queue.is_empty():
 		await get_tree().process_frame
 
 
@@ -149,6 +173,8 @@ func _render(path: String) -> void:
 		return
 	var sha := FileAccess.get_sha256(path)
 	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if d is Dictionary and not (d as Dictionary).has("cards") and (d as Dictionary).get("scene") is Dictionary:
+		d = (d as Dictionary)["scene"]   # an autosave (File > Restore..., ROADMAP 59): drawn from the scene it holds
 	if not (d is Dictionary) or not (d as Dictionary).has("cards"):
 		return
 	var cards: Array = (d as Dictionary)["cards"]

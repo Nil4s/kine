@@ -5,6 +5,12 @@
 ##   "Clip: place a move here..."    the same for a pose / move from moves/ (or poses/)
 ##   "Clip: edit the picked clip..." the same dialog on the picked clip (click its bar on the timeline to pick it)
 ##   "Clip: remove the picked clip"
+##   "Clip: warp ..."                 ROADMAP 83: the picked clip's time curve as a preset (linear, ease in, ease out, slow-mo
+##                                    middle). The curve itself is on the strip when picked: drag a knot, click empty space
+##                                    to add one, right-click a knot to take it out (timeline.gd; scripts/clips.gd warp_*)
+##   "Clip: match pose to the clip before"  ROADMAP 84: the picked clip starts at the source frame (within 0.5 s) whose pose is
+##                                    closest to the clip before's end, its walk is moved and turned onto that end, and the blend
+##                                    across the seam is 0.2 s; the clip before holds into the seam (scripts/pose_match.gd)
 ## The timeline (timeline.gd) draws the bars and drags them in time.
 class_name ClipsUI
 extends RefCounted
@@ -40,6 +46,16 @@ func commands(add: Callable) -> void:
 		false, "the picked clip's repeat, speed, blend in / out, blend type, parts and extrapolation (click a clip's bar on the timeline to pick it)")
 	add.call("Clip: remove the picked clip", "", remove, "clip strip nla delete remove",
 		true, "the picked clip leaves this scene (its file stays as it is)")
+	add.call("Clip: warp linear", "", warp_preset.bind("linear"), "clip strip warp time curve linear straight none reset",
+		false, "the picked clip plays at a constant rate again (its time curve is straight)")
+	add.call("Clip: warp ease in", "", warp_preset.bind("ease_in"), "clip strip warp time curve ease in slow start",
+		false, "the picked clip starts slow and speeds up (its time curve bows down)")
+	add.call("Clip: warp ease out", "", warp_preset.bind("ease_out"), "clip strip warp time curve ease out slow end",
+		false, "the picked clip starts fast and slows down at its end (its time curve bows up)")
+	add.call("Clip: warp slow-mo middle", "", warp_preset.bind("slow_mid"), "clip strip warp time curve slow motion middle",
+		false, "the picked clip is slow in the middle and fast at both ends (slow motion through the middle of the strip)")
+	add.call("Clip: match pose to the clip before", "", match_pose.bind(-1), "clip strip match pose transition seam blend foot walk smooth pop join",
+		false, "the picked clip starts at the frame (within 0.5 s) whose pose is closest to the clip before's end, moved onto its place and turned to its heading, with a 0.2 s blend (no pop at the seam)")
 
 
 ## the files a dialog offers: scenes (scene files: scenes/, scenes/_wip, moves/ with cards) or moves (poses and keyed moves)
@@ -193,6 +209,76 @@ func edit(k: int, opts: Dictionary) -> void:
 		S.clips[k] = c
 		_replay())
 	m._say("clip %s changed (Ctrl+Z takes it back)" % Clips.label(c))
+
+
+## ROADMAP 84: the picked clip (or clip k) matched to the clip before it: ONE undo step. Says what the match did
+func match_pose(k := -1) -> void:
+	var S: Scene = m.S
+	if k < 0:
+		k = _picked()
+		if k < 0:
+			return
+	if k >= S.clips.size():
+		return
+	var r := PoseMatch.plan(S, k)
+	if r.has("err"):
+		m._say(String(r["err"]))
+		return
+	var A: Dictionary = S.clips[int(r["A"])]
+	var B: Dictionary = S.clips[k]
+	if r["A2"] == A and r["B2"] == B:
+		m._say("the clip already starts matched to the clip before: drag or edit the clips to match again")
+		return
+	var ia: int = int(r["A"])
+	var A2: Dictionary = r["A2"]
+	var B2: Dictionary = r["B2"]
+	m._do(func():
+		S.clips[ia] = A2
+		S.clips[k] = B2
+		_replay())
+	m._say("clip %s matched: starts at source %.2f s (pose %.1f deg from the clip before's end), turned %.1f deg, %.2f s blend (Ctrl+Z takes it back)" % [
+		Clips.label(B2), float(B2["match"]["lt0"]), float(r["d"]), float(r["yaw"]), float(B2["bin"])])
+
+
+## the picked clip, or the reason there is none (a message names the next step)
+func _picked() -> int:
+	var S: Scene = m.S
+	if sel < 0 or sel >= S.clips.size():
+		m._say("no clip picked: click a clip's bar under the cards on the timeline first, then pick its warp")
+		return -1
+	return sel
+
+
+## a preset time curve for the picked clip: ONE undo step
+func warp_preset(name: String) -> void:
+	var k := _picked()
+	if k >= 0:
+		set_warp(k, Clips.WARP_PRESETS[name], name.replace("_", " "))
+
+
+## clip k's time curve set to these knots (Clips.warp_norm'd): ONE undo step; the same curve again does nothing
+func set_warp(k: int, knots: Array, what := "") -> void:
+	var S: Scene = m.S
+	var c := (S.clips[k] as Dictionary).duplicate(true)
+	c["warp"] = Clips.warp_norm(knots)
+	c = Clips.clean(c)
+	if c == S.clips[k]:
+		m._say("the clip already has that time curve: pick another preset, or drag a knot on the strip")
+		return
+	m._do(func():
+		S.clips[k] = c
+		_replay())
+	m._say("clip %s time curve %s (Ctrl+Z takes it back)" % [Clips.label(c), what if what != "" else "changed"])
+
+
+## one knot taken out of clip k's curve (right-click on the knot on the strip): ONE undo step
+func warp_remove(k: int, j: int) -> void:
+	var S: Scene = m.S
+	var ks := Clips.warp_norm((S.clips[k] as Dictionary).get("warp", []))
+	if j < 0 or j >= ks.size():
+		return
+	ks.remove_at(j)
+	set_warp(k, ks, "knot taken out")
 
 
 func remove() -> void:

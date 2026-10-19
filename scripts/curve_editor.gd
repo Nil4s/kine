@@ -55,6 +55,10 @@ var card_times := []    # DD0: each card's start time (s), for Ctrl-snap
 var _mode := ""         # the gesture: "move" | "scale" | "box"
 var _box := Rect2()
 var _snap := []         # the keys as they were when the gesture began: [[t, v], ...]
+var say: Callable = Callable()      # (text) -> void: the status line (the Unify / Break buttons name what to do next)
+var _hd := []           # ROADMAP 65: the handle being dragged [angle, key index, "in" | "out"], [] = none
+var _unify: Button
+var _break: Button
 var band := {}   # YY7: GaitBand.for_part() of the picked part (the people's band + the body's own line), {} = none
 
 
@@ -124,6 +128,74 @@ func _init() -> void:
 		_view_btn.add_theme_stylebox_override(st, flat_box)
 	_view_btn.pressed.connect(func(): set_view(VIEWS[(VIEWS.find(view) + 1) % VIEWS.size()]))
 	add_child(_view_btn)
+	_unify = _tan_button("Unify", "the picked key's two tangent handles share one slope per angle (a smooth pass through the key); drag a handle's end to set its angle and its length (how long the curve keeps the slope)", true)
+	_break = _tan_button("Break", "the picked key's two tangent handles move apart: a corner at the key (angle and length of each side on its own)", false)
+
+
+func _tan_button(txt: String, tip: String, unify: bool) -> Button:
+	var b := Button.new()
+	b.text = txt
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 11)
+	var fb := StyleBoxFlat.new()
+	fb.bg_color = Tok.c("tl_bg")
+	fb.content_margin_left = 4
+	fb.content_margin_right = 4
+	fb.content_margin_top = 0
+	fb.content_margin_bottom = 0
+	for st in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(st, fb)
+	b.pressed.connect(tangent_cmd.bind(unify))
+	add_child(b)
+	return b
+
+
+## ROADMAP 65: Unify / Break on the picked key (the key under the last click, else the first picked dot), one undo step
+func tangent_cmd(unify: bool) -> bool:
+	var i := sel_i
+	if i < 0 and not picked.is_empty():
+		i = picked_keys()[0]
+	if scene == null or i < 0 or i >= keys().size():
+		if say.is_valid():
+			say.call("%s: pick a key first (click its dot), then press it again" % ("Unify" if unify else "Break"))
+		return false
+	if begin.is_valid():
+		begin.call()
+	var r := PartKeys.unify(scene.part_keys, joint, i) if unify else PartKeys.break_handles(scene.part_keys, joint, i)
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+	if say.is_valid():
+		say.call("key %d: tangent handles %s  (Ctrl+Z takes it back)" % [i + 1, "unified: one slope through the key" if unify else "broken: each side on its own"])
+	return r
+
+
+## the keys whose handles are drawn and can be grabbed: the picked dots' keys, and the one under the last click
+func handle_keys() -> Array:
+	var out := picked_keys()
+	if sel_i >= 0 and sel_i < keys().size() and not out.has(sel_i):
+		out.append(sel_i)
+	return out
+
+
+## does key i have a handle on `side`: a bezier segment on that side
+func has_handle(i: int, side: String) -> bool:
+	var ks := keys()
+	var nb := i - 1 if side == "in" else i + 1
+	if nb < 0 or nb >= ks.size():
+		return false
+	return PartKeys.interp_of(ks[nb] if side == "in" else ks[i]) == "bezier"
+
+
+## the handle's end in local pixels for angle c of key i ("in" / "out"): key + (length in time, change in angle)
+func handle_pos(c: int, i: int, side: String) -> Vector2:
+	var ks := keys()
+	var hs: Array = PartKeys.handles_of(ks, i)
+	var hv: Vector4 = hs[0 if side == "in" else 1]
+	var k: Dictionary = ks[i]
+	var v: Vector3 = k["v"]
+	return Vector2(t_to_x(float(k["t"]) + hv.x), cv_to_y(c, v[c] + hv[c + 1]))
 
 
 func _notification(what: int) -> void:
@@ -138,6 +210,10 @@ func _notification(what: int) -> void:
 			_factor.position = Vector2(_shape.position.x + _shape.size.x + 4, 1)
 			_mods.position = Vector2(_factor.position.x + _factor.size.x + 8, 1)
 			_view_btn.position = Vector2(_mods.position.x + _mods.size.x + 8, 1)
+			_unify.reset_size()
+			_break.reset_size()
+			_unify.position = Vector2(_view_btn.position.x + _view_btn.size.x + 8, 1)
+			_break.position = Vector2(_unify.position.x + _unify.size.x + 2, 1)
 
 
 ## DD1: reshape the selected dots with a Key > Blend tool (KeyBlend), one undo step; the angles kept legal
@@ -473,11 +549,29 @@ func _draw() -> void:
 		draw_polyline(polyline(c), _col(c), 2.0, true)
 	_draw_why_lines()
 	for i in ks.size():
+		var kt := PartKeys.ktype_of(ks[i])   # ROADMAP 66: a breakdown is a small diamond, an in-between a small ring; a key a dot
 		for c in 3:
 			var q := key_pos(c, i)
 			var on := (c == sel_ch and i == sel_i) or is_picked(c, i)
-			draw_circle(q, 5.5 if on else 4.0, ink if on else _col(c))
-			draw_arc(q, 5.5 if on else 4.0, 0.0, TAU, 16, _col(c) if on else Tok.c("tl_bg"), 1.5)
+			var r := 5.5 if on else 4.0
+			if kt == "breakdown":
+				var dm := PackedVector2Array([q + Vector2(0, -r), q + Vector2(r, 0), q + Vector2(0, r), q + Vector2(-r, 0)])
+				draw_colored_polygon(dm, ink if on else _col(c))
+				draw_polyline(PackedVector2Array([dm[0], dm[1], dm[2], dm[3], dm[0]]), Tok.c("kt_break"), 1.5)
+			elif kt == "inbetween":
+				draw_arc(q, r * 0.75, 0.0, TAU, 16, ink if on else _col(c), 2.0)
+			else:
+				draw_circle(q, r, ink if on else _col(c))
+				draw_arc(q, r, 0.0, TAU, 16, _col(c) if on else Tok.c("tl_bg"), 1.5)
+	for i in handle_keys():   # ROADMAP 65: the picked keys' tangent handles, a line and a square at each end
+		for c in 3:
+			for side in ["in", "out"]:
+				if has_handle(i, side):
+					var q := key_pos(c, i)
+					var e := handle_pos(c, i, side)
+					draw_line(q, e, Color(_col(c), 0.7), 1.0)
+					var on: bool = _hd == [c, i, side]
+					draw_rect(Rect2(e - Vector2(3, 3), Vector2(6, 6)), ink if on else _col(c), true)
 	if _mode == "box":
 		draw_rect(_box.abs(), Tok.dim(0.15), true)
 		draw_rect(_box.abs(), Tok.dim(0.6), false, 1.0)
@@ -544,6 +638,13 @@ func _gui_input(ev: InputEvent) -> void:
 			var hit := pick(mb.position)
 			_press = mb.position
 			_dragging = false
+			var hh := pick_handle(mb.position)
+			if not hh.is_empty() and hit[1] < 0:
+				_hd = hh
+				_mode = "handle"
+				queue_redraw()
+				accept_event()
+				return
 			if hit[1] >= 0:
 				if mb.shift_pressed:
 					if is_picked(hit[0], hit[1]):
@@ -574,6 +675,7 @@ func _gui_input(ev: InputEvent) -> void:
 							if r.has_point(key_pos(c, i)) and not is_picked(c, i):
 								picked.append([c, i])
 			_mode = ""
+			_hd = []
 			_dragging = false
 			queue_redraw()
 	elif ev is InputEventMouseMotion and (ev as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT and _mode != "":
@@ -589,7 +691,9 @@ func _gui_input(ev: InputEvent) -> void:
 			_dragging = true
 			if begin.is_valid():
 				begin.call()
-		if _mode == "scale":
+		if _mode == "handle":
+			drag_handle(mm.position)
+		elif _mode == "scale":
 			scale_picked(1.0 + (mm.position.x - _press.x) / 150.0, 1.0 - (mm.position.y - _press.y) / 150.0)
 		else:
 			var dvs := Vector3.ZERO
@@ -605,6 +709,40 @@ func _gui_input(ev: InputEvent) -> void:
 		accept_event()
 
 
+## the handle end under a point -> [angle, key index, side] or []
+func pick_handle(at: Vector2) -> Array:
+	var best := []
+	var bd := HIT * 0.8
+	for i in handle_keys():
+		for c in 3:
+			for side in ["in", "out"]:
+				if has_handle(i, side):
+					var d := handle_pos(c, i, side).distance_to(at)
+					if d <= bd:
+						bd = d
+						best = [c, i, side]
+	return best
+
+
+## ROADMAP 65: the grabbed handle follows the mouse: its end's distance in time from the key is the WEIGHT, its height the
+## angle. The weight stays inside the key's interval (PartKeys.set_tangent), so the curve never runs back in time
+func drag_handle(at: Vector2) -> void:
+	if _hd.is_empty() or scene == null:
+		return
+	var c: int = _hd[0]
+	var i: int = _hd[1]
+	var side: String = _hd[2]
+	var k: Dictionary = keys()[i]
+	var len := absf(x_to_t(at.x) - float(k["t"]))
+	var dv := cy_to_v(c, at.y) - (k["v"] as Vector3)[c]
+	if (x_to_t(at.x) < float(k["t"])) != (side == "in"):
+		len = 0.0   # a handle dragged across its key has no length: it stops at the shortest
+	PartKeys.set_tangent(scene.part_keys, joint, i, side, c, len, dv)
+	queue_redraw()
+	if changed.is_valid():
+		changed.call()
+
+
 ## the key indices with any selected dot, rising
 func picked_keys() -> Array:
 	var out := []
@@ -613,6 +751,23 @@ func picked_keys() -> Array:
 			out.append(q[1])
 	out.sort()
 	return out
+
+
+## ROADMAP 66: "pick only main keys": the picks become every "key" (not a breakdown or in-between) on all three angles,
+## so a drag or scale retimes just the keys and the breakdowns stay where they are
+func pick_main_keys() -> int:
+	var ks := keys()
+	picked = []
+	var n := 0
+	for i in ks.size():
+		if PartKeys.ktype_of(ks[i]) == "key":
+			n += 1
+			for c in 3:
+				picked.append([c, i])
+	sel_ch = -1
+	sel_i = -1
+	queue_redraw()
+	return n
 
 
 ## move every selected dot from where the gesture began: dt (s) to each selected key's time, dv (deg) to each selected

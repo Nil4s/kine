@@ -49,7 +49,7 @@ func spot(j: String) -> Vector2:
 
 
 func colour(j: String) -> Color:
-	return (m.mats[j] as StandardMaterial3D).albedo_color
+	return m.skin_col(j)   # PRECISE PICK: the light is on the part's own skin
 
 
 func _init() -> void:
@@ -80,7 +80,7 @@ func _init() -> void:
 		await create_timer(m.BAR_LEAVE + 0.05).timeout   # the bar's words follow a RESTED hover (QQ2: BAR_REST on, BAR_LEAVE off)
 		await process_frame
 		var h: String = m.hover_part
-		var lit: bool = colour(h).is_equal_approx(Color(m.HOVER, 0.3)) if h != "" else false
+		var lit: bool = colour(h).is_equal_approx(Color(Tok.c("pick_hover"), 0.22)) if h != "" else false
 		var named: bool = h != "" and m.bar_text().contains(m.nice(h))
 		if h == want and lit and named:
 			same += 1
@@ -96,7 +96,7 @@ func _init() -> void:
 	ok(m.hover_part == "", "2 off the body (a corner of the view): no hover ('%s')" % m.hover_part)
 	var hp := spot("head")
 	await move(hp)
-	ok(colour("head").is_equal_approx(Color(m.SEL, 0.35)) or colour("head").b > colour("head").r + 0.3, "3 the selected head, hovered: it keeps its selected colour %s" % colour("head"))
+	ok(colour("head").is_equal_approx(Color(Tok.c("pick_sel"), 0.42)), "3 the selected head, hovered: it keeps its selected colour %s" % colour("head"))
 	var ap := spot("upperarm_r")
 	await move(ap)
 	await button(ap, true)

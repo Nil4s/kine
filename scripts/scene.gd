@@ -63,6 +63,7 @@ const ALL_EASES := ["smooth", "linear", "in", "out", "snap", "reach", "strike", 
 const LEAD := 0.015    # spline: seconds each joint level leads the next (hips 75 ms ahead of the hands)
 var cards := []        # [{"name", "pose", "move", "hold"}]
 var audio := {}        # the sound on the timeline (AudioTrack): {"path", "offset" s, "gain_db"}; in the file only when there is one
+var face := {}        # THE FACE (ROADMAP 74, face.gd): {"brow_l", "jaw", "eye_yaw", ..., "vis_M"}: [{"t", "v": Vector3(x,0,0)}]; in the file as "face" only when keyed
 var lip := {}          # LIP-SYNC channel (ROADMAP 31, lip_sync.gd): {"jaw": [{"t", "v"}], "mouth": [{"t", "s"}]}; in the file only when baked
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var beats_audio := []  # MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): [{"t" (the sound's time), "down"}] sorted; in the file as "beats_audio" only when any
@@ -71,11 +72,12 @@ var beats := []       # CHOREOGRAPHY (ROADMAP 13; scripts/choreo.gd): the exchan
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
+var attrs := {}       # CUSTOM ATTRIBUTES (ROADMAP 82, custom_attr.gd): {"<part>.<name>": {"min", "max", "default", "keys": [{"t", "v": Vector3(x,0,0)}]}}; in the file as "attrs" only when any
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
 var sets := {}         # SELECTION + KEYING SETS (GAP_ANALYSIS rows 9, 6): {"select": {name: [parts]}, "keying": {..}, "active"}; scripts/part_sets.gd
 var clips := []        # CLIPS (GAP_ANALYSIS row 12): other scenes / moves placed as strips, by reference; scripts/clips.gd
 var boxes := []        # HIT / HURT BOXES per frame (ROADMAP 36): the file's "boxes" key; scripts/hit_boxes.gd
-var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
+var shots := []        # THE SHOTS (ROADMAP 75): [{"t" cut s, "name", "keys": the shot camera [{"t", "pos", "aim", "f" mm}]}]; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var plants := []      # FOOT PLANTS over a time range (ROADMAP 8): [{"foot", "t0", "t1"}] by t0; scripts/foot_plant.gd; in the file as "plants" (only when any)
 var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: miss, ball turn, weight, clamped); {} = nothing
@@ -83,6 +85,7 @@ var _plants_off := false   # set while FootPlant.refs reads the pose at a plant'
 var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n"}} (the release ramp, read once per scene state)
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
+var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
 var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakref to the hero's (actor targets); null = the hero
@@ -128,6 +131,27 @@ static func level(j: String) -> int:
 	if j.begins_with("hand") or j.begins_with("foot") or j.begins_with("ball"):
 		return 5
 	return 6
+
+
+## v as a finite float, else d (null, a string, NaN, +-inf)
+static func _num(v: Variant, d: float) -> float:
+	if (v is float or v is int) and is_finite(float(v)):
+		return float(v)
+	return d
+
+
+## a copy of a loaded value with every number that is NaN / infinite made 0
+static func _finite(v: Variant) -> Variant:
+	if v is float:
+		return v if is_finite(v) else 0.0
+	if v is Array:
+		return (v as Array).map(func(x): return _finite(x))
+	if v is Dictionary:
+		var o := {}
+		for k in v:
+			o[k] = _finite(v[k])
+		return o
+	return v
 
 
 func add(card_name: String, pose: Dictionary, at := -1) -> void:
@@ -781,7 +805,7 @@ func _ground(B: Body) -> void:
 
 
 func _apply(B: Body, t: float) -> void:
-	if stepped:
+	if stepped and not cards.is_empty():   # (no cards: nothing to hold; the blocking view of an empty scene is the plain pose)
 		var ts := times()
 		var k := 0
 		for i in cards.size():
@@ -1396,6 +1420,8 @@ func clone() -> Scene:
 	c.beats_audio = beats_audio.duplicate(true)
 	c.audio = audio.duplicate()
 	c.lip = lip.duplicate(true)
+	c.face = face.duplicate(true)   # ROADMAP 74: the face keys
+	c.attrs = attrs.duplicate(true)   # ROADMAP 82: the custom attributes
 	c.layer = layer.duplicate()   # YY9 (Vector3 values: copies)
 	c.layer_w = layer_w
 	c.layers = layers.duplicate(true)   # NA1
@@ -1406,7 +1432,8 @@ func clone() -> Scene:
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
-	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
+	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
+	c.shots = shots.duplicate(true)   # the shots and their cameras (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
 	c.clips = clips.duplicate(true)   # CLIPS (clips.gd)
 	c.boxes = boxes.duplicate(true)   # HIT / HURT BOXES (hit_boxes.gd)
@@ -1668,6 +1695,13 @@ func _feet(B: Body, i: int) -> Dictionary:
 	if c != null and is_same(c[0], cards[i]["pose"]):
 		return c[1]
 	var r := _feet_raw(B, i)
+	if cards[i].get("air", false):
+		# a card in the flight has no floor under it: the grounding in _feet_raw put its lowest foot on the floor, but neither
+		# foot is down, so none is a plant for the card before or after to pin to (the landing leg used to be pinned to where
+		# the flight card's grounding dropped it, 13 cm off its mark)
+		for sd in ["_l", "_r"]:
+			r[sd][2] = false
+			r[sd][3] = false
 	_feet_cache[i] = [cards[i]["pose"], r]
 	return r
 
@@ -1707,6 +1741,9 @@ func pin_cards(B: Body) -> int:
 	var n := 0
 	var prev := {}
 	for i in cards.size():
+		if cards[i].get("air", false):
+			prev = {}   # a card in the flight: both feet are off the floor, so no foot is pinned to the one before (the grounding in
+			continue    # _feet_raw would put the lowest foot on the floor and read it as planted)
 		var now := _feet_raw(B, i)
 		var moved := false
 		for sd in ["_l", "_r"]:
@@ -1906,6 +1943,10 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["beats_audio"] = BeatTrack.clean_list(beats_audio)   # ROADMAP 32: the music beats, only when there are any
 	if not audio.is_empty():
 		out["audio"] = AudioTrack.clean(audio)   # the sound: the same, only when there is one
+	if not face.is_empty():
+		out["face"] = Face.to_file(face)   # ROADMAP 74: the face keys, only when keyed
+	if not attrs.is_empty():
+		out["attrs"] = CustomAttr.to_file(attrs)   # ROADMAP 82: the custom attributes, only when there are any
 	if not lip.is_empty():
 		out["lip"] = LipSync.to_file(lip)   # ROADMAP 31: the same, only when a lip-sync was baked
 	if not actors.is_empty():   # G1: the same, only with a second actor
@@ -1919,10 +1960,14 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not secondary.is_empty():
 		out["secondary"] = SecondaryMotion.to_file(secondary)   # secondary motion: the same, only when there is an item
+	if not hair.is_empty():
+		out["hair"] = Hair.to_file(hair)   # hair strands: the same, only when set
 	if not cons.is_empty():
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
-	if not camera.is_empty():
-		out["camera"] = ShotCam.to_file(camera)   # the shot camera: the same, only when there is one
+	if ShotCam.is_legacy(shots):
+		out["camera"] = ShotCam.to_file(shots[0]["keys"])   # one shot: the old one-camera form (an old file saves the same)
+	elif not shots.is_empty():
+		out["shots"] = ShotCam.shots_to_file(shots)   # the shots, only when there are any (ROADMAP 75)
 	if not PartSets.clean(sets).is_empty():
 		out["sets"] = PartSets.to_file(sets)   # selection / keying sets: the same, only when there is one
 	if not clips.is_empty():
@@ -1942,15 +1987,18 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
+	"attrs": "SIDED: CustomAttr.mirror_file (each attribute's id moves to its twin part: hand_r.grip -> hand_l.grip; min, max, default and keys free)",
+	"face": "SIDED: Face.mirror_file (brow_l <-> brow_r, eye_yaw negated; jaw, visemes, blink and eye pitch free)",
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
-	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
+	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected; the back's spline key \"spine\" is its own twin: its mid and chest points x negated, its hip / chest twists negated)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
+	"shots": "SIDED: ShotCam.mirror_shots_file (every shot's camera mirrored as \"camera\"; the cut times and names free)",
 	"sets": "SIDED: PartSets.mirror_file (every part to its twin; a set named \"_l\" / \"_r\" takes its twin's name, the active keying set too)",
 	"clips": "SIDED: Clips.mirror_file (each clip's source plays mirrored: the flag toggles; a one-arm mask goes to the other arm; times free)",
 	"boxes": "SIDED: HitBoxes.mirror_file (a box's part to its twin, _l <-> _r; an attack box's offsets x negated; frames and damage free)"}
@@ -1999,8 +2047,12 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 	d2["cards"] = d2["cards"].map(func(c): return Scene.mirror_card(c, M))
 	if d2.has("part_keys"):
 		d2["part_keys"] = PartKeys.mirror_file(d2["part_keys"], M)
+	if d2.has("attrs"):
+		d2["attrs"] = CustomAttr.mirror_file(d2["attrs"])   # ROADMAP 82: each attribute to its twin part
+	if d2.has("face"):
+		d2["face"] = Face.mirror_file(d2["face"])   # ROADMAP 74: brow_l <-> brow_r, eye yaw negated
 	if d2.has("ik"):
-		d2["ik"] = LimbIK.mirror_file(d2["ik"])   # as main._mirror_scene: hand_l <-> hand_r, points x negated
+		d2["ik"] = LimbIK.mirror_file(d2["ik"], M)   # as main._mirror_scene: hand_l <-> hand_r, points x negated
 	if d2.has("plants"):
 		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
 	if d2.has("drivers"):
@@ -2011,6 +2063,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["constraints"] = Constraints.mirror_file(d2["constraints"])   # round 51: owners / parts to twins, offsets reflected
 	if d2.has("camera"):
 		d2["camera"] = ShotCam.mirror_file(d2["camera"])   # the shot camera across x = 0
+	if d2.has("shots"):
+		d2["shots"] = ShotCam.mirror_shots_file(d2["shots"])   # every shot's camera across x = 0 (ROADMAP 75)
 	if d2.has("sets"):
 		d2["sets"] = PartSets.mirror_file(d2["sets"])   # selection / keying sets: parts to twins, "_l" / "_r" names swapped
 	if d2.has("boxes"):
@@ -2071,6 +2125,8 @@ func from_dict(d: Dictionary) -> void:
 	beats = Choreo.from_list(d.get("beats", []))   # ROADMAP 13
 	beats_audio = BeatTrack.clean_list(d.get("beats_audio", []))   # ROADMAP 32: absent = none
 	audio = AudioTrack.clean(d["audio"]) if d.get("audio") is Dictionary and String(d["audio"].get("path", "")) != "" else {}
+	face = Face.from_file(d.get("face", {}))   # ROADMAP 74: absent = none
+	attrs = CustomAttr.from_file(d.get("attrs", {}))   # ROADMAP 82: absent = none
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
 	props_skipped = []
@@ -2079,10 +2135,11 @@ func from_dict(d: Dictionary) -> void:
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
+	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():
 		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
-	camera = ShotCam.from_file(d.get("camera", []))   # the shot camera: absent = none
+	shots = ShotCam.shots_from_file(d)   # the shots (ROADMAP 75); an old "camera" = one shot; absent = none
 	sets = PartSets.from_file(d.get("sets", {}))   # selection / keying sets: absent = none
 	clips = Clips.from_file(d.get("clips", []))   # CLIPS: absent = none
 	boxes = HitBoxes.from_file(d.get("boxes", []))   # HIT / HURT BOXES: absent = none
@@ -2093,11 +2150,13 @@ func from_dict(d: Dictionary) -> void:
 			props_skipped.append(String(p.get("kind", "?")))   # a model not in this library: said on load (main.gd)
 	cards = []
 	for c in d.get("cards", []):
-		cards.append({"name": c["name"], "pose": c["pose"], "move": float(c.get("move", -1.0)), "hold": float(c.get("hold", 0.3))})
+		# a file can hold a number that is not one (null, 1e999, NaN from another tool): it becomes the default, so a
+		# bad card never reaches the maths (a NaN length made the whole timeline empty and the checks crash)
+		cards.append({"name": String(c.get("name", "card")), "pose": _finite(c["pose"]), "move": _num(c.get("move"), -1.0), "hold": maxf(0.0, _num(c.get("hold"), 0.3))})
 		if c.has("steps"):
 			cards[-1]["steps"] = c["steps"]
 		if c.has("lift"):
-			cards[-1]["lift"] = float(c["lift"])
+			cards[-1]["lift"] = _num(c["lift"], 0.0)
 		if c.get("flow", false):
 			cards[-1]["flow"] = true
 		if c.get("walk", false):
@@ -2134,5 +2193,5 @@ func spins() -> Array:
 				continue
 			var d: float = float((b[j] as Vector3).z) - float((a[j] as Vector3).z)
 			if absf(d) > Body.ROLL_STEP + 5.0:
-				out.append("%s -> %s: %s %s %+.0f" % [cards[i - 1]["name"], cards[i]["name"], j, "roll" if j.begins_with("upper") else "forearm turn", d])
+				out.append("%s -> %s: %s %s %+.0f°" % [cards[i - 1]["name"], cards[i]["name"], j, "roll" if j.begins_with("upper") else "forearm turn", d])
 	return out

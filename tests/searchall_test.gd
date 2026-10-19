@@ -126,7 +126,7 @@ func _init() -> void:
 	key(KEY_ENTER)
 	await process_frame
 	await process_frame
-	ok(m.scene_path == "res://scenes/combo3.json" and (m.ui_confirm == null or not m.ui_confirm.visible), "Enter on combo3 (no changes): the scene opens (%s)" % m.scene_path)
+	ok(m.scene_path == "res://scenes/combo3.json" and (m.ui_save_ask == null or not m.ui_save_ask.visible), "Enter on combo3 (no changes): the scene opens (%s)" % m.scene_path)
 	# unsaved changes: Enter asks first and the scene stays
 	m.S.cards[0]["hold"] = float(m.S.cards[0]["hold"]) + 0.5
 	cs.open()
@@ -134,10 +134,10 @@ func _init() -> void:
 	key(KEY_ENTER)
 	await process_frame
 	await process_frame
-	ok(m.scene_path == "res://scenes/combo3.json" and m.ui_confirm != null and m.ui_confirm.visible,
-		"Enter on walk bat with unsaved changes: asks first, combo3 stays open (dialog %s)" % str(m.ui_confirm != null and m.ui_confirm.visible))
-	if m.ui_confirm != null:
-		m.ui_confirm.hide()
+	ok(m.scene_path == "res://scenes/combo3.json" and m.ui_save_ask != null and m.ui_save_ask.visible,   # the save prompt (ROADMAP 50: Save / Don't save / Cancel) is ui_save_ask now, not ui_confirm
+		"Enter on walk bat with unsaved changes: asks first, combo3 stays open (dialog %s)" % str(m.ui_save_ask != null and m.ui_save_ask.visible))
+	if m.ui_save_ask != null:
+		m.ui_save_ask.hide()
 	m.S.cards[0]["hold"] = float(m.S.cards[0]["hold"]) - 0.5
 	cs.close()
 

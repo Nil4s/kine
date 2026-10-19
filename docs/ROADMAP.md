@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 20 / 20 (search everything; tooltip videos; mirror in place; ease_slider; save_prompt; weight_feel; thumbnails; undo_names; real_speed; autokey; retime_handles; floor_snap; review; fatigue; what went wrong; range rings; ragdoll; hitbox; clash; text_blocking). Full run 2 (2026-10-19): 211/228, all 17 failures fixed in 91480a2, 1f23fad, cd40527.
+Merged since the last full run: 10 / 20 (contact IK (hand on wall/table); hair ponytail; pose matching on transitions; clip warp; custom attributes; macros; batch export; camera sequencer (per-shot shake/focus); USD layers (pxr-checked; Alembic not written); FBX export (binary, Blender-checked)). Full run 4 (2026-10-19): 237/271 under load; re-run of 34 alone: 7 load or time-outs, 27 real (UI layout, units wording, duplicate keys, trail rebuilds, a pick drag), fixes in progress; proportions waits on Nick (skeleton.json hip height). Merged after run 4: corrective seam weld, face on the head, precise pick on the skin.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -114,10 +114,10 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 40. [x] Weight feel: heavy weapons slow the wind-up per mass
 
 ### Wave C: complaints, beginners ("make it easy")
-41. [ ] Pose by dragging any part with sensible defaults (no axis picking)
+41. [x] Pose by dragging any part with sensible defaults (no axis picking)
 42. [x] Auto-key toggle that is obvious (red frame)
 43. [x] "What went wrong?" button: explains the last error in plain words
-44. [ ] Templates: walk, run, jump, punch, sword swing as starting scenes
+44. [x] Templates: walk, run, jump, punch, sword swing as starting scenes
 45. [x] Undo that never surprises: names each step in the menu
 46. [x] Snap a pose to the floor in one click
 47. [x] Big timeline handles, retime by dragging a card's edge
@@ -126,44 +126,44 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 50. [x] Save prompts: never lose a scene by closing the window
 51. [x] Scene thumbnails in the browser
 52. [x] Search everything (commands, poses, scenes) from one box
-53. [ ] Copy a pose between fighters
+53. [x] Copy a pose between fighters
 54. [x] One-click mirror of the whole animation
 55. [x] Simple ease slider per card (no graph editor needed)
-56. [ ] Clear units everywhere (cm, deg, s, frames)
-57. [ ] Export dialog that says what each engine needs
-58. [ ] Dark / light theme and UI scale for laptops
-59. [ ] Recent files and autosave restore list
-60. [ ] Gentle errors: never a crash dialog, always a next step
+56. [x] Clear units everywhere (cm, deg, s, frames)
+57. [x] Export dialog that says what each engine needs
+58. [x] Dark / light theme and UI scale for laptops
+59. [x] Recent files and autosave restore list
+60. [x] Gentle errors: never a crash dialog, always a next step
 
 ### Wave D: complaints, experts ("give me depth")
-61. [ ] Spline IK spine
-62. [ ] IK/FK snap per frame with no pop
-63. [ ] Space switching (hand in world / chest / weapon space) with no pop
+61. [x] Spline IK spine
+62. [x] IK/FK snap per frame with no pop
+63. [x] Space switching (hand in world / chest / weapon space) with no pop
 64. [ ] Euler filter / unroll for exported curves
-65. [ ] Tangent weights in the graph editor
-66. [ ] Breakdown keys and key types (key / breakdown / in-between) like Blender's
-67. [ ] Retime tool: scale a range around the playhead
-68. [ ] Key reduction slider with an error readout
-69. [ ] Editable motion trails (drag the arc)
-70. [ ] Per-part onion skin
-71. [ ] Corrective shapes on the mesh (elbow, knee)
-72. [ ] Skin weight paint for imported characters
-73. [ ] Finger pose library + per-finger curl sliders
-74. [ ] Face rig: brows, jaw, eyes, visemes
-75. [ ] Multi-shot camera sequencer
-76. [ ] Camera shake and rack focus
+65. [x] Tangent weights in the graph editor
+66. [x] Breakdown keys and key types (key / breakdown / in-between) like Blender's
+67. [x] Retime tool: scale a range around the playhead
+68. [x] Key reduction slider with an error readout
+69. [x] Editable motion trails (drag the arc)
+70. [x] Per-part onion skin
+71. [x] Corrective shapes on the mesh (elbow, knee)
+72. [x] Skin weight paint for imported characters
+73. [x] Finger pose library + per-finger curl sliders
+74. [x] Face rig: brows, jaw, eyes, visemes
+75. [x] Multi-shot camera sequencer
+76. [x] Camera shake and rack focus
 77. [ ] Multi-track audio
-78. [ ] FBX export
-79. [ ] Alembic / USD layered export
-80. [ ] Batch export of many scenes
-81. [ ] Python-free scripting: macros recorded from commands
-82. [ ] Custom attributes on parts (keyable)
-83. [ ] Clip warping (time-warp a strip)
-84. [ ] Pose matching on clip transitions
+78. [x] FBX export
+79. [x] Alembic / USD layered export
+80. [x] Batch export of many scenes
+81. [x] Python-free scripting: macros recorded from commands
+82. [x] Custom attributes on parts (keyable)
+83. [x] Clip warping (time-warp a strip)
+84. [x] Pose matching on clip transitions
 85. [ ] Rigid prop physics (a dropped sword falls)
 86. [ ] Cloth on a cape
-87. [ ] Hair strands follow-through
-88. [ ] Contact-aware IK: hand slides along a wall / table
+87. [x] Hair strands follow-through
+88. [x] Contact-aware IK: hand slides along a wall / table
 89. [ ] Multi-camera video mocap
 90. [ ] Hand capture from video
 91. [ ] Root motion editor (path curve on the floor)

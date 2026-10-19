@@ -8,12 +8,17 @@ var fails := 0
 const NEXT := ["pick", "click", "press", "open", "lock", "put", "add", "turn", "move", "type", "tick", "untick", "use",
 	"select", "drag", "choose", "copy", "make", "free", "try", "give", "save", "close", "run"]
 ## exits that report something DONE (no next step is owed)
-const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
+const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROADMAP 39)", "range %.2f-%.2f s at": "reports the retime it just made (ROADMAP 67)", "the weapon slid in the hand": "reports the slide it just made", "second hand off the weapon": "reports the toggle it just made",
 	"(in trash/ if you want it back)": "reports the delete it just made",
 	"posed: %s%s": "reports the pose it just made (and where a limit stopped it)",
-	"weight key at %.2f s = %.2f": "reports the weight key it just changed (NA1)",
+	"weight key at %s = %.2f": "reports the weight key it just changed (NA1)",
 	"copied a card to %.2f s": "reports the copy it just made (NA0)",
 	"body: %s, %.1f cm tall": "reports the proportions it just set (PR1)",
+	# tonight's merges: these report what was just done (successes on the way out of a branch)
+	"Auto-key: card %d takes the body": "reports the body it just put on the card (auto-key)",
+	"all %d cards are on the floor now": "reports the snap it just made (floor snap; Ctrl+Z is named)",
+	"the body is on the floor now (Ctrl+Z": "reports the snap it just made (floor snap; Ctrl+Z is named)",
+	"_say(msg)": "forwards trail_edit.begin's message: each names the drag to do next (trail_edit.gd lines 122-139)",
 	"_say(r[\"error\"])": "forwards PoseWords' error: each names the words to type instead (pose_words_test checks 5)"}
 
 
@@ -44,7 +49,8 @@ func _init() -> void:
 	print("     %d exits with a message, %d of them successes (%s)" % [exits.size(), done.size(), DONE.keys()])
 	for b in bad:
 		print("     no next step: " + b)
-	ok(exits.size() > 15 and done.size() == DONE.size(), "the scan finds the exits (%d) and every listed success" % exits.size())
+	# >=: "_say(msg)" is one DONE key matching two exits (the trail press)
+	ok(exits.size() > 15 and done.size() >= DONE.size(), "the scan finds the exits (%d) and every listed success" % exits.size())
 	ok(bad.is_empty(), "every refusal / failure names what to do next (%d without)" % bad.size())
 	print("SAY NEXT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
