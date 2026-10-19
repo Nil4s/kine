@@ -134,7 +134,9 @@ const SWING_LEAD := 0.5            # s before the tip's peak in which the hips a
 const HEAD_WIN := [0.3, 0.1]       # s before / after the tip's peak the head is watched
 const AIR := 0.05                  # m: the lower foot this far above its lowest in the scene = off the ground
 ## not swings (the swing rules are measured on hitters): attack_timing's list + the get-ups
-const NOT_SWINGS := ["getup_back", "getup_front"]
+## scenes with no strike in them (the strike rules skip them): a name, or a name and a copy number ("walk_2": ROADMAP 44's
+## templates, scenes/_wip/<template>_N.json). Their hands move fast (a jump's arm swing, a runner's drive) and are no attack
+const NOT_SWINGS := ["getup_back", "getup_front", "walk", "run", "jump"]
 const FOOT_DOWN := 0.05            # m: the ball of the foot this low = on the floor (Karunratanakul 2023)
 const FOOT_SKATE := 0.025          # m: sliding more than this along the floor while down = skating
 const BAL_OUT := 0.03             # m: the centre of mass this far past the support polygon...
@@ -869,12 +871,18 @@ static func _planted(s: Array, i: int) -> bool:
 	return p.y < FOOT_DOWN and Vector2(p.x - q.x, p.z - q.z).length() < GAIT_STILL
 
 
+## a flight phase: the scene has "air" cards (Scene.flights: both feet off the floor, the body on a parabola). Running has one,
+## walking never does (Novacheck 1998, Gait Posture 7:77), so the walking bars (step, cadence, arm swing) do not judge a run
+static func has_flight(S: Scene) -> bool:
+	return not S.flights().is_empty()
+
+
 ## GAIT: a walk against real walkers; one WARN naming each measure outside the real range, with both numbers.
 ## Arms are judged only with nothing in the hands (a weapon holds them still)
-static func rule_gait(sm: Dictionary) -> Array:
+static func rule_gait(sm: Dictionary, S: Scene = null) -> Array:
 	var g := gait(sm)
-	if not g["walk"]:
-		return []
+	if not g["walk"] or (S != null and has_flight(S)):
+		return []   # a run: the walking bars do not apply
 	var w := []
 	var st: float = g["step"]
 	if st < GAIT_STEP[0] or st > GAIT_STEP[1]:
@@ -968,7 +976,11 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	if sm.is_empty():
 		sm = sample(S, B)
 	var out := []
-	var attack := not S.name in AT.NOT_ATTACKS and not S.name in NOT_SWINGS
+	var base_name := S.name
+	var cut := base_name.rfind("_")
+	if cut > 0 and base_name.substr(cut + 1).is_valid_int():
+		base_name = base_name.substr(0, cut)   # "jump_2" is the jump template's second copy
+	var attack := not S.name in AT.NOT_ATTACKS and not S.name in NOT_SWINGS and not base_name in NOT_SWINGS
 	if attack:
 		for st in strikes(sm["tip"]):
 			out += rule_sequence(sm, st)
@@ -987,7 +999,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_floats(sm)
 	out += rule_carry_form(sm)
 	out += rule_lift_form(sm)
-	out += rule_gait(sm)
+	out += rule_gait(sm, S)
 	out += rule_jump(S, B)
 	if HumanLimits.on:
 		out += HumanLimits.findings(S, B)   # ROADMAP 10: only when asked ("Check: could a human do this?"): the bars are

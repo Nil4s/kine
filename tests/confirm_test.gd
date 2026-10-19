@@ -28,7 +28,7 @@ func _init() -> void:
 	# (1) the audit, from the source
 	var policy := {"_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
 		"_save_scene_now": "asked by _save_scene when another file has the name", "_trash_now": "asked by _trash",
-		"_polish": "a NEW machine copy in scenes/_wip/", "_style_save": "a NEW machine copy in scenes/_wip/ (the style's own file; the scene it came from is untouched)", "_mirror_scene": "a NEW machine copy in scenes/_wip/", "_import_bvh": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)",
+		"_polish": "a NEW machine copy in scenes/_wip/", "_template_build": "a NEW scene in scenes/_wip/ (never over an earlier one: _2, _3; the templates/ files are only read)", "_style_save": "a NEW machine copy in scenes/_wip/ (the style's own file; the scene it came from is untouched)", "_mirror_scene": "a NEW machine copy in scenes/_wip/", "_import_bvh": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)",
 		"_import_pose": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_anim": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_video": "the tracker's pose file in user://video_track/ (its own, replaced per video)",
 		"_import_file": "a COPY of the chosen file into the library (the original never written; never overwrites: _2)",
 		"_rename_pose": "refuses an existing name; the old name is free again", "_exit_tree": "the test's own settings file",

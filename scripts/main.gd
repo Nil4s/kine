@@ -6643,6 +6643,7 @@ func _ui() -> void:
 	ui_loop.tooltip_text = "ON: the scene plays round and round (a walk, an idle). CHECK then grades the seam: the end must meet the start."
 	ui_loop.toggled.connect(func(on): _push_undo(); S.loop = on; check_ran = false; _refresh())
 	bh.add_child(_button("New empty scene", _new_scene))
+	bh.add_child(_button("New from template...", _template_ask, "five starting scenes: walk, run, jump, punch, sword swing (each checked against real people's numbers); opens as a new scene in scenes/_wip"))
 	var fb := _button("Fold", _fold.bind("bottom", true), "fold the scene panel to the timeline and Play: more room for the body (remembered)")
 	fb.name = "fold_bottom"
 	bh.add_child(fb)
@@ -7898,6 +7899,7 @@ func _commands() -> Array:
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")
+	add.call("New from template...", "", _template_ask, "template starting scene walk run jump punch sword swing new example", false, "pick one of five starting scenes (walk, run, jump, punch, sword swing), each checked against real people's numbers: it opens as a NEW scene in scenes/_wip (never over a scene of yours)")
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
 	add.call("Arms down 25 deg", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25 degrees out from straight down")
 	add.call("Dummy on/off", "H", _press.bind(KEY_H), "target enemy mannequin", false, "show or hide the target dummy")
@@ -8501,6 +8503,74 @@ func _words_build() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("'%s' blocked out as %s and opened (%d cards: %s). %s" % [text, path.get_file(), S2.cards.size(), ", ".join(S2.cards.map(func(c): return String(c["name"]).get_slice(":", 0))), r["status"]])
+
+
+## NEW FROM TEMPLATE (ROADMAP 44): a picker of the five starting scenes (walk, run, jump, punch, sword swing; scripts/templates.gd,
+## the files in templates/). The pick becomes a NEW scene scenes/_wip/<template>[_N].json (never over one) and is opened; the
+## template files themselves are only read
+var ui_tpl_dlg: ConfirmationDialog
+var ui_tpl_list: ItemList
+var ui_tpl_blurb: Label
+
+
+func _template_ask() -> void:
+	if ui_tpl_dlg == null:
+		ui_tpl_dlg = ConfirmationDialog.new()
+		ui_tpl_dlg.name = "template_dialog"
+		ui_tpl_dlg.title = "New from template"
+		ui_tpl_dlg.ok_button_text = "Make the scene"
+		ui_tpl_dlg.min_size = Vector2i(460, 0)
+		var v := VBoxContainer.new()
+		var hd := Label.new()
+		hd.text = "A starting scene, checked against real people's numbers. It opens as a new file in scenes/_wip; yours stay untouched."
+		hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hd.custom_minimum_size = Vector2(440, 0)
+		v.add_child(hd)
+		ui_tpl_list = ItemList.new()
+		ui_tpl_list.name = "list_templates"
+		ui_tpl_list.custom_minimum_size = Vector2(440, 150)
+		ui_tpl_list.select_mode = ItemList.SELECT_SINGLE
+		for nm in Templates.NAMES:
+			ui_tpl_list.add_item(String(Templates.INFO[nm][0]))
+			ui_tpl_list.set_item_metadata(ui_tpl_list.item_count - 1, nm)
+		ui_tpl_list.item_selected.connect(_template_blurb)
+		ui_tpl_list.item_activated.connect(func(_i): ui_tpl_dlg.hide(); _template_build())
+		v.add_child(ui_tpl_list)
+		ui_tpl_blurb = Label.new()
+		ui_tpl_blurb.name = "label_template_blurb"
+		ui_tpl_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ui_tpl_blurb.custom_minimum_size = Vector2(440, 44)
+		v.add_child(ui_tpl_blurb)
+		ui_tpl_dlg.add_child(v)
+		ui_tpl_dlg.confirmed.connect(_template_build)
+		add_child(ui_tpl_dlg)
+	if not ui_tpl_list.is_anything_selected():
+		ui_tpl_list.select(0)
+	_template_blurb(ui_tpl_list.get_selected_items()[0])
+	ui_tpl_dlg.popup_centered()
+
+
+func _template_blurb(i: int) -> void:
+	ui_tpl_blurb.text = String(Templates.INFO[String(ui_tpl_list.get_item_metadata(i))][1])
+
+
+func _template_build() -> void:
+	if ui_tpl_list == null or not ui_tpl_list.is_anything_selected():
+		_say("New from template needs a pick: choose walk, run, jump, punch or sword swing in the list, then press Make the scene")
+		return
+	var nm := String(ui_tpl_list.get_item_metadata(ui_tpl_list.get_selected_items()[0]))
+	var d := Templates.read(nm)
+	if d.is_empty():
+		_say("The %s template file (templates/%s.json) is missing: rebuild the templates with  godot --headless --path . -s tools/make_templates.gd  and pick again" % [nm, nm])
+		return
+	var path := Templates.new_path(nm)
+	d["scene"] = path.get_file().get_basename()
+	d["plan"] = "from the %s template" % String(Templates.INFO[nm][0]).to_lower()
+	_write(path, d)
+	_load_scene(path)
+	_rebuild_cards()
+	_refresh()
+	_say("%s template: saved as %s and opened (%d cards); the template itself is untouched" % [Templates.INFO[nm][0], path.get_file(), S.cards.size()])
 
 
 ## SPEED GRAPH: three strips (small multiples, each its own scale: the tip moves metres where the head moves

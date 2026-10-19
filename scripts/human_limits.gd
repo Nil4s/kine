@@ -116,6 +116,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 		var bal := Balance.read(B)
 		row["margin"] = float(bal["margin"])
 		row["h"] = (bal["com"] as Vector3).y
+		row["com"] = bal["com"]
 		row["down"] = (bal["down"] as Array).size() > 0
 		row["sup"] = supported(B)
 		for sd in ["_l", "_r"]:
@@ -133,9 +134,12 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 			row["pts"]["bat_com"] = B.wep_point(BAT_COM * B.wep_len)
 		rows.append(row)
 	S.stepped = was_stepped
-	var out := {"t": [], "speed": {}, "torque": {}, "margin": [], "h": [], "down": [], "sup": [], "mass": mass_of(B)}
+	var out := {"t": [], "speed": {}, "torque": {}, "margin": [], "h": [], "down": [], "sup": [], "cv": [], "mass": mass_of(B)}
 	for i in n:
 		out["t"].append(i / FPS)
+		var c0: Vector3 = rows[maxi(i - 1, 0)]["com"]
+		var c1: Vector3 = rows[mini(i + 1, n - 1)]["com"]
+		out["cv"].append(Vector2(c1.x - c0.x, c1.z - c0.z).length() * FPS / float(maxi(mini(i + 1, n - 1) - maxi(i - 1, 0), 1)))
 		out["margin"].append(rows[i]["margin"])
 		out["h"].append(rows[i]["h"])
 		out["down"].append(rows[i]["down"])
@@ -328,7 +332,16 @@ static func rule_tipping(sm: Dictionary) -> Array:
 	return out
 
 
+## a centre of mass travelling this fast (m/s) along the floor is in a gait or a lunge, not tipping over: it is carried onto the
+## next step. In walking and running the CoM is outside the base of support most of the time (Winter 1995, Gait & Posture 3:193:
+## "Human balance and posture control during standing and walking": only in quiet standing must it stay inside), so the fall-time
+## model below, a body that stands still and falls, is judged on the frames that are slow (a series with no "cv" is all slow)
+const GAIT_SPEED := 1.0
+
+
 static func _tipping(sm: Dictionary, i: int) -> bool:
+	if sm.has("cv") and float(sm["cv"][i]) >= GAIT_SPEED:
+		return false
 	return float(sm["margin"][i]) < 0.0 and bool(sm["down"][i]) and not bool(sm["sup"][i])
 
 
