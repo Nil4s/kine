@@ -77,6 +77,16 @@ smear frames ("Trail: smear frames") are for the playblast and the view only; th
    `tools/blender_check.py` is the exact script that does this and checks it (`blender -b --factory-startup --python tools/blender_check.py`, after `tools/blender_expect.gd`).
 3. BVH: File → Import → Motion Capture (.bvh), scale 1.0.
 
+## FBX straight from the app (Export... → Unreal Engine 5 / Unity / Maya)
+
+Export... writes an **ASCII FBX 7.4** (`scripts/fbx_export.gd`, `FbxExport`): the same skeleton and keys as the `.glb`, the UE5 bone names, one take named after the scene, a rotation curve set (X, Y, Z in degrees, Euler XYZ) per animated bone, the pelvis's position curves, in **centimetres** (UnitScaleFactor 1.0), Y up. Every key is on a frame, as in the `.glb`. The weapons, props, sound and camera are not in it.
+
+- **Blender 4.5 cannot import ASCII FBX** ("ASCII FBX files are not supported"). Blender takes the `.glb` above, or an FBX that Blender itself wrote (the steps above).
+- **Unreal 5**: the root-motion preset writes `<scene>_ue5.fbx` with the travel on the root bone.
+- **Unity** and **Maya** read ASCII FBX; see the line the dialog shows for each.
+
+How it was checked: `tests/fbx_export_test.gd` writes the FBX and the `.glb` for `combo3`, and `tests/py/fbx_check.py` (a reader of its own, `python -I`) reads the FBX text back: the 65 bone names and their order are the `.glb`'s skin joints, the parents match, every curve has the `.glb`'s 142 keys, and 9 samples (3 bones at 3 frames) read back within 0.01° of the body's local rotation (worst 0.000010°). The Blender check (`tests/py/fbx_blender_check.py`) needs Blender's binary FBX, so `tests/py/fbx_to_binary.py` re-encodes the same tree as binary for it; Blender's FBX importer and its glTF importer then agree on every bone's head (0.00000 m) and direction (0.0000°) at those frames.
+
 ## Any other tool
 
 Anything that reads glTF 2.0 or BVH: three.js, Babylon.js, Cascadeur, MotionBuilder, Maya (BVH, or the FBX above), Rokoko, Mixamo-style retargeters.

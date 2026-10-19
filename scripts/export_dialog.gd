@@ -18,10 +18,14 @@ var ui_app: Label
 ## run: "engine:<id>" (EngineExport preset: root motion, units, pre-flight), "glb", "bvh", "usda" or "game" (the PoseTable)
 const TARGETS := [
 	{"id": "ue5", "label": "Unreal Engine 5", "engine": "ue5",
-		"formats": [{"name": "glTF 2.0 (.glb), named _ue5", "run": "engine:ue5"}],
+		"formats": [{"name": "glTF 2.0 (.glb), named _ue5", "run": "engine:ue5"},
+			{"name": "FBX 7.4 (.fbx), named _ue5, root motion", "run": "fbx:ue5",
+				"needs": "UE5 imports the FBX as a Skeletal Mesh with Import Animations on. The file is in centimetres, which is UE5's unit: keep Import Uniform Scale at 1. The travel is on the root bone, as in the .glb. Unverified in-engine: UE5 was never opened on this file."}],
 		"app": "Root motion: the pelvis's sideways travel is moved onto the root bone, so the pelvis keeps its place. Units: the file is metres, and UE5's glTF import scales them to centimetres with Import Uniform Scale 100 (unverified in-engine). Up: the file is Y up, UE5 is Z up and converts on import (unverified in-engine). Bones: UE5 Mannequin names, checked against UE5's core list. Unverified in-engine: UE5 was never opened on this file."},
 	{"id": "unity", "label": "Unity", "engine": "unity",
-		"formats": [{"name": "glTF 2.0 (.glb), named _unity, for glTFast", "run": "engine:unity"}],
+		"formats": [{"name": "glTF 2.0 (.glb), named _unity, for glTFast", "run": "engine:unity"},
+			{"name": "FBX 7.4 (.fbx), named _unity", "run": "fbx",
+				"needs": "Unity's FBX importer reads the centimetres and converts them (Convert Units on). Rig: Generic, for the clip on any rig; Humanoid needs an Avatar that maps the UE5 names (pelvis, spine_01, upperarm_l ...) by hand. Unverified in-engine: Unity was never opened on this file."}],
 		"app": "Metres and Y up, as the file is: nothing is moved, the clip moves the hips. Unverified in-engine: Unity was never opened on this file. A Humanoid avatar needs the FBX route (Blender, docs/EXPORT.md)."},
 	{"id": "godot", "label": "Godot 4", "engine": "godot",
 		"formats": [{"name": "glTF 2.0 (.glb), named _godot", "run": "engine:godot"}],
@@ -32,7 +36,9 @@ const TARGETS := [
 		"app": "The .glb holds one armature with an action named after the scene, a key on every frame. The .bvh holds every joint on every frame, scale 1.0. Both checked with Blender 4.5's own importers (docs/EXPORT.md)."},
 	{"id": "maya", "label": "Maya / MotionBuilder", "engine": "",
 		"needs": "MotionBuilder reads BVH as motion capture. Maya has no BVH import in its base install: use a BVH plugin, or the FBX route through Blender (docs/EXPORT.md). Maya reads USD through its own importer. Neither was opened for this export.",
-		"formats": [{"name": "BVH (.bvh): motion capture", "run": "bvh"}, {"name": "USD (.usda): UsdSkel skeleton animation", "run": "usda"}],
+		"formats": [{"name": "BVH (.bvh): motion capture", "run": "bvh"}, {"name": "USD (.usda): UsdSkel skeleton animation", "run": "usda"},
+			{"name": "FBX 7.4 (.fbx): File > Import > FBX", "run": "fbx",
+				"needs": "Maya reads ASCII FBX 7.4 in centimetres, Y up: File > Import, with the bones as joints and their rotations as curves (Euler XYZ). MotionBuilder reads it as a skeleton too. Unverified: neither was opened on this file."}],
 		"app": "The .bvh holds one skeleton per file: every joint on every frame, metres, Y up, rotation order Z X Y. With several fighters, one .bvh each, placed where they stand. The .usda is UsdSkel with one time sample per frame; the weapons are not in it."},
 	{"id": "web", "label": "Web / three.js", "engine": "",
 		"needs": "A web app loads the .glb with three.js (GLTFLoader) or Babylon.js: glTF 2.0, metres, Y up, the front to +Z. Unverified in-engine: no browser loaded this file.",
@@ -178,7 +184,9 @@ func text_of(id: String, fi: int) -> Dictionary:
 	var f: Dictionary = fs[clampi(fi, 0, fs.size() - 1)]
 	var S: Scene = m.S
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
-	return {"id": id, "format": String(f["name"]), "needs": needs_of(t), "app": String(t["app"]), "fps": fps_s,
+	var fneeds := String(f.get("needs", ""))   # a format's own line (its engine's needs for that file type)
+	var needs := needs_of(t) if fneeds == "" else "%s\n\nFBX: %s" % [needs_of(t), fneeds]
+	return {"id": id, "format": String(f["name"]), "needs": needs, "app": String(t["app"]), "fps": fps_s,
 		"checks": checks(id, String(f["run"]))}
 
 
@@ -206,6 +214,8 @@ func checks(id: String, run: String) -> Array:
 			out.append("OK    weapons: joints under the hand that holds them")
 		elif run == "usda":
 			out.append("WARN  weapons are not in the .usda: the file holds the body only")
+		elif run.begins_with("fbx"):
+			out.append("WARN  weapons are not in the .fbx: the file holds the body only")
 		else:
 			out.append("WARN  weapons are not in the PoseTable: its 11 bones are the body; the bat's edge points come with the engine exports (weapon trail .json)")
 	var sec := int((S.secondary.get("items", []) as Array).size())
@@ -237,6 +247,8 @@ func export_now(id: String, fi: int, dir: String) -> Variant:
 	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
 	if run.begins_with("engine:"):
 		return m._export_engine(run.trim_prefix("engine:"), dir)
+	if run.begins_with("fbx"):
+		return m._export_fbx(dir, run == "fbx:ue5")
 	match run:
 		"glb":
 			return m._export_glb(dir)
