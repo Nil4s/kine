@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 23 / 20 (plugin API; timeline markers with notes; stairs, wedge ramps, feet on uneven ground; crowd copies with variations; pose and scene packs (share/import); scene diff report; root motion path editor; multi-track audio (premix); multi-camera mocap; Euler unroll for exports; hand capture from video; dropped sword rigid physics; cape cloth (background bake); contact IK (hand on wall/table); hair ponytail; pose matching on transitions; clip warp; custom attributes; macros; batch export; camera sequencer (per-shot shake/focus); USD layers (pxr-checked; Alembic not written); FBX export (binary, Blender-checked)). Full run 4 (2026-10-19): 237/271 under load; re-run of 34 alone: 7 load or time-outs, 27 real (UI layout, units wording, duplicate keys, trail rebuilds, a pick drag), fixes in progress; proportions waits on Nick (skeleton.json hip height). Merged after run 4: corrective seam weld, face on the head, precise pick on the skin.
+Merged since the last full run: 24 / 20 (sit, stand, get up from the floor; plugin API; timeline markers with notes; stairs, wedge ramps, feet on uneven ground; crowd copies with variations; pose and scene packs (share/import); scene diff report; root motion path editor; multi-track audio (premix); multi-camera mocap; Euler unroll for exports; hand capture from video; dropped sword rigid physics; cape cloth (background bake); contact IK (hand on wall/table); hair ponytail; pose matching on transitions; clip warp; custom attributes; macros; batch export; camera sequencer (per-shot shake/focus); USD layers (pxr-checked; Alembic not written); FBX export (binary, Blender-checked)). Full run 4 (2026-10-19): 237/271 under load; re-run of 34 alone: 7 load or time-outs, 27 real (UI layout, units wording, duplicate keys, trail rebuilds, a pick drag), fixes in progress; proportions waits on Nick (skeleton.json hip height). Merged after run 4: corrective seam weld, face on the head, precise pick on the skin.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -169,7 +169,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 91. [x] Root motion editor (path curve on the floor)
 92. [ ] Walk / run generator along a path, real gait data
 93. [x] Stairs and slopes: feet plant on uneven ground
-94. [ ] Sit / stand / get-up from the floor helpers
+94. [x] Sit / stand / get-up from the floor helpers
 95. [x] Crowd: copy a fighter with variations
 96. [x] Asset store of poses / moves (share and import)
 97. [x] Timeline markers with notes
