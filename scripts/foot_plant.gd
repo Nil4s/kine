@@ -22,7 +22,7 @@ class_name FootPlant
 extends RefCounted
 
 const BLEND := 3          # frames, at the scene's fps, over which a plant eases on before t0 and off after t1 (the least)
-const OUT_MAX := 12       # frames: the longest release ramp (out_frames)
+const OUT_MAX := 48       # frames: the longest release ramp (out_frames)
 const NEAR_S := 0.5       # s either side of t1 over which the scene's own largest foot step is read (out_frames)
 const SMOOTH_SLOPE := 1.5 # the smoothstep's steepest slope: its per-frame step is SMOOTH_SLOPE * distance / frames at most
 const MISS_BAR := 0.001   # m: a frame whose ankle is more than this from its pin is reported by scan()
@@ -110,7 +110,7 @@ static func out_frames(S: Scene, B: Body, idx: int) -> int:
 				now.append(q)
 		if k == 0:   # the free sole at t1 (heel, ball of this foot) against the held one
 			var base := 0 if sd == "_l" else 2
-			d = maxf((now[base] as Vector3).distance_to(held[0]), (now[base + 1] as Vector3).distance_to(held[1]))
+			d = maxf(d, maxf((now[base] as Vector3).distance_to(held[0]), (now[base + 1] as Vector3).distance_to(held[1])))
 		if not prev.is_empty():
 			for i in now.size():
 				s_max = maxf(s_max, (now[i] as Vector3).distance_to(prev[i]))
@@ -118,7 +118,7 @@ static func out_frames(S: Scene, B: Body, idx: int) -> int:
 	S._plants_off = false
 	var n := BLEND
 	if s_max > 1e-7 and d > 0.0:
-		n = clampi(int(ceil(SMOOTH_SLOPE * d / s_max)), BLEND, OUT_MAX)
+		n = clampi(int(ceil(SMOOTH_SLOPE * d / (0.5 * s_max))), BLEND, OUT_MAX)   # half the free step: the free sole's own motion adds to the ramp's
 	S._plant_out[idx] = {"sig": sig, "n": n}
 	return n
 
