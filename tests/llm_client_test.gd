@@ -167,6 +167,18 @@ func _init() -> void:
 		and not r3.get("ok", true) and w3.contains("needs your API key") and not sent3
 		and r4.size() == 1 and r4[0].contains("no tool 'fly'"),
 		"5 refused: nothing listening, said after %.1f s (bar 5): \"%s\" | \"%s\" | \"%s\" (sent %s) | %s" % [dt1, w1, w2, w3, sent3, r4])
+	# 6 an API key never crosses the network unencrypted
+	c.backend = "openai"
+	c.key = "sk-zz-test"
+	c.base_url = "http://10.20.30.40:8080"
+	got = {}
+	var r6: Dictionary = await turn(c)
+	var w6: String = r6.get("why", "")
+	var safe := [LlmClient.key_safe("https://api.openai.com"), LlmClient.key_safe("http://127.0.0.1:11434"),
+		LlmClient.key_safe("http://localhost:1234"), not LlmClient.key_safe("http://10.20.30.40:8080"),
+		not LlmClient.key_safe("http://api.openai.com")]
+	ok(not r6.get("ok", true) and w6.contains("NOT SENT") and w6.contains("https://") and got.is_empty()
+		and not safe.has(false), "6 a key to plain http on another machine is refused before sending: \"%s\"; key_safe on https / 127.0.0.1 / localhost / 10.x http / remote http: %s (want all true)" % [w6, safe])
 	srv.stop()
 	print("LLM CLIENT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

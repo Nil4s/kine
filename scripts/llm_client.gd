@@ -200,6 +200,9 @@ func chat(system: String, convo: Array, tools: Array) -> void:
 	if backend != "ollama" and key == "":
 		_finish({"ok": false, "why": "%s needs your API key: type it in the AI box's model row (or pick ollama, on this machine)" % backend})
 		return
+	if key != "" and not key_safe(base_of(backend, base_url)):
+		_finish({"ok": false, "why": "NOT SENT: %s is plain http to another machine, so your API key and prompts would cross the network unencrypted: use an https:// address in the AI box's model row (or a model on this machine)" % base_of(backend, base_url)})
+		return
 	var rq := build(backend, model, base_url, key, system, convo, tools)
 	busy = true
 	# a model on THIS machine that is not running: Windows takes about 30 s to refuse a closed local port through
@@ -231,6 +234,11 @@ func chat(system: String, convo: Array, tools: Array) -> void:
 
 
 const PROBE_S := 3.0
+
+
+## a key may travel only encrypted (https) or to this machine (security review 10-18: the address field took any http)
+static func key_safe(url: String) -> bool:
+	return url.begins_with("https://") or _host_port(url)[0] in ["127.0.0.1", "localhost", "::1", "[::1]"]
 
 
 static func _host_port(url: String) -> Array:
