@@ -241,6 +241,16 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		m.S.apply(m.B, m.playhead)
 		m.sel = "hand_l"
+	elif kind == "SPINE":
+		# ROADMAP 61: combo3 on card 3 with the back on the spline from card 1, the middle back picked (off needs a key to turn off)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		m._card_pick(0)
+		m.S.apply(m.B, m.playhead)
+		SpineIK.pin(m.S, m.B, m.playhead)
+		m._card_pick(2)
+		m.S.apply(m.B, m.playhead)
+		m.sel = "spine_02"
 	elif kind.begins_with("CONS"):
 		# round 51: combo3 on card 3 with the left hand held to the right hand from card 1 and the head looking at the
 		# weapon, the left hand picked (fade / release / remove need a constraint)
@@ -540,7 +550,7 @@ func _init() -> void:
 		t_prev = c["id"]
 		var r := await trial(c, PREFER.get(c["id"], "A"))
 		if r == "same" and c["edits"]:
-			for k in ["A", "B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
+			for k in ["A", "B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "SPINE", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "SETS", "SETS_B", "PROPS", "CLIPS", "DRIVER", "SECONDARY", "FOOT", "FOOTPLANTED", "HITS", "TWIN", "LIP"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

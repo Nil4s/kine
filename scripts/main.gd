@@ -2559,6 +2559,7 @@ func _refresh() -> void:
 	_fighters_mark()
 	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
+	_sph_draw()   # ROADMAP 61: the back's spline curve and its three handles
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
@@ -2723,6 +2724,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					return
 				if _frh_press(mb.position):   # ROADMAP 6: a foot's roll handle takes the press
 					return
+				if _sph_press(mb.position):   # ROADMAP 61: a spine spline handle takes the press
+					return
 				if _ikh_press(mb.position):   # IK2: an IK handle drawn here takes the press
 					return
 				var j := _pick(mb.position)
@@ -2785,6 +2788,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_prop_release()
 			if was == "ik_handle":
 				_ikh_release()
+			if was == "spine_handle":
+				_sph_release()
 			if was == "loa":
 				_loa_release(mb.shift_pressed)
 			if was == "foot_handle":
@@ -2819,6 +2824,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "ik_handle":
 			_ikh_move(mm.position)
+			return
+		if dragging == "spine_handle":
+			_sph_move(mm.position)
 			return
 		if dragging == "loa":
 			loa.add_point(mm.position)
@@ -4555,6 +4563,212 @@ func _ikh_release() -> void:
 	_refresh()
 	var p: Vector3 = d[d["kind"]]
 	_say("keyed the %s's IK %s at %s, at (%s, %s, %s) (Ctrl+Z takes it back)" % [_ik_words(d["tip"]), d["kind"], Units.time(t, S.fps), Units.len(p.x), Units.len(p.y), Units.len(p.z)])
+
+
+## SPLINE IK FOR THE BACK (ROADMAP 61; scripts/spine_ik.gd). With the lower / middle back or the chest picked and the spline
+## on at the playhead (spine key weight > 0), the view draws the curve through the three controls and the handles: a cube at
+## the HIP (spine_01's joint; dragging it sideways twists the base of the spine), a ball for the MID back and a cube for the
+## CHEST (drag in the view plane; the back bends along the curve each mouse move). Release keys the controls at the playhead,
+## one undo step, mirrored / saved / undone with the other IK keys.
+const SPH_CUBE := 0.07    # m, the hip and chest cubes' edge
+const SPH_BALL := 0.04    # m, the mid ball's radius
+const SPH_DEG_PX := 0.25  # deg of hip twist per pixel of sideways drag
+var _sph_root: Node3D
+var _sph_nodes := {}      # "hip" / "mid" / "chest" -> its mesh
+var _sph_line: MeshInstance3D
+var _sph_drag := {}       # the drag: {kind, target, pole, twist, w, n, p0, off, x0, tw0, fk?, moved}
+
+
+func _sph_build() -> void:
+	_sph_root = Node3D.new()
+	_sph_root.name = "spine_handles"
+	add_child(_sph_root)
+	for kind in ["hip", "mid", "chest"]:
+		var mc := StandardMaterial3D.new()
+		mc.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mc.no_depth_test = true
+		mc.render_priority = 3
+		mc.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mc.albedo_color = Color(Tok.c("focus") if kind == "hip" else SIDE_MID, 0.6)
+		var mi := MeshInstance3D.new()
+		if kind == "mid":
+			var sm := SphereMesh.new()
+			sm.radius = SPH_BALL
+			sm.height = SPH_BALL * 2.0
+			mi.mesh = sm
+		else:
+			var bm := BoxMesh.new()
+			bm.size = Vector3.ONE * SPH_CUBE
+			mi.mesh = bm
+		mi.material_override = mc
+		_sph_root.add_child(mi)
+		_sph_nodes[kind] = mi
+	_sph_line = MeshInstance3D.new()
+	_sph_line.mesh = ImmediateMesh.new()
+	_sph_root.add_child(_sph_line)
+
+
+## the spline is shown now: a back part is picked and the spine key's weight at the playhead is above 0
+func _sph_active() -> bool:
+	if clean or S == null or not SpineIK.is_spine_part(sel) or not S.ik.has(SpineIK.KEY):
+		return false
+	return LimbIK.weight_at(S.ik[SpineIK.KEY], clampf(playhead, 0.0, S.length())) > 0.0
+
+
+## the controls as drawn: the drag's live ones, or the keys sampled at the playhead
+func _sph_at() -> Dictionary:
+	if not _sph_drag.is_empty():
+		return _sph_drag
+	return SpineIK.sample(S.ik[SpineIK.KEY], clampf(playhead, 0.0, S.length()))
+
+
+func _sph_points() -> Dictionary:
+	var k := _sph_at()
+	return {"hip": B.P["spine_01"], "mid": k["pole"], "chest": k["target"]}
+
+
+func _sph_draw() -> void:
+	if _sph_root == null:
+		_sph_build()
+	var on := _sph_active()
+	_sph_root.visible = on
+	var im := _sph_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if not on:
+		return
+	var pts := _sph_points()
+	for kind in pts:
+		(_sph_nodes[kind] as Node3D).position = pts[kind]
+	var curve := SpineIK.polyline(pts["hip"], pts["mid"], pts["chest"], 2.0, 40)
+	im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP, Overlays._mat())
+	im.surface_set_color(Tok.c("info"))
+	for p in curve:
+		im.surface_add_vertex(p)
+	im.surface_end()
+	# a tick across the curve at each vertebral joint (where the bones meet it), square to the view
+	im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+	im.surface_set_color(Tok.c("info"))
+	var right := cam.global_basis.x * 0.02
+	for j in SpineIK.JOINTS + [SpineIK.END]:
+		var q: Vector3 = B.P[j]
+		im.surface_add_vertex(q - right)
+		im.surface_add_vertex(q + right)
+	im.surface_end()
+
+
+## the handle under the mouse: "hip" / "mid" / "chest" or "" (inside its drawn footprint at its depth; the nearest wins)
+func _sph_hit(mp: Vector2) -> String:
+	if not _sph_active():
+		return ""
+	var best := ""
+	var best_d := INF
+	var vh := get_viewport().get_visible_rect().size.y
+	var fwd := -cam.global_basis.z
+	var pts := _sph_points()
+	for kind in pts:
+		var p: Vector3 = pts[kind]
+		var depth := (p - cam.global_position).dot(fwd)
+		if depth <= cam.near:
+			continue
+		var r_px := (SPH_BALL if kind == "mid" else SPH_CUBE * 0.5) / (depth * tan(deg_to_rad(cam.fov * 0.5))) * vh * 0.5
+		if cam.unproject_position(p).distance_to(mp) <= maxf(r_px, 6.0) and depth < best_d:
+			best_d = depth
+			best = kind
+	return best
+
+
+func _sph_press(mp: Vector2) -> bool:
+	var kind := _sph_hit(mp)
+	if kind == "":
+		return false
+	var t := clampf(playhead, 0.0, S.length())
+	var k := SpineIK.sample(S.ik[SpineIK.KEY], t)
+	_step_hint = "Move the spine spline %s" % kind
+	_push_undo()
+	var d := {"kind": kind, "target": k["target"], "pole": k["pole"], "twist": k["twist"], "w": k["w"], "moved": false,
+		"x0": mp.x, "tw0": k["twist"]}
+	var p0: Vector3 = _sph_points()[kind]
+	var o := cam.project_ray_origin(mp)
+	var rd := cam.project_ray_normal(mp)
+	d["n"] = cam.global_basis.z
+	d["p0"] = p0
+	var hit = _ikh_plane(o, rd, p0, d["n"])
+	d["off"] = (p0 - hit) if hit != null else Vector3.ZERO
+	if float(k["w"]) < 1.0:   # the back's FK at t, to mix with as playback does
+		var F := Body.new()
+		F.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		SpineIK._fk_at(S, F, t)
+		d["fk"] = SpineIK.angles(F)
+	_sph_drag = d
+	playing = false
+	dragging = "spine_handle"
+	_refresh()
+	_say("SPINE SPLINE %s: drag it; the back bends along the curve%s. Release keys it at %.2f s" % [kind, " (sideways = twist the base)" if kind == "hip" else "", t])
+	return true
+
+
+func _sph_move(mp: Vector2) -> void:
+	if _sph_drag.is_empty():
+		return
+	var d := _sph_drag
+	if d["kind"] == "hip":
+		var tw: Vector2 = d["tw0"]
+		var dt := (mp.x - float(d["x0"])) * SPH_DEG_PX
+		d["twist"] = Vector2(clampf(tw.x + dt, -90.0, 90.0), tw.y)
+	else:
+		var hit = _ikh_plane(cam.project_ray_origin(mp), cam.project_ray_normal(mp), d["p0"], d["n"])
+		if hit == null:
+			return
+		d["target" if d["kind"] == "chest" else "pole"] = (hit as Vector3) + (d["off"] as Vector3)
+	d["moved"] = true
+	var r := SpineIK.pose(B, d, d.get("fk", null))
+	_refresh()
+	var cl: Array = r["clamped"]
+	_say("MOVING the spine spline %s%s%s" % [d["kind"], ("     a limit holds the %s" % ", ".join(cl.map(func(j): return nice(j)))) if not cl.is_empty() else "",
+		("     the chest is %.1f cm from its handle" % (float(r["miss"]) * 100.0)) if float(r["miss"]) > 0.002 else ""])
+
+
+func _sph_release() -> void:
+	var d := _sph_drag
+	_sph_drag = {}
+	if d.is_empty():
+		return
+	if not d["moved"]:
+		_drop_undo()
+		_refresh()
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	SpineIK.put(S.ik, {"t": t, "target": d["target"], "pole": d["pole"], "w": d["w"], "twist": d["twist"]})
+	_dummy_hits()
+	_refresh()
+	_say("keyed the spine spline's %s at %.2f s (Ctrl+Z takes it back)" % [d["kind"], t])
+
+
+func _spine_pin() -> void:
+	if not SpineIK.is_spine_part(sel):
+		_say("spline IK bends the back: click the lower back, middle back or chest first")
+		return
+	if S.cards.is_empty():
+		_say("IK keys live in a scene: open a scene, or press Enter to add the body as a card, then pin")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var r := {}
+	_do(func(): r.merge(SpineIK.pin(S, B, t)))
+	_dummy_hits()
+	_say("spline IK on the back at %.2f s: drag the hip, mid-back and chest handles to bend it along the curve (it matches the pose within %.1f mm now; Ctrl+Z takes it back)" % [t, float(r["err"]) * 1000.0])
+
+
+func _spine_off() -> void:
+	if not SpineIK.is_spine_part(sel):
+		_say("spline IK bends the back: click the lower back, middle back or chest first, then turn it off")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var r := {}
+	_do(func(): r.merge(SpineIK.off(S, t)))
+	if not r["ok"]:
+		_say("the back is not on the spline here: use 'Spine IK: spline the back here' first, or move the playhead to where it is on")
+		return
+	_say("spline IK off at %.2f s: the back follows the cards again over the last frame (Ctrl+Z takes it back)" % t)
 
 
 ## REVERSE-FOOT HANDLES (ROADMAP item 6; scripts/foot_handles.gd, scripts/foot_roll.gd). A picked foot shows three handles
@@ -8303,6 +8517,8 @@ func _commands() -> Array:
 	add.call("Snap to floor", "", _floor_snap, "floor ground snap stand sole foot knee lift sink drop touch pose root", true, "the picked card (or the body) moves straight up or down so its lowest point (sole, knee, hip or hand) is on the floor; the joints stay")
 	add.call("Snap to floor: all cards", "", _floor_snap.bind(true), "floor ground snap all cards every range sole foot knee lift sink", true, "every card moves straight up or down so its lowest point is on the floor; the joints stay; one undo step")
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
+	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
+	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
 	add.call("IK space: world", "", func(): _ik_space("world"), "ik space switch world follow free hand foot parent child of", true, "the picked hand (or foot) stops following anything: its target is in the world from the playhead, and it does not move at this frame")
 	add.call("IK space: chest", "", func(): _ik_space("chest"), "ik space switch chest follow torso spine parent child of hand foot", true, "the picked hand (or foot) follows the chest from the playhead on (its target is stored relative to the chest); it does not move at this frame")

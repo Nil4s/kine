@@ -1958,7 +1958,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
-	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
+	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected; the back's spline key \"spine\" is its own twin: its mid and chest points x negated, its hip / chest twists negated)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
 	"sets": "SIDED: PartSets.mirror_file (every part to its twin; a set named \"_l\" / \"_r\" takes its twin's name, the active keying set too)",

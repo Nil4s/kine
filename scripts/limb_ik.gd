@@ -42,6 +42,7 @@ const LIMBS := ["hand_l", "hand_r", "foot_l", "foot_r"]
 const OFF_FADE := 0.3   # s: an FK offset kept on a release key fades out over this long (smoothstep)
 const OFF_MIN := 0.02   # deg: an unmatched joint under this is left to the 0.01-deg card rounding
 const SPACES := ["world", "chest", "pelvis", "weapon", "hand_l", "hand_r"]
+const KEYED := ["hand_l", "hand_r", "foot_l", "foot_r", "spine"]   # the names a scene's "ik" may hold: "spine" is the back's spline IK (spine_ik.gd)
 const SAME_T := 0.001   # keys closer than this are the same key (keying there again replaces it), as PartKeys
 
 
@@ -382,6 +383,10 @@ static func play(ik: Dictionary, B: Body, t: float) -> Dictionary:
 	var out := {}
 	if ik.is_empty():
 		return out
+	if ik.has(SpineIK.KEY):   # the back first: a pinned hand stays pinned over a moving chest
+		var sr := SpineIK.play(ik[SpineIK.KEY], B, t)
+		if not sr.is_empty():
+			out[SpineIK.KEY] = sr
 	var todo := LIMBS.filter(func(l): return not (ik.get(l, []) as Array).is_empty())
 	var order := []
 	while not todo.is_empty():   # a limb after the limbs its spaces need (a loop is refused by the commands; here the first goes)
@@ -696,7 +701,7 @@ static func switch_space(S: Scene, B: Body, tip: String, t: float, space: String
 ## only when there is a key (a scene without one saves byte for byte as before). t and w to 0.0001, points to 0.1 mm
 static func to_file(ik: Dictionary) -> Dictionary:
 	var out := {}
-	for tip in LIMBS:
+	for tip in KEYED:
 		if not ik.has(tip) or (ik[tip] as Array).is_empty():
 			continue
 		out[tip] = (ik[tip] as Array).map(func(k):
@@ -710,6 +715,9 @@ static func to_file(ik: Dictionary) -> Dictionary:
 					d["off"][j] = [Body._p(k["off"][j][0]), Body._p(k["off"][j][1])]
 			if space_of(k) != "world":
 				d["space"] = space_of(k)
+			if k.has("twist"):
+				var tw := SpineIK._tw(k)
+				d["twist"] = [snappedf(tw.x, 0.0001), snappedf(tw.y, 0.0001)]
 			return d)
 	return out
 
@@ -719,7 +727,7 @@ static func from_file(d: Variant) -> Dictionary:
 	if not d is Dictionary:
 		return out
 	for tip in d:
-		if not String(tip) in LIMBS or not d[tip] is Array:
+		if not String(tip) in KEYED or not d[tip] is Array:
 			continue
 		var ks := []
 		for k in d[tip]:
@@ -737,6 +745,8 @@ static func from_file(d: Variant) -> Dictionary:
 			var sp := String(k.get("space", "world"))
 			if sp in SPACES and sp != "world":
 				key["space"] = sp
+			if k.has("twist") and k["twist"] is Array and (k["twist"] as Array).size() == 2:
+				key["twist"] = [float(k["twist"][0]), float(k["twist"][1])]   # the back's hip / chest twist (spine_ik.gd)
 			ks.append(key)
 		ks.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
 		if not ks.is_empty():
@@ -770,5 +780,7 @@ static func mirror_file(d: Dictionary, M: Body = null) -> Dictionary:
 					m["off"][Body.twin(String(j))] = pair
 			if m.has("space"):
 				m["space"] = Body.twin(String(m["space"]))   # hand_l <-> hand_r; chest, pelvis, weapon are their own twins
+			if k.has("twist"):
+				m["twist"] = [-float(k["twist"][0]), -float(k["twist"][1])]   # a turn about the vertical reverses in the mirror
 			return m)
 	return out
