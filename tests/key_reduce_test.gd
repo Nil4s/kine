@@ -50,14 +50,23 @@ func _init() -> void:
 	ok(wf <= 0.5, "1 worst sampled error %.4f deg <= 0.5 at the frames (bar)" % wf)
 	ok(float(kept) <= 0.3 * keys.size(), "2 %d of %d keys removed = %.0f %% >= 70 %% (bar)" % [keys.size() - kept, keys.size(), 100.0 * (1.0 - float(kept) / keys.size())])
 	ok(is_equal_approx(float(red[0]["t"]), 0.0) and is_equal_approx(float(red[kept - 1]["t"]), 90.0 / 30.0), "2 the first (0 s) and last (3 s) keys stay (bar)")
+	# the 100 Hz grid (0..3 s): the error against the ORIGINAL curve (what the user sees before the reduction) and against the sine
 	var wb := 0.0
-	for s in 301:
-		var t := float(s) / 100.0 * 0.3   # 300 steps over 0..3 s: between the frames too, reported only
-		wb = maxf(wb, KeyReduce.channel_err(PartKeys.at(red, t), sine(t)))
-	print("  reported, not barred: worst error on a 100 Hz grid (between frames too): %.4f deg" % wb)
+	var wbs := 0.0
+	var at100 := 0.0
+	for k in 301:
+		var t := float(k) / 100.0
+		var e := KeyReduce.channel_err(PartKeys.at(red, t), PartKeys.at(keys, t))
+		if e > wb:
+			wb = e
+			at100 = t
+		wbs = maxf(wbs, KeyReduce.channel_err(PartKeys.at(red, t), sine(t)))
+	print("100 Hz grid: worst %.4f deg at %.2f s against the original curve (%.4f against the sine)" % [wb, at100, wbs])
+	ok(wb <= 0.5, "1b 100 Hz worst error %.4f deg <= 0.5 against the original curve (bar)" % wb)
 	var jt := float(r["t"])
 	var mine := KeyReduce.channel_err(PartKeys.at(red, jt), PartKeys.at(orig["upperarm_l"], jt))
 	print("readout: worst %.4f deg at %.3f s (%s); measured again: %.4f deg" % [float(r["worst"]), jt, r["joint"], mine])
+	ok(absf(float(r["worst"]) - wb) <= 0.01, "4b readout worst %.4f deg equals the 100 Hz worst %.4f within 0.01 (bar)" % [float(r["worst"]), wb])
 	ok(String(r["joint"]) == "upperarm_l" and absf(mine - float(r["worst"])) <= 0.01,
 		"4 readout worst %.4f deg at %.3f s equals the measured %.4f within 0.01 (bar)" % [float(r["worst"]), jt, mine])
 	ok(int(r["before"]) == 91 and int(r["after"]) == kept, "4 the readout counts 91 -> %d keys" % kept)

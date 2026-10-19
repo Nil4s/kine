@@ -3,8 +3,8 @@
 ## channel counts). The curve is PartKeys.at() (the keys alone, no modifiers: a modifier stacks on top of whatever keys
 ## remain, so it is the keys' curve that the tolerance is about).
 ##
-## THE CHECK POINTS: each original key time and the midpoint between each two original keys (so a 30 fps curve is
-## checked at its frames and halfway between them). Every check point's reference is the ORIGINAL curve at that time.
+## THE CHECK POINTS: each original key time and SUB-1 evenly spaced points between each two original keys (at 30 fps
+## that is a 240 Hz grid, so the worst error between frames is measured, not only at the frames). Every check point's reference is the ORIGINAL curve at that time.
 ## A key is removed only when every check point in the stretch its removal can change stays under the tolerance (strict:
 ## tolerance 0 removes nothing). The pass is greedy, left to right: removing key i changes the curve only between the
 ## kept keys two before it and two after it (a key's auto-clamped slope reads its two neighbours), so only those check
@@ -15,6 +15,8 @@
 ## "worst": deg, "t": s, "joint": name}: the worst error over the whole scene, at the check point where it occurs.
 class_name KeyReduce
 extends RefCounted
+
+const SUB := 8   # check points per key interval (8 per 1/30 s frame: a 240 Hz grid, so the error between frames is measured)
 
 
 ## reduce every joint of pk within tol degrees (see the header). pk itself is not changed.
@@ -49,13 +51,15 @@ static func _joint(keys: Array, tol: float) -> Dictionary:
 	var n := keys.size()
 	if n < 3:
 		return {"keys": _copy(keys, range(n)), "worst": 0.0, "t": 0.0}
-	# the check points: index 2k = key k's time, 2k+1 = the midpoint of keys k and k+1
+	# the check points: index SUB*k + j = key k's time plus j/SUB of the way to key k+1; the last key closes the list
 	var ts: Array = []
 	var refs: Array = []
-	for k in n:
-		ts.append(float(keys[k]["t"]))
-		if k < n - 1:
-			ts.append(0.5 * (float(keys[k]["t"]) + float(keys[k + 1]["t"])))
+	for k in n - 1:
+		var t0 := float(keys[k]["t"])
+		var h := float(keys[k + 1]["t"]) - t0
+		for j in SUB:
+			ts.append(t0 + h * float(j) / float(SUB))
+	ts.append(float(keys[n - 1]["t"]))
 	for c in ts.size():
 		refs.append(PartKeys.at(keys, float(ts[c])))
 	var mode := PartKeys.inf_of(keys)
@@ -65,7 +69,7 @@ static func _joint(keys: Array, tol: float) -> Dictionary:
 		var e0 := mini(i + 2, n - 1)                                                # two after i
 		var local := _window(keys, stack, i, mode)
 		var ok := true
-		for c in range(2 * s0, 2 * e0 + 1):
+		for c in range(SUB * s0, SUB * e0 + 1):
 			if channel_err(PartKeys.at(local, float(ts[c])), refs[c]) >= tol:
 				ok = false
 				break
