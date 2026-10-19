@@ -3610,9 +3610,13 @@ func _undo() -> void:
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
 	var now := _snapshot()
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
+	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
+		now["lib"] = u["lib"]
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	if u.has("lib"):
+		PosePack.lib_move(u["lib"], true, library)
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
 	_undo_tips()
@@ -3629,15 +3633,26 @@ func _redo() -> void:
 	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
 	var now := _snapshot()
 	now["name"] = _step_label(r)
+	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
+		now["lib"] = r["lib"]
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	if r.has("lib"):
+		PosePack.lib_move(r["lib"], false, library)
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
 	_undo_tips()
 	_history_rows()
 	_jpending = true
 	_co_sync()
+
+
+## ROADMAP 96: an import into the library is ONE undo step (no body change); its files ride on the step as "lib"
+func _push_undo_lib(files: Array) -> void:
+	_push_undo()
+	if not undo.is_empty():
+		undo[-1]["lib"] = files
 
 
 ## an edit that moved nothing is taken back out: its step, and its node in the tree
