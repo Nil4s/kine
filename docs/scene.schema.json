@@ -356,6 +356,19 @@
       "additionalProperties": false
      }
     },
+    "notes": {
+     "type": "array",
+     "description": "review comments on frames (ROADMAP 29, scripts/review.gd); only when any",
+     "items": {
+      "type": "object",
+      "required": ["frame", "text"],
+      "properties": {
+       "frame": {"type": "integer", "minimum": 0},
+       "text": {"type": "string"}
+      },
+      "additionalProperties": false
+     }
+    },
     "beats": {
      "type": "array",
      "description": "CHOREOGRAPHY (ROADMAP 13, scripts/choreo.gd): the exchange's named moments on the hero's scene; only when any. by / on = fighter numbers (0 = the hero, k = the k-th actor)",

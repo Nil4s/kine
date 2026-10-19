@@ -41,6 +41,7 @@ func fp() -> String:
 	var sd := {"cards": m.S.cards, "name": m.S.name, "natural": m.S.natural, "spline": m.S.spline, "on_floor": m.S.on_floor,
 		"floor_body": m.S.floor_body, "pin": m.S.pin, "fps": m.S.fps, "moving_holds": m.S.moving_holds,
 		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers,   # WW1, WW5
+		"notes": m.S.notes,   # ROADMAP 29: the review notes
 		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
 		"layers": var_to_str(m.S.layers),   # NA1
 		"audio": var_to_str(m.S.audio),   # the sound on the timeline
