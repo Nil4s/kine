@@ -168,7 +168,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI"]]],
+		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
@@ -3262,6 +3262,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if pwui != null and pwui.on and pwui.input(ev):   # ROADMAP 92: a click on the floor adds a path point, Enter builds, Esc cancels
+		get_viewport().set_input_as_handled()
+		return
 	if ev is InputEventKey and not ev.pressed and hk != null:
 		hk.released(ev as InputEventKey)   # the ? that is held: its cheat sheet hides
 	if wp_on and _wp_input(ev):   # WEIGHT PAINT (ROADMAP 72): a press on the body paints, the rest of the mouse is the view's
@@ -5664,6 +5667,21 @@ func _frh_release() -> void:
 		PartKeys.put(S.part_keys, j, t, B.ang[j])
 	_refresh()
 	_say("keyed the %s foot's roll on its %s at %s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], Units.time(t, S.fps)])
+## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
+var pwui: PathWalkUI
+
+
+func _pathwalk_start() -> void:
+	if pwui == null:
+		pwui = PathWalkUI.new()
+		add_child(pwui)
+		pwui.setup(self)
+	if actor_on != 0 and not _actor_set(0):
+		_say("Walk along a path works on the hero's scene: press Actor: switch to the next fighter until the hero is on screen")
+		return
+	pwui.start()
+
+
 ## ROOT MOTION EDITOR (ROADMAP 91; scripts/root_path.gd). View toggle "Root path on the floor": the played path as a curve on the
 ## floor, a yellow handle at each card's root and a red arrow for its facing. A press on a root handle and a drag moves that
 ## card's root on the floor; a press on an arrow turns its facing. One undo step per drag (pushed at the press, dropped when the
@@ -8130,7 +8148,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
+	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -8496,6 +8514,7 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror scene", _mirror_scene, "Mirror scene: a left-handed copy of this scene, saved in scenes/_wip and opened (yours is untouched)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
+	ui_ribbon["ANIMATE"].add_child(_button("Walk along a path...", _pathwalk_start, "Walk along a path: click points on the floor, pick Walk or Run and a speed, Enter builds the cards (replaces the open scene as ONE undo step; Esc cancels)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
 	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK
@@ -10374,6 +10393,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Walk along a path...", "", _pathwalk_start, "walk run path floor points curve gait jog sprint generate steps", true, "click points on the floor, pick walk or run and a speed, Enter builds the cards as ONE undo step")
 	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
 	for st in SEL_SETS:   # SELECTION SETS (round 28, GATES II2, UPGRADES #67)
