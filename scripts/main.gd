@@ -1513,6 +1513,7 @@ func _ready() -> void:
 	add_child(loa)
 	add_child(rings)
 	ov.setup()
+	_onion_load()   # ROADMAP 70: the per-part onion options, from the settings file (never poser.cfg in tests)
 	wt.setup()
 	loa.setup()
 	rings.setup()
@@ -2540,7 +2541,7 @@ func _refresh() -> void:
 	_dummy_refresh()
 	bal.show_body(B)
 	_hand_sliders_sync()
-	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty():
+	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty() or ov.has_rigs():
 		ov.trail(_ps())
 		ov.onion(_ps(), playhead)
 	if ov.spacing_on or ov.graph_on:
@@ -6535,6 +6536,123 @@ func _hints_apply() -> void:
 		ui_status.visible = hints_on or ui_status.text != ""
 
 
+## PER-PART ONION (ROADMAP 70): View options > the onion panel. Ghosts of the picked parts only, the frames before and
+## after the playhead, the step between them. Remembered in the settings file under [onion]; the tests' own settings file
+## is the one read and written there (never poser.cfg).
+var onion_pop: PopupPanel
+var _onion_ui := {}
+
+
+func _onion_load() -> void:
+	var cf := ConfigFile.new()
+	if cf.load(settings) != OK:
+		return
+	ov.onion_parts_on = bool(cf.get_value("onion", "parts", false))
+	ov.onion_before = clampi(int(cf.get_value("onion", "before", 2)), 0, Overlays.ONION_MAX)
+	ov.onion_after = clampi(int(cf.get_value("onion", "after", 2)), 0, Overlays.ONION_MAX)
+	ov.onion_step = clampi(int(cf.get_value("onion", "step", 1)), 1, Overlays.ONION_STEP_MAX)
+	ov.onion_picks = Array(cf.get_value("onion", "picks", []))
+
+
+func _onion_save() -> void:
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("onion", "parts", ov.onion_parts_on)
+	cf.set_value("onion", "before", ov.onion_before)
+	cf.set_value("onion", "after", ov.onion_after)
+	cf.set_value("onion", "step", ov.onion_step)
+	cf.set_value("onion", "picks", ov.onion_picks)
+	cf.save(settings)
+
+
+func _onion_panel_open() -> void:
+	if onion_pop == null:
+		onion_pop = PopupPanel.new()
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 6)
+		onion_pop.add_child(v)
+		var parts := CheckBox.new()
+		parts.text = "Ghosts of the picked parts only (not the whole body)"
+		parts.toggled.connect(_onion_set_parts)
+		v.add_child(parts)
+		_onion_ui["parts"] = parts
+		var pick := Button.new()
+		pick.pressed.connect(_onion_pick_sel)
+		v.add_child(pick)
+		_onion_ui["pick"] = pick
+		var picks := Label.new()
+		v.add_child(picks)
+		_onion_ui["picks"] = picks
+		for k in [["before", "Frames before", Overlays.ONION_MAX], ["after", "Frames after", Overlays.ONION_MAX], ["step", "Step (frames)", Overlays.ONION_STEP_MAX]]:
+			var row := HBoxContainer.new()
+			var lb := Label.new()
+			lb.text = k[1]
+			lb.custom_minimum_size = Vector2(140, 0)
+			row.add_child(lb)
+			var sp := SpinBox.new()
+			sp.min_value = 1 if k[0] == "step" else 0
+			sp.max_value = k[2]
+			sp.step = 1
+			sp.value_changed.connect(func(_x): _onion_frames())
+			row.add_child(sp)
+			v.add_child(row)
+			_onion_ui[k[0]] = sp
+		var legend := Label.new()
+		legend.text = "past = warm, future = cool. The farther from the playhead, the fainter."
+		legend.modulate = Tok.dim(0.6)
+		v.add_child(legend)
+		add_child(onion_pop)
+	onion_pop.theme = ui_root.theme
+	_onion_panel_sync()
+	onion_pop.popup_centered(Vector2i(380, 0))
+
+
+func _onion_panel_sync() -> void:
+	if onion_pop == null:
+		return
+	(_onion_ui["parts"] as CheckBox).set_pressed_no_signal(ov.onion_parts_on)
+	(_onion_ui["pick"] as Button).text = ("Unpick %s" if ov.onion_picks.has(sel) else "Pick the selected part (%s)") % nice(sel)
+	(_onion_ui["picks"] as Label).text = "Picked: " + (", ".join(ov.onion_picks.map(func(p): return nice(p))) if not ov.onion_picks.is_empty() else "none yet")
+	(_onion_ui["before"] as SpinBox).set_value_no_signal(ov.onion_before)
+	(_onion_ui["after"] as SpinBox).set_value_no_signal(ov.onion_after)
+	(_onion_ui["step"] as SpinBox).set_value_no_signal(ov.onion_step)
+
+
+func _onion_set_parts(on: bool) -> void:
+	ov.onion_parts_on = on
+	if on:
+		ov.onion_on = true
+		if ov.onion_picks.is_empty():
+			_say("pick a part first: select it, then View options > Pick the selected part")
+	_onion_save()
+	_onion_panel_sync()
+	_refresh()
+	if not on:
+		_say("onion skin: the whole body again")
+
+
+func _onion_pick_sel() -> void:
+	if ov.onion_picks.has(sel):
+		ov.onion_picks.erase(sel)
+	else:
+		ov.onion_picks.append(sel)
+	ov.onion_on = ov.onion_on or ov.onion_parts_on
+	_onion_save()
+	_onion_panel_sync()
+	_refresh()
+	_say("onion skin shows: %s" % (", ".join(ov.onion_picks.map(func(p): return nice(p))) if not ov.onion_picks.is_empty() else "no part (pick one)"))
+
+
+func _onion_frames() -> void:
+	if onion_pop == null:
+		return
+	ov.onion_before = int((_onion_ui["before"] as SpinBox).value)
+	ov.onion_after = int((_onion_ui["after"] as SpinBox).value)
+	ov.onion_step = int((_onion_ui["step"] as SpinBox).value)
+	_onion_save()
+	_refresh()
+
+
 ## THE THEME PREFERENCE (ROADMAP 58): "system" (follows Windows' dark mode), "light" or "dark". Saved as look/theme; the
 ## old look/light flag is kept in step so a build without this still reads the same palette
 var theme_pref := "system"
@@ -6650,7 +6768,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy",
+	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
 
 
@@ -7052,6 +7170,7 @@ func _ui() -> void:
 			us.get_popup().set_item_tooltip(k, "" if scale_fits(SCALES[k]) else GREY_TAG.strip_edges() + " %d %% needs a window of at least %d x %d px: make the window bigger (maximise it)" % [SCALES[k], MIN_ROOM.x * SCALES[k] / 100, MIN_ROOM.y * SCALES[k] / 100])
 			us.get_popup().set_item_text(k, "%d %%" % SCALES[k] + ("" if scale_fits(SCALES[k]) else "   (needs a bigger window)")))
 	ui_ribbon["VIEW"].add_child(us)
+	ui_ribbon["VIEW"].add_child(_button("View options", _onion_panel_open, "onion skin options: ghosts of the picked parts only, the frames before and after, the step between them (remembered)"))
 	# always there, in the strip: the scene in the middle, the small icons on the right
 	var fill := Control.new()
 	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
