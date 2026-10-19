@@ -3648,6 +3648,15 @@ func _redo() -> void:
 	_co_sync()
 
 
+## ROADMAP 96: Share scene as a pack...: the saved scene (scenes/<name>.json) packed for someone else; nothing is changed here
+func _share_scene_pack() -> void:
+	var p := "res://scenes/%s.json" % S.name
+	if not FileAccess.file_exists(p):
+		_say("this scene is not saved yet: Save scene first, then Share scene as a pack... packs the saved file")
+		return
+	PosePack.share_scene_ask(self, p)
+
+
 ## ROADMAP 96: an import into the library is ONE undo step (no body change); its files ride on the step as "lib"
 func _push_undo_lib(files: Array) -> void:
 	_push_undo()
@@ -9783,6 +9792,7 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Share scene as a pack...", "", _share_scene_pack, "share scene pack asset store kinepack export send", false, "the saved scene as one .kinepack file (cards, timings, markers, props) to send to someone; Import pack... reads it")
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
 		var miss := not FileAccess.file_exists(p)
 		var how := "%s is not on disk any more: File > Recent drops it when %d newer scenes are opened" % [p.get_file(), RECENT_N]

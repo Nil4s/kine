@@ -33,6 +33,11 @@ func nick_files() -> Dictionary:
 	return out
 
 
+## the colour distance of two pixels (a sum of channel differences)
+func _cd(a: Color, b: Color) -> float:
+	return absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b)
+
+
 func _put(p: String, b: PackedByteArray) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(p.get_base_dir()))
 	var f := FileAccess.open(p, FileAccess.WRITE)
@@ -72,15 +77,46 @@ func _init() -> void:
 	var thumb: PackedByteArray = lib.thumb_png(src)
 	ok(thumb.size() > 1000, "the pose's picture is there (%d bytes)" % thumb.size())
 	var out := tmp.path_join("out")
+	# ---- the picture is drawn from the pack's pose, not from the body on screen (placement bars)
+	m.B.ang["lowerarm_r"] = Vector3.ZERO   # the body on screen: right elbow straight
+	m.B.fk()
+	await lib.render(src)
+	var elbow: float = lib._tb.ang["lowerarm_r"].x
+	ok(absf(elbow - 106.0) < 0.05, "the stage's right elbow is the pack's pose: %.2f deg (file says 106.00, body on screen 0)" % elbow)
+	var guard_img: Image = (lib.tex[src] as Texture2D).get_image()
+	guard_img.save_png(ProjectSettings.globalize_path("user://zz_assetstore_thumb.png"))
+	var rest_dir := tmp.path_join("rest")
+	_put(rest_dir.path_join("stand.json"), FileAccess.get_file_as_bytes("res://poses/stand.json"))
+	await lib.render(rest_dir.path_join("stand.json"))
+	var rest_img: Image = (lib.tex[rest_dir.path_join("stand.json")] as Texture2D).get_image()
+	var diff := 0
+	for y in guard_img.get_height():
+		for x in guard_img.get_width():
+			if _cd(guard_img.get_pixel(x, y), rest_img.get_pixel(x, y)) > 0.1:
+				diff += 1
+	ok(diff > 300, "the guard's picture differs from the rest pose's: %d pixels" % diff)
+	m.B.ang["lowerarm_r"] = Vector3(106.0, 0.0, 0.0)   # the body back to the guard: the picture must be the same as from the file
+	m.B.fk()
+	await lib.render(src)
+	var again: Image = (lib.tex[src] as Texture2D).get_image()
+	var same := 0
+	for y in again.get_height():
+		for x in again.get_width():
+			if _cd(again.get_pixel(x, y), guard_img.get_pixel(x, y)) > 0.001:
+				same += 1
+	ok(same == 0, "the picture does not depend on the body on screen: %d pixels differ" % same)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(rest_dir.path_join("stand.json")))
 
 	# ---- round trip
 	var shared := out.path_join("guard.kinepack")
-	var s := PosePack.share(src, shared, "Guard bat", "Nick", "CC-BY", thumb, "9.9.9")
+	var s := PosePack.share(src, shared, "Guard bat", "Nick", "CC-BY", thumb)
 	ok(s["ok"], "share writes the pack: %s" % s["why"])
 	var rd := PosePack.read(shared)
 	ok(rd["ok"], "the pack reads back and checks out: %s" % rd["why"])
 	var pk: Dictionary = rd["pack"]
 	ok(pk["name"] == "Guard bat" and pk["author"] == "Nick" and pk["licence"] == "CC-BY", "name, author and licence come back as typed")
+	var ver := String(ProjectSettings.get_setting("application/config/version", ""))
+	ok(ver != "" and pk["app_version"] == ver, "the version is the project's own (application/config/version = '%s')" % ver)
 	ok(String(pk["pose_text"]).to_utf8_buffer() == raw, "the pack carries the pose file's bytes")
 	var u0: int = m.undo.size()
 	var c1 := PosePack.commit(m, pk)
@@ -107,7 +143,7 @@ func _init() -> void:
 
 	# ---- refusals, each named
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(shared))
-	d["pose"] = String(d["pose"]) + " "
+	d["payload"] = String(d["payload"]) + " "
 	var tp := out.path_join("tampered.kinepack")
 	_put(tp, JSON.stringify(d, " ").to_utf8_buffer())
 	var tr := PosePack.read(tp)
@@ -157,12 +193,37 @@ func _init() -> void:
 	ok(fc["ok"] and not JSON.parse_string(FileAccess.get_file_as_string(fc["path"]))["joints"].has("tail_01"),
 		"the retargeted pose is imported without the dropped bone")
 
+	# ---- scenes: a 5-card scene, shared and imported back byte for byte
+	var scene_src := tmp.path_join("src/five_cards.json")
+	var sd: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://scenes/combo3.json"))
+	sd["cards"] = (sd["cards"] as Array).slice(0, 5)
+	_put(scene_src, JSON.stringify(sd, "	").to_utf8_buffer())
+	var sh := PosePack.share_scene(scene_src, out.path_join("five.kinepack"), "Five cards", "Nick", "CC0")
+	ok(sh["ok"], "a 5-card scene shares: %s" % sh["why"])
+	var sr := PosePack.read(out.path_join("five.kinepack"))
+	ok(sr["ok"] and sr["pack"]["kind"] == "scene" and int(sr["pack"]["cards"]) == 5, "it reads back as a scene of 5 cards: %s" % sr["why"])
+	var sc1 := PosePack.commit(m, sr["pack"])
+	ok(sc1["ok"] and FileAccess.get_file_as_bytes(sc1["path"]) == FileAccess.get_file_as_bytes(scene_src), "the 5-card scene imports byte-identical")
+	var sbad: Dictionary = sd.duplicate(true)
+	sbad["audio"] = {"path": "user://x.wav"}
+	var sbp := out.path_join("scene_audio.kinepack")
+	PosePack.write(PosePack.build(JSON.stringify(sbad, "	"), "Scene audio", "", "CC0", thumb, "", "scene"), sbp)
+	var sbr := PosePack.read(sbp)
+	ok(not sbr["ok"] and String(sbr["why"]).contains("'audio'"), "a scene naming a file is refused: '%s'" % sbr["why"])
+	var sj: Dictionary = sd.duplicate(true)
+	(sj["cards"] as Array)[0]["pose"]["joints"]["lowerarm_r"]["bend"] = 400.0
+	var sjp := out.path_join("scene_hot.kinepack")
+	PosePack.write(PosePack.build(JSON.stringify(sj, "	"), "Scene hot", "", "CC0", thumb, "", "scene"), sjp)
+	var sjr := PosePack.read(sjp)
+	ok(not sjr["ok"] and String(sjr["why"]).contains("card 1") and String(sjr["why"]).contains("out of its range"), "a scene with a joint at 400 deg is refused: '%s'" % sjr["why"])
+
 	# ---- nothing written under poses/ or moves/
 	var after := nick_files()
 	ok(after == before, "poses/ and moves/ untouched (%d files compared)" % before.size())
 
 	# ---- the import dialog with the shared pack: picture, name, author, licence
 	var dlg := PosePack.pack_dialog(m, pk, Callable())
+	await create_timer(7.0).timeout   # the undo/redo toast is gone before the picture is taken
 	for i in 6:
 		await process_frame
 	await RenderingServer.frame_post_draw
