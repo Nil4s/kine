@@ -160,3 +160,216 @@ func landed(S: Scene, B: Body) -> Array:
 		L.cards.append(end)
 	h["t"] = tc
 	return [L, h]
+
+
+# ---------------------------------------------------------------- two fighters (round 50, GATES TC5)
+## THE DUMMY'S REPORT BETWEEN TWO FIGHTERS. The hero plays `sa` on body `ba`; the other fighter plays `sb` on `bb` and
+## stands where `xf` puts it (its space -> the hero's); both on the same clock. Every frame (fps a second) the two bodies
+## are tested with Body.cross_contacts (every capsule of each, their weapons included). Each contact row is named by
+## its kind and the ZONE it lands on (cross_name):
+##   hit    the hero's weapon on the other's part        zone = that part's zone (HEAD, CHEST, ... ARMS)
+##   struck the other's weapon on the hero's part        zone = the hero's part's zone
+##   clash  weapon on weapon                             zone = WEAPON
+##   block  forearm/hand on forearm/hand                 zone = ARMS
+##   touch  any other body on body                       zone = the other's part's zone
+## A contact starts the first sample its kind + zone is present after a sample without it (as the dummy's hit: it must
+## leave before the next one counts). Samples: every frame, and every 1/240 s inside a frame where they may touch (see
+## BETWEEN FRAMES). For it: t = its onset, found between that sample and the one before by bisection (10 halvings);
+## part = the striking part (a weapon part when one is in it), on = the part struck; at = where it first touches (the
+## midpoint of the two axes' closest points at the onset, the hero's space); u = m up the weapon (weapons; -1 for a body
+## part); speed = |p(t) - p(t')| / (t - t') of the striking spot (the same spot on its part; t' = the sample before);
+## depth = the deepest it goes before it leaves (m, at the samples).
+## Returns [{"t", "kind", "zone", "part", "on", "by" ("hero" / "other"), "depth", "speed", "u", "at"}, ...] by t.
+const BISECT := 10
+
+
+static func cross_name(c: Array) -> String:
+	var kind: String = c[3]
+	if kind == "clash":
+		return "clash|WEAPON"
+	if kind == "struck":
+		return "struck|" + Body.cross_zone(c[0])
+	return kind + "|" + Body.cross_zone(c[1])
+
+
+## the deepest contact row of each kind + zone now: {key: row}
+static func cross_named(ba: Body, bb: Body, xf: Transform3D) -> Dictionary:
+	var out := {}
+	for c in ba.cross_contacts(bb, xf):   # deepest first: the first row of a key is its deepest
+		var k := cross_name(c)
+		if not out.has(k):
+			out[k] = c
+	return out
+
+
+static func _pose2(sa: Scene, ba: Body, sb: Scene, bb: Body, t: float) -> void:
+	sa.apply(ba, t)
+	sb.apply(bb, t)
+
+
+## the parameters (s on p1-q1, t on p2-q2) of the two segments' closest points (Ericson 5.1.9, as Body.seg_seg)
+static func seg_params(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> Vector2:
+	var d1 := q1 - p1
+	var d2 := q2 - p2
+	var r := p1 - p2
+	var a := d1.dot(d1)
+	var e := d2.dot(d2)
+	var f := d2.dot(r)
+	var s := 0.0
+	var t := 0.0
+	if a <= 1e-12 and e <= 1e-12:
+		return Vector2.ZERO
+	if a <= 1e-12:
+		t = clampf(f / e, 0.0, 1.0)
+	else:
+		var c := d1.dot(r)
+		if e <= 1e-12:
+			s = clampf(-c / a, 0.0, 1.0)
+		else:
+			var b := d1.dot(d2)
+			var den := a * e - b * b
+			s = clampf((b * f - c * e) / den, 0.0, 1.0) if den > 1e-12 else 0.0
+			t = (b * s + f) / e
+			if t < 0.0:
+				t = 0.0
+				s = clampf(-c / a, 0.0, 1.0)
+			elif t > 1.0:
+				t = 1.0
+				s = clampf((b - c) / a, 0.0, 1.0)
+	return Vector2(s, t)
+
+
+## a contact row's two axes in the hero's space: [hero part a, b, other part a, b]
+static func _axes(ba: Body, bb: Body, xf: Transform3D, c: Array) -> Array:
+	var p: Array = ba.cap(c[0])
+	var q: Array = bb.cap(c[1])
+	return [p[0], p[1], xf * (q[0] as Vector3), xf * (q[1] as Vector3)]
+
+
+## where a contact row is: the midpoint of the closest points of its two axes (the hero's space)
+static func cross_at(ba: Body, bb: Body, xf: Transform3D, c: Array) -> Vector3:
+	var ax := _axes(ba, bb, xf, c)
+	var st := seg_params(ax[0], ax[1], ax[2], ax[3])
+	return ((ax[0] as Vector3).lerp(ax[1], st.x) + (ax[2] as Vector3).lerp(ax[3], st.y)) * 0.5
+
+
+## a point on a part's axis (s = 0..1 from its first end), carried by xf
+static func _spot(b: Body, part: String, s: float, xf: Transform3D) -> Vector3:
+	var a: Array = b.cap(part)
+	return xf * (a[0] as Vector3).lerp(a[1], s)
+
+
+## BETWEEN FRAMES. A bat at 30 m/s moves a metre in a 30 fps frame: a contact can begin and end between two frames
+## (combo3's wind-up brushes a head 1.2 m out for less than 1/60 s). So where the two bodies MAY touch inside a frame
+## (_may_touch), the frame is sampled SUB_HZ times a second as well (the same Scene.apply). _may_touch, per pair of
+## capsules (one of each body): the straight path of each one's bounding sphere centre across the frame; the closest
+## approach of the two paths (Body.seg_seg: a lower bound of their distance at any one moment) under the two sphere
+## radii + SAG x the two parts' chords (the most an end point moved): SAG = 0.5 covers an arc up to 180 deg a frame
+## (sagitta / chord = tan(theta / 4) / 2). Frames where nothing is near cost one test; the rest are sampled as the
+## ground truth is (tests/actors_hit_test.gd: every 1/240 s).
+const SUB_HZ := 240.0
+const SAG := 0.5
+
+
+static func _may_touch(c0: Array, c1: Array) -> bool:
+	var A0: Array = c0[0]
+	var A1: Array = c1[0]
+	var B0: Array = c0[1]
+	var B1: Array = c1[1]
+	if A0.size() != A1.size() or B0.size() != B1.size():
+		return true   # a weapon came or went: sample it
+	var ch_b := []
+	for j in B0.size():
+		ch_b.append(maxf((B0[j][1] as Vector3).distance_to(B1[j][1]), (B0[j][2] as Vector3).distance_to(B1[j][2])))
+	for i in A0.size():
+		var pa0: Array = A0[i]
+		var pa1: Array = A1[i]
+		var ch_a := maxf((pa0[1] as Vector3).distance_to(pa1[1]), (pa0[2] as Vector3).distance_to(pa1[2]))
+		var ma := (pa0[4] as Vector3).distance_to(pa1[4])
+		for j in B0.size():
+			var pb0: Array = B0[j]
+			var pb1: Array = B1[j]
+			var lim: float = float(pa0[5]) + float(pb0[5]) + SAG * (ch_a + float(ch_b[j])) + Body.CROSS_MIN
+			# cheap reject: apart at the start by more than both centres travel
+			if (pa0[4] as Vector3).distance_to(pb0[4]) - ma - (pb0[4] as Vector3).distance_to(pb1[4]) > lim:
+				continue
+			if Body.seg_seg(pa0[4], pa1[4], pb0[4], pb1[4]) < lim:
+				return true
+	return false
+
+
+static func fighter_hits(sa: Scene, ba: Body, sb: Scene, bb: Body, xf: Transform3D, fps := 30) -> Array:
+	var st := {"out": [], "going": {}, "tp": -1.0}
+	var n := int(ceil(maxf(sa.length(), sb.length()) * fps))
+	var dt := 1.0 / fps
+	var sub := maxi(1, int(ceil(SUB_HZ / fps)))
+	var caps0 := []
+	for f in n + 1:
+		var t := float(f) / fps
+		_pose2(sa, ba, sb, bb, t)
+		var caps1 := [ba.cross_caps(), bb.cross_caps(xf)]
+		if f > 0 and sub > 1 and _may_touch(caps0, caps1):
+			for i in range(1, sub):
+				var ts := t - dt + dt * i / sub
+				_pose2(sa, ba, sb, bb, ts)
+				_sample(st, sa, ba, sb, bb, xf, ts)
+			_pose2(sa, ba, sb, bb, t)
+		_sample(st, sa, ba, sb, bb, xf, t)
+		caps0 = caps1
+	var out: Array = st["out"]
+	out.sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
+	return out
+
+
+## one sample at t (the bodies posed at t; left posed at t): contacts that go on deepen theirs, new ones start a row
+static func _sample(st: Dictionary, sa: Scene, ba: Body, sb: Scene, bb: Body, xf: Transform3D, t: float) -> void:
+	var out: Array = st["out"]
+	var going: Dictionary = st["going"]   # kind + zone -> index in out of the contact still going on
+	var tp: float = st["tp"]
+	st["tp"] = t
+	var now := cross_named(ba, bb, xf)
+	for k in going.keys():
+		if not now.has(k):
+			going.erase(k)
+	var fresh := []
+	for k in now:
+		if going.has(k):
+			var g: Dictionary = out[going[k]]
+			g["depth"] = maxf(float(g["depth"]), float(now[k][2]))
+		else:
+			fresh.append(k)
+	for k in fresh:   # (each new one re-poses the bodies, then puts them back at t)
+		var c: Array = now[k]
+		var theirs: bool = c[3] == "struck"   # the other's weapon strikes; else the hero's part does
+		var h := {"kind": c[3], "zone": (k as String).get_slice("|", 1), "depth": float(c[2]), "t": t,
+			"part": c[1] if theirs else c[0], "on": c[0] if theirs else c[1], "by": "other" if theirs else "hero",
+			"at": cross_at(ba, bb, xf, c), "u": -1.0, "speed": 0.0}
+		var ax := _axes(ba, bb, xf, c)
+		var sp := seg_params(ax[0], ax[1], ax[2], ax[3])
+		var s: float = sp.y if theirs else sp.x
+		var sbody: Body = bb if theirs else ba
+		var sxf: Transform3D = xf if theirs else Transform3D.IDENTITY
+		var p_now := _spot(sbody, h["part"], s, sxf)
+		if Body.is_wep(h["part"]):
+			var butt: Vector3 = sbody.wep2_point(0.0) if h["part"] in Body.WEAPON2 else sbody.wep_point(0.0)
+			h["u"] = (sxf * butt).distance_to(p_now)
+		if tp >= 0.0:
+			_pose2(sa, ba, sb, bb, tp)
+			h["speed"] = _spot(sbody, h["part"], s, sxf).distance_to(p_now) / (t - tp)
+			var lo := tp   # the onset: between the sample before (not in it) and this one
+			var hi := t
+			for i in BISECT:
+				var mid := (lo + hi) * 0.5
+				_pose2(sa, ba, sb, bb, mid)
+				if cross_named(ba, bb, xf).has(k):
+					hi = mid
+				else:
+					lo = mid
+			h["t"] = hi
+			_pose2(sa, ba, sb, bb, hi)
+			var at_hi := cross_named(ba, bb, xf)
+			if at_hi.has(k):
+				h["at"] = cross_at(ba, bb, xf, at_hi[k])   # where it first touches
+			_pose2(sa, ba, sb, bb, t)
+		going[k] = out.size()
+		out.append(h)

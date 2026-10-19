@@ -193,6 +193,18 @@ func _refresh_now() -> void:
 	_mine.set_text(0, "Mine  (%d)" % _mine.get_child_count())
 	if m.ui_dummy != null:
 		_dummy.set_text(0, "Target dummy: " + (m.ui_dummy.text.get_slice("\n", 0) if m.dummy_on else "off"))
+	# TC5: with 2+ fighters the dummy's report is between them: the row says it, a row under it per contact (click: there)
+	for c in _dummy.get_children():
+		c.free()
+	if m.ui_dummy != null and m._fighters_on():
+		var ls: PackedStringArray = m.ui_dummy.text.split("\n")
+		_dummy.set_text(0, "Hits: " + ls[0])
+		for i in range(1, ls.size()):
+			var hr := create_item(_dummy)
+			hr.set_text(0, ls[i])
+			if i - 1 < m.fighter_hits.size():
+				hr.set_metadata(0, {"hit": i - 1})
+				hr.set_tooltip_text(0, "click: the playhead to this contact")
 	follow()
 
 
@@ -355,3 +367,5 @@ func _chosen() -> void:
 		m._prop_select(md["prop"])
 	elif md.has("pose"):
 		m._pose_apply(md["pose"])
+	elif md.has("hit"):
+		m._goto_hit(md["hit"])
