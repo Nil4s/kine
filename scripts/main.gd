@@ -2140,6 +2140,7 @@ func _refresh() -> void:
 	_actors_draw()
 	_fighters_mark()
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
+	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
 
 
@@ -2666,6 +2667,7 @@ func _snapshot() -> Dictionary:
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
+		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
@@ -2707,6 +2709,8 @@ func _restore(u: Dictionary) -> void:
 		S.sets = u["sets"].duplicate(true)   # selection / keying sets (part_sets.gd), undone like a card
 		if ui_browser != null:
 			ui_browser.refresh()
+	if u["scene"] == S and u.has("plants") and var_to_str(u["plants"]) != var_to_str(S.plants):
+		S.plants = u["plants"].duplicate(true)   # foot plants (ROADMAP 8), undone like a card
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
 		S.cons = u["cons"].duplicate(true)   # constraints (round 51), undone like a card
 		_dummy_hits()
@@ -3258,6 +3262,106 @@ func _ik_snap_ik() -> void:
 	_do(func(): r.merge(LimbIK.snap_ik(S, B, tip, t)))
 	_dummy_hits()
 	_say("the %s's IK target and pole keyed at %.2f s where the cards put it (IK weight there %.2f)" % [_ik_words(tip), t, float(r["w"])])
+
+
+## FOOT PLANTS over a time range (ROADMAP 8; scripts/foot_plant.gd). The picked foot's sole holds where it is at the start
+## of the range. "to the next card": from the playhead to the next card's arrival. "over the selected range": the picked
+## cards (first arrival to the last one's hold end). One undo step each; a leg that cannot reach is said, with its frames
+func _foot_tip_or_say(what: String) -> String:
+	var tip := _ik_tip()
+	if not tip.begins_with("foot"):
+		_say("%s holds a foot: click a foot (or a part of that leg) first" % what)
+		return ""
+	return tip
+
+
+func _foot_plant_at(tip: String, t0: float, t1: float) -> void:
+	if S.cards.size() < 2:
+		_say("a foot plant needs a card after the first: add the body as a card, then plant")
+		return
+	if t1 - t0 < 1.0 / float(maxi(S.fps, 1)):
+		_say("nothing to plant: that range has no time in it")
+		return
+	var p := {"foot": tip, "t0": t0, "t1": t1}
+	var rep := {}
+	_do(func():
+		S.plants = FootPlant.add(S.plants, p)
+		rep.merge(FootPlant.scan(S, B, p))   # the range, frame by frame: the misses are reported, never hidden
+		S.apply(B, clampf(playhead, 0.0, S.length())))
+	_dummy_hits()
+	var who := _ik_words(tip)
+	if (rep["bad"] as Array).is_empty():
+		_say("the %s is planted %.2f-%.2f s: its sole holds on every frame (worst %.2f mm, turn %.2f deg; Ctrl+Z takes it back)" % [who, t0, t1, float(rep["worst"]) * 1000.0, float(rep["turn_worst"])])
+	else:
+		var bad: Array = rep["bad"]
+		_say("the %s is planted %.2f-%.2f s, but its leg cannot reach the planted place on %d of %d frames (%.2f-%.2f s, worst %.0f mm): the foot slides there" % [who, t0, t1, bad.size(), int(rep["frames"]), float(bad[0][0]), float(bad[-1][0]), float(rep["worst"]) * 1000.0])
+
+
+func _foot_plant_next() -> void:
+	var tip := _foot_tip_or_say("a foot plant")
+	if tip == "":
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var t1 := -1.0
+	for r in S.times():
+		if float(r[1]) > t + 1e-4:
+			t1 = float(r[1])
+			break
+	if t1 < 0.0:
+		_say("no card after the playhead: the plant runs to the next card, so put the playhead before one, or use 'Foot: plant the picked foot over the selected range'")
+		return
+	_foot_plant_at(tip, t, t1)
+
+
+func _foot_plant_range() -> void:
+	var tip := _foot_tip_or_say("a foot plant")
+	if tip == "":
+		return
+	var rg := card_range()
+	if rg.is_empty():
+		_say("pick the cards the foot is planted over (Shift+click a second card for a range)")
+		return
+	var ts := S.times()
+	_foot_plant_at(tip, float(ts[rg[0]][1]), float(ts[rg[-1]][2]))
+
+
+func _foot_unplant() -> void:
+	var tip := _foot_tip_or_say("unplant")
+	if tip == "":
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	if FootPlant.remove_at(S.plants, tip, t).size() == S.plants.size():
+		_say("no plant of the %s covers %.2f s: move the playhead into its planted range" % [_ik_words(tip), t])
+		return
+	_do(func():
+		S.plants = FootPlant.remove_at(S.plants, tip, t)
+		S.apply(B, t))
+	_dummy_hits()
+	_say("the %s is free at %.2f s: it follows the cards again (Ctrl+Z takes the plant back)" % [_ik_words(tip), t])
+
+
+var _fp_line: MeshInstance3D   # the footprints under the planted feet (ROADMAP 8)
+
+
+func _foot_plant_draw() -> void:
+	if _fp_line == null:
+		_fp_line = MeshInstance3D.new()
+		_fp_line.name = "foot_plants"
+		_fp_line.mesh = ImmediateMesh.new()
+		add_child(_fp_line)
+	var im := _fp_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if clean or S == null or S.plants.is_empty():
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	for f in FootPlant.footprint(B, S.plants, t, S.fps):
+		var pts: Array = f["pts"]
+		im.surface_begin(Mesh.PRIMITIVE_LINES, Overlays._mat())
+		im.surface_set_color(Color(side_col(String(f["foot"])), 0.35 + 0.65 * float(f["w"])))
+		for k in pts.size():   # heel -> ball -> toe tip -> heel: a small footprint on the floor
+			im.surface_add_vertex(pts[k])
+			im.surface_add_vertex(pts[(k + 1) % pts.size()])
+		im.surface_end()
 
 
 ## IN-VIEW IK HANDLES (round 50, GATES IK2; docs/research/BLENDER_IK.md section g). Each limb pinned at the playhead
@@ -6774,6 +6878,9 @@ func _commands() -> Array:
 	add.call("Airborne: this card is in the air", "", _toggle_air, "jump air fly leap hop flight gravity", true, "on/off: from the card before to the card after, the feet leave the floor and the hips fly the arc gravity gives (0.57 s in the air = 40 cm up)")
 	add.call("Plant the left foot on this card", "", _toggle_plant.bind("_l"), "pin lock foot slide skate stick floor", true, "on/off: the left foot stays where it stood in the card before (no sliding)")
 	add.call("Plant the right foot on this card", "", _toggle_plant.bind("_r"), "pin lock foot slide skate stick floor", true, "on/off: the right foot stays where it stood in the card before (no sliding)")
+	add.call("Foot: plant the picked foot from the playhead to the next card", "", _foot_plant_next, "foot plant pin lock slide skate stick floor hold range", true, "the picked foot's sole stays where it is at the playhead until the next card arrives (eases on and off over 3 frames; the leg is re-solved, the pelvis is not touched; a leg that cannot reach is reported)")
+	add.call("Foot: plant the picked foot over the selected range", "", _foot_plant_range, "foot plant pin lock slide skate stick floor hold range selected cards", true, "the picked foot's sole stays where it is at the first selected card's arrival, until the last selected card's hold ends (Shift+click a second card to select a range)")
+	add.call("Foot: unplant", "", _foot_unplant, "foot unplant free release let go slide skate plant", true, "the picked foot's plant over the playhead is taken off: it follows the cards again")
 	add.call("Copy pose", "Ctrl+C", _copy_pose, "clipboard", false, "remember the body's pose (every angle, the hips, and the weapon in its hand) to paste on another card; pasted mirrored, the weapon goes to the other hand")
 	add.call("Paste pose", "Ctrl+V", _paste_pose.bind(""), "clipboard", true, "the copied pose onto the body (Update keeps it on the card)")
 	add.call("Paste pose mirrored", "Ctrl+Shift+V", _paste_pose.bind("mirrored"), "clipboard flip left right", true, "the copied pose reflected left <-> right")

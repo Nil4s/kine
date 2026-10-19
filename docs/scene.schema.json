@@ -446,6 +446,20 @@
       }
      }
     },
+    "plants": {
+     "type": "array",
+     "description": "FOOT PLANTS (ROADMAP 8; scripts/foot_plant.gd): a foot's sole stays where it was at t0 over [t0, t1] (the leg re-solved by LimbIK, the pelvis untouched), eased on and off over 3 frames at the scene's fps. One plant per foot at a time; written only when there is one, in t0 order. Evaluated after the IK pass, before the constraints.",
+     "items": {
+      "type": "object",
+      "required": ["foot", "t0", "t1"],
+      "properties": {
+       "foot": {"type": "string", "enum": ["foot_l", "foot_r"]},
+       "t0": {"type": "number", "minimum": 0},
+       "t1": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+     }
+    },
     "drivers": {
      "type": "array",
      "description": "USER DRIVERS (GAP_ANALYSIS row 15; scripts/drivers.gd): driven = source * factor + offset, per axis (0 bend, 1 side, 2 twist), in degrees; played after the cards, layers and breathing, before IK and constraints. from = the source counts only above it (max(source - from, 0)). Written only when there is one, in list order.",
