@@ -13253,7 +13253,7 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	if not raw:
 		C = VideoCleanup.run(frames, P["fps"], float(P.get("tilt", 0.0)))
 		frames = C["frames"]
-	var fitted := VideoImport.solve(B, frames, held)
+	var fitted := VideoImport.solve(B, frames, held, float(P["fps"]))
 	var V := VideoImport.to_scene(B, fitted, P["fps"], 1, safe_file((from if from != "" else path.get_file()).get_basename()))
 	var r := {"locked": 0, "text": ""}
 	if raw:
