@@ -52,6 +52,16 @@ const WIDE := {
 }
 const WIDE_VS := ["bat_handle", "bat_barrel", "wep2_handle", "wep2_blade", "lowerarm_r", "lowerarm_l", "hand_r", "hand_l"]
 
+## THE SUBTALAR (round: ROADMAP 7). The foot's TWIST is the sole roll about the subtalar axis, not about the foot's bone
+## (the bone runs 31 deg down from the sole, so the old twist rolled the sole about an axis 31 deg BELOW the sole plane).
+## Inman's axis: 42 deg up from the sole plane, 23 deg medial to the foot's long axis (Inman 1969 / 1976; see
+## docs/research/FOOT_JOINTS.md). Positive roll = inversion (the sole turns medial) on the right foot.
+const SUB_INCL := 42.0
+const SUB_DEV := 23.0
+## the roll range, written here and NOT in data/body_limits.json (the old foot range was -20..20): inversion 25 (cited 20-30),
+## eversion 8 (cited 5-10). The left foot takes the mirror (-25..8) through the loader's usual twist negation.
+const SUB_TWIST := Vector2(-8.0, 25.0)
+
 var parent := {}       # joint -> parent joint ("" for the pelvis)
 var p0 := {}           # joint -> rest position
 var e0 := {}           # joint -> rest end point
@@ -61,6 +71,7 @@ var root_pos := Vector3.ZERO
 var t_ax := {}         # joint -> twist axis (unit, at rest)
 var b_ax := {}         # joint -> bend axis
 var a_ax := {}         # joint -> side axis
+var w_ax := {}         # joint -> twist axis (= t_ax, except the feet: the subtalar axis)
 var lim := {}          # joint -> {"bend": Vector2(min,max), "side": ..., "twist": ..., "say": {...}}
 var cap0 := {}         # part -> [a, b] its capsule's two end points at rest (skeleton.json, fitted to the mesh)
 var rad := {}          # part -> capsule radius (m)
@@ -177,6 +188,8 @@ func load_files(skel_path: String, limits_path: String) -> void:
 		var f := _v(L["f"])
 		var s := _v(L["s"])
 		var tw := Vector2(L["twist"][0], L["twist"][1])
+		if lim_key(j) == "foot_r":
+			tw = SUB_TWIST
 		if j.ends_with("_l"):
 			f.x = -f.x
 			s.x = -s.x
@@ -192,7 +205,14 @@ func load_files(skel_path: String, limits_path: String) -> void:
 		t_ax[j] = t
 		b_ax[j] = t.cross(fo).normalized()
 		a_ax[j] = t.cross(so).normalized()
-		lim[j] = {"bend": Vector2(L["bend"][0], L["bend"][1]), "side": Vector2(L["side"][0], L["side"][1]),
+		w_ax[j] = t
+		if j.begins_with("foot"):
+			# the subtalar axis: long axis made horizontal, medial = +X on the right (-X on the left)
+			var ci := cos(deg_to_rad(SUB_INCL))
+			var lh := Vector3(t.x, 0.0, t.z).normalized()
+			var med := Vector3(-1, 0, 0) if j.ends_with("_l") else Vector3(1, 0, 0)
+			w_ax[j] = (ci * cos(deg_to_rad(SUB_DEV)) * lh + ci * sin(deg_to_rad(SUB_DEV)) * med + sin(deg_to_rad(SUB_INCL)) * Vector3.UP).normalized()
+		lim[j] ={"bend": Vector2(L["bend"][0], L["bend"][1]), "side": Vector2(L["side"][0], L["side"][1]),
 			"twist": tw, "say": L.get("say", {})}
 		ang[j] = Vector3.ZERO
 		if sk[j].has("cap"):
@@ -300,11 +320,48 @@ func compose(j: String, v: Vector3) -> Quaternion:
 	var rv: Vector3 = b_ax[j] * deg_to_rad(v.x) + a_ax[j] * deg_to_rad(v.y)
 	var n := rv.length()
 	var sw := Quaternion(rv / n, n) if n > 1e-9 else Quaternion.IDENTITY
-	return sw * Quaternion(t_ax[j], deg_to_rad(v.z))
+	return sw * Quaternion(w_ax[j], deg_to_rad(v.z))
 
 
-## the joint's rotation A -> (bend, side, twist) degrees. swing-twist split: A = swing * twist, twist about t
+## the joint's rotation A -> (bend, side, twist) degrees. A = swing * twist about w_ax (t_ax, except the feet).
+## The feet: the twist axis is not perpendicular to the swing axes, so the bone-axis split below does not invert
+## compose(); there the roll is solved (Newton on the swing's component along the bone, which is zero at the answer).
 func decompose(j: String, q: Quaternion) -> Vector3:
+	if w_ax[j] == t_ax[j]:
+		return _decompose_bone(j, q)
+	var w: Vector3 = w_ax[j]
+	var t: Vector3 = t_ax[j]
+	var qv := Vector3(q.x, q.y, q.z)
+	if absf(qv.dot(t)) < 1e-5:   # no roll (the swing has no component along the bone): the bone split is exact here
+		return _decompose_bone(j, q)
+	var th := 0.0
+	for it in 40:
+		var fv := _sub_part(q, w, t, th)
+		var h := 1e-6
+		var der := (_sub_part(q, w, t, th + h) - fv) / h
+		if absf(der) < 1e-12:
+			break
+		var step := fv / der
+		th -= step
+		if absf(step) < 1e-12:
+			break
+	var S := q * Quaternion(w, -th)
+	if S.w < 0.0:
+		S = -S
+	var sv := Vector3(S.x, S.y, S.z)
+	var vl := sv.length()
+	var rv := sv / vl * (2.0 * atan2(vl, S.w)) if vl > 1e-12 else Vector3.ZERO
+	return Vector3(rad_to_deg(rv.dot(b_ax[j])), rad_to_deg(rv.dot(a_ax[j])), rad_to_deg(th))
+
+
+## the bone-axis part of q * (roll th about w)^-1: zero when the swing is the rest of the rotation
+func _sub_part(q: Quaternion, w: Vector3, t: Vector3, th: float) -> float:
+	var S := q * Quaternion(w, -th)
+	return Vector3(S.x, S.y, S.z).dot(t)
+
+
+## the bone-axis split (the old decompose): A = swing * twist about the bone t
+func _decompose_bone(j: String, q: Quaternion) -> Vector3:
 	var t: Vector3 = t_ax[j]
 	var pr := Vector3(q.x, q.y, q.z).dot(t) * t
 	var qt := Quaternion(pr.x, pr.y, pr.z, q.w)
