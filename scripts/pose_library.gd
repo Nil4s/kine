@@ -89,6 +89,10 @@ func _ready() -> void:
 		f.set_content_margin_all(10)
 		st = f
 	add_theme_stylebox_override("panel", st)
+	# ROADMAP 96: Library > Imported (the packs read in) is one more folder of poses, the library's own (a test's too)
+	var imp_dir: String = String(m.library).path_join(PosePack.IMPORTED)
+	if not dirs.has(imp_dir):
+		dirs.append(imp_dir)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 6)
 	add_child(v)
@@ -101,6 +105,12 @@ func _ready() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_btn("Close", func(): PoseLibrary.toggle(m)))
+	# ROADMAP 96: the asset store: a pack (*.kinepack) read, checked and put in Library > Imported
+	var imp := _btn("Import pack...", func(): PosePack.import_ask(m, func(): refresh()))
+	imp.name = "button_import_pack"
+	imp.tooltip_text = "read a pose pack (.kinepack) someone shared: checked first, then added to Library > Imported"
+	head.add_child(imp)
+	head.move_child(imp, 1)   # before Close
 	var opts := HBoxContainer.new()
 	v.add_child(opts)
 	flip_box = CheckBox.new()
@@ -208,7 +218,8 @@ func list_poses() -> Array:
 			var txt := FileAccess.get_file_as_string(path)
 			if txt.contains("\"keys\"") or txt.contains("\"cards\"") or not txt.contains("\"joints\""):
 				continue
-			out.append({"path": path, "name": f.get_basename().replace("_", " "), "mine": not dir.begins_with("res://poses")})
+			out.append({"path": path, "name": f.get_basename().replace("_", " "), "mine": not dir.begins_with("res://poses"),
+				"imported": dir.ends_with("/" + PosePack.IMPORTED)})
 	return out
 
 
@@ -362,7 +373,7 @@ func _build_cells() -> void:
 		cell.name = "pose_" + path.get_file().get_basename()
 		cell.custom_minimum_size = CELL + Vector2(8, 26)
 		cell.mouse_filter = Control.MOUSE_FILTER_STOP
-		cell.tooltip_text = "%s%s\nclick: apply   drag right: blend   Ctrl: flipped   right-click: more" % [e["name"], "  (yours)" if e["mine"] else ""]
+		cell.tooltip_text = "%s%s\nclick: apply   drag right: blend   Ctrl: flipped   right-click: more" % [e["name"], "  (Library > Imported)" if e["imported"] else ("  (yours)" if e["mine"] else "")]
 		cell.gui_input.connect(_cell_input.bind(path))
 		var v := VBoxContainer.new()
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -452,9 +463,20 @@ func _open_menu(at: Vector2) -> void:
 	menu.add_item("Blend 50 %", 2)
 	menu.add_item("Select the parts it moves", 3)
 	menu.add_item("Remake the thumbnail", 4)
+	menu.add_item("Share as a pack...", 5)   # ROADMAP 96: the pose as one .kinepack file (no server)
 	menu.position = Vector2i(at)
 	menu.reset_size()
 	menu.popup()
+
+
+## the picture of a pose as PNG bytes (the one on screen, else the saved one; empty when neither is there)
+func thumb_png(path: String) -> PackedByteArray:
+	if tex.has(path):
+		var img: Image = (tex[path] as Texture2D).get_image()
+		if img != null and not img.is_empty():
+			return img.save_png_to_buffer()
+	var png := thumb_path(path)
+	return FileAccess.get_file_as_bytes(png) if FileAccess.file_exists(png) else PackedByteArray()
 
 
 func _menu(id: int) -> void:
@@ -475,6 +497,8 @@ func _menu(id: int) -> void:
 			made.erase(picked)
 			_queue.append(picked)
 			_pump()
+		5:
+			PosePack.share_ask(m, picked, thumb_png(picked))
 
 
 # ------------------------------------------------------------------ the slider

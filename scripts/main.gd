@@ -3848,9 +3848,13 @@ func _undo() -> void:
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
 	var now := _snapshot()
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
+	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
+		now["lib"] = u["lib"]
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	if u.has("lib"):
+		PosePack.lib_move(u["lib"], true, library)
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
 	_undo_tips()
@@ -3867,15 +3871,35 @@ func _redo() -> void:
 	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
 	var now := _snapshot()
 	now["name"] = _step_label(r)
+	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
+		now["lib"] = r["lib"]
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	if r.has("lib"):
+		PosePack.lib_move(r["lib"], false, library)
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
 	_undo_tips()
 	_history_rows()
 	_jpending = true
 	_co_sync()
+
+
+## ROADMAP 96: Share scene as a pack...: the saved scene (scenes/<name>.json) packed for someone else; nothing is changed here
+func _share_scene_pack() -> void:
+	var p := "res://scenes/%s.json" % S.name
+	if not FileAccess.file_exists(p):
+		_say("this scene is not saved yet: Save scene first, then Share scene as a pack... packs the saved file")
+		return
+	PosePack.share_scene_ask(self, p)
+
+
+## ROADMAP 96: an import into the library is ONE undo step (no body change); its files ride on the step as "lib"
+func _push_undo_lib(files: Array) -> void:
+	_push_undo()
+	if not undo.is_empty():
+		undo[-1]["lib"] = files
 
 
 ## an edit that moved nothing is taken back out: its step, and its node in the tree
@@ -10210,6 +10234,7 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Share scene as a pack...", "", _share_scene_pack, "share scene pack asset store kinepack export send", false, "the saved scene as one .kinepack file (cards, timings, markers, props) to send to someone; Import pack... reads it")
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
 		var miss := not FileAccess.file_exists(p)
 		var how := "%s is not on disk any more: File > Recent drops it when %d newer scenes are opened" % [p.get_file(), RECENT_N]
