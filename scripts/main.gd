@@ -4903,6 +4903,7 @@ func _curve_toggle() -> void:
 		ui_curve.begin = _push_undo
 		ui_curve.limit = func(j, v): return B.clamp_ang(j, v)
 		ui_curve.changed = func(): S.apply(B, playhead); _refresh()
+		ui_curve.say = func(t): _say(t)
 		ui_root.add_child(ui_curve)
 	ui_curve.visible = not ui_curve.visible
 	_curve_sync()
