@@ -196,10 +196,7 @@ func _pose() -> void:
 
 
 func _new() -> void:
-	if m._unsaved():
-		m._confirm("Start a new scene? The changes you have not saved go with it.", "New scene", m._new_scene)
-	else:
-		m._new_scene()
+	m._new_asked()   # ROADMAP 50: Save / Don't save / Cancel when the open scene has unsaved changes
 
 
 func _open() -> void:
