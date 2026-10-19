@@ -18,7 +18,8 @@ OFFSCREEN = ["--position", "-30000,-30000"]
 SILENT = ["--audio-driver", "Dummy"]   # no test makes a sound on Nick's speakers (10-18: "we have beep sounds")
 # shared state on disk (the scenes list, moves/ and trash/, exports, the CLI's files): kept out of the parallel batch
 SERIAL = {"scene_list", "browser_tree", "browser", "versions", "cli", "serve", "agent", "mcp", "glb_export",
-          "bvh_export", "engine_names", "autosave", "names_disk", "launcher", "empty_paths", "confirm", "examples"}
+          "bvh_export", "engine_names", "autosave", "names_disk", "launcher", "empty_paths", "confirm", "examples",
+          "actors_file"}   # reads every file in scenes/ while others write there (r50b: parsed a half-written file)
 
 
 def suites():

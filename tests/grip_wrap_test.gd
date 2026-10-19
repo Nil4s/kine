@@ -14,6 +14,7 @@
 extends SceneTree
 
 var fails := 0
+const WRAP_RATIO := 30.0   # measured 7.5-8.2 idle (14.7-15.4 ms) and 7.9-13.3 with 8 copies at once (33-65 ms): >2x headroom
 
 
 func ok(c: bool, what: String) -> void:
@@ -32,13 +33,19 @@ func _init() -> void:
 	var bad := []
 	var rows := []
 	var ms := 0.0
+	var ratio := 0.0
 	for k in Body.KINDS:
 		B.set_kind(k)
 		B.weapon_to_hand("hand_r")
 		var hd := GripWrap.handle_of(B)
+		var tr := Time.get_ticks_usec()   # the yardstick, timed beside each wrap (load hits both alike)
+		for r in 5:
+			B.penetration()
+		var unit := maxf(1.0, (Time.get_ticks_usec() - tr) / 5.0)
 		var t0 := Time.get_ticks_usec()
 		var rep := GripWrap.wrap(B, "hand_r", hd[0], hd[1], hd[2], GripWrap.type_of(k))
 		ms = maxf(ms, (Time.get_ticks_usec() - t0) / 1000.0)
+		ratio = maxf(ratio, (Time.get_ticks_usec() - t0) / unit)
 		var tips := []
 		for f in GripWrap.LONG:
 			var tip: Array = rep[f][2]
@@ -120,7 +127,8 @@ func _init() -> void:
 	var w_l := _hand(B, "_l", bat)
 	ok(_mae(w_bat, bat) < 12.0, "4 the wrap vs Nick's bat grip: %.1f deg mean joint difference (bar 12, Buchholz & Armstrong's SD); his own other hands sit %.1f deg from it" % [_mae(w_bat, bat), own_bat])
 	print("     REPORTED (not barred), held out: his axe card v0 left hand, wrapped where he put it: %.1f deg from his; his other hands sit %.1f deg from it" % [_mae(w_l, ax_l), own_l])
-	ok(ms < 100.0, "5 the slowest wrap of one hand took %.1f ms (bar 100: Nielsen's 0.1 s limit for a response felt as instant; the wrap runs on an edit, not every frame)" % ms)
+	print("     RATIO slowest wrap / one whole-body penetration() timed beside it: %.1f (%.1f ms)" % [ratio, ms])
+	ok(ratio <= WRAP_RATIO, "5 the slowest wrap of one hand: %.1f x one whole-body penetration() timed beside it (bar %.0f, load-proof; idle that is under Nielsen's 0.1 s for a response felt as instant); %.1f ms here" % [ratio, WRAP_RATIO, ms])
 	m.queue_free()
 	print("GRIP WRAP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
