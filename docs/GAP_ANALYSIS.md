@@ -32,7 +32,7 @@ Each row is HAVE (works and is tested), PART (exists but short of the reference)
 | 19 | Shape keys / face | LACK | no face; fingers have preset shapes only |
 | 20 | **Multiple characters in one scene** | **LACK** | one Body; the dummy is a static target. No two-person fight |
 | 21 | **Camera animation / shot camera** | **HAVE** (round 51 SC) | keyed shot camera (position, aim, focal length mm on 36 mm), look through with a 16:9 passepartout, playblast through it (scripts/shot_camera.gd, tests/shot_camera_test.gd); was: a viewport camera only |
-| 22 | Props beyond weapons | PART | 4 weapons; no generic prop (box, door, ball) |
+| 22 | Props beyond weapons | HAVE | ball, moving box, hinged door (swing keyable), chair, table, your own .glb; props keyed over time, carried, followed by Child Of (docs/research/PROPS.md, tests/props_generic_test.gd) |
 | 23 | **Audio track, scrub with sound** | **LACK** | 0 hits for AudioStream; lip-sync and timing to music are impossible |
 | 24 | **Render / playblast to video or images** | **LACK** | video only as input (import); no .mp4 or PNG-sequence output to show a client |
 | 25 | Export glb / usd / bvh / game | HAVE | 4 exporters with round-trip tests |

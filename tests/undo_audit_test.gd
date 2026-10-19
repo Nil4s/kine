@@ -45,6 +45,7 @@ func fp() -> String:
 		"audio": var_to_str(m.S.audio),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
 		"cons": var_to_str(m.S.cons),   # constraints (round 51)
+		"props": JSON.stringify(m.S.props.map(func(q): return Props.to_dict(q))),   # the set: keys, a door's swing (row 22)
 		"camera": var_to_str(m.S.camera),   # the shot camera (shot_camera.gd)
 		"actors": m.S.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards]),   # TC3: the second fighter
 		"body": var_to_str(m.S.body), "p0": var_to_str(m.B.p0)}   # PR1: the proportions and the skeleton they make
@@ -159,6 +160,16 @@ func start(kind: String) -> void:
 		m._card_pick(2)
 		ShotCam.put(m.S.camera, {"t": m.playhead, "pos": Vector3(2.5, 1.4, 3.0), "aim": Vector3(0, 1, 0), "f": 40.0})
 		ShotCam.put(m.S.camera, {"t": 0.0, "pos": Vector3(-2.5, 1.2, 3.0), "aim": Vector3(0, 0.9, 0), "f": 35.0})
+	elif kind == "PROPS":   # row 22: a keyed door picked, the playhead between its keys (Prop / Door commands)
+		m._load_scene("res://scenes/combo3.json")
+		m._rebuild_cards()
+		var dr := Props.make("door", Props.xf_at(Vector3(1.2, 0.0, 0.8), 0.0))
+		Props.key_at(dr, 0.0, dr["xf"], 0.0)
+		Props.key_at(dr, 1.0, dr["xf"], 30.0)
+		m.S.props = [dr]
+		m.sel_prop = 0
+		m.playhead = 0.5
+		m._props_show()
 	elif kind == "BODY":   # PR1: a scene on a 5th-percentile woman (for "Body: the mannequin's own proportions")
 		m._load_scene("res://scenes/combo3.json")
 		m._rebuild_cards()
@@ -272,7 +283,7 @@ func _init() -> void:
 			n_edit += 1
 		var r := await trial(c, "A")
 		if r == "same" and c["edits"]:
-			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY"] + more:
+			for k in ["B", "THROUGH", "KEYS_A", "KEYS_B", "SLIDE", "LAYER", "STEPPED", "IK", "CONS", "CONS_FOOT", "ACTORS", "AUDIO", "CAMERA", "BODY", "PROPS"] + more:
 				r = await trial(c, k)
 				if r != "same":
 					break

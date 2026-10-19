@@ -1383,6 +1383,7 @@ func _carry_data(B: Body) -> Array:
 		return _carry_memo[1]
 	var st := B.state()
 	var bp := B.props
+	_carry_busy = true   # a constraint on a carried prop reads its home while the grips are being measured (no loop)
 	var rest := {}   # prop -> where it is now (its home, then where its last drop landed)
 	var out := []
 	var floor_of := solid_props()
@@ -1391,7 +1392,7 @@ func _carry_data(B: Body) -> Array:
 		if pi < 0 or pi >= props.size():
 			out.append({})
 			continue
-		var home: Transform3D = rest.get(pi, props[pi]["xf"])
+		var home: Transform3D = rest.get(pi, Props.posed(props[pi], ts[c["a"]][1])["xf"])   # a keyed prop: where its keys have it
 		var ta: float = ts[c["a"]][1]
 		apply(B, ta)
 		var grip := hand_frame(B, c["hands"]).affine_inverse() * home
@@ -1433,8 +1434,23 @@ func _carry_data(B: Body) -> Array:
 	B.set_state(st)
 	B.props = bp
 	B.fk()
+	_carry_busy = false
 	_carry_memo = [key, out]
 	return out
+
+
+var _carry_busy := false
+
+
+## GENERIC PROPS (row 22): prop i's world transform at t, the body B posed at t: in the hand(s) while a card carries
+## it, else where its keys (or its place) put it; a dropped prop where it fell. What a constraint on a prop follows
+## (Constraints.target_xf), so a hand's Child Of on a carried box moves with the box. null = no such prop
+func prop_xf_at(i: int, t: float, B: Body):
+	if i < 0 or i >= props.size():
+		return null
+	if _carry_busy:
+		return Props.posed(props[i], t)["xf"]
+	return props_at(t, B)[i]["xf"]
 
 
 ## the set at time t, the body B posed at t: [Props dicts] in the same order as props (a carried prop in the hand, a
@@ -1442,9 +1458,9 @@ func _carry_data(B: Body) -> Array:
 func props_at(t: float, B: Body) -> Array:
 	var cs := carries()
 	if cs.is_empty():
-		return props
+		return Props.posed_all(props, t) if Props.any_animated(props) else props   # row 22: keyed props at t
 	var data := _carry_data(B)
-	var out := props.duplicate()
+	var out := Props.posed_all(props, t)
 	for k in cs.size():
 		var c: Dictionary = cs[k]
 		var d: Dictionary = data[k]
@@ -1798,7 +1814,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180 - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
@@ -1861,7 +1877,7 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 	S2.from_dict(d2)
 	var out := S2.to_dict(M)   # bad_frames recomputed on the mirrored motion
 	if out.has("props"):
-		out["props"] = out["props"].map(func(q): return {"kind": q["kind"], "pos": [-float(q["pos"][0]), q["pos"][1], q["pos"][2]], "yaw": -float(q["yaw"])})
+		out["props"] = out["props"].map(func(q): return Props.mirror_dict(q))   # row 22: a door's hinge side, keys
 	if not acts.is_empty():
 		out["actors"] = acts.map(func(a): return {"name": a["name"], "xf": {"pos": [-float(a["xf"]["pos"][0]), float(a["xf"]["pos"][1])], "yaw": -float(a["xf"]["yaw"])},
 			"scene": Scene.mirror_file(a["scene"], M)})

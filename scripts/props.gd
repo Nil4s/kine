@@ -69,6 +69,16 @@ const KINDS := {
 	"railing": {"label": "1.5 m long, handrail at 90 cm", "solids": [
 		[Vector3(0.725, 0.45, 0), Vector3(0.05, 0.9, 0.05)], [Vector3(-0.725, 0.45, 0), Vector3(0.05, 0.9, 0.05)],
 		[Vector3(0, 0.875, 0), Vector3(1.5, 0.05, 0.05)], [Vector3(0, 0.45, 0), Vector3(1.4, 0.03, 0.03)]], "supports": []},
+	# GENERIC PROPS (GAP_ANALYSIS row 22; sizes and sources: docs/research/PROPS.md)
+	"moving_box": {"label": "moving box 41.6 x 32.1 x 32.1 cm (U-Haul Small)", "solids": [[Vector3(0, 0.1604, 0), Vector3(0.4159, 0.3207, 0.3207)]],
+		"supports": [[0.3207, Vector2(0, 0), Vector2(0.4159, 0.3207)]]},
+	# a size 5 football: circumference 68-70 cm, 410-450 g (IFAB Law 2): the middle, 69 cm (d = 21.96 cm), 430 g
+	"ball": {"label": "football, size 5: 22 cm, 430 g (IFAB Law 2)", "solids": [], "spheres": [[Vector3(0, 0.1098, 0), 0.1098]],
+		"supports": [], "mass": 0.43},
+	# a door LEAF, 32 x 80 in (0.813 x 2.032 m), 1 3/8 in (35 mm) thick (US interior standard): the origin is the HINGE
+	# axis on the floor, the leaf runs along +X from it; "swing" (deg, keyable) turns it about the hinge, + toward +Z
+	"door": {"label": "door 81 x 203 cm, hinged at its left edge (US 32 x 80 in)", "solids": [[Vector3(0.4064, 1.016, 0), Vector3(0.8128, 2.032, 0.035)]],
+		"supports": [], "hinged": true, "width": 0.8128},
 	"bed": {"label": "95 x 205 cm, mattress top at 50 cm, headboard at -Z", "solids": [
 		[Vector3(0, 0.15, 0), Vector3(0.95, 0.3, 2.0)], [Vector3(0, 0.4, 0.0), Vector3(0.9, 0.2, 1.9)],
 		[Vector3(0, 0.45, -1.025), Vector3(0.95, 0.9, 0.05)]],
@@ -124,29 +134,164 @@ static func to_dict(p: Dictionary) -> Dictionary:
 	var xf: Transform3D = p["xf"]
 	var yaw := rad_to_deg(atan2(-xf.basis.x.z, xf.basis.x.x))
 	var o := xf.origin
-	return {"kind": p["kind"], "pos": [snappedf(o.x, 0.0001), snappedf(o.y, 0.0001), snappedf(o.z, 0.0001)],
+	var d := {"kind": p["kind"], "pos": [snappedf(o.x, 0.0001), snappedf(o.y, 0.0001), snappedf(o.z, 0.0001)],
 		"yaw": snappedf(yaw, 0.0001)}
+	if p.has("swing") and hinged(p) and float(p["swing"]) != 0.0:
+		d["swing"] = snappedf(float(p["swing"]), 0.0001)
+	if animated(p):
+		var hg := hinged(p)
+		d["keys"] = (p["keys"] as Array).map(func(k):
+			var q: Vector3 = k["pos"]
+			var e := {"t": snappedf(float(k["t"]), 0.0001), "pos": [snappedf(q.x, 0.0001), snappedf(q.y, 0.0001), snappedf(q.z, 0.0001)],
+				"yaw": snappedf(float(k["yaw"]), 0.0001)}
+			if hg:
+				e["swing"] = snappedf(float(k.get("swing", 0.0)), 0.0001)
+			return e)
+	return d
 
 
 ## the other way; a missing field is the origin / no turn
 static func from_dict(d: Dictionary) -> Dictionary:
 	var a: Array = d.get("pos", [0, 0, 0])
-	return make(String(d["kind"]), xf_at(Vector3(float(a[0]), float(a[1]), float(a[2])), float(d.get("yaw", 0.0))))
+	var p := make(String(d["kind"]), xf_at(Vector3(float(a[0]), float(a[1]), float(a[2])), float(d.get("yaw", 0.0))))
+	if d.has("swing"):
+		p["swing"] = float(d["swing"])
+	if d.get("keys") is Array and not (d["keys"] as Array).is_empty():
+		var ks := []
+		for k in d["keys"]:
+			var q: Array = k.get("pos", [0, 0, 0])
+			ks.append({"t": float(k.get("t", 0.0)), "pos": Vector3(float(q[0]), float(q[1]), float(q[2])),
+				"yaw": float(k.get("yaw", 0.0)), "swing": float(k.get("swing", 0.0))})
+		ks.sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
+		p["keys"] = ks
+	return p
+
+
+## a prop's FILE entry mirrored (Scene.mirror: x negated, yaw negated). A hinged kind's leaf runs along +X from its
+## hinge, so its reflection is the leaf turned the other way: yaw -> 180 - yaw, swing -> -swing (the leaf direction
+## R(yaw) R(-swing) X reflects to R(180 - yaw) R(swing) X). Keys the same, each one. Twice = the original
+static func mirror_dict(q: Dictionary) -> Dictionary:
+	var h := has_kind(String(q["kind"])) and bool(kind_of(String(q["kind"])).get("hinged", false))
+	var out := {"kind": q["kind"], "pos": [-float(q["pos"][0]), q["pos"][1], q["pos"][2]], "yaw": _mirror_yaw(float(q["yaw"]), h)}
+	if q.has("swing"):
+		out["swing"] = -float(q["swing"])
+	if q.has("keys"):
+		out["keys"] = (q["keys"] as Array).map(func(k):
+			var e := {"t": k["t"], "pos": [-float(k["pos"][0]), k["pos"][1], k["pos"][2]], "yaw": _mirror_yaw(float(k["yaw"]), h)}
+			if k.has("swing"):
+				e["swing"] = -float(k["swing"])
+			return e)
+	return out
+
+
+static func _mirror_yaw(y: float, hinge: bool) -> float:
+	return (180.0 - y) if hinge else -y
 
 
 ## one solid's frame in the world (its centre, tilted by its pitch) and its half sizes
 static func _solid_world(p: Dictionary, s: Array) -> Dictionary:
 	var pitch := deg_to_rad(float(s[2])) if s.size() > 2 else 0.0
 	var local := Transform3D(Basis(Vector3.RIGHT, -pitch), s[0])
-	return {"xf": (p["xf"] as Transform3D) * local, "half": (s[1] as Vector3) * 0.5}
+	return {"xf": (p["xf"] as Transform3D) * leaf_xf(p) * local, "half": (s[1] as Vector3) * 0.5}
 
 
-## the prop's solid boxes in world space: [{"xf": Transform3D at the box centre, "half": Vector3}]
+## the prop's solid boxes in world space: [{"xf": Transform3D at the box centre, "half": Vector3}]; a sphere (the ball)
+## is one more entry with "r" (its half sizes are r, so a box test is its bounding cube; _sd measures the sphere)
 static func solids(p: Dictionary) -> Array:
 	var out := []
-	for s in kind_of(p["kind"])["solids"]:
+	var kd := kind_of(p["kind"])
+	for s in kd["solids"]:
 		out.append(_solid_world(p, s))
+	for sp in kd.get("spheres", []):
+		var r: float = sp[1]
+		out.append({"xf": (p["xf"] as Transform3D) * Transform3D(Basis(), sp[0]), "half": Vector3(r, r, r), "r": r})
 	return out
+
+
+# ---------------------------------------------------------------- GENERIC PROPS: hinge, keys over time (row 22)
+## A prop may also hold (all optional; a prop without them is exactly as before, in memory and in the file):
+##   "swing": deg   a hinged kind's (the door's) leaf turned about its hinge (the origin's vertical), + toward +Z
+##   "keys":  [{"t": s, "pos": Vector3, "yaw": deg, "swing": deg}, ...] sorted by t: its place over time. Played as
+##            PartKeys plays a joint (the same monotone cubic: eases out of the first key and into the last, never
+##            overshoots, held past the ends), position and (yaw, swing) as two curves. A keyed prop's "xf" / "swing"
+##            are only where it was last put: the keys win.
+const SAME_T := 0.001
+
+
+static func hinged(p: Dictionary) -> bool:
+	return bool(kind_of(p["kind"]).get("hinged", false))
+
+
+## the leaf's turn about the hinge (identity for every kind without one)
+static func leaf_xf(p: Dictionary) -> Transform3D:
+	if not p.has("swing") or not hinged(p):
+		return Transform3D.IDENTITY
+	return Transform3D(Basis(Vector3.UP, -deg_to_rad(float(p["swing"]))), Vector3.ZERO)
+
+
+## the door's free edge (the middle of its edge away from the hinge, at half height) in the world
+static func free_edge(p: Dictionary) -> Vector3:
+	var kd := kind_of(p["kind"])
+	var s: Array = kd["solids"][0]
+	return (p["xf"] as Transform3D) * leaf_xf(p) * Vector3(float(kd.get("width", 0.0)), (s[0] as Vector3).y, 0.0)
+
+
+static func animated(p: Dictionary) -> bool:
+	return not (p.get("keys", []) as Array).is_empty()
+
+
+static func any_animated(props: Array) -> bool:
+	for p in props:
+		if animated(p):
+			return true
+	return false
+
+
+static func yaw_of(xf: Transform3D) -> float:
+	return rad_to_deg(atan2(-xf.basis.x.z, xf.basis.x.x))
+
+
+## the prop as it is at time t: {"kind", "xf", "swing"} (a new dict; an unkeyed prop is returned itself)
+static func posed(p: Dictionary, t: float) -> Dictionary:
+	if not animated(p):
+		return p
+	var pk := []
+	var ak := []
+	for k in p["keys"]:
+		pk.append({"t": float(k["t"]), "v": k["pos"]})
+		ak.append({"t": float(k["t"]), "v": Vector3(float(k["yaw"]), float(k.get("swing", 0.0)), 0.0)})
+	var pos := PartKeys.at(pk, t)
+	var a := PartKeys.at(ak, t)
+	var out := {"kind": p["kind"], "xf": xf_at(pos, a.x)}
+	if hinged(p):
+		out["swing"] = a.y
+	return out
+
+
+static func posed_all(props: Array, t: float) -> Array:
+	return props.map(func(p): return posed(p, t))
+
+
+## a key at t from a transform (and swing): replaces one within SAME_T. The yaw is taken the short way from the key
+## before it, so a turn through 180 deg does not spin the long way round
+static func key_at(p: Dictionary, t: float, xf: Transform3D, swing := 0.0) -> void:
+	var ks: Array = p.get("keys", [])
+	var yaw := yaw_of(xf)
+	var prev := -1
+	for i in ks.size():
+		if float(ks[i]["t"]) < t - SAME_T:
+			prev = i
+	if prev >= 0:
+		yaw = float(ks[prev]["yaw"]) + rad_to_deg(angle_difference(deg_to_rad(float(ks[prev]["yaw"])), deg_to_rad(yaw)))
+	var k := {"t": t, "pos": xf.origin, "yaw": yaw, "swing": swing if hinged(p) else 0.0}
+	for i in ks.size():
+		if absf(float(ks[i]["t"]) - t) < SAME_T:
+			ks[i] = k
+			p["keys"] = ks
+			return
+	ks.append(k)
+	ks.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
+	p["keys"] = ks
 
 
 ## the prop's support surfaces in world space: [{"y": world height, "xf": the prop's transform, "c": local centre xz,
@@ -188,6 +333,12 @@ static func mesh(p: Dictionary) -> Node3D:
 				n.position = -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z) * f
 				root.add_child(n)
 				return root
+	var holder := root
+	if bool(kd.get("hinged", false)):   # the door: its solids under a "leaf" node turned about the hinge
+		holder = Node3D.new()
+		holder.name = "leaf"
+		holder.transform = leaf_xf(p)
+		root.add_child(holder)
 	for s in kd["solids"]:
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
@@ -196,13 +347,32 @@ static func mesh(p: Dictionary) -> Node3D:
 		mi.mesh = bm
 		var pitch := deg_to_rad(float(s[2])) if s.size() > 2 else 0.0
 		mi.transform = Transform3D(Basis(Vector3.RIGHT, -pitch), s[0])
-		root.add_child(mi)
+		holder.add_child(mi)
+	for sp in kd.get("spheres", []):
+		var mi := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = sp[1]
+		sm.height = 2.0 * float(sp[1])
+		sm.material = mat
+		mi.mesh = sm
+		mi.position = sp[0]
+		holder.add_child(mi)
 	return root
+
+
+## a node made by mesh() put where the prop is now (a posed prop: its place and, for a door, its leaf)
+static func pose_node(n: Node3D, p: Dictionary) -> void:
+	n.transform = p["xf"]
+	var lf := n.get_node_or_null("leaf")
+	if lf != null:
+		(lf as Node3D).transform = leaf_xf(p)
 
 
 ## signed distance from a world point to an oriented box (negative inside)
 static func _sd(sw: Dictionary, pt: Vector3) -> float:
 	var l: Vector3 = (sw["xf"] as Transform3D).affine_inverse() * pt
+	if sw.has("r"):
+		return l.length() - float(sw["r"])
 	var h: Vector3 = sw["half"]
 	var q := Vector3(absf(l.x) - h.x, absf(l.y) - h.y, absf(l.z) - h.z)
 	return Vector3(maxf(q.x, 0.0), maxf(q.y, 0.0), maxf(q.z, 0.0)).length() + minf(maxf(q.x, maxf(q.y, q.z)), 0.0)
