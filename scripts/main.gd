@@ -1343,9 +1343,20 @@ func _export_usd_layers(dir := "res://exports") -> String:
 ## (its xf in the hero's space); [] with one fighter, and the exports write what they always wrote
 func _export_actors() -> Array:
 	_actors_sync()
-	if actors_rt.size() < 2:
-		return []
-	return actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]})
+	if S.crowd.is_empty():
+		if actors_rt.size() < 2:
+			return []
+		return actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]})
+	# ROADMAP 95: a crowd is exported as one more actor per copy, beside the fighter itself (the hero, then the others)
+	var acts := []
+	if actors_rt.is_empty():
+		acts.append({"name": "hero", "S": S, "B": B, "xf": Transform3D.IDENTITY})
+	else:
+		acts.append_array(actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]}))
+	_crowd_sync()
+	for m in crowd_men:
+		acts.append({"name": "crowd_%02d" % int(m["k"]), "S": m["sc"], "B": m["B"], "xf": Crowd.placement(m["c"])})
+	return acts
 
 
 ## the file name of a multi-fighter export: the hero's scene, whoever is active
@@ -2759,6 +2770,7 @@ func _refresh() -> void:
 	_panel()
 	_pose_others()
 	_actors_draw()
+	_crowd_draw()   # ROADMAP 95: the crowd's copies of this fighter's clip (none without a crowd)
 	_fighters_mark()
 	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
@@ -3441,7 +3453,7 @@ func _snapshot() -> Dictionary:
 	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"markers": S.markers.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
@@ -3488,6 +3500,8 @@ func _restore(u: Dictionary) -> void:
 		S.markers = u["markers"].duplicate(true)   # WW5: the markers, undone like a card
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
+	if u["scene"] == S and u.has("crowd") and var_to_str(u["crowd"]) != var_to_str(S.crowd):
+		S.crowd = (u["crowd"] as Dictionary).duplicate(true)   # ROADMAP 95: the crowd, undone like a marker
 	if u["scene"] == S and u.has("notes") and JSON.stringify(u["notes"]) != JSON.stringify(S.notes):
 		S.notes = u["notes"].duplicate(true)   # ROADMAP 29: the review notes, undone like a marker
 		if ui_timeline != null:
@@ -4274,6 +4288,99 @@ func _pick_actor(mp: Vector2) -> Array:
 		if String(hit[0]) != "" and float(hit[1]) < float(best[2]):
 			best = [k, String(hit[0]), float(hit[1])]
 	return best
+
+
+# ---------------------------------------------------------------- crowd (ROADMAP 95, scripts/crowd.gd)
+var crowd_men := []   # per copy: {"k", "node", "skel", "idx", "c" (its variation), "sc" (its scene), "B" (its body)} under stage_root
+var crowd_key := ""   # what the copies were made from (the scene as saved, the crowd settings): made again when it changes
+var crowd_tb := {}    # the fighter's clip as a pose table (Crowd.bake): what every copy plays
+
+
+## Crowd: make copies of this fighter (DEFAULT_N, seed 1). One undo step
+func _crowd_make(n := Crowd.DEFAULT_N) -> void:
+	_actors_sync()
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a crowd copies a clip: make a move first (two cards at least), then 'Crowd: make 20 copies of this fighter'")
+		return
+	_do(func(): S.crowd = {"n": clampi(n, 1, Crowd.MAX_N), "seed": 1})
+	_refresh()
+	_say_plain("crowd: %d copies of this fighter, scattered without overlap, each with its own time, speed, joint noise, mirror and stature (ANSUR II). 'Crowd: re-roll' gives a new crowd; Ctrl+Z undoes" % int(S.crowd["n"]))
+
+
+## Crowd: re-roll: the same crowd with the next seed (new places, timings, speeds, mirrors, statures). One undo step
+func _crowd_reroll() -> void:
+	if S.crowd.is_empty():
+		_say_plain("NOT NOW: there is no crowd yet: use 'Crowd: make 20 copies of this fighter' first")
+		return
+	_do(func(): S.crowd = {"n": S.crowd["n"], "seed": int(S.crowd["seed"]) + 1})
+	_refresh()
+	_say_plain("crowd re-rolled: seed %d" % int(S.crowd["seed"]))
+
+
+## Crowd: remove the copies (the fighter stays). One undo step
+func _crowd_remove() -> void:
+	if S.crowd.is_empty():
+		_say_plain("NOT NOW: there is no crowd to remove")
+		return
+	_do(func(): S.crowd = {})
+	_refresh()
+	_say_plain("crowd removed: the fighter alone again (Ctrl+Z brings the crowd back)")
+
+
+## the copies made or made again when the scene or the crowd settings change (the key is the scene as it saves)
+func _crowd_sync() -> void:
+	if S.crowd.is_empty():
+		_crowd_free()
+		return
+	var key := str(hash(var_to_bytes([_scene_dict(false), S.crowd])))
+	if key == crowd_key and not crowd_men.is_empty():
+		return
+	if dragging != "" and not crowd_men.is_empty():
+		return   # ROADMAP 95: a drag makes no table: the copies are made again on the release
+	_crowd_free()
+	crowd_key = key
+	var src := S.clone()
+	src.actors = []
+	src.crowd = {}
+	crowd_tb = Crowd.bake(src)
+	var sets := Crowd.make(int(S.crowd["n"]), int(S.crowd["seed"]), Body.ORDER)
+	for k in sets.size():
+		var c: Dictionary = sets[k]
+		var sc := Crowd.scene_for(S, c)
+		var b := Body.new()
+		b.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		b.set_proportions(sc.body)   # this copy's stature (Proportions: the same path as a scene's body)
+		var root := Node3D.new()
+		root.name = "crowd_%02d" % k
+		root.transform = Crowd.placement(c)
+		stage_root.add_child(root)
+		var skin := StandardMaterial3D.new()
+		skin.albedo_color = Crowd.TINTS[k % Crowd.TINTS.size()]
+		skin.roughness = 0.6
+		var mq := Overlays.mannequin(root, skin)
+		crowd_men.append({"k": k, "node": root, "skel": mq[1], "idx": mq[2], "c": c, "sc": sc, "B": b})
+
+
+## the copies gone (their nodes freed, the list cleared)
+func _crowd_free() -> void:
+	for m in crowd_men:
+		(m["node"] as Node).queue_free()
+	crowd_men = []
+	crowd_key = ""
+
+
+## end of every refresh: each copy posed at the hero's playhead and drawn. No crowd: nothing exists and nothing is done
+func _crowd_draw() -> void:
+	if S.crowd.is_empty():
+		if not crowd_men.is_empty():
+			_crowd_free()
+		return
+	if stage_root == null:
+		return
+	_crowd_sync()
+	for m in crowd_men:
+		Crowd.pose(m["c"], crowd_tb, m["B"], playhead, Body.ORDER)
+		Overlays.pose_skeleton(m["skel"], m["idx"], m["B"])
 
 
 ## the file the open scene saves as: the hero's scene with every other actor in "actors" (TC1), whoever is active.
@@ -9662,6 +9769,9 @@ func _commands() -> Array:
 		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
 	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
+	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
+	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
+	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Pose: copy to the other fighter", "", _pose_to_other.bind(false), "copy pose fighter actor other duplicate transfer", true, "the active fighter's pose at the playhead goes onto the other fighter's card at that moment (a card is made if none); one Ctrl+Z")
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
