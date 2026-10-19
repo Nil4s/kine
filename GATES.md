@@ -1922,8 +1922,14 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   rules); a misspelled "xff" is rejected; mirror twice = original (0.011), once negates x and yaw; clone is deep.
   Stub (actors branch off in to_dict), run by me: FAIL 1 ("$.actors only in A"). mirror_list, schema, mirror,
   autosave, versions, scene_list PASS. OPEN: main.gd's own _mirror_scene does not use Scene.mirror_file yet (TC3).
-- [ ] TC2 cross-body contact Body.cross_contacts(other, xf): 0 at 1.5 m apart, penetration at 0.2 m, a staff thrust
+- [x] TC2 cross-body contact Body.cross_contacts(other, xf): 0 at 1.5 m apart, penetration at 0.2 m, a staff thrust
   agrees with Dummy.touch on part and zone; within 1 mm of brute force, < 1 ms a frame after culling.
+  EVIDENCE: tests/cross_contact_test.gd 14 ok: 1.5 m apart 0 contacts; 0.2 m torso pairs sink 5.1 cm, all "touch"; staff
+  thrust = hit on spine_03/CHEST, same part, zone and depth (0.0000 mm) as Dummy.touch; 300 random pose/placement pairs
+  (2191 contacts, kinds touch/struck/hit/block/clash): 0 set differences, worst depth diff 0.000000 mm vs brute force;
+  mean 0.032 ms apart, 0.39 ms close (bar 1 ms); state() and P unchanged. Body sphere 1.5 m vs farthest seen 1.347 m.
+  Stubs: broad phase always rejects -> FAIL 7 (0.2 m, staff, brute-force set); xf dropped -> FAIL 4 (1.5 m: 104 contacts,
+  set, depth 204 mm, purity). Fingers and skin points are not in cross contacts.
 - [ ] TC3 actors in main (no UI): active swap, the other actor posed each refresh, undo tagged by actor.
 - [ ] TC4 window: second mannequin, click to switch, the view re-rooted without a jump.
 - [ ] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
