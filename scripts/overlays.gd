@@ -20,7 +20,8 @@ const FIXED := Color(0.15, 0.65, 1.0, 0.6)   # the fix preview ghost: what a Fix
 const PAST_FAR := Color(1.0, 0.25, 0.2, 0.13)
 const FUTURE_FAR := Color(0.2, 0.85, 1.0, 0.13)
 ## COMPARE WITH (ROADMAP 28): the older version laid over the open scene; magenta, so it is never mistaken for the onion
-const VERSION := Color(0.85, 0.3, 0.95, 0.45)
+const VERSION_GROW := 0.004   # m: the version ghost is inflated along its normals by this (the body is not moved)
+const VERSION := Color(0.85, 0.3, 0.95, 0.35)   # COMPARE WITH / Show both: translucent, depth write off, grown 4 mm (VERSION_GROW) so it never z-fights the body
 ## ghost slots: [past near, future near, fix preview, past far, future far, version]; onion's [side][distance] -> slot
 const ONION_SLOT := [[0, 3], [1, 4]]
 
@@ -95,6 +96,10 @@ func setup() -> void:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.cull_mode = BaseMaterial3D.CULL_BACK
+		if col == VERSION:   # the diff ghost sits on the body's own surfaces (same pose): no depth write, grown outward so it never fights the skin
+			m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+			m.grow = true
+			m.grow_amount = VERSION_GROW
 		var mq := mannequin(self, m)
 		var man: Node3D = mq[0]
 		var sk: Skeleton3D = mq[1]

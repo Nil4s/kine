@@ -61,7 +61,9 @@ static func _compute(S: Scene, B: Body, i: int, foot: String, ball: String, p: D
 	S._plants_off = true
 	S.apply(B, float(p["t0"]))
 	S._plants_off = false
-	return {"P": B.P[foot], "G": B.G[foot], "Gb": B.G[ball], "pole": LimbIK.pole_from_pose(B, foot)}
+	# BP, BE: the ball's and the toe tip's points; h, rb, re: the ankle's, the ball's and the toe's rest heights (ROADMAP 93: the sole)
+	return {"P": B.P[foot], "G": B.G[foot], "Gb": B.G[ball], "pole": LimbIK.pole_from_pose(B, foot),
+		"BP": B.P[ball], "BE": B.E[ball], "h": (B.p0[foot] as Vector3).y, "rb": (B.p0[ball] as Vector3).y, "re": (B.e0[ball] as Vector3).y}
 
 
 ## every input the reference apply reads BEFORE it writes it. The bat and the second weapon's pose fields (wep_pos,

@@ -18,6 +18,8 @@ signal range_set(which: String, t: float)   # WW4: Shift+click on the ruler = in
 signal finding_picked(i: int)   # a finding's mark clicked: the index into m.findings
 signal box_picked(i: int)   # ROADMAP 36: a box on the boxes lane clicked: the index into S.boxes
 signal shot_cut(i: int, t: float, final: bool)   # ROADMAP 75: shot i's cut dragged to t (final = the mouse went up)
+signal marker_moved(i: int, t: float, done: bool)   # ROADMAP 97: marker i dragged to t (whole frames; done = the mouse went up)
+signal marker_picked(i: int)   # ROADMAP 97: a marker clicked without a drag: the index into S.markers (main opens its popover)
 
 ## THE SHOTS LANE (ROADMAP 75; main.gd _shot_*): one row under the boxes lane, a segment per shot from its cut to the next
 ## (the shot on at the playhead is lit). A cut is its segment's left edge: drag it (whole frames, between its neighbours) to
@@ -57,6 +59,7 @@ var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
 
 var _drag := {}          # {"kind": "move"/"hold"/"edge0"/"scrub", "i", "x0", "v0", "pps", "t0"}
 var _hover := {}
+var mark_sel := -1         # ROADMAP 97: the marker whose popover is open (outlined on the ruler), -1 = none
 
 ## FINDINGS ON THE TIMELINE (round 23, GATES DD3, UPGRADES #30): after Check each finding is a diamond in the ruler at
 ## its time (FAIL red, WARN amber); findings within MARK_PX of each other share one mark with their count; a click on
@@ -90,6 +93,19 @@ func mark_at(p: Vector2) -> Array:
 
 
 func _get_tooltip(at: Vector2) -> String:
+	if _in_shots_lane(at):   # ROADMAP 75: a shot on the lane names itself in full (its label may be cut to fit)
+		var si := _shot_at_x(at.x)
+		if si >= 0:
+			var sh := _shots()
+			var end_t := float(sh[si + 1]["t"]) if si + 1 < sh.size() else _S().length()
+			return "shot %d: %s (%.2f s to %.2f s)
+click to scrub there; drag a cut to move it" % [si + 1, String(sh[si]["name"]), float(sh[si]["t"]), end_t]
+	var mi := marker_at(at) if m != null else -1   # ROADMAP 97: a marker's flag shows its note (its name when it has none)
+	if mi >= 0:
+		var mk: Dictionary = _S().markers[mi]
+		if mk.has("note"):
+			return String(mk["note"])
+		return "%s (%s) at %s: click to edit it, drag to move it" % [mk["name"], mk["kind"], Units.time(mk["t"], _S().fps)]
 	var fs := mark_at(at)
 	var ck := clip_at(at) if at.y >= RULER else -1
 	if ck >= 0:
@@ -174,14 +190,45 @@ func _draw_shots_lane(y: float) -> void:
 	var L := _S().length()
 	var on: int = m.shot_now_index()
 	for i in sh.size():
-		var x0 := x_of(float(sh[i]["t"]))
-		var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else L)
+		var sp := _shot_span(i)
+		var x0 := sp.x
+		var x1 := sp.y
 		var act := i == on
 		draw_rect(Rect2(x0, y, maxf(x1 - x0 - 1.0, 2.0), SHOTS_H), Tok.c("accent") if act else Tok.of("ink:0.22"))
 		draw_line(Vector2(x0, y - 1.0), Vector2(x0, y + SHOTS_H + 1.0), Tok.c("ink"), 2.0 if i > 0 else 1.0)   # the cut
-		var label := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(sh[i]["name"])]
 		if x1 - x0 > 16.0:
-			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), label, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+			draw_string(font, Vector2(x0 + 3, y + SHOTS_H - 3.0), shot_label_fit(i, x1 - x0), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 5.0, 9, Tok.c("on_accent") if act else Tok.c("ink"))
+
+
+## shot i's segment on the lane in x: from its cut to the next cut (or the end of the scene)
+func _shot_span(i: int) -> Vector2:
+	var sh := _shots()
+	var x0 := x_of(float(sh[i]["t"]))
+	var x1 := x_of(float(sh[i + 1]["t"]) if i + 1 < sh.size() else _S().length())
+	return Vector2(x0, x1)
+
+
+## the shot whose segment covers x on the lane, or -1
+func _shot_at_x(x: float) -> int:
+	for i in _shots().size():
+		var sp := _shot_span(i)
+		if x >= sp.x and x < sp.y:
+			return i
+	return -1
+
+
+## the label drawn on shot i's segment, "n name" (the first shot also says SHOTS). It is cut with an ellipsis ONLY when the
+## segment is narrower than the label; the full name is then the tooltip (_get_tooltip)
+func shot_label_fit(i: int, box_w: float) -> String:
+	var font := get_theme_default_font()
+	var full := "%s%d %s" % ["SHOTS  " if i == 0 else "", i + 1, String(_shots()[i]["name"])]
+	var avail := box_w - 5.0
+	if font.get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x <= avail:
+		return full
+	var t := full
+	while t.length() > 0 and font.get_string_size(t + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x > avail:
+		t = t.substr(0, t.length() - 1)
+	return t + "…" if t.length() > 0 else ""
 
 
 ## a shot's cut dragged to x: whole frames, never onto its neighbours' cuts (the order stays)
@@ -284,6 +331,11 @@ func _gui_input(ev: InputEvent) -> void:
 				scrubbed.emit(nt)
 				accept_event()
 				return
+			var mki := marker_at(ev.position)   # ROADMAP 97: a marker's flag: a click opens it, a drag moves it by whole frames
+			if mki >= 0:
+				_drag = {"kind": "marker", "i": mki, "x0": ev.position.x, "f0": Markers.frame_of(float(S.markers[mki]["t"]), S.fps), "moved": false}
+				accept_event()
+				return
 			var fs := mark_at(ev.position)
 			if not fs.is_empty():
 				finding_picked.emit(fs[0])
@@ -343,6 +395,15 @@ func _gui_input(ev: InputEvent) -> void:
 			_drag = {}
 			queue_redraw()
 			accept_event()
+		elif not _drag.is_empty() and _drag["kind"] == "marker":
+			var mi: int = _drag["i"]
+			if _drag["moved"]:
+				marker_moved.emit(mi, Markers.time_of_frame(int(_drag["last"]), S.fps), true)
+			else:
+				marker_picked.emit(mi)
+			_drag = {}
+			queue_redraw()
+			accept_event()
 		elif not _drag.is_empty():
 			var was: String = _drag.get("kind", "")
 			var moved: bool = _drag.get("moved", true)
@@ -370,6 +431,14 @@ func _gui_input(ev: InputEvent) -> void:
 			return
 		if _drag["kind"] == "scrub":
 			scrubbed.emit(t_of(ev.position.x))
+			return
+		if _drag["kind"] == "marker":
+			var f := clampi(Markers.frame_of(t_of(ev.position.x), S.fps), 0, Markers.frame_of(S.length(), S.fps))
+			if f != int(_drag.get("last", _drag["f0"])):
+				_drag["last"] = f
+				_drag["moved"] = true
+				marker_moved.emit(int(_drag["i"]), Markers.time_of_frame(f, S.fps), false)
+			accept_event()
 			return
 		if _drag["kind"] == "clip":
 			_clip_drag(ev.position.x, ev.shift_pressed)
@@ -665,12 +734,21 @@ func _draw() -> void:
 		draw_rect(Rect2(xa0, 0, xb0 - xa0, 3), Tok.c("warn"))
 		draw_line(Vector2(xa0, 0), Vector2(xa0, size.y), Tok.c("warn"), 1.0)
 		draw_line(Vector2(xb0, 0), Vector2(xb0, size.y), Tok.c("warn"), 1.0)
-	# MARKERS (round 41, WW5): a small flag on the ruler at each marker's time, coloured by its kind
-	for mk in S.markers:
+	# MARKERS (round 41, WW5): a small flag on the ruler at each marker's time, coloured by its colour (ROADMAP 97) or kind
+	for mi in S.markers.size():
+		var mk: Dictionary = S.markers[mi]
 		var fx := x_of(float(mk["t"]))
-		var fc: Color = Markers.COLORS.get(String(mk["kind"]), Color.WHITE)
+		var fc: Color = Tok.c(Markers.token_of(mk))
 		draw_line(Vector2(fx, 0), Vector2(fx, RULER), fc, 1.0)
-		draw_colored_polygon(PackedVector2Array([Vector2(fx, 0), Vector2(fx + 6, 3), Vector2(fx, 6)]), fc)
+		draw_rect(Rect2(fx, 0, 8, 10), fc)   # a filled flag, 10 px tall (ROADMAP 97: readable at a glance)
+		if mi == mark_sel:   # the marker whose popover is open: an outline around its flag
+			draw_rect(Rect2(fx - 1, -1, 10, 12), Tok.c("ink"), false, 1.5)
+		# the name beside the flag, when the space up to the next marker (or the ruler's end) fits it
+		var nxt := size.x if mi + 1 >= S.markers.size() else x_of(float(S.markers[mi + 1]["t"]))
+		var nm := String(mk["name"])
+		var tw := get_theme_default_font().get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+		if nxt - (fx + 10.0) >= tw + 4.0:
+			draw_string(get_theme_default_font(), Vector2(fx + 10.0, 9.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, fc)
 	# REVIEW NOTES (ROADMAP 29): a cyan square on the ruler at each comment's frame (note_t_at takes a click on it)
 	for nt in S.notes:
 		var nx := x_of(clampf(Review.time_of(int(nt["frame"]), S.fps), 0.0, L))
@@ -684,6 +762,21 @@ func _draw() -> void:
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("autokey") if m.auto_key else Tok.c("ink"), 2.0)   # ROADMAP 42: red while auto-key is on
 	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
+
+
+## ROADMAP 97: the index of the marker whose flag is under p (on the ruler), or -1
+func marker_at(p: Vector2) -> int:
+	var S := _S()
+	if S == null or S.cards.is_empty() or S.markers.is_empty() or p.y < 0.0 or p.y >= RULER:
+		return -1
+	var best := -1
+	var bd := 4.0
+	for i in S.markers.size():
+		var d := absf(x_of(clampf(float(S.markers[i]["t"]), 0.0, S.length())) - p.x)
+		if d <= bd:
+			bd = d
+			best = i
+	return best
 
 
 ## ROADMAP 29: the time of the review note whose mark is under p (on the ruler), or -1

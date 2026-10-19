@@ -1,0 +1,10 @@
+{
+  "name": "Mirror All Cards",
+  "version": "1.0.0",
+  "author": "Teschima Studios",
+  "api": 1,
+  "description": "Mirrors the pose of every card left <-> right in one undo step. The scene's timing and the hips' sideways offset are not touched.",
+  "commands": [
+    {"id": "mirror_all", "name": "Mirror every card", "desc": "every card's pose reflected left <-> right, one undo step (the same rule as Mirror in place for the poses)"}
+  ]
+}

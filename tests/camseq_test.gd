@@ -9,6 +9,8 @@
 ##   6 mirror: every shot's camera x negated (pos and aim), lens, cut times and names kept; twice = the original
 ##   7 the SHOTS lane: its segments and cuts drawn; a press-drag-release on the cut at 1.2 s moves it to 1.3 s (whole frames)
 ##   8 the commands are in the registry: Shots: add / delete / rename
+##   7b a shot's label is whole at the default zoom when its segment fits it ("2 Close" at 1 s = pps px); a 30 px box is cut with an
+##      ellipsis and the lane's tooltip gives the full name
 ## Screenshot of the lane: env ZZ_CAMSEQ_SHOT (a png path).
 extends SceneTree
 
@@ -242,6 +244,17 @@ func _init() -> void:
 	m._undo()
 	ok(absf(float(m.S.shots[1]["t"]) - 1.2) < 1e-9, "  one Ctrl+Z puts it back at 1.2 s")
 	await idle(3)
+	# 7b the labels: a shot's segment at the default zoom (the fit-to-length scale) is 1 s = pps() px; its label is whole when that fits
+	# (the 1.2 s "Close" shot is 1.3 s long here), and a box narrower than the label is cut with an ellipsis, the tooltip keeps the full name
+	var close: String = String(m.S.shots[1]["name"])
+	var one_s := tl.pps() * 1.0
+	var whole := tl.shot_label_fit(1, one_s)
+	ok(whole == "2 " + close and not whole.ends_with("…"), "7b a 1 s box at default zoom (%.0f px) shows the full name: \"%s\"" % [one_s, whole])
+	var cut := tl.shot_label_fit(1, 30.0)
+	ok(cut.ends_with("…") and cut.length() < whole.length() and cut.length() > 2, "7b a 30 px box is cut with an ellipsis: \"%s\"" % cut)
+	var tip: String = tl._get_tooltip(Vector2(tl.x_of(1.25), lane_y))
+	ok(tip.contains("shot 2: " + close + " ("), "7b the tooltip over that shot gives its full name: \"%s\"" % tip.split("\n")[0])
+
 	var shot := OS.get_environment("ZZ_CAMSEQ_SHOT")
 	if shot != "":
 		var img := await grab()

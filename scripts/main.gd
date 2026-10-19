@@ -145,6 +145,8 @@ var ui_why_box: VBoxContainer
 var _why_last: Dictionary = {}   # the last refusal or error: {text, cmd, part, frame, at}
 var _why_cmd := ""               # the command (or button) the user ran last: the refusal's "you tried"
 var ui_cmd: CommandSearch
+var plugins: Plugins               # ROADMAP 100: user plugins (scripts/plugins.gd); none loads until it is switched on
+var ui_plugins: PluginsPanel       # the Plugins panel (scripts/plugins_panel.gd): the list and the switches
 ## MACROS (ROADMAP 81; scripts/macros.gd): palette steps recorded in order, saved by name in macros_file. Playing one is
 ## ONE undo step (_push_undo opens it once, at the first edit of the play). rec_label = the REC indicator while recording
 var macros_file := "user://macros.json"
@@ -167,7 +169,8 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI"]]],
-	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]]],
+	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
+		["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -570,7 +573,7 @@ func part_look(j: String, touching := {}) -> String:
 		return "lock"
 	if touching.has(j):
 		return "touch"
-	if j in Body.ORDER and B.P.has(j) and not B.at_limit(j).is_empty():
+	if j in Body.ORDER and B.P.has(j) and B.limit_fade(j) > 0.0:   # the limit tint: only in the last 10% of the range (Body.limit_fade)
 		return "limit"
 	return ""
 
@@ -1354,9 +1357,20 @@ func _export_usd_layers(dir := "res://exports") -> String:
 ## (its xf in the hero's space); [] with one fighter, and the exports write what they always wrote
 func _export_actors() -> Array:
 	_actors_sync()
-	if actors_rt.size() < 2:
-		return []
-	return actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]})
+	if S.crowd.is_empty():
+		if actors_rt.size() < 2:
+			return []
+		return actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]})
+	# ROADMAP 95: a crowd is exported as one more actor per copy, beside the fighter itself (the hero, then the others)
+	var acts := []
+	if actors_rt.is_empty():
+		acts.append({"name": "hero", "S": S, "B": B, "xf": Transform3D.IDENTITY})
+	else:
+		acts.append_array(actors_rt.map(func(a): return {"name": a["name"], "S": a["S"], "B": a["B"], "xf": a["xf"]}))
+	_crowd_sync()
+	for m in crowd_men:
+		acts.append({"name": "crowd_%02d" % int(m["k"]), "S": m["sc"], "B": m["B"], "xf": Crowd.placement(m["c"])})
+	return acts
 
 
 ## the file name of a multi-fighter export: the hero's scene, whoever is active
@@ -2208,6 +2222,7 @@ func _world() -> void:
 	var floor := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(4, 4)
+	floor_pm = pm
 	floor.mesh = pm
 	var fm := StandardMaterial3D.new()
 	fm.albedo_color = Tok.c("floor")
@@ -2302,21 +2317,31 @@ const AXES := [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, AXIS_
 var axis_mesh: ImmediateMesh
 
 
-static func grid_alpha(p: Vector3) -> float:
-	return clampf((GRID_END - Vector2(p.x, p.z).length()) / (GRID_END - GRID_FULL), 0.0, 1.0)
+## ROADMAP 95: with a crowd the floor grows to cover every copy's feet (+0.5 m): the fade then runs over the square
+## (max of |x|, |z|) instead of the circle, and the grid's edge is the floor's edge
+var grid_end := GRID_END
+var grid_full := GRID_FULL
+var grid_square := false
+var floor_pm: PlaneMesh
+var crowd_half := 0.0   # the floor's half-size while a crowd is out (0 = the default floor)
+
+
+static func grid_alpha(p: Vector3, end := GRID_END, full := GRID_FULL, square := false) -> float:
+	var r := maxf(absf(p.x), absf(p.z)) if square else Vector2(p.x, p.z).length()
+	return clampf((end - r) / (end - full), 0.0, 1.0)
 
 
 func _grid() -> void:
 	grid_mesh.clear_surfaces()
 	grid_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	var n := int(round(GRID_END / GRID_STEP))
+	var n := int(ceil(grid_end / GRID_STEP - 0.000001))
 	for k in range(-n, n + 1):
 		var x := k * GRID_STEP
 		var c := Tok.c("grid_major") if k % 10 == 0 else Tok.c("grid")
 		for i in range(-n, n):
 			for seg in [[Vector3(x, 0, i * GRID_STEP), Vector3(x, 0, (i + 1) * GRID_STEP)], [Vector3(i * GRID_STEP, 0, x), Vector3((i + 1) * GRID_STEP, 0, x)]]:
-				var a0 := grid_alpha(seg[0])
-				var a1 := grid_alpha(seg[1])
+				var a0 := grid_alpha(seg[0], grid_end, grid_full, grid_square)
+				var a1 := grid_alpha(seg[1], grid_end, grid_full, grid_square)
 				if a0 <= 0.0 and a1 <= 0.0:
 					continue
 				grid_mesh.surface_set_color(Color(c, c.a * a0))
@@ -2910,6 +2935,10 @@ func _refresh() -> void:
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
 				looks[j] = _look_of(lk)
+				if lk == "limit":   # the tint of the joint's own part, at the strength of how far into its last 10% it is
+					var lc: Color = looks[j][0]
+					lc.a *= B.limit_fade(j)
+					looks[j][0] = lc
 				if lk == "sel" and locked_parts.has(j):   # picked AND locked: the pick's colour greyed toward the lock's
 					looks[j][0] = Color(Tok.c("pick_sel").lerp(Tok.c("pick_lock"), 0.4), looks[j][0].a)
 			if pieces.has(j):
@@ -2926,7 +2955,7 @@ func _refresh() -> void:
 		_place(parts[j], c[0], c[1], B.rad[j])
 		var col := Color(0.62, 0.63, 0.66, 0.25 if show_caps else 0.0)
 		if lk == "limit" or lk == "touch":   # the Collision view shows what the capsules collide with
-			col = Color(LIMIT if lk == "limit" else TOUCH, 0.45)
+			col = Color(LIMIT if lk == "limit" else TOUCH, 0.45 * (B.limit_fade(j) if lk == "limit" else 1.0))
 		if not body:   # the weapon (not skinned): its capsule is its light
 			if lk == "lock":
 				col = Color(LOCK_COL, 0.45)
@@ -2992,6 +3021,7 @@ func _refresh() -> void:
 		_panel()
 	_pose_others()
 	_actors_draw()
+	_crowd_draw()   # ROADMAP 95: the crowd's copies of this fighter's clip (none without a crowd)
 	_fighters_mark()
 	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
@@ -3682,7 +3712,7 @@ func _snapshot() -> Dictionary:
 	return {"actor": actor_on, "hero": H, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"markers": S.markers.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
@@ -3729,6 +3759,8 @@ func _restore(u: Dictionary) -> void:
 		S.markers = u["markers"].duplicate(true)   # WW5: the markers, undone like a card
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
+	if u["scene"] == S and u.has("crowd") and var_to_str(u["crowd"]) != var_to_str(S.crowd):
+		S.crowd = (u["crowd"] as Dictionary).duplicate(true)   # ROADMAP 95: the crowd, undone like a marker
 	if u["scene"] == S and u.has("notes") and JSON.stringify(u["notes"]) != JSON.stringify(S.notes):
 		S.notes = u["notes"].duplicate(true)   # ROADMAP 29: the review notes, undone like a marker
 		if ui_timeline != null:
@@ -3852,9 +3884,13 @@ func _undo() -> void:
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
 	var now := _snapshot()
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
+	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
+		now["lib"] = u["lib"]
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	if u.has("lib"):
+		PosePack.lib_move(u["lib"], true, library)
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
 	_undo_tips()
@@ -3871,15 +3907,35 @@ func _redo() -> void:
 	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
 	var now := _snapshot()
 	now["name"] = _step_label(r)
+	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
+		now["lib"] = r["lib"]
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	if r.has("lib"):
+		PosePack.lib_move(r["lib"], false, library)
 	_say("redone: " + now["name"])
 	_toast("Redid: " + now["name"])
 	_undo_tips()
 	_history_rows()
 	_jpending = true
 	_co_sync()
+
+
+## ROADMAP 96: Share scene as a pack...: the saved scene (scenes/<name>.json) packed for someone else; nothing is changed here
+func _share_scene_pack() -> void:
+	var p := "res://scenes/%s.json" % S.name
+	if not FileAccess.file_exists(p):
+		_say("this scene is not saved yet: Save scene first, then Share scene as a pack... packs the saved file")
+		return
+	PosePack.share_scene_ask(self, p)
+
+
+## ROADMAP 96: an import into the library is ONE undo step (no body change); its files ride on the step as "lib"
+func _push_undo_lib(files: Array) -> void:
+	_push_undo()
+	if not undo.is_empty():
+		undo[-1]["lib"] = files
 
 
 ## an edit that moved nothing is taken back out: its step, and its node in the tree
@@ -4518,6 +4574,131 @@ func _pick_actor(mp: Vector2) -> Array:
 		if String(hit[0]) != "" and float(hit[1]) < float(best[2]):
 			best = [k, String(hit[0]), float(hit[1])]
 	return best
+
+
+# ---------------------------------------------------------------- crowd (ROADMAP 95, scripts/crowd.gd)
+var crowd_men := []   # per copy: {"k", "node", "skel", "idx", "c" (its variation), "sc" (its scene), "B" (its body)} under stage_root
+var crowd_key := ""   # what the copies were made from (the scene as saved, the crowd settings): made again when it changes
+var crowd_tb := {}    # the fighter's clip as a pose table (Crowd.bake): what every copy plays
+
+
+## Crowd: make copies of this fighter (DEFAULT_N, seed 1). One undo step
+func _crowd_make(n := Crowd.DEFAULT_N) -> void:
+	_actors_sync()
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a crowd copies a clip: make a move first (two cards at least), then 'Crowd: make 20 copies of this fighter'")
+		return
+	_do(func(): S.crowd = {"n": clampi(n, 1, Crowd.MAX_N), "seed": 1})
+	_refresh()
+	_say_plain("crowd: %d copies of this fighter, scattered without overlap, each with its own time, speed, joint noise, mirror and stature (ANSUR II). 'Crowd: re-roll' gives a new crowd; Ctrl+Z undoes" % int(S.crowd["n"]))
+
+
+## Crowd: re-roll: the same crowd with the next seed (new places, timings, speeds, mirrors, statures). One undo step
+func _crowd_reroll() -> void:
+	if S.crowd.is_empty():
+		_say_plain("NOT NOW: there is no crowd yet: use 'Crowd: make 20 copies of this fighter' first")
+		return
+	_do(func(): S.crowd = {"n": S.crowd["n"], "seed": int(S.crowd["seed"]) + 1})
+	_refresh()
+	_say_plain("crowd re-rolled: seed %d" % int(S.crowd["seed"]))
+
+
+## Crowd: remove the copies (the fighter stays). One undo step
+func _crowd_remove() -> void:
+	if S.crowd.is_empty():
+		_say_plain("NOT NOW: there is no crowd to remove")
+		return
+	_do(func(): S.crowd = {})
+	_refresh()
+	_say_plain("crowd removed: the fighter alone again (Ctrl+Z brings the crowd back)")
+
+
+## the copies made or made again when the scene or the crowd settings change (the key is the scene as it saves)
+func _crowd_sync() -> void:
+	if S.crowd.is_empty():
+		_crowd_free()
+		return
+	var key := str(hash(var_to_bytes([_scene_dict(false), S.crowd])))
+	if key == crowd_key and not crowd_men.is_empty():
+		return
+	if dragging != "" and not crowd_men.is_empty():
+		return   # ROADMAP 95: a drag makes no table: the copies are made again on the release
+	_crowd_free()
+	crowd_key = key
+	var src := S.clone()
+	src.actors = []
+	src.crowd = {}
+	crowd_tb = Crowd.bake(src)
+	var sets := Crowd.make(int(S.crowd["n"]), int(S.crowd["seed"]), Body.ORDER)
+	for k in sets.size():
+		var c: Dictionary = sets[k]
+		var sc := Crowd.scene_for(S, c)
+		var b := Body.new()
+		b.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		b.set_proportions(sc.body)   # this copy's stature (Proportions: the same path as a scene's body)
+		var root := Node3D.new()
+		root.name = "crowd_%02d" % k
+		root.transform = Crowd.placement(c)
+		stage_root.add_child(root)
+		var skin := StandardMaterial3D.new()
+		skin.albedo_color = Crowd.TINTS[k % Crowd.TINTS.size()]
+		skin.roughness = 0.6
+		var mq := Overlays.mannequin(root, skin)
+		crowd_men.append({"k": k, "node": root, "skel": mq[1], "idx": mq[2], "c": c, "sc": sc, "B": b})
+
+
+## the copies gone (their nodes freed, the list cleared)
+func _crowd_free() -> void:
+	for m in crowd_men:
+		(m["node"] as Node).queue_free()
+	crowd_men = []
+	crowd_key = ""
+
+
+## end of every refresh: each copy posed at the hero's playhead and drawn. No crowd: nothing exists and nothing is done
+func _crowd_draw() -> void:
+	if S.crowd.is_empty():
+		if not crowd_men.is_empty():
+			_crowd_free()
+		if crowd_half > 0.0:
+			_floor_reset()
+		return
+	if stage_root == null:
+		return
+	_crowd_sync()
+	var ext := 0.0
+	for m in crowd_men:
+		Crowd.pose(m["c"], crowd_tb, m["B"], playhead, Body.ORDER)
+		Overlays.pose_skeleton(m["skel"], m["idx"], m["B"])
+		var X: Transform3D = Crowd.placement(m["c"])
+		for sd in ["_l", "_r"]:   # the feet: heel and toe of each, in the hero's space
+			for q in [Proportions.heel(m["B"], sd), Proportions.toe(m["B"], sd)]:
+				var p: Vector3 = X * q
+				ext = maxf(ext, maxf(absf(p.x), absf(p.z)))
+	_floor_fit(ext + 0.5)
+
+
+## ROADMAP 95: the floor's half-size is at least `half` (it grows as the feet walk; it is not shrunk while the crowd is
+## out, so the grid is not rebuilt each frame). The grid's fade ends at the floor's edge, in the square
+func _floor_fit(half: float) -> void:
+	if floor_pm == null or half <= crowd_half + 0.05 and crowd_half > 0.0:
+		return
+	crowd_half = maxf(half, 2.0)
+	floor_pm.size = Vector2(2.0 * crowd_half, 2.0 * crowd_half)
+	grid_end = crowd_half
+	grid_full = crowd_half - 0.5
+	grid_square = true
+	_grid()
+
+
+## ROADMAP 95: the crowd removed: the floor and the grid back to their own size (4 m square, the default fade)
+func _floor_reset() -> void:
+	crowd_half = 0.0
+	floor_pm.size = Vector2(4, 4)
+	grid_end = GRID_END
+	grid_full = GRID_FULL
+	grid_square = false
+	_grid()
 
 
 ## the file the open scene saves as: the hero's scene with every other actor in "actors" (TC1), whoever is active.
@@ -7853,6 +8034,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
+	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
@@ -8226,6 +8408,9 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
+	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
+	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
+	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
 	var ap := MenuButton.new()
 	ap.text = "Add prop"
 	ap.name = "menu_add_prop"
@@ -8684,6 +8869,8 @@ func _ui() -> void:
 	ui_timeline.box_picked.connect(_bx_pick)   # ROADMAP 36: a box on the boxes lane picked
 	ui_timeline.range_set.connect(func(which: String, t: float): _pv_set(which, t))   # WW4: Shift+click / Alt+click on the ruler
 	ui_timeline.finding_picked.connect(_finding_mark)
+	ui_timeline.marker_moved.connect(_marker_moved)   # ROADMAP 97: a marker flag dragged (one undo step per drag)
+	ui_timeline.marker_picked.connect(_marker_open)   # ROADMAP 97: a marker flag clicked: the playhead there, its popover open
 	ui_timeline.retime_started.connect(_retime_begin)
 	ui_timeline.retimed.connect(_retime_step)
 	ui_timeline.shot_cut.connect(_shot_cut_drag)   # ROADMAP 75: a cut on the shots lane dragged
@@ -8914,7 +9101,16 @@ func _ui() -> void:
 	ui_cmd = CommandSearch.new()
 	ui_cmd.offset_top = TOP_H + 10
 	ui_root.add_child(ui_cmd)
-	ui_cmd.commands = _commands()
+	plugins = Plugins.new()
+	plugins.host = {"scene": func(): return S, "clamp": func(j, v): return B.clamp_ang(j, v), "has_joint": func(j): return B.lim.has(j),
+		"begin": _push_undo, "say": _say, "changed": _plugins_changed, "run": _plugin_run}
+	plugins.configure(["user://plugins", "res://examples/plugins"], "user://plugins.json", "user://plugins")   # the app's own folders
+	plugins.scan()
+	ui_plugins = PluginsPanel.new()
+	ui_plugins.plugins = plugins
+	ui_plugins.say_fn = _say
+	ui_root.add_child(ui_plugins)
+	ui_cmd.commands = _commands() + plugins.command_rows()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
 	_hover_hints()
@@ -9965,6 +10161,7 @@ func _commands() -> Array:
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
 	add.call("Pose: draw a line of action", "", _loa_arm, "line of action sketch stroke draw curve spine lean", false, "drag one stroke on the view: the spine and the support leg bend to follow it (Shift on release = mirror the lean; one Ctrl+Z)")
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
+	add.call("Plugins: enable or disable plugins", "", func(): ui_plugins.toggle(), "plugin plugins api extension addon add-on scripts script", false, "the user plugins (user://plugins): each one's manifest, an enable switch (off by default), and what a plugin can do")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
@@ -10103,6 +10300,9 @@ func _commands() -> Array:
 		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
 	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
+	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
+	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
+	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Pose: copy to the other fighter", "", _pose_to_other.bind(false), "copy pose fighter actor other duplicate transfer", true, "the active fighter's pose at the playhead goes onto the other fighter's card at that moment (a card is made if none); one Ctrl+Z")
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
@@ -10121,6 +10321,8 @@ func _commands() -> Array:
 	add.call("Cycle card key type", "", _ktype_cycle, "breakdown moving hold extreme key blender mark", true, "the picked card becomes the next kind of key: key, breakdown, moving hold, extreme (drawn on the dope sheet)")
 	add.call("Next marker", "Ctrl+]", _marker_jump.bind(true), "cue event flag jump", false, "the playhead jumps to the next marker")
 	add.call("Previous marker", "Ctrl+[", _marker_jump.bind(false), "cue event flag jump", false, "the playhead jumps to the marker before")
+	add.call("Markers: list and jump to one...", "", _markers_list_open, "markers list jump go find cue note name colour", false, "a list of every marker (name, time, kind, the first line of its note): pick one and the playhead jumps to it exactly (ROADMAP 97)")
+	add.call("Marker: edit the one at the playhead...", "", _marker_edit_at_playhead, "marker note notes edit rename colour color delete popover text cue", false, "opens the marker within one frame of the playhead: its name, a note of several lines, its colour and Delete (ROADMAP 97)")
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
 	add.call("Trail: weapon ribbon on/off", "", _wtrail_ribbon, "trail weapon ribbon sweep blade swipe arc path", false, "a ribbon swept by the bat between its knob and its tip over the last 6 frames, fading; drawn only where the tip is faster than 8 m/s (not the motion trail, T)")
@@ -10216,6 +10418,7 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Share scene as a pack...", "", _share_scene_pack, "share scene pack asset store kinepack export send", false, "the saved scene as one .kinepack file (cards, timings, markers, props) to send to someone; Import pack... reads it")
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
 		var miss := not FileAccess.file_exists(p)
 		var how := "%s is not on disk any more: File > Recent drops it when %d newer scenes are opened" % [p.get_file(), RECENT_N]
@@ -10418,6 +10621,200 @@ func _marker_jump(fwd: bool) -> void:
 	_ps().apply(B, minf(playhead, _ps().length()))
 	_refresh()
 	_say("marker at %.2f s" % t)
+
+
+## ROADMAP 97: the marker notes. A click on a flag (or 'Marker: edit the one at the playhead') opens its popover: name,
+## note (several lines), colour (Tok mk_*) and Delete. Each commit is one undo step; dragging a flag is one undo step
+## (the first frame moved takes the snapshot, the mouse going up ends it); a click without a drag only moves the playhead.
+var _mk_drag_open := false
+var mk_pop: PopupPanel = null
+var mk_ui := {}
+var mk_i := -1
+var mk_color := ""
+var mk_list_pop: PopupPanel = null
+var mk_list: ItemList = null
+
+
+## a flag dragged to t (whole frames): the first move takes the undo snapshot; done = the mouse went up (the list is sorted again)
+func _marker_moved(i: int, t: float, done: bool) -> void:
+	if i < 0 or i >= S.markers.size():
+		return
+	if not _mk_drag_open:
+		_push_undo()
+		_mk_drag_open = true
+	S.markers[i]["t"] = t
+	if done:
+		S.markers.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
+		_mk_drag_open = false
+		_say("marker %s moved to %s (frame %d).  Ctrl+Z undoes" % [S.markers[i]["name"], Units.time(t, S.fps), Markers.frame_of(t, S.fps)])
+	_markers_changed()
+
+
+## the playhead exactly on marker i (no rounding), and its popover open
+func _marker_open(i: int) -> void:
+	if i < 0 or i >= S.markers.size():
+		return
+	_marker_goto(i)
+	_mk_pop_show(i)
+
+
+func _marker_goto(i: int) -> void:
+	playing = false
+	playhead = float(S.markers[i]["t"])
+	_ps().apply(B, minf(playhead, _ps().length()))
+	_refresh()
+
+
+func _marker_edit_at_playhead() -> void:
+	var i := Markers.near(S.markers, playhead, 1.0 / float(S.fps))
+	if i < 0:
+		_say("no marker within one frame of the playhead: press Ctrl+] / Ctrl+[ to move onto one, or pick one from Markers: list and jump to one")
+		return
+	_mk_pop_show(i)
+
+
+func _mk_pop_build() -> void:
+	mk_pop = PopupPanel.new()
+	mk_pop.name = "MarkerPopover"
+	var box := StyleBoxFlat.new()   # the Tok float panel, opaque enough to read over the timeline
+	box.bg_color = Tok.c("mk_panel")   # opaque: the timeline and the cards behind it must not show through
+	box.set_border_width_all(1)
+	box.border_color = Tok.c("mk_border")
+	box.set_corner_radius_all(4)
+	box.set_content_margin_all(8)
+	mk_pop.add_theme_stylebox_override("panel", box)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	mk_pop.add_child(v)
+	var head := Label.new()
+	v.add_child(head)
+	mk_ui["head"] = head
+	var nm := LineEdit.new()
+	nm.placeholder_text = "name (m1, hit, ...)"
+	nm.custom_minimum_size = Vector2(300, 0)
+	nm.text_submitted.connect(func(_t): _mk_commit_open())
+	v.add_child(nm)
+	mk_ui["name"] = nm
+	var note := TextEdit.new()
+	note.placeholder_text = "a note for this moment (several lines are fine)"
+	note.custom_minimum_size = Vector2(300, 96)
+	note.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	v.add_child(note)
+	mk_ui["note"] = note
+	var sw := HBoxContainer.new()
+	sw.add_theme_constant_override("separation", 6)
+	v.add_child(sw)
+	for c in Markers.PALETTE:
+		var b := Button.new()
+		b.text = c
+		b.tooltip_text = "colour: %s" % c
+		b.modulate = Tok.c("mk_" + c)
+		b.pressed.connect(_mk_pick_color.bind(c))
+		sw.add_child(b)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	v.add_child(row)
+	var del := Button.new()
+	del.text = "Delete marker"
+	del.pressed.connect(_mk_delete_open)
+	row.add_child(del)
+	var done := Button.new()
+	done.text = "Done"
+	done.pressed.connect(func(): mk_pop.hide())
+	row.add_child(done)
+	mk_pop.popup_hide.connect(_mk_pop_hidden)
+	add_child(mk_pop)
+
+
+func _mk_pop_show(i: int) -> void:
+	if mk_pop == null:
+		_mk_pop_build()
+	mk_i = i
+	var mk: Dictionary = S.markers[i]
+	mk_color = String(mk.get("color", Markers.KIND_COLOR.get(String(mk["kind"]), "gold")))
+	(mk_ui["head"] as Label).text = "%s: %s, frame %d" % [mk["name"], Units.time(mk["t"], S.fps), Markers.frame_of(float(mk["t"]), S.fps)]
+	(mk_ui["name"] as LineEdit).text = String(mk["name"])
+	(mk_ui["note"] as TextEdit).text = String(mk.get("note", ""))
+	ui_timeline.mark_sel = i
+	ui_timeline.queue_redraw()
+	# the timeline sits at the bottom of the window: the popover opens ABOVE its ruler, at the marker's time (fixed size: a popup sized before layout is empty)
+	var gp := ui_timeline.get_global_rect().position
+	var sz := Vector2i(340, 262)
+	var x := clampf(ui_timeline.x_of(clampf(float(mk["t"]), 0.0, S.length())) - 20.0, 0.0, maxf(ui_timeline.size.x - 340.0, 0.0))
+	var y := maxf(gp.y - float(sz.y) - 6.0, 0.0)
+	mk_pop.popup(Rect2i(Vector2i(int(gp.x + x), int(y)), sz))
+
+
+## the popover's fields -> marker i: one undo step when anything changed; -> true when it did
+func _mk_commit(i: int, name: String, note: String, color: String) -> bool:
+	if i < 0 or i >= S.markers.size():
+		return false
+	var cur: Dictionary = S.markers[i]
+	var nw := Markers.with(cur, name, note, color)
+	if JSON.stringify(nw) == JSON.stringify(cur):
+		return false
+	_push_undo()
+	S.markers[i] = nw
+	_markers_changed()
+	return true
+
+
+func _mk_pick_color(c: String) -> void:
+	mk_color = c
+	_mk_commit_open()
+
+
+func _mk_commit_open() -> void:
+	if mk_i >= 0:
+		_mk_commit(mk_i, (mk_ui["name"] as LineEdit).text, (mk_ui["note"] as TextEdit).text, mk_color)
+
+
+func _mk_pop_hidden() -> void:
+	_mk_commit_open()
+	mk_i = -1
+	ui_timeline.mark_sel = -1
+	ui_timeline.queue_redraw()
+
+
+func _mk_delete_open() -> void:
+	if mk_i < 0 or mk_i >= S.markers.size():
+		mk_pop.hide()
+		return
+	var gone: Dictionary = S.markers[mk_i]
+	_push_undo()
+	S.markers.remove_at(mk_i)
+	mk_i = -1
+	mk_pop.hide()
+	_markers_changed()
+	_say("marker %s deleted.  Ctrl+Z undoes" % gone["name"])
+
+
+func _markers_list_open() -> void:
+	if S.markers.is_empty():
+		_say("no markers in this scene yet: put the playhead on the moment and press Add marker at the playhead")
+		return
+	if mk_list_pop == null:
+		mk_list_pop = PopupPanel.new()
+		mk_list = ItemList.new()
+		mk_list.custom_minimum_size = Vector2(480, 280)
+		mk_list.item_selected.connect(_markers_list_pick)
+		mk_list_pop.add_child(mk_list)
+		add_child(mk_list_pop)
+	mk_list.clear()
+	for mk in S.markers:
+		var line := "%s    %s    %s" % [mk["name"], Units.time(mk["t"], S.fps), mk["kind"]]
+		if mk.has("note"):
+			line += "    " + String(mk["note"]).split("
+")[0]
+		mk_list.add_item(line)
+		mk_list.set_item_custom_fg_color(mk_list.item_count - 1, Tok.c(Markers.token_of(mk)))
+	mk_list_pop.popup_centered(Vector2i(500, 300))
+
+
+func _markers_list_pick(i: int) -> void:
+	mk_list_pop.hide()
+	_marker_goto(i)
+	_say("marker %s at %s" % [S.markers[i]["name"], Units.time(S.markers[i]["t"], S.fps)])
 
 
 func _markers_changed() -> void:
@@ -12496,6 +12893,34 @@ func _macro_indicator() -> void:
 	rec_label.text = "REC  %s   %d step%s   (Stop macro recording saves it)" % [rec_name, rec_steps.size(), "" if rec_steps.size() == 1 else "s"]
 
 
+## ROADMAP 100: a plugin's command is ONE undo step, the macro play's way: its edits join the step opened before the
+## first one (_push_undo is a no-op after it inside a command). A plugin that fails is disabled; its message is said
+func _plugin_run(i: int, cid: String) -> void:
+	var step := plugins.step_name(i, cid)
+	_macro_nest = 1
+	_macro_pushed = false
+	var msg := plugins.run(i, cid)
+	var opened := _macro_pushed
+	_macro_nest = 0
+	if opened:
+		undo[-1]["name"] = step   # the status line would name it otherwise (the drag's step is named the same way)
+		_tree.set_name(_tree.cur, step)
+		_after_edit()
+	_rebuild_cards()
+	_refresh()
+	if msg != "":
+		_say(msg)
+	elif not opened:
+		_say("plugin command done: it changed nothing")
+	else:
+		_say("plugin command done: one undo step (Ctrl+Z takes it back)")
+
+
+## the S box's plugin rows follow the switches (a plugin switched on, off, or disabled itself)
+func _plugins_changed() -> void:
+	ui_cmd.commands = _commands() + plugins.command_rows()
+
+
 func _macro_play(nm: String) -> void:
 	var mac := Macros.find(macros, nm)
 	if mac.is_empty():
@@ -12774,7 +13199,7 @@ func _recent_changed() -> void:
 		_fill_scene_list()
 		_show_open_scene()
 	if ui_cmd != null:
-		ui_cmd.commands = _commands()
+		ui_cmd.commands = _commands() + plugins.command_rows()
 
 
 ## File > Recent: a scene from the list, opened as the list's pick would open it

@@ -356,7 +356,9 @@
       "properties": {
        "t": {"type": "number"},
        "name": {"type": "string"},
-       "kind": {"enum": ["hit", "step", "swoosh", "note"]}
+       "kind": {"enum": ["hit", "step", "swoosh", "note"]},
+       "note": {"type": "string", "description": "ROADMAP 97: free text, several lines (kept to 2000 characters); only when not empty"},
+       "color": {"enum": ["red", "green", "blue", "gold"], "description": "ROADMAP 97: the marker's colour (Tok mk_*); absent = its kind's colour"}
       },
       "additionalProperties": false
      }
