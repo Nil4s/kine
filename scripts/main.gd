@@ -548,6 +548,47 @@ func _fh_clear() -> void:
 	hover_fpart = ""
 
 
+## WHAT LIGHT A PART HAS NOW (one name, the strongest wins): "sel" (picked, or a member of the picked group), "hover"
+## (what a click would pick), "lock", "touch" (it collides), "limit" (a joint at its stop), "" none. A selected locked
+## part reads "sel" (its look mixes the lock in, _look_of). touching: the parts in contact this refresh (_refresh)
+func part_look(j: String, touching := {}) -> String:
+	if j == sel or sel_more.has(j):
+		return "sel"
+	if j == hover_part:
+		return "hover"
+	if locked_parts.has(j):
+		return "lock"
+	if touching.has(j):
+		return "touch"
+	if j in Body.ORDER and B.P.has(j) and not B.at_limit(j).is_empty():
+		return "limit"
+	return ""
+
+
+## the colour part j's skin is lit with now (a = its strength); clear when it has no light (tests read this)
+func skin_col(j: String) -> Color:
+	var lk: Array = skp.look_of(j)
+	return lk[0] if not lk.is_empty() else Color(0, 0, 0, 0)
+
+
+## a light's look on the skin: [Color (Tok token, a = how much of the skin it covers), rim strength]. The picked part is
+## the strongest, with a full rim along its silhouette and border; the hover is the same, fainter; the warnings (limit,
+## touch, lock) only tint, no rim, so a hand at its limit never reads as picked
+func _look_of(lk: String) -> Array:
+	match lk:
+		"sel":
+			return [Color(Tok.c("pick_sel"), 0.42), 1.0]
+		"hover":
+			return [Color(Tok.c("pick_hover"), 0.22), 0.6]
+		"lock":
+			return [Color(Tok.c("pick_lock"), 0.35), 0.0]
+		"touch":
+			return [Color(Tok.c("pick_touch"), 0.35), 0.0]
+		"limit":
+			return [Color(Tok.c("pick_limit"), 0.28), 0.0]
+	return []
+
+
 ## LOCK A PART (round 26, GATES GG3, UPGRADES #24): a locked part is picked but never grabbed, keeps its angles through
 ## every edit (_do and a drag's reach put them back), and is drawn LOCK_COL. View state only: never in a pose or scene
 const LOCK_COL := Color(0.5, 0.5, 0.55)
@@ -560,6 +601,8 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var skp := SkinPick.new()  # PRECISE PICK: the ray against the posed skin, and the part's own skin lit (scripts/skin_pick.gd)
+var pick_us := 0           # how long the last _pick took (microseconds): the hover's cost, read by precise_pick_test
 var wp := {}             # WEIGHT PAINT (ROADMAP 72): the mannequin's skin weights, scripts/skin_paint.gd
 var wp_on := false
 var wp_bind := -1        # the skin bind index of the bone the brush works on
@@ -1892,23 +1935,10 @@ func _body() -> void:
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	corr.attach(pieces.values(), skel)
-	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
-		var mi := MeshInstance3D.new()
-		var cm := CapsuleMesh.new()
-		cm.radius = B.rad[j]
-		cm.height = 1.0
-		cm.radial_segments = 20
-		cm.rings = 6
-		mi.mesh = cm
-		var m := StandardMaterial3D.new()
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mi.material_override = m
-		add_child(mi)
-		parts[j] = mi
-		mats[j] = m
-		if not j in Body.BODY:
-			continue
+	_skp_build()   # PRECISE PICK: the picked / hovered part's own skin is tinted (scripts/skin_pick.gd)
+	for j in Body.WEAPON + Body.WEAPON2:   # the weapon's capsules: its pick and its light (a body part has none: its skin is lit)
+		_new_cap(j)
+	for j in Body.BODY:
 		var d := MeshInstance3D.new()
 		var sm := SphereMesh.new()
 		sm.radius = 0.011
@@ -2459,6 +2489,35 @@ func _cyl(top: float, bottom: float, m: Material) -> MeshInstance3D:
 	return mi
 
 
+## one translucent capsule for part j (parts[j], mats[j]): a weapon's always; a body part's only while the Collision
+## view is on (show_caps), since a body part is picked and lit on its own skin
+func _new_cap(j: String) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = "cap_" + j
+	var cm := CapsuleMesh.new()
+	cm.radius = B.rad[j]
+	cm.height = 1.0
+	cm.radial_segments = 20
+	cm.rings = 6
+	mi.mesh = cm
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mi.material_override = m
+	add_child(mi)
+	parts[j] = mi
+	mats[j] = m
+	return mi
+
+
+## PRECISE PICK (Nick 10-19): the pick and the highlight read the body's skinned pieces as drawn (scripts/skin_pick.gd)
+func _skp_build() -> void:
+	var part_of := {}
+	for j in pieces:
+		part_of[pieces[j]] = j
+	skp.build(pieces.values(), skel, part_of)
+
+
 ## a capsule (or cylinder) from a to b: Godot's meshes run along their local Y
 func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := true) -> void:
 	var d := b - a
@@ -2504,28 +2563,44 @@ func _refresh() -> void:
 		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
 			touching[pr[0]] = true
 			touching[pr[1]] = true
+	var looks := {}   # PRECISE PICK: each body part's light on its own skin (SkinPick.set_looks)
 	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
-		var c: Array = B.cap(j)
-		_place(parts[j], c[0], c[1], B.rad[j])
+		var body: bool = not (j in Body.WEAPON or j in Body.WEAPON2)
 		if dots.has(j):
 			dots[j].position = B.P[j]
+		var lk := part_look(j, touching)
+		if body:
+			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
+				looks[j] = _look_of(lk)
+				if lk == "sel" and locked_parts.has(j):   # picked AND locked: the pick's colour greyed toward the lock's
+					looks[j][0] = Color(Tok.c("pick_sel").lerp(Tok.c("pick_lock"), 0.4), looks[j][0].a)
+			if pieces.has(j):
+				pieces[j].visible = not hidden_parts.has(j)
+			if show_caps and not clean and not parts.has(j):
+				_new_cap(j)   # the Collision view: the body's capsules, made while it is on
+			elif not show_caps and parts.has(j):
+				parts[j].queue_free()   # off: gone from the tree (a body part's light is its skin)
+				parts.erase(j)
+				mats.erase(j)
+		if not parts.has(j):
+			continue
+		var c: Array = B.cap(j)
+		_place(parts[j], c[0], c[1], B.rad[j])
 		var col := Color(0.62, 0.63, 0.66, 0.25 if show_caps else 0.0)
-		if j in Body.ORDER and not B.at_limit(j).is_empty():
-			col = Color(LIMIT, 0.45)
-		if touching.has(j):
-			col = Color(TOUCH, 0.45)
-		if locked_parts.has(j):   # LOCKED (round 26, GG3): a grey, hatched-free look that says "hands off"
-			col = Color(LOCK_COL, 0.45)
-		if j == hover_part and j != sel:   # HOVER (round 26, #35): what a click would pick
-			col = Color(HOVER, 0.3)
-		if j == sel or sel_more.has(j):   # the group's members are drawn selected too (II1)
-			col = Color(SEL.lerp(col, 0.4) if col.a > 0.3 else SEL, 0.35)
+		if lk == "limit" or lk == "touch":   # the Collision view shows what the capsules collide with
+			col = Color(LIMIT if lk == "limit" else TOUCH, 0.45)
+		if not body:   # the weapon (not skinned): its capsule is its light
+			if lk == "lock":
+				col = Color(LOCK_COL, 0.45)
+			elif lk == "hover":
+				col = Color(HOVER, 0.3)
+			elif lk == "sel":
+				col = Color(SEL, 0.35)
 		if clean:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
-		if pieces.has(j):
-			pieces[j].visible = not hidden_parts.has(j)
+	skp.set_looks(looks)
 	for m in [bat_handle, bat_barrel, bat_knob]:
 		m.visible = B.wep_on
 	d2_handle.visible = B.wep2_on
@@ -2687,21 +2762,27 @@ func _view(k: int, smooth := false) -> void:
 
 # ---------------------------------------------------------------- picking + dragging
 
+## PRECISE PICK (Nick 10-19: "100% precise to the body"): the body part is the one whose SKIN the ray meets first,
+## on the mesh as drawn now (SkinPick.pick: the posed triangles, the part with the most skin weight at the hit point).
+## The weapon keeps its capsule (it is not skinned); the nearer of the two wins, as before. Hidden parts: the ray goes
+## through them (KK1)
 func _pick(mp: Vector2) -> String:
+	var t0 := Time.get_ticks_usec()
 	var o := cam.project_ray_origin(mp)
 	var d := cam.project_ray_normal(mp)
-	var best := ""
-	var best_t := INF
-	var cand: Array = Body.ORDER + (Body.WEAPON if B.wep_on else [])
-	for j in cand:
+	var hit: Array = skp.pick(o, d, hidden_parts)
+	var best: String = hit[0]
+	var best_t: float = hit[1]
+	for j in (Body.WEAPON if B.wep_on else []):
 		if hidden_parts.has(j):
-			continue   # hidden: a click goes through it (KK1)
+			continue
 		var c: Array = B.cap(j)
 		var res := _ray_seg(o, d, c[0], c[1])
 		if res.y <= maxf(float(B.rad[j]) * 1.15, 0.014) and res.x < best_t:
 			best_t = res.x
 			best = j
 	_pick_t = best_t
+	pick_us = Time.get_ticks_usec() - t0
 	return best
 
 
@@ -3322,6 +3403,7 @@ func _restore(u: Dictionary) -> void:
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
 	if u.has("skin_w") and not wp.is_empty():
 		SkinPaint.restore(wp, u["skin_w"])
+		_skp_build()
 	if u["scene"] == S and u.has("plants") and var_to_str(u["plants"]) != var_to_str(S.plants):
 		S.plants = u["plants"].duplicate(true)   # foot plants (ROADMAP 8), undone like a card
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
@@ -4013,14 +4095,16 @@ func _actor_man() -> Dictionary:
 		mi.material_override = wep_mats[r[2]]
 		root.add_child(mi)
 		w.append(mi)
-	var mdict := {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag}
+	var fp := SkinPick.new()   # PRECISE PICK on this fighter too: its click and its hover light are on its own skin
+	fp.build((mq[0] as Node).find_children("*", "MeshInstance3D", true, false), mq[1])
+	var mdict := {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag, "skp": fp}
 	mdict.merge(_fh_meshes(root))
 	return mdict
 
 
 ## FIGHTER HOVER AND THE OFF-HAND WEAPON OF A FIGHTER THAT IS NOT ACTIVE: the same two cylinders as the active body's
-## (d2_handle, d2_blade: the dagger's look), and one translucent capsule per fighter for the hovered part (the light
-## HOVER, as _refresh lights the active body's). Both live under the fighter's node, so the node's visibility covers them
+## (d2_handle, d2_blade: the dagger's look), under the fighter's node, so the node's visibility covers them. The hovered
+## part's light is on the fighter's own skin (its SkinPick, _fh_draw), as the active body's is
 func _fh_meshes(root: Node3D) -> Dictionary:
 	var tape: Material = wep_mats["tape"]
 	var steel: Material = wep_mats["steel"]
@@ -4034,17 +4118,7 @@ func _fh_meshes(root: Node3D) -> Dictionary:
 		mi.material_override = r[2]
 		root.add_child(mi)
 		w2.append(mi)
-	var hm := StandardMaterial3D.new()
-	hm.albedo_color = Color(HOVER, 0.3)
-	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	hm.no_depth_test = false
-	var hov := MeshInstance3D.new()
-	hov.mesh = CapsuleMesh.new()
-	hov.material_override = hm
-	hov.visible = false
-	root.add_child(hov)
-	return {"wep2": w2, "hov": hov}
+	return {"wep2": w2}
 
 
 ## one fighter that is not active, this refresh: its off-hand weapon where its body holds it, and the hovered part's light
@@ -4058,13 +4132,8 @@ func _fh_draw(k: int, b: Body) -> void:
 		var hu := float(Body.KINDS[b.wep2_kind]["handle"])
 		_place(w2[0], b.wep2_point(0.0), b.wep2_point(hu), 0.0, false)
 		_place(w2[1], b.wep2_point(hu), b.wep2_point(b.wep2_len()), 0.0, false)
-	var hov: MeshInstance3D = mq["hov"]
 	var j := hover_fpart if k == hover_fighter else ""
-	hov.visible = j != "" and b.P.has(j)
-	if hov.visible:
-		var c: Array = b.cap(j)
-		(hov.mesh as CapsuleMesh).radius = float(b.rad[j])
-		_place(hov, c[0], c[1], float(b.rad[j]))
+	(mq["skp"] as SkinPick).set_looks({j: _look_of("hover")} if j != "" and b.P.has(j) and not clean else {})
 
 
 ## a click on a fighter that is not active (TC4): [k, part, t along the ray] of the nearest part hit; [-1, "", INF] none.
@@ -4075,18 +4144,12 @@ func _pick_actor(mp: Vector2) -> Array:
 		return best
 	var o := cam.project_ray_origin(mp)
 	var d := cam.project_ray_normal(mp)
-	for k in actors_rt.size():
+	for k in mini(actors_rt.size(), actor_men.size()):
 		if k == actor_on:
 			continue
-		var inv: Transform3D = (stage_root.transform * (actors_rt[k]["xf"] as Transform3D)).affine_inverse()
-		var lo := inv * o
-		var ld := inv.basis * d
-		var b: Body = actors_rt[k]["B"]
-		for j in Body.ORDER:
-			var c: Array = b.cap(j)
-			var res := _ray_seg(lo, ld, c[0], c[1])
-			if res.y <= maxf(float(b.rad[j]) * 1.15, 0.014) and res.x < float(best[2]):
-				best = [k, j, res.x]
+		var hit: Array = (actor_men[k]["skp"] as SkinPick).pick(o, d)   # its skin as drawn (PRECISE PICK)
+		if String(hit[0]) != "" and float(hit[1]) < float(best[2]):
+			best = [k, String(hit[0]), float(hit[1])]
 	return best
 
 
@@ -13102,6 +13165,8 @@ func _wp_toggle() -> void:
 func _wp_show() -> void:
 	if not wp.is_empty():
 		SkinPaint.apply(wp, wp_bind if wp_on else -1)
+		if not wp_on:
+			_skp_build()   # the painted weights decide the pick and the light from now on
 
 
 ## a left press on the body starts a stroke (and one undo step); a press off the body is the view's. True = taken

@@ -108,12 +108,12 @@ func _init() -> void:
 		await btn(MOUSE_BUTTON_LEFT, true, wp)
 		await btn(MOUSE_BUTTON_LEFT, false, wp)
 	await idle(2)
-	var sel_col: Color = (m.mats[J] as StandardMaterial3D).albedo_color   # selected + locked: SEL greyed toward the lock
-	var sel_greyed: bool = not Color(sel_col.r, sel_col.g, sel_col.b).is_equal_approx(m.SEL)
+	var sel_col: Color = m.skin_col(J)   # selected + locked: SEL greyed toward the lock (PRECISE PICK: on its skin)
+	var sel_greyed: bool = sel_col.a > 0.0 and not Color(sel_col.r, sel_col.g, sel_col.b).is_equal_approx(Tok.c("pick_sel"))
 	m.sel = "head"
 	m._refresh()
-	var col: Color = (m.mats[J] as StandardMaterial3D).albedo_color   # not selected: the lock look itself
-	var lit: bool = Color(col.r, col.g, col.b).is_equal_approx(m.LOCK_COL) and sel_greyed
+	var col: Color = m.skin_col(J)   # not selected: the lock look itself
+	var lit: bool = Color(col.r, col.g, col.b).is_equal_approx(Tok.c("pick_lock")) and sel_greyed
 	m.sel = J
 	m._refresh()
 	await idle(2)

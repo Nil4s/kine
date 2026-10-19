@@ -281,7 +281,7 @@ static func apply(model: Dictionary, heat_bind := -1) -> void:
 			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, old.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
 			am.surface_set_material(si, model["heat_mat"] if heat_bind >= 0 else old.surface_get_material(si))
 		mi.mesh = am
-		mi.material_override = model["heat_mat"] if heat_bind >= 0 else p.get("mat", null)
+		mi.material_override = model["heat_mat"] if heat_bind >= 0 else p.get("mat", mi.material_override)   # never heat: keeps its own (the body's skin)
 
 
 ## the undo copy: the packed arrays of every surface (copy-on-write, so holding them is a snapshot)

@@ -166,8 +166,9 @@ func worst_px(a: Array, b: Array) -> float:
 	return w
 
 
-## the test's own pick: [actor, part] of the nearest capsule under screen point p over every fighter (the active one's
-## weapon too, as _pick takes it), or [-1, ""]
+## the test's own pick: [actor, part] of the nearest thing under screen point p over every fighter: a body part is its
+## SKIN (PRECISE PICK: each fighter's SkinPick, the posed mesh; tests/precise_pick_test.gd checks it against a brute
+## force), the active one's weapon its capsule (as _pick takes it), or [-1, ""]
 func nearest(p: Vector2) -> Array:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
@@ -176,8 +177,12 @@ func nearest(p: Vector2) -> Array:
 	for k in m.actors_rt.size():
 		var b: Body = m.actors_rt[k]["B"]
 		var X := body_to_world(k)
-		var cand: Array = Body.ORDER + (Body.WEAPON if b.wep_on and k == m.actor_on else [])
-		for j in cand:
+		var sp: SkinPick = m.skp if k == m.actor_on else m.actor_men[k]["skp"]
+		var h: Array = sp.pick(o, d)
+		if String(h[0]) != "" and float(h[1]) < bt:
+			bt = float(h[1])
+			best = [k, String(h[0])]
+		for j in (Body.WEAPON if b.wep_on and k == m.actor_on else []):
 			var c: Array = b.cap(j)
 			var r: Vector2 = m._ray_seg(o, d, X * (c[0] as Vector3), X * (c[1] as Vector3))
 			if r.y <= maxf(float(b.rad[j]) * 1.15, 0.014) and r.x < bt:
