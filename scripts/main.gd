@@ -8204,6 +8204,7 @@ func _commands() -> Array:
 	add.call("Audio: quieter (-3 dB)", "", _audio_gain.bind(-3.0), "audio sound volume gain quieter down softer db", true, "the sound 3 dB quieter, down to -30 dB; in playback and the playblast; one undo step")
 	add.call("Beats: find the beats in the sound", "", _beats_find, "beats bpm tempo music beat grid downbeat bar audio", true, "find the beats and the tempo of the sound (a wav): marks on the timeline, bars marked when a 4/4 grid is evident; one undo step")
 	add.call("Beats: snap the contact cards to the nearest beat", "", _beats_snap, "beats snap contact hit strike align music sync", true, "move each hit (contact) card so it lands on its nearest beat; a card never moves more than 25 % of its own move, else nothing moves; one undo step")
+	add.call("Weight: time the swing to the weapon", "", _weight_feel, "weight heavy light weapon mass inertia swing slow fast windup recovery hammer dagger bat feel", true, "retime the wind-up and recovery of the swing by the held weapon's moment of inertia about the shoulder (a heavy weapon is slower, a light one quicker; Cross & Bower: time goes as I^0.27); the hit card and its pose stay; one undo step")
 	add.call("Beats: clear the beats", "", _beats_clear, "beats clear remove music", true, "take the beat marks off the timeline; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
@@ -11099,6 +11100,21 @@ func _beats_snap() -> void:
 	_markers_follow()
 	_retimed()
 	_say("%d contact card(s) snapped onto the beat (largest move %.0f ms).  Ctrl+Z undoes" % [r["contacts"], worst * 1000.0])
+
+
+## WEIGHT FEEL (ROADMAP 40; scripts/weight_feel.gd): the swing's wind-up and recovery by the held weapon's inertia
+func _weight_feel() -> void:
+	var trial := S.clone()
+	var r := WeightFeel.apply(trial, B)
+	if not r["ok"]:
+		_say(r["msg"] + " (nothing changed; pick another weapon or card, then try again)")
+		return
+	_push_undo()
+	_markers_hold()
+	S.cards = trial.cards
+	_markers_follow()
+	_retimed()
+	_say(r["msg"] + ".  Ctrl+Z undoes")
 
 
 func _beats_clear() -> void:

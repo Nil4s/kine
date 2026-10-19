@@ -25,6 +25,7 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"audio_add_a_sound_file_wav_ogg_mp3": "opens a file dialog (audio_track_test runs the add itself: one undo step)",
 	"beats_find_the_beats_in_the_sound": "needs a wav sound on the timeline (beat_track_test runs the find and its undo through the same snapshot)",
 	"beats_snap_the_contact_cards_to_the_nearest_beat": "needs beats and hit markers on the scene (beat_track_test runs the snap on a clone and checks it)",
+	"weight_time_the_swing_to_the_weapon": "needs a hit marker on a card that holds a non-reference weapon (weight_feel_test runs it on the app and checks the one undo step)",
 	"beats_clear_the_beats": "needs beats on the timeline (beat_track_test covers the scene key they clear)",
 	"import_animation_fbx_glb_gltf_bvh_...": "opens a file dialog; the import writes + opens a NEW scene in scenes/_wip (anim_import_test runs it)"}
 
