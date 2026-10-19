@@ -30,6 +30,64 @@ const EYE_PITCH_MAX := 30.0   # deg: the eye at eye_pitch = +-1
 const VIS_JAW := {"M": 0.0, "A": 1.0, "O": 0.7, "E": 0.45}   # the jaw factor per viseme (the same as LipSync.JAW_K)
 const SHOW := 0.05            # a viseme weight at or above this is the mouth shape
 
+## WHERE THE FEATURES SIT (measured on the visible head mesh, not on the contact capsule: the capsule is a proxy that runs from
+## the neck into the skull, its centre is NOT the middle of the face). Proportions, adult head, vertex to chin (menton) = H:
+##   eye line   H * 0.5 above the chin: the eyes are halfway between the top of the head and the chin (Farkas, Anthropometry of the
+##              Head and Face, 2nd ed. 1994; the artists' rule agrees).
+##   IPD        63 mm, the adult mean between the pupils (Dodgson 2004, Variation and extrema of human interpupillary distance).
+##   stomion    the mouth line: the nose base (subnasale) is about 0.30 H above the chin and the mouth 1/3 of the way down from it
+##              to the chin, so about 0.20 H above the chin (Farkas 1994: subnasale-menton ~ 70 mm and stomion-menton ~ 45 mm
+##              in a ~ 230 mm head).
+##   brow       the brow line about 0.09 H above the eye line (~ 2.2 cm in an adult).
+##   mouth      about 50 mm wide, corner to corner (Farkas 1994, cheilion-cheilion); LipSync.mouth_size is half that, so it is
+##              drawn MOUTH_W_K times wider.
+## Figures are from memory of those sources, not re-checked against the papers here.
+const IPD := 0.063
+const EYE_LINE := 0.5
+const BROW_ABOVE := 0.09
+const MOUTH_LINE := 0.20
+const MOUTH_W_K := 2.0
+const EYE_SIZE := Vector3(0.028, 0.016, 0.008)   # m: the white of the eye (palpebral fissure ~ 28-30 mm wide)
+const IRIS_D := 0.012                             # m: the visible iris ~ 12 mm
+const BROW_SIZE := Vector3(0.046, 0.006, 0.006)
+
+
+## the surface of the mesh in FRONT at (x, y): the largest z where a ray along -z meets one of the triangles. pts = the corners,
+## three per triangle (rest space, +Z = the hero's front). -INF if the line misses the mesh.
+static func surface_z(pts: PackedVector3Array, x: float, y: float) -> float:
+	var best := -INF
+	for t in range(0, pts.size() - 2, 3):
+		var h: Variant = Geometry3D.ray_intersects_triangle(Vector3(x, y, 1.0), Vector3(0, 0, -1), pts[t], pts[t + 1], pts[t + 2])
+		if h != null:
+			best = maxf(best, (h as Vector3).z)
+	return best
+
+
+## the face's anchor points in REST space, read off the head mesh's triangle corners `pts` (the head piece of the mannequin):
+## {"top", "chin", "H", "eye_l", "eye_r", "brow_l", "brow_r", "mouth"}. Each point lies ON the front surface of the mesh.
+## The chin is the lowest point of the front midline (within 4 cm of the face front), so the neck below it is not counted.
+static func anchors(pts: PackedVector3Array) -> Dictionary:
+	if pts.is_empty():
+		return {}
+	var top := -INF
+	var zf := -INF
+	for v in pts:
+		top = maxf(top, v.y)
+		zf = maxf(zf, v.z)
+	var chin := INF
+	for v in pts:
+		if absf(v.x) < 0.005 and v.z > zf - 0.04:
+			chin = minf(chin, v.y)
+	var h := top - chin
+	var ey := chin + EYE_LINE * h
+	var by := ey + BROW_ABOVE * h
+	var my := chin + MOUTH_LINE * h
+	var hx := IPD * 0.5
+	return {"top": top, "chin": chin, "H": h,
+		"eye_l": Vector3(hx, ey, surface_z(pts, hx, ey)), "eye_r": Vector3(-hx, ey, surface_z(pts, -hx, ey)),
+		"brow_l": Vector3(hx, by, surface_z(pts, hx, by)), "brow_r": Vector3(-hx, by, surface_z(pts, -hx, by)),
+		"mouth": Vector3(0.0, my, surface_z(pts, 0.0, my))}
+
 
 ## the clamp of each channel: [lo, hi]
 static func range_of(ch: String) -> Vector2:

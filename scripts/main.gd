@@ -12510,13 +12510,13 @@ func _face_draw() -> void:
 	if face_root == null:
 		_face_make()
 	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else Face.at(S.face, S.lip, playhead)
-	var c: Array = B.cap("head")
+	var geo := _face_geo()
+	if geo.is_empty():
+		return   # no head mesh to anchor on
 	var g: Quaternion = B.G["head"]
 	var front: Vector3 = g * Vector3(0, 0, 1)
 	var up: Vector3 = g * Vector3(0, 1, 0)
 	var left: Vector3 = g * Vector3(1, 0, 0)   # +X = the hero's LEFT (data/skeleton.json)
-	var r := float(B.rad["head"])
-	var mid: Vector3 = ((c[0] as Vector3) + (c[1] as Vector3)) * 0.5
 	var ink: Color = Tok.c("ink")
 	var pupil_c: Color = Tok.c("accent")
 	var white: Color = Tok.c("text")
@@ -12524,27 +12524,49 @@ func _face_draw() -> void:
 	face_root.visible = true
 	for side in 2:
 		var sx := 1.0 if side == 0 else -1.0   # side 0 = the left (+X), 1 = the right
-		var key := "brow_l" if side == 0 else "brow_r"
-		var v := float(P[key])
-		var bpos := mid + front * r * 0.92 + up * (r * 0.6 + r * 0.1 * v) + left * (r * 0.32 * sx)
+		var sfx := "_l" if side == 0 else "_r"
+		var v := float(P["brow" + sfx])
+		var bpos := face_at(geo["brow" + sfx]) + front * 0.004 + up * (0.012 * v)
 		var tilt := -clampf(v, -1.0, 1.0) * 0.3 * sx
 		var bb: MeshInstance3D = face_brow[side]
 		(bb.material_override as StandardMaterial3D).albedo_color = ink
-		bb.transform = Transform3D(Basis(g) * Basis(Vector3(0, 0, 1), tilt) * Basis.from_scale(Vector3(r * 0.4, r * 0.045, r * 0.08)), bpos)
-		var epos := mid + front * r * 0.9 + up * (r * 0.2) + left * (r * 0.33 * sx)
+		bb.transform = Transform3D(Basis(g) * Basis(Vector3(0, 0, 1), tilt) * Basis.from_scale(Face.BROW_SIZE), bpos)
+		var epos := face_at(geo["eye" + sfx]) + front * 0.001
 		var eb: MeshInstance3D = face_eye[side]
 		(eb.material_override as StandardMaterial3D).albedo_color = white
-		eb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(r * 0.3, r * 0.3 * (1.0 - 0.9 * blink), r * 0.2)), epos)
+		eb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(Face.EYE_SIZE.x, Face.EYE_SIZE.y * (1.0 - 0.9 * blink), Face.EYE_SIZE.z)), epos)
 		var look := left * sin(deg_to_rad(float(P["eye_yaw_deg"]))) + up * sin(deg_to_rad(float(P["eye_pitch_deg"])))
 		var pb: MeshInstance3D = face_pupil[side]
 		(pb.material_override as StandardMaterial3D).albedo_color = pupil_c
 		pb.visible = blink < 0.5
-		pb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(r * 0.14, r * 0.14, r * 0.1)), epos + front * r * 0.12 + look * r * 0.12)
+		pb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(Face.IRIS_D, Face.IRIS_D, Face.IRIS_D * 0.6)), epos + front * 0.003 + look * 0.005)
 	var jaw := float(P["jaw_deg"])
 	var sz := Face.mouth_size(String(P["mouth"]), jaw)
 	(mouth_mi.material_override as StandardMaterial3D).albedo_color = Tok.c("fail")
 	mouth_mi.visible = true
-	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(sz), mid + front * r * 1.35)
+	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(sz.x * Face.MOUTH_W_K, sz.y, sz.z)), face_at(geo["mouth"]) + front * 0.002 - up * sz.y * 0.25)
+
+
+var face_geo: Dictionary = {}   # the anchors on the head mesh in rest space (Face.anchors), read once from the head piece
+
+
+func _face_geo() -> Dictionary:
+	if face_geo.is_empty() and pieces.has("head"):
+		var mesh: Mesh = (pieces["head"] as MeshInstance3D).mesh
+		var pts := PackedVector3Array()
+		for si in mesh.get_surface_count():
+			var arr := mesh.surface_get_arrays(si)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			for i in ix:
+				pts.append(vs[i])
+		face_geo = Face.anchors(pts)
+	return face_geo
+
+
+## a point on the head given in REST space, carried by the head joint now (the same carry as Body.cap): where it is in the world
+func face_at(rest: Vector3) -> Vector3:
+	return (B.P["head"] as Vector3) + (B.G["head"] as Quaternion) * (rest - (B.p0["head"] as Vector3))
 
 
 func _audio_remove() -> void:
