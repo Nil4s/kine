@@ -28,6 +28,7 @@ func ok(c: bool, what: String) -> void:
 func scene_of(cards: Array, body_floor := false, grounded := true) -> Scene:
 	var S := Scene.new()
 	S.name = "zz_rise"
+	S.natural = false   # in-between keys are solved for a synchronised blend; the per-joint lag would unsync them
 	S.floor_body = body_floor   # a get-up lies on its back: its whole body's lowest point on the floor (Scene._ground)
 	S.on_floor = grounded
 	for c in cards:
@@ -36,6 +37,8 @@ func scene_of(cards: Array, body_floor := false, grounded := true) -> Scene:
 		last["move"] = c["move"]
 		last["hold"] = c["hold"]
 		last["plant"] = c["plant"]
+		if c.has("ease"):
+			last["ease"] = c["ease"]
 	return S
 
 
@@ -108,7 +111,7 @@ func _init() -> void:
 	for d in depths:
 		worst_key = maxf(worst_key, float(d))
 	# (7) the raw blend: the scene's grounding off, sampled at 60 Hz
-	var RAW := scene_of(gcards, true, false)
+	var RAW := scene_of(gcards, false, false)   # as the report's scene settings say: no grounding, the lifts are in the cards
 	var t_g: float = RAW.times()[RAW.cards.size() - 1][1]
 	var worst_s := 0.0
 	var worst_t := 0.0
@@ -122,7 +125,7 @@ func _init() -> void:
 	ok(worst_key <= 0.01 and worst_s <= 0.01, "7 floor: the cards' depth at most %.1f mm; the raw blend at 60 Hz through %.1f s, %.1f mm (at %.2f s); bar 10 mm" % [worst_key * 1000.0, t_g, worst_s * 1000.0, worst_t])
 
 	# (8) kneel: the hands on their marks, the thighs on the floor
-	B.from_dict(gkeys[4])   # the kneel anchor: states 0 supine, 1 roll, 2 side, 3 roll, 4 kneel, 5 blend, 6 half-kneel, 7 blend, 8 stand
+	B.from_dict(gkeys[g["report"]["anchors"][3]])   # the kneel anchor (the fourth)
 	var hand_miss := 0.0
 	for sd in ["_l", "_r"]:
 		hand_miss = maxf(hand_miss, absf((B.P["hand" + sd] as Vector3).y - Rise.HAND_R))
@@ -134,16 +137,16 @@ func _init() -> void:
 
 	# (10) COM over the support at each anchor (Rise.support_margin: the app's foot footprints plus the floor contacts)
 	var anchor_m := []
-	for k in [0, 2, 4, 6, 8]:
+	for k in g["report"]["anchors"]:
 		B.from_dict(gkeys[k])
 		anchor_m.append(snappedf(Rise.support_margin(B), 0.001))
 	var com_ok := true
 	for m in anchor_m:
 		com_ok = com_ok and float(m) >= 0.0
-	ok(com_ok, "10 COM over the support at supine, side, kneel, half-kneel, stand: margins %s m (bar >= 0)" % str(anchor_m))
+	ok(com_ok, "10 COM over the support at supine, side, side-sit, kneel, half-kneel, stand: margins %s m (bar >= 0)" % str(anchor_m))
 
 	# (9) the sheet: four frames of the get-up, whole body, as joint capsules (printed; the screenshot script reads them)
-	var FS := scene_of(gcards, true, true)   # played through the app's floor-body grounding, as the get-up plays
+	var FS := RAW
 	var t_f: float = FS.times()[FS.cards.size() - 1][1]
 	var frames := [0.0, t_f * 0.25, t_f * 0.5, t_f]
 	for t in frames:

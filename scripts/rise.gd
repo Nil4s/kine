@@ -37,6 +37,8 @@ const FEET := ["_l", "_r"]
 const FLOOR_DUR := 3.0        # s, the get-up (ours)
 const FLOOR_STEPS := 40       # blends between the named floor poses: the scene's straight blend between two keys stays clear
 const FLOOR_MM := 0.01        # m: a part this far into the floor is a finding (the roadmap's 1 cm bar)
+const SIDE_ROLL := 45.0      # deg: the propped side-lying roll
+const HALF_LEAN := 10.0      # deg: the half-kneel's trunk lean, over the three spine joints
 const HAND_R := 0.047         # m: the hand's radius; its centre this high = the palm on the floor
 
 
@@ -235,12 +237,10 @@ static func seat_off_key() -> int:
 ## reached to the floor (Body.reach on the arm alone), the wrist turned to lay the fist flat, the toes bent so the
 ## lowest toe point touches. The blends between keys are grounded the same way (_clear_floor lifts a body that is in).
 ## The get-up plays with the scene's floor-body grounding (Scene.floor_body), as the app's own get-ups do.
+## how far the body is into the floor (m, 0 = none): the app's own snap-to-floor reading (Body.floor_shift: a sole point on
+## its rest height, any other capsule on y = 0), so the standing pose reads 0 as the app grounds it
 static func floor_depth(B: Body) -> float:
-	var worst := 0.0
-	for j in Body.ORDER:
-		var r: float = float(B.rad.get(j, 0.03))
-		worst = maxf(worst, r - minf((B.P[j] as Vector3).y, (B.E[j] as Vector3).y))
-	return worst
+	return maxf(0.0, -B.floor_shift())
 
 
 static func _lie_on_back(B: Body, xz: Vector2) -> void:
@@ -292,7 +292,7 @@ static func _least_into_floor(B: Body, j: String, parts: Array, sides := true) -
 ## the kneel: the knees and hands on the floor (see the block above). Returns the misses left (m).
 static func _kneel(B: Body) -> Dictionary:
 	B.props = []
-	B.ang["pelvis"] = Vector3(90, 0, 0)
+	B.ang["pelvis"] = Vector3(90, 0, 0)   # face down, head toward +z
 	for sd in FEET:
 		B.ang["thigh" + sd] = Vector3(90, 0, 0)
 		B.ang["calf" + sd] = Vector3(90, 0, 0)
@@ -347,9 +347,11 @@ static func _kneel(B: Body) -> Dictionary:
 
 
 
-const FLOOR_KEYS := ["supine", "side", "kneel", "half-kneel", "stand"]
-const FLOOR_MID := 1         # in-between keys per blend between anchors (cards: 5 anchors + 4 blends = 9)
-const TOUCH := 0.015         # m: a part's lowest point this close to the floor counts as touching it
+const FLOOR_KEYS := ["supine", "side", "side-sit", "kneel", "half-kneel", "stand"]
+const BLEND_SAMPLES := 12    # points checked along the straight blend between two neighbouring keys
+const MAX_SPLIT := 5         # a blend is split at most this many times (32 pieces)
+const FLOOR_TOL := 0.004     # m: a blend this deep into the floor is split again (the bar is FLOOR_MM)
+const TOUCH := 0.04          # m: a part within this of the floor carries weight (soft tissue and the mat give ~3-4 cm under load)
 
 
 static func _support_pts(B: Body) -> PackedVector2Array:
@@ -392,24 +394,81 @@ static func _lie_back_arms_down(B: Body, xz: Vector2) -> void:
 	B.ground_body()
 
 
-## half-kneel: the left knee on the floor under the hips (thigh upright, shin flat behind), the right foot ahead (thigh and
-## shin bent), the trunk upright, the arms at the sides. The body is then lowered until its lowest part touches (_settle).
+## half-kneel: the left knee on the floor under the hips (thigh leaning back 20 deg, shin flat behind), the right foot flat ahead
+## (shin upright, thigh a little above level: the hips come out about 0.45 m up, the front knee higher), the trunk upright with a
+## slight lean, the arms at the sides. Solved by scanning (tests found the front-leg angles that put the rear knee on the floor
+## with the hip at 0.45 m); the body is then lowered until its lowest part touches (_settle), the feet's ankles and toes laid flat.
+const HALF_FRONT := [110.0, 105.0]   # deg: the front thigh's and shin's bend
+const HALF_REAR_BACK := -20.0        # deg: the rear thigh's bend (hip extension), so the knee reaches the floor
+
+
 static func _half(B: Body) -> Dictionary:
 	B.props = []
 	B.ang["pelvis"] = Vector3.ZERO
 	for j in SPINE:
-		B.ang[j] = Vector3.ZERO
-	B.ang["thigh_l"] = Vector3.ZERO
-	B.ang["calf_l"] = Vector3(90, 0, 0)
-	B.ang["thigh_r"] = Vector3(70, 0, 0)
-	B.ang["calf_r"] = Vector3(20, 0, 0)
+		B.ang[j] = Vector3(HALF_LEAN / 3.0, 0, 0)
+	B.ang["thigh_l"] = Vector3(HALF_REAR_BACK, 0, 0)
+	B.ang["calf_l"] = Vector3(90.0 + HALF_REAR_BACK, 0, 0)   # the shin level on the floor (thigh back by 20 deg)
+	B.ang["thigh_r"] = Vector3(HALF_FRONT[0], 0, 0)
+	B.ang["calf_r"] = Vector3(HALF_FRONT[1], 0, 0)
+	for sd in FEET:
+		B.ang["foot" + sd] = Vector3.ZERO
+		B.ang["ball" + sd] = Vector3.ZERO
 	for sd in ["_l", "_r"]:
 		B.ang["upperarm" + sd] = Vector3(0, -65, 0)
 		B.ang["lowerarm" + sd] = Vector3(10, 0, 0)
 	B.offset = Vector3(0.0, 0.5, 0.0)
 	B.fk()
 	_settle(B)
+	for sd in FEET:
+		_least_into_floor(B, "foot" + sd, ["foot" + sd, "ball" + sd], false)
+	_settle(B)
 	return {"lowest": floor_depth(B)}
+
+
+## SIDE-SIT (long-sit): sitting up from the side-lying, legs forward and straight, both hands on the floor behind the hips
+## (VanSant 1988's rises pass through a sit or a prop on the way up; the angles are ours). Lowered until the lowest part touches.
+static func _side_sit(B: Body, th := 85.0, cf := 0.0) -> void:
+	B.props = []
+	B.ang["pelvis"] = Vector3.ZERO
+	for j in SPINE:
+		B.ang[j] = Vector3(-5.0, 0, 0)
+	B.ang["thigh_l"] = Vector3(th, 0, 0)
+	B.ang["calf_l"] = Vector3(cf, 0, 0)
+	B.ang["thigh_r"] = Vector3(th, 0, 0)
+	B.ang["calf_r"] = Vector3(cf, 0, 0)
+	for sd in FEET:
+		B.ang["foot" + sd] = Vector3.ZERO
+		B.ang["ball" + sd] = Vector3.ZERO
+	for sd in ["_l", "_r"]:
+		B.ang["upperarm" + sd] = Vector3(0, -65, 0)
+		B.ang["lowerarm" + sd] = Vector3(10, 0, 0)
+	B.offset = Vector3(0.0, 0.5, 0.0)
+	B.fk()
+	_settle(B)
+	var sh: Vector3 = B.P["upperarm_r"]
+	B.reach("hand_r", Vector3(sh.x - 0.1, HAND_R, sh.z - 0.3))
+	B.reach("hand_l", Vector3((B.P["upperarm_l"] as Vector3).x + 0.1, HAND_R, (B.P["upperarm_l"] as Vector3).z - 0.3))
+	B.fk()
+	_settle(B)
+
+
+## SIDE (propped): the body rolled 45 deg onto its right side (pelvis twist while lying), the lower arm bent up by the chest, the
+## top knee brought forward and the top hand reached to the floor ahead of the chest. A full 90 deg roll hangs the torso on the
+## shoulder joint (the model's shoulder sits 19 cm below the spine axis: tests found no 90 deg arm/leg choice with the COM
+## inside the contacts), so the rolling-through pose is the propped 45 deg one: its contacts are the lower shoulder, thigh,
+## the top hand and the top knee (hull of 8 contact points, COM 6.7 cm inside).
+static func _side(B: Body) -> void:
+	B.ang["pelvis"] = Vector3(-90.0, 0.0, -SIDE_ROLL)
+	B.ang["upperarm_r"] = Vector3(90, 0, 0)
+	B.ang["thigh_l"] = Vector3(30, 0, 0)
+	B.ang["calf_l"] = Vector3(100, 0, 0)
+	B.fk()
+	B.ground_body()
+	var sh: Vector3 = B.P["upperarm_l"]
+	B.reach("hand_l", Vector3(sh.x - 0.15, 0.05, sh.z + 0.15))
+	B.fk()
+	B.ground_body()
 
 
 ## slides the body on the floor so its COM sits over the centre of its support (a rigid shift, no joint changes)
@@ -464,63 +523,80 @@ static func _clear_floor(B: Body) -> void:
 		B.fk()
 
 
-## the blend between two states at t (0..1): every joint angle and the offset lerped, then lifted clear of the floor
-static func _blend(B: Body, a: Array, b: Array, t: float) -> void:
+## the blend between two states at t (0..1): every joint angle and the offset lerped (what the scene plays with natural off
+## and a linear ease), NOT lifted
+static func _blend_raw(B: Body, a: Array, b: Array, t: float) -> void:
 	_restore(B, a)
 	for j in B.ang.keys():
 		B.ang[j] = (a[0][j] as Vector3).lerp(b[0][j], t)
 	B.offset = (a[1] as Vector3).lerp(b[1], t)
 	B.fk()
+
+
+## the deepest the straight blend between two states goes into the floor (m), sampled at BLEND_SAMPLES points
+static func _blend_depth(B: Body, a: Array, b: Array) -> float:
+	var worst := 0.0
+	for i in range(1, BLEND_SAMPLES):
+		_blend_raw(B, a, b, float(i) / BLEND_SAMPLES)
+		worst = maxf(worst, floor_depth(B))
+	return worst
+
+
+## the keys from a to b (b excluded, a included) so the straight blend between each neighbouring pair stays out of the floor:
+## a pair whose blend goes in is split at its middle, the middle lifted clear of the floor (the way snap-to-floor lifts), and
+## each half checked again. The lift is stored in the card's hips offset, which the scene lerps between cards.
+static func _refine(B: Body, a: Array, b: Array, level: int) -> Array:
+	if level >= MAX_SPLIT or _blend_depth(B, a, b) <= FLOOR_TOL:
+		return [a]
+	_blend_raw(B, a, b, 0.5)
 	_clear_floor(B)
+	var m := _snap(B)
+	return _refine(B, a, m, level + 1) + _refine(B, m, b, level + 1)
 
 
-## the get-up: {"cards": [...], "report": {"depth": [...], "margin": [...], "ok": bool}}. B ends standing.
-## The cards: each anchor, with FLOOR_MID blends between anchors (9 cards for 5 anchors and FLOOR_MID = 1).
+## the get-up: {"cards": [...], "report": {...}}. B ends standing. Play it with the scene settings in report["scene"]
+## (natural off so every joint moves together; each card's ease is linear; no floor grounding: the lifts are in the cards).
 static func get_up(B: Body, xz: Vector2) -> Dictionary:
 	var anchors := []
 	_lie_back_arms_down(B, xz)
 	anchors.append(_snap(B))
-	# side: the pelvis rolled 90 deg about the body's length, the arms forward (the lower one under the chest)
 	_restore(B, anchors[0])
-	_roll_side(B)
-	_settle(B)
+	_side(B)
 	anchors.append(_snap(B))
-	# kneel: hands and knees (the solve from the side)
+	_side_sit(B)
+	anchors.append(_snap(B))
 	_kneel(B)
 	anchors.append(_snap(B))
-	# half-kneel: the right foot forward, the left knee down
 	_half(B)
 	anchors.append(_snap(B))
-	# stand: the stand pose on the same spot, feet flat
 	_stand(B, xz, Vector3(0, 0, 1))
-	_centre_on_support(B)
-	_settle(B)
 	anchors.append(_snap(B))
 	var states := []
 	var names := []
-	for k in anchors.size():
-		states.append(anchors[k])
-		names.append(FLOOR_KEYS[k])
-		if k < anchors.size() - 1:
-			for m in range(1, FLOOR_MID + 1):
-				states.append(["mid", k, m])
-				names.append("%s to %s" % [FLOOR_KEYS[k], FLOOR_KEYS[k + 1]])
+	var anchor_at := []
+	for k in anchors.size() - 1:
+		var run := _refine(B, anchors[k], anchors[k + 1], 0)
+		for q in run.size():
+			if q == 0:
+				anchor_at.append(states.size())
+			states.append(run[q])
+			names.append(FLOOR_KEYS[k] if q == 0 else "%s to %s" % [FLOOR_KEYS[k], FLOOR_KEYS[k + 1]])
+	anchor_at.append(states.size())
+	states.append(anchors[anchors.size() - 1])
+	names.append(FLOOR_KEYS[anchors.size() - 1])
 	var poses := []
 	var depth := []
 	var margin := []
 	var good := true
-	for i in states.size():
-		var st = states[i]
-		if st is Array and st.size() == 2 and st[0] is Dictionary:
-			_restore(B, st)
-		else:
-			var a: int = st[1]
-			_blend(B, anchors[a], anchors[a + 1], float(st[2]) / (FLOOR_MID + 1))
+	for st in states:
+		_restore(B, st)
 		poses.append(B.to_dict())
 		var d: float = floor_depth(B)
 		depth.append(d)
-		var mg := support_margin(B)
-		margin.append(mg)
+		margin.append(support_margin(B))
 		good = good and d <= FLOOR_MM
 	var cards := _cards(poses, names, FLOOR_DUR / (poses.size() - 1), false, [])
-	return {"cards": cards, "report": {"depth": depth, "margin": margin, "ok": good}}
+	for c in cards:
+		c["ease"] = "linear"
+	return {"cards": cards, "report": {"depth": depth, "margin": margin, "ok": good, "anchors": anchor_at,
+		"scene": {"natural": false, "on_floor": false}}}
