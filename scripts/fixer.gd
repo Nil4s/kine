@@ -63,17 +63,6 @@ static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 
 
 static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
-	# the fix edits the cards in place and Check re-samples them: the app's pose bake still holds the poses of the cards as they
-	# WERE (it re-bakes a frame later), so it must not answer these samples, or every fix reads "it did not remove the problem"
-	# (as plant_all below; clicks and fix_window failed on combo3 with the bake on)
-	var baker := S.baker
-	S.baker = null
-	var r := _apply(f, S, B, sm0)
-	S.baker = baker
-	return r
-
-
-static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	var names := S.cards.map(func(c): return c["name"])
 	var before := S.cards.duplicate(true)
 	if sm0.is_empty():
