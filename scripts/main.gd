@@ -5410,12 +5410,68 @@ var _cape_mi: MeshInstance3D
 var _cape_mat: StandardMaterial3D
 
 
+## THE BAKE RUNS IN THE BACKGROUND (round 86b, cloth_job.gd): sampling in 8 ms slices on this thread, the simulation on a
+## worker task. A 60 Hz timer polls it; the result is applied here, in one undo step, when it is done. The scene keeps its
+## last cape until then.
+var _cape_job: ClothJob = null
+var _cape_timer: Timer = null
+
+
 func _cape_add() -> void:
-	_say("baking the cape over %.1f s: the cloth is simulated frame by frame, this takes a moment" % S.length())
-	var cape := Cloth.bake_scene(S, B)
-	_do(func(): S.cape = cape)
-	_dummy_hits()
-	_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back)" % [(cape["frames"] as Array).size(), S.fps])
+	if _cape_job != null:
+		_say("the cape is already baking (%d%%): 'Cape: cancel the bake' stops it" % int(_cape_job.progress() * 100.0))
+		return
+	_cape_job = ClothJob.start(S)
+	if _cape_timer == null:
+		_cape_timer = Timer.new()
+		_cape_timer.wait_time = 1.0 / 60.0
+		_cape_timer.timeout.connect(_cape_tick)
+		add_child(_cape_timer)
+	_cape_timer.start()
+	_say("baking the cape over %.1f s in the background (0%%): the scene keeps its last cape until it is done" % S.length())
+
+
+func _cape_tick() -> void:
+	var job := _cape_job
+	if job == null:
+		_cape_timer.stop()
+		return
+	if job.stage == 0:
+		if job.cancelled():
+			_cape_drop("the cape bake was cancelled: the scene keeps its last cape")
+			return
+		if job.sample_for(8000):   # 8 ms of sampling a tick: the UI keeps its frames
+			job.start_sim()
+	if job.poll() == 2:
+		_cape_timer.stop()
+		_cape_job = null
+		var cape := job.take_result()
+		if cape.is_empty():
+			_say("the cape bake was cancelled: the scene keeps its last cape")
+			return
+		if job.owner != S:
+			_say("the scene changed during the bake, so the cape was not applied: bake it again on this scene")
+			return
+		_do(func(): S.cape = cape)
+		_dummy_hits()
+		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back)" % [(cape["frames"] as Array).size(), S.fps])
+		return
+	if Engine.get_process_frames() % 15 == 0:   # the progress line, about four times a second
+		_say("baking the cape: %d%%  (Cape: cancel the bake stops it; the scene keeps its last cape)" % int(job.progress() * 100.0))
+
+
+func _cape_drop(msg: String) -> void:
+	_cape_job = null
+	_cape_timer.stop()
+	_say(msg)
+
+
+func _cape_cancel() -> void:
+	if _cape_job == null:
+		_say("no cape bake is running: 'Cape: add to the back' starts one")
+		return
+	_cape_job.cancel()
+	_say("cancelling the cape bake: the scene keeps its last cape")
 
 
 func _cape_clear() -> void:
@@ -9331,6 +9387,7 @@ func _commands() -> Array:
 	add.call("Secondary: add a cloth strip", "", _sec_add.bind("cloth"), "secondary cloth strip belt flap sway lag overshoot bake spring", true, "a cloth strip hangs from the belt and follows the body; baked to keys")
 	add.call("Secondary: add a weapon flex (oak bo)", "", _sec_add.bind("bo"), "secondary weapon flex bo staff shaft wobble strike bend bake", true, "a 180 cm oak bo clamped at the right hand bends and settles after a strike; baked to keys")
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
+	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")

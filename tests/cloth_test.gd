@@ -21,7 +21,7 @@
 extends SceneTree
 
 var fails := 0
-const SHOT_YAW := 180.0   # the camera's yaw for the picture (deg): 180 = from behind the hero
+const SHOT_YAW := 135.0   # the camera's yaw for the picture (deg): 180 = straight behind the hero, 90 = from the side
 
 
 func ok(c: bool, what: String) -> void:
@@ -182,6 +182,21 @@ func _init() -> void:
 	ok(lag_end < 0.5 * peak, "3c it swings back: %.1f deg at 3.0 s, under half its peak" % lag_end)
 	ok(tst < 0.05, "3d structural edges within 5 %% of rest through the turn")
 
+	# ---- 3b THE BACKGROUND BAKE (ClothJob) gives the same cape as the synchronous bake, bit for bit
+	var t_sync := Time.get_ticks_usec()
+	var tcape_s := Cloth.bake_scene(turn_scene(), B)
+	t_sync = Time.get_ticks_usec() - t_sync
+	var job := ClothJob.start(turn_scene())
+	var t_async := Time.get_ticks_usec()
+	while job.stage != 2:
+		if job.stage == 0 and job.sample_for(8000):
+			job.start_sim()
+		job.poll()
+		OS.delay_usec(500)
+	t_async = Time.get_ticks_usec() - t_async
+	ok(var_to_str(job.take_result()["frames"]) == var_to_str(tcape_s["frames"]), "3e the background bake matches the synchronous one frame for frame")
+	print("   timing: synchronous bake %.2f s, background bake (sampling + worker) %.2f s" % [t_sync / 1e6, t_async / 1e6])
+
 	# ---- 4 SCRUB
 	var tcape2 := Cloth.bake_scene(turn_scene(), B)
 	ok(var_to_str(tcape2["frames"]) == var_to_str(tcape["frames"]), "4a two bakes of the same path are identical")
@@ -235,7 +250,8 @@ func _init() -> void:
 	quit(1 if fails > 0 else 0)
 
 
-## the picture: the turn scene in the app with the cape baked, the playhead at the peak lag, the view from behind
+## the picture: the turn scene in the app, dummy off, the cape baked in the background while the frames are timed, the
+## playhead at the peak lag, the view from behind and to the side (3/4 back, 3.5 m, the whole body)
 func _shot(shot: String, T: Scene, t: float) -> void:
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -244,6 +260,7 @@ func _shot(shot: String, T: Scene, t: float) -> void:
 	m.tour_step = -1
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
+	m.dummy_on = false
 	DirAccess.make_dir_recursive_absolute("user://")
 	var tmp := "user://cloth_turn_shot.json"
 	var fa := FileAccess.open(tmp, FileAccess.WRITE)
@@ -253,13 +270,24 @@ func _shot(shot: String, T: Scene, t: float) -> void:
 	m._rebuild_cards()
 	m.playing = false
 	m._cape_add()
+	var worst := 0.0
+	var last := Time.get_ticks_usec()
+	var frames_during := 0
+	while m._cape_job != null:
+		await process_frame
+		var now := Time.get_ticks_usec()
+		worst = maxf(worst, float(now - last) / 1000.0)
+		last = now
+		frames_during += 1
+	print("   UI during the bake: %d frames, worst frame %.1f ms (bar 50)" % [frames_during, worst])
+	ok(worst < 50.0, "7a the UI keeps rendering during the bake: worst frame %.1f ms" % worst)
 	m.playhead = t
 	m._ps().apply(m.B, t)
-	m._turn_to(SHOT_YAW, -4.0, 3.6, Vector3(0.0, 1.0, -0.05), false)
+	m._turn_to(SHOT_YAW, -6.0, 4.6, Vector3(0.0, 0.9, -0.05), false)
 	m._refresh()
 	for i in 3:
 		await process_frame
 	DirAccess.make_dir_recursive_absolute(shot.get_base_dir())
 	await process_frame
 	root.get_texture().get_image().save_png(shot)
-	print("   picture at %.2f s (cape tip lag %.1f deg, camera yaw %.0f) -> %s" % [t, Cloth.tip_lag_deg(m.S.cape["frames"][int(round(t * 30.0))]), SHOT_YAW, shot])
+	print("   picture at %.2f s (cape tip lag %.1f deg, camera yaw %.0f, dummy off) -> %s" % [t, Cloth.tip_lag_deg(m.S.cape["frames"][int(round(t * 30.0))]), SHOT_YAW, shot])

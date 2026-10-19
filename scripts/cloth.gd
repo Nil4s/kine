@@ -47,6 +47,7 @@ const SHEAR := false          # shear (diagonal) constraints: off (they over-sti
 const ITER := 30              # distance + collision passes per substep
 const GRAV := 9.81
 const DRAG := 0.6             # 1/s: the velocity loss that stops the cape ringing forever
+const CAND_PAD := 0.06        # m: a (vertex, capsule) pair is tested while the vertex is this near the capsule's box
 const MARGIN := 0.003         # m: half the cloth's thickness: a vertex is pushed to this far off a capsule's surface
 const PRE_S := 1.0            # s: the first pose held before frame 0 so the cape settles onto its pins
 
@@ -109,12 +110,11 @@ static func faces() -> PackedInt32Array:
 	return f
 
 
-## a cape: the simulated grid baked over n_frames of the pose (pose_at(t) puts the body at time t and runs its fk)
-static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "cape") -> Dictionary:
+## THE BAKE, IN TWO HALVES (round 86b). sample_frames() reads the body's pins and capsules at each frame (it moves the
+## body, so it runs where the body is: the main thread, on a private copy). simulate() is pure math on those arrays: it
+## runs on a WorkerThreadPool task (scripts/cloth_job.gd) and reports progress and honours a cancel through ctl.
+static func sample_frames(B: Body, n_frames: int, fps: int, pose_at: Callable) -> Dictionary:
 	var names: Array = B.cap0.keys()
-	var rads := PackedFloat64Array()
-	for n in names:
-		rads.append(float(B.rad[n]))
 	var A: Array = []
 	var C: Array = []
 	for k in n_frames:
@@ -122,8 +122,34 @@ static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "c
 		B.fk()
 		A.append(anchors(B))
 		C.append(caps_of(B, names))
+	return {"A": A, "C": C, "names": names}
+
+
+## the rest radii, in the order of the capsules of sample_frames
+static func radii(B: Body, names: Array) -> PackedFloat64Array:
+	var rads := PackedFloat64Array()
+	for n in names:
+		rads.append(float(B.rad[n]))
+	return rads
+
+
+## a cape baked on this thread: sample, then simulate (pose_at(t) puts the body at time t; fk is run here)
+static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "cape") -> Dictionary:
+	var sm := sample_frames(B, n_frames, fps, pose_at)
+	var out := simulate(sm["A"], sm["C"], radii(B, sm["names"]), fps, null)
+	out["name"] = name
+	return out
+
+
+## THE SIM. Pure math on the arrays (safe on a worker thread: it touches no node and no Body). A: the pins per frame,
+## C: the capsule end points per frame. ctl (a ClothJob or null): report(f) gets the fraction done, cancelled() stops it
+## (returns {}). The inner loop allocates nothing per step: pins, capsules, candidate pairs and state are preallocated.
+static func simulate(A: Array, C: Array, rads: PackedFloat64Array, fps: int, ctl = null) -> Dictionary:
+	var n_frames := A.size()
 	var N := COLS * ROWS
+	var nparts := rads.size()
 	var dy := LEN / float(ROWS - 1)
+	var a0: PackedVector3Array = A[0]
 	var x := PackedVector3Array()
 	x.resize(N)
 	var pinned := PackedByteArray()
@@ -131,67 +157,121 @@ static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "c
 	for r in ROWS:
 		for c in COLS:
 			var i := r * COLS + c
-			x[i] = (A[0] as PackedVector3Array)[c] - Vector3(0.0, float(r) * dy, 0.0)
+			x[i] = a0[c] - Vector3(0.0, float(r) * dy, 0.0)
 			pinned[i] = 1 if r == 0 else 0
 	var v := PackedVector3Array()
 	v.resize(N)
-	var topo := topology()
-	var E: PackedInt32Array = topo["edges"]
+	var p := PackedVector3Array()
+	p.resize(N)
+	var E := topology()["edges"] as PackedInt32Array
+	var ne := E.size() / 2
 	var rest := PackedFloat64Array()
-	rest.resize(E.size() / 2)
-	for k in rest.size():
+	rest.resize(ne)
+	for k in ne:
 		rest[k] = x[E[2 * k]].distance_to(x[E[2 * k + 1]])
 	var nsub := maxi(1, int(round(float(SUB_HZ) / float(fps))))
 	var dt := 1.0 / float(fps * nsub)
 	var pre := int(round(PRE_S * float(fps)))
+	var pins := PackedVector3Array()
+	pins.resize(COLS)
+	var capn := PackedVector3Array()
+	capn.resize(2 * nparts)
+	var near := PackedInt32Array()
+	near.resize(nparts)
+	var cand := PackedInt32Array()
+	cand.resize(2 * N * nparts)   # (vertex, capsule) pairs: the worst case, allocated once
 	var frames: Array = []
 	var m_end := (pre + n_frames - 1) * nsub
-	var p := PackedVector3Array()
-	p.resize(N)
+	var total := float(m_end)
 	for m in range(1, m_end + 1):
 		var u := float(m) / float(nsub) - float(pre)   # the sim clock in frames (negative = the held first pose)
-		var pins := _lerp_frame(A, u)
-		var capn := _lerp_frame(C, u)
-		_substep(x, v, p, pinned, E, rest, pins, capn, rads, dt)
+		_lerp_into(A, u, pins)
+		_lerp_into(C, u, capn)
+		var nnear := _near(p, capn, rads, near)
+		var ncand := _candidates(p, pinned, capn, rads, near, nnear, cand)
+		_substep(x, v, p, pinned, E, rest, pins, capn, rads, cand, ncand, dt)
 		if m % nsub == 0:
 			var k := m / nsub - pre
 			if k >= 0:
 				frames.append(x.duplicate())
-	return {"name": name, "fps": fps, "frames": frames}
+			if ctl != null:
+				ctl.report(float(m) / total)
+				if ctl.cancelled():
+					return {}
+	return {"fps": fps, "frames": frames}
 
 
-## one substep of the PBD solver (x, v, p are the cape's state; pins and capn the body now)
-static func _substep(x: PackedVector3Array, v: PackedVector3Array, p: PackedVector3Array, pinned: PackedByteArray,
-		E: PackedInt32Array, rest: PackedFloat64Array, pins: PackedVector3Array, capn: PackedVector3Array,
-		rads: PackedFloat64Array, dt: float) -> void:
-	var N := x.size()
+## the capsules that can reach the cape in this substep: those whose box overlaps the cape's box (padded)
+static func _near(p: PackedVector3Array, capn: PackedVector3Array, rads: PackedFloat64Array, near: PackedInt32Array) -> int:
 	var lo := Vector3(INF, INF, INF)
 	var hi := Vector3(-INF, -INF, -INF)
+	for i in p.size():
+		lo = lo.min(p[i])
+		hi = hi.max(p[i])
+	lo -= Vector3(0.08, 0.08, 0.08)
+	hi += Vector3(0.08, 0.08, 0.08)
+	var n := 0
+	for k in rads.size():
+		var a := capn[2 * k]
+		var b := capn[2 * k + 1]
+		var r: float = rads[k] + MARGIN
+		if (minf(a.x, b.x) - r) > hi.x or (maxf(a.x, b.x) + r) < lo.x:
+			continue
+		if (minf(a.y, b.y) - r) > hi.y or (maxf(a.y, b.y) + r) < lo.y:
+			continue
+		if (minf(a.z, b.z) - r) > hi.z or (maxf(a.z, b.z) + r) < lo.z:
+			continue
+		near[n] = k
+		n += 1
+	return n
+
+
+## the (vertex, capsule) pairs that can touch in this substep: a free vertex inside a near capsule's box, padded by
+## CAND_PAD (a vertex moves a few mm a substep, so the pairs are tested again on every pass)
+static func _candidates(p: PackedVector3Array, pinned: PackedByteArray, capn: PackedVector3Array, rads: PackedFloat64Array,
+		near: PackedInt32Array, nnear: int, cand: PackedInt32Array) -> int:
+	var n := 0
+	for i in p.size():
+		if pinned[i] == 1:
+			continue
+		var q := p[i]
+		for kk in nnear:
+			var c := near[kk]
+			var a := capn[2 * c]
+			var b := capn[2 * c + 1]
+			var r: float = rads[c] + MARGIN + CAND_PAD
+			if q.x < minf(a.x, b.x) - r or q.x > maxf(a.x, b.x) + r:
+				continue
+			if q.y < minf(a.y, b.y) - r or q.y > maxf(a.y, b.y) + r:
+				continue
+			if q.z < minf(a.z, b.z) - r or q.z > maxf(a.z, b.z) + r:
+				continue
+			cand[2 * n] = i
+			cand[2 * n + 1] = c
+			n += 1
+	return n
+
+
+## one substep of the PBD solver: predict, ITER passes of (distance, collision), then the velocities
+static func _substep(x: PackedVector3Array, v: PackedVector3Array, p: PackedVector3Array, pinned: PackedByteArray,
+		E: PackedInt32Array, rest: PackedFloat64Array, pins: PackedVector3Array, capn: PackedVector3Array,
+		rads: PackedFloat64Array, cand: PackedInt32Array, ncand: int, dt: float) -> void:
+	var N := x.size()
+	var drag := 1.0 - DRAG * dt
+	var gdt := Vector3(0.0, -GRAV * dt, 0.0)
 	for i in N:
 		if pinned[i] == 1:
 			p[i] = pins[i]
 			v[i] = Vector3.ZERO
 		else:
-			v[i] = v[i] * (1.0 - DRAG * dt) + Vector3(0.0, -GRAV * dt, 0.0)
+			v[i] = v[i] * drag + gdt
 			p[i] = x[i] + v[i] * dt
-		lo = lo.min(p[i])
-		hi = hi.max(p[i])
-	# the capsules that can reach the cape this substep (the rest are skipped: most of the body is far from a cape)
-	var near := []
-	var pad := 0.08
-	for k in rads.size():
-		var a := capn[2 * k]
-		var b := capn[2 * k + 1]
-		var r := rads[k] + MARGIN
-		var clo := a.min(b) - Vector3(r, r, r)
-		var chi := a.max(b) + Vector3(r, r, r)
-		if chi.x < lo.x - pad or clo.x > hi.x + pad or chi.y < lo.y - pad or clo.y > hi.y + pad or chi.z < lo.z - pad or clo.z > hi.z + pad:
-			continue
-		near.append(k)
 	var ne := E.size() / 2
 	for it in ITER:
+		# the distance pass, inlined (this is the hot loop: ITER x edges x substeps). Each edge pulls its two ends back to
+		# its rest length, split by inverse mass (a pin has none). The sweep alternates direction (a chain settles from both ends)
 		for kq in ne:
-			var k := kq if it % 2 == 0 else ne - 1 - kq   # the sweep alternates direction: a chain settles from both ends
+			var k := kq if it % 2 == 0 else ne - 1 - kq
 			var i := E[2 * k]
 			var j := E[2 * k + 1]
 			var wi := 0.0 if pinned[i] == 1 else 1.0
@@ -206,47 +286,42 @@ static func _substep(x: PackedVector3Array, v: PackedVector3Array, p: PackedVect
 			var corr := d * ((L - rest[k]) / L)
 			p[i] += corr * (wi / ws)
 			p[j] -= corr * (wj / ws)
-		for i in N:
-			if pinned[i] == 1:
-				continue
-			var q := p[i]
-			for kk in near:
-				var ka: Vector3 = capn[2 * kk]
-				var kb: Vector3 = capn[2 * kk + 1]
-				var ab := kb - ka
-				var t := clampf((q - ka).dot(ab) / maxf(ab.length_squared(), 1e-12), 0.0, 1.0)
-				var c := ka + ab * t
-				var dv := q - c
-				var dist := dv.length()
-				var rr: float = rads[kk] + MARGIN
-				if dist < rr:
-					var nrm := dv / dist if dist > 1e-9 else Vector3.UP
-					q = c + nrm * rr
-			p[i] = q
+		for kc in ncand:
+			var i := cand[2 * kc]
+			var c := cand[2 * kc + 1]
+			var ka := capn[2 * c]
+			var ab := capn[2 * c + 1] - ka
+			var t := clampf((p[i] - ka).dot(ab) / maxf(ab.length_squared(), 1e-12), 0.0, 1.0)
+			var cp := ka + ab * t
+			var dv := p[i] - cp
+			var dist := dv.length()
+			var rr: float = rads[c] + MARGIN
+			if dist < rr:
+				var nrm := dv / dist if dist > 1e-9 else Vector3.UP
+				p[i] = cp + nrm * rr
 	for i in N:
 		if pinned[i] == 0:
 			v[i] = (p[i] - x[i]) / dt
 		x[i] = p[i]
 
 
-## the body's frame data at the sim clock u (frames): linear between the two frames either side, the first / last held
-static func _lerp_frame(F: Array, u: float) -> PackedVector3Array:
+## the body's frame data at the sim clock u (frames), written into out: linear between the two frames either side
+static func _lerp_into(F: Array, u: float, out: PackedVector3Array) -> void:
 	var f := clampf(u, 0.0, float(F.size() - 1))
 	var i0 := int(floor(f))
 	var i1 := mini(i0 + 1, F.size() - 1)
 	var a := f - float(i0)
 	var A: PackedVector3Array = F[i0]
 	if a <= 0.0 or i1 == i0:
-		return A
+		for k in out.size():
+			out[k] = A[k]
+		return
 	var B: PackedVector3Array = F[i1]
-	var out := PackedVector3Array()
-	out.resize(A.size())
-	for k in A.size():
+	for k in out.size():
 		out[k] = A[k].lerp(B[k], a)
-	return out
 
 
-## BAKE THE SCENE: the cape over the scene's frames (S.apply puts the body at each time, the body is put back after)
+## BAKE THE SCENE on this thread (the tests and any caller off the UI; the app bakes through ClothJob)
 static func bake_scene(S: Scene, B: Body, n_frames := -1) -> Dictionary:
 	var keep := B.state()
 	var fps := S.fps
@@ -257,6 +332,7 @@ static func bake_scene(S: Scene, B: Body, n_frames := -1) -> Dictionary:
 	B.set_state(keep)
 	B.fk()
 	return cape
+
 
 
 ## the vertices (world metres) at time t: the nearest baked frame (scrubbing replays frames, it never re-simulates)
