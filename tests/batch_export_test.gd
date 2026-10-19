@@ -154,6 +154,8 @@ func _init() -> void:
 	await bd._on_run()
 	ok(bd.ui_status.text.begins_with("NOT NOW: a batch never writes into scenes/"), "(6) scenes/ typed in the folder box is refused on the spot")
 	bd.ui_dir.text = UI_OUT
+	bd.ui_dir.text_changed.emit(UI_OUT)   # the person fixes the folder by typing: the refusal line goes
+	ok(not bd.ui_status.text.begins_with("NOT NOW"), "(6c) the panel shows no stale refusal after the folder is fixed")
 
 	# (7) the panel, as the person sees it
 	bd.dlg.popup_centered(Vector2i(680, 700))
