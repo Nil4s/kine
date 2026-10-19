@@ -55,6 +55,11 @@ const MAX_DEPTH := 3   # a source that places clips of its own plays them too, t
 static var _cache := {}    # src path -> {"mt": modified time, "scene": Scene, "len": s, "d": {mirror: root step}}
 static var _bodies := []   # scratch bodies, one per depth (a source's own clips use the next)
 static var _depth := 0
+## the scratch bodies, _depth and the cached source scenes are SHARED statics, and Scene.apply runs on worker threads
+## (the dummy / fighters measure, the pose bake) as well as the main thread: two threads posing the same scratch body at
+## once corrupted its dictionaries (undo_audit: "Invalid access to key on Dictionary" in Scene._toe_off_at). Every entry
+## that touches them takes this lock (a Godot Mutex is recursive, so a source's own clips re-enter it)
+static var _mu := Mutex.new()
 
 
 ## the joints a mask drives, and whether it drives the hips' position (root motion)
@@ -182,6 +187,13 @@ static func scene_of(d: Dictionary) -> Scene:
 
 
 static func source(src: String) -> Dictionary:
+	_mu.lock()
+	var e := _source(src)
+	_mu.unlock()
+	return e
+
+
+static func _source(src: String) -> Dictionary:
 	var path := "res://" + src.trim_prefix("res://")
 	if not FileAccess.file_exists(path):
 		return {}
@@ -220,6 +232,13 @@ static func _pose_src(e: Dictionary, lt: float, mirror: bool, Q: Body) -> void:
 
 ## the hips' step one cycle makes over the floor: offset(L) - offset(0), y dropped
 static func root_step(e: Dictionary, mirror: bool) -> Vector3:
+	_mu.lock()
+	var v := _root_step(e, mirror)
+	_mu.unlock()
+	return v
+
+
+static func _root_step(e: Dictionary, mirror: bool) -> Vector3:
 	if (e["d"] as Dictionary).has(mirror):
 		return e["d"][mirror]
 	var Q := _body(_depth)
@@ -439,6 +458,12 @@ static func at(c: Dictionary, L: float, t: float) -> Dictionary:
 ## Scene.apply's clip pass: every clip in list order over the body as the cards left it. No clip with weight: the body
 ## is not touched (byte for byte)
 static func play(S: Scene, B: Body, t: float) -> void:
+	_mu.lock()
+	_play(S, B, t)
+	_mu.unlock()
+
+
+static func _play(S: Scene, B: Body, t: float) -> void:
 	if _depth >= MAX_DEPTH:
 		return
 	var touched := false
