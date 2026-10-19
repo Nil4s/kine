@@ -117,5 +117,28 @@ func _init() -> void:
 		print("     combo3 finding: %s t=%.2f %s" % [f["sev"], f["t"], f["msg"]])
 	ok(cfail.is_empty(), "8 combo3 bat swing (read only): no joint-speed FAIL with the in-sport bars (%d WARN, %d FAIL)" % [cspeed.size() - cfail.size(), cfail.size()])
 
+	# 5. the knee at 3 x and at 0.9 x the cited peak (Manolopoulos 2006, 1874 deg/s): one frame (1/60 s) of calf bend.
+	# (The shoulder cannot be built at 3 x: 3 x 6520 deg/s is 326 deg per 60 fps frame, past the 180 deg a rotation can show.)
+	var kp := 1874.0
+	for case in [[3.0, true], [0.9, false]]:
+		var deg: float = kp * float(case[0]) / HumanLimits.FPS
+		var K := Scene.new()
+		K.name = "zz_knee"
+		B.set_ang("calf_r", Vector3(0, 0, 0))
+		B.fk()
+		K.add("rest", B.to_dict())
+		B.set_ang("calf_r", Vector3(deg, 0, 0))
+		B.fk()
+		K.add("kick", B.to_dict())
+		B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		B.fk()
+		K.cards[1]["move"] = 1.0 / 60.0
+		var kf := HumanLimits.findings(K, B).filter(func(f): return f["rule"] == "JOINT SPEED" and f.get("joint", "") == "knee_r")
+		if case[1]:
+			ok(kf.size() >= 1 and "Manolopoulos 2006" in kf[0]["msg"] and kf[0]["sev"] == "FAIL",
+				"9 knee at 3 x the cited peak (%.0f deg in one frame): FAIL on knee_r, reason names the source: %s" % [deg, kf[0]["msg"] if kf.size() > 0 else "none"])
+		else:
+			ok(kf.is_empty(), "10 knee at 0.9 x the cited peak (%.0f deg in one frame): not flagged" % deg)
+
 	print("HUMAN LIMITS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(1 if fails > 0 else 0)
