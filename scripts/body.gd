@@ -2082,7 +2082,10 @@ static func _p(v: Vector3) -> Array:
 const CROSS_MIN := 0.001
 const CROSS_BODY_R := 1.5   # pelvis -> farthest capsule surface, any pose within the limits (tests/cross_contact_test.gd prints the observed max)
 const CROSS_ARM_END := ["lowerarm_l", "lowerarm_r", "hand_l", "hand_r"]
-const CROSS_WIDE_ZONE := {"chest_wide": "CHEST", "hips_wide": "HIPS"}
+## the parts the dummy's zones leave out (the dummy is only struck where its ZONES are): the wide capsules, and (TC5:
+## combo3's bat landed on a fighter's clavicle first and the report read an empty zone) the collarbones and the balls
+const CROSS_WIDE_ZONE := {"chest_wide": "CHEST", "hips_wide": "HIPS", "clavicle_l": "CHEST", "clavicle_r": "CHEST",
+	"ball_l": "FEET", "ball_r": "FEET"}
 
 
 ## the parts that take part now (fingers aside; weapons when on)

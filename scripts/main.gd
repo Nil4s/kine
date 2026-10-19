@@ -1721,6 +1721,13 @@ func _dummy_hits() -> void:
 		return
 	_dm_gen += 1
 	SL = null
+	fighter_hits = []   # TC5: a report of the scene before this edit is never shown as current
+	if _fighters_on():
+		ui_dummy.text = _fighters_head() + ": measuring who hits whom..."
+		ui_browser.refresh()
+		if _dm_job.is_empty():
+			_dm_start()
+		return
 	if not dummy_on:
 		ui_dummy.text = "dummy off"
 		ui_browser.refresh()
@@ -1737,6 +1744,15 @@ func _dummy_hits() -> void:
 
 func _dm_start() -> void:
 	var job := {"gen": _dm_gen, "out": {}}
+	if _fighters_on():   # TC5: the same job, the same worker: the hero against each other fighter
+		var hs: Scene = (actors_rt[0]["S"] as Scene).clone()
+		hs.actors = []   # (the others go in below, cloned once)
+		var others := []
+		for k in range(1, actors_rt.size()):
+			others.append({"name": actors_rt[k]["name"], "S": (actors_rt[k]["S"] as Scene).clone(), "xf": actors_rt[k]["xf"]})
+		job["task"] = WorkerThreadPool.add_task(func(): job["out"] = _fighters_measure(hs, others))
+		_dm_job = job
+		return
 	var sc := S.clone()
 	var d := T.dist
 	var y := T.yaw
@@ -1753,11 +1769,14 @@ func _dm_poll() -> void:
 	var job := _dm_job
 	_dm_job = {}
 	if job["gen"] != _dm_gen:
-		if dummy_on and S.cards.size() >= 2:
+		if _fighters_on() or (dummy_on and S.cards.size() >= 2):
 			_dm_start()
 		return
 	ui_dummy.text = job["out"]["txt"]
 	ui_browser.refresh()
+	if job["out"].has("hits"):   # TC5: the fighters' report (nothing lands: the fighters do not stop each other)
+		fighter_hits = job["out"]["hits"]
+		return
 	SL = job["out"]["SL"]
 	if SL != null:
 		ov.mark_dirty()   # what plays changed: the trail / speed graph pass follows it
@@ -1793,6 +1812,86 @@ static func _dummy_measure(sc: Scene, dist: float, yaw: float, so: bool) -> Dict
 		sl = r[0]
 		txt += "\nlands %.2fs on the %s, rebounds; plays %.2f s" % [r[1]["t"], r[1]["zone"], sl.length()]
 	return {"txt": txt, "SL": sl}
+
+
+## TWO FIGHTERS (round 50, GATES TC5): with 2+ fighters the dummy is put away and its report is made between the
+## fighters instead: the hero against each other one at its placement, over the whole scene, at the scene's fps
+## (Dummy.fighter_hits). The same job and worker as the dummy's (_dm_start / _dm_poll, newest edit wins); the rows land
+## in fighter_hits and the text in ui_dummy (the browser's dummy row shows it, a row per contact)
+var fighter_hits := []   # [{"t", "kind", "zone", "part", "on", "by", "depth", "speed", "u", "at", "vs": actor k}, ...]
+
+
+func _fighters_on() -> bool:
+	return actors_rt.size() >= 2
+
+
+func _fighters_head() -> String:
+	return "%d fighters" % actors_rt.size()
+
+
+## the measurement itself, on ITS OWN scenes and bodies (any thread): {"txt", "hits"}
+static func _fighters_measure(hs: Scene, others: Array) -> Dictionary:
+	var HB := Body.new()
+	HB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var all := []
+	var names := ["the hero"]
+	for k in others.size():
+		var o: Dictionary = others[k]
+		names.append(o["name"])
+		var OB := Body.new()
+		OB.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		for h in Dummy.fighter_hits(hs, HB, o["S"], OB, o["xf"], hs.fps):
+			h["vs"] = k + 1
+			all.append(h)
+	all.sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
+	var txt := "%d fighters: " % (others.size() + 1)
+	if all.is_empty():
+		txt += "they never touch in the scene"
+	else:
+		txt += "%d contact%s, the first %.2fs %s (%s)" % [all.size(), "" if all.size() == 1 else "s", all[0]["t"], all[0]["zone"], all[0]["kind"]]
+	for h in all:
+		var who: String = names[0] if h["by"] == "hero" else names[h["vs"]]
+		var whom: String = names[h["vs"]] if h["by"] == "hero" else names[0]
+		var what: String = "weapon" if Body.is_wep(h["part"]) else String(h["part"])
+		txt += "\n%.2fs  %s  %s: %s's %s on %s's %s  %.1f m/s  %.1f cm deep" % [h["t"], h["zone"], h["kind"], who, what, whom, h["on"], h["speed"], float(h["depth"]) * 100.0]
+		if float(h["u"]) >= 0.0:
+			txt += "  (%.2f m up)" % h["u"]
+	return {"txt": txt, "hits": all}
+
+
+## the contact NOW between the hero and the other fighters, drawn as the dummy's is (the red dot and the tag), after the
+## others are posed. One fighter: returns at once (the dummy's own drawing stands)
+func _fighters_mark() -> void:
+	if not _fighters_on() or hit_tag == null:
+		return
+	var hb: Body = actors_rt[0]["B"]
+	var best := []
+	var bk := 0
+	for k in range(1, actors_rt.size()):
+		var cs: Array = hb.cross_contacts(actors_rt[k]["B"], actors_rt[k]["xf"])
+		if not cs.is_empty() and (best.is_empty() or float(cs[0][2]) > float(best[2])):
+			best = cs[0]
+			bk = k
+	hit_tag.visible = not best.is_empty()
+	hit_dot.visible = not best.is_empty()
+	if best.is_empty():
+		return
+	var at: Vector3 = _stage_xf() * Dummy.cross_at(hb, actors_rt[bk]["B"], actors_rt[bk]["xf"], best)   # hero space -> the view's
+	hit_dot.position = at
+	hit_tag.position = at + Vector3(0, 0.12, 0)
+	hit_tag.text = "%s  (%s, %.1f cm)" % [Dummy.cross_name(best).get_slice("|", 1), best[3], float(best[2]) * 100.0]
+
+
+## the playhead to contact i of the fighters' report (its row in the browser)
+func _goto_hit(i: int) -> void:
+	if i < 0 or i >= fighter_hits.size():
+		return
+	var h: Dictionary = fighter_hits[i]
+	playing = false
+	playhead = float(h["t"])
+	_ps().apply(B, playhead)
+	_refresh()
+	_say("%.2f s: %s on the %s (%s), %.1f m/s" % [h["t"], h["kind"], h["zone"], h["on"], h["speed"]])
 
 
 ## the weapon's radii + materials for its kind
@@ -1943,6 +2042,7 @@ func _refresh() -> void:
 	_panel()
 	_pose_others()
 	_actors_draw()
+	_fighters_mark()
 
 
 # ---------------------------------------------------------------- camera
@@ -2742,6 +2842,7 @@ func actor_place(k: int, pos: Vector2, yaw: float) -> void:
 	var H: Scene = actors_rt[0]["S"]
 	H.actors[k - 1]["xf"] = {"pos": [pos.x, pos.y], "yaw": yaw}
 	actors_rt[k]["xf"] = actor_xf(H.actors[k - 1]["xf"])
+	_dummy_hits()   # TC5: the fighters' report is measured again
 
 
 ## CROSS CONTACT (TC2, wired for TC5): the hero's body against actor k's, at its placement (Body.cross_contacts rows)
@@ -7235,6 +7336,8 @@ func _row_menu(md: Dictionary, at: Vector2) -> void:
 			["Solid / see-through", _dummy_solid]]
 	elif md.has("card"):
 		items = [["Show this clip", _timeline_pick.bind(md["card"])]]
+	elif md.has("hit"):
+		items = [["Go to this contact", _goto_hit.bind(md["hit"])]]
 	if items.is_empty():
 		return
 	if ui_ctx == null:

@@ -1968,7 +1968,8 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   Stubs: no camera compensation -> FAIL 2 (bar 2 602.4 px; bar 4 48.8 deg); others posed without xf + dummy not brought
   back -> FAIL 4 (bar 1 1847 mm, bar 2, bar 6, bar 5 picture 53,024 px). Not done: props stay with the ACTIVE scene (they
   are S.props, in the active body's space), the other fighters' off-hand dagger and hover are not drawn.
-- [ ] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
+- [x] TC5 check + dummy reuse on the worker thread: HIT zone and time on a strike/block scene; UI never blocked > 16 ms.
+  EVIDENCE: tests/actors_hit_test.gd 16 ok (Dummy.fighter_hits on the dummy's _dm_job; rows under the browser's dummy row, the red dot/tag live): combo3 vs a still fighter at 1.2 m: first contact 0.8425 s HEAD bat vs the 1/240 s sweep's 0.8458 s HEAD (a sub-frame wind-up brush: frames where bodies may touch are sampled at 240 Hz); 4.2 m: none; forearm in the path: 0.8363 s ARMS first (sweep 0.8375), torso 0.8425; card add 0.025x and longest frame 0.008x the synchronous check (bar 0.214 = dummy_async's 300/1400; raw 29-31 ms frames, check ~3.7 s); one fighter: dummy report hash-identical to the pre-TC5 build at 4 ranges; a card edit clears the report at once. Clavicles/balls now have zones. OPEN: the 15 s autosave of a 30-card two-fighter scene blocks the main thread 1.4 s (not the check; held off during bar 3). Stub runs not done (dropped by Nick's priority change).
 - [ ] TC6 export per actor with its placement; Blender re-import within 1 cm.
 
 ## Round 50 (IK): animator IK/FK with pole targets (docs/GAP_ANALYSIS.md gap 13; docs/research/BLENDER_IK.md)
