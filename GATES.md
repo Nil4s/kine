@@ -1898,3 +1898,16 @@ use them; a behaviour the sources do not pin down is written as our own choice i
   jitter. MediaPipe fits every frame alone; a One Euro filter (Casiez, Roussel, Vogel, CHI 2012) on the landmarks before
   the fit, and a windowed fit (the chunk idea, offline). Bars: jitter (frame-to-frame acceleration of the wrists and
   head) on the walk_bat track before / after, stated in cm/s^2; a strike's peak tip speed kept within 5 %.
+
+## Round 50 (PL): the scene leaves the app (docs/GAP_ANALYSIS.md, gap 24: no playblast)
+
+- [x] PL0 Export playblast (video): the scene as the app plays it (the same _ps().apply + _refresh path), from the
+  current camera, over the preview range or the whole scene, to exports/playblast/<scene>_<time>/frame_NNNN.png, and
+  an .mp4 when ffmpeg is found (argument, POSER_FFMPEG, PATH). Frames: round((b - a) * fps) + 1, frame k at
+  min(a + k / fps, b). Bars: the frame count, the body moves (mean |diff| > 0.0005), two exports pixel-identical,
+  frame 12 equals the viewport scrubbed there by hand, the app's state restored after.
+  EVIDENCE: tests/playblast_export_test.gd 11 ok (built by an agent in a worktree, merged): 25 PNGs for 1 s at 24 fps,
+  preview 0.2..0.6 s -> 11, identical exports diff 0.000000, the scrub check diff 0.000000. Stub (time_of returns a,
+  run by me after the agent changed the scrub check): FAIL 2 (diff 0.00000) and the scrub check FAILS (0.001170).
+  OPEN: the .mp4 branch has never run: ffmpeg is not installed here (winget install Gyan.FFmpeg); folder names have
+  1 s resolution.

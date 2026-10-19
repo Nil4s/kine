@@ -911,6 +911,60 @@ func _export_glb(dir := "res://exports") -> String:
 	return path
 
 
+## EXPORT PLAYBLAST (VIDEO): the scene from the CURRENT camera, one image per frame at the scene's fps over the preview
+## range (or the whole scene), saved as exports/playblast/<scene>_<stamp>/frame_0000.png ... and, when ffmpeg is found
+## (PATH, POSER_FFMPEG or the argument), as <scene>.mp4 beside them. Each frame is posed by _ps().apply + _refresh, the
+## path play and scrub use, so frame k is what the view shows at its time. The panels are hidden while it renders.
+## Returns {"dir", "frames", "mp4", "ffmpeg"}; {} when refused.
+func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "") -> Dictionary:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a playblast needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
+		return {}
+	var sp := PlayblastExport.span(pv_in, pv_out, _ps().length())
+	var fps: int = S.fps
+	var n := PlayblastExport.frame_count(sp[0], sp[1], fps)
+	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var gdir := ProjectSettings.globalize_path(dir)
+	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
+		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and run Export playblast (video) again" % dir)
+		return {}
+	var keep := B.state()
+	var keep_t := playhead
+	var keep_playing := playing
+	var keep_clean := clean
+	playing = false
+	clean = true
+	_sides_apply()
+	ui_root.visible = false
+	for f in n:
+		playhead = PlayblastExport.time_of(f, sp[0], sp[1], fps)
+		_ps().apply(B, playhead)
+		_refresh()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/frame_%04d.png" % [gdir, f])
+	ui_root.visible = true
+	clean = keep_clean
+	_sides_apply()
+	B.set_state(keep)
+	playhead = keep_t
+	playing = keep_playing
+	_refresh()
+	var ff := PlayblastExport.find_ffmpeg(ffmpeg_path)
+	var mp4 := ""
+	var how := ""
+	if ff == "":
+		how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Export playblast (video) again, or set POSER_FFMPEG to ffmpeg.exe"
+	elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm]) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+		mp4 = "%s/%s.mp4" % [gdir, nm]
+		how = " and %s.mp4" % nm
+	else:
+		how = ". No .mp4: ffmpeg (%s) failed on the frames; the PNGs are fine, run ffmpeg on them yourself" % ff
+	_say_plain("playblast: %d PNG frames at %d fps (%.2f to %.2f s) in %s%s" % [n, fps, sp[0], sp[1], dir, how])
+	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
+
+
 ## EXPORT .BVH (round 34, GATES OO2): the scene as exports/<scene>.bvh (BvhExport, the writer tools/export_bvh.gd uses):
 ## the skeleton with UE5's bone names, every frame, the weapons as joints in their hands. Every retargeter reads BVH.
 func _export_bvh(dir := "res://exports") -> String:
@@ -5529,6 +5583,7 @@ func _commands() -> Array:
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
+	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_scene, "", false, "start a new scene with no cards (the open one stays on disk)")

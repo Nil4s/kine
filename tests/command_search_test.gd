@@ -99,7 +99,7 @@ func _init() -> void:
 	m.dragging = ""
 
 	# EVERY command, once, through the box's run path. The file writers: by what they are bound to
-	var writers := {"Save pose": "_save_pose", "Save scene": "_save_scene", "Polish the scene (new copy)": "_polish", "Mirror the scene (left-handed copy)": "_tool", "Save a version": "_save_version", "Export to game": "_export_game", "Export animation (.glb)": "_export_glb", "Export animation (.bvh)": "_export_bvh"}
+	var writers := {"Save pose": "_save_pose", "Save scene": "_save_scene", "Polish the scene (new copy)": "_polish", "Mirror the scene (left-handed copy)": "_tool", "Save a version": "_save_version", "Export to game": "_export_game", "Export animation (.glb)": "_export_glb", "Export animation (.bvh)": "_export_bvh", "Export playblast (video)": "_export_playblast"}
 	var ran := 0
 	for c in cs.commands:
 		var f: Callable = c["run"]
