@@ -484,9 +484,16 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   curve), "IK: release the picked limb here" (needs the playhead on a card: the IK pose is written into that card, a
   fixed point so spline lead / layers are met, then weight 0 at t), "IK: snap FK to IK", "IK: snap IK to FK". A snap pins
   the card's own and next card's AUTO move time to its current value, so the timeline does not shift.
-- Known: a pinned GRIP hand fights apply_grip (the other hand is skipped only when it is pinned itself); a pinned foot
-  overrides the floor / pin planting (IK runs after them); no IK handles drawn in the view yet (commands only);
-  release / snap FK refuse off a card (part keys would change the whole joint's curve before the pin).
+- IN-VIEW HANDLES (GATES IK2, `main.gd` `_ikh_*`, tests/ik_handles_test.gd): a limb pinned at the playhead shows a cube at
+  its target, a sphere at its pole and a dashed elbow/knee-to-pole line, drawn on top; a press inside one takes it
+  (`_ikh_press`, before `_pick`), the drag moves it in the view plane (a foot's target on the horizontal plane through
+  it), the limb is solved each mouse move (`_ikh_pose`), release keys it at the playhead (one undo step, none without a
+  move). Handles hide when nothing is pinned there and in clean views.
+- WHICH WINS (GATES IK3), Blender's order (constraints, then the IK pass last): THE PIN WINS over foot planting and over
+  the two-hand grip (both are solved in Scene._apply, the IK pass runs after). A pinned weapon hand: the other hand
+  follows the weapon (apply_grip after the pass) unless it is pinned too. Live FK edits on B do not run the IK pass
+  (it plays on scrub / play); `_after_edit`'s apply_grip can pull a pinned grip hand onto the weapon until the next scrub.
+- Known: release / snap FK refuse off a card (part keys would change the whole joint's curve before the pin).
 - tests/ik_pin_test.gd (ik_pin:h).
 
 ## Round 43: animator tools, kept light (GATES YY; docs/ANIM_RESEARCH.md) - one instance, gate by gate

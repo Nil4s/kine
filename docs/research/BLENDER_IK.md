@@ -221,3 +221,34 @@ This is the one we must design ourselves; Blender gives us the model:
 
 ## Appendix: Recommended Kine design in one paragraph (derived from the above)
 Two-bone limbs: closed-form law-of-cosines solve in the plane (root, target, pole), pole_angle calibrated once per limb, clamp reach to 0.999 * chain length (or stretch). Longer chains (spine, tail, fingers): damped-least-squares Jacobian with SDLS-like cap (pi/4 per joint per iteration, 0.8 step scale), per-iteration error clamp to chain_len/(2N), at most 15-30 iterations, warm-start, stop when max joint delta < 1e-3 rad after a few iterations, active-set limit handling (lock the worst violator and re-solve), per-bone lock/limits/stiffness. Per-limb key-able `ik_weight`, `target` (pos + rot), `pole` (pos), with goal-blending (no pole) or joint-delta blending (pole) for partial weights. FK<->IK snap by pure transform copy plus the perpendicular-offset pole construction; no searches needed.
+
+---------------------------------------------------------------------
+
+## g. In-view IK handles, and which wins: the pin, a foot plant, a weapon grip (what Kine implements, round 50 IK2 / IK3)
+
+### How Blender and Maya show and order it
+- **Blender**: an IK target and a pole are ordinary bones (or objects) the animator grabs and moves with G in the
+  viewport; the IK constraint draws a dashed relationship line from the chain to its target / pole. Moving the target
+  re-evaluates the pose every mouse move; with auto-keying on, the release inserts a key at the current frame.
+- **Maya**: an IK handle (ikRPsolver) is a selectable node in the view; its pole vector constraint draws a line from the
+  chain's middle joint (elbow / knee) to the pole locator; moving the handle swings the chain, the pole turns its plane.
+- **Order**: Blender solves each bone's own constraints while posing it (`armature.cc` ~3196-3212, inside
+  `BKE_pose_where_is_bone` with do_extra), and the IK tree runs after them: `iksolver_plugin.cc:284-287` says the IK
+  pass comes last, after "all animation-systems and constraints were executed". So a constraint ON a chain bone loses to
+  the IK. A bone OUTSIDE the tree that depends on it (constrained to something the IK moved) is evaluated after it by
+  the dependency graph. Maya's IK handle likewise overwrites the rotations of the joints it drives while ikBlend = 1.
+
+### What Kine does
+- Each limb pinned at the playhead (IK weight > 0) shows a translucent cube (6 cm, the side's colour) at its target and
+  a sphere (3 cm radius) at its pole, drawn on top of the body, and a dashed line from the elbow / knee to the pole
+  (`main.gd` `_ikh_*`). A press inside a handle's drawn footprint (the cube's half edge, the sphere's radius, at its
+  depth) takes it; anywhere else the press goes to the body pick as before.
+- Dragging the target moves it in the view plane through it (a foot's target: on the horizontal plane through it, so
+  the foot slides on its floor height); the pole moves in the view plane. Each mouse move re-solves the limb with
+  `LimbIK.solve` (and mixes with the limb's FK by the weight, as playback does). Release keys the point at the playhead
+  (weight and hand / foot turn as they were there): one undo step; a press without a move leaves none.
+- **Which wins (IK3)**, Blender's order: foot plant (`Scene._planted` -> `Body.plant`) and the two-hand grip
+  (`Body.apply_grip`) are constraints on the chain, solved in `Scene._apply`; the IK pass runs after them in
+  `Scene.apply`, so **the pin wins** (a pinned foot leaves its plant spot, a pinned grip hand lets go of the weapon).
+  The weapon hand pinned: the free hand is outside that chain and follows the weapon (apply_grip after the IK pass,
+  unless that hand is pinned itself). A weight between 0 and 1 mixes from the planted / gripped pose toward the pin.
