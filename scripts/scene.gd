@@ -59,6 +59,7 @@ var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; 
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var ik := {}           # IK / FK (GAP_ANALYSIS row 13): {"hand_l": [{"t", "target", "pole", "w", "rot"?}]} by time; scripts/limb_ik.gd
+var clips := []        # CLIPS (GAP_ANALYSIS row 12): other scenes / moves placed as strips, by reference; scripts/clips.gd
 var camera := []       # THE SHOT CAMERA (GAP_ANALYSIS row 21): [{"t", "pos", "aim", "f" mm}] by time; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
@@ -572,6 +573,8 @@ func apply(B: Body, t: float) -> void:
 	var was_fast := B.fast
 	B.fast = true   # planting legs in playback: limits only (contacts are measured, not avoided, per frame)
 	_apply(B, t)
+	if not clips.is_empty():
+		Clips.play(self, B, t)   # CLIPS (GAP row 12): base motion over the cards, under the layers (order: scripts/clips.gd)
 	add_layer(B)           # YY9: on top of the cards; nothing without a layer or at weight 0
 	add_layers(B, t)       # NA1: the further layers, in order; nothing without one
 	B.breathe(t, breath)   # YY6: on top of the pose; nothing at 0
@@ -1308,6 +1311,7 @@ func clone() -> Scene:
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.camera = camera.duplicate(true)   # the shot camera (shot_camera.gd)
+	c.clips = clips.duplicate(true)   # CLIPS (clips.gd)
 	c.body = body.duplicate(true)   # PR1
 	return c
 
@@ -1785,6 +1789,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
 	if not camera.is_empty():
 		out["camera"] = ShotCam.to_file(camera)   # the shot camera: the same, only when there is one
+	if not clips.is_empty():
+		out["clips"] = Clips.to_file(clips)   # CLIPS: the same, only when there are any
 	if not body.is_empty():
 		out["body"] = body.duplicate(true)   # PR1: proportions, only when not the default body
 	return out
@@ -1803,7 +1809,8 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
-	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)"}
+	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
+	"clips": "SIDED: Clips.mirror_file (each clip's source plays mirrored: the flag toggles; a one-arm mask goes to the other arm; times free)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free",
@@ -1845,6 +1852,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["constraints"] = Constraints.mirror_file(d2["constraints"])   # round 51: owners / parts to twins, offsets reflected
 	if d2.has("camera"):
 		d2["camera"] = ShotCam.mirror_file(d2["camera"])   # the shot camera across x = 0
+	if d2.has("clips"):
+		d2["clips"] = Clips.mirror_file(d2["clips"])   # CLIPS: each source plays mirrored
 	if d2.has("layer"):
 		d2["layer"] = Scene.mirror_layer(d2["layer"], M)
 	for L in d2.get("layers", []):
@@ -1903,6 +1912,7 @@ func from_dict(d: Dictionary) -> void:
 	if not actors.is_empty():
 		Constraints.link(self)   # each fighter's scene knows the hero's list (actor targets)
 	camera = ShotCam.from_file(d.get("camera", []))   # the shot camera: absent = none
+	clips = Clips.from_file(d.get("clips", []))   # CLIPS: absent = none
 	for p in d.get("props", []):
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))

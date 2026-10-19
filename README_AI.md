@@ -652,3 +652,17 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   (never edited); `Scene.apply` puts the scene's body on whatever plays it. Commands: "Body: proportions..." (dialog),
   "Body: 5th percentile woman" ... "Body: 95th percentile man" (ANSUR II), "Body: the mannequin's own proportions".
   `Proportions.retarget(S, B, body)` keeps every angle and moves the hips so the soles stand where they stood.
+
+## Clips placed as strips (GAP_ANALYSIS row 12; docs/research/NLA.md: Blender NLA / Maya Time Editor, formulas)
+- `Scene.clips` = [{src, start, repeat, speed, bin, bout, type replace|add, mask all|legs|upper|arms|arm_l|arm_r, extra
+  nothing|hold|hold_forward, w, mirror, mute}] (scripts/clips.gd, `Clips`, static). The source (a scene, or a pose / keyed
+  move from moves/ or poses/) is READ BY REFERENCE (cached by path + modified time) and played by its own Scene.apply on a
+  scratch body, so a clip at weight 1, mask all = opening that file. Strip = L x repeat / speed; cycle k's hips moved by
+  k x the cycle's floor step (cycle with offset). Weight = w x linear ramps in / out.
+- ORDER in Scene.apply: cards -> CLIPS (list order) -> layers -> breathing -> IK -> constraints. No clip: nothing touched
+  (combo3 + walk_bat 247 frames hash the same as before). A legs clip never calls apply_grip, so the arms stay bit for bit.
+- File key "clips" only when present (schema, MIRROR_SCENE: the source plays mirrored, arm_l <-> arm_r; clone; bake clears
+  it; undo snapshot "clips"). App: scripts/clips_ui.gd (`main.clips_ui`, `.sel` = picked clip): "Clip: place a scene
+  here..." / "place a move here..." / "edit the picked clip..." (one dialog) and "remove the picked clip"; the timeline
+  draws one bar per clip under the cards (Timeline.CLIP_H rows, blend ramps shaded, repeat seams), click picks, drag moves
+  it (one undo step, pushed on the first move). tests/clips_test.gd (clips:w).

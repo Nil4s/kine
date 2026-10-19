@@ -116,6 +116,7 @@ var world_env: Environment
 var floor_mat: StandardMaterial3D
 var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
+var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var ui_help: PanelContainer
 var ui_cmd: CommandSearch
 var ui_cube: ViewCube
@@ -2629,6 +2630,7 @@ func _snapshot() -> Dictionary:
 		"audio": S.audio.duplicate(),   # the sound on the timeline (AudioTrack), undone like a card
 		"cons": S.cons.duplicate(true),   # constraints (round 51, constraints.gd), undone like a card
 		"camera": H.camera.duplicate(true),   # the shot camera (shot_camera.gd), the hero's, undone like a card
+		"clips": S.clips.duplicate(true),   # CLIPS (clips.gd), undone like a card
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -2667,6 +2669,9 @@ func _restore(u: Dictionary) -> void:
 		_dummy_hits()
 	if u.has("camera") and var_to_str(u["camera"]) != var_to_str((u.get("hero", S) as Scene).camera):
 		(u.get("hero", S) as Scene).camera = u["camera"].duplicate(true)   # the shot camera, undone like a card
+	if u["scene"] == S and u.has("clips") and var_to_str(u["clips"]) != var_to_str(S.clips):
+		S.clips = u["clips"].duplicate(true)   # CLIPS, undone like a card
+		_dummy_hits()
 	if u["scene"] == S and u.has("audio") and JSON.stringify(u["audio"]) != JSON.stringify(S.audio):
 		S.audio = u["audio"].duplicate()   # the sound, undone like a card
 		_audio_reload()
@@ -6409,6 +6414,8 @@ func _layout_bottom() -> void:
 	var empty := S.cards.is_empty()
 	var folded: bool = fold["bottom"] and not empty
 	bottom_h = BOTTOM_EMPTY if empty else (BOTTOM_FOLDED if folded else BOTTOM_H)
+	if not empty:
+		bottom_h += int(ui_timeline.clip_px())   # CLIPS: the panel grows by the strips' rows (none: as before)
 	ui_bh.visible = not folded
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
@@ -6541,6 +6548,9 @@ func _commands() -> Array:
 	add.call("Constraint: release here keeping the pose", "", _cons_release, "constraint apply visual key release let go keep transform card", true, "the held hand / foot's pose at the playhead goes into the card there, then its constraint is off: it follows the cards without a jump")
 	add.call("Constraint: remove the picked part's constraint", "", _cons_remove, "constraint delete remove clear", true, "the last constraint on the picked hand, foot, hips or head is taken off")
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
+	if clips_ui == null:
+		clips_ui = ClipsUI.new(self)
+	clips_ui.commands(add)   # CLIPS placed as strips (GAP row 12; scripts/clips_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Curve editor", "", _curve_toggle, "graph curves keys channel animation", false, "open or close the curve editor: the picked part's part keys drawn as curves; drag a key to change its angle and time (XX2)")
 	add.call("Graph editor: every keyed part (channels)", "", _graph_cmd.bind("multi"), "graph editor channels multi several parts curves all f-curves blender", false, "the curve editor shows every part with part keys at once, one coloured channel per part and angle; click a channel to hide or show it (GE1)")
@@ -8696,7 +8706,7 @@ func _audio_reload() -> void:
 	_a_player.stream = AudioTrack.load_stream(_a_path)
 	audio_env = {} if _a_path == "" else AudioTrack.envelope(_a_player.stream, _a_path)
 	if ui_timeline != null:
-		ui_timeline.custom_minimum_size.y = 34.0 + (Timeline.AUDIO_H if _a_path != "" else 0.0)
+		ui_timeline.custom_minimum_size.y = 34.0 + (Timeline.AUDIO_H if _a_path != "" else 0.0) + ui_timeline.clip_px()
 		ui_timeline.queue_redraw()
 
 

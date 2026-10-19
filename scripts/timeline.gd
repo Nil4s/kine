@@ -21,6 +21,7 @@ const SNAP := 0.05
 const FINE := 0.01
 const AUDIO_H := 20.0    # px: the sound's waveform strip under the cards (only when the scene has a sound)
 const MIN_MOVE := 0.04   # s: a move can't be shorter (a 1-frame move at 30 fps is 0.033)
+const CLIP_H := 12.0     # px: one row per placed CLIP (scripts/clips.gd), under the cards
 
 var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
 
@@ -60,6 +61,11 @@ func mark_at(p: Vector2) -> Array:
 
 func _get_tooltip(at: Vector2) -> String:
 	var fs := mark_at(at)
+	var ck := clip_at(at) if at.y >= RULER else -1
+	if ck >= 0:
+		var c: Dictionary = _S().clips[ck]
+		return "clip %s from %.2f s (%s, blend in %.2f s / out %.2f s)\ndrag: move it in time; click, then 'Clip: edit the picked clip...' to change it" % [
+			Clips.label(c), float(c["start"]), c["type"], float(c["bin"]), float(c["bout"])]
 	if fs.is_empty():
 		return tooltip_text
 	var lines := []
@@ -106,6 +112,9 @@ func hit(p: Vector2) -> Dictionary:
 		return {}
 	if p.y < RULER:
 		return {"kind": "ruler"}
+	var ck := clip_at(p)
+	if ck >= 0:
+		return {"kind": "clip", "i": ck}
 	var ts := S.times()
 	var best := {}
 	var bd := GRAB
@@ -142,6 +151,8 @@ func _gui_input(ev: InputEvent) -> void:
 			if h.is_empty():
 				return
 			match h["kind"]:
+				"clip":
+					_clip_press(h["i"], ev.position.x)
 				"ruler" when ev.shift_pressed or ev.alt_pressed:
 					range_set.emit("in" if ev.shift_pressed else "out", t_of(ev.position.x))
 				"ruler":
@@ -157,8 +168,9 @@ func _gui_input(ev: InputEvent) -> void:
 			accept_event()
 		elif not _drag.is_empty():
 			var was: String = _drag.get("kind", "")
+			var moved: bool = _drag.get("moved", true)
 			_drag = {}
-			if was != "scrub":
+			if was != "scrub" and moved:
 				retimed.emit(true)
 			queue_redraw()
 			accept_event()
@@ -172,6 +184,10 @@ func _gui_input(ev: InputEvent) -> void:
 			return
 		if _drag["kind"] == "scrub":
 			scrubbed.emit(t_of(ev.position.x))
+			return
+		if _drag["kind"] == "clip":
+			_clip_drag(ev.position.x, ev.shift_pressed)
+			accept_event()
 			return
 		_retime_to(ev.position.x, ev.shift_pressed)
 		accept_event()
@@ -245,7 +261,8 @@ func _draw() -> void:
 		k += 1
 	var y0 := RULER + 2.0
 	var ah := AUDIO_H if not S.audio.is_empty() else 0.0
-	var h := size.y - y0 - 2.0 - ah
+	_clip_fit(S)
+	var h := size.y - y0 - 2.0 - ah - _clip_px
 	for i in S.cards.size():
 		var sel: bool = i == int(m.sel_card)
 		var base := Color(0.32, 0.5, 0.82) if i % 2 == 0 else Color(0.28, 0.6, 0.62)
@@ -282,6 +299,7 @@ func _draw() -> void:
 			draw_string(font, Vector2(xm0 + 2, y0 + h * 0.5 + 5), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, w - 2, 11, Color(1, 1, 1, 0.9))
 	if ah > 0.0:
 		_draw_audio(S, font, size.y - ah, ah - 1.0)
+	_draw_clips(S, font)
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
 	# cards are still yours but never play: shade them and say why (else the strip and the play time disagree silently)
 	var P: Scene = m._ps()
@@ -332,3 +350,98 @@ func _draw() -> void:
 	var px := x_of(clampf(float(m.playhead), 0.0, L))
 	draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("ink"), 2.0)
 	draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
+
+
+# ---------------------------------------------------------------- CLIPS (GAP_ANALYSIS row 12; scripts/clips.gd)
+## each placed clip is a bar on its own row under the cards: from its start to start + L x repeat / speed, a thin line
+## at each repeat, the blend in / out drawn as darkened ramps. Click = pick it (m.clips_ui.sel); drag = move it in time
+## (snapped to SNAP, FINE with Shift): ONE undo step, pushed on the first move (a click alone pushes none)
+var _clip_px := 0.0      # px the clip rows take (added to the minimum height the caller set)
+
+
+func _clip_fit(S: Scene) -> void:
+	var want := S.clips.size() * CLIP_H + (2.0 if not S.clips.is_empty() else 0.0)
+	if absf(want - _clip_px) > 0.1:
+		set_deferred("custom_minimum_size", Vector2(custom_minimum_size.x, custom_minimum_size.y + want - _clip_px))
+		_clip_px = want
+		if m != null and m.has_method("_layout_bottom"):
+			m.call_deferred("_layout_bottom")   # the bottom panel makes room for the rows
+
+
+## the height the clip rows add (main adds it back when it sets the strip's height itself)
+func clip_px() -> float:
+	return _clip_px
+
+
+func _clip_sel() -> int:
+	var cu = m.get("clips_ui") if m != null else null
+	return int(cu.sel) if cu != null else -1
+
+
+## clip k's bar on the timeline
+func clip_rect(k: int) -> Rect2:
+	var S := _S()
+	var c: Dictionary = S.clips[k]
+	var e := Clips.source(String(c["src"]))
+	var L := float(e.get("len", 0.5))
+	var y := size.y - (AUDIO_H if not S.audio.is_empty() else 0.0) - _clip_px + k * CLIP_H
+	var x0 := x_of(float(c["start"]))
+	return Rect2(x0, y, maxf(x_of(float(c["start"]) + Clips.length_of(c, L)) - x0, 6.0), CLIP_H - 2.0)
+
+
+func clip_at(p: Vector2) -> int:
+	var S := _S()
+	if S == null:
+		return -1
+	for k in S.clips.size():
+		if clip_rect(k).grow(1.0).has_point(p):
+			return k
+	return -1
+
+
+func _clip_press(k: int, x: float) -> void:
+	var cu = m.get("clips_ui")
+	if cu != null:
+		cu.sel = k
+	_drag = {"kind": "clip", "i": k, "x0": x, "pps": pps(), "start0": float(_S().clips[k]["start"]), "moved": false}
+	queue_redraw()
+
+
+func _clip_drag(x: float, fine: bool) -> void:
+	if not _drag["moved"]:
+		if absf(x - float(_drag["x0"])) < 3.0:
+			return
+		_drag["moved"] = true
+		retime_started.emit()   # main pushes the ONE undo step here
+	var q := FINE if fine else SNAP
+	var t := maxf(0.0, snappedf(float(_drag["start0"]) + (x - float(_drag["x0"])) / float(_drag["pps"]), q))
+	_S().clips[int(_drag["i"])]["start"] = t
+	retimed.emit(false)
+	queue_redraw()
+
+
+func _draw_clips(S: Scene, font: Font) -> void:
+	var sel := _clip_sel()
+	for k in S.clips.size():
+		var c: Dictionary = S.clips[k]
+		var r := clip_rect(k)
+		var e := Clips.source(String(c["src"]))
+		draw_rect(r, Tok.c("accent") if not bool(c.get("mute", false)) else Tok.of("ink:0.3"))
+		if e.is_empty():
+			draw_string(font, Vector2(r.position.x + 3, r.position.y + 9), String(c["src"]).get_file() + ": file missing", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("on_accent"))
+			continue
+		var L := float(e["len"])
+		var shade := Tok.of("tl_bg:0.55")
+		var bi := float(c["bin"]) * pps()
+		var bo := float(c["bout"]) * pps()
+		if bi > 1.0:   # the blend in: a ramp from no weight at the start to the full weight
+			draw_colored_polygon(PackedVector2Array([r.position, r.position + Vector2(minf(bi, r.size.x), 0), r.position + Vector2(0, r.size.y)]), shade)
+		if bo > 1.0:
+			var xr := r.end.x
+			draw_colored_polygon(PackedVector2Array([Vector2(xr, r.position.y), Vector2(xr, r.end.y), Vector2(xr - minf(bo, r.size.x), r.position.y)]), shade)
+		for i in range(1, int(c["repeat"])):   # each repeat's seam
+			var xs := x_of(float(c["start"]) + L * i / float(c["speed"]))
+			draw_line(Vector2(xs, r.position.y), Vector2(xs, r.end.y), Tok.of("on_accent:0.6"), 1.0)
+		draw_string(font, Vector2(r.position.x + 3, r.position.y + 9), Clips.label(c), HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - 4, 1.0), 9, Tok.c("on_accent"))
+		if k == sel:
+			draw_rect(r.grow(0.5), Tok.c("focus"), false, 1.5)

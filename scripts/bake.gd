@@ -56,6 +56,9 @@ static func bake(S: Scene, B: Body, rate: float) -> Dictionary:
 	if not S.cons.is_empty():
 		off.append("constraints")   # round 51: played into the baked cards, the same reason
 		S.cons = []
+	if not S.clips.is_empty():
+		off.append("clips")   # CLIPS: played into the baked cards, the same reason
+		S.clips = []
 	S.cards = cards
 	S.part_keys = {}
 	return {"cards": cards.size(), "was": was, "part_keys": had, "off": off}
