@@ -6260,10 +6260,10 @@ func _ui() -> void:
 	ui_ease = OptionButton.new()
 	ui_ease.name = "opt_ease"
 	ui_ease.focus_mode = Control.FOCUS_NONE
-	for e in Scene.EASES:
+	for e in Scene.ALL_EASES:
 		ui_ease.add_item(e)
-	ui_ease.tooltip_text = "how the move INTO the picked card eases: smooth (natural), linear, in (starts slow), out (ends slow), snap (holds, then jumps: a hit, a cut)"
-	ui_ease.item_selected.connect(func(k): if not _sync: _set_ease(Scene.EASES[k]))
+	ui_ease.tooltip_text = "how the move INTO the picked card eases: smooth (natural), linear, in (starts slow), out (ends slow), snap (holds, then jumps: a hit, a cut); reach / strike / throw / settle: measured from real motion (docs/research/EASE_PRESETS.md)"
+	ui_ease.item_selected.connect(func(k): if not _sync: _set_ease(Scene.ALL_EASES[k]))
 	ew.add_child(ui_ease)
 	ui_play_extra = []   # RR4: Check / Polish / Fix left the play row (the ribbon's CHECK tab, Search)
 
@@ -6525,7 +6525,7 @@ func _panel() -> void:
 		_grey(ui_ease, "this scene is Smooth (spline): one curve through every card sets the timing; turn Smooth off to ease card by card" if S.spline
 			else ("pick a card first (click one in the scene row): the ease is the move INTO that card" if sel_card < 0
 			else ("the first card has no move into it: pick card 2 or later" if sel_card == 0 else "")))
-		ui_ease.select(Scene.EASES.find(S.cards[sel_card].get("ease", "smooth")) if sel_card >= 0 and sel_card < S.cards.size() else 0)
+		ui_ease.select(Scene.ALL_EASES.find(S.cards[sel_card].get("ease", "smooth")) if sel_card >= 0 and sel_card < S.cards.size() else 0)
 	if ui_timeline != null:
 		ui_timeline.queue_redraw()
 	if label_of(ui_play) != ("Stop (Space)" if playing else "Play (Space)"):
@@ -7193,9 +7193,13 @@ func _commands() -> Array:
 	add.call("Look at the picked prop", "", _look_at.bind("prop"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the picked prop (real gaze shifts: scripts/look_at.gd)")
 	add.call("Look at the camera", "", _look_at.bind("camera"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the camera")
 	add.call("Mirror the whole pose", "Shift+M", _press.bind(KEY_M, true), "flip left right", true, "the whole body reflected left <-> right; the weapon changes hands")
-	for e in Scene.EASES:
-		add.call("Ease: " + e, "", _set_ease.bind(e), "easing timing curve " + {"smooth": "natural", "linear": "constant even", "in": "slow start accelerate", "out": "slow end decelerate", "snap": "jump cut hit step"}[e], true,
+	for e in Scene.ALL_EASES:
+		add.call("Ease: " + e, "", _set_ease.bind(e), "easing timing curve " + {"smooth": "natural", "linear": "constant even", "in": "slow start accelerate", "out": "slow end decelerate", "snap": "jump cut hit step", "reach": "real arm reach minimum jerk bell", "strike": "punch hit late peak", "throw": "swing pitch proximal distal sequence whip", "settle": "land damped spring sway"}[e], true,
 			"the picked card's move eases '%s'" % e)
+	# ROADMAP 17: the measured presets, named as the motion they were measured from (docs/research/EASE_PRESETS.md)
+	for e in EasePresets.KINDS:
+		add.call("Card: ease like a real " + e, "", _set_ease.bind(e), "ease like real human " + e + " motion measured preset", true,
+			"the picked card's move into it follows measured %s motion (formula and source: docs/research/EASE_PRESETS.md)" % e)
 	add.call("Airborne: this card is in the air", "", _toggle_air, "jump air fly leap hop flight gravity", true, "on/off: from the card before to the card after, the feet leave the floor and the hips fly the arc gravity gives (0.57 s in the air = 40 cm up)")
 	add.call("Plant the left foot on this card", "", _toggle_plant.bind("_l"), "pin lock foot slide skate stick floor", true, "on/off: the left foot stays where it stood in the card before (no sliding)")
 	add.call("Plant the right foot on this card", "", _toggle_plant.bind("_r"), "pin lock foot slide skate stick floor", true, "on/off: the right foot stays where it stood in the card before (no sliding)")
