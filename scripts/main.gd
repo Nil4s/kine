@@ -2174,6 +2174,7 @@ func _refresh() -> void:
 	_actors_draw()
 	_fighters_mark()
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
+	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
 
@@ -2322,6 +2323,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if mb.button_index == MOUSE_BUTTON_LEFT and nav_tool != "":   # the nav bar's Orbit / Pan tool (HH2)
 				dragging = nav_tool
 			elif mb.button_index == MOUSE_BUTTON_LEFT:
+				if _frh_press(mb.position):   # ROADMAP 6: a foot's roll handle takes the press
+					return
 				if _ikh_press(mb.position):   # IK2: an IK handle drawn here takes the press
 					return
 				var j := _pick(mb.position)
@@ -2377,6 +2380,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_prop_release()
 			if was == "ik_handle":
 				_ikh_release()
+			if was == "foot_handle":
+				_frh_release()
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
 			if was == "orbit" and mb.button_index == MOUSE_BUTTON_RIGHT and not _rpress.is_empty():
 				if mb.position.distance_to(_rpress["at"]) < 5.0 and _rpress["part"] != "":
@@ -2403,6 +2408,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "ik_handle":
 			_ikh_move(mm.position)
+			return
+		if dragging == "foot_handle":
+			_frh_move(mm.position)
 			return
 		if dragging == "orbit":
 			if shot_through:
@@ -3622,6 +3630,88 @@ func _ikh_release() -> void:
 	_refresh()
 	var p: Vector3 = d[d["kind"]]
 	_say("keyed the %s's IK %s at %.2f s, at (%.2f, %.2f, %.2f) m (Ctrl+Z takes it back)" % [_ik_words(d["tip"]), d["kind"], t, p.x, p.y, p.z])
+
+
+## REVERSE-FOOT HANDLES (ROADMAP item 6; scripts/foot_handles.gd, scripts/foot_roll.gd). A picked foot shows three handles
+## (heel, ball, toe tip). A press on one and a drag up rolls the foot about that point; release keys the leg and the toe
+## joint at the playhead, one undo step. Not shown while the foot is IK-pinned or planted at the playhead (those hold it).
+var _frh_line: MeshInstance3D
+var _frh_drag := {}       # the drag: {sd, kind, start, y0, up, moved}
+
+
+## the side ("_l" / "_r") whose handles show now, or "": a foot is picked, not pinned, not planted at the playhead
+func _frh_active() -> String:
+	if clean or S == null or not sel in ["foot_l", "foot_r"]:
+		return ""
+	var t := clampf(playhead, 0.0, S.length())
+	if sel in _ikh_pinned():
+		return ""
+	for p in S.plants:
+		if String(p["foot"]) == sel and FootPlant.weight(p, t, S.fps) > 0.0:
+			return ""
+	return sel.right(2)
+
+
+func _frh_draw() -> void:
+	if _frh_line == null:
+		_frh_line = MeshInstance3D.new()
+		_frh_line.name = "foot_handles"
+		_frh_line.mesh = ImmediateMesh.new()
+		add_child(_frh_line)
+	var im := _frh_line.mesh as ImmediateMesh
+	im.clear_surfaces()
+	var sd := String(_frh_drag["sd"]) if not _frh_drag.is_empty() else _frh_active()
+	if sd == "":
+		return
+	FootHandles.draw(im, B, sd, String(_frh_drag["kind"]) if not _frh_drag.is_empty() else "")
+
+
+## a press on a handle of the picked foot starts its roll (one undo step pushed now, dropped if the mouse never moves)
+func _frh_press(mp: Vector2) -> bool:
+	var sd := _frh_active()
+	if sd == "":
+		return false
+	var kind := FootHandles.hit(cam, mp, B, sd)
+	if kind == "":
+		return false
+	_step_hint = "Roll the foot on its %s" % kind
+	_push_undo()
+	_frh_drag = {"sd": sd, "kind": kind, "start": FootHandles.snapshot(B), "y0": mp.y, "up": 0.0, "moved": false}
+	sel = "foot" + sd
+	playing = false
+	dragging = "foot_handle"
+	_refresh()
+	_say("ROLL the %s foot on its %s: drag up (the foot turns about that point); release keys it at %.2f s" % [nice(sel).to_lower(), kind, clampf(playhead, 0.0, S.length())])
+	return true
+
+
+func _frh_move(mp: Vector2) -> void:
+	if _frh_drag.is_empty():
+		return
+	_frh_drag["up"] = float(_frh_drag["y0"]) - mp.y
+	_frh_drag["moved"] = true
+	var r := FootHandles.drag(B, _frh_drag["sd"], _frh_drag["kind"], _frh_drag["start"], _frh_drag["up"])
+	_after_edit()
+	_say("ROLLING the foot on its %s by %.1f deg%s" % [_frh_drag["kind"], float(r.get("roll", 0.0)),
+		"     stopped at %.1f of %.1f deg: the leg cannot turn it further about that point" % [float(r["roll"]), float(r["asked"])] if r.get("stopped", false) else ""])
+
+
+## release: the leg and the toe joint keyed at the playhead (as K keys a part); no move = no undo step
+func _frh_release() -> void:
+	var d := _frh_drag
+	_frh_drag = {}
+	if d.is_empty():
+		return
+	if not d["moved"]:
+		undo.pop_back()
+		_history_rows.call_deferred()
+		_refresh()
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	for j in FootHandles.keys_of(B, d["sd"]):
+		PartKeys.put(S.part_keys, j, t, B.ang[j])
+	_refresh()
+	_say("keyed the %s foot's roll on its %s at %.2f s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], t])
 ## USER CONSTRAINTS (round 51, GATES CN; scripts/constraints.gd): Child Of, Track To (look at), Floor, on the scene's
 ## stack, played after IK. The TARGET is picked first ("Constraint: use the picked part as the target", a view setting,
 ## not undone), then the owner is the picked part. With no target picked: the other hand (Child Of), the other fighter's

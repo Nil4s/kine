@@ -66,6 +66,7 @@ var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.pl
 var plants := []      # FOOT PLANTS over a time range (ROADMAP 8): [{"foot", "t0", "t1"}] by t0; scripts/foot_plant.gd; in the file as "plants" (only when any)
 var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: miss, ball turn, weight, clamped); {} = nothing
 var _plants_off := false   # set while FootPlant.refs reads the pose at a plant's t0: the plants do not play then
+var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n"}} (the release ramp, read once per scene state)
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
