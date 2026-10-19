@@ -75,30 +75,47 @@ func close() -> void:
 	box.release_focus()
 
 
-## every word typed must be in the name (or its other words); a hit at the start of a word ranks higher. A word that
-## is not there may still match through a SYNONYM (2) or as a one-letter typo of a whole word of 4+ letters (1)
+## every word typed must be in the name (or its other words, the "also" field). A NAME hit always outranks a hit only in
+## the other words: name whole word 12 > name SYNONYM 9 (+1 per further synonym) > name word start 8 > name typo 7 >
+## name substring 4 > other-words hit (start 3, synonym 2, substring/typo 1). The best source counts for each word
 func score(c: Dictionary, q: String) -> int:
-	var hay := (String(c["name"]) + " " + String(c.get("also", ""))).to_lower()
+	var name := String(c["name"]).to_lower()
+	var also := String(c.get("also", "")).to_lower()
 	var s := 0
 	for w in q.to_lower().split(" ", false):
-		var at := hay.find(w)
-		if at >= 0:
-			s += 3 if at == 0 or hay[at - 1] in " (/-" else 1
-			continue
-		var by := 0
-		for syn in SYNONYMS.get(w, []):
-			if hay.find(syn) >= 0:
-				by = 2
-				break
-		if by == 0 and w.length() >= 4:
-			for word in hay.replace("(", " ").replace(")", " ").replace("/", " ").split(" ", false):
-				if typo1(w, word) or (word.length() > w.length() and typo1(w, word.left(w.length()))):
-					by = 1
-					break
-		if by == 0:
+		var best := _word_score(name, w, true)
+		if best < 12:
+			best = maxi(best, _word_score(also, w, false))
+		if best <= 0:
 			return -1
-		s += by
+		s += best
 	return s
+
+
+## how well word w matches text (a name or the other words): 0 = not at all. In the name the tiers sit above the other words'
+func _word_score(text: String, w: String, is_name: bool) -> int:
+	var words := text.replace("(", " ").replace(")", " ").replace("/", " ").replace("-", " ").replace(":", " ").split(" ", false)
+	var best := 0
+	var at := text.find(w)
+	if at >= 0:
+		if w in words:
+			best = 12 if is_name else 3
+		elif at == 0 or text[at - 1] in " (/-":
+			best = 8 if is_name else 3
+		else:
+			best = 4 if is_name else 1
+	var syns := 0
+	for syn in SYNONYMS.get(w, []):
+		if text.find(syn) >= 0:
+			syns += 1
+	if syns > 0:
+		best = maxi(best, (8 + syns) if is_name else 2)
+	if best == 0 and w.length() >= 4:
+		for word in words:
+			if typo1(w, word) or (word.length() > w.length() and typo1(w, word.left(w.length()))):
+				best = 7 if is_name else 1
+				break
+	return best
 
 
 ## a and b one edit apart: one letter changed, added, dropped, or two neighbours swapped
