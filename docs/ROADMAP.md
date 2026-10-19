@@ -64,7 +64,7 @@ and forth.
 ## THE 100, in order (Nick 10-18: all 25 + 75 from complaints; easy for beginners, deep for experts)
 
 Status: `[ ]` open, `[~]` an agent is on it, `[x]` merged. **Full suite after every 20 merged** (count below).
-Merged since the last full run: 8 / 20 (pose matching on transitions; clip warp; custom attributes; macros; batch export; camera sequencer (per-shot shake/focus); USD layers (pxr-checked; Alembic not written); FBX export (binary, Blender-checked)). Full run 4 (2026-10-19): 237/271 under load; re-run of 34 alone: 7 load or time-outs, 27 real (UI layout, units wording, duplicate keys, trail rebuilds, a pick drag), fixes in progress; proportions waits on Nick (skeleton.json hip height). Merged after run 4: corrective seam weld, face on the head, precise pick on the skin.
+Merged since the last full run: 9 / 20 (hair ponytail; pose matching on transitions; clip warp; custom attributes; macros; batch export; camera sequencer (per-shot shake/focus); USD layers (pxr-checked; Alembic not written); FBX export (binary, Blender-checked)). Full run 4 (2026-10-19): 237/271 under load; re-run of 34 alone: 7 load or time-outs, 27 real (UI layout, units wording, duplicate keys, trail rebuilds, a pick drag), fixes in progress; proportions waits on Nick (skeleton.json hip height). Merged after run 4: corrective seam weld, face on the head, precise pick on the skin.
 
 **The milestone suite** (every 20): `python tools/run_par.py -j 20` (the GPU carries the windowed tests, so 20 Godot
 sessions run where the CPU alone allowed 10), then only the failures re-run alone to split load flakes from real breaks.
@@ -162,7 +162,7 @@ sessions run where the CPU alone allowed 10), then only the failures re-run alon
 84. [x] Pose matching on clip transitions
 85. [ ] Rigid prop physics (a dropped sword falls)
 86. [ ] Cloth on a cape
-87. [ ] Hair strands follow-through
+87. [x] Hair strands follow-through
 88. [ ] Contact-aware IK: hand slides along a wall / table
 89. [ ] Multi-camera video mocap
 90. [ ] Hand capture from video
