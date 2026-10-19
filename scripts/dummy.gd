@@ -344,7 +344,7 @@ static func _sample(st: Dictionary, sa: Scene, ba: Body, sb: Scene, bb: Body, xf
 		var theirs: bool = c[3] == "struck"   # the other's weapon strikes; else the hero's part does
 		var h := {"kind": c[3], "zone": (k as String).get_slice("|", 1), "depth": float(c[2]), "t": t,
 			"part": c[1] if theirs else c[0], "on": c[0] if theirs else c[1], "by": "other" if theirs else "hero",
-			"at": cross_at(ba, bb, xf, c), "u": -1.0, "speed": 0.0}
+			"at": cross_at(ba, bb, xf, c), "u": -1.0, "speed": 0.0, "vec": Vector3.ZERO}
 		var ax := _axes(ba, bb, xf, c)
 		var sp := seg_params(ax[0], ax[1], ax[2], ax[3])
 		var s: float = sp.y if theirs else sp.x
@@ -356,7 +356,9 @@ static func _sample(st: Dictionary, sa: Scene, ba: Body, sb: Scene, bb: Body, xf
 			h["u"] = (sxf * butt).distance_to(p_now)
 		if tp >= 0.0:
 			_pose2(sa, ba, sb, bb, tp)
-			h["speed"] = _spot(sbody, h["part"], s, sxf).distance_to(p_now) / (t - tp)
+			var p_prev := _spot(sbody, h["part"], s, sxf)
+			h["speed"] = p_prev.distance_to(p_now) / (t - tp)
+			h["vec"] = (p_now - p_prev) / (t - tp)   # round 52 (hit reactions): the striking spot's velocity, hero's space
 			var lo := tp   # the onset: between the sample before (not in it) and this one
 			var hi := t
 			for i in BISECT:
