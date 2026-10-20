@@ -369,6 +369,7 @@ const HAND_H := 0.15      # m above the ground under the soles: a hand this low 
 const HAND_V := 0.25
 const HAND_MIN := 4
 const FLOOR_WIN := 20     # frames: a foot's ground is the lowest it gets within this many frames either side
+const HEEL_UP := 0.03     # m: a heel this far above its own ground has left it (the ball roll: a plant then holds the ball, FootPlant "th")
 const TRIM := 2           # frames cut off the end of a plant (the toe-off; VideoCleanup.reachable cuts what the leg cannot hold)
 
 
@@ -460,8 +461,14 @@ static func contacts(frames: Array, fps: float) -> Dictionary:
 			for i in n:
 				pv.append(bool(flag[sd][i]) and float(ys[("h" if k == 0 else "t") + sd.right(1)][i]) - float(gf[sd.right(1)][i]) < H_PIV)
 			piv["%s%d" % [sd, k]] = pv
+	var heeloff := {}   # "foot_l|f0" -> the time (s from the first frame) the heel leaves the floor for good inside that contact
 	for sd in ["_l", "_r"]:
 		for r in _runs_of(flag[sd]):
+			var fh := int(r[1]) + 1   # walk back from the run's end while the heel stands HEEL_UP above its own ground
+			while fh - 1 > int(r[0]) and float(ys["h" + sd.right(1)][fh - 1]) - float(gf[sd.right(1)][fh - 1]) > HEEL_UP:
+				fh -= 1
+			if fh <= int(r[1]) - 1 and fh > int(r[0]) + 2:
+				heeloff["foot%s|%d" % [sd, int(r[0])]] = snappedf(float(frames[fh]["t"]) - T0, 0.001)
 			list.append({"kind": "foot", "part": "foot" + sd, "f0": r[0], "f1": r[1], "t0": snappedf(float(frames[r[0]]["t"]) - T0, 0.001),
 				"t1": snappedf(float(frames[r[1]]["t"]) - T0, 0.001)})
 	# the hands: low and still against the ground (a crawl, a push-up, a hand on the floor)
@@ -481,7 +488,7 @@ static func contacts(frames: Array, fps: float) -> Dictionary:
 		var l: bool = flag["_l"][i]
 		var r: bool = flag["_r"][i]
 		hint.append("_l" if l and not r else ("_r" if r and not l else ""))
-	return {"list": list, "hint": hint, "flags": flag, "piv": piv, "ground": gm, "root": root}
+	return {"list": list, "heeloff": heeloff, "hint": hint, "flags": flag, "piv": piv, "ground": gm, "root": root}
 
 
 ## a bool series with gaps of BRIDGE or fewer frames closed and runs under `min_run` dropped
@@ -545,14 +552,18 @@ static func f1(got: Array, truth: Array) -> Dictionary:
 
 
 ## the contact runs as FootPlant plants (feet only), TRIM frames shorter at the toe-off end
-static func plants_of(list: Array, fps: float) -> Array:
+static func plants_of(list: Array, fps: float, heeloff := {}) -> Array:
 	var out := []
 	for c in list:
 		if c["kind"] != "foot":
 			continue
 		var t1 := float(c["t1"]) - TRIM / maxf(fps, 1.0)
 		if t1 - float(c["t0"]) >= MIN_RUN / maxf(fps, 1.0):
-			out.append({"foot": c["part"], "t0": c["t0"], "t1": t1})
+			var q := {"foot": c["part"], "t0": c["t0"], "t1": t1}
+			var key := "%s|%d" % [c["part"], int(c["f0"])]
+			if heeloff.has(key) and float(heeloff[key]) > float(c["t0"]) and float(heeloff[key]) < t1:
+				q["th"] = heeloff[key]
+			out.append(q)
 	return out
 
 
@@ -812,7 +823,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 		return {}
 	progress = 0.95
 	var V: Scene = sk["scene"]
-	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps)), V.fps)
+	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps, K["heeloff"])), V.fps)
 	var located := locate_played(B, V, K["list"])
 	var feet := 0
 	var hands := 0

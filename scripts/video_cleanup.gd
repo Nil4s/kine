@@ -14,7 +14,7 @@
 class_name VideoCleanup
 extends RefCounted
 
-const SEAT_TOL := 0.008   # m: a plant's held sole is this near the floor (reachable moves t0 on to a sample that is)
+const SEAT_TOL := 0.02   # m: a plant's held sole is this near the floor (reachable moves t0 on to a sample that is)
 const PLANT_H := 0.02      # m: a sole this close to its floor is down (the brief's 2 cm)
 const PLANT_V := 0.15      # m/s: and the middle of the foot moves this slowly (the brief's 0.15 m/s)
 const PLANT_MIN := 3       # frames: a shorter run is a tap, not a plant (the brief's 3)
@@ -175,6 +175,8 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 			t += step
 		if t < float(p["t1"]) - PLANT_MIN * dt:
 			p["t0"] = t
+	for p in plants:
+		p["reach"] = true   # R14: the hips drop to the pin (FootPlant._lower_for_reach) instead of the plant being cut where the leg misses
 	V.plants = plants
 	for p in plants:
 		for _g in 40:
@@ -182,7 +184,15 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 			var bad: Array = r["bad"]
 			if bad.is_empty():
 				break
-			p["t1"] = float(bad[0][0]) - step
+			var tb := float(bad[0][0])
+			# R14: the flat hold is lost where the heel starts to rise (the ankle moves on): the plant turns to the BALL there
+			# (FootPlant "th", the roll kept) and is cut only where the ball hold cannot reach either
+			V.apply(B, float(p["t0"]))
+			var ball_down: bool = (B.P["ball" + String(p["foot"]).right(2)] as Vector3).y <= SEAT_TOL   # a heel strike with the toes up cannot pin its ball
+			if ball_down and (not p.has("th") or float(p["th"]) > tb - 1e-6) and tb - dt > float(p["t0"]) + PLANT_MIN * dt:
+				p["th"] = tb - dt
+				continue
+			p["t1"] = tb - step
 			if float(p["t1"]) - float(p["t0"]) < PLANT_MIN * dt:
 				p["t1"] = float(p["t0"])
 				break
@@ -190,6 +200,15 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 	for p in plants:
 		if float(p["t1"]) - float(p["t0"]) >= PLANT_MIN * dt:
 			out.append(p)
+	V.plants = out
+	# the drop each plant ends on (FootPlant: the release keeps it, so the hips do not jump at t1)
+	for p in out:
+		V.plants = out
+		V.apply(B, float(p["t1"]))
+		var yon: float = (B.P["pelvis"] as Vector3).y
+		V.plants = []
+		V.apply(B, float(p["t1"]))
+		p["dend"] = maxf((B.P["pelvis"] as Vector3).y - yon, 0.0)
 	V.plants = out
 	return out
 
