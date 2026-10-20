@@ -13512,6 +13512,7 @@ func _commands() -> Array:
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
+	add.call("Check: silhouette sheet of the key poses", "", _silsheet, "silhouette sheet readability black shape key poses staging negative space arms torso", false, "every card as a flat black shape from the current camera, tiled into one picture (user://silhouettes/<scene>_sheet.png) with fill, negative space and a flag for arms hidden in the torso (ROADMAP_400 K26)")
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
@@ -15104,6 +15105,57 @@ func _critique() -> void:
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))
 	ui_find.visible = true
 	_say("critique: " + ("nothing to note" if notes.is_empty() else "%d notes (never must-fix). Click one to jump to it." % notes.size()))
+
+
+## ROADMAP_400 K26: the silhouette sheet (SilSheet, scripts/silsheet.gd): every card as a black shape, tiled, in a popup. A view: no undo step
+var ui_sil: AcceptDialog
+var sil_last := {}   # the last sheet made: {"image", "tiles", "results", "path", "cols"}
+
+
+func _silsheet() -> void:
+	if S.cards.is_empty():
+		_say("Silhouette sheet needs cards: press Enter to add a card, or open a scene in the list below")
+		return
+	_say("silhouette sheet: drawing %d cards..." % S.cards.size())
+	sil_last = await SilSheet.make(self)
+	if sil_last.is_empty():
+		return
+	if ui_sil == null:
+		ui_sil = AcceptDialog.new()
+		ui_sil.name = "silsheet_dialog"
+		ui_sil.title = "Silhouette sheet"
+		ui_sil.ok_button_text = "Close"
+		var vb := VBoxContainer.new()
+		vb.name = "box"
+		ui_sil.add_child(vb)
+		var tr := TextureRect.new()
+		tr.name = "sheet"
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		vb.add_child(tr)
+		var lb := Label.new()
+		lb.name = "report"
+		lb.add_theme_color_override("font_color", Tok.c("text"))
+		lb.add_theme_font_size_override("font_size", 13)
+		vb.add_child(lb)
+		add_child(ui_sil)
+	var img: Image = sil_last["image"]
+	var vs := get_viewport().get_visible_rect().size
+	var k := minf(minf((vs.x - 60.0) / img.get_width(), (vs.y - 260.0) / img.get_height()), 1.0)
+	var tr2 := ui_sil.get_node("box/sheet") as TextureRect
+	tr2.texture = ImageTexture.create_from_image(img)
+	tr2.custom_minimum_size = Vector2(img.get_width() * k, img.get_height() * k)
+	var lines := []
+	var low := 0
+	for k2 in sil_last["results"].size():
+		var r: Dictionary = sil_last["results"][k2]
+		if r["verdict"] != "reads":
+			low += 1
+		lines.append("%d %s: fill %d%%, %d air regions, %d holes - %s" % [k2 + 1, r["name"], roundi(100.0 * r["fill"]), r["regions"], r["holes"], r["verdict"]])
+	(ui_sil.get_node("box/report") as Label).text = "
+".join(lines.filter(func(l): return not l.ends_with("reads"))) if low > 0 else "Every key pose reads."
+	ui_sil.popup_centered()
+	_say("silhouette sheet: %d poses, %d low readability; saved %s. Close the box when done" % [S.cards.size(), low, sil_last["path"]])
 
 
 ## ROADMAP 24: the stunt-load report (StuntLoad, scripts/stunt_load.gd): landing g, knee valgus, spine, neck. NOTE only
