@@ -71,6 +71,10 @@ func gather(db: Dictionary) -> Dictionary:
 	return out
 
 
+func _short(t: String) -> String:
+	return t if t.length() <= 120 else t.left(117) + "..."
+
+
 func _push_items() -> Array:
 	var out := []
 	if PushLimits.table().is_empty() or not m._fighters_on():
@@ -141,6 +145,32 @@ func _panel() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(m._button("Close", m._close_findings))
+	var rs: Array = res["reasons"]
+	if rs.is_empty():
+		L.add_child(m._label("Nothing flagged: every judge that ran is satisfied.", 14, "text:0.85", true))
+	for k in rs.size():
+		var r: Dictionary = rs[k]
+		var lb: Label = m._label("%d. %s   %.2f-%.2f s   -%.1f points\n%s" % [k + 1, r["judge"], float(r["t0"]), float(r["t1"]), float(r["pen"]), _short(String(r["text"]))], 14, "text:0.85", true)
+		lb.name = "rs_reason_%d" % (k + 1)
+		lb.custom_minimum_size = Vector2(380, 0)
+		L.add_child(lb)
+		var fx: Dictionary = r["fix"]
+		var b: Button = null
+		match String(fx["kind"]):
+			"check":
+				var f: Dictionary = inp["findings"][int(fx["i"])]
+				var lab := Fixer.label(f, m.S)
+				if lab != "":
+					b = m._button(lab, fix.bind(r), "Check's own fix for this finding; one undo step")
+			"timing":
+				b = m._button("Accept the timing coach's move time", fix.bind(r), "write that one move time; one undo step")
+			"phys":
+				b = m._button("Accept span (Make it physical)", fix.bind(r), "replace the cards in that red span with the physical version; one undo step")
+		if b != null:
+			b.name = "rs_fix_%d" % (k + 1)
+			L.add_child(b)
+		else:
+			L.add_child(m._label("   no one-click fix: change the pose or timing there", 12, "text:0.5", true))
 	var pen: Dictionary = res["pen"]
 	var shr: Dictionary = res["share"]
 	var rows := PackedStringArray()
@@ -152,34 +182,8 @@ func _panel() -> void:
 	var jl: Label = m._label("score = 100 - sum of: weight x share of the clip flagged.\n" + "\n".join(rows), 12, "text:0.6", true)
 	jl.name = "rs_judges"
 	L.add_child(jl)
-	var rs: Array = res["reasons"]
-	if rs.is_empty():
-		L.add_child(m._label("Nothing flagged: every judge that ran is satisfied.", 14, "text:0.85", true))
-	for k in rs.size():
-		var r: Dictionary = rs[k]
-		var lb: Label = m._label("%d. %s   %.2f-%.2f s   -%.1f points\n%s" % [k + 1, r["judge"], float(r["t0"]), float(r["t1"]), float(r["pen"]), r["text"]], 14, "text:0.85", true)
-		lb.name = "rs_reason_%d" % (k + 1)
-		lb.custom_minimum_size = Vector2(380, 0)
-		L.add_child(lb)
-		var fx: Dictionary = r["fix"]
-		var b: Button = null
-		match String(fx["kind"]):
-			"check":
-				var f: Dictionary = inp["findings"][int(fx["i"])]
-				var lab := Fixer.label(f, m.S)
-				if lab != "":
-					b = m._button("Fix: " + lab, fix.bind(r), "Check's own fix for this finding; one undo step")
-			"timing":
-				b = m._button("Accept the timing coach's move time", fix.bind(r), "write that one move time; one undo step")
-			"phys":
-				b = m._button("Accept span (Make it physical)", fix.bind(r), "replace the cards in that red span with the physical version; one undo step")
-		if b != null:
-			b.name = "rs_fix_%d" % (k + 1)
-			L.add_child(b)
-		else:
-			L.add_child(m._label("   no one-click fix for this one: change the pose or timing around it", 12, "text:0.5", true))
 	L.add_child(m._label("computed in %.0f ms" % ms, 12, "text:0.5", true))
-	(m.ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(150.0 + 120.0 * rs.size(), 120.0,
+	(m.ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(300.0 + 95.0 * rs.size(), 120.0,
 		minf(520.0, m.get_viewport().get_visible_rect().size.y - m.bottom_h - 82 - (m.TOP_H + 12) - 26)))
 	m.ui_find.visible = true
 	m._say("realism score %d / 100%s" % [score, "" if rs.is_empty() else ": the biggest reason is %s. Each reason has its own fix (Ctrl+Z undoes it)" % rs[0]["judge"]])
