@@ -54,6 +54,7 @@ func _init() -> void:
 		"_export_bvh": "exports/<scene>.bvh (the export folder; never a scene, pose or data file)",
 		"_export_usd": "exports/<scene>.usda (the export folder; never a scene, pose or data file)",
 		"_render_shots": "exports/shots/<scene>_<stamp>/ frames and <scene>.mp4 (the export folder, a new folder per run; never a scene, pose or data file)",
+		"_export_turntable": "user://turntables/<scene>_<stamp>.avi (+ .mp4 from ffmpeg) only: a NEW file per run, named by the clock; never scenes/, poses/ or data/",
 		"_export_review": "exports/review/<scene>_<date>[_N].html (the export folder, never over an earlier page: _2, _3; never a scene, pose or data file) and its own temp frames in user://review_frames, removed after",
 		"_onion_save": "the settings file only (user://poser.cfg onion section: a preference, not work)",
 		"_save_theme": "the settings file only (user://poser.cfg look section: a preference, not work)",

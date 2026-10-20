@@ -1317,6 +1317,77 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
 
 
+## DELIVER: TURNTABLE VIDEO OF THIS POSE (ROADMAP_400 K08; scripts/turntable.gd): the CAMERA orbits the body once (frame k at yaw
+## 360 k / n, n = seconds * fps), framed to the body and the held weapons with 15% margin, the 3D view only (no panels).
+## The pose is the one on screen now (nothing is applied, nothing changes: not an edit). Written as an MJPEG .avi in
+## user://turntables/<scene>_<stamp>.avi (AviWriter), plus an .mp4 beside it when ffmpeg is found. Returns {"avi", "mp4", "frames",
+## "cams" (the camera of each frame), "quarters" ({k: Image} at 0/90/180/270 deg), "crop", "size", "fps"}; {} when refused.
+func _export_turntable(seconds := 6.0, fps := 30, size := Vector2i(1280, 720), root_dir := Turntable.ROOT, ffmpeg_path := "") -> Dictionary:
+	if seconds <= 0.0 or fps < 1 or size.x < 16 or size.y < 16:
+		_say_plain("NOT DONE: a turntable needs seconds > 0, fps >= 1 and a size of at least 16x16: run Deliver: turntable video of this pose again with those")
+		return {}
+	var n := Turntable.frame_count(seconds, fps)
+	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var stem := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root_dir)) != OK:
+		_say_plain("NOT DONE: the folder %s could not be made: close anything using it and run Deliver: turntable video of this pose again" % root_dir)
+		return {}
+	var keep_clean := clean
+	var keep_big := big_view
+	var keep_playing := playing
+	var keep_dummy := dummy_on
+	playing = false
+	clean = true
+	dummy_on = false   # the presentation shows the character (and what it holds) alone: no sparring dummy, no handles, no name tag
+	_sides_apply()
+	ui_root.visible = false
+	_refresh()
+	var vs := get_viewport().get_visible_rect().size
+	var aspect := float(size.x) / float(size.y)
+	var rect := Turntable.crop_rect(vs, aspect)
+	var centre: Vector3 = B.P["pelvis"]
+	var pit := pitch
+	var d := Turntable.fit(Turntable.points(B), centre, pit, cam.fov, aspect, float(rect.size.y) / vs.y)
+	var jpgs := []
+	var cams := []
+	var quarters := {}
+	for k in n:
+		var b := Basis.from_euler(Vector3(deg_to_rad(pit), deg_to_rad(Turntable.yaw_of(k, n, yaw)), 0))
+		cam.transform = Transform3D(b, centre + b * Vector3(0, 0, d))
+		cam.h_offset = 0.0
+		cam.v_offset = 0.0
+		cams.append(cam.transform)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var img: Image = get_viewport().get_texture().get_image().get_region(rect)
+		if img.get_size() != size:
+			img.resize(size.x, size.y, Image.INTERPOLATE_LANCZOS)
+		img.convert(Image.FORMAT_RGB8)
+		if (k * 4) % n == 0:
+			quarters[k] = img.duplicate()
+		jpgs.append(img.save_jpg_to_buffer(0.9))
+	ui_root.visible = true
+	clean = keep_clean
+	big_view = keep_big
+	playing = keep_playing
+	dummy_on = keep_dummy
+	_sides_apply()
+	_cam()
+	_refresh()
+	var avi := stem + ".avi"
+	var wrote := AviWriter.write(avi, jpgs, size.x, size.y, fps)
+	var ff := PlayblastExport.find_ffmpeg(ffmpeg_path)
+	var mp4 := ""
+	var how := ""
+	if ff != "" and wrote:
+		var o := []
+		if OS.execute(ff, PackedStringArray(["-y", "-loglevel", "error", "-i", ProjectSettings.globalize_path(avi), "-c:v", "libx264", "-pix_fmt", "yuv420p", ProjectSettings.globalize_path(stem + ".mp4")]), o, true) == OK and FileAccess.file_exists(stem + ".mp4"):
+			mp4 = stem + ".mp4"
+			how = " and an .mp4"
+	_say_plain(("turntable: %d frames (%.1f s at %d fps, %dx%d) in %s.avi%s" % [n, seconds, fps, size.x, size.y, stem, how]) if wrote else "NOT DONE: the video file could not be written to %s: close anything using it and run Deliver: turntable video of this pose again" % root_dir)
+	return {"avi": avi if wrote else "", "mp4": mp4, "frames": n, "cams": cams, "quarters": quarters, "crop": rect, "size": size, "fps": fps, "dist": d, "centre": centre}
+
+
 ## MOTION BLUR (ROADMAP R3): off by default; a view setting like the smear frames (never saved, not an undo step). On: each
 ## playblast frame is the mean of blast_blur_n sub-frames spread over the shutter (PlayblastExport.shutter_times: 180 degrees =
 ## half the frame interval). Set from the command "Playblast: motion blur on/off" or the Export dialog's checkbox
@@ -13556,6 +13627,7 @@ func _commands() -> Array:
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
 	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 deg export", false, "the playblast frames are the mean of 8 sub-frames over a 180 deg shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
+	add.call("Deliver: turntable video of this pose", "", _export_turntable, "turntable deliver 360 orbit spin showcase presentation video avi mp4 character model render", false, "a 6 s, 30 fps, 1280x720 video of the camera orbiting the current pose once (body and held weapon framed with 15% margin, no panels), in user://turntables/")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
