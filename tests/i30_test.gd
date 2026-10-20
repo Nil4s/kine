@@ -145,6 +145,18 @@ func _init() -> void:
 	var inside: bool = bw != null and bs != null and Rect2(Vector2.ZERO, vp).encloses(bw.get_global_rect()) and Rect2(Vector2.ZERO, vp).encloses(bs.get_global_rect()) \
 		and bw.get_global_rect().size.x > 100.0 and m.ui_find.visible
 	ok(inside, "(6) PLACEMENT: a wrist bar and a shoulder bar are drawn inside the window (%s)" % [bw.get_global_rect() if bw != null else "missing"])
+	# (7) two numbers for one effect agree: the bar label's N m equals the verdict text's N m, for the wrist and the shoulder
+	var tx: Label = m.ui_find_list.find_child("wt_text_1", true, false)
+	var rx := RegEx.create_from_string("([0-9]+) N m at the (wrist|shoulder)")
+	var from_text := {}
+	for mt in rx.search_all(tx.text if tx != null else ""):
+		from_text[mt.get_string(2)] = int(mt.get_string(1))
+	var from_bar := {}
+	for pr in [["wrist", bw], ["shoulder", bs]]:
+		var lab: Label = (pr[1] as Node).get_child((pr[1] as Node).get_child_count() - 1)
+		from_bar[pr[0]] = int(lab.text.split(" /")[0])
+	print("       bar labels %s, verdict text %s, raw swing-only shoulder peak %.0f" % [from_bar, from_text, float(ui.rows[0]["r"]["shoulder"][0])])
+	ok(from_text.size() == 2 and from_bar == from_text, "(7) the bar label equals the verdict text number (wrist %s/%s, shoulder %s/%s N m)" % [from_bar.get("wrist"), from_text.get("wrist"), from_bar.get("shoulder"), from_text.get("shoulder")])
 	ui.fix(0)
 	await idle()
 	ui.preview(0)

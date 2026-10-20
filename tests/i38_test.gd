@@ -220,5 +220,26 @@ func _init() -> void:
 	ok(same, "(6) the real scenes/, poses/ and data/ hash the same (%d files)" % before_files.size())
 	DirAccess.remove_absolute(m.bt_ui.stars_path)
 
+	# (8) peak_hand is computed right: on Nick's REAL scenes/combo3.json (read only) it equals an independent 240 Hz finite difference of the
+	# same point (B.E hand, metres, world) within 5 %, and the body state is restored. Real punches: hand peak ~7-12 m/s (Stanley 2018: 11.95;
+	# Sensors 2025: 7.1), see TimingCoach.V_PEAK_HI. combo3's own STRIKE (step) card moves the hand ~30 m/s: the clip is fast, the feature is right.
+	var Sr := Scene.new()
+	Sr.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/combo3.json")))
+	var keep8: Dictionary = B.state()
+	var feat8 := float(BestTake.features(Sr, B)["peak_hand"])
+	var ref8 := 0.0
+	var prev8 := {}
+	for i in int(ceil(Sr.length() * 240.0)) + 1:
+		Sr.apply(B, minf(float(i) / 240.0, Sr.length()))
+		for h in ["hand_l", "hand_r"]:
+			var q: Vector3 = B.E[h]
+			if prev8.has(h):
+				ref8 = maxf(ref8, (q - (prev8[h] as Vector3)).length() * 240.0)
+			prev8[h] = q
+	B.set_state(keep8)
+	print("       combo3 peak_hand %.2f m/s (60 Hz), independent 240 Hz difference %.2f m/s" % [feat8, ref8])
+	ok(absf(feat8 - ref8) <= 0.05 * ref8 and ref8 > 0.0 and JSON.stringify(B.state()) == JSON.stringify(keep8),
+		"(8) peak_hand on combo3 = %.1f m/s vs independent finite difference %.1f m/s (within 5 %%); a real punch is ~7-12 m/s" % [feat8, ref8])
+
 	print("I38 MY BEST TAKE %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
 	quit(1 if fails > 0 else 0)
