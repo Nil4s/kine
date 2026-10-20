@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 2 / 400 (★ 1 / 119)
+Merged: 15 / 400 (★ 7 / 119)
 
 ## The tracks
 
@@ -47,9 +47,9 @@ Merged: 2 / 400 (★ 1 / 119)
 ## A. Mesh core (the foundation: nothing in B–F starts before A01–A06)
 
 - [x] A01 $ `KMesh` (scripts/kmesh.gd): verts, faces (n-gons), half-edge adjacency, per-face normals, built from / to ArrayMesh; round trip of the mannequin mesh exact
-- [ ] A02 $ Selection model: verts / edges / faces sets, grow / shrink, select linked, select loop, select ring
-- [ ] A03 $ Mesh undo: one undo step per mesh edit, a diff not a copy (100k-vert edit undo under 5 MB)
-- [ ] A04 $ Symmetry map: x-mirror pairs found once (tolerance 0.1 mm), every edit mirrored
+- [x] A02 $ Selection model: verts / edges / faces sets, grow / shrink, select linked, select loop, select ring
+- [x] A03 $ Mesh undo: one undo step per mesh edit, a diff not a copy (100k-vert edit undo under 5 MB)
+- [x] A04 $ Symmetry map: x-mirror pairs found once (tolerance 0.1 mm), every edit mirrored
 - [ ] A05 $ Mesh draw in the viewport: wire over shaded, selected elements highlighted, back-face culled pick
 - [ ] A06 $ Pick: ray to vert / edge / face under the mouse, box and lasso select, x-ray select-through
 - [ ] A07 $ Mesh file: .kmesh JSON inside the .kine scene; loads in under 1 s for 200k verts
@@ -206,7 +206,7 @@ Merged: 2 / 400 (★ 1 / 119)
 - [ ] G10 $$ Clothes base set (shirt, trousers, gi, boots) fitted to any body
 - [ ] G11 $$ Teeth, tongue, eyes, eyelashes as parts
 - [ ] G12 $$ Export the body as glb / fbx with skin weights
-- [ ] G13 ★ $ Body from 5 numbers: height, weight, sex, age, build → a whole plausible body (regression on ANSUR)
+- [x] G13 ★ $ Body from 5 numbers: height, weight, sex, age, build → a whole plausible body (regression on ANSUR)
 - [ ] G14 ★ $$ Body from a photo (front + side) → measurements → body (pose estimation already in Kine)
 - [ ] G15 ★ $$ Body from a video clip: the tracked limb lengths give the body (VideoIQ lengths)
 - [ ] G16 ★ $$ Percentile readout: every body says where it sits ("shoulders 92nd percentile of men")
@@ -216,7 +216,7 @@ Merged: 2 / 400 (★ 1 / 119)
 - [ ] G20 ★ $$ Joint limits by body type: flexibility ranges by age / sex from measured ROM studies
 - [ ] G21 ★ $$ Matching opponent: "make his opponent 10 cm taller, 15 kg heavier" and the fight's distances re-fit
 - [ ] G22 ★ $$ Body families: siblings / variations around one body for crowds, each still plausible
-- [ ] G23 ★ $ Fighter archetypes from real athletes' published measurements (boxer reach / height ratios by weight class)
+- [x] G23 ★ $ Fighter archetypes from real athletes' published measurements (boxer reach / height ratios by weight class)
 - [ ] G24 ★ $$ Growth / aging over a timeline (a character at 12, 25, 60) from growth curves
 - [ ] G25 ★ $$ Body ↔ grip: hand size changes the grip book's hand spots (a small hand chokes higher)
 
@@ -301,14 +301,14 @@ Merged: 2 / 400 (★ 1 / 119)
 
 ## K. Viewport + render
 
-- [ ] K01 $ Shading modes: wire, solid, matcap, material, rendered; per-viewport
-- [ ] K02 $ Studio lights presets (3-point, rim, top) with HDRI backgrounds
+- [x] K01 $ Shading modes: wire, solid, matcap, material, rendered; per-viewport
+- [x] K02 $ Studio lights presets (3-point, rim, top) with HDRI backgrounds
 - [ ] K03 $$ Real-time shadows, SSAO, SSR, bloom toggles (Godot's renderer)
 - [ ] K04 $$ Depth of field from the shot camera (rack focus exists: render it)
 - [ ] K05 $$ Motion blur in the render
 - [ ] K06 $$ Offline render: high samples, PNG sequence / MP4, alpha
 - [ ] K07 $$ Render queue (several shots overnight)
-- [ ] K08 $ Turntable render (360° of the character / prop, any length)
+- [x] K08 $ Turntable render (360° of the character / prop, any length)
 - [ ] K09 $$ Light editor: point, spot, area, sun; temperature in kelvin
 - [ ] K10 $$ Volumetrics / fog
 - [ ] K11 $$ Toon / outline shading mode (fighting game look)
@@ -326,10 +326,10 @@ Merged: 2 / 400 (★ 1 / 119)
 - [ ] K23 ★ $ Render the judge: overlays (balance, force, hit boxes) rendered into the final video as a breakdown pass
 - [ ] K24 ★ $$ Breakdown reel: auto video of a move as blocking → splined → physics check → final, side by side
 - [ ] K25 ★ $$ Lighting from the fight: key light follows the attacker, rim on the defender, cut on impacts
-- [ ] K26 ★ $ Silhouette check render: every key pose as a black silhouette sheet (readability, the animators' test)
+- [x] K26 ★ $ Silhouette check render: every key pose as a black silhouette sheet (readability, the animators' test)
 - [ ] K27 ★ $$ Impact flash + hit-stop in the render from impact frames (game feel preview)
 - [ ] K28 ★ $$ Sport-science overlays: joint angles, speeds, centre of mass trail in a broadcast style
-- [ ] K29 ★ $ Thumbnail picker: the most readable frame of each clip chosen by silhouette area + line of action
+- [x] K29 ★ $ Thumbnail picker: the most readable frame of each clip chosen by silhouette area + line of action
 - [ ] K30 ★ $$ Real-camera match: render with the lens + height of a phone / GoPro for side-by-side with reference
 
 ## L. Animation parity (gaps left after the first 400)
@@ -359,7 +359,7 @@ Merged: 2 / 400 (★ 1 / 119)
 - [ ] L23 ★ $$ "Make it heavier / lighter" one slider, mass-correct (timing and arcs from the momentum model)
 - [ ] L24 ★ $$ Spacing chart from a real reference: overlay a tracked video's spacing on your curves
 - [ ] L25 ★ $$ Motion stitching: two clips joined at the most compatible frame (pose + velocity + contacts)
-- [ ] L26 ★ $ Arc checker: joints whose paths break an arc (a kink) listed with the frame
+- [x] L26 ★ $ Arc checker: joints whose paths break an arc (a kink) listed with the frame
 - [ ] L27 ★ $$ Clip personality fingerprint: compare two animators' clips (speed, holds, overlap) as numbers
 - [ ] L28 ★ $$ Interpolation that respects limits: splines never pass through an impossible pose between keys
 - [ ] L29 ★ $$ Reaction auto-timing: a defender's block is placed at human reaction time (≥ 150–200 ms) after the cue
@@ -390,7 +390,7 @@ Merged: 2 / 400 (★ 1 / 119)
 
 ## N. Pipeline + files
 
-- [ ] N01 $ OBJ import / export (mesh, UVs, normals)
+- [x] N01 $ OBJ import / export (mesh, UVs, normals)
 - [ ] N02 $$ FBX mesh + skin export (own writer; extend the animation fbx)
 - [ ] N03 $$ glTF mesh + materials + skin + shape keys export (extend gltf_export)
 - [ ] N04 $$ USD export (mesh, skel, anim)
@@ -455,7 +455,7 @@ Merged: 2 / 400 (★ 1 / 119)
 - [ ] P17 ★ $ Next suggested tool: the page suggests the next step from what you just did (modeling's "next pose")
 - [ ] P18 ★ $$ Learn-from-me hotkeys: the commands you use most get offered a hotkey
 - [ ] P19 ★ $$ Task coach: "make a fighter" walks BODY → MODEL → SURFACE → POSE with checks at each step
-- [ ] P20 ★ $ Blender / Maya keymap translator: press a Blender key, Kine tells you its own name for it
+- [x] P20 ★ $ Blender / Maya keymap translator: press a Blender key, Kine tells you its own name for it
 - [ ] P21 ★ $$ Mistake catcher: common beginner mesh mistakes (doubled verts, inside-out normals, unapplied scale) caught as they happen
 - [x] P22 ★ $ One-page cheat sheet per page, printable, generated from the commands
 - [ ] P23 ★ $$ Time-lapse of a session (the edits replayed as a video)
