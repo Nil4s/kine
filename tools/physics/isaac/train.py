@@ -30,7 +30,11 @@ p.add_argument("--eval_envs", type=int, default=0, help="0: same as num_envs")
 p.add_argument("--resume", type=str, default="")
 p.add_argument("--skip_baseline", action="store_true")
 AppLauncher.add_app_launcher_args(p)
-args = p.parse_args(sys.argv[1:] + ["--headless", "--kit_args=--/app/vulkan=false"])
+p.add_argument("--show", action="store_true", help="open the Isaac window to watch the training (slower)")
+_a = sys.argv[1:] + ["--kit_args=--/app/vulkan=false"]   # Vulkan crashes in rtx.scenedb on this machine: DirectX 12 only
+if "--show" not in _a:
+    _a.append("--headless")
+args = p.parse_args(_a)
 app = AppLauncher(args).app
 
 import torch  # noqa: E402
