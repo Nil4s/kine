@@ -327,3 +327,6 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I27. Throw and catch: release a prop from one hand and the app solves the ballistic arc (gravity, spin from
   the release angular velocity), the flight time, and places the catching hand on the arc at the catch frame;
   red if the catch needs an impossible reach or a hand speed outside human range.
+- [ ] I28. Safety sheet: one pre-shoot report for the stunt crew over the whole scene: every real contact and its
+  speed, weapon tips passing within 15 cm of a face, falls and their breakfall verdicts, unsold/unsafe strikes, with
+  time, fighters and a thumbnail per item; exported as a printable HTML page next to the scene.
