@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 0 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -284,9 +284,12 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   torques I8, push limits R24, timing coach I4, Check's human limits), with the 3 biggest reasons and a one-click fix
   for each (accept span, timing coach, Check fix); the score is shown on the scene card and re-scored after each fix.
   Step 1 merged: score = 100 - sum(weight x share flagged) over Check red/yellow, timing coach, push limits, force view, physics (when cached); combo3 21, calm walk 85, no findings 100, each fix one undo and raises the score. Open: a cold score takes 4.2 s (bar 200 ms holds only when cached); the fix button reads 'Fix: Fix:'; the timing coach and Check can disagree on a fix.
-- [ ] I17. Learn my style: Kine reads every clip Nick made (scenes/, his poses) and builds a style fingerprint (his
+- [x] I17. Learn my style: Kine reads every clip Nick made (scenes/, his poses) and builds a style fingerprint (his
   usual timing per move kind, holds, guard height, stance width, favourite transitions); new clips and Next poses
   default to it, and a "like Nick" / "neutral" toggle shows the difference. Learns locally, nothing leaves the PC.
-- [ ] I18. Fight distance keeper: choreography help that keeps two fighters at a real fighting range (measured
+  Done: fingerprint from 11 of Nick's clips (strike 0.15 s move, wind-up 0.33 s, usual wind-up > strike); new cards take his median; Use my style stays in the human range; one undo. Open: guard height/stance read the same shared 'ready' pose on every clip, so they say little yet.
+- [x] I18. Fight distance keeper: choreography help that keeps two fighters at a real fighting range (measured
   reach of each strike + weapon), flags spans that are too close (jammed) or too far (the strike can't land), and
   offers a one-click root slide of the defender (feet planted, no skating) to fix each span.
+
+  Done: combo3 strikes 0.5 m too far flagged, slide 46.9 cm puts the tip within 0.3 cm, plant slide 0.71 cm; jammed fixed by sliding back; correct spacing changes nothing; one undo. Open: the full combo3 has no single spacing where all 3 strikes land (third strike steps another way).
