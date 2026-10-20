@@ -232,6 +232,8 @@ const DRAW := {
 		["seg", Vector2(17, 12), Vector2(21, 12), 2], ["seg", Vector2(5.5, 5.5), Vector2(8.5, 8.5), 2], ["seg", Vector2(15.5, 15.5), Vector2(18.5, 18.5), 2], ["seg", Vector2(18.5, 5.5), Vector2(15.5, 8.5), 2], ["seg", Vector2(8.5, 15.5), Vector2(5.5, 18.5), 2]],
 	"impact_off": [["disc", Vector2(12, 12), 2.6], ["seg", Vector2(12, 3), Vector2(12, 7), 2], ["seg", Vector2(12, 17), Vector2(12, 21), 2], ["seg", Vector2(3, 12), Vector2(7, 12), 2],
 		["seg", Vector2(17, 12), Vector2(21, 12), 2], ["seg", Vector2(3, 21), Vector2(21, 3), 2.4]],
+	"pack": [["box", Rect2(4, 8, 16, 12), 1.8], ["seg", Vector2(12, 8), Vector2(12, 20), 1.6], ["seg", Vector2(12, 3), Vector2(12, 12), 2], ["seg", Vector2(8.5, 8.5), Vector2(12, 12), 2], ["seg", Vector2(15.5, 8.5), Vector2(12, 12), 2]],
+	"unpack": [["box", Rect2(4, 8, 16, 12), 1.8], ["seg", Vector2(12, 8), Vector2(12, 20), 1.6], ["seg", Vector2(12, 12), Vector2(12, 2), 2], ["seg", Vector2(8.5, 5.5), Vector2(12, 2), 2], ["seg", Vector2(15.5, 5.5), Vector2(12, 2), 2]],
 	"qr": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],
 		["box", Rect2(16.5, 5.5, 2, 2), 0], ["box", Rect2(5.5, 16.5, 2, 2), 0], ["box", Rect2(14, 14, 3, 3), 0], ["box", Rect2(18, 18, 3, 3), 0]],
 	"qr_open": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],

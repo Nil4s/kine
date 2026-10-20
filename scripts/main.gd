@@ -214,7 +214,7 @@ const RIBBON_GROUPS := {
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "Parry rebound", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Gaze director", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Recovery step", "Precog check", "Auto opponent", "Fatigue", "Momentum ledger", "Airborne spin check", "Real-mocap check", "Realism score", "My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "Speed limits", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
-	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["PLAN", ["Floor plan"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
+	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["PLAN", ["Floor plan"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
 }
@@ -5676,6 +5676,57 @@ func _qr_render() -> void:
 	_say("QR ready for %s: %d of %d characters (version %d). Send the picture; Open from QR... reads it" % [what, cap["chars"], QrShare.CAP_L, int(r.get("version", 0))])
 
 
+## N15 PACK PROJECT (scripts/pack_zip.gd): the scene and its files in one zip under user://packs; Unpack into a user:// folder, verified, then opened
+func _pack_scene() -> void:
+	var r := PackZip.pack(_scene_dict(), _hero_scene().name if _hero_scene().name != "" else "scene")
+	if not r["ok"]:
+		_say(String(r["why"]))
+		return
+	var msg := "packed %d files into %s" % [r["entries"], r["path"]]
+	if not (r["missing"] as Array).is_empty():
+		msg += "; NOT FOUND, so not in the zip (%d): %s. Fix or re-add those files, then Pack again" % [r["missing"].size(), ", ".join(r["missing"])]
+	_say(msg)
+
+
+func _unpack_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_USERDATA
+	fd.filters = PackedStringArray(["*.kinezip, *.zip ; a Kine pack"])
+	fd.current_dir = PackZip.DIR
+	fd.title = "Unpack: pick the .kinezip"
+	fd.file_selected.connect(func(p):
+		fd.queue_free()
+		var dd := FileDialog.new()
+		dd.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+		dd.access = FileDialog.ACCESS_USERDATA
+		dd.current_dir = "user://"
+		dd.title = "Unpack into which folder (under the app's user folder)?"
+		dd.dir_selected.connect(func(dir): _unpack_to(p, dir); dd.queue_free())
+		dd.canceled.connect(dd.queue_free)
+		add_child(dd)
+		dd.popup_centered(Vector2i(800, 500)))
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+func _unpack_to(zip: String, root: String) -> Dictionary:
+	var r := PackZip.unpack(zip, PackZip.fresh_dest(root, zip.get_file().get_basename()))
+	if not r["ok"]:
+		_say(String(r["why"]))
+		return r
+	PackZip.register_props(r["scene"])
+	_load_scene(r["scene"])
+	_rebuild_cards()
+	_refresh()
+	var msg := "unpacked %d files to %s and opened the scene" % [r["files"], String(r["scene"]).get_base_dir().get_base_dir()]
+	if not (r["missing"] as Array).is_empty():
+		msg += "; these were missing when it was packed: %s" % ", ".join(r["missing"])
+	_say(msg)
+	return r
+
+
 func _qr_open_ask() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
@@ -10244,7 +10295,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
+const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -10750,6 +10801,8 @@ func _ui() -> void:
 		fp_ui = FloorPlanUI.new(self)
 	ui_ribbon["EXPORT"].add_child(_button("Floor plan", fp_ui.show, "a top-down rehearsal plan of the fight for the stunt crew: every foot placement numbered with its time, each fighter's path, the strike lines and the safety margins on a 100 cm grid; Export page writes a printable page and a PNG"))
 	ui_ribbon["EXPORT"].add_child(_button("Share as QR", _qr_share, "the pose (or the scene, if it is short enough) as a QR code picture to send to a friend: no server, no account. Right-click a card > Share as QR shares that card's pose"))
+	ui_ribbon["EXPORT"].add_child(_button("Pack scene (zip)", _pack_scene, "the open scene and every file it uses (sounds, models, pictures, videos) in one .kinezip in the app's user folder, with a manifest of hashes; files that could not be found are listed"))
+	ui_ribbon["EXPORT"].add_child(_button("Unpack zip...", _unpack_ask, "pick a .kinezip and a folder under the app's user folder: the files are checked against their hashes, unpacked there, and the scene opens with its paths pointing at them"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
@@ -13721,6 +13774,8 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Pack scene (zip)", "", _pack_scene, "pack project zip kinezip archive share send bundle all files sounds models pictures videos manifest hash", false, "the open scene and every file it uses in one .kinezip under the app's user folder (user://packs), with a manifest of sha256 hashes; names any file it could not find")
+	add.call("Unpack zip...", "", _unpack_ask, "unpack open project zip kinezip archive bundle extract hash verify", false, "pick a .kinezip and a folder under the app's user folder; the hashes are checked, a zip with an entry that would leave the folder is refused, and the scene opens from the unpacked copy")
 	add.call("Share as QR", "", _qr_share, "qr code share send friend phone photo screenshot pose scene picture no server account", false, "the pose (or the whole scene when it is short) as a QR code picture: a friend scans or opens it in Kine. Says how much of one QR it uses and refuses with the next step when it is too long")
 	add.call("Open from QR...", "", _qr_open_ask, "qr code open read scan friend phone photo screenshot pose scene picture", false, "pick a picture of a Kine QR code: the pose goes on the body (or a scene's cards are added), ONE undo step")
 	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 s: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")

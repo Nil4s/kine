@@ -82,6 +82,9 @@ func _init() -> void:
 	# <scene>_floor_plan.html / .png under FloorPlan.DIR = user://floor_plan (never scenes/, poses/, data/); only those two writes exist in the file
 	var fpsrc := FileAccess.get_file_as_string("res://scripts/floor_plan_ui.gd")
 	ok(FloorPlan.DIR.begins_with("user://") and fpsrc.count("FileAccess.WRITE") == 2 and not fpsrc.contains("res://scenes") and not fpsrc.contains("DirAccess.remove"), "the floor plan writes only its page and picture, under %s" % FloorPlan.DIR)
+	# (1c) N15 PACK PROJECT (scripts/pack_zip.gd): policy = user://packs/<scene>.kinezip (Pack) and a NEW folder under user:// (Unpack); never scenes/, poses/, data/
+	var pzsrc := FileAccess.get_file_as_string("res://scripts/pack_zip.gd")
+	ok(PackZip.DIR.begins_with("user://") and pzsrc.contains("dest.begins_with(\"user://\")") and not pzsrc.contains("res://scenes") and not pzsrc.contains("DirAccess.remove"), "Pack writes only under %s, Unpack only into a user:// folder" % PackZip.DIR)
 	# (2) every editing command: no dialog
 	m._load_scene("res://scenes/combo3.json")
 	m._card_pick(2)
