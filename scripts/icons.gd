@@ -187,6 +187,7 @@ const DRAW := {
 		["arc", Vector2(13, 13), 10.5, 1.4, 150, 250]],
 	# frame data / line of action (ROADMAP 12, 23)
 	"loa": [["arc", Vector2(12, 12), 11, 2, 100, 260], ["disc", Vector2(15, 3.5), 2], ["disc", Vector2(7, 12), 1.5], ["disc", Vector2(15, 20.5), 1.5]],
+	"say_it": [["box", Rect2(3.5, 4.5, 17, 11), 1.8], ["seg", Vector2(8, 15.5), Vector2(7, 20.5), 1.8], ["seg", Vector2(7, 20.5), Vector2(13, 15.5), 1.8], ["seg", Vector2(7.5, 8.5), Vector2(16.5, 8.5), 1.4], ["seg", Vector2(7.5, 11.5), Vector2(13.5, 11.5), 1.4]],
 	"loa_sketch": [["seg", Vector2(4, 20), Vector2(9, 11), 2], ["seg", Vector2(9, 11), Vector2(15, 14), 2], ["seg", Vector2(15, 14), Vector2(20, 4), 2],
 		["disc", Vector2(4, 20), 1.6], ["seg", Vector2(17, 17), Vector2(21, 21), 1.8], ["seg", Vector2(21, 17), Vector2(17, 21), 1.8]],
 	"fd": [["box", Rect2(2.5, 9, 6, 6), 0], ["box", Rect2(9, 9, 6, 6), 1.6], ["box", Rect2(15.5, 9, 6, 6), 1.6], ["seg", Vector2(3, 19), Vector2(21, 19), 1.4], ["seg", Vector2(3, 5), Vector2(21, 5), 1.4]],

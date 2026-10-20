@@ -174,7 +174,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
-		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["SHARE", ["Open from QR..."]]],
+		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
@@ -9035,7 +9035,7 @@ const ICON_OF := {"Reactions": "react", "Share as QR": "qr", "Open from QR...": 
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
+	"Pose from words...": "say_it", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -9370,6 +9370,7 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: 'Open from QR (webcam)' reads it from the camera"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: Open from QR (webcam) reads it from the camera"))
+	ui_ribbon["POSE"].add_child(_button("Pose from words...", _say_it_ask, "type a pose in plain words (\"low guard, weight on back foot, bat cocked over right shoulder\", \"crouch\", \"left knee bent 90\"): the body is posed with the app's own solvers, locally, no cloud; ONE undo step; each phrase is reported placed / partly placed (why) / not understood"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
@@ -12090,6 +12091,7 @@ func _commands() -> Array:
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
+	add.call("Pose from words...", "", _say_it_ask, "text type words phrase say describe pose guard crouch lunge stance weight foot hand bat cocked shoulder knee elbow look lean", false, "type a pose (\"low guard, weight on back foot, bat cocked over right shoulder\"): placed with the app's own joint, IK, balance and look-at solvers, locally; the report says which phrases were placed, partly placed (why) or not understood; one undo step")
 	add.call("Block out a move from words...", "", _words_ask, "text type words phrase prompt describe blocking block out attack move overhead sweep thrust jab uppercut hook axe bat staff hammer dagger step lunge", false, "type a move (\"overhead axe strike, step in\", \"fast jab\", \"staff sweep right\"): the closest of your saved attacks is retrieved and adapted by the app's own ops (mirror, weapon swap + grip, step, retime to docs/ATTACK_RULES.md) into a NEW blocked-out scene in scenes/_wip (ready, anticipation, strike, follow-through, recovery), opened; the status says what it started from and what it could not find")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
 	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
@@ -13227,6 +13229,93 @@ func _words_build() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("'%s' blocked out as %s and opened (%d cards: %s). %s" % [text, path.get_file(), S2.cards.size(), ", ".join(S2.cards.map(func(c): return String(c["name"]).get_slice(":", 0))), r["status"]])
+
+
+## SAY IT, SEE IT (ROADMAP I5): type a pose in words, the body takes it (scripts/say_it.gd: a small grammar + vocabulary, the joint /
+## IK / balance / look-at solvers, no cloud). ONE undo step. The box stays open with the sentence and one report line per phrase:
+## "placed" / "partly placed (why)" / "not understood". Nothing is ignored silently
+var ui_say_dlg: ConfirmationDialog
+var ui_say_edit: LineEdit
+var ui_say_report: RichTextLabel
+
+
+func _say_it_ask() -> void:
+	if ui_say_dlg == null:
+		ui_say_dlg = ConfirmationDialog.new()
+		ui_say_dlg.name = "say_it_dialog"
+		ui_say_dlg.title = "Pose from words"
+		ui_say_dlg.ok_button_text = "Pose it"
+		ui_say_dlg.cancel_button_text = "Close"
+		ui_say_dlg.dialog_hide_on_ok = false
+		ui_say_dlg.min_size = Vector2i(560, 0)
+		var v := VBoxContainer.new()
+		var hd := Label.new()
+		hd.text = "Say the pose. Guard, crouch, lunge, wide stance, weight on back foot, hand on chin, bat cocked over right shoulder, left knee bent 90, look left, lean forward 20."
+		hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hd.custom_minimum_size = Vector2(540, 0)
+		hd.add_theme_color_override("font_color", Tok.c("info"))
+		v.add_child(hd)
+		ui_say_edit = LineEdit.new()
+		ui_say_edit.name = "edit_say_it"
+		ui_say_edit.placeholder_text = "low guard, weight on back foot, bat cocked over right shoulder"
+		v.add_child(ui_say_edit)
+		ui_say_report = RichTextLabel.new()
+		ui_say_report.name = "say_it_report"
+		ui_say_report.bbcode_enabled = true
+		ui_say_report.fit_content = true
+		ui_say_report.scroll_active = false
+		ui_say_report.custom_minimum_size = Vector2(540, 70)
+		v.add_child(ui_say_report)
+		ui_say_dlg.add_child(v)
+		ui_say_dlg.register_text_enter(ui_say_edit)
+		ui_say_dlg.confirmed.connect(func(): _say_it_run(ui_say_edit.text))
+		add_child(ui_say_dlg)
+	var vp := get_viewport().get_visible_rect().size
+	var dw := 580
+	ui_say_dlg.popup(Rect2i(int(vp.x) - dw - 24, 90, dw, 0))   # on the right: the body in the middle stays in sight
+	ui_say_edit.grab_focus.call_deferred()
+	ui_say_edit.select_all.call_deferred()
+
+
+func _say_it_run(text: String) -> Dictionary:
+	text = text.strip_edges()
+	if text == "":
+		_say("Pose from words needs some words: type e.g. 'low guard, weight on back foot, bat cocked over right shoulder' or 'crouch'")
+		return {"ok": false}
+	var res := {}
+	_do(func(): res.merge(SayIt.apply(B, text), true))
+	if not res.get("ok", false):
+		_say(String(res.get("error", "nothing posed")) + ": type a pose like 'crouch'")
+		return res
+	var n_ok := 0
+	var n_part := 0
+	var n_no := 0
+	var rows := []
+	for it in res["items"]:
+		match it["status"]:
+			"placed":
+				n_ok += 1
+			"partly placed":
+				n_part += 1
+			_:
+				n_no += 1
+	if ui_say_report != null:
+		var bb := ""
+		for l in res["lines"]:
+			var col: Color = Tok.c("info")
+			if String(l).contains(": not understood"):
+				col = Tok.c("fail")
+			elif String(l).contains(": partly placed") or String(l).begins_with("note"):
+				col = Tok.c("warn")
+			bb += "[color=#%s]%s[/color]
+" % [col.to_html(false), String(l).replace("[", "[lb]")]
+		ui_say_report.text = ""
+		ui_say_report.append_text(bb.strip_edges())
+	if n_no > 0 and n_ok + n_part == 0:
+		_say("'%s': nothing understood: try words like crouch, lunge, guard, weight on back foot, hand on chin, left knee bent 90" % text)
+	else:
+		_say("posed '%s': %d placed, %d partly, %d not understood.  Ctrl+Z undoes; Update keeps it on the card" % [text, n_ok, n_part, n_no])
+	return res
 
 
 ## NEW FROM TEMPLATE (ROADMAP 44): a picker of the five starting scenes (walk, run, jump, punch, sword swing; scripts/templates.gd,
