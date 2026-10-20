@@ -1717,7 +1717,7 @@ var _carry_busy := false
 ## from inside the carry has been THROWN there (Throw to...); the keys win from that frame on
 func flight_from(pi: int, ta: float) -> float:
 	for k in props[pi].get("keys", []):
-		if float(k["t"]) >= ta - 1e-6:
+		if float(k["t"]) > ta + Props.SAME_T:   # strictly after the pick-up: a key AT it is where the prop was picked up from
 			return float(k["t"])
 	return INF
 
