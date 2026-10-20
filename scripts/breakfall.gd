@@ -1,7 +1,7 @@
 ## breakfall.gd - I25 BREAKFALL CHECK. Finds the falls and knockdowns of a clip and judges each landing the way a stunt / judo coach does.
 ## FINDING A FALL: the clip is played at 60 Hz on the scene's own grounding (Scene.apply); a fall is a stretch where the centre of mass
 ## (Balance.com) drops more than DROP = 40 % of the standing height (the tallest head top of the clip) within WIN = 1 s, and a body part
-## other than the feet (feet and toe pads are left out; a knee, a hand, the back all count) comes within TOUCH = 2 cm of the floor (y = 0).
+## other than the feet (feet, calves and toe pads are left out; a knee, a hand, the back all count) comes within TOUCH = 2 cm of the floor (y = 0).
 ## The first such frame is the IMPACT. The standing height, 40 % and 1 s are the roadmap's definition of a knockdown, not a published standard.
 ## THE FOUR RULES, judged at the landing. The sources are the practice of judo ukemi (Kodokan: the chin tucked "eyes on the belt", the arm slaps
 ## the mat at about 30-45 deg from the body with the palm down, the fall spread over arm, shoulder, back or the side of the hip) and stunt
@@ -42,7 +42,7 @@ const SLAP_ELBOW := 55.0
 const SLAP_DEG := 45.0
 const ROLL_DEG := 40.0
 const PARTS := ["pelvis", "hips_wide", "spine_01", "spine_02", "spine_03", "chest_wide", "neck_01", "head", "clavicle_l", "clavicle_r",
-	"upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r", "thigh_l", "thigh_r", "calf_l", "calf_r"]
+	"upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r", "thigh_l", "thigh_r"]   # the calves are left out like the feet: they are the support, always within centimetres of the floor, and on a body that tips about its feet they are the lowest part and would read as the "first touch"
 
 
 static func region(p: String) -> String:
@@ -199,13 +199,17 @@ static func analyze(S: Scene) -> Dictionary:
 
 
 ## the cards that make the landing of a fall: those arriving from the start of the fall to a little after the head window
-static func landing_cards(S: Scene, f: Dictionary) -> Array:
+## prev = true also takes the card BEFORE them: a neck that starts its flexion on that card has already bent when the landing card arrives (the
+## tuck starts before the fall's last pose, so the impact frame reaches the bar instead of being half way there)
+static func landing_cards(S: Scene, f: Dictionary, prev := false) -> Array:
 	var ts := S.times()
 	var out := []
 	for i in S.cards.size():
 		var arr: float = ts[i][1]
 		if arr > float(f["t0"]) - 0.02 and arr <= float(f["t1"]) + 0.5:
 			out.append(i)
+	if prev and not out.is_empty() and int(out[0]) > 0:
+		out.push_front(int(out[0]) - 1)
 	return out
 
 
@@ -239,7 +243,7 @@ static func tuck(S: Scene, f: Dictionary) -> Dictionary:
 		return {"ok": false, "why": "the chin is already tucked (%.0f deg) and the head stays clear: nothing to tuck" % float(f["chin"])}
 	var nS := S.clone()
 	var B := DistanceKeeper.new_body()
-	var cs := landing_cards(nS, f)
+	var cs := landing_cards(nS, f, true)
 	if cs.is_empty():
 		return {"ok": false, "why": "no card arrives during this landing: add a pose after the fall, then try again"}
 	for i in cs:
@@ -272,29 +276,31 @@ static func slap(S: Scene, f: Dictionary) -> Dictionary:
 	var cs := landing_cards(nS, f)
 	if cs.is_empty():
 		return {"ok": false, "why": "no card arrives during this landing: add a pose after the fall, then try again"}
-	var ua := "upperarm" + sd
-	var la := "lowerarm" + sd
-	var rb: Vector2 = B.lim[ua]["bend"]
-	var rs: Vector2 = B.lim[ua]["side"]
-	var rt: Vector2 = B.lim[ua]["twist"]
-	for i in cs:
-		var c: Dictionary = nS.cards[i]
-		B.from_dict(c["pose"])
-		B.ang[la] = Vector3(maxf(float((B.ang[la] as Vector3).x), SLAP_ELBOW), 0, 0)
-		var best := INF
-		var bv := B.ang[ua] as Vector3
-		for sv in range(-90, -15, 5):
-			for tw in range(-70, 71, 10):
-				for bd in [-30, -15, 0, 15, 30]:
-					B.ang[ua] = Vector3(clampf(bd, rb.x, rb.y), clampf(sv, rs.x, rs.y), clampf(tw, rt.x, rt.y))
-					B.fk_sub(ua)
-					var cost := _arm_cost(B, sd) + 0.05 * absf(bd)
-					if cost < best:
-						best = cost
-						bv = B.ang[ua]
-		_put(c, ua, bv)
-		_put(c, la, B.ang[la])
-	return _done(S, nS, f, "slap", "bend the catching arm (%s) into a slap: elbow %.0f deg, arm %.0f deg off the body, forearm flat, in %d card%s" % [sd.substr(1).to_upper(), SLAP_ELBOW, SLAP_DEG, cs.size(), "" if cs.size() == 1 else "s"])
+	# both arms: a fall is caught by whichever hand is lower a frame later, so bending one arm only hands the straight-arm landing to the other
+	for s2: String in [sd, "_r" if sd == "_l" else "_l"]:
+		var ua := "upperarm" + s2
+		var la := "lowerarm" + s2
+		var rb: Vector2 = B.lim[ua]["bend"]
+		var rs: Vector2 = B.lim[ua]["side"]
+		var rt: Vector2 = B.lim[ua]["twist"]
+		for i in cs:
+			var c: Dictionary = nS.cards[i]
+			B.from_dict(c["pose"])
+			B.ang[la] = Vector3(maxf(float((B.ang[la] as Vector3).x), SLAP_ELBOW), 0, 0)
+			var best := INF
+			var bv := B.ang[ua] as Vector3
+			for sv in range(-90, -15, 5):
+				for tw in range(-70, 71, 10):
+					for bd in [-30, -15, 0, 15, 30]:
+						B.ang[ua] = Vector3(clampf(bd, rb.x, rb.y), clampf(sv, rs.x, rs.y), clampf(tw, rt.x, rt.y))
+						B.fk_sub(ua)
+						var cost := _arm_cost(B, s2) + 0.05 * absf(bd)
+						if cost < best:
+							best = cost
+							bv = B.ang[ua]
+			_put(c, ua, bv)
+			_put(c, la, B.ang[la])
+	return _done(S, nS, f, "slap", "bend the catching arms (both) into a slap: elbow %.0f deg, arm %.0f deg off the body, forearm flat, in %d card%s" % [SLAP_ELBOW, SLAP_DEG, cs.size(), "" if cs.size() == 1 else "s"])
 
 
 ## fix 3: roll the trunk so the shoulder / back / hip side lands first
