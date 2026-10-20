@@ -8,9 +8,9 @@
 ## place for them, so BVH carries none). All static: the Scene holds the array (Scene.markers), main.gd owns the undo.
 class_name Markers
 
-const KINDS := ["hit", "step", "swoosh", "note"]
+const KINDS := ["hit", "step", "swoosh", "note", "sfx"]
 const PALETTE := ["red", "green", "blue", "gold"]
-const KIND_COLOR := {"hit": "red", "step": "green", "swoosh": "blue", "note": "gold"}
+const KIND_COLOR := {"hit": "red", "step": "green", "swoosh": "blue", "note": "gold", "sfx": "green"}
 const NOTE_MAX := 2000   # characters kept of a marker's note
 
 
