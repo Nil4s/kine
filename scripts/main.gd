@@ -160,13 +160,14 @@ var _macro_nest := 0           # > 0 while a macro plays
 var _macro_pushed := false     # the play's one undo step is already open
 var ui_cube: ViewCube
 var ui_browser: Browser
-const RIBBON := ["POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
-const RIBBON_TIPS := {"POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
+const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
+const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as real percentiles", "POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
 	"SET": "props to pose with: add, move, turn, delete, your own models", "CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: Export... (any engine or tool), frame data, a version",
 	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)"}
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
+	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
@@ -183,17 +184,18 @@ const RIBBON_GROUPS := {
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
 ## page: its tools are the "View" menu in the top bar, on every page. Layout values: true = folded, false = open; a key
 ## a page does not name follows the user's own folds. The user's changes on a page are remembered for that page.
-const PAGES := ["POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER"]
-const PAGES_SOON := ["BODY", "MODEL", "SCULPT", "SURFACE"]
-const PAGE_ROW := {"POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT"}
+const PAGES := ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER"]
+const PAGES_SOON := ["MODEL", "SCULPT", "SURFACE"]
+const PAGE_ROW := {"BODY": "BODY", "POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT"}
 const PAGE_LAYOUT := {
+	"BODY": {"left": false, "bottom": true},                     # the body panel (it takes the browser's place), the strip a thin line
 	"POSE": {},                                                  # the body and its inspector: as the user left them
 	"ANIMATE": {"bottom": false},                                # the scene strip and the timeline in full
 	"STAGE": {"left": false, "bottom": true},                    # the browser (props, cast) open, the strip a thin line
 	"CHECK": {"right": false, "bottom": true},                   # the inspector open (the findings), the strip a thin line
 	"DELIVER": {"left": true, "right": true, "bottom": true},    # the body big: only the export tools
 }
-const PAGE_TIPS := {"POSE": "pose one moment: the body, the inspector, the pose library", "ANIMATE": "cards, timeline, curves, overlays",
+const PAGE_TIPS := {"BODY": "make the person: stature, mass and proportions as percentiles of the ANSUR II survey", "POSE": "pose one moment: the body, the inspector, the pose library", "ANIMATE": "cards, timeline, curves, overlays",
 	"STAGE": "the set and the cast: props, cameras, crowd, several fighters", "CHECK": "is it right: grade, human check, frame data",
 	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions"}
 var cur_page := "POSE"
@@ -229,6 +231,7 @@ var fold := {"left": false, "right": false, "bottom": false}
 var ui_rails := {}      # "left" / "right" -> the rail (a PanelContainer)
 var ui_fold_btn := {}   # "left" / "right" / "bottom" / "bottom_open" -> its fold button
 var ui_side_of := {}    # "left" / "right" -> the panel
+var ui_body: BodyPanel  # the BODY page's panel (scripts/body_panel.gd)
 
 
 func lw() -> float:
@@ -261,11 +264,15 @@ func _fold(which: String, on: bool, save := true) -> void:
 ## every side piece shown or hidden, and everything that sits beside the panels moved to the view's new edges
 func _sides_apply() -> void:
 	for k in ui_side_of:
-		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on
+		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY")
 		if ui_rails.has(k):
 			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on
 		if ui_fold_btn.has(k):
 			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on
+	if ui_body != null:
+		ui_body.visible = cur_page == "BODY" and not big_view and not fold["left"] and not clean and not easy.on
+		if ui_body.visible:
+			ui_body.sync(S.body, B)
 	if ui_status == null:
 		return
 	for c in [ui_bar, ui_graph]:
@@ -3031,6 +3038,8 @@ func _refresh() -> void:
 	if not sel_more.is_empty() and sel != _group_sel:
 		sel_more = []
 	_sym_prev = B.ang.duplicate()
+	if ui_body != null and ui_body.visible and not ui_body.dragging:
+		ui_body.sync(S.body, B)   # an undo, a load or a retarget moved the body: the sliders and the readout follow
 	if not PerfStub.skip("skinning"):
 		Overlays.pose_skeleton(skel, bone_idx, B)
 	corr.update(B)
@@ -3540,7 +3549,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				ui_cmd.open()
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.alt_pressed and not k.shift_pressed:   # Alt+1..5: the camera views, now that Shift+1..5 are the pages
 				_view(k.keycode - KEY_0)
-			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.shift_pressed:   # Shift+1..5: the pages
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6 when k.shift_pressed:   # Shift+1..6: the pages
 				_page_set(PAGES[k.keycode - KEY_1])
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_view(k.keycode - KEY_0)
@@ -8332,7 +8341,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
-	"Dummy (H)": "dummy", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
+	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
@@ -8660,6 +8669,9 @@ func _ui() -> void:
 		b.toggle_mode = true
 		ui_toggles.append([b, on])
 		ui_ribbon[tab].add_child(b)
+	# BODY (the page's sliders are the left panel, scripts/body_panel.gd)
+	ui_ribbon["BODY"].add_child(_button("Body: proportions...", _proportions_dialog, "a small dialog: an ANSUR II preset (5th / 50th / 95th, woman or man) or a stature in cm. The sliders on the left do the same by percentile"))
+	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 1.83 m mannequin; the cards keep their angles. Ctrl+Z undoes"))
 	# POSE
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
@@ -8861,6 +8873,20 @@ func _ui() -> void:
 	ui_root.add_child(lp)
 	ui_side.append(lp)
 	ui_side_of["left"] = lp
+	# THE BODY PAGE'S PANEL (docs/PAGES_PLAN.md step 2): it stands where the browser stands, on the BODY page only
+	ui_body = BodyPanel.new()
+	ui_body.offset_left = 6
+	ui_body.offset_top = TOP_H + 6
+	ui_body.offset_right = LEFT_W
+	ui_body.anchor_bottom = 1.0
+	ui_body.offset_bottom = -BOTTOM_H - 6
+	ui_root.add_child(ui_body)
+	ui_body.build(self)
+	ui_body.visible = false
+	ui_side.append(ui_body)
+	ui_body.begin.connect(_body_begin)
+	ui_body.preview.connect(_body_preview)
+	ui_body.commit.connect(_body_commit)
 	# THE BROWSER (round 36, RR3; Fusion's): ONE slim tree, the left panel's whole content: Scene (its clips), Poses
 	# (Library / Mine), Body, Weapon, Target dummy. A row picks (a pose applies, a clip shows, a part is selected); its
 	# right-click menu has the rest (Rename / Delete / CLIP a pose, the dummy's Closer / Farther / Solid). The round-7
@@ -10867,7 +10893,7 @@ func _commands() -> Array:
 			id = id.replace(ch, " ")
 		c.append({"id": "_".join(id.split(" ", false)), "name": n, "keys": keys, "run": f, "also": also, "edits": edits, "desc": desc})
 	for v in [["Front view", 1], ["His right view", 2], ["Top view", 3], ["Back view", 4], ["His left view", 5]]:
-		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s (Alt+%d too: Shift+1..5 are the pages)" % [v[0].to_lower(), v[1]])
+		add.call(v[0], str(v[1]), _press.bind(KEY_0 + v[1]), "camera look", false, "camera: %s (Alt+%d too: Shift+1..6 are the pages)" % [v[0].to_lower(), v[1]])
 	for pi in PAGES.size():
 		add.call("Page: " + PAGES[pi], "Shift+%d" % (pi + 1), _press.bind(KEY_1 + pi, true), "page layout workspace screen tab switch " + String(PAGE_ROW[PAGES[pi]]).to_lower(), false, "the %s page: %s (a view change; the scene and the undo history are untouched)" % [PAGES[pi], PAGE_TIPS[PAGES[pi]]])
 	add.call("Every key on one screen", "?", keys_overlay.bind(true), "keys shortcuts help cheat sheet hotkeys", false, "a list of every key the poser has, made from this registry (? or Esc closes it)")
@@ -16570,15 +16596,46 @@ func _proportions_dialog() -> void:
 	ui_prop_dlg.popup_centered()
 
 
+## THE BODY PAGE (scripts/body_panel.gd). A drag previews on the live body (no history); the end is ONE undo step through
+## proportions_set. The sole stays as high above the floor as it was (a standing body stays on the floor).
+var _body_lo := 0.0
+var _body_off := Vector3.ZERO
+func _body_begin() -> void:
+	B.set_proportions(S.body)   # the stage's own body (a half-done preview is dropped)
+	_body_lo = B.sole_low()
+	_body_off = B.offset
+	_step_hint = "Body: proportions"
+
+
+func _body_preview(nd: Dictionary) -> void:
+	B.set_proportions(nd)
+	B.offset.y += _body_lo - B.sole_low()
+	B.fk()
+	_refresh()
+
+
+func _body_commit(nd: Dictionary) -> void:
+	B.set_proportions(S.body)   # back to where the drag began: the undo step starts from the real body, exactly
+	B.offset = _body_off
+	B.fk()
+	proportions_set(nd)
+	if ui_body != null:
+		ui_body.sync(S.body, B, true)
+
+
 ## the scene's proportions -> d ({} = the default body): cards retargeted, one undo step. Returns what was set.
 func proportions_set(d: Dictionary) -> Dictionary:
 	var nd := Proportions.clean(d)
 	if nd == S.body:
 		_say("the body already has these proportions: pick another preset or stature in 'Body: proportions...'")
 		return nd
+	var lo0 := B.sole_low()
 	_do(func():
 		Proportions.retarget(S, B, nd)
 		B.set_proportions(nd)   # the pose as it was, on the new bones
+		if S.cards.is_empty():
+			B.offset.y += lo0 - B.sole_low()   # no cards to carry the height: the soles stay as high as they were
+			B.fk()
 		_dummy_hits()
 		ov.mark_dirty()
 		wt.mark_dirty()

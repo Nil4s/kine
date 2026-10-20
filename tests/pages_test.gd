@@ -1,10 +1,10 @@
 ## godot --path . -s tests/pages_test.gd     (docs/PAGES_PLAN.md step 1; needs a window)
 ## THE PAGE BAR. BARS (written before measuring):
-##  1 the bar has POSE ANIMATE STAGE CHECK DELIVER (live) and BODY MODEL SCULPT SURFACE (greyed, tooltip "coming...", no action)
+##  1 the bar has BODY POSE ANIMATE STAGE CHECK DELIVER (live) and MODEL SCULPT SURFACE (greyed, tooltip "coming...", no action)
 ##  2 switching to each page shows exactly its ribbon row, exactly its groups' captions, and only that page's button lit
 ##  3 the page's name is on screen (its lit button's text) and the page bar is at the very bottom, inside the window
 ##  4 every command in the registry is found by name in the search box, on every page (the search ignores the page)
-##  5 Shift+1..5 switch pages (through the real key code); the registered "Page: X" commands carry those keys
+##  5 Shift+1..6 switch pages (through the real key code); the registered "Page: X" commands carry those keys
 ##  6 the page is saved in the settings file and restored by the boot's loader
 ##  7 a switch is not an undo step, does not change the scene (JSON bytes identical), and takes < 50 ms (worst of 20)
 ##  8 the layouts differ: DELIVER folds both sides and the strip, ANIMATE opens the strip, and none overlaps the page bar
@@ -77,7 +77,7 @@ func _init() -> void:
 		names.append(b.text)
 		if b.text in m.PAGES_SOON:
 			soon_ok = soon_ok and b.tooltip_text == "coming: the modeling pages" and b.pressed.get_connections().is_empty() and b.modulate.a < 0.6
-	ok(names == ["POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "BODY", "MODEL", "SCULPT", "SURFACE"] and soon_ok, "1 the page bar: %s; the four coming pages greyed, tooltip, no action" % [names])
+	ok(names == ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "MODEL", "SCULPT", "SURFACE"] and soon_ok, "1 the page bar: %s; the three coming pages greyed, tooltip, no action" % [names])
 	ok(bar.get_global_rect().end.y >= vs.y - 0.5 and bar.get_global_rect().size.y >= m.PAGE_H - 0.5 and bar.get_global_rect().position.x == 0.0, "3 the bar is the window's very bottom: %s of %s" % [bar.get_global_rect(), vs])
 	# 2 / 3 each page: its row, its captions, its button lit, its name on screen
 	var scene0 := JSON.stringify(m.S.to_dict(m.B))
@@ -128,7 +128,7 @@ func _init() -> void:
 	ok(rowless == 0 and m.ui_view_menu != null, "4 every ribbon row is a page's (VIEW is the View menu on all pages)")
 	# 5 Shift+1..5
 	var keyed := true
-	for i in 5:
+	for i in m.PAGES.size():
 		m._page_set("POSE")
 		m._press(KEY_1 + i, true)
 		keyed = keyed and m.cur_page == m.PAGES[i]
@@ -139,7 +139,7 @@ func _init() -> void:
 		keyed = keyed and c_keys == "Shift+%d" % (i + 1)
 	m.yaw = 33.0
 	m._press(KEY_2)   # a plain 2 is still the camera
-	ok(keyed and is_equal_approx(m.yaw, -90.0), "5 Shift+1..5 switch pages and match the registry (end on %s); plain 2 still the camera (yaw %.0f)" % [m.cur_page, m.yaw])
+	ok(keyed and is_equal_approx(m.yaw, -90.0), "5 Shift+1..6 switch pages and match the registry (end on %s); plain 2 still the camera (yaw %.0f)" % [m.cur_page, m.yaw])
 	# 6 saved and restored
 	m._page_set("CHECK")
 	var cf := ConfigFile.new()
