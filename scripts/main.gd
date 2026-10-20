@@ -12997,6 +12997,28 @@ func _layout_bottom() -> void:
 var _pressing := false   # a command chosen from the registry runs its key: no text box's focus may swallow it
 
 
+## K29 THUMBNAIL PICKER (scripts/thumb_pick.gd): the playhead goes to the clip's most readable frame, scored from the current view
+func _thumbpick() -> void:
+	var P := _ps()
+	if P.cards.size() < 2 or P.length() <= 0.0:
+		_say("nothing to pick from: add at least two cards so the clip has motion, then run Clip: pick its best thumbnail frame again")
+		return
+	var tb := Body.new()
+	tb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var r := ThumbPick.best(P, tb, cam.global_basis.x, cam.global_basis.y)
+	playhead = float(r["t"])
+	P.apply(B, playhead)
+	_refresh()
+	var tm: Dictionary = r["terms"]
+	_say("best thumbnail frame: %d (%.2f s), score %.2f of 1  (spread %.2f H2, limbs apart %.2f H, line of action %.2f H; %d frames tied, the one nearest a key card is taken).  Turn on Thumbnails: use the picked frame to draw it in the scene list" % [int(r["frame"]), float(r["t"]), float(r["score"]), float(tm["hull"]), float(tm["sep"]), float(tm["loa"]), int(r["tied"])])
+
+
+func _thumbpick_flag() -> void:
+	thumbs.pick_on = not thumbs.pick_on
+	thumbs.forget()
+	_say("scene list thumbnails show each clip's most readable frame (re-open the scene list to draw them)" if thumbs.pick_on else "scene list thumbnails show the strike card again")
+
+
 ## WEAPON TRAILS (ROADMAP 35): the two toggles; the ribbon and the smear are drawn by wt (scripts/weapon_trail.gd)
 func _wtrail_ribbon() -> void:
 	wt.ribbon_on = not wt.ribbon_on
@@ -13397,6 +13419,8 @@ func _commands() -> Array:
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
 	add.call("Trail: weapon ribbon on/off", "", _wtrail_ribbon, "trail weapon ribbon sweep blade swipe arc path", false, "a ribbon swept by the bat between its knob and its tip over the last 6 frames, fading; drawn only where the tip is faster than 8 m/s (not the motion trail, T)")
 	add.call("Weapon trail in renders on/off", "", _wtrail_render, "weapon trail renders playblast mp4 shot render ribbon swept grip tip fading", false, "the playblast and the mp4 shot render draw a fading ribbon from the grip to the tip over the last 8 frames, in the theme's accent colour; on by default")
+	add.call("Clip: pick its best thumbnail frame", "", _thumbpick, "clip pick best thumbnail frame readable silhouette poster cover", false, "scores every 1/15 s of the clip from this view (silhouette spread, limbs clear of the torso, line of action) and puts the playhead on the best frame")
+	add.call("Thumbnails: use the picked frame on/off", "", _thumbpick_flag, "thumbnails scene list picked frame best readable cover instead of strike card", false, "the scene list's pictures show each clip's most readable frame instead of its strike card")
 	add.call("Trail: smear frames on/off", "", _wtrail_smear, "trail smear frames motion blur ghost stretch playblast", false, "on a fast frame (the tip moves more than 20 cm in one frame) a ghosted, stretched copy of the bat from the frame before, in the playblast too")
 	add.call("Pin a trail on the picked part", "Shift+T", _press.bind(KEY_T, true), "path arc", false, "draw the picked body part's path over the scene (again removes it)")
 	add.call("Balance on/off", "Shift+B", _press.bind(KEY_B, true), "centre of mass com feet tip fall weight", false, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
