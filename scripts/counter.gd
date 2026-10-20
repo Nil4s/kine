@@ -59,6 +59,12 @@ static func scratch(S: Scene) -> Body:
 	return b
 
 
+## WHEN A STRIKE BECOMES READABLE: the wind-up begins = the start of the move into the card before the strike's card (the strike's
+## own move start when it is the first). ts = Scene.times(). The Precog check (precog.gd) reads the same moment.
+static func read_time(ts: Array, ci: int) -> float:
+	return float(ts[ci - 1][0]) if ci >= 2 else float(ts[ci][0])
+
+
 ## the card whose move the playhead is in or after (the first move when it is on card 0), or -1 with under two cards
 static func card_of(S: Scene, t: float) -> int:
 	var ts := S.times()
@@ -140,7 +146,7 @@ static func strike(AS: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci:
 		pl.append(p)
 		al.append(a)
 		bl.append(b)
-	var t_read := float(ts[ci - 1][0]) if ci >= 2 else t0
+	var t_read := read_time(ts, ci)
 	out.merge({"ok": true, "t_read": t_read, "t_ok": t_read + REACT + MV, "t0": t0, "tc": tc, "contact": contact, "ts": tl, "p": pl, "a": al, "b": bl, "r": r, "what": what, "hand": hand, "root": root}, true)
 	return out
 

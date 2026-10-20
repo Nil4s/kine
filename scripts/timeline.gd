@@ -52,6 +52,7 @@ signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans 
 var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "ok", "why"}] the contacts: fitted on a beat, or flagged
 var sh: Array = []        # SELL THE HIT (I21; sell_hit_ui.gd): [{"t0", "t1", "cls": sold / notsold / unsafe}] a badge per strike
 var rh: Array = []        # FIGHT RHYTHM (I19; fight_rhythm_ui.gd): [{t, who, type: strike / block / step / feint}] one tick per action
+var pc: Array = []        # PRECOG CHECK (I31; precog_ui.gd): [{t (the reaction's start), status: precog / late / both / ok}] a badge each
 var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
 var cg: Array = []        # CHOREOGRAPH (I22): the music energy per beat [{"t0","t1","e" 0..1}], a strip along the cards
@@ -814,6 +815,20 @@ func _draw_rh(y0: float, y1: float) -> void:
 			draw_rect(r, col)
 
 
+## PRECOG CHECK (I31): a badge at each flagged reaction's start: PRECOG (moved before it could have seen it), LATE (arrives after the hit)
+func _draw_pc(font: Font, y0: float) -> void:
+	for b in pc:
+		var st := String(b["status"])
+		if st == "ok":
+			continue
+		var txt := "PRECOG" if st == "precog" else ("LATE" if st == "late" else "PRECOG+LATE")
+		var x := x_of(float(b["t"]))
+		var w := 6.2 * txt.length() + 6.0
+		var r := Rect2(x, y0 - 1.0, w, 11.0)
+		draw_rect(r, Color(Tok.c("fail") if st != "late" else Tok.c("warn"), 0.95))
+		draw_string(font, r.position + Vector2(3.0, 8.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -893,6 +908,7 @@ func _draw() -> void:
 	_draw_dk(font, y0)
 	_draw_sh(font, y0)
 	_draw_rh(y0, y0 + h)
+	_draw_pc(font, y0)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
