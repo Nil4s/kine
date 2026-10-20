@@ -50,6 +50,7 @@ const PH_H := 12.0
 var ph: Array = []
 signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans (-1 = a note)
 var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "ok", "why"}] the contacts: fitted on a beat, or flagged
+var sh: Array = []        # SELL THE HIT (I21; sell_hit_ui.gd): [{"t0", "t1", "cls": sold / notsold / unsafe}] a badge per strike
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
 var bf_grid: Array = []   # the beats (scene time) the fit lands on: ticks down the track
 var ph_sel := -1   # the red span picked (a click on it), -1 = none
@@ -760,6 +761,19 @@ func _draw_dk(font: Font, y0: float) -> void:
 			draw_string(font, Vector2(x0 + 3.0, y0 + 9.5), "JAMMED" if cls == "jammed" else "TOO FAR", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
 
+## SELL THE HIT (I21): a badge under the distance band for every strike: blue = SOLD, amber = NOT SOLD, red = UNSAFE (the safety flag)
+func _draw_sh(font: Font, y0: float) -> void:
+	var oy := 13.0 if not dk.is_empty() else 0.0   # under the distance band when that one is on
+	for b in sh:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
+		var cls := String(b["cls"])
+		var col := Tok.c("fail") if cls == "unsafe" else (Tok.c("warn") if cls == "notsold" else Tok.c("heading"))
+		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(col, 0.92))
+		if x1 - x0 > 40.0:
+			draw_string(font, Vector2(x0 + 3.0, y0 + oy + 9.5), "UNSAFE" if cls == "unsafe" else ("NOT SOLD" if cls == "notsold" else "SOLD"), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -836,6 +850,7 @@ func _draw() -> void:
 		_draw_audio_lanes(S, font)
 	_draw_fit(font, y0, h)
 	_draw_dk(font, y0)
+	_draw_sh(font, y0)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
