@@ -54,6 +54,8 @@ var bk: Array = []        # BREAKFALL CHECK (I25; breakfall_ui.gd): [{"t0", "t1"
 var sh: Array = []        # SELL THE HIT (I21; sell_hit_ui.gd): [{"t0", "t1", "cls": sold / notsold / unsafe}] a badge per strike
 var rh: Array = []        # FIGHT RHYTHM (I19; fight_rhythm_ui.gd): [{t, who, type: strike / block / step / feint}] one tick per action
 var pc: Array = []        # PRECOG CHECK (I31; precog_ui.gd): [{t (the reaction's start), status: precog / late / both / ok}] a badge each
+var fa: Array = []        # FATIGUE (I34; exertion_ui.gd): [{who, t0, t1, f 0..1}] a green-to-red strip per fighter along the bottom of the track
+var fa_n := 0
 var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
 var cg: Array = []        # CHOREOGRAPH (I22): the music energy per beat [{"t0","t1","e" 0..1}], a strip along the cards
@@ -843,6 +845,19 @@ func _draw_pc(font: Font, y0: float) -> void:
 		draw_string(font, r.position + Vector2(3.0, 8.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
 
+## FATIGUE (I34): one thin strip per fighter along the bottom of the track, green (fresh) to red (spent); the fighter's number at its left end
+func _draw_fa(font: Font, y1: float) -> void:
+	if fa.is_empty():
+		return
+	var hh := 6.0
+	for b in fa:
+		var yy := y1 - hh * (fa_n - int(b["who"])) - 1.0
+		var x0 := x_of(float(b["t0"]))
+		draw_rect(Rect2(x0, yy, maxf(x_of(float(b["t1"])) - x0 + 0.5, 1.0), hh - 1.0), Exertion.color(float(b["f"])))
+	for w in fa_n:
+		draw_string(font, Vector2(2.0, y1 - hh * (fa_n - w) + 3.0), "F%d" % (w + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Tok.c("text"))
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -924,6 +939,7 @@ func _draw() -> void:
 	_draw_bk(font, y0)
 	_draw_rh(y0, y0 + h)
 	_draw_pc(font, y0)
+	_draw_fa(font, y0 + h)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
