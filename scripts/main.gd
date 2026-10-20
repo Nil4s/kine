@@ -242,6 +242,10 @@ var base_fold := {"left": false, "right": false, "bottom": false}   # the user's
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
 var ui_page_btns := {}     # page -> its button on the page bar
 var ui_page_bar: PanelContainer
+var nt := NextTool.new()     # P17: learned next commands (scripts/next_tool.gd)
+var ui_nt_box: HBoxContainer   # P17: up to 3 chips after the Next: line
+var _nt_frame := -1
+var _nt_name := ""
 var ui_next: Button        # R6: the page bar's one next-step line
 var ui_view_menu: MenuButton
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
@@ -4812,6 +4816,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var combo: String = ("Ctrl+" if k.ctrl_pressed else "") + ("Shift+" if k.shift_pressed else "") + KEY_WORD.get(k.keycode, OS.get_keycode_string(k.keycode))
 		for c in ui_cmd.commands:
 			if c["keys"] == combo:
+				_nt_note(c["name"])
 				_step_hint = c["name"]
 				_why_cmd = c["name"]
 		if k.ctrl_pressed:
@@ -10353,7 +10358,7 @@ func _button(t: String, f: Callable, tip := "") -> Button:
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = tip
-	b.pressed.connect(func(): _step_hint = t; _why_cmd = t; _tour_inputs += 1)   # first: an undo step pushed by f is named after the button
+	b.pressed.connect(func(): _step_hint = t; _why_cmd = t; _tour_inputs += 1; _nt_note(t))   # first: an undo step pushed by f is named after the button
 	b.pressed.connect(f)
 	return b
 
@@ -11508,6 +11513,7 @@ func _ui() -> void:
 	ui_plugins.say_fn = _say
 	ui_root.add_child(ui_plugins)
 	ui_cmd.commands = _commands() + plugins.command_rows()
+	_nt_sync()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
 	_hover_hints()
@@ -12796,6 +12802,23 @@ func _build_page_bar() -> void:
 	ui_next.add_theme_color_override("font_hover_color", Tok.c("say"))
 	ui_next.pressed.connect(_next_run)
 	h.add_child(ui_next)
+	nt.load_file()
+	ui_nt_box = HBoxContainer.new()
+	ui_nt_box.name = "nt_chips"
+	ui_nt_box.add_theme_constant_override("separation", 3)
+	h.add_child(ui_nt_box)
+	for i in 3:
+		var ch := Button.new()
+		ch.name = "nt_chip_%d" % i
+		ch.focus_mode = Control.FOCUS_NONE
+		ch.clip_text = true
+		ch.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		ch.custom_minimum_size = Vector2(130, PAGE_H - 12)
+		ch.add_theme_font_size_override("font_size", 11)
+		ch.add_theme_color_override("font_color", Tok.c("say"))
+		ch.visible = false
+		ch.pressed.connect(_nt_run.bind(i))
+		ui_nt_box.add_child(ch)
 	_next_sync()
 
 
@@ -12919,6 +12942,61 @@ func _next_sync() -> void:
 	var n := next_step()
 	ui_next.text = "Next:  " + String(n["text"])
 	ui_next.tooltip_text = "the one next step for this scene; click it to do it"
+	_nt_sync(n)
+
+
+## P17: a command ran (palette, key, ribbon, chip). A macro's replay is one action, not many habits; the same name twice in one frame is one run
+func _nt_note(n: String) -> void:
+	if _macro_nest > 0 or _command_named(n).is_empty():
+		return
+	var fr := Engine.get_process_frames()
+	if n == _nt_name and fr == _nt_frame:
+		return
+	_nt_name = n
+	_nt_frame = fr
+	nt.record(n, cur_page)
+	_nt_sync.call_deferred({})
+
+
+## a command that cannot do anything now (no card, one card) is not offered
+func _nt_can(n: String) -> bool:
+	if _command_named(n).is_empty():
+		return false
+	match n:
+		"Check the motion", "Blend to next card": return S.cards.size() >= 2
+		"Play / pause": return not S.cards.is_empty()
+	return true
+
+
+func _nt_sync(nx := {}) -> void:
+	if ui_nt_box == null or ui_cmd == null or ui_cmd.commands.is_empty():
+		return
+	if nx.is_empty():
+		nx = next_step()
+	var pick: Array = nt.suggest(cur_page, _nt_can, 3, [String(nx.get("cmd", ""))])
+	for i in ui_nt_box.get_child_count():
+		var ch := ui_nt_box.get_child(i) as Button
+		ch.visible = i < pick.size()
+		if ch.visible:
+			ch.text = String(pick[i])
+			ch.tooltip_text = "you often do this next: %s (click to run it; Help: forget my command habits resets)" % pick[i]
+
+
+func _nt_run(i: int) -> void:
+	var ch := ui_nt_box.get_child(i) as Button
+	var c := _command_named(ch.text)
+	if c.is_empty():
+		return
+	_step_hint = ch.text
+	_why_cmd = ch.text
+	(c["run"] as Callable).call()
+	_nt_sync()
+
+
+func _nt_forget() -> void:
+	nt.forget()
+	_nt_sync()
+	_say_plain("forgot your command habits: the chips after Next: start from the default sequence again")
 
 
 func _next_run() -> void:
@@ -13809,7 +13887,15 @@ func _commands() -> Array:
 	add.call("Help: Blender / Maya key helper off", "", kt.set_mode.bind(""), "blender maya keys shortcuts translate helper off stop hide", false, "turn the Coming-from-Blender/Maya toasts off (remembered)")
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
-	return Hotkeys.apply(c, hk.over)   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
+	add.call("Help: forget my command habits", "", _nt_forget, "next suggested tool chips habits learned forget reset clear history suggestions", false, "forget which commands you run after which (the grey chips after Next:); the default sequence comes back")
+	var rows: Array = Hotkeys.apply(c, hk.over)
+	for d in rows:   # P17: every way to run a command (palette, key, chip, macro) goes through this one wrapper, which counts it
+		var f: Callable = d["run"]
+		var nm: String = d["name"]
+		d["run"] = func():
+			_nt_note(nm)
+			f.call()
+	return rows   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
 
 
 ## EXCHANGE VIEW (ROADMAP 13; scripts/choreo.gd, scripts/choreo_view.gd): one row per fighter, the beats, the reach and
