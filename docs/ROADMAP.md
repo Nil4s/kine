@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 0 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 1 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -239,6 +239,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [x] I3. Counter suggestion: for the attacker's current card, suggest the defender's block / slip / parry pose that
   intercepts the weapon path (geometry of the swing arc against the defender's reach) - choreography help.
   Done: on combo3's bat strike Kine proposes BLOCK and PARRY on fighter 2 (forearm 0.1 / 2.2 cm from the path, meeting it ~30 cm in front of the body, starting 0.42 s after the wind-up), Tab/Enter/one undo; a miss says 'nothing to counter'. Open: no slip/step-back answer clears this swing; labels overlap the name tag.
+  Step 2: STEP-BACK (15 cm step, pinned foot slides 0.70 cm, tip misses by 6.5 cm) and DUCK (head-height swing, clears by 6.5 cm); 3 counter kinds on combo3; labels stacked clear of the name tag. Placing a duck is untested.
 - [x] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
   (anticipation 2-3x shorter than action for fast hits, overshoot on follow-through); suggest exact holds/moves with a
   "sounds right" preview; accept one by one.
