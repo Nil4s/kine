@@ -68,3 +68,35 @@ static func apply(S: Scene, keys: Dictionary) -> int:
 		S.part_keys[j] = kept
 		n += nk.size()
 	return n
+
+
+## a two-handed weapon after a layer: at every 0.05 s where both hands hold it, is the second hand on it (within the
+## clip's own worst miss before the layer, + 2 mm)? {"n": times held two-handed, "off": times it cannot reach, "worst": m}.
+## Where the acted arm swings the weapon out of the other arm's reach no solve can close it, so the status line says so
+static func grip_report(S: Scene, B: Body, base := -1.0) -> Dictionary:
+	if base < 0.0:
+		var pk: Dictionary = S.part_keys
+		S.part_keys = {}
+		base = _worst_grip(S, B)[1]
+		S.part_keys = pk
+	var r := _worst_grip(S, B, base + 0.002)
+	return {"n": r[0], "off": r[2], "worst": r[1], "base": base}
+
+
+static func _worst_grip(S: Scene, B: Body, bar := INF) -> Array:
+	var keep := B.state()
+	var n := 0
+	var off := 0
+	var worst := 0.0
+	var t := 0.0
+	while t <= S.length():
+		S.apply_true(B, t)
+		if B.wep_on and B.grip:
+			n += 1
+			var m := B.grip_miss()
+			worst = maxf(worst, m)
+			if m > bar:
+				off += 1
+		t += 0.05
+	B.set_state(keep)
+	return [n, worst, off]

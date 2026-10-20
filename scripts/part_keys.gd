@@ -824,3 +824,13 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 			ks.append(e)
 		out[o] = ks
 	return out
+
+
+## true when part keys drive an arm joint (clavicle .. hand): a two-handed weapon's second hand must then be put back on it
+static func moves_arm(pk: Dictionary) -> bool:
+	for j in pk:
+		var n := String(j)
+		if n.begins_with("clavicle_") or n.begins_with("upperarm_") or n.begins_with("lowerarm_") or n == "hand_l" or n == "hand_r":
+			if not (pk[j] as Array).is_empty():
+				return true
+	return false

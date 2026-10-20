@@ -157,6 +157,71 @@ func _init() -> void:
 		ts.append(float(k["t"]))
 	ok(ts == [0.1, 0.5, 1.0, 2.0], "(5) apply keeps keys outside the span and replaces those inside (%s)" % [ts])
 
+	# (6) a TWO-HANDED weapon clip (bo_spin, read only): walk_bat's arms layered on; the second hand stays on the staff
+	var Bo := Scene.new()
+	Bo.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/bo_spin.json")))
+	var Bb := Body.new()
+	Bb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var base_g := 0.0
+	var tb := 0.0
+	while tb <= Bo.length():
+		Bo.apply_true(Bb, tb)
+		if Bb.wep_on and Bb.grip:
+			base_g = maxf(base_g, Bb.grip_miss())
+		tb += 0.05
+	print("       bo_spin unlayered: worst second-hand miss %.1f cm" % (base_g * 100.0))
+	var take := []
+	for i in int(minf(W.length(), Bo.length()) * FPS):
+		W.apply(Bs, i / FPS)
+		var ang := {}
+		for j in Body.BODY:
+			ang[j] = Bs.ang[j]
+		take.append({"t": 1000.0 + i / FPS, "ang": ang})
+	LiveLayer.apply(Bo, LiveLayer.keys_from_take(take, LiveLayer.GROUPS["arms"], 0.0, Bo.length()))
+	var Bg := Body.new()
+	Bg.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var worst_g := 0.0
+	var worst_off := 0.0
+	var n_g := 0
+	var n_in := 0
+	var tt := 0.0
+	while tt <= Bo.length():
+		Bo.apply_true(Bg, tt)
+		if Bg.wep_on and Bg.grip:
+			n_g += 1
+			worst_g = maxf(worst_g, Bg.grip_miss())
+			if Bg.grip_miss() <= base_g + 0.002:
+				n_in += 1
+		tt += 0.05
+	var Bw := Body.new()
+	Bw.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var off_hand := ""
+	tt = 0.0
+	while tt <= Bo.length():
+		var smp: Dictionary = Bo.sample(tt)
+		Scene.put(Bw, smp)
+		if Bw.wep_on and Bw.grip:
+			worst_off = maxf(worst_off, Bw.grip_miss())
+		tt += 0.05
+	ok(n_g >= 8 and n_in * 4 >= n_g * 3 and worst_off > 0.05,
+		"(6) two-handed bo_spin, the arms layered: the second hand on the staff (within the clip's own %.1f cm) at %d of %d times, worst %.1f cm; without the regrip %.1f cm off" % [base_g * 100.0, n_in, n_g, worst_g * 100.0, worst_off * 100.0])
+	var t_us := Time.get_ticks_usec()
+	for k in 60:
+		Bo.apply_true(Bg, 2.15)
+	var per_ms := (Time.get_ticks_usec() - t_us) / 60000.0
+	ok(per_ms < 8.0, "(6) a regripped frame costs %.2f ms (under 8 ms)" % per_ms)
+	m.S = Bo
+	m.playhead = 2.15
+	m._ps().apply(m.B, 2.15)
+	m.yaw = 30.0
+	m.target = Vector3(m.B.P["pelvis"].x, 0.9, m.B.P["pelvis"].z)
+	m._cam()
+	m._refresh()
+	await idle(4)
+	root.get_texture().get_image().save_png(SHOT.replace(".png", "_bo.png"))
+	var rep := LiveLayer.grip_report(Bo, Bg)
+	ok(int(rep["n"]) == n_g and int(rep["off"]) == n_g - n_in, "(6) the app counts the times the second hand cannot reach (%d of %d)" % [rep["off"], rep["n"]])
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(replay))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	print("LIVE LAYER ", "PASS" if fails == 0 else "FAIL %d" % fails)

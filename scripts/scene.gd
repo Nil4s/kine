@@ -909,6 +909,12 @@ func _apply(B: Body, t: float) -> void:
 			B.apply_grip()
 			return
 	put(B, sample(t), free_limits)
+	if not part_keys.is_empty() and B.grip and PartKeys.moves_arm(part_keys):
+		# part keys on an arm (a live layer): the second hand back onto the weapon, as a layer does (add_layer); where the
+		# elbow-only solve leaves it over 2 cm off, the whole arm (clavicle to hand) is searched for the spot
+		if B.apply_grip() > 0.02 and B.grip2.is_empty():
+			var o := "hand_l" if B.wep_hand == "hand_r" else "hand_r"
+			B.fit_hand(o, B.grip_wrist(), B.G[o])
 	if on_floor:
 		_ground(B)
 	if pin:

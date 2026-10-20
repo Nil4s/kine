@@ -18707,7 +18707,15 @@ func _live_layer_stop() -> Dictionary:
 	_ps().apply(B, playhead)
 	_refresh()
 	var j0: String = keys.keys()[0]
-	_say("live: the %s layer is kept: %d part keys on %d joints from %.2f s to %.2f s; the cards are untouched. Ctrl+Z undoes it" % [grp, n, keys.size(), float(keys[j0][0]["t"]), float(keys[j0][-1]["t"])])
+	var grip_note := ""
+	if PartKeys.moves_arm(keys):
+		var gr := LiveLayer.grip_report(S, B)
+		_ps().apply(B, playhead)
+		if int(gr["off"]) > 0:
+			grip_note = "; the second hand cannot reach the weapon at %d of %d moments (up to %.0f cm off): the acted arm takes it out of the other's reach there" % [gr["off"], gr["n"], float(gr["worst"]) * 100.0]
+		elif int(gr["n"]) > 0:
+			grip_note = "; the second hand stays on the weapon"
+	_say("live: the %s layer is kept: %d part keys on %d joints from %.2f s to %.2f s; the cards are untouched%s. Ctrl+Z undoes it" % [grp, n, keys.size(), float(keys[j0][0]["t"]), float(keys[j0][-1]["t"]), grip_note])
 	return keys
 
 
@@ -18746,6 +18754,7 @@ func _live_poll(_dt: float) -> void:
 		for j in mine:
 			B.ang[j] = mine[j]
 		B.fk()
+		B.apply_grip()   # a two-handed weapon: the second hand stays on it while you act the arms
 		if playhead >= S.length():
 			_live_layer_stop()
 	if not got.is_empty():
