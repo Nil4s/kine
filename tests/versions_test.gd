@@ -71,10 +71,10 @@ func pose(z: float) -> void:
 
 
 func cleanup() -> void:
-	for f in ["res://scenes/_versions/_wip/zz_ver/v001.json", "res://scenes/_versions/_wip/zz_ver/v002.json", "res://scenes/_versions/_wip/zz_ver/v003.json", FILE]:
+	for f in ["res://scenes/_versions/_wip/zz_ver/v001.json", "res://scenes/_versions/_wip/zz_ver/v002.json", "res://scenes/_versions/_wip/zz_ver/v003.json", "res://scenes/_versions/_wip/zz_ver_other/v001.json", FILE]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
-	for dpath in ["res://scenes/_versions/_wip/zz_ver", "res://scenes/_versions/_wip", "res://scenes/_versions"]:
+	for dpath in ["res://scenes/_versions/_wip/zz_ver", "res://scenes/_versions/_wip/zz_ver_other", "res://scenes/_versions/_wip", "res://scenes/_versions"]:
 		var d := DirAccess.open(dpath)
 		if d != null and d.get_files().is_empty() and d.get_directories().is_empty():
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(dpath))
