@@ -375,6 +375,20 @@ static func mesh(p: Dictionary) -> Node3D:
 	mat.albedo_color = GREY
 	mat.roughness = 0.9
 	var kd := kind_of(p["kind"])
+	if String(kd.get("glb", "")).get_extension().to_lower() == "obj" and not model_missing(p):   # an imported OBJ (N01): its meshes, same placement as a .glb
+		var n := Node3D.new()
+		for o in ObjIO.import_file(kd["glb"]):
+			var mi := MeshInstance3D.new()
+			mi.name = String(o["name"])
+			mi.mesh = o["mesh"]
+			mi.material_override = mat
+			n.add_child(mi)
+		var bx: AABB = kd["aabb"]
+		var f: float = kd["factor"]
+		n.scale = Vector3.ONE * f
+		n.position = -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z) * f
+		root.add_child(n)
+		return root
 	if String(kd.get("glb", "")) != "" and not model_missing(p):   # an imported model: the model itself, on the floor, centred, at the importer's scale
 		var doc := GLTFDocument.new()
 		var st := GLTFState.new()
