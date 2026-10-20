@@ -1,0 +1,24 @@
+# Physics constants for I47 (human speed envelope)
+
+Rows for `scripts/speed_env.gd` (CH table). Merge into docs/physics_constants.md with gt2's rows. Every source below was opened and read (the number is in the text I read, not from memory).
+
+RULE used for every limit: **limit = mean + 1 SD of the fastest group in the paper** (the mean alone would flag half of the people measured; mean + 1 SD is roughly the 84th percentile of that group). The SD and population are kept in each row. Joint speeds are taken over 1/60 s (4 steps at 240 Hz) because the papers' angles come from filtered mocap; hand and foot are a one-step 240 Hz difference (the approach I38 verified for peak_hand).
+
+| name | limit used | units | where used | source | quote / table cell | population |
+|---|---|---|---|---|---|---|
+| peak hand (fist) speed | 13.79 (= 11.95 + 1.84) | m/s | scripts/speed_env.gd:21 (id "hand") | Stanley, Thomson, Smith, Lamb 2018, "An analysis of the three-dimensional kinetics and kinematics of maximal effort punches among amateur boxers", Int J Performance Analysis in Sport 18(5):835-854 (abstract read via ideas.repec.org) | "The lead hook exhibited the greatest peak fist velocity (11.95 ± 1.84 m/s)" | 15 male amateur boxers, 24.9 ± 4.2 y, 6.3 ± 2.8 y experience |
+| (cross-check, not a limit) single maximal punch contact speed | 9.26 ± 2.09 | m/s | context only | Piorkowski, Lees, Barton 2011, "Single maximal versus combination punch kinematics", Sports Biomechanics (author PDF, LJMU/UCLan repository, abstract read) | "Single maximal (mean 9.26 ± 2.09 m/s)" | 10 competition-standard boxers, 8-camera 3D mocap |
+| peak foot (toe) speed in a kick | 15.84 (= 14.66 + 1.18) | m/s | scripts/speed_env.gd:23 (id "foot"; the body's ball_x end point) | Gavagan & Sayers 2017, "A biomechanical analysis of the roundhouse kicking technique of expert practitioners: ...Muay Thai, Karate, and Taekwondo", PLoS ONE 12(8):e0182645, Table 2 (PMC5571909) | Taekwondo "Max linear foot velocity 14.66 ± 1.18 m/s" (Karate 13.66 ± 1.06; Muay Thai 13.24 ± 2.30) | 24 advanced / black belt practitioners, 8 per art, roundhouse kick |
+| peak knee extension angular velocity | 1041 (= 947 + 94) | deg/s | scripts/speed_env.gd:29 (id "knee") | Gavagan & Sayers 2017, PLoS ONE 12(8):e0182645, Table 2 | Karate "Max knee extension -947 ± 94 deg/s" (Taekwondo -943 ± 106; Muay Thai -706 ± 200); the paper's sign is negative for extension, we compare the size | same 24 black belts |
+| peak pelvis axial rotation velocity | 699 (= 493 + 206) | deg/s | scripts/speed_env.gd:31 (id "pelvis"; world yaw rate of the pelvis) | Gavagan & Sayers 2017, Table 2 | Muay Thai "Max pelvis axial rotation 493 ± 206 deg/s" (Karate 452 ± 71; Taekwondo 448 ± 30) | same 24 black belts |
+| peak elbow extension angular velocity | 2526 (= 2305 + 221) | deg/s | scripts/speed_env.gd:25 (id "elbow") | Fleisig, Diffendaffer, Aune, Ivey, Laughlin 2016, "Biomechanical Analysis of Weighted-Ball Exercises for Baseball Pitchers", Sports Health 9(3):210-215, Table (PMC5435148); mound pitching, 5 oz standard ball | "Elbow extension 2305 ± 221 (deg/s)" (the table prints the unit as "des/s") | 25 baseball pitchers (18 high school, 7 collegiate), 18.3 ± 1.5 y |
+| peak shoulder internal rotation angular velocity | 7337 (= 6594 + 743) | deg/s | scripts/speed_env.gd:27 (id "shoulder"; the upper arm's twist angle, kind "twist") | Fleisig et al. 2016, same table, 5 oz ball | 5 oz column, shoulder internal rotation "6594 ± 743" (4 oz column: 6579 ± 824) | same 25 pitchers |
+| peak upper-trunk (thorax) axial rotation velocity | 1190 (= 1101 + 89) | deg/s | scripts/speed_env.gd:33 (id "trunk"; world yaw rate of spine_03) | Fleisig et al. 2016, same table, 5 oz ball | "Upper trunk 1101 ± 89" | same 25 pitchers |
+
+Notes and limits (honest):
+- The Fleisig 2016 table gives 4/5/6/7 oz columns; I read 4 oz = 554/1092/6579/2301 and 5 oz = 566/1101/6594/2305 (pelvis/upper trunk/shoulder IR/elbow). The row above uses the 5 oz (standard ball) column.
+- These are pitchers aged ~18, not professionals. Professional pitchers are faster (a secondary review, Trasolini 2022, quotes ~6200 and ~4600 deg/s but attributes them to a hip-kinematics reference, so it was NOT used). If a stronger primary source for adult professionals is found, raise the shoulder and elbow rows.
+- Fists/feet limits are group means + 1 SD of amateurs / black belts, not world records: a clip flagged here is faster than ~84% of the trained people measured, not "impossible". Kine's existing timing coach uses 11.95 m/s (the same Stanley mean) as its fastest cited peak.
+- Knee, elbow and pelvis use the angle of the parent->child rotation (or the vertical-axis rate); the papers' joint angles are anatomical angles, a small mismatch for off-axis motion.
+- Kine's trunk point is spine_03 (upper chest), not a thorax marker cluster.
+- No source for neck, wrist, or hip peaks was opened; they are not checked.
