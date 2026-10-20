@@ -2564,6 +2564,8 @@ func _process(dt: float) -> void:
 		style_ui.tick(dt)
 	if dk_ui != null:
 		dk_ui.tick(dt)
+	if feint_ui != null:
+		feint_ui.tick(dt)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
 	_dm_poll()
@@ -2926,6 +2928,7 @@ var fd_fps := 60             # the game's frame rate the counts use (a setting: 
 var fd_cache := {}           # {"key": the scene + dummy + fps it was made for, "fd": FrameData.analyze's result}
 var fd_node: MeshInstance3D = null
 var fd_btn: Button = null
+var feint_ui: FeintUI   # FEINT MAKER (Innovations I20; scripts/feint_ui.gd): the strike as a feint, a re-chamber and the real strike, as ghosts
 var counter_ui: CounterUI   # COUNTER SUGGESTION (Innovations I3; scripts/counter_ui.gd): the defender's block / slip / parry as ghosts
 var hitbox_ui: HitBoxesUI   # HIT / HURT BOXES (ROADMAP 36): the commands and the dialog (scripts/hit_boxes_ui.gd)
 
@@ -4139,6 +4142,8 @@ func _refresh() -> void:
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
+	if feint_ui != null:
+		feint_ui.refresh()   # I20: an edit since the ghosts were made puts them away
 	if counter_ui != null:
 		counter_ui.refresh()   # I3: an edit since the ghosts were made puts them away
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
@@ -4308,6 +4313,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if feint_ui != null and feint_ui.on and feint_ui.input(ev):   # I20: Tab picks the variant, P previews, Enter accepts, Esc puts the ghosts away
+		get_viewport().set_input_as_handled()
+		return
 	if counter_ui != null and counter_ui.on and counter_ui.input(ev):   # I3: Tab picks the next ghost, Enter places it, Esc puts them away
 		get_viewport().set_input_as_handled()
 		return
@@ -4948,6 +4956,8 @@ func _restore(u: Dictionary) -> void:
 		style_ui.halt()
 	if dk_ui != null:
 		dk_ui.halt()
+	if feint_ui != null:
+		feint_ui.pv = null
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
@@ -12815,6 +12825,9 @@ func _commands() -> Array:
 	hitbox_ui.commands(add)   # HIT / HURT BOXES per frame (ROADMAP 36; scripts/hit_boxes_ui.gd)
 	if counter_ui == null:
 		counter_ui = CounterUI.new(self)
+	if feint_ui == null:
+		feint_ui = FeintUI.new(self)
+	feint_ui.commands(add)   # FEINT MAKER (Innovations I20)
 	counter_ui.commands(add)   # COUNTER SUGGESTION: the defender's block / slip / parry ghosts (Innovations I3; scripts/counter_ui.gd)
 	if mm_ui == null:
 		mm_ui = MotionMatchUI.new(self)
