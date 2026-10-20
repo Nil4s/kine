@@ -10691,6 +10691,7 @@ func _rebuild_cards() -> void:
 			ui_cards.add_child(eb)
 	var ts := S.times()
 	_pl_card = _play_card_idx()
+	msel = msel.filter(func(k): return k >= 0 and k < S.cards.size())   # R19: an undo or a load may have shortened the strip
 	for i in S.cards.size():
 		var c: Dictionary = S.cards[i]
 		var pc := PanelContainer.new()
@@ -10839,6 +10840,9 @@ func _card_style(i: int) -> StyleBoxFlat:
 	st.set_content_margin_all(3)
 	st.set_border_width_all(2)
 	st.border_color = Tok.c("card_play") if here else Color(0, 0, 0, 0)
+	if i in msel:   # R19: a card in the multi-selection: a thicker outline in its own amber, apart from the playhead's gold frame
+		st.set_border_width_all(3)
+		st.border_color = Tok.c("card_multi")
 	return st
 
 
@@ -10990,6 +10994,7 @@ func _card_reorder(i: int, j: int) -> void:
 	S.cards.remove_at(i)
 	S.cards.insert(j, c)
 	sel_card = j
+	msel = []   # R19: dragging moves just the dragged card (the selection's indices would be stale)
 	_rebuild_cards()
 	_refresh()
 	_say("card moved to place %d.  Ctrl+Z puts it back" % (j + 1))
@@ -11007,6 +11012,19 @@ func _card_menu(i: int, at: Vector2) -> void:
 		ui_card_menu.id_pressed.connect(_card_menu_pick)
 	ui_card_menu.clear()
 	ui_card_menu.set_meta("card", i)
+	if msel.size() > 1 and i in msel:   # R19: right-click inside the selection: the batch actions
+		ui_card_menu.add_separator("%d cards selected" % msel.size())
+		ui_card_menu.add_icon_item(Icons.small("move_r"), "Retime x2 (slower)", 10)
+		ui_card_menu.add_icon_item(Icons.small("move_l"), "Retime x0.5 (faster)", 11)
+		ui_card_menu.add_icon_item(Icons.small("holds"), "Set hold to 0", 12)
+		ui_card_menu.add_icon_item(Icons.small("holds"), "Set hold to 0.5 s", 13)
+		ui_card_menu.add_icon_item(Icons.small("card_update"), "Copy %d cards" % msel.size(), 14)
+		ui_card_menu.add_icon_item(Icons.small("clip"), "Paste after the current card", 15)
+		ui_card_menu.set_item_disabled(ui_card_menu.get_item_index(15), card_clip.is_empty())
+		ui_card_menu.add_icon_item(Icons.small("card_delete"), "Delete %d cards" % msel.size(), 16)
+		ui_card_menu.add_icon_item(Icons.small("close"), "Clear the selection", 17)
+		ui_card_menu.popup(Rect2i(Vector2i(at), Vector2i(0, 0)))
+		return
 	ui_card_menu.add_icon_item(Icons.small("rename"), "Rename", 0)
 	ui_card_menu.add_icon_item(Icons.small("card_update"), "Update from the body", 1)
 	ui_card_menu.add_icon_item(Icons.small("move_l"), "Move earlier", 2)
@@ -11023,6 +11041,16 @@ func _card_menu_pick(id: int) -> void:
 	if i < 0 or i >= S.cards.size():
 		return
 	match id:
+		10: cards_retime(2.0)
+		11: cards_retime(0.5)
+		12: cards_set_hold(0.0)
+		13: cards_set_hold(0.5)
+		14: cards_copy()
+		15: cards_paste()
+		16: cards_delete()
+		17:
+			msel = []
+			_rebuild_cards()
 		0:
 			var nb := ui_cards.get_node_or_null("card_%d/b_pick" % (i + 1)) as Button
 			if nb != null:
@@ -11132,6 +11160,7 @@ func _card_pick(i: int) -> void:
 	_ease_bias_armed = false
 	sel_card = i
 	sel_end = -1
+	msel = []   # R19: a plain click picks one card again
 	playing = false
 	playhead = S.times()[i][1]
 	Scene.put(B, Moves._flat(S.cards[i]["pose"]))
@@ -11833,6 +11862,14 @@ func _commands() -> Array:
 	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
 	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10% in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
 	add.call("Retime: scale the range around the playhead...", "", _retime_range_dialog, "retime range playhead scale stretch slow fast tempo speed time percent", true, "scale everything timed in a range (the preview range from the ruler, or the picked cards: cards, keys, plants, IK, layers, props, markers, camera) about the playhead, 50 to 200 %: what is after the range shifts so nothing overlaps; the audio stays put; one undo step (ROADMAP 67)")
+	for cm in [["Cards: retime the selected x2 (slower)", cards_retime.bind(2.0), "the selected cards' move and hold doubled (Ctrl+click / Shift+click cards first); one undo step"],
+			["Cards: retime the selected x0.5 (faster)", cards_retime.bind(0.5), "the selected cards' move and hold halved; one undo step"],
+			["Cards: set the selected cards' hold to 0", cards_set_hold.bind(0.0), "the selected cards hold 0 s; one undo step"],
+			["Cards: set the selected cards' hold to 0.5 s", cards_set_hold.bind(0.5), "the selected cards hold 0.5 s; one undo step"],
+			["Cards: delete the selected", cards_delete, "delete every selected card at once; one undo step"],
+			["Cards: paste after the current card", cards_paste, "put the copied cards after the current card; one undo step"]]:
+		add.call(cm[0], "", cm[1], "card cards multi select selection batch retime hold delete paste", true, cm[2])
+	add.call("Cards: copy the selected", "", cards_copy, "card cards multi select selection batch copy", false, "copy the selected cards (paste puts them after the current card)")
 	add.call("Slower (10%)", "", _speed.bind(1.1), "timing", true, "the picked card (or the whole scene) 10% slower")
 	add.call("Faster (10%)", "", _speed.bind(1.0 / 1.1), "timing", true, "the picked card (or the whole scene) 10% faster")
 	add.call("Preview range: start at the playhead", "", _pv_set.bind("in", -1.0), "in point loop section", false, "Play and Loop run only between the in and out points (a view setting: never saved, not an undo step). Also Shift+click on the ruler")
@@ -13769,13 +13806,20 @@ func _card_drag_cancel() -> bool:
 ## a double-click on a card's title: a name box in its place (Enter keeps the name, Esc or clicking away keeps the old)
 func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
 	var mb := ev as InputEventMouseButton
+	if mb != null and mb.pressed and mb.ctrl_pressed and not mb.shift_pressed and mb.button_index == MOUSE_BUTTON_LEFT and not mb.double_click:
+		nb.accept_event()   # R19: Ctrl+click toggles this card in the selection (the first one also takes the current card in)
+		_cd_i = -1
+		card_toggle(i)
+		return
 	if mb != null and mb.pressed and mb.shift_pressed and mb.button_index == MOUSE_BUTTON_LEFT and sel_card >= 0 and not mb.double_click:
 		nb.accept_event()   # Shift+click: the range to this card (X1); the picked card and the body stay
+		_cd_i = -1
 		sel_end = i if i != sel_card else -1
 		_range_of = sel_card
+		msel = card_range()   # R19: the range is also the multi-selection (batch retime / delete / copy)
 		_rebuild_cards()
 		var r := card_range()
-		_say("cards %d-%d picked: Faster / Slower retime them all (a plain click picks one again)" % [r[0] + 1, r[-1] + 1])
+		_say("cards %d-%d selected: right-click for retime / hold / copy / delete, Faster / Slower retime them (a plain click picks one again)" % [r[0] + 1, r[-1] + 1])
 		return
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
 		nb.accept_event()
@@ -14638,6 +14682,132 @@ func card_range() -> Array:
 	if sel_end < 0 or sel_end >= S.cards.size() or _range_of != sel_card:
 		return [sel_card]
 	return range(mini(sel_card, sel_end), maxi(sel_card, sel_end) + 1)
+
+
+## R19: MULTI-SELECT CARDS. msel = the selected card indices (sorted), kept apart from sel_card (the current card, the body's pose).
+## Ctrl+click toggles, Shift+click selects the range from the current card, a plain click selects one again.
+var msel: Array = []
+var card_clip: Array = []   # the copied cards (deep copies of the dictionaries)
+
+
+func card_toggle(i: int) -> void:
+	if i < 0 or i >= S.cards.size():
+		return
+	if msel.is_empty() and sel_card >= 0 and sel_card != i:
+		msel = [sel_card]
+	if i in msel:
+		msel.erase(i)
+	else:
+		msel.append(i)
+	msel.sort()
+	_rebuild_cards()
+	_say("%d card%s selected: right-click for retime / hold / copy / delete (a plain click picks one again)" % [msel.size(), "" if msel.size() == 1 else "s"])
+
+
+## the cards the batch commands act on: the multi-selection, else the Shift range / the picked card
+func card_sel() -> Array:
+	return msel.duplicate() if not msel.is_empty() else card_range()
+
+
+func _sel_or_say() -> Array:
+	var idx := card_sel()
+	if idx.is_empty():
+		_say("no cards selected: Ctrl+click cards (or Shift+click a range) in the strip first")
+	return idx
+
+
+## batch retime: the move into each selected card and its hold x factor (an auto move becomes its number first). One undo step
+func cards_retime(factor: float) -> String:
+	var idx := _sel_or_say()
+	if idx.is_empty():
+		return "no cards selected"
+	if not (factor >= 0.1 and factor <= 10.0):
+		_say("retime by a factor from 0.1 to 10 (2 = twice as slow), not %s" % factor)
+		return "bad factor"
+	_step_hint = "Retime cards"
+	_push_undo()
+	_markers_hold()
+	var mv := idx.map(func(i): return S.move_time(i) if i > 0 else 0.0)   # all read before any is written
+	for n in idx.size():
+		var i: int = idx[n]
+		var c: Dictionary = S.cards[i]
+		if i > 0:
+			c["move"] = snappedf(maxf(0.04, mv[n] * factor), 0.001)
+		c["hold"] = snappedf(float(c["hold"]) * factor, 0.001)
+	_markers_follow()
+	_rebuild_cards()
+	_refresh()
+	_say("%d cards x%s: the scene is now %s.  Ctrl+Z takes it back" % [idx.size(), String.num(factor, 2), Units.time(_ps().length(), S.fps)])
+	return ""
+
+
+func cards_set_hold(h: float) -> String:
+	var idx := _sel_or_say()
+	if idx.is_empty():
+		return "no cards selected"
+	_step_hint = "Set hold"
+	_push_undo()
+	_markers_hold()
+	for i in idx:
+		S.cards[i]["hold"] = maxf(0.0, h)
+	_markers_follow()
+	_rebuild_cards()
+	_refresh()
+	_say("%d cards hold %s s: the scene is now %s.  Ctrl+Z takes it back" % [idx.size(), String.num(h, 2), Units.time(_ps().length(), S.fps)])
+	return ""
+
+
+func cards_delete() -> String:
+	var idx := _sel_or_say()
+	if idx.is_empty():
+		return "no cards selected"
+	_step_hint = "Delete cards"
+	_push_undo()
+	var before := 0
+	for i in idx:
+		if i < sel_card:
+			before += 1
+	var rev := idx.duplicate()
+	rev.sort()
+	rev.reverse()
+	for i in rev:
+		S.cards.remove_at(i)
+	sel_card = mini(sel_card - before, S.cards.size() - 1)
+	msel = []
+	sel_end = -1
+	playhead = minf(playhead, _ps().length())
+	_rebuild_cards()
+	_refresh()
+	_say("%d cards deleted.  Ctrl+Z brings them back" % idx.size())
+	return ""
+
+
+func cards_copy() -> String:
+	var idx := _sel_or_say()
+	if idx.is_empty():
+		return "no cards selected"
+	card_clip = idx.map(func(i): return (S.cards[i] as Dictionary).duplicate(true))
+	_say("%d cards copied: pick the card they go after, then Paste (right-click a selected card, or the command 'Cards: paste after the current card')" % card_clip.size())
+	return ""
+
+
+## paste the copied cards (poses, move, hold, names exactly as copied) after the current card; they become the selection
+func cards_paste() -> String:
+	if card_clip.is_empty():
+		_say("nothing copied: select cards (Ctrl+click) and copy them first")
+		return "empty clipboard"
+	_step_hint = "Paste cards"
+	_push_undo()
+	var at := sel_card + 1 if sel_card >= 0 else S.cards.size()
+	msel = []
+	for k in card_clip.size():
+		S.cards.insert(at + k, (card_clip[k] as Dictionary).duplicate(true))
+		msel.append(at + k)
+	sel_end = -1
+	_rebuild_cards()
+	_refresh()
+	_say("%d cards pasted after card %d.  Ctrl+Z takes them back" % [card_clip.size(), at])
+	return ""
 
 
 ## RETIME (round 16+1, GATES X1): cards a..b (0-based, inclusive) play at pct %: the move into each and its hold x pct/100
