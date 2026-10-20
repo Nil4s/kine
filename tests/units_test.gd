@@ -217,6 +217,7 @@ const ALLOW := [
 	{"file": "exertion.gd", "lit": "up to x%.2f", "reason": "a dimensionless multiplier of the strike time (x2 = twice as slow)"},
 	{"file": "exertion_ui.gd", "lit": "fatigue at the end", "reason": "fatigue 0..1 at the end of the clip and its peak: dimensionless"},
 	{"file": "motion_match.gd", "lit": "%s%s@%d", "reason": "a hidden cache key (path and file time stamp), not shown"},
+	{"file": "floor_plan.gd", "lit": "<!doctype html>", "reason": "the charset name utf-8 and the CSS sizes of an HTML page written to disk, not quantities shown in the app"},
 	{"file": "safety_sheet.gd", "lit": "<!doctype html>", "reason": "the charset name utf-8 in an HTML page written to disk, not a quantity"},
 	{"file": "sell_hit.gd", "lit": "strike%s: %d sold", "reason": "counts of strikes sold, not sold and unsafe"},
 	{"file": "weapon_torque_ui.gd", "lit": "need work. ", "reason": "a count of swings that need work"},
