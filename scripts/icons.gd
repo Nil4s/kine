@@ -57,6 +57,8 @@ const DRAW := {
 		["seg", Vector2(3, 20.5), Vector2(21, 20.5), 2.2]],
 	"symmetry": [["seg", Vector2(12, 2), Vector2(12, 6), 1.5], ["seg", Vector2(12, 9), Vector2(12, 15), 1.5], ["seg", Vector2(12, 18), Vector2(12, 22), 1.5],
 		["arc", Vector2(12, 12), 8, 2, 200, 340], ["seg", Vector2(4.5, 9.3), Vector2(3, 13), 2], ["seg", Vector2(19.5, 9.3), Vector2(21, 13), 2]],
+	"smart": [["seg", Vector2(4, 20), Vector2(12, 12), 2.2], ["seg", Vector2(12, 12), Vector2(20, 5), 1.8], ["seg", Vector2(12, 12), Vector2(19, 18), 1.8],
+		["seg", Vector2(15, 4), Vector2(20, 5), 1.8], ["seg", Vector2(19, 9.5), Vector2(20, 5), 1.8]],
 	"clip": [["box", Rect2(3, 7, 18, 13), 1.8], ["seg", Vector2(12, 10.5), Vector2(12, 16.5), 2.0], ["seg", Vector2(9, 13.5), Vector2(15, 13.5), 2.0],
 		["seg", Vector2(6, 3.5), Vector2(18, 3.5), 1.8]],
 	"save": [["box", Rect2(5, 5, 14, 14), 1.8], ["box", Rect2(8, 5, 8, 5), 1.6], ["box", Rect2(8, 13, 8, 6), 1.6]],
