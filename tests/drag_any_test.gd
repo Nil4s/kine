@@ -57,7 +57,7 @@ func _init() -> void:
 	# part -> how the reachable target is made (joint -> angle change) ; hand_r is IK: target = a plane move
 	var cases := [
 		{"part": "head", "turn": {"neck_01": Vector3(0, 6, 0), "head": Vector3(0, 8, 0)}},
-		{"part": "spine_02", "turn": {"spine_01": Vector3(6, 0, 6), "spine_02": Vector3(6, 0, 6), "spine_03": Vector3(6, 0, 6)}},
+		{"part": "spine_02", "turn": {"spine_01": Vector3(8, 0, 0), "spine_02": Vector3(8, 0, 0), "spine_03": Vector3(8, 0, 0)}, "yaw": 90.0},   # a forward bend seen from the side: in the view plane, not along the view depth
 		{"part": "upperarm_r", "turn": {"upperarm_r": Vector3(0, 40, 0)}, "swing": 1.0},
 		{"part": "calf_r", "turn": {"calf_r": Vector3(22, 0, 0)}, "yaw": 90.0},   # a knee bends in the side view's plane
 		{"part": "pelvis", "move": Vector3(0.05, -0.04, 0.0)},
