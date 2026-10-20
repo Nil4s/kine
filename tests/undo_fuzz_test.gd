@@ -74,6 +74,8 @@ func run(seed: int, pool: Array) -> void:
 					what = "nudge %s" % m.sel
 					var d := Vector3(rng.randf_range(-25, 25), rng.randf_range(-25, 25), rng.randf_range(-25, 25))
 					m._do(func(): m.B.set_ang_safe(m.sel, m.B.ang[m.sel] + d))
+		if m.mm_ui != null:
+			m.mm_ui.halt()   # the motion matching preview is a MODE that plays the body every frame until it is toggled off (tests/motion_match_test.gd); left on it would move the body under every later step
 		await process_frame
 		m.playing = false
 		var steps: int = m.undo.size() - u0
