@@ -199,6 +199,7 @@ const ALLOW := [
 	{"file": "realism_ui.gd", "lit": "realism score %d / 100", "reason": "a score out of 100: dimensionless"},
 	{"file": "smart_drag.gd", "lit": "%s@%d", "reason": "a hidden cache key (path and file time stamp), not shown"},
 	{"file": "snap_diff.gd", "lit": "added, %d removed", "reason": "counts of added and removed items"},
+	{"file": "best_take_ui.gd", "lit": "times the spread of your other clips", "reason": "an effect size: the difference over the spread of the other clips, dimensionless"},
 	{"file": "style_dial_ui.gd", "lit": "%s  %+.2f", "reason": "a dimensionless slider value from -1 to +1"},
 	{"file": "style_dial_ui.gd", "lit": "%s %+.2f", "reason": "a dimensionless slider value from -1 to +1"},
 	{"file": "style_dial_ui.gd", "lit": "+1 is the size", "reason": "a dimensionless slider scale (+1 = one spread of your own clips)"},
