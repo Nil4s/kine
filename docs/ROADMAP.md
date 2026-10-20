@@ -247,6 +247,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   rule, lead room, closer on contact), as ghost frames you click to keep.
 - [ ] I8. Force view: per card, the joint torques and ground forces from inverse dynamics, coloured on the body (green
   easy, red beyond a strong human); "where does the power come from" for a strike (hip -> shoulder -> elbow sequence).
+  Step 1 merged: torque colours + power chain (hip 3.025 > trunk 3.033 > shoulder/elbow 3.042 s on combo3), static squat knee matches by hand, 34 ms per clip. Open: at 3.05 s lumbar reads 4122 N m while the knees read 31 N m; a bottom-up Newton-Euler can't give that pair (the lumbar load must pass through the legs), so the chain likely runs top-down from a kinematic pelvis; final test not re-run after a bar edit.
 - [ ] I9. Sketch to pose: draw a stick figure over the viewport with the mouse; Kine fits the body to it (2D lines ->
   3D pose with limits and balance).
   Step 1 merged: strokes recognised, fit lands on the strokes in screen space (<= 2 px), missing limbs untouched, one undo, 48 ms. Open: 3D recovery, 29 of 42 library fits have a bone > 10 deg off (trunk twist not in a stick figure, depth-axis bones mirror-ambiguous, an 8.7 deg error even with no tremor).
