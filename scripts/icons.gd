@@ -161,6 +161,12 @@ const DRAW := {
 		["disc", Vector2(12, 7), 1.3], ["seg", Vector2(12, 10), Vector2(12, 13.5), 1.8]],
 	"export": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7.5, 8.5), Vector2(12, 3), 2.2], ["seg", Vector2(16.5, 8.5), Vector2(12, 3), 2.2],
 		["seg", Vector2(3, 13), Vector2(3, 21), 2.2], ["seg", Vector2(21, 13), Vector2(21, 21), 2.2], ["seg", Vector2(3, 21), Vector2(21, 21), 2.2]],
+	# SHARE BY QR (ROADMAP R26): the three corner squares of a QR code; open = the same with an arrow coming in
+	"qr": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],
+		["box", Rect2(16.5, 5.5, 2, 2), 0], ["box", Rect2(5.5, 16.5, 2, 2), 0], ["box", Rect2(14, 14, 3, 3), 0], ["box", Rect2(18, 18, 3, 3), 0]],
+	"qr_open": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],
+		["box", Rect2(16.5, 5.5, 2, 2), 0], ["box", Rect2(5.5, 16.5, 2, 2), 0], ["seg", Vector2(21, 17.5), Vector2(14, 17.5), 2], ["seg", Vector2(14, 17.5), Vector2(17, 14.5), 2],
+		["seg", Vector2(14, 17.5), Vector2(17, 20.5), 2]],
 	"export_glb": [["box", Rect2(3, 9, 12, 12), 1.8], ["seg", Vector2(10, 14), Vector2(20, 4), 2], ["seg", Vector2(20, 4), Vector2(14, 4), 2],
 		["seg", Vector2(20, 4), Vector2(20, 10), 2]],
 	"export_bvh": [["disc", Vector2(6, 5), 2.2], ["seg", Vector2(6, 8), Vector2(6, 15), 2], ["seg", Vector2(6, 15), Vector2(3, 21), 1.8],
