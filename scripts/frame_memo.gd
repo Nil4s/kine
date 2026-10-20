@@ -6,6 +6,10 @@
 ##   clean frames = the old record at the same place in the SAME card (old card start + the same time into it). When a timing fix moved a
 ##                  card, later frames land between two old frames: the nearest old frame is used (at most half a frame, 8 ms, of pose;
 ##                  the speeds read frame to frame, which still are 1/60 s apart).
+##   I16d EXACT: a frame is taken from the last pass only when its shifted time lands within TOL (0.5 ms) of an old frame, or when it lies in a
+##   HOLD (a card's rest after its move: the pose is the same at every time in it, checked frame by frame on combo3 and walk_bat), where any
+##   old frame of the same card's hold is the same record. Everything else is played again, so incremental == cold (before: the nearest
+##   frame, up to 8 ms off, gave a score 0.15 away from cold). A hold is also played ONCE per pass (pose and each judge's record).
 ## Used only while `on` (RealismUI.gather sets it) and only for a plain scene (no plants, props, clips, layers, drivers, constraints,
 ## IK, part keys, attributes, breathing): anything else plays in full, as before. `probe` reads the memo but does not replace it
 ## (scoring a fix on a copy must not make the next real score start from the copy).
@@ -19,15 +23,46 @@ static var _win_key := ""
 static var _win := []
 static var _anch := []     # Scene._anchors of the cards the memo holds (the carry-forward stops where they come out as before)
 static var _anch_key := ""
+static var prof := {}      # stage -> ms, summed since the last `prof = {}` (the profile of one re-score; see tick)
 static var played := 0     # frames played / re-used by the last call (for the report)
 static var reused := 0
 
 
+const TOL := 0.0005        # s: an old frame is re-used for a new time only if it was sampled this close to it
+static var _holds := []    # [[from, to, card]]: the holds of the scene being judged, made on the first pose of a pass (cleared by new_pass)
+static var _holds_sid := 0
 static var _pc := {}       # t (in 10 us) -> the body's state after Scene.apply_true at t: the four judges pose each frame ONCE (cleared by new_pass)
+
+
+static func tick(stage: String, t0: int) -> void:
+	prof[stage] = float(prof.get(stage, 0.0)) + float(Time.get_ticks_usec() - t0) / 1000.0
 
 
 static func new_pass() -> void:
 	_pc = {}
+	_holds = []
+	_holds_sid = 0
+
+
+## the holds of a plain scene as [from, to, card] (the rest of a card after its move, inside by 0.1 ms each side); [] when the pose could
+## depend on the time within a hold (moving holds, a jump in the air)
+static func hold_list(S: Scene) -> Array:
+	var out := []
+	if S.moving_holds or (S.on_floor and not S.flights().is_empty()):
+		return out
+	var ts: Array = S.times()
+	for i in ts.size():
+		if float(ts[i][2]) - float(ts[i][1]) > 0.0004:
+			out.append([float(ts[i][1]) + 0.0001, float(ts[i][2]) - 0.0001, i])
+	return out
+
+
+## the card whose hold contains t, or -1
+static func hold_at(holds: Array, t: float) -> int:
+	for h in holds:
+		if t >= float(h[0]) and t <= float(h[1]):
+			return int(h[2])
+	return -1
 
 
 ## Scene.apply_true(B, t), shared: the first judge to ask for a time plays it, the others put the same state on their body (a plain scene only:
@@ -37,11 +72,19 @@ static func pose(S: Scene, B: Body, t: float) -> void:
 		S.apply_true(B, t)
 		return
 	var k := roundi(t * 100000.0)
+	if _holds_sid != S.get_instance_id():
+		_holds = hold_list(S)
+		_holds_sid = S.get_instance_id()
+	var hc := hold_at(_holds, t)
+	if hc >= 0:
+		k = -1 - hc   # every time in a card's hold is the same pose: played once
 	var st = _pc.get(k)
 	if st != null:
 		B._set_state0(st)
 		return
+	var tp := Time.get_ticks_usec()
 	S.apply_true(B, t)
+	tick("pose (apply_true)", tp)
 	_pc[k] = B._state0()
 
 
@@ -62,6 +105,13 @@ static func _ctx(S: Scene) -> String:
 
 ## the records of frames 0..n-1 (time min(i/hz, length)); fn.call(i, t) plays one frame and returns its record
 static func frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Callable) -> Array:
+	var tp := Time.get_ticks_usec()
+	var r := _frames(tag, S, B, n, hz, fn)
+	tick("play " + tag, tp)
+	return r
+
+
+static func _frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Callable) -> Array:
 	var L := S.length()
 	var sigs := []
 	for c in S.cards:
@@ -95,38 +145,49 @@ static func frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Callab
 			wins = _win
 	played = 0
 	reused = 0
-	if dirty_all:
-		for i in n:
-			recs[i] = fn.call(i, minf(i / hz, L))
-			played += 1
-	else:
-		var ots2: Array = m["ts"]
-		var orecs: Array = m["recs"]
-		var on_ := int(m["n"])
-		for i in n:
-			var t := minf(i / hz, L)
-			var dirty := false
+	var holds: Array = hold_list(S) if usable else []
+	var hrec := {}   # card -> the record of its hold, played once per call
+	var ots2: Array = m.get("ts", [])
+	var orecs: Array = m.get("recs", [])
+	var on_ := int(m.get("n", 0))
+	for i in n:
+		var t := minf(i / hz, L)
+		var hc := hold_at(holds, t)
+		var dirty := dirty_all
+		if not dirty_all:
 			for w in wins:
 				if t >= (w as Vector2).x and t <= (w as Vector2).y:
 					dirty = true
 					break
-			var j := -1
-			if not dirty:
-				var c := 0
-				for q in ts.size():
-					if float(ts[q][0]) <= t + 1e-9:
-						c = q
-				c = mini(c, ots2.size() - 1)
-				var ot: float = float(ots2[c][0]) + (t - float(ts[c][0]))
-				j = clampi(roundi(ot * hz), 0, on_ - 1)
-				if ot < -1e-6 or ot > float(ots2[-1][2]) + 1e-6:
-					j = -1
-			if j >= 0:
-				recs[i] = orecs[j]
-				reused += 1
-			else:
-				recs[i] = fn.call(i, t)
-				played += 1
+		var j := -1
+		if not dirty:
+			var c := 0
+			for q in ts.size():
+				if float(ts[q][0]) <= t + 1e-9:
+					c = q
+			c = mini(c, ots2.size() - 1)
+			var ot: float = float(ots2[c][0]) + (t - float(ts[c][0]))
+			if hc >= 0 and hc < ots2.size():
+				# a hold: every old frame inside the same card's hold is the record of this one, wherever the shift put it
+				var lo := ceili((float(ots2[hc][1]) + 0.0001) * hz - 1e-9)
+				var hi := floori((float(ots2[hc][2]) - 0.0001) * hz + 1e-9)
+				if lo <= hi and hi < on_:
+					j = clampi(roundi(ot * hz), lo, hi)
+			if j < 0 and ot >= -1e-6 and ot <= float(ots2[-1][2]) + 1e-6:
+				var jr := clampi(roundi(ot * hz), 0, on_ - 1)
+				if absf(ot - jr / hz) <= TOL:   # I16d: only a frame sampled within 0.5 ms of this time; the others are played
+					j = jr
+		if j >= 0:
+			recs[i] = orecs[j]
+			reused += 1
+		elif hc >= 0 and hrec.has(hc):
+			recs[i] = hrec[hc]
+			reused += 1
+		else:
+			recs[i] = fn.call(i, t)
+			played += 1
+			if hc >= 0:
+				hrec[hc] = recs[i]
 	if usable and not probe:
 		var anch := []
 		if S.pin:

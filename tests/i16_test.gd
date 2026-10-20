@@ -9,6 +9,7 @@
 ##  (7) a Check-fix reason (when one exists) is one undo step, never lowers the score; Ctrl+Z restores the cards exactly
 ##  (9) STEP 2: a re-score after a one-card fix (timing, Check) takes < 400 ms on combo3 and lands within 1.0 point of a cold score of the same cards
 ##  (10) STEP 2: every fix the panel OFFERS has a predicted gain > 0 on its button, and applying it gains within 1.0 of the prediction; an empty scene scores in < 50 ms
+##  (11) STEP 3: incremental == cold to 0.01 points for every timing fix and for the Check fix (a frame is re-used only within 0.5 ms of its old time, or inside a hold)
 ##  (8) the physics judge with no cached result says "not judged" and costs nothing; with a cached red span it adds a PHYSICS item
 extends SceneTree
 
@@ -130,7 +131,7 @@ func _init() -> void:
 	for k in rsn.size():
 		ok(m.ui_find_list.find_child("rs_reason_%d" % (k + 1), true, false) != null, "(4) panel line for reason %d" % (k + 1))
 	var shot := root.get_texture().get_image()
-	shot.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i16c.png")
+	shot.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i16d.png")
 
 	# (2) timing fix
 	var tim := all.filter(func(x): return x["judge"] == "TIMING")
@@ -148,6 +149,8 @@ func _init() -> void:
 		print("     timing fix %d (%s): %.2f -> %.2f, undo %d -> %d" % [q, item["text"], s_before, after, u0, m.undo.size()])
 		var cold_q := _cold_score()
 		print("       cold %.2f vs incremental %.2f" % [cold_q, after])
+		ok(absf(cold_q - after) <= 0.01, "(11) timing fix %d: incremental %.3f == cold %.3f (to 0.01)" % [q, after, cold_q])
+		print("       stages (ms) ", rs.prof)
 		print("       re-score %.0f ms (played %d, reused %d) laps %s" % [rs.ms, FrameMemo.played, FrameMemo.reused, rs.lap])
 		if q == 0:
 			top_rose = after > s_before and m.undo.size() == u0 + 1
@@ -171,6 +174,9 @@ func _init() -> void:
 		await rs.fix(chk[0])
 		await idle(3)
 		ok(rs.ms < 400.0, "(9) re-score after the Check fix: %.0f ms < 400 (played %d, reused %d)" % [rs.ms, FrameMemo.played, FrameMemo.reused])
+		var cold_c := _cold_score()
+		ok(absf(cold_c - float(rs.res["score"])) <= 0.01, "(11) Check fix: incremental %.3f == cold %.3f (to 0.01)" % [float(rs.res["score"]), cold_c])
+		print("       stages (ms) ", rs.prof)
 		ok(m.undo.size() == u1 + 1 and float(rs.res["score"]) >= before - 1e-9, "(7) Check fix: %.2f -> %.2f, undo %d -> %d" % [before, float(rs.res["score"]), u1, m.undo.size()])
 		m._undo()
 		await idle()

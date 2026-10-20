@@ -994,8 +994,11 @@ static func card_at(S: Scene, t: float) -> int:
 static func check(S: Scene, B: Body, sm := {}) -> Array:
 	if S.cards.size() < 2:
 		return []
+	var tk := Time.get_ticks_usec()
 	if sm.is_empty():
 		sm = sample(S, B)
+		FrameMemo.tick("rb sample total", tk)
+	tk = Time.get_ticks_usec()
 	var out := []
 	var base_name := S.name
 	var cut := base_name.rfind("_")
@@ -1007,6 +1010,8 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 			out += rule_sequence(sm, st)
 			out += rule_head(sm, st)
 			out += rule_weapon(sm, st)
+	FrameMemo.tick("rules strike", tk)
+	tk = Time.get_ticks_usec()
 	out += rule_fist(sm)
 	out += rule_feet(sm)
 	var holds := []
@@ -1014,7 +1019,11 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 		if float(ts[2]) - float(ts[1]) > 1e-4:
 			holds.append([float(ts[1]), float(ts[2])])
 	out += rule_hitch(sm, holds)
+	FrameMemo.tick("rules fist/feet/hitch", tk)
+	tk = Time.get_ticks_usec()
 	out += rule_loop(S, B)
+	FrameMemo.tick("rules loop", tk)
+	tk = Time.get_ticks_usec()
 	out += rule_balance(sm)
 	out += rule_props(S, sm)
 	out += rule_floats(sm)
@@ -1022,12 +1031,17 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_lift_form(sm)
 	out += rule_gait(sm, S)
 	out += rule_jump(S, B)
+	FrameMemo.tick("rules rest", tk)
+	tk = Time.get_ticks_usec()
 	if HumanLimits.on:
 		out += HumanLimits.findings(S, B)   # ROADMAP 10: only when asked ("Check: could a human do this?"): the bars are
 		# not yet checked against the papers (a real bat swing read trunk 1087 deg/s vs a 601 bar; elite hitters reach ~900+)
+	FrameMemo.tick("human limits total", tk)
+	tk = Time.get_ticks_usec()
 	if HumanLimits.on:   # "Is this clip physically possible?": the verdict (first) and its reasons, with their frames
 		var fz := Feasible.check(S, B)
 		out += Feasible.verdict_finding(S, fz) + fz["findings"]
+	FrameMemo.tick("feasible total", tk)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

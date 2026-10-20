@@ -213,8 +213,13 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 
 ## the clip from a capture(): the app's evaluation is paid once (capture), this is arithmetic on the samples
 static func sample(S: Scene, B: Body) -> Dictionary:
+	var tk := Time.get_ticks_usec()
 	var cap := capture(S, B)
-	return {} if cap.is_empty() else dynamics(cap)
+	FrameMemo.tick("fv capture total", tk)
+	tk = Time.get_ticks_usec()
+	var r := {} if cap.is_empty() else dynamics(cap)
+	FrameMemo.tick("fv dynamics", tk)
+	return r
 
 
 static func dynamics(cap: Dictionary) -> Dictionary:
