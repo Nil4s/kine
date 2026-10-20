@@ -84,6 +84,53 @@ static func seg_of(j: String) -> String:
 	return "trunk"   # pelvis, spine_01..03, the clavicles (shoulder width) and the hip width (pelvis -> thigh)
 
 
+## GIRTH FROM MASS (R11). Body mass thickens the skin ACROSS each bone's axis and never lengthens a bone, by the
+## elasticity e of that part's circumference to body mass AT A FIXED STATURE: C ~ mass^e. e is the coefficient of ln(mass)
+## in  ln C = a + e ln(mass) + c ln(stature)  fitted on the ANSUR II public files (Gordon et al. 2014; 4082 men, 1986
+## women; recomputed for this feature, a script, not read from a table). Men / women, the mean is used (the two differ by
+## < 0.09, below the survey's own scatter):
+##   waist (omphalion) 0.728 / 0.719     chest 0.508 / 0.523     buttock (hips) 0.452 / 0.462     thigh 0.573 / 0.576
+##   biceps (flexed) 0.549 / 0.632       forearm (flexed) 0.368 / 0.384     calf 0.416 / 0.411     neck 0.351 / 0.305
+##   wrist 0.193 / 0.187                 ankle 0.273 / 0.253                 head 0.075 / 0.063
+## so mass P5 -> P95 (x1.72 men, x1.70 women) grows the waist x1.48, the thigh x1.36, the forearm x1.22, the head x1.04.
+## A joint takes the elasticity of the circumference measured on its segment (spine_01 holds the omphalion, 0.60 H);
+## spine_02 sits between the waist and the chest. Feet and toes: 0 (the sole stays on the floor; foot size follows stature).
+## The reference: the MEDIAN person of that stature and sex has factor 1 (the mannequin's shape); expected mass at stature H
+## = median mass x (H / median stature)^b with b = 2.00 men / 2.19 women, the slope of ln(mass) on ln(stature) in the
+## same files. lambda = ln(mass / expected mass); a part's circumference factor is exp(e lambda).
+const GIRTH_E := {"pelvis": 0.457, "spine_01": 0.724, "spine_02": 0.62, "spine_03": 0.516, "clavicle": 0.516, "neck_01": 0.328,
+	"head": 0.069, "upperarm": 0.59, "lowerarm": 0.376, "hand": 0.19, "thigh": 0.575, "calf": 0.414, "foot": 0.0, "ball": 0.0}
+const MASS_STATURE_B := {"male": 2.00, "female": 2.19}
+
+
+## a joint's elasticity of circumference to mass (0 for the joints that are not skin: the root, the feet)
+static func girth_e(j: String) -> float:
+	if GIRTH_E.has(j):
+		return float(GIRTH_E[j])
+	for k in ["clavicle", "upperarm", "lowerarm", "thigh", "calf", "foot", "ball"]:
+		if j.begins_with(k):
+			return float(GIRTH_E[k])
+	if seg_of(j) == "hand":
+		return float(GIRTH_E["hand"])
+	return 0.0
+
+
+## lambda = ln(mass / the median person's mass at this stature and blend); 0 for a body with no mass
+static func girth_lambda(body: Dictionary) -> float:
+	if not body.has("mass"):
+		return 0.0
+	var bl := float(body.get("blend", 0.0 if String(body.get("sex", "male")) == "female" else 1.0))
+	var st := float(body.get("stature", DEFAULT_STATURE))
+	var b := lerpf(float(MASS_STATURE_B["female"]), float(MASS_STATURE_B["male"]), bl)
+	var m_exp := BodyModel.mass_at(bl, 50.0) * pow(st / BodyModel.stature_at(bl, 50.0), b)
+	return log(float(body["mass"]) / m_exp)
+
+
+## the part's girth factor (circumference now / circumference of the median person this tall)
+static func girth_factor(j: String, lam: float) -> float:
+	return exp(girth_e(j) * lam)
+
+
 ## a body dict as the file keeps it: {} for the default body; else stature (m), the scales that are not 1, sex, mass,
 ## preset. Unknown keys are dropped (the schema rejects them in a file).
 static func clean(d: Dictionary) -> Dictionary:
@@ -169,17 +216,30 @@ static func scale_rest(B: Body) -> void:
 		s[j] = g * float(s1[j])
 		p1[j] = (np[j] as Vector3) * g
 	var mp := func(j: String, x: Vector3) -> Vector3: return (p1[j] as Vector3) + float(s[j]) * (x - (B.p0[j] as Vector3))
+	# R11: girth. The skin points move out across the bone's axis (never along it), the collision radii grow in step
+	var lam := girth_lambda(B.body)
+	var fg := {}
+	for j in Body.ORDER:
+		fg[j] = girth_factor(j, lam)
+	var axis0 := {}   # the unscaled axis (a, direction) of the parts that carry skin points
+	for part in B.skin:
+		axis0[part] = [B.p0[part], ((B.e0[part] as Vector3) - (B.p0[part] as Vector3)).normalized()]
 	for j in Body.ORDER:
 		B.e0[j] = mp.call(j, B.e0[j])
 		B.cap0[j] = [mp.call(j, B.cap0[j][0]), mp.call(j, B.cap0[j][1])]
-		B.rad[j] = float(B.rad[j]) * float(s[j])
+		B.rad[j] = float(B.rad[j]) * float(s[j]) * float(fg[j])
 	for w in Body.WIDE:
 		var jw: String = Body.WIDE[w][0]
 		B.cap0[w] = [mp.call(jw, B.cap0[w][0]), mp.call(jw, B.cap0[w][1])]
-		B.rad[w] = float(B.rad[w]) * float(s[jw])
+		B.rad[w] = float(B.rad[w]) * float(s[jw]) * float(fg[jw])
 	for part in B.skin:
-		B.skin[part] = (B.skin[part] as Array).map(func(q): return mp.call(part, q))
-		B.skin_c[part] = [mp.call(part, B.skin_c[part][0]), float(B.skin_c[part][1]) * float(s[part])]
+		var ax: Array = axis0[part]
+		var fp: float = fg[part]
+		B.skin[part] = (B.skin[part] as Array).map(func(q):
+			var rel: Vector3 = (q as Vector3) - (ax[0] as Vector3)
+			var radial: Vector3 = rel - (ax[1] as Vector3) * rel.dot(ax[1])
+			return mp.call(part, (q as Vector3) + radial * (fp - 1.0)))
+		B.skin_c[part] = [mp.call(part, B.skin_c[part][0]), float(B.skin_c[part][1]) * float(s[part]) * fp]
 	for j in Body.ORDER:
 		B.p0[j] = p1[j]
 	B._fk_a = {}   # ROADMAP 99: the rest points moved, every joint is computed again
@@ -377,6 +437,13 @@ static func bake_mannequin(man: Node3D, sk: Skeleton3D, b: Body) -> void:
 		if bi >= 0:
 			of[bi] = j
 	var n := sk.get_bone_count()
+	var lam := girth_lambda(b.body)   # R11: the girth is in the exported skin too (shapes from the file's own rest pose)
+	var gsh := {}
+	if lam != 0.0:
+		for mi in man.find_children("*", "MeshInstance3D", true, false):
+			var gm := mi as MeshInstance3D
+			if gm.skin != null and gm.mesh is ArrayMesh:
+				gsh[gm] = Corrective.girth_shapes(sk, gm.skin, gm.mesh as ArrayMesh)
 	var gs := {}
 	var p_old := {}
 	var rest_old := {}
@@ -418,6 +485,8 @@ static func bake_mannequin(man: Node3D, sk: Skeleton3D, b: Body) -> void:
 		for si in src.get_surface_count():
 			var arr := src.surface_get_arrays(si)
 			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			if gsh.has(m):
+				vs = Corrective.girthed(vs, gsh[m][si], lam)
 			var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
 			var wts: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
 			var per := bones.size() / maxi(1, vs.size())
