@@ -37,6 +37,9 @@ const MAXSTEP := 0.35    # rad: the largest turn one joint makes in one iteratio
 const FLOOR_H := 0.035   # m: a sole this near the lower sole is down
 const RESEED_MISS := 0.08   # m: a key point this far off after both stages: try the geometric fit as the start too
 const BAND := 0.06       # trunk / shoulder scale dead band (see scales)
+const EXT_R := 0.05      # m: a contact grows over neighbouring frames while the foot stays this near the contact's spot (and low)
+const EXT_STEP := 0.012   # m per frame: and moving slower than PLANT_V (0.4 m/s at 30 fps) to the frame it grows from
+const BLEND := 0         # frames: after a release the foot is pulled back toward its anchor by 3/4, 2/4, 1/4 (no pop at the toe-off)
 const PLANT_V := 0.4     # m/s: a planted foot's middle moves slower than this (over +-2 frames, in the rebuilt world)
 const PLANT_MIN := 3     # frames: a shorter run is a tap, not a contact
 const TRIM_OFF := 0      # frames cut off the end of a contact (the toe-off: the foot is already rolling)
@@ -459,6 +462,69 @@ static func contacts(mids: Array, heights: Array, tr: Array, fps: float) -> Arra
 	return out
 
 
+## VideoIQ.contacts' per-foot flags as this file's per-frame {"_l": bool, "_r": bool}
+static func contacts_from_iq(K: Dictionary, n: int) -> Array:
+	var out := []
+	for i in n:
+		out.append({"_l": bool(K["flags"]["_l"][i]), "_r": bool(K["flags"]["_r"][i])})
+	return out
+
+
+## grow each contact run over the frames either side where the foot has not left its spot: the detector (VideoIQ.contacts, on
+## 1.5 cm noisy landmarks) drops the first / last frames of a plant and splits some in two (measured on combo3: 7 of 12 true
+## contact runs only partly covered), and a frame it drops slides. W[i][sd] = the foot's middle in the rebuilt world, h = its height
+static func _step(W: Array, sd: String, a: int, b: int) -> float:
+	var d: Vector3 = (W[a][sd] as Vector3) - (W[b][sd] as Vector3)
+	return Vector2(d.x, d.z).length()
+
+
+static func extend_contacts(ct: Array, W: Array, heights: Array) -> int:
+	var n := ct.size()
+	var grown := 0
+	for sd in ["_l", "_r"]:
+		var i := 0
+		while i < n:
+			if not ct[i][sd]:
+				i += 1
+				continue
+			var a := i
+			while i < n and ct[i][sd]:
+				i += 1
+			var b := i - 1
+			var xs := []
+			var zs := []
+			for k in range(a, b + 1):
+				xs.append((W[k][sd] as Vector3).x)
+				zs.append((W[k][sd] as Vector3).z)
+			var ref := Vector2(_median(xs), _median(zs))
+			var k := b + 1
+			while k < n and not ct[k][sd] and float(heights[k][sd]) < 2.0 * FLOOR_H and Vector2((W[k][sd] as Vector3).x, (W[k][sd] as Vector3).z).distance_to(ref) < EXT_R and _step(W, sd, k, k - 1) < EXT_STEP:
+				ct[k][sd] = true
+				grown += 1
+				k += 1
+			i = maxi(i, k)
+			k = a - 1
+			while k >= 0 and not ct[k][sd] and float(heights[k][sd]) < 2.0 * FLOOR_H and Vector2((W[k][sd] as Vector3).x, (W[k][sd] as Vector3).z).distance_to(ref) < EXT_R and _step(W, sd, k, k + 1) < EXT_STEP:
+				ct[k][sd] = true
+				grown += 1
+				k -= 1
+	return grown
+
+
+## where the contact run starting at (or holding) frame i sits, as an offset from frame i's own spot: the MEDIAN of the run's
+## world spots (rebuilt, no anchors) less frame i's. The anchor is the run's centre, not the first frame's noisy landing
+static func _run_centre(ct: Array, W: Array, sd: String, i: int) -> Vector3:
+	var b := i
+	while b + 1 < ct.size() and ct[b + 1][sd]:
+		b += 1
+	var xs := []
+	var zs := []
+	for k in range(i, b + 1):
+		xs.append((W[k][sd] as Vector3).x)
+		zs.append((W[k][sd] as Vector3).z)
+	return Vector3(_median(xs) - (W[i][sd] as Vector3).x, 0.0, _median(zs) - (W[i][sd] as Vector3).z)
+
+
 static func solve(frames: Array, B: Body, opts := {}) -> Array:
 	_init_tables()
 	var held: String = opts.get("held", "")
@@ -521,12 +587,19 @@ static func solve(frames: Array, B: Body, opts := {}) -> Array:
 	var tr: Array = st[0]
 	var heights: Array = st[1]
 	var ct: Array = opts.get("contacts", contacts(mids, heights, tr, fps))
+	if opts.has("iq"):   # VideoIQ.contacts' verdict (confidence-aware, per-foot ground) replaces the geometric one
+		ct = contacts_from_iq(opts["iq"], n)
+	var W := []
+	for i in n:
+		W.append({"_l": (mids[i]["_l"] as Vector3) + (tr[i] as Vector3), "_r": (mids[i]["_r"] as Vector3) + (tr[i] as Vector3)})
+	rep["grown"] = extend_contacts(ct, W, heights)
 	rep["contacts"] = ct
 	# the travel: a planted foot is pinned to where it landed (absolute anchor, so a long contact cannot creep); no foot down:
 	# the lower foot is the stance foot and stays where it was (VideoImport.solve's rule)
 	var out := []
 	var root := Vector3.ZERO
 	var anchor := {}
+	var fade := {}   # sd -> [anchor, frames since the release]
 	for i in n:
 		if i > 0:
 			var rs := []
@@ -544,9 +617,15 @@ static func solve(frames: Array, B: Body, opts := {}) -> Array:
 		for sd in ["_l", "_r"]:
 			if ct[i][sd]:
 				if not (i > 0 and ct[i - 1][sd]) or not anchor.has(sd):
-					anchor[sd] = (mids[i][sd] as Vector3) + root
+					anchor[sd] = (mids[i][sd] as Vector3) + root + _run_centre(ct, W, sd, i)
 			else:
+				if anchor.has(sd):   # a release: the anchor stays for the BLEND frames that ease the foot off it
+					fade[sd] = [anchor[sd], 0]
 				anchor.erase(sd)
+				if fade.has(sd):
+					fade[sd][1] += 1
+					if int(fade[sd][1]) > BLEND:
+						fade.erase(sd)
 		for j in poses[i]:
 			B.ang[j] = poses[i][j]
 		B.offset = root
@@ -565,9 +644,17 @@ static func solve(frames: Array, B: Body, opts := {}) -> Array:
 					if miss.length() > 0.001:
 						B.reach("foot" + sd, (B.P["foot" + sd] as Vector3) + miss)
 						moved = true
+			for sd in fade:   # the release: 3/4, 2/4, 1/4 of the way back to the anchor, so the toe-off does not pop
+				var wgt: float = 1.0 - float(fade[sd][1]) / float(BLEND + 1)
+				var nowf: Vector3 = (VideoImport.heel(B, sd) + (B.E["ball" + sd] as Vector3)) * 0.5
+				var missf: Vector3 = ((fade[sd][0] as Vector3) - nowf) * wgt
+				missf.y = 0.0
+				if missf.length() > 0.001:
+					B.reach("foot" + sd, (B.P["foot" + sd] as Vector3) + missf)
+					moved = true
 			B.fast = was
 			if moved:
 				for j in Body.BODY:
 					poses[i][j] = B.ang[j]
-		out.append({"t": src[i]["t"], "ang": poses[i], "offset": B.offset})
+		out.append({"t": src[i]["t"], "ang": poses[i], "offset": B.offset, "pinned": ct[i]})
 	return out

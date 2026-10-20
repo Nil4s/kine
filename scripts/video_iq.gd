@@ -768,8 +768,8 @@ static func _ints(a: Array) -> Array:
 
 ## parse -> confidence -> repair -> depth -> cleanup -> contacts -> fit -> smart cards -> plants. P = VideoImport.parse's result
 ## (its frames are changed). Returns {"scene", "iq", "text", "conf", "depth", "contacts", "keys", "fitted", "frames", "dense",
-## "repaired"}
-static func process(B: Body, P: Dictionary, held := "", scene_name := "video_import") -> Dictionary:
+## "repaired"}. retarget = true fits with VideoRetarget (GMR-style IK, feet pinned on the contacts) instead of VideoImport.solve
+static func process(B: Body, P: Dictionary, held := "", scene_name := "video_import", retarget := false) -> Dictionary:
 	var fps := float(P["fps"])
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
 	var conf := confidence(frames, fps)
@@ -778,7 +778,11 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	var C := VideoCleanup.run(frames, fps, float(P.get("tilt", 0.0)))
 	normalize_lengths(C["frames"])
 	var K := contacts(C["frames"], fps)
-	var fitted := VideoImport.solve(B, C["frames"], held, fps, K["piv"])
+	var fitted: Array
+	if retarget and held == "":   # "Retarget to body (IK)": VideoRetarget, with THIS pass's contacts pinning the planted feet
+		fitted = VideoRetarget.solve(C["frames"], B, {"fps": fps, "smooth": false, "iq": K})
+	else:
+		fitted = VideoImport.solve(B, C["frames"], held, fps, K["piv"])
 	var dense := VideoImport.to_scene(B, fitted, fps, 1, scene_name)
 	var sk := smart_cards(B, dense, fitted)
 	var V: Scene = sk["scene"]
