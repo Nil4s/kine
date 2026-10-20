@@ -10,11 +10,13 @@
 ##  (6) foot plants: at every card where a ball of the foot was on the floor (< 4 cm), it is within 2 cm of its old place (full Scene.apply
 ##      at the card's arrival), for tired +1 and angry +1
 ##  (7) the slider: a drag (value_changed x several, then drag_ended) is ONE undo step; Ctrl+Z restores the cards and the scene JSON exactly
+##  (9) HUMAN LIMITS: angry +1 (and all four): every move's peak hand speed (120 Hz, either hand) is at most max(cited human limit
+##      11.95 m/s / weapon factor, the same move's NEUTRAL peak); the angry clip's overall peak is reported next to the neutral one
 ##  (8) PLACEMENT: the picture is composited from three captures of the app (neutral / tired / angry) at the same frame; the body is drawn
 ##      inside the 3D view in each (the head's screen point is inside the viewport, not at the origin)
 extends SceneTree
 
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i6.png"
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i6b.png"
 var fails := 0
 var m: Node
 
@@ -136,6 +138,22 @@ func _init() -> void:
 						fw = maxf(fw, ((Px["balls"][i][s] as Vector3) - b0).length())
 			ok(np > 0 and fw <= 0.02, "(6) %s: %d planted balls, worst %.1f mm from their old place (bar 20 mm)" % [k, np, fw * 1000.0])
 
+	# (9) human limits
+	var pk_n := StyleDial.move_peaks(S, B)
+	for k in ["angry", "all"]:
+		var Sx2 := _scene_with(S, made[k]["cards"])
+		var pk := StyleDial.move_peaks(Sx2, B)
+		var viol := []
+		var worst_peak := 0.0
+		for q in pk.size():
+			var lim := maxf(float(pk[q]["limit"]), float(pk_n[q]["peak"]))
+			worst_peak = maxf(worst_peak, float(pk[q]["peak"]))
+			print("       %-5s card %d travel %.3f m  dur %.3f -> %.3f s  peak %.2f (neutral %.2f) m/s  limit %.2f" % [k, pk[q]["card"], pk[q]["travel"], pk_n[q]["dur"], pk[q]["dur"], pk[q]["peak"], pk_n[q]["peak"], lim])
+			if float(pk[q]["peak"]) > lim * 1.02 + 0.05:
+				viol.append(pk[q]["card"])
+		ok(viol.is_empty(), "(9) %s: capped peak hand speed %.2f m/s (neutral clip %.2f); moves over their limit: %s; capped: %s" % [k, worst_peak, h_n["peak"], viol, made[k]["report"]["capped"].keys()])
+		ok(float(StyleDial.hand_stats(Sx2, B)["peak"]) > 0.0, "(9) %s: hand_stats peak %.2f m/s" % [k, float(StyleDial.hand_stats(Sx2, B)["peak"])])
+
 	# (7) the slider, through the panel
 	m.sd_ui.show()
 	await idle()
@@ -170,6 +188,8 @@ func _init() -> void:
 	await idle(2)
 
 	# (8) the picture: neutral / tired / angry at the same frame (0.91 s) and at each one's own CONTACT arrival
+	m.ui_find.visible = false   # the Check panel covered the bodies in the first picture
+	await idle(2)
 	var shots := {}
 	var heads := {}
 	var arrivals := {}
@@ -197,6 +217,7 @@ func _init() -> void:
 	for k in heads:
 		var p: Vector2 = heads[k]
 		placed = placed and vp.has_point(p) and p.length() > 20.0
+	ok(not m.ui_find.visible, "(8) the Check panel is closed for the captures")
 	ok(heads.size() >= 5 and placed, "(8) the head is drawn inside the window in all captures (neutral CONTACT is 0.91 s, so 5 distinct times): %s" % [heads])
 	print("     CONTACT arrives at %s s" % [arrivals])
 	m.S.cards = base.duplicate(true)

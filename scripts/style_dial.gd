@@ -241,6 +241,62 @@ static func hand_stats(S: Scene, B: Body) -> Dictionary:
 	return {"peak": peak, "reach": rng}
 
 
+
+## HUMAN LIMIT (reuses the timing coach's cited numbers): a hand may travel d metres no faster than a 11.95 m/s peak (Stanley 2018; Sensors 2025
+## has 7.1 m/s), a minimum-jerk bell has peak = 1.875 x mean (Flash & Hogan 1985), a held weapon scales the time by (I/I_bat)^0.27 (Cross & Bower 2006).
+## So the fastest time for travel d is d * f * 1.875 / 11.95 s, and the highest peak hand speed is 11.95 / f m/s.
+static func weapon_factor(S: Scene, B: Body, i: int) -> float:
+	var kind := WeightFeel.kind_at(S, i, B)
+	if kind == "":
+		return 1.0
+	var inr := WeightFeel.inertia(B, kind)
+	if inr.is_empty():
+		return 1.0
+	return pow(float(inr["i"]) / float(WeightFeel.inertia(B, WeightFeel.REF_KIND)["i"]), WeightFeel.N)
+
+
+static func min_move_time(d: float, f := 1.0) -> float:
+	return d * f * TimingCoach.PEAK_OVER_MEAN / TimingCoach.V_PEAK_HI
+
+
+## the hands (world) of a grounded flat pose: [left, right]
+static func _hands(W: Scene, B: Body, flat: Dictionary) -> Array:
+	_place(W, B, flat)
+	return [B.E["hand_l"], B.E["hand_r"]]
+
+
+static func _travel2(a: Array, b: Array) -> float:
+	return maxf((a[0] as Vector3).distance_to(b[0]), (a[1] as Vector3).distance_to(b[1]))
+
+
+## per move (card i >= 1, from the previous card's leave to this card's arrival), as the scene PLAYS at 120 Hz:
+## [{"card", "travel" (m, chord of the faster hand), "peak" (m/s, either hand), "limit" (m/s, 11.95 / weapon factor), "dur"}]
+static func move_peaks(S: Scene, B: Body) -> Array:
+	var out := []
+	var ts := S.times()
+	for i in range(1, S.cards.size()):
+		var t0 := float(ts[i - 1][2])
+		var t1 := float(ts[i][1])
+		var dur := maxf(t1 - t0, 1e-4)
+		var n := maxi(2, int(ceil(dur * 120.0)))
+		var prev := []
+		var peak := 0.0
+		var first := []
+		var last := []
+		for k in n + 1:
+			S.apply(B, t0 + dur * float(k) / float(n))
+			var cur := [B.E["hand_l"], B.E["hand_r"]]
+			if prev.is_empty():
+				first = cur
+			else:
+				for h in 2:
+					peak = maxf(peak, ((cur[h] as Vector3) - (prev[h] as Vector3)).length() * float(n) / dur)
+			prev = cur
+			last = cur
+		out.append({"card": i, "travel": _travel2(first, last), "peak": peak, "limit": TimingCoach.V_PEAK_HI / weapon_factor(S, B, i), "dur": dur})
+	return out
+
+
 # ---- applying ---------------------------------------------------------------------------------------------------------
 
 static func _place(W: Scene, B: Body, flat: Dictionary) -> void:
@@ -418,13 +474,14 @@ static func contact_point(B: Body) -> Array:
 ## the cards S would have at slider values v, from `base` (the cards at slider 0). Returns {"cards", "report"}; report: {"timing", "feet_err_m",
 ## "tip_err_m": {card: m}, "drop_m", "contacts": [cards], "planted": n}
 static func style_cards(S: Scene, B: Body, base: Array, v: Dictionary, spread := SPREAD) -> Dictionary:
-	var out := {"cards": base.duplicate(true), "report": {"timing": {}, "feet_err_m": 0.0, "tip_err_m": {}, "drop_m": 0.0, "contacts": [], "planted": 0}}
+	var out := {"cards": base.duplicate(true), "report": {"capped": {}, "peak_mps": 0.0, "timing": {}, "feet_err_m": 0.0, "tip_err_m": {}, "drop_m": 0.0, "contacts": [], "planted": 0}}
 	if is_neutral(v) or base.size() < 2:
 		return out
 	var sh := shifts(v, spread)
 	var W := S.clone()
 	W.cards = base.duplicate(true)
 	var n := W.cards.size()
+	var pk_n := move_peaks(W, B)   # the original clip's own peak hand speed per move (W still holds the original cards)
 	var contacts := []
 	for i in range(1, n):
 		if TimingCoach.is_strike(W, i):
@@ -440,13 +497,18 @@ static func style_cards(S: Scene, B: Body, base: Array, v: Dictionary, spread :=
 
 	# model of every card before: the grounded pose (planted feet, pelvis, contact point)
 	var flats := []
+	var flats0 := []
+	var hands0 := []
+	var wf := []
 	var plant := []   # per card: {"l": [ankle, ball] | null, ...}
 	var pel0 := PackedFloat64Array()
 	var tip0 := {}
 	for i in n:
 		var fl := _dup_flat(W._flat_read(i))
 		flats.append(fl)
-		_place(W, B, fl)
+		flats0.append(_dup_flat(fl))
+		hands0.append(_hands(W, B, fl))
+		wf.append(weapon_factor(W, B, i))
 		var pl := {}
 		for s in ["l", "r"]:
 			if (B.P["ball_" + s] as Vector3).y < PLANT_Y:
@@ -596,6 +658,20 @@ static func style_cards(S: Scene, B: Body, base: Array, v: Dictionary, spread :=
 	out["report"]["planted"] = nplant
 	out["report"]["feet_errs"] = feet_errs
 
+	var capped := {}
+	# 3b. HUMAN LIMITS (first estimate from the chord): no move faster than the fastest human time for its hand travel (min_move_time); a move that was already faster
+	# than that in the original keeps its original speed (the style never speeds it up), scaled by the travel the style gave it
+	for i in range(1, n):
+		var d0 := _travel2(hands0[i - 1], hands0[i])
+		var d1 := _travel2(_hands(W, B, flats[i - 1]), _hands(W, B, flats[i]))
+		var floor0 := minf(float(mv0[i]), min_move_time(d0, float(wf[i])))
+		var floor1 := floor0 * maxf(1.0, d1 / maxf(d0, 1e-6)) if d0 > 1e-6 else floor0
+		floor1 = maxf(floor1, min_move_time(d1, float(wf[i])) if float(mv0[i]) >= min_move_time(d0, float(wf[i])) else 0.0)
+		var cur_t: float = W.cards[i]["move"] if W.cards[i].has("move") else float(mv0[i])
+		if cur_t < floor1 - 1e-6:
+			W.cards[i]["move"] = snappedf(floor1 + 0.0005, 0.001)
+			capped[i] = [cur_t, floor1]
+
 	# 4. CONTACT: the strike's point goes back where it was (model), then (full pipeline) the last millimetres
 	for i in contacts:
 		var a: Dictionary = flats[i]["ang"]
@@ -613,17 +689,29 @@ static func style_cards(S: Scene, B: Body, base: Array, v: Dictionary, spread :=
 			var o := PackedFloat64Array()
 			_v3(o, contact_point(B)[0])
 			return o
-		# from the styled arm; when that cannot get back (a doubled swing is out of reach), from the arm as it was
+		# from the styled arm; when that cannot get back (a doubled swing is out of reach), AMPLITUDE ON THIS CARD IS REDUCED toward the
+		# original pose (0.75, 0.5, 0.25, 0 of the style's change to every scaled joint) until the arm reaches the point again
 		var a_styled := a.duplicate()
 		var e_s := _dls(B, a, vars, f, tgt, 8, 0.0008)
+		var keep := 1.0
 		if e_s > 0.004:
-			var a_base := a_styled.duplicate()
-			for jn in ["clavicle_", "upperarm_", "lowerarm_"]:
-				a_base[jn + side] = W._flat_read(i)["ang"][jn + side]
-			var e_b := _dls(B, a_base, vars, f, tgt, 10, 0.0008)
-			if e_b < e_s:
-				for jj in a_base:
-					a[jj] = a_base[jj]
+			var best_a: Dictionary = a.duplicate()
+			var best_e := e_s
+			for kf in [0.75, 0.5, 0.25, 0.0]:
+				var tr := a_styled.duplicate()
+				for jj in mean:
+					tr[jj] = (flats0[i]["ang"][jj] as Vector3).lerp(a_styled[jj], kf)
+				var e_k := _dls(B, tr, vars, f, tgt, 10, 0.0008)
+				if e_k < best_e:
+					best_e = e_k
+					best_a = tr
+					keep = kf
+				if e_k <= 0.004:
+					break
+			for jj in best_a:
+				a[jj] = best_a[jj]
+		out["report"]["amp_kept"] = out["report"].get("amp_kept", {})
+		out["report"]["amp_kept"][i] = keep
 
 	# write the poses: only the cards whose angles changed are rebuilt
 	for i in n:
@@ -635,6 +723,29 @@ static func style_cards(S: Scene, B: Body, base: Array, v: Dictionary, spread :=
 				break
 		if changed:
 			W.cards[i]["pose"] = _pose_of(B, flats[i])
+
+	# 5. HUMAN LIMITS, measured: the clip as it now PLAYS. A move whose peak hand speed is over max(11.95 m/s / weapon factor, the same
+	# move's original peak) is lengthened in proportion (peak ~ 1/time) until it is inside; a style never makes a move faster than a human
+	# can, nor faster than the original was.
+	var peak_after := 0.0
+	for it in 6:
+		var pk := move_peaks(W, B)
+		var moved := false
+		peak_after = 0.0
+		for q in pk.size():
+			var ci: int = pk[q]["card"]
+			var lim := maxf(float(pk[q]["limit"]), float(pk_n[q]["peak"]))
+			peak_after = maxf(peak_after, float(pk[q]["peak"]))
+			if float(pk[q]["peak"]) > lim * 1.005:
+				var cur_t: float = W.cards[ci]["move"] if W.cards[ci].has("move") else W.move_time(ci)
+				var new_t := snappedf(cur_t * float(pk[q]["peak"]) / lim * 1.02, 0.001)
+				capped[ci] = [capped.get(ci, [cur_t])[0], new_t]
+				W.cards[ci]["move"] = new_t
+				moved = true
+		if not moved:
+			break
+	out["report"]["capped"] = capped
+	out["report"]["peak_mps"] = peak_after
 
 	# the full pipeline's check, and the last correction on the arm (pin and step logic live there, not in the model)
 	var tip_err := {}
