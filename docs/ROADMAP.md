@@ -250,6 +250,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I9. Sketch to pose: draw a stick figure over the viewport with the mouse; Kine fits the body to it (2D lines ->
   3D pose with limits and balance).
   Step 1 merged: strokes recognised, fit lands on the strokes in screen space (<= 2 px), missing limbs untouched, one undo, 48 ms. Open: 3D recovery, 29 of 42 library fits have a bone > 10 deg off (trunk twist not in a stick figure, depth-axis bones mirror-ambiguous, an 8.7 deg error even with no tremor).
+  Step 2 merged: library-pose depth prior + per-limb depth refinement; bad fits 29 -> 19 of 42, missing-arm 8.6 deg (passes). Open: a single view can't settle bones near the picture plane (~8 deg per px of stroke error) or toward the camera (mirror pair); next is a click-to-flip limb depth in the UI and shoulder/hip-line strokes for trunk twist.
 - [x] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
   cards come pre-timed the way you usually time them (shown as "your usual 0.18 s", one key to accept).
 - [x] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
