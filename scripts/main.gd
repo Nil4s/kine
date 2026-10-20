@@ -192,7 +192,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -443,6 +443,8 @@ var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; t
 var smart_drag := true      # the other joints follow a dragged one the way your poses move together; Alt+drag = off
 var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint drag)
 var _sd := {}               # the current drag's smart state ({} = none)
+var sj := SuggestionJournal.new()   # LEARN FROM MY EDITS (ROADMAP I26): scripts/suggestion_journal.gd; the panel is sj_ui
+var sj_ui: SuggestionJournalUI
 var np := NextPose.new()    # NEXT-POSE SUGGESTIONS (ROADMAP R27): scripts/next_pose.gd; the glue is at the end of this file
 var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail are drag handles: scripts/trail_edit.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
@@ -2233,6 +2235,7 @@ func _ready() -> void:
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
 		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
+		sj = SuggestionJournal.new("user://zz_suggestion_journal_%d.json" % OS.get_process_id())   # I26: a test never reads or writes the real journal
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
 		style_ui.on = false   # I17: like Nick is off in a test until it turns it on
@@ -2576,6 +2579,7 @@ func _process(dt: float) -> void:
 		sh_ui.tick(dt)
 	if rh_ui != null:
 		rh_ui.tick(dt)
+	sj.observe(undo.size())   # I26: undone / edited suggestions
 	if cm_ui != null:
 		cm_ui.tick(dt)
 	if feint_ui != null:
@@ -9818,7 +9822,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -10225,6 +10229,9 @@ func _ui() -> void:
 	if rs_ui == null:
 		rs_ui = RealismUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Realism score", rs_ui.show, "one score 0-100 for the clip from the judges the app already has (Check, timing coach, push limits, force view, the physics judge if it ran), the 3 biggest reasons with their seconds, and a one-click fix for each"))
+	if sj_ui == null:
+		sj_ui = SuggestionJournalUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("What I learned from you", sj_ui.show, "the suggestions you keep, undo or reshape: top lessons with counts; a number you always change the same way comes pre-applied; Reset forgets"))
 	ui_ribbon["CHECK"].add_child(_button("Timing coach", tc_ui.show, "for each strike a better move time with the reason (a real clip, strike-size numbers and sources); preview, then accept one line or all"))
 	if style_ui == null:
 		style_ui = StyleUI.new(self)
@@ -12873,6 +12880,9 @@ func _commands() -> Array:
 	if tc_ui == null:
 		tc_ui = TimingCoachUI.new(self)
 	tc_ui.commands(add)   # TIMING COACH (ROADMAP I4)
+	if sj_ui == null:
+		sj_ui = SuggestionJournalUI.new(self)
+	sj_ui.commands(add)   # I26
 	if rs_ui == null:
 		rs_ui = RealismUI.new(self)
 	rs_ui.commands(add)   # REALISM SCORE (ROADMAP I16)
@@ -19413,6 +19423,7 @@ func _sg_tick() -> void:
 		dt = 0.4
 	var nx: Variant = _sg_next_pose()
 	sg_list = np.suggest(c["pose"], String(c["name"]), dt, scene_path, String(c.get("phase", "")), nx if nx is Dictionary else {})
+	sg_list = sj.sort_offers("next pose", sg_list, func(x): return String(x["src"]))   # I26: the sources you keep come first
 	sg_ms = np.last_ms
 	sg_sel = -1
 	for i in sg_list.size():
@@ -19531,7 +19542,12 @@ func _sg_accept(i: int) -> void:
 	_push_undo()
 	var at := sel_card + 1
 	S.add(String(s["name"]), (s["pose"] as Dictionary).duplicate(true), at)
-	S.cards[at]["move"] = float(s["mv"])
+	var sj_d := sj.learned("next pose", String(s["src"]))   # I26: the move time you always change it by, applied
+	var sj_mv := float(s["mv"]) if is_nan(sj_d) or float(s["mv"]) <= 0.0 else maxf(0.04, float(s["mv"]) + sj_d)
+	S.cards[at]["move"] = sj_mv
+	var sj_sc: Scene = S
+	sj.log("next pose", String(s["src"]), at, {"field": "move", "base": float(s["mv"]), "applied": sj_mv}, undo.size(),
+		func(): return sj_sc.cards[at]["move"] if at < sj_sc.cards.size() else null)
 	S.cards[at]["hold"] = float(s["hd"])
 	var us := false
 	if String(s["src"]) == "between":

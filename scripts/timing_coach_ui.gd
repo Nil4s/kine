@@ -50,7 +50,25 @@ func show() -> void:
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
 	m.B.set_state(keep)   # compute posed the body at other times
 	m.B.fk()
+	learn()
 	_panel()
+
+
+## I26: more-time / less-time offers sort by how often you keep them; a kind you always change by the same amount comes pre-applied
+static func kind_of(s: Dictionary) -> String:
+	return "more time" if float(s["to"]) > float(s["from"]) else "less time"
+
+
+func learn() -> void:
+	for s in sugs:
+		if s.has("learned"):
+			continue
+		var d: float = m.sj.learned("timing coach", kind_of(s))
+		if not is_nan(d):
+			s["base"] = s["to"]
+			s["to"] = snappedf(maxf(TimingCoach.MIN_MOVE, float(s["to"]) + d), 0.001)
+			s["learned"] = d
+	sugs = m.sj.sort_offers("timing coach", sugs, kind_of)
 
 
 func _panel() -> void:
@@ -74,7 +92,7 @@ func _panel() -> void:
 		var row := HBoxContainer.new()
 		var pb: Button = m._button("Preview", preview.bind(k), "play this timing around card %d; the scene is not changed" % (int(s["card"]) + 1))
 		pb.name = "tc_preview_%d" % (k + 1)
-		var ab: Button = m._button("Accept", accept.bind(k), "write this one move time (card %d); one undo step" % (int(s["card"]) + 1))
+		var ab: Button = m._button("Accept" if not s.has("learned") else "Accept (%s - applied)" % SuggestionJournal.phrase(float(s["learned"])), accept.bind(k), "write this one move time (card %d); one undo step" % (int(s["card"]) + 1))
 		ab.name = "tc_accept_%d" % (k + 1)
 		row.add_child(pb)
 		row.add_child(ab)
@@ -133,11 +151,16 @@ func _write(ix: Array) -> void:
 	m._push_undo()
 	m._markers_hold()
 	for s in chosen:
-		TimingCoach.accept(m.S, s)
+		var ci := TimingCoach.accept(m.S, s)
+		if ci >= 0:
+			var sc: Scene = m.S
+			m.sj.log("timing coach", kind_of(s), ci, {"field": "move", "base": float(s.get("base", s["to"])), "applied": float(s["to"])}, m.undo.size(),
+				func(): return sc.cards[ci]["move"] if ci < sc.cards.size() else null)
 	m._markers_follow()
 	m._retimed()
 	var left := TimingCoach.compute(m.S, m.B, db, String(m.S.name))
 	sugs = left
+	learn()
 	m._ps().apply(m.B, m.playhead)
 	_panel()
 	m._say("timing coach: %d written (Ctrl+Z undoes them in one step); %d suggestions left" % [chosen.size(), left.size()])

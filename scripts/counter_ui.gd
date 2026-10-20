@@ -64,6 +64,7 @@ func start() -> Dictionary:
 			why.append("%s: %s" % [p["kind"], p["why"]])
 		m._say("Counter: nothing intercepts this card. " + " | ".join(why))
 		return {"ok": false, "res": r}
+	shown = m.sj.sort_offers("counter", shown, func(x): return String(x["kind"]))   # I26: the kinds you keep come first
 	sel = 0
 	on = true
 	n_undo = m.undo.size()
@@ -137,6 +138,7 @@ func accept() -> Dictionary:
 	m._push_undo()
 	var flags := {"steps": p["steps"] if p.has("steps") else {"_l": [0.0, 0.0, 0.0], "_r": [0.0, 0.0, 0.0]}}
 	var kind := String(p["kind"])
+	m.sj.log("counter", kind, -1, {"t": float(p["t"])}, m.undo.size())   # I26: undone within 30 s counts against this kind
 	var ci := PoseCopy.card_at(m.S, float(p["t"]), p["pose"], "counter " + kind.to_lower(), flags)
 	m.actors_rt[k]["t"] = NAN
 	m._rebuild_cards()
