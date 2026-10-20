@@ -51,6 +51,8 @@ var ph: Array = []
 signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans (-1 = a note)
 var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "ok", "why"}] the contacts: fitted on a beat, or flagged
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
+var cg: Array = []        # CHOREOGRAPH (I22): the music energy per beat [{"t0","t1","e" 0..1}], a strip along the cards
+var cg_peak := -1.0      # the loudest downbeat strike time (marked BIG)
 var bf_grid: Array = []   # the beats (scene time) the fit lands on: ticks down the track
 var ph_sel := -1   # the red span picked (a click on it), -1 = none
 
@@ -749,6 +751,21 @@ func _draw_fit(font: Font, y0: float, h: float) -> void:
 
 
 ## FIGHT DISTANCE KEEPER (I18): a band along the top of the cards for every strike span: red = jammed, amber = out of range, blue = in range
+func _draw_cg(font: Font, y0: float, h: float) -> void:
+	if cg.is_empty():
+		return
+	for b in cg:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := x_of(float(b["t1"]))
+		if x1 < 0.0 or x0 > size.x:
+			continue
+		var bh := maxf(2.0, (h - 4.0) * float(b["e"]))
+		draw_rect(Rect2(x0 + 1.0, y0 + h - bh, maxf(1.0, x1 - x0 - 2.0), bh), Color(Tok.c("heading"), 0.5))
+	if cg_peak >= 0.0:
+		var x := x_of(cg_peak)
+		draw_string(font, Vector2(x + 8.0, y0 + 22.0), "BIG", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.c("focus"))
+
+
 func _draw_dk(font: Font, y0: float) -> void:
 	for b in dk:
 		var x0 := x_of(float(b["t0"]))
@@ -834,6 +851,7 @@ func _draw() -> void:
 			draw_line(Vector2(hx + g, y0 + h * 0.35), Vector2(hx + g, y0 + h * 0.65), Tok.c("tl_bg"), 1.0)
 	if ah > 0.0:
 		_draw_audio_lanes(S, font)
+	_draw_cg(font, y0, h)
 	_draw_fit(font, y0, h)
 	_draw_dk(font, y0)
 	if iq_px() > 0.0:
