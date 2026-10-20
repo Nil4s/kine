@@ -16094,6 +16094,9 @@ func _shot_commands(add: Callable) -> void:
 		true, "a rack-focus key at the playhead: the distance from the shot camera to where it looks (its aim point)")
 	add.call("Camera: focus on the selected part here", "", _shot_focus_part, "shot camera focus rack depth of field dof track part follow selected",
 		true, "a rack-focus key at the playhead that TRACKS the selected part: the focus distance is the camera-to-part distance at every frame until the next focus key")
+	for fn in ShotFx.FSTOPS:
+		add.call("Camera: f-stop f/%s" % String.num(fn, 1), "", _shot_fstop.bind(float(fn)), "shot camera f-stop fstop aperture depth of field dof blur bokeh f/%s f%s" % [String.num(fn, 1), String.num(fn, 1)], true,
+			"the shot's aperture f/%s: with the lens's focal length it sets how deep the sharp zone is (f/1.4 a thin slice with a soft background, f/22 nearly everything sharp); if the shot has no focus key it focuses on where the camera looks" % String.num(fn, 1))
 	add.call("Camera: remove the focus key here", "", _shot_focus_remove, "shot camera focus rack depth of field dof remove delete",
 		true, "the rack-focus key at the playhead (within half a frame) goes")
 
@@ -16262,17 +16265,19 @@ func shot_view_at(t: float) -> Dictionary:
 	xf = ShotFx.shaken(xf, fx.get("shake", []), t)
 	var focus := NAN
 	var kp := ShotCam.at(_shot_shots(), t)   # the keyed camera's position in the hero's space (the focus is measured from it)
+	if fx.get("focus", []).is_empty() and fx.has("fstop"):
+		focus = maxf(ShotFx.DIST_MIN, (k["pos"] as Vector3).distance_to(k["aim"] as Vector3))   # an f-stop alone: focused on where the camera looks
 	if not fx.get("focus", []).is_empty() and not kp.is_empty():
 		var hero := _hero_scene()
 		focus = ShotFx.focus_at(fx["focus"], t,
 			func(tt: float) -> Vector3: return ShotCam.at(_shot_shots(), tt)["pos"] as Vector3,
 			func(j: String, tt: float) -> Vector3: return ShotFx.part_at(hero, j, tt))
-	return {"xf": xf, "f": k["f"], "focus": focus}
+	return {"xf": xf, "f": k["f"], "focus": focus, "fstop": ShotFx.fstop_of(fx)}
 
 
 ## the playhead's rack focus into the viewport camera's depth of field (Godot's CameraAttributesPractical): sharp at
 ## `dist`, blurred on both sides; no focus (NAN) = no DOF (the camera's attributes are cleared)
-func _shot_dof_set(dist: float) -> void:
+func _shot_dof_set(dist: float, f_mm := ShotCam.F_DEFAULT, fstop := ShotFx.F_DEFAULT) -> void:
 	if cam == null:
 		return
 	if is_nan(dist):
@@ -16282,11 +16287,13 @@ func _shot_dof_set(dist: float) -> void:
 		_shot_dof = CameraAttributesPractical.new()
 		_shot_dof.dof_blur_far_enabled = true
 		_shot_dof.dof_blur_near_enabled = true
-		_shot_dof.dof_blur_far_transition = 1.5
-		_shot_dof.dof_blur_near_transition = 1.5
-		_shot_dof.dof_blur_amount = 0.08
-	_shot_dof.dof_blur_far_distance = dist
-	_shot_dof.dof_blur_near_distance = dist
+	# the lens's own depth of field (ShotFx.dof: thin lens from the focal length, the f-stop and the focus distance)
+	var d := ShotFx.dof(f_mm, fstop, dist)
+	_shot_dof.dof_blur_far_distance = maxf(float(d["far"]), 0.1)
+	_shot_dof.dof_blur_far_transition = float(d["far_tr"])
+	_shot_dof.dof_blur_near_distance = maxf(float(d["near"]), 0.1)
+	_shot_dof.dof_blur_near_transition = float(d["near_tr"])
+	_shot_dof.dof_blur_amount = float(d["amount"])
 	cam.attributes = _shot_dof
 
 
@@ -16301,7 +16308,7 @@ func _shot_apply() -> bool:
 		return false
 	var r := shot_rect()
 	ShotCam.apply_to(cam, k["xf"], k["f"], r, get_viewport().get_visible_rect().size)
-	_shot_dof_set(float(k["focus"]))
+	_shot_dof_set(float(k["focus"]), float(k["f"]), float(k["fstop"]))
 	if ui_shot == null and ui_root != null:
 		ui_shot = ShotFrame.new()
 		ui_shot.name = "shot_frame"
@@ -16309,7 +16316,7 @@ func _shot_apply() -> bool:
 		ui_root.move_child(ui_shot, 0)   # under every panel
 	if ui_shot != null:
 		ui_shot.visible = not clean
-		ui_shot.show_rect(r, "SHOT CAMERA  %.0f mm  16:9" % float(k["f"]))
+		ui_shot.show_rect(r, "SHOT CAMERA  %.0f mm  16:9%s" % [float(k["f"]), "" if is_nan(float(k["focus"])) else "  f/%.1f  focus %.2f m" % [float(k["fstop"]), float(k["focus"])]])
 	return true
 
 
@@ -16518,6 +16525,19 @@ func _shot_focus_part() -> void:
 	var key := {"t": t, "part": j}
 	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "focus"), key))
 	_say("focus tracks %s from %.2f s (%s from the shot camera now); the blur follows it until the next focus key" % [j, t, Units.len((k["pos"] as Vector3).distance_to(q))])
+
+
+func _shot_fstop(n: float) -> void:
+	if not _shot_fx_need_keys("the f-stop"):
+		return
+	if absf(float(_shot_fx().get("fstop", ShotFx.F_DEFAULT)) - n) < 1e-6 and _shot_fx().has("fstop"):
+		_say("the shot is already at f/%s: pick another f-stop (f/1.4 to f/22)" % String.num(n, 1))
+		return
+	_do(func(): _shot_fx_make()["fstop"] = n)
+	var f := float(ShotCam.sample(_shot_keys(), clampf(playhead, 0.0, S.length()))["f"])
+	var d := ShotFx.dof(f, n, 3.0)
+	_say("shot camera f/%s at %.0f mm: with the focus 3 m away the sharp zone runs %.2f to %s m (Ctrl+Z takes it back; 'look through' shows the blur)" % [
+		String.num(n, 1), f, float(d["near"]), "infinity" if float(d["far"]) >= 999.0 else "%.2f" % float(d["far"])])
 
 
 func _shot_focus_remove() -> void:

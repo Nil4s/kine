@@ -26,6 +26,11 @@ extends RefCounted
 
 const HZ_RATIOS := [1.0, 1.7, 2.6]          # the three components' frequency ratios (seed jitters them by +-5 %)
 const DIST_MIN := 0.05                       # m: the focus never goes closer than this
+const FSTOPS := [1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0, 22.0]   # the full-stop series (ISO 517); the shot's "fstop" is one of these or between
+const F_MIN := 1.4
+const F_MAX := 22.0
+const F_DEFAULT := 2.8
+const COC_MM := 0.024   # circle of confusion on the 36 mm sensor: d / 1500 (the usual 35 mm figure is d / 1500 to d / 1730, 0.02-0.03 mm)
 const PRESET_IMPACT := {"dur": 0.6, "cm": Vector3(1.5, 2.0, 1.0), "deg": Vector3(1.0, 0.6, 1.5), "hz": 9.0, "decay": 3.0}
 
 static var _scratch: Body
@@ -36,6 +41,28 @@ static var _scratch_prop := ""
 static func impact(t0: float, seed_n := 1) -> Dictionary:
 	return {"t": t0, "dur": PRESET_IMPACT["dur"], "cm": PRESET_IMPACT["cm"], "deg": PRESET_IMPACT["deg"],
 		"hz": PRESET_IMPACT["hz"], "decay": PRESET_IMPACT["decay"], "seed": seed_n, "name": "Impact"}
+
+
+## THE LENS'S DEPTH OF FIELD (thin lens, Kingslake / Ray "Applied Photographic Optics"): focal length f (mm), f-number N,
+## focus distance S (m). Hyperfocal H = f^2 / (N c) + f; the sharp zone runs from near = S (H - f) / (H + S - 2 f) to
+## far = S (H - f) / (H - S) (infinite from S >= H). Beyond it the blur circle grows to at most  c_inf = f^2 / (N (S - f))
+## (the disc a point at infinity makes), here as a share of the frame's height. Returns what Godot's CameraAttributesPractical
+## needs: "near", "far" (m, where blur begins), "near_tr", "far_tr" (m, the ramp to full blur), "amount" (blur strength), "coc" (share of frame height at infinity)
+static func dof(f_mm: float, fstop: float, focus_m: float) -> Dictionary:
+	var f := f_mm
+	var n := clampf(fstop, F_MIN, F_MAX)
+	var s_mm := maxf(focus_m * 1000.0, f * 1.05)
+	var h := f * f / (n * COC_MM) + f
+	var near_mm := s_mm * (h - f) / (h + s_mm - 2.0 * f)
+	var far_mm := 1.0e9 if s_mm >= h else s_mm * (h - f) / (h - s_mm)
+	var coc := f * f / (n * (s_mm - f)) / ShotCam.sensor_h()
+	return {"near": near_mm / 1000.0, "far": minf(far_mm / 1000.0, 1000.0), "near_tr": clampf(focus_m * 0.3, 0.1, 5.0),
+		"far_tr": clampf(focus_m * 0.3, 0.1, 5.0), "amount": clampf(coc * 6.0, 0.0, 0.6), "coc": coc}
+
+
+## the shot's f-number (F_DEFAULT when none is set)
+static func fstop_of(fx: Dictionary) -> float:
+	return clampf(float(fx.get("fstop", F_DEFAULT)), F_MIN, F_MAX)
 
 
 ## the list inside fx ("shake" or "focus"), made if absent (fx is a Dictionary, so the caller's copy shares it)
@@ -171,6 +198,8 @@ static func clean(fx: Dictionary) -> Dictionary:
 		out["shake"] = fx["shake"]
 	if not (fx.get("focus", []) as Array).is_empty():
 		out["focus"] = fx["focus"]
+	if fx.has("fstop"):
+		out["fstop"] = fx["fstop"]
 	return out
 
 
@@ -195,6 +224,8 @@ static func to_file(fx: Dictionary) -> Dictionary:
 			fo.append({"t": snappedf(float(k["t"]), 0.0001), "dist": snappedf(float(k["dist"]), 0.0001)})
 	if not fo.is_empty():
 		out["focus"] = fo
+	if fx.has("fstop"):
+		out["fstop"] = snappedf(clampf(float(fx["fstop"]), F_MIN, F_MAX), 0.01)
 	return out
 
 
@@ -220,6 +251,8 @@ static func from_file(d: Variant) -> Dictionary:
 			out["focus"].append({"t": maxf(0.0, float(k["t"])), "part": String(k["part"])})
 		elif k.has("dist"):
 			out["focus"].append({"t": maxf(0.0, float(k["t"])), "dist": maxf(DIST_MIN, float(k["dist"]))})
+	if d.has("fstop"):
+		out["fstop"] = clampf(float(d["fstop"]), F_MIN, F_MAX)
 	out["shake"].sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
 	out["focus"].sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
 	return out
@@ -243,4 +276,6 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 			if n.has("part"):
 				n["part"] = Body.twin(String(n["part"]))
 			return n)
+	if d.has("fstop"):
+		out["fstop"] = d["fstop"]
 	return out
