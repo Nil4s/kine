@@ -41,6 +41,17 @@ const CHIN_HEAD := 14.0
 const SLAP_ELBOW := 55.0
 const SLAP_DEG := 45.0
 const ROLL_DEG := 40.0
+const TURN_MIN := 45.0      # forward fall: the head counts as turned aside from this much neck + head rotation (mae ukemi: head to one side, ~60-90 deg of neck rotation)
+const TURN_SIDE := 30.0     # side fall: head turned away from the floor side
+const HEAD_V := 2.0         # m/s: cheek-side contact of a turned head under this is read as a safe landing
+const CLEAR := 0.05         # head clear of the floor: 5 cm
+const TURN_NECK := 40.0     # the fix: neck twist stop is 40 deg, head 35 deg -> 75 deg in all
+const TURN_HEAD := 35.0
+const EXT_NECK := -12.0     # forward fall: slight neck extension to lift the face (stops: neck -30, head -25)
+const EXT_HEAD := -8.0
+const ELB0 := 30.0          # the absorbing arm: elbow at contact, then ELB1 after ELB_T seconds
+const ELB1 := 90.0
+const ELB_T := 0.15
 const PARTS := ["pelvis", "hips_wide", "spine_01", "spine_02", "spine_03", "chest_wide", "neck_01", "head", "clavicle_l", "clavicle_r",
 	"upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r", "thigh_l", "thigh_r"]   # the calves are left out like the feet: they are the support, always within centimetres of the floor, and on a body that tips about its feet they are the lowest part and would read as the "first touch"
 
@@ -79,6 +90,8 @@ static func frames(S: Scene) -> Array:
 		var ta: Vector3 = B.P["thigh_l"] - (B.P["thigh_r"] as Vector3)
 		out.append({"t": t, "com": Balance.com(B).y, "top": maxf((hc[0] as Vector3).y, (hc[1] as Vector3).y) + float(B.rad["head"]), "low": low,
 			"chin": float((B.ang["neck_01"] as Vector3).x + (B.ang["head"] as Vector3).x),
+			"turn": float((B.ang["neck_01"] as Vector3).z + (B.ang["head"] as Vector3).z),
+			"tr": (B.P["neck_01"] as Vector3) - (B.P["pelvis"] as Vector3), "lf": ta, "com3": Balance.com(B),
 			"el": {"_l": float((B.ang["lowerarm_l"] as Vector3).x), "_r": float((B.ang["lowerarm_r"] as Vector3).x)},
 			"lat": absf(ta.y) / maxf(ta.length(), 1e-6)})
 	return out
@@ -144,12 +157,49 @@ static func _fall(fr: Array, jm: int, c: int) -> Dictionary:
 	for p in first:
 		if lowest == "" or float(fr[c]["low"][p]) < float(fr[c]["low"][lowest]):
 			lowest = p
-	# (a) head and chin
+	# direction of the fall: the trunk's lean at the impact against the facing and left axes at the start of the fall (left x up = forward)
+	var tr0: Vector3 = fr[jm]["tr"]
+	var fc := (fr[jm]["lf"] as Vector3).cross(tr0)
+	fc = Vector3(fc.x, 0, fc.z).normalized()
+	var lt := Vector3(fc.z * -1.0, 0, fc.x)   # fc rotated: left of the facing is +90 deg about Y (X-forward-left basis of the hero: forward Z, left X)
+	lt = Vector3.UP.cross(fc) * -1.0
+	var lean: Vector3 = fr[c]["tr"]
+	lean = Vector3(lean.x, 0, lean.z)
+	if lean.length() < 0.15 * (fr[c]["tr"] as Vector3).length():
+		lean = (fr[c]["com3"] as Vector3) - (fr[jm]["com3"] as Vector3)
+		lean = Vector3(lean.x, 0, lean.z)
+	var dang := rad_to_deg(atan2(lean.dot(lt), lean.dot(fc)))
+	var dir := "forward" if absf(dang) <= 45.0 else ("backward" if absf(dang) >= 135.0 else "side")
+	var floor_side := "" if dir != "side" else ("_l" if dang > 0.0 else "_r")
+	# (a) head: forward = clear by 5 cm or turned aside with a slow cheek contact; backward = chin tucked; side = turned away from the floor side
 	var hc := INF
+	var tj := -1
 	for j in range(c, mini(n, c + int(HEAD_WIN * HZ) + 1)):
 		hc = minf(hc, float(fr[j]["low"]["head"]))
+		if tj < 0 and float(fr[j]["low"]["head"]) <= TOUCH:
+			tj = j
 	var chin: float = fr[c]["chin"]
-	var ca := "fail" if hc < TOUCH else ("warn" if chin < TUCK_MIN else "ok")
+	var turn := absf(float(fr[c]["turn"]))
+	var hv := 0.0
+	if tj >= 0:
+		var j0 := maxi(jm, tj - 6)
+		hv = (float(fr[j0]["low"]["head"]) - float(fr[tj]["low"]["head"])) / maxf(float(fr[tj]["t"]) - float(fr[j0]["t"]), 1e-6)
+	var ca := "ok"
+	var how := ""
+	if dir == "forward":
+		if hc >= CLEAR:
+			how = "clear: the head stays %.0f cm above the floor" % (hc * 100.0)
+		elif turn >= TURN_MIN and (tj < 0 or hv < HEAD_V):
+			how = "turned aside %.0f deg%s" % [turn, "" if tj < 0 else ", cheek contact %.1f m/s" % hv]
+		else:
+			ca = "fail" if hc < TOUCH else "warn"
+			how = "head %.0f cm up, turned %.0f deg%s" % [hc * 100.0, turn, "" if tj < 0 else ", contact %.1f m/s" % hv]
+	elif dir == "backward":
+		ca = "fail" if hc < TOUCH else ("warn" if chin < TUCK_MIN else "ok")
+		how = "chin %.0f deg, head %.0f cm up" % [chin, hc * 100.0]
+	else:
+		ca = "fail" if hc < TOUCH else ("ok" if (hc >= CLEAR or turn >= TURN_SIDE) else "warn")
+		how = "head %.0f cm up, turned %.0f deg" % [hc * 100.0, turn]
 	# (b) arm
 	var side := ""
 	for p in first:
@@ -181,7 +231,7 @@ static func _fall(fr: Array, jm: int, c: int) -> Dictionary:
 		vs = (float(fr[c0]["low"][lowest]) - float(fr[c]["low"][lowest])) / maxf(float(fr[c]["t"]) - float(fr[c0]["t"]), 1e-6)
 	var cd := "ok" if vs <= SPEED_OK else ("warn" if vs <= SPEED_BAD else "fail")
 	var cls := _worst(_worst(ca, cb), _worst(cc, cd))
-	return {"t0": fr[jm]["t"], "t_c": t_c, "t1": t_c + HEAD_WIN, "part": lowest, "first": first, "chin": chin, "head_clear": hc, "side": side, "elbow": el,
+	return {"t0": fr[jm]["t"], "t_c": t_c, "t1": t_c + HEAD_WIN, "part": lowest, "first": first, "chin": chin, "head_clear": hc, "dir": dir, "floor_side": floor_side, "turn": turn, "head_v": hv, "head_how": how, "dang": dang, "side": side, "elbow": el,
 		"regions": regs.keys(), "good": good, "speed": vs, "a": ca, "b": cb, "c": cc, "d": cd, "cls": cls}
 
 
@@ -237,22 +287,51 @@ static func _done(S: Scene, nS: Scene, f: Dictionary, kind: String, msg: String)
 	return {"ok": true, "kind": kind, "scene": nS, "msg": msg, "after": _near(rep, f), "rep": rep}
 
 
-## fix 1: tuck the chin in every landing card
+## fix 1: protect the head, by the direction of the fall (judo ukemi). FORWARD (face-down, mae ukemi): the head is TURNED to one side (neck 40 + head
+## 35 deg of twist, the stops) and lifted a little by neck extension; a chin tuck there drives the face into the floor. BACKWARD (ushiro ukemi): the
+## chin tucked, neck + head flexed to 40 deg. SIDE: the head turned away from the floor side. Both turn directions are built and the better kept.
 static func tuck(S: Scene, f: Dictionary) -> Dictionary:
 	if String(f["a"]) == "ok":
-		return {"ok": false, "why": "the chin is already tucked (%.0f deg) and the head stays clear: nothing to tuck" % float(f["chin"])}
-	var nS := S.clone()
-	var B := DistanceKeeper.new_body()
-	var cs := landing_cards(nS, f, true)
-	if cs.is_empty():
-		return {"ok": false, "why": "no card arrives during this landing: add a pose after the fall, then try again"}
-	for i in cs:
-		var c: Dictionary = nS.cards[i]
-		for pr in [["neck_01", CHIN_NECK], ["head", CHIN_HEAD]]:
-			var x: Dictionary = _joint(c, pr[0])
-			var r: Vector2 = B.lim[pr[0]]["bend"]
-			x["bend"] = snappedf(clampf(maxf(float(x["bend"]), float(pr[1])), r.x, r.y), 0.01)
-	return _done(S, nS, f, "tuck", "tuck the chin: neck + head flexed to %.0f deg in %d card%s" % [CHIN_NECK + CHIN_HEAD, cs.size(), "" if cs.size() == 1 else "s"])
+		return {"ok": false, "why": "the head is already safe (%s): nothing to change" % String(f["head_how"])}
+	var dir := String(f["dir"])
+	var best := {}
+	var bscore := -999.0
+	for sg in ([1.0, -1.0] if dir != "backward" else [1.0]):
+		var nS := S.clone()
+		var B := DistanceKeeper.new_body()
+		var cs := landing_cards(nS, f, true)
+		if cs.is_empty():
+			return {"ok": false, "why": "no card arrives during this landing: add a pose after the fall, then try again"}
+		for i in cs:
+			var c: Dictionary = nS.cards[i]
+			var pairs := []
+			if dir == "backward":
+				pairs = [["neck_01", "bend", CHIN_NECK, true], ["head", "bend", CHIN_HEAD, true]]
+			else:
+				pairs = [["neck_01", "twist", sg * TURN_NECK, false], ["head", "twist", sg * TURN_HEAD, false]]
+				if dir == "forward":
+					pairs += [["neck_01", "bend", EXT_NECK, false], ["head", "bend", EXT_HEAD, false]]
+			for pr in pairs:
+				var x: Dictionary = _joint(c, pr[0])
+				var r: Vector2 = B.lim[pr[0]][pr[1]]
+				var v := float(pr[2])
+				if bool(pr[3]):
+					v = maxf(float(x[pr[1]]), v)
+				elif pr[1] == "bend":
+					v = minf(float(x[pr[1]]), v)
+				x[pr[1]] = snappedf(clampf(v, r.x, r.y), 0.01)
+		var msg := "tuck the chin (backward fall): neck + head flexed to %.0f deg" % (CHIN_NECK + CHIN_HEAD)
+		if dir == "forward":
+			msg = "forward fall: turn the head aside %.0f deg (not a tuck) and lift it a little (neck extension)" % (TURN_NECK + TURN_HEAD)
+		elif dir == "side":
+			msg = "side fall: turn the head %.0f deg, away from the floor side" % (TURN_NECK + TURN_HEAD)
+		var r2 := _done(S, nS, f, "tuck", msg + " in %d card%s" % [cs.size(), "" if cs.size() == 1 else "s"])
+		var af: Dictionary = r2["after"]
+		var sc := -999.0 if af.is_empty() else float(af["head_clear"]) - 10.0 * float(["ok", "warn", "fail"].find(String(af["a"])))
+		if sc > bscore:
+			bscore = sc
+			best = r2
+	return best
 
 
 ## the cost of an arm setting: how far the upper arm is from SLAP_DEG off the trunk, plus (a lying card) the forearm's tilt off the floor
@@ -274,6 +353,7 @@ static func slap(S: Scene, f: Dictionary) -> Dictionary:
 	var nS := S.clone()
 	var B := DistanceKeeper.new_body()
 	var cs := landing_cards(nS, f)
+	var ts := nS.times()
 	if cs.is_empty():
 		return {"ok": false, "why": "no card arrives during this landing: add a pose after the fall, then try again"}
 	# both arms: a fall is caught by whichever hand is lower a frame later, so bending one arm only hands the straight-arm landing to the other
@@ -286,7 +366,12 @@ static func slap(S: Scene, f: Dictionary) -> Dictionary:
 		for i in cs:
 			var c: Dictionary = nS.cards[i]
 			B.from_dict(c["pose"])
-			B.ang[la] = Vector3(maxf(float((B.ang[la] as Vector3).x), SLAP_ELBOW), 0, 0)
+			# the elbow absorbs: ELB0 deg at the contact, ELB1 deg ELB_T s later (cards before the contact keep ELB0 or more)
+			var arr: float = ts[i][1]
+			var el := ELB0 + (ELB1 - ELB0) * clampf((arr - float(f["t_c"])) / ELB_T, 0.0, 1.0)
+			if arr <= float(f["t_c"]) + 1e-4:
+				el = maxf(el, minf(float((B.ang[la] as Vector3).x), 60.0))
+			B.ang[la] = Vector3(el, 0, 0)
 			var best := INF
 			var bv := B.ang[ua] as Vector3
 			for sv in range(-90, -15, 5):
@@ -300,7 +385,7 @@ static func slap(S: Scene, f: Dictionary) -> Dictionary:
 							bv = B.ang[ua]
 			_put(c, ua, bv)
 			_put(c, la, B.ang[la])
-	return _done(S, nS, f, "slap", "bend the catching arms (both) into a slap: elbow %.0f deg, arm %.0f deg off the body, forearm flat, in %d card%s" % [SLAP_ELBOW, SLAP_DEG, cs.size(), "" if cs.size() == 1 else "s"])
+	return _done(S, nS, f, "slap", "bend the catching arms (both) into a slap: elbow %.0f deg at the contact rising to %.0f deg %.2f s later (the arm absorbs), arm %.0f deg off the body, forearm flat, in %d card%s" % [ELB0, ELB1, ELB_T, SLAP_DEG, cs.size(), "" if cs.size() == 1 else "s"])
 
 
 ## fix 3: roll the trunk so the shoulder / back / hip side lands first
