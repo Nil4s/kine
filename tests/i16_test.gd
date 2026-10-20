@@ -42,7 +42,7 @@ func _cold_score() -> float:
 	FrameMemo._mem = sv
 	rs._memo = keep_memo
 	m.force_cache = keep_force
-	return float(RealismScore.compute(m.S, g)["score"])
+	return float(RealismScore.compute(m.S, g)["raw"])
 
 
 func _init() -> void:
@@ -142,10 +142,10 @@ func _init() -> void:
 		var u0: int = m.undo.size()
 		rs.refresh()
 		var item: Dictionary = (rs.res["items"] as Array).filter(func(x): return x["judge"] == "TIMING" and x["text"] == tim[q]["text"])[0]
-		var s_before := float(rs.res["score"])
+		var s_before := float(rs.res["raw"])
 		rs.fix(item)
 		await idle(3)
-		var after := float(rs.res["score"])
+		var after := float(rs.res["raw"])
 		print("     timing fix %d (%s): %.2f -> %.2f, undo %d -> %d" % [q, item["text"], s_before, after, u0, m.undo.size()])
 		var cold_q := _cold_score()
 		print("       cold %.2f vs incremental %.2f" % [cold_q, after])
@@ -168,16 +168,16 @@ func _init() -> void:
 	if chk.is_empty():
 		print("     (7) no fixable Check finding on this clip: skipped")
 	else:
-		var before := float(rs.res["score"])
+		var before := float(rs.res["raw"])
 		var cards1 := JSON.stringify(m.S.cards)
 		var u1: int = m.undo.size()
 		await rs.fix(chk[0])
 		await idle(3)
 		ok(rs.ms < 400.0, "(9) re-score after the Check fix: %.0f ms < 400 (played %d, reused %d)" % [rs.ms, FrameMemo.played, FrameMemo.reused])
 		var cold_c := _cold_score()
-		ok(absf(cold_c - float(rs.res["score"])) <= 0.01, "(11) Check fix: incremental %.3f == cold %.3f (to 0.01)" % [float(rs.res["score"]), cold_c])
+		ok(absf(cold_c - float(rs.res["raw"])) <= 0.01, "(11) Check fix: incremental %.3f == cold %.3f (to 0.01)" % [float(rs.res["raw"]), cold_c])
 		print("       stages (ms) ", rs.prof)
-		ok(m.undo.size() == u1 + 1 and float(rs.res["score"]) >= before - 1e-9, "(7) Check fix: %.2f -> %.2f, undo %d -> %d" % [before, float(rs.res["score"]), u1, m.undo.size()])
+		ok(m.undo.size() == u1 + 1 and float(rs.res["raw"]) >= before - 1e-9, "(7) Check fix: %.2f -> %.2f, undo %d -> %d" % [before, float(rs.res["raw"]), u1, m.undo.size()])
 		m._undo()
 		await idle()
 		ok(JSON.stringify(m.S.cards) == cards1, "(7) Ctrl+Z: cards exact")
@@ -188,7 +188,7 @@ func _init() -> void:
 	var inp2: Dictionary = rs.inp.duplicate()
 	inp2["phys"] = [{"t0": 0.5, "t1": 1.0, "reason": "airborne with no push"}]
 	var r2 := RealismScore.compute(m.S, inp2)
-	ok(r2["judged"] and float(r2["pen"]["PHYSICS"]) > 0.0 and float(r2["score"]) < float(rs.res["score"]), "(8) a cached red span 0.5-1.0 s costs %.1f points" % float(r2["pen"]["PHYSICS"]))
+	ok(r2["judged"] and float(r2["pen"]["PHYSICS"]) > 0.0 and float(r2["raw"]) < float(rs.res["raw"]), "(8) a cached red span 0.5-1.0 s costs %.1f points" % float(r2["pen"]["PHYSICS"]))
 
 	# (10) offered fixes carry a gain, and it comes true; empty scene is fast
 	rs.refresh()
@@ -203,11 +203,11 @@ func _init() -> void:
 		var rr: Dictionary = rs.res["reasons"][k - 1]
 		var pred := rs.gain_of(rr)
 		ok(pred > 0.05 and String(bt.text).contains("+"), "(10) button %d reads '%s' (predicted %+.2f)" % [k, bt.text, pred])
-		var b4 := float(rs.res["score"])
+		var b4 := float(rs.res["raw"])
 		var cj := JSON.stringify(m.S.cards)
 		rs.fix(rr)
 		await idle(3)
-		ok(absf((float(rs.res["score"]) - b4) - pred) <= 1.0, "(10) button %d: predicted %+.2f, got %+.2f" % [k, pred, float(rs.res["score"]) - b4])
+		ok(absf((float(rs.res["raw"]) - b4) - pred) <= 1.0, "(10) button %d: predicted %+.2f, got %+.2f" % [k, pred, float(rs.res["raw"]) - b4])
 		m._undo()
 		await idle()
 		rs.refresh()

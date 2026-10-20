@@ -21,6 +21,9 @@ var prof := {}       # ms per stage of the last refresh (FrameMemo.tick)
 var lap := {}        # ms per judge, the last gather
 var gains := {}      # {cards key + reason text: predicted gain in points, or -1.0 if the fix could not be scored}
 var gain_ms := 0.0   # what the last predictions cost
+var jcache := {}     # I45: the newer judges' answers per scene revision (judge_suite.gd)
+var jlap := {}       # ms per newer judge, the last gather (0 = from the cache)
+var best := {}       # I45: {"item", "gain"}: the fix, of any judge, that adds the most points (biggest_gain)
 
 
 func _init(main: Node) -> void:
@@ -42,7 +45,7 @@ func tag() -> String:
 ## ask every judge; nothing is written to the scene. TimingCoach needs the move database (read once, ~20 s) unless `db` is given.
 func gather(db: Dictionary) -> Dictionary:
 	var S: Scene = m.S
-	var out := {"findings": [], "tc": [], "force": {}, "push": [], "phys": null}
+	var out := {"findings": [], "tc": [], "force": {}, "push": [], "phys": null, "judges": {}}
 	if S.cards.size() < 2:   # nothing to judge (empty, or a pose with no clip): do not play anything
 		lap = {"check": 0.0, "timing": 0.0, "force": 0.0}
 		return out
@@ -76,6 +79,9 @@ func gather(db: Dictionary) -> Dictionary:
 	var mp: MakePhysical = m.mp_ui.mp
 	if mp.done and mp.failed == "" and not mp.summary.is_empty():
 		out["phys"] = mp.spans.duplicate()
+	t0 = Time.get_ticks_usec()
+	out["judges"] = JudgeSuite.run(m, jcache, jlap)   # I45: weapon, reaction, fatigue, momentum, recovery, spin, breakfall, precog (poses shared through the frame memo)
+	lap["judges"] = float(Time.get_ticks_usec() - t0) / 1000.0
 	FrameMemo.on = false
 	m.B.set_state(body0)   # the judges posed the body at other times
 	m.B.fk()
@@ -124,21 +130,25 @@ func _push_items() -> Array:
 
 ## the score the clip WOULD have with these cards (the scene gets them for the length of the call and is put back, the same object;
 ## the judges' answers for the real cards, the frame memo and the force cache are put back too)
-func _score_with(cards: Array, tc_fix := {}) -> float:
+func _score_with(changes: Array, tc_fix := {}) -> float:
 	var S: Scene = m.S
-	var orig := S.cards
+	var origs := changes.map(func(c): return (c["S"] as Scene).cards)
+	var keep_j := jcache.duplicate()
 	var keep_memo := _memo
 	var keep_force: Dictionary = m.force_cache
 	var keep_sm = m._sm
 	var keep_lap := lap.duplicate()
-	S.cards = cards
+	for c in changes:
+		(c["S"] as Scene).cards = c["cards"]
 	if not tc_fix.is_empty():
 		TimingCoach.accept(S, tc_fix)
 	_memo = {}
 	FrameMemo.probe = true
-	var sc := float(RealismScore.compute(S, gather(m.tc_ui.db))["score"])
+	var sc := float(RealismScore.compute(S, gather(m.tc_ui.db))["raw"])   # raw: the unfloored 100 - total, so a clip at 0 still shows a gain
 	FrameMemo.probe = false
-	S.cards = orig
+	for k in changes.size():
+		(changes[k]["S"] as Scene).cards = origs[k]
+	jcache = keep_j
 	_memo = keep_memo
 	m.force_cache = keep_force
 	m._sm = keep_sm
@@ -156,15 +166,53 @@ func gain_of(r: Dictionary) -> float:
 	var S: Scene = m.S
 	match String(fx["kind"]):
 		"timing":
-			g = _score_with(S.cards.duplicate(true), inp["tc"][int(fx["i"])]) - float(res["score"])
+			g = _score_with([{"S": S, "cards": S.cards.duplicate(true)}], inp["tc"][int(fx["i"])]) - float(res["raw"])
 		"check":
 			var f: Dictionary = inp["findings"][int(fx["i"])]
 			if Fixer.label(f, S) != "":
 				var cards: Array = Fixer.propose(f, S, m.ov.GB, m._sm)
 				if not cards.is_empty():
-					g = _score_with(cards) - float(res["score"])
+					g = _score_with([{"S": S, "cards": cards}]) - float(res["raw"])
+		"judge":
+			var fz := JudgeSuite.fix(m, r)
+			if not fz.is_empty():
+				g = _score_with(fz["changes"]) - float(res["raw"])
 	gains[gk] = g
 	return g
+
+
+## I45: the fix, of ANY judge, that adds the most points: each of the MAX_CAND largest fixable reasons is tried on a copy (gain_of; the
+## answer is kept per cards) and the best gain over GAIN_MIN wins. {} when no fix helps.
+const MAX_CAND := 6
+const GAIN_MIN := 0.05
+
+
+func biggest_gain() -> Dictionary:
+	var cand := []
+	var sorted: Array = (res["items"] as Array).duplicate()
+	sorted.sort_custom(func(x, y): return float(x["pen"]) > float(y["pen"]))
+	var seen := {}
+	for it in sorted:
+		var kd := String(it["fix"]["kind"])
+		if kd == "none" or kd == "phys" or (kd == "check" and Fixer.label(inp["findings"][int(it["fix"]["i"])], m.S) == ""):
+			continue
+		var sk := String(it["judge"]) + String(it["text"])
+		if seen.has(sk):
+			continue
+		seen[sk] = true
+		cand.append(it)
+		if cand.size() >= MAX_CAND:
+			break
+	var t0 := Time.get_ticks_usec()
+	var pick := {}
+	var bg := GAIN_MIN
+	for it in cand:
+		var g := gain_of(it)
+		if g > bg:
+			bg = g
+			pick = {"item": it, "gain": g}
+	gain_ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	return pick
 
 
 func show() -> void:
@@ -187,6 +235,7 @@ func refresh() -> void:
 	if key != var_to_str(m.S.cards):
 		gains = {}
 	key = var_to_str(m.S.cards)
+	best = {}
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
 	prof = FrameMemo.prof.duplicate()
 	m._doc_line(true)
@@ -206,6 +255,16 @@ func _panel() -> void:
 	head.add_child(title)
 	head.add_child(m._button("Close", m._close_findings))
 	var rs: Array = res["reasons"]
+	best = biggest_gain()
+	if not best.is_empty():
+		var bi: Dictionary = best["item"]
+		var bl: Label = m._label("BIGGEST GAIN  %s  +%.1f points\n%s" % [bi["judge"], float(best["gain"]), _short(String(bi["text"]))], 14, "heading", true)
+		bl.name = "rs_best_label"
+		bl.custom_minimum_size = Vector2(380, 0)
+		L.add_child(bl)
+		var bb: Button = m._button("Apply the biggest gain", fix.bind(bi), "the single fix that adds the most points, predicted on a copy of the clip; one undo step")
+		bb.name = "rs_best"
+		L.add_child(bb)
 	if rs.is_empty():
 		L.add_child(m._label("Nothing flagged: every judge that ran is satisfied.", 14, "text:0.85", true))
 	for k in rs.size():
@@ -230,6 +289,15 @@ func _panel() -> void:
 						b = m._button("%s   +%.1f points" % [lab, gn], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gn)
 					elif gn > -90.0:
 						why_not = "   its own fix would %s the score (%+.1f points): the judges disagree here, so it is not offered" % ["lower" if gn < -0.05 else "not change", gn]
+			"judge":
+				var fzz := JudgeSuite.fix(m, r)
+				var gj := gain_of(r)
+				if fzz.is_empty():
+					why_not = "   no one-click fix from the %s judge here: change the pose or timing" % String(r["judge"]).to_lower()
+				elif gj > GAIN_MIN:
+					b = m._button("%s   +%.1f points" % [JudgeSuite.LABEL[r["judge"]], gj], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gj)
+				else:
+					why_not = "   its own fix would %s the score (%+.1f points): not offered" % ["lower" if gj < -GAIN_MIN else "not change", gj]
 			"phys":
 				b = m._button("Accept span (Make it physical)", fix.bind(r), "replace the cards in that red span with the physical version; one undo step")
 		if b != null:
@@ -245,7 +313,12 @@ func _panel() -> void:
 			rows.append("PHYSICS  not judged (run Make it physical)")
 		else:
 			rows.append("%s  %.0f x %.0f %% of the clip = -%.1f" % [jd, RealismScore.weight_of(jd), float(shr[jd]) * 100.0, float(pen[jd])])
-	var jl: Label = m._label("score = 100 - sum of: weight x share of the clip flagged.\n" + "\n".join(rows), 12, "text:0.6", true)
+	for jd in RealismScore.NEW:
+		if res["abstain"].has(jd):
+			rows.append("%s  abstains (%s)" % [jd, res["abstain"][jd]])
+		else:
+			rows.append("%s  %.0f x %.0f %% of the %s flagged = -%.1f" % [jd, RealismScore.weight_of(jd), float(shr[jd]) * 100.0, JudgeSuite.UNIT[jd], float(pen[jd])])
+	var jl: Label = m._label("score = 100 - sum of: weight x share of the clip (older judges) or of the things judged (newer ones) flagged. An abstaining judge does not move the score.\n" + "\n".join(rows), 12, "text:0.6", true)
 	jl.name = "rs_judges"
 	L.add_child(jl)
 	L.add_child(m._label("computed in %.0f ms" % ms, 12, "text:0.5", true))
@@ -271,6 +344,19 @@ func fix(r: Dictionary) -> void:
 		"phys":
 			m.mp_ui.sel = i
 			m.mp_ui.accept()
+		"judge":
+			var fz := JudgeSuite.fix(m, r)
+			if not fz.is_empty():
+				m._actors_sync()
+				m._step_hint = "Realism score: %s" % JudgeSuite.LABEL[r["judge"]]
+				m._push_undo()
+				m._markers_hold()
+				for c in fz["changes"]:
+					(c["S"] as Scene).cards = (c["cards"] as Array).duplicate(true)
+				m._markers_follow()
+				m._retimed()
+				m._ps().apply(m.B, m.playhead)
+				m._refresh()
 	busy = false
 	refresh()
 	_panel()
