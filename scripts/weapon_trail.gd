@@ -43,6 +43,7 @@ var _smear: MeshInstance3D
 const RENDER_N := 8
 const RENDER_SPEED := 4.0         # m/s: a quad is drawn only where the tip is this fast (a held pose leaves no ribbon)
 const RENDER_ALPHA := 0.75
+const RENDER_INNER := 0.7          # the ribbon's inner edge, as a fraction of the bat from the knob: the last 30% near the tip
 var render_on := true
 var render_active := false
 var render_quads := 0
@@ -237,18 +238,40 @@ func _draw_render(f: int, on: bool) -> void:
 		return
 	var col := Tok.c("accent").lightened(0.45)
 	_rr.visible = true
-	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _mat(col, 1.0))
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _rmat())
 	for k in ks:
 		var a0 := _ralpha(f - (k - 1))
 		var a1 := _ralpha(f - k)
-		var g0: Vector3 = samples["grip"][k - 1]
+		var g0: Vector3 = render_inner(k - 1)
 		var t0: Vector3 = samples["tip"][k - 1]
-		var g1: Vector3 = samples["grip"][k]
+		var g1: Vector3 = render_inner(k)
 		var t1: Vector3 = samples["tip"][k]
-		for v in [[g0, a0 * 0.5], [t0, a0], [g1, a1 * 0.5], [t0, a0], [t1, a1], [g1, a1 * 0.5]]:   # the grip edge is fainter than the tip's
+		for v in [[g0, a0 * 0.6], [t0, a0], [g1, a1 * 0.6], [t0, a0], [t1, a1], [g1, a1 * 0.6]]:   # the inner edge is fainter than the tip's
 			im.surface_set_color(Color(col.r, col.g, col.b, v[1]))
 			im.surface_add_vertex(v[0])
 	im.surface_end()
+
+
+## the render ribbon's inner edge at frame k: 70% of the way from the knob end to the tip
+func render_inner(k: int) -> Vector3:
+	return (samples["base"][k] as Vector3).lerp(samples["tip"][k], RENDER_INNER)
+
+
+const RSHADER := "shader_type spatial;
+render_mode blend_add, unshaded, cull_disabled, depth_draw_never;
+void fragment() { ALBEDO = COLOR.rgb; ALPHA = COLOR.a; }
+"
+static var _rsh: Shader = null
+
+
+static func _rmat() -> ShaderMaterial:
+	# additive: the ribbon only adds light, so the bodies behind it stay visible; the vertex alpha scales what is added
+	if _rsh == null:
+		_rsh = Shader.new()
+		_rsh.code = RSHADER
+	var m := ShaderMaterial.new()
+	m.shader = _rsh
+	return m
 
 
 func _ralpha(age: int) -> float:
