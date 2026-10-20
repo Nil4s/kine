@@ -9,7 +9,7 @@
 class_name CounterUI
 extends RefCounted
 
-const KINDS := {"BLOCK": "mk_blue", "SLIP": "mk_green", "DUCK": "mk_green", "PARRY": "mk_gold"}
+const KINDS := {"BLOCK": "mk_blue", "SLIP": "mk_green", "DUCK": "mk_green", "PARRY": "mk_gold", "STEP-BACK": "sg_motion"}
 const GHOST_A := 0.38
 const PICK_A := 0.7
 
@@ -24,6 +24,10 @@ var n_undo := 0                # main.undo.size() when the ghosts were made
 var root: Node3D
 var _men := []                 # [{node, skel, idx, mat, label}] one per proposal
 var _line: MeshInstance3D
+var hud: CanvasLayer           # the labels are 2D (so their rectangles are exact and can be stacked so none overlaps another or a name tag)
+var rects := []                # the labels' screen rectangles after the last layout()
+var tag_rect := Rect2()        # the defender's name tag, as estimated (see tag_rect_of)
+const GAP := 6.0
 
 
 func _init(main: Node) -> void:
@@ -76,7 +80,8 @@ func stop() -> void:
 	res = {}
 	for g in _men:
 		(g["node"] as Node3D).visible = false
-		(g["label"] as Label3D).visible = false
+		(g["label"] as Label).visible = false
+		(g["lead"] as Line2D).visible = false
 	if _line != null:
 		_line.visible = false
 
@@ -130,7 +135,7 @@ func accept() -> Dictionary:
 		m._say("Counter: that fighter is read only here: press Co-edit: stop to animate it, then try again")
 		return {"ok": false}
 	m._push_undo()
-	var flags := {"steps": {"_l": [0.0, 0.0, 0.0], "_r": [0.0, 0.0, 0.0]}}
+	var flags := {"steps": p["steps"] if p.has("steps") else {"_l": [0.0, 0.0, 0.0], "_r": [0.0, 0.0, 0.0]}}
 	var kind := String(p["kind"])
 	var ci := PoseCopy.card_at(m.S, float(p["t"]), p["pose"], "counter " + kind.to_lower(), flags)
 	m.actors_rt[k]["t"] = NAN
@@ -151,6 +156,10 @@ func _build() -> void:
 		root = Node3D.new()
 		root.name = "counter_ghosts"
 		m.stage_root.add_child(root)
+		hud = CanvasLayer.new()
+		hud.layer = 5
+		m.add_child(hud)
+		m.get_tree().process_frame.connect(layout)
 		_line = MeshInstance3D.new()
 		_line.mesh = ImmediateMesh.new()
 		var lm := StandardMaterial3D.new()
@@ -166,19 +175,19 @@ func _build() -> void:
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.cull_mode = BaseMaterial3D.CULL_BACK
 		var mq := Overlays.mannequin(root, mat)
-		var lab := Label3D.new()
-		lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		lab.no_depth_test = true
-		lab.fixed_size = true
-		lab.pixel_size = 0.0007
-		lab.font_size = 14
-		lab.outline_size = 6
-		lab.render_priority = 3
-		root.add_child(lab)
-		_men.append({"node": mq[0], "skel": mq[1], "idx": mq[2], "mat": mat, "label": lab})
+		var lab := Label.new()
+		lab.add_theme_font_size_override("font_size", 14)
+		lab.add_theme_constant_override("outline_size", 5)
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hud.add_child(lab)
+		var lead := Line2D.new()
+		lead.width = 1.5
+		hud.add_child(lead)
+		_men.append({"node": mq[0], "skel": mq[1], "idx": mq[2], "mat": mat, "label": lab, "lead": lead})
 	for g in _men:
 		(g["node"] as Node3D).visible = false
-		(g["label"] as Label3D).visible = false
+		(g["label"] as Label).visible = false
+		(g["lead"] as Line2D).visible = false
 	var D: Dictionary = m.actors_rt[def_k]
 	var dxf: Transform3D = D["xf"]
 	var lat: Vector3 = dxf.basis * Vector3.RIGHT
@@ -190,12 +199,13 @@ func _build() -> void:
 		n.transform = dxf
 		Overlays.pose_skeleton(g["skel"], g["idx"], G)
 		n.visible = true
-		var lab := g["label"] as Label3D
+		var lab := g["label"] as Label
 		lab.text = String(p["label"])
-		lab.position = dxf * (G.P["head"] as Vector3) + Vector3(0, 0.3 + 0.42 * float(i), 0)   # stacked, so no two overlap in any view
 		lab.visible = true
+		(g["lead"] as Line2D).visible = true
 	_tint()
 	_path_draw()
+	layout()
 
 
 func _tint() -> void:
@@ -204,10 +214,12 @@ func _tint() -> void:
 		var col: Color = Tok.c(String(KINDS.get(String(shown[i]["kind"]), "mk_blue")))
 		col.a = PICK_A if i == sel else GHOST_A
 		(g["mat"] as StandardMaterial3D).albedo_color = col
-		var lab := g["label"] as Label3D
-		lab.modulate = Tok.c(String(KINDS.get(String(shown[i]["kind"]), "mk_blue")))
-		lab.outline_modulate = Tok.c("ink") if Tok.dark == false else Color(0, 0, 0, 0.9)
-		lab.font_size = 17 if i == sel else 14
+		var lab := g["label"] as Label
+		var kc := Tok.c(String(KINDS.get(String(shown[i]["kind"]), "mk_blue")))
+		lab.add_theme_color_override("font_color", kc)
+		lab.add_theme_color_override("font_outline_color", Tok.c("ink") if Tok.dark == false else Color(0, 0, 0, 0.9))
+		lab.add_theme_font_size_override("font_size", 16 if i == sel else 14)
+		(g["lead"] as Line2D).default_color = kc
 
 
 ## the attacker's tip path, a cross where each block / parry meets it, a leader from each label to its ghost's point
@@ -238,3 +250,80 @@ func _path_draw() -> void:
 	if not marks.is_empty():
 		im.surface_end()
 	_line.visible = true
+
+
+# ---------------------------------------------------------------- labels
+
+## the defender's name tag (Label3D, fixed size) as a screen rectangle: its anchor projected, its size from the font
+## (a fixed-size label shows a font pixel as pixel_size * viewport height / (2 tan(fov / 2)) screen pixels), padded
+func tag_rect_of() -> Rect2:
+	if def_k < 0 or def_k >= m.actor_men.size():
+		return Rect2()
+	var tg: Label3D = m.actor_men[def_k]["tag"]
+	if not tg.is_inside_tree() or m.cam.is_position_behind(tg.global_position):
+		return Rect2()
+	var vp: Vector2 = m.get_viewport().get_visible_rect().size
+	var k := tg.pixel_size * vp.y / (2.0 * tan(deg_to_rad(m.cam.fov) * 0.5))
+	var f := ThemeDB.fallback_font
+	var sz := f.get_string_size(tg.text, HORIZONTAL_ALIGNMENT_LEFT, -1, tg.font_size) * k
+	var c: Vector2 = m.cam.unproject_position(tg.global_position)
+	return Rect2(c - sz * 0.5, sz).grow(GAP)
+
+
+## stack the labels in the window: each starts beside its ghost's head and moves down past every rectangle already placed (the
+## other labels and the name tag) until none overlaps; a column that runs out of window starts the next one. A leader joins each
+## label to its ghost's head. Called every frame while the ghosts show (the camera may have moved)
+func layout() -> void:
+	if not on or shown.is_empty() or root == null or not is_instance_valid(root):
+		return
+	var vp: Vector2 = m.get_viewport().get_visible_rect().size
+	var D: Dictionary = m.actors_rt[def_k]
+	var dxf: Transform3D = D["xf"]
+	tag_rect = tag_rect_of()
+	rects = []
+	var placed: Array = [tag_rect] if tag_rect.size != Vector2.ZERO else []
+	var h0: Vector2 = m.cam.unproject_position(m.stage_root.global_transform * (dxf * ((shown[0]["B"] as Body).P["head"] as Vector3)))
+	var wmax := 0.0
+	for g in _men:
+		wmax = maxf(wmax, ((g["label"] as Label).get_minimum_size().x + 4.0))
+	var x0 := h0.x + 110.0
+	if h0.x - 90.0 - wmax >= 245.0:   # room on the left (the browser panel is ~240 px): keep the attacker clear
+		x0 = h0.x - 90.0 - wmax
+	var col_w := 0.0
+	var y := clampf(h0.y - 140.0, 8.0, vp.y - 100.0)
+	var x := x0
+	for i in shown.size():
+		var g: Dictionary = _men[i]
+		var lab := g["label"] as Label
+		var sz := lab.get_minimum_size() + Vector2(4, 2)
+		lab.size = sz
+		if x + sz.x > vp.x - 8.0:
+			x = maxf(8.0, h0.x - 110.0 - sz.x)
+		var r := Rect2(Vector2(x, y), sz)
+		var moved := true
+		while moved:
+			moved = false
+			for q in placed:
+				if r.grow(GAP * 0.5).intersects(q):
+					r.position.y = (q as Rect2).end.y + GAP
+					moved = true
+		if r.end.y > vp.y - 8.0:   # out of window: the next column
+			x = r.position.x + col_w + 14.0 if x + col_w + 14.0 + sz.x < vp.x - 8.0 else 8.0
+			col_w = 0.0
+			r = Rect2(Vector2(x, 8.0), sz)
+			moved = true
+			while moved:
+				moved = false
+				for q in placed:
+					if r.grow(GAP * 0.5).intersects(q):
+						r.position.y = (q as Rect2).end.y + GAP
+						moved = true
+		col_w = maxf(col_w, sz.x)
+		lab.position = r.position
+		placed.append(r)
+		rects.append(r)
+		y = r.position.y
+		var hp: Vector2 = m.cam.unproject_position(m.stage_root.global_transform * (dxf * ((shown[i]["B"] as Body).P["head"] as Vector3)))
+		var ln := g["lead"] as Line2D
+		var edge := Vector2(r.position.x if hp.x < r.position.x else r.end.x, r.position.y + 8.0)
+		ln.points = PackedVector2Array([edge, hp])

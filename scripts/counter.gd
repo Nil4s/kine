@@ -40,6 +40,12 @@ const MV := 0.12           # s: the counter's own movement (start of movement ->
 const BODY_GAP := 0.05     # m: a block meets the weapon at least this far in front of the defender's torso / head
 const BUDGET_MS := 4000    # a guard search stops after this many ms (it returns what it has)
 const BODY := ["head", "spine_03", "spine_02", "spine_01", "pelvis"]
+const STEP_MV := 0.2      # s: a step back takes longer than a slip (start of the step -> both feet down)
+const STEP_CLEAR := 0.05  # m: the step-back's and the duck's bar (the weapon line misses the body by this much)
+const STEP_PLAN := 0.058  # m: what their search plans for
+const STEP_MIN := 0.10    # m: the root travel tried, smallest first, ...
+const STEP_TOP := 0.50    # m: ... up to a stride's worth (a walking step is 0.415 of body height = 0.7 m, Gait Posture 2009 PMID 19502061)
+const PLANT_BAR := 0.01   # m: a planted foot may slide at most this far
 static var _t_stop := 0
 
 
@@ -113,6 +119,8 @@ static func strike(AS: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci:
 	var al := []
 	var bl := []
 	var r := float(AB.rad["bat_barrel"]) if AB.wep_on else FIST_R
+	AS.apply(AB, tc)
+	var root: Vector3 = axf * (AB.P["pelvis"] as Vector3)   # the attacker's root at the contact: the attack line runs from it to the defender
 	var t_last := minf(tc + FOLLOW, T)
 	for i in int(floor((t_last - t0) / step)) + 1:
 		var t := t0 + float(i) * step
@@ -133,7 +141,7 @@ static func strike(AS: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci:
 		al.append(a)
 		bl.append(b)
 	var t_read := float(ts[ci - 1][0]) if ci >= 2 else t0
-	out.merge({"ok": true, "t_read": t_read, "t_ok": t_read + REACT + MV, "t0": t0, "tc": tc, "contact": contact, "ts": tl, "p": pl, "a": al, "b": bl, "r": r, "what": what, "hand": hand}, true)
+	out.merge({"ok": true, "t_read": t_read, "t_ok": t_read + REACT + MV, "t0": t0, "tc": tc, "contact": contact, "ts": tl, "p": pl, "a": al, "b": bl, "r": r, "what": what, "hand": hand, "root": root}, true)
 	return out
 
 
@@ -495,7 +503,136 @@ static func slip(P: Dictionary, DS: Scene, dxf: Transform3D) -> Dictionary:
 	return out
 
 
-# ---------------------------------------------------------------- ALL THREE
+# ---------------------------------------------------------------- STEP-BACK and DUCK
+
+## STEP-BACK: the defender's root moves AWAY along the attack line (attacker's root -> defender's root, on the floor; the
+## I18 distance keeper slides along the same line, DistanceKeeper.fix, p < 0 = away) by the smallest travel s (STEP_MIN..STEP_TOP)
+## that puts the weapon line STEP_CLEAR from the body over the whole path. ONE step, as DistanceKeeper.slide_scene builds one:
+## the foot nearer the direction of travel steps by s (the card's "steps"), the other is PINNED on its mark (Body.plant, slid
+## <= PLANT_BAR), the weight inside both feet. The body moves from the start of the step (t - STEP_MV, after the reaction time)
+## to in place at t (smoothstep, as the keeper's root eases): the clearance is measured on the moving body at every sample.
+## {"ok", "kind" "STEP-BACK", "t", "start", "pose", "B", "shift" (m), "step" ("_l"/"_r"), "steps" (the card's flag), "dir", "head", "torso", "com", "foot", "move"}
+static func step_back(P: Dictionary, DS: Scene, dxf: Transform3D) -> Dictionary:
+	var out := {"ok": false, "kind": "STEP-BACK", "why": ""}
+	var tc: float = P["tc"]
+	var t_in := maxf(tc - 0.03, float(P["t_read"]) + REACT + STEP_MV)
+	out["t"] = t_in
+	out["start"] = t_in - STEP_MV
+	if t_in > tc + 1e-6:
+		out["why"] = "the weapon lands at %.2f s, %.2f s after the wind-up begins: nobody can step away that fast (needs %.1f s to react plus %.1f s to step)" % [tc, tc - float(P["t_read"]), REACT, STEP_MV]
+		return out
+	var G0 := ghost(DS, t_in)
+	var base := G0.to_dict()
+	var pel0: Vector3 = dxf * (G0.P["pelvis"] as Vector3)
+	var root: Vector3 = P["root"]
+	var u := Vector3(pel0.x - root.x, 0.0, pel0.z - root.z)
+	if u.length() < 1e-4:
+		out["why"] = "the fighters stand on the same spot: move one of them first (Actor: place)"
+		return out
+	u = u.normalized()
+	var xb := dxf.affine_inverse().basis
+	var st := {}
+	for sd in ["_l", "_r"]:
+		st[sd] = G0.foot_state(sd)
+	var sd_step := "_l" if (dxf * (st["_l"][0] as Vector3)).dot(u) >= (dxf * (st["_r"][0] as Vector3)).dot(u) else "_r"
+	var sd_pin := "_r" if sd_step == "_l" else "_l"
+	var ts: Array = P["ts"]
+	var fr := []
+	for i in ts.size():
+		var f := clampf((float(ts[i]) - (t_in - STEP_MV)) / STEP_MV, 0.0, 1.0)
+		fr.append(f * f * (3.0 - 2.0 * f))
+	var s := STEP_MIN
+	while s <= STEP_TOP + 1e-6:
+		var sh := u * s
+		var planned := INF
+		for i in ts.size():
+			planned = minf(planned, _clear_of(P, G0, dxf, sh * float(fr[i]), [i], BODY))
+		if planned >= STEP_PLAN:
+			var G := scratch(DS)
+			G.from_dict(base)
+			G.fk()
+			var shb := xb * sh
+			G.offset += shb
+			G.fk()
+			var sp: Array = st[sd_pin]
+			var ss: Array = st[sd_step]
+			var miss := G.plant(sd_pin, sp[0], float(sp[1]), bool(sp[3]))
+			var mis2 := G.plant(sd_step, (ss[0] as Vector3) + shb, float(ss[1]), bool(ss[3]))
+			var cl := INF
+			for i in ts.size():
+				if float(ts[i]) >= t_in - 1e-6:
+					cl = minf(cl, _clear_of(P, G, dxf, Vector3.ZERO, [i], BODY))
+				else:
+					cl = minf(cl, _clear_of(P, G0, dxf, sh * float(fr[i]), [i], BODY))
+			var bal := Balance.read(G)
+			if miss <= PLANT_BAR and mis2 <= PLANT_BAR and cl >= STEP_CLEAR + 0.003 and float(bal["margin"]) >= MARGIN_MIN and (bal["down"] as Array).size() >= 2:
+				var hc: Array = G.cap("head")
+				var hm: Vector3 = dxf * (((hc[0] as Vector3) + (hc[1] as Vector3)) * 0.5)
+				var h0: Array = G0.cap("head")
+				var h0m: Vector3 = dxf * (((h0[0] as Vector3) + (h0[1] as Vector3)) * 0.5)
+				out.merge({"ok": true, "pose": G.to_dict(), "B": G, "shift": s, "step": sd_step, "steps": {sd_step: [shb.x, shb.y, shb.z]},
+					"dir": u, "head": clearance(P, G, dxf, ["head"]), "torso": cl, "com": float(bal["margin"]), "foot": maxf(miss, mis2),
+					"move": hm.distance_to(h0m), "pinned": sd_pin}, true)
+				return out
+		s += 0.025
+	out["why"] = "no step of up to %.0f cm away from the attacker takes the body %.0f cm out of the path with the weight inside the feet: a longer retreat (more steps) or another counter" % [STEP_TOP * 100.0, STEP_CLEAR * 100.0]
+	return out
+
+
+## DUCK: the body lowered straight down by knee and hip flexion (both feet kept on their marks by Body.plant, the weight inside
+## them) by the smallest drop that puts head and torso STEP_CLEAR under a horizontal swing. Same time rule as the slip.
+## {"ok", "kind" "DUCK", "t", "start", "pose", "B", "move" (the head's drop, m), "head", "torso", "com", "foot"}
+static func duck(P: Dictionary, DS: Scene, dxf: Transform3D) -> Dictionary:
+	var out := {"ok": false, "kind": "DUCK", "why": ""}
+	var tc: float = P["tc"]
+	var G0 := ghost(DS, tc)
+	var base := G0.to_dict()
+	var ts: Array = P["ts"]
+	var coarse := []
+	for i in range(0, ts.size(), SEARCH_EVERY):
+		coarse.append(i)
+	if coarse[-1] != ts.size() - 1:
+		coarse.append(ts.size() - 1)
+	var hc: Array = G0.cap("head")
+	var hmid: Vector3 = dxf * (((hc[0] as Vector3) + (hc[1] as Vector3)) * 0.5)
+	var t_close := tc
+	var dmin := INF
+	for i in ts.size():
+		var d: float = (P["p"][i] as Vector3).distance_to(hmid)
+		if d < dmin:
+			dmin = d
+			t_close = ts[i]
+	out["t"] = t_close
+	out["start"] = t_close - MV
+	if t_close < float(P["t_ok"]) - 1e-6:
+		out["why"] = "the weapon is on the head at %.2f s, too soon after the wind-up to start a duck" % t_close
+		return out
+	var bal0 := Balance.read(G0)
+	var poly: PackedVector2Array = bal0["poly"]
+	var com0: Vector3 = bal0["com"]
+	var xb := dxf.affine_inverse().basis
+	for dr in range(1, 13):
+		var dl := Vector3(0, -0.04 * float(dr), 0)
+		if not _stands(G0, poly, com0, xb * dl) or _clear_of(P, G0, dxf, dl, coarse) < STEP_PLAN:
+			continue
+		var rz := _realize(base, DS, dxf, dl)
+		if float(rz["miss"]) > PLANT_BAR:
+			continue
+		var G: Body = rz["B"]
+		var cl := clearance(P, G, dxf)
+		var bal := Balance.read(G)
+		if cl < STEP_CLEAR + 0.003 or float(bal["margin"]) < MARGIN_MIN or (bal["down"] as Array).size() < 2:
+			continue
+		var h1: Array = G.cap("head")
+		var h1m: Vector3 = dxf * (((h1[0] as Vector3) + (h1[1] as Vector3)) * 0.5)
+		out.merge({"ok": true, "pose": G.to_dict(), "B": G, "move": h1m.distance_to(hmid), "head": clearance(P, G, dxf, ["head"]), "torso": cl,
+			"com": float(bal["margin"]), "foot": float(rz["miss"])}, true)
+		return out
+	out["why"] = "no duck puts head and torso %.0f cm under this swing with both feet kept: it is not a swing a duck clears" % (STEP_CLEAR * 100.0)
+	return out
+
+
+# ---------------------------------------------------------------- ALL OF THEM
 
 ## up to three proposals for the defender: BLOCK, SLIP/DUCK, PARRY, each {"ok", "kind", "t", "pose", "B", "label", ...}.
 ## AS / DS: the two scenes; axf / dxf: their placements in the hero's space; t: the playhead (picks the card)
@@ -506,9 +643,11 @@ static func suggest(AS: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, t:
 		return {"ok": false, "why": P["why"], "path": P, "list": []}
 	if not bool(P["contact"]):
 		return {"ok": false, "why": "nothing to counter: this card's %s never touches the other fighter. Move the fighters closer, or put the playhead on a card that lands" % P["what"], "path": P, "list": []}
-	var list := [guard(P, DS, dxf, false), slip(P, DS, dxf), guard(P, DS, dxf, true)]
+	var list := [guard(P, DS, dxf, false), slip(P, DS, dxf), guard(P, DS, dxf, true), step_back(P, DS, dxf)]
+	if not (bool(list[1]["ok"]) and String(list[1]["kind"]) in ["DUCK", "STAY"]):   # the slip is not already a duck
+		list.append(duck(P, DS, dxf))
 	for r in list:
-		r["label"] = text(r, P)
+		r["label"] = text(r, P).replace("\r", "")
 	return {"ok": true, "why": "", "path": P, "list": list}
 
 
@@ -528,6 +667,12 @@ meets it %.0f cm in front of the body" % [
 forearm %.1f cm off the path, deflects %.0f deg
 meets it %.0f cm in front of the body" % [
 				float(r["dist"]) * 100.0, r["deflect"], float(r["front"]) * 100.0]
+		"STEP-BACK":
+			return head + "
+%s foot steps %.0f cm away, %s pinned
+body %.1f cm out of the path (head %.1f)
+weight %.1f cm inside the feet" % [String(r["step"]).trim_prefix("_").to_upper(), float(r["shift"]) * 100.0, String(r["pinned"]).trim_prefix("_").to_upper(),
+				float(r["torso"]) * 100.0, float(r["head"]) * 100.0, float(r["com"]) * 100.0]
 		"STAY":
 			return head + "
 already clear: head %.1f cm, torso %.1f cm" % [float(r["head"]) * 100.0, float(r["torso"]) * 100.0]

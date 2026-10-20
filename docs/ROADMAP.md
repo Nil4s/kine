@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 0 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 2 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -205,6 +205,7 @@ Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; f
 - [x] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
 - [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); Step 2 merged: heel pivot + stance detection fixed (vroot x0.85 passes), coverage 57%/50%; the remaining loss is the video fit holding the heel 3-6 cm up at heel strike.
   Step 3 merged: sole snap by leg IK + toe-off contact; coverage 57 -> 61% (x1.00), 50 -> 51% (x0.85), sole height now passes (1.7 cm). Open: whole stances the leg can't reach under the 2 cm hip-drop cap; next is a horizontal pelvis shift toward held feet (design change, not tuning).
+  Step 4 merged: horizontal pelvis shift toward held feet (cap 5 cm, eased by plant weight) + 98% leg reach: coverage 55 -> 57% (x1.00), 50 -> 54% (x0.85). Raising the cap to 50 cm only reaches 59%: both feet are pinned ~1.02x leg reach apart, so the cause is the root fit following the tracker's foot (next). x1.00 slide reads 1.28 cm (red) since the TRIM=2 revert.
 - [x] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [x] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
 - [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
@@ -239,6 +240,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [x] I3. Counter suggestion: for the attacker's current card, suggest the defender's block / slip / parry pose that
   intercepts the weapon path (geometry of the swing arc against the defender's reach) - choreography help.
   Done: on combo3's bat strike Kine proposes BLOCK and PARRY on fighter 2 (forearm 0.1 / 2.2 cm from the path, meeting it ~30 cm in front of the body, starting 0.42 s after the wind-up), Tab/Enter/one undo; a miss says 'nothing to counter'. Open: no slip/step-back answer clears this swing; labels overlap the name tag.
+  Step 2: STEP-BACK (15 cm step, pinned foot slides 0.70 cm, tip misses by 6.5 cm) and DUCK (head-height swing, clears by 6.5 cm); 3 counter kinds on combo3; labels stacked clear of the name tag. Placing a duck is untested.
 - [x] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
   (anticipation 2-3x shorter than action for fast hits, overshoot on follow-through); suggest exact holds/moves with a
   "sounds right" preview; accept one by one.
@@ -302,3 +304,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I21. Sell the hit: for the shot camera, check each strike as the camera sees it. A miss that should read as a
   hit must overlap the target on screen (the stunt "cheat angle"); a real contact gets a SAFETY flag. Suggest the
   camera move or strike offset that sells it, one click each.
+- [ ] I22. Choreograph to the song: from a loaded track's beats and loudness, lay out a fight skeleton (exchange
+  density follows the music's energy, pauses on quiet bars, the biggest hit on the loudest downbeat), built from
+  Nick's own cards/moves (I17 style, Next poses) and checked by the timing coach and Check; a plan to edit, not a
+  finished fight.
