@@ -152,6 +152,7 @@ const DRAW := {
 	"best_nudge": [["seg", Vector2(4, 16), Vector2(18, 16), 1.8], ["seg", Vector2(4, 8), Vector2(12, 8), 1.8], ["seg", Vector2(12, 8), Vector2(18, 12), 1.8], ["seg", Vector2(18, 12), Vector2(14, 12), 1.8], ["seg", Vector2(18, 12), Vector2(17, 8), 1.8]],
 	"combos": [["disc", Vector2(5, 14), 2.6], ["disc", Vector2(12, 8), 2.6], ["disc", Vector2(19, 14), 2.6], ["seg", Vector2(5, 14), Vector2(12, 8), 1.6], ["seg", Vector2(12, 8), Vector2(19, 14), 1.6]],
 	"weapon_weight": [["seg", Vector2(3, 12), Vector2(21, 12), 1.8], ["seg", Vector2(6, 6), Vector2(6, 18), 2.6], ["seg", Vector2(18, 6), Vector2(18, 18), 2.6], ["seg", Vector2(3, 9), Vector2(3, 15), 2.0], ["seg", Vector2(21, 9), Vector2(21, 15), 2.0]],
+	"parry": [["seg", Vector2(4, 20), Vector2(15, 5), 2.4], ["seg", Vector2(20, 20), Vector2(9, 5), 2.4], ["arc", Vector2(12, 12), 8.5, 1.6, 200, 340]],
 	"rhythm": [["seg", Vector2(3, 18), Vector2(3, 10), 2.0], ["seg", Vector2(8, 18), Vector2(8, 5), 2.0], ["seg", Vector2(14, 18), Vector2(14, 12), 2.0], ["seg", Vector2(21, 18), Vector2(21, 7), 2.0]],
 	"sound_cues": [["seg", Vector2(3, 10), Vector2(3, 14), 2.0], ["seg", Vector2(8, 6), Vector2(8, 18), 2.0], ["seg", Vector2(13, 3), Vector2(13, 21), 2.0], ["seg", Vector2(18, 7), Vector2(18, 17), 2.0], ["disc", Vector2(22, 12), 1.5]],
 	"momentum": [["disc", Vector2(5, 12), 2.8], ["seg", Vector2(9, 12), Vector2(17, 12), 2.0], ["seg", Vector2(14, 8), Vector2(17, 12), 2.0], ["seg", Vector2(14, 16), Vector2(17, 12), 2.0], ["seg", Vector2(21, 4), Vector2(21, 20), 2.4]],

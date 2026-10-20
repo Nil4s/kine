@@ -8,7 +8,7 @@
 extends SceneTree
 
 ## a unit directly after the number (longest first, so "frames" wins over "f", "m/s" over "m")
-const UNITS := ["m/s^2", "frames", "frame", "breaths", "steps/min", "m/s", "fps", "cm", "mm", "ms", "BPM", "bits", "bit", "BW", "dB", "deg", "kg", "px", "Hz",
+const UNITS := ["rad/s", "m/s^2", "frames", "frame", "breaths", "steps/min", "m/s", "fps", "cm", "mm", "ms", "BPM", "bits", "bit", "BW", "dB", "deg", "kg", "px", "Hz",
 	"sd", "SD", "×", "°", "%%", "%", "degrees", "degree", "minutes", "minute", "points", "W", "J", "m", "N", "g", "s", "f"]  # W watts, J joules, points of a 0-100 score
 
 ## a count of things the user can see: the number is how many (no unit), with the reason it is not a quantity
@@ -228,6 +228,12 @@ const ALLOW := [
 	{"file": "style_ui.gd", "lit": "save %d or more clips", "reason": "a count of clips"},
 	{"file": "weapon_torque.gd", "lit": "slow the swing x%.2f", "reason": "a dimensionless multiplier of the swing time (x2 = twice as slow)"},
 	{"file": "weapon_torque.gd", "lit": "scales it x%.2f", "reason": "a dimensionless multiplier"},
+	{"file": "main.gd", "lit": "restitution 0.5", "reason": "Newton's coefficient of restitution: dimensionless (0 sticks, 1 bounces fully)"},
+	{"file": "weapon_rebound_ui.gd", "lit": "weapon contacts", "reason": "a count of weapon contacts and of swings stopped dead"},
+	{"file": "weapon_rebound_ui.gd", "lit": "restitution %.1f", "reason": "Newton's coefficient of restitution: dimensionless"},
+	{"file": "weapon_rebound_ui.gd", "lit": "Contact %d", "reason": "the contact's number in the list (an index)"},
+	{"file": "weapon_rebound_ui.gd", "lit": "contacts, %d stopped dead", "reason": "a count of contacts and of swings stopped dead"},
+	{"file": "weapon_rebound_ui.gd", "lit": "IK keys on", "reason": "a count of IK keys and of hands"},
 ]
 
 ## the last word before a number, without a list bracket: "(r" -> "r"
