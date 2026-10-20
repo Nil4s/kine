@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 7 / 25.
+Merged in round 2: 8 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
 - [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
@@ -201,7 +201,7 @@ Merged in round 2: 7 / 25.
 - [ ] R10. Blind-agent maths: "what would this angle do" (reach, collisions, balance) as a text answer over CLI/MCP.
 - [ ] R11. BODY page: body mass changes girth (per-segment radial scale of the skin), not just the readout.
 - [x] R12. BODY page: save / load named characters (user://characters), the man/woman blend saved in the scene schema.
-- [ ] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
+- [x] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
 - [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now).
 - [ ] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [ ] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
