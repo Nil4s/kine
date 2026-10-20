@@ -3509,6 +3509,202 @@ func _fight_accept() -> bool:
 	return true
 
 
+## I14 REHEARSE AGAINST YOURSELF (scripts/rehearse.gd): "Compare with a video of me..." tracks a phone video (the R13 path: the tracker, then
+## the fit on the worker), aligns the fitted take to the open clip with DTW on joint angles, and shows a panel card by card: how much
+## faster / slower the move into the card was and the biggest joint differences, with the take as an orange ghost that follows the
+## playhead. Nothing is written to the scene: "Use my timing" (every move retimed) and "Use my pose" (one card) are one undo step each.
+## The fitted take is kept under user://rehearse/ (never scenes/).
+var reh := {}                # {"take": Scene, "R": Rehearse.compare's result, "name"}
+var _video_reh := false      # the tracked video is a take for the comparison, not a new scene
+var ui_reh: PanelContainer = null
+
+
+func _rehearse_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.mp4, *.mov, *.avi, *.webm, *.mkv, *.m4v ; videos"])
+	fd.use_native_dialog = true
+	fd.title = "A video of you doing this move"
+	fd.file_selected.connect(func(p): _video_reh = true; _import_video(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## the tracker's pose file -> the take, fitted and compared on the worker; lands in _rehearse_land
+func _rehearse_from_pose(path: String, from: String) -> void:
+	var P := VideoImport.load_file(path)
+	if not P["ok"]:
+		_say("could not compare with %s: %s; pick a video with one person, whole body in view" % [from, P["why"]])
+		return
+	var keep := B.state()
+	var Bw := _imp_body(keep)
+	var clip := S.clone()
+	var base_name := safe_file(from.get_basename())
+	var rt := _retarget_on()
+	_imp_begin("comparing with %s" % from, func():
+		var R := VideoIQ.process(Bw, P, "", base_name, rt)
+		if R.is_empty():
+			Bw.set_state(keep)
+			return {}
+		var V: Scene = R["scene"]
+		var out := {"take": V, "cmp": Rehearse.compare(clip, V), "dict": V.to_dict(Bw)}
+		Bw.set_state(keep)
+		return out,
+		func(res): _rehearse_land(res, from))
+
+
+func _rehearse_land(res: Dictionary, from: String) -> void:
+	if res.is_empty():
+		return
+	DirAccess.make_dir_recursive_absolute(OS.get_user_data_dir().path_join("rehearse"))
+	var f := FileAccess.open("user://rehearse/%s.json" % safe_file(from.get_basename()), FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(res["dict"]))
+		f.close()
+	_rehearse_set(res["take"], res["cmp"], from)
+
+
+## show a comparison (the app's path and the test's): T = the take as a Scene
+func _rehearse_compare(T: Scene, from := "your take") -> Dictionary:
+	if S.cards.size() < 2:
+		_say("nothing to compare yet: build a clip of at least two cards first, then compare it with your video")
+		return {}
+	var R := Rehearse.compare(S, T)
+	_rehearse_set(T, R, from)
+	return R
+
+
+func _rehearse_set(T: Scene, R: Dictionary, from: String) -> void:
+	reh = {"take": T, "R": R, "name": from}
+	_rehearse_panel()
+	_refresh()
+	_say("compared with %s: the orange ghost is you, the card list says where you were faster or slower and which joints differed. 'Use my timing' retimes the clip to you (one undo step)" % from)
+
+
+func _rehearse_close() -> void:
+	reh = {}
+	if ui_reh != null:
+		ui_reh.visible = false
+	if ov != null:
+		ov.take_ghost(null, 0.0)
+
+
+## the clip changed (an edit, an undo): the same take compared again
+func _rehearse_again() -> void:
+	if reh.is_empty():
+		return
+	reh["R"] = Rehearse.compare(S, reh["take"])
+	_rehearse_panel()
+
+
+func _rehearse_timing() -> bool:
+	if reh.is_empty():
+		_say("no comparison open: run 'Compare with a video of me...' first")
+		return false
+	_push_undo()
+	var n := Rehearse.use_timing(S, reh["R"])
+	_rebuild_cards()
+	ov.mark_dirty()
+	wt.mark_dirty()
+	_rehearse_again()
+	_refresh()
+	_say("the clip now keeps your timing: %d moves changed. Ctrl+Z puts the old timing back" % n)
+	return true
+
+
+func _rehearse_pose(i: int) -> bool:
+	if reh.is_empty() or i < 0 or i >= S.cards.size():
+		_say("pick a card in the comparison first, then 'Use my pose'")
+		return false
+	_push_undo()
+	var Bw := _imp_body(B.state())
+	Rehearse.use_pose(S, reh["take"], reh["R"], i, Bw)
+	_rebuild_cards()
+	ov.mark_dirty()
+	wt.mark_dirty()
+	_rehearse_again()
+	_refresh()
+	_say("card %d now has your pose (the 36 joint angles compared). Ctrl+Z takes it back" % (i + 1))
+	return true
+
+
+func _rehearse_go(i: int) -> void:
+	if i < 0 or i >= S.cards.size():
+		return
+	sel_card = i
+	sel_end = -1
+	playing = false
+	playhead = float(S.times()[i][1])
+	_refresh()
+
+
+func _rehearse_panel() -> void:
+	if ui_reh == null:
+		ui_reh = PanelContainer.new()
+		ui_reh.name = "rehearse_panel"
+		ui_reh.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		ui_reh.offset_left = 256
+		ui_reh.offset_top = 96
+		ui_reh.custom_minimum_size = Vector2(380, 0)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Tok.c("float")
+		sb.border_color = Tok.c("accent")
+		sb.set_border_width_all(1)
+		sb.set_corner_radius_all(6)
+		sb.set_content_margin_all(8)
+		ui_reh.add_theme_stylebox_override("panel", sb)
+		ui_root.add_child(ui_reh)
+	for c in ui_reh.get_children():
+		ui_reh.remove_child(c)
+		c.queue_free()
+	ui_reh.visible = not reh.is_empty()
+	if reh.is_empty():
+		return
+	var col := VBoxContainer.new()
+	ui_reh.add_child(col)
+	col.add_child(_label("You against the clip: %s" % reh["name"], 15, "text", false))
+	var R: Dictionary = reh["R"]
+	var big := 0
+	for c in R["cards"]:
+		if c["text"] != "as the clip":
+			big += 1
+	col.add_child(_label("%d of %d cards differ (orange ghost = you, follows the playhead)" % [big, R["cards"].size()], 12, "text:0.7", true))
+	var sc := ScrollContainer.new()
+	sc.name = "rehearse_scroll"
+	sc.custom_minimum_size = Vector2(364, 330)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(sc)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(list)
+	for c in R["cards"]:
+		var i: int = c["i"]
+		var row := HBoxContainer.new()
+		row.name = "rehearse_row_%d" % i
+		list.add_child(row)
+		var tb := VBoxContainer.new()
+		tb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(tb)
+		var differs: bool = c["text"] != "as the clip"
+		tb.add_child(_label("%d  %s  (%.2f s)" % [i + 1, c["name"], c["t_clip"]], 13, "accent" if differs else "text:0.85", false))
+		tb.add_child(_label(c["text"], 12, "text" if differs else "text:0.6", true))
+		var go := _button("Go", _rehearse_go.bind(i), "move the playhead to this card")
+		go.custom_minimum_size = Vector2(36, 0)
+		row.add_child(go)
+		if not (c["lines"] as Array).is_empty():
+			var ub := _button("Use my pose", _rehearse_pose.bind(i), "this card takes your joint angles; one undo step")
+			ub.name = "rehearse_pose_%d" % i
+			row.add_child(ub)
+	var bar := HBoxContainer.new()
+	col.add_child(bar)
+	var tbtn := _button("Use my timing", _rehearse_timing, "every move takes the time you took; one undo step")
+	tbtn.name = "rehearse_timing"
+	bar.add_child(tbtn)
+	bar.add_child(_button("Close", _rehearse_close, "hide the comparison and the ghost"))
+
+
 ## I2 REACT TO THE HIT (PHYSICS; scripts/hit_physics.gd): the hit decides. The first moment a weapon or fist lands on a fighter's body
 ## (the fighters' report, measured now on clones like R16's contact) gives WHERE, the push's direction and the impulse (m_eff x v_rel);
 ## the MuJoCo humanoid (tools/physics/react.py) is run from the struck fighter's pose at the contact, on the R13 worker; its BVH comes
@@ -3842,6 +4038,7 @@ func _refresh() -> void:
 		ov.trail(_ps())
 	ov.spacing(playhead)
 	ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
+	ov.take_ghost(reh.get("take", null), Rehearse.take_time(reh["R"]["map"], playhead) if not reh.is_empty() else 0.0)   # I14: you, orange, at your own time for this playhead
 	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
 	_sg_tick()   # R27: the next-pose ghosts for the current card
@@ -4858,6 +5055,7 @@ func _undo() -> void:
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
 		PosePack.lib_move(u["lib"], true, library)
 	_say("undone: " + now["name"])
@@ -4883,6 +5081,7 @@ func _redo() -> void:
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
 	_say("redone: " + now["name"])
@@ -12620,6 +12819,8 @@ func _commands() -> Array:
 	add.call("Audio: solo or unsolo the picked track", "", _audio_solo_picked, "audio sound track solo only isolate lane", true, "the picked track soloed: only soloed tracks sound (in Play, the scrub and the playblast); one undo step")
 	add.call("Audio: next role for the picked track (music, voice, sfx)", "", _audio_role_next, "audio sound track role music voice sfx lip sync beats", true, "the picked track's role cycles music -> voice -> sfx: the beats read the music track, the lip sync the voice track; one undo step")
 	add.call("Audio: move the sound to start at the playhead", "", _audio_to_playhead, "audio sound offset slide shift sync start align", true, "the sound begins at the playhead's time: slide it to line a hit or a word with a pose; one undo step")
+	add.call("Compare with a video of me...", "", _rehearse_ask, "rehearse compare video me myself timing faster slower joint hip elbow ghost dtw take real phone", false, "pick a phone video of you doing this move: Kine lines it up with the open clip and lists, card by card, how much faster or slower you were and which joints differed (your hip turned 20 deg more); you are an orange ghost on the playhead. 'Use my timing' / 'Use my pose' are one undo step each (I14)")
+	add.call("Compare with my video: use my timing", "", _rehearse_timing, "rehearse use my timing retime cards take", true, "retimes every move of the clip to the time you took in the video you compared with; one undo step (I14)")
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Import from several cameras...", "", _multicam_ask, "video several cameras multi camera triangulate rig two videos mocap motion capture track person film record", false, "pick 2 to 4 videos of one person filmed at the same time: the rig is solved from the person, the joints triangulated, one undo step")
 	add.call("Video: confidence lane and footprints (show / hide)", "", _iq_toggle, "video confidence lane tracking lost footprints contacts floor plants timeline show hide", false, "a scene made from a video shows a lane under its cards coloured by how sure the tracker was (low spans named: click one to go there) and the foot contacts it found as footprints on the floor; this shows or hides both")
@@ -14869,6 +15070,8 @@ func _new_scene() -> void:
 	_actors_home()   # TC3
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
+	if not reh.is_empty():   # I14: so does a rehearsal
+		_rehearse_close()
 	swap_scenes = []
 	S = Scene.new()
 	scene_path = ""
@@ -17309,7 +17512,12 @@ func _video_poll(dt: float) -> void:
 		return
 	_video_pid = -1
 	if not FileAccess.file_exists(_video_out):
+		_video_reh = false
 		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
+		return
+	if _video_reh:
+		_video_reh = false
+		_rehearse_from_pose(_video_out, _video_name)
 		return
 	_import_pose(_video_out, _video_name, _video_raw, true)
 
