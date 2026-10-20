@@ -158,6 +158,7 @@ var bk_ui: BreakfallUI   # BREAKFALL CHECK (ROADMAP I25): scripts/breakfall_ui.g
 var sc_ui: SoundCuesUI   # SOUND CUES (ROADMAP I35): scripts/sound_cues_ui.gd
 var pc_ui: PrecogUI   # PRECOG CHECK (ROADMAP I31): scripts/precog_ui.gd
 var sf_ui: SafetyUI   # SAFETY SHEET (ROADMAP I28): scripts/safety_ui.gd
+var fa_ui: ExertionUI   # FATIGUE (ROADMAP I34): scripts/exertion_ui.gd + exertion.gd
 var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui.gd
 var cm_ui: ComboUI   # MY COMBOS (ROADMAP I23): scripts/combo_ui.gd + combo_mine.gd
 var dk_ui: DistanceKeeperUI   # FIGHT DISTANCE KEEPER (ROADMAP I18): scripts/distance_keeper_ui.gd
@@ -200,7 +201,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Safety sheet", "Fight rhythm", "Breakfall check", "Precog check", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Safety sheet", "Fight rhythm", "Breakfall check", "Precog check", "Fatigue", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -2599,6 +2600,8 @@ func _process(dt: float) -> void:
 		rh_ui.tick(dt)
 	if pc_ui != null:
 		pc_ui.tick(dt)
+	if fa_ui != null:
+		fa_ui.tick(dt)
 	sj.observe(undo.size())   # I26: undone / edited suggestions
 	if cm_ui != null:
 		cm_ui.tick(dt)
@@ -5031,6 +5034,8 @@ func _restore(u: Dictionary) -> void:
 		rh_ui.halt()
 	if pc_ui != null:
 		pc_ui.halt()
+	if fa_ui != null:
+		fa_ui.halt()
 	if cm_ui != null:
 		cm_ui.halt()
 	if feint_ui != null:
@@ -9951,7 +9956,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Safety sheet": "safety", "Breakfall check": "breakfall", "Fight rhythm": "rhythm", "Precog check": "precog", "Sound cues": "sound_cues", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Safety sheet": "safety", "Breakfall check": "breakfall", "Fight rhythm": "rhythm", "Precog check": "precog", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -10401,6 +10406,9 @@ func _ui() -> void:
 	if pc_ui == null:
 		pc_ui = PrecogUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Precog check", pc_ui.show, "with two fighters: for every answered strike, when its wind-up becomes readable and when the defender starts to move; flags a reaction under 0.2 s (PRECOG) or one that lands after the hit (LATE) with a one-click retime; preview, then accept (one undo step)"))
+	if fa_ui == null:
+		fa_ui = ExertionUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Fatigue", fa_ui.show, "per fighter: the mechanical work done over the clip (joint power from the force view) as a green-to-red fatigue strip on the timeline; flags a fighter still at full speed or with an undropped guard late in a long exchange, and offers Tire him (slower strikes, longer recovers, lower guard); preview, then accept (one undo step)"))
 	ui_ribbon["CHECK"].add_child(_button("Fight rhythm", rh_ui.show, "with two fighters: a tempo map of the exchange (who attacks, who answers, the time between beats) as a strip on the timeline; flags monotony, dead air and rush with a one-click suggestion each (pause, change side, feint); preview, then accept (one undo step)"))
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
@@ -13079,6 +13087,9 @@ func _commands() -> Array:
 	if sc_ui == null:
 		sc_ui = SoundCuesUI.new(self)
 	sc_ui.commands(add)   # SOUND CUES (ROADMAP I35)
+	if fa_ui == null:
+		fa_ui = ExertionUI.new(self)
+	fa_ui.commands(add)   # FATIGUE (ROADMAP I34)
 	if cm_ui == null:
 		cm_ui = ComboUI.new(self)
 	cm_ui.commands(add)   # MY COMBOS (ROADMAP I23)
