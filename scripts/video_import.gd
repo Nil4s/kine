@@ -421,6 +421,8 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 	var hraw := {"l": [], "r": []}
 	var hprev := {"l": {}, "r": {}}
 	for f in frames:
+		if VideoIQ.cancelled():   # R13: the import runs on a worker; Cancel / quit ends it at the next frame
+			return []
 		fit(B, f["w"])
 		if has_hands:
 			var hd: Dictionary = f.get("hands", {})

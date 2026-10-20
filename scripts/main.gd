@@ -2134,6 +2134,7 @@ func _exit_tree() -> void:
 		if (sc as Scene).baker != null:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
+	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -2168,6 +2169,7 @@ func _process(dt: float) -> void:
 	_pv_poll()
 	_video_poll(dt)
 	_multicam_poll(dt)
+	_imp_poll()
 	_live_poll(dt)
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
@@ -15453,7 +15455,7 @@ func _video_poll(dt: float) -> void:
 	if not FileAccess.file_exists(_video_out):
 		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
 		return
-	_import_pose(_video_out, _video_name, _video_raw)
+	_import_pose(_video_out, _video_name, _video_raw, true)
 
 
 ## the setting "Retarget to body (IK)" (default ON): the video import fits with VideoRetarget (GMR-style IK onto OUR proportions,
@@ -15477,7 +15479,7 @@ func _retarget_toggle() -> void:
 ## a pose file (tools/see_video.py's) -> a new scene in scenes/_wip, opened. Returns the new scene's path ("" refused).
 ## The cleanup (VideoCleanup: One Euro jitter, the floor level, foot plants held where the leg reaches) is the default;
 ## raw = true is "import raw", the tracker's frames as they came (MocapClean's card lock instead)
-func _import_pose(path: String, from := "", raw := false) -> String:
+func _import_pose(path: String, from := "", raw := false, background := false) -> String:
 	var P := VideoImport.load_file(path)
 	if not P["ok"]:
 		_say("could not import %s: %s; pick a pose file the tracker wrote, or a video" % [(from if from != "" else path.get_file()), P["why"]])
@@ -15485,27 +15487,55 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	var keep := B.state()
 	# AA3: the weapon in his hand now (any but a dagger) is the one he holds in the video, in both hands
 	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
+	var src: String = from if from != "" else path.get_file()
+	var base_name := safe_file(src.get_basename())
+	var rt := _retarget_on()
+	if background:
+		# R13: the solve (seconds per 100 frames) runs on a worker with a Body of its own; this thread keeps drawing and
+		# only applies the result (_import_land) when it arrives. Returns "" now: the new scene's name is said when it lands
+		var Bw := _imp_body(keep)
+		return _imp_begin("importing %s" % src, func(): return _import_compute(Bw, keep, P, held, base_name, raw, rt, src),
+			func(res): _import_land(res, src, held)) as String
+	var res := _import_compute(B, keep, P, held, base_name, raw, rt, src)
+	return _import_land(res, src, held)
+
+
+## the whole fit of a pose file, on whatever Body it is given and nothing else (no node, no file: it runs on a worker).
+## Returns {"d" (the scene's dict), "frames", "cards", "locked"}; {} when cancelled. The Body is left as it was found
+static func _import_compute(Bw: Body, keep: Dictionary, P: Dictionary, held: String, base_name: String, raw: bool, retarget: bool, src: String) -> Dictionary:
 	var frames: Array = P["frames"]
-	var base_name := safe_file((from if from != "" else path.get_file()).get_basename())
 	var fitted: Array
 	var V: Scene
 	var r := {"locked": 0, "text": ""}
 	if raw:
-		fitted = VideoImport.solve(B, frames, held, float(P["fps"]))
-		V = VideoImport.to_scene(B, fitted, P["fps"], 1, base_name)
-		r = MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
+		fitted = VideoImport.solve(Bw, frames, held, float(P["fps"]))
+		if fitted.is_empty() and VideoIQ.cancelled():
+			Bw.set_state(keep)
+			return {}
+		V = VideoImport.to_scene(Bw, fitted, P["fps"], 1, base_name)
+		r = MocapClean.clean(V, Bw, {})   # needs a card per frame: thinned after
 		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
 	else:
 		# VIDEO IQ: confidence, depth + limit repair, contacts -> plants, smart cards, and the lane / footprints for the timeline
-		var R := VideoIQ.process(B, P, held, base_name, _retarget_on())
+		var R := VideoIQ.process(Bw, P, held, base_name, retarget)
+		if R.is_empty():
+			Bw.set_state(keep)
+			return {}
 		fitted = R["fitted"]
 		V = R["scene"]
 		V.iq = R["iq"]
 		r = {"locked": V.plants.size(), "text": R["text"]}
-	B.set_state(keep)
-	var d: Dictionary = V.to_dict(B)
-	var src: String = from if from != "" else path.get_file()
+	Bw.set_state(keep)
+	var d: Dictionary = V.to_dict(Bw)
 	d["plan"] = "Video import of %s: %d frames at %d fps tracked by MediaPipe (tools/see_video.py), fitted by VideoImport%s; %s" % [src, fitted.size(), V.fps, (", the camera's %.0f deg tilt levelled" % P["tilt"]) if float(P["tilt"]) > 0.0 else "", r["text"]]
+	return {"d": d, "frames": fitted.size(), "cards": V.cards.size(), "locked": int(r["locked"])}
+
+
+## the result of _import_compute lands: written under scenes/_wip, opened as a NEW scene. Returns its path ("" for a cancelled one)
+func _import_land(res: Dictionary, src: String, held: String) -> String:
+	if res.is_empty():
+		return ""
+	var d: Dictionary = res["d"]
 	var base := safe_file(String(d["scene"]))
 	var out := "res://scenes/_wip/%s.json" % base
 	var n := 2
@@ -15516,9 +15546,139 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	_load_scene(out)
 	_rebuild_cards()
 	_refresh()
-	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"]),
+	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), int(res["frames"]), int(res["cards"]), int(res["locked"]),
 		(", the %s in both hands" % held.replace("_", " ")) if held != "" else ". Holding a weapon in the video? Pick it first (Weapon: long axe ...), then import: he holds it in both hands"])
 	return out
+
+
+## ---- THE IMPORT ON A WORKER (R13). One job at a time (a video import or the several cameras'): work() runs on a
+## WorkerThreadPool task with a Body of its own and never touches a node or a file; the main loop only draws the progress
+## panel (a bar and Cancel) and, when the task is done, calls land(result). Cancel (or quitting) sets VideoIQ.cancel_flag: the
+## worker stops at its next frame and the scene is left exactly as it was. _exit_tree waits for the task (_imp_stop), the way
+## PoseBake.stop_all does for the bakers: a worker outliving its scene crashed the exit once.
+var _imp := {}
+var _imp_panel: PanelContainer = null
+var _imp_bar: ProgressBar = null
+var _imp_lbl: Label = null
+var _imp_cancel_btn: Button = null
+
+
+func _imp_busy() -> bool:
+	return not _imp.is_empty()
+
+
+## a Body for a worker: the same files, then the pose / proportions / weapon of `keep` (Body.json_file serves the parsed files from its cache)
+func _imp_body(keep: Dictionary) -> Body:
+	var Bw := Body.new()
+	Bw.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	Bw.set_state(keep)
+	return Bw
+
+
+func _imp_begin(label: String, work: Callable, land: Callable, fail := Callable()) -> String:
+	if not _imp.is_empty():
+		_say("still working on %s: one import at a time; press Cancel on the bar, or wait for it" % _imp["label"])
+		return ""
+	VideoIQ.cancel_flag[0] = false
+	VideoIQ.progress = 0.0
+	var job := {"label": label, "land": land, "fail": fail, "out": {}, "cancel": false}
+	job["task"] = WorkerThreadPool.add_task(func(): job["out"] = work.call())
+	_imp = job
+	_imp_show(true)
+	_say("%s: it runs in the background, the window stays yours; Cancel on the bar stops it and leaves the scene as it is" % label)
+	return ""
+
+
+func _imp_cancel() -> void:
+	if _imp.is_empty() or _imp["cancel"]:
+		return
+	_imp["cancel"] = true
+	VideoIQ.cancel_flag[0] = true
+	_imp_lbl.text = "cancelling..."
+	_imp_cancel_btn.disabled = true
+
+
+func _imp_poll() -> void:
+	if _imp.is_empty():
+		return
+	_imp_bar.value = VideoIQ.progress * 100.0
+	if not WorkerThreadPool.is_task_completed(_imp["task"]):
+		return
+	WorkerThreadPool.wait_for_task_completion(_imp["task"])
+	var job := _imp
+	_imp = {}
+	_imp_show(false)
+	if job["cancel"] or (job["out"] as Dictionary).is_empty():
+		if (job["fail"] as Callable).is_valid():
+			(job["fail"] as Callable).call()
+		_say("cancelled %s: the scene is as it was; run the import again when you want it" % job["label"])
+		return
+	(job["land"] as Callable).call(job["out"])
+
+
+## quit / scene swap: stop the worker at its next frame and wait for it
+func _imp_stop() -> void:
+	if _imp.is_empty():
+		return
+	VideoIQ.cancel_flag[0] = true
+	WorkerThreadPool.wait_for_task_completion(_imp["task"])
+	_imp = {}
+
+
+func _imp_show(on: bool) -> void:
+	if _imp_panel == null:
+		if not on:
+			return
+		_imp_panel = PanelContainer.new()
+		_imp_panel.name = "import_progress"
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Tok.c("float")
+		sb.border_color = Tok.c("accent")
+		sb.set_border_width_all(1)
+		sb.set_corner_radius_all(6)
+		sb.set_content_margin_all(10)
+		_imp_panel.add_theme_stylebox_override("panel", sb)
+		_imp_panel.anchor_left = 0.5
+		_imp_panel.anchor_right = 0.5
+		_imp_panel.offset_left = -230
+		_imp_panel.offset_right = 230
+		_imp_panel.offset_top = TOP_H + 14
+		_imp_panel.offset_bottom = TOP_H + 14 + 70
+		_imp_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		var hb := VBoxContainer.new()
+		_imp_panel.add_child(hb)
+		_imp_lbl = _label("", 14, "text")
+		hb.add_child(_imp_lbl)
+		var row := HBoxContainer.new()
+		hb.add_child(row)
+		_imp_bar = ProgressBar.new()
+		_imp_bar.name = "import_bar"
+		_imp_bar.min_value = 0.0
+		_imp_bar.max_value = 100.0
+		_imp_bar.show_percentage = true
+		_imp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_imp_bar.custom_minimum_size = Vector2(300, 24)
+		var fill := StyleBoxFlat.new()
+		fill.bg_color = Tok.c("accent")
+		fill.set_corner_radius_all(3)
+		var track := StyleBoxFlat.new()
+		track.bg_color = Tok.c("field")
+		track.set_corner_radius_all(3)
+		_imp_bar.add_theme_stylebox_override("fill", fill)
+		_imp_bar.add_theme_stylebox_override("background", track)
+		row.add_child(_imp_bar)
+		_imp_cancel_btn = Button.new()
+		_imp_cancel_btn.text = "Cancel"
+		_imp_cancel_btn.name = "import_cancel"
+		_imp_cancel_btn.tooltip_text = "stop this import; the scene stays exactly as it is"
+		_imp_cancel_btn.pressed.connect(_imp_cancel)
+		row.add_child(_imp_cancel_btn)
+		ui_root.add_child(_imp_panel)
+	_imp_panel.visible = on
+	if on:
+		_imp_lbl.text = String(_imp["label"])
+		_imp_bar.value = 0.0
+		_imp_cancel_btn.disabled = false
 
 
 ## ---- SEVERAL CAMERAS (roadmap 89; scripts/multicam.gd). Two to four videos of ONE person, filmed at the same time from
@@ -15605,17 +15765,32 @@ func _multicam_poll(_dt: float) -> void:
 		_multicam_finish()
 
 
-## all the cameras are tracked: solve the rig, triangulate, clean and fit exactly as a single view, land as one edit
+## all the cameras are tracked: solve the rig, triangulate, clean and fit exactly as a single view, land as one edit.
+## R13: the solving (the rig's least squares, the fit) runs on a worker (_imp_begin); _multicam_land applies it
 func _multicam_finish() -> void:
 	var texts := []
 	for o in _mc_outs:
 		texts.append(FileAccess.get_file_as_string(o))
+	var keep := B.state()
+	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
+	var rt := _retarget_on()
+	var Bw := _imp_body(keep)
+	var videos := _mc_videos.duplicate()
+	var sname := S.name
+	if _imp_busy():
+		_multicam_end("the cameras are tracked, but %s is still running: Cancel it on the bar, then pick the videos again" % _imp["label"])
+		return
+	_imp_begin("solving %d cameras" % videos.size(), func(): return _multicam_compute(Bw, keep, texts, videos, held, rt, sname),
+		func(res): _multicam_land(res), func(): _mc_i = -1)
+
+
+## the solve, on a Body of its own and nothing else (no node, no file). {"err"} or the scene's dict and what the panel shows; {} when cancelled
+static func _multicam_compute(Bw: Body, keep: Dictionary, texts: Array, videos: Array, held: String, retarget: bool, scene_name: String) -> Dictionary:
 	var L := MultiCam.obs_from_poses(texts)
 	if not L["ok"]:
-		_multicam_end("could not use the cameras: %s" % L["why"])
-		return
+		return {"err": "could not use the cameras: %s" % L["why"]}
 	var obs: Array = L["obs"]
-	var n := _mc_videos.size()
+	var n := videos.size()
 	var Ks := []
 	for sz in L["sizes"]:
 		Ks.append(MultiCam.intrinsics(int(sz[0]), int(sz[1])))
@@ -15624,34 +15799,54 @@ func _multicam_finish() -> void:
 		p0.append(360.0 * c / n)
 		p0.append(0.0)
 		p0.append(3.0)
-	var keep := B.state()
-	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
-	var pairs := MultiCam.rest_bones(B)
+	var pairs := MultiCam.rest_bones(Bw)
+	VideoIQ.progress = 0.02
 	var sol := MultiCam.solve_extrinsics(Ks, p0, obs, pairs, 8, MULTI_FRAMES)
+	if VideoIQ.cancelled():
+		return {}
+	VideoIQ.progress = 0.15
 	var cams: Array = sol["cams"]
 	var tri := MultiCam.triangulate_all(cams, obs)
 	if not tri["ok"]:
-		B.set_state(keep)
-		_multicam_end("the cameras did not agree on the person: fewer than 2 frames could be triangulated. Check that every camera sees the whole body")
-		return
+		return {"err": "the cameras did not agree on the person: fewer than 2 frames could be triangulated. Check that every camera sees the whole body"}
 	var frames: Array = tri["frames"]
 	var fps := 30.0
 	if obs.size() > 1 and float(obs[-1]["t"]) > float(obs[0]["t"]):
 		fps = float(obs.size() - 1) / (float(obs[-1]["t"]) - float(obs[0]["t"]))
 	var tilt := VideoImport.level(frames)
-	var R := VideoIQ.process(B, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam", _retarget_on())
-	var fitted: Array = R["fitted"]
+	var R := VideoIQ.process(Bw, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam", retarget)
+	if R.is_empty():
+		Bw.set_state(keep)
+		return {}
 	var V: Scene = R["scene"]
 	V.iq = R["iq"]
-	var locked := V.plants.size()
 	var text: String = R["text"]
-	B.set_state(keep)
-	var d: Dictionary = V.to_dict(B)
-	d["scene"] = S.name   # in place, as mirror-in-place: the open scene keeps its name
+	Bw.set_state(keep)
+	var d: Dictionary = V.to_dict(Bw)
+	d["scene"] = scene_name   # in place, as mirror-in-place: the open scene keeps its name
 	var names := []
-	for v in _mc_videos:
+	for v in videos:
 		names.append(String(v).get_file())
 	d["plan"] = "Several cameras: %d videos (%s), rig solved by MultiCam from the person's keypoints (bones, gravity, one floor; %d of %d frames), %d frames triangulated, %.2f px mean reprojection; fitted by VideoImport; %s" % [n, ", ".join(names), mini(MULTI_FRAMES, obs.size()), obs.size(), frames.size(), float(tri["mean_rms"]), text]
+	# the panel: the cameras (their places with the person at the origin), the reconstructed pose at the clip's middle
+	var views := MultiCam.views_per_cam(obs, n)
+	var H := Vector3.ZERO
+	for h in tri["hips"]:
+		H += h as Vector3
+	H /= maxf(1.0, float(tri["hips"].size()))
+	var info := []
+	for c in cams.size():
+		info.append({"name": "camera %d" % (c + 1), "C": (cams[c]["C"] as Vector3) - H, "rms": float(tri["cam_rms"][c]), "views": int(views[c])})
+	var mid := frames.size() / 2
+	return {"d": d, "cams": cams, "H": H, "info": info, "pose": frames[mid]["w"], "t": float(frames[mid]["t"]), "rms": float(tri["rms"][mid]),
+		"n": n, "frames": frames.size(), "mean_rms": float(tri["mean_rms"])}
+
+
+func _multicam_land(res: Dictionary) -> void:
+	if res.has("err"):
+		_multicam_end(String(res["err"]))
+		return
+	var d: Dictionary = res["d"]
 	_do(func():
 		S.from_dict(d)
 		sel_card = mini(sel_card, S.cards.size() - 1)
@@ -15661,20 +15856,10 @@ func _multicam_finish() -> void:
 		_rebuild_cards()
 		_refresh()
 		S.apply(B, playhead))
-	# the panel: the cameras (their places with the person at the origin), the reconstructed pose at the clip's middle
-	var views := MultiCam.views_per_cam(obs, n)
-	var H := Vector3.ZERO
-	for h in tri["hips"]:
-		H += h as Vector3
-	H /= maxf(1.0, float(tri["hips"].size()))
-	var info := []
-	mc_last = {"cams": cams, "H": H}
-	for c in cams.size():
-		info.append({"name": "camera %d" % (c + 1), "C": (cams[c]["C"] as Vector3) - H, "rms": float(tri["cam_rms"][c]), "views": int(views[c])})
-	var mid := frames.size() / 2
-	_multicam_show(info, frames[mid]["w"], float(frames[mid]["t"]), float(tri["rms"][mid]))
+	mc_last = {"cams": res["cams"], "H": res["H"]}
+	_multicam_show(res["info"], res["pose"], float(res["t"]), float(res["rms"]))
 	_mc_i = -1
-	_say("imported %d cameras as one edit on this scene: %d frames, %.2f px mean reprojection; the panel shows where each camera stands. Ctrl+Z takes it back; nothing is saved until you save" % [n, frames.size(), float(tri["mean_rms"])])
+	_say("imported %d cameras as one edit on this scene: %d frames, %.2f px mean reprojection; the panel shows where each camera stands. Ctrl+Z takes it back; nothing is saved until you save" % [int(res["n"]), int(res["frames"]), float(res["mean_rms"])])
 
 
 func _multicam_show(info: Array, pose: Array, t: float, rms: float) -> void:
