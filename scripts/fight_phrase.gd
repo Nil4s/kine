@@ -15,7 +15,7 @@
 ##   slip  = the target part is >= SLIP_OFF (10 cm) farther from the path than before and clear of it.
 ##   Then the cost: the joint change from the previous pose (degrees summed over joints: the smallest change fits best)
 ##   plus REPEAT_COST when it is the same KIND as the beat before; a third of the same kind in a row is not allowed.
-## RANGE: at each beat the defender's root is moved along the line between the two pelvises (a step in or out, written into
+## RANGE: at each beat the defender's root is moved along the line of the attack (its pelvis toward the striking point) (a step in or out, written into
 ##   the card's hips offset) to the smallest move at which the striking point is within REACH_AIM of the trunk (the bar is
 ##   REACH_TOL, 5 cm) and the bodies (hands, forearms and weapons aside: they are the strike and the guard) do not overlap.
 ##   No such distance: the beat is FLAGGED with the reason and gets no defence.
@@ -207,7 +207,7 @@ static func _change(a: Dictionary, b: Dictionary) -> float:
 
 ## every candidate defence for one beat, tested: [{"kind", "label", "pose" (a Body.to_dict), "cost" (joint change)}].
 ## DB is posed by pp (the previous pose) and left posed by the last candidate. pth = the tip's path from the arrival on.
-static func candidates(AB: Body, DB: Body, rel: Transform3D, pp: Dictionary, pth: Array, target: String, tip_r: float) -> Array:
+static func candidates(AB: Body, DB: Body, rel: Transform3D, pp: Dictionary, pth: Array, target: String, tip_r: float, lat := Vector3.ZERO) -> Array:
 	var out := []
 	DB.from_dict(pp)
 	var ang0: Dictionary = DB.ang.duplicate()
@@ -263,6 +263,22 @@ static func candidates(AB: Body, DB: Body, rel: Transform3D, pp: Dictionary, pth
 					out.append({"kind": "slip", "label": "SLIP (%s)" % ("R" if sgn > 0.0 else "L"), "pose": DB.to_dict(), "cost": _change(ang0, DB.ang)})
 				break
 			m += 2.0
+	# 3 DODGES: a slip that also takes a sidestep (the hips go sideways, perpendicular to the attack) for the strikes a lean cannot clear
+	if out.is_empty():
+		for sgn in [1.0, -1.0]:
+			var w := 0.10
+			while w <= 0.45:
+				var rl := Transform3D(rel.basis, rel.origin + lat * (sgn * w))
+				DB.from_dict(pp)
+				for j in ["spine_01", "spine_02", "spine_03"]:
+					var a3: Vector3 = DB.ang[j]
+					DB.ang[j] = DB.clamp_ang(j, Vector3(a3.x, a3.y + sgn * 8.0, a3.z))
+				DB.fk()
+				var d2 := _dist_to_part(pth, DB, rl, target)
+				if d2 - d0 >= SLIP_OFF and d2 >= 0.02 and not overlap(AB, DB, rl):
+					out.append({"kind": "slip", "label": "DODGE (%s)" % ("R" if sgn > 0.0 else "L"), "pose": DB.to_dict(), "cost": _change(ang0, DB.ang) + w * 200.0, "dshift": lat * (sgn * w)})
+					break
+				w += 0.02
 	return out
 
 
@@ -298,7 +314,7 @@ static func plan(A: Scene, D: Scene, rel: Transform3D) -> Dictionary:
 		var u := strike_u(AB, DB, relx)
 		var sp := spot(AB, String(b["hand"]), u)
 		# RANGE: the smallest step along the line of the pelvises
-		var line: Vector3 = AB.P["pelvis"] - relx * (DB.P["pelvis"] as Vector3)
+		var line: Vector3 = sp - relx * (DB.P["pelvis"] as Vector3)   # the line of the attack: from the defender's centre toward where the strike lands
 		line.y = 0.0
 		line = line.normalized() if line.length() > 1e-6 else Vector3.FORWARD
 		var found := false
@@ -335,13 +351,15 @@ static func plan(A: Scene, D: Scene, rel: Transform3D) -> Dictionary:
 		relx = Transform3D(rel.basis, rel.origin + shift)
 		res["step"] = step
 		res["cum"] = shift
+		res["pre"] = shift
+		res["pre"] = shift
 		var z2 := zone_gap(sp, DB, relx)
 		res["gap"] = float(z2["gap"])
 		res["zone"] = Body.cross_zone(String(z2["part"]))
 		res["part"] = String(z2["part"])
 		var pth := path(A, AB, String(b["hand"]), u, arrive, tc + 0.02)
 		A.apply(AB, tc)
-		var cs := candidates(AB, DB, relx, pp, pth, String(z2["part"]), _tip_r(AB))
+		var cs := candidates(AB, DB, relx, pp, pth, String(z2["part"]), _tip_r(AB), Vector3(-line.z, 0.0, line.x))
 		var last_kind: String = kinds[-1] if not kinds.is_empty() else ""
 		var run := 0
 		for k in range(kinds.size() - 1, -1, -1):
@@ -369,6 +387,10 @@ static func plan(A: Scene, D: Scene, rel: Transform3D) -> Dictionary:
 			continue
 		res["kind"] = pick["kind"]
 		res["label"] = pick["label"]
+		if pick.has("dshift"):
+			shift += pick["dshift"] as Vector3
+			res["cum"] = shift
+			res["side"] = (pick["dshift"] as Vector3).length()
 		res["pose"] = pick["pose"]
 		(res["pose"] as Dictionary)["offset"] = base_off.duplicate()
 		pp = res["pose"]
@@ -414,6 +436,17 @@ static func _write(D: Scene, beats: Array, stance: Dictionary, base_off: Array, 
 	var marks := []
 	for j in live.size():
 		var r: Dictionary = live[j]
+		var pose0: Dictionary = (cards[-1]["pose"] as Dictionary)
+		var pre: Vector3 = r.get("pre", r["cum"])
+		if (pre - cum).length() > 0.005:   # the walk to the range comes first, in its own card, arriving as the reaction starts
+			var stepc: Dictionary = pose0.duplicate(true)
+			stepc["offset"] = off_of.call(pre)
+			if cards.size() == 1 + keep and float(cards[-1]["hold"]) > 0.0 and keep == 0:
+				cards[-1]["hold"] = 0.0   # the walk starts at once
+				end = 0.0
+			var stp_at := maxf(float(r["start"]), end + MIN_MOVE)
+			cards.append({"name": "step %s" % ("in" if float(r["step"]) >= 0.0 else "out"), "pose": stepc, "move": snappedf(stp_at - end, 0.0001), "hold": 0.0})
+			end = stp_at
 		var arrive := maxf(float(r["arrive"]), end + MIN_MOVE)
 		r["arrive_at"] = arrive
 		if arrive > float(r["arrive"]) + 1e-6:
@@ -421,7 +454,7 @@ static func _write(D: Scene, beats: Array, stance: Dictionary, base_off: Array, 
 		var pose: Dictionary = (r["pose"] as Dictionary).duplicate(true)
 		pose["offset"] = off_of.call(r["cum"])
 		var nxt: float = float(live[j + 1]["start"]) if j + 1 < live.size() else INF
-		var hold := maxf(0.0, minf(float(r["t"]) + HOLD_AFTER, nxt) - arrive)
+		var hold := maxf(0.0, (nxt if nxt < INF else float(r["t"]) + HOLD_AFTER) - arrive)   # the guard is held until the next wind-up is seen
 		cards.append({"name": "%s %d" % [r["label"], beats.find(r) + 1], "pose": pose, "move": snappedf(arrive - end, 0.0001), "hold": snappedf(hold, 0.0001)})
 		end = arrive + snappedf(hold, 0.0001)
 		cum = r["cum"]
