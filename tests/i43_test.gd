@@ -110,15 +110,32 @@ func must_see() -> Array:
 	return [Proportions.head_top(m.B), m.B.P["foot_l"], m.B.P["foot_r"]]
 
 
-## the rectangle the body may use: the window minus the top bar, the bottom panel and the findings panel
+## the rectangle the body may use: the window minus the top bar and the bottom panel, and of the strip left, the WIDEST gap between the visible
+## side panels (browser, inspector) and the findings panel (which floats in the middle when the browser is open)
 func free_rect() -> Rect2:
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
-	var r := Rect2(Vector2(8.0, float(m.TOP_H) + 8.0), Vector2.ZERO)
-	var right := vs.x - 8.0
+	var top := float(m.TOP_H) + 8.0
+	var bot: float = vs.y - float(m.bottom_h) - 40.0
+	var obs := []   # x intervals blocked
+	for k in m.ui_side_of:
+		var pn = m.ui_side_of[k]
+		if pn != null and (pn as Control).is_visible_in_tree():
+			var rc: Rect2 = (pn as Control).get_global_rect()
+			if rc.position.y < bot and rc.end.y > top:
+				obs.append([rc.position.x, rc.end.x])
 	if m.ui_find.visible:
-		right = minf(right, m.ui_find.get_global_rect().position.x - 8.0)
-	r.size = Vector2(right - r.position.x, vs.y - float(m.bottom_h) - 40.0 - r.position.y)
-	return r
+		var rf: Rect2 = m.ui_find.get_global_rect()
+		obs.append([rf.position.x, rf.end.x])
+	obs.sort_custom(func(a, b): return a[0] < b[0])
+	var best := Rect2(Vector2(8.0, top), Vector2(0.0, bot - top))
+	var x := 8.0
+	for o in obs:
+		if float(o[0]) - 8.0 - x > best.size.x:
+			best = Rect2(Vector2(x, top), Vector2(float(o[0]) - 8.0 - x, bot - top))
+		x = maxf(x, float(o[1]) + 8.0)
+	if vs.x - 8.0 - x > best.size.x:
+		best = Rect2(Vector2(x, top), Vector2(vs.x - 8.0 - x, bot - top))
+	return best
 
 
 ## side view of the whole jump: the camera looks at the middle of the body's height range over the flight (floor to the head at the apex) and the
@@ -148,7 +165,7 @@ func frame_air(f: Dictionary) -> bool:
 		var dx := q.x - (fr.position.x + fr.size.x * 0.5)
 		m.target += m.cam.global_transform.basis.x * (dx * 2.0 * half_t * m.dist / vs.y)
 		var qy: Vector2 = m.cam.unproject_position(Vector3(com.x, (lo + hi) * 0.5, com.z))
-		m.target += m.cam.global_transform.basis.y * ((qy.y - (fr.position.y + fr.size.y * 0.5)) * 2.0 * half_t * m.dist / vs.y)
+		m.target -= m.cam.global_transform.basis.y * ((qy.y - (fr.position.y + fr.size.y * 0.5)) * 2.0 * half_t * m.dist / vs.y)
 		m._cam()
 		await idle(1)
 	await idle(3)
@@ -270,6 +287,9 @@ func _init() -> void:
 	ok(cj() == b2 and m.undo.size() == u1, "(5) Ctrl+Z restores the cards exactly")
 	# (7) STEP 2 (b): the segment inertias and the momentum reading
 	var B0 := body()
+	for sd0 in ["_l", "_r"]:   # a straight body: arms along the sides (the default pose is a T)
+		B0.ang["upperarm" + sd0] = Vector3(0, -90, 0)
+	B0.fk()
 	B0.ground()
 	B0.fk()
 	var mass_kg := 0.0
@@ -326,13 +346,13 @@ func _init() -> void:
 
 	# (8) STEP 2 (c): a 360 deg spin kick, both directions
 	for dirn in [1.0, -1.0]:
-		var yw := [0.0, 0.0, 120.0 * dirn, 240.0 * dirn, 360.0 * dirn, 360.0 * dirn]
-		var spec6 := [["stand", 0, 0, 0, 0.3, 0.1], ["dip", 50, 90, 0, 0.3, 0.05], ["air1", 10, 20, 0, 0.14, 0.0], ["air2", 10, 20, 0, 0.14, 0.0], ["land", 50, 90, 0, 0.2855, 0.1], ["stand", 0, 0, 0, 0.4, 0.2]]
+		var yw := [0.0, 0.0, 0.0, 120.0 * dirn, 240.0 * dirn, 360.0 * dirn, 360.0 * dirn]   # air0 still at 0: the turn starts from nothing in the air
+		var spec6 := [["stand", 0, 0, 0, 0.3, 0.1], ["dip", 50, 90, 0, 0.3, 0.05], ["air0", 10, 20, 0, 0.1, 0.0], ["air1", 10, 20, 0, 0.14, 0.0], ["air2", 10, 20, 0, 0.14, 0.0], ["land", 50, 90, 0, 0.2855, 0.1], ["stand", 0, 0, 0, 0.4, 0.2]]
 		var c6 := []
-		for i in 6:
+		for i in 7:
 			var sp: Array = spec6[i]
 			var cd := {"name": sp[0], "pose": pose(sp[1], sp[2], sp[3], yw[i]), "move": sp[4], "hold": sp[5]}
-			if i == 2 or i == 3:
+			if i >= 2 and i <= 4:
 				cd["air"] = true
 			c6.append(cd)
 		load_cards(c6, true)
@@ -340,6 +360,8 @@ func _init() -> void:
 		await idle()
 		var fl6: Array = ui.rep["flights"]
 		var tag := "360 deg %s" % ("left" if dirn > 0.0 else "right")
+		for fq in fl6:
+			print("  ", tag, " BEFORE: ", fq["msg"], " | H0 %.1f Hmax %.1f phi %.0f allowed %.0f limit %.0f twist %.0f t0 %.2f T %.2f spin %s grow %s" % [fq["H0"], fq["Hmax"], fq["phi"], fq["phi_allowed"], fq["limit"], fq["twist"], fq["t0"], fq["T"], fq["spin"], fq["grow"]])
 		ok(fl6.size() == 1 and bool(fl6[0]["spin"]), "(8) %s: one flight, flagged as an impossible spin before the fix (%d flights)" % [tag, fl6.size()])
 		if fl6.is_empty():
 			continue

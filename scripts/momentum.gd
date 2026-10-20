@@ -67,14 +67,16 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 		var pcs := HitReaction.pieces(B)
 		var c := []
 		var g := []
+		var us := []
 		for p in pcs:
 			c.append(p["c"])
 			g.append(B.G[p["j"]])
+			us.append(p["u"])
 		var ft := {}
 		for sd in ["_l", "_r"]:
 			var fp: Vector3 = B.P["foot" + sd]
 			ft[sd] = Vector3(fp.x, _foot_low(B, sd), fp.z)
-		return {"pcs": pcs, "c": c, "g": g, "ft": ft, "fwd": (B.G["pelvis"] as Quaternion) * Vector3.FORWARD}
+		return {"pcs": pcs, "c": c, "g": g, "u": us, "ft": ft, "fwd": (B.G["pelvis"] as Quaternion) * Vector3.FORWARD}
 	var recs: Array = FrameMemo.frames("ml", S, B, n, HZ, mk)
 	S.stepped = was
 	var pcs0: Array = recs[0]["pcs"]
@@ -101,7 +103,6 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 		var h := Vector3.ZERO
 		for k in np:
 			var m: float = pcs0[k]["m"]
-			var kl: float = pcs0[k]["kl"]
 			var v: Vector3 = ((recs[i]["c"][k] as Vector3) - (recs[i0]["c"][k] as Vector3)) / dt
 			h += m * ((recs[i]["c"][k] as Vector3) - (com[i] as Vector3)).cross(v - V)
 			var dq: Quaternion = (recs[i]["g"][k] as Quaternion) * (recs[i0]["g"][k] as Quaternion).inverse()
@@ -110,7 +111,9 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 			var ax := Vector3(dq.x, dq.y, dq.z)
 			var sn := ax.length()
 			if sn > 1e-9:
-				h += (ax / sn) * (2.0 * atan2(sn, dq.w) / dt) * (m * kl * kl)
+				var pk: Dictionary = pcs0[k].duplicate()
+				pk["u"] = recs[i]["u"][k]
+				h += HitReaction.spin_h(pk, (ax / sn) * (2.0 * atan2(sn, dq.w) / dt))
 		H.append(h)
 		foot.append(recs[i]["ft"])
 		fwd.append(recs[i]["fwd"])

@@ -9,7 +9,7 @@
 ## MOMENTUM: H = sum over every segment of (I_seg w_seg + m r x v), about the whole-body COM (the pieces' own mass-weighted centre), r = piece centre
 ## minus COM, v = piece velocity minus COM velocity (central differences at 60 Hz). I_seg is the segment's PRINCIPAL inertia in its own orientation:
 ## along the bone m kL^2, across it m kP^2, kP and kL = de Leva 1996 (J Biomech 29:1223, Table 4) radii of gyration as a fraction of the segment length
-## (sagittal and transverse averaged: a bone is round to ~3 %), the bone direction from the posed skeleton, w_seg = the owner bone's world angular
+## (kP = rms of the sagittal and transverse radii), from Proportions.DE_LEVA for the body's sex, the bone direction from the posed skeleton, w_seg = the owner bone's world angular
 ## velocity. The trunk is five slices: longitudinal radius from the whole trunk (kL x its summed length), each slice's cross radius kL^2/2 + len^2/12
 ## (a uniform cylinder), so the five add up to de Leva's whole-trunk transverse radius. H0 = H on the first two airborne frames; in flight H(t) is
 ## read the same way and must stay at H0 (nothing torques the body). Checks (tests/i43_test.gd): a straight 75 kg body has a twist inertia of
@@ -42,10 +42,6 @@ const FREE_DEG := 25.0       # degrees of arm / hip reorientation without moment
 const GROW_K := 1.6          # the spin momentum in flight may reach this x the take-off value ... (mine)
 const GROW_ADD := 3.0        # ... plus this many kg m^2/s (mine)
 const PIVOT := 0.3           # share of the turn moved into the take-off card
-## de Leva 1996 Table 4 (male), radii of gyration as a fraction of segment length: [across the bone (sagittal and transverse averaged), along it].
-## FROM MEMORY of the table, not re-read in this round; hand and foot are the least certain (0.6 and 1.4 % of the body mass). Female differs <~10 %.
-const RG := {"head": [0.309, 0.261], "trunk": [0.320, 0.169], "upper_arm": [0.277, 0.158], "forearm": [0.2705, 0.121], "hand": [0.570, 0.401],
-	"thigh": [0.329, 0.149], "shank": [0.252, 0.103], "foot": [0.289, 0.139]}
 const TRUNK_J := ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01"]
 const SOURCE := "g = 9.81 m/s^2, H conserved about the COM; reorientation bar from Yeadon 1993 / Kane & Scher 1969 (heuristic constants)"
 
@@ -134,37 +130,14 @@ static func _sample(S: Scene, B: Body) -> Dictionary:
 	return out
 
 
-## per piece the squared radii of gyration (m^2): [across the bone], [along it] (de Leva 1996 RG; the trunk as five slices, see the header)
+## per piece the squared radii of gyration (m^2): [across the bone], [along it]: HitReaction.pieces carries them (Proportions.DE_LEVA, de Leva 1996
+## Table 4, the one table; the trunk as five slices, see HitReaction._trunk_radii)
 static func _radii(pcs: Array) -> Array:
-	var ltr := 0.0
-	for p in pcs:
-		if TRUNK_J.has(String(p["j"])):
-			ltr += float(p["len"])
 	var kp := []
 	var kl := []
 	for p in pcs:
-		var j := String(p["j"])
-		var L: float = p["len"]
-		if TRUNK_J.has(j):
-			var kL: float = float(RG["trunk"][1]) * ltr
-			kl.append(kL * kL)
-			kp.append(kL * kL * 0.5 + L * L / 12.0)
-		else:
-			var key := "head"
-			if j.begins_with("upperarm"):
-				key = "upper_arm"
-			elif j.begins_with("lowerarm"):
-				key = "forearm"
-			elif j.begins_with("hand"):
-				key = "hand"
-			elif j.begins_with("thigh"):
-				key = "thigh"
-			elif j.begins_with("calf"):
-				key = "shank"
-			elif j.begins_with("foot"):
-				key = "foot"
-			kp.append(pow(float(RG[key][0]) * L, 2.0))
-			kl.append(pow(float(RG[key][1]) * L, 2.0))
+		kp.append(float(p["kl"]) * float(p["kl"]))
+		kl.append(float(p["kL"]) * float(p["kL"]))
 	return [kp, kl]
 
 

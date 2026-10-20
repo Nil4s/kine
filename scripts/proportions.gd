@@ -36,12 +36,34 @@ const BALL0_Z := 0.1132
 ## cervicale -> mid hip joints, upper arm shoulder ->
 ## elbow, forearm elbow -> wrist, hand wrist -> 3rd metacarpale, thigh hip -> knee, shank knee -> lateral malleolus,
 ## foot heel -> toe tip. (Numbers: docs/research/PROPORTIONS.md, section 3.)
+## Each row is [mass %, COM fraction, sagittal r, transverse r, longitudinal r]: the radii of gyration about the segment's own COM,
+## as fractions of the segment length (Table 4 columns "Sagittal r", "Transverse r", "Longitudinal r", % / 100), read from the page
+## image 2026-10-20 (docs/physics_constants.md). THE ONE TABLE: HitReaction.pieces, SpinCheck, HumanLimits, the Force view, the
+## momentum read and the hit physics all take their masses, COM fractions and radii from here (Proportions.rg / kperp / klong).
 const DE_LEVA := {
-	"male": {"head": [6.94, 0.5002], "trunk": [43.46, 0.5138], "upper_arm": [2.71, 0.5772], "forearm": [1.62, 0.4574],
-		"hand": [0.61, 0.7900], "thigh": [14.16, 0.4095], "shank": [4.33, 0.4459], "foot": [1.37, 0.4415]},
-	"female": {"head": [6.68, 0.4841], "trunk": [42.57, 0.4964], "upper_arm": [2.55, 0.5754], "forearm": [1.38, 0.4559],
-		"hand": [0.56, 0.7474], "thigh": [14.78, 0.3612], "shank": [4.81, 0.4416], "foot": [1.29, 0.4014]},
+	"male": {"head": [6.94, 0.5002, 0.303, 0.315, 0.261], "trunk": [43.46, 0.5138, 0.328, 0.306, 0.169],
+		"upper_arm": [2.71, 0.5772, 0.285, 0.269, 0.158], "forearm": [1.62, 0.4574, 0.276, 0.265, 0.121],
+		"hand": [0.61, 0.7900, 0.628, 0.513, 0.401], "thigh": [14.16, 0.4095, 0.329, 0.329, 0.149],
+		"shank": [4.33, 0.4459, 0.255, 0.249, 0.103], "foot": [1.37, 0.4415, 0.257, 0.245, 0.124]},
+	"female": {"head": [6.68, 0.4841, 0.271, 0.295, 0.261], "trunk": [42.57, 0.4964, 0.307, 0.292, 0.147],
+		"upper_arm": [2.55, 0.5754, 0.278, 0.260, 0.148], "forearm": [1.38, 0.4559, 0.261, 0.257, 0.094],
+		"hand": [0.56, 0.7474, 0.531, 0.454, 0.335], "thigh": [14.78, 0.3612, 0.369, 0.364, 0.162],
+		"shank": [4.81, 0.4416, 0.271, 0.267, 0.093], "foot": [1.29, 0.4014, 0.299, 0.279, 0.139]},
 }
+## the table's other hand row, wrist (WJC) -> 3rd dactylion (DAC3), for a hand measured to the fingertip: [sagittal, transverse, longitudinal]
+const DE_LEVA_HAND_DAC3 := {"male": [0.288, 0.235, 0.184], "female": [0.244, 0.208, 0.154]}
+
+
+## the radius of gyration ACROSS a segment's bone (m per unit of length): the root mean square of the sagittal and transverse radii
+static func kperp(sex: String, seg: String) -> float:
+	var r: Array = DE_LEVA[sex][seg]
+	return sqrt((float(r[2]) * float(r[2]) + float(r[3]) * float(r[3])) * 0.5)
+
+
+## the radius of gyration ALONG a segment's bone (the twist radius), per unit of length
+static func klong(sex: String, seg: String) -> float:
+	return float(DE_LEVA[sex][seg][4])
+
 
 ## segment lengths as a fraction of stature H: Drillis & Contini 1966 via Winter, Biomechanics and Motor Control of
 ## Human Movement (4th ed. 2009) Fig. 4.1. upper arm 0.186, forearm 0.146, hand 0.108, thigh (hip -> knee) 0.245,
