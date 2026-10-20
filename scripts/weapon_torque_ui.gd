@@ -87,7 +87,7 @@ func _panel() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(m._button("Close", m._close_findings))
-	L.add_child(m._label("Torque = what the swing needs (I x alpha of the weapon and the arm's segments, 120 Hz finite differences; gravity left out). The white tick is the human isometric maximum: wrist %.0f N m, shoulder %.0f N m - rounded HEURISTICS from Delp 1996 / Otis 1990, not measured here. Preview changes nothing; Accept is one undo step (Ctrl+Z)." % [WeaponTorque.WRIST_MAX, WeaponTorque.SHOULDER_MAX], 12, "text:0.6", true))
+	L.add_child(m._label("Torque = what the swing needs (I x alpha of the weapon and the arm's segments, 60 Hz finite differences; gravity left out). The white tick is the human isometric maximum: wrist %.0f N m, shoulder %.0f N m - rounded HEURISTICS from Delp 1996 / Otis 1990, not measured here. Preview changes nothing; Accept is one undo step (Ctrl+Z)." % [WeaponTorque.WRIST_MAX, WeaponTorque.SHOULDER_MAX], 12, "text:0.6", true))
 	for k in rows.size():
 		var r: Dictionary = rows[k]["r"]
 		var p: Dictionary = r["prof"]

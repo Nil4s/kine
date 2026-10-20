@@ -11,6 +11,7 @@
 extends SceneTree
 
 var fails := 0
+var t_mark := 0
 var m: Node
 const STICK := {"mass": 0.5, "len": 0.9, "com": 0.5, "k": 0.289}
 const SLEDGE := {"mass": 5.0, "len": 0.9, "com": 0.85, "k": 0.2}
@@ -18,6 +19,8 @@ const T_STRIKE := 0.8
 
 
 func ok(c: bool, what: String) -> void:
+	what += "  [%d ms]" % (Time.get_ticks_msec() - t_mark)
+	t_mark = Time.get_ticks_msec()
 	print(("ok   " if c else "FAIL ") + what)
 	if not c:
 		fails += 1
@@ -68,6 +71,7 @@ func _init() -> void:
 	m.tour_step = -1
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
+	t_mark = Time.get_ticks_msec()
 	var B := DistanceKeeper.new_body()
 	var stick := WeaponTorque.profile("metal_bat", STICK)
 	var sledge := WeaponTorque.profile("metal_bat", SLEDGE)

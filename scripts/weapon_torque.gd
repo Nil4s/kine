@@ -8,7 +8,7 @@
 ## THE TORQUE  Newton-Euler for a rigid rod about a point P (P may itself be moving; the equation holds with the absolute acceleration of the
 ##   centre of mass):   M_P = I_perp (u x u'') + m (c - P) x c''      u the rod's unit axis, c its centre of mass.
 ##   u x u'' is the angular acceleration perpendicular to the axis (the spin about the rod's own axis is ignored). c'' and u'' are central finite
-##   differences of the clip sampled at 120 Hz. GRAVITY IS LEFT OUT: this is the torque the SWING needs (I alpha), as the roadmap asks, not the
+##   differences of the clip sampled at 60 Hz. GRAVITY IS LEFT OUT: this is the torque the SWING needs (I alpha), as the roadmap asks, not the
 ##   static load of holding the weapon, so the comparison with the isometric maximum is generous by that static part.
 ##   Wrist = hand + weapon about the wrist; shoulder = upper arm + forearm + hand + weapon about the shoulder.
 ## ARM SEGMENTS  Winter, Biomechanics and Motor Control of Human Movement (4th ed. 2009), table 4.1: upper arm 2.8 %, forearm 1.6 %, hand 0.6 %
@@ -26,7 +26,7 @@
 class_name WeaponTorque
 extends RefCounted
 
-const HZ := 120.0
+const HZ := 60.0            # sampling of the swing (second differences of a smooth ease need no more; 120 Hz cost 2x for the same peaks to ~2 %)
 const BODY_KG := 75.0
 const WRIST_MAX := 12.0     # N m, heuristic (see above)
 const SHOULDER_MAX := 75.0  # N m, heuristic
@@ -34,7 +34,7 @@ const WINDUP_MIN := 0.15
 const FOLLOW_MIN := 0.10
 const STOP_WIN := 0.25
 const LOOK_BACK := 0.8      # s before the strike move in which the wind-up is looked for
-const LOOK_FWD := 0.5       # s after contact in which the follow-through is looked for
+const LOOK_FWD := 0.35      # s after contact in which the follow-through is looked for
 const WINDUP_K := 0.30      # an added anticipation pose goes this far (of the strike's travel) back past the pre-strike pose
 const FOLLOW_K := 0.25      # an added overshoot pose goes this far past the strike pose
 const ANTIC_BASE := 0.20    # s: the added anticipation card's move for the reference bat (scaled by (I / I_bat)^0.27, Cross & Bower 2006)
@@ -81,7 +81,7 @@ static func _pose(S: Scene, B: Body, t: float) -> Dictionary:
 	var hand := B.wep_hand if B.wep_hand != "" else "hand_r"
 	var sfx := hand.substr(4)   # "_r" / "_l"
 	return {"sh": B.P["upperarm" + sfx], "el": B.P["lowerarm" + sfx], "wr": B.P["hand" + sfx], "kn": B.wep_point(0.0), "u": B.wep_axis(),
-		"gr": B.wep_point(WeightFeel.GRIP_U)}
+		"gr": B.wep_point(WeightFeel.GRIP_U), "tip": B.wep_point(B.wep_len)}
 
 
 ## the rods of a sample: [{"m", "ip" (inertia about the centre of mass, perpendicular), "c", "u"}] in order upperarm, forearm, hand, weapon
@@ -129,7 +129,7 @@ static func curve(S: Scene, B: Body, prof: Dictionary, t0: float, t1: float) -> 
 		ts.append(t0 + (k - 1) * h)
 		wr.append(tw.length())
 		sh.append(tsh.length())
-	return {"t": ts, "wrist": wr, "shoulder": sh}
+	return {"t": ts, "wrist": wr, "shoulder": sh, "tip": smp.slice(1, n + 2).map(func(q): return q["tip"])}   # (tip: one per t)
 
 
 static func _peak(c: Dictionary, key: String, a: float, b: float) -> Array:   # [peak, t]
@@ -143,10 +143,11 @@ static func _peak(c: Dictionary, key: String, a: float, b: float) -> Array:   # 
 	return [best, tb]
 
 
-static func _tip(S: Scene, B: Body, t: float) -> Vector3:
-	S.apply_true(B, t)
-	B.fk()
-	return B.wep_point(B.wep_len)
+## the tip at time t from a curve's samples (the nearest one: 1/60 s)
+static func _tip_at(c: Dictionary, t: float) -> Vector3:
+	var ts: Array = c["t"]
+	var k := clampi(roundi((t - float(ts[0])) * HZ), 0, ts.size() - 1)
+	return c["tip"][k]
 
 
 ## analyse the swing on strike card `i` of S with weapon profile `prof` ({} = the card's own kind).
@@ -161,7 +162,9 @@ static func analyze(S: Scene, B: Body, i: int, prof := {}) -> Dictionary:
 	var t_start: float = ts[i][0]
 	var t0: float = ts[i - 1][0] if i >= 2 else t_start   # the wind-up move is part of the swing
 	var t_end := minf(S.length(), arrive + STOP_WIN)
-	var c := curve(S, B, p, t0, t_end)
+	# ONE pass over the swing's window (the wind-up move, the strike, the follow-through look): the torque curve AND the tip path come from the
+	# same posed samples (posing a frame is the cost: ~10 ms)
+	var c := curve(S, B, p, maxf(0.0, minf(t0, t_start - LOOK_BACK)), minf(S.length(), arrive + LOOK_FWD))
 	var w := _peak(c, "wrist", t0, arrive)
 	var sh := _peak(c, "shoulder", t0, arrive)
 	# the STOP: the last quarter of the strike move and STOP_WIN after contact (a joint that reaches its target early stops a little before the
@@ -174,23 +177,24 @@ static func analyze(S: Scene, B: Body, i: int, prof := {}) -> Dictionary:
 	var ratio := maxf(float(w[0]) / WRIST_MAX, float(sh[0]) / SHOULDER_MAX)
 	var stop_ratio := maxf(float(sw[0]) / WRIST_MAX, float(ss[0]) / SHOULDER_MAX)
 	var early_ratio := maxf(float(ew[0]) / WRIST_MAX, float(es[0]) / SHOULDER_MAX)
-	# wind-up / follow-through, from the weapon tip's path along the strike direction
-	var tip0 := _tip(S, B, t_start)
-	var tip1 := _tip(S, B, arrive)
+	# wind-up / follow-through, from the weapon tip's path. The swing is an ARC: the chord start->contact is not the direction the tip is MOVING
+	# at contact, and follow-through is motion that goes ON the way the tip was heading (measured against the chord it read 0 % with an overshoot card)
+	var tip0 := _tip_at(c, t_start)
+	var tip1 := _tip_at(c, arrive)
 	var d := tip1 - tip0
 	var travel := d.length()
 	var windup := 0.0
 	var follow := 0.0
 	if travel > 1e-4:
-		var u := d / travel
-		var tb := maxf(0.0, t_start - LOOK_BACK)
-		var n := int(ceil((t_start - tb) * 30.0))
-		for k in range(0, n + 1):
-			windup = maxf(windup, (_tip(S, B, tb + (t_start - tb) * k / maxf(1.0, n)) - tip0).dot(u))
-		var tf := minf(S.length(), arrive + LOOK_FWD)
-		var m := int(ceil((tf - arrive) * 30.0))
-		for k in range(0, m + 1):
-			follow = maxf(follow, (_tip(S, B, arrive + (tf - arrive) * k / maxf(1.0, m)) - tip1).dot(u))
+		var u := d / travel                                   # the strike's opening direction (the wind-up goes against it)
+		var vend := tip1 - _tip_at(c, maxf(t_start, arrive - 0.1))
+		var uf := vend.normalized() if vend.length() > 1e-5 else u   # its heading at contact
+		for k in (c["t"] as Array).size():
+			var t: float = c["t"][k]
+			if t < t_start - 1e-9:
+				windup = maxf(windup, ((c["tip"][k] as Vector3) - tip0).dot(u))
+			elif t > arrive + 1e-9:
+				follow = maxf(follow, ((c["tip"][k] as Vector3) - tip1).dot(uf))
 		windup /= travel
 		follow /= travel
 	var r := {"card": i, "kind": kind, "prof": p, "t0": t0, "arrive": arrive, "wrist": w, "shoulder": sh, "stop_wrist": sw, "stop_shoulder": ss,
@@ -273,15 +277,18 @@ static func fix(S: Scene, B: Body, r: Dictionary) -> Dictionary:
 		if C.cards[i].has("ease"):
 			C.cards[i].erase("ease")
 		steps.append("ease the stop (the strike arrives on the smooth ease, not at full speed)")
-	# slow the swing until the arm can do it: the torque goes as 1/T^2 for the same path, so scale by sqrt(over-ratio) and measure again
-	var f_total := 1.0
-	var after: Dictionary = {}
-	for round_ in 6:
+	# slow the swing until the arm can do it. Torque goes as 1/T^2 for the same path, so the scale is SOLVED: sqrt(worst ratio) from the swing as it
+	# now stands (the original reading when the structure is unchanged, else one reading of the repaired structure), then one verify pass; a second
+	# correction only if the verify is still over (holds do not scale, so the law is a little optimistic)
+	var after: Dictionary = r
+	if not steps.is_empty():   # the structure changed (a card added, the ease changed): read it once
 		after = analyze(C, B, i, prof)
+	var f_total := 1.0
+	for round_ in 2:
 		var worst := maxf(float(after["ratio"]), float(after["stop_ratio"]))
 		if worst <= 0.98:
 			break
-		var f := minf(2.5, maxf(1.05, sqrt(worst) * 1.03))
+		var f := minf(4.0, maxf(1.05, sqrt(worst) * 1.02))
 		f_total *= f
 		var lo := maxi(1, i - 2)
 		var hi := mini(C.cards.size() - 1, i + 1)
@@ -290,9 +297,9 @@ static func fix(S: Scene, B: Body, r: Dictionary) -> Dictionary:
 			mvs[q] = C.move_time(q)
 		for q in range(lo, hi + 1):
 			C.cards[q]["move"] = snappedf(float(mvs[q]) * f, 0.001)
+		after = analyze(C, B, i, prof)
 	if f_total > 1.0:
 		steps.append("slow the swing x%.2f (the torque goes as 1/T^2)" % f_total)
-	after = analyze(C, B, i, prof)
 	res["scene"] = C
 	res["card"] = i
 	res["after"] = after
