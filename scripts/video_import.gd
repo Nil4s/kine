@@ -32,6 +32,10 @@ const KN := {"_l": 25, "_r": 26}
 const AN := {"_l": 27, "_r": 28}
 const TOE := {"_l": 31, "_r": 32}
 const HEEL := {"_l": 29, "_r": 30}
+static var LM_W := 1.0   # how much of the lock's pivot is the tracker's landmark (1) rather than the fitted body's foot (0)
+const GAP_WIN := 8       # frames: a frame with no foot locked (the hand-over between two feet, a detector's late touchdown: walk_bat's right foot
+                         # lands 8 frames before it is found) carries on at the mean root velocity of the last GAP_WIN locked frames ...
+const GAP_HOLD := 12     # ... for at most this many frames in a row, then stands (a stop is a stop, not a gap)
 const LOCK_JUMP := 0.05   # m: the hips move at most this much in a frame to the locked answer; more is blended halfway
 const FOOT_LEN := 0.152   # x standing height: foot length (Drillis & Contini 1966, the segment table in Winter's Biomechanics
                           # and Motor Control of Human Movement): the heel's back is that far behind the toe tip
@@ -79,6 +83,11 @@ static func _head_pt(B: Body, at: Vector3) -> Vector3:
 ## the toe tip at rest; carried by the foot bone
 static func heel(B: Body, sd: String) -> Vector3:
 	return (B.P["foot" + sd] as Vector3) + (B.G["foot" + sd] as Quaternion) * (heel0(B, sd) - (B.p0["foot" + sd] as Vector3))
+
+
+## our leg: hip to knee to ankle at rest
+static func leg_length(B: Body) -> float:
+	return ((B.p0["calf_l"] as Vector3) - (B.p0["thigh_l"] as Vector3)).length() + ((B.p0["foot_l"] as Vector3) - (B.p0["calf_l"] as Vector3)).length()
 
 
 static func heel0(B: Body, sd: String) -> Vector3:
@@ -395,6 +404,9 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 	# then over the toes) with the hips at 0
 	var poses := []
 	var pivs := []
+	var lpivs := []
+	var legs := []
+	var k_leg := leg_length(B)
 	var grips := []
 	var d_prev := Vector3.ZERO
 	if held != "":
@@ -434,6 +446,13 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 		for sd in ["_l", "_r"]:
 			piv[sd] = [heel(B, sd), B.P["ball" + sd]]
 		pivs.append(piv)
+		# THE TRACKER'S OWN FEET (the root is read here, see below): heel and toe landmarks, hips-relative, in the tracker's metres
+		var wl: Array = f["w"]
+		lpivs.append({"_l": [wl[HEEL["_l"]], wl[TOE["_l"]]], "_r": [wl[HEEL["_r"]], wl[TOE["_r"]]]})
+		for sd in ["_l", "_r"]:
+			var t_leg := ((wl[KN[sd]] as Vector3) - (wl[HIP[sd]] as Vector3)).length() + ((wl[AN[sd]] as Vector3) - (wl[KN[sd]] as Vector3)).length()
+			if t_leg > 0.2:
+				legs.append(k_leg / t_leg)
 	# each foot's own floor: the 10th percentile of its lower pivot's height over the clip. A tracker can hold one leg too
 	# bent all clip long (MediaPipe's far leg in walk_bat's render: ~20 deg, its foot 8-19 cm above the other's): the
 	# lower-foot rule then never plants it and the steps cancel. Each foot is judged against its own floor
@@ -465,25 +484,59 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 	var root := Vector3.ZERO
 	var anchor := {}
 	var lockd := not contact.is_empty()
+	var rhist := []
+	var gap := 0
+	# the tracker's metres to ours: our legs over its legs, the median over the clip (a shorter person's stride is shorter; the
+	# body that walks it is ours). The lock below reads the tracker's own heel and toe, not the fitted body's: the fit puts the foot
+	# where OUR bones reach from a noisy knee (walk_bat, 1.5 cm noise: its ball speed in stance 0.6-1.7 m/s against the tracker's
+	# toe 1.2-1.3 and the real 1.28), the landmark does not carry that error
+	var scl := 1.0
+	if not legs.is_empty():
+		legs.sort()
+		scl = legs[legs.size() / 2]
 	for i in poses.size():
 		if lockd:
-			var sols := []
+			# no pivot anchored from the frame before: the anchors about to be made start from where the root has got to, so a frame
+			# that restarts the lock (after a gap) first carries the root on at the walk's own speed, or it would stand still for it
+			var cand := []
+			var anchored := false
 			for sd in ["_l", "_r"]:
 				for k in 2:
 					var key := "%s%d" % [sd, k]
-					var p: Vector3 = pivs[i][sd][k]
+					var p: Vector3 = (pivs[i][sd][k] as Vector3).lerp((lpivs[i][sd][k] as Vector3) * scl, LM_W)
 					if bool(contact[key][i]):
-						if not anchor.has(key):
-							anchor[key] = Vector3(root.x + p.x, 0.0, root.z + p.z)
-						sols.append(Vector3((anchor[key] as Vector3).x - p.x, 0.0, (anchor[key] as Vector3).z - p.z))
+						cand.append([key, p])
+						if anchor.has(key):
+							anchored = true
 					else:
 						anchor.erase(key)
-			if not sols.is_empty():
+			if not anchored and i > 0 and gap <= GAP_HOLD and not rhist.is_empty():
+				var rv0 := Vector3.ZERO
+				for v in rhist:
+					rv0 += v as Vector3
+				root += rv0 / float(rhist.size())
+			var sols := []
+			for cd in cand:
+				var key: String = cd[0]
+				var p: Vector3 = cd[1]
+				if not anchor.has(key):
+					anchor[key] = Vector3(root.x + p.x, 0.0, root.z + p.z)
+				sols.append(Vector3((anchor[key] as Vector3).x - p.x, 0.0, (anchor[key] as Vector3).z - p.z))
+			if not sols.is_empty() and anchored:
 				var mean := Vector3.ZERO
 				for sv in sols:
 					mean += sv as Vector3
 				mean /= float(sols.size())
-				root = mean if i == 0 or (mean - root).length() < LOCK_JUMP else root.lerp(mean, 0.5)
+				var nr := mean if i == 0 or (mean - root).length() < LOCK_JUMP else root.lerp(mean, 0.5)
+				rhist.append(nr - root)
+				if rhist.size() > GAP_WIN:
+					rhist.pop_front()
+				root = nr
+				gap = 0
+			elif sols.is_empty():
+				gap += 1   # (a frame with nothing locked: the root was carried on above)
+			else:
+				gap = 0   # the lock restarts here: its anchors were just put at the carried root
 		elif i > 0:
 			var lo := {}
 			for sd in ["_l", "_r"]:
