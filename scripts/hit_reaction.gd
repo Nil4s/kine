@@ -68,7 +68,7 @@ static func masses_kg(B: Body) -> Dictionary:
 	return mm
 
 
-## the body as rigid pieces at the pose it is in: [{"j", "m" (kg), "c" (COM, body space), "kl" (k x bone length, m)}].
+## the body as rigid pieces at the pose it is in: [{"j", "m" (kg), "c" (COM, body space), "kl" (k x bone length, m), "u" (unit, joint -> child), "len" (m)}].
 ## Each joint owns the bone from itself to its child: the trunk's mass is split over the pelvis, the three spine joints
 ## and the neck (5 pieces); the head is one piece; a limb's pieces are its upper arm, forearm and hand (one side).
 static func pieces(B: Body) -> Array:
@@ -94,7 +94,7 @@ static func pieces(B: Body) -> Array:
 static func _piece(B: Body, j: String, child: String, m: float, k: float, frac: float, end: Variant) -> Dictionary:
 	var a: Vector3 = B.P[j]
 	var b: Vector3 = end if end is Vector3 else (B.P[child] as Vector3)
-	return {"j": j, "m": m, "c": a.lerp(b, frac), "kl": k * a.distance_to(b)}
+	return {"j": j, "m": m, "c": a.lerp(b, frac), "kl": k * a.distance_to(b), "u": (b - a).normalized() if a.distance_to(b) > 1e-9 else Vector3.UP, "len": a.distance_to(b)}
 
 
 ## the moment of inertia about joint j's pivot of every piece distal to it (its own chain includes j), scalar

@@ -6,11 +6,16 @@
 ## the same test Feasible uses. A marked jump ("air" cards) and an unmarked hover are both found.
 ## VERTICAL: y(t) of the COM (Balance.com) is fitted with c0 + c1 t + c2 t^2 over the flight; a = 2 c2 against -g (9.81). Bar: a/(-g)
 ## in [0.85, 1.15] (mine; Feasible's own 8 cm parabola band says the same thing in metres). Below = a FLOAT / hang, above = a dive.
-## MOMENTUM: the spin the trunk carries at take-off, H0 = I w, w = the pelvis's angular velocity on the first two airborne frames (central
-## difference of its rotation at 60 Hz), I = the whole body's inertia about that axis through the COM (HitReaction.pieces: de Leva 1996 masses,
-## radii of gyration, parallel axis; isotropic piece inertia, as the Force view). The limbs' own momenta are left out on purpose: an animation
-## swings legs and arms freely (a leg extension alone reads ~15 kg m^2/s about the COM), which a real jumper balances with the trunk.
-## In flight |I(t) w(t)| is read the same way ("the momentum in flight"); it should stay at H0.
+## MOMENTUM: H = sum over every segment of (I_seg w_seg + m r x v), about the whole-body COM (the pieces' own mass-weighted centre), r = piece centre
+## minus COM, v = piece velocity minus COM velocity (central differences at 60 Hz). I_seg is the segment's PRINCIPAL inertia in its own orientation:
+## along the bone m kL^2, across it m kP^2, kP and kL = de Leva 1996 (J Biomech 29:1223, Table 4) radii of gyration as a fraction of the segment length
+## (sagittal and transverse averaged: a bone is round to ~3 %), the bone direction from the posed skeleton, w_seg = the owner bone's world angular
+## velocity. The trunk is five slices: longitudinal radius from the whole trunk (kL x its summed length), each slice's cross radius kL^2/2 + len^2/12
+## (a uniform cylinder), so the five add up to de Leva's whole-trunk transverse radius. H0 = H on the first two airborne frames; in flight H(t) is
+## read the same way and must stay at H0 (nothing torques the body). Checks (tests/i43_test.gd): a straight 75 kg body has a twist inertia of
+## ~1.0-1.5 kg m^2 (Yeadon 1993, J Biomech 26:1073 "The simulation of aerial movement II": about 1 for a straight adult) and a somersault inertia of
+## ~10-20 kg m^2; a mirror-symmetric limb motion (jumping jack) with no spin reads |H| ~ 0. A one-sided leg swing DOES carry momentum about the
+## COM (a real jumper balances it with the trunk): conservation then flags it only when the body also turns more than FREE_DEG.
 ## ROTATION: the trunk (pelvis) turns phi = sum |w_pelvis| dt in flight (twist = its part about the long axis pelvis -> head, the rest
 ## is somersault / tilt). A rigid body turns at |H0| / I(t), I = the whole body's inertia about the H axis (pieces + parallel axis), so a
 ## tuck (small I) spins faster for the same H: PHI_ALLOWED = sum |H0| / I(t) dt. Free reorientation without momentum is small: a twist from
@@ -20,9 +25,8 @@
 ## For scale, a take-off somersault of a gymnast carries H of the order of 50-100 kg m^2/s (Hay 1993; the tables were not opened here).
 ## CONSERVATION: |I w| in flight must stay near H0: it may reach GROW_K x H0 + GROW_ADD (mine), else the spin is flagged too (when the body turns more
 ## than FREE_DEG). A spin that starts from rest at take-off and builds up in the air (a smooth ease from 0) fails here; a constant rate passes.
-## NOTE the body model's isotropic piece inertia makes I about the twist axis ~4 kg m^2 (a real longitudinal inertia is ~1-1.5), so the H values are
-## in the model's units and 2-3x a real twist; the turn allowed (H0 / I integrated) and the growth ratio do not depend on that scale.
-## FIX (spin): the needed turn moves into the take-off: the take-off card is pivoted by PIVOT of the turn (the body already turns on the
+## FIX (spin): the needed turn (the AUTHORED one: the card-to-card turns summed, signed, about the first turn's axis, so 360 deg and the direction
+## survive; a gap of 180 deg or more between two cards is not a slerp) moves into the take-off: the take-off card is pivoted by PIVOT of the turn (the body already turns on the
 ## floor), the air cards and the landing keep a constant rate (ease "linear") so H exists at take-off and stays. FIX (float): the air
 ## cards' hips are moved so the COM sits on y = lerp(y0, y1, u) + g/2 (t - T0)(T1 - t) at each card (ease "linear", hold 0).
 class_name SpinCheck
@@ -38,6 +42,11 @@ const FREE_DEG := 25.0       # degrees of arm / hip reorientation without moment
 const GROW_K := 1.6          # the spin momentum in flight may reach this x the take-off value ... (mine)
 const GROW_ADD := 3.0        # ... plus this many kg m^2/s (mine)
 const PIVOT := 0.3           # share of the turn moved into the take-off card
+## de Leva 1996 Table 4 (male), radii of gyration as a fraction of segment length: [across the bone (sagittal and transverse averaged), along it].
+## FROM MEMORY of the table, not re-read in this round; hand and foot are the least certain (0.6 and 1.4 % of the body mass). Female differs <~10 %.
+const RG := {"head": [0.309, 0.261], "trunk": [0.320, 0.169], "upper_arm": [0.277, 0.158], "forearm": [0.2705, 0.121], "hand": [0.570, 0.401],
+	"thigh": [0.329, 0.149], "shank": [0.252, 0.103], "foot": [0.289, 0.139]}
+const TRUNK_J := ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01"]
 const SOURCE := "g = 9.81 m/s^2, H conserved about the COM; reorientation bar from Yeadon 1993 / Kane & Scher 1969 (heuristic constants)"
 
 
@@ -92,7 +101,7 @@ static func _sample(S: Scene, B: Body) -> Dictionary:
 	var n := int(ceil(S.length() * FPS)) + 1
 	var was := S.stepped
 	S.stepped = false
-	var out := {"n": n, "t": [], "com": [], "air": [], "c": [], "gp": [], "up": [], "m": [], "kl": [], "owner": []}
+	var out := {"n": n, "t": [], "com": [], "air": [], "c": [], "gp": [], "up": [], "m": [], "kl": [], "owner": [], "u": [], "kp2": [], "kl2": []}
 	var gown := []   # per piece: the owner bone's G per frame
 	for i in n:
 		var t := minf(float(i) / FPS, S.length())
@@ -104,10 +113,13 @@ static func _sample(S: Scene, B: Body) -> Dictionary:
 		out["air"].append((bal["down"] as Array).is_empty() and not HumanLimits.supported(B))
 		var cs := []
 		var gs := []
+		var us := []
 		for p in pcs:
 			cs.append(p["c"])
+			us.append(p["u"])
 			gs.append(B.G[p["j"]])
 		out["c"].append(cs)
+		out["u"].append(us)
 		out["gp"].append(B.G["pelvis"])
 		out["up"].append(((B.P["head"] as Vector3) - (B.P["pelvis"] as Vector3)).normalized())
 		out["owner"].append(gs)
@@ -115,8 +127,139 @@ static func _sample(S: Scene, B: Body) -> Dictionary:
 			for p in pcs:
 				out["m"].append(float(p["m"]))
 				out["kl"].append(float(p["kl"]))
+			var rr := _radii(pcs)
+			out["kp2"] = rr[0]
+			out["kl2"] = rr[1]
 	S.stepped = was
 	return out
+
+
+## per piece the squared radii of gyration (m^2): [across the bone], [along it] (de Leva 1996 RG; the trunk as five slices, see the header)
+static func _radii(pcs: Array) -> Array:
+	var ltr := 0.0
+	for p in pcs:
+		if TRUNK_J.has(String(p["j"])):
+			ltr += float(p["len"])
+	var kp := []
+	var kl := []
+	for p in pcs:
+		var j := String(p["j"])
+		var L: float = p["len"]
+		if TRUNK_J.has(j):
+			var kL: float = float(RG["trunk"][1]) * ltr
+			kl.append(kL * kL)
+			kp.append(kL * kL * 0.5 + L * L / 12.0)
+		else:
+			var key := "head"
+			if j.begins_with("upperarm"):
+				key = "upper_arm"
+			elif j.begins_with("lowerarm"):
+				key = "forearm"
+			elif j.begins_with("hand"):
+				key = "hand"
+			elif j.begins_with("thigh"):
+				key = "thigh"
+			elif j.begins_with("calf"):
+				key = "shank"
+			elif j.begins_with("foot"):
+				key = "foot"
+			kp.append(pow(float(RG[key][0]) * L, 2.0))
+			kl.append(pow(float(RG[key][1]) * L, 2.0))
+	return [kp, kl]
+
+
+## the pieces' own mass-weighted COM at frame k
+static func _com_p(sm: Dictionary, k: int) -> Vector3:
+	var s := Vector3.ZERO
+	var mt := 0.0
+	for p in (sm["m"] as Array).size():
+		s += (sm["c"][k][p] as Vector3) * float(sm["m"][p])
+		mt += float(sm["m"][p])
+	return s / mt
+
+
+## per frame the velocity of each piece centre (m/s, central difference) -> [[Vector3 per piece] per frame]
+static func _vels(sm: Dictionary) -> Array:
+	var n: int = sm["n"]
+	var np: int = (sm["m"] as Array).size()
+	var out := []
+	for k in n:
+		var a: int = maxi(k - 1, 0)
+		var b: int = mini(k + 1, n - 1)
+		var dt := maxf(float(b - a) / FPS, 1e-9)
+		var row := []
+		for p in np:
+			row.append(((sm["c"][b][p] as Vector3) - (sm["c"][a][p] as Vector3)) / dt)
+		out.append(row)
+	return out
+
+
+## per piece the world angular velocity track -> [[Vector3 per frame] per piece]
+static func _piece_omegas(sm: Dictionary) -> Array:
+	var np: int = (sm["m"] as Array).size()
+	var out := []
+	for p in np:
+		var q := []
+		for k in sm["n"]:
+			q.append(sm["owner"][k][p])
+		out.append(_omega(q))
+	return out
+
+
+## the whole body's angular momentum about its COM at frame k: sum of I_seg w + m r x (v - v_com)
+static func _h_at(sm: Dictionary, vel: Array, wp: Array, k: int) -> Vector3:
+	var np: int = (sm["m"] as Array).size()
+	var com := _com_p(sm, k)
+	var vc := Vector3.ZERO
+	var mt := 0.0
+	for p in np:
+		vc += (vel[k][p] as Vector3) * float(sm["m"][p])
+		mt += float(sm["m"][p])
+	vc /= mt
+	var H := Vector3.ZERO
+	for p in np:
+		var m: float = sm["m"][p]
+		var u: Vector3 = sm["u"][k][p]
+		var w: Vector3 = wp[p][k]
+		var kp2: float = sm["kp2"][p]
+		var kl2: float = sm["kl2"][p]
+		H += m * (kp2 * w + (kl2 - kp2) * u.dot(w) * u)
+		H += m * ((sm["c"][k][p] as Vector3) - com).cross((vel[k][p] as Vector3) - vc)
+	return H
+
+
+## the sampled clip's momentum track: {"t": [s], "H": [Vector3 kg m^2/s]}; restores the body
+static func momentum(S: Scene, B: Body) -> Dictionary:
+	var keep: Dictionary = B.state()
+	var sm := _sample(S, B)
+	B.set_state(keep)
+	B.fk()
+	var vel := _vels(sm)
+	var wp := _piece_omegas(sm)
+	var H := []
+	for k in sm["n"]:
+		H.append(_h_at(sm, vel, wp, k))
+	return {"t": sm["t"], "H": H}
+
+
+## the whole body's inertia (kg m^2) about an axis through its COM in the pose B is in (the straight-body checks: twist = UP, somersault = RIGHT)
+static func body_inertia(B: Body, axis: Vector3) -> float:
+	var pcs := HitReaction.pieces(B)
+	var rr := _radii(pcs)
+	var com := Vector3.ZERO
+	var mt := 0.0
+	for p in pcs:
+		com += (p["c"] as Vector3) * float(p["m"])
+		mt += float(p["m"])
+	com /= mt
+	var n := axis.normalized()
+	var I := 0.0
+	for k in pcs.size():
+		var p: Dictionary = pcs[k]
+		var u: Vector3 = p["u"]
+		var r: Vector3 = (p["c"] as Vector3) - com
+		I += float(p["m"]) * (float(rr[0][k]) + (float(rr[1][k]) - float(rr[0][k])) * pow(u.dot(n), 2.0) + r.length_squared() - pow(r.dot(n), 2.0))
+	return I
 
 
 ## per flight: {"t0","t1","i0","i1","T","a","a_ratio","apex","H0","Hmax","drift","phi","twist","tilt","phi_allowed","limit","float","spin","flag","msg","ts","ys","ps"}
@@ -136,6 +279,8 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 	for k in np:
 		mtot += float(sm["m"][k])
 	var wpel := _omega(sm["gp"])
+	var vel := _vels(sm)
+	var wp := _piece_omegas(sm)
 	var i := 0
 	var flights := []
 	while i < n:
@@ -148,7 +293,7 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 		var b := i - 1
 		if b - a + 1 < MIN_FLIGHT:
 			continue
-		flights.append(_judge(sm, wpel, a, b, np))
+		flights.append(_judge(sm, wpel, vel, wp, a, b, np))
 	out["ok"] = true
 	out["n"] = n
 	out["flights"] = flights
@@ -163,7 +308,7 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 	return out
 
 
-static func _judge(sm: Dictionary, wpel: Array, a: int, b: int, np: int) -> Dictionary:
+static func _judge(sm: Dictionary, wpel: Array, vel: Array, wp: Array, a: int, b: int, np: int) -> Dictionary:
 	var f := {"i0": a, "i1": b, "t0": float(sm["t"][a]), "t1": float(sm["t"][b])}
 	f["T"] = float(b - a + 1) / FPS
 	var ts := []
@@ -192,17 +337,14 @@ static func _judge(sm: Dictionary, wpel: Array, a: int, b: int, np: int) -> Dict
 	f["ts"] = ts
 	f["ys"] = ys
 	f["ps"] = ps
-	# momentum: the spin the TRUNK carries at take-off, H = I w (I = the whole body's inertia about the spin axis). The limbs' own momenta are
-	# left out on purpose: a kinematic animation swings legs and arms freely (a leg extension alone reads 15 kg m^2/s about the COM), which a real
-	# jumper balances with the trunk, so the sum of every piece is not the take-off spin a viewer reads.
+	# momentum: every segment's I w + m r x v about the COM (see the header), H0 on the first two airborne frames
+	var H0: Vector3 = (_h_at(sm, vel, wp, a) + _h_at(sm, vel, wp, mini(a + 1, b))) * 0.5
 	var w0: Vector3 = ((wpel[a] as Vector3) + (wpel[mini(a + 1, b)] as Vector3)) * 0.5
-	var hd: Vector3 = w0.normalized() if w0.length() > 1e-6 else Vector3.UP
-	var H0: Vector3 = w0 * _inertia(sm, a, hd, np)
+	var hd: Vector3 = H0.normalized() if H0.length() > 1e-3 else (w0.normalized() if w0.length() > 1e-6 else Vector3.UP)
 	var hmax := 0.0
 	var drift := 0.0
 	for k in range(a, b + 1):
-		var wk: Vector3 = wpel[k]
-		var hk: Vector3 = wk * _inertia(sm, k, wk.normalized() if wk.length() > 1e-6 else hd, np)
+		var hk := _h_at(sm, vel, wp, k)
 		hmax = maxf(hmax, hk.length())
 		drift = maxf(drift, (hk - H0).length())
 	f["H0"] = H0.length()
@@ -269,17 +411,33 @@ static func fix(S: Scene, B: Body, rep: Dictionary) -> Dictionary:
 		if l <= k:
 			continue
 		if bool(f["spin"]):
-			B.from_dict(C.cards[k]["pose"])
-			B.fk()
-			var Rk: Quaternion = B.G["pelvis"]
-			B.from_dict(C.cards[l]["pose"])
-			B.fk()
-			var Rl: Quaternion = B.G["pelvis"]
-			var dq := Rl * Rk.inverse()
-			if dq.w < 0.0:
-				dq = Quaternion(-dq.x, -dq.y, -dq.z, -dq.w)
-			var ang := 2.0 * atan2(Vector3(dq.x, dq.y, dq.z).length(), dq.w)
-			var ax := Vector3(dq.x, dq.y, dq.z).normalized() if Vector3(dq.x, dq.y, dq.z).length() > 1e-9 else Vector3.UP
+			# the authored turn: each card-to-card step is a slerp (the short way, < 180 deg); the steps add up SIGNED about the first step's axis
+			var Rk: Quaternion = Quaternion.IDENTITY
+			var ax := Vector3.UP
+			var ang := 0.0
+			var prev := Quaternion.IDENTITY
+			var have_ax := false
+			var widest := 0.0
+			for c in range(k, l + 1):
+				B.from_dict(C.cards[c]["pose"])
+				B.fk()
+				var Rc: Quaternion = B.G["pelvis"]
+				if c == k:
+					Rk = Rc
+				else:
+					var dq := Rc * prev.inverse()
+					if dq.w < 0.0:
+						dq = Quaternion(-dq.x, -dq.y, -dq.z, -dq.w)
+					var vv := Vector3(dq.x, dq.y, dq.z)
+					var st := 2.0 * atan2(vv.length(), dq.w)
+					if vv.length() > 1e-9:
+						var a_c := vv.normalized()
+						if not have_ax:
+							ax = a_c
+							have_ax = true
+						ang += st * (1.0 if a_c.dot(ax) >= 0.0 else -1.0)
+						widest = maxf(widest, st)
+				prev = Rc
 			var T0: float = cc["T0"]
 			var T1: float = cc["T1"]
 			var done := []
@@ -298,7 +456,9 @@ static func fix(S: Scene, B: Body, rep: Dictionary) -> Dictionary:
 				done.append(c)
 			C.cards[l]["ease"] = "linear"
 			n_spin += 1
-			notes.append("spin %.0f deg: %.0f deg moved into the take-off card %d, then a constant %.0f deg/s through the air" % [rad_to_deg(ang), rad_to_deg(ang) * PIVOT, k + 1, rad_to_deg(ang) * (1.0 - PIVOT) / maxf(T1 - T0, 1e-6)])
+			if rad_to_deg(widest) > 170.0:
+				notes.append("a gap of %.0f deg between two cards is too wide for a slerp: add a card between them" % rad_to_deg(widest))
+			notes.append("spin %.0f deg (authored direction kept): %.0f deg moved into the take-off card %d, then a constant %.0f deg/s through the air" % [absf(rad_to_deg(ang)), absf(rad_to_deg(ang)) * PIVOT, k + 1, absf(rad_to_deg(ang)) * (1.0 - PIVOT) / maxf(T1 - T0, 1e-6)])
 		if bool(f["float"]) or bool(f["dive"]):
 			var T0b: float = cc["T0"]
 			var T1b: float = cc["T1"]
@@ -329,12 +489,15 @@ static func fix(S: Scene, B: Body, rep: Dictionary) -> Dictionary:
 	return {"scene": C, "spin": n_spin, "float": n_float, "msg": msg}
 
 
-## the whole body's moment of inertia (kg m^2) about an axis through the COM at frame k: pieces (own k^2 + parallel axis)
+## the whole body's moment of inertia (kg m^2) about an axis through the COM at frame k: pieces' principal inertias in their own orientation + parallel axis
 static func _inertia(sm: Dictionary, k: int, axis: Vector3, np: int) -> float:
 	var I := 0.0
-	var com: Vector3 = sm["com"][k]
+	var com := _com_p(sm, k)
+	var n := axis.normalized()
 	for p in np:
 		var r: Vector3 = (sm["c"][k][p] as Vector3) - com
-		var rp := r - axis * r.dot(axis)
-		I += float(sm["m"][p]) * (float(sm["kl"][p]) * float(sm["kl"][p]) + rp.length_squared())
+		var u: Vector3 = sm["u"][k][p]
+		var kp2: float = sm["kp2"][p]
+		var kl2: float = sm["kl2"][p]
+		I += float(sm["m"][p]) * (kp2 + (kl2 - kp2) * pow(u.dot(n), 2.0) + r.length_squared() - pow(r.dot(n), 2.0))
 	return I
