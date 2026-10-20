@@ -3066,7 +3066,7 @@ func _force_place() -> void:
 	ui_force.offset_left = LEFT_W + 12
 	ui_force.offset_right = LEFT_W + 12 + 460
 	ui_force.offset_bottom = -bottom_h - 8
-	ui_force.offset_top = -bottom_h - 8 - 114
+	ui_force.offset_top = -bottom_h - 8 - 130
 
 
 ## the torque colour on each part (called from _refresh): the picked and hovered part keep their own look
