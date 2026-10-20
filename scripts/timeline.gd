@@ -49,6 +49,8 @@ var sp: Array = []
 const PH_H := 12.0
 var ph: Array = []
 signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans (-1 = a note)
+var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "ok", "why"}] the contacts: fitted on a beat, or flagged
+var bf_grid: Array = []   # the beats (scene time) the fit lands on: ticks down the track
 var ph_sel := -1   # the red span picked (a click on it), -1 = none
 
 
@@ -721,6 +723,30 @@ func _draw_beats(S: Scene, y: float, h: float, off: float) -> void:
 			draw_line(Vector2(x, y + h * 0.55), Vector2(x, y + h), Tok.of("ink:0.45"), 1.0)
 
 
+## FIGHT TO THE BEAT (I15): the beats of the grid as ticks down the cards' band, each fitted contact a gold diamond with a line on its
+## time, a FLAGGED contact a red diamond with "!" (the reason is in the panel)
+func _draw_fit(font: Font, y0: float, h: float) -> void:
+	if bf.is_empty() and bf_grid.is_empty():
+		return
+	for t in bf_grid:
+		var x := x_of(float(t))
+		if x < -1.0 or x > size.x + 1.0:
+			continue
+		draw_line(Vector2(x, RULER - 5.0), Vector2(x, y0 + h), Tok.of("ink:0.5"), 1.0)
+		draw_line(Vector2(x, 0.0), Vector2(x, RULER), Tok.c("beat_down"), 1.5)
+	for c in bf:
+		var x := x_of(float(c["t"]))
+		var ok: bool = c["ok"]
+		var col := Tok.c("focus") if ok else Tok.c("fail")
+		if ok:
+			draw_line(Vector2(x, RULER), Vector2(x, y0 + h), col, 2.0)
+		var cy := y0 + 7.0
+		draw_colored_polygon(PackedVector2Array([Vector2(x, cy - 7.0), Vector2(x + 6.0, cy), Vector2(x, cy + 7.0), Vector2(x - 6.0, cy)]), col)
+		if not ok:
+			draw_rect(Rect2(x + 8.0, cy - 6.0, 78.0, 13.0), Tok.c("tl_bg"))
+			draw_string(font, Vector2(x + 10.0, cy + 4.0), "! no beat fits", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, col)
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -795,6 +821,7 @@ func _draw() -> void:
 			draw_line(Vector2(hx + g, y0 + h * 0.35), Vector2(hx + g, y0 + h * 0.65), Tok.c("tl_bg"), 1.0)
 	if ah > 0.0:
 		_draw_audio_lanes(S, font)
+	_draw_fit(font, y0, h)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
