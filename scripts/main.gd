@@ -4601,6 +4601,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if counter_ui != null and counter_ui.on and counter_ui.input(ev):   # I3: Tab picks the next ghost, Enter places it, Esc puts them away
 		get_viewport().set_input_as_handled()
 		return
+	if kmed != null and kmed.on and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
+		get_viewport().set_input_as_handled()
+		return
 	if sk.on and _sk_input(ev):   # I9: a left drag is a stroke; Enter fits, Backspace takes the last stroke back
 		get_viewport().set_input_as_handled()
 		return
@@ -7700,6 +7703,21 @@ func _dgb_release() -> void:
 		PartKeys.put(S.part_keys, j, t, B.ang[j])
 	_refresh()
 	_say(DragBalance.words(d["r"]) + "   (keyed at %s; Ctrl+Z takes it back in one step)" % Units.time(t, S.fps))
+
+## MODEL PAGE, FIRST STEP (ROADMAP_400 A05/A06; scripts/kmesh_view.gd, kmesh_edit_ui.gd): a test cube you can select on
+var kmed: KMeshEditUI
+
+
+func _kmesh_edit_start() -> void:
+	if kmed == null:
+		kmed = KMeshEditUI.new()
+		add_child(kmed)
+		kmed.setup(self)
+	if kmed.on:
+		_say("The test cube is already open: click an element, or press Esc to leave")
+		return
+	kmed.start()
+
 
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
 var pwui: PathWalkUI
@@ -13523,6 +13541,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Walk along a path...", "", _pathwalk_start, "walk run path floor points curve gait jog sprint generate steps", true, "click points on the floor, pick walk or run and a speed, Enter builds the cards as ONE undo step")
 	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
