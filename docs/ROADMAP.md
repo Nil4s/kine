@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 15 / 25.
+Merged in round 2: 18 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
 - [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
@@ -202,12 +202,12 @@ Merged in round 2: 15 / 25.
 - [x] R11. BODY page: body mass changes girth (per-segment radial scale of the skin), not just the readout.
 - [x] R12. BODY page: save / load named characters (user://characters), the man/woman blend saved in the scene schema.
 - [x] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
-- [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); the rest needs a heel-pivot hold for toes-up heel strikes.
-- [ ] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
-- [ ] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
+- [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); Step 2 merged: heel pivot + stance detection fixed (vroot x0.85 passes), coverage 57%/50%; the remaining loss is the video fit holding the heel 3-6 cm up at heel strike.
+- [x] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
+- [x] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
 - [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
 - [x] R18. Drag to reorder cards in the strip (thumbnail follows the mouse, one undo step).
-- [ ] R19. Multi-select cards in the strip, batch retime / delete / copy.
+- [x] R19. Multi-select cards in the strip, batch retime / delete / copy.
 - [x] R20. Timed version snapshots (every N minutes while edited) with the scene diff report.
 - [ ] R21. Pose library search by words ("guard", "crouch", "low kick") over names and auto tags.
 - [ ] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
