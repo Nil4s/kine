@@ -12,6 +12,7 @@ var pl: Array = []           # the plan
 var pv: Array = []           # the preview's scenes (clones with the impact frames); [] = not previewing
 var pv_t := 0.0
 var pv_end := 0.0
+var shaking := {}            # the shake the preview applies to the viewport camera now ({} = none), for the test
 
 
 func _init(main: Node) -> void:
@@ -31,6 +32,9 @@ func halt() -> void:
 		for a in m.actors_rt:
 			a["t"] = NAN
 		m._ps().apply(m.B, m.playhead)
+		if not shaking.is_empty():
+			shaking = {}
+			m._cam()   # the view without the preview's shake
 
 
 func _scenes() -> Array:
@@ -140,6 +144,21 @@ func tick(dt: float) -> void:
 		if k != m.actor_on:
 			m.actors_rt[k]["t"] = m.playhead   # _pose_others would pose it from its own scene at the playhead
 	m._refresh()
+	_shake_view()
+
+
+## the preview's camera shake (the scene is untouched): the shot's shake at pv_t on the view the user is looking through (the free view or the shot camera)
+func _shake_view() -> void:
+	var shakes: Array = ShotCam.fx_at((pv[0] as Scene).shots, pv_t).get("shake", [])
+	var off := ShotFx.shake_at(shakes, pv_t)
+	if off.is_empty():
+		if not shaking.is_empty():
+			shaking = {}
+			m._cam()
+		return
+	m._cam()
+	m.cam.transform = ShotFx.shaken(m.cam.transform, shakes, pv_t)
+	shaking = off
 
 
 func accept() -> void:
