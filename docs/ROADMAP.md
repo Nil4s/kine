@@ -278,3 +278,9 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I16. Realism score: one number per clip, "how real is this", from the judges Kine already has (physics judge I1,
   torques I8, push limits R24, timing coach I4, Check's human limits), with the 3 biggest reasons and a one-click fix
   for each (accept span, timing coach, Check fix); the score is shown on the scene card and re-scored after each fix.
+- [ ] I17. Learn my style: Kine reads every clip Nick made (scenes/, his poses) and builds a style fingerprint (his
+  usual timing per move kind, holds, guard height, stance width, favourite transitions); new clips and Next poses
+  default to it, and a "like Nick" / "neutral" toggle shows the difference. Learns locally, nothing leaves the PC.
+- [ ] I18. Fight distance keeper: choreography help that keeps two fighters at a real fighting range (measured
+  reach of each strike + weapon), flags spans that are too close (jammed) or too far (the strike can't land), and
+  offers a one-click root slide of the defender (feet planted, no skating) to fix each span.
