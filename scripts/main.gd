@@ -147,6 +147,7 @@ var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked cl
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
+var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
@@ -179,7 +180,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
+		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
@@ -2531,6 +2532,8 @@ func _process(dt: float) -> void:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	if mp_ui != null:
 		mp_ui.tick(dt)
+	if sd_ui != null:
+		sd_ui.tick(dt)   # STYLE DIAL: forgets its base when anything else changed the scene
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
 	_dm_poll()
@@ -4563,6 +4566,8 @@ func _restore(u: Dictionary) -> void:
 	_bake_drop(u["scene"] if u.get("scene") is Scene else null)
 	if mm_ui != null:
 		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
+	if sd_ui != null:
+		sd_ui.halt()
 	if tc_ui != null:
 		tc_ui.halt()
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
@@ -9310,7 +9315,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -9700,6 +9705,9 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
 	ui_ribbon["ANIMATE"].add_child(_button("Walk along a path...", _pathwalk_start, "Walk along a path: click points on the floor, pick Walk or Run and a speed, Enter builds the cards (makes a NEW scene, the open one stays, as ONE undo step; Esc cancels)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
+	if sd_ui == null:
+		sd_ui = StyleDialUI.new(self)
+	ui_ribbon["ANIMATE"].add_child(_button("Style dial", sd_ui.show, "four sliders (heavier / tired / angry / sneaky, -1 to +1) that restyle the whole clip as ONE undo step; how much is how much your own clips differ"))
 	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK
 	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
@@ -12320,6 +12328,9 @@ func _commands() -> Array:
 	if mp_ui == null:
 		mp_ui = MakePhysicalUI.new(self)
 	mp_ui.commands(add)   # MAKE IT PHYSICAL (ROADMAP I1)
+	if sd_ui == null:
+		sd_ui = StyleDialUI.new(self)
+	sd_ui.commands(add)   # STYLE DIAL (ROADMAP I6)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Reduce part keys (tolerance slider)", "", _keyreduce_popup, "reduce keys key reduction thin decimate simplify dense bake video import tolerance error curve slider", true, "drop the part keys the curve can lose within a tolerance in degrees (every angle channel); the readout shows keys kept and the worst error; one undo step (ROADMAP 68)")
