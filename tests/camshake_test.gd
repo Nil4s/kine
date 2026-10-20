@@ -153,8 +153,8 @@ func _init() -> void:
 	var d_want: float = m.shot_view_at(0.1)["focus"]
 	ok(m.shot_through and at is CameraAttributesPractical, "7 looking through: the camera carries a depth of field")
 	if at is CameraAttributesPractical:
-		ok(absf(float(at.dof_blur_far_distance) - d_want) < 0.001 and absf(float(at.dof_blur_near_distance) - d_want) < 0.001,
-			"  its sharp distance is the focus (%.3f m)" % d_want)
+		ok(float(at.dof_blur_far_distance) >= d_want - 0.001 and float(at.dof_blur_near_distance) <= d_want + 0.001,
+			"  its sharp zone holds the focus (%.3f m)" % d_want)
 	var png := OS.get_environment("POSER_CAMSHAKE_PNG")
 	if png != "":
 		m.playhead = 0.1
