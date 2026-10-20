@@ -3418,6 +3418,85 @@ func _reaction_apply(path: String, k: int) -> bool:
 	return true
 
 
+## I11 FIGHT PHRASE BUILDER (scripts/fight_phrase.gd): the active fighter attacks, the other one answers. "Build" works the plan out and
+## shows the defender as it would be (a blue ghost at the playhead; the cards are untouched); "Accept" writes it as ONE undo step on the
+## defender (its cards from the first reaction on, and a timeline label per beat). The attacker is never touched
+var fp_prev := {}   # {"scene": the defender's clone with the plan on it, "xf": its place, "k": defender, "plan"}
+
+
+func _fight_pair() -> Array:
+	_actors_sync()
+	if actors_rt.size() != 2:
+		_say("the fight phrase needs exactly two fighters: 'Actor: add a second fighter' first (the active one attacks, the other answers)")
+		return []
+	return [actor_on, 1 - actor_on]
+
+
+func _fight_plan(a: int, d: int) -> Dictionary:
+	var rel: Transform3D = (actors_rt[a]["xf"] as Transform3D).affine_inverse() * (actors_rt[d]["xf"] as Transform3D)
+	return FightPhrase.plan((actors_rt[a]["S"] as Scene).clone(), (actors_rt[d]["S"] as Scene).clone(), rel)
+
+
+func _fight_build() -> Dictionary:
+	var pr := _fight_pair()
+	if pr.is_empty():
+		return {}
+	var a: int = pr[0]
+	var d: int = pr[1]
+	var pl := _fight_plan(a, d)
+	if not pl["ok"]:
+		fp_prev = {}
+		_say(String(pl["why"]))
+		return pl
+	var ds: Scene = (actors_rt[d]["S"] as Scene).clone()
+	FightPhrase.apply_plan(ds, pl)
+	fp_prev = {"scene": ds, "xf": actors_rt[d]["xf"], "k": d, "plan": pl}
+	var first := -1.0
+	for r in pl["beats"]:
+		if not r["flag"]:
+			first = float(r["t"])
+			break
+	if first >= 0.0:
+		playhead = first
+		_ps().apply(B, playhead)
+	_refresh()
+	_say("PREVIEW (blue ghost): %s.  'Fight phrase: accept the preview' writes it (Ctrl+Z undoes); change nothing to drop it" % String(pl["text"]).replace("
+", "; "))
+	return pl
+
+
+func _fight_accept() -> bool:
+	var pr := _fight_pair()
+	if pr.is_empty():
+		return false
+	if fp_prev.is_empty():
+		_say("nothing to accept: run 'Fight phrase: build the defender's answer' first and look at the ghost")
+		return false
+	var a: int = pr[0]
+	var d: int = pr[1]
+	var pl := _fight_plan(a, d)   # worked out again: whatever changed since the preview is in it
+	fp_prev = {}
+	if not pl["ok"]:
+		_refresh()
+		_say(String(pl["why"]))
+		return false
+	_actor_go(d)
+	_push_undo()
+	FightPhrase.apply_plan(S, pl)
+	for r in pl["beats"]:
+		if not r["flag"]:
+			playhead = float(r["t"])
+			break
+	_ps().apply(B, playhead)
+	_rebuild_cards()
+	ov.mark_dirty()
+	wt.mark_dirty()
+	_refresh()
+	_say("%s's answer is written: %s.  Ctrl+Z takes it off" % [actors_rt[d]["name"], String(pl["text"]).replace("
+", "; ")])
+	return true
+
+
 ## I2 REACT TO THE HIT (PHYSICS; scripts/hit_physics.gd): the hit decides. The first moment a weapon or fist lands on a fighter's body
 ## (the fighters' report, measured now on clones like R16's contact) gives WHERE, the push's direction and the impulse (m_eff x v_rel);
 ## the MuJoCo humanoid (tools/physics/react.py) is run from the struck fighter's pose at the contact, on the R13 worker; its BVH comes
@@ -3750,6 +3829,7 @@ func _refresh() -> void:
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
 	ov.spacing(playhead)
+	ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
 	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
 	_sg_tick()   # R27: the next-pose ghosts for the current card
@@ -12417,6 +12497,8 @@ func _commands() -> Array:
 	add.call("React to the hit (physics)", "", _react_physics, "react reaction hit physics mujoco impulse struck fighter weapon fist impact contact simulate humanoid", true, "where a weapon or fist touches a fighter, Kine measures the blow (the struck part, the direction, the impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact frame, in the background; strength light / medium / hard and whether it fell; one Ctrl+Z (ROADMAP I2)")
 	add.call("Reactions: hit reaction picker", "", _reactions_toggle, "reaction reactions hit picker thumbnails physics struck fighter drag drop knock fall stage", false, "a panel of the reaction clips found in scenes/reactions and scenes/_wip: a thumbnail, where it hits, how hard, whether the fighter falls; drag one onto the struck fighter (ROADMAP R16)")
 	add.call("Reactions: make 3 sample clips", "", _reactions_samples, "reaction reactions sample clips make example head snap knock down bat", false, "three sample hit reactions (a bat to the torso, a head snap, a knock-down) in scenes/_wip/reactions, made from the app's own poses")
+	add.call("Fight phrase: build the defender's answer (preview)", "", _fight_build, "fight phrase defender answer block slip range combo build preview ghost", false, "walks the attacker's strikes (the active fighter's tip-speed peaks) and picks one defence per strike, a block or a slip, in place 2 frames before each contact (it starts one reaction time, 0.2 s, earlier), keeps the pair at fighting range (steps the defender in or out) and flags a strike no distance can make. A ghost shows the answer; nothing is written until 'Fight phrase: accept' (I11)")
+	add.call("Fight phrase: accept the preview", "", _fight_accept, "fight phrase accept write defender answer", false, "writes the previewed answer onto the defender's cards and puts a label on the timeline for each beat; one undo step (I11)")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
 	add.call("Check: weapon clashes", "", _weapon_clash, "clash parry pass through weapons bat swing contact sparks meet fighters", false, "finds where the two fighters' weapons meet over the timeline: CLASH, PARRY, or PASS-THROUGH (the weapons go through each other: must fix); a spark marks each contact, the report prints the time, point and speed (ROADMAP 37)")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")

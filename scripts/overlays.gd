@@ -556,6 +556,9 @@ func version_ghost(V: Scene, t: float) -> void:
 ## Empty cards = hide it.
 func fix_preview(S: Scene, cards: Array, t: float) -> void:
 	var g: Array = _ghosts[2]
+	g[0].transform = Transform3D.IDENTITY
+	g[3].transform = Transform3D.IDENTITY
+	_fg_on = false
 	g[0].visible = false
 	g[3].visible = false
 	if cards.is_empty():
@@ -568,6 +571,28 @@ func fix_preview(S: Scene, cards: Array, t: float) -> void:
 	S.cards = orig
 	S.baker = baker
 	_pose(g, GB)
+
+
+## I11 FIGHT PHRASE PREVIEW: the defender as the phrase would leave it (scene S posed at t), the blue ghost (slot 2) placed by
+## xf (its space -> the hero's). Null = hide it (only when this ghost is what is showing)
+var _fg_on := false
+
+
+func fight_ghost(S: Scene, t: float, xf: Transform3D) -> void:
+	var g: Array = _ghosts[2]
+	if S == null:
+		if _fg_on:
+			g[0].visible = false
+			g[3].visible = false
+			g[0].transform = Transform3D.IDENTITY
+			g[3].transform = Transform3D.IDENTITY
+			_fg_on = false
+		return
+	S.apply(GB, t)
+	_pose(g, GB)
+	g[0].transform = xf
+	g[3].transform = xf
+	_fg_on = true
 
 
 ## a stick body: line pairs along every bone but the fingers, the head to its top, the weapon shaft
