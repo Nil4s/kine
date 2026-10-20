@@ -160,6 +160,7 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 	var jl := joints()
 	var gj := {"pelvis": 1, "spine_03": 1, "upperarm_l": 1, "upperarm_r": 1, "lowerarm_l": 1, "lowerarm_r": 1}
 	var gtrack := {}
+	var us_all := []
 	for k in gj:
 		gtrack[k] = []
 	var mk := func(_i: int, t: float) -> Dictionary:
@@ -167,9 +168,11 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 		var pcs := HitReaction.pieces(B)
 		var c := []
 		var g := []
+		var us := []
 		for p in pcs:
 			c.append(p["c"])
 			g.append(B.G[p["j"]])
+			us.append(p["u"])
 		var pj := {}
 		for j in jl:
 			pj[j] = B.P[j]
@@ -185,13 +188,14 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 		var gt := {}
 		for k in gtrack:
 			gt[k] = B.G[k]
-		return {"pcs": pcs, "c": c, "g": g, "pj": pj, "fe": fe, "fb": fb, "bat": bt, "tip": {"_l": B.E["hand_l"], "_r": B.E["hand_r"]}, "gt": gt}
+		return {"pcs": pcs, "c": c, "g": g, "us": us, "pj": pj, "fe": fe, "fb": fb, "bat": bt, "tip": {"_l": B.E["hand_l"], "_r": B.E["hand_r"]}, "gt": gt}
 	var recs: Array = FrameMemo.frames("fv", S, B, n, HZ, mk)
 	for i in n:
 		var r: Dictionary = recs[i]
 		if i == 0:
 			pcs0 = r["pcs"]
 		cs.append(r["c"])
+		us_all.append(r["us"])
 		gs.append(r["g"])
 		ps.append(r["pj"])
 		feet.append(r["fe"])
@@ -206,7 +210,7 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 	for h in ["hand_l", "hand_r"]:
 		chains[h] = HitReaction.chain(B, h)
 	S.stepped = was
-	var cap := {"n": n, "mass": mass, "cs": cs, "gs": gs, "ps": ps, "feet": feet, "fbox": fbox, "bat": bat, "tips": tips, "pcs0": pcs0,
+	var cap := {"n": n, "mass": mass, "cs": cs, "gs": gs, "ps": ps, "feet": feet, "fbox": fbox, "bat": bat, "tips": tips, "pcs0": pcs0, "us": us_all,
 		"chains": chains, "gtrack": gtrack}
 	return cap
 
@@ -305,11 +309,12 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 		var m_sum := 0.0
 		for k in np:
 			var m2: float = pcs0[k]["m"]
-			var kl: float = pcs0[k]["kl"]
 			var f: Vector3 = m2 * ((acc[k][i] as Vector3) - gvec)
 			fk.append(f)
 			cfk.append((cs[i][k] as Vector3).cross(f))
-			iak.append((alp[k][i] as Vector3) * (m2 * kl * kl))
+			var pk: Dictionary = pcs0[k].duplicate()   # I alpha with the piece's principal inertia (across kl, along kL) in its pose
+			pk["u"] = (cap["us"] as Array)[i][k]
+			iak.append(HitReaction.spin_h(pk, alp[k][i] as Vector3))
 			ftot += f
 			com_sum += m2 * (cs[i][k] as Vector3)
 			m_sum += m2

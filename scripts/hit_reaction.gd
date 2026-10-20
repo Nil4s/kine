@@ -28,10 +28,6 @@ extends RefCounted
 ## kg, the whole weapon. ESTIMATES, not measured (docs/research/HIT_REACTION.md): a 33 in baseball bat ~0.9 kg, a 1.8 m
 ## staff ~1.1 kg, a 1.1 m long hammer ~2.5 kg, a dagger ~0.3 kg, a Dane axe 1-2 kg (1.5 kg used, as body.gd's note says).
 const WEAPON_KG := {"metal_bat": 0.9, "staff": 1.1, "long_hammer": 2.5, "dagger": 0.3, "long_axe": 1.5}
-## radius of gyration about the segment's COM, as a fraction of its length: de Leva 1996 Table 4 as Winter (2009) Table 4.1
-## quotes them. FROM MEMORY of those tables (not re-read from the paper in this round): see the research note.
-const K := {"head": 0.495, "trunk": 0.503, "upper_arm": 0.322, "forearm": 0.303, "hand": 0.297, "thigh": 0.323,
-	"shank": 0.302, "foot": 0.475}
 const MIN_LEVER := 0.2      # m: a contact nearer the grip than this counts as this far (the hand gives: no infinite mass)
 const CHAIN := 0.5          # each joint up the chain takes this share of the angular velocity of the one below it
 const WN := TAU * 2.5       # rad/s: the joints' spring back to the animation (2.5 Hz)
@@ -69,33 +65,67 @@ static func masses_kg(B: Body) -> Dictionary:
 	return mm
 
 
-## the body as rigid pieces at the pose it is in: [{"j", "m" (kg), "c" (COM, body space), "kl" (k x bone length, m)}].
-## Each joint owns the bone from itself to its child: the trunk's mass is split over the pelvis, the three spine joints
-## and the neck (5 pieces); the head is one piece; a limb's pieces are its upper arm, forearm and hand (one side).
+## the body as rigid pieces at the pose it is in: [{"j", "seg", "m" (kg), "c" (COM, body space), "kl" (radius ACROSS the bone, m), "kL" (radius ALONG it, m),
+## "u" (unit, proximal -> distal end), "len" (m)}]. Masses, COM fractions and radii are Proportions.DE_LEVA (de Leva 1996 Table 4, one table for
+## the whole app). Segment ends are the ones the table's row names: head = vertex -> cervicale, forearm = elbow -> wrist, hand = wrist -> 3rd
+## metacarpale, foot = heel -> toe tip. The trunk (cervicale -> mid hip in the table) is five pieces (pelvis, 3 spine joints, neck) of equal mass
+## whose own radii are chosen so that the five add up to de Leva's whole-trunk transverse radius about the trunk COM (see _trunk_radii) and
+## whose along-axis radius is the whole trunk's longitudinal radius x the trunk's summed length. NOTE: the slices span pelvis -> head joint (not cervicale -> mid hip),
+## so their mean centre is 0.007 H above de Leva's trunk COM (Proportions.com); shifting them rigidly broke the root-continuity bar of I8, so it is left (reported).
 static func pieces(B: Body) -> Array:
 	var mm := masses_kg(B)
-	var t: Dictionary = Proportions.DE_LEVA[String(B.body.get("sex", "male"))]
+	var sex := String(B.body.get("sex", "male"))
+	var t: Dictionary = Proportions.DE_LEVA[sex]
 	var out := []
 	for j in ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01"]:
-		out.append(_piece(B, j, Body.CHILD[j], float(mm["trunk"]) / 5.0, K["trunk"], 0.5, null))
-	out.append(_piece(B, "head", "", float(mm["head"]), K["head"], 0.5, B.E["head"]))
+		out.append(_piece(B, j, "trunk", Body.CHILD[j], float(mm["trunk"]) / 5.0, 0.5, null))
+	_trunk_radii(out, sex)
+	out.append(_piece(B, "head", "head", "", float(mm["head"]), float(t["head"][1]), null, Proportions.head_top(B), Proportions.cervicale(B)))
 	for sd in ["_l", "_r"]:
-		out.append(_piece(B, "upperarm" + sd, "lowerarm" + sd, float(mm["upper_arm"]) / 2.0, K["upper_arm"],
-			float(t["upper_arm"][1]), null))
-		out.append(_piece(B, "lowerarm" + sd, "hand" + sd, float(mm["forearm"]) / 2.0, K["forearm"],
-			float(t["forearm"][1]), null))
-		out.append(_piece(B, "hand" + sd, "", float(mm["hand"]) / 2.0, K["hand"], float(t["hand"][1]), B.E["hand" + sd]))
-		out.append(_piece(B, "thigh" + sd, "calf" + sd, float(mm["thigh"]) / 2.0, K["thigh"], float(t["thigh"][1]), null))
-		out.append(_piece(B, "calf" + sd, "foot" + sd, float(mm["shank"]) / 2.0, K["shank"], float(t["shank"][1]), null))
-		out.append(_piece(B, "foot" + sd, "ball" + sd, float(mm["foot"]) / 2.0, K["foot"], float(t["foot"][1]), null))
+		out.append(_piece(B, "upperarm" + sd, "upper_arm", "lowerarm" + sd, float(mm["upper_arm"]) / 2.0, float(t["upper_arm"][1]), null))
+		out.append(_piece(B, "lowerarm" + sd, "forearm", "hand" + sd, float(mm["forearm"]) / 2.0, float(t["forearm"][1]), null))
+		out.append(_piece(B, "hand" + sd, "hand", "", float(mm["hand"]) / 2.0, float(t["hand"][1]), B.E["hand" + sd]))
+		out.append(_piece(B, "thigh" + sd, "thigh", "calf" + sd, float(mm["thigh"]) / 2.0, float(t["thigh"][1]), null))
+		out.append(_piece(B, "calf" + sd, "shank", "foot" + sd, float(mm["shank"]) / 2.0, float(t["shank"][1]), null))
+		out.append(_piece(B, "foot" + sd, "foot", "", float(mm["foot"]) / 2.0, float(t["foot"][1]), null, Proportions.heel(B, sd), Proportions.toe(B, sd)))
 	return out
 
 
-## one piece: from joint j to its child (or to `end` when given), its COM at `frac` along it
-static func _piece(B: Body, j: String, child: String, m: float, k: float, frac: float, end: Variant) -> Dictionary:
-	var a: Vector3 = B.P[j]
-	var b: Vector3 = end if end is Vector3 else (B.P[child] as Vector3)
-	return {"j": j, "m": m, "c": a.lerp(b, frac), "kl": k * a.distance_to(b)}
+## one piece of table segment `seg`: from joint j to its child (or to `end`, or from `a0` to `b0` when both are given), its COM at `frac` along it
+static func _piece(B: Body, j: String, seg: String, child: String, m: float, frac: float, end: Variant, a0 = null, b0 = null) -> Dictionary:
+	var a: Vector3 = a0 if a0 is Vector3 else (B.P[j] as Vector3)
+	var b: Vector3 = b0 if b0 is Vector3 else (end if end is Vector3 else (B.P[child] as Vector3))
+	var sex := String(B.body.get("sex", "male"))
+	var L := a.distance_to(b)
+	return {"j": j, "seg": seg, "m": m, "c": a.lerp(b, frac), "kl": Proportions.kperp(sex, seg) * L, "kL": Proportions.klong(sex, seg) * L,
+		"u": (b - a).normalized() if L > 1e-9 else Vector3.UP, "len": L}
+
+
+## the five trunk pieces: r_T^2 L^2 (the whole trunk's transverse radius, rms of sagittal and transverse, x the summed length) = mean over
+## the pieces of (k^2 + d^2), d = the piece's centre from the trunk's centre; so k^2 = r_T^2 L^2 - mean d^2 (floored at 5 % of r_T^2 L^2),
+## and kL = the trunk's longitudinal radius x L (about the long axis a slice is as round as the whole)
+static func _trunk_radii(out: Array, sex: String) -> void:
+	var L := 0.0
+	var C := Vector3.ZERO
+	for p in out:
+		L += float(p["len"])
+		C += (p["c"] as Vector3) / out.size()
+	var rt: float = Proportions.kperp(sex, "trunk") * L
+	var d2 := 0.0
+	for p in out:
+		d2 += ((p["c"] as Vector3) - C).length_squared() / out.size()
+	var k := sqrt(maxf(rt * rt - d2, 0.05 * rt * rt))
+	for p in out:
+		p["kl"] = k
+		p["kL"] = Proportions.klong(sex, "trunk") * L
+
+
+## the angular momentum of one piece spinning at world rate w about its own COM: m (kp^2 w + (kL^2 - kp^2)(u . w) u)
+static func spin_h(p: Dictionary, w: Vector3) -> Vector3:
+	var kp2: float = float(p["kl"]) * float(p["kl"])
+	var kl2: float = float(p["kL"]) * float(p["kL"])
+	var u: Vector3 = p["u"]
+	return float(p["m"]) * (w * kp2 + (kl2 - kp2) * u.dot(w) * u)
 
 
 ## the moment of inertia about joint j's pivot of every piece distal to it (its own chain includes j), scalar

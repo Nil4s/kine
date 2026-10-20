@@ -46,9 +46,13 @@ const SPEED := {"shoulder": 6520.0,   # internal rotation, collegiate fastball (
 ## 64 N-m elbow varus, 26 highly skilled adult pitchers, just before maximum external rotation). The paper's body mass was not read,
 ## so the linear mass scaling is mine. Sources: docs/research/HUMAN_LIMITS.md
 const SHOULDER_IR_NM := 67.0
-## de Leva 1996 Table 4, radii of gyration (transverse = mean of sagittal and transverse, / segment length), by sex:
-## the forearm (elbow -> wrist) and the hand (wrist -> fingertip, the 'Hand*' row of the table)
-const KT := {"male": {"forearm": 0.2705, "hand": 0.2585}, "female": {"forearm": 0.2590, "hand": 0.2235}}
+## radii of gyration across the bone: Proportions.kperp (the one de Leva 1996 Table 4); the hand here runs wrist -> fingertip (the table's
+## WJC -> DAC3 row, Proportions.DE_LEVA_HAND_DAC3)
+static func kt(sex: String, seg: String) -> float:
+	if seg == "hand":
+		var r: Array = Proportions.DE_LEVA_HAND_DAC3[sex]
+		return sqrt((float(r[0]) * float(r[0]) + float(r[1]) * float(r[1])) * 0.5)
+	return Proportions.kperp(sex, seg)
 
 
 ## the mass the bars scale with (kg): the body's own, or REF_MASS for the default body
@@ -230,8 +234,8 @@ static func _shoulder_moment(rows: Array, sd: String, kg: Dictionary, sex: Strin
 		wr.append(rows[i]["pts"]["wrist" + sd])
 		en.append(rows[i]["pts"]["fingertip" + sd])
 	var loads := []   # [centre track, mass kg, accel track, I alpha track, share]
-	loads.append([fc, float(kg["forearm"]), _accel(fc, n), _rot(lo, wr, n, float(kg["forearm"]), float(KT[sex]["forearm"])), 1.0])
-	loads.append([hc, float(kg["hand"]), _accel(hc, n), _rot(wr, en, n, float(kg["hand"]), float(KT[sex]["hand"])), 1.0])
+	loads.append([fc, float(kg["forearm"]), _accel(fc, n), _rot(lo, wr, n, float(kg["forearm"]), kt(sex, "forearm")), 1.0])
+	loads.append([hc, float(kg["hand"]), _accel(hc, n), _rot(wr, en, n, float(kg["hand"]), kt(sex, "hand")), 1.0])
 	# the weapon can be off on some frames (dropped, taken, swapped by a later card): no bat load then
 	if bat > 0.0 and rows.all(func(r): return r["pts"].has("bat_com")):
 		var bc := []

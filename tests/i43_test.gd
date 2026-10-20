@@ -10,12 +10,18 @@
 ##  (4) cards byte-identical after the panel, Fix the flights and Preview; Accept = ONE undo step; BAD is then not flagged, H0 > 3 kg m^2/s, its
 ##      landing facing within 1 deg of before; Ctrl+Z restores the cards exactly
 ##  (5) FLOAT after Accept: a/g in [0.9, 1.1], not flagged; Ctrl+Z exact
+##  (7) STEP 2 (b), written before measuring: a straight 75 kg body: twist inertia 1.0-1.5 kg m^2, somersault inertia 9-16 kg m^2 (de Leva radii);
+##      a body rising at a constant 3 m/s in a fixed pose reads |H| < 0.5 (velocities are relative to the COM); a mirror-symmetric limb motion
+##      (jumping jack) reads |H| < 1.0 kg m^2/s while the same motion on one side only reads > 2 (the reading is not blind)
+##  (8) STEP 2 (c): a 360 deg spin kick on 3 steps of 120 deg, both directions: flagged before the fix; after Accept not flagged, the fix says 360 deg,
+##      the flight twist has the AUTHORED sign and |twist| 200-330 deg (the rest is the take-off pivot), the landing facing unchanged
+##  (9) STEP 2 (a): in the screenshot the head top and both feet at the playhead are inside the viewport, clear of the top bar, the bottom panel and the findings panel
 ##  (6) PLACEMENT: the timeline carries a box per flight inside the flight's own span, the arc polyline inside the box; the body is in the air at the playhead
 extends SceneTree
 
 var fails := 0
 var m: Node
-const OUT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i43.png"
+const OUT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i43b.png"
 
 
 func ok(c: bool, what: String) -> void:
@@ -96,6 +102,83 @@ func yaw_of(t: float) -> float:
 	return rad_to_deg(atan2(fwd.x, -fwd.z))
 
 
+var place_msg := ""
+
+
+## the three points that must be seen: the head top and both feet (heels) at the playhead
+func must_see() -> Array:
+	return [Proportions.head_top(m.B), m.B.P["foot_l"], m.B.P["foot_r"]]
+
+
+## the rectangle the body may use: the window minus the top bar and the bottom panel, and of the strip left, the WIDEST gap between the visible
+## side panels (browser, inspector) and the findings panel (which floats in the middle when the browser is open)
+func free_rect() -> Rect2:
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var top := float(m.TOP_H) + 8.0
+	var bot: float = vs.y - float(m.bottom_h) - 40.0
+	var obs := []   # x intervals blocked
+	for k in m.ui_side_of:
+		var pn = m.ui_side_of[k]
+		if pn != null and (pn as Control).is_visible_in_tree():
+			var rc: Rect2 = (pn as Control).get_global_rect()
+			if rc.position.y < bot and rc.end.y > top:
+				obs.append([rc.position.x, rc.end.x])
+	if m.ui_find.visible:
+		var rf: Rect2 = m.ui_find.get_global_rect()
+		obs.append([rf.position.x, rf.end.x])
+	obs.sort_custom(func(a, b): return a[0] < b[0])
+	var best := Rect2(Vector2(8.0, top), Vector2(0.0, bot - top))
+	var x := 8.0
+	for o in obs:
+		if float(o[0]) - 8.0 - x > best.size.x:
+			best = Rect2(Vector2(x, top), Vector2(float(o[0]) - 8.0 - x, bot - top))
+		x = maxf(x, float(o[1]) + 8.0)
+	if vs.x - 8.0 - x > best.size.x:
+		best = Rect2(Vector2(x, top), Vector2(vs.x - 8.0 - x, bot - top))
+	return best
+
+
+## side view of the whole jump: the camera looks at the middle of the body's height range over the flight (floor to the head at the apex) and the
+## horizontal middle of the free area; distance from the height range (the COM arc's full height + the body). Returns the placement verdict.
+func frame_air(f: Dictionary) -> bool:
+	var lo := INF
+	var hi := -INF
+	var t0 := float(f["t0"])
+	for i in 11:
+		m.S.apply_true(m.B, t0 + float(f["T"]) * float(i) / 10.0)
+		m.B.fk()
+		lo = minf(lo, minf((m.B.P["foot_l"] as Vector3).y, (m.B.P["foot_r"] as Vector3).y))
+		hi = maxf(hi, Proportions.head_top(m.B).y)
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var fr := free_rect()
+	var half_t := tan(deg_to_rad(m.cam.fov * 0.5))
+	var com: Vector3 = Balance.com(m.B)
+	m._view(2)
+	m.target = Vector3(com.x, (lo + hi) * 0.5, com.z)
+	m.dist = ((hi - lo) * 1.2) / (2.0 * half_t * (fr.size.y / vs.y))
+	m._cam()
+	await idle(2)
+	for it in 6:   # slide the target sideways until the free area's middle is the body's middle
+		var q: Vector2 = m.cam.unproject_position(com)
+		var dx := q.x - (fr.position.x + fr.size.x * 0.5)
+		m.target += m.cam.global_transform.basis.x * (dx * 2.0 * half_t * m.dist / vs.y)
+		var qy: Vector2 = m.cam.unproject_position(Vector3(com.x, (lo + hi) * 0.5, com.z))
+		m.target -= m.cam.global_transform.basis.y * ((qy.y - (fr.position.y + fr.size.y * 0.5)) * 2.0 * half_t * m.dist / vs.y)
+		m._cam()
+		await idle(1)
+	await idle(3)
+	var pts := must_see()
+	var bad := []
+	for k in 3:
+		var q: Vector2 = m.cam.unproject_position(pts[k])
+		if not fr.grow(-4.0).has_point(q):
+			bad.append("%s at %s" % [["head top", "left foot", "right foot"][k], str(q.round())])
+	place_msg = "free area %s, " % str(fr) + ("all three inside" if bad.is_empty() else "OUTSIDE: " + ", ".join(bad))
+	return bad.is_empty()
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -143,13 +226,13 @@ func _init() -> void:
 	var landing_yaw0 := yaw_of(1.6)
 	ui.offer()
 	await idle(3)
-	m._view(2)
-	m.dist = 7.0
 	m.playhead = float(f["t0"]) + float(f["T"]) * 0.5
 	m._ps().apply(m.B, m.playhead)
 	m._refresh()
-	await idle(4)
+	await idle(2)
+	var pl_ok := await frame_air(f)
 	root.get_texture().get_image().save_png(OUT)
+	ok(pl_ok, "(9) head top and both feet are inside the viewport and clear of the panels: %s" % place_msg)
 	ui.preview()
 	for i in 6:
 		ui.tick(0.1)
@@ -202,5 +285,101 @@ func _init() -> void:
 	m._undo()
 	await idle()
 	ok(cj() == b2 and m.undo.size() == u1, "(5) Ctrl+Z restores the cards exactly")
+	# (7) STEP 2 (b): the segment inertias and the momentum reading
+	var B0 := body()
+	for sd0 in ["_l", "_r"]:   # a straight body: arms along the sides (the default pose is a T)
+		B0.ang["upperarm" + sd0] = Vector3(0, -90, 0)
+	B0.fk()
+	B0.ground()
+	B0.fk()
+	var mass_kg := 0.0
+	for pc in HitReaction.pieces(B0):
+		mass_kg += float(pc["m"])
+	var I_tw := SpinCheck.body_inertia(B0, Vector3.UP)
+	var I_sm := SpinCheck.body_inertia(B0, Vector3.RIGHT)
+	var I_ap := SpinCheck.body_inertia(B0, Vector3.FORWARD)
+	print("straight body %.1f kg: twist I %.2f, somersault I %.2f, cartwheel I %.2f kg m^2" % [mass_kg, I_tw, I_sm, I_ap])
+	ok(absf(mass_kg - 75.0) < 0.5 and I_tw >= 1.0 and I_tw <= 1.5, "(7) twist inertia %.2f kg m^2 in 1.0-1.5 (75 kg: %.1f)" % [I_tw, mass_kg])
+	ok(I_sm >= 9.0 and I_sm <= 16.0, "(7) somersault inertia %.2f kg m^2 in 9-16" % I_sm)
+	# rising at a constant 3 m/s in a fixed pose
+	var rise := [{"name": "a", "pose": pose(0, 0, 0, 0), "move": 0.5, "hold": 0.0, "ease": "linear"}, {"name": "b", "pose": pose(0, 0, 0, 0, 1.5), "move": 0.5, "hold": 0.0, "ease": "linear"}]
+	load_cards(rise, false)
+	var mr := SpinCheck.momentum(m.S, m.B)
+	var hm_rise := 0.0
+	for h in mr["H"]:
+		hm_rise = maxf(hm_rise, (h as Vector3).length())
+	ok(hm_rise < 0.5, "(7) a body rising at 3 m/s in a fixed pose reads |H| max %.3f kg m^2/s (< 0.5)" % hm_rise)
+	# jumping jack: both legs and both arms out sideways, mirror-symmetric
+	var jack_sign := 1.0
+	var Bj := body()
+	Bj.set_ang("thigh_l", Vector3(0, 30, 0))
+	Bj.set_ang("thigh_r", Vector3(0, 30, 0))
+	Bj.fk()
+	if absf((Bj.P["foot_l"] as Vector3).x + (Bj.P["foot_r"] as Vector3).x) > 0.01:
+		jack_sign = -1.0
+	var jack := func(deg_l: float, deg_r: float) -> Dictionary:
+		var Bk := body()
+		for sd in [["_l", deg_l], ["_r", deg_r * jack_sign]]:
+			Bk.set_ang("thigh" + sd[0], Vector3(0, sd[1] * (1.0 if sd[0] == "_l" else 1.0), 0))
+			Bk.set_ang("upperarm" + sd[0], Vector3(0, sd[1] * 3.0, 0))
+		Bk.fk()
+		Bk.ground()
+		Bk.fk()
+		return Bk.to_dict()
+	var sym := [{"name": "a", "pose": jack.call(0.0, 0.0), "move": 0.3, "hold": 0.0}, {"name": "b", "pose": jack.call(25.0, 25.0), "move": 0.3, "hold": 0.0}]
+	var Bchk := body()
+	Bchk.from_dict(sym[1]["pose"])
+	Bchk.fk()
+	var asym_x := absf((Bchk.P["foot_l"] as Vector3).x + (Bchk.P["foot_r"] as Vector3).x)
+	load_cards(sym, false)
+	var hm_sym := 0.0
+	for h in SpinCheck.momentum(m.S, m.B)["H"]:
+		hm_sym = maxf(hm_sym, (h as Vector3).length())
+	load_cards([{"name": "a", "pose": jack.call(0.0, 0.0), "move": 0.3, "hold": 0.0}, {"name": "b", "pose": jack.call(25.0, 0.0), "move": 0.3, "hold": 0.0}], false)
+	var hm_one := 0.0
+	for h in SpinCheck.momentum(m.S, m.B)["H"]:
+		hm_one = maxf(hm_one, (h as Vector3).length())
+	print("jumping jack: symmetric |H| max %.3f (feet x-asymmetry %.4f m), one side only %.3f kg m^2/s" % [hm_sym, asym_x, hm_one])
+	ok(asym_x < 0.01, "(7) the jumping-jack fixture is mirror-symmetric (feet x sum %.4f m)" % asym_x)
+	ok(hm_sym < 1.0, "(7) symmetric limb motion reads |H| max %.3f kg m^2/s (< 1.0)" % hm_sym)
+	ok(hm_one > 2.0, "(7) the same motion on one side reads %.2f kg m^2/s (> 2: the reading is not blind)" % hm_one)
+
+	# (8) STEP 2 (c): a 360 deg spin kick, both directions
+	for dirn in [1.0, -1.0]:
+		var yw := [0.0, 0.0, 0.0, 120.0 * dirn, 240.0 * dirn, 360.0 * dirn, 360.0 * dirn]   # air0 still at 0: the turn starts from nothing in the air
+		var spec6 := [["stand", 0, 0, 0, 0.3, 0.1], ["dip", 50, 90, 0, 0.3, 0.05], ["air0", 10, 20, 0, 0.1, 0.0], ["air1", 10, 20, 0, 0.14, 0.0], ["air2", 10, 20, 0, 0.14, 0.0], ["land", 50, 90, 0, 0.2855, 0.1], ["stand", 0, 0, 0, 0.4, 0.2]]
+		var c6 := []
+		for i in 7:
+			var sp: Array = spec6[i]
+			var cd := {"name": sp[0], "pose": pose(sp[1], sp[2], sp[3], yw[i]), "move": sp[4], "hold": sp[5]}
+			if i >= 2 and i <= 4:
+				cd["air"] = true
+			c6.append(cd)
+		load_cards(c6, true)
+		ui.show()
+		await idle()
+		var fl6: Array = ui.rep["flights"]
+		var tag := "360 deg %s" % ("left" if dirn > 0.0 else "right")
+		for fq in fl6:
+			print("  ", tag, " BEFORE: ", fq["msg"], " | H0 %.1f Hmax %.1f phi %.0f allowed %.0f limit %.0f twist %.0f t0 %.2f T %.2f spin %s grow %s" % [fq["H0"], fq["Hmax"], fq["phi"], fq["phi_allowed"], fq["limit"], fq["twist"], fq["t0"], fq["T"], fq["spin"], fq["grow"]])
+		ok(fl6.size() == 1 and bool(fl6[0]["spin"]), "(8) %s: one flight, flagged as an impossible spin before the fix (%d flights)" % [tag, fl6.size()])
+		if fl6.is_empty():
+			continue
+		var b6 := cj()
+		var u6: int = m.undo.size()
+		ui.offer()
+		ok(not ui.plan.is_empty() and String(ui.plan["msg"]).contains("spin 360 deg"), "(8) %s: the fix reads the authored 360 deg: %s" % [tag, String(ui.plan.get("msg", ""))])
+		ui.accept()
+		await idle()
+		var g6: Dictionary = ui.rep["flights"][0]
+		print("  ", tag, " fixed: ", g6["msg"])
+		ok(m.undo.size() == u6 + 1, "(8) %s: Accept is ONE undo step" % tag)
+		ok(not bool(g6["flag"]), "(8) %s: not flagged after the fix (phi %.0f deg, limit %.0f)" % [tag, g6["phi"], g6["limit"]])
+		var tws := float(g6["twist"])
+		ok(signf(tws) == signf(dirn) and absf(tws) >= 200.0 and absf(tws) <= 330.0, "(8) %s: the flight twists %.0f deg in the authored direction (200-330)" % [tag, tws])
+		m._undo()
+		await idle()
+		ok(cj() == b6, "(8) %s: Ctrl+Z restores the cards exactly" % tag)
+
 	print("I43 ", "PASS" if fails == 0 else "FAIL %d" % fails)
 	quit(1 if fails > 0 else 0)

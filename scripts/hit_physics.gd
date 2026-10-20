@@ -117,14 +117,16 @@ static func arm_mass(Bs: Body, at: Vector3, n: Vector3) -> float:
 	var pcs := []
 	var t_ua: float = float((Proportions.DE_LEVA[String(Bs.body.get("sex", "male"))] as Dictionary)["upper_arm"][1])
 	var t_fa: float = float((Proportions.DE_LEVA[String(Bs.body.get("sex", "male"))] as Dictionary)["forearm"][1])
-	for r in [[float(mm["upper_arm"]) / 2.0, S, E, 0, t_ua], [float(mm["forearm"]) / 2.0, E, W, 1, t_fa]]:
+	var sx := String(Bs.body.get("sex", "male"))
+	for r in [[float(mm["upper_arm"]) / 2.0, S, E, 0, t_ua, "upper_arm"], [float(mm["forearm"]) / 2.0, E, W, 1, t_fa, "forearm"]]:
 		var a0: Vector3 = r[1]
 		var a1: Vector3 = r[2]
 		var L := a1.distance_to(a0)
 		var m: float = r[0]
-		pcs.append([m, a0.lerp(a1, float(r[4])), (a1 - a0) / maxf(L, 1e-6), m * pow(0.3 * L, 2.0), int(r[3])])
+		pcs.append([m, a0.lerp(a1, float(r[4])), (a1 - a0) / maxf(L, 1e-6), m * pow(Proportions.kperp(sx, String(r[5])) * L, 2.0), int(r[3])])
 	var mh: float = float(mm["hand"]) / 2.0
-	pcs.append([mh, W, ax, mh * 0.0004, 2])
+	var Lh: float = ((Bs.E["hand" + sd] as Vector3) - W).length()   # de Leva: radius across the hand x its length (wrist -> 3rd metacarpale)
+	pcs.append([mh, W, ax, mh * pow(Proportions.kperp(sx, "hand") * Lh, 2.0), 2])
 	pcs.append([m_b, Cb, ax, m_b * kb * kb, 2])
 	var M: Array = []
 	for a in 9:
