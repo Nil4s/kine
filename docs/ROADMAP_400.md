@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 0 / 400 (★ 0 / 119)
+Merged: 2 / 400 (★ 1 / 119)
 
 ## The tracks
 
@@ -46,7 +46,7 @@ Merged: 0 / 400 (★ 0 / 119)
 
 ## A. Mesh core (the foundation: nothing in B–F starts before A01–A06)
 
-- [ ] A01 $ `KMesh` (scripts/kmesh.gd): verts, faces (n-gons), half-edge adjacency, per-face normals, built from / to ArrayMesh; round trip of the mannequin mesh exact
+- [x] A01 $ `KMesh` (scripts/kmesh.gd): verts, faces (n-gons), half-edge adjacency, per-face normals, built from / to ArrayMesh; round trip of the mannequin mesh exact
 - [ ] A02 $ Selection model: verts / edges / faces sets, grow / shrink, select linked, select loop, select ring
 - [ ] A03 $ Mesh undo: one undo step per mesh edit, a diff not a copy (100k-vert edit undo under 5 MB)
 - [ ] A04 $ Symmetry map: x-mirror pairs found once (tolerance 0.1 mm), every edit mirrored
@@ -457,7 +457,7 @@ Merged: 0 / 400 (★ 0 / 119)
 - [ ] P19 ★ $$ Task coach: "make a fighter" walks BODY → MODEL → SURFACE → POSE with checks at each step
 - [ ] P20 ★ $ Blender / Maya keymap translator: press a Blender key, Kine tells you its own name for it
 - [ ] P21 ★ $$ Mistake catcher: common beginner mesh mistakes (doubled verts, inside-out normals, unapplied scale) caught as they happen
-- [ ] P22 ★ $ One-page cheat sheet per page, printable, generated from the commands
+- [x] P22 ★ $ One-page cheat sheet per page, printable, generated from the commands
 - [ ] P23 ★ $$ Time-lapse of a session (the edits replayed as a video)
 - [ ] P24 ★ $$ Undo by region: undo only the edits on the left hand, keep the rest
 - [ ] P25 $$ Crash report with the last 20 commands (local file, no upload)
