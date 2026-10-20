@@ -17,7 +17,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -60,7 +60,7 @@ def _robot_cfg() -> ArticulationCfg:
 class PushEnvCfg(DirectRLEnvCfg):
     episode_length_s = 10.0
     decimation = 2
-    action_scale = 0.5            # rad of PD-target offset for action = 1
+    action_scale = 0.15           # rad of RESIDUAL PD-target offset (around the stance) for action = 1
     action_space = len(NAMES)
     observation_space = 3 + 3 + 3 + 1 + 3 * len(NAMES)
     state_space = 0
@@ -72,11 +72,15 @@ class PushEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=256, env_spacing=3.0, replicate_physics=True,
                                                      clone_in_fabric=True)
     robot: ArticulationCfg = _robot_cfg()
+    viewer = ViewerCfg(eye=(11.0, -5.0, 5.5), lookat=(4.0, 3.0, 0.9))   # a few characters in frame (grid starts at 0,0)
 
     # pushes
     push_interval_s = (1.5, 3.0)
     push_duration_s = 0.05
-    push_max_impulse = 40.0       # N s, upper end of the uniform draw (curriculum may raise it)
+    push_max_impulse = 40.0       # N s, FINAL upper end of the uniform draw
+    curriculum = True             # push max starts at cur_start and grows with the survival rate
+    cur_start, cur_step, cur_window = 15.0, 5.0, 1500   # N s; N s; resets per decision
+    cur_up, cur_down = 0.8, 0.5   # survival fraction (timeouts / resets) to raise / lower
     push_min_impulse = 0.0
     fixed_impulse = -1.0          # >0: every push has exactly this size (evaluation)
     push_bodies = ("head", "spine_03", "spine_01", "upperarm_l", "upperarm_r")   # head, chest, stomach, shoulders
@@ -84,7 +88,8 @@ class PushEnvCfg(DirectRLEnvCfg):
 
     # rewards / terminations
     w_track, track_sigma = 1.0, 0.25
-    w_up, w_alive = 0.5, 0.5
+    w_up, w_alive = 1.0, 1.0
+    w_term = 20.0                 # one-off penalty on falling (early termination)
     w_action_rate, w_torque = -0.02, -2e-6
     pelvis_min_z, head_min_z = 0.55, 1.0
 
@@ -118,6 +123,10 @@ class PushEnv(DirectRLEnv):
         self.torques = torch.zeros(n, self.nbody, 3, device=dev)
         self.last_torque = torch.zeros(n, len(NAMES), device=dev)
         self.n_pushes = torch.zeros(n, device=dev)
+        self.cur_max = self.cfg.cur_start if self.cfg.curriculum else self.cfg.push_max_impulse
+        self.eval_mode = False
+        self._cur_n = 0
+        self._cur_ok = 0
 
     # ------------------------------------------------------------------ scene
     def _setup_scene(self):
@@ -141,6 +150,9 @@ class PushEnv(DirectRLEnv):
         tgt = (self.q_ref + self.cfg.action_scale * self.actions).clamp(self.q_lo, self.q_hi)
         self.robot.set_joint_position_target(tgt, joint_ids=self.jidx)
 
+    def _push_max(self):
+        return self.cfg.push_max_impulse if (self.eval_mode or not self.cfg.curriculum) else min(self.cur_max, self.cfg.push_max_impulse)
+
     def _hit_source(self):
         """THE hit source: fills self.forces (num_envs, num_bodies, 3), world frame, N, for this control step.
         Here: random point impulses. To replace by an attacker's swing, spawn a second Articulation (attacker + weapon
@@ -157,7 +169,7 @@ class PushEnv(DirectRLEnv):
             if c.fixed_impulse > 0:
                 J = torch.full((k,), c.fixed_impulse, device=self.device)
             else:
-                J = c.push_min_impulse + (c.push_max_impulse - c.push_min_impulse) * torch.rand(k, device=self.device)
+                J = c.push_min_impulse + (self._push_max() - c.push_min_impulse) * torch.rand(k, device=self.device)
             ang = torch.rand(k, device=self.device) * 2 * torch.pi
             f = J / c.push_duration_s
             self.push_force[ids] = torch.stack([f * torch.cos(ang), f * torch.sin(ang), torch.zeros_like(f)], dim=-1)
@@ -199,7 +211,8 @@ class PushEnv(DirectRLEnv):
         tq = d.applied_torque[:, self.jidx]
         r = (c.w_track * track + c.w_up * upright + c.w_alive
              + c.w_action_rate * ((self.actions - self.prev_actions) ** 2).sum(-1)
-             + c.w_torque * (tq ** 2).sum(-1))
+             + c.w_torque * (tq ** 2).sum(-1)
+             - c.w_term * self.reset_terminated.float())
         return r
 
     def _get_dones(self):
@@ -212,6 +225,17 @@ class PushEnv(DirectRLEnv):
     def _reset_idx(self, env_ids):
         if env_ids is None or len(env_ids) == self.num_envs:
             env_ids = self.robot._ALL_INDICES
+        if self.cfg.curriculum and not self.eval_mode and len(env_ids) < self.num_envs:
+            self._cur_n += len(env_ids)
+            self._cur_ok += int(self.reset_time_outs[env_ids].sum())
+            if self._cur_n >= self.cfg.cur_window:
+                fr = self._cur_ok / self._cur_n
+                if fr > self.cfg.cur_up:
+                    self.cur_max = min(self.cfg.push_max_impulse, self.cur_max + self.cfg.cur_step)
+                elif fr < self.cfg.cur_down:
+                    self.cur_max = max(self.cfg.cur_start, self.cur_max - self.cfg.cur_step)
+                print(f"CURRICULUM survival {fr:.2f} -> push max {self.cur_max:.0f} N s", flush=True)
+                self._cur_n = self._cur_ok = 0
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
         q = self.robot.data.default_joint_pos[env_ids].clone()

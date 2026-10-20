@@ -18,6 +18,7 @@ os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import h5py  # noqa: F401,E402  must load BEFORE Kit: the windowed Kit loads its own HDF5 DLL and h5py then fails (DLL load failed _errors)
 from isaaclab.app import AppLauncher  # noqa: E402
 
 p = argparse.ArgumentParser()
@@ -25,9 +26,10 @@ p.add_argument("--num_envs", type=int, default=256)
 p.add_argument("--iters", type=int, default=200)
 p.add_argument("--steps", type=int, default=24, help="rollout length per env per iteration")
 p.add_argument("--name", type=str, default="push")
-p.add_argument("--max_impulse", type=float, default=40.0, help="training pushes are U[0, this] N s")
+p.add_argument("--max_impulse", type=float, default=40.0, help="FINAL training push max, U[0, this] N s (curriculum starts at 15)")
 p.add_argument("--eval_envs", type=int, default=0, help="0: same as num_envs")
 p.add_argument("--resume", type=str, default="")
+p.add_argument("--eval_only", action="store_true", help="load --resume, measure single-push survival at 0.001/30 N s only, exit")
 p.add_argument("--skip_baseline", action="store_true")
 AppLauncher.add_app_launcher_args(p)
 p.add_argument("--show", action="store_true", help="open the Isaac window to watch the training (slower)")
@@ -56,7 +58,7 @@ M = 75.0
 
 agent = RslRlOnPolicyRunnerCfg(
     num_steps_per_env=args.steps, max_iterations=args.iters, save_interval=50, experiment_name="kine_push",
-    policy=RslRlPpoActorCriticCfg(init_noise_std=0.5, actor_obs_normalization=True, critic_obs_normalization=True,
+    policy=RslRlPpoActorCriticCfg(init_noise_std=0.3, actor_obs_normalization=True, critic_obs_normalization=True,
                                   actor_hidden_dims=[256, 128, 64], critic_hidden_dims=[256, 128, 64], activation="elu"),
     algorithm=RslRlPpoAlgorithmCfg(value_loss_coef=1.0, use_clipped_value_loss=True, clip_param=0.2, entropy_coef=0.002,
                                    num_learning_epochs=5, num_mini_batches=4, learning_rate=3e-4, schedule="adaptive",
@@ -73,6 +75,7 @@ def evaluate(policy, steps, impulse=None, once=False):
     once: a single push per episode (first at 0.5-1.5 s). Returns (mean episode length s, survival fraction)."""
     c = U.cfg
     saved = (c.fixed_impulse, c.push_interval_s)
+    U.eval_mode = True
     c.fixed_impulse = impulse if impulse is not None else -1.0
     c.push_interval_s = (1e6, 1e6) if once else saved[1]
     obs, _ = env.reset()
@@ -90,6 +93,7 @@ def evaluate(policy, steps, impulse=None, once=False):
         if bool(finished.all()):
             break
     c.fixed_impulse, c.push_interval_s = saved
+    U.eval_mode = False
     dt = U.cfg.sim.dt * U.cfg.decimation
     return float(done_at.mean() * dt), float(1.0 - fell.float().mean())
 
@@ -106,6 +110,11 @@ def full_eval(policy, tag):
     print("EVAL", json.dumps(out), flush=True)
     return out
 
+
+if args.eval_only:
+    pol = runner.get_inference_policy(device=U.device)
+    print("QUICK", {j: evaluate(pol, SINGLE_STEPS, impulse=float(j), once=True) for j in (0.001, 30)}, flush=True)
+    env.close(); app.close(); sys.exit(0)
 
 res = {"num_envs": args.num_envs, "iters": args.iters, "steps_per_iter": args.steps, "max_impulse": args.max_impulse}
 if not args.skip_baseline:
