@@ -13,6 +13,7 @@
 ##   2 FALSE    plants over < 10 % of the labelled swing frames
 ##   3 SLIDE    a planted sole (heel, ball) moves < 1 cm over its plant in the played scene
 ##   4 PLACED   the planted sole stands on the floor (heel or ball < 2.5 cm high) over its plant
+##   (a plant with "tf" is a HEEL PIVOT: the heel is held from t0, the ball from tf, the flat time; before tf the toes may be up)
 ##   5 DROP     the hips drop to hold the pins by < 3 cm at most (a visible sink would be a failure)
 ## Screenshot: env R14_SHOT (a png): foot position along the walk against time, before (no plants: the sole slides in stance) and after (locked).
 extends SceneTree
@@ -89,14 +90,19 @@ func _run() -> void:
 			var sd: String = String(p["foot"]).right(2)
 			var t := float(p["t0"])
 			var ref := []
+			var ball_set := false
 			while t <= float(p["t1"]) + 1e-6:
 				V.apply(B, t)
 				var s := sole(B, sd)
 				if ref.is_empty():
 					ref = [s[0], s[1]]
-				# the heel is held until th (heel-off), the ball all through
+				if p.has("tf") and t >= float(p["tf"]) and not ball_set:
+					ref[1] = s[1]   # a heel pivot (tf): the ball is held from the flat time on, the heel all through
+					ball_set = true
+				# the heel is held until th (heel-off), the ball from tf (heel pivot) on
 				var heel_d: float = (s[0] as Vector3).distance_to(ref[0]) if (not p.has("th") or t < float(p["th"]) - 0.05) else 0.0
-				worst_slide = maxf(worst_slide, maxf(heel_d, (s[1] as Vector3).distance_to(ref[1])))
+				var ball_d: float = (s[1] as Vector3).distance_to(ref[1]) if (not p.has("tf") or t >= float(p["tf"])) else 0.0
+				worst_slide = maxf(worst_slide, maxf(heel_d, ball_d))
 				worst_air = maxf(worst_air, minf((s[0] as Vector3).y, (s[1] as Vector3).y))
 				t += 1.0 / 60.0
 		var det := 0
@@ -120,7 +126,7 @@ func _run() -> void:
 		print("     x%.2f: %d plants; cover %d of %d stance = %.0f %%; false %d of %d swing = %.1f %%; slide %.2f cm; sole height %.1f cm; hip drop %.1f cm" % [scale, V.plants.size(), cov, stance, 100.0 * cov / maxf(stance, 1), fals, swing, 100.0 * fals / maxf(swing, 1), worst_slide * 100.0, worst_air * 100.0, worst_drop * 100.0])
 		kf(float(cov) / maxf(stance, 1) >= 0.70, "1 x%.2f plants cover %.0f %% of the labelled stance (bar 70 %%)" % [scale, 100.0 * cov / maxf(stance, 1)])
 		ok(float(fals) / maxf(swing, 1) < 0.10, "2 x%.2f false plants %.1f %% of the swing frames (bar < 10 %%)" % [scale, 100.0 * fals / maxf(swing, 1)])
-		kf(worst_slide < 0.01, "3 x%.2f planted sole slides %.2f cm (bar < 1 cm)" % [scale, worst_slide * 100.0])
+		ok(worst_slide < 0.01, "3 x%.2f planted sole slides %.2f cm (bar < 1 cm)" % [scale, worst_slide * 100.0])
 		kf(worst_air < 0.025, "4 x%.2f planted sole stands %.1f cm off the floor at most (bar < 2.5 cm)" % [scale, worst_air * 100.0])
 		ok(worst_drop < 0.03, "5 x%.2f the hips drop %.1f cm at most to hold the pins (bar < 3 cm)" % [scale, worst_drop * 100.0])
 		if scale == 1.0:
@@ -155,6 +161,9 @@ func picture(before: Dictionary, after: Dictionary, plants: Array, n: int) -> vo
 				var x1 := 40 + int(float(p["t1"]) * 30.0 / (n - 1) * (W - 60))
 				var c := Color(0.85, 0.92, 1.0) if p["foot"] == "foot_l" else Color(1.0, 0.92, 0.85)
 				img.fill_rect(Rect2i(x0, y0, maxi(x1 - x0, 1), h), c)
+				if p.has("tf"):   # the heel pivot: darker, the span the toes may be up while the heel is held
+					var xf := 40 + int(float(p["tf"]) * 30.0 / (n - 1) * (W - 60))
+					img.fill_rect(Rect2i(x0, y0, maxi(xf - x0, 1), h), Color(0.45, 0.65, 0.95) if p["foot"] == "foot_l" else Color(0.95, 0.6, 0.3))
 		for sd in ["_l", "_r"]:
 			var col := Color(0.1, 0.3, 0.9) if sd == "_l" else Color(0.9, 0.4, 0.05)
 			var prev := Vector2i(-1, -1)
@@ -172,5 +181,5 @@ func picture(before: Dictionary, after: Dictionary, plants: Array, n: int) -> vo
 	var path := OS.get_environment("R14_SHOT")
 	if path == "":
 		path = "C:/Users/Nick/.claude/jobs/9afc22db/tmp/r14.png"
-	print("     picture: top = no plants (the sole creeps through every stance), bottom = locked (flat in the shaded plants): %s" % path)
+	print("     picture: top = no plants (the sole creeps through every stance), bottom = locked (flat in the shaded plants; the darker start of a plant is its heel pivot): %s" % path)
 	img.save_png(path)

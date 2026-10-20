@@ -148,10 +148,7 @@ func _run() -> void:
 		var r := run_case("walk_bat", scale)
 		var tv: float = r["travel"]
 		var msg1 := "1 walk_bat x%.2f: travel %.0f %% of the real distance (bar 90-110 %%; was 56 / 63 %% before the lock read the tracker's feet)" % [scale, 100.0 * tv]
-		if scale == 1.0:
-			ok(absf(tv - 1.0) <= 0.10, msg1)
-		else:
-			kf(absf(tv - 1.0) <= 0.10, msg1 + ". Cause: noise (1.5 cm) in the heel / toe landmarks sets each stance's anchor from one landing frame; the x1.00 case clears, this seed lands 1 point short")
+		ok(absf(tv - 1.0) <= 0.10, msg1)   # R14b: the root's velocity is the low points' consensus (VideoIQ.contacts), x0.85 now clears too
 		kf(r["cov"] >= 0.70, "2 walk_bat x%.2f: plants cover %.0f %% of the true stance (bar 70 %%). Cause: VideoCleanup.reachable cuts a plant where the leg misses its pin by 1 mm (FootPlant.MISS_BAR); the locked root follows the TRACKER's foot, the pin holds the FITTED foot, and they differ by the fit's own error (the detected contacts cover the stance: F1 > 0.9 in videoiq_test); locking on the fitted foot keeps the pin reachable but the travel falls to 73 %%" % [scale, 100.0 * r["cov"]])
 	print("VROOT TEST %s%s" % ["PASS" if fails == 0 else "FAIL %d" % fails, (" (with %d KNOWN FAIL bars, printed above with their numbers)" % known.size()) if not known.is_empty() else ""])
 	quit(fails)

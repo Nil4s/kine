@@ -52,6 +52,8 @@ static func from_file(d: Variant) -> Array:
 				q["dend"] = float(p["dend"])
 			if p.has("th") and float(p["th"]) > t0 and float(p["th"]) < t1:
 				q["th"] = float(p["th"])
+				if p.has("tf") and float(p["tf"]) > t0 and float(p["tf"]) < t1:
+					q["tf"] = float(p["tf"])
 			out.append(q)
 	out.sort_custom(func(a, b): return float(a["t0"]) < float(b["t0"]))
 	return out
@@ -65,6 +67,8 @@ static func to_file(plants: Array) -> Array:
 			q["reach"] = true
 		if p.has("th"):
 			q["th"] = snappedf(float(p["th"]), 0.0001)
+		if p.has("tf"):
+			q["tf"] = snappedf(float(p["tf"]), 0.0001)
 		if p.has("dend"):
 			q["dend"] = snappedf(float(p["dend"]), 0.0001)
 		return q)
@@ -117,7 +121,7 @@ static func out_frames(S: Scene, B: Body, idx: int) -> int:
 	var t1 := float(p["t1"])
 	var nw := int(round(NEAR_S * fps))
 	S._plants_off = true
-	S.apply(B, float(p["t0"]))
+	S.apply(B, ref_time(p))
 	var held := [FootRoll.heel_point(B, sd), B.P["ball" + sd]]   # the sole where the plant holds it
 	var d := 0.0
 	var s_max := 0.0
@@ -141,6 +145,11 @@ static func out_frames(S: Scene, B: Body, idx: int) -> int:
 		n = clampi(int(ceil(SMOOTH_SLOPE * d / (0.5 * s_max))), BLEND, OUT_MAX)   # half the free step: the free sole's own motion adds to the ramp's
 	S._plant_out[idx] = {"sig": sig, "n": n}
 	return n
+
+
+## the time the plant's sole is read at: t0, or tf (HEEL PIVOT: the sole is flat from tf on, and that is the place it is held)
+static func ref_time(p: Dictionary) -> float:
+	return float(p.get("tf", p["t0"]))
 
 
 ## the plant's weight at t, 0..1: 1 over [t0, t1], smoothstep over BLEND frames before t0, over p.out (out_frames, BLEND
@@ -314,12 +323,43 @@ static func _heel_off(B: Body, plants: Array, refs_: Dictionary, t: float, fps: 
 	return out
 
 
+## HEEL PIVOT (R14b): a plant with "tf" starts at a heel strike, the heel on the floor and the toes still up, so no whole-sole hold
+## can pin it (the sole is not flat yet). The sole is read at tf, where it is flat (ref_time). Until tf only the HEEL is held: the
+## ankle target is the heel's place at tf plus the played pose's own ankle-from-heel offset, the foot's and the ball's turns are
+## the played ones (the foot falls flat about the heel), eased into the flat hold over BLEND frames about tf. The mirror of
+## _heel_off. B is the free pose at t here. Returns refs_ with those plants' P, G, Gb replaced (the rest as they were)
+static func _heel_pivot(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> Dictionary:
+	var out := refs_
+	for i in refs_:
+		var p: Dictionary = plants[i]
+		if not p.has("tf"):
+			continue
+		var f := float(maxi(fps, 1))
+		var m := clampf((t - float(p["tf"])) * f / float(BLEND) + 0.5, 0.0, 1.0)
+		m = 1.0 - m * m * (3.0 - 2.0 * m)   # 1 while the foot falls about its heel, 0 once it is flat
+		if m <= 0.0:
+			continue
+		if out == refs_:
+			out = refs_.duplicate()
+		var foot := String(p["foot"])
+		var ball := "ball" + foot.right(2)
+		var r: Dictionary = (refs_[i] as Dictionary).duplicate()
+		var heel_ref: Vector3 = (r["P"] as Vector3) - (r["G"] as Quaternion) * Vector3(0, (B.p0[foot] as Vector3).y, 0)
+		var tgt: Vector3 = heel_ref + ((B.P[foot] as Vector3) - FootRoll.heel_point(B, foot.right(2)))
+		r["P"] = (r["P"] as Vector3).lerp(tgt, m)
+		r["G"] = (r["G"] as Quaternion).slerp(B.G[foot], m)
+		r["Gb"] = (r["Gb"] as Quaternion).slerp(B.G[ball], m)
+		out[i] = r
+	return out
+
+
 ## THE PLANT PASS (Scene.apply, after the IK pass): each live plant's leg solved onto its reference, mixed with the
 ## played angles by its weight. Returns {index: {"foot", "w", "miss" (m: the ankle to its pin), "ball_turn" (deg: the
 ## ball's turn off its pin), "clamped": joints a limit changed, "inline"}}. B.offset is never written (a ground plant lowers it, _lower_for_reach)
 static func play(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int, props: Array = []) -> Dictionary:
 	var out := {}
 	refs_ = _heel_off(B, plants, refs_, t, fps)
+	refs_ = _heel_pivot(B, plants, refs_, t, fps)
 	_lower_for_reach(B, plants, refs_, t, fps)
 	for i in refs_:
 		var p: Dictionary = plants[i]

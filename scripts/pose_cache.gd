@@ -59,7 +59,7 @@ static func plant_ref(S: Scene, B: Body, i: int) -> Dictionary:
 
 static func _compute(S: Scene, B: Body, i: int, foot: String, ball: String, p: Dictionary) -> Dictionary:
 	S._plants_off = true
-	S.apply(B, float(p["t0"]))
+	S.apply(B, FootPlant.ref_time(p))
 	S._plants_off = false
 	# BP, BE: the ball's and the toe tip's points; h, rb, re: the ankle's, the ball's and the toe's rest heights (ROADMAP 93: the sole)
 	return {"P": B.P[foot], "G": B.G[foot], "Gb": B.G[ball], "pole": LimbIK.pole_from_pose(B, foot),

@@ -363,6 +363,7 @@ static var H_OFF := 0.08       # ... and stays touching until it is this far
 static var H_PIV := 0.08       # m: a heel / ball is a LOCKED pivot (VideoImport.solve) while this near its ground in a contact; the contact itself is wider
 static var V_ON := 0.25        # m/s, against the ground: slow enough to touch
 static var V_OFF := 0.30
+const CONSENSUS_V := 0.2  # m/s: two low points whose implied root velocities are this close agree on it (contacts)
 const BRIDGE := 2         # frames: contact runs this close are one
 const MIN_RUN := 3        # frames: a shorter run is a tap
 const HAND_H := 0.15      # m above the ground under the soles: a hand this low can be on it
@@ -424,7 +425,30 @@ static func contacts(frames: Array, fps: float) -> Dictionary:
 				lh = h
 				low = k
 		gm.append(lh)
-		root.append(-(vel[low][i] as Vector2))
+		# R14b: the root's velocity is the one the LOW points agree on. In a double support the lowest point alone can be the
+		# trailing foot's toe, still rolling off (hips-relative speed != the root's), and a 9-frame median of that put 0.4-1 m/s on
+		# the leading foot at its heel strike (it then read as moving and its stance started 6-8 frames late). Every point within
+		# H_OFF of its own ground votes with -its velocity; the vote with the most others within CONSENSUS_V of it wins (ties:
+		# the lower point). With one candidate or none this is the lowest point's, as it was
+		var cand := []
+		for k in ["hl", "tl", "hr", "tr"]:
+			var hk := float(ys[k][i]) - float(gf[k.right(1)][i])
+			if hk < H_OFF:
+				cand.append([k, hk, -(vel[k][i] as Vector2)])
+		var best: Vector2 = -(vel[low][i] as Vector2)
+		if cand.size() > 1:
+			var top := -1
+			var top_h := INF
+			for a in cand:
+				var votes := 0
+				for b in cand:
+					if ((a[2] as Vector2) - (b[2] as Vector2)).length() < CONSENSUS_V:
+						votes += 1
+				if votes > top or (votes == top and float(a[1]) < top_h):
+					top = votes
+					top_h = float(a[1])
+					best = a[2]
+		root.append(best)
 	# the root's velocity: a running median over 9 frames, so a swinging foot cannot vote itself still
 	var rmed := []
 	for i in n:
