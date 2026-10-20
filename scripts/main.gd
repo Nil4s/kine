@@ -175,7 +175,7 @@ const RIBBON_GROUPS := {
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
-	"EXPORT": [["FILES", ["Export...", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
+	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes"]]],
 }
@@ -1247,6 +1247,168 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
 
 
+## RENDER SHOTS TO VIDEO (ROADMAP round 2, R5; scripts/shot_render.gd): the camera sequencer's shots walked in order, each
+## frame through ITS shot's camera (the cut falls on a frame boundary), PNGs in exports/shots/<scene>_<stamp>/ and, when ffmpeg is
+## found, <scene>.mp4 beside them. A progress panel (percent, frame, shot) with a Cancel button; Esc cancels too: the app comes
+## back as it was, the frames made so far stay, no .mp4. The panels are hidden only for the frame's capture.
+## Returns {"dir", "frames", "mp4", "ffmpeg", "cancelled", "ranges", "want"}; {} when refused.
+signal shots_render_done(result: Dictionary)
+var _sr_busy := false
+var _sr_cancel := false
+var _sr_layer: CanvasLayer
+var _sr_label: Label
+var _sr_bar: ProgressBar
+
+
+func _sr_panel_make() -> void:
+	if _sr_layer != null:
+		return
+	_sr_layer = CanvasLayer.new()
+	_sr_layer.layer = 90
+	_sr_layer.name = "shots_render_progress"
+	add_child(_sr_layer)
+	var pc := PanelContainer.new()
+	pc.name = "panel"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.c("float")
+	sb.border_color = Tok.c("accent")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(12)
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	pc.offset_top = 70
+	pc.custom_minimum_size = Vector2(420, 0)
+	pc.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_sr_layer.add_child(pc)
+	var vb := VBoxContainer.new()
+	pc.add_child(vb)
+	_sr_label = Label.new()
+	_sr_label.name = "text"
+	_sr_label.add_theme_color_override("font_color", Tok.c("text"))
+	vb.add_child(_sr_label)
+	_sr_bar = ProgressBar.new()
+	_sr_bar.name = "bar"
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Tok.c("accent")
+	_sr_bar.add_theme_stylebox_override("fill", fill)
+	_sr_bar.custom_minimum_size = Vector2(0, 18)
+	vb.add_child(_sr_bar)
+	var cb := Button.new()
+	cb.name = "cancel"
+	cb.text = "Cancel render (Esc)"
+	cb.tooltip_text = "stops the render: the frames made so far stay in the folder, no .mp4 is made"
+	cb.pressed.connect(func(): _sr_cancel = true)
+	vb.add_child(cb)
+	_sr_layer.visible = false
+
+
+func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
+	if _sr_busy:
+		_say_plain("A shot render is already running: press Esc (or Cancel render) to stop it, then run Render shots to video again")
+		return {}
+	if _shot_shots().is_empty():
+		_say_plain("NOT NOW: this scene has no shots: run Shots: add at a time on the timeline to cut a shot (each shot gets its camera), then Render shots to video (mp4) again")
+		return {}
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a render needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
+		return {}
+	var fps: int = S.fps
+	var length: float = _ps().length()
+	var n := ShotRender.frame_count(length, fps)
+	var rng := ShotRender.ranges(_shot_shots(), length, fps)
+	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var gdir := ProjectSettings.globalize_path(dir)
+	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
+		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and run Render shots to video again" % dir)
+		return {}
+	_sr_busy = true
+	_sr_cancel = false
+	_sr_panel_make()
+	_sr_layer.visible = true
+	_sr_bar.value = 0.0
+	_sr_label.text = "Rendering shots: starting..."
+	var keep := B.state()
+	var keep_t := playhead
+	var keep_playing := playing
+	var keep_clean := clean
+	playing = false
+	clean = true   # the shot frame is the largest 16:9 in the CLEAN window: its rect is taken there, as the playblast does
+	_sides_apply()
+	await get_tree().process_frame
+	var shot := _shot_blast_begin()
+	clean = keep_clean
+	_sides_apply()
+	var done := 0
+	for r in rng:
+		for j in int(r["count"]):
+			if _sr_cancel:
+				break
+			var f: int = int(r["first"]) + j
+			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
+			_sr_bar.value = 100.0 * float(done) / float(n)
+			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f + 1, n])
+			await RenderingServer.frame_post_draw   # one drawn frame WITH the progress panel; a click on Cancel is read meanwhile
+			if _sr_cancel:
+				break
+			clean = true   # the capture frame: no panels, no handles (they are built by _refresh, so it runs AFTER clean is on)
+			_sides_apply()
+			ui_root.visible = false
+			_sr_layer.visible = false
+			playhead = float(f) / fps
+			_ps().apply(B, playhead)
+			_refresh()
+			_shot_blast_frame(shot)
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			_shot_blast_image(shot, get_viewport().get_texture().get_image()).save_png("%s/frame_%04d.png" % [gdir, f])
+			ui_root.visible = true
+			_sr_layer.visible = true
+			clean = keep_clean
+			_sides_apply()
+			_refresh()
+			done += 1
+		if _sr_cancel:
+			break
+	_shot_blast_end(shot)
+	ui_root.visible = true
+	clean = keep_clean
+	_sides_apply()
+	B.set_state(keep)
+	playhead = keep_t
+	playing = keep_playing
+	_refresh()
+	var cancelled := _sr_cancel
+	var ff := ""
+	var mp4 := ""
+	var how := ""
+	if cancelled:
+		how = "Cancelled: %d of %d frames were made and stay in that folder; no .mp4. Run Render shots to video again to make it all" % [done, n]
+	else:
+		_sr_label.text = "Encoding the .mp4..."
+		_sr_bar.value = 100.0
+		await get_tree().process_frame
+		ff = PlayblastExport.find_ffmpeg(ffmpeg_path)
+		if ff == "":
+			how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Render shots to video again, or set POSER_FFMPEG to ffmpeg.exe"
+		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), 0.0) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+			mp4 = "%s/%s.mp4" % [gdir, nm]
+			how = " and %s.mp4" % nm
+		else:
+			how = ". No .mp4: ffmpeg (%s) failed on the frames; the PNGs are fine, run ffmpeg on them yourself" % ff
+	_sr_layer.visible = false
+	_sr_busy = false
+	_sr_cancel = false
+	if cancelled:
+		_say_plain("shot render stopped. " + how)
+	else:
+		_say_plain("shots rendered: %d frames at %d fps (%d shots, %s) in %s%s" % [n, fps, rng.size(), Units.time(length, S.fps), dir, how])
+	var res := {"dir": gdir, "frames": done, "mp4": mp4, "ffmpeg": ff, "cancelled": cancelled, "ranges": rng, "want": n}
+	shots_render_done.emit(res)
+	return res
+
+
 ## REVIEW WITH FRAME COMMENTS (ROADMAP 29; scripts/review.gd): the playblast's frames (the same capture, no mp4, the frames
 ## kept in a temporary folder and removed after) -> ONE self-contained page, root/<scene>_<date>.html (never over an
 ## earlier one). Returns the page's path; "" when refused. Nothing leaves the machine.
@@ -1731,6 +1893,10 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	if _sr_busy and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:   # Esc stops a shot render
+		_sr_cancel = true
+		get_viewport().set_input_as_handled()
+		return
 	if hk != null and hk.take_input(ev):   # the hotkey editor: a key for the row being set, or Esc closes it
 		get_viewport().set_input_as_handled()
 		return
@@ -8348,7 +8514,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
+	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -8737,6 +8903,7 @@ func _ui() -> void:
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
+	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
@@ -11183,6 +11350,7 @@ func _commands() -> Array:
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
+	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
