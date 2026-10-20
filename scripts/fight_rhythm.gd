@@ -176,7 +176,7 @@ static func analyze(scenes: Array, names: Array, fps := 30) -> Dictionary:
 			if dt < need - 1e-6:
 				var amt := maxf(PAUSE_LO, minf(need - dt + 0.02, PAUSE_HI)) if need - dt + 0.02 <= PAUSE_HI else need - dt + 0.02
 				flags.append({"type": "rush", "t0": float(a2["t"]), "t1": float(b2["t"]), "who": w,
-					"text": "rush: %s strikes again %.2f s after the last, less than the %.2f s he needs to recover (1.5 x the %.2f s strike)" % [names[w], dt, need, need / TimingCoach.SETTLE_RATIO],
+					"text": "rush: %s strikes again %.2f s after the last, less than the %.2f s he needs to recover (1.5 times the %.2f s strike)" % [names[w], dt, need, need / TimingCoach.SETTLE_RATIO],
 					"fix": {"kind": "pause", "who": w, "card": int(b2["card"]), "amount": snappedf(amt, 0.01), "label": "Add a pause (%.2f s)" % amt}})
 	# DEAD AIR: any two consecutive actions of any kind
 	for k in range(1, ev.size()):

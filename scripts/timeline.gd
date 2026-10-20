@@ -780,8 +780,8 @@ func _draw_dk(font: Font, y0: float) -> void:
 		var x0 := x_of(float(b["t0"]))
 		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
 		var cls := String(b["cls"])
-		var col := Tok.c("fail") if cls == "jammed" else (Tok.c("warn") if cls == "out" else Tok.c("heading"))
-		draw_rect(Rect2(x0, y0, x1 - x0, 12.0), Color(col, 0.92))
+		var tk := "fail" if cls == "jammed" else ("warn" if cls == "out" else "heading")
+		draw_rect(Rect2(x0, y0, x1 - x0, 12.0), Color(Tok.c(tk), 0.92))
 		if cls != "in" and x1 - x0 > 40.0:
 			draw_string(font, Vector2(x0 + 3.0, y0 + 9.5), "JAMMED" if cls == "jammed" else "TOO FAR", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
@@ -792,9 +792,9 @@ func _draw_rd(font: Font, y0: float) -> void:
 	for b in rd:
 		var x0 := x_of(float(b["t0"]))
 		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
-		var col := Tok.c("fail") if String(b["cls"]) == "bad" else Tok.c("heading")
-		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(col, 0.92))
-		draw_string(font, Vector2(x1 + 3.0, y0 + oy + 9.5), String(b["txt"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, col)
+		var tk := "fail" if String(b["cls"]) == "bad" else "heading"
+		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(Tok.c(tk), 0.92))
+		draw_string(font, Vector2(x1 + 3.0, y0 + oy + 9.5), String(b["txt"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c(tk))
 
 
 ## SELL THE HIT (I21): a badge under the distance band for every strike: blue = SOLD, amber = NOT SOLD, red = UNSAFE (the safety flag)
@@ -804,8 +804,8 @@ func _draw_sh(font: Font, y0: float) -> void:
 		var x0 := x_of(float(b["t0"]))
 		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
 		var cls := String(b["cls"])
-		var col := Tok.c("fail") if cls == "unsafe" else (Tok.c("warn") if cls == "notsold" else Tok.c("heading"))
-		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(col, 0.92))
+		var tk := "fail" if cls == "unsafe" else ("warn" if cls == "notsold" else "heading")
+		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(Tok.c(tk), 0.92))
 		if x1 - x0 > 40.0:
 			draw_string(font, Vector2(x0 + 3.0, y0 + oy + 9.5), "UNSAFE" if cls == "unsafe" else ("NOT SOLD" if cls == "notsold" else "SOLD"), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
@@ -817,8 +817,8 @@ func _draw_bk(font: Font, y0: float) -> void:
 		var x0 := x_of(float(b["t0"]))
 		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
 		var cls := String(b["cls"])
-		var col := Tok.c("fail") if cls == "fail" else (Tok.c("warn") if cls == "warn" else Tok.c("heading"))
-		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(col, 0.92))
+		var tk := "fail" if cls == "fail" else ("warn" if cls == "warn" else "heading")
+		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(Tok.c(tk), 0.92))
 		if x1 - x0 > 40.0:
 			draw_string(font, Vector2(x0 + 3.0, y0 + oy + 9.5), String(b.get("txt", "FALL")), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
@@ -868,8 +868,8 @@ func _draw_sc(ly: float) -> void:
 			"whoosh":
 				var col: Color = Tok.c("mk_blue")
 				draw_line(Vector2(x - r - 2.0, cy), Vector2(x + r + 2.0, cy), col, 1.5 + 2.0 * s)
-				draw_line(Vector2(x - r - 2.0, cy - 2.0 - r * 0.4), Vector2(x, cy), Color(col, 0.7), 1.0)
-				draw_line(Vector2(x - r - 2.0, cy + 2.0 + r * 0.4), Vector2(x, cy), Color(col, 0.7), 1.0)
+				draw_line(Vector2(x - r - 2.0, cy - 2.0 - r * 0.4), Vector2(x, cy), Color(Tok.c("mk_blue"), 0.7), 1.0)
+				draw_line(Vector2(x - r - 2.0, cy + 2.0 + r * 0.4), Vector2(x, cy), Color(Tok.c("mk_blue"), 0.7), 1.0)
 			"step":
 				draw_line(Vector2(x, cy - r), Vector2(x, cy + r), Tok.c("mk_green"), 2.0)
 			"hit_weapon":

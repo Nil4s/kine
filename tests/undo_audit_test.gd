@@ -53,6 +53,8 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"walk_along_a_path...": "opens the path mode (and, from a second fighter, switches to the hero); the scene is made by Enter as one undo step (pathwalk_ui_test runs it and its Ctrl+Z / Ctrl+Y, pathfix swaps the scene object)",
 	"root_path_scale_length...": "opens the scale dialog; the edit is made by its OK through _rp_scale (the slider is not an edit until OK)",
 	"retime_scale_the_range_around_the_playhead...": "opens the retime dialog; the edit is made by its OK (retimerange_test runs RetimeRange.apply and its one undo step)",
+	"make_this_a_feint": "needs a picked STRIKE card of a fighter (no generic start has one); it opens the FEINT ghost and the edit is made by Accept as one undo step (i20_test runs it)",
+	"frame_it_my_way": "needs shots in the user's own scenes/ to learn from (the audit has none; without them the command only offers Auto camera); the edit is Accept's one undo step (i32_test runs it)",
 	"reduce_part_keys_tolerance_slider": "opens the tolerance slider; the edit is made when it is kept (key_reduce_test drags it and checks the one undo step)"}
 
 ## the start each command was first seen to change something from (read off the audit's own log): tried FIRST, so a

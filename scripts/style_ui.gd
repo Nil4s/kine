@@ -39,6 +39,7 @@ func ensure(force := false) -> Dictionary:
 		if not force:
 			fp = StylePrint.load_print(path)
 		if force or fp.is_empty():
+			var keep: Dictionary = m.B.state()   # compute poses the body at other times: put it back EXACTLY
 			var t0 := Time.get_ticks_usec()
 			var paths: Array = []
 			for d in dirs:
@@ -46,7 +47,7 @@ func ensure(force := false) -> Dictionary:
 			fp = StylePrint.compute(paths, m.B)
 			ms = float(Time.get_ticks_usec() - t0) / 1000.0
 			StylePrint.save(fp, path)
-			m._ps().apply(m.B, m.playhead)   # compute posed the body at other times
+			m.B.set_state(keep)
 	return fp
 
 
@@ -114,7 +115,7 @@ func _panel() -> void:
 	if fp.has("guard"):
 		var g: Dictionary = fp["guard"]
 		var hc := float(g["hand_cm"])
-		var gl: Label = m._label("guard hands %.0f cm %s the chin, stance %.2f x hip width  |  %d guard cards from %d clip%s" % [
+		var gl: Label = m._label("guard hands %.0f cm %s the chin, stance %.2f × hip width  |  %d guard cards from %d clip%s" % [
 			absf(hc), "above" if hc >= 0.0 else "below", float(g["stance"]), int(g["n"]), int(g["clips"]), "" if int(g["clips"]) == 1 else "s"], 13, "text:0.85", true)
 		gl.name = "style_guard"
 		gl.custom_minimum_size = Vector2(460, 0)
@@ -149,8 +150,9 @@ func use_style() -> void:
 	if m.S.cards.size() < 2:
 		m._say("Use my style needs a scene of two cards or more: press Enter to add the body as a card (two at least)")
 		return
+	var keep: Dictionary = m.B.state()   # the plan poses the body at other times: put it back EXACTLY
 	pl = StylePrint.plan(m.S, m.B, fp)
-	m._ps().apply(m.B, m.playhead)
+	m.B.set_state(keep)
 	_plan_panel()
 
 

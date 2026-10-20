@@ -190,7 +190,7 @@ static func analyze(S: Scene, B: Body) -> Dictionary:
 	out["flag"] = bool(out["fresh"]) or bool(out["high"])
 	var parts := []
 	if out["fresh"]:
-		parts.append("late strikes at %.0f %% of the early speed (%.1f vs %.1f m/s) while fatigue is %.2f" % [100.0 * l / e, l, e, fl])
+		parts.append("late strikes at %.0f %% of the early speed (%.1f m/s vs %.1f m/s) while fatigue %.2f" % [100.0 * l / e, l, e, fl])
 	if out["high"]:
 		parts.append("the guard has not dropped (%.1f cm) at fatigue %.2f" % [100.0 * float(out["guard_drop"]), fl])
 	out["msg"] = ("STILL FRESH: " + "; ".join(parts)) if out["flag"] else "%d strikes, late %.0f %% of early speed at fatigue %.2f: tires believably" % [ns, 100.0 * l / e, fl]
@@ -243,7 +243,7 @@ static func tire(S: Scene, B: Body, rep: Dictionary) -> Dictionary:
 	B.fk()
 	var msg := "nothing to do: he never gets past fatigue %.1f" % TIRE_FROM
 	if slowed + rec + guards > 0:
-		msg = "from fatigue %.1f on (worst %.2f): %d strikes slowed up to x%.2f, %d recovers lengthened, %d guards lowered up to %.1f cm; the clip grows %.2f s to %.2f s" % [
+		msg = "from fatigue %.1f on (worst fatigue %.2f): %d strikes slowed up to x%.2f, %d recovers lengthened, %d guards lowered up to %.1f cm; the clip grows %.2f s to %.2f s" % [
 			TIRE_FROM, worst, slowed, slow_max, rec, guards, drop_cm, C.length() - S.length(), C.length()]
 	return {"scene": C, "slowed": slowed, "recovers": rec, "guards": guards, "drop_cm": drop_cm, "msg": msg}
 

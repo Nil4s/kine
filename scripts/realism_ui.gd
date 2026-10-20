@@ -227,9 +227,9 @@ func _panel() -> void:
 				if lab != "":
 					var gn := gain_of(r)
 					if gn > 0.05:
-						b = m._button("%s   +%.1f" % [lab, gn], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gn)
+						b = m._button("%s   +%.1f points" % [lab, gn], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gn)
 					elif gn > -90.0:
-						why_not = "   its own fix would %s the score (%+.1f): the judges disagree here, so it is not offered" % ["lower" if gn < -0.05 else "not change", gn]
+						why_not = "   its own fix would %s the score (%+.1f points): the judges disagree here, so it is not offered" % ["lower" if gn < -0.05 else "not change", gn]
 			"phys":
 				b = m._button("Accept span (Make it physical)", fix.bind(r), "replace the cards in that red span with the physical version; one undo step")
 		if b != null:

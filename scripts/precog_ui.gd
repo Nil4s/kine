@@ -19,7 +19,7 @@ func _init(main: Node) -> void:
 
 
 func commands(add: Callable) -> void:
-	add.call("Precog check", "", show, "precog reaction time late block parry slip human 0.2 wind-up readable fighters choreography",
+	add.call("Precog check", "", show, "precog reaction time late block parry slip human 0.2 s wind-up readable fighters choreography",
 		false, "with two fighters: for each answered strike, when it becomes readable and when the defender starts to move; flags a reaction faster than a person can (PRECOG) or one that lands after the hit (LATE), each with a one-click retime; preview, then accept = one undo step")
 
 
@@ -90,7 +90,7 @@ func _panel() -> void:
 		var it: Dictionary = items[k]
 		var st := String(it["status"])
 		var row := HBoxContainer.new()
-		var lb: Label = m._label("%s  readable %.2f  starts %.2f  arrives %.2f  hit %.2f  -  %s" % [st.to_upper(), it["readable"], it["onset"], it["arrival"], it["contact"], it["text"]], 13,
+		var lb: Label = m._label("%s  readable %.2f s  starts %.2f s  arrives %.2f s  hit %.2f s  -  %s" % [st.to_upper(), it["readable"], it["onset"], it["arrival"], it["contact"], it["text"]], 13,
 			"text:0.8" if st == "ok" else ("warn" if st == "late" else "fail"), true)
 		lb.name = "pc_row_%d" % k
 		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL

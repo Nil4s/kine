@@ -137,7 +137,7 @@ func _panel() -> void:
 	kb.name = "sc_keep"
 	row.add_child(kb)
 	L.add_child(row)
-	var exp: Label = m._label("A whoosh marks each speed peak of the weapon tip (8 m/s and up; for an unarmed fighter, hands over 5 and feet over 6 m/s), a hit each contact, a step each foot plant. The size of a mark is its strength. The cues are not saved with the scene until you press Keep cues.", 12, "text:0.6", true)
+	var exp: Label = m._label("A whoosh marks each speed peak of the weapon tip (8 m/s and up; for an unarmed fighter, hands over 5 m/s and feet over 6 m/s), a hit each contact, a step each foot plant. The size of a mark is its strength. The cues are not saved with the scene until you press Keep cues.", 12, "text:0.6", true)
 	exp.custom_minimum_size = Vector2(380, 0)
 	L.add_child(exp)
 	for i in mini(cues.size(), 14):
