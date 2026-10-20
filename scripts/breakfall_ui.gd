@@ -65,8 +65,8 @@ func show() -> void:
 
 ## the four verdict lines of a fall: [[class, text]]
 static func lines(f: Dictionary) -> Array:
-	var a := "head clear %.0f cm over the landing, chin %.0f deg at the impact" % [float(f["head_clear"]) * 100.0, float(f["chin"])]
-	a += "  (head touches the floor)" if String(f["a"]) == "fail" else ("  (tuck it: %.0f deg wanted)" % Breakfall.TUCK_MIN if String(f["a"]) == "warn" else "")
+	var a := "%s fall: %s" % [String(f["dir"]), String(f["head_how"])]
+	a += "  (head touches the floor)" if String(f["a"]) == "fail" else ("  (%s)" % ("tuck the chin: %.0f deg wanted" % Breakfall.TUCK_MIN if String(f["dir"]) == "backward" else "turn the head aside") if String(f["a"]) == "warn" else "")
 	var b := "no hand or forearm lands first"
 	if String(f["side"]) != "":
 		b = "%s lands first, elbow %.0f deg" % ["hand" if String(f["part"]).begins_with("hand") else "forearm", float(f["elbow"])]
@@ -74,7 +74,7 @@ static func lines(f: Dictionary) -> Array:
 	var c := "impact on " + (", ".join(f["regions"]) if not (f["regions"] as Array).is_empty() else "nothing else")
 	c += "  (%d of arm / back / hip side)" % int(f["good"])
 	var d := "first part (%s) lands at %.1f m/s" % [String(f["part"]), float(f["speed"])]
-	return [[f["a"], "HEAD AND CHIN  " + a], [f["b"], "ARM  " + b], [f["c"], "SPREAD  " + c], [f["d"], "SPEED  " + d]]
+	return [[f["a"], "HEAD  " + a], [f["b"], "ARM  " + b], [f["c"], "SPREAD  " + c], [f["d"], "SPEED  " + d]]
 
 
 func _panel() -> void:
@@ -109,7 +109,7 @@ func _panel() -> void:
 			L.add_child(lb)
 			li += 1
 		var row := HBoxContainer.new()
-		var b1: Button = m._button("Tuck the chin", select.bind(k, "tuck"), "flex the neck and head to %.0f deg (inside their stops) in the landing cards" % (Breakfall.CHIN_NECK + Breakfall.CHIN_HEAD))
+		var b1: Button = m._button("Protect the head", select.bind(k, "tuck"), "by the direction of the fall: forward = turn the head aside and lift it a little, backward = tuck the chin (%.0f deg), side = turn it away from the floor" % (Breakfall.CHIN_NECK + Breakfall.CHIN_HEAD))
 		b1.name = "bk_tuck_%d" % k
 		var b2: Button = m._button("Bend the arm into a slap", select.bind(k, "slap"), "the catching arm: elbow bent, forearm flat, palm down, %.0f deg off the body" % Breakfall.SLAP_DEG)
 		b2.name = "bk_slap_%d" % k
@@ -167,7 +167,7 @@ func _close() -> void:
 
 func preview() -> void:
 	if fx.is_empty():
-		m._say("nothing to preview: press 'Tuck the chin', 'Bend the arm into a slap' or 'Roll the trunk' under a fall first")
+		m._say("nothing to preview: press 'Protect the head', 'Bend the arm into a slap' or 'Roll the trunk' under a fall first")
 		return
 	var f: Dictionary = rep["falls"][fk]
 	halt()
@@ -194,7 +194,7 @@ func tick(dt: float) -> void:
 
 func accept() -> void:
 	if fx.is_empty():
-		m._say("nothing to accept: press 'Tuck the chin', 'Bend the arm into a slap' or 'Roll the trunk' under a fall first")
+		m._say("nothing to accept: press 'Protect the head', 'Bend the arm into a slap' or 'Roll the trunk' under a fall first")
 		return
 	halt()
 	var f := fx

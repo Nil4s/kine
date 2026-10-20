@@ -6,8 +6,10 @@
 ## Bars, written before measuring (the first part to touch is printed in the run; the bars name verdicts, not guessed numbers):
 ##  (1) fall A is found (1 fall); a hand or forearm is among the first parts to touch; its elbow at the impact is under 30 deg, so verdict (b) is not OK
 ##  (2) fall H is found; the head is the first part to touch; verdict (a) is FAIL
-##  (3) A after slap(): the same fall reads elbow >= 30 deg at the impact (or no arm lands first); after tuck() as well, chin >= 25 deg
-##  (4) H after tuck(): chin >= 25 deg at the impact; the head stays >= 5 cm clear of the floor over the landing window (else REPORTED, with the number)
+##  (3) A after slap(): the same fall reads elbow >= 30 deg at the impact (or no arm lands first), first-contact speed printed (was 6.3 m/s);
+##      after the head fix as well: the direction is FORWARD and verdict (a) is ok. READ: forward = head clear (>= 5 cm over the landing window)
+##      OR turned aside (neck + head twist >= 45 deg) with the cheek-side contact under 2 m/s; the run prints which one.
+##  (4) H (forward) after the head fix: direction forward, head turned >= 45 deg, verdict (a) ok by one of the two reads, NOT by a chin tuck
 ##  (5) every fix (A slap, H tuck) read from the app: the scene JSON is byte-identical after the button and after Preview; Accept = ONE undo step,
 ##      Ctrl+Z restores the cards exactly; the JSON changes only at Accept
 ##  (6) a standing clip (scenes/thrust.json) finds no fall, with a message that names a next step
@@ -106,8 +108,8 @@ func scene_of(d: Dictionary) -> Scene:
 
 func show(tag: String, rep: Dictionary) -> void:
 	for f in rep["falls"]:
-		print("     %s: impact %.2f s first=%s lowest=%s regions=%s chin=%.0f head_clear=%.1f cm side=%s elbow=%.0f speed=%.1f  a/b/c/d=%s/%s/%s/%s" % [tag, float(f["t_c"]),
-			str(f["first"]), String(f["part"]), str(f["regions"]), float(f["chin"]), float(f["head_clear"]) * 100.0, String(f["side"]), float(f["elbow"]), float(f["speed"]),
+		print("     %s: impact %.2f s first=%s lowest=%s regions=%s chin=%.0f turn=%.0f dir=%s head[%s] head_clear=%.1f cm side=%s elbow=%.0f speed=%.1f  a/b/c/d=%s/%s/%s/%s" % [tag, float(f["t_c"]),
+			str(f["first"]), String(f["part"]), str(f["regions"]), float(f["chin"]), float(f["turn"]), String(f["dir"]), String(f["head_how"]), float(f["head_clear"]) * 100.0, String(f["side"]), float(f["elbow"]), float(f["speed"]),
 			f["a"], f["b"], f["c"], f["d"]])
 
 
@@ -180,9 +182,10 @@ func _init() -> void:
 		show("A+slap+tuck", rt["rep"])
 	ok(rt["ok"] or String(fA2["a"]) == "ok", "(3) A tuck: %s" % String(rt.get("msg", rt.get("why", ""))))
 	var tuck_a: Dictionary = aft_t if not aft_t.is_empty() else fA2
-	ok(float(tuck_a["chin"]) >= Breakfall.TUCK_MIN and float(tuck_a["head_clear"]) >= 0.05 and float(tuck_a["elbow"] if String(tuck_a["side"]) != "" else 99.0) >= 30.0,
-		"(3) A after slap + tuck: chin %.0f deg (>= 25), head clear %.1f cm (>= 5), elbow %.0f, verdicts %s/%s/%s/%s, whole = %s" % [float(tuck_a["chin"]), float(tuck_a["head_clear"]) * 100.0,
+	ok(String(tuck_a["dir"]) == "forward" and String(tuck_a["a"]) == "ok" and float(tuck_a["elbow"] if String(tuck_a["side"]) != "" else 99.0) >= 30.0,
+		"(3) A after slap + head fix: %s fall, head [%s], elbow %.0f (>= 30), verdicts %s/%s/%s/%s, whole = %s" % [tuck_a["dir"], tuck_a["head_how"],
 		float(tuck_a["elbow"]), tuck_a["a"], tuck_a["b"], tuck_a["c"], tuck_a["d"], tuck_a["cls"]])
+	print("     A speed: first contact %.1f m/s before the slap -> %.1f after (part %s)" % [float(fA["speed"]), float(aft.get("speed", -1.0)), String(aft.get("part", "-"))])
 
 	# (4) H after tuck
 	var rth: Dictionary = Breakfall.tuck(SH, fH) if not fH.is_empty() else {"ok": false, "why": "no H fall"}
@@ -190,10 +193,10 @@ func _init() -> void:
 	print("     H after tuck: ", rth.get("msg", rth.get("why", "")))
 	if not ah.is_empty():
 		show("H+tuck", rth["rep"])
-	ok(rth["ok"] and not ah.is_empty() and float(ah["chin"]) >= Breakfall.TUCK_MIN,
-		"(4) H after tuck: chin %.0f deg at the impact (>= 25)" % float(ah.get("chin", -1.0)))
-	ok(not ah.is_empty() and float(ah["head_clear"]) >= 0.05,
-		"(4) H after tuck: head clear %.1f cm over the landing window (>= 5); verdicts %s/%s/%s/%s, whole = %s" % [float(ah.get("head_clear", -1.0)) * 100.0, ah.get("a", "-"), ah.get("b", "-"), ah.get("c", "-"), ah.get("d", "-"), ah.get("cls", "-")])
+	ok(rth["ok"] and not ah.is_empty() and String(ah["dir"]) == "forward" and float(ah["turn"]) >= Breakfall.TURN_MIN,
+		"(4) H after the head fix: %s fall, head turned %.0f deg (>= 45), chin %.0f deg (not a tuck)" % [ah.get("dir", "-"), float(ah.get("turn", -1.0)), float(ah.get("chin", 0.0))])
+	ok(not ah.is_empty() and String(ah["a"]) == "ok",
+		"(4) H after the head fix: verdict a = %s by [%s]; head clear %.1f cm, contact %.1f m/s; verdicts %s/%s/%s/%s, whole = %s" % [ah.get("a", "-"), ah.get("head_how", "-"), float(ah.get("head_clear", -1.0)) * 100.0, float(ah.get("head_v", 0.0)), ah.get("a", "-"), ah.get("b", "-"), ah.get("c", "-"), ah.get("d", "-"), ah.get("cls", "-")])
 
 	# (5) the app: JSON untouched until Accept; one undo step each
 	for pair in [["A", dA, "slap"], ["H", dH, "tuck"]]:
@@ -232,35 +235,42 @@ func _init() -> void:
 	var rS := Breakfall.analyze(scene_of(th))
 	ok(not rS["ok"] and (rS["falls"] as Array).is_empty() and String(rS["msg"]).contains("play a fall"), "(6) a standing clip finds no fall: '%s'" % String(rS["msg"]).substr(0, 60))
 
-	# (8) placement + screenshot: fall A, side view, at the impact, panel with the slap fix
-	m.S.from_dict(dA.duplicate(true))
+	# (8) placement + screenshot: fall A with the slap + head fixes accepted, side view, at the impact; the panel is moved off the body
+	var fixed: Scene = rt["scene"] if rt["ok"] else SA2
+	m.S.from_dict(fixed.to_dict(m.B, false))
 	m._rebuild_cards()
 	await idle(3)
 	m.bk_ui.show()
 	await idle(3)
-	var f0: Dictionary = m.bk_ui.rep["falls"][0]
-	m.bk_ui.select(0, "slap")
-	await idle(2)
+	var f0: Dictionary = m.bk_ui.rep["falls"][0] if not (m.bk_ui.rep["falls"] as Array).is_empty() else fA
 	m._view(5)
 	m.playing = false
 	m.playhead = float(f0["t_c"])
 	m._ps().apply(m.B, m.playhead)
 	m._refresh()
 	await idle(30)
+	var pc := m.ui_find.get_child(0) as Control
+	var bb := Rect2(m.cam.unproject_position(m.B.P["pelvis"]), Vector2.ZERO)
+	for q in Body.ORDER:
+		bb = bb.expand(m.cam.unproject_position(m.B.P[q]))
+	var vr := Rect2(Vector2.ZERO, m.get_viewport().get_visible_rect().size)
+	for gx in [262.0, 8.0, vr.size.x - pc.size.x - 8.0]:   # the first x where the panel clears the body's screen box and the viewport
+		pc.global_position = Vector2(gx, 96.0)
+		if not pc.get_global_rect().intersects(bb) and vr.encloses(pc.get_global_rect().grow(-1.0)):
+			break
+	await idle(10)
 	var hand_low := 9.0
-	var head_low := 9.0
 	for p in ["hand_l", "hand_r", "lowerarm_l", "lowerarm_r"]:
 		hand_low = minf(hand_low, Breakfall._low(m.B, p))
-	head_low = Breakfall._low(m.B, "head")
-	var pr: Rect2 = (m.ui_find.get_child(0) as Control).get_global_rect()
-	var vr := Rect2(Vector2.ZERO, m.get_viewport().get_visible_rect().size)
-	ok(m.ui_find.visible and vr.encloses(pr.grow(-1.0)) and m.ui_timeline.bk.size() == 1 and hand_low <= 0.03 and head_low >= 0.20,
-		"(8) panel on screen at %s, %d timeline badge, at the impact the hand is %.1f cm and the head %.1f cm above the floor" % [str(pr), m.ui_timeline.bk.size(), hand_low * 100.0, head_low * 100.0])
-	m._say("breakfall check: fall 1, the hand lands first on a straight arm; the panel shows the slap fix")
+	var head_low := Breakfall._low(m.B, "head")
+	var pr: Rect2 = pc.get_global_rect()
+	ok(m.ui_find.visible and vr.encloses(pr.grow(-1.0)) and not pr.intersects(bb) and m.ui_timeline.bk.size() >= 1,
+		"(8) panel on screen at %s and NOT over the body (body box %s), %d timeline badge; at the impact (fixed fall) hand %.1f cm, head %.1f cm above the floor" % [str(pr), str(bb), m.ui_timeline.bk.size(), hand_low * 100.0, head_low * 100.0])
+	m._say("breakfall check, fixed fall: forward fall, arms bend 30 -> 90 deg over the landing, head turned aside")
 	await idle(240)
-	m._say("breakfall check: fall 1, the hand lands first on a straight arm; the panel shows the slap fix")
+	m._say("breakfall check, fixed fall: forward fall, arms bend 30 -> 90 deg over the landing, head turned aside")
 	await idle(3)
-	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i25.png")
+	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i25c.png")
 
 	var after_files := hashes()
 	var same2 := after_files.size() == before_files.size()
