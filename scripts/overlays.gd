@@ -20,6 +20,7 @@ const FIXED := Color(0.15, 0.65, 1.0, 0.6)   # the fix preview ghost: what a Fix
 const PAST_FAR := Color(1.0, 0.25, 0.2, 0.13)
 const FUTURE_FAR := Color(0.2, 0.85, 1.0, 0.13)
 ## COMPARE WITH (ROADMAP 28): the older version laid over the open scene; magenta, so it is never mistaken for the onion
+const TAKE := Color(1.0, 0.62, 0.15, 0.40)   # I14: the real take, laid over the clip (orange, grown like the version ghost so it shows on the body)
 const VERSION_GROW := 0.004   # m: the version ghost is inflated along its normals by this (the body is not moved)
 const VERSION := Color(0.85, 0.3, 0.95, 0.35)   # COMPARE WITH / Show both: translucent, depth write off, grown 4 mm (VERSION_GROW) so it never z-fights the body
 ## ghost slots: [past near, future near, fix preview, past far, future far, version]; onion's [side][distance] -> slot
@@ -90,13 +91,13 @@ func setup() -> void:
 	_space_mesh = MeshInstance3D.new()
 	_space_mesh.mesh = ImmediateMesh.new()
 	add_child(_space_mesh)
-	for col in [BEFORE, AFTER, FIXED, PAST_FAR, FUTURE_FAR, VERSION]:
+	for col in [BEFORE, AFTER, FIXED, PAST_FAR, FUTURE_FAR, VERSION, TAKE]:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.cull_mode = BaseMaterial3D.CULL_BACK
-		if col == VERSION:   # the diff ghost sits on the body's own surfaces (same pose): no depth write, grown outward so it never fights the skin
+		if col == VERSION or col == TAKE:   # the diff ghost sits on the body's own surfaces (same pose): no depth write, grown outward so it never fights the skin
 			m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 			m.grow = true
 			m.grow_amount = VERSION_GROW
@@ -569,6 +570,17 @@ func sugg_spot(i: int) -> Vector3:
 ## in GB (the sampler), never in the edited body.
 func version_ghost(V: Scene, t: float) -> void:
 	var g: Array = _ghosts[5]
+	g[0].visible = false
+	g[3].visible = false
+	if V == null or V.cards.is_empty():
+		return
+	V.apply(GB, t)
+	_pose(g, GB)
+
+
+## I14 REHEARSE: the take (a Scene) at ITS time t (the clip's playhead run through the DTW map), orange. null = hide it
+func take_ghost(V: Scene, t: float) -> void:
+	var g: Array = _ghosts[6]
 	g[0].visible = false
 	g[3].visible = false
 	if V == null or V.cards.is_empty():
