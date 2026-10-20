@@ -349,6 +349,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I30. Weapon weight: from the prop's mass and length (inertia about the grip), compute the wrist/shoulder torque
   each swing needs vs human strength, and flag swings that feel weightless (no wind-up, no follow-through, instant
   stops) with fixes that scale anticipation and overshoot to the weapon's inertia.
+  Merged (i30 PASS): wrist/shoulder torque vs heuristic max (12 / 75 N m), over-max and weightless flags, fixes (time scale from 1/T^2, anticipation, overshoot, eased stop); 0.45 s per analysis. Open: the panel's shoulder bar reads 178 N m while its text line reads 160 for the same swing - two numbers for one effect disagree; find which is right.
 - [x] I31. Precog check: every defender reaction (block, slip, step-back, flinch) must start at least a human
   reaction time after the attacker's move becomes readable; flag "precog" answers (too early: reads as rehearsed) and
   "late" answers (the hit should have landed), with one-click retimes.
