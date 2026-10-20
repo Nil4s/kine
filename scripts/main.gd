@@ -1923,6 +1923,9 @@ func _input(ev: InputEvent) -> void:
 		_sr_cancel = true
 		get_viewport().set_input_as_handled()
 		return
+	if ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE and _card_drag_cancel():
+		get_viewport().set_input_as_handled()
+		return
 	if hk != null and hk.take_input(ev):   # the hotkey editor: a key for the row being set, or Esc closes it
 		get_viewport().set_input_as_handled()
 		return
@@ -10283,7 +10286,7 @@ func _rebuild_cards() -> void:
 		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
 		# the picture IS the pick button: the pose on the body, the number and name under it
-		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick.bind(i), "")
+		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
 		nb.tooltip_text = "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
@@ -10298,7 +10301,7 @@ func _rebuild_cards() -> void:
 		nb.expand_icon = true
 		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
 		_card_flat(nb)
-		nb.set_drag_forwarding(_card_drag.bind(i), _card_can_drop.bind(i), _card_drop.bind(i))
+		nb.set_drag_forwarding(Callable(), _card_can_drop.bind(i), _card_drop.bind(i))   # R18: the drag itself is _card_drag_input (6 px, a gold line)
 		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
 		var tex := thumbs.pose_picture(c["pose"])
 		if tex != null:
@@ -13130,6 +13133,141 @@ func _tween_add() -> void:
 	_say("added a tween card (%d): slide 'tween' to favour either side, then Update" % (sel_card + 1))
 
 
+## R18: DRAG A CARD TO REORDER. Press on a card's picture and move 6 px: the picture follows the mouse, a gold line shows the
+## slot it would take, release drops it (one undo step; the card keeps its own move and hold), Esc cancels. Under 6 px
+## it stays a click (pick) and a right-click still opens the menu.
+const CARD_DRAG_PX := 6.0
+const CARD_DRAG_LIFT := Vector2(0, -34)
+var _cd_i := -1   # the card pressed (-1: none)
+var _cd_from := Vector2.ZERO
+var _cd_on := false
+var _cd_eat := false   # the release that ends a drag must not also pick the card
+var _cd_ghost: TextureRect
+var _cd_line: ColorRect
+var _cd_slot := -1
+
+
+func _card_pick_click(i: int) -> void:
+	if _cd_eat:
+		_cd_eat = false
+		return
+	_card_pick(i)
+
+
+## a press / motion / release on a card's picture; true when the event was part of a drag
+func _card_drag_input(ev: InputEvent, i: int, nb: Button) -> bool:
+	var mb := ev as InputEventMouseButton
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed:
+			_cd_eat = false
+			_cd_i = i
+			_cd_from = mb.global_position
+			_cd_on = false
+			return false
+		if _cd_i < 0:
+			return false
+		var was_on := _cd_on
+		var slot := _cd_slot
+		var from := _cd_i
+		_card_drag_end()
+		if was_on:
+			_cd_eat = true
+			if slot >= 0:
+				var j := slot - 1 if slot > from else slot
+				if j != from:
+					_step_hint = "Move card"
+					_card_reorder(from, j)
+				else:
+					_say("card %d stays where it is" % (from + 1))
+			else:
+				_say("drag cancelled: the cards are as they were")
+		return was_on
+	var mm := ev as InputEventMouseMotion
+	if mm != null and _cd_i >= 0:
+		if not (mm.button_mask & MOUSE_BUTTON_MASK_LEFT):
+			_card_drag_end()
+			return false
+		if not _cd_on:
+			if mm.global_position.distance_to(_cd_from) < CARD_DRAG_PX:
+				return false
+			_cd_on = true
+			_cd_ghost = TextureRect.new()
+			_cd_ghost.name = "card_drag_ghost"
+			_cd_ghost.texture = nb.icon
+			_cd_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			_cd_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			_cd_ghost.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H)
+			_cd_ghost.size = Vector2(CARD_W - 8, CARD_PIC_H)
+			_cd_ghost.modulate = Color(1, 1, 1, 0.8)
+			_cd_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_cd_ghost.top_level = true
+			_cd_ghost.z_index = 90
+			_cd_line = ColorRect.new()
+			_cd_line.name = "card_drag_line"
+			_cd_line.color = Tok.c("card_play")   # the gold of the playhead frame
+			_cd_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_cd_line.top_level = true
+			_cd_line.z_index = 90
+			ui_root.add_child(_cd_ghost)
+			ui_root.add_child(_cd_line)
+		_card_drag_move(mm.global_position)
+		nb.accept_event()
+		return true
+	return false
+
+
+## the ghost under the mouse and the gold line at the slot (0..n: the gap before card s)
+func _card_drag_move(at: Vector2) -> void:
+	if _cd_ghost == null:
+		return
+	_cd_ghost.global_position = at - _cd_ghost.size * 0.5 + CARD_DRAG_LIFT   # lifted so it does not hide the slot under the mouse
+	var slot := 0
+	var line_x := 0.0
+	var top := 0.0
+	var h := 0.0
+	var kids: Array = []
+	for k in ui_cards.get_children():
+		if (k as Control).name.begins_with("card_"):
+			kids.append(k)
+	for k in kids.size():
+		var r: Rect2 = (kids[k] as Control).get_global_rect()
+		if at.x > r.get_center().x:
+			slot = k + 1
+		top = r.position.y
+		h = r.size.y
+	if kids.is_empty():
+		return
+	if slot < kids.size():
+		line_x = (kids[slot] as Control).get_global_rect().position.x - 2.0
+	else:
+		line_x = (kids[-1] as Control).get_global_rect().end.x + 1.0
+	_cd_slot = slot
+	_cd_line.global_position = Vector2(line_x, top)
+	_cd_line.size = Vector2(3, h)
+
+
+func _card_drag_end() -> void:
+	for n in [_cd_ghost, _cd_line]:
+		if n != null and is_instance_valid(n):
+			(n as Node).get_parent().remove_child(n)
+			(n as Node).queue_free()
+	_cd_ghost = null
+	_cd_line = null
+	_cd_i = -1
+	_cd_on = false
+	_cd_slot = -1
+
+
+## Esc while a card is being dragged: nothing moves; the release that follows picks nothing
+func _card_drag_cancel() -> bool:
+	if not _cd_on:
+		return false
+	_card_drag_end()
+	_cd_eat = true
+	_say("drag cancelled: the cards are as they were")
+	return true
+
+
 ## a card's name (round 13: the agent test found no way to name a card at all). One undo step
 ## a double-click on a card's title: a name box in its place (Enter keeps the name, Esc or clicking away keeps the old)
 func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
@@ -13145,6 +13283,8 @@ func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
 		nb.accept_event()
 		_card_menu(i, mb.global_position)
+		return
+	if _card_drag_input(ev, i, nb):
 		return
 	if not (ev is InputEventMouseButton and ev.double_click and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT):
 		return
