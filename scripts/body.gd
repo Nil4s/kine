@@ -146,6 +146,7 @@ var E := {}            # joint -> Vector3 (end point)
 ## scene's "body" dict (stature, segment scales, sex, mass). seg_s: joint -> the uniform scale its rest points got.
 var body := {}
 var seg_s := {}
+var squash := {}   # I13 (impact_frames.gd): {joint: {"s", "dir"}} the squash playing now, set by Scene.apply; drawn by Overlays.pose_skeleton
 var _files := []
 
 
