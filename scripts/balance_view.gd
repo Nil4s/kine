@@ -19,11 +19,15 @@ const GREY := Color(0.6, 0.6, 0.6)
 const FILL_A := 0.3     # the support area's fill opacity
 const DISC_R := 0.025   # m: the COM's floor disc
 const DISC_N := 16
+const RING_R := 0.05    # m: the ring at the point a COM drag asks for (I24)
 
 var on := false
 ## what was drawn last, for the status line and tests: {"com": Vector3, "foot": Vector2 (COM on the floor), "poly":
 ## PackedVector2Array, "margin": float, "state": "inside" / "edge" / "outside" / "air"}
 var last := {}
+## I24 DRAG THE BALANCE: the point the COM is being dragged to while a drag runs ({} = none): {"xz": Vector2, "state": String}.
+## A ring in the state's colour is drawn there (amber near the edge, red outside) and the solve's own marker stays where the body is
+var req := {}
 var verts := 0   # vertices in the last drawing (tests)
 var _mesh: MeshInstance3D
 var _im: ImmediateMesh
@@ -104,6 +108,17 @@ func show_body(B: Body) -> void:
 	_im.surface_set_color(col)
 	_im.surface_add_vertex(f)
 	_im.surface_end()
+	if not req.is_empty():
+		var rq: Vector2 = req["xz"]
+		var rc := colour(String(req["state"]))
+		_im.surface_begin(Mesh.PRIMITIVE_LINES)
+		for i in DISC_N * 2:
+			var a0 := TAU * i / (DISC_N * 2)
+			var a1 := TAU * (i + 1) / (DISC_N * 2)
+			for a in [a0, a1]:
+				_im.surface_set_color(rc)
+				_im.surface_add_vertex(Vector3(rq.x + cos(a) * RING_R, LIFT * 3.0, rq.y + sin(a) * RING_R))
+		_im.surface_end()
 	verts = poly.size() * 2 + 6   # the lines (the fill and disc are a surface of their own)
 
 

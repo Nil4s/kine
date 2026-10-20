@@ -4350,6 +4350,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					return
 				if _frh_press(mb.position):   # ROADMAP 6: a foot's roll handle takes the press
 					return
+				if _dgb_press(mb.position):   # I24: the balance marker (Shift+B on) takes the press
+					return
 				if _sph_press(mb.position):   # ROADMAP 61: a spine spline handle takes the press
 					return
 				if _trail_press(mb.position):   # ROADMAP 69: a key dot on a pinned part's trail takes the press
@@ -4425,6 +4427,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_loa_release(mb.shift_pressed)
 			if was == "foot_handle":
 				_frh_release()
+			if was == "balance_drag":
+				_dgb_release()
 			if was == "root_path":
 				_rp_release()   # ROADMAP 91: one undo step per drag
 			if was == "box_handle" and hitbox_ui != null:
@@ -4469,6 +4473,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "foot_handle":
 			_frh_move(mm.position)
+			return
+		if dragging == "balance_drag":
+			_dgb_move(mm.position)
 			return
 		if dragging == "root_path":
 			_rp_move(mm.position)
@@ -7284,6 +7291,89 @@ func _frh_release() -> void:
 		PartKeys.put(S.part_keys, j, t, B.ang[j])
 	_refresh()
 	_say("keyed the %s foot's roll on its %s at %s (Ctrl+Z takes it back)" % [String(d["sd"]).trim_prefix("_"), d["kind"], Units.time(t, S.fps)])
+
+## DRAG THE BALANCE (ROADMAP I24; scripts/drag_balance.gd). With the balance view on (Shift+B), the COM marker is a handle: the disc on the
+## floor drags the COM's ground point; the ball in the air (the COM itself) also drags it up and down. The body rebalances with both
+## soles fixed; the ring shows what you asked for (amber near the support's edge, red outside, where the solve stops). One undo step per drag.
+var _dgb := {}   # the drag: {st, kind, off (grab offset), n (plane normal), warm, moved, r}
+
+
+func _dgb_press(mp: Vector2) -> bool:
+	if not bal.on or clean or S == null or bal.last.is_empty() or String(bal.last["state"]) == "air":
+		return false
+	var c: Vector3 = bal.last["com"]
+	var kind := ""
+	var best := 16.0
+	for k in [["floor", Vector3(c.x, 0.0, c.z)], ["air", c]]:
+		if cam.is_position_behind(k[1]):
+			continue
+		var d := cam.unproject_position(k[1]).distance_to(mp)
+		if d <= best:
+			best = d
+			kind = k[0]
+	if kind == "":
+		return false
+	_step_hint = "Drag the balance"
+	_push_undo()
+	var fwd := -cam.global_transform.basis.z
+	fwd.y = 0.0
+	_dgb = {"st": DragBalance.begin(B), "kind": kind, "warm": [], "moved": false, "r": {}, "c0": c,
+		"n": fwd.normalized() if fwd.length() > 1e-4 else Vector3.BACK}
+	var p = _dgb_hit(mp)
+	_dgb["off"] = (c - p) if p != null else Vector3.ZERO
+	playing = false
+	dragging = "balance_drag"
+	_say("DRAG THE BALANCE: the body rebalances over the marker with both feet planted; drag up or down on the ball to bend the knees; release keeps it")
+	return true
+
+
+## the world point under the mouse on the drag's plane: the floor, or the vertical plane through the COM facing the camera
+func _dgb_hit(mp: Vector2) -> Variant:
+	var o := cam.project_ray_origin(mp)
+	var d := cam.project_ray_normal(mp)
+	var c: Vector3 = _dgb["c0"]
+	if _dgb["kind"] == "floor":
+		return Plane(Vector3.UP, 0.0).intersects_ray(o, d)
+	return Plane(_dgb["n"], (_dgb["n"] as Vector3).dot(c)).intersects_ray(o, d)
+
+
+func _dgb_move(mp: Vector2) -> void:
+	if _dgb.is_empty():
+		return
+	var p = _dgb_hit(mp)
+	if p == null:
+		return
+	var q: Vector3 = (p as Vector3) + (_dgb["off"] as Vector3)
+	var req := Vector3(q.x, q.y if _dgb["kind"] == "air" else NAN, q.z)
+	var r := DragBalance.drag(B, _dgb["st"], req, _dgb["warm"])
+	_dgb["warm"] = r.get("u", [])
+	_dgb["moved"] = true
+	_dgb["r"] = r
+	bal.req = {"xz": Vector2(q.x, q.z), "state": String(r["state"])}
+	_after_edit()
+	_say(DragBalance.words(r))
+
+
+func _dgb_release() -> void:
+	var d := _dgb
+	_dgb = {}
+	bal.req = {}
+	if d.is_empty():
+		return
+	if not d["moved"]:
+		_drop_undo()
+		_refresh()
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	var js := ["spine_01", "spine_02", "spine_03"]
+	for sd in ["_l", "_r"]:
+		js.append_array(LimbIK.chain(B, "foot" + sd))
+		js.append("ball" + sd)
+	for j in js:
+		PartKeys.put(S.part_keys, j, t, B.ang[j])
+	_refresh()
+	_say(DragBalance.words(d["r"]) + "   (keyed at %s; Ctrl+Z takes it back in one step)" % Units.time(t, S.fps))
+
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
 var pwui: PathWalkUI
 
