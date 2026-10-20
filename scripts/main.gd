@@ -206,7 +206,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
+	"BODY": [["PERSON", ["Body: proportions...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
@@ -10072,7 +10072,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
-	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
+	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
@@ -10404,6 +10404,7 @@ func _ui() -> void:
 		ui_ribbon[tab].add_child(b)
 	# BODY (the page's sliders are the left panel, scripts/body_panel.gd)
 	ui_ribbon["BODY"].add_child(_button("Body: proportions...", _proportions_dialog, "a small dialog: an ANSUR II preset (5th / 50th / 95th, woman or man) or a stature in cm. The sliders on the left do the same by percentile"))
+	ui_ribbon["BODY"].add_child(_button("Body: from height, weight, sex, age, build", _body_nums_dialog, "five numbers (height cm, weight kg, sex, age, build) make a whole plausible body from ANSUR II and Winter's segment ratios, and say which percentile you are. Ctrl+Z undoes"))
 	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 183 cm mannequin; the cards keep their angles. Ctrl+Z undoes"))
 	# POSE
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
@@ -13346,6 +13347,7 @@ func _commands() -> Array:
 	add.call("Body: proportions...", "", _proportions_dialog, "proportions height stature tall short size body limbs arm leg length character ansur woman man female male", false, "a small dialog: a preset (ANSUR II 5th / 50th / 95th, woman or man) or a stature; the cards keep their angles, the feet stay on the floor (PR1)")
 	for pk in Proportions.PRESETS:
 		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
+	add.call("Body: from height, weight, sex, age, build", "", _body_nums_dialog, "body five numbers height weight sex age build bmi person make character", false, "a small dialog: height cm, weight kg, sex, age, build -> a whole body (ANSUR II + Winter ratios) and your percentile; one undo step (G13)")
 	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
@@ -19873,6 +19875,89 @@ func _proportions_dialog() -> void:
 	ui_prop_preset.select(at if at >= 0 else PROP_KEYS.size() - 1)
 	ui_prop_stature.set_value_no_signal(float(S.body.get("stature", Proportions.DEFAULT_STATURE)) * 100.0)
 	ui_prop_dlg.popup_centered()
+
+
+## BODY FROM 5 NUMBERS (G13; scripts/body_from_numbers.gd): height, weight, sex, age, build in a small dialog; OK sets the scene's
+## body through proportions_set (ONE undo step) and says the percentile.
+var ui_nums_dlg: ConfirmationDialog
+var ui_nums := {}
+
+
+func _body_nums_dialog() -> void:
+	if ui_nums_dlg == null:
+		ui_nums_dlg = ConfirmationDialog.new()
+		ui_nums_dlg.name = "body_numbers_dialog"
+		ui_nums_dlg.title = "Body: from 5 numbers"
+		ui_nums_dlg.min_size = Vector2i(360, 0)
+		var v := VBoxContainer.new()
+		var rows := [["height (cm)", "spin_height", 175.0, 100.0, 230.0, 0.5], ["weight (kg)", "spin_weight", 80.0, 20.0, 250.0, 0.5], ["age (years)", "spin_age", 30.0, 5.0, 100.0, 1.0]]
+		for r in rows:
+			var h := HBoxContainer.new()
+			var l := Label.new()
+			l.text = r[0]
+			l.custom_minimum_size = Vector2(110, 0)
+			h.add_child(l)
+			var sp := SpinBox.new()
+			sp.name = r[1]
+			sp.min_value = r[3]
+			sp.max_value = r[4]
+			sp.step = r[5]
+			sp.value = r[2]
+			h.add_child(sp)
+			v.add_child(h)
+			ui_nums[r[1]] = sp
+		for r in [["sex", "opt_sex", ["man", "woman"]], ["build", "opt_build", ["lean", "average", "heavy"]]]:
+			var h := HBoxContainer.new()
+			var l := Label.new()
+			l.text = r[0]
+			l.custom_minimum_size = Vector2(110, 0)
+			h.add_child(l)
+			var o := OptionButton.new()
+			o.name = r[1]
+			for t in r[2]:
+				o.add_item(t)
+			if r[1] == "opt_build":
+				o.select(1)
+			h.add_child(o)
+			v.add_child(h)
+			ui_nums[r[1]] = o
+		var rd := Label.new()
+		rd.name = "readout"
+		rd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		rd.custom_minimum_size = Vector2(340, 40)
+		v.add_child(rd)
+		ui_nums["readout"] = rd
+		var upd := func(_x = 0):
+			var p := _body_nums_predict()
+			rd.text = BodyFromNumbers.readout(p)
+		for k in ["spin_height", "spin_weight", "spin_age"]:
+			(ui_nums[k] as SpinBox).value_changed.connect(upd)
+		for k in ["opt_sex", "opt_build"]:
+			(ui_nums[k] as OptionButton).item_selected.connect(upd)
+		ui_nums_dlg.add_child(v)
+		ui_nums_dlg.confirmed.connect(func(): body_from_numbers(_body_nums_args()))
+		add_child(ui_nums_dlg)
+		upd.call()
+	ui_nums_dlg.popup_centered()
+
+
+func _body_nums_args() -> Array:
+	return [(ui_nums["spin_height"] as SpinBox).value, (ui_nums["spin_weight"] as SpinBox).value,
+		"female" if (ui_nums["opt_sex"] as OptionButton).selected == 1 else "male", (ui_nums["spin_age"] as SpinBox).value,
+		BodyFromNumbers.BUILDS[(ui_nums["opt_build"] as OptionButton).selected]]
+
+
+func _body_nums_predict() -> Dictionary:
+	var a := _body_nums_args()
+	return BodyFromNumbers.predict(a[0], a[1], a[2], a[3], a[4])
+
+
+## the five numbers -> the scene's body: ONE undo step (proportions_set); says the percentile. a = [cm, kg, sex, age, build]
+func body_from_numbers(a: Array) -> Dictionary:
+	var p := BodyFromNumbers.predict(a[0], a[1], a[2], a[3], a[4])
+	var nd := proportions_set(BodyFromNumbers.body_for(a[0], a[1], a[2], a[3], a[4]))
+	_say("body: " + BodyFromNumbers.readout(p) + "; Ctrl+Z takes it back")
+	return nd
 
 
 ## THE BODY PAGE (scripts/body_panel.gd). A drag previews on the live body (no history); the end is ONE undo step through
