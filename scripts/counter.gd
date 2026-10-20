@@ -35,7 +35,8 @@ const MARGIN_MIN := 0.01   # m: the centre of mass at least this far inside the 
 ## HUMAN REACTION: a defender cannot start moving before ~0.2 s after the attack becomes readable (simple visual reaction
 ## time 0.20-0.25 s: Woodworth & Schlosberg 1954; Thorpe, Fize & Marlot 1996 found the earliest visual choice signal at
 ## ~0.15 s, motor onset after). The attack becomes readable when its WIND-UP begins (the move into the card before the strike).
-const REACT := 0.2         # s: wind-up begins -> the counter's movement may begin
+# GROUND TRUTH (gt3): measured simple visual reaction time, dominant hand, button press: elite karate athletes 292 +- 45 ms (n=28), novice karateka 306 +- 47 ms (n=34), non-athletes 335 +- 73 ms (n=97) (Liu, See, Chang et al. 2018, Arch Budo 14, abstract). The old 0.2 s was ~2 SD faster than the elite mean. Button-press RT includes finger motor time, so a defensive onset may be a little quicker; (unverified) choice RT ~0.4 s in judoka (Arch Budo 2014 abstract, not opened).
+const REACT := 0.29         # s: wind-up begins -> the counter's movement may begin
 const MV := 0.12           # s: the counter's own movement (start of movement -> in place), a quick guard/slip
 const BODY_GAP := 0.05     # m: a block meets the weapon at least this far in front of the defender's torso / head
 const BUDGET_MS := 4000    # a guard search stops after this many ms (it returns what it has)
