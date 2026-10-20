@@ -19,6 +19,13 @@
 ##     bone has now (the tie-break). The legs: when two candidates are within AMBIG of each other the balance (centre of mass
 ##     over the feet, scripts/balance.gd) decides. A limb that was not drawn is not touched. The body is then put on the floor.
 ##   Not recovered (a stick figure does not carry them): twist of the trunk / arms, the hands and feet's own angles (a foot near the floor is put flat), a scale (the sketch is read at the size drawn: limbs longer than the bones straighten).
+##   I9 STEP 3 (the ambiguity as a UI choice): one drawing cannot say whether a bone near the picture plane points at the camera or
+##     away (a mirror pair). After a fit every limb that has a second DEPTH CANDIDATE fitting the strokes within FLIP_PX gets a
+##     small flip handle at its elbow / knee (flip(): the limb takes its next candidate at once, no re-fit; the caller makes it one
+##     undo step). Two optional strokes: a SHOULDER LINE (horizontal, across the spine near its top) and a HIP LINE (across the
+##     spine near its bottom) set the chest twist / hip yaw from their foreshortening (the projected shoulder / hip vector's length
+##     is W cos(twist)), and the same mirror pair applies (+t and -t project alike): the side nearer the present twist is taken
+##     and the handle flips it (a re-fit with the other side forced).
 class_name SketchPose
 extends Control
 
@@ -37,6 +44,10 @@ const PRIOR_SIG := 0.3       # m: the soft pull of the nearest library pose's de
 const PRIOR_W := 0.03        # m-equivalent per metre of depth off the library pose's
 const PRIOR_ROW := 0.02      # the weight of those priors among the pixel rows of the refinement
 const REFINE_IT := 5         # Levenberg-Marquardt steps on the (elbow depth, wrist depth) of one candidate
+const FLIP_PX := 2.0         # px: a second depth candidate that fits the strokes this well (both points together) is offered as a flip
+const FLIP_DEG := 6.0        # deg: a candidate must differ from the others by this much on a bone to be a different answer
+const LINE_DEG := 30.0       # a shoulder / hip line's chord is within this of the horizontal
+const TWIST_AMBIG := 4.0     # deg: the two twist sides are an ambiguity when further apart than this
 const TRUNK := ["pelvis", "spine_01", "spine_02", "spine_03"]
 const TRUNK_H := ["neck_01", "head"]
 
@@ -46,6 +57,10 @@ var strokes: Array = []      # finished strokes (Array of Vector2 arrays)
 var cur: Array = []          # the stroke in progress
 var fitted: Array = []       # screen polylines of the fitted skeleton (faint, after a fit)
 var last: Dictionary = {}    # the last fit's report
+var flips: Dictionary = {}   # the last fit's flip entries (rep["flips"]): key -> {"kind", "at", ...}; {} = no handles
+var flip_state: Dictionary = {}   # B.state() right after the fit / last flip: the handles are only valid while the body is this
+var hist: Array = []         # [{"state": B.state() before a flip, "idx": {key: i}}]: Ctrl+Z of a flip brings its handles back
+var hpos: Array = []         # [{"key", "pos"}] the handles on the screen, refreshed by main whenever it draws them
 
 static var lib_exclude := ""   # a pose file (basename) the prior must NOT use: a test fits a library pose against the OTHERS
 static var _lib: Array = []    # [{"name", "d"}] the poses of poses/ and poses/lib/ (the R27 / I12 library, as smart_drag.gd reads it)
@@ -96,6 +111,9 @@ func clear() -> void:
 	strokes = []
 	cur = []
 	fitted = []
+	flips = {}
+	hist = []
+	hpos = []
 	drawing = false
 	queue_redraw()
 
@@ -111,6 +129,15 @@ func _draw() -> void:
 			draw_polyline(PackedVector2Array(pl), faint, 2.0, true)
 		for q: Vector2 in pl:
 			draw_circle(q, 3.5, faint)
+	for h in hpos:
+		var q: Vector2 = h["pos"]
+		draw_circle(q, 12.0, Tok.c("mk_gold"))
+		draw_circle(q, 9.5, Color(0, 0, 0, 0.55))
+		var ink := Tok.c("mk_gold")
+		draw_line(q + Vector2(-5, -2.5), q + Vector2(5, -2.5), ink, 1.6, true)   # a two-way arrow: swap to the mirror depth
+		draw_line(q + Vector2(5, -2.5), q + Vector2(2, -5.5), ink, 1.6, true)
+		draw_line(q + Vector2(5, 2.5), q + Vector2(-5, 2.5), ink, 1.6, true)
+		draw_line(q + Vector2(-5, 2.5), q + Vector2(-2, 5.5), ink, 1.6, true)
 	for s in strokes:
 		draw_polyline(PackedVector2Array(s), gold, 3.0, true)
 	if cur.size() > 1:
@@ -220,8 +247,32 @@ static func recognise(strokes_in: Array) -> Dictionary:
 	var arms := []
 	var legs := []
 	var extra := 0
+	var lines := {"shoulder": null, "hip": null}   # a horizontal stroke ACROSS the spine, its ends clear of the spine's ends
+	var is_line := {}
 	for k in open.size():
 		if k == best:
+			continue
+		var q: Array = open[k]["p"]
+		var qa: Vector2 = q[0]
+		var qb: Vector2 = q[q.size() - 1]
+		var qc := qb - qa
+		if qc.length() < 0.5 * float(open[k]["L"]) or absf(qc.y) > tan(deg_to_rad(LINE_DEG)) * absf(qc.x):
+			continue
+		if minf(minf(qa.distance_to(top), qa.distance_to(bot)), minf(qb.distance_to(top), qb.distance_to(bot))) < 0.08 * slen:
+			continue   # starts at the spine's end: an arm or a leg
+		var mp := (qa + qb) * 0.5
+		if mp.distance_to(_closest2(sp, mp)) > 0.2 * slen:
+			continue
+		var dtm := mp.distance_to(top)
+		var dbm := mp.distance_to(bot)
+		var kind := "shoulder" if dtm <= dbm else "hip"
+		if minf(dtm, dbm) > 0.35 * slen:
+			continue
+		if lines[kind] == null or float(open[k]["L"]) > float(lines[kind]["L"]):
+			lines[kind] = {"p": q, "L": open[k]["L"]}
+		is_line[k] = true
+	for k in open.size():
+		if k == best or is_line.has(k):
 			continue
 		var q: Array = (open[k]["p"] as Array).duplicate()
 		var dt := _near_end(q, top)
@@ -240,7 +291,8 @@ static func recognise(strokes_in: Array) -> Dictionary:
 		while (g as Array).size() > 2:
 			(g as Array).pop_back()
 			extra += 1
-	return {"ok": true, "spine": sp, "head": head, "arms": arms, "legs": legs, "extra": extra}
+	return {"ok": true, "spine": sp, "head": head, "arms": arms, "legs": legs, "extra": extra,
+		"shoulder": (lines["shoulder"]["p"] if lines["shoulder"] != null else []), "hip": (lines["hip"]["p"] if lines["hip"] != null else [])}
 
 
 ## which limb is which: limbs (<= 2) -> {"_l": limb or null, "_r": limb or null}. The side on the screen decides when the
@@ -612,6 +664,8 @@ static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: V
 					lam *= 4.0
 				if not better:
 					break
+			# the last trial of the loop above may have been a worse one: put the limb back at the best parameters
+			rr = _cand_res(B, cam, tip, el2, wr2, S, e1 + de * float(pa[0]), w1 + dw * float(pa[1]), rot, keep, hint, prior)
 			var res: Dictionary = rr[1]
 			var err := (cam.unproject_position(B.P[mid]) - el2).length() + (cam.unproject_position(B.P[tip]) - wr2).length()
 			var c := err / S + CLAMP_W * (res["clamped"] as Array).size()
@@ -623,7 +677,8 @@ static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: V
 				c += TIE_W
 			if not prior.is_empty():
 				c += PRIOR_W * (absf(d1 - float(prior[0])) + absf(d2 - float(prior[1])))
-			out.append({"cost": c, "ang": [B.ang[root], B.ang[mid], B.ang[tip]], "clamped": res["clamped"], "miss": res["miss"]})
+			out.append({"cost": c, "ang": [B.ang[root], B.ang[mid], B.ang[tip]], "clamped": res["clamped"], "miss": res["miss"], "err": err,
+				"u": ((B.P[mid] - B.P[root]) as Vector3).normalized(), "l": ((B.P[tip] - B.P[mid]) as Vector3).normalized()})
 	B.ang[root] = keep[0]
 	B.ang[mid] = keep[1]
 	B.ang[tip] = keep[2]
@@ -657,8 +712,141 @@ static func _poly(B: Body, cam: Camera3D, names: Array) -> Array:
 	return out
 
 
-## strokes (screen points) -> the body posed. The caller pushes the undo step first. Returns the report
-static func fit(B: Body, cam: Camera3D, strokes_in: Array) -> Dictionary:
+## the candidates a user may choose between for one limb: the chosen one first, then the others that fit the strokes within
+## FLIP_PX and point somewhere else (a bone FLIP_DEG apart), best fit first; one entry only = no ambiguity, no handle
+static func _alts(chosen: Dictionary, all: Array) -> Array:
+	var out := [chosen]
+	if float(chosen["err"]) > FLIP_PX:
+		return out
+	var rest := all.filter(func(c): return float(c["err"]) <= FLIP_PX)
+	rest.sort_custom(func(a, b): return float(a["err"]) < float(b["err"]))
+	for c in rest:
+		var distinct := true
+		for o in out:
+			if maxf(rad_to_deg((c["u"] as Vector3).angle_to(o["u"])), rad_to_deg((c["l"] as Vector3).angle_to(o["l"]))) < FLIP_DEG:
+				distinct = false
+		if distinct and out.size() < 4:
+			out.append(c)
+	return out
+
+
+static func _skel(B: Body, cam: Camera3D) -> Array:
+	var sk := []
+	sk.append(_poly(B, cam, ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01"]))
+	for sd in ["_l", "_r"]:
+		sk.append(_poly(B, cam, ["upperarm" + sd, "lowerarm" + sd, "hand" + sd]))
+		sk.append(_poly(B, cam, ["thigh" + sd, "calf" + sd, "foot" + sd]))
+	var hc := cam.unproject_position(LineOfAction.head_c(B))
+	sk.append([cam.unproject_position(B.P["neck_01"]), hc])
+	return sk
+
+
+static func _stand_on_floor(B: Body, tips: Array) -> void:
+	B.ground()
+	for tip in tips:   # a foot near the floor stands flat on it (a raised foot keeps its angle to the shin)
+		if (B.P[tip] as Vector3).y < 0.15:
+			B.flat_foot((tip as String).right(2))
+	B.ground()
+
+
+## ---- twist from a shoulder / hip line. The line's projected vector has the length of the real one times cos(twist), so the
+## twist is found by scanning the joint's twist and comparing the PROJECTED vector between the two joints with the stroke's
+## (orientation: the sign that agrees with the present vector). +t and -t project alike: both sides are returned
+static func _twist_scan(B: Body, cam: Camera3D, ja: String, jb: String, line: Array, setter: Callable, lo: float, hi: float) -> Dictionary:
+	var v: Vector2 = (line[line.size() - 1] as Vector2) - (line[0] as Vector2)
+	var saved: Dictionary = B.ang.duplicate(true)
+	B.fk()
+	var w0 := cam.unproject_position(B.P[jb]) - cam.unproject_position(B.P[ja])
+	var target := v * (1.0 if w0.dot(v) >= 0.0 else -1.0)
+	var pos := [0.0, INF]
+	var neg := [0.0, INF]
+	var t := lo
+	while t <= hi + 1e-6:
+		setter.call(t)
+		B.fk()
+		var c := (cam.unproject_position(B.P[jb]) - cam.unproject_position(B.P[ja]) - target).length()
+		if t >= 0.0 and c < float(pos[1]):
+			pos = [t, c]
+		if t <= 0.0 and c < float(neg[1]):
+			neg = [t, c]
+		t += 1.0
+	B.ang = saved
+	B.fk()
+	return {"pos": pos, "neg": neg}
+
+
+## which side to take: the forced one (+1 / -1), else the side whose cost is clearly lower, else the side of the present twist
+static func _pick_side(sc: Dictionary, cur: float, force: int) -> Dictionary:
+	var p: Array = sc["pos"]
+	var n: Array = sc["neg"]
+	var amb := float(p[1]) <= FLIP_PX and float(n[1]) <= FLIP_PX and absf(float(p[0]) - float(n[0])) > TWIST_AMBIG
+	var side := 1
+	if force != 0:
+		side = force
+	elif absf(float(p[1]) - float(n[1])) > FLIP_PX:
+		side = 1 if float(p[1]) < float(n[1]) else -1
+	elif absf(cur) >= 2.0:
+		side = 1 if cur > 0.0 else -1
+	var t: float = float((p if side > 0 else n)[0])
+	return {"t": t, "side": side, "ambiguous": amb, "cost": float((p if side > 0 else n)[1])}
+
+
+static func _set_spine_twist(B: Body, total: float) -> void:
+	for j in ["spine_01", "spine_02", "spine_03"]:
+		var a: Vector3 = B.ang[j]
+		a.z = total / 3.0
+		B.ang[j] = B.clamp_ang(j, a)
+
+
+static func _spine_twist(B: Body) -> float:
+	return (B.ang["spine_01"] as Vector3).z + (B.ang["spine_02"] as Vector3).z + (B.ang["spine_03"] as Vector3).z
+
+
+static func _set_pelvis_twist(B: Body, t: float) -> void:
+	var a: Vector3 = B.ang["pelvis"]
+	a.z = t
+	B.ang["pelvis"] = B.clamp_ang("pelvis", a)
+
+
+## the handles' screen places: [{"key", "pos"}]. A limb's is at its elbow / knee, the hips' between the thighs, the chest's between the shoulders
+static func handles(B: Body, cam: Camera3D, flips: Dictionary) -> Array:
+	var out := []
+	for key in flips:
+		var f: Dictionary = flips[key]
+		var at: Vector3
+		if f["kind"] == "limb":
+			at = B.P[f["at"]]
+		elif f["kind"] == "hip":
+			at = ((B.P["thigh_l"] as Vector3) + (B.P["thigh_r"] as Vector3)) * 0.5
+		else:
+			at = ((B.P["upperarm_l"] as Vector3) + (B.P["upperarm_r"] as Vector3)) * 0.5
+		out.append({"key": key, "pos": cam.unproject_position(at)})
+	return out
+
+
+## the flip handle of `key` was clicked: a limb takes its next candidate AT ONCE (no re-fit; the caller makes it one undo step);
+## a twist side re-fits the body with the other side forced (the limbs hang on the trunk, so they are read again). Returns the
+## report (the same one, or the new fit's)
+static func flip(B: Body, cam: Camera3D, strokes_in: Array, rep: Dictionary, key: String) -> Dictionary:
+	var f: Dictionary = rep["flips"][key]
+	if f["kind"] == "limb":
+		f["i"] = (int(f["i"]) + 1) % (f["cands"] as Array).size()
+		var tip: String = f["tip"]
+		_put(B, tip, f["cands"][f["i"]])
+		if tip.begins_with("foot"):
+			_stand_on_floor(B, ["foot_l", "foot_r"])
+		rep["skeleton"] = _skel(B, cam)
+		return rep
+	var force := {key: -int(f["side"])}
+	var other := "sh" if key == "hip" else "hip"
+	if rep["flips"].has(other):
+		force[other] = int(rep["flips"][other]["side"])
+	return fit(B, cam, strokes_in, force)
+
+
+## strokes (screen points) -> the body posed. The caller pushes the undo step first. Returns the report.
+## force = {"hip": +1/-1, "sh": +1/-1}: the twist side to take instead of the default (a flip of the twist handles)
+static func fit(B: Body, cam: Camera3D, strokes_in: Array, force := {}) -> Dictionary:
 	var t0 := Time.get_ticks_usec()
 	var rec := recognise(strokes_in)
 	if not rec["ok"]:
@@ -690,7 +878,24 @@ static func fit(B: Body, cam: Camera3D, strokes_in: Array) -> Dictionary:
 	B.offset += W - pel0
 	B.fk()
 	var tr := _fit_trunk(B, cam, S, spine, head)
-	var rep := {"ok": true, "trunk": tr, "limbs": {}, "kept": [], "extra": rec["extra"], "head": not head.is_empty()}
+	var rep := {"ok": true, "trunk": tr, "limbs": {}, "kept": [], "extra": rec["extra"], "head": not head.is_empty(), "flips": {}}
+	# twist from the optional lines: the hip yaw first (the pelvis carries the whole trunk), then the chest relative to it
+	if (rec["hip"] as Array).size() >= 2:
+		var hs := _twist_scan(B, cam, "thigh_l", "thigh_r", rec["hip"], func(t: float) -> void: _set_pelvis_twist(B, t), -85.0, 85.0)
+		var pk := _pick_side(hs, (B.ang["pelvis"] as Vector3).z, int(force.get("hip", 0)))
+		_set_pelvis_twist(B, pk["t"])
+		B.fk()
+		rep["hip_yaw"] = pk["t"]
+		if pk["ambiguous"]:
+			rep["flips"]["hip"] = {"kind": "hip", "side": pk["side"]}
+	if (rec["shoulder"] as Array).size() >= 2:
+		var ss := _twist_scan(B, cam, "upperarm_l", "upperarm_r", rec["shoulder"], func(t: float) -> void: _set_spine_twist(B, t), -51.0, 51.0)
+		var pk2 := _pick_side(ss, _spine_twist(B), int(force.get("sh", 0)))
+		_set_spine_twist(B, pk2["t"])
+		B.fk()
+		rep["chest_twist"] = _spine_twist(B)
+		if pk2["ambiguous"]:
+			rep["flips"]["sh"] = {"kind": "sh", "side": pk2["side"]}
 	var spine_px := (spine[0] as Vector2).distance_to(spine[spine.size() - 1])
 	var min_side := 0.08 * spine_px
 	var drawn := {}
@@ -723,9 +928,11 @@ static func fit(B: Body, cam: Camera3D, strokes_in: Array) -> Dictionary:
 	rep["prior"] = prior.keys()
 	for tip in drawn:
 		cands[tip] = limb_cands(B, cam, tip, drawn[tip]["el"], drawn[tip]["wr"], S, hint[tip], rot[tip], prior.get(tip, []))
+	var chosen_all := {}
 	for tip in ["hand_l", "hand_r"]:
 		if cands.has(tip):
 			_put(B, tip, cands[tip][0])
+			chosen_all[tip] = cands[tip][0]
 			rep["limbs"][tip] = {"cost": cands[tip][0]["cost"], "clamped": cands[tip][0]["clamped"], "ambiguous": cands[tip].size() > 1 and float(cands[tip][1]["cost"]) - float(cands[tip][0]["cost"]) < AMBIG}
 	var lt := []
 	for tip in ["foot_l", "foot_r"]:
@@ -769,21 +976,14 @@ static func fit(B: Body, cam: Camera3D, strokes_in: Array) -> Dictionary:
 		rep["balance_used"] = true
 	for tip in lt:
 		_put(B, tip, chosen[tip])
+		chosen_all[tip] = chosen[tip]
 		rep["limbs"][tip] = {"cost": chosen[tip]["cost"], "clamped": chosen[tip]["clamped"], "ambiguous": (pick[tip] as Array).size() > 1}
 	if not lt.is_empty():
-		B.ground()
-		for tip in lt:   # a foot near the floor stands flat on it (a raised foot keeps its angle to the shin)
-			if (B.P[tip] as Vector3).y < 0.15:
-				B.flat_foot(tip.right(2))
-		B.ground()
-	# the faint fitted skeleton on the screen
-	var sk := []
-	sk.append(_poly(B, cam, ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01"]))
-	for sd in ["_l", "_r"]:
-		sk.append(_poly(B, cam, ["upperarm" + sd, "lowerarm" + sd, "hand" + sd]))
-		sk.append(_poly(B, cam, ["thigh" + sd, "calf" + sd, "foot" + sd]))
-	var hc := cam.unproject_position(LineOfAction.head_c(B))
-	sk.append([cam.unproject_position(B.P["neck_01"]), hc])
-	rep["skeleton"] = sk
+		_stand_on_floor(B, lt)
+	for tip in chosen_all:
+		var al := _alts(chosen_all[tip], cands[tip])
+		if al.size() > 1:
+			rep["flips"][tip] = {"kind": "limb", "tip": tip, "at": B.parent[tip], "cands": al, "i": 0}
+	rep["skeleton"] = _skel(B, cam)
 	rep["ms"] = float(Time.get_ticks_usec() - t0) / 1000.0
 	return rep

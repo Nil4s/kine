@@ -4914,6 +4914,9 @@ func _push_undo() -> void:
 
 func _undo() -> void:
 	sk.fitted = []   # I9: the faint fitted skeleton belongs to the pose that was undone
+	var sk_hist: Variant = sk.hist.back() if not sk.hist.is_empty() else null
+	sk.flips = {}   # ...and so do its flip handles, unless this undo takes back a flip (below)
+	sk.hpos = []
 	sk.queue_redraw()
 	_tree_sync()
 	if undo.is_empty():
@@ -4932,6 +4935,16 @@ func _undo() -> void:
 	_restore(u)
 	if u.has("lib"):
 		PosePack.lib_move(u["lib"], true, library)
+	if sk_hist != null and B.state() == sk_hist["state"] and not sk.last.is_empty():
+		sk.hist.pop_back()   # a flip was undone: its handles come back, each limb on the candidate it had
+		sk.last = sk_hist["rep"]
+		var fl: Dictionary = sk.last["flips"]
+		for k in fl:
+			if sk_hist["idx"].has(k):
+				fl[k]["i" if fl[k]["kind"] == "limb" else "side"] = sk_hist["idx"][k]
+		sk.flips = fl
+		sk.fitted = SketchPose._skel(B, cam)
+		_sk_show_handles()
 	_say("undone: " + now["name"])
 	_toast("Undid: " + now["name"])
 	_undo_tips()
@@ -6506,7 +6519,7 @@ func _sk_toggle() -> void:
 	sk.on = not sk.on
 	sk.clear()
 	if sk.on:
-		_say("SKETCH TO POSE: drag the spine (neck down to the hips), then arms from its top and legs from its bottom, a circle for the head. Enter fits, Backspace removes the last stroke, Esc leaves")
+		_say("SKETCH TO POSE: drag the spine (neck down to the hips), then arms from its top and legs from its bottom, a circle for the head (optional: a line across the shoulders or the hips sets the twist). Enter fits, Backspace removes the last stroke, Esc leaves")
 	else:
 		_say_plain("sketch left")
 
@@ -6517,6 +6530,10 @@ func _sk_input(ev: InputEvent) -> bool:
 		if mb.button_index != MOUSE_BUTTON_LEFT:
 			return false
 		if mb.pressed:
+			var hk := _sk_handle_at(mb.position)
+			if hk != "":
+				_sk_flip(hk)
+				return true
 			sk.begin(mb.position)
 			return true
 		if sk.drawing:
@@ -6543,6 +6560,64 @@ func _sk_input(ev: InputEvent) -> bool:
 	return false
 
 
+## the flip handle under p (a click within 14 px of one), "" when none. The handles are only live while the body is as the fit left it
+func _sk_handle_at(p: Vector2) -> String:
+	if sk.flips.is_empty():
+		return ""
+	if B.state() != sk.flip_state:
+		sk.flips = {}
+		sk.hpos = []
+		sk.queue_redraw()
+		return ""
+	var best := ""
+	var bd := 14.0
+	for h in SketchPose.handles(B, cam, sk.flips):
+		var d := (h["pos"] as Vector2).distance_to(p)
+		if d < bd:
+			bd = d
+			best = h["key"]
+	return best
+
+
+func _sk_show_handles() -> void:
+	sk.hpos = SketchPose.handles(B, cam, sk.flips) if not sk.flips.is_empty() else []
+	sk.flip_state = B.state()
+	sk.queue_redraw()
+
+
+static func _sk_flip_name(key: String) -> String:
+	return "hips" if key == "hip" else ("chest" if key == "sh" else nice(key.replace("hand", "lowerarm").replace("foot", "calf")))
+
+
+## ROADMAP I9 step 3: a click on a flip handle swaps that limb to its mirror depth (no re-fit) = ONE undo step; the twist handles re-fit with the other side
+func _sk_flip(key: String) -> Dictionary:
+	if sk.last.is_empty() or not (sk.last["flips"] as Dictionary).has(key):
+		_say("sketch: no flip handle there. Press Enter to fit the strokes first, then click a handle on a limb")
+		return {}
+	if B.state() != sk.flip_state:
+		sk.flips = {}
+		sk.hpos = []
+		sk.queue_redraw()
+		_say("sketch: the pose changed since the fit, so its flip handles are gone. Press Enter to fit the strokes again")
+		return {}
+	var before: Dictionary = sk.flip_state
+	var idx := {}
+	for k in sk.flips:
+		idx[k] = int(sk.flips[k]["i"] if sk.flips[k]["kind"] == "limb" else sk.flips[k]["side"])
+	_push_undo()
+	var prev_rep: Dictionary = sk.last
+	var rep := SketchPose.flip(B, cam, sk.strokes, sk.last, key)
+	sk.hist.append({"state": before, "idx": idx, "rep": prev_rep})
+	sk.last = rep
+	sk.flips = rep["flips"]
+	sk.fitted = rep["skeleton"]
+	_after_edit()
+	_refresh()
+	_sk_show_handles()
+	_say("FLIP %s to its mirror depth: the other way the drawing can be read.  Ctrl+Z undoes" % _sk_flip_name(key))
+	return rep
+
+
 func _sk_fit() -> Dictionary:
 	if sk.strokes.is_empty():
 		_say("sketch: nothing drawn yet. Drag a spine, then arms and legs, then press Enter")
@@ -6555,9 +6630,11 @@ func _sk_fit() -> Dictionary:
 		return rep
 	sk.fitted = rep["skeleton"]
 	sk.last = rep
-	sk.queue_redraw()
+	sk.flips = rep["flips"]
+	sk.hist = []
 	_after_edit()
 	_refresh()
+	_sk_show_handles()
 	var kept := (rep["kept"] as Array).map(func(t): return nice(t))
 	var amb := []
 	for t in rep["limbs"]:
@@ -6566,7 +6643,9 @@ func _sk_fit() -> Dictionary:
 	var msg := "SKETCH TO POSE: fitted %d limb%s in %.0f ms" % [(rep["limbs"] as Dictionary).size(), "" if (rep["limbs"] as Dictionary).size() == 1 else "s", rep["ms"]]
 	if not kept.is_empty():
 		msg += "; not drawn, left as it was: " + ", ".join(kept)
-	if not amb.is_empty():
+	if not (rep["flips"] as Dictionary).is_empty():
+		msg += "; click a small flip handle (%s) to swap to the mirror depth" % ", ".join((rep["flips"] as Dictionary).keys().map(func(k): return _sk_flip_name(k)))
+	elif not amb.is_empty():
 		msg += "; depth could go either way for " + ", ".join(amb) + " (kept the side nearer the old pose; draw it from another view to be sure)"
 	if int(rep["extra"]) > 0:
 		msg += "; %d stroke%s did not start at the spine and %s ignored" % [rep["extra"], "" if int(rep["extra"]) == 1 else "s", "was" if int(rep["extra"]) == 1 else "were"]
