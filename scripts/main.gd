@@ -13083,6 +13083,17 @@ func keys_overlay(on: bool) -> void:
 	ui_keys.position = ((get_viewport().get_visible_rect().size - ui_keys.size) / 2.0).floor()   # centred, after its size is known
 
 
+var cheat_open := true   # a test turns the browser off
+func _cheat_sheet() -> void:
+	var r := CheatSheet.write(_commands(), "user://cheat_sheet.html")
+	if r.has("why"):
+		_say(String(r["why"]))
+		return
+	if cheat_open:
+		OS.shell_open(ProjectSettings.globalize_path(r["path"]))
+	_say("cheat sheet: %d keys, %d groups -> %s (print it from the browser)" % [r["keyed"], (r["groups"] as Array).size(), ProjectSettings.globalize_path(r["path"])])
+
+
 func _commands() -> Array:
 	var c := []
 	var add := func(n: String, keys: String, f: Callable, also: String, edits: bool, desc: String):
@@ -13568,6 +13579,7 @@ func _commands() -> Array:
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
+	add.call("Help: printable cheat sheet", "", _cheat_sheet, "cheat sheet print keys shortcuts reference pdf paper list commands", false, "every key and every command, grouped, as one page you can print (an HTML file in your Kine folder, opened in the browser)")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
 	return Hotkeys.apply(c, hk.over)   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
 
