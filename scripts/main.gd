@@ -2200,6 +2200,7 @@ func _ready() -> void:
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
+		usual_on = false   # I10: a test keeps the app's default timing on new cards until it turns this on
 	_autover_cfg_load(testing)
 	ui_props_root = Node3D.new()
 	ui_props_root.name = "set"
@@ -4161,6 +4162,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_F: _do(func(): _fingers_cycle())
 			KEY_G: _do(_toggle_second)
 			KEY_H: _dummy_toggle()
+			KEY_U when not k.shift_pressed: cards_use_usual()   # I10: the picked cards take your usual timing
 			KEY_K: _key_part()
 			KEY_T when k.shift_pressed:
 				if not sel in Body.BODY:
@@ -11015,7 +11017,7 @@ func _rebuild_cards() -> void:
 		tb.add_theme_font_size_override("font_size", 10)
 		tb.add_theme_constant_override("h_separation", 0)
 		_card_flat(tb)
-		tb.tooltip_text = "seconds to get here from the card before + seconds the body then holds still.  Click to type them"
+		_card_timing_look(tb, i)
 		v.add_child(tb)
 		var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
 		pp.name = "time_edit"
@@ -11055,7 +11057,7 @@ func _rebuild_cards() -> void:
 		hs.suffix = "s"
 		hs.custom_minimum_size = Vector2(150, 0)
 		hs.tooltip_text = "seconds the body stays still in this pose"
-		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i))
+		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i); _card_timing_look(tb, i))
 		hh.add_child(hs)
 		pc.add_child(pp)
 	_sg_strip_sync()   # R27: the three mini thumbnails after the current card
@@ -11089,7 +11091,29 @@ func _card_timing(i: int) -> String:
 	if i == 0:
 		return hold
 	var mv: float = c["move"]
+	if _card_is_usual(c):
+		return "your usual %s s" % String.num(mv, 2)   # I10: the timing came from Nick's own habits and has not been touched since
 	return "%s%s s + %s" % ["" if mv > 0.0 else "~", String.num(mv if mv > 0.0 else S.move_time(i), 2), hold]
+
+
+## I10: the card carries "your usual" timing (a tag set when it was pre-timed) and its move and hold are still exactly that
+func _card_is_usual(c: Dictionary) -> bool:
+	var u: Variant = c.get("usual")
+	return u is Dictionary and is_equal_approx(float(c["move"]), float(u["mv"])) and is_equal_approx(float(c["hold"]), float(u["hd"]))
+
+
+## the timing button's colour: its own hue while the timing is "your usual", the plain one once touched
+func _card_timing_look(tb: Button, i: int) -> void:
+	if i >= S.cards.size():
+		return
+	var us := _card_is_usual(S.cards[i])
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		if us:
+			tb.add_theme_color_override(k, Tok.c("card_usual"))
+		else:
+			tb.remove_theme_color_override(k)
+	tb.tooltip_text = ("your usual timing, learned from the scenes you saved (move %s s, hold %s s); it stays this colour until you change it.  U puts it on the picked cards" % [
+		String.num(float(S.cards[i]["move"]), 2), String.num(float(S.cards[i]["hold"]), 2)]) if us else "seconds to get here from the card before + seconds the body then holds still.  Click to type them"
 
 
 ## the card's look: picked = blue, pass-by = brown, else plain; the card at the playhead has a gold frame and a lighter ground
@@ -11295,6 +11319,7 @@ func _card_menu(i: int, at: Vector2) -> void:
 	ui_card_menu.add_icon_item(Icons.small("move_r"), "Move later", 3)
 	ui_card_menu.add_icon_item(Icons.small("card_delete"), "Delete this card", 4)
 	ui_card_menu.add_icon_item(Icons.small("qr"), "Share as QR", 5)
+	ui_card_menu.add_icon_item(Icons.small("clip"), "Duplicate", 6)
 	ui_card_menu.set_item_disabled(2, i == 0)
 	ui_card_menu.set_item_disabled(3, i >= S.cards.size() - 1)
 	ui_card_menu.popup(Rect2i(Vector2i(at), Vector2i(0, 0)))
@@ -11333,6 +11358,9 @@ func _card_menu_pick(id: int) -> void:
 			_card_del(i)
 		5:
 			_qr_share(i)
+		6:
+			_step_hint = "Duplicate card"
+			_card_duplicate(i)
 
 
 const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
@@ -11444,10 +11472,11 @@ func _card_add() -> void:
 	var at := sel_card + 1 if sel_card >= 0 else -1
 	S.add(nm if nm != "" else "pose %d" % (S.cards.size() + 1), B.to_dict(), at)
 	sel_card = at if at >= 0 else S.cards.size() - 1
+	var us := _usual_apply(sel_card)   # I10
 	playhead = S.times()[sel_card][1]
 	_rebuild_cards()
 	_refresh()
-	_say("added card %d.  Pose the next moment and add it too, then Play." % (sel_card + 1))
+	_say("added card %d%s.  Pose the next moment and add it too, then Play." % [sel_card + 1, (" with your usual timing (%s s; U or a click on the time changes it)" % String.num(float(S.cards[sel_card]["move"]), 2)) if us else ""])
 
 
 func _card_pick(i: int) -> void:
@@ -12263,6 +12292,7 @@ func _commands() -> Array:
 	add.call("Blend to rest pose", "", _inbetween.bind("rest"), "straight zero", true, "the selected parts (else the whole body) 25% of the way to the straight pose")
 	add.call("Blend to previous card", "Shift+Alt+E", _inbetween.bind("prev"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card before")
 	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
+	add.call("Use my usual timing", "U", _press.bind(KEY_U), "usual timing habit learned move hold time cards", true, "the picked cards (the current card, a range, or the Ctrl+clicked ones) take the move and hold you usually give a move like theirs: the median of the (up to 5) nearest in your saved scenes, only when at least 2 are within 10 degrees; one undo step")
 	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
 	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10% in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
 	add.call("Retime: scale the range around the playhead...", "", _retime_range_dialog, "retime range playhead scale stretch slow fast tempo speed time percent", true, "scale everything timed in a range (the preview range from the ruler, or the picked cards: cards, keys, plants, IK, layers, props, markers, camera) about the playhead, 50 to 200 %: what is after the range shifts so nothing overlaps; the audio stays put; one undo step (ROADMAP 67)")
@@ -18480,8 +18510,12 @@ func _sg_want() -> bool:
 	return sg_on and not _sg_hidden and cur_page in ["POSE", "ANIMATE"] and sel_card >= 0 and sel_card < S.cards.size() and not playing and ui_cards != null
 
 
+func _sg_next_pose() -> Variant:
+	return S.cards[sel_card + 1]["pose"] if sel_card + 1 < S.cards.size() else null
+
+
 func _sg_same() -> bool:
-	return not _sg_sig.is_empty() and is_same(_sg_sig[0], S) and _sg_sig[1] == sel_card and _sg_sig[2] == S.cards.size() and sel_card < S.cards.size() and is_same(_sg_sig[3], S.cards[sel_card]["pose"])
+	return not _sg_sig.is_empty() and is_same(_sg_sig[0], S) and _sg_sig[1] == sel_card and _sg_sig[2] == S.cards.size() and sel_card < S.cards.size() and is_same(_sg_sig[3], S.cards[sel_card]["pose"]) and is_same(_sg_sig[4], _sg_next_pose())
 
 
 func _sg_tick() -> void:
@@ -18499,12 +18533,13 @@ func _sg_tick() -> void:
 		_sg_place()
 		return
 	var c: Dictionary = S.cards[sel_card]
-	_sg_sig = [S, sel_card, S.cards.size(), c["pose"]]
+	_sg_sig = [S, sel_card, S.cards.size(), c["pose"], _sg_next_pose()]
 	_sg_motion_start()
 	var dt: float = float(c["move"]) if float(c["move"]) > 0.0 else S.move_time(sel_card)
 	if dt < 0.05:
 		dt = 0.4
-	sg_list = np.suggest(c["pose"], String(c["name"]), dt, scene_path, String(c.get("phase", "")))
+	var nx: Variant = _sg_next_pose()
+	sg_list = np.suggest(c["pose"], String(c["name"]), dt, scene_path, String(c.get("phase", "")), nx if nx is Dictionary else {})
 	sg_ms = np.last_ms
 	sg_sel = -1
 	for i in sg_list.size():
@@ -18625,13 +18660,92 @@ func _sg_accept(i: int) -> void:
 	S.add(String(s["name"]), (s["pose"] as Dictionary).duplicate(true), at)
 	S.cards[at]["move"] = float(s["mv"])
 	S.cards[at]["hold"] = float(s["hd"])
+	var us := false
+	if String(s["src"]) == "between":
+		if float(s["mv"]) > 0.0:
+			S.cards[at]["usual"] = {"mv": float(s["mv"]), "hd": float(s["hd"])}   # I10: the in-between comes timed the way you time it
+			us = true
+	else:
+		us = _usual_apply(at)   # I10: a taken ghost comes with your usual timing when there is one, else its source's
 	sel_card = at
 	sel_end = -1
 	playhead = S.times()[at][1]
 	Scene.put(B, Moves._flat(S.cards[at]["pose"]))
 	_rebuild_cards()
 	_refresh()
-	_say("took the %s as card %d '%s'.  Ctrl+Z takes it back" % [String(s["label"]), at + 1, s["name"]])
+	_say("took the %s as card %d '%s'%s.  Ctrl+Z takes it back" % [String(s["label"]), at + 1, s["name"], " with your usual timing" if us else ""])
+
+
+## I10 YOUR TIMING (scripts/next_pose.gd usual): while usual_on, a card newly added after another (Clip this pose, a taken ghost,
+## Duplicate) comes with the median move and hold of the nearest transitions in your saved scenes, tagged so the strip says
+## "your usual 0.18 s" in its own colour until the timing is touched; none near enough = the app's default, untouched.
+var usual_on := true
+
+
+func _usual_for(at: int, force := false) -> Dictionary:
+	if (not usual_on and not force) or at <= 0 or at >= S.cards.size():
+		return {}
+	return np.usual(S.cards[at - 1]["pose"], S.cards[at]["pose"], String(S.cards[at]["name"]))
+
+
+## the card at `at` takes your usual timing; false when there is none to take
+func _usual_apply(at: int, force := false) -> bool:
+	var u := _usual_for(at, force)
+	if u.is_empty():
+		return false
+	S.cards[at]["move"] = float(u["mv"])
+	S.cards[at]["hold"] = float(u["hd"])
+	S.cards[at]["usual"] = {"mv": float(u["mv"]), "hd": float(u["hd"])}
+	return true
+
+
+## Duplicate: a copy of card i right after it, with your usual timing for that step when there is one (else the original's)
+func _card_duplicate(i: int) -> void:
+	if i < 0 or i >= S.cards.size():
+		_say("pick a card first, then Duplicate")
+		return
+	_push_undo()
+	var c: Dictionary = S.cards[i]
+	S.add(String(c["name"]) + " copy", (c["pose"] as Dictionary).duplicate(true), i + 1)
+	S.cards[i + 1]["move"] = float(c["move"])
+	S.cards[i + 1]["hold"] = float(c["hold"])
+	var us := _usual_apply(i + 1)
+	sel_card = i + 1
+	sel_end = -1
+	playhead = S.times()[sel_card][1]
+	_rebuild_cards()
+	_refresh()
+	_say("duplicated card %d%s.  Ctrl+Z takes it back" % [i + 1, " with your usual timing" if us else ""])
+
+
+## U / "Use my usual timing": the picked cards take your usual move and hold, ONE undo step; a card with no usual keeps its timing
+func cards_use_usual() -> String:
+	var idx := card_sel()
+	if idx.is_empty():
+		_say("pick a card first (click one in the strip), then press U")
+		return "no cards selected"
+	var plan := {}
+	for i in idx:
+		var u := _usual_for(i, true)
+		if not u.is_empty():
+			plan[i] = u
+	if plan.is_empty():
+		_say("no usual timing for the picked card%s yet: fewer than %d of your saved scenes' steps are within %.0f degrees of this one.  Time it by hand and save the scene, and it learns" % [
+			"" if idx.size() == 1 else "s", NextPose.T_MIN, NextPose.T_MAXD])
+		return "no usual"
+	_step_hint = "Use my usual timing"
+	_push_undo()
+	_markers_hold()
+	for i in plan:
+		S.cards[i]["move"] = float(plan[i]["mv"])
+		S.cards[i]["hold"] = float(plan[i]["hd"])
+		S.cards[i]["usual"] = {"mv": float(plan[i]["mv"]), "hd": float(plan[i]["hd"])}
+	_markers_follow()
+	_rebuild_cards()
+	_refresh()
+	_say("%d card%s now %s your usual timing (move %s s, hold %s s for the first): the scene is %s.  Ctrl+Z takes it back" % [plan.size(), "" if plan.size() == 1 else "s", "have" if plan.size() > 1 else "has",
+		String.num(float(plan[plan.keys()[0]]["mv"]), 2), String.num(float(plan[plan.keys()[0]]["hd"]), 2), Units.time(_ps().length(), S.fps)])
+	return ""
 
 
 func _sg_strip_sync() -> void:
