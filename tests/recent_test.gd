@@ -92,9 +92,9 @@ func _init() -> void:
 	var seen := {}
 	for p in r:
 		seen[p] = true
-	ok(r.size() == 10 and seen.size() == 10 and r[0] == "res://scenes/zz_recent_11.json" and r[9] == "res://scenes/zz_recent_02.json",
-		"3 twelve more noted -> ten kept, newest first, no duplicate (first %s, last %s)" % [r[0], r[9]])
-	ok(recent_cmds().size() == 10, "  the palette's File > Recent group has the same ten (%d)" % recent_cmds().size())
+	ok(r.size() == 12 and seen.size() == 12 and r[0] == "res://scenes/zz_recent_11.json" and r[11] == "res://scenes/zz_recent_00.json",
+		"3 twelve more noted -> twelve kept, newest first, no duplicate (first %s, last %s)" % [r[0], r[9]])
+	ok(recent_cmds().size() == 12, "  the palette's File > Recent group has the same ten (%d)" % recent_cmds().size())
 
 	# 4 a deleted scene: greyed "(missing)" in the list and the palette
 	m._load_scene("res://scenes/combo3.json")

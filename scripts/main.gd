@@ -35,7 +35,7 @@ const SETTINGS := "user://poser.cfg"   # what the poser remembers between runs (
 var settings := SETTINGS
 const AUTOSAVE := "user://autosave.json"   # the unsaved scene, every 15 s (round 16, W1): never in scenes/
 var autosave := AUTOSAVE   # a test's own (POSER_AUTOSAVE names one; otherwise per process, removed on exit)
-const RECENT_N := 10   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first (settings [recent] scenes)
+const RECENT_N := 12   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first (settings [recent] scenes)
 const RING_N := 5      # File > Restore... (ROADMAP 59): the last autosaves, rotating: user://autosave_1.json is the newest
 var _as_wait := 0.0
 var _as_last := ""
@@ -129,6 +129,7 @@ var ui_natural: CheckBox
 var ui_scene_name: LineEdit
 var ui_scene_btn: MenuButton   # the one Scene menu (Save, Open, Versions, New, Template, Delete)
 var ui_scenes: OptionButton
+var recents: Recents   # ROADMAP_400 P13: the start panel of recent scenes with pictures (scripts/recents.gd)
 var thumbs: SceneThumbs   # ROADMAP 51: the pictures in the scene list (scripts/scene_thumbs.gd)
 var ui_tinted := []    # [label, Tok token]: the labels a theme switch re-tints (round 9)
 var ui_say_box: StyleBoxFlat
@@ -2539,6 +2540,9 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):
 		_recover_offer.call_deferred()
+	recents = Recents.new(self)
+	if not testing and not args.has("--shot") and not args.has("--tour") and not _recent_list().is_empty() and recents.start_on():
+		_recents_start.call_deferred()   # P13: a test never gets it (it asks with File: recent scenes); nor a first-run tour (no recents yet)
 	ov.trail_on = args.has("--trail")
 	var pi := args.find("--pin")   # --pin foot_l,head: trails on those parts (shots and checks)
 	if pi >= 0 and pi + 1 < args.size():
@@ -13864,6 +13868,10 @@ func _commands() -> Array:
 		if not miss:
 			how = "open %s (the same as picking it in the scene list)" % p.get_file()
 		add.call("File > Recent: " + p.get_file().get_basename().replace("_", " ") + ("  (missing)" if miss else ""), "", _open_recent.bind(p), "recent open scene file again last", false, how)
+	add.call("File: recent scenes", "", func(): recents.show_panel(), "recent scenes start panel pictures thumbnails open again last grid", false, "the start panel: the last 12 scenes with a picture, name, how long ago and card count; click one to open it, or start a new scene")
+	add.call("Setting: show recent scenes at start", "", func():
+		recents.set_start(not recents.start_on())
+		_say("recent scenes at start: " + ("on" if recents.start_on() else "off (File: recent scenes still opens it)")), "recent scenes start panel startup show hide setting", false, "turn the recent scenes panel at start on or off (remembered; on by default, and only shown when there are recent scenes)")
 	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
@@ -16646,7 +16654,7 @@ func _save_scene_now(nm: String) -> void:
 	_clean = _doc_key()
 	_autosave_drop()
 	scene_path = "res://scenes/%s.json" % fname
-	_recent_note(scene_path)
+	_recent_note(scene_path, true)
 	_journal_saved()
 	_lists()
 	_refresh()
@@ -17294,17 +17302,31 @@ func _recent_list() -> Array:
 	return out
 
 
-func _recent_note(path: String) -> void:
+func _recent_note(path: String, saved := false) -> void:
 	if path == "":
 		return
 	var l := _recent_list()
 	l.erase(path)
 	l.push_front(path)
+	l = l.slice(0, RECENT_N)
 	var cf := ConfigFile.new()
 	cf.load(settings)
-	cf.set_value("recent", "scenes", l.slice(0, RECENT_N))
+	cf.set_value("recent", "scenes", l)
+	Recents.put_meta(cf, path, S, l)   # P13: when, how many cards, how long
 	cf.save(settings)
 	_recent_changed()
+	if recents != null and (saved or not FileAccess.file_exists(Recents.thumb_path(path))):
+		recents.capture(path)   # the picture of the 3D view, at save time (or the first time the scene is seen)
+
+
+## P13: the start panel, once the recover offer and any intro have been answered
+func _recents_start() -> void:
+	for _i in 3:
+		await get_tree().process_frame
+	while ui_recover != null and ui_recover.visible:
+		await ui_recover.visibility_changed
+	if tour_step < 0 and not onboard.pending and not easy.on and not _recent_list().is_empty():
+		recents.show_panel()
 
 
 ## the scene list and the palette's File > Recent group show the new order at once
@@ -17314,6 +17336,8 @@ func _recent_changed() -> void:
 		_show_open_scene()
 	if ui_cmd != null:
 		ui_cmd.commands = _commands() + plugins.command_rows()
+	if recents != null and recents.panel != null and recents.panel.visible:
+		recents.fill()
 
 
 ## File > Recent: a scene from the list, opened as the list's pick would open it
