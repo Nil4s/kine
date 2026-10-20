@@ -4,8 +4,8 @@
 ##       goes between, each clip is searched for the frame that looks like the first pose and the later frame that looks
 ##       like the second; the frames between them are how long that transition took there.
 ##   (2) PRINCIPLES with numbers:
-##       STRIKE SIZE   a fist travelling d metres takes d / v_mean. Peak fist speeds recorded: 7.1 m/s (MMA swing punch, Sensors
-##                     2025, 25(11):3270) to 11.95 +- 1.84 m/s (lead hook, amateur boxers, Stanley et al. 2018, Int J Perf
+##       STRIKE SIZE   a fist travelling d metres takes d / v_mean. Fist speeds recorded: 7.1 +- 0.5 m/s (MEAN fist speed over the
+##                     last 10 ms before impact, MMA swing punch, 21 elite men, Sensors 2025, 25(11):3270, sec. 3.2) to PEAK 11.95 +- 1.84 m/s (lead hook, amateur boxers, Stanley et al. 2018, Int J Perf
 ##                     Anal Sport). A reaching movement's speed is a bell with peak = 1.875 x mean (minimum jerk, Flash & Hogan
 ##                     1985), so the mean speed is 3.8 .. 6.4 m/s: a 0.6 m punch takes 0.09 .. 0.16 s.
 ##       WEAPON        a held weapon slows the swing by (I / I_bat)^0.27 (Cross & Bower 2006; weight_feel.gd).
@@ -18,7 +18,7 @@
 class_name TimingCoach
 extends RefCounted
 
-const V_PEAK_LO := 7.1       # m/s: slowest recorded peak fist speed (MMA swing punch)
+const V_PEAK_LO := 7.1       # m/s: slowest recorded fist speed (MMA swing punch, a 10 ms pre-impact MEAN, not a peak: Sensors 2025 sec. 3.2)
 const V_PEAK_HI := 11.95     # m/s: fastest (lead hook, Stanley 2018)
 const PEAK_OVER_MEAN := 1.875   # minimum-jerk bell (Flash & Hogan 1985)
 const ANTIC_RATIO := 2.0     # ours: the action is at most this fraction (1/2) of the wind-up that precedes it
