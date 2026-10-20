@@ -371,7 +371,7 @@ const HAND_V := 0.25
 const HAND_MIN := 4
 const FLOOR_WIN := 20     # frames: a foot's ground is the lowest it gets within this many frames either side
 const HEEL_UP := 0.03     # m: a heel this far above its own ground has left it (the ball roll: a plant then holds the ball, FootPlant "th")
-const TRIM := 2           # frames cut off the end of a plant (the toe-off; VideoCleanup.reachable cuts what the leg cannot hold)
+const TRIM := 0           # frames cut off the end of a plant (the toe-off; VideoCleanup.reachable cuts what the leg cannot hold)
 
 
 static func _hxz(v: Vector3) -> Vector2:

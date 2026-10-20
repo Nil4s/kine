@@ -69,6 +69,7 @@ func _run() -> void:
 		var swing := 0
 		var fals := 0
 		var after := {"_l": [], "_r": []}
+		var diag := {"_l": "", "_r": ""}
 		for i in n:
 			var t := i / 30.0
 			V.apply(B, t)
@@ -78,12 +79,16 @@ func _run() -> void:
 				for p in V.plants:
 					if p["foot"] == "foot" + sd and t >= float(p["t0"]) and t <= float(p["t1"]):
 						planted = true
+				diag[sd] += ("S" if planted else "s") if bool(Sy["flags"][sd][i]) else ("x" if planted else ".")
 				if bool(Sy["flags"][sd][i]):
 					stance += 1
 					cov += 1 if planted else 0
 				else:
 					swing += 1
 					fals += 1 if planted else 0
+		if OS.get_environment("R14_DIAG") != "":
+			print("     L ", diag["_l"], "
+     R ", diag["_r"])
 		var worst_slide := 0.0
 		var worst_air := 0.0
 		for p in V.plants:
@@ -91,6 +96,7 @@ func _run() -> void:
 			var t := float(p["t0"])
 			var ref := []
 			var ball_set := false
+			var toe_ref := Vector3.INF
 			while t <= float(p["t1"]) + 1e-6:
 				V.apply(B, t)
 				var s := sole(B, sd)
@@ -101,8 +107,13 @@ func _run() -> void:
 					ball_set = true
 				# the heel is held until th (heel-off), the ball from tf (heel pivot) on
 				var heel_d: float = (s[0] as Vector3).distance_to(ref[0]) if (not p.has("th") or t < float(p["th"]) - 0.05) else 0.0
-				var ball_d: float = (s[1] as Vector3).distance_to(ref[1]) if (not p.has("tf") or t >= float(p["tf"])) else 0.0
-				worst_slide = maxf(worst_slide, maxf(heel_d, ball_d))
+				var ball_d: float = (s[1] as Vector3).distance_to(ref[1]) if ((not p.has("tf") or t >= float(p["tf"])) and (not p.has("tt") or t < float(p["tt"]) - 0.05)) else 0.0
+				var toe_d := 0.0
+				if p.has("tt") and t >= float(p["tt"]) + 0.05:   # the toe pivot: the toe tip is the held contact from tt on
+					if toe_ref == Vector3.INF:
+						toe_ref = B.E["ball" + sd]
+					toe_d = (B.E["ball" + sd] as Vector3).distance_to(toe_ref)
+				worst_slide = maxf(worst_slide, maxf(maxf(heel_d, ball_d), toe_d))
 				worst_air = maxf(worst_air, minf((s[0] as Vector3).y, (s[1] as Vector3).y))
 				t += 1.0 / 60.0
 		var det := 0
@@ -123,6 +134,8 @@ func _run() -> void:
 			for sd in ["_l", "_r"]:
 				before[sd].append(mid(B, sd))
 		V.plants = saved
+		var n_tt := V.plants.filter(func(q): return q.has("tt")).size()
+		print("     toe pivots: %d of %d plants" % [n_tt, V.plants.size()])
 		print("     x%.2f: %d plants; cover %d of %d stance = %.0f %%; false %d of %d swing = %.1f %%; slide %.2f cm; sole height %.1f cm; hip drop %.1f cm" % [scale, V.plants.size(), cov, stance, 100.0 * cov / maxf(stance, 1), fals, swing, 100.0 * fals / maxf(swing, 1), worst_slide * 100.0, worst_air * 100.0, worst_drop * 100.0])
 		kf(float(cov) / maxf(stance, 1) >= 0.70, "1 x%.2f plants cover %.0f %% of the labelled stance (bar 70 %%)" % [scale, 100.0 * cov / maxf(stance, 1)])
 		ok(float(fals) / maxf(swing, 1) < 0.10, "2 x%.2f false plants %.1f %% of the swing frames (bar < 10 %%)" % [scale, 100.0 * fals / maxf(swing, 1)])

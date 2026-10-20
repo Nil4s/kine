@@ -54,6 +54,8 @@ static func from_file(d: Variant) -> Array:
 				q["th"] = float(p["th"])
 				if p.has("tf") and float(p["tf"]) > t0 and float(p["tf"]) < t1:
 					q["tf"] = float(p["tf"])
+			if p.has("tt") and float(p["tt"]) > t0 and float(p["tt"]) < t1:
+				q["tt"] = float(p["tt"])   # R14c: toe pivot, the toe tip is held from tt
 			out.append(q)
 	out.sort_custom(func(a, b): return float(a["t0"]) < float(b["t0"]))
 	return out
@@ -71,6 +73,8 @@ static func to_file(plants: Array) -> Array:
 			q["tf"] = snappedf(float(p["tf"]), 0.0001)
 		if p.has("dend"):
 			q["dend"] = snappedf(float(p["dend"]), 0.0001)
+		if p.has("tt"):
+			q["tt"] = snappedf(float(p["tt"]), 0.0001)
 		return q)
 
 
@@ -187,8 +191,32 @@ static func refs(S: Scene, B: Body, t: float) -> Dictionary:
 		if bool(p.get("reach", false)):
 			r = r.duplicate()
 			r["reach"] = true   # R14: a video plant's hips drop (never rise) until the leg reaches its pin, on bare floor too
+			r = snap_to_floor(r)
 		out[i] = r
 	return out
+
+
+## R14c SNAP: a video fit holds a heel strike's sole a few cm above the floor. A video plant's held sole is brought DOWN onto the
+## floor (y = 0) when its lowest contact (heel, ball, toe tip) is within SNAP_H of it: the ankle target moves down by that height and
+## the leg is solved onto it (LimbIK.solve in play), so the planted foot stands on the ground rather than in the air. A sole already
+## below the floor, or higher than SNAP_H (a foot in the air, not a held fit error), is left as it was.
+const SNAP_H := 0.04   # m: the most a held sole is snapped down
+
+static func snap_to_floor(r: Dictionary) -> Dictionary:
+	if not r.has("BP"):
+		return r
+	var P: Vector3 = r["P"]
+	var G: Quaternion = r["G"]
+	var Gb: Quaternion = r["Gb"]
+	var low := minf(minf((P - G * Vector3(0, float(r["h"]), 0)).y, ((r["BP"] as Vector3) - Gb * Vector3(0, float(r["rb"]), 0)).y),
+		((r["BE"] as Vector3) - Gb * Vector3(0, float(r["re"]), 0)).y)
+	if low <= 1e-4 or low > SNAP_H:
+		return r
+	var q := r.duplicate()
+	q["P"] = P - Vector3(0, low, 0)
+	q["BP"] = (r["BP"] as Vector3) - Vector3(0, low, 0)   # the ball and toe tip holds (heel-off, toe pivot) read these: they go down with the ankle
+	q["BE"] = (r["BE"] as Vector3) - Vector3(0, low, 0)
+	return q
 
 
 ## THE GROUND REFERENCE (ROADMAP 93): a planted sole stands on the surface under it (a step's tread, a ramp), not on y = 0.
@@ -272,10 +300,14 @@ static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float
 	B.fk()
 	var cap := 1e9   # the drop a "reach" plant may take (ground plants on a surface are not capped: ROADMAP 93)
 	var y0: float = B.offset.y
+	var holding := false   # R14c: a plant in its hold (not its release ramp) needs the whole drop: a released one's dend must not starve it
+	for i in refs_:
+		if t <= float(plants[i]["t1"]):
+			holding = true
 	for i in refs_:
 		if not bool(refs_[i].get("ground", false)):
 			var c := REACH_DROP
-			if t > float(plants[i]["t1"]):
+			if t > float(plants[i]["t1"]) and not holding:
 				c = minf(c, float(plants[i].get("dend", c)))   # the release keeps the drop the plant ended on: no pop at t1
 			cap = minf(cap, c)
 	for _k in DROP_STEPS:
@@ -323,6 +355,33 @@ static func _heel_off(B: Body, plants: Array, refs_: Dictionary, t: float, fps: 
 	return out
 
 
+## TOE PIVOT (R14c): a plant with "tt" ends in the toe-off. From tt the foot has rolled up onto its toes: only the TOE TIP is held, the
+## ankle target being the toe tip's place at the reference time plus the played pose's own ankle-from-toe-tip offset (the ball hold's
+## sibling, one contact further on); the played turns are kept, eased in over BLEND frames about tt. B is the free pose at t here.
+static func _toe_off(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> Dictionary:
+	var out := refs_
+	for i in refs_:
+		var p: Dictionary = plants[i]
+		if not p.has("tt") or not refs_[i].has("BE"):
+			continue
+		var f := float(maxi(fps, 1))
+		var m := clampf((t - float(p["tt"])) * f / float(BLEND) + 0.5, 0.0, 1.0)
+		m = m * m * (3.0 - 2.0 * m)
+		if m <= 0.0:
+			continue
+		if out == refs_:
+			out = refs_.duplicate()
+		var foot := String(p["foot"])
+		var ball := "ball" + foot.right(2)
+		var r: Dictionary = (refs_[i] as Dictionary).duplicate()
+		var tgt: Vector3 = (r["BE"] as Vector3) + ((B.P[foot] as Vector3) - (B.E[ball] as Vector3))
+		r["P"] = (r["P"] as Vector3).lerp(tgt, m)
+		r["G"] = (r["G"] as Quaternion).slerp(B.G[foot], m)
+		r["Gb"] = (r["Gb"] as Quaternion).slerp(B.G[ball], m)
+		out[i] = r
+	return out
+
+
 ## HEEL PIVOT (R14b): a plant with "tf" starts at a heel strike, the heel on the floor and the toes still up, so no whole-sole hold
 ## can pin it (the sole is not flat yet). The sole is read at tf, where it is flat (ref_time). Until tf only the HEEL is held: the
 ## ankle target is the heel's place at tf plus the played pose's own ankle-from-heel offset, the foot's and the ball's turns are
@@ -359,6 +418,7 @@ static func _heel_pivot(B: Body, plants: Array, refs_: Dictionary, t: float, fps
 static func play(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int, props: Array = []) -> Dictionary:
 	var out := {}
 	refs_ = _heel_off(B, plants, refs_, t, fps)
+	refs_ = _toe_off(B, plants, refs_, t, fps)
 	refs_ = _heel_pivot(B, plants, refs_, t, fps)
 	_lower_for_reach(B, plants, refs_, t, fps)
 	for i in refs_:

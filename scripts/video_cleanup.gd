@@ -239,9 +239,15 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 			if ball_down and (not p.has("th") or float(p["th"]) > tb - 1e-6) and tb - dt > float(p["t0"]) + PLANT_MIN * dt:
 				p["th"] = tb - dt
 				continue
+			# R14c TOE PIVOT: the ball hold misses too (the foot is on its toes): from one frame before the miss only the toe tip is held
+			if ball_down and p.has("th") and not p.has("tt") and float(p["th"]) < tb - 1e-6 and tb - dt > float(p["th"]) + 2.0 * dt:
+				p["tt"] = tb - dt
+				continue
 			p["t1"] = tb - step
 			if p.has("th") and float(p["th"]) >= float(p["t1"]):
 				p.erase("th")
+			if p.has("tt") and float(p["tt"]) >= float(p["t1"]):
+				p.erase("tt")
 			if float(p["t1"]) - float(p["t0"]) < PLANT_MIN * dt:
 				p["t1"] = float(p["t0"])
 				break
@@ -257,7 +263,10 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 		V.plants = out
 		while float(p["t1"]) - float(p["t0"]) >= PLANT_MIN * dt:
 			V.apply(B, float(p["t1"]))
-			if minf((B.P["ball" + sde] as Vector3).y, FootRoll.heel_point(B, sde).y) <= END_H:
+			var low_e := minf((B.P["ball" + sde] as Vector3).y, FootRoll.heel_point(B, sde).y)
+			if p.has("tt"):
+				low_e = minf(low_e, (B.E["ball" + sde] as Vector3).y - (B.e0["ball" + sde] as Vector3).y)   # R14c: on its toes the toe tip is the contact
+			if low_e <= END_H:
 				break
 			p["t1"] = float(p["t1"]) - step
 	var kept := []
