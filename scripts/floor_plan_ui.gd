@@ -12,6 +12,8 @@ var plan: Dictionary = {}
 var view: FloorPlanView
 var last_path := ""
 var last_png := ""
+var png_labels: Array = []   # i42b: the label rects of the last PNG drawn (the declutter bar of the test)
+var png_dropped := 0
 var forced: Dictionary = {}   # {"scenes", "names", "xfs"}: plan these instead of the open scene (a test's fighters)
 
 
@@ -105,6 +107,8 @@ func render_png(host: Node) -> PackedByteArray:
 	host.add_child(vp)
 	await (Engine.get_main_loop() as SceneTree).process_frame
 	await RenderingServer.frame_post_draw
+	png_labels = v.labels.duplicate()
+	png_dropped = v.dropped
 	var img := vp.get_texture().get_image()
 	vp.queue_free()
 	return img.save_png_to_buffer() if img != null and not img.is_empty() else PackedByteArray()

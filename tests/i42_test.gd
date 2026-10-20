@@ -12,6 +12,8 @@
 ##      body (B.state) are byte-identical before and after; the files are removed
 ##  (6) the panel: Floor plan opens on combo3 with the plan view; everything drawn is inside the view (+-1 px), the view is inside the findings panel, and the
 ##      panel is inside the window (screenshot tmp/i42.png)
+##  (7) i42b DECLUTTER: in the PNG (1400 x 1000) and in the panel, no two label rects overlap (labels fit inside the view), every footprint keeps its number
+##      (a text "n" within its own footprint's neighbourhood, none dropped), and the PNG drops no more than 2 time labels
 extends SceneTree
 
 const TMP := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/"
@@ -156,6 +158,12 @@ func _init() -> void:
 	ok(path != "" and path.contains("user:") == false and html.contains("<svg") and polys == total and html.contains(">100 cm</text>") and perr == OK and img.get_width() == 1400 and img.get_height() == 1000
 		and share >= 0.01 and jsn(HP) + jsn(O) == jsn(HP) + jsn(O) and JSON.stringify(m.B.state()) == keep0 and before == jsn(H) + jsn(O),
 		"(5) page %s holds %d footprint polygons (%d footprints), picture %dx%d with %.1f %% of its pixels drawn; scenes and body untouched" % [path.get_file(), polys, total, img.get_width(), img.get_height(), share * 100.0])
+	var lo_png := overlaps(ui.png_labels, Rect2(Vector2.ZERO, Vector2(1400, 1000)))
+	var nums_png := 0
+	for l in ui.png_labels:
+		nums_png += 1 if l["kind"] == "number" else 0
+	ok(lo_png[0] == 0 and lo_png[1] == 0 and nums_png == total and ui.png_dropped <= 2,
+		"(7) PNG: %d labels, %d overlapping pairs, %d outside the picture, %d of %d numbers kept, %d time labels dropped (<= 2)" % [ui.png_labels.size(), lo_png[0], lo_png[1], nums_png, total, ui.png_dropped])
 	DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(ui.last_png)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
@@ -183,8 +191,24 @@ func _init() -> void:
 	print("     panel view %s, drawn %s, findings panel %s, window %s" % [vr, dr, pr, win])
 	root.get_texture().get_image().save_png(TMP + "i42.png")
 	ok(m.ui_find.visible and inside and in_panel and in_win, "(6) the plan fits: drawn box inside its view, view inside the panel, panel inside the window (%s)" % FloorPlan.summary(ui.plan))
+	var lo_v := overlaps(v.labels, Rect2(Vector2.ZERO, v.size))
+	ok(lo_v[0] == 0 and lo_v[1] == 0 and v.labels.size() > 10, "(7b) panel: %d labels, %d overlapping pairs, %d outside the view, %d time labels dropped" % [v.labels.size(), lo_v[0], lo_v[1], v.dropped])
 	print("i42: %d failures" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## [pairs of label rects that overlap, labels not inside the box]
+func overlaps(ls: Array, box: Rect2) -> Array:
+	var n := 0
+	var out := 0
+	for i in ls.size():
+		var r: Rect2 = ls[i]["rect"]
+		if not box.grow(0.5).encloses(r):
+			out += 1
+		for j in range(i + 1, ls.size()):
+			if r.intersects(ls[j]["rect"]):
+				n += 1
+	return [n, out]
 
 
 func from_plants_ok(p: Dictionary) -> bool:

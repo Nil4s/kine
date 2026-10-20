@@ -7343,7 +7343,7 @@ func _frh_active() -> String:
 	if sel in _ikh_pinned():
 		return ""
 	for p in S.plants:
-		if String(p["foot"]) == sel and FootPlant.weight(p, t, S.fps) > 0.0:
+		if String(p["foot"]) == sel and FootPlant.weight_at(S.plants, S.plants.find(p), t, S.fps) > 0.0:
 			return ""
 	return sel.right(2)
 
