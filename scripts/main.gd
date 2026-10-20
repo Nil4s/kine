@@ -206,7 +206,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
+	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
@@ -10072,7 +10072,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
-	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
+	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
@@ -10404,6 +10404,7 @@ func _ui() -> void:
 		ui_ribbon[tab].add_child(b)
 	# BODY (the page's sliders are the left panel, scripts/body_panel.gd)
 	ui_ribbon["BODY"].add_child(_button("Body: proportions...", _proportions_dialog, "a small dialog: an ANSUR II preset (5th / 50th / 95th, woman or man) or a stature in cm. The sliders on the left do the same by percentile"))
+	ui_ribbon["BODY"].add_child(_button("Body: fighter archetype...", _archetype_dialog, "a list of fighters and athletes built from published measurements (boxers by weight class, sumo, judo, sprinter, ...): stature, mass and arm span; one undo step; the status line names the source"))
 	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 183 cm mannequin; the cards keep their angles. Ctrl+Z undoes"))
 	# POSE
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
@@ -13357,6 +13358,7 @@ func _commands() -> Array:
 	add.call("Body: proportions...", "", _proportions_dialog, "proportions height stature tall short size body limbs arm leg length character ansur woman man female male", false, "a small dialog: a preset (ANSUR II 5th / 50th / 95th, woman or man) or a stature; the cards keep their angles, the feet stay on the floor (PR1)")
 	for pk in Proportions.PRESETS:
 		add.call("Body: " + Proportions.PRESET_NAMES[pk], "", func(): proportions_set(Proportions.preset(pk)), "proportions height stature body " + pk.replace("_", " "), true, "the body's proportions: %s (ANSUR II stature %.1f cm), the cards retargeted (PR1)" % [Proportions.PRESET_NAMES[pk], float(Proportions.PRESETS[pk]["stature"]) * 100.0])
+	add.call("Body: fighter archetype...", "", _archetype_dialog, "archetype fighter boxer sumo judo sprinter marathon gymnast kendo mma athlete weight class reach ape index body", false, "a list of athletes' published measurements (stature, mass, arm span / height) put on the body; the cards keep their angles (G23)")
 	add.call("Body: the mannequin's own proportions", "", func(): proportions_set({}), "proportions default reset height body", true, "the body back to the mannequin as shipped (%.1f cm), the cards retargeted (PR1)" % (Proportions.DEFAULT_STATURE * 100.0))
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
@@ -19837,6 +19839,43 @@ var ui_style_dlg: ConfirmationDialog
 var ui_style_pct: SpinBox
 var ui_style_name := ""
 const PROP_KEYS := ["", "female_5", "female_50", "female_95", "male_5", "male_50", "male_95", "custom"]
+
+
+## G23: the list of archetypes (scripts/archetypes.gd); picking one is ONE undo step through proportions_set
+var ui_arch_dlg: ConfirmationDialog
+var ui_arch_list: ItemList
+func _archetype_dialog() -> void:
+	if ui_arch_dlg == null:
+		ui_arch_dlg = ConfirmationDialog.new()
+		ui_arch_dlg.name = "archetype_dialog"
+		ui_arch_dlg.title = "Body: fighter archetype"
+		ui_arch_dlg.min_size = Vector2i(420, 360)
+		ui_arch_list = ItemList.new()
+		ui_arch_list.name = "archetype_list"
+		ui_arch_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		for id in Archetypes.ORDER:
+			var a: Dictionary = Archetypes.TABLE[id]
+			ui_arch_list.add_item("%s   %.0f cm, %.0f kg" % [a["name"], float(a["stature"]) * 100.0, float(a["mass"])])
+			ui_arch_list.set_item_tooltip(ui_arch_list.item_count - 1, String(a["src"]))
+		ui_arch_list.item_activated.connect(func(i):
+			ui_arch_dlg.hide()
+			archetype_set(Archetypes.ORDER[i]))
+		ui_arch_dlg.add_child(ui_arch_list)
+		ui_arch_dlg.confirmed.connect(func():
+			var sel := ui_arch_list.get_selected_items()
+			if sel.is_empty():
+				_say("pick an archetype in the list first, then press OK")
+			else:
+				archetype_set(Archetypes.ORDER[sel[0]]))
+		add_child(ui_arch_dlg)
+	ui_arch_dlg.popup_centered()
+
+
+func archetype_set(id: String) -> void:
+	proportions_set(Archetypes.body_for(id))
+	_say(Archetypes.say(id))
+	if ui_body != null:
+		ui_body.sync(S.body, B, true)
 
 
 func _proportions_dialog() -> void:
