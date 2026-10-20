@@ -9,6 +9,8 @@
 ## Registry checks: ids unique, every entry has a description.
 extends SceneTree
 
+const SHARDS := 4
+
 const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "writes poses/ (a file, not an edit)",
 	"save_scene": "writes scenes/ (a file, not an edit)", "polish_the_scene_new_copy": "writes + opens a copy in scenes/_wip",
 	"mirror_the_scene_left-handed_copy": "writes + opens a copy in scenes/_wip",
@@ -621,12 +623,34 @@ func _init() -> void:
 	var from_id := ""
 	var t_cmd := 0
 	var t_prev := ""
+	# SHARDS: the full walk takes ~19 min alone, so the suite runs as 4 shards in parallel (tests/undo_audit_s<i>_test.gd
+	# extend this script; shard i takes the i-th quarter of the commands). "shard=i/n" on the command line does the same.
+	var shard := -1
+	var nsh := 1
+	var me: String = (get_script() as Script).resource_path.get_file()
+	if me.begins_with("undo_audit_s"):
+		shard = int(me.trim_prefix("undo_audit_s").get_slice("_", 0))
+		nsh = SHARDS
 	for a in OS.get_cmdline_user_args():
+		if a.begins_with("shard="):
+			shard = int(a.substr(6).get_slice("/", 0))
+			nsh = int(a.substr(6).get_slice("/", 1))
 		if a.begins_with("only="):
 			only = a.substr(5)
 		if a.begins_with("from="):   # resume the walk at this command id (a long audit measured in parts)
 			from_id = a.substr(5)
+	# contiguous blocks, not every n-th: some commands use what the one before left behind (copy_pose -> paste_*, the
+	# driver source -> driver_*), so a paste / driver command stays in its predecessor's shard
+	var idx := -1
+	var prev_sh := 0
 	for c in cmds:
+		idx += 1
+		var sh: int = idx * nsh / cmds.size()
+		if idx > 0 and (String(c["id"]).begins_with("paste_") or String(c["id"]).begins_with("driver_")):
+			sh = prev_sh
+		prev_sh = sh
+		if nsh > 1 and sh != shard:
+			continue
 		if only != "" and c["id"] != only:
 			continue
 		if from_id != "":
@@ -655,6 +679,10 @@ func _init() -> void:
 		if c["edits"]:
 			tested += 1
 	ok(vacuous.is_empty(), "every edit command was seen to change something (%d of %d tested; vacuous: %s)" % [tested, n_edit, vacuous])
+	if nsh > 1 and shard != 0:   # the checks after the walk run once, in shard 0
+		print("UNDO AUDIT %s (shard %d of %d)" % ["PASS" if fails == 0 else "FAIL %d" % fails, shard, nsh])
+		quit(fails)
+		return
 	# a pass that keeps the live body aside and puts it back (Fix moves through the body; Save / Polish / Mirror do
 	# the same) must put it back EXACTLY: it went through the rounded file format before round 8
 	await start("A")
