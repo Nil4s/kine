@@ -11,6 +11,7 @@ var fx: Dictionary = {}
 var sel := -1
 var pv: Scene = null
 var pv_who := 0
+var pv_also := {}   # fighter -> scene: the other fighters the suggestion changes too (the answers of a pause, the counter of a feint)
 var pv_t := 0.0
 var pv_end := 0.0
 
@@ -26,6 +27,15 @@ func commands(add: Callable) -> void:
 
 func halt() -> void:
 	pv = null
+	_ghosts_off()
+
+
+## the feint maker's ghosts (gold: where the feint stops, blue: the real strike) are put away
+func _ghosts_off() -> void:
+	if m.feint_ui != null:
+		if m.feint_ui.on:
+			m.feint_ui.stop()
+		m.feint_ui.label_at = Vector2(-1.0, 100.0)
 
 
 func clear_overlay() -> void:
@@ -33,7 +43,24 @@ func clear_overlay() -> void:
 	fx = {}
 	sel = -1
 	pv = null
+	_ghosts_off()
 	_overlay()
+
+
+func scenes_for_test() -> Array:
+	return _scenes()
+
+
+func names_for_test() -> Array:
+	return _names()
+
+
+func xfs_for_test() -> Array:
+	return _xfs()
+
+
+func _xfs() -> Array:
+	return m.actors_rt.map(func(a): return a["xf"])
 
 
 func _scenes() -> Array:
@@ -149,12 +176,27 @@ func select(k: int) -> void:
 	if k < 0 or k >= flags.size():
 		m._say("pick a flag from the list first")
 		return
-	var f := FightRhythm.fix(_scenes(), _names(), flags[k])
+	var f := FightRhythm.fix(_scenes(), _names(), flags[k], _xfs())
 	if not f["ok"]:
 		m._say(String(f["why"]))
 		return
 	sel = k
 	fx = f
+	_ghosts_off()
+	if f.has("feint_res") and m.feint_ui != null:
+		# the feint's ghosts stand on the attacker for Preview: gold = where the feint stops, blue = the real strike (the feint maker's own, I20)
+		var fu: FeintUI = m.feint_ui
+		fu.att_k = int(f["att_who"])
+		fu.def_k = int(f["def_who"])
+		fu.res = f["feint_res"]
+		fu.sel = 0
+		fu.checks = {}
+		fu.base = []
+		fu.trails = {}
+		fu.on = true
+		fu.label_at = Vector2(m.get_viewport().get_visible_rect().size.x - 247.0, 320.0)   # under the inspector: the rhythm panel owns the left of the stage
+		fu.n_undo = m.undo.size()
+		fu._build()
 	_panel()
 
 
@@ -169,6 +211,9 @@ func preview() -> void:
 		return
 	pv = (fx["scene"] as Scene).clone()
 	pv_who = int(fx["who"])
+	pv_also = {}
+	for a in fx.get("also", []):
+		pv_also[int(a["who"])] = (a["scene"] as Scene).clone()
 	pv_t = 0.0
 	pv_end = pv.length()
 	for s in _scenes():
@@ -187,7 +232,7 @@ func tick(dt: float) -> void:
 		m._refresh()
 		return
 	for k in m.actors_rt.size():
-		var sc: Scene = pv if k == pv_who else m.actors_rt[k]["S"]
+		var sc: Scene = pv if k == pv_who else (pv_also[k] if pv_also.has(k) else m.actors_rt[k]["S"])
 		sc.apply(m.actors_rt[k]["B"], pv_t)
 	m._refresh()
 
@@ -200,12 +245,16 @@ func accept() -> void:
 	var sc: Scene = fx["scene"]
 	var msg := String(fx["msg"])
 	var w := int(fx["who"])
+	var also: Array = fx.get("also", [])
+	_ghosts_off()
 	m._actors_sync()
 	m._step_hint = "Fight rhythm"
 	m._push_undo()   # (the snapshot holds every fighter's cards)
 	(m.actors_rt[w]["S"] as Scene).cards = sc.cards.duplicate(true)
 	var fl: Array = rep.get("flags", [])
 	m.sj.log("fight rhythm", String(fl[sel]["type"]) if sel >= 0 and sel < fl.size() else "flag", -1, {}, m.undo.size())   # I26
+	for a in also:
+		(m.actors_rt[int(a["who"])]["S"] as Scene).cards = (a["scene"] as Scene).cards.duplicate(true)
 	m._rebuild_cards()
 	m._ps().apply(m.B, m.playhead)
 	m._refresh()

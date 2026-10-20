@@ -12,6 +12,9 @@
 ##      its end; Accept is ONE undo step; afterwards NO flag of that type; Ctrl+Z restores both fighters' cards exactly. What changed is measured:
 ##      the pause grows the interval by 0.30 s +-0.01 (rush: to >= 0.225 s), the mirror turns the 4th strike's side to the other hand, the feint
 ##      leaves no action gap over 1.2 s (dead air) / no run of 3 hooks (kind) and the clip is as long as before (+-0.02 s)
+##  (5b) STEP 2: the feint is the feint maker's (Feint.make, first variant): its stop is 40-60 % of the reach (fx.frac) and the dead-air flag
+##      clears; the PAUSE shifts the other fighter too: after Accept every block keeps its offset to the strike it answers within 1 ms (the
+##      interval and rush fixtures); hook and uppercut are strikes by the TIMING COACH's own word list (is_strike on a card of each name)
 ##  (6) PLACEMENT: the timeline holds one tick per action inside the track, a red band under the flags; the panel holds a row per flag with its
 ##      button; the screenshot is taken on a clip with all five flags
 extends SceneTree
@@ -44,15 +47,18 @@ func make_poses() -> void:
 	var h0: Vector3 = b.P["hand_r"]
 	var best := 0.0
 	var best_a := Vector3.ZERO
-	for a in [Vector3(-90, 0, 0), Vector3(0, 0, 80), Vector3(0, 0, -80), Vector3(80, 0, 0), Vector3(0, 80, 0), Vector3(-60, 0, 60), Vector3(60, 0, 60)]:
-		b.from_dict(stand)
-		b.ang["upperarm_r"] = a
-		b.ang["lowerarm_r"] = Vector3(0, 0, 0)
-		b.fk()
-		var d: float = (b.P["hand_r"] as Vector3).distance_to(h0)
-		if d > best:
-			best = d
-			best_a = a
+	for ax in range(-180, 181, 30):   # the arm swung to every direction on a grid: the hand that goes furthest FORWARD (+z, toward fighter 2) is the punch
+		for ay in range(-60, 61, 30):
+			for az in range(-60, 61, 30):
+				var a := Vector3(ax, ay, az)
+				b.from_dict(stand)
+				b.ang["upperarm_r"] = a
+				b.ang["lowerarm_r"] = Vector3(0, 0, 0)
+				b.fk()
+				var d: float = (b.P["hand_r"] as Vector3).z - h0.z
+				if d > best:
+					best = d
+					best_a = a
 	b.from_dict(stand)
 	b.ang["upperarm_r"] = best_a
 	b.fk()
@@ -60,18 +66,18 @@ func make_poses() -> void:
 	b.mirror_pose()
 	b.fk()
 	punch_l = b.to_dict()
-	print("       punch pose: upperarm_r %s, the hand travels %.2f m" % [best_a, best])
+	print("       punch pose: upperarm_r %s, the hand goes %.2f m forward" % [best_a, best])
 
 
 ## the hero: strikes = [[arrival time, name, "r" / "l"]] ascending. Each strike card arrives at its time (a MV move), a return card follows
-func hero(strikes: Array) -> Scene:
-	var cards := [{"name": "guard", "pose": stand, "move": -1.0, "hold": maxf(0.0, float(strikes[0][0]) - MV)}]
+func hero(strikes: Array, mv := MV) -> Scene:
+	var cards := [{"name": "guard", "pose": stand, "move": -1.0, "hold": maxf(0.0, float(strikes[0][0]) - mv)}]
 	for k in strikes.size():
 		var s: Array = strikes[k]
-		cards.append({"name": String(s[1]), "pose": punch_r if s[2] == "r" else punch_l, "move": MV, "hold": 0.0})
+		cards.append({"name": String(s[1]), "pose": punch_r if s[2] == "r" else punch_l, "move": mv, "hold": 0.0})
 		var gap: float = (float(strikes[k + 1][0]) - float(s[0])) if k + 1 < strikes.size() else 1.0
-		var ret := clampf(gap - MV, 0.04, 0.2)
-		cards.append({"name": "guard", "pose": stand, "move": ret, "hold": maxf(0.0, gap - MV - ret) if k + 1 < strikes.size() else 0.2})
+		var ret := clampf(gap - mv, 0.04, 0.2)
+		cards.append({"name": "guard", "pose": stand, "move": ret, "hold": maxf(0.0, gap - mv - ret) if k + 1 < strikes.size() else 0.2})
 	var S := Scene.new()
 	S.from_dict({"scene": "zz_hero", "fps": 30, "cards": cards})
 	return S
@@ -108,6 +114,24 @@ func strike_ts(rep: Dictionary) -> Array:
 	return (rep["events"] as Array).filter(func(e): return e["type"] == "strike").map(func(e): return float(e["t"]))
 
 
+## for each strike of the reading, the time of the block that answers it minus the strike's, in strike order. The rule is stated here on its own:
+## each strike, in time order, takes the earliest block of the other fighter inside -0.25 .. +0.8 s that no earlier strike took
+func answer_offsets(rep: Dictionary) -> Array:
+	var out := []
+	var used := {}
+	var ev: Array = rep["events"]
+	for e in ev:
+		if e["type"] != "strike":
+			continue
+		for k in ev.size():
+			var d: Dictionary = ev[k]
+			if d["type"] == "block" and int(d["who"]) != int(e["who"]) and not used.has(k) and float(d["t"]) >= float(e["t"]) - 0.25 and float(d["t"]) <= float(e["t"]) + 0.8:
+				used[k] = true
+				out.append(float(d["t"]) - float(e["t"]))
+				break
+	return out
+
+
 func max_gap(rep: Dictionary) -> float:
 	var g := 0.0
 	var ev: Array = rep["events"]
@@ -127,7 +151,22 @@ func _init() -> void:
 	m._rebuild_cards()
 	await idle()
 	make_poses()
-	m.S.actors.append({"name": "fighter 2", "xf": {"pos": [0.0, 1.1], "yaw": 180.0}, "scene": blocker([1.3])})
+	# fighter 2 stands where the punch lands: the farthest z at which the right fist (punch pose) is inside his surface (the feint maker needs a strike that touches)
+	var pb := DistanceKeeper.new_body()
+	pb.from_dict(punch_r)
+	pb.fk()
+	var fist: Vector3 = pb.palm_point("hand_r")
+	var db := DistanceKeeper.new_body()
+	db.from_dict(stand)
+	db.fk()
+	var fz := 0.8
+	for zi in range(130, 30, -1):
+		var zz := float(zi) * 0.01
+		if float(Choreo.surface_gap(fist, db, Transform3D(Basis(Vector3.UP, PI), Vector3(0, 0, zz)))["gap"]) <= -0.01:
+			fz = zz
+			break
+	print("       fighter 2 at z = %.2f m (the fist is 1 cm inside his surface)" % fz)
+	m.S.actors.append({"name": "fighter 2", "xf": {"pos": [0.0, fz], "yaw": 180.0}, "scene": blocker([1.3])})
 	m._actors_sync()
 	m._refresh()
 	await idle()
@@ -169,6 +208,11 @@ func _init() -> void:
 	print("       intervals %s, flags %s: %s" % [rep["intervals"], types(rep), rep["msg"]])
 	ok(rep["flags"].is_empty() and rep["events"].size() == 8, "(3) a varied exchange: no flags (%s)" % rep["msg"])
 
+	# the coach's own word list knows hook and uppercut
+	var hs := Scene.new()
+	hs.from_dict({"scene": "zz_h", "fps": 30, "cards": [{"name": "guard", "pose": stand, "move": -1.0, "hold": 0.1}, {"name": "hook", "pose": punch_r, "move": 0.15, "hold": 0.0}, {"name": "uppercut", "pose": punch_l, "move": 0.15, "hold": 0.0}, {"name": "walk", "pose": stand, "move": 0.15, "hold": 0.0}]})
+	ok(TimingCoach.is_strike(hs, 1) and TimingCoach.is_strike(hs, 2) and not TimingCoach.is_strike(hs, 3), "(3b) TimingCoach.is_strike knows hook and uppercut (and not walk)")
+
 	# (4)(5) one fixture per kind of flag; each is read, selected, previewed, accepted, undone
 	var cases := [
 		["interval", mono_h, mono_d],
@@ -178,7 +222,7 @@ func _init() -> void:
 		["rush", [[1.0, "jab", "r"], [1.2, "cross", "l"], [2.4, "hook", "r"]], [1.3, 1.5, 2.7]]]
 	for cs in cases:
 		var ty: String = cs[0]
-		put(hero(cs[1]), blocker(cs[2]))
+		put(hero(cs[1], 0.3 if ty == "kind" or ty == "dead_air" else MV), blocker(cs[2]))   # (a feint needs a strike move long enough to stop part-way: the coach's minimum move)
 		ui.show()
 		await idle()
 		rep = ui.rep
@@ -192,12 +236,16 @@ func _init() -> void:
 		ui.select(0)
 		await idle()
 		var sel_ok: bool = not ui.fx.is_empty() and cards_json() == before
+		if ui.fx.is_empty():
+			print("       select failed: %s" % [FightRhythm.fix(ui.scenes_for_test(), ui.names_for_test(), rep["flags"][0], ui.xfs_for_test()).get("why", "?")])
 		ui.preview()
 		var ticks := 0
 		while ui.pv != null and ticks < 1500:
 			await process_frame
 			ticks += 1
 		ok(sel_ok and cards_json() == before and ticks > 5, "(5) %s: after reading, selecting '%s' and Preview (%d frames) both fighters' cards are byte-identical" % [ty, rep["flags"][0]["fix"]["label"], ticks])
+		var fx_frac := float(ui.fx.get("frac", -1.0))
+		var off_before := answer_offsets(rep)
 		var u0: int = m.undo.size()
 		ui.accept()
 		await idle()
@@ -211,11 +259,21 @@ func _init() -> void:
 				var d_before: float = ts_before[2] - ts_before[1]
 				var d_after: float = ts_after[2] - ts_after[1]
 				extra = "the 2nd interval %.2f -> %.2f s" % [d_before, d_after]
-				good = absf(d_after - d_before - 0.3) <= 0.01
+				var off_after := answer_offsets(after)
+				var worst := 0.0
+				for k in off_before.size():
+					worst = maxf(worst, absf(float(off_after[k]) - float(off_before[k])))
+				extra += ", %d blocks keep their offset to the strike within %.2f ms" % [off_before.size(), worst * 1000.0]
+				good = absf(d_after - d_before - 0.3) <= 0.01 and off_before.size() == 4 and off_after.size() == 4 and worst <= 0.001
 			"rush":
 				var d_after2: float = ts_after[1] - ts_after[0]
 				extra = "the strikes %.2f -> %.2f s apart (need 0.225)" % [ts_before[1] - ts_before[0], d_after2]
-				good = d_after2 >= 0.225 - 1e-3 and d_after2 <= 0.65
+				var off_after2 := answer_offsets(after)
+				var worst2 := 0.0
+				for k in off_before.size():
+					worst2 = maxf(worst2, absf(float(off_after2[k]) - float(off_before[k])))
+				extra += ", %d blocks keep their offset within %.2f ms" % [off_before.size(), worst2 * 1000.0]
+				good = d_after2 >= 0.225 - 1e-3 and d_after2 <= 0.65 and off_before.size() == 3 and off_after2.size() == 3 and worst2 <= 0.001
 			"side":
 				var e4: Dictionary = (after["events"] as Array).filter(func(e): return e["type"] == "strike")[3]
 				extra = "the 4th strike now %s hand" % ("left" if e4["side"] == "l" else "right")
@@ -223,8 +281,8 @@ func _init() -> void:
 			"kind", "dead_air":
 				var nf: int = (after["events"] as Array).filter(func(e): return e["type"] == "feint").size()
 				var len1: float = m.actors_rt[0]["S"].length()
-				extra = "%d feint, longest action gap %.2f -> %.2f s, clip %.2f -> %.2f s" % [nf, gap_before, max_gap(after), len0, len1]
-				good = nf == 1 and absf(len1 - len0) <= 0.02 and (ty != "dead_air" or max_gap(after) <= 1.2 + 1e-6)
+				extra = "%d feint stopping at %.0f %% of the reach, longest action gap %.2f -> %.2f s, clip %.2f -> %.2f s" % [nf, fx_frac * 100.0, gap_before, max_gap(after), len0, len1]
+				good = nf == 1 and fx_frac >= 0.4 and fx_frac <= 0.6 and (ty != "dead_air" or max_gap(after) <= 1.2 + 1e-6)
 		ok(m.undo.size() == u0 + 1 and not types(after).has(ty) and good, "(5) %s: Accept is one undo step (%d -> %d), no %s flag after (%s); %s" % [ty, u0, m.undo.size(), ty, types(after), extra])
 		m._undo()
 		await idle()
@@ -249,13 +307,41 @@ func _init() -> void:
 	print("       showcase flags: %s" % [types(rep)])
 	ok(tl.rh.size() == rep["events"].size() and tl.rh_flags.size() == rep["flags"].size() and inside and rows == rep["flags"].size() and rows >= 4 and m.ui_find.visible,
 		"(6) the timeline holds %d ticks (one per action) inside the track and %d red bands; the panel %d flag rows with their buttons" % [tl.rh.size(), tl.rh_flags.size(), rows])
+	# the screenshot: the feint's ghosts previewed from the rhythm panel (the dead-air fixture; strike moves of 0.3 s so there is room to stop part-way)
+	put(hero([[1.0, "jab", "r"], [1.7, "hook", "l"], [3.7, "cross", "r"]], 0.3), blocker([1.3, 4.0]))
+	ui.show()
+	await idle(3)
 	ui.select(0)
+	await idle(3)
+	var fu = m.feint_ui
+	m.yaw = 90.0
+	m.pitch = -6.0
+	m.dist = 7.0
+	m.target = Vector3(0.0, 0.85, 1.2)
+	m._cam()
+	ui.preview()
+	var pf := 0
+	while ui.pv != null and ui.pv_t < 2.9 and pf < 1500:
+		await process_frame
+		pf += 1
+	await idle(3)
+	var hero_head: Vector3 = m.actors_rt[0]["B"].P["head"]
+	var gh: Vector3 = fu._fg.get("head", Vector3(9, 9, 9))
+	var gr: Vector3 = fu._rg.get("head", Vector3(9, 9, 9))
+	var vp: Rect2 = m.get_viewport().get_visible_rect()
+	var rin: bool = fu.rects.size() == 2
+	for r in fu.rects:
+		rin = rin and vp.encloses(r)
+	print("       ghosts: feint head %s, real head %s, hero head %s, labels %s" % [gh, gr, hero_head, fu.rects])
+	ok(fu.on and (fu._fg["node"] as Node3D).visible and (fu._rg["node"] as Node3D).visible and Vector2(gh.x, gh.z).distance_to(Vector2(hero_head.x, hero_head.z)) < 0.6
+		and Vector2(gr.x, gr.z).distance_to(Vector2(hero_head.x, hero_head.z)) < 0.6 and rin and ui.pv != null,
+		"(6) PLACEMENT: the feint ghost (gold) and the real-strike ghost (blue) stand on the hero (heads within 0.6 m of his, in the floor plane) while Preview plays; both labels inside the window")
+	m._say("fight rhythm: dead air suggestion - a feint (gold) then the real strike (blue); Preview plays it, Accept is one undo step")
 	await idle(4)
-	m._say("fight rhythm: 5 flags; each has a one-click suggestion, Preview then Accept")
-	m.playhead = 0.0
-	m._refresh()
-	await idle(4)
-	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i19.png")
+	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i19b.png")
+	ui.accept()
+	await idle(2)
+	ok(not fu.on, "(6) Accept puts the ghosts away")
 
 	print("I19 FIGHT RHYTHM %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
 	quit(1 if fails > 0 else 0)

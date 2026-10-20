@@ -30,7 +30,7 @@ const MATCH_TOL := 22.0      # deg RMS over the moving joints: how close a clip'
 const MOVERS := 8
 const MOVER_MIN := 8.0       # deg: a joint that turns less between the two poses does not identify the move
 const LOOK := 1.2            # s: the second pose is looked for this long after the first
-const STRIKE_WORDS := ["strike", "hit", "contact", "punch", "jab", "cross", "kick", "slash", "swing", "thrust", "stab", "smash"]
+const STRIKE_WORDS := ["strike", "hit", "contact", "punch", "jab", "cross", "hook", "uppercut", "kick", "slash", "swing", "thrust", "stab", "smash"]
 
 
 static func peak_range(d: float, f := 1.0) -> Array:
