@@ -145,6 +145,7 @@ var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
 var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
+var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
@@ -180,7 +181,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Auto camera"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -9042,7 +9043,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Auto camera": "autocam", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -9435,6 +9436,9 @@ func _ui() -> void:
 	if tc_ui == null:
 		tc_ui = TimingCoachUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Timing coach", tc_ui.show, "for each strike a better move time with the reason (a real clip, strike-size numbers and sources); preview, then accept one line or all"))
+	if ac_ui == null:
+		ac_ui = AutoCamUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Auto camera", ac_ui.show, "for the strike a shot camera per beat from film grammar (180-degree rule, lead room, closer on contact, low angle for power, hold the wide) as ghost frames; click one to keep it as a shot, or Keep all; nothing changes until you click"))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
@@ -12006,6 +12010,9 @@ func _commands() -> Array:
 	if tc_ui == null:
 		tc_ui = TimingCoachUI.new(self)
 	tc_ui.commands(add)   # TIMING COACH (ROADMAP I4)
+	if ac_ui == null:
+		ac_ui = AutoCamUI.new(self)
+	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Reduce part keys (tolerance slider)", "", _keyreduce_popup, "reduce keys key reduction thin decimate simplify dense bake video import tolerance error curve slider", true, "drop the part keys the curve can lose within a tolerance in degrees (every angle channel); the readout shows keys kept and the worst error; one undo step (ROADMAP 68)")
