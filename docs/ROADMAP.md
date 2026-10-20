@@ -231,7 +231,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   at the contact frame. No picking clips: the hit decides.
 - [ ] I3. Counter suggestion: for the attacker's current card, suggest the defender's block / slip / parry pose that
   intercepts the weapon path (geometry of the swing arc against the defender's reach) - choreography help.
-- [ ] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
+- [x] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
   (anticipation 2-3x shorter than action for fast hits, overshoot on follow-through); suggest exact holds/moves with a
   "sounds right" preview; accept one by one.
 - [ ] I5. Say it, see it: type "low guard, weight on back foot, bat cocked over right shoulder" and get the pose,
