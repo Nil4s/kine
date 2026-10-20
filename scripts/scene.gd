@@ -2113,6 +2113,9 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["boxes"] = HitBoxes.to_file(boxes)   # HIT / HURT BOXES (ROADMAP 36): the same, only when there are any
 	if not body.is_empty():
 		out["body"] = body.duplicate(true)   # PR1: proportions, only when not the default body
+	var imp := ImpactFrames.record(self)
+	if not imp.is_empty():
+		out["impact"] = imp   # I13: the tags of the impact frames (cards, camera keys), so Remove works after a reload
 	return out
 
 
@@ -2139,7 +2142,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"shots": "SIDED: ShotCam.mirror_shots_file (every shot's camera mirrored as \"camera\"; the cut times and names free)",
 	"sets": "SIDED: PartSets.mirror_file (every part to its twin; a set named \"_l\" / \"_r\" takes its twin's name, the active keying set too)",
 	"clips": "SIDED: Clips.mirror_file (each clip's source plays mirrored: the flag toggles; a one-arm mask goes to the other arm; times free)",
-	"boxes": "SIDED: HitBoxes.mirror_file (a box's part to its twin, _l <-> _r; an attack box's offsets x negated; frames and damage free)"}
+	"impact": "free (I13's tags: card indices, shot times and attribute ids; a mirrored file keeps the card and camera tags, the squash ids carry their own flag in attrs)", "boxes": "SIDED: HitBoxes.mirror_file (a box's part to its twin, _l <-> _r; an attack box's offsets x negated; frames and damage free)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free", "expr": "free",
@@ -2328,6 +2331,7 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["ktype"] = String(c["ktype"])   # XX3
 		if c.has("weight_i"):
 			cards[-1]["weight_i"] = maxf(0.0, float(c["weight_i"]))   # ROADMAP 40
+	ImpactFrames.rehydrate(self, d.get("impact", {}))   # I13: the impact frames' tags on cards and camera keys
 
 
 ## SPINS (Nick 10-13: banned): key pairs where an arm rolls around itself more than Body.ROLL_STEP + 5 deg: the upper

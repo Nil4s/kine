@@ -223,7 +223,8 @@ static func _squash_skel(sk: Skeleton3D, idx: Dictionary, b: Body) -> void:
 		var dl: Vector3 = rot.inverse() * (b.squash[j]["dir"] as Vector3)
 		var s: float = b.squash[j]["s"]
 		keep[i] = sk.get_bone_pose_scale(i)
-		want[i] = (keep[i] as Vector3) * Vector3(1.0 + (s - 1.0) * dl.x * dl.x, 1.0 + (s - 1.0) * dl.y * dl.y, 1.0 + (s - 1.0) * dl.z * dl.z)
+		var q := ImpactFrames.stretch_of(s)   # the other two axes stretch by 1/sqrt(s): the volume stays
+		want[i] = (keep[i] as Vector3) * Vector3(q + (s - q) * dl.x * dl.x, q + (s - q) * dl.y * dl.y, q + (s - q) * dl.z * dl.z)
 	for i in want:
 		sk.set_bone_pose_scale(int(i), want[i])
 	sk.set_meta("sq", keep)

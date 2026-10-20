@@ -6,12 +6,17 @@
 ##              attack strength, Capcom's light / medium / heavy normals; Swink, "Game Feel", 2009, ch. 'Impact / hit pause').
 ##   SHAKE      the shot camera shakes (ShotFx event "Impact frames"): a damped oscillation, amplitude lerp(0.7, 3.0) cm x (0.6, 0.8, 1.0)
 ##              and lerp(0.5, 2.0) deg, 6 to 12 frames long, the decay heavier for a light blow (e-folds 5 -> 3), starting at the contact.
-##   SQUASH     the struck part is scaled along the blow's direction, lerp(0.97, 0.90, u), held through the stop and back over 3 frames:
+##   SQUASH     the struck part is scaled along the blow's direction, lerp(0.92, 0.85, u), the other two axes stretched by 1/sqrt(s) so the
+##              volume stays (animation practice: a hit-stop squash is exaggerated for a few frames, 0.85-0.92 along the blow; Williams,
+##              "The Animator's Survival Kit", squash and stretch keeps volume; Thomas & Johnston, "The Illusion of Life", ch. 3),
+##              held through the stop and back over 3 frames:
 ##              an attribute "<part>.squash" (CustomAttr shape, keys x = scale, y/z = the direction's azimuth / elevation in the
 ##              struck fighter's body space), drawn by Overlays.pose_skeleton from Body.squash (Scene.apply sets it).
-## The edit is tagged IN MEMORY (cards "ihs" / "iho", camera keys "ih", the shake's name, the squash attribute's "ih", a marker "Hit-stop NF"
-## whose note is "i13:<hold>"); remove() takes the tagged things out and shifts the rest back. Tags on the cards and camera keys are not
-## in the file (the file keeps the edited timing as plain timing).
+## The edit is tagged (cards "ihs" / "iho", camera keys "ih", the shake's name, the squash attribute's "ih", a marker "Hit-stop NF"
+## whose note is "i13:<hold>"); remove() takes the tagged things out and shifts the rest back. The tags on cards and camera keys are
+## not part of a card / key in the file, so the scene file carries a small "impact" record (record() / rehydrate(): the stops, the
+## tagged cards by index, the tagged camera keys by shot and time, the shake's name, the squash attributes) and a reload puts the
+## tags back: Remove works after save + load.
 class_name ImpactFrames
 extends RefCounted
 
@@ -37,7 +42,12 @@ static func hold_s(frames: int) -> float:
 
 
 static func squash_scale(J: float) -> float:
-	return lerpf(0.97, 0.90, u_of(J))
+	return lerpf(0.92, 0.85, u_of(J))
+
+
+## the other two axes of a squash of s along the blow: 1/sqrt(s), the volume stays
+static func stretch_of(s: float) -> float:
+	return 1.0 / sqrt(maxf(s, 0.01))
 
 
 ## the camera shake of a blow of impulse J starting at t
@@ -265,6 +275,67 @@ static func squash_at(S: Scene, t: float) -> Dictionary:
 		var el := deg_to_rad(v.z)
 		out[CustomAttr.part_of(id)] = {"s": s, "dir": Vector3(sin(az) * cos(el), sin(el), cos(az) * cos(el))}
 	return out
+
+
+## ---- the tags in the file ------------------------------------------------------------------------------------------------
+
+## what Scene.to_dict writes as "impact" ({} = nothing tagged): {"stops": [{"t", "hold", "frames"}] (the hero's markers), "cards":
+## [{"i", "tag" ("ihs" | "iho"), "v"}], "cam": [{"shot", "t"}], "shake": the name, "squash": [attribute ids]}
+static func record(S: Scene) -> Dictionary:
+	var cs := []
+	for i in S.cards.size():
+		var c: Dictionary = S.cards[i]
+		if c.has("ihs"):
+			cs.append({"i": i, "tag": "ihs", "v": float(c["ihs"])})
+		elif c.has("iho"):
+			cs.append({"i": i, "tag": "iho", "v": float(c["iho"])})
+	var cam := []
+	var shake := false
+	for si in S.shots.size():
+		for k in S.shots[si]["keys"]:
+			if k.get("ih", false):
+				cam.append({"shot": si, "t": float(k["t"])})
+		for e in (S.shots[si].get("fx", {}) as Dictionary).get("shake", []):
+			if String(e.get("name", "")) == SHAKE_NAME:
+				shake = true
+	var sq := []
+	for id in S.attrs:
+		if S.attrs[id].get("ih", false):
+			sq.append(String(id))
+	var stops := []
+	for mk in S.markers:
+		if String(mk.get("name", "")).begins_with(MARK) and String(mk.get("note", "")).begins_with(TAG + ":"):
+			var fr := int(String(mk["name"]).get_slice(" ", 1).trim_suffix("f"))
+			stops.append({"t": float(mk["t"]), "hold": float(String(mk["note"]).get_slice(":", 1).get_slice(" ", 0)), "frames": fr})
+	if cs.is_empty() and cam.is_empty() and not shake and sq.is_empty() and stops.is_empty():
+		return {}
+	var out := {"stops": stops, "cards": cs, "cam": cam, "squash": sq}
+	if shake:
+		out["shake"] = SHAKE_NAME
+	return out
+
+
+## the file's "impact" record back onto the freshly loaded scene S: the card and camera-key tags (the others survive the file)
+static func rehydrate(S: Scene, rec: Variant) -> void:
+	if not (rec is Dictionary):
+		return
+	for e in rec.get("cards", []):
+		var i := int(e.get("i", -1))
+		if i < 0 or i >= S.cards.size():
+			continue
+		var tag := String(e.get("tag", ""))
+		if tag == "ihs" and String(S.cards[i]["name"]) == "hit-stop":
+			S.cards[i]["ihs"] = float(e["v"])
+		elif tag == "iho":
+			S.cards[i]["iho"] = float(e["v"])
+	for e in rec.get("cam", []):
+		var si := int(e.get("shot", -1))
+		if si < 0 or si >= S.shots.size():
+			continue
+		var ks: Array = S.shots[si]["keys"]
+		var ki := ShotCam.key_near(ks, float(e["t"]), 0.0005)
+		if ki >= 0:
+			ks[ki]["ih"] = true
 
 
 ## ---- remove by tag ------------------------------------------------------------------------------------------------------------
