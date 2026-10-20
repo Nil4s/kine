@@ -14000,6 +14000,7 @@ func _check(given = null) -> void:
 		ui_find_list.add_child(vl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
+	var n_push := _push_rows()   # R24: each hit contact against the MuJoCo push-limit table (above the findings: always on screen)
 	for fk in findings.size():
 		var f: Dictionary = findings[fk]
 		var b := Button.new()
@@ -14041,11 +14042,45 @@ func _check(given = null) -> void:
 			wr.add_child(sb)
 			ui_find_list.add_child(wr)
 	# a ScrollContainer has no height of its own: size it to the list (up to most of the view), else it collapses to 0
-	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 128.0 * findings.size(), 60.0,
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 128.0 * findings.size() + 40.0 * n_push, 60.0,
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))   # ends above the status line (round 9: the bar moved it up)
 	ui_find.visible = true
 	_next_sync()
 	_say("check: " + ("clean" if findings.is_empty() else "%d findings, %d must fix.  Click one to jump to it." % [findings.size(), fails]))
+
+
+## R24 PUSH LIMITS in CHECK (scripts/push_limits.gd, data/push_limits.json): for each hit contact of the fighters' report, J from I2's
+## HitPhysics.measure (effective mass x relative speed) against what the MuJoCo humanoid took from the fighting stance:
+## "absorbs / steps / falls". Always one reference line (the chest from the front). Rows: push_limit_ref, push_hit_N. Returns the row count.
+func _push_rows() -> int:
+	var tb: Dictionary = PushLimits.table()
+	if tb.is_empty():
+		return 0
+	var n := 0
+	var l0 := PushLimits.limits("chest", 0.0)
+	var ref := _label("PUSH LIMITS (MuJoCo humanoid, fighting stance): a push on the chest from behind is absorbed up to %.0f N s, takes a step up to %.0f, falls from %.0f." % [l0["absorb"], l0["step"], l0["fall"]], 13, "text:0.7", true)
+	ref.name = "push_limit_ref"
+	ui_find_list.add_child(ref)
+	n += 1
+	if _fighters_on():
+		for i in fighter_hits.size():
+			var r: Dictionary = fighter_hits[i]
+			if (r["kind"] != "hit" and r["kind"] != "struck") or Body.is_wep(String(r["on"])):
+				continue
+			var vk: int = 0 if r["by"] == "other" else int(r["vs"])
+			var sk: int = int(r["vs"]) if r["by"] == "other" else 0
+			if vk >= actors_rt.size() or sk >= actors_rt.size():
+				continue
+			var blow := HitPhysics.measure(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], r, actors_rt[sk]["B"])
+			if not blow["ok"]:
+				continue
+			var key := PushLimits.key_of(String(blow["body"]))
+			var row := _label("%s  hit %d: %s on the %s  -  %s" % [Units.time(float(r["t"]), S.fps), i + 1, r["part"], r["on"],
+				PushLimits.words(key, float(blow["J_h"]), float(blow["dir_deg"]))], 14, "text:0.85", true)
+			row.name = "push_hit_%d" % (i + 1)
+			ui_find_list.add_child(row)
+			n += 1
+	return n
 
 
 ## CRITIQUE (ROADMAP 11): the animation-craft notes (scripts/critique.gd) in their own section of the CHECK panel. Notes only:
