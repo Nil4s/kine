@@ -138,6 +138,7 @@ const DRAW := {
 	"physical": [["seg", Vector2(12, 3), Vector2(12, 14), 2.4], ["seg", Vector2(7, 9), Vector2(12, 14), 2.0], ["seg", Vector2(17, 9), Vector2(12, 14), 2.0], ["seg", Vector2(3, 20), Vector2(21, 20), 2.0]],
 	"physical_ok": [["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(6, 11), Vector2(10.5, 15.5), 2.6], ["seg", Vector2(10.5, 15.5), Vector2(19, 4), 2.6]],
 	"check": [["seg", Vector2(4, 13), Vector2(9.5, 18.5), 2.6], ["seg", Vector2(9.5, 18.5), Vector2(20, 6), 2.6]],
+	"match_timing": [["seg", Vector2(3, 7), Vector2(21, 7), 1.4], ["seg", Vector2(3, 17), Vector2(21, 17), 1.4], ["disc", Vector2(7, 7), 2.2], ["disc", Vector2(14, 7), 2.2], ["disc", Vector2(10, 17), 2.2], ["seg", Vector2(7, 7), Vector2(10, 17), 1.2], ["seg", Vector2(14, 7), Vector2(17, 17), 1.2]],
 	"style_dial": [["seg", Vector2(4, 8), Vector2(20, 8), 1.6], ["seg", Vector2(4, 16), Vector2(20, 16), 1.6], ["disc", Vector2(9, 8), 2.6], ["disc", Vector2(15, 16), 2.6]],
 	"realism": [["arc", Vector2(12, 15), 8, 2.0, 180, 360], ["seg", Vector2(12, 15), Vector2(17, 8), 2.2], ["disc", Vector2(12, 15), 1.8], ["seg", Vector2(4, 20), Vector2(20, 20), 1.8]],
 	"learned": [["ring", Vector2(12, 10), 6, 1.8], ["seg", Vector2(9, 19), Vector2(15, 19), 2.0], ["seg", Vector2(10, 22), Vector2(14, 22), 2.0]],
