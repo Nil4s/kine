@@ -25,6 +25,7 @@ const MATCH_PART := 0.4    # the feint's tip follows the original for this share
 const MATCH_TOL := 0.02    # m
 const HIT_TOL := 0.02      # m: the real strike's tip comes this close to the defender's surface
 const TR_MIN := 0.12       # s: the shortest re-chamber
+const RECOVER := 0.3       # s: the move from the moved follow-through back to the original's own
 const LOW_DROP := 0.25     # m: the LOW variant's hips drop
 const REACT := Counter.REACT
 const MV := Counter.MV
@@ -59,8 +60,12 @@ static func _chord(P: Dictionary, t_arr: float, frac: float) -> Dictionary:
 	for i in ts.size():
 		if float(ts[i]) > t_arr + 1e-6:
 			break
-		if p0.distance_to(ps[i]) >= frac * R:
-			tf = float(ts[i])
+		var di: float = p0.distance_to(ps[i])
+		if di >= frac * R:
+			# interpolate inside the sample step so a short move is not overshot (the path is sampled at HZ)
+			var dp: float = p0.distance_to(ps[i - 1]) if i > 0 else 0.0
+			var u: float = clampf((frac * R - dp) / maxf(1e-9, di - dp), 0.0, 1.0) if i > 0 else 1.0
+			tf = lerpf(float(ts[i - 1]), float(ts[i]), u) if i > 0 else float(ts[i])
 			break
 	return {"R": R, "tf": tf, "frac": p0.distance_to(Counter.path_at(P, tf)) / maxf(R, 1e-6)}
 
@@ -111,6 +116,8 @@ static func make(S: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci: in
 	var t_read := float(P["t_read"])
 	var hold_f := snappedf(maxf(0.0, t_read + REACT - (t0 + Tf)), 0.001)
 	var fc := {"name": "feint", "pose": F, "move": Tf, "hold": hold_f}
+	if String(S.cards[ci].get("ease", "")) != "":
+		fc["ease"] = S.cards[ci]["ease"]   # the same ease KIND as the strike it fakes (its natural-lag / curve shape)
 	# fit the ease so the tip follows the original's path for the first 40 % of the feint
 	var T := S.clone()
 	T.cards = S.cards.slice(0, ci)
@@ -185,6 +192,15 @@ static func _option(S: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci:
 	cards.append(rl)
 	if has_next:
 		cards.append(nxt)
+	# the follow-through was moved / mirrored with the real strike, but the card after it is the ORIGINAL's: a "recover" card (the
+	# original follow-through pose, where the original body is) makes the way back a move of its own, not a jump into the next card
+	var recover := has_next and cn + 1 < S.cards.size() and (mirror or d_b.length() > 0.01)
+	if recover:
+		var rc: Dictionary = S.cards[cn].duplicate(true)
+		rc["name"] = "recover"
+		rc["move"] = RECOVER
+		rc["hold"] = 0.0
+		cards.append(rc)
 	for k in range(ci + 2, S.cards.size()):
 		cards.append(S.cards[k].duplicate(true))
 	N.cards = cards
@@ -217,7 +233,7 @@ static func _option(S: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci:
 		var tp := Choreo.tip(B, axf, DB, dxf)
 		gap = minf(gap, float(Choreo.surface_gap(tp["p"], DB, dxf)["gap"]))
 	var o := {"kind": kind, "label": String(NAMES[kind]), "scene": N, "k_feint": k_f, "k_re": k_re, "k_real": k_real, "real_pose": C2, "re_pose": R2,
-		"gap": gap, "move": float(N.cards[k_real]["move"]), "t_stop": float(ts2[k_f][1]), "t_real": float(ts2[k_real][1]), "shift": d_h}
+		"recover": recover, "gap": gap, "move": float(N.cards[k_real]["move"]), "t_stop": float(ts2[k_f][1]), "t_real": float(ts2[k_real][1]), "shift": d_h}
 	# the defender: a counter card near the original strike bites on the feint
 	o["def"] = null
 	o["counter_from"] = NAN

@@ -15,7 +15,7 @@ extends SceneTree
 
 var fails := 0
 var m: Node
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i20.png"
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i20b.png"
 const SPOTS := [[0.4, 1.1], [0.6, 0.9], [0.4, 0.9], [0.0, 1.1], [0.6, 1.1], [0.2, 1.1], [0.0, 1.0], [0.0, 0.9]]
 const CI := 2
 
@@ -149,6 +149,10 @@ func _init() -> void:
 			ok(same, "6 COUNTER [%s]: every later card of the defender keeps its time" % lbl)
 		else:
 			ok(false, "6 COUNTER [%s]: the counter card was not moved" % lbl)
+		# 10 RECOVER: a moved / mirrored follow-through is followed by the original's own follow-through pose as a card of its own
+		var kn := int(o["k_real"]) + 1
+		if String(o["kind"]) == "side":
+			ok(bool(o["recover"]) and String(N.cards[kn + 1]["name"]) == "recover" and JSON.stringify(N.cards[kn + 1]["pose"]) == JSON.stringify(AS.cards[CI + 1]["pose"]), "10 RECOVER [%s]: the way back into the original's next card is its own move (%.2f s), not a jump" % [lbl, N.move_time(kn + 1)])
 		var fl := Feint.check(N)
 		var red := fl.filter(func(x): return x["sev"] == "FAIL")
 		var rn := Feint.red_new(fl, base_chk)
@@ -198,12 +202,19 @@ func _init() -> void:
 		var nd: Node3D = g["node"]
 		if not nd.visible or nd.transform.origin.distance_to(xf.origin) > 1e-3:
 			good = false
-		var lp: Vector3 = (g["label"] as Label3D).global_position
-		var sp: Vector2 = m.cam.unproject_position(lp)
-		print("     label at ", sp)
-		if sp.x < 0 or sp.y < 0 or sp.x > vp.x or sp.y > vp.y or m.cam.is_position_behind(lp):
+	var win := Rect2(Vector2.ZERO, vp)
+	for r in ui.rects:
+		print("     label rect ", r)
+		if not win.encloses(r):
 			good = false
-	ok(good, "9 PLACEMENT: both ghosts at the attacker's placement, labels inside the window (%s)" % vp)
+	if ui.rects.size() != 2 or (ui.rects[0] as Rect2).intersects(ui.rects[1]):
+		good = false
+	# the two ghosts are told apart: different colours, and the real strike's tip trail ends at the defender, the feint's at its stop
+	var c0: Color = (ui._fg["mat"] as StandardMaterial3D).albedo_color
+	var c1: Color = (ui._rg["mat"] as StandardMaterial3D).albedo_color
+	if absf(c0.r - c1.r) + absf(c0.g - c1.g) + absf(c0.b - c1.b) < 0.5:
+		good = false
+	ok(good, "9 PLACEMENT: both ghosts at the attacker's placement, label rectangles fully inside the window, not overlapping, ghost colours differ (%s)" % vp)
 	var img: Image = m.get_viewport().get_texture().get_image()
 	DirAccess.make_dir_recursive_absolute(SHOT.get_base_dir())
 	var e := img.save_png(SHOT)
@@ -219,10 +230,12 @@ func _init() -> void:
 	enter.keycode = KEY_ENTER
 	enter.pressed = true
 	var ncard0: int = m.actors_rt[0]["S"].cards.size()
+	var rec := bool(ui.picked()["recover"])
 	m._unhandled_input(enter)
 	ok(m.undo.size() == n0 + 1 and not ui.on, "8 ACCEPT: Enter is ONE undo step (%d -> %d), ghosts put away" % [n0, m.undo.size()])
 	var cs: Array = m.actors_rt[0]["S"].cards
-	ok(cs.size() == ncard0 + 2 and String(cs[CI]["name"]) == "feint" and String(cs[CI + 1]["name"]) == "re-chamber" and String(cs[CI + 2]["name"]).contains("real"), "8 ACCEPT: the attacker has feint + re-chamber + real strike (%d -> %d cards: %s)" % [ncard0, cs.size(), ", ".join(cs.slice(CI, CI + 3).map(func(c): return String(c["name"])))])
+	var extra := 2 + (1 if rec else 0)
+	ok(cs.size() == ncard0 + extra and String(cs[CI]["name"]) == "feint" and String(cs[CI + 1]["name"]) == "re-chamber" and String(cs[CI + 2]["name"]).contains("real"), "8 ACCEPT: the attacker has feint + re-chamber + real strike (%d -> %d cards: %s)" % [ncard0, cs.size(), ", ".join(cs.slice(CI, CI + 3).map(func(c): return String(c["name"])))])
 	m._undo()
 	ok(before == JSON.stringify([m.actors_rt[0]["S"].cards, m.actors_rt[1]["S"].cards]) and m.undo.size() == n0, "8 ACCEPT: Ctrl+Z restores both fighters' cards exactly and the undo list")
 	print("fails: ", fails)
