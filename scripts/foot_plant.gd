@@ -379,9 +379,26 @@ static func _heel_off(B: Body, plants: Array, refs_: Dictionary, t: float, fps: 
 		var foot := String(p["foot"])
 		var ball := "ball" + foot.right(2)
 		var r: Dictionary = (refs_[i] as Dictionary).duplicate()
-		var tgt: Vector3 = (r["BP"] as Vector3) + ((B.P[foot] as Vector3) - (B.P[ball] as Vector3))
-		r["P"] = (r["P"] as Vector3).lerp(tgt, m)
-		r["G"] = (r["G"] as Quaternion).slerp(B.G[foot], m)
+		# R14f: the BALL stays on its pin through the blend. Lerping the ankle and slerping the turn separately moved the ball up to
+		# 1.3 cm off its pin at th (the chord between the two ends); the ankle is now placed from the blended turn: ball minus the
+		# ankle-to-ball vector, which is fixed in the foot's own frame
+		var g_ref: Quaternion = r["G"]
+		# the heel lifts: only the foot's PITCH about its lateral axis (up x heel-to-ball heading) is taken from the played turn, so the
+		# heel does not swing sideways across the floor while the ball is held (videoiq 1b: heel 8.7 cm at floor height after th)
+		var fwd: Vector3 = (r["BP"] as Vector3) - (r["P"] as Vector3)
+		fwd.y = 0.0
+		var g_play: Quaternion = B.G[foot]
+		if fwd.length() > 1e-4:
+			var lat := Vector3.UP.cross(fwd.normalized()).normalized()
+			var rel: Quaternion = (g_play * g_ref.inverse()).normalized()
+			var pr := lat * Vector3(rel.x, rel.y, rel.z).dot(lat)
+			var tw := Quaternion(pr.x, pr.y, pr.z, rel.w)
+			if tw.length() > 1e-6:
+				g_play = (tw.normalized() * g_ref).normalized()
+		var g_m: Quaternion = g_ref.slerp(g_play, m)
+		var loc: Vector3 = g_ref.inverse() * ((r["BP"] as Vector3) - (r["P"] as Vector3))
+		r["P"] = (r["BP"] as Vector3) - g_m * loc
+		r["G"] = g_m
 		r["Gb"] = (r["Gb"] as Quaternion).slerp(B.G[ball], m)
 		out[i] = r
 	return out
@@ -436,9 +453,9 @@ static func _heel_pivot(B: Body, plants: Array, refs_: Dictionary, t: float, fps
 		var ball := "ball" + foot.right(2)
 		var r: Dictionary = (refs_[i] as Dictionary).duplicate()
 		var heel_ref: Vector3 = (r["P"] as Vector3) - (r["G"] as Quaternion) * Vector3(0, (B.p0[foot] as Vector3).y, 0)
-		var tgt: Vector3 = heel_ref + ((B.P[foot] as Vector3) - FootRoll.heel_point(B, foot.right(2)))
-		r["P"] = (r["P"] as Vector3).lerp(tgt, m)
-		r["G"] = (r["G"] as Quaternion).slerp(B.G[foot], m)
+		var g_m: Quaternion = (r["G"] as Quaternion).slerp(B.G[foot], m)   # R14f: the heel stays on its pin through the blend (as _heel_off's ball)
+		r["P"] = heel_ref + g_m * Vector3(0, (B.p0[foot] as Vector3).y, 0)
+		r["G"] = g_m
 		r["Gb"] = (r["Gb"] as Quaternion).slerp(B.G[ball], m)
 		out[i] = r
 	return out

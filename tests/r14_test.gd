@@ -61,110 +61,28 @@ func _run() -> void:
 	T.B = Body.new()
 	T.B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var B: Body = T.B
-	for scale in [1.0, 0.85]:
-		var Sy: Dictionary = T.synth("walk_bat", scale, 20261019)
-		var R := VideoIQ.process(B, VideoImport.parse(Sy["json"]), "", "walk_bat")
-		var V: Scene = R["scene"]
-		var n: int = Sy["n"]
-		var saved: Array = V.plants
-		var stance := 0
-		var cov := 0
-		var swing := 0
-		var fals := 0
-		var after := {"_l": [], "_r": []}
-		var diag := {"_l": "", "_r": ""}
-		for i in n:
-			var t := i / 30.0
-			V.apply(B, t)
-			for sd in ["_l", "_r"]:
-				after[sd].append(mid(B, sd))
-				var planted := false
-				for p in V.plants:
-					if p["foot"] == "foot" + sd and t >= float(p["t0"]) and t <= float(p["t1"]):
-						planted = true
-				diag[sd] += ("S" if planted else "s") if bool(Sy["flags"][sd][i]) else ("x" if planted else ".")
-				if bool(Sy["flags"][sd][i]):
-					stance += 1
-					cov += 1 if planted else 0
-				else:
-					swing += 1
-					fals += 1 if planted else 0
-		if OS.get_environment("R14_DIAG") != "":
-			print("     L ", diag["_l"], "
-     R ", diag["_r"])
-		var worst_slide := 0.0
-		var worst_air := 0.0
-		for p in V.plants:
-			var sd: String = String(p["foot"]).right(2)
-			var t := float(p["t0"])
-			var ref := []
-			var ball_set := false
-			var toe_ref := Vector3.INF
-			while t <= float(p["t1"]) + 1e-6:
-				V.apply(B, t)
-				var s := sole(B, sd)
-				if ref.is_empty():
-					ref = [s[0], s[1]]
-				if p.has("tf") and t >= float(p["tf"]) and not ball_set:
-					ref[1] = s[1]   # a heel pivot (tf): the ball is held from the flat time on, the heel all through
-					ball_set = true
-				# the heel is held until th (heel-off), the ball from tf (heel pivot) on
-				var heel_d: float = (s[0] as Vector3).distance_to(ref[0]) if (not p.has("th") or t < float(p["th"]) - 0.05) else 0.0
-				var ball_d: float = (s[1] as Vector3).distance_to(ref[1]) if ((not p.has("tf") or t >= float(p["tf"])) and (not p.has("tt") or t < float(p["tt"]) - 0.05)) else 0.0
-				var toe_d := 0.0
-				if p.has("tt") and t >= float(p["tt"]) + 0.05:   # the toe pivot: the toe tip is the held contact from tt on
-					if toe_ref == Vector3.INF:
-						toe_ref = B.E["ball" + sd]
-					toe_d = (B.E["ball" + sd] as Vector3).distance_to(toe_ref)
-				if maxf(maxf(heel_d, ball_d), toe_d) > worst_slide and OS.get_environment("R14_DIAG") != "":
-					print("       slide %.2f cm at t %.2f in plant %s %.2f-%.2f (heel %.2f ball %.2f toe %.2f cm; th %s tf %s)" % [maxf(maxf(heel_d, ball_d), toe_d) * 100.0, t, p["foot"], p["t0"], p["t1"], heel_d * 100.0, ball_d * 100.0, toe_d * 100.0, p.get("th", "-"), p.get("tf", "-")])
-				worst_slide = maxf(worst_slide, maxf(maxf(heel_d, ball_d), toe_d))
-				worst_air = maxf(worst_air, minf((s[0] as Vector3).y, (s[1] as Vector3).y))
-				t += 1.0 / 60.0
-		var det := 0
-		for sd in ["_l", "_r"]:
-			for i in n:
-				if bool(R["contacts"]["flags"][sd][i]) and bool(Sy["flags"][sd][i]):
-					det += 1
-		print("     detected contacts cover %d of %d stance frames (before the plants are trimmed and checked for reach)" % [det, stance])
-		var worst_drop := 0.0
-		var worst_shift := 0.0
-		var shifts := []
-		var before := {"_l": [], "_r": []}
-		for i in n:
-			V.plants = saved
-			V.apply(B, i / 30.0)
-			var pon: Vector3 = B.P["pelvis"]
-			var yon: float = (B.P["pelvis"] as Vector3).y
-			V.plants = []
-			V.apply(B, i / 30.0)
-			worst_drop = maxf(worst_drop, (B.P["pelvis"] as Vector3).y - yon)
-			var sh := Vector2(pon.x - (B.P["pelvis"] as Vector3).x, pon.z - (B.P["pelvis"] as Vector3).z).length()
-			shifts.append(sh)
-			worst_shift = maxf(worst_shift, sh)
-			for sd in ["_l", "_r"]:
-				before[sd].append(mid(B, sd))
-		V.plants = saved
-		var n_tt := V.plants.filter(func(q): return q.has("tt")).size()
-		print("     toe pivots: %d of %d plants" % [n_tt, V.plants.size()])
-		shifts.sort()
-		print("     horizontal shift cm: p50 %.1f p90 %.1f max %.1f" % [shifts[shifts.size() / 2] * 100.0, shifts[int(shifts.size() * 0.9)] * 100.0, worst_shift * 100.0])
-		print("     x%.2f: %d plants; cover %d of %d stance = %.0f %%; false %d of %d swing = %.1f %%; slide %.2f cm; sole height %.1f cm; hip drop %.1f cm" % [scale, V.plants.size(), cov, stance, 100.0 * cov / maxf(stance, 1), fals, swing, 100.0 * fals / maxf(swing, 1), worst_slide * 100.0, worst_air * 100.0, worst_drop * 100.0])
-		kf(float(cov) / maxf(stance, 1) >= 0.70, "1 x%.2f plants cover %.0f %% of the labelled stance (bar 70 %%)" % [scale, 100.0 * cov / maxf(stance, 1)])
-		ok(float(fals) / maxf(swing, 1) < 0.10, "2 x%.2f false plants %.1f %% of the swing frames (bar < 10 %%)" % [scale, 100.0 * fals / maxf(swing, 1)])
-		ok(worst_slide < 0.01, "3 x%.2f planted sole slides %.2f cm (bar < 1 cm)" % [scale, worst_slide * 100.0])
-		kf(worst_air < 0.025, "4 x%.2f planted sole stands %.1f cm off the floor at most (bar < 2.5 cm)" % [scale, worst_air * 100.0])
-		ok(worst_drop < 0.03, "5 x%.2f the hips drop %.1f cm at most to hold the pins (bar < 3 cm)" % [scale, worst_drop * 100.0])
-		if scale == 1.0:
-			picture(before, after, saved, n)
+	var rows := []
+	var hips := {}
+	for fix in [false, true]:
+		VideoIQ.stance_fix = fix
+		for scale in [1.0, 0.85]:
+			var c: Dictionary = _case(T, B, scale, fix)
+			rows.append(c)
+			if scale == 1.0:
+				hips[fix] = c["hip"]
+	VideoIQ.stance_fix = true
+	print("     BEFORE / AFTER (R14f stance height 96 %% of leg):")
+	for c in rows:
+		print("       %s x%.2f: cover %.0f %%  false %.1f %%  slide %.2f cm  sole %.1f cm  hip drop %.1f cm  fitted hip mean err vs truth %+.1f cm, sd %.1f cm" % ["AFTER " if c["fix"] else "BEFORE", c["scale"], c["cov"], c["fals"], c["slide"], c["air"], c["drop"], c["herr"] * 100.0, c["hsd"] * 100.0])
+	picture(hips[false]["before"], hips[true]["after"], hips[true]["plants"], hips[true]["n"], hips)
 	print("R14 TEST %s%s" % ["PASS" if fails == 0 else "FAIL %d" % fails, (" (with %d KNOWN FAIL bars, numbers above)" % known.size()) if not known.is_empty() else ""])
 	quit(fails)
 
 
 ## foot position along the walk against time, two panels; plant spans shaded; flat stretches inside them are the lock
-func picture(before: Dictionary, after: Dictionary, plants: Array, n: int) -> void:
+func picture(before: Dictionary, after: Dictionary, plants: Array, n: int, hips: Dictionary) -> void:
 	var W := 1000
-	var H := 560
+	var H := 830
 	var img := Image.create(W, H, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.97, 0.97, 0.95))
 	var d: Vector3 = (after["_r"][n - 1] as Vector3) - (after["_r"][0] as Vector3)
@@ -204,8 +122,149 @@ func picture(before: Dictionary, after: Dictionary, plants: Array, n: int) -> vo
 							for dy in 2:
 								img.set_pixel(clampi(int(m.x) + dx, 0, W - 1), clampi(int(m.y) + dy, 0, H - 1), col)
 				prev = Vector2i(px, py)
+	# third panel: the played pelvis height against the truth (the walk_bat scene's own), before (R14e fit) and after (R14f)
+	var y0 := 20 + 2 * 270
+	var h := 240
+	img.fill_rect(Rect2i(40, y0, W - 60, h), Color(1, 1, 1))
+	var hlo := 0.80
+	var hhi := 1.00
+	for g in [0.85, 0.9, 0.95]:
+		img.fill_rect(Rect2i(40, y0 + h - 8 - int((g - hlo) / (hhi - hlo) * (h - 16)), W - 60, 1), Color(0.85, 0.85, 0.85))
+	for k in [["truth", Color(0.1, 0.6, 0.2), hips[true]["truth"]], ["before", Color(0.8, 0.1, 0.1), hips[false]["fit"]], ["after", Color(0.1, 0.3, 0.9), hips[true]["fit"]]]:
+		var prev2 := Vector2i(-1, -1)
+		for i in n:
+			var px2 := 40 + int(float(i) / (n - 1) * (W - 60))
+			var py2 := y0 + h - 8 - int((float(k[2][i]) - hlo) / (hhi - hlo) * (h - 16))
+			if prev2.x >= 0:
+				for kk in 8:
+					var m2 := Vector2(prev2).lerp(Vector2(px2, py2), kk / 7.0)
+					for dx in 2:
+						for dy in 2:
+							img.set_pixel(clampi(int(m2.x) + dx, 0, W - 1), clampi(int(m2.y) + dy, 0, H - 1), k[1])
+			prev2 = Vector2i(px2, py2)
 	var path := OS.get_environment("R14_SHOT")
 	if path == "":
 		path = "C:/Users/Nick/.claude/jobs/9afc22db/tmp/r14.png"
 	print("     picture: top = no plants (the sole creeps through every stance), bottom = locked (flat in the shaded plants; the darker start of a plant is its heel pivot): %s" % path)
 	img.save_png(path)
+
+
+
+func _case(T, B: Body, scale: float, fix: bool) -> Dictionary:
+	var Sy: Dictionary = T.synth("walk_bat", scale, 20261019)
+	var R := VideoIQ.process(B, VideoImport.parse(Sy["json"]), "", "walk_bat")
+	var V: Scene = R["scene"]
+	var n: int = Sy["n"]
+	var saved: Array = V.plants
+	var stance := 0
+	var cov := 0
+	var swing := 0
+	var fals := 0
+	var after := {"_l": [], "_r": []}
+	var diag := {"_l": "", "_r": ""}
+	for i in n:
+		var t := i / 30.0
+		V.apply(B, t)
+		for sd in ["_l", "_r"]:
+			after[sd].append(mid(B, sd))
+			var planted := false
+			for p in V.plants:
+				if p["foot"] == "foot" + sd and t >= float(p["t0"]) and t <= float(p["t1"]):
+					planted = true
+			diag[sd] += ("S" if planted else "s") if bool(Sy["flags"][sd][i]) else ("x" if planted else ".")
+			if bool(Sy["flags"][sd][i]):
+				stance += 1
+				cov += 1 if planted else 0
+			else:
+				swing += 1
+				fals += 1 if planted else 0
+	if OS.get_environment("R14_DIAG") != "":
+		print("     L ", diag["_l"], "
+     R ", diag["_r"])
+	var worst_slide := 0.0
+	var worst_air := 0.0
+	for p in V.plants:
+		var sd: String = String(p["foot"]).right(2)
+		var t := float(p["t0"])
+		var ref := []
+		var ball_set := false
+		var toe_ref := Vector3.INF
+		while t <= float(p["t1"]) + 1e-6:
+			V.apply(B, t)
+			var s := sole(B, sd)
+			if ref.is_empty():
+				ref = [s[0], s[1]]
+			if p.has("tf") and t >= float(p["tf"]) and not ball_set:
+				ref[1] = s[1]   # a heel pivot (tf): the ball is held from the flat time on, the heel all through
+				ball_set = true
+			# the heel is held until th (heel-off), the ball from tf (heel pivot) on
+			var heel_d: float = (s[0] as Vector3).distance_to(ref[0]) if (not p.has("th") or t < float(p["th"]) - 0.05) else 0.0
+			var ball_d: float = (s[1] as Vector3).distance_to(ref[1]) if ((not p.has("tf") or t >= float(p["tf"])) and (not p.has("tt") or t < float(p["tt"]) - 0.05)) else 0.0
+			var toe_d := 0.0
+			if p.has("tt") and t >= float(p["tt"]) + 0.05:   # the toe pivot: the toe tip is the held contact from tt on
+				if toe_ref == Vector3.INF:
+					toe_ref = B.E["ball" + sd]
+				toe_d = (B.E["ball" + sd] as Vector3).distance_to(toe_ref)
+			if maxf(maxf(heel_d, ball_d), toe_d) > worst_slide and OS.get_environment("R14_DIAG") != "":
+				print("       slide %.2f cm at t %.2f in plant %s %.2f-%.2f (heel %.2f ball %.2f toe %.2f cm; th %s tf %s)" % [maxf(maxf(heel_d, ball_d), toe_d) * 100.0, t, p["foot"], p["t0"], p["t1"], heel_d * 100.0, ball_d * 100.0, toe_d * 100.0, p.get("th", "-"), p.get("tf", "-")])
+			worst_slide = maxf(worst_slide, maxf(maxf(heel_d, ball_d), toe_d))
+			worst_air = maxf(worst_air, minf((s[0] as Vector3).y, (s[1] as Vector3).y))
+			t += 1.0 / 60.0
+	var det := 0
+	for sd in ["_l", "_r"]:
+		for i in n:
+			if bool(R["contacts"]["flags"][sd][i]) and bool(Sy["flags"][sd][i]):
+				det += 1
+	print("     detected contacts cover %d of %d stance frames (before the plants are trimmed and checked for reach)" % [det, stance])
+	var worst_drop := 0.0
+	var worst_shift := 0.0
+	var shifts := []
+	var before := {"_l": [], "_r": []}
+	for i in n:
+		V.plants = saved
+		V.apply(B, i / 30.0)
+		var pon: Vector3 = B.P["pelvis"]
+		var yon: float = (B.P["pelvis"] as Vector3).y
+		V.plants = []
+		V.apply(B, i / 30.0)
+		worst_drop = maxf(worst_drop, (B.P["pelvis"] as Vector3).y - yon)
+		var sh := Vector2(pon.x - (B.P["pelvis"] as Vector3).x, pon.z - (B.P["pelvis"] as Vector3).z).length()
+		shifts.append(sh)
+		worst_shift = maxf(worst_shift, sh)
+		for sd in ["_l", "_r"]:
+			before[sd].append(mid(B, sd))
+	V.plants = saved
+	var n_tt := V.plants.filter(func(q): return q.has("tt")).size()
+	print("     toe pivots: %d of %d plants" % [n_tt, V.plants.size()])
+	shifts.sort()
+	print("     horizontal shift cm: p50 %.1f p90 %.1f max %.1f" % [shifts[shifts.size() / 2] * 100.0, shifts[int(shifts.size() * 0.9)] * 100.0, worst_shift * 100.0])
+	print("     x%.2f: %d plants; cover %d of %d stance = %.0f %%; false %d of %d swing = %.1f %%; slide %.2f cm; sole height %.1f cm; hip drop %.1f cm" % [scale, V.plants.size(), cov, stance, 100.0 * cov / maxf(stance, 1), fals, swing, 100.0 * fals / maxf(swing, 1), worst_slide * 100.0, worst_air * 100.0, worst_drop * 100.0])
+	var ph := []
+	var th := []
+	var TS := Scene.new()
+	TS.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/walk_bat.json")))
+	for i in n:
+		TS.apply(B, minf(i / 30.0, TS.length()))
+		B.fk()
+		th.append((B.P["pelvis"] as Vector3).y)
+		V.apply(B, i / 30.0)
+		B.fk()
+		ph.append((B.P["pelvis"] as Vector3).y)
+	# the fit's hip height against the truth: the walk's own bob (truth) is the reference; the error is the fit minus truth, its mean and spread
+	var me := 0.0
+	for i in n:
+		me += float(ph[i]) - float(th[i])
+	me /= n
+	var sd := 0.0
+	for i in n:
+		sd += pow(float(ph[i]) - float(th[i]) - me, 2.0)
+	sd = sqrt(sd / n)
+	var covp := 100.0 * cov / maxf(stance, 1)
+	if fix:
+		ok(float(cov) / maxf(stance, 1) >= 0.70, "1 x%.2f plants cover %.0f %% of the labelled stance (bar 70 %%)" % [scale, covp])
+		ok(float(fals) / maxf(swing, 1) < 0.10, "2 x%.2f false plants %.1f %% of the swing frames (bar < 10 %%)" % [scale, 100.0 * fals / maxf(swing, 1)])
+		ok(worst_slide < 0.01, "3 x%.2f planted sole slides %.2f cm (bar < 1 cm)" % [scale, worst_slide * 100.0])
+		ok(worst_air < 0.025, "4 x%.2f planted sole stands %.1f cm off the floor at most (bar < 2.5 cm)" % [scale, worst_air * 100.0])
+		ok(worst_drop < 0.03, "5 x%.2f the hips drop %.1f cm at most to hold the pins (bar < 3 cm)" % [scale, worst_drop * 100.0])
+	return {"fix": fix, "scale": scale, "cov": covp, "fals": 100.0 * fals / maxf(swing, 1), "slide": worst_slide * 100.0, "air": worst_air * 100.0, "drop": worst_drop * 100.0,
+		"herr": me, "hsd": sd, "hip": {"before": before, "after": after, "plants": saved, "n": n, "fit": ph, "truth": th, "flags": Sy["flags"]}}
