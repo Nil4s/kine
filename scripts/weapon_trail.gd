@@ -37,6 +37,16 @@ var _dirty := true
 var _body: Body = null
 var _ribbon: MeshInstance3D
 var _smear: MeshInstance3D
+# R23 WEAPON TRAIL IN RENDERS: a fading swept surface between the GRIP and the TIP over the last RENDER_N frames, drawn into the
+# playblast and the mp4 shot render (main.gd sets render_active only for the frames it captures). Option render_on, default on;
+# the colour is the theme's accent (Tok), lightened. Not stored in the scene.
+const RENDER_N := 8
+const RENDER_SPEED := 4.0         # m/s: a quad is drawn only where the tip is this fast (a held pose leaves no ribbon)
+const RENDER_ALPHA := 0.75
+var render_on := true
+var render_active := false
+var render_quads := 0
+var _rr: MeshInstance3D
 
 
 func setup() -> void:
@@ -49,6 +59,10 @@ func setup() -> void:
 	_smear.visible = false
 	add_child(_smear)
 	_ribbon.visible = false
+	_rr = MeshInstance3D.new()
+	_rr.mesh = ImmediateMesh.new()
+	_rr.visible = false
+	add_child(_rr)
 
 
 ## the scene changed: the samples are taken again the next time they are drawn
@@ -77,7 +91,7 @@ static func sample(S: Scene, b: Body) -> Dictionary:
 		b.set_proportions(S.body)
 	var fps := float(S.fps)
 	var n := int(ceil(S.length() * fps)) + 1
-	var out := {"fps": fps, "t": [], "base": [], "tip": [], "speed": [], "armed": []}
+	var out := {"fps": fps, "t": [], "base": [], "tip": [], "grip": [], "speed": [], "armed": []}
 	var prev := Vector3.ZERO
 	for i in n:
 		var t := minf(i / fps, S.length())
@@ -88,6 +102,7 @@ static func sample(S: Scene, b: Body) -> Dictionary:
 		out["t"].append(t)
 		out["base"].append(base)
 		out["tip"].append(tip)
+		out["grip"].append(b.grip_point() if on else Vector3.ZERO)
 		out["armed"].append(on)
 		out["speed"].append((tip - prev).length() * fps if i > 0 and on and out["armed"][i - 1] else 0.0)
 		prev = tip
@@ -126,9 +141,11 @@ func smear_frame(f: int) -> int:
 ## the view: called from main's _refresh with the scene and the playhead. Off = nothing drawn (the scene's frames are the
 ## same as before: no node is made visible, no pose is touched).
 func draw(S: Scene, t: float) -> void:
-	if not ribbon_on and not smear_on:
+	var rr := render_active and render_on and not ribbon_on   # (the viewport's own ribbon, when on, is what the render shows)
+	if not ribbon_on and not smear_on and not rr:
 		_ribbon.visible = false
 		_smear.visible = false
+		_hide_render()
 		info = ""
 		return
 	if S != _src or _dirty or samples.is_empty():
@@ -142,8 +159,10 @@ func draw(S: Scene, t: float) -> void:
 	if samples.is_empty():
 		_ribbon.visible = false
 		_smear.visible = false
+		_hide_render()
 		return
 	var f := frame_of(t)
+	_draw_render(f, rr)
 	_draw_ribbon(f)
 	_draw_smear(f)
 	info = "weapon trail: %d ribbon quads (tip > %.1f m/s over %d frames), smear %s" % [
@@ -178,6 +197,62 @@ func _draw_ribbon(f: int) -> void:
 		_vert(im, t1, a1)
 		_vert(im, b1, a1)
 	im.surface_end()
+
+
+func _hide_render() -> void:
+	if _rr != null:
+		_rr.visible = false
+		(_rr.mesh as ImmediateMesh).clear_surfaces()
+	render_quads = 0
+
+
+## the frames whose grip-to-tip quad is in the render ribbon at frame f: every armed k in (f - RENDER_N, f], provided the tip
+## was faster than RENDER_SPEED somewhere in that window (a swing's run-up is slow, so it is the window that is gated, not each
+## quad: the ribbon then shows the whole acceleration; a held pose leaves none)
+func render_frames(f: int) -> Array:
+	var out := []
+	if samples.is_empty():
+		return out
+	var sp: Array = samples["speed"]
+	var fast := false
+	for k in range(maxi(1, f - RENDER_N + 1), f + 1):
+		if k < sp.size() and sp[k] > RENDER_SPEED and samples["armed"][k] and samples["armed"][k - 1]:
+			fast = true
+			out.append(k)
+		elif k < sp.size() and samples["armed"][k] and samples["armed"][k - 1]:
+			out.append(k)
+	return out if fast else []
+
+
+func _draw_render(f: int, on: bool) -> void:
+	var im := _rr.mesh as ImmediateMesh
+	im.clear_surfaces()
+	render_quads = 0
+	_rr.visible = false
+	if not on:
+		return
+	var ks := render_frames(f)
+	render_quads = ks.size()
+	if ks.is_empty():
+		return
+	var col := Tok.c("accent").lightened(0.45)
+	_rr.visible = true
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _mat(col, 1.0))
+	for k in ks:
+		var a0 := _ralpha(f - (k - 1))
+		var a1 := _ralpha(f - k)
+		var g0: Vector3 = samples["grip"][k - 1]
+		var t0: Vector3 = samples["tip"][k - 1]
+		var g1: Vector3 = samples["grip"][k]
+		var t1: Vector3 = samples["tip"][k]
+		for v in [[g0, a0 * 0.5], [t0, a0], [g1, a1 * 0.5], [t0, a0], [t1, a1], [g1, a1 * 0.5]]:   # the grip edge is fainter than the tip's
+			im.surface_set_color(Color(col.r, col.g, col.b, v[1]))
+			im.surface_add_vertex(v[0])
+	im.surface_end()
+
+
+func _ralpha(age: int) -> float:
+	return RENDER_ALPHA * clampf(1.0 - float(age) / float(RENDER_N), 0.0, 1.0)
 
 
 func _alpha(age: int) -> float:

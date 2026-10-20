@@ -1293,11 +1293,14 @@ func _blast_frame(shot: Dictionary, t: float, fps: int, lo: float, hi: float) ->
 	for tt in ts:
 		playhead = tt
 		_ps().apply(B, playhead)
+		wt.render_active = true   # R23: the weapon trail ribbon is part of the render (option "Weapon trail in renders")
 		_refresh()
 		_shot_blast_frame(shot)
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
+		wt.render_active = false
+		wt.draw(_ps(), playhead)
 	return imgs[0] if imgs.size() == 1 else PlayblastExport.average(imgs)
 
 
@@ -1412,11 +1415,13 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 			_sr_layer.visible = false
 			playhead = float(f) / fps
 			_ps().apply(B, playhead)
+			wt.render_active = true   # R23
 			_refresh()
 			_shot_blast_frame(shot)
 			await get_tree().process_frame
 			await RenderingServer.frame_post_draw
 			_shot_blast_image(shot, get_viewport().get_texture().get_image()).save_png("%s/frame_%04d.png" % [gdir, f])
+			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true
 			clean = keep_clean
@@ -12133,6 +12138,11 @@ func _wtrail_ribbon() -> void:
 	_say(("weapon ribbon on: the bat's sweep over the last %d frames, where the tip is faster than %.0f m/s.  %s" % [wt.n_frames, wt.speed_min, wt.info]) if wt.ribbon_on else "weapon ribbon off")
 
 
+func _wtrail_render() -> void:
+	wt.render_on = not wt.render_on
+	_say(("weapon trail in renders on: a fading ribbon from the grip to the tip over the last %d frames, in the playblast and the mp4 shot render, where the tip is faster than %.0f m/s" % [WeaponTrail.RENDER_N, WeaponTrail.RENDER_SPEED]) if wt.render_on else "weapon trail in renders off: the playblast and the mp4 show the bat only (turn it on again from Search: weapon trail in renders)")
+
+
 func _wtrail_smear() -> void:
 	wt.smear_on = not wt.smear_on
 	_refresh()
@@ -12407,6 +12417,7 @@ func _commands() -> Array:
 	add.call("Collision shapes on/off", "C", _press.bind(KEY_C), "capsules hit", false, "show the capsules that stop parts going through each other")
 	add.call("Motion trail on/off", "T", _press.bind(KEY_T), "path arc", false, "draw the weapon tip's path over the scene")
 	add.call("Trail: weapon ribbon on/off", "", _wtrail_ribbon, "trail weapon ribbon sweep blade swipe arc path", false, "a ribbon swept by the bat between its knob and its tip over the last 6 frames, fading; drawn only where the tip is faster than 8 m/s (not the motion trail, T)")
+	add.call("Weapon trail in renders on/off", "", _wtrail_render, "weapon trail renders playblast mp4 shot render ribbon swept grip tip fading", false, "the playblast and the mp4 shot render draw a fading ribbon from the grip to the tip over the last 8 frames, in the theme's accent colour; on by default")
 	add.call("Trail: smear frames on/off", "", _wtrail_smear, "trail smear frames motion blur ghost stretch playblast", false, "on a fast frame (the tip moves more than 20 cm in one frame) a ghosted, stretched copy of the bat from the frame before, in the playblast too")
 	add.call("Pin a trail on the picked part", "Shift+T", _press.bind(KEY_T, true), "path arc", false, "draw the picked body part's path over the scene (again removes it)")
 	add.call("Balance on/off", "Shift+B", _press.bind(KEY_B, true), "centre of mass com feet tip fall weight", false, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
