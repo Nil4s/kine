@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 23 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 25 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -337,9 +337,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   the release angular velocity), the flight time, and places the catching hand on the arc at the catch frame;
   red if the catch needs an impossible reach or a hand speed outside human range.
   Merged: ballistic arc from the release hand (0.0001 mm vs analytic), catch by IK within reach and 12 m/s (heuristic), red out-of-reach / too-fast; i27 PASS. Spin flown about vertical only; another fighter's hand only via the API.
-- [ ] I28. Safety sheet: one pre-shoot report for the stunt crew over the whole scene: every real contact and its
+- [x] I28. Safety sheet: one pre-shoot report for the stunt crew over the whole scene: every real contact and its
   speed, weapon tips passing within 15 cm of a face, falls and their breakfall verdicts, unsold/unsafe strikes, with
   time, fighters and a thumbnail per item; exported as a printable HTML page next to the scene.
+  Merged: contacts, tip passes, rushed strikes, falls (breakfall when present) with thumbnails; printable HTML to scenes/_safety/; i28 PASS. Thresholds are heuristics (no stunt-safety source found).
 - [x] I29. Match the reference's timing: from a reference video (video import), find its beats of motion (peaks of
   limb speed: wind-up, strike, settle) and retime the clip's matching cards to them, keeping the poses; shows both
   speed curves overlaid.
@@ -351,8 +352,9 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   reaction time after the attacker's move becomes readable; flag "precog" answers (too early: reads as rehearsed) and
   "late" answers (the hit should have landed), with one-click retimes.
   Merged: PRECOG (< 0.2 s after the wind-up is readable, Woodworth & Schlosberg) and LATE flags with retimes; i31 PASS. Onset read from card times, not limb speed; step-backs/flinches not matched.
-- [ ] I32. My camera: learn Nick's shot habits from his own shot cameras (lens, height, distance in body heights,
+- [x] I32. My camera: learn Nick's shot habits from his own shot cameras (lens, height, distance in body heights,
   angle to the line of action, cut timing relative to contacts) and frame new shots his way; say which habit it used.
+  Merged: shot-habit fingerprint (lens, height, distance, angle to the line, thirds, cut offset), Frame it my way respects the 180-degree line; i32 PASS. Nick's scenes have no shots yet, so it falls back to Auto camera until he makes some.
 - [ ] I33. Reaction direction: a struck body must move away along the blow's impulse (and turn about the right
   axis given where it was hit); flag reactions that go the wrong way or start before contact, with a fix from
   the hit physics.
