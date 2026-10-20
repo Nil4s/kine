@@ -35,7 +35,32 @@ const W_TRAJ := 1
 
 
 ## the database: every scene (and every move that has cards) read from the folders, one row per frame at its fps
+## the database is a pure function of the .json files in the folders: it is kept (keyed on the folders' file names and times) so the
+## timing coach, realism score, motion matching and next pose ask for it once per run, not once per app start
+static var _cache: Dictionary = {}
+
+
+static func _stamp(dirs: Array) -> String:
+	var parts := PackedStringArray()
+	for dir in dirs:
+		for fn in DirAccess.get_files_at(dir):
+			if fn.ends_with(".json"):
+				parts.append("%s%s@%d" % [dir, fn, FileAccess.get_modified_time(dir + fn)])
+	return "
+".join(parts)
+
+
 static func build(dirs: Array = ["res://scenes/", "res://moves/"]) -> Dictionary:
+	var stamp := _stamp(dirs)
+	if _cache.has(stamp):
+		return (_cache[stamp] as Dictionary).duplicate()
+	var d := _build(dirs)
+	_cache.clear()
+	_cache[stamp] = d
+	return d.duplicate()
+
+
+static func _build(dirs: Array) -> Dictionary:
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	B.fk()

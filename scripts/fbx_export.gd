@@ -26,6 +26,11 @@ const TIME_MODE := {120: 1, 60: 3, 50: 4, 48: 5, 30: 6, 24: 11, 96: 15, 72: 16}
 static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false) -> Dictionary:
 	var keep := B.state()
 	var an := S.name if S.name != "" else "scene"
+	# the file is a pure function of the scene, the body and the options: the last one built is kept, so the same scene written
+	# again (a second click, the gentle test's hostile starts) is the write only, not the pose of every frame again
+	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii])
+	if ck == _last_key and not _last.is_empty():
+		return _write_out(_last, path, ascii)
 	var man := GltfExport.build(S, B, an, false, root_motion)
 	var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
 	var ap: AnimationPlayer = man.find_children("*", "AnimationPlayer", true, false)[0]
@@ -35,6 +40,17 @@ static func write(S: Scene, B: Body, path: String, root_motion := false, xf := T
 	var out := text_of(sk, A, an, float(S.fps), base, xf, root_name if root_name != "" else an)
 	man.free()
 	B.set_state(keep)
+	_last_key = ck
+	_last = out
+	return _write_out(out, path, ascii)
+
+
+static var _last_key := ""
+static var _last: Dictionary = {}
+
+
+static func _write_out(src: Dictionary, path: String, ascii: bool) -> Dictionary:
+	var out := src.duplicate()
 	var err := OK
 	var abs := ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path
 	DirAccess.make_dir_recursive_absolute(abs.get_base_dir())
