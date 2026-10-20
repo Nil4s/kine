@@ -16,7 +16,7 @@
 extends SceneTree
 
 const FRAME := 1.0 / 30.0
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i22b.png"
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i22c.png"
 var fails := 0
 var m: Node
 
@@ -257,18 +257,61 @@ func _init() -> void:
 	m.playhead = loud_t
 	m._ps().apply(m.B, m.playhead)
 	m._refresh()
-	m._view_dir(Vector3.RIGHT, false)   # side-on: the two fighters apart, not one behind the other
+	# the picture: the choreography panel closed, the side panels away ("clean"), then the camera frames BOTH fighters side-on
+	m.ui_find.visible = false
+	m.clean = true
 	await idle(3)
+	var pts: Array = []   # world points: each fighter's head top, both feet on the floor, both hands
+	for k in m.actors_rt.size():
+		var xf: Transform3D = m._stage_xf() * (m.actors_rt[k]["xf"] as Transform3D)
+		var Bk: Body = m.actors_rt[k]["B"]
+		var hd: Vector3 = Bk.P["head"]
+		pts.append(xf * (hd + Vector3(0, 0.14, 0)))
+		for f in ["foot_l", "foot_r"]:
+			var fp: Vector3 = Bk.P[f]
+			pts.append(xf * Vector3(fp.x, 0.0, fp.z))
+		for h in ["hand_l", "hand_r"]:
+			pts.append(xf * (Bk.P[h] as Vector3))
+	var vp: Vector2 = m.get_viewport().get_visible_rect().size
+	# the free viewport: no open side panel (clean hides them), the bottom panel and status line reserved
+	var free := Rect2(Vector2(0, m.TOP_H), Vector2(vp.x, vp.y - m.TOP_H - m.bottom_h - m.LINE_H - 6))
+	for k in m.ui_side_of:
+		if (m.ui_side_of[k] as Control).visible:
+			var r: Rect2 = (m.ui_side_of[k] as Control).get_global_rect()
+			free = free.intersection(Rect2(Vector2(r.end.x if k == "left" else 0.0, free.position.y), Vector2(vp.x - (r.size.x if k == "left" else r.size.x), free.size.y)))
+	var lo := Vector3(1e9, 1e9, 1e9)
+	var hi := -lo
+	for q in pts:
+		lo = lo.min(q)
+		hi = hi.max(q)
+	var ctr := (lo + hi) * 0.5
+	var fit := free.grow(-24.0)
+	var d_fit := 2.0
+	while d_fit < 12.0:
+		m._turn_to(-90.0, -8.0, d_fit, ctr, false)   # from the right, side-on: the two fighters apart, not one behind the other
+		var all_in := true
+		for q in pts:
+			all_in = all_in and not m.cam.is_position_behind(q) and fit.has_point(m.cam.unproject_position(q))
+		if all_in:
+			break
+		d_fit += 0.1
+	await idle(4)
 	await RenderingServer.frame_post_draw
 	var tl = m.ui_timeline
-	var vp: Vector2 = m.get_viewport().get_visible_rect().size
 	var inside_all := true
 	for k in m.actors_rt.size():
-		var W: Vector3 = m._stage_xf() * (m.actors_rt[k]["xf"] as Transform3D) * ((m.actors_rt[k]["B"] as Body).P["head"] as Vector3)
-		var sp: Vector2 = m.cam.unproject_position(W)
-		print("       fighter %d head on screen at %s" % [k + 1, sp])
-		inside_all = inside_all and Rect2(Vector2.ZERO, vp).has_point(sp)
-	ok(m.actors_rt.size() == 2 and inside_all, "(7a) both fighters' heads are inside the window at the loudest downbeat")
+		var xf2: Transform3D = m._stage_xf() * (m.actors_rt[k]["xf"] as Transform3D)
+		var Bk2: Body = m.actors_rt[k]["B"]
+		var hd2: Vector3 = Bk2.P["head"]
+		var fl: Vector3 = Bk2.P["foot_l"]
+		var fr2: Vector3 = Bk2.P["foot_r"]
+		for q in [xf2 * (hd2 + Vector3(0, 0.14, 0)), xf2 * Vector3(fl.x, 0.0, fl.z), xf2 * Vector3(fr2.x, 0.0, fr2.z)]:
+			var sp: Vector2 = m.cam.unproject_position(q)
+			inside_all = inside_all and free.has_point(sp)
+			if not free.has_point(sp):
+				print("       fighter %d point at %s is OUTSIDE the free view %s" % [k + 1, sp, free])
+		print("       fighter %d head on screen at %s (free view %s, camera %.1f m)" % [k + 1, m.cam.unproject_position(xf2 * (hd2 + Vector3(0, 0.14, 0))), free, d_fit])
+	ok(m.actors_rt.size() == 2 and inside_all, "(7a) PLACEMENT: both fighters' head tops and both feet are inside the free viewport (no open panel over them) at the loudest downbeat")
 	ok(tl.cg.size() == 32 and tl.bf.size() == strikes.size() and absf(tl.cg_peak - loud_t) <= fr, "(7b) the timeline holds the energy strip (%d columns) and %d contact marks, BIG at %.2f s" % [tl.cg.size(), tl.bf.size(), tl.cg_peak])
 	var img: Image = m.get_viewport().get_texture().get_image()
 	ok(img.save_png(SHOT) == OK, "(7c) picture saved: " + SHOT)

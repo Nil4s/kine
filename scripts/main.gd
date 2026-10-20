@@ -235,7 +235,13 @@ var _rpress := {}   # the right button's press: where, the view's turn then, the
 var ui_card_btns: Array = []
 var _sync := false
 var big_view := false
-var clean := false          # recording: no highlights, no name tag
+var clean := false:         # recording: no highlights, no name tag, NO PANELS (the setter hides / restores them, so a bare `clean = true` is enough)
+	set(v):
+		if clean == v:
+			return
+		clean = v
+		if is_inside_tree() and ui_status != null:
+			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
