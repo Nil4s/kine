@@ -2869,6 +2869,7 @@ var fd_fps := 60             # the game's frame rate the counts use (a setting: 
 var fd_cache := {}           # {"key": the scene + dummy + fps it was made for, "fd": FrameData.analyze's result}
 var fd_node: MeshInstance3D = null
 var fd_btn: Button = null
+var counter_ui: CounterUI   # COUNTER SUGGESTION (Innovations I3; scripts/counter_ui.gd): the defender's block / slip / parry as ghosts
 var hitbox_ui: HitBoxesUI   # HIT / HURT BOXES (ROADMAP 36): the commands and the dialog (scripts/hit_boxes_ui.gd)
 
 
@@ -3520,6 +3521,8 @@ func _refresh() -> void:
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
+	if counter_ui != null:
+		counter_ui.refresh()   # I3: an edit since the ghosts were made puts them away
 	_foot_plant_draw()   # ROADMAP 8: the footprint under a planted foot
 	_iq_prints_draw()   # VIDEO IQ: the contacts the video import found, as footprints
 	_cons_draw()   # CN: each active constraint's line from the part to what it follows
@@ -3687,6 +3690,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if counter_ui != null and counter_ui.on and counter_ui.input(ev):   # I3: Tab picks the next ghost, Enter places it, Esc puts them away
+		get_viewport().set_input_as_handled()
+		return
 	if pwui != null and pwui.on and pwui.input(ev):   # ROADMAP 92: a click on the floor adds a path point, Enter builds, Esc cancels
 		get_viewport().set_input_as_handled()
 		return
@@ -11710,6 +11716,9 @@ func _commands() -> Array:
 	if hitbox_ui == null:
 		hitbox_ui = HitBoxesUI.new(self)
 	hitbox_ui.commands(add)   # HIT / HURT BOXES per frame (ROADMAP 36; scripts/hit_boxes_ui.gd)
+	if counter_ui == null:
+		counter_ui = CounterUI.new(self)
+	counter_ui.commands(add)   # COUNTER SUGGESTION: the defender's block / slip / parry ghosts (Innovations I3; scripts/counter_ui.gd)
 	if mm_ui == null:
 		mm_ui = MotionMatchUI.new(self)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
