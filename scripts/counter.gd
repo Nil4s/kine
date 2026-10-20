@@ -9,7 +9,7 @@
 ##           weapon line (the tip for a fist) by >= CLEAR over the whole path and FOLLOW seconds past the contact. The
 ##           move is the pelvis shifted by the move (a duck is down, a slip is sideways or back) with both feet kept on
 ##           their marks (Body.plant: the knees bend), and the centre of mass kept inside the support (Balance).
-##   PARRY   a forearm that meets the weapon at a slant: its axis is tilted 25-65 deg out of square to the velocity, toward
+##   PARRY   a forearm that meets the weapon at a slant: its axis is tilted 10-65 deg out of square to the velocity, toward
 ##           the outside of the arm used, so the tip SLIDES along it (frictionless: v' = (v.d) d) and leaves sideways.
 ##           Reported: the deflection angle, and how far the tip ends from its old path at the contact time.
 ## CONTACT = the first 1/120 s sample at which the tip is inside the defender's body (Choreo.surface_gap <= 0), or the
@@ -29,7 +29,7 @@ const PARRY_LATE := 0.04   # s: a parry meets the weapon this long after the blo
 const TORSO := ["head", "spine_03", "spine_02"]
 const SEARCH_EVERY := 6    # the slip's search looks at every 6th sample (20 Hz); the realised pose at all of them
 const FRACS := [0.5, 0.7, 0.3, 0.85, 0.15, 1.0, 0.0]   # where along the forearm (0 elbow, 1 wrist) the path point may fall
-const MAX_SOLVES := 14      # IK solves a forearm placement may spend (the best by a cheap score)
+const MAX_SOLVES := 24      # IK solves a forearm placement may spend (the best by a cheap score)
 const FIST_R := 0.04       # m: a fist's radius
 const MARGIN_MIN := 0.01   # m: the centre of mass at least this far inside the support
 
@@ -184,7 +184,7 @@ static func _outside(G: Body, sd: String, vh: Vector3) -> Vector3:
 ## put the forearm's axis through X (body space). The direction d is searched on the sphere (36 turns about the velocity
 ## vh x 7 tilts out of the plane square to it); only the directions whose ELBOW (X - d Lf/2) is one upper arm from the
 ## shoulder (+-3 cm) are solved (LimbIK), since the arm cannot put the forearm anywhere else. BLOCK keeps the forearm
-## within ~20 deg of square to vh; PARRY tilts it 25-65 deg out of square toward the outside w, so the tip slides along it.
+## within ~20 deg of square to vh; PARRY tilts it 10-65 deg out of square toward the outside w, so the tip slides along it.
 ## {"ok", "dist" (axis to X), "pose", "clamped", "dir" (the forearm's actual direction), "tilt" (deg out of square)}
 static func _place(base: Dictionary, W: Body, sd: String, X: Vector3, vh: Vector3, parry: bool) -> Dictionary:
 	W.from_dict(base)
@@ -199,12 +199,12 @@ static func _place(base: Dictionary, W: Body, sd: String, X: Vector3, vh: Vector
 	var e1 := vh.cross(ref).normalized()
 	var e2 := vh.cross(e1).normalized()
 	var w := _outside(W, sd, vh)
-	var tilts := [25.0, 35.0, 45.0, 55.0, 65.0] if parry else [0.0, 15.0, -15.0]
+	var tilts := [12.0, 20.0, 30.0, 45.0, 60.0] if parry else [0.0, 15.0, -15.0]
 	var cands := []
 	for k in 48:
 		var th := TAU * float(k) / 48.0
 		var inp: Vector3 = e1 * cos(th) + e2 * sin(th)
-		if parry and inp.dot(w) < 0.5:
+		if parry and inp.dot(w) < -0.2:
 			continue   # the forearm leans toward the outside, so the tip leaves that way
 		for ph in tilts:
 			var cp := cos(deg_to_rad(ph))
@@ -214,7 +214,7 @@ static func _place(base: Dictionary, W: Body, sd: String, X: Vector3, vh: Vector
 				var Wp: Vector3 = X + d * Lf * (1.0 - f)
 				if absf(E.distance_to(S) - Lu) > 0.04 or Wp.distance_to(S) > reach:
 					continue
-				cands.append([d, f, absf(E.distance_to(S) - Lu) * 5.0 + 0.05 * (1.0 - d.dot(cur)) + absf(f - 0.55) * 0.05])
+				cands.append([d, f, absf(E.distance_to(S) - Lu) * 5.0 + 0.05 * (1.0 - d.dot(cur)) + absf(f - 0.55) * 0.05 + (0.2 * (1.0 - inp.dot(w)) if parry else 0.0)])
 	cands.sort_custom(func(a, b): return float(a[2]) < float(b[2]))
 	if cands.size() > MAX_SOLVES:
 		cands.resize(MAX_SOLVES)   # the best by the cheap score: each solve is ~10 ms
@@ -231,7 +231,7 @@ static func _place(base: Dictionary, W: Body, sd: String, X: Vector3, vh: Vector
 		var dist := INF
 		var clamped := []
 		var da: Vector3 = d
-		for it in 5:
+		for it in 8:
 			var r := LimbIK.solve(W, tip, Wt, Et)
 			clamped = r["clamped"]
 			var c: Array = W.cap("lowerarm" + sd)
@@ -245,7 +245,7 @@ static func _place(base: Dictionary, W: Body, sd: String, X: Vector3, vh: Vector
 		var tilt := rad_to_deg(asin(clampf(absf(along), 0.0, 1.0)))
 		var good := dist <= TOL
 		if parry:
-			good = good and tilt >= 20.0 and tilt <= 70.0
+			good = good and tilt >= 10.0 and tilt <= 70.0
 		else:
 			good = good and tilt <= 20.0
 		var cost: float = dist * 10.0 + 0.05 * (1.0 - da.dot(cur)) + 0.02 * float(clamped.size()) + absf(f - 0.55) * 0.05 + (0.0 if parry else tilt * 0.01)
@@ -279,7 +279,7 @@ static func _guard_scan(P: Dictionary, DS: Scene, dxf: Transform3D, parry: bool,
 	var xi := dxf.affine_inverse()
 	var ts: Array = P["ts"]
 	var first := -1.0
-	for i in range(0, ts.size(), 2):
+	for i in range(0, ts.size(), 1):
 		var t: float = ts[i]
 		if t > tc + 1e-6:
 			break

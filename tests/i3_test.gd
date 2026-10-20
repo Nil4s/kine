@@ -80,7 +80,7 @@ func thrust() -> Scene:
 
 
 func overhead() -> Scene:
-	return attacker([[Vector3(0, 2.3, 0.25), Vector3(0, 0.85, -0.5), 0, 0.5], [Vector3(0, 1.6, 1.2), Vector3(0, -0.5, 0.85), 0.6, 0.5]])
+	return attacker([[Vector3(0, 2.3, 0.25), Vector3(0, 0.85, -0.5), 0, 0.5], [Vector3(0, 1.2, 1.0), Vector3(0, -0.5, 0.85), 0.8, 0.5]])
 
 
 func tip_at(S: Scene, t: float) -> Vector3:
