@@ -246,11 +246,19 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   easy, red beyond a strong human); "where does the power come from" for a strike (hip -> shoulder -> elbow sequence).
 - [ ] I9. Sketch to pose: draw a stick figure over the viewport with the mouse; Kine fits the body to it (2D lines ->
   3D pose with limits and balance).
+  Step 1 merged: strokes recognised, fit lands on the strokes in screen space (<= 2 px), missing limbs untouched, one undo, 48 ms. Open: 3D recovery, 29 of 42 library fits have a bone > 10 deg off (trunk twist not in a stick figure, depth-axis bones mirror-ambiguous, an 8.7 deg error even with no tremor).
 - [x] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
   cards come pre-timed the way you usually time them (shown as "your usual 0.18 s", one key to accept).
 - [ ] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
   beat: block, slip, parry, counter) and keeps the pair at fighting range (each strike's tip reaches the target, nobody
   overlaps), flagging beats where the distance makes the move impossible.
-- [ ] I12. Smart drag: dragging one joint moves the rest of the body the way YOUR poses move together (the
+- [x] I12. Smart drag: dragging one joint moves the rest of the body the way YOUR poses move together (the
   co-variation learned from Nick's library and scenes, principal directions), so pulling a fist back also turns the
   hips and shifts the weight like he would; hold Alt for the old one-joint drag.
+
+- [ ] I13. Impact frames from the hit: at each contact Kine adds hit-stop (a hold of 2-6 frames), a camera shake and a
+  squash on the struck part, all scaled by the measured impulse (I2), so a light jab barely pauses and a bat to the head
+  freezes; one undo step, previewed first.
+- [ ] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
+  and joint curves over the animated clip, card by card, with "you were 0.08 s faster on the strike, your hip turned
+  20 deg more" lines.
