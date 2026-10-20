@@ -43,6 +43,7 @@ const SIM_HZ := 60.0        # the card frames: the dense sample rate the card ma
 const RECOVER_S := 0.2      # the last part of the window over which the deviation blends out
 const WIN_MIN := 0.3
 const WIN_MAX := 0.6
+const HAB_REPLAY_DEG := 0.2   # I46: a reaction shaped by my habits is baked this tight, so its amplitude and timing read back as asked (1 deg is 13 % of a 7.8 deg peak)
 const REPLAY_DEG := 1.0     # the baked cards must replay the simulated angles within this (the card maker's tolerance)
 
 
@@ -190,7 +191,11 @@ static func _recover(t: float, t_end: float) -> float:
 ## "J" (kg m/s, body space), "m_eff", "v_rel" (m/s), "peak" (rad/s, the struck joint's world angular speed), "shove" (m/s,
 ## the pelvis's start), "M" (kg), "joints" (the chain), "dense" ([{"ang", "off"}] per card frame, the sim's values),
 ## "base" ([{"ang", "off"}] the animation's per card frame), "fine" (the 240 Hz sim, same keys)}. B's pose is put back.
-static func react(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body) -> Dictionary:
+##
+## hab (I46, scripts/hit_habits.gd): {} / null = the physics as above. A Dictionary {"amp", "delay_s", "rec"} (or a Callable J-length -> that)
+## reshapes the simulated DEVIATION from the animation before it is baked: x amp, started delay_s later, and everything after the peak
+## stretched by rec (recovery length ratio); the joint stops still hold. The result says what it used in "hab".
+static func react(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body, hab: Variant = null) -> Dictionary:
 	var fail := {"ok": false, "why": ""}
 	var keep := B.state()
 	var t_hit: float = hit["t"]
@@ -267,6 +272,7 @@ static func react(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body)
 	for j in path:
 		(dense[0]["ang"] as Dictionary)[j] = base_ang[0][j]
 	var fine: Array = []
+	var raw: Array = []   # the simulated deviation (before the recovery blend) at every 240 Hz step
 	for k in n:
 		for s in SUB:
 			var f := float(s + 1) / float(SUB)
@@ -294,14 +300,28 @@ static func react(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body)
 			for i in n_path:
 				W += _world_rate(ax[path[i]], vel[path[i]])
 			peak_w = maxf(peak_w, W.length())
-			var wt := _recover(tt, t_end)
-			var ang_out := {}
-			for j in path:
-				ang_out[j] = (base_now[j] as Vector3) + wt * (d[j] as Vector3)
-			var off_out: Vector3 = off_now + wt * x
-			fine.append({"t": tt, "ang": ang_out, "off": off_out})
-			if s + 1 == SUB:
-				dense.append({"ang": ang_out, "off": off_out})
+			raw.append({"tt": tt, "base": base_now, "off": off_now, "d": d.duplicate(), "x": x, "last": s + 1 == SUB})
+	var hb: Dictionary = {}
+	if hab is Callable:
+		hb = (hab as Callable).call(J.length())
+	elif hab is Dictionary:
+		hb = hab
+	var warp := _warp(raw, path, hb, t_hit, dts)
+	for i in raw.size():
+		var row: Dictionary = raw[i]
+		var tt: float = row["tt"]
+		var wt := _recover(tt, t_end)
+		var dd: Dictionary = warp[i]["d"]
+		var ang_out := {}
+		for j in path:
+			var a: Vector3 = (row["base"][j] as Vector3) + wt * (dd[j] as Vector3)
+			ang_out[j] = B.clamp_ang(j, a) if not hb.is_empty() else a
+		var off_out: Vector3 = (row["off"] as Vector3) + wt * (warp[i]["x"] as Vector3)
+		fine.append({"t": tt, "ang": ang_out, "off": off_out})
+		if bool(row["last"]):
+			dense.append({"ang": ang_out, "off": off_out})
+	if not hb.is_empty():
+		peak_w *= float(hb.get("amp", 1.0))
 	# 4. the card frames: the sim's pose at each, written onto the body and read as a card pose
 	var dense_cards: Array = []
 	for k in n + 1:
@@ -318,7 +338,7 @@ static func react(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body)
 		base_out.append({"ang": base_ang[k], "off": base_off[k]})
 	# 5. the keys: the card maker's even spacing, then every card frame the PLAYED blend (Scene.apply: natural easing, each
 	# joint's own lag) misses the simulated pose by more than REPLAY_DEG at, the worst 240 Hz step first
-	var keys := _keys(dense_cards, h, B, path, fine, t_hit, S.fps)
+	var keys := _keys(dense_cards, h, B, path, fine, t_hit, S.fps, REPLAY_DEG if hb.is_empty() else HAB_REPLAY_DEG)
 	var cand := _cand(dense_cards, keys, h)
 	# 6. the splice: the cards before the hit (the last one's hold ends where the anchor's move starts), the anchor at the
 	# hit (the animation's pose there), the keys, then the cards after the window with their own times (the card at the
@@ -349,7 +369,58 @@ static func react(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body)
 	B.set_state(keep)
 	return {"ok": true, "why": "", "cards": out, "t0": t_hit, "t1": t_end, "J": J, "m_eff": m_eff,
 		"v_rel": vrel_hero.length(), "peak": peak_w, "shove": shove0.length(), "M": M, "joints": path,
-		"dense": dense, "base": base_out, "fine": fine, "x_end": x, "keys": keys}
+		"dense": dense, "base": base_out, "fine": fine, "x_end": x, "keys": keys, "hab": hb}
+
+
+## I46: the deviation series reshaped by a habit {"amp", "delay_s", "rec"}: row i of the result is {"d": {joint: Vector3}, "x": Vector3} at raw[i]'s time.
+## Time is warped about the deviation's peak: u = tau - delay; after the peak u -> peak + (u - peak) / rec; then the series is read at u (zero before it
+## starts, the last value held after it ends) and scaled by amp. No habit = the series itself.
+static func _warp(raw: Array, path: Array, hb: Dictionary, t_hit: float, dts: float) -> Array:
+	var out: Array = []
+	if hb.is_empty():
+		for r in raw:
+			out.append({"d": r["d"], "x": r["x"]})
+		return out
+	var amp := float(hb.get("amp", 1.0))
+	var dl := float(hb.get("delay_s", 0.0))
+	var rec := maxf(0.2, float(hb.get("rec", 1.0)))
+	var pk := 0.0
+	var ip := 0
+	for i in raw.size():
+		var m := 0.0
+		for j in path:
+			m += ((raw[i]["d"][j]) as Vector3).length_squared()
+		if m > pk:
+			pk = m
+			ip = i
+	var tp := float(ip + 1) * dts   # raw[i] is at tau = (i + 1) dts
+	for i in raw.size():
+		var u := (float(i + 1) * dts) - dl
+		if u > tp:
+			u = tp + (u - tp) / rec
+		var d := {}
+		var x := Vector3.ZERO
+		if u <= 0.0:
+			for j in path:
+				d[j] = Vector3.ZERO
+		else:
+			var f := u / dts - 1.0   # raw index (raw[-1] would be tau = 0: zero)
+			var i0 := int(floor(f))
+			var w := f - float(i0)
+			var a: Dictionary = raw[i0]["d"] if i0 >= 0 else {}
+			var b_i := mini(i0 + 1, raw.size() - 1)
+			var ax: Vector3 = raw[i0]["x"] if i0 >= 0 else Vector3.ZERO
+			if i0 >= raw.size() - 1:
+				a = raw[-1]["d"]
+				ax = raw[-1]["x"]
+				b_i = raw.size() - 1
+				w = 0.0
+			for j in path:
+				var va: Vector3 = (a[j] as Vector3) if a.has(j) else Vector3.ZERO
+				d[j] = va.lerp(raw[b_i]["d"][j], w) * amp
+			x = ax.lerp(raw[b_i]["x"], w) * amp
+		out.append({"d": d, "x": x})
+	return out
 
 
 ## the candidate reduced scene's cards: the keys (sorted card frame indices) with their moves in card-frame time
@@ -367,7 +438,7 @@ static func _cand(dense: Array, keys: Array, h: float) -> Array:
 
 ## the keys: the card maker's even spacing (every_for at SIM_HZ) and the first card frame, then the card frame nearest the
 ## worst miss of the played blend, again and again until every fine step replays within REPLAY_DEG (or every frame is a key)
-static func _keys(dense: Array, h: float, B: Body, path: Array, fine: Array, t_hit: float, fps: int) -> Array:
+static func _keys(dense: Array, h: float, B: Body, path: Array, fine: Array, t_hit: float, fps: int, tol := REPLAY_DEG) -> Array:
 	var n := dense.size() - 1
 	var every := VideoImport.every_for(SIM_HZ)
 	var on := {0: true, n: true}
@@ -393,7 +464,7 @@ static func _keys(dense: Array, h: float, B: Body, path: Array, fine: Array, t_h
 			if e > worst:
 				worst = e
 				at = rel
-		if worst <= REPLAY_DEG:
+		if worst <= tol:
 			break
 		var k0 := clampi(int(round(at / h)), 0, n)
 		var found := -1

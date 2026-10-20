@@ -468,6 +468,7 @@ var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint dr
 var _sd := {}               # the current drag's smart state ({} = none)
 var sj := SuggestionJournal.new()   # LEARN FROM MY EDITS (ROADMAP I26): scripts/suggestion_journal.gd; the panel is sj_ui
 var sj_ui: SuggestionJournalUI
+var myhits := HitHabits.new(sj)   # MY HIT REACTIONS (ROADMAP I46): scripts/hit_habits.gd, lessons in the journal sj
 var np := NextPose.new()    # NEXT-POSE SUGGESTIONS (ROADMAP R27): scripts/next_pose.gd; the glue is at the end of this file
 var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail are drag handles: scripts/trail_edit.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
@@ -2259,6 +2260,7 @@ func _ready() -> void:
 		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
 		sj = SuggestionJournal.new("user://zz_suggestion_journal_%d.json" % OS.get_process_id())   # I26: a test never reads or writes the real journal
+		myhits.sj = sj
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
 		style_ui.on = false   # I17: like Nick is off in a test until it turns it on
@@ -2625,6 +2627,8 @@ func _process(dt: float) -> void:
 	if sp_ui != null:
 		sp_ui.tick(dt)
 	sj.observe(undo.size())   # I26: undone / edited suggestions
+	if not myhits.pending.is_empty():   # I46: my edits of a written reaction become lessons once they settle
+		myhits.observe(undo.size(), func(vk: int): return (actors_rt[vk]["S"] as Scene) if vk < actors_rt.size() else null, B)
 	if cm_ui != null:
 		cm_ui.tick(dt)
 	if feint_ui != null:
@@ -3458,6 +3462,13 @@ func _goto_hit(i: int) -> void:
 ## Hits: make the struck fighter react (ROADMAP 14, round 52). The first row of the fighters' report that lands on a body
 ## part (a hit or a strike) turns its victim by the momentum it delivers (hit_reaction.gd); the reaction is baked as cards
 ## over its window on the VICTIM's scene (made the active fighter first, so its own Ctrl+Z). One undo step.
+func _hit_physics_key() -> void:
+	myhits.physics_only = not myhits.physics_only
+	_say("hit reactions: %s.  The next reaction %s (%d edit%s learned so far)" % [
+		"the plain physics default" if myhits.physics_only else "your usual again", "ignores your habits" if myhits.physics_only else "uses them once 3 edits are learned",
+		sj.habit_rows(HitHabits.SRC, HitHabits.KIND).size(), "" if sj.habit_rows(HitHabits.SRC, HitHabits.KIND).size() == 1 else "s"])
+
+
 func _hit_react() -> void:
 	_actors_sync()
 	if not _fighters_on():
@@ -3475,12 +3486,13 @@ func _hit_react() -> void:
 	var h: Dictionary = fighter_hits[pick]
 	var vk: int = 0 if h["by"] == "other" else int(h["vs"])   # the struck fighter
 	var sk: int = int(h["vs"]) if h["by"] == "other" else 0   # the striker
-	var r := HitReaction.react(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], h, actors_rt[sk]["B"])
+	var r := HitReaction.react(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], h, actors_rt[sk]["B"], myhits.chooser((actors_rt[vk]["S"] as Scene).fps))
 	if not r["ok"]:
 		_say("no reaction: %s (pick a fighter with a contact, then try again)" % r["why"])
 		return
 	_actor_set(vk)   # the struck fighter is the active one: its cards and body take the step, its Ctrl+Z undoes it
 	_push_undo()
+	var base_sc: Scene = S.clone()   # I46: the animation under the reaction, to measure my later edits against
 	S.cards = r["cards"]
 	for ci in S.cards.size():
 		if Face.suggest(String(S.cards[ci].get("name", ""))) == "pain":
@@ -3490,10 +3502,12 @@ func _hit_react() -> void:
 	wt.mark_dirty()
 	_refresh()
 	var J: Vector3 = r["J"]
-	_say("%s reacts to %s's %s at %s (%s): impulse %.1f kg m/s (%.2f kg x %.1f m/s), its %s turns %.0f°/s at most, the pelvis is shoved %.2f m/s; %s of cards" % [
+	myhits.watch(vk, base_sc, S, float(r["t0"]), float(r["t1"]), J.length(), undo.size())
+	_habit_note(myhits.last_text)
+	_say("%s reacts to %s's %s at %s (%s): impulse %.1f kg m/s (%.2f kg x %.1f m/s), its %s turns %.0f°/s at most, the pelvis is shoved %.2f m/s; %s of cards.  %s" % [
 		actors_rt[vk]["name"], actors_rt[sk]["name"], "weapon" if Body.is_wep(String(h["part"])) else String(h["part"]),
 		Units.time(float(r["t0"]), S.fps), h["zone"], J.length(), float(r["m_eff"]), float(r["v_rel"]), String(h["on"]), rad_to_deg(float(r["peak"])),
-		float(r["shove"]), Units.time(float(r["t1"]) - float(r["t0"]), S.fps)])
+		float(r["shove"]), Units.time(float(r["t1"]) - float(r["t0"]), S.fps), myhits.last_text])
 
 
 ## HIT REACTION PICKER (ROADMAP R16; scripts/reaction_picker.gd): a panel on the STAGE page listing the reaction clips in
@@ -9181,6 +9195,38 @@ func _toast(t: String) -> void:
 			ui_toast.visible = false)
 
 
+## I46: the line of a hit reaction ("your usual x0.8 amplitude, +1 frame, ...") over the view for NOTE_T, under the toast's place (the status bar is too narrow for it)
+const NOTE_T := 9.0
+var ui_note: Label
+var _note_gen := 0
+
+
+func _habit_note(t: String) -> void:
+	if ui_root == null or t == "":
+		return
+	if ui_note == null:
+		ui_note = Label.new()
+		ui_note.name = "hit_habit_note"
+		ui_note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui_note.add_theme_font_size_override("font_size", 15)
+		ui_note.add_theme_color_override("font_color", Tok.c("say"))
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Tok.c("say_bg")
+		sb.set_corner_radius_all(8)
+		sb.set_content_margin_all(10)
+		ui_note.add_theme_stylebox_override("normal", sb)
+		ui_root.add_child(ui_note)
+	ui_note.text = t
+	ui_note.visible = true
+	ui_note.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE)
+	ui_note.position = Vector2(252, 92)   # the view's top left, clear of the toast (centre) and of the fighters
+	_note_gen += 1
+	var g := _note_gen
+	get_tree().create_timer(NOTE_T).timeout.connect(func():
+		if g == _note_gen and is_instance_valid(ui_note):
+			ui_note.visible = false)
+
+
 func _flash_cards(idx: Array) -> void:
 	for i in idx:
 		var pc := ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
@@ -13261,6 +13307,7 @@ func _commands() -> Array:
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
+	add.call("Hit reactions: physics default / my usual", "Alt+H", _hit_physics_key, "hit reaction physics default usual habit amplitude delay recovery learned my edits plain", false, "one key: the next hit reaction is the plain physics (not shaped by your usual amplitude, start and recovery learned from your edits of earlier ones); press again for your usual (ROADMAP I46)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
 	add.call("Delete marker at the playhead", "", _marker_delete, "cue event remove flag", true, "removes the marker within one frame of the playhead")
 	add.call("Root path on the floor: show / hide", "", _rp_toggle, "root motion path trajectory travel floor curve handles pelvis hips root editor", false, "the root motion path on the floor: the travel of the hips as a curve, a yellow handle at each card's root (drag it to move the card on the floor) and a red arrow for its facing (drag to turn it); one undo step per drag (ROADMAP 91)")
