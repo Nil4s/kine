@@ -187,26 +187,26 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 0 / 25.
+Merged in round 2: 7 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
-- [ ] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
-- [ ] R3. Motion blur in the playblast (sub-frame accumulation), off by default.
+- [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
+- [x] R3. Motion blur in the playblast (sub-frame accumulation), off by default.
 - [ ] R4. Contact shadows under feet and props (soft blob that darkens as the foot nears the floor).
-- [ ] R5. Render the shot sequence to an mp4 (ffmpeg), camera cuts from the camera sequencer.
-- [ ] R6. One obvious next step on every page (a single line, never empty, clickable).
+- [x] R5. Render the shot sequence to an mp4 (ffmpeg), camera cuts from the camera sequencer.
+- [x] R6. One obvious next step on every page (a single line, never empty, clickable).
 - [ ] R7. Cold-start test: a script with no knowledge of the UI reaches "a punch that lands" through the command registry only.
 - [ ] R8. Drag a pose from the library onto the card strip to insert it there.
 - [ ] R9. Local HTTP API: the command registry verbs over JSON (describe, run, check, shot), localhost only.
 - [ ] R10. Blind-agent maths: "what would this angle do" (reach, collisions, balance) as a text answer over CLI/MCP.
 - [ ] R11. BODY page: body mass changes girth (per-segment radial scale of the skin), not just the readout.
-- [ ] R12. BODY page: save / load named characters (user://characters), the man/woman blend saved in the scene schema.
+- [x] R12. BODY page: save / load named characters (user://characters), the man/woman blend saved in the scene schema.
 - [ ] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
 - [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now).
 - [ ] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [ ] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
-- [ ] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
-- [ ] R18. Drag to reorder cards in the strip (thumbnail follows the mouse, one undo step).
+- [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
+- [x] R18. Drag to reorder cards in the strip (thumbnail follows the mouse, one undo step).
 - [ ] R19. Multi-select cards in the strip, batch retime / delete / copy.
 - [ ] R20. Timed version snapshots (every N minutes while edited) with the scene diff report.
 - [ ] R21. Pose library search by words ("guard", "crouch", "low kick") over names and auto tags.
@@ -214,3 +214,4 @@ Merged in round 2: 0 / 25.
 - [ ] R23. Weapon trail in the playblast and the mp4 render.
 - [ ] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
 - [ ] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
+- [ ] R26. Share with friends by QR code (Nick): a pose or short clip packed (compressed) into a QR image; Kine reads a QR from an image file or the webcam and opens it. No server, no account.

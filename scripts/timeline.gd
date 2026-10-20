@@ -826,10 +826,31 @@ func _draw() -> void:
 ## ROADMAP 99: THE PLAYHEAD OVERLAY. While a scene plays only the playhead moves, so the app redraws this small child (a line
 ## and a flag) every frame instead of the whole timeline (m._tl_play_redraw decides when nothing else changed).
 var _ph := Control.new()
+var ph_drawn_x := -1.0
 
 
 func playhead_redraw() -> void:
 	_ph.queue_redraw()
+
+
+## R17: THE LINE FOLLOWS THE PLAYHEAD BY ITSELF. Many paths set m.playhead without a _refresh (the card strip follows it on its
+## own, so its gold frame moved while the line stayed: status bar 2.90 s, card 9, line at 1.69 s). Each frame the overlay
+## compares the time it last drew with the playhead; a change redraws the line, and (not playing) the whole timeline, whose
+## lit shot / lanes read the playhead too. One float compare per frame.
+var _ph_seen := -1.0
+
+
+func _process(_dt: float) -> void:
+	if m == null or not visible:
+		return
+	var t := float(m.playhead)
+	if t == _ph_seen:
+		return
+	_ph_seen = t
+	if m.playing:
+		_ph.queue_redraw()
+	else:
+		queue_redraw()
 
 
 func _draw_playhead() -> void:
@@ -837,6 +858,7 @@ func _draw_playhead() -> void:
 	if S == null or S.cards.size() < 1:
 		return
 	var px := x_of(clampf(float(m.playhead), 0.0, S.length()))
+	ph_drawn_x = px   # what the overlay last drew (tests/r17_test.gd compares it with the status bar's time)
 	_ph.draw_line(Vector2(px, 0), Vector2(px, size.y), Tok.c("autokey") if m.auto_key else Tok.c("ink"), 2.0)   # ROADMAP 42: red while auto-key is on
 	_ph.draw_colored_polygon(PackedVector2Array([Vector2(px - 5, 0), Vector2(px + 5, 0), Vector2(px, 7)]), Tok.c("ink"))
 

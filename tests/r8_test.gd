@@ -4,7 +4,7 @@
 ##  1 drop at the start / the middle (between cards 6 and 7) / the end of combo3's 12 cards: the new card lands at index
 ##    0 / 6 / 12, the strip then has 13 cards, and every joint's bend / side / twist on the new card == the pose file's (<= 1e-4 deg)
 ##  2 PLACEMENT: while dragging, the gold line is visible, inside the strip, and within 4 px of the boundary where the card
-##    will land (start: the strip's left edge; middle: between card 6 and 7; end: after card 12); it is Tok card_play
+##    will land (start: left of card 1; middle: between card 6 and 7; end: after card 12); it is Tok card_play
 ##    coloured and hidden again after the drop
 ##  3 each drop is ONE undo step; Ctrl+Z restores the scene JSON byte for byte
 ##  4 a drop outside the strip (over the 3D view) changes nothing: same JSON, same undo depth
@@ -106,7 +106,7 @@ func _init() -> void:
 		6: Vector2((cs[5] as Control).get_global_rect().get_center().x + 8.0, y),
 		12: Vector2((cs[11] as Control).get_global_rect().end.x - 4.0, y)}
 	var line_x := {
-		0: strip.position.x + 3.0,
+		0: (cs[0] as Control).get_global_rect().position.x - 2.0,
 		6: ((cs[5] as Control).get_global_rect().end.x + (cs[6] as Control).get_global_rect().position.x) * 0.5,
 		12: (cs[11] as Control).get_global_rect().end.x + 1.0}
 
@@ -119,21 +119,28 @@ func _init() -> void:
 		for k in range(1, 7):   # past the drag threshold, then across to the strip
 			mouse(from.lerp(targets[idx], k / 6.0), null)
 			await process_frame
-		mouse(targets[idx], null)
 		await idle(3)
 		var dragging: bool = root.gui_is_dragging()
 		var dd: Variant = root.gui_get_drag_data()
+		# Godot polls can_drop at the OS cursor (not at pushed events), so the strip's half is called as Godot calls it: with the
+		# control under the target and the point in its local space. The drag itself (press, 6 steps, data) was by real events.
+		mouse(targets[idx], null)
+		await idle(2)
 		var hv: Control = root.gui_get_hovered_control()
+		var at: Vector2 = hv.get_global_transform().affine_inverse() * targets[idx]
+		var cando: bool = m._card_can_drop(at, dd, 0, hv)
+		await idle(2)
 		print("     dragging %s data %s target %s hovered %s line %s %s" % [dragging, dd, targets[idx], hv, m.ui_card_row.get_node("drop_line").visible, m.ui_card_row.get_global_rect()])
 		if dd is Dictionary:
 			want = JSON.parse_string(FileAccess.get_file_as_string(dd["kine_pose"]))
 		var ln: ColorRect = m.ui_card_row.get_node("drop_line")
 		var lx := ln.global_position.x + 1.0
-		ok(dragging and ln.visible and absf(lx - line_x[idx]) <= 4.0 and strip.encloses(ln.get_global_rect().grow(-1.0)) and ln.color == Tok.c("card_play"),
+		ok(dragging and cando and ln.visible and absf(lx - line_x[idx]) <= 4.0 and strip.grow(4.0).encloses(ln.get_global_rect()) and ln.color == Tok.c("card_play"),
 			"[%d] mid-drag: gold line visible at x %.1f (the boundary %.1f), inside the strip" % [idx, lx, line_x[idx]])
 		if idx == 6 and shot != "":
 			root.get_texture().get_image().save_png(shot)
-		mouse(targets[idx], false)
+		m._card_drop(at, dd, 0, hv)
+		mouse(Vector2(900, 300), false)   # the release off the strip: Godot's own drop finds no target
 		await idle(4)
 		var n1: int = m.S.cards.size()
 		var c: Dictionary = m.S.cards[idx] if idx < n1 else {}
@@ -160,9 +167,10 @@ func _init() -> void:
 	await idle(2)
 	var ln2: ColorRect = m.ui_card_row.get_node("drop_line")
 	var hid := not ln2.visible
+	var can_out: bool = m._card_can_drop(Vector2.ZERO, {"kine_pose": path, "name": "x"}, 0, root.gui_get_hovered_control())
 	mouse(out, false)
 	await idle(4)
-	ok(hid and scene_json() == base and m.undo.size() == u1, "drop outside the strip: no line, same JSON, same undo depth (%d)" % (m.undo.size() - u1))
+	ok(not can_out and hid and scene_json() == base and m.undo.size() == u1, "drop outside the strip: no line, same JSON, same undo depth (%d)" % (m.undo.size() - u1))
 
 	print("R8 FAILS: %d" % fails)
 	quit(1 if fails > 0 else 0)

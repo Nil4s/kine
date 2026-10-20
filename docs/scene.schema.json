@@ -454,6 +454,7 @@
       },
       "sex": {"enum": ["male", "female"]},
       "mass": {"type": "number"},
+      "blend": {"type": "number", "minimum": 0, "maximum": 1, "description": "the BODY page's woman (0) <-> man (1) blend of the two ANSUR II samples; written only strictly between 0 and 1 (the ends are the sexes); absent = read from sex"},
       "preset": {"enum": ["female_5", "female_50", "female_95", "male_5", "male_50", "male_95"]}
      },
      "additionalProperties": false

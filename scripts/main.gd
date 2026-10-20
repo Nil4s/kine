@@ -175,7 +175,7 @@ const RIBBON_GROUPS := {
 	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
-	"EXPORT": [["FILES", ["Export...", "Export frame data (json)..."]], ["VERSION", ["Save version"]]],
+	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes"]]],
 }
@@ -203,6 +203,7 @@ var base_fold := {"left": false, "right": false, "bottom": false}   # the user's
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
 var ui_page_btns := {}     # page -> its button on the page bar
 var ui_page_bar: PanelContainer
+var ui_next: Button        # R6: the page bar's one next-step line
 var ui_view_menu: MenuButton
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
 var ui_doc: Label         # the strip's middle: the scene's name, clips, length
@@ -1216,13 +1217,8 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 	ui_root.visible = false
 	var shot := _shot_blast_begin()   # THE SHOT CAMERA: when the scene has one, every frame is ITS view, the 16:9 frame
 	for f in n:
-		playhead = PlayblastExport.time_of(f, sp[0], sp[1], fps)
-		_ps().apply(B, playhead)
-		_refresh()
-		_shot_blast_frame(shot)
-		await get_tree().process_frame
-		await RenderingServer.frame_post_draw
-		_shot_blast_image(shot, get_viewport().get_texture().get_image()).save_png("%s/frame_%04d.png" % [gdir, f])
+		var img: Image = await _blast_frame(shot, PlayblastExport.time_of(f, sp[0], sp[1], fps), fps, sp[0], sp[1])
+		img.save_png("%s/frame_%04d.png" % [gdir, f])
 	_shot_blast_end(shot)
 	ui_root.visible = true
 	clean = keep_clean
@@ -1245,6 +1241,198 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 		how = ". No .mp4: ffmpeg (%s) failed on the frames; the PNGs are fine, run ffmpeg on them yourself" % ff
 	_say_plain("playblast: %d PNG frames at %d fps (%s to %s) in %s%s" % [n, fps, Units.time(sp[0], S.fps), Units.time(sp[1], S.fps), dir, how])
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
+
+
+## MOTION BLUR (ROADMAP R3): off by default; a view setting like the smear frames (never saved, not an undo step). On: each
+## playblast frame is the mean of blast_blur_n sub-frames spread over the shutter (PlayblastExport.shutter_times: 180 degrees =
+## half the frame interval). Set from the command "Playblast: motion blur on/off" or the Export dialog's checkbox
+var blast_blur := false
+var blast_blur_n := 8
+
+
+func _blast_blur_toggle() -> void:
+	blast_blur = not blast_blur
+	if export_ui != null and export_ui.ui_blur != null:
+		export_ui.ui_blur.set_pressed_no_signal(blast_blur)
+	_say(("playblast motion blur on: %d sub-frames over a 180 degree shutter (%.1f ms at %d fps); a render takes %d times as long" % [blast_blur_n, 1000.0 * PlayblastExport.shutter_time(S.fps), S.fps, blast_blur_n]) if blast_blur else "playblast motion blur off")
+
+
+## the image of the scene at time t as the playblast saves it: one render, or (motion blur on) the mean of the sub-frames over
+## the shutter centred on t, kept inside [lo, hi]. With the blur off this is exactly the single render the playblast always did
+func _blast_frame(shot: Dictionary, t: float, fps: int, lo: float, hi: float) -> Image:
+	var ts: Array = PlayblastExport.shutter_times(t, fps, blast_blur_n, lo, hi) if blast_blur else [t]
+	var imgs := []
+	for tt in ts:
+		playhead = tt
+		_ps().apply(B, playhead)
+		_refresh()
+		_shot_blast_frame(shot)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
+	return imgs[0] if imgs.size() == 1 else PlayblastExport.average(imgs)
+
+
+## RENDER SHOTS TO VIDEO (ROADMAP round 2, R5; scripts/shot_render.gd): the camera sequencer's shots walked in order, each
+## frame through ITS shot's camera (the cut falls on a frame boundary), PNGs in exports/shots/<scene>_<stamp>/ and, when ffmpeg is
+## found, <scene>.mp4 beside them. A progress panel (percent, frame, shot) with a Cancel button; Esc cancels too: the app comes
+## back as it was, the frames made so far stay, no .mp4. The panels are hidden only for the frame's capture.
+## Returns {"dir", "frames", "mp4", "ffmpeg", "cancelled", "ranges", "want"}; {} when refused.
+signal shots_render_done(result: Dictionary)
+var _sr_busy := false
+var _sr_cancel := false
+var _sr_layer: CanvasLayer
+var _sr_label: Label
+var _sr_bar: ProgressBar
+
+
+func _sr_panel_make() -> void:
+	if _sr_layer != null:
+		return
+	_sr_layer = CanvasLayer.new()
+	_sr_layer.layer = 90
+	_sr_layer.name = "shots_render_progress"
+	add_child(_sr_layer)
+	var pc := PanelContainer.new()
+	pc.name = "panel"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.c("float")
+	sb.border_color = Tok.c("accent")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(12)
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	pc.offset_top = 70
+	pc.custom_minimum_size = Vector2(420, 0)
+	pc.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_sr_layer.add_child(pc)
+	var vb := VBoxContainer.new()
+	pc.add_child(vb)
+	_sr_label = Label.new()
+	_sr_label.name = "text"
+	_sr_label.add_theme_color_override("font_color", Tok.c("text"))
+	vb.add_child(_sr_label)
+	_sr_bar = ProgressBar.new()
+	_sr_bar.name = "bar"
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Tok.c("accent")
+	_sr_bar.add_theme_stylebox_override("fill", fill)
+	_sr_bar.custom_minimum_size = Vector2(0, 18)
+	vb.add_child(_sr_bar)
+	var cb := Button.new()
+	cb.name = "cancel"
+	cb.text = "Cancel render (Esc)"
+	cb.tooltip_text = "stops the render: the frames made so far stay in the folder, no .mp4 is made"
+	cb.pressed.connect(func(): _sr_cancel = true)
+	vb.add_child(cb)
+	_sr_layer.visible = false
+
+
+func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
+	if _sr_busy:
+		_say_plain("A shot render is already running: press Esc (or Cancel render) to stop it, then run Render shots to video again")
+		return {}
+	if _shot_shots().is_empty():
+		_say_plain("NOT NOW: this scene has no shots: run Shots: add at a time on the timeline to cut a shot (each shot gets its camera), then Render shots to video (mp4) again")
+		return {}
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a render needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
+		return {}
+	var fps: int = S.fps
+	var length: float = _ps().length()
+	var n := ShotRender.frame_count(length, fps)
+	var rng := ShotRender.ranges(_shot_shots(), length, fps)
+	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var gdir := ProjectSettings.globalize_path(dir)
+	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
+		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and run Render shots to video again" % dir)
+		return {}
+	_sr_busy = true
+	_sr_cancel = false
+	_sr_panel_make()
+	_sr_layer.visible = true
+	_sr_bar.value = 0.0
+	_sr_label.text = "Rendering shots: starting..."
+	var keep := B.state()
+	var keep_t := playhead
+	var keep_playing := playing
+	var keep_clean := clean
+	playing = false
+	clean = true   # the shot frame is the largest 16:9 in the CLEAN window: its rect is taken there, as the playblast does
+	_sides_apply()
+	await get_tree().process_frame
+	var shot := _shot_blast_begin()
+	clean = keep_clean
+	_sides_apply()
+	var done := 0
+	for r in rng:
+		for j in int(r["count"]):
+			if _sr_cancel:
+				break
+			var f: int = int(r["first"]) + j
+			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
+			_sr_bar.value = 100.0 * float(done) / float(n)
+			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f + 1, n])
+			await RenderingServer.frame_post_draw   # one drawn frame WITH the progress panel; a click on Cancel is read meanwhile
+			if _sr_cancel:
+				break
+			clean = true   # the capture frame: no panels, no handles (they are built by _refresh, so it runs AFTER clean is on)
+			_sides_apply()
+			ui_root.visible = false
+			_sr_layer.visible = false
+			playhead = float(f) / fps
+			_ps().apply(B, playhead)
+			_refresh()
+			_shot_blast_frame(shot)
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			_shot_blast_image(shot, get_viewport().get_texture().get_image()).save_png("%s/frame_%04d.png" % [gdir, f])
+			ui_root.visible = true
+			_sr_layer.visible = true
+			clean = keep_clean
+			_sides_apply()
+			_refresh()
+			done += 1
+		if _sr_cancel:
+			break
+	_shot_blast_end(shot)
+	ui_root.visible = true
+	clean = keep_clean
+	_sides_apply()
+	B.set_state(keep)
+	playhead = keep_t
+	playing = keep_playing
+	_refresh()
+	var cancelled := _sr_cancel
+	var ff := ""
+	var mp4 := ""
+	var how := ""
+	if cancelled:
+		how = "Cancelled: %d of %d frames were made and stay in that folder; no .mp4. Run Render shots to video again to make it all" % [done, n]
+	else:
+		_sr_label.text = "Encoding the .mp4..."
+		_sr_bar.value = 100.0
+		await get_tree().process_frame
+		ff = PlayblastExport.find_ffmpeg(ffmpeg_path)
+		if ff == "":
+			how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Render shots to video again, or set POSER_FFMPEG to ffmpeg.exe"
+		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), 0.0) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+			mp4 = "%s/%s.mp4" % [gdir, nm]
+			how = " and %s.mp4" % nm
+		else:
+			how = ". No .mp4: ffmpeg (%s) failed on the frames; the PNGs are fine, run ffmpeg on them yourself" % ff
+	_sr_layer.visible = false
+	_sr_busy = false
+	_sr_cancel = false
+	if cancelled:
+		_say_plain("shot render stopped. " + how)
+	else:
+		_say_plain("shots rendered: %d frames at %d fps (%d shots, %s) in %s%s" % [n, fps, rng.size(), Units.time(length, S.fps), dir, how])
+	var res := {"dir": gdir, "frames": done, "mp4": mp4, "ffmpeg": ff, "cancelled": cancelled, "ranges": rng, "want": n}
+	shots_render_done.emit(res)
+	return res
 
 
 ## REVIEW WITH FRAME COMMENTS (ROADMAP 29; scripts/review.gd): the playblast's frames (the same capture, no mp4, the frames
@@ -1731,6 +1919,13 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	if _sr_busy and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:   # Esc stops a shot render
+		_sr_cancel = true
+		get_viewport().set_input_as_handled()
+		return
+	if ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE and _card_drag_cancel():
+		get_viewport().set_input_as_handled()
+		return
 	if hk != null and hk.take_input(ev):   # the hotkey editor: a key for the row being set, or Esc closes it
 		get_viewport().set_input_as_handled()
 		return
@@ -3051,6 +3246,7 @@ func _refresh() -> void:
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
 	_doc_line()
+	_next_sync()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
@@ -8352,7 +8548,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "What went wrong?": "whywrong"}
+	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -8741,6 +8937,7 @@ func _ui() -> void:
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
+	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
@@ -10103,7 +10300,7 @@ func _rebuild_cards() -> void:
 		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
 		# the picture IS the pick button: the pose on the body, the number and name under it
-		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick.bind(i), "")
+		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
 		nb.tooltip_text = "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
@@ -10118,7 +10315,7 @@ func _rebuild_cards() -> void:
 		nb.expand_icon = true
 		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
 		_card_flat(nb)
-		nb.set_drag_forwarding(_card_drag.bind(i), _card_can_drop.bind(i, nb), _card_drop.bind(i, nb))
+		nb.set_drag_forwarding(Callable(), _card_can_drop.bind(i, nb), _card_drop.bind(i, nb))   # R18: the drag itself is _card_drag_input (6 px, a gold line); R8: a library pose can drop here
 		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
 		var tex := thumbs.pose_picture(c["pose"])
 		if tex != null:
@@ -10340,14 +10537,8 @@ var _drop_line: ColorRect
 func pose_drop_index(p: Vector2) -> int:
 	if ui_card_row == null or not ui_card_row.get_global_rect().has_point(p):
 		return -1
-	var n := 0
-	for pc in ui_cards.get_children():
-		if not String(pc.name).begins_with("card_"):
-			continue
-		var r: Rect2 = (pc as Control).get_global_rect()
-		if p.x > r.position.x + r.size.x * 0.5:
-			n += 1
-	return n
+	var g := _card_slot_at(p.x)
+	return int(g["slot"]) if not g.is_empty() else 0
 
 
 func _pose_drop_over(p: Vector2, data: Variant) -> bool:
@@ -10355,18 +10546,10 @@ func _pose_drop_over(p: Vector2, data: Variant) -> bool:
 	if i < 0 or not FileAccess.file_exists(String((data as Dictionary).get("kine_pose", ""))):
 		_drop_line.visible = false
 		return false
-	var cards: Array = []
-	for pc in ui_cards.get_children():
-		if String(pc.name).begins_with("card_"):
-			cards.append(pc)
+	var g := _card_slot_at(p.x)
 	var rr := ui_card_row.get_global_rect()
-	var x := rr.position.x + 3.0
-	if i < cards.size():
-		x = (cards[i] as Control).get_global_rect().position.x - 1.0
-	elif not cards.is_empty():
-		x = (cards[-1] as Control).get_global_rect().end.x + 1.0
-	_drop_line.global_position = Vector2(x - 1.0, rr.position.y + 2.0)
-	_drop_line.size = Vector2(3.0, rr.size.y - 4.0)
+	_drop_line.global_position = Vector2(g["x"] if not g.is_empty() else rr.position.x + 3.0, g["top"] if not g.is_empty() else rr.position.y + 2.0)
+	_drop_line.size = Vector2(3.0, g["h"] if not g.is_empty() else rr.size.y - 4.0)
 	_drop_line.visible = true
 	return true
 
@@ -10649,6 +10832,61 @@ func _build_page_bar() -> void:
 			var sep := VSeparator.new()
 			sep.custom_minimum_size.x = 14
 			h.add_child(sep)
+	# R6: the one obvious next step, on every page, to the right of the page buttons (the page bar is every page's own strip)
+	ui_next = Button.new()
+	ui_next.name = "next_step"
+	ui_next.focus_mode = Control.FOCUS_NONE
+	ui_next.flat = true
+	ui_next.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ui_next.clip_text = true
+	ui_next.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	ui_next.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_next.custom_minimum_size = Vector2(0, PAGE_H - 10)
+	ui_next.add_theme_color_override("font_color", Tok.c("say"))
+	ui_next.add_theme_color_override("font_hover_color", Tok.c("say"))
+	ui_next.pressed.connect(_next_run)
+	h.add_child(ui_next)
+	_next_sync()
+
+
+## R6: THE ONE NEXT STEP, computed from the state; the same on every page, never empty. {text, cmd, kind}: cmd is the
+## registry name of the command it runs ("" for a Fix, which is a button under a finding, not a registry row)
+func next_step() -> Dictionary:
+	if S.cards.is_empty():
+		return {"text": "Clip this pose (Enter)", "cmd": "CLIP this pose (add a card)", "kind": "clip"}
+	if S.cards.size() < 2:
+		return {"text": "Clip the next pose (Enter): Check needs two clips", "cmd": "CLIP this pose (add a card)", "kind": "clip"}
+	if not check_ran or undo.size() != check_at:
+		return {"text": "Run Check", "cmd": "Check the motion", "kind": "check"}
+	for f in findings:
+		if f["sev"] == "FAIL":
+			var lbl := Fixer.label(f, S)
+			return {"text": "Fix the first problem: %s at %.2f s, card %d%s" % [f["rule"], f["t"], f["card"] + 1, (" (" + lbl.trim_prefix("Fix: ") + ")") if lbl != "" else " (jump to it)"], "cmd": "", "kind": "fix", "finding": f}
+	return {"text": "Export this clip (Export...)", "cmd": "Export...", "kind": "export"}
+
+
+func _next_sync() -> void:
+	if ui_next == null:
+		return
+	var n := next_step()
+	ui_next.text = "Next:  " + String(n["text"])
+	ui_next.tooltip_text = "the one next step for this scene; click it to do it"
+
+
+func _next_run() -> void:
+	var n := next_step()
+	_step_hint = String(n["text"])
+	match n["kind"]:
+		"clip": _card_add()
+		"check": _check()
+		"fix":
+			var f: Dictionary = n["finding"]
+			if Fixer.label(f, S) != "":
+				_fix(f)
+			else:
+				_goto_finding(f)
+		_: _export_dialog_open()
+	_next_sync()
 
 
 ## A PAGE (a view change: no undo step, the scene untouched): its ribbon row and its panels. Remembered in the settings file
@@ -11268,7 +11506,9 @@ func _commands() -> Array:
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
+	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 degree export", false, "the playblast frames are the mean of 8 sub-frames over a 180 degree shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
+	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
@@ -12558,6 +12798,7 @@ func _check(given = null) -> void:
 	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 128.0 * findings.size(), 60.0,
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))   # ends above the status line (round 9: the bar moved it up)
 	ui_find.visible = true
+	_next_sync()
 	_say("check: " + ("clean" if findings.is_empty() else "%d findings, %d must fix.  Click one to jump to it." % [findings.size(), fails]))
 
 
@@ -12964,6 +13205,150 @@ func _tween_add() -> void:
 	_say("added a tween card (%d): slide 'tween' to favour either side, then Update" % (sel_card + 1))
 
 
+## R18: DRAG A CARD TO REORDER. Press on a card's picture and move 6 px: the picture follows the mouse, a gold line shows the
+## slot it would take, release drops it (one undo step; the card keeps its own move and hold), Esc cancels. Under 6 px
+## it stays a click (pick) and a right-click still opens the menu.
+const CARD_DRAG_PX := 6.0
+const CARD_DRAG_LIFT := Vector2(0, -34)
+var _cd_i := -1   # the card pressed (-1: none)
+var _cd_from := Vector2.ZERO
+var _cd_on := false
+var _cd_eat := false   # the release that ends a drag must not also pick the card
+var _cd_ghost: TextureRect
+var _cd_line: ColorRect
+var _cd_slot := -1
+
+
+func _card_pick_click(i: int) -> void:
+	if _cd_eat:
+		_cd_eat = false
+		return
+	_card_pick(i)
+
+
+## a press / motion / release on a card's picture; true when the event was part of a drag
+func _card_drag_input(ev: InputEvent, i: int, nb: Button) -> bool:
+	var mb := ev as InputEventMouseButton
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed:
+			_cd_eat = false
+			_cd_i = i
+			_cd_from = mb.global_position
+			_cd_on = false
+			return false
+		if _cd_i < 0:
+			return false
+		var was_on := _cd_on
+		var slot := _cd_slot
+		var from := _cd_i
+		_card_drag_end()
+		if was_on:
+			_cd_eat = true
+			if slot >= 0:
+				var j := slot - 1 if slot > from else slot
+				if j != from:
+					_step_hint = "Move card"
+					_card_reorder(from, j)
+				else:
+					_say("card %d stays where it is" % (from + 1))
+			else:
+				_say("drag cancelled: the cards are as they were")
+		return was_on
+	var mm := ev as InputEventMouseMotion
+	if mm != null and _cd_i >= 0:
+		if not (mm.button_mask & MOUSE_BUTTON_MASK_LEFT):
+			_card_drag_end()
+			return false
+		if not _cd_on:
+			if mm.global_position.distance_to(_cd_from) < CARD_DRAG_PX:
+				return false
+			_cd_on = true
+			_cd_ghost = TextureRect.new()
+			_cd_ghost.name = "card_drag_ghost"
+			_cd_ghost.texture = nb.icon
+			_cd_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			_cd_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			_cd_ghost.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H)
+			_cd_ghost.size = Vector2(CARD_W - 8, CARD_PIC_H)
+			_cd_ghost.modulate = Color(1, 1, 1, 0.8)
+			_cd_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_cd_ghost.top_level = true
+			_cd_ghost.z_index = 90
+			_cd_line = ColorRect.new()
+			_cd_line.name = "card_drag_line"
+			_cd_line.color = Tok.c("card_play")   # the gold of the playhead frame
+			_cd_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_cd_line.top_level = true
+			_cd_line.z_index = 90
+			ui_root.add_child(_cd_ghost)
+			ui_root.add_child(_cd_line)
+		_card_drag_move(mm.global_position)
+		nb.accept_event()
+		return true
+	return false
+
+
+## the ghost under the mouse and the gold line at the slot (0..n: the gap before card s)
+func _card_drag_move(at: Vector2) -> void:
+	if _cd_ghost == null:
+		return
+	_cd_ghost.global_position = at - _cd_ghost.size * 0.5 + CARD_DRAG_LIFT   # lifted so it does not hide the slot under the mouse
+	var g := _card_slot_at(at.x)
+	if g.is_empty():
+		return
+	_cd_slot = g["slot"]
+	_cd_line.global_position = Vector2(g["x"], g["top"])
+	_cd_line.size = Vector2(3, g["h"])
+
+
+## R18 + R8: the slot (0..n, the gap before card s) a global x falls in, and the gold line's x / top / height for it
+## ({} with no cards). One rule for a card being moved and a library pose being dropped
+func _card_slot_at(gx: float) -> Dictionary:
+	var kids: Array = []
+	for k in ui_cards.get_children():
+		if (k as Control).name.begins_with("card_"):
+			kids.append(k)
+	if kids.is_empty():
+		return {}
+	var slot := 0
+	var top := 0.0
+	var h := 0.0
+	for k in kids.size():
+		var r: Rect2 = (kids[k] as Control).get_global_rect()
+		if gx > r.get_center().x:
+			slot = k + 1
+		top = r.position.y
+		h = r.size.y
+	var line_x: float
+	if slot < kids.size():
+		line_x = (kids[slot] as Control).get_global_rect().position.x - 2.0
+	else:
+		line_x = (kids[-1] as Control).get_global_rect().end.x + 1.0
+	return {"slot": slot, "x": line_x, "top": top, "h": h}
+
+
+func _card_drag_end() -> void:
+	for n in [_cd_ghost, _cd_line]:
+		if n != null and is_instance_valid(n):
+			(n as Node).get_parent().remove_child(n)
+			(n as Node).queue_free()
+	_cd_ghost = null
+	_cd_line = null
+	_cd_i = -1
+	_cd_on = false
+	_cd_slot = -1
+
+
+## Esc while a card is being dragged: nothing moves; the release that follows picks nothing
+func _card_drag_cancel() -> bool:
+	if not _cd_on:
+		return false
+	_card_drag_end()
+	_cd_eat = true
+	_say("drag cancelled: the cards are as they were")
+	return true
+
+
 ## a card's name (round 13: the agent test found no way to name a card at all). One undo step
 ## a double-click on a card's title: a name box in its place (Enter keeps the name, Esc or clicking away keeps the old)
 func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
@@ -12979,6 +13364,8 @@ func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
 		nb.accept_event()
 		_card_menu(i, mb.global_position)
+		return
+	if _card_drag_input(ev, i, nb):
 		return
 	if not (ev is InputEventMouseButton and ev.double_click and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT):
 		return
@@ -16180,6 +16567,9 @@ func _shot_commands(add: Callable) -> void:
 		true, "a rack-focus key at the playhead: the distance from the shot camera to where it looks (its aim point)")
 	add.call("Camera: focus on the selected part here", "", _shot_focus_part, "shot camera focus rack depth of field dof track part follow selected",
 		true, "a rack-focus key at the playhead that TRACKS the selected part: the focus distance is the camera-to-part distance at every frame until the next focus key")
+	for fn in ShotFx.FSTOPS:
+		add.call("Camera: f-stop f/%s" % String.num(fn, 1), "", _shot_fstop.bind(float(fn)), "shot camera f-stop fstop aperture depth of field dof blur bokeh f/%s f%s" % [String.num(fn, 1), String.num(fn, 1)], true,
+			"the shot's aperture f/%s: with the lens's focal length it sets how deep the sharp zone is (f/1.4 a thin slice with a soft background, f/22 nearly everything sharp); if the shot has no focus key it focuses on where the camera looks" % String.num(fn, 1))
 	add.call("Camera: remove the focus key here", "", _shot_focus_remove, "shot camera focus rack depth of field dof remove delete",
 		true, "the rack-focus key at the playhead (within half a frame) goes")
 
@@ -16348,17 +16738,19 @@ func shot_view_at(t: float) -> Dictionary:
 	xf = ShotFx.shaken(xf, fx.get("shake", []), t)
 	var focus := NAN
 	var kp := ShotCam.at(_shot_shots(), t)   # the keyed camera's position in the hero's space (the focus is measured from it)
+	if fx.get("focus", []).is_empty() and fx.has("fstop"):
+		focus = maxf(ShotFx.DIST_MIN, (k["pos"] as Vector3).distance_to(k["aim"] as Vector3))   # an f-stop alone: focused on where the camera looks
 	if not fx.get("focus", []).is_empty() and not kp.is_empty():
 		var hero := _hero_scene()
 		focus = ShotFx.focus_at(fx["focus"], t,
 			func(tt: float) -> Vector3: return ShotCam.at(_shot_shots(), tt)["pos"] as Vector3,
 			func(j: String, tt: float) -> Vector3: return ShotFx.part_at(hero, j, tt))
-	return {"xf": xf, "f": k["f"], "focus": focus}
+	return {"xf": xf, "f": k["f"], "focus": focus, "fstop": ShotFx.fstop_of(fx)}
 
 
 ## the playhead's rack focus into the viewport camera's depth of field (Godot's CameraAttributesPractical): sharp at
 ## `dist`, blurred on both sides; no focus (NAN) = no DOF (the camera's attributes are cleared)
-func _shot_dof_set(dist: float) -> void:
+func _shot_dof_set(dist: float, f_mm := ShotCam.F_DEFAULT, fstop := ShotFx.F_DEFAULT) -> void:
 	if cam == null:
 		return
 	if is_nan(dist):
@@ -16368,11 +16760,13 @@ func _shot_dof_set(dist: float) -> void:
 		_shot_dof = CameraAttributesPractical.new()
 		_shot_dof.dof_blur_far_enabled = true
 		_shot_dof.dof_blur_near_enabled = true
-		_shot_dof.dof_blur_far_transition = 1.5
-		_shot_dof.dof_blur_near_transition = 1.5
-		_shot_dof.dof_blur_amount = 0.08
-	_shot_dof.dof_blur_far_distance = dist
-	_shot_dof.dof_blur_near_distance = dist
+	# the lens's own depth of field (ShotFx.dof: thin lens from the focal length, the f-stop and the focus distance)
+	var d := ShotFx.dof(f_mm, fstop, dist)
+	_shot_dof.dof_blur_far_distance = maxf(float(d["far"]), 0.1)
+	_shot_dof.dof_blur_far_transition = float(d["far_tr"])
+	_shot_dof.dof_blur_near_distance = maxf(float(d["near"]), 0.1)
+	_shot_dof.dof_blur_near_transition = float(d["near_tr"])
+	_shot_dof.dof_blur_amount = float(d["amount"])
 	cam.attributes = _shot_dof
 
 
@@ -16387,7 +16781,7 @@ func _shot_apply() -> bool:
 		return false
 	var r := shot_rect()
 	ShotCam.apply_to(cam, k["xf"], k["f"], r, get_viewport().get_visible_rect().size)
-	_shot_dof_set(float(k["focus"]))
+	_shot_dof_set(float(k["focus"]), float(k["f"]), float(k["fstop"]))
 	if ui_shot == null and ui_root != null:
 		ui_shot = ShotFrame.new()
 		ui_shot.name = "shot_frame"
@@ -16395,7 +16789,7 @@ func _shot_apply() -> bool:
 		ui_root.move_child(ui_shot, 0)   # under every panel
 	if ui_shot != null:
 		ui_shot.visible = not clean
-		ui_shot.show_rect(r, "SHOT CAMERA  %.0f mm  16:9" % float(k["f"]))
+		ui_shot.show_rect(r, "SHOT CAMERA  %.0f mm  16:9%s" % [float(k["f"]), "" if is_nan(float(k["focus"])) else "  f/%.1f  focus %.2f m" % [float(k["fstop"]), float(k["focus"])]])
 	return true
 
 
@@ -16604,6 +16998,19 @@ func _shot_focus_part() -> void:
 	var key := {"t": t, "part": j}
 	_do(func(): ShotCam.put(ShotFx.list(_shot_fx_make(), "focus"), key))
 	_say("focus tracks %s from %.2f s (%s from the shot camera now); the blur follows it until the next focus key" % [j, t, Units.len((k["pos"] as Vector3).distance_to(q))])
+
+
+func _shot_fstop(n: float) -> void:
+	if not _shot_fx_need_keys("the f-stop"):
+		return
+	if absf(float(_shot_fx().get("fstop", ShotFx.F_DEFAULT)) - n) < 1e-6 and _shot_fx().has("fstop"):
+		_say("the shot is already at f/%s: pick another f-stop (f/1.4 to f/22)" % String.num(n, 1))
+		return
+	_do(func(): _shot_fx_make()["fstop"] = n)
+	var f := float(ShotCam.sample(_shot_keys(), clampf(playhead, 0.0, S.length()))["f"])
+	var d := ShotFx.dof(f, n, 3.0)
+	_say("shot camera f/%s at %.0f mm: with the focus 3 m away the sharp zone runs %.2f to %s m (Ctrl+Z takes it back; 'look through' shows the blur)" % [
+		String.num(n, 1), f, float(d["near"]), "infinity" if float(d["far"]) >= 999.0 else "%.2f" % float(d["far"])])
 
 
 func _shot_focus_remove() -> void:

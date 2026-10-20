@@ -130,13 +130,15 @@ static func body_for(pr: Dictionary) -> Dictionary:
 		var m := exp(zof(float(pr.get(g, 50.0))) * float(CV[g]))
 		for s in GROUPS[g]:
 			sc[s] = float(sc[s]) * m
-	return Proportions.clean({"stature": st, "scale": sc, "sex": sex_of(bl), "mass": mass_at(bl, float(pr.get("mass", 50.0)))})
+	return Proportions.clean({"stature": st, "scale": sc, "sex": sex_of(bl), "blend": bl, "mass": mass_at(bl, float(pr.get("mass", 50.0)))})
 
 
 ## a body dict -> the sliders that would make it (the default mannequin shows how its own proportions rate)
 static func params_for(body: Dictionary, blend_hint := 1.0) -> Dictionary:
 	var sex := String(body.get("sex", "male"))
 	var bl := blend_hint if sex_of(blend_hint) == sex else (1.0 if sex == "male" else 0.0)
+	if body.has("blend"):   # R12: the scene remembers the blend it was made with
+		bl = float(body["blend"])
 	var st := float(body.get("stature", Proportions.DEFAULT_STATURE))
 	var sc: Dictionary = body.get("scale", {})
 	var base := base_scales(st)
