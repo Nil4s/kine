@@ -74,6 +74,8 @@ func _init() -> void:
 	var names := []
 	var soon_ok := true
 	for b in bar.find_children("*", "Button", true, false):
+		if b == m.ui_next:   # R6: the bar also carries the one next-step line (a deliberate feature, not a page); it is checked in the R6 test
+			continue
 		names.append(b.text)
 		if b.text in m.PAGES_SOON:
 			soon_ok = soon_ok and b.tooltip_text == "coming: the modeling pages" and b.pressed.get_connections().is_empty() and b.modulate.a < 0.6

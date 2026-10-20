@@ -102,6 +102,7 @@ func _init() -> void:
 	ok(ts.size() == 8 and absf((ts[7] - ts[0]) - st) < 1e-9 and absf((ts[0] + ts[7]) * 0.5 - t0) < 1e-9, "  8 sub-frame times span %.5f s centred on t (%.4f .. %.4f)" % [ts[7] - ts[0], ts[0], ts[7]])
 	ok(m.blast_blur == false, "  motion blur is off by default")
 
+	m.wt.render_on = false   # R23 draws a weapon-trail ribbon in renders by default; this test is about blur alone, so the ribbon is off (r3 compares against a bare viewport capture)
 	# the clean whole-body view, as the playblast renders it
 	m.clean = true
 	m._sides_apply()
