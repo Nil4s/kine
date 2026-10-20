@@ -11,13 +11,13 @@
 ##      (5-15 ms a call on combo3) is separate, paid once per edit, and is printed.
 ##  (5) PLACEMENT, in a whole-body view with Force view on at the swing: the coloured parts are drawn on the body (the skin
 ##      look of upperarm_r is a ForceView band colour, same colour the model gives), the strip is on screen, inside the window,
-##      and the body projects inside the view. Screenshot: C:/Users/Nick/.claude/jobs/9afc22db/tmp/i8.png
+##      and the body projects inside the view. Screenshot: C:/Users/Nick/.claude/jobs/9afc22db/tmp/i8b.png
 ##  (6) off by default; turning it on and off leaves the scene and body untouched (cards, undo depth).
 extends SceneTree
 
 var fails := 0
 var m: Node
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i8.png"
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i8b.png"
 
 
 func ok(c: bool, what: String) -> void:
@@ -111,6 +111,15 @@ func _init() -> void:
 		hk = maxf(hk, peak(sm2["tau"][j]))
 	print("     standing: peak hip/knee torque %.1f Nm" % hk)
 	ok(hk < 15.0, "1d straight standing: hip and knee torque under 15 Nm (%.1f)" % hk)
+	var calm_worst := 0.0
+	var calm_j := ""
+	for j in sm2["ratio"]:
+		var rj := peak(sm2["ratio"][j])
+		if rj > calm_worst:
+			calm_worst = rj
+			calm_j = j
+	print("     calm stand: highest torque/limit %s %.3f" % [calm_j, calm_worst])
+	ok(calm_worst < ForceView.GREEN_BELOW, "1e a calm stand is all green (worst %s %.3f of the limit)" % [calm_j, calm_worst])
 
 	# (2) fast vs slow swing
 	var arm_a := pose_of({"upperarm_r": Vector3(-45, 0, 0)})
@@ -150,6 +159,24 @@ func _init() -> void:
 			wr = r
 			worst = j
 	print("     combo3 highest torque/limit: %s %.2f (%.0f Nm)" % [worst, wr, peak(smc["tau"][worst])])
+	# DIAGNOSIS of the red head/torso at the swing (not a bug): the head's centre travels ~0.6 m in ~0.12 s in combo3, a 30 g
+	# lunge; the neck needs m_head * a * lever. Printed so the colour can be audited against the motion (real voluntary head
+	# accelerations are of the order of 2-5 g, boxing impacts 5-10 g: Viano 1989, Pellman 2003 - from memory, order of magnitude).
+	var ti := int(ch["t_star"] * ForceView.HZ)
+	var hk_i := 0
+	for k in cap["pcs0"].size():
+		if cap["pcs0"][k]["j"] == "head":
+			hk_i = k
+	var hc := []
+	for q in smc["n"]:
+		hc.append(cap["cs"][q][hk_i])
+	var ha := ForceView._accel(hc, smc["n"])
+	var hmax := 0.0
+	for q in range(ti - 12, ti + 12):
+		hmax = maxf(hmax, (ha[q] as Vector3).length())
+	print("     at the swing (+-0.1 s): head |a| peak %.0f m/s2 = %.0f g; neck %.0f Nm of %.0f, lumbar spine_01 %.0f Nm of %.0f, shoulder_r %.0f of %.0f, knee_r %.0f of %.0f" % [
+		hmax, hmax / 9.81, smc["tau"]["neck_01"][ti], ForceView.limit_nm("neck_01", smc["mass"]), smc["tau"]["spine_01"][ti], ForceView.limit_nm("spine_01", smc["mass"]),
+		smc["tau"]["upperarm_r"][ti], ForceView.limit_nm("upperarm_r", smc["mass"]), smc["tau"]["calf_r"][ti], ForceView.limit_nm("calf_r", smc["mass"])])
 	ok(ms < 100.0, "4 the dynamics of a whole clip (562 samples) in under 100 ms (%.1f ms)" % ms)
 
 	# (5) the app: combo3 at the swing, force view on
