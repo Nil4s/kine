@@ -11127,6 +11127,7 @@ func _commands() -> Array:
 	add.call("Animation from video", "", _video_ask, "video mp4 mov phone clip tracking track person mocap motion capture camera film record webcam", false, "pick a video of a person: the tracker (MediaPipe, on this machine) finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window")
 	add.call("Import from several cameras...", "", _multicam_ask, "video several cameras multi camera triangulate rig two videos mocap motion capture track person film record", false, "pick 2 to 4 videos of one person filmed at the same time: the rig is solved from the person, the joints triangulated, one undo step")
 	add.call("Video: confidence lane and footprints (show / hide)", "", _iq_toggle, "video confidence lane tracking lost footprints contacts floor plants timeline show hide", false, "a scene made from a video shows a lane under its cards coloured by how sure the tracker was (low spans named: click one to go there) and the foot contacts it found as footprints on the floor; this shows or hides both")
+	add.call("Retarget to body (IK): on / off", "", _retarget_toggle, "video retarget body ik gmr proportions import feet planted skate slide setting", false, "while on (the default) a video import is fitted by IK onto this body's own proportions and the planted feet are pinned where they land; off = the older geometric fit")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
@@ -15427,6 +15428,24 @@ func _video_poll(dt: float) -> void:
 	_import_pose(_video_out, _video_name, _video_raw)
 
 
+## the setting "Retarget to body (IK)" (default ON): the video import fits with VideoRetarget (GMR-style IK onto OUR proportions,
+## the planted feet pinned on VideoIQ's contacts) instead of the geometric VideoImport.solve. Kept in poser.cfg [video] retarget
+func _retarget_on() -> bool:
+	var cf := ConfigFile.new()
+	if cf.load(settings) != OK:
+		return true
+	return bool(cf.get_value("video", "retarget", true))
+
+
+func _retarget_toggle() -> void:
+	var on := not _retarget_on()
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("video", "retarget", on)
+	cf.save(settings)
+	_say("Retarget to body (IK) is %s: the next video import %s. Run Animation from video to see it" % ["ON" if on else "OFF", "is fitted by IK onto this body's proportions, the feet pinned on their contacts" if on else "uses the geometric fit (the old way)"])
+
+
 ## a pose file (tools/see_video.py's) -> a new scene in scenes/_wip, opened. Returns the new scene's path ("" refused).
 ## The cleanup (VideoCleanup: One Euro jitter, the floor level, foot plants held where the leg reaches) is the default;
 ## raw = true is "import raw", the tracker's frames as they came (MocapClean's card lock instead)
@@ -15450,7 +15469,7 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
 	else:
 		# VIDEO IQ: confidence, depth + limit repair, contacts -> plants, smart cards, and the lane / footprints for the timeline
-		var R := VideoIQ.process(B, P, held, base_name)
+		var R := VideoIQ.process(B, P, held, base_name, _retarget_on())
 		fitted = R["fitted"]
 		V = R["scene"]
 		V.iq = R["iq"]
@@ -15592,7 +15611,7 @@ func _multicam_finish() -> void:
 	if obs.size() > 1 and float(obs[-1]["t"]) > float(obs[0]["t"]):
 		fps = float(obs.size() - 1) / (float(obs[-1]["t"]) - float(obs[0]["t"]))
 	var tilt := VideoImport.level(frames)
-	var R := VideoIQ.process(B, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam")
+	var R := VideoIQ.process(B, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam", _retarget_on())
 	var fitted: Array = R["fitted"]
 	var V: Scene = R["scene"]
 	V.iq = R["iq"]
