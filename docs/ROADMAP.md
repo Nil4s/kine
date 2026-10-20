@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 22 / 25.
+Merged in round 2: 23 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -214,7 +214,7 @@ Merged in round 2: 22 / 25.
 - [x] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
 - [ ] R23. Weapon trail in the playblast and the mp4 render.
 - [ ] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
-- [ ] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
+- [x] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
 - [x] R26. Share with friends by QR code (Nick): a pose or short clip packed (compressed) into a QR image; Kine reads a QR from an image file or the webcam and opens it. No server, no account.
 - [x] R27. Next-pose suggestions while animating (Nick): after the current card, 3 ghost poses of the likely next move, learned from your own scenes (what you usually clip after a pose like this), the motion database (what follows this pose in real clips) and move phases (wind-up -> contact -> follow-through -> recover). Tab or click takes one as a new card.
 
@@ -250,7 +250,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   Step 1 merged: strokes recognised, fit lands on the strokes in screen space (<= 2 px), missing limbs untouched, one undo, 48 ms. Open: 3D recovery, 29 of 42 library fits have a bone > 10 deg off (trunk twist not in a stick figure, depth-axis bones mirror-ambiguous, an 8.7 deg error even with no tremor).
 - [x] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
   cards come pre-timed the way you usually time them (shown as "your usual 0.18 s", one key to accept).
-- [ ] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
+- [x] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
   beat: block, slip, parry, counter) and keeps the pair at fighting range (each strike's tip reaches the target, nobody
   overlaps), flagging beats where the distance makes the move impossible.
 - [x] I12. Smart drag: dragging one joint moves the rest of the body the way YOUR poses move together (the
@@ -263,3 +263,6 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
   and joint curves over the animated clip, card by card, with "you were 0.08 s faster on the strike, your hip turned
   20 deg more" lines.
+- [ ] I15. Fight to the beat: with music loaded, Kine moves each contact onto the nearest beat (or off-beat on
+  request) while keeping every move inside the timing coach's human range (I4); moves that can't reach a beat are
+  flagged, never forced.
