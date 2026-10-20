@@ -1291,7 +1291,7 @@ func _blast_blur_toggle() -> void:
 	blast_blur = not blast_blur
 	if export_ui != null and export_ui.ui_blur != null:
 		export_ui.ui_blur.set_pressed_no_signal(blast_blur)
-	_say(("playblast motion blur on: %d sub-frames over a 180 degree shutter (%.1f ms at %d fps); a render takes %d times as long" % [blast_blur_n, 1000.0 * PlayblastExport.shutter_time(S.fps), S.fps, blast_blur_n]) if blast_blur else "playblast motion blur off")
+	_say(("playblast motion blur on: %d sub-frames over a 180 deg shutter (%.1f ms at %d fps); a render takes %d times as long" % [blast_blur_n, 1000.0 * PlayblastExport.shutter_time(S.fps), S.fps, blast_blur_n]) if blast_blur else "playblast motion blur off")
 
 
 ## the image of the scene at time t as the playblast saves it: one render, or (motion blur on) the mean of the sub-frames over
@@ -1761,7 +1761,7 @@ func _versions_menu() -> void:
 	pm.clear()
 	pm.add_item("Save a version now", 0)
 	pm.add_item("Timed snapshots: %s  (click: next)" % ("off" if autover_min == 0 else "every %d min" % autover_min), 5)
-	pm.set_item_tooltip(pm.item_count - 1, "while you edit, a snapshot every few minutes if the scene changed (off, 2, 5, 10, 15). The last %d are kept; versions you save yourself are never removed" % autover_keep)
+	pm.set_item_tooltip(pm.item_count - 1, "while you edit, a snapshot every few minutes if the scene changed (off, 2, 5, 10, 15 min). The last %d are kept; versions you save yourself are never removed" % autover_keep)
 	pm.add_separator()
 	_version_paths = versions()
 	if _version_paths.is_empty():
@@ -3122,9 +3122,9 @@ func _dummy_move(d: float) -> void:
 	_dummy_hits()
 	_refresh()
 	if is_equal_approx(was, T.dist):
-		_say("the dummy is already as %s as it goes (%.2f m): %s" % ["close" if d < 0.0 else "far", T.dist, "Dummy farther moves it back" if d < 0.0 else "Dummy closer moves it in"])
+		_say("the dummy is already as %s as it goes (%s): %s" % ["close" if d < 0.0 else "far", Units.len(T.dist), "Dummy farther moves it back" if d < 0.0 else "Dummy closer moves it in"])
 	else:
-		_say("the dummy stands %.2f m from the hero%s" % [T.dist, "" if dummy_on else " (it is hidden: Dummy on/off shows it)"])
+		_say("the dummy stands %s from the hero%s" % [Units.len(T.dist), "" if dummy_on else " (it is hidden: Dummy on/off shows it)"])
 
 
 ## THE DUMMY'S HITS, OFF THE MAIN THREAD (round 14, GATES U1): sampling the whole scene against the dummy took 1.3 s
@@ -3465,7 +3465,7 @@ func _reaction_drop(path: String, mp: Vector2) -> bool:
 				best = d
 				k = i
 	if k < 0:
-		_say("drop the reaction ON a fighter in the view (the one who is hit), not on empty floor")
+		_say("drop the reaction ON a fighter in the view (the one who is hit), not on empty floor: drag it again and let go over one")
 		return false
 	return _reaction_apply(path, k)
 
@@ -3524,7 +3524,7 @@ func _fight_build() -> Dictionary:
 	var pl := _fight_plan(a, d)
 	if not pl["ok"]:
 		fp_prev = {}
-		_say(String(pl["why"]))
+		_say(String(pl["why"]) + ". Pick the fighter who strikes, or move the fighters closer, then try again")
 		return pl
 	var ds: Scene = (actors_rt[d]["S"] as Scene).clone()
 	FightPhrase.apply_plan(ds, pl)
@@ -3556,7 +3556,7 @@ func _fight_accept() -> bool:
 	fp_prev = {}
 	if not pl["ok"]:
 		_refresh()
-		_say(String(pl["why"]))
+		_say(String(pl["why"]) + ". Pick the fighter who strikes, or move the fighters closer, then try again")
 		return false
 	_actor_go(d)
 	_push_undo()
@@ -3635,7 +3635,7 @@ func _rehearse_land(res: Dictionary, from: String) -> void:
 ## show a comparison (the app's path and the test's): T = the take as a Scene
 func _rehearse_compare(T: Scene, from := "your take") -> Dictionary:
 	if S.cards.size() < 2:
-		_say("nothing to compare yet: build a clip of at least two cards first, then compare it with your video")
+		_say("nothing to compare yet: add cards until the clip has at least two, then compare it with your video")
 		return {}
 	var R := Rehearse.compare(S, T)
 	_rehearse_set(T, R, from)
@@ -5304,7 +5304,7 @@ func _qr_render() -> void:
 	if not bool(r.get("ok", false)):
 		qr_last["say"] = String(r.get("why", "the QR could not be drawn: run pip install segno zxing-cpp pillow"))
 		ui_qr_info.text = qr_last["say"]
-		_say(qr_last["say"])
+		_say(qr_last["say"] + ". Try Share as QR again when that is fixed")
 		return
 	var img := Image.load_from_file(ProjectSettings.globalize_path(png))
 	if img == null:
@@ -5314,7 +5314,7 @@ func _qr_render() -> void:
 	ui_qr_pic.texture = ImageTexture.create_from_image(img)
 	qr_last.merge({"ok": true, "png": png, "version": r.get("version", 0), "ecc": r.get("ecc", "")}, true)
 	var what := "the scene '%s' (%d cards)" % [title, cards.size()] if scene_mode else ("the body's pose" if title == "pose" else "the pose '%s'" % title)
-	var msg2 := "%s: %d of the %d characters one QR holds (%d%%), QR version %d, error correction %s.\nSaved as %s (in the app's user folder). Send that picture: Open from QR... reads it back.\nCarries joint angles to 0.1 degree and the hips; not weapons, props or the face." % [what, cap["chars"], QrShare.CAP_L, roundi(cap["pct"]), int(r.get("version", 0)), String(r.get("ecc", "")), png.get_file()]
+	var msg2 := "%s: %d of the %d characters one QR holds (%d%%), QR version %d, error correction %s.\nSaved as %s (in the app's user folder). Send that picture: Open from QR... reads it back.\nCarries joint angles to 0.1 deg and the hips; not weapons, props or the face." % [what, cap["chars"], QrShare.CAP_L, roundi(cap["pct"]), int(r.get("version", 0)), String(r.get("ecc", "")), png.get_file()]
 	qr_last["say"] = msg2
 	ui_qr_info.text = msg2
 	_say("QR ready for %s: %d of %d characters (version %d). Send the picture; Open from QR... reads it" % [what, cap["chars"], QrShare.CAP_L, int(r.get("version", 0))])
@@ -5345,7 +5345,7 @@ func _qr_open_file(path: String) -> Dictionary:
 func _qr_open_text(text: String) -> Dictionary:
 	var u := QrShare.unpack(text)
 	if not bool(u["ok"]):
-		_say(String(u["why"]))
+		_say(String(u["why"]) + ". Try another picture of a Kine code")
 		return u
 	_step_hint = "Open from QR"
 	if u["kind"] == "pose":
@@ -5385,7 +5385,7 @@ func _qr_open_camera() -> void:
 	if _qr_cam_pid < 0:
 		_say("could not start the camera reader: \"%s\" did not start. Install Python and run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture" % _qr_py())
 		return
-	_say("looking for a Kine QR on camera 0 for 25 seconds: hold the code up, straight on and still")
+	_say("looking for a Kine QR on camera 0 for 25 s: hold the code up, straight on and still")
 	if _qr_cam_timer == null:
 		_qr_cam_timer = Timer.new()
 		_qr_cam_timer.wait_time = 0.5
@@ -6837,7 +6837,7 @@ func _sk_fit() -> Dictionary:
 	var rep := SketchPose.fit(B, cam, sk.strokes)
 	if not rep["ok"]:
 		_drop_undo()
-		_say("sketch: " + String(rep["why"]))
+		_say("sketch: " + String(rep["why"]) + ". Try again: start each stroke at the spine")
 		return rep
 	sk.fitted = rep["skeleton"]
 	sk.last = rep
@@ -10102,7 +10102,7 @@ func _ui() -> void:
 		ui_ribbon[tab].add_child(b)
 	# BODY (the page's sliders are the left panel, scripts/body_panel.gd)
 	ui_ribbon["BODY"].add_child(_button("Body: proportions...", _proportions_dialog, "a small dialog: an ANSUR II preset (5th / 50th / 95th, woman or man) or a stature in cm. The sliders on the left do the same by percentile"))
-	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 1.83 m mannequin; the cards keep their angles. Ctrl+Z undoes"))
+	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 183 cm mannequin; the cards keep their angles. Ctrl+Z undoes"))
 	# POSE
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
@@ -10112,7 +10112,6 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Sketch to pose", _sk_toggle, "draw a stick figure over the view (a drag = one stroke: the spine, arms from its top, legs from its bottom, a circle for the head); Enter fits the body to it with its real bone lengths and joint limits, Backspace removes the last stroke, Esc leaves. One undo step. Limbs you did not draw stay as they were"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: 'Open from QR (webcam)' reads it from the camera"))
-	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: Open from QR (webcam) reads it from the camera"))
 	ui_ribbon["POSE"].add_child(_button("Pose from words...", _say_it_ask, "type a pose in plain words (\"low guard, weight on back foot, bat cocked over right shoulder\", \"crouch\", \"left knee bent 90\"): the body is posed with the app's own solvers, locally, no cloud; ONE undo step; each phrase is reported placed / partly placed (why) / not understood"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
@@ -10183,7 +10182,7 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Fight to the beat", bf_ui.show, "land each contact on a beat of the music (or the off-beat) by retiming the moves before it, never outside the human strike range; a contact that cannot be reached is flagged; preview, then accept (one undo step)"))
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
-	ui_ribbon["CHECK"].add_child(_button("Auto camera", ac_ui.show, "for the strike a shot camera per beat from film grammar (180-degree rule, lead room, closer on contact, low angle for power, hold the wide) as ghost frames; click one to keep it as a shot, or Keep all; nothing changes until you click"))
+	ui_ribbon["CHECK"].add_child(_button("Auto camera", ac_ui.show, "for the strike a shot camera per beat from film grammar (180 deg rule, lead room, closer on contact, low angle for power, hold the wide) as ghost frames; click one to keep it as a shot, or Keep all; nothing changes until you click"))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
@@ -10193,7 +10192,6 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
-	ui_ribbon["EXPORT"].add_child(_button("Share as QR", _qr_share, "the pose (or the scene, if it is short enough) as a QR code picture to send to a friend: no server, no account. Right-click a card > Share as QR shares that card's pose"))
 	ui_ribbon["EXPORT"].add_child(_button("Share as QR", _qr_share, "the pose (or the scene, if it is short enough) as a QR code picture to send to a friend: no server, no account. Right-click a card > Share as QR shares that card's pose"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
@@ -12225,6 +12223,7 @@ func _build_page_bar() -> void:
 	ui_next.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	ui_next.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ui_next.custom_minimum_size = Vector2(0, PAGE_H - 10)
+	ui_next.add_theme_font_size_override("font_size", 12)   # as the page tabs: the default 16 made this button 35 px tall and pushed the page tabs up out of the bar
 	ui_next.add_theme_color_override("font_color", Tok.c("say"))
 	ui_next.add_theme_color_override("font_hover_color", Tok.c("say"))
 	ui_next.pressed.connect(_next_run)
@@ -12249,7 +12248,7 @@ func next_step() -> Dictionary:
 	if not sk.is_empty() and dummy_on and float(sk["gap"]) > STRIKE_LANDS:
 		if float(sk["aim_gap"]) > STRIKE_LANDS * 0.2:
 			if T.dist > 0.61:
-				return {"text": "Dummy closer: the arm cannot reach its head from %.2f m (the fist stops %.0f cm short)" % [T.dist, float(sk["gap"]) * 100.0], "cmd": "Dummy closer", "kind": "dummy"}
+				return {"text": "Dummy closer: the arm cannot reach its head from %s (the fist stops %.0f cm short)" % [Units.len(T.dist), float(sk["gap"]) * 100.0], "cmd": "Dummy closer", "kind": "dummy"}
 		else:
 			return {"text": "Land the punch: its fist ends %.0f cm from the dummy's head (Strike: aim the fist at the dummy's head)" % (float(sk["gap"]) * 100.0), "cmd": "Strike: aim the fist at the dummy's head", "kind": "aim"}
 	return {"text": "Export this clip (Export...)", "cmd": "Export...", "kind": "export"}
@@ -13031,10 +13030,7 @@ func _commands() -> Array:
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
 	add.call("Share as QR", "", _qr_share, "qr code share send friend phone photo screenshot pose scene picture no server account", false, "the pose (or the whole scene when it is short) as a QR code picture: a friend scans or opens it in Kine. Says how much of one QR it uses and refuses with the next step when it is too long")
 	add.call("Open from QR...", "", _qr_open_ask, "qr code open read scan friend phone photo screenshot pose scene picture", false, "pick a picture of a Kine QR code: the pose goes on the body (or a scene's cards are added), ONE undo step")
-	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 seconds: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")
-	add.call("Share as QR", "", _qr_share, "qr code share send friend phone photo screenshot pose scene picture no server account", false, "the pose (or the whole scene when it is short) as a QR code picture: a friend scans or opens it in Kine. Says how much of one QR it uses and refuses with the next step when it is too long")
-	add.call("Open from QR...", "", _qr_open_ask, "qr code open read scan friend phone photo screenshot pose scene picture", false, "pick a picture of a Kine QR code: the pose goes on the body (or a scene's cards are added), ONE undo step")
-	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 seconds: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")
+	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 s: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")
 	add.call("Share scene as a pack...", "", _share_scene_pack, "share scene pack asset store kinepack export send", false, "the saved scene as one .kinepack file (cards, timings, markers, props) to send to someone; Import pack... reads it")
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
 		var miss := not FileAccess.file_exists(p)
@@ -13052,7 +13048,7 @@ func _commands() -> Array:
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
-	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 degree export", false, "the playblast frames are the mean of 8 sub-frames over a 180 degree shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
+	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 deg export", false, "the playblast frames are the mean of 8 sub-frames over a 180 deg shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
@@ -14453,7 +14449,7 @@ func _push_rows() -> int:
 		return 0
 	var n := 0
 	var l0 := PushLimits.limits("chest", 0.0)
-	var ref := _label("PUSH LIMITS (MuJoCo humanoid, fighting stance): a push on the chest from behind is absorbed up to %.0f N s, takes a step up to %.0f, falls from %.0f." % [l0["absorb"], l0["step"], l0["fall"]], 13, "text:0.7", true)
+	var ref := _label("PUSH LIMITS (MuJoCo humanoid, fighting stance): a push on the chest from behind is absorbed up to %.0f N s, takes a step up to %.0f N s, falls from %.0f N s." % [l0["absorb"], l0["step"], l0["fall"]], 13, "text:0.7", true)
 	ref.name = "push_limit_ref"
 	ui_find_list.add_child(ref)
 	n += 1
@@ -15949,7 +15945,7 @@ func cards_retime(factor: float) -> String:
 	if idx.is_empty():
 		return "no cards selected"
 	if not (factor >= 0.1 and factor <= 10.0):
-		_say("retime by a factor from 0.1 to 10 (2 = twice as slow), not %s" % factor)
+		_say("retime by a factor from 0.1 to 10 (2 = twice as slow), not %s: type a factor in that range" % factor)
 		return "bad factor"
 	_step_hint = "Retime cards"
 	_push_undo()
@@ -19116,8 +19112,8 @@ func _shot_fstop(n: float) -> void:
 	_do(func(): _shot_fx_make()["fstop"] = n)
 	var f := float(ShotCam.sample(_shot_keys(), clampf(playhead, 0.0, S.length()))["f"])
 	var d := ShotFx.dof(f, n, 3.0)
-	_say("shot camera f/%s at %.0f mm: with the focus 3 m away the sharp zone runs %.2f to %s m (Ctrl+Z takes it back; 'look through' shows the blur)" % [
-		String.num(n, 1), f, float(d["near"]), "infinity" if float(d["far"]) >= 999.0 else "%.2f" % float(d["far"])])
+	_say("shot camera f/%s at %.0f mm: with the focus 300 cm away the sharp zone runs %s to %s (Ctrl+Z takes it back; 'look through' shows the blur)" % [
+		String.num(n, 1), f, Units.len(float(d["near"])), "infinity" if float(d["far"]) >= 999.0 else Units.len(float(d["far"]))])
 
 
 func _shot_focus_remove() -> void:
@@ -19518,7 +19514,7 @@ func cards_use_usual() -> String:
 		if not u.is_empty():
 			plan[i] = u
 	if plan.is_empty():
-		_say("no usual timing for the picked card%s yet: fewer than %d of your saved scenes' steps are within %.0f degrees of this one.  Time it by hand and save the scene, and it learns" % [
+		_say("no usual timing for the picked card%s yet: fewer than %d of your saved scenes' steps are within %.0f deg of this one.  Time it by hand and save the scene, and it learns" % [
 			"" if idx.size() == 1 else "s", NextPose.T_MIN, NextPose.T_MAXD])
 		return "no usual"
 	_step_hint = "Use my usual timing"

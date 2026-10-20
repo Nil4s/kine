@@ -333,7 +333,7 @@ static func compute(S: Scene) -> Dictionary:
 		match beat:
 			"windup":
 				rules = ["180-degree rule", "lead room"]
-				label = "180-degree rule + lead room"
+				label = "180 deg rule + lead room"
 			"contact":
 				rules = ["closer on contact", "180-degree rule", "lead room"]
 				label = "closer on contact"

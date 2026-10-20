@@ -364,6 +364,7 @@ static var H_PIV := 0.08       # m: a heel / ball is a LOCKED pivot (VideoImport
 static var V_ON := 0.25        # m/s, against the ground: slow enough to touch
 static var V_OFF := 0.30
 const CONSENSUS_V := 0.2  # m/s: two low points whose implied root velocities are this close agree on it (contacts)
+static var CONS_H := 0.04  # m: only a point this near its ground votes (H_OFF = 0.08 let a foot sliding through a shuffle outvote the planted one)
 const BRIDGE := 2         # frames: contact runs this close are one
 const MIN_RUN := 3        # frames: a shorter run is a tap
 const HAND_H := 0.15      # m above the ground under the soles: a hand this low can be on it
@@ -371,7 +372,7 @@ const HAND_V := 0.25
 const HAND_MIN := 4
 const FLOOR_WIN := 20     # frames: a foot's ground is the lowest it gets within this many frames either side
 const HEEL_UP := 0.03     # m: a heel this far above its own ground has left it (the ball roll: a plant then holds the ball, FootPlant "th")
-const TRIM := 0           # frames cut off the end of a plant (the toe-off; VideoCleanup.reachable cuts what the leg cannot hold)
+const TRIM := 2           # frames cut off the end of a plant (the toe-off). R14c set 0 (coverage 61 vs 55 %) but the held foot then slid 8.3 cm on combo3 (videoiq 1b, bar 1 cm); 2 gives 0.4 cm
 
 
 static func _hxz(v: Vector3) -> Vector2:
@@ -433,7 +434,7 @@ static func contacts(frames: Array, fps: float) -> Dictionary:
 		var cand := []
 		for k in ["hl", "tl", "hr", "tr"]:
 			var hk := float(ys[k][i]) - float(gf[k.right(1)][i])
-			if hk < H_OFF:
+			if hk < CONS_H:
 				cand.append([k, hk, -(vel[k][i] as Vector2)])
 		var best: Vector2 = -(vel[low][i] as Vector2)
 		if cand.size() > 1:

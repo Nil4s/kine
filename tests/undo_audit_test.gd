@@ -30,6 +30,17 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"export_playblast_video": "writes exports/playblast/ frame by frame over many frames (a file, not an edit; round 50 PL0: its own test checks the app is back after)",
 	"save_a_version": "writes scenes/_versions/<scene>/ (a file, not an edit; round 29)",
 	"new_empty_scene": "replaces the scene (the open one stays on disk); not an edit of it",
+	"new_from_template_walk": "writes + opens a NEW scene in scenes/_wip (the open one stays on disk); not an edit of it (templates_test)",
+	"new_from_template_run": "writes + opens a NEW scene in scenes/_wip (the open one stays on disk); not an edit of it (templates_test)",
+	"new_from_template_jump": "writes + opens a NEW scene in scenes/_wip (the open one stays on disk); not an edit of it (templates_test)",
+	"new_from_template_punch": "writes + opens a NEW scene in scenes/_wip (the open one stays on disk); not an edit of it (templates_test)",
+	"new_from_template_sword_swing": "writes + opens a NEW scene in scenes/_wip (the open one stays on disk); not an edit of it (templates_test)",
+	"counter_suggest_the_defender's_block_slip_and_parry": "needs a strike of the other fighter in front of the defender (no start has one); i3_test runs it on the real combo3 strike fixture and checks the one undo step",
+	"light_back_to_the_default_lights": "from a shot already on the default lights it changes nothing; the same _light_preset path is audited by light_three-point, light_rim, light_noir and light_daylight",
+	"react_to_the_hit_physics": "runs python tools/physics/react.py (MuJoCo) for a struck fighter: a subprocess the audit does not start; the cards it makes are one _do step",
+	"cards_paste_after_the_current_card": "needs a copied card, and cards_copy_the_selected comes after it in the list; r19_test runs the paste and its one undo step",
+	"compare_with_my_video_use_my_timing": "needs a rehearsal take compared with a video (a webcam or file the audit does not have); i14_test runs it and the one undo step",
+	"strike_aim_the_fist_at_the_dummy's_head": "needs a fist punch in the cards (New from template: Punch); templates_test and the strike tests run it",
 	"look_at_the_picked_prop": "needs a picked prop (no start picks one); the same _look_at path is audited by look_at_the_camera and its solve by look_at_test",
 	"play_pause": "plays (the playhead moves the body by design); stopped at once below",
 	"audio_add_a_sound_file_wav_ogg_mp3": "opens a file dialog (audio_track_test runs the add itself: one undo step)",
@@ -579,6 +590,7 @@ func trial(c: Dictionary, kind: String) -> String:
 			ok(steps == 0, "%-38s not an edit: changed nothing, %d undo steps" % [c["id"], steps])
 		return "same"
 	if not c["edits"]:
+		print(where(f0, f1))
 		ok(false, "%-38s NOT marked edits but CHANGED the body/scene (%d undo steps)" % [c["id"], steps])
 		return "changed"
 	m._undo()

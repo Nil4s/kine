@@ -67,14 +67,19 @@ func _init() -> void:
 		var sd: String = String(p["foot"]).right(2)
 		var t0 := float(p["t0"])
 		var t1 := float(p["t1"])
-		V.apply(B, t0)
+		# R14b: a plant with "tf" starts at a heel strike (toes still up): the sole is flat, and so held, from tf; before tf only the
+		# HEEL is held, the ball is coming down onto the floor (not planted yet). The reference is the sole as held (at tf).
+		var tb := maxf(t0, float(p.get("tf", t0)))
+		V.apply(B, tb)
 		var b0: Vector3 = B.P["ball" + sd]
 		var h0: Vector3 = FootRoll.heel_point(B, sd)
 		var steps := maxi(1, int(round((t1 - t0) * fps * 4.0)))
 		for k in steps + 1:
 			var t := t0 + (t1 - t0) * float(k) / float(steps)
 			V.apply(B, t)
-			var d := maxf(((B.P["ball" + sd] as Vector3) - b0).length(), (FootRoll.heel_point(B, sd) - h0).length())
+			var d := (FootRoll.heel_point(B, sd) - h0).length()
+			if t >= tb - 1e-6:
+				d = maxf(d, ((B.P["ball" + sd] as Vector3) - b0).length())
 			if d > slide:
 				slide = d
 				slide_at = "%s %.2f s" % [p["foot"], t]

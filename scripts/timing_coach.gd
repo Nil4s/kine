@@ -187,11 +187,11 @@ static func compute(S: Scene, B: Body, db: Dictionary, exclude := "") -> Array:
 			to = hi
 			if not real.is_empty() and float(real["best"]["dur"]) >= lo and float(real["best"]["dur"]) <= hi:
 				to = float(real["best"]["dur"])
-			why = "too slow for a %.2f m strike" % d
+			why = "too slow for a %s strike" % Units.len(d)
 		elif cur < lo - TOL:
 			to = lo
 			ratio_txt = ""
-			why = "faster than any recorded punch of %.2f m" % d
+			why = "faster than any recorded punch of %s" % Units.len(d)
 		else:
 			strike_to[i] = cur
 			continue

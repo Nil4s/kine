@@ -158,7 +158,7 @@ func commit(plan: Array) -> void:
 	m._push_undo()
 	ImpactFrames.apply(_scenes(), _bodies(), pl)
 	m._retimed()
-	m._say("impact frames: %s; the shot camera shakes at each contact, the struck part squashes (Ctrl+Z takes it all back, or 'Remove impact frames')" % ", ".join(pl.map(func(p): return "%d-frame hit-stop at %s (J %.1f)" % [int(p["frames"]), Units.time(float(p["tf"]), m.S.fps), float(p["J"])])))
+	m._say("impact frames: %s; the shot camera shakes at each contact, the struck part squashes (Ctrl+Z takes it all back, or 'Remove impact frames')" % ", ".join(pl.map(func(p): return "hit-stop of %d frames at %s (J %.1f N s)" % [int(p["frames"]), Units.time(float(p["tf"]), m.S.fps), float(p["J"])])))
 	m.ui_find.visible = false
 
 

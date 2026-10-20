@@ -74,7 +74,7 @@ func build(main) -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		qr.add_child(b)
 	v.add_child(qr)
-	var rb: Button = m._button("The mannequin as shipped", _reset, "the body back to the 1.83 m mannequin (the cards keep their angles; Ctrl+Z undoes)")
+	var rb: Button = m._button("The mannequin as shipped", _reset, "the body back to the 183 cm mannequin (the cards keep their angles; Ctrl+Z undoes)")
 	rb.name = "body_reset"
 	v.add_child(rb)
 	v.add_child(HSeparator.new())
@@ -179,7 +179,7 @@ func _show() -> void:
 	var kg := float(d.get("mass", 0.0))
 	var who := "man" if bl >= 0.999 else ("woman" if bl <= 0.001 else "%d%% man blend" % roundi(bl * 100.0))
 	head_lab.text = "%s percentile %s" % [BodyModel.ordinal(pr["stat"]), who]
-	sub_lab.text = "%.1f cm, %.1f kg (%s percentile), BMI %.1f" % [st * 100.0, kg, BodyModel.ordinal(pr["mass"]), kg / (st * st)]
+	sub_lab.text = "%.1f cm, %.1f kg (%s percentile), BMI %.1f kg/m^2" % [st * 100.0, kg, BodyModel.ordinal(pr["mass"]), kg / (st * st)]
 	blend_lab.text = "Sample: %s" % ("ANSUR II women" if bl <= 0.001 else ("ANSUR II men" if bl >= 0.999 else "%d%% men, %d%% women" % [roundi(bl * 100.0), roundi((1.0 - bl) * 100.0)]))
 	vals["stat"].text = "%s   %.1f cm   %s" % [LABELS["stat"], st * 100.0, BodyModel.ordinal(pr["stat"])]
 	vals["mass"].text = "%s   %.1f kg   %s" % [LABELS["mass"], kg, BodyModel.ordinal(pr["mass"])]

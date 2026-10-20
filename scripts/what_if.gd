@@ -178,12 +178,12 @@ static func ask(m: Node, text: String) -> Dictionary:
 		lines.append("no hand or foot moves more than 0.5 mm")
 	for e in moved:
 		var mv: Dictionary = moved[e]
-		lines.append("%s moves %.1f cm: (%.3f, %.3f, %.3f) -> (%.3f, %.3f, %.3f) m world; reach %.0f%% -> %.0f%% of the max %.2f m" % [e, mv["moved_m"] * 100.0,
-			mv["before"][0], mv["before"][1], mv["before"][2], mv["after"][0], mv["after"][1], mv["after"][2], mv["reach_pct_before"], mv["reach_pct"], mv["max_reach_m"]])
+		lines.append("%s moves %.1f cm: (%.1f, %.1f, %.1f) cm -> (%.1f, %.1f, %.1f) cm world; reach %.0f%% -> %.0f%% of the max %.1f cm" % [e, mv["moved_m"] * 100.0,
+			mv["before"][0] * 100.0, mv["before"][1] * 100.0, mv["before"][2] * 100.0, mv["after"][0] * 100.0, mv["after"][1] * 100.0, mv["after"][2] * 100.0, mv["reach_pct_before"], mv["reach_pct"], mv["max_reach_m"] * 100.0])
 	var tip = null
 	if after["tip"] != null:
 		tip = {"before": _r(before["tip"]), "after": _r(after["tip"])}
-		lines.append("weapon tip: (%.3f, %.3f, %.3f) -> (%.3f, %.3f, %.3f) m world" % [tip["before"][0], tip["before"][1], tip["before"][2], tip["after"][0], tip["after"][1], tip["after"][2]])
+		lines.append("weapon tip: (%.1f, %.1f, %.1f) cm -> (%.1f, %.1f, %.1f) cm world" % [tip["before"][0] * 100.0, tip["before"][1] * 100.0, tip["before"][2] * 100.0, tip["after"][0] * 100.0, tip["after"][1] * 100.0, tip["after"][2] * 100.0])
 	var gp: Array = after["gap_parts"]
 	lines.append("nearest parts: %s and %s, %.1f cm apart%s" % [gp[0], gp[1], float(after["gap_m"]) * 100.0, " (INSIDE each other)" if float(after["gap_m"]) < 0.0 else ""])
 	if not (after["contacts"] as Array).is_empty():

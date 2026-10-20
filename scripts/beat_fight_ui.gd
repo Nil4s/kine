@@ -129,7 +129,7 @@ func _panel() -> void:
 		else:
 			var parts := []
 			for c in chg:
-				parts.append("card %d move %.2f -> %.2f" % [int(c[0]) + 1, float(c[1]), float(c[2])])
+				parts.append("card %d move %.2f -> %.2f s" % [int(c[0]) + 1, float(c[1]), float(c[2])])
 			txt += "  (" + ", ".join(parts) + ")"
 		L.add_child(m._label(txt, 13, "text:0.85", true))
 	for f in flags:

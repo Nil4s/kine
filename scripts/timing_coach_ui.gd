@@ -45,9 +45,11 @@ func show() -> void:
 		return
 	_database()
 	var t0 := Time.get_ticks_usec()
+	var keep: Dictionary = m.B.state()   # a view: the body the user is editing comes back as it was (not re-posed from the playhead)
 	sugs = TimingCoach.compute(m.S, m.B, db, String(m.S.name))
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
-	m._ps().apply(m.B, m.playhead)   # compute posed the body at other times
+	m.B.set_state(keep)   # compute posed the body at other times
+	m.B.fk()
 	_panel()
 
 

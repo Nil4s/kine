@@ -39,8 +39,10 @@ func run() -> void:
 		m._say("still judging: %d %% done; the red spans appear on the timeline when it ends" % int(mp.progress * 100.0))
 		return
 	_ghost_build()   # the mannequin loads now, not in the frame the result lands
+	var body0: Dictionary = m.B.state()   # a view: the body comes back as it was
 	var err := mp.begin(m.S, m.B, python)
-	m._ps().apply(m.B, m.playhead)
+	m.B.set_state(body0)
+	m.B.fk()
 	if err != "":
 		m._say(err)
 		return

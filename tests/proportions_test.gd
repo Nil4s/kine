@@ -88,16 +88,17 @@ func _init() -> void:
 		var B := fresh(presets[pn])
 		var worst_b := 0.0
 		var worst_r := 0.0
+		var lam := Proportions.girth_lambda(B.body)   # R11: a radius = default x segment scale x the part's girth factor (mass at this stature); the length is not girthed
 		for j in Body.ORDER:
 			var pj: String = B.parent[j]
 			if pj != "":
 				var want: float = ((D.p0[j] as Vector3) - (D.p0[pj] as Vector3)).length() * float(B.seg_s[pj])
 				worst_b = maxf(worst_b, absf(((B.p0[j] as Vector3) - (B.p0[pj] as Vector3)).length() - want))
-			worst_r = maxf(worst_r, absf(float(B.rad[j]) - float(D.rad[j]) * float(B.seg_s[j])))
+			worst_r = maxf(worst_r, absf(float(B.rad[j]) - float(D.rad[j]) * float(B.seg_s[j]) * Proportions.girth_factor(j, lam)))
 			var cl: float = ((D.cap0[j][1] as Vector3) - (D.cap0[j][0] as Vector3)).length() * float(B.seg_s[j])
 			worst_r = maxf(worst_r, absf(((B.cap0[j][1] as Vector3) - (B.cap0[j][0] as Vector3)).length() - cl))
 		ok(worst_b < 1e-4, "1 %s: every bone = default x its segment's scale, worst %.4f mm" % [pn, worst_b * 1000.0])
-		ok(worst_r < 1e-4, "1 %s: every capsule (radius, length) = default x scale, worst %.4f mm" % [pn, worst_r * 1000.0])
+		ok(worst_r < 1e-4, "1 %s: every capsule (radius = default x scale x girth, length = default x scale), worst %.4f mm" % [pn, worst_r * 1000.0])
 		var mq := Overlays.mannequin(root, StandardMaterial3D.new())
 		var sk: Skeleton3D = mq[1]
 		var idx: Dictionary = mq[2]
