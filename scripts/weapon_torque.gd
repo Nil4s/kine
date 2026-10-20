@@ -209,12 +209,22 @@ static func analyze(S: Scene, B: Body, i: int, prof := {}) -> Dictionary:
 	return r
 
 
+## the torque the panel shows for each joint: the larger of the swing's peak and the stop's peak (the same number the bar draws), so the
+## bar label and the verdict text can never read two values for one effect (I30: bar 178 N m, text 160 N m = swing-only peak)
+static func shown_wrist(r: Dictionary) -> float:
+	return maxf(float(r["wrist"][0]), float(r["stop_wrist"][0]))
+
+
+static func shown_shoulder(r: Dictionary) -> float:
+	return maxf(float(r["shoulder"][0]), float(r["stop_shoulder"][0]))
+
+
 ## one-line reading for the panel
 static func describe(r: Dictionary) -> String:
 	var bits := []
 	if r["over"]:
 		bits.append("TOO FAST FOR THIS WEAPON: needs %.0f N m at the wrist (max %.0f N m) and %.0f N m at the shoulder (max %.0f N m)" % [
-			float(r["wrist"][0]), WRIST_MAX, float(r["shoulder"][0]), SHOULDER_MAX])
+			shown_wrist(r), WRIST_MAX, shown_shoulder(r), SHOULDER_MAX])
 	if r["no_windup"]:
 		bits.append("no wind-up (the tip goes back %.0f%% of the strike; at least %.0f%%)" % [100.0 * float(r["windup"]), 100.0 * WINDUP_MIN])
 	if r["no_follow"]:
@@ -223,7 +233,7 @@ static func describe(r: Dictionary) -> String:
 		bits.append("instant stop: stopping needs %.0f N m at the wrist, %.0f N m at the shoulder in the %.2f s after contact" % [
 			float(r["stop_wrist"][0]), float(r["stop_shoulder"][0]), STOP_WIN])
 	if bits.is_empty():
-		return "OK: %.0f N m wrist (max %.0f), %.0f N m shoulder (max %.0f)" % [float(r["wrist"][0]), WRIST_MAX, float(r["shoulder"][0]), SHOULDER_MAX]
+		return "OK: %.0f N m wrist (max %.0f), %.0f N m shoulder (max %.0f)" % [shown_wrist(r), WRIST_MAX, shown_shoulder(r), SHOULDER_MAX]
 	return "; ".join(bits)
 
 

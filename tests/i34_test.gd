@@ -31,6 +31,12 @@ func idle(n := 3) -> void:
 
 ## a real guard: both fists up at the chin (found by search over the arm angles: each hand within 6 cm of the point 10 cm above the shoulder line,
 ## 15 cm in front of the shoulder), and the punch: that guard with the right arm thrown to the farthest of seven reaches
+func bone_world(k: int, j: String) -> Vector3:
+	var sk: Skeleton3D = m.skel if k == m.actor_on else m.actor_men[k]["skel"]
+	var ix: int = m.bone_idx[j] if k == m.actor_on else m.actor_men[k]["idx"][j]
+	return sk.global_transform * sk.get_bone_global_pose(ix).origin
+
+
 func make_poses() -> void:
 	var b := DistanceKeeper.new_body()
 	b.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
@@ -144,7 +150,38 @@ func _init() -> void:
 	var f1_before := fails_now()
 	ui.offer(0)
 	await idle(4)
-	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i34.png")
+	# frame the shot: a side view (yaw 90) of both fighters (they stand 1.1 m apart along the stage's z), target at the pair's mid-height
+	var w0: Transform3D = m.stage_root.global_transform * (m.actors_rt[0]["xf"] as Transform3D)
+	var w1: Transform3D = m.stage_root.global_transform * (m.actors_rt[1]["xf"] as Transform3D)
+	m.target = (w0.origin + w1.origin) * 0.5 + Vector3(0, 0.9, 0)
+	m.yaw = 90.0
+	m.pitch = 4.0
+	m.dist = 7.0
+	m._cam()
+	await idle(2)
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var free := Rect2(m.lw(), m.TOP_H, vs.x - m.lw() - m.rw(), vs.y - m.TOP_H - m.bottom_h - m.LINE_H)
+	var pan: Rect2 = (m.ui_find as Control).get_global_rect() if m.ui_find.visible else Rect2()
+	# slide the view so the pair is centred in the part of the free view to the right of the panel
+	var want_x: float = (pan.end.x + free.end.x) * 0.5 if pan.size.x > 0.0 else free.get_center().x
+	var mid_x: float = (m.cam.unproject_position(bone_world(0, "pelvis")).x + m.cam.unproject_position(bone_world(1, "pelvis")).x) * 0.5
+	var mpp: float = 2.0 * float(m.dist) * tan(deg_to_rad(m.cam.fov * 0.5)) / vs.y
+	m.target += (m.cam.global_transform.basis.x as Vector3) * ((mid_x - want_x) * mpp)
+	m._cam()
+	await idle(3)
+	var pts := []
+	for k in 2:
+		for j in ["head", "foot_l", "foot_r"]:
+			pts.append([k, j, m.cam.unproject_position(bone_world(k, j))])
+	var bad := []
+	for q in pts:
+		var pt: Vector2 = q[2]
+		if not free.has_point(pt) or pan.has_point(pt):
+			bad.append("%d %s %s" % [q[0], q[1], pt])
+	print("       free view %s, panel %s, points %s" % [free, pan, pts.map(func(q): return q[2])])
+	var gap: float = absf((m.cam.unproject_position(bone_world(0, "pelvis")) - m.cam.unproject_position(bone_world(1, "pelvis"))).x)
+	ok(bad.is_empty() and gap > 100.0, "(P) PLACEMENT: both heads and all four feet are inside the free view and clear of the panel; the two bodies are %.0f px apart %s" % [gap, bad])
+	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/pol1_i34.png")
 	ui.preview()
 	for i in 6:
 		ui.tick(0.1)
