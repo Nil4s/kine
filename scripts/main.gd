@@ -178,7 +178,7 @@ const RIBBON_GROUPS := {
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
-		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions"]]],
+		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -2511,6 +2511,7 @@ func _process(dt: float) -> void:
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	_dm_poll()
+	_hit_ui_tick()
 	_bake_poll()
 	_kb_poll()
 	autover_tick()
@@ -3031,6 +3032,7 @@ func _dummy_hits() -> void:
 	_dm_gen += 1
 	SL = null
 	fighter_hits = []   # TC5: a report of the scene before this edit is never shown as current
+	hit_offer = {}
 	if _fighters_on():
 		ui_dummy.text = _fighters_head() + ": measuring who hits whom..."
 		ui_browser.refresh()
@@ -3135,6 +3137,11 @@ func _dm_poll() -> void:
 	ui_browser.refresh()
 	if job["out"].has("hits"):   # TC5: the fighters' report (nothing lands: the fighters do not stop each other)
 		fighter_hits = job["out"]["hits"]
+		hit_offer = {}
+		for r in fighter_hits:   # I2: the first touch on a body part is offered as "React to the hit (physics)"
+			if (r["kind"] == "hit" or r["kind"] == "struck") and not Body.is_wep(String(r["on"])):
+				hit_offer = {"victim": 0 if r["by"] == "other" else int(r["vs"]), "t": float(r["t"]), "on": String(r["on"]), "at": r["at"]}
+				break
 		return
 	SL = job["out"]["SL"]
 	if SL != null:
@@ -3375,6 +3382,134 @@ func _reaction_apply(path: String, k: int) -> bool:
 	_say("%s: %d reaction cards from %s start at %s%s; Ctrl+Z takes them off" % [actors_rt[k]["name"] if k > 0 else "the hero", int(r["n"]), path.get_file().get_basename(),
 		Units.time(t, S.fps), " (the contact)" if c["found"] else " (no contact in the report: the playhead)"])
 	return true
+
+
+## I2 REACT TO THE HIT (PHYSICS; scripts/hit_physics.gd): the hit decides. The first moment a weapon or fist lands on a fighter's body
+## (the fighters' report, measured now on clones like R16's contact) gives WHERE, the push's direction and the impulse (m_eff x v_rel);
+## the MuJoCo humanoid (tools/physics/react.py) is run from the struck fighter's pose at the contact, on the R13 worker; its BVH comes
+## in by R15's importer and the cards land on the struck fighter from the contact (R16's insert). One undo step; the attacker is
+## never touched. victim: the fighter to look at (-1: whoever is hit first). The offer: when the report finds a contact, a small
+## button sits at the contact in the view (hit_offer_btn) until the reaction is made; the result wears a label of the measured impulse
+var hit_offer_btn: Button = null
+var hit_label: Label = null
+var hit_info := {}          # the last physics reaction: {"victim", "t0", "t1", "text", "res"}
+var hit_offer := {}         # the contact the report found: {"victim", "t", "on", "at"}
+
+
+## the first contact on a body part (a hit or a strike; not a weapon-on-weapon clash) that lands on `victim` (-1: any), measured now on clones
+func _hit_row_for(victim := -1) -> Dictionary:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		return {}
+	var hs: Scene = (actors_rt[0]["S"] as Scene).clone()
+	var others := []
+	for i in range(1, actors_rt.size()):
+		others.append({"name": actors_rt[i]["name"], "S": (actors_rt[i]["S"] as Scene).clone(), "xf": actors_rt[i]["xf"]})
+	for r in _fighters_measure(hs, others)["hits"]:   # sorted by time
+		if (r["kind"] == "hit" or r["kind"] == "struck") and not Body.is_wep(String(r["on"])):
+			var v: int = 0 if r["by"] == "other" else int(r["vs"])
+			if victim < 0 or v == victim:
+				return r
+	return {}
+
+
+func _react_physics(victim := -1) -> void:
+	_actors_sync()
+	if not _fighters_on():
+		_say("React to the hit (physics) needs two fighters: 'Actor: add a second fighter' first, then let a weapon or fist touch the other one")
+		return
+	var row := _hit_row_for(victim)
+	if row.is_empty():
+		_say("no weapon or fist touches a fighter's body in this scene: swing into the other fighter (Check > Dummy lists the contacts), then try again")
+		return
+	var vk: int = 0 if row["by"] == "other" else int(row["vs"])   # the struck fighter
+	var sk: int = int(row["vs"]) if row["by"] == "other" else 0   # the striker
+	var blow := HitPhysics.measure(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], row, actors_rt[sk]["B"])
+	if not blow["ok"]:
+		_say("no physics reaction: %s (pick a hit on a body part, then try again)" % blow["why"])
+		return
+	var Bw := _imp_body((actors_rt[vk]["B"] as Body).state())
+	_imp_begin("physics reaction of %s" % actors_rt[vk]["name"], func(): return HitPhysics.work(blow, Bw, "hit"), _react_physics_land.bind(vk))
+
+
+## the sim's clip lands: its cards go onto the struck fighter from the contact (one undo step, the struck fighter's own)
+func _react_physics_land(res: Dictionary, vk: int) -> bool:
+	if not res["ok"]:
+		_say("the physics reaction could not be made: %s. Python 3 with mujoco and scipy is needed (pip install mujoco scipy), then press the button again" % res["why"])
+		return false
+	_actors_sync()
+	if vk >= actors_rt.size():
+		return false
+	var fps: int = maxi(1, (actors_rt[vk]["S"] as Scene).fps)
+	var t: float = snappedf(float(res["blow"]["t"]), 1.0 / float(fps))
+	_actor_go(vk)
+	_push_undo()
+	var clip: Scene = res["clip"]
+	ReactionPicker.insert(S, clip, t)
+	playhead = t
+	_ps().apply(B, playhead)
+	_rebuild_cards()
+	ov.mark_dirty()
+	wt.mark_dirty()
+	_refresh()
+	var txt := HitPhysics.label(res)
+	hit_info = {"victim": vk, "t0": t, "t1": t + ReactionPicker.LEAD_MOVE + clip.length(), "text": txt, "res": res, "n": (actors_rt[vk]["S"] as Scene).cards.size()}
+	hit_offer = {}
+	_say("%s reacts to the hit at %s (%s): %d cards from the MuJoCo humanoid; Ctrl+Z takes them off" % [actors_rt[vk]["name"] if vk > 0 else "the hero", Units.time(t, S.fps), txt, clip.cards.size()])
+	return true
+
+
+## the contact the report found is offered as a button at the contact; the measured label shows while the playhead is in the reaction
+func _hit_ui_tick() -> void:
+	if not hit_info.is_empty() and (int(hit_info["victim"]) >= actors_rt.size() or (actors_rt[int(hit_info["victim"])]["S"] as Scene).cards.size() != int(hit_info["n"])):
+		hit_info = {}   # an undo (or any edit that changes the cards) takes the label with the reaction
+	if hit_offer.is_empty() and hit_info.is_empty():
+		if hit_offer_btn != null and hit_offer_btn.visible:
+			hit_offer_btn.visible = false
+		if hit_label != null and hit_label.visible:
+			hit_label.visible = false
+		return
+	var vp := get_viewport().get_visible_rect().size
+	if not hit_info.is_empty() and playhead >= float(hit_info["t0"]) - 1e-6 and playhead <= float(hit_info["t1"]):
+		if hit_label == null:
+			hit_label = Label.new()
+			hit_label.name = "hit_label"
+			hit_label.add_theme_font_size_override("font_size", 14)
+			hit_label.add_theme_color_override("font_color", Tok.c("heading"))
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Tok.c("float")
+			sb.set_corner_radius_all(5)
+			sb.set_content_margin_all(5)
+			hit_label.add_theme_stylebox_override("normal", sb)
+			hit_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ui_root.add_child(hit_label)
+		hit_label.text = String(hit_info["text"])
+		hit_label.visible = true
+		var k: int = int(hit_info["victim"])
+		var W: Vector3 = _stage_xf() * (actors_rt[k]["xf"] as Transform3D) * ((actors_rt[k]["B"] as Body).P["head"] as Vector3)
+		var sp := cam.unproject_position(W) + Vector2(-hit_label.size.x * 0.5, -hit_label.size.y - 70.0)
+		hit_label.position = Vector2(clampf(sp.x, 8.0, maxf(8.0, vp.x - hit_label.size.x - 8.0)), clampf(sp.y, 8.0, maxf(8.0, vp.y - 40.0)))
+	elif hit_label != null:
+		hit_label.visible = false
+	if not hit_offer.is_empty() and (hit_info.is_empty() or playhead < float(hit_info["t0"]) - 1e-6 or playhead > float(hit_info["t1"])):
+		if hit_offer_btn == null:
+			hit_offer_btn = Button.new()
+			hit_offer_btn.name = "hit_offer"
+			hit_offer_btn.focus_mode = Control.FOCUS_NONE
+			hit_offer_btn.add_theme_font_size_override("font_size", 13)
+			hit_offer_btn.pressed.connect(func(): _react_physics(int(hit_offer.get("victim", -1))))
+			ui_root.add_child(hit_offer_btn)
+		hit_offer_btn.text = "React to the hit (physics): %s at %s" % [String(hit_offer["on"]).replace("_", " "), Units.time(float(hit_offer["t"]), S.fps)]
+		hit_offer_btn.tooltip_text = "a weapon or fist touches this fighter here: the MuJoCo humanoid reacts to the measured impulse, from this moment. One Ctrl+Z"
+		hit_offer_btn.visible = true
+		var W2: Vector3 = _stage_xf() * (hit_offer["at"] as Vector3)
+		if cam.is_position_behind(W2):
+			hit_offer_btn.visible = false
+		else:
+			var p2 := cam.unproject_position(W2) + Vector2(14.0, 14.0)
+			hit_offer_btn.position = Vector2(clampf(p2.x, 8.0, maxf(8.0, vp.x - hit_offer_btn.size.x - 8.0)), clampf(p2.y, 8.0, maxf(8.0, vp.y - 40.0)))
+	elif hit_offer_btn != null:
+		hit_offer_btn.visible = false
 
 
 ## the weapon's radii + materials for its kind
@@ -9018,7 +9153,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reactions": "react", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -9428,6 +9563,7 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Reactions", _reactions_toggle, "the hit reaction picker: thumbnails of the reaction clips; drag one onto the fighter who is hit and its cards start at the contact (ROADMAP R16)"))
+	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
 	var ap := MenuButton.new()
 	ap.text = "Add prop"
@@ -11909,6 +12045,7 @@ func _commands() -> Array:
 	add.call("Root path: straighten", "", _rp_straighten, "root motion path straighten line straight chord bend curve", true, "the cards between the first and the last root move onto the straight line between those two roots, keeping their places along it; the ends and the headings stay; one undo step (ROADMAP 91)")
 	add.call("Root path: scale length...", "", _rp_scale_dialog, "root motion path scale length longer shorter stretch factor percent travel distance", true, "every card's root moves about the first card's root by the factor you pick (25 to 300 %): the path gets longer or shorter, its headings and card times stay; one undo step (ROADMAP 91)")
 	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
+	add.call("React to the hit (physics)", "", _react_physics, "react reaction hit physics mujoco impulse struck fighter weapon fist impact contact simulate humanoid", true, "where a weapon or fist touches a fighter, Kine measures the blow (the struck part, the direction, the impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact frame, in the background; strength light / medium / hard and whether it fell; one Ctrl+Z (ROADMAP I2)")
 	add.call("Reactions: hit reaction picker", "", _reactions_toggle, "reaction reactions hit picker thumbnails physics struck fighter drag drop knock fall stage", false, "a panel of the reaction clips found in scenes/reactions and scenes/_wip: a thumbnail, where it hits, how hard, whether the fighter falls; drag one onto the struck fighter (ROADMAP R16)")
 	add.call("Reactions: make 3 sample clips", "", _reactions_samples, "reaction reactions sample clips make example head snap knock down bat", false, "three sample hit reactions (a bat to the torso, a head snap, a knock-down) in scenes/_wip/reactions, made from the app's own poses")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
