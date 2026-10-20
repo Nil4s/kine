@@ -347,3 +347,8 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I31. Precog check: every defender reaction (block, slip, step-back, flinch) must start at least a human
   reaction time after the attacker's move becomes readable; flag "precog" answers (too early: reads as rehearsed) and
   "late" answers (the hit should have landed), with one-click retimes.
+- [ ] I32. My camera: learn Nick's shot habits from his own shot cameras (lens, height, distance in body heights,
+  angle to the line of action, cut timing relative to contacts) and frame new shots his way; say which habit it used.
+- [ ] I33. Reaction direction: a struck body must move away along the blow's impulse (and turn about the right
+  axis given where it was hit); flag reactions that go the wrong way or start before contact, with a fix from
+  the hit physics.
