@@ -197,6 +197,10 @@ var rec_steps: Array = []
 var rec_label: Label
 var _macro_nest := 0           # > 0 while a macro plays
 var _macro_pushed := false     # the play's one undo step is already open
+## HISTORY AS A SCRIPT (ROADMAP_400 O15; scripts/histscript.gd): the session's palette commands, logged in order
+var _hs_log: Array = []        # [{"id", "name", "t", "words", "sel"}]
+var _hs_sel := ""              # the part the log last said was picked
+var _hs_playing := false       # a script is running: its steps are not logged again
 var ui_cube: ViewCube
 var ui_browser: Browser
 const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
@@ -11516,6 +11520,7 @@ func _ui() -> void:
 	add_child(tips)
 	tips.attach_all(self, ui_root)
 	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n; _macro_note(n))
+	ui_cmd.running.connect(_hs_note)   # O15: the session log (a separate connection: its own function, scripts/histscript.gd)
 	rec_label = _label("", 16, "fail")   # ROADMAP 81: the REC indicator, shown only while a macro is recorded
 	rec_label.anchor_left = 0.5
 	rec_label.anchor_right = 0.5
@@ -13319,6 +13324,8 @@ func _commands() -> Array:
 	add.call("Undo", "Ctrl+Z", _undo, "back", false, "take back the last change to the body or the cards")
 	add.call("Plugins: enable or disable plugins", "", func(): ui_plugins.toggle(), "plugin plugins api extension addon add-on scripts script", false, "the user plugins (user://plugins): each one's manifest, an enable switch (off by default), and what a plugin can do")
 	add.call("Redo", "Ctrl+Y", _redo, "", false, "put back what Undo took back")
+	add.call("Help: save this session as a script", "", _hs_save, "script save session history commands record kscript replay export macro", false, "writes every palette command you ran this session as a .kscript (one `run <id>` line each, the part picked as `set sel`) in user://scripts; Help: run a script... plays one back")
+	add.call("Help: run a script...", "", func(): ui_cmd.open_with("script:"), "script run play replay kscript saved history", false, "the S box lists the saved scripts: click or Enter plays one (ONE undo step; it stops at the first line it cannot run and names the line)")
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
@@ -16568,6 +16575,9 @@ func _search_files() -> Array:
 		var nm: String = mac["name"]
 		rows.append({"name": Macros.ROW + nm, "kind": "macro", "also": "macro play recorded", "keys": "", "run": _macro_play.bind(nm),
 			"desc": "%d steps, played on the part picked now: ONE undo step (Ctrl+Z takes all of it back)" % mac["steps"].size()})
+	for sn in Histscript.list_names():   # O15: each saved script is a row "Script: <name>"
+		rows.append({"name": Histscript.ROW + sn, "kind": "script", "also": "script run play replay history kscript", "keys": "", "run": _hs_play.bind(sn),
+			"desc": "%s/%s%s: plays every line, ONE undo step (Ctrl+Z takes all of it back)" % [Histscript.DIR, sn, Histscript.EXT]})
 	return rows
 
 
@@ -16628,6 +16638,100 @@ func _macro_note(n: String) -> void:
 	else:
 		return   # a saved pose or scene row is not a command: not a step
 	_macro_indicator()
+
+
+## O15 HISTORY AS A SCRIPT. The log hook: main's running signal (a palette command or a "Pose: ..." phrase). Undo / Redo and the
+## script commands are not logged (an Undo would need the log to un-run a line); a command run by a key, a ribbon button or the
+## local API does not pass the S box, so it is not in the log either
+const HS_SKIP := ["Undo", "Redo", "Help: save this session as a script", "Help: run a script...", "Record macro", "Stop macro recording", "Play macro..."]
+
+
+func _hs_note(n: String) -> void:
+	if _hs_playing or _macro_nest > 0 or n in HS_SKIP:
+		return
+	var e := {"name": n, "id": "", "words": "", "sel": "", "t": Time.get_ticks_msec() / 1000.0}
+	var c := _command_named(n)
+	if not c.is_empty():
+		e["id"] = c["id"]
+	elif n.begins_with("Pose: "):
+		e["words"] = n.substr(6)
+	else:
+		return   # a saved pose, scene, macro or script row is not a command
+	if B.ang.has(sel) and sel != _hs_sel:
+		e["sel"] = sel
+		_hs_sel = sel
+	_hs_log.append(e)
+
+
+func _hs_save(name := "") -> String:
+	if _hs_log.is_empty():
+		_say("nothing to save yet: run a few commands from the S box, then Help: save this session as a script")
+		return ""
+	var nm := name if name != "" else Histscript.next_name()
+	var path := Histscript.save(nm, _hs_log)
+	if path == "":
+		_say("the script could not be written to %s: check the disk, then run Help: save this session as a script again" % Histscript.DIR)
+		return ""
+	_say("saved %d commands as %s: Help: run a script... plays it back" % [_hs_log.size(), ProjectSettings.globalize_path(path)])
+	return path
+
+
+func _hs_play(nm: String) -> Dictionary:
+	var path := "%s/%s%s" % [Histscript.DIR, nm, Histscript.EXT]
+	if not FileAccess.file_exists(path):
+		_say("there is no script called '%s': type 'script' in the S box to see the saved ones" % nm)
+		return {"ok": false, "done": 0, "undo_steps": 0}
+	return await _hs_run_text(FileAccess.get_file_as_string(path), nm)
+
+
+## plays the lines through AgentTools.step (the local API's dispatch), all in ONE undo step (the macro play's way: _macro_nest
+## makes every _push_undo after the first a no-op). Stops at the first line that cannot run, saying its line number and why
+func _hs_run_text(text: String, label: String) -> Dictionary:
+	if rec_name != "":
+		_say("click 'Stop macro recording' first: a script cannot play while '%s' is being recorded" % rec_name)
+		return {"ok": false, "done": 0, "undo_steps": 0}
+	var tools := AgentTools.new(self)
+	var rows := Histscript.parse(text)
+	var u0 := undo.size()
+	_hs_playing = true
+	_macro_nest = 1
+	_macro_pushed = false
+	_step_hint = Histscript.ROW + label
+	var stop := ""
+	var done := 0
+	for r in rows:
+		var where := "line %d (%s)" % [r["line"], r["text"]]
+		if r["error"] != "":
+			stop = "stopped at %s: %s" % [where, r["error"]]
+			break
+		var tok: String = r["tok"]
+		if r["text"].begins_with("run ") and not tools.reg.has(tok):
+			stop = "stopped at line %d: unknown command id '%s'. GET /describe or the S box lists the ids; fix or delete that line" % [r["line"], tok]
+			break
+		var st: Dictionary = await tools.step(tok)
+		if not st["ok"]:
+			stop = "stopped at %s: %s" % [where, st.get("error", "it failed")]
+			break
+		done += 1
+	var opened := _macro_pushed
+	_macro_nest = 0
+	_hs_playing = false
+	_step_hint = ""
+	if opened:
+		undo[-1]["name"] = Histscript.ROW + label
+		_tree.set_name(_tree.cur, Histscript.ROW + label)
+		_after_edit()
+	_rebuild_cards()
+	_refresh()
+	var msg := ""
+	if stop == "":
+		msg = "script '%s': %d lines ran, %s" % [label, done, "one undo step (Ctrl+Z takes all of it back)" if opened else "they changed nothing"]
+	elif opened:
+		msg = "Script '%s' %s. The %d line(s) before it are one undo step: Ctrl+Z takes them back" % [label, stop, done]
+	else:
+		msg = "Script '%s' %s. Nothing in the scene changed" % [label, stop]
+	_say(msg)
+	return {"ok": stop == "", "done": done, "undo_steps": undo.size() - u0, "message": msg}
 
 
 func _command_named(n: String) -> Dictionary:
