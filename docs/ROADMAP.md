@@ -231,12 +231,14 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [x] I1. Make it physical: one button sends the clip through the MuJoCo humanoid (tracking controller) and shows where
   the motion is physically impossible (feet slide, balance lost, joint torque above human limits) as red spans on the
   timeline, with "physical version" ghosted next to yours; accept per span.
-- [ ] I2. Reaction from the hit: when the attacker's weapon or fist touches the other fighter, Kine measures the impulse
+- [x] I2. Reaction from the hit: when the attacker's weapon or fist touches the other fighter, Kine measures the impulse
   (the swing.py contact model) and generates the struck fighter's reaction (MuJoCo now, the Isaac policy later), placed
   at the contact frame. No picking clips: the hit decides.
   Step 1 merged: command + MuJoCo reaction + impulse label work (J rises with speed, fist 26.1 vs Walilko 26 N s, attacker untouched, one undo). Open: bat J/v is constant 0.71 kg while swing.py's rises 0.80-1.10 kg with speed (0.65x at 32.6 m/s); the sim starts upright (root yaw/lean at contact not carried).
-- [ ] I3. Counter suggestion: for the attacker's current card, suggest the defender's block / slip / parry pose that
+  Step 2: bat effective mass from the striker's arm pose at contact (Khatib operational-space mass; Cross 1999 free bat), J=(1+e)·mu·v; swing.py agreement 1.26/1.03/0.91/0.76 at 21-33 m/s (bar 0.7-1.3, thin at both ends: J/v doesn't rise with speed). Root lean/yaw and 3D impulse now carried into react.py (20 deg lean starts at 20.0).
+- [x] I3. Counter suggestion: for the attacker's current card, suggest the defender's block / slip / parry pose that
   intercepts the weapon path (geometry of the swing arc against the defender's reach) - choreography help.
+  Done: on combo3's bat strike Kine proposes BLOCK and PARRY on fighter 2 (forearm 0.1 / 2.2 cm from the path, meeting it ~30 cm in front of the body, starting 0.42 s after the wind-up), Tab/Enter/one undo; a miss says 'nothing to counter'. Open: no slip/step-back answer clears this swing; labels overlap the name tag.
 - [x] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
   (anticipation 2-3x shorter than action for fast hits, overshoot on follow-through); suggest exact holds/moves with a
   "sounds right" preview; accept one by one.
@@ -251,10 +253,12 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I8. Force view: per card, the joint torques and ground forces from inverse dynamics, coloured on the body (green
   easy, red beyond a strong human); "where does the power come from" for a strike (hip -> shoulder -> elbow sequence).
   Step 1 merged: torque colours + power chain (hip 3.025 > trunk 3.033 > shoulder/elbow 3.042 s on combo3), static squat knee matches by hand, 34 ms per clip. Open: at 3.05 s lumbar reads 4122 N m while the knees read 31 N m; a bottom-up Newton-Euler can't give that pair (the lumbar load must pass through the legs), so the chain likely runs top-down from a kinematic pelvis; final test not re-run after a bar edit.
+  Step 2: ground force from whole-body momentum (push-only, friction 1.0), CoP from angular momentum, residual shown as a red NEEDS OUTSIDE FORCE badge (combo3 at 3.05 s needs 11804 N = 16 body weights: card 9 throws the head 0.65 m in 0.16 s). Open: bar 8c (hips 0.53 of lumbar on a slow trunk flexion, bar 0.8), so i8 is red.
 - [ ] I9. Sketch to pose: draw a stick figure over the viewport with the mouse; Kine fits the body to it (2D lines ->
   3D pose with limits and balance).
   Step 1 merged: strokes recognised, fit lands on the strokes in screen space (<= 2 px), missing limbs untouched, one undo, 48 ms. Open: 3D recovery, 29 of 42 library fits have a bone > 10 deg off (trunk twist not in a stick figure, depth-axis bones mirror-ambiguous, an 8.7 deg error even with no tremor).
   Step 2 merged: library-pose depth prior + per-limb depth refinement; bad fits 29 -> 19 of 42, missing-arm 8.6 deg (passes). Open: a single view can't settle bones near the picture plane (~8 deg per px of stroke error) or toward the camera (mirror pair); next is a click-to-flip limb depth in the UI and shoulder/hip-line strokes for trunk twist.
+  Step 3 merged: flip handles on ambiguous elbows/knees (one undo), shoulder/hip-line strokes read +-30 deg twist within 1 deg. Open: the oracle with <= 2 flips fixes only 23 of 42 (bar 36): most failing fits aren't a mirror pair, the right answer isn't among the 4 ray-sphere candidates.
 - [x] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
   cards come pre-timed the way you usually time them (shown as "your usual 0.18 s", one key to accept).
 - [x] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
@@ -268,9 +272,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   squash on the struck part, all scaled by the measured impulse (I2), so a light jab barely pauses and a bat to the head
   freezes; one undo step, previewed first.
   Step 1 merged: hit-stop 2/4/6 frames for J 5/15/27 N s, shake 1.0/2.6/4.2 cm, squash 0.97-0.90, later keys shift exactly, one undo. Open: the impact tags aren't saved (Remove fails after reload), the squash is too subtle to see, the preview has no shake.
-- [ ] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
+- [x] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
   and joint curves over the animated clip, card by card, with "you were 0.08 s faster on the strike, your hip turned
   20 deg more" lines.
+  Done on a synthetic take: DTW on 36 joint angles finds the strike 0.06 s faster (bar 0.08 +-1 f) and hip +20.0 deg on the right cards; Use my timing within 0.024 s; one undo each. Open: not yet run on a real phone video.
 - [x] I15. Fight to the beat: with music loaded, Kine moves each contact onto the nearest beat (or off-beat on
   request) while keeping every move inside the timing coach's human range (I4); moves that can't reach a beat are
   flagged, never forced.
@@ -278,6 +283,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I16. Realism score: one number per clip, "how real is this", from the judges Kine already has (physics judge I1,
   torques I8, push limits R24, timing coach I4, Check's human limits), with the 3 biggest reasons and a one-click fix
   for each (accept span, timing coach, Check fix); the score is shown on the scene card and re-scored after each fix.
+  Step 1 merged: score = 100 - sum(weight x share flagged) over Check red/yellow, timing coach, push limits, force view, physics (when cached); combo3 21, calm walk 85, no findings 100, each fix one undo and raises the score. Open: a cold score takes 4.2 s (bar 200 ms holds only when cached); the fix button reads 'Fix: Fix:'; the timing coach and Check can disagree on a fix.
 - [ ] I17. Learn my style: Kine reads every clip Nick made (scenes/, his poses) and builds a style fingerprint (his
   usual timing per move kind, holds, guard height, stance width, favourite transitions); new clips and Next poses
   default to it, and a "like Nick" / "neutral" toggle shows the difference. Learns locally, nothing leaves the PC.
