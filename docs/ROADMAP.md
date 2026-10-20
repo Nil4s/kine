@@ -215,3 +215,4 @@ Merged in round 2: 12 / 25.
 - [ ] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
 - [ ] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
 - [x] R26. Share with friends by QR code (Nick): a pose or short clip packed (compressed) into a QR image; Kine reads a QR from an image file or the webcam and opens it. No server, no account.
+- [ ] R27. Next-pose suggestions while animating (Nick): after the current card, 3 ghost poses of the likely next move, learned from your own scenes (what you usually clip after a pose like this), the motion database (what follows this pose in real clips) and move phases (wind-up -> contact -> follow-through -> recover). Tab or click takes one as a new card.
