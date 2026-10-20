@@ -135,6 +135,11 @@ var ui_say_box: StyleBoxFlat
 var ui_bar_box: StyleBoxFlat   # RR5: none (the line has no box); kept for the retheme's null check
 var ui_find_box: StyleBoxFlat
 var world_env: Environment
+var light_key: DirectionalLight3D    # the stage's lights; a shot's lighting preset (light_rig.gd) re-aims them: key = the sun, rim = the back light
+var light_fill: DirectionalLight3D
+var light_rim: DirectionalLight3D
+var _light_sig := ""
+var _light_home := []
 var floor_mat: StandardMaterial3D
 var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
@@ -172,7 +177,7 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
-	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
+	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]]],
@@ -2420,6 +2425,7 @@ func _process(dt: float) -> void:
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
+	_light_apply()   # the playhead crossed a cut: the next shot's lights
 	_fps_poll(dt)
 
 
@@ -2444,10 +2450,17 @@ func _world() -> void:
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
 	stage_root.add_child(sun)
+	light_key = sun
 	var back := DirectionalLight3D.new()
 	back.rotation_degrees = Vector3(-30, 200, 0)
 	back.light_energy = 0.45
 	stage_root.add_child(back)
+	light_rim = back
+	light_fill = DirectionalLight3D.new()   # R1: off (energy 0) until a lighting preset uses it
+	light_fill.light_energy = 0.0
+	light_fill.rotation_degrees = Vector3(-10, -50, 0)
+	stage_root.add_child(light_fill)
+	_light_home = [light_key.basis, light_fill.basis, light_rim.basis]   # exactly as built: the default is put back bit for bit
 	var im := ImmediateMesh.new()
 	var gm := MeshInstance3D.new()
 	gm.mesh = im
@@ -3228,6 +3241,7 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	_light_apply()
 	_actors_view()
 	_curve_sync()
 	if ui_akey != null and auto_key:
@@ -8544,6 +8558,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
+	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
@@ -8938,6 +8953,8 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
+	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
+		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
@@ -11300,6 +11317,9 @@ func _commands() -> Array:
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
 	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
+	for lid in LightRig.IDS:
+		add.call(LightRig.NAMES[lid], "", _light_preset.bind(lid), "light lighting lights preset shot camera key fill rim back " + lid.replace("_", " ") + " noir daylight three point", true, LightRig.tip(lid))
+	add.call("Light: back to the default lights", "", _light_preset.bind(""), "light lighting lights preset default off clear remove reset", true, "the shot on at the playhead goes back to the stage's two default lights (one undo step)")
 	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Pose: copy to the other fighter", "", _pose_to_other.bind(false), "copy pose fighter actor other duplicate transfer", true, "the active fighter's pose at the playhead goes onto the other fighter's card at that moment (a card is made if none); one Ctrl+Z")
@@ -16644,6 +16664,66 @@ var shot_through := false   # looking through the shot camera
 var ui_shot: ShotFrame      # the 16:9 frame and passepartout (scripts/shot_frame.gd)
 var _shot_fov := 40.0       # the viewport camera's own fov, put back when look-through ends
 var _shot_dof: CameraAttributesPractical   # the rack focus's depth of field (ROADMAP 76; _shot_dof_set)
+
+
+## ---- LIGHTING PRESETS (ROADMAP R1; scripts/light_rig.gd): the shot's "light" is one of LightRig.IDS or "" (the stage's
+## own two lights). It is part of the shot: saved with the scene, undone like a camera key. _light_apply puts the lights
+## where the shot's camera (at the playhead) says; it is a view of the data, so it never makes an undo step itself.
+func _light_id() -> String:
+	var i := shot_now_index()
+	return "" if i < 0 else String(_shot_shots()[i].get("light", ""))
+
+
+func _light_apply() -> void:
+	if light_key == null or _hero_scene() == null:
+		return
+	var id := _light_id()
+	var ks := _shot_keys()
+	var k := {} if (id == "" or ks.is_empty()) else ShotCam.sample(ks, playhead)
+	var sig := "" if k.is_empty() else "%s|%s|%s" % [id, k["pos"], k["aim"]]
+	if sig == _light_sig:
+		return
+	_light_sig = sig
+	if k.is_empty():   # the stage's own lights (as _world builds them)
+		light_key.basis = _light_home[0]
+		light_key.light_energy = 1.1
+		light_key.light_color = Color.WHITE
+		light_rim.basis = _light_home[2]
+		light_rim.light_energy = 0.45
+		light_rim.light_color = Color.WHITE
+		light_fill.basis = _light_home[1]
+		light_fill.light_energy = 0.0
+		light_fill.light_color = Color.WHITE
+		world_env.ambient_light_energy = 0.6
+		world_env.ambient_light_color = Color(0.55, 0.57, 0.62)
+		return
+	var r := LightRig.rig(id, k["pos"], k["aim"])
+	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:
+		var L: DirectionalLight3D = pair[0]
+		var d: Dictionary = r[pair[1]]
+		L.basis = Basis.looking_at(d["dir"], Vector3.UP)
+		L.light_energy = d["energy"]
+		L.light_color = d["color"]
+	world_env.ambient_light_energy = r["ambient"]["energy"]
+	world_env.ambient_light_color = r["ambient"]["color"]
+
+
+func _light_preset(id: String) -> void:
+	var ks := _shot_keys()
+	if ks.is_empty():
+		_say("the lights follow the shot camera: key it first with 'Camera: key the shot camera from the view', then pick a lighting preset")
+		return
+	if _light_id() == id:
+		_say("this shot already has %s: pick another preset, or 'Light: back to the default lights'" % ("the default lights" if id == "" else LightRig.NAMES[id]))
+		return
+	var si := shot_now_index()
+	_do(func():
+		if id == "":
+			_shot_shots()[si].erase("light")
+		else:
+			_shot_shots()[si]["light"] = id)
+	_light_apply()
+	_say("%s on %s: %s (Ctrl+Z takes it back)" % ["default lights" if id == "" else LightRig.NAMES[id], _shot_shots()[si]["name"], "the stage's two lights" if id == "" else LightRig.tip(id)])
 
 
 func _shot_commands(add: Callable) -> void:
