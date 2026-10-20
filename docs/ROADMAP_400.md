@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 15 / 400 (★ 7 / 119)
+Merged: 16 / 400 (★ 7 / 119)
 
 ## The tracks
 
@@ -446,7 +446,7 @@ Merged: 15 / 400 (★ 7 / 119)
 - [ ] P08 $ Theme: light / dark / high contrast for the new pages (Tok tokens)
 - [ ] P09 $$ Tablet support (pressure, tilt) everywhere
 - [ ] P10 $$ Multi-object editing
-- [ ] P11 $ "Why can't I?" explainer: any greyed tool tells why and the fix
+- [x] P11 $ "Why can't I?" explainer: any greyed tool tells why and the fix
 - [ ] P12 $$ Undo across pages (sculpt then animate, Ctrl+Z walks back both)
 - [ ] P13 $ Recent files with thumbnails on the start screen
 - [ ] P14 $$ Unit system (cm / m / in) everywhere
