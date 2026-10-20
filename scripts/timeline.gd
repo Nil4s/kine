@@ -50,6 +50,7 @@ const PH_H := 12.0
 var ph: Array = []
 signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans (-1 = a note)
 var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "ok", "why"}] the contacts: fitted on a beat, or flagged
+var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
 var bf_grid: Array = []   # the beats (scene time) the fit lands on: ticks down the track
 var ph_sel := -1   # the red span picked (a click on it), -1 = none
 
@@ -747,6 +748,18 @@ func _draw_fit(font: Font, y0: float, h: float) -> void:
 			draw_string(font, Vector2(x + 10.0, cy + 4.0), "! no beat fits", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, col)
 
 
+## FIGHT DISTANCE KEEPER (I18): a band along the top of the cards for every strike span: red = jammed, amber = out of range, blue = in range
+func _draw_dk(font: Font, y0: float) -> void:
+	for b in dk:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
+		var cls := String(b["cls"])
+		var col := Tok.c("fail") if cls == "jammed" else (Tok.c("warn") if cls == "out" else Tok.c("heading"))
+		draw_rect(Rect2(x0, y0, x1 - x0, 12.0), Color(col, 0.92))
+		if cls != "in" and x1 - x0 > 40.0:
+			draw_string(font, Vector2(x0 + 3.0, y0 + 9.5), "JAMMED" if cls == "jammed" else "TOO FAR", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -822,6 +835,7 @@ func _draw() -> void:
 	if ah > 0.0:
 		_draw_audio_lanes(S, font)
 	_draw_fit(font, y0, h)
+	_draw_dk(font, y0)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
