@@ -179,6 +179,9 @@ const DRAW := {
 	"fd_rate": [["ring", Vector2(12, 13), 8, 1.8], ["seg", Vector2(12, 13), Vector2(16, 9), 2], ["seg", Vector2(9, 3), Vector2(15, 3), 2], ["disc", Vector2(12, 13), 1.4]],
 	"export_fd": [["box", Rect2(3, 11, 12, 10), 1.8], ["seg", Vector2(6, 14), Vector2(6, 18), 1.6], ["seg", Vector2(9, 14), Vector2(9, 18), 1.6], ["seg", Vector2(12, 14), Vector2(12, 18), 1.6],
 		["seg", Vector2(11, 12), Vector2(20, 3), 2], ["seg", Vector2(20, 3), Vector2(14, 3), 2], ["seg", Vector2(20, 3), Vector2(20, 9), 2]],
+	# R5: Render shots = a film frame with sprocket lines and a play triangle
+	"render_shots": [["box", Rect2(2.5, 5, 19, 14), 1.8], ["seg", Vector2(8, 5), Vector2(8, 19), 1.4], ["seg", Vector2(16, 5), Vector2(16, 19), 1.4],
+		["seg", Vector2(10.5, 9), Vector2(10.5, 15), 1.8], ["seg", Vector2(10.5, 9), Vector2(14, 12), 1.8], ["seg", Vector2(10.5, 15), Vector2(14, 12), 1.8]],
 	"help": [["arc", Vector2(12, 8.5), 4.5, 2.2, 160, 420], ["seg", Vector2(12, 13), Vector2(12, 16), 2.2], ["disc", Vector2(12, 20.5), 1.5]],
 	"whywrong": [["ring", Vector2(12, 12), 9, 2], ["seg", Vector2(12, 6.5), Vector2(12, 13.5), 2.4], ["disc", Vector2(12, 17.5), 1.5]],
 	# ROADMAP 54: Mirror scene = a frame and its mirror copy (a dashed axis between); Mirror in place = one frame split by its axis
