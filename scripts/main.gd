@@ -145,6 +145,8 @@ var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
 var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
+var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
+var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
 var ui_why: PanelContainer   # WHAT WENT WRONG? (ROADMAP 43): the last refusal explained (scripts/whywrong.gd)
@@ -173,16 +175,16 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
-	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
-		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["SHARE", ["Open from QR..."]]],
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
+		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
-		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Auto camera"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
-		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API"]]],
+		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
 }
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
@@ -425,8 +427,14 @@ func _fold_button(which: String) -> void:
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
+var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
+var smart_drag := true      # the other joints follow a dragged one the way your poses move together; Alt+drag = off
+var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint drag)
+var _sd := {}               # the current drag's smart state ({} = none)
+var np := NextPose.new()    # NEXT-POSE SUGGESTIONS (ROADMAP R27): scripts/next_pose.gd; the glue is at the end of this file
 var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail are drag handles: scripts/trail_edit.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
+var sk := SketchPose.new()   # ROADMAP I9: sketch a stick figure over the view -> pose (scripts/sketch_pose.gd)
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
 var cshadow := ContactShadow.new()   # CONTACT SHADOWS (ROADMAP R4): a soft blob under each foot, darker the nearer the sole is to the floor
@@ -2056,6 +2064,10 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	if sk.on and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:   # I9: Esc leaves Sketch mode, the strokes are dropped
+		_sk_toggle()
+		get_viewport().set_input_as_handled()
+		return
 	if _sr_busy and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:   # Esc stops a shot render
 		_sr_cancel = true
 		get_viewport().set_input_as_handled()
@@ -2199,6 +2211,11 @@ func _ready() -> void:
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
 		library = "user://zz_lib_%d" % OS.get_process_id()
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
+		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
+		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
+		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
+		sg_on = false
+		usual_on = false   # I10: a test keeps the app's default timing on new cards until it turns this on
 	_autover_cfg_load(testing)
 	ui_props_root = Node3D.new()
 	ui_props_root.name = "set"
@@ -2511,9 +2528,13 @@ func _process(dt: float) -> void:
 	_multicam_poll(dt)
 	_imp_poll()
 	_live_poll(dt)
+	_sg_poll()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
+	if tc_ui != null:
+		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
 	_dm_poll()
+	_hit_ui_tick()
 	_bake_poll()
 	_kb_poll()
 	autover_tick()
@@ -3094,6 +3115,7 @@ func _dummy_hits() -> void:
 	_dm_gen += 1
 	SL = null
 	fighter_hits = []   # TC5: a report of the scene before this edit is never shown as current
+	hit_offer = {}
 	if _fighters_on():
 		ui_dummy.text = _fighters_head() + ": measuring who hits whom..."
 		ui_browser.refresh()
@@ -3198,6 +3220,11 @@ func _dm_poll() -> void:
 	ui_browser.refresh()
 	if job["out"].has("hits"):   # TC5: the fighters' report (nothing lands: the fighters do not stop each other)
 		fighter_hits = job["out"]["hits"]
+		hit_offer = {}
+		for r in fighter_hits:   # I2: the first touch on a body part is offered as "React to the hit (physics)"
+			if (r["kind"] == "hit" or r["kind"] == "struck") and not Body.is_wep(String(r["on"])):
+				hit_offer = {"victim": 0 if r["by"] == "other" else int(r["vs"]), "t": float(r["t"]), "on": String(r["on"]), "at": r["at"]}
+				break
 		return
 	SL = job["out"]["SL"]
 	if SL != null:
@@ -3443,6 +3470,134 @@ func _reaction_apply(path: String, k: int) -> bool:
 	return true
 
 
+## I2 REACT TO THE HIT (PHYSICS; scripts/hit_physics.gd): the hit decides. The first moment a weapon or fist lands on a fighter's body
+## (the fighters' report, measured now on clones like R16's contact) gives WHERE, the push's direction and the impulse (m_eff x v_rel);
+## the MuJoCo humanoid (tools/physics/react.py) is run from the struck fighter's pose at the contact, on the R13 worker; its BVH comes
+## in by R15's importer and the cards land on the struck fighter from the contact (R16's insert). One undo step; the attacker is
+## never touched. victim: the fighter to look at (-1: whoever is hit first). The offer: when the report finds a contact, a small
+## button sits at the contact in the view (hit_offer_btn) until the reaction is made; the result wears a label of the measured impulse
+var hit_offer_btn: Button = null
+var hit_label: Label = null
+var hit_info := {}          # the last physics reaction: {"victim", "t0", "t1", "text", "res"}
+var hit_offer := {}         # the contact the report found: {"victim", "t", "on", "at"}
+
+
+## the first contact on a body part (a hit or a strike; not a weapon-on-weapon clash) that lands on `victim` (-1: any), measured now on clones
+func _hit_row_for(victim := -1) -> Dictionary:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		return {}
+	var hs: Scene = (actors_rt[0]["S"] as Scene).clone()
+	var others := []
+	for i in range(1, actors_rt.size()):
+		others.append({"name": actors_rt[i]["name"], "S": (actors_rt[i]["S"] as Scene).clone(), "xf": actors_rt[i]["xf"]})
+	for r in _fighters_measure(hs, others)["hits"]:   # sorted by time
+		if (r["kind"] == "hit" or r["kind"] == "struck") and not Body.is_wep(String(r["on"])):
+			var v: int = 0 if r["by"] == "other" else int(r["vs"])
+			if victim < 0 or v == victim:
+				return r
+	return {}
+
+
+func _react_physics(victim := -1) -> void:
+	_actors_sync()
+	if not _fighters_on():
+		_say("React to the hit (physics) needs two fighters: 'Actor: add a second fighter' first, then let a weapon or fist touch the other one")
+		return
+	var row := _hit_row_for(victim)
+	if row.is_empty():
+		_say("no weapon or fist touches a fighter's body in this scene: swing into the other fighter (Check > Dummy lists the contacts), then try again")
+		return
+	var vk: int = 0 if row["by"] == "other" else int(row["vs"])   # the struck fighter
+	var sk: int = int(row["vs"]) if row["by"] == "other" else 0   # the striker
+	var blow := HitPhysics.measure(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], row, actors_rt[sk]["B"])
+	if not blow["ok"]:
+		_say("no physics reaction: %s (pick a hit on a body part, then try again)" % blow["why"])
+		return
+	var Bw := _imp_body((actors_rt[vk]["B"] as Body).state())
+	_imp_begin("physics reaction of %s" % actors_rt[vk]["name"], func(): return HitPhysics.work(blow, Bw, "hit"), _react_physics_land.bind(vk))
+
+
+## the sim's clip lands: its cards go onto the struck fighter from the contact (one undo step, the struck fighter's own)
+func _react_physics_land(res: Dictionary, vk: int) -> bool:
+	if not res["ok"]:
+		_say("the physics reaction could not be made: %s. Python 3 with mujoco and scipy is needed (pip install mujoco scipy), then press the button again" % res["why"])
+		return false
+	_actors_sync()
+	if vk >= actors_rt.size():
+		return false
+	var fps: int = maxi(1, (actors_rt[vk]["S"] as Scene).fps)
+	var t: float = snappedf(float(res["blow"]["t"]), 1.0 / float(fps))
+	_actor_go(vk)
+	_push_undo()
+	var clip: Scene = res["clip"]
+	ReactionPicker.insert(S, clip, t)
+	playhead = t
+	_ps().apply(B, playhead)
+	_rebuild_cards()
+	ov.mark_dirty()
+	wt.mark_dirty()
+	_refresh()
+	var txt := HitPhysics.label(res)
+	hit_info = {"victim": vk, "t0": t, "t1": t + ReactionPicker.LEAD_MOVE + clip.length(), "text": txt, "res": res, "n": (actors_rt[vk]["S"] as Scene).cards.size()}
+	hit_offer = {}
+	_say("%s reacts to the hit at %s (%s): %d cards from the MuJoCo humanoid; Ctrl+Z takes them off" % [actors_rt[vk]["name"] if vk > 0 else "the hero", Units.time(t, S.fps), txt, clip.cards.size()])
+	return true
+
+
+## the contact the report found is offered as a button at the contact; the measured label shows while the playhead is in the reaction
+func _hit_ui_tick() -> void:
+	if not hit_info.is_empty() and (int(hit_info["victim"]) >= actors_rt.size() or (actors_rt[int(hit_info["victim"])]["S"] as Scene).cards.size() != int(hit_info["n"])):
+		hit_info = {}   # an undo (or any edit that changes the cards) takes the label with the reaction
+	if hit_offer.is_empty() and hit_info.is_empty():
+		if hit_offer_btn != null and hit_offer_btn.visible:
+			hit_offer_btn.visible = false
+		if hit_label != null and hit_label.visible:
+			hit_label.visible = false
+		return
+	var vp := get_viewport().get_visible_rect().size
+	if not hit_info.is_empty() and playhead >= float(hit_info["t0"]) - 1e-6 and playhead <= float(hit_info["t1"]):
+		if hit_label == null:
+			hit_label = Label.new()
+			hit_label.name = "hit_label"
+			hit_label.add_theme_font_size_override("font_size", 14)
+			hit_label.add_theme_color_override("font_color", Tok.c("heading"))
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Tok.c("float")
+			sb.set_corner_radius_all(5)
+			sb.set_content_margin_all(5)
+			hit_label.add_theme_stylebox_override("normal", sb)
+			hit_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ui_root.add_child(hit_label)
+		hit_label.text = String(hit_info["text"])
+		hit_label.visible = true
+		var k: int = int(hit_info["victim"])
+		var W: Vector3 = _stage_xf() * (actors_rt[k]["xf"] as Transform3D) * ((actors_rt[k]["B"] as Body).P["head"] as Vector3)
+		var sp := cam.unproject_position(W) + Vector2(-hit_label.size.x * 0.5, -hit_label.size.y - 70.0)
+		hit_label.position = Vector2(clampf(sp.x, 8.0, maxf(8.0, vp.x - hit_label.size.x - 8.0)), clampf(sp.y, 8.0, maxf(8.0, vp.y - 40.0)))
+	elif hit_label != null:
+		hit_label.visible = false
+	if not hit_offer.is_empty() and (hit_info.is_empty() or playhead < float(hit_info["t0"]) - 1e-6 or playhead > float(hit_info["t1"])):
+		if hit_offer_btn == null:
+			hit_offer_btn = Button.new()
+			hit_offer_btn.name = "hit_offer"
+			hit_offer_btn.focus_mode = Control.FOCUS_NONE
+			hit_offer_btn.add_theme_font_size_override("font_size", 13)
+			hit_offer_btn.pressed.connect(func(): _react_physics(int(hit_offer.get("victim", -1))))
+			ui_root.add_child(hit_offer_btn)
+		hit_offer_btn.text = "React to the hit (physics): %s at %s" % [String(hit_offer["on"]).replace("_", " "), Units.time(float(hit_offer["t"]), S.fps)]
+		hit_offer_btn.tooltip_text = "a weapon or fist touches this fighter here: the MuJoCo humanoid reacts to the measured impulse, from this moment. One Ctrl+Z"
+		hit_offer_btn.visible = true
+		var W2: Vector3 = _stage_xf() * (hit_offer["at"] as Vector3)
+		if cam.is_position_behind(W2):
+			hit_offer_btn.visible = false
+		else:
+			var p2 := cam.unproject_position(W2) + Vector2(14.0, 14.0)
+			hit_offer_btn.position = Vector2(clampf(p2.x, 8.0, maxf(8.0, vp.x - hit_offer_btn.size.x - 8.0)), clampf(p2.y, 8.0, maxf(8.0, vp.y - 40.0)))
+	elif hit_offer_btn != null:
+		hit_offer_btn.visible = false
+
+
 ## the weapon's radii + materials for its kind
 func _wep_look() -> void:
 	var hm := bat_handle.mesh as CylinderMesh
@@ -3650,6 +3805,7 @@ func _refresh() -> void:
 	ov.spacing(playhead)
 	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
+	_sg_tick()   # R27: the next-pose ghosts for the current card
 	var pulled: String = B.wep_hand if sel in Body.WEAPON else sel
 	ov.reach_marker(B.P[pulled] if B.P.has(pulled) else Vector3.ZERO, _grab, dragging == "joint" and not is_nan(_grab.x) and B.P.has(pulled))
 	if ui_graph != null:
@@ -3839,6 +3995,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if sk.on and _sk_input(ev):   # I9: a left drag is a stroke; Enter fits, Backspace takes the last stroke back
+		get_viewport().set_input_as_handled()
+		return
 	if pwui != null and pwui.on and pwui.input(ev):   # ROADMAP 92: a click on the floor adds a path point, Enter builds, Esc cancels
 		get_viewport().set_input_as_handled()
 		return
@@ -3914,6 +4073,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_pd_mp = Vector2(NAN, NAN)
 					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j) and sel_more.is_empty():   # a SET (Select: spine, Ctrl+click) turns every member by the same change (the old drag): PartDrag spreads or swings a turn its own way
 						_pd = PartDrag.begin(B, j, cam.project_ray_origin(mb.position), cam.project_ray_normal(mb.position))
+					_sd = _smart_begin(j, mb.alt_pressed)
 					playing = false
 					_refresh()
 			elif mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -4017,6 +4177,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var k := ev as InputEventKey
 		if not _pressing and (get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is SpinBox):
 			return
+		if _sg_key(k):   # R27: Tab cycles the next-pose ghosts, Enter takes the picked one, Esc hides them (only while they are shown)
+			return
 		if hk.dispatch(k):   # a key the user gave a command (or a built-in key that moved away): scripts/hotkeys.gd
 			return
 		if k.keycode == KEY_ESCAPE and ui_keys != null and ui_keys.visible:
@@ -4075,6 +4237,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_F: _do(func(): _fingers_cycle())
 			KEY_G: _do(_toggle_second)
 			KEY_H: _dummy_toggle()
+			KEY_U when not k.shift_pressed: cards_use_usual()   # I10: the picked cards take your usual timing
 			KEY_K: _key_part()
 			KEY_T when k.shift_pressed:
 				if not sel in Body.BODY:
@@ -4158,6 +4321,8 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		var ax := r1.cross(r2)
 		if ax.length() > 1e-9:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
+	if not _sd.is_empty() and not alt and not twist and not move:
+		_smart_step(tip)
 	_arm_edit = sel if sel.begins_with("upperarm") and not move and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
@@ -4170,6 +4335,40 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
 	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
+
+
+## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
+## conditioning for the chain this drag turns; every move then lets the rest of the body follow, the feet planted, the
+## balance held. Alt at the press, follow 0, a weapon, a set, or a pelvis move: the old one-joint drag, exactly
+func _smart_begin(j: String, alt: bool) -> Dictionary:
+	if not smart_drag or alt or smart_follow <= 0.0 or j in Body.WEAPON or not sel_more.is_empty() or j == "pelvis":
+		return {}
+	if not sd.ready_model() and not sd.refresh():
+		return {}
+	return sd.begin(B, j, locked_parts.keys())
+
+
+func _smart_step(tip: bool) -> void:
+	sd.apply(B, _sd, smart_follow)
+	if tip:
+		if not is_nan(_grab.x):
+			B.reach(sel, _grab)   # the fist goes back to the mouse; the followers settle on the second pass
+	elif not _pd.is_empty() and not is_nan(_pd_mp.x) and _pd.get("part", "") == sel:
+		var fl := Callable()
+		if shoulder_follow and sel.begins_with("upperarm"):
+			fl = func(): B.shoulder_follow(sel.right(2))
+		PartDrag.move(B, _pd, cam.project_ray_origin(_pd_mp), cam.project_ray_normal(_pd_mp), fl)
+	sd.apply(B, _sd, smart_follow)
+
+
+func _smart_set_follow(d: float) -> void:
+	smart_follow = clampf(snappedf(smart_follow + d, 0.05), 0.0, 1.0)
+	_say("smart drag follow %d %% (0 = a drag moves only the joint you grab; Alt+drag does that too)" % roundi(smart_follow * 100.0))
+
+
+func _toggle_smart_drag() -> void:
+	smart_drag = not smart_drag
+	_say("smart drag ON: the rest of the body follows a dragged joint the way your poses move together (%d %%; Alt+drag = one joint)" % roundi(smart_follow * 100.0) if smart_drag else "smart drag off: a drag moves only the joint you grab")
 
 
 ## A DRAG THAT STOPS SAYS WHY (round 35, GATES PP2): the reason Body.set_ang_safe recorded, in words; "" if it went
@@ -4420,6 +4619,8 @@ func _restore(u: Dictionary) -> void:
 	_bake_drop(u["scene"] if u.get("scene") is Scene else null)
 	if mm_ui != null:
 		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
+	if tc_ui != null:
+		tc_ui.halt()
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
@@ -4599,6 +4800,8 @@ func _push_undo() -> void:
 
 
 func _undo() -> void:
+	sk.fitted = []   # I9: the faint fitted skeleton belongs to the pose that was undone
+	sk.queue_redraw()
 	_tree_sync()
 	if undo.is_empty():
 		_say("nothing to undo yet: click a part and drag it, and Ctrl+Z will take that back")
@@ -6184,6 +6387,80 @@ func _ikh_pose() -> Dictionary:
 
 
 ## release: the dragged point keyed at the playhead (weight and hand turn as they were there); no move = no undo step
+## ROADMAP I9: SKETCH TO POSE (scripts/sketch_pose.gd). The mode: a left drag on the view is a stroke, Enter fits, Backspace takes the
+## last stroke back, Esc leaves. The fit is ONE undo step; a limb that was not drawn is left as it was and named in the line
+func _sk_toggle() -> void:
+	sk.on = not sk.on
+	sk.clear()
+	if sk.on:
+		_say("SKETCH TO POSE: drag the spine (neck down to the hips), then arms from its top and legs from its bottom, a circle for the head. Enter fits, Backspace removes the last stroke, Esc leaves")
+	else:
+		_say_plain("sketch left")
+
+
+func _sk_input(ev: InputEvent) -> bool:
+	if ev is InputEventMouseButton:
+		var mb := ev as InputEventMouseButton
+		if mb.button_index != MOUSE_BUTTON_LEFT:
+			return false
+		if mb.pressed:
+			sk.begin(mb.position)
+			return true
+		if sk.drawing:
+			if sk.finish():
+				_say_plain("sketch: %d stroke%s. Enter fits the body to them, Backspace removes the last" % [sk.strokes.size(), "" if sk.strokes.size() == 1 else "s"])
+			else:
+				_say("sketch: that was a click, not a stroke. Drag a line")
+			return true
+		return false
+	if ev is InputEventMouseMotion and sk.drawing:
+		sk.add_point((ev as InputEventMouseMotion).position)
+		return true
+	if ev is InputEventKey and ev.pressed and not ev.echo:
+		var kc := (ev as InputEventKey).keycode
+		if kc == KEY_ENTER or kc == KEY_KP_ENTER:
+			_sk_fit()
+			return true
+		if kc == KEY_BACKSPACE:
+			if sk.remove_last():
+				_say_plain("sketch: last stroke removed, %d left" % sk.strokes.size())
+			else:
+				_say("sketch: no stroke to remove. Drag a line first")
+			return true
+	return false
+
+
+func _sk_fit() -> Dictionary:
+	if sk.strokes.is_empty():
+		_say("sketch: nothing drawn yet. Drag a spine, then arms and legs, then press Enter")
+		return {}
+	_push_undo()
+	var rep := SketchPose.fit(B, cam, sk.strokes)
+	if not rep["ok"]:
+		_drop_undo()
+		_say("sketch: " + String(rep["why"]))
+		return rep
+	sk.fitted = rep["skeleton"]
+	sk.last = rep
+	sk.queue_redraw()
+	_after_edit()
+	_refresh()
+	var kept := (rep["kept"] as Array).map(func(t): return nice(t))
+	var amb := []
+	for t in rep["limbs"]:
+		if rep["limbs"][t]["ambiguous"]:
+			amb.append(nice(t))
+	var msg := "SKETCH TO POSE: fitted %d limb%s in %.0f ms" % [(rep["limbs"] as Dictionary).size(), "" if (rep["limbs"] as Dictionary).size() == 1 else "s", rep["ms"]]
+	if not kept.is_empty():
+		msg += "; not drawn, left as it was: " + ", ".join(kept)
+	if not amb.is_empty():
+		msg += "; depth could go either way for " + ", ".join(amb) + " (kept the side nearer the old pose; draw it from another view to be sure)"
+	if int(rep["extra"]) > 0:
+		msg += "; %d stroke%s did not start at the spine and %s ignored" % [rep["extra"], "" if int(rep["extra"]) == 1 else "s", "was" if int(rep["extra"]) == 1 else "were"]
+	_say(msg + ".  Ctrl+Z undoes")
+	return rep
+
+
 ## ROADMAP 23: the next left drag on the view is one line-of-action stroke (scripts/line_of_action.gd)
 func _loa_arm() -> void:
 	loa.armed = true
@@ -8875,6 +9152,7 @@ func _onion_load() -> void:
 	ov.onion_after = clampi(int(cf.get_value("onion", "after", 2)), 0, Overlays.ONION_MAX)
 	ov.onion_step = clampi(int(cf.get_value("onion", "step", 1)), 1, Overlays.ONION_STEP_MAX)
 	ov.onion_picks = Array(cf.get_value("onion", "picks", []))
+	sg_on = bool(cf.get_value("suggest", "on", sg_on))   # R27: the next-pose ghosts (View > Next poses)
 
 
 func _onion_save() -> void:
@@ -8885,6 +9163,7 @@ func _onion_save() -> void:
 	cf.set_value("onion", "after", ov.onion_after)
 	cf.set_value("onion", "step", ov.onion_step)
 	cf.set_value("onion", "picks", ov.onion_picks)
+	cf.set_value("suggest", "on", sg_on)
 	cf.save(settings)
 
 
@@ -9085,16 +9364,16 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reactions": "react", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Auto camera": "autocam", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
-	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
+	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -9359,6 +9638,7 @@ func _ui() -> void:
 	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_root.theme = _theme()
 	layer.add_child(ui_root)
+	ui_root.add_child(sk)   # I9: the sketch's gold strokes and the faint fitted skeleton are drawn over the view
 
 	# ---- top bar
 	var top := PanelContainer.new()
@@ -9426,12 +9706,16 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Snap to floor", _floor_snap, "lift or sink the picked card (or the body) so its lowest point touches the floor; the joints stay. Ctrl+Z takes it back"))
 	ui_ribbon["POSE"].add_child(_button("Arms 25°", _do.bind(_arms_relaxed), "both arms relaxed: 25° out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
+	ui_ribbon["POSE"].add_child(_button("Sketch to pose", _sk_toggle, "draw a stick figure over the view (a drag = one stroke: the spine, arms from its top, legs from its bottom, a circle for the head); Enter fits the body to it with its real bone lengths and joint limits, Backspace removes the last stroke, Esc leaves. One undo step. Limbs you did not draw stay as they were"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: 'Open from QR (webcam)' reads it from the camera"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: Open from QR (webcam) reads it from the camera"))
+	ui_ribbon["POSE"].add_child(_button("Pose from words...", _say_it_ask, "type a pose in plain words (\"low guard, weight on back foot, bat cocked over right shoulder\", \"crouch\", \"left knee bent 90\"): the body is posed with the app's own solvers, locally, no cloud; ONE undo step; each phrase is reported placed / partly placed (why) / not understood"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
+	tog.call("POSE", "Smart drag", _toggle_smart_drag, func(): return smart_drag,
+		"on: dragging a joint also moves the rest of the body the way YOUR poses move together (learned from poses/ and scenes/; feet planted, balance held). Alt+drag = the one joint only. Command search: 'smart drag follow' sets the strength")
 	tog.call("POSE", "Line of action", func(): loa.on = not loa.on; _refresh(), func(): return loa.on,
 		"the current line of action, faint: head, spine, pelvis, support knee and ankle. A C or an S shows the pose's shape")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
@@ -9478,6 +9762,12 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
 	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene))
+	if tc_ui == null:
+		tc_ui = TimingCoachUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Timing coach", tc_ui.show, "for each strike a better move time with the reason (a real clip, strike-size numbers and sources); preview, then accept one line or all"))
+	if ac_ui == null:
+		ac_ui = AutoCamUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Auto camera", ac_ui.show, "for the strike a shot camera per beat from film grammar (180-degree rule, lead room, closer on contact, low angle for power, hold the wide) as ghost frames; click one to keep it as a shot, or Keep all; nothing changes until you click"))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
@@ -9496,6 +9786,7 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Reactions", _reactions_toggle, "the hit reaction picker: thumbnails of the reaction clips; drag one onto the fighter who is hit and its cards start at the contact (ROADMAP R16)"))
+	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
 	var ap := MenuButton.new()
 	ap.text = "Add prop"
@@ -9533,6 +9824,7 @@ func _ui() -> void:
 		"a local HTTP API on 127.0.0.1 only (off by default): describe, run, check, shot over JSON, for a script on this machine. Needs the session token the status line shows. The port is [api] port in the settings file (default 8765)")
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
+	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
 	tog.call("VIEW", "Corrective shapes", func(): corr.on = not corr.on; dummy_corr.on = corr.on; _refresh(); dummy_corr.update(T.D), func(): return corr.on,
@@ -10845,6 +11137,7 @@ func _rebuild_cards() -> void:
 		ui_cards.remove_child(c)   # detach now: a freed card_3 would still hold its name for a frame
 		c.queue_free()
 	_ease_bias_armed = false   # a rebuild (pick, undo, any edit) ends the slider's drag: its next move gets its own undo step
+	_sg_strip = null   # R27: the strip was emptied just above
 	_layout_bottom()
 	if S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
@@ -10927,7 +11220,7 @@ func _rebuild_cards() -> void:
 		tb.add_theme_font_size_override("font_size", 10)
 		tb.add_theme_constant_override("h_separation", 0)
 		_card_flat(tb)
-		tb.tooltip_text = "seconds to get here from the card before + seconds the body then holds still.  Click to type them"
+		_card_timing_look(tb, i)
 		v.add_child(tb)
 		var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
 		pp.name = "time_edit"
@@ -10967,9 +11260,10 @@ func _rebuild_cards() -> void:
 		hs.suffix = "s"
 		hs.custom_minimum_size = Vector2(150, 0)
 		hs.tooltip_text = "seconds the body stays still in this pose"
-		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i))
+		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i); _card_timing_look(tb, i))
 		hh.add_child(hs)
 		pc.add_child(pp)
+	_sg_strip_sync()   # R27: the three mini thumbnails after the current card
 
 
 ## a button on a card: no padding, only a light wash on hover (the card is the frame)
@@ -11000,7 +11294,29 @@ func _card_timing(i: int) -> String:
 	if i == 0:
 		return hold
 	var mv: float = c["move"]
+	if _card_is_usual(c):
+		return "your usual %s s" % String.num(mv, 2)   # I10: the timing came from Nick's own habits and has not been touched since
 	return "%s%s s + %s" % ["" if mv > 0.0 else "~", String.num(mv if mv > 0.0 else S.move_time(i), 2), hold]
+
+
+## I10: the card carries "your usual" timing (a tag set when it was pre-timed) and its move and hold are still exactly that
+func _card_is_usual(c: Dictionary) -> bool:
+	var u: Variant = c.get("usual")
+	return u is Dictionary and is_equal_approx(float(c["move"]), float(u["mv"])) and is_equal_approx(float(c["hold"]), float(u["hd"]))
+
+
+## the timing button's colour: its own hue while the timing is "your usual", the plain one once touched
+func _card_timing_look(tb: Button, i: int) -> void:
+	if i >= S.cards.size():
+		return
+	var us := _card_is_usual(S.cards[i])
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		if us:
+			tb.add_theme_color_override(k, Tok.c("card_usual"))
+		else:
+			tb.remove_theme_color_override(k)
+	tb.tooltip_text = ("your usual timing, learned from the scenes you saved (move %s s, hold %s s); it stays this colour until you change it.  U puts it on the picked cards" % [
+		String.num(float(S.cards[i]["move"]), 2), String.num(float(S.cards[i]["hold"]), 2)]) if us else "seconds to get here from the card before + seconds the body then holds still.  Click to type them"
 
 
 ## the card's look: picked = blue, pass-by = brown, else plain; the card at the playhead has a gold frame and a lighter ground
@@ -11045,9 +11361,10 @@ func _mark_play_card() -> void:
 			var pc := ui_cards.get_node_or_null("card_%d" % (k + 1)) as PanelContainer
 			if pc != null and k < S.cards.size():
 				pc.add_theme_stylebox_override("panel", _card_style(k))
-	if playing and now >= 0 and now < ui_cards.get_child_count():
+	var pc_now := ui_cards.get_node_or_null("card_%d" % (now + 1)) as Control   # by name: the next-pose strip (R27) sits between cards
+	if playing and now >= 0 and pc_now != null:
 		var sc := ui_card_row
-		var pc := ui_cards.get_child(now) as Control
+		var pc := pc_now
 		if pc.position.x < sc.scroll_horizontal or pc.position.x + pc.size.x > sc.scroll_horizontal + sc.size.x:
 			sc.scroll_horizontal = int(maxf(0.0, pc.position.x - 16.0))
 
@@ -11059,9 +11376,10 @@ func _card_pic_made(key: String) -> void:
 	for pc in ui_cards.get_children():
 		var nb := pc.find_child("b_pick", true, false) as Button
 		if nb != null and nb.get_meta("pkey", "") == key:
-			var i := pc.get_index()
-			if i < S.cards.size():
+			var i := int(String(pc.name).trim_prefix("card_")) - 1   # by name: the next-pose strip (R27) sits between cards
+			if i >= 0 and i < S.cards.size():
 				nb.icon = thumbs.pose_picture(S.cards[i]["pose"])
+	_sg_pic_made(key)
 
 
 ## click the timing text: the two boxes open above it
@@ -11204,6 +11522,7 @@ func _card_menu(i: int, at: Vector2) -> void:
 	ui_card_menu.add_icon_item(Icons.small("move_r"), "Move later", 3)
 	ui_card_menu.add_icon_item(Icons.small("card_delete"), "Delete this card", 4)
 	ui_card_menu.add_icon_item(Icons.small("qr"), "Share as QR", 5)
+	ui_card_menu.add_icon_item(Icons.small("clip"), "Duplicate", 6)
 	ui_card_menu.set_item_disabled(2, i == 0)
 	ui_card_menu.set_item_disabled(3, i >= S.cards.size() - 1)
 	ui_card_menu.popup(Rect2i(Vector2i(at), Vector2i(0, 0)))
@@ -11242,6 +11561,9 @@ func _card_menu_pick(id: int) -> void:
 			_card_del(i)
 		5:
 			_qr_share(i)
+		6:
+			_step_hint = "Duplicate card"
+			_card_duplicate(i)
 
 
 const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
@@ -11353,10 +11675,11 @@ func _card_add() -> void:
 	var at := sel_card + 1 if sel_card >= 0 else -1
 	S.add(nm if nm != "" else "pose %d" % (S.cards.size() + 1), B.to_dict(), at)
 	sel_card = at if at >= 0 else S.cards.size() - 1
+	var us := _usual_apply(sel_card)   # I10
 	playhead = S.times()[sel_card][1]
 	_rebuild_cards()
 	_refresh()
-	_say("added card %d.  Pose the next moment and add it too, then Play." % (sel_card + 1))
+	_say("added card %d%s.  Pose the next moment and add it too, then Play." % [sel_card + 1, (" with your usual timing (%s s; U or a click on the time changes it)" % String.num(float(S.cards[sel_card]["move"]), 2)) if us else ""])
 
 
 func _card_pick(i: int) -> void:
@@ -11985,7 +12308,7 @@ func _commands() -> Array:
 	add.call("Get up from the floor", "", _rise_get_up, "get up rise floor lying supine roll kneel half-kneel stand VanSant", true, "a run of cards: from lying on the back the body rolls to the side, hands and knees, half-kneel, stand (one undo step)")
 	add.call("CLIP this pose (add a card)", "Enter", _press.bind(KEY_ENTER), "key frame add new", true, "add the body as a new card after the picked one")
 	add.call("Play / pause", "Space", _press.bind(KEY_SPACE), "run stop", false, "play the scene from the playhead, or stop it")
-	add.call("Big view (hide the panels)", "Tab", _press.bind(KEY_TAB), "fullscreen", false, "hide the side panels so the body gets the whole window")
+	add.call("Big view (hide the panels)", "Tab", _big_view, "fullscreen", false, "hide the side panels so the body gets the whole window")
 	add.call("Keyboard: the panels by keys", "F6", _kb_enter, "keyboard", false, "Tab / Shift+Tab move from control to control, Enter or Space presses, Esc gives the keys back to the view")
 	add.call("Reset the part", "R", _press.bind(KEY_R), "zero", true, "the picked part back to straight (0°, 0°, 0°)")
 	add.call("Snap to floor", "", _floor_snap, "floor ground snap stand sole foot knee lift sink drop touch pose root", true, "the picked card (or the body) moves straight up or down so its lowest point (sole, knee, hip or hand) is on the floor; the joints stay")
@@ -12049,6 +12372,12 @@ func _commands() -> Array:
 	hitbox_ui.commands(add)   # HIT / HURT BOXES per frame (ROADMAP 36; scripts/hit_boxes_ui.gd)
 	if mm_ui == null:
 		mm_ui = MotionMatchUI.new(self)
+	if tc_ui == null:
+		tc_ui = TimingCoachUI.new(self)
+	tc_ui.commands(add)   # TIMING COACH (ROADMAP I4)
+	if ac_ui == null:
+		ac_ui = AutoCamUI.new(self)
+	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Reduce part keys (tolerance slider)", "", _keyreduce_popup, "reduce keys key reduction thin decimate simplify dense bake video import tolerance error curve slider", true, "drop the part keys the curve can lose within a tolerance in degrees (every angle channel); the readout shows keys kept and the worst error; one undo step (ROADMAP 68)")
@@ -12078,6 +12407,9 @@ func _commands() -> Array:
 	add.call("Select: just one part", "", _select_set.bind([]), "group set single clear one", false, "back to the one part the panel shows")
 	PartSets.of(self).commands(add)   # the user's own SELECTION SETS and KEYING SETS (scripts/part_sets.gd)
 	add.call("Lock / unlock this part", "", _toggle_lock.bind(""), "freeze hold keep unlock protect", false, "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
+	add.call("Smart drag on / off", "", _toggle_smart_drag, "smart drag follow co-vary learned library poses", false, "dragging a joint moves the rest of the body the way your own poses move together (feet planted, balance held); Alt+drag = one joint only")
+	add.call("Smart drag: follow more", "", _smart_set_follow.bind(0.1), "smart drag follow stronger more strength", false, "the follow strength +10 % (default 60 %)")
+	add.call("Smart drag: follow less", "", _smart_set_follow.bind(-0.1), "smart drag follow weaker less strength", false, "the follow strength -10 % (0 = a drag moves only the joint you grab)")
 	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
 	add.call("Auto-key on / off", "Ctrl+K", _toggle_autokey, "auto key keyframe record toggle card", false, "while on, a pose change made at the playhead keys a card there (or updates the card on that frame); the 3D view gets a red frame")
 	add.call("Look at the picked prop", "", _look_at.bind("prop"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the picked prop (real gaze shifts: scripts/look_at.gd)")
@@ -12129,6 +12461,7 @@ func _commands() -> Array:
 	add.call("Root path: straighten", "", _rp_straighten, "root motion path straighten line straight chord bend curve", true, "the cards between the first and the last root move onto the straight line between those two roots, keeping their places along it; the ends and the headings stay; one undo step (ROADMAP 91)")
 	add.call("Root path: scale length...", "", _rp_scale_dialog, "root motion path scale length longer shorter stretch factor percent travel distance", true, "every card's root moves about the first card's root by the factor you pick (25 to 300 %): the path gets longer or shorter, its headings and card times stay; one undo step (ROADMAP 91)")
 	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
+	add.call("React to the hit (physics)", "", _react_physics, "react reaction hit physics mujoco impulse struck fighter weapon fist impact contact simulate humanoid", true, "where a weapon or fist touches a fighter, Kine measures the blow (the struck part, the direction, the impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact frame, in the background; strength light / medium / hard and whether it fell; one Ctrl+Z (ROADMAP I2)")
 	add.call("Reactions: hit reaction picker", "", _reactions_toggle, "reaction reactions hit picker thumbnails physics struck fighter drag drop knock fall stage", false, "a panel of the reaction clips found in scenes/reactions and scenes/_wip: a thumbnail, where it hits, how hard, whether the fighter falls; drag one onto the struck fighter (ROADMAP R16)")
 	add.call("Reactions: make 3 sample clips", "", _reactions_samples, "reaction reactions sample clips make example head snap knock down bat", false, "three sample hit reactions (a bat to the torso, a head snap, a knock-down) in scenes/_wip/reactions, made from the app's own poses")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
@@ -12158,6 +12491,7 @@ func _commands() -> Array:
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
+	add.call("Pose from words...", "", _say_it_ask, "text type words phrase say describe pose guard crouch lunge stance weight foot hand bat cocked shoulder knee elbow look lean", false, "type a pose (\"low guard, weight on back foot, bat cocked over right shoulder\"): placed with the app's own joint, IK, balance and look-at solvers, locally; the report says which phrases were placed, partly placed (why) or not understood; one undo step")
 	add.call("Block out a move from words...", "", _words_ask, "text type words phrase prompt describe blocking block out attack move overhead sweep thrust jab uppercut hook axe bat staff hammer dagger step lunge", false, "type a move (\"overhead axe strike, step in\", \"fast jab\", \"staff sweep right\"): the closest of your saved attacks is retrieved and adapted by the app's own ops (mirror, weapon swap + grip, step, retime to docs/ATTACK_RULES.md) into a NEW blocked-out scene in scenes/_wip (ready, anticipation, strike, follow-through, recovery), opened; the status says what it started from and what it could not find")
 	add.call("Fix moves through the body", "", _clear_scene, "collision pass", true, "add pass-by cards so no move goes through the body")
 	add.call("Breakdowner 25%", "", _breakdowner.bind(0.25), "slerp neighbour tween", true, "the picked card's pose (selected parts, else the whole body) a quarter of the way from the card before to the card after, joint by joint")
@@ -12169,6 +12503,7 @@ func _commands() -> Array:
 	add.call("Blend to rest pose", "", _inbetween.bind("rest"), "straight zero", true, "the selected parts (else the whole body) 25% of the way to the straight pose")
 	add.call("Blend to previous card", "Shift+Alt+E", _inbetween.bind("prev"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card before")
 	add.call("Blend to next card", "", _inbetween.bind("next"), "neighbour breakdown", true, "the selected parts (else the whole body) 25% of the way to the card after")
+	add.call("Use my usual timing", "U", _press.bind(KEY_U), "usual timing habit learned move hold time cards", true, "the picked cards (the current card, a range, or the Ctrl+clicked ones) take the move and hold you usually give a move like theirs: the median of the (up to 5) nearest in your saved scenes, only when at least 2 are within 10 degrees; one undo step")
 	add.call("Add an in-between card", "", _tween_add, "tween inbetween in-between", true, "a new card halfway between the picked card and the next")
 	add.call("Fatigue: slow the fight as it goes...", "", _fatigue_dialog, "fatigue tired slow fight endurance fitness strikes rounds stamina", false, "retimes the scene so strikes late in the fight are slower (up to ~10% in speed for the elite fighters measured, Sensors 2025), with a fitness slider; the hit markers say which cards are strikes; rests (holds of 1.5 s or more) recover (ROADMAP 39)")
 	add.call("Retime: scale the range around the playhead...", "", _retime_range_dialog, "retime range playhead scale stretch slow fast tempo speed time percent", true, "scale everything timed in a range (the preview range from the ruler, or the picked cards: cards, keys, plants, IK, layers, props, markers, camera) about the playhead, 50 to 200 %: what is after the range shifts so nothing overlaps; the audio stays put; one undo step (ROADMAP 67)")
@@ -12823,8 +13158,9 @@ func _retimed(rebuild := true) -> void:
 func _timeline_pick(i: int) -> void:
 	_card_pick(i)
 	await get_tree().process_frame
-	if i < ui_cards.get_child_count():
-		(ui_cards.get_parent() as ScrollContainer).ensure_control_visible(ui_cards.get_child(i))
+	var pc := ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
+	if pc != null:
+		(ui_cards.get_parent() as ScrollContainer).ensure_control_visible(pc)
 
 
 ## ANIMATOR TOOLS (round 5, the ten complaints: docs/COMPLAINTS.md)
@@ -13295,6 +13631,93 @@ func _words_build() -> void:
 	_rebuild_cards()
 	_refresh()
 	_say("'%s' blocked out as %s and opened (%d cards: %s). %s" % [text, path.get_file(), S2.cards.size(), ", ".join(S2.cards.map(func(c): return String(c["name"]).get_slice(":", 0))), r["status"]])
+
+
+## SAY IT, SEE IT (ROADMAP I5): type a pose in words, the body takes it (scripts/say_it.gd: a small grammar + vocabulary, the joint /
+## IK / balance / look-at solvers, no cloud). ONE undo step. The box stays open with the sentence and one report line per phrase:
+## "placed" / "partly placed (why)" / "not understood". Nothing is ignored silently
+var ui_say_dlg: ConfirmationDialog
+var ui_say_edit: LineEdit
+var ui_say_report: RichTextLabel
+
+
+func _say_it_ask() -> void:
+	if ui_say_dlg == null:
+		ui_say_dlg = ConfirmationDialog.new()
+		ui_say_dlg.name = "say_it_dialog"
+		ui_say_dlg.title = "Pose from words"
+		ui_say_dlg.ok_button_text = "Pose it"
+		ui_say_dlg.cancel_button_text = "Close"
+		ui_say_dlg.dialog_hide_on_ok = false
+		ui_say_dlg.min_size = Vector2i(560, 0)
+		var v := VBoxContainer.new()
+		var hd := Label.new()
+		hd.text = "Say the pose. Guard, crouch, lunge, wide stance, weight on back foot, hand on chin, bat cocked over right shoulder, left knee bent 90, look left, lean forward 20."
+		hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hd.custom_minimum_size = Vector2(540, 0)
+		hd.add_theme_color_override("font_color", Tok.c("info"))
+		v.add_child(hd)
+		ui_say_edit = LineEdit.new()
+		ui_say_edit.name = "edit_say_it"
+		ui_say_edit.placeholder_text = "low guard, weight on back foot, bat cocked over right shoulder"
+		v.add_child(ui_say_edit)
+		ui_say_report = RichTextLabel.new()
+		ui_say_report.name = "say_it_report"
+		ui_say_report.bbcode_enabled = true
+		ui_say_report.fit_content = true
+		ui_say_report.scroll_active = false
+		ui_say_report.custom_minimum_size = Vector2(540, 70)
+		v.add_child(ui_say_report)
+		ui_say_dlg.add_child(v)
+		ui_say_dlg.register_text_enter(ui_say_edit)
+		ui_say_dlg.confirmed.connect(func(): _say_it_run(ui_say_edit.text))
+		add_child(ui_say_dlg)
+	var vp := get_viewport().get_visible_rect().size
+	var dw := 580
+	ui_say_dlg.popup(Rect2i(int(vp.x) - dw - 24, 90, dw, 0))   # on the right: the body in the middle stays in sight
+	ui_say_edit.grab_focus.call_deferred()
+	ui_say_edit.select_all.call_deferred()
+
+
+func _say_it_run(text: String) -> Dictionary:
+	text = text.strip_edges()
+	if text == "":
+		_say("Pose from words needs some words: type e.g. 'low guard, weight on back foot, bat cocked over right shoulder' or 'crouch'")
+		return {"ok": false}
+	var res := {}
+	_do(func(): res.merge(SayIt.apply(B, text), true))
+	if not res.get("ok", false):
+		_say(String(res.get("error", "nothing posed")) + ": type a pose like 'crouch'")
+		return res
+	var n_ok := 0
+	var n_part := 0
+	var n_no := 0
+	var rows := []
+	for it in res["items"]:
+		match it["status"]:
+			"placed":
+				n_ok += 1
+			"partly placed":
+				n_part += 1
+			_:
+				n_no += 1
+	if ui_say_report != null:
+		var bb := ""
+		for l in res["lines"]:
+			var col: Color = Tok.c("info")
+			if String(l).contains(": not understood"):
+				col = Tok.c("fail")
+			elif String(l).contains(": partly placed") or String(l).begins_with("note"):
+				col = Tok.c("warn")
+			bb += "[color=#%s]%s[/color]
+" % [col.to_html(false), String(l).replace("[", "[lb]")]
+		ui_say_report.text = ""
+		ui_say_report.append_text(bb.strip_edges())
+	if n_no > 0 and n_ok + n_part == 0:
+		_say("'%s': nothing understood: try words like crouch, lunge, guard, weight on back foot, hand on chin, left knee bent 90" % text)
+	else:
+		_say("posed '%s': %d placed, %d partly, %d not understood.  Ctrl+Z undoes; Update keeps it on the card" % [text, n_ok, n_part, n_no])
+	return res
 
 
 ## NEW FROM TEMPLATE (ROADMAP 44): a picker of the five starting scenes (walk, run, jump, punch, sword swing; scripts/templates.gd,
@@ -14766,6 +15189,8 @@ func _save_scene_now(nm: String) -> void:
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	_write("res://scenes/%s.json" % fname, d)
+	if np.loaded:
+		np.update_file("res://scenes/%s.json" % fname)   # R27: the index of your habits learns the saved scene
 	_clean = _doc_key()
 	_autosave_drop()
 	scene_path = "res://scenes/%s.json" % fname
@@ -18350,3 +18775,360 @@ func proportions_set(d: Dictionary) -> Dictionary:
 	var st := float(nd.get("stature", Proportions.DEFAULT_STATURE))
 	_say("body: %s, %.1f cm tall; every card keeps its angles, the feet stay on the floor (Ctrl+Z takes it back)" % [Proportions.PRESET_NAMES.get(String(nd.get("preset", "")), "the mannequin as shipped" if nd.is_empty() else "custom"), st * 100.0])
 	return nd
+
+
+## NEXT-POSE SUGGESTIONS (ROADMAP R27; the three sources and their ranking are in scripts/next_pose.gd). While a card is
+## current (POSE or ANIMATE page, not playing) up to three poses that may come next are shown as small translucent ghosts at
+## the body's side (display nodes only) and as three thumbnails after the card in the strip. Tab cycles them, Enter or a click
+## on a thumbnail takes the picked one as a new card after the current one (ONE undo step, its timing from its source), Esc
+## hides them. Nothing in the scene changes until one is taken. View > Next poses turns it off (remembered; on by default;
+## off under a test script until the test turns it on).
+var sg_on := true
+var sg_list: Array = []     # [{NextPose suggestion + "pose": the full pose dictionary}]
+var sg_sel := -1            # the ghost Tab picked (-1 = none yet: Enter then adds a card as ever)
+var sg_ms := 0.0            # how long the last compute took
+var _sg_sig: Array = []
+var _sg_hidden := false
+var _sg_strip: Control = null
+var _sg_bodies: Array = []
+var _sg_task := -1
+var _sg_res := {}
+
+
+func _sg_toggle() -> void:
+	sg_on = not sg_on
+	_sg_hidden = false
+	_sg_sig = []
+	_onion_save()
+	_refresh()
+	_say("next-pose ghosts on: pick a card and its likely next poses show beside the body.  Tab cycles, Enter takes one, Esc hides" if sg_on else "next-pose ghosts off (View > Next poses turns them back on)")
+
+
+func _sg_want() -> bool:
+	return sg_on and not _sg_hidden and cur_page in ["POSE", "ANIMATE"] and sel_card >= 0 and sel_card < S.cards.size() and not playing and ui_cards != null
+
+
+func _sg_next_pose() -> Variant:
+	return S.cards[sel_card + 1]["pose"] if sel_card + 1 < S.cards.size() else null
+
+
+func _sg_same() -> bool:
+	return not _sg_sig.is_empty() and is_same(_sg_sig[0], S) and _sg_sig[1] == sel_card and _sg_sig[2] == S.cards.size() and sel_card < S.cards.size() and is_same(_sg_sig[3], S.cards[sel_card]["pose"]) and is_same(_sg_sig[4], _sg_next_pose())
+
+
+func _sg_tick() -> void:
+	if _sg_hidden and sel_card >= 0 and sel_card < S.cards.size() and not _sg_same():
+		_sg_hidden = false   # another card (or its pose changed): the ghosts come back
+	if not _sg_want():
+		if not sg_list.is_empty() or _sg_strip != null:
+			sg_list = []
+			sg_sel = -1
+			_sg_sig = []
+			ov.sugg_hide()
+			_sg_strip_sync()
+		return
+	if _sg_same():
+		_sg_place()
+		return
+	var c: Dictionary = S.cards[sel_card]
+	_sg_sig = [S, sel_card, S.cards.size(), c["pose"], _sg_next_pose()]
+	_sg_motion_start()
+	var dt: float = float(c["move"]) if float(c["move"]) > 0.0 else S.move_time(sel_card)
+	if dt < 0.05:
+		dt = 0.4
+	var nx: Variant = _sg_next_pose()
+	sg_list = np.suggest(c["pose"], String(c["name"]), dt, scene_path, String(c.get("phase", "")), nx if nx is Dictionary else {})
+	sg_ms = np.last_ms
+	sg_sel = -1
+	for i in sg_list.size():
+		sg_list[i]["pose"] = _sg_pose(sg_list[i])
+		_sg_apply(_sg_body(i + 1), sg_list[i])   # the ghost's body, posed once; _sg_place only moves it
+	_sg_show()
+
+
+## the pose dictionary of a suggestion: the current card's body (its weapon in its hand, its proportions) with the suggestion's angles and hips
+func _sg_pose(s: Dictionary) -> Dictionary:
+	var sb := _sg_body(0)
+	_sg_apply(sb, s)
+	return sb.to_dict()
+
+
+func _sg_body(i: int) -> Body:
+	while _sg_bodies.size() <= i:
+		var nb := Body.new()
+		nb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		_sg_bodies.append(nb)
+	return _sg_bodies[i]
+
+
+func _sg_apply(sb: Body, s: Dictionary) -> void:
+	sb.set_proportions(S.body)
+	sb.from_dict(S.cards[sel_card]["pose"])
+	var full: PackedFloat32Array = s["full"]
+	for i in Body.ORDER.size():
+		var j: String = Body.ORDER[i]
+		if sb.lim.has(j):
+			sb.ang[j] = sb.clamp_ang(j, Vector3(full[i * 3], full[i * 3 + 1], full[i * 3 + 2]))
+	sb.offset = s["off"]
+	sb.fk()
+
+
+func _sg_color(s: Dictionary) -> Color:
+	return Tok.c("sg_" + String(s["src"]))
+
+
+func _sg_show() -> void:
+	_sg_place()
+	_sg_strip_sync()
+
+
+## the ghosts beside the body (the camera's right); also after the camera moved
+func _sg_place() -> void:
+	if sg_list.is_empty():
+		ov.sugg_hide()
+		return
+	var items := []
+	for i in sg_list.size():
+		items.append({"body": _sg_body(i + 1), "col": _sg_color(sg_list[i]), "sel": i == sg_sel,
+			"text": _sg_text(i)})
+	# fit the row between the body and the right panel: the pixels per metre at the body, the body's right edge on screen
+	var at: Vector3 = B.P["pelvis"]
+	var flat := Vector3(cam.global_basis.x.x, 0.0, cam.global_basis.x.z)
+	flat = flat.normalized() if flat.length() > 1e-4 else Vector3.RIGHT
+	var p0 := cam.unproject_position(at)
+	var ppm := maxf(absf(cam.unproject_position(at + flat).x - p0.x), 1.0)
+	var vs := get_viewport().get_visible_rect().size
+	var body_r := p0.x
+	for j in ["head", "hand_l", "hand_r", "foot_l", "foot_r", "lowerarm_l", "lowerarm_r"]:
+		body_r = maxf(body_r, cam.unproject_position(B.P[j]).x)
+	if B.wep_on:
+		body_r = maxf(body_r, cam.unproject_position(B.wep_point(B.wep_len)).x)
+	var avail := vs.x - rw() - 14.0 - body_r - 10.0
+	var slot := clampf(avail / float(sg_list.size()), 80.0, 200.0)
+	var sc := clampf(slot / (1.15 * ppm), 0.28, 0.62)
+	var step := slot / ppm
+	ov.sugg_show(items, at, cam.global_basis.x, sc, (body_r + 10.0 - p0.x) / ppm + 0.5 * step, step)
+
+
+## a ghost's label over its head, on two lines so three of them fit side by side: "1" and the label cut at its middle space or hyphen
+func _sg_text(i: int) -> String:
+	var lab: String = sg_list[i]["label"]
+	var cut := lab.find(" ", lab.length() / 2 - 3)
+	if cut < 0:
+		cut = lab.find("-")
+	if cut >= 0:
+		lab = lab.left(cut + (1 if lab[cut] == "-" else 0)) + "
+" + lab.substr(cut + (1 if lab[cut] == "-" else 0)).strip_edges()
+	return "%s%d  %s" % ["> " if i == sg_sel else "", i + 1, lab]
+
+
+func _sg_visible() -> bool:
+	return _sg_want() and not sg_list.is_empty()
+
+
+func _sg_key(k: InputEventKey) -> bool:
+	if not _sg_visible() or k.echo:
+		return false
+	var plain := not k.ctrl_pressed and not k.alt_pressed and not k.shift_pressed
+	if k.keycode == KEY_TAB and plain:
+		sg_sel = (sg_sel + 1) % sg_list.size()
+		_sg_place()
+		_sg_strip_sync()
+		_say("next pose %d of %d: %s.  Enter takes it, Tab for the next, Esc hides" % [sg_sel + 1, sg_list.size(), sg_list[sg_sel]["tip"]])
+		return true
+	if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and plain and sg_sel >= 0:
+		_sg_accept(sg_sel)
+		return true
+	if k.keycode == KEY_ESCAPE and plain:
+		_sg_hidden = true
+		_sg_tick()
+		_say("next-pose ghosts hidden: pick another card, or View > Next poses, to bring them back")
+		return true
+	return false
+
+
+## take suggestion i as a new card after the current one: ONE undo step; the timing is its source's
+func _sg_accept(i: int) -> void:
+	if i < 0 or i >= sg_list.size() or sel_card < 0:
+		return
+	var s: Dictionary = sg_list[i]
+	_step_hint = "Next pose: " + String(s["label"])
+	_push_undo()
+	var at := sel_card + 1
+	S.add(String(s["name"]), (s["pose"] as Dictionary).duplicate(true), at)
+	S.cards[at]["move"] = float(s["mv"])
+	S.cards[at]["hold"] = float(s["hd"])
+	var us := false
+	if String(s["src"]) == "between":
+		if float(s["mv"]) > 0.0:
+			S.cards[at]["usual"] = {"mv": float(s["mv"]), "hd": float(s["hd"])}   # I10: the in-between comes timed the way you time it
+			us = true
+	else:
+		us = _usual_apply(at)   # I10: a taken ghost comes with your usual timing when there is one, else its source's
+	sel_card = at
+	sel_end = -1
+	playhead = S.times()[at][1]
+	Scene.put(B, Moves._flat(S.cards[at]["pose"]))
+	_rebuild_cards()
+	_refresh()
+	_say("took the %s as card %d '%s'%s.  Ctrl+Z takes it back" % [String(s["label"]), at + 1, s["name"], " with your usual timing" if us else ""])
+
+
+## I10 YOUR TIMING (scripts/next_pose.gd usual): while usual_on, a card newly added after another (Clip this pose, a taken ghost,
+## Duplicate) comes with the median move and hold of the nearest transitions in your saved scenes, tagged so the strip says
+## "your usual 0.18 s" in its own colour until the timing is touched; none near enough = the app's default, untouched.
+var usual_on := true
+
+
+func _usual_for(at: int, force := false) -> Dictionary:
+	if (not usual_on and not force) or at <= 0 or at >= S.cards.size():
+		return {}
+	return np.usual(S.cards[at - 1]["pose"], S.cards[at]["pose"], String(S.cards[at]["name"]))
+
+
+## the card at `at` takes your usual timing; false when there is none to take
+func _usual_apply(at: int, force := false) -> bool:
+	var u := _usual_for(at, force)
+	if u.is_empty():
+		return false
+	S.cards[at]["move"] = float(u["mv"])
+	S.cards[at]["hold"] = float(u["hd"])
+	S.cards[at]["usual"] = {"mv": float(u["mv"]), "hd": float(u["hd"])}
+	return true
+
+
+## Duplicate: a copy of card i right after it, with your usual timing for that step when there is one (else the original's)
+func _card_duplicate(i: int) -> void:
+	if i < 0 or i >= S.cards.size():
+		_say("pick a card first, then Duplicate")
+		return
+	_push_undo()
+	var c: Dictionary = S.cards[i]
+	S.add(String(c["name"]) + " copy", (c["pose"] as Dictionary).duplicate(true), i + 1)
+	S.cards[i + 1]["move"] = float(c["move"])
+	S.cards[i + 1]["hold"] = float(c["hold"])
+	var us := _usual_apply(i + 1)
+	sel_card = i + 1
+	sel_end = -1
+	playhead = S.times()[sel_card][1]
+	_rebuild_cards()
+	_refresh()
+	_say("duplicated card %d%s.  Ctrl+Z takes it back" % [i + 1, " with your usual timing" if us else ""])
+
+
+## U / "Use my usual timing": the picked cards take your usual move and hold, ONE undo step; a card with no usual keeps its timing
+func cards_use_usual() -> String:
+	var idx := card_sel()
+	if idx.is_empty():
+		_say("pick a card first (click one in the strip), then press U")
+		return "no cards selected"
+	var plan := {}
+	for i in idx:
+		var u := _usual_for(i, true)
+		if not u.is_empty():
+			plan[i] = u
+	if plan.is_empty():
+		_say("no usual timing for the picked card%s yet: fewer than %d of your saved scenes' steps are within %.0f degrees of this one.  Time it by hand and save the scene, and it learns" % [
+			"" if idx.size() == 1 else "s", NextPose.T_MIN, NextPose.T_MAXD])
+		return "no usual"
+	_step_hint = "Use my usual timing"
+	_push_undo()
+	_markers_hold()
+	for i in plan:
+		S.cards[i]["move"] = float(plan[i]["mv"])
+		S.cards[i]["hold"] = float(plan[i]["hd"])
+		S.cards[i]["usual"] = {"mv": float(plan[i]["mv"]), "hd": float(plan[i]["hd"])}
+	_markers_follow()
+	_rebuild_cards()
+	_refresh()
+	_say("%d card%s now %s your usual timing (move %s s, hold %s s for the first): the scene is %s.  Ctrl+Z takes it back" % [plan.size(), "" if plan.size() == 1 else "s", "have" if plan.size() > 1 else "has",
+		String.num(float(plan[plan.keys()[0]]["mv"]), 2), String.num(float(plan[plan.keys()[0]]["hd"]), 2), Units.time(_ps().length(), S.fps)])
+	return ""
+
+
+func _sg_strip_sync() -> void:
+	if _sg_strip != null and is_instance_valid(_sg_strip):
+		if _sg_strip.get_parent() != null:
+			_sg_strip.get_parent().remove_child(_sg_strip)
+		_sg_strip.queue_free()
+	_sg_strip = null
+	if ui_cards == null or not _sg_visible():
+		return
+	var host := ui_cards.get_node_or_null("card_%d" % (sel_card + 1)) as Control
+	if host == null:
+		return
+	var pc := PanelContainer.new()
+	pc.name = "sg_strip"
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(Tok.c("card"), 0.55)
+	sty.set_corner_radius_all(4)
+	sty.set_content_margin_all(2)
+	pc.add_theme_stylebox_override("panel", sty)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	pc.add_child(v)
+	v.add_child(_label("next?", 10, "text:0.6"))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 2)
+	v.add_child(h)
+	for i in sg_list.size():
+		var s: Dictionary = sg_list[i]
+		var b := _button("", _sg_accept.bind(i), "%d  %s (score %.2f): %s.  Click or Enter takes it as the next card" % [i + 1, s["label"], s["score"], s["tip"]])
+		b.name = "sg_%d" % (i + 1)
+		b.flat = true
+		b.expand_icon = true
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+		b.add_theme_constant_override("icon_max_width", 34)
+		b.custom_minimum_size = Vector2(36, 70)
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(0, 0, 0, 0.0)
+		st.border_color = _sg_color(s)
+		st.set_border_width_all(3 if i == sg_sel else 1)
+		st.set_corner_radius_all(3)
+		st.set_content_margin_all(1)
+		for k in ["normal", "pressed", "focus"]:
+			b.add_theme_stylebox_override(k, st)
+		var hv := st.duplicate() as StyleBoxFlat
+		hv.bg_color = Color(_sg_color(s), 0.25)
+		b.add_theme_stylebox_override("hover", hv)
+		b.set_meta("pkey", thumbs.request_pose(s["pose"]))
+		var tex := thumbs.pose_picture(s["pose"])
+		if tex != null:
+			b.icon = tex
+		h.add_child(b)
+	ui_cards.add_child(pc)
+	ui_cards.move_child(pc, host.get_index() + 1)
+	_sg_strip = pc
+
+
+func _sg_pic_made(key: String) -> void:
+	if _sg_strip == null or not is_instance_valid(_sg_strip):
+		return
+	for i in sg_list.size():
+		var b := _sg_strip.find_child("sg_%d" % (i + 1), true, false) as Button
+		if b != null and b.get_meta("pkey", "") == key:
+			b.icon = thumbs.pose_picture(sg_list[i]["pose"])
+
+
+## the real-motion source needs MotionMatch's database (about 20 s of reading the scenes): built once on a worker task,
+## or taken from the motion-matching preview when that built it already. Until it is ready the other two sources work.
+func _sg_motion_start() -> void:
+	if np.has_motion() or _sg_task != -1:
+		return
+	if mm_ui != null and int(mm_ui.db.get("n", 0)) > 0:
+		np.set_motion(mm_ui.db)
+		return
+	_sg_task = WorkerThreadPool.add_task(func():
+		var d := MotionMatch.build()
+		_sg_res = {"db": d, "bank": NextPose.motion_bank(np, d)})
+
+
+func _sg_poll() -> void:
+	if _sg_task >= 0 and WorkerThreadPool.is_task_completed(_sg_task):
+		WorkerThreadPool.wait_for_task_completion(_sg_task)
+		_sg_task = -2   # done: never built twice
+		if not _sg_res.is_empty():
+			np.set_motion(_sg_res["db"], _sg_res["bank"])
+		_sg_sig = []
+		_sg_tick()
