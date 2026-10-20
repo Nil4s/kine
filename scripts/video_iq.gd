@@ -741,6 +741,8 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 		var lo := 0.2
 		var hi := 15.0
 		for it in 12:
+			if cancelled():
+				return best
 			var mid := sqrt(lo * hi)
 			var idx := dp_keys(feat, ts, mid)
 			var ex := {}
@@ -766,25 +768,49 @@ static func _ints(a: Array) -> Array:
 	return a.map(func(v): return int(round(clampf(float(v), 0.0, 1.0) * 100.0)))
 
 
+## ---- OFF THE MAIN THREAD (R13). main runs process on a worker (a 100-frame clip is 4-5 s of solving) and the window keeps
+## drawing. The worker never touches a node or a file. cancel_flag / progress are the only things main and the worker share:
+## main sets cancel_flag[0] (Cancel, or quitting) and the stages below return {} / [] at their next check; the worker sets progress.
+static var cancel_flag := [false]
+static var progress := 0.0
+
+
+static func cancelled() -> bool:
+	return bool(cancel_flag[0])
+
+
 ## parse -> confidence -> repair -> depth -> cleanup -> contacts -> fit -> smart cards -> plants. P = VideoImport.parse's result
 ## (its frames are changed). Returns {"scene", "iq", "text", "conf", "depth", "contacts", "keys", "fitted", "frames", "dense",
 ## "repaired"}. retarget = true fits with VideoRetarget (GMR-style IK, feet pinned on the contacts) instead of VideoImport.solve
 static func process(B: Body, P: Dictionary, held := "", scene_name := "video_import", retarget := false) -> Dictionary:
 	var fps := float(P["fps"])
+	progress = 0.0
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
 	var conf := confidence(frames, fps)
 	var repaired := repair(frames, conf)
 	var dp := fix_depth(frames, P.get("axis", Vector3(0, 0, 1)), limits_of(B))
+	if cancelled():
+		return {}
+	progress = 0.1
 	var C := VideoCleanup.run(frames, fps, float(P.get("tilt", 0.0)))
 	normalize_lengths(C["frames"])
 	var K := contacts(C["frames"], fps)
+	if cancelled():
+		return {}
+	progress = 0.2
 	var fitted: Array
 	if retarget and held == "":   # "Retarget to body (IK)": VideoRetarget, with THIS pass's contacts pinning the planted feet
 		fitted = VideoRetarget.solve(C["frames"], B, {"fps": fps, "smooth": false, "iq": K})
 	else:
 		fitted = VideoImport.solve(B, C["frames"], held, fps, K["piv"])
+	if cancelled():
+		return {}
+	progress = 0.7
 	var dense := VideoImport.to_scene(B, fitted, fps, 1, scene_name)
 	var sk := smart_cards(B, dense, fitted)
+	if cancelled():
+		return {}
+	progress = 0.95
 	var V: Scene = sk["scene"]
 	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps)), V.fps)
 	var located := locate_played(B, V, K["list"])

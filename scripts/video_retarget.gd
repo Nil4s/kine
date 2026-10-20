@@ -549,6 +549,10 @@ static func solve(frames: Array, B: Body, opts := {}) -> Array:
 	var pivs := []
 	var prev := {}
 	for i in n:
+		if VideoIQ.cancelled():   # R13: the import runs on a worker; Cancel / quit ends it at the next frame
+			B.fast = was
+			return []
+		VideoIQ.progress = 0.2 + 0.5 * float(i) / float(n)
 		var w := scale_frame(src[i]["w"], S)
 		var tw := w
 		var rt := orient_targets(B, w)
