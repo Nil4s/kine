@@ -227,6 +227,7 @@ var _sync := false
 var big_view := false
 var clean := false          # recording: no highlights, no name tag
 var ui_side: Array = []      # the panels Tab hides
+var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
 
@@ -2200,6 +2201,9 @@ func _ready() -> void:
 				Names.give(n)
 			else:
 				_name_later.call_deferred(n))
+	onboard = Onboarding.new()
+	onboard.m = self
+	add_child(onboard)
 	easy = EasyMode.new()   # first: lw() / rw() read easy.on while the world is built (scripts/easy_mode.gd)
 	easy.m = self
 	add_child(easy)
@@ -2291,9 +2295,12 @@ func _ready() -> void:
 	_pages_load(cf)
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
+	onboard.build(ui_root)
+	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
-	if (not testing and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
+	onboard.start_when_clear.call_deferred()
+	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
 		_tour_after_recover.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
 	var args := OS.get_cmdline_user_args()
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):

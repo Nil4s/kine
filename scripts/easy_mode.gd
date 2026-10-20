@@ -51,7 +51,7 @@ func start(cf: ConfigFile, testing: bool) -> void:
 	if not testing and not forced and not cf.has_section_key(CFG, "mode"):
 		_set_cfg("mode", "easy" if want else "expert")   # the first start writes it down: later tour writes cannot flip it
 	set_on(want, false)
-	if on and not testing and not args.has("--shot") and tour_due():
+	if on and not testing and not args.has("--shot") and not m.onboard.pending and tour_due():
 		_tour_when_clear.call_deferred()
 
 
