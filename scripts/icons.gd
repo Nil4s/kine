@@ -157,6 +157,7 @@ const DRAW := {
 		["seg", Vector2(4, 21), Vector2(20, 4), 2.2]],
 	"lock": [["box", Rect2(5, 11, 14, 10), 0], ["arc", Vector2(12, 11), 5, 2.2, 180, 360]],
 	"unlock": [["box", Rect2(5, 11, 14, 10), 0], ["arc", Vector2(12, 8), 5, 2.2, 180, 330], ["seg", Vector2(7, 8), Vector2(7, 11), 2.2]],
+	"contact": [["ring", Vector2(12, 16), 8, 1.6], ["disc", Vector2(12, 16), 4.5], ["seg", Vector2(9, 6), Vector2(9, 11), 2.2], ["seg", Vector2(15, 6), Vector2(15, 11), 2.2]],
 	"hints": [["ring", Vector2(12, 10), 7.5, 1.8], ["seg", Vector2(8, 16), Vector2(5, 22), 1.8], ["seg", Vector2(5, 22), Vector2(12.5, 17.5), 1.8],
 		["disc", Vector2(12, 7), 1.3], ["seg", Vector2(12, 10), Vector2(12, 13.5), 1.8]],
 	"export": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7.5, 8.5), Vector2(12, 3), 2.2], ["seg", Vector2(16.5, 8.5), Vector2(12, 3), 2.2],
