@@ -123,19 +123,27 @@ func _run() -> void:
 					det += 1
 		print("     detected contacts cover %d of %d stance frames (before the plants are trimmed and checked for reach)" % [det, stance])
 		var worst_drop := 0.0
+		var worst_shift := 0.0
+		var shifts := []
 		var before := {"_l": [], "_r": []}
 		for i in n:
 			V.plants = saved
 			V.apply(B, i / 30.0)
+			var pon: Vector3 = B.P["pelvis"]
 			var yon: float = (B.P["pelvis"] as Vector3).y
 			V.plants = []
 			V.apply(B, i / 30.0)
 			worst_drop = maxf(worst_drop, (B.P["pelvis"] as Vector3).y - yon)
+			var sh := Vector2(pon.x - (B.P["pelvis"] as Vector3).x, pon.z - (B.P["pelvis"] as Vector3).z).length()
+			shifts.append(sh)
+			worst_shift = maxf(worst_shift, sh)
 			for sd in ["_l", "_r"]:
 				before[sd].append(mid(B, sd))
 		V.plants = saved
 		var n_tt := V.plants.filter(func(q): return q.has("tt")).size()
 		print("     toe pivots: %d of %d plants" % [n_tt, V.plants.size()])
+		shifts.sort()
+		print("     horizontal shift cm: p50 %.1f p90 %.1f max %.1f" % [shifts[shifts.size() / 2] * 100.0, shifts[int(shifts.size() * 0.9)] * 100.0, worst_shift * 100.0])
 		print("     x%.2f: %d plants; cover %d of %d stance = %.0f %%; false %d of %d swing = %.1f %%; slide %.2f cm; sole height %.1f cm; hip drop %.1f cm" % [scale, V.plants.size(), cov, stance, 100.0 * cov / maxf(stance, 1), fals, swing, 100.0 * fals / maxf(swing, 1), worst_slide * 100.0, worst_air * 100.0, worst_drop * 100.0])
 		kf(float(cov) / maxf(stance, 1) >= 0.70, "1 x%.2f plants cover %.0f %% of the labelled stance (bar 70 %%)" % [scale, 100.0 * cov / maxf(stance, 1)])
 		ok(float(fals) / maxf(swing, 1) < 0.10, "2 x%.2f false plants %.1f %% of the swing frames (bar < 10 %%)" % [scale, 100.0 * fals / maxf(swing, 1)])

@@ -285,7 +285,9 @@ static func _arc(a: Vector3, b: Vector3) -> Quaternion:
 ## ankles are world points, the hips above them), so the stance legs share the drop: a foot on a step and one on the floor
 ## below it pull the pelvis down to where both reach. Scaled by the plant's weight, so the drop eases in with the plant.
 const LEG_SLACK := 0.995   # the stance leg may reach this fraction of its length (a knee never locks straight)
+const REACH_SLACK := 0.98  # R14d: a video plant keeps its leg this fraction of its length at most: the solver misses 3 mm on a leg stretched to 99.5 %
 const DROP_STEPS := 24     # rounds of the drop (each lowers the hips by the worst overstretch)
+const REACH_SHIFT := 0.05   # m: R14d, a video plant's hips slide sideways toward the held foot by this much at most BEFORE they drop (weight eases it over BLEND)
 const REACH_DROP := 0.02   # m: a video plant ("reach") lowers the hips by this much at most; past it the miss shows and reachable() ends the plant
 
 static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> void:
@@ -310,6 +312,36 @@ static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float
 			if t > float(plants[i]["t1"]) and not holding:
 				c = minf(c, float(plants[i].get("dend", c)))   # the release keeps the drop the plant ended on: no pop at t1
 			cap = minf(cap, c)
+	# R14d: a video plant the leg cannot reach (the locked root follows the tracker's foot, the pin holds the fitted one) first moves the
+	# hips HORIZONTALLY toward the worst pin, up to REACH_SHIFT, then the drop below takes what is left. wmax eases it in and out.
+	var h0: Vector3 = B.offset
+	var any_reach := false
+	for i in refs_:
+		if bool(refs_[i].get("reach", false)) and not bool(refs_[i].get("ground", false)):
+			any_reach = true
+	if any_reach:
+		for _k in DROP_STEPS:
+			# the pull of every leg that is over its reach, summed (two feet pulling opposite ways settle between them)
+			var pull := Vector3.ZERO
+			for i in refs_:
+				if not bool(refs_[i].get("reach", false)):
+					continue
+				var foot2 := String(plants[i]["foot"])
+				var ch2 := LimbIK.chain(B, foot2)
+				var reach2 := (B.p0[ch2[1]] as Vector3).distance_to(B.p0[ch2[0]] as Vector3) + (B.p0[foot2] as Vector3).distance_to(B.p0[ch2[1]] as Vector3)
+				var d3: Vector3 = (refs_[i]["P"] as Vector3) - (B.P[ch2[0]] as Vector3)
+				var o2 := d3.length() - reach2 * REACH_SLACK
+				if o2 <= 1e-6:
+					continue
+				var dh := Vector3(d3.x, 0.0, d3.z)
+				pull += dh.normalized() * o2 / clampf(dh.length() / maxf(d3.length(), 1e-6), 0.3, 1.0)
+			if pull.length() < 1e-5:
+				break
+			var room := REACH_SHIFT * wmax - Vector2(B.offset.x - h0.x, B.offset.z - h0.z).length()
+			if room <= 1e-6:
+				break
+			B.offset += pull.normalized() * minf(pull.length() * wmax * 0.5, room)
+			B.fk()
 	for _k in DROP_STEPS:
 		var over := 0.0
 		for i in refs_:
@@ -318,7 +350,7 @@ static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float
 			var foot := String(plants[i]["foot"])
 			var ch := LimbIK.chain(B, foot)
 			var reach := (B.p0[ch[1]] as Vector3).distance_to(B.p0[ch[0]] as Vector3) + (B.p0[foot] as Vector3).distance_to(B.p0[ch[1]] as Vector3)
-			over = maxf(over, (B.P[ch[0]] as Vector3).distance_to(refs_[i]["P"] as Vector3) - reach * LEG_SLACK)
+			over = maxf(over, (B.P[ch[0]] as Vector3).distance_to(refs_[i]["P"] as Vector3) - reach * (LEG_SLACK if bool(refs_[i].get("ground", false)) else REACH_SLACK))
 		if over <= 1e-6:
 			break
 		B.offset.y = maxf(B.offset.y - over * wmax, y0 - cap * wmax)
