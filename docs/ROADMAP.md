@@ -293,3 +293,12 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   offers a one-click root slide of the defender (feet planted, no skating) to fix each span.
 
   Done: combo3 strikes 0.5 m too far flagged, slide 46.9 cm puts the tip within 0.3 cm, plant slide 0.71 cm; jammed fixed by sliding back; correct spacing changes nothing; one undo. Open: the full combo3 has no single spacing where all 3 strikes land (third strike steps another way).
+- [ ] I19. Fight rhythm: a tempo map of the exchange (who attacks, who defends, beats between), flags monotony
+  (same interval three times, same side four times) and dead air, and suggests a pause, a feint or a change of side
+  at each flag, one click each. Choreography help read from the clip itself.
+- [ ] I20. Feint maker: turn a strike card into a feint + real strike (the feint sells the same line, stops at 40-60%
+  of the reach, the real one comes from the other side), timed so the defender's reaction (I3's counters) bites on
+  the feint; physically checked by the timing coach and Check.
+- [ ] I21. Sell the hit: for the shot camera, check each strike as the camera sees it. A miss that should read as a
+  hit must overlap the target on screen (the stunt "cheat angle"); a real contact gets a SAFETY flag. Suggest the
+  camera move or strike offset that sells it, one click each.
