@@ -58,6 +58,7 @@ var pc: Array = []        # PRECOG CHECK (I31; precog_ui.gd): [{t (the reaction'
 var fa: Array = []        # FATIGUE (I34; exertion_ui.gd): [{who, t0, t1, f 0..1}] a green-to-red strip per fighter along the bottom of the track
 var fa_n := 0
 var ml: Array = []        # MOMENTUM LEDGER (I36; momentum_ui.gd): [{t (the arrival of the card), flag, kind: linear / spin}] a STOP badge each flagged transition
+var spn: Array = []        # AIRBORNE SPIN (I43; spin_check_ui.gd): [{t0, t1, ys, ps (COM height actual / free-fall parabola, m), flag, txt}] a box per flight with its arc
 var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
 var rd: Array = []        # REACTION DIRECTION (I33; reaction_dir_ui.gd): [{"t0", "t1", "cls": ok / bad, "txt"}] a badge per hit
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
@@ -921,6 +922,35 @@ func _draw_ml(font: Font, y1: float) -> void:
 		draw_line(Vector2(x_of(float(b["t"])), y1 - 10.0), Vector2(x_of(float(b["t"])), y1), Tok.c("fail"), 1.5)
 
 
+## AIRBORNE SPIN (I43): over each flight the COM's height as drawn (solid) and the free-fall parabola through the same ends (dotted); red box = flagged
+func _draw_sp(font: Font, y0: float, h: float) -> void:
+	for b in spn:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := x_of(float(b["t1"]))
+		var col: Color = Tok.c("fail") if b["flag"] else Tok.c("fv_ok")
+		var r := Rect2(x0, y0 + 2.0, maxf(x1 - x0, 2.0), h - 4.0)
+		draw_rect(r, Color(col, 0.18))
+		draw_rect(r, col, false, 1.5)
+		var ys: Array = b["ys"]
+		var ps: Array = b["ps"]
+		var lo := INF
+		var hi := -INF
+		for v in ys + ps:
+			lo = minf(lo, float(v))
+			hi = maxf(hi, float(v))
+		hi = maxf(hi, lo + 0.1)
+		var pa := PackedVector2Array()
+		var pb := PackedVector2Array()
+		for k in ys.size():
+			var x := lerpf(r.position.x, r.end.x, float(k) / maxf(ys.size() - 1.0, 1.0))
+			pa.append(Vector2(x, r.end.y - 14.0 - (r.size.y - 28.0) * (float(ys[k]) - lo) / (hi - lo)))
+			pb.append(Vector2(x, r.end.y - 14.0 - (r.size.y - 28.0) * (float(ps[k]) - lo) / (hi - lo)))
+		if pa.size() >= 2:
+			draw_polyline(pb, Color(Tok.c("ink"), 0.7), 1.2)
+			draw_polyline(pa, col, 2.2)
+		draw_string(font, Vector2(r.position.x + 3.0, r.position.y + 10.0), ("IMPOSSIBLE  " if b["flag"] else "FLIGHT  ") + String(b["txt"]), HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - 4.0, 8.0), 10, Tok.c("text"))
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -1006,6 +1036,7 @@ func _draw() -> void:
 	_draw_sc(y0 + h)
 	_draw_fa(font, y0 + h)
 	_draw_ml(font, y0 + h)
+	_draw_sp(font, y0, h)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)

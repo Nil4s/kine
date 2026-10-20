@@ -155,6 +155,7 @@ const DRAW := {
 	"rhythm": [["seg", Vector2(3, 18), Vector2(3, 10), 2.0], ["seg", Vector2(8, 18), Vector2(8, 5), 2.0], ["seg", Vector2(14, 18), Vector2(14, 12), 2.0], ["seg", Vector2(21, 18), Vector2(21, 7), 2.0]],
 	"sound_cues": [["seg", Vector2(3, 10), Vector2(3, 14), 2.0], ["seg", Vector2(8, 6), Vector2(8, 18), 2.0], ["seg", Vector2(13, 3), Vector2(13, 21), 2.0], ["seg", Vector2(18, 7), Vector2(18, 17), 2.0], ["disc", Vector2(22, 12), 1.5]],
 	"momentum": [["disc", Vector2(5, 12), 2.8], ["seg", Vector2(9, 12), Vector2(17, 12), 2.0], ["seg", Vector2(14, 8), Vector2(17, 12), 2.0], ["seg", Vector2(14, 16), Vector2(17, 12), 2.0], ["seg", Vector2(21, 4), Vector2(21, 20), 2.4]],
+	"spin": [["ring", Vector2(12, 12), 4, 2.0], ["seg", Vector2(3, 20), Vector2(9, 8), 1.6], ["seg", Vector2(9, 8), Vector2(15, 8), 1.6], ["seg", Vector2(15, 8), Vector2(21, 20), 1.6]],
 	"fatigue": [["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(5, 20), Vector2(5, 15), 3.0], ["seg", Vector2(10, 20), Vector2(10, 11), 3.0], ["seg", Vector2(15, 20), Vector2(15, 7), 3.0], ["seg", Vector2(20, 20), Vector2(20, 3), 3.0]],
 	"precog": [["ring", Vector2(12, 12), 8, 2.0], ["seg", Vector2(12, 12), Vector2(12, 6), 2.0], ["seg", Vector2(12, 12), Vector2(16, 14), 2.0]],
 	"keeper": [["seg", Vector2(3, 12), Vector2(21, 12), 2.0], ["seg", Vector2(3, 7), Vector2(3, 17), 2.0], ["seg", Vector2(21, 7), Vector2(21, 17), 2.0], ["disc", Vector2(12, 12), 2.6]],
