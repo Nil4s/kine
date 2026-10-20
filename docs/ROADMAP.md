@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 6 / 25.
+Merged in round 2: 7 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
 - [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
@@ -206,7 +206,7 @@ Merged in round 2: 6 / 25.
 - [ ] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [ ] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
 - [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
-- [ ] R18. Drag to reorder cards in the strip (thumbnail follows the mouse, one undo step).
+- [x] R18. Drag to reorder cards in the strip (thumbnail follows the mouse, one undo step).
 - [ ] R19. Multi-select cards in the strip, batch retime / delete / copy.
 - [ ] R20. Timed version snapshots (every N minutes while edited) with the scene diff report.
 - [ ] R21. Pose library search by words ("guard", "crouch", "low kick") over names and auto tags.
