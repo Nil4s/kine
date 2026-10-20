@@ -88,7 +88,7 @@ func drag_case(label: String, i: int, target_x: float, want_j: int) -> void:
 	move(i, Vector2(target_x, y))
 	var g: Control = m._cd_ghost
 	var ln: Control = m._cd_line
-	ok(g != null and ln != null and g.get_global_rect().get_center().distance_to(Vector2(target_x, y)) <= 2.0, "%s: the thumbnail follows the mouse (centre %.1f px off)" % [label, g.get_global_rect().get_center().distance_to(Vector2(target_x, y)) if g != null else -1.0])
+	ok(g != null and ln != null and g.get_global_rect().get_center().distance_to(Vector2(target_x, y) + m.CARD_DRAG_LIFT) <= 2.0, "%s: the thumbnail follows the mouse (centre %.1f px off its lifted spot)" % [label, g.get_global_rect().get_center().distance_to(Vector2(target_x, y) + m.CARD_DRAG_LIFT) if g != null else -1.0])
 	await idle(2)
 	var slot: int = m._cd_slot
 	var lx := ln.global_position.x + 1.5

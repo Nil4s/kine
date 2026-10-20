@@ -12885,6 +12885,7 @@ func _tween_add() -> void:
 ## slot it would take, release drops it (one undo step; the card keeps its own move and hold), Esc cancels. Under 6 px
 ## it stays a click (pick) and a right-click still opens the menu.
 const CARD_DRAG_PX := 6.0
+const CARD_DRAG_LIFT := Vector2(0, -34)
 var _cd_i := -1   # the card pressed (-1: none)
 var _cd_from := Vector2.ZERO
 var _cd_on := false
@@ -12967,7 +12968,7 @@ func _card_drag_input(ev: InputEvent, i: int, nb: Button) -> bool:
 func _card_drag_move(at: Vector2) -> void:
 	if _cd_ghost == null:
 		return
-	_cd_ghost.global_position = at - _cd_ghost.size * 0.5
+	_cd_ghost.global_position = at - _cd_ghost.size * 0.5 + CARD_DRAG_LIFT   # lifted so it does not hide the slot under the mouse
 	var slot := 0
 	var line_x := 0.0
 	var top := 0.0
