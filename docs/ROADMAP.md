@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 11 / 25.
+Merged in round 2: 12 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
 - [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
@@ -199,7 +199,7 @@ Merged in round 2: 11 / 25.
 - [ ] R8. Drag a pose from the library onto the card strip to insert it there.
 - [ ] R9. Local HTTP API: the command registry verbs over JSON (describe, run, check, shot), localhost only.
 - [x] R10. Blind-agent maths: "what would this angle do" (reach, collisions, balance) as a text answer over CLI/MCP.
-- [ ] R11. BODY page: body mass changes girth (per-segment radial scale of the skin), not just the readout.
+- [x] R11. BODY page: body mass changes girth (per-segment radial scale of the skin), not just the readout.
 - [x] R12. BODY page: save / load named characters (user://characters), the man/woman blend saved in the scene schema.
 - [x] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
 - [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); the rest needs a heel-pivot hold for toes-up heel strikes.
