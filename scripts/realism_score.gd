@@ -9,6 +9,8 @@
 ##   PHYSICS  the physics judge's red spans (MakePhysical.spans) IF a result is cached; otherwise "not judged" and no penalty.
 ## Each judge's penalty = WEIGHT x (share of the clip it flags), share = seconds flagged (overlaps counted once) / clip seconds.
 ##   score = max(0, 100 - sum of the penalties), rounded to a whole number for display.
+## I45: with 14 judges a bad clip can lose more than 100 points in all, and the displayed score stops at 0. "raw" = 100 - total WITHOUT that floor
+## (it can be negative): gains of a fix are read on raw, so a fix on a clip that scores 0 still shows what it removes.
 ## MONOTONE: a penalty is a non-decreasing function of the flagged seconds, and a fix only removes or shrinks flagged items, so a fix
 ## that removes a flag never lowers the score. WEIGHTS are ours (the points lost if the whole clip were flagged by that judge):
 ## a red joint-limit break or a physically impossible span is worth the most because no human can do it; a yellow look, a timing
@@ -25,10 +27,26 @@ const W_PHYS := 100.0
 const WINDOW := 0.5
 const PUSH_SPAN := 0.6
 const JUDGES := ["LIMITS red", "LIMITS yellow", "TIMING", "PUSH", "FORCE", "PHYSICS"]
+## I45: the newer physics judges (scripts/judge_suite.gd). Each has a 0..1 sub-score from its own verdicts (1 - share of the things it looked
+## at that it flagged); penalty = WEIGHT x (1 - sub); a judge with nothing to judge ABSTAINS (penalty 0, "abstains" in the panel).
+## WEIGHTS are ours, the points lost if every item that judge looked at were flagged: physically impossible things weigh most (a flight that
+## breaks conservation of momentum, 50), then a body hurt or a human limit broken (breakfall, reaction before it could be seen, a reaction
+## in the wrong direction, a stop no body can brace: 40 each), a swing a human arm cannot give or a missing recovery step (30), tiredness that
+## does not show (20: it reads as a style choice, not an impossibility).
+const W_WEAPON := 30.0
+const W_REACTION := 40.0
+const W_FATIGUE := 20.0
+const W_MOMENTUM := 40.0
+const W_RECOVERY := 30.0
+const W_SPIN := 50.0
+const W_BREAKFALL := 40.0
+const W_PRECOG := 40.0
+const NEW := ["WEAPON", "REACTION", "FATIGUE", "MOMENTUM", "RECOVERY", "SPIN", "BREAKFALL", "PRECOG"]
 
 
 static func weight_of(judge: String) -> float:
-	return {"LIMITS red": W_RED, "LIMITS yellow": W_YELLOW, "TIMING": W_TIMING, "PUSH": W_PUSH, "FORCE": W_FORCE, "PHYSICS": W_PHYS}[judge]
+	return {"LIMITS red": W_RED, "LIMITS yellow": W_YELLOW, "TIMING": W_TIMING, "PUSH": W_PUSH, "FORCE": W_FORCE, "PHYSICS": W_PHYS, "WEAPON": W_WEAPON,
+		"REACTION": W_REACTION, "FATIGUE": W_FATIGUE, "MOMENTUM": W_MOMENTUM, "RECOVERY": W_RECOVERY, "SPIN": W_SPIN, "BREAKFALL": W_BREAKFALL, "PRECOG": W_PRECOG}[judge]
 
 
 ## seconds covered by a set of [t0, t1] intervals (overlaps once)
@@ -100,9 +118,27 @@ static func compute(S: Scene, inp: Dictionary) -> Dictionary:
 		var ph: Array = inp["phys"]
 		for k in ph.size():
 			items.append({"judge": "PHYSICS", "t0": float(ph[k]["t0"]), "t1": minf(L, float(ph[k]["t1"])), "text": String(ph[k]["reason"]), "fix": {"kind": "phys", "i": k}})
+	var jr: Dictionary = inp.get("judges", {})
+	var abstain := {}
+	var new_n := {}
+	for jd in NEW:
+		var r = jr.get(jd)
+		if r == null or bool(r["abstain"]):
+			abstain[jd] = "nothing to judge" if r == null else String(r["why"])
+			continue
+		var its: Array = r["items"]
+		new_n[jd] = its.size()
+		for k in its.size():
+			var q: Dictionary = its[k]
+			items.append({"judge": jd, "t0": float(q["t0"]), "t1": minf(L, float(q["t1"])), "text": String(q["text"]), "fix": {"kind": "judge", "judge": jd, "i": k}, "ctx": q["ctx"]})
 	var pen := {}
 	var share := {}
 	var total := 0.0
+	for jd in NEW:
+		var r = jr.get(jd)
+		share[jd] = 0.0 if abstain.has(jd) else clampf(1.0 - float(r["sub"]), 0.0, 1.0)
+		pen[jd] = weight_of(jd) * float(share[jd])
+		total += float(pen[jd])
 	for jd in JUDGES:
 		var iv := []
 		for it in items:
@@ -114,6 +150,8 @@ static func compute(S: Scene, inp: Dictionary) -> Dictionary:
 	for it in items:
 		it["share"] = (float(it["t1"]) - float(it["t0"])) / L
 		it["pen"] = weight_of(it["judge"]) * float(it["share"])
+		if new_n.has(it["judge"]):   # a newer judge's penalty is split over its flagged items
+			it["pen"] = float(pen[it["judge"]]) / float(maxi(1, int(new_n[it["judge"]])))
 	var sorted := items.duplicate()
 	sorted.sort_custom(func(x, y): return float(x["pen"]) > float(y["pen"]))
-	return {"score": maxf(0.0, 100.0 - total), "pen": pen, "share": share, "items": items, "reasons": sorted.slice(0, 3), "judged": judged, "length": L}
+	return {"score": maxf(0.0, 100.0 - total), "raw": 100.0 - total, "pen": pen, "share": share, "items": items, "reasons": sorted.slice(0, 3), "judged": judged, "length": L, "abstain": abstain}

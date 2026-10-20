@@ -96,7 +96,7 @@ static func _sample(S: Scene, B: Body) -> Dictionary:
 	var gown := []   # per piece: the owner bone's G per frame
 	for i in n:
 		var t := minf(float(i) / FPS, S.length())
-		S.apply_true(B, t)
+		FrameMemo.pose(S, B, t)   # I45: shares the pose with the other judges while the realism score runs (plain apply_true otherwise)
 		var bal := Balance.read(B)
 		var pcs := HitReaction.pieces(B)
 		out["t"].append(t)
