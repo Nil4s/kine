@@ -142,6 +142,7 @@ const DRAW := {
 	"realism": [["arc", Vector2(12, 15), 8, 2.0, 180, 360], ["seg", Vector2(12, 15), Vector2(17, 8), 2.2], ["disc", Vector2(12, 15), 1.8], ["seg", Vector2(4, 20), Vector2(20, 20), 1.8]],
 	"timing": [["ring", Vector2(12, 13), 8, 1.8], ["seg", Vector2(12, 13), Vector2(12, 8), 2.0], ["seg", Vector2(12, 13), Vector2(16, 15), 2.0], ["seg", Vector2(9, 3), Vector2(15, 3), 2.0]],
 	"fightbeat": [["seg", Vector2(4, 20), Vector2(4, 5), 2.0], ["seg", Vector2(12, 20), Vector2(12, 5), 2.0], ["seg", Vector2(20, 20), Vector2(20, 5), 2.0], ["ring", Vector2(12, 12), 4, 2.4]],
+	"choreo_song": [["seg", Vector2(3, 20), Vector2(3, 14), 2.0], ["seg", Vector2(8, 20), Vector2(8, 6), 2.0], ["seg", Vector2(13, 20), Vector2(13, 11), 2.0], ["seg", Vector2(18, 20), Vector2(18, 3), 2.0], ["ring", Vector2(21, 9), 2, 2.0]],
 	"mystyle": [["seg", Vector2(4, 20), Vector2(4, 14), 2.0], ["seg", Vector2(9, 20), Vector2(9, 8), 2.0], ["seg", Vector2(14, 20), Vector2(14, 11), 2.0], ["seg", Vector2(19, 20), Vector2(19, 4), 2.0]],
 	"usestyle": [["seg", Vector2(3, 8), Vector2(21, 8), 1.6], ["seg", Vector2(3, 16), Vector2(21, 16), 1.6], ["disc", Vector2(15, 8), 2.6], ["disc", Vector2(9, 16), 2.6], ["seg", Vector2(12, 3), Vector2(12, 6), 1.6]],
 	"rhythm": [["seg", Vector2(3, 18), Vector2(3, 10), 2.0], ["seg", Vector2(8, 18), Vector2(8, 5), 2.0], ["seg", Vector2(14, 18), Vector2(14, 12), 2.0], ["seg", Vector2(21, 18), Vector2(21, 7), 2.0]],
