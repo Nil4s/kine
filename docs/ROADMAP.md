@@ -358,12 +358,16 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [x] I32. My camera: learn Nick's shot habits from his own shot cameras (lens, height, distance in body heights,
   angle to the line of action, cut timing relative to contacts) and frame new shots his way; say which habit it used.
   Merged: shot-habit fingerprint (lens, height, distance, angle to the line, thirds, cut offset), Frame it my way respects the 180-degree line; i32 PASS. Nick's scenes have no shots yet, so it falls back to Auto camera until he makes some.
-- [ ] I33. Reaction direction: a struck body must move away along the blow's impulse (and turn about the right
+- [x] I33. Reaction direction: a struck body must move away along the blow's impulse (and turn about the right
   axis given where it was hit); flag reactions that go the wrong way or start before contact, with a fix from
   the hit physics.
-- [ ] I34. Fatigue: track each fighter's mechanical work over the fight (joint power from the force view, summed);
+  Merged (i33 PASS): per-hit direction/rotation/onset/magnitude vs the impulse; pre-flinch retimed, wrong reactions regenerated. Open: on combo3's 39 m/s head hit the fix repairs direction only (rotation and magnitude stay flagged: I2's reaction model uses another torque origin).
+- [x] I34. Fatigue: track each fighter's mechanical work over the fight (joint power from the force view, summed);
   as it builds, real fighters slow, drop their guard and breathe; flag a fighter still at full speed late in a long
   exchange and offer a "tire him" pass (slower moves, lower guard, longer recovers, scaled to work done).
-- [ ] I35. Sound cues from physics: place whoosh markers at weapon/limb speed peaks (pitch and length from tip speed),
+  Merged (i34 PASS): work-budget fatigue (CP/W' heuristic), STILL FRESH flag, Tire him (slower strikes, longer recovers, lower guard). Screenshot camera sits inside fighter 2: frame the shot next pass.
+- [x] I35. Sound cues from physics: place whoosh markers at weapon/limb speed peaks (pitch and length from tip speed),
   hit markers at contacts (weight from the impulse J), footstep markers at plants; preview them as synthesized
   clicks/noise and export a cue sheet (time, kind, strength) with the clip.
+
+  Merged (i35 PASS): whoosh / hit / step cues from tip speed, contact J and plants, SFX lane under the strip, Keep cues -> sfx markers, CSV/JSON export, synth preview.
