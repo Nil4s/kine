@@ -462,6 +462,7 @@ var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint dr
 var _sd := {}               # the current drag's smart state ({} = none)
 var sj := SuggestionJournal.new()   # LEARN FROM MY EDITS (ROADMAP I26): scripts/suggestion_journal.gd; the panel is sj_ui
 var sj_ui: SuggestionJournalUI
+var nb_ui: NextBeatUI       # NEXT BEAT, TWO FIGHTERS (ROADMAP I44): scripts/next_beat.gd + next_beat_ui.gd; View > Next poses shows it while two fighters stand in the scene
 var np := NextPose.new()    # NEXT-POSE SUGGESTIONS (ROADMAP R27): scripts/next_pose.gd; the glue is at the end of this file
 var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail are drag handles: scripts/trail_edit.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
@@ -2529,6 +2530,8 @@ func _ready() -> void:
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	if nb_ui != null:
+		nb_ui.finish()   # I44: the fatigue worker ends before the scenes it reads go
 	for sc in _bake_scenes():
 		if (sc as Scene).baker != null:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
@@ -4176,6 +4179,8 @@ func _refresh() -> void:
 	ov.spacing(playhead)
 	if cm_ui != null and cm_ui.pv != null and fp_prev.is_empty():
 		ov.fight_ghost(cm_ui.pv, cm_ui.pv_t, Transform3D.IDENTITY)   # I23: the combo, previewed, on the hero
+	elif nb_ui != null and nb_ui.pv != null and fp_prev.is_empty():
+		ov.fight_ghost(nb_ui.pv, nb_ui.pv_t, nb_ui.pv_xf)   # I44: the picked next beat, on the fighter it is for
 	else:
 		ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
 	ov.take_ghost(reh.get("take", null), Rehearse.take_time(reh["R"]["map"], playhead) if not reh.is_empty() else 0.0)   # I14: you, orange, at your own time for this playhead
@@ -19612,6 +19617,19 @@ func _sg_same() -> bool:
 
 
 func _sg_tick() -> void:
+	if nb_ui == null:
+		nb_ui = NextBeatUI.new(self)
+	if nb_ui.wants():   # I44: two fighters: the beats of the exchange take the place of the single fighter's next poses
+		if not sg_list.is_empty() or _sg_strip != null:
+			sg_list = []
+			sg_sel = -1
+			_sg_sig = []
+			ov.sugg_hide()
+			_sg_strip_sync()
+		nb_ui.tick()
+		return
+	if not nb_ui.list.is_empty() or nb_ui.pv != null:
+		nb_ui.clear()
 	if _sg_hidden and sel_card >= 0 and sel_card < S.cards.size() and not _sg_same():
 		_sg_hidden = false   # another card (or its pose changed): the ghosts come back
 	if not _sg_want():
@@ -19723,6 +19741,8 @@ func _sg_visible() -> bool:
 
 
 func _sg_key(k: InputEventKey) -> bool:
+	if nb_ui != null and nb_ui.key(k):   # I44: Tab / Enter / Esc on the next beats of two fighters
+		return true
 	if not _sg_visible() or k.echo:
 		return false
 	var plain := not k.ctrl_pressed and not k.alt_pressed and not k.shift_pressed
@@ -19926,6 +19946,8 @@ func _sg_motion_start() -> void:
 
 
 func _sg_poll() -> void:
+	if nb_ui != null and nb_ui.fat_pending():
+		nb_ui.poll()   # I44: the fatigue reading finished on its worker: the beats are made again with it
 	if _sg_task >= 0 and WorkerThreadPool.is_task_completed(_sg_task):
 		WorkerThreadPool.wait_for_task_completion(_sg_task)
 		_sg_task = -2   # done: never built twice
