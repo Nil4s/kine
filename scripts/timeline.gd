@@ -57,6 +57,7 @@ var sc: Array = []        # SOUND CUES (I35; sound_cues_ui.gd): [{t, kind (whoos
 var pc: Array = []        # PRECOG CHECK (I31; precog_ui.gd): [{t (the reaction's start), status: precog / late / both / ok}] a badge each
 var fa: Array = []        # FATIGUE (I34; exertion_ui.gd): [{who, t0, t1, f 0..1}] a green-to-red strip per fighter along the bottom of the track
 var fa_n := 0
+var ml: Array = []        # MOMENTUM LEDGER (I36; momentum_ui.gd): [{t (the arrival of the card), flag, kind: linear / spin}] a STOP badge each flagged transition
 var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
 var rd: Array = []        # REACTION DIRECTION (I33; reaction_dir_ui.gd): [{"t0", "t1", "cls": ok / bad, "txt"}] a badge per hit
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
@@ -907,6 +908,19 @@ func _draw_fa(font: Font, y1: float) -> void:
 		draw_string(font, Vector2(2.0, y1 - hh * (fa_n - w) + 3.0), "F%d" % (w + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Tok.c("text"))
 
 
+## MOMENTUM LEDGER (I36): a red STOP badge at every card arrival whose momentum drops faster than a body can brace (amber = a spin), near the bottom of the track
+func _draw_ml(font: Font, y1: float) -> void:
+	for b in ml:
+		if not bool(b["flag"]):
+			continue
+		var txt := "STOP" if String(b["kind"]) == "linear" else "SPIN"
+		var x := x_of(float(b["t"])) - 14.0
+		var r := Rect2(x, y1 - 21.0, 6.2 * txt.length() + 6.0, 11.0)
+		draw_rect(r, Color(Tok.c("fail") if String(b["kind"]) == "linear" else Tok.c("warn"), 0.95))
+		draw_string(font, r.position + Vector2(3.0, 8.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
+		draw_line(Vector2(x_of(float(b["t"])), y1 - 10.0), Vector2(x_of(float(b["t"])), y1), Tok.c("fail"), 1.5)
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -991,6 +1005,7 @@ func _draw() -> void:
 	_draw_pc(font, y0)
 	_draw_sc(y0 + h)
 	_draw_fa(font, y0 + h)
+	_draw_ml(font, y0 + h)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)

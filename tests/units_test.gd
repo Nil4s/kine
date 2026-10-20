@@ -64,6 +64,7 @@ const COUNT_NOUNS := {  # a number before one of these words is a count (no unit
 	"cue": "how many cues", "cues": "how many cues", "variant": "how many variants", "variants": "how many variants",
 	"action": "how many actions", "actions": "how many actions", "shot": "how many shots", "shots": "how many shots",
 	"found": "how many were found", "dropped": "how many were dropped", "slides": "how many slides of a strike",
+	"transitions": "how many card transitions", "transition": "how many card transitions", "stop": "how many stops flagged", "stops": "how many stops flagged",
 	"recovers": "how many recover cards", "guard": "how many guard cards", "guards": "how many guards",
 }
 ## a 1-based index of a thing ("card 3", "fighter 2 of 2", "marker 4"): the number names a position, not a quantity
@@ -214,6 +215,7 @@ const ALLOW := [
 	{"file": "choreograph.gd", "lit": "follow-through %d", "reason": "a card name: the strike number is an index"},
 	{"file": "combo_ui.gd", "lit": "a combo needs 2 or more cards", "reason": "a count of cards (the least a combo has)"},
 	{"file": "exertion.gd", "lit": "(needs %d)", "reason": "a count of strikes (the least a verdict needs)"},
+	{"file": "momentum.gd", "lit": "x the torque the feet can give", "reason": "a dimensionless ratio (how many times the torque the floor can give)"},
 	{"file": "exertion.gd", "lit": "up to x%.2f", "reason": "a dimensionless multiplier of the strike time (x2 = twice as slow)"},
 	{"file": "exertion_ui.gd", "lit": "fatigue at the end", "reason": "fatigue 0..1 at the end of the clip and its peak: dimensionless"},
 	{"file": "motion_match.gd", "lit": "%s%s@%d", "reason": "a hidden cache key (path and file time stamp), not shown"},
