@@ -167,6 +167,9 @@ const DRAW := {
 	"export": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7.5, 8.5), Vector2(12, 3), 2.2], ["seg", Vector2(16.5, 8.5), Vector2(12, 3), 2.2],
 		["seg", Vector2(3, 13), Vector2(3, 21), 2.2], ["seg", Vector2(21, 13), Vector2(21, 21), 2.2], ["seg", Vector2(3, 21), Vector2(21, 21), 2.2]],
 	# SHARE BY QR (ROADMAP R26): the three corner squares of a QR code; open = the same with an arrow coming in
+	# HIT REACTION PICKER (ROADMAP R16): a fighter (head, body) knocked back from a burst on the left
+	"react": [["seg", Vector2(3, 8), Vector2(8, 11), 2], ["seg", Vector2(3, 14), Vector2(8, 13), 2], ["seg", Vector2(4, 19), Vector2(8, 15), 2],
+		["disc", Vector2(17, 5.5), 2.6], ["seg", Vector2(15, 9), Vector2(11, 14), 2.2], ["seg", Vector2(11, 14), Vector2(10, 21), 2.2], ["seg", Vector2(15, 9), Vector2(21, 12), 2], ["seg", Vector2(11, 14), Vector2(17, 20), 2.2]],
 	"qr": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],
 		["box", Rect2(16.5, 5.5, 2, 2), 0], ["box", Rect2(5.5, 16.5, 2, 2), 0], ["box", Rect2(14, 14, 3, 3), 0], ["box", Rect2(18, 18, 3, 3), 0]],
 	"qr_open": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],

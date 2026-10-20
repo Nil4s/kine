@@ -178,7 +178,7 @@ const RIBBON_GROUPS := {
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
-		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
+		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -3154,6 +3154,91 @@ func _hit_react() -> void:
 		actors_rt[vk]["name"], actors_rt[sk]["name"], "weapon" if Body.is_wep(String(h["part"])) else String(h["part"]),
 		Units.time(float(r["t0"]), S.fps), h["zone"], J.length(), float(r["m_eff"]), float(r["v_rel"]), String(h["on"]), rad_to_deg(float(r["peak"])),
 		float(r["shove"]), Units.time(float(r["t1"]) - float(r["t0"]), S.fps)])
+
+
+## HIT REACTION PICKER (ROADMAP R16; scripts/reaction_picker.gd): a panel on the STAGE page listing the reaction clips in
+## scenes/reactions, scenes/_wip/reactions and the physics import's output, each an animated 3-frame thumbnail with where it
+## hits, how hard and whether the fighter fell. Dragging one onto the struck fighter puts its cards on THAT fighter at the
+## moment the other fighter's strike lands (the first row of the fighters' report on it). One undo step; the attacker is not touched
+var ui_reactions: ReactionPicker = null
+
+
+func _reactions_toggle() -> void:
+	if ui_reactions != null and ui_reactions.visible:
+		ui_reactions.visible = false
+		_say("reaction picker closed")
+		return
+	if ReactionPicker.scan().is_empty():
+		ReactionPicker.make_samples()   # three samples in scenes/_wip/reactions (new files), so the panel is never empty
+	if ui_reactions == null:
+		ui_reactions = ReactionPicker.new()
+		ui_root.add_child(ui_reactions)
+		ui_reactions.setup(self)
+	else:
+		ui_reactions.rebuild()
+	ui_reactions.visible = true
+	var vp := get_viewport().get_visible_rect().size
+	ui_reactions.position = Vector2(maxf(12.0, vp.x - 358.0), 318.0)   # under the part panel on the right, over the view's edge
+	_say("reaction picker: drag a clip onto the fighter who gets hit" if actors_rt.size() >= 2 else "reaction picker: it needs two fighters to drop on: 'Actor: add a second fighter' first")
+
+
+func _reactions_samples() -> void:
+	var made := ReactionPicker.make_samples()
+	if ui_reactions != null:
+		ui_reactions.rebuild()
+	_say("%d sample reaction clips are in scenes/_wip/reactions (open 'Reactions' to drag one onto the struck fighter)" % made.size())
+
+
+## a clip dropped on the view at mouse position mp: the fighter under it (its skin, else the nearest body centre on screen)
+func _reaction_drop(path: String, mp: Vector2) -> bool:
+	_actors_sync()
+	if actors_rt.size() < 2:
+		_say("a reaction needs two fighters to land on: 'Actor: add a second fighter' first, then drag it onto the one who is hit")
+		return false
+	var k := -1
+	var pa := _pick_actor(mp)
+	if int(pa[0]) >= 0:
+		k = int(pa[0])
+	else:
+		var best := 170.0
+		for i in actors_rt.size():
+			var W: Vector3 = _stage_xf() * (actors_rt[i]["xf"] as Transform3D) * ((actors_rt[i]["B"] as Body).P["pelvis"] as Vector3)
+			if cam.is_position_behind(W):
+				continue
+			var d := cam.unproject_position(W).distance_to(mp)
+			if d < best:
+				best = d
+				k = i
+	if k < 0:
+		_say("drop the reaction ON a fighter in the view (the one who is hit), not on empty floor")
+		return false
+	return _reaction_apply(path, k)
+
+
+## the clip's cards onto fighter k at the contact time. One undo step (the struck fighter's own, as 'Hits: make the struck fighter react')
+func _reaction_apply(path: String, k: int) -> bool:
+	_actors_sync()
+	if actors_rt.size() < 2 or k < 0 or k >= actors_rt.size():
+		_say("a reaction needs two fighters to land on: 'Actor: add a second fighter' first")
+		return false
+	if not FileAccess.file_exists(path):
+		_say("that reaction file is gone: open the picker again to list what is there")
+		return false
+	var clip := ReactionPicker.load_clip(path)
+	var c := ReactionPicker.contact(self, k)
+	var t: float = snappedf(float(c["t"]), 1.0 / float(maxi(1, (actors_rt[k]["S"] as Scene).fps)))
+	_actor_go(k)
+	_push_undo()
+	var r := ReactionPicker.insert(S, clip, t)
+	playhead = t
+	_ps().apply(B, playhead)
+	_rebuild_cards()
+	ov.mark_dirty()
+	wt.mark_dirty()
+	_refresh()
+	_say("%s: %d reaction cards from %s start at %s%s; Ctrl+Z takes them off" % [actors_rt[k]["name"] if k > 0 else "the hero", int(r["n"]), path.get_file().get_basename(),
+		Units.time(t, S.fps), " (the contact)" if c["found"] else " (no contact in the report: the playhead)"])
+	return true
 
 
 ## the weapon's radii + materials for its kind
@@ -8767,7 +8852,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Reactions": "react", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -9176,6 +9261,7 @@ func _ui() -> void:
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
+	ui_ribbon["SET"].add_child(_button("Reactions", _reactions_toggle, "the hit reaction picker: thumbnails of the reaction clips; drag one onto the fighter who is hit and its cards start at the contact (ROADMAP R16)"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
 	var ap := MenuButton.new()
 	ap.text = "Add prop"
@@ -11067,6 +11153,8 @@ func _page_set(p: String, save := true) -> void:
 	for k in fold:
 		fold[k] = _page_want(p, k)
 	_ribbon_row(PAGE_ROW[p])
+	if ui_reactions != null and p != "STAGE":
+		ui_reactions.visible = false   # R16: the picker belongs to the STAGE page
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
@@ -11556,6 +11644,8 @@ func _commands() -> Array:
 	add.call("Root path: straighten", "", _rp_straighten, "root motion path straighten line straight chord bend curve", true, "the cards between the first and the last root move onto the straight line between those two roots, keeping their places along it; the ends and the headings stay; one undo step (ROADMAP 91)")
 	add.call("Root path: scale length...", "", _rp_scale_dialog, "root motion path scale length longer shorter stretch factor percent travel distance", true, "every card's root moves about the first card's root by the factor you pick (25 to 300 %): the path gets longer or shorter, its headings and card times stay; one undo step (ROADMAP 91)")
 	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
+	add.call("Reactions: hit reaction picker", "", _reactions_toggle, "reaction reactions hit picker thumbnails physics struck fighter drag drop knock fall stage", false, "a panel of the reaction clips found in scenes/reactions and scenes/_wip: a thumbnail, where it hits, how hard, whether the fighter falls; drag one onto the struck fighter (ROADMAP R16)")
+	add.call("Reactions: make 3 sample clips", "", _reactions_samples, "reaction reactions sample clips make example head snap knock down bat", false, "three sample hit reactions (a bat to the torso, a head snap, a knock-down) in scenes/_wip/reactions, made from the app's own poses")
 	add.call("Exchange view: fighters' rows and beats", "", _choreo_open, "choreo choreography exchange fight fighters beats reach parry strike guard", false, "one row per fighter on one time line, beats (who strikes whom) with each one's reach and guard; drag a row to shift that fighter")
 	add.call("Check: weapon clashes", "", _weapon_clash, "clash parry pass through weapons bat swing contact sparks meet fighters", false, "finds where the two fighters' weapons meet over the timeline: CLASH, PARRY, or PASS-THROUGH (the weapons go through each other: must fix); a spark marks each contact, the report prints the time, point and speed (ROADMAP 37)")
 	add.call("Dope sheet", "", _dope_toggle, "keys diamonds rows timing blender breakdown extreme", false, "show or hide the dope sheet: a row of diamonds per body part group; drag a card diamond to retime it")
