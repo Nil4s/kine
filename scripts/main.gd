@@ -2402,6 +2402,8 @@ func _ready() -> void:
 	rings.setup()
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
+	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
+	kt.load_from(settings)
 	_ui()
 	if scale_auto:
 		_auto_scale_now()
@@ -4693,6 +4695,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if cm_ui != null and cm_ui.key(k):   # I23: Enter writes the previewed combo, Esc drops it (only while its ghost is shown)
 			return
 		if _sg_key(k):   # R27: Tab cycles the next-pose ghosts, Enter takes the picked one, Esc hides them (only while they are shown)
+			return
+		if kt != null and kt.key(k):   # P20: Coming from Blender / Maya: the toast, Shift+Enter on its offer, "Blender keys win"
 			return
 		if hk.dispatch(k):   # a key the user gave a command (or a built-in key that moved away): scripts/hotkeys.gd
 			return
@@ -13129,6 +13133,7 @@ func _press(code: Key, shift := false) -> void:
 ## it opens (a command given a key shows up with nothing else to change), grouped by what you hold: plain keys,
 ## Shift + a key, Ctrl + a key. ? opens and closes it, Esc closes it
 var ui_keys: PanelContainer
+var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
 
 
@@ -13680,6 +13685,10 @@ func _commands() -> Array:
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
 	add.call("Help: printable cheat sheet", "", _cheat_sheet, "cheat sheet print keys shortcuts reference pdf paper list commands", false, "every key and every command, grouped, as one page you can print (an HTML file in your Kine folder, opened in the browser)")
+	add.call("Help: I come from Blender", "", kt.set_mode.bind("blender"), "blender keys shortcuts translate migrate switch from coming learn", false, "while on, a Blender key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
+	add.call("Help: I come from Maya", "", kt.set_mode.bind("maya"), "maya autodesk keys shortcuts translate migrate switch from coming learn", false, "while on, a Maya key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
+	add.call("Help: Blender / Maya key helper off", "", kt.set_mode.bind(""), "blender maya keys shortcuts translate helper off stop hide", false, "turn the Coming-from-Blender/Maya toasts off (remembered)")
+	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
 	return Hotkeys.apply(c, hk.over)   # the keys the user chose (scripts/hotkeys.gd) replace the built-in ones
 
