@@ -158,12 +158,12 @@ static func ref_time(p: Dictionary) -> float:
 
 ## the plant's weight at t, 0..1: 1 over [t0, t1], smoothstep over BLEND frames before t0, over p.out (out_frames, BLEND
 ## if not read yet) frames after t1, 0 further out
-static func weight(p: Dictionary, t: float, fps: int) -> float:
+static func weight(p: Dictionary, t: float, fps: int, lo := -INF) -> float:
 	var f := float(maxi(fps, 1))
-	var b := float(BLEND) / f
-	var bo := float(int(p.get("out", BLEND))) / f
 	var t0 := float(p["t0"])
 	var t1 := float(p["t1"])
+	var b := t0 - maxf(t0 - float(BLEND) / f, lo)   # the ease-in span; lo = the end of the foot's previous hold (ease_from), so it never starts inside it
+	var bo := float(int(p.get("out", BLEND))) / f
 	if t < t0 - b or t > t1 + bo:
 		return 0.0
 	var u := 1.0
@@ -172,6 +172,25 @@ static func weight(p: Dictionary, t: float, fps: int) -> float:
 	elif t > t1:
 		u = clampf(((t1 + bo) - t) / bo, 0.0, 1.0)
 	return u * u * (3.0 - 2.0 * u)
+
+
+## i42b: where plant i may start easing in. A foot's plant holds its sole at [t0, t1] and NOTHING else may move it: the next plant
+## of the same foot starting within BLEND frames of this one's t1 used to ease in over the last frames of the hold (combo3, plant 3:
+## weight 0.26 at t1, the planted heel 3.6 cm off its pin while the miss still read 0.00). Its ease-in now starts at the previous
+## hold's t1 at the earliest. -INF when no plant of the foot ends in the way
+static func ease_from(plants: Array, i: int) -> float:
+	var lo := -INF
+	var p: Dictionary = plants[i]
+	for j in plants.size():
+		var q: Dictionary = plants[j]
+		if j != i and String(q["foot"]) == String(p["foot"]) and float(q["t1"]) <= float(p["t0"]) + 1e-9:
+			lo = maxf(lo, float(q["t1"]))
+	return lo
+
+
+## the weight of plants[i] at t, with the previous hold of its foot respected (what the plant pass, the reach drop and the drawing use)
+static func weight_at(plants: Array, i: int, t: float, fps: int) -> float:
+	return weight(plants[i], t, fps, ease_from(plants, i))
 
 
 ## THE REFERENCE of each plant live at t (weight > 0): the sole as it plays at the plant's t0, read by Scene.apply with the
@@ -183,7 +202,7 @@ static func refs(S: Scene, B: Body, t: float) -> Dictionary:
 		var p: Dictionary = S.plants[i]
 		if t > float(p["t1"]) and t <= float(p["t1"]) + float(OUT_MAX) / maxi(S.fps, 1) + 1e-9:
 			p["out"] = out_frames(S, B, i)   # the release ramp of this plant (its poses cached on S)
-		if weight(p, t, S.fps) <= 0.0:
+		if weight_at(S.plants, i, t, S.fps) <= 0.0:
 			continue
 		var r: Dictionary = PoseCache.plant_ref(S, B, i)   # the same values, cached while the scene's inputs are unchanged (pose_cache.gd)
 		if not S.props.is_empty():
@@ -296,7 +315,7 @@ static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float
 	for i in refs_:
 		if bool(refs_[i].get("ground", false)) or bool(refs_[i].get("reach", false)):
 			any_ground = true
-			wmax = maxf(wmax, weight(plants[i], t, fps))
+			wmax = maxf(wmax, weight_at(plants, i, t, fps))
 	if not any_ground or wmax <= 0.0:
 		return
 	B.fk()
@@ -472,7 +491,7 @@ static func play(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int, 
 	_lower_for_reach(B, plants, refs_, t, fps)
 	for i in refs_:
 		var p: Dictionary = plants[i]
-		var w := weight(p, t, fps)
+		var w := weight_at(plants, i, t, fps)
 		var foot := String(p["foot"])
 		var ball := "ball" + foot.right(2)
 		var ref: Dictionary = refs_[i]
@@ -556,8 +575,10 @@ static func toe_bend(B: Body, ball: String, props: Array, rb: float, re: float) 
 ## the foot is not planted at t (weight 0). Used by main.gd to draw it
 static func footprint(B: Body, plants: Array, t: float, fps: int) -> Array:
 	var out := []
-	for p in plants:
-		if weight(p, t, fps) <= 0.0:
+	for i in plants.size():
+		var p: Dictionary = plants[i]
+		var wt := weight_at(plants, i, t, fps)
+		if wt <= 0.0:
 			continue
 		var foot := String(p["foot"])
 		var sd := foot.right(2)
@@ -566,7 +587,7 @@ static func footprint(B: Body, plants: Array, t: float, fps: int) -> Array:
 		var line := []
 		for q in pts:
 			line.append(Vector3(q.x, 0.002, q.z))
-		out.append({"foot": foot, "w": weight(p, t, fps), "pts": line})
+		out.append({"foot": foot, "w": wt, "pts": line})
 	return out
 
 

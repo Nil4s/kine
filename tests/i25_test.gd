@@ -16,6 +16,9 @@
 ##  (7) the real scenes/, poses/, data/ hash the same before and after
 ##  (8) placement: the panel is on screen, the timeline wears a badge over the fall, and in the side view the body at the impact has its hand within
 ##      3 cm of the floor while the head is over 20 cm above it
+##  (9) I25 step 3, SLOW THE LANDING (Breakfall.lower): on fall A after slap + head fix, and on fall H after the head fix: first-contact speed under
+##      2.5 m/s, head and arm verdicts still ok, impact within FALL_CAP = 1.0 s of the fall's start and impact + 0.6 s head window + slap <= 1.5 s (a
+##      knockdown is a drop within 1 s; longer reads as a sit), the app's button: JSON identical after Preview, ONE undo step, exact undo
 extends SceneTree
 
 var fails := 0
@@ -198,8 +201,27 @@ func _init() -> void:
 	ok(not ah.is_empty() and String(ah["a"]) == "ok",
 		"(4) H after the head fix: verdict a = %s by [%s]; head clear %.1f cm, contact %.1f m/s; verdicts %s/%s/%s/%s, whole = %s" % [ah.get("a", "-"), ah.get("head_how", "-"), float(ah.get("head_clear", -1.0)) * 100.0, float(ah.get("head_v", 0.0)), ah.get("a", "-"), ah.get("b", "-"), ah.get("c", "-"), ah.get("d", "-"), ah.get("cls", "-")])
 
+	# (9) slow the landing
+	var rl := Breakfall.lower(SA2 if not rt["ok"] else rt["scene"], tuck_a) if not tuck_a.is_empty() else {"ok": false, "why": "no fall"}
+	var al: Dictionary = rl.get("after", {})
+	print("     A after slow the landing: ", rl.get("msg", rl.get("why", "")))
+	if not al.is_empty():
+		show("A+slap+tuck+lower", rl["rep"])
+	ok(rl["ok"] and not al.is_empty() and float(al["speed"]) < Breakfall.SPEED_OK and String(al["a"]) == "ok" and String(al["b"]) == "ok" and String(al["d"]) == "ok",
+		"(9) A slowed: first contact %.1f m/s (< 2.5; was %.1f), head %s, arm %s, spread %s, whole = %s" % [float(al.get("speed", -1.0)), float(tuck_a["speed"]), al.get("a", "-"), al.get("b", "-"), al.get("c", "-"), al.get("cls", "-")])
+	ok(not al.is_empty() and float(al["t_c"]) - float(al["t0"]) <= Breakfall.FALL_CAP + 0.05 and float(al["t_c"]) - float(al["t0"]) + Breakfall.HEAD_WIN <= 1.5 + 0.05,
+		"(9) A slowed: impact %.2f s after the fall starts (<= 1.0), + head window = %.2f s (<= 1.5)" % [float(al.get("t_c", 0.0)) - float(al.get("t0", 0.0)), float(al.get("t_c", 0.0)) - float(al.get("t0", 0.0)) + Breakfall.HEAD_WIN])
+	var rhl: Dictionary = Breakfall.lower(rth["scene"], ah) if rth.get("ok", false) else {"ok": false, "why": "no H fix"}
+	var ahl: Dictionary = rhl.get("after", {})
+	print("     H after slow the landing: ", rhl.get("msg", rhl.get("why", "")))
+	if not ahl.is_empty():
+		show("H+tuck+lower", rhl["rep"])
+	ok(rhl["ok"] and not ahl.is_empty() and float(ahl["speed"]) < Breakfall.SPEED_OK and String(ahl["a"]) == "ok" and String(ahl["b"]) == "ok",
+		"(9) H slowed: first contact %.1f m/s (< 2.5; was %.1f), head %s, arm %s, whole = %s" % [float(ahl.get("speed", -1.0)), float(ah.get("speed", -1.0)), ahl.get("a", "-"), ahl.get("b", "-"), ahl.get("cls", "-")])
+
 	# (5) the app: JSON untouched until Accept; one undo step each
-	for pair in [["A", dA, "slap"], ["H", dH, "tuck"]]:
+	var dFix: Dictionary = (rt["scene"] as Scene).to_dict(DistanceKeeper.new_body(), false) if rt["ok"] else {}
+	for pair in [["A", dA, "slap"], ["H", dH, "tuck"], ["Afix", dFix, "lower"]]:
 		if (pair[1] as Dictionary).is_empty():
 			ok(false, "(5) %s: no scene" % pair[0])
 			continue
@@ -236,7 +258,7 @@ func _init() -> void:
 	ok(not rS["ok"] and (rS["falls"] as Array).is_empty() and String(rS["msg"]).contains("play a fall"), "(6) a standing clip finds no fall: '%s'" % String(rS["msg"]).substr(0, 60))
 
 	# (8) placement + screenshot: fall A with the slap + head fixes accepted, side view, at the impact; the panel is moved off the body
-	var fixed: Scene = rt["scene"] if rt["ok"] else SA2
+	var fixed: Scene = rl["scene"] if rl["ok"] else (rt["scene"] if rt["ok"] else SA2)
 	m.S.from_dict(fixed.to_dict(m.B, false))
 	m._rebuild_cards()
 	await idle(3)
@@ -266,11 +288,11 @@ func _init() -> void:
 	var pr: Rect2 = pc.get_global_rect()
 	ok(m.ui_find.visible and vr.encloses(pr.grow(-1.0)) and not pr.intersects(bb) and m.ui_timeline.bk.size() >= 1,
 		"(8) panel on screen at %s and NOT over the body (body box %s), %d timeline badge; at the impact (fixed fall) hand %.1f cm, head %.1f cm above the floor" % [str(pr), str(bb), m.ui_timeline.bk.size(), hand_low * 100.0, head_low * 100.0])
-	m._say("breakfall check, fixed fall: forward fall, arms bend 30 -> 90 deg over the landing, head turned aside")
+	m._say("breakfall check, slowed fall: head turned aside, arms in a slap, first contact under 2.5 m/s")
 	await idle(240)
-	m._say("breakfall check, fixed fall: forward fall, arms bend 30 -> 90 deg over the landing, head turned aside")
+	m._say("breakfall check, slowed fall: head turned aside, arms in a slap, first contact under 2.5 m/s")
 	await idle(3)
-	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i25c.png")
+	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i25d.png")
 
 	var after_files := hashes()
 	var same2 := after_files.size() == before_files.size()

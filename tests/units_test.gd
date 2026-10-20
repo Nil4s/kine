@@ -8,7 +8,7 @@
 extends SceneTree
 
 ## a unit directly after the number (longest first, so "frames" wins over "f", "m/s" over "m")
-const UNITS := ["m/s^2", "frames", "frame", "breaths", "steps/min", "m/s", "fps", "cm", "mm", "ms", "BPM", "bits", "bit", "BW", "dB", "deg", "kg", "px", "Hz",
+const UNITS := ["rad/s", "m/s^2", "frames", "frame", "breaths", "steps/min", "m/s", "fps", "cm", "mm", "ms", "BPM", "bits", "bit", "BW", "dB", "deg", "kg", "px", "Hz",
 	"sd", "SD", "×", "°", "%%", "%", "degrees", "degree", "minutes", "minute", "points", "W", "J", "m", "N", "g", "s", "f"]  # W watts, J joules, points of a 0-100 score
 
 ## a count of things the user can see: the number is how many (no unit), with the reason it is not a quantity
@@ -220,12 +220,20 @@ const ALLOW := [
 	{"file": "exertion.gd", "lit": "up to x%.2f", "reason": "a dimensionless multiplier of the strike time (x2 = twice as slow)"},
 	{"file": "exertion_ui.gd", "lit": "fatigue at the end", "reason": "fatigue 0..1 at the end of the clip and its peak: dimensionless"},
 	{"file": "motion_match.gd", "lit": "%s%s@%d", "reason": "a hidden cache key (path and file time stamp), not shown"},
+	{"file": "floor_plan.gd", "lit": "<!doctype html>", "reason": "the charset name utf-8 and the CSS sizes of an HTML page written to disk, not quantities shown in the app"},
 	{"file": "safety_sheet.gd", "lit": "<!doctype html>", "reason": "the charset name utf-8 in an HTML page written to disk, not a quantity"},
 	{"file": "sell_hit.gd", "lit": "strike%s: %d sold", "reason": "counts of strikes sold, not sold and unsafe"},
+	{"file": "gaze.gd", "lit": "%d gaze key%s per joint: chest by default, %d weapon glance%s, %d telegraph glance%s", "reason": "counts of keys and glances"},
 	{"file": "weapon_torque_ui.gd", "lit": "need work. ", "reason": "a count of swings that need work"},
 	{"file": "style_ui.gd", "lit": "save %d or more clips", "reason": "a count of clips"},
 	{"file": "weapon_torque.gd", "lit": "slow the swing x%.2f", "reason": "a dimensionless multiplier of the swing time (x2 = twice as slow)"},
 	{"file": "weapon_torque.gd", "lit": "scales it x%.2f", "reason": "a dimensionless multiplier"},
+	{"file": "main.gd", "lit": "restitution 0.5", "reason": "Newton's coefficient of restitution: dimensionless (0 sticks, 1 bounces fully)"},
+	{"file": "weapon_rebound_ui.gd", "lit": "weapon contacts", "reason": "a count of weapon contacts and of swings stopped dead"},
+	{"file": "weapon_rebound_ui.gd", "lit": "restitution %.1f", "reason": "Newton's coefficient of restitution: dimensionless"},
+	{"file": "weapon_rebound_ui.gd", "lit": "Contact %d", "reason": "the contact's number in the list (an index)"},
+	{"file": "weapon_rebound_ui.gd", "lit": "contacts, %d stopped dead", "reason": "a count of contacts and of swings stopped dead"},
+	{"file": "weapon_rebound_ui.gd", "lit": "IK keys on", "reason": "a count of IK keys and of hands"},
 ]
 
 ## the last word before a number, without a list bracket: "(r" -> "r"

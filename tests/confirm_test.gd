@@ -76,6 +76,10 @@ func _init() -> void:
 	var unlisted := writers.keys().filter(func(k): return not policy.has(k))
 	print("     file-writing functions: %s" % [writers.keys()])
 	ok(writers.size() >= 6 and unlisted.is_empty(), "%d functions touch files, every one has a policy (unlisted: %s)" % [writers.size(), unlisted])
+	# (1b) I42 FLOOR PLAN writes outside main.gd (scripts/floor_plan_ui.gd): policy = the page and the PNG, each a NEW or replaced file of its own name
+	# <scene>_floor_plan.html / .png under FloorPlan.DIR = user://floor_plan (never scenes/, poses/, data/); only those two writes exist in the file
+	var fpsrc := FileAccess.get_file_as_string("res://scripts/floor_plan_ui.gd")
+	ok(FloorPlan.DIR.begins_with("user://") and fpsrc.count("FileAccess.WRITE") == 2 and not fpsrc.contains("res://scenes") and not fpsrc.contains("DirAccess.remove"), "the floor plan writes only its page and picture, under %s" % FloorPlan.DIR)
 	# (2) every editing command: no dialog
 	m._load_scene("res://scenes/combo3.json")
 	m._card_pick(2)
