@@ -120,6 +120,7 @@ var play_delay := 0.0   # the test's simulated slow frame: seconds each playing 
 var ui_mode_btn: Button   # ROADMAP 48: the playback mode, as its icon and words; a click changes it
 var ui_mode_lbl: Label    # ROADMAP 48: "Real speed: dropping N frames" / "Every frame: 0.6x speed"
 var _mode_painted := ""   # the mode and palette the bar's colours were last set for
+var vx: ViewX   # K13-K16: quad view, local view, frame, section, normals, stats (scripts/viewx.gd)
 var shading := Shading.new()   # XX10: how the body is drawn (a view setting, never saved)
 var _was_playing := false
 var ui_play: Button
@@ -2657,6 +2658,7 @@ func _ready() -> void:
 	wt.setup()
 	loa.setup()
 	rings.setup()
+	vx = ViewX.new(self)
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
@@ -2917,6 +2919,8 @@ func _process(dt: float) -> void:
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
 	_keys_camera(dt)
+	if vx != null:
+		vx.tick(dt)   # K13-K16
 	if shot_through:
 		_shot_apply()   # THE SHOT CAMERA follows the playhead (play, scrub, an edit)
 	_tour_poll()
@@ -4659,6 +4663,8 @@ func _cam() -> void:
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	cam.h_offset = (rw() - lw()) * 0.5 * mpp
 	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
+	if vx != null and vx.quad_on:
+		vx.cam_quad()   # K14: the perspective pane is a quarter of the free view
 	_axis_labels_fit(vs)
 	_dummy_view()
 
@@ -4809,6 +4815,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
+		if mb.pressed and vx != null:
+			vx.press(mb.position)   # K14: a press on the perspective pane makes it the active one
 		if mb.pressed and ui_cmd.visible:
 			ui_cmd.close()   # a click in the view puts the search away
 		if mb.pressed:
@@ -5011,6 +5019,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_nt_note(c["name"])
 				_step_hint = c["name"]
 				_why_cmd = c["name"]
+		if k.ctrl_pressed and k.alt_pressed and k.keycode == KEY_Q:   # K14: Ctrl+Alt+Q the quad view
+			vx.quad_toggle()
+			return
 		if k.ctrl_pressed:
 			match k.keycode:
 				KEY_Z: _undo()
@@ -14115,6 +14126,15 @@ func _commands() -> Array:
 	add.call("View: reference image...", "", refimg.ask, "reference image photo picture overlay trace rotoscope png jpg person plane", false, "load a photo or video frame of a real person as an overlay on the view (or a plane behind the body); opacity, size, offset and flip in the reference panel; saved in the scene as a path, never copied (ROADMAP C25, B21)")
 	add.call("View: reference panel", "", refimg.open_panel, "reference image opacity scale offset flip plane front side free camera overlay", false, "the reference picture's mode (camera overlay, plane front / side / free), opacity, size, offset and flip")
 	add.call("View: match the body to the reference", "", refimg.match_body, "match fit reference image person pose detector height hips residual 2 point head heel", false, "finds the person in the reference picture and scales + moves it to line up with the body as seen from this camera, then says the mean pixel residual; with no detector installed it asks you to click the head top and heel instead")
+	add.call("View: quad view on/off", "Ctrl+Alt+Q", func(): vx.quad_toggle(), "quad four panes front side top perspective orthographic split viewport", false, "split the view into top, perspective, front and side panes (the perspective one keeps every tool); click a pane to make it the active one for orbit")
+	add.call("View: isolate the selected part", "", func(): vx.isolate_toggle(), "local view isolate solo only selected hide others focus", false, "hide every body part and prop except the picked one and frame it; again to bring everything back exactly as it was")
+	add.call("View: frame the selected part", "", func(): vx.frame(), "frame selected fit zoom to focus view camera", false, "move the camera to fit the picked part (its posed box, with margin) in the view")
+	add.call("View: section plane", "", func(): vx.section_toggle(), "section clip clipping plane cut slice cross inside see through", false, "a movable plane (axis X, Y or Z and an offset, panel top left) that cuts the body away on one side so you see inside the pose")
+	for ax in [["X", 0], ["Y", 1], ["Z", 2]]:
+		add.call("View: section plane along %s" % ax[0], "", func(): vx.section_axis(ax[1]), "section clip clipping plane cut slice axis", false, "put the section plane square to the %s axis (turns the section on)" % ax[0])
+	add.call("View: section plane flip side", "", func(): vx.section_flip(), "section clip clipping plane cut flip side other keep", false, "keep the other side of the section plane")
+	add.call("View: show normals", "", func(): vx.normals_toggle(), "normals face orientation lines overlay vertex shading direction", false, "short lines along the skin's normals on every 12th vertex of the body, on or off")
+	add.call("View: stats", "", func(): vx.stats_toggle(), "stats statistics triangles tris vertices verts count polygons scene information", false, "the scene's triangle and vertex count at the end of the status line, on or off")
 	add.call("View: sky background", "", _sky_toggle, "sky hdri gradient background environment", false, "a procedural gradient sky behind the figure, on or off (remembered)")
 	add.call("Light / dark theme", "", func(): _set_light(Tok.dark), "colour white bright night", false, "switch the light and dark look (remembered)")
 	for p in SCALES:
