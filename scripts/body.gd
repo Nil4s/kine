@@ -1171,6 +1171,8 @@ func set_ang_safe(j: String, v: Vector3) -> bool:
 ## IK stops when the tip is this close (m): 0.01 mm, a tenth of what a file holds (0.1 mm). Round 13: reach and plant
 ## always ran every round (6 and 5): a 30-card scene's playback spent 5 ms a frame there, a card edit 2.5 s
 const IK_EPS := 1e-5
+## PERF1: true runs the pre-optimisation bisections (tests/perf1_test.gd compares the two bit for bit); never set by the app
+static var legacy_ik := false
 
 
 ## reach: put a limb's tip (hand_r/l = the wrist, foot_r/l = the ankle) on a target point. Two joints, in turns: the
@@ -1186,14 +1188,41 @@ func reach(tip: String, target: Vector3) -> float:
 		var v: Vector3 = ang[mid]
 		var lo := r.x
 		var hi := r.y
-		for k in 14:
-			var m := (lo + hi) * 0.5
-			ang[mid] = Vector3(m, v.y, v.z)
-			fk_some([mid, tip])   # only the elbow/knee and the tip move here
-			if ((P[tip] - P[root]) as Vector3).length() > want:
-				lo = m
-			else:
-				hi = m
+		if legacy_ik:
+			for k in 14:
+				var m := (lo + hi) * 0.5
+				ang[mid] = Vector3(m, v.y, v.z)
+				fk_some([mid, tip])   # only the elbow/knee and the tip move here
+				if ((P[tip] - P[root]) as Vector3).length() > want:
+					lo = m
+				else:
+					hi = m
+		else:
+			# PERF1: the same bisection with everything that does not depend on the trial angle hoisted (the mid joint's
+			# parent frame and position, its side/twist parts, the tip's offset), and only the two numbers the test reads
+			# computed: P[tip] = P[mid] + G[mid] * d, P[mid] = P[root] + G[root] * (p0[mid] - p0[root]). Same expressions in
+			# the same order, so bit for bit as fk_some([mid, tip]) made them; G/P/E of mid and tip are left stale and the
+			# fk_sub(mid) below (after ang[mid] = v) recomputes them, exactly as before (_fk_a is erased as fk_some did)
+			_fk_a.erase(mid)
+			_fk_a.erase(tip)
+			var gr: Quaternion = G[root]
+			var pr: Vector3 = P[root]
+			var pmid: Vector3 = pr + gr * ((p0[mid] as Vector3) - (p0[root] as Vector3))
+			var ba: Vector3 = b_ax[mid]
+			var aa: Vector3 = a_ax[mid]
+			var side_part: Vector3 = aa * deg_to_rad(v.y)
+			var twist_q := Quaternion(w_ax[mid], deg_to_rad(v.z))
+			var dt: Vector3 = (p0[tip] as Vector3) - (p0[mid] as Vector3)
+			for k in 14:
+				var m := (lo + hi) * 0.5
+				var rv: Vector3 = ba * deg_to_rad(m) + side_part
+				var n := rv.length()
+				var sw := Quaternion(rv / n, n) if n > 1e-9 else Quaternion.IDENTITY
+				var gm: Quaternion = gr * (sw * twist_q)
+				if ((pmid + gm * dt) - pr).length() > want:
+					lo = m
+				else:
+					hi = m
 		ang[mid] = v
 		fk_sub(mid)
 		set_ang_safe(mid, Vector3((lo + hi) * 0.5, v.y, v.z))
@@ -1942,14 +1971,38 @@ func flat_foot(sd: String) -> void:
 	var v: Vector3 = ang["foot" + sd]
 	var lo := r.x
 	var hi := r.y
-	for k in 16:
-		var m := (lo + hi) * 0.5
-		ang["foot" + sd] = Vector3(m, v.y, v.z)
-		fk_some(["foot" + sd, "ball" + sd])
-		if (P["ball" + sd] as Vector3).y - (P["foot" + sd] as Vector3).y > want:
-			hi = m
-		else:
-			lo = m
+	if legacy_ik:
+		for k in 16:
+			var m := (lo + hi) * 0.5
+			ang["foot" + sd] = Vector3(m, v.y, v.z)
+			fk_some(["foot" + sd, "ball" + sd])
+			if (P["ball" + sd] as Vector3).y - (P["foot" + sd] as Vector3).y > want:
+				hi = m
+			else:
+				lo = m
+	else:
+		# PERF1: as in reach(): the foot's parent frame / position, side + twist parts and the ball's offset are hoisted
+		var f := "foot" + sd
+		var b := "ball" + sd
+		_fk_a.erase(f)
+		_fk_a.erase(b)
+		var pf: String = parent[f]
+		var gp: Quaternion = G[pf]
+		var pfoot: Vector3 = (P[pf] as Vector3) + gp * ((p0[f] as Vector3) - (p0[pf] as Vector3))
+		var ba: Vector3 = b_ax[f]
+		var side_part: Vector3 = (a_ax[f] as Vector3) * deg_to_rad(v.y)
+		var twist_q := Quaternion(w_ax[f], deg_to_rad(v.z))
+		var db: Vector3 = (p0[b] as Vector3) - (p0[f] as Vector3)
+		for k in 16:
+			var m := (lo + hi) * 0.5
+			var rv: Vector3 = ba * deg_to_rad(m) + side_part
+			var n := rv.length()
+			var sw := Quaternion(rv / n, n) if n > 1e-9 else Quaternion.IDENTITY
+			var gf: Quaternion = gp * (sw * twist_q)
+			if (pfoot + gf * db).y - pfoot.y > want:
+				hi = m
+			else:
+				lo = m
 	ang["foot" + sd] = Vector3((lo + hi) * 0.5, v.y, v.z)
 	fk_sub("foot" + sd)
 

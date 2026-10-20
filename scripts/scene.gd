@@ -120,7 +120,19 @@ const HOLD_DRIFT := 0.08
 var stepped := false
 
 
+static var _level_memo := {}   # PERF1: joint name -> level (a pure function of the name; the begins_with chain ran 52x per blend)
+
+
 static func level(j: String) -> int:
+	var m = _level_memo.get(j)
+	if m != null:
+		return m
+	var lv := _level_raw(j)
+	_level_memo[j] = lv
+	return lv
+
+
+static func _level_raw(j: String) -> int:
 	if j == "pelvis":
 		return 0
 	if j.begins_with("spine"):
@@ -590,8 +602,13 @@ func _curve(F: Dictionary, j: String, tt: float, ts: Array) -> Vector3:
 
 func blend(a: Dictionary, b: Dictionary, u: float, kind := "", bias := 0.0) -> Dictionary:
 	var ang := {}
+	var es := PackedFloat64Array([NAN, NAN, NAN, NAN, NAN, NAN, NAN])   # PERF1: _ease is a pure function of the level here
 	for j in a["ang"]:
-		var e := _ease(u, level(j), kind, bias)
+		var lv := level(j)
+		var e: float = es[lv]
+		if is_nan(e):
+			e = _ease(u, lv, kind, bias)
+			es[lv] = e
 		ang[j] = (a["ang"][j] as Vector3).lerp(b["ang"].get(j, a["ang"][j]), e)
 		if j == "pelvis":
 			# the WHOLE BODY's turn takes the short way round (Nick 10-13: a spinning staff swing): keys at 0, 120, -120, 0
@@ -902,10 +919,11 @@ func _apply(B: Body, t: float) -> void:
 		var i := span(t)
 		var held := -1 if i > 0 else _held(t)
 		if i > 0 or held > 0:
-			var E := _anchors(B)
-			put(B, sample(t), free_limits)
-			if on_floor:
-				_ground(B)
+			var E := _anchors(B) if legacy_play else _anchors_play(B)
+			if legacy_play or not _anch_hit:   # PERF1: a memo hit left the body as the put + ground above made it
+				put(B, sample(t), free_limits)
+				if on_floor:
+					_ground(B)
 			if i > 0:
 				var e := _ease(clampf((t - times()[i][0]) / maxf(1e-6, move_time(i)), 0.0, 1.0), 5)
 				if walk_feet(i):
@@ -1437,6 +1455,45 @@ func _held(t: float) -> int:
 ## each foot's ANCHOR per card: [{"_l": [ball position, heading, flat, how], "_r": ...}, ...]; how = "pin" (held where
 ## it stood: the anchor carries over from the card before), "step" (lands on the card's own place), "free" (the
 ## card's raw foot, no planting). Card 0 is "free". Loads cards into the body (through _feet): put the frame back after
+## PERF1: true plays by the code as it was before (tests/perf1_test.gd compares the two bit for bit); never set by the app
+static var legacy_play := false
+var _anch_memo: Array = []   # PERF1: [[pose refs], [steps signatures], result] -- see _anchors_play
+var _anch_hit := false      # the last _anchors_play came from the memo (the body was not touched)
+
+
+## _anchors for playback: the same rows, remembered while every card has the same pose dictionary (the rule _feet and times()
+## already use) and the same "steps". A hit does not touch the body (a miss through _feet would load cards into it), which
+## is what lets apply() skip putting the same frame in twice. Read only: callers must not write into the result
+func _anchors_play(B: Body) -> Array:
+	var n := cards.size()
+	if not _anch_memo.is_empty() and (_anch_memo[0] as Array).size() == n:
+		var poses: Array = _anch_memo[0]
+		var sigs: Array = _anch_memo[1]
+		var same := true
+		for i in n:
+			var c: Dictionary = cards[i]
+			if not is_same(c["pose"], poses[i]):
+				same = false
+				break
+			var st = c.get("steps", null)
+			if (st == null) != (sigs[i] == null) or (st != null and var_to_str(st) != sigs[i]):
+				same = false
+				break
+		if same:
+			_anch_hit = true
+			return _anch_memo[2]
+	_anch_hit = false
+	var out := _anchors(B)
+	var poses2 := []
+	var sigs2 := []
+	for c in cards:
+		poses2.append(c["pose"])
+		var st = c.get("steps", null)
+		sigs2.append(null if st == null else var_to_str(st))
+	_anch_memo = [poses2, sigs2, out]
+	return out
+
+
 func _anchors(B: Body) -> Array:
 	var out := []
 	for i in cards.size():
