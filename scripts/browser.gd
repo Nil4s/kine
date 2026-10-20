@@ -30,6 +30,13 @@ var _pose_pending := -1   # R8: the pose row pressed, applied on release unless 
 var _mine: TreeItem
 var _dummy: TreeItem
 var _psets := {}   # "select" / "keying" -> the folder of the scene's selection / keying sets (scripts/part_sets.gd)
+var pose_cache_path := "user://pose_tags.json"   # R21: where the computed pose tags are cached (a test points it at a temp file)
+var pose_query := ""   # R21: the words typed in the Poses search box
+var pose_index: PoseTags.Index
+var _pose_sig := ""   # the pose paths the index was built from
+var _search: LineEdit   # sits over the first row under Poses
+var _search_row: TreeItem
+var _chips: Control   # the layer that draws the matching tags as chips on the rows
 var _pending := false   # a clip-row rebuild is queued for the next frame   # true while the tree follows the view (a selection made here must not loop back)
 
 
@@ -42,6 +49,21 @@ func _ready() -> void:
 	add_theme_constant_override("item_margin", 12)
 	add_theme_constant_override("draw_guides", 0)
 	item_selected.connect(_chosen)
+	_search = LineEdit.new()   # R21: search the pose library by words (names and auto tags); filters as you type
+	_search.name = "pose_search"
+	_search.placeholder_text = "search poses: guard, crouch, low kick..."
+	_search.clear_button_enabled = true
+	_search.add_theme_font_size_override("font_size", 12)
+	_search.tooltip_text = "words over the pose names and their tags (crouch, guard, high, low, kick, lunge, one-leg, arms-up, seated, lying); a typo is forgiven"
+	_search.visible = false
+	_search.text_changed.connect(set_pose_query)
+	add_child(_search)
+	_chips = ChipLayer.new()
+	_chips.t = self
+	_chips.name = "pose_chips"
+	_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_chips.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_chips)
 	item_collapsed.connect(func(_it): m._browser_fit.call_deferred())   # RR6: a folder opened or closed: the box follows
 	gui_input.connect(_motion)
 	mouse_exited.connect(_left)
@@ -85,6 +107,9 @@ func build() -> void:
 	_scene_root = _folder(root, "Scene", true)   # RR6: folded (the clips are on the strip below); a row = a click away
 	_poses_root = _folder(root, "Poses")
 	_poses_root.set_metadata(0, {"menu": "poses"})
+	_search_row = create_item(_poses_root)   # R21: the search box is drawn over this row
+	_search_row.set_selectable(0, false)
+	_search_row.set_custom_minimum_height(26)
 	_lib = _folder(_poses_root, "Library", true)
 	_mine = _folder(_poses_root, "Mine")
 	var body := _folder(root, "Body")
@@ -191,19 +216,7 @@ func _refresh_now() -> void:
 		for c in _psets[k].get_children():
 			c.free()
 		PartSets.of(m).fill(self, _psets[k], k)
-	# the poses (RR3): Library (the starter and library poses), Mine (the ones you saved)
-	for f in [_lib, _mine]:
-		for c in f.get_children():
-			c.free()
-	if m.ui_poses != null:
-		for i in m.ui_poses.item_count:
-			var t: String = m.ui_poses.get_item_text(i)
-			var it := create_item(_mine if t.ends_with("(yours)") else _lib)
-			it.set_text(0, t.get_slice("   ", 0))
-			it.set_tooltip_text(0, "click: the body takes this pose; right-click: CLIP / Rename / Delete")
-			it.set_metadata(0, {"pose": i})
-	_lib.set_text(0, "Library  (%d)" % _lib.get_child_count())
-	_mine.set_text(0, "Mine  (%d)" % _mine.get_child_count())
+	_fill_poses()
 	if m.ui_dummy != null:
 		_dummy.set_text(0, "Target dummy: " + (m.ui_dummy.text.get_slice("\n", 0) if m.dummy_on else "off"))
 	# TC5: with 2+ fighters the dummy's report is between them: the row says it, a row under it per contact (click: there)
@@ -410,3 +423,106 @@ func _chosen() -> void:
 		m._goto_hit(md["hit"])
 	elif md.has("pset"):
 		PartSets.of(m).pick(md["kind"], md["pset"])
+
+
+## R21: the Poses rows. No words typed = every pose in the pose list's order. Words typed = only the poses whose name or
+## auto tags match (PoseTags.Index.search), best first, with the matching tags as chips on the row; the folders open
+func _fill_poses() -> void:
+	for f in [_lib, _mine]:
+		for c in f.get_children():
+			c.free()
+	if m.ui_poses == null:
+		return
+	var q := pose_query.strip_edges()
+	var order := []   # [pose index, matching chips]
+	if q == "":
+		for i in m.ui_poses.item_count:
+			order.append([i, []])
+	else:
+		var sig := ""
+		var items := []
+		for i in m.ui_poses.item_count:
+			var path: String = m.ui_poses.get_item_metadata(i)
+			sig += path + "|"
+			items.append({"name": m.ui_poses.get_item_text(i).get_slice("   ", 0), "path": path})
+		if pose_index == null or sig != _pose_sig:   # parsed once per library change; a keystroke only scores
+			pose_index = PoseTags.Index.new()
+			pose_index.cache_path = pose_cache_path
+			pose_index.build(items)
+			_pose_sig = sig
+		for r in pose_index.search(q):
+			order.append([r["i"], r["chips"]])
+	for o in order:
+		var i: int = o[0]
+		var t: String = m.ui_poses.get_item_text(i)
+		var it := create_item(_mine if t.ends_with("(yours)") else _lib)
+		it.set_text(0, t.get_slice("   ", 0))
+		it.set_tooltip_text(0, "click: the body takes this pose; right-click: CLIP / Rename / Delete")
+		it.set_metadata(0, {"pose": i})
+		if not o[1].is_empty():
+			it.set_meta("chips", o[1])
+			it.set_tooltip_text(0, "tags: " + ", ".join(o[1]) + "
+click: the body takes this pose; right-click: CLIP / Rename / Delete")
+	var tail := "" if q == "" else " matching"
+	_lib.set_text(0, "Library  (%d%s)" % [_lib.get_child_count(), tail])
+	_mine.set_text(0, "Mine  (%d%s)" % [_mine.get_child_count(), tail])
+	if q != "":
+		_lib.collapsed = false
+		_mine.collapsed = false
+
+
+## the words typed in the search box (live: every keystroke)
+func set_pose_query(q: String) -> void:
+	pose_query = q
+	_fill_poses()
+	m._browser_fit.call_deferred()
+
+
+## the matching tags as small chips at the right end of each pose row. The Tree's own custom-draw hook never ran for these
+## rows (measured: 0 calls), so a transparent layer over the Tree draws them from the rows' rectangles
+class ChipLayer extends Control:
+	var t: Browser
+
+	func _draw() -> void:
+		if t == null or t.pose_query.strip_edges() == "":
+			return
+		var font := get_theme_default_font()
+		var fs := 10
+		var bg := Tok.c("accent")
+		bg.a = 0.45
+		for f in [t._lib, t._mine]:
+			if not f.is_visible_in_tree():
+				continue
+			for it in f.get_children():
+				if not it.has_meta("chips"):
+					continue
+				var rect := t.get_item_area_rect(it, 0)
+				if rect.size.y <= 0.0 or rect.position.y < 0.0 or rect.end.y > t.size.y:
+					continue
+				var chips: Array = it.get_meta("chips")
+				var x := rect.end.x - 4.0
+				for k in range(chips.size() - 1, -1, -1):
+					var w := font.get_string_size(chips[k], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 8.0
+					x -= w
+					var r := Rect2(x, rect.position.y + 3.0, w, rect.size.y - 6.0)
+					draw_rect(r, bg)
+					draw_string(font, Vector2(x + 4.0, r.position.y + r.size.y * 0.5 + fs * 0.36), chips[k], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Tok.c("text"))
+					x -= 3.0
+
+
+## the search box rides on its row (shown only while that row is in sight)
+func _process(_dt: float) -> void:
+	if _search == null:
+		return
+	if pose_query != "":
+		_chips.queue_redraw()   # the rows scroll and fold: the chips follow them every frame while a search is on
+	var show := _search_row != null and is_instance_valid(_search_row) and _search_row.is_visible_in_tree()
+	var r := get_item_area_rect(_search_row, 0) if show else Rect2()
+	show = show and r.size.y > 0.0 and r.position.y >= 0.0 and r.end.y <= size.y
+	if _search.visible != show:
+		_search.visible = show
+	if show:
+		var want := Rect2(r.position + Vector2(2, 1), Vector2(maxf(40.0, r.size.x - 6.0), r.size.y - 2.0))
+		if _search.position != want.position or _search.size != want.size:
+			_search.position = want.position
+			_search.size = want.size
