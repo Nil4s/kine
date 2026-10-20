@@ -40,6 +40,7 @@ func tag() -> String:
 func gather(db: Dictionary) -> Dictionary:
 	var S: Scene = m.S
 	var out := {"findings": [], "tc": [], "force": {}, "push": [], "phys": null}
+	var body0: Dictionary = m.B.state()   # a view: the body comes back as it was
 	var t0 := Time.get_ticks_usec()
 	var ck := var_to_str(S.cards) + var_to_str(S.body)   # a judge's answer is kept while the cards and the body are the same
 	if String(_memo.get("key", "")) != ck:
@@ -67,7 +68,8 @@ func gather(db: Dictionary) -> Dictionary:
 	var mp: MakePhysical = m.mp_ui.mp
 	if mp.done and mp.failed == "" and not mp.summary.is_empty():
 		out["phys"] = mp.spans.duplicate()
-	m._ps().apply(m.B, m.playhead)   # the judges posed the body at other times
+	m.B.set_state(body0)   # the judges posed the body at other times
+	m.B.fk()
 	return out
 
 
