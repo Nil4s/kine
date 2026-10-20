@@ -26,6 +26,7 @@ const SAMPLE := 0.002         # m: the smoothed path is sampled every 2 mm
 const SWING := 0.7            # the share of a step period the stepping foot is in the air (its card's move); the rest is PIVOTS double-support cards
 const PIVOTS := 3             # double-support cards before each step: the facing is keyed every 1/(PIVOTS+1) of a step, not once per step
 const MIN_RADIUS := 0.8        # m: a tighter arc than this is refused (the walk steps can't turn it: the facing lags past 10 deg, the feet slide)
+const SWING_LIFT := 0.06       # m: how high the stepping foot's toe base lifts = walk_bat's own "lift" (the Scene's default 0.08 gave a 70.7 deg swing knee here, walk_bat's 0.06 gives 67.5; its 60 is at a 0.30 m step)
 const YAW_LAG := 0.12          # m: a card's facing is the tangent this far BEHIND its hips (sweep on the 90 deg arc: 0 -> 15.6 deg, 0.05 -> 13.7, 0.10 -> 11.9, 0.15 -> 13.7)
 
 
@@ -227,4 +228,6 @@ static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps
 		card["steps"] = steps
 	if walk:
 		card["walk"] = true
+		if not steps.is_empty():
+			card["lift"] = SWING_LIFT
 	return card
