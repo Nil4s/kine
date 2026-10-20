@@ -213,6 +213,7 @@ Merged in round 2: 23 / 25.
 - [x] R21. Pose library search by words ("guard", "crouch", "low kick") over names and auto tags.
 - [x] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
 - [ ] R23. Weapon trail in the playblast and the mp4 render.
+  Step 1 merged: grip-to-tip ribbon over 8 frames in playblast and mp4, off is byte-identical. Open: the ribbon renders as a solid opaque blue wall (the alpha fade does not show), and it runs out of frame on overhead swings.
 - [ ] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
 - [x] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
 - [x] R26. Share with friends by QR code (Nick): a pose or short clip packed (compressed) into a QR image; Kine reads a QR from an image file or the webcam and opens it. No server, no account.
