@@ -271,3 +271,6 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I15. Fight to the beat: with music loaded, Kine moves each contact onto the nearest beat (or off-beat on
   request) while keeping every move inside the timing coach's human range (I4); moves that can't reach a beat are
   flagged, never forced.
+- [ ] I16. Realism score: one number per clip, "how real is this", from the judges Kine already has (physics judge I1,
+  torques I8, push limits R24, timing coach I4, Check's human limits), with the 3 biggest reasons and a one-click fix
+  for each (accept span, timing coach, Check fix); the score is shown on the scene card and re-scored after each fix.
