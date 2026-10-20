@@ -267,8 +267,8 @@ static func fix(S: Scene, B: Body, r: Dictionary) -> Dictionary:
 		var cur: Dictionary = (C.cards[i]["pose"] as Dictionary)
 		var over := _extrapolate(B, cur, C.cards[i - 1]["pose"], FOLLOW_K)
 		var t_f := snappedf(maxf(0.1, C.move_time(i) * 0.6), 0.001)
-		C.cards.insert(i + 1, {"name": "overshoot", "pose": over, "move": t_f, "hold": 0.0, "ease": "out"})
-		steps.append("add an overshoot past contact (%.0f%% further, %.2f s, eases out)" % [100.0 * FOLLOW_K, t_f])
+		C.cards.insert(i + 1, {"name": "overshoot", "pose": over, "move": t_f, "hold": 0.0})
+		steps.append("add an overshoot past contact (%.0f%% further, %.2f s)" % [100.0 * FOLLOW_K, t_f])
 	if bool(r["instant_stop"]) or String(C.cards[i].get("ease", "smooth")) in ["in", "linear", "snap"]:
 		if C.cards[i].has("ease"):
 			C.cards[i].erase("ease")

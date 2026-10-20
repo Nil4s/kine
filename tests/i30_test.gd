@@ -43,7 +43,7 @@ func swing(ease := "", windup := true) -> Scene:
 	S.cards[3]["hold"] = 0.2
 	# an overshoot after contact, worked from the cards themselves (the combo's own follow-through card lifts the bat away, not on)
 	var over := WeaponTorque._extrapolate(B, S.cards[2]["pose"], S.cards[1]["pose"], 0.35)
-	S.cards.insert(3, {"name": "overshoot", "pose": over, "move": 0.5, "hold": 0.0, "ease": "out"})
+	S.cards.insert(3, {"name": "overshoot", "pose": over, "move": 0.5, "hold": 0.0})
 	if not windup:
 		S.cards.remove_at(1)
 	S.markers = []
