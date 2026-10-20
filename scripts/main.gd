@@ -12223,6 +12223,7 @@ func _build_page_bar() -> void:
 	ui_next.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	ui_next.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ui_next.custom_minimum_size = Vector2(0, PAGE_H - 10)
+	ui_next.add_theme_font_size_override("font_size", 12)   # as the page tabs: the default 16 made this button 35 px tall and pushed the page tabs up out of the bar
 	ui_next.add_theme_color_override("font_color", Tok.c("say"))
 	ui_next.add_theme_color_override("font_hover_color", Tok.c("say"))
 	ui_next.pressed.connect(_next_run)
