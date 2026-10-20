@@ -176,7 +176,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
-		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
+		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
@@ -434,6 +434,7 @@ var _sd := {}               # the current drag's smart state ({} = none)
 var np := NextPose.new()    # NEXT-POSE SUGGESTIONS (ROADMAP R27): scripts/next_pose.gd; the glue is at the end of this file
 var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail are drag handles: scripts/trail_edit.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
+var sk := SketchPose.new()   # ROADMAP I9: sketch a stick figure over the view -> pose (scripts/sketch_pose.gd)
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
 var cshadow := ContactShadow.new()   # CONTACT SHADOWS (ROADMAP R4): a soft blob under each foot, darker the nearer the sole is to the floor
@@ -2060,6 +2061,10 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	if sk.on and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:   # I9: Esc leaves Sketch mode, the strokes are dropped
+		_sk_toggle()
+		get_viewport().set_input_as_handled()
+		return
 	if _sr_busy and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:   # Esc stops a shot render
 		_sr_cancel = true
 		get_viewport().set_input_as_handled()
@@ -3931,6 +3936,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if sk.on and _sk_input(ev):   # I9: a left drag is a stroke; Enter fits, Backspace takes the last stroke back
+		get_viewport().set_input_as_handled()
+		return
 	if pwui != null and pwui.on and pwui.input(ev):   # ROADMAP 92: a click on the floor adds a path point, Enter builds, Esc cancels
 		get_viewport().set_input_as_handled()
 		return
@@ -4733,6 +4741,8 @@ func _push_undo() -> void:
 
 
 func _undo() -> void:
+	sk.fitted = []   # I9: the faint fitted skeleton belongs to the pose that was undone
+	sk.queue_redraw()
 	_tree_sync()
 	if undo.is_empty():
 		_say("nothing to undo yet: click a part and drag it, and Ctrl+Z will take that back")
@@ -6318,6 +6328,80 @@ func _ikh_pose() -> Dictionary:
 
 
 ## release: the dragged point keyed at the playhead (weight and hand turn as they were there); no move = no undo step
+## ROADMAP I9: SKETCH TO POSE (scripts/sketch_pose.gd). The mode: a left drag on the view is a stroke, Enter fits, Backspace takes the
+## last stroke back, Esc leaves. The fit is ONE undo step; a limb that was not drawn is left as it was and named in the line
+func _sk_toggle() -> void:
+	sk.on = not sk.on
+	sk.clear()
+	if sk.on:
+		_say("SKETCH TO POSE: drag the spine (neck down to the hips), then arms from its top and legs from its bottom, a circle for the head. Enter fits, Backspace removes the last stroke, Esc leaves")
+	else:
+		_say_plain("sketch left")
+
+
+func _sk_input(ev: InputEvent) -> bool:
+	if ev is InputEventMouseButton:
+		var mb := ev as InputEventMouseButton
+		if mb.button_index != MOUSE_BUTTON_LEFT:
+			return false
+		if mb.pressed:
+			sk.begin(mb.position)
+			return true
+		if sk.drawing:
+			if sk.finish():
+				_say_plain("sketch: %d stroke%s. Enter fits the body to them, Backspace removes the last" % [sk.strokes.size(), "" if sk.strokes.size() == 1 else "s"])
+			else:
+				_say("sketch: that was a click, not a stroke. Drag a line")
+			return true
+		return false
+	if ev is InputEventMouseMotion and sk.drawing:
+		sk.add_point((ev as InputEventMouseMotion).position)
+		return true
+	if ev is InputEventKey and ev.pressed and not ev.echo:
+		var kc := (ev as InputEventKey).keycode
+		if kc == KEY_ENTER or kc == KEY_KP_ENTER:
+			_sk_fit()
+			return true
+		if kc == KEY_BACKSPACE:
+			if sk.remove_last():
+				_say_plain("sketch: last stroke removed, %d left" % sk.strokes.size())
+			else:
+				_say("sketch: no stroke to remove. Drag a line first")
+			return true
+	return false
+
+
+func _sk_fit() -> Dictionary:
+	if sk.strokes.is_empty():
+		_say("sketch: nothing drawn yet. Drag a spine, then arms and legs, then press Enter")
+		return {}
+	_push_undo()
+	var rep := SketchPose.fit(B, cam, sk.strokes)
+	if not rep["ok"]:
+		_drop_undo()
+		_say("sketch: " + String(rep["why"]))
+		return rep
+	sk.fitted = rep["skeleton"]
+	sk.last = rep
+	sk.queue_redraw()
+	_after_edit()
+	_refresh()
+	var kept := (rep["kept"] as Array).map(func(t): return nice(t))
+	var amb := []
+	for t in rep["limbs"]:
+		if rep["limbs"][t]["ambiguous"]:
+			amb.append(nice(t))
+	var msg := "SKETCH TO POSE: fitted %d limb%s in %.0f ms" % [(rep["limbs"] as Dictionary).size(), "" if (rep["limbs"] as Dictionary).size() == 1 else "s", rep["ms"]]
+	if not kept.is_empty():
+		msg += "; not drawn, left as it was: " + ", ".join(kept)
+	if not amb.is_empty():
+		msg += "; depth could go either way for " + ", ".join(amb) + " (kept the side nearer the old pose; draw it from another view to be sure)"
+	if int(rep["extra"]) > 0:
+		msg += "; %d stroke%s did not start at the spine and %s ignored" % [rep["extra"], "" if int(rep["extra"]) == 1 else "s", "was" if int(rep["extra"]) == 1 else "were"]
+	_say(msg + ".  Ctrl+Z undoes")
+	return rep
+
+
 ## ROADMAP 23: the next left drag on the view is one line-of-action stroke (scripts/line_of_action.gd)
 func _loa_arm() -> void:
 	loa.armed = true
@@ -9230,7 +9314,7 @@ const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -9495,6 +9579,7 @@ func _ui() -> void:
 	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_root.theme = _theme()
 	layer.add_child(ui_root)
+	ui_root.add_child(sk)   # I9: the sketch's gold strokes and the faint fitted skeleton are drawn over the view
 
 	# ---- top bar
 	var top := PanelContainer.new()
@@ -9562,6 +9647,7 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Snap to floor", _floor_snap, "lift or sink the picked card (or the body) so its lowest point touches the floor; the joints stay. Ctrl+Z takes it back"))
 	ui_ribbon["POSE"].add_child(_button("Arms 25°", _do.bind(_arms_relaxed), "both arms relaxed: 25° out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
+	ui_ribbon["POSE"].add_child(_button("Sketch to pose", _sk_toggle, "draw a stick figure over the view (a drag = one stroke: the spine, arms from its top, legs from its bottom, a circle for the head); Enter fits the body to it with its real bone lengths and joint limits, Backspace removes the last stroke, Esc leaves. One undo step. Limbs you did not draw stay as they were"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: 'Open from QR (webcam)' reads it from the camera"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: Open from QR (webcam) reads it from the camera"))
