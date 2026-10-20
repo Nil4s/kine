@@ -14,6 +14,7 @@ var ui_format: OptionButton
 var ui_info: Label
 var ui_checks: Label
 var ui_app: Label
+var ui_blur: CheckBox   # playblast motion blur (ROADMAP R3)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 
 ## run: "engine:<id>" (EngineExport preset: root motion, units, pre-flight), "glb", "bvh", "usda", "usda_layers" (ROADMAP 79) or "game" (the PoseTable)
@@ -133,6 +134,12 @@ func _build() -> void:
 	inner.add_child(ui_app)
 	sc.add_child(inner)
 	v.add_child(sc)
+	ui_blur = CheckBox.new()
+	ui_blur.name = "chk_playblast_blur"
+	ui_blur.text = "Playblast video: motion blur (8 sub-frames, 180 degree shutter; slower)"
+	ui_blur.button_pressed = bool(m.blast_blur)
+	ui_blur.toggled.connect(func(on: bool): m.blast_blur = on)
+	v.add_child(ui_blur)
 	dlg.add_child(v)
 	ui_target.item_selected.connect(_on_target)
 	ui_format.item_selected.connect(_on_format)
@@ -161,6 +168,7 @@ func open() -> void:
 		_build()
 	_fill_formats()
 	_refresh()
+	ui_blur.set_pressed_no_signal(bool(m.blast_blur))
 	dlg.popup_centered()
 
 
