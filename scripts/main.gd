@@ -203,6 +203,7 @@ var base_fold := {"left": false, "right": false, "bottom": false}   # the user's
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
 var ui_page_btns := {}     # page -> its button on the page bar
 var ui_page_bar: PanelContainer
+var ui_next: Button        # R6: the page bar's one next-step line
 var ui_view_menu: MenuButton
 var ui_caps := {}         # tab -> [[caption MenuButton, [its tools]], ...]
 var ui_doc: Label         # the strip's middle: the scene's name, clips, length
@@ -3238,6 +3239,7 @@ func _refresh() -> void:
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
 	_doc_line()
+	_next_sync()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
@@ -10755,6 +10757,61 @@ func _build_page_bar() -> void:
 			var sep := VSeparator.new()
 			sep.custom_minimum_size.x = 14
 			h.add_child(sep)
+	# R6: the one obvious next step, on every page, to the right of the page buttons (the page bar is every page's own strip)
+	ui_next = Button.new()
+	ui_next.name = "next_step"
+	ui_next.focus_mode = Control.FOCUS_NONE
+	ui_next.flat = true
+	ui_next.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ui_next.clip_text = true
+	ui_next.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	ui_next.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_next.custom_minimum_size = Vector2(0, PAGE_H - 10)
+	ui_next.add_theme_color_override("font_color", Tok.c("say"))
+	ui_next.add_theme_color_override("font_hover_color", Tok.c("say"))
+	ui_next.pressed.connect(_next_run)
+	h.add_child(ui_next)
+	_next_sync()
+
+
+## R6: THE ONE NEXT STEP, computed from the state; the same on every page, never empty. {text, cmd, kind}: cmd is the
+## registry name of the command it runs ("" for a Fix, which is a button under a finding, not a registry row)
+func next_step() -> Dictionary:
+	if S.cards.is_empty():
+		return {"text": "Clip this pose (Enter)", "cmd": "CLIP this pose (add a card)", "kind": "clip"}
+	if S.cards.size() < 2:
+		return {"text": "Clip the next pose (Enter): Check needs two clips", "cmd": "CLIP this pose (add a card)", "kind": "clip"}
+	if not check_ran or undo.size() != check_at:
+		return {"text": "Run Check", "cmd": "Check the motion", "kind": "check"}
+	for f in findings:
+		if f["sev"] == "FAIL":
+			var lbl := Fixer.label(f, S)
+			return {"text": "Fix the first problem: %s at %.2f s, card %d%s" % [f["rule"], f["t"], f["card"] + 1, (" (" + lbl.trim_prefix("Fix: ") + ")") if lbl != "" else " (jump to it)"], "cmd": "", "kind": "fix", "finding": f}
+	return {"text": "Export this clip (Export...)", "cmd": "Export...", "kind": "export"}
+
+
+func _next_sync() -> void:
+	if ui_next == null:
+		return
+	var n := next_step()
+	ui_next.text = "Next:  " + String(n["text"])
+	ui_next.tooltip_text = "the one next step for this scene; click it to do it"
+
+
+func _next_run() -> void:
+	var n := next_step()
+	_step_hint = String(n["text"])
+	match n["kind"]:
+		"clip": _card_add()
+		"check": _check()
+		"fix":
+			var f: Dictionary = n["finding"]
+			if Fixer.label(f, S) != "":
+				_fix(f)
+			else:
+				_goto_finding(f)
+		_: _export_dialog_open()
+	_next_sync()
 
 
 ## A PAGE (a view change: no undo step, the scene untouched): its ribbon row and its panels. Remembered in the settings file
@@ -12666,6 +12723,7 @@ func _check(given = null) -> void:
 	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 128.0 * findings.size(), 60.0,
 		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))   # ends above the status line (round 9: the bar moved it up)
 	ui_find.visible = true
+	_next_sync()
 	_say("check: " + ("clean" if findings.is_empty() else "%d findings, %d must fix.  Click one to jump to it." % [findings.size(), fails]))
 
 
