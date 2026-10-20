@@ -3465,7 +3465,7 @@ func _reaction_drop(path: String, mp: Vector2) -> bool:
 				best = d
 				k = i
 	if k < 0:
-		_say("drop the reaction ON a fighter in the view (the one who is hit), not on empty floor")
+		_say("drop the reaction ON a fighter in the view (the one who is hit), not on empty floor: drag it again and let go over one")
 		return false
 	return _reaction_apply(path, k)
 
@@ -3524,7 +3524,7 @@ func _fight_build() -> Dictionary:
 	var pl := _fight_plan(a, d)
 	if not pl["ok"]:
 		fp_prev = {}
-		_say(String(pl["why"]))
+		_say(String(pl["why"]) + ". Pick the fighter who strikes, or move the fighters closer, then try again")
 		return pl
 	var ds: Scene = (actors_rt[d]["S"] as Scene).clone()
 	FightPhrase.apply_plan(ds, pl)
@@ -3556,7 +3556,7 @@ func _fight_accept() -> bool:
 	fp_prev = {}
 	if not pl["ok"]:
 		_refresh()
-		_say(String(pl["why"]))
+		_say(String(pl["why"]) + ". Pick the fighter who strikes, or move the fighters closer, then try again")
 		return false
 	_actor_go(d)
 	_push_undo()
@@ -3635,7 +3635,7 @@ func _rehearse_land(res: Dictionary, from: String) -> void:
 ## show a comparison (the app's path and the test's): T = the take as a Scene
 func _rehearse_compare(T: Scene, from := "your take") -> Dictionary:
 	if S.cards.size() < 2:
-		_say("nothing to compare yet: build a clip of at least two cards first, then compare it with your video")
+		_say("nothing to compare yet: add cards until the clip has at least two, then compare it with your video")
 		return {}
 	var R := Rehearse.compare(S, T)
 	_rehearse_set(T, R, from)
@@ -5304,7 +5304,7 @@ func _qr_render() -> void:
 	if not bool(r.get("ok", false)):
 		qr_last["say"] = String(r.get("why", "the QR could not be drawn: run pip install segno zxing-cpp pillow"))
 		ui_qr_info.text = qr_last["say"]
-		_say(qr_last["say"])
+		_say(qr_last["say"] + ". Try Share as QR again when that is fixed")
 		return
 	var img := Image.load_from_file(ProjectSettings.globalize_path(png))
 	if img == null:
@@ -5345,7 +5345,7 @@ func _qr_open_file(path: String) -> Dictionary:
 func _qr_open_text(text: String) -> Dictionary:
 	var u := QrShare.unpack(text)
 	if not bool(u["ok"]):
-		_say(String(u["why"]))
+		_say(String(u["why"]) + ". Try another picture of a Kine code")
 		return u
 	_step_hint = "Open from QR"
 	if u["kind"] == "pose":
@@ -6837,7 +6837,7 @@ func _sk_fit() -> Dictionary:
 	var rep := SketchPose.fit(B, cam, sk.strokes)
 	if not rep["ok"]:
 		_drop_undo()
-		_say("sketch: " + String(rep["why"]))
+		_say("sketch: " + String(rep["why"]) + ". Try again: start each stroke at the spine")
 		return rep
 	sk.fitted = rep["skeleton"]
 	sk.last = rep
@@ -15944,7 +15944,7 @@ func cards_retime(factor: float) -> String:
 	if idx.is_empty():
 		return "no cards selected"
 	if not (factor >= 0.1 and factor <= 10.0):
-		_say("retime by a factor from 0.1 to 10 (2 = twice as slow), not %s" % factor)
+		_say("retime by a factor from 0.1 to 10 (2 = twice as slow), not %s: type a factor in that range" % factor)
 		return "bad factor"
 	_step_hint = "Retime cards"
 	_push_undo()

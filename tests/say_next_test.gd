@@ -25,7 +25,21 @@ const DONE := {"fatigue at fitness %.2f": "reports the retime it just made (ROAD
 	# forwarders: the caller's message names the next step (_rp_straighten / _rp_scale name the handle or the slider;
 	# CustomAttr.define names what to type or pick: custom_attr.gd check_name / check_range / define)
 	"_say(none)": "forwards _rp_edit's message: each caller names the handle or the slider to move next (_rp_straighten, _rp_scale)",
-	"_say(e)": "forwards CustomAttr.define's error: each names what to type or pick next (custom_attr.gd)"}
+	"_say(e)": "forwards CustomAttr.define's error: each names what to type or pick next (custom_attr.gd)",
+	"reaction picker closed": "reports that the picker was just closed",
+	"the clip now keeps your timing": "reports the retime it just made (Ctrl+Z is named)",
+	"now has your pose (the 36 joint angles": "reports the pose it just put on the card (Ctrl+Z is named)",
+	"reacts to the hit at %s": "reports the reaction it just made (Ctrl+Z is named)",
+	"opened the shared scene": "reports the scene it just opened (Ctrl+Z is named)",
+	"to its mirror depth": "reports the flip it just made (Ctrl+Z is named)",
+	"msg + \".  Ctrl+Z undoes\"": "reports the sketch fit it just made (Ctrl+Z is named)",
+	"posed '%s': %d placed": "reports the pose it just made (Ctrl+Z is named)",
+	"cards x%s: the scene is now": "reports the retime it just made (Ctrl+Z is named)",
+	"cards hold %s s: the scene": "reports the hold it just made (Ctrl+Z is named)",
+	"%d cards deleted.": "reports the delete it just made (Ctrl+Z is named)",
+	"cards pasted after card": "reports the paste it just made (Ctrl+Z is named)",
+	"it runs in the background, the window stays yours": "reports that the job started (Cancel on the bar is named)",
+	"next pose %d of %d": "reports the pose it just showed (Enter, Tab and Esc are named)"}
 
 
 func ok(c: bool, what: String) -> void:
