@@ -241,6 +241,44 @@ func _times_raw() -> Array:
 	return out
 
 
+## EXPRESSIONS (R22, face.gd): a card's "expr" names its face (Face.EXPRESSIONS; absent = neutral). The weights at time t
+## {name: 0..1} blend between cards: a card wears its expression from its arrival to its leave, and in the gap to the next card the
+## two weights cross over by a smoothstep (0.5 each at mid-time). {} when no card has one (a scene without it draws as before).
+func expr_at(t: float) -> Dictionary:
+	var any := false
+	for c in cards:
+		if c.has("expr"):
+			any = true
+			break
+	if not any:
+		return {}
+	var ts := times()
+	var w := {}
+	var n := cards.size()
+	var i := 0
+	while i < n - 1 and t > ts[i + 1][1]:
+		i += 1
+	var a: String = String(cards[i].get("expr", "neutral"))
+	if i >= n - 1 or t <= ts[i][2]:
+		w[a] = 1.0
+		return w
+	var b: String = String(cards[i + 1].get("expr", "neutral"))
+	var span := maxf(ts[i + 1][1] - ts[i][2], 1e-6)
+	var u := clampf((t - ts[i][2]) / span, 0.0, 1.0)
+	u = u * u * (3.0 - 2.0 * u)
+	w[a] = float(w.get(a, 0.0)) + 1.0 - u
+	w[b] = float(w.get(b, 0.0)) + u
+	return w
+
+
+## set (or clear, "neutral" / "") card i's expression; neutral erases the key so an untouched card saves as before
+func set_expr(i: int, name: String) -> void:
+	if name == "" or name == "neutral" or not Face.EXPRESSIONS.has(name):
+		cards[i].erase("expr")
+	else:
+		cards[i]["expr"] = name
+
+
 func length() -> float:
 	var ts := times()
 	return ts[-1][2] if not ts.is_empty() else 0.0
@@ -1974,6 +2012,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["steps"] = st
 		if c.has("lift"):
 			cs[-1]["lift"] = c["lift"]
+		if c.has("expr"):
+			cs[-1]["expr"] = c["expr"]   # R22: the card's face expression, only when set
 		if c.get("ease", "smooth") != "smooth":
 			cs[-1]["ease"] = c["ease"]
 		if c.has("ease_bias"):
@@ -2101,7 +2141,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"boxes": "SIDED: HitBoxes.mirror_file (a box's part to its twin, _l <-> _r; an attack box's offsets x negated; frames and damage free)"}
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
-	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free",
+	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free", "expr": "free",
 	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free"}
 
 
@@ -2264,6 +2304,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["lift"] = _num(c["lift"], 0.0)
 		if c.get("flow", false):
 			cards[-1]["flow"] = true
+		if String(c.get("expr", "")) in Face.EXPRESSIONS and String(c.get("expr", "")) != "neutral":
+			cards[-1]["expr"] = String(c["expr"])   # R22: absent = neutral
 		if c.get("walk", false):
 			cards[-1]["walk"] = true
 		if String(c.get("ease", "smooth")) in ALL_EASES and c.get("ease", "smooth") != "smooth":
