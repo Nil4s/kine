@@ -17,6 +17,7 @@ var key := ""        # the cards the score was made for (the header shows it onl
 var ms := 0.0
 var busy := false
 var _memo := {}      # {"key", "sm", "findings", "tc"}: the Check and timing answers for the cards they were made for
+var prof := {}       # ms per stage of the last refresh (FrameMemo.tick)
 var lap := {}        # ms per judge, the last gather
 var gains := {}      # {cards key + reason text: predicted gain in points, or -1.0 if the fix could not be scored}
 var gain_ms := 0.0   # what the last predictions cost
@@ -180,12 +181,14 @@ func show() -> void:
 
 func refresh() -> void:
 	var t0 := Time.get_ticks_usec()
+	FrameMemo.prof = {}   # the profile of this score (FrameMemo.tick)
 	inp = gather(m.tc_ui.db)
 	res = RealismScore.compute(m.S, inp)
 	if key != var_to_str(m.S.cards):
 		gains = {}
 	key = var_to_str(m.S.cards)
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	prof = FrameMemo.prof.duplicate()
 	m._doc_line(true)
 
 
