@@ -200,6 +200,32 @@ static func pose_skeleton(sk: Skeleton3D, idx: Dictionary, b: Body) -> void:
 			sk.set_bone_pose_rotation(idx[j], b.gltf_local(j))
 	if idx["pelvis"] >= 0:
 		sk.set_bone_pose_position(idx["pelvis"], b.gltf_pelvis_pos())
+	_squash_skel(sk, idx, b)
+
+
+## I13: a struck part squashed along the blow (Body.squash): the bone's scale along that direction (in the bone's own axes), put back next call
+static func _squash_skel(sk: Skeleton3D, idx: Dictionary, b: Body) -> void:
+	if sk.has_meta("sq"):
+		var old: Dictionary = sk.get_meta("sq")
+		for i in old:
+			sk.set_bone_pose_scale(int(i), old[i])
+		sk.remove_meta("sq")
+	if b.squash.is_empty():
+		return
+	var keep := {}
+	var want := {}
+	for j in b.squash:
+		if not idx.has(j) or int(idx[j]) < 0:
+			continue
+		var i: int = idx[j]
+		var rot := sk.get_bone_global_pose(i).basis.orthonormalized()
+		var dl: Vector3 = rot.inverse() * (b.squash[j]["dir"] as Vector3)
+		var s: float = b.squash[j]["s"]
+		keep[i] = sk.get_bone_pose_scale(i)
+		want[i] = (keep[i] as Vector3) * Vector3(1.0 + (s - 1.0) * dl.x * dl.x, 1.0 + (s - 1.0) * dl.y * dl.y, 1.0 + (s - 1.0) * dl.z * dl.z)
+	for i in want:
+		sk.set_bone_pose_scale(int(i), want[i])
+	sk.set_meta("sq", keep)
 
 
 ## the scene changed: the trail is rebuilt the next time it is drawn

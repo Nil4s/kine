@@ -140,8 +140,13 @@ static func to_file(attrs: Dictionary) -> Dictionary:
 		var a: Dictionary = attrs[id]
 		var ks := []
 		for k in a.get("keys", []):
-			ks.append({"t": float(k["t"]), "v": (k["v"] as Vector3).x})   # exact: a reload plays the same curve to the bit
+			var kd := {"t": float(k["t"]), "v": (k["v"] as Vector3).x}   # exact: a reload plays the same curve to the bit
+			if (k["v"] as Vector3).y != 0.0 or (k["v"] as Vector3).z != 0.0:
+				kd["dir"] = [(k["v"] as Vector3).y, (k["v"] as Vector3).z]   # I13: a squash key's direction (azimuth, elevation deg)
+			ks.append(kd)
 		out[id] = {"min": float(a["min"]), "max": float(a["max"]), "default": float(a["default"]), "keys": ks}
+		if a.get("ih", false):
+			out[id]["ih"] = true
 	return out
 
 
@@ -162,8 +167,11 @@ static func from_file(d: Variant) -> Dictionary:
 		var a := {"min": mn, "max": mx, "default": df, "keys": []}
 		out[id] = a
 		var pk := {id: []}
+		if e.get("ih", false):
+			a["ih"] = true
 		for k in e.get("keys", []):
-			PartKeys.put(pk, id, float(k["t"]), Vector3(clampf(float(k["v"]), mn, mx), 0.0, 0.0))
+			var dv: Array = k.get("dir", [0.0, 0.0])
+			PartKeys.put(pk, id, float(k["t"]), Vector3(clampf(float(k["v"]), mn, mx), float(dv[0]), float(dv[1])))
 		a["keys"] = pk[id]
 	return out
 

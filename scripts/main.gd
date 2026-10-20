@@ -148,6 +148,7 @@ var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every tar
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
+var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
 var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
@@ -182,7 +183,7 @@ const RIBBON_GROUPS := {
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
-		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)"]]],
+		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
@@ -2549,6 +2550,8 @@ func _process(dt: float) -> void:
 		mp_ui.tick(dt)
 	if sd_ui != null:
 		sd_ui.tick(dt)   # STYLE DIAL: forgets its base when anything else changed the scene
+	if if_ui != null:
+		if_ui.tick(dt)   # IMPACT FRAMES preview (nothing otherwise)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
 	_dm_poll()
@@ -4700,7 +4703,8 @@ func _snapshot() -> Dictionary:
 		"sets": S.sets.duplicate(true),   # selection / keying sets (part_sets.gd), undone like a card
 		"clips": S.clips.duplicate(true),   # CLIPS (clips.gd), undone like a card
 		"boxes": S.boxes.duplicate(true),   # HIT / HURT BOXES (hit_boxes.gd), undone like a card
-		"others": actors_rt.map(func(a): return {"S": a["S"], "cards": (a["S"] as Scene).cards.duplicate(true)}),   # ROADMAP 53: every fighter's cards (a copy writes the other one's)
+		"others": actors_rt.map(func(a): return {"S": a["S"], "cards": (a["S"] as Scene).cards.duplicate(true), "pk": (a["S"] as Scene).part_keys.duplicate(true), "attrs": (a["S"] as Scene).attrs.duplicate(true)}),   # (I13: and their part keys and attributes: a hit-stop shifts them)
+		   # ROADMAP 53: every fighter's cards (a copy writes the other one's)
 		"flags": BAKE_FLAGS.map(func(f): return S.get(f))}   # DD4: the playback switches a bake turns off
 
 
@@ -4721,6 +4725,8 @@ func _restore(u: Dictionary) -> void:
 		sd_ui.halt()
 	if tc_ui != null:
 		tc_ui.halt()
+	if if_ui != null:
+		if_ui.halt()
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
@@ -4843,6 +4849,13 @@ func _restore(u: Dictionary) -> void:
 		var oS: Scene = e["S"]
 		if oS != S and var_to_str(e["cards"]) != var_to_str(oS.cards):
 			oS.cards = e["cards"].duplicate(true)
+			for a in actors_rt:
+				if a["S"] == oS:
+					a["t"] = NAN
+		if oS != S and e.has("pk") and var_to_str(e["pk"]) != var_to_str(oS.part_keys):
+			oS.part_keys = e["pk"].duplicate(true)
+		if oS != S and e.has("attrs") and var_to_str(e["attrs"]) != var_to_str(oS.attrs):
+			oS.attrs = e["attrs"].duplicate(true)
 			for a in actors_rt:
 				if a["S"] == oS:
 					a["t"] = NAN
@@ -9464,7 +9477,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
+const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -9894,6 +9907,10 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Reactions", _reactions_toggle, "the hit reaction picker: thumbnails of the reaction clips; drag one onto the fighter who is hit and its cards start at the contact (ROADMAP R16)"))
 	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))
+	if if_ui == null:
+		if_ui = ImpactFramesUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Add impact frames", if_ui.show, "at every contact: a hit-stop of 2 to 6 frames scaled by the blow's impulse, a shot-camera shake and a squash on the struck part; Preview first, Accept is one undo step (ROADMAP I13)"))
+	ui_ribbon["SET"].add_child(_button("Remove impact frames", if_ui.remove, "takes the impact frames out by their tags and shifts the scene back; one undo step"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
 	var ap := MenuButton.new()
 	ap.text = "Add prop"
@@ -12487,6 +12504,9 @@ func _commands() -> Array:
 	if tc_ui == null:
 		tc_ui = TimingCoachUI.new(self)
 	tc_ui.commands(add)   # TIMING COACH (ROADMAP I4)
+	if if_ui == null:
+		if_ui = ImpactFramesUI.new(self)
+	if_ui.commands(add)   # IMPACT FRAMES (ROADMAP I13)
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
