@@ -158,7 +158,8 @@ func _init() -> void:
 	release(2, centre(6))
 	m._card_pick_click(2)
 	ok(had and m._cd_ghost == null and m._cd_line == null and fp() == base and m.undo.size() == u0 and m.sel_card == 4, "Esc mid-drag: cancelled, nothing moved, no undo step, release picked nothing")
-	# screenshot mid-drag (placement: whole window)
+	# screenshot mid-drag (placement: whole window); the cards were rebuilt by the picks, let them lay out
+	await idle(4)
 	press(1, centre(1))
 	move(1, centre(1) + Vector2(20, -6))
 	move(1, Vector2(centre(8).x + 2.0, centre(8).y - 10.0))
