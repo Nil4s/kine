@@ -17,6 +17,13 @@
 ##   habit   share x confidence, share = the group's weight / all votes, confidence = 1 - exp(-count / 2)
 ##   motion  0.9 x (1 - cost / MOTION_MAXCOST), cost = distance / 10 deg (so cost 1.0 = 10 deg of mean joint error)
 ##   phase   0.6 - 0.4 x min(distance / PHASE_MAXD, 1)
+## I10 YOUR TIMING (ROADMAP I10, "your moves learn you"): the same index also keeps every card's move and hold time, so a
+## TRANSITION (card before -> card) is a row: the two poses and the seconds Nick gave it (only explicit moves; an automatic
+## move is the app's guess, not his). usual() = the median move and hold of the T_K nearest transitions to a new card and the
+## card before it, where "near" = the larger of the two pose distances (plus T_PHASE_PEN deg when both card names read a move
+## phase and it differs) and the bar is T_MAXD deg; fewer than T_MIN transitions inside the bar = no answer (the app's own default).
+## between() = the card Nick usually puts between pose A and pose C: triples (A', X, C') with A' within T_MAXD of A and C'
+## within T_MAXD of C; X grouped like the habits; a group seen BETWEEN_MIN times or more is offered.
 ## The index (every card of every scene, as joint angles) is cached and brought up to date by modified time; update_file
 ## re-reads ONE scene (main calls it when a scene is saved).
 class_name NextPose
@@ -34,7 +41,12 @@ const COST_DEG := 10.0   # deg of mean joint error per unit of motion cost
 const PHASE_MAXD := 45.0
 const LIB_DIRS := ["res://poses/lib", "res://poses", "res://moves"]
 const MAX_N := 3
-const SRC_WORDS := {"habit": "your habits", "motion": "real motion", "phase": "the move phase"}
+const T_MAXD := 10.0     # deg: a stored transition is "like this pair" inside this (both ends)
+const T_K := 5           # nearest transitions whose median is "your usual"
+const T_MIN := 2         # fewer than this many inside the bar: no guess
+const T_PHASE_PEN := 3.0 # deg added to a transition whose move phase differs from the new card's
+const BETWEEN_MIN := 3   # an in-between used this often is offered
+const SRC_WORDS := {"habit": "your habits", "motion": "real motion", "phase": "the move phase", "between": "your in-betweens"}
 ## phases: name -> [words that read as it, the next phase, its label]
 const PHASES := {
 	"follow": [["follow"], "recover", "follow-through"],
@@ -58,6 +70,7 @@ var _wsum := 0.0
 var _cards: Array = []   # flat: {"f": path, "c": card}
 var _nk := PackedFloat32Array()    # the key vector of every flat card
 var _next := PackedInt32Array()    # the flat index of the next card in its file, or -1
+var _prev := PackedInt32Array()    # the flat index of the card before in its file, or -1 (I10)
 var _lib: Array = []     # the pose library: {"name", "path", "a", "o", "k"}
 var _lib_done := false
 var db: Dictionary = {}  # MotionMatch's database, or {}
@@ -234,6 +247,7 @@ func _flatten() -> void:
 	_cards = []
 	_nk = PackedFloat32Array()
 	_next = PackedInt32Array()
+	_prev = PackedInt32Array()
 	var paths := files.keys()
 	paths.sort()
 	for path in paths:
@@ -242,6 +256,7 @@ func _flatten() -> void:
 			_cards.append({"f": path, "c": cs[i]})
 			_nk.append_array(key_of(cs[i]["a"]))
 			_next.append(_cards.size() if i + 1 < cs.size() else -1)
+			_prev.append(_cards.size() - 2 if i > 0 else -1)
 
 
 func card_count() -> int:
@@ -462,11 +477,115 @@ static func _name_has(nm: String, words: Array) -> bool:
 	return false
 
 
+# ---- I10: your timing and your in-betweens -------------------------------------------------------------------------------
+
+static func _median(v: Array) -> float:
+	v.sort()
+	var n := v.size()
+	return float(v[n / 2]) if n % 2 == 1 else 0.5 * (float(v[n / 2 - 1]) + float(v[n / 2]))
+
+
+## "your usual" for a card newly put after prev: {"mv", "hd", "n", "dist"} or {} (no transition near enough, or fewer than T_MIN)
+func usual(prev: Dictionary, cur: Dictionary, card_name := "") -> Dictionary:
+	if not loaded:
+		refresh()
+	var NK := _kidx.size() * 3
+	var pk := key_of(full_of_pose(prev))
+	var ck := key_of(full_of_pose(cur))
+	var ph := phase_of(card_name)
+	var near: Array = []   # [d, flat index], ascending, at most T_K
+	for ci in _cards.size():
+		var pi: int = _prev[ci]
+		if pi < 0 or float(_cards[ci]["c"]["mv"]) <= 0.0:
+			continue
+		var pen := 0.0
+		var cph := phase_of(String(_cards[ci]["c"]["n"]))
+		if ph != "" and cph != "" and ph != cph:
+			pen = T_PHASE_PEN
+		var lim := T_MAXD - pen
+		var d1 := kdist(_nk, pi * NK, pk, 0, lim)
+		if d1 > lim:
+			continue
+		var d2 := kdist(_nk, ci * NK, ck, 0, lim)
+		if d2 > lim:
+			continue
+		var d := maxf(d1, d2) + pen
+		var at := near.size()
+		while at > 0 and float((near[at - 1] as Array)[0]) > d:
+			at -= 1
+		near.insert(at, [d, ci])
+		if near.size() > T_K:
+			near.pop_back()
+	if near.size() < T_MIN:
+		return {}
+	var mvs := []
+	var hds := []
+	var dsum := 0.0
+	for nb in near:
+		var c: Dictionary = _cards[int(nb[1])]["c"]
+		mvs.append(float(c["mv"]))
+		hds.append(float(c["hd"]))
+		dsum += float(nb[0])
+	return {"mv": snappedf(_median(mvs), 0.001), "hd": snappedf(_median(hds), 0.001), "n": near.size(), "dist": dsum / near.size()}
+
+
+## the in-between Nick usually puts between pose a and pose c: [{"src": "between", "label": "your usual in-between", ...}] best first
+func between(a: Dictionary, c: Dictionary, cur_off: Vector3, exclude := "") -> Array:
+	if not loaded:
+		refresh()
+	var NK := _kidx.size() * 3
+	var ak := key_of(full_of_pose(a))
+	var ck := key_of(full_of_pose(c))
+	var groups: Array = []   # {"rep": flat index of X, "idx": [flat indices]}
+	var total := 0
+	for xi in _cards.size():
+		var pi: int = _prev[xi]
+		var ni: int = _next[xi]
+		if pi < 0 or ni < 0 or _cards[xi]["f"] == exclude:
+			continue
+		if kdist(_nk, pi * NK, ak, 0, T_MAXD) > T_MAXD or kdist(_nk, ni * NK, ck, 0, T_MAXD) > T_MAXD:
+			continue
+		if kdist(_nk, xi * NK, ak, 0, NOOP) <= NOOP or kdist(_nk, xi * NK, ck, 0, NOOP) <= NOOP:
+			continue   # X is A or C again: a hold, not an in-between
+		total += 1
+		var hit := -1
+		for g in groups.size():
+			if kdist(_nk, int(groups[g]["rep"]) * NK, _nk, xi * NK, CLUSTER) <= CLUSTER:
+				hit = g
+				break
+		if hit < 0:
+			groups.append({"rep": xi, "idx": [xi]})
+		else:
+			groups[hit]["idx"].append(xi)
+	var out := []
+	for g in groups:
+		var cnt: int = (g["idx"] as Array).size()
+		if cnt < BETWEEN_MIN:
+			continue
+		var mvs := []
+		var hds := []
+		for xi in g["idx"]:
+			var xc: Dictionary = _cards[int(xi)]["c"]
+			if float(xc["mv"]) > 0.0:
+				mvs.append(float(xc["mv"]))
+			hds.append(float(xc["hd"]))
+		var rc: Dictionary = _cards[int(g["rep"])]["c"]
+		var rf := String(_cards[int(g["rep"])]["f"]).get_file().get_basename()
+		var share := float(cnt) / float(total)
+		out.append({"src": "between", "label": "your usual in-between", "score": minf(1.0, 0.25 + share * (1.0 - exp(-cnt / 2.0))), "count": cnt,
+			"full": rc["a"], "off": Vector3(cur_off.x, (rc["o"] as Vector3).y, cur_off.z), "name": rc["n"],
+			"mv": snappedf(_median(mvs), 0.001) if not mvs.is_empty() else -1.0, "hd": snappedf(_median(hds), 0.001), "dist": 0.0, "from": rf,
+			"tip": "your usual in-between: %d time%s you put a pose like this between a pose like the current card and the next one (of %d such pairs), e.g. '%s' in %s" % [
+				cnt, "" if cnt == 1 else "s", total, rc["n"], rf]})
+	out.sort_custom(func(x, y): return float(x["score"]) > float(y["score"]))
+	return out
+
+
 # ---- all three ---------------------------------------------------------------------------------------------------------
 
 ## up to MAX_N suggestions, best score first, near-duplicates (within CLUSTER deg) kept once.
 ## cur = the current card's pose dictionary; dt = the current card's move time (s); exclude = the open scene's file
-func suggest(cur: Dictionary, card_name: String, dt: float, exclude := "", hint := "") -> Array:
+func suggest(cur: Dictionary, card_name: String, dt: float, exclude := "", hint := "", nxt := {}) -> Array:
 	var t0 := Time.get_ticks_usec()
 	if not loaded:
 		refresh()
@@ -475,6 +594,8 @@ func suggest(cur: Dictionary, card_name: String, dt: float, exclude := "", hint 
 	var o: Array = cur.get("offset", [0, 0, 0])
 	var off := Vector3(float(o[0]), float(o[1]), float(o[2]))
 	var all: Array = habits(qk, off, exclude)
+	if not nxt.is_empty():
+		all.append_array(between(cur, nxt, off, exclude))   # I10: only when the card has a card after it
 	all.append_array(motion(qk, off, dt, exclude))
 	all.append_array(phase(qk, off, card_name, exclude, hint))
 	all.sort_custom(func(a, b): return float(a["score"]) > float(b["score"]))
