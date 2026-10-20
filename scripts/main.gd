@@ -164,6 +164,7 @@ var ao_ui: AutoOpponentUI   # AUTO OPPONENT (ROADMAP I37): scripts/auto_opponent
 var pc_ui: PrecogUI   # PRECOG CHECK (ROADMAP I31): scripts/precog_ui.gd
 var sf_ui: SafetyUI   # SAFETY SHEET (ROADMAP I28): scripts/safety_ui.gd
 var ml_ui: MomentumUI   # MOMENTUM LEDGER (ROADMAP I36): scripts/momentum_ui.gd + momentum.gd
+var rmc_ui: MocapCheckUI   # REAL-MOCAP POSE CHECK (ROADMAP I48): scripts/mocap_check_ui.gd + mocap_check.gd
 var sp_ui: SpinCheckUI   # AIRBORNE SPIN CHECK (ROADMAP I43): scripts/spin_check_ui.gd + spin_check.gd
 var fp_ui: FloorPlanUI   # FLOOR PLAN (ROADMAP I42): scripts/floor_plan_ui.gd
 var fa_ui: ExertionUI   # FATIGUE (ROADMAP I34): scripts/exertion_ui.gd + exertion.gd
@@ -211,7 +212,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "Parry rebound", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Gaze director", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Recovery step", "Precog check", "Auto opponent", "Fatigue", "Momentum ledger", "Airborne spin check", "Realism score", "My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "Parry rebound", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Gaze director", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Recovery step", "Precog check", "Auto opponent", "Fatigue", "Momentum ledger", "Airborne spin check", "Real-mocap check", "Realism score", "My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["PLAN", ["Floor plan"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -2628,6 +2629,8 @@ func _process(dt: float) -> void:
 		ml_ui.tick(dt)
 	if sp_ui != null:
 		sp_ui.tick(dt)
+	if rmc_ui != null:
+		rmc_ui.tick(dt)
 	sj.observe(undo.size())   # I26: undone / edited suggestions
 	if cm_ui != null:
 		cm_ui.tick(dt)
@@ -10007,7 +10010,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -10483,6 +10486,9 @@ func _ui() -> void:
 	if sp_ui == null:
 		sp_ui = SpinCheckUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Airborne spin check", sp_ui.show, "finds each flight (both feet off the floor, nothing held), draws the centre of mass against the free-fall parabola on the timeline, flags a floaty arc and a mid-air spin the take-off momentum cannot give, and offers Fix the flights (the spin moved into the take-off, the arc put on a parabola); preview, then accept (one undo step)"))
+	if rmc_ui == null:
+		rmc_ui = MocapCheckUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Real-mocap check", rmc_ui.show, "scores how typical each card's pose is of what people really do (shoulder + elbow, hip + knee, spine chain against CMU motion-capture statistics); a pose below the 1% line is flagged with the nearest real pose as a ghost beside the body and the joints that differ most, in degrees. Nothing changes"))
 	ui_ribbon["CHECK"].add_child(_button("Fatigue", fa_ui.show, "per fighter: the mechanical work done over the clip (joint power from the force view) as a green-to-red fatigue strip on the timeline; flags a fighter still at full speed or with an undropped guard late in a long exchange, and offers Tire him (slower strikes, longer recovers, lower guard); preview, then accept (one undo step)"))
 	ui_ribbon["CHECK"].add_child(_button("Fight rhythm", rh_ui.show, "with two fighters: a tempo map of the exchange (who attacks, who answers, the time between beats) as a strip on the timeline; flags monotony, dead air and rush with a one-click suggestion each (pause, change side, feint); preview, then accept (one undo step)"))
 	if ac_ui == null:
@@ -13193,6 +13199,9 @@ func _commands() -> Array:
 	if sp_ui == null:
 		sp_ui = SpinCheckUI.new(self)
 	sp_ui.commands(add)   # AIRBORNE SPIN CHECK (ROADMAP I43)
+	if rmc_ui == null:
+		rmc_ui = MocapCheckUI.new(self)
+	rmc_ui.commands(add)   # REAL-MOCAP POSE CHECK (ROADMAP I48)
 	if cm_ui == null:
 		cm_ui = ComboUI.new(self)
 	cm_ui.commands(add)   # MY COMBOS (ROADMAP I23)
