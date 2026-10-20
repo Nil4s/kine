@@ -9,11 +9,16 @@
 ## a = second central difference of c, alpha = central difference of the angular velocity of G (spin included),
 ## I = m (k L)^2 about the piece's COM (isotropic: the gyroscopic term w x I w is dropped; stated). A held bat is one more
 ## piece shared between the hands that hold it (an equal split when two do, as HumanLimits.bat_share).
-## GROUND: F = sum_all m (a - g) (the whole body, bat included), applied only while a foot is down (Balance.footprint) and
-## only if it pushes (F_y >= 0); split between the feet in contact by the lever rule: weight on a foot goes as 1 / (the
-## horizontal distance from the COM to that foot's centre of pressure), which for two feet is the static split exactly.
-## The centre of pressure is the middle of the foot's footprint. The leg joints (hip, knee, ankle) use the ground; the spine,
-## neck, arms are summed from their free ends. Where both give a joint (the hips) the leg's answer is the one shown.
+## GROUND (I8c, bottom-up): F = sum_all m (a - g), the whole body's momentum change, bat included. A foot can only push and
+## not slide: F_y >= 0 and |F_h| <= MU F_y; what it cannot give is the OUTSIDE FORCE (resid = sum m (a - g) - F used, the force the
+## pelvis would need from outside; zero for a real body, shown as a red "needs outside force" badge from NEED_BW body weights).
+## The centre of pressure comes from the angular momentum rate about the COM, (x_cop - com) x F = sum (c - com) x m a + sum I alpha
+## (horizontal parts), held inside the feet (the hull of the two footprints); what that cannot give is resid_tau. The force is
+## split between the feet by the lever rule along the line joining their footprint centres. The leg joints (hip, knee, ankle)
+## recurse bottom-up from the feet with this ground force; the spine, neck, arms recurse top-down from their free ends. The
+## pelvis is where they meet, so resid is exactly the pelvis's unexplained force. (Before I8c the root was kinematic: F_y < 0
+## zeroed the ground force, so combo3 3.05 s read lumbar 4122 Nm beside knee 31 Nm; the clip is a 0.16 s card move, 0.65 m of head
+## travel, that no body can do without outside help.)
 ##
 ## LIMITS (colour = |M_j| / limit): green < 0.5, yellow < 1.0, red >= 1.0. LIMIT_NM is a STRONG young man's maximum
 ## voluntary joint torque, Nm at 75 kg, scaled linearly with body mass (mine). The order of magnitude follows Anderson,
@@ -42,6 +47,8 @@ const LIMIT_NM := {"thigh": 250.0, "calf": 250.0, "foot": 150.0, "spine_01": 250
 	"neck_01": 50.0, "head": 40.0, "upperarm": 120.0, "lowerarm": 80.0, "hand": 25.0}
 const GREEN_BELOW := 0.5
 const YELLOW_BELOW := 1.0
+const MU := 1.0          # friction cone: |F_horizontal| <= MU F_vertical (shoe on floor; mine, 0.6-1.0 is the usual range)
+const NEED_BW := 0.15    # the outside force the motion needs, in body weights, from which the red "needs outside force" badge shows (mine)
 const CHAIN := ["hip", "trunk", "shoulder", "elbow"]
 const CHAIN_JOINT := {"hip": "pelvis", "trunk": "spine_03", "shoulder": "upperarm", "elbow": "lowerarm"}
 const SPINE := ["spine_01", "spine_02", "spine_03", "neck_01", "head"]
@@ -146,6 +153,7 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 	var gs := []     # per sample: the pieces' owner orientations
 	var ps := []     # per sample: {joint: P}
 	var feet := []   # per sample: {"_l": cop or null, "_r": ...}
+	var fbox := []   # per sample: {"_l": Rect2 of the footprint (x, z) or null, ...}
 	var bat := []    # per sample: null or {"c", "knob", "tip", "hand"}
 	var tips := []   # per sample: {"_l": E hand, "_r": E hand}
 	var pcs0: Array = []
@@ -174,6 +182,10 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 		for sd in ["_l", "_r"]:
 			fe[sd] = _cop(B, sd)
 		feet.append(fe)
+		var fb := {}
+		for sd in ["_l", "_r"]:
+			fb[sd] = _fbox(B, sd)
+		fbox.append(fb)
 		if B.wep_on and B.wep_hand != "":
 			bat.append({"c": B.wep_point(HumanLimits.BAT_COM * B.wep_len), "knob": B.wep_point(0.0), "tip": B.wep_point(B.wep_len),
 				"hand": B.wep_hand, "grip": B.grip, "m": float(HitReaction.WEAPON_KG.get(B.wep_kind, HumanLimits.BAT_KG)), "L": B.wep_len})
@@ -188,7 +200,7 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 	for h in ["hand_l", "hand_r"]:
 		chains[h] = HitReaction.chain(B, h)
 	S.stepped = was
-	var cap := {"n": n, "mass": mass, "cs": cs, "gs": gs, "ps": ps, "feet": feet, "bat": bat, "tips": tips, "pcs0": pcs0,
+	var cap := {"n": n, "mass": mass, "cs": cs, "gs": gs, "ps": ps, "feet": feet, "fbox": fbox, "bat": bat, "tips": tips, "pcs0": pcs0,
 		"chains": chains, "gtrack": gtrack}
 	return cap
 
@@ -258,43 +270,22 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 			leg[j] = String(j).substr(String(j).length() - 2)
 	var gvec := Vector3(0.0, -GRAV, 0.0)
 	var rod_k := 1.0 / sqrt(12.0)
+	var fboxes: Array = cap["fbox"]
+	var wbody := mass * GRAV
+	out["cop"] = []
+	out["resid"] = []        # the outside force the pelvis would need: sum m (a - g) - the ground force used (N, vector)
+	out["resid_tau"] = []    # the outside horizontal torque about the COM that the centre of pressure cannot give (Nm)
+	out["need"] = []         # max(|resid|, |resid_tau| / COM height) in body weights
+	out["bw"] = wbody
 	for i in n:
-		# the ground reaction
-		var ftot := Vector3.ZERO
-		var com_sum := Vector3.ZERO
-		var m_sum := 0.0
-		for k in np:
-			var m: float = pcs0[k]["m"]
-			ftot += m * ((acc[k][i] as Vector3) - gvec)
-			com_sum += m * (cs[i][k] as Vector3)
-			m_sum += m
-		var bi = bat[i]
-		if bi != null:
-			var bm: float = bi["m"]
-			ftot += bm * ((bat_acc[i] as Vector3) - gvec)
-			com_sum += bm * (bi["c"] as Vector3)
-			m_sum += bm
-		var com := com_sum / maxf(m_sum, 1e-9)
-		var down := []
-		var wsum := 0.0
-		var wts := {}
-		for sd in ["_l", "_r"]:
-			var cop = feet[i][sd]
-			if cop != null:
-				down.append(sd)
-				var d := Vector2(com.x - (cop as Vector3).x, com.z - (cop as Vector3).z).length()
-				wts[sd] = 1.0 / maxf(d, 0.02)
-				wsum += wts[sd]
-		var fg := Vector3.ZERO
-		if not down.is_empty() and ftot.y >= 0.0:
-			fg = ftot
-		out["grf"].append(fg)
-		out["down"].append(down)
 		# per piece: the force m (a - g), its moment about the origin c x f, and I alpha; a joint sums them over its distal pieces
 		# and moves the origin to itself:  M_j = sum(c x f) - P_j x sum(f) + sum(I alpha)
 		var fk := []
 		var cfk := []
 		var iak := []
+		var ftot := Vector3.ZERO
+		var com_sum := Vector3.ZERO
+		var m_sum := 0.0
 		for k in np:
 			var m2: float = pcs0[k]["m"]
 			var kl: float = pcs0[k]["kl"]
@@ -302,6 +293,10 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 			fk.append(f)
 			cfk.append((cs[i][k] as Vector3).cross(f))
 			iak.append((alp[k][i] as Vector3) * (m2 * kl * kl))
+			ftot += f
+			com_sum += m2 * (cs[i][k] as Vector3)
+			m_sum += m2
+		var bi = bat[i]
 		var bf := Vector3.ZERO
 		var bcf := Vector3.ZERO
 		var bia := Vector3.ZERO
@@ -313,6 +308,75 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 			bcf = (bi["c"] as Vector3).cross(bf)
 			bia = (bat_alp[i] as Vector3) * (bm2 * bkl * bkl)
 			bhands = ["hand_l", "hand_r"] if bool(bi["grip"]) else [String(bi["hand"])]
+			ftot += bf
+			com_sum += bm2 * (bi["c"] as Vector3)
+			m_sum += bm2
+		var com := com_sum / maxf(m_sum, 1e-9)
+		# angular momentum rate about the COM: sum (c - com) x m a + sum I alpha (gravity has no moment about the COM)
+		var ldot := Vector3.ZERO
+		for k in np:
+			ldot += ((cs[i][k] as Vector3) - com).cross((fk[k] as Vector3) + float(pcs0[k]["m"]) * gvec) + (iak[k] as Vector3)
+		if bi != null:
+			ldot += ((bi["c"] as Vector3) - com).cross(bf + float(bi["m"]) * gvec) + bia
+		# THE GROUND REACTION (bottom-up): the whole body's momentum change is the ground force, but only what a foot can give:
+		# it pushes (F_y >= 0) and does not slide (|F_h| <= MU F_y). The rest is the OUTSIDE force the motion needs (resid).
+		var down := []
+		for sd in ["_l", "_r"]:
+			if feet[i][sd] != null and fboxes[i][sd] != null:
+				down.append(sd)
+		var fg := Vector3.ZERO
+		var qf := {}
+		var wts := {}
+		var tau_res := Vector3(ldot.x, 0.0, ldot.z)
+		if not down.is_empty() and ftot.y > 0.0:
+			fg = ftot
+			var fh := Vector2(fg.x, fg.z)
+			if fh.length() > MU * fg.y:
+				fh = fh.normalized() * MU * fg.y
+				fg = Vector3(fh.x, fg.y, fh.y)
+			# the net centre of pressure that gives the angular momentum rate:  (r x F) = Ldot (horizontal parts), r from the COM
+			var y0 := 0.0
+			for sd in down:
+				y0 += (feet[i][sd] as Vector3).y / down.size()
+			var ry := y0 - com.y
+			var tgt := Vector2(com.x + (ldot.z + ry * fg.x) / fg.y, com.z + (ry * fg.z - ldot.x) / fg.y)
+			# split between the feet by the lever rule along the line joining their footprint centres, then each foot's force point
+			# moves by the same offset (inside its own footprint) so the pair's weighted point is the target wherever the hull allows
+			var q2 := {}
+			var cen := {}
+			for sd in down:
+				var bx: Rect2 = fboxes[i][sd]
+				cen[sd] = bx.get_center()
+			var off := Vector2.ZERO
+			if down.size() == 1:
+				wts[down[0]] = 1.0
+				off = tgt - (cen[down[0]] as Vector2)
+			else:
+				var d12: Vector2 = (cen["_l"] as Vector2) - (cen["_r"] as Vector2)
+				var wl := 0.5 if d12.length_squared() < 1e-8 else clampf((tgt - (cen["_r"] as Vector2)).dot(d12) / d12.length_squared(), 0.0, 1.0)
+				wts["_l"] = wl
+				wts["_r"] = 1.0 - wl
+				off = tgt - ((cen["_l"] as Vector2) * wl + (cen["_r"] as Vector2) * (1.0 - wl))
+			for sd in down:
+				var bx2: Rect2 = fboxes[i][sd]
+				var q: Vector2 = (cen[sd] as Vector2) + off
+				q2[sd] = Vector2(clampf(q.x, bx2.position.x, bx2.end.x), clampf(q.y, bx2.position.y, bx2.end.y))
+			var mom := Vector3.ZERO
+			var cop_net := Vector3.ZERO
+			for sd in down:
+				qf[sd] = Vector3((q2[sd] as Vector2).x, (feet[i][sd] as Vector3).y, (q2[sd] as Vector2).y)
+				mom += ((qf[sd] as Vector3) - com).cross(fg * float(wts[sd]))
+				cop_net += (qf[sd] as Vector3) * float(wts[sd])
+			tau_res = Vector3(ldot.x - mom.x, 0.0, ldot.z - mom.z)
+			out["cop"].append(cop_net)
+		else:
+			out["cop"].append(Vector3(com.x, 0.0, com.z))
+		var rv := ftot - fg
+		out["grf"].append(fg)
+		out["down"].append(down)
+		out["resid"].append(rv)
+		out["resid_tau"].append(tau_res)
+		out["need"].append(maxf(rv.length(), tau_res.length() / maxf(com.y, 0.3)) / wbody)
 		for j in jl:
 			var pjv: Vector3 = ps[i][j]
 			var sf := Vector3.ZERO
@@ -335,8 +399,7 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 			if leg.has(j):
 				var sd2: String = leg[j]
 				if wts.has(sd2) and fg != Vector3.ZERO:
-					var fs: Vector3 = fg * (float(wts[sd2]) / wsum)
-					tau -= ((feet[i][sd2] as Vector3) - pjv).cross(fs)
+					tau -= ((qf[sd2] as Vector3) - pjv).cross(fg * float(wts[sd2]))
 			(taus[j] as Array)[i] = tau.length()
 	out["tau"] = taus
 	for j in jl:
@@ -348,6 +411,19 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 		out["ratio"][j] = r
 	out["chain"] = chain_of(out, gtrack, tips, bat, n)
 	return out
+
+
+## the bounding box (x, z) of a foot's footprint, or null when the foot is not on the floor
+static func _fbox(B: Body, sd: String) -> Variant:
+	var fp := Balance.footprint(B, sd)
+	if fp.size() == 0:
+		return null
+	var lo := fp[0]
+	var hi := fp[0]
+	for q in fp:
+		lo = Vector2(minf(lo.x, q.x), minf(lo.y, q.y))
+		hi = Vector2(maxf(hi.x, q.x), maxf(hi.y, q.y))
+	return Rect2(lo, hi - lo)
 
 
 ## the middle of a foot's footprint (x, floor-ish y, z), or null when the foot is not on the floor
@@ -462,6 +538,8 @@ static func draw_strip(c: Control, sm: Dictionary, t: float) -> void:
 	var b: int = ch["b"]
 	c.draw_rect(Rect2(Vector2.ZERO, c.size), Tok.c("mk_panel"))
 	c.draw_rect(Rect2(Vector2.ZERO, c.size), Tok.c("mk_border"), false, 1.0)
+	_draw_need(c, sm, t, font)
+	c.draw_set_transform(Vector2(0.0, 20.0))
 	var col := Tok.c("fv_ok") if ch["ok"] else Tok.c("fv_hot")
 	c.draw_string(font, Vector2(8, 15), "Power chain (%s hand)" % String(ch["side"]).substr(1), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.c("ink"))
 	c.draw_string(font, Vector2(150, 15), "hip > trunk > shoulder > elbow: " + ("in order" if ch["ok"] else "OUT OF ORDER"), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
@@ -484,3 +562,23 @@ static func draw_strip(c: Control, sm: Dictionary, t: float) -> void:
 	var tx := x0 + (x1 - x0) * (t * HZ - a) / span
 	if tx >= x0 and tx <= x1:
 		c.draw_line(Vector2(tx, 20.0), Vector2(tx, 24.0 + CHAIN.size() * rowh), Tok.c("card_play"), 1.0)
+	c.draw_set_transform(Vector2.ZERO)
+
+
+## the top line of the strip: the outside force at the pelvis (what the body would need from outside to move so). A red badge
+## when it is NEED_BW body weights or more: the motion itself is not one a body can do, the joint colours are what it would cost.
+static func _draw_need(c: Control, sm: Dictionary, t: float, font: Font) -> void:
+	if not sm.has("need"):
+		return
+	var i := clampi(roundi(t * HZ), 0, int(sm["n"]) - 1)
+	var r: Vector3 = sm["resid"][i]
+	var bw: float = sm["bw"]
+	var nd: float = sm["need"][i]
+	if nd >= NEED_BW:
+		var txt := "NEEDS OUTSIDE FORCE  %.0f N (%.0f%% body weight)" % [maxf(r.length(), (sm["resid_tau"][i] as Vector3).length() / 1.0), nd * 100.0]
+		var w := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 14.0
+		c.draw_rect(Rect2(6, 3, w, 15), Tok.c("fv_hot"))
+		c.draw_string(font, Vector2(13, 14), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.c("mk_panel"))
+	else:
+		c.draw_string(font, Vector2(8, 14), "Outside force at the pelvis: %.0f N (%.0f%% body weight), the body can do this" % [r.length(), nd * 100.0],
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.c("fv_ok"))
