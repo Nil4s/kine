@@ -354,3 +354,6 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I33. Reaction direction: a struck body must move away along the blow's impulse (and turn about the right
   axis given where it was hit); flag reactions that go the wrong way or start before contact, with a fix from
   the hit physics.
+- [ ] I34. Fatigue: track each fighter's mechanical work over the fight (joint power from the force view, summed);
+  as it builds, real fighters slow, drop their guard and breathe; flag a fighter still at full speed late in a long
+  exchange and offer a "tire him" pass (slower moves, lower guard, longer recovers, scaled to work done).
