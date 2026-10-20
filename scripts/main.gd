@@ -465,6 +465,7 @@ func _fold_button(which: String) -> void:
 	ui_fold_btn[which] = b
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
+var pdoc := PerfDoc.new(self)   # Q15 PERF DOCTOR: "Help: why is it slow?" (scripts/perf_doc.gd)
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
 var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
 var smart_drag := true      # the other joints follow a dragged one the way your poses move together; Alt+drag = off
@@ -2763,7 +2764,9 @@ func _process(dt: float) -> void:
 	_gen_poll(dt)
 	_multicam_poll(dt)
 	_imp_poll()
+	var _pp := PerfDoc.t()
 	_live_poll(dt)
+	PerfDoc.add("live", _pp)
 	_sg_poll()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
@@ -2871,9 +2874,11 @@ func _process(dt: float) -> void:
 			audio_gap.append((cg - playhead) if cg >= 0.0 else NAN)
 		if stp["stop"]:
 			playing = false
+		_pp = PerfDoc.t()
 		if not PerfStub.skip("body"):
 			var ps := _ps()
 			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
+		PerfDoc.add("body", _pp)
 		_refresh()
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
@@ -2882,6 +2887,8 @@ func _process(dt: float) -> void:
 		sc_ui.tick(_a_before, playhead, playing, dt)   # I35: the cues the playhead passed sound
 	_light_apply()   # the playhead crossed a cut: the next shot's lights
 	_fps_poll(dt)
+	if pdoc.running:
+		pdoc.tick(dt)   # Q15: the perf doctor's measured run (nothing otherwise)
 
 
 # ---------------------------------------------------------------- 3D scene
@@ -4282,8 +4289,10 @@ func _refresh() -> void:
 	_sym_prev = B.ang.duplicate()
 	if ui_body != null and ui_body.visible and not ui_body.dragging:
 		ui_body.sync(S.body, B)   # an undo, a load or a retarget moved the body: the sliders and the readout follow
+	var _pk := PerfDoc.t()
 	if not PerfStub.skip("skinning"):
 		Overlays.pose_skeleton(skel, bone_idx, B)
+	PerfDoc.add("skinning", _pk)
 	corr.update(B)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
@@ -4380,13 +4389,21 @@ func _refresh() -> void:
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
+	_pk = PerfDoc.t()
 	bal.show_body(B)
+	PerfDoc.add("balance", _pk)
+	_pk = PerfDoc.t()
 	cshadow.show_body(B)
+	PerfDoc.add("cshadow", _pk)
 	_hand_sliders_sync()
 	_auto_pin_sync()
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty() or ov.has_rigs():
+		_pk = PerfDoc.t()
 		ov.trail(_ps())
+		PerfDoc.add("trail", _pk)
+		_pk = PerfDoc.t()
 		ov.onion(_ps(), playhead)
+		PerfDoc.add("onion", _pk)
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
 	ov.spacing(playhead)
@@ -4398,18 +4415,26 @@ func _refresh() -> void:
 		ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
 	ov.take_ghost(reh.get("take", null), Rehearse.take_time(reh["R"]["map"], playhead) if not reh.is_empty() else 0.0)   # I14: you, orange, at your own time for this playhead
 	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
+	_pk = PerfDoc.t()
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
+	PerfDoc.add("wtrail", _pk)
 	_sg_tick()   # R27: the next-pose ghosts for the current card
 	var pulled: String = B.wep_hand if sel in Body.WEAPON else sel
 	ov.reach_marker(B.P[pulled] if B.P.has(pulled) else Vector3.ZERO, _grab, dragging == "joint" and not is_nan(_grab.x) and B.P.has(pulled))
 	if ui_graph != null:
 		ui_graph.visible = ov.graph_on and S.cards.size() >= 2
 		ui_graph.queue_redraw()
+	_pk = PerfDoc.t()
 	if not PerfStub.skip("ui"):
 		_panel()
+	PerfDoc.add("ui", _pk)
+	_pk = PerfDoc.t()
 	_pose_others()
 	_actors_draw()
+	PerfDoc.add("actors", _pk)
+	_pk = PerfDoc.t()
 	_crowd_draw()   # ROADMAP 95: the crowd's copies of this fighter's clip (none without a crowd)
+	PerfDoc.add("crowd", _pk)
 	_fighters_mark()
 	_rings_draw()   # ROADMAP 38: the range rings (View toggle)
 	_ikh_draw()   # IK2: the pinned limbs' target / pole handles
@@ -4417,9 +4442,13 @@ func _refresh() -> void:
 	loa.draw(B)   # ROADMAP 23: the current line of action (View toggle)
 	_frh_draw()   # ROADMAP 6: the reverse-foot handles of the picked foot
 	_rp_draw()   # ROADMAP 91: the root path on the floor and its handles (View toggle)
+	_pk = PerfDoc.t()
 	_sec_draw()   # ROADMAP 26: the secondary chains (ponytail, cloth, bo) at the playhead, from their baked keys
-	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
+	PerfDoc.add("cloth", _pk)
+	_pk = PerfDoc.t()
+	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
+	PerfDoc.add("hair", _pk)
 	if hitbox_ui != null:
 		hitbox_ui.draw_handles()   # ROADMAP 36: the picked box's end and radius handles
 	if feint_ui != null:
@@ -13803,6 +13832,7 @@ func _commands() -> Array:
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
+	add.call("Help: why is it slow?", "", pdoc.start, "slow lag fps performance perf frame rate speed heavy stutter choppy profile doctor", false, "plays the scene for 3 seconds (or orbits the view when it has one card) and times the app's own systems: the three heaviest by milliseconds a frame, each with the button that fixes it, then fps before and after")
 	add.call("Help: printable cheat sheet", "", _cheat_sheet, "cheat sheet print keys shortcuts reference pdf paper list commands", false, "every key and every command, grouped, as one page you can print (an HTML file in your Kine folder, opened in the browser)")
 	add.call("Help: I come from Blender", "", kt.set_mode.bind("blender"), "blender keys shortcuts translate migrate switch from coming learn", false, "while on, a Blender key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
 	add.call("Help: I come from Maya", "", kt.set_mode.bind("maya"), "maya autodesk keys shortcuts translate migrate switch from coming learn", false, "while on, a Maya key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
