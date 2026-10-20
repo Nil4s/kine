@@ -3012,9 +3012,14 @@ func _dummy_solid() -> void:
 
 
 func _dummy_move(d: float) -> void:
+	var was := T.dist
 	T.place(clampf(T.dist + d, 0.6, 3.0))
 	_dummy_hits()
 	_refresh()
+	if is_equal_approx(was, T.dist):
+		_say("the dummy is already as %s as it goes (%.2f m): %s" % ["close" if d < 0.0 else "far", T.dist, "Dummy farther moves it back" if d < 0.0 else "Dummy closer moves it in"])
+	else:
+		_say("the dummy stands %.2f m from the hero%s" % [T.dist, "" if dummy_on else " (it is hidden: Dummy on/off shows it)"])
 
 
 ## THE DUMMY'S HITS, OFF THE MAIN THREAD (round 14, GATES U1): sampling the whole scene against the dummy took 1.3 s
@@ -11430,7 +11435,105 @@ func next_step() -> Dictionary:
 		if f["sev"] == "FAIL":
 			var lbl := Fixer.label(f, S)
 			return {"text": "Fix the first problem: %s at %.2f s, card %d%s" % [f["rule"], f["t"], f["card"] + 1, (" (" + lbl.trim_prefix("Fix: ") + ")") if lbl != "" else " (jump to it)"], "cmd": "", "kind": "fix", "finding": f}
+	var sk := strike_state()   # R7: a fist strike that does not reach the dummy's head is the next thing to do
+	if not sk.is_empty() and dummy_on and float(sk["gap"]) > STRIKE_LANDS:
+		if float(sk["aim_gap"]) > STRIKE_LANDS * 0.2:
+			if T.dist > 0.61:
+				return {"text": "Dummy closer: the arm cannot reach its head from %.2f m (the fist stops %.0f cm short)" % [T.dist, float(sk["gap"]) * 100.0], "cmd": "Dummy closer", "kind": "dummy"}
+		else:
+			return {"text": "Land the punch: its fist ends %.0f cm from the dummy's head (Strike: aim the fist at the dummy's head)" % (float(sk["gap"]) * 100.0), "cmd": "Strike: aim the fist at the dummy's head", "kind": "aim"}
 	return {"text": "Export this clip (Export...)", "cmd": "Export...", "kind": "export"}
+
+
+## R7: A PUNCH THAT LANDS. The contact card = the card a hand travels fastest into (wrist, average over the card's move; unarmed
+## scenes only, at least Rulebook.STRIKE_MIN m/s: a swinging arm is not a strike). gap = the hand capsule to the dummy's head capsule,
+## minus both radii (m): <= 0 touching, 0.05 = "within 5 cm". aim_gap = the same after solving the arm onto the head's skin on a
+## scratch body (> 1 cm = out of arm's reach: the dummy has to come closer). {} = not a fist strike (or no cards / a weapon).
+const STRIKE_LANDS := 0.05
+var _sk_body: Body = null
+var _sk_memo := {}
+
+
+func _fist_gap(X: Body, hand: String) -> float:
+	var hc: Array = X.cap(hand)
+	var hd: Array = T.cap("head")
+	return Body.seg_seg(hc[0], hc[1], hd[0], hd[1]) - float(X.rad[hand]) - float(T.D.rad["head"])
+
+
+## solve X's `hand` arm so the fist touches the skin of the dummy's head on the side facing the hero (the body already posed at the
+## strike card); returns the gap left (m)
+func _fist_aim(X: Body, hand: String) -> float:
+	var hd: Array = T.cap("head")
+	var mid: Vector3 = ((hd[0] as Vector3) + (hd[1] as Vector3)) * 0.5
+	var out := Vector3(-mid.x, 0.0, -mid.z)   # from the dummy's head toward the hero
+	out = out.normalized() if out.length() > 1e-6 else Vector3(0, 0, -1)
+	var skin: Vector3 = mid + out * float(T.D.rad["head"])
+	for it in 6:
+		var hc: Array = X.cap(hand)
+		var wrist: Vector3 = X.P[hand]
+		var far: Vector3 = hc[1] if ((hc[1] as Vector3) - wrist).length() > ((hc[0] as Vector3) - wrist).length() else hc[0]
+		X.reach(hand, skin + out * float(X.rad[hand]) - (far - wrist))
+	return _fist_gap(X, hand)
+
+
+func strike_state() -> Dictionary:
+	if S.cards.size() < 2:
+		return {}
+	var key := "%s|%.3f" % [JSON.stringify(S.cards).hash(), T.dist]
+	if _sk_memo.get("key", "") == key:
+		return _sk_memo["val"]
+	var val := {}
+	var armed := false
+	for c in S.cards:
+		armed = armed or not (c["pose"].get("weapon", {}) as Dictionary).is_empty()
+	if not armed:
+		if _sk_body == null:
+			_sk_body = Body.new()
+			_sk_body.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var X := _sk_body
+		var ts: Array = S.times()
+		var prev := {}
+		var best := {}
+		for i in S.cards.size():
+			S.apply(X, float(ts[i][1]))
+			var cur := {"hand_r": X.P["hand_r"], "hand_l": X.P["hand_l"]}
+			if i > 0:
+				var dt := maxf(S.move_time(i), 1.0 / 30.0)
+				for h in ["hand_r", "hand_l"]:
+					var v: float = ((cur[h] as Vector3) - (prev[h] as Vector3)).length() / dt
+					if best.is_empty() or v > float(best["v"]):
+						best = {"card": i, "hand": h, "v": v, "t": float(ts[i][1])}
+			prev = cur
+		if not best.is_empty() and float(best["v"]) >= Rulebook.STRIKE_MIN:
+			S.apply(X, float(best["t"]))
+			best["gap"] = _fist_gap(X, best["hand"])
+			best["aim_gap"] = _fist_aim(X, best["hand"])
+			val = best
+	_sk_memo = {"key": key, "val": val}
+	return val
+
+
+## Strike: aim the fist at the dummy's head. The contact card's pose is the body there with the striking arm solved onto the head's
+## skin (Body.reach on the shoulder and elbow); everything else on the card stays. One undo step
+func _strike_aim() -> void:
+	var sk := strike_state()
+	if sk.is_empty():
+		_say("no fist punch to aim: start from New from template: Punch (or clip a guard and a punch), then press this again")
+		return
+	var i: int = sk["card"]
+	var hand: String = sk["hand"]
+	var gap := 0.0
+	_do(func():
+		Scene.put(B, Moves._flat(S.cards[i]["pose"]))
+		gap = _fist_aim(B, hand)
+		S.cards[i]["pose"] = B.to_dict()
+		sel_card = i
+		playhead = S.times()[i][1]
+		_rebuild_cards())
+	if gap > 0.01:
+		_say("card %d '%s': the %s fist stops %.0f cm from the dummy's head: it is out of arm's reach, so press Dummy closer, then this again" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", gap * 100.0])
+	else:
+		_say("card %d '%s': the %s fist now lands on the dummy's head (gap %.1f cm).  Run Check, then Ctrl+Z takes it back" % [i + 1, S.cards[i]["name"], "left" if hand == "hand_l" else "right", gap * 100.0])
 
 
 func _next_sync() -> void:
@@ -11447,6 +11550,8 @@ func _next_run() -> void:
 	match n["kind"]:
 		"clip": _card_add()
 		"check": _check()
+		"dummy": _dummy_move(-0.25)
+		"aim": _strike_aim()
 		"fix":
 			var f: Dictionary = n["finding"]
 			if Fixer.label(f, S) != "":
@@ -12107,6 +12212,9 @@ func _commands() -> Array:
 	add.call("New from template...", "", _template_ask, "template starting scene walk run jump punch sword swing new example", false, "pick one of five starting scenes (walk, run, jump, punch, sword swing), each checked against real people's numbers: it opens as a NEW scene in scenes/_wip (never over a scene of yours)")
 	add.call("Reset body", "", _do.bind(_reset_all), "t-pose", true, "every joint back to straight and the hips to the origin")
 	add.call("Arms down 25°", "", _do.bind(_arms_relaxed), "relax a-pose", true, "both arms relaxed: 25° out from straight down")
+	for tn in Templates.NAMES:   # R7: each starting scene is its own command (the picker above needs a mouse; a command needs only its name)
+		add.call("New from template: " + Templates.INFO[tn][0], "", _template_make.bind(tn), "template starting scene new example " + tn.replace("_", " "), false, "a NEW scene in scenes/_wip, opened: " + Templates.INFO[tn][1] + ("  Land it on the dummy's head with Next." if tn == "punch" else ""))
+	add.call("Strike: aim the fist at the dummy's head", "", _strike_aim, "punch land hit contact reach target jab cross fist dummy head aim", true, "the punch (the card the fist travels fastest into) now ends with its fist on the dummy's head: the arm is solved to touch it, the rest of the card stays; Dummy closer first if the arm cannot reach (one undo step)")
 	add.call("Dummy on/off", "H", _press.bind(KEY_H), "target enemy mannequin", false, "show or hide the target dummy")
 	add.call("Dummy solid / see-through", "", _dummy_solid, "target", false, "solid: the weapon stops on the dummy (impact + rebound); see-through: it passes")
 	add.call("Dummy closer", "", _dummy_move.bind(-0.25), "target", false, "move the dummy 25 cm closer")
@@ -13174,7 +13282,11 @@ func _template_build() -> void:
 	if ui_tpl_list == null or not ui_tpl_list.is_anything_selected():
 		_say("New from template needs a pick: choose walk, run, jump, punch or sword swing in the list, then press Make the scene")
 		return
-	var nm := String(ui_tpl_list.get_item_metadata(ui_tpl_list.get_selected_items()[0]))
+	_template_make(String(ui_tpl_list.get_item_metadata(ui_tpl_list.get_selected_items()[0])))
+
+
+## one template by name (the picker's Make the scene and the "New from template: <name>" commands)
+func _template_make(nm: String) -> void:
 	var d := Templates.read(nm)
 	if d.is_empty():
 		_say("The %s template file (templates/%s.json) is missing: rebuild the templates with  godot --headless --path . -s tools/make_templates.gd  and pick again" % [nm, nm])
