@@ -170,8 +170,8 @@ func _build() -> void:
 		lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		lab.no_depth_test = true
 		lab.fixed_size = true
-		lab.pixel_size = 0.0011
-		lab.font_size = 20
+		lab.pixel_size = 0.0007
+		lab.font_size = 14
 		lab.outline_size = 6
 		lab.render_priority = 3
 		root.add_child(lab)
@@ -192,7 +192,7 @@ func _build() -> void:
 		n.visible = true
 		var lab := g["label"] as Label3D
 		lab.text = String(p["label"])
-		lab.position = dxf * (G.P["head"] as Vector3) + Vector3(0, 0.45, 0) + lat * (float(i) - float(shown.size() - 1) * 0.5) * 0.95
+		lab.position = dxf * (G.P["head"] as Vector3) + Vector3(0, 0.3 + 0.42 * float(i), 0)   # stacked, so no two overlap in any view
 		lab.visible = true
 	_tint()
 	_path_draw()
@@ -207,7 +207,7 @@ func _tint() -> void:
 		var lab := g["label"] as Label3D
 		lab.modulate = Tok.c(String(KINDS.get(String(shown[i]["kind"]), "mk_blue")))
 		lab.outline_modulate = Tok.c("ink") if Tok.dark == false else Color(0, 0, 0, 0.9)
-		lab.font_size = 24 if i == sel else 20
+		lab.font_size = 17 if i == sel else 14
 
 
 ## the attacker's tip path, a cross where each block / parry meets it, a leader from each label to its ghost's point

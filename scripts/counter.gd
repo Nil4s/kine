@@ -32,6 +32,15 @@ const FRACS := [0.5, 0.7, 0.3, 0.85, 0.15, 1.0, 0.0]   # where along the forearm
 const MAX_SOLVES := 24      # IK solves a forearm placement may spend (the best by a cheap score)
 const FIST_R := 0.04       # m: a fist's radius
 const MARGIN_MIN := 0.01   # m: the centre of mass at least this far inside the support
+## HUMAN REACTION: a defender cannot start moving before ~0.2 s after the attack becomes readable (simple visual reaction
+## time 0.20-0.25 s: Woodworth & Schlosberg 1954; Thorpe, Fize & Marlot 1996 found the earliest visual choice signal at
+## ~0.15 s, motor onset after). The attack becomes readable when its WIND-UP begins (the move into the card before the strike).
+const REACT := 0.2         # s: wind-up begins -> the counter's movement may begin
+const MV := 0.12           # s: the counter's own movement (start of movement -> in place), a quick guard/slip
+const BODY_GAP := 0.05     # m: a block meets the weapon at least this far in front of the defender's torso / head
+const BUDGET_MS := 4000    # a guard search stops after this many ms (it returns what it has)
+const BODY := ["head", "spine_03", "spine_02", "spine_01", "pelvis"]
+static var _t_stop := 0
 
 
 ## a body for this scene's proportions, in its rest pose
@@ -123,8 +132,20 @@ static func strike(AS: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci:
 		pl.append(p)
 		al.append(a)
 		bl.append(b)
-	out.merge({"ok": true, "t0": t0, "tc": tc, "contact": contact, "ts": tl, "p": pl, "a": al, "b": bl, "r": r, "what": what, "hand": hand}, true)
+	var t_read := float(ts[ci - 1][0]) if ci >= 2 else t0
+	out.merge({"ok": true, "t_read": t_read, "t_ok": t_read + REACT + MV, "t0": t0, "tc": tc, "contact": contact, "ts": tl, "p": pl, "a": al, "b": bl, "r": r, "what": what, "hand": hand}, true)
 	return out
+
+
+## the weapon (radius r) at point p to the defender's torso and head surfaces (body G placed by dxf), m
+static func body_gap(G: Body, dxf: Transform3D, p: Vector3, r: float) -> float:
+	var m := INF
+	for part in BODY:
+		if not G.rad.has(part):
+			continue
+		var c: Array = G.cap(part)
+		m = minf(m, Body.seg_seg(p, p, dxf * (c[0] as Vector3), dxf * (c[1] as Vector3)) - r - float(G.rad[part]))
+	return m
 
 
 ## the tip at t (linear between samples)
@@ -265,6 +286,7 @@ static func guard(P: Dictionary, DS: Scene, dxf: Transform3D, parry: bool) -> Di
 	var G0 := ghost(DS, float(P["tc"]))
 	var base := G0.to_dict()
 	var W := scratch(DS)
+	_t_stop = Time.get_ticks_msec() + BUDGET_MS
 	for late in ([PARRY_LATE, 0.0] if parry else [0.0]):
 		var r := _guard_scan(P, DS, dxf, parry, late, G0, base, W)
 		if bool(r["ok"]):
@@ -281,9 +303,13 @@ static func _guard_scan(P: Dictionary, DS: Scene, dxf: Transform3D, parry: bool,
 	var first := -1.0
 	for i in range(0, ts.size(), 1):
 		var t: float = ts[i]
-		if t > tc + 1e-6:
+		if t > tc + 1e-6 or Time.get_ticks_msec() > _t_stop:
 			break
+		if t < float(P["t_ok"]) - 1e-6:
+			continue   # too early: the defender has not had REACT seconds from the wind-up plus its own movement
 		var Xh: Vector3 = P["p"][i]
+		if body_gap(G0, dxf, Xh, float(P["r"])) < BODY_GAP:
+			break      # from here the weapon is within 5 cm of the torso: a block must meet it in front of that
 		var X: Vector3 = xi * Xh
 		var sides := []
 		for sd in ["_l", "_r"]:
@@ -317,7 +343,7 @@ static func _guard_scan(P: Dictionary, DS: Scene, dxf: Transform3D, parry: bool,
 		var fb: Vector3 = dxf * (cf[1] as Vector3)
 		var v: Vector3 = vel_at(P, i)
 		var strike_gap := Body.seg_seg(P["a"][i], P["b"][i], fa, fb) - float(P["r"]) - float(G.rad["lowerarm" + sd])
-		out.merge({"ok": true, "t": t, "tx": t, "X": Xh, "pose": r0["pose"], "side": sd, "dist": r0["dist"], "B": G,
+		out.merge({"ok": true, "t": t, "tx": t, "start": t - MV, "front": body_gap(G0, dxf, Xh, float(P["r"])), "X": Xh, "pose": r0["pose"], "side": sd, "dist": r0["dist"], "B": G,
 			"clamped": r0["clamped"], "speed": v.length(), "gap": strike_gap, "forearm": [fa, fb]}, true)
 		var d_h: Vector3 = (fb - fa).normalized()
 		out["across"] = rad_to_deg(acos(clampf(absf(d_h.dot(v.normalized())), 0.0, 1.0)))   # forearm to velocity: 90 = square
@@ -410,6 +436,10 @@ static func slip(P: Dictionary, DS: Scene, dxf: Transform3D) -> Dictionary:
 			dmin = d
 			t_close = ts[i]
 	out["t"] = t_close
+	out["start"] = t_close - MV
+	if t_close < float(P["t_ok"]) - 1e-6:
+		out["why"] = "the weapon is on the head at %.2f s, %.2f s after the wind-up begins: nobody can start a slip that fast (needs %.1f s to react plus %.2f s to move)" % [t_close, t_close - float(P["t_read"]), REACT, MV]
+		return out
 	if _clear_of(P, G0, dxf, Vector3.ZERO, coarse) >= PLAN:
 		var cl0 := clearance(P, G0, dxf)
 		if cl0 >= CLEAR + 0.003:
@@ -474,27 +504,36 @@ static func suggest(AS: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, t:
 	var P := strike(AS, axf, DS, dxf, ci)
 	if not bool(P["ok"]):
 		return {"ok": false, "why": P["why"], "path": P, "list": []}
+	if not bool(P["contact"]):
+		return {"ok": false, "why": "nothing to counter: this card's %s never touches the other fighter. Move the fighters closer, or put the playhead on a card that lands" % P["what"], "path": P, "list": []}
 	var list := [guard(P, DS, dxf, false), slip(P, DS, dxf), guard(P, DS, dxf, true)]
 	for r in list:
 		r["label"] = text(r, P)
 	return {"ok": true, "why": "", "path": P, "list": list}
 
 
-## the label: the kind and the numbers
+## the label: the kind, when its movement starts and the numbers (kept short: it hangs in the view)
 static func text(r: Dictionary, P: Dictionary) -> String:
 	if not bool(r["ok"]):
 		return "%s: none  (%s)" % [r["kind"], r["why"]]
+	var head := "%s  in place %.2fs, starts %.2fs" % ["SLIP" if String(r["kind"]) == "STAY" else String(r["kind"]), float(r["t"]), float(r["start"])]
 	match String(r["kind"]):
 		"BLOCK":
-			return "BLOCK  %.2fs\nforearm %.1f cm off the path, %.0f deg across it\ncontact gap %.1f cm at %.1f m/s" % [
-				r["tx"], float(r["dist"]) * 100.0, r["across"], float(r["gap"]) * 100.0, r["speed"]]
+			return head + "
+forearm %.1f cm off the path, %.0f deg across
+meets it %.0f cm in front of the body" % [
+				float(r["dist"]) * 100.0, r["across"], float(r["front"]) * 100.0]
 		"PARRY":
-			return "PARRY  %.2fs\nforearm %.1f cm off the path, deflects %.0f deg\ntip ends %.0f cm aside at the hit; contact gap %.1f cm" % [
-				r["tx"], float(r["dist"]) * 100.0, r["deflect"], float(r["aside"]) * 100.0, float(r["gap"]) * 100.0]
+			return head + "
+forearm %.1f cm off the path, deflects %.0f deg
+meets it %.0f cm in front of the body" % [
+				float(r["dist"]) * 100.0, r["deflect"], float(r["front"]) * 100.0]
 		"STAY":
-			return "SLIP  %.2fs\nalready clear: head %.1f cm, torso %.1f cm\ncentre of mass %.1f cm inside the feet" % [
-				r["t"], float(r["head"]) * 100.0, float(r["torso"]) * 100.0, float(r["com"]) * 100.0]
+			return head + "
+already clear: head %.1f cm, torso %.1f cm" % [float(r["head"]) * 100.0, float(r["torso"]) * 100.0]
 		_:
-			return "%s  %.2fs\nhead clears %.1f cm (torso %.1f cm), moved %.0f cm\ncentre of mass %.1f cm inside the feet" % [
-				r["kind"], r["t"], float(r["head"]) * 100.0, float(r["torso"]) * 100.0, float(r["move"]) * 100.0, float(r["com"]) * 100.0]
+			return head + "
+head clears %.1f cm, torso %.1f cm, moved %.0f cm
+weight %.1f cm inside the feet" % [
+				float(r["head"]) * 100.0, float(r["torso"]) * 100.0, float(r["move"]) * 100.0, float(r["com"]) * 100.0]
 	return ""

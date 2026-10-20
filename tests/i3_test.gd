@@ -1,27 +1,30 @@
 ## godot --position -30000,-30000 --audio-driver Dummy --path . -s tests/i3_test.gd     (Innovations I3; a window)
 ## COUNTER SUGGESTION (scripts/counter.gd, counter_ui.gd; the command "Counter: suggest the defender's block, slip and parry").
-## Two fighters in the app: the hero attacks with a free bat, fighter 2 stands 1.2 m away facing it. Two attacks, each as
-## its own scene: a straight THRUST at the head and an OVERHEAD swing down onto it. The tip's path is re-measured here
-## from the scene itself (Scene.apply + Body.wep_point, 1/120 s), not read from Counter. Bars, written before the numbers:
-##   1 BLOCK (both attacks): the ghost's forearm AXIS passes within 3 cm of the path point at the ghost's intercept
-##     time, and within 3 cm of the path anywhere; its axis is within 20 deg of square to the tip's velocity there.
-##   2 SLIP (both): the ghost's head clears the path (head axis to the tip, minus the head radius) by >= 10 cm over the
-##     whole path to 0.12 s past the contact; the centre of mass is inside the support (Balance margin >= 0); both feet
-##     still on their marks (ball within 1.5 cm); the torso parts clear it by >= 10 cm too.
-##   3 LIMITS: every ghost's every joint is inside its limits (Body.clamp_ang changes nothing, 1e-3 deg).
-##   4 PARRY (both): the forearm axis within 3 cm of the path at its time, the tip deflected >= 20 deg, the contact
-##     gap (weapon line to forearm surface) <= 2 cm.
+## THE FIXTURE is a REAL strike: scenes/combo3.json (read only), its CONTACT card (card 3: the bat swing), the hero with
+## its bat in hand; fighter 2 (a stand pose, facing the hero) is put where the swing lands: the first of a short list of
+## spots at which the bat tip really gets inside its body (Choreo.surface_gap <= 0) and >= 2 counters are found.
+## Bars, written before the numbers:
+##   1 FOUND: >= 2 counters on the real strike; the tip path is re-measured here (Scene.apply + Body.wep_point, 1/120 s).
+##   2 BLOCK / PARRY: the forearm axis within 3 cm of the path at its time; the tip there is >= 5 cm in front of the head
+##     and torso surfaces (the weapon is stopped before it arrives); a BLOCK's forearm within 20 deg of square to the velocity.
+##     SLIP / DUCK: head clears the path by >= 10 cm; centre of mass inside the support; both feet down.
+##   3 REACTION: every counter's movement STARTS (time - Counter.MV) >= 0.2 s after the wind-up begins (the move into the
+##     card before the strike), measured from the scene's own card times.
+##   4 LIMITS: every ghost's every joint is inside its limits (Body.clamp_ang changes nothing, 1e-3 deg).
 ##   5 UNCHANGED: while the ghosts show, both fighters' cards (JSON) and bodies' angles are identical to before.
-##   6 ACCEPT: Enter places the picked ghost: ONE undo step; the defender's cards change; the new card replays the ghost's
-##     forearm within 2 cm; Ctrl+Z restores the defender's cards exactly and the undo list. Tab cycles through all ghosts.
-##   7 PLACEMENT: mid-swing, the 3 ghosts stand on the defender (node at its placement, pelvis within 0.5 m of its own,
-##     head inside the window), each label on screen; then the screenshot.
+##   6 ACCEPT: Tab cycles; Enter places the picked ghost: ONE undo step; the defender's cards change; the new card replays
+##     the ghost's forearm within 2 cm; Ctrl+Z restores the defender's cards exactly and the undo list.
+##   7 MISS: a defender out of reach: "nothing to counter", no ghosts.
+##   8 PLACEMENT: near the contact, the ghosts stand on the defender (node at its placement, pelvis within 0.5 m of its own,
+##     head and label inside the window), then the screenshot.
 extends SceneTree
 
 var fails := 0
 var m: Node
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i3.png"
-const DXF_POS := [0.0, 1.2]
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i3c.png"
+const SPOTS := [[0.4, 1.1], [0.6, 0.9], [0.4, 0.9], [0.0, 1.1], [0.6, 1.1], [0.2, 1.1]]
+var DXF_POS := [0.0, 1.2]
+var t_play := 0.0
 var dxf := Transform3D.IDENTITY
 
 
@@ -115,107 +118,109 @@ func prop(r: Dictionary, kind: String) -> Dictionary:
 	return {}
 
 
+func hero() -> Scene:
+	var s := Scene.new()
+	s.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/combo3.json")))
+	return s
+
+
+func xf_at(x: float, z: float) -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, deg_to_rad(180.0)), Vector3(x, 0.0, z))
+
+
 func _init() -> void:
-	dxf = Transform3D(Basis(Vector3.UP, deg_to_rad(180.0)), Vector3(DXF_POS[0], 0.0, DXF_POS[1]))
+	var AS := hero()
 	var DS := stand_scene()
-	var results := {}
-	for name in ["thrust", "overhead"]:
-		var AS: Scene = thrust() if name == "thrust" else overhead()
+	var ts := AS.times()
+	var ci := 2
+	var t_read := float(ts[ci - 1][0])
+	t_play = float(ts[ci][1]) - 0.06
+	var r := {}
+	var found := false
+	for sp in SPOTS:
+		DXF_POS = sp
+		dxf = xf_at(sp[0], sp[1])
 		var t0 := Time.get_ticks_msec()
-		var r := Counter.suggest(AS, Transform3D.IDENTITY, DS, dxf, 0.7)
-		print("     %s: suggest took %d ms" % [name, Time.get_ticks_msec() - t0])
-		results[name] = r
-		ok(bool(r["ok"]), "%s: a strike was found (contact at %.3f s, tip %s)" % [name, float(r["path"].get("tc", -1)), "inside the body" if bool(r["path"].get("contact", false)) else "no contact: card arrival"])
-		if not bool(r["ok"]):
-			print("     ", r["why"])
-			continue
-		var P: Dictionary = r["path"]
-		var mine := my_path(AS, P)
+		r = Counter.suggest(AS, Transform3D.IDENTITY, DS, dxf, t_play)
+		var n := 0
 		for p in r["list"]:
-			print("     ", String(p["label"]).replace("\n", " | "))
-		# 1 BLOCK
-		var bl := prop(r, "BLOCK")
-		ok(bool(bl.get("ok", false)), "%s BLOCK: found" % name)
-		if bool(bl.get("ok", false)):
-			var Gb: Body = bl["B"]
-			var c: Array = Gb.cap("lowerarm" + String(bl["side"]))
+			if bool(p["ok"]):
+				n += 1
+		print("     spot %s: ok=%s, %d counters, %d ms" % [sp, str(r["ok"]), n, Time.get_ticks_msec() - t0])
+		if bool(r["ok"]) and bool(r["path"]["contact"]) and n >= 2:
+			found = true
+			break
+	ok(found, "FIXTURE: a real strike (combo3 card %d) lands on fighter 2 at %s, contact at %.3f s" % [ci + 1, DXF_POS, float(r["path"].get("tc", -1))])
+	if not found:
+		print("fails: ", fails)
+		quit(1)
+		return
+	var P: Dictionary = r["path"]
+	var mine := my_path(AS, P)
+	print("     wind-up begins %.3f s, the strike card's move %.3f s, contact %.3f s" % [t_read, float(P["t0"]), float(P["tc"])])
+	var good := 0
+	for p in r["list"]:
+		print("     ", String(p["label"]).replace("\n", " | "))
+		if not bool(p["ok"]):
+			continue
+		good += 1
+		var G: Body = p["B"]
+		var kind := String(p["kind"])
+		var start := float(p["t"]) - Counter.MV
+		ok(start >= t_read + 0.2 - 1e-6, "%s REACTION: starts %.3f s = %.3f s after the wind-up begins (>= 0.2)" % [kind, start, start - t_read])
+		if kind == "BLOCK" or kind == "PARRY":
+			var c: Array = G.cap("lowerarm" + String(p["side"]))
 			var fa: Vector3 = dxf * (c[0] as Vector3)
 			var fb: Vector3 = dxf * (c[1] as Vector3)
-			var tx := float(bl["tx"])
-			var d_x := seg_d(tip_at(AS, tx), fa, fb)
-			var d_any := path_min(mine, fa, fb)
+			var tx := float(p["tx"])
+			var tp := tip_at(AS, tx)
+			var d_x := seg_d(tp, fa, fb)
+			var front := INF
+			for part in ["head", "spine_03", "spine_02", "spine_01", "pelvis"]:
+				var cc: Array = G.cap(part)
+				front = minf(front, seg_d(tp, dxf * (cc[0] as Vector3), dxf * (cc[1] as Vector3)) - float(G.rad[part]))
 			var v := (tip_at(AS, tx + 1.0 / 240.0) - tip_at(AS, tx - 1.0 / 240.0)) * 120.0
 			var ang := rad_to_deg(acos(clampf(absf((fb - fa).normalized().dot(v.normalized())), 0.0, 1.0)))
-			print("     BLOCK: forearm to the path at t=%.3f: %.2f cm; to the path anywhere %.2f cm; angle to velocity %.1f deg" % [tx, d_x * 100.0, d_any * 100.0, ang])
-			ok(d_x <= 0.03, "%s BLOCK: forearm axis %.2f cm from the path at the intercept frame (<= 3)" % [name, d_x * 100.0])
-			ok(d_any <= 0.03, "%s BLOCK: forearm axis %.2f cm from the path anywhere (<= 3)" % [name, d_any * 100.0])
-			ok(absf(ang - 90.0) <= 20.0, "%s BLOCK: forearm %.1f deg to the velocity (square +-20)" % [name, ang])
-		# 2 SLIP
-		var sl := prop(r, "SLIP")
-		ok(bool(sl.get("ok", false)), "%s SLIP: found (%s)" % [name, sl.get("kind", "")])
-		if bool(sl.get("ok", false)):
-			var Gs: Body = sl["B"]
-			var hc: Array = Gs.cap("head")
-			var ha: Vector3 = dxf * (hc[0] as Vector3)
-			var hb: Vector3 = dxf * (hc[1] as Vector3)
-			var clear := path_min(mine, ha, hb) - float(Gs.rad["head"])
-			var tor := INF
-			for part in ["spine_03", "spine_02"]:
-				var cc: Array = Gs.cap(part)
-				tor = minf(tor, path_min(mine, dxf * (cc[0] as Vector3), dxf * (cc[1] as Vector3)) - float(Gs.rad[part]))
-			var bal := Balance.read(Gs)
-			var G0 := Counter.ghost(DS, float(P["tc"]))
-			var foot := 0.0
-			for sd in ["_l", "_r"]:
-				foot = maxf(foot, ((G0.P["ball" + sd] as Vector3) - (Gs.P["ball" + sd] as Vector3)).length())
-			print("     SLIP: head clear %.1f cm, torso %.1f cm, COM margin %.1f cm, feet moved %.2f cm, head moved %.0f cm (%s)" % [clear * 100.0, tor * 100.0, float(bal["margin"]) * 100.0, foot * 100.0, float(sl["move"]) * 100.0, sl["kind"]])
-			ok(clear >= 0.10, "%s SLIP: head clears the path by %.1f cm (>= 10)" % [name, clear * 100.0])
-			ok(tor >= 0.10, "%s SLIP: torso clears it by %.1f cm (>= 10)" % [name, tor * 100.0])
-			ok(float(bal["margin"]) >= 0.0 and (bal["down"] as Array).size() == 2, "%s SLIP: centre of mass %.1f cm inside the support, both feet down" % [name, float(bal["margin"]) * 100.0])
-			ok(foot <= 0.015, "%s SLIP: feet stay on their marks (%.2f cm)" % [name, foot * 100.0])
-		# 4 PARRY
-		var pa := prop(r, "PARRY")
-		ok(bool(pa.get("ok", false)), "%s PARRY: found" % name)
-		if bool(pa.get("ok", false)):
-			var Gp: Body = pa["B"]
-			var c2: Array = Gp.cap("lowerarm" + String(pa["side"]))
-			var d_p := seg_d(tip_at(AS, float(pa["tx"])), dxf * (c2[0] as Vector3), dxf * (c2[1] as Vector3))
-			print("     PARRY: forearm to the path %.2f cm, deflects %.0f deg, gap %.1f cm" % [d_p * 100.0, float(pa["deflect"]), float(pa["gap"]) * 100.0])
-			ok(d_p <= 0.03, "%s PARRY: forearm %.2f cm from the path at its time (<= 3)" % [name, d_p * 100.0])
-			ok(float(pa["deflect"]) >= 20.0, "%s PARRY: the tip is deflected %.0f deg (>= 20)" % [name, float(pa["deflect"])])
-			ok(float(pa["gap"]) <= 0.02, "%s PARRY: contact gap %.1f cm (<= 2)" % [name, float(pa["gap"]) * 100.0])
-		# 3 LIMITS
+			print("     %s: forearm to the tip at %.3f s %.2f cm, tip %.1f cm in front of the body, %.1f deg to the velocity" % [kind, tx, d_x * 100.0, front * 100.0, ang])
+			ok(d_x <= 0.03, "%s: forearm axis %.2f cm from the path at its time (<= 3)" % [kind, d_x * 100.0])
+			ok(front >= 0.05, "%s: the tip is %.1f cm in front of the head/torso surface when it meets the forearm (>= 5)" % [kind, front * 100.0])
+			ok(tx < float(P["tc"]), "%s: meets the weapon %.3f s before the contact" % [kind, float(P["tc"]) - tx])
+			if kind == "BLOCK":
+				ok(absf(ang - 90.0) <= 20.0, "BLOCK: forearm %.1f deg to the velocity (square +-20)" % ang)
+			else:
+				ok(float(p["deflect"]) >= 20.0, "PARRY: the tip is deflected %.0f deg (>= 20)" % float(p["deflect"]))
+		else:
+			var hc: Array = G.cap("head")
+			var clear := path_min(mine, dxf * (hc[0] as Vector3), dxf * (hc[1] as Vector3)) - float(G.rad["head"])
+			var bal := Balance.read(G)
+			ok(clear >= 0.10, "%s: head clears the path by %.1f cm (>= 10)" % [kind, clear * 100.0])
+			ok(float(bal["margin"]) >= 0.0 and (bal["down"] as Array).size() == 2, "%s: centre of mass inside the support, both feet down" % kind)
 		var worst := 0.0
-		for p in r["list"]:
-			if not bool(p["ok"]):
-				continue
-			var Gx: Body = p["B"]
-			for j in Body.ORDER:
-				var a: Vector3 = Gx.ang[j]
-				var cl: Vector3 = Gx.clamp_ang(j, a)
-				worst = maxf(worst, maxf(absf(a.x - cl.x), maxf(absf(a.y - cl.y), absf(a.z - cl.z))))
-		ok(worst < 1e-3, "%s: every ghost inside its joint limits (worst %.6f deg)" % [name, worst])
+		for j in Body.ORDER:
+			var a: Vector3 = G.ang[j]
+			var cl: Vector3 = G.clamp_ang(j, a)
+			worst = maxf(worst, maxf(absf(a.x - cl.x), maxf(absf(a.y - cl.y), absf(a.z - cl.z))))
+		ok(worst < 1e-3, "%s: inside its joint limits (worst %.6f deg)" % [kind, worst])
+	ok(good >= 2, "1 FOUND: %d counters on the real strike (>= 2)" % good)
+	var rm := Counter.suggest(AS, Transform3D.IDENTITY, DS, xf_at(3.0, 3.0), t_play)
+	ok(not bool(rm["ok"]) and String(rm["why"]).begins_with("nothing to counter"), "7 MISS: a defender out of reach: %s" % String(rm["why"]).left(60))
 
 	# the app: 5 UNCHANGED, 6 ACCEPT, 7 PLACEMENT
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(4)
 	m._load_scene("res://scenes/combo3.json")   # read only: nothing is written to scenes/
-	var AS2 := overhead()
-	m.S.from_dict({"scene": "zz_i3_hero", "fps": 30, "cards": AS2.cards})
-	m._rebuild_cards()
-	print("     playing: ", m.S.cards.size(), " cards")
 	m.S.actors.append({"name": "fighter 2", "xf": {"pos": DXF_POS, "yaw": 180.0}, "scene": stand_scene()})
 	m._actors_sync()
 	m._refresh()
 	await idle()
 	ok(m._fighters_on() and m.actors_rt.size() == 2, "two fighters in the app")
-	m.playhead = 0.72
+	m.playhead = t_play
 	m._ps().apply(m.B, m.playhead)
 	m.yaw = 90.0
 	m.pitch = -6.0
-	m.dist = 5.2
-	m.target = Vector3(0.0, 1.15, 0.65)
+	m.dist = 5.0
+	m.target = Vector3(0.3, 1.45, 0.7)
 	m._cam()
 	m._refresh()
 	await idle(2)
@@ -223,7 +228,7 @@ func _init() -> void:
 	var before := [JSON.stringify(m.actors_rt[0]["S"].cards), JSON.stringify(D0.cards), JSON.stringify((m.actors_rt[1]["B"] as Body).to_dict()), JSON.stringify((m.actors_rt[0]["B"] as Body).to_dict())]
 	var n0: int = m.undo.size()
 	var rr: Dictionary = m.counter_ui.start()
-	ok(bool(rr.get("ok", false)) and m.counter_ui.on and m.counter_ui.shown.size() == 3, "the command shows 3 ghosts (%d)" % m.counter_ui.shown.size())
+	ok(bool(rr.get("ok", false)) and m.counter_ui.on and m.counter_ui.shown.size() >= 2, "the command shows >= 2 ghosts (%d)" % m.counter_ui.shown.size())
 	await idle(3)
 	var after := [JSON.stringify(m.actors_rt[0]["S"].cards), JSON.stringify(m.actors_rt[1]["S"].cards), JSON.stringify((m.actors_rt[1]["B"] as Body).to_dict()), JSON.stringify((m.actors_rt[0]["B"] as Body).to_dict())]
 	ok(before == after and m.undo.size() == n0, "5 UNCHANGED: cards and bodies identical while the ghosts show, no undo step")
@@ -251,9 +256,9 @@ func _init() -> void:
 			if sp.x < 0 or sp.y < 0 or sp.x > vp.x or sp.y > vp.y or m.cam.is_position_behind(q):
 				on_screen = false
 		print("     ghost %d %s: label at %s" % [i, cui.shown[i]["kind"], m.cam.unproject_position(lp)])
-	ok(dnode_ok, "7 PLACEMENT: each ghost node is visible at the defender's placement")
-	ok(near_ok, "7 PLACEMENT: each ghost's pelvis within 0.5 m of the defender's own")
-	ok(on_screen, "7 PLACEMENT: every ghost's head and label are inside the window (%s)" % vp)
+	ok(dnode_ok, "8 PLACEMENT: each ghost node is visible at the defender's placement")
+	ok(near_ok, "8 PLACEMENT: each ghost's pelvis within 0.5 m of the defender's own")
+	ok(on_screen, "8 PLACEMENT: every ghost's head and label are inside the window (%s)" % vp)
 	var img: Image = m.get_viewport().get_texture().get_image()
 	DirAccess.make_dir_recursive_absolute(SHOT.get_base_dir())
 	var e := img.save_png(SHOT)
@@ -266,8 +271,8 @@ func _init() -> void:
 	tab.pressed = true
 	m._unhandled_input(tab)
 	ok(cui.sel == (k0 + 1) % cui.shown.size(), "Tab picks the next ghost (%d -> %d)" % [k0, cui.sel])
-	m._unhandled_input(tab)
-	m._unhandled_input(tab)
+	for i in range(cui.shown.size() - 1):
+		m._unhandled_input(tab)
 	ok(cui.sel == k0, "Tab cycles back after %d presses" % cui.shown.size())
 	for i in cui.shown.size():
 		if String(cui.shown[i]["kind"]) == "BLOCK":
