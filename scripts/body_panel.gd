@@ -31,6 +31,9 @@ var _sync := false
 var _pending := false
 var _key := ""                 # the last body synced (a refresh of the same body does nothing)
 var last_measures := {}
+var chars_dir := "user://characters"   # R12: named characters, one <name>.json each (tests point this at a scratch dir)
+var name_edit: LineEdit
+var list_box: VBoxContainer
 
 
 func build(main) -> void:
@@ -74,6 +77,24 @@ func build(main) -> void:
 	var rb: Button = m._button("The mannequin as shipped", _reset, "the body back to the 1.83 m mannequin (the cards keep their angles; Ctrl+Z undoes)")
 	rb.name = "body_reset"
 	v.add_child(rb)
+	v.add_child(HSeparator.new())
+	v.add_child(m._label("Saved characters", 12, "heading"))
+	var sr := HBoxContainer.new()
+	name_edit = LineEdit.new()
+	name_edit.name = "char_name"
+	name_edit.placeholder_text = "name this person"
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_edit.text_submitted.connect(func(_t): save_character(name_edit.text))
+	sr.add_child(name_edit)
+	var sb: Button = m._button("Save", func(): save_character(name_edit.text), "keep these seven sliders as a named character in user://characters (not in any scene)")
+	sb.name = "char_save"
+	sr.add_child(sb)
+	v.add_child(sr)
+	list_box = VBoxContainer.new()
+	list_box.name = "char_list"
+	list_box.add_theme_constant_override("separation", 2)
+	v.add_child(list_box)
+	refresh_list()
 	v.add_child(HSeparator.new())
 	meas_lab = m._label("", 12, "text:0.7", true)
 	v.add_child(meas_lab)
@@ -180,3 +201,104 @@ func sync(body: Dictionary, B: Body, force := false) -> void:
 	var L := last_measures
 	meas_lab.text = "Measured on the skeleton (T pose): height %.1f cm, arm span %.1f cm (%.2f x height), shoulder joints %.1f cm apart, hip joints %.1f cm apart." % [
 		float(L["stature"]) * 100.0, float(L["span"]) * 100.0, float(L["span"]) / float(L["stature"]), float(L["shoulders"]) * 100.0, float(L["hips"]) * 100.0]
+
+
+## ---- R12: named characters. A character is the seven sliders (blend, stat, mass, arm, leg, trunk, head), nothing else;
+## applying one is the same single commit as dragging a slider, so Ctrl+Z takes it back in one step.
+static func clean_name(t: String) -> String:
+	var out := ""
+	for c in t.strip_edges():
+		if c.is_valid_identifier() or c in " -" or (c >= "0" and c <= "9") or c.to_lower() != c.to_upper():
+			out += c
+	return out.strip_edges().left(40)
+
+
+func _path(nm: String) -> String:
+	return chars_dir.path_join(nm + ".json")
+
+
+func character_names() -> Array:
+	var out := []
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(chars_dir)):
+		return out
+	for f in DirAccess.get_files_at(chars_dir):
+		if f.ends_with(".json"):
+			out.append(f.get_basename())
+	out.sort()
+	return out
+
+
+## writes chars_dir/<name>.json (only there; a same name is replaced: it is the person being updated). Returns "" or why not.
+func save_character(raw: String) -> String:
+	var nm := clean_name(raw)
+	if nm == "":
+		m._say("name the character first: type a name in the box, then press Save")
+		return "no name"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(chars_dir))
+	var d := {"version": 1}
+	for k in pr:
+		d[k] = snappedf(float(pr[k]), 0.0001)
+	var f := FileAccess.open(_path(nm), FileAccess.WRITE)
+	if f == null:
+		m._say("could not write the character: check that user://characters is writable, then try Save again")
+		return "write failed"
+	f.store_string(JSON.stringify(d, "	"))
+	f.close()
+	m._say("saved character '%s'; click its name in the list to put it back on the body" % nm)
+	refresh_list()
+	return ""
+
+
+## the sliders of a saved character, or {} when the file is missing / unreadable
+func read_character(nm: String) -> Dictionary:
+	if not FileAccess.file_exists(_path(nm)):
+		return {}
+	var d = JSON.parse_string(FileAccess.get_file_as_string(_path(nm)))
+	if not d is Dictionary:
+		return {}
+	var out := BodyModel.DEFAULT.duplicate()
+	for k in out:
+		if d.has(k):
+			out[k] = float(d[k])
+	return out
+
+
+## puts a saved character on the body: ONE undo step
+func apply_character(nm: String) -> bool:
+	var c := read_character(nm)
+	if c.is_empty():
+		m._say("the character '%s' could not be read: pick another one from the list, or save it again" % nm)
+		return false
+	begin.emit()
+	pr = c
+	_set_sliders()
+	_show()
+	commit.emit(BodyModel.body_for(pr))
+	return true
+
+
+func delete_character(nm: String) -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(_path(nm)))   # only a character file of ours
+	refresh_list()
+
+
+func refresh_list() -> void:
+	if list_box == null:
+		return
+	for c in list_box.get_children():
+		list_box.remove_child(c)
+		c.queue_free()
+	var names := character_names()
+	if names.is_empty():
+		list_box.add_child(m._label("none yet: set the sliders, name the person, press Save", 11, "text:0.5", true))
+	for nm in names:
+		var r := HBoxContainer.new()
+		r.name = "char_" + String(nm)
+		var c := read_character(nm)
+		var b: Button = m._button(String(nm), apply_character.bind(nm), "put '%s' on the body (%s percentile, %s; Ctrl+Z undoes)" % [nm, BodyModel.ordinal(c.get("stat", 50.0)), "man" if float(c.get("blend", 1.0)) >= 0.5 else "woman"])
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		r.add_child(b)
+		var x: Button = m._button("x", delete_character.bind(nm), "delete the saved character '%s' (the file in user://characters only)" % nm)
+		r.add_child(x)
+		list_box.add_child(r)
