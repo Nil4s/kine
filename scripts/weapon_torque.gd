@@ -213,14 +213,14 @@ static func analyze(S: Scene, B: Body, i: int, prof := {}) -> Dictionary:
 static func describe(r: Dictionary) -> String:
 	var bits := []
 	if r["over"]:
-		bits.append("TOO FAST FOR THIS WEAPON: needs %.0f N m at the wrist (max %.0f) and %.0f at the shoulder (max %.0f)" % [
+		bits.append("TOO FAST FOR THIS WEAPON: needs %.0f N m at the wrist (max %.0f N m) and %.0f N m at the shoulder (max %.0f N m)" % [
 			float(r["wrist"][0]), WRIST_MAX, float(r["shoulder"][0]), SHOULDER_MAX])
 	if r["no_windup"]:
 		bits.append("no wind-up (the tip goes back %.0f%% of the strike; at least %.0f%%)" % [100.0 * float(r["windup"]), 100.0 * WINDUP_MIN])
 	if r["no_follow"]:
 		bits.append("no follow-through (the tip goes on %.0f%% past contact; at least %.0f%%)" % [100.0 * float(r["follow"]), 100.0 * FOLLOW_MIN])
 	if r["instant_stop"]:
-		bits.append("instant stop: stopping needs %.0f N m at the wrist, %.0f at the shoulder in the %.2f s after contact" % [
+		bits.append("instant stop: stopping needs %.0f N m at the wrist, %.0f N m at the shoulder in the %.2f s after contact" % [
 			float(r["stop_wrist"][0]), float(r["stop_shoulder"][0]), STOP_WIN])
 	if bits.is_empty():
 		return "OK: %.0f N m wrist (max %.0f), %.0f N m shoulder (max %.0f)" % [float(r["wrist"][0]), WRIST_MAX, float(r["shoulder"][0]), SHOULDER_MAX]
@@ -305,6 +305,6 @@ static func fix(S: Scene, B: Body, r: Dictionary) -> Dictionary:
 	res["after"] = after
 	res["factor"] = f_total
 	res["ok"] = true
-	res["msg"] = "%s -> %.0f N m wrist, %.0f N m shoulder (max %.0f / %.0f), wind-up %.2f s" % ["; ".join(steps), float(after["wrist"][0]), float(after["shoulder"][0]),
+	res["msg"] = "%s -> %.0f N m wrist, %.0f N m shoulder (max %.0f / %.0f N m), wind-up %.2f s" % ["; ".join(steps), float(after["wrist"][0]), float(after["shoulder"][0]),
 		WRIST_MAX, SHOULDER_MAX, float(after["windup_s"])]
 	return res

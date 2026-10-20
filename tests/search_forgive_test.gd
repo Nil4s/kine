@@ -42,10 +42,13 @@ func _init() -> void:
 	for pair in [["keyframe", "CLIP this pose (add a card)"], ["flip", "Mirror the whole pose"], ["rewind", "Undo"],
 			["pin foot", "Plant the left foot on this card"], ["dark", "Light / dark theme"], ["inbetween card", "Add an in-between card"],
 			["duplicate pose", "Copy pose"], ["screenshot", ""], ["sword", "Weapon: metal bat"]]:
-		var t := top(pair[0], 3)
+		# "sword" literally names rows now (the command "New from template: Sword swing" and, when the scenes folder has them, the
+		# files "sword swing", "sword swing 2"), which rightly rank first; the SYNONYM it exercises (sword -> weapon) must still put
+		# the weapon rows right behind those literal hits: top 6, not top 3
+		var t := top(pair[0], 6 if pair[0] == "sword" else 3)
 		if pair[1] == "":
 			continue
-		ok(pair[1] in t, "'%s' -> %s in the top 3 %s" % [pair[0], pair[1], t])
+		ok(pair[1] in t, "'%s' -> %s in the top %d %s" % [pair[0], pair[1], t.size(), t])
 	# typos: one letter off ("pase" is one off BOTH paste and pose/pause: ambiguous, so a swap is used for paste)
 	for pair in [["mirorr", "Mirror the whole pose"], ["onoin", "Onion skin on/off"], ["trial", "Motion trail on/off"], ["chekc", "Check the motion"],
 			["plish", "Polish the scene (new copy)"], ["dummmy", "Dummy on/off"], ["weapn", "Remove the weapon"], ["patse", "Paste pose"],

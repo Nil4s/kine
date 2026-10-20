@@ -10408,7 +10408,7 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Safety sheet", sf_ui.show, "one pre-shoot report for the stunt crew over the whole scene: real contacts and their speed, weapon tips near a head, falls, rushed strikes; click an item to jump to it; Export page writes a printable HTML sheet with a picture of each item"))
 	if cm_ui == null:
 		cm_ui = ComboUI.new(self)
-	ui_ribbon["CHECK"].add_child(_button("My combos", cm_ui.show, "the card sequences you repeat in your own clips, named with your rhythm (jab-cross-hook, your 0.15/0.20/0.15, used 3 times in 2 clips); click one for a ghost after the picked card, Enter inserts it with your poses and timing (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("My combos", cm_ui.show, "the card sequences you repeat in your own clips, named with your rhythm (jab-cross-hook, your 0.15/0.20/0.15 s, used 3 times in 2 clips); click one for a ghost after the picked card, Enter inserts it with your poses and timing (one undo step)"))
 	if rh_ui == null:
 		rh_ui = FightRhythmUI.new(self)
 	if pc_ui == null:
@@ -10442,7 +10442,7 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	if tcat_ui == null:
 		tcat_ui = ThrowCatchUI.new(self)
-	ui_ribbon["SET"].add_child(_button("Throw to...", tcat_ui.show, "lets the held prop go at the playhead with the hand's velocity and spin, solves the ballistic arc (g = 9.81, no drag) and the catch by the other (or the picked) hand; red when it cannot be caught, saying why. Preview, Accept is one undo step (ROADMAP I27)"))
+	ui_ribbon["SET"].add_child(_button("Throw to...", tcat_ui.show, "lets the held prop go at the playhead with the hand's velocity and spin, solves the ballistic arc (g = 9.81 m/s^2, no drag) and the catch by the other (or the picked) hand; red when it cannot be caught, saying why. Preview, Accept is one undo step (ROADMAP I27)"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Reactions", _reactions_toggle, "the hit reaction picker: thumbnails of the reaction clips; drag one onto the fighter who is hit and its cards start at the contact (ROADMAP R16)"))
 	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))

@@ -9,7 +9,7 @@ extends SceneTree
 
 ## a unit directly after the number (longest first, so "frames" wins over "f", "m/s" over "m")
 const UNITS := ["m/s^2", "frames", "frame", "breaths", "steps/min", "m/s", "fps", "cm", "mm", "ms", "BPM", "bits", "bit", "BW", "dB", "deg", "kg", "px", "Hz",
-	"sd", "SD", "×", "°", "%%", "%", "m", "N", "g", "s", "f"]
+	"sd", "SD", "×", "°", "%%", "%", "degrees", "degree", "minutes", "minute", "points", "W", "J", "m", "N", "g", "s", "f"]  # W watts, J joules, points of a 0-100 score
 
 ## a count of things the user can see: the number is how many (no unit), with the reason it is not a quantity
 const COUNT_NOUNS := {  # a number before one of these words is a count (no unit), with its reason
@@ -58,14 +58,22 @@ const COUNT_NOUNS := {  # a number before one of these words is a count (no unit
 	"limb": "how many limbs", "limbs": "how many limbs", "plant": "how many plants",
 	"plants": "how many plants", "foot": "how many feet", "feet": "how many feet", "wall": "how many walls",
 	"walls": "how many walls", "hand": "how many hands", "hands": "how many hands",
+	# round-3 features: counts of things the UI lists
+	"fall": "how many falls", "falls": "how many falls", "lesson": "how many lessons", "lessons": "how many lessons",
+	"swing": "how many swings", "swings": "how many swings", "event": "how many events", "events": "how many events",
+	"cue": "how many cues", "cues": "how many cues", "variant": "how many variants", "variants": "how many variants",
+	"action": "how many actions", "actions": "how many actions", "shot": "how many shots", "shots": "how many shots",
+	"found": "how many were found", "dropped": "how many were dropped", "slides": "how many slides of a strike",
+	"recovers": "how many recover cards", "guard": "how many guard cards", "guards": "how many guards",
 }
 ## a 1-based index of a thing ("card 3", "fighter 2 of 2", "marker 4"): the number names a position, not a quantity
 const INDEX_BEFORE := ["card", "cards", "fighter", "marker", "clip", "step", "steps", "hit", "pose", "row", "item", "note", "pass", "range", "roadmap", "round", "upgrades",
-	"#", "key", "set", "layer", "view", "tip", "camera", "bone", "fingertip", "sound", "frame", "version", "no.", "clip's", "track", "tracks"]
+	"#", "fall", "swing", "key", "set", "layer", "view", "tip", "camera", "bone", "fingertip", "sound", "frame", "version", "no.", "clip's", "track", "tracks"]
 ## a number right after one of these words is a count (no unit), with its reason
 ## a dimensionless quantity named by the word before it: a factor, a weight from 0 to 1, a correlation r
 const DIMENSIONLESS_BEFORE := {"factor": "a dimensionless factor (a multiplier; 1 = no change)", "weight": "a layer weight from 0 to 1: dimensionless",
-	"r": "a correlation coefficient r: dimensionless", "fitness": "a fitness value from 0 to 1: dimensionless"}
+	"r": "a correlation coefficient r: dimensionless", "fitness": "a fitness value from 0 to 1: dimensionless",
+	"fatigue": "fatigue from 0 (fresh) to 1 (spent): dimensionless", "strength": "a cue strength from 0 to 1: dimensionless"}
 const COUNT_BEFORE := ["must-fix", "FOOT SLIDE", "became", "count:", "clashes:", "beats:", "picked", "->", "→"]
 
 ## the explicit allow list: a literal (substring) in a file that shows a unitless number, and why it is allowed
@@ -199,6 +207,22 @@ const ALLOW := [
 	{"file": "style_dial_ui.gd", "lit": "planted feet and", "reason": "counts of feet and contacts"},
 	{"file": "timing_coach_ui.gd", "lit": "%d suggestions", "reason": "a count of suggestions"},
 	{"file": "timing_coach_ui.gd", "lit": "timing coach: %d written", "reason": "a count of written suggestions"},
+	# round-3 features: card names with a number, counts the nouns cannot reach, a cache key, an HTML charset
+	{"file": "breakfall.gd", "lit": "to fix", "reason": "a count of falls to fix"},
+	{"file": "choreograph.gd", "lit": "wind-up %d", "reason": "a card name: the strike number is an index"},
+	{"file": "choreograph.gd", "lit": "STRIKE %d", "reason": "a card name: the strike number is an index"},
+	{"file": "choreograph.gd", "lit": "follow-through %d", "reason": "a card name: the strike number is an index"},
+	{"file": "combo_ui.gd", "lit": "a combo needs 2 or more cards", "reason": "a count of cards (the least a combo has)"},
+	{"file": "exertion.gd", "lit": "(needs %d)", "reason": "a count of strikes (the least a verdict needs)"},
+	{"file": "exertion.gd", "lit": "up to x%.2f", "reason": "a dimensionless multiplier of the strike time (x2 = twice as slow)"},
+	{"file": "exertion_ui.gd", "lit": "fatigue at the end", "reason": "fatigue 0..1 at the end of the clip and its peak: dimensionless"},
+	{"file": "motion_match.gd", "lit": "%s%s@%d", "reason": "a hidden cache key (path and file time stamp), not shown"},
+	{"file": "safety_sheet.gd", "lit": "<!doctype html>", "reason": "the charset name utf-8 in an HTML page written to disk, not a quantity"},
+	{"file": "sell_hit.gd", "lit": "strike%s: %d sold", "reason": "counts of strikes sold, not sold and unsafe"},
+	{"file": "weapon_torque_ui.gd", "lit": "need work. ", "reason": "a count of swings that need work"},
+	{"file": "style_ui.gd", "lit": "save %d or more clips", "reason": "a count of clips"},
+	{"file": "weapon_torque.gd", "lit": "slow the swing x%.2f", "reason": "a dimensionless multiplier of the swing time (x2 = twice as slow)"},
+	{"file": "weapon_torque.gd", "lit": "scales it x%.2f", "reason": "a dimensionless multiplier"},
 ]
 
 ## the last word before a number, without a list bracket: "(r" -> "r"

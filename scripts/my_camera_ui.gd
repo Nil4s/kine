@@ -17,7 +17,7 @@ func _init(main: Node) -> void:
 func commands(add: Callable) -> void:
 	add.call("My camera", "", show, "my camera fingerprint habits lens height distance angle line of action thirds cut contact median shots",
 		false, "your habits read from the shot cameras in your own scenes: lens, camera height, distance, angle to the line of action, where the subject sits in the frame, and how far before a contact you cut")
-	add.call("Frame it my way", "", frame_it, "frame it my way my camera shot habits cut on contact 180 rule lens distance angle thirds",
+	add.call("Frame it my way", "", frame_it, "frame it my way my camera shot habits cut on contact 180 deg rule lens distance angle thirds",
 		true, "a shot for the open scene placed with your habits (your lens, distance, angle, thirds), cut before the contact the way you cut; stays on one side of the line; Ctrl+Z takes it back")
 
 
@@ -78,11 +78,11 @@ func _build() -> void:
 		_row(g, "habit", "median", "middle half", "n", "heading")
 		var S: Dictionary = fp["stats"]
 		_row(g, "lens", "%.0f mm" % S["f"]["med"], "%.0f - %.0f mm" % [S["f"]["q1"], S["f"]["q3"]], str(int(S["f"]["n"])))
-		_row(g, "camera height", "%.2f x eye" % S["h"]["med"], "%.2f - %.2f" % [S["h"]["q1"], S["h"]["q3"]], str(int(S["h"]["n"])))
-		_row(g, "distance", "%.1f body hts" % S["dist"]["med"], "%.1f - %.1f" % [S["dist"]["q1"], S["dist"]["q3"]], str(int(S["dist"]["n"])))
+		_row(g, "camera height", "%.2f × eye height" % S["h"]["med"], "%.2f - %.2f × eye height" % [S["h"]["q1"], S["h"]["q3"]], str(int(S["h"]["n"])))
+		_row(g, "distance", "%.1f × body height" % S["dist"]["med"], "%.1f - %.1f × body height" % [S["dist"]["q1"], S["dist"]["q3"]], str(int(S["dist"]["n"])))
 		_row(g, "angle to the line", "%.0f deg" % S["theta"]["med"], "%.0f - %.0f deg" % [S["theta"]["q1"], S["theta"]["q3"]], str(int(S["theta"]["n"])))
-		_row(g, "subject across", "%+.2f frame" % S["sx"]["med"], "%+.2f to %+.2f" % [S["sx"]["q1"], S["sx"]["q3"]], str(int(S["sx"]["n"])))
-		_row(g, "subject up/down", "%+.2f frame" % S["sy"]["med"], "%+.2f to %+.2f" % [S["sy"]["q1"], S["sy"]["q3"]], str(int(S["sy"]["n"])))
+		_row(g, "subject across", "%+.2f frame" % S["sx"]["med"], "%+.2f to %+.2f frame" % [S["sx"]["q1"], S["sx"]["q3"]], str(int(S["sx"]["n"])))
+		_row(g, "subject up/down", "%+.2f frame" % S["sy"]["med"], "%+.2f to %+.2f frame" % [S["sy"]["q1"], S["sy"]["q3"]], str(int(S["sy"]["n"])))
 		var cm := float(S["cut"]["med"])
 		_row(g, "cut", "%d f %s" % [absi(roundi(cm)), "before hit" if cm >= 0.0 else "after hit"], "%d to %d f" % [roundi(S["cut"]["q1"]), roundi(S["cut"]["q3"])], str(int(S["cut"]["n"])))
 	panel.visible = true

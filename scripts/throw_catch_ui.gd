@@ -25,7 +25,7 @@ func _init(main: Node) -> void:
 
 func commands(add: Callable) -> void:
 	add.call("Throw to...", "", show, "throw toss catch juggle ballistic arc gravity release prop ball hand flight spin",
-		false, "lets the held prop go at the playhead with the hand's velocity and spin, solves the ballistic arc (g = 9.81, no drag) and the catch by the other hand: the hand is placed there by IK and the prop re-attached. Red when no catch is possible, saying why. Preview, then Accept (one undo step) (ROADMAP I27)")
+		false, "lets the held prop go at the playhead with the hand's velocity and spin, solves the ballistic arc (g = 9.81 m/s^2, no drag) and the catch by the other hand: the hand is placed there by IK and the prop re-attached. Red when no catch is possible, saying why. Preview, then Accept (one undo step) (ROADMAP I27)")
 
 
 ## the prop held at the playhead (the picked one if it is held, else the first carry going on)
@@ -97,7 +97,7 @@ func _panel() -> void:
 	head.add_child(m._button("Close", close))
 	var v0: Vector3 = pl["v0"]
 	var w: Vector3 = pl["w"]
-	var l1: Label = m._label("Release at %s: speed %.2f m/s (%.2f up), spin %.0f deg/s about the vertical (all from the hand, one frame apart). Arc: ballistic, g = 9.81 m/s^2, no air drag." % [
+	var l1: Label = m._label("Release at %s: speed %.2f m/s (%.2f m/s up), spin %.0f deg/s about the vertical (all from the hand, one frame apart). Arc: ballistic, g = 9.81 m/s^2, no air drag." % [
 		Units.time(float(pl["t0"]), m.S.fps), v0.length(), v0.y, rad_to_deg(w.y)], 13, "text:0.6", true)
 	l1.name = "tc_release"
 	l1.custom_minimum_size = Vector2(380, 0)

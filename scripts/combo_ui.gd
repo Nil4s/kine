@@ -35,8 +35,9 @@ func ensure(force := false) -> Dictionary:
 	if force or data.is_empty():
 		if force and FileAccess.file_exists(cache):
 			DirAccess.remove_absolute(cache)
+		var keep: Dictionary = m.B.state()   # mining poses the body at other times: put it back EXACTLY (a re-pose differs from the live body)
 		data = ComboMine.mined(dirs, m.B, cache)
-		m._ps().apply(m.B, m.playhead)   # mining posed the body at other times
+		m.B.set_state(keep)
 	return data
 
 
