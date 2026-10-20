@@ -8,12 +8,15 @@
 ##  (4) every strike move is inside the timing coach's range for that strike (BeatFight.strike_range of the written scene, 5 ms tolerance)
 ##  (5) the open scene's JSON is byte-identical after Preview, its file on disk is untouched, and the new scene exists only after Accept
 ##  (6) Accept writes the NEW file (its name is not the open scene's) with two fighters in it; Check ran on it and its summary is printed
+##  (8) STEP 2, Check on the written scene: 0 must-fix TIP SPEED / SEQUENCE items (and the planning took under 5 s, uncached)
+##  (9) the fighters keep apart: no body-on-body overlap ("touch") in the 30 Hz frames of the plan, and DistanceKeeper finds every strike in range
+##  (10) every quiet bar holds a circling step card on the attacker and on the defender (a "circle" card arriving inside the bar)
 ##  (7) placement: the timeline holds the energy strip (one column per beat) and one contact mark per strike, both heads are inside the window
 ##      at the loudest downbeat; the picture is saved
 extends SceneTree
 
 const FRAME := 1.0 / 30.0
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i22.png"
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i22b.png"
 var fails := 0
 var m: Node
 
@@ -98,7 +101,9 @@ func _init() -> void:
 	var open_json0 := JSON.stringify(m._scene_dict())
 
 	# PLAN + PREVIEW
+	var tp0 := Time.get_ticks_msec()
 	m.cg_ui.show()
+	var plan_s := float(Time.get_ticks_msec() - tp0) / 1000.0
 	await idle(2)
 	var res: Dictionary = m.cg_ui.res
 	ok(res.get("ok", false), "the plan is made: %s" % res.get("msg", ""))
@@ -152,6 +157,7 @@ func _init() -> void:
 	var worst := 0.0
 	var bad_rg := 0
 	var contacts := []
+	var tips := []
 	for i in A.cards.size():
 		if String(A.cards[i]["name"]).begins_with("STRIKE"):
 			var arr: float = ts[i][1]
@@ -159,12 +165,63 @@ func _init() -> void:
 			worst = maxf(worst, dist_to(beat_t, arr))
 			var rg := BeatFight.strike_range(A, B, i)
 			var mv := A.move_time(i)
-			var inside: bool = mv >= float(rg[0]) - 0.005 and mv <= float(rg[1]) + 0.005
+			# the fist range, or slower than its slow end ONLY where the weapon's tip bar made it so (tip peak >= 75 % of the cap)
+			var tipv := Choreograph._tip_v(A, B, float(ts[i][1]) - mv - 0.05, float(ts[i][1]) + 0.02)
+			tips.append(tipv)
+			var inside: bool = mv >= float(rg[0]) - 0.005 and (mv <= float(rg[1]) + 0.005 or (tipv >= 0.75 * Choreograph.tip_cap(B) and mv <= 1.35 * float(rg[1])))
 			if not inside:
 				bad_rg += 1
 			print("       STRIKE card %d lands %.3f s  move %.3f s  coach range %.3f - %.3f s  %s" % [i + 1, arr, mv, rg[0], rg[1], "ok" if inside else "OUTSIDE"])
 	ok(contacts.size() == strikes.size() and worst <= fr + 1e-6, "(3) %d contacts, the worst %.1f ms from a beat (<= %.1f ms)" % [contacts.size(), worst * 1000.0, fr * 1000.0])
 	ok(bad_rg == 0, "(4) every strike move is inside the timing coach's range (%d outside)" % bad_rg)
+
+	# (8) Check: no must-fix TIP SPEED / SEQUENCE
+	var bad_rules := 0
+	for f in m.findings:
+		if f["sev"] == "FAIL" and (f["rule"] == "TIP SPEED" or f["rule"] == "SEQUENCE"):
+			bad_rules += 1
+	var tip_max := 0.0
+	for v in tips:
+		tip_max = maxf(tip_max, float(v))
+	ok(bad_rules == 0 and plan_s < 5.0, "(8) Check: %d must-fix TIP SPEED / SEQUENCE (tip peak %.1f m/s, cap %.0f); planning took %.1f s (< 5 s)" % [bad_rules, tip_max, Choreograph.tip_cap(B), plan_s])
+
+	# (9) bodies apart, every strike in range
+	var DD: Scene = A.actors[0]["scene"]
+	var rel := Transform3D(Basis(Vector3.UP, deg_to_rad(180.0)), Vector3(0.0, 0.0, Choreograph.DEF_DIST))
+	var BA := body()
+	var BD := body()
+	var touch := 0
+	var deepest := 0.0
+	var tt := 0.0
+	while tt < A.length():
+		A.apply(BA, tt)
+		DD.apply(BD, tt)
+		for c in BA.cross_contacts(BD, rel):
+			if c[3] == "touch":
+				touch += 1
+				deepest = maxf(deepest, float(c[2]))
+		tt += FRAME
+	var rep := DistanceKeeper.analyze(A, DD, rel)
+	var min_root := INF
+	for sp in rep["spans"]:
+		min_root = minf(min_root, float(sp["root_gap"]))
+	ok(touch == 0 and rep["flagged"] == 0, "(9) %d body-on-body overlap frames (deepest %.1f cm); keeper: %s; the nearest the bodies' centres get at a strike start %.2f m" % [touch, deepest * 100.0, rep["msg"], min_root])
+
+	# (10) circling in the quiet bars
+	var circ_ok := true
+	var quiet_n := 0
+	for k in bars.size():
+		if int(bars[k]["n"]) != 0:
+			continue
+		quiet_n += 1
+		for S2 in [A, DD]:
+			var t2: Array = S2.times()
+			var found := false
+			for i in S2.cards.size():
+				if String(S2.cards[i]["name"]).begins_with("circle") and float(t2[i][1]) >= float(bars[k]["t0"]) - 1e-6 and float(t2[i][1]) <= float(bars[k]["t1"]) + 1e-6:
+					found = true
+			circ_ok = circ_ok and found
+	ok(quiet_n >= 1 and circ_ok, "(10) each of the %d quiet bars has a circling step card on both fighters" % quiet_n)
 
 	# (2) the biggest J on the loudest downbeat: the fist's peak speed in the 0.25 s before each contact
 	var best_v := 0.0
@@ -200,6 +257,7 @@ func _init() -> void:
 	m.playhead = loud_t
 	m._ps().apply(m.B, m.playhead)
 	m._refresh()
+	m._view_dir(Vector3.RIGHT, false)   # side-on: the two fighters apart, not one behind the other
 	await idle(3)
 	await RenderingServer.frame_post_draw
 	var tl = m.ui_timeline
