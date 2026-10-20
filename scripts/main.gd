@@ -148,6 +148,7 @@ var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every tar
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
+var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
 var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
@@ -190,7 +191,7 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
-	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
+	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
@@ -2565,6 +2566,8 @@ func _process(dt: float) -> void:
 		mp_ui.tick(dt)
 	if sd_ui != null:
 		sd_ui.tick(dt)   # STYLE DIAL: forgets its base when anything else changed the scene
+	if tcat_ui != null:
+		tcat_ui.tick(dt)   # THROW AND CATCH preview (nothing otherwise)
 	if if_ui != null:
 		if_ui.tick(dt)   # IMPACT FRAMES preview (nothing otherwise)
 	if bf_ui != null:
@@ -4985,6 +4988,8 @@ func _restore(u: Dictionary) -> void:
 		sd_ui.halt()
 	if tc_ui != null:
 		tc_ui.halt()
+	if tcat_ui != null:
+		tcat_ui.halt()
 	if if_ui != null:
 		if_ui.halt()
 	if bf_ui != null:
@@ -9917,7 +9922,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
+const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -10370,6 +10375,9 @@ func _ui() -> void:
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
+	if tcat_ui == null:
+		tcat_ui = ThrowCatchUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Throw to...", tcat_ui.show, "lets the held prop go at the playhead with the hand's velocity and spin, solves the ballistic arc (g = 9.81, no drag) and the catch by the other (or the picked) hand; red when it cannot be caught, saying why. Preview, Accept is one undo step (ROADMAP I27)"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Reactions", _reactions_toggle, "the hit reaction picker: thumbnails of the reaction clips; drag one onto the fighter who is hit and its cards start at the contact (ROADMAP R16)"))
 	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))
@@ -12983,6 +12991,9 @@ func _commands() -> Array:
 	if rs_ui == null:
 		rs_ui = RealismUI.new(self)
 	rs_ui.commands(add)   # REALISM SCORE (ROADMAP I16)
+	if tcat_ui == null:
+		tcat_ui = ThrowCatchUI.new(self)
+	tcat_ui.commands(add)   # THROW AND CATCH (ROADMAP I27)
 	if if_ui == null:
 		if_ui = ImpactFramesUI.new(self)
 	if_ui.commands(add)   # IMPACT FRAMES (ROADMAP I13)

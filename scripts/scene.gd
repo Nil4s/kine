@@ -1597,7 +1597,7 @@ func _carry_data(B: Body) -> Array:
 		if pi < 0 or pi >= props.size():
 			out.append({})
 			continue
-		var home: Transform3D = rest.get(pi, Props.posed(props[pi], ts[c["a"]][1])["xf"])   # a keyed prop: where its keys have it
+		var home: Transform3D = rest.get(pi, props[pi]["xf"] if flight_from(pi, ts[c["a"]][1]) < INF else Props.posed(props[pi], ts[c["a"]][1])["xf"])   # a keyed prop: where its keys have it (I27: flight keys are not its home)
 		var ta: float = ts[c["a"]][1]
 		apply(B, ta)
 		var grip := hand_frame(B, c["hands"]).affine_inverse() * home
@@ -1651,6 +1651,15 @@ func _carry_data(B: Body) -> Array:
 
 
 var _carry_busy := false
+
+
+## I27: the time of the prop's first key at or after the pick-up time ta (INF = none): a prop that is carried and then has keys
+## from inside the carry has been THROWN there (Throw to...); the keys win from that frame on
+func flight_from(pi: int, ta: float) -> float:
+	for k in props[pi].get("keys", []):
+		if float(k["t"]) >= ta - 1e-6:
+			return float(k["t"])
+	return INF
 
 
 ## ROADMAP 85: the rigid fall of a rod let go on card c (rel: its transform at the let-go, v0 and w0 its velocities). A
@@ -1717,6 +1726,8 @@ func props_at(t: float, B: Body) -> Array:
 		if d.is_empty() or t < float(d["ta"]):
 			continue
 		var pi: int = c["prop"]
+		if t >= flight_from(pi, float(d["ta"])):
+			continue   # I27: the keys written by Throw to... take it from the hand at their first frame (out[pi] is already posed by them)
 		if t < float(d["tb"]):
 			out[pi] = {"kind": props[pi]["kind"], "xf": hand_frame(B, c["hands"]) * (d["grip"] as Transform3D)}
 		else:
