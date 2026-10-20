@@ -127,9 +127,9 @@ static func apply(S: Scene, r0: float, r1: float, p: float, pct: float) -> int:
 	for pl in S.plants:
 		pl["t0"] = W.call(float(pl["t0"]))
 		pl["t1"] = W.call(float(pl["t1"]))
-		for k in ["th", "tf"]:
-			if pl.has(k):
-				pl[k] = W.call(float(pl[k]))
+		for kk in ["th", "tf"]:
+			if pl.has(kk):
+				pl[kk] = W.call(float(pl[kk]))
 	return changed
 
 
