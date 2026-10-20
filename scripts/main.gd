@@ -2207,6 +2207,102 @@ func _shading_next() -> void:
 	_say("shading: %s (a view setting, not saved in the scene).  Shading: next goes on to %s" % [nxt, Shading.next_mode(nxt)])
 
 
+## K01 / K02: SHADING MODES AND STUDIO LIGHTS (scripts/shading.gd). View settings: remembered in the settings file, no undo step.
+func _shading_set(md: String) -> void:
+	if shading.mode == md:
+		_say("the view is already drawn %s: pick another shading from the shading menu (top right of the view)" % md)
+		return
+	shading.set_mode(self, md)
+	if md != "silhouette":
+		shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("shading: %s%s (a view setting, remembered; the shading menu top right of the view picks another)" % [md, (" " + shading.matcap) if md == "matcap" else ""])
+
+
+func _matcap_set(k: String) -> void:
+	shading.matcap = k
+	shading.set_mode(self, "matcap")
+	shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("shading: matcap %s (a view setting, remembered)" % k)
+
+
+func _lights_set(id: String) -> void:
+	if shading.lights == id:
+		_say("the view already has %s: pick another from the lights menu (top right of the view)" % Shading.LIGHT_NAMES[id])
+		return
+	shading.lights = id
+	shading.apply_lights(self)
+	shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("lights: %s, %d shining (a view setting, remembered; a shot's own lighting preset still wins while that shot plays)" % [Shading.LIGHT_NAMES[id], Shading.light_count(self)])
+
+
+func _sky_toggle() -> void:
+	shading.sky = not shading.sky
+	shading.apply_sky(self)
+	shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("sky background %s (a view setting, remembered; the lights menu top right of the view toggles it)" % ("on: a gradient sky" if shading.sky else "off: the flat colour"))
+
+
+var ui_shade_btn: MenuButton
+var ui_light_btn: MenuButton
+const SHADE_ITEMS := [["wireframe", "Wireframe", "shade_wire"], ["solid", "Solid", "shade_solid"], ["matcap:clay", "Matcap: clay", "shade_matcap"], ["matcap:wax", "Matcap: red wax", "shade_matcap"],
+	["matcap:skin", "Matcap: skin", "shade_matcap"], ["xray", "X-ray", "shade_xray"], ["silhouette", "Silhouette", "shade_sil"]]
+const LIGHT_ITEMS := [["default", "Stage lights", "lit_day"], ["three_point", "3-point", "lit_three"], ["rim", "Rim only", "lit_rim"], ["top", "Top light", "lit_top"], ["flat", "Flat", "lit_flat"], ["sky", "Sky background", "sky"]]
+
+
+## the two small menus under the ViewCube: how the figure is drawn, and the studio lights
+func _build_shade_menus() -> void:
+	for spec in [["shade_menu", "Shading", "shade_solid", SHADE_ITEMS, "how the body and props are drawn: wireframe, solid, matcap, x-ray"],
+			["light_menu", "Studio lights", "lit_three", LIGHT_ITEMS, "the view lights: 3-point, rim, top, flat, and a gradient sky"]]:
+		var mb := MenuButton.new()
+		mb.name = spec[0]
+		mb.text = spec[1]
+		mb.tooltip_text = spec[1] + ": " + spec[4]
+		mb.flat = false
+		mb.anchor_left = 1.0
+		mb.anchor_right = 1.0
+		mb.focus_mode = Control.FOCUS_NONE
+		_icon_only(mb, spec[2], Vector2(NAV_W, NAV_H))
+		var pm := mb.get_popup()
+		for i in spec[3].size():
+			pm.add_icon_radio_check_item(Icons.small(spec[3][i][2]), spec[3][i][1], i)
+		var items: Array = spec[3]
+		pm.id_pressed.connect(func(id: int):
+			var key: String = items[id][0]
+			if key == "sky":
+				_sky_toggle()
+			elif key.begins_with("matcap:"):
+				_matcap_set(key.substr(7))
+			elif items == SHADE_ITEMS:
+				_shading_set(key)
+			else:
+				_lights_set(key))
+		ui_root.add_child(mb)
+		if spec[0] == "shade_menu":
+			ui_shade_btn = mb
+		else:
+			ui_light_btn = mb
+	_shade_menu_sync()
+	_place_cube()
+
+
+func _shade_menu_sync() -> void:
+	if ui_shade_btn == null:
+		return
+	var sp := ui_shade_btn.get_popup()
+	for i in SHADE_ITEMS.size():
+		var k: String = SHADE_ITEMS[i][0]
+		sp.set_item_checked(i, (k == "matcap:" + shading.matcap and shading.mode == "matcap") if k.begins_with("matcap:") else k == shading.mode)
+	var lp := ui_light_btn.get_popup()
+	for i in LIGHT_ITEMS.size():
+		var k2: String = LIGHT_ITEMS[i][0]
+		lp.set_item_checked(i, shading.sky if k2 == "sky" else k2 == shading.lights)
+	ui_shade_btn.icon = Icons.tex({"wireframe": "shade_wire", "matcap": "shade_matcap", "xray": "shade_xray", "silhouette": "shade_sil"}.get(shading.mode, "shade_solid"))
+
+
 ## each frame: while playing, count the frames and the dropped ones; the readout beside the time
 func _fps_poll(dt: float) -> void:
 	if playing and not _was_playing:
@@ -2238,6 +2334,7 @@ func _ps() -> Scene:
 
 
 func _ready() -> void:
+	RenderingServer.set_debug_generate_wireframes(true)   # K01: the wireframe view needs this before any mesh is made
 	# EVERY WIDGET BY NAME (round 14, U2): each control the window builds is named from what it says (scripts/names.gd)
 	# at once (a click that rebuilds a row must not leave it nameless for a frame); one with nothing to say yet (its
 	# text is set after it is added) gets its name a frame later
@@ -2347,6 +2444,7 @@ func _ready() -> void:
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
 			_fold(k, true, false)
 	_pages_load(cf)
+	shading.load_cfg(self)   # K01 / K02: the remembered shading mode, matcap, studio lights and sky (a test's own file)
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
@@ -10035,7 +10133,9 @@ func _retheme() -> void:
 	ui_find_box.bg_color = Tok.c("float")
 	if ui_vdiff != null and ui_vdiff.has_theme_stylebox_override("panel"):
 		(ui_vdiff.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = Tok.c("float")
-	world_env.background_color = Tok.c("world")
+	shading.apply_sky(self)   # the flat world colour (or the sky), and the mode's own token colours
+	if shading.mode != "solid":
+		shading.set_mode(self, shading.mode)
 	floor_mat.albedo_color = Tok.c("floor")
 	_grid()
 	_rebuild_cards()
@@ -11314,7 +11414,7 @@ func _ui() -> void:
 	ui_cube.anchor_left = 1.0
 	ui_cube.anchor_right = 1.0
 	ui_root.add_child(ui_cube)
-	_place_cube()
+	_build_shade_menus()
 	ui_ring = RingMenu.new()
 	ui_ring.top_margin = TOP_H
 	ui_root.add_child(ui_ring)
@@ -12507,6 +12607,14 @@ func _place_cube() -> void:
 	ui_cube.offset_left = -r - ViewCube.SIZE
 	ui_cube.offset_top = TOP_H + 8
 	ui_cube.offset_bottom = TOP_H + 8 + ViewCube.SIZE
+	var y := ui_cube.offset_bottom + 6.0
+	for k in [ui_light_btn, ui_shade_btn]:   # K01 / K02: the two menus right-aligned under the cube
+		if k != null:
+			k.offset_right = -r
+			k.offset_left = -r - NAV_W
+			k.offset_top = y
+			k.offset_bottom = y + NAV_H
+			r += NAV_W + 4
 
 
 ## the ring for part j at screen point p: up = reset, then clockwise. The part is selected first (what the ring acts on)
@@ -13562,6 +13670,13 @@ func _commands() -> Array:
 		for f in ["open", "grip", "fist", "relaxed"]:
 			add.call("Fingers %s: %s" % [side[1], f], "", _do.bind(_fingers.bind(side[0], f)), "hand", true, "the %s hand's fingers: %s" % [side[1], f])
 	add.call("Shading: next", "", _shading_next, "solid matcap silhouette xray x-ray look material", false, "draw the body solid, matcap, silhouette or x-ray (a display setting, not saved in the scene)")
+	for sm in [["wireframe", "wireframe wire mesh edges"], ["solid", "solid normal default shaded"], ["matcap", "matcap clay"], ["xray", "x-ray xray see through transparent"]]:
+		add.call("View: shading %s" % sm[0].replace("xray", "x-ray"), "", _shading_set.bind(sm[0]), "shading look draw body props " + sm[1], false, "draw the body and props as %s (remembered)" % sm[0])
+	for k in Shading.MATCAPS:
+		add.call("View: matcap %s" % k, "", _matcap_set.bind(k), "shading matcap clay wax skin material", false, "the matcap shading with the %s look (remembered)" % k)
+	for lt in [["three_point", "3-point"], ["rim", "rim"], ["top", "top"], ["flat", "flat"], ["default", "stage"]]:
+		add.call("View: lights %s" % lt[1], "", _lights_set.bind(lt[0]), "studio lights key fill rim top flat three point", false, "studio lights: %s (remembered)" % Shading.LIGHT_NAMES[lt[0]])
+	add.call("View: sky background", "", _sky_toggle, "sky hdri gradient background environment", false, "a procedural gradient sky behind the figure, on or off (remembered)")
 	add.call("Light / dark theme", "", func(): _set_light(Tok.dark), "colour white bright night", false, "switch the light and dark look (remembered)")
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
@@ -16964,6 +17079,8 @@ func _props_show() -> void:
 		_grey(ui_use_btns["Pick up"], "" if kind != "" and sel_card >= 0 else ("pick a card first: the body on it holds the prop" if kind != "" else "pick a prop first: click it in the view, or add one with Add prop"))
 		_grey(ui_use_btns["Put down"], "" if not _held_at(sel_card).is_empty() else "pick a card where a prop is held (after its Pick up card): the hands let it go there")
 	_props_pose()
+	if shading.mode != "solid":
+		shading.set_mode(self, shading.mode)   # K01: the new prop nodes are drawn in the view's shading mode
 	if ui_browser != null:
 		ui_browser.refresh()
 
@@ -19274,6 +19391,7 @@ func _light_apply() -> void:
 		world_env.adjustment_enabled = false
 		world_env.adjustment_brightness = 1.0
 		world_env.adjustment_contrast = 1.0
+		shading.apply_lights(self)   # K02: back to the studio lights the view had chosen (none: the default above)
 		return
 	var r := LightRig.rig(id, k["pos"], k["aim"])
 	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:

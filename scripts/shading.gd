@@ -14,7 +14,25 @@
 class_name Shading
 extends RefCounted
 
-const MODES := ["solid", "matcap", "silhouette", "xray"]
+const MODES := ["solid", "matcap", "silhouette", "xray"]   # what "Shading: next" cycles through
+const SETTABLE := ["solid", "matcap", "silhouette", "xray", "wireframe"]   # K01: wireframe is picked by name, not cycled
+const MATCAPS := ["clay", "wax", "skin"]
+const LIGHTS := ["default", "three_point", "rim", "top", "flat"]
+const LIGHT_NAMES := {"default": "the stage's own lights", "three_point": "3-point (key, fill, rim)", "rim": "rim only", "top": "top light", "flat": "flat (ambient only)"}
+## K02: [rotation_degrees of the light, energy, colour] per role. Front is +z (the stage's sun at (-50, 35) shines toward -z).
+## Key:fill 2.0 : 0.7 = 2.9:1, inside the 2:1 to 4:1 band of Brown, Cinematography: Theory and Practice (see light_rig.gd).
+const STUDIO := {
+	"three_point": {"key": [Vector3(-35, 40, 0), 2.0, Color(1.0, 0.95, 0.88)], "fill": [Vector3(-12, -50, 0), 0.7, Color(0.86, 0.92, 1.0)], "rim": [Vector3(-30, 200, 0), 1.3, Color(1, 1, 1)], "amb": [0.25, Color(0.55, 0.57, 0.62)]},
+	"rim": {"key": [Vector3(-35, 40, 0), 0.0, Color(1, 1, 1)], "fill": [Vector3(-12, -50, 0), 0.0, Color(1, 1, 1)], "rim": [Vector3(-25, 205, 0), 2.6, Color(0.86, 0.92, 1.0)], "amb": [0.12, Color(0.55, 0.57, 0.62)]},
+	"top": {"key": [Vector3(-90, 0, 0), 1.9, Color(1, 1, 1)], "fill": [Vector3(-12, -50, 0), 0.0, Color(1, 1, 1)], "rim": [Vector3(-30, 200, 0), 0.0, Color(1, 1, 1)], "amb": [0.2, Color(0.55, 0.57, 0.62)]},
+	"flat": {"key": [Vector3(-35, 40, 0), 0.0, Color(1, 1, 1)], "fill": [Vector3(-12, -50, 0), 0.0, Color(1, 1, 1)], "rim": [Vector3(-30, 200, 0), 0.0, Color(1, 1, 1)], "amb": [1.0, Color(0.9, 0.9, 0.92)]},
+}
+## K01 matcaps, drawn by the shader from the view-space normal (no image files): [shade, lit, spec strength, shininess, rim]
+const MATCAP_LOOK := {
+	"clay": [Color(0.30, 0.27, 0.25), Color(0.80, 0.74, 0.66), 0.05, 12.0, 0.10],
+	"wax": [Color(0.22, 0.02, 0.03), Color(0.80, 0.14, 0.12), 0.75, 48.0, 0.30],
+	"skin": [Color(0.40, 0.18, 0.15), Color(0.92, 0.68, 0.56), 0.18, 20.0, 0.25],
+}
 const DROP_FACTOR := 1.5
 const XRAY_ALPHA := 0.3
 const SIL_LAYER := 2   # the render-layer bit (value 2) the body joins in silhouette mode
@@ -24,12 +42,18 @@ render_mode unshaded;
 uniform vec4 shade_col : source_color;
 uniform vec4 lit_col : source_color;
 uniform vec4 rim_col : source_color;
+uniform float spec : hint_range(0.0, 1.0) = 0.1;
+uniform float shine = 16.0;
+uniform float rim_amt = 0.2;
 void fragment() {
 	vec3 n = normalize(NORMAL);
-	float d = dot(n, normalize(vec3(-0.35, 0.55, 0.75)));
+	vec3 l = normalize(vec3(-0.35, 0.55, 0.75));
+	float d = dot(n, l);
 	float t = smoothstep(-0.6, 1.0, d);
+	vec3 h = normalize(l + vec3(0.0, 0.0, 1.0));
+	float sp = pow(max(dot(n, h), 0.0), shine) * spec;
 	float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 3.0);
-	ALBEDO = mix(shade_col.rgb, lit_col.rgb, t) + rim_col.rgb * rim * 0.25;
+	ALBEDO = mix(shade_col.rgb, lit_col.rgb, t) + rim_col.rgb * rim * rim_amt + vec3(sp);
 }
 """
 
@@ -40,6 +64,11 @@ var _cull := 0
 var _msaa := 0
 var _have_state := false
 var meter := Meter.new()
+var matcap := "clay"   # K01: which matcap "matcap" draws
+var lights := "default"   # K02: which studio light preset is on
+var sky := false   # K02: the procedural gradient sky behind the figure
+var _debug := 0
+var _sky_env: Sky
 
 
 static func next_mode(cur: String) -> String:
@@ -54,12 +83,31 @@ static func bodies(m: Node) -> Array:
 	for n in [m.bat_handle, m.bat_barrel, m.bat_knob, m.d2_handle, m.d2_blade]:
 		if n != null:
 			out.append(n)
+	if m.ui_props_root != null:   # K01: the set's props are drawn in the same mode as the body
+		for c in m.ui_props_root.find_children("*", "MeshInstance3D", true, false):
+			out.append(c)
 	return out
+
+
+## the matcap material for kind k
+static func matcap_material(k: String) -> ShaderMaterial:
+	var look: Array = MATCAP_LOOK[k]
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = MATCAP_CODE
+	sm.shader = sh
+	sm.set_shader_parameter("shade_col", look[0])
+	sm.set_shader_parameter("lit_col", look[1])
+	sm.set_shader_parameter("rim_col", Tok.c("heading"))
+	sm.set_shader_parameter("spec", look[2])
+	sm.set_shader_parameter("shine", look[3])
+	sm.set_shader_parameter("rim_amt", look[4])
+	return sm
 
 
 ## draw the figure in this mode (m = main). "solid" puts back exactly what was there.
 func set_mode(m: Node, want: String) -> void:
-	if not want in MODES:
+	if not want in SETTABLE:
 		return
 	var cam: Camera3D = m.cam
 	var vp: Viewport = m.get_viewport()
@@ -67,29 +115,29 @@ func set_mode(m: Node, want: String) -> void:
 		_have_state = true
 		_cull = cam.cull_mask
 		_msaa = vp.msaa_3d
-		for mi in bodies(m):
+		_debug = vp.debug_draw
+	for mi in _orig.keys():   # nodes a rebuilt set left behind
+		if not is_instance_valid(mi):
+			_orig.erase(mi)
+			_layers.erase(mi)
+	for mi in bodies(m):   # parts and props that appeared since: remember what they had before any mode
+		if not _orig.has(mi):
 			_orig[mi] = mi.material_override
 			_layers[mi] = mi.layers
 	# back to the starting look first, so every mode is applied from the same ground
 	for mi in _orig:
-		if is_instance_valid(mi):
-			mi.material_override = _orig[mi]
-			mi.layers = _layers[mi]
+		mi.material_override = _orig[mi]
+		mi.layers = _layers[mi]
 	cam.cull_mask = _cull
 	vp.msaa_3d = _msaa
-	m.world_env.background_color = Tok.c("world")
+	vp.debug_draw = _debug
 	mode = want
+	apply_sky(m)
 	match want:
 		"matcap":
-			var sm := ShaderMaterial.new()
-			var sh := Shader.new()
-			sh.code = MATCAP_CODE
-			sm.shader = sh
-			sm.set_shader_parameter("shade_col", Tok.c("cube"))
-			sm.set_shader_parameter("lit_col", Tok.c("cube_edge"))
-			sm.set_shader_parameter("rim_col", Tok.c("heading"))
-			for j in m.pieces:
-				m.pieces[j].material_override = sm
+			var sm := matcap_material(matcap)
+			for mi in bodies(m):
+				mi.material_override = sm
 		"silhouette":
 			var fm := StandardMaterial3D.new()
 			fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -104,8 +152,104 @@ func set_mode(m: Node, want: String) -> void:
 			xm.albedo_color = Color(Tok.c("cube_edge"), XRAY_ALPHA)
 			xm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			xm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-			for j in m.pieces:
-				m.pieces[j].material_override = xm
+			for mi in bodies(m):
+				mi.material_override = xm
+		"wireframe":
+			# the engine draws every mesh as its edges (the floor and grid too, as in Blender's wire view); the body also
+			# gets one flat unshaded override so the material type is a plain unlit colour, never a lit or textured one
+			var wm := StandardMaterial3D.new()
+			wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			wm.albedo_color = Tok.c("ink")
+			for mi in bodies(m):
+				mi.material_override = wm
+			vp.debug_draw = Viewport.DEBUG_DRAW_WIREFRAME
+
+
+## the background: the flat world colour, or (sky on) a procedural gradient sky. The silhouette is always flat.
+func apply_sky(m: Node) -> void:
+	var e: Environment = m.world_env
+	if sky and mode != "silhouette":
+		if _sky_env == null:
+			var pm := ProceduralSkyMaterial.new()
+			pm.sky_top_color = Color(0.20, 0.34, 0.60)
+			pm.sky_horizon_color = Color(0.72, 0.78, 0.86)
+			pm.ground_horizon_color = Color(0.72, 0.78, 0.86)
+			pm.ground_bottom_color = Color(0.16, 0.17, 0.20)
+			pm.sky_curve = 0.25
+			_sky_env = Sky.new()
+			_sky_env.sky_material = pm
+		e.sky = _sky_env
+		e.background_mode = Environment.BG_SKY
+	else:
+		e.background_mode = Environment.BG_COLOR
+		e.background_color = Tok.c("world")
+
+
+## K02: put the studio lights on (the stage's own three lights are re-aimed, never added or removed)
+func apply_lights(m: Node) -> void:
+	var e: Environment = m.world_env
+	if lights == "default" or not STUDIO.has(lights):
+		m.light_key.basis = m._light_home[0]
+		m.light_key.light_energy = 1.1
+		m.light_key.light_color = Color.WHITE
+		m.light_fill.basis = m._light_home[1]
+		m.light_fill.light_energy = 0.0
+		m.light_fill.light_color = Color.WHITE
+		m.light_rim.basis = m._light_home[2]
+		m.light_rim.light_energy = 0.45
+		m.light_rim.light_color = Color.WHITE
+		e.ambient_light_energy = 0.6
+		e.ambient_light_color = Color(0.55, 0.57, 0.62)
+		return
+	var st: Dictionary = STUDIO[lights]
+	for pair in [[m.light_key, "key"], [m.light_fill, "fill"], [m.light_rim, "rim"]]:
+		var L: DirectionalLight3D = pair[0]
+		var d: Array = st[pair[1]]
+		L.rotation_degrees = d[0]
+		L.light_energy = d[1]
+		L.light_color = d[2]
+	e.ambient_light_energy = st["amb"][0]
+	e.ambient_light_color = st["amb"][1]
+
+
+## how many of the stage's directional lights are shining
+static func light_count(m: Node) -> int:
+	var n := 0
+	for L in [m.light_key, m.light_fill, m.light_rim]:
+		if L.light_energy > 0.001:
+			n += 1
+	return n
+
+
+## K01 / K02 are remembered in the settings file (a test's own file, never poser.cfg). Silhouette is not (it hides the chrome).
+func save_cfg(m: Node) -> void:
+	var cf := ConfigFile.new()
+	cf.load(m.settings)
+	cf.set_value("view", "shading", mode if mode != "silhouette" else "solid")
+	cf.set_value("view", "matcap", matcap)
+	cf.set_value("view", "lights", lights)
+	cf.set_value("view", "sky", sky)
+	cf.save(m.settings)
+
+
+func load_cfg(m: Node) -> void:
+	var cf := ConfigFile.new()
+	if cf.load(m.settings) != OK:
+		return
+	var md := String(cf.get_value("view", "shading", "solid"))
+	matcap = String(cf.get_value("view", "matcap", "clay"))
+	if not matcap in MATCAPS:
+		matcap = "clay"
+	lights = String(cf.get_value("view", "lights", "default"))
+	if not lights in LIGHTS:
+		lights = "default"
+	sky = bool(cf.get_value("view", "sky", false))
+	if md in SETTABLE and md != "silhouette":
+		set_mode(m, md)
+	elif sky:
+		apply_sky(m)
+	if lights != "default":
+		apply_lights(m)
 
 
 ## ---------------------------------------------------------------- FPS TRUTH
