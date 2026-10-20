@@ -11,6 +11,8 @@
 ##   score = max(0, 100 - sum of the penalties), rounded to a whole number for display.
 ## I45: with 14 judges a bad clip can lose more than 100 points in all, and the displayed score stops at 0. "raw" = 100 - total WITHOUT that floor
 ## (it can be negative): gains of a fix are read on raw, so a fix on a clip that scores 0 still shows what it removes.
+## The displayed score is shown(raw) = 100 x exp(-total / 100): about 100 - total while the total is small (20 -> 82), and it never
+## floors, so a clip losing 136 points still reads 26 and every fix still moves it. A gain is shown(after) - shown(before).
 ## MONOTONE: a penalty is a non-decreasing function of the flagged seconds, and a fix only removes or shrinks flagged items, so a fix
 ## that removes a flag never lowers the score. WEIGHTS are ours (the points lost if the whole clip were flagged by that judge):
 ## a red joint-limit break or a physically impossible span is worth the most because no human can do it; a yellow look, a timing
@@ -154,4 +156,9 @@ static func compute(S: Scene, inp: Dictionary) -> Dictionary:
 			it["pen"] = float(pen[it["judge"]]) / float(maxi(1, int(new_n[it["judge"]])))
 	var sorted := items.duplicate()
 	sorted.sort_custom(func(x, y): return float(x["pen"]) > float(y["pen"]))
-	return {"score": maxf(0.0, 100.0 - total), "raw": 100.0 - total, "pen": pen, "share": share, "items": items, "reasons": sorted.slice(0, 3), "judged": judged, "length": L, "abstain": abstain}
+	return {"score": shown(100.0 - total), "raw": 100.0 - total, "pen": pen, "share": share, "items": items, "reasons": sorted.slice(0, 3), "judged": judged, "length": L, "abstain": abstain}
+
+
+## the displayed 0..100 score of a raw score (100 - total penalty): 100 x exp(-total / 100)
+static func shown(raw: float) -> float:
+	return 100.0 * exp((raw - 100.0) / 100.0)

@@ -203,11 +203,11 @@ func _init() -> void:
 		var rr: Dictionary = rs.res["reasons"][k - 1]
 		var pred := rs.gain_of(rr)
 		ok(pred > 0.05 and String(bt.text).contains("+"), "(10) button %d reads '%s' (predicted %+.2f)" % [k, bt.text, pred])
-		var b4 := float(rs.res["raw"])
+		var b4 := float(rs.res["score"])   # gains are on the displayed scale (RealismScore.shown)
 		var cj := JSON.stringify(m.S.cards)
 		rs.fix(rr)
 		await idle(3)
-		ok(absf((float(rs.res["raw"]) - b4) - pred) <= 1.0, "(10) button %d: predicted %+.2f, got %+.2f" % [k, pred, float(rs.res["raw"]) - b4])
+		ok(absf((float(rs.res["score"]) - b4) - pred) <= 1.0, "(10) button %d: predicted %+.2f, got %+.2f" % [k, pred, float(rs.res["score"]) - b4])
 		m._undo()
 		await idle()
 		rs.refresh()

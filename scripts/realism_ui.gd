@@ -166,17 +166,17 @@ func gain_of(r: Dictionary) -> float:
 	var S: Scene = m.S
 	match String(fx["kind"]):
 		"timing":
-			g = _score_with([{"S": S, "cards": S.cards.duplicate(true)}], inp["tc"][int(fx["i"])]) - float(res["raw"])
+			g = RealismScore.shown(_score_with([{"S": S, "cards": S.cards.duplicate(true)}], inp["tc"][int(fx["i"])])) - RealismScore.shown(float(res["raw"]))
 		"check":
 			var f: Dictionary = inp["findings"][int(fx["i"])]
 			if Fixer.label(f, S) != "":
 				var cards: Array = Fixer.propose(f, S, m.ov.GB, m._sm)
 				if not cards.is_empty():
-					g = _score_with([{"S": S, "cards": cards}]) - float(res["raw"])
+					g = RealismScore.shown(_score_with([{"S": S, "cards": cards}])) - RealismScore.shown(float(res["raw"]))
 		"judge":
 			var fz := JudgeSuite.fix(m, r)
 			if not fz.is_empty():
-				g = _score_with(fz["changes"]) - float(res["raw"])
+				g = RealismScore.shown(_score_with(fz["changes"])) - RealismScore.shown(float(res["raw"]))
 	gains[gk] = g
 	return g
 
@@ -317,8 +317,8 @@ func _panel() -> void:
 		if res["abstain"].has(jd):
 			rows.append("%s  abstains (%s)" % [jd, res["abstain"][jd]])
 		else:
-			rows.append("%s  %.0f x %.0f %% of the %s flagged = -%.1f" % [jd, RealismScore.weight_of(jd), float(shr[jd]) * 100.0, JudgeSuite.UNIT[jd], float(pen[jd])])
-	var jl: Label = m._label("score = 100 - sum of: weight x share of the clip (older judges) or of the things judged (newer ones) flagged. An abstaining judge does not move the score.\n" + "\n".join(rows), 12, "text:0.6", true)
+			rows.append("%s  %.0f x %.0f %% of the %s flagged = -%.1f points" % [jd, RealismScore.weight_of(jd), float(shr[jd]) * 100.0, JudgeSuite.UNIT[jd], float(pen[jd])])
+	var jl: Label = m._label("score = 100 points x exp(-total / 100 points), total = sum of: weight x share of the clip (older judges) or of the things judged (newer ones) flagged; about 100 points minus the total when the total is small, never stuck at zero. An abstaining judge does not move the score.\n" + "\n".join(rows), 12, "text:0.6", true)
 	jl.name = "rs_judges"
 	L.add_child(jl)
 	L.add_child(m._label("computed in %.0f ms" % ms, 12, "text:0.5", true))

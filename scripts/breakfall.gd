@@ -454,7 +454,7 @@ static func _legs(card: Dictionary, th: float, ca: float) -> void:
 
 static func lower(S: Scene, f: Dictionary) -> Dictionary:
 	if float(f["speed"]) <= SPEED_OK:
-		return {"ok": false, "why": "the landing speed is already %.1f m/s (under %.1f): nothing to slow" % [float(f["speed"]), SPEED_OK]}
+		return {"ok": false, "why": "the landing speed is already %.1f m/s (under %.1f m/s): nothing to slow" % [float(f["speed"]), SPEED_OK]}
 	var cs := landing_cards(S, f)
 	if cs.is_empty() or int(cs[0]) == 0:
 		return {"ok": false, "why": "no card arrives before this fall to lower from: add a standing pose before the fall, then try again"}
@@ -511,7 +511,7 @@ static func lower(S: Scene, f: Dictionary) -> Dictionary:
 	if best.is_empty():
 		return {"ok": false, "why": "the fall is lost when retimed: check the cards around the landing"}
 	var g2: Dictionary = best["after"]
-	return {"ok": true, "kind": "lower", "scene": best["scene"], "rep": best["rep"], "after": g2, "msg": "slow the landing: %s the last cards stretched %d times by %.0f%%: first contact %.1f m/s (was %.1f), the fall lasts %.2f s from its start to the impact" % [
+	return {"ok": true, "kind": "lower", "scene": best["scene"], "rep": best["rep"], "after": g2, "msg": "slow the landing: %s the last cards stretched %d times by %.0f%%: first contact %.1f m/s (was %.1f m/s), the fall lasts %.2f s from its start to the impact" % [
 		"knees bend first (%.0f deg hips, %.0f deg knees, %.2f s) and unwind as the trunk tips;" % [LOW_THIGH, LOW_CALF, LOW_T] if bool(best["crouch"]) else "", int(best["rounds"]), (STRETCH - 1.0) * 100.0, float(g2["speed"]), float(f["speed"]), float(g2["t_c"]) - float(g2["t0"])]}
 
 

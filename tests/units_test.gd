@@ -234,6 +234,8 @@ const ALLOW := [
 	{"file": "weapon_rebound_ui.gd", "lit": "Contact %d", "reason": "the contact's number in the list (an index)"},
 	{"file": "weapon_rebound_ui.gd", "lit": "contacts, %d stopped dead", "reason": "a count of contacts and of swings stopped dead"},
 	{"file": "weapon_rebound_ui.gd", "lit": "IK keys on", "reason": "a count of IK keys and of hands"},
+	{"file": "floor_plan_view.gd", "lit": "%d", "reason": "a footprint's step number on the floor plan (an index)"},
+	{"file": "hit_habits.gd", "lit": "%d needed before I use your usual", "reason": "counts of learned edits (lessons), no unit"},
 ]
 
 ## the last word before a number, without a list bracket: "(r" -> "r"
