@@ -77,5 +77,5 @@ static func _key(S: Scene, B: Body) -> Array:
 		if kind == "actor" or kind == "weapon":
 			return []
 	return [S.cards, S.plants, S.ik, S.clips, S.cons, S.layer, S.layer_w, S.layers, S.breath, S.drivers, S.part_keys,
-		S.props, S.body, S.fps, S.pin, S.on_floor, S.floor_body, S.stepped, S.spline, S.loop, S.natural, S.moving_holds,
+		S.props, S.body, S.fps, S.pin, S.on_floor, S.floor_body, S.free_limits, S.stepped, S.spline, S.loop, S.natural, S.moving_holds,
 		S.cons_me, B.body, B.wep_kind, B.wep_len, B.wep_handle, B.wep2_kind]

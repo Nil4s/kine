@@ -11893,6 +11893,7 @@ func _commands() -> Array:
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
 	add.call("Import animation (fbx / glb / gltf / bvh)...", "", _anim_import_ask, "fbx mixamo unreal ue4 ue5 glb gltf bvh animation import retarget skeleton rig mocap motion capture clip", false, "pick an animation file from another skeleton (Mixamo, Unreal, Blender ...): its bones are matched to ours by name, its rest pose and size are allowed for, and it arrives as a NEW scene of cards in scenes/_wip (yours untouched). Or drop the file on the window")
+	add.call("Import physics reaction...", "", _phys_import_ask, "physics reaction hit fall mujoco isaac sim simulation bvh import push stagger tools physics export", false, "pick a hit reaction tools/physics (MuJoCo) exported as .bvh: it arrives as a NEW scene of key cards (the same key-card search as the video import), the root travel kept and the feet on the floor, in scenes/_wip (yours untouched). From the command line: poser_cli run - physics=<file.bvh>")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
 	add.call("Co-edit: host (one animator per fighter)...", "", _co_host_ask, "co edit live coedit host network lan share multiplayer together", false, "host a live session on your network: one animator per fighter, the host saves the scene (asks first)")
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
@@ -16882,6 +16883,42 @@ func _import_anim(path: String) -> String:
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"]])
+	return out
+
+
+## R15 IMPORT A PHYSICS REACTION: a .bvh from tools/physics (export.py) -> a NEW scene of key cards in scenes/_wip, opened.
+## The work is in scripts/phys_import.gd; a refusal changes nothing. Returns the new scene's path ("" refused).
+func _phys_import_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.bvh ; physics reactions (tools/physics/export.py)"])
+	fd.use_native_dialog = true
+	fd.title = "Import a physics reaction (.bvh)"
+	fd.file_selected.connect(func(p): _import_physics(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+func _import_physics(path: String) -> String:
+	var r := PhysImport.import_file(path, B, safe_file(path.get_file().get_basename()))
+	if not r["ok"]:
+		_say("could not import %s: %s. Pick a .bvh that tools/physics/export.py wrote (python tools/physics/export.py), or use Import animation for other skeletons" % [path.get_file(), r["why"]])
+		return ""
+	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
+	d["plan"] = "Physics reaction from %s: %s" % [path.get_file(), r["text"]]
+	var base := safe_file(String(d["scene"]))
+	var out := "res://scenes/_wip/%s.json" % base
+	var n := 2
+	while FileAccess.file_exists(out):   # never over an earlier import
+		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		n += 1
+	_write(out, d)
+	_load_scene(out)
+	_rebuild_cards()
+	_refresh()
+	_say("imported %s as scenes/_wip/%s: %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), r["text"]])
 	return out
 
 

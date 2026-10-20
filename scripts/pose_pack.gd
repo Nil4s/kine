@@ -39,7 +39,7 @@ const WEAPON_KEYS := ["kind", "length", "hand", "knob", "tip", "rot", "local_pos
 const JOINT_KEYS := ["bend", "side", "twist", "A", "G", "pos", "end", "at_limit"]
 ## a saved scene's own keys (scene.gd to_dict). Not accepted: "actors" (other scenes), "audio" (a file), anything else
 const SCENE_KEYS := ["scene", "natural", "on_floor", "floor_body", "pin", "fps", "length_s", "cards", "bad_frames", "note", "plan",
-	"spline", "moving_holds", "loop", "fitness", "breath", "layer", "layer_w", "layers", "props", "part_keys", "markers", "notes",
+	"spline", "free_limits", "moving_holds", "loop", "fitness", "breath", "layer", "layer_w", "layers", "props", "part_keys", "markers", "notes",
 	"beats", "beats_audio", "face", "attrs", "iq", "lip", "ik", "plants", "drivers", "secondary", "hair", "cape", "constraints", "body",
 	"shots", "clips", "sets", "camera", "boxes"]
 const CARD_KEYS := ["name", "move", "hold", "arrive_s", "leave_s", "pose", "flow", "walk", "steps", "lift", "ease", "ease_bias",
@@ -384,7 +384,7 @@ static func check_scene(sd: Dictionary, original: String) -> Dictionary:
 		return _bad("'fps' must be from 1 to 240")
 	if sd.has("length_s") and (not _is_num(sd["length_s"]) or float(sd["length_s"]) < 0.0 or float(sd["length_s"]) > 3600.0):
 		return _bad("'length_s' must be from 0 to 3600 s")
-	for k in ["natural", "on_floor", "floor_body", "pin", "spline", "moving_holds", "loop"]:
+	for k in ["natural", "on_floor", "floor_body", "free_limits", "pin", "spline", "moving_holds", "loop"]:
 		if sd.has(k) and typeof(sd[k]) != TYPE_BOOL:
 			return _bad("'%s' must be true or false" % k)
 	var props: Variant = sd.get("props", [])
