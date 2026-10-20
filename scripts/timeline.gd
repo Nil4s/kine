@@ -53,6 +53,7 @@ var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "o
 var bk: Array = []        # BREAKFALL CHECK (I25; breakfall_ui.gd): [{"t0", "t1", "cls": ok / warn / fail, "txt"}] a badge per fall
 var sh: Array = []        # SELL THE HIT (I21; sell_hit_ui.gd): [{"t0", "t1", "cls": sold / notsold / unsafe}] a badge per strike
 var rh: Array = []        # FIGHT RHYTHM (I19; fight_rhythm_ui.gd): [{t, who, type: strike / block / step / feint}] one tick per action
+var sc: Array = []        # SOUND CUES (I35; sound_cues_ui.gd): [{t, kind (whoosh / hit_head / hit_body / hit_weapon / step), strength 0..1}] a mark each, its size the strength
 var pc: Array = []        # PRECOG CHECK (I31; precog_ui.gd): [{t (the reaction's start), status: precog / late / both / ok}] a badge each
 var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
@@ -830,6 +831,42 @@ func _draw_rh(y0: float, y1: float) -> void:
 
 
 ## PRECOG CHECK (I31): a badge at each flagged reaction's start: PRECOG (moved before it could have seen it), LATE (arrives after the hit)
+## SOUND CUES (I35): a dark lane along the bottom of the card strip; a whoosh is a blue arc-bar, a hit a red disc (a head hit
+## ringed, a weapon clash a diamond), a step a green tick. The SIZE of the mark is the cue's strength.
+const SC_H := 16.0
+func sc_px() -> float:
+	return SC_H if not sc.is_empty() else 0.0
+
+
+func _draw_sc(ly: float) -> void:
+	if sc.is_empty():
+		return
+	draw_rect(Rect2(0, ly, size.x, SC_H), Color(Tok.c("tl_bg"), 0.72))
+	draw_line(Vector2(0, ly), Vector2(size.x, ly), Color(Tok.c("ink"), 0.25), 1.0)
+	var cy := ly + SC_H * 0.5
+	var order: Array = sc.filter(func(c): return String(c["kind"]) != "whoosh") + sc.filter(func(c): return String(c["kind"]) == "whoosh")   # hits and steps first, the whoosh streaks over them (a swing and its hit share a moment)
+	for c in order:
+		var x := x_of(float(c["t"]))
+		var s := float(c["strength"])
+		var k := String(c["kind"])
+		var r := 2.0 + 4.5 * s
+		match k:
+			"whoosh":
+				var col: Color = Tok.c("mk_blue")
+				draw_line(Vector2(x - r - 2.0, cy), Vector2(x + r + 2.0, cy), col, 1.5 + 2.0 * s)
+				draw_line(Vector2(x - r - 2.0, cy - 2.0 - r * 0.4), Vector2(x, cy), Color(col, 0.7), 1.0)
+				draw_line(Vector2(x - r - 2.0, cy + 2.0 + r * 0.4), Vector2(x, cy), Color(col, 0.7), 1.0)
+			"step":
+				draw_line(Vector2(x, cy - r), Vector2(x, cy + r), Tok.c("mk_green"), 2.0)
+			"hit_weapon":
+				draw_colored_polygon(PackedVector2Array([Vector2(x, cy - r - 1.0), Vector2(x + r + 1.0, cy), Vector2(x, cy + r + 1.0), Vector2(x - r - 1.0, cy)]), Tok.c("mk_gold"))
+			_:
+				draw_circle(Vector2(x, cy), r, Tok.c("mk_red"))
+				if k == "hit_head":
+					draw_arc(Vector2(x, cy), r + 2.0, 0.0, TAU, 16, Tok.c("ink"), 1.2)
+	draw_string(get_theme_default_font(), Vector2(3, ly + 11), "SFX", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(Tok.c("ink"), 0.6))
+
+
 func _draw_pc(font: Font, y0: float) -> void:
 	for b in pc:
 		var st := String(b["status"])
@@ -870,7 +907,7 @@ func _draw() -> void:
 	var y0 := RULER + 2.0 + fdh + bxh + shp
 	var ah := audio_h()
 	_clip_fit(S)
-	var h := size.y - y0 - 2.0 - ah - iq_px() - _clip_px
+	var h := size.y - y0 - 2.0 - ah - iq_px() - _clip_px - sc_px()
 	for i in S.cards.size():
 		var sel: bool = i == int(m.sel_card)
 		var base := Color(0.32, 0.5, 0.82) if i % 2 == 0 else Color(0.28, 0.6, 0.62)
@@ -924,6 +961,7 @@ func _draw() -> void:
 	_draw_bk(font, y0)
 	_draw_rh(y0, y0 + h)
 	_draw_pc(font, y0)
+	_draw_sc(y0 + h)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
