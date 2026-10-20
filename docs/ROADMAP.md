@@ -359,3 +359,6 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I34. Fatigue: track each fighter's mechanical work over the fight (joint power from the force view, summed);
   as it builds, real fighters slow, drop their guard and breathe; flag a fighter still at full speed late in a long
   exchange and offer a "tire him" pass (slower moves, lower guard, longer recovers, scaled to work done).
+- [ ] I35. Sound cues from physics: place whoosh markers at weapon/limb speed peaks (pitch and length from tip speed),
+  hit markers at contacts (weight from the impulse J), footstep markers at plants; preview them as synthesized
+  clicks/noise and export a cue sheet (time, kind, strength) with the clip.
