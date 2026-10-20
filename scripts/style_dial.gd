@@ -39,6 +39,24 @@ const FEATS := ["move", "hold", "amp", "flex", "head"]
 
 ## MEASURED on this machine's scenes/ + moves/ (tools/style_spread.gd). tests/i6_test.gd re-measures and compares (5 %).
 const SPREAD := {"move": 1.1866, "hold": 0.5596, "amp": 0.7789, "flex": 13.7012, "head": 0.0362}
+## The files SPREAD was built from, each with the md5 of its text (LF line ends) and the per-clip numbers the spreads are the P90 of:
+## "mv" / "hd" the clip's median explicit move / hold time (s, -1 = none), "range", "flex", "head" its clip_features. The test re-measures
+## THESE files only and compares the spread of the fresh rows with the spread of the committed rows of the SAME files, so a checkout with
+## a scene deleted or a new one added is judged on what it has (a missing file is skipped with a note). The app itself still learns from
+## every scene on disk. tools/style_spread.gd prints this table for a regenerated SPREAD.
+const SPREAD_CLIPS := {
+	"res://scenes/bo_spin.json": {"md5": "cd249992f1175fa03c6e3ec4ee4ea57f", "mv": 0.235000, "hd": 0.115000, "range": 44.597581, "flex": 42.347636, "head": 1.515661},
+	"res://scenes/bo_sweep.json": {"md5": "39ee63651d60218f69184e991931892a", "mv": 0.275000, "hd": 0.200000, "range": 11.635463, "flex": 20.000000, "head": 1.579394},
+	"res://scenes/combo3.json": {"md5": "32e69a2e56e44af7df01fbaf13c9d368", "mv": 0.300000, "hd": 0.250000, "range": 49.786896, "flex": 9.502807, "head": 1.501780},
+	"res://scenes/dodge_side.json": {"md5": "cbc9c1f994183a3b37a227ed9e83e578", "mv": 0.150000, "hd": 0.200000, "range": 15.915748, "flex": 6.298755, "head": 1.536540},
+	"res://scenes/hit_react.json": {"md5": "4dd84a5ff3ceb8775a454b411e0c6023", "mv": 0.305000, "hd": 0.150000, "range": 13.595694, "flex": 0.268364, "head": 1.543236},
+	"res://scenes/idle_bat.json": {"md5": "61391993029e487a15dc83ced19efa81", "mv": 0.950000, "hd": 0.225000, "range": 4.125245, "flex": -2.611511, "head": 1.563471},
+	"res://scenes/strike_legs.json": {"md5": "6f393bfd92c4fb0651925097299b8366", "mv": 0.400000, "hd": 0.080000, "range": 39.786955, "flex": 3.301817, "head": 1.525532},
+	"res://scenes/swing_back.json": {"md5": "11a7803f4733bf28140c25ab753bb575", "mv": 0.125000, "hd": 0.200000, "range": 26.995490, "flex": 7.312495, "head": 1.548070},
+	"res://scenes/swing_fore.json": {"md5": "4761617d5586c21af41fa958a619ad75", "mv": 0.290000, "hd": 0.300000, "range": 35.120482, "flex": 6.598398, "head": 1.566553},
+	"res://scenes/thrust.json": {"md5": "21d93b77fad8abdcb94c60b716b5a61d", "mv": 0.033333, "hd": 0.185000, "range": 22.848729, "flex": 5.588123, "head": 1.557596},
+	"res://scenes/walk_bat.json": {"md5": "393b758bc9b006eda804c4407ebcb4a3", "mv": 0.570000, "hd": 0.350000, "range": 19.292827, "flex": 4.636792, "head": 1.540565},
+}
 const BASIS := {"clips": 11}   # the clips the spreads rest on (scenes/ with explicit move times)
 
 ## weights: dur (+ = longer moves), hold (+ = longer holds), amp (+ = bigger), flex (+ = trunk more forward), head (+ = head higher),
@@ -163,33 +181,84 @@ static func clip_features(db: Dictionary, ci: int, B: Body) -> Dictionary:
 		"com_h": com / float(n), "knee": knee / float(n), "n": n}
 
 
+## md5 of a file's text with LF line ends (so a Windows checkout and a Linux one agree)
+static func file_md5(path: String) -> String:
+	return FileAccess.get_file_as_string(path).replace("\r\n", "\n").md5_text()
+
+
+## which of the files SPREAD was built from this checkout has: {"use": [paths present], "missing": [...], "changed": [present, but another md5]}
+static func spread_basis_files() -> Dictionary:
+	var use := []
+	var missing := []
+	var changed := []
+	for p in SPREAD_CLIPS:
+		if not FileAccess.file_exists(p):
+			missing.append(p)
+			continue
+		use.append(p)
+		if file_md5(p) != String(SPREAD_CLIPS[p]["md5"]):
+			changed.append(p)
+	return {"use": use, "missing": missing, "changed": changed}
+
+
+## the per-clip numbers of the scenes in dirs (only the paths in files unless it is empty): {path: {"md5", "mv", "hd", "range", "flex", "head"}}
+static func measure_rows(db: Dictionary, dirs := ["res://scenes/"], files := []) -> Dictionary:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var rows := {}
+	var clips: Array = db["clips"]
+	for ci in clips.size():
+		var p := String(clips[ci]["path"])
+		if not files.is_empty() and not files.has(p):
+			continue
+		var f := clip_features(db, ci, B)
+		var mv1 := -1.0
+		var hd1 := -1.0
+		var m1 := []
+		var h1 := []
+		for card in NextPose.read_file(p):
+			if float(card["mv"]) > 0.0:
+				m1.append(float(card["mv"]))
+			if float(card["hd"]) > 0.0:
+				h1.append(float(card["hd"]))
+		if not m1.is_empty():
+			mv1 = _pct(m1, 0.5)   # one number per clip: its median explicit move time
+		if not h1.is_empty():
+			hd1 = _pct(h1, 0.5)
+		rows[p] = {"md5": file_md5(p), "mv": mv1, "hd": hd1, "range": float(f["range"]), "flex": float(f["flex"]), "head": float(f["head_h"])}
+	return rows
+
+
+## the SPREAD table from per-clip rows (the values of measure_rows / SPREAD_CLIPS)
+static func spread_of(rows: Array) -> Dictionary:
+	var mv := []
+	var hd := []
+	for r in rows:
+		if float(r["mv"]) > 0.0:
+			mv.append(float(r["mv"]))
+		if float(r["hd"]) > 0.0:
+			hd.append(float(r["hd"]))
+	return {"move": _log_p90(mv), "hold": _log_p90(hd), "amp": _log_p90(rows.map(func(x): return x["range"])),
+		"flex": _abs_p90(rows.map(func(x): return x["flex"])), "head": _abs_p90(rows.map(func(x): return x["head"]))}
+
+
 ## the SPREAD table from the motion database and the habits index: {"spread": {...}, "basis": {...}, "clips": [features per clip]}
-static func measure_spreads(db: Dictionary, dirs := ["res://scenes/"]) -> Dictionary:
+## files: [] = every scene in dirs (what the tool prints); else only these paths (the clips of the database and the habits index)
+static func measure_spreads(db: Dictionary, dirs := ["res://scenes/"], files := []) -> Dictionary:
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var clips := []
 	for ci in (db["clips"] as Array).size():
+		if not files.is_empty() and not files.has(String((db["clips"] as Array)[ci]["path"])):
+			continue
 		clips.append(clip_features(db, ci, B))
-	var mv := []
-	var hd := []
-	for dir in dirs:
-		for fn in DirAccess.get_files_at(dir):
-			if not fn.ends_with(".json"):
-				continue
-			var m1 := []
-			var h1 := []
-			for card in NextPose.read_file(String(dir) + fn):
-				if float(card["mv"]) > 0.0:
-					m1.append(float(card["mv"]))
-				if float(card["hd"]) > 0.0:
-					h1.append(float(card["hd"]))
-			if not m1.is_empty():
-				mv.append(_pct(m1, 0.5))   # one number per clip: its median explicit move time
-			if not h1.is_empty():
-				hd.append(_pct(h1, 0.5))
-	var spread := {"move": _log_p90(mv), "hold": _log_p90(hd), "amp": _log_p90(clips.map(func(x): return x["range"])),
-		"flex": _abs_p90(clips.map(func(x): return x["flex"])), "head": _abs_p90(clips.map(func(x): return x["head_h"]))}
-	return {"spread": spread, "basis": {"clips": clips.size(), "clips_with_moves": mv.size(), "clips_with_holds": hd.size()}, "clips": clips}
+	var rows := measure_rows(db, dirs, files)
+	var n_mv := 0
+	var n_hd := 0
+	for p in rows:
+		n_mv += 1 if float(rows[p]["mv"]) > 0.0 else 0
+		n_hd += 1 if float(rows[p]["hd"]) > 0.0 else 0
+	return {"spread": spread_of(rows.values()), "rows": rows, "basis": {"clips": clips.size(), "clips_with_moves": n_mv, "clips_with_holds": n_hd}, "clips": clips}
 
 
 static func _log_p90(xs: Array) -> float:
