@@ -187,12 +187,12 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 9 / 25.
+Merged in round 2: 10 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
 - [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
 - [x] R3. Motion blur in the playblast (sub-frame accumulation), off by default.
-- [ ] R4. Contact shadows under feet and props (soft blob that darkens as the foot nears the floor).
+- [x] R4. Contact shadows under feet and props (soft blob that darkens as the foot nears the floor).
 - [x] R5. Render the shot sequence to an mp4 (ffmpeg), camera cuts from the camera sequencer.
 - [x] R6. One obvious next step on every page (a single line, never empty, clickable).
 - [ ] R7. Cold-start test: a script with no knowledge of the UI reaches "a punch that lands" through the command registry only.
