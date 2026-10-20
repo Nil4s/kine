@@ -51,6 +51,8 @@ var ph: Array = []
 signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans (-1 = a note)
 var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "ok", "why"}] the contacts: fitted on a beat, or flagged
 var sh: Array = []        # SELL THE HIT (I21; sell_hit_ui.gd): [{"t0", "t1", "cls": sold / notsold / unsafe}] a badge per strike
+var rh: Array = []        # FIGHT RHYTHM (I19; fight_rhythm_ui.gd): [{t, who, type: strike / block / step / feint}] one tick per action
+var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
 var bf_grid: Array = []   # the beats (scene time) the fit lands on: ticks down the track
 var ph_sel := -1   # the red span picked (a click on it), -1 = none
@@ -774,6 +776,27 @@ func _draw_sh(font: Font, y0: float) -> void:
 			draw_string(font, Vector2(x0 + 3.0, y0 + oy + 9.5), "UNSAFE" if cls == "unsafe" else ("NOT SOLD" if cls == "notsold" else "SOLD"), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
 
+## FIGHT RHYTHM (I19): ticks over the cards, one per action coloured by fighter (fighter 1 amber, fighter 2 blue; more cycle):
+## tall = strike, short = block or step, hollow = feint; a red band behind the flagged stretches
+func _draw_rh(y0: float, y1: float) -> void:
+	if rh.is_empty():
+		return
+	for b in rh_flags:
+		var x0 := x_of(float(b["t0"]))
+		draw_rect(Rect2(x0, y1 - 5.0, maxf(x_of(float(b["t1"])) - x0, 3.0), 5.0), Color(Tok.c("fail"), 0.9))
+	for e in rh:
+		var x := x_of(float(e["t"]))
+		var col: Color = [Tok.c("focus"), Tok.c("heading"), Tok.c("warn"), Tok.c("fail")][int(e["who"]) % 4]
+		var tp := String(e["type"])
+		var top := y0 + 1.0 if tp == "strike" or tp == "feint" else y0 + (y1 - y0) * 0.5
+		var r := Rect2(x - 2.0, top, 4.0, y1 - 6.0 - top)
+		draw_rect(r.grow(1.5), Tok.c("tl_bg"))
+		if tp == "feint":
+			draw_rect(r, col, false, 1.5)
+		else:
+			draw_rect(r, col)
+
+
 func _draw() -> void:
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
@@ -851,6 +874,7 @@ func _draw() -> void:
 	_draw_fit(font, y0, h)
 	_draw_dk(font, y0)
 	_draw_sh(font, y0)
+	_draw_rh(y0, y0 + h)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
