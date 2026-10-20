@@ -5036,8 +5036,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
 	if u.has("skin_w") and not wp.is_empty():
-		SkinPaint.restore(wp, u["skin_w"])
-		_skp_build()
+		if SkinPaint.restore(wp, u["skin_w"]):
+			_skp_build()
 	if u["scene"] == S and u.has("plants") and var_to_str(u["plants"]) != var_to_str(S.plants):
 		S.plants = u["plants"].duplicate(true)   # foot plants (ROADMAP 8), undone like a card
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):

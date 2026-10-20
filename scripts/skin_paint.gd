@@ -292,13 +292,21 @@ static func snapshot(model: Dictionary) -> Array:
 	return out
 
 
-static func restore(model: Dictionary, snap: Array) -> void:
+static func restore(model: Dictionary, snap: Array) -> bool:
 	if snap.size() != model["surfs"].size():
-		return
+		return false
+	# an undo step that never touched the weights (every drag, key, add and remove carries the snapshot) must leave the
+	# meshes alone: apply() rebuilds every piece from its own arrays, which re-packs the normals (1 LSB of the drawn skin
+	# off) and throws away the corrective shapes' meshes. Only a real change is applied.
+	var changed := false
 	for k in snap.size():
+		if model["surfs"][k]["bones"] != snap[k][0] or model["surfs"][k]["w"] != snap[k][1]:
+			changed = true
 		model["surfs"][k]["bones"] = snap[k][0]
 		model["surfs"][k]["w"] = snap[k][1]
-	apply(model, model["heat"])
+	if changed:
+		apply(model, model["heat"])
+	return changed
 
 
 ## the painted weights as the sidecar file: every float and int as its raw bytes in base64, so a load is bit-for-bit
