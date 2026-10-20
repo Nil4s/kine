@@ -13480,6 +13480,9 @@ func _commands() -> Array:
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
+	for grp in LiveLayer.GROUPS:
+		add.call("Live: layer %s onto this clip" % grp, "", _live_layer.bind(grp), "live layer record parts partial mocap webcam over clip perform act %s" % grp, false,
+			"the clip plays from the playhead while the webcam drives only the %s; run it again to keep them as part keys on those joints (the cards are untouched; one Ctrl+Z)" % grp)
 	add.call("Import animation (fbx / glb / gltf / bvh)...", "", _anim_import_ask, "fbx mixamo unreal ue4 ue5 glb gltf bvh animation import retarget skeleton rig mocap motion capture clip", false, "pick an animation file from another skeleton (Mixamo, Unreal, Blender ...): its bones are matched to ours by name, its rest pose and size are allowed for, and it arrives as a NEW scene of cards in scenes/_wip (yours untouched). Or drop the file on the window")
 	add.call("Import physics reaction...", "", _phys_import_ask, "physics reaction hit fall mujoco isaac sim simulation bvh import push stagger tools physics export", false, "pick a hit reaction tools/physics (MuJoCo) exported as .bvh: it arrives as a NEW scene of key cards (the same key-card search as the video import), the root travel kept and the feet on the floor, in scenes/_wip (yours untouched). From the command line: poser_cli run - physics=<file.bvh>")
 	add.call("Clean up mocap", "", _mocap_clean, "bvh capture foot lock skate slide pop flip cleanup", true, "for a scene with a card per frame (a dropped .bvh): plant the standing feet so they stop sliding, mend one-frame joint pops, and report flips and limbs through the body on the status line (one undo step)")
@@ -18649,6 +18652,8 @@ func _live_toggle() -> void:
 
 ## the take is kept first when one is running, then the tracker stops and the socket closes
 func _live_end(why: String) -> void:
+	if live.recording and not live_layer.is_empty():
+		_live_layer_stop()
 	if live.recording:
 		_live_record()
 	var f := live.fps()
@@ -18657,7 +18662,59 @@ func _live_end(why: String) -> void:
 	_say("live: %s (posed %d frames at %.0f fps; camera to pose %.0f ms mean, %.0f ms worst)" % [why, live.frames_posed, f, lat[0], lat[1]])
 
 
+## LIVE LAYER (scripts/live_layer.gd): while it records, the clip plays from where it started and only the picked joints follow
+## the webcam; stop writes them as part keys on the open scene (one undo step), never a new scene
+var live_layer := []        # the joints being layered; empty = an ordinary take
+var _layer_grp := ""
+var _layer_t0 := 0.0        # the clip time the take starts at
+var _layer_ms0 := 0         # engine msec when it started
+
+
+func _live_layer(grp: String) -> void:
+	if not live.running:
+		_say("live: start the webcam puppet first (run Live: start the webcam puppet), then layer the %s" % grp)
+		return
+	if live.recording and not live_layer.is_empty():
+		_live_layer_stop()
+		return
+	if live.recording:
+		_say("live: a whole-body take is recording: stop it first (Live: record / stop)")
+		return
+	if S.cards.size() < 2:
+		_say("live: layering needs a clip to play: open or make one with at least two cards")
+		return
+	live_layer = (LiveLayer.GROUPS[grp] as Array).duplicate()
+	_layer_grp = grp
+	_layer_t0 = clampf(playhead, 0.0, S.length())
+	_layer_ms0 = Time.get_ticks_msec()
+	live.record_start()
+	_say("live: layering the %s from %.2f s: the clip plays, act the %s. Run Live: layer %s onto this clip again to keep it" % [grp, _layer_t0, grp, grp])
+
+
+func _live_layer_stop() -> Dictionary:
+	live.recording = false
+	var keys := LiveLayer.keys_from_take(live._take, live_layer, _layer_t0, S.length())
+	live._take = []
+	var grp := _layer_grp
+	live_layer = []
+	if keys.is_empty():
+		_say("live: the %s layer was too short to keep (record at least two frames, inside the clip)" % grp)
+		return {}
+	_step_hint = "Live layer"
+	_push_undo()
+	var n := LiveLayer.apply(S, keys)
+	_rebuild_cards()
+	_ps().apply(B, playhead)
+	_refresh()
+	var j0: String = keys.keys()[0]
+	_say("live: the %s layer is kept: %d part keys on %d joints from %.2f s to %.2f s; the cards are untouched. Ctrl+Z undoes it" % [grp, n, keys.size(), float(keys[j0][0]["t"]), float(keys[j0][-1]["t"])])
+	return keys
+
+
 func _live_record() -> void:
+	if not live_layer.is_empty():
+		_live_layer_stop()
+		return
 	if not live.running:
 		_say("live: start the webcam puppet first (run Live: start the webcam puppet)")
 		return
@@ -18679,6 +18736,18 @@ func _live_poll(_dt: float) -> void:
 	if not live.running:
 		return
 	var got := live.poll(B)
+	if not got.is_empty() and not live_layer.is_empty():
+		# the clip plays under the take: pose it at the clip's clock, then the layered joints take the webcam's angles
+		var mine := {}
+		for j in live_layer:
+			mine[j] = B.ang[j]
+		playhead = minf(_layer_t0 + (Time.get_ticks_msec() - _layer_ms0) / 1000.0, S.length())
+		_ps().apply(B, playhead)
+		for j in mine:
+			B.ang[j] = mine[j]
+		B.fk()
+		if playhead >= S.length():
+			_live_layer_stop()
 	if not got.is_empty():
 		if not _live_said:
 			_live_said = true
