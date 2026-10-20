@@ -189,6 +189,12 @@ func _mouse(pos: Vector2, pressed: bool) -> InputEventMouseButton:
 
 
 func _init() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("errw="): SketchPose.err_w = float(a.substr(5))
+		if a == "noelbow": SketchPose.sw_elbow = false
+		if a == "noassign": SketchPose.sw_assign = false
+		if a == "assignall": SketchPose.sw_assign_all = true
+		if a == "nofifth": SketchPose.sw_fifth = false
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await process_frame
@@ -242,6 +248,7 @@ func _init() -> void:
 	var still_bad := []
 	for path in _poses():
 		var d := _load(path)
+		SketchPose.lib_exclude = path.get_file()   # leave-one-out: the library prior must not contain the pose being fitted
 		for vn in views:
 			m.yaw = views[vn]
 			m.pitch = 0.0

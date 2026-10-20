@@ -32,11 +32,16 @@ extends Control
 const MIN_STROKE := 12.0     # px: a shorter stroke is a click
 const VERT_DEG := 55.0       # the spine's chord is within this of the vertical
 const STRAIGHT_DEV := 0.03   # a limb whose farthest point is under this share of its chord is straight (tan(th/2)/2: 7 deg)
+const ASSIGN_MARGIN := 0.5   # the side assignment is tried both ways (fit cost) when the cheap rule decides by less than this (share of the body scale)
+const QUICK_IT := 2
+const ROUND_DEV := 0.3       # a head circle: every point within this share of the mean radius from the centre
 const JUNCTION := 0.2        # strokes meet when their ends are within this share of the median stroke length
 const TAU_PX := 0.5          # px: the tremor a traced point may have (see relax); 1 px cost 9 deg on a bone in the picture plane even on clean strokes
 const TIE_W := 0.04          # m-equivalent: price of flipping the depth side a bone has now
 const CLAMP_W := 0.02        # m-equivalent: price of a clamped joint
 const AMBIG := 0.03          # candidates within this cost of the best are ambiguous: the balance decides
+const ELBOW_T := Vector2(0.25, 0.75)   # a straight stroke: the share of it from the root to the mid joint, from the present pose, kept inside this
+static var err_w := 4.0           # the weight of the pixel misfit against the depth-side tie (TIE_W): a 9 px miss must not win by agreeing with the old side
 const ITERS := 40            # trunk fit iterations at most
 const EPS := 0.5             # deg: finite-difference step
 const REG := 1e-5            # a soft pull to the angles the trunk started from
@@ -62,6 +67,11 @@ var flip_state: Dictionary = {}   # B.state() right after the fit / last flip: t
 var hist: Array = []         # [{"state": B.state() before a flip, "idx": {key: i}}]: Ctrl+Z of a flip brings its handles back
 var hpos: Array = []         # [{"key", "pos"}] the handles on the screen, refreshed by main whenever it draws them
 
+static var sw_elbow := true     # switches for the leave-one-out ablation (test only)
+static var sw_fifth := true
+static var quick := false      # the side-assignment trial: fewer refinement steps
+static var sw_assign := true
+static var sw_assign_all := false
 static var lib_exclude := ""   # a pose file (basename) the prior must NOT use: a test fits a library pose against the OTHERS
 static var _lib: Array = []    # [{"name", "d"}] the poses of poses/ and poses/lib/ (the R27 / I12 library, as smart_drag.gd reads it)
 static var _scratch: Body = null
@@ -202,6 +212,17 @@ static func recognise(strokes_in: Array) -> Dictionary:
 			for q: Vector2 in p:
 				c += q
 			c /= float(p.size())
+			# a head is ROUND: an arm drawn out to the elbow and back to a hand beside the neck also closes, but is long and thin
+			var rm := 0.0
+			for q: Vector2 in p:
+				rm += q.distance_to(c)
+			rm /= float(p.size())
+			var rdev := 0.0
+			for q: Vector2 in p:
+				rdev = maxf(rdev, absf(q.distance_to(c) - rm))
+			if rdev > ROUND_DEV * rm or L < 0.75 * TAU * rm or L > 1.3 * TAU * rm:
+				open.append({"p": p, "L": L})
+				continue
 			if head.is_empty() or L > float(head["L"]):
 				head = {"c": c, "r": L / TAU, "L": L}
 		else:
@@ -312,6 +333,7 @@ static func assign(limbs: Array, cur_tip: Dictionary, side_dx: Dictionary, axis_
 	elif limbs.size() == 2:
 		var straight: float = cost.call(limbs[0], "_l") + cost.call(limbs[1], "_r")
 		var swapped: float = cost.call(limbs[0], "_r") + cost.call(limbs[1], "_l")
+		out["margin"] = absf(straight - swapped)   # how clearly the screen / present pose decided
 		if straight <= swapped:
 			out["_l"] = limbs[0]
 			out["_r"] = limbs[1]
@@ -608,17 +630,30 @@ static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: V
 	var tau := TAU_PX / S   # m: a point on the screen is good to about this many pixels; a bone's depth is free inside that
 	var de := cam.project_ray_normal(el2)
 	var dw := cam.project_ray_normal(wr2)
+	var starts := []
 	for e0: Vector3 in ray_sphere(cam, el2, R, u):
 		var e1 := relax(fwd, R, e0, u, float(hint[0]), tau)
 		for w0: Vector3 in ray_sphere(cam, wr2, e1, f):
-			var w1 := relax(fwd, e1, w0, f, float(hint[1]), tau)
+			starts.append([e1, relax(fwd, e1, w0, f, float(hint[1]), tau)])
+	if sw_fifth and not prior.is_empty():   # a fifth start: the nearest library pose's depths, which the 4 sign combinations (taken from the old pose's magnitudes) may not reach
+		var o := cam.project_ray_origin(el2)
+		var ep := o + de * (((R - o).dot(fwd) + float(prior[0])) / de.dot(fwd))
+		ep = R + (ep - R).normalized() * u
+		var o2 := cam.project_ray_origin(wr2)
+		var wp := o2 + dw * (((ep - o2).dot(fwd) + float(prior[1])) / dw.dot(fwd))
+		wp = ep + (wp - ep).normalized() * f
+		starts.append([ep, wp])
+	for st in starts:
+		var e1: Vector3 = st[0]
+		var w1: Vector3 = st[1]
+		if true:
 			var pa := [0.0, 0.0]
 			var rr := _cand_res(B, cam, tip, el2, wr2, S, e1, w1, rot, keep, hint, prior)
 			var c0 := 0.0
 			for x in rr[0]:
 				c0 += float(x) * float(x)
 			var lam := 1e-2
-			for _it in REFINE_IT:
+			for _it in (QUICK_IT if quick else REFINE_IT):
 				var cols := []
 				for k in 2:
 					var pk := pa.duplicate()
@@ -668,7 +703,7 @@ static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: V
 			rr = _cand_res(B, cam, tip, el2, wr2, S, e1 + de * float(pa[0]), w1 + dw * float(pa[1]), rot, keep, hint, prior)
 			var res: Dictionary = rr[1]
 			var err := (cam.unproject_position(B.P[mid]) - el2).length() + (cam.unproject_position(B.P[tip]) - wr2).length()
-			var c := err / S + CLAMP_W * (res["clamped"] as Array).size()
+			var c := err / S * err_w + CLAMP_W * (res["clamped"] as Array).size()
 			var d1: float = rr[2]
 			var d2: float = rr[3]
 			if absf(float(hint[0])) > 0.03 and signf(d1) != signf(float(hint[0])):
@@ -899,29 +934,57 @@ static func fit(B: Body, cam: Camera3D, strokes_in: Array, force := {}) -> Dicti
 	var spine_px := (spine[0] as Vector2).distance_to(spine[spine.size() - 1])
 	var min_side := 0.08 * spine_px
 	var drawn := {}
+	var cache := {}   # tip -> limb_cands already computed for the winning assignment (reused below)
+	# the elbow / knee point a limb stroke gives for the side `sd` (a corner, or on the chord from that side's root)
+	var joint_of := func(limb: Dictionary, tip: String) -> Vector2:
+		if limb["corner"] != null:
+			return limb["corner"]
+		var mid: String = B.parent[tip]
+		var root: String = B.parent[mid]
+		var u: float = ((B.p0[mid] - B.p0[root]) as Vector3).length()
+		var f: float = ((B.p0[tip] - B.p0[mid]) as Vector3).length()
+		var sh := cam.unproject_position(B.P[root])
+		var chord: Vector2 = (limb["tip"] as Vector2) - sh
+		var tq := u / (u + f)
+		if sw_elbow and chord.length_squared() > 1.0:   # a limb drawn straight: its joint lies somewhere on the line; the pose it is edited from says where
+			tq = clampf((cam.unproject_position(B.P[mid]) - sh).dot(chord) / chord.length_squared(), ELBOW_T.x, ELBOW_T.y)
+		return sh + chord * tq
 	for grp in ["arms", "legs"]:
-		var ends: Dictionary = {}
 		var tips := {"_l": ("hand_l" if grp == "arms" else "foot_l"), "_r": ("hand_r" if grp == "arms" else "foot_r")}
 		var ct := {"_l": cur_px[tips["_l"]], "_r": cur_px[tips["_r"]]}
 		var a := assign(rec[grp], ct, side_dx[grp], (spine[0] as Vector2).x if grp == "arms" else (spine[spine.size() - 1] as Vector2).x, S, min_side)
+		var ls: Array = rec[grp]
+		if sw_assign and ls.size() == 2 and a["_l"] != null and a["_r"] != null:
+			# two limbs that project close (a side view) or cross: the screen cannot say which is which, the cost of fitting each can.
+			# BOTH assignments are fitted; the cheaper pair (best candidate's cost, pixel misfit weighted) wins
+			var near_px: float = ((ls[0]["tip"] as Vector2) - (ls[1]["tip"] as Vector2)).length()
+			if (near_px < 0.4 * S and float(a["margin"]) < ASSIGN_MARGIN) or sw_assign_all:
+				var tot := []
+				for k in 2:
+					var l0: Dictionary = ls[0]
+					var l1: Dictionary = ls[1]
+					var pair := {"_l": l0, "_r": l1} if k == 0 else {"_l": l1, "_r": l0}
+					var dr := {}
+					for sd in ["_l", "_r"]:
+						dr[tips[sd]] = {"el": joint_of.call(pair[sd], tips[sd]), "wr": pair[sd]["tip"]}
+					var pr := {}
+					quick = true
+					var c := 0.0
+					var cd := {}
+					for tip in dr:
+						cd[tip] = limb_cands(B, cam, tip, dr[tip]["el"], dr[tip]["wr"], S, hint[tip], rot[tip], pr.get(tip, []))
+						c += float(cd[tip][0]["cost"])
+					quick = false
+					tot.append(c)
+				var k0 := 0 if float(tot[0]) <= float(tot[1]) else 1
+				a = {"_l": ls[k0], "_r": ls[1 - k0]}
 		for sd in ["_l", "_r"]:
 			var limb = a[sd]
 			var tip: String = tips[sd]
 			if limb == null:
 				rep["kept"].append(tip)
 				continue
-			var mid: String = B.parent[tip]
-			var root: String = B.parent[mid]
-			var wr: Vector2 = limb["tip"]
-			var el: Vector2
-			if limb["corner"] != null:
-				el = limb["corner"]
-			else:
-				var u: float = ((B.p0[mid] - B.p0[root]) as Vector3).length()
-				var f: float = ((B.p0[tip] - B.p0[mid]) as Vector3).length()
-				var sh := cam.unproject_position(B.P[root])
-				el = sh + (wr - sh) * (u / (u + f))
-			drawn[tip] = {"el": el, "wr": wr}
+			drawn[tip] = {"el": joint_of.call(limb, tip), "wr": limb["tip"]}
 	# arms: each on its own; legs: together when the pick is ambiguous (the balance decides)
 	var cands := {}
 	var prior := library_prior(B, cam, drawn, S)
