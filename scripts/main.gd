@@ -1388,6 +1388,156 @@ func _export_turntable(seconds := 6.0, fps := 30, size := Vector2i(1280, 720), r
 	return {"avi": avi if wrote else "", "mp4": mp4, "frames": n, "cams": cams, "quarters": quarters, "crop": rect, "size": size, "fps": fps, "dist": d, "centre": centre}
 
 
+## DELIVER: BREAKDOWN VIDEO (WITH THE JUDGES DRAWN) (ROADMAP_400 K23; scripts/judge_render.gd): the scene rendered frame by frame (n = length * fps)
+## from a fixed camera (the current yaw / pitch, framed to the body over the WHOLE clip with 15% margin), side by side (left clean, right with
+## the chosen overlays: "balance" COM + support polygon, "force" ground-reaction arrow, "boxes" hit / hurt boxes, "limits" red joint markers)
+## or one view with them on, and under it a caption strip per frame: time, card, and the CHECK verdicts that fire on that frame.
+## Written as an MJPEG .avi in user://breakdowns/<scene>_<stamp>.avi (+ .mp4 when ffmpeg is found). Every overlay toggle comes back as it was;
+## nothing in the scene changes (not an edit). Returns {"avi", "mp4", "frames", "captions", "verdicts", "size", "fps", "sbs", "cam", "crop",
+## "area", "images" ({k: Image} for the frames in keep_frames)}; {} when refused.
+var judge_layer: JudgeRender
+
+
+func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.ALL, fps := 0, size := Vector2i(1280, 720), root_dir := JudgeRender.ROOT, ffmpeg_path := "", keep_frames: Array = []) -> Dictionary:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a breakdown video needs at least 2 cards (a move): press Enter to add a card, then run Deliver: breakdown video (with the judges drawn) again")
+		return {}
+	if overlays.is_empty() or size.x < 64 or size.y < JudgeRender.STRIP_H + 32:
+		_say_plain("NOT DONE: a breakdown needs at least one overlay (balance, force, boxes, limits) and a size of at least 64x%d: run Deliver: breakdown video (with the judges drawn) again with those" % (JudgeRender.STRIP_H + 32))
+		return {}
+	var rate: int = fps if fps > 0 else S.fps
+	var n := JudgeRender.frame_count(S.length(), rate)
+	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var stem := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root_dir)) != OK:
+		_say_plain("NOT DONE: the folder %s could not be made: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
+		return {}
+	var keep := B.state()
+	var keep_t := playhead
+	var keep_playing := playing
+	var keep_clean := clean
+	var keep_bal := bal.on
+	var keep_boxes := fd_boxes
+	var keep_dummy := dummy_on
+	playing = false
+	dummy_on = false   # the judges mark the character alone, as in the turntable: no sparring dummy
+	# the pass over the clip: the verdicts per frame and the body's reach (for the framing)
+	var fz := Feasible.check(S, B)
+	var sm: Dictionary = _force_data() if overlays.has("force") else {}
+	var pts := []
+	var verdicts := []
+	var captions := []
+	for k in n:
+		var t := JudgeRender.time_of(k, rate)
+		_ps().apply(B, t)
+		pts.append_array(Turntable.points(B))
+		var vd := JudgeRender.verdicts_at(B, fz["findings"], t)
+		verdicts.append(vd)
+		captions.append(JudgeRender.caption(S, t, rate, vd))
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for p in pts:
+		lo = lo.min(p[0])
+		hi = hi.max(p[0])
+	var centre := (lo + hi) * 0.5
+	var aw: int = size.x / 2 if side_by_side else size.x
+	var ah: int = size.y - JudgeRender.STRIP_H
+	clean = true
+	_sides_apply()
+	ui_root.visible = false
+	if judge_layer == null:
+		judge_layer = JudgeRender.new()
+		add_child(judge_layer)
+	var vs := get_viewport().get_visible_rect().size
+	var rect := Turntable.crop_rect(vs, float(aw) / float(ah))
+	var d := JudgeRender.fit_dist(pts, centre, yaw, pitch, cam.fov, float(aw) / float(ah), float(rect.size.y) / vs.y)
+	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
+	var cam_xf := Transform3D(b, centre + b * Vector3(0, 0, d))
+	var sv := SubViewport.new()   # the caption strip: a label rendered once per frame
+	sv.size = Vector2i(size.x, JudgeRender.STRIP_H)
+	sv.disable_3d = true
+	sv.transparent_bg = false
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var sbg := ColorRect.new()
+	sbg.color = Tok.c("tl_bg")
+	sbg.size = Vector2(size.x, JudgeRender.STRIP_H)
+	sv.add_child(sbg)
+	var lb := Label.new()
+	lb.add_theme_font_size_override("font_size", clampi(size.x / 52, 11, 18))
+	lb.add_theme_color_override("font_color", Tok.c("text"))
+	lb.position = Vector2(10, 9)
+	lb.size = Vector2(size.x - 20, JudgeRender.STRIP_H - 12)
+	lb.clip_text = true
+	sv.add_child(lb)
+	add_child(sv)
+	var jpgs := []
+	var images := {}
+	for k in n:
+		var t := JudgeRender.time_of(k, rate)
+		_ps().apply(B, t)
+		playhead = t
+		var halves := []
+		for with_overlays in ([false, true] if side_by_side else [true]):
+			bal.on = with_overlays and overlays.has("balance")
+			fd_boxes = with_overlays and overlays.has("boxes")
+			wt.render_active = true
+			_refresh()
+			cam.transform = cam_xf
+			cam.h_offset = 0.0
+			cam.v_offset = 0.0
+			if with_overlays:
+				judge_layer.show_frame(JudgeRender.arrow_at(sm, t) if overlays.has("force") else {}, JudgeRender.limit_joints(B) if overlays.has("limits") else [], B, cam_xf.origin, {"p": bal.last["com"], "col": BalanceView.colour(String(bal.last["state"]))} if bal.on and not bal.last.is_empty() else {})
+			else:
+				judge_layer.clear()
+			lb.text = captions[k]
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			var img: Image = get_viewport().get_texture().get_image().get_region(rect)
+			if img.get_size() != Vector2i(aw, ah):
+				img.resize(aw, ah, Image.INTERPOLATE_LANCZOS)
+			img.convert(Image.FORMAT_RGB8)
+			halves.append(img)
+			wt.render_active = false
+		var strip: Image = sv.get_texture().get_image()
+		strip.convert(Image.FORMAT_RGB8)
+		var fr := Image.create(size.x, size.y, false, Image.FORMAT_RGB8)
+		for h in halves.size():
+			fr.blit_rect(halves[h], Rect2i(0, 0, aw, ah), Vector2i(h * aw, 0))
+		fr.blit_rect(strip, Rect2i(0, 0, size.x, JudgeRender.STRIP_H), Vector2i(0, ah))
+		if keep_frames.has(k):
+			images[k] = fr.duplicate()
+		jpgs.append(fr.save_jpg_to_buffer(0.9))
+	sv.queue_free()
+	judge_layer.clear()
+	wt.draw(_ps(), playhead)
+	bal.on = keep_bal
+	fd_boxes = keep_boxes
+	dummy_on = keep_dummy
+	ui_root.visible = true
+	clean = keep_clean
+	playing = keep_playing
+	_sides_apply()
+	B.set_state(keep)
+	playhead = keep_t
+	_cam()
+	_refresh()
+	var avi := stem + ".avi"
+	var wrote := AviWriter.write(avi, jpgs, size.x, size.y, rate)
+	var ff := PlayblastExport.find_ffmpeg(ffmpeg_path)
+	var mp4 := ""
+	var how := ""
+	if ff != "" and wrote:
+		var o := []
+		if OS.execute(ff, PackedStringArray(["-y", "-loglevel", "error", "-i", ProjectSettings.globalize_path(avi), "-c:v", "libx264", "-pix_fmt", "yuv420p", ProjectSettings.globalize_path(stem + ".mp4")]), o, true) == OK and FileAccess.file_exists(stem + ".mp4"):
+			mp4 = stem + ".mp4"
+			how = " and an .mp4"
+	var fired := 0
+	for vd in verdicts:
+		fired += 1 if not (vd as Array).is_empty() else 0
+	_say_plain(("breakdown: %d frames at %d fps, %s, %dx%d, a verdict fires on %d of them, in %s.avi%s" % [n, rate, "side by side" if side_by_side else "one view", size.x, size.y, fired, stem, how]) if wrote else "NOT DONE: the video file could not be written to %s: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
+	return {"avi": avi if wrote else "", "mp4": mp4, "frames": n, "captions": captions, "verdicts": verdicts, "size": size, "fps": rate, "sbs": side_by_side, "cam": cam_xf, "crop": rect, "area": Vector2i(aw, ah), "images": images}
+
+
 ## MOTION BLUR (ROADMAP R3): off by default; a view setting like the smear frames (never saved, not an undo step). On: each
 ## playblast frame is the mean of blast_blur_n sub-frames spread over the shutter (PlayblastExport.shutter_times: 180 degrees =
 ## half the frame interval). Set from the command "Playblast: motion blur on/off" or the Export dialog's checkbox
@@ -13743,6 +13893,7 @@ func _commands() -> Array:
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
 	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 deg export", false, "the playblast frames are the mean of 8 sub-frames over a 180 deg shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
 	add.call("Deliver: turntable video of this pose", "", _export_turntable, "turntable deliver 360 orbit spin showcase presentation video avi mp4 character model render", false, "a 6 s, 30 fps, 1280x720 video of the camera orbiting the current pose once (body and held weapon framed with 15% margin, no panels), in user://turntables/")
+	add.call("Deliver: breakdown video (with the judges drawn)", "", _export_judge_render, "breakdown judge render overlay balance centre of mass support polygon force ground reaction hit boxes joint limit verdict caption side by side video avi mp4 coach review", false, "the scene as a video with the judges drawn: left clean, right with the centre of mass over its support, the ground-force arrow, the hit boxes and red joint-limit markers; under each frame a caption with the time, the card and the Check verdicts that fire on that frame (off balance, foot slides ...); in user://breakdowns/")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
