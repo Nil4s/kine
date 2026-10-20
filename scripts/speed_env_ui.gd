@@ -40,10 +40,11 @@ func show() -> void:
 		m._say("speed limits needs a clip of two cards or more: press Enter to add the body as a card (two at least)")
 		return
 	var t0 := Time.get_ticks_usec()
+	var keep: Dictionary = m.B.state()   # the body as it was (an unkeyed pose stays): analyse samples the clip on it
 	rows = SpeedEnv.analyse(m.S, m.B)
 	plan = {}
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
-	m._ps().apply(m.B, m.playhead)
+	m.B.set_state(keep)
 	_panel()
 
 

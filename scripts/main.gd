@@ -2589,6 +2589,7 @@ func _process(dt: float) -> void:
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
 	_video_poll(dt)
+	_gen_poll(dt)
 	_multicam_poll(dt)
 	_imp_poll()
 	_live_poll(dt)
@@ -13479,6 +13480,7 @@ func _commands() -> Array:
 	add.call("Retarget to body (IK): on / off", "", _retarget_toggle, "video retarget body ik gmr proportions import feet planted skate slide setting", false, "while on (the default) a video import is fitted by IK onto this body's own proportions and the planted feet are pinned where they land; off = the older geometric fit")
 	add.call("Animation from video (import raw)", "", _video_ask.bind(true), "video raw import no cleanup jitter floor tilt mocap phone clip tracking person", false, "the same video import with no cleanup: the tracker's frames as they came (no jitter filter, no floor level, the card-based foot lock instead)")
 	add.call("Live: start the webcam puppet", "", _live_toggle, "live webcam camera puppet track person mirror follow pose body mocap record now real time", false, "your own body in front of the webcam poses the mannequin in real time (MediaPipe on this machine, over 127.0.0.1 only); run it again to stop")
+	add.call("Video: make a move from words (local ComfyUI)", "", _gen_ask, "generate ai video comfyui wan text to motion make move words prompt create animation from description", false, "describe a move; the local ComfyUI makes a short clip of it, Kine tracks it and opens it as a new scene (a weapon in hand is used)")
 	add.call("Live: record / stop", "", _live_record, "live record stop keep take capture webcam puppet", false, "the first press starts recording what the body does; the next keeps the take as a NEW scene in scenes/_wip, opened (never over one)")
 	for grp in LiveLayer.GROUPS:
 		add.call("Live: layer %s onto this clip" % grp, "", _live_layer.bind(grp), "live layer record parts partial mocap webcam over clip perform act %s" % grp, false,
@@ -18155,6 +18157,60 @@ var _video_out := ""
 var _video_name := ""
 var _video_t := 0.0
 var _video_raw := false   # "import raw": the tracker's frames go straight to the fit, no VideoCleanup (jitter, floor, plants)
+
+
+## A MOVE FROM WORDS (scripts/gen_move.gd): the words -> a clip from the local ComfyUI -> _import_video, as a dropped video
+var gen_move := GenMove.new()
+var _gen_said := 0
+
+
+func _gen_ask() -> void:
+	var dlg := ConfirmationDialog.new()
+	dlg.title = "Make a move from words (local ComfyUI)"
+	var box := VBoxContainer.new()
+	var lbl := Label.new()
+	lbl.text = "Describe ONE person's move (the framing is added for you: whole body, plain background, static camera).
+A weapon in the mannequin's hand is used by the import. About 9 minutes on an 8 GB card."
+	box.add_child(lbl)
+	var le := LineEdit.new()
+	le.placeholder_text = "swings a sledgehammer down onto the ground"
+	le.custom_minimum_size = Vector2(520, 0)
+	box.add_child(le)
+	dlg.add_child(box)
+	dlg.get_ok_button().text = "Make it"
+	var go := func():
+		_gen_start(le.text)
+		dlg.queue_free()
+	dlg.confirmed.connect(go)
+	le.text_submitted.connect(func(_t): go.call())
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+	le.grab_focus()
+
+
+func _gen_start(words: String) -> void:
+	gen_move.python = video_python
+	var why := gen_move.start(words)
+	if why != "":
+		_say("make a move: %s" % why)
+		return
+	_gen_said = 0
+	_say("making \"%s\" on the local ComfyUI (seed %d): a %.0f s clip, then it is tracked and opens as a new scene. Keep working meanwhile" % [gen_move.words, gen_move.seed, gen_move.seconds])
+
+
+func _gen_poll(dt: float) -> void:
+	var r := gen_move.poll(dt)
+	if r == "":
+		if gen_move.busy() and int(gen_move.t / 60.0) > _gen_said:
+			_gen_said = int(gen_move.t / 60.0)
+			_say("making \"%s\": %d min so far (about 9 on an 8 GB card)" % [gen_move.words, _gen_said])
+		return
+	if r != "done":
+		_say("make a move: %s" % r)
+		return
+	_say("\"%s\" is made (%s); tracking it now" % [gen_move.words, gen_move.out.get_file()])
+	_import_video(gen_move.out)
 
 
 func _video_ask(raw := false) -> void:
