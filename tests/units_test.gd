@@ -219,6 +219,7 @@ const ALLOW := [
 	{"file": "motion_match.gd", "lit": "%s%s@%d", "reason": "a hidden cache key (path and file time stamp), not shown"},
 	{"file": "safety_sheet.gd", "lit": "<!doctype html>", "reason": "the charset name utf-8 in an HTML page written to disk, not a quantity"},
 	{"file": "sell_hit.gd", "lit": "strike%s: %d sold", "reason": "counts of strikes sold, not sold and unsafe"},
+	{"file": "gaze.gd", "lit": "%d gaze key%s per joint: chest by default, %d weapon glance%s, %d telegraph glance%s", "reason": "counts of keys and glances"},
 	{"file": "weapon_torque_ui.gd", "lit": "need work. ", "reason": "a count of swings that need work"},
 	{"file": "style_ui.gd", "lit": "save %d or more clips", "reason": "a count of clips"},
 	{"file": "weapon_torque.gd", "lit": "slow the swing x%.2f", "reason": "a dimensionless multiplier of the swing time (x2 = twice as slow)"},
