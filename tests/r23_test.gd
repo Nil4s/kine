@@ -83,7 +83,7 @@ func _init() -> void:
 		var polys: Array = []
 		for k in ks:
 			var q := PackedVector2Array()
-			for pt in [sm["grip"][k - 1], sm["tip"][k - 1], sm["tip"][k], sm["grip"][k]]:
+			for pt in [m.wt.render_inner(k - 1), sm["tip"][k - 1], sm["tip"][k], m.wt.render_inner(k)]:
 				q.append(m.cam.unproject_position(pt))
 			polys.append(q)
 		var d := 0
@@ -105,6 +105,8 @@ func _init() -> void:
 			for pt in q:
 				if vr.has_point(pt):
 					inside += 1
+		if f == peak:
+			_translucency(on, off, polys, ks, w)
 		ok(inside >= polys.size() * 3, "frame %d PLACEMENT: %d of %d ribbon corners are on screen (whole-body view)" % [f, inside, polys.size() * 4])
 		print("     frame %d (t %.3f): %d ribbon quads, %d differing px inside the ribbon polygon, off==off2 %s" % [f, t, quads, d, str(off.get_data() == off2.get_data())])
 		ok(d >= 200, "frame %d: >= 200 px changed inside the ribbon (%d)" % [f, d])
@@ -129,6 +131,47 @@ func _init() -> void:
 	m._shot_blast_end(shot)
 	print("r23: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
 	quit(1 if fails else 0)
+
+
+## (6) TRANSLUCENT (R23b): at peak speed the newest quad changes the pixels far more than the oldest (mean |on - off| per pixel,
+##     ratio >= 3), and a body pixel behind the ribbon still differs from the background colour (seen through it)
+func _translucency(on: Image, off: Image, polys: Array, ks: Array, w: int) -> void:
+	var do := on.get_data()
+	var df := off.get_data()
+	var bg := Color(df[0] / 255.0, df[1] / 255.0, df[2] / 255.0)
+	var mean := []
+	var seen := 0
+	var seen_diff := 0.0
+	for qi in polys.size():
+		var q: PackedVector2Array = polys[qi]
+		var r := Rect2(q[0], Vector2.ZERO)
+		for pt in q:
+			r = r.expand(pt)
+		var sum := 0.0
+		var n := 0
+		for y in range(maxi(0, int(r.position.y)), mini(on.get_height(), int(r.end.y) + 1), 4):
+			for x in range(maxi(0, int(r.position.x)), mini(w, int(r.end.x) + 1), 4):
+				if not Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), q):
+					continue
+				var shared := false   # a pixel under two quads belongs to neither: only pixels this quad alone covers are read
+				for qj in polys.size():
+					if qj != qi and Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), polys[qj]):
+						shared = true
+						break
+				if shared:
+					continue
+				var i := (y * w + x) * 3
+				n += 1
+				sum += (absi(do[i] - df[i]) + absi(do[i + 1] - df[i + 1]) + absi(do[i + 2] - df[i + 2])) / 3.0
+				if absi(df[i] - int(bg.r8)) + absi(df[i + 1] - int(bg.g8)) + absi(df[i + 2] - int(bg.b8)) > 30:   # a body pixel (off frame)
+					seen += 1
+					seen_diff += (absi(do[i] - int(bg.r8)) + absi(do[i + 1] - int(bg.g8)) + absi(do[i + 2] - int(bg.b8))) / 3.0
+		mean.append(sum / maxf(1.0, n))
+	var newest: float = mean[mean.size() - 1]
+	var oldest: float = mean[0]
+	print("     mean px change per quad (oldest -> newest): ", mean, "; body px behind ribbon %d, mean |on - bg| %.1f" % [seen, seen_diff / maxf(1.0, seen)])
+	ok(newest >= 3.0 * maxf(oldest, 0.01), "newest edge changes pixels >= 3x the oldest (%.2f vs %.2f)" % [newest, oldest])
+	ok(seen >= 20 and seen_diff / maxf(1.0, seen) > 15.0, "a body behind the ribbon is still visible through it (%d px, mean %.1f from bg)" % [seen, seen_diff / maxf(1.0, seen)])
 
 
 func _body() -> Body:
