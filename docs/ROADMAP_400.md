@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 16 / 400 (★ 7 / 119)
+Merged: 32 / 400 (★ 12 / 119)
 
 ## The tracks
 
@@ -50,12 +50,12 @@ Merged: 16 / 400 (★ 7 / 119)
 - [x] A02 $ Selection model: verts / edges / faces sets, grow / shrink, select linked, select loop, select ring
 - [x] A03 $ Mesh undo: one undo step per mesh edit, a diff not a copy (100k-vert edit undo under 5 MB)
 - [x] A04 $ Symmetry map: x-mirror pairs found once (tolerance 0.1 mm), every edit mirrored
-- [ ] A05 $ Mesh draw in the viewport: wire over shaded, selected elements highlighted, back-face culled pick
-- [ ] A06 $ Pick: ray to vert / edge / face under the mouse, box and lasso select, x-ray select-through
-- [ ] A07 $ Mesh file: .kmesh JSON inside the .kine scene; loads in under 1 s for 200k verts
-- [ ] A08 $ Normals: smooth / flat / auto by angle, custom split normals kept on export
+- [x] A05 $ Mesh draw in the viewport: wire over shaded, selected elements highlighted, back-face culled pick
+- [x] A06 $ Pick: ray to vert / edge / face under the mouse, box and lasso select, x-ray select-through
+- [x] A07 $ Mesh file: .kmesh JSON inside the .kine scene; loads in under 1 s for 200k verts
+- [x] A08 $ Normals: smooth / flat / auto by angle, custom split normals kept on export
 - [ ] A09 $$ Attributes: per-vert / per-corner channels (colour, weight, mask, crease) on the half-edge
-- [ ] A10 $$ Mesh validate + repair: non-manifold, zero-area faces, flipped normals, holes, with a next step each
+- [x] A10 $$ Mesh validate + repair: non-manifold, zero-area faces, flipped normals, holes, with a next step each
 - [ ] A11 $$ Modifier stack (non-destructive): mirror, subdivide, solidify, array, displace; live in the viewport
 - [ ] A12 $$ Catmull-Clark subdivision with creases (own implementation from the 1978 paper)
 - [ ] A13 $$ Shape keys on KMesh (absolute + relative), driven by anything
@@ -126,7 +126,7 @@ Merged: 16 / 400 (★ 7 / 119)
 - [ ] C22 ★ $$ Fat / muscle / bone sliders as brushes: "lean", "bulk", "soft" applied by region, bounded by ANSUR-plausible ranges
 - [ ] C23 ★ $$ Sculpt checked in motion: after a stroke, the 8 hardest poses of the scene play as thumbnails so you see it bend
 - [ ] C24 ★ $$ Wrinkle from motion: the sculpt suggests crease lines where the animation compresses the skin most
-- [ ] C25 ★ $ Sculpt-to-reference: overlay a photo / video frame of a real person, opacity + match
+- [x] C25 ★ $ Sculpt-to-reference: overlay a photo / video frame of a real person, opacity + match
 - [ ] C26 ★ $$ Age / sex / build morph brushes from measured populations (ANSUR II men + women, percentiles shown)
 - [ ] C27 ★ $$ Symmetry that allows asymmetry: a real body is 1–3 % asymmetric; a "natural asymmetry" pass with the measured spread
 - [ ] C28 ★ $$ Wound / scar / bruise stamps that also mark the body (the hit-reaction system knows where it hurts)
@@ -313,17 +313,17 @@ Merged: 16 / 400 (★ 7 / 119)
 - [ ] K10 $$ Volumetrics / fog
 - [ ] K11 $$ Toon / outline shading mode (fighting game look)
 - [ ] K12 $$ Render passes: beauty, depth, normal, mask (for compositing)
-- [ ] K13 $ Viewport overlays: face orientation, normals, stats
-- [ ] K14 $ Quad view (front / side / top / persp)
-- [ ] K15 $ Local view (isolate the selection), frame selected
-- [ ] K16 $ Clipping planes / section view
+- [x] K13 $ Viewport overlays: face orientation, normals, stats
+- [x] K14 $ Quad view (front / side / top / persp)
+- [x] K15 $ Local view (isolate the selection), frame selected
+- [x] K16 $ Clipping planes / section view
 - [ ] K17 $$ Grease-pencil style drawing over the viewport, kept per frame
 - [ ] K18 $$ Camera views with lens mm, sensor size, safe areas
 - [ ] K19 $$ Environment: ground with reflections, sky, simple sets
 - [ ] K20 $$ Render farm-free: render shots on the local GPU in parallel processes
 - [ ] K21 $$ Colour management (Filmic / AgX-like tone map, own LUTs)
 - [ ] K22 $$ Viewport capture with UI stripped (clean playblast)
-- [ ] K23 ★ $ Render the judge: overlays (balance, force, hit boxes) rendered into the final video as a breakdown pass
+- [x] K23 ★ $ Render the judge: overlays (balance, force, hit boxes) rendered into the final video as a breakdown pass
 - [ ] K24 ★ $$ Breakdown reel: auto video of a move as blocking → splined → physics check → final, side by side
 - [ ] K25 ★ $$ Lighting from the fight: key light follows the attacker, rim on the defender, cut on impacts
 - [x] K26 ★ $ Silhouette check render: every key pose as a black silhouette sheet (readability, the animators' test)
@@ -404,7 +404,7 @@ Merged: 16 / 400 (★ 7 / 119)
 - [ ] N12 $$ Per-engine presets for meshes (UE5 scale / axes, Unity, Godot)
 - [ ] N13 $$ Import MakeHuman-style / CC0 bodies as bases
 - [ ] N14 $$ Engine round-trip test: export → load in Godot headless → compare (automated)
-- [ ] N15 $ Pack project (all files into one zip)
+- [x] N15 $ Pack project (all files into one zip)
 - [ ] N16 $$ Mesh diff between versions (verts moved, highlighted)
 - [ ] N17 $$ VRM export (avatars)
 - [ ] N18 $$ Mixamo-compatible export (skeleton names map)
@@ -432,7 +432,7 @@ Merged: 16 / 400 (★ 7 / 119)
 - [ ] O12 $$ Example addons: crowd randomiser, prop scatter, auto LOD
 - [ ] O13 ★ $$ Judges as addons: anyone can add a new physics / anatomy check that the CHECK page runs
 - [ ] O14 ★ $$ Words → script: the words box writes a small script, shows it, runs it on yes
-- [ ] O15 ★ $ Every command is a script line: the history panel can be saved as a re-runnable script
+- [x] O15 ★ $ Every command is a script line: the history panel can be saved as a re-runnable script
 
 ## P. Workflow + UX
 
@@ -448,11 +448,11 @@ Merged: 16 / 400 (★ 7 / 119)
 - [ ] P10 $$ Multi-object editing
 - [x] P11 $ "Why can't I?" explainer: any greyed tool tells why and the fix
 - [ ] P12 $$ Undo across pages (sculpt then animate, Ctrl+Z walks back both)
-- [ ] P13 $ Recent files with thumbnails on the start screen
+- [x] P13 $ Recent files with thumbnails on the start screen
 - [ ] P14 $$ Unit system (cm / m / in) everywhere
 - [ ] P15 $$ Large-file safety: saves in the background, never blocks
 - [ ] P16 $$ Accessibility: font scaling, colour-blind palettes for selection
-- [ ] P17 ★ $ Next suggested tool: the page suggests the next step from what you just did (modeling's "next pose")
+- [x] P17 ★ $ Next suggested tool: the page suggests the next step from what you just did (modeling's "next pose")
 - [ ] P18 ★ $$ Learn-from-me hotkeys: the commands you use most get offered a hotkey
 - [ ] P19 ★ $$ Task coach: "make a fighter" walks BODY → MODEL → SURFACE → POSE with checks at each step
 - [x] P20 ★ $ Blender / Maya keymap translator: press a Blender key, Kine tells you its own name for it
@@ -478,7 +478,7 @@ Merged: 16 / 400 (★ 7 / 119)
 - [ ] Q12 $$ Instanced crowds 200 at 60 fps
 - [ ] Q13 $$ Sculpt stroke latency under 16 ms at 1M polys
 - [ ] Q14 ★ $$ Perf by what you see: only shots' visible meshes evaluate at full detail
-- [ ] Q15 ★ $ Perf doctor: "why is it slow" names the heaviest thing with the fix
+- [x] Q15 ★ $ Perf doctor: "why is it slow" names the heaviest thing with the fix
 
 ## R. Hair, garment design, props
 
