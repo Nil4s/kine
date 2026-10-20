@@ -55,6 +55,9 @@ func _init() -> void:
 		"_wp_dab": "no file of its own (paints the in-memory skin weights); the remove_absolute lines the scan sees belong to the static _rm_tree below it, which deletes a test's own library folder (SS6)",
 		"_multicam_start": "the tracker's pose files in user://video_track/ only (its own: each old <video>.json there is removed before that video is tracked; never scenes/)",
 		"_shot_cut_drag": "no file of its own: on the drag's end it calls _journal_write (the journal only: user://journal, the crash-recovery log, never scenes/); the drag itself writes nothing",
+		"_autover_write": "R20 timed snapshot: always a NEW file <versions_root>/<scene>/vNNN.json (scenes/_versions by default; never the scene's own file)",
+		"_autover_prune": "removes only the OLDEST timed snapshots (version.auto) beyond the newest 30 of that scene; manual versions are never removed",
+		"_autover_cfg_save": "the settings file only (user://poser.cfg versions section: a preference, not work)",
 		"_save_version": "always a NEW file scenes/_versions/<scene>/vNNN.json (the next number; never the scene's own file)"}
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd").split("\n")
 	var fn := ""
