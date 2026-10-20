@@ -3,6 +3,9 @@
 ##   G=.../Godot_v4.7.2-stable_win64_console.exe
 ##   $G --headless --path . -s tools/poser_cli.gd -- commands
 ##   $G --headless --path . -s tools/poser_cli.gd -- describe scenes/combo3.json
+##   $G --headless --path . -s tools/poser_cli.gd -- describe joint elbow_r      (the joint's frame in words + its limits)
+##   $G --headless --path . -s tools/poser_cli.gd -- ask scenes/combo3.json [card=N] "joint=elbow_r axis=flex value=90; joint=upperarm_r axis=bend value=60"
+##        (what that would do to the pose on card N (default 1); nothing is changed or written; `ask - "..."` = the default body)
 ##   $G --headless --path . -s tools/poser_cli.gd -- check scenes/combo3.json [--json]
 ##   $G --headless --path . -s tools/poser_cli.gd -- check_all [scenes] --html C:/Temp/check.html   (every scene, one report)
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
@@ -38,7 +41,10 @@
 ##                                 name, weapon_tip or weapon_knob
 ##   state {t | frame, fps}        the body: every joint's bend / side / twist, the offset, the weapon, and where 17 parts
 ##                                 ARE (points, m); at a moment of the scene if t or frame is given (the same every run)
-##   describe                      the scene: cards, times, settings
+##   describe                      the scene: cards, times, settings; {joint: "elbow_r"} = that joint's frame in words + limits
+##   ask {text}                    WHAT WOULD THIS ANGLE DO (R10), the scene untouched: text = "joint=elbow_r axis=flex value=90"
+##                                 (more changes after ;): the hands' / feet's new world positions and reach %, the nearest
+##                                 parts and their gap, the limit margin, balance (inside / outside, cm), the weapon tip
 ##   check                         the findings, as `check --json`
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
@@ -105,6 +111,15 @@ func _init() -> void:
 				say("%-38s %-8s %s  %s" % [c["id"], c["keys"], "EDIT" if c["edits"] else "    ", c["desc"]])
 			done({"ok": true, "commands": cs})
 		"describe":
+			if a.size() >= 2 and a[1] == "joint":
+				var dj := WhatIf.describe_joint(m, " ".join(a.slice(2)))
+				if not dj["ok"]:
+					done(dj)
+					return
+				for l in dj["text"]:
+					say(l)
+				done(dj)
+				return
 			if a.size() < 2 or not open_scene(a[1]):
 				if a.size() < 2:
 					done({"ok": false, "error": "describe <scene.json>"})
@@ -119,6 +134,29 @@ func _init() -> void:
 			d["must_fix"] = fs.filter(func(f): return f["sev"] == "MUST FIX").size()
 			d["joints"] = Body.BODY
 			done(d)
+		"ask":
+			if a.size() < 3:
+				done({"ok": false, "error": "ask <scene.json|-> [card=N] \"joint=elbow_r axis=flex value=90\"  (nothing is changed)"})
+				return
+			if a[1] != "-" and not open_scene(a[1]):
+				return
+			var card := 1
+			var rest := []
+			for x in a.slice(2):
+				if String(x).begins_with("card=") and String(x).substr(5).is_valid_int():
+					card = int(String(x).substr(5))
+				else:
+					rest.append(x)
+			if m.S.cards.size() > 0:
+				if card < 1 or card > m.S.cards.size():
+					done({"ok": false, "error": "no card %d (the scene has %d)" % [card, m.S.cards.size()]})
+					return
+				m._card_pick(card - 1)
+			var q := WhatIf.ask(m, "; ".join(rest))
+			if q["ok"]:
+				for l in q["text"]:
+					say(l)
+			done(q)
 		"check":
 			if a.size() < 2 or not open_scene(a[1]):
 				if a.size() < 2:
@@ -155,7 +193,7 @@ func _init() -> void:
 		"serve":
 			await serve()
 		_:
-			say("verbs: commands | describe <scene> | check <scene> [--json] | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
+			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})
 
 
