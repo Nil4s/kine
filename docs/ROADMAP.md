@@ -224,7 +224,7 @@ Things other animation tools don't do, in the spirit of R27 (next-pose suggestio
 slots; the remaining R items fill in behind them. Each one is judged by: does it save Nick a step he takes every day,
 or show him something he couldn't see before? Numbers and a screenshot, like every item.
 
-- [ ] I1. Make it physical: one button sends the clip through the MuJoCo humanoid (tracking controller) and shows where
+- [x] I1. Make it physical: one button sends the clip through the MuJoCo humanoid (tracking controller) and shows where
   the motion is physically impossible (feet slide, balance lost, joint torque above human limits) as red spans on the
   timeline, with "physical version" ghosted next to yours; accept per span.
 - [ ] I2. Reaction from the hit: when the attacker's weapon or fist touches the other fighter, Kine measures the impulse
@@ -240,6 +240,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   locally (blind-agent maths + pose search + IK, no cloud); the parts it couldn't place are named.
 - [ ] I6. Style dial: "heavier / tired / angry / sneaky" sliders that change a whole clip, learned as deltas from Nick's
   own clips (spacing, posture, amplitude), not hand-written rules; undo as one step.
+  Step 1 merged: 4 sliders, spreads measured on Nick's 11 clips (move 1.19 log, amplitude 0.78 log, spine 13.7 deg, head 3.6 cm), cited directions, 0 = byte-identical, one undo. Open: angry +1 takes peak hand speed to 89 m/s and moves to 0.06 s (no human speed cap), strike contact drifts 140 mm for angry.
 - [x] I7. Auto camera: for each beat (wind-up, contact, recover) suggest a shot camera from film grammar (180-degree
   rule, lead room, closer on contact), as ghost frames you click to keep.
 - [ ] I8. Force view: per card, the joint torques and ground forces from inverse dynamics, coloured on the body (green

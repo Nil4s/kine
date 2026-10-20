@@ -44,6 +44,48 @@ var bx: Array = []
 const SP_H := 11.0   # px: one limb's row
 var sp: Array = []
 
+## MAKE IT PHYSICAL (I1; scripts/make_physical.gd lane()): main.gd sets `ph` ([] = none). One lane under the boxes lane: a RED block per span
+## the body cannot do (the reason in its tooltip), a thin gold block for the clip's own authored foot slide (a note, not red).
+const PH_H := 12.0
+var ph: Array = []
+signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans (-1 = a note)
+var ph_sel := -1   # the red span picked (a click on it), -1 = none
+
+
+func ph_px() -> float:
+	return PH_H + 3.0 if not ph.is_empty() else 0.0
+
+
+func _ph_y() -> float:
+	return RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + (BX_H + 3.0 if not bx.is_empty() else 0.0)
+
+
+## the block under p on the physical lane (an index into ph), or -1
+func ph_at(p: Vector2) -> int:
+	if ph.is_empty() or p.y < _ph_y() or p.y > _ph_y() + PH_H:
+		return -1
+	for i in range(ph.size() - 1, -1, -1):
+		var b: Dictionary = ph[i]
+		if p.x >= x_of(float(b["t0"])) and p.x <= maxf(x_of(float(b["t1"])), x_of(float(b["t0"])) + 3.0):
+			return i
+	return -1
+
+
+func _draw_ph_lane(font: Font) -> void:
+	var y := _ph_y()
+	for i in ph.size():
+		var b: Dictionary = ph[i]
+		var x0 := x_of(float(b["t0"]))
+		var x1 := maxf(x_of(float(b["t1"])), x0 + 3.0)
+		if bool(b["yellow"]):
+			draw_rect(Rect2(x0, y + PH_H - 4.0, x1 - x0, 3.0), Tok.c("beat_down"))
+			continue
+		draw_rect(Rect2(x0, y, x1 - x0, PH_H - 1.0), Tok.c("fd_active"))
+		if i == ph_sel:
+			draw_rect(Rect2(x0, y, x1 - x0, PH_H - 1.0), Tok.c("focus"), false, 2.0)
+		if x1 - x0 > 40.0:
+			draw_string(font, Vector2(x0 + 3.0, y + PH_H - 3.0), String(b["kind"]), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4.0, 9, Tok.c("fd_ink"))
+
 const RULER := 12.0      # px: the seconds ruler on top (RR4: 12, the track is on the one strip; was 16)
 const PAD := 8.0         # px each side
 const GRAB := 6.0        # px: how close counts as "on an edge"
@@ -93,6 +135,11 @@ func mark_at(p: Vector2) -> Array:
 
 
 func _get_tooltip(at: Vector2) -> String:
+	var pi := ph_at(at)   # I1: a red block says why the body cannot do it
+	if pi >= 0:
+		var pb: Dictionary = ph[pi]
+		return "%s (%.2f to %.2f s)%s" % [pb["reason"], float(pb["t0"]), float(pb["t1"]), "" if bool(pb["yellow"]) else "
+click to pick this span; 'Accept span' (CHECK page) replaces its cards with the physical version"]
 	if _in_shots_lane(at):   # ROADMAP 75: a shot on the lane names itself in full (its label may be cut to fit)
 		var si := _shot_at_x(at.x)
 		if si >= 0:
@@ -354,6 +401,13 @@ func _gui_input(ev: InputEvent) -> void:
 			if sci == 0 or _in_shots_lane(ev.position):
 				_drag = {"kind": "scrub"}
 				scrubbed.emit(float(_shots()[sci]["t"]) if sci >= 0 else t_of(ev.position.x))
+				accept_event()
+				return
+			var pbi := ph_at(ev.position)   # I1: a click on a red block picks the span and moves the playhead to its start
+			if pbi >= 0:
+				ph_picked.emit(pbi if not bool(ph[pbi]["yellow"]) else -1)
+				scrubbed.emit(float(ph[pbi]["t0"]))
+				_drag = {"kind": "scrub"}
 				accept_event()
 				return
 			var iqs := iq_span_at(ev.position)   # VIDEO IQ: a click on the confidence lane = the playhead goes there; on a span, to its start
@@ -748,6 +802,8 @@ func _draw() -> void:
 		_draw_fd_strip(font, RULER + 2.0)
 	if not bx.is_empty():
 		_draw_bx_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0))
+	if not ph.is_empty():
+		_draw_ph_lane(font)
 	if not sp.is_empty():
 		_draw_sp_lane(RULER + 2.0 + (FD_H + 3.0 if not fd.is_empty() else 0.0) + bx_px(), font)
 	# the dummy is solid and hit: what PLAYS is the landed copy, which stops at the hit and rebounds. Past its end the
@@ -1109,7 +1165,7 @@ func _draw_sp_lane(y: float, font: Font) -> void:
 
 ## the lane's height on the timeline (0 with no boxes)
 func bx_px() -> float:
-	return BX_H + 3.0 if not bx.is_empty() else 0.0
+	return (BX_H + 3.0 if not bx.is_empty() else 0.0) + ph_px()
 
 
 ## the boxes lane: attack boxes on the top row (red), vulnerable edits below (blue), invincible ranges (gold, hatched)

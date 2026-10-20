@@ -146,6 +146,7 @@ var scene_path := ""   # the open scene's file ("" = never saved)
 var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
+var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
 var ui_help: PanelContainer
@@ -181,7 +182,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Auto camera"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -2528,6 +2529,8 @@ func _process(dt: float) -> void:
 	_sg_poll()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
+	if mp_ui != null:
+		mp_ui.tick(dt)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
 	_dm_poll()
@@ -2944,7 +2947,7 @@ func _tl_play_redraw() -> void:
 		ui_timeline.queue_redraw()
 		return
 	var key := [_dm_gen, S, S.cards.size(), S.times(), sel_card, S.length(), ui_timeline.size, ui_timeline.pps(), ui_timeline.x_of(0.0), auto_key,
-		Tok.c("tl_bg"), Tok.c("ink"), fd_cache.get("key", null), ui_timeline.fd.size(), ui_timeline.bx.size(), ui_timeline.sp.size(), fd_on,
+		Tok.c("tl_bg"), Tok.c("ink"), fd_cache.get("key", null), ui_timeline.fd.size(), ui_timeline.bx.size(), ui_timeline.sp.size(), ui_timeline.ph.size(), ui_timeline.ph_sel, fd_on,
 		vdiff.size(), pv_in, pv_out, S.markers.size(), S.audio_tracks.size(), ui_timeline.clip_px(), _tl_under_ruler()]
 	if key == _tl_key:
 		ui_timeline.playhead_redraw()
@@ -9307,7 +9310,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Auto camera": "autocam", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -9704,6 +9707,10 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene))
 	if tc_ui == null:
 		tc_ui = TimingCoachUI.new(self)
+	if mp_ui == null:
+		mp_ui = MakePhysicalUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Make it physical", mp_ui.run, "judge the motion with a 75 kg body in a physics engine: red on the timeline where no human can do it, with the reason; the physical version is a ghost you scrub"))
+	ui_ribbon["CHECK"].add_child(_button("Accept span", mp_ui.accept, "replace the cards inside the picked red span (click it on the timeline) with the physical version; one undo step"))
 	ui_ribbon["CHECK"].add_child(_button("Timing coach", tc_ui.show, "for each strike a better move time with the reason (a real clip, strike-size numbers and sources); preview, then accept one line or all"))
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
@@ -12310,6 +12317,9 @@ func _commands() -> Array:
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
+	if mp_ui == null:
+		mp_ui = MakePhysicalUI.new(self)
+	mp_ui.commands(add)   # MAKE IT PHYSICAL (ROADMAP I1)
 	mm_ui.commands(add)   # MOTION MATCHING PREVIEW + coverage report (ROADMAP 33; scripts/motion_match_ui.gd)
 	add.call("Bake to cards", "", _bake, "bake flatten curves part keys modifiers export agent frames", true, "flatten the scene into one card per frame as it really plays (part keys, modifiers, floor, pins, layer, breathing baked in; those switches go off), one undo step (DD4)")
 	add.call("Reduce part keys (tolerance slider)", "", _keyreduce_popup, "reduce keys key reduction thin decimate simplify dense bake video import tolerance error curve slider", true, "drop the part keys the curve can lose within a tolerance in degrees (every angle channel); the readout shows keys kept and the worst error; one undo step (ROADMAP 68)")
