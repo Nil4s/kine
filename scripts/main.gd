@@ -2197,9 +2197,9 @@ func _ready() -> void:
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
 		library = "user://zz_lib_%d" % OS.get_process_id()
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
-	_autover_cfg_load(testing)
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
+	_autover_cfg_load(testing)
 	ui_props_root = Node3D.new()
 	ui_props_root.name = "set"
 	add_child(ui_props_root)
