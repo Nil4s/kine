@@ -32,6 +32,9 @@ var _entries := []         # [mesh instance, rest ArrayMesh, rest surface arrays
 var _last := {}            # joint key -> the drive last written (no rebuild when nothing changed)
 var rebuilds := 0          # how many mesh rebuilds the last updates made (tests: 0 at straight joints)
 var _wcache := {}          # skin + vertex count -> weights(): the body's pieces share one skin and one vertex set
+var _gcache := {}          # the same key -> girth_shapes() (R11)
+var girth_on := true       # R11: body mass thickens the skin (Proportions.girth_lambda); tests turn it off for the control
+var last_lambda := 0.0     # the girth lambda last written
 
 
 ## the smoothstep the bend is driven by: 0 at straight, 1 from FULL_DEG on
@@ -151,6 +154,85 @@ static func _weld(out: Array) -> void:
 			out[si]["aff"][key] = ai
 
 
+## R11 GIRTH SHAPES: how each vertex moves OUT across its bones' axes when the body is heavier. For a bone i with axis
+## (a_i, t_i) and elasticity e_i (Proportions.girth_e), the skin at radial offset r_i(v) = (v - a_i) minus its part along t_i
+## moves to  r_i * (exp(e_i lambda) - 1)  and the vertex takes its skin weights' mix of that:
+##     dv = sum_i w_i r_i (exp(e_i lambda) - 1)  ~  lambda S1 + lambda^2 S2 + lambda^3 S3,
+##     S1 = sum w_i e_i r_i,  S2 = sum w_i e_i^2/2 r_i,  S3 = sum w_i e_i^3/6 r_i
+## (exp's cubic Taylor: off by < 0.2 % of the radius at |lambda| 0.55, the P1..P99 range is 0.38). A bone that is not
+## ours takes its nearest ancestor that is. Only across the axis: no vertex moves along a bone, so no length changes.
+## -> per surface [S1, S2, S3] (PackedVector3Array each)
+static func girth_shapes(sk: Skeleton3D, skin: Skin, src: ArrayMesh) -> Array:
+	var ref := Body.new()
+	ref.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var ours := {}   # bone -> joint
+	for j in Body.ORDER:
+		var b := sk.find_bone("Head" if j == "head" else j)
+		if b >= 0:
+			ours[b] = j
+	var ax := {}   # bone -> [a, t, e]
+	for k in skin.get_bind_count():
+		var bb := skin.get_bind_bone(k)
+		if bb < 0:
+			bb = sk.find_bone(skin.get_bind_name(k))
+		var c := bb
+		while c >= 0 and not ours.has(c):
+			c = sk.get_bone_parent(c)
+		var j: String = ours[c] if c >= 0 else "pelvis"
+		var a: Vector3 = ref.p0[j]
+		var t: Vector3 = ((ref.e0[j] as Vector3) - a).normalized()
+		ax[k] = [a, t, Proportions.girth_e(j)]
+	var out := []
+	for si in src.get_surface_count():
+		var arr := src.surface_get_arrays(si)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+		var wts: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+		var nv := vs.size()
+		var per := bones.size() / maxi(1, nv)
+		var s1 := PackedVector3Array()
+		var s2 := PackedVector3Array()
+		var s3 := PackedVector3Array()
+		s1.resize(nv)
+		s2.resize(nv)
+		s3.resize(nv)
+		for v in nv:
+			var a1 := Vector3.ZERO
+			var a2 := Vector3.ZERO
+			var a3 := Vector3.ZERO
+			for q in per:
+				var w: float = wts[v * per + q]
+				if w <= 0.0:
+					continue
+				var d: Array = ax[bones[v * per + q]]
+				var e: float = d[2]
+				if e == 0.0:
+					continue
+				var rel: Vector3 = vs[v] - (d[0] as Vector3)
+				var r: Vector3 = rel - (d[1] as Vector3) * rel.dot(d[1])
+				a1 += r * (w * e)
+				a2 += r * (w * e * e * 0.5)
+				a3 += r * (w * e * e * e / 6.0)
+			s1[v] = a1
+			s2[v] = a2
+			s3[v] = a3
+		out.append([s1, s2, s3])
+	return out
+
+
+## the vertices with the girth of lambda added
+static func girthed(base: PackedVector3Array, sh: Array, lam: float) -> PackedVector3Array:
+	var out := base.duplicate()
+	var l2 := lam * lam
+	var l3 := l2 * lam
+	var a: PackedVector3Array = sh[0]
+	var b: PackedVector3Array = sh[1]
+	var c: PackedVector3Array = sh[2]
+	for i in out.size():
+		out[i] = base[i] + a[i] * lam + b[i] * l2 + c[i] * l3
+	return out
+
+
 ## the meshes to correct (each MeshInstance3D with a skin, a skeleton): remembers each one's rest mesh
 func attach(meshes: Array, sk: Skeleton3D) -> void:
 	_entries = []
@@ -164,6 +246,8 @@ func attach(meshes: Array, sk: Skeleton3D) -> void:
 		if not _wcache.has(key):
 			_wcache[key] = weights(sk, m.skin, src, weld)   # a split piece has the same skin and vertices as its source
 		var wd: Array = _wcache[key]
+		if not _gcache.has(key):
+			_gcache[key] = girth_shapes(sk, m.skin, src)
 		var arrs := []
 		var flags := []
 		var mats := []
@@ -190,7 +274,7 @@ func attach(meshes: Array, sk: Skeleton3D) -> void:
 					break
 			if hit:
 				deps.append(jt[0])
-		_entries.append([m, src, arrs, flags, mats, wd, deps, null])
+		_entries.append([m, src, arrs, flags, mats, wd, deps, null, _gcache[key], key])
 
 
 ## a bone's rest origin in the skeleton's space: the rest transforms of its chain, root first. Not
@@ -228,18 +312,23 @@ func drives(B: Body) -> Dictionary:
 func update(B: Body) -> void:
 	rebuilds = 0
 	var dr := drives(B)
+	var lam := snappedf(Proportions.girth_lambda(B.body), 0.001) if girth_on else 0.0   # R11: 0.1 % steps of girth
+	dr["girth"] = lam
+	last_lambda = lam
 	if dr == _last:
 		return
 	_last = dr
+	var gdone := {}   # (shapes, surface) -> the girthed vertices, made once for all the pieces
 	for e in _entries:
 		var mi: MeshInstance3D = e[0]
 		var sub := {}   # the drives of the joints this piece depends on: unchanged = nothing to rebuild
 		for k in e[6]:
 			sub[k] = dr[k]
+		sub["girth"] = lam
 		if e[7] == sub:
 			continue
 		e[7] = sub
-		var any := false
+		var any := lam != 0.0
 		for jt in JOINTS:
 			if sub.has(jt[0]) and float(dr[jt[0]]) > 0.0:
 				any = true
@@ -253,6 +342,11 @@ func update(B: Body) -> void:
 		for si in arrs.size():
 			var arr: Array = (arrs[si] as Array).duplicate()
 			var vs: PackedVector3Array = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).duplicate()
+			if lam != 0.0:
+				var gk := "%s|%d" % [e[9], si]
+				if not gdone.has(gk):
+					gdone[gk] = girthed(arr[Mesh.ARRAY_VERTEX], e[8][si], lam)
+				vs = gdone[gk]
 			var wd: Dictionary = e[5][si]
 			for jt in JOINTS:
 				var k: float = float(dr[jt[0]])

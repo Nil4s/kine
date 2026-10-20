@@ -22,8 +22,9 @@
 ## (1.0858 H - 0.2059 H) = 0.9366, which puts the 50th-percentile span at 1.030 H (the middle of the band). The six
 ## presets keep Drillis' lengths exactly (Proportions.preset is untouched); only the BODY page's median arm is shorter.
 ## What is NOT here: shoulder and hip breadth as their own sliders (a segment's scale is uniform: the clavicles ride the
-## trunk, the hip width the pelvis; independent breadths need the mesh of step 3) and girth from mass (same reason: mass
-## sets the centre of mass and the readouts now, not the skin).
+## trunk, the hip width the pelvis; independent breadths need the mesh of step 3).
+## GIRTH FROM MASS (R11): mass thickens the skin across each bone by the ANSUR II elasticity of that circumference to mass
+## (scripts/proportions.gd, girth_e / girth_lambda; the skin in Corrective.girth_shapes, the capsule radii in scale_rest).
 class_name BodyModel
 extends RefCounted
 

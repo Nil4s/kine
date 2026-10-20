@@ -12,7 +12,7 @@ signal commit(body: Dictionary)
 const LABELS := {"stat": "Stature", "mass": "Body mass", "arm": "Arm length", "leg": "Leg length", "trunk": "Trunk length", "head": "Head size"}
 const TIPS := {
 	"stat": "how tall, as a percentile of the ANSUR II survey (US Army 2012: 4082 men, 1986 women). The standing height is exact",
-	"mass": "body mass, as a percentile of ANSUR II. It sets the centre of mass and the readouts now; girth comes with the mesh engine",
+	"mass": "body mass, as a percentile of ANSUR II. It sets the centre of mass, the readouts and the girth: the skin thickens across each bone, most at the waist, least at the forearm (ANSUR II)",
 	"arm": "the arms' length relative to height (upper arm, forearm and hand together); 50th = the textbook proportion (Drillis & Contini)",
 	"leg": "the legs' length relative to height (thigh and shank); 50th = the textbook proportion",
 	"trunk": "the torso's length relative to height; it carries the shoulder and hip width",
