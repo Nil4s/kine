@@ -1457,7 +1457,7 @@ func _held(t: float) -> int:
 ## card's raw foot, no planting). Card 0 is "free". Loads cards into the body (through _feet): put the frame back after
 ## PERF1: true plays by the code as it was before (tests/perf1_test.gd compares the two bit for bit); never set by the app
 static var legacy_play := false
-var _anch_memo: Array = []   # PERF1: [[pose refs], [steps signatures], result] -- see _anchors_play
+var _anch_memo: Array = []   # PERF1: [[pose refs], [steps signatures], result, [pose content hashes]] -- see _anchors_play
 var _anch_hit := false      # the last _anchors_play came from the memo (the body was not touched)
 
 
@@ -1469,11 +1469,12 @@ func _anchors_play(B: Body) -> Array:
 	if not _anch_memo.is_empty() and (_anch_memo[0] as Array).size() == n:
 		var poses: Array = _anch_memo[0]
 		var sigs: Array = _anch_memo[1]
+		var hashes: Array = _anch_memo[3]
 		var same := true
 		for i in n:
 			var c: Dictionary = cards[i]
-			if not is_same(c["pose"], poses[i]):
-				same = false
+			if not is_same(c["pose"], poses[i]) or (c["pose"] as Dictionary).hash() != hashes[i]:
+				same = false   # a new pose dictionary, or the same one written in place (mocap_clean, limb_ik, distance_keeper...)
 				break
 			var st = c.get("steps", null)
 			if (st == null) != (sigs[i] == null) or (st != null and var_to_str(st) != sigs[i]):
@@ -1486,11 +1487,13 @@ func _anchors_play(B: Body) -> Array:
 	var out := _anchors(B)
 	var poses2 := []
 	var sigs2 := []
+	var hashes2 := []
 	for c in cards:
 		poses2.append(c["pose"])
+		hashes2.append((c["pose"] as Dictionary).hash())
 		var st = c.get("steps", null)
 		sigs2.append(null if st == null else var_to_str(st))
-	_anch_memo = [poses2, sigs2, out]
+	_anch_memo = [poses2, sigs2, out, hashes2]
 	return out
 
 
