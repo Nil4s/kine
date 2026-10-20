@@ -287,10 +287,12 @@ static func candidates(AB: Body, DB: Body, rel: Transform3D, pp: Dictionary, pth
 ## THE PLAN. A = the attacker's scene, D = the defender's; rel = the defender's space -> the attacker's. Returns {"ok", "why",
 ## "beats": [{"t", "arrive", "start", "kind", "label", "zone", "gap", "step", "flag", "why", "pose"}], "cards" (the defender's new
 ## cards), "keep" (how many of its old cards stand), "markers", "text"}; nothing of A or D is touched.
-static func plan(A: Scene, D: Scene, rel: Transform3D) -> Dictionary:
+## known = the strikes when the caller has them already ([{"t", "hand", "speed"}], as strikes() returns): the 60 Hz scan of the
+## whole attacker scene is skipped (it is most of the planning time for a long scene; I22 lays the contacts out itself).
+static func plan(A: Scene, D: Scene, rel: Transform3D, known := []) -> Dictionary:
 	var AB := _body()
 	var DB := _body()
-	var bs := strikes(A, AB)
+	var bs: Array = known if not known.is_empty() else strikes(A, AB)
 	if bs.is_empty():
 		return {"ok": false, "why": "no strike in the attacker's cards (no hand or weapon tip passes %.1f m/s): pick the fighter who swings or punches" % MIN_SPEED}
 	var fps: int = maxi(1, D.fps)

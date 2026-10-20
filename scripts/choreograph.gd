@@ -14,6 +14,11 @@
 ##     calls a strike, StylePrint.kind_of_name, with the card before and the card after it). His style fingerprint (I17) sets the
 ##     wind-up time when it has one; the wind-up is never shorter than TimingCoach.ANTIC_RATIO x the strike, the follow-through never
 ##     shorter than SETTLE_RATIO x it. Where two strikes are too close for that (gap / 3 under the fastest time), the second is dropped.
+##   TIP SPEED: the coach's range is for a FIST (hand travel). A bat's tip travels farther, so each bank move is also timed on its own
+##     tip: the strike is measured at the slowest time, the peak tip speed scales with 1/time, and the move's fastest time is raised
+##     until the tip stays under TIP_MARGIN x Check's cap (attack_timing TIP_MAX for the held weapon; Rulebook.FIST_WARN for a fist).
+##   DISTANCE: the defender's cards are put right by DistanceKeeper (I18): every strike flagged jammed / out is slid until it lands.
+##   QUIET BARS get a side-step-and-close and back (circle()) on both fighters in the hold, not a dead pause.
 ##   THE ANSWERS are FightPhrase.plan (I11): the defender blocks or slips each strike; its cards are written in its own scene.
 ## plan() builds the scene (the attacker with a "hit" marker per contact, the defender in actors); nothing is written to a file.
 class_name Choreograph
@@ -23,7 +28,11 @@ const BAR := 4                      # beats
 const LEVELS := [0.25, 0.5, 0.75]   # bar energy below each: 0, 1, 2 strikes; above the last: 3 (ours)
 const MIN_GAP := 0.45               # s between two contacts at the least (ours: ANTIC 2 + strike 1 parts of >= 0.11 s each + margin)
 const SLOW_MIN := 0.3               # a non-peak strike is this far (of lo..hi) toward the slowest, at the loudest beat
-const DEF_DIST := 1.8               # m: where the defender stands (the range manager of I11 steps in)
+const DEF_DIST := 1.5               # m: where the defender starts (FightPhrase's range step and DistanceKeeper (I18) then place him at the strike's reach)
+const TIP_MARGIN := 0.9             # the planned tip never goes over this share of Check's TIP SPEED bar (the bar is the real weapon's cap)
+const CIRCLE_D := 0.15              # m: a quiet bar's side-step and close (and back)
+const CIRCLE_MIN := 0.8             # s of quiet hold a circle needs
+static var _cache := {}             # the defender's finished scene per plan (FightPhrase + the keeper are the slow part)
 const WINDUP := 0.35                # s: the default wind-up when there is no style fingerprint
 const BANK_MAX := 12
 
@@ -125,11 +134,149 @@ static func bank(paths: Array, B: Body) -> Array:
 			var rg := BeatFight.strike_range(t, B, 1)
 			if not is_finite(float(rg[1])):
 				continue   # the hand barely travels: not a strike
+			# the weapon's tip: the same move at the coach's slowest time, then the time that keeps the tip under the bar
+			var lo_c := float(rg[0])
+			var hi_c := float(rg[1])
+			var t2 := Scene.new()
+			t2.from_dict({"scene": "zz_bank2", "fps": 30, "cards": [
+				{"name": "a", "pose": S.cards[i - 1]["pose"], "move": -1.0, "hold": 0.2}, {"name": "STRIKE", "pose": S.cards[i]["pose"], "move": hi_c, "hold": 0.0}]})
+			var vref := _tip_v(t2, B, 0.2, 0.2 + hi_c + 0.05)
+			var cap := tip_cap(B)
+			var lo_tip := hi_c * vref / (cap * TIP_MARGIN) if vref > 0.0 else 0.0
+			rg = [maxf(lo_c, snappedf(lo_tip + 0.0005, 0.001)), maxf(hi_c, snappedf(lo_tip * 1.2, 0.001)), rg[2]]
 			var fol: Dictionary = S.cards[i + 1]["pose"] if i + 1 < S.cards.size() else S.cards[0]["pose"]
 			out.append({"name": String(S.cards[i]["name"]), "src": String(p).get_file().get_basename(), "ready": S.cards[0]["pose"], "windup": S.cards[i - 1]["pose"],
-				"strike": S.cards[i]["pose"], "follow": fol, "d": float(rg[2]), "lo": float(rg[0]), "hi": float(rg[1])})
+				"strike": S.cards[i]["pose"], "follow": fol, "d": float(rg[2]), "lo": float(rg[0]), "hi": float(rg[1]), "lo_coach": lo_c, "lo_tip": lo_tip})
 	out.sort_custom(func(a, b): return float(a["d"]) > float(b["d"]))
 	return out.slice(0, BANK_MAX)
+
+
+## the cap the tip is held under: the held weapon's real tip speed (Check's TIP SPEED), a fist's (FIST SPEED) when unarmed
+static func tip_cap(B: Body) -> float:
+	return float(Rulebook.AT.TIP_MAX.get(B.wep_kind, 40.0)) if B.wep_on else Rulebook.FIST_WARN
+
+
+## the peak speed (m/s) of the tracked tip (the weapon's end, else the faster hand) over [t0, t1], 60 Hz like Check
+static func _tip_v(S: Scene, B: Body, t0: float, t1: float) -> float:
+	var v := 0.0
+	var prev := []
+	var t := t0
+	while t <= t1 + 1e-6:
+		S.apply_true(B, t)
+		var pts := [B.wep_point(B.wep_len)] if B.wep_on else [B.E["hand_l"], B.E["hand_r"]]
+		if not prev.is_empty():
+			for k in pts.size():
+				v = maxf(v, (pts[k] as Vector3).distance_to(prev[k]) * 60.0)
+		prev = pts
+		t += 1.0 / 60.0
+	return v
+
+
+## a side-step and close and back in the hold that holds [w0, w1] (a quiet bar): four cards with the feet stepping one at a time (the
+## same "steps" the distance keeper writes), the root home again at the end so the next wind-up starts where it would have. sgn = side.
+static func circle(S: Scene, w0: float, w1: float, sgn: float) -> bool:
+	if w1 - w0 < CIRCLE_MIN:
+		return false
+	var ts := S.times()
+	var j := -1
+	for c in S.cards.size():
+		if float(ts[c][1]) <= w0 + 1e-6 and w0 < float(ts[c][2]) - 1e-6:
+			j = c
+	if j < 0:
+		return false
+	w1 = minf(w1, float(ts[j][2]))   # the hold ends where the next wind-up begins
+	if w1 - w0 < CIRCLE_MIN:
+		return false
+	var m := clampf((w1 - w0) / 5.0, 0.15, 0.3)
+	var base: Dictionary = (S.cards[j] as Dictionary).duplicate(true)
+	var o: Array = base["pose"].get("offset", [0, 0, 0])
+	var bo := Vector3(o[0], o[1], o[2])
+	var rest := float(ts[j][2]) - (w0 + 4.0 * m)
+	var offs := [CIRCLE_D, CIRCLE_D, 0.0, 0.0]
+	var stp := [CIRCLE_D, CIRCLE_D, -CIRCLE_D, -CIRCLE_D]
+	var feet := ["_l", "_r", "_l", "_r"]
+	var news := []
+	for k in 4:
+		var c: Dictionary = base.duplicate(true)
+		c.erase("arrive_s")
+		c.erase("leave_s")
+		var v := bo + Vector3(sgn * float(offs[k]), 0.0, 0.0)
+		(c["pose"] as Dictionary)["offset"] = [v.x, v.y, v.z]
+		c["name"] = "circle %d" % (k + 1)
+		c["move"] = snappedf(m, 0.001)
+		c["hold"] = snappedf(maxf(0.0, rest), 0.001) if k == 3 else 0.0
+		c["steps"] = {feet[k]: [sgn * float(stp[k]), 0.0, 0.0]}
+		news.append(c)
+	(S.cards[j] as Dictionary)["hold"] = snappedf(w0 - float(ts[j][1]), 0.001)
+	for k in news.size():
+		S.cards.insert(j + 1 + k, news[k])
+	return true
+
+
+## the circles of a scene: every quiet bar's window (bar start + 0.1 s to bar end - 0.1 s), the side alternating by bar. Returns how many
+static func circle_quiet(S: Scene, bl: Array) -> int:
+	var n := 0
+	var sg := 1.0
+	for b in bl:
+		if int(b["n"]) == 0 and circle(S, float(b["t0"]) + 0.1, float(b["t1"]) - 0.1, sg):
+			n += 1
+			sg = -sg
+	return n
+
+
+## the strikes FightPhrase would find, from the layout itself (the contacts are known: no 60 Hz scan of the whole scene)
+static func _known(A: Scene, strikes: Array) -> Array:
+	var BB := _body()
+	var out := []
+	for c in strikes:
+		var tc: float = c["t"]
+		A.apply(BB, maxf(0.0, tc - 0.12))
+		var l0: Vector3 = BB.palm_point("hand_l")
+		var r0: Vector3 = BB.palm_point("hand_r")
+		A.apply(BB, tc)
+		var hand := ""
+		if not BB.wep_on:
+			hand = "hand_l" if l0.distance_to(BB.palm_point("hand_l")) > r0.distance_to(BB.palm_point("hand_r")) else "hand_r"
+		out.append({"t": tc, "hand": hand, "speed": 0.0})
+	return out
+
+
+## the keeper pass: every strike flagged jammed / out is slid (DistanceKeeper.fix) until none is. {"D", "before", "after", "fixes", "rep"}
+static func keep(A: Scene, D: Scene, rel: Transform3D) -> Dictionary:
+	var rep := DistanceKeeper.analyze(A, D, rel)
+	var before: int = rep["flagged"]
+	var fixes := 0
+	var skip := {}
+	var BA := DistanceKeeper.new_body()
+	var BD := DistanceKeeper.new_body()
+	for it in 14:
+		var k := -1
+		for i in (rep["spans"] as Array).size():
+			if rep["spans"][i]["cls"] != "in" and not skip.has(i):
+				k = i
+				break
+		if k < 0:
+			break
+		var fx := DistanceKeeper.fix(A, D, rel, 30, k, rep)
+		if not fx.get("ok", false):
+			skip[k] = true
+			continue
+		D = fx["scene"]
+		fixes += 1
+		# a slide before strike k carries only the cards after it: the strikes before k stand, k is the fix's own measure, the later ones are measured again
+		var sp: Array = rep["spans"]
+		sp[k] = fx["after"]
+		var a2 := A.clone()
+		var d2 := D.clone()
+		var cl := BeatFight.contacts(a2)
+		for i in range(k + 1, sp.size()):
+			sp[i] = DistanceKeeper.span(a2, BA, d2, BD, rel, int(cl[i]), 30)
+		var bad := 0
+		for x in sp:
+			if x["cls"] != "in":
+				bad += 1
+		rep["flagged"] = bad
+	return {"D": D, "before": before, "after": int(rep["flagged"]), "fixes": fixes, "rep": rep}
 
 
 static func _body() -> Body:
@@ -147,8 +294,8 @@ static func _stand() -> Dictionary:
 
 
 ## the strike beats of a bar: beat offsets inside it
-static func slots(n: int, period: float) -> Array:
-	var stride := 1 if period >= MIN_GAP else 2
+static func slots(n: int, period: float, min_gap := MIN_GAP) -> Array:
+	var stride := 1 if period >= min_gap else 2
 	var out := []
 	for k in n:
 		if k * stride < BAR:
@@ -191,8 +338,13 @@ static func plan(B: Body, beats: Array, off: float, rms: Array, bk: Array, fp :=
 	# the contacts, in order
 	var cs := []
 	var peak_i := -1
+	# two contacts need wind-up (>= ANTIC_RATIO x the strike) + the strike: the slower tip-limited strikes of a bat need a longer gap than a fist's
+	var slowest_fast := 0.0
+	for mv0 in bk:
+		slowest_fast = maxf(slowest_fast, float(mv0["lo"]))
+	var min_gap := maxf(MIN_GAP, (1.0 + TimingCoach.ANTIC_RATIO) * slowest_fast + 0.02)
 	for k in bl.size():
-		for sl in slots(int(bl[k]["n"]), period):
+		for sl in slots(int(bl[k]["n"]), period, min_gap):
 			var bi: int = int(bl[k]["i0"]) + int(sl)
 			var e := float(rms[bi]) / top_b
 			var rec := {"t": float(bs[bi]["t"]) + off, "bar": k, "slot": sl, "e": e, "peak": k == peak_bar and sl == 0}
@@ -271,10 +423,11 @@ static func plan(B: Body, beats: Array, off: float, rms: Array, bk: Array, fp :=
 	cards.append({"name": "ready (end)", "pose": ready.duplicate(true), "move": snappedf(minf(0.5, rd), 0.001), "hold": snappedf(maxf(0.0, rd - 0.5), 0.001)})
 	A.markers = Markers.sorted(markers)
 	A.beats_audio = bs.duplicate(true)
+	var circles := circle_quiet(A, bl)
 	# I15: every contact is checked against the beat grid and the coach's range (the cards already sit on it: nothing should move)
 	var fit := BeatFight.fit(A, B, bs, off, "every", false)
 	res["fit"] = fit
-	# I11: the defender answers
+	# I11: the defender answers; I18: the keeper puts every strike at its reach
 	var D := Scene.new()
 	var stand := _stand()
 	D.from_dict({"scene": "zz_still", "fps": 30, "cards": [{"name": "guard", "pose": stand, "move": -1.0, "hold": maxf(1.0, A.length() - 0.5)},
@@ -282,11 +435,25 @@ static func plan(B: Body, beats: Array, off: float, rms: Array, bk: Array, fp :=
 	var xf := {"pos": [0.0, DEF_DIST], "yaw": 180.0}
 	var rel := Transform3D(Basis(Vector3.UP, deg_to_rad(180.0)), Vector3(0.0, 0.0, DEF_DIST))
 	var defence := {"ok": false, "why": "no strike was laid out"}
+	var keeper := {"before": 0, "after": 0, "fixes": 0}
 	if n_strike > 0:
-		defence = FightPhrase.plan(A, D, rel)
-		if defence.get("ok", false):
-			FightPhrase.apply_plan(D, defence)
+		var key := JSON.stringify([A.cards, DEF_DIST, stand.get("offset", [])]).sha1_text()
+		if _cache.has(key):
+			defence = _cache[key]["defence"]
+			D = (_cache[key]["D"] as Scene).clone()
+			keeper = _cache[key]["keeper"]
+		else:
+			defence = FightPhrase.plan(A, D, rel, _known(A, strikes))
+			if defence.get("ok", false):
+				FightPhrase.apply_plan(D, defence)
+				var kp := keep(A, D, rel)
+				D = kp["D"]
+				keeper = {"before": kp["before"], "after": kp["after"], "fixes": kp["fixes"]}
+			circle_quiet(D, bl)
+			_cache[key] = {"defence": defence, "D": D.clone(), "keeper": keeper}
 	res["defence"] = defence
+	res["keeper"] = keeper
+	res["circles"] = circles
 	A.actors = [{"name": "fighter 2", "xf": xf, "scene": D}]
 	res["scene"] = A
 	res["peak_t"] = float(strikes[peak_i if peak_i < strikes.size() else 0]["t"]) if not strikes.is_empty() else -1.0
@@ -299,4 +466,6 @@ static func plan(B: Body, beats: Array, off: float, rms: Array, bk: Array, fp :=
 	for b in bl:
 		per.append(int(b["n"]))
 	res["msg"] = "%d bars, %d strikes (per bar %s)%s; the biggest on the loudest downbeat at %.2f s" % [bl.size(), n_strike, str(per), (", %d dropped for room" % dropped) if dropped > 0 else "", float(res["peak_t"])]
+	if keeper["before"] > 0:
+		res["msg"] += "; distance: %d of %d strikes were out of reach or jammed, %d left after %d slides" % [keeper["before"], n_strike, keeper["after"], keeper["fixes"]]
 	return res
