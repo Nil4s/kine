@@ -236,17 +236,17 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [x] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
   (anticipation 2-3x shorter than action for fast hits, overshoot on follow-through); suggest exact holds/moves with a
   "sounds right" preview; accept one by one.
-- [ ] I5. Say it, see it: type "low guard, weight on back foot, bat cocked over right shoulder" and get the pose,
+- [x] I5. Say it, see it: type "low guard, weight on back foot, bat cocked over right shoulder" and get the pose,
   locally (blind-agent maths + pose search + IK, no cloud); the parts it couldn't place are named.
 - [ ] I6. Style dial: "heavier / tired / angry / sneaky" sliders that change a whole clip, learned as deltas from Nick's
   own clips (spacing, posture, amplitude), not hand-written rules; undo as one step.
-- [ ] I7. Auto camera: for each beat (wind-up, contact, recover) suggest a shot camera from film grammar (180-degree
+- [x] I7. Auto camera: for each beat (wind-up, contact, recover) suggest a shot camera from film grammar (180-degree
   rule, lead room, closer on contact), as ghost frames you click to keep.
 - [ ] I8. Force view: per card, the joint torques and ground forces from inverse dynamics, coloured on the body (green
   easy, red beyond a strong human); "where does the power come from" for a strike (hip -> shoulder -> elbow sequence).
 - [ ] I9. Sketch to pose: draw a stick figure over the viewport with the mouse; Kine fits the body to it (2D lines ->
   3D pose with limits and balance).
-- [ ] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
+- [x] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
   cards come pre-timed the way you usually time them (shown as "your usual 0.18 s", one key to accept).
 - [ ] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
   beat: block, slip, parry, counter) and keeps the pair at fighting range (each strike's tip reaches the target, nobody
