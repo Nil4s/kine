@@ -149,7 +149,9 @@ const DRAW := {
 	"combos": [["disc", Vector2(5, 14), 2.6], ["disc", Vector2(12, 8), 2.6], ["disc", Vector2(19, 14), 2.6], ["seg", Vector2(5, 14), Vector2(12, 8), 1.6], ["seg", Vector2(12, 8), Vector2(19, 14), 1.6]],
 	"weapon_weight": [["seg", Vector2(3, 12), Vector2(21, 12), 1.8], ["seg", Vector2(6, 6), Vector2(6, 18), 2.6], ["seg", Vector2(18, 6), Vector2(18, 18), 2.6], ["seg", Vector2(3, 9), Vector2(3, 15), 2.0], ["seg", Vector2(21, 9), Vector2(21, 15), 2.0]],
 	"rhythm": [["seg", Vector2(3, 18), Vector2(3, 10), 2.0], ["seg", Vector2(8, 18), Vector2(8, 5), 2.0], ["seg", Vector2(14, 18), Vector2(14, 12), 2.0], ["seg", Vector2(21, 18), Vector2(21, 7), 2.0]],
+	"precog": [["ring", Vector2(12, 12), 8, 2.0], ["seg", Vector2(12, 12), Vector2(12, 6), 2.0], ["seg", Vector2(12, 12), Vector2(16, 14), 2.0]],
 	"keeper": [["seg", Vector2(3, 12), Vector2(21, 12), 2.0], ["seg", Vector2(3, 7), Vector2(3, 17), 2.0], ["seg", Vector2(21, 7), Vector2(21, 17), 2.0], ["disc", Vector2(12, 12), 2.6]],
+	"breakfall": [["seg", Vector2(3, 5), Vector2(11, 13), 2.0], ["seg", Vector2(11, 13), Vector2(21, 13), 2.0], ["disc", Vector2(3, 4), 2.6], ["seg", Vector2(3, 20), Vector2(21, 20), 1.6]],
 	"sellhit": [["seg", Vector2(3, 6), Vector2(15, 6), 2.0], ["seg", Vector2(15, 6), Vector2(15, 18), 2.0], ["seg", Vector2(15, 18), Vector2(3, 18), 2.0], ["seg", Vector2(3, 18), Vector2(3, 6), 2.0], ["disc", Vector2(18, 12), 3.0]],
 	"autocam": [["seg", Vector2(3, 7), Vector2(15, 7), 2.0], ["seg", Vector2(15, 7), Vector2(15, 17), 2.0], ["seg", Vector2(15, 17), Vector2(3, 17), 2.0], ["seg", Vector2(3, 17), Vector2(3, 7), 2.0], ["seg", Vector2(15, 12), Vector2(21, 8), 2.0], ["seg", Vector2(21, 8), Vector2(21, 16), 2.0], ["seg", Vector2(21, 16), Vector2(15, 12), 2.0]],
 	"polish": [["seg", Vector2(10, 2), Vector2(10, 18), 1.6], ["seg", Vector2(2, 10), Vector2(18, 10), 1.6], ["seg", Vector2(5, 5), Vector2(15, 15), 1.2],
@@ -194,6 +196,8 @@ const DRAW := {
 	# I2 REACT TO THE HIT (PHYSICS): an impact star on the left, a head knocked back with a bend of the neck
 	"react_hit": [["seg", Vector2(2, 12), Vector2(8, 12), 2], ["seg", Vector2(3, 7), Vector2(7.5, 9.5), 2], ["seg", Vector2(3, 17), Vector2(7.5, 14.5), 2],
 		["ring", Vector2(16, 8), 3.4, 2], ["seg", Vector2(13.5, 11), Vector2(11.5, 20), 2.2], ["seg", Vector2(13.5, 11), Vector2(20, 14), 2], ["seg", Vector2(11.5, 20), Vector2(17.5, 21), 2]],
+	# I27 THROW AND CATCH: a dotted arc from a start dot to a ring (the catch)
+	"throw": [["disc", Vector2(4, 18), 2.2], ["disc", Vector2(8, 10), 1.5], ["disc", Vector2(12, 7), 1.5], ["disc", Vector2(16, 9), 1.5], ["ring", Vector2(19, 16), 3.2, 2]],
 	# I13 IMPACT FRAMES: a burst of rays round a point (the freeze); the off one has a bar across it
 	"impact": [["disc", Vector2(12, 12), 2.6], ["seg", Vector2(12, 3), Vector2(12, 7), 2], ["seg", Vector2(12, 17), Vector2(12, 21), 2], ["seg", Vector2(3, 12), Vector2(7, 12), 2],
 		["seg", Vector2(17, 12), Vector2(21, 12), 2], ["seg", Vector2(5.5, 5.5), Vector2(8.5, 8.5), 2], ["seg", Vector2(15.5, 15.5), Vector2(18.5, 18.5), 2], ["seg", Vector2(18.5, 5.5), Vector2(15.5, 8.5), 2], ["seg", Vector2(8.5, 15.5), Vector2(5.5, 18.5), 2]],

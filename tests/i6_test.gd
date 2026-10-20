@@ -71,16 +71,31 @@ func _init() -> void:
 	# (1) the learned spreads
 	var db := MotionMatch.build()
 	var t0 := Time.get_ticks_msec()
-	var ms := StyleDial.measure_spreads(db)
+	# only the files the committed SPREAD was built from (StyleDial.SPREAD_CLIPS, with their per-clip numbers): a checkout with a scene
+	# deleted or an extra one of Nick's measures the same list. A listed file that is missing is skipped (printed); the fresh spread of
+	# the files present is compared with the spread of the COMMITTED numbers of those same files (all present: the committed SPREAD)
+	var bf := StyleDial.spread_basis_files()
+	if not (bf["missing"] as Array).is_empty():
+		print("     NOTE: %d of %d listed files are not in this checkout and are skipped: %s" % [(bf["missing"] as Array).size(), StyleDial.SPREAD_CLIPS.size(), bf["missing"]])
+	if not (bf["changed"] as Array).is_empty():
+		print("     NOTE: %d listed files differ from the ones SPREAD was built from (md5), measured as they are: %s" % [(bf["changed"] as Array).size(), bf["changed"]])
+	var ms := StyleDial.measure_spreads(db, ["res://scenes/"], bf["use"])
 	print("     measured on %s in %d ms" % [ms["basis"], Time.get_ticks_msec() - t0])
+	ok(ms["basis"]["clips"] == (bf["use"] as Array).size(), "(1) the measurement used exactly the %d listed files that are present (%d clips)" % [(bf["use"] as Array).size(), ms["basis"]["clips"]])
+	var cw := []
+	for p in bf["use"]:
+		cw.append(StyleDial.SPREAD_CLIPS[p])
+	var committed := StyleDial.spread_of(cw)
+	var allc := StyleDial.spread_of(StyleDial.SPREAD_CLIPS.values())
 	for c in ms["clips"]:
 		print("       %-20s speed %6.1f deg/s still %.2f sharp %.2f range %5.1f deg flex %5.1f head %.3f m com %.3f m knee %5.1f" % [
 			c["name"], c["speed"], c["still"], c["sharp"], c["range"], c["flex"], c["head_h"], c["com_h"], c["knee"]])
 	for k in StyleDial.FEATS:
 		var a: float = ms["spread"][k]
-		var b: float = StyleDial.SPREAD[k]
-		print("     spread %-5s measured %.4f   committed %.4f" % [k, a, b])
+		var b: float = committed[k]
+		print("     spread %-5s measured %.4f   committed (same files) %.4f   committed SPREAD %.4f" % [k, a, b, StyleDial.SPREAD[k]])
 		ok(absf(a - b) <= 0.05 * maxf(absf(a), 1e-6) + 1e-4, "(1) %s: committed %.4f vs measured %.4f within 5 %%" % [k, b, a])
+		ok(absf(allc[k] - StyleDial.SPREAD[k]) <= 1e-3 * maxf(absf(StyleDial.SPREAD[k]), 1e-6) + 1e-4, "(1) %s: the committed rows give SPREAD %.4f (listed %.4f)" % [k, allc[k], StyleDial.SPREAD[k]])
 
 	# (2) neutral
 	var r0 := StyleDial.style_cards(S, B, base, StyleDial.neutral())

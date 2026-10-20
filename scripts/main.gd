@@ -148,9 +148,12 @@ var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every tar
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
+var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
 var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
+var bk_ui: BreakfallUI   # BREAKFALL CHECK (ROADMAP I25): scripts/breakfall_ui.gd
+var pc_ui: PrecogUI   # PRECOG CHECK (ROADMAP I31): scripts/precog_ui.gd
 var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui.gd
 var cm_ui: ComboUI   # MY COMBOS (ROADMAP I23): scripts/combo_ui.gd + combo_mine.gd
 var dk_ui: DistanceKeeperUI   # FIGHT DISTANCE KEEPER (ROADMAP I18): scripts/distance_keeper_ui.gd
@@ -191,9 +194,13 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
-	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
+	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
+<<<<<<< HEAD
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+=======
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Breakfall check", "Precog check", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+>>>>>>> poser-ui-rounds
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -235,7 +242,13 @@ var _rpress := {}   # the right button's press: where, the view's turn then, the
 var ui_card_btns: Array = []
 var _sync := false
 var big_view := false
-var clean := false          # recording: no highlights, no name tag
+var clean := false:         # recording: no highlights, no name tag, NO PANELS (the setter hides / restores them, so a bare `clean = true` is enough)
+	set(v):
+		if clean == v:
+			return
+		clean = v
+		if is_inside_tree() and ui_status != null:
+			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
@@ -2566,6 +2579,8 @@ func _process(dt: float) -> void:
 		mp_ui.tick(dt)
 	if sd_ui != null:
 		sd_ui.tick(dt)   # STYLE DIAL: forgets its base when anything else changed the scene
+	if tcat_ui != null:
+		tcat_ui.tick(dt)   # THROW AND CATCH preview (nothing otherwise)
 	if if_ui != null:
 		if_ui.tick(dt)   # IMPACT FRAMES preview (nothing otherwise)
 	if bf_ui != null:
@@ -2578,8 +2593,12 @@ func _process(dt: float) -> void:
 		dk_ui.tick(dt)
 	if sh_ui != null:
 		sh_ui.tick(dt)
+	if bk_ui != null:
+		bk_ui.tick(dt)
 	if rh_ui != null:
 		rh_ui.tick(dt)
+	if pc_ui != null:
+		pc_ui.tick(dt)
 	sj.observe(undo.size())   # I26: undone / edited suggestions
 	if cm_ui != null:
 		cm_ui.tick(dt)
@@ -3007,7 +3026,7 @@ func _tl_play_redraw() -> void:
 		ui_timeline.queue_redraw()
 		return
 	var key := [_dm_gen, S, S.cards.size(), S.times(), sel_card, S.length(), ui_timeline.size, ui_timeline.pps(), ui_timeline.x_of(0.0), auto_key,
-		Tok.c("tl_bg"), Tok.c("ink"), fd_cache.get("key", null), ui_timeline.fd.size(), ui_timeline.bx.size(), ui_timeline.sp.size(), ui_timeline.ph.size(), ui_timeline.bf.size(), ui_timeline.bf_grid.size(), ui_timeline.dk.size(), ui_timeline.sh.size(), ui_timeline.rh.size(), ui_timeline.ph_sel, fd_on,
+		Tok.c("tl_bg"), Tok.c("ink"), fd_cache.get("key", null), ui_timeline.fd.size(), ui_timeline.bx.size(), ui_timeline.sp.size(), ui_timeline.ph.size(), ui_timeline.bf.size(), ui_timeline.bf_grid.size(), ui_timeline.dk.size(), ui_timeline.sh.size(), ui_timeline.bk.size(), ui_timeline.rh.size(), ui_timeline.ph_sel, fd_on,
 		vdiff.size(), pv_in, pv_out, S.markers.size(), S.audio_tracks.size(), ui_timeline.clip_px(), _tl_under_ruler()]
 	if key == _tl_key:
 		ui_timeline.playhead_redraw()
@@ -4990,6 +5009,8 @@ func _restore(u: Dictionary) -> void:
 		wt_ui.halt()
 	if tc_ui != null:
 		tc_ui.halt()
+	if tcat_ui != null:
+		tcat_ui.halt()
 	if if_ui != null:
 		if_ui.halt()
 	if bf_ui != null:
@@ -5002,8 +5023,12 @@ func _restore(u: Dictionary) -> void:
 		dk_ui.halt()
 	if sh_ui != null:
 		sh_ui.halt()
+	if bk_ui != null:
+		bk_ui.halt()
 	if rh_ui != null:
 		rh_ui.halt()
+	if pc_ui != null:
+		pc_ui.halt()
 	if cm_ui != null:
 		cm_ui.halt()
 	if feint_ui != null:
@@ -5079,8 +5104,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
 	if u.has("skin_w") and not wp.is_empty():
-		SkinPaint.restore(wp, u["skin_w"])
-		_skp_build()
+		if SkinPaint.restore(wp, u["skin_w"]):
+			_skp_build()
 	if u["scene"] == S and u.has("plants") and var_to_str(u["plants"]) != var_to_str(S.plants):
 		S.plants = u["plants"].duplicate(true)   # foot plants (ROADMAP 8), undone like a card
 	if u["scene"] == S and u.has("cons") and var_to_str(u["cons"]) != var_to_str(S.cons):
@@ -9922,9 +9947,13 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
+const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
+<<<<<<< HEAD
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
+=======
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Breakfall check": "breakfall", "Fight rhythm": "rhythm", "Precog check": "precog", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
+>>>>>>> poser-ui-rounds
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -10351,6 +10380,9 @@ func _ui() -> void:
 	if dk_ui == null:
 		dk_ui = DistanceKeeperUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Fight distance", dk_ui.show, "with two fighters: each strike's gap to the other fighter against its measured reach, jammed / out of range / in range on the timeline; Slide the defender fixes a flagged strike with steps (feet planted); preview, then accept (one undo step)"))
+	if bk_ui == null:
+		bk_ui = BreakfallUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Breakfall check", bk_ui.show, "finds each fall or knockdown in the clip (the centre of mass drops 40% of the height in a second and a body part but the feet reaches the floor) and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, speed; one-click fixes (tuck the chin, bend the arm into a slap, roll the trunk); preview, then accept (one undo step)"))
 	if sh_ui == null:
 		sh_ui = SellHitUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Sell the hit", sh_ui.show, "with two fighters and a shot camera: each strike's 3D miss against what the camera shows, SOLD / NOT SOLD / UNSAFE (a real contact) on the timeline; Move the camera or Offset the aim fixes a NOT SOLD strike; preview, then accept (one undo step)"))
@@ -10359,6 +10391,9 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("My combos", cm_ui.show, "the card sequences you repeat in your own clips, named with your rhythm (jab-cross-hook, your 0.15/0.20/0.15, used 3 times in 2 clips); click one for a ghost after the picked card, Enter inserts it with your poses and timing (one undo step)"))
 	if rh_ui == null:
 		rh_ui = FightRhythmUI.new(self)
+	if pc_ui == null:
+		pc_ui = PrecogUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Precog check", pc_ui.show, "with two fighters: for every answered strike, when its wind-up becomes readable and when the defender starts to move; flags a reaction under 0.2 s (PRECOG) or one that lands after the hit (LATE) with a one-click retime; preview, then accept (one undo step)"))
 	ui_ribbon["CHECK"].add_child(_button("Fight rhythm", rh_ui.show, "with two fighters: a tempo map of the exchange (who attacks, who answers, the time between beats) as a strip on the timeline; flags monotony, dead air and rush with a one-click suggestion each (pause, change side, feint); preview, then accept (one undo step)"))
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
@@ -10378,6 +10413,9 @@ func _ui() -> void:
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
+	if tcat_ui == null:
+		tcat_ui = ThrowCatchUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Throw to...", tcat_ui.show, "lets the held prop go at the playhead with the hand's velocity and spin, solves the ballistic arc (g = 9.81, no drag) and the catch by the other (or the picked) hand; red when it cannot be caught, saying why. Preview, Accept is one undo step (ROADMAP I27)"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Reactions", _reactions_toggle, "the hit reaction picker: thumbnails of the reaction clips; drag one onto the fighter who is hit and its cards start at the contact (ROADMAP R16)"))
 	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))
@@ -12994,6 +13032,9 @@ func _commands() -> Array:
 	if rs_ui == null:
 		rs_ui = RealismUI.new(self)
 	rs_ui.commands(add)   # REALISM SCORE (ROADMAP I16)
+	if tcat_ui == null:
+		tcat_ui = ThrowCatchUI.new(self)
+	tcat_ui.commands(add)   # THROW AND CATCH (ROADMAP I27)
 	if if_ui == null:
 		if_ui = ImpactFramesUI.new(self)
 	if_ui.commands(add)   # IMPACT FRAMES (ROADMAP I13)
@@ -13012,9 +13053,15 @@ func _commands() -> Array:
 	if sh_ui == null:
 		sh_ui = SellHitUI.new(self)
 	sh_ui.commands(add)   # SELL THE HIT (ROADMAP I21)
+	if bk_ui == null:
+		bk_ui = BreakfallUI.new(self)
+	bk_ui.commands(add)   # BREAKFALL CHECK (ROADMAP I25)
 	if rh_ui == null:
 		rh_ui = FightRhythmUI.new(self)
 	rh_ui.commands(add)   # FIGHT RHYTHM (ROADMAP I19)
+	if pc_ui == null:
+		pc_ui = PrecogUI.new(self)
+	pc_ui.commands(add)   # PRECOG CHECK (ROADMAP I31)
 	if cm_ui == null:
 		cm_ui = ComboUI.new(self)
 	cm_ui.commands(add)   # MY COMBOS (ROADMAP I23)

@@ -150,13 +150,38 @@ func _init() -> void:
 	for q in bl["poly"]:
 		hull_px = hull_px.expand(floor_px(Vector3(q.x, 0, q.y)))
 	ok(m.bal.on and bl["state"] != "air" and inside and Rect2(Vector2.ZERO, vp).has_point(px) and hull_px.grow(2.0).has_point(px) and (bl["foot"] as Vector2).distance_to(Vector2(c1.x, c1.z)) < 0.001, "5 the marker's disc is drawn under the COM's ground point (px %.0f,%.0f), inside the hull's pixels and the view" % [px.x, px.y])
-	m.clean = true   # the picture: no panels
-	m._turn_to(0.0, -30.0, 3.4, Vector3(0, 0.55, 0.05), false)
+	# the picture: no panels (clean hides them), the camera in FRONT of the whole body, the support polygon on the floor in view
+	m.clean = true
+	var free := Rect2(Vector2(0, m.TOP_H), Vector2(vp.x, vp.y - m.TOP_H - m.bottom_h - m.LINE_H - 6))
+	var pts: Array = [(m.B.P["head"] as Vector3) + Vector3(0, 0.14, 0)]
+	for f in ["foot_l", "foot_r"]:
+		pts.append(Vector3((m.B.P[f] as Vector3).x, 0.0, (m.B.P[f] as Vector3).z))
+	for q in bl["poly"]:
+		pts.append(Vector3(q.x, 0.0, q.y))
+	var lo := Vector3(1e9, 1e9, 1e9)
+	var hi := -lo
+	for q in pts:
+		lo = lo.min(q)
+		hi = hi.max(q)
+	var d_fit := 1.5
+	while d_fit < 12.0:
+		m._turn_to(0.0, -8.0, d_fit, (lo + hi) * 0.5, false)
+		var all_in := true
+		for q in pts:
+			all_in = all_in and not m.cam.is_position_behind(q) and free.grow(-30.0).has_point(m.cam.unproject_position(q))
+		if all_in:
+			break
+		d_fit += 0.1
 	await idle(6)
 	m._refresh()
 	await idle(3)
+	var placed := true
+	for q in pts:
+		placed = placed and free.has_point(m.cam.unproject_position(q))
+	print("picture: camera %.1f m from the body's centre, head top at %s, feet at %s / %s, free view %s" % [d_fit, m.cam.unproject_position(pts[0]), m.cam.unproject_position(pts[1]), m.cam.unproject_position(pts[2]), free])
+	ok(placed and m.cam.global_position.distance_to((lo + hi) * 0.5) > 1.2, "5b PLACEMENT: head top, both feet and every support-polygon corner are inside the free viewport, camera outside the body (%.1f m)" % d_fit)
 	DirAccess.make_dir_recursive_absolute("C:/Users/Nick/.claude/jobs/9afc22db/tmp")
-	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i24.png")
+	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i24b.png")
 	m.clean = false
 	m._turn_to(0.0, -22.0, 3.2, Vector3(0, 0.85, 0), false)
 	await idle(3)

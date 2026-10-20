@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 16 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 21 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -311,27 +311,31 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   hit must overlap the target on screen (the stunt "cheat angle"); a real contact gets a SAFETY flag. Suggest the
   camera move or strike offset that sells it, one click each.
   Merged: SOLD/NOT SOLD/UNSAFE through the shot camera, camera turn and aim offset fixes; i21 PASS. Camera turn moves the whole shot.
-- [ ] I22. Choreograph to the song: from a loaded track's beats and loudness, lay out a fight skeleton (exchange
+- [x] I22. Choreograph to the song: from a loaded track's beats and loudness, lay out a fight skeleton (exchange
   density follows the music's energy, pauses on quiet bars, the biggest hit on the loudest downbeat), built from
   Nick's own cards/moves (I17 style, Next poses) and checked by the timing coach and Check; a plan to edit, not a
   finished fight.
   Step 1 merged: RMS energy per beat -> strikes per bar, biggest on loudest downbeat, contacts on beats, new scene on Accept; i22 test OK. Open: Check finds 13 must-fix on the result (bat tip 40-45 m/s: the coach's fist range used for a bat), fighters overlap (ARMS hit 6.7 cm), quiet bars have no circling step, planning 18 s.
   Step 2 merged: tip speed timed per weapon (Check 0 must-fix), defender placed by the distance keeper (no overlap), circling steps on quiet bars, plan 1.4 s; i22 OK. Open: screenshot doesn't frame both fighters.
+  Screenshot fixed (both fighters framed, placement bar 7a); clean mode now hides panels.
 - [x] I23. My combos: mine Nick's own scenes for card sequences he repeats (same strike kinds in the same order, timing
   within his style spread), name them ("jab-cross-hook, your 0.15/0.2 rhythm") and offer them as one-click phrases.
   Merged: 5 combos mined from Nick's 11 clips, one-click insert with his poses and mean timing, cache by mtime; i23 PASS. Sub-phrases listed beside their longer combo; style-spread filter not applied.
-- [ ] I24. Drag the balance: drag the centre-of-mass marker and the body rebalances to put it there (hips, knees,
+- [x] I24. Drag the balance: drag the centre-of-mass marker and the body rebalances to put it there (hips, knees,
   ankles, trunk lean solved within limits, feet planted); red when it leaves the support.
   Merged: COM drag with feet planted (8 cm shift: pelvis 9.6 cm, no lean), edge clamp red/amber, drag down bends knees; i24 PASS. Open: screenshot camera clips the body; ankle-limited case (lean-heavy) untested.
+  Screenshot fixed (whole body + support polygon, placement bar 5b).
 - [ ] I25. Breakfall check: on a fall or knockdown, judge the landing like a stunt coach (chin tucked, head clear
   of the floor, impact spread over arm slap/shoulder/hip, no straight-arm catch) with one-click fixes.
+  Step 1 merged (partial): fall finder, 4 verdicts, tuck/slap/roll fixes, panel + badge; i25 2 FAIL: on a FORWARD fall a chin tuck drives the face into the floor (forward falls need the head turned aside, as in mae ukemi; tuck is for backward falls), and the slap lands harder (6.3 m/s).
 - [ ] I26. Learn from my edits: record which suggestions Nick accepts, undoes or edits after (Next poses, Check
   fixes, timing coach, counters) and how he changes them; rank future suggestions by what he keeps, and say why
   ("you usually shorten this wind-up by 0.05 s").
   Step 1 merged: journal (accept / undo 30 s / edit 2 min), kept-rate sort and learned delta on timing coach + next pose ('you usually shorten this by 0.05 s - applied'), counters sorted, lessons panel + reset; i26 OK. Open: Check and realism fixes not hooked; counter/rhythm edits not watched.
-- [ ] I27. Throw and catch: release a prop from one hand and the app solves the ballistic arc (gravity, spin from
+- [x] I27. Throw and catch: release a prop from one hand and the app solves the ballistic arc (gravity, spin from
   the release angular velocity), the flight time, and places the catching hand on the arc at the catch frame;
   red if the catch needs an impossible reach or a hand speed outside human range.
+  Merged: ballistic arc from the release hand (0.0001 mm vs analytic), catch by IK within reach and 12 m/s (heuristic), red out-of-reach / too-fast; i27 PASS. Spin flown about vertical only; another fighter's hand only via the API.
 - [ ] I28. Safety sheet: one pre-shoot report for the stunt crew over the whole scene: every real contact and its
   speed, weapon tips passing within 15 cm of a face, falls and their breakfall verdicts, unsold/unsafe strikes, with
   time, fighters and a thumbnail per item; exported as a printable HTML page next to the scene.
@@ -341,3 +345,15 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I30. Weapon weight: from the prop's mass and length (inertia about the grip), compute the wrist/shoulder torque
   each swing needs vs human strength, and flag swings that feel weightless (no wind-up, no follow-through, instant
   stops) with fixes that scale anticipation and overshoot to the weapon's inertia.
+- [x] I31. Precog check: every defender reaction (block, slip, step-back, flinch) must start at least a human
+  reaction time after the attacker's move becomes readable; flag "precog" answers (too early: reads as rehearsed) and
+  "late" answers (the hit should have landed), with one-click retimes.
+  Merged: PRECOG (< 0.2 s after the wind-up is readable, Woodworth & Schlosberg) and LATE flags with retimes; i31 PASS. Onset read from card times, not limb speed; step-backs/flinches not matched.
+- [ ] I32. My camera: learn Nick's shot habits from his own shot cameras (lens, height, distance in body heights,
+  angle to the line of action, cut timing relative to contacts) and frame new shots his way; say which habit it used.
+- [ ] I33. Reaction direction: a struck body must move away along the blow's impulse (and turn about the right
+  axis given where it was hit); flag reactions that go the wrong way or start before contact, with a fix from
+  the hit physics.
+- [ ] I34. Fatigue: track each fighter's mechanical work over the fight (joint power from the force view, summed);
+  as it builds, real fighters slow, drop their guard and breathe; flag a fighter still at full speed late in a long
+  exchange and offer a "tire him" pass (slower moves, lower guard, longer recovers, scaled to work done).

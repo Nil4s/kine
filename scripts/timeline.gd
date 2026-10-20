@@ -50,8 +50,10 @@ const PH_H := 12.0
 var ph: Array = []
 signal ph_picked(i: int)   # I1: a red block clicked: its index in main's spans (-1 = a note)
 var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "ok", "why"}] the contacts: fitted on a beat, or flagged
+var bk: Array = []        # BREAKFALL CHECK (I25; breakfall_ui.gd): [{"t0", "t1", "cls": ok / warn / fail, "txt"}] a badge per fall
 var sh: Array = []        # SELL THE HIT (I21; sell_hit_ui.gd): [{"t0", "t1", "cls": sold / notsold / unsafe}] a badge per strike
 var rh: Array = []        # FIGHT RHYTHM (I19; fight_rhythm_ui.gd): [{t, who, type: strike / block / step / feint}] one tick per action
+var pc: Array = []        # PRECOG CHECK (I31; precog_ui.gd): [{t (the reaction's start), status: precog / late / both / ok}] a badge each
 var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
 var cg: Array = []        # CHOREOGRAPH (I22): the music energy per beat [{"t0","t1","e" 0..1}], a strip along the cards
@@ -793,6 +795,19 @@ func _draw_sh(font: Font, y0: float) -> void:
 			draw_string(font, Vector2(x0 + 3.0, y0 + oy + 9.5), "UNSAFE" if cls == "unsafe" else ("NOT SOLD" if cls == "notsold" else "SOLD"), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
 
+## BREAKFALL CHECK (I25): a badge per fall under the strike badges: blue = every rule reads OK, amber = a warning, red = a failed rule
+func _draw_bk(font: Font, y0: float) -> void:
+	var oy := (13.0 if not dk.is_empty() else 0.0) + (13.0 if not sh.is_empty() else 0.0)
+	for b in bk:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
+		var cls := String(b["cls"])
+		var col := Tok.c("fail") if cls == "fail" else (Tok.c("warn") if cls == "warn" else Tok.c("heading"))
+		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(col, 0.92))
+		if x1 - x0 > 40.0:
+			draw_string(font, Vector2(x0 + 3.0, y0 + oy + 9.5), String(b.get("txt", "FALL")), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
+
+
 ## FIGHT RHYTHM (I19): ticks over the cards, one per action coloured by fighter (fighter 1 amber, fighter 2 blue; more cycle):
 ## tall = strike, short = block or step, hollow = feint; a red band behind the flagged stretches
 func _draw_rh(y0: float, y1: float) -> void:
@@ -812,6 +827,20 @@ func _draw_rh(y0: float, y1: float) -> void:
 			draw_rect(r, col, false, 1.5)
 		else:
 			draw_rect(r, col)
+
+
+## PRECOG CHECK (I31): a badge at each flagged reaction's start: PRECOG (moved before it could have seen it), LATE (arrives after the hit)
+func _draw_pc(font: Font, y0: float) -> void:
+	for b in pc:
+		var st := String(b["status"])
+		if st == "ok":
+			continue
+		var txt := "PRECOG" if st == "precog" else ("LATE" if st == "late" else "PRECOG+LATE")
+		var x := x_of(float(b["t"]))
+		var w := 6.2 * txt.length() + 6.0
+		var r := Rect2(x, y0 - 1.0, w, 11.0)
+		draw_rect(r, Color(Tok.c("fail") if st != "late" else Tok.c("warn"), 0.95))
+		draw_string(font, r.position + Vector2(3.0, 8.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
 
 func _draw() -> void:
@@ -892,7 +921,9 @@ func _draw() -> void:
 	_draw_fit(font, y0, h)
 	_draw_dk(font, y0)
 	_draw_sh(font, y0)
+	_draw_bk(font, y0)
 	_draw_rh(y0, y0 + h)
+	_draw_pc(font, y0)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
 	_draw_clips(S, font)
