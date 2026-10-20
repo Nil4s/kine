@@ -13521,6 +13521,8 @@ func _commands() -> Array:
 	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
+	add.call("Deliver: export the posed body as OBJ", "", _export_obj, "obj wavefront mesh export deliver posed body weapon blender maya zbrush static model", false, "the body as it stands at the playhead (its skinned meshes in world space) and the held weapon, as user://exports/<scene>.obj + .mtl: metres, Y up, v / vt / vn / f with one group per part (a static mesh, not an animation)")
+	add.call("Stage: import an OBJ as a prop", "", _obj_import_ask, "obj wavefront mesh import stage prop model static blender maya set furniture", false, "pick a Wavefront .obj (quads and n-gons are triangulated, a missing normal is computed): it is copied into your library and stands on the floor next to the body as a prop. One Ctrl+Z takes it back")
 	add.call("Export animation (.bvh)", "", _export_bvh, "bvh mocap motion capture blender maya motionbuilder cascadeur retarget export", false, "the scene as exports/<scene>.bvh, the motion-capture format every retargeter reads (the weapons as joints in their hands)")
 	add.call("Save a version", "", _save_version, "snapshot history keep copy", false, "the scene as it is now kept as a version (Versions, in the scene row, goes back to one)")
 	add.call("New empty scene", "", _new_asked, "", false, "start a new scene with no cards (the open one stays on disk)")
@@ -18990,9 +18992,9 @@ func _import_ask() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
-	fd.filters = PackedStringArray(["*.glb, *.gltf ; glTF models"])
+	fd.filters = PackedStringArray(["*.glb, *.gltf, *.obj ; models"])
 	fd.use_native_dialog = true
-	fd.title = "Import a model (.glb)"
+	fd.title = "Import a model (.glb or .obj)"
 	fd.file_selected.connect(func(p): _import_file(p); fd.queue_free())
 	fd.canceled.connect(fd.queue_free)
 	add_child(fd)
@@ -19022,6 +19024,124 @@ func _import_file(path: String) -> Dictionary:
 	_prop_add(kind)
 	_say("imported %s as a prop: it is in the set and in Add prop%s" % [path.get_file(), "" if String(r["scale_note"]) == "" else ". " + String(r["scale_note"])])
 	return a
+
+
+## ---- OBJ (ROADMAP_400 N01; scripts/obj_io.gd). Export: the visible body pieces SKINNED at the current pose (SkinPick's world
+## positions, the ones the pick uses) plus the held weapon's solids, each as a group; written under user://exports only.
+func _obj_posed_meshes() -> Array:
+	var out := []
+	var binds := _obj_binds()
+	for j in Body.ORDER:
+		if not pieces.has(j):
+			continue
+		var mi := pieces[j] as MeshInstance3D
+		if mi == null or mi.mesh == null or not mi.visible:
+			continue
+		var col := _obj_color(mi)
+		for si in mi.mesh.get_surface_count():
+			var arr: Array = mi.mesh.surface_get_arrays(si)
+			var rest: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var pos := _obj_skinned(mi, arr, binds)   # this piece's own vertices (a corrective shape gives it a mesh of its own), skinned as drawn
+			var ix = arr[Mesh.ARRAY_INDEX]
+			var idx: PackedInt32Array = ix if ix != null else PackedInt32Array(range(rest.size()))
+			var uv0 = arr[Mesh.ARRAY_TEX_UV]
+			var remap := {}   # a piece shares the whole body's vertex array: keep only the vertices its triangles use
+			var cp := PackedVector3Array()
+			var cu := PackedVector2Array()
+			var ci := PackedInt32Array()
+			for i in idx:
+				if not remap.has(i):
+					remap[i] = cp.size()
+					cp.append(pos[i])
+					if uv0 != null:
+						cu.append((uv0 as PackedVector2Array)[i])
+				ci.append(remap[i])
+			var ar := []
+			ar.resize(Mesh.ARRAY_MAX)
+			ar[Mesh.ARRAY_VERTEX] = cp
+			ar[Mesh.ARRAY_NORMAL] = ObjIO.compute_normals(cp, ci)
+			if uv0 != null:
+				ar[Mesh.ARRAY_TEX_UV] = cu
+			ar[Mesh.ARRAY_INDEX] = ci
+			var am := ArrayMesh.new()
+			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, ar)
+			out.append({"name": String(j) + ("" if mi.mesh.get_surface_count() == 1 else "_%d" % si), "mesh": am, "xf": Transform3D.IDENTITY, "color": col})
+	var ws := []
+	if B.wep_on:
+		ws += [["weapon_handle", bat_handle], ["weapon_barrel", bat_barrel], ["weapon_knob", bat_knob]]
+	if B.wep2_on:
+		ws += [["weapon2_handle", d2_handle], ["weapon2_blade", d2_blade]]
+	for w in ws:
+		var wm := w[1] as MeshInstance3D
+		if wm != null and wm.visible and wm.mesh != null:
+			out.append({"name": w[0], "mesh": wm.mesh, "xf": wm.global_transform if wm.is_inside_tree() else wm.transform, "color": _obj_color(wm)})
+	return out
+
+
+## each skin bind's matrix: the skeleton's world transform * its bone's pose in the skeleton * the bind pose
+func _obj_binds() -> Array:
+	var out := []
+	if skp.skin == null:
+		return out
+	for k in skp.skin.get_bind_count():
+		out.append(skel.global_transform * skel.get_bone_global_pose(skp.bind_bone[k]) * skp.skin.get_bind_pose(k))
+	return out
+
+
+## the vertices of a mesh surface (arrays) in world space as the skin draws them; unskinned: where the node stands
+func _obj_skinned(mi: MeshInstance3D, arr: Array, binds: Array) -> PackedVector3Array:
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var out := PackedVector3Array()
+	out.resize(v.size())
+	var bo = arr[Mesh.ARRAY_BONES]
+	var w = arr[Mesh.ARRAY_WEIGHTS]
+	if binds.is_empty() or bo == null or w == null:
+		var gx := mi.global_transform if mi.is_inside_tree() else mi.transform
+		for i in v.size():
+			out[i] = gx * v[i]
+		return out
+	var per: int = (bo as PackedInt32Array).size() / maxi(v.size(), 1)
+	for i in v.size():
+		var p := Vector3.ZERO
+		for q in per:
+			var x: float = (w as PackedFloat32Array)[i * per + q]
+			if x > 0.0:
+				p += ((binds[(bo as PackedInt32Array)[i * per + q]] as Transform3D) * v[i]) * x
+		out[i] = p
+	return out
+
+
+func _obj_color(mi: MeshInstance3D) -> Color:
+	var m: Material = mi.material_override if mi.material_override != null else (mi.get_active_material(0) if mi.mesh != null and mi.mesh.get_surface_count() > 0 else null)
+	if m is StandardMaterial3D:
+		var c: Color = (m as StandardMaterial3D).albedo_color
+		return Color(c.r, c.g, c.b)
+	return ObjIO.DEFAULT_COLOR
+
+
+func _export_obj(dir := "user://exports") -> String:
+	var ms := _obj_posed_meshes()
+	var nm := safe_file(S.name if S.name != "" else "scene")
+	var path := "%s/%s.obj" % [dir, nm]
+	var r := ObjIO.export(ms, path)
+	if not r["ok"]:
+		_say_plain("NOT DONE: the .obj could not be written (%s). Check that the folder is writable, then run Deliver again" % r["why"])
+		return ""
+	_say_plain("exported %s.obj: %d triangles in %d groups at the playhead (metres, Y up)%s. A static mesh: for the animation use Export animation" % [nm, r["tris"], ms.size(), ", the held weapon included" if B.wep_on else ""])
+	return path
+
+
+func _obj_import_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.obj ; Wavefront OBJ"])
+	fd.use_native_dialog = true
+	fd.title = "Import an OBJ as a prop"
+	fd.file_selected.connect(func(p): _import_file(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
 
 
 ## ---- WEIGHT PAINT (ROADMAP 72): the skin of the body, painted. One stroke = one undo step; the weights are saved on release

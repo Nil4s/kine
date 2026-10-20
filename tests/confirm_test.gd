@@ -51,6 +51,7 @@ func _init() -> void:
 		"_recover": "removes the Later slot once its work is open again (the autosave holds it from there)",
 		"_export_game": "exports/<scene>.json and .cs (a separate export folder; never a scene, pose or data file)",
 		"_export_glb": "exports/<scene>.glb (the export folder; never a scene, pose or data file)",
+		"_export_obj": "user://exports/<scene>.obj + .mtl (ObjIO.export; the app's own export folder, never a scene, pose or data file)",
 		"_export_bvh": "exports/<scene>.bvh (the export folder; never a scene, pose or data file)",
 		"_export_usd": "exports/<scene>.usda (the export folder; never a scene, pose or data file)",
 		"_render_shots": "exports/shots/<scene>_<stamp>/ frames and <scene>.mp4 (the export folder, a new folder per run; never a scene, pose or data file)",

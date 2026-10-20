@@ -78,6 +78,14 @@ static func inspect(path: String) -> Dictionary:
 	if not FileAccess.file_exists(abs):
 		return _bad("That file could not be found. Check that it was not moved or deleted, then try again. Nothing was changed.")
 	var ext := path.get_extension().to_lower()
+	if ext == "obj":   # Wavefront OBJ (scripts/obj_io.gd): the same answer, in metres
+		if not FileAccess.file_exists(abs):
+			return _bad("That file could not be found. Check that it was not moved or deleted, then try again. Nothing was changed.")
+		var ob := ObjIO.bounds(path)
+		if ob.size == Vector3.ZERO:
+			return _bad("That .obj holds no faces, or all its points sit in one place, so there is nothing to show. Export it again from your 3D program with the mesh selected. Nothing was changed.")
+		var ov := scale_verdict(maxf(ob.size.x, maxf(ob.size.y, ob.size.z)))
+		return {"ok": true, "kind": "object", "bones": 0, "aabb": ob, "size": ob.size, "scale_note": ov[0], "scale_factor": ov[1], "why": ""}
 	if ext != "glb" and ext != "gltf":
 		return _bad("Only .glb and .gltf models can be imported, this one is \"%s\". Export it from your 3D program as glTF binary (.glb) and try again. Nothing was changed." % path.get_extension())
 	var f := FileAccess.open(abs, FileAccess.READ)
@@ -128,7 +136,7 @@ static func library_list(root := DEFAULT_ROOT) -> Dictionary:
 		var files := Array(DirAccess.get_files_at(_abs(dir)))
 		files.sort()
 		for fn in files:
-			if String(fn).get_extension().to_lower() != "glb":
+			if not String(fn).get_extension().to_lower() in ["glb", "obj"]:
 				continue
 			var base := String(fn).get_basename()
 			var lic := "%s/%s.licence.txt" % [dir, base]
@@ -163,10 +171,11 @@ static func accept(path: String, as_kind: String, root := DEFAULT_ROOT, licence 
 	var base := _clean(path.get_file().get_basename())
 	var name := base
 	var n := 2
-	while FileAccess.file_exists(_abs("%s/%s.glb" % [dir, name])) or FileAccess.file_exists(_abs("%s/%s.licence.txt" % [dir, name])):
+	var fext := "obj" if path.get_extension().to_lower() == "obj" else "glb"
+	while FileAccess.file_exists(_abs("%s/%s.glb" % [dir, name])) or FileAccess.file_exists(_abs("%s/%s.obj" % [dir, name])) or FileAccess.file_exists(_abs("%s/%s.licence.txt" % [dir, name])):
 		name = "%s_%d" % [base, n]
 		n += 1
-	var dest := "%s/%s.glb" % [dir, name]
+	var dest := "%s/%s.%s" % [dir, name, fext]
 	var bytes := FileAccess.get_file_as_bytes(_abs(path))
 	var w := FileAccess.open(_abs(dest), FileAccess.WRITE)
 	if w == null:
