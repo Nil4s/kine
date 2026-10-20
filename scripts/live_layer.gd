@@ -100,3 +100,38 @@ static func _worst_grip(S: Scene, B: Body, bar := INF) -> Array:
 		t += 0.05
 	B.set_state(keep)
 	return [n, worst, off]
+
+
+## A TWO-HANDED WEAPON: after apply(), the free arm's keys are re-made so its hand holds the weapon the way the cards hold
+## it (Scene.regrip_layered with the WHOLE arm searched, not playback's quick fit: the acted weapon hand can roll the
+## weapon further than the wrist turns, Nick 10-20 "it flips to the opposite side"). At each key time held in two hands
+## the free arm's 4 joints get the searched angles; elsewhere the webcam's stay. Returns the number of times re-made
+static func bake_grip(S: Scene, B: Body, keys: Dictionary) -> int:
+	var keep := B.state()
+	var arms := {"_l": ["clavicle_l", "upperarm_l", "lowerarm_l", "hand_l"], "_r": ["clavicle_r", "upperarm_r", "lowerarm_r", "hand_r"]}
+	var ref := ""
+	for j in keys:
+		ref = j
+		break
+	if ref == "":
+		return 0
+	var n := 0
+	for i in (keys[ref] as Array).size():
+		var t := float(keys[ref][i]["t"])
+		S.apply_true(B, t)
+		if not (B.wep_on and B.grip and B.wep_hand != ""):
+			continue
+		var o := "hand_l" if B.wep_hand == "hand_r" else "hand_r"
+		var sd: String = o.right(2)
+		var wf := B.fast
+		B.fast = false
+		S.regrip_layered(B, t, true)   # from the card's arm, whatever the webcam's keys did with it
+		B.fast = wf
+		for j in arms[sd]:
+			if keys.has(j) and i < (keys[j] as Array).size():
+				keys[j][i]["v"] = B.ang[j]
+		n += 1
+	B.set_state(keep)
+	if n > 0:
+		apply(S, keys)
+	return n

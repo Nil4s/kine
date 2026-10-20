@@ -663,6 +663,43 @@ func _ease(u: float, lv: int, kind := "", bias := 0.0) -> float:
 	return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
 
 
+## A TWO-HANDED WEAPON UNDER ARM PART KEYS (a live layer): the weapon goes where the acted weapon hand takes it, and the
+## second hand holds it the way the CARDS hold it at t (Nick 10-20: putting the wrist back on the spot alone left the
+## left hand turned 86-146 deg round the staff and the elbow out to the other side). From the card blend at t: the free
+## arm's angles (its elbow side) and the hand's place and turn in the weapon's frame; on the acted weapon: that arm as the
+## start, then the hand fitted to the same place and turn (fit_hand: reach, then the wrist; the whole arm when not in
+## playback). A fitted Lock-both-hands grip (grip2) keeps its own place and turn; it starts from the card's arm too.
+## arm_from_cards false: the free arm starts where it is (its own part keys: LiveLayer.bake_grip already searched the
+## whole arm at every key, so playback only touches it up).
+## Returns the free wrist's miss (m), 0 when nothing is held in two hands.
+func regrip_layered(B: Body, t: float, arm_from_cards := true) -> float:
+	if not (B.wep_on and B.grip and B.wep_hand != ""):
+		return 0.0
+	var o := "hand_l" if B.wep_hand == "hand_r" else "hand_r"
+	var sd := o.right(2)
+	var arm := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, o]
+	var acted := B.state()
+	put(B, _sample_cards(t), free_limits)
+	var x0 := B.wep_xform()
+	var q0i: Quaternion = (x0[1] as Quaternion).inverse()
+	var lp: Vector3 = q0i * ((B.P[o] as Vector3) - (x0[0] as Vector3))
+	var lr: Quaternion = (q0i * (B.G[o] as Quaternion)).normalized()
+	var card_arm := {}
+	for j in arm:
+		card_arm[j] = B.ang[j]
+	B.set_state(acted)
+	if arm_from_cards:
+		for j in arm:
+			B.ang[j] = card_arm[j]
+	B.fk()
+	if not B.grip2.is_empty() and String(B.grip2.get("hand", "")) == o:
+		return B.apply_grip()
+	var x := B.wep_xform()
+	var q: Quaternion = x[1]
+	var want := (q * lr).normalized()
+	return B.fit_hand(o, (x[0] as Vector3) + q * lp, (q * lr).normalized())
+
+
 ## put a sampled pose into the body (angles, hips, bat)
 static func put(B: Body, s: Dictionary, free := false) -> void:
 	if s.is_empty():
@@ -910,11 +947,8 @@ func _apply(B: Body, t: float) -> void:
 			return
 	put(B, sample(t), free_limits)
 	if not part_keys.is_empty() and B.grip and PartKeys.moves_arm(part_keys):
-		# part keys on an arm (a live layer): the second hand back onto the weapon, as a layer does (add_layer); where the
-		# elbow-only solve leaves it over 2 cm off, the whole arm (clavicle to hand) is searched for the spot
-		if B.apply_grip() > 0.02 and B.grip2.is_empty():
-			var o := "hand_l" if B.wep_hand == "hand_r" else "hand_r"
-			B.fit_hand(o, B.grip_wrist(), B.G[o])
+		# part keys on an arm (a live layer): the second hand back on the weapon AS THE CLIP HOLDS IT
+		regrip_layered(B, t, not part_keys.has("upperarm_l" if B.wep_hand == "hand_r" else "upperarm_r"))
 	if on_floor:
 		_ground(B)
 	if pin:

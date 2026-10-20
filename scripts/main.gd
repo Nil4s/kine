@@ -18703,6 +18703,7 @@ func _live_layer_stop() -> Dictionary:
 	_step_hint = "Live layer"
 	_push_undo()
 	var n := LiveLayer.apply(S, keys)
+	var regripped := LiveLayer.bake_grip(S, B, keys) if PartKeys.moves_arm(keys) else 0
 	_rebuild_cards()
 	_ps().apply(B, playhead)
 	_refresh()
@@ -18754,7 +18755,7 @@ func _live_poll(_dt: float) -> void:
 		for j in mine:
 			B.ang[j] = mine[j]
 		B.fk()
-		B.apply_grip()   # a two-handed weapon: the second hand stays on it while you act the arms
+		S.regrip_layered(B, playhead)   # a two-handed weapon: the second hand stays on it as the clip holds it while you act
 		if playhead >= S.length():
 			_live_layer_stop()
 	if not got.is_empty():

@@ -170,6 +170,8 @@ func _init() -> void:
 			base_g = maxf(base_g, Bb.grip_miss())
 		tb += 0.05
 	print("       bo_spin unlayered: worst second-hand miss %.1f cm" % (base_g * 100.0))
+	var Bg0 := Body.new()
+	Bg0.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var take := []
 	for i in int(minf(W.length(), Bo.length()) * FPS):
 		W.apply(Bs, i / FPS)
@@ -177,9 +179,14 @@ func _init() -> void:
 		for j in Body.BODY:
 			ang[j] = Bs.ang[j]
 		take.append({"t": 1000.0 + i / FPS, "ang": ang})
-	LiveLayer.apply(Bo, LiveLayer.keys_from_take(take, LiveLayer.GROUPS["arms"], 0.0, Bo.length()))
+	var bo_keys := LiveLayer.keys_from_take(take, LiveLayer.GROUPS["arms"], 0.0, Bo.length())
+	LiveLayer.apply(Bo, bo_keys)
+	var t_bake := Time.get_ticks_msec()
+	var n_re := LiveLayer.bake_grip(Bo, Bg0, bo_keys)
+	print("       bake_grip: %d key times re-made in %d ms" % [n_re, Time.get_ticks_msec() - t_bake])
 	var Bg := Body.new()
 	Bg.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var worst_turn := 0.0
 	var worst_g := 0.0
 	var worst_off := 0.0
 	var n_g := 0
@@ -192,6 +199,14 @@ func _init() -> void:
 			worst_g = maxf(worst_g, Bg.grip_miss())
 			if Bg.grip_miss() <= base_g + 0.002:
 				n_in += 1
+			var o6 := "hand_l" if Bg.wep_hand == "hand_r" else "hand_r"
+			var pk6: Dictionary = Bo.part_keys
+			Bo.part_keys = {}
+			Bo.apply_true(Bb, tt)
+			Bo.part_keys = pk6
+			var r0 := ((Bb.wep_xform()[1] as Quaternion).inverse() * (Bb.G[o6] as Quaternion)).normalized()
+			var r1 := ((Bg.wep_xform()[1] as Quaternion).inverse() * (Bg.G[o6] as Quaternion)).normalized()
+			worst_turn = maxf(worst_turn, rad_to_deg(r0.angle_to(r1)))
 		tt += 0.05
 	var Bw := Body.new()
 	Bw.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -219,6 +234,23 @@ func _init() -> void:
 	m._refresh()
 	await idle(4)
 	root.get_texture().get_image().save_png(SHOT.replace(".png", "_bo.png"))
+	# close on the hands: the clip as it was, then the layered take, same camera
+	var hands_at: Vector3 = (m.B.P["hand_l"] + m.B.P["hand_r"]) * 0.5
+	for pass_i in 2:
+		var pk_s: Dictionary = Bo.part_keys
+		if pass_i == 0:
+			Bo.part_keys = {}
+		m._ps().apply(m.B, 2.15)
+		m.yaw = 15.0
+		m.pitch = -5.0
+		m.dist = 1.6
+		m.target = hands_at
+		m._cam()
+		m._refresh()
+		await idle(4)
+		root.get_texture().get_image().save_png(SHOT.replace(".png", "_hands_%s.png" % ["clip", "layered"][pass_i]))
+		Bo.part_keys = pk_s
+	ok(worst_turn < 25.0, "(6) the second hand wraps the staff as the clip holds it: its turn round the staff within %.0f deg of the clip's (bar 25; before the fix 86-146, flipped)" % worst_turn)
 	var rep := LiveLayer.grip_report(Bo, Bg)
 	ok(int(rep["n"]) == n_g and int(rep["off"]) == n_g - n_in, "(6) the app counts the times the second hand cannot reach (%d of %d)" % [rep["off"], rep["n"]])
 
