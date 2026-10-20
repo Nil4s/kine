@@ -36,11 +36,22 @@ KPJ = {"spine": 700, "neck": 60, "head": 40, "clavicle": 200, "upperarm": 260, "
 # kine_mjcf's TAU_MAX gives every spine hinge 150 N m, but in this body spine_01 alone carries the whole torso (about 150 N m static
 # in a ready stance), so a 150 N m cap fails a standing person. Maximal isometric trunk extension of healthy men is of the order of
 # 200-300 N m (typical lumbar dynamometry values, not re-fetched here), so the lumbar joints get 250 / 200 / 150 for the judge.
+# the ankle: a walk's push-off asks 1.6 N m/kg (Winter 1995; 120 N m for 75 kg) and healthy men's maximal plantarflexion is about 2-3 N m/kg
+# (dynamometry, typical values, not re-fetched), so the judge's ankle limit is 190 N m, not the 130 N m of the stance controller.
+TAU_FOOT = 190.0
 TAU_SPINE = {"spine_01": 250.0, "spine_02": 200.0, "spine_03": 150.0}
 ASSIST_FRAC = 0.60     # horizontal residual force cap, x body weight
 ASSIST_UP = 0.60       # vertical residual force cap, x body weight
 ASSIST_TORQUE = 300.0
+SOFT = 4.0   # the wrench is MEASURED against its cap but may exceed it up to SOFT x cap, so one saturated moment does not throw the tracker off the clip (the red criterion reads the share of the cap, see spans_of)
+KROOT, CROOT = 12000.0, 1500.0   # the residual is a stiff spring on the root so it shows the force the motion needs (a soft one drifts instead)
 CONTACT_H = 0.015     # m: a foot corner under this is on the floor
+STANCE_H = 0.02       # m: a true stance foot is within 2 cm of the floor ...
+STANCE_V = 0.3        # m/s: ... and the clip's own foot moves slower than this
+SAT_FRAC = 0.8        # the pelvis residual wrench above this share of its cap ...
+SAT_S = 0.1           # ... for longer than this (s) = the motion needs an outside force
+TAU_S = 0.05          # a joint over its limit for longer than this (s); a single touch-down step is shorter
+FRICTION = 1.0        # shoe-floor friction coefficient the ground force may use
 SLIDE_BAR = 2.0       # cm
 TAU_BAR = 1.0         # x the human limit
 FLIGHT_CLEAR = 0.03   # m: both feet higher than this = flight
@@ -58,6 +69,29 @@ def hull_margin(pts, p):
     eq = hl.equations   # n.x + c <= 0 inside
     return float(-np.max(eq[:, :2] @ p + eq[:, 2]))
 
+
+
+def clamp_hull(pts, p):
+    """the point of the convex hull of pts (xz) nearest to p"""
+    pts = np.asarray(pts)
+    if len(pts) < 3:
+        return pts[np.argmin(np.linalg.norm(pts - p, axis=1))]
+    try:
+        hl = ConvexHull(pts)
+    except Exception:
+        return pts[np.argmin(np.linalg.norm(pts - p, axis=1))]
+    if np.all(hl.equations[:, :2] @ p + hl.equations[:, 2] <= 0):
+        return p
+    best, bd = p, 1e9
+    v = pts[hl.vertices]
+    for i in range(len(v)):
+        a, b = v[i], v[(i + 1) % len(v)]
+        t = np.clip(np.dot(p - a, b - a) / max(np.dot(b - a, b - a), 1e-12), 0, 1)
+        q = a + t * (b - a)
+        dd = np.linalg.norm(q - p)
+        if dd < bd:
+            best, bd = q, dd
+    return best
 
 
 def newton_rot(fun, x0, iters=6, h=1e-4):
@@ -95,7 +129,7 @@ class Judge:
         self.dadr = np.array([m.jnt_dofadr[i] for i in self.hid])
         self.madr = np.array([m.dof_Madr[i] for i in self.dadr])
         self.kp = np.array([KPJ[KM._key(h[1])] for h in self.hinges], float)
-        self.tmax = np.array([TAU_SPINE.get(h[1], h[3]) for h in self.hinges], float)
+        self.tmax = np.array([TAU_SPINE.get(h[1], TAU_FOOT if h[1].startswith('foot') else h[3]) for h in self.hinges], float)
         m.actuator_ctrlrange[:, 0] = -self.tmax
         m.actuator_ctrlrange[:, 1] = self.tmax
         self.lo = m.jnt_range[self.hid, 0]
@@ -184,29 +218,38 @@ class Judge:
         return np.array(clear), np.array(comy), np.array(comxz)
 
     def clip_slide(self):
-        """foot skate of the CLIP itself: horizontal travel (cm) of a foot origin since it landed, while its lowest corner is under
-        CONTACT_H (the classic foot-skate measure; the sim's own slide is affected by the PD fighting a touch-down)"""
+        """the CLIP's own feet: per frame and foot the stance flag (lowest corner within STANCE_H of the clip floor AND the foot origin
+        moving slower than STANCE_V m/s) and the horizontal travel (cm) of that foot since its stance began = the AUTHORED slide (skate)
+        the clip carries by itself. Returns (stance[n][2] bool, travel[n][2] cm)"""
         d, m = self.d, self.m
-        out, start = [], {"l": None, "r": None}
+        n = len(self.fr)
         fl = self.floor0
-        for k in range(len(self.fr)):
+        low, pos = np.zeros((n, 2)), np.zeros((n, 2, 2))
+        for k in range(n):
             th, p, q = self.tg[k]
             d.qpos[self.qadr] = th
             d.qpos[0:3] = p
             d.qpos[3:7] = q
             mujoco.mj_forward(m, d)
-            sl = 0.0
-            for s_ in "lr":
-                low = self.corners(s_)[:, 1].min() - fl
-                pos = d.xpos[self.bid["foot_" + s_]][[0, 2]].copy()
-                if low < CONTACT_H:
-                    if start[s_] is None:
-                        start[s_] = pos
-                    sl = max(sl, 100.0 * float(np.linalg.norm(pos - start[s_])))
+            for i, s_ in enumerate("lr"):
+                low[k, i] = self.corners(s_)[:, 1].min() - fl
+                pos[k, i] = d.xpos[self.bid["foot_" + s_]][[0, 2]]
+        spd = np.zeros((n, 2))
+        for k in range(n):
+            a, b = max(k - 1, 0), min(k + 1, n - 1)
+            spd[k] = np.linalg.norm(pos[b] - pos[a], axis=1) * self.fps / max(b - a, 1)
+        stance = (low < STANCE_H) & (spd < STANCE_V)
+        trav = np.zeros((n, 2))
+        for i in range(2):
+            st = None
+            for k in range(n):
+                if stance[k, i]:
+                    if st is None:
+                        st = pos[k, i].copy()
+                    trav[k, i] = 100.0 * float(np.linalg.norm(pos[k, i] - st))
                 else:
-                    start[s_] = None
-            out.append(sl)
-        return out
+                    st = None
+        return stance, trav
 
     def flights(self):
         """runs of frames with both feet off the floor whose CoM does not fall like a free body -> impossible"""
@@ -238,6 +281,100 @@ class Judge:
                 bad.append((a, b, float(acc)))
         return bad, floor
 
+    def inverse(self):
+        """INVERSE DYNAMICS of the clip itself (no tracker, so no tracker error). Per frame: qpos from the clip (floor at y = 0),
+        qvel / qacc from smoothed finite differences (mj_differentiatePos), contacts switched off. (1) mj_inverse with nothing applied
+        gives the total outside wrench the motion needs (root generalised force). (2) the floor supplies what it can: that force is put
+        at the centre of pressure solved from the moment balance, the CoP is CLAMPED to the support polygon (feet within CONTACT_H)
+        and the horizontal part to the friction cone (mu = 1). (3) mj_inverse again with that ground force applied through the feet:
+        the hinge entries are the joint torques, the root entries are what the floor could NOT give = the outside force / torque
+        (the 'pelvis residual wrench'). A flight that does not fall like a free body leaves the body weight there.
+        Returns (ratio[n], joint[n], force_frac[n], torque_frac[n]) (fractions of the caps)."""
+        m, d = self.m, self.d
+        n = len(self.fr)
+        dt = 1.0 / self.fps
+        shift = -self.floor0
+        Q = np.zeros((n, m.nq))
+        for k in range(n):
+            th, p, q = self.tg[k]
+            Q[k, self.qadr] = th
+            Q[k, 0:3] = p + np.array([0, shift, 0])
+            Q[k, 3:7] = q
+        V = np.zeros((n, m.nv))
+        for k in range(n):
+            a, b = max(k - 1, 0), min(k + 1, n - 1)
+            if b > a:
+                mujoco.mj_differentiatePos(m, V[k], (b - a) * dt, Q[a], Q[b])
+        box = lambda X: np.array([np.pad(X, ((2, 2), (0, 0)), mode="edge")[i:i + 5].mean(axis=0) for i in range(n)])
+        Vs = box(V)
+        A = np.zeros_like(Vs)
+        for k in range(n):
+            a, b = max(k - 1, 0), min(k + 1, n - 1)
+            if b > a:
+                A[k] = (Vs[b] - Vs[a]) / ((b - a) * dt)
+        A = box(A)
+        names = [h[0] for h in self.hinges]
+        ratio, joint, ff, tf, fr = np.zeros(n), [""] * n, np.zeros(n), np.zeros(n), np.zeros(n)
+        capf = ASSIST_FRAC * self.M * G
+        W = self.M * G
+        old = m.opt.disableflags
+        m.opt.disableflags = old | int(mujoco.mjtDisableBit.mjDSBL_CONTACT)
+        foot_bid = {s_: self.bid["foot_" + s_] for s_ in "lr"}
+        try:
+            for k in range(n):
+                d.qpos[:] = Q[k]
+                d.qvel[:] = Vs[k]
+                d.qacc[:] = A[k]
+                d.xfrc_applied[:] = 0
+                d.qfrc_applied[:] = 0
+                mujoco.mj_inverse(m, d)
+                w0 = d.qfrc_inverse[0:6].copy()
+                F = w0[0:3].copy()
+                P = d.qpos[0:3].copy()
+                Mom = d.xmat[self.pel].reshape(3, 3) @ w0[3:6]   # moment of the outside force about the pelvis origin, world frame
+                polys = {}
+                for s_ in "lr":
+                    c = self.corners(s_)
+                    low = c[:, 1].min()
+                    if low < CONTACT_H:
+                        polys[s_] = c[c[:, 1] < CONTACT_H + 0.02][:, [0, 2]]
+                if polys and F[1] > 0.1 * W:
+                    ry = 0.0 - P[1]
+                    cz = P[2] + (ry * F[2] - Mom[0]) / F[1]
+                    cx = P[0] + (Mom[2] + ry * F[0]) / F[1]
+                    cop = np.array([cx, cz])
+                    fh = np.array([F[0], F[2]])
+                    nh = float(np.linalg.norm(fh))
+                    fr[k] = nh / F[1]
+                    if nh > FRICTION * F[1]:
+                        fh *= FRICTION * F[1] / nh
+                    Fg = np.array([fh[0], F[1], fh[1]])
+                    cents = {s_: polys[s_].mean(axis=0) for s_ in polys}
+                    if len(polys) == 2:
+                        dl = np.linalg.norm(cop - cents["l"])
+                        dr = np.linalg.norm(cop - cents["r"])
+                        wt = {"l": dr / max(dl + dr, 1e-6), "r": dl / max(dl + dr, 1e-6)}
+                    else:
+                        wt = {s_: 1.0 for s_ in polys}
+                    for s_, pts in polys.items():
+                        cc = clamp_hull(pts, cop)
+                        pnt = np.array([cc[0], 0.0, cc[1]])
+                        tmp = np.zeros(m.nv)
+                        mujoco.mj_applyFT(m, d, Fg * wt[s_], np.zeros(3), pnt, foot_bid[s_], tmp)
+                        d.qfrc_applied[:] += tmp
+                net = d.qfrc_inverse - d.qfrc_applied   # qfrc_inverse is the TOTAL external generalised force; the ground force is part of it
+                tau = net[self.dadr]
+                rr = np.abs(tau) / self.tmax
+                i = int(np.argmax(rr))
+                ratio[k], joint[k] = float(rr[i]), names[i]
+                w = net[0:6]
+                ff[k] = float(np.linalg.norm(w[0:3]) / capf)
+                tf[k] = float(np.linalg.norm(w[3:6]) / ASSIST_TORQUE)
+        finally:
+            m.opt.disableflags = old
+            d.qfrc_applied[:] = 0
+        return ratio, joint, ff, tf, fr
+
     # ------------------------------------------------------------ the run
     def run(self, progress=None):
         m, d = self.m, self.d
@@ -245,7 +382,8 @@ class Judge:
         dt = self.dt
         sub = max(1, int(round(1.0 / self.fps / dt)))
         bad_flights, floor = self.flights()
-        kslide = self.clip_slide()
+        stance, ktrav = self.clip_slide()
+        self.id_ratio, self.id_joint, self.id_ff, self.id_tf, self.id_fr = self.inverse()
         air = np.zeros(n, bool)
         air_acc = {}
         for a, b, acc in bad_flights:
@@ -302,13 +440,15 @@ class Judge:
             else:
                 marg = xmarg = None
             # slide: per foot, horizontal travel since it landed
+            # (red = the SIMULATED foot travels more than the clip's own foot did over the same true stance; the clip's own travel is
+            # the separate yellow "authored slide")
             slide = 0.0
-            for s in "lr":
+            for i, s in enumerate("lr"):
                 pos = d.xpos[self.bid["foot_" + s]][[0, 2]].copy()
-                if con[s]:
+                if con[s] and stance[k, i]:
                     if prev_contact[s] is None:
                         prev_contact[s] = pos
-                    slide = max(slide, 100.0 * float(np.linalg.norm(pos - prev_contact[s])))
+                    slide = max(slide, 100.0 * float(np.linalg.norm(pos - prev_contact[s])) - ktrav[k, i])
                 else:
                     prev_contact[s] = None
             err_deg = float(np.degrees(np.sqrt(np.mean((d.qpos[self.qadr] - tgt) ** 2))))
@@ -317,9 +457,9 @@ class Judge:
             neck = d.xpos[self.bid["neck_01"]] - d.xpos[self.pel]
             tilt = float(np.degrees(np.arccos(np.clip(neck[1] / max(np.linalg.norm(neck), 1e-6), -1, 1))))
             fell = bool(d.qpos[1] < 0.55 * p_t[1] or tilt > 55.0)
-            rows.append({"t": float(self.fr[k]["t"]), "err_deg": err_deg, "err_root_cm": err_root, "slide_cm": kslide[k], "sim_slide_cm": slide,
+            rows.append({"t": float(self.fr[k]["t"]), "err_deg": err_deg, "err_root_cm": err_root, "slide_cm": max(slide, 0.0), "authored_slide_cm": float(ktrav[k].max()), "sim_slide_cm": slide,
                          "margin_cm": None if marg is None else 100.0 * marg, "xmargin_cm": None if xmarg is None else 100.0 * xmarg,
-                         "ratio": ratio, "ratio_peak": rat_max, "ratio_joint": rat_j, "assist_N": asum / sub, "fell": fell,
+                         "ratio": float(self.id_ratio[k]), "ratio_pd": ratio, "ratio_peak": rat_max, "ratio_joint": self.id_joint[k], "assist_frac": float(max(self.id_ff[k], self.id_tf[k])), "assist_force": float(self.id_ff[k]), "assist_torque": float(self.id_tf[k]), "assist_sim": asum / sub, "friction": float(self.id_fr[k]), "fell": fell,
                          "airborne": bool(air[k]), "contact": [int(con["l"]), int(con["r"])], "tilt": tilt})
             ratio_raw.append(ratio)
             phys.append(self.read_physical())
@@ -329,12 +469,8 @@ class Judge:
                 prev_contact = {"l": None, "r": None}
             if progress and (k % 4 == 0 or k == n - 1):
                 progress((k + 1) / n)
-        # median of 5 frames: a one-frame spike at touch-down is a PD transient, not a demand
-        rr = np.array(ratio_raw)
-        pad = np.pad(rr, 2, mode="edge")
-        sm = np.array([np.median(pad[i:i + 5]) for i in range(len(rr))])
         for k, r in enumerate(rows):
-            r["ratio_s"] = float(sm[k])
+            r["ratio_s"] = r["ratio"]
         return rows, phys, air_acc
 
     def _substep(self, tg, vt, pt, qt, want_ratio):
@@ -352,17 +488,18 @@ class Judge:
         # residual wrench on the pelvis: horizontal force + orientation torque, both capped
         p = d.qpos[0:3]
         v = d.qvel[0:3]
-        fx = 3000.0 * (pt[0] - p[0]) - 450.0 * v[0]
-        fz = 3000.0 * (pt[2] - p[2]) - 450.0 * v[2]
-        fy = 3000.0 * (pt[1] - p[1]) - 450.0 * v[1]
+        fx = KROOT * (pt[0] - p[0]) - CROOT * v[0]
+        fz = KROOT * (pt[2] - p[2]) - CROOT * v[2]
+        fy = KROOT * (pt[1] - p[1]) - CROOT * v[1]
         nf = (fx * fx + fz * fz) ** 0.5
         cap = ASSIST_FRAC * self.M * G
-        if nf > cap:
-            fx *= cap / nf
-            fz *= cap / nf
+        if nf > cap * SOFT:
+            fx *= cap * SOFT / nf
+            fz *= cap * SOFT / nf
         capy = max(ASSIST_UP * self.M * G, 1e-9)
-        fy_c = max(-capy, min(capy, fy))
-        nf = nf / cap   # > 1 = the residual is saturated: the body cannot do this on its own
+        fy_c = max(-capy * SOFT, min(capy * SOFT, fy))
+        nfh = nf / cap
+        nfv = abs(fy) / capy
         # orientation error as a rotation vector (world frame): qe = qd * conj(qc)
         w1, x1, y1, z1 = qt
         w2, x2, y2, z2 = d.qpos[3], -d.qpos[4], -d.qpos[5], -d.qpos[6]
@@ -375,16 +512,17 @@ class Judge:
         # the free joint's angular velocity is in the body frame: rotate to world
         Rm = d.xmat[self.pel].reshape(3, 3)
         wv = Rm @ d.qvel[3:6]
-        Tq = 900.0 * rv - 90.0 * wv
+        Tq = 3000.0 * rv - 200.0 * wv
         nt = float(np.linalg.norm(Tq))
-        if nt > ASSIST_TORQUE:
-            Tq *= ASSIST_TORQUE / nt
+        nft = nt / ASSIST_TORQUE
+        if nt > ASSIST_TORQUE * SOFT:
+            Tq *= ASSIST_TORQUE * SOFT / nt
         d.xfrc_applied[self.pel, 0] = fx
         d.xfrc_applied[self.pel, 1] = fy_c
         d.xfrc_applied[self.pel, 2] = fz
         d.xfrc_applied[self.pel, 3:] = Tq
         mujoco.mj_step(m, d)
-        return (ratio, jmax), nf
+        return (ratio, jmax), max(nfh, nfv, nft)   # the share of the residual wrench cap in use; >= 1 = saturated
 
     def refresh_gains(self):
         mujoco.mj_fullM(self.m, self.d, self._dense)
@@ -420,34 +558,37 @@ class Judge:
         return [float(np.degrees(v)) for v in x]
 
 
-def spans_of(rows, air_acc, fps, tau_bar=TAU_BAR, slide_bar=SLIDE_BAR):
-    """red frames -> merged spans with the reason"""
-    n = len(rows)
-    why = [[] for _ in range(n)]
-    for k, r in enumerate(rows):
-        if r["airborne"]:
-            acc, dur = air_acc[k]
-            why[k].append(("airborne", "airborne: both feet off the floor for %.2f s but the body does not fall like a free body (CoM accel %.1f m/s2, gravity is -9.8): a jump needs momentum" % (dur, acc)))
-        if r["fell"]:
-            why[k].append(("balance", "balance: the body falls (trunk %.0f deg off vertical, pelvis %.0f cm from the clip): it cannot stay up on its feet" % (r["tilt"], r["err_root_cm"])))
-        elif r["margin_cm"] is not None and r["margin_cm"] < -1.0:
-            why[k].append(("balance", "balance: the centre of mass is %.1f cm outside the feet" % -r["margin_cm"]))
-        if r["ratio_s"] > tau_bar:
-            why[k].append(("torque", "torque: %s needs %.1fx the human limit" % (r["ratio_joint"].replace("_", " "), r["ratio_s"])))
-        if r["slide_cm"] > slide_bar:
-            why[k].append(("slide", "foot slide: a planted foot slides %.1f cm" % r["slide_cm"]))
-    red = [bool(w) for w in why]
+def run_flags(flag, fps, min_s):
+    """True where the flag holds for a run longer than min_s seconds (a shorter blip is a touch-down transient, not a demand)"""
+    n = len(flag)
+    out = [False] * n
+    k = 0
+    while k < n:
+        if flag[k]:
+            j = k
+            while j + 1 < n and flag[j + 1]:
+                j += 1
+            if (j - k + 1) / fps > min_s:
+                for q in range(k, j + 1):
+                    out[q] = True
+            k = j + 1
+        else:
+            k += 1
+    return out
+
+
+def merge(mask, why, rows, fps, order, gap=1):
+    n = len(mask)
     spans, k = [], 0
     while k < n:
-        if red[k]:
+        if mask[k]:
             j = k
-            while j + 1 < n and (red[j + 1] or (j + 2 < n and red[j + 2])):
+            while j + 1 < n and (mask[j + 1] or (j + 1 + gap < n and any(mask[j + 1:j + 2 + gap]))):
                 j += 1
             kinds = {}
             for q in range(k, j + 1):
                 for kind, txt in why[q]:
                     kinds.setdefault(kind, []).append(txt)
-            order = ["airborne", "balance", "torque", "slide"]
             kind = next(c for c in order if c in kinds)
             txt = kinds[kind][len(kinds[kind]) // 2]
             others = [c for c in order if c in kinds and c != kind]
@@ -456,18 +597,49 @@ def spans_of(rows, air_acc, fps, tau_bar=TAU_BAR, slide_bar=SLIDE_BAR):
             k = j + 1
         else:
             k += 1
-    return spans, red
+    return spans
+
+
+def spans_of(rows, air_acc, fps, tau_bar=TAU_BAR, slide_bar=SLIDE_BAR):
+    """red frames -> merged spans with the reason. RED = what a human body cannot do: (airborne) both feet off the floor without
+    falling like a free body; (fell) the tracked body falls; (force) the pelvis residual wrench (the outside force the tracking
+    needs) above SAT_FRAC of its cap for SAT_S; (torque) a joint above tau_bar x its limit for TAU_S; (slide) a TRUE stance foot slides
+    more than slide_bar cm beyond what the clip itself does. The CoM outside the stance foot is NOT red (normal gait has it 12-17 cm
+    outside, Winter 1995). The clip's own foot skate is a yellow note ('authored slide'), not red."""
+    n = len(rows)
+    why = [[] for _ in range(n)]
+    sat = run_flags([r["assist_frac"] > SAT_FRAC for r in rows], fps, SAT_S)
+    tau = run_flags([r["ratio_s"] > tau_bar for r in rows], fps, TAU_S)
+    sld = run_flags([r["friction"] > FRICTION and r["contact"] != [0, 0] for r in rows], fps, TAU_S)
+    for k, r in enumerate(rows):
+        if r["airborne"]:
+            acc, dur = air_acc[k]
+            why[k].append(("airborne", "airborne: both feet off the floor for %.2f s but the body does not fall like a free body (CoM accel %.1f m/s2, gravity is -9.8): a jump needs momentum" % (dur, acc)))
+        if r["fell"]:
+            why[k].append(("balance", "balance: the body falls (trunk %.0f deg off vertical, pelvis %.0f cm from the clip)" % (r["tilt"], r["err_root_cm"])))
+        if sat[k]:
+            why[k].append(("force", "outside force: the pelvis needs %.0f %% of the push a helper may give, so the motion needs an outside force" % (100 * r["assist_frac"])))
+        if tau[k]:
+            why[k].append(("torque", "torque: %s needs %.1fx the human limit" % (r["ratio_joint"].replace("_", " "), r["ratio_s"])))
+        if sld[k]:
+            why[k].append(("slide", "foot slide: the planted foot would slip (it needs %.0f %% of the horizontal force the floor can give)" % (100 * r["friction"] / FRICTION)))
+    red = [bool(w) for w in why]
+    order = ["airborne", "balance", "force", "torque", "slide"]
+    spans = merge(red, why, rows, fps, order)
+    yw = [[("authored_slide", "authored slide: the clip's own planted foot skates %.1f cm" % r["authored_slide_cm"])] if r["authored_slide_cm"] > slide_bar else [] for r in rows]
+    notes = merge([bool(w) for w in yw], yw, rows, fps, ["authored_slide"])
+    return spans, red, notes
 
 
 def judge(clip, progress=None):
     J = Judge(clip)
     rows, phys, air_acc = J.run(progress)
-    spans, red = spans_of(rows, air_acc, J.fps)
+    spans, red, notes = spans_of(rows, air_acc, J.fps)
     n = len(rows)
     summary = {"frames": n, "red_frames": int(sum(red)), "red_pct": 100.0 * sum(red) / max(n, 1), "falls": int(sum(r["fell"] for r in rows)),
-               "mean_err_deg": float(np.mean([r["err_deg"] for r in rows])), "max_slide_cm": float(max(r["slide_cm"] for r in rows)),
+               "mean_err_deg": float(np.mean([r["err_deg"] for r in rows])), "max_slide_cm": float(max(r["slide_cm"] for r in rows)), "max_friction": float(max(r["friction"] for r in rows)), "authored_slide_cm": float(max(r["authored_slide_cm"] for r in rows)), "max_assist": float(max(r["assist_frac"] for r in rows)),
                "max_ratio": float(max(r["ratio_s"] for r in rows)), "min_margin_cm": float(min([r["margin_cm"] for r in rows if r["margin_cm"] is not None] or [0.0]))}
-    return {"fps": J.fps, "frames": rows, "red": red, "spans": spans, "summary": summary, "physical": phys}
+    return {"fps": J.fps, "frames": rows, "red": red, "spans": spans, "notes": notes, "summary": summary, "physical": phys}
 
 
 def main():
