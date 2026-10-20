@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 5 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 11 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -271,10 +271,11 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   co-variation learned from Nick's library and scenes, principal directions), so pulling a fist back also turns the
   hips and shifts the weight like he would; hold Alt for the old one-joint drag.
 
-- [ ] I13. Impact frames from the hit: at each contact Kine adds hit-stop (a hold of 2-6 frames), a camera shake and a
+- [x] I13. Impact frames from the hit: at each contact Kine adds hit-stop (a hold of 2-6 frames), a camera shake and a
   squash on the struck part, all scaled by the measured impulse (I2), so a light jab barely pauses and a bat to the head
   freezes; one undo step, previewed first.
   Step 1 merged: hit-stop 2/4/6 frames for J 5/15/27 N s, shake 1.0/2.6/4.2 cm, squash 0.97-0.90, later keys shift exactly, one undo. Open: the impact tags aren't saved (Remove fails after reload), the squash is too subtle to see, the preview has no shake.
+  Step 2 merged: impact tags saved in the scene ('impact' record, Remove works after reload), squash 0.92->0.85 along the blow with volume kept, camera shake in Preview; i13 PASS.
 - [x] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
   and joint curves over the animated clip, card by card, with "you were 0.08 s faster on the strike, your hip turned
   20 deg more" lines.
@@ -300,9 +301,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   (same interval three times, same side four times) and dead air, and suggests a pause, a feint or a change of side
   at each flag, one click each. Choreography help read from the clip itself.
   Merged: tempo map, monotony/dead air/rush flags, timeline strip, pause/change side/feint stub; i19 PASS.
-- [ ] I20. Feint maker: turn a strike card into a feint + real strike (the feint sells the same line, stops at 40-60%
+- [x] I20. Feint maker: turn a strike card into a feint + real strike (the feint sells the same line, stops at 40-60%
   of the reach, the real one comes from the other side), timed so the defender's reaction (I3's counters) bites on
   the feint; physically checked by the timing coach and Check.
+  Merged: feint stops at 50.3% of reach, tip within 1.87 cm of the original line, real strike OTHER SIDE / LOW lands, counter moved onto the feint, recover card after a mirrored strike; i20 PASS. Ghosts overlap on the attacker.
 - [x] I21. Sell the hit: for the shot camera, check each strike as the camera sees it. A miss that should read as a
   hit must overlap the target on screen (the stunt "cheat angle"); a real contact gets a SAFETY flag. Suggest the
   camera move or strike offset that sells it, one click each.
@@ -311,9 +313,20 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   density follows the music's energy, pauses on quiet bars, the biggest hit on the loudest downbeat), built from
   Nick's own cards/moves (I17 style, Next poses) and checked by the timing coach and Check; a plan to edit, not a
   finished fight.
-- [ ] I23. My combos: mine Nick's own scenes for card sequences he repeats (same strike kinds in the same order, timing
+  Step 1 merged: RMS energy per beat -> strikes per bar, biggest on loudest downbeat, contacts on beats, new scene on Accept; i22 test OK. Open: Check finds 13 must-fix on the result (bat tip 40-45 m/s: the coach's fist range used for a bat), fighters overlap (ARMS hit 6.7 cm), quiet bars have no circling step, planning 18 s.
+- [x] I23. My combos: mine Nick's own scenes for card sequences he repeats (same strike kinds in the same order, timing
   within his style spread), name them ("jab-cross-hook, your 0.15/0.2 rhythm") and offer them as one-click phrases.
+  Merged: 5 combos mined from Nick's 11 clips, one-click insert with his poses and mean timing, cache by mtime; i23 PASS. Sub-phrases listed beside their longer combo; style-spread filter not applied.
 - [ ] I24. Drag the balance: drag the centre-of-mass marker and the body rebalances to put it there (hips, knees,
   ankles, trunk lean solved within limits, feet planted); red when it leaves the support.
 - [ ] I25. Breakfall check: on a fall or knockdown, judge the landing like a stunt coach (chin tucked, head clear
   of the floor, impact spread over arm slap/shoulder/hip, no straight-arm catch) with one-click fixes.
+- [ ] I26. Learn from my edits: record which suggestions Nick accepts, undoes or edits after (Next poses, Check
+  fixes, timing coach, counters) and how he changes them; rank future suggestions by what he keeps, and say why
+  ("you usually shorten this wind-up by 0.05 s").
+- [ ] I27. Throw and catch: release a prop from one hand and the app solves the ballistic arc (gravity, spin from
+  the release angular velocity), the flight time, and places the catching hand on the arc at the catch frame;
+  red if the catch needs an impossible reach or a hand speed outside human range.
+- [ ] I28. Safety sheet: one pre-shoot report for the stunt crew over the whole scene: every real contact and its
+  speed, weapon tips passing within 15 cm of a face, falls and their breakfall verdicts, unsold/unsafe strikes, with
+  time, fighters and a thumbnail per item; exported as a printable HTML page next to the scene.
