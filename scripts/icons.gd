@@ -157,6 +157,7 @@ const DRAW := {
 	"momentum": [["disc", Vector2(5, 12), 2.8], ["seg", Vector2(9, 12), Vector2(17, 12), 2.0], ["seg", Vector2(14, 8), Vector2(17, 12), 2.0], ["seg", Vector2(14, 16), Vector2(17, 12), 2.0], ["seg", Vector2(21, 4), Vector2(21, 20), 2.4]],
 	"spin": [["ring", Vector2(12, 12), 4, 2.0], ["seg", Vector2(3, 20), Vector2(9, 8), 1.6], ["seg", Vector2(9, 8), Vector2(15, 8), 1.6], ["seg", Vector2(15, 8), Vector2(21, 20), 1.6]],
 	"fatigue": [["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(5, 20), Vector2(5, 15), 3.0], ["seg", Vector2(10, 20), Vector2(10, 11), 3.0], ["seg", Vector2(15, 20), Vector2(15, 7), 3.0], ["seg", Vector2(20, 20), Vector2(20, 3), 3.0]],
+	"autoopp": [["ring", Vector2(7, 8), 3.2, 1.8], ["seg", Vector2(7, 11), Vector2(7, 19), 2.0], ["seg", Vector2(17, 5), Vector2(17, 19), 2.0], ["seg", Vector2(11, 12), Vector2(20, 12), 1.6]],
 	"precog": [["ring", Vector2(12, 12), 8, 2.0], ["seg", Vector2(12, 12), Vector2(12, 6), 2.0], ["seg", Vector2(12, 12), Vector2(16, 14), 2.0]],
 	"keeper": [["seg", Vector2(3, 12), Vector2(21, 12), 2.0], ["seg", Vector2(3, 7), Vector2(3, 17), 2.0], ["seg", Vector2(21, 7), Vector2(21, 17), 2.0], ["disc", Vector2(12, 12), 2.6]],
 	"breakfall": [["seg", Vector2(3, 5), Vector2(11, 13), 2.0], ["seg", Vector2(11, 13), Vector2(21, 13), 2.0], ["disc", Vector2(3, 4), 2.6], ["seg", Vector2(3, 20), Vector2(21, 20), 1.6]],
