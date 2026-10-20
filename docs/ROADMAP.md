@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 6 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 9 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -271,10 +271,11 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   co-variation learned from Nick's library and scenes, principal directions), so pulling a fist back also turns the
   hips and shifts the weight like he would; hold Alt for the old one-joint drag.
 
-- [ ] I13. Impact frames from the hit: at each contact Kine adds hit-stop (a hold of 2-6 frames), a camera shake and a
+- [x] I13. Impact frames from the hit: at each contact Kine adds hit-stop (a hold of 2-6 frames), a camera shake and a
   squash on the struck part, all scaled by the measured impulse (I2), so a light jab barely pauses and a bat to the head
   freezes; one undo step, previewed first.
   Step 1 merged: hit-stop 2/4/6 frames for J 5/15/27 N s, shake 1.0/2.6/4.2 cm, squash 0.97-0.90, later keys shift exactly, one undo. Open: the impact tags aren't saved (Remove fails after reload), the squash is too subtle to see, the preview has no shake.
+  Step 2 merged: impact tags saved in the scene ('impact' record, Remove works after reload), squash 0.92->0.85 along the blow with volume kept, camera shake in Preview; i13 PASS.
 - [x] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
   and joint curves over the animated clip, card by card, with "you were 0.08 s faster on the strike, your hip turned
   20 deg more" lines.
