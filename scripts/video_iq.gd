@@ -903,6 +903,8 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	progress = 0.7
 	if stance_fix and not fitted.is_empty():
 		stance_height(B, fitted, plants_of(K["list"], fps, K["heeloff"]), fps)
+	if toe_fix and not fitted.is_empty():
+		settle_toes(B, fitted)
 	var dense := VideoImport.to_scene(B, fitted, fps, 1, scene_name)
 	var sk := smart_cards(B, dense, fitted)
 	if cancelled():
@@ -975,3 +977,52 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 		if c.has("yaw"):
 			c["yaw"] = -float(c["yaw"])
 	return out
+
+
+## THE TOES FROM CONTACT, NOT FROM THE TRACKER (Nick 10-20: "feet bend when they are supposed to be straight"). The fit
+## aims each toe joint at MediaPipe's toe-tip landmark (31 / 32), a point a few cm from the toe joint that the tracker
+## places to within a few cm: on the Heian kata, Mixkit 49611 and 49630 imports the toes stood bent 10-30 deg (median)
+## with the foot FLAT on the floor and 30-58 deg in the air, often at the joint's 60 deg limit. A real foot: toes straight
+## when it stands flat or swings; bent up only at push-off, the heel lifted and the toes still on the floor (the windlass
+## of gait). So per frame, per foot: straight, unless straight puts the toe tip through the floor (push-off: the heel up,
+## the toe joint on the floor); then the least bend that keeps the tip on the floor. The floor is the frame's lowest sole
+## point before the change, and the hips are not moved (a re-ground moved the root and broke the plants: 93 -> 54 %).
+static var toe_fix := true
+static func settle_toes(B: Body, fitted: Array) -> void:
+	var keep := B.state()
+	for fr in fitted:
+		for j in fr["ang"]:
+			B.ang[j] = fr["ang"][j]
+		B.offset = fr["offset"]
+		B.fk()
+		var fl := minf(_low(B, "_l"), _low(B, "_r"))   # the floor: the lowest sole point (ground put it at the floor)
+		for sd in ["_l", "_r"]:
+			var b: String = "ball" + sd
+			B.ang[b] = Vector3.ZERO
+			B.fk_sub(b)
+			if float((B.E[b] as Vector3).y) < fl - 0.002:   # straight, the tip would go through the floor: bent just enough
+				var r: Vector2 = B.lim[b]["bend"]
+				var best := 0.0
+				var k := 1.0
+				var found := false
+				while k <= maxf(absf(r.x), absf(r.y)) and not found:
+					for sg in [1.0, -1.0]:
+						var v: float = sg * k
+						if v < r.x or v > r.y:
+							continue
+						B.ang[b] = Vector3(v, 0.0, 0.0)
+						B.fk_sub(b)
+						if float((B.E[b] as Vector3).y) >= fl - 0.002:
+							best = v
+							found = true
+							break
+					k += 1.0
+				B.ang[b] = Vector3(best, 0.0, 0.0)
+				B.fk_sub(b)
+			fr["ang"][b] = B.ang[b]
+	B.set_state(keep)
+
+
+## the lowest point of a foot (heel's back, toe joint, toe tip)
+static func _low(B: Body, sd: String) -> float:
+	return minf(float(VideoImport.heel(B, sd).y), minf(float((B.P["ball" + sd] as Vector3).y), float((B.E["ball" + sd] as Vector3).y)))
