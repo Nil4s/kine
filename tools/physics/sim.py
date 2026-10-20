@@ -28,13 +28,14 @@ POSE_SCENE = os.path.join(KM.ROOT, "scenes", "hit_react.json")
 
 
 class Humanoid:
-    def __init__(self, delay_s=0.1, stepping=True, pose_card=0, scene=POSE_SCENE):
+    def __init__(self, delay_s=0.1, stepping=True, pose_card=0, scene=POSE_SCENE, xml=None):
         import json
-        xml, self.hinges, self.info, self.K = KM.build()
+        xml0, self.hinges, self.info, self.K = KM.build()
+        xml = xml or xml0     # swing.py passes a two-character model; the defender is body 1 and comes first
         self.m = mujoco.MjModel.from_xml_string(xml)
         self.d = mujoco.MjData(self.m)
         m = self.m
-        self.M = float(m.body_mass.sum())
+        self.M = float(m.body_subtreemass[1])
         self.dt = m.opt.timestep
         self.hid = [m.joint(h[0]).id for h in self.hinges]
         self.qadr = np.array([m.jnt_qposadr[i] for i in self.hid])
@@ -296,7 +297,7 @@ class Humanoid:
             Gf = np.array([Fh[0] * shares[s], self.M * G * shares[s], Fh[1] * shares[s]])
             tau[cols] += -(jp[:, self.dadr[cols]].T @ Gf)
         tau = np.clip(tau, -self.tmax, self.tmax)
-        d.ctrl[:] = tau
+        d.ctrl[:len(tau)] = tau
 
     def _new_ref(self):
         """after a step the reference point is the middle of the new base of support at the COM's pre-step offset"""
