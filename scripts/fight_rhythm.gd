@@ -364,3 +364,14 @@ static func fix(scenes: Array, names: Array, flag: Dictionary, xfs := []) -> Dic
 		"feint":
 			return _feint_fix(scenes, names, f, xfs)
 	return {"ok": false, "why": "unknown suggestion"}
+
+
+## the pose u of the way from a to b (Scene.blend on the flat joints), as a pose dictionary (tests/i31 builds wind-ups with it)
+static func blend_pose(a: Dictionary, b: Dictionary, u: float) -> Dictionary:
+	var B := DistanceKeeper.new_body()
+	B.from_dict(a)
+	var mid := Scene.new().blend(Moves._flat(a), Moves._flat(b), u)
+	for j in mid["ang"]:
+		B.ang[j] = mid["ang"][j]
+	B.offset = mid["offset"]
+	return B.to_dict()
