@@ -17,6 +17,7 @@
 ##      Two or more of them OK, one WARN, none (knees, or the tailbone, alone) FAIL. Number: the regions.
 ##  (d) SPEED: the downward speed of the first part, over the 0.1 s before the touch: up to SPEED_OK = 2.5 m/s OK, up to SPEED_BAD = 4 WARN,
 ##      above FAIL.
+## GROUND TRUTH (gt3): SPEED_OK/TUCK_MIN/ELBOW_OK stay UNVERIFIED heuristics (no opened source gives them). Measured in the breakfall literature (Hashimoto et al., via Lockhart 2022 review, PMC8998643): in ushiro ukemi 'the impact of the hand, forearm and trunk hitting the tatami' cuts the head's vertical velocity before the head is lowest; for mae ukemi no numbers were found (Kim & Kim 2002, Korean J Sport Biomech, not opened). The forward-fall ARM rule above requires hand/forearm first contact.
 ## FIXES (each builds a changed COPY of the landing cards; the caller previews and accepts):
 ##  tuck(): neck_01 and head are flexed to CHIN_NECK + CHIN_HEAD = 26 + 14 = 40 deg (inside their 35 / 25 deg stops) in every landing card.
 ##  slap(): the catching arm is searched (grid over the upper arm's three angles, the elbow set to SLAP_ELBOW = 55 deg) so the arm lies
@@ -212,6 +213,11 @@ static func _fall(fr: Array, jm: int, c: int) -> Dictionary:
 	if side != "":
 		el = float(fr[c]["el"][side])
 		cb = "fail" if el < ELBOW_BAD else ("warn" if el < ELBOW_OK else "ok")
+	elif dir == "forward":
+		# GROUND TRUTH (gt3): in a forward fall the outstretched hands and forearms meet the floor first and take the load before the trunk
+		# (laboratory forward falls of young adults: more than 90 % land on one or both hands; judo mae ukemi lands on the forearms, Kodokan).
+		# So a forward fall whose first contact is the trunk (collar bone, chest, knees...) has no arm catch at all: FAIL.
+		cb = "fail"
 	# (c) spread
 	var regs := {}
 	for j in range(c, mini(n, c + int(SPREAD_WIN * HZ) + 1)):

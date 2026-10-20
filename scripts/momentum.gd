@@ -9,6 +9,7 @@
 ## the gyroscopic term is dropped; stated). Velocities are backward differences of the 60 Hz samples, so a stop that happens in one frame
 ## reads as one frame.
 ##
+## YAW_ARM / TILT_ARM (0.25 / 0.15 m) are UNVERIFIED geometry guesses (friction couple, centre-of-pressure range): no measurement opened.
 ## THE JUDGE is Newton: the net outside force on the body is dP/dt, and a standing person gets it from the floor only: horizontal ground
 ## force F_h = dP_h/dt, outside torque about the COM tau = dH/dt. The floor can give a bounded amount:
 ##   BRACE_BW  = 1.5 body weights of horizontal force with the feet where they are (no step). HEURISTIC OF MINE, from the range the
@@ -29,8 +30,9 @@ class_name Momentum
 extends RefCounted
 
 const HZ := 60.0
-const BRACE_BW := 1.5
-const STEP_BW := 3.0
+# GROUND TRUTH (gt3): measured peak horizontal braking GRF of the penultimate foot contact in 90 and 180 deg cuts of 27 male multi-sport players: 1.60 and 1.54 BW (Dos'Santos et al., table in Harper et al. 2022 Sports Med 52:2321 review, PMC9474351); braking-step horizontal GRF 16.7 N/kg fast vs 12.9 N/kg slow COD players = 1.70 / 1.31 BW (same table). Peak TOTAL GRF of a rapid-deceleration braking step is 40-60 N/kg (~4-6 BW, Verheul, same table), so the old 3 BW 'landing' bar mixed resultant and horizontal: horizontal is the same ~1.6 BW. Trained athletes at maximal effort, so a ceiling.
+const BRACE_BW := 1.6
+const STEP_BW := 1.6      # = BRACE_BW: the measured horizontal peak is of braking STEPS; no measured larger horizontal value exists in the review table
 const BRACE_WIN := 3          # frames (0.05 s)
 const YAW_ARM := 0.25         # m
 const TILT_ARM := 0.15        # m
@@ -39,11 +41,11 @@ const STEP_M := 0.12          # m (Scene.STEP), the foot travels at least this
 const STEP_LOOK := 0.5        # s before the arrival in which a step must have landed
 const MIN_P := 5.0            # kg m/s: smaller momenta are not worth a sentence
 const GRAV := 9.81
-const SOURCE := "Newton: outside force = dP/dt; bar 1.5 BW without a step, 3 BW with one, read over 0.05 s (heuristic from sport deceleration literature)"
+const SOURCE := "Newton: outside force = dP/dt; bar 1.5 BW without a step, 3 BW with one, read over 0.05 s (measured peak horizontal braking 1.54-1.60 BW, Harper 2022 review table)"
 
 
 static func bar_text() -> String:
-	return "bar: %.1f BW of horizontal ground force over %.2f s (%.1f BW if a foot just landed); torque %.2f m x BW yaw, %.2f m x BW tilt (heuristic from braking-force literature: Hewit 2011, Harper & Kiely 2018)" % [BRACE_BW, BRACE_WIN / HZ, STEP_BW, YAW_ARM, TILT_ARM]
+	return "bar: %.1f BW of horizontal ground force over %.2f s (%.1f BW if a foot just landed); torque %.2f m x BW yaw, %.2f m x BW tilt (measured: Dos'Santos cuts 1.54-1.60 BW, in Harper 2022 review; torque arms unverified)" % [BRACE_BW, BRACE_WIN / HZ, STEP_BW, YAW_ARM, TILT_ARM]
 
 
 ## the height of the lowest point of a foot (m)

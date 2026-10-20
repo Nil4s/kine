@@ -20,8 +20,10 @@ class_name Recovery
 extends RefCounted
 
 const G := 9.81
+# GROUND TRUTH (gt3): young adults (n=11, leg length 91 +- 4 cm) stepping after a platform translation: first-step latency (onset to foot-off) 0.25 +- 0.04 s backward, 0.36-0.42 s forward; first step length 0.31 +- 0.06 m backward, 0.27-0.33 m forward (Mansfield et al. 2015, Front Aging Neurosci 7:201, Table 3; at the individual step threshold, not maximal). Swing DURATION was not reported there, so STEP_T = 0.25 s stays UNVERIFIED as a swing time.
 const STEP_T := 0.25
 const MARGIN := 0.02            # m: = Balance.MARGIN_RES
+# UNVERIFIED: no opened source gave a maximal recovery step length (Kluft 2017 and Bieryla 2015 measure it but the numbers were not in the open text).
 const MAX_STEP_LEG := 0.8       # of the leg length (hip height)
 const CLEAR := 0.10             # m: the swing foot's height at half way
 const SHOVES := {"small": 0.3, "medium": 1.0, "huge": 3.0}   # m/s the COM gains: a light nudge, a firm shove, a tackle
