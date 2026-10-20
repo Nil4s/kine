@@ -19,6 +19,7 @@ var sel := 0
 var att_k := -1
 var def_k := -1
 var n_undo := 0
+var base: Array = []          # Check on the scene as it is (what was red before)
 var checks := {}              # option index -> findings (Rulebook)
 var root: Node3D
 var _fg := {}                 # the feint ghost {node, skel, idx, mat, label}
@@ -57,6 +58,7 @@ func start(ci := -1) -> Dictionary:
 	res = r
 	sel = 0
 	checks = {}
+	base = []
 	on = true
 	n_undo = m.undo.size()
 	_build()
@@ -233,9 +235,10 @@ func _build() -> void:
 	var rc := Tok.c("mk_blue")
 	rc.a = PICK_A
 	var fl := findings(sel)
-	var red := fl.filter(func(f): return f["sev"] == "FAIL")
-	var chk := "Check: clean" if fl.is_empty() else "Check: %d finding%s, %d red%s" % [fl.size(), "" if fl.size() == 1 else "s", red.size(),
-		"" if red.is_empty() else " (" + ", ".join(red.slice(0, 2).map(func(f): return "%s %.2f s" % [f["rule"], f["t"]])) + ")"]
+	if base.is_empty():
+		base = Feint.check(m.actors_rt[att_k]["S"])
+	var red := Feint.red_new(fl, base)
+	var chk := "Check: no new problems (%d already in the scene)" % fl.size() if red.is_empty() else "Check: %d NEW red (%s)" % [red.size(), ", ".join(red.slice(0, 2).map(func(f): return "%s %.2f s" % [f["rule"], f["t"]]))]
 	_put(_fg, res["F"], xf, fc, "FEINT  stops at %.0f%% of the reach, %.2f s after the wind-up starts to read\n(the stop comes %.2f s after it is readable; a human needs %.1f s)" % [
 		float(res["frac"]) * 100.0, float(o["t_stop"]) - float(res["t_read"]), float(o["t_stop"]) - float(res["t_read"]), Feint.REACT], 0.0)
 	_put(_rg, o["real_pose"], xf, rc, "REAL STRIKE  %s  (%d/%d, Tab)\nmove %.2f s, lands %.0f cm from the target\n%s" % [

@@ -88,6 +88,7 @@ func _init() -> void:
 	var opts: Array = f["options"]
 	ok(opts.size() >= 2, "offers %d variants (>= 2): %s" % [opts.size(), ", ".join(opts.map(func(o): return String(o["label"])))])
 	var Bo := Counter.scratch(AS)
+	var base_chk := Feint.check(AS)
 	for o in opts:
 		var N: Scene = o["scene"]
 		var kf := int(o["k_feint"])
@@ -150,7 +151,8 @@ func _init() -> void:
 			ok(false, "6 COUNTER [%s]: the counter card was not moved" % lbl)
 		var fl := Feint.check(N)
 		var red := fl.filter(func(x): return x["sev"] == "FAIL")
-		print("     [%s] Check: %d findings, %d red%s" % [lbl, fl.size(), red.size(), "" if red.is_empty() else ": " + ", ".join(red.map(func(x): return "%s@%.2f" % [x["rule"], x["t"]]))])
+		var rn := Feint.red_new(fl, base_chk)
+		print("     [%s] Check: %d findings, %d red, %d NEW red%s" % [lbl, fl.size(), red.size(), rn.size(), "" if rn.is_empty() else ": " + ", ".join(rn.map(func(x): return "%s@%.2f" % [x["rule"], x["t"]]))])
 
 	# the app
 	m = (load("res://main.tscn") as PackedScene).instantiate()
@@ -162,7 +164,7 @@ func _init() -> void:
 	m._load_scene("res://scenes/combo3.json")
 	m._rebuild_cards()
 	await idle()
-	m.S.actors.append({"name": "fighter 2", "xf": {"pos": pos, "yaw": 180.0}, "scene": DS.to_dict(DB, false)})
+	m.S.actors.append({"name": "fighter 2", "xf": {"pos": pos, "yaw": 180.0}, "scene": DS.clone()})
 	m._actors_sync()
 	m._refresh()
 	await idle()

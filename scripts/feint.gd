@@ -104,7 +104,7 @@ static func make(S: Scene, axf: Transform3D, DS: Scene, dxf: Transform3D, ci: in
 	var DB := Counter.scratch(DS)
 	var M := Counter.scratch(S)
 	# the feint pose: the original's own pose at tf
-	Scene.put(B, S.sample(tf))
+	S.apply(B, tf)   # the body as the scene plays it at tf (feet planted, grounded), not the bare card blend
 	B.fk()
 	var F := B.to_dict()
 	var Tf := snappedf(tf - t0, 0.001)
@@ -263,3 +263,20 @@ static func move_counter(DS: Scene, f: Dictionary, t_stop: float) -> Dictionary:
 static func check(N: Scene) -> Array:
 	var G := DistanceKeeper.new_body()
 	return Rulebook.check(N, G, Rulebook.sample(N, G))
+
+
+## the red (FAIL) findings of `fl` that the original scene's findings `base` do not already have (by rule and count): what the feint ADDED
+static func red_new(fl: Array, base: Array) -> Array:
+	var have := {}
+	for f in base:
+		if f["sev"] == "FAIL":
+			have[f["rule"]] = int(have.get(f["rule"], 0)) + 1
+	var out := []
+	for f in fl:
+		if f["sev"] != "FAIL":
+			continue
+		if int(have.get(f["rule"], 0)) > 0:
+			have[f["rule"]] = int(have[f["rule"]]) - 1
+		else:
+			out.append(f)
+	return out
