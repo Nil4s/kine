@@ -149,6 +149,7 @@ var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions 
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
+var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var bf_ui: BeatFightUI   # FIGHT TO THE BEAT (ROADMAP I15): scripts/beat_fight_ui.gd
 var tc_ui: TimingCoachUI   # TIMING COACH (ROADMAP I4): the suggestions panel and its preview (scripts/timing_coach_ui.gd)
 var mm_ui: MotionMatchUI   # MOTION MATCHING PREVIEW (ROADMAP 33): the commands and the preview (scripts/motion_match_ui.gd)
@@ -185,7 +186,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Fight to the beat", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Fight to the beat", "My style", "Use my style", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -2228,6 +2229,8 @@ func _ready() -> void:
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
+		style_ui.on = false   # I17: like Nick is off in a test until it turns it on
+		style_ui.path = "user://zz_style_print_%d.json" % OS.get_process_id()   # I17: a test's own fingerprint file
 		usual_on = false   # I10: a test keeps the app's default timing on new cards until it turns this on
 	_autover_cfg_load(testing)
 	ui_props_root = Node3D.new()
@@ -2555,6 +2558,8 @@ func _process(dt: float) -> void:
 		if_ui.tick(dt)   # IMPACT FRAMES preview (nothing otherwise)
 	if bf_ui != null:
 		bf_ui.tick(dt)
+	if style_ui != null:
+		style_ui.tick(dt)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
 	_dm_poll()
@@ -4732,6 +4737,8 @@ func _restore(u: Dictionary) -> void:
 		if_ui.halt()
 	if bf_ui != null:
 		bf_ui.halt()
+	if style_ui != null:
+		style_ui.halt()
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
@@ -9484,7 +9491,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Fight to the beat": "fightbeat", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Fight to the beat": "fightbeat", "My style": "mystyle", "Use my style": "usestyle", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -9890,9 +9897,13 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Make it physical", mp_ui.run, "judge the motion with a 75 kg body in a physics engine: red on the timeline where no human can do it, with the reason; the physical version is a ghost you scrub"))
 	ui_ribbon["CHECK"].add_child(_button("Accept span", mp_ui.accept, "replace the cards inside the picked red span (click it on the timeline) with the physical version; one undo step"))
 	ui_ribbon["CHECK"].add_child(_button("Timing coach", tc_ui.show, "for each strike a better move time with the reason (a real clip, strike-size numbers and sources); preview, then accept one line or all"))
+	if style_ui == null:
+		style_ui = StyleUI.new(self)
 	if bf_ui == null:
 		bf_ui = BeatFightUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Fight to the beat", bf_ui.show, "land each contact on a beat of the music (or the off-beat) by retiming the moves before it, never outside the human strike range; a contact that cannot be reached is flagged; preview, then accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("My style", style_ui.show, "the fingerprint of your own clips: median move and hold per kind of move, guard height, stance, usual transitions, each with how many clips; like Nick / neutral for new cards"))
+	ui_ribbon["CHECK"].add_child(_button("Use my style", style_ui.use_style, "retime this clip toward your own medians, never outside the timing coach's human range; preview, then accept (one undo step)"))
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Auto camera", ac_ui.show, "for the strike a shot camera per beat from film grammar (180-degree rule, lead room, closer on contact, low angle for power, hold the wide) as ghost frames; click one to keep it as a shot, or Keep all; nothing changes until you click"))
@@ -12518,6 +12529,9 @@ func _commands() -> Array:
 	if bf_ui == null:
 		bf_ui = BeatFightUI.new(self)
 	bf_ui.commands(add)   # FIGHT TO THE BEAT (ROADMAP I15)
+	if style_ui == null:
+		style_ui = StyleUI.new(self)
+	style_ui.commands(add)   # LEARN MY STYLE (ROADMAP I17)
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
@@ -19177,7 +19191,7 @@ func _usual_for(at: int, force := false) -> Dictionary:
 func _usual_apply(at: int, force := false) -> bool:
 	var u := _usual_for(at, force)
 	if u.is_empty():
-		return false
+		return style_ui != null and not force and style_ui.new_card(S, at)   # I17: no usual for this pose pair: his median for the kind (like Nick)
 	S.cards[at]["move"] = float(u["mv"])
 	S.cards[at]["hold"] = float(u["hd"])
 	S.cards[at]["usual"] = {"mv": float(u["mv"]), "hd": float(u["hd"])}
