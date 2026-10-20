@@ -312,7 +312,7 @@ static func unpack(text: String) -> Dictionary:
 		for j in c["ang"]:
 			var a: Vector3 = c["ang"][j]
 			if absf(a.x) > MAX_ANG or absf(a.y) > MAX_ANG or absf(a.z) > MAX_ANG:
-				return {"ok": false, "why": "this Kine code holds an angle beyond %d degrees: it is damaged or not from Kine" % int(MAX_ANG)}
+				return {"ok": false, "why": "this Kine code holds an angle beyond %d deg: it is damaged or not from Kine" % int(MAX_ANG)}
 	return res
 
 

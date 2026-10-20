@@ -136,7 +136,7 @@ func _build() -> void:
 	v.add_child(sc)
 	ui_blur = CheckBox.new()
 	ui_blur.name = "chk_playblast_blur"
-	ui_blur.text = "Playblast video: motion blur (8 sub-frames, 180 degree shutter; slower)"
+	ui_blur.text = "Playblast video: motion blur (8 sub-frames, 180 deg shutter; slower)"
 	ui_blur.button_pressed = bool(m.blast_blur)
 	ui_blur.toggled.connect(func(on: bool): m.blast_blur = on)
 	v.add_child(ui_blur)

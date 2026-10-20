@@ -131,7 +131,7 @@ static func apply(scenes: Array, bodies: Array, pl: Array) -> void:
 		var tf: float = p["tf"]
 		var h: float = p["hold"]
 		var mk := Markers.add(hero.markers, tf, "%s %df" % [MARK, int(p["frames"])], "hit")
-		mk["note"] = "%s:%s J=%.1f" % [TAG, str(h), float(p["J"])]
+		mk["note"] = "%s:%s J=%.1f N s" % [TAG, str(h), float(p["J"])]
 		var si := ShotCam.shot_index(hero.shots, tf)
 		if si >= 0 and not (hero.shots[si]["keys"] as Array).is_empty():
 			ShotFx.list(_fx(hero.shots[si]), "shake").append(shake(tf, float(p["J"]), n))

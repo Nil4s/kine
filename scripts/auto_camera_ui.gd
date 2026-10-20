@@ -29,7 +29,7 @@ func _init(main: Node) -> void:
 
 
 func commands(add: Callable) -> void:
-	add.call("Auto camera", "", show, "auto camera shot film grammar 180 degree rule lead room close up low angle wide contact wind-up recover ghost frames suggest cut",
+	add.call("Auto camera", "", show, "auto camera shot film grammar 180 deg rule lead room close up low angle wide contact wind-up recover ghost frames suggest cut",
 		false, "for the strike: a shot camera per beat (wind-up, contact, recover) from film grammar, each with its rule named, as small ghost frames; click one to keep it as a shot, Keep all keeps them all; nothing changes until you click")
 
 

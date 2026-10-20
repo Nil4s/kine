@@ -165,11 +165,11 @@ static func fit(S: Scene, B: Body, beats: Array, off: float, mode := "every", of
 				var need := near - arrive
 				var nm := "off-beat" if offbeat else "beat"
 				if need < 0.0:
-					why = "the nearest %s is %.0f ms earlier; the moves before it can give %.0f ms and the strike %.0f ms more (it cannot go under %.2f s, the fastest recorded punch of %.2f m); left alone" % [
-						nm, -need * 1000.0, float(rc["e_before"]) * 1000.0, (S.move_time(i) - float(rc["lo"])) * 1000.0, float(rc["lo"]), float(rc["d"])]
+					why = "the nearest %s is %.0f ms earlier; the moves before it can give %.0f ms and the strike %.0f ms more (it cannot go under %.2f s, the fastest recorded punch of %s); left alone" % [
+						nm, -need * 1000.0, float(rc["e_before"]) * 1000.0, (S.move_time(i) - float(rc["lo"])) * 1000.0, float(rc["lo"]), Units.len(float(rc["d"]))]
 				else:
-					why = "the nearest %s is %.0f ms later; the moves before it can stretch %.0f ms and the strike %.0f ms more (it cannot take over %.2f s, the slowest recorded punch of %.2f m); left alone" % [
-						nm, need * 1000.0, float(rc["l_before"]) * 1000.0, (float(rc["hi"]) - S.move_time(i)) * 1000.0, float(rc["hi"]), float(rc["d"])]
+					why = "the nearest %s is %.0f ms later; the moves before it can stretch %.0f ms and the strike %.0f ms more (it cannot take over %.2f s, the slowest recorded punch of %s); left alone" % [
+						nm, need * 1000.0, float(rc["l_before"]) * 1000.0, (float(rc["hi"]) - S.move_time(i)) * 1000.0, float(rc["hi"]), Units.len(float(rc["d"]))]
 			res["flags"].append({"card": i, "t": arrive, "beat": near if near != INF else -1.0, "why": "card %d (%s): %s" % [i + 1, S.cards[i]["name"], why]})
 			prev = i
 			prev_strike = S.move_time(i)

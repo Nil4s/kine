@@ -64,7 +64,7 @@ static func words(key: String, J: float, dir_deg: float) -> String:
 	var l := limits(key, dir_deg)
 	if l.is_empty():
 		return "no push-limit row for this part (the table has chest, stomach, head, shoulder)"
-	return "%s  (J %.1f N s, %.0f deg; this fighter absorbs up to %.0f, steps up to %.0f, falls from %.0f N s)" % [label(key, J, dir_deg), J, dir_deg, l["absorb"], l["step"], l["fall"]]
+	return "%s  (J %.1f N s, %.0f deg; this fighter absorbs up to %.0f N s, steps up to %.0f N s, falls from %.0f N s)" % [label(key, J, dir_deg), J, dir_deg, l["absorb"], l["step"], l["fall"]]
 
 
 ## the hand-written balance against the table, forward: the impulse that would carry the XCoM of a body of mass_kg, COM height com_y,

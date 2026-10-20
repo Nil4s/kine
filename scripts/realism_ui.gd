@@ -106,8 +106,8 @@ func _push_items() -> Array:
 		Bs.set_state(keep)
 		var moved := Vector2(p1.x - p0.x, p1.z - p0.z).length()
 		if moved < REACT_M:
-			out.append({"t0": t, "t1": t + RealismScore.PUSH_SPAN, "text": "hit %d should make the struck fighter %s (J %.1f N s) but the pelvis moves only %.2f m in %.1f s" % [
-				i + 1, "step" if lab == "steps" else "fall", float(blow["J_h"]), moved, RealismScore.PUSH_SPAN]})
+			out.append({"t0": t, "t1": t + RealismScore.PUSH_SPAN, "text": "hit %d should make the struck fighter %s (J %.1f N s) but the pelvis moves only %s in %.1f s" % [
+				i + 1, "step" if lab == "steps" else "fall", float(blow["J_h"]), Units.len(moved), RealismScore.PUSH_SPAN]})
 	return out
 
 

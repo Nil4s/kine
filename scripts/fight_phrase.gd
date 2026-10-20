@@ -343,7 +343,7 @@ static func plan(A: Scene, D: Scene, rel: Transform3D) -> Dictionary:
 		if not found:
 			res["flag"] = true
 			res["cum"] = shift
-			res["why"] = "no step of up to %.0f m puts the striking point within 5 cm of the trunk with the bodies apart (closest %.0f cm)" % [SCAN, best_gap * 100.0]
+			res["why"] = "no step of up to %s puts the striking point within 5 cm of the trunk with the bodies apart (closest %.0f cm)" % [Units.len(SCAN), best_gap * 100.0]
 			beats.append(res)
 			kinds.append("")
 			continue
