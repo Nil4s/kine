@@ -218,6 +218,7 @@ func _init() -> void:
 			lines.append("%-22s %-5s knocked-start worst %-6s %5.1f   neutral-start worst %-6s %5.1f   %.0f ms" % [path.get_file(), vn, w[1], w[0], w2[1], w2[0], rep["ms"]])
 	for l in lines:
 		print("     " + l)
+	SketchPose.lib_exclude = ""
 	ok(bad.is_empty(), "1 %d fits (%d poses x front/side, from the knocked start): the 9 major bones within 10 deg, worst %.1f deg; over: %s" % [n_fit, n_fit / 2, all_worst, str(bad)])
 	print("     REPORTED neutral-stand start: %d of %d fits have a bone over 10 deg (a bone pointing at the camera has 2 mirror answers; no old pose to break the tie)" % [neutral_bad, neutral_n])
 
@@ -243,6 +244,7 @@ func _init() -> void:
 	m._cam()
 	await process_frame
 	var cam2: Camera3D = m.cam
+	SketchPose.lib_exclude = "windup_high.json"
 	var dd := _load("res://poses/lib/windup_high.json")
 	R.from_dict(dd)
 	R.fk()
@@ -261,6 +263,7 @@ func _init() -> void:
 	ok(same and "hand_l" in rep3["kept"], "2a the left arm was not drawn: its 4 joints' angles are bit-identical, reported as kept %s" % str(rep3["kept"]))
 	ok(float(_worst(e3)[0]) <= 10.0, "2b the rest fits within 10 deg without it: worst %.1f deg (%s)" % [_worst(e3)[0], _worst(e3)[1]])
 
+	SketchPose.lib_exclude = ""
 	# ---- 3 undo, and the keys ----------------------------------------------------------------------------------------
 	B.from_dict(stand)
 	m._refresh()
@@ -337,6 +340,40 @@ func _init() -> void:
 	ok(s_undo == s_start and m.undo.size() == u0, "3f Ctrl+Z puts the whole state back exactly (state equal: %s, undo size %d)" % [str(s_undo == s_start), m.undo.size()])
 	m._input(_key(KEY_ESCAPE))
 	ok(not sk.on and sk.strokes.is_empty(), "3g Esc leaves Sketch mode and drops the strokes")
+
+	# ---- 7 the screenshot of the second step: a SIDE view sketch of strike_lunge (library prior left one out) ---------------
+	m.yaw = 90.0
+	m._cam()
+	await process_frame
+	var cam3: Camera3D = m.cam
+	var dl := _load("res://poses/lib/strike_lunge.json")
+	R.from_dict(dl)
+	R.fk()
+	B.from_dict(dl)
+	_knock(B, 3)
+	var stl := _strokes(R, cam3, [], true, 4)
+	SketchPose.lib_exclude = "strike_lunge.json"
+	var repl := SketchPose.fit(B, cam3, stl)
+	SketchPose.lib_exclude = ""
+	var el := _errs(B, R)
+	print("     strike_lunge side (screenshot): worst bone %s %.1f deg, prior used for %s" % [_worst(el)[1], _worst(el)[0], str(repl.get("prior", []))])
+	m._refresh()
+	sk.on = true
+	sk.strokes = stl
+	sk.fitted = repl["skeleton"]
+	sk.queue_redraw()
+	var hc3 := cam3.unproject_position(R.P["pelvis"])
+	var drawn_inside := hc3.x > 0 and hc3.y > 0 and hc3.x < root.get_visible_rect().size.x and hc3.y < root.get_visible_rect().size.y
+	ok(drawn_inside and not sk.fitted.is_empty(), "7a PLACEMENT: the side sketch of strike_lunge is inside the window and the fitted skeleton (%d polylines) is on the body" % sk.fitted.size())
+	await process_frame
+	await process_frame
+	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i9b.png")
+	sk.on = false
+	sk.strokes = []
+	sk.fitted = []
+	m.yaw = 0.0
+	m._cam()
+	await process_frame
 
 	ok(worst_ms < 100.0, "4 the slowest fit of all of them: %.1f ms (bar 100)" % worst_ms)
 	print("\nI9 %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

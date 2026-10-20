@@ -33,6 +33,10 @@ const AMBIG := 0.03          # candidates within this cost of the best are ambig
 const ITERS := 40            # trunk fit iterations at most
 const EPS := 0.5             # deg: finite-difference step
 const REG := 1e-5            # a soft pull to the angles the trunk started from
+const PRIOR_SIG := 0.3       # m: the soft pull of the nearest library pose's depths (a tie-break along a flat valley, never a measurement)
+const PRIOR_W := 0.03        # m-equivalent per metre of depth off the library pose's
+const PRIOR_ROW := 0.02      # the weight of those priors among the pixel rows of the refinement
+const REFINE_IT := 5         # Levenberg-Marquardt steps on the (elbow depth, wrist depth) of one candidate
 const TRUNK := ["pelvis", "spine_01", "spine_02", "spine_03"]
 const TRUNK_H := ["neck_01", "head"]
 
@@ -42,6 +46,10 @@ var strokes: Array = []      # finished strokes (Array of Vector2 arrays)
 var cur: Array = []          # the stroke in progress
 var fitted: Array = []       # screen polylines of the fitted skeleton (faint, after a fit)
 var last: Dictionary = {}    # the last fit's report
+
+static var lib_exclude := ""   # a pose file (basename) the prior must NOT use: a test fits a library pose against the OTHERS
+static var _lib: Array = []    # [{"name", "d"}] the poses of poses/ and poses/lib/ (the R27 / I12 library, as smart_drag.gd reads it)
+static var _scratch: Body = null
 
 
 func _init() -> void:
@@ -261,6 +269,54 @@ static func assign(limbs: Array, cur_tip: Dictionary, side_dx: Dictionary, axis_
 	return out
 
 
+# ---- the library prior (R27 / I12: the poses the user already has say which depth a limb tends to take) ---------------------
+
+static func _library() -> Array:
+	if _lib.is_empty():
+		for dir in SmartDrag.POSE_DIRS:
+			for fn in DirAccess.get_files_at(dir):
+				if fn.ends_with(".json"):
+					var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(String(dir) + fn))
+					if d is Dictionary and (d as Dictionary).get("joints") is Dictionary:
+						_lib.append({"name": fn, "d": d})
+	return _lib
+
+
+## per limb tip: the depths ([upper bone, lower bone], m along the view) of the library pose whose limb, put on THIS body's
+## trunk, projects nearest to the drawn elbow / wrist; a limb that nothing matches within a body length gets no prior
+static func library_prior(B: Body, cam: Camera3D, drawn: Dictionary, S: float) -> Dictionary:
+	var out := {}
+	if drawn.is_empty():
+		return out
+	if _scratch == null:
+		_scratch = Body.new()
+		_scratch.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var sb := _scratch
+	var fwd := -cam.global_basis.z
+	var best := {}
+	for tip in drawn:
+		best[tip] = [INF, [0.0, 0.0]]
+	for e in _library():
+		if String(e["name"]) == lib_exclude:
+			continue
+		sb.from_dict(e["d"])
+		for j in TRUNK + TRUNK_H + ["clavicle_l", "clavicle_r"]:
+			if B.ang.has(j) and sb.ang.has(j):
+				sb.ang[j] = B.ang[j]
+		sb.offset = B.offset
+		sb.fk()
+		for tip in drawn:
+			var mid: String = sb.parent[tip]
+			var root: String = sb.parent[mid]
+			var c := (cam.unproject_position(sb.P[mid]) - (drawn[tip]["el"] as Vector2)).length() + (cam.unproject_position(sb.P[tip]) - (drawn[tip]["wr"] as Vector2)).length()
+			if c < float(best[tip][0]):
+				best[tip] = [c, [((sb.P[mid] - sb.P[root]) as Vector3).dot(fwd), ((sb.P[tip] - sb.P[mid]) as Vector3).dot(fwd)]]
+	for tip in drawn:
+		if float(best[tip][0]) / S < 1.0:
+			out[tip] = best[tip][1]
+	return out
+
+
 # ---- un-projecting -------------------------------------------------------------------------------------------------
 
 ## the two points of the ray through screen point p2 that lie r from c (near first). A ray that misses the sphere gives
@@ -458,9 +514,37 @@ static func relax(fwd: Vector3, c: Vector3, e0: Vector3, r: float, hint: float, 
 	return c + lat / ell * sqrt(maxf(r * r - zm * zm, 0.0)) + fwd * (sg * zm)
 
 
+## one candidate's residuals: the mid joint and the tip on the screen (m-equivalent) + the soft depth priors. The body is
+## posed by LimbIK from the elbow point e (the pole: it fixes the bend plane) and the wrist point w
+static func _cand_res(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: Vector2, S: float, e: Vector3, w: Vector3, rot, keep: Array, hint: Array, prior: Array) -> Array:
+	var mid: String = B.parent[tip]
+	var root: String = B.parent[mid]
+	B.ang[root] = keep[0]
+	B.ang[mid] = keep[1]
+	B.ang[tip] = keep[2]
+	B.fk()
+	var res := LimbIK.solve(B, tip, w, e, rot)
+	var fwd := -cam.global_basis.z
+	var r := []
+	var dm := cam.unproject_position(B.P[mid]) - el2
+	var dt := cam.unproject_position(B.P[tip]) - wr2
+	r.append_array([dm.x / S, dm.y / S, dt.x / S, dt.y / S])
+	var d1 := ((B.P[mid] - B.P[root]) as Vector3).dot(fwd)
+	var d2 := ((B.P[tip] - B.P[mid]) as Vector3).dot(fwd)
+	for h in [hint, prior]:
+		if not (h as Array).is_empty():
+			r.append((d1 - float(h[0])) / PRIOR_SIG * PRIOR_ROW)
+			r.append((d2 - float(h[1])) / PRIOR_SIG * PRIOR_ROW)
+	return [r, res, d1, d2]
+
+
 ## the 4 depth candidates of a limb (elbow side x wrist side), each solved by LimbIK and scored; best first. The body is
-## left as it was. hint = the depth (m, along the view) of [upper bone, lower bone] now: flipping it costs TIE_W
-static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: Vector2, S: float, hint: Array, rot) -> Array:
+## left as it was. hint = the depth (m, along the view) of [upper bone, lower bone] now: flipping it costs TIE_W.
+## Each candidate starts at the relaxed intersection and is then REFINED: the limb is a hinge, so the elbow's depth (the bend
+## plane) and the wrist's depth (the bend angle) together decide where the mid joint lands on the screen; a 2-parameter
+## Levenberg-Marquardt moves e and w along their rays until the mid joint and the tip fall on the drawn points, the depth
+## priors (the old pose + the nearest library pose) only breaking the tie along a flat valley. prior = [] when there is none
+static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: Vector2, S: float, hint: Array, rot, prior := []) -> Array:
 	var mid: String = B.parent[tip]
 	var root: String = B.parent[mid]
 	var R: Vector3 = B.P[root]
@@ -470,23 +554,75 @@ static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: V
 	var keep := [B.ang[root], B.ang[mid], B.ang[tip]]
 	var out := []
 	var tau := TAU_PX / S   # m: a point on the screen is good to about this many pixels; a bone's depth is free inside that
+	var de := cam.project_ray_normal(el2)
+	var dw := cam.project_ray_normal(wr2)
 	for e0: Vector3 in ray_sphere(cam, el2, R, u):
-		var e := relax(fwd, R, e0, u, float(hint[0]), tau)
-		for w0: Vector3 in ray_sphere(cam, wr2, e, f):
-			var w := relax(fwd, e, w0, f, float(hint[1]), tau)
-			B.ang[root] = keep[0]
-			B.ang[mid] = keep[1]
-			B.ang[tip] = keep[2]
-			B.fk()
-			var res := LimbIK.solve(B, tip, w, e, rot)
+		var e1 := relax(fwd, R, e0, u, float(hint[0]), tau)
+		for w0: Vector3 in ray_sphere(cam, wr2, e1, f):
+			var w1 := relax(fwd, e1, w0, f, float(hint[1]), tau)
+			var pa := [0.0, 0.0]
+			var rr := _cand_res(B, cam, tip, el2, wr2, S, e1, w1, rot, keep, hint, prior)
+			var c0 := 0.0
+			for x in rr[0]:
+				c0 += float(x) * float(x)
+			var lam := 1e-2
+			for _it in REFINE_IT:
+				var cols := []
+				for k in 2:
+					var pk := pa.duplicate()
+					pk[k] += 0.004
+					var r2 := _cand_res(B, cam, tip, el2, wr2, S, e1 + de * float(pk[0]), w1 + dw * float(pk[1]), rot, keep, hint, prior)
+					var col := []
+					for m in (rr[0] as Array).size():
+						col.append((float(r2[0][m]) - float(rr[0][m])) / 0.004)
+					cols.append(col)
+				var a00 := 0.0
+				var a01 := 0.0
+				var a11 := 0.0
+				var g0 := 0.0
+				var g1 := 0.0
+				for m in (rr[0] as Array).size():
+					a00 += float(cols[0][m]) * float(cols[0][m])
+					a01 += float(cols[0][m]) * float(cols[1][m])
+					a11 += float(cols[1][m]) * float(cols[1][m])
+					g0 -= float(cols[0][m]) * float(rr[0][m])
+					g1 -= float(cols[1][m]) * float(rr[0][m])
+				var better := false
+				for _t in 6:
+					var b00 := a00 * (1.0 + lam) + 1e-9
+					var b11 := a11 * (1.0 + lam) + 1e-9
+					var det := b00 * b11 - a01 * a01
+					if absf(det) < 1e-18:
+						lam *= 10.0
+						continue
+					var s0 := clampf((g0 * b11 - a01 * g1) / det, -0.15, 0.15)
+					var s1 := clampf((b00 * g1 - a01 * g0) / det, -0.15, 0.15)
+					var pn := [float(pa[0]) + s0, float(pa[1]) + s1]
+					var r3 := _cand_res(B, cam, tip, el2, wr2, S, e1 + de * float(pn[0]), w1 + dw * float(pn[1]), rot, keep, hint, prior)
+					var c3 := 0.0
+					for x in r3[0]:
+						c3 += float(x) * float(x)
+					if c3 < c0:
+						pa = pn
+						rr = r3
+						c0 = c3
+						lam = maxf(lam / 3.0, 1e-7)
+						better = true
+						break
+					lam *= 4.0
+				if not better:
+					break
+			var res: Dictionary = rr[1]
 			var err := (cam.unproject_position(B.P[mid]) - el2).length() + (cam.unproject_position(B.P[tip]) - wr2).length()
 			var c := err / S + CLAMP_W * (res["clamped"] as Array).size()
-			var d1 := (e - R).dot(fwd)
-			var d2 := (w - e).dot(fwd)
+			var d1: float = rr[2]
+			var d2: float = rr[3]
 			if absf(float(hint[0])) > 0.03 and signf(d1) != signf(float(hint[0])):
 				c += TIE_W
 			if absf(float(hint[1])) > 0.03 and signf(d2) != signf(float(hint[1])):
 				c += TIE_W
+			if not prior.is_empty():
+				c += PRIOR_W * (absf(d1 - float(prior[0])) + absf(d2 - float(prior[1])))
 			out.append({"cost": c, "ang": [B.ang[root], B.ang[mid], B.ang[tip]], "clamped": res["clamped"], "miss": res["miss"]})
 	B.ang[root] = keep[0]
 	B.ang[mid] = keep[1]
@@ -583,8 +719,10 @@ static func fit(B: Body, cam: Camera3D, strokes_in: Array) -> Dictionary:
 			drawn[tip] = {"el": el, "wr": wr}
 	# arms: each on its own; legs: together when the pick is ambiguous (the balance decides)
 	var cands := {}
+	var prior := library_prior(B, cam, drawn, S)
+	rep["prior"] = prior.keys()
 	for tip in drawn:
-		cands[tip] = limb_cands(B, cam, tip, drawn[tip]["el"], drawn[tip]["wr"], S, hint[tip], rot[tip])
+		cands[tip] = limb_cands(B, cam, tip, drawn[tip]["el"], drawn[tip]["wr"], S, hint[tip], rot[tip], prior.get(tip, []))
 	for tip in ["hand_l", "hand_r"]:
 		if cands.has(tip):
 			_put(B, tip, cands[tip][0])
