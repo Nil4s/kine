@@ -335,3 +335,9 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I28. Safety sheet: one pre-shoot report for the stunt crew over the whole scene: every real contact and its
   speed, weapon tips passing within 15 cm of a face, falls and their breakfall verdicts, unsold/unsafe strikes, with
   time, fighters and a thumbnail per item; exported as a printable HTML page next to the scene.
+- [ ] I29. Match the reference's timing: from a reference video (video import), find its beats of motion (peaks of
+  limb speed: wind-up, strike, settle) and retime the clip's matching cards to them, keeping the poses; shows both
+  speed curves overlaid.
+- [ ] I30. Weapon weight: from the prop's mass and length (inertia about the grip), compute the wrist/shoulder torque
+  each swing needs vs human strength, and flag swings that feel weightless (no wind-up, no follow-through, instant
+  stops) with fixes that scale anticipation and overshoot to the weapon's inertia.
