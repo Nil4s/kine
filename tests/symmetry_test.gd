@@ -139,7 +139,7 @@ func _init() -> void:
 	r = await drag("hand_r", Vector2(-40, -60), false, true, 0.85)
 	ok(r[0].is_empty() and moved(r[1], ["upperarm_r", "lowerarm_r"]) and moved(r[1], ["upperarm_l", "lowerarm_l"]) and not moved(r[1], legs),
 		"4 the right hand PULLED (IK: the shoulder and elbow follow it): the left arm's same joints follow, reflected (bad: %s)" % [r[0].slice(0, 3)])
-	var sl: Array = m.ui_side[1].find_children("*", "HSlider", true, false).filter(func(x): return x.is_visible_in_tree())
+	var sl: Array = m.ui_side[2].find_children("*", "HSlider", true, false).filter(func(x): return x.is_visible_in_tree())   # [0] left panel, [1] the Body panel, [2] the right panel (the Body panel was added between them)
 	var a0 := ang()
 	var bad := []
 	(sl[0] as HSlider).value = (sl[0] as HSlider).value + 25.0
