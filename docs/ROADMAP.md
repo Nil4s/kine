@@ -352,6 +352,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   each swing needs vs human strength, and flag swings that feel weightless (no wind-up, no follow-through, instant
   stops) with fixes that scale anticipation and overshoot to the weapon's inertia.
   Merged (i30 PASS): wrist/shoulder torque vs heuristic max (12 / 75 N m), over-max and weightless flags, fixes (time scale from 1/T^2, anticipation, overshoot, eased stop); 0.45 s per analysis. Open: the panel's shoulder bar reads 178 N m while its text line reads 160 for the same swing - two numbers for one effect disagree; find which is right.
+  Polish (pol1): bar and text now read the same expression (shoulder 178 / wrist 153 N m in both); bar (7) checks it.
 - [x] I31. Precog check: every defender reaction (block, slip, step-back, flinch) must start at least a human
   reaction time after the attacker's move becomes readable; flag "precog" answers (too early: reads as rehearsed) and
   "late" answers (the hit should have landed), with one-click retimes.
@@ -367,6 +368,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   as it builds, real fighters slow, drop their guard and breathe; flag a fighter still at full speed late in a long
   exchange and offer a "tire him" pass (slower moves, lower guard, longer recovers, scaled to work done).
   Merged (i34 PASS): work-budget fatigue (CP/W' heuristic), STILL FRESH flag, Tire him (slower strikes, longer recovers, lower guard). Screenshot camera sits inside fighter 2: frame the shot next pass.
+  Polish (pol1): screenshot re-framed side view with a placement bar (both whole bodies clear of the panel, 212 px apart).
 - [x] I35. Sound cues from physics: place whoosh markers at weapon/limb speed peaks (pitch and length from tip speed),
   hit markers at contacts (weight from the impulse J), footstep markers at plants; preview them as synthesized
   clicks/noise and export a cue sheet (time, kind, strength) with the clip.
@@ -380,6 +382,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   Merged (i37 PASS): per strike block / parry / slip / step-back / take the hit by the 0.2 s read rule, panel strike -> response -> why, gold ghost Preview, Accept one undo. Nick's scenes have no second fighter yet, so it uses the stated default order until he makes some; a plan takes ~10 s (Counter's search budget).
 - [x] I38. My best take: Nick stars a clip; Kine measures what the starred clip does differently from his other clips of the same kind (timing ratios, guard height, stance, speed peaks, anticipation) and lists the top differences in plain words, then offers "make this one more like my best".
   Merged (i38 PASS): star stored in user://, 7 features ranked by effect size vs his clips of the kind, nudge = one undo. Note: the synthetic test clip peaks the hand at 20.7 m/s (twice a real punch, ~10 m/s): check the feature on Nick's real clips.
+  Check (pol1): peak hand speed verified against a 240 Hz difference (30.7 vs 31.8 m/s, 3.4 %). combo3's STRIKE (step) card moves the hand at ~31 m/s, about 3x a real punch (7-12 m/s): that is the clip, not the tool - worth a Check finding.
 - [x] I39. Recovery step: after a hit reaction or shove, the capture point (Hof 2005) says whether the struck body can stay standing in place; if not, insert the stepping recovery (foot to the capture point, timed by the step time) or flag a fall. Physics as judge + choreography.
   Merged (i39 PASS): capture point (Hof 2005) vs base of support: HOLD / STEP (foot lands 2.0 cm from it in 0.25 s, two cards, one undo) / FALLS (step > 0.8 leg) -> Breakfall. Open: plan for the capture point at touchdown (it runs on during the 0.25 s step), read the shove from a hit-reaction card instead of a panel choice; the panel overlaps the body's arm a little.
 - [x] I40. Parry rebound: when weapons meet (weapon_clash), compute the exchange of momentum at the contact (masses, inertias, tip speeds, restitution heuristic) and key the deflection of both weapons and wrists for the next frames; flag a parry that stops a heavy swing with no give.
