@@ -319,3 +319,9 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   ankles, trunk lean solved within limits, feet planted); red when it leaves the support.
 - [ ] I25. Breakfall check: on a fall or knockdown, judge the landing like a stunt coach (chin tucked, head clear
   of the floor, impact spread over arm slap/shoulder/hip, no straight-arm catch) with one-click fixes.
+- [ ] I26. Learn from my edits: record which suggestions Nick accepts, undoes or edits after (Next poses, Check
+  fixes, timing coach, counters) and how he changes them; rank future suggestions by what he keeps, and say why
+  ("you usually shorten this wind-up by 0.05 s").
+- [ ] I27. Throw and catch: release a prop from one hand and the app solves the ballistic arc (gravity, spin from
+  the release angular velocity), the flight time, and places the catching hand on the arc at the catch frame;
+  red if the catch needs an impossible reach or a hand speed outside human range.
