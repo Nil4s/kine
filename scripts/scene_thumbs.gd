@@ -15,6 +15,8 @@ const SIZE := Vector2i(96, 64)
 const DIR := "user://thumbs"
 const STRIKE_WORDS := ["strike", "contact", "thrust", "hit"]
 
+var pick_on := false      # K29 (scripts/thumb_pick.gd): draw the clip's most readable frame instead of its strike / middle card
+var picked := {}          # scene path -> the time (s) the picker chose (the test reads it)
 var renders := 0          # pictures drawn this session (the test counts them)
 var disk_hits := 0       # pictures read from user://thumbs without a draw
 var render_ms: Array = []   # measured: the milliseconds each draw took
@@ -81,6 +83,8 @@ func _look(path: String) -> void:
 	var sha := FileAccess.get_sha256(path)
 	if sha == "":
 		return
+	if pick_on:
+		sha += "_pick"   # the picked frame is another picture of the same file: its own cache entry
 	var have: Variant = _tex.get(path)
 	if have is Dictionary and (have as Dictionary)["sha"] == sha:
 		made.emit(path)
@@ -263,7 +267,7 @@ func _stage() -> void:
 func _render(path: String) -> void:
 	if not FileAccess.file_exists(path):
 		return
-	var sha := FileAccess.get_sha256(path)
+	var sha := FileAccess.get_sha256(path) + ("_pick" if pick_on else "")
 	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if d is Dictionary and not (d as Dictionary).has("cards") and (d as Dictionary).get("scene") is Dictionary:
 		d = (d as Dictionary)["scene"]   # an autosave (File > Restore..., ROADMAP 59): drawn from the scene it holds
@@ -275,7 +279,10 @@ func _render(path: String) -> void:
 		return
 	var t0 := Time.get_ticks_usec()
 	_stage()
-	_tb.from_dict((cards[i] as Dictionary)["pose"])
+	if pick_on:
+		picked[path] = pick_into(d as Dictionary, _tb)
+	else:
+		_tb.from_dict((cards[i] as Dictionary)["pose"])
 	Overlays.pose_skeleton(_sk, _idx, _tb)
 	await _frame()
 	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
@@ -293,3 +300,13 @@ func _render(path: String) -> void:
 	renders += 1
 	render_ms.append((Time.get_ticks_usec() - t0) / 1000.0)
 	made.emit(path)
+
+
+## K29: pose B at the most readable frame of the scene dict d, seen from the thumbnail's own camera; returns that time (s)
+static func pick_into(d: Dictionary, B: Body) -> float:
+	var S := Scene.new()
+	S.from_dict(d)
+	var cam := Transform3D(Basis(), PoseLibrary.CAM_FROM).looking_at(PoseLibrary.CAM_AT, Vector3.UP)
+	var r := ThumbPick.best(S, B, cam.basis.x, cam.basis.y)
+	S.apply(B, float(r["t"]))
+	return float(r["t"])
