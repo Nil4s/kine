@@ -191,7 +191,7 @@ static func insert_index(shots: Array, t: float) -> int:
 
 ## an old one-camera scene: the one shot, cut at 0, with the default name
 static func is_legacy(shots: Array) -> bool:
-	return shots.size() == 1 and float(shots[0]["t"]) == 0.0 and String(shots[0]["name"]) == SHOT_NAME % 1 and ShotFx.clean(shots[0].get("fx", {})).is_empty()
+	return shots.size() == 1 and float(shots[0]["t"]) == 0.0 and String(shots[0]["name"]) == SHOT_NAME % 1 and ShotFx.clean(shots[0].get("fx", {})).is_empty() and String(shots[0].get("light", "")) == ""
 
 
 ## the shots as the file keeps them: the keys as "camera", the shot's shake and rack focus as "fx" (only when any)
@@ -201,6 +201,8 @@ static func shots_to_file(shots: Array) -> Array:
 		var fx: Dictionary = ShotFx.clean(s.get("fx", {}))
 		if not fx.is_empty():
 			d["fx"] = ShotFx.to_file(fx)
+		if LightRig.PRESETS.has(String(s.get("light", ""))):
+			d["light"] = String(s["light"])   # the lighting preset on this shot (light_rig.gd), only when there is one
 		return d)
 
 
@@ -214,7 +216,7 @@ static func shots_from_file(d: Dictionary) -> Array:
 			if keys.is_empty():
 				continue
 			out.append({"t": maxf(0.0, float(s.get("t", 0.0))), "name": String(s.get("name", "")), "keys": keys,
-				"fx": ShotFx.from_file(s.get("fx", {}))})
+				"fx": ShotFx.from_file(s.get("fx", {})), "light": String(s.get("light", "")) if LightRig.PRESETS.has(String(s.get("light", ""))) else ""})
 	elif d.has("camera"):   # the old one-camera file: one shot (its camera_fx, from the shake build, is that shot's fx)
 		var keys := from_file(d["camera"])
 		if not keys.is_empty():
@@ -230,6 +232,8 @@ static func mirror_shots_file(d: Array) -> Array:
 		var o := {"t": s["t"], "name": s["name"], "camera": mirror_file(s["camera"])}
 		if s.has("fx"):
 			o["fx"] = ShotFx.mirror_file(s["fx"])   # the shake's sideways parts and the focus parts to their twins
+		if s.has("light"):
+			o["light"] = s["light"]   # the rig is camera-relative: the mirrored camera carries it across
 		return o)
 
 
