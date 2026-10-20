@@ -153,7 +153,7 @@ func _init() -> void:
 	var va: Vector3 = (A["v"] as Vector3) + (A["domega"] as Vector3).cross(A["r"])
 	var vb: Vector3 = (Bs["v"] as Vector3) + (Bs["domega"] as Vector3).cross(Bs["r"])
 	var sep := (vb - va).dot(n)
-	var want := WeaponRebound.E_REST * float(ll["close"])
+	var want := float(ll["e"]) * float(ll["close"])
 	ok(absf(sep - want) <= 1e-6 * maxf(1.0, want), "(2) separation after the impulse %.4f m/s = e x closing %.4f m/s" % [sep, want])
 
 	# (3) light on light, deflections as the IK plays them

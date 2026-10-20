@@ -13,9 +13,11 @@
 ##        J = (1 + e) v_c / (1/m_A + 1/m_B)         the impulse (N s): A gets -J n, B gets +J n
 ##        d_omega_A = -J (r_A x n) / I_A            d_omega_B = +J (r_B x n) / I_B        (rad/s, in the hero's space)
 ##   so for equal levers the two weapons' changes of angular velocity are in the INVERSE ratio of their inertias about the grips.
-##   RESTITUTION E_REST = 0.5: a heuristic. Hard rods striking each other rebound with e of the order of 0.4-0.7 (steel on steel, wood on wood
-##   are in that range; a baseball on a bat is about 0.5 at game speeds, Nathan 2000, Am. J. Phys. 68:979) and the arms' give in the first
-##   milliseconds lowers it a little: one constant, stated, not fitted.
+##   RESTITUTION  MEASURED per material (docs/physics_constants.md): Ciornei & Alaci 2014 (Ann. Univ. Oradea, Fasc. Mgmt & Tech. Eng., issue 3,
+##   Table I): a steel ball dropped 0.28-1.27 m onto a steel prism rebounds with e = 0.40-0.53 (mean 0.46, falls with speed), onto an aluminium
+##   prism 0.19-0.36 (mean 0.28). Kine's props: metal_bat = aluminium, long_hammer / long_axe / dagger = steel, staff = wood (no wood measurement
+##   was opened: 0.5 is the old heuristic, UNVERIFIED). A pair takes the LOWER of the two (the softer body absorbs). No bat-on-bat or blade-on-blade
+##   measurement was found; this is a ball on a flat, the nearest measured steel / aluminium data.
 ##   The grip's reaction impulse is J_g = m dv_com + (impulse on the weapon) with dv_com = d_omega x (com - grip); the ARM gets -J_g and its
 ##   velocity jumps by -J_g / M, M = the weapon + the forearm + the hand (Winter 2009 table 4.1: 1.6 % + 0.6 % of 75 kg body mass).
 ## THE WRIST  After the impact the wrist pulls the weapon back to the authored motion like a damped spring about the grip:
@@ -25,8 +27,10 @@
 ##   over the time the wrist takes to give, the rise 1/w_n to the peak of the deflection: M = I w_n |d_omega| = sqrt(K I) |d_omega| (the mean
 ##   torque over the rise; the damper's instantaneous peak, 2 sqrt(K I) |d_omega|, is higher but lasts milliseconds and is carried by the
 ##   passive tissue, so it is not what the isometric maximum limits).
-##   K_WRIST = 10 N m/rad is a HEURISTIC: voluntary wrist stiffness is of the order of 2-6 N m/rad (Charles & Hogan 2011; Formica 2012: recalled,
-##   not re-read) and the forearm and the second hand add to it when the grip is braced.
+##   K_WRIST = 19.5 N m/rad is MEASURED: Milner, Cloutier, Leger & Franklin 1995 (Exp Brain Res 107:293), 10 subjects, wrist stiffness 150-200 ms
+##   after a 3 deg displacement: "stiffness when stiffening the wrist without load was only 0.34 Nm/deg" (maximal voluntary stiffening; 0.56 Nm/deg
+##   at the limit of stability = 32 N m/rad; a relaxed wrist is about 3 N m/rad, passive 0.07 Nm/deg = 4 N m/rad). A parry is a braced wrist, so the
+##   maximal stiffening is used; a relaxed wrist (3-4 N m/rad) would give 2x more deflection and half the wrist torque.
 ## STOPPED DEAD  The parry took at least STOP_FRAC (half) of the weapon's angular speed (|d_omega| >= STOP_FRAC |omega|, the weapon was swinging:
 ##   its contact point faster than WeaponClash.STATIC) AND the wrist torque M is over WeaponTorque.WRIST_MAX (I30's isometric maximum): the arm
 ##   cannot give, it is a stop with no give.
@@ -37,8 +41,12 @@
 class_name WeaponRebound
 extends RefCounted
 
-const E_REST := 0.5        # Newton's restitution coefficient (heuristic, see above)
-const K_WRIST := 10.0      # N m/rad, effective stiffness of the wrist (+ forearm) holding the weapon (heuristic)
+const E_STEEL := 0.46      # Ciornei & Alaci 2014 Table I, steel ball on steel prism (mean of 10)
+const E_ALUMINIUM := 0.28  # same table, steel ball on aluminium prism (mean of 10)
+const E_WOOD := 0.5        # UNVERIFIED (no source opened)
+const E_REST := E_STEEL    # the default pair (steel on steel); analyze() uses e_for() per pair
+const K_WRIST := 19.5      # N m/rad, 0.34 N m/deg maximal voluntary wrist stiffening (Milner et al. 1995)
+const MATERIAL := {"metal_bat": "aluminium", "staff": "wood", "long_hammer": "steel", "long_axe": "steel", "dagger": "steel"}
 const WINDOW := 0.2        # s: the deflection lasts this long, then the authored motion is back
 const TAPER_AT := 0.5      # fraction of the WINDOW at which the cosine taper to zero begins
 const KEY_HZ := 60.0       # IK keys a second
@@ -48,6 +56,20 @@ const MIN_CLOSE := 0.05    # m/s: a contact that is not closing faster than this
 
 
 ## the response of the wrist to an initial rate of 1 (rad/s or m/s), tau seconds after the impact: g(tau) with the taper
+## the restitution coefficient of a pair of weapon kinds: the lower of the two materials' (the softer absorbs)
+static func e_for(kind_a: String, kind_b: String) -> float:
+	var out := 9.0
+	for k in [kind_a, kind_b]:
+		var e := E_STEEL
+		match String(MATERIAL.get(k, "steel")):
+			"aluminium":
+				e = E_ALUMINIUM
+			"wood":
+				e = E_WOOD
+		out = minf(out, e)
+	return out
+
+
 static func shape(tau: float, wn: float) -> float:
 	if tau <= 0.0 or tau >= WINDOW:
 		return 0.0
@@ -146,7 +168,9 @@ static func analyze(fighters: Array, ev: Dictionary, over := {}) -> Dictionary:
 	if ka + kb < 1e-9:
 		res["why"] = "the contact is at the grip: it cannot turn the weapon"
 		return res
-	var J := (1.0 + E_REST) * close / (ka + kb)
+	var e_pair := e_for(String(A["kind"]), String(B["kind"]))
+	res["e"] = e_pair
+	var J := (1.0 + e_pair) * close / (ka + kb)
 	A["domega"] = -J * ra.cross(n) / float(A["i"])
 	B["domega"] = J * rb.cross(n) / float(B["i"])
 	for s in [A, B]:
@@ -303,4 +327,4 @@ static func describe(an: Dictionary) -> String:
 		var s: Dictionary = an["sides"][si]
 		var tag := "A" if si == 0 else "B"
 		bits.append("%s: turns %.1f rad/s, deflects %.1f deg, wrist %.1f cm" % [tag, (s["domega"] as Vector3).length(), float(s["angle"]), 100.0 * float(s["shift"])])
-	return "%s at %.2f s, closing %.1f m/s, impulse %.2f N s (e = %.1f).  %s" % [String(ev["kind"]), float(an["t"]), float(an["close"]), float(an["j"]), E_REST, "  |  ".join(bits)]
+	return "%s at %.2f s, closing %.1f m/s, impulse %.2f N s (e = %.2f).  %s" % [String(ev["kind"]), float(an["t"]), float(an["close"]), float(an["j"]), float(an.get("e", E_REST)), "  |  ".join(bits)]

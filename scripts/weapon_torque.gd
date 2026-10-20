@@ -14,10 +14,13 @@
 ## ARM SEGMENTS  Winter, Biomechanics and Motor Control of Human Movement (4th ed. 2009), table 4.1: upper arm 2.8 %, forearm 1.6 %, hand 0.6 %
 ##   of body mass; centre of mass 43.6 / 43.0 / 50.6 % from the proximal end; radius of gyration about it 0.322 / 0.303 / 0.297 of the length.
 ##   Body mass BODY_KG = 75 (a typical adult; ours).
-## HUMAN MAXIMA  HEURISTICS, rounded, not measured here: isometric wrist torque is of the order of 10-15 N m (flexion about 12, extension about
-##   8; Delp, Grierson & Buchanan 1996, J Biomech 29:1371) and isometric shoulder torque 60-100 N m (flexion/abduction, adult men; Otis et
-##   al. 1990, J Bone Joint Surg 72-A:1052; Kumar 1996). WRIST_MAX = 12 and SHOULDER_MAX = 75 are ours, from those orders of magnitude. An
-##   isometric maximum is the CEILING: a moving muscle gives less (force-velocity), so a swing at the ceiling is already too much.
+## HUMAN MAXIMA  MEASURED (docs/physics_constants.md). WRIST_MAX = 14.9 N m: radial deviation, concentric peak moment, adult men, 90 deg/s, mean
+##   (SD 3.4), Biodex, 20 men + 20 women: "Isokinetic Strength Profile of the Wrist Muscles: A Study of Healthy Women and Men", PMC12551099
+##   (2025), Table 1 (same table, men: flexion 17.0, extension 8.8, ulnar deviation 26.5; women: 12.1 / 5.3 / 20.0 / 8.5). Radial deviation is the weaker
+##   of the two directions in which a weapon held in line with the forearm is swung. SHOULDER_MAX = 77.2 N m: isometric shoulder flexion at 90 deg
+##   elevation, standing, 14 healthy men, SD 13.8 (43.2 N m at 160 deg): Aronis et al., J Funct Morphol Kinesiol 11(1):20 (2026), Table 1. These are
+##   adult MEN's means (the Kine body is a 75 kg adult man); women's wrist values are 0.5-0.8 of these. A moving muscle gives less than its
+##   isometric maximum, so a swing at the ceiling is already too much. Shoulder abduction in N m was not found (only N/kg).
 ## WEIGHTLESS  (a) no wind-up: the tip moved back opposite the strike less than WINDUP_MIN of the strike's travel before the strike;
 ##   (b) no follow-through: after contact the tip carries on along the strike less than FOLLOW_MIN of its travel; (c) an instant stop: the
 ##   torque in the last quarter of the strike move and the STOP_WIN s after contact is over the maximum AND over 1.5x the swing's earlier peak
@@ -28,8 +31,8 @@ extends RefCounted
 
 const HZ := 60.0            # sampling of the swing (second differences of a smooth ease need no more; 120 Hz cost 2x for the same peaks to ~2 %)
 const BODY_KG := 75.0
-const WRIST_MAX := 12.0     # N m, heuristic (see above)
-const SHOULDER_MAX := 75.0  # N m, heuristic
+const WRIST_MAX := 14.9     # N m, measured: radial deviation, men, 90 deg/s (PMC12551099 Table 1)
+const SHOULDER_MAX := 77.2  # N m, measured: isometric flexion at 90 deg, 14 men (Aronis 2026 Table 1)
 const WINDUP_MIN := 0.15
 const FOLLOW_MIN := 0.10
 const STOP_WIN := 0.25

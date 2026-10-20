@@ -113,7 +113,7 @@ func _panel() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(m._button("Close", close))
-	L.add_child(m._label("At the impact each weapon is a rigid body turning about its grip (inertia from the weapon weight panel); the exchange uses restitution %.1f (a heuristic). The wrist pulls it back like a critically damped spring (%.0f N m/rad, a heuristic): light weapons rebound fast and far, heavy ones slowly and little. The white tick is the wrist's isometric maximum, %.0f N m. Arcs: dim = your motion, bright = deflected. Preview changes nothing; Accept writes IK keys on both hands, one undo step (Ctrl+Z)." % [WeaponRebound.E_REST, WeaponRebound.K_WRIST, WeaponTorque.WRIST_MAX], 12, "text:0.6", true))
+	L.add_child(m._label("At the impact each weapon is a rigid body turning about its grip (inertia from the weapon weight panel); the exchange uses restitution by material (steel %.2f, aluminium %.2f measured, Ciornei & Alaci 2014; wood unverified). The wrist pulls it back like a critically damped spring (%.1f N m/rad, maximal voluntary stiffening, Milner 1995): light weapons rebound fast and far, heavy ones slowly and little. The white tick is the wrist's isometric maximum, %.0f N m. Arcs: dim = your motion, bright = deflected. Preview changes nothing; Accept writes IK keys on both hands, one undo step (Ctrl+Z)." % [WeaponRebound.E_STEEL, WeaponRebound.E_ALUMINIUM, WeaponRebound.K_WRIST, WeaponTorque.WRIST_MAX], 12, "text:0.6", true))
 	for k in rows.size():
 		var an: Dictionary = rows[k]["an"]
 		var hd: Label = m._label("Contact %d  -  %s at %.2f s, closing at %.1f m/s, impulse %.2f N s" % [k + 1, String(an["ev"]["kind"]), float(an["t"]), float(an["close"]), float(an["j"])], 13, "text", true)
