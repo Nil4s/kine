@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 18 / 25.
+Merged in round 2: 20 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
 - [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
@@ -195,7 +195,7 @@ Merged in round 2: 18 / 25.
 - [x] R4. Contact shadows under feet and props (soft blob that darkens as the foot nears the floor).
 - [x] R5. Render the shot sequence to an mp4 (ffmpeg), camera cuts from the camera sequencer.
 - [x] R6. One obvious next step on every page (a single line, never empty, clickable).
-- [ ] R7. Cold-start test: a script with no knowledge of the UI reaches "a punch that lands" through the command registry only.
+- [x] R7. Cold-start test: a script with no knowledge of the UI reaches "a punch that lands" through the command registry only.
 - [x] R8. Drag a pose from the library onto the card strip to insert it there.
 - [x] R9. Local HTTP API: the command registry verbs over JSON (describe, run, check, shot), localhost only.
 - [x] R10. Blind-agent maths: "what would this angle do" (reach, collisions, balance) as a text answer over CLI/MCP.
@@ -210,7 +210,7 @@ Merged in round 2: 18 / 25.
 - [x] R19. Multi-select cards in the strip, batch retime / delete / copy.
 - [x] R20. Timed version snapshots (every N minutes while edited) with the scene diff report.
 - [ ] R21. Pose library search by words ("guard", "crouch", "low kick") over names and auto tags.
-- [ ] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
+- [x] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
 - [ ] R23. Weapon trail in the playblast and the mp4 render.
 - [ ] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
 - [ ] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
