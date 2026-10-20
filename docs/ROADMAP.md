@@ -202,7 +202,7 @@ Merged in round 2: 11 / 25.
 - [ ] R11. BODY page: body mass changes girth (per-segment radial scale of the skin), not just the readout.
 - [x] R12. BODY page: save / load named characters (user://characters), the man/woman blend saved in the scene schema.
 - [x] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
-- [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now).
+- [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); the rest needs a heel-pivot hold for toes-up heel strikes.
 - [ ] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [ ] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
 - [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
