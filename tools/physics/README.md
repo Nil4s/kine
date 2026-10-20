@@ -25,3 +25,18 @@ Estimates, not measurements:
 - Envs / steps: 2048-4096 parallel envs, 1-2 billion env steps for one clip family. KungfuBot reports 27 h on one RTX 4090 for one policy; a 3070 8 GB is roughly 2-3x slower and VRAM limits envs to about 2048 in Isaac Lab (MJX is also possible with the same MJCF; this model has 47 hinges, so cost is about a G1's): expect 40-70 h per policy, so train short clips (1-2 s hits) first, 4-8 h each.
 - Isaac Lab path: convert this MJCF to USD (Isaac Sim MJCF importer; articulation with the same 47 hinges, PD actuators with the kp/kv/torque limits in `kine_mjcf.py`), use the DirectRL humanoid-AMP / tracking task template, reference clips from Kine's BVH export (`tools/export_bvh.gd`), sim-to-sim check back in MuJoCo with `sim.py`. Isaac Sim needs Windows/Linux + RTX driver, about 30 GB disk.
 - Output back into Kine: roll out the policy with random hits, record with `export.py`'s BVH writer, import as cards.
+
+## Stage 2 groundwork on Isaac (built, `tools/physics/isaac/`)
+Isaac Sim 5.1 + Isaac Lab v2.3.2 (cloned to `D:/IsaacLab`, editable installs into `D:/isaac-venv`, rsl-rl-lib 3.1.2). Vulkan must be off (`--kit_args=--/app/vulkan=false`, the scripts do it) and `OMNI_KIT_ACCEPT_EULA=YES`. Install traps: flatdict needs `--no-build-isolation` with setuptools < 81; the Isaac Lab install replaces torch 2.7.0+cu128 with PyPI torch 2.14 (breaks Isaac Sim), so re-install `torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128` and `tensordict==0.9.1 --no-deps`.
+
+| file | what |
+|---|---|
+| `isaac/import_usd.py` | MJCF -> USD (`D:/kine-physics/kine_humanoid/`). Bodies with 2-3 hinges are split into chains of tiny dummy bodies (+0.2 % mass) so all 47 joints are plain revolutes (the importer otherwise makes one D6 joint and loses the axes); drops the duplicate articulation root |
+| `isaac/export_stance.py` | writes `D:/kine-physics/stance.npz` (ready-pose hinge targets, gains, limits) from the MuJoCo model |
+| `isaac/push_env.py` | `PushEnv` (DirectRLEnv): hold the stance, random impulses, tracking + upright + alive reward. **The hit source is one method, `_hit_source()`** |
+| `isaac/train.py` | one command: baseline eval, PPO, after eval, `D:/kine-physics/runs/<name>/results.json` |
+
+One command: `D:/isaac-venv/Scripts/python.exe tools/physics/isaac/train.py --num_envs 256 --iters 150 --name run1`
+
+### Replacing the point impulse by an attacker's swing (what it needs on Isaac)
+Swap `_hit_source()` only. Needs: (1) a second `Articulation` per env (attacker humanoid + a weapon body with real mass, e.g. a 1 kg rod on the hand with a fixed joint), driven by PD toward a Kine strike clip's joint targets (time-indexed per env); (2) a `ContactSensor` on the defender bodies with `filter_prim_paths_expr` = weapon/attacker bodies (`net_forces_w_history` gives the impact force per body, so the contact physics decides where and how hard) or simply let PhysX resolve the collision and read the defender's joint/root response; (3) collision filtering so the attacker does not hit other envs (envs are in separate collision groups already) and the attacker is not hit back by the stance pushes; (4) memory: the pair roughly doubles articulation count and PhysX contact buffers, so the max env count about halves (measure; see the numbers below), and the attacker needs a curriculum (start with slow swings, widen the miss/hit distance), otherwise most episodes contain no contact.
