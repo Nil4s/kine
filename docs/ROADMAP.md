@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 9 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 13 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -206,6 +206,7 @@ Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; f
 - [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); Step 2 merged: heel pivot + stance detection fixed (vroot x0.85 passes), coverage 57%/50%; the remaining loss is the video fit holding the heel 3-6 cm up at heel strike.
   Step 3 merged: sole snap by leg IK + toe-off contact; coverage 57 -> 61% (x1.00), 50 -> 51% (x0.85), sole height now passes (1.7 cm). Open: whole stances the leg can't reach under the 2 cm hip-drop cap; next is a horizontal pelvis shift toward held feet (design change, not tuning).
   Step 4 merged: horizontal pelvis shift toward held feet (cap 5 cm, eased by plant weight) + 98% leg reach: coverage 55 -> 57% (x1.00), 50 -> 54% (x0.85). Raising the cap to 50 cm only reaches 59%: both feet are pinned ~1.02x leg reach apart, so the cause is the root fit following the tracker's foot (next). x1.00 slide reads 1.28 cm (red) since the TRIM=2 revert.
+  Step 5 merged: 'strides too long' REFUTED (fit strides are short); the fitted hip RISES in stance (0.937->0.963 m vs true 0.919), so stance legs sit at 98-99% reach. REACH_DROP 2->2.9 cm, TRIM 2->1: coverage 65% / 62% (bar 70). Next: re-solve stance legs by IK in the fit so the pelvis keeps its true height; x1.00 slide 1.28 cm at heel-off (th) still red.
 - [x] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [x] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
 - [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
@@ -301,9 +302,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   (same interval three times, same side four times) and dead air, and suggests a pause, a feint or a change of side
   at each flag, one click each. Choreography help read from the clip itself.
   Merged: tempo map, monotony/dead air/rush flags, timeline strip, pause/change side/feint stub; i19 PASS.
-- [ ] I20. Feint maker: turn a strike card into a feint + real strike (the feint sells the same line, stops at 40-60%
+- [x] I20. Feint maker: turn a strike card into a feint + real strike (the feint sells the same line, stops at 40-60%
   of the reach, the real one comes from the other side), timed so the defender's reaction (I3's counters) bites on
   the feint; physically checked by the timing coach and Check.
+  Merged: feint stops at 50.3% of reach, tip within 1.87 cm of the original line, real strike OTHER SIDE / LOW lands, counter moved onto the feint, recover card after a mirrored strike; i20 PASS. Ghosts overlap on the attacker.
 - [x] I21. Sell the hit: for the shot camera, check each strike as the camera sees it. A miss that should read as a
   hit must overlap the target on screen (the stunt "cheat angle"); a real contact gets a SAFETY flag. Suggest the
   camera move or strike offset that sells it, one click each.
@@ -313,8 +315,9 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   Nick's own cards/moves (I17 style, Next poses) and checked by the timing coach and Check; a plan to edit, not a
   finished fight.
   Step 1 merged: RMS energy per beat -> strikes per bar, biggest on loudest downbeat, contacts on beats, new scene on Accept; i22 test OK. Open: Check finds 13 must-fix on the result (bat tip 40-45 m/s: the coach's fist range used for a bat), fighters overlap (ARMS hit 6.7 cm), quiet bars have no circling step, planning 18 s.
-- [ ] I23. My combos: mine Nick's own scenes for card sequences he repeats (same strike kinds in the same order, timing
+- [x] I23. My combos: mine Nick's own scenes for card sequences he repeats (same strike kinds in the same order, timing
   within his style spread), name them ("jab-cross-hook, your 0.15/0.2 rhythm") and offer them as one-click phrases.
+  Merged: 5 combos mined from Nick's 11 clips, one-click insert with his poses and mean timing, cache by mtime; i23 PASS. Sub-phrases listed beside their longer combo; style-spread filter not applied.
 - [ ] I24. Drag the balance: drag the centre-of-mass marker and the body rebalances to put it there (hips, knees,
   ankles, trunk lean solved within limits, feet planted); red when it leaves the support.
 - [ ] I25. Breakfall check: on a fall or knockdown, judge the landing like a stunt coach (chin tucked, head clear
@@ -322,6 +325,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I26. Learn from my edits: record which suggestions Nick accepts, undoes or edits after (Next poses, Check
   fixes, timing coach, counters) and how he changes them; rank future suggestions by what he keeps, and say why
   ("you usually shorten this wind-up by 0.05 s").
+  Step 1 merged: journal (accept / undo 30 s / edit 2 min), kept-rate sort and learned delta on timing coach + next pose ('you usually shorten this by 0.05 s - applied'), counters sorted, lessons panel + reset; i26 OK. Open: Check and realism fixes not hooked; counter/rhythm edits not watched.
 - [ ] I27. Throw and catch: release a prop from one hand and the app solves the ballistic arc (gravity, spin from
   the release angular velocity), the flight time, and places the catching hand on the arc at the catch frame;
   red if the catch needs an impossible reach or a hand speed outside human range.
+- [ ] I28. Safety sheet: one pre-shoot report for the stunt crew over the whole scene: every real contact and its
+  speed, weapon tips passing within 15 cm of a face, falls and their breakfall verdicts, unsold/unsafe strikes, with
+  time, fighters and a thumbnail per item; exported as a printable HTML page next to the scene.

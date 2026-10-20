@@ -288,7 +288,7 @@ const LEG_SLACK := 0.995   # the stance leg may reach this fraction of its lengt
 const REACH_SLACK := 0.98  # R14d: a video plant keeps its leg this fraction of its length at most: the solver misses 3 mm on a leg stretched to 99.5 %
 const DROP_STEPS := 24     # rounds of the drop (each lowers the hips by the worst overstretch)
 const REACH_SHIFT := 0.05   # m: R14d, a video plant's hips slide sideways toward the held foot by this much at most BEFORE they drop (weight eases it over BLEND)
-const REACH_DROP := 0.02   # m: a video plant ("reach") lowers the hips by this much at most; past it the miss shows and reachable() ends the plant
+const REACH_DROP := 0.029   # m: a video plant ("reach") lowers the hips by this much at most; past it the miss shows and reachable() ends the plant
 
 static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> void:
 	var any_ground := false
