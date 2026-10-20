@@ -311,3 +311,9 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   density follows the music's energy, pauses on quiet bars, the biggest hit on the loudest downbeat), built from
   Nick's own cards/moves (I17 style, Next poses) and checked by the timing coach and Check; a plan to edit, not a
   finished fight.
+- [ ] I23. My combos: mine Nick's own scenes for card sequences he repeats (same strike kinds in the same order, timing
+  within his style spread), name them ("jab-cross-hook, your 0.15/0.2 rhythm") and offer them as one-click phrases.
+- [ ] I24. Drag the balance: drag the centre-of-mass marker and the body rebalances to put it there (hips, knees,
+  ankles, trunk lean solved within limits, feet planted); red when it leaves the support.
+- [ ] I25. Breakfall check: on a fall or knockdown, judge the landing like a stunt coach (chin tucked, head clear
+  of the floor, impact spread over arm slap/shoulder/hip, no straight-arm catch) with one-click fixes.
