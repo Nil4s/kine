@@ -172,7 +172,7 @@ func _init() -> void:
 	# the right-click menu and the hover icons run the same functions
 	m._card_menu(2, Vector2(300, 600))
 	await idle(2)
-	ok(m.ui_card_menu != null and m.ui_card_menu.item_count == 5 and m.ui_card_menu.visible, "right-click menu: %d items, open" % m.ui_card_menu.item_count)
+	ok(m.ui_card_menu != null and m.ui_card_menu.item_count == 7 and m.ui_card_menu.visible, "right-click menu: %d items, open" % m.ui_card_menu.item_count)
 	m.ui_card_menu.hide()
 	var bu: Button = m.ui_cards.get_node("card_3").find_child("b_update", true, false)
 	var bd: Button = m.ui_cards.get_node("card_3").find_child("b_delete", true, false)
