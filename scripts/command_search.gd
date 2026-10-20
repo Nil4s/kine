@@ -35,7 +35,7 @@ var recent: Array = []   # names of the last commands run, newest first (shown o
 var commands: Array = []
 ## ROADMAP 52: the saved files as rows {"name", "kind" ("pose" / "scene"), "also", "desc", "run"}; main's files_provider
 ## lists them each time the box opens (not per keystroke). KINDS: the words a "kind:" prefix may start with
-const KINDS := ["command", "pose", "scene", "macro"]   # ROADMAP 81: "macro:" lists the recorded macros
+const KINDS := ["command", "pose", "scene", "macro", "script"]   # ROADMAP 81: "macro:" lists the recorded macros
 var files_provider: Callable
 var files: Array = []
 var box: LineEdit
