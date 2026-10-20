@@ -65,6 +65,7 @@ var cards := []        # [{"name", "pose", "move", "hold"}]
 var audio_tracks: Array = []   # the sounds on the timeline (AudioTrack, ROADMAP 77): [{"path", "offset" s, "gain_db", "role", "mute", "solo"}]; in the file as "audio" only when there is one
 var face := {}        # THE FACE (ROADMAP 74, face.gd): {"brow_l", "jaw", "eye_yaw", ..., "vis_M"}: [{"t", "v": Vector3(x,0,0)}]; in the file as "face" only when keyed
 var lip := {}          # LIP-SYNC channel (ROADMAP 31, lip_sync.gd): {"jaw": [{"t", "v"}], "mouth": [{"t", "s"}]}; in the file only when baked
+var refimgs := []      # REFERENCE IMAGES (scripts/ref_image.gd): [{"path" (relative to the scene file if it could be), "mode", "opacity", "scale", "offset", "flip", ...}]; in the file as "refimgs" only when any
 var markers := []      # named moments on the timeline (round 41, WW5; Markers): [{"t", "name", "kind"}] sorted by t; in the file only when any
 var beats_audio := []  # MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): [{"t" (the sound's time), "down"}] sorted; in the file as "beats_audio" only when any
 var notes := []       # REVIEW (ROADMAP 29; scripts/review.gd): comments on frames [{"frame", "text"}] by frame; in the file as "notes" only when any
@@ -1586,6 +1587,7 @@ func clone() -> Scene:
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
 	c.markers = markers.duplicate(true)
+	c.refimgs = refimgs.duplicate(true)
 	c.notes = notes.duplicate(true)
 	c.beats = beats.duplicate(true)
 	c.beats_audio = beats_audio.duplicate(true)
@@ -2174,6 +2176,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
 	if not part_keys.is_empty():
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
+	if not refimgs.is_empty():
+		out["refimgs"] = RefImage.clean(refimgs)   # the pictures under the figure: only when there are any
 	if not markers.is_empty():
 		out["markers"] = markers.duplicate(true)   # WW5: the same, only when there are any
 	if not notes.is_empty():
@@ -2238,7 +2242,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"iq": "SIDED: VideoIQ.mirror_file (the lost-part spans and the contacts move to their twin side: hand_l <-> hand_r, foot_l <-> foot_r, x negated; the lane and times free)",
@@ -2379,6 +2383,7 @@ func from_dict(d: Dictionary) -> void:
 	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
 	markers = Markers.from_list(d.get("markers", []))
+	refimgs = RefImage.clean(d.get("refimgs", []))
 	notes = Review.notes_from_list(d.get("notes", []))   # ROADMAP 29
 	beats = Choreo.from_list(d.get("beats", []))   # ROADMAP 13
 	beats_audio = BeatTrack.clean_list(d.get("beats_audio", []))   # ROADMAP 32: absent = none
