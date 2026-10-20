@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 23 / 25.
+Merged in round 2: 24 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -214,7 +214,8 @@ Merged in round 2: 23 / 25.
 - [x] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
 - [ ] R23. Weapon trail in the playblast and the mp4 render.
   Step 1 merged: grip-to-tip ribbon over 8 frames in playblast and mp4, off is byte-identical. Open: the ribbon renders as a solid opaque blue wall (the alpha fade does not show), and it runs out of frame on overhead swings.
-- [ ] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
+- [x] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
+  Measured: in 11 of 32 body/direction cells the humanoid has no 'steps' band (chest forward absorbs 26 N s, at 27 it steps then falls), so the table bar is absorb <= step < fall; the empty cells are listed in no_step_band.
 - [x] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
 - [x] R26. Share with friends by QR code (Nick): a pose or short clip packed (compressed) into a QR image; Kine reads a QR from an image file or the webcam and opens it. No server, no account.
 - [x] R27. Next-pose suggestions while animating (Nick): after the current card, 3 ghost poses of the likely next move, learned from your own scenes (what you usually clip after a pose like this), the motion database (what follows this pose in real clips) and move phases (wind-up -> contact -> follow-through -> recover). Tab or click takes one as a new card.
