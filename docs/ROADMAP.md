@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 20 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 21 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -345,9 +345,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I30. Weapon weight: from the prop's mass and length (inertia about the grip), compute the wrist/shoulder torque
   each swing needs vs human strength, and flag swings that feel weightless (no wind-up, no follow-through, instant
   stops) with fixes that scale anticipation and overshoot to the weapon's inertia.
-- [ ] I31. Precog check: every defender reaction (block, slip, step-back, flinch) must start at least a human
+- [x] I31. Precog check: every defender reaction (block, slip, step-back, flinch) must start at least a human
   reaction time after the attacker's move becomes readable; flag "precog" answers (too early: reads as rehearsed) and
   "late" answers (the hit should have landed), with one-click retimes.
+  Merged: PRECOG (< 0.2 s after the wind-up is readable, Woodworth & Schlosberg) and LATE flags with retimes; i31 PASS. Onset read from card times, not limb speed; step-backs/flinches not matched.
 - [ ] I32. My camera: learn Nick's shot habits from his own shot cameras (lens, height, distance in body heights,
   angle to the line of action, cut timing relative to contacts) and frame new shots his way; say which habit it used.
 - [ ] I33. Reaction direction: a struck body must move away along the blow's impulse (and turn about the right
