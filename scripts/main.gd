@@ -2762,6 +2762,7 @@ func _process(dt: float) -> void:
 	_video_poll(dt)
 	_gen_poll(dt)
 	_multicam_poll(dt)
+	refimg.poll(dt)
 	_imp_poll()
 	_live_poll(dt)
 	_sg_poll()
@@ -4273,6 +4274,7 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 func _refresh() -> void:
 	_light_apply()
+	_refimg_sync()
 	_actors_view()
 	_curve_sync()
 	if ui_akey != null and auto_key:
@@ -5198,7 +5200,7 @@ func _snapshot() -> Dictionary:
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
-		"markers": S.markers.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
+		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
@@ -5317,6 +5319,9 @@ func _restore(u: Dictionary) -> void:
 		S.markers = u["markers"].duplicate(true)   # WW5: the markers, undone like a card
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
+	if u["scene"] == S and u.has("refimgs") and JSON.stringify(u["refimgs"]) != JSON.stringify(S.refimgs):
+		S.refimgs = u["refimgs"].duplicate(true)   # the reference pictures, undone like a marker
+		_refimg_sync()
 	if u["scene"] == S and u.has("crowd") and var_to_str(u["crowd"]) != var_to_str(S.crowd):
 		S.crowd = (u["crowd"] as Dictionary).duplicate(true)   # ROADMAP 95: the crowd, undone like a marker
 	if u["scene"] == S and u.has("notes") and JSON.stringify(u["notes"]) != JSON.stringify(S.notes):
@@ -13796,6 +13801,9 @@ func _commands() -> Array:
 		add.call("View: matcap %s" % k, "", _matcap_set.bind(k), "shading matcap clay wax skin material", false, "the matcap shading with the %s look (remembered)" % k)
 	for lt in [["three_point", "3-point"], ["rim", "rim"], ["top", "top"], ["flat", "flat"], ["default", "stage"]]:
 		add.call("View: lights %s" % lt[1], "", _lights_set.bind(lt[0]), "studio lights key fill rim top flat three point", false, "studio lights: %s (remembered)" % Shading.LIGHT_NAMES[lt[0]])
+	add.call("View: reference image...", "", refimg.ask, "reference image photo picture overlay trace rotoscope png jpg person plane", false, "load a photo or video frame of a real person as an overlay on the view (or a plane behind the body); opacity, size, offset and flip in the reference panel; saved in the scene as a path, never copied (ROADMAP C25, B21)")
+	add.call("View: reference panel", "", refimg.open_panel, "reference image opacity scale offset flip plane front side free camera overlay", false, "the reference picture's mode (camera overlay, plane front / side / free), opacity, size, offset and flip")
+	add.call("View: match the body to the reference", "", refimg.match_body, "match fit reference image person pose detector height hips residual 2 point head heel", false, "finds the person in the reference picture and scales + moves it to line up with the body as seen from this camera, then says the mean pixel residual; with no detector installed it asks you to click the head top and heel instead")
 	add.call("View: sky background", "", _sky_toggle, "sky hdri gradient background environment", false, "a procedural gradient sky behind the figure, on or off (remembered)")
 	add.call("Light / dark theme", "", func(): _set_light(Tok.dark), "colour white bright night", false, "switch the light and dark look (remembered)")
 	for p in SCALES:
@@ -18919,6 +18927,7 @@ func _imp_show(on: bool) -> void:
 ## pattern): Ctrl+Z takes them back, and nothing is saved until you save. A panel shows the cameras and the reconstructed pose.
 const MULTI_MAX := 4
 const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most this many frames (GDScript: a 300-frame clip takes minutes)
+var refimg := RefImageUI.new(self)   # REFERENCE IMAGES (scripts/ref_image_ui.gd): a picture under or behind the figure, and Match
 var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
 var multicam_tool := "res://tools/see_video.py"
 var _mc_videos: Array = []
@@ -18927,6 +18936,10 @@ var _mc_i := -1                  # the camera being tracked, or -1 when idle
 var _mc_pid := -1
 var _mc_win: Window = null       # the panel's window (one at a time)
 var mc_last := {}                # the last rig solved: {"cams", "H"} (the hips' mean in the rig's world; the panel's origin)
+
+
+func _refimg_sync() -> void:
+	refimg.sync()
 
 
 func _multicam_ask() -> void:
