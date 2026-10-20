@@ -145,6 +145,7 @@ const DRAW := {
 	"choreo_song": [["seg", Vector2(3, 20), Vector2(3, 14), 2.0], ["seg", Vector2(8, 20), Vector2(8, 6), 2.0], ["seg", Vector2(13, 20), Vector2(13, 11), 2.0], ["seg", Vector2(18, 20), Vector2(18, 3), 2.0], ["ring", Vector2(21, 9), 2, 2.0]],
 	"mystyle": [["seg", Vector2(4, 20), Vector2(4, 14), 2.0], ["seg", Vector2(9, 20), Vector2(9, 8), 2.0], ["seg", Vector2(14, 20), Vector2(14, 11), 2.0], ["seg", Vector2(19, 20), Vector2(19, 4), 2.0]],
 	"usestyle": [["seg", Vector2(3, 8), Vector2(21, 8), 1.6], ["seg", Vector2(3, 16), Vector2(21, 16), 1.6], ["disc", Vector2(15, 8), 2.6], ["disc", Vector2(9, 16), 2.6], ["seg", Vector2(12, 3), Vector2(12, 6), 1.6]],
+	"combos": [["disc", Vector2(5, 14), 2.6], ["disc", Vector2(12, 8), 2.6], ["disc", Vector2(19, 14), 2.6], ["seg", Vector2(5, 14), Vector2(12, 8), 1.6], ["seg", Vector2(12, 8), Vector2(19, 14), 1.6]],
 	"rhythm": [["seg", Vector2(3, 18), Vector2(3, 10), 2.0], ["seg", Vector2(8, 18), Vector2(8, 5), 2.0], ["seg", Vector2(14, 18), Vector2(14, 12), 2.0], ["seg", Vector2(21, 18), Vector2(21, 7), 2.0]],
 	"keeper": [["seg", Vector2(3, 12), Vector2(21, 12), 2.0], ["seg", Vector2(3, 7), Vector2(3, 17), 2.0], ["seg", Vector2(21, 7), Vector2(21, 17), 2.0], ["disc", Vector2(12, 12), 2.6]],
 	"sellhit": [["seg", Vector2(3, 6), Vector2(15, 6), 2.0], ["seg", Vector2(15, 6), Vector2(15, 18), 2.0], ["seg", Vector2(15, 18), Vector2(3, 18), 2.0], ["seg", Vector2(3, 18), Vector2(3, 6), 2.0], ["disc", Vector2(18, 12), 3.0]],

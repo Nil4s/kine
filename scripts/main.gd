@@ -152,6 +152,7 @@ var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the pla
 var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
 var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui.gd
+var cm_ui: ComboUI   # MY COMBOS (ROADMAP I23): scripts/combo_ui.gd + combo_mine.gd
 var dk_ui: DistanceKeeperUI   # FIGHT DISTANCE KEEPER (ROADMAP I18): scripts/distance_keeper_ui.gd
 var cg_ui: ChoreographUI   # CHOREOGRAPH TO THE SONG (ROADMAP I22): scripts/choreograph_ui.gd
 var bf_ui: BeatFightUI   # FIGHT TO THE BEAT (ROADMAP I15): scripts/beat_fight_ui.gd
@@ -191,7 +192,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Realism score", "My style", "Use my style", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -2575,6 +2576,8 @@ func _process(dt: float) -> void:
 		sh_ui.tick(dt)
 	if rh_ui != null:
 		rh_ui.tick(dt)
+	if cm_ui != null:
+		cm_ui.tick(dt)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
 	_dm_poll()
@@ -4123,7 +4126,10 @@ func _refresh() -> void:
 	if ov.spacing_on or ov.graph_on:
 		ov.trail(_ps())
 	ov.spacing(playhead)
-	ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
+	if cm_ui != null and cm_ui.pv != null and fp_prev.is_empty():
+		ov.fight_ghost(cm_ui.pv, cm_ui.pv_t, Transform3D.IDENTITY)   # I23: the combo, previewed, on the hero
+	else:
+		ov.fight_ghost(fp_prev.get("scene", null), playhead, fp_prev.get("xf", Transform3D.IDENTITY))   # I11: the defender's answer, previewed
 	ov.take_ghost(reh.get("take", null), Rehearse.take_time(reh["R"]["map"], playhead) if not reh.is_empty() else 0.0)   # I14: you, orange, at your own time for this playhead
 	ov.version_ghost(vdiff.get("scene", null), float(vdiff.get("ghost_t", playhead)))   # COMPARE WITH (ROADMAP 28): the version's body, magenta; the diff report's 'Show both' pins it to the older card's time (ROADMAP 98)
 	wt.draw(_ps(), playhead)   # weapon trail ribbon + smear (ROADMAP 35)
@@ -4503,6 +4509,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 	elif ev is InputEventKey and ev.pressed:
 		var k := ev as InputEventKey
 		if not _pressing and (get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is SpinBox):
+			return
+		if cm_ui != null and cm_ui.key(k):   # I23: Enter writes the previewed combo, Esc drops it (only while its ghost is shown)
 			return
 		if _sg_key(k):   # R27: Tab cycles the next-pose ghosts, Enter takes the picked one, Esc hides them (only while they are shown)
 			return
@@ -4965,6 +4973,8 @@ func _restore(u: Dictionary) -> void:
 		sh_ui.halt()
 	if rh_ui != null:
 		rh_ui.halt()
+	if cm_ui != null:
+		cm_ui.halt()
 	if _actors_restore(u) or not actors_rt.is_empty():   # TC3: onto the actor the step was taken on first (its own body and scene)
 		ov.mark_dirty()
 		wt.mark_dirty()
@@ -9798,7 +9808,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -10222,6 +10232,9 @@ func _ui() -> void:
 	if sh_ui == null:
 		sh_ui = SellHitUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Sell the hit", sh_ui.show, "with two fighters and a shot camera: each strike's 3D miss against what the camera shows, SOLD / NOT SOLD / UNSAFE (a real contact) on the timeline; Move the camera or Offset the aim fixes a NOT SOLD strike; preview, then accept (one undo step)"))
+	if cm_ui == null:
+		cm_ui = ComboUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("My combos", cm_ui.show, "the card sequences you repeat in your own clips, named with your rhythm (jab-cross-hook, your 0.15/0.20/0.15, used 3 times in 2 clips); click one for a ghost after the picked card, Enter inserts it with your poses and timing (one undo step)"))
 	if rh_ui == null:
 		rh_ui = FightRhythmUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Fight rhythm", rh_ui.show, "with two fighters: a tempo map of the exchange (who attacks, who answers, the time between beats) as a strip on the timeline; flags monotony, dead air and rush with a one-click suggestion each (pause, change side, feint); preview, then accept (one undo step)"))
@@ -12871,6 +12884,9 @@ func _commands() -> Array:
 	if rh_ui == null:
 		rh_ui = FightRhythmUI.new(self)
 	rh_ui.commands(add)   # FIGHT RHYTHM (ROADMAP I19)
+	if cm_ui == null:
+		cm_ui = ComboUI.new(self)
+	cm_ui.commands(add)   # MY COMBOS (ROADMAP I23)
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
