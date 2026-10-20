@@ -25,6 +25,8 @@ var _lit: TreeItem   # the row lit because the view's mouse is on its part (KK2)
 var _hover_mine := false   # the hover came from the mouse on a row here
 var _poses_root: TreeItem   # RR3: Poses > Library / Mine, rows from main's pose list
 var _lib: TreeItem
+var _down := false   # R8: the left button is down on the tree
+var _pose_pending := -1   # R8: the pose row pressed, applied on release unless it became a drag
 var _mine: TreeItem
 var _dummy: TreeItem
 var _psets := {}   # "select" / "keying" -> the folder of the scene's selection / keying sets (scripts/part_sets.gd)
@@ -338,6 +340,12 @@ func _motion(ev: InputEvent) -> void:
 		var at := (ev as InputEventMouseButton).position
 		var id := get_button_id_at_position(at)
 		var row := get_item_at_position(at)
+		# R8: a pose row takes the body on the RELEASE (a press that turns into a drag to the card strip must not pose the body)
+		_down = (ev as InputEventMouseButton).pressed
+		if not _down and _pose_pending >= 0:
+			var pi := _pose_pending
+			_pose_pending = -1
+			m._pose_apply(pi)
 		if id >= 0 and row != null:
 			accept_event()
 			if (ev as InputEventMouseButton).pressed:
@@ -352,6 +360,23 @@ func _motion(ev: InputEvent) -> void:
 		_hover_mine = j != ""
 		m.hover_part = j
 		m._refresh()
+
+
+## R8: a pose row can be dragged onto the card strip (main.gd _pose_drop)
+func _get_drag_data(at: Vector2) -> Variant:
+	_pose_pending = -1
+	var it := get_item_at_position(at)
+	if it == null or m.ui_poses == null:
+		return null
+	var md = it.get_metadata(0)
+	if not (md is Dictionary) or not md.has("pose"):
+		return null
+	var path: String = m.ui_poses.get_item_metadata(int(md["pose"]))
+	var l := Label.new()
+	l.text = "  " + it.get_text(0)
+	l.add_theme_font_size_override("font_size", 13)
+	set_drag_preview(l)
+	return {"kine_pose": path, "name": it.get_text(0)}
 
 
 func _left() -> void:
@@ -377,7 +402,10 @@ func _chosen() -> void:
 	elif md.has("prop"):
 		m._prop_select(md["prop"])
 	elif md.has("pose"):
-		m._pose_apply(md["pose"])
+		if _down:
+			_pose_pending = int(md["pose"])
+		else:
+			m._pose_apply(md["pose"])
 	elif md.has("hit"):
 		m._goto_hit(md["hit"])
 	elif md.has("pset"):
