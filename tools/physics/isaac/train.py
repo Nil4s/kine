@@ -52,6 +52,9 @@ os.makedirs(OUT, exist_ok=True)
 cfg = PushEnvCfg()
 cfg.scene.num_envs = args.num_envs
 cfg.push_max_impulse = args.max_impulse
+if "--show" in _a:   # the windowed viewport froze with Fabric on (see play.py): render from USD and frame the grid
+    cfg.sim.use_fabric = False
+    cfg.scene.clone_in_fabric = False
 env = RslRlVecEnvWrapper(PushEnv(cfg))
 U = env.unwrapped
 M = 75.0
