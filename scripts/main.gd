@@ -174,7 +174,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
-	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
@@ -426,6 +426,10 @@ func _fold_button(which: String) -> void:
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
+var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
+var smart_drag := true      # the other joints follow a dragged one the way your poses move together; Alt+drag = off
+var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint drag)
+var _sd := {}               # the current drag's smart state ({} = none)
 var np := NextPose.new()    # NEXT-POSE SUGGESTIONS (ROADMAP R27): scripts/next_pose.gd; the glue is at the end of this file
 var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail are drag handles: scripts/trail_edit.gd
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
@@ -2198,6 +2202,8 @@ func _ready() -> void:
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
 		library = "user://zz_lib_%d" % OS.get_process_id()
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
+		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
+		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
 	_autover_cfg_load(testing)
@@ -3998,6 +4004,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_pd_mp = Vector2(NAN, NAN)
 					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j) and sel_more.is_empty():   # a SET (Select: spine, Ctrl+click) turns every member by the same change (the old drag): PartDrag spreads or swings a turn its own way
 						_pd = PartDrag.begin(B, j, cam.project_ray_origin(mb.position), cam.project_ray_normal(mb.position))
+					_sd = _smart_begin(j, mb.alt_pressed)
 					playing = false
 					_refresh()
 			elif mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -4244,6 +4251,8 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		var ax := r1.cross(r2)
 		if ax.length() > 1e-9:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
+	if not _sd.is_empty() and not alt and not twist and not move:
+		_smart_step(tip)
 	_arm_edit = sel if sel.begins_with("upperarm") and not move and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
@@ -4256,6 +4265,40 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
 	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
+
+
+## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
+## conditioning for the chain this drag turns; every move then lets the rest of the body follow, the feet planted, the
+## balance held. Alt at the press, follow 0, a weapon, a set, or a pelvis move: the old one-joint drag, exactly
+func _smart_begin(j: String, alt: bool) -> Dictionary:
+	if not smart_drag or alt or smart_follow <= 0.0 or j in Body.WEAPON or not sel_more.is_empty() or j == "pelvis":
+		return {}
+	if not sd.ready_model() and not sd.refresh():
+		return {}
+	return sd.begin(B, j, locked_parts.keys())
+
+
+func _smart_step(tip: bool) -> void:
+	sd.apply(B, _sd, smart_follow)
+	if tip:
+		if not is_nan(_grab.x):
+			B.reach(sel, _grab)   # the fist goes back to the mouse; the followers settle on the second pass
+	elif not _pd.is_empty() and not is_nan(_pd_mp.x) and _pd.get("part", "") == sel:
+		var fl := Callable()
+		if shoulder_follow and sel.begins_with("upperarm"):
+			fl = func(): B.shoulder_follow(sel.right(2))
+		PartDrag.move(B, _pd, cam.project_ray_origin(_pd_mp), cam.project_ray_normal(_pd_mp), fl)
+	sd.apply(B, _sd, smart_follow)
+
+
+func _smart_set_follow(d: float) -> void:
+	smart_follow = clampf(snappedf(smart_follow + d, 0.05), 0.0, 1.0)
+	_say("smart drag follow %d %% (0 = a drag moves only the joint you grab; Alt+drag does that too)" % roundi(smart_follow * 100.0))
+
+
+func _toggle_smart_drag() -> void:
+	smart_drag = not smart_drag
+	_say("smart drag ON: the rest of the body follows a dragged joint the way your poses move together (%d %%; Alt+drag = one joint)" % roundi(smart_follow * 100.0) if smart_drag else "smart drag off: a drag moves only the joint you grab")
 
 
 ## A DRAG THAT STOPS SAYS WHY (round 35, GATES PP2): the reason Body.set_ang_safe recorded, in words; "" if it went
@@ -9175,7 +9218,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -9522,6 +9565,8 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
+	tog.call("POSE", "Smart drag", _toggle_smart_drag, func(): return smart_drag,
+		"on: dragging a joint also moves the rest of the body the way YOUR poses move together (learned from poses/ and scenes/; feet planted, balance held). Alt+drag = the one joint only. Command search: 'smart drag follow' sets the strength")
 	tog.call("POSE", "Line of action", func(): loa.on = not loa.on; _refresh(), func(): return loa.on,
 		"the current line of action, faint: head, spine, pelvis, support knee and ankle. A C or an S shows the pose's shape")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
@@ -12171,6 +12216,9 @@ func _commands() -> Array:
 	add.call("Select: just one part", "", _select_set.bind([]), "group set single clear one", false, "back to the one part the panel shows")
 	PartSets.of(self).commands(add)   # the user's own SELECTION SETS and KEYING SETS (scripts/part_sets.gd)
 	add.call("Lock / unlock this part", "", _toggle_lock.bind(""), "freeze hold keep unlock protect", false, "a locked part keeps its pose while you change the rest: it cannot be dragged, and Reset or Mirror leave it")
+	add.call("Smart drag on / off", "", _toggle_smart_drag, "smart drag follow co-vary learned library poses", false, "dragging a joint moves the rest of the body the way your own poses move together (feet planted, balance held); Alt+drag = one joint only")
+	add.call("Smart drag: follow more", "", _smart_set_follow.bind(0.1), "smart drag follow stronger more strength", false, "the follow strength +10 % (default 60 %)")
+	add.call("Smart drag: follow less", "", _smart_set_follow.bind(-0.1), "smart drag follow weaker less strength", false, "the follow strength -10 % (0 = a drag moves only the joint you grab)")
 	add.call("Symmetry on / off", "", _toggle_symmetry, "live both sides twin symmetric", false, "while on, dragging a part on one side moves the same part on the other side, reflected")
 	add.call("Auto-key on / off", "Ctrl+K", _toggle_autokey, "auto key keyframe record toggle card", false, "while on, a pose change made at the playhead keys a card there (or updates the card on that frame); the 3D view gets a red frame")
 	add.call("Look at the picked prop", "", _look_at.bind("prop"), "gaze head neck eyes face turn", true, "the neck and head turn so the gaze points at the picked prop (real gaze shifts: scripts/look_at.gd)")
