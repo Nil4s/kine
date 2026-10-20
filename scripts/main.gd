@@ -152,6 +152,7 @@ var tm_ui: TimingMatchUI   # MATCH THE REFERENCE TIMING (ROADMAP I29): scripts/t
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
+var bt_ui: BestTakeUI = BestTakeUI.new(self)   # MY BEST TAKE (ROADMAP I38): scripts/best_take_ui.gd + best_take.gd
 var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
 var bk_ui: BreakfallUI   # BREAKFALL CHECK (ROADMAP I25): scripts/breakfall_ui.gd
@@ -202,7 +203,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Precog check", "Fatigue", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Precog check", "Fatigue", "Realism score", "My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -2255,6 +2256,7 @@ func _ready() -> void:
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
 		style_ui.on = false   # I17: like Nick is off in a test until it turns it on
+		bt_ui.stars_path = "user://zz_best_take_%d.json" % OS.get_process_id()   # I38: a test's own stars file
 		style_ui.path = "user://zz_style_print_%d.json" % OS.get_process_id()   # I17: a test's own fingerprint file
 		usual_on = false   # I10: a test keeps the app's default timing on new cards until it turns this on
 	_autover_cfg_load(testing)
@@ -2591,6 +2593,8 @@ func _process(dt: float) -> void:
 		cg_ui.tick(dt)
 	if style_ui != null:
 		style_ui.tick(dt)
+	if bt_ui != null:
+		bt_ui.tick(dt)
 	if dk_ui != null:
 		dk_ui.tick(dt)
 	if rd_ui != null:
@@ -5027,6 +5031,8 @@ func _restore(u: Dictionary) -> void:
 		cg_ui.halt()
 	if style_ui != null:
 		style_ui.halt()
+	if bt_ui != null:
+		bt_ui.halt()
 	if dk_ui != null:
 		dk_ui.halt()
 	if rd_ui != null:
@@ -9961,7 +9967,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Safety sheet": "safety", "Breakfall check": "breakfall", "Fight rhythm": "rhythm", "Precog check": "precog", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Safety sheet": "safety", "Breakfall check": "breakfall", "Fight rhythm": "rhythm", "Precog check": "precog", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -10391,6 +10397,9 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Choreograph to the song", cg_ui.show, "read the loudness of the music and lay out a two-fighter fight on its bars (a combo in loud bars, a pause in quiet ones, the biggest strike on the loudest downbeat, every contact on a beat, inside the human strike range); preview, then accept writes a NEW scene"))
 	ui_ribbon["CHECK"].add_child(_button("My style", style_ui.show, "the fingerprint of your own clips: median move and hold per kind of move, guard height, stance, usual transitions, each with how many clips; like Nick / neutral for new cards"))
 	ui_ribbon["CHECK"].add_child(_button("Use my style", style_ui.use_style, "retime this clip toward your own medians, never outside the timing coach's human range; preview, then accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("Star this clip", bt_ui.star, "star (or unstar) the open clip as one of your best takes; kept on this computer, not in the scene"))
+	ui_ribbon["CHECK"].add_child(_button("My best take", bt_ui.show, "what your starred clip does differently from your other clips of its kind: the five biggest differences in words with numbers"))
+	ui_ribbon["CHECK"].add_child(_button("Make this one more like my best", bt_ui.make_like, "nudge this clip's timing, guard height and stance toward your starred clip; preview, then accept (one undo step)"))
 	if dk_ui == null:
 		dk_ui = DistanceKeeperUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Fight distance", dk_ui.show, "with two fighters: each strike's gap to the other fighter against its measured reach, jammed / out of range / in range on the timeline; Slide the defender fixes a flagged strike with steps (feet planted); preview, then accept (one undo step)"))
@@ -13074,6 +13083,7 @@ func _commands() -> Array:
 	if style_ui == null:
 		style_ui = StyleUI.new(self)
 	style_ui.commands(add)   # LEARN MY STYLE (ROADMAP I17)
+	bt_ui.commands(add)   # MY BEST TAKE (ROADMAP I38)
 	if dk_ui == null:
 		dk_ui = DistanceKeeperUI.new(self)
 	dk_ui.commands(add)   # FIGHT DISTANCE KEEPER (ROADMAP I18)
