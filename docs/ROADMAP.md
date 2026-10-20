@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 11 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 12 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -206,6 +206,7 @@ Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; f
 - [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); Step 2 merged: heel pivot + stance detection fixed (vroot x0.85 passes), coverage 57%/50%; the remaining loss is the video fit holding the heel 3-6 cm up at heel strike.
   Step 3 merged: sole snap by leg IK + toe-off contact; coverage 57 -> 61% (x1.00), 50 -> 51% (x0.85), sole height now passes (1.7 cm). Open: whole stances the leg can't reach under the 2 cm hip-drop cap; next is a horizontal pelvis shift toward held feet (design change, not tuning).
   Step 4 merged: horizontal pelvis shift toward held feet (cap 5 cm, eased by plant weight) + 98% leg reach: coverage 55 -> 57% (x1.00), 50 -> 54% (x0.85). Raising the cap to 50 cm only reaches 59%: both feet are pinned ~1.02x leg reach apart, so the cause is the root fit following the tracker's foot (next). x1.00 slide reads 1.28 cm (red) since the TRIM=2 revert.
+  Step 5 merged: 'strides too long' REFUTED (fit strides are short); the fitted hip RISES in stance (0.937->0.963 m vs true 0.919), so stance legs sit at 98-99% reach. REACH_DROP 2->2.9 cm, TRIM 2->1: coverage 65% / 62% (bar 70). Next: re-solve stance legs by IK in the fit so the pelvis keeps its true height; x1.00 slide 1.28 cm at heel-off (th) still red.
 - [x] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [x] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
 - [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
