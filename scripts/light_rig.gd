@@ -10,6 +10,12 @@ class_name LightRig
 ## 8:1 and beyond is the low-key, chiaroscuro look of film noir. Millerson, "Lighting for Film and Electronic
 ## Cinematography" (Focal Press), gives the same family: key 1, fill 1/2 to 1/4, backlight about equal to the key.
 ## Exterior sun: the shaded side is lit by sky and bounce, about 1/4 of the sun's light on the subject (a 2-stop fill).
+## WHY THE AMBIENT IS LOW: the stage's own ambient (0.6) lifts the shadow side as much as the key lights the lit side, so the
+## looks collapse; a preset REPLACES the stage lights and ambient (main.gd _light_apply) with its own low ambient. The screen
+## is sRGB-encoded, so a linear ratio r reads as r^(1/2.2) in pixels: noir's bar of 4 in pixels is about 25:1 in light.
+## "adj" = [brightness, contrast] of the environment's colour adjustment (Godot: out = (v*brightness - 0.5)*contrast + 0.5 on the
+## screen value): the cosine falloff of a lit cylinder alone cannot give noir its crushed shadow side with a key kept on the lens
+## side, so each look also carries its own contrast, put back to 1/off by "back to default".
 ## RATIO here is key energy : fill energy of the two lights (before the ambient, which the viewer adds to the fill side).
 
 const IDS := ["three_point", "rim", "noir", "daylight"]
@@ -22,10 +28,10 @@ const GREY := Color(0.55, 0.57, 0.62)
 
 ## role -> [azimuth deg (+ = camera left), elevation deg, energy, colour]; "amb" -> [energy, colour]
 const PRESETS := {
-	"three_point": {"key": [45.0, 35.0, 1.2, WARM], "fill": [-50.0, 10.0, 0.4, COOL], "rim": [180.0, 50.0, 0.8, NEUTRAL], "amb": [0.25, GREY]},   # key:fill 3:1
-	"rim": {"key": [30.0, 20.0, 0.45, WARM], "fill": [-30.0, 10.0, 0.225, COOL], "rim": [150.0, 40.0, 1.8, COOL], "amb": [0.2, GREY]},         # 2:1 front, the rim 4x the key
-	"noir": {"key": [70.0, 30.0, 1.4, WARM], "fill": [-60.0, 0.0, 0.175, COOL], "rim": [160.0, 45.0, 0.5, NEUTRAL], "amb": [0.04, GREY]},       # 8:1
-	"daylight": {"key": [35.0, 55.0, 1.5, WARM], "fill": [-40.0, 15.0, 0.375, SKY], "rim": [180.0, 30.0, 0.0, NEUTRAL], "amb": [0.45, SKY]},   # sun : sky 4:1
+	"three_point": {"key": [70.0, 25.0, 2.0, WARM], "fill": [-30.0, 45.0, 0.55, COOL], "rim": [180.0, 50.0, 1.2, NEUTRAL], "amb": [0.03, GREY], "adj": [0.9, 2.4]},   # key:fill 3.6:1
+	"rim": {"key": [30.0, 20.0, 0.3, WARM], "fill": [-30.0, 10.0, 0.15, COOL], "rim": [150.0, 25.0, 3.0, COOL], "amb": [0.03, GREY], "adj": [1.0, 1.6]},         # 2:1 front, the rim 10x the key: a bright edge, a dim front
+	"noir": {"key": [72.0, 28.0, 1.8, WARM], "fill": [-60.0, 0.0, 0.02, COOL], "rim": [160.0, 45.0, 0.5, NEUTRAL], "amb": [0.01, GREY], "adj": [1.0, 2.0]},       # 90:1: one hard side light in a black room
+	"daylight": {"key": [60.0, 40.0, 2.4, WARM], "fill": [-40.0, 15.0, 0.48, SKY], "rim": [180.0, 30.0, 0.0, NEUTRAL], "amb": [0.08, SKY], "adj": [1.0, 1.5]},   # sun : sky 5:1
 }
 
 
@@ -55,6 +61,7 @@ static func rig(id: String, pos: Vector3, aim: Vector3) -> Dictionary:
 	for role in ["key", "fill", "rim"]:
 		var p: Array = PRESETS[id][role]
 		out[role] = {"dir": -source_dir(f, p[0], p[1]), "energy": float(p[2]), "color": p[3]}
+	out["adjust"] = {"brightness": float(PRESETS[id]["adj"][0]), "contrast": float(PRESETS[id]["adj"][1])}
 	out["ambient"] = {"energy": float(PRESETS[id]["amb"][0]), "color": PRESETS[id]["amb"][1]}
 	return out
 

@@ -12,7 +12,9 @@
 ##   5 saved with the scene: to_dict -> JSON -> from_dict keeps the preset; the lights rebuilt from the loaded scene
 ##     equal the ones before the save
 ##   6 PLACEMENT (screenshot through the shot camera): the half of the character on the key's side (screen left) is brighter
-##     than the other half: mean luminance ratio >= 1.05 for three_point, >= 1.3 for noir (8:1), daylight >= 1.05
+##     than the other half: mean luminance ratio >= 1.8 for three_point, >= 4 for noir (8:1), daylight >= 1.4 (soft)
+##   7 RIM (R1b): in the "rim" preset the outermost 3 px of the silhouette's edge (the side the back light is on, screen
+##     left) are >= 1.5x brighter than the pixels 10..12 px inside it; the four looks are unmistakable
 ## Nothing is written outside the process but the screenshot (POSER_R1_PNG) and the 4-up sheet (POSER_R1_SHEET).
 extends SceneTree
 
@@ -41,7 +43,7 @@ func lights(m: Node) -> Array:
 	var out := []
 	for L in [m.light_key, m.light_fill, m.light_rim]:
 		out.append([L.light_energy, L.light_color, L.basis])
-	out.append([m.world_env.ambient_light_energy, m.world_env.ambient_light_color])
+	out.append([m.world_env.ambient_light_energy, m.world_env.ambient_light_color, m.world_env.adjustment_enabled, m.world_env.adjustment_brightness, m.world_env.adjustment_contrast])
 	return out
 
 
@@ -51,7 +53,7 @@ func same(a: Array, b: Array) -> bool:
 	for i in 3:
 		if absf(a[i][0] - b[i][0]) > 1e-6 or not (a[i][1] as Color).is_equal_approx(b[i][1]) or not (a[i][2] as Basis).is_equal_approx(b[i][2]):
 			return false
-	return absf(a[3][0] - b[3][0]) < 1e-6 and (a[3][1] as Color).is_equal_approx(b[3][1])
+	return absf(a[3][0] - b[3][0]) < 1e-6 and (a[3][1] as Color).is_equal_approx(b[3][1]) and a[3][2] == b[3][2] and absf(a[3][3] - b[3][3]) < 1e-6 and absf(a[3][4] - b[3][4]) < 1e-6
 
 
 ## mean luminance of the character pixels in a column range; a pixel is "character" when the lit render differs from the
@@ -200,7 +202,7 @@ func _init() -> void:
 				x1 = maxi(x1, x)
 	var cx := (x0 + x1) / 2
 	ok(mask.size() > 400, "6 the character is found in the frame: %d lit pixels, x %d..%d of %d" % [mask.size(), x0, x1, img0.get_width()])
-	var want := {"three_point": 1.05, "rim": 0.0, "noir": 1.25, "daylight": 1.05}
+	var want := {"three_point": 1.8, "rim": 0.0, "noir": 4.0, "daylight": 1.4}
 	for i in 4:
 		var id: String = LightRig.IDS[i]
 		var sl := 0.0
@@ -223,6 +225,47 @@ func _init() -> void:
 		print("  %s lit-side %.4f other-side %.4f ratio %.2f" % [id, left, right, left / maxf(1e-6, right)])
 		if want[id] > 0.0:
 			ok(left / maxf(1e-6, right) >= want[id], "6 %s: the key's half (screen left) is brighter than the other: %.2f (bar %.2f)" % [id, left / maxf(1e-6, right), want[id]])
+	# 7 rim: full-resolution silhouette = where the lit frame differs from the all-lights-off frame; per row, each run of
+	# silhouette pixels at least 40 px wide gives an edge sample (3 px at the run's end) and an inside sample (10..12 px in)
+	var ri: Image = imgs[1]
+	var res := {}
+	for side in ["L", "R"]:
+		res[side] = [0.0, 0.0, 0]
+	for y in range(0, ri.get_height()):
+		var x := 0
+		var W := ri.get_width()
+		while x < W:
+			var a := img0.get_pixel(x, y)
+			var b := dark.get_pixel(x, y)
+			if absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b) <= 0.12:
+				x += 1
+				continue
+			var s0 := x
+			while x < W:
+				var a2 := img0.get_pixel(x, y)
+				var b2 := dark.get_pixel(x, y)
+				if absf(a2.r - b2.r) + absf(a2.g - b2.g) + absf(a2.b - b2.b) <= 0.12:
+					break
+				x += 1
+			var e0 := x - 1
+			if e0 - s0 < 40:
+				continue
+			for pr in [["L", s0, 1], ["R", e0, -1]]:
+				var e := 0.0
+				var n := 0.0
+				for d in 3:
+					var c: Color = ri.get_pixel(pr[1] + pr[2] * d, y)
+					e += 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+				for d in range(10, 13):
+					var c: Color = ri.get_pixel(pr[1] + pr[2] * d, y)
+					n += 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+				res[pr[0]][0] += e / 3.0
+				res[pr[0]][1] += n / 3.0
+				res[pr[0]][2] += 1
+	var rl: float = res["L"][0] / maxf(1e-6, res["L"][1])
+	var rr: float = res["R"][0] / maxf(1e-6, res["R"][1])
+	print("  rim edge/inside: left %.2f right %.2f (%d / %d rows)" % [rl, rr, res["L"][2], res["R"][2]])
+	ok(res["L"][2] > 30 and rl >= 1.5, "7 rim: the silhouette's back-lit edge (3 px) is %.2fx the pixels 10 px inside (bar 1.5)" % rl)
 	var png := OS.get_environment("POSER_R1_PNG")
 	var sheet := OS.get_environment("POSER_R1_SHEET")
 	if sheet != "":
