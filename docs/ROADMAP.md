@@ -229,6 +229,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I2. Reaction from the hit: when the attacker's weapon or fist touches the other fighter, Kine measures the impulse
   (the swing.py contact model) and generates the struck fighter's reaction (MuJoCo now, the Isaac policy later), placed
   at the contact frame. No picking clips: the hit decides.
+  Step 1 merged: command + MuJoCo reaction + impulse label work (J rises with speed, fist 26.1 vs Walilko 26 N s, attacker untouched, one undo). Open: bat J/v is constant 0.71 kg while swing.py's rises 0.80-1.10 kg with speed (0.65x at 32.6 m/s); the sim starts upright (root yaw/lean at contact not carried).
 - [ ] I3. Counter suggestion: for the attacker's current card, suggest the defender's block / slip / parry pose that
   intercepts the weapon path (geometry of the swing arc against the defender's reach) - choreography help.
 - [x] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
