@@ -53,6 +53,7 @@ var bf: Array = []        # FIGHT TO THE BEAT (I15; beat_fight_ui.gd): [{"t", "o
 var sh: Array = []        # SELL THE HIT (I21; sell_hit_ui.gd): [{"t0", "t1", "cls": sold / notsold / unsafe}] a badge per strike
 var rh: Array = []        # FIGHT RHYTHM (I19; fight_rhythm_ui.gd): [{t, who, type: strike / block / step / feint}] one tick per action
 var rh_flags: Array = []  # [{t0, t1}] the stretches the rhythm flags
+var rd: Array = []        # REACTION DIRECTION (I33; reaction_dir_ui.gd): [{"t0", "t1", "cls": ok / bad, "txt"}] a badge per hit
 var dk: Array = []        # FIGHT DISTANCE KEEPER (I18; distance_keeper_ui.gd): [{"t0", "t1", "cls": jammed / out / in}] a colour band per strike
 var cg: Array = []        # CHOREOGRAPH (I22): the music energy per beat [{"t0","t1","e" 0..1}], a strip along the cards
 var cg_peak := -1.0      # the loudest downbeat strike time (marked BIG)
@@ -780,6 +781,17 @@ func _draw_dk(font: Font, y0: float) -> void:
 			draw_string(font, Vector2(x0 + 3.0, y0 + 9.5), "JAMMED" if cls == "jammed" else "TOO FAR", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Tok.c("tl_bg"))
 
 
+## REACTION DIRECTION (I33): a badge per hit under the distance and sell-the-hit bands: blue = the reaction follows the blow, red = flagged; the numbers on it
+func _draw_rd(font: Font, y0: float) -> void:
+	var oy := 13.0 * (float(not dk.is_empty()) + float(not sh.is_empty()))
+	for b in rd:
+		var x0 := x_of(float(b["t0"]))
+		var x1 := maxf(x_of(float(b["t1"])), x0 + 4.0)
+		var col := Tok.c("fail") if String(b["cls"]) == "bad" else Tok.c("heading")
+		draw_rect(Rect2(x0, y0 + oy, x1 - x0, 12.0), Color(col, 0.92))
+		draw_string(font, Vector2(x1 + 3.0, y0 + oy + 9.5), String(b["txt"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, col)
+
+
 ## SELL THE HIT (I21): a badge under the distance band for every strike: blue = SOLD, amber = NOT SOLD, red = UNSAFE (the safety flag)
 func _draw_sh(font: Font, y0: float) -> void:
 	var oy := 13.0 if not dk.is_empty() else 0.0   # under the distance band when that one is on
@@ -892,6 +904,7 @@ func _draw() -> void:
 	_draw_fit(font, y0, h)
 	_draw_dk(font, y0)
 	_draw_sh(font, y0)
+	_draw_rd(font, y0)
 	_draw_rh(y0, y0 + h)
 	if iq_px() > 0.0:
 		_draw_iq_lane(S, font)
