@@ -97,30 +97,32 @@ const SEAT_CATCH := 0.15     # a seat catches a part whose lowest surface is les
 ##   head = [half width across, radius] for a hammer head set ACROSS the shaft at the tip ([] = none), aim = the AIM rule
 ##   applies (a staff is held in the middle and both ends strike: pointing one end back past you is how it's held),
 ##   grip = how the hand closes on it (GripWrap.TYPES, round 47 CC2: power across the palm; diagonal, the thumb along it)
+## parts = the weapon's BODY along the shaft (scripts/grip_book.gd): [name, from, to, hold], m from the butt (<0 = from the
+##   tip); hold "hold" = a hand may close on it, "blade" = only on purpose (half-swording), "no" = a guard, a head, a barrel
 ## WEIGHT (ROADMAP 40, scripts/weight_feel.gd): "mass" kg, "com" = the centre of mass as a fraction of len from the butt, "k" = the
 ##   radius of gyration about the centre of mass as a fraction of len (a uniform rod is 0.289). Bat 32 oz (0.91 kg);
 ##   quarterstaff ~1.4 kg; the hammer 2.5 kg with its head at the tip; Dane axe 1-2 kg (above); a dagger ~0.3 kg
 const KINDS := {
-	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true, "grip": "power", "mass": 0.90, "com": 0.65, "k": 0.25},
-	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false, "grip": "power", "mass": 1.40, "com": 0.50, "k": 0.289},
-	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true, "grip": "power", "mass": 2.50, "com": 0.80, "k": 0.20},
-	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true, "grip": "diagonal", "mass": 0.30, "com": 0.35, "k": 0.25},
+	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true, "grip": "power", "mass": 0.90, "com": 0.65, "k": 0.25, "parts": [["knob", 0.0, 0.03, "hold"], ["handle", 0.03, 0.40, "hold"], ["barrel", 0.40, 0.84, "no"]]},
+	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false, "grip": "power", "mass": 1.40, "com": 0.50, "k": 0.289, "parts": [["shaft", 0.0, 1.80, "hold"]]},
+	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true, "grip": "power", "mass": 2.50, "com": 0.80, "k": 0.20, "parts": [["haft", 0.0, -0.06, "hold"], ["head", -0.06, 1.10, "no"]]},
+	"dagger": {"len": 0.30, "handle": 0.11, "r_handle": 0.013, "r_barrel": 0.011, "head": [], "aim": true, "grip": "diagonal", "mass": 0.30, "com": 0.35, "k": 0.25, "parts": [["pommel", 0.0, 0.02, "hold"], ["grip", 0.02, 0.10, "hold"], ["guard", 0.10, 0.12, "no"], ["blade", 0.12, 0.30, "no"]]},
 	## round 45 (AA3, Nick 10-18's video: "a Viking with a double headed axe"): a Dane axe's combat haft is "between
 	## approx. 0.9 and 1.2 m", its cutting edge "generally between 20 and 30 cm", 1-2 kg (en.wikipedia.org/wiki/Dane_axe,
 	## read 10-18). The long end of the haft; a bit each side of the tip, 15 cm out, 6 cm round (a 12 cm edge drawn as a
 	## capsule: the head is a stand-in shape, the length and the reach are the reference's)
-	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true, "grip": "power", "mass": 1.80, "com": 0.78, "k": 0.20},
+	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true, "grip": "power", "mass": 1.80, "com": 0.78, "k": 0.20, "parts": [["haft", 0.0, -0.10, "hold"], ["head", -0.10, 1.20, "no"]]},
 	## round 49 (Nick 10-20: "we need a list of weapons ... moves held in 2 hands, then 1, then back to 2"). Typical figures
 	## (the common published ranges, quoted from memory: check a museum piece before trusting one to the centimetre). The
 	## handle runs from the pommel to the guard; com = the point of balance (a sword's sits a hand or so past the guard);
 	## a blade is drawn as a thin capsule. ARMING SWORD (one hand): ~0.9 m overall, a 10 cm grip + pommel, ~1.1 kg.
-	"sword": {"len": 0.92, "handle": 0.16, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.10, "com": 0.30, "k": 0.25},
+	"sword": {"len": 0.92, "handle": 0.16, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.10, "com": 0.30, "k": 0.25, "parts": [["pommel", 0.0, 0.04, "hold"], ["grip", 0.04, 0.15, "hold"], ["cross", 0.15, 0.17, "no"], ["blade", 0.17, 0.92, "blade"]]},
 	## LONGSWORD (hand-and-a-half: one hand or both): 1.1-1.3 m overall, a grip for two hands (~25 cm + pommel), 1.1-1.8 kg
-	"longsword": {"len": 1.20, "handle": 0.30, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.45, "com": 0.33, "k": 0.25},
+	"longsword": {"len": 1.20, "handle": 0.30, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.45, "com": 0.33, "k": 0.25, "parts": [["pommel", 0.0, 0.05, "hold"], ["grip", 0.05, 0.29, "hold"], ["cross", 0.29, 0.31, "no"], ["blade", 0.31, 1.20, "blade"]]},
 	## KATANA: a ~70 cm blade, a ~27 cm tsuka for two hands, ~1.0 m overall, 1.1-1.3 kg; balance ~12 cm past the tsuba
-	"katana": {"len": 1.00, "handle": 0.27, "r_handle": 0.016, "r_barrel": 0.011, "head": [], "aim": true, "grip": "power", "mass": 1.20, "com": 0.39, "k": 0.26},
+	"katana": {"len": 1.00, "handle": 0.27, "r_handle": 0.016, "r_barrel": 0.011, "head": [], "aim": true, "grip": "power", "mass": 1.20, "com": 0.39, "k": 0.26, "parts": [["kashira", 0.0, 0.02, "hold"], ["tsuka", 0.02, 0.26, "hold"], ["tsuba", 0.26, 0.28, "no"], ["blade", 0.28, 1.00, "no"]]},
 	## SPEAR: a 2 m wooden shaft (~3 cm thick), a ~25 cm steel head at the tip, ~1.8 kg; both hands, both ends work
-	"spear": {"len": 2.00, "handle": -0.25, "r_handle": 0.015, "r_barrel": 0.018, "head": [], "aim": false, "grip": "power", "mass": 1.80, "com": 0.56, "k": 0.28},
+	"spear": {"len": 2.00, "handle": -0.25, "r_handle": 0.015, "r_barrel": 0.018, "head": [], "aim": false, "grip": "power", "mass": 1.80, "com": 0.56, "k": 0.28, "parts": [["shaft", 0.0, -0.25, "hold"], ["head", -0.25, 2.00, "no"]]},
 }
 var wep_kind := "metal_bat"
 ## the SECOND hand's fitted grip for this kind (data/grips/<kind>.json "second", from Nick's pose by

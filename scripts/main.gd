@@ -4708,8 +4708,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				ov.onion_on = not ov.onion_on
 				_refresh()
 				_say("onion skin: orange = the card before, green = the card after" if ov.onion_on else "onion skin off")
-			KEY_BRACKETLEFT: _do(func(): B.grip_u = clampf(B.grip_u - 0.03, 0.0, B.wep_len))
-			KEY_BRACKETRIGHT: _do(func(): B.grip_u = clampf(B.grip_u + 0.03, 0.0, B.wep_len))
+			KEY_BRACKETLEFT: _do(func(): B.grip_u = GripBook.clamp_hold(B.wep_kind, B.wep_len, clampf(B.grip_u - 0.03, 0.0, B.wep_len)))
+			KEY_BRACKETRIGHT: _do(func(): B.grip_u = GripBook.clamp_hold(B.wep_kind, B.wep_len, clampf(B.grip_u + 0.03, 0.0, B.wep_len)))
 			KEY_COMMA: _do(func(): _slide(-0.03))
 			KEY_PERIOD: _do(func(): _slide(0.03))
 			KEY_MINUS: _do(func(): B.set_weapon_len(B.wep_len - 0.05))
@@ -13538,6 +13538,8 @@ func _commands() -> Array:
 	add.call("Weapon: bo staff", "", _do.bind(_kind.bind("staff")), "", true, "switch the weapon to the bo staff (180 cm)")
 	add.call("Weapon: long hammer", "", _do.bind(_kind.bind("long_hammer")), "", true, "switch the weapon to the long hammer (110 cm)")
 	add.call("Weapon: long axe", "", _do.bind(_kind.bind("long_axe")), "viking dane axe two handed", true, "switch the weapon to the long axe (120 cm, a bit each side of the tip)")
+	add.call("Grip: next grip in the book", "", _do.bind(_grip_next), "grip book hold hands two hand one hand katana spear sledge batting reverse change grip", true, "the weapon's next recorded grip (one or two hands, where each hand holds, as recorded)")
+	add.call("Grip: record this one", "", _grip_record_ask, "grip book save record hands hold", false, "the hands on the weapon now (and the arms that hold it) go into this weapon's grip book")
 	add.call("Weapon: sword", "", _do.bind(_kind.bind("sword")), "arming sword blade one handed knight", true, "switch the weapon to an arming sword (92 cm, one hand)")
 	add.call("Weapon: longsword", "", _do.bind(_kind.bind("longsword")), "bastard sword hand and a half two handed blade", true, "switch the weapon to a longsword (120 cm, one hand or both)")
 	add.call("Weapon: katana", "", _do.bind(_kind.bind("katana")), "samurai japanese sword two handed blade", true, "switch the weapon to a katana (100 cm, both hands)")
@@ -18166,6 +18168,62 @@ var _video_out := ""
 var _video_name := ""
 var _video_t := 0.0
 var _video_raw := false   # "import raw": the tracker's frames go straight to the fit, no VideoCleanup (jitter, floor, plants)
+
+
+## THE GRIP BOOK (scripts/grip_book.gd): the weapon's recorded grips, one after another; and the pose's grip recorded
+var _grip_i := {}
+
+
+func _grip_next() -> void:
+	if not B.wep_on or B.wep_hand == "":
+		_say("put a weapon in a hand first (B)")
+		return
+	var gs := GripBook.grips(B.wep_kind)
+	if gs.is_empty():
+		_say("no grips in the book for the %s yet: pose the hands on it and run Grip: record this one" % B.wep_kind.replace("_", " "))
+		return
+	var i: int = (int(_grip_i.get(B.wep_kind, -1)) + 1) % gs.size()
+	_grip_i[B.wep_kind] = i
+	var g: Dictionary = gs[i]
+	var r := GripBook.apply(B, g)
+	_refresh()
+	var ref := String(g.get("ref", "")).trim_prefix("seed: ")
+	_say("grip %d of %d, %s: %s%s" % [i + 1, gs.size(), String(g.get("label", g["name"])), ref, ("" if r["why"] == "" else ". " + String(r["why"]))])
+
+
+func _grip_record_ask() -> void:
+	var e := GripBook.capture(B, "x")
+	if e.has("why"):
+		_say("record a grip: %s" % e["why"])
+		return
+	var dlg := ConfirmationDialog.new()
+	dlg.title = "Record this grip in the %s's book" % B.wep_kind.replace("_", " ")
+	var le := LineEdit.new()
+	le.placeholder_text = "name it, e.g. high guard"
+	le.custom_minimum_size = Vector2(360, 0)
+	dlg.add_child(le)
+	dlg.get_ok_button().text = "Record"
+	var go := func():
+		_grip_record(le.text)
+		dlg.queue_free()
+	dlg.confirmed.connect(go)
+	le.text_submitted.connect(func(_t): go.call())
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+	le.grab_focus()
+
+
+func _grip_record(label: String) -> void:
+	label = label.strip_edges()
+	if label == "":
+		label = "grip %d" % (GripBook.grips(B.wep_kind).size() + 1)
+	var e := GripBook.capture(B, safe_file(label.to_lower()).replace(" ", "_"), label, "recorded in Kine " + Time.get_date_string_from_system())
+	if e.has("why"):
+		_say("record a grip: %s" % e["why"])
+		return
+	GripBook.record(B.wep_kind, e)
+	_say("recorded \"%s\" in the %s's grip book: %d hand%s%s. Grip: next grip in the book plays it back" % [label, B.wep_kind.replace("_", " "), (e["hands"] as Array).size(), "s" if (e["hands"] as Array).size() > 1 else "", " with the arms that held it" if e.has("arms") else ""])
 
 
 ## A MOVE FROM WORDS (scripts/gen_move.gd): the words -> a clip from the local ComfyUI -> _import_video, as a dropped video

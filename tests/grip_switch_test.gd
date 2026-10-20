@@ -37,6 +37,9 @@ func grips(S: Scene, B: Body) -> Array:
 
 
 func _init() -> void:
+	# the clip's sledge is held right hand BELOW (a sledge hold); the bat's book grip is a batter's, right hand on top:
+	# the clip's own order is said here (VideoImport.bat_on_top), as an importer would
+	VideoImport.bat_on_top = 0
 	var P := VideoImport.load_file(FIX)
 	ok(P["ok"], "the fixture loads (%d frames)" % (P["frames"] as Array).size())
 	var R := VideoIQ.process(body(), P, "metal_bat", "grip_a")
