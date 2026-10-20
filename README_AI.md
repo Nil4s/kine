@@ -687,3 +687,9 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
   here..." / "place a move here..." / "edit the picked clip..." (one dialog) and "remove the picked clip"; the timeline
   draws one bar per clip under the cards (Timeline.CLIP_H rows, blend ramps shaded, repeat seams), click picks, drag moves
   it (one undo step, pushed on the first move). tests/clips_test.gd (clips:w).
+
+## Round 2 R9: the local HTTP API (scripts/local_api.gd)
+- Off by default. View > Display > Local API turns it on (settings file `[api] port`, default 8765); it binds 127.0.0.1 only and the
+  status line prints a per-session token (also copied). Every request needs `X-Poser-Token: <token>`; a browser's Origin without it gets 401.
+- `GET /describe` (commands + state), `POST /run {"command": "<id or name>", "args": ["card=2", ...]}`, `GET /check`, `GET /shot` (PNG).
+  It runs the same AgentTools code as `serve` and the MCP server: one undo step per edit. tests/r9_test.gd.

@@ -12,7 +12,7 @@ const REFUSE := {"save_pose": "writes poses/: use --out for the scene instead", 
 ## the parts `state` gives the place of
 const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r",
 	"thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"]
-const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "check", "diff", "validate", "save", "quit"]
+const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit"]
 
 var m: Node
 var reg := {}
@@ -346,7 +346,14 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"measure":
 			return await measure(id, p)
 		"describe":
+			if p.has("joint"):
+				var dj := WhatIf.describe_joint(m, String(p["joint"]))
+				return _ok(id, dj) if dj["ok"] else _err(id, -32602, dj["error"])
 			return _ok(id, describe())
+		"ask":
+			# R10: what would this angle do (reach, collisions, balance), the scene untouched: scripts/what_if.gd
+			var aq := WhatIf.ask(m, String(p.get("text", "")))
+			return _ok(id, aq) if aq["ok"] else _err(id, -32602, aq["error"])
 		"check":
 			if m.S.cards.size() < 2:
 				return _err(id, -32000, "check needs a scene of two cards or more: run {\"steps\": [\"add\", \"add\"]} or open one")

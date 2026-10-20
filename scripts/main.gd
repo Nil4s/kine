@@ -135,6 +135,11 @@ var ui_say_box: StyleBoxFlat
 var ui_bar_box: StyleBoxFlat   # RR5: none (the line has no box); kept for the retheme's null check
 var ui_find_box: StyleBoxFlat
 var world_env: Environment
+var light_key: DirectionalLight3D    # the stage's lights; a shot's lighting preset (light_rig.gd) re-aims them: key = the sun, rim = the back light
+var light_fill: DirectionalLight3D
+var light_rim: DirectionalLight3D
+var _light_sig := ""
+var _light_home := []
 var floor_mat: StandardMaterial3D
 var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
@@ -169,15 +174,15 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
-		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
+		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
-	"SET": [["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
+	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
-	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]]],
+	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
-		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes"]]],
+		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API"]]],
 }
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
@@ -424,6 +429,7 @@ var trail_edit := TrailEdit.new()   # ROADMAP 69: the key dots on a pinned trail
 var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ribbon and the smear frames: scripts/weapon_trail.gd
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
+var cshadow := ContactShadow.new()   # CONTACT SHADOWS (ROADMAP R4): a soft blob under each foot, darker the nearer the sole is to the floor
 var bal := BalanceView.new()   # LIVE BALANCE (Shift+B, round 43 YY1): the feet's support and the COM over them
 var ui_tween: HSlider
 var ui_hist: PanelContainer        # UNDO HISTORY (round 11, #75)
@@ -1923,6 +1929,9 @@ func _input(ev: InputEvent) -> void:
 		_sr_cancel = true
 		get_viewport().set_input_as_handled()
 		return
+	if ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE and _card_drag_cancel():
+		get_viewport().set_input_as_handled()
+		return
 	if hk != null and hk.take_input(ev):   # the hotkey editor: a key for the row being set, or Esc closes it
 		get_viewport().set_input_as_handled()
 		return
@@ -2106,6 +2115,7 @@ func _ready() -> void:
 	add_child(ov)
 	add_child(wt)
 	add_child(bal)
+	add_child(cshadow)
 	add_child(loa)
 	add_child(rings)
 	ov.setup()
@@ -2120,6 +2130,8 @@ func _ready() -> void:
 		_auto_scale_now()
 	if not testing and not cf.get_value("look", "hints", true):
 		_set_hints(false, false)   # remembered (QQ3)
+	if not testing and cf.get_value("api", "on", false):
+		_set_api(true, false)   # remembered: off unless Nick turned it on
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
 	# test wrote "taught" into it)
 	_teach_pending = not cf.get_value("look", "taught", false)
@@ -2326,6 +2338,7 @@ func _exit_tree() -> void:
 		if (sc as Scene).baker != null:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
+	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -2348,6 +2361,10 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	if _drop_line != null and _drop_line.visible:
+		var hov := get_viewport().gui_get_hovered_control()
+		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
+			_drop_line.visible = false   # R8: the drag ended or left the strip
 	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
@@ -2360,6 +2377,7 @@ func _process(dt: float) -> void:
 	_pv_poll()
 	_video_poll(dt)
 	_multicam_poll(dt)
+	_imp_poll()
 	_live_poll(dt)
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
@@ -2415,6 +2433,7 @@ func _process(dt: float) -> void:
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
+	_light_apply()   # the playhead crossed a cut: the next shot's lights
 	_fps_poll(dt)
 
 
@@ -2439,10 +2458,17 @@ func _world() -> void:
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
 	stage_root.add_child(sun)
+	light_key = sun
 	var back := DirectionalLight3D.new()
 	back.rotation_degrees = Vector3(-30, 200, 0)
 	back.light_energy = 0.45
 	stage_root.add_child(back)
+	light_rim = back
+	light_fill = DirectionalLight3D.new()   # R1: off (energy 0) until a lighting preset uses it
+	light_fill.light_energy = 0.0
+	light_fill.rotation_degrees = Vector3(-10, -50, 0)
+	stage_root.add_child(light_fill)
+	_light_home = [light_key.basis, light_fill.basis, light_rim.basis]   # exactly as built: the default is put back bit for bit
 	var im := ImmediateMesh.new()
 	var gm := MeshInstance3D.new()
 	gm.mesh = im
@@ -3228,6 +3254,7 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	_light_apply()
 	_actors_view()
 	_curve_sync()
 	if ui_akey != null and auto_key:
@@ -3335,6 +3362,7 @@ func _refresh() -> void:
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
 	bal.show_body(B)
+	cshadow.show_body(B)
 	_hand_sliders_sync()
 	_auto_pin_sync()
 	if not clean or ov.trail_on or ov.onion_on or not ov.pins.is_empty() or ov.has_rigs():
@@ -4351,6 +4379,218 @@ func _share_scene_pack() -> void:
 		_say("this scene is not saved yet: Save scene first, then Share scene as a pack... packs the saved file")
 		return
 	PosePack.share_scene_ask(self, p)
+
+
+# ---------------------------------------------------------------- SHARE BY QR CODE (ROADMAP R26; scripts/qr_share.gd, tools/qr_tool.py)
+## Share as QR: the pose (or, when it is short enough, the whole scene) packed to KINE1: text and drawn as a QR picture in a
+## popup, saved as user://qr/<name>.png (the only file it writes). Open from QR: a picture (or the webcam) read, and the pose put
+## on the body / the scene's cards added: ONE undo step. Nothing leaves the machine; the picture is the file.
+var qr_python := ""            # "" = video_python (the interpreter with the QR helper's packages); tests point it elsewhere to check refusals
+var ui_qr: AcceptDialog
+var ui_qr_pic: TextureRect
+var ui_qr_info: Label
+var ui_qr_scene: CheckBox
+var _qr_card := -1
+var qr_last := {}              # what the popup shows now: kind, text, chars, ok, png, say (tests read it)
+var _qr_cam_pid := -1
+var _qr_cam_file := ""
+var _qr_cam_timer: Timer
+
+
+func _qr_py() -> String:
+	return qr_python if qr_python != "" else video_python
+
+
+## card i's pose (or the body's, when i < 0) as QrShare's card form
+func _qr_pose_card(i: int) -> Dictionary:
+	if i >= 0 and i < S.cards.size():
+		var v: Dictionary = QrShare.view_cards([S.cards[i]])[0]
+		return v
+	return {"name": "pose", "move": -1.0, "hold": 0.3, "ang": B.ang.duplicate(), "off": B.offset}
+
+
+func _qr_share(card := -1) -> void:
+	if ui_qr == null:
+		ui_qr = AcceptDialog.new()
+		ui_qr.name = "qr_dialog"
+		ui_qr.title = "Share as QR"
+		ui_qr.ok_button_text = "Close"
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 8)
+		ui_qr_pic = TextureRect.new()
+		ui_qr_pic.name = "qr_picture"
+		ui_qr_pic.custom_minimum_size = Vector2(540, 540)
+		ui_qr_pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ui_qr_pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ui_qr_pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # square modules stay square
+		v.add_child(ui_qr_pic)
+		ui_qr_scene = CheckBox.new()
+		ui_qr_scene.name = "qr_whole_scene"
+		ui_qr_scene.text = "the whole scene (every card)"
+		ui_qr_scene.toggled.connect(func(_on): _qr_render())
+		v.add_child(ui_qr_scene)
+		ui_qr_info = Label.new()
+		ui_qr_info.name = "qr_info"
+		ui_qr_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ui_qr_info.custom_minimum_size = Vector2(540, 0)
+		v.add_child(ui_qr_info)
+		ui_qr.add_child(v)
+		add_child(ui_qr)
+	_qr_card = card
+	var vp := get_viewport().get_visible_rect().size
+	var side := clampi(int(vp.y) - 360, 300, 560)   # the picture fits the window; the popup sits at the right so the body stays in view
+	ui_qr_pic.custom_minimum_size = Vector2(side, side)
+	ui_qr_info.custom_minimum_size = Vector2(side, 0)
+	ui_qr.reset_size()
+	var whole := card < 0 and S.cards.size() >= 2
+	ui_qr_scene.visible = whole
+	var scap: Dictionary = QrShare.capacity(QrShare.pack_scene(S.name, S.fps, QrShare.view_cards(S.cards))) if whole else {}
+	ui_qr_scene.set_pressed_no_signal(whole and bool(scap["fits"]))
+	_qr_render()
+	if whole and not bool(scap["fits"]) and bool(qr_last.get("ok", false)):   # the pose is shown; the scene's refusal is said up front too
+		ui_qr_info.text += "
+The whole scene (%d cards, %d characters) is too long for one QR: tick 'the whole scene' to see how to split it." % [S.cards.size(), scap["chars"]]
+	ui_qr.reset_size()
+	var sz := ui_qr.size
+	ui_qr.popup(Rect2i(Vector2i(maxi(0, int(vp.x) - sz.x - 12), maxi(8, (int(vp.y) - sz.y) / 2)), sz))
+
+
+func _qr_render() -> void:
+	var scene_mode := ui_qr_scene.visible and ui_qr_scene.button_pressed
+	var text := ""
+	var title := ""
+	var cards: Array = []
+	if scene_mode:
+		cards = QrShare.view_cards(S.cards)
+		text = QrShare.pack_scene(S.name, S.fps, cards)
+		title = S.name
+	else:
+		var c := _qr_pose_card(_qr_card)
+		text = QrShare.pack_pose(c["ang"], c["off"])
+		title = String(S.cards[_qr_card]["name"]) if _qr_card >= 0 and _qr_card < S.cards.size() else "pose"
+	var cap := QrShare.capacity(text)
+	qr_last = {"kind": "scene" if scene_mode else "pose", "text": text, "chars": cap["chars"], "ok": false, "png": "", "say": "", "cards": cards.size() if scene_mode else 1}
+	ui_qr_pic.texture = null
+	if not cap["fits"]:
+		var k := QrShare.max_cards(S.name, S.fps, cards) if scene_mode else 0
+		var msg := "too long for one QR: %d characters, the biggest code holds %d. " % [cap["chars"], QrShare.CAP_L]
+		if scene_mode:
+			msg += "Share the pose (untick the whole scene, or right-click one card > Share as QR), or split the scene: the first %d of %d cards fit, so make a scene of those and share it (Ctrl+Z brings the rest back)." % [k, cards.size()]
+		else:
+			msg += "Reset the fingers or hips you do not need and share again, or send a .kinepack file (Share scene as a pack...)."
+		qr_last["say"] = msg
+		ui_qr_info.text = msg
+		_say(msg)
+		return
+	var png := "%s/%s.png" % [QrShare.OUT_DIR, safe_file(title)]
+	var r := QrShare.make_png(text, png, _qr_py())
+	if not bool(r.get("ok", false)):
+		qr_last["say"] = String(r.get("why", "the QR could not be drawn: run pip install segno zxing-cpp pillow"))
+		ui_qr_info.text = qr_last["say"]
+		_say(qr_last["say"])
+		return
+	var img := Image.load_from_file(ProjectSettings.globalize_path(png))
+	if img == null:
+		qr_last["say"] = "the QR picture could not be read back: share again"
+		ui_qr_info.text = qr_last["say"]
+		return
+	ui_qr_pic.texture = ImageTexture.create_from_image(img)
+	qr_last.merge({"ok": true, "png": png, "version": r.get("version", 0), "ecc": r.get("ecc", "")}, true)
+	var what := "the scene '%s' (%d cards)" % [title, cards.size()] if scene_mode else ("the body's pose" if title == "pose" else "the pose '%s'" % title)
+	var msg2 := "%s: %d of the %d characters one QR holds (%d%%), QR version %d, error correction %s.\nSaved as %s (in the app's user folder). Send that picture: Open from QR... reads it back.\nCarries joint angles to 0.1 degree and the hips; not weapons, props or the face." % [what, cap["chars"], QrShare.CAP_L, roundi(cap["pct"]), int(r.get("version", 0)), String(r.get("ecc", "")), png.get_file()]
+	qr_last["say"] = msg2
+	ui_qr_info.text = msg2
+	_say("QR ready for %s: %d of %d characters (version %d). Send the picture; Open from QR... reads it" % [what, cap["chars"], QrShare.CAP_L, int(r.get("version", 0))])
+
+
+func _qr_open_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.bmp, *.webp ; a picture of a Kine QR code"])
+	fd.use_native_dialog = true
+	fd.title = "Open from QR: pick the picture"
+	fd.file_selected.connect(func(p): _qr_open_file(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## the picture read, then opened. Returns {ok, why, kind, cards}
+func _qr_open_file(path: String) -> Dictionary:
+	var r := QrShare.read_png(path, _qr_py())
+	if not bool(r.get("ok", false)):
+		_say(String(r.get("why", "no QR found: pick another picture")))
+		return r
+	return _qr_open_text(String(r["text"]))
+
+
+func _qr_open_text(text: String) -> Dictionary:
+	var u := QrShare.unpack(text)
+	if not bool(u["ok"]):
+		_say(String(u["why"]))
+		return u
+	_step_hint = "Open from QR"
+	if u["kind"] == "pose":
+		var c: Dictionary = u["cards"][0]
+		_do(func():
+			for j in Body.ORDER:
+				B.ang[j] = B.clamp_ang(j, c["ang"].get(j, Vector3.ZERO))
+			B.offset = c["off"]
+			B.fk())
+		_refresh()
+		_say("opened the shared pose from the QR (%d joints away from rest). Ctrl+Z puts the old pose back" % (c["ang"] as Dictionary).size())
+	else:
+		var fresh := QrShare.to_scene_cards(u["cards"])
+		var was_empty := S.cards.is_empty()
+		_do(func():
+			if was_empty:
+				S.name = String(u.get("name", S.name))
+				S.fps = int(u.get("fps", S.fps))
+			S.cards.append_array(fresh)
+			_rebuild_cards())
+		if ui_scene_name != null and was_empty:
+			ui_scene_name.text = S.name
+		_say("opened the shared scene '%s' from the QR: %d cards %s. Ctrl+Z takes them out again" % [u.get("name", ""), fresh.size(), "now in this scene" if was_empty else "added after yours"])
+	return u
+
+
+## Open from QR (webcam): tools/qr_tool.py camera looks for 25 s and writes what it read; polled twice a second, the app stays alive
+func _qr_open_camera() -> void:
+	if _qr_cam_pid >= 0 and OS.is_process_running(_qr_cam_pid):
+		_say("still looking for a QR on the camera: hold the code up to it, or wait for it to give up")
+		return
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(QrShare.OUT_DIR))
+	_qr_cam_file = ProjectSettings.globalize_path(QrShare.OUT_DIR + "/_cam.json")
+	if FileAccess.file_exists(_qr_cam_file):
+		DirAccess.remove_absolute(_qr_cam_file)
+	_qr_cam_pid = OS.create_process(_qr_py(), PackedStringArray([ProjectSettings.globalize_path("res://tools/qr_tool.py"), "camera", "0", _qr_cam_file, "--seconds", "25"]))
+	if _qr_cam_pid < 0:
+		_say("could not start the camera reader: \"%s\" did not start. Install Python and run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture" % _qr_py())
+		return
+	_say("looking for a Kine QR on camera 0 for 25 seconds: hold the code up, straight on and still")
+	if _qr_cam_timer == null:
+		_qr_cam_timer = Timer.new()
+		_qr_cam_timer.wait_time = 0.5
+		_qr_cam_timer.timeout.connect(_qr_cam_poll)
+		add_child(_qr_cam_timer)
+	_qr_cam_timer.start()
+
+
+func _qr_cam_poll() -> void:
+	if FileAccess.file_exists(_qr_cam_file):
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(_qr_cam_file))
+		DirAccess.remove_absolute(_qr_cam_file)
+		_qr_cam_timer.stop()
+		_qr_cam_pid = -1
+		if d is Dictionary and bool(d.get("ok", false)):
+			_qr_open_text(String(d["text"]))
+		else:
+			_say(String((d as Dictionary).get("why", "no QR seen: try again")) if d is Dictionary else "the camera reader gave no answer: try again, or open a picture")
+	elif _qr_cam_pid < 0 or not OS.is_process_running(_qr_cam_pid):
+		_qr_cam_timer.stop()
+		_qr_cam_pid = -1
+		_say("the camera reader stopped without an answer: run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture")
 
 
 ## ROADMAP 96: an import into the library is ONE undo step (no body change); its files ride on the step as "lib"
@@ -8296,6 +8536,36 @@ func _set_hints(on: bool, save := true) -> void:
 		_say_plain("hints on (VIEW > Hints to hide them)" if on else "")
 
 
+## LOCAL API (ROADMAP R9, scripts/local_api.gd): off unless the settings file says [api] on. The toggle remembers it
+var api: LocalApi
+
+
+func _set_api(on: bool, save := true, port_override := 0) -> bool:
+	if api == null:
+		api = LocalApi.new(self)
+		add_child(api)
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	var good := true
+	if on:
+		var pt := port_override if port_override > 0 else int(cf.get_value("api", "port", LocalApi.DEFAULT_PORT))
+		good = api.start(pt)
+		if good:
+			print("Kine local API: http://%s:%d  token %s  (header X-Poser-Token)" % [LocalApi.BIND, api.port, api.token])
+			DisplayServer.clipboard_set(api.token)
+			_say_plain("Local API %s:%d  X-Poser-Token %s  (copied)" % [LocalApi.BIND, api.port, api.token])
+		else:
+			_say("Local API: port %d is busy: set [api] port in the settings file to a free one, then turn it on again" % pt)
+	else:
+		api.stop()
+		_say_plain("Local API off")
+	if save:
+		cf.set_value("api", "on", on and good)
+		cf.set_value("api", "port", int(cf.get_value("api", "port", LocalApi.DEFAULT_PORT)))
+		cf.save(settings)
+	return good
+
+
 func _hints_apply() -> void:
 	for l in ui_hint_labels:
 		if not is_instance_valid(l):
@@ -8538,14 +8808,15 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
-	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
+	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
+	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
+	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
 
@@ -8879,6 +9150,8 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Arms 25°", _do.bind(_arms_relaxed), "both arms relaxed: 25° out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
+	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: 'Open from QR (webcam)' reads it from the camera"))
+	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: Open from QR (webcam) reads it from the camera"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
@@ -8936,8 +9209,12 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
+	ui_ribbon["EXPORT"].add_child(_button("Share as QR", _qr_share, "the pose (or the scene, if it is short enough) as a QR code picture to send to a friend: no server, no account. Right-click a card > Share as QR shares that card's pose"))
+	ui_ribbon["EXPORT"].add_child(_button("Share as QR", _qr_share, "the pose (or the scene, if it is short enough) as a QR code picture to send to a friend: no server, no account. Right-click a card > Share as QR shares that card's pose"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
+	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
+		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Crowd: re-roll (new seed)", _crowd_reroll, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures. Ctrl+Z undoes"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
@@ -8973,7 +9250,10 @@ func _ui() -> void:
 	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
 		ui_ribbon["VIEW"].add_child(_button(v[0], _view.bind(v[1])))
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
+	tog.call("VIEW", "Local API", func(): _set_api(api == null or not api.running()), func(): return api != null and api.running(),
+		"a local HTTP API on 127.0.0.1 only (off by default): describe, run, check, shot over JSON, for a script on this machine. Needs the session token the status line shows. The port is [api] port in the settings file (default 8765)")
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
+	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
 	tog.call("VIEW", "Corrective shapes", func(): corr.on = not corr.on; dummy_corr.on = corr.on; _refresh(); dummy_corr.update(T.D), func(): return corr.on,
@@ -9413,6 +9693,16 @@ func _ui() -> void:
 	ui_cards = HBoxContainer.new()
 	ui_cards.add_theme_constant_override("separation", 2)
 	cs.add_child(ui_cards)
+	for dz in [cs, ui_cards]:   # R8: a library pose dropped between cards (the gaps and the empty end of the strip)
+		(dz as Control).set_drag_forwarding(Callable(), _card_can_drop.bind(-1, dz), _card_drop.bind(-1, dz))
+	_drop_line = ColorRect.new()
+	_drop_line.name = "drop_line"
+	_drop_line.top_level = true
+	_drop_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_drop_line.z_index = 60
+	_drop_line.visible = false
+	_drop_line.color = Tok.c("card_play")
+	cs.add_child(_drop_line)
 	ui_timeline = Timeline.new()
 	ui_timeline.m = self
 	ui_timeline.tooltip_text = "drag a card's edge to change its move (or hold); click a card to jump to it; drag the ruler to scrub"
@@ -10282,13 +10572,13 @@ func _rebuild_cards() -> void:
 		pc.name = "card_%d" % (i + 1)   # a named scope: card_3/.../b_update (U2)
 		pc.add_theme_stylebox_override("panel", _card_style(i))
 		pc.custom_minimum_size = Vector2(CARD_W, 0)
-		pc.set_drag_forwarding(Callable(), _card_can_drop.bind(i), _card_drop.bind(i))
+		pc.set_drag_forwarding(Callable(), _card_can_drop.bind(i, pc), _card_drop.bind(i, pc))
 		ui_cards.add_child(pc)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
 		# the picture IS the pick button: the pose on the body, the number and name under it
-		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick.bind(i), "")
+		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
 		nb.tooltip_text = "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
@@ -10303,7 +10593,7 @@ func _rebuild_cards() -> void:
 		nb.expand_icon = true
 		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
 		_card_flat(nb)
-		nb.set_drag_forwarding(_card_drag.bind(i), _card_can_drop.bind(i), _card_drop.bind(i))
+		nb.set_drag_forwarding(Callable(), _card_can_drop.bind(i, nb), _card_drop.bind(i, nb))   # R18: the drag itself is _card_drag_input (6 px, a gold line); R8: a library pose can drop here
 		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
 		var tex := thumbs.pose_picture(c["pose"])
 		if tex != null:
@@ -10499,13 +10789,71 @@ func _card_drag(_at: Vector2, i: int) -> Variant:
 	return {"kine_card": i}
 
 
-func _card_can_drop(_at: Vector2, data: Variant, j: int) -> bool:
-	return data is Dictionary and (data as Dictionary).has("kine_card") and int(data["kine_card"]) != j
+func _card_can_drop(at: Vector2, data: Variant, j: int, ctrl: Control = null) -> bool:
+	if data is Dictionary and (data as Dictionary).has("kine_pose"):
+		return ctrl != null and _pose_drop_over(ctrl.get_global_transform() * at, data)
+	return j >= 0 and data is Dictionary and (data as Dictionary).has("kine_card") and int(data["kine_card"]) != j
 
 
-func _card_drop(_at: Vector2, data: Variant, j: int) -> void:
+func _card_drop(at: Vector2, data: Variant, j: int, ctrl: Control = null) -> void:
+	if data is Dictionary and (data as Dictionary).has("kine_pose"):
+		if ctrl != null:
+			_pose_drop(ctrl.get_global_transform() * at, data)
+		return
 	_step_hint = "Move card"
 	_card_reorder(int(data["kine_card"]), j)
+
+
+## R8: A LIBRARY POSE DRAGGED ONTO THE CARD STRIP. The browser (Poses > Library / Mine) starts {"kine_pose": path, "name"};
+## the strip shows a gold line between two cards where it would go (the card centres decide: left of a card's middle =
+## before it) and a drop there inserts a new card; a drop off the strip changes nothing. One undo step. The body is
+## not read from the file through the body: the card takes the file's own pose dictionary (the same form as B.to_dict()).
+var _drop_line: ColorRect
+
+
+## the card index a drop at global point p would take, -1 when p is off the strip
+func pose_drop_index(p: Vector2) -> int:
+	if ui_card_row == null or not ui_card_row.get_global_rect().has_point(p):
+		return -1
+	var g := _card_slot_at(p.x)
+	return int(g["slot"]) if not g.is_empty() else 0
+
+
+func _pose_drop_over(p: Vector2, data: Variant) -> bool:
+	var i := pose_drop_index(p)
+	if i < 0 or not FileAccess.file_exists(String((data as Dictionary).get("kine_pose", ""))):
+		_drop_line.visible = false
+		return false
+	var g := _card_slot_at(p.x)
+	var rr := ui_card_row.get_global_rect()
+	_drop_line.global_position = Vector2(g["x"] if not g.is_empty() else rr.position.x + 3.0, g["top"] if not g.is_empty() else rr.position.y + 2.0)
+	_drop_line.size = Vector2(3.0, g["h"] if not g.is_empty() else rr.size.y - 4.0)
+	_drop_line.visible = true
+	return true
+
+
+func _pose_drop(p: Vector2, data: Variant) -> void:
+	_drop_line.visible = false
+	var i := pose_drop_index(p)
+	if i < 0:
+		_say("drop the pose on the card strip at the bottom to make it a card")
+		return
+	var path := String((data as Dictionary).get("kine_pose", ""))
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (d is Dictionary) or not (d as Dictionary).has("joints"):
+		_say("that file is not a single pose: open it from the Scene menu, or pick another pose in BROWSER > Poses")
+		return
+	_step_hint = "Insert pose card"
+	_push_undo()
+	S.add(String(data.get("name", path.get_file().get_basename())), (d as Dictionary).duplicate(true), i)
+	sel_card = i
+	sel_end = -1
+	playing = false
+	playhead = S.times()[i][1]
+	Scene.put(B, Moves._flat(S.cards[i]["pose"]))
+	_rebuild_cards()
+	_refresh()
+	_say("pose '%s' is card %d.  Ctrl+Z takes it out" % [S.cards[i]["name"], i + 1])
 
 
 func _card_reorder(i: int, j: int) -> void:
@@ -10539,6 +10887,7 @@ func _card_menu(i: int, at: Vector2) -> void:
 	ui_card_menu.add_icon_item(Icons.small("move_l"), "Move earlier", 2)
 	ui_card_menu.add_icon_item(Icons.small("move_r"), "Move later", 3)
 	ui_card_menu.add_icon_item(Icons.small("card_delete"), "Delete this card", 4)
+	ui_card_menu.add_icon_item(Icons.small("qr"), "Share as QR", 5)
 	ui_card_menu.set_item_disabled(2, i == 0)
 	ui_card_menu.set_item_disabled(3, i >= S.cards.size() - 1)
 	ui_card_menu.popup(Rect2i(Vector2i(at), Vector2i(0, 0)))
@@ -10565,6 +10914,8 @@ func _card_menu_pick(id: int) -> void:
 		4:
 			_step_hint = "Delete card"
 			_card_del(i)
+		5:
+			_qr_share(i)
 
 
 const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
@@ -11400,6 +11751,9 @@ func _commands() -> Array:
 	add.call("Actor: add a second fighter (mirror of this one, facing it)", "", _actor_add, "actor fighter character opponent two second partner duel versus", true, "a second fighter in the scene: this scene mirrored, 150 cm in front, turned to face this one (TC3; Save scene keeps both)")
 	add.call("Crowd: make 20 copies of this fighter", "", _crowd_make, "crowd copies many fighters army group mob extras background spread", true, "20 copies of the current fighter's clip, scattered without overlap, each with its own time, speed, slight joint noise, mirror and stature (ANSUR II); one Ctrl+Z")
 	add.call("Crowd: re-roll (new seed)", "", _crowd_reroll, "crowd reroll seed random new variation", true, "the same crowd with a new seed: new places, timings, speeds, mirrors and statures; one Ctrl+Z")
+	for lid in LightRig.IDS:
+		add.call(LightRig.NAMES[lid], "", _light_preset.bind(lid), "light lighting lights preset shot camera key fill rim back " + lid.replace("_", " ") + " noir daylight three point", true, LightRig.tip(lid))
+	add.call("Light: back to the default lights", "", _light_preset.bind(""), "light lighting lights preset default off clear remove reset", true, "the shot on at the playhead goes back to the stage's two default lights (one undo step)")
 	add.call("Crowd: remove", "", _crowd_remove, "crowd remove delete clear copies", true, "the copies go and the fighter stays; one Ctrl+Z")
 	add.call("Actor: switch to the next fighter", "", _actor_next, "actor fighter character opponent other active swap", false, "the next fighter becomes the one you pose: its own cards, its own body, its own Ctrl+Z")
 	add.call("Pose: copy to the other fighter", "", _pose_to_other.bind(false), "copy pose fighter actor other duplicate transfer", true, "the active fighter's pose at the playhead goes onto the other fighter's card at that moment (a card is made if none); one Ctrl+Z")
@@ -11519,6 +11873,12 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Share as QR", "", _qr_share, "qr code share send friend phone photo screenshot pose scene picture no server account", false, "the pose (or the whole scene when it is short) as a QR code picture: a friend scans or opens it in Kine. Says how much of one QR it uses and refuses with the next step when it is too long")
+	add.call("Open from QR...", "", _qr_open_ask, "qr code open read scan friend phone photo screenshot pose scene picture", false, "pick a picture of a Kine QR code: the pose goes on the body (or a scene's cards are added), ONE undo step")
+	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 seconds: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")
+	add.call("Share as QR", "", _qr_share, "qr code share send friend phone photo screenshot pose scene picture no server account", false, "the pose (or the whole scene when it is short) as a QR code picture: a friend scans or opens it in Kine. Says how much of one QR it uses and refuses with the next step when it is too long")
+	add.call("Open from QR...", "", _qr_open_ask, "qr code open read scan friend phone photo screenshot pose scene picture", false, "pick a picture of a Kine QR code: the pose goes on the body (or a scene's cards are added), ONE undo step")
+	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 seconds: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")
 	add.call("Share scene as a pack...", "", _share_scene_pack, "share scene pack asset store kinepack export send", false, "the saved scene as one .kinepack file (cards, timings, markers, props) to send to someone; Import pack... reads it")
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
 		var miss := not FileAccess.file_exists(p)
@@ -13242,6 +13602,150 @@ func _tween_add() -> void:
 	_say("added a tween card (%d): slide 'tween' to favour either side, then Update" % (sel_card + 1))
 
 
+## R18: DRAG A CARD TO REORDER. Press on a card's picture and move 6 px: the picture follows the mouse, a gold line shows the
+## slot it would take, release drops it (one undo step; the card keeps its own move and hold), Esc cancels. Under 6 px
+## it stays a click (pick) and a right-click still opens the menu.
+const CARD_DRAG_PX := 6.0
+const CARD_DRAG_LIFT := Vector2(0, -34)
+var _cd_i := -1   # the card pressed (-1: none)
+var _cd_from := Vector2.ZERO
+var _cd_on := false
+var _cd_eat := false   # the release that ends a drag must not also pick the card
+var _cd_ghost: TextureRect
+var _cd_line: ColorRect
+var _cd_slot := -1
+
+
+func _card_pick_click(i: int) -> void:
+	if _cd_eat:
+		_cd_eat = false
+		return
+	_card_pick(i)
+
+
+## a press / motion / release on a card's picture; true when the event was part of a drag
+func _card_drag_input(ev: InputEvent, i: int, nb: Button) -> bool:
+	var mb := ev as InputEventMouseButton
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed:
+			_cd_eat = false
+			_cd_i = i
+			_cd_from = mb.global_position
+			_cd_on = false
+			return false
+		if _cd_i < 0:
+			return false
+		var was_on := _cd_on
+		var slot := _cd_slot
+		var from := _cd_i
+		_card_drag_end()
+		if was_on:
+			_cd_eat = true
+			if slot >= 0:
+				var j := slot - 1 if slot > from else slot
+				if j != from:
+					_step_hint = "Move card"
+					_card_reorder(from, j)
+				else:
+					_say("card %d stays where it is" % (from + 1))
+			else:
+				_say("drag cancelled: the cards are as they were")
+		return was_on
+	var mm := ev as InputEventMouseMotion
+	if mm != null and _cd_i >= 0:
+		if not (mm.button_mask & MOUSE_BUTTON_MASK_LEFT):
+			_card_drag_end()
+			return false
+		if not _cd_on:
+			if mm.global_position.distance_to(_cd_from) < CARD_DRAG_PX:
+				return false
+			_cd_on = true
+			_cd_ghost = TextureRect.new()
+			_cd_ghost.name = "card_drag_ghost"
+			_cd_ghost.texture = nb.icon
+			_cd_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			_cd_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			_cd_ghost.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H)
+			_cd_ghost.size = Vector2(CARD_W - 8, CARD_PIC_H)
+			_cd_ghost.modulate = Color(1, 1, 1, 0.8)
+			_cd_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_cd_ghost.top_level = true
+			_cd_ghost.z_index = 90
+			_cd_line = ColorRect.new()
+			_cd_line.name = "card_drag_line"
+			_cd_line.color = Tok.c("card_play")   # the gold of the playhead frame
+			_cd_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_cd_line.top_level = true
+			_cd_line.z_index = 90
+			ui_root.add_child(_cd_ghost)
+			ui_root.add_child(_cd_line)
+		_card_drag_move(mm.global_position)
+		nb.accept_event()
+		return true
+	return false
+
+
+## the ghost under the mouse and the gold line at the slot (0..n: the gap before card s)
+func _card_drag_move(at: Vector2) -> void:
+	if _cd_ghost == null:
+		return
+	_cd_ghost.global_position = at - _cd_ghost.size * 0.5 + CARD_DRAG_LIFT   # lifted so it does not hide the slot under the mouse
+	var g := _card_slot_at(at.x)
+	if g.is_empty():
+		return
+	_cd_slot = g["slot"]
+	_cd_line.global_position = Vector2(g["x"], g["top"])
+	_cd_line.size = Vector2(3, g["h"])
+
+
+## R18 + R8: the slot (0..n, the gap before card s) a global x falls in, and the gold line's x / top / height for it
+## ({} with no cards). One rule for a card being moved and a library pose being dropped
+func _card_slot_at(gx: float) -> Dictionary:
+	var kids: Array = []
+	for k in ui_cards.get_children():
+		if (k as Control).name.begins_with("card_"):
+			kids.append(k)
+	if kids.is_empty():
+		return {}
+	var slot := 0
+	var top := 0.0
+	var h := 0.0
+	for k in kids.size():
+		var r: Rect2 = (kids[k] as Control).get_global_rect()
+		if gx > r.get_center().x:
+			slot = k + 1
+		top = r.position.y
+		h = r.size.y
+	var line_x: float
+	if slot < kids.size():
+		line_x = (kids[slot] as Control).get_global_rect().position.x - 2.0
+	else:
+		line_x = (kids[-1] as Control).get_global_rect().end.x + 1.0
+	return {"slot": slot, "x": line_x, "top": top, "h": h}
+
+
+func _card_drag_end() -> void:
+	for n in [_cd_ghost, _cd_line]:
+		if n != null and is_instance_valid(n):
+			(n as Node).get_parent().remove_child(n)
+			(n as Node).queue_free()
+	_cd_ghost = null
+	_cd_line = null
+	_cd_i = -1
+	_cd_on = false
+	_cd_slot = -1
+
+
+## Esc while a card is being dragged: nothing moves; the release that follows picks nothing
+func _card_drag_cancel() -> bool:
+	if not _cd_on:
+		return false
+	_card_drag_end()
+	_cd_eat = true
+	_say("drag cancelled: the cards are as they were")
+	return true
+
+
 ## a card's name (round 13: the agent test found no way to name a card at all). One undo step
 ## a double-click on a card's title: a name box in its place (Enter keeps the name, Esc or clicking away keeps the old)
 func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
@@ -13257,6 +13761,8 @@ func _card_title_input(ev: InputEvent, i: int, nb: Button) -> void:
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
 		nb.accept_event()
 		_card_menu(i, mb.global_position)
+		return
+	if _card_drag_input(ev, i, nb):
 		return
 	if not (ev is InputEventMouseButton and ev.double_click and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT):
 		return
@@ -15817,7 +16323,7 @@ func _video_poll(dt: float) -> void:
 	if not FileAccess.file_exists(_video_out):
 		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
 		return
-	_import_pose(_video_out, _video_name, _video_raw)
+	_import_pose(_video_out, _video_name, _video_raw, true)
 
 
 ## the setting "Retarget to body (IK)" (default ON): the video import fits with VideoRetarget (GMR-style IK onto OUR proportions,
@@ -15841,7 +16347,7 @@ func _retarget_toggle() -> void:
 ## a pose file (tools/see_video.py's) -> a new scene in scenes/_wip, opened. Returns the new scene's path ("" refused).
 ## The cleanup (VideoCleanup: One Euro jitter, the floor level, foot plants held where the leg reaches) is the default;
 ## raw = true is "import raw", the tracker's frames as they came (MocapClean's card lock instead)
-func _import_pose(path: String, from := "", raw := false) -> String:
+func _import_pose(path: String, from := "", raw := false, background := false) -> String:
 	var P := VideoImport.load_file(path)
 	if not P["ok"]:
 		_say("could not import %s: %s; pick a pose file the tracker wrote, or a video" % [(from if from != "" else path.get_file()), P["why"]])
@@ -15849,27 +16355,55 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	var keep := B.state()
 	# AA3: the weapon in his hand now (any but a dagger) is the one he holds in the video, in both hands
 	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
+	var src: String = from if from != "" else path.get_file()
+	var base_name := safe_file(src.get_basename())
+	var rt := _retarget_on()
+	if background:
+		# R13: the solve (seconds per 100 frames) runs on a worker with a Body of its own; this thread keeps drawing and
+		# only applies the result (_import_land) when it arrives. Returns "" now: the new scene's name is said when it lands
+		var Bw := _imp_body(keep)
+		return _imp_begin("importing %s" % src, func(): return _import_compute(Bw, keep, P, held, base_name, raw, rt, src),
+			func(res): _import_land(res, src, held)) as String
+	var res := _import_compute(B, keep, P, held, base_name, raw, rt, src)
+	return _import_land(res, src, held)
+
+
+## the whole fit of a pose file, on whatever Body it is given and nothing else (no node, no file: it runs on a worker).
+## Returns {"d" (the scene's dict), "frames", "cards", "locked"}; {} when cancelled. The Body is left as it was found
+static func _import_compute(Bw: Body, keep: Dictionary, P: Dictionary, held: String, base_name: String, raw: bool, retarget: bool, src: String) -> Dictionary:
 	var frames: Array = P["frames"]
-	var base_name := safe_file((from if from != "" else path.get_file()).get_basename())
 	var fitted: Array
 	var V: Scene
 	var r := {"locked": 0, "text": ""}
 	if raw:
-		fitted = VideoImport.solve(B, frames, held, float(P["fps"]))
-		V = VideoImport.to_scene(B, fitted, P["fps"], 1, base_name)
-		r = MocapClean.clean(V, B, {})   # needs a card per frame: thinned after
+		fitted = VideoImport.solve(Bw, frames, held, float(P["fps"]))
+		if fitted.is_empty() and VideoIQ.cancelled():
+			Bw.set_state(keep)
+			return {}
+		V = VideoImport.to_scene(Bw, fitted, P["fps"], 1, base_name)
+		r = MocapClean.clean(V, Bw, {})   # needs a card per frame: thinned after
 		V = VideoImport.thin(V, VideoImport.every_for(V.fps))
 	else:
 		# VIDEO IQ: confidence, depth + limit repair, contacts -> plants, smart cards, and the lane / footprints for the timeline
-		var R := VideoIQ.process(B, P, held, base_name, _retarget_on())
+		var R := VideoIQ.process(Bw, P, held, base_name, retarget)
+		if R.is_empty():
+			Bw.set_state(keep)
+			return {}
 		fitted = R["fitted"]
 		V = R["scene"]
 		V.iq = R["iq"]
 		r = {"locked": V.plants.size(), "text": R["text"]}
-	B.set_state(keep)
-	var d: Dictionary = V.to_dict(B)
-	var src: String = from if from != "" else path.get_file()
+	Bw.set_state(keep)
+	var d: Dictionary = V.to_dict(Bw)
 	d["plan"] = "Video import of %s: %d frames at %d fps tracked by MediaPipe (tools/see_video.py), fitted by VideoImport%s; %s" % [src, fitted.size(), V.fps, (", the camera's %.0f deg tilt levelled" % P["tilt"]) if float(P["tilt"]) > 0.0 else "", r["text"]]
+	return {"d": d, "frames": fitted.size(), "cards": V.cards.size(), "locked": int(r["locked"])}
+
+
+## the result of _import_compute lands: written under scenes/_wip, opened as a NEW scene. Returns its path ("" for a cancelled one)
+func _import_land(res: Dictionary, src: String, held: String) -> String:
+	if res.is_empty():
+		return ""
+	var d: Dictionary = res["d"]
 	var base := safe_file(String(d["scene"]))
 	var out := "res://scenes/_wip/%s.json" % base
 	var n := 2
@@ -15880,9 +16414,139 @@ func _import_pose(path: String, from := "", raw := false) -> String:
 	_load_scene(out)
 	_rebuild_cards()
 	_refresh()
-	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), fitted.size(), V.cards.size(), int(r["locked"]),
+	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), int(res["frames"]), int(res["cards"]), int(res["locked"]),
 		(", the %s in both hands" % held.replace("_", " ")) if held != "" else ". Holding a weapon in the video? Pick it first (Weapon: long axe ...), then import: he holds it in both hands"])
 	return out
+
+
+## ---- THE IMPORT ON A WORKER (R13). One job at a time (a video import or the several cameras'): work() runs on a
+## WorkerThreadPool task with a Body of its own and never touches a node or a file; the main loop only draws the progress
+## panel (a bar and Cancel) and, when the task is done, calls land(result). Cancel (or quitting) sets VideoIQ.cancel_flag: the
+## worker stops at its next frame and the scene is left exactly as it was. _exit_tree waits for the task (_imp_stop), the way
+## PoseBake.stop_all does for the bakers: a worker outliving its scene crashed the exit once.
+var _imp := {}
+var _imp_panel: PanelContainer = null
+var _imp_bar: ProgressBar = null
+var _imp_lbl: Label = null
+var _imp_cancel_btn: Button = null
+
+
+func _imp_busy() -> bool:
+	return not _imp.is_empty()
+
+
+## a Body for a worker: the same files, then the pose / proportions / weapon of `keep` (Body.json_file serves the parsed files from its cache)
+func _imp_body(keep: Dictionary) -> Body:
+	var Bw := Body.new()
+	Bw.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	Bw.set_state(keep)
+	return Bw
+
+
+func _imp_begin(label: String, work: Callable, land: Callable, fail := Callable()) -> String:
+	if not _imp.is_empty():
+		_say("still working on %s: one import at a time; press Cancel on the bar, or wait for it" % _imp["label"])
+		return ""
+	VideoIQ.cancel_flag[0] = false
+	VideoIQ.progress = 0.0
+	var job := {"label": label, "land": land, "fail": fail, "out": {}, "cancel": false}
+	job["task"] = WorkerThreadPool.add_task(func(): job["out"] = work.call())
+	_imp = job
+	_imp_show(true)
+	_say("%s: it runs in the background, the window stays yours; Cancel on the bar stops it and leaves the scene as it is" % label)
+	return ""
+
+
+func _imp_cancel() -> void:
+	if _imp.is_empty() or _imp["cancel"]:
+		return
+	_imp["cancel"] = true
+	VideoIQ.cancel_flag[0] = true
+	_imp_lbl.text = "cancelling..."
+	_imp_cancel_btn.disabled = true
+
+
+func _imp_poll() -> void:
+	if _imp.is_empty():
+		return
+	_imp_bar.value = VideoIQ.progress * 100.0
+	if not WorkerThreadPool.is_task_completed(_imp["task"]):
+		return
+	WorkerThreadPool.wait_for_task_completion(_imp["task"])
+	var job := _imp
+	_imp = {}
+	_imp_show(false)
+	if job["cancel"] or (job["out"] as Dictionary).is_empty():
+		if (job["fail"] as Callable).is_valid():
+			(job["fail"] as Callable).call()
+		_say("cancelled %s: the scene is as it was; run the import again when you want it" % job["label"])
+		return
+	(job["land"] as Callable).call(job["out"])
+
+
+## quit / scene swap: stop the worker at its next frame and wait for it
+func _imp_stop() -> void:
+	if _imp.is_empty():
+		return
+	VideoIQ.cancel_flag[0] = true
+	WorkerThreadPool.wait_for_task_completion(_imp["task"])
+	_imp = {}
+
+
+func _imp_show(on: bool) -> void:
+	if _imp_panel == null:
+		if not on:
+			return
+		_imp_panel = PanelContainer.new()
+		_imp_panel.name = "import_progress"
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Tok.c("float")
+		sb.border_color = Tok.c("accent")
+		sb.set_border_width_all(1)
+		sb.set_corner_radius_all(6)
+		sb.set_content_margin_all(10)
+		_imp_panel.add_theme_stylebox_override("panel", sb)
+		_imp_panel.anchor_left = 0.5
+		_imp_panel.anchor_right = 0.5
+		_imp_panel.offset_left = -230
+		_imp_panel.offset_right = 230
+		_imp_panel.offset_top = TOP_H + 14
+		_imp_panel.offset_bottom = TOP_H + 14 + 70
+		_imp_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		var hb := VBoxContainer.new()
+		_imp_panel.add_child(hb)
+		_imp_lbl = _label("", 14, "text")
+		hb.add_child(_imp_lbl)
+		var row := HBoxContainer.new()
+		hb.add_child(row)
+		_imp_bar = ProgressBar.new()
+		_imp_bar.name = "import_bar"
+		_imp_bar.min_value = 0.0
+		_imp_bar.max_value = 100.0
+		_imp_bar.show_percentage = true
+		_imp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_imp_bar.custom_minimum_size = Vector2(300, 24)
+		var fill := StyleBoxFlat.new()
+		fill.bg_color = Tok.c("accent")
+		fill.set_corner_radius_all(3)
+		var track := StyleBoxFlat.new()
+		track.bg_color = Tok.c("field")
+		track.set_corner_radius_all(3)
+		_imp_bar.add_theme_stylebox_override("fill", fill)
+		_imp_bar.add_theme_stylebox_override("background", track)
+		row.add_child(_imp_bar)
+		_imp_cancel_btn = Button.new()
+		_imp_cancel_btn.text = "Cancel"
+		_imp_cancel_btn.name = "import_cancel"
+		_imp_cancel_btn.tooltip_text = "stop this import; the scene stays exactly as it is"
+		_imp_cancel_btn.pressed.connect(_imp_cancel)
+		row.add_child(_imp_cancel_btn)
+		ui_root.add_child(_imp_panel)
+	_imp_panel.visible = on
+	if on:
+		_imp_lbl.text = String(_imp["label"])
+		_imp_bar.value = 0.0
+		_imp_cancel_btn.disabled = false
 
 
 ## ---- SEVERAL CAMERAS (roadmap 89; scripts/multicam.gd). Two to four videos of ONE person, filmed at the same time from
@@ -15969,17 +16633,32 @@ func _multicam_poll(_dt: float) -> void:
 		_multicam_finish()
 
 
-## all the cameras are tracked: solve the rig, triangulate, clean and fit exactly as a single view, land as one edit
+## all the cameras are tracked: solve the rig, triangulate, clean and fit exactly as a single view, land as one edit.
+## R13: the solving (the rig's least squares, the fit) runs on a worker (_imp_begin); _multicam_land applies it
 func _multicam_finish() -> void:
 	var texts := []
 	for o in _mc_outs:
 		texts.append(FileAccess.get_file_as_string(o))
+	var keep := B.state()
+	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
+	var rt := _retarget_on()
+	var Bw := _imp_body(keep)
+	var videos := _mc_videos.duplicate()
+	var sname := S.name
+	if _imp_busy():
+		_multicam_end("the cameras are tracked, but %s is still running: Cancel it on the bar, then pick the videos again" % _imp["label"])
+		return
+	_imp_begin("solving %d cameras" % videos.size(), func(): return _multicam_compute(Bw, keep, texts, videos, held, rt, sname),
+		func(res): _multicam_land(res), func(): _mc_i = -1)
+
+
+## the solve, on a Body of its own and nothing else (no node, no file). {"err"} or the scene's dict and what the panel shows; {} when cancelled
+static func _multicam_compute(Bw: Body, keep: Dictionary, texts: Array, videos: Array, held: String, retarget: bool, scene_name: String) -> Dictionary:
 	var L := MultiCam.obs_from_poses(texts)
 	if not L["ok"]:
-		_multicam_end("could not use the cameras: %s" % L["why"])
-		return
+		return {"err": "could not use the cameras: %s" % L["why"]}
 	var obs: Array = L["obs"]
-	var n := _mc_videos.size()
+	var n := videos.size()
 	var Ks := []
 	for sz in L["sizes"]:
 		Ks.append(MultiCam.intrinsics(int(sz[0]), int(sz[1])))
@@ -15988,34 +16667,54 @@ func _multicam_finish() -> void:
 		p0.append(360.0 * c / n)
 		p0.append(0.0)
 		p0.append(3.0)
-	var keep := B.state()
-	var held: String = B.wep_kind if B.wep_on and B.wep_hand != "" and B.wep_kind != "dagger" else ""
-	var pairs := MultiCam.rest_bones(B)
+	var pairs := MultiCam.rest_bones(Bw)
+	VideoIQ.progress = 0.02
 	var sol := MultiCam.solve_extrinsics(Ks, p0, obs, pairs, 8, MULTI_FRAMES)
+	if VideoIQ.cancelled():
+		return {}
+	VideoIQ.progress = 0.15
 	var cams: Array = sol["cams"]
 	var tri := MultiCam.triangulate_all(cams, obs)
 	if not tri["ok"]:
-		B.set_state(keep)
-		_multicam_end("the cameras did not agree on the person: fewer than 2 frames could be triangulated. Check that every camera sees the whole body")
-		return
+		return {"err": "the cameras did not agree on the person: fewer than 2 frames could be triangulated. Check that every camera sees the whole body"}
 	var frames: Array = tri["frames"]
 	var fps := 30.0
 	if obs.size() > 1 and float(obs[-1]["t"]) > float(obs[0]["t"]):
 		fps = float(obs.size() - 1) / (float(obs[-1]["t"]) - float(obs[0]["t"]))
 	var tilt := VideoImport.level(frames)
-	var R := VideoIQ.process(B, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam", _retarget_on())
-	var fitted: Array = R["fitted"]
+	var R := VideoIQ.process(Bw, {"fps": fps, "frames": frames, "tilt": tilt}, held, "multicam", retarget)
+	if R.is_empty():
+		Bw.set_state(keep)
+		return {}
 	var V: Scene = R["scene"]
 	V.iq = R["iq"]
-	var locked := V.plants.size()
 	var text: String = R["text"]
-	B.set_state(keep)
-	var d: Dictionary = V.to_dict(B)
-	d["scene"] = S.name   # in place, as mirror-in-place: the open scene keeps its name
+	Bw.set_state(keep)
+	var d: Dictionary = V.to_dict(Bw)
+	d["scene"] = scene_name   # in place, as mirror-in-place: the open scene keeps its name
 	var names := []
-	for v in _mc_videos:
+	for v in videos:
 		names.append(String(v).get_file())
 	d["plan"] = "Several cameras: %d videos (%s), rig solved by MultiCam from the person's keypoints (bones, gravity, one floor; %d of %d frames), %d frames triangulated, %.2f px mean reprojection; fitted by VideoImport; %s" % [n, ", ".join(names), mini(MULTI_FRAMES, obs.size()), obs.size(), frames.size(), float(tri["mean_rms"]), text]
+	# the panel: the cameras (their places with the person at the origin), the reconstructed pose at the clip's middle
+	var views := MultiCam.views_per_cam(obs, n)
+	var H := Vector3.ZERO
+	for h in tri["hips"]:
+		H += h as Vector3
+	H /= maxf(1.0, float(tri["hips"].size()))
+	var info := []
+	for c in cams.size():
+		info.append({"name": "camera %d" % (c + 1), "C": (cams[c]["C"] as Vector3) - H, "rms": float(tri["cam_rms"][c]), "views": int(views[c])})
+	var mid := frames.size() / 2
+	return {"d": d, "cams": cams, "H": H, "info": info, "pose": frames[mid]["w"], "t": float(frames[mid]["t"]), "rms": float(tri["rms"][mid]),
+		"n": n, "frames": frames.size(), "mean_rms": float(tri["mean_rms"])}
+
+
+func _multicam_land(res: Dictionary) -> void:
+	if res.has("err"):
+		_multicam_end(String(res["err"]))
+		return
+	var d: Dictionary = res["d"]
 	_do(func():
 		S.from_dict(d)
 		sel_card = mini(sel_card, S.cards.size() - 1)
@@ -16025,20 +16724,10 @@ func _multicam_finish() -> void:
 		_rebuild_cards()
 		_refresh()
 		S.apply(B, playhead))
-	# the panel: the cameras (their places with the person at the origin), the reconstructed pose at the clip's middle
-	var views := MultiCam.views_per_cam(obs, n)
-	var H := Vector3.ZERO
-	for h in tri["hips"]:
-		H += h as Vector3
-	H /= maxf(1.0, float(tri["hips"].size()))
-	var info := []
-	mc_last = {"cams": cams, "H": H}
-	for c in cams.size():
-		info.append({"name": "camera %d" % (c + 1), "C": (cams[c]["C"] as Vector3) - H, "rms": float(tri["cam_rms"][c]), "views": int(views[c])})
-	var mid := frames.size() / 2
-	_multicam_show(info, frames[mid]["w"], float(frames[mid]["t"]), float(tri["rms"][mid]))
+	mc_last = {"cams": res["cams"], "H": res["H"]}
+	_multicam_show(res["info"], res["pose"], float(res["t"]), float(res["rms"]))
 	_mc_i = -1
-	_say("imported %d cameras as one edit on this scene: %d frames, %.2f px mean reprojection; the panel shows where each camera stands. Ctrl+Z takes it back; nothing is saved until you save" % [n, frames.size(), float(tri["mean_rms"])])
+	_say("imported %d cameras as one edit on this scene: %d frames, %.2f px mean reprojection; the panel shows where each camera stands. Ctrl+Z takes it back; nothing is saved until you save" % [int(res["n"]), int(res["frames"]), float(res["mean_rms"])])
 
 
 func _multicam_show(info: Array, pose: Array, t: float, rms: float) -> void:
@@ -16431,6 +17120,66 @@ var shot_through := false   # looking through the shot camera
 var ui_shot: ShotFrame      # the 16:9 frame and passepartout (scripts/shot_frame.gd)
 var _shot_fov := 40.0       # the viewport camera's own fov, put back when look-through ends
 var _shot_dof: CameraAttributesPractical   # the rack focus's depth of field (ROADMAP 76; _shot_dof_set)
+
+
+## ---- LIGHTING PRESETS (ROADMAP R1; scripts/light_rig.gd): the shot's "light" is one of LightRig.IDS or "" (the stage's
+## own two lights). It is part of the shot: saved with the scene, undone like a camera key. _light_apply puts the lights
+## where the shot's camera (at the playhead) says; it is a view of the data, so it never makes an undo step itself.
+func _light_id() -> String:
+	var i := shot_now_index()
+	return "" if i < 0 else String(_shot_shots()[i].get("light", ""))
+
+
+func _light_apply() -> void:
+	if light_key == null or _hero_scene() == null:
+		return
+	var id := _light_id()
+	var ks := _shot_keys()
+	var k := {} if (id == "" or ks.is_empty()) else ShotCam.sample(ks, playhead)
+	var sig := "" if k.is_empty() else "%s|%s|%s" % [id, k["pos"], k["aim"]]
+	if sig == _light_sig:
+		return
+	_light_sig = sig
+	if k.is_empty():   # the stage's own lights (as _world builds them)
+		light_key.basis = _light_home[0]
+		light_key.light_energy = 1.1
+		light_key.light_color = Color.WHITE
+		light_rim.basis = _light_home[2]
+		light_rim.light_energy = 0.45
+		light_rim.light_color = Color.WHITE
+		light_fill.basis = _light_home[1]
+		light_fill.light_energy = 0.0
+		light_fill.light_color = Color.WHITE
+		world_env.ambient_light_energy = 0.6
+		world_env.ambient_light_color = Color(0.55, 0.57, 0.62)
+		return
+	var r := LightRig.rig(id, k["pos"], k["aim"])
+	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:
+		var L: DirectionalLight3D = pair[0]
+		var d: Dictionary = r[pair[1]]
+		L.basis = Basis.looking_at(d["dir"], Vector3.UP)
+		L.light_energy = d["energy"]
+		L.light_color = d["color"]
+	world_env.ambient_light_energy = r["ambient"]["energy"]
+	world_env.ambient_light_color = r["ambient"]["color"]
+
+
+func _light_preset(id: String) -> void:
+	var ks := _shot_keys()
+	if ks.is_empty():
+		_say("the lights follow the shot camera: key it first with 'Camera: key the shot camera from the view', then pick a lighting preset")
+		return
+	if _light_id() == id:
+		_say("this shot already has %s: pick another preset, or 'Light: back to the default lights'" % ("the default lights" if id == "" else LightRig.NAMES[id]))
+		return
+	var si := shot_now_index()
+	_do(func():
+		if id == "":
+			_shot_shots()[si].erase("light")
+		else:
+			_shot_shots()[si]["light"] = id)
+	_light_apply()
+	_say("%s on %s: %s (Ctrl+Z takes it back)" % ["default lights" if id == "" else LightRig.NAMES[id], _shot_shots()[si]["name"], "the stage's two lights" if id == "" else LightRig.tip(id)])
 
 
 func _shot_commands(add: Callable) -> void:

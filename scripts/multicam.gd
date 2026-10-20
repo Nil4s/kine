@@ -422,7 +422,7 @@ static func _lm(Ks: Array, p0: Array, sub: Array, pairs: Array, iters: int) -> D
 	var f := _ss(r)
 	var lam := 1.0e-2
 	var it := 0
-	while it < iters:
+	while it < iters and not VideoIQ.cancelled():   # R13: the import runs on a worker
 		it += 1
 		var n := p.size()
 		var m := r.size()

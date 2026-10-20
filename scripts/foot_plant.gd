@@ -45,14 +45,29 @@ static func from_file(d: Variant) -> Array:
 		var t0 := float(p["t0"])
 		var t1 := float(p["t1"])
 		if t1 > t0:
-			out.append({"foot": String(p["foot"]), "t0": t0, "t1": t1})
+			var q := {"foot": String(p["foot"]), "t0": t0, "t1": t1}
+			if bool(p.get("reach", false)):
+				q["reach"] = true
+			if p.has("dend"):
+				q["dend"] = float(p["dend"])
+			if p.has("th") and float(p["th"]) > t0 and float(p["th"]) < t1:
+				q["th"] = float(p["th"])
+			out.append(q)
 	out.sort_custom(func(a, b): return float(a["t0"]) < float(b["t0"]))
 	return out
 
 
 ## the file form: times to 0.1 ms, in the order kept
 static func to_file(plants: Array) -> Array:
-	return plants.map(func(p): return {"foot": String(p["foot"]), "t0": snappedf(float(p["t0"]), 0.0001), "t1": snappedf(float(p["t1"]), 0.0001)})
+	return plants.map(func(p):
+		var q := {"foot": String(p["foot"]), "t0": snappedf(float(p["t0"]), 0.0001), "t1": snappedf(float(p["t1"]), 0.0001)}
+		if bool(p.get("reach", false)):
+			q["reach"] = true
+		if p.has("th"):
+			q["th"] = snappedf(float(p["th"]), 0.0001)
+		if p.has("dend"):
+			q["dend"] = snappedf(float(p["dend"]), 0.0001)
+		return q)
 
 
 ## MIRROR (Scene.MIRROR_SCENE "plants"), on the file form: each plant to its twin foot, the times as they were
@@ -160,6 +175,9 @@ static func refs(S: Scene, B: Body, t: float) -> Dictionary:
 		var r: Dictionary = PoseCache.plant_ref(S, B, i)   # the same values, cached while the scene's inputs are unchanged (pose_cache.gd)
 		if not S.props.is_empty():
 			r = ground_ref(S.solid_props(), r)   # ROADMAP 93: on a surface that is not the floor, the sole goes onto it
+		if bool(p.get("reach", false)):
+			r = r.duplicate()
+			r["reach"] = true   # R14: a video plant's hips drop (never rise) until the leg reaches its pin, on bare floor too
 		out[i] = r
 	return out
 
@@ -231,21 +249,30 @@ static func _arc(a: Vector3, b: Vector3) -> Quaternion:
 ## below it pull the pelvis down to where both reach. Scaled by the plant's weight, so the drop eases in with the plant.
 const LEG_SLACK := 0.995   # the stance leg may reach this fraction of its length (a knee never locks straight)
 const DROP_STEPS := 24     # rounds of the drop (each lowers the hips by the worst overstretch)
+const REACH_DROP := 0.02   # m: a video plant ("reach") lowers the hips by this much at most; past it the miss shows and reachable() ends the plant
 
 static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> void:
 	var any_ground := false
 	var wmax := 0.0
 	for i in refs_:
-		if bool(refs_[i].get("ground", false)):
+		if bool(refs_[i].get("ground", false)) or bool(refs_[i].get("reach", false)):
 			any_ground = true
 			wmax = maxf(wmax, weight(plants[i], t, fps))
 	if not any_ground or wmax <= 0.0:
 		return
 	B.fk()
+	var cap := 1e9   # the drop a "reach" plant may take (ground plants on a surface are not capped: ROADMAP 93)
+	var y0: float = B.offset.y
+	for i in refs_:
+		if not bool(refs_[i].get("ground", false)):
+			var c := REACH_DROP
+			if t > float(plants[i]["t1"]):
+				c = minf(c, float(plants[i].get("dend", c)))   # the release keeps the drop the plant ended on: no pop at t1
+			cap = minf(cap, c)
 	for _k in DROP_STEPS:
 		var over := 0.0
 		for i in refs_:
-			if not bool(refs_[i].get("ground", false)):
+			if not (bool(refs_[i].get("ground", false)) or bool(refs_[i].get("reach", false))):
 				continue
 			var foot := String(plants[i]["foot"])
 			var ch := LimbIK.chain(B, foot)
@@ -253,8 +280,38 @@ static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float
 			over = maxf(over, (B.P[ch[0]] as Vector3).distance_to(refs_[i]["P"] as Vector3) - reach * LEG_SLACK)
 		if over <= 1e-6:
 			break
-		B.offset.y -= over * wmax
+		B.offset.y = maxf(B.offset.y - over * wmax, y0 - cap * wmax)
 		B.fk()
+		if B.offset.y <= y0 - cap * wmax + 1e-9:
+			break
+
+
+## HEEL-OFF (R14): a plant with "th" holds the whole sole until th, then only the BALL (a foot rolling over its toes in the last
+## part of a stance: the ankle rises and moves on, so a flat hold cannot reach). From th the ankle target is the ball's place at t0
+## plus the played pose's own ankle-from-ball offset, the foot's and the ball's turns are the played ones (the roll is kept), eased in
+## over BLEND frames. B is the free pose at t here. Returns refs_ with those plants' P, G, Gb replaced (the rest as they were)
+static func _heel_off(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int) -> Dictionary:
+	var out := refs_
+	for i in refs_:
+		var p: Dictionary = plants[i]
+		if not p.has("th") or not refs_[i].has("BP"):
+			continue
+		var f := float(maxi(fps, 1))
+		var m := clampf((t - float(p["th"])) * f / float(BLEND) + 0.5, 0.0, 1.0)
+		m = m * m * (3.0 - 2.0 * m)
+		if m <= 0.0:
+			continue
+		if out == refs_:
+			out = refs_.duplicate()
+		var foot := String(p["foot"])
+		var ball := "ball" + foot.right(2)
+		var r: Dictionary = (refs_[i] as Dictionary).duplicate()
+		var tgt: Vector3 = (r["BP"] as Vector3) + ((B.P[foot] as Vector3) - (B.P[ball] as Vector3))
+		r["P"] = (r["P"] as Vector3).lerp(tgt, m)
+		r["G"] = (r["G"] as Quaternion).slerp(B.G[foot], m)
+		r["Gb"] = (r["Gb"] as Quaternion).slerp(B.G[ball], m)
+		out[i] = r
+	return out
 
 
 ## THE PLANT PASS (Scene.apply, after the IK pass): each live plant's leg solved onto its reference, mixed with the
@@ -262,6 +319,7 @@ static func _lower_for_reach(B: Body, plants: Array, refs_: Dictionary, t: float
 ## ball's turn off its pin), "clamped": joints a limit changed, "inline"}}. B.offset is never written (a ground plant lowers it, _lower_for_reach)
 static func play(B: Body, plants: Array, refs_: Dictionary, t: float, fps: int, props: Array = []) -> Dictionary:
 	var out := {}
+	refs_ = _heel_off(B, plants, refs_, t, fps)
 	_lower_for_reach(B, plants, refs_, t, fps)
 	for i in refs_:
 		var p: Dictionary = plants[i]
