@@ -12570,6 +12570,24 @@ func _scene_menu_pick(id: int) -> void:
 			_delete_scene()
 
 
+## P11 (docs/ROADMAP_400.md): a greyed page says why it is greyed and what already works for it (the commands of its
+## prefix that exist in the registry today), so a click is never a dead end
+const PAGE_SOON_WHY := {"MODEL": ["Model:", "the mesh core is in (half-edge mesh, selection, loops, symmetry, mesh undo); the modeling tools (extrude, bevel, loop cut) come next"],
+	"SCULPT": ["Sculpt:", "sculpting needs the mesh core's brushes and multires levels: planned after the MODEL tools"],
+	"SURFACE": ["Surface:", "UVs and materials come after the mesh can be edited: unwrap, seams, packing, then PBR materials"]}
+
+
+func _page_soon_why(p: String) -> String:
+	var w: Array = PAGE_SOON_WHY.get(p, ["", "coming"])
+	var have := []
+	for c in _commands():
+		if String(w[0]) != "" and String(c["name"]).begins_with(String(w[0])):
+			have.append(String(c["name"]))
+	if have.is_empty():
+		return "%s is greyed because it is not built yet: %s. Nothing to click for it yet" % [p, w[1]]
+	return "%s is greyed because it is not built yet: %s. Works now: %s%s (S, then type \"%s\")" % [p, w[1], ", ".join(have.slice(0, 4)), "..." if have.size() > 4 else "", String(w[0]).trim_suffix(":").to_lower()]
+
+
 ## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
 func _open_scene_popup() -> void:
 	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
@@ -12774,8 +12792,9 @@ func _build_page_bar() -> void:
 			ui_page_btns[p] = b
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
 		else:
-			b.tooltip_text = "coming: the modeling pages"
-			b.modulate = Color(1, 1, 1, 0.38)   # greyed, and no action
+			b.tooltip_text = "coming: the %s page. Click it: what works already and what is next" % p
+			b.modulate = Color(1, 1, 1, 0.38)   # greyed: a click explains instead of doing nothing (P11)
+			b.pressed.connect(func(): _say(_page_soon_why(p)))
 		h.add_child(b)
 		if p == PAGES[-1]:
 			var sep := VSeparator.new()
