@@ -15,6 +15,9 @@
 ##   4 PLACED   the planted sole stands on the floor (heel or ball < 2.5 cm high) over its plant
 ##   (a plant with "tf" is a HEEL PIVOT: the heel is held from t0, the ball from tf, the flat time; before tf the toes may be up)
 ##   5 DROP     the hips drop to hold the pins by < 3 cm at most (a visible sink would be a failure)
+## R14e FINDING (probe, x1.00): the pins are NOT too far apart (fitted ankle separation 0.34-0.54 m at double support against the truth 0.37-0.74 m: the fit's strides are SHORT, not long).
+## The cause is the fit's hip height: truth 0.919 m flat, fit 0.937 -> 0.963 m rising across a stance, so the legs sit at 98-99 % of their reach and
+## the 2 cm hip-drop cap runs out. REACH_DROP 0.02 -> 0.029 (bar < 3 cm) and TRIM 2 -> 1 lift coverage 57/54 -> 65/62 %; videoiq 1b combo3 stays 0.59 cm.
 ## Screenshot: env R14_SHOT (a png): foot position along the walk against time, before (no plants: the sole slides in stance) and after (locked).
 extends SceneTree
 
@@ -113,6 +116,8 @@ func _run() -> void:
 					if toe_ref == Vector3.INF:
 						toe_ref = B.E["ball" + sd]
 					toe_d = (B.E["ball" + sd] as Vector3).distance_to(toe_ref)
+				if maxf(maxf(heel_d, ball_d), toe_d) > worst_slide and OS.get_environment("R14_DIAG") != "":
+					print("       slide %.2f cm at t %.2f in plant %s %.2f-%.2f (heel %.2f ball %.2f toe %.2f cm; th %s tf %s)" % [maxf(maxf(heel_d, ball_d), toe_d) * 100.0, t, p["foot"], p["t0"], p["t1"], heel_d * 100.0, ball_d * 100.0, toe_d * 100.0, p.get("th", "-"), p.get("tf", "-")])
 				worst_slide = maxf(worst_slide, maxf(maxf(heel_d, ball_d), toe_d))
 				worst_air = maxf(worst_air, minf((s[0] as Vector3).y, (s[1] as Vector3).y))
 				t += 1.0 / 60.0
