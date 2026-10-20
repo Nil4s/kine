@@ -303,3 +303,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I21. Sell the hit: for the shot camera, check each strike as the camera sees it. A miss that should read as a
   hit must overlap the target on screen (the stunt "cheat angle"); a real contact gets a SAFETY flag. Suggest the
   camera move or strike offset that sells it, one click each.
+- [ ] I22. Choreograph to the song: from a loaded track's beats and loudness, lay out a fight skeleton (exchange
+  density follows the music's energy, pauses on quiet bars, the biggest hit on the loudest downbeat), built from
+  Nick's own cards/moves (I17 style, Next poses) and checked by the timing coach and Check; a plan to edit, not a
+  finished fight.
