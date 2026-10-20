@@ -330,6 +330,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I25. Breakfall check: on a fall or knockdown, judge the landing like a stunt coach (chin tucked, head clear
   of the floor, impact spread over arm slap/shoulder/hip, no straight-arm catch) with one-click fixes.
   Step 1 merged (partial): fall finder, 4 verdicts, tuck/slap/roll fixes, panel + badge; i25 2 FAIL: on a FORWARD fall a chin tuck drives the face into the floor (forward falls need the head turned aside, as in mae ukemi; tuck is for backward falls), and the slap lands harder (6.3 m/s).
+  Step 2 merged (i25 PASS on head/arm bars): falls classed forward/backward/side; forward = head turned aside 75 deg (mae ukemi), backward = chin tuck; slap bends 30 -> 90 deg over the landing. Open: SPEED still FAIL (6.4 m/s): bent arms land later in the same topple, so the landing needs retiming (slow the trunk), not just pose changes.
 - [ ] I26. Learn from my edits: record which suggestions Nick accepts, undoes or edits after (Next poses, Check
   fixes, timing coach, counters) and how he changes them; rank future suggestions by what he keeps, and say why
   ("you usually shorten this wind-up by 0.05 s").
