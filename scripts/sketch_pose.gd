@@ -37,6 +37,8 @@ const TAU_PX := 0.5          # px: the tremor a traced point may have (see relax
 const TIE_W := 0.04          # m-equivalent: price of flipping the depth side a bone has now
 const CLAMP_W := 0.02        # m-equivalent: price of a clamped joint
 const AMBIG := 0.03          # candidates within this cost of the best are ambiguous: the balance decides
+const ELBOW_T := Vector2(0.25, 0.75)   # a straight stroke: the share of it from the root to the mid joint, from the present pose, kept inside this
+const ERR_W := 4.0           # the weight of the pixel misfit against the depth-side tie (TIE_W): a 9 px miss must not win by agreeing with the old side
 const ITERS := 40            # trunk fit iterations at most
 const EPS := 0.5             # deg: finite-difference step
 const REG := 1e-5            # a soft pull to the angles the trunk started from
@@ -608,10 +610,23 @@ static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: V
 	var tau := TAU_PX / S   # m: a point on the screen is good to about this many pixels; a bone's depth is free inside that
 	var de := cam.project_ray_normal(el2)
 	var dw := cam.project_ray_normal(wr2)
+	var starts := []
 	for e0: Vector3 in ray_sphere(cam, el2, R, u):
 		var e1 := relax(fwd, R, e0, u, float(hint[0]), tau)
 		for w0: Vector3 in ray_sphere(cam, wr2, e1, f):
-			var w1 := relax(fwd, e1, w0, f, float(hint[1]), tau)
+			starts.append([e1, relax(fwd, e1, w0, f, float(hint[1]), tau)])
+	if not prior.is_empty():   # a fifth start: the nearest library pose's depths, which the 4 sign combinations (taken from the old pose's magnitudes) may not reach
+		var o := cam.project_ray_origin(el2)
+		var ep := o + de * (((R - o).dot(fwd) + float(prior[0])) / de.dot(fwd))
+		ep = R + (ep - R).normalized() * u
+		var o2 := cam.project_ray_origin(wr2)
+		var wp := o2 + dw * (((ep - o2).dot(fwd) + float(prior[1])) / dw.dot(fwd))
+		wp = ep + (wp - ep).normalized() * f
+		starts.append([ep, wp])
+	for st in starts:
+		var e1: Vector3 = st[0]
+		var w1: Vector3 = st[1]
+		if true:
 			var pa := [0.0, 0.0]
 			var rr := _cand_res(B, cam, tip, el2, wr2, S, e1, w1, rot, keep, hint, prior)
 			var c0 := 0.0
@@ -668,7 +683,7 @@ static func limb_cands(B: Body, cam: Camera3D, tip: String, el2: Vector2, wr2: V
 			rr = _cand_res(B, cam, tip, el2, wr2, S, e1 + de * float(pa[0]), w1 + dw * float(pa[1]), rot, keep, hint, prior)
 			var res: Dictionary = rr[1]
 			var err := (cam.unproject_position(B.P[mid]) - el2).length() + (cam.unproject_position(B.P[tip]) - wr2).length()
-			var c := err / S + CLAMP_W * (res["clamped"] as Array).size()
+			var c := err / S * ERR_W + CLAMP_W * (res["clamped"] as Array).size()
 			var d1: float = rr[2]
 			var d2: float = rr[3]
 			if absf(float(hint[0])) > 0.03 and signf(d1) != signf(float(hint[0])):
@@ -920,7 +935,11 @@ static func fit(B: Body, cam: Camera3D, strokes_in: Array, force := {}) -> Dicti
 				var u: float = ((B.p0[mid] - B.p0[root]) as Vector3).length()
 				var f: float = ((B.p0[tip] - B.p0[mid]) as Vector3).length()
 				var sh := cam.unproject_position(B.P[root])
-				el = sh + (wr - sh) * (u / (u + f))
+				var chord := wr - sh
+				var tq := u / (u + f)
+				if chord.length_squared() > 1.0:   # a limb drawn straight: its joint lies somewhere on the line; the pose it is edited from says where
+					tq = clampf((cam.unproject_position(B.P[mid]) - sh).dot(chord) / chord.length_squared(), ELBOW_T.x, ELBOW_T.y)
+				el = sh + chord * tq
 			drawn[tip] = {"el": el, "wr": wr}
 	# arms: each on its own; legs: together when the pick is ambiguous (the balance decides)
 	var cands := {}
