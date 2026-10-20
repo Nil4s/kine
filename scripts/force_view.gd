@@ -254,12 +254,18 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 	for i in n:
 		out["t"].append(i / HZ)
 	var taus := {}
+	var tauv := {}
+	var pel_dyn := []
+	var pel_f := []
+	var fjoint := {}   # the force the joint carries (the same sum, force instead of moment)
 	var members := {}   # joint -> the pieces distal to it
 	var leg := {}       # leg joint -> its side
 	for j in jl:
 		var z := []
 		z.resize(n)
 		taus[j] = z
+		tauv[j] = z.duplicate()
+		fjoint[j] = z.duplicate()
 		var mem := []
 		for k in np:
 			if (chains[pcs0[k]["j"]] as Array).has(j):
@@ -296,6 +302,8 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 			ftot += f
 			com_sum += m2 * (cs[i][k] as Vector3)
 			m_sum += m2
+		pel_dyn.append(cfk[0] + iak[0])   # pieces[0] is the pelvis: its c x f + I alpha (moment about the world origin)
+		pel_f.append(fk[0])
 		var bi = bat[i]
 		var bf := Vector3.ZERO
 		var bcf := Vector3.ZERO
@@ -396,12 +404,20 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 					scf += share * bcf
 					sia += share * bia
 			var tau := scf - pjv.cross(sf) + sia
+			var fj := sf
 			if leg.has(j):
 				var sd2: String = leg[j]
 				if wts.has(sd2) and fg != Vector3.ZERO:
 					tau -= ((qf[sd2] as Vector3) - pjv).cross(fg * float(wts[sd2]))
+					fj -= fg * float(wts[sd2])
 			(taus[j] as Array)[i] = tau.length()
+			(tauv[j] as Array)[i] = tau
+			(fjoint[j] as Array)[i] = fj
 	out["tau"] = taus
+	out["tauv"] = tauv
+	out["fjoint"] = fjoint
+	out["pel_dyn"] = pel_dyn
+	out["pel_f"] = pel_f
 	for j in jl:
 		var lim := limit_nm(j, mass)
 		var r := []
@@ -411,6 +427,26 @@ static func dynamics(cap: Dictionary) -> Dictionary:
 		out["ratio"][j] = r
 	out["chain"] = chain_of(out, gtrack, tips, bat, n)
 	return out
+
+
+## THE LOAD PATH AT THE PELVIS, one number: the pelvis is where the top-down chain (lumbar) and the bottom-up chain (hips) meet.
+## Moments about O = the midpoint of the hip joints, with F_u the force the lumbar carries and F_h the force each hip carries:
+##     sum_h tau_h + tau_lumbar + (P_lumbar - O) x F_u + (pelvis piece: (c - O) x f + I alpha) + sum_h (P_h - O) x F_h = resid_tau
+## so the hips equal the lumbar torque plus the LEVER of the trunk's force from the lumbar to the hips, plus the pelvis piece's
+## own m a / I alpha, plus the torque the centre of pressure could not give (resid_tau, the pelvis's outside help). Returns the
+## left side minus resid_tau (vector, Nm): ~0 at every sample when the arithmetic is consistent. {} parts: "lever", "pel", "resid".
+static func pelvis_balance(cap: Dictionary, sm: Dictionary, i: int) -> Dictionary:
+	var pl: Vector3 = cap["ps"][i]["spine_01"]
+	var phl: Vector3 = cap["ps"][i]["thigh_l"]
+	var phr: Vector3 = cap["ps"][i]["thigh_r"]
+	var o := (phl + phr) * 0.5
+	var lever := (pl - o).cross(sm["fjoint"]["spine_01"][i] as Vector3)
+	var pel: Vector3 = (sm["pel_dyn"][i] as Vector3) - o.cross(sm["pel_f"][i] as Vector3)
+	var hipf := (phl - o).cross(sm["fjoint"]["thigh_l"][i] as Vector3) + (phr - o).cross(sm["fjoint"]["thigh_r"][i] as Vector3)
+	var hips: Vector3 = (sm["tauv"]["thigh_l"][i] as Vector3) + (sm["tauv"]["thigh_r"][i] as Vector3)
+	var lum: Vector3 = sm["tauv"]["spine_01"][i]
+	var rt: Vector3 = sm["resid_tau"][i]
+	return {"gap": hips + lum + lever + pel + hipf - rt, "hips": hips, "lumbar": lum, "lever": lever, "pel": pel, "resid": rt}
 
 
 ## the bounding box (x, z) of a foot's footprint, or null when the foot is not on the floor
@@ -539,7 +575,7 @@ static func draw_strip(c: Control, sm: Dictionary, t: float) -> void:
 	c.draw_rect(Rect2(Vector2.ZERO, c.size), Tok.c("mk_panel"))
 	c.draw_rect(Rect2(Vector2.ZERO, c.size), Tok.c("mk_border"), false, 1.0)
 	_draw_need(c, sm, t, font)
-	c.draw_set_transform(Vector2(0.0, 20.0))
+	c.draw_set_transform(Vector2(0.0, 36.0))
 	var col := Tok.c("fv_ok") if ch["ok"] else Tok.c("fv_hot")
 	c.draw_string(font, Vector2(8, 15), "Power chain (%s hand)" % String(ch["side"]).substr(1), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tok.c("ink"))
 	c.draw_string(font, Vector2(150, 15), "hip > trunk > shoulder > elbow: " + ("in order" if ch["ok"] else "OUT OF ORDER"), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, col)
@@ -571,6 +607,12 @@ static func _draw_need(c: Control, sm: Dictionary, t: float, font: Font) -> void
 	if not sm.has("need"):
 		return
 	var i := clampi(roundi(t * HZ), 0, int(sm["n"]) - 1)
+	# the two chains' meeting point in numbers: the lumbar (top-down) and the hips (bottom-up), Nm now, and the torque the centre of
+	# pressure could not give (the part of the hips that is outside help; pelvis_balance shows hips = lumbar + lever + pelvis + this)
+	var hips: float = float(sm["tau"]["thigh_l"][i]) + float(sm["tau"]["thigh_r"][i])
+	var rt: float = (sm["resid_tau"][i] as Vector3).length()
+	var tx := "lumbar %.0f Nm   hips %.0f Nm (both)   CoP cannot give %.0f Nm" % [float(sm["tau"]["spine_01"][i]), hips, rt]
+	c.draw_string(font, Vector2(8, 31), tx, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Tok.c("ink"))
 	var r: Vector3 = sm["resid"][i]
 	var bw: float = sm["bw"]
 	var nd: float = sm["need"][i]
