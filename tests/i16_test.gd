@@ -7,6 +7,8 @@
 ##  (5) computing the score (every judge, timing database cached) takes < 200 ms
 ##  (6) scene JSON is byte-identical after the score is computed and shown; the panel and the strip header carry the number
 ##  (7) a Check-fix reason (when one exists) is one undo step, never lowers the score; Ctrl+Z restores the cards exactly
+##  (9) STEP 2: a re-score after a one-card fix (timing, Check) takes < 400 ms on combo3 and lands within 1.0 point of a cold score of the same cards
+##  (10) STEP 2: every fix the panel OFFERS has a predicted gain > 0 on its button, and applying it gains within 1.0 of the prediction; an empty scene scores in < 50 ms
 ##  (8) the physics judge with no cached result says "not judged" and costs nothing; with a cached red span it adds a PHYSICS item
 extends SceneTree
 
@@ -23,6 +25,23 @@ func ok(c: bool, what: String) -> void:
 func idle(n := 3) -> void:
 	for i in n:
 		await process_frame
+
+
+func _cold_score() -> float:
+	var rs: RealismUI = m.rs_ui
+	var keep_memo = rs._memo
+	var keep_force = m.force_cache
+	rs._memo = {}
+	m.force_cache = {}
+	var sv := FrameMemo._mem
+	FrameMemo._mem = {}
+	FrameMemo.probe = true
+	var g := rs.gather(m.tc_ui.db)
+	FrameMemo.probe = false
+	FrameMemo._mem = sv
+	rs._memo = keep_memo
+	m.force_cache = keep_force
+	return float(RealismScore.compute(m.S, g)["score"])
 
 
 func _init() -> void:
@@ -70,6 +89,12 @@ func _init() -> void:
 	var tc0 := Time.get_ticks_usec()
 	rs.refresh()
 	print("     cold: %.0f ms, laps %s" % [float(Time.get_ticks_usec() - tc0) / 1000.0, rs.lap])
+	FrameMemo.reset()
+	rs._memo = {}
+	m.force_cache = {}
+	tc0 = Time.get_ticks_usec()
+	rs.refresh()
+	print("     cold again (memo seeded): %.0f ms, played %d reused %d" % [float(Time.get_ticks_usec() - tc0) / 1000.0, FrameMemo.played, FrameMemo.reused])
 	var best := 1e9
 	for r in 3:
 		var t0 := Time.get_ticks_usec()
@@ -103,7 +128,7 @@ func _init() -> void:
 	for k in rsn.size():
 		ok(m.ui_find_list.find_child("rs_reason_%d" % (k + 1), true, false) != null, "(4) panel line for reason %d" % (k + 1))
 	var shot := root.get_texture().get_image()
-	shot.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i16.png")
+	shot.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i16b.png")
 
 	# (2) timing fix
 	var tim := all.filter(func(x): return x["judge"] == "TIMING")
@@ -119,8 +144,12 @@ func _init() -> void:
 		await idle(3)
 		var after := float(rs.res["score"])
 		print("     timing fix %d (%s): %.2f -> %.2f, undo %d -> %d" % [q, item["text"], s_before, after, u0, m.undo.size()])
+		print("       re-score %.0f ms (played %d, reused %d)" % [rs.ms, FrameMemo.played, FrameMemo.reused])
 		if q == 0:
 			top_rose = after > s_before and m.undo.size() == u0 + 1
+			ok(rs.ms < 400.0, "(9) re-score after the top timing fix: %.0f ms < 400" % rs.ms)
+			var full := _cold_score()
+			ok(absf(full - after) <= 1.0, "(9) incremental %.2f vs cold %.2f of the same cards" % [after, full])
 		m._undo()
 		await idle()
 		ok(JSON.stringify(S.cards) == cards0 and JSON.stringify(m.S.to_dict(m.B, false)) == json0, "(2) Ctrl+Z after timing fix %d: cards and scene JSON exact" % q)
@@ -137,6 +166,7 @@ func _init() -> void:
 		var u1: int = m.undo.size()
 		await rs.fix(chk[0])
 		await idle(3)
+		ok(rs.ms < 400.0, "(9) re-score after the Check fix: %.0f ms < 400 (played %d, reused %d)" % [rs.ms, FrameMemo.played, FrameMemo.reused])
 		ok(m.undo.size() == u1 + 1 and float(rs.res["score"]) >= before - 1e-9, "(7) Check fix: %.2f -> %.2f, undo %d -> %d" % [before, float(rs.res["score"]), u1, m.undo.size()])
 		m._undo()
 		await idle()
@@ -150,5 +180,37 @@ func _init() -> void:
 	var r2 := RealismScore.compute(m.S, inp2)
 	ok(r2["judged"] and float(r2["pen"]["PHYSICS"]) > 0.0 and float(r2["score"]) < float(rs.res["score"]), "(8) a cached red span 0.5-1.0 s costs %.1f points" % float(r2["pen"]["PHYSICS"]))
 
+	# (10) offered fixes carry a gain, and it comes true; empty scene is fast
+	rs.refresh()
+	rs.show()
+	await idle(4)
+	var offered := 0
+	for k in range(1, 4):
+		var bt = m.ui_find_list.find_child("rs_fix_%d" % k, true, false)
+		if bt == null:
+			continue
+		offered += 1
+		var rr: Dictionary = rs.res["reasons"][k - 1]
+		var pred := rs.gain_of(rr)
+		ok(pred > 0.05 and String(bt.text).contains("+"), "(10) button %d reads '%s' (predicted %+.2f)" % [k, bt.text, pred])
+		var b4 := float(rs.res["score"])
+		var cj := JSON.stringify(m.S.cards)
+		rs.fix(rr)
+		await idle(3)
+		ok(absf((float(rs.res["score"]) - b4) - pred) <= 1.0, "(10) button %d: predicted %+.2f, got %+.2f" % [k, pred, float(rs.res["score"]) - b4])
+		m._undo()
+		await idle()
+		rs.refresh()
+		ok(JSON.stringify(m.S.cards) == cj, "(10) undo restores")
+		rs.show()
+		await idle(2)
+	print("     offered fixes: ", offered)
+	var sv = m.S
+	m.S = Scene.new()
+	var te := Time.get_ticks_usec()
+	rs.refresh()
+	var empty_ms := float(Time.get_ticks_usec() - te) / 1000.0
+	m.S = sv
+	ok(empty_ms < 50.0, "(10) empty scene scores in %.1f ms" % empty_ms)
 	print("i16: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
 	quit(1 if fails > 0 else 0)

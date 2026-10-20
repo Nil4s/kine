@@ -40,26 +40,30 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	S.stepped = false
 	var out := {"n": n, "t": [], "com": [], "margin": [], "down": [], "sup": [], "poly": [], "ball_l": [], "ball_r": [],
 		"pen": [], "pen_pair": []}
-	for i in n:
-		var t := minf(i / FPS, S.length())
+	var mk := func(_i: int, t: float) -> Dictionary:
 		S.apply_true(B, t)
 		var bal := Balance.read(B)
-		out["t"].append(t)
-		out["com"].append(bal["com"])
-		out["margin"].append(float(bal["margin"]))
-		out["down"].append((bal["down"] as Array).size() > 0)
-		out["sup"].append(HumanLimits.supported(B))
-		out["poly"].append(bal["poly"])
-		out["ball_l"].append(B.P["ball_l"])
-		out["ball_r"].append(B.P["ball_r"])
 		var deep := 0.0
 		var pair := ""
 		for c in B.contacts():
 			if float(c[2]) > deep:
 				deep = float(c[2])
 				pair = "%s/%s" % [c[0], c[1]]
-		out["pen"].append(deep)
-		out["pen_pair"].append(pair)
+		return {"t": t, "com": bal["com"], "margin": float(bal["margin"]), "down": (bal["down"] as Array).size() > 0, "sup": HumanLimits.supported(B),
+			"poly": bal["poly"], "bl": B.P["ball_l"], "br": B.P["ball_r"], "pen": deep, "pp": pair}
+	var recs: Array = FrameMemo.frames("fz", S, B, n, FPS, mk)
+	for i in n:
+		var r: Dictionary = recs[i]
+		out["t"].append(i / FPS if i / FPS < S.length() else S.length())
+		out["com"].append(r["com"])
+		out["margin"].append(r["margin"])
+		out["down"].append(r["down"])
+		out["sup"].append(r["sup"])
+		out["poly"].append(r["poly"])
+		out["ball_l"].append(r["bl"])
+		out["ball_r"].append(r["br"])
+		out["pen"].append(r["pen"])
+		out["pen_pair"].append(r["pp"])
 	S.stepped = was_stepped
 	return out
 

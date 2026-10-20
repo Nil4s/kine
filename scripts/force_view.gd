@@ -162,38 +162,44 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 	var gtrack := {}
 	for k in gj:
 		gtrack[k] = []
-	for i in n:
-		S.apply_true(B, minf(i / HZ, S.length()))
+	var mk := func(_i: int, t: float) -> Dictionary:
+		S.apply_true(B, t)
 		var pcs := HitReaction.pieces(B)
-		if i == 0:
-			pcs0 = pcs
 		var c := []
 		var g := []
 		for p in pcs:
 			c.append(p["c"])
 			g.append(B.G[p["j"]])
-		cs.append(c)
-		gs.append(g)
 		var pj := {}
 		for j in jl:
 			pj[j] = B.P[j]
-		ps.append(pj)
 		var fe := {}
-		for sd in ["_l", "_r"]:
-			fe[sd] = _cop(B, sd)
-		feet.append(fe)
 		var fb := {}
 		for sd in ["_l", "_r"]:
+			fe[sd] = _cop(B, sd)
 			fb[sd] = _fbox(B, sd)
-		fbox.append(fb)
+		var bt = null
 		if B.wep_on and B.wep_hand != "":
-			bat.append({"c": B.wep_point(HumanLimits.BAT_COM * B.wep_len), "knob": B.wep_point(0.0), "tip": B.wep_point(B.wep_len),
-				"hand": B.wep_hand, "grip": B.grip, "m": float(HitReaction.WEAPON_KG.get(B.wep_kind, HumanLimits.BAT_KG)), "L": B.wep_len})
-		else:
-			bat.append(null)
-		tips.append({"_l": B.E["hand_l"], "_r": B.E["hand_r"]})
+			bt = {"c": B.wep_point(HumanLimits.BAT_COM * B.wep_len), "knob": B.wep_point(0.0), "tip": B.wep_point(B.wep_len),
+				"hand": B.wep_hand, "grip": B.grip, "m": float(HitReaction.WEAPON_KG.get(B.wep_kind, HumanLimits.BAT_KG)), "L": B.wep_len}
+		var gt := {}
 		for k in gtrack:
-			gtrack[k].append(B.G[k])
+			gt[k] = B.G[k]
+		return {"pcs": pcs, "c": c, "g": g, "pj": pj, "fe": fe, "fb": fb, "bat": bt, "tip": {"_l": B.E["hand_l"], "_r": B.E["hand_r"]}, "gt": gt}
+	var recs: Array = FrameMemo.frames("fv", S, B, n, HZ, mk)
+	for i in n:
+		var r: Dictionary = recs[i]
+		if i == 0:
+			pcs0 = r["pcs"]
+		cs.append(r["c"])
+		gs.append(r["g"])
+		ps.append(r["pj"])
+		feet.append(r["fe"])
+		fbox.append(r["fb"])
+		bat.append(r["bat"])
+		tips.append(r["tip"])
+		for k in gtrack:
+			gtrack[k].append(r["gt"][k])
 	var chains := {}
 	for p in pcs0:
 		chains[p["j"]] = HitReaction.chain(B, String(p["j"]))

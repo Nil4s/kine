@@ -185,26 +185,32 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 	var reuse: bool = not base.is_empty() and base["_raw"].size() == n
 	var raw := []
 	var bad := 0
-	for i in n:
-		var t := minf(i / FPS, S.length())
-		if reuse and (t < t0 or t > t1):
-			raw.append(base["_raw"][i])
-			continue
+	var mk := func(_i: int, t: float) -> Dictionary:
 		S.apply_true(B, t)
-		raw.append({"tip": Overlays.tracked(B), "hips": B.P["pelvis"], "head": B.P["head"], "hand_l": B.E["hand_l"],
+		var r := {"tip": Overlays.tracked(B), "hips": B.P["pelvis"], "head": B.P["head"], "hand_l": B.E["hand_l"],
 			"hand_r": B.E["hand_r"], "gp": B.G["pelvis"], "gt": B.G["spine_03"],
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),
 			"fy": minf((B.P["foot_l"] as Vector3).y, (B.P["foot_r"] as Vector3).y), "wep": B.wep_on, "kind": B.wep_kind,
 			"bl": B.P["ball_l"], "br": B.P["ball_r"], "bal": Balance.read(B), "lf": lift_form(B),
 			"ga": [(B.P["lowerarm_l"] as Vector3) - (B.P["upperarm_l"] as Vector3), (B.P["lowerarm_r"] as Vector3) - (B.P["upperarm_r"] as Vector3),
-			(B.P["calf_l"] as Vector3) - (B.P["thigh_l"] as Vector3), (B.P["calf_r"] as Vector3) - (B.P["thigh_r"] as Vector3), (B.P["head"] as Vector3).y]})
+			(B.P["calf_l"] as Vector3) - (B.P["thigh_l"] as Vector3), (B.P["calf_r"] as Vector3) - (B.P["thigh_r"] as Vector3), (B.P["head"] as Vector3).y]}
 		if not S.props.is_empty():
-			raw[-1]["pc"] = prop_hits(S.props_at(t, B), B, S.holding(t, B))   # UU2: the set as it is now; holding hands are not through
-			raw[-1]["sg"] = seat_gap(S.props, B)
-			raw[-1]["fo"] = B.foot_state("_l")[2] or B.foot_state("_r")[2]
-			raw[-1]["cf"] = carry_form(S, t, B)
-		if contacts and not B.contacts().is_empty():
-			bad += 1
+			r["pc"] = prop_hits(S.props_at(t, B), B, S.holding(t, B))   # UU2: the set as it is now; holding hands are not through
+			r["sg"] = seat_gap(S.props, B)
+			r["fo"] = B.foot_state("_l")[2] or B.foot_state("_r")[2]
+			r["cf"] = carry_form(S, t, B)
+		return r
+	if not reuse and not contacts and FrameMemo.on:
+		raw = FrameMemo.frames("rb", S, B, n, FPS, mk)   # the realism score: only the frames a fix changed are played again
+	else:
+		for i in n:
+			var t := minf(i / FPS, S.length())
+			if reuse and (t < t0 or t > t1):
+				raw.append(base["_raw"][i])
+				continue
+			raw.append(mk.call(i, t))
+			if contacts and not B.contacts().is_empty():
+				bad += 1
 	S.stepped = was_stepped
 	var out := {"t": [], "tip": [], "hips": [], "head": [], "hand_l": [], "hand_r": [], "w_pelvis": [], "w_trunk": [],
 		"w_weapon": [], "head_pos": [], "foot_y": [], "ball_l": [], "ball_r": [], "armed": false, "kind": "",
