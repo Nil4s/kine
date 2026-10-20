@@ -151,6 +151,7 @@ var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle th
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
 var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
+var sf_ui: SafetyUI   # SAFETY SHEET (ROADMAP I28): scripts/safety_ui.gd
 var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui.gd
 var cm_ui: ComboUI   # MY COMBOS (ROADMAP I23): scripts/combo_ui.gd + combo_mine.gd
 var dk_ui: DistanceKeeperUI   # FIGHT DISTANCE KEEPER (ROADMAP I18): scripts/distance_keeper_ui.gd
@@ -192,7 +193,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Fight rhythm", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Safety sheet", "Fight rhythm", "Realism score", "My style", "Use my style", "My combos", "Auto camera", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -9818,7 +9819,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Sell the hit": "sellhit", "Safety sheet": "safety", "Fight rhythm": "rhythm", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "My combos": "combos", "Auto camera": "autocam", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -10242,6 +10243,9 @@ func _ui() -> void:
 	if sh_ui == null:
 		sh_ui = SellHitUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Sell the hit", sh_ui.show, "with two fighters and a shot camera: each strike's 3D miss against what the camera shows, SOLD / NOT SOLD / UNSAFE (a real contact) on the timeline; Move the camera or Offset the aim fixes a NOT SOLD strike; preview, then accept (one undo step)"))
+	if sf_ui == null:
+		sf_ui = SafetyUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Safety sheet", sf_ui.show, "one pre-shoot report for the stunt crew over the whole scene: real contacts and their speed, weapon tips near a head, falls, rushed strikes; click an item to jump to it; Export page writes a printable HTML sheet with a picture of each item"))
 	if cm_ui == null:
 		cm_ui = ComboUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("My combos", cm_ui.show, "the card sequences you repeat in your own clips, named with your rhythm (jab-cross-hook, your 0.15/0.20/0.15, used 3 times in 2 clips); click one for a ghost after the picked card, Enter inserts it with your poses and timing (one undo step)"))
@@ -12894,6 +12898,9 @@ func _commands() -> Array:
 	if sh_ui == null:
 		sh_ui = SellHitUI.new(self)
 	sh_ui.commands(add)   # SELL THE HIT (ROADMAP I21)
+	if sf_ui == null:
+		sf_ui = SafetyUI.new(self)
+	sf_ui.commands(add)   # SAFETY SHEET (ROADMAP I28)
 	if rh_ui == null:
 		rh_ui = FightRhythmUI.new(self)
 	rh_ui.commands(add)   # FIGHT RHYTHM (ROADMAP I19)
