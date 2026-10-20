@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 24 / 25.
+Merged in round 2: 25 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -204,6 +204,7 @@ Merged in round 2: 24 / 25.
 - [x] R12. BODY page: save / load named characters (user://characters), the man/woman blend saved in the scene schema.
 - [x] R13. Video import off the main thread (retarget/IQ in a worker; progress bar; the window never freezes).
 - [ ] R14. Video import fit accuracy: foot plants cover >= 70% of stance (vroot bar 26% now). Step 1 merged: 59% (slide 0.8 cm, false plants 1.4%); Step 2 merged: heel pivot + stance detection fixed (vroot x0.85 passes), coverage 57%/50%; the remaining loss is the video fit holding the heel 3-6 cm up at heel strike.
+  Step 3 merged: sole snap by leg IK + toe-off contact; coverage 57 -> 61% (x1.00), 50 -> 51% (x0.85), sole height now passes (1.7 cm). Open: whole stances the leg can't reach under the 2 cm hip-drop cap; next is a horizontal pelvis shift toward held feet (design change, not tuning).
 - [x] R15. Import a physics reaction: one command loads a MuJoCo/Isaac BVH (tools/physics) as a new scene of cards.
 - [x] R16. Hit reaction picker in STAGE: thumbnails of the physics hits, drop one onto the struck fighter.
 - [x] R17. Timeline playhead overlay redraws with the playhead (status 2.90 s while the line drew at 1.69 s).
@@ -212,8 +213,9 @@ Merged in round 2: 24 / 25.
 - [x] R20. Timed version snapshots (every N minutes while edited) with the scene diff report.
 - [x] R21. Pose library search by words ("guard", "crouch", "low kick") over names and auto tags.
 - [x] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
-- [ ] R23. Weapon trail in the playblast and the mp4 render.
+- [x] R23. Weapon trail in the playblast and the mp4 render.
   Step 1 merged: grip-to-tip ribbon over 8 frames in playblast and mp4, off is byte-identical. Open: the ribbon renders as a solid opaque blue wall (the alpha fade does not show), and it runs out of frame on overhead swings.
+  Step 2: additive translucent ribbon on the last 30% of the bat; newest/oldest quad pixel change 137/23 (ratio 6), bodies show through. Looks big at 38 m/s because each frame's quad spans ~1.3 m of arc.
 - [x] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
   Measured: in 11 of 32 body/direction cells the humanoid has no 'steps' band (chest forward absorbs 26 N s, at 27 it steps then falls), so the table bar is absorb <= step < fall; the empty cells are listed in no_step_band.
 - [x] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
