@@ -4070,6 +4070,8 @@ func _bake_validate() -> void:
 
 func _push_undo() -> void:
 	_bake_drop()
+	if mm_ui != null:
+		mm_ui.halt()   # an edit ends the motion matching preview: it would write its next frame over the edit (the toggle pushes its step first, then starts)
 	if _macro_nest > 0:   # ROADMAP 81: a macro's edits share the one undo step, opened before its first edit
 		if _macro_pushed:
 			return
