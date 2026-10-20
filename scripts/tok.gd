@@ -23,6 +23,7 @@ const DARK := {
 	"kt_break": Color(1.0, 0.8, 0.35), "kt_between": Color(0.7, 0.85, 1.0),   # ROADMAP 66: part key types (breakdown, in-between)
 	"pick_sel": Color(0.25, 0.55, 1.0), "pick_hover": Color(0.5, 0.75, 1.0), "pick_lock": Color(0.5, 0.5, 0.55),   # PRECISE PICK: a part's light on its own skin
 	"pick_touch": Color(1.0, 0.25, 0.2), "pick_limit": Color(1.0, 0.82, 0.15),
+	"fv_ok": Color(0.3, 0.8, 0.4), "fv_mid": Color(0.98, 0.8, 0.2), "fv_hot": Color(0.95, 0.25, 0.2),   # FORCE VIEW (I8): torque / strong-human limit
 	"mk_red": Color(0.95, 0.3, 0.25), "mk_green": Color(0.35, 0.75, 0.4), "mk_blue": Color(0.35, 0.65, 0.95), "mk_gold": Color(0.9, 0.8, 0.3),
 	"mk_panel": Color(0.09, 0.095, 0.11, 1.0), "mk_border": Color(0.5, 0.56, 0.68, 1.0),
 }
@@ -43,6 +44,7 @@ const LIGHT := {
 	"kt_break": Color(0.75, 0.48, 0.0), "kt_between": Color(0.12, 0.36, 0.7),
 	"pick_sel": Color(0.1, 0.4, 0.95), "pick_hover": Color(0.3, 0.6, 1.0), "pick_lock": Color(0.35, 0.35, 0.4),
 	"pick_touch": Color(0.9, 0.12, 0.1), "pick_limit": Color(0.95, 0.68, 0.0),
+	"fv_ok": Color(0.12, 0.6, 0.25), "fv_mid": Color(0.85, 0.6, 0.0), "fv_hot": Color(0.82, 0.12, 0.1),
 	"mk_red": Color(0.8, 0.14, 0.1), "mk_green": Color(0.15, 0.55, 0.22), "mk_blue": Color(0.12, 0.4, 0.85), "mk_gold": Color(0.7, 0.55, 0.0),
 	"mk_panel": Color(0.985, 0.985, 0.99, 1.0), "mk_border": Color(0.38, 0.42, 0.5, 1.0),
 }

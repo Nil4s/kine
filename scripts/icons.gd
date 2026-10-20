@@ -120,6 +120,7 @@ const DRAW := {
 	"collision": [["ring", Vector2(9, 12), 6, 1.8], ["ring", Vector2(15, 12), 6, 1.8]],
 	"trail": [["disc", Vector2(3, 19), 1.4], ["disc", Vector2(5.5, 13.5), 1.6], ["disc", Vector2(9.5, 8.5), 1.8], ["disc", Vector2(15, 5.5), 2.0], ["disc", Vector2(21, 4.5), 2.4]],
 	"balance": [["seg", Vector2(12, 3), Vector2(12, 17), 1.6], ["disc", Vector2(12, 5), 2.6], ["ring", Vector2(12, 19), 9, 1.4], ["seg", Vector2(9, 19), Vector2(15, 19), 1.6]],
+	"force": [["seg", Vector2(5, 19), Vector2(12, 11), 1.8], ["seg", Vector2(12, 11), Vector2(19, 5), 1.8], ["disc", Vector2(12, 11), 2.8], ["seg", Vector2(19, 5), Vector2(19, 11), 1.6], ["seg", Vector2(19, 5), Vector2(13, 5), 1.6]],
 	"autokey": [["ring", Vector2(12, 12), 8.5, 2.0], ["disc", Vector2(12, 12), 4.5]],
 	"weights": [["disc", Vector2(6, 17), 3.4], ["disc", Vector2(12, 12), 4.6], ["ring", Vector2(18, 6), 3.0, 1.4]],
 	"onion": [["ring", Vector2(6.5, 12), 4.5, 1.2], ["ring", Vector2(12, 12), 4.5, 1.6], ["disc", Vector2(17.5, 12), 4.5]],

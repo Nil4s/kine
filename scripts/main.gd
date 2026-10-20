@@ -175,7 +175,7 @@ const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["SHARE", ["Open from QR..."]]],
-	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
+	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions"]]],
@@ -430,6 +430,9 @@ var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ri
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
 var cshadow := ContactShadow.new()   # CONTACT SHADOWS (ROADMAP R4): a soft blob under each foot, darker the nearer the sole is to the floor
+var force_on := false        # FORCE VIEW (ROADMAP I8, scripts/force_view.gd): the body coloured by joint torque, the power chain strip. Off by default, view only
+var force_cache := {}        # {"key": the cards + body it was made for, "sm": ForceView.sample's result}
+var ui_force: Control = null
 var bal := BalanceView.new()   # LIVE BALANCE (Shift+B, round 43 YY1): the feet's support and the COM over them
 var ui_tween: HSlider
 var ui_hist: PanelContainer        # UNDO HISTORY (round 11, #75)
@@ -2972,6 +2975,61 @@ func _fd_refresh() -> void:
 	fd_node.visible = true
 
 
+# ---------------------------------------------------------------- FORCE VIEW (ROADMAP I8; scripts/force_view.gd)
+const FORCE_A := 0.55   # how much of the skin the torque colour covers
+
+
+## the clip's inverse dynamics, made once per cards + body (on its own body, like the frame data), {} with fewer than 2 cards
+func _force_data() -> Dictionary:
+	var key := "%s|%s" % [var_to_str(S.cards), var_to_str(S.body)]
+	if String(force_cache.get("key", "")) != key:
+		var Bc := Body.new()
+		Bc.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		Bc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
+		Bc.ground()
+		force_cache = {"key": key, "sm": ForceView.sample(S, Bc)}
+	return force_cache["sm"]
+
+
+func _force_toggle() -> void:
+	force_on = not force_on
+	if force_on and S.cards.size() < 2:
+		force_on = false
+		_say("Force view needs a clip: add a second card (CLIP this pose, Enter), then turn it on again")
+		return
+	_refresh()
+	if force_on:
+		var w := ForceView.words(_force_data())
+		_say("Force view on: green = under half a strong person's limit, yellow = under it, red = at or past it.  " + w)
+	else:
+		_say("Force view off")
+
+
+func _force_place() -> void:
+	if ui_force == null:
+		return
+	ui_force.offset_left = LEFT_W + 12
+	ui_force.offset_right = LEFT_W + 12 + 460
+	ui_force.offset_bottom = -bottom_h - 8
+	ui_force.offset_top = -bottom_h - 8 - 94
+
+
+## the torque colour on each part (called from _refresh): the picked and hovered part keep their own look
+func _force_looks(looks: Dictionary) -> void:
+	var show := force_on and not wp_on and not clean and S.cards.size() >= 2
+	if ui_force != null:
+		ui_force.visible = show
+		if show:
+			ui_force.queue_redraw()
+	if not show:
+		return
+	var rr := ForceView.ratios_at(_force_data(), playhead)
+	for j in rr:
+		if hidden_parts.has(j) or part_look(j) in ["sel", "hover"]:
+			continue
+		looks[j] = [Color(ForceView.band_col(float(rr[j])), FORCE_A), 0.0]
+
+
 ## the frame data as JSON, where the user picks (never in scenes/)
 func _fd_export() -> void:
 	if S.cards.is_empty():
@@ -3545,6 +3603,7 @@ func _refresh() -> void:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
+	_force_looks(looks)
 	skp.set_looks(looks)
 	for m in [bat_handle, bat_barrel, bat_knob]:
 		m.visible = B.wep_on
@@ -9027,7 +9086,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Reactions": "react", "Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
-	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
+	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
@@ -9386,6 +9445,7 @@ func _ui() -> void:
 	tog.call("ANIMATE", "Spacing (Shift+O)", _tool.bind(1), func(): return ov.spacing_on, "arms + weapon every 0.1 s around the playhead: bunched = slow")
 	tog.call("ANIMATE", "Speed graph (Y)", _tool.bind(2), func(): return ov.graph_on)
 	tog.call("ANIMATE", "Balance (Shift+B)", _press.bind(KEY_B, true), func(): return bal.on, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
+	tog.call("ANIMATE", "Force view", _force_toggle, func(): return force_on, "the body coloured by how hard each joint works (inverse dynamics of the clip): green under half a strong person's limit, yellow under it, red at or past it; a strip shows whether the strike's power builds hip, trunk, shoulder, elbow. View only")
 	tog.call("ANIMATE", "Stepped", _tool.bind(3), func(): return stepped_view, "poses only, no in-betweens (blocking)")
 	tog.call("ANIMATE", "Moving holds", _tool.bind(4), func(): return S.moving_holds, "a held pose keeps drifting slightly toward the next")
 	tog.call("ANIMATE", "Auto-key (Ctrl+K)", _toggle_autokey, func(): return auto_key,
@@ -10288,6 +10348,13 @@ func _ui() -> void:
 	ui_graph.mouse_exited.connect(func(): _graph_hover = -1.0; ui_graph.queue_redraw())
 	ui_graph.visible = false
 	ui_root.add_child(ui_graph)
+	ui_force = Control.new()   # FORCE VIEW: the power chain strip, over the view's bottom left
+	ui_force.anchor_top = 1.0
+	ui_force.anchor_bottom = 1.0
+	ui_force.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_force.draw.connect(func(): ForceView.draw_strip(ui_force, force_cache.get("sm", {}), playhead))
+	ui_force.visible = false
+	ui_root.add_child(ui_force)
 	_lists()
 
 
@@ -11795,6 +11862,7 @@ func _layout_bottom() -> void:
 	_strip_fit()   # RR5: the line's place follows the panel (the strip's too)
 	ui_graph.offset_bottom = -bottom_h - 92
 	ui_graph.offset_top = -bottom_h - 92 - 120
+	_force_place()
 	_place_nav()
 	_cam()
 
