@@ -3549,7 +3549,7 @@ func _react_physics(victim := -1) -> void:
 		return
 	var vk: int = 0 if row["by"] == "other" else int(row["vs"])   # the struck fighter
 	var sk: int = int(row["vs"]) if row["by"] == "other" else 0   # the striker
-	var blow := HitPhysics.measure(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], row, actors_rt[sk]["B"])
+	var blow := HitPhysics.measure(actors_rt[vk]["S"], actors_rt[vk]["B"], actors_rt[vk]["xf"], row, actors_rt[sk]["B"], actors_rt[sk]["S"])
 	if not blow["ok"]:
 		_say("no physics reaction: %s (pick a hit on a body part, then try again)" % blow["why"])
 		return
