@@ -2156,6 +2156,10 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	if _drop_line != null and _drop_line.visible:
+		var hov := get_viewport().gui_get_hovered_control()
+		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
+			_drop_line.visible = false   # R8: the drag ended or left the strip
 	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
@@ -9214,6 +9218,16 @@ func _ui() -> void:
 	ui_cards = HBoxContainer.new()
 	ui_cards.add_theme_constant_override("separation", 2)
 	cs.add_child(ui_cards)
+	for dz in [cs, ui_cards]:   # R8: a library pose dropped between cards (the gaps and the empty end of the strip)
+		(dz as Control).set_drag_forwarding(Callable(), _card_can_drop.bind(-1, dz), _card_drop.bind(-1, dz))
+	_drop_line = ColorRect.new()
+	_drop_line.name = "drop_line"
+	_drop_line.top_level = true
+	_drop_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_drop_line.z_index = 60
+	_drop_line.visible = false
+	_drop_line.color = Tok.c("card_play")
+	cs.add_child(_drop_line)
 	ui_timeline = Timeline.new()
 	ui_timeline.m = self
 	ui_timeline.tooltip_text = "drag a card's edge to change its move (or hold); click a card to jump to it; drag the ruler to scrub"
@@ -10083,7 +10097,7 @@ func _rebuild_cards() -> void:
 		pc.name = "card_%d" % (i + 1)   # a named scope: card_3/.../b_update (U2)
 		pc.add_theme_stylebox_override("panel", _card_style(i))
 		pc.custom_minimum_size = Vector2(CARD_W, 0)
-		pc.set_drag_forwarding(Callable(), _card_can_drop.bind(i), _card_drop.bind(i))
+		pc.set_drag_forwarding(Callable(), _card_can_drop.bind(i, pc), _card_drop.bind(i, pc))
 		ui_cards.add_child(pc)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 0)
@@ -10104,7 +10118,7 @@ func _rebuild_cards() -> void:
 		nb.expand_icon = true
 		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
 		_card_flat(nb)
-		nb.set_drag_forwarding(_card_drag.bind(i), _card_can_drop.bind(i), _card_drop.bind(i))
+		nb.set_drag_forwarding(_card_drag.bind(i), _card_can_drop.bind(i, nb), _card_drop.bind(i, nb))
 		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
 		var tex := thumbs.pose_picture(c["pose"])
 		if tex != null:
@@ -10300,13 +10314,85 @@ func _card_drag(_at: Vector2, i: int) -> Variant:
 	return {"kine_card": i}
 
 
-func _card_can_drop(_at: Vector2, data: Variant, j: int) -> bool:
-	return data is Dictionary and (data as Dictionary).has("kine_card") and int(data["kine_card"]) != j
+func _card_can_drop(at: Vector2, data: Variant, j: int, ctrl: Control = null) -> bool:
+	if data is Dictionary and (data as Dictionary).has("kine_pose"):
+		return ctrl != null and _pose_drop_over(ctrl.get_global_transform() * at, data)
+	return j >= 0 and data is Dictionary and (data as Dictionary).has("kine_card") and int(data["kine_card"]) != j
 
 
-func _card_drop(_at: Vector2, data: Variant, j: int) -> void:
+func _card_drop(at: Vector2, data: Variant, j: int, ctrl: Control = null) -> void:
+	if data is Dictionary and (data as Dictionary).has("kine_pose"):
+		if ctrl != null:
+			_pose_drop(ctrl.get_global_transform() * at, data)
+		return
 	_step_hint = "Move card"
 	_card_reorder(int(data["kine_card"]), j)
+
+
+## R8: A LIBRARY POSE DRAGGED ONTO THE CARD STRIP. The browser (Poses > Library / Mine) starts {"kine_pose": path, "name"};
+## the strip shows a gold line between two cards where it would go (the card centres decide: left of a card's middle =
+## before it) and a drop there inserts a new card; a drop off the strip changes nothing. One undo step. The body is
+## not read from the file through the body: the card takes the file's own pose dictionary (the same form as B.to_dict()).
+var _drop_line: ColorRect
+
+
+## the card index a drop at global point p would take, -1 when p is off the strip
+func pose_drop_index(p: Vector2) -> int:
+	if ui_card_row == null or not ui_card_row.get_global_rect().has_point(p):
+		return -1
+	var n := 0
+	for pc in ui_cards.get_children():
+		if not String(pc.name).begins_with("card_"):
+			continue
+		var r: Rect2 = (pc as Control).get_global_rect()
+		if p.x > r.position.x + r.size.x * 0.5:
+			n += 1
+	return n
+
+
+func _pose_drop_over(p: Vector2, data: Variant) -> bool:
+	var i := pose_drop_index(p)
+	if i < 0 or not FileAccess.file_exists(String((data as Dictionary).get("kine_pose", ""))):
+		_drop_line.visible = false
+		return false
+	var cards: Array = []
+	for pc in ui_cards.get_children():
+		if String(pc.name).begins_with("card_"):
+			cards.append(pc)
+	var rr := ui_card_row.get_global_rect()
+	var x := rr.position.x + 3.0
+	if i < cards.size():
+		x = (cards[i] as Control).get_global_rect().position.x - 1.0
+	elif not cards.is_empty():
+		x = (cards[-1] as Control).get_global_rect().end.x + 1.0
+	_drop_line.global_position = Vector2(x - 1.0, rr.position.y + 2.0)
+	_drop_line.size = Vector2(3.0, rr.size.y - 4.0)
+	_drop_line.visible = true
+	return true
+
+
+func _pose_drop(p: Vector2, data: Variant) -> void:
+	_drop_line.visible = false
+	var i := pose_drop_index(p)
+	if i < 0:
+		_say("drop the pose on the card strip at the bottom to make it a card")
+		return
+	var path := String((data as Dictionary).get("kine_pose", ""))
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (d is Dictionary) or not (d as Dictionary).has("joints"):
+		_say("that file is not a single pose: open it from the Scene menu, or pick another pose in BROWSER > Poses")
+		return
+	_step_hint = "Insert pose card"
+	_push_undo()
+	S.add(String(data.get("name", path.get_file().get_basename())), (d as Dictionary).duplicate(true), i)
+	sel_card = i
+	sel_end = -1
+	playing = false
+	playhead = S.times()[i][1]
+	Scene.put(B, Moves._flat(S.cards[i]["pose"]))
+	_rebuild_cards()
+	_refresh()
+	_say("pose '%s' is card %d.  Ctrl+Z takes it out" % [S.cards[i]["name"], i + 1])
 
 
 func _card_reorder(i: int, j: int) -> void:

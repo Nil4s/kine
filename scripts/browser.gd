@@ -354,6 +354,22 @@ func _motion(ev: InputEvent) -> void:
 		m._refresh()
 
 
+## R8: a pose row can be dragged onto the card strip (main.gd _pose_drop)
+func _get_drag_data(at: Vector2) -> Variant:
+	var it := get_item_at_position(at)
+	if it == null or m.ui_poses == null:
+		return null
+	var md = it.get_metadata(0)
+	if not (md is Dictionary) or not md.has("pose"):
+		return null
+	var path: String = m.ui_poses.get_item_metadata(int(md["pose"]))
+	var l := Label.new()
+	l.text = "  " + it.get_text(0)
+	l.add_theme_font_size_override("font_size", 13)
+	set_drag_preview(l)
+	return {"kine_pose": path, "name": it.get_text(0)}
+
+
 func _left() -> void:
 	if _hover_mine:
 		_hover_mine = false
