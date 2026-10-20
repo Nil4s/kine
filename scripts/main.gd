@@ -16696,6 +16696,9 @@ func _light_apply() -> void:
 		light_fill.light_color = Color.WHITE
 		world_env.ambient_light_energy = 0.6
 		world_env.ambient_light_color = Color(0.55, 0.57, 0.62)
+		world_env.adjustment_enabled = false
+		world_env.adjustment_brightness = 1.0
+		world_env.adjustment_contrast = 1.0
 		return
 	var r := LightRig.rig(id, k["pos"], k["aim"])
 	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:
@@ -16706,6 +16709,9 @@ func _light_apply() -> void:
 		L.light_color = d["color"]
 	world_env.ambient_light_energy = r["ambient"]["energy"]
 	world_env.ambient_light_color = r["ambient"]["color"]
+	world_env.adjustment_enabled = true
+	world_env.adjustment_brightness = r["adjust"]["brightness"]
+	world_env.adjustment_contrast = r["adjust"]["contrast"]
 
 
 func _light_preset(id: String) -> void:
