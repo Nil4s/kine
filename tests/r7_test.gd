@@ -299,6 +299,7 @@ func _init() -> void:
 		m.sel_card = int(f["card"])
 		m.playhead = float(f["t"])
 		await A.step("his_right_view")
+		m._nav_fit()   # the Fit button: what a user presses to see both bodies
 		m._refresh()
 		await idle(6)
 		var vp: Vector2 = root.get_visible_rect().size
