@@ -177,7 +177,7 @@ const RIBBON_GROUPS := {
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
-		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes"]]],
+		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Local API"]]],
 }
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
@@ -2120,6 +2120,8 @@ func _ready() -> void:
 		_auto_scale_now()
 	if not testing and not cf.get_value("look", "hints", true):
 		_set_hints(false, false)   # remembered (QQ3)
+	if not testing and cf.get_value("api", "on", false):
+		_set_api(true, false)   # remembered: off unless Nick turned it on
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
 	# test wrote "taught" into it)
 	_teach_pending = not cf.get_value("look", "taught", false)
@@ -8291,6 +8293,36 @@ func _set_hints(on: bool, save := true) -> void:
 		_say_plain("hints on (VIEW > Hints to hide them)" if on else "")
 
 
+## LOCAL API (ROADMAP R9, scripts/local_api.gd): off unless the settings file says [api] on. The toggle remembers it
+var api: LocalApi
+
+
+func _set_api(on: bool, save := true, port_override := 0) -> bool:
+	if api == null:
+		api = LocalApi.new(self)
+		add_child(api)
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	var good := true
+	if on:
+		var pt := port_override if port_override > 0 else int(cf.get_value("api", "port", LocalApi.DEFAULT_PORT))
+		good = api.start(pt)
+		if good:
+			print("Kine local API: http://%s:%d  token %s  (header X-Poser-Token)" % [LocalApi.BIND, api.port, api.token])
+			DisplayServer.clipboard_set(api.token)
+			_say_plain("Local API %s:%d  X-Poser-Token %s  (copied)" % [LocalApi.BIND, api.port, api.token])
+		else:
+			_say("Local API: port %d is busy: set [api] port in the settings file to a free one, then turn it on again" % pt)
+	else:
+		api.stop()
+		_say_plain("Local API off")
+	if save:
+		cf.set_value("api", "on", on and good)
+		cf.set_value("api", "port", int(cf.get_value("api", "port", LocalApi.DEFAULT_PORT)))
+		cf.save(settings)
+	return good
+
+
 func _hints_apply() -> void:
 	for l in ui_hint_labels:
 		if not is_instance_valid(l):
@@ -8540,7 +8572,7 @@ const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": 
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
-	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective",
+	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
 	"Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
 
@@ -8968,6 +9000,8 @@ func _ui() -> void:
 	for v in [["Front (1)", 1], ["His right (2)", 2], ["Top (3)", 3], ["Back (4)", 4], ["His left (5)", 5]]:
 		ui_ribbon["VIEW"].add_child(_button(v[0], _view.bind(v[1])))
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
+	tog.call("VIEW", "Local API", func(): _set_api(api == null or not api.running()), func(): return api != null and api.running(),
+		"a local HTTP API on 127.0.0.1 only (off by default): describe, run, check, shot over JSON, for a script on this machine. Needs the session token the status line shows. The port is [api] port in the settings file (default 8765)")
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
