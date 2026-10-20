@@ -815,6 +815,65 @@ static func cancelled() -> bool:
 	return bool(cancel_flag[0])
 
 
+## R14f STANCE HEIGHT. The video fit's hips RISE across a stance (R14e probe: pelvis 0.90 -> 0.96 m while the true one stays near 0.86-0.91),
+## so a stance leg sits at 98-99 % of its length and FootPlant's hip drop runs out. Here the fit is corrected where it is made: over each
+## plant (the detector's span, eased in and out over FootPlant.BLEND frames) the pelvis is lowered, never raised, until the stance leg
+## (hip to the pinned ankle) is STANCE_REACH of its length; the plant's IK then holds the foot. 96 % = a knee flexed about 16 deg:
+## stance-phase knee flexion in walking is ~5 deg at heel strike, 15-20 deg in loading response, ~10 deg mid stance (Perry & Burnfield 2010,
+## "Gait Analysis"; Kirtley 2006), and a leg of thigh+shank length L with the knee flexed k has hip-ankle distance L*cos(k/2) about
+## (k = 16 deg: 0.990 for equal segments, so 96 % is more bent than the mean: a heuristic that keeps the 2 cm solver margin, REACH_SLACK 98 %).
+const STANCE_REACH := 0.96
+static var stance_fix := true   # false: the fit as it was before R14f (the test's before/after table)
+static func stance_height(B: Body, fitted: Array, plants: Array, fps: float) -> Dictionary:
+	var n := fitted.size()
+	var need := []
+	need.resize(n)
+	need.fill(0.0)
+	var keep := B.state()
+	var dt := 1.0 / maxf(fps, 1.0)
+	for p in plants:
+		var foot: String = p["foot"]
+		var ch := LimbIK.chain(B, foot)
+		var reach := (B.p0[ch[1]] as Vector3).distance_to(B.p0[ch[0]] as Vector3) + (B.p0[foot] as Vector3).distance_to(B.p0[ch[1]] as Vector3)
+		var i0 := clampi(int(round(float(p["t0"]) / dt)), 0, n - 1)
+		var i1 := clampi(int(round(float(p["t1"]) / dt)), 0, n - 1)
+		var pin := Vector3.INF
+		var hips := {}
+		for i in range(maxi(i0 - FootPlant.BLEND, 0), mini(i1 + FootPlant.BLEND, n - 1) + 1):
+			for j in fitted[i]["ang"]:
+				B.ang[j] = fitted[i]["ang"][j]
+			B.offset = fitted[i]["offset"]
+			B.fk()
+			hips[i] = B.P[ch[0]]
+			if pin == Vector3.INF and i >= i0 and minf((B.P["ball" + String(foot).right(2)] as Vector3).y, FootRoll.heel_point(B, String(foot).right(2)).y) <= 0.02:
+				pin = B.P[foot]
+		if pin == Vector3.INF:
+			continue
+		for i in hips:
+			var h: Vector3 = (hips[i] as Vector3) - pin
+			var hy := sqrt(maxf(pow(reach * STANCE_REACH, 2.0) - h.x * h.x - h.z * h.z, 0.0))
+			var w := FootPlant.weight({"t0": float(i0) * dt, "t1": float(i1) * dt}, float(i) * dt, int(round(fps)))
+			need[i] = maxf(float(need[i]), maxf(h.y - hy, 0.0) * w)
+	B.set_state(keep)
+	# a 5-frame running mean: the drop eases across the edges and cannot step between frames
+	var lowered := 0
+	var worst := 0.0
+	var sm := []
+	for i in n:
+		var s := 0.0
+		for k in range(-2, 3):
+			s += float(need[clampi(i + k, 0, n - 1)])
+		sm.append(s / 5.0)
+	for i in n:
+		var d := float(sm[i])
+		if d > 1e-4:
+			var o: Vector3 = fitted[i]["offset"]
+			fitted[i]["offset"] = Vector3(o.x, o.y - d, o.z)
+			lowered += 1
+			worst = maxf(worst, d)
+	return {"frames": lowered, "worst": worst}
+
+
 ## parse -> confidence -> repair -> depth -> cleanup -> contacts -> fit -> smart cards -> plants. P = VideoImport.parse's result
 ## (its frames are changed). Returns {"scene", "iq", "text", "conf", "depth", "contacts", "keys", "fitted", "frames", "dense",
 ## "repaired"}. retarget = true fits with VideoRetarget (GMR-style IK, feet pinned on the contacts) instead of VideoImport.solve
@@ -842,6 +901,8 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	if cancelled():
 		return {}
 	progress = 0.7
+	if stance_fix and not fitted.is_empty():
+		stance_height(B, fitted, plants_of(K["list"], fps, K["heeloff"]), fps)
 	var dense := VideoImport.to_scene(B, fitted, fps, 1, scene_name)
 	var sk := smart_cards(B, dense, fitted)
 	if cancelled():
