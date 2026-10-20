@@ -99,7 +99,7 @@ func _init() -> void:
 	if not ps.is_empty():
 		for i in (ps[0] as OptionButton).item_count:
 			items.append((ps[0] as OptionButton).get_item_text(i).get_slice("   ", 0))
-	ok(gone.is_empty() and ps.size() == 1 and items == ["None", "Metal bat", "Bo staff", "Long hammer", "Long axe", "Dagger", "2 daggers"],
+	ok(gone.is_empty() and ps.size() == 1 and items == ["None", "Metal bat", "Bo staff", "Long hammer", "Long axe", "Sword", "Longsword", "Katana", "Spear", "Dagger", "2 daggers"],
 		"1 the old weapon buttons gone (left: %s); %d pickers, rows %s" % [gone, ps.size(), items])
 	for p in ps:
 		(p as OptionButton).item_selected.connect(func(_k): fired += 1)

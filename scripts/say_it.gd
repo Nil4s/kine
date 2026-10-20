@@ -25,7 +25,7 @@ extends RefCounted
 const FILLER := ["the", "a", "an", "his", "her", "my", "your", "their", "is", "are", "be", "with", "of", "it", "that", "please",
 	"degrees", "degree", "deg", "slightly", "bit", "little", "pose", "position", "stand", "standing", "stay", "keep", "put", "get", "make", "has", "have", "while"]
 const PREP := ["on", "at", "over", "near", "onto", "to", "in", "by", "behind", "across", "above", "up", "down", "from", "toward", "towards", "against", "beside", "under", "into", "out"]
-const WEAPONS := {"bat": "metal_bat", "club": "metal_bat", "weapon": "", "sword": "metal_bat", "staff": "staff", "bo": "staff",
+const WEAPONS := {"bat": "metal_bat", "club": "metal_bat", "weapon": "", "sword": "sword", "longsword": "longsword", "katana": "katana", "spear": "spear", "staff": "staff", "bo": "staff",
 	"axe": "long_axe", "hammer": "long_hammer", "dagger": "dagger", "knife": "dagger"}
 const MODE_WORDS := ["cocked", "cock", "ready", "raised", "held", "resting", "rested", "slung", "carried", "poised", "drawn", "lifted"]
 const HANDS := ["hand", "hands", "fist", "fists", "palm", "palms"]

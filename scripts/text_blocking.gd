@@ -34,7 +34,8 @@ const AT := preload("res://tools/attack_timing.gd")
 
 ## word -> the weapon's Body.KINDS name ("" = no weapon: a fist)
 const WEAPON := {"axe": "long_axe", "hatchet": "long_axe", "bat": "metal_bat", "staff": "staff", "bo": "staff",
-	"hammer": "long_hammer", "sledge": "long_hammer", "dagger": "dagger", "knife": "dagger", "sword": "metal_bat",
+	"hammer": "long_hammer", "sledge": "long_hammer", "dagger": "dagger", "knife": "dagger", "sword": "sword", "longsword": "longsword",
+	"katana": "katana", "spear": "spear", "lance": "spear",
 	"fist": "", "fists": "", "hand": ""}
 ## word -> the attack shape
 const ATTACK := {"overhead": "overhead", "downward": "overhead", "down": "overhead", "chop": "overhead",
@@ -52,10 +53,11 @@ const SPEED_F := {"fast": [0.7, 0.8], "light": [0.8, 0.8], "heavy": [1.3, 1.3], 
 const FILLER := ["a", "an", "the", "with", "at", "to", "and", "then", "his", "her", "my", "of", "on", "it", "strike",
 	"attack", "move", "hit", "blow", "from", "in", "back"]
 ## Body kind -> its docs/ATTACK_RULES.md row (AT.RULES key); thrusts use the spear row for timing
-const ROW := {"dagger": "knife", "metal_bat": "metal_bat", "staff": "staff", "long_axe": "hammer", "long_hammer": "hammer"}
+const ROW := {"dagger": "knife", "metal_bat": "metal_bat", "staff": "staff", "long_axe": "hammer", "long_hammer": "hammer",
+	"sword": "metal_bat", "longsword": "metal_bat", "katana": "metal_bat", "spear": "spear"}   # a blade swings like the bat row
 ## kinds held in two hands on the haft, and where on it the top hand may hold (m from the butt): the search range
-const TWO := ["long_axe", "long_hammer", "staff"]
-const HAFT := {"long_axe": [0.1, 0.6], "long_hammer": [0.1, 0.6], "staff": [0.3, 1.3]}
+const TWO := ["long_axe", "long_hammer", "staff", "longsword", "katana", "spear"]
+const HAFT := {"long_axe": [0.1, 0.6], "long_hammer": [0.1, 0.6], "staff": [0.3, 1.3], "longsword": [0.04, 0.12], "katana": [0.04, 0.10], "spear": [0.6, 1.4]}
 const STEP := {"in": 0.25, "back": -0.2, "lunge": 0.4}   # m along the body's front (+z), for the lead foot
 const HIPS_PER_STEP := 0.45   # the hips follow a step this much of its length (combo3's STRIKE: 17 cm for a 38 cm step)
 const REST := 0.2             # s: a card that holds this long is a rest (the ready or the recovery), not part of a swing

@@ -8679,7 +8679,7 @@ func _bat_put(h: String) -> void:
 ## ONE WEAPON PICKER (round 25, GATES FF1, Nick 10-16: "weapons could be a drop down list so it looks cleaner"): the
 ## same dropdown in both panels; picking = what the old buttons did (one undo step); _refresh makes every picker show
 ## what the body holds, whatever changed it (B, undo, a scene, the search); select() does not fire item_selected
-const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "84 cm"], ["Bo staff", "staff", "180 cm"], ["Long hammer", "long_hammer", "110 cm"], ["Long axe", "long_axe", "120 cm"], ["Dagger", "dagger", "30 cm"], ["2 daggers", "two_daggers", "30 cm"]]
+const WEAPONS := [["None", "", "no weapon"], ["Metal bat", "metal_bat", "84 cm"], ["Bo staff", "staff", "180 cm"], ["Long hammer", "long_hammer", "110 cm"], ["Long axe", "long_axe", "120 cm"], ["Sword", "sword", "92 cm"], ["Longsword", "longsword", "120 cm"], ["Katana", "katana", "100 cm"], ["Spear", "spear", "200 cm"], ["Dagger", "dagger", "30 cm"], ["2 daggers", "two_daggers", "30 cm"]]
 var ui_weapon_pickers: Array[OptionButton] = []
 
 
@@ -9114,6 +9114,10 @@ func _kind(k: String) -> void:
 	_say({"metal_bat": "metal bat (84 cm)", "staff": "staff / bo (180 cm): slide your hand along it with , and .  and put the other hand on with G, [ ]",
 		"long_hammer": "long hammer (110 cm, steel head across the tip): G for both hands, [ ] to slide the other hand",
 		"long_axe": "long axe (1.2 m haft, a Dane axe's): G for both hands, [ ] to slide the other hand. Import a video now and he holds it in both",
+		"sword": "arming sword (92 cm, one hand, 1.1 kg)",
+		"longsword": "longsword (1.2 m, hand-and-a-half): G puts the second hand on or takes it off; a video import switches it per frame",
+		"katana": "katana (1.0 m, both hands on the tsuka): G takes the second hand off or back",
+		"spear": "spear (2 m, both hands, 55 cm apart): [ ] slides the front hand, , and . the back hand",
 		"dagger": "dagger (30 cm, one hand)"}[k])
 
 
@@ -13534,6 +13538,11 @@ func _commands() -> Array:
 	add.call("Weapon: bo staff", "", _do.bind(_kind.bind("staff")), "", true, "switch the weapon to the bo staff (180 cm)")
 	add.call("Weapon: long hammer", "", _do.bind(_kind.bind("long_hammer")), "", true, "switch the weapon to the long hammer (110 cm)")
 	add.call("Weapon: long axe", "", _do.bind(_kind.bind("long_axe")), "viking dane axe two handed", true, "switch the weapon to the long axe (120 cm, a bit each side of the tip)")
+	add.call("Weapon: sword", "", _do.bind(_kind.bind("sword")), "arming sword blade one handed knight", true, "switch the weapon to an arming sword (92 cm, one hand)")
+	add.call("Weapon: longsword", "", _do.bind(_kind.bind("longsword")), "bastard sword hand and a half two handed blade", true, "switch the weapon to a longsword (120 cm, one hand or both)")
+	add.call("Weapon: katana", "", _do.bind(_kind.bind("katana")), "samurai japanese sword two handed blade", true, "switch the weapon to a katana (100 cm, both hands)")
+	add.call("Weapon: dagger", "", _do.bind(_kind.bind("dagger")), "knife blade short one handed", true, "switch the weapon to one dagger (30 cm, one hand)")
+	add.call("Weapon: spear", "", _do.bind(_kind.bind("spear")), "lance pike polearm thrust two handed", true, "switch the weapon to a spear (200 cm, both hands)")
 	add.call("Weapon in right hand", "B", _do.bind(_bat_put.bind("hand_r")), "bat", true, "the weapon into the right hand with its standard grip")
 	add.call("Weapon in left hand", "", _do.bind(_bat_put.bind("hand_l")), "bat", true, "the weapon into the left hand with its standard grip")
 	add.call("Remove the weapon", "", _do.bind(_bat_remove), "bat none", true, "take the weapon away")

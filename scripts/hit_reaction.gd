@@ -27,7 +27,7 @@ extends RefCounted
 
 ## kg, the whole weapon. ESTIMATES, not measured (docs/research/HIT_REACTION.md): a 33 in baseball bat ~0.9 kg, a 1.8 m
 ## staff ~1.1 kg, a 1.1 m long hammer ~2.5 kg, a dagger ~0.3 kg, a Dane axe 1-2 kg (1.5 kg used, as body.gd's note says).
-const WEAPON_KG := {"metal_bat": 0.9, "staff": 1.1, "long_hammer": 2.5, "dagger": 0.3, "long_axe": 1.5}
+const WEAPON_KG := {"metal_bat": 0.9, "staff": 1.1, "long_hammer": 2.5, "dagger": 0.3, "long_axe": 1.5, "sword": 1.1, "longsword": 1.45, "katana": 1.2, "spear": 1.8}
 const MIN_LEVER := 0.2      # m: a contact nearer the grip than this counts as this far (the hand gives: no infinite mass)
 const CHAIN := 0.5          # each joint up the chain takes this share of the angular velocity of the one below it
 const WN := TAU * 2.5       # rad/s: the joints' spring back to the animation (2.5 Hz)

@@ -110,6 +110,17 @@ const KINDS := {
 	## read 10-18). The long end of the haft; a bit each side of the tip, 15 cm out, 6 cm round (a 12 cm edge drawn as a
 	## capsule: the head is a stand-in shape, the length and the reach are the reference's)
 	"long_axe": {"len": 1.20, "handle": -0.10, "r_handle": 0.017, "r_barrel": 0.017, "head": [0.15, 0.06], "aim": true, "grip": "power", "mass": 1.80, "com": 0.78, "k": 0.20},
+	## round 49 (Nick 10-20: "we need a list of weapons ... moves held in 2 hands, then 1, then back to 2"). Typical figures
+	## (the common published ranges, quoted from memory: check a museum piece before trusting one to the centimetre). The
+	## handle runs from the pommel to the guard; com = the point of balance (a sword's sits a hand or so past the guard);
+	## a blade is drawn as a thin capsule. ARMING SWORD (one hand): ~0.9 m overall, a 10 cm grip + pommel, ~1.1 kg.
+	"sword": {"len": 0.92, "handle": 0.16, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.10, "com": 0.30, "k": 0.25},
+	## LONGSWORD (hand-and-a-half: one hand or both): 1.1-1.3 m overall, a grip for two hands (~25 cm + pommel), 1.1-1.8 kg
+	"longsword": {"len": 1.20, "handle": 0.30, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.45, "com": 0.33, "k": 0.25},
+	## KATANA: a ~70 cm blade, a ~27 cm tsuka for two hands, ~1.0 m overall, 1.1-1.3 kg; balance ~12 cm past the tsuba
+	"katana": {"len": 1.00, "handle": 0.27, "r_handle": 0.016, "r_barrel": 0.011, "head": [], "aim": true, "grip": "power", "mass": 1.20, "com": 0.39, "k": 0.26},
+	## SPEAR: a 2 m wooden shaft (~3 cm thick), a ~25 cm steel head at the tip, ~1.8 kg; both hands, both ends work
+	"spear": {"len": 2.00, "handle": -0.25, "r_handle": 0.015, "r_barrel": 0.018, "head": [], "aim": false, "grip": "power", "mass": 1.80, "com": 0.56, "k": 0.28},
 }
 var wep_kind := "metal_bat"
 ## the SECOND hand's fitted grip for this kind (data/grips/<kind>.json "second", from Nick's pose by
@@ -664,10 +675,25 @@ func weapon_to_hand(h: String) -> void:
 		slide_in_hand(0.6)
 		grip = true
 		grip_u = 1.2
+	elif not own and wep_kind in ["sword", "dagger"]:
+		grip = false   # one hand: a second-hand grip left from the last weapon is let go
 	elif not own and wep_kind in ["long_hammer", "long_axe"]:
 		# no hammer / axe grip yet: the bat hand at the butt, the other hand 40 cm up (a sledge hold)
 		grip = true
 		grip_u = 0.4
+	elif not own and wep_kind in ["longsword", "katana"]:
+		# both hands on the long grip: the bat hand up against the guard, the other one below it at the pommel end
+		grip_u = 0.0
+		slide_in_hand(float(KINDS[wep_kind]["handle"]) - 0.14)
+		grip = true
+		grip_u = 0.07
+	elif not own and wep_kind == "spear":
+		# the rear hand 30 cm up the shaft, the front hand 55 cm ahead of it (a thrusting hold: the hands a bit wider
+		# than the shoulders; wider needs the body turned side-on)
+		grip_u = 0.0
+		slide_in_hand(0.24)
+		grip = true
+		grip_u = 0.86
 
 
 ## the old rough start (no grip file): the bat through the palm, out on the thumb side, knob 6 cm below, locked

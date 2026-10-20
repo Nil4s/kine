@@ -601,6 +601,7 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 ## Wrists nearer than GRIP_MIN give no direction (a line through two points 10 cm apart, each a few cm off): the last
 ## frame's is kept. Returns the shaft's direction
 const GRIP_MIN := 0.10
+const TOP_HAND := ["longsword", "katana"]   # held with the bat hand above the other (Body.weapon_to_hand's default)
 const GRIP_SWITCH_S := 0.12   # s of consistent evidence before the grip changes (tracker jitter never flickers it)
 const SHAFT_NEAR := 0.15      # m: the free wrist this near the carried shaft is on it
 const SHAFT_END := 0.06       # m: ... and no further out than this past the tip
@@ -628,13 +629,20 @@ static func _hold(B: Body, w: Array, d_prev: Vector3) -> Vector3:
 	var a: Vector3 = w[WR["_r"]]
 	var b: Vector3 = w[WR["_l"]]
 	var sp := a.distance_to(b)
-	var d := (b - a) / sp if sp >= GRIP_MIN else d_prev
+	# a blade's hilt is held with the bat hand ON TOP (against the guard) and the other below it at the pommel: the
+	# wrist-to-wrist line points at the BUTT there, not the tip (taken as the tip, a katana was aimed back into the body
+	# and the arms knotted round it: the sword clip, round 49)
+	var top := B.wep_kind in TOP_HAND
+	var d := ((a - b) if top else (b - a)) / sp if sp >= GRIP_MIN else d_prev
 	if d == Vector3.ZERO:
 		d = (a - (w[EL["_r"]] as Vector3)).normalized()   # nothing yet: along the forearm
 	B.aim_weapon(d)
 	var u0 := B.hold_u()
 	B.grip = true
-	B.grip_u = clampf(u0 + sp, u0 + 0.08, B.wep_len - 0.12)
+	if top:
+		B.grip_u = clampf(u0 - sp, 0.03, maxf(0.03, u0 - 0.08))
+	else:
+		B.grip_u = clampf(u0 + sp, u0 + 0.08, B.wep_len - 0.12)
 	B.apply_grip()
 	return d
 
