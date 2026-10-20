@@ -331,3 +331,52 @@ func triangle_count() -> int:
 	for f in faces:
 		t += (f as PackedInt32Array).size() - 2
 	return t
+
+
+# ---------------------------------------------------------------- symmetry (ROADMAP_400 A04)
+
+## Mirror partner of every vertex across the plane (coordinate `axis` == `plane`; axis 0 = X, 1 = Y, 2 = Z).
+## Result[v] = the vertex within `tol` of the mirror image of v (the nearest one), v itself for a vertex on the
+## plane, -1 when there is none. Only mutual pairs are kept (partner[partner[v]] == v), so a lone near-duplicate
+## never yields a one-way link. Spatial hash with cells of 4 * tol: O(V), no all-pairs search.
+func symmetry_map(axis := 0, tol := 1e-4, plane := 0.0) -> PackedInt32Array:
+	var nv := verts.size()
+	var out := PackedInt32Array()
+	out.resize(nv)
+	out.fill(-1)
+	if nv == 0:
+		return out
+	var cell := maxf(tol, 1e-9) * 4.0
+	var head := {}  # Vector3i cell -> first vertex
+	var chain := PackedInt32Array()
+	chain.resize(nv)
+	for v in nv:
+		var p := verts[v]
+		var k := Vector3i(floori(p.x / cell), floori(p.y / cell), floori(p.z / cell))
+		chain[v] = head.get(k, -1)
+		head[k] = v
+	var cand := PackedInt32Array()
+	cand.resize(nv)
+	for v in nv:
+		var m := verts[v]
+		m[axis] = 2.0 * plane - m[axis]
+		var lo := Vector3i(floori((m.x - tol) / cell), floori((m.y - tol) / cell), floori((m.z - tol) / cell))
+		var hi := Vector3i(floori((m.x + tol) / cell), floori((m.y + tol) / cell), floori((m.z + tol) / cell))
+		var best := -1
+		var bd := tol * tol
+		for cx in range(lo.x, hi.x + 1):
+			for cy in range(lo.y, hi.y + 1):
+				for cz in range(lo.z, hi.z + 1):
+					var u: int = head.get(Vector3i(cx, cy, cz), -1)
+					while u != -1:
+						var d := verts[u].distance_squared_to(m)
+						if d <= bd:
+							bd = d
+							best = u
+						u = chain[u]
+		cand[v] = best
+	for v in nv:
+		var u := cand[v]
+		if u != -1 and cand[u] == v:
+			out[v] = u
+	return out
