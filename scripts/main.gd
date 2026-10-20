@@ -3145,6 +3145,9 @@ func _hit_react() -> void:
 	_actor_set(vk)   # the struck fighter is the active one: its cards and body take the step, its Ctrl+Z undoes it
 	_push_undo()
 	S.cards = r["cards"]
+	for ci in S.cards.size():
+		if Face.suggest(String(S.cards[ci].get("name", ""))) == "pain":
+			S.set_expr(ci, "pain")   # R22: a hit reaction wears pain
 	_rebuild_cards()
 	ov.mark_dirty()
 	wt.mark_dirty()
@@ -9803,6 +9806,7 @@ func _ui() -> void:
 	ui_ease.item_selected.connect(func(k): if not _sync: _set_ease(Scene.ALL_EASES[k]))
 	ew.add_child(ui_ease)
 	_gear_ease_bias(gv)
+	_gear_expr(gv)
 	ui_play_extra = []   # RR4: Check / Polish / Fix left the play row (the ribbon's CHECK tab, Search)
 
 	# ---- status line
@@ -10283,6 +10287,17 @@ func _panel() -> void:
 			else ("pick a card first (click one in the scene row): the ease is the move INTO that card" if sel_card < 0
 			else ("the first card has no move into it: pick card 2 or later" if sel_card == 0 else "")))
 		ui_ease.select(Scene.ALL_EASES.find(S.cards[sel_card].get("ease", "smooth")) if sel_card >= 0 and sel_card < S.cards.size() else 0)
+		if ui_expr != null:
+			var xwhy := "pick a card first (click one in the scene row): the face is keyed on that card" if (sel_card < 0 or sel_card >= S.cards.size()) else ""
+			_grey(ui_expr, xwhy)
+			var cur := "neutral"
+			var sug := ""
+			if sel_card >= 0 and sel_card < S.cards.size():
+				cur = String(S.cards[sel_card].get("expr", "neutral"))
+				sug = Face.suggest(String(S.cards[sel_card].get("name", ""))) if not S.cards[sel_card].has("expr") else ""
+			for k in Face.EXPRESSIONS.size():
+				ui_expr.set_item_text(k, Face.EXPRESSIONS[k] + (" (suggested)" if Face.EXPRESSIONS[k] == sug else ""))
+			ui_expr.select(Face.EXPRESSIONS.find(cur))
 		if ui_ease_bias != null:
 			var bwhy: String = "" if (not S.spline and sel_card > 0) else "pick card 2 or later with Smooth off: the slider shapes the move INTO a card"
 			_grey(ui_ease_bias, bwhy)
@@ -10838,6 +10853,38 @@ func _open_scene_popup() -> void:
 	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
 	ui_scenes.size = Vector2(260, 30)
 	ui_scenes.show_popup()
+
+
+var ui_expr: OptionButton   # R22: the FACE row: the picked card's expression (face.gd EXPRESSIONS)
+
+
+func _gear_expr(gv: Control) -> void:
+	var fr := HBoxContainer.new()
+	gv.add_child(fr)
+	fr.add_child(_label("face", 14, "text:0.75"))
+	ui_expr = OptionButton.new()
+	ui_expr.name = "opt_expr"
+	ui_expr.focus_mode = Control.FOCUS_NONE
+	for e in Face.EXPRESSIONS:
+		ui_expr.add_item(e)
+	ui_expr.tooltip_text = "the picked card's face: neutral, pain (AU4+6/7+9/10+43), effort (AU4+7+24), anger (AU4+5+7+23), surprise (AU1+2+5+26; FACS, Ekman & Friesen). It blends into the next card's face over the move; a hit card suggests pain. One Ctrl+Z"
+	ui_expr.item_selected.connect(func(k): if not _sync: _set_expr(sel_card, Face.EXPRESSIONS[k]))
+	fr.add_child(ui_expr)
+
+
+## key the picked card's face expression: ONE undo step; neutral clears it (the card saves as before)
+func _set_expr(i: int, name: String) -> void:
+	if i < 0 or i >= S.cards.size():
+		_say("pick a card first (click one in the scene row): the face is keyed on that card")
+		return
+	if not Face.EXPRESSIONS.has(name):
+		_say("no such face '%s': pick one of %s" % [name, ", ".join(Face.EXPRESSIONS)])
+		return
+	_push_undo()
+	S.set_expr(i, name)
+	_face_draw()
+	_refresh()
+	_say("card %d face: %s (%s; Ctrl+Z takes it back)" % [i + 1, name, String(Face.EXPR_AU[name]["au"])])
 
 
 ## ROADMAP 55: the picked card's "Slow in ... Even ... Slow out" slider (Scene.ease_bias: -1 arrives slowly, 0 = the curve as it
@@ -15749,7 +15796,8 @@ func _face_make() -> void:
 
 func _face_draw() -> void:
 	var live := face_ui != null and face_ui.live()
-	var on := live or not S.lip.is_empty() or not S.face.is_empty()
+	var ex: Dictionary = S.expr_at(playhead)
+	var on := live or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
 	if not on:
 		if mouth_mi != null:
 			mouth_mi.visible = false
@@ -15767,7 +15815,7 @@ func _face_draw() -> void:
 		add_child(mouth_mi)
 	if face_root == null:
 		_face_make()
-	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else Face.at(S.face, S.lip, playhead)
+	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else Face.at(S.face, S.lip, playhead, ex)
 	var geo := _face_geo()
 	if geo.is_empty():
 		return   # no head mesh to anchor on
@@ -15792,7 +15840,8 @@ func _face_draw() -> void:
 		var epos := face_at(geo["eye" + sfx]) + front * 0.001
 		var eb: MeshInstance3D = face_eye[side]
 		(eb.material_override as StandardMaterial3D).albedo_color = white
-		eb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(Face.EYE_SIZE.x, Face.EYE_SIZE.y * (1.0 - 0.9 * blink), Face.EYE_SIZE.z)), epos)
+		var lid := (1.0 - 0.9 * blink) * (1.0 - 0.5 * float(P["squint"])) * (1.0 + 0.5 * float(P["widen"]))   # AU6/7 narrow the eye, AU5 opens it (R22)
+		eb.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(Face.EYE_SIZE.x, Face.EYE_SIZE.y * lid, Face.EYE_SIZE.z)), epos)
 		var look := left * sin(deg_to_rad(float(P["eye_yaw_deg"]))) + up * sin(deg_to_rad(float(P["eye_pitch_deg"])))
 		var pb: MeshInstance3D = face_pupil[side]
 		(pb.material_override as StandardMaterial3D).albedo_color = pupil_c
@@ -15802,6 +15851,8 @@ func _face_draw() -> void:
 	var sz := Face.mouth_size(String(P["mouth"]), jaw)
 	(mouth_mi.material_override as StandardMaterial3D).albedo_color = Tok.c("fail")
 	mouth_mi.visible = true
+	var pr := float(P["press"])   # AU23/24: the lips tighten into a thin line (R22)
+	sz = Vector3(sz.x * (1.0 - 0.25 * pr), sz.y * (1.0 - 0.5 * pr), sz.z)
 	mouth_mi.transform = Transform3D(Basis(g) * Basis.from_scale(Vector3(sz.x * Face.MOUTH_W_K, sz.y, sz.z)), face_at(geo["mouth"]) + front * 0.002 - up * sz.y * 0.25)
 
 
