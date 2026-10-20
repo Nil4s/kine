@@ -3,12 +3,12 @@
 ## holds 0.1 s and jabs (0.15 s move, arrives 1.05 s = the contact); fighter 2 answers with a block card. Readable = 0.50 s (the wind-up begins:
 ## Counter.read_time). Bars, written before measuring:
 ##  (1) PRECOG: a block starting 0.55 s (0.05 s after readable), 0.25 s long -> status precog (gap 0.05 +-0.005), not late; the fix starts it at
-##      0.70 s (gap >= 0.2 - 0.005), its length 0.25 s unchanged; afterwards status ok
+##      0.79 s (gap >= Counter.REACT 0.29 - 0.005), its length 0.25 s unchanged; afterwards status ok
 ##  (2) LATE (shorten): a block starting 0.80 s, 0.40 s long (arrives 1.20, 0.15 s after the hit) -> late; fix: arrives at the hit (1.05 +-0.005),
 ##      move 0.25 s (>= Counter.MV 0.12); afterwards ok, fighter 1's cards untouched
 ##  (3) LATE (delay the strike): a block starting 1.00 s, 0.20 s long -> late; it cannot be shortened to 0.12 s in time, so the strike is
 ##      delayed (fighter 1's cards change, move still 0.15 s), the block's move is 0.12 s, afterwards ok and readable unchanged (0.50)
-##  (4) CLEAN: a block starting 0.75 s, 0.15 s long -> one item, status ok, no flags, a fix is refused
+##  (4) CLEAN: a block starting 0.82 s, 0.15 s long -> one item, status ok, no flags, a fix is refused
 ##  (5) for every fix: the cards of both fighters are byte-identical after reading, selecting and Preview; Accept is ONE undo step; Ctrl+Z restores
 ##      both fighters' cards exactly
 ##  (6) PLACEMENT: a clip with a PRECOG and a LATE reaction: the timeline holds a badge per reaction inside the track, the panel a row per
@@ -113,14 +113,14 @@ func _init() -> void:
 	var ui = m.pc_ui
 
 	# (4) clean first
-	put(hero(), blocker(0.75, 0.15))
+	put(hero(), blocker(0.82, 0.15))   # 0.32 s after readable: over Counter.REACT 0.29 s (Liu 2018, measured)
 	ui.show()
 	await idle()
 	var rep: Dictionary = ui.rep
 	var it0: Dictionary = rep["items"][0] if not rep["items"].is_empty() else {}
 	print("       clean: %s" % [it0])
 	ok(rep["items"].size() == 1 and rep["flags"].is_empty() and it0["status"] == "ok" and absf(float(it0["readable"]) - 0.5) <= 0.005 and absf(float(it0["contact"]) - 1.05) <= 0.005,
-		"(4) a block starting 0.25 s after the wind-up: one item, ok, no flags (readable %.2f, hit %.2f)" % [it0.get("readable", -1.0), it0.get("contact", -1.0)])
+		"(4) a block starting 0.32 s after the wind-up: one item, ok, no flags (readable %.2f, hit %.2f)" % [it0.get("readable", -1.0), it0.get("contact", -1.0)])
 	ok(not Precog.fix(ui._scenes(), ui._names(), it0)["ok"], "(4) a fix for a clean reaction is refused")
 
 	# (1)-(3), (5)
@@ -166,7 +166,7 @@ func _init() -> void:
 		match nm:
 			"precog":
 				good = float(af["gap"]) >= Counter.REACT - 0.005 and absf(mv_after - 0.25) <= 0.002 and not hero_changed
-				extra = "onset - readable %.3f s (>= 0.2), move %.3f s (0.25), hero untouched %s" % [af["gap"], mv_after, not hero_changed]
+				extra = "onset - readable %.3f s (>= REACT), move %.3f s (0.25), hero untouched %s" % [af["gap"], mv_after, not hero_changed]
 			"late_shorten":
 				good = absf(float(af["arrival"]) - float(af["contact"])) <= 0.005 and absf(mv_after - 0.25) <= 0.002 and mv_after >= Counter.MV and not hero_changed
 				extra = "arrives %.3f s at the hit %.3f s, move %.3f s (0.25, >= 0.12), hero untouched %s" % [af["arrival"], af["contact"], mv_after, not hero_changed]
