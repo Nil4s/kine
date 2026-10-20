@@ -25,7 +25,7 @@ const AREA_OF := {
 	"weapon_in_right_hand": "Weapon", "lock_weapon_to_hand_free_it": "Weapon", "second_hand_on_the_weapon": "Weapon",
 	"grip_lower_on_the_weapon": "Weapon", "grip_higher_on_the_weapon": "Weapon", "slide_the_hands_down_the_weapon": "Weapon",
 	"slide_the_hands_up_the_weapon": "Weapon", "weapon_shorter": "Weapon", "weapon_longer": "Weapon",
-	"front_view": "View", "his_right_view": "View", "top_view": "View", "back_view": "View", "his_left_view": "View",
+	"front_view": "View", "view_quad_view_on_off": "View", "his_right_view": "View", "top_view": "View", "back_view": "View", "his_left_view": "View",
 	"page_pose": "View", "page_animate": "View", "page_stage": "View", "page_check": "View", "page_deliver": "View",
 	"big_view_hide_the_panels": "View", "collision_shapes_on_off": "View", "motion_trail_on_off": "View",
 	"pin_a_trail_on_the_picked_part": "View", "balance_on_off": "View", "onion_skin_on_off": "View",

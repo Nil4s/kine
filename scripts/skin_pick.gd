@@ -317,6 +317,8 @@ render_mode unshaded, blend_mix, depth_draw_never, cull_back, shadows_disabled, 
 uniform sampler2D bind_part : filter_nearest, repeat_disable;   // x = skin bind: r = part index
 uniform sampler2D part_look : filter_nearest, repeat_disable;   // x = part: row 0 rgb colour (linear) a fill; row 1 r rim
 uniform float grow = 0.0006;
+global uniform vec4 kine_section;   // K16: the section plane (offset 1e9 = off): the tint is cut away with the skin
+varying vec3 k_w;
 varying vec4 v_col;
 varying float v_rim;
 varying float v_on;
@@ -341,9 +343,11 @@ void vertex() {
 	v_rim = texelFetch(part_look, ivec2(bp, 1), 0).r;
 	v_on = look.a > 0.0 ? 1.0 : 0.0;
 	VERTEX += NORMAL * grow;
+	k_w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
 void fragment() {
+	if (dot(k_w, kine_section.xyz) > kine_section.w) { discard; }
 	float a = v_col.a;
 	vec3 c = a > 0.0001 ? v_col.rgb / a : vec3(0.0);
 	float face = abs(dot(normalize(NORMAL), normalize(VIEW)));
@@ -357,6 +361,7 @@ void fragment() {
 
 
 func _make_mat() -> void:
+	ViewX.ensure_global()   # the shader names the section plane's global uniform
 	var bimg := Image.create(maxi(bind_part.size(), 1), 1, false, Image.FORMAT_RF)
 	for k in bind_part.size():
 		bimg.set_pixel(k, 0, Color(float(bind_part[k]), 0, 0))
