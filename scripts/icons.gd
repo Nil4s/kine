@@ -139,6 +139,7 @@ const DRAW := {
 	"check": [["seg", Vector2(4, 13), Vector2(9.5, 18.5), 2.6], ["seg", Vector2(9.5, 18.5), Vector2(20, 6), 2.6]],
 	"style_dial": [["seg", Vector2(4, 8), Vector2(20, 8), 1.6], ["seg", Vector2(4, 16), Vector2(20, 16), 1.6], ["disc", Vector2(9, 8), 2.6], ["disc", Vector2(15, 16), 2.6]],
 	"timing": [["ring", Vector2(12, 13), 8, 1.8], ["seg", Vector2(12, 13), Vector2(12, 8), 2.0], ["seg", Vector2(12, 13), Vector2(16, 15), 2.0], ["seg", Vector2(9, 3), Vector2(15, 3), 2.0]],
+	"fightbeat": [["seg", Vector2(4, 20), Vector2(4, 5), 2.0], ["seg", Vector2(12, 20), Vector2(12, 5), 2.0], ["seg", Vector2(20, 20), Vector2(20, 5), 2.0], ["ring", Vector2(12, 12), 4, 2.4]],
 	"autocam": [["seg", Vector2(3, 7), Vector2(15, 7), 2.0], ["seg", Vector2(15, 7), Vector2(15, 17), 2.0], ["seg", Vector2(15, 17), Vector2(3, 17), 2.0], ["seg", Vector2(3, 17), Vector2(3, 7), 2.0], ["seg", Vector2(15, 12), Vector2(21, 8), 2.0], ["seg", Vector2(21, 8), Vector2(21, 16), 2.0], ["seg", Vector2(21, 16), Vector2(15, 12), 2.0]],
 	"polish": [["seg", Vector2(10, 2), Vector2(10, 18), 1.6], ["seg", Vector2(2, 10), Vector2(18, 10), 1.6], ["seg", Vector2(5, 5), Vector2(15, 15), 1.2],
 		["seg", Vector2(15, 5), Vector2(5, 15), 1.2], ["disc", Vector2(19, 19), 1.8]],
