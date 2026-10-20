@@ -18,6 +18,7 @@ const PATH := "user://suggestion_journal.json"
 
 var path := PATH
 var stats: Dictionary = {}     # "source|kind" -> {source, kind, offers, kept, rejected, edited, n_pos, n_neg, sum_pos, sum_neg}
+var habits: Array = []         # I46: [{kind, J, amp, delay, rec}] one row per edit of a written reaction (scripts/hit_habits.gd)
 var pending: Array = []        # [{source, kind, card, params, accepted_at, undo_n, reader}] (not saved: a restart forgets what it was watching)
 var now := Callable()          # () -> seconds; default: the engine clock
 
@@ -144,8 +145,25 @@ func lessons(limit := 8) -> Array:
 	return out.slice(0, limit)
 
 
+## I46: a lesson from an edit of something Kine wrote (rows are plain numbers); counted as an edited offer of source/kind
+func add_habit(source: String, kind: String, row: Dictionary) -> void:
+	var r := _row(source, kind)
+	r["offers"] += 1
+	r["edited"] += 1
+	var h := row.duplicate()
+	h["source"] = source
+	h["kind"] = kind
+	habits.append(h)
+	save()
+
+
+func habit_rows(source: String, kind: String) -> Array:
+	return habits.filter(func(h): return h.get("source") == source and h.get("kind") == kind)
+
+
 func reset() -> void:
 	stats = {}
+	habits = []
 	pending = []
 	save()
 
@@ -162,3 +180,5 @@ func load_file() -> void:
 	var j: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if j is Dictionary and j.get("stats") is Dictionary:
 		stats = j["stats"]
+		if j.get("habits") is Array:
+			habits = j["habits"]

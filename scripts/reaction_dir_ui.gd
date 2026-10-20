@@ -175,7 +175,7 @@ func pick(k: int) -> void:
 
 func select(k: int) -> void:
 	var r: Dictionary = rows[k]
-	var f := ReactionDir.fix(m.actors_rt[r["vk"]]["S"], m.actors_rt[r["vk"]]["B"], m.actors_rt[r["vk"]]["xf"], r["hit"], m.actors_rt[r["sk"]]["B"], r["res"], m.actors_rt[r["sk"]]["S"])
+	var f := ReactionDir.fix(m.actors_rt[r["vk"]]["S"], m.actors_rt[r["vk"]]["B"], m.actors_rt[r["vk"]]["xf"], r["hit"], m.actors_rt[r["sk"]]["B"], r["res"], m.actors_rt[r["sk"]]["S"], m.myhits.chooser(m.actors_rt[r["vk"]]["S"].fps))
 	if not f["ok"]:
 		m._say(String(f["why"]))
 		return
@@ -228,14 +228,19 @@ func accept() -> void:
 	var sc: Scene = fx["scene"]
 	var vk: int = int(rows[int(fx["k"])]["vk"])
 	var msg := String(fx["msg"])
+	var regen := String(fx["kind"]).contains("regenerate")   # only a reaction made again from the physics is shaped by my usual
 	m._actors_sync()
 	m._step_hint = "Fix this reaction"
 	m._push_undo()   # (the snapshot holds every fighter's cards)
+	var base_sc: Scene = (m.actors_rt[vk]["S"] as Scene).clone()
 	(m.actors_rt[vk]["S"] as Scene).cards = sc.cards.duplicate(true)
+	m.myhits.watch(vk, base_sc, m.actors_rt[vk]["S"], float(rows[int(fx["k"])]["hit"]["t"]), HitReaction.window_end(base_sc, float(rows[int(fx["k"])]["hit"]["t"])), float(rows[int(fx["k"])]["res"].get("Jn", 0.0)), m.undo.size())   # I46: my edits of it are lessons
 	m._rebuild_cards()
 	m._ps().apply(m.B, m.playhead)
 	m._refresh()
-	m._say("reaction direction: %s.  Ctrl+Z undoes it in one step" % msg)
+	m._say("reaction direction: %s.  Ctrl+Z undoes it in one step%s" % [msg, ("  (" + m.myhits.last_text + ")") if regen else ""])
+	if regen:
+		m._habit_note(m.myhits.last_text)
 	compute()
 	if not rows.is_empty():
 		sel = 0

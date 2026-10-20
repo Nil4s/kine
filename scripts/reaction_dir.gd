@@ -17,7 +17,7 @@
 ##   (d) MAGNITUDE  |COM velocity change| against |J| / M (M = the body's mass, the pieces' sum): a ratio inside [MAG_LO, MAG_HI] = [0.5, 2].
 ## FIXES (one per flagged hit, nothing written): "retime" (only the onset is wrong): the cards of the early reaction are delayed to the contact
 ## frame (the card before gives the difference as hold; the last hold gives it back if it can); "regenerate" (anything else): the window's
-## poses are held at the contact pose and HitReaction.react (the physics reaction of I2's card maker) is baked onto it from the contact.
+## poses are held at the contact pose and HitReaction.react (the physics reaction of I2's card maker) is baked onto it from the contact, shaped by my usual (I46, hit_habits.gd) when it has one.
 class_name ReactionDir
 extends RefCounted
 
@@ -190,7 +190,7 @@ static func line(r: Dictionary) -> String:
 
 ## the fix of one judged contact: {"ok", "why", "scene" (a clone with the new cards), "kind": "retime" / "regenerate", "msg", "after" (the judgement
 ## of the new scene)}. Nothing of S is written.
-static func fix(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body, res: Dictionary, Ss: Scene = null) -> Dictionary:
+static func fix(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body, res: Dictionary, Ss: Scene = null, hab: Variant = null) -> Dictionary:
 	if not res["ok"] or not res["bad"]:
 		return {"ok": false, "why": "this hit's reaction is fine: nothing to fix (pick a flagged hit)"}
 	var sc: Scene = S.clone()
@@ -228,7 +228,7 @@ static func fix(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body, r
 			var a: float = ts2[i][1]
 			if a > t_c + 1e-9 and a <= t_end + 1e-9:
 				(sc.cards[i] as Dictionary)["pose"] = held.duplicate(true)
-		var r := HitReaction.react(sc, B, xf, hit, Bs)
+		var r := HitReaction.react(sc, B, xf, hit, Bs, hab)
 		if not r["ok"]:
 			return {"ok": false, "why": "no reaction could be made: %s" % r["why"]}
 		# the card maker's impulse (its strike mass x relative speed) is scaled to the hit physics' J (HitPhysics.measure), so both name one blow
@@ -237,7 +237,7 @@ static func fix(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Body, r
 			var vrel_h: Vector3 = xf.basis * (r["J"] as Vector3) / maxf(float(r["m_eff"]), 1e-9)
 			var h2 := hit.duplicate()
 			h2["vec"] = (hit["vec"] as Vector3) - vrel_h + vrel_h * (float(res["Jn"]) / jr)
-			r = HitReaction.react(sc, B, xf, h2, Bs)
+			r = HitReaction.react(sc, B, xf, h2, Bs, hab)
 			if not r["ok"]:
 				return {"ok": false, "why": "no reaction could be made: %s" % r["why"]}
 		sc.cards = r["cards"]
