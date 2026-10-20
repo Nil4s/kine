@@ -41,6 +41,7 @@ const CHIN_HEAD := 14.0
 const SLAP_ELBOW := 55.0
 const SLAP_DEG := 45.0
 const ROLL_DEG := 40.0
+const SLAP_SMOOTH := 0.05    # cost per degree the upper arm turns away from the arm of the card before (keeps the slap from swinging the hand through the landing)
 const TURN_MIN := 45.0      # forward fall: the head counts as turned aside from this much neck + head rotation (mae ukemi: head to one side, ~60-90 deg of neck rotation)
 const TURN_SIDE := 30.0     # side fall: head turned away from the floor side
 const HEAD_V := 2.0         # m/s: cheek-side contact of a turned head under this is read as a safe landing
@@ -363,6 +364,10 @@ static func slap(S: Scene, f: Dictionary) -> Dictionary:
 		var rb: Vector2 = B.lim[ua]["bend"]
 		var rs: Vector2 = B.lim[ua]["side"]
 		var rt: Vector2 = B.lim[ua]["twist"]
+		var prev_a := Vector3.INF   # the arm of the card before: the search stays near it (an arm that swings 140 deg in one card is the fastest part of the landing)
+		if int(cs[0]) > 0:
+			B.from_dict(nS.cards[int(cs[0]) - 1]["pose"])
+			prev_a = B.ang[ua] as Vector3
 		for i in cs:
 			var c: Dictionary = nS.cards[i]
 			B.from_dict(c["pose"])
@@ -380,9 +385,13 @@ static func slap(S: Scene, f: Dictionary) -> Dictionary:
 						B.ang[ua] = Vector3(clampf(bd, rb.x, rb.y), clampf(sv, rs.x, rs.y), clampf(tw, rt.x, rt.y))
 						B.fk_sub(ua)
 						var cost := _arm_cost(B, s2) + 0.05 * absf(bd)
+						if prev_a.x < 1e8:
+							var dv := (B.ang[ua] as Vector3) - prev_a
+							cost += SLAP_SMOOTH * (absf(dv.x) + absf(dv.y) + absf(dv.z))
 						if cost < best:
 							best = cost
 							bv = B.ang[ua]
+			prev_a = bv
 			_put(c, ua, bv)
 			_put(c, la, B.ang[la])
 	return _done(S, nS, f, "slap", "bend the catching arms (both) into a slap: elbow %.0f deg at the contact rising to %.0f deg %.2f s later (the arm absorbs), arm %.0f deg off the body, forearm flat, in %d card%s" % [ELB0, ELB1, ELB_T, SLAP_DEG, cs.size(), "" if cs.size() == 1 else "s"])
@@ -413,3 +422,98 @@ static func roll(S: Scene, f: Dictionary) -> Dictionary:
 			bscore = sc
 			best = r
 	return best
+
+
+## fix 4: SLOW THE LANDING. The speed verdict cannot be mended by a pose: the hands land when the body has toppled far enough, so a bent slap arm
+## only lands later in the same fixed-speed topple. The timing has to change. Two moves, the way ukemi is taught (lower first, fall from low):
+##  (1) LOWER FIRST: a card is added before the topple in which the knees and hips bend (LOW_THIGH / LOW_CALF, "sit back") and the body is lowered
+##      over LOW_T; the bend then unwinds across the topple cards (linearly to the original legs at the last card), so the trunk tips from a
+##      lower centre of mass and the free-fall height to the floor is shorter.
+##  (2) SLOW THE LAST CARDS: the cards that bring the body to the floor (arriving in the LAST_WIN s before the impact) are stretched, by STRETCH
+##      steps, until the first part lands at SLOW_TARGET (under SPEED_OK) or the fall would last past FALL_CAP.
+## WHY FALL_CAP = 1.0 s from the start of the lowering to the impact (and about 1.5 s with the HEAD_WIN + slap that follows): a knockdown IS a
+## drop of 40 % of the standing height within WIN = 1 s (the definition this tool uses), a longer fall reads as a sit or a kneel and the checker
+## would stop finding it; and a trained faller takes about 1 s from the start of a forward drop to the mat (judo ukemi video measurements are not
+## in this repo; the number is a heuristic). Source for the target speed: van den Kroonenberg, Hayes & McMahon 1995 (J Biomech Eng 117): hip
+## impact speed of a SIDEWAYS fall from standing is ~2 m/s untrained; Groen, Weerdesteyn & Duysens 2007 (J Biomech 40) found judo-trained
+## fallers land with a lower impact velocity than untrained ones. Both quoted from memory, not re-read here, so SPEED_OK stays a heuristic.
+const LOW_THIGH := 80.0
+const LOW_CALF := 100.0
+const LOW_T := 0.2
+const LAST_WIN := 0.4
+const STRETCH := 1.2
+const SLOW_TARGET := 2.3
+const FALL_CAP := 1.0
+
+
+static func _legs(card: Dictionary, th: float, ca: float) -> void:
+	for sd in ["_l", "_r"]:
+		_joint(card, "thigh" + sd)["bend"] = snappedf(th, 0.01)
+		_joint(card, "calf" + sd)["bend"] = snappedf(ca, 0.01)
+
+
+static func lower(S: Scene, f: Dictionary) -> Dictionary:
+	if float(f["speed"]) <= SPEED_OK:
+		return {"ok": false, "why": "the landing speed is already %.1f m/s (under %.1f): nothing to slow" % [float(f["speed"]), SPEED_OK]}
+	var cs := landing_cards(S, f)
+	if cs.is_empty() or int(cs[0]) == 0:
+		return {"ok": false, "why": "no card arrives before this fall to lower from: add a standing pose before the fall, then try again"}
+	var best := {}
+	var bsp := INF
+	for crouch in [true, false]:
+		var nS := S.clone()
+		var cs2 := landing_cards(nS, f)
+		var first: int = cs2[0]
+		var last: int = cs2[cs2.size() - 1]
+		if crouch:
+			var nc := {"name": "lower", "pose": (nS.cards[first - 1]["pose"] as Dictionary).duplicate(true), "move": LOW_T, "hold": 0.0}
+			_legs(nc, LOW_THIGH, LOW_CALF)
+			for k in cs2.size():
+				var c: Dictionary = nS.cards[cs2[k]]
+				var w := 1.0 - float(k + 1) / float(cs2.size())
+				var th := maxf(float(_joint(c, "thigh_l")["bend"]), LOW_THIGH * w)
+				var ca := maxf(float(_joint(c, "calf_l")["bend"]), LOW_CALF * w)
+				_legs(c, th, ca)
+			nS.cards.insert(first, nc)
+			cs2 = landing_cards(nS, f)
+		var rounds := 0
+		var rep := {}
+		var g := {}
+		while rounds < 14:
+			rep = analyze(nS)
+			g = _near(rep, f)
+			if g.is_empty() or float(g["speed"]) <= SLOW_TARGET:
+				break
+			var ts := nS.times()
+			var tc: float = g["t_c"]
+			var any := false
+			if tc - float(g["t0"]) > FALL_CAP:   # no room left: the early cards (the drop before the last LAST_WIN s) are shortened to pay for the slow ones
+				for i in nS.cards.size():
+					if float(ts[i][1]) <= tc - LAST_WIN and float(ts[i][0]) >= float(g["t0"]) - 0.02 and i > 0 and float(nS.cards[i]["move"]) > 0.08:
+						nS.cards[i]["move"] = snappedf(maxf(0.06, float(nS.cards[i]["move"]) * 0.8), 0.001)
+						any = true
+			for i in nS.cards.size():
+				if float(ts[i][1]) > tc - LAST_WIN and float(ts[i][0]) < tc + 1e-4 and i > 0:
+					nS.cards[i]["move"] = snappedf(float(nS.cards[i]["move"]) * STRETCH, 0.001)
+					any = true
+			if not any:
+				break
+			rounds += 1
+		if g.is_empty():
+			continue
+		# the lowering is preferred (it is the taught way) when it reaches the target with the head, arm and spread verdicts kept; else the lowest speed wins
+		var sc := float(g["speed"]) + (0.0 if tc_ok(g) else 10.0)
+		if crouch and sc <= SLOW_TARGET and String(g["a"]) == "ok" and String(g["b"]) == "ok" and String(g["c"]) != "fail":
+			sc -= 100.0
+		if sc < bsp:
+			bsp = sc
+			best = {"scene": nS, "rep": rep, "after": g, "crouch": crouch, "rounds": rounds}
+	if best.is_empty():
+		return {"ok": false, "why": "the fall is lost when retimed: check the cards around the landing"}
+	var g2: Dictionary = best["after"]
+	return {"ok": true, "kind": "lower", "scene": best["scene"], "rep": best["rep"], "after": g2, "msg": "slow the landing: %s the last cards stretched %d times by %.0f%%: first contact %.1f m/s (was %.1f), the fall lasts %.2f s from its start to the impact" % [
+		"knees bend first (%.0f deg hips, %.0f deg knees, %.2f s) and unwind as the trunk tips;" % [LOW_THIGH, LOW_CALF, LOW_T] if bool(best["crouch"]) else "", int(best["rounds"]), (STRETCH - 1.0) * 100.0, float(g2["speed"]), float(f["speed"]), float(g2["t_c"]) - float(g2["t0"])]}
+
+
+static func tc_ok(g: Dictionary) -> bool:
+	return float(g["t_c"]) - float(g["t0"]) <= FALL_CAP + 0.05
