@@ -45,6 +45,7 @@ func gather(db: Dictionary) -> Dictionary:
 	if S.cards.size() < 2:   # nothing to judge (empty, or a pose with no clip): do not play anything
 		lap = {"check": 0.0, "timing": 0.0, "force": 0.0}
 		return out
+	FrameMemo.new_pass()
 	FrameMemo.on = true   # only the frames a fix changed are played again (frame_memo.gd)
 	var body0: Dictionary = m.B.state()   # a view: the body comes back as it was
 	var t0 := Time.get_ticks_usec()

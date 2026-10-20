@@ -186,7 +186,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 	var raw := []
 	var bad := 0
 	var mk := func(_i: int, t: float) -> Dictionary:
-		S.apply_true(B, t)
+		FrameMemo.pose(S, B, t)
 		var r := {"tip": Overlays.tracked(B), "hips": B.P["pelvis"], "head": B.P["head"], "hand_l": B.E["hand_l"],
 			"hand_r": B.E["hand_r"], "gp": B.G["pelvis"], "gt": B.G["spine_03"],
 			"wd": (B.wep_point(B.wep_len) - B.wep_point(0.0)) if B.wep_on else (B.E["hand_r"] - B.P["hand_r"]),

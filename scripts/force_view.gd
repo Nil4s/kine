@@ -163,7 +163,7 @@ static func capture(S: Scene, B: Body) -> Dictionary:
 	for k in gj:
 		gtrack[k] = []
 	var mk := func(_i: int, t: float) -> Dictionary:
-		S.apply_true(B, t)
+		FrameMemo.pose(S, B, t)
 		var pcs := HitReaction.pieces(B)
 		var c := []
 		var g := []

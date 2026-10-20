@@ -219,7 +219,9 @@ static func _flow(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 ## PLANTED FEET CARRY FORWARD (round 32, MM2): with pinning on, a foot pinned on the cards after b stands where card c
 ## put it (Scene._anchors), and a HOLD plants as its move ended; so the window runs on through every following card
 ## that pins a foot, and the move after (a step or a free leg leaves FROM the pinned place), to that card's hold end (B: to read the anchors; its pose is kept)
-static func window(S: Scene, c: int, B: Body = null) -> Vector2:
+##   I16b: `old` = the anchors the SAME cards gave before the edit (Scene._anchors): the carry stops at the first card whose anchors came out
+##   as before (a timing fix, or a change above the hips, never moves a planted foot: no carry at all). [] = carry as before.
+static func window(S: Scene, c: int, B: Body = null, old := []) -> Vector2:
 	var ts := S.times()
 	var k := 2 if S.spline else 1
 	var a: int = maxi(c - (k - 1), 0)
@@ -235,6 +237,12 @@ static func window(S: Scene, c: int, B: Body = null) -> Vector2:
 		# anchor before (a step starts from it, a free leg blends out of it), so that card is in; then a non-pin ends it
 		var live := {"_l": true, "_r": true}
 		while b + 1 < S.cards.size() and (live["_l"] or live["_r"]):
+			if old.size() == E.size():
+				var moved := false
+				for sd in live:
+					moved = moved or (live[sd] and E[b][sd] != old[b][sd])
+				if not moved:
+					break   # the next move reads the anchors after card b: they are what they were
 			b += 1
 			for sd in live:
 				live[sd] = live[sd] and E[b][sd][3] == "pin"

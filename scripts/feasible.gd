@@ -41,7 +41,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	var out := {"n": n, "t": [], "com": [], "margin": [], "down": [], "sup": [], "poly": [], "ball_l": [], "ball_r": [],
 		"pen": [], "pen_pair": []}
 	var mk := func(_i: int, t: float) -> Dictionary:
-		S.apply_true(B, t)
+		FrameMemo.pose(S, B, t)
 		var bal := Balance.read(B)
 		var deep := 0.0
 		var pair := ""

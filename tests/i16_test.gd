@@ -59,12 +59,14 @@ func _init() -> void:
 	# (1)
 	m._load_scene("res://scenes/walk_bat.json")
 	m._rebuild_cards()
+	m._refresh()   # what every real opener does after _load_scene: the timeline and the clock follow
 	await idle()
 	rs.refresh()
 	var walk := float(rs.res["score"])
 	print("     walk_bat: %.1f  items %d  pen %s" % [walk, (rs.res["items"] as Array).size(), rs.res["pen"]])
 	m._load_scene("res://scenes/combo3.json")
 	m._rebuild_cards()
+	m._refresh()   # what every real opener does after _load_scene: the timeline and the clock follow
 	await idle()
 	S = m.S
 	rs.refresh()
@@ -128,7 +130,7 @@ func _init() -> void:
 	for k in rsn.size():
 		ok(m.ui_find_list.find_child("rs_reason_%d" % (k + 1), true, false) != null, "(4) panel line for reason %d" % (k + 1))
 	var shot := root.get_texture().get_image()
-	shot.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i16b.png")
+	shot.save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i16c.png")
 
 	# (2) timing fix
 	var tim := all.filter(func(x): return x["judge"] == "TIMING")
@@ -144,7 +146,9 @@ func _init() -> void:
 		await idle(3)
 		var after := float(rs.res["score"])
 		print("     timing fix %d (%s): %.2f -> %.2f, undo %d -> %d" % [q, item["text"], s_before, after, u0, m.undo.size()])
-		print("       re-score %.0f ms (played %d, reused %d)" % [rs.ms, FrameMemo.played, FrameMemo.reused])
+		var cold_q := _cold_score()
+		print("       cold %.2f vs incremental %.2f" % [cold_q, after])
+		print("       re-score %.0f ms (played %d, reused %d) laps %s" % [rs.ms, FrameMemo.played, FrameMemo.reused, rs.lap])
 		if q == 0:
 			top_rose = after > s_before and m.undo.size() == u0 + 1
 			ok(rs.ms < 400.0, "(9) re-score after the top timing fix: %.0f ms < 400" % rs.ms)

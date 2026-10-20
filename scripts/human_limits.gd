@@ -115,7 +115,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	for seg in ["forearm", "hand"]:
 		kg[seg] = _seg_kg(B, mm, seg)
 	var mk := func(_i: int, t: float) -> Dictionary:
-		S.apply_true(B, t)
+		FrameMemo.pose(S, B, t)
 		var row := {"rel": {}, "pts": {}}
 		for j in TURN:
 			var pr: Array = TURN[j]
