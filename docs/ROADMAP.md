@@ -190,6 +190,7 @@ open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: test
 Merged in round 2: 22 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
+  Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
 - [x] R2. Depth of field on the shot camera (focus on the picked part, f-stop), visible in the viewport and the playblast.
 - [x] R3. Motion blur in the playblast (sub-frame accumulation), off by default.
 - [x] R4. Contact shadows under feet and props (soft blob that darkens as the foot nears the floor).
@@ -247,3 +248,9 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   3D pose with limits and balance).
 - [ ] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
   cards come pre-timed the way you usually time them (shown as "your usual 0.18 s", one key to accept).
+- [ ] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
+  beat: block, slip, parry, counter) and keeps the pair at fighting range (each strike's tip reaches the target, nobody
+  overlaps), flagging beats where the distance makes the move impossible.
+- [ ] I12. Smart drag: dragging one joint moves the rest of the body the way YOUR poses move together (the
+  co-variation learned from Nick's library and scenes, principal directions), so pulling a fist back also turns the
+  hips and shifts the weight like he would; hold Alt for the old one-joint drag.
