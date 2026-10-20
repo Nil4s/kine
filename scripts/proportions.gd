@@ -105,6 +105,10 @@ static func clean(d: Dictionary) -> Dictionary:
 		out["scale"] = sc
 	if String(d.get("sex", "")) in ["male", "female"]:
 		out["sex"] = String(d["sex"])
+	if d.has("blend") and out.has("sex"):   # R12: the man/woman blend (0..1) the BODY page made this body from; only a true blend is kept (0 and 1 are the sexes)
+		var bl := snappedf(clampf(float(d["blend"]), 0.0, 1.0), 0.001)
+		if bl > 0.0 and bl < 1.0 and (bl >= 0.5) == (String(out["sex"]) == "male"):
+			out["blend"] = bl
 	if d.has("mass"):
 		out["mass"] = snappedf(clampf(float(d["mass"]), 20.0, 250.0), 0.1)
 	if d.has("preset") and PRESETS.has(String(d["preset"])):
