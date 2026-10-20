@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 13 / 25.
+Merged in round 2: 25 / 25 (full suite 2026-10-20 01:35: 323/360 before fixes; fixes merged for units, icons, search_one_list, say_next, toolbar, symmetry, undo_audit x4, pages, cardstrip, r3, text_blocking, video_cleanup, retarget, vroot, videoiq 1b, proportions capsules). Round 3 count: 16 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -289,6 +289,7 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   torques I8, push limits R24, timing coach I4, Check's human limits), with the 3 biggest reasons and a one-click fix
   for each (accept span, timing coach, Check fix); the score is shown on the scene card and re-scored after each fix.
   Step 1 merged: score = 100 - sum(weight x share flagged) over Check red/yellow, timing coach, push limits, force view, physics (when cached); combo3 21, calm walk 85, no findings 100, each fix one undo and raises the score. Open: a cold score takes 4.2 s (bar 200 ms holds only when cached); the fix button reads 'Fix: Fix:'; the timing coach and Check can disagree on a fix.
+  Step 2 merged (partial): FrameMemo samples each frame once for all judges, window narrowed for pose-only edits, predicted gains on fix buttons; repeat score < 200 ms, empty scene 2.6 ms. Open: re-score after a timing fix 945 ms (bar 400) - Rulebook.check and force analysis over all frames still ~450 ms; one timing fix 0.15 off cold.
 - [x] I17. Learn my style: Kine reads every clip Nick made (scenes/, his poses) and builds a style fingerprint (his
   usual timing per move kind, holds, guard height, stance width, favourite transitions); new clips and Next poses
   default to it, and a "like Nick" / "neutral" toggle shows the difference. Learns locally, nothing leaves the PC.
@@ -315,11 +316,13 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   Nick's own cards/moves (I17 style, Next poses) and checked by the timing coach and Check; a plan to edit, not a
   finished fight.
   Step 1 merged: RMS energy per beat -> strikes per bar, biggest on loudest downbeat, contacts on beats, new scene on Accept; i22 test OK. Open: Check finds 13 must-fix on the result (bat tip 40-45 m/s: the coach's fist range used for a bat), fighters overlap (ARMS hit 6.7 cm), quiet bars have no circling step, planning 18 s.
+  Step 2 merged: tip speed timed per weapon (Check 0 must-fix), defender placed by the distance keeper (no overlap), circling steps on quiet bars, plan 1.4 s; i22 OK. Open: screenshot doesn't frame both fighters.
 - [x] I23. My combos: mine Nick's own scenes for card sequences he repeats (same strike kinds in the same order, timing
   within his style spread), name them ("jab-cross-hook, your 0.15/0.2 rhythm") and offer them as one-click phrases.
   Merged: 5 combos mined from Nick's 11 clips, one-click insert with his poses and mean timing, cache by mtime; i23 PASS. Sub-phrases listed beside their longer combo; style-spread filter not applied.
 - [ ] I24. Drag the balance: drag the centre-of-mass marker and the body rebalances to put it there (hips, knees,
   ankles, trunk lean solved within limits, feet planted); red when it leaves the support.
+  Merged: COM drag with feet planted (8 cm shift: pelvis 9.6 cm, no lean), edge clamp red/amber, drag down bends knees; i24 PASS. Open: screenshot camera clips the body; ankle-limited case (lean-heavy) untested.
 - [ ] I25. Breakfall check: on a fall or knockdown, judge the landing like a stunt coach (chin tucked, head clear
   of the floor, impact spread over arm slap/shoulder/hip, no straight-arm catch) with one-click fixes.
 - [ ] I26. Learn from my edits: record which suggestions Nick accepts, undoes or edits after (Next poses, Check
