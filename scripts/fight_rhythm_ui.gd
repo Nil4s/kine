@@ -204,6 +204,8 @@ func accept() -> void:
 	m._step_hint = "Fight rhythm"
 	m._push_undo()   # (the snapshot holds every fighter's cards)
 	(m.actors_rt[w]["S"] as Scene).cards = sc.cards.duplicate(true)
+	var fl: Array = rep.get("flags", [])
+	m.sj.log("fight rhythm", String(fl[sel]["type"]) if sel >= 0 and sel < fl.size() else "flag", -1, {}, m.undo.size())   # I26
 	m._rebuild_cards()
 	m._ps().apply(m.B, m.playhead)
 	m._refresh()
