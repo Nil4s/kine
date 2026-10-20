@@ -2513,6 +2513,8 @@ func _exit_tree() -> void:
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
 		WorkerThreadPool.wait_for_task_completion(_dm_job["task"])
+	if _sg_task >= 0:   # I10: the next-pose strip's MotionMatch.build worker reads scenes/Body statics; it ends before they go (else an access violation at exit)
+		WorkerThreadPool.wait_for_task_completion(_sg_task)
 	if settings != SETTINGS:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings))
 	if library != LIBRARY:
