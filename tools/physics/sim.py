@@ -76,7 +76,7 @@ class Humanoid:
         mujoco.mj_resetData(m, d)
         d.qpos[self.qadr] = self.target
         d.qpos[0:3] = self.K.p0["pelvis"]
-        d.qpos[3:7] = [1, 0, 0, 0]
+        d.qpos[3:7] = getattr(self, "root_q", [1, 0, 0, 0])   # (w, x, y, z): react.py carries the struck fighter's root yaw / lean
         mujoco.mj_forward(m, d)
         lowest = min(d.geom_xpos[m.geom(f"foot_{s}_box").id][1] - 0.0 for s in "lr")
         # sole is the box bottom: find the min corner height

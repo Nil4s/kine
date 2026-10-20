@@ -4,8 +4,13 @@
 ##   1 SPEED: a bat hit to the head from the front at 10 / 20 / 30 m/s (a hit row in the struck fighter's space): the impulse J, the
 ##     sim's peak head rotation and its peak trunk (spine_03) rotation in the first 0.6 s all rise STRICTLY with the speed (monotone over
 ##     the 3 speeds), and J(20)/J(10) and J(30)/J(10) are 2 and 3 within 5 % (J = m_eff x v).
-##   2 SWING.PY: at the four bat speeds tools/physics/measure_swing.py measured (21.3, 25.5, 27.4, 32.6 m/s -> J 17.1, 20.9, 25.0, 35.8 N s,
-##     measure_swing2.txt of this job) our J = m_eff x v is within 0.7-1.3 x of swing.py's at the same speed (both are printed).
+##   2 SWING.PY (step 2): at the four bat swings tools/physics/measure_swing.py measured (strike_legs 21.3 m/s -> 17.1 N s on the head,
+##     swing_fore 25.5 -> 20.9, swing_back 27.4 -> 25.0, combo3 32.6 -> 35.8, all on an upper arm), the striker posed at each clip's contact,
+##     our J = (1 + e) x mu x v (m_eff from the arm's pose, mu with the struck part's mass) at swing.py's speed is within 0.7-1.3 x of
+##     swing.py's at all four. The effective bat mass is printed with J / v; if one is outside the bar the line says which.
+##   8 ROOT (step 2): a fighter whose pelvis leans back 20 deg (and turned 30 deg) at the contact starts the sim leaning 20 +-2 deg
+##     (react.py's lean0_deg = the pelvis's tilt from vertical at t = 0; the neck-pelvis line within 20 +-3) and facing 30 +-2 deg.
+##   9 3D: an uppercut impulse (45 deg up) keeps the head higher (mean height over 0.3 s, centre of mass) than a horizontal one of the same |J| by more than 2 mm. First written as 'lifts by 1 cm'; arithmetic before the first run showed it cannot: 354 N up for 50 ms is less than the 735 N weight, so the feet carry it and nothing leaves the floor.
 ##   3 FIST: a punch at 9 m/s (Walilko et al. 2005: ~9 m/s, ~26 N s) gives J within 20-33 N s.
 ##   4 IN THE APP (two fighters, the hero plays combo3, fighter 2 stands D0 in front): the command finds the contact; the first reaction
 ##     card of fighter 2 starts moving within 1 frame (1/30 s) of the contact the test's own 1/240 s sweep finds.
@@ -19,8 +24,9 @@ extends SceneTree
 var fails := 0
 var m: Node
 const D0 := 1.2
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i2.png"
-const SWING := [[21.3, 17.1], [25.5, 20.9], [27.4, 25.0], [32.6, 35.8]]   # measure_swing2.txt: bat, speed at hit (m/s), impulse (N s)
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i2b.png"
+## swing.py duel (tools/physics/measure_swing.py, bat): [clip, struck part, speed at hit (m/s), impulse (N s), swing.py's contact time in the clip (s)]
+const SWING := [["strike_legs", "head", 21.3, 17.1, 1.932], ["swing_fore", "upperarm_l", 25.5, 20.9, 0.854], ["swing_back", "upperarm_r", 27.4, 25.0, 0.589], ["combo3", "upperarm_l", 32.6, 35.8, 0.850]]
 
 
 func ok(c: bool, what: String) -> void:
@@ -128,7 +134,7 @@ func _init() -> void:
 	var tors := []
 	var m_eff := 0.0
 	for v in [10.0, 20.0, 30.0]:
-		var blow := HitPhysics.measure(Sv, Bv, Transform3D.IDENTITY, front_hit(Bv, "bat_barrel", "head", v, u_real), Bs)
+		var blow := HitPhysics.measure(Sv, Bv, Transform3D.IDENTITY, front_hit(Bv, "bat_barrel", "head", v, u_real), Bs, hs)
 		var res := HitPhysics.work(blow, body(), "t1_%d" % int(v))
 		ok(bool(blow["ok"]) and bool(res["ok"]), "bat to the head at %.0f m/s: measured and simulated (%s)" % [v, res["why"]])
 		if not res["ok"]:
@@ -149,14 +155,41 @@ func _init() -> void:
 	# 2 SWING.PY
 	var worst := 0.0
 	var lines := []
+	var Bst := body()
+	Bst.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
+	var in_bar := true
 	for sw in SWING:
-		var mine: float = m_eff * float(sw[0])
-		var ratio: float = mine / float(sw[1])
+		var sc := Scene.new()
+		sc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/%s.json" % sw[0])))
+		var Ba := body()
+		var tb := 0.0
+		var vb := 0.0
+		var dirb := Vector3.ZERO
+		for i in range(-24, 13):   # the fastest barrel point within the clip's contact time +-0.1 s
+			var tt: float = float(sw[4]) + i / 240.0
+			sc.apply(Ba, tt - 1.0 / 240.0)
+			var p0 := Ba.wep_point(0.7 * Ba.wep_len)
+			sc.apply(Ba, tt)
+			var dv := (Ba.wep_point(0.7 * Ba.wep_len) - p0) * 240.0
+			if dv.length() > vb:
+				vb = dv.length()
+				tb = tt
+				dirb = dv.normalized()
+		sc.apply(Ba, tb)
+		var me := HitPhysics.arm_mass(Ba, Ba.wep_point(0.7 * Ba.wep_len), dirb)
+		var Mt := HitPhysics.struck_mass(String(sw[1]), Bst)
+		var mu := me * Mt / (me + Mt)
+		var mine: float = (1.0 + HitPhysics.RESTITUTION) * mu * float(sw[2])
+		var ratio: float = mine / float(sw[3])
 		worst = maxf(worst, absf(ratio - 1.0))
-		lines.append("%.1f m/s: ours %.1f vs swing.py %.1f N s (x%.2f)" % [sw[0], mine, sw[1], ratio])
+		lines.append("%s %.1f m/s (Kine's own barrel peak %.1f at %.3f s): m_eff %.2f kg, struck %s %.1f kg, mu %.2f, J/v ours %.2f vs swing.py %.2f kg, ours %.1f vs %.1f N s (x%.2f)" % [
+			sw[0], sw[2], vb, tb, me, sw[1], Mt, mu, mine / float(sw[2]), float(sw[3]) / float(sw[2]), mine, sw[3], ratio])
 		if ratio < 0.7 or ratio > 1.3:
-			ok(false, "2 outside 0.7-1.3 x of swing.py at %.1f m/s" % sw[0])
-	ok(worst <= 0.3, "2 our J (m_eff %.2f kg) is within 0.7-1.3 x of swing.py's at the same speed: %s" % [m_eff, "; ".join(PackedStringArray(lines))])
+			in_bar = false
+			ok(false, "2 outside 0.7-1.3 x of swing.py: %s" % sw[0])
+	for l in lines:
+		print("     " + l)
+	ok(in_bar, "2 our J is within 0.7-1.3 x of swing.py's at all 4 bat speeds (worst %.0f %% off)" % (worst * 100.0))
 
 	# 3 FIST
 	var fb := HitPhysics.measure(Sv, Bv, Transform3D.IDENTITY, front_hit(Bv, "hand_r", "spine_03", 9.0, u_real), Bs)
@@ -232,5 +265,37 @@ func _init() -> void:
 	m._redo()
 	await idle()
 	ok(sj(m.actors_rt[1]["S"]) == after, "6 redo puts the reaction back exactly")
+	# 8 ROOT: upright (the baseline), 20 deg back, and turned 30 deg
+	var pb := stand_pose()
+	var pl := stand_pose()
+	var pt := stand_pose()
+	var ql := Quaternion(Vector3.RIGHT, deg_to_rad(-20.0))
+	var qy := Quaternion(Vector3.UP, deg_to_rad(30.0))
+	pl["joints"]["pelvis"]["G"] = [ql.x, ql.y, ql.z, ql.w]
+	pt["joints"]["pelvis"]["G"] = [qy.x, qy.y, qy.z, qy.w]
+	var r8 := []
+	for pp in [pb, pl, pt]:
+		r8.append(HitPhysics.simulate({"pose": pp, "body": "head", "J_h": 5.0, "J_v": 0.0, "dir_deg": 0.0}, "t8"))
+	if r8[0]["ok"] and r8[1]["ok"] and r8[2]["ok"]:
+		var b0: Dictionary = r8[0]["report"]
+		var b1: Dictionary = r8[1]["report"]
+		var b2: Dictionary = r8[2]["report"]
+		var dline: float = float(b0["trunk_lean_signed0"]) - float(b1["trunk_lean_signed0"])
+		ok(absf(float(b1["lean0_deg"]) - 20.0) <= 2.0 and absf(dline - 20.0) <= 2.0 and absf(absf(float(b2["yaw0_deg"])) - 30.0) <= 2.0,
+			"8 the sim starts leaning %.1f deg (pelvis tilt; upright %.1f), the neck-pelvis line leans %.1f deg more back than upright's (%.1f -> %.1f), and a fighter turned 30 deg faces %.1f deg: bars 20 +-2, 20 +-2, 30 +-2" % [
+			float(b1["lean0_deg"]), float(b0["lean0_deg"]), dline, float(b0["trunk_lean_signed0"]), float(b1["trunk_lean_signed0"]), float(b2["yaw0_deg"])])
+	else:
+		ok(false, "8 simulated (%s)" % [r8.map(func(x): return x["why"])])
+	# 9 3D: the same |J| = 25 N s on the head, horizontal vs 45 deg up
+	var ps := stand_pose()
+	var rh := HitPhysics.simulate({"pose": ps, "body": "head", "J_h": 25.0, "J_v": 0.0, "dir_deg": 0.0}, "t9h")
+	var ru := HitPhysics.simulate({"pose": ps, "body": "head", "J_h": 25.0 * cos(deg_to_rad(45.0)), "J_v": 25.0 * sin(deg_to_rad(45.0)), "dir_deg": 0.0}, "t9u")
+	if rh["ok"] and ru["ok"]:
+		var uh: float = float(rh["report"]["head_dy_mean_m"])
+		var uu: float = float(ru["report"]["head_dy_mean_m"])
+		ok(uu > uh + 0.002, "9 the head's centre is on average %+.4f m from where it was over 0.3 s after the uppercut (peak rise %.4f m, lowest %+.4f) vs %+.4f m after the horizontal blow (peak %.4f, lowest %+.4f) at the same |J| (bar: higher on average by > 2 mm; a rise above the start is not expected, a force under the body's weight cannot lift it: 17.7 N s up is 354 N for 50 ms < 735 N)" % [
+			uu, float(ru["report"]["head_up_m"]), float(ru["report"]["head_dy_min_m"]), uh, float(rh["report"]["head_up_m"]), float(rh["report"]["head_dy_min_m"])])
+	else:
+		ok(false, "9 simulated (%s %s)" % [rh["why"], ru["why"]])
 	print("I2 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
