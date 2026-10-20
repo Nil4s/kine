@@ -1216,13 +1216,8 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 	ui_root.visible = false
 	var shot := _shot_blast_begin()   # THE SHOT CAMERA: when the scene has one, every frame is ITS view, the 16:9 frame
 	for f in n:
-		playhead = PlayblastExport.time_of(f, sp[0], sp[1], fps)
-		_ps().apply(B, playhead)
-		_refresh()
-		_shot_blast_frame(shot)
-		await get_tree().process_frame
-		await RenderingServer.frame_post_draw
-		_shot_blast_image(shot, get_viewport().get_texture().get_image()).save_png("%s/frame_%04d.png" % [gdir, f])
+		var img: Image = await _blast_frame(shot, PlayblastExport.time_of(f, sp[0], sp[1], fps), fps, sp[0], sp[1])
+		img.save_png("%s/frame_%04d.png" % [gdir, f])
 	_shot_blast_end(shot)
 	ui_root.visible = true
 	clean = keep_clean
@@ -1245,6 +1240,36 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 		how = ". No .mp4: ffmpeg (%s) failed on the frames; the PNGs are fine, run ffmpeg on them yourself" % ff
 	_say_plain("playblast: %d PNG frames at %d fps (%s to %s) in %s%s" % [n, fps, Units.time(sp[0], S.fps), Units.time(sp[1], S.fps), dir, how])
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
+
+
+## MOTION BLUR (ROADMAP R3): off by default; a view setting like the smear frames (never saved, not an undo step). On: each
+## playblast frame is the mean of blast_blur_n sub-frames spread over the shutter (PlayblastExport.shutter_times: 180 degrees =
+## half the frame interval). Set from the command "Playblast: motion blur on/off" or the Export dialog's checkbox
+var blast_blur := false
+var blast_blur_n := 8
+
+
+func _blast_blur_toggle() -> void:
+	blast_blur = not blast_blur
+	if export_ui != null and export_ui.ui_blur != null:
+		export_ui.ui_blur.set_pressed_no_signal(blast_blur)
+	_say(("playblast motion blur on: %d sub-frames over a 180 degree shutter (%.1f ms at %d fps); a render takes %d times as long" % [blast_blur_n, 1000.0 * PlayblastExport.shutter_time(S.fps), S.fps, blast_blur_n]) if blast_blur else "playblast motion blur off")
+
+
+## the image of the scene at time t as the playblast saves it: one render, or (motion blur on) the mean of the sub-frames over
+## the shutter centred on t, kept inside [lo, hi]. With the blur off this is exactly the single render the playblast always did
+func _blast_frame(shot: Dictionary, t: float, fps: int, lo: float, hi: float) -> Image:
+	var ts: Array = PlayblastExport.shutter_times(t, fps, blast_blur_n, lo, hi) if blast_blur else [t]
+	var imgs := []
+	for tt in ts:
+		playhead = tt
+		_ps().apply(B, playhead)
+		_refresh()
+		_shot_blast_frame(shot)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
+	return imgs[0] if imgs.size() == 1 else PlayblastExport.average(imgs)
 
 
 ## REVIEW WITH FRAME COMMENTS (ROADMAP 29; scripts/review.gd): the playblast's frames (the same capture, no mp4, the frames
@@ -11182,6 +11207,7 @@ func _commands() -> Array:
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Godot...", "", _export_engine.bind("godot"), "godot engine export glb skeleton delivery", false, "the scene as exports/<scene>_godot.glb for Godot 4: metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export animation (.usda)", "", _export_usd, "usd usda usdskel openusd pixar omniverse houdini blender export", false, "the scene as exports/<scene>.usda, UsdSkel skeleton animation (no weapons)")
+	add.call("Playblast: motion blur on/off", "", _blast_blur_toggle, "playblast motion blur shutter smear sub-frame accumulation 180 degree export", false, "the playblast frames are the mean of 8 sub-frames over a 180 degree shutter (half the frame interval), so fast limbs and bats smear as on film; off by default; a render takes 8 times as long")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")

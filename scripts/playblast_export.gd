@@ -20,6 +20,51 @@ static func time_of(k: int, a: float, b: float, fps: int) -> float:
 	return minf(a + float(k) / fps, b)
 
 
+## MOTION BLUR. The film standard is a 180 degree rotary shutter: the film is exposed for half of each frame interval, 1/(2 fps)
+## (1/48 s at 24 fps). Sources: the ASC Manual / American Cinematographer, "shutter angle"; SMPTE usage; Wikipedia "Rotary disc
+## shutter" (exposure = angle / 360 / fps). Digital motion blur by sub-frame accumulation is the same integral, sampled.
+const SHUTTER_ANGLE := 180.0
+
+
+## exposure time in seconds for a shutter angle (degrees) at fps
+static func shutter_time(fps: int, angle := SHUTTER_ANGLE) -> float:
+	return angle / 360.0 / float(fps)
+
+
+## the n sub-frame times: spread evenly over the shutter, centred on the frame time t (the first at t - s/2, the last at t + s/2),
+## kept inside [lo, hi]. n < 2: just [t]
+static func shutter_times(t: float, fps: int, n: int, lo: float, hi: float, angle := SHUTTER_ANGLE) -> Array:
+	if n < 2:
+		return [t]
+	var s := shutter_time(fps, angle)
+	var out := []
+	for i in n:
+		out.append(clampf(t - s * 0.5 + s * float(i) / float(n - 1), lo, hi))
+	return out
+
+
+## the mean of same-size images, per channel, rounded to nearest in integers: pixels that are equal in every image come out
+## equal (exactly), which is why a static background is untouched. RGB8 out
+static func average(imgs: Array) -> Image:
+	var n := imgs.size()
+	var first: Image = imgs[0]
+	first.convert(Image.FORMAT_RGB8)
+	var base := first.get_data()
+	var acc := PackedInt32Array()
+	acc.resize(base.size())
+	for im in imgs:
+		(im as Image).convert(Image.FORMAT_RGB8)
+		var d: PackedByteArray = (im as Image).get_data()
+		for i in acc.size():
+			acc[i] += d[i]
+	var out := PackedByteArray()
+	out.resize(base.size())
+	var h := n / 2
+	for i in acc.size():
+		out[i] = (acc[i] + h) / n
+	return Image.create_from_data(first.get_width(), first.get_height(), false, Image.FORMAT_RGB8, out)
+
+
 ## the ffmpeg to use: the one named (a setting or POSER_FFMPEG), else the one on PATH; "" = none
 static func find_ffmpeg(configured := "") -> String:
 	for c in [configured, OS.get_environment("POSER_FFMPEG")]:
