@@ -101,7 +101,8 @@ def main():
     from PIL import Image, ImageDraw
     hits = [("chest", "spine_03", 24.0, 0, "chest 24 N s from behind"),
             ("head", "head", 14.0, 90, "head 14 N s from the right"),
-            ("stomach", "spine_01", 11.0, 180, "stomach 11 N s from the front")]
+            ("stomach", "spine_01", 11.0, 180, "stomach 11 N s from the front"),
+            ("fall", "spine_03", 40.0, 0, "chest 40 N s from behind: steps twice, then falls")]
     sheet = []
     for name, body, J, dr, label in hits:
         rows, snaps, h = record(body, J, dr)
@@ -110,7 +111,7 @@ def main():
         print(f"{p}: {len(rows)} frames, steps={h.step_count}, fell={h.fallen()}")
         sheet.append((label, snaps))
     W, H = 480, 360
-    img = Image.new("RGB", (W * 6, (H + 24) * 3), (20, 20, 24))
+    img = Image.new("RGB", (W * 6, (H + 24) * len(hits)), (20, 20, 24))
     dr = ImageDraw.Draw(img)
     times = ["t=0", "0.13 s", "0.30 s", "0.60 s", "1.17 s", "1.83 s"]
     for ri, (label, snaps) in enumerate(sheet):

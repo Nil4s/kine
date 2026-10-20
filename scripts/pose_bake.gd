@@ -55,7 +55,7 @@ static func reap(live: Array) -> void:
 ## the fields apply reads, as bytes (compared whole). A live Scene's runtime memos are not content and are left out.
 static func signature(S: Scene) -> PackedByteArray:
 	return var_to_bytes([S.cards, S.face, S.props, S.part_keys, S.attrs, S.ik, S.sets, S.clips, S.plants, S.drivers, S.secondary,
-		S.cons, S.layer, S.layer_w, S.layers, S.breath, S.fitness, S.spline, S.natural, S.on_floor, S.floor_body, S.pin, S.fps,
+		S.cons, S.layer, S.layer_w, S.layers, S.breath, S.fitness, S.spline, S.natural, S.on_floor, S.floor_body, S.free_limits, S.pin, S.fps,
 		S.moving_holds, S.stepped, S.loop, S.body, S.markers, S.lip, S.boxes, S.shots, S.cape, S.hair])
 
 

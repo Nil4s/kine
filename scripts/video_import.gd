@@ -650,6 +650,7 @@ static func thin(S: Scene, every: int, extra := {}) -> Scene:
 	T.natural = S.natural
 	T.on_floor = S.on_floor
 	T.pin = S.pin
+	T.free_limits = S.free_limits   # R15: a physics import's key cards replay the sim's own angles
 	var mv := 0.0
 	for i in n:
 		mv += maxf(0.0, float(S.cards[i]["move"]))

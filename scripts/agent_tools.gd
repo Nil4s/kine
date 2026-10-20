@@ -139,6 +139,9 @@ func step(tok: String) -> Dictionary:
 		var pr: Dictionary = m._pose_words(tok.substr(5))
 		if not pr["ok"]:
 			err = pr["error"]
+	elif tok.begins_with("physics="):
+		if m._import_physics(tok.substr(8)) == "":
+			err = String(m.ui_status.text)
 	elif tok == "add":
 		m._card_add()
 	elif tok == "undo":

@@ -103,6 +103,7 @@ var breath := 0.0      # YY6: breaths a minute added on playback (Body.breathe);
 var spline := false    # one smooth curve through every card (see SPLINE above); off = the per-card ease
 var loop := false      # the scene plays round: CHECK grades the seam from the last frame to the first (round 16, W2)
 var on_floor := true   # every frame: the hips move up/down so the lowest sole touches the floor (Body.ground)
+var free_limits := false   # R15: a physics reaction's own angles play as simulated (the free root lies down beyond the pelvis's 45 deg side limit, a soft joint stop overshoots a few degrees); written only when on
 var floor_body := false   # with on_floor: the whole body's lowest point instead of the soles (get-ups, falls)
 var pin := true        # feet that stay put between two clips are planted: they don't slide while the body turns
 const STEP := 0.12     # a toe base that moves more than this (m, along the floor) between clips = a step, not planted
@@ -608,13 +609,13 @@ func _ease(u: float, lv: int, kind := "", bias := 0.0) -> float:
 
 
 ## put a sampled pose into the body (angles, hips, bat)
-static func put(B: Body, s: Dictionary) -> void:
+static func put(B: Body, s: Dictionary, free := false) -> void:
 	if s.is_empty():
 		return
 	B.offset = s["offset"]
 	for j in s["ang"]:
 		if B.lim.has(j):
-			B.ang[j] = B.clamp_ang(j, s["ang"][j])
+			B.ang[j] = s["ang"][j] if free else B.clamp_ang(j, s["ang"][j])
 	B.fk()
 	B.put_wep2(s.get("weapon2", {}))
 	var w: Dictionary = s["weapon"]
@@ -840,7 +841,7 @@ func _apply(B: Body, t: float) -> void:
 		for i in cards.size():
 			if t >= float(ts[i][1]) - 1e-6:
 				k = i
-		put(B, Moves._flat(cards[k]["pose"]))
+		put(B, Moves._flat(cards[k]["pose"]), free_limits)
 		if on_floor:
 			_ground(B)
 		B.apply_grip()
@@ -851,7 +852,7 @@ func _apply(B: Body, t: float) -> void:
 			_fly(B, t, fl)
 			B.apply_grip()
 			return
-	put(B, sample(t))
+	put(B, sample(t), free_limits)
 	if on_floor:
 		_ground(B)
 	if pin:
@@ -863,7 +864,7 @@ func _apply(B: Body, t: float) -> void:
 		var held := -1 if i > 0 else _held(t)
 		if i > 0 or held > 0:
 			var E := _anchors(B)
-			put(B, sample(t))
+			put(B, sample(t), free_limits)
 			if on_floor:
 				_ground(B)
 			if i > 0:
@@ -1441,7 +1442,7 @@ var crowd := {}
 func clone() -> Scene:
 	var c := Scene.new()
 	c.cards = cards.duplicate(true)
-	for k in ["name", "natural", "spline", "on_floor", "floor_body", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness"]:
+	for k in ["name", "natural", "spline", "on_floor", "floor_body", "free_limits", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness"]:
 		c.set(k, get(k))
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
@@ -1746,7 +1747,7 @@ func _fly(B: Body, t: float, f: Dictionary) -> void:
 	var t0: float = f["t0"]
 	var t1: float = f["t1"]
 	var u := (t - t0) / maxf(1e-6, t1 - t0)
-	put(B, sample(t))
+	put(B, sample(t), free_limits)
 	B.fk()
 	var y: float = lerpf(f["y0"], f["y1"], u) + G / 2.0 * (t - t0) * (t1 - t)
 	B.offset.y += y - Balance.com(B).y
@@ -1996,6 +1997,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
 	if not frames:
 		out.erase("bad_frames")   # key order of the rest kept: a full save is byte-identical to before
+	if free_limits:
+		out["free_limits"] = true   # R15: only when on, so every older scene saves byte-identical
 	if spline:
 		out["spline"] = true   # written only when on, so every older scene saves byte-identical
 	if moving_holds:
@@ -2077,7 +2080,7 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
+	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
@@ -2217,6 +2220,7 @@ func from_dict(d: Dictionary) -> void:
 	layers = (d.get("layers", []) as Array).map(func(L): return Scene.layer_from_file(L))   # NA1
 	on_floor = bool(d.get("on_floor", true))
 	floor_body = bool(d.get("floor_body", false))
+	free_limits = bool(d.get("free_limits", false))
 	pin = bool(d.get("pin", true))
 	fps = int(d.get("fps", 30))
 	markers = Markers.from_list(d.get("markers", []))
