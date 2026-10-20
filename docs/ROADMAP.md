@@ -187,7 +187,7 @@ area or a few top-25 items per wave, merged and tested in CI at the end of each 
 The first 100 are done except 10 (human check, experimental) and 34 (mesh engine: the MODEL page in docs/PAGES_PLAN.md).
 Round 2 takes from "Beyond the 100" (UPGRADES_100.md: cinematic, monkey brain, AI easy), the pages plan and today's
 open threads. **Full suite once after all 25 are merged** (Nick 2026-10-19: tests only once per 25 for faster development).
-Merged in round 2: 22 / 25.
+Merged in round 2: 24 / 25.
 
 - [ ] R1. Lighting presets on the shot camera: three-point, rim, noir, daylight (one click, undo, saved with the scene).
   Step 3 merged: key at 52 deg / noir 90 deg side / sun 60 deg (Brown), noir 4.79 and rim 1.56 pass; three-point 1.48 (bar 1.8) and daylight 1.39 (bar 1.4) still short: fill capped by the key:fill bar lights the far half.
@@ -213,8 +213,10 @@ Merged in round 2: 22 / 25.
 - [x] R21. Pose library search by words ("guard", "crouch", "low kick") over names and auto tags.
 - [x] R22. Face expressions for the painted face (pain, effort, anger, surprise) keyable on cards; hit reactions use pain.
 - [ ] R23. Weapon trail in the playblast and the mp4 render.
-- [ ] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
-- [ ] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
+  Step 1 merged: grip-to-tip ribbon over 8 frames in playblast and mp4, off is byte-identical. Open: the ribbon renders as a solid opaque blue wall (the alpha fade does not show), and it runs out of frame on overhead swings.
+- [x] R24. Hand-written balance in the app reads the MuJoCo numbers: push-recovery limits shown in CHECK (step / fall thresholds).
+  Measured: in 11 of 32 body/direction cells the humanoid has no 'steps' band (chest forward absorbs 26 N s, at 27 it steps then falls), so the table bar is absorb <= step < fall; the empty cells are listed in no_step_band.
+- [x] R25. Onboarding: first launch opens BODY then POSE with a 3-step guide (skippable, never again after done).
 - [x] R26. Share with friends by QR code (Nick): a pose or short clip packed (compressed) into a QR image; Kine reads a QR from an image file or the webcam and opens it. No server, no account.
 - [x] R27. Next-pose suggestions while animating (Nick): after the current card, 3 ghost poses of the likely next move, learned from your own scenes (what you usually clip after a pose like this), the motion database (what follows this pose in real clips) and move phases (wind-up -> contact -> follow-through -> recover). Tab or click takes one as a new card.
 
@@ -224,7 +226,7 @@ Things other animation tools don't do, in the spirit of R27 (next-pose suggestio
 slots; the remaining R items fill in behind them. Each one is judged by: does it save Nick a step he takes every day,
 or show him something he couldn't see before? Numbers and a screenshot, like every item.
 
-- [ ] I1. Make it physical: one button sends the clip through the MuJoCo humanoid (tracking controller) and shows where
+- [x] I1. Make it physical: one button sends the clip through the MuJoCo humanoid (tracking controller) and shows where
   the motion is physically impossible (feet slide, balance lost, joint torque above human limits) as red spans on the
   timeline, with "physical version" ghosted next to yours; accept per span.
 - [ ] I2. Reaction from the hit: when the attacker's weapon or fist touches the other fighter, Kine measures the impulse
@@ -236,21 +238,39 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [x] I4. Timing coach: compare each move's timing to real-motion references (move database) and to the 12 principles
   (anticipation 2-3x shorter than action for fast hits, overshoot on follow-through); suggest exact holds/moves with a
   "sounds right" preview; accept one by one.
-- [ ] I5. Say it, see it: type "low guard, weight on back foot, bat cocked over right shoulder" and get the pose,
+- [x] I5. Say it, see it: type "low guard, weight on back foot, bat cocked over right shoulder" and get the pose,
   locally (blind-agent maths + pose search + IK, no cloud); the parts it couldn't place are named.
 - [ ] I6. Style dial: "heavier / tired / angry / sneaky" sliders that change a whole clip, learned as deltas from Nick's
   own clips (spacing, posture, amplitude), not hand-written rules; undo as one step.
-- [ ] I7. Auto camera: for each beat (wind-up, contact, recover) suggest a shot camera from film grammar (180-degree
+  Step 1 merged: 4 sliders, spreads measured on Nick's 11 clips (move 1.19 log, amplitude 0.78 log, spine 13.7 deg, head 3.6 cm), cited directions, 0 = byte-identical, one undo. Open: angry +1 takes peak hand speed to 89 m/s and moves to 0.06 s (no human speed cap), strike contact drifts 140 mm for angry.
+- [x] I7. Auto camera: for each beat (wind-up, contact, recover) suggest a shot camera from film grammar (180-degree
   rule, lead room, closer on contact), as ghost frames you click to keep.
 - [ ] I8. Force view: per card, the joint torques and ground forces from inverse dynamics, coloured on the body (green
   easy, red beyond a strong human); "where does the power come from" for a strike (hip -> shoulder -> elbow sequence).
+  Step 1 merged: torque colours + power chain (hip 3.025 > trunk 3.033 > shoulder/elbow 3.042 s on combo3), static squat knee matches by hand, 34 ms per clip. Open: at 3.05 s lumbar reads 4122 N m while the knees read 31 N m; a bottom-up Newton-Euler can't give that pair (the lumbar load must pass through the legs), so the chain likely runs top-down from a kinematic pelvis; final test not re-run after a bar edit.
 - [ ] I9. Sketch to pose: draw a stick figure over the viewport with the mouse; Kine fits the body to it (2D lines ->
   3D pose with limits and balance).
-- [ ] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
+  Step 1 merged: strokes recognised, fit lands on the strokes in screen space (<= 2 px), missing limbs untouched, one undo, 48 ms. Open: 3D recovery, 29 of 42 library fits have a bone > 10 deg off (trunk twist not in a stick figure, depth-axis bones mirror-ambiguous, an 8.7 deg error even with no tremor).
+  Step 2 merged: library-pose depth prior + per-limb depth refinement; bad fits 29 -> 19 of 42, missing-arm 8.6 deg (passes). Open: a single view can't settle bones near the picture plane (~8 deg per px of stroke error) or toward the camera (mirror pair); next is a click-to-flip limb depth in the UI and shoulder/hip-line strokes for trunk twist.
+- [x] I10. Your moves learn you: the R27 habits index also learns your timing and favourite in-betweens, so new
   cards come pre-timed the way you usually time them (shown as "your usual 0.18 s", one key to accept).
-- [ ] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
+- [x] I11. Fight phrase builder: give it the attacker's combo and it builds the defender's whole answer chain (I3 per
   beat: block, slip, parry, counter) and keeps the pair at fighting range (each strike's tip reaches the target, nobody
   overlaps), flagging beats where the distance makes the move impossible.
-- [ ] I12. Smart drag: dragging one joint moves the rest of the body the way YOUR poses move together (the
+- [x] I12. Smart drag: dragging one joint moves the rest of the body the way YOUR poses move together (the
   co-variation learned from Nick's library and scenes, principal directions), so pulling a fist back also turns the
   hips and shifts the weight like he would; hold Alt for the old one-joint drag.
+
+- [ ] I13. Impact frames from the hit: at each contact Kine adds hit-stop (a hold of 2-6 frames), a camera shake and a
+  squash on the struck part, all scaled by the measured impulse (I2), so a light jab barely pauses and a bat to the head
+  freezes; one undo step, previewed first.
+  Step 1 merged: hit-stop 2/4/6 frames for J 5/15/27 N s, shake 1.0/2.6/4.2 cm, squash 0.97-0.90, later keys shift exactly, one undo. Open: the impact tags aren't saved (Remove fails after reload), the squash is too subtle to see, the preview has no shake.
+- [ ] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
+  and joint curves over the animated clip, card by card, with "you were 0.08 s faster on the strike, your hip turned
+  20 deg more" lines.
+- [ ] I15. Fight to the beat: with music loaded, Kine moves each contact onto the nearest beat (or off-beat on
+  request) while keeping every move inside the timing coach's human range (I4); moves that can't reach a beat are
+  flagged, never forced.
+- [ ] I16. Realism score: one number per clip, "how real is this", from the judges Kine already has (physics judge I1,
+  torques I8, push limits R24, timing coach I4, Check's human limits), with the 3 biggest reasons and a one-click fix
+  for each (accept span, timing coach, Check fix); the score is shown on the scene card and re-scored after each fix.
