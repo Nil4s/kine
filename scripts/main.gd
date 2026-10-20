@@ -13396,6 +13396,7 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
+	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
@@ -14985,6 +14986,65 @@ func _critique() -> void:
 	_say("critique: " + ("nothing to note" if notes.is_empty() else "%d notes (never must-fix). Click one to jump to it." % notes.size()))
 
 
+## ARC CHECKER (ROADMAP L26; scripts/arc_check.gd): kinks in the paths of the wrists, ankles, head and weapon tip. Notes only
+## (findings / check_ran untouched); the playhead jumps to the worst and the kinked paths are drawn in the viewport.
+var arc_view: MeshInstance3D = null
+var arc_marks: Array = []   # world positions of the kink dots now drawn (tests project them)
+var arc_list: Array = []
+
+
+func _arc_check() -> void:
+	if S.cards.size() < 2:
+		_say("Arcs need a scene of two cards or more: add a card first")
+		return
+	var sm := ArcCheck.sample(S, ov.GB)
+	var ks := ArcCheck.check(S, ov.GB, sm)
+	arc_list = ks
+	if arc_view == null:
+		arc_view = MeshInstance3D.new()
+		arc_view.mesh = ImmediateMesh.new()
+		add_child(arc_view)
+	arc_marks = ArcCheck.draw_view(arc_view, sm, ks)
+	for c in ui_find_list.get_children():
+		ui_find_list.remove_child(c)
+		c.queue_free()
+	var head := HBoxContainer.new()
+	ui_find_list.add_child(head)
+	var title := _label("ARCS  -  " + ("every path follows an arc" if ks.is_empty() else "%d kinks (notes, never must-fix)" % ks.size()), 18, "heading")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_button("Close", _arc_close))
+	ui_find_list.add_child(_label("Natural motion follows arcs: a path that turns sharply without stopping reads as mechanical. Worst first; click one to jump to it.", 13, "text:0.6", true))
+	for k in ks.size():
+		var f: Dictionary = ks[k]
+		var b := Button.new()
+		b.name = "arc_%d" % (k + 1)
+		b.text = "%s  %s  %s  -  turns %.0f deg at %.1f m/s
+%s" % [f["sev"], Units.time(f["t"], S.fps), ArcCheck.nice(f["joint"]), f["angle"], f["speed"], ArcCheck.FIX]
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(380, 0)
+		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_color_override("font_color", Tok.of("text:0.85"))
+		b.pressed.connect(_arc_goto.bind(f))
+		ui_find_list.add_child(b)
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(56.0 + 90.0 * ks.size(), 60.0,
+		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))
+	ui_find.visible = true
+	if not ks.is_empty():
+		_arc_goto(ks[0])
+	_say("arcs: " + ("every path follows an arc" if ks.is_empty() else "%d kinks, the worst is at %s on the %s. Click one to jump to it." % [ks.size(), Units.time(ks[0]["t"], S.fps), ArcCheck.nice(ks[0]["joint"])]))
+
+
+func _arc_goto(f: Dictionary) -> void:
+	_goto_finding({"t": f["t"], "card": f["card"], "rule": "ARC " + f["sev"], "msg": ArcCheck.words(f)})
+
+
+func _arc_close() -> void:
+	_close_findings()
+
+
 ## ROADMAP 24: the stunt-load report (StuntLoad, scripts/stunt_load.gd): landing g, knee valgus, spine, neck. NOTE only
 func _stunt_check() -> void:
 	if S.cards.size() < 2:
@@ -15062,6 +15122,9 @@ func _open_source(url: String) -> void:
 
 func _close_findings() -> void:
 	ui_find.visible = false
+	if arc_view != null:
+		arc_view.visible = false   # the kinked paths belong to the panel that listed them
+		arc_marks = []
 	ui_find.offset_right = ui_find.offset_left + 420   # I47: Speed limits narrows the panel so the whole body stays in view
 	ov.fix_preview(S, [], 0.0)
 
