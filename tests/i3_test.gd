@@ -15,13 +15,21 @@
 ##   6 ACCEPT: Tab cycles; Enter places the picked ghost: ONE undo step; the defender's cards change; the new card replays
 ##     the ghost's forearm within 2 cm; Ctrl+Z restores the defender's cards exactly and the undo list.
 ##   7 MISS: a defender out of reach: "nothing to counter", no ghosts.
+##   9 STEP-BACK (step 2): on combo3 card 3 >= 3 counter kinds (block, parry, step-back). The step-back starts >= 0.2 s after the
+##     wind-up (+ the 0.2 s step), the pinned foot's ball stays within 1 cm of its mark (plant slide < 1 cm), the root ends
+##     >= 90 % of the step further from the attacker's root, the re-measured tip path misses every body capsule by >= 5 cm
+##     (tip radius included), centre of mass inside the support, both feet down, joints inside limits.
+##  10 DUCK: a head-height horizontal swing (a free bat swept sideways through the head): a DUCK whose head clears the
+##     re-measured path by >= 5 cm (the bat's radius included), weight inside the feet, feet kept, limits.
+##  11 LABELS: no label rectangle overlaps another label or the defender's name tag, all inside the window; every kind placed
+##     (block, parry, step-back) is ONE undo step that Ctrl+Z restores.
 ##   8 PLACEMENT: near the contact, the ghosts stand on the defender (node at its placement, pelvis within 0.5 m of its own,
 ##     head and label inside the window), then the screenshot.
 extends SceneTree
 
 var fails := 0
 var m: Node
-const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i3c.png"
+const SHOT := "C:/Users/Nick/.claude/jobs/9afc22db/tmp/i3d.png"
 const SPOTS := [[0.4, 1.1], [0.6, 0.9], [0.4, 0.9], [0.0, 1.1], [0.6, 1.1], [0.2, 1.1]]
 var DXF_POS := [0.0, 1.2]
 var t_play := 0.0
@@ -128,6 +136,82 @@ func xf_at(x: float, z: float) -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, deg_to_rad(180.0)), Vector3(x, 0.0, z))
 
 
+## the bat swept sideways through a head: a free bat held level at head height, tip at the head's depth
+func swing() -> Scene:
+	return attacker([[Vector3(1.0, 1.62, 1.2), Vector3(0, 0, 1), 0, 0.2], [Vector3(1.0, 1.62, 1.2), Vector3(0, 0, 1), 0.3, 0.3],
+		[Vector3(-1.0, 1.62, 1.2), Vector3(0, 0, 1), 0.35, 0.5]])
+
+
+func step_checks(p: Dictionary, G: Body, AS: Scene, DS: Scene, P: Dictionary, t_read: float) -> void:
+	var start := float(p["start"])
+	ok(start >= t_read + 0.2 - 1e-6, "STEP-BACK REACTION: the step starts %.3f s = %.3f s after the wind-up begins (>= 0.2)" % [start, start - t_read])
+	ok(float(p["t"]) - start >= Counter.STEP_MV - 1e-6, "STEP-BACK: the step takes %.2f s to be in place" % (float(p["t"]) - start))
+	var G0 := Counter.ghost(DS, float(p["t"]))
+	var pin := String(p["pinned"])
+	var slide := ((G.P["ball" + pin] as Vector3) - (G0.P["ball" + pin] as Vector3)).length()
+	ok(slide < 0.01, "STEP-BACK: the pinned foot (%s) slid %.2f cm (< 1)" % [pin, slide * 100.0])
+	var st := String(p["step"])
+	var landed := ((G.P["ball" + st] as Vector3) - (G0.P["ball" + st] as Vector3)).length()
+	ok(absf(landed - float(p["shift"])) < 0.01, "STEP-BACK: the stepping foot (%s) lands %.1f cm on, the step is %.1f cm" % [st, landed * 100.0, float(p["shift"]) * 100.0])
+	var aroot: Vector3 = P["root"]
+	var d0 := Vector2((dxf * (G0.P["pelvis"] as Vector3)).x - aroot.x, (dxf * (G0.P["pelvis"] as Vector3)).z - aroot.z).length()
+	var d1 := Vector2((dxf * (G.P["pelvis"] as Vector3)).x - aroot.x, (dxf * (G.P["pelvis"] as Vector3)).z - aroot.z).length()
+	ok(d1 - d0 >= 0.9 * float(p["shift"]), "STEP-BACK: the root is %.1f cm further from the attacker (step %.1f cm, >= 90 %%)" % [(d1 - d0) * 100.0, float(p["shift"]) * 100.0])
+	var mine := my_path(AS, P)
+	var ts: Array = P["ts"]
+	var worst := INF
+	for i in ts.size():
+		if float(ts[i]) < float(p["t"]) - 1e-6:
+			continue
+		for part in Counter.BODY:
+			var cc: Array = G.cap(part)
+			worst = minf(worst, seg_d(mine[i], dxf * (cc[0] as Vector3), dxf * (cc[1] as Vector3)) - float(G.rad[part]) - float(P["r"]))
+	ok(worst >= 0.05, "STEP-BACK: the re-measured tip misses every body capsule by %.1f cm once in place (>= 5; the bat's radius included)" % (worst * 100.0))
+	var bal := Balance.read(G)
+	ok(float(bal["margin"]) >= 0.0 and (bal["down"] as Array).size() == 2, "STEP-BACK: centre of mass inside the support (%.1f cm), both feet down" % (float(bal["margin"]) * 100.0))
+
+
+func duck_checks() -> void:
+	var SW := swing()
+	var DS := stand_scene()
+	var ts := SW.times()
+	var tp := float(ts[2][1]) - 0.06
+	var dx := xf_at(0.0, 1.2)
+	var r := Counter.suggest(SW, Transform3D.IDENTITY, DS, dx, tp)
+	ok(bool(r["ok"]), "10 DUCK fixture: the head-height swing lands (%s)" % String(r.get("why", "")))
+	if not bool(r["ok"]):
+		return
+	for p in r["list"]:
+		print("     swing: ", String(p["label"]).replace("\n", " | "))
+	var d := {}
+	for p in r["list"]:
+		if String(p["kind"]) == "DUCK" and bool(p["ok"]):
+			d = p
+	ok(not d.is_empty(), "10 DUCK: a duck is proposed for the head-height swing")
+	if d.is_empty():
+		return
+	var G: Body = d["B"]
+	var mine := my_path(SW, r["path"])
+	var hc: Array = G.cap("head")
+	var clear := INF
+	for q in mine:
+		clear = minf(clear, seg_d(q, dx * (hc[0] as Vector3), dx * (hc[1] as Vector3)) - float(G.rad["head"]) - float(r["path"]["r"]))
+	ok(clear >= 0.05, "10 DUCK: the head clears the re-measured path by %.1f cm (>= 5, the bat's radius included)" % (clear * 100.0))
+	var bal := Balance.read(G)
+	ok(float(bal["margin"]) >= 0.0 and (bal["down"] as Array).size() == 2, "10 DUCK: centre of mass inside the support, both feet down")
+	var G0 := Counter.ghost(DS, float(d["t"]))
+	var fs := maxf(((G.P["ball_l"] as Vector3) - (G0.P["ball_l"] as Vector3)).length(), ((G.P["ball_r"] as Vector3) - (G0.P["ball_r"] as Vector3)).length())
+	ok(fs < 0.015, "10 DUCK: both feet kept on their marks (%.2f cm)" % (fs * 100.0))
+	var worst := 0.0
+	for j in Body.ORDER:
+		var a: Vector3 = G.ang[j]
+		var cl: Vector3 = G.clamp_ang(j, a)
+		worst = maxf(worst, maxf(absf(a.x - cl.x), maxf(absf(a.y - cl.y), absf(a.z - cl.z))))
+	ok(worst < 1e-3, "10 DUCK: inside its joint limits (worst %.6f deg)" % worst)
+	ok(float(d["start"]) >= float(r["path"]["t_read"]) + 0.2 - 1e-6, "10 DUCK REACTION: starts %.3f s" % float(d["start"]))
+	print("     duck drops the head %.1f cm" % (float(d["move"]) * 100.0))
+
+
 func _init() -> void:
 	var AS := hero()
 	var DS := stand_scene()
@@ -147,7 +231,7 @@ func _init() -> void:
 			if bool(p["ok"]):
 				n += 1
 		print("     spot %s: ok=%s, %d counters, %d ms" % [sp, str(r["ok"]), n, Time.get_ticks_msec() - t0])
-		if bool(r["ok"]) and bool(r["path"]["contact"]) and n >= 2:
+		if bool(r["ok"]) and bool(r["path"]["contact"]) and n >= 3:
 			found = true
 			break
 	ok(found, "FIXTURE: a real strike (combo3 card %d) lands on fighter 2 at %s, contact at %.3f s" % [ci + 1, DXF_POS, float(r["path"].get("tc", -1))])
@@ -189,11 +273,13 @@ func _init() -> void:
 				ok(absf(ang - 90.0) <= 20.0, "BLOCK: forearm %.1f deg to the velocity (square +-20)" % ang)
 			else:
 				ok(float(p["deflect"]) >= 20.0, "PARRY: the tip is deflected %.0f deg (>= 20)" % float(p["deflect"]))
+		elif kind == "STEP-BACK":
+			step_checks(p, G, AS, DS, P, t_read)
 		else:
 			var hc: Array = G.cap("head")
 			var clear := path_min(mine, dxf * (hc[0] as Vector3), dxf * (hc[1] as Vector3)) - float(G.rad["head"])
 			var bal := Balance.read(G)
-			ok(clear >= 0.10, "%s: head clears the path by %.1f cm (>= 10)" % [kind, clear * 100.0])
+			ok(clear >= (0.05 if kind == "DUCK" else 0.10), "%s: head clears the path by %.1f cm (>= 10; a plain duck 5)" % [kind, clear * 100.0])
 			ok(float(bal["margin"]) >= 0.0 and (bal["down"] as Array).size() == 2, "%s: centre of mass inside the support, both feet down" % kind)
 		var worst := 0.0
 		for j in Body.ORDER:
@@ -201,7 +287,13 @@ func _init() -> void:
 			var cl: Vector3 = G.clamp_ang(j, a)
 			worst = maxf(worst, maxf(absf(a.x - cl.x), maxf(absf(a.y - cl.y), absf(a.z - cl.z))))
 		ok(worst < 1e-3, "%s: inside its joint limits (worst %.6f deg)" % [kind, worst])
-	ok(good >= 2, "1 FOUND: %d counters on the real strike (>= 2)" % good)
+	ok(good >= 3, "1 FOUND: %d counters on the real strike (>= 3)" % good)
+	var kinds := []
+	for p in r["list"]:
+		if bool(p["ok"]):
+			kinds.append(String(p["kind"]))
+	ok(kinds.has("BLOCK") and kinds.has("PARRY") and kinds.has("STEP-BACK"), "9 combo3 card 3 has block, parry and step-back: %s" % str(kinds))
+	duck_checks()
 	var rm := Counter.suggest(AS, Transform3D.IDENTITY, DS, xf_at(3.0, 3.0), t_play)
 	ok(not bool(rm["ok"]) and String(rm["why"]).begins_with("nothing to counter"), "7 MISS: a defender out of reach: %s" % String(rm["why"]).left(60))
 
@@ -228,7 +320,7 @@ func _init() -> void:
 	var before := [JSON.stringify(m.actors_rt[0]["S"].cards), JSON.stringify(D0.cards), JSON.stringify((m.actors_rt[1]["B"] as Body).to_dict()), JSON.stringify((m.actors_rt[0]["B"] as Body).to_dict())]
 	var n0: int = m.undo.size()
 	var rr: Dictionary = m.counter_ui.start()
-	ok(bool(rr.get("ok", false)) and m.counter_ui.on and m.counter_ui.shown.size() >= 2, "the command shows >= 2 ghosts (%d)" % m.counter_ui.shown.size())
+	ok(bool(rr.get("ok", false)) and m.counter_ui.on and m.counter_ui.shown.size() >= 3, "the command shows >= 3 ghosts (%d)" % m.counter_ui.shown.size())
 	await idle(3)
 	var after := [JSON.stringify(m.actors_rt[0]["S"].cards), JSON.stringify(m.actors_rt[1]["S"].cards), JSON.stringify((m.actors_rt[1]["B"] as Body).to_dict()), JSON.stringify((m.actors_rt[0]["B"] as Body).to_dict())]
 	ok(before == after and m.undo.size() == n0, "5 UNCHANGED: cards and bodies identical while the ghosts show, no undo step")
@@ -250,15 +342,31 @@ func _init() -> void:
 		if pel.distance_to(dpel) > 0.5:
 			near_ok = false
 		var hp: Vector3 = m.stage_root.global_transform * ((m.actors_rt[1]["xf"] as Transform3D) * (Gp.P["head"] as Vector3))
-		var lp: Vector3 = (g["label"] as Label3D).global_position
-		for q in [hp, lp]:
-			var sp: Vector2 = m.cam.unproject_position(q)
-			if sp.x < 0 or sp.y < 0 or sp.x > vp.x or sp.y > vp.y or m.cam.is_position_behind(q):
-				on_screen = false
-		print("     ghost %d %s: label at %s" % [i, cui.shown[i]["kind"], m.cam.unproject_position(lp)])
+		var sp: Vector2 = m.cam.unproject_position(hp)
+		if sp.x < 0 or sp.y < 0 or sp.x > vp.x or sp.y > vp.y or m.cam.is_position_behind(hp):
+			on_screen = false
+		var lr := Rect2((g["label"] as Label).position, (g["label"] as Label).size)
+		if lr.position.x < 0 or lr.position.y < 0 or lr.end.x > vp.x or lr.end.y > vp.y:
+			on_screen = false
+		print("     ghost %d %s: label rect %s" % [i, cui.shown[i]["kind"], lr])
 	ok(dnode_ok, "8 PLACEMENT: each ghost node is visible at the defender's placement")
 	ok(near_ok, "8 PLACEMENT: each ghost's pelvis within 0.5 m of the defender's own")
 	ok(on_screen, "8 PLACEMENT: every ghost's head and label are inside the window (%s)" % vp)
+	# 11 LABELS: no rectangle over another or over the name tag
+	var rects := []
+	for i in cui.shown.size():
+		rects.append(Rect2((cui._men[i]["label"] as Label).position, (cui._men[i]["label"] as Label).size))
+	var tagr: Rect2 = cui.tag_rect_of()
+	var over := 0
+	for i in rects.size():
+		if tagr.size != Vector2.ZERO and (rects[i] as Rect2).intersects(tagr):
+			over += 1
+			print("     label %d overlaps the name tag %s" % [i, tagr])
+		for j in range(i + 1, rects.size()):
+			if (rects[i] as Rect2).intersects(rects[j]):
+				over += 1
+				print("     labels %d and %d overlap" % [i, j])
+	ok(over == 0 and rects.size() == cui.shown.size() and tagr.size != Vector2.ZERO, "11 LABELS: %d label rectangles, none over another or over the name tag %s (%d overlaps)" % [rects.size(), tagr, over])
 	var img: Image = m.get_viewport().get_texture().get_image()
 	DirAccess.make_dir_recursive_absolute(SHOT.get_base_dir())
 	var e := img.save_png(SHOT)
@@ -274,26 +382,40 @@ func _init() -> void:
 	for i in range(cui.shown.size() - 1):
 		m._unhandled_input(tab)
 	ok(cui.sel == k0, "Tab cycles back after %d presses" % cui.shown.size())
-	for i in cui.shown.size():
-		if String(cui.shown[i]["kind"]) == "BLOCK":
-			cui.sel = i
-	var pick: Dictionary = cui.shown[cui.sel]
-	var dcards := JSON.stringify(m.actors_rt[1]["S"].cards)
-	var enter := InputEventKey.new()
-	enter.keycode = KEY_ENTER
-	enter.pressed = true
-	m._unhandled_input(enter)
-	ok(m.undo.size() == n0 + 1, "6 ACCEPT: Enter is ONE undo step (%d -> %d)" % [n0, m.undo.size()])
-	var dnow := JSON.stringify(m.actors_rt[1]["S"].cards)
-	ok(dnow != dcards and not cui.on, "6 ACCEPT: the defender's cards changed and the ghosts are put away")
-	# the new card replays the ghost
-	var Bx := Counter.scratch(m.actors_rt[1]["S"])
-	(m.actors_rt[1]["S"] as Scene).apply(Bx, float(pick["t"]))
-	var cc: Array = Bx.cap("lowerarm" + String(pick["side"]))
-	var cg: Array = (pick["B"] as Body).cap("lowerarm" + String(pick["side"]))
-	var rep := maxf(((cc[0] as Vector3) - (cg[0] as Vector3)).length(), ((cc[1] as Vector3) - (cg[1] as Vector3)).length())
-	ok(rep <= 0.02, "6 ACCEPT: the card replays the ghost's forearm within %.2f cm (<= 2)" % [rep * 100.0])
-	m._undo()
-	ok(JSON.stringify(m.actors_rt[1]["S"].cards) == dcards and m.undo.size() == n0, "6 ACCEPT: Ctrl+Z restores the defender's cards exactly and the undo list")
+	for kk in ["BLOCK", "PARRY", "STEP-BACK"]:
+		if not cui.on:
+			m._actor_set(0)   # an accepted counter made the defender the active fighter: back to the attacker
+			m.playhead = t_play
+			cui.start()
+		for i in cui.shown.size():
+			if String(cui.shown[i]["kind"]) == kk:
+				cui.sel = i
+		var pick: Dictionary = cui.shown[cui.sel]
+		ok(String(pick["kind"]) == kk, "6 ACCEPT: %s picked" % kk)
+		var dcards := JSON.stringify(m.actors_rt[1]["S"].cards)
+		var enter := InputEventKey.new()
+		enter.keycode = KEY_ENTER
+		enter.pressed = true
+		m._unhandled_input(enter)
+		ok(m.undo.size() == n0 + 1, "6 ACCEPT %s: Enter is ONE undo step (%d -> %d)" % [kk, n0, m.undo.size()])
+		var dnow := JSON.stringify(m.actors_rt[1]["S"].cards)
+		ok(dnow != dcards and not cui.on, "6 ACCEPT %s: the defender's cards changed and the ghosts are put away" % kk)
+		var Bx := Counter.scratch(m.actors_rt[1]["S"])
+		(m.actors_rt[1]["S"] as Scene).apply(Bx, float(pick["t"]))
+		if kk == "STEP-BACK":
+			var hx: Vector3 = (m.actors_rt[1]["xf"] as Transform3D) * (Bx.P["head"] as Vector3)
+			var hg: Vector3 = (m.actors_rt[1]["xf"] as Transform3D) * ((pick["B"] as Body).P["head"] as Vector3)
+			print("     step-back card replay: head %.1f cm from the ghost's" % (hx.distance_to(hg) * 100.0))
+			ok(hx.distance_to(hg) <= 0.05, "6 ACCEPT STEP-BACK: the card replays the ghost's head within %.1f cm (<= 5)" % (hx.distance_to(hg) * 100.0))
+		else:
+			var cc: Array = Bx.cap("lowerarm" + String(pick["side"]))
+			var cg: Array = (pick["B"] as Body).cap("lowerarm" + String(pick["side"]))
+			var rep := maxf(((cc[0] as Vector3) - (cg[0] as Vector3)).length(), ((cc[1] as Vector3) - (cg[1] as Vector3)).length())
+			ok(rep <= 0.02, "6 ACCEPT %s: the card replays the ghost's forearm within %.2f cm (<= 2)" % [kk, rep * 100.0])
+		m._undo()
+		ok(JSON.stringify(m.actors_rt[1]["S"].cards) == dcards and m.undo.size() == n0, "6 ACCEPT %s: Ctrl+Z restores the defender's cards exactly and the undo list" % kk)
+		m.playhead = t_play
+		m._refresh()
+		await idle(2)
 	print("fails: ", fails)
 	quit(1 if fails > 0 else 0)
