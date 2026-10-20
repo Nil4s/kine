@@ -21,7 +21,7 @@ func _init(main: Node) -> void:
 
 func commands(add: Callable) -> void:
 	add.call("Breakfall check", "", show, "fall knockdown landing breakfall ukemi chin tuck head floor straight arm slap roll shoulder back hip impact speed stunt judo",
-		false, "finds each fall of the clip and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, impact speed; fixes: tuck the chin, bend the arm into a slap, roll the trunk (preview, then Accept = one undo step)")
+		false, "finds each fall of the clip and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, impact speed; fixes: tuck the chin, bend the arm into a slap, roll the trunk, slow the landing (preview, then Accept = one undo step)")
 
 
 func halt() -> void:
@@ -115,9 +115,12 @@ func _panel() -> void:
 		b2.name = "bk_slap_%d" % k
 		var b3: Button = m._button("Roll the trunk", select.bind(k, "roll"), "turn the trunk %.0f deg about its long axis so the shoulder and back land first" % Breakfall.ROLL_DEG)
 		b3.name = "bk_roll_%d" % k
+		var b4: Button = m._button("Slow the landing", select.bind(k, "lower"), "lower first (knees bend), then stretch the last cards so the first part lands under %.1f m/s; the fall still ends within %.1f s of its start" % [Breakfall.SPEED_OK, Breakfall.FALL_CAP])
+		b4.name = "bk_lower_%d" % k
 		row.add_child(b1)
 		row.add_child(b2)
 		row.add_child(b3)
+		row.add_child(b4)
 		L.add_child(row)
 	if not fx.is_empty():
 		var af: Dictionary = fx.get("after", {})
@@ -150,6 +153,8 @@ func select(k: int, kind: String) -> void:
 		r = Breakfall.tuck(m.S, f)
 	elif kind == "slap":
 		r = Breakfall.slap(m.S, f)
+	elif kind == "lower":
+		r = Breakfall.lower(m.S, f)
 	else:
 		r = Breakfall.roll(m.S, f)
 	if not r["ok"]:
