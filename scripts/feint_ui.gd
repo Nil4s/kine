@@ -33,6 +33,7 @@ var pv: Scene = null
 var pv_def: Scene = null
 var pv_t := 0.0
 var pv_end := 0.0
+var label_at := Vector2(-1.0, 100.0)   # where the labels stack: x < 0 = the default (left of the stage, right of the browser); the fight rhythm panel puts them at the right
 
 
 func _init(main: Node) -> void:
@@ -232,13 +233,13 @@ func layout() -> void:
 		return
 	var vp: Vector2 = m.get_viewport().get_visible_rect().size
 	rects = []
-	var y := 100.0
+	var y := label_at.y
 	for g in [_fg, _rg]:
 		var lab := g["label"] as Label
 		lab.size = Vector2(239, 0)
 		var sz := Vector2(239, lab.get_combined_minimum_size().y + 2.0)
 		lab.size = sz
-		var r := Rect2(Vector2(minf(252.0, maxf(8.0, vp.x - sz.x - 8.0)), clampf(y, 8.0, maxf(8.0, vp.y - sz.y - 8.0))), sz)
+		var r := Rect2(Vector2(minf(252.0 if label_at.x < 0.0 else label_at.x, maxf(8.0, vp.x - sz.x - 8.0)), clampf(y, 8.0, maxf(8.0, vp.y - sz.y - 8.0))), sz)
 		lab.position = r.position
 		rects.append(r)
 		y = r.end.y + GAP
