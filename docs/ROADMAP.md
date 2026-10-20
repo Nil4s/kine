@@ -240,9 +240,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
   "sounds right" preview; accept one by one.
 - [x] I5. Say it, see it: type "low guard, weight on back foot, bat cocked over right shoulder" and get the pose,
   locally (blind-agent maths + pose search + IK, no cloud); the parts it couldn't place are named.
-- [ ] I6. Style dial: "heavier / tired / angry / sneaky" sliders that change a whole clip, learned as deltas from Nick's
+- [x] I6. Style dial: "heavier / tired / angry / sneaky" sliders that change a whole clip, learned as deltas from Nick's
   own clips (spacing, posture, amplitude), not hand-written rules; undo as one step.
   Step 1 merged: 4 sliders, spreads measured on Nick's 11 clips (move 1.19 log, amplitude 0.78 log, spine 13.7 deg, head 3.6 cm), cited directions, 0 = byte-identical, one undo. Open: angry +1 takes peak hand speed to 89 m/s and moves to 0.06 s (no human speed cap), strike contact drifts 140 mm for angry.
+  Step 2 done: speed cap (cited 11.95 m/s or the move's own neutral peak, whichever is higher): angry +1 peak 89.4 -> 31.3 m/s; contacts re-solved by IK, drift 140 -> 0 mm (all styles <= 7.2 mm). Open: applying a slider takes 4.4 s; combo3's strikes are already 23-31 m/s in neutral (non-human, Check's job).
 - [x] I7. Auto camera: for each beat (wind-up, contact, recover) suggest a shot camera from film grammar (180-degree
   rule, lead room, closer on contact), as ghost frames you click to keep.
 - [ ] I8. Force view: per card, the joint torques and ground forces from inverse dynamics, coloured on the body (green
@@ -268,9 +269,10 @@ or show him something he couldn't see before? Numbers and a screenshot, like eve
 - [ ] I14. Rehearse against yourself: record a short phone video of Nick doing the move, and Kine lays his real timing
   and joint curves over the animated clip, card by card, with "you were 0.08 s faster on the strike, your hip turned
   20 deg more" lines.
-- [ ] I15. Fight to the beat: with music loaded, Kine moves each contact onto the nearest beat (or off-beat on
+- [x] I15. Fight to the beat: with music loaded, Kine moves each contact onto the nearest beat (or off-beat on
   request) while keeping every move inside the timing coach's human range (I4); moves that can't reach a beat are
   flagged, never forced.
+  Done: 3 of 3 combo3 contacts land 0 ms from a 120 bpm beat, off-beat and every-2nd/downbeat grids work, unreachable contact flagged with its reason, one undo. Own numbers (not sourced): wind-up 0.5x-2x, 0.10 s floor.
 - [ ] I16. Realism score: one number per clip, "how real is this", from the judges Kine already has (physics judge I1,
   torques I8, push limits R24, timing coach I4, Check's human limits), with the 3 biggest reasons and a one-click fix
   for each (accept span, timing coach, Check fix); the score is shown on the scene card and re-scored after each fix.
