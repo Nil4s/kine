@@ -85,6 +85,10 @@ func btn(t: String) -> Button:
 
 func _init() -> void:
 	var moves := ProjectSettings.globalize_path("res://moves")
+	# the test's own zz_rr3_* poses: a run that died (or a second run at once) leaves them, and a leftover makes Save pose ask to overwrite
+	for f in ["zz_rr3_a.json", "zz_rr3_b.json"]:
+		if FileAccess.file_exists("res://moves/" + f):
+			DirAccess.remove_absolute(moves.path_join(f))
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(6)
