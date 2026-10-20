@@ -1045,9 +1045,22 @@ var _sdiff_rows: Array = []
 var _sdiff_a: Scene = null     # the older side as loaded (null when it is the open scene)
 
 
+## R20: the store's root. A test points it at a temp folder (never the real scenes/ or user://)
+var versions_root := "res://scenes/_versions"
+## R20 TIMED SNAPSHOTS: every autover_min minutes of editing, one snapshot if the scene changed since the last one
+## (manual or timed); the last autover_keep timed ones per scene are kept, manual ones never pruned. 0 = off.
+var autover_min := 5
+var autover_keep := 30
+var autover_clock := Callable()   # a test's fake clock (seconds); empty = the real one
+var _av_t := -1.0                 # the clock at the last check; -1 = no baseline yet
+var _av_json := ""                # the scene as it was at the last snapshot (or the first look)
+var _av_scene: Scene = null       # the same, as a scene, for the diff
+var _av_dir := ""
+
+
 func versions_dir() -> String:
 	var nm := safe_file(S.name)
-	return "res://scenes/_versions/%s" % (nm if nm != "" else "unnamed")
+	return "%s/%s" % [versions_root, (nm if nm != "" else "unnamed")]
 
 
 ## the open scene's versions, newest first
@@ -1068,9 +1081,10 @@ func _save_version() -> void:
 	var list := versions()
 	var n := 1 if list.is_empty() else (list[0] as String).get_file().get_basename().substr(1).to_int() + 1
 	var d := _scene_dict()   # TC3: the hero's file with its actors, whoever is active (the body kept)
-	d["version"] = {"n": n, "saved": Time.get_datetime_string_from_system(false, true)}
+	d["version"] = {"n": n, "saved": Time.get_datetime_string_from_system(false, true), "diff": _av_diff_vs_latest(list, d)}
 	var path := "%s/v%03d.json" % [versions_dir(), n]
 	_write(path, d)
+	_av_rebase()
 	_say_plain("version %d of %s kept (%d cards).  Versions, in the scene row, goes back to it" % [n, S.name, S.cards.size()])
 
 
@@ -1613,10 +1627,119 @@ func _export_base() -> String:
 	return safe_file(nm) if nm != "" else "scene"
 
 
+func _av_now() -> float:
+	return float(autover_clock.call()) if autover_clock.is_valid() else Time.get_ticks_msec() / 1000.0
+
+
+func _av_load(path: String) -> Scene:
+	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (d is Dictionary):
+		return null
+	var V := Scene.new()
+	V.from_dict(d)
+	return V
+
+
+## the sentence for a new snapshot d against the newest one in `list` ("first snapshot" when there is none)
+func _av_diff_vs_latest(list: Array, d: Dictionary) -> String:
+	if list.is_empty():
+		return "first snapshot"
+	var A := _av_load(list[0])
+	if A == null:
+		return ""
+	var B := Scene.new()
+	B.from_dict(d)
+	return SnapDiff.summary(A, B, func(j): return nice(j))
+
+
+## the scene as it is now is the state the next timed snapshot is measured against
+func _av_rebase() -> void:
+	var d := _scene_dict(false)
+	_av_json = JSON.stringify(d)
+	_av_scene = Scene.new()
+	_av_scene.from_dict(d)
+	_av_dir = versions_dir()
+
+
+## called every frame (and by the test with a fake clock): one snapshot per autover_min minutes of editing, only
+## when the scene changed. The first look only sets the baseline.
+func autover_tick() -> bool:
+	if autover_min <= 0:
+		_av_t = -1.0
+		return false
+	var now := _av_now()
+	if _av_t < 0.0 or _av_dir != versions_dir():
+		_av_t = now
+		_av_rebase()
+		return false
+	if now - _av_t < autover_min * 60.0:
+		return false
+	_av_t = now
+	var d := _scene_dict(false)
+	var js := JSON.stringify(d)
+	if js == _av_json:
+		return false   # nothing changed since the last snapshot: none taken
+	var list := versions()
+	var n := 1 if list.is_empty() else (list[0] as String).get_file().get_basename().substr(1).to_int() + 1
+	var B := Scene.new()
+	B.from_dict(d)
+	d = _scene_dict()
+	d["version"] = {"n": n, "saved": Time.get_datetime_string_from_system(false, true), "auto": true,
+		"diff": SnapDiff.summary(_av_scene, B, func(j): return nice(j))}
+	_autover_write("%s/v%03d.json" % [versions_dir(), n], d)
+	_av_json = js
+	_av_scene = B
+	_autover_prune()
+	return true
+
+
+func _autover_write(path: String, d: Dictionary) -> void:
+	_write(path, d)
+
+
+## keeps the newest autover_keep timed snapshots; manual ones are never touched
+func _autover_prune() -> void:
+	var autos := []
+	for p in versions():   # newest first
+		var d = JSON.parse_string(FileAccess.get_file_as_string(p))
+		if d is Dictionary and bool((d.get("version", {}) as Dictionary).get("auto", false)):
+			autos.append(p)
+	for i in range(maxi(autover_keep, 1), autos.size()):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(autos[i]))
+
+
+func _autover_cfg_save() -> void:
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("versions", "auto_min", autover_min)
+	cf.set_value("versions", "auto_keep", autover_keep)
+	cf.save(settings)
+
+
+func _autover_cfg_load(testing: bool) -> void:
+	var cf := ConfigFile.new()
+	if cf.load(settings) == OK:
+		autover_min = clampi(int(cf.get_value("versions", "auto_min", 5)), 0, 120)
+		autover_keep = clampi(int(cf.get_value("versions", "auto_keep", 30)), 1, 500)
+	if testing:
+		autover_min = 0   # a test never snapshots into scenes/ on its own; r20_test turns it on with its own folder
+
+
+func _autover_cycle() -> void:
+	var steps := [0, 2, 5, 10, 15]
+	var i := steps.find(autover_min)
+	autover_min = steps[(i + 1) % steps.size()]
+	_av_t = -1.0
+	_autover_cfg_save()
+	_say_plain("timed snapshots: %s" % ("off" if autover_min == 0 else "every %d min while you edit, last %d kept" % [autover_min, autover_keep]))
+
+
 func _versions_menu() -> void:
 	var pm := ui_versions.get_popup()
 	pm.clear()
 	pm.add_item("Save a version now", 0)
+	pm.add_item("Timed snapshots: %s  (click: next)" % ("off" if autover_min == 0 else "every %d min" % autover_min), 5)
+	pm.set_item_tooltip(pm.item_count - 1, "while you edit, a snapshot every few minutes if the scene changed (off, 2, 5, 10, 15). The last %d are kept; versions you save yourself are never removed" % autover_keep)
 	pm.add_separator()
 	_version_paths = versions()
 	if _version_paths.is_empty():
@@ -1626,7 +1749,10 @@ func _versions_menu() -> void:
 	for i in _version_paths.size():
 		var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_version_paths[i]))
 		var v: Dictionary = d.get("version", {})
-		pm.add_item("v%d   %s   %d cards" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size()], 100 + i)
+		pm.add_item("v%d   %s   %d cards%s" % [v.get("n", 0), String(v.get("saved", "")).get_slice(" ", 1).left(5), (d.get("cards", []) as Array).size(), "   (timed)" if bool(v.get("auto", false)) else ""], 100 + i)
+		if String(v.get("diff", "")) != "":   # R20: what changed since the one before, under its row
+			pm.add_item("        " + String(v["diff"]), 1)
+			pm.set_item_disabled(pm.item_count - 1, true)
 	# COMPARE WITH (ROADMAP 28): ids 50.. compare, 2 stops, 3 restores the one compared (ids 100.. restore a row)
 	pm.add_separator()
 	pm.add_item("Diff report: what changed, in words...", 4)   # ROADMAP 98: two versions, or one and the open scene
@@ -1648,6 +1774,8 @@ func _version_picked(id: int) -> void:
 		_sdiff_open()
 	elif id == 0:
 		_save_version()
+	elif id == 5:
+		_autover_cycle()
 	elif id == 2:
 		_vdiff_clear()
 	elif id == 3 and not vdiff.is_empty():
@@ -2068,6 +2196,7 @@ func _ready() -> void:
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
 		library = "user://zz_lib_%d" % OS.get_process_id()
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
+	_autover_cfg_load(testing)
 	ui_props_root = Node3D.new()
 	ui_props_root.name = "set"
 	add_child(ui_props_root)
@@ -2378,6 +2507,7 @@ func _process(dt: float) -> void:
 	_dm_poll()
 	_bake_poll()
 	_kb_poll()
+	autover_tick()
 	_as_wait += dt
 	if _as_wait >= 15.0:
 		_as_wait = 0.0
