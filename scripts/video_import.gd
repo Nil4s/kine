@@ -408,6 +408,11 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 	var legs := []
 	var k_leg := leg_length(B)
 	var grips := []
+	var twos := []
+	var two_hands := true      # a weapon starts in both hands, as before (the first frames confirm or switch it)
+	var against := 0           # frames in a row the evidence says the other way
+	var switch_n := maxi(2, int(round(GRIP_SWITCH_S * fps)))
+	var grip_wrist_r = null    # the bat hand's wrist at the last two-handed frame
 	var d_prev := Vector3.ZERO
 	if held != "":
 		B.set_kind(held)
@@ -437,9 +442,31 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 		if held != "":
 			var was := B.fast
 			B.fast = true   # as fit: limits only, no contact search per turn (136 s -> seconds on the 300-frame axe clip)
-			d_prev = _hold(B, f["w"], d_prev)
+			# TWO HANDS OR ONE (Nick 10-20: "moves the char holds with 2 hands, then 1 hand, then back to 2"): the evidence
+			# this frame, from the weapon as the bat hand would carry it alone (its wrist as at the last two-handed frame)
+			var fitted_r: Vector3 = B.ang["hand_r"]
+			var one_hand: Vector3 = grip_wrist_r if grip_wrist_r != null else fitted_r
+			B.ang["hand_r"] = one_hand
+			B.fk()
+			var on := _on_shaft(B, f["w"], two_hands)
+			if on != two_hands:
+				against += 1
+				if against >= switch_n:
+					two_hands = on
+					against = 0
+			else:
+				against = 0
+			if two_hands:
+				B.ang["hand_r"] = fitted_r   # the two-handed fit starts from the tracker's wrist, as before
+				B.fk()
+				var lw0: Vector3 = B.P["hand_l"]
+				d_prev = _hold(B, f["w"], d_prev)
+				grip_wrist_r = B.ang["hand_r"]
+			else:
+				B.grip = false   # the free arm stays as the tracker has it; the weapon swings with the bat hand
 			B.fast = was
 			grips.append(B.grip_u)
+			twos.append(two_hands)
 		var a := {}
 		for j in Body.BODY + (Body.FINGERS if held != "" else []):
 			a[j] = B.ang[j]
@@ -561,7 +588,7 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 			B.grip_u = grips[i]
 			var x := B.wep_xform()
 			fr["weapon"] = {"kind": B.wep_kind, "length": B.wep_len, "hand": B.wep_hand, "knob": Body._p(x[0]), "rot": Body._q(x[1]),
-				"local_pos": Body._p(B.wep_lpos), "local_rot": Body._q(B.wep_lrot), "two_hand_grip": true, "grip_m": grips[i]}
+				"local_pos": Body._p(B.wep_lpos), "local_rot": Body._q(B.wep_lrot), "two_hand_grip": bool(twos[i]), "grip_m": grips[i]}
 		out.append(fr)
 	return out
 
@@ -574,6 +601,29 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 ## Wrists nearer than GRIP_MIN give no direction (a line through two points 10 cm apart, each a few cm off): the last
 ## frame's is kept. Returns the shaft's direction
 const GRIP_MIN := 0.10
+const GRIP_SWITCH_S := 0.12   # s of consistent evidence before the grip changes (tracker jitter never flickers it)
+const SHAFT_NEAR := 0.15      # m: the free wrist this near the carried shaft is on it
+const SHAFT_END := 0.06       # m: ... and no further out than this past the tip
+
+
+## is the free (left) wrist on the weapon? Let go: the wrists further apart than the weapon is long (a hand can't hold
+## past the tip). Take hold again: back within that AND within SHAFT_NEAR of the shaft as the bat hand carries it alone
+static func _on_shaft(B: Body, w: Array, holding: bool) -> bool:
+	var a: Vector3 = w[WR["_r"]]
+	var b: Vector3 = w[WR["_l"]]
+	if a.distance_to(b) > B.wep_len + SHAFT_END:
+		return false
+	if holding:
+		# in both hands it stays until the wrists part wider than the weapon. Nothing finer is read from one camera without
+		# the fingers: the free wrist off the shaft as the last frame held it is 26 cm (median), 59 cm (p99) on the axe clip,
+		# two-handed throughout, against 8-17 cm for an arm hanging free; a let-go inside the weapon's length is G on the card
+		return true
+	var x := B.wep_xform()
+	var k: Vector3 = x[0]
+	var ax: Vector3 = (x[1] as Quaternion) * Vector3.UP
+	var lw: Vector3 = B.P["hand_l"]
+	var s := clampf((lw - k).dot(ax), 0.0, B.wep_len)
+	return lw.distance_to(k + ax * s) <= SHAFT_NEAR or a.distance_to(b) < GRIP_MIN * 2.0
 static func _hold(B: Body, w: Array, d_prev: Vector3) -> Vector3:
 	var a: Vector3 = w[WR["_r"]]
 	var b: Vector3 = w[WR["_l"]]
