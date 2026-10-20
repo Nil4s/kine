@@ -174,13 +174,13 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry"]],
-		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]]],
+		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]]],
 	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
-	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]]],
+	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR"]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows"]]],
 }
@@ -4370,6 +4370,218 @@ func _share_scene_pack() -> void:
 	PosePack.share_scene_ask(self, p)
 
 
+# ---------------------------------------------------------------- SHARE BY QR CODE (ROADMAP R26; scripts/qr_share.gd, tools/qr_tool.py)
+## Share as QR: the pose (or, when it is short enough, the whole scene) packed to KINE1: text and drawn as a QR picture in a
+## popup, saved as user://qr/<name>.png (the only file it writes). Open from QR: a picture (or the webcam) read, and the pose put
+## on the body / the scene's cards added: ONE undo step. Nothing leaves the machine; the picture is the file.
+var qr_python := ""            # "" = video_python (the interpreter with the QR helper's packages); tests point it elsewhere to check refusals
+var ui_qr: AcceptDialog
+var ui_qr_pic: TextureRect
+var ui_qr_info: Label
+var ui_qr_scene: CheckBox
+var _qr_card := -1
+var qr_last := {}              # what the popup shows now: kind, text, chars, ok, png, say (tests read it)
+var _qr_cam_pid := -1
+var _qr_cam_file := ""
+var _qr_cam_timer: Timer
+
+
+func _qr_py() -> String:
+	return qr_python if qr_python != "" else video_python
+
+
+## card i's pose (or the body's, when i < 0) as QrShare's card form
+func _qr_pose_card(i: int) -> Dictionary:
+	if i >= 0 and i < S.cards.size():
+		var v: Dictionary = QrShare.view_cards([S.cards[i]])[0]
+		return v
+	return {"name": "pose", "move": -1.0, "hold": 0.3, "ang": B.ang.duplicate(), "off": B.offset}
+
+
+func _qr_share(card := -1) -> void:
+	if ui_qr == null:
+		ui_qr = AcceptDialog.new()
+		ui_qr.name = "qr_dialog"
+		ui_qr.title = "Share as QR"
+		ui_qr.ok_button_text = "Close"
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 8)
+		ui_qr_pic = TextureRect.new()
+		ui_qr_pic.name = "qr_picture"
+		ui_qr_pic.custom_minimum_size = Vector2(540, 540)
+		ui_qr_pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ui_qr_pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ui_qr_pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # square modules stay square
+		v.add_child(ui_qr_pic)
+		ui_qr_scene = CheckBox.new()
+		ui_qr_scene.name = "qr_whole_scene"
+		ui_qr_scene.text = "the whole scene (every card)"
+		ui_qr_scene.toggled.connect(func(_on): _qr_render())
+		v.add_child(ui_qr_scene)
+		ui_qr_info = Label.new()
+		ui_qr_info.name = "qr_info"
+		ui_qr_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ui_qr_info.custom_minimum_size = Vector2(540, 0)
+		v.add_child(ui_qr_info)
+		ui_qr.add_child(v)
+		add_child(ui_qr)
+	_qr_card = card
+	var vp := get_viewport().get_visible_rect().size
+	var side := clampi(int(vp.y) - 360, 300, 560)   # the picture fits the window; the popup sits at the right so the body stays in view
+	ui_qr_pic.custom_minimum_size = Vector2(side, side)
+	ui_qr_info.custom_minimum_size = Vector2(side, 0)
+	ui_qr.reset_size()
+	var whole := card < 0 and S.cards.size() >= 2
+	ui_qr_scene.visible = whole
+	var scap: Dictionary = QrShare.capacity(QrShare.pack_scene(S.name, S.fps, QrShare.view_cards(S.cards))) if whole else {}
+	ui_qr_scene.set_pressed_no_signal(whole and bool(scap["fits"]))
+	_qr_render()
+	if whole and not bool(scap["fits"]) and bool(qr_last.get("ok", false)):   # the pose is shown; the scene's refusal is said up front too
+		ui_qr_info.text += "
+The whole scene (%d cards, %d characters) is too long for one QR: tick 'the whole scene' to see how to split it." % [S.cards.size(), scap["chars"]]
+	ui_qr.reset_size()
+	var sz := ui_qr.size
+	ui_qr.popup(Rect2i(Vector2i(maxi(0, int(vp.x) - sz.x - 12), maxi(8, (int(vp.y) - sz.y) / 2)), sz))
+
+
+func _qr_render() -> void:
+	var scene_mode := ui_qr_scene.visible and ui_qr_scene.button_pressed
+	var text := ""
+	var title := ""
+	var cards: Array = []
+	if scene_mode:
+		cards = QrShare.view_cards(S.cards)
+		text = QrShare.pack_scene(S.name, S.fps, cards)
+		title = S.name
+	else:
+		var c := _qr_pose_card(_qr_card)
+		text = QrShare.pack_pose(c["ang"], c["off"])
+		title = String(S.cards[_qr_card]["name"]) if _qr_card >= 0 and _qr_card < S.cards.size() else "pose"
+	var cap := QrShare.capacity(text)
+	qr_last = {"kind": "scene" if scene_mode else "pose", "text": text, "chars": cap["chars"], "ok": false, "png": "", "say": "", "cards": cards.size() if scene_mode else 1}
+	ui_qr_pic.texture = null
+	if not cap["fits"]:
+		var k := QrShare.max_cards(S.name, S.fps, cards) if scene_mode else 0
+		var msg := "too long for one QR: %d characters, the biggest code holds %d. " % [cap["chars"], QrShare.CAP_L]
+		if scene_mode:
+			msg += "Share the pose (untick the whole scene, or right-click one card > Share as QR), or split the scene: the first %d of %d cards fit, so make a scene of those and share it (Ctrl+Z brings the rest back)." % [k, cards.size()]
+		else:
+			msg += "Reset the fingers or hips you do not need and share again, or send a .kinepack file (Share scene as a pack...)."
+		qr_last["say"] = msg
+		ui_qr_info.text = msg
+		_say(msg)
+		return
+	var png := "%s/%s.png" % [QrShare.OUT_DIR, safe_file(title)]
+	var r := QrShare.make_png(text, png, _qr_py())
+	if not bool(r.get("ok", false)):
+		qr_last["say"] = String(r.get("why", "the QR could not be drawn: run pip install segno zxing-cpp pillow"))
+		ui_qr_info.text = qr_last["say"]
+		_say(qr_last["say"])
+		return
+	var img := Image.load_from_file(ProjectSettings.globalize_path(png))
+	if img == null:
+		qr_last["say"] = "the QR picture could not be read back: share again"
+		ui_qr_info.text = qr_last["say"]
+		return
+	ui_qr_pic.texture = ImageTexture.create_from_image(img)
+	qr_last.merge({"ok": true, "png": png, "version": r.get("version", 0), "ecc": r.get("ecc", "")}, true)
+	var what := "the scene '%s' (%d cards)" % [title, cards.size()] if scene_mode else ("the body's pose" if title == "pose" else "the pose '%s'" % title)
+	var msg2 := "%s: %d of the %d characters one QR holds (%d%%), QR version %d, error correction %s.\nSaved as %s (in the app's user folder). Send that picture: Open from QR... reads it back.\nCarries joint angles to 0.1 degree and the hips; not weapons, props or the face." % [what, cap["chars"], QrShare.CAP_L, roundi(cap["pct"]), int(r.get("version", 0)), String(r.get("ecc", "")), png.get_file()]
+	qr_last["say"] = msg2
+	ui_qr_info.text = msg2
+	_say("QR ready for %s: %d of %d characters (version %d). Send the picture; Open from QR... reads it" % [what, cap["chars"], QrShare.CAP_L, int(r.get("version", 0))])
+
+
+func _qr_open_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.bmp, *.webp ; a picture of a Kine QR code"])
+	fd.use_native_dialog = true
+	fd.title = "Open from QR: pick the picture"
+	fd.file_selected.connect(func(p): _qr_open_file(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## the picture read, then opened. Returns {ok, why, kind, cards}
+func _qr_open_file(path: String) -> Dictionary:
+	var r := QrShare.read_png(path, _qr_py())
+	if not bool(r.get("ok", false)):
+		_say(String(r.get("why", "no QR found: pick another picture")))
+		return r
+	return _qr_open_text(String(r["text"]))
+
+
+func _qr_open_text(text: String) -> Dictionary:
+	var u := QrShare.unpack(text)
+	if not bool(u["ok"]):
+		_say(String(u["why"]))
+		return u
+	_step_hint = "Open from QR"
+	if u["kind"] == "pose":
+		var c: Dictionary = u["cards"][0]
+		_do(func():
+			for j in Body.ORDER:
+				B.ang[j] = B.clamp_ang(j, c["ang"].get(j, Vector3.ZERO))
+			B.offset = c["off"]
+			B.fk())
+		_refresh()
+		_say("opened the shared pose from the QR (%d joints away from rest). Ctrl+Z puts the old pose back" % (c["ang"] as Dictionary).size())
+	else:
+		var fresh := QrShare.to_scene_cards(u["cards"])
+		var was_empty := S.cards.is_empty()
+		_do(func():
+			if was_empty:
+				S.name = String(u.get("name", S.name))
+				S.fps = int(u.get("fps", S.fps))
+			S.cards.append_array(fresh)
+			_rebuild_cards())
+		if ui_scene_name != null and was_empty:
+			ui_scene_name.text = S.name
+		_say("opened the shared scene '%s' from the QR: %d cards %s. Ctrl+Z takes them out again" % [u.get("name", ""), fresh.size(), "now in this scene" if was_empty else "added after yours"])
+	return u
+
+
+## Open from QR (webcam): tools/qr_tool.py camera looks for 25 s and writes what it read; polled twice a second, the app stays alive
+func _qr_open_camera() -> void:
+	if _qr_cam_pid >= 0 and OS.is_process_running(_qr_cam_pid):
+		_say("still looking for a QR on the camera: hold the code up to it, or wait for it to give up")
+		return
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(QrShare.OUT_DIR))
+	_qr_cam_file = ProjectSettings.globalize_path(QrShare.OUT_DIR + "/_cam.json")
+	if FileAccess.file_exists(_qr_cam_file):
+		DirAccess.remove_absolute(_qr_cam_file)
+	_qr_cam_pid = OS.create_process(_qr_py(), PackedStringArray([ProjectSettings.globalize_path("res://tools/qr_tool.py"), "camera", "0", _qr_cam_file, "--seconds", "25"]))
+	if _qr_cam_pid < 0:
+		_say("could not start the camera reader: \"%s\" did not start. Install Python and run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture" % _qr_py())
+		return
+	_say("looking for a Kine QR on camera 0 for 25 seconds: hold the code up, straight on and still")
+	if _qr_cam_timer == null:
+		_qr_cam_timer = Timer.new()
+		_qr_cam_timer.wait_time = 0.5
+		_qr_cam_timer.timeout.connect(_qr_cam_poll)
+		add_child(_qr_cam_timer)
+	_qr_cam_timer.start()
+
+
+func _qr_cam_poll() -> void:
+	if FileAccess.file_exists(_qr_cam_file):
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(_qr_cam_file))
+		DirAccess.remove_absolute(_qr_cam_file)
+		_qr_cam_timer.stop()
+		_qr_cam_pid = -1
+		if d is Dictionary and bool(d.get("ok", false)):
+			_qr_open_text(String(d["text"]))
+		else:
+			_say(String((d as Dictionary).get("why", "no QR seen: try again")) if d is Dictionary else "the camera reader gave no answer: try again, or open a picture")
+	elif _qr_cam_pid < 0 or not OS.is_process_running(_qr_cam_pid):
+		_qr_cam_timer.stop()
+		_qr_cam_pid = -1
+		_say("the camera reader stopped without an answer: run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture")
+
+
 ## ROADMAP 96: an import into the library is ONE undo step (no body change); its files ride on the step as "lib"
 func _push_undo_lib(files: Array) -> void:
 	_push_undo()
@@ -8555,7 +8767,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
+const ICON_OF := {"Share as QR": "qr", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -8897,6 +9109,8 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Arms 25°", _do.bind(_arms_relaxed), "both arms relaxed: 25° out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
+	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: 'Open from QR (webcam)' reads it from the camera"))
+	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: Open from QR (webcam) reads it from the camera"))
 	ui_ribbon["POSE"].add_child(_button("Pose library", PoseLibrary.toggle.bind(self), "every saved pose as a picture: click to apply, drag right on it to blend 0-100 %, Ctrl = flipped (scripts/pose_library.gd)"))
 	tog.call("POSE", "Symmetry", _toggle_symmetry, func(): return symmetry,
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
@@ -8954,6 +9168,8 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
+	ui_ribbon["EXPORT"].add_child(_button("Share as QR", _qr_share, "the pose (or the scene, if it is short enough) as a QR code picture to send to a friend: no server, no account. Right-click a card > Share as QR shares that card's pose"))
+	ui_ribbon["EXPORT"].add_child(_button("Share as QR", _qr_share, "the pose (or the scene, if it is short enough) as a QR code picture to send to a friend: no server, no account. Right-click a card > Share as QR shares that card's pose"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
@@ -10560,6 +10776,7 @@ func _card_menu(i: int, at: Vector2) -> void:
 	ui_card_menu.add_icon_item(Icons.small("move_l"), "Move earlier", 2)
 	ui_card_menu.add_icon_item(Icons.small("move_r"), "Move later", 3)
 	ui_card_menu.add_icon_item(Icons.small("card_delete"), "Delete this card", 4)
+	ui_card_menu.add_icon_item(Icons.small("qr"), "Share as QR", 5)
 	ui_card_menu.set_item_disabled(2, i == 0)
 	ui_card_menu.set_item_disabled(3, i >= S.cards.size() - 1)
 	ui_card_menu.popup(Rect2i(Vector2i(at), Vector2i(0, 0)))
@@ -10586,6 +10803,8 @@ func _card_menu_pick(id: int) -> void:
 		4:
 			_step_hint = "Delete card"
 			_card_del(i)
+		5:
+			_qr_share(i)
 
 
 const SCENE_MENU := [[0, "Save scene", "save"], [1, "Open scene", "open"], [2, "Versions", "version"], [3, "New empty scene", "new_scene"],
@@ -11443,6 +11662,12 @@ func _commands() -> Array:
 	add.call("Co-edit: join...", "", _co_join_ask, "co edit live coedit join connect guest network lan", false, "join a hosted live session by its address:port (the status line of the host shows it)")
 	add.call("Co-edit: stop", "", _co_stop_cmd, "co edit live coedit stop end disconnect leave", false, "end the live session (both scenes keep their work)")
 	add.call("Save scene", "Ctrl+Shift+S", _save_scene, "", false, "write the scene to scenes/<name>.json (Enter in the name box does it too)")
+	add.call("Share as QR", "", _qr_share, "qr code share send friend phone photo screenshot pose scene picture no server account", false, "the pose (or the whole scene when it is short) as a QR code picture: a friend scans or opens it in Kine. Says how much of one QR it uses and refuses with the next step when it is too long")
+	add.call("Open from QR...", "", _qr_open_ask, "qr code open read scan friend phone photo screenshot pose scene picture", false, "pick a picture of a Kine QR code: the pose goes on the body (or a scene's cards are added), ONE undo step")
+	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 seconds: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")
+	add.call("Share as QR", "", _qr_share, "qr code share send friend phone photo screenshot pose scene picture no server account", false, "the pose (or the whole scene when it is short) as a QR code picture: a friend scans or opens it in Kine. Says how much of one QR it uses and refuses with the next step when it is too long")
+	add.call("Open from QR...", "", _qr_open_ask, "qr code open read scan friend phone photo screenshot pose scene picture", false, "pick a picture of a Kine QR code: the pose goes on the body (or a scene's cards are added), ONE undo step")
+	add.call("Open from QR (webcam)", "", _qr_open_camera, "qr code open read scan camera webcam friend phone pose scene", false, "hold a Kine QR code up to the camera for 25 seconds: it opens like Open from QR... (needs pip install opencv-python zxing-cpp)")
 	add.call("Share scene as a pack...", "", _share_scene_pack, "share scene pack asset store kinepack export send", false, "the saved scene as one .kinepack file (cards, timings, markers, props) to send to someone; Import pack... reads it")
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the scenes opened or saved, newest first
 		var miss := not FileAccess.file_exists(p)
