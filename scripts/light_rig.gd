@@ -3,6 +3,9 @@ class_name LightRig
 ## RELATIVE TO THE SHOT CAMERA: azimuth is measured from the camera's own axis (0 = a light at the camera, + = to the
 ## camera's left, 180 = behind the subject, facing the lens), elevation above the horizon. So whatever way the camera is
 ## keyed, "key light on the camera-facing side, a little to the left" holds. Pure maths; main.gd _light_apply sets the
+## KEY ANGLES (standard practice): three-point key ~45 deg off the camera axis and 30-45 deg up (Brown, Cinematography: Theory and
+## Practice, the three-point chapter); noir = side/split lighting, key at ~90 deg, low, no fill (Brown, the chiaroscuro / low-key
+## section); daylight = a sun ~60 deg round and high plus sky fill (Brown, exterior lighting).
 ## three DirectionalLight3Ds (key, fill, rim) and the ambient from rig().
 ##
 ## LIGHT RATIOS (the real numbers): Blain Brown, "Cinematography: Theory and Practice" (3rd ed., Focal Press 2016), the
@@ -28,10 +31,10 @@ const GREY := Color(0.55, 0.57, 0.62)
 
 ## role -> [azimuth deg (+ = camera left), elevation deg, energy, colour]; "amb" -> [energy, colour]
 const PRESETS := {
-	"three_point": {"key": [70.0, 25.0, 2.0, WARM], "fill": [-30.0, 45.0, 0.55, COOL], "rim": [180.0, 50.0, 1.2, NEUTRAL], "amb": [0.03, GREY], "adj": [0.9, 2.4]},   # key:fill 3.6:1
+	"three_point": {"key": [52.0, 30.0, 2.0, WARM], "fill": [0.0, 10.0, 0.5, COOL], "rim": [180.0, 50.0, 1.2, NEUTRAL], "amb": [0.01, GREY], "adj": [0.62, 3.6]},   # key:fill 3.6:1
 	"rim": {"key": [30.0, 20.0, 0.3, WARM], "fill": [-30.0, 10.0, 0.15, COOL], "rim": [150.0, 25.0, 3.0, COOL], "amb": [0.03, GREY], "adj": [1.0, 1.6]},         # 2:1 front, the rim 10x the key: a bright edge, a dim front
-	"noir": {"key": [72.0, 28.0, 1.8, WARM], "fill": [-60.0, 0.0, 0.02, COOL], "rim": [160.0, 45.0, 0.5, NEUTRAL], "amb": [0.01, GREY], "adj": [1.0, 2.0]},       # 90:1: one hard side light in a black room
-	"daylight": {"key": [60.0, 40.0, 2.4, WARM], "fill": [-40.0, 15.0, 0.48, SKY], "rim": [180.0, 30.0, 0.0, NEUTRAL], "amb": [0.08, SKY], "adj": [1.0, 1.5]},   # sun : sky 5:1
+	"noir": {"key": [90.0, 15.0, 1.8, WARM], "fill": [-60.0, 0.0, 0.02, COOL], "rim": [160.0, 45.0, 0.5, NEUTRAL], "amb": [0.01, GREY], "adj": [1.0, 2.0]},       # 90:1: one hard side light in a black room
+	"daylight": {"key": [60.0, 35.0, 2.4, WARM], "fill": [-40.0, 15.0, 0.48, SKY], "rim": [180.0, 30.0, 0.0, NEUTRAL], "amb": [0.05, SKY], "adj": [0.85, 3.2]},   # sun : sky 5:1
 }
 
 

@@ -471,6 +471,74 @@ func onion_mesh_count() -> int:
 	return n
 
 
+
+## NEXT-POSE GHOSTS (ROADMAP R27, scripts/next_pose.gd): up to three smaller translucent mannequins in a row at the body's side
+## (the camera's right), each in its source's colour with a label above its head. items: [{"body": Body (the pose), "col":
+## Color, "text": String, "sel": bool}]. `at` = the current body's pelvis; `right` = the horizontal direction a ghost steps
+## towards; each ghost is drawn at `scale` of the body, the first `first` m from `at`, the next ones `step` m apart (main.gd
+## fits them between the body and the right panel). Nothing of the scene changes: these are display nodes only.
+var _sg := []              # [{node, sk, idx, mat, label}]
+
+
+func _sg_make() -> Dictionary:
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_BACK
+	var mq := mannequin(self, m)
+	var lb := Label3D.new()
+	lb.pixel_size = 0.0008
+	lb.fixed_size = true
+	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lb.no_depth_test = true
+	lb.outline_size = 8
+	lb.font_size = 13
+	add_child(lb)
+	return {"node": mq[0], "sk": mq[1], "idx": mq[2], "mat": m, "label": lb}
+
+
+func sugg_show(items: Array, at: Vector3, right: Vector3, scale: float, first: float, step: float) -> void:
+	while _sg.size() < items.size():
+		_sg.append(_sg_make())
+	var flat := Vector3(right.x, 0.0, right.z)
+	flat = flat.normalized() if flat.length() > 1e-4 else Vector3.RIGHT
+	for i in _sg.size():
+		var g: Dictionary = _sg[i]
+		var on := i < items.size()
+		(g.node as Node3D).visible = on
+		(g.label as Label3D).visible = on
+		if not on:
+			continue
+		var it: Dictionary = items[i]
+		var b: Body = it["body"]
+		pose_skeleton(g.sk, g.idx, b)
+		var col: Color = it["col"]
+		col.a = 0.62 if it.get("sel", false) else 0.38
+		(g.mat as StandardMaterial3D).albedo_color = col
+		var want := Vector3(at.x, 0.0, at.z) + flat * (first + step * i)
+		var gp: Vector3 = b.P["pelvis"]
+		(g.node as Node3D).scale = Vector3.ONE * scale
+		(g.node as Node3D).position = Vector3(want.x - scale * gp.x, 0.0, want.z - scale * gp.z)
+		var lb: Label3D = g.label
+		lb.text = String(it["text"])
+		lb.modulate = Color(col, 1.0).lightened(0.35)
+		lb.outline_modulate = Color(0, 0, 0, 0.9)
+		lb.position = Vector3(want.x, 1.95 * scale + 0.12, want.z)
+
+
+func sugg_hide() -> void:
+	for g in _sg:
+		(g.node as Node3D).visible = false
+		(g.label as Label3D).visible = false
+
+
+## where ghost i's pelvis stands (the test checks the placement from this)
+func sugg_spot(i: int) -> Vector3:
+	if i >= _sg.size() or not (_sg[i].node as Node3D).visible:
+		return Vector3.INF
+	return (_sg[i].label as Label3D).position
+
+
 ## COMPARE WITH (ROADMAP 28): the older version V posed at t as the magenta ghost (slot 5). Null = hidden. Its pose is left
 ## in GB (the sampler), never in the edited body.
 func version_ghost(V: Scene, t: float) -> void:

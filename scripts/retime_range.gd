@@ -77,6 +77,9 @@ static func all_times(S: Scene) -> Array:
 		xs.append(float(c["start"]))
 	for p in S.plants:
 		xs.append_array([float(p["t0"]), float(p["t1"])])
+		for k in ["th", "tf"]:
+			if p.has(k):
+				xs.append(float(p[k]))
 	return xs
 
 
@@ -124,6 +127,9 @@ static func apply(S: Scene, r0: float, r1: float, p: float, pct: float) -> int:
 	for pl in S.plants:
 		pl["t0"] = W.call(float(pl["t0"]))
 		pl["t1"] = W.call(float(pl["t1"]))
+		for kk in ["th", "tf"]:
+			if pl.has(kk):
+				pl[kk] = W.call(float(pl[kk]))
 	return changed
 
 

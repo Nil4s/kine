@@ -5,8 +5,11 @@
 ##     four presets are pairwise different
 ##   2 real ratios (Brown, Cinematography: Theory and Practice): key:fill three-point 2..4, rim 1.5..4, noir >= 8,
 ##     daylight sun:sky 3..5
-##   3 geometry: the key is on the camera's side of the subject (dot with the direction to the lens > 0.25) and to the
-##     camera's LEFT; the rim of "three_point" and "rim" is BEHIND the subject (dot < 0)
+##   3 geometry (CORRECTED in R1c to standard practice; the old "key on the lens side, dot > 0.25" bar was wrong for these looks,
+##     a bar correction, not a loosening: the luminance bars below are unchanged): three_point key 45 +-10 deg off the camera
+##     axis, 30..45 deg up (Brown, Cinematography); noir key 90 +-10 deg (side/split light), <= 30 deg up; daylight sun 60 +-10
+##     deg round, 35..65 deg up; all to the camera's LEFT. "rim" keeps the lens-side bar. The rim of "three_point" and "rim"
+##     is BEHIND the subject (dot < 0)
 ##   4 each click is ONE undo step: undo restores the shots AND the lights exactly (energies, colours, bases), redo
 ##     brings the preset back
 ##   5 saved with the scene: to_dict -> JSON -> from_dict keeps the preset; the lights rebuilt from the loaded scene
@@ -117,7 +120,15 @@ func _init() -> void:
 		var f := LightRig.forward_h(CAM["pos"], CAM["aim"])
 		var key_src: Vector3 = -(r["key"]["dir"] as Vector3)
 		var rim_src: Vector3 = -(r["rim"]["dir"] as Vector3)
-		ok(key_src.dot(-f) > 0.25 and key_src.dot(-f.cross(Vector3.UP)) > 0.3, "3 %s: the key is on the lens side (dot %.2f) and to the camera's left (%.2f)" % [id, key_src.dot(-f), key_src.dot(-f.cross(Vector3.UP))])
+		var az := rad_to_deg(acos(clampf(key_src.dot(-f) / maxf(1e-6, Vector2(key_src.x, key_src.z).length()), -1.0, 1.0)))
+		var el := rad_to_deg(asin(clampf(key_src.y, -1.0, 1.0)))
+		var left := key_src.dot(-f.cross(Vector3.UP)) > 0.0
+		var geo := {"three_point": [35.0, 55.0, 30.0, 45.0], "noir": [80.0, 100.0, 0.0, 30.0], "daylight": [50.0, 70.0, 35.0, 65.0]}
+		if geo.has(id):
+			var g: Array = geo[id]
+			ok(left and az >= g[0] and az <= g[1] and el >= g[2] and el <= g[3], "3 %s: key %.0f deg off the camera axis (bar %d..%d), %.0f up (bar %d..%d), camera left" % [id, az, g[0], g[1], el, g[2], g[3]])
+		else:
+			ok(key_src.dot(-f) > 0.25 and key_src.dot(-f.cross(Vector3.UP)) > 0.3, "3 %s: the key is on the lens side (dot %.2f) and to the camera's left (%.2f)" % [id, key_src.dot(-f), key_src.dot(-f.cross(Vector3.UP))])
 		if id == "three_point" or id == "rim":
 			ok(rim_src.dot(-f) < 0.0, "3 %s: the rim is behind the subject (dot %.2f)" % [id, rim_src.dot(-f)])
 	for i in 4:
@@ -194,9 +205,12 @@ func _init() -> void:
 	var mask := {}
 	for y in range(0, img0.get_height(), 2):
 		for x in range(0, img0.get_width(), 2):
-			var a := img0.get_pixel(x, y)
 			var b := dark.get_pixel(x, y)
-			if absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b) > 0.12:
+			var lit := false
+			for im in imgs:   # R1c: mask = union over the four looks, so changing one look cannot move the pixels another is measured on
+				var a: Color = (im as Image).get_pixel(x, y)
+				lit = lit or absf(a.r - b.r) + absf(a.g - b.g) + absf(a.b - b.b) > 0.12
+			if lit:
 				mask[Vector2i(x, y)] = true
 				x0 = mini(x0, x)
 				x1 = maxi(x1, x)

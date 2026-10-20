@@ -119,6 +119,7 @@ const DRAW := {
 	"close": [["seg", Vector2(6, 6), Vector2(18, 18), 2.0], ["seg", Vector2(18, 6), Vector2(6, 18), 2.0]],
 	"collision": [["ring", Vector2(9, 12), 6, 1.8], ["ring", Vector2(15, 12), 6, 1.8]],
 	"trail": [["disc", Vector2(3, 19), 1.4], ["disc", Vector2(5.5, 13.5), 1.6], ["disc", Vector2(9.5, 8.5), 1.8], ["disc", Vector2(15, 5.5), 2.0], ["disc", Vector2(21, 4.5), 2.4]],
+	"nextpose": [["disc", Vector2(7, 7), 2.6], ["seg", Vector2(7, 10), Vector2(7, 19), 1.8], ["ring", Vector2(16, 7), 2.6, 1.3], ["seg", Vector2(16, 10), Vector2(18.5, 19), 1.4], ["seg", Vector2(11, 14), Vector2(14, 14), 1.4]],
 	"balance": [["seg", Vector2(12, 3), Vector2(12, 17), 1.6], ["disc", Vector2(12, 5), 2.6], ["ring", Vector2(12, 19), 9, 1.4], ["seg", Vector2(9, 19), Vector2(15, 19), 1.6]],
 	"autokey": [["ring", Vector2(12, 12), 8.5, 2.0], ["disc", Vector2(12, 12), 4.5]],
 	"weights": [["disc", Vector2(6, 17), 3.4], ["disc", Vector2(12, 12), 4.6], ["ring", Vector2(18, 6), 3.0, 1.4]],
@@ -132,6 +133,7 @@ const DRAW := {
 	"holds": [["arc", Vector2(7, 14), 4, 2, 180, 360], ["arc", Vector2(15, 10), 4, 2, 0, 180], ["seg", Vector2(19, 10), Vector2(22, 10), 2], ["seg", Vector2(2, 14), Vector2(3, 14), 2]],
 	"tools": [["seg", Vector2(4, 6), Vector2(20, 6), 2], ["seg", Vector2(4, 12), Vector2(20, 12), 2], ["seg", Vector2(4, 18), Vector2(20, 18), 2]],
 	"check": [["seg", Vector2(4, 13), Vector2(9.5, 18.5), 2.6], ["seg", Vector2(9.5, 18.5), Vector2(20, 6), 2.6]],
+	"timing": [["ring", Vector2(12, 13), 8, 1.8], ["seg", Vector2(12, 13), Vector2(12, 8), 2.0], ["seg", Vector2(12, 13), Vector2(16, 15), 2.0], ["seg", Vector2(9, 3), Vector2(15, 3), 2.0]],
 	"polish": [["seg", Vector2(10, 2), Vector2(10, 18), 1.6], ["seg", Vector2(2, 10), Vector2(18, 10), 1.6], ["seg", Vector2(5, 5), Vector2(15, 15), 1.2],
 		["seg", Vector2(15, 5), Vector2(5, 15), 1.2], ["disc", Vector2(19, 19), 1.8]],
 	"fix": [["disc", Vector2(12, 14), 4.5], ["arc", Vector2(12, 14), 8, 2, 180, 360], ["seg", Vector2(20, 14), Vector2(17.5, 10.5), 2], ["seg", Vector2(20, 14), Vector2(22.5, 10.5), 2]],
@@ -168,6 +170,12 @@ const DRAW := {
 	"export": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7.5, 8.5), Vector2(12, 3), 2.2], ["seg", Vector2(16.5, 8.5), Vector2(12, 3), 2.2],
 		["seg", Vector2(3, 13), Vector2(3, 21), 2.2], ["seg", Vector2(21, 13), Vector2(21, 21), 2.2], ["seg", Vector2(3, 21), Vector2(21, 21), 2.2]],
 	# SHARE BY QR (ROADMAP R26): the three corner squares of a QR code; open = the same with an arrow coming in
+	# HIT REACTION PICKER (ROADMAP R16): a fighter (head, body) knocked back from a burst on the left
+	"react": [["seg", Vector2(3, 8), Vector2(8, 11), 2], ["seg", Vector2(3, 14), Vector2(8, 13), 2], ["seg", Vector2(4, 19), Vector2(8, 15), 2],
+		["disc", Vector2(17, 5.5), 2.6], ["seg", Vector2(15, 9), Vector2(11, 14), 2.2], ["seg", Vector2(11, 14), Vector2(10, 21), 2.2], ["seg", Vector2(15, 9), Vector2(21, 12), 2], ["seg", Vector2(11, 14), Vector2(17, 20), 2.2]],
+	# I2 REACT TO THE HIT (PHYSICS): an impact star on the left, a head knocked back with a bend of the neck
+	"react_hit": [["seg", Vector2(2, 12), Vector2(8, 12), 2], ["seg", Vector2(3, 7), Vector2(7.5, 9.5), 2], ["seg", Vector2(3, 17), Vector2(7.5, 14.5), 2],
+		["ring", Vector2(16, 8), 3.4, 2], ["seg", Vector2(13.5, 11), Vector2(11.5, 20), 2.2], ["seg", Vector2(13.5, 11), Vector2(20, 14), 2], ["seg", Vector2(11.5, 20), Vector2(17.5, 21), 2]],
 	"qr": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],
 		["box", Rect2(16.5, 5.5, 2, 2), 0], ["box", Rect2(5.5, 16.5, 2, 2), 0], ["box", Rect2(14, 14, 3, 3), 0], ["box", Rect2(18, 18, 3, 3), 0]],
 	"qr_open": [["box", Rect2(3, 3, 7, 7), 1.8], ["box", Rect2(14, 3, 7, 7), 1.8], ["box", Rect2(3, 14, 7, 7), 1.8], ["box", Rect2(5.5, 5.5, 2, 2), 0],

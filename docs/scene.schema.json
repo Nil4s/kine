@@ -297,6 +297,16 @@
       "snap"
      ]
     },
+    "expr": {
+     "description": "R22: the card's face expression (scripts/face.gd, FACS action units: pain AU4+6/7+9/10+43, effort AU4+7+24, anger AU4+5+7+23, surprise AU1+2+5+26). Absent = neutral; weights blend between cards.",
+     "enum": [
+      "neutral",
+      "pain",
+      "effort",
+      "anger",
+      "surprise"
+     ]
+    },
     "ease_bias": {
      "type": "number",
      "minimum": -1,
@@ -420,6 +430,9 @@
      "type": "boolean"
     },
     "floor_body": {
+     "type": "boolean"
+    },
+    "free_limits": {
      "type": "boolean"
     },
     "pin": {

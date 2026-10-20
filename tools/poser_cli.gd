@@ -23,6 +23,7 @@
 ##   pose="raise the right arm 90, bend the left elbow 45"   words to a pose (scripts/pose_words.gd), one undo step
 ##   fix=K             run Check, then the K-th finding's Fix (1 = the first listed)
 ##   retime=A-B:pct    cards A to B (1 = the first) play at pct % (the move into each and its hold; 150 = slower)
+##   physics=<file.bvh>  import a tools/physics hit reaction as a NEW scene in scenes/_wip (R15)
 ##   undo | redo
 ## Output: readable lines, then ONE JSON line last (it starts with {"ok": ...}). With --json only the JSON line.
 ## Writes: only `run ... --out <path>` / serve's `save`, and only into scenes/_wip/ or outside the project; never Nick's

@@ -59,7 +59,7 @@ static func plant_ref(S: Scene, B: Body, i: int) -> Dictionary:
 
 static func _compute(S: Scene, B: Body, i: int, foot: String, ball: String, p: Dictionary) -> Dictionary:
 	S._plants_off = true
-	S.apply(B, float(p["t0"]))
+	S.apply(B, FootPlant.ref_time(p))
 	S._plants_off = false
 	# BP, BE: the ball's and the toe tip's points; h, rb, re: the ankle's, the ball's and the toe's rest heights (ROADMAP 93: the sole)
 	return {"P": B.P[foot], "G": B.G[foot], "Gb": B.G[ball], "pole": LimbIK.pole_from_pose(B, foot),
@@ -77,5 +77,5 @@ static func _key(S: Scene, B: Body) -> Array:
 		if kind == "actor" or kind == "weapon":
 			return []
 	return [S.cards, S.plants, S.ik, S.clips, S.cons, S.layer, S.layer_w, S.layers, S.breath, S.drivers, S.part_keys,
-		S.props, S.body, S.fps, S.pin, S.on_floor, S.floor_body, S.stepped, S.spline, S.loop, S.natural, S.moving_holds,
+		S.props, S.body, S.fps, S.pin, S.on_floor, S.floor_body, S.free_limits, S.stepped, S.spline, S.loop, S.natural, S.moving_holds,
 		S.cons_me, B.body, B.wep_kind, B.wep_len, B.wep_handle, B.wep2_kind]

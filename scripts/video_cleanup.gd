@@ -14,6 +14,10 @@
 class_name VideoCleanup
 extends RefCounted
 
+const REACH_TOL := 0.003  # m: reachable() cuts a plant where its ankle misses the pin by more than this (FootPlant.MISS_BAR, 1 mm, is the editor's)
+const END_H := 0.02  # m: a plant's end has its sole this near the floor (reachable)
+const PIVOT_H := 0.06  # m: a heel this near the floor, toes up, is at its heel strike (the pivot starts)
+const PIVOT_MAX := 0.25  # s: the longest a heel pivot (FootPlant "tf") may last: a heel strike's toes come down in a few frames
 const SEAT_TOL := 0.02   # m: a plant's held sole is this near the floor (reachable moves t0 on to a sample that is)
 const PLANT_H := 0.02      # m: a sole this close to its floor is down (the brief's 2 cm)
 const PLANT_V := 0.15      # m/s: and the middle of the foot moves this slowly (the brief's 0.15 m/s)
@@ -168,6 +172,29 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 	for p in plants:
 		var sd: String = String(p["foot"]).right(2)
 		var t := float(p["t0"])
+		# R14b HEEL PIVOT: a heel strike. The fitted heel comes within PIVOT_H of the floor while the toes are still up; the sole is flat
+		# (heel and ball both within SEAT_TOL) a few frames on, at tf. The plant starts at the heel strike and holds the HEEL until
+		# tf (FootPlant "tf"), the whole sole as it stands at tf after. Only when the sole gets flat within PIVOT_MAX: a foot whose
+		# toes stay up is not planted (no toes floating through a stance)
+		var th0 := t
+		while th0 < float(p["t1"]) - PLANT_MIN * dt:
+			V.apply(B, th0)
+			if FootRoll.heel_point(B, sd).y <= PIVOT_H:
+				break
+			th0 += step
+		if th0 < float(p["t1"]) - PLANT_MIN * dt:
+			V.apply(B, th0)
+			if (B.P["ball" + sd] as Vector3).y > SEAT_TOL:
+				var tf := th0 + step
+				while tf < minf(th0 + PIVOT_MAX, float(p["t1"]) - PLANT_MIN * dt):
+					V.apply(B, tf)
+					if (B.P["ball" + sd] as Vector3).y <= SEAT_TOL and FootRoll.heel_point(B, sd).y <= SEAT_TOL:
+						break
+					tf += step
+				if tf < minf(th0 + PIVOT_MAX, float(p["t1"]) - PLANT_MIN * dt):
+					p["t0"] = th0
+					p["tf"] = tf
+					continue
 		while t < float(p["t1"]) - PLANT_MIN * dt:
 			V.apply(B, t)
 			if minf((B.P["ball" + sd] as Vector3).y, FootRoll.heel_point(B, sd).y) <= SEAT_TOL:
@@ -175,24 +202,46 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 			t += step
 		if t < float(p["t1"]) - PLANT_MIN * dt:
 			p["t0"] = t
+	V.plants = []
+	for p in plants:
+		# R14b: the heel-off hold pins the BALL where it stood at the reference time. A ball that was up there (a heel strike the
+		# pivot did not bring flat) is a hold in the air: the plant ends where the heel-off would have begun instead
+		if p.has("th"):
+			var sdh: String = String(p["foot"]).right(2)
+			V.apply(B, FootPlant.ref_time(p))
+			if (B.P["ball" + sdh] as Vector3).y > SEAT_TOL:
+				p["t1"] = minf(float(p["t1"]), float(p["th"]))
+				p.erase("th")
 	for p in plants:
 		p["reach"] = true   # R14: the hips drop to the pin (FootPlant._lower_for_reach) instead of the plant being cut where the leg misses
 	V.plants = plants
 	for p in plants:
 		for _g in 40:
 			var r := FootPlant.scan(V, B, p, step)
-			var bad: Array = r["bad"]
+			var bad: Array = (r["bad"] as Array).filter(func(b): return float(b[1]) > REACH_TOL)   # R14b: a video plant keeps a leg that misses its pin by a few mm
 			if bad.is_empty():
 				break
 			var tb := float(bad[0][0])
+			# R14b: a heel pivot whose heel the leg cannot yet reach (the fitted heel is high at the strike) starts where it can: t0 moves
+			# past the leading misses; if that is the flat time already, the pivot is not needed and the plant is the whole-sole hold
+			if p.has("tf") and tb <= float(p["t0"]) + 1e-6:
+				var k := 0
+				while k + 1 < bad.size() and float(bad[k + 1][0]) - float(bad[k][0]) < step * 1.5:
+					k += 1
+				p["t0"] = float(bad[k][0]) + step
+				if float(p["t0"]) >= float(p["tf"]) - 1e-6:
+					p.erase("tf")
+				continue
 			# R14: the flat hold is lost where the heel starts to rise (the ankle moves on): the plant turns to the BALL there
 			# (FootPlant "th", the roll kept) and is cut only where the ball hold cannot reach either
-			V.apply(B, float(p["t0"]))
+			V.apply(B, FootPlant.ref_time(p))
 			var ball_down: bool = (B.P["ball" + String(p["foot"]).right(2)] as Vector3).y <= SEAT_TOL   # a heel strike with the toes up cannot pin its ball
 			if ball_down and (not p.has("th") or float(p["th"]) > tb - 1e-6) and tb - dt > float(p["t0"]) + PLANT_MIN * dt:
 				p["th"] = tb - dt
 				continue
 			p["t1"] = tb - step
+			if p.has("th") and float(p["th"]) >= float(p["t1"]):
+				p.erase("th")
 			if float(p["t1"]) - float(p["t0"]) < PLANT_MIN * dt:
 				p["t1"] = float(p["t0"])
 				break
@@ -201,6 +250,21 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 		if float(p["t1"]) - float(p["t0"]) >= PLANT_MIN * dt:
 			out.append(p)
 	V.plants = out
+	# R14b: a plant ends where its sole is on the floor: the toe-off end is cut back to the last sample whose planted sole (heel or ball)
+	# is within END_H of the floor, so no plant ends with the foot standing in the air
+	for p in out:
+		var sde: String = String(p["foot"]).right(2)
+		V.plants = out
+		while float(p["t1"]) - float(p["t0"]) >= PLANT_MIN * dt:
+			V.apply(B, float(p["t1"]))
+			if minf((B.P["ball" + sde] as Vector3).y, FootRoll.heel_point(B, sde).y) <= END_H:
+				break
+			p["t1"] = float(p["t1"]) - step
+	var kept := []
+	for p in out:
+		if float(p["t1"]) - float(p["t0"]) >= PLANT_MIN * dt:
+			kept.append(p)
+	out = kept
 	# the drop each plant ends on (FootPlant: the release keeps it, so the hips do not jump at t1)
 	for p in out:
 		V.plants = out
