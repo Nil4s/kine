@@ -18,6 +18,8 @@ var ms := 0.0
 var busy := false
 var _memo := {}      # {"key", "sm", "findings", "tc"}: the Check and timing answers for the cards they were made for
 var lap := {}        # ms per judge, the last gather
+var gains := {}      # {cards key + reason text: predicted gain in points, or -1.0 if the fix could not be scored}
+var gain_ms := 0.0   # what the last predictions cost
 
 
 func _init(main: Node) -> void:
@@ -40,6 +42,11 @@ func tag() -> String:
 func gather(db: Dictionary) -> Dictionary:
 	var S: Scene = m.S
 	var out := {"findings": [], "tc": [], "force": {}, "push": [], "phys": null}
+	if S.cards.size() < 2:   # nothing to judge (empty, or a pose with no clip): do not play anything
+		lap = {"check": 0.0, "timing": 0.0, "force": 0.0}
+		return out
+	FrameMemo.new_pass()
+	FrameMemo.on = true   # only the frames a fix changed are played again (frame_memo.gd)
 	var body0: Dictionary = m.B.state()   # a view: the body comes back as it was
 	var t0 := Time.get_ticks_usec()
 	var ck := var_to_str(S.cards) + var_to_str(S.body)   # a judge's answer is kept while the cards and the body are the same
@@ -68,6 +75,7 @@ func gather(db: Dictionary) -> Dictionary:
 	var mp: MakePhysical = m.mp_ui.mp
 	if mp.done and mp.failed == "" and not mp.summary.is_empty():
 		out["phys"] = mp.spans.duplicate()
+	FrameMemo.on = false
 	m.B.set_state(body0)   # the judges posed the body at other times
 	m.B.fk()
 	return out
@@ -113,6 +121,51 @@ func _push_items() -> Array:
 	return out
 
 
+## the score the clip WOULD have with these cards (the scene gets them for the length of the call and is put back, the same object;
+## the judges' answers for the real cards, the frame memo and the force cache are put back too)
+func _score_with(cards: Array, tc_fix := {}) -> float:
+	var S: Scene = m.S
+	var orig := S.cards
+	var keep_memo := _memo
+	var keep_force: Dictionary = m.force_cache
+	var keep_sm = m._sm
+	var keep_lap := lap.duplicate()
+	S.cards = cards
+	if not tc_fix.is_empty():
+		TimingCoach.accept(S, tc_fix)
+	_memo = {}
+	FrameMemo.probe = true
+	var sc := float(RealismScore.compute(S, gather(m.tc_ui.db))["score"])
+	FrameMemo.probe = false
+	S.cards = orig
+	_memo = keep_memo
+	m.force_cache = keep_force
+	m._sm = keep_sm
+	lap = keep_lap
+	return sc
+
+
+## the points a reason's own fix would add, worked out on a copy: -1.0 = this reason has no fix that can be scored
+func gain_of(r: Dictionary) -> float:
+	var gk := key + "|" + String(r["text"])
+	if gains.has(gk):
+		return gains[gk]
+	var fx: Dictionary = r["fix"]
+	var g := -99.0
+	var S: Scene = m.S
+	match String(fx["kind"]):
+		"timing":
+			g = _score_with(S.cards.duplicate(true), inp["tc"][int(fx["i"])]) - float(res["score"])
+		"check":
+			var f: Dictionary = inp["findings"][int(fx["i"])]
+			if Fixer.label(f, S) != "":
+				var cards: Array = Fixer.propose(f, S, m.ov.GB, m._sm)
+				if not cards.is_empty():
+					g = _score_with(cards) - float(res["score"])
+	gains[gk] = g
+	return g
+
+
 func show() -> void:
 	if m.S.cards.size() < 2:
 		m._say("Realism score needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
@@ -129,6 +182,8 @@ func refresh() -> void:
 	var t0 := Time.get_ticks_usec()
 	inp = gather(m.tc_ui.db)
 	res = RealismScore.compute(m.S, inp)
+	if key != var_to_str(m.S.cards):
+		gains = {}
 	key = var_to_str(m.S.cards)
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
 	m._doc_line(true)
@@ -158,21 +213,27 @@ func _panel() -> void:
 		L.add_child(lb)
 		var fx: Dictionary = r["fix"]
 		var b: Button = null
+		var why_not := ""
 		match String(fx["kind"]):
-			"check":
-				var f: Dictionary = inp["findings"][int(fx["i"])]
-				var lab := Fixer.label(f, m.S)
+			"check", "timing":
+				var lab := ""
+				if String(fx["kind"]) == "check":
+					lab = Fixer.label(inp["findings"][int(fx["i"])], m.S)
+				else:
+					lab = "Fix: accept the timing coach's move time"
 				if lab != "":
-					b = m._button(lab, fix.bind(r), "Check's own fix for this finding; one undo step")
-			"timing":
-				b = m._button("Accept the timing coach's move time", fix.bind(r), "write that one move time; one undo step")
+					var gn := gain_of(r)
+					if gn > 0.05:
+						b = m._button("%s   +%.1f" % [lab, gn], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gn)
+					elif gn > -90.0:
+						why_not = "   its own fix would %s the score (%+.1f): the judges disagree here, so it is not offered" % ["lower" if gn < -0.05 else "not change", gn]
 			"phys":
 				b = m._button("Accept span (Make it physical)", fix.bind(r), "replace the cards in that red span with the physical version; one undo step")
 		if b != null:
 			b.name = "rs_fix_%d" % (k + 1)
 			L.add_child(b)
 		else:
-			L.add_child(m._label("   no one-click fix: change the pose or timing there", 12, "text:0.5", true))
+			L.add_child(m._label(why_not if why_not != "" else "   no one-click fix: change the pose or timing there", 12, "text:0.5", true))
 	var pen: Dictionary = res["pen"]
 	var shr: Dictionary = res["share"]
 	var rows := PackedStringArray()

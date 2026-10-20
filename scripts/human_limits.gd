@@ -114,10 +114,8 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 	var kg := {}
 	for seg in ["forearm", "hand"]:
 		kg[seg] = _seg_kg(B, mm, seg)
-	var rows := []
-	for i in n:
-		var t := minf(i / FPS, S.length())
-		S.apply_true(B, t)
+	var mk := func(_i: int, t: float) -> Dictionary:
+		FrameMemo.pose(S, B, t)
 		var row := {"rel": {}, "pts": {}}
 		for j in TURN:
 			var pr: Array = TURN[j]
@@ -141,7 +139,8 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 			row["pts"]["knob"] = B.wep_point(0.0)
 			row["pts"]["tip"] = B.wep_point(B.wep_len)
 			row["pts"]["bat_com"] = B.wep_point(BAT_COM * B.wep_len)
-		rows.append(row)
+		return row
+	var rows: Array = FrameMemo.frames("hl", S, B, n, FPS, mk)
 	S.stepped = was_stepped
 	var out := {"t": [], "speed": {}, "torque": {}, "margin": [], "h": [], "down": [], "sup": [], "cv": [], "mass": mass_of(B)}
 	for i in n:

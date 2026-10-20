@@ -2982,8 +2982,10 @@ func _fd_cycle_fps() -> void:
 func _fd_data() -> Dictionary:
 	var key := "%d|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes)]
 	if String(fd_cache.get("key", "")) != key:
-		var Bc := Body.new()
-		Bc.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		if _force_body == null:   # I16b: the skeleton is read once, not at every score
+			_force_body = Body.new()
+			_force_body.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var Bc: Body = _force_body
 		Bc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
 		Bc.ground()
 		fd_cache = {"key": key, "fd": FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
@@ -3055,12 +3057,17 @@ func _fd_refresh() -> void:
 const FORCE_A := 0.55   # how much of the skin the torque colour covers
 
 
+var _force_body: Body = null
+
+
 ## the clip's inverse dynamics, made once per cards + body (on its own body, like the frame data), {} with fewer than 2 cards
 func _force_data() -> Dictionary:
 	var key := "%s|%s" % [var_to_str(S.cards), var_to_str(S.body)]
 	if String(force_cache.get("key", "")) != key:
-		var Bc := Body.new()
-		Bc.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		if _force_body == null:   # I16b: the skeleton is read once, not at every score
+			_force_body = Body.new()
+			_force_body.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var Bc: Body = _force_body
 		Bc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
 		Bc.ground()
 		force_cache = {"key": key, "sm": ForceView.sample(S, Bc)}
