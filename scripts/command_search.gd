@@ -262,7 +262,7 @@ func _filter() -> void:
 				if c["name"] == n:
 					top.append(c)
 		shown = top + shown.filter(func(c): return not c["name"] in recent)
-	if q != "" and kind == "" and pose_by_words.is_valid() and PoseWords.parse(q)["ok"]:
+	if q != "" and kind == "" and pose_by_words.is_valid() and (PoseWords.parse(q)["ok"] or RigWords.parse(q)["ok"]):
 		shown.push_front({"name": "Pose: " + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
 			"desc": "turn the joints as the words say (scripts/pose_words.gd): one undo step"})
 	list.clear()

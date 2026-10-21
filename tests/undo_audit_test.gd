@@ -166,7 +166,7 @@ func fp() -> String:
 		"part_keys": var_to_str(m.S.part_keys), "markers": m.S.markers, "crowd": var_to_str(m.S.crowd),   # WW1, WW5; the crowd (ROADMAP 95, undone with the markers)
 		"notes": m.S.notes,   # ROADMAP 29: the review notes
 		"breath": m.S.breath, "layer": var_to_str(m.S.layer), "layer_w": m.S.layer_w,   # YY6, YY9
-		"hair": var_to_str(m.S.hair), "cape": var_to_str(m.S.cape),   # HAIR (ROADMAP 87), CAPE (ROADMAP 86)
+		"rigx": var_to_str(m.S.rigx), "hair": var_to_str(m.S.hair), "cape": var_to_str(m.S.cape),   # HAIR (ROADMAP 87), CAPE (ROADMAP 86)
 		"layers": var_to_str(m.S.layers),   # NA1
 		"audio": var_to_str(m.S.audio_tracks),   # the sound on the timeline
 		"ik": var_to_str(m.S.ik),   # IK keys (limb_ik.gd)
