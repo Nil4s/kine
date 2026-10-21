@@ -51,6 +51,7 @@ func _init() -> void:
 		"_recover": "removes the Later slot once its work is open again (the autosave holds it from there)",
 		"_export_game": "exports/<scene>.json and .cs (a separate export folder; never a scene, pose or data file)",
 		"_export_glb": "exports/<scene>.glb (the export folder; never a scene, pose or data file)",
+		"_share_viewer": "user://share/<scene>/ only (the .glb, index.html, <scene>_one_file.html; replaced per run, its temp .glb in user://share/_tmp removed; never a scene, pose or data file)",
 		"_export_obj": "user://exports/<scene>.obj + .mtl (ObjIO.export; the app's own export folder, never a scene, pose or data file)",
 		"_export_bvh": "exports/<scene>.bvh (the export folder; never a scene, pose or data file)",
 		"_export_usd": "exports/<scene>.usda (the export folder; never a scene, pose or data file)",
