@@ -262,9 +262,9 @@ func _filter() -> void:
 				if c["name"] == n:
 					top.append(c)
 		shown = top + shown.filter(func(c): return not c["name"] in recent)
-	if q != "" and kind == "" and pose_by_words.is_valid() and PoseWords.parse(q)["ok"]:
-		shown.push_front({"name": "Pose: " + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
-			"desc": "turn the joints as the words say (scripts/pose_words.gd): one undo step"})
+	if q != "" and kind == "" and pose_by_words.is_valid() and _words_ok(q):
+		shown.push_front({"name": ("Face: " if FaceWords.route(q)["pose"] == "" and FaceWords.route(q)["face"] != "" else "Pose: ") + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
+			"desc": "turn the joints and set the face as the words say (scripts/pose_words.gd, face_words.gd): one undo step"})
 	list.clear()
 	var root := list.create_item()
 	for c in shown:
@@ -326,3 +326,11 @@ func _run(i: int) -> void:
 	running.emit(c["name"])
 	(c["run"] as Callable).call()
 	ran.emit(c["name"])
+
+
+## the words box takes a phrase when it is a pose, a face, or both (each part must parse)
+func _words_ok(q: String) -> bool:
+	var rt := FaceWords.route(q)
+	if rt["face"] == "":
+		return PoseWords.parse(q)["ok"]
+	return FaceWords.parse(rt["face"])["ok"] and (rt["pose"] == "" or PoseWords.parse(rt["pose"])["ok"])
