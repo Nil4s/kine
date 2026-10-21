@@ -5405,7 +5405,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -5543,6 +5543,9 @@ func _restore(u: Dictionary) -> void:
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
+	if u.has("bmats") and var_to_str(u["bmats"]) != var_to_str(body_mats):
+		body_mats = u["bmats"].duplicate()   # the photo materials on body parts, undone like a card (E15)
+		photomat.sync_body()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
 	if u["scene"] == S and u.has("iq") and var_to_str(u["iq"]) != var_to_str(S.iq):
@@ -14178,6 +14181,7 @@ func _commands() -> Array:
 		add.call("View: matcap %s" % k, "", _matcap_set.bind(k), "shading matcap clay wax skin material", false, "the matcap shading with the %s look (remembered)" % k)
 	for lt in [["three_point", "3-point"], ["rim", "rim"], ["top", "top"], ["flat", "flat"], ["default", "stage"]]:
 		add.call("View: lights %s" % lt[1], "", _lights_set.bind(lt[0]), "studio lights key fill rim top flat three point", false, "studio lights: %s (remembered)" % Shading.LIGHT_NAMES[lt[0]])
+	add.call("Surface: material from a photo...", "", photomat.ask, "material photo picture texture pbr albedo roughness normal map tileable brick wood stone cloth surface prop", false, "pick a picture: it becomes a tileable PBR material (the lighting divided out, seams blended, roughness and normal map estimated) on the picked prop or body part, saved in user://materials/<name>; one undo step")
 	add.call("View: reference image...", "", refimg.ask, "reference image photo picture overlay trace rotoscope png jpg person plane", false, "load a photo or video frame of a real person as an overlay on the view (or a plane behind the body); opacity, size, offset and flip in the reference panel; saved in the scene as a path, never copied (ROADMAP C25, B21)")
 	add.call("View: reference panel", "", refimg.open_panel, "reference image opacity scale offset flip plane front side free camera overlay", false, "the reference picture's mode (camera overlay, plane front / side / free), opacity, size, offset and flip")
 	add.call("View: match the body to the reference", "", refimg.match_body, "match fit reference image person pose detector height hips residual 2 point head heel", false, "finds the person in the reference picture and scales + moves it to line up with the body as seen from this camera, then says the mean pixel residual; with no detector installed it asks you to click the head top and heel instead")
@@ -19435,6 +19439,8 @@ func _imp_show(on: bool) -> void:
 ## pattern): Ctrl+Z takes them back, and nothing is saved until you save. A panel shows the cameras and the reconstructed pose.
 const MULTI_MAX := 4
 const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most this many frames (GDScript: a 300-frame clip takes minutes)
+var photomat := PhotoMaterialUI.new(self)   # MATERIAL FROM A PHOTO (scripts/photo_material_ui.gd, E15)
+var body_mats := {}   # part -> the name of its photo material (user://materials/<name>); view state, undone with the rest
 var refimg := RefImageUI.new(self)   # REFERENCE IMAGES (scripts/ref_image_ui.gd): a picture under or behind the figure, and Match
 var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
 var multicam_tool := "res://tools/see_video.py"
