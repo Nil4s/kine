@@ -412,7 +412,7 @@ Merged: 32 / 400 (★ 12 / 119)
 - [ ] N20 $$ Lossless autosave of meshes (crash-proof, extends I-crash work)
 - [ ] N21 ★ $$ Character card: one file with body, mesh, rig, grips, moves and its physics numbers, drop into any engine
 - [ ] N22 ★ $$ Engine-side checks: export reports what the target engine will break (bone count, influences, scale)
-- [ ] N23 ★ $ Share a character as a link (glb + a viewer page)
+- [x] N23 ★ $ Share a character as a link (glb + a viewer page)
 - [ ] N24 ★ $$ Moveset export: the fighter's moves with frame data + hitboxes in one game-ready bundle
 - [ ] N25 $$ Godot / UE5 / Unity plugin to live-link Kine (send pose / mesh over 127.0.0.1)
 
