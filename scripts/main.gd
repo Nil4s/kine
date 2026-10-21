@@ -1209,6 +1209,32 @@ func _export_glb(dir := "res://exports") -> String:
 	return path
 
 
+## SHARE: VIEWER PAGE (ROADMAP N23): user://share/<scene>/ holds the .glb, index.html (loads the .glb beside it) and
+## <scene>_one_file.html (the .glb inside the page as base64: ONE file to send). Nothing is uploaded; the folder opens after.
+func _share_viewer(root := ShareLink.ROOT, open_folder := true) -> Dictionary:
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a viewer page needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
+		return {}
+	var tmp := "user://share/_tmp"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(tmp))
+	var g := _export_glb(tmp)
+	if g == "":
+		return {}
+	var info := ShareLink.glb_info(FileAccess.get_file_as_bytes(g))
+	var nm := S.name if S.name != "" else "scene"
+	var r := ShareLink.write(g, nm, int(info.get("frames", 0)), S.fps, root)
+	DirAccess.remove_absolute(g)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+	if r.is_empty():
+		_say_plain("NOT DONE: the viewer page could not be written: close anything using the share folder, and run Share: viewer page (one file) again")
+		return {}
+	r["info"] = info
+	_say_plain("viewer page written: %s (%d frames at %d fps). One file to send: %s, %.1f KB (the .glb is %.1f KB inside it). Nothing was uploaded" % [r["dir"], info.get("frames", 0), S.fps, String(r["one"]).get_file(), r["one_bytes"] / 1024.0, r["glb_bytes"] / 1024.0])
+	if open_folder:
+		OS.shell_open(ProjectSettings.globalize_path(r["dir"]))
+	return r
+
+
 ## EXPORT .FBX (ROADMAP 78): the scene as binary FBX 7.4 (FbxExport, the ASCII text is a debug view only): the skeleton with UE5 bone names, one take, the
 ## rotations and the pelvis on every frame, in centimetres. root_motion (the Unreal preset, "_ue5") moves the pelvis's
 ## travel onto the root bone. Several fighters: one .fbx each, its rig placed where it stands (a root null). The
@@ -14117,6 +14143,7 @@ func _commands() -> Array:
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
+	add.call("Share: viewer page (one file)", "", _share_viewer, "share viewer page html link send model-viewer glb web one file email offline", false, "a web page that plays the animation (orbit, play/pause, scrubber, scene name): user://share/<scene>/ with the .glb and index.html, plus ONE .html with the .glb inside to send. Nothing is uploaded; the folder opens")
 	add.call("Export animation (.fbx)", "", _export_fbx, "fbx autodesk maya motionbuilder unity unreal ue5 blender export skeleton binary", false, "the scene as exports/<scene>.fbx: binary FBX 7.4 in centimetres, the skeleton with UE5 bone names and the animation. Unreal, Unity, Maya and Blender 4.5 read it")
 	add.call("Export for Unreal 5...", "", _export_engine.bind("ue5"), "unreal ue5 engine export glb root motion scale centimetres manny delivery", false, "the scene as exports/<scene>_ue5.glb for Unreal 5: root motion on the root bone, units checked (the pre-flight report prints first; docs/research/ENGINES.md)")
 	add.call("Export for Unity...", "", _export_engine.bind("unity"), "unity engine export glb gltfast metres delivery", false, "the scene as exports/<scene>_unity.glb for Unity (glTFast): metres and Y up checked (the pre-flight report prints first; docs/research/ENGINES.md)")
