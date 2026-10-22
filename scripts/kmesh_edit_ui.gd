@@ -7,6 +7,9 @@ extends Node
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
+## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
+## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
+## primitive and updates that same step) until the next edit of the mesh.
 
 const SIDE := 0.6
 const SPLIT := 4
@@ -26,6 +29,12 @@ var _kind := ""               # the gesture in progress: "click", "box", "lasso"
 var _add := false
 var _lasso := PackedVector2Array()
 var _ov: Control
+var prim_panel: PanelContainer
+var _prim_kind: OptionButton
+var _prim_box: GridContainer
+var _prim_fields := {}        # param -> SpinBox
+var live := {}                # B09: the primitive still live: {kind, params, step, base_v, base_f, at}
+const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 
 
 func setup(main: Node) -> void:
@@ -37,6 +46,7 @@ func setup(main: Node) -> void:
 	_ov.visible = false
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
+	_build_prim_panel()
 
 
 func start() -> void:
@@ -54,6 +64,8 @@ func start() -> void:
 	armed = ""
 	xray = false
 	_ov.visible = true
+	live = {}
+	prim_panel.visible = true
 	view.rebuild()
 	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Esc leaves")
 
@@ -64,6 +76,8 @@ func stop() -> void:
 	on = false
 	_drag = false
 	_ov.visible = false
+	prim_panel.visible = false
+	live = {}
 	view.queue_free()
 	view = null
 	m._say("Model: left the test cube (nothing was saved). Run Model: edit a test cube (preview) to come back")
@@ -186,3 +200,167 @@ func _draw_overlay() -> void:
 		_ov.draw_rect(r, c, false, 1.0)
 	elif _kind == "lasso" and _lasso.size() > 1:
 		_ov.draw_polyline(_lasso, c, 1.5)
+
+
+# ---- B09: Add primitive ---------------------------------------------------------------------------------------------
+
+func _build_prim_panel() -> void:
+	prim_panel = PanelContainer.new()
+	prim_panel.name = "prim_panel"
+	prim_panel.visible = false
+	var vb := VBoxContainer.new()
+	var title := Label.new()
+	title.text = "Add primitive"
+	vb.add_child(title)
+	var hb := HBoxContainer.new()
+	_prim_kind = OptionButton.new()
+	_prim_kind.name = "opt_prim_kind"
+	for k in KMeshPrims.KINDS:
+		_prim_kind.add_item(KMeshPrims.NAMES[k])
+	_prim_kind.item_selected.connect(func(i): _prim_fields_for(KMeshPrims.KINDS[i]))
+	hb.add_child(_prim_kind)
+	var add := Button.new()
+	add.name = "btn_prim_add"
+	add.text = "Add"
+	add.tooltip_text = "add this primitive beside the mesh (one undo step); its fields stay live until the next edit"
+	add.pressed.connect(func(): add_prim(KMeshPrims.KINDS[_prim_kind.selected], _field_params()))
+	hb.add_child(add)
+	vb.add_child(hb)
+	_prim_box = GridContainer.new()
+	_prim_box.columns = 2
+	vb.add_child(_prim_box)
+	prim_panel.add_child(vb)
+	m.ui_root.add_child(prim_panel)
+	_prim_fields_for(KMeshPrims.KINDS[0])
+
+
+## the param fields of one kind, at its defaults; lengths are shown in cm
+func _prim_fields_for(kind: String, vals := {}) -> void:
+	for c in _prim_box.get_children():
+		_prim_box.remove_child(c)
+		c.queue_free()
+	_prim_fields = {}
+	for p in KMeshPrims.PARAMS[kind]:
+		var l := Label.new()
+		l.text = String(p[0]).replace("_", " ") + (" (cm)" if p[5] else "")
+		_prim_box.add_child(l)
+		var s := SpinBox.new()
+		s.name = "spin_prim_" + p[0]
+		var k := 100.0 if p[5] else 1.0
+		s.min_value = float(p[2]) * k
+		s.max_value = float(p[3]) * k
+		s.step = float(p[4]) * k
+		s.value = float(vals.get(p[0], p[1])) * k
+		s.value_changed.connect(func(_v): set_prim_param(p[0], _field_params()[p[0]]))
+		_prim_box.add_child(s)
+		_prim_fields[p[0]] = s
+	prim_panel.reset_size()
+	prim_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT, Control.PRESET_MODE_MINSIZE, 12)
+
+
+func _field_params() -> Dictionary:
+	var kind: String = KMeshPrims.KINDS[_prim_kind.selected]
+	var d := {}
+	for p in KMeshPrims.PARAMS[kind]:
+		var s: SpinBox = _prim_fields.get(p[0])
+		if s != null:
+			d[p[0]] = s.value / 100.0 if p[5] else int(s.value)
+	return d
+
+
+## the primitive's verts moved to its place: resting on the mesh's floor, PRIM_GAP to the +X side of it
+func _placed(pm: KMesh, at: Vector3) -> PackedVector3Array:
+	var lo := Vector3.INF
+	for v in pm.verts:
+		lo = lo.min(v)
+	var out := PackedVector3Array()
+	out.resize(pm.verts.size())
+	for i in pm.verts.size():
+		out[i] = pm.verts[i] + Vector3(at.x - lo.x, at.y - lo.y, at.z)
+	return out
+
+
+func _append(base_v: PackedVector3Array, base_f: Array, pm: KMesh, at: Vector3) -> void:
+	var vs := base_v.duplicate()
+	vs.append_array(_placed(pm, at))
+	var fs := base_f.duplicate()
+	var o := base_v.size()
+	for f in pm.faces:
+		var g := PackedInt32Array(f)
+		for i in g.size():
+			g[i] += o
+		fs.append(g)
+	mesh.attrs = {}   # (the test mesh carries no attributes; a primitive starts without any)
+	mesh.from_arrays(vs, fs)
+
+
+## add a primitive beside the mesh as one undo step; it stays live (set_prim_param rebuilds it) until the next edit
+func add_prim(kind: String, params := {}) -> bool:
+	if not on or not KMeshPrims.KINDS.has(kind):
+		return false
+	var p := KMeshPrims.clean(kind, params)
+	var pm := KMeshPrims.build(kind, p)
+	var at := Vector3.ZERO
+	if mesh.vert_count() > 0:
+		var lo := Vector3.INF
+		var hi := -Vector3.INF
+		for v in mesh.verts:
+			lo = lo.min(v)
+			hi = hi.max(v)
+		at = Vector3(hi.x + PRIM_GAP, lo.y, 0.0)
+	var base_v := mesh.verts.duplicate()
+	var base_f := mesh.faces.duplicate()
+	undo.begin(mesh)
+	_append(base_v, base_f, pm, at)
+	var st := undo.commit("Add " + KMeshPrims.NAMES[kind])
+	live = {"kind": kind, "params": p, "step": st, "base_v": base_v, "base_f": base_f, "at": at}
+	_after_topo()
+	var ki := KMeshPrims.KINDS.find(kind)
+	if _prim_kind.selected != ki:
+		_prim_kind.select(ki)
+	_prim_fields_for(kind, p)
+	m._say("Model: added a %s (%s verts, %s faces; one undo step). Its fields stay live until the next edit" % [KMeshPrims.NAMES[kind].to_lower(), str(pm.vert_count()), str(pm.face_count())])
+	return true
+
+
+## is the last added primitive still live: its step is the newest one and the mesh is still exactly what it made
+func is_live() -> bool:
+	if live.is_empty() or undo.steps.is_empty() or not is_same(undo.steps[undo.steps.size() - 1], live["step"]):
+		return false
+	var st: Dictionary = live["step"]
+	return mesh.verts == st["new_v"] and KMeshUndo._same_faces(mesh.faces, st["new_f"])
+
+
+## change one live parameter: the primitive is rebuilt in place and its undo step updated (still one step)
+func set_prim_param(param: String, value) -> bool:
+	if not on:
+		return false
+	if not is_live():
+		live = {}
+		return false
+	var p: Dictionary = live["params"].duplicate()
+	p[param] = value
+	p = KMeshPrims.clean(live["kind"], p)
+	if p == live["params"]:
+		return true
+	var pm := KMeshPrims.build(live["kind"], p)
+	_append(live["base_v"], live["base_f"], pm, live["at"])
+	var st: Dictionary = live["step"]
+	st["new_v"] = mesh.verts.duplicate()
+	st["new_f"] = mesh.faces.duplicate()
+	var fb := 0
+	for f in st["old_f"]:
+		fb += (f as PackedInt32Array).size() * 4
+	for f in st["new_f"]:
+		fb += (f as PackedInt32Array).size() * 4
+	st["bytes"] = ((st["old_v"] as PackedVector3Array).size() + mesh.verts.size()) * 12 + fb
+	live["params"] = p
+	_after_topo()
+	return true
+
+
+## the topology changed: a fresh selection on the same mesh, the view rebuilt
+func _after_topo() -> void:
+	sel = KMeshSelect.new(mesh, sel.mode)
+	view.set_mesh(mesh, sel)
+	view.rebuild()
