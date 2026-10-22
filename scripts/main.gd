@@ -8026,6 +8026,12 @@ func _kmesh_edit_start() -> void:
 	kmed.start()
 
 
+func _kmesh_subdivide() -> void:   # A12: Catmull-Clark the test cube (opens it first), one undo step
+	if kmed == null or not kmed.on:
+		_kmesh_edit_start()
+	kmed.subdivide(1)
+
+
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
 var pwui: PathWalkUI
 
@@ -13947,6 +13953,7 @@ func _commands() -> Array:
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
+	add.call("Model: subdivide the test cube (Catmull-Clark)", "", _kmesh_subdivide, "model mesh subdivide subdivision catmull clark smooth subsurf crease level", false, "one Catmull-Clark level on the test cube (every face becomes quads, creases kept); Ctrl+Z takes it back in one step")
 	add.call("Walk along a path...", "", _pathwalk_start, "walk run path floor points curve gait jog sprint generate steps", true, "click points on the floor, pick walk or run and a speed, Enter builds the cards as ONE undo step")
 	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
