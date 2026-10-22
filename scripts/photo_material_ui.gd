@@ -96,8 +96,14 @@ func apply(path: String, name: String, strength := PhotoMaterial.STRENGTH) -> bo
 	return true
 
 
-## the body parts' pieces drawn with their materials (a part without one: the mannequin's own)
+## the body parts' pieces drawn with their materials (a part without one: the mannequin's own). Under a view shading
+## mode (matcap, x-ray, ...) the mode's look stays on and the material becomes what "solid" puts back (scripts/shading.gd)
 func sync_body() -> void:
+	var sh: Shading = m.shading
 	for j in m.pieces:
 		var mi: MeshInstance3D = m.pieces[j]
-		mi.material_override = PhotoMaterial.load_material(m.body_mats[j]) if m.body_mats.has(j) else null
+		var mat: Material = PhotoMaterial.load_material(m.body_mats[j]) if m.body_mats.has(j) else null
+		if sh._orig.has(mi):
+			sh._orig[mi] = mat
+		if sh.mode == "solid" or not sh._orig.has(mi):
+			mi.material_override = mat

@@ -10,7 +10,8 @@
 ##   6 FILES: user://materials/<name>/{albedo,rough,normal}.png + material.tres exist, the PNGs read back to the maps,
 ##     the .tres names the three PNGs, the loaded material has all three textures; scenes/ is unchanged
 ##   7 APPLY + UNDO: on a prop and on a body part, applying is ONE undo step, Ctrl+Z restores (prop has no "mat" again,
-##     the part's override is gone), redo brings it back; the prop's "mat" round-trips the scene dict form
+##     the part's override is gone), redo brings it back; the prop's "mat" round-trips the scene dict form; under matcap shading a redone
+##     part material leaves the matcap look on, and back in solid the part wears it
 ##   8 PLACEMENT: a crate in the whole view: the mean chromaticity of the pixels in its screen box moves toward the
 ##     albedo's mean chromaticity (distance after < half of the distance before); after Ctrl+Z it is back (< 0.01)
 ## Shot: C:/Users/Nick/.claude/jobs/9afc22db/tmp/photomat.png
@@ -238,6 +239,15 @@ func _run() -> void:
 	ok(m.undo.size() == n1 + 1 and piece.material_override != null and m.body_mats.get("upperarm_r", "") == NAME + "_part", "body part: ONE undo step and the piece wears the material")
 	m._undo()
 	ok(piece.material_override == null and not m.body_mats.has("upperarm_r"), "Ctrl+Z: the part is back to the mannequin's skin")
+	# under a view shading mode: the mode's look stays, and "solid" brings the photo material
+	m.shading.set_mode(m, "matcap")
+	var mc: Material = piece.material_override
+	m._redo()
+	ok(piece.material_override == mc and mc != null and m.body_mats.has("upperarm_r"), "under matcap the redone material does not replace the matcap look")
+	m.shading.set_mode(m, "solid")
+	ok(piece.material_override != null and piece.material_override == PhotoMaterial.load_material(NAME + "_part"), "back to solid shading: the part wears the photo material")
+	m._undo()
+	ok(piece.material_override == null, "Ctrl+Z in solid: the mannequin's skin again")
 	# no target: refuses
 	m.sel_prop = -1
 	m.sel = Body.WEAPON[0]   # a weapon is no body part with a piece: nothing to dress
