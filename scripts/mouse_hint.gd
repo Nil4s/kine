@@ -204,7 +204,6 @@ static func _i(b: String, t: String) -> Dictionary:
 static func items(m: Node, c: String) -> Array:
 	var part := String(m.get_meta("mh_part", "")) if m != null else ""
 	var nm: String = m.nice(part) if part != "" else "part"
-	var view := [_i("R", "Right: orbit"), _i("M", "Wheel: zoom"), _i("M", "Middle: pan")]
 	match c:
 		"pose_part":
 			return [_i("L", "Left: drag to turn the %s" % nm), _i("R", "Right: orbit (a click: the part's menu)"), _i("M", "Wheel: zoom"),

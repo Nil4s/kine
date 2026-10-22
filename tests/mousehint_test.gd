@@ -333,23 +333,16 @@ func _init() -> void:
 	ok(sr.position.x >= m.lw() + 11 and sr.end.x <= nr.position.x and sr.end.y <= lines_top + 0.5 and lines_top - sr.end.y <= 6.0,
 		"  it runs from the view's left edge to the nav bar, directly above the line's texts (gap %.1f px)" % (lines_top - sr.end.y))
 
-	# ---- 4 THROTTLE
-	m.nav_tool = "pan"
-	strip._t = 0.0
-	strip.tick(0.049)
-	var before := strip.ctx
-	strip.show_ctx("pose_empty")
-	m.nav_tool = "orbit"
-	strip.tick(0.049)   # (a total of 0.098 since the last look? no: the first tick of 0.049 did not look; this one reaches 0.098 and looks)
+	# ---- 4 THROTTLE: ctx is set to a marker; a tick only looks at the mouse (and replaces it) once 50 ms have gathered
 	m.nav_tool = ""
 	strip._t = 0.0
 	strip.ctx = "x"
+	strip._sig = ""
 	strip.tick(0.02)
 	strip.tick(0.02)
 	var held := strip.ctx == "x"
 	strip.tick(0.02)
 	ok(held and strip.ctx != "x", "4 throttle: two 20 ms ticks do not look at the mouse, the third (60 ms) does (ctx '%s' -> '%s')" % ["x", strip.ctx])
-	m.nav_tool = ""
 
 	# ---- screenshot: a part under the mouse, whole body in view
 	m._load_scene("res://scenes/combo3.json")
@@ -368,7 +361,8 @@ func _init() -> void:
 	strip.refresh(null, p)
 	await idle(3)
 	var img := root.get_texture().get_image()
-	img.save_png(SHOT)
-	print("shot: %s  strip text: %s  rect %s" % [SHOT, strip.shown_text(), strip.get_global_rect()])
+	var shot := SHOT if DirAccess.dir_exists_absolute(SHOT.get_base_dir()) else "user://mousehint.png"   # off Nick's machine: the user dir
+	img.save_png(shot)
+	print("shot: %s  strip text: %s  rect %s" % [ProjectSettings.globalize_path(shot), strip.shown_text(), strip.get_global_rect()])
 	print("MOUSEHINT %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
