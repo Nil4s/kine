@@ -6,11 +6,13 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   Ctrl+Z  undo the last mesh edit (A12: "Model: subdivide the test cube (Catmull-Clark)" is one step)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 
 const SIDE := 0.6
 const SPLIT := 4
 const AT := Vector3(1.0, SIDE * 0.5, 0.0)   # on the floor, beside the fighter at the origin
+const SUBDIV_MAX_FACES := 100000   # A12: one more level past this would make the preview crawl
 
 var m: Node
 var on := false
@@ -78,6 +80,14 @@ func set_mode(md: int) -> void:
 ## main passes every unhandled input here while `on`; true = used
 func input(ev: InputEvent) -> bool:
 	if not on:
+		return false
+	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
+		if (ev as InputEventKey).keycode == KEY_Z and not undo.steps.is_empty():   # A12: the mesh's own undo while the cube is open
+			var lb := undo.undo()
+			sel.clear()
+			view.mark_dirty()
+			m._say("Model: undid %s" % lb)
+			return true
 		return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
@@ -180,6 +190,26 @@ func stats_text() -> String:
 		_stats_sig = sig
 		_stats_line = KMeshStats.line(KMeshStats.of(mesh, sel))
 	return _stats_line
+
+
+## A12: Catmull-Clark the whole test cube `levels` times (scripts/kmesh_subdiv.gd), one undo step; the selection is cleared
+## (its indices were the old mesh's)
+func subdivide(levels := 1) -> void:
+	var nf := mesh.domain_count(KMesh.AD_CORNER)   # level 1 makes one quad per corner, each level after 4 per quad
+	for i in levels - 1:
+		nf *= 4
+	if nf > SUBDIV_MAX_FACES:
+		m._say("Model: subdividing would make " + str(nf) + " faces, past the preview's " + str(SUBDIV_MAX_FACES) + ". Ctrl+Z a step back first")
+		return
+	undo.begin(mesh)
+	var r := KMeshSubdiv.subdivide(mesh, levels)
+	mesh.attrs = {}   # the new channels are sized for the new faces: from_arrays must not fit the old ones
+	mesh.from_arrays(r.verts, r.faces)
+	mesh.attrs = r.attrs
+	undo.commit("subdivide")
+	sel.clear()
+	view.mark_dirty()
+	m._say("Model: subdivided (Catmull-Clark), now " + str(mesh.face_count()) + " faces. Ctrl+Z takes it back")
 
 
 func _report() -> void:
