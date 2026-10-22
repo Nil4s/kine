@@ -14043,6 +14043,7 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
+	add.call("Check: weights broke here", "", _weights_broke, "weights broke skin vertex stretch spike pop wrong bone bad weight worst frame skinning candy", false, "over the whole animation finds the vertex with the worst weight problem (edges stretched against rest, jumps between frames, weights far from the vertex's own bone, weights not adding to 1 or over 4 bones), jumps the playhead to its worst frame, frames the camera on it and marks it; the report has a button that opens Weight paint on the bone (ROADMAP_400 H24)")
 	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
 	add.call("Check: silhouette sheet of the key poses", "", _silsheet, "silhouette sheet readability black shape key poses staging negative space arms torso", false, "every card as a flat black shape from the current camera, tiled into one picture (user://silhouettes/<scene>_sheet.png) with fill, negative space and a flag for arms hidden in the torso (ROADMAP_400 K26)")
@@ -15785,6 +15786,104 @@ func _arc_goto(f: Dictionary) -> void:
 	_goto_finding({"t": f["t"], "card": f["card"], "rule": "ARC " + f["sev"], "msg": ArcCheck.words(f)})
 
 
+## ---- WEIGHTS BROKE HERE (ROADMAP_400 H24; scripts/weight_break.gd): the worst skin-weight vertex over the animation, found,
+## the playhead on its frame, the camera on it, a marker on it. The scan only reads (the weights as they are in memory); the
+## playhead and the view move, the scene does not: no undo step.
+var wb_view: MeshInstance3D
+var wb_mark := Vector3.ZERO     # world position of the marker now drawn (the test projects it)
+var wb_top: Array = []          # the ten worst vertices, worst first
+var wb_ms := 0
+var wb_report := ""
+
+
+func _weights_broke() -> void:
+	if wp.is_empty():
+		_say("no skin to check: Weights broke here works on a body with a skin: pick the mannequin")
+		return
+	playing = false
+	var n := maxi(1, roundi(S.length() * S.fps) + 1)
+	var res := WeightBreak.scan(wp, n, func(f: int):
+		_ps().apply(B, float(f) / S.fps)
+		Overlays.pose_skeleton(skel, bone_idx, B))
+	wb_top = res["top"]
+	wb_ms = res["ms"]
+	if wb_top.is_empty():
+		_ps().apply(B, playhead)
+		_refresh()
+		_say("weights: no vertex to check: the skin is rigid on every bone. Paint a blend in Weight paint first")
+		return
+	var e: Dictionary = wb_top[0]
+	playhead = float(e["frame"]) / S.fps
+	_ps().apply(B, playhead)
+	_refresh()
+	SkinPaint.refresh(wp)
+	var at: Vector3 = (wp["surfs"][e["surf"]]["pos"] as PackedVector3Array)[e["vi"]]
+	wb_mark = at
+	_turn_to(yaw, pitch, 1.4, at, false)
+	if wb_view == null:
+		wb_view = MeshInstance3D.new()
+		wb_view.mesh = ImmediateMesh.new()
+		add_child(wb_view)
+	var im := wb_view.mesh as ImmediateMesh
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP, Overlays._mat())
+	for ax in 3:
+		for k in 33:
+			var a := TAU * float(k) / 32.0
+			var c := Vector2(cos(a), sin(a)) * 0.03
+			im.surface_set_color(Tok.of("fail"))
+			im.surface_add_vertex(at + (Vector3(c.x, c.y, 0) if ax == 0 else (Vector3(c.x, 0, c.y) if ax == 1 else Vector3(0, c.x, c.y))))
+	im.surface_end()
+	im.surface_begin(Mesh.PRIMITIVE_POINTS, Overlays._mat(14.0))
+	im.surface_set_color(Tok.of("fail"))
+	im.surface_add_vertex(at)
+	im.surface_end()
+	wb_view.visible = true
+	wb_report = WeightBreak.report(e, S.fps)
+	for c in ui_find_list.get_children():
+		ui_find_list.remove_child(c)
+		c.queue_free()
+	var head := HBoxContainer.new()
+	ui_find_list.add_child(head)
+	var title := _label("WEIGHTS BROKE HERE  -  score %.1f (1.0 = visibly broken)" % e["score"], 18, "heading")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_button("Close", _close_findings))
+	var nxt := "Next: open Weight paint on it (button)"
+	ui_find_list.add_child(_label(wb_report + " " + nxt + ".", 14, "text:0.85", true))
+	ui_find_list.add_child(_button("Open Weight paint on it", _wb_open_paint, "Weight paint with the bone that pulls it selected (Subtract), or its own bone (Add) when nothing foreign pulls it"))
+	var runners := ""
+	for k in range(1, mini(5, wb_top.size())):
+		runners += "#%d: frame %d, vertex %d, %s, score %.1f
+" % [k + 1, wb_top[k]["frame"], wb_top[k]["id"], WeightBreak.words(wb_top[k]["bone_name"]), wb_top[k]["score"]]
+	if runners != "":
+		ui_find_list.add_child(_label(runners.strip_edges(), 13, "text:0.6", true))
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, 190)
+	ui_find.visible = true
+	_say("weights: %s %s (%d frames in %.1f s)" % [wb_report, nxt, n, wb_ms / 1000.0])
+
+
+## the report's button: Weight paint on, the offending bone picked (Subtract to take its weight off), or the vertex's own bone (Add)
+func _wb_open_paint() -> void:
+	if wb_top.is_empty():
+		_say("nothing found yet: run Check: weights broke here first")
+		return
+	var e: Dictionary = wb_top[0]
+	var foreign: bool = e["pull_bone"] >= 0 and e["pull_w"] >= 0.02
+	wp_bind = int(e["pull_bone"]) if foreign else int(e["bone"])
+	wp_mode = "subtract" if foreign else "add"
+	if not wp_on:
+		_wp_toggle()
+	if wp_bone_pick != null:
+		for i in wp_bone_pick.item_count:
+			if int(wp_bone_pick.get_item_metadata(i)) == wp_bind:
+				wp_bone_pick.select(i)
+	if wp_mode_pick != null:
+		wp_mode_pick.select(["add", "subtract", "smooth"].find(wp_mode))
+	_wp_show()
+	_say("weight paint on the %s (%s): drag on the body at the marker, then Ctrl+Z undoes a stroke" % [WeightBreak.words(wp["skin"].get_bind_name(wp_bind)), wp_mode])
+
+
 func _arc_close() -> void:
 	_close_findings()
 
@@ -15866,6 +15965,8 @@ func _open_source(url: String) -> void:
 
 func _close_findings() -> void:
 	ui_find.visible = false
+	if wb_view != null:
+		wb_view.visible = false   # the marker belongs to the panel that reported it
 	if arc_view != null:
 		arc_view.visible = false   # the kinked paths belong to the panel that listed them
 		arc_marks = []
