@@ -6,6 +6,8 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   B05: Delete  delete the selection (Shift+Delete: only the faces)   Ctrl+Delete  dissolve it (verts / edges / faces)
+##   M  merge at centre (Shift+M at the first, Alt+M by distance)       Ctrl+Z / Ctrl+Shift+Z  undo / redo
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 
 const SIDE := 0.6
@@ -55,7 +57,7 @@ func start() -> void:
 	xray = false
 	_ov.visible = true
 	view.rebuild()
-	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Esc leaves")
+	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, Esc leaves")
 
 
 func stop() -> void:
@@ -81,6 +83,9 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if k in [KEY_DELETE, KEY_M] or (k == KEY_Z and (ev as InputEventKey).ctrl_pressed):
+			_b05_key(ev as InputEventKey)
+			return true
 		match k:
 			KEY_1:
 				set_mode(KMeshSelect.VERT)
@@ -166,6 +171,44 @@ func input(ev: InputEvent) -> bool:
 
 
 var _cur := Vector2.ZERO
+
+
+## B05: delete / dissolve / merge on the selection, one undo step each
+func _b05_key(e: InputEventKey) -> void:
+	if e.keycode == KEY_Z:
+		var lb := undo.redo() if e.shift_pressed else undo.undo()
+		view.mark_dirty()
+		m._say("Model: %s %s" % ["redone" if e.shift_pressed else "undone", lb if lb != "" else "(nothing to %s)" % ("redo" if e.shift_pressed else "undo")])
+		return
+	var it := KMeshDissolve.from_select(sel)
+	var before := "%d verts %d faces" % [mesh.vert_count(), mesh.face_count()]
+	var what := ""
+	var md: String = ["verts", "edges", "faces"][sel.mode]
+	undo.begin(mesh)
+	if e.keycode == KEY_M and e.alt_pressed:
+		what = "merged %d by distance" % KMeshDissolve.merge_by_distance(mesh, KMeshDissolve.MERGE_DIST, it["verts"])
+	elif e.keycode == KEY_M:
+		KMeshDissolve.merge(mesh, it["verts"], "first" if e.shift_pressed else "centre")
+		what = "merged at %s" % ("the first" if e.shift_pressed else "the centre")
+	elif e.ctrl_pressed:
+		match sel.mode:
+			KMeshSelect.VERT:
+				KMeshDissolve.dissolve_verts(mesh, it[md])
+			KMeshSelect.EDGE:
+				KMeshDissolve.dissolve_edges(mesh, it[md])
+			_:
+				KMeshDissolve.dissolve_faces(mesh, it[md])
+		what = "dissolved the " + md
+	else:
+		var kind := "only_faces" if e.shift_pressed and sel.mode == KMeshSelect.FACE else md
+		KMeshDissolve.delete(mesh, kind, it[md])
+		what = "deleted the " + kind.replace("_", " ")
+	if undo.commit(what).is_empty():   # nothing changed: no step kept
+		m._say("Model: nothing to do. Select %s first (Delete deletes, Ctrl+Delete dissolves, M merges)" % ("2+ verts" if e.keycode == KEY_M else "something"))
+		return
+	sel.clear()
+	view.mark_dirty()
+	m._say("Model: %s: %s -> %d verts %d faces. Ctrl+Z undoes" % [what, before, mesh.vert_count(), mesh.face_count()])
 
 
 func _report() -> void:
