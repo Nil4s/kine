@@ -266,19 +266,19 @@ static func scan(model: Dictionary, frames: int, pose_fn: Callable) -> Dictionar
 	return {"top": top, "frames": frames, "ms": Time.get_ticks_msec() - t0, "active": na, "edges": ne, "verts": total}
 
 
-## the report sentence: "frame 37 (1.23 s), vertex 1402 on the left forearm: its edges stretch 3.1x; it takes 40% from the spine."
+## the report sentence: "frame 37 (1.23 s), vertex #1402 on the left forearm: its edges stretch 3.1×; it takes 40% from the spine."
 static func report(e: Dictionary, fps: float) -> String:
 	var why := ""
 	match e["kind"]:
 		"stretch":
-			why = "its edges stretch %.1fx" % e["stretch"]
+			why = "its edges stretch %.1f×" % e["stretch"]
 		"pop":
 			why = "it jumps %.1f cm from its bone in one frame" % e["pop_cm"]
 		"far":
-			why = "it is pulled by a bone far from it"
+			why = "it is pulled by a bone %.0f cm from it" % (e["far"] * FAR_AT * 100.0 / maxf(e["pull_w"], 1e-3))
 		"sum":
-			why = "its weights add to %.3f (should be 1) or use more than 4 bones" % (1.0 + e["sum_off"])
-	var s := "frame %d (%.2f s), vertex %d on the %s: %s" % [e["frame"], float(e["frame"]) / fps, e["id"], words(e["bone_name"]), why]
+			why = "its weights add to %.1f%% (should be 100%%) or more than 4 bones move it" % ((1.0 + e["sum_off"]) * 100.0)
+	var s := "frame %d (%.2f s), vertex #%d on the %s: %s" % [e["frame"], float(e["frame"]) / fps, e["id"], words(e["bone_name"]), why]
 	if e["pull_bone"] >= 0 and e["pull_w"] >= 0.02:
 		s += "; it takes %d%% from the %s" % [roundi(e["pull_w"] * 100.0), words(e["pull_name"])]
 	return s + "."

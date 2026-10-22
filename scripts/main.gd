@@ -14043,7 +14043,7 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
-	add.call("Check: weights broke here", "", _weights_broke, "weights broke skin vertex stretch spike pop wrong bone bad weight worst frame skinning candy", false, "over the whole animation finds the vertex with the worst weight problem (edges stretched against rest, jumps between frames, weights far from the vertex's own bone, weights not adding to 1 or over 4 bones), jumps the playhead to its worst frame, frames the camera on it and marks it; the report has a button that opens Weight paint on the bone (ROADMAP_400 H24)")
+	add.call("Check: weights broke here", "", _weights_broke, "weights broke skin vertex stretch spike pop wrong bone bad weight worst frame skinning candy", false, "over the whole animation finds the vertex with the worst weight problem (edges stretched against rest, jumps between frames, weights far from the vertex's own bone, weights not adding up to a whole or over 4 bones), jumps the playhead to its worst frame, frames the camera on it and marks it; the report has a button that opens Weight paint on the bone (ROADMAP_400 H24)")
 	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
 	add.call("Check: silhouette sheet of the key poses", "", _silsheet, "silhouette sheet readability black shape key poses staging negative space arms torso", false, "every card as a flat black shape from the current camera, tiled into one picture (user://silhouettes/<scene>_sheet.png) with fill, negative space and a flag for arms hidden in the torso (ROADMAP_400 K26)")
@@ -15845,7 +15845,7 @@ func _weights_broke() -> void:
 		c.queue_free()
 	var head := HBoxContainer.new()
 	ui_find_list.add_child(head)
-	var title := _label("WEIGHTS BROKE HERE  -  score %.1f (1.0 = visibly broken)" % e["score"], 18, "heading")
+	var title := _label("WEIGHTS BROKE HERE  -  %.1f× past the visibly broken mark" % e["score"], 18, "heading")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_button("Close", _close_findings))
@@ -15854,8 +15854,7 @@ func _weights_broke() -> void:
 	ui_find_list.add_child(_button("Open Weight paint on it", _wb_open_paint, "Weight paint with the bone that pulls it selected (Subtract), or its own bone (Add) when nothing foreign pulls it"))
 	var runners := ""
 	for k in range(1, mini(5, wb_top.size())):
-		runners += "#%d: frame %d, vertex %d, %s, score %.1f
-" % [k + 1, wb_top[k]["frame"], wb_top[k]["id"], WeightBreak.words(wb_top[k]["bone_name"]), wb_top[k]["score"]]
+		runners += "#%d: frame %d, vertex #%d, %s, %.1f× past broken\n" % [k + 1, wb_top[k]["frame"], wb_top[k]["id"], WeightBreak.words(wb_top[k]["bone_name"]), wb_top[k]["score"]]
 	if runners != "":
 		ui_find_list.add_child(_label(runners.strip_edges(), 13, "text:0.6", true))
 	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, 190)

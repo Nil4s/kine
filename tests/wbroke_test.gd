@@ -117,8 +117,11 @@ func _init() -> void:
 	ok(top[0]["id"] == vid, "(3) the planted vertex %d is #1 (found %d)" % [vid, top[0]["id"]])
 	ok(top[0]["frame"] == far_f, "(3) at the frame the arm is farthest from the spine: found %d, measured %d" % [top[0]["frame"], far_f])
 	ok(top[0]["score"] >= 2.0 * clean_score and clean_id != vid, "(3) score %.2f >= 2 x the clean worst %.2f" % [top[0]["score"], clean_score])
-	ok(m.wb_report.contains("vertex %d" % vid) and m.wb_report.contains("forearm") and m.wb_report.contains("60%") and m.wb_report.contains("spine"),
+	ok(m.wb_report.contains("vertex #%d" % vid) and m.wb_report.contains("forearm") and m.wb_report.contains("60%") and m.wb_report.contains("spine"),
 		"(4) the report names the vertex, the forearm and 60%% from the spine: " + m.wb_report)
+
+	var far_e := {"kind": "far", "frame": 3, "id": 7, "bone_name": "lowerarm_l", "far": 2.0, "pull_bone": sp, "pull_w": 0.6, "pull_name": "spine_02", "sum_off": 0.0}
+	ok(WeightBreak.report(far_e, 30.0).contains("40 cm from it"), "(4) a far-bone report gives the distance: " + WeightBreak.report(far_e, 30.0))
 
 	# (5) placement
 	SkinPaint.refresh(wp)
