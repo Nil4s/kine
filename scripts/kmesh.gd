@@ -106,6 +106,8 @@ const AD_FACE := "face"
 const AD_ALL := ["vert", "corner", "edge", "face"]
 const AT_ALL := [TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR3, TYPE_COLOR]
 var attrs := {}
+## A13 shape keys (scripts/kmesh_shapes.gd): {} = none; saved in to_dict "shapes", carried by KMeshUndo
+var shapes := {}
 
 
 static func _attr_zero(type: int):
@@ -848,6 +850,8 @@ func to_dict() -> Dictionary:
 		for c in custom_normals:
 			cn.append_array(c)
 		d["normals"]["custom"] = _pack(cn.to_byte_array())
+	if not shapes.is_empty():
+		d["shapes"] = KMeshShapes.to_file(shapes)   # A13
 	return d
 
 
@@ -962,8 +966,12 @@ func from_dict(d: Dictionary) -> KMesh:
 				return null
 			var dd = _attr_bytes_to(ty, Marshalls.base64_to_raw(String(ar.get("def", ""))))
 			new_attrs[String(k)] = {"domain": dom, "type": ty, "default": dd[0] if dd.size() == 1 else _attr_zero(ty), "data": data}
+	var new_shapes := KMeshShapes.from_file(d.get("shapes"), nv)   # A13
+	if last_error != "":
+		return null
 	verts = vraw.to_vector3_array()
 	attrs = new_attrs
+	shapes = new_shapes
 	faces = new_faces
 	custom_normals = new_custom
 	normal_mode = nmode
