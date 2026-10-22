@@ -5288,11 +5288,25 @@ func _do(f: Callable) -> void:
 ## WORDS TO A POSE (round 13, #93): "raise the right arm 90, bend the left elbow 45" (scripts/pose_words.gd). ONE undo
 ## step. Every op is reported with what was asked and what the joint REACHED (a limit or a contact stops it)
 func _pose_words(text: String) -> Dictionary:
-	var r := PoseWords.parse(text)
-	if not r["ok"]:
-		_say(r["error"])
-		return r
+	var rt := FaceWords.route(text)   # FACE WORDS (I20): "tired and angry", "raise the right arm 90 and look angry": face keyed at the playhead, same step
+	var has_face: bool = rt["face"] != ""
+	var r := {"ok": true, "ops": []}
+	if not has_face or rt["pose"] != "":
+		r = PoseWords.parse(rt["pose"] if has_face else text)
+		if not r["ok"]:
+			_say(r["error"])
+			return r
+	var fw := {}
+	if has_face:
+		fw = FaceWords.parse(rt["face"])
+		if not fw["ok"]:
+			_say(fw["error"])
+			return fw
+		if S.cards.is_empty():
+			_say("the face is keyed at the playhead: open a scene with cards first")
+			return {"ok": false, "error": "no cards"}
 	var rep := []
+	var tt := clampf(float(playhead), 0.0, S.length())
 	_do(func():
 		var carry := 0.0   # a chest turn one spine joint couldn't take (a limit, a contact) goes on to the next one up
 		for op in r["ops"]:
@@ -5304,11 +5318,14 @@ func _pose_words(text: String) -> Dictionary:
 			var got: float = B.ang[j][op["axis"]]
 			carry = want[op["axis"]] - got if j.begins_with("spine_0") and j != "spine_03" and op["mode"] == "by" else 0.0
 			rep.append({"joint": j, "axis": PoseWords.AXES[op["axis"]], "asked": snappedf(want[op["axis"]], 0.01), "reached": snappedf(got, 0.01),
-				"stopped": absf(got - want[op["axis"]]) > 0.05}))
-	sel = r["ops"][-1]["joint"]
+				"stopped": absf(got - want[op["axis"]]) > 0.05})
+		if has_face:
+			Face.key(S.face, tt, FaceWords.values(fw["mix"])))
+	if not (r["ops"] as Array).is_empty():
+		sel = r["ops"][-1]["joint"]
 	var stopped := rep.filter(func(x): return x["stopped"])
-	_say("posed: %s%s" % [text, ("   (stopped short: %s)" % ", ".join(stopped.map(func(x): return "%s %s %.0f° of %.0f°" % [nice(x["joint"]), x["axis"], x["reached"], x["asked"]]))) if not stopped.is_empty() else ""])
-	return {"ok": true, "ops": rep}
+	_say("%s: %s%s" % ["posed" if not has_face else ("face" if rep.is_empty() else "posed + face"), text, ("   (stopped short: %s)" % ", ".join(stopped.map(func(x): return "%s %s %.0f° of %.0f°" % [nice(x["joint"]), x["axis"], x["reached"], x["asked"]]))) if not stopped.is_empty() else ""] + ("   (face keyed at %.2f s; Ctrl+Z takes it back)" % tt if has_face else ""))
+	return {"ok": true, "ops": rep, "face": fw.get("mix", {})}
 
 
 func _after_edit() -> void:
