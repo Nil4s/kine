@@ -6,3 +6,7 @@ godot.path
 godot/
 poses/**/*.png
 moves/*.png
+
+.playwright-mcp/
+exports/
+__pycache__/
