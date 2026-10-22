@@ -18,6 +18,7 @@ var mesh: KMesh
 var sel: KMeshSelect
 var view: KMeshView
 var xray := false
+var undo := KMeshUndo.new()   # B16: the Blender-style G / R / S edits, one step each
 var armed := ""               # "", "box", "lasso"
 var _press := Vector2.ZERO
 var _drag := false
@@ -42,6 +43,7 @@ func start() -> void:
 	if on:
 		return
 	mesh = KMeshView.make_cube(SIDE, SPLIT)
+	undo = KMeshUndo.new()
 	sel = KMeshSelect.new(mesh, KMeshSelect.VERT)
 	view = KMeshView.new()
 	view.name = "kmesh_view"

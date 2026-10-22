@@ -2689,6 +2689,8 @@ func _ready() -> void:
 	hk.load_from(settings)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
+	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
+	blk.load_from(settings)
 	_ui()
 	if scale_auto:
 		_auto_scale_now()
@@ -4820,6 +4822,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if blk != null and blk.on and blk.input(ev):   # B16: the optional Blender-style G / R / S layer (off by default: Kine's own keys)
+		get_viewport().set_input_as_handled()
+		return
 	if feint_ui != null and feint_ui.on and feint_ui.input(ev):   # I20: Tab picks the variant, P previews, Enter accepts, Esc puts the ghosts away
 		get_viewport().set_input_as_handled()
 		return
@@ -13640,6 +13645,7 @@ func _press(code: Key, shift := false) -> void:
 ## Shift + a key, Ctrl + a key. ? opens and closes it, Esc closes it
 var ui_keys: PanelContainer
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
+var blk: BlKeys           # B16: Blender-style modal G / R / S layer
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
 
 
@@ -14228,6 +14234,7 @@ func _commands() -> Array:
 	add.call("Help: printable cheat sheet", "", _cheat_sheet, "cheat sheet print keys shortcuts reference pdf paper list commands", false, "every key and every command, grouped, as one page you can print (an HTML file in your Kine folder, opened in the browser)")
 	add.call("Help: I come from Blender", "", kt.set_mode.bind("blender"), "blender keys shortcuts translate migrate switch from coming learn", false, "while on, a Blender key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
 	add.call("Help: I come from Maya", "", kt.set_mode.bind("maya"), "maya autodesk keys shortcuts translate migrate switch from coming learn", false, "while on, a Maya key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
+	add.call("Keys: Blender-style G R S on / off", "", func(): blk.toggle(), "blender keys modal grab rotate scale g r s x y z type number layer", false, "G grabs the picked hand / foot / hips, R rotates the picked part (X Y Z = its local axis, type degrees), S scales the weapon; Enter keeps, Esc cancels; in the model preview the same on the selected vertices.  Off by default; remembered")
 	add.call("Help: Blender / Maya key helper off", "", kt.set_mode.bind(""), "blender maya keys shortcuts translate helper off stop hide", false, "turn the Coming-from-Blender/Maya toasts off (remembered)")
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
