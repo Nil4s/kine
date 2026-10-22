@@ -13,12 +13,14 @@ var redos: Array = []
 var _mesh: KMesh
 var _before_v := PackedVector3Array()
 var _before_f: Array = []
+var _before_a := {}   # A09: attribute snapshot (only taken when the mesh has attributes)
 
 
 func begin(m: KMesh) -> void:
 	_mesh = m
 	_before_v = m.verts.duplicate()   # copy-on-write: a cheap reference until either side is written
 	_before_f = m.faces.duplicate()   # the PackedInt32Arrays inside are values: a shallow copy keeps the old ones
+	_before_a = m.attr_snapshot() if not m.attrs.is_empty() else {}
 
 
 static func _same_faces(a: Array, b: Array) -> bool:
@@ -46,9 +48,16 @@ func commit(label := "edit") -> Dictionary:
 				idx.append(i)
 				old.append(_before_v[i])
 				new.append(m.verts[i])
-		if idx.is_empty():
+		var ch := _attr_changes(_before_a, m.attrs)
+		if idx.is_empty() and ch.is_empty():
 			return {}
-		st.merge({"kind": "move", "idx": idx, "old": old, "new": new, "bytes": idx.size() * 28})
+		if idx.is_empty():
+			st.merge({"kind": "attr", "a_old": ch["old"], "a_new": ch["new"], "bytes": ch["bytes"]})
+		else:
+			st.merge({"kind": "move", "idx": idx, "old": old, "new": new, "bytes": idx.size() * 28 + int(ch.get("bytes", 0))})
+			if not ch.is_empty():
+				st["a_old"] = ch["old"]
+				st["a_new"] = ch["new"]
 	else:
 		var fb := 0
 		for f in _before_f:
@@ -57,13 +66,55 @@ func commit(label := "edit") -> Dictionary:
 			fb += (f as PackedInt32Array).size() * 4
 		st.merge({"kind": "topo", "old_v": _before_v, "new_v": m.verts.duplicate(), "old_f": _before_f, "new_f": m.faces.duplicate(),
 			"bytes": (_before_v.size() + m.verts.size()) * 12 + fb})
+		if not _before_a.is_empty() or not m.attrs.is_empty():   # the topology changed: keep every channel whole
+			var na := m.attr_snapshot()
+			st["a_old"] = _before_a
+			st["a_new"] = na
+			st["bytes"] = int(st["bytes"]) + _attr_bytes(_before_a) + _attr_bytes(na)
 	_before_v = PackedVector3Array()
 	_before_f = []
+	_before_a = {}
 	st["mesh"] = m
 	steps.append(st)
 	redos.clear()
 	_trim()
 	return st
+
+
+static func _attr_bytes(a: Dictionary) -> int:
+	var b := 0
+	for k in a:
+		var d = a[k]["data"]
+		b += d.size() * (4 if a[k]["type"] == TYPE_FLOAT else (8 if a[k]["type"] == TYPE_VECTOR2 else (12 if a[k]["type"] == TYPE_VECTOR3 else 16)))
+	return b
+
+
+## channels that differ between two snapshots: {"old": {name: record or null}, "new": {...}, "bytes"}; {} when none.
+## The records are shared, not copied: both sides were already snapshots (before) or are replaced when edited (after).
+func _attr_changes(before: Dictionary, now: Dictionary) -> Dictionary:
+	var o := {}
+	var n := {}
+	var b := 0
+	for k in before:
+		if not now.has(k) or now[k]["domain"] != before[k]["domain"] or now[k]["type"] != before[k]["type"] or now[k]["data"] != before[k]["data"]:
+			o[k] = before[k]
+			n[k] = _rec(now, k)
+			b += _attr_bytes({k: before[k]})
+	for k in now:
+		if not before.has(k):
+			o[k] = null
+			n[k] = _rec(now, k)
+			b += _attr_bytes({k: now[k]})
+	if o.is_empty():
+		return {}
+	return {"old": o, "new": n, "bytes": b}
+
+
+static func _rec(a: Dictionary, k):
+	if not a.has(k):
+		return null
+	var r: Dictionary = a[k]
+	return {"domain": r["domain"], "type": r["type"], "default": r["default"], "data": r["data"].duplicate()}
 
 
 func _trim() -> void:
@@ -86,8 +137,21 @@ func _apply(st: Dictionary, back: bool) -> void:
 		for k in idx.size():
 			m.verts[idx[k]] = src[k]
 		m._compute_normals()   # the topology is unchanged: only the normals follow the positions
-	else:
+	elif st["kind"] == "topo":
+		m.attrs = {}   # the old channels are the wrong size for the new faces: from_arrays must not fit them
 		m.from_arrays(st["old_v"] if back else st["new_v"], (st["old_f"] if back else st["new_f"]).duplicate())
+	if st.has("a_old"):
+		var src: Dictionary = st["a_old"] if back else st["a_new"]
+		if st["kind"] == "topo":
+			m.attrs = {}
+			for k in src:
+				m.attrs[k] = _rec(src, k)
+		else:
+			for k in src:
+				if src[k] == null:
+					m.attrs.erase(k)
+				else:
+					m.attrs[k] = _rec(src, k)
 
 
 func undo() -> String:
