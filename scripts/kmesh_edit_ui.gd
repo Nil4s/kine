@@ -166,6 +166,20 @@ func input(ev: InputEvent) -> bool:
 
 
 var _cur := Vector2.ZERO
+var _stats_sig := ""
+var _stats_line := ""
+
+
+## A14: the mesh's counts for the status line's readout (main.bar_text, every frame while `on`). Recounted only when
+## the counts, the selection or the undo stack change (a move of verts changes no count)
+func stats_text() -> String:
+	if not on or mesh == null:
+		return ""
+	var sig := "%d %d %d %d %d %d" % [mesh.verts.size(), mesh.faces.size(), mesh.half_edge_count(), sel.mode, sel.count(), undo.steps.size()]
+	if sig != _stats_sig:
+		_stats_sig = sig
+		_stats_line = KMeshStats.line(KMeshStats.of(mesh, sel))
+	return _stats_line
 
 
 func _report() -> void:

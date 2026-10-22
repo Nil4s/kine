@@ -12079,6 +12079,8 @@ func bar_text() -> String:
 	var what := ""
 	if _num_on:
 		what = "TYPE %s = %s_   (it is %.1f)   Tab: next axis   Enter: done   Esc: cancel the drag" % [NUM_AXES[_num_axis], _num_text, (B.ang[sel] as Vector3)[_num_axis]]
+	elif kmed != null and kmed.on:   # ROADMAP_400 A14: the mesh being edited, counted (scripts/kmesh_stats.gd)
+		what = kmed.stats_text()
 	elif _bar_hover != "" and _bar_hover != sel:
 		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else nice(_bar_hover))
 	elif sel in Body.WEAPON:
