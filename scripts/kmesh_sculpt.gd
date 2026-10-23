@@ -18,6 +18,9 @@ extends RefCounted
 ##   moved during the stroke are found while they stay within a cell of where they began) and tests the true distance.
 ##   X SYMMETRY: KMesh.symmetry_map(0): each vert's displacement is also applied, mirrored, to its partner; a vert on the
 ##   plane keeps x.
+##   MASK (C03, scripts/kmesh_mask.gd): the "mask" brush paints the mesh's 0..1 "mask" channel instead of moving verts
+##   (invert = erase; params "mask_amount", 1 = a full mask at the centre in one dab); every other brush's displacement of
+##   a vert (and grab's) is multiplied by (1 - mask), the mask as it was when the stroke began.
 
 const DRAW := "draw"
 const CLAY := "clay strips"
@@ -29,6 +32,7 @@ const CREASE := "crease"
 const GRAB := "grab"
 const SNAKE := "snake hook"
 const BRUSHES := [DRAW, CLAY, INFLATE, SMOOTH, FLATTEN, PINCH, CREASE, GRAB, SNAKE]
+const MASK := "mask"   # C03: paints the mask, moves nothing
 
 const F_SMOOTH := "smooth"
 const F_SPHERE := "sphere"
@@ -52,6 +56,7 @@ var _carry := 0.0          # the path laid since the last dab
 var _grab0 := Vector3.ZERO # grab: the press point
 var _grab_w := {}          # grab: vert -> weight at the press
 var _grab_v := {}          # grab: vert -> position at the press
+var _mask := PackedFloat32Array()   # C03: the mask at the stroke's start (empty = none)
 
 
 static func falloff(kind: String, t: float) -> float:
@@ -87,6 +92,7 @@ func begin(m: KMesh, params := {}) -> void:
 	_cell = maxf(float(p["radius"]), 1e-4)
 	_build_hash()
 	_sym = m.symmetry_map(0, 1e-4) if p["sym_x"] else PackedInt32Array()
+	_mask = KMeshMask.values(m)
 
 
 func _build_hash() -> void:
@@ -173,10 +179,15 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	w.resize(ids.size())
 	for i in ids.size():
 		w[i] = falloff(fk, vp[ids[i]].distance_to(hit) / r)
+	var br := String(p["brush"])
+	if br == MASK:
+		_has_last = true
+		_last = hit
+		dabs += 1
+		return KMeshMask.paint(mesh, ids, w, float(p.get("mask_amount", 1.0)) * clampf(pressure, 0.0, 1.0), sgn)
 	var vn := mesh.vert_normals
 	var d := PackedVector3Array()
 	d.resize(ids.size())
-	var br := String(p["brush"])
 	# the area under the brush: weighted centre and normal (flatten, clay)
 	var ac := hit
 	var an := n
@@ -235,6 +246,11 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	return _apply(ids, d)
 
 
+## C03: how much of a displacement a vert keeps (1 - mask)
+func _keep(v: int) -> float:
+	return 1.0 if _mask.is_empty() else 1.0 - clampf(_mask[v], 0.0, 1.0)
+
+
 static func _toward(q: Vector3, target: Vector3, s: float) -> Vector3:
 	var dv := target - q
 	var l := dv.length()
@@ -259,7 +275,7 @@ func _apply(ids: PackedInt32Array, d: PackedVector3Array) -> int:
 	var vs := mesh.verts
 	mesh.verts = PackedVector3Array()   # one owner while writing: no copy of the whole array per vert
 	for v in tot:
-		var dv: Vector3 = tot[v]
+		var dv: Vector3 = tot[v] * _keep(v)
 		if not _sym.is_empty() and _sym[v] == v:
 			dv.x = 0.0   # on the mirror plane: stays on it
 		vs[v] += dv
@@ -327,7 +343,7 @@ func _grab_move(point: Vector3) -> void:
 	var vs := mesh.verts
 	mesh.verts = PackedVector3Array()
 	for v in tot:
-		var dv: Vector3 = tot[v]
+		var dv: Vector3 = tot[v] * _keep(v)
 		if not _sym.is_empty() and _sym[v] == v:
 			dv.x = 0.0
 		vs[v] = _grab_v[v] + dv
