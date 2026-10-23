@@ -45,6 +45,9 @@ const TOOLS := [
 	{"id": "mesh_merge", "label": "Model: merge vertices", "page": "MODEL", "keys": "M", "bl": "", "do": "", "also": "merge weld collapse join center vertices", "desc": "the selected vertices become one"},
 	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "", "also": "fill face make new close hole bridge", "desc": "a face on the selected vertices or across a hole"},
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
+	{"id": "mesh_decimate", "label": "Model: decimate to half (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate", "also": "decimate reduce simplify collapse polycount fewer faces triangles optimize lower poly", "desc": "half the triangles, borders and UV seams kept, nothing flipped (one undo step; F03)"},
+	{"id": "mesh_decimate_q", "label": "Model: decimate to a quarter (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_quarter", "also": "decimate reduce simplify collapse polycount 25 percent quarter low poly", "desc": "a quarter of the triangles, borders and UV seams kept (one undo step; F03)"},
+	{"id": "mesh_decimate_planar", "label": "Model: planar decimate (join flat faces)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_planar", "also": "planar decimate limited dissolve flat coplanar merge faces clean simplify", "desc": "faces in one plane (within 5 deg) become one, seams and borders kept (one undo step; F03)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
@@ -190,6 +193,9 @@ static func op(name: String, m) -> String:
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
 			said = "Model: wire %s" % ("on: every edge drawn over the surface" if ui.view.show_wire else "off: the surface alone")
+		_:
+			if name.begins_with("decimate"):
+				said = KMeshDecimate.op(name, m)   # F03
 	if said != "":
 		m._say(said)
 	return said
