@@ -17,6 +17,8 @@ extends Node
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
+##   Shift+H  colour by body region on / off (A18, KMeshBody: every vert's nearest bone + region, kept fresh every frame;
+##      a legend bottom right, the hover readout at the mouse)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -51,6 +53,7 @@ var live := {}                # B09: the primitive still live: {kind, params, st
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
+var body: KMeshBody          # A18: the body labels of the mesh + the colour-by-region view
 
 
 func setup(main: Node) -> void:
@@ -84,6 +87,11 @@ func start() -> void:
 	live = {}
 	prim_panel.visible = true
 	view.rebuild()
+	if body == null:
+		body = KMeshBody.new()
+		body.setup(self)
+		add_child(body)
+	body.tick()   # A18: labelled from the first frame
 	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, E extrude, I inset, Esc leaves")
 
 
@@ -97,6 +105,8 @@ func stop() -> void:
 	live = {}
 	if legend != null:
 		legend.visible = false
+	if body != null:
+		body.close()
 	view.queue_free()
 	view = null
 	meas = null
@@ -113,6 +123,8 @@ func set_mode(md: int) -> void:
 func _process(_dt: float) -> void:
 	if meas != null and on:
 		_ov.queue_redraw()   # the label follows the camera
+	if body != null and on:
+		body.tick()   # A18: the labels follow the mesh and the body
 
 
 ## main passes every unhandled input here while `on`; true = used
@@ -138,7 +150,10 @@ func input(ev: InputEvent) -> bool:
 		if _edit_key(ev as InputEventKey):
 			return true
 		if k == KEY_H and not (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).alt_pressed:
-			topo("heat")
+			if (ev as InputEventKey).shift_pressed:
+				body.toggle()   # A18
+			else:
+				topo("heat")
 			return true
 		match k:
 			KEY_1:
@@ -223,6 +238,9 @@ func input(ev: InputEvent) -> bool:
 			armed = ""
 		_ov.queue_redraw()
 		return true
+	if ev is InputEventMouseMotion and not _drag and body != null and body.on:
+		body.hover((ev as InputEventMouseMotion).position)   # A18: the readout follows the mouse (the event goes on)
+		_ov.queue_redraw()
 	if ev is InputEventMouseMotion and _drag:
 		var mp := (ev as InputEventMouseMotion).position
 		if _kind == "lasso" and (_lasso.is_empty() or _lasso[_lasso.size() - 1].distance_to(mp) > 3.0):
@@ -434,6 +452,8 @@ func _report() -> void:
 func _draw_overlay() -> void:
 	if on and meas != null:
 		meas.draw_label(_ov, m.cam)
+	if on and body != null:
+		body.draw(_ov)
 	if not on or not _drag:
 		return
 	var c := Tok.c("pick_hover")

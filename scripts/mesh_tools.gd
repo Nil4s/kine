@@ -31,6 +31,7 @@ const TOOLS := [
 	{"id": "mesh_leave", "label": "Model: leave the test cube", "page": "MODEL", "keys": "Esc", "bl": "", "do": "key:Escape", "also": "leave exit close quit stop done", "desc": "drop the test cube (nothing is saved)"},
 	{"id": "mesh_wire", "label": "Model: wire over the surface on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:wire", "also": "wire wireframe edges lines overlay show hide", "desc": "the edges drawn over the shaded surface, or the surface alone"},
 	{"id": "mesh_validate", "label": "Model: check the mesh (validate)", "page": "MODEL", "keys": "", "bl": "", "do": "op:validate", "also": "validate check problems errors non-manifold holes doubled loose flipped inside out clean health", "desc": "lists what is wrong with the mesh, each with its next step (scripts/kmesh_validate.gd)"},
+	{"id": "mesh_body", "label": "Model: colour by body region", "page": "MODEL", "keys": "Shift+H", "bl": "", "do": "op:body_regions", "also": "body region bone nearest anatomy limb arm leg hand head colour color skin aware label", "desc": "every vertex coloured by its body region (nearest UE5 bone), a legend, and the bone + distance under the mouse (A18)"},
 	{"id": "mesh_repair", "label": "Model: repair the mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:repair", "also": "repair fix clean merge distance doubles holes fill flip normals consistent cleanup", "desc": "fixes every problem that can be fixed alone (one undo step)"},
 	{"id": "mesh_grab", "label": "Model: grab the selected vertices", "page": "MODEL", "keys": "", "bl": "G", "do": "bl:G", "also": "grab move translate drag vertices", "desc": "the selection follows the mouse; X / Y / Z an axis, a number metres; Enter keeps"},
 	{"id": "mesh_rotate", "label": "Model: rotate the selected vertices", "page": "MODEL", "keys": "", "bl": "R", "do": "bl:R", "also": "rotate turn spin vertices", "desc": "turn the selection round its centre; X / Y / Z an axis, a number degrees; Enter keeps"},
@@ -186,6 +187,9 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"body_regions":   # A18 (scripts/kmesh_body.gd)
+			ui.body.toggle()
+			return String(m.ui_status.text) if m.get("ui_status") != null else ""
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
