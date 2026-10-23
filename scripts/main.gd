@@ -5609,6 +5609,7 @@ func _snapshot() -> Dictionary:
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
+		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
@@ -5773,6 +5774,8 @@ func _restore(u: Dictionary) -> void:
 			ui_browser.refresh()
 	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
+	if u.has("body_gen"):
+		BaseBody.restore_gen(self, int(u["body_gen"]))   # G01: before the weights, which are sized by its vertices
 	if u.has("skin_w") and not wp.is_empty():
 		if SkinPaint.restore(wp, u["skin_w"]):
 			_skp_build()
@@ -14159,6 +14162,8 @@ func _commands() -> Array:
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
+	add.call("Model: edit the body mesh", "", func(): BaseBody.start(self), "model mesh body skin fighter mannequin character edit sculpt base topology weights rigged", false, "open the fighter's skinned body in the model preview (its skin weights ride along as attributes); every model key works on it; Esc leaves without changing the fighter")
+	add.call("Model: apply the body mesh to the fighter", "", func(): BaseBody.apply_cmd(self), "apply write commit body mesh fighter skin weights save model", false, "the edited body becomes the fighter's skinned mesh, with its weights (new verts carry their neighbours'); one undo step")
 	add.call("Model: subdivide the test cube (Catmull-Clark)", "", _kmesh_subdivide, "model mesh subdivide subdivision catmull clark smooth subsurf crease level", false, "one Catmull-Clark level on the test cube (every face becomes quads, creases kept); Ctrl+Z takes it back in one step")
 	add.call("Model: triangulate", "", _kmesh_topo.bind("tri"), "triangulate triangles tris split quads ngons faces mesh model topology", false, "split the test cube's selected faces (face mode) or every face into triangles (Ctrl+T in the cube): quads by the shorter diagonal, concave n-gons by ear clipping (Ctrl+Z undoes)")
 	add.call("Model: tris to quads", "", _kmesh_topo.bind("quad"), "quadrangulate quads tris to quads join triangles mesh model topology", false, "join pairs of flat, near-square triangles into quads, best pairs first; UV seams stay (Alt+J in the cube; Ctrl+Z undoes)")
