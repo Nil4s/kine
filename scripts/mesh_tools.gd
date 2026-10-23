@@ -74,6 +74,8 @@ const TOOLS := [
 	{"id": "mesh_mat_assign", "label": "Model: assign the material to the selected faces", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_assign", "also": "material materials pbr assign apply paint slot surface metal rough", "desc": "the Materials panel's picked slot goes on the selected faces (E01, one undo step)"},
 	{"id": "mesh_mat_select", "label": "Model: select the faces of a material", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_select", "also": "material materials pbr slot by which faces", "desc": "the faces wearing the Materials panel's picked slot become the selection"},
 	{"id": "mesh_wpaint", "label": "Model: weight paint (skin weights)", "page": "MODEL", "keys": "", "bl": "", "do": "op:wpaint", "also": "weight paint skin weights bone brush smooth normalise normalize mirror lock influence skinning", "desc": "H02: paint the active bone's skin weights (heat blue -> red): add / subtract / set / smooth, X mirror, lock bones (on / off)"},
+	{"id": "mesh_refplane_add", "label": "Model: add a reference image (front / side / top plane)", "page": "MODEL", "keys": "", "bl": "", "do": "op:refplane_add", "also": "reference image picture photo blueprint plane background front side top opacity trace drop", "desc": "a picture on a plane behind the mesh, with opacity, offset, real height, two-point scale, flip, lock (B21; or drop a picture on the window)"},
+	{"id": "mesh_refplane_two", "label": "Model: reference image: scale by two points", "page": "MODEL", "keys": "", "bl": "", "do": "op:refplane_two", "also": "reference image picture blueprint scale two points distance calibrate size real", "desc": "click two points on the picture, then type their real distance (B21)"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -259,6 +261,8 @@ static func op(name: String, m) -> String:
 				said = KMeshDecimate.op(name, m)   # F03
 			elif name.begins_with("lod"):
 				said = KMeshLOD.op(name, m)   # F04
+			elif name.begins_with("refplane"):   # B21 (scripts/kmesh_refplanes_ui.gd): it says what it did
+				return ui.refp.open_dialog() if name == "refplane_add" else ui.refp.arm_two_points()
 	if said != "":
 		m._say(said)
 	return said

@@ -18872,6 +18872,8 @@ func _on_drop(files: PackedStringArray) -> void:
 			_import_video(f)
 		elif f.to_lower().ends_with(".json") and VideoImport.load_file(f)["ok"]:
 			_import_pose(f)
+		elif kmed != null and kmed.on and KMeshRefPlanes.is_image(f):   # B21: a picture on the model preview: a reference plane
+			kmed.refp.add(f)
 		else:
 			_import_file(f)
 

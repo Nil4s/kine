@@ -884,6 +884,8 @@ func to_dict() -> Dictionary:
 		d["materials"] = KMeshMaterial.to_file(materials)   # E01
 	if has_meta("lods"):
 		d["lods"] = KMeshLOD.to_file(self)   # F04
+	if has_meta(KMeshRefPlanes.META):
+		d["refplanes"] = KMeshRefPlanes.to_file(self)   # B21: path + hash, never the pixels
 	return d
 
 
@@ -1018,6 +1020,7 @@ func from_dict(d: Dictionary) -> KMesh:
 	normal_mode = nmode
 	auto_angle = nangle
 	KMeshLOD.from_file(self, d.get("lods"))   # F04
+	KMeshRefPlanes.from_file(self, d.get("refplanes"))   # B21
 	_stale = true  # topology and normals build on first read (see _fresh)
 	return self
 
