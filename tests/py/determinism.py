@@ -23,7 +23,9 @@ def shot(name, args):
     out = os.path.join(TMP, name + ".png")
     if os.path.exists(out):
         os.remove(out)
-    subprocess.run([G, "--path", PROJ, "--", *args, "--shot", out], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+    # the test runners' off-screen host window (tools/offscreen_host.ps1): the app renders into it, not on Nick's screen
+    host = ["--wid", os.environ["KINE_TEST_WID"], "--position", "-30000,-30000"] if os.environ.get("KINE_TEST_WID") else []
+    subprocess.run([G, *host, "--path", PROJ, "--", *args, "--shot", out], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
     if not os.path.exists(out):
         return None
     return hashlib.md5(open(out, "rb").read()).hexdigest()

@@ -21,6 +21,19 @@ EXTRA="$EXTRA armour:w"   # B23
 # gentle runs every one of 450+ commands from 7 hostile states (~2600+ cells); the default cap would stop them while they are still working
 SLOW="text_blocking=1800 gentle=2400"
 pick=${*:-$ALL $EXTRA}
+# OFF SCREEN (Windows): Godot pulls a --position that is off every screen back to 0,0 (measured 10-23), so window suites
+# are parented (--wid) to one host window at -30000,-30000 (tools/offscreen_host.ps1: never activated, no taskbar
+# button), with no sound. TOPLEVEL suites resize their own window, which an embedded one cannot: --position only (they
+# show at 0,0). SHOW=1: every window on screen, as before. Parallel runs: tools/run_par.py.
+TOPLEVEL="small_window r25 ring_edges"   # as tools/run_par.py TOPLEVEL
+HOSTWID=""; hf="$LOGS/.host.$$.hwnd"
+if [ -z "$SHOW" ] && command -v powershell >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+  rm -f "$hf"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w tools/offscreen_host.ps1)" -HwndFile "$(cygpath -w "$hf")"     -Owner "$(cat /proc/$$/winpid 2>/dev/null || echo 0)" >/dev/null 2>&1 &
+  k=0; while [ ! -s "$hf" ] && [ $k -lt 40 ]; do sleep 0.5; k=$((k + 1)); done
+  HOSTWID=$(tr -dc 0-9 < "$hf" 2>/dev/null); [ -n "$HOSTWID" ] && export KINE_TEST_WID=$HOSTWID   # tests' own child Godots use it
+  trap 'rm -f "$hf"' EXIT
+fi
 n=0; bad=0
 for s in $pick; do
   case $s in *:*) ;; *) s=$(echo "$ALL $EXTRA" | tr ' \n' '\n\n' | grep "^$s:" | head -1) ;; esac
@@ -28,6 +41,11 @@ for s in $pick; do
   f=tests/${name}_test.gd; [ -f "$f" ] || f=tests/$name.gd
   if [ ! -f "$f" ]; then echo "MISSING $name"; n=$((n+1)); bad=$((bad+1)); continue; fi
   flag=""; [ "$mode" = h ] && flag=--headless
+  if [ "$mode" != h ] && [ -z "$SHOW" ]; then
+    flag="--position -30000,-30000 --audio-driver Dummy"
+    case $name in audio_track|audiotracks) flag="--position -30000,-30000" ;; esac   # their sync bars need the real driver
+    case " $TOPLEVEL " in *" $name "*) ;; *) [ -n "$HOSTWID" ] && flag="--wid $HOSTWID $flag" ;; esac
+  fi
   log="$LOGS/$name.log"
   t0=$(date +%s)
   lim=${TIMEOUT:-400}; sl=$(echo " $SLOW " | grep -o " $name=[0-9]*" | cut -d= -f2); [ -n "$sl" ] && [ "$sl" -gt "$lim" ] && lim=$sl

@@ -1,15 +1,26 @@
-# Every push: GitHub's machine installs Godot and runs the whole suite (tools/run_par.py), so nothing runs on Nick's PC.
+# GitHub's machine installs Godot and runs the suites (tools/run_par.py), so nothing runs on Nick's PC.
 # Godot is installed by the existing action chickensoft-games/setup-godot; window tests render into a virtual screen
 # (xvfb) with software graphics (mesa), and audio is the Dummy driver.
+# NOT on every push: the repo is private and Actions minutes are limited.
+#   pull_request into poser-ui-rounds -> "pr": only the suites the PR's files reach (run_par.py --changed)
+#   workflow_dispatch (the Run workflow button) -> "suite": every suite, split over 8 shards that run side by side.
+#   One job running everything with -j 4 hit the 60-minute cap every time (10-23: 149 of 493 suites done, ~95 s a
+#   suite under software rendering), so the full run is sharded: ~62 suites a shard, ~40 min expected each.
 name: tests
 on:
-  push:
+  pull_request:
+    branches: [poser-ui-rounds]
   workflow_dispatch:
 
 jobs:
   suite:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
       - uses: chickensoft-games/setup-godot@v2
@@ -21,14 +32,43 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libgl1-mesa-dri
       - name: import
         run: godot --headless --path . --import || true
-      - name: run every suite
+      - name: run shard ${{ matrix.shard }} of 8
         env:
           G: godot
           LOGS: ${{ runner.temp }}/suites
-        run: xvfb-run -a -s "-screen 0 1920x1080x24" python3 tools/run_par.py -j 4
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" python3 tools/run_par.py -j 4 --shard ${{ matrix.shard }}/8
       - name: logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: suite-logs
+          name: suite-logs-${{ matrix.shard }}
+          path: ${{ runner.temp }}/suites
+
+  pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # --changed needs the base branch's history
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: false
+      - name: virtual screen + software graphics
+        run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libgl1-mesa-dri
+      - name: import
+        run: godot --headless --path . --import || true
+      - name: run the suites this PR reaches
+        env:
+          G: godot
+          LOGS: ${{ runner.temp }}/suites
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" python3 tools/run_par.py -j 4 --retry --changed origin/${{ github.base_ref }}
+      - name: logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-logs-pr
           path: ${{ runner.temp }}/suites
