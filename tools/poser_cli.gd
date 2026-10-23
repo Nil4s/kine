@@ -15,6 +15,8 @@
 ##        (N002 body assertions, scripts/body_assert.gd: pass / fail per line, the worst miss in cm / deg / m/s and its frame;
 ##        no lines = the scene's saved "asserts"; an unread line gets the grammar back)
 ##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
+##   $G --headless --path . -s tools/poser_cli.gd -- explain_conflict scenes/combo3.json "right fist touches fighter 2 chin" "both feet planted" [t=0.6] [card=N]
+##        (N006: the smallest set of those wishes that clash at one moment, and the cost to free each; nothing is changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
@@ -76,6 +78,9 @@
 ##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
 ##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
+##   explain_conflict {lines, t? | card?}  N006 (scripts/conflict_explain.gd): wishes (assert lines + "both feet planted",
+##                                 "lean 40 deg forward") at one moment -> "no conflict", or the minimal clashing set and the
+##                                 cost to free each ("needs 12 cm more reach: step 12 cm forward, or lean 5 deg, or drop ...")
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
@@ -258,6 +263,20 @@ func _init() -> void:
 			var ev: Dictionary = await EventQuery.run(m, ep)
 			say(String(ev.get("text", ev.get("error", ""))))
 			done(ev)
+		"explain_conflict":   # N006
+			if a.size() < 3 or not open_scene(a[1]):
+				if a.size() < 3:
+					done({"ok": false, "error": "explain_conflict <scene.json> \"<wish>\" ... [t=s] [card=N]  (N006; scripts/conflict_explain.gd)"})
+				return
+			var cp := {"lines": a.slice(2).filter(func(x): return not (String(x).begins_with("t=") or String(x).begins_with("card=")))}
+			for x in a.slice(2):
+				if String(x).begins_with("t="):
+					cp["t"] = float(String(x).substr(2))
+				elif String(x).begins_with("card="):
+					cp["card"] = int(String(x).substr(5))
+			var cx := ConflictExplain.serve(m, cp)
+			say(String(cx.get("say", cx.get("error", ""))))
+			done(cx)
 		"run":
 			await run(a)
 		"serve":

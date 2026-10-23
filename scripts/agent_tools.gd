@@ -435,6 +435,10 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"lint":   # N018: a clip made anywhere, judged on Kine's body (scripts/clip_lint.gd); the live scene is put back
 			var lr := ClipLint.lint(m, String(p.get("path", "")))
 			return _ok(id, lr) if lr["ok"] else _err(id, -32602, String(lr["error"]), lr)
+		"explain_conflict":
+			# N006 CONFLICT EXPLAINER (scripts/conflict_explain.gd): the smallest clashing set of wishes + the cost to free each; scene untouched
+			var cx := ConflictExplain.serve(m, p)
+			return _ok(id, cx) if cx["ok"] else _err(id, -32602, cx["error"], {"grammar": cx["grammar"]} if cx.has("grammar") else null)
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":
