@@ -11,7 +11,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
 ##   $G --headless --path . -s tools/poser_cli.gd -- validate scenes/combo3.json     (docs/scene.schema.json; tools/validate.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 sel=lowerarm_r snap_the_part_to_90 update --out scenes/_wip/x.json
-##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry   (N003: what it WOULD do; nothing changed)
+##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -307,7 +307,8 @@ func check_html(folder: String, rows: Array, per: Dictionary, tot: Dictionary) -
 
 func run(a: Array) -> void:
 	var dry := "--dry" in a   # N003: report what the steps would do, put everything back (scripts/dry_run.gd)
-	a = a.filter(func(x): return x != "--dry")
+	var no_score := "--no-score" in a   # the realism score costs ~5 s a read (twice when the cards change)
+	a = a.filter(func(x): return x != "--dry" and x != "--no-score")
 	if dry and "--out" in a:
 		done({"ok": false, "error": "--dry writes nothing: drop --out"})
 		return
@@ -330,7 +331,7 @@ func run(a: Array) -> void:
 	m._card_pick(0)
 	m.undo.clear()
 	if dry:
-		var dr := await DryRun.run(T, a.slice(2))
+		var dr := await DryRun.run(T, a.slice(2), not no_score)
 		for l in dr.get("cards", {}).get("lines", []):
 			say(l)
 		say("DRY %s: %d parts moved, findings %s -> %s, score %s, restored %s" % ["refused" if dr.has("refused") else ("ok" if dr["ok"] else "FAIL"),
