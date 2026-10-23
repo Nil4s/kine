@@ -108,6 +108,8 @@ const AT_ALL := [TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR3, TYPE_COLOR]
 var attrs := {}
 ## A13 shape keys (scripts/kmesh_shapes.gd): {} = none; saved in to_dict "shapes", carried by KMeshUndo
 var shapes := {}
+## E01 material slots (scripts/kmesh_material.gd): [] = none; saved in to_dict "materials", carried by KMeshUndo
+var materials: Array = []
 
 
 static func _attr_zero(type: int):
@@ -852,6 +854,8 @@ func to_dict() -> Dictionary:
 		d["normals"]["custom"] = _pack(cn.to_byte_array())
 	if not shapes.is_empty():
 		d["shapes"] = KMeshShapes.to_file(shapes)   # A13
+	if not materials.is_empty():
+		d["materials"] = KMeshMaterial.to_file(materials)   # E01
 	return d
 
 
@@ -969,9 +973,13 @@ func from_dict(d: Dictionary) -> KMesh:
 	var new_shapes := KMeshShapes.from_file(d.get("shapes"), nv)   # A13
 	if last_error != "":
 		return null
+	var new_mats := KMeshMaterial.from_file(d.get("materials"))   # E01
+	if last_error != "":
+		return null
 	verts = vraw.to_vector3_array()
 	attrs = new_attrs
 	shapes = new_shapes
+	materials = new_mats
 	faces = new_faces
 	custom_normals = new_custom
 	normal_mode = nmode

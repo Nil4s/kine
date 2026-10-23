@@ -51,6 +51,7 @@ var live := {}                # B09: the primitive still live: {kind, params, st
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
+var mat_panel: KMeshMaterialPanel   # E01: the Materials panel (top right; shows itself while `on`)
 
 
 func setup(main: Node) -> void:
@@ -63,6 +64,8 @@ func setup(main: Node) -> void:
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
 	_build_prim_panel()
+	mat_panel = KMeshMaterialPanel.new(self)
+	m.ui_root.add_child(mat_panel)
 
 
 func start() -> void:
