@@ -12,6 +12,7 @@ extends Node
 ##   MASK (C03, scripts/kmesh_mask.gd): M  mask brush (Ctrl or Alt while stroking erases)   Ctrl+I invert   Alt+M clear
 ##   Shift+B blur   Shift+M mask by cavity. Masked verts are frozen for every brush and drawn darker (KMeshMaskTint).
 ##   Each mask op is one undo step.
+##   C12: V / Shift+V  next / previous matcap (scripts/sculpt_matcap.gd)
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
 const R := 0.3
@@ -37,6 +38,7 @@ var sym_z := false
 var radial := 1
 var radial_axis := 1
 var filt := KMeshFilters.new()   # C18
+var matcap: SculptMatcap    # C12
 var _stroking := false
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
@@ -54,6 +56,9 @@ func setup(main: Node) -> void:
 	_ov.visible = false
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
+	matcap = SculptMatcap.new()
+	add_child(matcap)
+	matcap.setup(self)
 
 
 static func make_sphere(r := R, n := SPLIT) -> KMesh:
@@ -84,6 +89,8 @@ func start() -> void:
 	_stroking = false
 	_ov.visible = true
 	view.rebuild()
+	if matcap != null:
+		matcap.attach(view)
 	m._say("Sculpt: test sphere. Drag on it to sculpt (%s). D C I S F P E G K pick the brush, M masks, [ ] radius, X symmetry, Ctrl+Z undo, Esc leaves" % brush)
 
 
@@ -94,6 +101,8 @@ func stop() -> void:
 	_stroking = false
 	filt.active = false
 	_ov.visible = false
+	if matcap != null:
+		matcap.detach()
 	view.queue_free()
 	view = null
 	m._say("Sculpt: left the test sphere (nothing was saved). Run Sculpt: a test sphere (preview) to come back")
@@ -181,6 +190,8 @@ func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
 	if not _stroking and filt.input(ev, self):
+		return true
+	if not _stroking and not filt.active and matcap != null and matcap.input(ev):   # C12 V
 		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
