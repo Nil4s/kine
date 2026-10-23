@@ -14,7 +14,8 @@ var _lb := {}         # channel -> Label (the value and its reading)
 var _note: Label
 const LABEL := {"brow_l": "Brow left (raise +, furrow -)", "brow_r": "Brow right (raise +, furrow -)", "jaw": "Jaw open (0 = shut, 1 = max)",
 	"eye_yaw": "Eyes look left (+) / right (-)", "eye_pitch": "Eyes look up (+) / down (-)", "blink": "Blink (1 = shut)",
-	"vis_M": "Viseme M: lips shut (M, B, P)", "vis_A": "Viseme A: open (A)", "vis_O": "Viseme O: round (O, U)", "vis_E": "Viseme E: wide (E, I)"}
+	"vis_M": "Viseme M: lips shut (M, B, P)", "vis_A": "Viseme A: open (A)", "vis_O": "Viseme O: round (O, U)", "vis_E": "Viseme E: wide (E, I)",
+	"squint": "Lids tight (AU6/7)", "widen": "Upper lid raised (AU5)", "press": "Lips pressed (AU23/24)"}
 
 
 func _init(main: Node) -> void:

@@ -93,6 +93,197 @@ func half_edge_count() -> int:
 	return _he_vert.size()
 
 
+# ---------------------------------------------------------------- attributes (ROADMAP_400 A09)
+## Named channels on a domain: "vert" (one per vertex), "corner" (one per face corner, in face order: index
+## face_he0[f] + i), "edge" (one per unique edge, in edges() order) or "face". Types: TYPE_FLOAT, TYPE_VECTOR2,
+## TYPE_VECTOR3, TYPE_COLOR. Conventional names: "color" (Color) and "uv" (Vector2) feed to_array_mesh COLOR / TEX_UV;
+## "mask", "weight" (float, vert), "crease" (float, edge).
+## attrs: name -> {"domain", "type", "default", "data": PackedFloat32Array / PackedVector2Array / PackedVector3Array / PackedColorArray}
+const AD_VERT := "vert"
+const AD_CORNER := "corner"
+const AD_EDGE := "edge"
+const AD_FACE := "face"
+const AD_ALL := ["vert", "corner", "edge", "face"]
+const AT_ALL := [TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR3, TYPE_COLOR]
+var attrs := {}
+## A13 shape keys (scripts/kmesh_shapes.gd): {} = none; saved in to_dict "shapes", carried by KMeshUndo
+var shapes := {}
+
+
+static func _attr_zero(type: int):
+	match type:
+		TYPE_VECTOR2:
+			return Vector2.ZERO
+		TYPE_VECTOR3:
+			return Vector3.ZERO
+		TYPE_COLOR:
+			return Color(0, 0, 0, 0)
+	return 0.0
+
+
+static func _attr_make(type: int, n: int, def):
+	var a
+	match type:
+		TYPE_VECTOR2:
+			a = PackedVector2Array()
+		TYPE_VECTOR3:
+			a = PackedVector3Array()
+		TYPE_COLOR:
+			a = PackedColorArray()
+		_:
+			a = PackedFloat32Array()
+	a.resize(n)
+	a.fill(def)
+	return a
+
+
+static func _attr_bytes_to(type: int, raw: PackedByteArray):
+	match type:
+		TYPE_VECTOR2:
+			return raw.to_vector2_array()
+		TYPE_VECTOR3:
+			return raw.to_vector3_array()
+		TYPE_COLOR:
+			return raw.to_color_array()
+	return raw.to_float32_array()
+
+
+static func _attr_type_name(type: int) -> String:
+	return {TYPE_FLOAT: "float", TYPE_VECTOR2: "vec2", TYPE_VECTOR3: "vec3", TYPE_COLOR: "color"}.get(type, "")
+
+
+static func _attr_type_of(nm: String) -> int:
+	return {"float": TYPE_FLOAT, "vec2": TYPE_VECTOR2, "vec3": TYPE_VECTOR3, "color": TYPE_COLOR}.get(nm, -1)
+
+
+## number of items in a domain right now
+func domain_count(domain: String) -> int:
+	match domain:
+		AD_VERT:
+			return verts.size()
+		AD_FACE:
+			return faces.size()
+		AD_CORNER:
+			var t := 0
+			for f in faces:
+				t += (f as PackedInt32Array).size()
+			return t
+		AD_EDGE:
+			return edge_count()
+	return -1
+
+
+## Add a channel filled with `default` (the zero of the type when null). Returns false with last_error set when the name is
+## taken or the domain/type is not one of the four.
+func add_attr(attr_name: String, domain: String, type: int, default = null) -> bool:
+	last_error = ""
+	if attr_name == "" or attrs.has(attr_name):
+		last_error = "attribute '%s' %s. Pick a new name, or remove_attr it first." % [attr_name, "has no name" if attr_name == "" else "already exists"]
+		return false
+	if not AD_ALL.has(domain) or not AT_ALL.has(type):
+		last_error = "attribute domain must be vert, corner, edge or face and the type float, Vector2, Vector3 or Color."
+		return false
+	var def = _attr_zero(type) if default == null else type_convert(default, type)
+	attrs[attr_name] = {"domain": domain, "type": type, "default": def, "data": _attr_make(type, domain_count(domain), def)}
+	return true
+
+
+func has_attr(attr_name: String) -> bool:
+	return attrs.has(attr_name)
+
+
+func remove_attr(attr_name: String) -> bool:
+	return attrs.erase(attr_name)
+
+
+## names of the channels (in the order they were added)
+func list_attrs() -> Array:
+	return attrs.keys()
+
+
+## {"domain","type","default"} of one channel, or {}
+func attr_info(attr_name: String) -> Dictionary:
+	if not attrs.has(attr_name):
+		return {}
+	var r: Dictionary = attrs[attr_name]
+	return {"domain": r["domain"], "type": r["type"], "default": r["default"]}
+
+
+func get_attr(attr_name: String, i: int):
+	return attrs[attr_name]["data"][i]
+
+
+func set_attr(attr_name: String, i: int, value) -> void:
+	attrs[attr_name]["data"][i] = value
+
+
+## the whole channel as a packed array
+func attr_data(attr_name: String):
+	return attrs[attr_name]["data"]
+
+
+## replace a channel's data (size must equal the domain count); false with last_error otherwise
+func set_attr_data(attr_name: String, data) -> bool:
+	last_error = ""
+	if not attrs.has(attr_name) or data.size() != (attrs[attr_name]["data"] as Variant).size():
+		last_error = "attribute '%s' %s. Pass one value per %s." % [attr_name, "does not exist" if not attrs.has(attr_name) else "has a different size", "item of its domain"]
+		return false
+	attrs[attr_name]["data"] = data
+	return true
+
+
+## index of the edge a-b in the "edge" domain, or -1
+func edge_index(a: int, b: int) -> int:
+	var i := 0
+	var lo := mini(a, b)
+	var hi := maxi(a, b)
+	for e in edges():
+		if e.x == lo and e.y == hi:
+			return i
+		i += 1
+	return -1
+
+
+## copy of attrs that shares nothing with the live channels (an undo snapshot)
+func attr_snapshot() -> Dictionary:
+	var out := {}
+	for k in attrs:
+		var r: Dictionary = attrs[k]
+		out[k] = {"domain": r["domain"], "type": r["type"], "default": r["default"], "data": r["data"].duplicate()}
+	return out
+
+
+## keep every channel the size of its domain after the topology changed (new items get the default)
+func _attr_fit(edge_n: int) -> void:
+	for k in attrs:
+		var r: Dictionary = attrs[k]
+		var n: int = edge_n if r["domain"] == AD_EDGE else (verts.size() if r["domain"] == AD_VERT else (faces.size() if r["domain"] == AD_FACE else _he_vert.size()))
+		var d = r["data"]
+		var old: int = d.size()
+		if old != n:
+			d.resize(n)
+			for i in range(old, n):
+				d[i] = r["default"]
+			r["data"] = d
+
+
+## new channels gathered from the old: src_v[i] = old vert of new vert i (-1 = new), same for src_f faces, src_c corners,
+## src_e edges. A null source keeps that domain as it is. Used by KMeshValidate.repair.
+func attr_remap(src_v, src_f, src_c, src_e) -> void:
+	for k in attrs:
+		var r: Dictionary = attrs[k]
+		var src = {AD_VERT: src_v, AD_FACE: src_f, AD_CORNER: src_c, AD_EDGE: src_e}[r["domain"]]
+		if src == null:
+			continue
+		var old = r["data"]
+		var nd = _attr_make(r["type"], (src as PackedInt32Array).size(), r["default"])
+		for i in (src as PackedInt32Array).size():
+			var s: int = src[i]
+			if s >= 0 and s < old.size():
+				nd[i] = old[s]
+		r["data"] = nd
+
+
 ## Build from positions and n-gon faces. Returns self.
 func from_arrays(p_verts: PackedVector3Array, p_faces: Array) -> KMesh:
 	verts = p_verts.duplicate()
@@ -157,6 +348,13 @@ func rebuild() -> void:
 			_vf_list[_vf_start[v] + fill[v]] = fi
 			fill[v] += 1
 	_compute_normals()
+	if not attrs.is_empty():
+		var en := 0
+		for hh in total:
+			var t2 := _he_twin[hh]
+			if _he_vert[hh] != _he_vert[_he_next[hh]] and (t2 == -1 or hh < t2):
+				en += 1
+		_attr_fit(en)
 
 
 func _newell(fi: int) -> Vector3:
@@ -367,7 +565,18 @@ func to_array_mesh(smooth := true, mode := "") -> ArrayMesh:
 	var pos := PackedVector3Array()
 	var nor := PackedVector3Array()
 	var idx := PackedInt32Array()
-	if mode == NM_SMOOTH:
+	var ca = attrs.get("color")   # drawn attrs: "color" (Color) -> COLOR, "uv" (Vector2) -> TEX_UV
+	var ua = attrs.get("uv")
+	if ca != null and (ca["type"] != TYPE_COLOR or ca["domain"] == AD_EDGE):
+		ca = null
+	if ua != null and (ua["type"] != TYPE_VECTOR2 or ua["domain"] == AD_EDGE):
+		ua = null
+	var want: bool = ca != null or ua != null
+	var split: bool = want and ((ca != null and ca["domain"] != AD_VERT) or (ua != null and ua["domain"] != AD_VERT))
+	var ov := PackedInt32Array()   # per output vertex: source vertex, face, corner (only when an attr is drawn)
+	var of := PackedInt32Array()
+	var oc := PackedInt32Array()
+	if mode == NM_SMOOTH and not split:
 		pos = verts.duplicate()
 		nor = _vert_normals.duplicate()
 		for f in faces:
@@ -377,33 +586,48 @@ func to_array_mesh(smooth := true, mode := "") -> ArrayMesh:
 				idx.append(fp[i])
 				idx.append(fp[i + 1])
 	elif mode == NM_FLAT:
+		var cbase := 0
 		for fi in faces.size():
 			var fp: PackedInt32Array = faces[fi]
 			var base := pos.size()
 			for v in fp:
 				pos.append(verts[v])
 				nor.append(_face_normals[fi])
+				if want:
+					ov.append(v)
+					of.append(fi)
+					oc.append(cbase + ov.size() - 1 - base)
+			cbase += fp.size()
 			for i in range(1, fp.size() - 1):
 				idx.append(base)
 				idx.append(base + i)
 				idx.append(base + i + 1)
 	else:
-		var cn := corner_normals(mode, auto_angle)
-		var seen := {}  # (vertex, quantised normal) -> output vertex
+		var cn := corner_normals(mode, auto_angle) if mode != NM_SMOOTH else []
+		var seen := {}  # (vertex, quantised normal, drawn values) -> output vertex
+		var cbase := 0
 		for fi in faces.size():
 			var fp: PackedInt32Array = faces[fi]
-			var cn_f: PackedVector3Array = cn[fi]
+			var cn_f: PackedVector3Array = cn[fi] if mode != NM_SMOOTH else PackedVector3Array()
 			var local := PackedInt32Array()
 			for i in fp.size():
-				var n := cn_f[i]
+				var n: Vector3 = cn_f[i] if mode != NM_SMOOTH else _vert_normals[fp[i]]
 				var key := [fp[i], roundi(n.x * 1e5), roundi(n.y * 1e5), roundi(n.z * 1e5)]
+				if want:
+					key.append(_attr_at(ca, fp[i], fi, cbase + i))
+					key.append(_attr_at(ua, fp[i], fi, cbase + i))
 				var got: int = seen.get(key, -1)
 				if got == -1:
 					got = pos.size()
 					seen[key] = got
 					pos.append(verts[fp[i]])
 					nor.append(n)
+					if want:
+						ov.append(fp[i])
+						of.append(fi)
+						oc.append(cbase + i)
 				local.append(got)
+			cbase += fp.size()
 			for i in range(1, fp.size() - 1):
 				idx.append(local[0])
 				idx.append(local[i])
@@ -413,9 +637,32 @@ func to_array_mesh(smooth := true, mode := "") -> ArrayMesh:
 	arr[Mesh.ARRAY_VERTEX] = pos
 	arr[Mesh.ARRAY_NORMAL] = nor
 	arr[Mesh.ARRAY_INDEX] = idx
+	if want:
+		if ca != null:
+			arr[Mesh.ARRAY_COLOR] = _attr_gather(ca, pos.size(), ov, of, oc)
+		if ua != null:
+			arr[Mesh.ARRAY_TEX_UV] = _attr_gather(ua, pos.size(), ov, of, oc)
 	var am := ArrayMesh.new()
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	return am
+
+
+func _attr_at(r, v: int, fi: int, ci: int):
+	if r == null:
+		return 0
+	return r["data"][v if r["domain"] == AD_VERT else (fi if r["domain"] == AD_FACE else ci)]
+
+
+## a drawn channel as one value per output vertex; the plain smooth path has none of ov/of/oc and one per source vertex
+func _attr_gather(r: Dictionary, n: int, ov: PackedInt32Array, of: PackedInt32Array, oc: PackedInt32Array):
+	if r["domain"] == AD_VERT and ov.is_empty():
+		return r["data"].duplicate()
+	var out = _attr_make(r["type"], n, r["default"])
+	var src: PackedInt32Array = ov if r["domain"] == AD_VERT else (of if r["domain"] == AD_FACE else oc)
+	var d = r["data"]
+	for i in n:
+		out[i] = d[src[i]]
+	return out
 
 
 func triangle_count() -> int:
@@ -593,11 +840,18 @@ func to_dict() -> Dictionary:
 		"v": _pack(verts.to_byte_array()), "f": _pack(flat.to_byte_array()),
 		"normals": {"mode": normal_mode, "angle": auto_angle},
 	}
+	for k in attrs:
+		var r: Dictionary = attrs[k]
+		var dflt = _attr_make(r["type"], 1, r["default"])
+		d["attrs"][k] = {"domain": r["domain"], "type": _attr_type_name(r["type"]), "def": Marshalls.raw_to_base64(dflt.to_byte_array()),
+			"d": _pack(r["data"].to_byte_array())}
 	if not custom_normals.is_empty():
 		var cn := PackedVector3Array()
 		for c in custom_normals:
 			cn.append_array(c)
 		d["normals"]["custom"] = _pack(cn.to_byte_array())
+	if not shapes.is_empty():
+		d["shapes"] = KMeshShapes.to_file(shapes)   # A13
 	return d
 
 
@@ -689,7 +943,35 @@ func from_dict(d: Dictionary) -> KMesh:
 				q += sz
 	if not [NM_SMOOTH, NM_FLAT, NM_AUTO, NM_CUSTOM].has(nmode) or (nmode == NM_CUSTOM and new_custom.is_empty()):
 		nmode = NM_SMOOTH
+	var new_attrs := {}
+	var ad = d.get("attrs", {})
+	if ad is Dictionary:
+		for k in ad:
+			var ar = ad[k]
+			if not (ar is Dictionary):
+				last_error = "attribute '%s' is damaged. Re-save the mesh from the app, or restore a backup." % str(k)
+				return null
+			var dom := String(ar.get("domain", ""))
+			var ty := _attr_type_of(String(ar.get("type", "")))
+			if not AD_ALL.has(dom) or ty < 0:
+				last_error = "attribute '%s' has an unknown domain or type. Update Kine, or restore a backup." % str(k)
+				return null
+			var araw := _unpack(ar.get("d"), "attribute '%s'" % str(k))
+			if last_error != "":
+				return null
+			var data = _attr_bytes_to(ty, araw)
+			var want := nv if dom == AD_VERT else (nf if dom == AD_FACE else (nc if dom == AD_CORNER else -1))
+			if want >= 0 and data.size() != want:
+				last_error = "attribute '%s' has %d values but its %s domain has %d. The file is damaged: restore a backup." % [str(k), data.size(), dom, want]
+				return null
+			var dd = _attr_bytes_to(ty, Marshalls.base64_to_raw(String(ar.get("def", ""))))
+			new_attrs[String(k)] = {"domain": dom, "type": ty, "default": dd[0] if dd.size() == 1 else _attr_zero(ty), "data": data}
+	var new_shapes := KMeshShapes.from_file(d.get("shapes"), nv)   # A13
+	if last_error != "":
+		return null
 	verts = vraw.to_vector3_array()
+	attrs = new_attrs
+	shapes = new_shapes
 	faces = new_faces
 	custom_normals = new_custom
 	normal_mode = nmode

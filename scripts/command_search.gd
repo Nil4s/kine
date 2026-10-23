@@ -32,12 +32,16 @@ var pose_by_words: Callable
 var recent: Array = []   # names of the last commands run, newest first (shown on top of the empty search, #74)
 
 ## each: {"name": String, "keys": String, "run": Callable, "also": String (extra words it answers to)}
-var commands: Array = []
+var commands: Array = []:
+	set(v): commands = MeshTools.decorate(v)   # ROADMAP_400 P02: the commands that are mesh tools get their page and mesh words
 ## ROADMAP 52: the saved files as rows {"name", "kind" ("pose" / "scene"), "also", "desc", "run"}; main's files_provider
 ## lists them each time the box opens (not per keystroke). KINDS: the words a "kind:" prefix may start with
-const KINDS := ["command", "pose", "scene", "macro", "script"]   # ROADMAP 81: "macro:" lists the recorded macros
+const KINDS := ["command", "pose", "scene", "macro", "script", "mesh"]   # ROADMAP 81: "macro:" lists the recorded macros; P02 "mesh:" the mesh tools
 var files_provider: Callable
 var files: Array = []
+## ROADMAP_400 P02: the mesh tools that are not commands (scripts/mesh_tools.gd rows, kind "mesh"): found by typed words
+## like the files, each row with its hotkey and its page
+var tools: Array = []
 var box: LineEdit
 var list: Tree
 var shown: Array = []   # the rows in the list now, in order
@@ -63,7 +67,7 @@ func _ready() -> void:
 	list.select_mode = Tree.SELECT_ROW
 	list.focus_mode = Control.FOCUS_NONE
 	list.set_column_expand(1, false)
-	list.set_column_custom_minimum_width(1, 150)
+	list.set_column_custom_minimum_width(1, 200)   # P02: room for a hotkey and its page ("Ctrl+Alt+Q   every page")
 	list.custom_minimum_size = Vector2(W, ROWS * ROW_H)
 	list.add_theme_font_size_override("font_size", 16)
 	list.item_mouse_selected.connect(func(_p, _b): _run(_row_of(list.get_selected())))
@@ -227,7 +231,7 @@ func matches(kind: String, q: String) -> Array:
 	if kind == "" or kind == "command":
 		pool.append_array(commands)
 	if kind != "command" and (q != "" or kind != ""):
-		pool.append_array(files.filter(func(c): return kind == "" or c["kind"] == kind))
+		pool.append_array((files + tools).filter(func(c): return kind == "" or c["kind"] == kind))
 	var qwords := _query_words(q)
 	var hits := []   # [score, pool index, row]
 	for i in pool.size():
@@ -242,8 +246,8 @@ func matches(kind: String, q: String) -> Array:
 		hits.sort_custom(func(a, b):
 			if a[0] != b[0]:
 				return a[0] > b[0]
-			var ka: bool = String(a[2].get("keys", "")) != ""
-			var kb: bool = String(b[2].get("keys", "")) != ""
+			var ka: bool = String(a[2].get("keys", "")) != "" or MeshTools.keyed(a[2])   # P02: a mesh tool's own key counts
+			var kb: bool = String(b[2].get("keys", "")) != "" or MeshTools.keyed(b[2])
 			if ka != kb:
 				return ka
 			return a[1] < b[1])
@@ -262,23 +266,30 @@ func _filter() -> void:
 				if c["name"] == n:
 					top.append(c)
 		shown = top + shown.filter(func(c): return not c["name"] in recent)
-	if q != "" and kind == "" and pose_by_words.is_valid() and PoseWords.parse(q)["ok"]:
-		shown.push_front({"name": "Pose: " + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
-			"desc": "turn the joints as the words say (scripts/pose_words.gd): one undo step"})
+	if q != "" and kind == "" and pose_by_words.is_valid() and _words_ok(q):
+		shown.push_front({"name": ("Rig: " if RigWords.is_rig(q) and not PoseWords.parse(q)["ok"] else "Face: " if FaceWords.route(q)["pose"] == "" and FaceWords.route(q)["face"] != "" else "Pose: ") + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
+			"desc": "turn the joints and set the face as the words say (scripts/pose_words.gd, face_words.gd): one undo step"})
 	list.clear()
 	var root := list.create_item()
 	for c in shown:
 		var it := list.create_item(root)
 		var k: String = c.get("kind", "command")
 		it.set_text(0, c["name"])
-		it.set_icon(0, Icons.small("kind_" + k))   # the kind's icon (scripts/icons.gd), tinted like the headings
+		it.set_icon(0, Icons.small(c.get("icon", "kind_" + k)))   # the kind's icon (scripts/icons.gd), tinted like the headings
 		it.set_icon_modulate(0, Tok.c("heading"))
-		if k == "command":
+		var tip: String = c.get("desc", "")
+		if c.has("page"):   # P02: a mesh tool: its hotkey and its page, greyed (and why, as its tip) when it cannot run now
+			it.set_text(1, ("recent   " if q == "" and kind == "" and c["name"] in recent else "") + MeshTools.right_text(c))
+			var why := MeshTools.why(c)
+			if why != "":
+				it.set_custom_color(0, Tok.dim(0.6))
+				tip = why
+		elif k == "command":
 			it.set_text(1, ("recent   " if q == "" and kind == "" and c["name"] in recent else "") + c.get("keys", ""))
 		else:
 			it.set_text(1, k)   # a file row's tag: its kind
 		it.set_custom_color(1, Tok.c("heading"))
-		it.set_tooltip_text(0, c.get("desc", ""))   # the registry's one-line "what it does" (round 8)
+		it.set_tooltip_text(0, tip)   # the registry's one-line "what it does" (round 8)
 	if shown.size() > 0:
 		root.get_first_child().select(0)
 	# only as tall as the hits (an empty list over the body hides the body for nothing)
@@ -326,3 +337,13 @@ func _run(i: int) -> void:
 	running.emit(c["name"])
 	(c["run"] as Callable).call()
 	ran.emit(c["name"])
+
+
+## the words box takes a phrase when it is a pose, a face, or both (each part must parse)
+func _words_ok(q: String) -> bool:
+	if RigWords.is_rig(q) and RigWords.parse(q)["ok"]:
+		return true   # J24: "add a tail with 8 bones" goes through the same words row
+	var rt := FaceWords.route(q)
+	if rt["face"] == "":
+		return PoseWords.parse(q)["ok"]
+	return FaceWords.parse(rt["face"])["ok"] and (rt["pose"] == "" or PoseWords.parse(rt["pose"])["ok"])

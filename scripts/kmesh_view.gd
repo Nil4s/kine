@@ -11,6 +11,8 @@ extends Node3D
 ##   select_region: box / lasso (any 2D test) over verts / edges / faces by the selection mode. Without x-ray only what the
 ##     camera can see counts (a vertex is seen when the nearest front-facing hit on its view ray is the vertex's own
 ##     distance, a face when it faces the camera and its centre is seen); with x-ray everything inside the shape counts.
+## HEAT (F08, show_heat): KMeshTopo.heat's faces as a colour tint (triangles, n-gons, stretched quads) and its poles as
+## big coloured points, rebuilt with the mesh; `heat` holds the last result (the legend's counts).
 
 const OFF_WIRE := 0.003
 const OFF_TINT := 0.0015
@@ -21,7 +23,14 @@ var sel: KMeshSelect
 var dirty := true
 var show_wire := true
 var show_verts := true   # points in vert mode
+var smooth_shade := false   # C01: the sculpt sphere shades with the vertex normals (the MODEL cube stays flat)
+## D05 surface shading: "" plain, "uv_checker" (the KMeshUV checker through the "uv" corner attribute), "uv_stretch"
+## (KMeshUV.stretch heat per face, blue = no distortion, red = stretched or flipped)
+var shading := ""
+var stretch := {}        # the last KMeshUV.stretch result while shading is "uv_stretch"
 var _pal_dark := true
+var show_heat := false
+var heat := {}
 
 var _surf: MeshInstance3D
 var _tint: MeshInstance3D
@@ -29,6 +38,8 @@ var _wire: MeshInstance3D
 var _selwire: MeshInstance3D
 var _pts: MeshInstance3D
 var _selpts: MeshInstance3D
+var _heat: MeshInstance3D
+var _heatpts: MeshInstance3D
 
 # pick caches (rebuilt with the mesh)
 var _tri := PackedInt32Array()       # 3 vert ids per fan triangle
@@ -39,7 +50,7 @@ var _ftri_n := PackedInt32Array()
 
 
 func _init() -> void:
-	for nm in ["_surf", "_tint", "_wire", "_selwire", "_pts", "_selpts"]:
+	for nm in ["_surf", "_tint", "_wire", "_selwire", "_pts", "_selpts", "_heat", "_heatpts"]:
 		var mi := MeshInstance3D.new()
 		mi.name = nm.trim_prefix("_")
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if nm != "_surf" else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -132,12 +143,20 @@ func _put(mi: MeshInstance3D, prim: int, pos: PackedVector3Array, mt: Material) 
 func _surface() -> ArrayMesh:
 	var pos := PackedVector3Array()
 	var nor := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var cols := PackedColorArray()
+	var ud = mesh.attr_data(KMeshUV.UV) if shading == "uv_checker" and mesh.has_attr(KMeshUV.UV) and mesh.attr_info(KMeshUV.UV)["domain"] == KMesh.AD_CORNER else null
+	stretch = KMeshUV.stretch(mesh) if shading == "uv_stretch" else {}
 	for fi in mesh.face_count():
 		var fp: PackedInt32Array = mesh.faces[fi]
 		for i in range(1, fp.size() - 1):
-			for v in [fp[0], fp[i + 1], fp[i]]:
-				pos.append(mesh.verts[v])
-				nor.append(mesh.face_normals[fi])
+			for c in [0, i + 1, i]:
+				pos.append(mesh.verts[fp[c]])
+				nor.append(mesh.vert_normals[fp[c]] if smooth_shade else mesh.face_normals[fi])
+				if ud != null:
+					uvs.append(ud[mesh.face_he0[fi] + c])
+				elif not stretch.is_empty():
+					cols.append(KMeshUV.heat_color(stretch["heat"][fi]))
 	var am := ArrayMesh.new()
 	if pos.is_empty():
 		return am
@@ -145,6 +164,10 @@ func _surface() -> ArrayMesh:
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = pos
 	arr[Mesh.ARRAY_NORMAL] = nor
+	if not uvs.is_empty():
+		arr[Mesh.ARRAY_TEX_UV] = uvs
+	if not cols.is_empty():
+		arr[Mesh.ARRAY_COLOR] = cols
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	return am
 
@@ -162,6 +185,10 @@ func rebuild() -> void:
 	var sel_col := Tok.c("pick_sel")
 	_surf.mesh = _surface()
 	_surf.material_override = _mat(Tok.c("cube"), true)
+	if shading == "uv_checker" and _surf.mesh.get_surface_count() > 0 and _surf.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_TEX_UV:
+		_surf.material_override = KMeshUV.checker_material()
+	elif not stretch.is_empty():
+		_surf.material_override = KMeshUV.heat_material()
 	# wire: every edge
 	var wp := PackedVector3Array()
 	if show_wire:
@@ -196,6 +223,50 @@ func rebuild() -> void:
 				pp.append(_out(v, OFF_WIRE * 2.0))
 	_put(_pts, Mesh.PRIMITIVE_POINTS, pp, _mat(Tok.c("cube_edge"), false, 5.0))
 	_put(_selpts, Mesh.PRIMITIVE_POINTS, qp, _mat(sel_col, false, 9.0))
+	_build_heat()
+
+
+## F08: the heat layer (vertex colours: one material for every kind)
+func _build_heat() -> void:
+	heat = KMeshTopo.heat(mesh) if show_heat else {}
+	var hp := PackedVector3Array()
+	var hc := PackedColorArray()
+	var vp := PackedVector3Array()
+	var vc := PackedColorArray()
+	if show_heat:
+		var fk: PackedInt32Array = heat["face"]
+		for fi in fk.size():
+			if fk[fi] == KMeshTopo.F_QUAD:
+				continue
+			var col := Color(KMeshTopo.color_of(KMeshTopo.F_KEY[fk[fi]]), 0.75)
+			var fp: PackedInt32Array = mesh.faces[fi]
+			var nn := mesh.face_normals[fi] * OFF_TINT
+			for t in KMeshTopo.face_tris(mesh, fp):
+				for c in [t[0], t[2], t[1]]:   # Godot's clockwise front face
+					hp.append(mesh.verts[fp[c]] + nn)
+					hc.append(col)
+		var vk: PackedInt32Array = heat["vert"]
+		for v in vk.size():
+			if vk[v] != KMeshTopo.V_OK:
+				vp.append(_out(v, OFF_WIRE * 2.5))
+				vc.append(KMeshTopo.color_of(KMeshTopo.V_KEY[vk[v]]))
+	_put_col(_heat, Mesh.PRIMITIVE_TRIANGLES, hp, hc, _mat(Color(1, 1, 1, 0.99)))
+	_put_col(_heatpts, Mesh.PRIMITIVE_POINTS, vp, vc, _mat(Color.WHITE, false, 12.0))
+
+
+func _put_col(mi: MeshInstance3D, prim: int, pos: PackedVector3Array, cols: PackedColorArray, mt: StandardMaterial3D) -> void:
+	mt.vertex_color_use_as_albedo = true
+	if pos.is_empty():
+		mi.mesh = null
+		return
+	mi.material_override = mt
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = pos
+	arr[Mesh.ARRAY_COLOR] = cols
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(prim, arr)
+	mi.mesh = am
 
 
 # ---------------------------------------------------------------- picking

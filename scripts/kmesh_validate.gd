@@ -24,18 +24,22 @@ static func _area(m: KMesh, f: PackedInt32Array) -> float:
 	return n.length() * 0.5
 
 
-static func _doubled(m: KMesh) -> Array:
+## [v, onto] for each vert within dist of an earlier one (B05 merge by distance passes its own dist, and only = the
+## selected verts as a set: the rest are not looked at)
+static func _doubled(m: KMesh, dist := WELD, only: Dictionary = {}) -> Array:
 	var cell := {}
 	var out := []
 	for v in m.verts.size():
+		if not only.is_empty() and not only.has(v):
+			continue
 		var p: Vector3 = m.verts[v]
-		var k := Vector3i(floori(p.x / WELD), floori(p.y / WELD), floori(p.z / WELD))
+		var k := Vector3i(floori(p.x / dist), floori(p.y / dist), floori(p.z / dist))
 		var hit := -1
 		for dx in [-1, 0, 1]:
 			for dy in [-1, 0, 1]:
 				for dz in [-1, 0, 1]:
 					for o in cell.get(k + Vector3i(dx, dy, dz), []):
-						if hit < 0 and (m.verts[o] as Vector3).distance_to(p) <= WELD:
+						if hit < 0 and (m.verts[o] as Vector3).distance_to(p) <= dist:
 							hit = o
 		if hit >= 0:
 			out.append([v, hit])
@@ -160,34 +164,51 @@ static func repair(m: KMesh) -> Dictionary:
 		remap[p[0]] = p[1]
 	var nd := 0
 	var faces := []
-	for f in m.faces:
+	# A09: when the mesh has attributes, track where every kept corner / face / vert / edge came from
+	var has_a := not m.attrs.is_empty()
+	var csrc: Array = []   # per kept face: the old corner index of each of its corners
+	var fsrc := PackedInt32Array()
+	var old_edges: Array = m.edges() if has_a else []
+	var cpos := 0
+	for fi0 in m.faces.size():
+		var f: PackedInt32Array = m.faces[fi0]
 		var g := PackedInt32Array()
-		for v in (f as PackedInt32Array):
-			var r := remap[v]
+		var cs := PackedInt32Array()
+		for i in f.size():
+			var r := remap[f[i]]
 			if g.is_empty() or g[g.size() - 1] != r:
 				g.append(r)
+				cs.append(cpos + i)
 		if g.size() > 1 and g[0] == g[g.size() - 1]:
 			g.remove_at(g.size() - 1)
+			cs.remove_at(cs.size() - 1)
+		cpos += f.size()
 		faces.append(g)
+		csrc.append(cs)
 	for v in nv:
 		nd += 1 if remap[v] != v else 0
 	if nd > 0:
 		done["doubled"] = nd
 	# degenerate faces
 	var keep := []
+	var keep_c: Array = []
 	var tmp := KMesh.new()
 	tmp.verts = m.verts
-	for g in faces:
+	for gi in faces.size():
+		var g: PackedInt32Array = faces[gi]
 		var uniq := {}
-		for v in (g as PackedInt32Array):
+		for v in g:
 			uniq[v] = true
 		if uniq.size() >= 3 and _area(tmp, g) >= AREA_MIN:
 			keep.append(g)
+			keep_c.append(csrc[gi])
+			fsrc.append(gi)
 	if keep.size() < faces.size():
 		done["degenerate"] = faces.size() - keep.size()
 	faces = keep
+	csrc = keep_c
 	# flipped: flood from each component's first face, turning neighbours to agree on every shared edge
-	var nflip := _orient(faces, nv)
+	var nflip := _orient(faces, nv, csrc)
 	if nflip > 0:
 		done["flipped"] = nflip
 	# loose verts: compact the vertex array
@@ -195,11 +216,13 @@ static func repair(m: KMesh) -> Dictionary:
 	used.resize(nv)
 	used.fill(-1)
 	var nverts := PackedVector3Array()
+	var vsrc := PackedInt32Array()
 	for g in faces:
 		for v in (g as PackedInt32Array):
 			if used[v] < 0:
 				used[v] = nverts.size()
 				nverts.append(m.verts[v])
+				vsrc.append(v)   # remap sent every doubled vert onto the first of its group: that vert's attributes stay
 	if nverts.size() < nv:
 		done["loose"] = nv - nverts.size() - nd
 		if int(done["loose"]) <= 0:
@@ -210,27 +233,73 @@ static func repair(m: KMesh) -> Dictionary:
 		for v in (g as PackedInt32Array):
 			h.append(used[v])
 		out.append(h)
+	var saved_attrs := m.attrs
+	m.attrs = {}   # rebuild would fit the old channels to the new counts; they are gathered below instead
 	m.from_arrays(nverts, out)
+	var csrc_flat := PackedInt32Array()
+	for cs in csrc:
+		csrc_flat.append_array(cs)
+	var esrc := PackedInt32Array()
+	if has_a:
+		var by_pair := {}
+		for ei in old_edges.size():
+			var e: Vector2i = old_edges[ei]
+			var na := used[remap[e.x]]
+			var nb := used[remap[e.y]]
+			if na >= 0 and nb >= 0 and na != nb:
+				var k := mini(na, nb) * nverts.size() + maxi(na, nb)
+				if not by_pair.has(k):
+					by_pair[k] = ei
+		for e in m.edges():
+			esrc.append(by_pair.get(e.x * nverts.size() + e.y, -1))
 	# small holes: one face each, wound to match the border
 	var nh := 0
+	var nh_corners := 0
 	for l in _holes(m):
 		if (l as Array).size() <= HOLE_FILL_MAX:
 			m.faces.append(PackedInt32Array(l))   # the loop already runs b -> a along each border edge a -> b
 			nh += 1
+			fsrc.append(-1)
+			for _i in (l as Array).size():
+				csrc_flat.append(-1)
+			nh_corners += (l as Array).size()
 	if nh > 0:
 		done["holes"] = nh
 	m.rebuild()
+	if has_a:
+		# a hole-fill face adds edges the old mesh did not have: they take the default
+		var esrc2 := esrc.duplicate()
+		esrc2.resize(m.edge_count())
+		for i in range(esrc.size(), esrc2.size()):
+			esrc2[i] = -1
+		m.attrs = saved_attrs
+		m.attr_remap(vsrc, fsrc, csrc_flat, esrc2 if m.edge_count() != esrc.size() else esrc)
 	if _holes(m).is_empty() and _volume(m) < 0.0:
+		var cb := 0
 		for i in m.faces.size():
 			var r: PackedInt32Array = m.faces[i]
 			r.reverse()
 			m.faces[i] = r
+			if has_a:   # corner k of the reversed face is old corner n-1-k: the attribute stays with its vertex
+				_reverse_corner_attrs(m, cb, r.size())
+				cb += r.size()
 		m.rebuild()
 		done["inside_out"] = m.faces.size()
 	return done
 
 
-static func _orient(faces: Array, nv: int) -> int:
+static func _reverse_corner_attrs(m: KMesh, base: int, n: int) -> void:
+	for k in m.attrs:
+		var r: Dictionary = m.attrs[k]
+		if r["domain"] != KMesh.AD_CORNER:
+			continue
+		var d = r["data"]
+		var copy = d.duplicate()
+		for i in n:
+			d[base + i] = copy[base + n - 1 - i]
+
+
+static func _orient(faces: Array, nv: int, csrc: Array = []) -> int:
 	var by_edge := {}
 	for fi in faces.size():
 		var f: PackedInt32Array = faces[fi]
@@ -264,6 +333,10 @@ static func _orient(faces: Array, nv: int) -> int:
 					if same:
 						g.reverse()
 						faces[gi] = g
+						if not csrc.is_empty():
+							var rc: PackedInt32Array = csrc[gi]
+							rc.reverse()
+							csrc[gi] = rc
 						flips += 1
 					done[gi] = 1
 					q.append(gi)

@@ -14,6 +14,8 @@
 ##                           gaze with the head still: Leigh & Zee, The Neurology of Eye Movements, ch. 2). Clamped there.
 ##   eye_pitch       -1..1   look up (+) / down; 1.0 = EYE_PITCH_MAX (30 deg; the vertical range is smaller than the horizontal).
 ##   blink            0..1   lid closure (1 = shut). A human blink lasts about 0.1-0.4 s (Doughty 2001, Blink rate and duration).
+##   squint, widen, press  0..1  lids tight (AU6/7), upper lid raised (AU5), lips pressed (AU23/24): the same three the expression
+##                           cards use (EXPR_AU), keyed here by the words box (scripts/face_words.gd, ROADMAP I20).
 ##   vis_M/A/O/E      0..1   visemes: M = closed (M, B, P: lips shut), A = open, O = round, E = wide (E, I). The same four
 ##                           shapes LipSync emits (lip_sync.gd: S shows as E). Each viseme opens the jaw by VIS_JAW x its weight.
 ## LIP SYNC: when Scene.lip has a channel, it DRIVES the jaw and the visemes at the playhead (LipSync.jaw_at, shape_at), and the
@@ -27,7 +29,7 @@
 class_name Face
 extends RefCounted
 
-const CHANNELS := ["brow_l", "brow_r", "jaw", "eye_yaw", "eye_pitch", "blink", "vis_M", "vis_A", "vis_O", "vis_E"]
+const CHANNELS := ["brow_l", "brow_r", "jaw", "eye_yaw", "eye_pitch", "blink", "vis_M", "vis_A", "vis_O", "vis_E", "squint", "widen", "press"]
 const VISEMES := ["M", "A", "O", "E"]
 const JAW_MAX_DEG := 27.5     # deg: the jaw at jaw = 1.0 (middle of the cited 25-30 deg)
 const EYE_YAW_MAX := 45.0     # deg: the eye at eye_yaw = +-1 (the cited horizontal gaze range)
@@ -193,7 +195,8 @@ static func pose(raw_in: Dictionary, lip: Dictionary = {}, t := 0.0, expr: Dicti
 	return {"brow_l": clampf(float(raw.get("brow_l", 0.0)), -1.0, 1.0), "brow_r": clampf(float(raw.get("brow_r", 0.0)), -1.0, 1.0),
 		"eye_yaw_deg": yaw * EYE_YAW_MAX, "eye_pitch_deg": pitch * EYE_PITCH_MAX,
 		"blink": clampf(float(raw.get("blink", 0.0)), 0.0, 1.0), "jaw_deg": jaw_f * JAW_MAX_DEG, "vis": vis, "mouth": mouth,
-		"squint": clampf(float(ed["squint"]), 0.0, 1.0), "widen": clampf(float(ed["widen"]), 0.0, 1.0), "press": clampf(float(ed["press"]), 0.0, 1.0)}
+		"squint": clampf(float(raw.get("squint", 0.0)) + float(ed["squint"]), 0.0, 1.0), "widen": clampf(float(raw.get("widen", 0.0)) + float(ed["widen"]), 0.0, 1.0),
+		"press": clampf(float(raw.get("press", 0.0)) + float(ed["press"]), 0.0, 1.0)}
 
 
 ## the head's pose at scene time t from a scene's face keys and lip channel

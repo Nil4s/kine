@@ -9,22 +9,17 @@ Over 70 feature branches (`wt-*`) live on Nick's machine. Almost all are **alrea
 into `poser-ui-rounds`, so before starting a roadmap item, search the code and
 `git log --oneline | grep -i <item id or keyword>`. If it's in the log, it's done.
 
-These branches are **not merged yet**. They're pushed to GitHub, so check them out instead of
-starting over:
-
-| Branch | What | State |
-|---|---|---|
-| `wt-blkeys` | B16: optional Blender-style G/R/S modal keys on pose + model preview | finished, not merged |
-| `wt-faceword` | I20: face from words (FACS AU mix through the words box) | finished, not merged |
-| `wt-mattr` | A09: KMesh attributes (vert/corner/edge/face) through save/load, undo, repair | finished, not merged |
-| `wt-mousehint` | mouse hints (`scripts/mouse_hint.gd` + test) | WIP, interrupted |
-| `wt-photomat` | photo materials for props (`scripts/photo_material*.gd` + test) | WIP, interrupted |
-| `wt-rigword` | rig from words (`scripts/rig_words.gd` + test) | WIP, interrupted |
-| `wt-wbroke` | weight-break check (`scripts/weight_break.gd` + test) | WIP, interrupted |
-| `wt-deform` | deformation check (`scripts/deform_check.gd`), no test yet | WIP, interrupted |
+All 8 `wt-*` branches above (B16, I20, A09, P05, E15, J24, H24, F14) and P01 page tours are finished and merged
+on `claude/inspiring-clarke-xnl0aa` (PR into `poser-ui-rounds`), together with new items A12 A13 A14 B02 B05 B09 B20
+C01 C02 D03 D05 F06 F08 P02 and the inset + bridge half of B03 (bevel still open). Don't redo them: until that PR
+merges, branch off `claude/inspiring-clarke-xnl0aa`, not `poser-ui-rounds`.
+Model-preview keys are crowded now (see the header of `scripts/kmesh_edit_ui.gd`): M = merge, T = measure,
+E/I extrude/inset, Ctrl+T triangulate, H heat map, U UV shading, K shape key. New mesh ops: add a line to
+`scripts/mesh_tools.gd` (P02 search registry) and fill its "do" field.
+Known failures on the base too (not caused by this work): `units` (unitless numbers), `command_search`
+(frame_data.gd `_tip`/`_hitboxes` script errors, 'mirr', lambda-bound file commands), `search_forgive` ('chekc').
 
 ROADMAP 22 (type a move, get blocking) is done and merged as `wt-textmove2`. Ignore the old `wt-textmove`.
-`wt-pagetour` (page tour) was started but has no code yet, only `.uid` files.
 
 ## How to work here
 - Work on your own branch and open a PR into `poser-ui-rounds`. Don't push straight to it.

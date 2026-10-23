@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 32 / 400 (★ 12 / 119)
+Merged: 56 / 400 (★ 17 / 119)
 
 ## The tracks
 
@@ -54,12 +54,12 @@ Merged: 32 / 400 (★ 12 / 119)
 - [x] A06 $ Pick: ray to vert / edge / face under the mouse, box and lasso select, x-ray select-through
 - [x] A07 $ Mesh file: .kmesh JSON inside the .kine scene; loads in under 1 s for 200k verts
 - [x] A08 $ Normals: smooth / flat / auto by angle, custom split normals kept on export
-- [ ] A09 $$ Attributes: per-vert / per-corner channels (colour, weight, mask, crease) on the half-edge
+- [x] A09 $$ Attributes: per-vert / per-corner channels (colour, weight, mask, crease) on the half-edge
 - [x] A10 $$ Mesh validate + repair: non-manifold, zero-area faces, flipped normals, holes, with a next step each
 - [ ] A11 $$ Modifier stack (non-destructive): mirror, subdivide, solidify, array, displace; live in the viewport
-- [ ] A12 $$ Catmull-Clark subdivision with creases (own implementation from the 1978 paper)
-- [ ] A13 $$ Shape keys on KMesh (absolute + relative), driven by anything
-- [ ] A14 $ Mesh stats in the status line: verts / faces / tris / n-gons / poles
+- [x] A12 $$ Catmull-Clark subdivision with creases (own implementation from the 1978 paper)
+- [x] A13 $$ Shape keys on KMesh (absolute + relative), driven by anything
+- [x] A14 $ Mesh stats in the status line: verts / faces / tris / n-gons / poles
 - [ ] A15 $$ Instancing: one mesh many objects (props, crowds) without copying
 - [ ] A16 $$ Mesh layers in the Browser: objects, parenting, visibility, lock
 - [ ] A17 $$ GPU skinning path for KMesh (so A–F meshes animate like the mannequin)
@@ -70,25 +70,25 @@ Merged: 32 / 400 (★ 12 / 119)
 ## B. MODEL page
 
 - [ ] B01 $$ Move / rotate / scale with the existing gizmo on a selection, numeric entry
-- [ ] B02 $$ Extrude (faces, edges, verts), individual and region
-- [ ] B03 $$ Inset, bevel (edges with segments + profile), bridge edge loops
+- [x] B02 $$ Extrude (faces, edges, verts), individual and region
+- [ ] B03 $$ Inset, bevel (edges with segments + profile), bridge edge loops  (inset + bridge merged; bevel still to do)
 - [ ] B04 $$ Loop cut + slide, knife (cut along a stroke), edge split
-- [ ] B05 $$ Merge (at centre, by distance), dissolve (verts / edges / faces), delete
+- [x] B05 $$ Merge (at centre, by distance), dissolve (verts / edges / faces), delete
 - [ ] B06 $$ Fill / grid fill holes, make face from selection
 - [ ] B07 $$ Proportional editing (falloff curves, connected-only)
 - [ ] B08 $$ Snapping: to verts, edges, faces, grid, the body's surface
-- [ ] B09 $$ Primitives: cube, cylinder, sphere (UV / ico), torus, plane, capsule, with live parameters
+- [x] B09 $$ Primitives: cube, cylinder, sphere (UV / ico), torus, plane, capsule, with live parameters
 - [ ] B10 $$ Booleans (union / difference / intersect) on closed meshes
 - [ ] B11 $$ Spin, screw, lathe from a profile curve
 - [ ] B12 $$ Curves → mesh: bezier curves with bevel / taper (belts, straps, cables)
 - [ ] B13 $$ Shrinkwrap / project onto the body (armour plates that fit)
 - [ ] B14 $$ Pivot modes: median, active, cursor, individual origins; 3D cursor
 - [ ] B15 $$ Edit history panel per object (the mesh steps, click to go back)
-- [ ] B16 $ Hotkeys like Blender's (G R S E I K) as an optional layer, Kine's plain ones by default
+- [x] B16 $ Hotkeys like Blender's (G R S E I K) as an optional layer, Kine's plain ones by default
 - [ ] B17 $$ Separate / join objects, set origin
 - [ ] B18 $$ Edge flow tools: relax loop, straighten, set flow
 - [ ] B19 $$ Poly build (draw quads on a surface)
-- [ ] B20 $$ Measure tool: distance, angle, area, volume (in cm, kg if a density is set)
+- [x] B20 $$ Measure tool: distance, angle, area, volume (in cm, kg if a density is set)
 - [ ] B21 $$ Reference images on planes (front / side), with opacity
 - [ ] B22 $$ Mirror axis choice + topological mirror for asymmetric meshes
 - [ ] B23 ★ $$ Armour from the body: select a body region (A19) → a plate shell offset 4 mm, edge-bevelled, already skinned
@@ -102,8 +102,8 @@ Merged: 32 / 400 (★ 12 / 119)
 
 ## C. SCULPT page
 
-- [ ] C01 $$ Sculpt core: brush stroke → vertex displacement with falloff, radius, strength, pressure (tablet)
-- [ ] C02 $$ Brushes: draw, clay strips, inflate, smooth, flatten, pinch, crease, grab, snake hook
+- [x] C01 $$ Sculpt core: brush stroke → vertex displacement with falloff, radius, strength, pressure (tablet)
+- [x] C02 $$ Brushes: draw, clay strips, inflate, smooth, flatten, pinch, crease, grab, snake hook
 - [ ] C03 $$ Masking: paint mask, invert, blur, mask by cavity; masked areas frozen
 - [ ] C04 $$ Multires levels (subdivide for detail, sculpt at any level, details kept when the base moves)
 - [ ] C05 $$ Dynamic topology (local remesh under the brush)
@@ -137,9 +137,9 @@ Merged: 32 / 400 (★ 12 / 119)
 
 - [ ] D01 $$ UV editor panel: the 2D view, select / move / rotate / scale islands
 - [ ] D02 $$ Seams: mark / clear, seam by angle, seam from face sets
-- [ ] D03 $$ Unwrap: angle-based (LSCM from the 2002 paper), conformal, projection (cube / cylinder / sphere)
+- [x] D03 $$ Unwrap: angle-based (LSCM from the 2002 paper), conformal, projection (cube / cylinder / sphere)
 - [ ] D04 $$ Island packing (with margin, rotate, texel density equalised)
-- [ ] D05 $ Checker texture + stretch heat map
+- [x] D05 $ Checker texture + stretch heat map
 - [ ] D06 $$ UV sync with 3D selection, pin, live unwrap
 - [ ] D07 $$ UDIMs (multi-tile)
 - [ ] D08 $$ Straighten / align / stitch islands
@@ -167,7 +167,7 @@ Merged: 32 / 400 (★ 12 / 119)
 - [ ] E12 $$ Skin shader: SSS, pores detail, oily / dry roughness map
 - [ ] E13 $$ Eye shader (cornea refraction, iris depth)
 - [ ] E14 $$ Hair cards material
-- [ ] E15 $ Material from a photo (a picture → base colour + estimated roughness / normal)
+- [x] E15 $ Material from a photo (a picture → base colour + estimated roughness / normal)
 - [ ] E16 ★ $$ Wear from motion: edges that the animation rubs (contact, cloth slide, grip) get worn paint / polished metal
 - [ ] E17 ★ $$ Sweat / flush from exertion: the exertion & fatigue models drive a skin wetness + redness map over the scene
 - [ ] E18 ★ $$ Real skin tones from measured data (colorimetric skin datasets, Fitzpatrick I–VI), not a colour picker guess
@@ -181,15 +181,15 @@ Merged: 32 / 400 (★ 12 / 119)
 - [ ] F03 $$ Decimate (collapse / planar) keeping UVs
 - [ ] F04 $$ LODs (3–4 levels with targets)
 - [ ] F05 $$ Edge loop guides (draw where loops must go, remesher follows)
-- [ ] F06 $$ Triangulate / quadrangulate
+- [x] F06 $$ Triangulate / quadrangulate
 - [ ] F07 $$ Shrinkwrap retopo onto high poly
-- [ ] F08 $$ Topology heat map: poles, triangles, stretched quads
+- [x] F08 $$ Topology heat map: poles, triangles, stretched quads
 - [ ] F09 $$ Project details low ← high (re-bake)
 - [ ] F10 ★ $$ Rig-aware retopo: loops placed where the skeleton bends (3 loops at elbow / knee, radial around shoulder), from the joint positions
 - [ ] F11 ★ $$ Topology graded in motion: each joint region's quad stretch measured over the scene's poses, worst first
 - [ ] F12 ★ $$ Loop count from the motion: joints that bend further (Nick's deep stances) get more loops automatically
 - [ ] F13 ★ $$ Face loops for FACS: eye and mouth rings placed for the action units I needs
-- [ ] F14 ★ $ "Will this deform?" one-click verdict before rigging, with the 3 worst spots shown
+- [x] F14 ★ $ "Will this deform?" one-click verdict before rigging, with the 3 worst spots shown
 - [ ] F15 ★ $$ LOD by screen size of the shots (camera distance per shot decides each LOD's budget)
 
 ## G. BODY page (make the character)
@@ -245,7 +245,7 @@ Merged: 32 / 400 (★ 12 / 119)
 - [ ] H21 ★ $$ Breathing: chest / belly volume follows a breathing rate from exertion (rest 12–20 / min, effort up to 40–60)
 - [ ] H22 ★ $$ Contact deformation: a hand gripping, a fist landing, a foot on the floor flattens the soft tissue it presses
 - [ ] H23 ★ $$ Jiggle by tissue: fat / muscle secondary motion with damping from measured soft-tissue studies
-- [ ] H24 ★ $ "Weights broke here" one click: shows the vert with the worst weight problem in the worst frame
+- [x] H24 ★ $ "Weights broke here" one click: shows the vert with the worst weight problem in the worst frame
 - [ ] H25 ★ $$ Weight paint by moving: drag the skin in a pose and the weights change to make it go there
 
 ## I. Face as geometry (replaces the painted face)
@@ -269,7 +269,7 @@ Merged: 32 / 400 (★ 12 / 119)
 - [ ] I17 ★ $$ Face checks: AU combinations that are anatomically impossible flagged (FACS rules)
 - [ ] I18 ★ $$ Kiai / shout timing: the shout lands on the strike frame (impact frames) with the mouth shape
 - [ ] I19 ★ $$ Micro-expressions between beats (FACS durations 1/25–1/5 s)
-- [ ] I20 ★ $ Face from words: "tired and angry" → AU mix through the words box
+- [x] I20 ★ $ Face from words: "tired and angry" → AU mix through the words box
 
 ## J. Rigging your own
 
@@ -296,7 +296,7 @@ Merged: 32 / 400 (★ 12 / 119)
 - [ ] J21 ★ $$ Rig checked by motion: play the scene's moves on a new rig; joints that hit limits or flip show per frame
 - [ ] J22 ★ $$ Auto mass for a creature rig (G18 on any mesh) so the physics judges work on monsters too
 - [ ] J23 ★ $$ Weapon rigs from the grip book: a modeled weapon's holdable parts become the hand constraints
-- [ ] J24 ★ $ Rig from words: "add a tail with 8 bones" through the words box
+- [x] J24 ★ $ Rig from words: "add a tail with 8 bones" through the words box
 - [ ] J25 ★ $$ Rig diff: two rig versions compared bone by bone (rest, limits, weights) before re-rigging an animated character
 
 ## K. Viewport + render
@@ -436,11 +436,11 @@ Merged: 32 / 400 (★ 12 / 119)
 
 ## P. Workflow + UX
 
-- [ ] P01 $ Page onboarding: each new page (BODY / MODEL / SCULPT / SURFACE) has a 5-step first-use tour
-- [ ] P02 $ Search finds mesh tools too, with hotkeys shown
+- [x] P01 $ Page onboarding: each new page (BODY / MODEL / SCULPT / SURFACE) has a 5-step first-use tour
+- [x] P02 $ Search finds mesh tools too, with hotkeys shown
 - [ ] P03 $$ Tool settings panel (last-op redo panel: change a bevel's width after doing it)
 - [ ] P04 $$ Pie menus (optional), radial for brushes
-- [ ] P05 $ Status bar shows what the mouse buttons do now
+- [x] P05 $ Status bar shows what the mouse buttons do now
 - [ ] P06 $$ Customisable hotkeys per page
 - [ ] P07 $$ Workspaces: save a layout per page
 - [ ] P08 $ Theme: light / dark / high contrast for the new pages (Tok tokens)

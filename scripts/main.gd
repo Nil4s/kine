@@ -105,6 +105,7 @@ var ui_hips := []
 var ui_math: Label
 var ui_math_btn: Button
 var ui_status: Label
+var ui_mouse: MouseHint   # ROADMAP_400 P05: what the mouse buttons do now (scripts/mouse_hint.gd), just above the status line
 var ui_bar: Label   # STATUS BAR (round 9, GATES P4): what is picked, where you are, what Check said; always on
 var check_ran := false   # the bar says "not run" until Check has graded this scene
 var pose_clip := {}   # COPY / PASTE (round 10): the copied pose, empty until Ctrl+C
@@ -274,6 +275,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
+var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
 
@@ -953,6 +955,22 @@ func _line_fit() -> void:
 		ui_status.offset_right = minf(lw() + 12 + said, split - 16)   # as wide as its words
 		ui_status.offset_top = y0
 		ui_status.offset_bottom = -bottom_h - 6
+	_mouse_fit(y0, x0, x1)
+
+
+## P05: the mouse-button strip sits on the row just above the line's two texts, from the view's left edge to the nav bar
+func _mouse_fit(y0: float, x0: float, x1: float) -> void:
+	if ui_mouse == null:
+		return
+	ui_mouse.anchor_left = 0.0
+	ui_mouse.anchor_right = 0.0
+	ui_mouse.offset_left = x0
+	ui_mouse.offset_right = maxf(x1, x0 + 40.0)
+	ui_mouse.offset_top = y0 - MouseHint.H - 2
+	ui_mouse.offset_bottom = y0 - 2
+	ui_mouse.size = Vector2(ui_mouse.offset_right - ui_mouse.offset_left, MouseHint.H)
+	ui_mouse._sig = ""   # the width changed: which items fit changes with it
+	ui_mouse.refresh()
 
 
 func _nav_set(t: String) -> void:
@@ -2607,6 +2625,9 @@ func _ready() -> void:
 	onboard = Onboarding.new()
 	onboard.m = self
 	add_child(onboard)
+	page_tour = PageTour.new()
+	page_tour.m = self
+	add_child(page_tour)
 	easy = EasyMode.new()   # first: lw() / rw() read easy.on while the world is built (scripts/easy_mode.gd)
 	easy.m = self
 	add_child(easy)
@@ -2689,6 +2710,8 @@ func _ready() -> void:
 	hk.load_from(settings)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
+	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
+	blk.load_from(settings)
 	_ui()
 	if scale_auto:
 		_auto_scale_now()
@@ -2709,6 +2732,8 @@ func _ready() -> void:
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
+	page_tour.build(ui_root)
+	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
@@ -2941,6 +2966,8 @@ func _process(dt: float) -> void:
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
 			_drop_line.visible = false   # R8: the drag ended or left the strip
 	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
+	if ui_mouse != null:
+		ui_mouse.tick(dt)   # P05: at most every 50 ms
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
@@ -4641,6 +4668,7 @@ func _refresh() -> void:
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	PerfDoc.add("cloth", _pk)
 	_pk = PerfDoc.t()
+	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	PerfDoc.add("hair", _pk)
 	if hitbox_ui != null:
@@ -4820,6 +4848,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if blk != null and blk.on and blk.input(ev):   # B16: the optional Blender-style G / R / S layer (off by default: Kine's own keys)
+		get_viewport().set_input_as_handled()
+		return
 	if feint_ui != null and feint_ui.on and feint_ui.input(ev):   # I20: Tab picks the variant, P previews, Enter accepts, Esc puts the ghosts away
 		get_viewport().set_input_as_handled()
 		return
@@ -4827,6 +4858,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if kmed != null and kmed.on and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
+		get_viewport().set_input_as_handled()
+		return
+	if ksc != null and ksc.on and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
 		get_viewport().set_input_as_handled()
 		return
 	if sk.on and _sk_input(ev):   # I9: a left drag is a stroke; Enter fits, Backspace takes the last stroke back
@@ -5283,11 +5317,27 @@ func _do(f: Callable) -> void:
 ## WORDS TO A POSE (round 13, #93): "raise the right arm 90, bend the left elbow 45" (scripts/pose_words.gd). ONE undo
 ## step. Every op is reported with what was asked and what the joint REACHED (a limit or a contact stops it)
 func _pose_words(text: String) -> Dictionary:
-	var r := PoseWords.parse(text)
-	if not r["ok"]:
-		_say(r["error"])
-		return r
+	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
+		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
+	var rt := FaceWords.route(text)   # FACE WORDS (I20): "tired and angry", "raise the right arm 90 and look angry": face keyed at the playhead, same step
+	var has_face: bool = rt["face"] != ""
+	var r := {"ok": true, "ops": []}
+	if not has_face or rt["pose"] != "":
+		r = PoseWords.parse(rt["pose"] if has_face else text)
+		if not r["ok"]:
+			_say(r["error"])
+			return r
+	var fw := {}
+	if has_face:
+		fw = FaceWords.parse(rt["face"])
+		if not fw["ok"]:
+			_say(fw["error"])
+			return fw
+		if S.cards.is_empty():
+			_say("the face is keyed at the playhead: open a scene with cards first")
+			return {"ok": false, "error": "no cards"}
 	var rep := []
+	var tt := clampf(float(playhead), 0.0, S.length())
 	_do(func():
 		var carry := 0.0   # a chest turn one spine joint couldn't take (a limit, a contact) goes on to the next one up
 		for op in r["ops"]:
@@ -5299,11 +5349,126 @@ func _pose_words(text: String) -> Dictionary:
 			var got: float = B.ang[j][op["axis"]]
 			carry = want[op["axis"]] - got if j.begins_with("spine_0") and j != "spine_03" and op["mode"] == "by" else 0.0
 			rep.append({"joint": j, "axis": PoseWords.AXES[op["axis"]], "asked": snappedf(want[op["axis"]], 0.01), "reached": snappedf(got, 0.01),
-				"stopped": absf(got - want[op["axis"]]) > 0.05}))
-	sel = r["ops"][-1]["joint"]
+				"stopped": absf(got - want[op["axis"]]) > 0.05})
+		if has_face:
+			Face.key(S.face, tt, FaceWords.values(fw["mix"])))
+	if not (r["ops"] as Array).is_empty():
+		sel = r["ops"][-1]["joint"]
 	var stopped := rep.filter(func(x): return x["stopped"])
-	_say("posed: %s%s" % [text, ("   (stopped short: %s)" % ", ".join(stopped.map(func(x): return "%s %s %.0f° of %.0f°" % [nice(x["joint"]), x["axis"], x["reached"], x["asked"]]))) if not stopped.is_empty() else ""])
-	return {"ok": true, "ops": rep}
+	_say("%s: %s%s" % ["posed" if not has_face else ("face" if rep.is_empty() else "posed + face"), text, ("   (stopped short: %s)" % ", ".join(stopped.map(func(x): return "%s %s %.0f° of %.0f°" % [nice(x["joint"]), x["axis"], x["reached"], x["asked"]]))) if not stopped.is_empty() else ""] + ("   (face keyed at %.2f s; Ctrl+Z takes it back)" % tt if has_face else ""))
+	return {"ok": true, "ops": rep, "face": fw.get("mix", {})}
+
+
+## RIG FROM WORDS (J24; scripts/rig_words.gd): "add a tail with 8 bones", "add 2 ears", "add a cape with 3x4 bones", "remove the
+## tail", "curl the tail 40". The chains are data in S.rigx (saved with the scene); every command is ONE undo step.
+func _rig_words(text: String) -> Dictionary:
+	var r := RigWords.parse(text)
+	if not r["ok"]:
+		_say(r["error"])
+		return r
+	var kind: String = r["kind"]
+	var have := S.rigx.filter(func(c): return kind == "all" or c["kind"] == kind).size()
+	if r["op"] == "remove" and have == 0:
+		_say("there is no %s on this body to remove: say add a tail with 8 bones first" % ("rig" if kind == "all" else kind))
+		return {"ok": false, "error": "nothing to remove"}
+	if r["op"] == "pose" and have == 0:
+		_say("there is no %s to pose: say add a %s with 8 bones first" % [kind, kind])
+		return {"ok": false, "error": "nothing to pose"}
+	var made := []
+	_do(func():
+		var op: String = r["op"]
+		if op == "remove":
+			S.rigx = S.rigx.filter(func(c): return kind != "all" and c["kind"] != kind)
+		elif op == "add":
+			made.append_array(RigWords.make(B, r))   # in place: a lambda's locals are copies
+			S.rigx = S.rigx.filter(func(c): return c["kind"] != kind) + made.duplicate(true)
+		else:
+			RigWords.pose(S.rigx, r))
+	var msg := ""
+	match String(r["op"]):
+		"remove":
+			msg = "took the %s off (%d bone chain%s); Ctrl+Z puts it back" % ["rig" if kind == "all" else kind, have, "" if have == 1 else "s"]
+		"add":
+			var nb := 0
+			for c in made:
+				nb += (c["bones"] as Array).size()
+			msg = "added %s: %d bone chain%s, %d bones, %.0f cm; one undo step (Ctrl+Z takes it back)" % [kind, made.size(), "" if made.size() == 1 else "s", nb, RigWords.length(made[0]) * 100.0]
+		_:
+			msg = "posed the %s: %+.0f deg %s (the words: curl / lower / wag the %s N); Ctrl+Z takes it back" % [kind, float(r["deg"]), "sideways" if r["side"] else "bend", kind]
+	_say(msg)
+	return {"ok": true, "op": r["op"], "kind": kind, "chains": made.size() if r["op"] == "add" else have}
+
+
+var _rigx_root: Node3D
+var _rigx_mat: StandardMaterial3D
+var _rigx_dot_mat: StandardMaterial3D
+
+
+## the rig drawn on the body: a capsule per bone (Tok s_hips), a dot per joint (Tok focus), at the pose now. The nodes are
+## kept and reused (one capsule + one dot per bone); the ones past the count hide
+func _rigx_draw() -> void:
+	if _rigx_root == null:
+		_rigx_root = Node3D.new()
+		_rigx_root.name = "rigx"
+		add_child(_rigx_root)
+		_rigx_mat = StandardMaterial3D.new()
+		_rigx_mat.roughness = 0.6
+		_rigx_dot_mat = StandardMaterial3D.new()
+		_rigx_dot_mat.roughness = 0.4
+	var show := S != null and not S.rigx.is_empty() and not clean
+	_rigx_root.visible = show
+	if not show:
+		return
+	_rigx_mat.albedo_color = Tok.c("s_hips")
+	_rigx_dot_mat.albedo_color = Tok.c("focus")
+	var k := 0
+	for c in S.rigx:
+		if not B.G.has(c["parent"]):
+			continue
+		var pts := RigWords.points(B, c)
+		var nb := (c["bones"] as Array).size()
+		for i in nb:
+			var f := float(i) / float(maxi(nb - 1, 1))
+			var r := lerpf(float(c["r0"]), float(c["r1"]), f)
+			var a := pts[i]
+			var b := pts[i + 1]
+			var L := a.distance_to(b)
+			var cap_n := _rigx_node(k * 2, true)
+			var dot_n := _rigx_node(k * 2 + 1, false)
+			cap_n.visible = true
+			dot_n.visible = true
+			var cm := cap_n.mesh as CapsuleMesh
+			var h := maxf(L, r * 2.0 + 0.001)
+			if not is_equal_approx(cm.radius, r * 0.8) or not is_equal_approx(cm.height, h):
+				cm.radius = r * 0.8
+				cm.height = h
+			var dir := (b - a).normalized()
+			var q := Quaternion(Vector3.UP, dir) if dir.dot(Vector3.UP) > -0.9999 else Quaternion(Vector3.RIGHT, PI)
+			cap_n.transform = Transform3D(Basis(q), (a + b) * 0.5)
+			var sm := dot_n.mesh as SphereMesh
+			if not is_equal_approx(sm.radius, r * 1.15):
+				sm.radius = r * 1.15
+				sm.height = r * 2.3
+			dot_n.position = a
+			k += 1
+	for i in range(k * 2, _rigx_root.get_child_count()):
+		(_rigx_root.get_child(i) as Node3D).visible = false
+
+
+func _rigx_node(i: int, capsule: bool) -> MeshInstance3D:
+	while _rigx_root.get_child_count() <= i:
+		var n := MeshInstance3D.new()
+		var idx := _rigx_root.get_child_count()
+		if idx % 2 == 0:
+			n.mesh = CapsuleMesh.new()
+			n.material_override = _rigx_mat
+			n.name = "bone_%d" % (idx / 2)
+		else:
+			n.mesh = SphereMesh.new()
+			n.material_override = _rigx_dot_mat
+			n.name = "joint_%d" % (idx / 2)
+		_rigx_root.add_child(n)
+	return _rigx_root.get_child(i) as MeshInstance3D
 
 
 func _after_edit() -> void:
@@ -5431,11 +5596,12 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
+		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
@@ -5569,6 +5735,9 @@ func _restore(u: Dictionary) -> void:
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
+	if u.has("bmats") and var_to_str(u["bmats"]) != var_to_str(body_mats):
+		body_mats = u["bmats"].duplicate()   # the photo materials on body parts, undone like a card (E15)
+		photomat.sync_body()
 	if u["scene"] == S and u.has("pk"):
 		S.part_keys = u["pk"].duplicate(true)   # PART KEYS (WW1), undone like a card
 	if u["scene"] == S and u.has("iq") and var_to_str(u["iq"]) != var_to_str(S.iq):
@@ -5581,6 +5750,9 @@ func _restore(u: Dictionary) -> void:
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
+	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
+		S.rigx = u["rigx"].duplicate(true)   # RIG FROM WORDS (J24), undone like a card
+		ov.mark_dirty()
 	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
 		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
 		_hair_bake()
@@ -8002,6 +8174,34 @@ func _kmesh_edit_start() -> void:
 		_say("The test cube is already open: click an element, or press Esc to leave")
 		return
 	kmed.start()
+
+
+func _kmesh_subdivide() -> void:   # A12: Catmull-Clark the test cube (opens it first), one undo step
+	if kmed == null or not kmed.on:
+		_kmesh_edit_start()
+	kmed.subdivide(1)
+
+
+## F06 / F08 (scripts/kmesh_topo.gd): triangulate, tris to quads, the topology heat map, on the test cube (opened if needed)
+func _kmesh_topo(what: String) -> void:
+	if kmed == null or not kmed.on:
+		_kmesh_edit_start()
+	kmed.topo(what)
+
+
+## SCULPT PAGE, FIRST STEP (ROADMAP_400 C01/C02; scripts/kmesh_sculpt.gd, kmesh_sculpt_ui.gd): a test sphere you can sculpt
+var ksc: KMeshSculptUI
+
+
+func _sculpt_start() -> void:
+	if ksc == null:
+		ksc = KMeshSculptUI.new()
+		add_child(ksc)
+		ksc.setup(self)
+	if ksc.on:
+		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
+		return
+	ksc.start()
 
 
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
@@ -11787,6 +11987,11 @@ func _ui() -> void:
 	ui_bar_box = null
 	ui_bar.add_theme_stylebox_override("normal", bb)
 	ui_root.add_child(ui_bar)
+	ui_mouse = MouseHint.new()
+	ui_mouse.m = self
+	ui_mouse.anchor_top = 1.0
+	ui_mouse.anchor_bottom = 1.0
+	ui_root.add_child(ui_mouse)
 	_build_nav()
 	_build_akey_frame()
 
@@ -11816,6 +12021,7 @@ func _ui() -> void:
 	_nt_sync()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
+	ui_cmd.tools = MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), each with its hotkey and page
 	_hover_hints()
 	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
 	tips.name = "tips"
@@ -12056,6 +12262,8 @@ func bar_text() -> String:
 	var what := ""
 	if _num_on:
 		what = "TYPE %s = %s_   (it is %.1f)   Tab: next axis   Enter: done   Esc: cancel the drag" % [NUM_AXES[_num_axis], _num_text, (B.ang[sel] as Vector3)[_num_axis]]
+	elif kmed != null and kmed.on:   # ROADMAP_400 A14: the mesh being edited, counted (scripts/kmesh_stats.gd)
+		what = kmed.stats_text()
 	elif _bar_hover != "" and _bar_hover != sel:
 		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else nice(_bar_hover))
 	elif sel in Body.WEAPON:
@@ -13101,7 +13309,7 @@ func _build_page_bar() -> void:
 		else:
 			b.tooltip_text = "coming: the %s page. Click it: what works already and what is next" % p
 			b.modulate = Color(1, 1, 1, 0.38)   # greyed: a click explains instead of doing nothing (P11)
-			b.pressed.connect(func(): _say(_page_soon_why(p)))
+			b.pressed.connect(func(): _say(_page_soon_why(p)); page_tour.opened(p))
 		h.add_child(b)
 		if p == PAGES[-1]:
 			var sep := VSeparator.new()
@@ -13350,6 +13558,8 @@ func _page_set(p: String, save := true) -> void:
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
+	if page_tour != null and page_tour.card != null:
+		page_tour.opened.call_deferred(p)   # P01: the page's first-use tour, once its panels are laid out
 	if save:
 		var cf := ConfigFile.new()
 		cf.load(settings)
@@ -13640,6 +13850,7 @@ func _press(code: Key, shift := false) -> void:
 ## Shift + a key, Ctrl + a key. ? opens and closes it, Esc closes it
 var ui_keys: PanelContainer
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
+var blk: BlKeys           # B16: Blender-style modal G / R / S layer
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
 
 
@@ -13722,6 +13933,7 @@ func _commands() -> Array:
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
+	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
 	add.call("Mode: Easy (12 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 buttons stay large (remembered)")
@@ -13923,7 +14135,12 @@ func _commands() -> Array:
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
+	add.call("Model: subdivide the test cube (Catmull-Clark)", "", _kmesh_subdivide, "model mesh subdivide subdivision catmull clark smooth subsurf crease level", false, "one Catmull-Clark level on the test cube (every face becomes quads, creases kept); Ctrl+Z takes it back in one step")
+	add.call("Model: triangulate", "", _kmesh_topo.bind("tri"), "triangulate triangles tris split quads ngons faces mesh model topology", false, "split the test cube's selected faces (face mode) or every face into triangles (Ctrl+T in the cube): quads by the shorter diagonal, concave n-gons by ear clipping (Ctrl+Z undoes)")
+	add.call("Model: tris to quads", "", _kmesh_topo.bind("quad"), "quadrangulate quads tris to quads join triangles mesh model topology", false, "join pairs of flat, near-square triangles into quads, best pairs first; UV seams stay (Alt+J in the cube; Ctrl+Z undoes)")
+	add.call("Model: topology heat map", "", _kmesh_topo.bind("heat"), "topology heat map poles triangles ngons stretched quads valence check mesh model retopo", false, "colour the test cube's poles (3, 5, 6+ edges), triangles, n-gons and stretched quads, with a legend of counts (H in the cube)")
 	add.call("Walk along a path...", "", _pathwalk_start, "walk run path floor points curve gait jog sprint generate steps", true, "click points on the floor, pick walk or run and a speed, Enter builds the cards as ONE undo step")
 	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
@@ -14020,9 +14237,11 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
+	add.call("Check: weights broke here", "", _weights_broke, "weights broke skin vertex stretch spike pop wrong bone bad weight worst frame skinning candy", false, "over the whole animation finds the vertex with the worst weight problem (edges stretched against rest, jumps between frames, weights far from the vertex's own bone, weights not adding up to a whole or over 4 bones), jumps the playhead to its worst frame, frames the camera on it and marks it; the report has a button that opens Weight paint on the bone (ROADMAP_400 H24)")
 	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
 	add.call("Check: silhouette sheet of the key poses", "", _silsheet, "silhouette sheet readability black shape key poses staging negative space arms torso", false, "every card as a flat black shape from the current camera, tiled into one picture (user://silhouettes/<scene>_sheet.png) with fill, negative space and a flag for arms hidden in the torso (ROADMAP_400 K26)")
+	add.call("Check: will this deform?", "", _deform_check, "deform deformation skin weights bend pinch candy wrapper twist stretch rig rigging joints verdict worst spots", false, "one click before rigging: every major joint (shoulder, elbow, wrist, hip, knee, spine, neck) swept through its range on the skin as weighted; a verdict and the 3 worst spots as dots on the body (ROADMAP_400 F14). View only")
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
@@ -14205,6 +14424,7 @@ func _commands() -> Array:
 		add.call("View: matcap %s" % k, "", _matcap_set.bind(k), "shading matcap clay wax skin material", false, "the matcap shading with the %s look (remembered)" % k)
 	for lt in [["three_point", "3-point"], ["rim", "rim"], ["top", "top"], ["flat", "flat"], ["default", "stage"]]:
 		add.call("View: lights %s" % lt[1], "", _lights_set.bind(lt[0]), "studio lights key fill rim top flat three point", false, "studio lights: %s (remembered)" % Shading.LIGHT_NAMES[lt[0]])
+	add.call("Surface: material from a photo...", "", photomat.ask, "material photo picture texture pbr albedo roughness normal map tileable brick wood stone cloth surface prop", false, "pick a picture: it becomes a tileable PBR material (the lighting divided out, seams blended, roughness and normal map estimated) on the picked prop or body part, saved in user://materials/<name>; one undo step")
 	add.call("View: reference image...", "", refimg.ask, "reference image photo picture overlay trace rotoscope png jpg person plane", false, "load a photo or video frame of a real person as an overlay on the view (or a plane behind the body); opacity, size, offset and flip in the reference panel; saved in the scene as a path, never copied (ROADMAP C25, B21)")
 	add.call("View: reference panel", "", refimg.open_panel, "reference image opacity scale offset flip plane front side free camera overlay", false, "the reference picture's mode (camera overlay, plane front / side / free), opacity, size, offset and flip")
 	add.call("View: match the body to the reference", "", refimg.match_body, "match fit reference image person pose detector height hips residual 2 point head heel", false, "finds the person in the reference picture and scales + moves it to line up with the body as seen from this camera, then says the mean pixel residual; with no detector installed it asks you to click the head top and heel instead")
@@ -14228,6 +14448,7 @@ func _commands() -> Array:
 	add.call("Help: printable cheat sheet", "", _cheat_sheet, "cheat sheet print keys shortcuts reference pdf paper list commands", false, "every key and every command, grouped, as one page you can print (an HTML file in your Kine folder, opened in the browser)")
 	add.call("Help: I come from Blender", "", kt.set_mode.bind("blender"), "blender keys shortcuts translate migrate switch from coming learn", false, "while on, a Blender key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
 	add.call("Help: I come from Maya", "", kt.set_mode.bind("maya"), "maya autodesk keys shortcuts translate migrate switch from coming learn", false, "while on, a Maya key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
+	add.call("Keys: Blender-style G R S on / off", "", func(): blk.toggle(), "blender keys modal grab rotate scale g r s x y z type number layer", false, "G grabs the picked hand / foot / hips, R rotates the picked part (X Y Z = its local axis, type degrees), S scales the weapon; Enter keeps, Esc cancels; in the model preview the same on the selected vertices.  Off by default; remembered")
 	add.call("Help: Blender / Maya key helper off", "", kt.set_mode.bind(""), "blender maya keys shortcuts translate helper off stop hide", false, "turn the Coming-from-Blender/Maya toasts off (remembered)")
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
@@ -15761,8 +15982,153 @@ func _arc_goto(f: Dictionary) -> void:
 	_goto_finding({"t": f["t"], "card": f["card"], "rule": "ARC " + f["sev"], "msg": ArcCheck.words(f)})
 
 
+## ---- WEIGHTS BROKE HERE (ROADMAP_400 H24; scripts/weight_break.gd): the worst skin-weight vertex over the animation, found,
+## the playhead on its frame, the camera on it, a marker on it. The scan only reads (the weights as they are in memory); the
+## playhead and the view move, the scene does not: no undo step.
+var wb_view: MeshInstance3D
+var wb_mark := Vector3.ZERO     # world position of the marker now drawn (the test projects it)
+var wb_top: Array = []          # the ten worst vertices, worst first
+var wb_ms := 0
+var wb_report := ""
+
+
+func _weights_broke() -> void:
+	if wp.is_empty():
+		_say("no skin to check: Weights broke here works on a body with a skin: pick the mannequin")
+		return
+	playing = false
+	var n := maxi(1, roundi(S.length() * S.fps) + 1)
+	var res := WeightBreak.scan(wp, n, func(f: int):
+		_ps().apply(B, float(f) / S.fps)
+		Overlays.pose_skeleton(skel, bone_idx, B))
+	wb_top = res["top"]
+	wb_ms = res["ms"]
+	if wb_top.is_empty():
+		_ps().apply(B, playhead)
+		_refresh()
+		_say("weights: no vertex to check: the skin is rigid on every bone. Paint a blend in Weight paint first")
+		return
+	var e: Dictionary = wb_top[0]
+	playhead = float(e["frame"]) / S.fps
+	_ps().apply(B, playhead)
+	_refresh()
+	SkinPaint.refresh(wp)
+	var at: Vector3 = (wp["surfs"][e["surf"]]["pos"] as PackedVector3Array)[e["vi"]]
+	wb_mark = at
+	_turn_to(yaw, pitch, 1.4, at, false)
+	if wb_view == null:
+		wb_view = MeshInstance3D.new()
+		wb_view.mesh = ImmediateMesh.new()
+		add_child(wb_view)
+	var im := wb_view.mesh as ImmediateMesh
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP, Overlays._mat())
+	for ax in 3:
+		for k in 33:
+			var a := TAU * float(k) / 32.0
+			var c := Vector2(cos(a), sin(a)) * 0.03
+			im.surface_set_color(Tok.of("fail"))
+			im.surface_add_vertex(at + (Vector3(c.x, c.y, 0) if ax == 0 else (Vector3(c.x, 0, c.y) if ax == 1 else Vector3(0, c.x, c.y))))
+	im.surface_end()
+	im.surface_begin(Mesh.PRIMITIVE_POINTS, Overlays._mat(14.0))
+	im.surface_set_color(Tok.of("fail"))
+	im.surface_add_vertex(at)
+	im.surface_end()
+	wb_view.visible = true
+	wb_report = WeightBreak.report(e, S.fps)
+	for c in ui_find_list.get_children():
+		ui_find_list.remove_child(c)
+		c.queue_free()
+	var head := HBoxContainer.new()
+	ui_find_list.add_child(head)
+	var title := _label("WEIGHTS BROKE HERE  -  %.1f× past the visibly broken mark" % e["score"], 18, "heading")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_button("Close", _close_findings))
+	var nxt := "Next: open Weight paint on it (button)"
+	ui_find_list.add_child(_label(wb_report + " " + nxt + ".", 14, "text:0.85", true))
+	ui_find_list.add_child(_button("Open Weight paint on it", _wb_open_paint, "Weight paint with the bone that pulls it selected (Subtract), or its own bone (Add) when nothing foreign pulls it"))
+	var runners := ""
+	for k in range(1, mini(5, wb_top.size())):
+		runners += "#%d: frame %d, vertex #%d, %s, %.1f× past broken\n" % [k + 1, wb_top[k]["frame"], wb_top[k]["id"], WeightBreak.words(wb_top[k]["bone_name"]), wb_top[k]["score"]]
+	if runners != "":
+		ui_find_list.add_child(_label(runners.strip_edges(), 13, "text:0.6", true))
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, 190)
+	ui_find.visible = true
+	_say("weights: %s %s (%d frames in %.1f s)" % [wb_report, nxt, n, wb_ms / 1000.0])
+
+
+## the report's button: Weight paint on, the offending bone picked (Subtract to take its weight off), or the vertex's own bone (Add)
+func _wb_open_paint() -> void:
+	if wb_top.is_empty():
+		_say("nothing found yet: run Check: weights broke here first")
+		return
+	var e: Dictionary = wb_top[0]
+	var foreign: bool = e["pull_bone"] >= 0 and e["pull_w"] >= 0.02
+	wp_bind = int(e["pull_bone"]) if foreign else int(e["bone"])
+	wp_mode = "subtract" if foreign else "add"
+	if not wp_on:
+		_wp_toggle()
+	if wp_bone_pick != null:
+		for i in wp_bone_pick.item_count:
+			if int(wp_bone_pick.get_item_metadata(i)) == wp_bind:
+				wp_bone_pick.select(i)
+	if wp_mode_pick != null:
+		wp_mode_pick.select(["add", "subtract", "smooth"].find(wp_mode))
+	_wp_show()
+	_say("weight paint on the %s (%s): drag on the body at the marker, then Ctrl+Z undoes a stroke" % [WeightBreak.words(wp["skin"].get_bind_name(wp_bind)), wp_mode])
+
+
 func _arc_close() -> void:
 	_close_findings()
+
+
+## ROADMAP_400 F14: "Will this deform?" (DeformCheck, scripts/deform_check.gd): every major joint swept through its range on
+## the skin as weighted now, one verdict and the 3 worst spots as dots on the body. View only: the body and the cards are not touched
+var deform_view: MeshInstance3D = null
+var deform_res := {}
+var deform_marks := []
+
+
+func _deform_check() -> void:
+	if wp.is_empty():
+		_say("Will this deform? needs a body with a skin: pick the mannequin")
+		return
+	var r := DeformCheck.run(wp, skel, bone_idx, func(): Overlays.pose_skeleton(skel, bone_idx, B), B.body)
+	deform_res = r
+	deform_marks = DeformCheck.marks_now(wp, r["spots"])
+	if deform_view == null:
+		deform_view = MeshInstance3D.new()
+		deform_view.mesh = ImmediateMesh.new()
+		add_child(deform_view)
+	DeformCheck.draw_view(deform_view, deform_marks, r["spots"])
+	for c in ui_find_list.get_children():
+		ui_find_list.remove_child(c)
+		c.queue_free()
+	var head := HBoxContainer.new()
+	ui_find_list.add_child(head)
+	var title := _label("WILL THIS DEFORM?  -  " + DeformCheck.headline(r), 18, "heading")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_button("Close", _close_findings))
+	ui_find_list.add_child(_label("%d poses (each joint to 60%% and 100%% of its range) in %d ms. The three worst spots, one per joint, are the dots on the body; click one to look at it.\n" % [r["poses"], r["ms"]] + DeformCheck.verdict(r), 13, "text:0.6", true))
+	for k in r["spots"].size():
+		var sp: Dictionary = r["spots"][k]
+		var b := Button.new()
+		b.name = "deform_%d" % (k + 1)
+		b.text = str(k + 1) + ".  " + str(sp["text"])
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(380, 0)
+		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_color_override("font_color", DeformCheck.sev_color(float(sp["sev"])))
+		b.pressed.connect(func(): _turn_to(yaw, pitch, 1.6, deform_marks[k], true))
+		ui_find_list.add_child(b)
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(130.0 + 64.0 * r["spots"].size(), 60.0,
+		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))
+	ui_find.visible = true
+	_say("will this deform? " + DeformCheck.verdict(r))
 
 
 ## ROADMAP 24: the stunt-load report (StuntLoad, scripts/stunt_load.gd): landing g, knee valgus, spine, neck. NOTE only
@@ -15842,9 +16208,13 @@ func _open_source(url: String) -> void:
 
 func _close_findings() -> void:
 	ui_find.visible = false
+	if wb_view != null:
+		wb_view.visible = false   # the marker belongs to the panel that reported it
 	if arc_view != null:
 		arc_view.visible = false   # the kinked paths belong to the panel that listed them
 		arc_marks = []
+	if deform_view != null:
+		deform_view.visible = false   # F14: the 3 worst spots belong to the panel that listed them
 	ui_find.offset_right = ui_find.offset_left + 420   # I47: Speed limits narrows the panel so the whole body stays in view
 	ov.fix_preview(S, [], 0.0)
 
@@ -19462,6 +19832,8 @@ func _imp_show(on: bool) -> void:
 ## pattern): Ctrl+Z takes them back, and nothing is saved until you save. A panel shows the cameras and the reconstructed pose.
 const MULTI_MAX := 4
 const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most this many frames (GDScript: a 300-frame clip takes minutes)
+var photomat := PhotoMaterialUI.new(self)   # MATERIAL FROM A PHOTO (scripts/photo_material_ui.gd, E15)
+var body_mats := {}   # part -> the name of its photo material (user://materials/<name>); view state, undone with the rest
 var refimg := RefImageUI.new(self)   # REFERENCE IMAGES (scripts/ref_image_ui.gd): a picture under or behind the figure, and Match
 var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
 var multicam_tool := "res://tools/see_video.py"
