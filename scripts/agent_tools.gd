@@ -392,6 +392,10 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				return _err(id, -32000, "the scene is empty: nothing written. Add cards first: run {\"steps\": [\"add\"]}")
 			write_scene(o, "poser_cli serve")
 			return _ok(id, {"out": o, "cards": m.S.cards.size(), "length_s": snappedf(m.S.length(), 0.001)})
+		"dry":
+			# N003: what run's steps WOULD do (parts moved, findings added / removed, score change, cards / keys touched), the
+			# scene, body and undo put back byte for byte; file-writing steps refused: scripts/dry_run.gd
+			return await DryRun.request(self, id, p)
 		"quit":
 			return _ok(id, {"bye": true})
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

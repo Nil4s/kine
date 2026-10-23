@@ -11,6 +11,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
 ##   $G --headless --path . -s tools/poser_cli.gd -- validate scenes/combo3.json     (docs/scene.schema.json; tools/validate.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 sel=lowerarm_r snap_the_part_to_90 update --out scenes/_wip/x.json
+##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -49,6 +50,8 @@
 ##   check                         the findings, as `check --json`
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
+##   dry {steps, score?}           N003: what run's steps WOULD do, nothing changed (scripts/dry_run.gd): parts moved, findings
+##                                 added / removed, realism score change, cards / keys touched; file-writing steps refused
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
@@ -303,6 +306,11 @@ func check_html(folder: String, rows: Array, per: Dictionary, tot: Dictionary) -
 
 
 func run(a: Array) -> void:
+	var dry := "--dry" in a   # N003: report what the steps would do, put everything back (scripts/dry_run.gd)
+	a = a.filter(func(x): return x != "--dry")
+	if dry and "--out" in a:
+		done({"ok": false, "error": "--dry writes nothing: drop --out"})
+		return
 	var out := ""
 	var i := a.find("--out")
 	if i >= 0:
@@ -321,6 +329,14 @@ func run(a: Array) -> void:
 		return
 	m._card_pick(0)
 	m.undo.clear()
+	if dry:
+		var dr := await DryRun.run(T, a.slice(2))
+		for l in dr.get("cards", {}).get("lines", []):
+			say(l)
+		say("DRY %s: %d parts moved, findings %s -> %s, score %s, restored %s" % ["refused" if dr.has("refused") else ("ok" if dr["ok"] else "FAIL"),
+			dr.get("parts_moved", []).size(), dr.get("findings", {}).get("before", "-"), dr.get("findings", {}).get("after", "-"), dr.get("score", {}).get("delta", "-"), dr.get("restored", "-")])
+		done(dr)
+		return
 	var steps := []
 	var ok := true
 	for tok: String in a.slice(2):
