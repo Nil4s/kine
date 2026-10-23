@@ -55,8 +55,12 @@ POSE / ANIMATE (a combo) → CHECK → DELIVER (glb into a Godot test scene that
 - [ ] P19 task coach: "make a fighter" walks the user through every page with checks
 - [ ] P21 mistake catcher, P03 redo panel, P25 crash report (local)
 
-Gate: a person who has never seen Kine makes a fighter with a 3-hit combo and plays it in Godot in
-under 2 hours, from a written task, with no help. (Nick picks the tester.)
+Gate, two parts (Nick 10-23: "not going public until I can make an animation without a tutorial... I'll
+ask random people to try it out"):
+1. Nick makes a fighter with a 3-hit combo and plays it in Godot with no tutorial, no docs, no asking.
+2. Random people Nick picks, NOT from tech, do the same from one sentence of task. Kine records where each
+   one gets stuck (local log of the last commands + the page + time spent), and every stuck point
+   becomes a fix before the next tester. Nick being from tech does not count as proof: the outsiders do.
 
 ### M2. Agent-first (about 4 weeks, can overlap M1)
 
@@ -72,6 +76,8 @@ Gate: Claude (any current model) given only the MCP tools and the sentence "make
 this fighter" produces a clip with score above a bar set before the run, in 3 out of 3 tries.
 
 ### M3. Public beta (about 4 weeks)
+
+Nothing goes public before M1's gate passes with outside, non-tech testers.
 
 - [ ] Windows installer (exported build, no Godot install needed), auto-update check (opt-in)
 - [ ] first-run: a 2-minute tour, a sample fighter, the task coach
