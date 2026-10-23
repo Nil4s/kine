@@ -882,6 +882,8 @@ func to_dict() -> Dictionary:
 		d["modifiers"] = KMeshModifiers.to_file(modifiers)   # A11
 	if not materials.is_empty():
 		d["materials"] = KMeshMaterial.to_file(materials)   # E01
+	if has_meta("lods"):
+		d["lods"] = KMeshLOD.to_file(self)   # F04
 	return d
 
 
@@ -1015,6 +1017,7 @@ func from_dict(d: Dictionary) -> KMesh:
 	custom_normals = new_custom
 	normal_mode = nmode
 	auto_angle = nangle
+	KMeshLOD.from_file(self, d.get("lods"))   # F04
 	_stale = true  # topology and normals build on first read (see _fresh)
 	return self
 

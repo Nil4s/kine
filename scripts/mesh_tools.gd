@@ -59,6 +59,12 @@ const TOOLS := [
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
 	{"id": "mesh_modifiers", "label": "Model: modifier stack (mirror, subdivide, solidify, array, displace)", "page": "MODEL", "keys": "", "bl": "", "do": "op:modifiers", "also": "modifier modifiers stack non-destructive mirror symmetry subdivide subdivision solidify thickness shell array repeat copies displace noise bump apply bake", "desc": "a live stack on the mesh, shown in the view; edits stay on the base (A11, the panel on the right)"},
 	{"id": "mesh_uv_editor", "label": "Model: UV editor panel on / off", "page": "MODEL", "keys": "Shift+U", "bl": "", "do": "op:uv_editor", "also": "uv uvs editor unwrap texture island islands layout 2d move rotate scale", "desc": "the mesh's UVs in 2D: select verts or islands, G / R / S move / rotate / scale them (one undo step each)"},
+	{"id": "mesh_decimate", "label": "Model: decimate to half (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate", "also": "decimate reduce simplify collapse polycount fewer faces triangles optimize lower poly", "desc": "half the triangles, borders and UV seams kept, nothing flipped (one undo step; F03)"},
+	{"id": "mesh_decimate_q", "label": "Model: decimate to a quarter (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_quarter", "also": "decimate reduce simplify collapse polycount 25 percent quarter low poly", "desc": "a quarter of the triangles, borders and UV seams kept (one undo step; F03)"},
+	{"id": "mesh_decimate_planar", "label": "Model: planar decimate (join flat faces)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_planar", "also": "planar decimate limited dissolve flat coplanar merge faces clean simplify", "desc": "faces in one plane (within 5 deg) become one, seams and borders kept (one undo step; F03)"},
+	{"id": "mesh_lods", "label": "Model: make LODs (100 / 50 / 25 / 12 %)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lods", "also": "lod lods level of detail levels game engine distance decimate", "desc": "4 levels kept with the mesh, each with its error (F04)"},
+	{"id": "mesh_lod_next", "label": "Model: next LOD (preview)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lod_next", "also": "lod next preview cycle level of detail show", "desc": "shows LOD0 -> 1 -> 2 -> 3 -> 0 (F04)"},
+	{"id": "mesh_lod_export", "label": "Model: export the LODs (.glb)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lod_export", "also": "lod export glb gltf unreal godot engine levels of detail save", "desc": "one .glb with model_LOD0 .. model_LOD3 (F04)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_uv_export", "label": "Model: export UV layout", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_export_uv_layout", "also": "uv layout export png svg texture template", "desc": ""},
 	{"id": "mesh_uvpack", "label": "Model: pack UV islands", "page": "MODEL", "keys": "Ctrl+P", "bl": "", "do": "op:uv_pack", "also": "pack uv islands packing layout margin texel density rotate atlas", "desc": "D04: islands packed into 0..1 (MaxRects), 4 px margin at 1024, equal texel density, each island turned to its smallest box"},
@@ -248,6 +254,11 @@ static func op(name: String, m) -> String:
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
 			said = "Model: wire %s" % ("on: every edge drawn over the surface" if ui.view.show_wire else "off: the surface alone")
+		_:
+			if name.begins_with("decimate"):
+				said = KMeshDecimate.op(name, m)   # F03
+			elif name.begins_with("lod"):
+				said = KMeshLOD.op(name, m)   # F04
 	if said != "":
 		m._say(said)
 	return said
