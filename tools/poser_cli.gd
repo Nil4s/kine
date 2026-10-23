@@ -66,6 +66,10 @@
 ##   events {q, fighter?, fps?}    N017: WHEN is it true, measured on the played body: q = "right foot leaves the floor",
 ##                                 "guard down for at least 0.2 s", "right fist fastest", "fighters touch" -> spans / an instant
 ##                                 in s and frames (scripts/event_query.gd); an unknown phrase lists the known ones
+##   range {joint, axis, conditions, card? | t?, step?, from?, to?, joint2?, axis2?}   N013: the values of that axis that keep
+##                                 EVERY condition true ("balance", "reach right fist to 0.25,1.35,0.45 within 2 cm", "limits 5",
+##                                 an N002 line): intervals in deg with what bounds each end; joint2 = a pass / fail map
+##                                 (scripts/range_sweep.gd; CLI: range <scene|-> [card=N] [t=S] [step=D] <joint> <axis> "<cond>" ...)
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
@@ -243,6 +247,26 @@ func _init() -> void:
 			var ev: Dictionary = await EventQuery.run(m, ep)
 			say(String(ev.get("text", ev.get("error", ""))))
 			done(ev)
+		"range":   # N013: range <scene|-> [card=N] [t=S] [step=D] [from=A] [to=B] <joint> <axis> "<condition>" ...
+			if a.size() < 5 or (a[1] != "-" and not open_scene(a[1])):
+				if a.size() < 5:
+					done({"ok": false, "error": "range <scene.json|-> [card=N] [t=S] [step=D] <joint> <axis> \"<condition>\" ...  (N013; scripts/range_sweep.gd)"})
+				return
+			var rp := {"conditions": []}
+			var pos := []
+			for x in a.slice(2):
+				var kv := String(x).split("=", true, 1)
+				if kv.size() == 2 and kv[0] in ["card", "t", "step", "from", "to"] and kv[1].is_valid_float():
+					rp[kv[0]] = int(kv[1]) if kv[0] == "card" else float(kv[1])
+				else:
+					pos.append(x)
+			rp["joint"] = pos[0] if pos.size() > 0 else ""
+			rp["axis"] = pos[1] if pos.size() > 1 else ""
+			rp["conditions"] = pos.slice(2)
+			var rr := RangeSweep.run(m, rp)
+			for l in rr.get("text", [rr.get("error", "")]):
+				say(l)
+			done(rr)
 		"run":
 			await run(a)
 		"serve":

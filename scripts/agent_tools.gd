@@ -430,4 +430,8 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N017 EVENT QUERY: when is X true, measured on the played body (scripts/event_query.gd); unknown phrase -> the known list
 			var ev: Dictionary = await EventQuery.run(m, p)
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
+		"range":
+			# N013 SAFE RANGE SWEEP: the values of one joint axis that keep EVERY condition true (scripts/range_sweep.gd); not in METHODS
+			var rs := RangeSweep.run(m, p)
+			return _ok(id, rs) if rs["ok"] else _err(id, -32602, rs["error"], {"grammar": rs["grammar"]} if rs.has("grammar") else null)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
