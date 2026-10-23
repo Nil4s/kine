@@ -392,6 +392,25 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				return _err(id, -32000, "the scene is empty: nothing written. Add cards first: run {\"steps\": [\"add\"]}")
 			write_scene(o, "poser_cli serve")
 			return _ok(id, {"out": o, "cards": m.S.cards.size(), "length_s": snappedf(m.S.length(), 0.001)})
+		"assert":
+			# N002 BODY ASSERTIONS (scripts/body_assert.gd): {lines: [...]} checks them on the scene as made; {save: true} also keeps
+			# the lines that read in the scene's "asserts" (Check re-runs them); {clear: true} drops the saved ones; no lines = the saved
+			if m.S.cards.size() < 2:
+				return _err(id, -32602, "assert needs a scene of 2+ cards: open one or add cards first")
+			if bool(p.get("clear", false)):
+				m.S.asserts = []
+			var al: Variant = p.get("lines", m.S.asserts)
+			if not (al is Array) or not al.all(func(s): return s is String):
+				return _err(id, -32602, "assert needs {\"lines\": [\"left foot planted 0-0.4 s\", ...]}", {"grammar": BodyAssert.GRAMMAR})
+			var ar := BodyAssert.run(m.S, m.B, al)
+			if bool(p.get("save", false)):
+				for x in ar["results"]:
+					if x["ok"] and not String(x["line"]).strip_edges() in m.S.asserts:
+						m.S.asserts.append(String(x["line"]).strip_edges())
+			ar["saved"] = m.S.asserts.duplicate()
+			if ar["unread"] > 0:
+				ar["grammar"] = BodyAssert.GRAMMAR
+			return _ok(id, ar)
 		"quit":
 			return _ok(id, {"bye": true})
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

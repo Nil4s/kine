@@ -523,6 +523,11 @@
       }
      }
     },
+    "asserts": {
+     "type": "array",
+     "description": "BODY ASSERTIONS (INNOVATIONS N002; scripts/body_assert.gd): check lines an agent wrote, like tests (\"left foot planted 0-0.4 s\", \"right fist touches his chin at 0.6 s +-1 f\"). Check re-runs them; a failing one is a MUST FIX finding with its miss. Written only when there is one.",
+     "items": {"type": "string"}
+    },
     "plants": {
      "type": "array",
      "description": "FOOT PLANTS (ROADMAP 8; scripts/foot_plant.gd): a foot's sole stays where it was at t0 over [t0, t1] (the leg re-solved by LimbIK, the pelvis untouched), eased on and off over 3 frames at the scene's fps. One plant per foot at a time; written only when there is one, in t0 order. Evaluated after the IK pass, before the constraints.",

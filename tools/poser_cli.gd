@@ -11,6 +11,9 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
 ##   $G --headless --path . -s tools/poser_cli.gd -- validate scenes/combo3.json     (docs/scene.schema.json; tools/validate.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 sel=lowerarm_r snap_the_part_to_90 update --out scenes/_wip/x.json
+##   $G --headless --path . -s tools/poser_cli.gd -- assert scenes/combo3.json "left foot planted 0-0.4 s" "COM inside the feet all clip"
+##        (N002 body assertions, scripts/body_assert.gd: pass / fail per line, the worst miss in cm / deg / m/s and its frame;
+##        no lines = the scene's saved "asserts"; an unread line gets the grammar back)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -47,6 +50,8 @@
 ##                                 (more changes after ;): the hands' / feet's new world positions and reach %, the nearest
 ##                                 parts and their gap, the limit margin, balance (inside / outside, cm), the weapon tip
 ##   check                         the findings, as `check --json`
+##   assert {lines, save?, clear?}  N002 body assertions ("left foot planted 0-0.4 s"): pass / fail and the worst miss
+##                                 per line; save keeps them in the scene (Check re-runs them); no lines = the saved ones
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
@@ -171,6 +176,23 @@ func _init() -> void:
 			done({"ok": true, "scene": m.S.name, "clean": fs.is_empty(), "must_fix": must, "findings": fs})
 		"check_all":
 			check_all(a)
+		"assert":
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "assert <scene.json> \"<line>\" ...", "grammar": BodyAssert.GRAMMAR})
+				return
+			var rq: Dictionary = await T.request(1, "assert", {"lines": a.slice(2)} if a.size() > 2 else {})
+			if rq.has("error"):
+				done({"ok": false, "error": rq["error"]["message"]})
+				return
+			var ar: Dictionary = rq["result"]
+			for x in ar.get("results", []):
+				say(x.get("say", "UNREAD  %s:  %s" % [x["line"], x.get("error", "")]))
+			if ar.get("unread", 0) > 0:
+				for g in BodyAssert.GRAMMAR:
+					say(g)
+			ar["ok"] = ar.get("pass", false)
+			done(ar)
 		"diff":
 			if a.size() < 3 or not FileAccess.file_exists(res(a[1])) or not FileAccess.file_exists(res(a[2])):
 				done({"ok": false, "error": "diff <a.json> <b.json>  (both scene files that exist)"})
