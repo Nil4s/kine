@@ -32,6 +32,8 @@ const TOOLS := [
 	{"id": "mesh_wire", "label": "Model: wire over the surface on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:wire", "also": "wire wireframe edges lines overlay show hide", "desc": "the edges drawn over the shaded surface, or the surface alone"},
 	{"id": "mesh_validate", "label": "Model: check the mesh (validate)", "page": "MODEL", "keys": "", "bl": "", "do": "op:validate", "also": "validate check problems errors non-manifold holes doubled loose flipped inside out clean health", "desc": "lists what is wrong with the mesh, each with its next step (scripts/kmesh_validate.gd)"},
 	{"id": "mesh_body", "label": "Model: colour by body region", "page": "MODEL", "keys": "Shift+H", "bl": "", "do": "op:body_regions", "also": "body region bone nearest anatomy limb arm leg hand head colour color skin aware label", "desc": "every vertex coloured by its body region (nearest UE5 bone), a legend, and the bone + distance under the mouse (A18)"},
+	{"id": "mesh_anatomy", "label": "Model: colour by anatomy (tags)", "page": "MODEL", "keys": "Alt+H", "bl": "", "do": "op:anatomy", "also": "anatomy tag tags muscle deltoid biceps triceps patella kneecap knuckle elbow olecranon pectoral glutes calf shin palm sole skull face colour color paint brush", "desc": "every vertex coloured by its anatomy tag (deltoid, patella, knuckles ...), a legend, the tag under the mouse; Alt+drag paints the brush tag (A19)"},
+	{"id": "mesh_anatomy_seed", "label": "Model: anatomy tags from the bones again", "page": "MODEL", "keys": "", "bl": "", "do": "op:anatomy_seed", "also": "anatomy tags reset reseed seed rule bones again clear paint", "desc": "every vertex's anatomy tag back to the rule (nearest bone, along it, round it); one undo step (A19)"},
 	{"id": "mesh_repair", "label": "Model: repair the mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:repair", "also": "repair fix clean merge distance doubles holes fill flip normals consistent cleanup", "desc": "fixes every problem that can be fixed alone (one undo step)"},
 	{"id": "mesh_grab", "label": "Model: grab the selected vertices", "page": "MODEL", "keys": "", "bl": "G", "do": "bl:G", "also": "grab move translate drag vertices", "desc": "the selection follows the mouse; X / Y / Z an axis, a number metres; Enter keeps"},
 	{"id": "mesh_rotate", "label": "Model: rotate the selected vertices", "page": "MODEL", "keys": "", "bl": "R", "do": "bl:R", "also": "rotate turn spin vertices", "desc": "turn the selection round its centre; X / Y / Z an axis, a number degrees; Enter keeps"},
@@ -187,6 +189,18 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"anatomy":   # A19 (scripts/kmesh_anatomy.gd)
+			ui.anat.toggle()
+			return String(m.ui_status.text) if m.get("ui_status") != null else ""
+		"anatomy_seed":
+			if m.skel == null:
+				return "Model: no fighter to take the anatomy tags from"
+			ui.undo.begin(ui.mesh)
+			KMeshAnatomy.seed_tags(ui.mesh, m.skel, ui.view.global_transform)
+			ui.undo.commit("anatomy tags from the bones")
+			if ui.anat.on:
+				ui.anat._rebuild()
+			said = "Model: anatomy tags from the bones again (%d tags; one undo step)" % KMeshAnatomy.counts(ui.mesh).size()
 		"body_regions":   # A18 (scripts/kmesh_body.gd)
 			ui.body.toggle()
 			return String(m.ui_status.text) if m.get("ui_status") != null else ""

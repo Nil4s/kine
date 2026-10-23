@@ -105,7 +105,29 @@ const AD_EDGE := "edge"
 const AD_FACE := "face"
 const AD_ALL := ["vert", "corner", "edge", "face"]
 const AT_ALL := [TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR3, TYPE_COLOR]
+## A19: LABEL channels hold an index into a table (a bone, a region, an anatomy tag), not an amount: an op that makes a
+## new item from several old ones gives it one of their values, never a blend (KMeshSubdiv; label_pick). APPEND ONLY
+const LABEL_ATTRS := ["body_bone", "body_region", "anat_tag"]
 var attrs := {}
+
+
+static func is_label(attr_name: String) -> bool:
+	return LABEL_ATTRS.has(attr_name)
+
+
+## the value of a label channel for an item made from the items `src`: the most common, ties to the first listed
+static func label_pick(d: PackedFloat32Array, src: PackedInt32Array) -> float:
+	var best := d[src[0]]
+	var bn := 0
+	for i in src.size():
+		var n := 0
+		for j in src.size():
+			if d[src[j]] == d[src[i]]:
+				n += 1
+		if n > bn:
+			bn = n
+			best = d[src[i]]
+	return best
 ## A13 shape keys (scripts/kmesh_shapes.gd): {} = none; saved in to_dict "shapes", carried by KMeshUndo
 var shapes := {}
 
