@@ -24,6 +24,7 @@ var _box: VBoxContainer
 var _open := false           # an edit (a drag, a colour pick) is open on the undo
 var _sig := ""
 var _quiet := false          # filling the fields from the slot: their signals do nothing
+var lib_panel: MaterialLibraryPanel   # E02: the material library picker (scripts/material_library_ui.gd), made on first open
 
 
 func _init(edit_ui: KMeshEditUI) -> void:
@@ -64,6 +65,12 @@ func _init(edit_ui: KMeshEditUI) -> void:
 		bt.pressed.connect(b[2])
 		hb.add_child(bt)
 	vb.add_child(hb)
+	var lb := Button.new()   # E02
+	lb.name = "btn_mat_library"
+	lb.text = "Library..."
+	lb.tooltip_text = "pick a PBR preset (skin, cloth, leather, metals, wood...) for the picked slot, or save it to your library"
+	lb.pressed.connect(func(): open_library())
+	vb.add_child(lb)
 	_box = VBoxContainer.new()
 	_box.name = "fields"
 	vb.add_child(_box)
@@ -140,6 +147,16 @@ func _ready() -> void:
 	var cmd = ui.m.get("ui_cmd")
 	if cmd is Control and cmd.get_parent() == get_parent() and cmd.get_index() < get_index():
 		get_parent().move_child(self, cmd.get_index())
+
+
+## E02: the material library picker, left of this panel
+func open_library() -> MaterialLibraryPanel:
+	if lib_panel == null:
+		lib_panel = MaterialLibraryPanel.new(self)
+		get_parent().add_child(lib_panel)
+		get_parent().move_child(lib_panel, get_index() + 1)
+	lib_panel.open()
+	return lib_panel
 
 
 func _row(g: GridContainer, t: String) -> void:
