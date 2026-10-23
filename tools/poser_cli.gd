@@ -11,6 +11,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
 ##   $G --headless --path . -s tools/poser_cli.gd -- validate scenes/combo3.json     (docs/scene.schema.json; tools/validate.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 sel=lowerarm_r snap_the_part_to_90 update --out scenes/_wip/x.json
+##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -47,6 +48,10 @@
 ##                                 (more changes after ;): the hands' / feet's new world positions and reach %, the nearest
 ##                                 parts and their gap, the limit margin, balance (inside / outside, cm), the weapon tip
 ##   check                         the findings, as `check --json`
+##   check {trust: true} | measure {..., trust: true}   + a "trust" per finding / measure: MEASURED (source), HEURISTIC or
+##                                 UNVERIFIED, with the bars behind it (N020, scripts/trust.gd)
+##   facts {q} | {list: true} | {registry: true}   cited human numbers ("how fast is a real jab?"): value, unit, range,
+##                                 source, trust; "no cited number" + the nearest topics when none (N022, human_facts.gd)
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
@@ -111,6 +116,12 @@ func _init() -> void:
 				cs.append({"id": c["id"], "name": c["name"], "keys": c["keys"], "edits": c["edits"], "desc": c["desc"]})
 				say("%-38s %-8s %s  %s" % [c["id"], c["keys"], "EDIT" if c["edits"] else "    ", c["desc"]])
 			done({"ok": true, "commands": cs})
+		"facts":   # N022: facts "how fast is a real jab?" | facts list
+			var fq := " ".join(a.slice(1))
+			var fr := HumanFacts.serve({"list": true} if fq == "list" else {"q": fq})
+			say(String(fr.get("answer", "%d facts" % fr.get("count", 0))) if not fr.is_empty() else "facts \"<question>\" | facts list")
+			fr["ok"] = not fr.is_empty()
+			done(fr)
 		"describe":
 			if a.size() >= 2 and a[1] == "joint":
 				var dj := WhatIf.describe_joint(m, " ".join(a.slice(2)))

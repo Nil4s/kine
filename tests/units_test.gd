@@ -262,6 +262,7 @@ const NOT_UI := {
 	"gltf_export.gd": "a glTF file written to disk",
 	"game_export.gd": "a game data file written to disk",
 	"agent_tools.gd": "the agent protocol (JSON-RPC), read by a program",
+	"human_facts.gd": "N022: cited numbers served to agents as JSON (value / unit are separate fields; the text quotes papers verbatim)",
 	"llm_client.gd": "a web request body, not shown",
 	"fbx_export.gd": "a binary FBX file written to disk (format ids, connections), not the UI",
 	"review.gd": "an HTML page written to disk for the review report",

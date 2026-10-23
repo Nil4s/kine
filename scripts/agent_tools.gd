@@ -347,7 +347,8 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				"t": snappedf(m.playhead, 0.0001), "plays": "landed on the dummy" if m._ps() != m.S else "the cards as made",
 				"selected_part": m.sel, "selected_card": m.sel_card + 1})
 		"measure":
-			return await measure(id, p)
+			var mr := await measure(id, p)
+			return Trust.label("measure", mr) if p.get("trust", false) == true else mr   # N020: trust labels, opt-in
 		"describe":
 			if p.has("joint"):
 				var dj := WhatIf.describe_joint(m, String(p["joint"]))
@@ -361,7 +362,8 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			if m.S.cards.size() < 2:
 				return _err(id, -32000, "check needs a scene of two cards or more: run {\"steps\": [\"add\", \"add\"]} or open one")
 			var fs := findings()
-			return _ok(id, {"clean": fs.is_empty(), "must_fix": fs.filter(func(f): return f["sev"] == "MUST FIX").size(), "findings": fs})
+			var cr := _ok(id, {"clean": fs.is_empty(), "must_fix": fs.filter(func(f): return f["sev"] == "MUST FIX").size(), "findings": fs})
+			return Trust.label("check", cr) if p.get("trust", false) == true else cr   # N020: trust labels, opt-in
 		"diff":
 			var b: String = p.get("b", p.get("path", ""))
 			if b == "" or not FileAccess.file_exists(res(b)):
@@ -392,6 +394,10 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				return _err(id, -32000, "the scene is empty: nothing written. Add cards first: run {\"steps\": [\"add\"]}")
 			write_scene(o, "poser_cli serve")
 			return _ok(id, {"out": o, "cards": m.S.cards.size(), "length_s": snappedf(m.S.length(), 0.001)})
+		"facts":
+			# N022 HUMAN FACTS: cited human numbers by keywords (scripts/human_facts.gd); not in METHODS (the transcript's ready line)
+			var fr := HumanFacts.serve(p)
+			return _ok(id, fr) if not fr.is_empty() else _err(id, -32602, "facts needs {\"q\": \"how fast is a real jab?\"}, {\"list\": true} or {\"registry\": true}")
 		"quit":
 			return _ok(id, {"bye": true})
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
