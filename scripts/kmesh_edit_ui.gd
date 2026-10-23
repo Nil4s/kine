@@ -17,6 +17,7 @@ extends Node
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
+##   Shift+U  the UV editor panel on / off (D01, scripts/kmesh_uv_editor.gd: select / move / rotate / scale UVs)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -51,6 +52,7 @@ var live := {}                # B09: the primitive still live: {kind, params, st
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
+var uved: KMeshUVEditor   # D01: the UV editor panel (built on first Shift+U)
 
 
 func setup(main: Node) -> void:
@@ -97,6 +99,8 @@ func stop() -> void:
 	live = {}
 	if legend != null:
 		legend.visible = false
+	if uved != null:
+		uved.close()
 	view.queue_free()
 	view = null
 	meas = null
@@ -158,6 +162,8 @@ func input(ev: InputEvent) -> bool:
 				m._say("Model: x-ray %s: box and lasso %s" % ["on" if xray else "off", "select through to the far side" if xray else "only take what you can see"])
 			KEY_T:
 				_measure_key((ev as InputEventKey).shift_pressed)
+			KEY_U when (ev as InputEventKey).shift_pressed:
+				toggle_uv_editor()
 			KEY_U:
 				cycle_uv_shading()
 			KEY_A:
@@ -418,6 +424,19 @@ func cycle_uv_shading() -> void:
 			m._say("Model: UV stretch, worst face %.2f× (blue none, red stretched). U again goes back to plain" % float(view.stretch.get("angle_max", 1.0)))
 		_:
 			m._say("Model: plain shading. U shows the UV checker")
+
+
+## D01: the UV editor panel on / off (Shift+U)
+func toggle_uv_editor() -> void:
+	if uved == null:
+		uved = KMeshUVEditor.new()
+		uved.setup(self)
+	if uved.visible:
+		uved.close()
+		m._say("Model: UV editor closed")
+	else:
+		uved.open()
+		m._say("Model: UV editor (right). Mouse over it: click / box / L island, G R S move rotate scale, middle drag pans, wheel zooms. Shift+U closes")
 
 
 func _report() -> void:

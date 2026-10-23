@@ -45,6 +45,7 @@ const TOOLS := [
 	{"id": "mesh_merge", "label": "Model: merge vertices", "page": "MODEL", "keys": "M", "bl": "", "do": "", "also": "merge weld collapse join center vertices", "desc": "the selected vertices become one"},
 	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "", "also": "fill face make new close hole bridge", "desc": "a face on the selected vertices or across a hole"},
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
+	{"id": "mesh_uv_editor", "label": "Model: UV editor panel on / off", "page": "MODEL", "keys": "Shift+U", "bl": "", "do": "op:uv_editor", "also": "uv uvs editor unwrap texture island islands layout 2d move rotate scale", "desc": "the mesh's UVs in 2D: select verts or islands, G / R / S move / rotate / scale them (one undo step each)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
@@ -186,6 +187,8 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"uv_editor":
+			ui.toggle_uv_editor()
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
