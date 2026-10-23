@@ -6,6 +6,8 @@ extends Node
 ##   D draw  C clay strips  I inflate  S smooth  F flatten  P pinch  E crease  G grab  K snake hook
 ##   [ / ]  radius smaller / bigger     Shift+[ / ]  strength less / more     O  next falloff     X  X symmetry on / off
 ##   Ctrl while stroking  invert (push in)     Shift while stroking  smooth     Ctrl+Z / Ctrl+Shift+Z  undo / redo a stroke
+##   C07: Y / Z  Y / Z symmetry on / off   R / Shift+R  radial copies up / down (1 = off .. 32)   Alt+R  radial axis X Y Z
+##   C18: L  mesh filter on the whole mesh (L again: inflate, smooth, sharpen; scripts/kmesh_filters.gd)
 ##   Esc  leave (nothing is saved).  A tablet's pen pressure scales each dab (a mouse is full pressure).
 ##   MASK (C03, scripts/kmesh_mask.gd): M  mask brush (Ctrl or Alt while stroking erases)   Ctrl+I invert   Alt+M clear
 ##   Shift+B blur   Shift+M mask by cavity. Masked verts are frozen for every brush and drawn darker (KMeshMaskTint).
@@ -30,6 +32,11 @@ var radius := 0.08
 var strength := 0.004
 var falloff := KMeshSculpt.F_SMOOTH
 var sym_x := true
+var sym_y := false          # C07 (scripts/kmesh_sculpt_sym.gd)
+var sym_z := false
+var radial := 1
+var radial_axis := 1
+var filt := KMeshFilters.new()   # C18
 var _stroking := false
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
@@ -85,6 +92,7 @@ func stop() -> void:
 		return
 	on = false
 	_stroking = false
+	filt.active = false
 	_ov.visible = false
 	view.queue_free()
 	view = null
@@ -98,11 +106,24 @@ func _params(ev: InputEvent) -> Dictionary:
 		inv = (ev as InputEventWithModifiers).ctrl_pressed or (b == KMeshSculpt.MASK and (ev as InputEventWithModifiers).alt_pressed)
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
-	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "invert": inv, "sym_x": sym_x}
+	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "invert": inv, "sym_x": sym_x,
+		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis}
 
 
 func _status() -> void:
-	m._say("Sculpt: %s, radius %d mm, strength %.1f mm, %s falloff, X symmetry %s" % [brush, roundi(radius * 1000.0), strength * 1000.0, falloff, "on" if sym_x else "off"])
+	m._say("Sculpt: %s, radius %d mm, strength %.1f mm, %s falloff, symmetry %s" % [brush, roundi(radius * 1000.0), strength * 1000.0, falloff, sym_words()])
+
+
+## "X Z, radial 6 around Y", or "off"
+func sym_words() -> String:
+	var w := PackedStringArray()
+	for a in [[sym_x, "X"], [sym_y, "Y"], [sym_z, "Z"]]:
+		if a[0]:
+			w.append(a[1])
+	var s := " ".join(w)
+	if radial > 1:
+		s += ("%sradial %d around %s" % [", " if s != "" else "", radial, "XYZ"[radial_axis]])
+	return s if s != "" else "off"
 
 
 ## C03: Ctrl+I invert, Alt+M clear, Shift+B blur, Shift+M mask by cavity; each one undo step. true = used
@@ -159,6 +180,8 @@ func _local_n(wn: Vector3) -> Vector3:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if not _stroking and filt.input(ev, self):
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
 		var k := ke.keycode
@@ -187,6 +210,18 @@ func input(ev: InputEvent) -> bool:
 				_status()
 			KEY_X:
 				sym_x = not sym_x
+				_status()
+			KEY_Y:
+				sym_y = not sym_y
+				_status()
+			KEY_Z:
+				sym_z = not sym_z
+				_status()
+			KEY_R:
+				if ke.alt_pressed:
+					radial_axis = (radial_axis + 1) % 3
+				else:
+					radial = clampi(radial + (-1 if ke.shift_pressed else 1), 1, KMeshSculptSym.MAX_RADIAL)
 				_status()
 			KEY_ESCAPE:
 				stop()
