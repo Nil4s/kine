@@ -37,6 +37,8 @@ const TOOLS := [
 	{"id": "mesh_anatomy", "label": "Model: colour by anatomy (tags)", "page": "MODEL", "keys": "Alt+H", "bl": "", "do": "op:anatomy", "also": "anatomy tag tags muscle deltoid biceps triceps patella kneecap knuckle elbow olecranon pectoral glutes calf shin palm sole skull face colour color paint brush", "desc": "every vertex coloured by its anatomy tag (deltoid, patella, knuckles ...), a legend, the tag under the mouse; Alt+drag paints the brush tag (A19)"},
 	{"id": "mesh_anatomy_seed", "label": "Model: anatomy tags from the bones again", "page": "MODEL", "keys": "", "bl": "", "do": "op:anatomy_seed", "also": "anatomy tags reset reseed seed rule bones again clear paint", "desc": "every vertex's anatomy tag back to the rule (nearest bone, along it, round it); one undo step (A19)"},
 	{"id": "mesh_repair", "label": "Model: repair the mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:repair", "also": "repair fix clean merge distance doubles holes fill flip normals consistent cleanup", "desc": "fixes every problem that can be fixed alone (one undo step)"},
+	{"id": "mesh_vpaint", "label": "Model: vertex paint on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:vpaint", "also": "vertex paint colour color brush blend mix add multiply blur eyedropper symmetry pressure", "desc": "drag on the mesh to paint its corner colours (E04, scripts/kmesh_vpaint_ui.gd): [ ] radius, N blend, X symmetry, F fill, Ctrl+click eyedropper, Esc leaves"},
+	{"id": "mesh_vpaint_fill", "label": "Model: vertex paint: fill the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:vpaint_fill", "also": "vertex paint fill colour color selection faces flood", "desc": "the selected faces (or verts) take the paint colour, one undo step"},
 	{"id": "mesh_grab", "label": "Model: grab the selected vertices", "page": "MODEL", "keys": "", "bl": "G", "do": "bl:G", "also": "grab move translate drag vertices", "desc": "the selection follows the mouse; X / Y / Z an axis, a number metres; Enter keeps"},
 	{"id": "mesh_rotate", "label": "Model: rotate the selected vertices", "page": "MODEL", "keys": "", "bl": "R", "do": "bl:R", "also": "rotate turn spin vertices", "desc": "turn the selection round its centre; X / Y / Z an axis, a number degrees; Enter keeps"},
 	{"id": "mesh_scale", "label": "Model: scale the selected vertices", "page": "MODEL", "keys": "", "bl": "S", "do": "bl:S", "also": "scale size grow shrink resize vertices", "desc": "scale the selection about its centre; a number = the factor; Enter keeps"},
@@ -203,6 +205,8 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"vpaint", "vpaint_fill":   # E04
+			return KMeshVPaintUI.toggle(m) if name == "vpaint" else KMeshVPaintUI.fill_op(m)
 		"wpaint":
 			said = KMeshWPaintUI.toggle(m)
 		"bevel":

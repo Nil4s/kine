@@ -30,6 +30,7 @@ var smooth_shade := false   # C01: the sculpt sphere shades with the vertex norm
 ## (KMeshUV.stretch heat per face, blue = no distortion, red = stretched or flipped)
 var shading := ""
 var stretch := {}        # the last KMeshUV.stretch result while shading is "uv_stretch"
+var show_color := false  # E04: the surface takes the "color" attribute (vertex paint, scripts/kmesh_vpaint.gd)
 var _pal_dark := true
 var show_heat := false
 var heat := {}
@@ -149,6 +150,8 @@ func _surface() -> ArrayMesh:
 	var cols := PackedColorArray()
 	var ud = mesh.attr_data(KMeshUV.UV) if shading == "uv_checker" and mesh.has_attr(KMeshUV.UV) and mesh.attr_info(KMeshUV.UV)["domain"] == KMesh.AD_CORNER else null
 	stretch = KMeshUV.stretch(mesh) if shading == "uv_stretch" else {}
+	var cd = mesh.attr_data("color") if show_color and ud == null and stretch.is_empty() and KMeshVPaint.usable(mesh) else null
+	var cv: bool = cd != null and mesh.attr_info("color")["domain"] == KMesh.AD_VERT
 	for fi in mesh.face_count():
 		var fp: PackedInt32Array = mesh.faces[fi]
 		for i in range(1, fp.size() - 1):
@@ -159,6 +162,8 @@ func _surface() -> ArrayMesh:
 					uvs.append(ud[mesh.face_he0[fi] + c])
 				elif not stretch.is_empty():
 					cols.append(KMeshUV.heat_color(stretch["heat"][fi]))
+				elif cd != null:
+					cols.append(cd[fp[c]] if cv else cd[mesh.face_he0[fi] + c])
 	var am := ArrayMesh.new()
 	if pos.is_empty():
 		return am
@@ -191,6 +196,10 @@ func rebuild() -> void:
 		_surf.material_override = KMeshUV.checker_material()
 	elif not stretch.is_empty():
 		_surf.material_override = KMeshUV.heat_material()
+	elif show_color and _surf.mesh.get_surface_count() > 0 and _surf.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_COLOR:
+		_surf.material_override.vertex_color_use_as_albedo = true   # E04: the painted colours (times the plain white albedo)
+		_surf.material_override.vertex_color_is_srgb = true
+		_surf.material_override.albedo_color = Color.WHITE
 	elif shading == "" and not mesh.materials.is_empty():   # E01: one surface per material slot (scripts/kmesh_material.gd)
 		KMeshMaterial.dress(_surf, mesh, smooth_shade)
 	# wire: every edge
