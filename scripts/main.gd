@@ -7010,6 +7010,7 @@ func _scene_dict(frames := true) -> Dictionary:
 	var keep := hb.state()
 	var d := H.to_dict(hb, frames)
 	hb.set_state(keep)
+	BodyFile.put_key(self, d)   # G07: the applied body's .kbody, by reference (scripts/body_file.gd)
 	return d
 
 
@@ -14142,6 +14143,7 @@ func _commands() -> Array:
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Model: edit the body mesh", "", func(): BaseBody.start(self), "model mesh body skin fighter mannequin character edit sculpt base topology weights rigged", false, "open the fighter's skinned body in the model preview (its skin weights ride along as attributes); every model key works on it; Esc leaves without changing the fighter")
 	add.call("Model: apply the body mesh to the fighter", "", func(): BaseBody.apply_cmd(self), "apply write commit body mesh fighter skin weights save model", false, "the edited body becomes the fighter's skinned mesh, with its weights (new verts carry their neighbours'); one undo step")
+	add.call("Body: save the fighter's body (.kbody)", "", func(): BodyFile.save_cmd(self), "body save kbody file keep library mesh skin weights fighter character", false, "the fighter's body (mesh, skin weights, the scene's proportions) as a NEW .kbody in bodies/ (the same body twice is the same file); the Browser lists it under Bodies with a picture, a click puts it back")
 	add.call("Model: subdivide the test cube (Catmull-Clark)", "", _kmesh_subdivide, "model mesh subdivide subdivision catmull clark smooth subsurf crease level", false, "one Catmull-Clark level on the test cube (every face becomes quads, creases kept); Ctrl+Z takes it back in one step")
 	add.call("Model: triangulate", "", _kmesh_topo.bind("tri"), "triangulate triangles tris split quads ngons faces mesh model topology", false, "split the test cube's selected faces (face mode) or every face into triangles (Ctrl+T in the cube): quads by the shorter diagonal, concave n-gons by ear clipping (Ctrl+Z undoes)")
 	add.call("Model: tris to quads", "", _kmesh_topo.bind("quad"), "quadrangulate quads tris to quads join triangles mesh model topology", false, "join pairs of flat, near-square triangles into quads, best pairs first; UV seams stay (Alt+J in the cube; Ctrl+Z undoes)")
@@ -17301,6 +17303,7 @@ func _save_scene_now(nm: String) -> void:
 		return
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
+	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	_write("res://scenes/%s.json" % fname, d)
@@ -20600,6 +20603,7 @@ func _load_scene(path: String) -> void:
 		S.from_dict(d)
 		if not S.props_skipped.is_empty():
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
+		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
 		for k in d.get("keys", []):

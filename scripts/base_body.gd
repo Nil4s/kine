@@ -27,7 +27,7 @@ extends RefCounted
 ##   no retopology is done here (G01's quad base body is still to come).
 ## WEIGHTS are snapped to what the GPU holds (canon): whole 1/65535 steps adding up to exactly 1, so the first open moves
 ##   a painted / loaded weight by at most 2 steps (~3e-5) and from then on a round trip is bit for bit.
-## Not saved with the scene: an applied body lives until the app closes (export it with G12 / the glb export).
+## SAVED (G07, scripts/body_file.gd) as a .kbody; a scene saved with an applied body names that file ("body_mesh").
 
 const SURF := "surface"
 const UV := "uv"
@@ -470,8 +470,9 @@ static func _put(m: Node, rec: Dictionary) -> void:
 		m._refresh()
 
 
-## write k as the fighter's skinned mesh: ONE undo step. -> {"ok", "verts", "tris", "unweighted", "error"}
-static func apply(m: Node, k: KMesh) -> Dictionary:
+## write k as the fighter's skinned mesh: ONE undo step (none when undo is false: G07 opening a scene that names its body).
+## -> {"ok", "verts", "tris", "unweighted", "error"}
+static func apply(m: Node, k: KMesh, undo := true) -> Dictionary:
 	var skin := skin_of(m)
 	if skin == null or k == null:
 		return {"ok": false, "error": "the fighter has no skinned body to write to"}
@@ -479,8 +480,9 @@ static func apply(m: Node, k: KMesh) -> Dictionary:
 	var srcs := sources(m)
 	var b := build(k, skin, m.skel, srcs)
 	var sp := split(m, b["surfs"], skin)
-	m._step_hint = "Apply the body mesh to the fighter"
-	m._push_undo()
+	if undo:
+		m._step_hint = "Apply the body mesh to the fighter"
+		m._push_undo()
 	var src := {}
 	for o in _originals(m):
 		src[o] = sp["whole"]
