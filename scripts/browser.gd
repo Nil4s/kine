@@ -19,6 +19,7 @@ var rows := {}   # part -> its TreeItem
 var _scene_root: TreeItem
 var _set_root: TreeItem   # round 37 (SS5): the scene's props, one row each (shown only when there are any)
 var _wep: TreeItem
+var _bodies: TreeItem   # G07: the saved bodies (.kbody), a row each with its picture (shown only when there are any)
 var _quiet := false
 var folders := []   # [the folder row, its parts]: a limb's eye and lock act on all of them (KK1)
 var _lit: TreeItem   # the row lit because the view's mouse is on its part (KK2)
@@ -140,6 +141,7 @@ func build() -> void:
 		_psets[k] = _folder(sets_root, k)
 		_psets[k].set_metadata(0, {"menu": "psets_" + k})
 		_psets[k].set_tooltip_text(0, "right-click: a new %s from the selected parts" % PartSets.WORD[k])
+	_bodies = _folder(root, "Bodies", true)
 	_wep = _folder(root, "Weapon")
 	_part(_wep, "bat_handle", "handle (drag it to swing the weapon)")
 	_set_root = _folder(root, "Set")
@@ -217,6 +219,7 @@ func _refresh_now() -> void:
 			c.free()
 		PartSets.of(m).fill(self, _psets[k], k)
 	_fill_poses()
+	BodyFile.fill_browser(m, self, _bodies)   # G07 (scripts/body_file.gd)
 	if m.ui_dummy != null:
 		_dummy.set_text(0, "Target dummy: " + (m.ui_dummy.text.get_slice("\n", 0) if m.dummy_on else "off"))
 	# TC5: with 2+ fighters the dummy's report is between them: the row says it, a row under it per contact (click: there)
@@ -423,6 +426,8 @@ func _chosen() -> void:
 		m._goto_hit(md["hit"])
 	elif md.has("pset"):
 		PartSets.of(m).pick(md["kind"], md["pset"])
+	elif md.has("kbody"):
+		BodyFile.open_cmd(m, md["kbody"])
 
 
 ## R21: the Poses rows. No words typed = every pose in the pose list's order. Words typed = only the poses whose name or

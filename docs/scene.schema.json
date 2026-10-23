@@ -455,6 +455,16 @@
     "plan": {
      "type": "string"
     },
+    "body_mesh": {
+     "type": "object",
+     "description": "G07 THE BODY MESH (scripts/body_file.gd): the .kbody the fighter's applied body is saved in, by reference (not embedded: a body is ~1 MB, a scene is autosaved, versioned and diffed); written only when the fighter draws an applied body. file = the .kbody path; sha256 = that file's hash when the scene was saved (a different file still opens, with a note).",
+     "required": ["file"],
+     "properties": {
+      "file": {"type": "string"},
+      "sha256": {"type": "string"}
+     },
+     "additionalProperties": false
+    },
     "body": {
      "type": "object",
      "description": "PROPORTIONS (round 51, scripts/proportions.gd): the body this scene is animated on; written only when not the mannequin as shipped. stature = metres, floor to the top of the head; scale = per segment, multiplies that segment's bones, capsules and mesh (uniformly; missing = 1); sex picks de Leva 1996's mass table; mass = kg; preset = the ANSUR II preset it came from. data/skeleton.json is never edited.",

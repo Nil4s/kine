@@ -27,7 +27,7 @@ func _init() -> void:
 	await process_frame
 	# (1) the audit, from the source
 	var policy := {"_ring_push": "user://autosave_N.json only (the rotating autosaves, RING_N = 5; never scenes/)", "_recent_note": "the settings file (File > Recent: a preference, not work)", "_restore_copy": "a NEW scene in scenes/_wip/ (never over a file: _2, _3)", "_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
-		"_save_scene_now": "asked by _save_scene when another file has the name", "_trash_now": "asked by _trash",
+		"_save_scene_now": "asked by _save_scene when another file has the name (G07: an applied body with no file is first saved as a NEW .kbody, BodyFile.before_save, never over a file)", "_trash_now": "asked by _trash",
 		"_polish": "a NEW machine copy in scenes/_wip/", "_template_build": "a NEW scene in scenes/_wip/ (never over an earlier one: _2, _3; the templates/ files are only read)", "_words_build": "a NEW machine copy in scenes/_wip/ (the move built from words)", "_ragdoll_fall": "a NEW machine copy in scenes/_wip/ (<name>_ragdoll[_N], never overwrites)", "_style_save": "a NEW machine copy in scenes/_wip/ (the style's own file; the scene it came from is untouched)", "_mirror_scene": "a NEW machine copy in scenes/_wip/", "_import_bvh": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)",
 		"_import_land": "a NEW scene in scenes/_wip/ (the landing of _import_pose)", "_import_pose": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_physics": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_anim": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_video": "the tracker's pose file in user://video_track/ (its own, replaced per video)",
 		"_import_file": "a COPY of the chosen file into the library (the original never written; never overwrites: _2)",
@@ -94,6 +94,17 @@ func _init() -> void:
 	# (free_base never reuses a name: _2, _3); never scenes/, poses/, data/; nothing removed
 	var uvsrc := FileAccess.get_file_as_string("res://scripts/kmesh_uv_export.gd")
 	ok(KMeshUVExport.DIR.begins_with("user://") and uvsrc.count("FileAccess.WRITE") == 1 and uvsrc.count("save_png(") == 1 and uvsrc.contains("free_base(dir") and not uvsrc.contains("res://scenes") and not uvsrc.contains("DirAccess.remove"), "UV layout export writes only NEW files under %s" % KMeshUVExport.DIR)
+	# (1f) G07 / G12 BODIES (scripts/body_file.gd, body_thumbs.gd, body_export.gd): policy = a NEW .kbody in BodyFile.dir (never over a
+	# file: _2, _3; the same body twice is the same file), its picture in user://thumbs, the body .glb in exports/; nothing removed, never scenes/
+	var bsrc := FileAccess.get_file_as_string("res://scripts/body_file.gd")
+	var tsrc := FileAccess.get_file_as_string("res://scripts/body_thumbs.gd")
+	var esrc := FileAccess.get_file_as_string("res://scripts/body_export.gd")
+	var bnew := bsrc.contains("while FileAccess.file_exists(path):") and bsrc.count("FileAccess.WRITE") == 1
+	var bnone := true
+	for t in [bsrc, tsrc, esrc]:
+		bnone = bnone and not t.contains("DirAccess.remove") and not t.contains("res://scenes") and not t.contains("rename_absolute")
+	ok(bnew and bnone and tsrc.count("save_png") == 1 and BodyThumbs.DIR.begins_with("user://") and not tsrc.contains("FileAccess.WRITE") and not esrc.contains("FileAccess.WRITE") and BodyExport.DIR == "res://exports",
+		"bodies: one NEW-file .kbody writer (never over a file), pictures only under %s, the body .glb only in exports/; nothing removed" % BodyThumbs.DIR)
 	# (2) every editing command: no dialog
 	m._load_scene("res://scenes/combo3.json")
 	m._card_pick(2)
