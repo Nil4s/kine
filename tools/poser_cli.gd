@@ -39,7 +39,10 @@
 ##   measure {t | frame, fps, what}  numbers a blind agent needs, each with its unit (docs/AGENT_MATH.md): what = a list
 ##                                 of "distance A B", "angle A B C", "height A", "speed A", "clearance", "com",
 ##                                 "balance"; A = a joint
-##                                 name, weapon_tip or weapon_knob
+##                                 name, weapon_tip or weapon_knob; frame: "body" adds each part in the body's words (N007)
+##   where {point | joint, who, of}  N007 (scripts/body_frame.gd): a point in words + cm, e.g. "15 cm in front of the
+##                                 sternum, 3 cm above chin height, 10 cm toward his left"; of = "opponent": his landmarks
+##   place {text, who}             those words back to a point (m, the space state gives); "at the opponent's chin" too
 ##   state {t | frame, fps}        the body: every joint's bend / side / twist, the offset, the weapon, and where 17 parts
 ##                                 ARE (points, m); at a moment of the scene if t or frame is given (the same every run)
 ##   describe                      the scene: cards, times, settings; {joint: "elbow_r"} = that joint's frame in words + limits

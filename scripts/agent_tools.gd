@@ -202,7 +202,7 @@ func measure(id: Variant, p: Dictionary) -> Dictionary:
 	if m.S.cards.size() < 2:
 		return _err(id, -32602, "measure needs a scene of 2+ cards: open one or add cards first")
 	var fps := float(p.get("fps", m.S.fps))
-	var t := float(p["frame"]) / fps if p.has("frame") else float(p.get("t", m.playhead))
+	var t := float(p["frame"]) / fps if p.has("frame") and not (p["frame"] is String) else float(p.get("t", m.playhead))   # N007: frame "body" is not a frame number
 	await m.dummy_settle()
 	var ps: Scene = m._ps()
 	var L := ps.length()
@@ -263,6 +263,8 @@ func measure(id: Variant, p: Dictionary) -> Dictionary:
 				out.append({"what": w, "value": snappedf(best, 0.0001), "unit": "m", "part": at, "inside": best < 0.0})
 	ps.apply(m.B, t)
 	m.playhead = t
+	if p.get("frame") is String and p["frame"] == "body":   # N007: each part also in the body's own words (scripts/body_frame.gd)
+		BodyFrame.annotate(m, out)
 	return _ok(id, {"t": snappedf(t, 0.0001), "plays": "landed on the dummy" if ps != m.S else "the cards as made", "measures": out})
 
 
@@ -392,6 +394,11 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				return _err(id, -32000, "the scene is empty: nothing written. Add cards first: run {\"steps\": [\"add\"]}")
 			write_scene(o, "poser_cli serve")
 			return _ok(id, {"out": o, "cards": m.S.cards.size(), "length_s": snappedf(m.S.length(), 0.001)})
+		"where", "place":
+			# N007 BODY-FRAME NUMBERS (scripts/body_frame.gd): a point in the body's words + numbers / such words to a point.
+			# Not in METHODS: its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			var bf := BodyFrame.serve(m, method, p)
+			return _ok(id, bf) if bf["ok"] else _err(id, -32602, bf["error"])
 		"quit":
 			return _ok(id, {"bye": true})
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
