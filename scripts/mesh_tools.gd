@@ -21,7 +21,7 @@ const SOON := "soon"
 
 const TOOLS := [
 	{"id": "mesh_model", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_edit_a_test_cube_preview", "also": "model page modeling mesh open start enter", "desc": ""},
-	{"id": "mesh_body", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_edit_the_body_mesh", "also": "body skin fighter character base mesh", "desc": ""},
+	{"id": "mesh_body_edit", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_edit_the_body_mesh", "also": "body skin fighter character base mesh", "desc": ""},
 	{"id": "mesh_body_apply", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_apply_the_body_mesh_to_the_fighter", "also": "body skin fighter apply write back", "desc": ""},
 	{"id": "mesh_vert", "label": "Model: vertex select mode", "page": "MODEL", "keys": "1", "bl": "", "do": "key:1", "also": "vertex vert verts point points component select mode", "desc": "select vertices (the selection converts)"},
 	{"id": "mesh_edge", "label": "Model: edge select mode", "page": "MODEL", "keys": "2", "bl": "", "do": "key:2", "also": "edge edges line component select mode", "desc": "select edges (the selection converts)"},
