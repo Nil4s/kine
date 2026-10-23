@@ -64,6 +64,7 @@ var prop := KMeshProportional.new()   # B07: proportional editing for the Blende
 var body: KMeshBody          # A18: the body labels of the mesh + the colour-by-region view
 var mods: KMeshModifiersUI   # A11: the modifier stack panel + the evaluated surface
 var uved: KMeshUVEditor   # D01: the UV editor panel (built on first Shift+U)
+var mat_panel: KMeshMaterialPanel   # E01: the Materials panel (top right; shows itself while `on`)
 
 
 func setup(main: Node) -> void:
@@ -79,6 +80,8 @@ func setup(main: Node) -> void:
 	mods = KMeshModifiersUI.new()
 	add_child(mods)
 	mods.setup(self)
+	mat_panel = KMeshMaterialPanel.new(self)
+	m.ui_root.add_child(mat_panel)
 
 
 func start() -> void:

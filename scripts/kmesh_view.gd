@@ -191,6 +191,8 @@ func rebuild() -> void:
 		_surf.material_override = KMeshUV.checker_material()
 	elif not stretch.is_empty():
 		_surf.material_override = KMeshUV.heat_material()
+	elif shading == "" and not mesh.materials.is_empty():   # E01: one surface per material slot (scripts/kmesh_material.gd)
+		KMeshMaterial.dress(_surf, mesh, smooth_shade)
 	# wire: every edge
 	var wp := PackedVector3Array()
 	if show_wire:

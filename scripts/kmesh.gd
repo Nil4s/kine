@@ -110,6 +110,8 @@ var attrs := {}
 var shapes := {}
 ## A11: the non-destructive modifier stack (KMeshModifiers; saved in the .kmesh, carried by KMeshUndo)
 var modifiers: Array = []
+## E01 material slots (scripts/kmesh_material.gd): [] = none; saved in to_dict "materials", carried by KMeshUndo
+var materials: Array = []
 
 
 static func _attr_zero(type: int):
@@ -856,6 +858,8 @@ func to_dict() -> Dictionary:
 		d["shapes"] = KMeshShapes.to_file(shapes)   # A13
 	if not modifiers.is_empty():
 		d["modifiers"] = KMeshModifiers.to_file(modifiers)   # A11
+	if not materials.is_empty():
+		d["materials"] = KMeshMaterial.to_file(materials)   # E01
 	return d
 
 
@@ -977,10 +981,14 @@ func from_dict(d: Dictionary) -> KMesh:
 	if KMeshModifiers.last_error != "":
 		last_error = KMeshModifiers.last_error
 		return null
+	var new_mats := KMeshMaterial.from_file(d.get("materials"))   # E01
+	if last_error != "":
+		return null
 	verts = vraw.to_vector3_array()
 	attrs = new_attrs
 	shapes = new_shapes
 	modifiers = new_mods
+	materials = new_mats
 	faces = new_faces
 	custom_normals = new_custom
 	normal_mode = nmode

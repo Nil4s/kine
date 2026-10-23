@@ -56,6 +56,8 @@ const TOOLS := [
 	{"id": "mesh_uvgame2k", "label": "Model: game ready UVs (1 x 2k)", "page": "MODEL", "keys": "", "bl": "", "do": "op:uv_game_2k", "also": "game ready uv unwrap pack density budget 2k 2048 texture one click auto", "desc": "D15: seams, unwrap, pack and equal density for one 2048 texture; says the px/cm"},
 	{"id": "mesh_uvgame4k", "label": "Model: game ready UVs (4 x 1k)", "page": "MODEL", "keys": "", "bl": "", "do": "op:uv_game_4k", "also": "game ready uv unwrap pack density budget 4k 1k 1024 tiles udim one click auto", "desc": "D15: seams, unwrap, pack into four 1024 tiles split by body region (UDIM 1001-1004), equal density; says the px/cm"},
 	{"id": "mesh_autoweights", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_bind_to_the_skeleton_auto_weights", "also": "skin weights bind bones heat", "desc": ""},
+	{"id": "mesh_mat_assign", "label": "Model: assign the material to the selected faces", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_assign", "also": "material materials pbr assign apply paint slot surface metal rough", "desc": "the Materials panel's picked slot goes on the selected faces (E01, one undo step)"},
+	{"id": "mesh_mat_select", "label": "Model: select the faces of a material", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_select", "also": "material materials pbr slot by which faces", "desc": "the faces wearing the Materials panel's picked slot become the selection"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -208,6 +210,8 @@ static func op(name: String, m) -> String:
 			return KMeshUVPack.run_ui(ui, {"uv_pack": "pack", "uv_game_2k": "2k", "uv_game_4k": "4k"}[name])
 		"uv_editor":
 			ui.toggle_uv_editor()
+		"mat_assign", "mat_select":   # E01: the Materials panel says what it did
+			var _n: int = ui.mat_panel.assign_selection() if name == "mat_assign" else ui.mat_panel.select_by(ui.mat_panel.cur)
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
