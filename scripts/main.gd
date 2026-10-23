@@ -2645,6 +2645,7 @@ func _ready() -> void:
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
 		sj = SuggestionJournal.new("user://zz_suggestion_journal_%d.json" % OS.get_process_id())   # I26: a test never reads or writes the real journal
 		myhits.sj = sj
+		nt.path = "user://zz_next_tool_%d.json" % OS.get_process_id()   # P17: a test never reads or writes the real next-command file (its chips made small_window / pages flaky)
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
 		style_ui.on = false   # I17: like Nick is off in a test until it turns it on
