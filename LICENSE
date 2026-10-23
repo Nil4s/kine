@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Nick Teschima (Teschima Studios) and the Poser contributors
+Copyright (c) 2026 Nick Teschima (Teschima Studios) and the Kine contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-WHAT YOU MAKE IS YOURS. Animations, poses and scenes you create with Poser, and
-every file you export from it (.glb, .bvh, .fbx, .json, .cs), belong to you. Use
-them in any project, free or commercial. No credit and no license needed.
-
-Third-party content shipped with Poser (see assets/LICENSES.txt):
-- assets/mannequin.glb: Quaternius "Universal Animation Library 2" mannequin,
-  CC0 1.0 (public domain). It may ship inside your exports with no conditions.
