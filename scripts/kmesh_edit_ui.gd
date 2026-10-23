@@ -23,6 +23,7 @@ extends Node
 ##   O  proportional editing on / off (B07, KMeshProportional; Shift+O falloff, Alt+O connected only, wheel = radius in G)
 ##   Shift+H  colour by body region on / off (A18, KMeshBody: every vert's nearest bone + region, kept fresh every frame;
 ##      a legend bottom right, the hover readout at the mouse)
+##   Ctrl+P  pack the UV islands (D04, KMeshUVPack: 4 px margin, each island turned to its smallest box, equal texel density; one undo step)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -148,7 +149,7 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
 		var ck := (ev as InputEventKey).keycode
-		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T, KEY_F, KEY_B] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
+		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T, KEY_F, KEY_B, KEY_P] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
@@ -156,6 +157,9 @@ func input(ev: InputEvent) -> bool:
 			return true
 		if k == KEY_T and (ev as InputEventKey).ctrl_pressed:
 			topo("tri")
+			return true
+		if k == KEY_P and (ev as InputEventKey).ctrl_pressed:   # D04: pack the UV islands (KMeshUVPack), one undo step
+			KMeshUVPack.run_ui(self, "pack")
 			return true
 		if k == KEY_J and (ev as InputEventKey).alt_pressed:
 			topo("quad")

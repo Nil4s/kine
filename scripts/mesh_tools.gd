@@ -51,6 +51,9 @@ const TOOLS := [
 	{"id": "mesh_modifiers", "label": "Model: modifier stack (mirror, subdivide, solidify, array, displace)", "page": "MODEL", "keys": "", "bl": "", "do": "op:modifiers", "also": "modifier modifiers stack non-destructive mirror symmetry subdivide subdivision solidify thickness shell array repeat copies displace noise bump apply bake", "desc": "a live stack on the mesh, shown in the view; edits stay on the base (A11, the panel on the right)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_uv_export", "label": "Model: export UV layout", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_export_uv_layout", "also": "uv layout export png svg texture template", "desc": ""},
+	{"id": "mesh_uvpack", "label": "Model: pack UV islands", "page": "MODEL", "keys": "Ctrl+P", "bl": "", "do": "op:uv_pack", "also": "pack uv islands packing layout margin texel density rotate atlas", "desc": "D04: islands packed into 0..1 (MaxRects), 4 px margin at 1024, equal texel density, each island turned to its smallest box"},
+	{"id": "mesh_uvgame2k", "label": "Model: game ready UVs (1 x 2k)", "page": "MODEL", "keys": "", "bl": "", "do": "op:uv_game_2k", "also": "game ready uv unwrap pack density budget 2k 2048 texture one click auto", "desc": "D15: seams, unwrap, pack and equal density for one 2048 texture; says the px/cm"},
+	{"id": "mesh_uvgame4k", "label": "Model: game ready UVs (4 x 1k)", "page": "MODEL", "keys": "", "bl": "", "do": "op:uv_game_4k", "also": "game ready uv unwrap pack density budget 4k 1k 1024 tiles udim one click auto", "desc": "D15: seams, unwrap, pack into four 1024 tiles split by body region (UDIM 1001-1004), equal density; says the px/cm"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -199,6 +202,8 @@ static func op(name: String, m) -> String:
 			return String(m.ui_status.text) if m.get("ui_status") != null else ""
 		"modifiers":
 			said = ui.mods.say_stack()
+		"uv_pack", "uv_game_2k", "uv_game_4k":   # D04 / D15 (KMeshUVPack): one undo step, says the px/cm
+			return KMeshUVPack.run_ui(ui, {"uv_pack": "pack", "uv_game_2k": "2k", "uv_game_4k": "4k"}[name])
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
