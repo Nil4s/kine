@@ -267,7 +267,7 @@ func _filter() -> void:
 					top.append(c)
 		shown = top + shown.filter(func(c): return not c["name"] in recent)
 	if q != "" and kind == "" and pose_by_words.is_valid() and _words_ok(q):
-		shown.push_front({"name": ("Rig: " if RigWords.is_rig(q) and not PoseWords.parse(q)["ok"] else "Face: " if FaceWords.route(q)["pose"] == "" and FaceWords.route(q)["face"] != "" else "Pose: ") + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
+		shown.push_front({"name": ("Rig: " if RigWords.is_rig(q) and not PoseWords.parse(q)["ok"] else "Model: " if MeshWords.offers(q, _model_on()) else "Face: " if FaceWords.route(q)["pose"] == "" and FaceWords.route(q)["face"] != "" else "Pose: ") + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
 			"desc": "turn the joints and set the face as the words say (scripts/pose_words.gd, face_words.gd): one undo step"})
 	list.clear()
 	var root := list.create_item()
@@ -340,7 +340,14 @@ func _run(i: int) -> void:
 
 
 ## the words box takes a phrase when it is a pose, a face, or both (each part must parse)
+func _model_on() -> bool:   # B29: is the model preview open (main.kmed)? the mesh words then answer anything nobody else takes
+	var h = pose_by_words.get_object() if pose_by_words.is_valid() else null
+	return h != null and h.get("kmed") != null and h.kmed.on
+
+
 func _words_ok(q: String) -> bool:
+	if MeshWords.offers(q, _model_on()):
+		return true   # B29: "extrude the top 5 cm" goes through the same words row (scripts/mesh_words.gd)
 	if RigWords.is_rig(q) and RigWords.parse(q)["ok"]:
 		return true   # J24: "add a tail with 8 bones" goes through the same words row
 	var rt := FaceWords.route(q)

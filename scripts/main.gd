@@ -5319,6 +5319,8 @@ func _do(f: Callable) -> void:
 func _pose_words(text: String) -> Dictionary:
 	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
 		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
+	if MeshWords.claims(text, kmed != null and kmed.on):
+		return MeshWords.run(self, text)   # B29: "extrude the top 5 cm" is a model edit (scripts/mesh_words.gd; never a rig / face / pose phrase)
 	var rt := FaceWords.route(text)   # FACE WORDS (I20): "tired and angry", "raise the right arm 90 and look angry": face keyed at the playhead, same step
 	var has_face: bool = rt["face"] != ""
 	var r := {"ok": true, "ops": []}
