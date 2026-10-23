@@ -4853,6 +4853,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if kmed != null and kmed.on and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
 		get_viewport().set_input_as_handled()
 		return
+	if ksc != null and ksc.on and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
+		get_viewport().set_input_as_handled()
+		return
 	if sk.on and _sk_input(ev):   # I9: a left drag is a stroke; Enter fits, Backspace takes the last stroke back
 		get_viewport().set_input_as_handled()
 		return
@@ -8049,11 +8052,28 @@ func _kmesh_subdivide() -> void:   # A12: Catmull-Clark the test cube (opens it 
 	if kmed == null or not kmed.on:
 		_kmesh_edit_start()
 	kmed.subdivide(1)
+
+
 ## F06 / F08 (scripts/kmesh_topo.gd): triangulate, tris to quads, the topology heat map, on the test cube (opened if needed)
 func _kmesh_topo(what: String) -> void:
 	if kmed == null or not kmed.on:
 		_kmesh_edit_start()
 	kmed.topo(what)
+
+
+## SCULPT PAGE, FIRST STEP (ROADMAP_400 C01/C02; scripts/kmesh_sculpt.gd, kmesh_sculpt_ui.gd): a test sphere you can sculpt
+var ksc: KMeshSculptUI
+
+
+func _sculpt_start() -> void:
+	if ksc == null:
+		ksc = KMeshSculptUI.new()
+		add_child(ksc)
+		ksc.setup(self)
+	if ksc.on:
+		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
+		return
+	ksc.start()
 
 
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
@@ -13984,6 +14004,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Model: subdivide the test cube (Catmull-Clark)", "", _kmesh_subdivide, "model mesh subdivide subdivision catmull clark smooth subsurf crease level", false, "one Catmull-Clark level on the test cube (every face becomes quads, creases kept); Ctrl+Z takes it back in one step")
 	add.call("Model: triangulate", "", _kmesh_topo.bind("tri"), "triangulate triangles tris split quads ngons faces mesh model topology", false, "split the test cube's selected faces (face mode) or every face into triangles (Ctrl+T in the cube): quads by the shorter diagonal, concave n-gons by ear clipping (Ctrl+Z undoes)")
