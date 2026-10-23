@@ -19,6 +19,8 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- lint C:/any/clip.bvh|.glb|.gltf|.fbx [--json]   (N018: judge a clip made anywhere)
+##   $G --headless --path . -s tools/poser_cli.gd -- path_to_pose scenes/combo3.json|- "salute"|"raise the right leg 90" [--max N] [--json]
+##        (N008: the run steps from card 1 (or the default body, -) to that pose; nothing is changed; scripts/pose_path.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -33,6 +35,8 @@
 ##   retime=A-B:pct    cards A to B (1 = the first) play at pct % (the move into each and its hold; 150 = slower)
 ##   physics=<file.bvh>  import a tools/physics hit reaction as a NEW scene in scenes/_wip (R15)
 ##   undo | redo
+##   root=x,y,z        the body's root (pelvis offset, m), one undo step (N008: path_to_pose's steps carry it)
+##   put=<joint>:b,s,t like set= for any joint (fingers too), limits kept but NOT stopped at a contact (N008)
 ## Output: readable lines, then ONE JSON line last (it starts with {"ok": ...}). With --json only the JSON line.
 ## Writes: only `run ... --out <path>` / serve's `save`, and only into scenes/_wip/ or outside the project; never Nick's
 ## scenes/, poses/ or data/ (a registry command that writes them, save_pose / save_scene, is refused: use --out).
@@ -75,6 +79,9 @@
 ##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
 ##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
+##   path_to_pose {target, max_steps?, apply?}  N008 (scripts/pose_path.gd): target = a pose name / file, pose words or search
+##                                 words; returns steps (run tokens per waypoint, each with why), checks (limits, planted feet,
+##                                 floor, self-intersection, target reached), blocked (the joint past its range, ...); a dry plan
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
@@ -269,6 +276,23 @@ func _init() -> void:
 			var br := await SceneBrief.brief(m, T, tk)
 			say(br["text"])
 			done(br)
+		"path_to_pose":   # N008: scripts/pose_path.gd
+			var mi := a.find("--max")
+			var mx := int(a[mi + 1]) if mi >= 0 and mi + 1 < a.size() else PosePath.MAX_STEPS
+			if a.size() < 3:
+				done({"ok": false, "error": "path_to_pose <scene.json|-> \"<pose name | pose words>\" [--max N]"})
+				return
+			if a[1] != "-":
+				if not open_scene(a[1]):
+					return
+				m._card_pick(0)
+			var pr := PosePath.plan(m.B, String(a[2]), mx)
+			if a[1] != "-" and pr.has("run"):
+				pr["cli"] = "run %s %s" % [a[1], " ".join(pr["run"]["params"]["steps"])]
+			for l in PosePath.lines(pr):
+				say(l)
+			pr["ok"] = pr.get("ok", false) and not pr.has("blocked")
+			done(pr)
 		"lint":   # N018: scripts/clip_lint.gd
 			var lr := ClipLint.lint(m, a[1] if a.size() > 1 else "")
 			for l in ClipLint.lines(lr):

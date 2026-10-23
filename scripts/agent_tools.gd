@@ -142,6 +142,8 @@ func step(tok: String) -> Dictionary:
 	elif tok.begins_with("physics="):
 		if m._import_physics(tok.substr(8)) == "":
 			err = String(m.ui_status.text)
+	elif tok.begins_with("root=") or tok.begins_with("put="):   # N008: the root (pelvis offset, m) / a joint with no contact stop
+		err = PosePath.step_token(m, tok)   # (scripts/pose_path.gd); path_to_pose's steps carry them
 	elif tok == "add":
 		m._card_add()
 	elif tok == "undo":
@@ -443,4 +445,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
+		"path_to_pose":   # N008: from the body now to a named / described pose, as `run` steps that keep limits, planted feet and
+			# the body whole on the way (scripts/pose_path.gd); a dry plan unless apply: true. Not in METHODS (the transcript's ready line)
+			return await PosePath.serve(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
