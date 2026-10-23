@@ -51,6 +51,8 @@ var live := {}                # B09: the primitive still live: {kind, params, st
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
+var source: Callable   # G01 (scripts/base_body.gd): what mesh to open, -> {"mesh": KMesh, "at": Transform3D}; empty = the test cube
+var left: Callable     # G01: called after leaving (the fighter shows again)
 
 
 func setup(main: Node) -> void:
@@ -68,7 +70,8 @@ func setup(main: Node) -> void:
 func start() -> void:
 	if on:
 		return
-	mesh = KMeshView.make_cube(SIDE, SPLIT)
+	var src: Dictionary = source.call() if source.is_valid() else {}
+	mesh = src["mesh"] if src.has("mesh") else KMeshView.make_cube(SIDE, SPLIT)
 	undo = KMeshUndo.new()
 	sel = KMeshSelect.new(mesh, KMeshSelect.VERT)
 	KMeshShapes.ensure(mesh)   # A13: the cube as made is the basis; K captures an edit as a key
@@ -77,6 +80,8 @@ func start() -> void:
 	view.set_mesh(mesh, sel)
 	m.stage_root.add_child(view)
 	view.position = AT
+	if src.has("at"):
+		view.transform = src["at"]
 	on = true
 	armed = ""
 	xray = false
@@ -101,6 +106,8 @@ func stop() -> void:
 	view = null
 	meas = null
 	m._say("Model: left the test cube (nothing was saved). Run Model: edit a test cube (preview) to come back")
+	if left.is_valid():
+		left.call()
 
 
 func set_mode(md: int) -> void:
