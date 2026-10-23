@@ -90,6 +90,10 @@ func _init() -> void:
 	# (1d) E15 MATERIAL FROM A PHOTO (scripts/photo_material.gd): policy = user://materials/<name>/{albedo,rough,normal}.png + material.tres only; never scenes/, poses/, data/
 	var pmsrc := FileAccess.get_file_as_string("res://scripts/photo_material.gd")
 	ok(PhotoMaterial.DIR.begins_with("user://") and pmsrc.count("FileAccess.WRITE") == 1 and not pmsrc.contains("res://scenes") and not pmsrc.contains("DirAccess.remove"), "Material from a photo writes only under %s" % PhotoMaterial.DIR)
+	# (1e) D11 UV LAYOUT EXPORT (scripts/kmesh_uv_export.gd): policy = NEW files only, user://uv_layouts/<name>_uv_<size>[_N].png + .svg
+	# (free_base never reuses a name: _2, _3); never scenes/, poses/, data/; nothing removed
+	var uvsrc := FileAccess.get_file_as_string("res://scripts/kmesh_uv_export.gd")
+	ok(KMeshUVExport.DIR.begins_with("user://") and uvsrc.count("FileAccess.WRITE") == 1 and uvsrc.count("save_png(") == 1 and uvsrc.contains("free_base(dir") and not uvsrc.contains("res://scenes") and not uvsrc.contains("DirAccess.remove"), "UV layout export writes only NEW files under %s" % KMeshUVExport.DIR)
 	# (2) every editing command: no dialog
 	m._load_scene("res://scenes/combo3.json")
 	m._card_pick(2)
