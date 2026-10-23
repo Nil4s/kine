@@ -7,6 +7,7 @@ extends Node
 ##   [ / ]  radius smaller / bigger     Shift+[ / ]  strength less / more     O  next falloff     X  X symmetry on / off
 ##   Ctrl while stroking  invert (push in)     Shift while stroking  smooth     Ctrl+Z / Ctrl+Shift+Z  undo / redo a stroke
 ##   C07: Y / Z  Y / Z symmetry on / off   R / Shift+R  radial copies up / down (1 = off .. 32)   Alt+R  radial axis X Y Z
+##   C18: L  mesh filter on the whole mesh (L again: inflate, smooth, sharpen; scripts/kmesh_filters.gd)
 ##   Esc  leave (nothing is saved).  A tablet's pen pressure scales each dab (a mouse is full pressure).
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
@@ -31,6 +32,7 @@ var sym_y := false          # C07 (scripts/kmesh_sculpt_sym.gd)
 var sym_z := false
 var radial := 1
 var radial_axis := 1
+var filt := KMeshFilters.new()   # C18
 var _stroking := false
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
@@ -82,6 +84,7 @@ func stop() -> void:
 		return
 	on = false
 	_stroking = false
+	filt.active = false
 	_ov.visible = false
 	view.queue_free()
 	view = null
@@ -136,6 +139,8 @@ func _local_n(wn: Vector3) -> Vector3:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if not _stroking and filt.input(ev, self):
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
 		var k := ke.keycode
