@@ -117,17 +117,24 @@ static func _attr_bytes(a: Dictionary) -> int:
 
 ## channels that differ between two snapshots: {"old": {name: record or null}, "new": {...}, "bytes"}; {} when none.
 ## The records are shared, not copied: both sides were already snapshots (before) or are replaced when edited (after).
+## channels recomputed from the geometry every frame (A18 body labels): never an undo step of their own, else a cancelled
+## G / R / S (the labels followed the live move) would leave a "cancelled" attr step behind
+const DERIVED := ["body_bone", "body_cm", "body_region"]
+
+
 func _attr_changes(before: Dictionary, now: Dictionary) -> Dictionary:
 	var o := {}
 	var n := {}
 	var b := 0
 	for k in before:
+		if k in DERIVED:
+			continue
 		if not now.has(k) or now[k]["domain"] != before[k]["domain"] or now[k]["type"] != before[k]["type"] or now[k]["data"] != before[k]["data"]:
 			o[k] = before[k]
 			n[k] = _rec(now, k)
 			b += _attr_bytes({k: before[k]})
 	for k in now:
-		if not before.has(k):
+		if not before.has(k) and not (k in DERIVED):
 			o[k] = null
 			n[k] = _rec(now, k)
 			b += _attr_bytes({k: now[k]})
