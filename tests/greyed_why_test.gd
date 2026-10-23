@@ -64,6 +64,10 @@ func audit(state: String) -> void:
 	for k in m.ui_secs:
 		m._sec_open(k, was_open[k])
 	for c in shown:
+		# P05's mouse-hint strip rebuilds its items when the page changes, so a hint label taken on an earlier tab is
+		# freed by now; the strip's current items were taken again (new ids) on the tab that shows them
+		if not is_instance_valid(c):
+			continue
 		var cc := c as Control
 		var off: bool = (cc.get("disabled") == true) or (cc.get("editable") == false and (cc is LineEdit or cc is SpinBox or cc is TextEdit or cc is Slider))   # Slider: the per-card ease slider is greyed by editable=false
 		var why := reason(cc.tooltip_text)
