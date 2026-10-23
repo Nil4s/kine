@@ -69,6 +69,13 @@ const TOOLS := [
 	{"id": "mesh_bool_union", "label": "Model: boolean union (join two parts)", "page": "MODEL", "keys": "", "bl": "", "do": "op:boolean_union", "also": "boolean booleans union join merge add combine csg solid parts objects", "desc": "B10: the selected part (nothing selected: the part added last) and the rest become one closed surface (one undo step)"},
 	{"id": "mesh_bool_difference", "label": "Model: boolean difference (cut a part away)", "page": "MODEL", "keys": "", "bl": "", "do": "op:boolean_difference", "also": "boolean booleans difference subtract minus cut carve hole remove csg solid parts objects", "desc": "B10: the selected part (nothing selected: the part added last) cut out of the rest (one undo step)"},
 	{"id": "mesh_bool_intersect", "label": "Model: boolean intersect (keep the overlap)", "page": "MODEL", "keys": "", "bl": "", "do": "op:boolean_intersect", "also": "boolean booleans intersect intersection overlap common csg solid parts objects", "desc": "B10: only where the selected part (nothing selected: the part added last) and the rest overlap is kept (one undo step)"},
+	{"id": "mesh_separate", "label": "Model: separate the selection (a part of its own)", "page": "MODEL", "keys": "", "bl": "", "do": "op:separate", "also": "separate split detach break off apart selection part parts object objects", "desc": "B17: the selected faces become their own part, the border verts doubled (one undo step)"},
+	{"id": "mesh_separate_loose", "label": "Model: separate by loose parts", "page": "MODEL", "keys": "", "bl": "", "do": "op:separate_loose", "also": "separate loose parts split apart islands pieces components objects", "desc": "B17: every connected piece its own part (one undo step)"},
+	{"id": "mesh_join", "label": "Model: join parts", "page": "MODEL", "keys": "", "bl": "", "do": "op:join", "also": "join combine merge parts objects one together", "desc": "B17: the parts holding the selection (nothing selected: all) become one part; nothing moves (one undo step)"},
+	{"id": "mesh_join_weld", "label": "Model: join parts, welding touching border verts", "page": "MODEL", "keys": "", "bl": "", "do": "op:join_weld", "also": "join combine merge weld stitch parts objects border open edges touching", "desc": "B17: join, and border verts of different parts within 0.1 mm become one (one undo step)"},
+	{"id": "mesh_origin_geometry", "label": "Model: set origin to the geometry centre", "page": "MODEL", "keys": "", "bl": "", "do": "op:origin_geometry", "also": "origin set centre center geometry bounds pivot object", "desc": "B17: the mesh's origin to the centre of its box; the mesh does not move (one undo step)"},
+	{"id": "mesh_origin_cursor", "label": "Model: set origin to the 3D cursor", "page": "MODEL", "keys": "", "bl": "", "do": "op:origin_cursor", "also": "origin set 3d cursor pivot object", "desc": "B17: the mesh's origin to the 3D cursor (Shift+right-click places it); the mesh does not move (one undo step)"},
+	{"id": "mesh_origin_bottom", "label": "Model: set origin to the bottom centre", "page": "MODEL", "keys": "", "bl": "", "do": "op:origin_bottom", "also": "origin set bottom base floor feet centre center pivot object", "desc": "B17: the mesh's origin to the middle of its base (lowest y); the mesh does not move (one undo step)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_uv_export", "label": "Model: export UV layout", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_export_uv_layout", "also": "uv layout export png svg texture template", "desc": ""},
 	{"id": "mesh_uvpack", "label": "Model: pack UV islands", "page": "MODEL", "keys": "Ctrl+P", "bl": "", "do": "op:uv_pack", "also": "pack uv islands packing layout margin texel density rotate atlas", "desc": "D04: islands packed into 0..1 (MaxRects), 4 px margin at 1024, equal texel density, each island turned to its smallest box"},
@@ -267,6 +274,8 @@ static func op(name: String, m) -> String:
 				said = KMeshLOD.op(name, m)   # F04
 			elif name.begins_with("boolean_"):
 				said = KMeshBoolean.op(name, m)   # B10
+			elif name.begins_with("separate") or name.begins_with("join") or name.begins_with("origin_"):
+				said = KMeshSepJoin.op(name, m)   # B17
 	if said != "":
 		m._say(said)
 	return said
