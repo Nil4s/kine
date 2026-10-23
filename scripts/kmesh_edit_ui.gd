@@ -181,7 +181,7 @@ func _b05_key(e: InputEventKey) -> void:
 		m._say("Model: %s %s" % ["redone" if e.shift_pressed else "undone", lb if lb != "" else "(nothing to %s)" % ("redo" if e.shift_pressed else "undo")])
 		return
 	var it := KMeshDissolve.from_select(sel)
-	var before := "%d verts %d faces" % [mesh.vert_count(), mesh.face_count()]
+	var before := "%s verts %s faces" % [str(mesh.vert_count()), str(mesh.face_count())]
 	var what := ""
 	var md: String = ["verts", "edges", "faces"][sel.mode]
 	undo.begin(mesh)
@@ -204,11 +204,11 @@ func _b05_key(e: InputEventKey) -> void:
 		KMeshDissolve.delete(mesh, kind, it[md])
 		what = "deleted the " + kind.replace("_", " ")
 	if undo.commit(what).is_empty():   # nothing changed: no step kept
-		m._say("Model: nothing to do. Select %s first (Delete deletes, Ctrl+Delete dissolves, M merges)" % ("2+ verts" if e.keycode == KEY_M else "something"))
+		m._say("Model: nothing to do. Select %s first (Delete deletes, Ctrl+Delete dissolves, M merges)" % ("two or more verts" if e.keycode == KEY_M else "something"))
 		return
 	sel.clear()
 	view.mark_dirty()
-	m._say("Model: %s: %s -> %d verts %d faces. Ctrl+Z undoes" % [what, before, mesh.vert_count(), mesh.face_count()])
+	m._say("Model: %s: %s now %s verts %s faces. Ctrl+Z undoes" % [what, before, str(mesh.vert_count()), str(mesh.face_count())])
 
 
 func _report() -> void:
