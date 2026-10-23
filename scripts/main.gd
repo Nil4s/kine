@@ -14530,6 +14530,7 @@ func _commands() -> Array:
 	for d in rows:   # P17: every way to run a command (palette, key, chip, macro) goes through this one wrapper, which counts it
 		var f: Callable = d["run"]
 		var nm: String = d["name"]
+		d["raw"] = f   # the command's own callable (tests and tools ask what a command is bound to)
 		d["run"] = func():
 			_nt_note(nm)
 			f.call()

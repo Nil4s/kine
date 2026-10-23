@@ -176,8 +176,8 @@ func _init() -> void:
 	if not doc.is_empty():
 		for j in doc["joints"]:
 			has_w = has_w or j["name"] == "weapon"
-	ok(not row.is_empty() and (row["run"] as Callable).get_method() == "_export_bvh" and not doc.is_empty() and doc["frames"] == int(ceil(m.S.length() * m.S.fps - 1e-6)) + 1 and has_w,
-		"3 the command 'Export animation (.bvh)' (bound to %s) wrote %s: %s frames, a weapon joint %s" % [row["run"].get_method() if not row.is_empty() else "-", out.get_file(), doc.get("frames", "-"), has_w])
+	ok(not row.is_empty() and (row.get("raw", row["run"]) as Callable).get_method() == "_export_bvh" and not doc.is_empty() and doc["frames"] == int(ceil(m.S.length() * m.S.fps - 1e-6)) + 1 and has_w,
+		"3 the command 'Export animation (.bvh)' (bound to %s) wrote %s: %s frames, a weapon joint %s" % [(row.get("raw", row["run"]) as Callable).get_method() if not row.is_empty() else "-", out.get_file(), doc.get("frames", "-"), has_w])
 	m.queue_free()
 	for f in DirAccess.get_files_at(DIR):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR + "/" + f))

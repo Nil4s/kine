@@ -137,7 +137,7 @@ func _init() -> void:
 	app._load_scene("res://scenes/combo3.json")
 	var out: String = app._export_usd(DIR)
 	var doc := parse(FileAccess.get_file_as_string(out)) if out != "" else {}
-	ok(not row.is_empty() and (row["run"] as Callable).get_method() == "_export_usd" and not doc.is_empty() and doc["r"].size() == int(ceil(app.S.length() * app.S.fps - 1e-6)) + 1,
+	ok(not row.is_empty() and (row.get("raw", row["run"]) as Callable).get_method() == "_export_usd" and not doc.is_empty() and doc["r"].size() == int(ceil(app.S.length() * app.S.fps - 1e-6)) + 1,
 		"5 the command 'Export animation (.usda)' wrote %s: %d samples" % [out.get_file(), doc.get("r", {}).size()])
 	app.queue_free()
 	for f in DirAccess.get_files_at(DIR):
