@@ -11,6 +11,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
 ##   $G --headless --path . -s tools/poser_cli.gd -- validate scenes/combo3.json     (docs/scene.schema.json; tools/validate.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 sel=lowerarm_r snap_the_part_to_90 update --out scenes/_wip/x.json
+##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -49,6 +50,9 @@
 ##   check                         the findings, as `check --json`
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
+##   events {q, fighter?, fps?}    N017: WHEN is it true, measured on the played body: q = "right foot leaves the floor",
+##                                 "guard down for at least 0.2 s", "right fist fastest", "fighters touch" -> spans / an instant
+##                                 in s and frames (scripts/event_query.gd); an unknown phrase lists the known ones
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
@@ -189,12 +193,26 @@ func _init() -> void:
 				say("%s: %s" % [e["path"], e["msg"]])
 			say("VALID" if es.is_empty() else "%d problem(s)" % es.size())
 			done({"ok": es.is_empty(), "file": a[1], "errors": es})
+		"events":
+			if a.size() < 3 or not open_scene(a[1]):
+				if a.size() < 3:
+					done({"ok": false, "error": "events <scene.json> \"<query>\" [fighter=N] [fps=F]  (N017; scripts/event_query.gd)"})
+				return
+			var ep := {"q": " ".join(a.slice(2).filter(func(x): return not (String(x).begins_with("fighter=") or String(x).begins_with("fps="))))}
+			for x in a.slice(2):
+				if String(x).begins_with("fighter="):
+					ep["fighter"] = int(String(x).substr(8))
+				elif String(x).begins_with("fps="):
+					ep["fps"] = float(String(x).substr(4))
+			var ev: Dictionary = await EventQuery.run(m, ep)
+			say(String(ev.get("text", ev.get("error", ""))))
+			done(ev)
 		"run":
 			await run(a)
 		"serve":
 			await serve()
 		_:
-			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
+			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | events <scene> \"<query>\" | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})
 
 
