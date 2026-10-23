@@ -465,4 +465,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"path_to_pose":   # N008: from the body now to a named / described pose, as `run` steps that keep limits, planted feet and
 			# the body whole on the way (scripts/pose_path.gd); a dry plan unless apply: true. Not in METHODS (the transcript's ready line)
 			return await PosePath.serve(self, id, p)
+		"recognize":   # N016: which strike the body does and how far from the textbook form (scripts/move_recognizer.gd)
+			var rr: Dictionary = await MoveRecognizer.serve(m, p)
+			return _ok(id, rr) if rr["ok"] else _err(id, -32602, rr["error"])
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

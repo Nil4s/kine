@@ -28,6 +28,7 @@
 ##        (N025 move knobs: read, or set and re-solve; scripts/move_knobs.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- path_to_pose scenes/combo3.json|- "salute"|"raise the right leg 90" [--max N] [--json]
 ##        (N008: the run steps from card 1 (or the default body, -) to that pose; nothing is changed; scripts/pose_path.gd)
+##   $G --headless --path . -s tools/poser_cli.gd -- recognize scenes/thrust.json [card=N] [t0=S] [t1=S] [fighter=N]   (N016: which strike)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -111,6 +112,9 @@
 ##                                 strike card's height (cm over his chin), reach (% of the limb), stance (cm between the ankles),
 ##                                 guard (cm of the guard wrist over the chin); set re-solves the card and its neighbours by IK as
 ##                                 ONE undo step, planted feet kept; "unreached" names the joint whose limit stopped a knob
+##   recognize {card?, t0?, t1?, fighter?}  N016: the strike the body does (jab ... roundhouse, weapon swings, thrust; else
+##                                 "unknown" + the nearest) from path, chain, speed and feet, and its form vs the textbook
+##                                 ("the elbow drops 25 deg below shoulder height"); scripts/move_recognizer.gd
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -437,6 +441,21 @@ func _init() -> void:
 			if tv["ok"]:
 				say(tv["text"])
 			done(tv)
+		"recognize":   # N016 (scripts/move_recognizer.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "recognize <scene.json> [card=N] [t0=S] [t1=S] [fighter=N]  (N016)"})
+				return
+			var rp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] in ["card", "fighter"]:
+					rp[kv[0]] = int(kv[1])
+				elif kv.size() == 2 and kv[0] in ["t0", "t1"]:
+					rp[kv[0]] = float(kv[1])
+			var rr: Dictionary = await MoveRecognizer.serve(m, rp)
+			say(String(rr.get("text", rr.get("error", ""))))
+			done(rr)
 		_:
 			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | events <scene> \"<query>\" | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})
