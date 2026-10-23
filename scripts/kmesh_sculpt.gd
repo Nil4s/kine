@@ -24,6 +24,8 @@ extends RefCounted
 ##   FACE SETS (C09, scripts/kmesh_face_sets.gd): the "face set" brush puts the faces under each dab in set p["fset_id"]
 ##   (a new set when not given) and moves nothing; every brush leaves frozen the verts of hidden faces and, with
 ##   p["only_set"] > 0, the verts of every face of another set (KMeshFaceSets.frozen, read when the stroke begins).
+##   ALPHAS + STROKE METHODS (C08, scripts/sculpt_alpha_stroke.gd): params "alpha", "stroke_method" (dots / drag rect /
+##   spray), "alpha_rot" ...: each dab's falloff is multiplied by the alpha in the dab's tangent frame. Off (null) by default.
 
 const DRAW := "draw"
 const CLAY := "clay strips"
@@ -64,6 +66,7 @@ var _mask := PackedFloat32Array()   # C03: the mask at the stroke's start (empty
 var _lock := PackedByteArray()      # C09: 1 = a vert of a hidden face / another set (empty = none)
 var _symx: KMeshSculptSym  # C07: Y / Z / radial symmetry (scripts/kmesh_sculpt_sym.gd), null when off
 var _pend = null           # C07: while an Array, _apply holds the deltas back for the copies of one dab
+var _alpha: SculptAlphaStroke   # C08: the alpha / stroke method of this stroke, null when plain
 
 
 static func falloff(kind: String, t: float) -> float:
@@ -104,6 +107,7 @@ func begin(m: KMesh, params := {}) -> void:
 	if p["brush"] == FSET and int(p.get("fset_id", 0)) <= 0:
 		p["fset_id"] = KMeshFaceSets.next_id(m)
 	_symx = KMeshSculptSym.make(self)
+	_alpha = SculptAlphaStroke.make(self)
 
 
 func _build_hash() -> void:
@@ -179,6 +183,8 @@ func end() -> void:
 
 ## one dab at `hit` (on the surface, mesh-local space) with the stroke normal `normal`; returns the verts moved
 func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
+	if _alpha != null and not _alpha.inside:
+		return _alpha.dab(self, hit, normal, pressure)
 	if _symx != null and _pend == null:
 		return _symx.dab(self, hit, normal, pressure)
 	var r := float(p["radius"])
@@ -192,6 +198,8 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	w.resize(ids.size())
 	for i in ids.size():
 		w[i] = falloff(fk, vp[ids[i]].distance_to(hit) / r)
+	if _alpha != null:
+		w = _alpha.weigh(self, ids, w, hit, n, r)
 	var br := String(p["brush"])
 	if (br == MASK or br == FSET) and not _lock.is_empty():   # C09: nothing painted on a frozen vert
 		var ki := PackedInt32Array()

@@ -156,7 +156,7 @@ func fill() -> void:
 		bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		bt.focus_mode = Control.FOCUS_NONE
 		bt.tooltip_text = "%s: radius %d mm, strength %.1f mm, %s falloff, spacing %d %%%s" % [e["brush"], roundi(float(e["radius"]) * 1000.0),
-			float(e["strength"]) * 1000.0, e["falloff"], roundi(float(e["spacing"]) * 100.0), " (yours)" if e["user"] else ""]
+			float(e["strength"]) * 1000.0, e["falloff"], roundi(float(e["spacing"]) * 100.0), (", alpha %s" % e["alpha"] if e.has("alpha") else "") + (" (yours)" if e["user"] else "")]
 		var pic := lib.picture(e)
 		bt.icon = pic if pic != null else null
 		bt.add_theme_constant_override("icon_max_width", 40)

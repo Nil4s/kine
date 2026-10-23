@@ -4,7 +4,9 @@ extends Node
 ## strokes with: brush, radius (m), strength (m per dab), falloff, spacing (fraction of the radius between dabs), and the
 ## symmetry flags (sym_x / sym_y / sym_z, radial copies 1..32 and the radial axis 0 1 2 = X Y Z). apply() sets every one of
 ## them on the sculpt UI exactly; nothing else changes. The panel is scripts/brush_presets_panel.gd (B in sculpt).
-## SHIPPED: SHIPPED below (11). USER presets: user://brush_presets.json ("Save current brush as preset"; a name already there is
+## C08: a preset may also carry an "alpha" (an alpha's name, scripts/sculpt_alphas.gd); apply() sets it, and a preset without
+##   one clears the UI's alpha. It is left out of a preset that has none, so the older presets and their thumbnails stay as they were.
+## SHIPPED: SHIPPED below (12). USER presets: user://brush_presets.json ("Save current brush as preset"; a name already there is
 ##   replaced). FAVOURITES: the starred names, user://brush_favourites.json; the panel lists them first. Both are written
 ##   with full float precision, so a saved radius comes back == the one saved.
 ## THUMBNAILS: the preset's stroke run for real (KMeshSculpt) across a small bumpy plane (0.4 m, 40 x 40 quads, a ripple
@@ -37,6 +39,7 @@ const SHIPPED := [
 	{"name": "Mask paint", "brush": KMeshSculpt.MASK, "radius": 0.05, "strength": 0.004, "falloff": KMeshSculpt.F_SMOOTH, "spacing": 0.1, "sym_x": true, "sym_y": false, "sym_z": false, "radial": 1, "radial_axis": 1},
 	{"name": "Snake hook", "brush": KMeshSculpt.SNAKE, "radius": 0.05, "strength": 0.004, "falloff": KMeshSculpt.F_SMOOTH, "spacing": 0.1, "sym_x": false, "sym_y": false, "sym_z": false, "radial": 1, "radial_axis": 1},
 	{"name": "Radial draw x8", "brush": KMeshSculpt.DRAW, "radius": 0.04, "strength": 0.003, "falloff": KMeshSculpt.F_SMOOTH, "spacing": 0.1, "sym_x": false, "sym_y": false, "sym_z": false, "radial": 8, "radial_axis": 1},
+	{"name": "Skin pores", "brush": KMeshSculpt.DRAW, "radius": 0.035, "strength": 0.002, "falloff": KMeshSculpt.F_SMOOTH, "spacing": 0.7, "sym_x": false, "sym_y": false, "sym_z": false, "radial": 1, "radial_axis": 1, "alpha": "pores"},
 ]
 
 var renders := 0     # thumbnails drawn this session (the test counts them)
@@ -64,7 +67,8 @@ static func clean(p: Variant) -> Dictionary:
 		"strength": clampf(float(d.get("strength", 0.004)), 0.0002, 0.05), "falloff": fo,
 		"spacing": clampf(float(d.get("spacing", 0.1)), 0.01, 1.0), "sym_x": bool(d.get("sym_x", false)),
 		"sym_y": bool(d.get("sym_y", false)), "sym_z": bool(d.get("sym_z", false)),
-		"radial": clampi(int(d.get("radial", 1)), 1, KMeshSculptSym.MAX_RADIAL), "radial_axis": clampi(int(d.get("radial_axis", 1)), 0, 2)}
+		"radial": clampi(int(d.get("radial", 1)), 1, KMeshSculptSym.MAX_RADIAL), "radial_axis": clampi(int(d.get("radial_axis", 1)), 0, 2)}.merged(
+		{"alpha": String(d["alpha"])} if d.get("alpha") is String and String(d["alpha"]) != "" else {})
 
 
 static func shipped() -> Array:
@@ -166,6 +170,8 @@ static func of_ui(ui, nm := "My brush") -> Dictionary:
 	var p := {"name": nm}
 	for k in FIELDS:
 		p[k] = ui.get(k)
+	if ui.get("alpha") is String and String(ui.get("alpha")) != "":   # C08
+		p["alpha"] = ui.get("alpha")
 	return p
 
 
@@ -173,6 +179,8 @@ static func of_ui(ui, nm := "My brush") -> Dictionary:
 static func apply(ui, p: Dictionary) -> void:
 	for k in FIELDS:
 		ui.set(k, p[k])
+	if "alpha" in ui:   # C08: a preset without an alpha clears it
+		ui.set("alpha", String(p.get("alpha", "")))
 
 
 ## true when every field of the sculpt UI equals the preset's
@@ -180,7 +188,7 @@ static func matches_ui(ui, p: Dictionary) -> bool:
 	for k in FIELDS:
 		if ui.get(k) != p[k]:
 			return false
-	return true
+	return not ("alpha" in ui) or String(ui.get("alpha")) == String(p.get("alpha", ""))
 
 
 # ---------------------------------------------------------------- the thumbnail stroke
@@ -225,6 +233,8 @@ static func key_of(p: Dictionary) -> String:
 	var f := {}
 	for k in FIELDS:
 		f[k] = p[k]
+	if String(p.get("alpha", "")) != "":
+		f["alpha"] = p["alpha"]
 	return (STAGE_V + JSON.stringify(f, "", true, true)).sha256_text()
 
 

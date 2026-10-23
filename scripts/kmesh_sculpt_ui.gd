@@ -16,6 +16,8 @@ extends Node
 ##   FACE SETS (C09, scripts/kmesh_face_sets_ui.gd): W face-set brush (Ctrl+drag grows the set pressed)   H hide the set
 ##   under the mouse   Shift+H isolate it   Alt+H show all   Shift+W sculpt only the set under the press   Alt+] / Alt+[
 ##   grow / shrink it one ring   Ctrl+M mask it (Ctrl+Shift+M everything but it)   Alt+W colours on / off.
+##   C08: A / Shift+A  next / previous alpha; the alpha strip (top right) picks the alpha, the stroke method (dots, drag rect,
+##   spray), the rotation, or loads a PNG (scripts/sculpt_alpha_strip.gd)
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
 const R := 0.3
@@ -44,6 +46,12 @@ var filt := KMeshFilters.new()   # C18
 var spacing := 0.1          # C14: dab spacing, a fraction of the radius (a preset sets it)
 var matcap: SculptMatcap    # C12
 var presets: BrushPresetsPanel   # C14
+var alphas: SculptAlphaStrip     # C08
+var alpha := ""                  # C08: the alpha stamped through ("" = none), a preset may set it
+var stroke_method := SculptAlphaStroke.DOTS
+var alpha_rot := SculptAlphaStroke.R_STROKE
+var alpha_angle := 0.0           # deg
+var _seed := 0
 var _stroking := false
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
@@ -67,6 +75,9 @@ func setup(main: Node) -> void:
 	matcap.setup(self)
 	presets = BrushPresetsPanel.new(self)
 	m.ui_root.add_child(presets)
+	alphas = SculptAlphaStrip.new()
+	add_child(alphas)
+	alphas.setup(self)
 
 
 static func make_sphere(r := R, n := SPLIT) -> KMesh:
@@ -100,6 +111,8 @@ func start() -> void:
 	view.rebuild()
 	if matcap != null:
 		matcap.attach(view)
+	if alphas != null:
+		alphas.attach()
 	m._say("Sculpt: test sphere. Drag on it to sculpt (%s). D C I S F P E G K pick the brush, M masks, [ ] radius, X symmetry, Ctrl+Z undo, Esc leaves" % brush)
 
 
@@ -113,6 +126,8 @@ func stop() -> void:
 	if matcap != null:
 		matcap.detach()
 		presets.close()
+	if alphas != null:
+		alphas.detach()
 	view.queue_free()
 	view = null
 	m._say("Sculpt: left the test sphere (nothing was saved). Run Sculpt: a test sphere (preview) to come back")
@@ -125,8 +140,11 @@ func _params(ev: InputEvent) -> Dictionary:
 		inv = (ev as InputEventWithModifiers).ctrl_pressed or (b == KMeshSculpt.MASK and (ev as InputEventWithModifiers).alt_pressed)
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
+	_seed += 1
 	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x,
-		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis}
+		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis,
+		"alpha": alpha, "stroke_method": stroke_method, "alpha_rot": alpha_rot, "alpha_angle": deg_to_rad(alpha_angle), "seed": _seed,   # C08
+		"alpha_ref": _local_n((m.get("cam") as Camera3D).global_transform.basis.x) if view != null and m.get("cam") is Camera3D else Vector3.RIGHT}
 
 
 func _status() -> void:
@@ -201,7 +219,8 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if not _stroking and filt.input(ev, self):
 		return true
-	if not _stroking and not filt.active and ((matcap != null and matcap.input(ev)) or (presets != null and presets.input(ev))):   # C12 V, C14 B
+	if not _stroking and not filt.active and ((matcap != null and matcap.input(ev)) or (presets != null and presets.input(ev))
+			or (alphas != null and alphas.input(ev))):   # C12 V, C14 B, C08 A + drag rect
 		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
