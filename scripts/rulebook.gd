@@ -36,6 +36,7 @@ const SRC := {
 	"FEASIBLE FLIGHT": "with no foot down the centre of mass follows free fall, y = y0 + v t - g t^2/2, g = 9.81, within 8 cm (our bar; docs/research/ROBOT_MOTION.md)",
 	"FEASIBLE SLIDE": "a planted foot may creep at most 25 mm per contact (Karunratanakul et al. 2023, arXiv:2310.08580)",
 	"FEASIBLE PENETRATION": "body capsules inside each other deeper than 20 mm (our bar, Body.contacts)",
+	"ASSERT": "a check line saved in the scene (N002, scripts/body_assert.gd): the bars are the line's own numbers; touching = within 1 cm (Balance.TOUCH), planted = toe base within 2 cm of its standing height (Body.foot_state) and sliding under 2.5 cm (FOOT SLIDE's bar)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
 ## and WHERE the number comes from (the panel's "source" button opens it). The links are docs/MOTION_RULES.md's own
@@ -65,6 +66,7 @@ const WHY := {
 	"FEASIBLE FLIGHT": "In the air nothing pushes: the body follows a parabola. Hovering or swerving mid-jump reads as wires.",
 	"FEASIBLE SLIDE": "A planted foot that slides looks like ice skating, and a robot or a rig cannot follow it.",
 	"FEASIBLE PENETRATION": "Limbs passing through the body or each other cannot be done by a solid person or a robot.",
+	"ASSERT": "Someone wrote this down as something the motion must do. It no longer does: an edit broke it, or it never held."
 }
 const URL := {
 	"SEQUENCE": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
@@ -91,6 +93,7 @@ const URL := {
 	"FEASIBLE FLIGHT": "res://docs/research/ROBOT_MOTION.md",
 	"FEASIBLE SLIDE": "https://arxiv.org/pdf/2310.08580",
 	"FEASIBLE PENETRATION": "res://docs/research/ROBOT_MOTION.md",
+	"ASSERT": "res://scripts/body_assert.gd",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
 const PROP_WARN := 0.005   # m inside a prop: a WARN (Props.REST_SINK: less is resting on it)
@@ -1042,6 +1045,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 		var fz := Feasible.check(S, B)
 		out += Feasible.verdict_finding(S, fz) + fz["findings"]
 	FrameMemo.tick("feasible total", tk)
+	out += BodyAssert.findings(S, B)   # N002: the scene's saved assertions, re-checked on every Check
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

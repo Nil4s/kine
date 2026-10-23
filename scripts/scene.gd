@@ -82,6 +82,7 @@ var boxes := []        # HIT / HURT BOXES per frame (ROADMAP 36): the file's "bo
 var shots := []        # THE SHOTS (ROADMAP 75): [{"t" cut s, "name", "keys": the shot camera [{"t", "pos", "aim", "f" mm}]}]; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var plants := []      # FOOT PLANTS over a time range (ROADMAP 8): [{"foot", "t0", "t1"}] by t0; scripts/foot_plant.gd; in the file as "plants" (only when any)
+var asserts := []     # BODY ASSERTIONS (N002): the agent's check lines ("left foot planted 0-0.4 s"), re-run by Check; scripts/body_assert.gd; in the file as "asserts" (only when any)
 var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: miss, ball turn, weight, clamped); {} = nothing
 var _plants_off := false   # set while FootPlant.refs reads the pose at a plant's t0: the plants do not play then
 var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n"}} (the release ramp, read once per scene state)
@@ -1606,6 +1607,7 @@ func clone() -> Scene:
 		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
 	c.plants = plants.duplicate(true)   # foot plants (foot_plant.gd)
+	c.asserts = asserts.duplicate()   # N002 body assertions (body_assert.gd)
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
@@ -2213,6 +2215,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
 	if not plants.is_empty():
 		out["plants"] = FootPlant.to_file(plants)   # foot plants: the same, only when there is one
+	if not asserts.is_empty():
+		out["asserts"] = asserts.duplicate()   # N002 body assertions: the lines, only when there is one
 	if not drivers.is_empty():
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cape.is_empty():
@@ -2262,6 +2266,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
+	"asserts": "SIDED: BodyAssert.mirror_file (left <-> right, _l <-> _r in each line; fighters and times free)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected; the back's spline key \"spine\" is its own twin: its mid and chest points x negated, its hip / chest twists negated)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
@@ -2326,6 +2331,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["ik"] = LimbIK.mirror_file(d2["ik"], M)   # as main._mirror_scene: hand_l <-> hand_r, points x negated
 	if d2.has("plants"):
 		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
+	if d2.has("asserts"):
+		d2["asserts"] = BodyAssert.mirror_file(d2["asserts"])   # N002: left <-> right in each line
 	if d2.has("drivers"):
 		d2["drivers"] = Drivers.mirror_file(d2["drivers"], M)   # user drivers (drivers.gd), before S2 reads the file
 	if d2.has("secondary"):
@@ -2409,6 +2416,7 @@ func from_dict(d: Dictionary) -> void:
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
+	asserts = BodyAssert.from_file(d.get("asserts", []))   # N002 body assertions: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
