@@ -87,6 +87,9 @@ func _init() -> void:
 	# (1c) N15 PACK PROJECT (scripts/pack_zip.gd): policy = user://packs/<scene>.kinezip (Pack) and a NEW folder under user:// (Unpack); never scenes/, poses/, data/
 	var pzsrc := FileAccess.get_file_as_string("res://scripts/pack_zip.gd")
 	ok(PackZip.DIR.begins_with("user://") and pzsrc.contains("dest.begins_with(\"user://\")") and not pzsrc.contains("res://scenes") and not pzsrc.contains("DirAccess.remove"), "Pack writes only under %s, Unpack only into a user:// folder" % PackZip.DIR)
+	# (1d) E15 MATERIAL FROM A PHOTO (scripts/photo_material.gd): policy = user://materials/<name>/{albedo,rough,normal}.png + material.tres only; never scenes/, poses/, data/
+	var pmsrc := FileAccess.get_file_as_string("res://scripts/photo_material.gd")
+	ok(PhotoMaterial.DIR.begins_with("user://") and pmsrc.count("FileAccess.WRITE") == 1 and not pmsrc.contains("res://scenes") and not pmsrc.contains("DirAccess.remove"), "Material from a photo writes only under %s" % PhotoMaterial.DIR)
 	# (2) every editing command: no dialog
 	m._load_scene("res://scenes/combo3.json")
 	m._card_pick(2)

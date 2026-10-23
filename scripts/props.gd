@@ -157,6 +157,8 @@ static func to_dict(p: Dictionary) -> Dictionary:
 	var o := xf.origin
 	var d := {"kind": p["kind"], "pos": [snappedf(o.x, 0.0001), snappedf(o.y, 0.0001), snappedf(o.z, 0.0001)],
 		"yaw": snappedf(yaw, 0.0001)}
+	if p.has("mat"):
+		d["mat"] = String(p["mat"])   # a photo material (user://materials/<name>, E15)
 	if p.has("swing") and hinged(p) and float(p["swing"]) != 0.0:
 		d["swing"] = snappedf(float(p["swing"]), 0.0001)
 	if animated(p):
@@ -175,6 +177,8 @@ static func to_dict(p: Dictionary) -> Dictionary:
 static func from_dict(d: Dictionary) -> Dictionary:
 	var a: Array = d.get("pos", [0, 0, 0])
 	var p := make(String(d["kind"]), xf_at(Vector3(float(a[0]), float(a[1]), float(a[2])), float(d.get("yaw", 0.0))))
+	if d.has("mat") and String(d["mat"]) != "":
+		p["mat"] = String(d["mat"])
 	if d.has("swing"):
 		p["swing"] = float(d["swing"])
 	if d.get("keys") is Array and not (d["keys"] as Array).is_empty():
@@ -311,6 +315,8 @@ static func posed(p: Dictionary, t: float) -> Dictionary:
 	var pos := PartKeys.at(pk, t)
 	var a := PartKeys.at(ak, t)
 	var out := {"kind": p["kind"], "xf": xf_at(pos, a.x)}
+	if p.has("mat"):
+		out["mat"] = p["mat"]
 	if hinged(p):
 		out["swing"] = a.y
 	return out
@@ -374,6 +380,10 @@ static func mesh(p: Dictionary) -> Node3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = GREY
 	mat.roughness = 0.9
+	if p.has("mat"):
+		var pm := PhotoMaterial.load_material(String(p["mat"]))
+		if pm != null:
+			mat = pm
 	var kd := kind_of(p["kind"])
 	if String(kd.get("glb", "")).get_extension().to_lower() == "obj" and not model_missing(p):   # an imported OBJ (N01): its meshes, same placement as a .glb
 		var n := Node3D.new()
