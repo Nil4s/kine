@@ -46,6 +46,7 @@ const TOOLS := [
 	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "", "also": "fill face make new close hole bridge", "desc": "a face on the selected vertices or across a hole"},
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
+	{"id": "mesh_autoweights", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_bind_to_the_skeleton_auto_weights", "also": "skin weights bind bones heat", "desc": ""},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
