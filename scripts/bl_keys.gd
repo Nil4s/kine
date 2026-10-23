@@ -13,6 +13,9 @@ extends RefCounted
 ##   a typed number = metres / degrees / factor. One KMeshUndo step per confirmed edit.
 ##   Enter or left click = keep (ONE undo step); Esc or right click = cancel, the old state put back exactly.
 ## The live readout is the status line ("R  X  45°"). Behaviour learned from Blender's manual; no Blender code.
+## B07: with proportional editing on (O in the model preview, kmesh_proportional.gd) the unselected verts within its
+## radius follow, weighted by the falloff; the wheel sizes the radius while a mesh G / R / S is live.
+## B22: with the edit mirror on (scripts/kmesh_topomirror.gd) each moved vert's partner moves mirrored, in the same step.
 ## Tests: tests/blkeys_test.gd.
 
 const CFG := "look"
@@ -33,6 +36,7 @@ var _verts := PackedVector3Array()   # mesh: the vertices at the start
 var _idx := PackedInt32Array()
 var _centre := Vector3.ZERO
 var _p0 := Vector3.ZERO
+var _pc := {}              # B14: individual origins, vertex -> its island's centre (KMeshPivot.origins)
 var last_readout := ""
 
 
@@ -158,16 +162,24 @@ func _begin_mesh(which: String) -> void:
 	for i in _idx:
 		_centre += _verts[i]
 	_centre /= float(_idx.size())
+	_centre = ui.pivot.centre(_idx, _verts, _centre)   # B14: the pivot mode (median / active / cursor)
+	_pc = ui.pivot.origins(_idx, _verts)
+	if ui.prop.on:
+		ui.prop.begin(ui.mesh, _idx, _verts)
 	where = "mesh"
 	active = which
 	axis = 0 if which == "R" else -1
 	text = ""
 	acc = Vector2.ZERO
 	ui.undo.begin(ui.mesh)
+	KMeshTopoMirror.get_shared().prepare(ui.mesh, ui.view.global_transform, _idx)   # B22: the partner map (cached)
 	_readout()
 
 
 func _modal(ev: InputEvent) -> bool:
+	if where == "mesh" and m.kmed.snap.watch(ev):   # B08: Ctrl pressed / let go: the snap comes or goes at once
+		_apply()
+		return true
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if not mb.pressed:
@@ -177,6 +189,10 @@ func _modal(ev: InputEvent) -> bool:
 			return true
 		if mb.button_index == MOUSE_BUTTON_RIGHT:
 			cancel()
+			return true
+		if where == "mesh" and m.kmed.prop.on and mb.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			m.kmed.prop.wheel(mb.button_index == MOUSE_BUTTON_WHEEL_UP)   # B07: the proportional radius
+			_apply()
 			return true
 		return false   # the wheel still zooms
 	if ev is InputEventMouseMotion:
@@ -295,14 +311,18 @@ func _apply_mesh() -> void:
 	var ui = m.kmed
 	var mesh: KMesh = ui.mesh
 	var v := value()
+	if text == "":
+		v = ui.snap.step(active, v)   # B08: Ctrl snaps R to 5 degrees, S to 0.1
 	var d := Vector3.ZERO
 	var basis := Basis.IDENTITY
 	var sc := Vector3.ONE
+	var ax := Vector3.ZERO
 	match active:
 		"G":
 			d = _grab_delta()
+			if text == "":
+				d = ui.snap.grab(_idx, _verts, d, axis)   # B08: Ctrl snaps onto the target (Shift+Tab picks it)
 		"R":
-			var ax := Vector3.ZERO
 			ax[maxi(axis, 0)] = 1.0
 			basis = Basis(ax, deg_to_rad(v))
 		"S":
@@ -319,6 +339,10 @@ func _apply_mesh() -> void:
 				mesh.verts[i] = _centre + basis * (p - _centre)
 			"S":
 				mesh.verts[i] = _centre + (p - _centre) * sc
+	ui.pivot.apply_individual(_pc, _verts, active, basis, sc)   # B14: individual origins
+	if ui.prop.on:
+		ui.prop.apply(mesh, active, d, ax, deg_to_rad(v), sc, _centre)   # B07
+	KMeshTopoMirror.get_shared().follow(mesh, _verts)   # B22: the partners move mirrored (same undo step)
 	mesh._compute_normals()
 	ui.view.mark_dirty()
 

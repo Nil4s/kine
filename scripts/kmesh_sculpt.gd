@@ -17,7 +17,15 @@ extends RefCounted
 ##   SPATIAL HASH: built once per stroke (cells of one radius); a dab reads the 3 x 3 x 3 cells around the hit (the verts
 ##   moved during the stroke are found while they stay within a cell of where they began) and tests the true distance.
 ##   X SYMMETRY: KMesh.symmetry_map(0): each vert's displacement is also applied, mirrored, to its partner; a vert on the
-##   plane keeps x.
+##   plane keeps x. B22: params "sym_map" (a partner per vert, KMeshTopoMirror: by connectivity) + "sym_axis" replace it.
+##   MASK (C03, scripts/kmesh_mask.gd): the "mask" brush paints the mesh's 0..1 "mask" channel instead of moving verts
+##   (invert = erase; params "mask_amount", 1 = a full mask at the centre in one dab); every other brush's displacement of
+##   a vert (and grab's) is multiplied by (1 - mask), the mask as it was when the stroke began.
+##   FACE SETS (C09, scripts/kmesh_face_sets.gd): the "face set" brush puts the faces under each dab in set p["fset_id"]
+##   (a new set when not given) and moves nothing; every brush leaves frozen the verts of hidden faces and, with
+##   p["only_set"] > 0, the verts of every face of another set (KMeshFaceSets.frozen, read when the stroke begins).
+##   ALPHAS + STROKE METHODS (C08, scripts/sculpt_alpha_stroke.gd): params "alpha", "stroke_method" (dots / drag rect /
+##   spray), "alpha_rot" ...: each dab's falloff is multiplied by the alpha in the dab's tangent frame. Off (null) by default.
 
 const DRAW := "draw"
 const CLAY := "clay strips"
@@ -29,6 +37,8 @@ const CREASE := "crease"
 const GRAB := "grab"
 const SNAKE := "snake hook"
 const BRUSHES := [DRAW, CLAY, INFLATE, SMOOTH, FLATTEN, PINCH, CREASE, GRAB, SNAKE]
+const MASK := "mask"   # C03: paints the mask, moves nothing
+const FSET := "face set"   # C09: paints face sets, moves nothing
 
 const F_SMOOTH := "smooth"
 const F_SPHERE := "sphere"
@@ -45,6 +55,7 @@ var _cell := 0.1
 var _head := {}            # Vector3i -> first vert
 var _chain := PackedInt32Array()
 var _sym := PackedInt32Array()
+var _sax := 0              # B22: the mirror axis of _sym (0 X, 1 Y, 2 Z)
 var _last := Vector3.ZERO  # the last dab's centre (spacing, snake hook)
 var _has_last := false
 var _prev := Vector3.ZERO  # the last stroke point (spacing)
@@ -52,6 +63,11 @@ var _carry := 0.0          # the path laid since the last dab
 var _grab0 := Vector3.ZERO # grab: the press point
 var _grab_w := {}          # grab: vert -> weight at the press
 var _grab_v := {}          # grab: vert -> position at the press
+var _mask := PackedFloat32Array()   # C03: the mask at the stroke's start (empty = none)
+var _lock := PackedByteArray()      # C09: 1 = a vert of a hidden face / another set (empty = none)
+var _symx: KMeshSculptSym  # C07: Y / Z / radial symmetry (scripts/kmesh_sculpt_sym.gd), null when off
+var _pend = null           # C07: while an Array, _apply holds the deltas back for the copies of one dab
+var _alpha: SculptAlphaStroke   # C08: the alpha / stroke method of this stroke, null when plain
 
 
 static func falloff(kind: String, t: float) -> float:
@@ -87,6 +103,15 @@ func begin(m: KMesh, params := {}) -> void:
 	_cell = maxf(float(p["radius"]), 1e-4)
 	_build_hash()
 	_sym = m.symmetry_map(0, 1e-4) if p["sym_x"] else PackedInt32Array()
+	_sax = int(p.get("sym_axis", 0))   # B22: a partner map of any axis (KMeshTopoMirror: by connectivity) replaces it
+	if p["sym_x"] and p.get("sym_map") is PackedInt32Array and (p["sym_map"] as PackedInt32Array).size() == m.verts.size():
+		_sym = p["sym_map"]
+	_mask = KMeshMask.values(m)
+	_lock = KMeshFaceSets.frozen(m, int(p.get("only_set", 0)))
+	if p["brush"] == FSET and int(p.get("fset_id", 0)) <= 0:
+		p["fset_id"] = KMeshFaceSets.next_id(m)
+	_symx = KMeshSculptSym.make(self)
+	_alpha = SculptAlphaStroke.make(self)
 
 
 func _build_hash() -> void:
@@ -162,6 +187,10 @@ func end() -> void:
 
 ## one dab at `hit` (on the surface, mesh-local space) with the stroke normal `normal`; returns the verts moved
 func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
+	if _alpha != null and not _alpha.inside:
+		return _alpha.dab(self, hit, normal, pressure)
+	if _symx != null and _pend == null:
+		return _symx.dab(self, hit, normal, pressure)
 	var r := float(p["radius"])
 	var a := float(p["strength"]) * clampf(pressure, 0.0, 1.0)
 	var sgn := -1.0 if p["invert"] else 1.0
@@ -173,10 +202,31 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	w.resize(ids.size())
 	for i in ids.size():
 		w[i] = falloff(fk, vp[ids[i]].distance_to(hit) / r)
+	if _alpha != null:
+		w = _alpha.weigh(self, ids, w, hit, n, r)
+	var br := String(p["brush"])
+	if (br == MASK or br == FSET) and not _lock.is_empty():   # C09: nothing painted on a frozen vert
+		var ki := PackedInt32Array()
+		var kw := PackedFloat32Array()
+		for i in ids.size():
+			if not _lock[ids[i]]:
+				ki.append(ids[i])
+				kw.append(w[i])
+		ids = ki
+		w = kw
+	if br == FSET:
+		_has_last = true
+		_last = hit
+		dabs += 1
+		return KMeshFaceSets.paint(mesh, ids, w, int(p["fset_id"]))
+	if br == MASK:
+		_has_last = true
+		_last = hit
+		dabs += 1
+		return KMeshMask.paint(mesh, ids, w, float(p.get("mask_amount", 1.0)) * clampf(pressure, 0.0, 1.0), sgn)
 	var vn := mesh.vert_normals
 	var d := PackedVector3Array()
 	d.resize(ids.size())
-	var br := String(p["brush"])
 	# the area under the brush: weighted centre and normal (flatten, clay)
 	var ac := hit
 	var an := n
@@ -235,6 +285,13 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	return _apply(ids, d)
 
 
+## C03: how much of a displacement a vert keeps (1 - mask); C09: none on a frozen vert
+func _keep(v: int) -> float:
+	if not _lock.is_empty() and _lock[v]:
+		return 0.0
+	return 1.0 if _mask.is_empty() else 1.0 - clampf(_mask[v], 0.0, 1.0)
+
+
 static func _toward(q: Vector3, target: Vector3, s: float) -> Vector3:
 	var dv := target - q
 	var l := dv.length()
@@ -245,6 +302,9 @@ static func _toward(q: Vector3, target: Vector3, s: float) -> Vector3:
 
 ## add the displacements (and their mirror images to the partners); the normals of the faces touched are refreshed
 func _apply(ids: PackedInt32Array, d: PackedVector3Array) -> int:
+	if _pend != null:
+		_pend.append([ids, d])
+		return 0
 	var tot := {}
 	for i in ids.size():
 		if d[i] == Vector3.ZERO:
@@ -254,14 +314,14 @@ func _apply(ids: PackedInt32Array, d: PackedVector3Array) -> int:
 		if not _sym.is_empty():
 			var u := _sym[v]
 			if u >= 0:
-				var mv := Vector3(-d[i].x, d[i].y, d[i].z)
+				var mv := KMeshTopoMirror.flip(d[i], _sax)
 				tot[u] = tot.get(u, Vector3.ZERO) + mv
 	var vs := mesh.verts
 	mesh.verts = PackedVector3Array()   # one owner while writing: no copy of the whole array per vert
 	for v in tot:
-		var dv: Vector3 = tot[v]
+		var dv: Vector3 = tot[v] * _keep(v)
 		if not _sym.is_empty() and _sym[v] == v:
-			dv.x = 0.0   # on the mirror plane: stays on it
+			dv[_sax] = 0.0   # on the mirror plane: stays on it
 		vs[v] += dv
 	mesh.verts = vs
 	_renormal(tot.keys())
@@ -316,7 +376,7 @@ func _grab_start(point: Vector3, pressure: float) -> void:
 
 func _grab_move(point: Vector3) -> void:
 	var delta := point - _grab0
-	var md := Vector3(-delta.x, delta.y, delta.z)
+	var md := KMeshTopoMirror.flip(delta, _sax)
 	var tot := {}
 	for v in _grab_w:
 		tot[v] = tot.get(v, Vector3.ZERO) + delta * float(_grab_w[v])
@@ -327,9 +387,9 @@ func _grab_move(point: Vector3) -> void:
 	var vs := mesh.verts
 	mesh.verts = PackedVector3Array()
 	for v in tot:
-		var dv: Vector3 = tot[v]
+		var dv: Vector3 = tot[v] * _keep(v)
 		if not _sym.is_empty() and _sym[v] == v:
-			dv.x = 0.0
+			dv[_sax] = 0.0
 		vs[v] = _grab_v[v] + dv
 	mesh.verts = vs
 	_renormal(tot.keys())

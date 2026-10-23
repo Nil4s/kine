@@ -332,6 +332,13 @@ static func _level(V: PackedVector3Array, fs: PackedInt32Array, fv: PackedInt32A
 				nd.resize(nnv)
 				for v in nv:
 					nd[v] = d[v]
+				if KMesh.is_label(k) and r["type"] == TYPE_FLOAT:   # A19: an index, not an amount: an end's / the corners' most common
+					for e in ne:
+						nd[nv + e] = d[ea[e]]   # both ends' when they agree, else the first end's
+					for f in nf:
+						nd[nv + ne + f] = KMesh.label_pick(d, fv.slice(fs[f], fs[f + 1]))
+					r["data"] = nd
+					continue
 				for e in ne:
 					nd[nv + e] = (d[ea[e]] + d[eb[e]]) * 0.5
 				for f in nf:

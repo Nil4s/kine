@@ -104,7 +104,8 @@ func _init() -> void:
 	for c in cs.commands:
 		var f: Callable = c["run"]
 		if writers.has(c["name"]):
-			ok(f.get_method() == writers[c["name"]], "  '%s' is bound to %s (not run: it writes a file)" % [c["name"], f.get_method()])
+			var fw: Callable = c.get("raw", f)
+			ok(fw.get_method() == writers[c["name"]], "  '%s' is bound to %s (not run: it writes a file)" % [c["name"], fw.get_method()])
 			continue
 		cs.open()
 		cs.shown = [c]

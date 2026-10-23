@@ -455,6 +455,16 @@
     "plan": {
      "type": "string"
     },
+    "body_mesh": {
+     "type": "object",
+     "description": "G07 THE BODY MESH (scripts/body_file.gd): the .kbody the fighter's applied body is saved in, by reference (not embedded: a body is ~1 MB, a scene is autosaved, versioned and diffed); written only when the fighter draws an applied body. file = the .kbody path; sha256 = that file's hash when the scene was saved (a different file still opens, with a note).",
+     "required": ["file"],
+     "properties": {
+      "file": {"type": "string"},
+      "sha256": {"type": "string"}
+     },
+     "additionalProperties": false
+    },
     "body": {
      "type": "object",
      "description": "PROPORTIONS (round 51, scripts/proportions.gd): the body this scene is animated on; written only when not the mannequin as shipped. stature = metres, floor to the top of the head; scale = per segment, multiplies that segment's bones, capsules and mesh (uniformly; missing = 1); sex picks de Leva 1996's mass table; mass = kg; preset = the ANSUR II preset it came from. data/skeleton.json is never edited.",
@@ -471,6 +481,23 @@
       "preset": {"enum": ["female_5", "female_50", "female_95", "male_5", "male_50", "male_95"]}
      },
      "additionalProperties": false
+    },
+    "bones": {
+     "type": "array",
+     "description": "J01 BONE EDITOR (scripts/bone_editor.gd): the user's extra bones under the UE5 skeleton or each other; only when any. head / tail = metres in the parent's rest frame (its head the origin), roll = degrees about the bone (armature space), connect = the head stays on the parent's tail",
+     "items": {
+      "type": "object",
+      "required": ["name", "parent", "head", "tail", "roll"],
+      "properties": {
+       "name": {"type": "string"},
+       "parent": {"type": "string"},
+       "head": {"$ref": "#/$defs/vec3"},
+       "tail": {"$ref": "#/$defs/vec3"},
+       "roll": {"type": "number"},
+       "connect": {"type": "boolean"}
+      },
+      "additionalProperties": false
+     }
     },
     "ik": {
      "type": "object",

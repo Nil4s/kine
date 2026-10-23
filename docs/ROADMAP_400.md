@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 56 / 400 (★ 17 / 119)
+Merged: 106 / 400 (★ 29 / 119)
 
 ## The tracks
 
@@ -56,71 +56,71 @@ Merged: 56 / 400 (★ 17 / 119)
 - [x] A08 $ Normals: smooth / flat / auto by angle, custom split normals kept on export
 - [x] A09 $$ Attributes: per-vert / per-corner channels (colour, weight, mask, crease) on the half-edge
 - [x] A10 $$ Mesh validate + repair: non-manifold, zero-area faces, flipped normals, holes, with a next step each
-- [ ] A11 $$ Modifier stack (non-destructive): mirror, subdivide, solidify, array, displace; live in the viewport
+- [x] A11 $$ Modifier stack (non-destructive): mirror, subdivide, solidify, array, displace; live in the viewport
 - [x] A12 $$ Catmull-Clark subdivision with creases (own implementation from the 1978 paper)
 - [x] A13 $$ Shape keys on KMesh (absolute + relative), driven by anything
 - [x] A14 $ Mesh stats in the status line: verts / faces / tris / n-gons / poles
 - [ ] A15 $$ Instancing: one mesh many objects (props, crowds) without copying
 - [ ] A16 $$ Mesh layers in the Browser: objects, parenting, visibility, lock
 - [ ] A17 $$ GPU skinning path for KMesh (so A–F meshes animate like the mannequin)
-- [ ] A18 ★ $$ Body-aware mesh: every vertex knows its nearest bone and body region (UE5 names) from the first second
-- [ ] A19 ★ $$ Anatomy tags: regions (deltoid, patella, knuckle...) painted once on the base body, carried through every edit
+- [x] A18 ★ $$ Body-aware mesh: every vertex knows its nearest bone and body region (UE5 names) from the first second
+- [x] A19 ★ $$ Anatomy tags: regions (deltoid, patella, knuckle...) painted once on the base body, carried through every edit
 - [ ] A20 ★ $$ Pose-aware edit: edit a mesh while the character is POSED; the edit is mapped back to rest pose (inverse skinning)
 
 ## B. MODEL page
 
 - [ ] B01 $$ Move / rotate / scale with the existing gizmo on a selection, numeric entry
 - [x] B02 $$ Extrude (faces, edges, verts), individual and region
-- [ ] B03 $$ Inset, bevel (edges with segments + profile), bridge edge loops  (inset + bridge merged; bevel still to do)
-- [ ] B04 $$ Loop cut + slide, knife (cut along a stroke), edge split
+- [x] B03 $$ Inset, bevel (edges with segments + profile), bridge edge loops  (inset + bridge merged; bevel still to do)
+- [x] B04 $$ Loop cut + slide, knife (cut along a stroke), edge split
 - [x] B05 $$ Merge (at centre, by distance), dissolve (verts / edges / faces), delete
-- [ ] B06 $$ Fill / grid fill holes, make face from selection
-- [ ] B07 $$ Proportional editing (falloff curves, connected-only)
-- [ ] B08 $$ Snapping: to verts, edges, faces, grid, the body's surface
+- [x] B06 $$ Fill / grid fill holes, make face from selection
+- [x] B07 $$ Proportional editing (falloff curves, connected-only)
+- [x] B08 $$ Snapping: to verts, edges, faces, grid, the body's surface
 - [x] B09 $$ Primitives: cube, cylinder, sphere (UV / ico), torus, plane, capsule, with live parameters
-- [ ] B10 $$ Booleans (union / difference / intersect) on closed meshes
-- [ ] B11 $$ Spin, screw, lathe from a profile curve
-- [ ] B12 $$ Curves → mesh: bezier curves with bevel / taper (belts, straps, cables)
-- [ ] B13 $$ Shrinkwrap / project onto the body (armour plates that fit)
-- [ ] B14 $$ Pivot modes: median, active, cursor, individual origins; 3D cursor
+- [x] B10 $$ Booleans (union / difference / intersect) on closed meshes
+- [x] B11 $$ Spin, screw, lathe from a profile curve
+- [x] B12 $$ Curves → mesh: bezier curves with bevel / taper (belts, straps, cables)
+- [x] B13 $$ Shrinkwrap / project onto the body (armour plates that fit)
+- [x] B14 $$ Pivot modes: median, active, cursor, individual origins; 3D cursor
 - [ ] B15 $$ Edit history panel per object (the mesh steps, click to go back)
 - [x] B16 $ Hotkeys like Blender's (G R S E I K) as an optional layer, Kine's plain ones by default
-- [ ] B17 $$ Separate / join objects, set origin
-- [ ] B18 $$ Edge flow tools: relax loop, straighten, set flow
+- [x] B17 $$ Separate / join objects, set origin
+- [x] B18 $$ Edge flow tools: relax loop, straighten, set flow
 - [ ] B19 $$ Poly build (draw quads on a surface)
 - [x] B20 $$ Measure tool: distance, angle, area, volume (in cm, kg if a density is set)
-- [ ] B21 $$ Reference images on planes (front / side), with opacity
-- [ ] B22 $$ Mirror axis choice + topological mirror for asymmetric meshes
-- [ ] B23 ★ $$ Armour from the body: select a body region (A19) → a plate shell offset 4 mm, edge-bevelled, already skinned
-- [ ] B24 ★ $$ Range-of-motion clash: while modeling armour, play the ROM test; parts that cut into the body or each other light up per frame
-- [ ] B25 ★ $$ Clothes-safe modeling: any mesh within 1 cm of the skin gets a collision warning across the whole animation, not just rest pose
+- [x] B21 $$ Reference images on planes (front / side), with opacity
+- [x] B22 $$ Mirror axis choice + topological mirror for asymmetric meshes
+- [x] B23 ★ $$ Armour from the body: select a body region (A19) → a plate shell offset 4 mm, edge-bevelled, already skinned
+- [x] B24 ★ $$ Range-of-motion clash: while modeling armour, play the ROM test; parts that cut into the body or each other light up per frame
+- [x] B25 ★ $$ Clothes-safe modeling: any mesh within 1 cm of the skin gets a collision warning across the whole animation, not just rest pose
 - [ ] B26 ★ $$ Prop-from-hand: model a grip (handle) by closing the hand around a cylinder; the handle's diameter measured from the hand (Nick's grips)
-- [ ] B27 ★ $$ Real-size sanity: a mesh's size against the body (a sword 3 m long, a helmet smaller than the head) flagged with the reference length
+- [x] B27 ★ $$ Real-size sanity: a mesh's size against the body (a sword 3 m long, a helmet smaller than the head) flagged with the reference length
 - [ ] B28 ★ $$ Weapon parts on a model: tag a modeled weapon's parts (grip / guard / blade) and it joins the grip book (I50) with mass + com computed from volume × material density
-- [ ] B29 ★ $ Plain-words modeling: "make the shoulder pad 2 cm thicker", "bevel the edges of the helmet" through the existing words box
-- [ ] B30 ★ $$ Model checks page: one button grades a model for animation (poles at joints, n-gons on deforming areas, thin parts)
+- [x] B29 ★ $ Plain-words modeling: "make the shoulder pad 2 cm thicker", "bevel the edges of the helmet" through the existing words box
+- [x] B30 ★ $$ Model checks page: one button grades a model for animation (poles at joints, n-gons on deforming areas, thin parts)
 
 ## C. SCULPT page
 
 - [x] C01 $$ Sculpt core: brush stroke → vertex displacement with falloff, radius, strength, pressure (tablet)
 - [x] C02 $$ Brushes: draw, clay strips, inflate, smooth, flatten, pinch, crease, grab, snake hook
-- [ ] C03 $$ Masking: paint mask, invert, blur, mask by cavity; masked areas frozen
+- [x] C03 $$ Masking: paint mask, invert, blur, mask by cavity; masked areas frozen
 - [ ] C04 $$ Multires levels (subdivide for detail, sculpt at any level, details kept when the base moves)
 - [ ] C05 $$ Dynamic topology (local remesh under the brush)
 - [ ] C06 $$ Voxel remesh (uniform resolution), keep volume
-- [ ] C07 $$ Symmetry + radial symmetry in sculpt
-- [ ] C08 $$ Alphas / stamps (skin pores, scales, fabric), drag rect, spray
-- [ ] C09 $$ Face sets: group regions, hide / show, sculpt only one
+- [x] C07 $$ Symmetry + radial symmetry in sculpt
+- [x] C08 $$ Alphas / stamps (skin pores, scales, fabric), drag rect, spray
+- [x] C09 $$ Face sets: group regions, hide / show, sculpt only one
 - [ ] C10 $$ Layer brush and sculpt layers (on / off / strength)
 - [ ] C11 $$ Stroke methods: space, dots, line, curve, anchored
-- [ ] C12 $$ Matcaps for sculpting (clay, red wax, skin)
+- [x] C12 $$ Matcaps for sculpting (clay, red wax, skin)
 - [ ] C13 $$ Detail transfer: bake multires detail to a normal + displacement map
-- [ ] C14 $ Brush presets panel with thumbnails, favourites
+- [x] C14 $ Brush presets panel with thumbnails, favourites
 - [ ] C15 $$ Cloth brush (wrinkles that behave like fabric)
 - [ ] C16 $$ Trim tools (box / lasso cut and fill)
 - [ ] C17 $$ Pose brush (bend a sculpt along a chain)
-- [ ] C18 $$ Mesh filters: inflate / smooth / sharpen whole mesh
-- [ ] C19 ★ $$ Sculpt in pose: sculpt on the character in any frame of the animation; the stroke lands in rest pose (A20)
+- [x] C18 $$ Mesh filters: inflate / smooth / sharpen whole mesh
+- [x] C19 ★ $$ Sculpt in pose: sculpt on the character in any frame of the animation; the stroke lands in rest pose (A20)
 - [ ] C20 ★ $$ Muscle brush: strokes follow real muscle fibre directions (anatomy atlas per region, A19)
 - [ ] C21 ★ $$ Anatomy-aware inflate: grow a muscle and its volume, origin and insertion stay on the right bones
 - [ ] C22 ★ $$ Fat / muscle / bone sliders as brushes: "lean", "bulk", "soft" applied by region, bounded by ANSUR-plausible ranges
@@ -135,28 +135,28 @@ Merged: 56 / 400 (★ 17 / 119)
 
 ## D. SURFACE: UVs
 
-- [ ] D01 $$ UV editor panel: the 2D view, select / move / rotate / scale islands
+- [x] D01 $$ UV editor panel: the 2D view, select / move / rotate / scale islands
 - [ ] D02 $$ Seams: mark / clear, seam by angle, seam from face sets
 - [x] D03 $$ Unwrap: angle-based (LSCM from the 2002 paper), conformal, projection (cube / cylinder / sphere)
-- [ ] D04 $$ Island packing (with margin, rotate, texel density equalised)
+- [x] D04 $$ Island packing (with margin, rotate, texel density equalised)
 - [x] D05 $ Checker texture + stretch heat map
 - [ ] D06 $$ UV sync with 3D selection, pin, live unwrap
 - [ ] D07 $$ UDIMs (multi-tile)
 - [ ] D08 $$ Straighten / align / stitch islands
 - [ ] D09 $$ Texel density tool (px / cm, matched across objects)
 - [ ] D10 $$ UV layers (several sets per mesh)
-- [ ] D11 $$ Export UV layout as PNG / SVG
+- [x] D11 $$ Export UV layout as PNG / SVG
 - [ ] D12 ★ $$ Body seams by default: the base body ships with seams where a tailor / a game artist hides them (inner arm, inner leg, back of the head)
 - [ ] D13 ★ $$ Seams that avoid motion: a seam crossing a high-stretch area of the animation is flagged (stretch measured over the scene)
 - [ ] D14 ★ $$ Texel priority by camera: face and hands get more texels if the shots look at them (from the shot list)
-- [ ] D15 ★ $ One-click "game ready UVs": unwrap + pack + density for a named engine budget (1 × 2k / 4 × 1k)
+- [x] D15 ★ $ One-click "game ready UVs": unwrap + pack + density for a named engine budget (1 × 2k / 4 × 1k)
 
 ## E. SURFACE: materials, texture paint, bake
 
-- [ ] E01 $$ Materials: PBR (base colour, metal, rough, normal, AO, emission, SSS), assign by face set
-- [ ] E02 $$ Material library (skin, cloth, leather, steel, wood) with thumbnails
+- [x] E01 $$ Materials: PBR (base colour, metal, rough, normal, AO, emission, SSS), assign by face set
+- [x] E02 $$ Material library (skin, cloth, leather, steel, wood) with thumbnails
 - [ ] E03 $$ Texture paint: brushes on the model, layers, blend modes
-- [ ] E04 $$ Vertex paint
+- [x] E04 $$ Vertex paint
 - [ ] E05 $$ Bake: normal, AO, curvature, cavity, thickness from high → low
 - [ ] E06 $$ Smart masks (edges wear, cavity dirt) from the bakes
 - [ ] E07 $$ Node material editor (simple: images, mix, ramp, noise)
@@ -178,14 +178,14 @@ Merged: 56 / 400 (★ 17 / 119)
 
 - [ ] F01 $$ Quad remesh (field-aligned, quad dominant)
 - [ ] F02 $$ Retopo tools: draw quads on a sculpt, snap to surface, relax
-- [ ] F03 $$ Decimate (collapse / planar) keeping UVs
-- [ ] F04 $$ LODs (3–4 levels with targets)
+- [x] F03 $$ Decimate (collapse / planar) keeping UVs
+- [x] F04 $$ LODs (3–4 levels with targets)
 - [ ] F05 $$ Edge loop guides (draw where loops must go, remesher follows)
 - [x] F06 $$ Triangulate / quadrangulate
 - [ ] F07 $$ Shrinkwrap retopo onto high poly
 - [x] F08 $$ Topology heat map: poles, triangles, stretched quads
 - [ ] F09 $$ Project details low ← high (re-bake)
-- [ ] F10 ★ $$ Rig-aware retopo: loops placed where the skeleton bends (3 loops at elbow / knee, radial around shoulder), from the joint positions
+- [x] F10 ★ $$ Rig-aware retopo: loops placed where the skeleton bends (3 loops at elbow / knee, radial around shoulder), from the joint positions
 - [ ] F11 ★ $$ Topology graded in motion: each joint region's quad stretch measured over the scene's poses, worst first
 - [ ] F12 ★ $$ Loop count from the motion: joints that bend further (Nick's deep stances) get more loops automatically
 - [ ] F13 ★ $$ Face loops for FACS: eye and mouth rings placed for the action units I needs
@@ -194,18 +194,18 @@ Merged: 56 / 400 (★ 17 / 119)
 
 ## G. BODY page (make the character)
 
-- [ ] G01 $$ Base body mesh (CC0 / own), quad topology, rigged to the UE5 skeleton Kine uses
+- [x] G01 $$ Base body mesh (CC0 / own), quad topology, rigged to the UE5 skeleton Kine uses
 - [ ] G02 $$ ANSUR II sliders: stature, mass, 30 measured dimensions as percentiles, men and women
 - [ ] G03 $$ Proportions solve: a slider moves the skeleton AND the mesh (bones resized, limits kept)
 - [ ] G04 $$ Head shapes: skull width, jaw, brow, nose, ears (from 3D head surveys' ranges)
 - [ ] G05 $$ Hands and feet sizes (ANSUR hand length / breadth, foot length)
 - [ ] G06 $$ Body presets: fighter, heavyweight, lean runner, child, elder
-- [ ] G07 $$ Save / load bodies (.kbody), thumbnails in the Browser
+- [x] G07 $$ Save / load bodies (.kbody), thumbnails in the Browser
 - [ ] G08 $$ Body to the current scene: re-fit an animation to the new proportions (retarget, contacts kept)
 - [ ] G09 $$ Muscle definition and body fat as separate controls
 - [ ] G10 $$ Clothes base set (shirt, trousers, gi, boots) fitted to any body
 - [ ] G11 $$ Teeth, tongue, eyes, eyelashes as parts
-- [ ] G12 $$ Export the body as glb / fbx with skin weights
+- [x] G12 $$ Export the body as glb / fbx with skin weights
 - [x] G13 ★ $ Body from 5 numbers: height, weight, sex, age, build → a whole plausible body (regression on ANSUR)
 - [ ] G14 ★ $$ Body from a photo (front + side) → measurements → body (pose estimation already in Kine)
 - [ ] G15 ★ $$ Body from a video clip: the tracked limb lengths give the body (VideoIQ lengths)
@@ -222,10 +222,10 @@ Merged: 56 / 400 (★ 17 / 119)
 
 ## H. Skinning + deformation
 
-- [ ] H01 $$ Auto weights (heat diffusion / geodesic voxel, own implementation)
-- [ ] H02 $$ Weight paint: brush, smooth, normalise, mirror, lock bones
+- [x] H01 $$ Auto weights (heat diffusion / geodesic voxel, own implementation)
+- [x] H02 $$ Weight paint: brush, smooth, normalise, mirror, lock bones
 - [ ] H03 $$ Weight tools: transfer from another mesh, limit 4 influences, clean small
-- [ ] H04 $$ Dual-quaternion skinning option (no candy-wrapper wrists)
+- [x] H04 $$ Dual-quaternion skinning option (no candy-wrapper wrists)
 - [ ] H05 $$ Corrective shape keys driven by joint angle (pose space deformation)
 - [ ] H06 $$ Lattice / cage deformers
 - [ ] H07 $$ Delta mush (smooth deformation)
@@ -238,7 +238,7 @@ Merged: 56 / 400 (★ 17 / 119)
 - [ ] H14 $$ Skin export check: weights survive glb / fbx in UE5 / Unity / Godot (round trip test)
 - [ ] H15 $$ Muscle system: simple fibre muscles that bulge on contraction
 - [ ] H16 ★ $$ Weights from anatomy: regions (A19) start with anatomically sensible weights before any painting
-- [ ] H17 ★ $$ Deformation graded over the scene: volume loss per joint in every frame, worst frames listed (like the human check)
+- [x] H17 ★ $$ Deformation graded over the scene: volume loss per joint in every frame, worst frames listed (like the human check)
 - [ ] H18 ★ $$ Auto correctives from the scene: the worst-deforming poses of THIS animation get corrective shapes generated
 - [ ] H19 ★ $$ Muscle bulge driven by effort: exertion (torque per joint) drives the bulge, not just the angle
 - [ ] H20 ★ $$ Skin slide: skin slides over bone landmarks (elbow, knee, scapula) as measured, not stretched
@@ -257,7 +257,7 @@ Merged: 56 / 400 (★ 17 / 119)
 - [ ] I05 $$ Face controls on the face (on-surface handles), and a slider panel
 - [ ] I06 $$ Visemes from AUs; lip-sync drives the geometry
 - [ ] I07 $$ Teeth and tongue visible and animatable
-- [ ] I08 $$ Eye look-at with saccades and blinks (blink rate from studies, 15–20 / min)
+- [x] I08 $$ Eye look-at with saccades and blinks (blink rate from studies, 15–20 / min)
 - [ ] I09 $$ Wrinkle maps driven by AUs (forehead, crow's feet)
 - [ ] I10 $$ Face capture from webcam → AUs (MediaPipe face landmarks, already allowed)
 - [ ] I11 $$ ARKit 52 blendshape export (for engines)
@@ -273,7 +273,7 @@ Merged: 56 / 400 (★ 17 / 119)
 
 ## J. Rigging your own
 
-- [ ] J01 $$ Bone editor: add / delete / parent bones, edit rest pose, roll
+- [x] J01 $$ Bone editor: add / delete / parent bones, edit rest pose, roll
 - [ ] J02 $$ Rig any mesh: auto-place a humanoid skeleton from mesh landmarks
 - [ ] J03 $$ Constraints: copy location / rotation / scale, limit, track-to, damped track, stretch-to, child-of
 - [ ] J04 $$ Drivers with expressions (exists for body; extend to mesh shapes / any property)

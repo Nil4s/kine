@@ -188,7 +188,7 @@ func _init() -> void:
 	if read_ok:
 		for a in st.get_animations():
 			anims.append((a as GLTFAnimation).resource_name)
-	ok(not row.is_empty() and (row["run"] as Callable).get_method() == "_export_glb" and read_ok and anims == ["combo3"], "4 the command 'Export animation (.glb)' (bound to %s) wrote %s, read back with animations %s" % [row.get("run", Callable()).get_method() if not row.is_empty() else "-", out.get_file(), anims])
+	ok(not row.is_empty() and (row.get("raw", row["run"]) as Callable).get_method() == "_export_glb" and read_ok and anims == ["combo3"], "4 the command 'Export animation (.glb)' (bound to %s) wrote %s, read back with animations %s" % [(row.get("raw", row.get("run", Callable())) as Callable).get_method() if not row.is_empty() else "-", out.get_file(), anims])
 	m.queue_free()
 	for f in DirAccess.get_files_at(DIR):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR + "/" + f))

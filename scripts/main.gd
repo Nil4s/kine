@@ -151,6 +151,8 @@ var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every tar
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
+var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
+var clash_ui: RomClashUI   # ARMOUR CLASH (ROADMAP_400 B24 / B25): ROM test + scene, worst frames, red verts, clearance heat map (scripts/rom_clash_ui.gd)
 var tm_ui: TimingMatchUI   # MATCH THE REFERENCE TIMING (ROADMAP I29): scripts/timing_match_ui.gd
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
@@ -159,6 +161,7 @@ var se_ui: SpeedEnvUI = SpeedEnvUI.new(self)   # SPEED LIMITS (ROADMAP I47): scr
 var bt_ui: BestTakeUI = BestTakeUI.new(self)   # MY BEST TAKE (ROADMAP I38): scripts/best_take_ui.gd + best_take.gd
 var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var gz_ui: GazeUI   # GAZE DIRECTOR (ROADMAP I41): scripts/gaze_ui.gd
+var el_ui: EyeLifeUI   # LIVING EYES (ROADMAP I08): scripts/eye_life_ui.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
 var bk_ui: BreakfallUI   # BREAKFALL CHECK (ROADMAP I25): scripts/breakfall_ui.gd
 var rc_ui: RecoveryUI   # RECOVERY STEP (ROADMAP I39): scripts/recovery_ui.gd
@@ -744,6 +747,7 @@ var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
 var dummy_corr := Corrective.new()   # the same on the dummy
+var dq_skin_pass := DqSkin.new()   # H04: dual-quaternion skinning on the body's pieces (the scene's dq_skin, 0 = plain LBS)
 var hidden_parts := {}
 
 
@@ -2642,6 +2646,7 @@ func _ready() -> void:
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
 		sj = SuggestionJournal.new("user://zz_suggestion_journal_%d.json" % OS.get_process_id())   # I26: a test never reads or writes the real journal
 		myhits.sj = sj
+		nt.path = "user://zz_next_tool_%d.json" % OS.get_process_id()   # P17: a test never reads or writes the real next-command file (its chips made small_window / pages flaky)
 		np.cache_path = "user://zz_next_pose_%d.json" % OS.get_process_id()   # R27: a test's own index; the ghosts are off in a test until it turns them on
 		sg_on = false
 		style_ui.on = false   # I17: like Nick is off in a test until it turns it on
@@ -2992,6 +2997,10 @@ func _process(dt: float) -> void:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	if mp_ui != null:
 		mp_ui.tick(dt)
+	if ds_ui != null:
+		ds_ui.tick(dt)   # H17: one slice of the deformation grading while it runs (nothing otherwise)
+	if clash_ui != null:
+		clash_ui.tick(dt)   # B24: one slice of the armour clash check while it runs (nothing otherwise)
 	if sd_ui != null:
 		sd_ui.tick(dt)   # STYLE DIAL: forgets its base when anything else changed the scene
 	if tcat_ui != null:
@@ -3016,6 +3025,8 @@ func _process(dt: float) -> void:
 		sh_ui.tick(dt)
 	if gz_ui != null:
 		gz_ui.tick(dt)
+	if el_ui != null:
+		el_ui.tick(dt)
 	if bk_ui != null:
 		bk_ui.tick(dt)
 	if rc_ui != null:
@@ -3200,6 +3211,7 @@ func _body() -> void:
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	corr.attach(pieces.values(), skel)
+	dq_skin_pass.attach(pieces.values(), skel)
 	_skp_build()   # PRECISE PICK: the picked / hovered part's own skin is tinted (scripts/skin_pick.gd)
 	for j in Body.WEAPON + Body.WEAPON2:   # the weapon's capsules: its pick and its light (a body part has none: its skin is lit)
 		_new_cap(j)
@@ -4515,6 +4527,7 @@ func _refresh() -> void:
 		Overlays.pose_skeleton(skel, bone_idx, B)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
+	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -4669,6 +4682,8 @@ func _refresh() -> void:
 	PerfDoc.add("cloth", _pk)
 	_pk = PerfDoc.t()
 	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
+	if bed != null or not S.bones.is_empty():
+		_bone_ui().draw()   # J01: your extra bones (scripts/bone_editor_ui.gd)
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	PerfDoc.add("hair", _pk)
 	if hitbox_ui != null:
@@ -4855,6 +4870,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if counter_ui != null and counter_ui.on and counter_ui.input(ev):   # I3: Tab picks the next ghost, Enter places it, Esc puts them away
+		get_viewport().set_input_as_handled()
+		return
+	if bed != null and bed.on and bed.input(ev):   # J01: the bone editor's keys (E, Shift+A, X, Tab, Esc), picks and end-ball drags
 		get_viewport().set_input_as_handled()
 		return
 	if kmed != null and kmed.on and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
@@ -5319,6 +5337,8 @@ func _do(f: Callable) -> void:
 func _pose_words(text: String) -> Dictionary:
 	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
 		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
+	if MeshWords.claims(text, kmed != null and kmed.on):
+		return MeshWords.run(self, text)   # B29: "extrude the top 5 cm" is a model edit (scripts/mesh_words.gd; never a rig / face / pose phrase)
 	var rt := FaceWords.route(text)   # FACE WORDS (I20): "tired and angry", "raise the right arm 90 and look angry": face keyed at the playhead, same step
 	var has_face: bool = rt["face"] != ""
 	var r := {"ok": true, "ops": []}
@@ -5397,6 +5417,18 @@ func _rig_words(text: String) -> Dictionary:
 			msg = "posed the %s: %+.0f deg %s (the words: curl / lower / wag the %s N); Ctrl+Z takes it back" % [kind, float(r["deg"]), "sideways" if r["side"] else "bend", kind]
 	_say(msg)
 	return {"ok": true, "op": r["op"], "kind": kind, "chains": made.size() if r["op"] == "add" else have}
+
+
+## BONE EDITOR (ROADMAP_400 J01; scripts/bone_editor.gd + bone_editor_ui.gd): your extra bones, drawn and edited
+var bed: BoneEditUI
+
+
+func _bone_ui() -> BoneEditUI:
+	if bed == null:
+		bed = BoneEditUI.new()
+		add_child(bed)
+		bed.setup(self)
+	return bed
 
 
 var _rigx_root: Node3D
@@ -5602,8 +5634,11 @@ func _snapshot() -> Dictionary:
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
+		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
+		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
+		"armour": ArmourFromBody.snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
@@ -5667,6 +5702,8 @@ func _restore(u: Dictionary) -> void:
 		sh_ui.halt()
 	if gz_ui != null:
 		gz_ui.halt()
+	if el_ui != null:
+		el_ui.halt()
 	if bk_ui != null:
 		bk_ui.halt()
 	if rc_ui != null:
@@ -5753,6 +5790,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
 		S.rigx = u["rigx"].duplicate(true)   # RIG FROM WORDS (J24), undone like a card
 		ov.mark_dirty()
+	if u["scene"] == S and u.has("bones") and var_to_str(u["bones"]) != var_to_str(S.bones):
+		S.bones = u["bones"].duplicate(true)   # BONE EDITOR (J01), undone like a card
 	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
 		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
 		_hair_bake()
@@ -5766,6 +5805,10 @@ func _restore(u: Dictionary) -> void:
 			ui_browser.refresh()
 	if u["scene"] == S and u.has("drivers") and var_to_str(u["drivers"]) != var_to_str(S.drivers):
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
+	if u.has("body_gen"):
+		BaseBody.restore_gen(self, int(u["body_gen"]))   # G01: before the weights, which are sized by its vertices
+	if u.has("armour"):
+		ArmourFromBody.restore(self, u["armour"])   # B23: the armour parts as they were
 	if u.has("skin_w") and not wp.is_empty():
 		if SkinPaint.restore(wp, u["skin_w"]):
 			_skp_build()
@@ -7007,6 +7050,7 @@ func _scene_dict(frames := true) -> Dictionary:
 	var keep := hb.state()
 	var d := H.to_dict(hb, frames)
 	hb.set_state(keep)
+	BodyFile.put_key(self, d)   # G07: the applied body's .kbody, by reference (scripts/body_file.gd)
 	return d
 
 
@@ -8187,6 +8231,18 @@ func _kmesh_topo(what: String) -> void:
 	if kmed == null or not kmed.on:
 		_kmesh_edit_start()
 	kmed.topo(what)
+
+
+## D11 (scripts/kmesh_uv_export.gd): the test cube's UV layout as PNG + SVG; a cube without UVs is unwrapped first (as U does)
+func _kmesh_uv_export() -> void:
+	if kmed == null or not kmed.on:
+		_kmesh_edit_start()
+	var of := func() -> KMesh:
+		if not kmed.mesh.has_attr(KMeshUV.UV):
+			KMeshUV.seams_by_angle(kmed.mesh, 60.0)
+			KMeshUV.unwrap_lscm(kmed.mesh)
+		return kmed.mesh
+	KMeshUVExport.ask(self, of, _say)
 
 
 ## SCULPT PAGE, FIRST STEP (ROADMAP_400 C01/C02; scripts/kmesh_sculpt.gd, kmesh_sculpt_ui.gd): a test sphere you can sculpt
@@ -13823,6 +13879,13 @@ func _wtrail_render() -> void:
 	_say(("weapon trail in renders on: a fading ribbon from the grip to the tip over the last %d frames, in the playblast and the mp4 shot render, where the tip is faster than %.0f m/s" % [WeaponTrail.RENDER_N, WeaponTrail.RENDER_SPEED]) if wt.render_on else "weapon trail in renders off: the playblast and the mp4 show the bat only (turn it on again from Search: weapon trail in renders)")
 
 
+## H04 (scripts/dq_skin.gd): the scene's skinning, linear blend (0) or dual quaternion (1); a file may hold a blend between
+func _dq_skin_toggle() -> void:
+	S.dq_skin = 0.0 if S.dq_skin > 0.0 else 1.0
+	_refresh()
+	_say(("SKINNING: %s, saved with the scene: a twisted wrist keeps its thickness, a bent elbow its volume (exports stay linear blend)" % DqSkin.describe(S.dq_skin)) if S.dq_skin > 0.0 else "skinning: linear blend (LBS), as the engines skin")
+
+
 func _wtrail_smear() -> void:
 	wt.smear_on = not wt.smear_on
 	_refresh()
@@ -14060,6 +14123,9 @@ func _commands() -> Array:
 	if gz_ui == null:
 		gz_ui = GazeUI.new(self)
 	gz_ui.commands(add)   # GAZE DIRECTOR (ROADMAP I41)
+	if el_ui == null:
+		el_ui = EyeLifeUI.new(self)
+	el_ui.commands(add)   # LIVING EYES (ROADMAP I08)
 	if bk_ui == null:
 		bk_ui = BreakfallUI.new(self)
 	bk_ui.commands(add)   # BREAKFALL CHECK (ROADMAP I25)
@@ -14108,6 +14174,12 @@ func _commands() -> Array:
 	if mp_ui == null:
 		mp_ui = MakePhysicalUI.new(self)
 	mp_ui.commands(add)   # MAKE IT PHYSICAL (ROADMAP I1)
+	if ds_ui == null:
+		ds_ui = DeformSceneUI.new(self)
+	ds_ui.commands(add)   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17)
+	if clash_ui == null:
+		clash_ui = RomClashUI.new(self)
+	clash_ui.commands(add)   # ARMOUR CLASH: ROM test, clearance (ROADMAP_400 B24 / B25)
 	if sd_ui == null:
 		sd_ui = StyleDialUI.new(self)
 	sd_ui.commands(add)   # STYLE DIAL (ROADMAP I6)
@@ -14136,11 +14208,18 @@ func _commands() -> Array:
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
+	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
+	add.call("Model: edit the body mesh", "", func(): BaseBody.start(self), "model mesh body skin fighter mannequin character edit sculpt base topology weights rigged", false, "open the fighter's skinned body in the model preview (its skin weights ride along as attributes); every model key works on it; Esc leaves without changing the fighter")
+	add.call("Model: apply the body mesh to the fighter", "", func(): BaseBody.apply_cmd(self), "apply write commit body mesh fighter skin weights save model", true, "the edited body becomes the fighter's skinned mesh, with its weights (new verts carry their neighbours'); one undo step")
+	add.call("Body: save the fighter's body (.kbody)", "", func(): BodyFile.save_cmd(self), "body save kbody file keep library mesh skin weights fighter character", false, "the fighter's body (mesh, skin weights, the scene's proportions) as a NEW .kbody in bodies/ (the same body twice is the same file); the Browser lists it under Bodies with a picture, a click puts it back")
+	add.call("Model: export the body as glb (skin weights)", "", func(): BodyExport.export_cmd(self), "export body glb gltf skin weights skinned mesh character rig unreal unity godot blender", false, "the fighter's body as exports/<scene>_body.glb: the skinned mesh on the UE5-named skeleton, 4 weights per vertex, rest pose")
 	add.call("Model: subdivide the test cube (Catmull-Clark)", "", _kmesh_subdivide, "model mesh subdivide subdivision catmull clark smooth subsurf crease level", false, "one Catmull-Clark level on the test cube (every face becomes quads, creases kept); Ctrl+Z takes it back in one step")
 	add.call("Model: triangulate", "", _kmesh_topo.bind("tri"), "triangulate triangles tris split quads ngons faces mesh model topology", false, "split the test cube's selected faces (face mode) or every face into triangles (Ctrl+T in the cube): quads by the shorter diagonal, concave n-gons by ear clipping (Ctrl+Z undoes)")
 	add.call("Model: tris to quads", "", _kmesh_topo.bind("quad"), "quadrangulate quads tris to quads join triangles mesh model topology", false, "join pairs of flat, near-square triangles into quads, best pairs first; UV seams stay (Alt+J in the cube; Ctrl+Z undoes)")
 	add.call("Model: topology heat map", "", _kmesh_topo.bind("heat"), "topology heat map poles triangles ngons stretched quads valence check mesh model retopo", false, "colour the test cube's poles (3, 5, 6+ edges), triangles, n-gons and stretched quads, with a legend of counts (H in the cube)")
+	add.call("Model: export UV layout", "", _kmesh_uv_export, "uv layout export png svg texture template unwrap snapshot paint substance photoshop lines islands stretch", false, "the test cube's UV layout as a transparent PNG + an SVG (512 to 4096 px, line colour and width, fill by island or stretch, margin outline), NEW files in user://uv_layouts (D11)")
+	add.call("Model: bind to the skeleton (auto weights)", "", KMeshAutoWeights.preview_bind.bind(self), "auto weights skin skinning bind rig bone heat diffusion automatic weights mesh model", false, "H01: weights for the fighter's skeleton by bone heat diffusion (Baran & Popovic) on the model preview's mesh: at most 4 bones a vertex, summing to 1 (Ctrl+Z in the preview undoes)")
 	add.call("Walk along a path...", "", _pathwalk_start, "walk run path floor points curve gait jog sprint generate steps", true, "click points on the floor, pick walk or run and a speed, Enter builds the cards as ONE undo step")
 	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
@@ -14225,6 +14304,7 @@ func _commands() -> Array:
 	add.call("Weapon trail in renders on/off", "", _wtrail_render, "weapon trail renders playblast mp4 shot render ribbon swept grip tip fading", false, "the playblast and the mp4 shot render draw a fading ribbon from the grip to the tip over the last 8 frames, in the theme's accent colour; on by default")
 	add.call("Clip: pick its best thumbnail frame", "", _thumbpick, "clip pick best thumbnail frame readable silhouette poster cover", false, "scores every 1/15 s of the clip from this view (silhouette spread, limbs clear of the torso, line of action) and puts the playhead on the best frame")
 	add.call("Thumbnails: use the picked frame on/off", "", _thumbpick_flag, "thumbnails scene list picked frame best readable cover instead of strike card", false, "the scene list's pictures show each clip's most readable frame instead of its strike card")
+	add.call("Skinning: dual quaternion on/off", "", _dq_skin_toggle, "dual quaternion skinning dqs dq candy wrapper wrist twist forearm volume lbs linear blend skin", false, "H04: the body skinned by dual quaternions (no candy-wrapper wrists, the elbow keeps its volume) instead of linear blend; saved with the scene. Exports stay linear blend (what game engines skin)")
 	add.call("Trail: smear frames on/off", "", _wtrail_smear, "trail smear frames motion blur ghost stretch playblast", false, "on a fast frame (the tip moves more than 20 cm in one frame) a ghosted, stretched copy of the bat from the frame before, in the playblast too")
 	add.call("Pin a trail on the picked part", "Shift+T", _press.bind(KEY_T, true), "path arc", false, "draw the picked body part's path over the scene (again removes it)")
 	add.call("Balance on/off", "Shift+B", _press.bind(KEY_B, true), "centre of mass com feet tip fall weight", false, "the centre of mass over the feet: green inside, amber near the edge, red he tips")
@@ -14457,6 +14537,7 @@ func _commands() -> Array:
 	for d in rows:   # P17: every way to run a command (palette, key, chip, macro) goes through this one wrapper, which counts it
 		var f: Callable = d["run"]
 		var nm: String = d["name"]
+		d["raw"] = f   # the command's own callable (tests and tools ask what a command is bound to)
 		d["run"] = func():
 			_nt_note(nm)
 			f.call()
@@ -16215,6 +16296,10 @@ func _close_findings() -> void:
 		arc_marks = []
 	if deform_view != null:
 		deform_view.visible = false   # F14: the 3 worst spots belong to the panel that listed them
+	if ds_ui != null:
+		ds_ui.hide_ghost()   # H17: the ghost belongs to the panel that listed its frame
+	if clash_ui != null:
+		clash_ui.hide_overlay()   # B24: the red verts (and a ROM pose) belong to the panel that listed them
 	ui_find.offset_right = ui_find.offset_left + 420   # I47: Speed limits narrows the panel so the whole body stays in view
 	ov.fix_preview(S, [], 0.0)
 
@@ -17296,6 +17381,7 @@ func _save_scene_now(nm: String) -> void:
 		return
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
 	H.name = nm if nm != "" else "scene_" + _stamp()   # the name as typed: what the scene is called
+	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	_write("res://scenes/%s.json" % fname, d)
@@ -18811,6 +18897,8 @@ func _on_drop(files: PackedStringArray) -> void:
 			_import_video(f)
 		elif f.to_lower().ends_with(".json") and VideoImport.load_file(f)["ok"]:
 			_import_pose(f)
+		elif kmed != null and kmed.on and KMeshRefPlanes.is_image(f):   # B21: a picture on the model preview: a reference plane
+			kmed.refp.add(f)
 		else:
 			_import_file(f)
 
@@ -19133,7 +19221,8 @@ func _face_make() -> void:
 func _face_draw() -> void:
 	var live := face_ui != null and face_ui.live()
 	var ex: Dictionary = S.expr_at(playhead)
-	var on := live or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
+	var elp := el_ui != null and el_ui.pv   # I08: the living eyes preview shows its track
+	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
 	if not on:
 		if mouth_mi != null:
 			mouth_mi.visible = false
@@ -19151,7 +19240,7 @@ func _face_draw() -> void:
 		add_child(mouth_mi)
 	if face_root == null:
 		_face_make()
-	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else Face.at(S.face, S.lip, playhead, ex)
+	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else (el_ui.pose_now() if elp else Face.at(S.face, S.lip, playhead, ex))
 	var geo := _face_geo()
 	if geo.is_empty():
 		return   # no head mesh to anchor on
@@ -20595,6 +20684,7 @@ func _load_scene(path: String) -> void:
 		S.from_dict(d)
 		if not S.props_skipped.is_empty():
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
+		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
 		for k in d.get("keys", []):

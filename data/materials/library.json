@@ -1,0 +1,24 @@
+{
+	"about": "E02 shipped material presets (scripts/material_library.gd reads this; the user's own presets live in user://material_library.json, never here). Metals: 'f0' is the LINEAR specular reflectance at normal incidence from the commonly used PBR charts (N. Hoffman, 'Physics and Math of Shading', SIGGRAPH 2015 course, table of F0 for metals; the same values as S. Lagarde's DONTNOD chart); the base colour is f0 converted to sRGB, metallic 1. Dielectrics: 'albedo' in sRGB 0-255, every channel inside 30..240 (the Substance / Unreal PBR guides' plausible range), metallic 0. Skin: Monk Skin Tone scale swatches (E. Monk, Google 2022) MST 4/6/8/10, subsurface on; E18 replaces them with colorimetric data.",
+	"presets": [
+		{"name": "Skin (light)", "group": "skin", "albedo": [234, 218, 186], "roughness": 0.5, "sss": 0.6, "source": "Monk Skin Tone scale MST 4 #eadaba"},
+		{"name": "Skin (medium)", "group": "skin", "albedo": [160, 126, 86], "roughness": 0.5, "sss": 0.55, "source": "Monk Skin Tone scale MST 6 #a07e56"},
+		{"name": "Skin (brown)", "group": "skin", "albedo": [96, 65, 52], "roughness": 0.48, "sss": 0.5, "source": "Monk Skin Tone scale MST 8 #604134"},
+		{"name": "Skin (deep)", "group": "skin", "albedo": [41, 36, 32], "roughness": 0.45, "sss": 0.45, "source": "Monk Skin Tone scale MST 10 #292420"},
+		{"name": "Cotton", "group": "cloth", "albedo": [222, 219, 210], "roughness": 0.95, "source": "undyed cotton, off-white (dielectric range)"},
+		{"name": "Denim", "group": "cloth", "albedo": [52, 68, 108], "roughness": 0.9, "source": "indigo-dyed denim"},
+		{"name": "Canvas gi", "group": "cloth", "albedo": [216, 208, 186], "roughness": 0.92, "source": "unbleached heavy cotton canvas (judo / karate gi)"},
+		{"name": "Leather (brown)", "group": "leather", "albedo": [104, 66, 42], "roughness": 0.55, "source": "vegetable-tanned leather"},
+		{"name": "Leather (black)", "group": "leather", "albedo": [38, 34, 32], "roughness": 0.45, "source": "dyed black leather; kept at the 30 sRGB floor (charcoal is about 50, nothing real is below 30)"},
+		{"name": "Polished steel", "group": "metal", "f0": [0.560, 0.570, 0.580], "roughness": 0.15, "source": "Hoffman 2015 F0 of iron (0.560, 0.570, 0.580)"},
+		{"name": "Brushed steel", "group": "metal", "f0": [0.560, 0.570, 0.580], "roughness": 0.42, "source": "Hoffman 2015 F0 of iron; the brushing is roughness only (no anisotropy field on a slot)"},
+		{"name": "Blackened steel", "group": "oxide", "albedo": [50, 50, 53], "roughness": 0.4, "source": "a black-oxide (magnetite) coat: the surface the light meets is an oxide, so it is a dielectric (the PBR guides: oxides and rust are metallic 0)"},
+		{"name": "Rusted iron", "group": "oxide", "albedo": [118, 62, 38], "roughness": 0.85, "source": "iron oxide (rust) is a dielectric: metallic 0, red-brown albedo"},
+		{"name": "Oak", "group": "wood", "albedo": [168, 124, 80], "roughness": 0.65, "source": "oiled oak"},
+		{"name": "Dark wood", "group": "wood", "albedo": [78, 50, 32], "roughness": 0.55, "source": "walnut / stained hardwood"},
+		{"name": "Bronze", "group": "metal", "f0": [0.800, 0.570, 0.350], "roughness": 0.3, "source": "not in Hoffman's table: copper's F0 (0.955, 0.638, 0.538) moved toward tin (yellower, darker), an estimate inside the metal range"},
+		{"name": "Gold", "group": "metal", "f0": [1.000, 0.766, 0.336], "roughness": 0.2, "source": "Hoffman 2015 F0 of gold (1.000, 0.766, 0.336)"},
+		{"name": "Rubber", "group": "polymer", "albedo": [44, 44, 44], "roughness": 0.85, "source": "black rubber (carbon-filled)"},
+		{"name": "Plastic", "group": "polymer", "albedo": [212, 212, 206], "roughness": 0.3, "source": "white ABS"}
+	]
+}

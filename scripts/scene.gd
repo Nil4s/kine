@@ -90,6 +90,7 @@ var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth fra
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
 var rigx := []         # RIG FROM WORDS (J24; scripts/rig_words.gd): extra bone chains (tail, ears, cape); in the file as "rigx" only when there is one
+var bones := []        # BONE EDITOR (J01; scripts/bone_editor.gd): the user's extra bones; in the file as "bones" only when there is one
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
 var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakref to the hero's (actor targets); null = the hero
@@ -116,6 +117,7 @@ var body := {}         # PROPORTIONS (round 51, PR1; scripts/proportions.gd): {}
 ## starts from the drifted pose (no jump). Hips, legs and the hips' offset stay: a drifting hip would slide the
 ## planted feet. Not in a spline scene (its holds are its STOPs) nor before a flow run. HOLD_DRIFT is taste, not data.
 var moving_holds := false
+var dq_skin := 0.0     # H04 (scripts/dq_skin.gd): 0 = linear blend skinning, 1 = dual quaternion, between = the mix; in the file only when > 0
 const HOLD_DRIFT := 0.08
 ## STEPPED preview (blocking; view only, never saved): each card's pose is held until the next card ARRIVES, no
 ## in-betweens, the way animators check poses and timing before they spline
@@ -1583,7 +1585,7 @@ var crowd := {}
 func clone() -> Scene:
 	var c := Scene.new()
 	c.cards = cards.duplicate(true)
-	for k in ["name", "natural", "spline", "on_floor", "floor_body", "free_limits", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness"]:
+	for k in ["name", "natural", "spline", "on_floor", "floor_body", "free_limits", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness", "dq_skin"]:
 		c.set(k, get(k))
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
@@ -1609,6 +1611,7 @@ func clone() -> Scene:
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
 	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
+	c.bones = bones.duplicate(true)   # the user's extra bones (bone_editor.gd)
 	c.cape = cape.duplicate(true)   # the cape (cloth.gd)
 	c.shots = shots.duplicate(true)   # the shots and their cameras (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
@@ -2163,6 +2166,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["loop"] = true   # the same
 	if fitness != 0.5:
 		out["fitness"] = fitness   # ROADMAP 39: only when not the default
+	if dq_skin > 0.0:
+		out["dq_skin"] = dq_skin   # H04: only when on
 	if breath > 0.0:
 		out["breath"] = breath   # YY6: the same, only when on
 	if not layer.is_empty():   # YY9: only with a layer, so a scene without one saves as before
@@ -2218,6 +2223,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["hair"] = Hair.to_file(hair)   # hair strands: the same, only when set
 	if not rigx.is_empty():
 		out["rigx"] = rigx.duplicate(true)   # the words-made rig: only when there is one
+	if not bones.is_empty():
+		out["bones"] = BoneEdit.to_file(bones)   # J01: the user's extra bones, only when there is one
 	if not cons.is_empty():
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
 	if ShotCam.is_legacy(shots):
@@ -2243,7 +2250,7 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
+	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "dq_skin": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
@@ -2374,6 +2381,7 @@ func from_dict(d: Dictionary) -> void:
 	loop = bool(d.get("loop", false))
 	breath = float(d.get("breath", 0.0))
 	fitness = clampf(float(d.get("fitness", 0.5)), 0.0, 1.0)
+	dq_skin = clampf(float(d.get("dq_skin", 0.0)), 0.0, 1.0)
 	body = Proportions.clean(d["body"]) if d.get("body") is Dictionary else {}   # PR1: absent = the default body
 	layer = {}
 	for j in d.get("layer", {}):
@@ -2405,6 +2413,7 @@ func from_dict(d: Dictionary) -> void:
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
 	rigx = RigWords.from_file(d.get("rigx", []))   # the words-made rig: absent = none
+	bones = BoneEdit.from_file(d.get("bones", []))   # J01: the user's extra bones: absent = none
 	cape = Cloth.from_file(d.get("cape", {}))   # the cape: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():

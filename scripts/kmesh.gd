@@ -105,9 +105,38 @@ const AD_EDGE := "edge"
 const AD_FACE := "face"
 const AD_ALL := ["vert", "corner", "edge", "face"]
 const AT_ALL := [TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR3, TYPE_COLOR]
+## A19: LABEL channels hold an index into a table (a bone, a region, an anatomy tag), not an amount: an op that makes a
+## new item from several old ones gives it one of their values, never a blend (KMeshSubdiv; label_pick). APPEND ONLY
+const LABEL_ATTRS := ["body_bone", "body_region", "anat_tag"]
 var attrs := {}
+
+
+static func is_label(attr_name: String) -> bool:
+	return LABEL_ATTRS.has(attr_name)
+
+
+## the value of a label channel for an item made from the items `src`: the most common, ties to the first listed
+static func label_pick(d: PackedFloat32Array, src: PackedInt32Array) -> float:
+	var best := d[src[0]]
+	var bn := 0
+	for i in src.size():
+		var n := 0
+		for j in src.size():
+			if d[src[j]] == d[src[i]]:
+				n += 1
+		if n > bn:
+			bn = n
+			best = d[src[i]]
+	return best
 ## A13 shape keys (scripts/kmesh_shapes.gd): {} = none; saved in to_dict "shapes", carried by KMeshUndo
 var shapes := {}
+## A11: the non-destructive modifier stack (KMeshModifiers; saved in the .kmesh, carried by KMeshUndo)
+var modifiers: Array = []
+## E01 material slots (scripts/kmesh_material.gd): [] = none; saved in to_dict "materials", carried by KMeshUndo
+var materials: Array = []
+## B17 the ORIGIN: a point in mesh space where the mesh "is" (pivot, export, size readouts); saved in to_dict "origin"
+## when not zero, carried by KMeshUndo (scripts/kmesh_sepjoin.gd sets it)
+var origin := Vector3.ZERO
 
 
 static func _attr_zero(type: int):
@@ -852,6 +881,16 @@ func to_dict() -> Dictionary:
 		d["normals"]["custom"] = _pack(cn.to_byte_array())
 	if not shapes.is_empty():
 		d["shapes"] = KMeshShapes.to_file(shapes)   # A13
+	if not modifiers.is_empty():
+		d["modifiers"] = KMeshModifiers.to_file(modifiers)   # A11
+	if not materials.is_empty():
+		d["materials"] = KMeshMaterial.to_file(materials)   # E01
+	if has_meta("lods"):
+		d["lods"] = KMeshLOD.to_file(self)   # F04
+	if has_meta(KMeshRefPlanes.META):
+		d["refplanes"] = KMeshRefPlanes.to_file(self)   # B21: path + hash, never the pixels
+	if origin != Vector3.ZERO:
+		d["origin"] = [origin.x, origin.y, origin.z]   # B17
 	return d
 
 
@@ -969,13 +1008,31 @@ func from_dict(d: Dictionary) -> KMesh:
 	var new_shapes := KMeshShapes.from_file(d.get("shapes"), nv)   # A13
 	if last_error != "":
 		return null
+	var new_mods := KMeshModifiers.from_file(d.get("modifiers"))   # A11
+	if KMeshModifiers.last_error != "":
+		last_error = KMeshModifiers.last_error
+		return null
+	var new_mats := KMeshMaterial.from_file(d.get("materials"))   # E01
+	if last_error != "":
+		return null
+	var new_origin := Vector3.ZERO   # B17
+	var od = d.get("origin", [0.0, 0.0, 0.0])
+	if not (od is Array) or (od as Array).size() != 3 or (od as Array).any(func(x): return not (x is float or x is int)):
+		last_error = "the origin is damaged (not three numbers). Set the origin again after loading, or restore a backup."
+		return null
+	new_origin = Vector3(od[0], od[1], od[2])
 	verts = vraw.to_vector3_array()
 	attrs = new_attrs
 	shapes = new_shapes
+	modifiers = new_mods
+	materials = new_mats
+	origin = new_origin
 	faces = new_faces
 	custom_normals = new_custom
 	normal_mode = nmode
 	auto_angle = nangle
+	KMeshLOD.from_file(self, d.get("lods"))   # F04
+	KMeshRefPlanes.from_file(self, d.get("refplanes"))   # B21
 	_stale = true  # topology and normals build on first read (see _fresh)
 	return self
 

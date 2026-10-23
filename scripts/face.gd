@@ -251,7 +251,12 @@ static func mouth_size(shape: String, jaw_deg: float) -> Vector3:
 
 ## the file form: PartKeys.to_file (generic over the keys; only the channel names differ from joints)
 static func to_file(face: Dictionary) -> Dictionary:
-	return PartKeys.to_file(face)
+	var out := PartKeys.to_file(face)
+	for ch in out:   # I08: a generated key keeps its "gen" tag (EyeLife.remove finds it after a reload)
+		for i in (out[ch] as Array).size():
+			if (face[ch][i] as Dictionary).has("gen"):
+				out[ch][i]["gen"] = String(face[ch][i]["gen"])
+	return out
 
 
 ## a face read from the file: only the known channels, each key [t, value] in x. Absent or not a dict = {}.
@@ -267,6 +272,8 @@ static func from_file(d: Variant) -> Dictionary:
 			if k is Dictionary and k.has("t") and k.get("v") is Array and (k["v"] as Array).size() == 3:
 				var a: Array = k["v"]
 				ks.append({"t": float(k["t"]), "v": Vector3(float(a[0]), float(a[1]), float(a[2]))})
+				if k.get("gen") is String:
+					ks[-1]["gen"] = k["gen"]   # I08: the generator's tag
 		ks.sort_custom(func(x, y): return float(x["t"]) < float(y["t"]))
 		if not ks.is_empty():
 			out[ch] = ks

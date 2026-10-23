@@ -12,15 +12,29 @@ extends Node
 ##   B05: Delete  delete the selection (Shift+Delete: only the faces)   Ctrl+Delete  dissolve it (verts / edges / faces)
 ##   M  merge at centre (Shift+M at the first, Alt+M by distance)       Ctrl+Z / Ctrl+Shift+Z  undo / redo
 ##   E  extrude (Shift+E: each face on its own)   I  inset (Shift+I: each face)   Ctrl+E  bridge two edge loops   (B02 / B03)
+##   Ctrl+B  bevel the selected edges (2 cm, 1 segment, round; B03, kmesh_bevel.gd): live until the next edit, [ / ] segments, Shift+[ / ] width, Alt+[ / ] profile
 ##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
+##   B06: F  make a face (2 verts: an edge)   Alt+F  fill the holes touching the selection (Shift+Alt+F: triangles)   Ctrl+F  grid fill
 ##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
+##   Ctrl+R  loop cut (hover, wheel = cuts, click, slide, click)   Shift+K  knife   V  edge split   (B04, kmesh_cut_tool.gd)
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
+##   O  proportional editing on / off (B07, KMeshProportional; Shift+O falloff, Alt+O connected only, wheel = radius in G)
+##   Shift+H  colour by body region on / off (A18, KMeshBody: every vert's nearest bone + region, kept fresh every frame;
+##      a legend bottom right, the hover readout at the mouse)
+##   Ctrl+P  pack the UV islands (D04, KMeshUVPack: 4 px margin, each island turned to its smallest box, equal texel density; one undo step)
+##   Shift+U  the UV editor panel on / off (D01, scripts/kmesh_uv_editor.gd: select / move / rotate / scale UVs)
+##   Alt+H  colour by anatomy on / off (A19, KMeshAnatomy: deltoid, patella, knuckles ... per vert, carried through edits);
+##      while on, Alt+drag paints the brush tag (one undo step a stroke), Alt+Shift+click picks the tag under the mouse
+##   B08 / B14 (Blender keys on, G / R / S): Ctrl held while moving snaps (scripts/kmesh_snap.gd); Shift+Tab  next snap
+##      target (vertex, edge, midpoint, face, grid 1 / 5 / 10 cm, the fighter's skin)   .  next pivot for R / S (median,
+##      active, 3D cursor, individual origins; scripts/kmesh_pivot.gd)   Shift+right-click  put the 3D cursor there
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
 ## primitive and updates that same step) until the next edit of the mesh.
+## A11: the "Modifiers" panel (right edge, scripts/kmesh_modifiers_ui.gd): a non-destructive stack, the view shows its result.
 
 const SIDE := 0.6
 const SPLIT := 4
@@ -51,6 +65,17 @@ var live := {}                # B09: the primitive still live: {kind, params, st
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
+var prop := KMeshProportional.new()   # B07: proportional editing for the Blender-style G / R / S
+var body: KMeshBody          # A18: the body labels of the mesh + the colour-by-region view
+var mods: KMeshModifiersUI   # A11: the modifier stack panel + the evaluated surface
+var uved: KMeshUVEditor   # D01: the UV editor panel (built on first Shift+U)
+var mat_panel: KMeshMaterialPanel   # E01: the Materials panel (top right; shows itself while `on`)
+var anat: KMeshAnatomy       # A19: the anatomy tags + the colour-by-anatomy view and its brush
+var source: Callable   # G01 (scripts/base_body.gd): what mesh to open, -> {"mesh": KMesh, "at": Transform3D}; empty = the test cube
+var left: Callable     # G01: called after leaving (the fighter shows again)
+var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
+var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
+var refp: KMeshRefPlanesUI   # B21: reference images on planes + their panel (scripts/kmesh_refplanes_ui.gd)
 
 
 func setup(main: Node) -> void:
@@ -63,12 +88,27 @@ func setup(main: Node) -> void:
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
 	_build_prim_panel()
+	mods = KMeshModifiersUI.new()
+	add_child(mods)
+	mods.setup(self)
+	mat_panel = KMeshMaterialPanel.new(self)
+	m.ui_root.add_child(mat_panel)
+	snap = KMeshSnap.new()
+	add_child(snap)
+	snap.setup(self)
+	pivot = KMeshPivot.new()
+	add_child(pivot)
+	pivot.setup(self)
+	refp = KMeshRefPlanesUI.new()
+	add_child(refp)
+	refp.setup(self)
 
 
 func start() -> void:
 	if on:
 		return
-	mesh = KMeshView.make_cube(SIDE, SPLIT)
+	var src: Dictionary = source.call() if source.is_valid() else {}
+	mesh = src["mesh"] if src.has("mesh") else KMeshView.make_cube(SIDE, SPLIT)
 	undo = KMeshUndo.new()
 	sel = KMeshSelect.new(mesh, KMeshSelect.VERT)
 	KMeshShapes.ensure(mesh)   # A13: the cube as made is the basis; K captures an edit as a key
@@ -77,6 +117,8 @@ func start() -> void:
 	view.set_mesh(mesh, sel)
 	m.stage_root.add_child(view)
 	view.position = AT
+	if src.has("at"):
+		view.transform = src["at"]
 	on = true
 	armed = ""
 	xray = false
@@ -84,6 +126,17 @@ func start() -> void:
 	live = {}
 	prim_panel.visible = true
 	view.rebuild()
+	if body == null:
+		body = KMeshBody.new()
+		body.setup(self)
+		add_child(body)
+	body.tick()   # A18: labelled from the first frame
+	mods.open()
+	if anat == null:
+		anat = KMeshAnatomy.new()
+		anat.setup(self)
+		add_child(anat)
+	anat.tick()   # A19: tagged from the first frame
 	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, E extrude, I inset, Esc leaves")
 
 
@@ -94,13 +147,22 @@ func stop() -> void:
 	_drag = false
 	_ov.visible = false
 	prim_panel.visible = false
+	mods.close()
 	live = {}
 	if legend != null:
 		legend.visible = false
+	if body != null:
+		body.close()
+	if uved != null:
+		uved.close()
+	if anat != null:
+		anat.close()
 	view.queue_free()
 	view = null
 	meas = null
 	m._say("Model: left the test cube (nothing was saved). Run Model: edit a test cube (preview) to come back")
+	if left.is_valid():
+		left.call()
 
 
 func set_mode(md: int) -> void:
@@ -111,23 +173,40 @@ func set_mode(md: int) -> void:
 
 
 func _process(_dt: float) -> void:
-	if meas != null and on:
+	if on and (meas != null or prop.showing(m.blk) or not prop.last_circle.is_empty()):   # B07: one more frame clears the circle
 		_ov.queue_redraw()   # the label follows the camera
+	if body != null and on:
+		body.tick()   # A18: the labels follow the mesh and the body
+	if anat != null and on:
+		anat.tick()   # A19: new verts tagged, the view fresh
 
 
 ## main passes every unhandled input here while `on`; true = used
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
+		return true
+	if KMeshCurvesUI.handle(self, ev):   # B12: drag a curve point / handle, Alt+click adds one (scripts/kmesh_curves_ui.gd)
+		return true
+	if refp.input(ev):   # B21: only the two-point clicks while armed
+		return true
+	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
 		var ck := (ev as InputEventKey).keycode
-		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
+		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T, KEY_F, KEY_B, KEY_P] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if KMeshBevel.key(self, ev as InputEventKey):   # B03: Ctrl+B, and [ / ] while the bevel is live
+			return true
 		if k == KEY_T and (ev as InputEventKey).ctrl_pressed:
 			topo("tri")
+			return true
+		if k == KEY_P and (ev as InputEventKey).ctrl_pressed:   # D04: pack the UV islands (KMeshUVPack), one undo step
+			KMeshUVPack.run_ui(self, "pack")
 			return true
 		if k == KEY_J and (ev as InputEventKey).alt_pressed:
 			topo("quad")
@@ -135,10 +214,21 @@ func input(ev: InputEvent) -> bool:
 		if k in [KEY_DELETE, KEY_M] or (k == KEY_Z and (ev as InputEventKey).ctrl_pressed):
 			_b05_key(ev as InputEventKey)
 			return true
-		if _edit_key(ev as InputEventKey):
+		if _edit_key(ev as InputEventKey) or KMeshFill.key(self, ev as InputEventKey):   # B06: F / Alt+F / Ctrl+F
+			return true
+		if k == KEY_O:   # B07
+			m._say(prop.key(ev as InputEventKey, m.blk != null and m.blk.on))
+			return true
+		if k == KEY_H and (ev as InputEventKey).alt_pressed and not (ev as InputEventKey).ctrl_pressed:
+			anat.toggle()   # A19
 			return true
 		if k == KEY_H and not (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).alt_pressed:
-			topo("heat")
+			if (ev as InputEventKey).shift_pressed:
+				if anat.on:
+					anat.toggle()   # A19: one colouring at a time
+				body.toggle()   # A18
+			else:
+				topo("heat")
 			return true
 		match k:
 			KEY_1:
@@ -158,6 +248,8 @@ func input(ev: InputEvent) -> bool:
 				m._say("Model: x-ray %s: box and lasso %s" % ["on" if xray else "off", "select through to the far side" if xray else "only take what you can see"])
 			KEY_T:
 				_measure_key((ev as InputEventKey).shift_pressed)
+			KEY_U when (ev as InputEventKey).shift_pressed:
+				toggle_uv_editor()
 			KEY_U:
 				cycle_uv_shading()
 			KEY_A:
@@ -187,6 +279,13 @@ func input(ev: InputEvent) -> bool:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index != MOUSE_BUTTON_LEFT:
 			return false
+		if anat != null and anat.on and (anat.stroking or (mb.pressed and mb.alt_pressed)):   # A19: the tag brush
+			if mb.pressed:
+				anat.press(mb.position, mb.shift_pressed)
+			else:
+				anat.release()
+			_ov.queue_redraw()
+			return true
 		if mb.pressed:
 			_press = mb.position
 			_add = mb.shift_pressed
@@ -223,6 +322,16 @@ func input(ev: InputEvent) -> bool:
 			armed = ""
 		_ov.queue_redraw()
 		return true
+	if ev is InputEventMouseMotion and anat != null and anat.on:
+		if anat.stroking:
+			anat.drag((ev as InputEventMouseMotion).position)   # A19: the stroke goes on
+			return true
+		if not _drag:
+			anat.hover((ev as InputEventMouseMotion).position)
+			_ov.queue_redraw()
+	if ev is InputEventMouseMotion and not _drag and body != null and body.on:
+		body.hover((ev as InputEventMouseMotion).position)   # A18: the readout follows the mouse (the event goes on)
+		_ov.queue_redraw()
 	if ev is InputEventMouseMotion and _drag:
 		var mp := (ev as InputEventMouseMotion).position
 		if _kind == "lasso" and (_lasso.is_empty() or _lasso[_lasso.size() - 1].distance_to(mp) > 3.0):
@@ -420,6 +529,19 @@ func cycle_uv_shading() -> void:
 			m._say("Model: plain shading. U shows the UV checker")
 
 
+## D01: the UV editor panel on / off (Shift+U)
+func toggle_uv_editor() -> void:
+	if uved == null:
+		uved = KMeshUVEditor.new()
+		uved.setup(self)
+	if uved.visible:
+		uved.close()
+		m._say("Model: UV editor closed")
+	else:
+		uved.open()
+		m._say("Model: UV editor (right). Mouse over it: click / box / L island, G R S move rotate scale, middle drag pans, wheel zooms. Shift+U closes")
+
+
 func _report() -> void:
 	if meas != null:
 		_remeasure()
@@ -434,6 +556,12 @@ func _report() -> void:
 func _draw_overlay() -> void:
 	if on and meas != null:
 		meas.draw_label(_ov, m.cam)
+	if on:
+		prop.draw(_ov, m.cam, view, m.blk)   # B07: the proportional radius while a G / R / S is live
+	if on and body != null:
+		body.draw(_ov)
+	if on and anat != null:
+		anat.draw(_ov)
 	if not on or not _drag:
 		return
 	var c := Tok.c("pick_hover")
@@ -533,7 +661,18 @@ func _append(base_v: PackedVector3Array, base_f: Array, pm: KMesh, at: Vector3) 
 		for i in g.size():
 			g[i] += o
 		fs.append(g)
-	mesh.attrs = {}   # (the test mesh carries no attributes; a primitive starts without any)
+	var nc := 0
+	for f in base_f:
+		nc += (f as PackedInt32Array).size()
+	var ne := 0
+	for e in mesh.edges():
+		if e.y < o:
+			ne += 1
+	for k in mesh.attrs:   # A19: the base's channels kept (it is a prefix of the result), the primitive's get the default
+		var r: Dictionary = mesh.attrs[k]
+		var d = r["data"]
+		d.resize({KMesh.AD_VERT: o, KMesh.AD_FACE: base_f.size(), KMesh.AD_CORNER: nc, KMesh.AD_EDGE: ne}[r["domain"]])
+		r["data"] = d
 	mesh.from_arrays(vs, fs)
 
 

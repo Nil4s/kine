@@ -74,11 +74,14 @@ func _init() -> void:
 	var names := []
 	var soon_ok := true
 	for b in bar.find_children("*", "Button", true, false):
+		if m.ui_nt_box != null and m.ui_nt_box.is_ancestor_of(b):   # P17: the next-command chips (pre-made, hidden until learned) are not pages; nexttool_test checks them
+			continue
 		if b == m.ui_next:   # R6: the bar also carries the one next-step line (a deliberate feature, not a page); it is checked in the R6 test
 			continue
 		names.append(b.text)
 		if b.text in m.PAGES_SOON:
-			soon_ok = soon_ok and b.tooltip_text == "coming: the modeling pages" and b.pressed.get_connections().is_empty() and b.modulate.a < 0.6
+			# P11: a coming page explains itself on a click (it no longer does nothing), so it has one action and a "coming: the X page" tooltip
+			soon_ok = soon_ok and b.tooltip_text.begins_with("coming: the %s page" % b.text) and b.pressed.get_connections().size() == 1 and b.modulate.a < 0.6
 	ok(names == ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "MODEL", "SCULPT", "SURFACE"] and soon_ok, "1 the page bar: %s; the three coming pages greyed, tooltip, no action" % [names])
 	ok(bar.get_global_rect().end.y >= vs.y - 0.5 and bar.get_global_rect().size.y >= m.PAGE_H - 0.5 and bar.get_global_rect().position.x == 0.0, "3 the bar is the window's very bottom: %s of %s" % [bar.get_global_rect(), vs])
 	# 2 / 3 each page: its row, its captions, its button lit, its name on screen

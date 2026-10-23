@@ -55,7 +55,10 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"retime_scale_the_range_around_the_playhead...": "opens the retime dialog; the edit is made by its OK (retimerange_test runs RetimeRange.apply and its one undo step)",
 	"make_this_a_feint": "needs a picked STRIKE card of a fighter (no generic start has one); it opens the FEINT ghost and the edit is made by Accept as one undo step (i20_test runs it)",
 	"frame_it_my_way": "needs shots in the user's own scenes/ to learn from (the audit has none; without them the command only offers Auto camera); the edit is Accept's one undo step (i32_test runs it)",
-	"reduce_part_keys_tolerance_slider": "opens the tolerance slider; the edit is made when it is kept (key_reduce_test drags it and checks the one undo step)"}
+	"reduce_part_keys_tolerance_slider": "opens the tolerance slider; the edit is made when it is kept (key_reduce_test drags it and checks the one undo step)",
+	"model_apply_the_body_mesh_to_the_fighter": "needs the body open in the model preview (Model: edit the body mesh, then edits there); basebody_test runs the apply and its one undo step",
+	"body_save_the_fighter's_body_.kbody": "writes bodies/ (a file, not an edit); left there, its row showed in every later test's Browser (bodyfile_test runs it in its own folder)",
+	"model_export_the_body_as_glb_skin_weights": "writes exports/<scene>_body.glb (a file, not an edit; bodyexport_test runs it)"}
 
 ## the start each command was first seen to change something from (read off the audit's own log): tried FIRST, so a
 ## command that only changes from KEYS / SETS / HITS / ... is not run through every earlier start (each a build + the run).
@@ -199,6 +202,12 @@ func fp() -> String:
 ##   the body"; found by a seeded random search over legal arm poses: my hand-made swing first went round the body)
 func start(kind: String) -> void:
 	m.playing = false
+	# the model preview (test cube / body mesh), the sculpt sphere and the bone editor are MODES an earlier command may
+	# have left open: while one is on it takes the keys first (the cube's M merges, the sculpt's Shift+M is the cavity
+	# mask, so Shift+M "Mirror the whole pose" went to them and read as VACUOUS). Leave each, as Esc does
+	for md in ["kmed", "ksc", "bed"]:
+		if m.get(md) != null and m.get(md).on:
+			m.get(md).stop()
 	m.stepped_view = false   # a VIEW (never undone): a Block trial left it on, and every later start then began blocking
 	if kind == "THROUGH":
 		m.S = Scene.new()

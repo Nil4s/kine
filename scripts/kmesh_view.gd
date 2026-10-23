@@ -11,12 +11,16 @@ extends Node3D
 ##   select_region: box / lasso (any 2D test) over verts / edges / faces by the selection mode. Without x-ray only what the
 ##     camera can see counts (a vertex is seen when the nearest front-facing hit on its view ray is the vertex's own
 ##     distance, a face when it faces the camera and its centre is seen); with x-ray everything inside the shape counts.
+## C09 FACE SETS (KMeshFaceSets): the faces of a hidden set are not drawn (surface, wire) and not hit by ray_face.
 ## HEAT (F08, show_heat): KMeshTopo.heat's faces as a colour tint (triangles, n-gons, stretched quads) and its poles as
 ## big coloured points, rebuilt with the mesh; `heat` holds the last result (the legend's counts).
+
+signal rebuilt   # A11: after every rebuild (the modifier stack's surface re-evaluates when the base changed)
 
 const OFF_WIRE := 0.003
 const OFF_TINT := 0.0015
 const PICK_PX := 12.0
+const RAY_TOL := 1e-5   # ray_face's edge slack, relative to the distance (10 um at 1 m: far below a pixel)
 
 var mesh: KMesh
 var sel: KMeshSelect
@@ -28,6 +32,7 @@ var smooth_shade := false   # C01: the sculpt sphere shades with the vertex norm
 ## (KMeshUV.stretch heat per face, blue = no distortion, red = stretched or flipped)
 var shading := ""
 var stretch := {}        # the last KMeshUV.stretch result while shading is "uv_stretch"
+var show_color := false  # E04: the surface takes the "color" attribute (vertex paint, scripts/kmesh_vpaint.gd)
 var _pal_dark := true
 var show_heat := false
 var heat := {}
@@ -147,7 +152,12 @@ func _surface() -> ArrayMesh:
 	var cols := PackedColorArray()
 	var ud = mesh.attr_data(KMeshUV.UV) if shading == "uv_checker" and mesh.has_attr(KMeshUV.UV) and mesh.attr_info(KMeshUV.UV)["domain"] == KMesh.AD_CORNER else null
 	stretch = KMeshUV.stretch(mesh) if shading == "uv_stretch" else {}
+	var cd = mesh.attr_data("color") if show_color and ud == null and stretch.is_empty() and KMeshVPaint.usable(mesh) else null
+	var cv: bool = cd != null and mesh.attr_info("color")["domain"] == KMesh.AD_VERT
+	var hid := KMeshFaceSets.hidden_faces(mesh)   # C09: a hidden face set is not drawn
 	for fi in mesh.face_count():
+		if not hid.is_empty() and hid[fi]:
+			continue
 		var fp: PackedInt32Array = mesh.faces[fi]
 		for i in range(1, fp.size() - 1):
 			for c in [0, i + 1, i]:
@@ -157,6 +167,8 @@ func _surface() -> ArrayMesh:
 					uvs.append(ud[mesh.face_he0[fi] + c])
 				elif not stretch.is_empty():
 					cols.append(KMeshUV.heat_color(stretch["heat"][fi]))
+				elif cd != null:
+					cols.append(cd[fp[c]] if cv else cd[mesh.face_he0[fi] + c])
 	var am := ArrayMesh.new()
 	if pos.is_empty():
 		return am
@@ -189,10 +201,26 @@ func rebuild() -> void:
 		_surf.material_override = KMeshUV.checker_material()
 	elif not stretch.is_empty():
 		_surf.material_override = KMeshUV.heat_material()
+	elif show_color and _surf.mesh.get_surface_count() > 0 and _surf.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_COLOR:
+		_surf.material_override.vertex_color_use_as_albedo = true   # E04: the painted colours (times the plain white albedo)
+		_surf.material_override.vertex_color_is_srgb = true
+		_surf.material_override.albedo_color = Color.WHITE
+	elif shading == "" and not mesh.materials.is_empty():   # E01: one surface per material slot (scripts/kmesh_material.gd)
+		KMeshMaterial.dress(_surf, mesh, smooth_shade)
 	# wire: every edge
 	var wp := PackedVector3Array()
 	if show_wire:
+		var hid := KMeshFaceSets.hidden_faces(mesh)   # C09: only the edges of the shown faces
+		var shown := {}
+		if not hid.is_empty():
+			for fi in mesh.face_count():
+				if not hid[fi]:
+					var fp: PackedInt32Array = mesh.faces[fi]
+					for i in fp.size():
+						shown[KMeshSelect.ekey(fp[i], fp[(i + 1) % fp.size()])] = true
 		for e in mesh.edges():
+			if not hid.is_empty() and not shown.has(KMeshSelect.ekey(e.x, e.y)):
+				continue
 			wp.append(_out(e.x, OFF_WIRE))
 			wp.append(_out(e.y, OFF_WIRE))
 	_put(_wire, Mesh.PRIMITIVE_LINES, wp, _mat(Tok.c("cube_edge")))
@@ -224,6 +252,7 @@ func rebuild() -> void:
 	_put(_pts, Mesh.PRIMITIVE_POINTS, pp, _mat(Tok.c("cube_edge"), false, 5.0))
 	_put(_selpts, Mesh.PRIMITIVE_POINTS, qp, _mat(sel_col, false, 9.0))
 	_build_heat()
+	rebuilt.emit()
 
 
 ## F08: the heat layer (vertex colours: one material for every kind)
@@ -277,10 +306,11 @@ func _build_pick_cache() -> void:
 	_ftri0 = PackedInt32Array()
 	_ftri_n = PackedInt32Array()
 	_fbox = []
+	var hid := KMeshFaceSets.hidden_faces(mesh)   # C09: a hidden face is not hit (its triangles are kept, not counted)
 	for fi in mesh.face_count():
 		var fp: PackedInt32Array = mesh.faces[fi]
 		_ftri0.append(_tri_face.size())
-		_ftri_n.append(maxi(fp.size() - 2, 0))
+		_ftri_n.append(0 if not hid.is_empty() and hid[fi] else maxi(fp.size() - 2, 0))
 		var bb := AABB(mesh.verts[fp[0]], Vector3.ZERO)
 		for v in fp:
 			bb = bb.expand(mesh.verts[v])
@@ -327,12 +357,16 @@ func ray_face(origin_w: Vector3, dir_w: Vector3, backfaces := false) -> Dictiona
 			var iv := 1.0 / det
 			var tv := o - a
 			var u := tv.dot(p) * iv
-			if u < 0.0 or u > 1.0:
-				continue
 			var q := tv.cross(e1)
 			var v := d.dot(q) * iv
-			if v < 0.0 or u + v > 1.0:
-				continue
+			if u < 0.0 or v < 0.0 or u + v > 1.0:
+				# epsilon-inclusive edges: the ray may pass up to RAY_TOL x the distance (perpendicular to the ray) outside the
+				# triangle. A click exactly on a projected vertex otherwise slips between the triangles sharing it (float32
+				# round-off in the ray, ~1e-7 relative) and misses at silhouettes. A shift s across the edge opposite a corner
+				# moves that corner's barycentric weight by s * |d x edge| / |det|, so each weight gets its own slack.
+				var tol := RAY_TOL * tv.length() / absf(det)
+				if u < -tol * p.length() or v < -tol * e1.cross(d).length() or u + v > 1.0 + tol * d.cross(e2 - e1).length():
+					continue
 			var t := e2.dot(q) * iv
 			if t > 1e-6 and t < best_t:
 				best_t = t
