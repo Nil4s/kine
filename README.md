@@ -60,5 +60,7 @@ Window suites render off-screen (`SHOW=1` to watch them). Logs go to `$TMP/poser
 
 ## Licence
 
-Code: [MIT](LICENSE). What you make with Kine is yours, and the bundled mannequin is CC0; see
+Source-available: free for personal use, hobbyists, schools and small businesses (under 100 people and
+1M USD revenue) under [PolyForm Noncommercial or PolyForm Small Business](LICENSE); bigger companies need a
+[commercial licence](COMMERCIAL.md). What you make with Kine is yours, and the bundled mannequin is CC0; see
 [NOTICE.md](NOTICE.md).
