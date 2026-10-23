@@ -129,7 +129,10 @@ static func tint_arrays(m: KMesh, off := 0.0015, alpha_max := 0.7) -> Array:
 		return [pos, col]
 	var vs := m.verts
 	var vn := m.vert_normals
+	var hid := KMeshFaceSets.hidden_faces(m)   # C09: no shade on a hidden face set
 	for fi in m.face_count():
+		if not hid.is_empty() and hid[fi]:
+			continue
 		var fp: PackedInt32Array = m.faces[fi]
 		var any := false
 		for v in fp:

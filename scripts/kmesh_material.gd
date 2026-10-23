@@ -276,8 +276,10 @@ static func build(m: KMesh, smooth := false) -> Dictionary:
 	var by: Array = []
 	for i in ns:
 		by.append(PackedInt32Array())
+	var hid := KMeshFaceSets.hidden_faces(m)   # C09: a hidden face set is not drawn
 	for fi in m.face_count():
-		by[face_slot(m, fi)].append(fi)
+		if hid.is_empty() or not hid[fi]:
+			by[face_slot(m, fi)].append(fi)
 	var ud = m.attr_data("uv") if m.has_attr("uv") and m.attr_info("uv")["domain"] == KMesh.AD_CORNER and m.attr_info("uv")["type"] == TYPE_VECTOR2 else null
 	var am := ArrayMesh.new()
 	var slots := []

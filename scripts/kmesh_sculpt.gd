@@ -21,6 +21,9 @@ extends RefCounted
 ##   MASK (C03, scripts/kmesh_mask.gd): the "mask" brush paints the mesh's 0..1 "mask" channel instead of moving verts
 ##   (invert = erase; params "mask_amount", 1 = a full mask at the centre in one dab); every other brush's displacement of
 ##   a vert (and grab's) is multiplied by (1 - mask), the mask as it was when the stroke began.
+##   FACE SETS (C09, scripts/kmesh_face_sets.gd): the "face set" brush puts the faces under each dab in set p["fset_id"]
+##   (a new set when not given) and moves nothing; every brush leaves frozen the verts of hidden faces and, with
+##   p["only_set"] > 0, the verts of every face of another set (KMeshFaceSets.frozen, read when the stroke begins).
 
 const DRAW := "draw"
 const CLAY := "clay strips"
@@ -33,6 +36,7 @@ const GRAB := "grab"
 const SNAKE := "snake hook"
 const BRUSHES := [DRAW, CLAY, INFLATE, SMOOTH, FLATTEN, PINCH, CREASE, GRAB, SNAKE]
 const MASK := "mask"   # C03: paints the mask, moves nothing
+const FSET := "face set"   # C09: paints face sets, moves nothing
 
 const F_SMOOTH := "smooth"
 const F_SPHERE := "sphere"
@@ -57,6 +61,7 @@ var _grab0 := Vector3.ZERO # grab: the press point
 var _grab_w := {}          # grab: vert -> weight at the press
 var _grab_v := {}          # grab: vert -> position at the press
 var _mask := PackedFloat32Array()   # C03: the mask at the stroke's start (empty = none)
+var _lock := PackedByteArray()      # C09: 1 = a vert of a hidden face / another set (empty = none)
 var _symx: KMeshSculptSym  # C07: Y / Z / radial symmetry (scripts/kmesh_sculpt_sym.gd), null when off
 var _pend = null           # C07: while an Array, _apply holds the deltas back for the copies of one dab
 
@@ -95,6 +100,9 @@ func begin(m: KMesh, params := {}) -> void:
 	_build_hash()
 	_sym = m.symmetry_map(0, 1e-4) if p["sym_x"] else PackedInt32Array()
 	_mask = KMeshMask.values(m)
+	_lock = KMeshFaceSets.frozen(m, int(p.get("only_set", 0)))
+	if p["brush"] == FSET and int(p.get("fset_id", 0)) <= 0:
+		p["fset_id"] = KMeshFaceSets.next_id(m)
 	_symx = KMeshSculptSym.make(self)
 
 
@@ -185,6 +193,20 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	for i in ids.size():
 		w[i] = falloff(fk, vp[ids[i]].distance_to(hit) / r)
 	var br := String(p["brush"])
+	if (br == MASK or br == FSET) and not _lock.is_empty():   # C09: nothing painted on a frozen vert
+		var ki := PackedInt32Array()
+		var kw := PackedFloat32Array()
+		for i in ids.size():
+			if not _lock[ids[i]]:
+				ki.append(ids[i])
+				kw.append(w[i])
+		ids = ki
+		w = kw
+	if br == FSET:
+		_has_last = true
+		_last = hit
+		dabs += 1
+		return KMeshFaceSets.paint(mesh, ids, w, int(p["fset_id"]))
 	if br == MASK:
 		_has_last = true
 		_last = hit
@@ -251,8 +273,10 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	return _apply(ids, d)
 
 
-## C03: how much of a displacement a vert keeps (1 - mask)
+## C03: how much of a displacement a vert keeps (1 - mask); C09: none on a frozen vert
 func _keep(v: int) -> float:
+	if not _lock.is_empty() and _lock[v]:
+		return 0.0
 	return 1.0 if _mask.is_empty() else 1.0 - clampf(_mask[v], 0.0, 1.0)
 
 
