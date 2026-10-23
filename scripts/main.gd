@@ -151,6 +151,7 @@ var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every tar
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
+var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
 var tm_ui: TimingMatchUI   # MATCH THE REFERENCE TIMING (ROADMAP I29): scripts/timing_match_ui.gd
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
@@ -2993,6 +2994,8 @@ func _process(dt: float) -> void:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	if mp_ui != null:
 		mp_ui.tick(dt)
+	if ds_ui != null:
+		ds_ui.tick(dt)   # H17: one slice of the deformation grading while it runs (nothing otherwise)
 	if sd_ui != null:
 		sd_ui.tick(dt)   # STYLE DIAL: forgets its base when anything else changed the scene
 	if tcat_ui != null:
@@ -14133,6 +14136,9 @@ func _commands() -> Array:
 	if mp_ui == null:
 		mp_ui = MakePhysicalUI.new(self)
 	mp_ui.commands(add)   # MAKE IT PHYSICAL (ROADMAP I1)
+	if ds_ui == null:
+		ds_ui = DeformSceneUI.new(self)
+	ds_ui.commands(add)   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17)
 	if sd_ui == null:
 		sd_ui = StyleDialUI.new(self)
 	sd_ui.commands(add)   # STYLE DIAL (ROADMAP I6)
@@ -16244,6 +16250,8 @@ func _close_findings() -> void:
 		arc_marks = []
 	if deform_view != null:
 		deform_view.visible = false   # F14: the 3 worst spots belong to the panel that listed them
+	if ds_ui != null:
+		ds_ui.hide_ghost()   # H17: the ghost belongs to the panel that listed its frame
 	ui_find.offset_right = ui_find.offset_left + 420   # I47: Speed limits narrows the panel so the whole body stays in view
 	ov.fix_preview(S, [], 0.0)
 
