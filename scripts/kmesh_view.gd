@@ -20,6 +20,7 @@ signal rebuilt   # A11: after every rebuild (the modifier stack's surface re-eva
 const OFF_WIRE := 0.003
 const OFF_TINT := 0.0015
 const PICK_PX := 12.0
+const RAY_TOL := 1e-5   # ray_face's edge slack, relative to the distance (10 um at 1 m: far below a pixel)
 
 var mesh: KMesh
 var sel: KMeshSelect
@@ -356,12 +357,16 @@ func ray_face(origin_w: Vector3, dir_w: Vector3, backfaces := false) -> Dictiona
 			var iv := 1.0 / det
 			var tv := o - a
 			var u := tv.dot(p) * iv
-			if u < 0.0 or u > 1.0:
-				continue
 			var q := tv.cross(e1)
 			var v := d.dot(q) * iv
-			if v < 0.0 or u + v > 1.0:
-				continue
+			if u < 0.0 or v < 0.0 or u + v > 1.0:
+				# epsilon-inclusive edges: the ray may pass up to RAY_TOL x the distance (perpendicular to the ray) outside the
+				# triangle. A click exactly on a projected vertex otherwise slips between the triangles sharing it (float32
+				# round-off in the ray, ~1e-7 relative) and misses at silhouettes. A shift s across the edge opposite a corner
+				# moves that corner's barycentric weight by s * |d x edge| / |det|, so each weight gets its own slack.
+				var tol := RAY_TOL * tv.length() / absf(det)
+				if u < -tol * p.length() or v < -tol * e1.cross(d).length() or u + v > 1.0 + tol * d.cross(e2 - e1).length():
+					continue
 			var t := e2.dot(q) * iv
 			if t > 1e-6 and t < best_t:
 				best_t = t

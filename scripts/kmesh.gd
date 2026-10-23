@@ -134,6 +134,9 @@ var shapes := {}
 var modifiers: Array = []
 ## E01 material slots (scripts/kmesh_material.gd): [] = none; saved in to_dict "materials", carried by KMeshUndo
 var materials: Array = []
+## B17 the ORIGIN: a point in mesh space where the mesh "is" (pivot, export, size readouts); saved in to_dict "origin"
+## when not zero, carried by KMeshUndo (scripts/kmesh_sepjoin.gd sets it)
+var origin := Vector3.ZERO
 
 
 static func _attr_zero(type: int):
@@ -886,6 +889,8 @@ func to_dict() -> Dictionary:
 		d["lods"] = KMeshLOD.to_file(self)   # F04
 	if has_meta(KMeshRefPlanes.META):
 		d["refplanes"] = KMeshRefPlanes.to_file(self)   # B21: path + hash, never the pixels
+	if origin != Vector3.ZERO:
+		d["origin"] = [origin.x, origin.y, origin.z]   # B17
 	return d
 
 
@@ -1010,11 +1015,18 @@ func from_dict(d: Dictionary) -> KMesh:
 	var new_mats := KMeshMaterial.from_file(d.get("materials"))   # E01
 	if last_error != "":
 		return null
+	var new_origin := Vector3.ZERO   # B17
+	var od = d.get("origin", [0.0, 0.0, 0.0])
+	if not (od is Array) or (od as Array).size() != 3 or (od as Array).any(func(x): return not (x is float or x is int)):
+		last_error = "the origin is damaged (not three numbers). Set the origin again after loading, or restore a backup."
+		return null
+	new_origin = Vector3(od[0], od[1], od[2])
 	verts = vraw.to_vector3_array()
 	attrs = new_attrs
 	shapes = new_shapes
 	modifiers = new_mods
 	materials = new_mats
+	origin = new_origin
 	faces = new_faces
 	custom_normals = new_custom
 	normal_mode = nmode

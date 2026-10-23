@@ -17,6 +17,7 @@ var _before_a := {}   # A09: attribute snapshot (only taken when the mesh has at
 var _before_s := {}   # A13: shape keys snapshot (only taken when the mesh has shape keys)
 var _before_m: Array = []   # A11: the modifier stack
 var _before_mat: Array = []   # E01: material slots snapshot
+var _before_o := Vector3.ZERO   # B17: the origin
 
 
 func begin(m: KMesh) -> void:
@@ -27,6 +28,7 @@ func begin(m: KMesh) -> void:
 	_before_s = KMeshShapes.snapshot(m.shapes) if not m.shapes.is_empty() else {}
 	_before_m = m.modifiers.duplicate(true)
 	_before_mat = KMeshMaterial.snapshot(m.materials)
+	_before_o = m.origin
 
 
 static func _same_faces(a: Array, b: Array) -> bool:
@@ -54,6 +56,9 @@ func commit(label := "edit") -> Dictionary:
 	if _before_mat != m.materials:   # E01: a slot added, removed or edited: keep both lists whole (they are small)
 		st["mt_old"] = _before_mat
 		st["mt_new"] = KMeshMaterial.snapshot(m.materials)
+	if _before_o != m.origin:   # B17
+		st["o_old"] = _before_o
+		st["o_new"] = m.origin
 	if _before_v.size() == m.verts.size() and _same_faces(_before_f, m.faces):
 		var idx := PackedInt32Array()
 		var old := PackedVector3Array()
@@ -64,10 +69,12 @@ func commit(label := "edit") -> Dictionary:
 				old.append(_before_v[i])
 				new.append(m.verts[i])
 		var ch := _attr_changes(_before_a, m.attrs)
-		if idx.is_empty() and ch.is_empty() and not st.has("s_old") and not st.has("m_old") and not st.has("mt_old"):
+		if idx.is_empty() and ch.is_empty() and not st.has("s_old") and not st.has("m_old") and not st.has("mt_old") and not st.has("o_old"):
 			return {}
 		if idx.is_empty() and ch.is_empty() and not st.has("s_old") and st.has("m_old"):
 			st.merge({"kind": "mods", "bytes": 256})
+		elif idx.is_empty() and ch.is_empty() and not st.has("s_old") and not st.has("mt_old"):
+			st.merge({"kind": "origin", "bytes": 64})   # B17
 		elif idx.is_empty() and ch.is_empty() and not st.has("s_old"):
 			st.merge({"kind": "mats", "bytes": 256})   # E01
 		elif idx.is_empty() and ch.is_empty():
@@ -191,6 +198,8 @@ func _apply(st: Dictionary, back: bool) -> void:
 		m.modifiers = (st["m_old"] if back else st["m_new"]).duplicate(true)
 	if st.has("mt_old"):
 		m.materials = KMeshMaterial.snapshot(st["mt_old"] if back else st["mt_new"])
+	if st.has("o_old"):
+		m.origin = st["o_old"] if back else st["o_new"]
 
 
 func undo() -> String:
