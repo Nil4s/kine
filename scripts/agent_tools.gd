@@ -436,4 +436,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
+		"recognize":   # N016: which strike the body does and how far from the textbook form (scripts/move_recognizer.gd)
+			var rr: Dictionary = await MoveRecognizer.serve(m, p)
+			return _ok(id, rr) if rr["ok"] else _err(id, -32602, rr["error"])
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
