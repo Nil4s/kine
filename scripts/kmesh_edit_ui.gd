@@ -15,6 +15,8 @@ extends Node
 ##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
 ##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
+##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
+##      over 60 deg, then LSCM, KMeshUV)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -156,6 +158,8 @@ func input(ev: InputEvent) -> bool:
 				m._say("Model: x-ray %s: box and lasso %s" % ["on" if xray else "off", "select through to the far side" if xray else "only take what you can see"])
 			KEY_T:
 				_measure_key((ev as InputEventKey).shift_pressed)
+			KEY_U:
+				cycle_uv_shading()
 			KEY_A:
 				sel.select_all()
 				view.mark_dirty()
@@ -397,6 +401,23 @@ func _edit_key(k: InputEventKey) -> bool:
 	else:
 		m._say("Model: %s by %s%s; the new part is selected (Ctrl+Z takes it back)" % [what.to_lower(), Units.len(EXTRUDE_D if what == "Extrude" else INSET_D), ", each face on its own" if each else ""])
 	return true
+
+
+## D05: plain -> "uv_checker" -> "uv_stretch" -> plain. A mesh without UVs is unwrapped first (seams by angle + LSCM).
+func cycle_uv_shading() -> void:
+	if not mesh.has_attr(KMeshUV.UV):
+		KMeshUV.seams_by_angle(mesh, 60.0)
+		KMeshUV.unwrap_lscm(mesh)
+	var nxt := {"": "uv_checker", "uv_checker": "uv_stretch"}
+	view.shading = nxt.get(view.shading, "")
+	view.rebuild()
+	match view.shading:
+		"uv_checker":
+			m._say("Model: UV checker. Even squares = no stretch; U again shows the stretch heat map")
+		"uv_stretch":
+			m._say("Model: UV stretch, worst face %.2f× (blue none, red stretched). U again goes back to plain" % float(view.stretch.get("angle_max", 1.0)))
+		_:
+			m._say("Model: plain shading. U shows the UV checker")
 
 
 func _report() -> void:
