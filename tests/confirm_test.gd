@@ -90,16 +90,17 @@ func _init() -> void:
 	# (1d) E15 MATERIAL FROM A PHOTO (scripts/photo_material.gd): policy = user://materials/<name>/{albedo,rough,normal}.png + material.tres only; never scenes/, poses/, data/
 	var pmsrc := FileAccess.get_file_as_string("res://scripts/photo_material.gd")
 	ok(PhotoMaterial.DIR.begins_with("user://") and pmsrc.count("FileAccess.WRITE") == 1 and not pmsrc.contains("res://scenes") and not pmsrc.contains("DirAccess.remove"), "Material from a photo writes only under %s" % PhotoMaterial.DIR)
-	# (1e) G07 BODIES (scripts/body_file.gd, body_thumbs.gd): policy = a NEW .kbody in BodyFile.dir (never over a
-	# file: _2, _3; the same body twice is the same file), its picture in user://thumbs; nothing removed, never scenes/
+	# (1e) G07 / G12 BODIES (scripts/body_file.gd, body_thumbs.gd, body_export.gd): policy = a NEW .kbody in BodyFile.dir (never over a
+	# file: _2, _3; the same body twice is the same file), its picture in user://thumbs, the body .glb in exports/; nothing removed, never scenes/
 	var bsrc := FileAccess.get_file_as_string("res://scripts/body_file.gd")
 	var tsrc := FileAccess.get_file_as_string("res://scripts/body_thumbs.gd")
+	var esrc := FileAccess.get_file_as_string("res://scripts/body_export.gd")
 	var bnew := bsrc.contains("while FileAccess.file_exists(path):") and bsrc.count("FileAccess.WRITE") == 1
 	var bnone := true
-	for t in [bsrc, tsrc]:
+	for t in [bsrc, tsrc, esrc]:
 		bnone = bnone and not t.contains("DirAccess.remove") and not t.contains("res://scenes") and not t.contains("rename_absolute")
-	ok(bnew and bnone and tsrc.count("save_png") == 1 and BodyThumbs.DIR.begins_with("user://") and not tsrc.contains("FileAccess.WRITE"),
-		"bodies: one NEW-file .kbody writer (never over a file), pictures only under %s; nothing removed" % BodyThumbs.DIR)
+	ok(bnew and bnone and tsrc.count("save_png") == 1 and BodyThumbs.DIR.begins_with("user://") and not tsrc.contains("FileAccess.WRITE") and not esrc.contains("FileAccess.WRITE") and BodyExport.DIR == "res://exports",
+		"bodies: one NEW-file .kbody writer (never over a file), pictures only under %s, the body .glb only in exports/; nothing removed" % BodyThumbs.DIR)
 	# (2) every editing command: no dialog
 	m._load_scene("res://scenes/combo3.json")
 	m._card_pick(2)

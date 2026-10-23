@@ -28,6 +28,7 @@ extends RefCounted
 ## WEIGHTS are snapped to what the GPU holds (canon): whole 1/65535 steps adding up to exactly 1, so the first open moves
 ##   a painted / loaded weight by at most 2 steps (~3e-5) and from then on a round trip is bit for bit.
 ## SAVED (G07, scripts/body_file.gd) as a .kbody; a scene saved with an applied body names that file ("body_mesh").
+## EXPORTED (G12, scripts/body_export.gd): "Model: export the body as glb (skin weights)".
 
 const SURF := "surface"
 const UV := "uv"
