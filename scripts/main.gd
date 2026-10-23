@@ -745,6 +745,7 @@ var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
 var dummy_corr := Corrective.new()   # the same on the dummy
+var dq_skin_pass := DqSkin.new()   # H04: dual-quaternion skinning on the body's pieces (the scene's dq_skin, 0 = plain LBS)
 var hidden_parts := {}
 
 
@@ -3203,6 +3204,7 @@ func _body() -> void:
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	corr.attach(pieces.values(), skel)
+	dq_skin_pass.attach(pieces.values(), skel)
 	_skp_build()   # PRECISE PICK: the picked / hovered part's own skin is tinted (scripts/skin_pick.gd)
 	for j in Body.WEAPON + Body.WEAPON2:   # the weapon's capsules: its pick and its light (a body part has none: its skin is lit)
 		_new_cap(j)
@@ -4518,6 +4520,7 @@ func _refresh() -> void:
 		Overlays.pose_skeleton(skel, bone_idx, B)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
+	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -13845,6 +13848,13 @@ func _wtrail_render() -> void:
 	_say(("weapon trail in renders on: a fading ribbon from the grip to the tip over the last %d frames, in the playblast and the mp4 shot render, where the tip is faster than %.0f m/s" % [WeaponTrail.RENDER_N, WeaponTrail.RENDER_SPEED]) if wt.render_on else "weapon trail in renders off: the playblast and the mp4 show the bat only (turn it on again from Search: weapon trail in renders)")
 
 
+## H04 (scripts/dq_skin.gd): the scene's skinning, linear blend (0) or dual quaternion (1); a file may hold a blend between
+func _dq_skin_toggle() -> void:
+	S.dq_skin = 0.0 if S.dq_skin > 0.0 else 1.0
+	_refresh()
+	_say(("SKINNING: %s, saved with the scene: a twisted wrist keeps its thickness, a bent elbow its volume (exports stay linear blend)" % DqSkin.describe(S.dq_skin)) if S.dq_skin > 0.0 else "skinning: linear blend (LBS), as the engines skin")
+
+
 func _wtrail_smear() -> void:
 	wt.smear_on = not wt.smear_on
 	_refresh()
@@ -14254,6 +14264,7 @@ func _commands() -> Array:
 	add.call("Weapon trail in renders on/off", "", _wtrail_render, "weapon trail renders playblast mp4 shot render ribbon swept grip tip fading", false, "the playblast and the mp4 shot render draw a fading ribbon from the grip to the tip over the last 8 frames, in the theme's accent colour; on by default")
 	add.call("Clip: pick its best thumbnail frame", "", _thumbpick, "clip pick best thumbnail frame readable silhouette poster cover", false, "scores every 1/15 s of the clip from this view (silhouette spread, limbs clear of the torso, line of action) and puts the playhead on the best frame")
 	add.call("Thumbnails: use the picked frame on/off", "", _thumbpick_flag, "thumbnails scene list picked frame best readable cover instead of strike card", false, "the scene list's pictures show each clip's most readable frame instead of its strike card")
+	add.call("Skinning: dual quaternion on/off", "", _dq_skin_toggle, "dual quaternion skinning dqs dq candy wrapper wrist twist forearm volume lbs linear blend skin", false, "H04: the body skinned by dual quaternions (no candy-wrapper wrists, the elbow keeps its volume) instead of linear blend; saved with the scene. Exports stay linear blend (what game engines skin)")
 	add.call("Trail: smear frames on/off", "", _wtrail_smear, "trail smear frames motion blur ghost stretch playblast", false, "on a fast frame (the tip moves more than 20 cm in one frame) a ghosted, stretched copy of the bat from the frame before, in the playblast too")
 	add.call("Pin a trail on the picked part", "Shift+T", _press.bind(KEY_T, true), "path arc", false, "draw the picked body part's path over the scene (again removes it)")
 	add.call("Balance on/off", "Shift+B", _press.bind(KEY_B, true), "centre of mass com feet tip fall weight", false, "the centre of mass over the feet: green inside, amber near the edge, red he tips")

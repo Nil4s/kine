@@ -116,6 +116,7 @@ var body := {}         # PROPORTIONS (round 51, PR1; scripts/proportions.gd): {}
 ## starts from the drifted pose (no jump). Hips, legs and the hips' offset stay: a drifting hip would slide the
 ## planted feet. Not in a spline scene (its holds are its STOPs) nor before a flow run. HOLD_DRIFT is taste, not data.
 var moving_holds := false
+var dq_skin := 0.0     # H04 (scripts/dq_skin.gd): 0 = linear blend skinning, 1 = dual quaternion, between = the mix; in the file only when > 0
 const HOLD_DRIFT := 0.08
 ## STEPPED preview (blocking; view only, never saved): each card's pose is held until the next card ARRIVES, no
 ## in-betweens, the way animators check poses and timing before they spline
@@ -1583,7 +1584,7 @@ var crowd := {}
 func clone() -> Scene:
 	var c := Scene.new()
 	c.cards = cards.duplicate(true)
-	for k in ["name", "natural", "spline", "on_floor", "floor_body", "free_limits", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness"]:
+	for k in ["name", "natural", "spline", "on_floor", "floor_body", "free_limits", "pin", "fps", "moving_holds", "stepped", "loop", "breath", "fitness", "dq_skin"]:
 		c.set(k, get(k))
 	c.props = props   # the set (read only there)
 	c.part_keys = part_keys.duplicate(true)
@@ -2163,6 +2164,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["loop"] = true   # the same
 	if fitness != 0.5:
 		out["fitness"] = fitness   # ROADMAP 39: only when not the default
+	if dq_skin > 0.0:
+		out["dq_skin"] = dq_skin   # H04: only when on
 	if breath > 0.0:
 		out["breath"] = breath   # YY6: the same, only when on
 	if not layer.is_empty():   # YY9: only with a layer, so a scene without one saves as before
@@ -2243,7 +2246,7 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
-	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
+	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "dq_skin": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
 	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
@@ -2374,6 +2377,7 @@ func from_dict(d: Dictionary) -> void:
 	loop = bool(d.get("loop", false))
 	breath = float(d.get("breath", 0.0))
 	fitness = clampf(float(d.get("fitness", 0.5)), 0.0, 1.0)
+	dq_skin = clampf(float(d.get("dq_skin", 0.0)), 0.0, 1.0)
 	body = Proportions.clean(d["body"]) if d.get("body") is Dictionary else {}   # PR1: absent = the default body
 	layer = {}
 	for j in d.get("layer", {}):
