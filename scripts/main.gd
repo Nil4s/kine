@@ -4643,6 +4643,7 @@ func _refresh() -> void:
 	_cape_draw()   # ROADMAP 86: the baked cape at the playhead
 	PerfDoc.add("cloth", _pk)
 	_pk = PerfDoc.t()
+	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	PerfDoc.add("hair", _pk)
 	if hitbox_ui != null:
@@ -5288,6 +5289,8 @@ func _do(f: Callable) -> void:
 ## WORDS TO A POSE (round 13, #93): "raise the right arm 90, bend the left elbow 45" (scripts/pose_words.gd). ONE undo
 ## step. Every op is reported with what was asked and what the joint REACHED (a limit or a contact stops it)
 func _pose_words(text: String) -> Dictionary:
+	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
+		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
 	var rt := FaceWords.route(text)   # FACE WORDS (I20): "tired and angry", "raise the right arm 90 and look angry": face keyed at the playhead, same step
 	var has_face: bool = rt["face"] != ""
 	var r := {"ok": true, "ops": []}
@@ -5326,6 +5329,118 @@ func _pose_words(text: String) -> Dictionary:
 	var stopped := rep.filter(func(x): return x["stopped"])
 	_say("%s: %s%s" % ["posed" if not has_face else ("face" if rep.is_empty() else "posed + face"), text, ("   (stopped short: %s)" % ", ".join(stopped.map(func(x): return "%s %s %.0f° of %.0f°" % [nice(x["joint"]), x["axis"], x["reached"], x["asked"]]))) if not stopped.is_empty() else ""] + ("   (face keyed at %.2f s; Ctrl+Z takes it back)" % tt if has_face else ""))
 	return {"ok": true, "ops": rep, "face": fw.get("mix", {})}
+
+
+## RIG FROM WORDS (J24; scripts/rig_words.gd): "add a tail with 8 bones", "add 2 ears", "add a cape with 3x4 bones", "remove the
+## tail", "curl the tail 40". The chains are data in S.rigx (saved with the scene); every command is ONE undo step.
+func _rig_words(text: String) -> Dictionary:
+	var r := RigWords.parse(text)
+	if not r["ok"]:
+		_say(r["error"])
+		return r
+	var kind: String = r["kind"]
+	var have := S.rigx.filter(func(c): return kind == "all" or c["kind"] == kind).size()
+	if r["op"] == "remove" and have == 0:
+		_say("there is no %s on this body to remove: say add a tail with 8 bones first" % ("rig" if kind == "all" else kind))
+		return {"ok": false, "error": "nothing to remove"}
+	if r["op"] == "pose" and have == 0:
+		_say("there is no %s to pose: say add a %s with 8 bones first" % [kind, kind])
+		return {"ok": false, "error": "nothing to pose"}
+	var made := []
+	_do(func():
+		var op: String = r["op"]
+		if op == "remove":
+			S.rigx = S.rigx.filter(func(c): return kind != "all" and c["kind"] != kind)
+		elif op == "add":
+			made.append_array(RigWords.make(B, r))   # in place: a lambda's locals are copies
+			S.rigx = S.rigx.filter(func(c): return c["kind"] != kind) + made.duplicate(true)
+		else:
+			RigWords.pose(S.rigx, r))
+	var msg := ""
+	match String(r["op"]):
+		"remove":
+			msg = "took the %s off (%d bone chain%s); Ctrl+Z puts it back" % ["rig" if kind == "all" else kind, have, "" if have == 1 else "s"]
+		"add":
+			var nb := 0
+			for c in made:
+				nb += (c["bones"] as Array).size()
+			msg = "added %s: %d bone chain%s, %d bones, %.0f cm; one undo step (Ctrl+Z takes it back)" % [kind, made.size(), "" if made.size() == 1 else "s", nb, RigWords.length(made[0]) * 100.0]
+		_:
+			msg = "posed the %s: %+.0f deg %s (the words: curl / lower / wag the %s N); Ctrl+Z takes it back" % [kind, float(r["deg"]), "sideways" if r["side"] else "bend", kind]
+	_say(msg)
+	return {"ok": true, "op": r["op"], "kind": kind, "chains": made.size() if r["op"] == "add" else have}
+
+
+var _rigx_root: Node3D
+var _rigx_mat: StandardMaterial3D
+var _rigx_dot_mat: StandardMaterial3D
+
+
+## the rig drawn on the body: a capsule per bone (Tok s_hips), a dot per joint (Tok focus), at the pose now. The nodes are
+## kept and reused (one capsule + one dot per bone); the ones past the count hide
+func _rigx_draw() -> void:
+	if _rigx_root == null:
+		_rigx_root = Node3D.new()
+		_rigx_root.name = "rigx"
+		add_child(_rigx_root)
+		_rigx_mat = StandardMaterial3D.new()
+		_rigx_mat.roughness = 0.6
+		_rigx_dot_mat = StandardMaterial3D.new()
+		_rigx_dot_mat.roughness = 0.4
+	var show := S != null and not S.rigx.is_empty() and not clean
+	_rigx_root.visible = show
+	if not show:
+		return
+	_rigx_mat.albedo_color = Tok.c("s_hips")
+	_rigx_dot_mat.albedo_color = Tok.c("focus")
+	var k := 0
+	for c in S.rigx:
+		if not B.G.has(c["parent"]):
+			continue
+		var pts := RigWords.points(B, c)
+		var nb := (c["bones"] as Array).size()
+		for i in nb:
+			var f := float(i) / float(maxi(nb - 1, 1))
+			var r := lerpf(float(c["r0"]), float(c["r1"]), f)
+			var a := pts[i]
+			var b := pts[i + 1]
+			var L := a.distance_to(b)
+			var cap_n := _rigx_node(k * 2, true)
+			var dot_n := _rigx_node(k * 2 + 1, false)
+			cap_n.visible = true
+			dot_n.visible = true
+			var cm := cap_n.mesh as CapsuleMesh
+			var h := maxf(L, r * 2.0 + 0.001)
+			if not is_equal_approx(cm.radius, r * 0.8) or not is_equal_approx(cm.height, h):
+				cm.radius = r * 0.8
+				cm.height = h
+			var dir := (b - a).normalized()
+			var q := Quaternion(Vector3.UP, dir) if dir.dot(Vector3.UP) > -0.9999 else Quaternion(Vector3.RIGHT, PI)
+			cap_n.transform = Transform3D(Basis(q), (a + b) * 0.5)
+			var sm := dot_n.mesh as SphereMesh
+			if not is_equal_approx(sm.radius, r * 1.15):
+				sm.radius = r * 1.15
+				sm.height = r * 2.3
+			dot_n.position = a
+			k += 1
+	for i in range(k * 2, _rigx_root.get_child_count()):
+		(_rigx_root.get_child(i) as Node3D).visible = false
+
+
+func _rigx_node(i: int, capsule: bool) -> MeshInstance3D:
+	while _rigx_root.get_child_count() <= i:
+		var n := MeshInstance3D.new()
+		var idx := _rigx_root.get_child_count()
+		if idx % 2 == 0:
+			n.mesh = CapsuleMesh.new()
+			n.material_override = _rigx_mat
+			n.name = "bone_%d" % (idx / 2)
+		else:
+			n.mesh = SphereMesh.new()
+			n.material_override = _rigx_dot_mat
+			n.name = "joint_%d" % (idx / 2)
+		_rigx_root.add_child(n)
+	return _rigx_root.get_child(i) as MeshInstance3D
 
 
 func _after_edit() -> void:
@@ -5458,6 +5573,7 @@ func _snapshot() -> Dictionary:
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
+		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
@@ -5603,6 +5719,9 @@ func _restore(u: Dictionary) -> void:
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
+	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
+		S.rigx = u["rigx"].duplicate(true)   # RIG FROM WORDS (J24), undone like a card
+		ov.mark_dirty()
 	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
 		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
 		_hair_bake()

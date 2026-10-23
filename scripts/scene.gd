@@ -89,6 +89,7 @@ var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis",
 var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth frames; in the file as "cape" only when baked
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
+var rigx := []         # RIG FROM WORDS (J24; scripts/rig_words.gd): extra bone chains (tail, ears, cape); in the file as "rigx" only when there is one
 var cons := []         # USER CONSTRAINTS (round 51, CN): the stack, played in order after IK; scripts/constraints.gd
 var cons_last := []    # what the last apply()'s constraint pass did (Constraints.play's reports); [] = nothing
 var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakref to the hero's (actor targets); null = the hero
@@ -1607,6 +1608,7 @@ func clone() -> Scene:
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
+	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
 	c.cape = cape.duplicate(true)   # the cape (cloth.gd)
 	c.shots = shots.duplicate(true)   # the shots and their cameras (shot_camera.gd)
 	c.sets = sets.duplicate(true)   # selection / keying sets (part_sets.gd)
@@ -2214,6 +2216,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["secondary"] = SecondaryMotion.to_file(secondary)   # secondary motion: the same, only when there is an item
 	if not hair.is_empty():
 		out["hair"] = Hair.to_file(hair)   # hair strands: the same, only when set
+	if not rigx.is_empty():
+		out["rigx"] = rigx.duplicate(true)   # the words-made rig: only when there is one
 	if not cons.is_empty():
 		out["constraints"] = Constraints.to_file(cons)   # round 51: the same, only when there is one
 	if ShotCam.is_legacy(shots):
@@ -2400,6 +2404,7 @@ func from_dict(d: Dictionary) -> void:
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none
+	rigx = RigWords.from_file(d.get("rigx", []))   # the words-made rig: absent = none
 	cape = Cloth.from_file(d.get("cape", {}))   # the cape: absent = none
 	cons = Constraints.from_file(d.get("constraints", []))   # round 51: absent = none
 	if not actors.is_empty():
