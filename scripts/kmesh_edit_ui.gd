@@ -12,6 +12,7 @@ extends Node
 ##   B05: Delete  delete the selection (Shift+Delete: only the faces)   Ctrl+Delete  dissolve it (verts / edges / faces)
 ##   M  merge at centre (Shift+M at the first, Alt+M by distance)       Ctrl+Z / Ctrl+Shift+Z  undo / redo
 ##   E  extrude (Shift+E: each face on its own)   I  inset (Shift+I: each face)   Ctrl+E  bridge two edge loops   (B02 / B03)
+##   Ctrl+B  bevel the selected edges (2 cm, 1 segment, round; B03, kmesh_bevel.gd): live until the next edit, [ / ] segments, Shift+[ / ] width, Alt+[ / ] profile
 ##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
 ##   B06: F  make a face (2 verts: an edge)   Alt+F  fill the holes touching the selection (Shift+Alt+F: triangles)   Ctrl+F  grid fill
 ##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
@@ -125,10 +126,12 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
 		var ck := (ev as InputEventKey).keycode
-		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T, KEY_F] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
+		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T, KEY_F, KEY_B] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if KMeshBevel.key(self, ev as InputEventKey):   # B03: Ctrl+B, and [ / ] while the bevel is live
+			return true
 		if k == KEY_T and (ev as InputEventKey).ctrl_pressed:
 			topo("tri")
 			return true

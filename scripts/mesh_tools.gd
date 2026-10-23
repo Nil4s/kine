@@ -38,7 +38,7 @@ const TOOLS := [
 	{"id": "mesh_extrude", "label": "Model: extrude", "page": "MODEL", "keys": "E", "bl": "", "do": "", "also": "extrude pull push out grow faces", "desc": "pull the selected faces out along their normal, new side faces between"},
 	{"id": "mesh_inset", "label": "Model: inset faces", "page": "MODEL", "keys": "I", "bl": "", "do": "", "also": "inset inside border shrink faces", "desc": "a smaller face inside each selected face, ringed by new faces"},
 	{"id": "mesh_proportional", "label": "Model: proportional editing on / off", "page": "MODEL", "keys": "O", "bl": "", "do": "key:O", "also": "proportional falloff soft selection magnet radius smooth sphere root linear sharp constant connected", "desc": "G / R / S also pull the unselected verts within a radius, by a falloff (Shift+O falloff, Alt+O connected only, the wheel sizes it)"},
-	{"id": "mesh_bevel", "label": "Model: bevel", "page": "MODEL", "keys": "Ctrl+B", "bl": "", "do": "", "also": "bevel chamfer round fillet edges corner", "desc": "cut the selected edges into a chamfer of 1 or more segments"},
+	{"id": "mesh_bevel", "label": "Model: bevel", "page": "MODEL", "keys": "Ctrl+B", "bl": "", "do": "op:bevel", "also": "bevel chamfer round fillet edges corner", "desc": "cut the selected edges into a chamfer of 1 or more segments"},
 	{"id": "mesh_loopcut", "label": "Model: loop cut", "page": "MODEL", "keys": "Ctrl+R", "bl": "", "do": "", "also": "loop cut ring split edge loop slice", "desc": "a new edge loop across a ring of quads"},
 	{"id": "mesh_knife", "label": "Model: knife", "page": "MODEL", "keys": "K", "bl": "", "do": "", "also": "knife cut slice draw edges", "desc": "draw a cut across faces"},
 	{"id": "mesh_dissolve", "label": "Model: dissolve", "page": "MODEL", "keys": "Ctrl+X", "bl": "", "do": "", "also": "dissolve delete remove merge faces edges vertices clean", "desc": "remove the selected elements, the faces round them joined"},
@@ -187,6 +187,9 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"bevel":
+			said = KMeshBevel.run(ui)
+			return said   # run() said it
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
