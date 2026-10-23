@@ -6,6 +6,8 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
+##      over 60 deg, then LSCM, KMeshUV)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 
 const SIDE := 0.6
@@ -97,6 +99,8 @@ func input(ev: InputEvent) -> bool:
 			KEY_X:
 				xray = not xray
 				m._say("Model: x-ray %s: box and lasso %s" % ["on" if xray else "off", "select through to the far side" if xray else "only take what you can see"])
+			KEY_U:
+				cycle_uv_shading()
 			KEY_A:
 				sel.select_all()
 				view.mark_dirty()
@@ -166,6 +170,23 @@ func input(ev: InputEvent) -> bool:
 
 
 var _cur := Vector2.ZERO
+
+
+## D05: plain -> "uv_checker" -> "uv_stretch" -> plain. A mesh without UVs is unwrapped first (seams by angle + LSCM).
+func cycle_uv_shading() -> void:
+	if not mesh.has_attr(KMeshUV.UV):
+		KMeshUV.seams_by_angle(mesh, 60.0)
+		KMeshUV.unwrap_lscm(mesh)
+	var nxt := {"": "uv_checker", "uv_checker": "uv_stretch"}
+	view.shading = nxt.get(view.shading, "")
+	view.rebuild()
+	match view.shading:
+		"uv_checker":
+			m._say("Model: UV checker. Even squares = no stretch; U again shows the stretch heat map")
+		"uv_stretch":
+			m._say("Model: UV stretch, worst face %.2f× (blue none, red stretched). U again goes back to plain" % float(view.stretch.get("angle_max", 1.0)))
+		_:
+			m._say("Model: plain shading. U shows the UV checker")
 
 
 func _report() -> void:

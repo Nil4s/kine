@@ -21,6 +21,10 @@ var sel: KMeshSelect
 var dirty := true
 var show_wire := true
 var show_verts := true   # points in vert mode
+## D05 surface shading: "" plain, "uv_checker" (the KMeshUV checker through the "uv" corner attribute), "uv_stretch"
+## (KMeshUV.stretch heat per face, blue = no distortion, red = stretched or flipped)
+var shading := ""
+var stretch := {}        # the last KMeshUV.stretch result while shading is "uv_stretch"
 var _pal_dark := true
 
 var _surf: MeshInstance3D
@@ -132,12 +136,20 @@ func _put(mi: MeshInstance3D, prim: int, pos: PackedVector3Array, mt: Material) 
 func _surface() -> ArrayMesh:
 	var pos := PackedVector3Array()
 	var nor := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var cols := PackedColorArray()
+	var ud = mesh.attr_data(KMeshUV.UV) if shading == "uv_checker" and mesh.has_attr(KMeshUV.UV) and mesh.attr_info(KMeshUV.UV)["domain"] == KMesh.AD_CORNER else null
+	stretch = KMeshUV.stretch(mesh) if shading == "uv_stretch" else {}
 	for fi in mesh.face_count():
 		var fp: PackedInt32Array = mesh.faces[fi]
 		for i in range(1, fp.size() - 1):
-			for v in [fp[0], fp[i + 1], fp[i]]:
-				pos.append(mesh.verts[v])
+			for c in [0, i + 1, i]:
+				pos.append(mesh.verts[fp[c]])
 				nor.append(mesh.face_normals[fi])
+				if ud != null:
+					uvs.append(ud[mesh.face_he0[fi] + c])
+				elif not stretch.is_empty():
+					cols.append(KMeshUV.heat_color(stretch["heat"][fi]))
 	var am := ArrayMesh.new()
 	if pos.is_empty():
 		return am
@@ -145,6 +157,10 @@ func _surface() -> ArrayMesh:
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = pos
 	arr[Mesh.ARRAY_NORMAL] = nor
+	if not uvs.is_empty():
+		arr[Mesh.ARRAY_TEX_UV] = uvs
+	if not cols.is_empty():
+		arr[Mesh.ARRAY_COLOR] = cols
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	return am
 
@@ -162,6 +178,10 @@ func rebuild() -> void:
 	var sel_col := Tok.c("pick_sel")
 	_surf.mesh = _surface()
 	_surf.material_override = _mat(Tok.c("cube"), true)
+	if shading == "uv_checker" and _surf.mesh.get_surface_count() > 0 and _surf.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_TEX_UV:
+		_surf.material_override = KMeshUV.checker_material()
+	elif not stretch.is_empty():
+		_surf.material_override = KMeshUV.heat_material()
 	# wire: every edge
 	var wp := PackedVector3Array()
 	if show_wire:
