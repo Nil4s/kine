@@ -101,8 +101,8 @@ Gate: set from beta data, not now.
 
 | decision | options | why it matters |
 |---|---|---|
-| licence | keep MIT / source-available / closed | MIT lets anyone sell a copy of Kine; fine if free, a problem if Kine is the product |
-| price | free / one-time / subscription / free + paid agent features | sets what the beta tests |
+| licence | DECIDED 10-23: PolyForm Noncommercial or Small Business (user's choice) + commercial licence for bigger companies (PR #3) | free for people and small studios, big tech pays, nobody rebrands and sells it |
+| price | DIRECTION 10-23: app free under the licence; paid = cloud AI agents (subscription), premium animations / materials. User chooses local AI on own hardware (free) or cloud (paid). Cloud backbone candidate: Qwen (cheap per 1M tokens) | the cost per user of the cloud agent sets the subscription price |
 | name and site | Kine + Teschima Studios (current) | a domain and a store page take weeks |
 | public repo | stay private / open after 1.0 | ties to the licence |
 
