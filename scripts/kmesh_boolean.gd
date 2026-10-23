@@ -34,6 +34,9 @@ extends RefCounted
 ## (treated as coplanar); open or self-intersecting inputs (refused when open; self-intersection is not checked: the
 ## winding number then counts the overlap twice). A cut line that cannot be forced in (crossing another cut, only from
 ## numerical trouble) is counted in last["unresolved"]; the result may then not be closed.
+## Two parts that touch only along an edge or at a point give a non-manifold union: that is the shape, not a bug.
+## Speed: GDScript; 2 x 5120 triangles overlapping in ~1-2 s. A triangle crossed by a very long cut (hundreds of points)
+## re-triangulates in O(n^2) and is the slow case.
 
 const OPS := ["union", "difference", "intersect"]
 const NAMES := {"union": "Union", "difference": "Difference", "intersect": "Intersect"}
