@@ -48,6 +48,9 @@ const TOOLS := [
 	{"id": "mesh_decimate", "label": "Model: decimate to half (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate", "also": "decimate reduce simplify collapse polycount fewer faces triangles optimize lower poly", "desc": "half the triangles, borders and UV seams kept, nothing flipped (one undo step; F03)"},
 	{"id": "mesh_decimate_q", "label": "Model: decimate to a quarter (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_quarter", "also": "decimate reduce simplify collapse polycount 25 percent quarter low poly", "desc": "a quarter of the triangles, borders and UV seams kept (one undo step; F03)"},
 	{"id": "mesh_decimate_planar", "label": "Model: planar decimate (join flat faces)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_planar", "also": "planar decimate limited dissolve flat coplanar merge faces clean simplify", "desc": "faces in one plane (within 5 deg) become one, seams and borders kept (one undo step; F03)"},
+	{"id": "mesh_lods", "label": "Model: make LODs (100 / 50 / 25 / 12 %)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lods", "also": "lod lods level of detail levels game engine distance decimate", "desc": "4 levels kept with the mesh, each with its error (F04)"},
+	{"id": "mesh_lod_next", "label": "Model: next LOD (preview)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lod_next", "also": "lod next preview cycle level of detail show", "desc": "shows LOD0 -> 1 -> 2 -> 3 -> 0 (F04)"},
+	{"id": "mesh_lod_export", "label": "Model: export the LODs (.glb)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lod_export", "also": "lod export glb gltf unreal godot engine levels of detail save", "desc": "one .glb with model_LOD0 .. model_LOD3 (F04)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
@@ -196,6 +199,8 @@ static func op(name: String, m) -> String:
 		_:
 			if name.begins_with("decimate"):
 				said = KMeshDecimate.op(name, m)   # F03
+			elif name.begins_with("lod"):
+				said = KMeshLOD.op(name, m)   # F04
 	if said != "":
 		m._say(said)
 	return said

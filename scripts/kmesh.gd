@@ -852,6 +852,8 @@ func to_dict() -> Dictionary:
 		d["normals"]["custom"] = _pack(cn.to_byte_array())
 	if not shapes.is_empty():
 		d["shapes"] = KMeshShapes.to_file(shapes)   # A13
+	if has_meta("lods"):
+		d["lods"] = KMeshLOD.to_file(self)   # F04
 	return d
 
 
@@ -976,6 +978,7 @@ func from_dict(d: Dictionary) -> KMesh:
 	custom_normals = new_custom
 	normal_mode = nmode
 	auto_angle = nangle
+	KMeshLOD.from_file(self, d.get("lods"))   # F04
 	_stale = true  # topology and normals build on first read (see _fresh)
 	return self
 
