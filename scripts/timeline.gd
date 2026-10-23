@@ -1446,6 +1446,9 @@ func _draw_fd_strip(font: Font, y: float) -> void:
 			draw_string(font, Vector2(x0 + 3, y + FD_H - 2.0), "%s %d" % [sp["kind"], n], HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 4, 10, Tok.c("fd_ink"))
 		elif x1 - x0 > 14.0:
 			draw_string(font, Vector2(x0 + 2, y + FD_H - 2.0), str(n), HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 3, 10, Tok.c("fd_ink"))
+	if fd.has("exchange"):   # N080: on hit / on block after the strip's end (frame_advantage.gd)
+		var xe := x_of(float(fd["n"]) / fps) + 4.0
+		draw_string(font, Vector2(xe, y + FD_H - 2.0), FrameAdvantage.words(fd["exchange"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Tok.c("ink"))
 
 
 ## the picked clip's time curve on its panel: the dashed diagonal is linear (no warp), the curve is the warp (the source

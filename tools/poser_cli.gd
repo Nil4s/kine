@@ -49,6 +49,9 @@
 ##   check                         the findings, as `check --json`
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
+##   frame_data {fps, frames, exchange, hit_clip, block_clip, moves}  N080 (scripts/frame_advantage.gd): startup / active /
+##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
+##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad

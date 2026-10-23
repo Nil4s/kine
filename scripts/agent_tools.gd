@@ -392,6 +392,10 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				return _err(id, -32000, "the scene is empty: nothing written. Add cards first: run {\"steps\": [\"add\"]}")
 			write_scene(o, "poser_cli serve")
 			return _ok(id, {"out": o, "cards": m.S.cards.size(), "length_s": snappedf(m.S.length(), 0.001)})
+		"frame_data":   # N080: frame data + opt-in hitstun / blockstun / advantage (scripts/frame_advantage.gd). Not in METHODS:
+			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			var fa := FrameAdvantage.serve(m, p)
+			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
