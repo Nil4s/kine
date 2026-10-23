@@ -195,6 +195,21 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Used by: `HumanLimits.rule_tipping`, consts `GRAV`, `TOUCH`.
 - Tested by: `tests/human_limits_test.gd`.
 
+## COUPLED LIMIT
+- What it checks: two-joint muscles of the leg. Hip flexion with the knee straight (hamstrings), ankle dorsiflexion with
+  the knee straight (gastrocnemius), and hip extension with the knee bent (rectus femoris), each as a curve over the knee's bend.
+- Source: the passive straight-leg raise in healthy adults (Thomas et al. 2022) and in team-sport athletes and gymnasts
+  (Donti et al. 2020); weight-bearing dorsiflexion at six knee angles (Baumbach et al. 2014); the modified Thomas test
+  (Ferber et al. 2010; Peeler & Anderson 2008). The slope between the hamstring points is MINE. The DOIs and the tables are
+  in `docs/research/COUPLED_LIMITS.md`.
+- Numbers: the hip at most 90 deg with the knee straight, rising 0.5 deg per deg of knee bend to the table's 120 at knee 60
+  (WARN), or 141 for gymnasts (FAIL). Dorsiflexion 25 deg with the knee straight, 39 from knee 20. Hip extension -25 at
+  knee 0, -10.6 at knee 50, 0 from knee 90 (FAIL 2 SD = 19.2 deg past that).
+- What to do: bend the knee to the angle the finding names, or bring the joint back to its bar.
+- Used by: `CoupledLimits.findings` (through `HumanLimits.findings` and `Feasible.check`), `CoupledLimits.clamp`
+  (opt-in `Body.coupled_clamp`), serve `limits`.
+- Tested by: `tests/coupled_test.gd`.
+
 ## FEASIBLE
 - What it checks: one answer for the whole clip, PASS / FIX / IMPOSSIBLE: could a body actually do it as keyed? It lists the reasons and the frames.
 - Source: KungfuBot's physics filter (Xie et al. 2025, arXiv:2506.12851), with free fall in the air, foot slide per contact and self-penetration below.

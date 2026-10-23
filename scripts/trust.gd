@@ -25,7 +25,7 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"WeaponRebound": "res://scripts/weapon_rebound.gd", "TimingCoach": "res://scripts/timing_coach.gd",
 	"Counter": "res://scripts/counter.gd", "Momentum": "res://scripts/momentum.gd", "Recovery": "res://scripts/recovery.gd",
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
-	"HitReaction": "res://scripts/hit_reaction.gd"}
+	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
 const _SABR := "https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/"
@@ -158,6 +158,20 @@ const REG := {
 	"Feasible.SLIDE_FIX": {"s": H, "u": "m", "src": "the foot-skate metric's 2.5 cm per contact (Karunratanakul et al. 2023)", "url": _KARUN},
 	"Feasible.PEN_FIX": {"s": H, "u": "m", "src": "ours ('mine' in the code)", "url": "res://docs/research/ROBOT_MOTION.md"},
 	"Feasible.GRAV": {"s": M, "u": "m/s^2", "src": "standard gravity", "url": "res://docs/research/ROBOT_MOTION.md"},
+	# --- N028 coupled limits (scripts/coupled_limits.gd; docs/research/COUPLED_LIMITS.md, each source opened 2026-10-23) ---
+	"CoupledLimits.HAM_STRAIGHT": {"s": M, "u": "deg", "src": "passive straight-leg raise 86.7-91.1 +- ~22, 32 healthy students (Thomas et al. 2022, BMC Sports Sci Med Rehabil 14:202); female team-sport athletes 91.0 +- 7.2 (Donti et al. 2020, Sports 8:28); rounded to 90", "url": "https://doi.org/10.1186/s13102-022-00599-8"},
+	"CoupledLimits.HAM_TRAINED": {"s": M, "u": "deg", "src": "gymnasts' straight-leg raise 140.9 +- 20.4 (Donti et al. 2020, 14 artistic and rhythmic gymnasts, pelvis strapped)", "url": "https://doi.org/10.3390/sports8030028"},
+	"CoupledLimits.HAM_SLOPE": {"s": H, "u": "deg hip per deg knee", "src": "ours: the hamstrings' knee / hip moment-arm ratio taken as 1/2 (not opened); lenient by ~12 deg against the active knee extension test (Hamid et al. 2013: knee 24.9 +- 9.3 short of straight at hip 90)", "url": "https://doi.org/10.1589/jpts.25.957"},
+	"CoupledLimits.HIP_FLEX_MAX": {"s": U, "u": "deg", "src": "data/body_limits.json thigh bend max (AAOS / Soucie quoted there, not opened)", "url": "res://data/body_limits.json"},
+	"CoupledLimits.GAS_STRAIGHT": {"s": M, "u": "deg", "src": "weight-bearing ankle dorsiflexion, knee straight, 25 +- 6 (Baumbach et al. 2014, BMC Musculoskelet Disord 15:246, 20 healthy adults, Table 2)", "url": "https://doi.org/10.1186/1471-2474-15-246"},
+	"CoupledLimits.GAS_BENT": {"s": M, "u": "deg", "src": "the same, knee bent 20-75 deg: 37-39 +- 7 (Baumbach 2014, Table 2)", "url": "https://doi.org/10.1186/1471-2474-15-246"},
+	"CoupledLimits.GAS_FREE_KNEE": {"s": M, "u": "deg", "src": "knee flexion past 20 deg did not increase dorsiflexion further (Baumbach 2014); the line from 0 to 20 deg is ours", "url": "https://doi.org/10.1186/1471-2474-15-246"},
+	"CoupledLimits.GAS_SD": {"s": M, "u": "deg", "src": "Baumbach 2014 weight-bearing SD (6-7); FAIL = mean + 2 SD is ours", "url": "https://doi.org/10.1186/1471-2474-15-246"},
+	"CoupledLimits.RECT_EXT": {"s": M, "u": "deg", "src": "modified Thomas test, thigh 10.60 +- 9.61 deg below the table (hip extension), 300 recreational athletes (Ferber et al. 2010, J Athl Train 45:344); a gravity hang, not a pushed end range", "url": "https://doi.org/10.4085/1062-6050-45.4.344"},
+	"CoupledLimits.RECT_KNEE": {"s": M, "u": "deg", "src": "the hanging knee in the modified Thomas test, 50 +- 12 deg (Peeler & Anderson 2008, J Athl Train 43:470)", "url": "https://doi.org/10.4085/1062-6050-43.5.470"},
+	"CoupledLimits.RECT_SD": {"s": M, "u": "deg", "src": "Ferber 2010's SD 9.61; FAIL = mean + 2 SD is ours", "url": "https://doi.org/10.4085/1062-6050-45.4.344"},
+	"CoupledLimits.RECT_KNEE_FLAT": {"s": H, "u": "deg", "src": "Kendall's pass criterion (thigh flat with the knee at 90), as Peeler & Anderson 2008 quote it: a clinical cut-off, not a mean; held flat past 90 (no source)", "url": "https://doi.org/10.4085/1062-6050-43.5.470"},
+	"CoupledLimits.HIP_EXT_MAX": {"s": U, "u": "deg", "src": "data/body_limits.json thigh bend min (not opened)", "url": "res://data/body_limits.json"},
 	# --- hit reaction (docs/physics_constants.md, gt1: UNVERIFIED list) ---
 	"HitReaction.WEAPON_KG": {"s": U, "u": "kg", "src": "weapon masses are estimates (no source opened)", "url": _PC},
 }
@@ -191,6 +205,8 @@ const RULES := {
 	"FEASIBLE FLIGHT": ["Feasible.GRAV", "Feasible.BALLISTIC_TOL", "Feasible.IMPOSSIBLE_TOL"],
 	"FEASIBLE SLIDE": ["Feasible.SLIDE_FIX"],
 	"FEASIBLE PENETRATION": ["Feasible.PEN_FIX"],
+	"COUPLED LIMIT": ["CoupledLimits.HAM_STRAIGHT", "CoupledLimits.HAM_TRAINED", "CoupledLimits.HAM_SLOPE", "CoupledLimits.GAS_STRAIGHT",
+		"CoupledLimits.GAS_BENT", "CoupledLimits.GAS_FREE_KNEE", "CoupledLimits.RECT_EXT", "CoupledLimits.RECT_KNEE", "CoupledLimits.RECT_KNEE_FLAT"],
 }
 
 ## measure's kinds: geometry of THIS scene is exact (no human data in it); the body models behind com / balance /

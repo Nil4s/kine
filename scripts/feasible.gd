@@ -241,6 +241,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Dictionary:
 	fs += rule_flight(sm, fps)
 	fs += rule_slide(sm, fps)
 	fs += rule_pen(sm, fps)
+	fs += CoupledLimits.findings(S, B, {}, true)   # N028: a pose past a TRAINED body's two-joint range (FAIL only; a WARN is a trained person's range)
 	var n: int = sm["n"]
 	var hl := {"t": sm["t"], "margin": sm["margin"], "h": [], "down": sm["down"], "sup": sm["sup"], "cv": []}
 	for i in n:

@@ -455,4 +455,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N013 SAFE RANGE SWEEP: the values of one joint axis that keep EVERY condition true (scripts/range_sweep.gd); not in METHODS
 			var rs := RangeSweep.run(m, p)
 			return _ok(id, rs) if rs["ok"] else _err(id, -32602, rs["error"], {"grammar": rs["grammar"]} if rs.has("grammar") else null)
+		"limits":
+			# N028 COUPLED LIMITS: a joint's effective bend range given the other leg joints (two-joint muscles), with the why and
+			# the source (scripts/coupled_limits.gd); not in METHODS (the transcript's ready line)
+			var cl := CoupledLimits.serve(m, p)
+			return _ok(id, cl) if cl["ok"] else _err(id, -32602, cl["error"])
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

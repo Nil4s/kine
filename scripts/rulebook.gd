@@ -36,6 +36,7 @@ const SRC := {
 	"FEASIBLE FLIGHT": "with no foot down the centre of mass follows free fall, y = y0 + v t - g t^2/2, g = 9.81, within 8 cm (our bar; docs/research/ROBOT_MOTION.md)",
 	"FEASIBLE SLIDE": "a planted foot may creep at most 25 mm per contact (Karunratanakul et al. 2023, arXiv:2310.08580)",
 	"FEASIBLE PENETRATION": "body capsules inside each other deeper than 20 mm (our bar, Body.contacts)",
+	"COUPLED LIMIT": "two-joint muscles (N028, scripts/coupled_limits.gd): hip flexion with the knee straight against the straight-leg raise (90 deg in healthy adults, Thomas et al. 2022; gymnasts 141, Donti et al. 2020), ankle dorsiflexion with the knee straight (25 vs 39 bent, Baumbach et al. 2014), hip extension with the knee bent (modified Thomas test, Ferber et al. 2010); the curves between the points are interpolated (docs/research/COUPLED_LIMITS.md)",
 	"ASSERT": "a check line saved in the scene (N002, scripts/body_assert.gd): the bars are the line's own numbers; touching = within 1 cm (Balance.TOUCH), planted = toe base within 2 cm of its standing height (Body.foot_state) and sliding under 2.5 cm (FOOT SLIDE's bar)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
@@ -66,6 +67,7 @@ const WHY := {
 	"FEASIBLE FLIGHT": "In the air nothing pushes: the body follows a parabola. Hovering or swerving mid-jump reads as wires.",
 	"FEASIBLE SLIDE": "A planted foot that slides looks like ice skating, and a robot or a rig cannot follow it.",
 	"FEASIBLE PENETRATION": "Limbs passing through the body or each other cannot be done by a solid person or a robot.",
+	"COUPLED LIMIT": "Some muscles cross two joints: a straight knee keeps the hamstrings long, so a straight-leg kick cannot go as high as a bent-knee one. Past that, only a trained body (a gymnast, a dancer) does it.",
 	"ASSERT": "Someone wrote this down as something the motion must do. It no longer does: an edit broke it, or it never held."
 }
 const URL := {
@@ -93,6 +95,7 @@ const URL := {
 	"FEASIBLE FLIGHT": "res://docs/research/ROBOT_MOTION.md",
 	"FEASIBLE SLIDE": "https://arxiv.org/pdf/2310.08580",
 	"FEASIBLE PENETRATION": "res://docs/research/ROBOT_MOTION.md",
+	"COUPLED LIMIT": "res://docs/research/COUPLED_LIMITS.md",
 	"ASSERT": "res://scripts/body_assert.gd",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
@@ -1043,7 +1046,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	tk = Time.get_ticks_usec()
 	if HumanLimits.on:   # "Is this clip physically possible?": the verdict (first) and its reasons, with their frames
 		var fz := Feasible.check(S, B)
-		out += Feasible.verdict_finding(S, fz) + fz["findings"]
+		out += Feasible.verdict_finding(S, fz) + fz["findings"].filter(func(f): return f["rule"] != "COUPLED LIMIT")   # N028: listed once, by HumanLimits
 	FrameMemo.tick("feasible total", tk)
 	out += BodyAssert.findings(S, B)   # N002: the scene's saved assertions, re-checked on every Check
 	for f in out:
