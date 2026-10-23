@@ -15,6 +15,7 @@
 ##        (N002 body assertions, scripts/body_assert.gd: pass / fail per line, the worst miss in cm / deg / m/s and its frame;
 ##        no lines = the scene's saved "asserts"; an unread line gets the grammar back)
 ##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
+##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -56,6 +57,10 @@
 ##   check                         the findings, as `check --json`
 ##   assert {lines, save?, clear?}  N002 body assertions ("left foot planted 0-0.4 s"): pass / fail and the worst miss
 ##                                 per line; save keeps them in the scene (Check re-runs them); no lines = the saved ones
+##   check {trust: true} | measure {..., trust: true}   + a "trust" per finding / measure: MEASURED (source), HEURISTIC or
+##                                 UNVERIFIED, with the bars behind it (N020, scripts/trust.gd)
+##   facts {q} | {list: true} | {registry: true}   cited human numbers ("how fast is a real jab?"): value, unit, range,
+##                                 source, trust; "no cited number" + the nearest topics when none (N022, human_facts.gd)
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
 ##   events {q, fighter?, fps?}    N017: WHEN is it true, measured on the played body: q = "right foot leaves the floor",
@@ -123,6 +128,12 @@ func _init() -> void:
 				cs.append({"id": c["id"], "name": c["name"], "keys": c["keys"], "edits": c["edits"], "desc": c["desc"]})
 				say("%-38s %-8s %s  %s" % [c["id"], c["keys"], "EDIT" if c["edits"] else "    ", c["desc"]])
 			done({"ok": true, "commands": cs})
+		"facts":   # N022: facts "how fast is a real jab?" | facts list
+			var fq := " ".join(a.slice(1))
+			var fr := HumanFacts.serve({"list": true} if fq == "list" else {"q": fq})
+			say(String(fr.get("answer", "%d facts" % fr.get("count", 0))) if not fr.is_empty() else "facts \"<question>\" | facts list")
+			fr["ok"] = not fr.is_empty()
+			done(fr)
 		"describe":
 			if a.size() >= 2 and a[1] == "joint":
 				var dj := WhatIf.describe_joint(m, " ".join(a.slice(2)))
