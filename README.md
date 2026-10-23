@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/brand/kine_logo_dark.svg" alt="Kine" width="360"></p>
+
 # Kine
 
 **Pose, animate, model and check a fighting character in one app.** Kine (formerly Poser) is a desktop

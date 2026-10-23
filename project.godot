@@ -5,6 +5,7 @@ config_version=5
 config/name="Kine"
 config/version="0.1.0"
 config/description="Kine by Teschima Studios: pose cards, real human limits, motion you can check"
+config/icon="res://assets/brand/icon.svg"
 ; the saved settings and autosave stay where they were under the old name
 config/use_custom_user_dir=true
 config/custom_user_dir_name="Godot/app_userdata/Poser"
