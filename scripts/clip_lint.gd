@@ -4,7 +4,7 @@
 ##   READ + RETARGET  scripts/anim_import.gd: a .bvh with Kine's joint names through BvhImport (exact), anything else through
 ##                    AnimImport.load_source / map_bones / retarget (FBX through Godot 4.7's FBXDocument = ufbx, already in
 ##                    anim_import). The DENSE scene is judged (one card per file frame, linear): the file's own motion, not
-##                    the thinned cards an import makes, and not MocapClean's foot lock (that would hide the very slide we judge).
+##                    MocapClean's foot lock (that would hide the very slide we judge); the judges play it thinned within 1 deg / 5 mm.
 ##   JOINT RANGE      the file's angles BEFORE the body clamps them (Scene.put clamps to data/body_limits.json on playback, so
 ##                    Check never sees a hyperextended elbow): a run of frames where a joint is past Kine's range.
 ##   CHECK            Rulebook.check with the human-limit rules on, exactly as the realism score asks it (RealismUI.gather):
@@ -130,16 +130,21 @@ static func _lint(m: Node, B: Body, p: String, ext: String) -> Dictionary:
 	var fps: int = D.fps
 	var last := D.cards.size() - 1
 	var findings := _range(D, B, fps, mapped)
-	# CHECK + SCORE on the dense scene, through the realism score's own gather (Check with the human limits, force view,
-	# push limits, the I45 judges); the live scene is put back after
+	# CHECK + SCORE through the realism score's own gather (Check with the human limits, force view, push limits, the I45
+	# judges); the live scene is put back after. They judge the dense scene THINNED as an import thins it (AnimImport.refine:
+	# every file frame still plays within 1 deg per joint angle and 5 mm of hips), because a pose costs time per card: 601
+	# poses of a 301-card clip took 1483-1972 ms, of its 83-card thinning 665-748 ms (idle_bat x 10 s, measured), and every
+	# judge plays the clip at 60 fps on its own. The JOINT RANGE pass above read every frame of the file itself.
+	var every := VideoImport.every_for(D.fps)
+	var J := VideoImport.thin(D, every, AnimImport.refine(D, every))
 	var keep_S: Scene = m.S
 	var keep_path: String = m.scene_path
 	var keep_find: Array = m.findings
-	m.S = D
+	m.S = J
 	m.scene_path = ""
 	var ui := RealismUI.new(m)
 	var inp := ui.gather({})
-	var sc := RealismScore.compute(D, inp)
+	var sc := RealismScore.compute(J, inp)
 	var sm: Dictionary = ui._memo.get("sm", {})
 	m.S = keep_S
 	m.scene_path = keep_path
@@ -152,7 +157,7 @@ static func _lint(m: Node, B: Body, p: String, ext: String) -> Dictionary:
 	for it in sc["reasons"]:
 		reasons.append({"judge": it["judge"], "frames": [_frame(float(it["t0"]), fps, last), _frame(float(it["t1"]), fps, last)],
 			"points": snappedf(float(it["pen"]), 0.1), "text": it["text"]})
-	return {"ok": true, "format": ext, "how": how, "fps": fps, "frames": D.cards.size(), "length_s": snappedf(D.length(), 0.001),
+	return {"ok": true, "format": ext, "how": how, "fps": fps, "frames": D.cards.size(), "length_s": snappedf(D.length(), 0.001), "judged_cards": J.cards.size(),
 		"mapped": mapped, "findings": findings, "must_fix": must, "clean": findings.is_empty(),
 		"score": roundi(float(sc["score"])), "score_raw": snappedf(float(sc["raw"]), 0.1), "score_reasons": reasons,
 		"score_note": "RealismScore (I16 + I45 judges); the timing coach judged on its cited ranges only (no move database)"}
