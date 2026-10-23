@@ -16,6 +16,7 @@
 ##        no lines = the scene's saved "asserts"; an unread line gets the grammar back)
 ##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
 ##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
+##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -68,6 +69,9 @@
 ##                                 in s and frames (scripts/event_query.gd); an unknown phrase lists the known ones
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
+##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
+##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
+##                                 path = open it first (as open)
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -247,6 +251,16 @@ func _init() -> void:
 			await run(a)
 		"serve":
 			await serve()
+		"brief":   # N011 (scripts/scene_brief.gd)
+			var ti := a.find("--tokens")
+			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS
+			if a.size() < 2 or tk < SceneBrief.MIN_TOKENS or not open_scene(a[1]):
+				if a.size() < 2 or tk < SceneBrief.MIN_TOKENS:
+					done({"ok": false, "error": "brief <scene.json> [--tokens N]  (N >= %d)" % SceneBrief.MIN_TOKENS})
+				return
+			var br := await SceneBrief.brief(m, T, tk)
+			say(br["text"])
+			done(br)
 		_:
 			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | events <scene> \"<query>\" | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})
