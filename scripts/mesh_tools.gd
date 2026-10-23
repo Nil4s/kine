@@ -43,7 +43,7 @@ const TOOLS := [
 	{"id": "mesh_dissolve", "label": "Model: dissolve", "page": "MODEL", "keys": "Ctrl+X", "bl": "", "do": "", "also": "dissolve delete remove merge faces edges vertices clean", "desc": "remove the selected elements, the faces round them joined"},
 	{"id": "mesh_delete", "label": "Model: delete", "page": "MODEL", "keys": "Del", "bl": "", "do": "", "also": "delete remove erase vertices edges faces", "desc": "delete the selected elements"},
 	{"id": "mesh_merge", "label": "Model: merge vertices", "page": "MODEL", "keys": "M", "bl": "", "do": "", "also": "merge weld collapse join center vertices", "desc": "the selected vertices become one"},
-	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "", "also": "fill face make new close hole bridge", "desc": "a face on the selected vertices or across a hole"},
+	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "key:F", "also": "fill face make new close hole bridge grid", "desc": "a face on the selected vertices or across a hole"},
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},

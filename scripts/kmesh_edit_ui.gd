@@ -13,6 +13,7 @@ extends Node
 ##   M  merge at centre (Shift+M at the first, Alt+M by distance)       Ctrl+Z / Ctrl+Shift+Z  undo / redo
 ##   E  extrude (Shift+E: each face on its own)   I  inset (Shift+I: each face)   Ctrl+E  bridge two edge loops   (B02 / B03)
 ##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
+##   B06: F  make a face (2 verts: an edge)   Alt+F  fill the holes touching the selection (Shift+Alt+F: triangles)   Ctrl+F  grid fill
 ##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
@@ -122,7 +123,7 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
 		var ck := (ev as InputEventKey).keycode
-		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
+		if not (ck in [KEY_DELETE, KEY_E, KEY_Y, KEY_T, KEY_F] or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
@@ -135,7 +136,7 @@ func input(ev: InputEvent) -> bool:
 		if k in [KEY_DELETE, KEY_M] or (k == KEY_Z and (ev as InputEventKey).ctrl_pressed):
 			_b05_key(ev as InputEventKey)
 			return true
-		if _edit_key(ev as InputEventKey):
+		if _edit_key(ev as InputEventKey) or KMeshFill.key(self, ev as InputEventKey):   # B06: F / Alt+F / Ctrl+F
 			return true
 		if k == KEY_H and not (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).alt_pressed:
 			topo("heat")
