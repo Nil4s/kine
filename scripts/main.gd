@@ -2745,6 +2745,9 @@ func _ready() -> void:
 	onboard.start_when_clear.call_deferred()
 	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
 		_tour_after_recover.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
+	intro = KineIntro.maybe_start(self, cf, testing)   # THE OPENING INTRO over the finished app (scripts/intro/intro.gd): never in a test, a shot or headless
+	if intro != null:
+		intro.finished.connect(func(): intro = null)
 	var args := OS.get_cmdline_user_args()
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):
 		_recover_offer.call_deferred()
@@ -2931,6 +2934,9 @@ func _ready() -> void:
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png(path)
 		get_tree().quit()
+
+
+var intro: KineIntro   # the opening intro while it plays (null after, or when off)
 
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
