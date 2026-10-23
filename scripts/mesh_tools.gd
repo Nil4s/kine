@@ -58,6 +58,10 @@ const TOOLS := [
 	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "key:F", "also": "fill face make new close hole bridge grid", "desc": "a face on the selected vertices or across a hole"},
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
 	{"id": "mesh_modifiers", "label": "Model: modifier stack (mirror, subdivide, solidify, array, displace)", "page": "MODEL", "keys": "", "bl": "", "do": "op:modifiers", "also": "modifier modifiers stack non-destructive mirror symmetry subdivide subdivision solidify thickness shell array repeat copies displace noise bump apply bake", "desc": "a live stack on the mesh, shown in the view; edits stay on the base (A11, the panel on the right)"},
+	{"id": "mesh_shrinkwrap", "label": "Model: shrinkwrap onto the body (+4 mm)", "page": "MODEL", "keys": "", "bl": "", "do": "op:shrinkwrap", "also": "shrinkwrap shrink wrap project snap conform fit onto body skin surface armour armor plate offset nearest", "desc": "the selected verts (all when none) go to the nearest point of the fighter's skin at its current pose, 4 mm out (B13, one undo step)"},
+	{"id": "mesh_shrinkwrap_view", "label": "Model: project onto the body along the view", "page": "MODEL", "keys": "", "bl": "", "do": "op:shrinkwrap_view", "also": "shrinkwrap project projection along view camera direction ray cast onto body skin armour armor decal", "desc": "the selected verts cast along the view direction (both ways) onto the skin, 4 mm out (B13, one undo step)"},
+	{"id": "mesh_shrinkwrap_tgt", "label": "Model: shrinkwrap target = this mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:shrinkwrap_target", "also": "shrinkwrap target other mesh set use wrap onto", "desc": "this mesh becomes the other target (B13): open another and wrap it onto this one"},
+	{"id": "mesh_shrinkwrap_other", "label": "Model: shrinkwrap onto the other target", "page": "MODEL", "keys": "", "bl": "", "do": "op:shrinkwrap_other", "also": "shrinkwrap shrink wrap onto other target mesh project conform", "desc": "the selected verts to the nearest point of the other target, 4 mm out (B13, one undo step)"},
 	{"id": "mesh_uv_editor", "label": "Model: UV editor panel on / off", "page": "MODEL", "keys": "Shift+U", "bl": "", "do": "op:uv_editor", "also": "uv uvs editor unwrap texture island islands layout 2d move rotate scale", "desc": "the mesh's UVs in 2D: select verts or islands, G / R / S move / rotate / scale them (one undo step each)"},
 	{"id": "mesh_decimate", "label": "Model: decimate to half (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate", "also": "decimate reduce simplify collapse polycount fewer faces triangles optimize lower poly", "desc": "half the triangles, borders and UV seams kept, nothing flipped (one undo step; F03)"},
 	{"id": "mesh_decimate_q", "label": "Model: decimate to a quarter (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_quarter", "also": "decimate reduce simplify collapse polycount 25 percent quarter low poly", "desc": "a quarter of the triangles, borders and UV seams kept (one undo step; F03)"},
@@ -244,6 +248,8 @@ static func op(name: String, m) -> String:
 			return String(m.ui_status.text) if m.get("ui_status") != null else ""
 		"modifiers":
 			said = ui.mods.say_stack()
+		"shrinkwrap", "shrinkwrap_view", "shrinkwrap_other", "shrinkwrap_target":   # B13 (scripts/kmesh_shrinkwrap.gd)
+			said = KMeshShrinkwrap.op(name, m)
 		"uv_pack", "uv_game_2k", "uv_game_4k":   # D04 / D15 (KMeshUVPack): one undo step, says the px/cm
 			return KMeshUVPack.run_ui(ui, {"uv_pack": "pack", "uv_game_2k": "2k", "uv_game_4k": "4k"}[name])
 		"uv_editor":

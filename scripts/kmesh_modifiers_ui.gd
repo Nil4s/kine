@@ -292,6 +292,12 @@ func _block(i: int, mod: Dictionary) -> Control:
 			ob.selected = int(mod[key])
 			ob.item_selected.connect(func(s): set_param(i, key, s))
 			w = ob
+		elif kind == "s":   # B13: a channel name
+			var le := LineEdit.new()
+			le.text = String(mod[key])
+			le.placeholder_text = "(none)"
+			le.text_submitted.connect(func(t): set_param(i, key, t))
+			w = le
 		else:
 			var s := SpinBox.new()
 			var k := 100.0 if kind == "m" else 1.0

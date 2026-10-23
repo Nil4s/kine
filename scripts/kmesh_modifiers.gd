@@ -19,17 +19,21 @@ extends RefCounted
 ##             corner (off: a cube's corner gets t / sqrt(3)). The factor is capped at EVEN_CAP.
 ##   array     `count` copies, copy k moved by k * (rel_x/y/z * the bounding box size + off_x/y/z m) (Blender's relative
 ##             and constant offsets, summed). No merging between copies.
+##   shrinkwrap (B13, scripts/kmesh_shrinkwrap.gd) every vertex onto the target (0 = the fighter's body at its current
+##             pose, 1 = the "other" target mesh): mode nearest / along the vertex normal / along an axis, offset (m, + =
+##             outside), max_dist (0 = no limit; a vertex out of reach stays), dirs (both / out / in for the casts),
+##             channel = a vertex float channel as the influence ("" = every vertex). No target: an unchanged copy.
 ##   displace  every vertex moved by strength (m) along its normal or X / Y / Z, times the texture: "none" = 1 for every
 ##             vertex (Blender would give 0.5 with its 0.5 midlevel; here the strength is the distance), "noise" =
 ##             FastNoiseLite simplex in -1..1 at (vertex position / noise_size), seeded (same seed = same result).
 ## Attributes (A09): subdiv carries them (KMeshSubdiv), displace keeps them (same topology); mirror, solidify and array
 ## drop them (the evaluated mesh is for the viewport; apply_mod on those leaves the base without channels).
 
-const TYPES := ["mirror", "subdiv", "solidify", "array", "displace"]
-const NAMES := {"mirror": "Mirror", "subdiv": "Subdivide", "solidify": "Solidify", "array": "Array", "displace": "Displace"}
+const TYPES := ["mirror", "subdiv", "solidify", "array", "displace", "shrinkwrap"]
+const NAMES := {"mirror": "Mirror", "subdiv": "Subdivide", "solidify": "Solidify", "array": "Array", "displace": "Displace", "shrinkwrap": "Shrinkwrap"}
 const EVEN_CAP := 4.0
 ## [name, default, min, max, step, kind]: kind "m" a length in metres (the panel shows cm), "f" a float, "i" an int,
-## "b" a bool, "e:a,b,c" a choice (stored as its index)
+## "b" a bool, "e:a,b,c" a choice (stored as its index), "s" a short text (a channel name)
 const PARAMS := {
 	"mirror": [["axis", 0, 0, 2, 1, "e:X,Y,Z"], ["merge", true, 0, 1, 1, "b"], ["merge_dist", 0.001, 0.0, 0.1, 0.0001, "m"], ["plane", 0.0, -10.0, 10.0, 0.001, "m"]],
 	"subdiv": [["levels", 1, 1, 4, 1, "i"]],
@@ -38,6 +42,8 @@ const PARAMS := {
 		["off_x", 0.0, -10.0, 10.0, 0.001, "m"], ["off_y", 0.0, -10.0, 10.0, 0.001, "m"], ["off_z", 0.0, -10.0, 10.0, 0.001, "m"]],
 	"displace": [["strength", 0.05, -1.0, 1.0, 0.001, "m"], ["direction", 0, 0, 3, 1, "e:normal,X,Y,Z"], ["texture", 1, 0, 1, 1, "e:none,noise"],
 		["noise_size", 0.25, 0.01, 10.0, 0.01, "m"], ["seed", 0, 0, 9999, 1, "i"]],
+	"shrinkwrap": [["target", 0, 0, 1, 1, "e:body,other"], ["mode", 0, 0, 2, 1, "e:nearest,normal,axis"], ["offset", 0.004, -0.1, 0.1, 0.0005, "m"],
+		["max_dist", 0.0, 0.0, 2.0, 0.001, "m"], ["dirs", 0, 0, 2, 1, "e:both,out,in"], ["axis", 1, 0, 2, 1, "e:X,Y,Z"], ["channel", "", 0, 0, 0, "s"]],
 }
 
 ## message of the last failed call (empty after a success); each names a next step
@@ -57,6 +63,8 @@ static func clean(mod: Dictionary) -> Dictionary:
 		var kind := String(p[5])
 		if kind == "b":
 			d[p[0]] = bool(v)
+		elif kind == "s":
+			d[p[0]] = String(v).left(64)
 		elif kind == "i" or kind.begins_with("e:"):
 			d[p[0]] = clampi(int(v), int(p[2]), int(p[3]))
 		else:
@@ -158,6 +166,8 @@ static func describe(mod: Dictionary) -> String:
 			return "Array x%d" % int(mod["count"])
 		"displace":
 			return "Displace %s %s" % [Units.len(mod["strength"]), ["normal", "X", "Y", "Z"][int(mod["direction"])]]
+		"shrinkwrap":
+			return "Shrinkwrap %s %s %s" % [["body", "other"][int(mod["target"])], KMeshShrinkwrap.MODES[int(mod["mode"])], Units.len(mod["offset"])]
 	return t
 
 
@@ -200,6 +210,8 @@ static func run(m: KMesh, mod: Dictionary) -> KMesh:
 			return array(m, c["count"], off)
 		"displace":
 			return displace(m, c["strength"], c["direction"], c["texture"] == 1, c["noise_size"], c["seed"])
+		"shrinkwrap":
+			return KMeshShrinkwrap.evaluate_mod(m, c)
 	return _copy(m)
 
 
