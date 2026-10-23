@@ -187,6 +187,8 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
 		return true
+	if KMeshCurvesUI.handle(self, ev):   # B12: drag a curve point / handle, Alt+click adds one (scripts/kmesh_curves_ui.gd)
+		return true
 	if refp.input(ev):   # B21: only the two-point clicks while armed
 		return true
 	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)

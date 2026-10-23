@@ -86,6 +86,13 @@ const TOOLS := [
 	{"id": "mesh_origin_geometry", "label": "Model: set origin to the geometry centre", "page": "MODEL", "keys": "", "bl": "", "do": "op:origin_geometry", "also": "origin set centre center geometry bounds pivot object", "desc": "B17: the mesh's origin to the centre of its box; the mesh does not move (one undo step)"},
 	{"id": "mesh_origin_cursor", "label": "Model: set origin to the 3D cursor", "page": "MODEL", "keys": "", "bl": "", "do": "op:origin_cursor", "also": "origin set 3d cursor pivot object", "desc": "B17: the mesh's origin to the 3D cursor (Shift+right-click places it); the mesh does not move (one undo step)"},
 	{"id": "mesh_origin_bottom", "label": "Model: set origin to the bottom centre", "page": "MODEL", "keys": "", "bl": "", "do": "op:origin_bottom", "also": "origin set bottom base floor feet centre center pivot object", "desc": "B17: the mesh's origin to the middle of its base (lowest y); the mesh does not move (one undo step)"},
+	{"id": "mesh_curves", "label": "Model: spin / lathe / curves panel", "page": "MODEL", "keys": "", "bl": "", "do": "op:curves", "also": "spin screw lathe revolve curve curves bezier panel", "desc": "B11 / B12: lathe a profile, make and edit bezier curves"},
+	{"id": "mesh_lathe", "label": "Model: spin / lathe the selected edges", "page": "MODEL", "keys": "", "bl": "", "do": "op:lathe", "also": "spin screw lathe revolve turn profile around axis vase bottle cup column ring thread helix", "desc": "B11: revolve the selected edge chain around an axis through the 3D cursor (angle, steps, screw); one undo step, live"},
+	{"id": "mesh_lathe_typed", "label": "Model: lathe a typed profile", "page": "MODEL", "keys": "", "bl": "", "do": "op:lathe_typed", "also": "spin lathe revolve typed profile numbers r y radius height", "desc": "B11: revolve the r,y pairs typed in the panel (cm)"},
+	{"id": "mesh_curve_add", "label": "Model: new curve (bezier: belt, strap, cable)", "page": "MODEL", "keys": "", "bl": "", "do": "op:curve_add", "also": "curve bezier spline path belt strap cable rope tube pipe sweep bevel taper", "desc": "B12: a bezier curve swept into a tube or strap; drag its points and handles"},
+	{"id": "mesh_curve_circle", "label": "Model: new closed curve (circle)", "page": "MODEL", "keys": "", "bl": "", "do": "op:curve_circle", "also": "curve bezier circle closed loop ring belt", "desc": "B12: a closed bezier circle"},
+	{"id": "mesh_curve_wrap", "label": "Model: shrinkwrap the curve onto the body", "page": "MODEL", "keys": "", "bl": "", "do": "op:curve_wrap", "also": "curve belt strap shrinkwrap wrap body waist skin fit", "desc": "B12 + B13: the curve onto the skin, 3 mm off"},
+	{"id": "mesh_curve_to_mesh", "label": "Model: convert the curve to mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:curve_to_mesh", "also": "curve convert bake mesh apply sweep", "desc": "B12: the swept curve becomes mesh (one undo step)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_uv_export", "label": "Model: export UV layout", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_export_uv_layout", "also": "uv layout export png svg texture template", "desc": ""},
 	{"id": "mesh_uvpack", "label": "Model: pack UV islands", "page": "MODEL", "keys": "Ctrl+P", "bl": "", "do": "op:uv_pack", "also": "pack uv islands packing layout margin texel density rotate atlas", "desc": "D04: islands packed into 0..1 (MaxRects), 4 px margin at 1024, equal texel density, each island turned to its smallest box"},
@@ -322,6 +329,8 @@ static func op(name: String, m) -> String:
 				said = KMeshFaceSetsUI.op(name, m)   # C09
 			elif name.begins_with("boolean_"):
 				said = KMeshBoolean.op(name, m)   # B10
+			elif name.begins_with("curve") or name.begins_with("lathe"):
+				return KMeshCurvesUI.op(name, m)   # B11 / B12 (scripts/kmesh_curves_ui.gd): it says what it did
 			elif name.begins_with("edgeflow_"):
 				said = KMeshEdgeFlow.op(name, m)   # B18
 			elif name.begins_with("mirror_") or name.begins_with("symmetrize"):
