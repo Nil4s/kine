@@ -152,6 +152,7 @@ var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot came
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
+var clash_ui: RomClashUI   # ARMOUR CLASH (ROADMAP_400 B24 / B25): ROM test + scene, worst frames, red verts, clearance heat map (scripts/rom_clash_ui.gd)
 var tm_ui: TimingMatchUI   # MATCH THE REFERENCE TIMING (ROADMAP I29): scripts/timing_match_ui.gd
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
@@ -2997,6 +2998,8 @@ func _process(dt: float) -> void:
 		mp_ui.tick(dt)
 	if ds_ui != null:
 		ds_ui.tick(dt)   # H17: one slice of the deformation grading while it runs (nothing otherwise)
+	if clash_ui != null:
+		clash_ui.tick(dt)   # B24: one slice of the armour clash check while it runs (nothing otherwise)
 	if sd_ui != null:
 		sd_ui.tick(dt)   # STYLE DIAL: forgets its base when anything else changed the scene
 	if tcat_ui != null:
@@ -14173,6 +14176,9 @@ func _commands() -> Array:
 	if ds_ui == null:
 		ds_ui = DeformSceneUI.new(self)
 	ds_ui.commands(add)   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17)
+	if clash_ui == null:
+		clash_ui = RomClashUI.new(self)
+	clash_ui.commands(add)   # ARMOUR CLASH: ROM test, clearance (ROADMAP_400 B24 / B25)
 	if sd_ui == null:
 		sd_ui = StyleDialUI.new(self)
 	sd_ui.commands(add)   # STYLE DIAL (ROADMAP I6)
@@ -16290,6 +16296,8 @@ func _close_findings() -> void:
 		deform_view.visible = false   # F14: the 3 worst spots belong to the panel that listed them
 	if ds_ui != null:
 		ds_ui.hide_ghost()   # H17: the ghost belongs to the panel that listed its frame
+	if clash_ui != null:
+		clash_ui.hide_overlay()   # B24: the red verts (and a ROM pose) belong to the panel that listed them
 	ui_find.offset_right = ui_find.offset_left + 420   # I47: Speed limits narrows the panel so the whole body stays in view
 	ov.fix_preview(S, [], 0.0)
 

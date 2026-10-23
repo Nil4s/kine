@@ -148,6 +148,7 @@ func step(budget_ms := BUDGET_MS) -> bool:
 				Overlays.pose_skeleton(_skel, _idx, _G)
 				posed = true
 				_frames.append(read_pose(skin, _skel, bob))
+				_sampled(_frames.size() - 1)
 				_per_frame = maxf(_per_frame, float(Time.get_ticks_usec() - tf) / 1000.0)
 				# stop before a frame that would not fit (the dearest frame so far is the guess): a slice stays near the budget
 				if float(Time.get_ticks_usec() - t0) / 1000.0 + _per_frame >= budget_ms:
@@ -178,6 +179,11 @@ func finish_now(model: Dictionary, skel: Skeleton3D, idx: Dictionary, scene: Sce
 	while not step(1e9):
 		OS.delay_msec(1)
 	return res
+
+
+## called once per sampled frame, the scratch body _G posed at it (a subclass reads it: B24 keeps the frame's angles)
+func _sampled(_f: int) -> void:
+	pass
 
 
 func running() -> bool:

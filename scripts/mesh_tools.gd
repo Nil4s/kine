@@ -81,6 +81,7 @@ const TOOLS := [
 	{"id": "mesh_autoweights", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_bind_to_the_skeleton_auto_weights", "also": "skin weights bind bones heat", "desc": ""},
 	{"id": "mesh_mat_assign", "label": "Model: assign the material to the selected faces", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_assign", "also": "material materials pbr assign apply paint slot surface metal rough", "desc": "the Materials panel's picked slot goes on the selected faces (E01, one undo step)"},
 	{"id": "mesh_mat_select", "label": "Model: select the faces of a material", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_select", "also": "material materials pbr slot by which faces", "desc": "the faces wearing the Materials panel's picked slot become the selection"},
+	{"id": "mesh_romclash", "label": "Model: armour clash, range of motion (ROM test)", "page": "MODEL", "keys": "", "bl": "", "do": "op:romclash", "also": "armour armor clash range of motion rom test sweep cuts into body penetration clearance 1 cm heat map clothes safe plate", "desc": "B24 / B25: the armour on the fighter against the body over a sweep of every joint that moves it, to its limits: the worst poses listed, the offending verts lit red, the clearance per part (heat map)"},
 	{"id": "mesh_armour", "label": "Model: armour from the body (plate over anatomy tags)", "page": "MODEL", "keys": "", "bl": "", "do": "op:armour", "also": "armour armor plate shell vambrace pauldron greave breastplate bracer guard offset thickness solidify bevel skinned tags region deltoid forearm pectoral", "desc": "B23: a plate shell over the picked anatomy tags / regions, 4 mm off the skin, 3 mm thick, edges bevelled, skinned, added to the fighter (one undo step)"},
 	{"id": "mesh_wpaint", "label": "Model: weight paint (skin weights)", "page": "MODEL", "keys": "", "bl": "", "do": "op:wpaint", "also": "weight paint skin weights bone brush smooth normalise normalize mirror lock influence skinning", "desc": "H02: paint the active bone's skin weights (heat blue -> red): add / subtract / set / smooth, X mirror, lock bones (on / off)"},
 	{"id": "mesh_fset_from_sel", "label": "Model: face set from the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_from_sel", "also": "face set sets group polygroup selection selected new", "desc": "the selected faces become a new face set (C09; one undo step)"},
@@ -248,6 +249,10 @@ static func op(name: String, m) -> String:
 			return KMeshVPaintUI.toggle(m) if name == "vpaint" else KMeshVPaintUI.fill_op(m)
 		"armour":   # B23 (scripts/armour_from_body.gd, armour_ui.gd)
 			return ArmourUI.toggle(m)
+		"romclash":   # B24 / B25 (scripts/rom_clash.gd, rom_clash_ui.gd)
+			if m.clash_ui == null:
+				m.clash_ui = RomClashUI.new(m)
+			return m.clash_ui.run_said("rom")
 		"wpaint":
 			said = KMeshWPaintUI.toggle(m)
 		"bevel":
