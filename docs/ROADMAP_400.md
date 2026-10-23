@@ -16,7 +16,7 @@ Rules carried over: features first, tests light (one test per item, real numbers
 human claims cited (ANSUR II, NIOSH, gait papers); Blender is GPL, ideas only; no Maya reverse engineering; full suite
 once per 25 merged.
 
-Merged: 55 / 400 (★ 16 / 119)
+Merged: 56 / 400 (★ 17 / 119)
 
 ## The tracks
 
@@ -296,7 +296,7 @@ Merged: 55 / 400 (★ 16 / 119)
 - [ ] J21 ★ $$ Rig checked by motion: play the scene's moves on a new rig; joints that hit limits or flip show per frame
 - [ ] J22 ★ $$ Auto mass for a creature rig (G18 on any mesh) so the physics judges work on monsters too
 - [ ] J23 ★ $$ Weapon rigs from the grip book: a modeled weapon's holdable parts become the hand constraints
-- [ ] J24 ★ $ Rig from words: "add a tail with 8 bones" through the words box
+- [x] J24 ★ $ Rig from words: "add a tail with 8 bones" through the words box
 - [ ] J25 ★ $$ Rig diff: two rig versions compared bone by bone (rest, limits, weights) before re-rigging an animated character
 
 ## K. Viewport + render
