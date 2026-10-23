@@ -8189,6 +8189,18 @@ func _kmesh_topo(what: String) -> void:
 	kmed.topo(what)
 
 
+## D11 (scripts/kmesh_uv_export.gd): the test cube's UV layout as PNG + SVG; a cube without UVs is unwrapped first (as U does)
+func _kmesh_uv_export() -> void:
+	if kmed == null or not kmed.on:
+		_kmesh_edit_start()
+	var of := func() -> KMesh:
+		if not kmed.mesh.has_attr(KMeshUV.UV):
+			KMeshUV.seams_by_angle(kmed.mesh, 60.0)
+			KMeshUV.unwrap_lscm(kmed.mesh)
+		return kmed.mesh
+	KMeshUVExport.ask(self, of, _say)
+
+
 ## SCULPT PAGE, FIRST STEP (ROADMAP_400 C01/C02; scripts/kmesh_sculpt.gd, kmesh_sculpt_ui.gd): a test sphere you can sculpt
 var ksc: KMeshSculptUI
 
@@ -14141,6 +14153,7 @@ func _commands() -> Array:
 	add.call("Model: triangulate", "", _kmesh_topo.bind("tri"), "triangulate triangles tris split quads ngons faces mesh model topology", false, "split the test cube's selected faces (face mode) or every face into triangles (Ctrl+T in the cube): quads by the shorter diagonal, concave n-gons by ear clipping (Ctrl+Z undoes)")
 	add.call("Model: tris to quads", "", _kmesh_topo.bind("quad"), "quadrangulate quads tris to quads join triangles mesh model topology", false, "join pairs of flat, near-square triangles into quads, best pairs first; UV seams stay (Alt+J in the cube; Ctrl+Z undoes)")
 	add.call("Model: topology heat map", "", _kmesh_topo.bind("heat"), "topology heat map poles triangles ngons stretched quads valence check mesh model retopo", false, "colour the test cube's poles (3, 5, 6+ edges), triangles, n-gons and stretched quads, with a legend of counts (H in the cube)")
+	add.call("Model: export UV layout", "", _kmesh_uv_export, "uv layout export png svg texture template unwrap snapshot paint substance photoshop lines islands stretch", false, "the test cube's UV layout as a transparent PNG + an SVG (512 to 4096 px, line colour and width, fill by island or stretch, margin outline), NEW files in user://uv_layouts (D11)")
 	add.call("Walk along a path...", "", _pathwalk_start, "walk run path floor points curve gait jog sprint generate steps", true, "click points on the floor, pick walk or run and a speed, Enter builds the cards as ONE undo step")
 	add.call("Mirror in place", "", _mirror_in_place, "mirror left right reflect whole scene cards symmetry", true, "the open scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)")
 	add.call("Mirror the scene (a copy in _wip)", "", _mirror_scene, "mirror copy save file left handed reflect scene wip", false, "a left-handed copy of the scene saved in scenes/_wip and opened; the open scene is untouched")
