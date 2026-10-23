@@ -90,6 +90,8 @@ const TOOLS := [
 	{"id": "mesh_fset_grow", "label": "Model: grow the face sets of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_grow", "also": "face set sets grow expand ring polygroup", "desc": "each set of the selected faces takes one more ring of faces (C09)"},
 	{"id": "mesh_fset_shrink", "label": "Model: shrink the face sets of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_shrink", "also": "face set sets shrink contract ring polygroup", "desc": "each set of the selected faces gives up its outer ring (C09)"},
 	{"id": "mesh_fset_colors", "label": "Model: face-set colours on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_colors", "also": "face set sets colour color overlay tint polygroup show", "desc": "each face set tinted in its own colour (C09)"},
+	{"id": "mesh_realsize", "label": "Model: real-size check", "page": "MODEL", "keys": "", "bl": "", "do": "op:realsize", "also": "real size scale units dimensions sanity check too big small long sword helmet glove boot body proportions cm mm", "desc": "B27: the model's box against the fighter (a sword vs the arm, a helmet vs the head), with a readout beside it"},
+	{"id": "mesh_realsize_fix", "label": "Model: real-size rescale (units fix)", "page": "MODEL", "keys": "", "bl": "", "do": "op:realsize_fix", "also": "real size rescale units cm mm fix scale 100 1000 import", "desc": "B27: a model made in cm or mm scaled back to metres, one undo step"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -270,6 +272,10 @@ static func op(name: String, m) -> String:
 			ui.toggle_uv_editor()
 		"mat_assign", "mat_select":   # E01: the Materials panel says what it did
 			var _n: int = ui.mat_panel.assign_selection() if name == "mat_assign" else ui.mat_panel.select_by(ui.mat_panel.cur)
+		"realsize":   # B27 (scripts/real_size.gd): the readout says it
+			return RealSizeUI.toggle(m)
+		"realsize_fix":
+			return RealSizeUI.fix_op(m)
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
