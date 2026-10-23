@@ -88,6 +88,8 @@ const TOOLS := [
 	{"id": "mesh_fset_regions", "label": "Model: face sets from the body regions", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_regions", "also": "face set sets group polygroup body region regions bone", "desc": "one face set per A18 body region (C09)"},
 	{"id": "mesh_fset_materials", "label": "Model: face sets from the material slots", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_materials", "also": "face set sets group polygroup material materials slot", "desc": "one face set per material slot (C09)"},
 	{"id": "mesh_fset_uv", "label": "Model: face sets from the UV islands", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_uv", "also": "face set sets group polygroup uv island islands", "desc": "one face set per UV island (C09)"},
+	{"id": "mesh_sculpt_pose", "label": "Model: sculpt the body in pose", "page": "", "keys": "", "bl": "", "do": "op:sculpt_pose", "also": "sculpt pose posed frame animation bent elbow knee rest inverse skinning brush stroke body", "desc": "the open body skinned at this frame; every sculpt brush works on it and each stroke lands in the rest mesh, one undo step (C19, scripts/sculpt_pose_ui.gd)"},
+	{"id": "mesh_sculpt_pose_corr", "label": "Model: sculpt in pose as a corrective (on / off)", "page": "", "keys": "", "bl": "", "do": "op:sculpt_pose_corr", "also": "corrective shape key pose space deformation psd elbow knee bend sculpt", "desc": "pose-sculpt strokes go into a corrective shape tied to the bent joint instead of the rest mesh (C19)"},
 	{"id": "mesh_fset_hide", "label": "Model: hide the face sets of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_hide", "also": "face set sets hide hidden polygroup", "desc": "the sets of the selected faces are not drawn and not sculpted (C09)"},
 	{"id": "mesh_fset_isolate", "label": "Model: isolate the face set of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_isolate", "also": "face set sets isolate solo only polygroup", "desc": "every other face set hidden (C09)"},
 	{"id": "mesh_fset_show_all", "label": "Model: show every face set", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_show_all", "also": "face set sets show unhide reveal all polygroup", "desc": "every hidden face set drawn again (C09)"},
@@ -297,6 +299,8 @@ static func op(name: String, m) -> String:
 				return ui.refp.open_dialog() if name == "refplane_add" else ui.refp.arm_two_points()
 			elif name.begins_with("fset_"):
 				said = KMeshFaceSetsUI.op(name, m)   # C09
+			elif name.begins_with("sculpt_pose"):
+				return SculptPoseUI.op(name, m)   # C19 (scripts/sculpt_pose_ui.gd): it says what it did
 			elif name.begins_with("boolean_"):
 				said = KMeshBoolean.op(name, m)   # B10
 	if said != "":

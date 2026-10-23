@@ -59,6 +59,8 @@ var _mouse := Vector2.ZERO
 var _ov: Control
 var tint: KMeshMaskTint
 var fsets := KMeshFaceSetsUI.new()   # C09
+var source: Callable   # C19 (scripts/sculpt_pose_ui.gd): the mesh to sculpt, -> {"mesh", "at", "undo", "say"}; empty = the sphere
+var left: Callable     # C19: called after leaving
 
 
 func setup(main: Node) -> void:
@@ -91,9 +93,10 @@ static func make_sphere(r := R, n := SPLIT) -> KMesh:
 func start() -> void:
 	if on:
 		return
-	mesh = make_sphere()
+	var src: Dictionary = source.call() if source.is_valid() else {}
+	mesh = src.get("mesh", null) if src.has("mesh") else make_sphere()
 	KMeshMask.ensure(mesh)   # C03: made before the first undo step so every step diffs the same channel
-	undo = KMeshUndo.new()
+	undo = src.get("undo", null) if src.has("undo") else KMeshUndo.new()
 	view = KMeshView.new()
 	view.name = "sculpt_view"
 	view.show_wire = false
@@ -105,6 +108,8 @@ func start() -> void:
 	view.add_child(tint)
 	fsets.attach(self)
 	view.position = AT
+	if src.has("at"):
+		view.transform = src["at"]
 	on = true
 	_stroking = false
 	_ov.visible = true
@@ -113,6 +118,9 @@ func start() -> void:
 		matcap.attach(view)
 	if alphas != null:
 		alphas.attach()
+	if src.has("say"):
+		m._say(String(src["say"]))
+		return
 	m._say("Sculpt: test sphere. Drag on it to sculpt (%s). D C I S F P E G K pick the brush, M masks, [ ] radius, X symmetry, Ctrl+Z undo, Esc leaves" % brush)
 
 
@@ -130,6 +138,9 @@ func stop() -> void:
 		alphas.detach()
 	view.queue_free()
 	view = null
+	if left.is_valid():
+		left.call()
+		return
 	m._say("Sculpt: left the test sphere (nothing was saved). Run Sculpt: a test sphere (preview) to come back")
 
 
