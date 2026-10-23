@@ -174,6 +174,7 @@ const RULES := {
 	"BALANCE": ["Rulebook.BAL_OUT", "Rulebook.BAL_RUN", "Balance.MASS"],
 	"LOOP SEAM": ["Rulebook.LOOP_DEG", "Rulebook.LOOP_GAP", "Rulebook.LOOP_JUMP"],
 	"FOOT SLIDE": ["Rulebook.FOOT_SKATE", "Rulebook.FOOT_DOWN"],
+	"ASSERT": ["Rulebook.FOOT_SKATE"],   # N002: the line's own numbers are the author's; the only Kine bar under it is "planted" (BodyAssert.SLIDE = FOOT_SKATE)
 	"THROUGH A PROP": ["Rulebook.PROP_WARN", "Rulebook.PROP_FAIL"],
 	"FLOATS": ["Rulebook.FLOAT_MIN", "Rulebook.FLOAT_MAX", "Rulebook.FLOAT_RUN"],
 	"JUMP": ["Rulebook.JUMP_HIGH", "Rulebook.JUMP_DIP", "Rulebook.JUMP_LAND", "Rulebook.JUMP_FALL0", "Rulebook.JUMP_FALL1",
