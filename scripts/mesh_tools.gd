@@ -62,6 +62,7 @@ const TOOLS := [
 	{"id": "mesh_decimate", "label": "Model: decimate to half (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate", "also": "decimate reduce simplify collapse polycount fewer faces triangles optimize lower poly", "desc": "half the triangles, borders and UV seams kept, nothing flipped (one undo step; F03)"},
 	{"id": "mesh_decimate_q", "label": "Model: decimate to a quarter (quadric collapse)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_quarter", "also": "decimate reduce simplify collapse polycount 25 percent quarter low poly", "desc": "a quarter of the triangles, borders and UV seams kept (one undo step; F03)"},
 	{"id": "mesh_decimate_planar", "label": "Model: planar decimate (join flat faces)", "page": "MODEL", "keys": "", "bl": "", "do": "op:decimate_planar", "also": "planar decimate limited dissolve flat coplanar merge faces clean simplify", "desc": "faces in one plane (within 5 deg) become one, seams and borders kept (one undo step; F03)"},
+	{"id": "mesh_rigretopo", "label": "Model: rig-aware retopo (loops at elbows, knees, shoulders, hips)", "page": "MODEL", "keys": "", "bl": "", "do": "op:rigretopo", "also": "retopo retopology remesh quad quads rig aware edge loops joints elbow knee shoulder hip deform bend topology limbs animation", "desc": "the body's arms and legs rebuilt as quad tubes with loops placed from the skeleton: 5 across each elbow / knee, radial rings round the shoulders / hips; weights from the skin (one undo step; F10)"},
 	{"id": "mesh_lods", "label": "Model: make LODs (100 / 50 / 25 / 12 %)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lods", "also": "lod lods level of detail levels game engine distance decimate", "desc": "4 levels kept with the mesh, each with its error (F04)"},
 	{"id": "mesh_lod_next", "label": "Model: next LOD (preview)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lod_next", "also": "lod next preview cycle level of detail show", "desc": "shows LOD0 -> 1 -> 2 -> 3 -> 0 (F04)"},
 	{"id": "mesh_lod_export", "label": "Model: export the LODs (.glb)", "page": "MODEL", "keys": "", "bl": "", "do": "op:lod_export", "also": "lod export glb gltf unreal godot engine levels of detail save", "desc": "one .glb with model_LOD0 .. model_LOD3 (F04)"},
@@ -259,6 +260,8 @@ static func op(name: String, m) -> String:
 				said = KMeshDecimate.op(name, m)   # F03
 			elif name.begins_with("lod"):
 				said = KMeshLOD.op(name, m)   # F04
+			elif name == "rigretopo":
+				said = KMeshRigRetopo.op(m)   # F10
 	if said != "":
 		m._say(said)
 	return said
