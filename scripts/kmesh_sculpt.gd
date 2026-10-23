@@ -21,6 +21,8 @@ extends RefCounted
 ##   MASK (C03, scripts/kmesh_mask.gd): the "mask" brush paints the mesh's 0..1 "mask" channel instead of moving verts
 ##   (invert = erase; params "mask_amount", 1 = a full mask at the centre in one dab); every other brush's displacement of
 ##   a vert (and grab's) is multiplied by (1 - mask), the mask as it was when the stroke began.
+##   ALPHAS + STROKE METHODS (C08, scripts/sculpt_alpha_stroke.gd): params "alpha", "stroke_method" (dots / drag rect /
+##   spray), "alpha_rot" ...: each dab's falloff is multiplied by the alpha in the dab's tangent frame. Off (null) by default.
 
 const DRAW := "draw"
 const CLAY := "clay strips"
@@ -59,6 +61,7 @@ var _grab_v := {}          # grab: vert -> position at the press
 var _mask := PackedFloat32Array()   # C03: the mask at the stroke's start (empty = none)
 var _symx: KMeshSculptSym  # C07: Y / Z / radial symmetry (scripts/kmesh_sculpt_sym.gd), null when off
 var _pend = null           # C07: while an Array, _apply holds the deltas back for the copies of one dab
+var _alpha: SculptAlphaStroke   # C08: the alpha / stroke method of this stroke, null when plain
 
 
 static func falloff(kind: String, t: float) -> float:
@@ -96,6 +99,7 @@ func begin(m: KMesh, params := {}) -> void:
 	_sym = m.symmetry_map(0, 1e-4) if p["sym_x"] else PackedInt32Array()
 	_mask = KMeshMask.values(m)
 	_symx = KMeshSculptSym.make(self)
+	_alpha = SculptAlphaStroke.make(self)
 
 
 func _build_hash() -> void:
@@ -171,6 +175,8 @@ func end() -> void:
 
 ## one dab at `hit` (on the surface, mesh-local space) with the stroke normal `normal`; returns the verts moved
 func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
+	if _alpha != null and not _alpha.inside:
+		return _alpha.dab(self, hit, normal, pressure)
 	if _symx != null and _pend == null:
 		return _symx.dab(self, hit, normal, pressure)
 	var r := float(p["radius"])
@@ -184,6 +190,8 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	w.resize(ids.size())
 	for i in ids.size():
 		w[i] = falloff(fk, vp[ids[i]].distance_to(hit) / r)
+	if _alpha != null:
+		w = _alpha.weigh(self, ids, w, hit, n, r)
 	var br := String(p["brush"])
 	if br == MASK:
 		_has_last = true
