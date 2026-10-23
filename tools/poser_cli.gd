@@ -11,6 +11,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
 ##   $G --headless --path . -s tools/poser_cli.gd -- validate scenes/combo3.json     (docs/scene.schema.json; tools/validate.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 sel=lowerarm_r snap_the_part_to_90 update --out scenes/_wip/x.json
+##   $G --headless --path . -s tools/poser_cli.gd -- textview scenes/combo3.json [card=N]   (N001: the pose as ASCII + words)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -51,6 +52,8 @@
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
+##   text_view {t | frame, fps | card}  N001: the pose as text: front + side ASCII stick figures and one paragraph
+##                                 (stance, weight split, lean, hands in landmarks, feet, facing, balance); scripts/text_view.gd
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -193,6 +196,19 @@ func _init() -> void:
 			await run(a)
 		"serve":
 			await serve()
+		"textview":
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "textview <scene.json> [card=N]"})
+				return
+			var tc := 1
+			for x in a.slice(2):
+				if String(x).begins_with("card=") and String(x).substr(5).is_valid_int():
+					tc = int(String(x).substr(5))
+			var tv: Dictionary = await TextView.on_main(m, {"card": tc})
+			if tv["ok"]:
+				say(tv["text"])
+			done(tv)
 		_:
 			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})
