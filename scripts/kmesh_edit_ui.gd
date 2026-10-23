@@ -17,6 +17,7 @@ extends Node
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
+##   O  proportional editing on / off (B07, KMeshProportional; Shift+O falloff, Alt+O connected only, wheel = radius in G)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -51,6 +52,7 @@ var live := {}                # B09: the primitive still live: {kind, params, st
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
+var prop := KMeshProportional.new()   # B07: proportional editing for the Blender-style G / R / S
 
 
 func setup(main: Node) -> void:
@@ -111,7 +113,7 @@ func set_mode(md: int) -> void:
 
 
 func _process(_dt: float) -> void:
-	if meas != null and on:
+	if on and (meas != null or prop.showing(m.blk) or not prop.last_circle.is_empty()):   # B07: one more frame clears the circle
 		_ov.queue_redraw()   # the label follows the camera
 
 
@@ -136,6 +138,9 @@ func input(ev: InputEvent) -> bool:
 			_b05_key(ev as InputEventKey)
 			return true
 		if _edit_key(ev as InputEventKey):
+			return true
+		if k == KEY_O:   # B07
+			m._say(prop.key(ev as InputEventKey, m.blk != null and m.blk.on))
 			return true
 		if k == KEY_H and not (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).alt_pressed:
 			topo("heat")
@@ -434,6 +439,8 @@ func _report() -> void:
 func _draw_overlay() -> void:
 	if on and meas != null:
 		meas.draw_label(_ov, m.cam)
+	if on:
+		prop.draw(_ov, m.cam, view, m.blk)   # B07: the proportional radius while a G / R / S is live
 	if not on or not _drag:
 		return
 	var c := Tok.c("pick_hover")

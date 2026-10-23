@@ -13,6 +13,8 @@ extends RefCounted
 ##   a typed number = metres / degrees / factor. One KMeshUndo step per confirmed edit.
 ##   Enter or left click = keep (ONE undo step); Esc or right click = cancel, the old state put back exactly.
 ## The live readout is the status line ("R  X  45°"). Behaviour learned from Blender's manual; no Blender code.
+## B07: with proportional editing on (O in the model preview, kmesh_proportional.gd) the unselected verts within its
+## radius follow, weighted by the falloff; the wheel sizes the radius while a mesh G / R / S is live.
 ## Tests: tests/blkeys_test.gd.
 
 const CFG := "look"
@@ -158,6 +160,8 @@ func _begin_mesh(which: String) -> void:
 	for i in _idx:
 		_centre += _verts[i]
 	_centre /= float(_idx.size())
+	if ui.prop.on:
+		ui.prop.begin(ui.mesh, _idx, _verts)
 	where = "mesh"
 	active = which
 	axis = 0 if which == "R" else -1
@@ -177,6 +181,10 @@ func _modal(ev: InputEvent) -> bool:
 			return true
 		if mb.button_index == MOUSE_BUTTON_RIGHT:
 			cancel()
+			return true
+		if where == "mesh" and m.kmed.prop.on and mb.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			m.kmed.prop.wheel(mb.button_index == MOUSE_BUTTON_WHEEL_UP)   # B07: the proportional radius
+			_apply()
 			return true
 		return false   # the wheel still zooms
 	if ev is InputEventMouseMotion:
@@ -298,11 +306,11 @@ func _apply_mesh() -> void:
 	var d := Vector3.ZERO
 	var basis := Basis.IDENTITY
 	var sc := Vector3.ONE
+	var ax := Vector3.ZERO
 	match active:
 		"G":
 			d = _grab_delta()
 		"R":
-			var ax := Vector3.ZERO
 			ax[maxi(axis, 0)] = 1.0
 			basis = Basis(ax, deg_to_rad(v))
 		"S":
@@ -319,6 +327,8 @@ func _apply_mesh() -> void:
 				mesh.verts[i] = _centre + basis * (p - _centre)
 			"S":
 				mesh.verts[i] = _centre + (p - _centre) * sc
+	if ui.prop.on:
+		ui.prop.apply(mesh, active, d, ax, deg_to_rad(v), sc, _centre)   # B07
 	mesh._compute_normals()
 	ui.view.mark_dirty()
 
