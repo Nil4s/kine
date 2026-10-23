@@ -124,8 +124,16 @@ def changed(ref, listed):
     def refs(k):
         return sorted(n for n, (w, _) in tests.items() if w & k)
 
+    def suite_list_only(r):   # every changed line of run_all.sh is an ALL= / EXTRA= suite list: adding a suite is not a broad change
+        d = git("diff", r.split("..")[0], "--", "tools/run_all.sh") or ""
+        ch = [l[1:] for l in d.splitlines() if l[:1] in "+-" and not l.startswith(("+++", "---"))]
+        return bool(ch) and all(re.match(r'\s*(ALL|EXTRA)="', l) for l in ch)
+
     chosen, broad, code = [], [], False
     for f in sorted(files):
+        if f == "tools/run_all.sh" and suite_list_only(ref):
+            print("#   %s: only the suite list changed (a new suite runs as itself)" % f)
+            continue
         if f in BROAD:
             broad.append(f)
             print("#   %s: too broad to map" % f)
