@@ -472,6 +472,23 @@
      },
      "additionalProperties": false
     },
+    "bones": {
+     "type": "array",
+     "description": "J01 BONE EDITOR (scripts/bone_editor.gd): the user's extra bones under the UE5 skeleton or each other; only when any. head / tail = metres in the parent's rest frame (its head the origin), roll = degrees about the bone (armature space), connect = the head stays on the parent's tail",
+     "items": {
+      "type": "object",
+      "required": ["name", "parent", "head", "tail", "roll"],
+      "properties": {
+       "name": {"type": "string"},
+       "parent": {"type": "string"},
+       "head": {"$ref": "#/$defs/vec3"},
+       "tail": {"$ref": "#/$defs/vec3"},
+       "roll": {"type": "number"},
+       "connect": {"type": "boolean"}
+      },
+      "additionalProperties": false
+     }
+    },
     "ik": {
      "type": "object",
      "description": "IK / FK with pole targets (GAP_ANALYSIS row 13): per limb (named by its tip), keys over time; written only when there is one. Each key: t = seconds, target = where the wrist / ankle goes (world, m), pole = a point the elbow / knee bends toward (world, m), w = IK weight 0..1 (linear between keys), rot = the hand / foot world rotation (optional). \"spine\" = the back's spline IK (scripts/spine_ik.gd): target = the chest control, pole = the mid-back control, twist = [hip, chest] degrees. scripts/limb_ik.gd",

@@ -4669,6 +4669,8 @@ func _refresh() -> void:
 	PerfDoc.add("cloth", _pk)
 	_pk = PerfDoc.t()
 	_rigx_draw()   # J24: the words-made rig (tail, ears, cape) on the body
+	if bed != null or not S.bones.is_empty():
+		_bone_ui().draw()   # J01: your extra bones (scripts/bone_editor_ui.gd)
 	_hair_draw()   # ROADMAP 87: the hair strands (scripts/hair.gd) at the playhead, from the baked frames
 	PerfDoc.add("hair", _pk)
 	if hitbox_ui != null:
@@ -4855,6 +4857,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if counter_ui != null and counter_ui.on and counter_ui.input(ev):   # I3: Tab picks the next ghost, Enter places it, Esc puts them away
+		get_viewport().set_input_as_handled()
+		return
+	if bed != null and bed.on and bed.input(ev):   # J01: the bone editor's keys (E, Shift+A, X, Tab, Esc), picks and end-ball drags
 		get_viewport().set_input_as_handled()
 		return
 	if kmed != null and kmed.on and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
@@ -5399,6 +5404,18 @@ func _rig_words(text: String) -> Dictionary:
 	return {"ok": true, "op": r["op"], "kind": kind, "chains": made.size() if r["op"] == "add" else have}
 
 
+## BONE EDITOR (ROADMAP_400 J01; scripts/bone_editor.gd + bone_editor_ui.gd): your extra bones, drawn and edited
+var bed: BoneEditUI
+
+
+func _bone_ui() -> BoneEditUI:
+	if bed == null:
+		bed = BoneEditUI.new()
+		add_child(bed)
+		bed.setup(self)
+	return bed
+
+
 var _rigx_root: Node3D
 var _rigx_mat: StandardMaterial3D
 var _rigx_dot_mat: StandardMaterial3D
@@ -5602,6 +5619,7 @@ func _snapshot() -> Dictionary:
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
+		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
@@ -5753,6 +5771,8 @@ func _restore(u: Dictionary) -> void:
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
 		S.rigx = u["rigx"].duplicate(true)   # RIG FROM WORDS (J24), undone like a card
 		ov.mark_dirty()
+	if u["scene"] == S and u.has("bones") and var_to_str(u["bones"]) != var_to_str(S.bones):
+		S.bones = u["bones"].duplicate(true)   # BONE EDITOR (J01), undone like a card
 	if u["scene"] == S and u.has("hair") and var_to_str(u["hair"]) != var_to_str(S.hair):
 		S.hair = u["hair"].duplicate(true)   # HAIR STRANDS (ROADMAP 87), undone like a card: the strands are baked again
 		_hair_bake()
@@ -14136,6 +14156,7 @@ func _commands() -> Array:
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
+	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
 	add.call("Model: subdivide the test cube (Catmull-Clark)", "", _kmesh_subdivide, "model mesh subdivide subdivision catmull clark smooth subsurf crease level", false, "one Catmull-Clark level on the test cube (every face becomes quads, creases kept); Ctrl+Z takes it back in one step")
 	add.call("Model: triangulate", "", _kmesh_topo.bind("tri"), "triangulate triangles tris split quads ngons faces mesh model topology", false, "split the test cube's selected faces (face mode) or every face into triangles (Ctrl+T in the cube): quads by the shorter diagonal, concave n-gons by ear clipping (Ctrl+Z undoes)")
