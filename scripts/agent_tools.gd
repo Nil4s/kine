@@ -458,4 +458,6 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"knobs":   # N025 MOVE KNOBS (scripts/move_knobs.gd): {card, read: true} the values; {card, set: {...}} one undo step
 			var kn := MoveKnobs.serve(m, p)
 			return _ok(id, kn) if kn["ok"] else _err(id, -32602, String(kn["error"]))
+		"try":   # N019 TRY N WAYS: variants (or one change swept) each dry-run, scored, ranked; apply = the pick as one undo step (scripts/try_n.gd)
+			return await TryN.request(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

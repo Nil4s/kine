@@ -64,8 +64,10 @@ static func request(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
 	return T._ok(id, r)
 
 
-## THE DRY RUN. score = also the realism score before / after (the timing coach's move database is read once, ~20 s)
-static func run(T: AgentTools, steps: Array, score := true) -> Dictionary:
+## THE DRY RUN. score = also the realism score before / after (the timing coach's move database is read once, ~20 s).
+## probe (N019 try N ways): called once in the dry state, after the steps and before anything is put back; its answer is
+## r["probe"] (what the caller measures on the variant: assertions, a score read its own way)
+static func run(T: AgentTools, steps: Array, score := true, probe := Callable()) -> Dictionary:
 	var m: Node = T.m
 	var no := []
 	for s: String in steps:
@@ -116,6 +118,7 @@ static func run(T: AgentTools, steps: Array, score := true) -> Dictionary:
 	var same_file := not swapped and JSON.stringify(sd1) == js0
 	var f1: Array = f0 if same_file else (T.findings() if m.S.cards.size() >= 2 else [])
 	var sc1: Variant = sc0 if same_file else (cold_score(m) if score else null)
+	var pv: Variant = probe.call() if probe.is_valid() else null
 	# the steps it would push: entries that are not the original ones (by identity; a size difference reads 0 at the 60 cap)
 	var would_undo: int = m.undo.filter(func(e): return not undo0.any(func(x): return is_same(x, e))).size()
 	# ---- put back
@@ -153,6 +156,8 @@ static func run(T: AgentTools, steps: Array, score := true) -> Dictionary:
 	if score:
 		r["score"] = {"before": sc0, "after": sc1, "delta": snappedf(float(sc1) - float(sc0), 0.01) if sc0 != null and sc1 != null else null,
 			"note": "the shown realism score 0-100 (RealismScore.shown of the raw total), every judge asked cold" if sc0 != null else "needs a scene of two cards or more"}
+	if probe.is_valid():
+		r["probe"] = pv
 	if err != "":
 		r["error"] = err
 	return r
