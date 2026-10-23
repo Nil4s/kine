@@ -7,6 +7,7 @@ extends Node
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
 ##   Ctrl+Z  undo the last mesh edit (A12: "Model: subdivide the test cube (Catmull-Clark)" is one step)
+##   K  add a shape key from the current shape (A13)                    [ / ]  the last key's value -0.1 / +0.1
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 
 const SIDE := 0.6
@@ -47,6 +48,7 @@ func start() -> void:
 	mesh = KMeshView.make_cube(SIDE, SPLIT)
 	undo = KMeshUndo.new()
 	sel = KMeshSelect.new(mesh, KMeshSelect.VERT)
+	KMeshShapes.ensure(mesh)   # A13: the cube as made is the basis; K captures an edit as a key
 	view = KMeshView.new()
 	view.name = "kmesh_view"
 	view.set_mesh(mesh, sel)
@@ -111,6 +113,10 @@ func input(ev: InputEvent) -> bool:
 				sel.select_all()
 				view.mark_dirty()
 				m._say("Model: all %d selected. Click empty space to clear" % sel.count())
+			KEY_K:
+				add_shape_key()
+			KEY_BRACKETLEFT, KEY_BRACKETRIGHT:
+				nudge_shape_key(-0.1 if k == KEY_BRACKETLEFT else 0.1)
 			KEY_ESCAPE:
 				if armed != "" or _drag:
 					armed = ""
@@ -210,6 +216,40 @@ func subdivide(levels := 1) -> void:
 	sel.clear()
 	view.mark_dirty()
 	m._say("Model: subdivided (Catmull-Clark), now " + str(mesh.face_count()) + " faces. Ctrl+Z takes it back")
+
+
+## A13 K: the current shape becomes a new key at value 1 (the others go to 0, so the cube does not move); one undo step
+func add_shape_key() -> int:
+	undo.begin(mesh)
+	var i := KMeshShapes.add_from_current(mesh, "Key %d" % (KMeshShapes.keys(mesh).size() + 1), KMeshShapes.BASIS, 1.0)
+	if i < 0:
+		undo.commit("cancelled")
+		m._say("Model: " + KMeshShapes.last_error)
+		return i
+	for j in KMeshShapes.keys(mesh).size():
+		if j != i:
+			KMeshShapes.keys(mesh)[j]["value"] = 0.0
+	KMeshShapes.apply(mesh)
+	undo.commit("Add shape key")
+	view.mark_dirty()
+	m._say("Model: shape key '%s' added at weight 1.0 ([ / ] change it, Ctrl+Z takes it back)" % KMeshShapes.keys(mesh)[i]["name"])
+	return i
+
+
+## A13 [ / ]: the last key's value up or down, the cube re-blended; one undo step
+func nudge_shape_key(dv: float) -> float:
+	var ks := KMeshShapes.keys(mesh)
+	if ks.is_empty():
+		m._say("Model: no shape keys yet. Move vertices (G), then K adds the shape as a key")
+		return NAN
+	var k: Dictionary = ks[ks.size() - 1]
+	undo.begin(mesh)
+	var v := KMeshShapes.set_value(mesh, k["name"], snappedf(float(k["value"]) + dv, 0.01))
+	KMeshShapes.apply(mesh)
+	undo.commit("Shape key value")
+	view.mark_dirty()
+	m._say("Model: shape key '%s' at weight %.1f ([ lowers, ] raises, Ctrl+Z takes it back)" % [k["name"], v])
+	return v
 
 
 func _report() -> void:
