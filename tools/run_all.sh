@@ -13,6 +13,8 @@ EXTRA="$EXTRA snap:w pivot:w"   # B08 / B14
 EXTRA="$EXTRA matcap:w brushpreset:w"   # C12 / C14
 EXTRA="$EXTRA modelcheck:w"   # B30
 EXTRA="$EXTRA boolean:h"   # B10
+EXTRA="$EXTRA deformscene:w"   # ROADMAP_400 H17
+case " $EXTRA " in *" bodymesh:"*) ;; *) EXTRA="$EXTRA bodymesh:w" ;; esac   # A18: lost when the EXTRA line above was re-set; H17 runs it with deformscene
 # suites that are slow BY DESIGN (name=seconds): text_blocking fits both hands on every card of every phrase (~0.25 s per arm fit, ~700 s alone),
 # gentle runs every one of 450+ commands from 7 hostile states (~2600+ cells); the default cap would stop them while they are still working
 SLOW="text_blocking=1800 gentle=2400"
