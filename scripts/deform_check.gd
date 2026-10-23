@@ -4,10 +4,14 @@
 ## step (the same linear-blend skinning as SkinPaint.refresh, on the vertices the joint moves) and every moved vertex is scored:
 ##   thick    = 1 - r_pose / r_rest, r = the vertex's distance to the axis of its main bone. A pinched crease and a candy-wrapper
 ##              twist both pull the skin onto the bone axis, so one number reads both (the axis "twist" names the wrapper).
-##              Edges that shrink (1 - shortest edge ratio of the one-ring) count the same way ("squeeze").
+##              Edges that only shrink do not count: skin folds in the inside of every bend, a living knee's too.
 ##   stretch  = (longest one-ring edge ratio - 1) / 1.5: skin torn apart by weights that do not follow the bones.
 ##   pen      = how far a vertex that moves rigidly with the joint (weight >= 0.9) goes into the PARENT limb's core (0.7 of its
 ##              median rest radius), as a share of that core: interpenetration of neighbouring parts.
+## Each vertex is scored by the mean of these over its one-ring, so one sliver vertex does not make a verdict.
+## Three verdicts: under OK_BELOW "deforms OK"; under BREAKS "bends, with losses" (the usual linear-blend volume loss at the
+## end of a range: the 3 spots are where correctives or weight smoothing go); at or past BREAKS "will break" (1.0 = the skin is
+## on the bone axis, or torn to 2.5x, or a whole core deep in the limb above: fix the weights before rigging on).
 ## The result is the 3 worst spots (one per joint family), each with joint, angle and a number. The real body and the scene are
 ## never edited: the skeleton is posed from a scratch Body and put back by the restore callable.
 ## Real ranges the sweep ends on: elbow flexion 145 deg, knee 145 deg, hip flexion 120 deg (AAOS "Joint Motion", Soucie 2011
@@ -19,6 +23,7 @@ const FRACS := [0.6, 1.0]
 const MIN_R := 0.012      # m: thickness is read where the skin is at least 1.2 cm off the bone axis at rest
 const MIN_EDGE := 0.002   # m: edges shorter than 2 mm at rest are skipped (their ratio is noise)
 const OK_BELOW := 0.30    # the verdict is "deforms OK" while the worst spot scores under this (30% thickness lost)
+const BREAKS := 1.0       # at or past this the skin breaks: all the thickness gone, a 2.5x tear, or a whole core deep
 const FAMILY := {"upperarm": "shoulder", "lowerarm": "elbow", "hand": "wrist", "thigh": "hip", "calf": "knee"}
 const KINDS := ["thick", "stretch", "pen"]
 
@@ -81,11 +86,14 @@ static func _skin_at(s: Dictionary, i: int, mats: Array, gt: Transform3D) -> Vec
 
 
 ## the whole sweep. model = SkinPaint.read(...) (its weights are the ones tested). restore: called once at the end, puts the
-## real body's pose back on the skeleton. Returns {"ok", "spots" (3 worst, one per joint family), "all", "poses", "ms", "verts"}
-static func run(model: Dictionary, skel: Skeleton3D, idx: Dictionary, restore: Callable) -> Dictionary:
+## real body's pose back on the skeleton. props = the real body's proportions (Body.body; {} = the mannequin as shipped), so the
+## scratch body has the bones the skin is drawn on. Returns {"ok", "spots" (3 worst, one per joint family), "all", "poses", "ms", "verts"}
+static func run(model: Dictionary, skel: Skeleton3D, idx: Dictionary, restore: Callable, props := {}) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
 	var skin: Skin = model["skin"]
 	var G := Body.new()
+	G.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	G.set_proportions(props)
 	var bob := PackedInt32Array()
 	for k in skin.get_bind_count():
 		bob.append(SkinPaint.bind_bone(skin, skel, k))
@@ -220,27 +228,27 @@ static func run(model: Dictionary, skel: Skeleton3D, idx: Dictionary, restore: C
 						for i in lst:
 							cur[i] = _skin_at(s, i, mats, gt)
 						var adj: Array = s["adj"]
+						var n := cur.size()
+						var vth := PackedFloat32Array()
+						var vst := PackedFloat32Array()
+						var vpn := PackedFloat32Array()
+						var vpv := PackedFloat32Array()
+						vth.resize(n)   # new packed arrays start at zero: a vertex the joint does not move scores 0
+						vst.resize(n)
+						vpn.resize(n)
+						vpv.resize(n)
 						for i in lst:
 							var d := dom[i]
 							var p := cur[i]
-							var thick := 0.0
-							var stretch := 0.0
-							var pen := 0.0
-							var penv := 0.0
 							var c := child[d] if d >= 0 else -1
 							if c >= 0 and rr[i] >= MIN_R:
-								thick = 1.0 - _dseg(p, org[d], org[c]) / rr[i]
-							var mn := 1.0
+								vth[i] = maxf(0.0, 1.0 - _dseg(p, org[d], org[c]) / rr[i])
 							var mx := 1.0
 							for j in (adj[i] as PackedInt32Array):
 								var l0 := rest[i].distance_to(rest[j])
 								if l0 > MIN_EDGE:
-									var ratio := p.distance_to(cur[j]) / l0
-									mn = minf(mn, ratio)
-									mx = maxf(mx, ratio)
-							var squeeze := 1.0 - mn
-							var tv := maxf(thick, squeeze)
-							stretch = (mx - 1.0) / 1.5
+									mx = maxf(mx, p.distance_to(cur[j]) / l0)
+							vst[i] = (mx - 1.0) / 1.5
 							if moved.has(d) and domw[i] >= 0.9:
 								for a in anc:
 									if not core.has(a) or child[a] < 0:
@@ -248,16 +256,35 @@ static func run(model: Dictionary, skel: Skeleton3D, idx: Dictionary, restore: C
 									var dr := _dseg(rest[i], org0[a], org0[child[a]])
 									if dr >= core[a]:
 										var dd: float = core[a] - _dseg(p, org[a], org[child[a]])
-										if dd > 0.0 and dd / core[a] > pen:
-											pen = dd / core[a]
-											penv = dd
+										if dd > 0.0 and dd / core[a] > vpn[i]:
+											vpn[i] = dd / core[a]
+											vpv[i] = dd
+						# each vertex is scored by the mean over its one-ring (itself and its neighbours): one sliver vertex is noise,
+						# a crease that really folds or a skin that really tears takes its neighbours with it
+						for i in lst:
+							var ring: PackedInt32Array = adj[i]
+							var cnt := 1.0 + ring.size()
+							var th := vth[i]
+							var st := vst[i]
+							var pn := vpn[i]
+							var pv := vpv[i]
+							for j in ring:
+								th += vth[j]
+								st += vst[j]
+								pn += vpn[j]
+								pv += vpv[j]
+							th /= cnt
+							st /= cnt
+							pn /= cnt
+							pv /= cnt
+							var sevs := [th, st, pn]
 							for k in 3:
-								var sev: float = [tv, stretch, pen][k]
+								var sev: float = sevs[k]
 								var key: String = e["id"] + "|" + KINDS[k]
 								if sev > 0.0 and (not best.has(key) or sev > best[key]["sev"]):
-									var val: float = [(thick if thick >= squeeze else squeeze), mx, penv][k]
-									best[key] = {"sev": sev, "surf": si, "i": i, "pose": pi, "kind": KINDS[k], "val": val, "squeeze": squeeze > thick, "dom": d, "entry": e["id"],
-										"fam": e["fam"], "side": e["side"], "axis": axis, "deg": deg, "angs": angs, "region": skel.get_bone_name(d)}
+									var val: float = [th, 1.0 + 1.5 * st, pv][k]
+									best[key] = {"sev": sev, "surf": si, "i": i, "pose": pi, "kind": KINDS[k], "val": val, "dom": dom[i], "entry": e["id"],
+										"fam": e["fam"], "side": e["side"], "axis": axis, "deg": deg, "angs": angs, "region": skel.get_bone_name(dom[i])}
 					for si in model["surfs"].size():
 						var cur2: PackedVector3Array = surf[si]["cur"]
 						var rest2: PackedVector3Array = surf[si]["rest"]
@@ -282,7 +309,8 @@ static func run(model: Dictionary, skel: Skeleton3D, idx: Dictionary, restore: C
 		sp["pos"] = _skin_at(model["surfs"][sp["surf"]], sp["i"], mats, gt)
 		sp["text"] = describe(sp)
 	restore.call()
-	return {"ok": all.is_empty() or float(all[0]["sev"]) < OK_BELOW, "spots": spots, "all": all, "poses": poses.size(), "ms": Time.get_ticks_msec() - t0, "verts": nv}
+	var worst := 0.0 if all.is_empty() else float(all[0]["sev"])
+	return {"ok": worst < OK_BELOW, "breaks": worst >= BREAKS, "worst": worst, "spots": spots, "all": all, "poses": poses.size(), "ms": Time.get_ticks_msec() - t0, "verts": nv}
 
 
 ## "left elbow at 145 deg: the crease loses 46% of its thickness"
@@ -299,8 +327,6 @@ static func describe(sp: Dictionary) -> String:
 	var reg := nice(str(sp["region"]))
 	match sp["kind"]:
 		"thick":
-			if sp["squeeze"]:
-				return "%s: the %s skin squeezes %.0f%% shorter" % [at, reg, 100.0 * float(sp["val"])]
 			if sp["axis"] == "twist":
 				return "%s: the %s skin twists to a wrapper, %.0f%% of its thickness gone" % [at, reg, 100.0 * float(sp["val"])]
 			return "%s: the %s crease loses %.0f%% of its thickness" % [at, reg, 100.0 * float(sp["val"])]
@@ -325,4 +351,39 @@ static func nice(bone: String) -> String:
 static func verdict(res: Dictionary) -> String:
 	if res["ok"]:
 		return "deforms OK: every joint bends through its range with the skin holding (worst spot under %.0f%%)" % (OK_BELOW * 100.0)
-	return "%d worst spots" % res["spots"].size()
+	if res["breaks"]:
+		return "WILL BREAK: fix the weights at the worst spot before rigging on (%s)" % res["spots"][0]["text"]
+	return "bends, with losses at the end of the range: the 3 spots are where correctives or smoother weights go"
+
+
+## where each spot's vertex is on the body as it stands now (the dots are drawn on the skin you see, not on the swept pose)
+static func marks_now(model: Dictionary, spots: Array) -> Array:
+	SkinPaint.refresh(model)
+	var out := []
+	for sp in spots:
+		out.append((model["surfs"][sp["surf"]]["pos"] as PackedVector3Array)[sp["i"]])
+	return out
+
+
+## the 3 worst spots as dots on the skin: red = it breaks, amber = it bends with losses, blue = under the OK bar. Hidden when empty
+static func draw_view(mi: MeshInstance3D, marks: Array, spots: Array) -> void:
+	var im := mi.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if marks.is_empty():
+		mi.visible = false
+		return
+	im.surface_begin(Mesh.PRIMITIVE_POINTS, Overlays._mat(22.0))
+	for k in marks.size():
+		im.surface_set_color(sev_color(float(spots[k]["sev"])))
+		im.surface_add_vertex(marks[k])
+	im.surface_end()
+	mi.visible = true
+
+
+static func sev_color(sev: float) -> Color:
+	return Tok.of("fail") if sev >= BREAKS else (Tok.of("warn") if sev >= OK_BELOW else Tok.of("info"))
+
+
+## the panel's title
+static func headline(res: Dictionary) -> String:
+	return "deforms OK" if res["ok"] else ("WILL BREAK" if res["breaks"] else "bends, with losses")

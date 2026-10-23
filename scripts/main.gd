@@ -14046,6 +14046,7 @@ func _commands() -> Array:
 	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
 	add.call("Check: silhouette sheet of the key poses", "", _silsheet, "silhouette sheet readability black shape key poses staging negative space arms torso", false, "every card as a flat black shape from the current camera, tiled into one picture (user://silhouettes/<scene>_sheet.png) with fill, negative space and a flag for arms hidden in the torso (ROADMAP_400 K26)")
+	add.call("Check: will this deform?", "", _deform_check, "deform deformation skin weights bend pinch candy wrapper twist stretch rig rigging joints verdict worst spots", false, "one click before rigging: every major joint (shoulder, elbow, wrist, hip, knee, spine, neck) swept through its range on the skin as weighted; a verdict and the 3 worst spots as dots on the body (ROADMAP_400 F14). View only")
 	add.call("Check: twinning", "", _twin_check, "twin twins mirror arms legs symmetric robotic", false, "lists the arms or legs that move as exact mirror twins for 0.3 s or more (ROADMAP 19); not part of the default Check")
 	add.call("Fix: offset the picked side by 3 frames", "", _twin_fix, "twin offset delay side shift frames", true, "moves the picked side's arm / leg joints 3 frames later over the twinning ranges from Check: twinning (one undo step)")
 	add.call("Polish the scene (new copy)", "", _polish, "smooth detail", false, "the detail pass on a copy in scenes/_wip, opened (yours untouched)")
@@ -15789,6 +15790,54 @@ func _arc_close() -> void:
 	_close_findings()
 
 
+## ROADMAP_400 F14: "Will this deform?" (DeformCheck, scripts/deform_check.gd): every major joint swept through its range on
+## the skin as weighted now, one verdict and the 3 worst spots as dots on the body. View only: the body and the cards are not touched
+var deform_view: MeshInstance3D = null
+var deform_res := {}
+var deform_marks := []
+
+
+func _deform_check() -> void:
+	if wp.is_empty():
+		_say("Will this deform? needs a body with a skin: pick the mannequin")
+		return
+	var r := DeformCheck.run(wp, skel, bone_idx, func(): Overlays.pose_skeleton(skel, bone_idx, B), B.body)
+	deform_res = r
+	deform_marks = DeformCheck.marks_now(wp, r["spots"])
+	if deform_view == null:
+		deform_view = MeshInstance3D.new()
+		deform_view.mesh = ImmediateMesh.new()
+		add_child(deform_view)
+	DeformCheck.draw_view(deform_view, deform_marks, r["spots"])
+	for c in ui_find_list.get_children():
+		ui_find_list.remove_child(c)
+		c.queue_free()
+	var head := HBoxContainer.new()
+	ui_find_list.add_child(head)
+	var title := _label("WILL THIS DEFORM?  -  " + DeformCheck.headline(r), 18, "heading")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_button("Close", _close_findings))
+	ui_find_list.add_child(_label("%d poses (each joint to 60%% and 100%% of its range) in %d ms. The three worst spots, one per joint, are the dots on the body; click one to look at it.\n" % [r["poses"], r["ms"]] + DeformCheck.verdict(r), 13, "text:0.6", true))
+	for k in r["spots"].size():
+		var sp: Dictionary = r["spots"][k]
+		var b := Button.new()
+		b.name = "deform_%d" % (k + 1)
+		b.text = str(k + 1) + ".  " + str(sp["text"])
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(380, 0)
+		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_color_override("font_color", DeformCheck.sev_color(float(sp["sev"])))
+		b.pressed.connect(func(): _turn_to(yaw, pitch, 1.6, deform_marks[k], true))
+		ui_find_list.add_child(b)
+	(ui_find.get_child(0) as ScrollContainer).custom_minimum_size = Vector2(400, clampf(130.0 + 64.0 * r["spots"].size(), 60.0,
+		minf(440.0, get_viewport().get_visible_rect().size.y - bottom_h - 82 - (TOP_H + 12) - 26)))
+	ui_find.visible = true
+	_say("will this deform? " + DeformCheck.verdict(r))
+
+
 ## ROADMAP 24: the stunt-load report (StuntLoad, scripts/stunt_load.gd): landing g, knee valgus, spine, neck. NOTE only
 func _stunt_check() -> void:
 	if S.cards.size() < 2:
@@ -15869,6 +15918,8 @@ func _close_findings() -> void:
 	if arc_view != null:
 		arc_view.visible = false   # the kinked paths belong to the panel that listed them
 		arc_marks = []
+	if deform_view != null:
+		deform_view.visible = false   # F14: the 3 worst spots belong to the panel that listed them
 	ui_find.offset_right = ui_find.offset_left + 420   # I47: Speed limits narrows the panel so the whole body stays in view
 	ov.fix_preview(S, [], 0.0)
 
