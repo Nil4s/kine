@@ -428,6 +428,10 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N003: what run's steps WOULD do (parts moved, findings added / removed, score change, cards / keys touched), the
 			# scene, body and undo put back byte for byte; file-writing steps refused: scripts/dry_run.gd
 			return await DryRun.request(self, id, p)
+		"frame_data":   # N080: frame data + opt-in hitstun / blockstun / advantage (scripts/frame_advantage.gd). Not in METHODS:
+			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			var fa := FrameAdvantage.serve(m, p)
+			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":

@@ -3459,7 +3459,7 @@ func _fd_cycle_fps() -> void:
 ## the frame data of the scene as it is now (a fresh body: the live one is not moved). Made again only when the cards,
 ## the dummy or the frame rate change
 func _fd_data() -> Dictionary:
-	var key := "%d|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes)]
+	var key := "%d|%s|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
 	if String(fd_cache.get("key", "")) != key:
 		if _force_body == null:   # I16b: the skeleton is read once, not at every score
 			_force_body = Body.new()
@@ -3467,7 +3467,8 @@ func _fd_data() -> Dictionary:
 		var Bc: Body = _force_body
 		Bc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
 		Bc.ground()
-		fd_cache = {"key": key, "fd": FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
+		var fdx := {} if dummy_on else FrameAdvantage.app_fd(self, Bc, fd_fps)   # N080: two fighters: hitstun / advantage as well
+		fd_cache = {"key": key, "fd": fdx if not fdx.is_empty() else FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
 	return fd_cache["fd"]
 
 
@@ -3609,7 +3610,8 @@ func _fd_export() -> void:
 	dlg.file_selected.connect(func(p):
 		var e := FrameData.write_json(data, p)
 		if e == OK:
-			_say_plain("frame data written: %s (startup %d f, active %d f, recovery %d f at %d fps)" % [p.get_file(), data["startup"], data["active"], data["recovery"], data["fps"]])
+			_say_plain("frame data written: %s (startup %d f, active %d f, recovery %d f at %d fps)%s" % [p.get_file(), data["startup"], data["active"], data["recovery"], data["fps"],
+				"; " + FrameAdvantage.words(data["exchange"]) if data.has("exchange") else ""])
 		else:
 			_say_plain("NOT WRITTEN: %s could not be saved (error %d)" % [p.get_file(), e])
 		dlg.queue_free())

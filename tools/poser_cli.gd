@@ -70,6 +70,9 @@
 ##                                 in s and frames (scripts/event_query.gd); an unknown phrase lists the known ones
 ##   dry {steps, score?}           N003: what run's steps WOULD do, nothing changed (scripts/dry_run.gd): parts moved, findings
 ##                                 added / removed, realism score change, cards / keys touched; file-writing steps refused
+##   frame_data {fps, frames, exchange, hit_clip, block_clip, moves}  N080 (scripts/frame_advantage.gd): startup / active /
+##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
+##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
