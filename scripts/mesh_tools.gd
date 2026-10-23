@@ -106,6 +106,14 @@ const TOOLS := [
 	{"id": "mesh_realsize_fix", "label": "Model: real-size rescale (units fix)", "page": "MODEL", "keys": "", "bl": "", "do": "op:realsize_fix", "also": "real size rescale units cm mm fix scale 100 1000 import", "desc": "B27: a model made in cm or mm scaled back to metres, one undo step"},
 	{"id": "mesh_refplane_add", "label": "Model: add a reference image (front / side / top plane)", "page": "MODEL", "keys": "", "bl": "", "do": "op:refplane_add", "also": "reference image picture photo blueprint plane background front side top opacity trace drop", "desc": "a picture on a plane behind the mesh, with opacity, offset, real height, two-point scale, flip, lock (B21; or drop a picture on the window)"},
 	{"id": "mesh_refplane_two", "label": "Model: reference image: scale by two points", "page": "MODEL", "keys": "", "bl": "", "do": "op:refplane_two", "also": "reference image picture blueprint scale two points distance calibrate size real", "desc": "click two points on the picture, then type their real distance (B21)"},
+	{"id": "mesh_mirror_edit", "label": "Model: edit mirror on / off (G R S and sculpt move the partner)", "page": "MODEL", "keys": "", "bl": "", "do": "op:mirror_edit", "also": "mirror symmetry symmetric x-mirror x mirror edit partner both sides topology topological", "desc": "B22: each moved vert's partner moves mirrored, in the same undo step; partners found by connectivity, so a posed or drifted mesh still mirrors"},
+	{"id": "mesh_mirror_axis", "label": "Model: mirror axis X / Y / Z", "page": "MODEL", "keys": "", "bl": "", "do": "op:mirror_axis", "also": "mirror symmetry axis x y z plane", "desc": "B22: the next mirror axis"},
+	{"id": "mesh_mirror_space", "label": "Model: mirror plane local / world", "page": "MODEL", "keys": "", "bl": "", "do": "op:mirror_space", "also": "mirror symmetry plane local world origin space", "desc": "B22: the plane through the mesh's origin or the world's"},
+	{"id": "mesh_mirror_topo", "label": "Model: mirror partners by topology / by position", "page": "MODEL", "keys": "", "bl": "", "do": "op:mirror_topo", "also": "mirror symmetry topology topological connectivity position positional partners", "desc": "B22: partners by connectivity (default) or by position only"},
+	{"id": "mesh_mirror_map", "label": "Model: mirror map (partnered %, select the unpaired)", "page": "MODEL", "keys": "", "bl": "", "do": "op:mirror_map", "also": "mirror symmetry map partners unpaired lonely topology report", "desc": "B22: how many verts have a mirror partner; the ones without are selected"},
+	{"id": "mesh_symmetrize", "label": "Model: symmetrize (+ side onto - side)", "page": "MODEL", "keys": "", "bl": "", "do": "op:symmetrize", "also": "symmetrize symmetrise symmetry mirror copy side plus minus make symmetric", "desc": "B22: the - side becomes the mirror image of the + side, through the topological map (one undo step)"},
+	{"id": "mesh_symmetrize_minus", "label": "Model: symmetrize (- side onto + side)", "page": "MODEL", "keys": "", "bl": "", "do": "op:symmetrize_minus", "also": "symmetrize symmetrise symmetry mirror copy side minus plus make symmetric", "desc": "B22: the + side becomes the mirror image of the - side (one undo step)"},
+	{"id": "mesh_mirror_asym", "label": "Model: find asymmetry", "page": "MODEL", "keys": "", "bl": "", "do": "op:mirror_asym", "also": "asymmetry asymmetric symmetry check deviation drift mirror lopsided uneven", "desc": "B22: selects the verts whose partner is not at their mirror image and says the largest deviation in mm"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -309,6 +317,8 @@ static func op(name: String, m) -> String:
 				said = KMeshFaceSetsUI.op(name, m)   # C09
 			elif name.begins_with("boolean_"):
 				said = KMeshBoolean.op(name, m)   # B10
+			elif name.begins_with("mirror_") or name.begins_with("symmetrize"):
+				said = KMeshTopoMirror.op(name, m)   # B22
 			elif name.begins_with("separate") or name.begins_with("join") or name.begins_with("origin_"):
 				said = KMeshSepJoin.op(name, m)   # B17
 	if said != "":

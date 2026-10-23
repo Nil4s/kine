@@ -141,10 +141,10 @@ func _params(ev: InputEvent) -> Dictionary:
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
 	_seed += 1
-	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x,
+	return KMeshTopoMirror.get_shared().sculpt_params(mesh, view.global_transform if view != null else Transform3D.IDENTITY, {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x,
 		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis,
 		"alpha": alpha, "stroke_method": stroke_method, "alpha_rot": alpha_rot, "alpha_angle": deg_to_rad(alpha_angle), "seed": _seed,   # C08
-		"alpha_ref": _local_n((m.get("cam") as Camera3D).global_transform.basis.x) if view != null and m.get("cam") is Camera3D else Vector3.RIGHT}
+		"alpha_ref": _local_n((m.get("cam") as Camera3D).global_transform.basis.x) if view != null and m.get("cam") is Camera3D else Vector3.RIGHT})   # B22: the edit mirror on = its partner map
 
 
 func _status() -> void:

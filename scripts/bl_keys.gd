@@ -15,6 +15,7 @@ extends RefCounted
 ## The live readout is the status line ("R  X  45°"). Behaviour learned from Blender's manual; no Blender code.
 ## B07: with proportional editing on (O in the model preview, kmesh_proportional.gd) the unselected verts within its
 ## radius follow, weighted by the falloff; the wheel sizes the radius while a mesh G / R / S is live.
+## B22: with the edit mirror on (scripts/kmesh_topomirror.gd) each moved vert's partner moves mirrored, in the same step.
 ## Tests: tests/blkeys_test.gd.
 
 const CFG := "look"
@@ -171,6 +172,7 @@ func _begin_mesh(which: String) -> void:
 	text = ""
 	acc = Vector2.ZERO
 	ui.undo.begin(ui.mesh)
+	KMeshTopoMirror.get_shared().prepare(ui.mesh, ui.view.global_transform, _idx)   # B22: the partner map (cached)
 	_readout()
 
 
@@ -340,6 +342,7 @@ func _apply_mesh() -> void:
 	ui.pivot.apply_individual(_pc, _verts, active, basis, sc)   # B14: individual origins
 	if ui.prop.on:
 		ui.prop.apply(mesh, active, d, ax, deg_to_rad(v), sc, _centre)   # B07
+	KMeshTopoMirror.get_shared().follow(mesh, _verts)   # B22: the partners move mirrored (same undo step)
 	mesh._compute_normals()
 	ui.view.mark_dirty()
 

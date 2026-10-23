@@ -17,7 +17,7 @@ extends RefCounted
 ##   SPATIAL HASH: built once per stroke (cells of one radius); a dab reads the 3 x 3 x 3 cells around the hit (the verts
 ##   moved during the stroke are found while they stay within a cell of where they began) and tests the true distance.
 ##   X SYMMETRY: KMesh.symmetry_map(0): each vert's displacement is also applied, mirrored, to its partner; a vert on the
-##   plane keeps x.
+##   plane keeps x. B22: params "sym_map" (a partner per vert, KMeshTopoMirror: by connectivity) + "sym_axis" replace it.
 ##   MASK (C03, scripts/kmesh_mask.gd): the "mask" brush paints the mesh's 0..1 "mask" channel instead of moving verts
 ##   (invert = erase; params "mask_amount", 1 = a full mask at the centre in one dab); every other brush's displacement of
 ##   a vert (and grab's) is multiplied by (1 - mask), the mask as it was when the stroke began.
@@ -55,6 +55,7 @@ var _cell := 0.1
 var _head := {}            # Vector3i -> first vert
 var _chain := PackedInt32Array()
 var _sym := PackedInt32Array()
+var _sax := 0              # B22: the mirror axis of _sym (0 X, 1 Y, 2 Z)
 var _last := Vector3.ZERO  # the last dab's centre (spacing, snake hook)
 var _has_last := false
 var _prev := Vector3.ZERO  # the last stroke point (spacing)
@@ -102,6 +103,9 @@ func begin(m: KMesh, params := {}) -> void:
 	_cell = maxf(float(p["radius"]), 1e-4)
 	_build_hash()
 	_sym = m.symmetry_map(0, 1e-4) if p["sym_x"] else PackedInt32Array()
+	_sax = int(p.get("sym_axis", 0))   # B22: a partner map of any axis (KMeshTopoMirror: by connectivity) replaces it
+	if p["sym_x"] and p.get("sym_map") is PackedInt32Array and (p["sym_map"] as PackedInt32Array).size() == m.verts.size():
+		_sym = p["sym_map"]
 	_mask = KMeshMask.values(m)
 	_lock = KMeshFaceSets.frozen(m, int(p.get("only_set", 0)))
 	if p["brush"] == FSET and int(p.get("fset_id", 0)) <= 0:
@@ -310,14 +314,14 @@ func _apply(ids: PackedInt32Array, d: PackedVector3Array) -> int:
 		if not _sym.is_empty():
 			var u := _sym[v]
 			if u >= 0:
-				var mv := Vector3(-d[i].x, d[i].y, d[i].z)
+				var mv := KMeshTopoMirror.flip(d[i], _sax)
 				tot[u] = tot.get(u, Vector3.ZERO) + mv
 	var vs := mesh.verts
 	mesh.verts = PackedVector3Array()   # one owner while writing: no copy of the whole array per vert
 	for v in tot:
 		var dv: Vector3 = tot[v] * _keep(v)
 		if not _sym.is_empty() and _sym[v] == v:
-			dv.x = 0.0   # on the mirror plane: stays on it
+			dv[_sax] = 0.0   # on the mirror plane: stays on it
 		vs[v] += dv
 	mesh.verts = vs
 	_renormal(tot.keys())
@@ -372,7 +376,7 @@ func _grab_start(point: Vector3, pressure: float) -> void:
 
 func _grab_move(point: Vector3) -> void:
 	var delta := point - _grab0
-	var md := Vector3(-delta.x, delta.y, delta.z)
+	var md := KMeshTopoMirror.flip(delta, _sax)
 	var tot := {}
 	for v in _grab_w:
 		tot[v] = tot.get(v, Vector3.ZERO) + delta * float(_grab_w[v])
@@ -385,7 +389,7 @@ func _grab_move(point: Vector3) -> void:
 	for v in tot:
 		var dv: Vector3 = tot[v] * _keep(v)
 		if not _sym.is_empty() and _sym[v] == v:
-			dv.x = 0.0
+			dv[_sax] = 0.0
 		vs[v] = _grab_v[v] + dv
 	mesh.verts = vs
 	_renormal(tot.keys())
