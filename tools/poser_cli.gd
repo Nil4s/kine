@@ -17,6 +17,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
 ##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
+##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -67,6 +68,8 @@
 ##   events {q, fighter?, fps?}    N017: WHEN is it true, measured on the played body: q = "right foot leaves the floor",
 ##                                 "guard down for at least 0.2 s", "right fist fastest", "fighters touch" -> spans / an instant
 ##                                 in s and frames (scripts/event_query.gd); an unknown phrase lists the known ones
+##   dry {steps, score?}           N003: what run's steps WOULD do, nothing changed (scripts/dry_run.gd): parts moved, findings
+##                                 added / removed, realism score change, cards / keys touched; file-writing steps refused
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
@@ -371,6 +374,12 @@ func check_html(folder: String, rows: Array, per: Dictionary, tot: Dictionary) -
 
 
 func run(a: Array) -> void:
+	var dry := "--dry" in a   # N003: report what the steps would do, put everything back (scripts/dry_run.gd)
+	var no_score := "--no-score" in a   # the realism score costs ~5 s a read (twice when the cards change)
+	a = a.filter(func(x): return x != "--dry" and x != "--no-score")
+	if dry and "--out" in a:
+		done({"ok": false, "error": "--dry writes nothing: drop --out"})
+		return
 	var out := ""
 	var i := a.find("--out")
 	if i >= 0:
@@ -389,6 +398,14 @@ func run(a: Array) -> void:
 		return
 	m._card_pick(0)
 	m.undo.clear()
+	if dry:
+		var dr := await DryRun.run(T, a.slice(2), not no_score)
+		for l in dr.get("cards", {}).get("lines", []):
+			say(l)
+		say("DRY %s: %d parts moved, findings %s -> %s, score %s, restored %s" % ["refused" if dr.has("refused") else ("ok" if dr["ok"] else "FAIL"),
+			dr.get("parts_moved", []).size(), dr.get("findings", {}).get("before", "-"), dr.get("findings", {}).get("after", "-"), dr.get("score", {}).get("delta", "-"), dr.get("restored", "-")])
+		done(dr)
+		return
 	var steps := []
 	var ok := true
 	for tok: String in a.slice(2):
