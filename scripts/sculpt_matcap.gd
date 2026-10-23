@@ -192,6 +192,13 @@ func setup(sculpt_ui) -> void:
 		b.pressed.connect(pick.bind(k))
 		hb.add_child(b)
 		_btns[k] = b
+	var pb := Button.new()
+	pb.name = "btn_brush_presets"
+	pb.text = "Presets (B)"
+	pb.focus_mode = Control.FOCUS_NONE
+	pb.tooltip_text = "the brush presets panel: pick a brush set up, star favourites, save your own"
+	pb.pressed.connect(func(): if ui.presets != null: ui.presets.toggle())
+	hb.add_child(pb)
 	ui.m.ui_root.add_child(strip)
 
 

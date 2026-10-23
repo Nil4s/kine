@@ -12,7 +12,7 @@ extends Node
 ##   MASK (C03, scripts/kmesh_mask.gd): M  mask brush (Ctrl or Alt while stroking erases)   Ctrl+I invert   Alt+M clear
 ##   Shift+B blur   Shift+M mask by cavity. Masked verts are frozen for every brush and drawn darker (KMeshMaskTint).
 ##   Each mask op is one undo step.
-##   C12: V / Shift+V  next / previous matcap (scripts/sculpt_matcap.gd)
+##   C12: V / Shift+V  next / previous matcap (scripts/sculpt_matcap.gd)   C14: B  brush presets panel (scripts/brush_presets_panel.gd)
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
 const R := 0.3
@@ -38,7 +38,9 @@ var sym_z := false
 var radial := 1
 var radial_axis := 1
 var filt := KMeshFilters.new()   # C18
+var spacing := 0.1          # C14: dab spacing, a fraction of the radius (a preset sets it)
 var matcap: SculptMatcap    # C12
+var presets: BrushPresetsPanel   # C14
 var _stroking := false
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
@@ -59,6 +61,8 @@ func setup(main: Node) -> void:
 	matcap = SculptMatcap.new()
 	add_child(matcap)
 	matcap.setup(self)
+	presets = BrushPresetsPanel.new(self)
+	m.ui_root.add_child(presets)
 
 
 static func make_sphere(r := R, n := SPLIT) -> KMesh:
@@ -103,6 +107,7 @@ func stop() -> void:
 	_ov.visible = false
 	if matcap != null:
 		matcap.detach()
+		presets.close()
 	view.queue_free()
 	view = null
 	m._say("Sculpt: left the test sphere (nothing was saved). Run Sculpt: a test sphere (preview) to come back")
@@ -115,7 +120,7 @@ func _params(ev: InputEvent) -> Dictionary:
 		inv = (ev as InputEventWithModifiers).ctrl_pressed or (b == KMeshSculpt.MASK and (ev as InputEventWithModifiers).alt_pressed)
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
-	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "invert": inv, "sym_x": sym_x,
+	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "spacing": spacing, "invert": inv, "sym_x": sym_x,
 		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis}
 
 
@@ -191,7 +196,7 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if not _stroking and filt.input(ev, self):
 		return true
-	if not _stroking and not filt.active and matcap != null and matcap.input(ev):   # C12 V
+	if not _stroking and not filt.active and ((matcap != null and matcap.input(ev)) or (presets != null and presets.input(ev))):   # C12 V, C14 B
 		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var ke := ev as InputEventKey
