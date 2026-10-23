@@ -7,13 +7,17 @@ extends Node
 ##   [ / ]  radius smaller / bigger     Shift+[ / ]  strength less / more     O  next falloff     X  X symmetry on / off
 ##   Ctrl while stroking  invert (push in)     Shift while stroking  smooth     Ctrl+Z / Ctrl+Shift+Z  undo / redo a stroke
 ##   Esc  leave (nothing is saved).  A tablet's pen pressure scales each dab (a mouse is full pressure).
+##   MASK (C03, scripts/kmesh_mask.gd): M  mask brush (Ctrl or Alt while stroking erases)   Ctrl+I invert   Alt+M clear
+##   Shift+B blur   Shift+M mask by cavity. Masked verts are frozen for every brush and drawn darker (KMeshMaskTint).
+##   Each mask op is one undo step.
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
 const R := 0.3
 const SPLIT := 24
 const AT := Vector3(1.0, R, 0.0)   # on the floor, beside the fighter at the origin
 const KEYS := {KEY_D: KMeshSculpt.DRAW, KEY_C: KMeshSculpt.CLAY, KEY_I: KMeshSculpt.INFLATE, KEY_S: KMeshSculpt.SMOOTH,
-	KEY_F: KMeshSculpt.FLATTEN, KEY_P: KMeshSculpt.PINCH, KEY_E: KMeshSculpt.CREASE, KEY_G: KMeshSculpt.GRAB, KEY_K: KMeshSculpt.SNAKE}
+	KEY_F: KMeshSculpt.FLATTEN, KEY_P: KMeshSculpt.PINCH, KEY_E: KMeshSculpt.CREASE, KEY_G: KMeshSculpt.GRAB, KEY_K: KMeshSculpt.SNAKE,
+	KEY_M: KMeshSculpt.MASK}
 
 var m: Node
 var on := false
@@ -31,6 +35,7 @@ var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
 var _mouse := Vector2.ZERO
 var _ov: Control
+var tint: KMeshMaskTint
 
 
 func setup(main: Node) -> void:
@@ -56,6 +61,7 @@ func start() -> void:
 	if on:
 		return
 	mesh = make_sphere()
+	KMeshMask.ensure(mesh)   # C03: made before the first undo step so every step diffs the same channel
 	undo = KMeshUndo.new()
 	view = KMeshView.new()
 	view.name = "sculpt_view"
@@ -64,12 +70,14 @@ func start() -> void:
 	view.smooth_shade = true
 	view.set_mesh(mesh)
 	m.stage_root.add_child(view)
+	tint = KMeshMaskTint.new(mesh)
+	view.add_child(tint)
 	view.position = AT
 	on = true
 	_stroking = false
 	_ov.visible = true
 	view.rebuild()
-	m._say("Sculpt: test sphere. Drag on it to sculpt (%s). D C I S F P E G K pick the brush, [ ] radius, X symmetry, Ctrl+Z undo, Esc leaves" % brush)
+	m._say("Sculpt: test sphere. Drag on it to sculpt (%s). D C I S F P E G K pick the brush, M masks, [ ] radius, X symmetry, Ctrl+Z undo, Esc leaves" % brush)
 
 
 func stop() -> void:
@@ -87,7 +95,7 @@ func _params(ev: InputEvent) -> Dictionary:
 	var b := brush
 	var inv := false
 	if ev is InputEventWithModifiers:
-		inv = (ev as InputEventWithModifiers).ctrl_pressed
+		inv = (ev as InputEventWithModifiers).ctrl_pressed or (b == KMeshSculpt.MASK and (ev as InputEventWithModifiers).alt_pressed)
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
 	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "invert": inv, "sym_x": sym_x}
@@ -95,6 +103,39 @@ func _params(ev: InputEvent) -> Dictionary:
 
 func _status() -> void:
 	m._say("Sculpt: %s, radius %d mm, strength %.1f mm, %s falloff, X symmetry %s" % [brush, roundi(radius * 1000.0), strength * 1000.0, falloff, "on" if sym_x else "off"])
+
+
+## C03: Ctrl+I invert, Alt+M clear, Shift+B blur, Shift+M mask by cavity; each one undo step. true = used
+func _mask_key(ke: InputEventKey) -> bool:
+	var k := ke.keycode
+	var op := ""
+	if ke.ctrl_pressed and not ke.alt_pressed and k == KEY_I:
+		op = "invert"
+	elif ke.alt_pressed and not ke.ctrl_pressed and k == KEY_M:
+		op = "clear"
+	elif ke.shift_pressed and not ke.ctrl_pressed and not ke.alt_pressed and k == KEY_B:
+		op = "blur"
+	elif ke.shift_pressed and not ke.ctrl_pressed and not ke.alt_pressed and k == KEY_M:
+		op = "cavity"
+	if op == "":
+		return false
+	undo.begin(mesh)
+	var said := ""
+	match op:
+		"invert":
+			KMeshMask.invert(mesh)
+			said = "inverted"
+		"clear":
+			KMeshMask.clear(mesh)
+			said = "cleared"
+		"blur":
+			KMeshMask.blur(mesh)
+			said = "blurred over the neighbours"
+		"cavity":
+			said = "set to the concave areas (%d verts)" % KMeshMask.by_cavity(mesh)
+	undo.commit("mask " + op)
+	m._say("Sculpt: mask %s. Masked areas are frozen; Ctrl+Z takes it back" % said)
+	return true
 
 
 ## the surface under the screen point: {"point", "normal"} in world space, or {}
@@ -125,6 +166,8 @@ func input(ev: InputEvent) -> bool:
 			var lb := undo.redo() if ke.shift_pressed else undo.undo()
 			view.mark_dirty()
 			m._say("Sculpt: %s %s" % ["redo" if ke.shift_pressed else "undo", lb] if lb != "" else "Sculpt: nothing to %s" % ("redo" if ke.shift_pressed else "undo"))
+			return true
+		if _mask_key(ke):
 			return true
 		if KEYS.has(k) and not ke.ctrl_pressed:
 			brush = KEYS[k]
