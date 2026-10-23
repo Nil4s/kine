@@ -32,6 +32,8 @@ const TOOLS := [
 	{"id": "mesh_wire", "label": "Model: wire over the surface on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:wire", "also": "wire wireframe edges lines overlay show hide", "desc": "the edges drawn over the shaded surface, or the surface alone"},
 	{"id": "mesh_validate", "label": "Model: check the mesh (validate)", "page": "MODEL", "keys": "", "bl": "", "do": "op:validate", "also": "validate check problems errors non-manifold holes doubled loose flipped inside out clean health", "desc": "lists what is wrong with the mesh, each with its next step (scripts/kmesh_validate.gd)"},
 	{"id": "mesh_repair", "label": "Model: repair the mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:repair", "also": "repair fix clean merge distance doubles holes fill flip normals consistent cleanup", "desc": "fixes every problem that can be fixed alone (one undo step)"},
+	{"id": "mesh_vpaint", "label": "Model: vertex paint on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:vpaint", "also": "vertex paint colour color brush blend mix add multiply blur eyedropper symmetry pressure", "desc": "drag on the mesh to paint its corner colours (E04, scripts/kmesh_vpaint_ui.gd): [ ] radius, N blend, X symmetry, F fill, Ctrl+click eyedropper, Esc leaves"},
+	{"id": "mesh_vpaint_fill", "label": "Model: vertex paint: fill the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:vpaint_fill", "also": "vertex paint fill colour color selection faces flood", "desc": "the selected faces (or verts) take the paint colour, one undo step"},
 	{"id": "mesh_grab", "label": "Model: grab the selected vertices", "page": "MODEL", "keys": "", "bl": "G", "do": "bl:G", "also": "grab move translate drag vertices", "desc": "the selection follows the mouse; X / Y / Z an axis, a number metres; Enter keeps"},
 	{"id": "mesh_rotate", "label": "Model: rotate the selected vertices", "page": "MODEL", "keys": "", "bl": "R", "do": "bl:R", "also": "rotate turn spin vertices", "desc": "turn the selection round its centre; X / Y / Z an axis, a number degrees; Enter keeps"},
 	{"id": "mesh_scale", "label": "Model: scale the selected vertices", "page": "MODEL", "keys": "", "bl": "S", "do": "bl:S", "also": "scale size grow shrink resize vertices", "desc": "scale the selection about its centre; a number = the factor; Enter keeps"},
@@ -186,6 +188,8 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"vpaint", "vpaint_fill":   # E04
+			return KMeshVPaintUI.toggle(m) if name == "vpaint" else KMeshVPaintUI.fill_op(m)
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
