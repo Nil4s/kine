@@ -275,6 +275,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
+var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
 
@@ -2624,6 +2625,9 @@ func _ready() -> void:
 	onboard = Onboarding.new()
 	onboard.m = self
 	add_child(onboard)
+	page_tour = PageTour.new()
+	page_tour.m = self
+	add_child(page_tour)
 	easy = EasyMode.new()   # first: lw() / rw() read easy.on while the world is built (scripts/easy_mode.gd)
 	easy.m = self
 	add_child(easy)
@@ -2728,6 +2732,8 @@ func _ready() -> void:
 	_fit_rows.call_deferred()
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
+	page_tour.build(ui_root)
+	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
@@ -13181,7 +13187,7 @@ func _build_page_bar() -> void:
 		else:
 			b.tooltip_text = "coming: the %s page. Click it: what works already and what is next" % p
 			b.modulate = Color(1, 1, 1, 0.38)   # greyed: a click explains instead of doing nothing (P11)
-			b.pressed.connect(func(): _say(_page_soon_why(p)))
+			b.pressed.connect(func(): _say(_page_soon_why(p)); page_tour.opened(p))
 		h.add_child(b)
 		if p == PAGES[-1]:
 			var sep := VSeparator.new()
@@ -13430,6 +13436,8 @@ func _page_set(p: String, save := true) -> void:
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
+	if page_tour != null and page_tour.card != null:
+		page_tour.opened.call_deferred(p)   # P01: the page's first-use tour, once its panels are laid out
 	if save:
 		var cf := ConfigFile.new()
 		cf.load(settings)
@@ -13803,6 +13811,7 @@ func _commands() -> Array:
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
+	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
 	add.call("Mode: Easy (12 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 buttons stay large (remembered)")
