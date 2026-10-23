@@ -432,6 +432,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
 			var fa := FrameAdvantage.serve(m, p)
 			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
+		"lint":   # N018: a clip made anywhere, judged on Kine's body (scripts/clip_lint.gd); the live scene is put back
+			var lr := ClipLint.lint(m, String(p.get("path", "")))
+			return _ok(id, lr) if lr["ok"] else _err(id, -32602, String(lr["error"]), lr)
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":

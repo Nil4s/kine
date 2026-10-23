@@ -48,7 +48,7 @@ SERIAL_SHARED = {"scene_list", "browser_tree", "browser", "versions", "cli", "se
 # "N ms"/"%f ms" beside bar/under/</budget, (c) a condition comparing a *ms/*us/elapsed/took/stall/fps/p95 value,
 # then read by eye, dropping those whose "ms" is animation time (eyelife playblast shading i15 i17 i2 i5 i27 i9
 # pathrun r27 rise proportions actors_export multicam_app popup_leak).
-SERIAL_TIMING = set("""romclash actors_hit actors_main alphas anatomy armour audio_track audiotracks bodymesh boolean cloth
+SERIAL_TIMING = set("""romclash lint actors_hit actors_main alphas anatomy armour audio_track audiotracks bodymesh boolean cloth
 cross_contact crowd decimate deformscene dqskin drag_speed dummy_async edgeflow fix_preview gentle grip_save grip_wrap
 i1 i4 i7 i8 i12 i16 i22 i44 i45 kmesh kmesh_attrs live_layer llm_client lod meshfile meshsel modstack motion_match pages
 perf4 perfdoc photomat play_perf play_speed precise_pick r13 r21 scene_diff scene_thumbs sculpt searchall shrinkwrap
