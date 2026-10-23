@@ -25,6 +25,8 @@ extends Node
 ##      a legend bottom right, the hover readout at the mouse)
 ##   Ctrl+P  pack the UV islands (D04, KMeshUVPack: 4 px margin, each island turned to its smallest box, equal texel density; one undo step)
 ##   Shift+U  the UV editor panel on / off (D01, scripts/kmesh_uv_editor.gd: select / move / rotate / scale UVs)
+##   Alt+H  colour by anatomy on / off (A19, KMeshAnatomy: deltoid, patella, knuckles ... per vert, carried through edits);
+##      while on, Alt+drag paints the brush tag (one undo step a stroke), Alt+Shift+click picks the tag under the mouse
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -65,6 +67,7 @@ var body: KMeshBody          # A18: the body labels of the mesh + the colour-by-
 var mods: KMeshModifiersUI   # A11: the modifier stack panel + the evaluated surface
 var uved: KMeshUVEditor   # D01: the UV editor panel (built on first Shift+U)
 var mat_panel: KMeshMaterialPanel   # E01: the Materials panel (top right; shows itself while `on`)
+var anat: KMeshAnatomy       # A19: the anatomy tags + the colour-by-anatomy view and its brush
 
 
 func setup(main: Node) -> void:
@@ -109,6 +112,11 @@ func start() -> void:
 		add_child(body)
 	body.tick()   # A18: labelled from the first frame
 	mods.open()
+	if anat == null:
+		anat = KMeshAnatomy.new()
+		anat.setup(self)
+		add_child(anat)
+	anat.tick()   # A19: tagged from the first frame
 	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, E extrude, I inset, Esc leaves")
 
 
@@ -127,6 +135,8 @@ func stop() -> void:
 		body.close()
 	if uved != null:
 		uved.close()
+	if anat != null:
+		anat.close()
 	view.queue_free()
 	view = null
 	meas = null
@@ -145,6 +155,8 @@ func _process(_dt: float) -> void:
 		_ov.queue_redraw()   # the label follows the camera
 	if body != null and on:
 		body.tick()   # A18: the labels follow the mesh and the body
+	if anat != null and on:
+		anat.tick()   # A19: new verts tagged, the view fresh
 
 
 ## main passes every unhandled input here while `on`; true = used
@@ -179,8 +191,13 @@ func input(ev: InputEvent) -> bool:
 		if k == KEY_O:   # B07
 			m._say(prop.key(ev as InputEventKey, m.blk != null and m.blk.on))
 			return true
+		if k == KEY_H and (ev as InputEventKey).alt_pressed and not (ev as InputEventKey).ctrl_pressed:
+			anat.toggle()   # A19
+			return true
 		if k == KEY_H and not (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).alt_pressed:
 			if (ev as InputEventKey).shift_pressed:
+				if anat.on:
+					anat.toggle()   # A19: one colouring at a time
 				body.toggle()   # A18
 			else:
 				topo("heat")
@@ -234,6 +251,13 @@ func input(ev: InputEvent) -> bool:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index != MOUSE_BUTTON_LEFT:
 			return false
+		if anat != null and anat.on and (anat.stroking or (mb.pressed and mb.alt_pressed)):   # A19: the tag brush
+			if mb.pressed:
+				anat.press(mb.position, mb.shift_pressed)
+			else:
+				anat.release()
+			_ov.queue_redraw()
+			return true
 		if mb.pressed:
 			_press = mb.position
 			_add = mb.shift_pressed
@@ -270,6 +294,13 @@ func input(ev: InputEvent) -> bool:
 			armed = ""
 		_ov.queue_redraw()
 		return true
+	if ev is InputEventMouseMotion and anat != null and anat.on:
+		if anat.stroking:
+			anat.drag((ev as InputEventMouseMotion).position)   # A19: the stroke goes on
+			return true
+		if not _drag:
+			anat.hover((ev as InputEventMouseMotion).position)
+			_ov.queue_redraw()
 	if ev is InputEventMouseMotion and not _drag and body != null and body.on:
 		body.hover((ev as InputEventMouseMotion).position)   # A18: the readout follows the mouse (the event goes on)
 		_ov.queue_redraw()
@@ -501,6 +532,8 @@ func _draw_overlay() -> void:
 		prop.draw(_ov, m.cam, view, m.blk)   # B07: the proportional radius while a G / R / S is live
 	if on and body != null:
 		body.draw(_ov)
+	if on and anat != null:
+		anat.draw(_ov)
 	if not on or not _drag:
 		return
 	var c := Tok.c("pick_hover")
@@ -600,7 +633,18 @@ func _append(base_v: PackedVector3Array, base_f: Array, pm: KMesh, at: Vector3) 
 		for i in g.size():
 			g[i] += o
 		fs.append(g)
-	mesh.attrs = {}   # (the test mesh carries no attributes; a primitive starts without any)
+	var nc := 0
+	for f in base_f:
+		nc += (f as PackedInt32Array).size()
+	var ne := 0
+	for e in mesh.edges():
+		if e.y < o:
+			ne += 1
+	for k in mesh.attrs:   # A19: the base's channels kept (it is a prefix of the result), the primitive's get the default
+		var r: Dictionary = mesh.attrs[k]
+		var d = r["data"]
+		d.resize({KMesh.AD_VERT: o, KMesh.AD_FACE: base_f.size(), KMesh.AD_CORNER: nc, KMesh.AD_EDGE: ne}[r["domain"]])
+		r["data"] = d
 	mesh.from_arrays(vs, fs)
 
 
