@@ -14,6 +14,8 @@ extends Node3D
 ## HEAT (F08, show_heat): KMeshTopo.heat's faces as a colour tint (triangles, n-gons, stretched quads) and its poles as
 ## big coloured points, rebuilt with the mesh; `heat` holds the last result (the legend's counts).
 
+signal rebuilt   # A11: after every rebuild (the modifier stack's surface re-evaluates when the base changed)
+
 const OFF_WIRE := 0.003
 const OFF_TINT := 0.0015
 const PICK_PX := 12.0
@@ -224,6 +226,7 @@ func rebuild() -> void:
 	_put(_pts, Mesh.PRIMITIVE_POINTS, pp, _mat(Tok.c("cube_edge"), false, 5.0))
 	_put(_selpts, Mesh.PRIMITIVE_POINTS, qp, _mat(sel_col, false, 9.0))
 	_build_heat()
+	rebuilt.emit()
 
 
 ## F08: the heat layer (vertex colours: one material for every kind)

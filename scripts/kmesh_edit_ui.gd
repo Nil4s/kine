@@ -27,6 +27,7 @@ extends Node
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
 ## primitive and updates that same step) until the next edit of the mesh.
+## A11: the "Modifiers" panel (right edge, scripts/kmesh_modifiers_ui.gd): a non-destructive stack, the view shows its result.
 
 const SIDE := 0.6
 const SPLIT := 4
@@ -59,6 +60,7 @@ var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
 var prop := KMeshProportional.new()   # B07: proportional editing for the Blender-style G / R / S
 var body: KMeshBody          # A18: the body labels of the mesh + the colour-by-region view
+var mods: KMeshModifiersUI   # A11: the modifier stack panel + the evaluated surface
 
 
 func setup(main: Node) -> void:
@@ -71,6 +73,9 @@ func setup(main: Node) -> void:
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
 	_build_prim_panel()
+	mods = KMeshModifiersUI.new()
+	add_child(mods)
+	mods.setup(self)
 
 
 func start() -> void:
@@ -97,6 +102,7 @@ func start() -> void:
 		body.setup(self)
 		add_child(body)
 	body.tick()   # A18: labelled from the first frame
+	mods.open()
 	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, E extrude, I inset, Esc leaves")
 
 
@@ -107,6 +113,7 @@ func stop() -> void:
 	_drag = false
 	_ov.visible = false
 	prim_panel.visible = false
+	mods.close()
 	live = {}
 	if legend != null:
 		legend.visible = false
