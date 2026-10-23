@@ -128,6 +128,18 @@ func _init() -> void:
 		print("     " + l)
 	ok(r3["ok"] and r3["format"] == "glb" and r3["how"] == "retarget", "3 broken glb read through the retarget: %s" % r3.get("mapped", {}).get("how", r3.get("error", "")))
 	broken_bars("3 broken glb", r3)
+	# 5 a 10 s clip
+	var D10: Scene = BvhImport.to_scene(BvhImport.load_file(clean), B, 1, 1.0, "idle10")["scene"]
+	var base: Array = D10.cards.duplicate(true)
+	while D10.cards.size() < 301:
+		var c: Dictionary = base[(D10.cards.size()) % base.size()].duplicate(true)
+		c["name"] = "f%d" % D10.cards.size()
+		c["move"] = 1.0 / D10.fps
+		D10.cards.append(c)
+	var ten := DIR.path_join("ten.bvh")
+	BvhExport.write(D10, B, ten)
+	var r5 := ClipLint.lint(m, ten)
+	ok(r5["ok"] and absf(float(r5["length_s"]) - 10.0) < 0.05 and int(r5["ms"]) < 10000, "5 a %s s clip (%s frames) linted in %s ms (bar 10000; %d findings, score %s)" % [r5.get("length_s"), r5.get("frames"), r5.get("ms"), (r5.get("findings", []) as Array).size(), r5.get("score")])
 	# 4
 	var bad := {"cut.bvh": "HIERARCHY\nROOT pelvis\n{\n\tOFFSET 0 0", "junk.glb": "glTF" + "x".repeat(300), "junk.fbx": "Kaydara FBX Binary  0001" + "y".repeat(300),
 		"notes.txt": "hello", "empty.bvh": ""}
@@ -142,20 +154,11 @@ func _init() -> void:
 		all_clean = all_clean and not r["ok"] and String(r.get("error", "")) != "" and r.has("file")
 		errs.append("%s: %s" % [f, r.get("error", "NO ERROR")])
 	ok(all_clean, "4 malformed files give an error, no crash:\n       " + "\n       ".join(PackedStringArray(errs)))
-	var c4 := cli(["lint", DIR.path_join("junk.glb"), "--json"])
-	ok(c4[0] == 1 and c4[1].get("ok") == false and String(c4[1].get("error", "")) != "", "4 CLI on a malformed .glb outside the project: exit %d, %s (%d ms with the poser's start)" % [c4[0], JSON.stringify(c4[1]), c4[2]])
-	# 5 a 10 s clip
-	var D10: Scene = BvhImport.to_scene(BvhImport.load_file(clean), B, 1, 1.0, "idle10")["scene"]
-	var base: Array = D10.cards.duplicate(true)
-	while D10.cards.size() < 301:
-		var c: Dictionary = base[(D10.cards.size()) % base.size()].duplicate(true)
-		c["name"] = "f%d" % D10.cards.size()
-		c["move"] = 1.0 / D10.fps
-		D10.cards.append(c)
-	var ten := DIR.path_join("ten.bvh")
-	BvhExport.write(D10, B, ten)
-	var r5 := ClipLint.lint(m, ten)
-	ok(r5["ok"] and absf(float(r5["length_s"]) - 10.0) < 0.05 and int(r5["ms"]) < 10000, "5 a %s s clip (%s frames) linted in %s ms (bar 10000; %d findings, score %s)" % [r5.get("length_s"), r5.get("frames"), r5.get("ms"), (r5.get("findings", []) as Array).size(), r5.get("score")])
+	# the two CLI runs (each starts a whole poser, ~20 s) run in threads while the rest goes on; joined below
+	var th4 := Thread.new()
+	th4.start(cli.bind(["lint", DIR.path_join("junk.glb"), "--json"]))
+	var th7 := Thread.new()
+	th7.start(cli.bind(["lint", broken_glb, "--json"]))
 	# 6
 	m._load_scene("res://scenes/combo3.json")
 	m._rebuild_cards()
@@ -167,8 +170,10 @@ func _init() -> void:
 	var qe: Dictionary = await A.request(8, "lint", {})
 	ok(same and qe.has("error") and int(qe["error"]["code"]) == -32602 and JSON.stringify(m.S.cards) == cards0 and m.S.name == name0,
 		"6 serve lint: same findings %s, no path -> %s, live scene untouched (%s)" % [same, JSON.stringify(qe.get("error", {})).left(140), m.S.name])
+	var c4: Array = th4.wait_to_finish()
+	ok(c4[0] == 1 and c4[1].get("ok") == false and String(c4[1].get("error", "")) != "", "4 CLI on a malformed .glb outside the project: exit %d, %s (%d ms with the poser's start)" % [c4[0], JSON.stringify(c4[1]), c4[2]])
 	# 7
-	var c7 := cli(["lint", broken_glb, "--json"])
+	var c7: Array = th7.wait_to_finish()
 	var j7: Dictionary = c7[1]
 	var keys := ["ok", "file", "fps", "frames", "mapped", "findings", "score"]
 	ok(c7[0] == 0 and keys.all(func(k): return j7.has(k)) and j7.get("ok") == true, "7 CLI JSON line has %s (exit %d, %d ms with the poser's start, lint %s ms)" % [keys, c7[0], c7[2], j7.get("ms")])
