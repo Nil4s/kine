@@ -23,8 +23,8 @@ and the mesh tools know the model is a body.
   (a 3 m sword gets flagged against the fighter's arm) and auto weights.
 - **Deliver.** Export .glb, .fbx, .bvh and engine-ready files; playblasts; share a viewer page.
 
-Some of the modelling features above are on integration branches and not yet merged into the default
-branch. See `docs/ROADMAP_400.md` for what is done and what is next.
+See `docs/APP_ROADMAP.md` for where Kine is going and `docs/ROADMAP_400.md` / `docs/INNOVATIONS.md` for the
+feature lists.
 
 ## Run it
 
@@ -40,11 +40,12 @@ branch. See `docs/ROADMAP_400.md` for what is done and what is next.
 ## Test it
 
 ```sh
-sh tools/run_all.sh            # every suite, one line each, then SUITES n/n PASS
-sh tools/run_all.sh kmesh cli  # only those suites
+python tools/run_par.py              # every suite in parallel, windows off-screen
+python tools/run_par.py --changed    # only the suites your changes touch
+python tools/run_par.py kmesh cli    # only those suites
 ```
 
-Some suites open a real window; that is expected. Logs go to `$TMP/poser_suites/`.
+Window suites render off-screen (`SHOW=1` to watch them). Logs go to `$TMP/poser_suites/`.
 `README_AI.md` explains how to drive the app headless from the command line (`tools/poser_cli.gd`).
 
 ## Repo map
