@@ -35,6 +35,8 @@ const TOOLS := [
 	{"id": "mesh_grab", "label": "Model: grab the selected vertices", "page": "MODEL", "keys": "", "bl": "G", "do": "bl:G", "also": "grab move translate drag vertices", "desc": "the selection follows the mouse; X / Y / Z an axis, a number metres; Enter keeps"},
 	{"id": "mesh_rotate", "label": "Model: rotate the selected vertices", "page": "MODEL", "keys": "", "bl": "R", "do": "bl:R", "also": "rotate turn spin vertices", "desc": "turn the selection round its centre; X / Y / Z an axis, a number degrees; Enter keeps"},
 	{"id": "mesh_scale", "label": "Model: scale the selected vertices", "page": "MODEL", "keys": "", "bl": "S", "do": "bl:S", "also": "scale size grow shrink resize vertices", "desc": "scale the selection about its centre; a number = the factor; Enter keeps"},
+	{"id": "mesh_snap_target", "label": "Model: snap target (vertex, edge, face, grid, body)", "page": "MODEL", "keys": "Shift+Tab", "bl": "", "do": "op:snap_target", "also": "snap snapping target vertex edge midpoint face surface grid increment body skin ctrl magnet", "desc": "the next thing G snaps onto while Ctrl is held (B08)"},
+	{"id": "mesh_snap_toggle", "label": "Model: snapping always on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:snap_toggle", "also": "snap snapping toggle always magnet ctrl", "desc": "snap without holding Ctrl (then Ctrl lets go)"},
 	{"id": "mesh_extrude", "label": "Model: extrude", "page": "MODEL", "keys": "E", "bl": "", "do": "", "also": "extrude pull push out grow faces", "desc": "pull the selected faces out along their normal, new side faces between"},
 	{"id": "mesh_inset", "label": "Model: inset faces", "page": "MODEL", "keys": "I", "bl": "", "do": "", "also": "inset inside border shrink faces", "desc": "a smaller face inside each selected face, ringed by new faces"},
 	{"id": "mesh_bevel", "label": "Model: bevel", "page": "MODEL", "keys": "Ctrl+B", "bl": "", "do": "", "also": "bevel chamfer round fillet edges corner", "desc": "cut the selected edges into a chamfer of 1 or more segments"},
@@ -186,6 +188,10 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"snap_target":
+			said = "Model: snap to " + KMeshSnap.NAMES[ui.snap.cycle()]
+		"snap_toggle":
+			ui.snap.toggle()
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()

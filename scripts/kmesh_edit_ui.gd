@@ -17,6 +17,8 @@ extends Node
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
+##   B08 (Blender keys on, G / R / S): Ctrl held while moving snaps (scripts/kmesh_snap.gd); Shift+Tab  next snap
+##      target (vertex, edge, midpoint, face, grid 1 / 5 / 10 cm, the fighter's skin)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -51,6 +53,7 @@ var live := {}                # B09: the primitive still live: {kind, params, st
 const PRIM_GAP := 0.1         # m between the new primitive and what is already there
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
+var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
 
 
 func setup(main: Node) -> void:
@@ -63,6 +66,9 @@ func setup(main: Node) -> void:
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
 	_build_prim_panel()
+	snap = KMeshSnap.new()
+	add_child(snap)
+	snap.setup(self)
 
 
 func start() -> void:
@@ -119,6 +125,8 @@ func _process(_dt: float) -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if snap.input(ev):   # B08: Shift+Tab cycles the snap target
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
 		var ck := (ev as InputEventKey).keycode

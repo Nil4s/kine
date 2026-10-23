@@ -168,6 +168,9 @@ func _begin_mesh(which: String) -> void:
 
 
 func _modal(ev: InputEvent) -> bool:
+	if where == "mesh" and m.kmed.snap.watch(ev):   # B08: Ctrl pressed / let go: the snap comes or goes at once
+		_apply()
+		return true
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if not mb.pressed:
@@ -295,12 +298,16 @@ func _apply_mesh() -> void:
 	var ui = m.kmed
 	var mesh: KMesh = ui.mesh
 	var v := value()
+	if text == "":
+		v = ui.snap.step(active, v)   # B08: Ctrl snaps R to 5 degrees, S to 0.1
 	var d := Vector3.ZERO
 	var basis := Basis.IDENTITY
 	var sc := Vector3.ONE
 	match active:
 		"G":
 			d = _grab_delta()
+			if text == "":
+				d = ui.snap.grab(_idx, _verts, d, axis)   # B08: Ctrl snaps onto the target (Shift+Tab picks it)
 		"R":
 			var ax := Vector3.ZERO
 			ax[maxi(axis, 0)] = 1.0
