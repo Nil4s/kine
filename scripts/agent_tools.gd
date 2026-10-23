@@ -443,4 +443,8 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
+		"text_view":
+			# N001: front + side ASCII stick figures and one paragraph (scripts/text_view.gd); {t | frame, fps | card}
+			var tv: Dictionary = await TextView.on_main(m, p)
+			return _ok(id, tv) if tv["ok"] else _err(id, -32602, tv["error"])
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

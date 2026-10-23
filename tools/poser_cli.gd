@@ -19,6 +19,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- lint C:/any/clip.bvh|.glb|.gltf|.fbx [--json]   (N018: judge a clip made anywhere)
+##   $G --headless --path . -s tools/poser_cli.gd -- textview scenes/combo3.json [card=N]   (N001: the pose as ASCII + words)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -80,6 +81,8 @@
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
 ##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
 ##                                 path = open it first (as open)
+##   text_view {t | frame, fps | card}  N001: the pose as text: front + side ASCII stick figures and one paragraph
+##                                 (stance, weight split, lean, hands in landmarks, feet, facing, balance); scripts/text_view.gd
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -274,6 +277,19 @@ func _init() -> void:
 			for l in ClipLint.lines(lr):
 				say(l)
 			done(lr)
+		"textview":
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "textview <scene.json> [card=N]"})
+				return
+			var tc := 1
+			for x in a.slice(2):
+				if String(x).begins_with("card=") and String(x).substr(5).is_valid_int():
+					tc = int(String(x).substr(5))
+			var tv: Dictionary = await TextView.on_main(m, {"card": tc})
+			if tv["ok"]:
+				say(tv["text"])
+			done(tv)
 		_:
 			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | events <scene> \"<query>\" | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})
