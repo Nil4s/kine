@@ -37,6 +37,7 @@ const TOOLS := [
 	{"id": "mesh_scale", "label": "Model: scale the selected vertices", "page": "MODEL", "keys": "", "bl": "S", "do": "bl:S", "also": "scale size grow shrink resize vertices", "desc": "scale the selection about its centre; a number = the factor; Enter keeps"},
 	{"id": "mesh_snap_target", "label": "Model: snap target (vertex, edge, face, grid, body)", "page": "MODEL", "keys": "Shift+Tab", "bl": "", "do": "op:snap_target", "also": "snap snapping target vertex edge midpoint face surface grid increment body skin ctrl magnet", "desc": "the next thing G snaps onto while Ctrl is held (B08)"},
 	{"id": "mesh_snap_toggle", "label": "Model: snapping always on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:snap_toggle", "also": "snap snapping toggle always magnet ctrl", "desc": "snap without holding Ctrl (then Ctrl lets go)"},
+	{"id": "mesh_pivot", "label": "Model: pivot for rotate / scale (median, active, cursor, individual)", "page": "MODEL", "keys": ".", "bl": "", "do": "op:pivot", "also": "pivot point origin centre center median active cursor individual origins rotate scale", "desc": "what R / S turn and scale about (B14)"},
 	{"id": "mesh_extrude", "label": "Model: extrude", "page": "MODEL", "keys": "E", "bl": "", "do": "", "also": "extrude pull push out grow faces", "desc": "pull the selected faces out along their normal, new side faces between"},
 	{"id": "mesh_inset", "label": "Model: inset faces", "page": "MODEL", "keys": "I", "bl": "", "do": "", "also": "inset inside border shrink faces", "desc": "a smaller face inside each selected face, ringed by new faces"},
 	{"id": "mesh_bevel", "label": "Model: bevel", "page": "MODEL", "keys": "Ctrl+B", "bl": "", "do": "", "also": "bevel chamfer round fillet edges corner", "desc": "cut the selected edges into a chamfer of 1 or more segments"},
@@ -192,6 +193,8 @@ static func op(name: String, m) -> String:
 			said = "Model: snap to " + KMeshSnap.NAMES[ui.snap.cycle()]
 		"snap_toggle":
 			ui.snap.toggle()
+		"pivot":
+			said = "Model: pivot " + KMeshPivot.NAMES[ui.pivot.cycle()]
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()

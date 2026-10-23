@@ -33,6 +33,7 @@ var _verts := PackedVector3Array()   # mesh: the vertices at the start
 var _idx := PackedInt32Array()
 var _centre := Vector3.ZERO
 var _p0 := Vector3.ZERO
+var _pc := {}              # B14: individual origins, vertex -> its island's centre (KMeshPivot.origins)
 var last_readout := ""
 
 
@@ -158,6 +159,8 @@ func _begin_mesh(which: String) -> void:
 	for i in _idx:
 		_centre += _verts[i]
 	_centre /= float(_idx.size())
+	_centre = ui.pivot.centre(_idx, _verts, _centre)   # B14: the pivot mode (median / active / cursor)
+	_pc = ui.pivot.origins(_idx, _verts)
 	where = "mesh"
 	active = which
 	axis = 0 if which == "R" else -1
@@ -326,6 +329,7 @@ func _apply_mesh() -> void:
 				mesh.verts[i] = _centre + basis * (p - _centre)
 			"S":
 				mesh.verts[i] = _centre + (p - _centre) * sc
+	ui.pivot.apply_individual(_pc, _verts, active, basis, sc)   # B14: individual origins
 	mesh._compute_normals()
 	ui.view.mark_dirty()
 

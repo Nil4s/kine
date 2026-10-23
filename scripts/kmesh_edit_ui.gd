@@ -17,8 +17,9 @@ extends Node
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
-##   B08 (Blender keys on, G / R / S): Ctrl held while moving snaps (scripts/kmesh_snap.gd); Shift+Tab  next snap
-##      target (vertex, edge, midpoint, face, grid 1 / 5 / 10 cm, the fighter's skin)
+##   B08 / B14 (Blender keys on, G / R / S): Ctrl held while moving snaps (scripts/kmesh_snap.gd); Shift+Tab  next snap
+##      target (vertex, edge, midpoint, face, grid 1 / 5 / 10 cm, the fighter's skin)   .  next pivot for R / S (median,
+##      active, 3D cursor, individual origins; scripts/kmesh_pivot.gd)   Shift+right-click  put the 3D cursor there
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -54,6 +55,7 @@ const PRIM_GAP := 0.1         # m between the new primitive and what is already 
 var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 var legend: PanelContainer   # F08: the heat map's legend (built on first use)
 var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
+var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
 
 
 func setup(main: Node) -> void:
@@ -69,6 +71,9 @@ func setup(main: Node) -> void:
 	snap = KMeshSnap.new()
 	add_child(snap)
 	snap.setup(self)
+	pivot = KMeshPivot.new()
+	add_child(pivot)
+	pivot.setup(self)
 
 
 func start() -> void:
@@ -125,7 +130,7 @@ func _process(_dt: float) -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
-	if snap.input(ev):   # B08: Shift+Tab cycles the snap target
+	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)
 		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
