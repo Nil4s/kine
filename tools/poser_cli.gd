@@ -18,6 +18,8 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
+##   $G --headless --path . -s tools/poser_cli.gd -- try scenes/combo3.json retime=3-3:{pct} --sweep pct=80,90,100,110,120 [--no-score] [--apply best|N --out <path>]
+##        or  try scenes/combo3.json slower_10 --or faster_10 --or ease_linear   (N019: each variant dry-run, scored, ranked)
 ##   $G --headless --path . -s tools/poser_cli.gd -- lint C:/any/clip.bvh|.glb|.gltf|.fbx [--json]   (N018: judge a clip made anywhere)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
@@ -77,6 +79,10 @@
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
+##   try {variants: [[steps], ...] | base: [steps with {p}], sweep: {param: p, values: [...]}, score?, asserts?, apply?}
+##                                 N019: each variant an N003 dry run, ranked best first (fewest assertions failing, realism
+##                                 score, MUST FIX, findings) with its diff (cards changed, joints moved); variants with a bad
+##                                 step listed under "failed"; apply: "best" | n runs that one for real as ONE undo step (scripts/try_n.gd)
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
 ##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
 ##                                 path = open it first (as open)
@@ -269,6 +275,47 @@ func _init() -> void:
 			var br := await SceneBrief.brief(m, T, tk)
 			say(br["text"])
 			done(br)
+		"try":   # N019 (scripts/try_n.gd): try <scene> <steps> [--or <steps>]... | <steps with {p}> --sweep p=v1,v2 [--no-score] [--apply best|N --out path]
+			var tp := {"score": not "--no-score" in a}
+			var tq := a.filter(func(x): return x != "--no-score" and x != "--json")
+			for flag in ["--apply", "--out", "--sweep"]:
+				var fi := tq.find(flag)
+				if fi >= 0 and fi + 1 < tq.size():
+					tp[flag] = tq[fi + 1]
+					tq = tq.slice(0, fi) + tq.slice(fi + 2)
+			if tp.has("--apply"):
+				tp["apply"] = "best" if tp["--apply"] == "best" else int(tp["--apply"])
+			if tp.has("--sweep"):
+				var sw: PackedStringArray = String(tp["--sweep"]).split("=")
+				tp["base"] = tq.slice(2)
+				tp["sweep"] = {"param": sw[0], "values": Array(sw[1].split(",")) if sw.size() == 2 else []}
+			else:
+				tp["variants"] = [[]]
+				for x in tq.slice(2):
+					if x == "--or":
+						tp["variants"].append([])
+					else:
+						tp["variants"][-1].append(x)
+			var tout: String = res(tp.get("--out", "")) if tp.has("--out") else ""
+			if tout != "" and T.out_refused(tout) != "":
+				done({"ok": false, "error": T.out_refused(tout)})
+				return
+			if tq.size() < 3 or not open_scene(tq[1]):
+				if tq.size() < 3:
+					done({"ok": false, "error": "try <scene.json> <steps> --or <steps> ... | try <scene.json> retime=3-3:{pct} --sweep pct=80,90,100 [--no-score] [--apply best|N --out <path>]"})
+				return
+			m._card_pick(0)
+			var tr: Dictionary = await T.request(1, "try", tp)
+			var trr: Dictionary = tr.get("result", tr.get("error", {}).get("data", {}))
+			for l in TryN.lines(trr):
+				say(l)
+			trr["ok"] = tr.has("result")
+			if tr.has("error"):
+				trr["error"] = tr["error"]["message"]
+			if trr["ok"] and tout != "" and trr.has("applied"):
+				T.write_scene(tout, "poser_cli try")
+				trr["out"] = tout
+			done(trr)
 		"lint":   # N018: scripts/clip_lint.gd
 			var lr := ClipLint.lint(m, a[1] if a.size() > 1 else "")
 			for l in ClipLint.lines(lr):

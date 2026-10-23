@@ -443,4 +443,6 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
+		"try":   # N019 TRY N WAYS: variants (or one change swept) each dry-run, scored, ranked; apply = the pick as one undo step (scripts/try_n.gd)
+			return await TryN.request(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
