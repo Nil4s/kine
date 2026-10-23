@@ -15,6 +15,8 @@ EXTRA="$EXTRA modelcheck:w"   # B30
 EXTRA="$EXTRA boolean:h"   # B10
 EXTRA="$EXTRA deformscene:w"   # ROADMAP_400 H17
 case " $EXTRA " in *" bodymesh:"*) ;; *) EXTRA="$EXTRA bodymesh:w" ;; esac   # A18: lost when the EXTRA line above was re-set; H17 runs it with deformscene
+EXTRA="$EXTRA anatomy:w autoweights:h basebody:w bevel:h bodymesh:w eyelife:w fill:h kmesh_cut:h kwpaint:w mask:w matlib:w meshfilter:h meshwords:w modstack:w pbrmat:w proportional:w sculptsym:h uveditor:w uvexport:h uvgame:w uvpack:w vpaint:w snap:w pivot:w"   # the suites the w2-decimate merge's line above dropped
+EXTRA="$EXTRA armour:w"   # B23
 # suites that are slow BY DESIGN (name=seconds): text_blocking fits both hands on every card of every phrase (~0.25 s per arm fit, ~700 s alone),
 # gentle runs every one of 450+ commands from 7 hostile states (~2600+ cells); the default cap would stop them while they are still working
 SLOW="text_blocking=1800 gentle=2400"
