@@ -11,10 +11,10 @@
 ##   5 MASS: the 1 m steel cube is 7850 kg (EN 1991-1-1), oak 700 kg; a 10 cm steel cube 7.850 kg (1e-6: 0.1 m stored 32-bit); the readout carries the kg
 ##   6 REFUSAL: the cube with its top deleted gives no volume and the reason names the hole ("open", boundary edges count: 4); the
 ##     inside-out cube is refused as inside out; a 3-face edge as not manifold; no mass is given for any of them
-##   7 PLACEMENT (the app's test cube, seen from the front, 2 opposite corners of the front face picked (84.9 cm), M pressed): the label rect lies inside the
+##   7 PLACEMENT (the app's test cube, seen from the front, 2 opposite corners of the front face picked (84.9 cm), T pressed): the label rect lies inside the
 ##     window by its margin, its corner is within LABEL_GAP + 1 px of the projected ruler middle, the pixel at the ruler's
 ##     middle (a point on the line) differs from the same pixel with measure off (> 0.1), the label's centre pixel too;
-##     an anchor far off-screen (and one behind the camera) still puts the label fully inside the window. M again: gone.
+##     an anchor far off-screen (and one behind the camera) still puts the label fully inside the window. T again: gone.
 ##     Shot -> user://kmeshmeasure.png
 extends SceneTree
 
@@ -169,7 +169,7 @@ func _init() -> void:
 	ui.sel.verts[va] = true
 	ui.sel.verts[vb] = true
 	ui.view.mark_dirty()
-	await key(KEY_M)
+	await key(KEY_T)
 	var img := await shot()
 	img.save_png("user://kmeshmeasure.png")
 	var mid_w: Vector3 = ui.view.global_transform * ((ui.mesh.verts[va] + ui.mesh.verts[vb]) * 0.5)
@@ -199,7 +199,7 @@ func _init() -> void:
 	var far := KMeshMeasure.label_rect(cam, wc + cam.global_transform.basis.x * 50.0, sz, root.get_visible_rect())
 	var behind := KMeshMeasure.label_rect(cam, cam.global_position + cam.global_transform.basis.z * 3.0, sz, root.get_visible_rect())
 	ok(inner.encloses(far) and inner.encloses(behind), "(7) off-screen anchor kept inside: far right %s, behind the camera %s" % [str(far), str(behind)])
-	await key(KEY_M)
+	await key(KEY_T)
 	ok(ui.meas == null, "(7) M again turns the measure off")
 	print("  shot: ", ProjectSettings.globalize_path("user://kmeshmeasure.png"), "  (", scr.size, ")")
 	print("KMESH MEASURE ", "PASS" if fails == 0 else "FAIL %d" % fails)

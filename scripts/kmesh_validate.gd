@@ -24,18 +24,22 @@ static func _area(m: KMesh, f: PackedInt32Array) -> float:
 	return n.length() * 0.5
 
 
-static func _doubled(m: KMesh) -> Array:
+## [v, onto] for each vert within dist of an earlier one (B05 merge by distance passes its own dist, and only = the
+## selected verts as a set: the rest are not looked at)
+static func _doubled(m: KMesh, dist := WELD, only: Dictionary = {}) -> Array:
 	var cell := {}
 	var out := []
 	for v in m.verts.size():
+		if not only.is_empty() and not only.has(v):
+			continue
 		var p: Vector3 = m.verts[v]
-		var k := Vector3i(floori(p.x / WELD), floori(p.y / WELD), floori(p.z / WELD))
+		var k := Vector3i(floori(p.x / dist), floori(p.y / dist), floori(p.z / dist))
 		var hit := -1
 		for dx in [-1, 0, 1]:
 			for dy in [-1, 0, 1]:
 				for dz in [-1, 0, 1]:
 					for o in cell.get(k + Vector3i(dx, dy, dz), []):
-						if hit < 0 and (m.verts[o] as Vector3).distance_to(p) <= WELD:
+						if hit < 0 and (m.verts[o] as Vector3).distance_to(p) <= dist:
 							hit = o
 		if hit >= 0:
 			out.append([v, hit])

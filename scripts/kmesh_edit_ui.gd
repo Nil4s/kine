@@ -8,7 +8,9 @@ extends Node
 ##   A  select all                                                      Esc  disarm B / L, or leave
 ##   Ctrl+Z  undo the last mesh edit (A12: "Model: subdivide the test cube (Catmull-Clark)" is one step)
 ##   K  add a shape key from the current shape (A13)                    [ / ]  the last key's value -0.1 / +0.1
-##   M  measure the selection (B20, KMeshMeasure; follows the selection)  Shift+M  next material (the mass with the volume)
+##   T  measure the selection (B20, KMeshMeasure; follows the selection)  Shift+T  next material (the mass with the volume)
+##   B05: Delete  delete the selection (Shift+Delete: only the faces)   Ctrl+Delete  dissolve it (verts / edges / faces)
+##   M  merge at centre (Shift+M at the first, Alt+M by distance)       Ctrl+Z / Ctrl+Shift+Z  undo / redo
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -73,7 +75,7 @@ func start() -> void:
 	live = {}
 	prim_panel.visible = true
 	view.rebuild()
-	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Esc leaves")
+	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, Esc leaves")
 
 
 func stop() -> void:
@@ -107,15 +109,15 @@ func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
-		if (ev as InputEventKey).keycode == KEY_Z and not undo.steps.is_empty():   # A12: the mesh's own undo while the cube is open
-			var lb := undo.undo()
-			sel.clear()
-			view.mark_dirty()
-			m._say("Model: undid %s" % lb)
-			return true
-		return false
+		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves
+		var ck := (ev as InputEventKey).keycode
+		if not (ck == KEY_DELETE or (ck == KEY_Z and not (undo.steps.is_empty() and not (ev as InputEventKey).shift_pressed))):
+			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if k in [KEY_DELETE, KEY_M] or (k == KEY_Z and (ev as InputEventKey).ctrl_pressed):
+			_b05_key(ev as InputEventKey)
+			return true
 		match k:
 			KEY_1:
 				set_mode(KMeshSelect.VERT)
@@ -132,7 +134,7 @@ func input(ev: InputEvent) -> bool:
 			KEY_X:
 				xray = not xray
 				m._say("Model: x-ray %s: box and lasso %s" % ["on" if xray else "off", "select through to the far side" if xray else "only take what you can see"])
-			KEY_M:
+			KEY_T:
 				_measure_key((ev as InputEventKey).shift_pressed)
 			KEY_A:
 				sel.select_all()
@@ -278,7 +280,7 @@ func nudge_shape_key(dv: float) -> float:
 	return v
 
 
-## B20: M turns the measure on / off; Shift+M (turning it on if needed) steps the material for the mass
+## B20: T turns the measure on / off; Shift+T (turning it on if needed) steps the material for the mass
 func _measure_key(shift: bool) -> void:
 	if meas != null and not shift:
 		meas.queue_free()
@@ -301,6 +303,45 @@ func _remeasure() -> void:
 	var r := meas.measure(mesh, sel)
 	_ov.queue_redraw()
 	m._say("Model: measure %s%s" % [r["text"], "" if meas.material == "" else " (%s %.0f kg/m³)" % [meas.material, meas.density]])
+
+
+## B05: delete / dissolve / merge on the selection, one undo step each
+func _b05_key(e: InputEventKey) -> void:
+	if e.keycode == KEY_Z:
+		var lb := undo.redo() if e.shift_pressed else undo.undo()
+		sel.clear()
+		view.mark_dirty()
+		m._say("Model: %s %s" % ["redone" if e.shift_pressed else "undone", lb if lb != "" else "(nothing to %s)" % ("redo" if e.shift_pressed else "undo")])
+		return
+	var it := KMeshDissolve.from_select(sel)
+	var before := "%s verts %s faces" % [str(mesh.vert_count()), str(mesh.face_count())]
+	var what := ""
+	var md: String = ["verts", "edges", "faces"][sel.mode]
+	undo.begin(mesh)
+	if e.keycode == KEY_M and e.alt_pressed:
+		what = "merged %d by distance" % KMeshDissolve.merge_by_distance(mesh, KMeshDissolve.MERGE_DIST, it["verts"])
+	elif e.keycode == KEY_M:
+		KMeshDissolve.merge(mesh, it["verts"], "first" if e.shift_pressed else "centre")
+		what = "merged at %s" % ("the first" if e.shift_pressed else "the centre")
+	elif e.ctrl_pressed:
+		match sel.mode:
+			KMeshSelect.VERT:
+				KMeshDissolve.dissolve_verts(mesh, it[md])
+			KMeshSelect.EDGE:
+				KMeshDissolve.dissolve_edges(mesh, it[md])
+			_:
+				KMeshDissolve.dissolve_faces(mesh, it[md])
+		what = "dissolved the " + md
+	else:
+		var kind := "only_faces" if e.shift_pressed and sel.mode == KMeshSelect.FACE else md
+		KMeshDissolve.delete(mesh, kind, it[md])
+		what = "deleted the " + kind.replace("_", " ")
+	if undo.commit(what).is_empty():   # nothing changed: no step kept
+		m._say("Model: nothing to do. Select %s first (Delete deletes, Ctrl+Delete dissolves, M merges)" % ("two or more verts" if e.keycode == KEY_M else "something"))
+		return
+	sel.clear()
+	view.mark_dirty()
+	m._say("Model: %s: %s now %s verts %s faces. Ctrl+Z undoes" % [what, before, str(mesh.vert_count()), str(mesh.face_count())])
 
 
 func _report() -> void:
