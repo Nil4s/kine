@@ -14,6 +14,7 @@ extends Node
 ##   E  extrude (Shift+E: each face on its own)   I  inset (Shift+I: each face)   Ctrl+E  bridge two edge loops   (B02 / B03)
 ##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
 ##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
+##   Ctrl+R  loop cut (hover, wheel = cuts, click, slide, click)   Shift+K  knife   V  edge split   (B04, kmesh_cut_tool.gd)
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
@@ -119,6 +120,8 @@ func _process(_dt: float) -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
 		var ck := (ev as InputEventKey).keycode
