@@ -5610,6 +5610,7 @@ func _snapshot() -> Dictionary:
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
+		"armour": ArmourFromBody.snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
@@ -5776,6 +5777,8 @@ func _restore(u: Dictionary) -> void:
 		S.drivers = u["drivers"].duplicate(true)   # user drivers (GAP row 15), undone like a card
 	if u.has("body_gen"):
 		BaseBody.restore_gen(self, int(u["body_gen"]))   # G01: before the weights, which are sized by its vertices
+	if u.has("armour"):
+		ArmourFromBody.restore(self, u["armour"])   # B23: the armour parts as they were
 	if u.has("skin_w") and not wp.is_empty():
 		if SkinPaint.restore(wp, u["skin_w"]):
 			_skp_build()
