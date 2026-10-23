@@ -191,6 +191,8 @@ func _apply(st: Dictionary, back: bool) -> void:
 		m.modifiers = (st["m_old"] if back else st["m_new"]).duplicate(true)
 	if st.has("mt_old"):
 		m.materials = KMeshMaterial.snapshot(st["mt_old"] if back else st["mt_new"])
+	if st.has("apply"):   # B11 / B12: state that is not mesh data (the curve object) rides on the step
+		(st["apply"] as Callable).call(back)
 
 
 func undo() -> String:
