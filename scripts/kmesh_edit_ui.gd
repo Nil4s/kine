@@ -27,6 +27,9 @@ extends Node
 ##   Shift+U  the UV editor panel on / off (D01, scripts/kmesh_uv_editor.gd: select / move / rotate / scale UVs)
 ##   Alt+H  colour by anatomy on / off (A19, KMeshAnatomy: deltoid, patella, knuckles ... per vert, carried through edits);
 ##      while on, Alt+drag paints the brush tag (one undo step a stroke), Alt+Shift+click picks the tag under the mouse
+##   B08 / B14 (Blender keys on, G / R / S): Ctrl held while moving snaps (scripts/kmesh_snap.gd); Shift+Tab  next snap
+##      target (vertex, edge, midpoint, face, grid 1 / 5 / 10 cm, the fighter's skin)   .  next pivot for R / S (median,
+##      active, 3D cursor, individual origins; scripts/kmesh_pivot.gd)   Shift+right-click  put the 3D cursor there
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 ## B09: the "Add primitive" panel (left edge) adds a cube / plane / UV or ico sphere / cylinder / capsule / torus
 ## (scripts/kmesh_prims.gd) beside what is there, as ONE undo step; its fields stay live (each change rebuilds the new
@@ -70,6 +73,8 @@ var mat_panel: KMeshMaterialPanel   # E01: the Materials panel (top right; shows
 var anat: KMeshAnatomy       # A19: the anatomy tags + the colour-by-anatomy view and its brush
 var source: Callable   # G01 (scripts/base_body.gd): what mesh to open, -> {"mesh": KMesh, "at": Transform3D}; empty = the test cube
 var left: Callable     # G01: called after leaving (the fighter shows again)
+var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
+var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
 
 
 func setup(main: Node) -> void:
@@ -87,6 +92,12 @@ func setup(main: Node) -> void:
 	mods.setup(self)
 	mat_panel = KMeshMaterialPanel.new(self)
 	m.ui_root.add_child(mat_panel)
+	snap = KMeshSnap.new()
+	add_child(snap)
+	snap.setup(self)
+	pivot = KMeshPivot.new()
+	add_child(pivot)
+	pivot.setup(self)
 
 
 func start() -> void:
@@ -171,6 +182,8 @@ func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
 	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
+		return true
+	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)
 		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
