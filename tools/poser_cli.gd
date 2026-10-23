@@ -76,6 +76,10 @@
 ##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
 ##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
+##   range {joint, axis, conditions, card? | t?, step?, from?, to?, joint2?, axis2?}   N013: the values of that axis that keep
+##                                 EVERY condition true ("balance", "reach right fist to 0.25,1.35,0.45 within 2 cm", "limits 5",
+##                                 an N002 line): intervals in deg with what bounds each end; joint2 = a pass / fail map
+##                                 (scripts/range_sweep.gd; CLI: range <scene|-> [card=N] [t=S] [step=D] <joint> <axis> "<cond>" ...)
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
@@ -258,6 +262,26 @@ func _init() -> void:
 			var ev: Dictionary = await EventQuery.run(m, ep)
 			say(String(ev.get("text", ev.get("error", ""))))
 			done(ev)
+		"range":   # N013: range <scene|-> [card=N] [t=S] [step=D] [from=A] [to=B] <joint> <axis> "<condition>" ...
+			if a.size() < 5 or (a[1] != "-" and not open_scene(a[1])):
+				if a.size() < 5:
+					done({"ok": false, "error": "range <scene.json|-> [card=N] [t=S] [step=D] <joint> <axis> \"<condition>\" ...  (N013; scripts/range_sweep.gd)"})
+				return
+			var rp := {"conditions": []}
+			var pos := []
+			for x in a.slice(2):
+				var kv := String(x).split("=", true, 1)
+				if kv.size() == 2 and kv[0] in ["card", "t", "step", "from", "to"] and kv[1].is_valid_float():
+					rp[kv[0]] = int(kv[1]) if kv[0] == "card" else float(kv[1])
+				else:
+					pos.append(x)
+			rp["joint"] = pos[0] if pos.size() > 0 else ""
+			rp["axis"] = pos[1] if pos.size() > 1 else ""
+			rp["conditions"] = pos.slice(2)
+			var rr := RangeSweep.run(m, rp)
+			for l in rr.get("text", [rr.get("error", "")]):
+				say(l)
+			done(rr)
 		"run":
 			await run(a)
 		"serve":
