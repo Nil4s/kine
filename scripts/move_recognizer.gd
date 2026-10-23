@@ -224,7 +224,7 @@ static func form_of(cls: String, ft: Dictionary) -> Array:
 			out.append(_form("hips turned into the punch", ft["hip_into"], 10.0, 360.0, "deg", "SOURCED (the 10 deg floor HEURISTIC)", SRC_HOOK,
 				"the hips turn only %.0f deg into it; a textbook hook rotates the hips into the punch" % ft["hip_into"], "the hips turn %.0f deg into it" % ft["hip_into"]))
 		"jab", "cross":
-			out.append(_form("elbow inner angle at contact", ft["elbow"], 150.0, 180.0, "deg", "SOURCED (the 150 floor HEURISTIC)", SRC_STRAIGHT,
+			out.append(_form("elbow inner angle at contact", ft["elbow"], 150.0, 180.0, "deg", "SOURCED (the 150 deg floor HEURISTIC)", SRC_STRAIGHT,
 				"the arm ends bent at %.0f deg; a straight punch is thrown with elbow extension" % ft["elbow"], "the arm extends (%.0f deg)" % ft["elbow"]))
 			out.append(_form("fist height - shoulder height at contact", ft["fist_vs_shoulder"] * 100.0, -15.0, 15.0, "cm", H, "",
 				"the fist lands %.0f cm %s shoulder height" % [absf(ft["fist_vs_shoulder"]) * 100.0, "below" if ft["fist_vs_shoulder"] < 0.0 else "above"], "the fist lands at shoulder height"))
@@ -247,12 +247,12 @@ static func form_of(cls: String, ft: Dictionary) -> Array:
 			out.append(_form("knee inner angle at contact", ft["knee"], 150.0, 180.0, "deg", H, "",
 				"the leg ends bent at %.0f deg" % ft["knee"], "the leg extends (%.0f deg)" % ft["knee"]))
 		"side kick":
-			out.append(_form("knee inner angle at contact", ft["knee"], 150.0, 180.0, "deg", "SOURCED (the 150 floor HEURISTIC)", SRC_SIDE,
+			out.append(_form("knee inner angle at contact", ft["knee"], 150.0, 180.0, "deg", "SOURCED (the 150 deg floor HEURISTIC)", SRC_SIDE,
 				"the leg ends bent at %.0f deg; the side kick extends knee and hip" % ft["knee"], "the leg extends (%.0f deg)" % ft["knee"]))
 			out.append(_form("foot height - hip height at contact", ft["foot_vs_hip"] * 100.0, -25.0, 50.0, "cm", H, "",
 				"the foot lands %.0f cm under hip height" % (-ft["foot_vs_hip"] * 100.0), "the foot lands near hip height"))
 		"roundhouse":
-			out.append(_form("hip turn through the kick", absf(ft["hip_turn"]), 90.0, 360.0, "deg", "SOURCED (~130 deg; the 90 floor HEURISTIC)", SRC_ROUND,
+			out.append(_form("hip turn through the kick", absf(ft["hip_turn"]), 90.0, 360.0, "deg", "SOURCED (~130 deg; the 90 deg floor HEURISTIC)", SRC_ROUND,
 				"the hips turn %.0f deg; the pelvis of a textbook roundhouse rotates about 130" % absf(ft["hip_turn"]), "the hips turn over (%.0f deg)" % absf(ft["hip_turn"])))
 			out.append(_form("knee extension speed peaks before contact (frames before)", ft["knee_ext_lead"], 1.0, 999.0, "frames", "SOURCED", SRC_ROUND,
 				"the knee's fastest straightening comes %d frames after contact" % int(-ft["knee_ext_lead"]), "the knee snaps out before contact"))
@@ -261,7 +261,7 @@ static func form_of(cls: String, ft: Dictionary) -> Array:
 				"the knee stays %.0f cm under hip height" % (-ft["knee_lift"] * 100.0), "the knee drives up to hip height"))
 		"thrust":
 			out.append(_form("tip path straightness", ft["straightness"], 0.9, 1.0, "", H, "",
-				"the tip wanders (straightness %.2f)" % ft["straightness"], "the tip travels straight"))
+				"the tip wanders (straightness %.0f %%)" % (ft["straightness"] * 100.0), "the tip travels straight"))
 		"overhead weapon strike":
 			out.append(_form("swing plane facing forward (|normal . left|)", ft["plane_left"], 0.8, 1.0, "", H, "",
 				"the swing plane leans %.0f deg off vertical-forward" % rad_to_deg(acos(clampf(ft["plane_left"], 0.0, 1.0))), "the swing plane is vertical"))
@@ -457,7 +457,7 @@ static func analyze(clip: Dictionary, me: int, f0: int, f1: int) -> Dictionary:
 			var v := _viol(cr)
 			dist += v
 			if v > 0.0:
-				why.append("%s %.2f (wants %s-%s)" % [cr[0], cr[1], str(cr[2]), str(cr[3])])
+				why.append(_miss_words(cr))
 		ranked.append({"class": cl, "distance": snappedf(dist, 0.01), "misses": why})
 	ranked.sort_custom(func(x, y): return x["distance"] < y["distance"])
 	var best: Dictionary = ranked[0]
@@ -537,6 +537,16 @@ static func analyze(clip: Dictionary, me: int, f0: int, f1: int) -> Dictionary:
 		(" and ".join(planted) + " foot") if not planted.is_empty() else "no foot",
 		"; ".join(bad.map(func(x): return x["text"])) if not bad.is_empty() else "as the textbook one"]
 	return out
+
+
+## a missed criterion in words, with its unit: deg, m, else a share / ratio said in %
+static func _miss_words(cr: Array) -> String:
+	var nm: String = cr[0]
+	if nm.ends_with("(deg)"):
+		return "%s %.0f deg (wants %.0f-%.0f deg)" % [nm.trim_suffix(" (deg)"), cr[1], cr[2], cr[3]]
+	if nm.ends_with("(m)"):
+		return "%s %.0f cm (wants %.0f-%.0f cm)" % [nm.trim_suffix(" (m)"), float(cr[1]) * 100.0, float(cr[2]) * 100.0, float(cr[3]) * 100.0]
+	return "%s %.0f %% (wants %.0f-%.0f %%)" % [nm, float(cr[1]) * 100.0, float(cr[2]) * 100.0, float(cr[3]) * 100.0]
 
 
 static func _round(ft: Dictionary) -> Dictionary:
