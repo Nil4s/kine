@@ -105,6 +105,7 @@ var ui_hips := []
 var ui_math: Label
 var ui_math_btn: Button
 var ui_status: Label
+var ui_mouse: MouseHint   # ROADMAP_400 P05: what the mouse buttons do now (scripts/mouse_hint.gd), just above the status line
 var ui_bar: Label   # STATUS BAR (round 9, GATES P4): what is picked, where you are, what Check said; always on
 var check_ran := false   # the bar says "not run" until Check has graded this scene
 var pose_clip := {}   # COPY / PASTE (round 10): the copied pose, empty until Ctrl+C
@@ -953,6 +954,22 @@ func _line_fit() -> void:
 		ui_status.offset_right = minf(lw() + 12 + said, split - 16)   # as wide as its words
 		ui_status.offset_top = y0
 		ui_status.offset_bottom = -bottom_h - 6
+	_mouse_fit(y0, x0, x1)
+
+
+## P05: the mouse-button strip sits on the row just above the line's two texts, from the view's left edge to the nav bar
+func _mouse_fit(y0: float, x0: float, x1: float) -> void:
+	if ui_mouse == null:
+		return
+	ui_mouse.anchor_left = 0.0
+	ui_mouse.anchor_right = 0.0
+	ui_mouse.offset_left = x0
+	ui_mouse.offset_right = maxf(x1, x0 + 40.0)
+	ui_mouse.offset_top = y0 - MouseHint.H - 2
+	ui_mouse.offset_bottom = y0 - 2
+	ui_mouse.size = Vector2(ui_mouse.offset_right - ui_mouse.offset_left, MouseHint.H)
+	ui_mouse._sig = ""   # the width changed: which items fit changes with it
+	ui_mouse.refresh()
 
 
 func _nav_set(t: String) -> void:
@@ -2943,6 +2960,8 @@ func _process(dt: float) -> void:
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
 			_drop_line.visible = false   # R8: the drag ended or left the strip
 	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
+	if ui_mouse != null:
+		ui_mouse.tick(dt)   # P05: at most every 50 ms
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
@@ -11815,6 +11834,11 @@ func _ui() -> void:
 	ui_bar_box = null
 	ui_bar.add_theme_stylebox_override("normal", bb)
 	ui_root.add_child(ui_bar)
+	ui_mouse = MouseHint.new()
+	ui_mouse.m = self
+	ui_mouse.anchor_top = 1.0
+	ui_mouse.anchor_bottom = 1.0
+	ui_root.add_child(ui_mouse)
 	_build_nav()
 	_build_akey_frame()
 
