@@ -6,6 +6,7 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   M  measure the selection (B20, KMeshMeasure; follows the selection)  Shift+M  next material (the mass with the volume)
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 
 const SIDE := 0.6
@@ -26,6 +27,7 @@ var _kind := ""               # the gesture in progress: "click", "box", "lasso"
 var _add := false
 var _lasso := PackedVector2Array()
 var _ov: Control
+var meas: KMeshMeasure   # B20: the ruler + readout while measuring, else null
 
 
 func setup(main: Node) -> void:
@@ -66,6 +68,7 @@ func stop() -> void:
 	_ov.visible = false
 	view.queue_free()
 	view = null
+	meas = null
 	m._say("Model: left the test cube (nothing was saved). Run Model: edit a test cube (preview) to come back")
 
 
@@ -73,6 +76,12 @@ func set_mode(md: int) -> void:
 	sel.set_mode(md)
 	view.mark_dirty()
 	m._say("Model: %s mode, %d selected. Click an element, or B and drag a box" % [["vertex", "edge", "face"][md], sel.count()])
+	_remeasure()
+
+
+func _process(_dt: float) -> void:
+	if meas != null and on:
+		_ov.queue_redraw()   # the label follows the camera
 
 
 ## main passes every unhandled input here while `on`; true = used
@@ -97,10 +106,13 @@ func input(ev: InputEvent) -> bool:
 			KEY_X:
 				xray = not xray
 				m._say("Model: x-ray %s: box and lasso %s" % ["on" if xray else "off", "select through to the far side" if xray else "only take what you can see"])
+			KEY_M:
+				_measure_key((ev as InputEventKey).shift_pressed)
 			KEY_A:
 				sel.select_all()
 				view.mark_dirty()
 				m._say("Model: all %d selected. Click empty space to clear" % sel.count())
+				_remeasure()
 			KEY_ESCAPE:
 				if armed != "" or _drag:
 					armed = ""
@@ -168,7 +180,35 @@ func input(ev: InputEvent) -> bool:
 var _cur := Vector2.ZERO
 
 
+## B20: M turns the measure on / off; Shift+M (turning it on if needed) steps the material for the mass
+func _measure_key(shift: bool) -> void:
+	if meas != null and not shift:
+		meas.queue_free()
+		meas = null
+		_ov.queue_redraw()
+		m._say("Model: measure off")
+		return
+	if meas == null:
+		meas = KMeshMeasure.new()
+		meas.name = "kmesh_measure"
+		view.add_child(meas)
+	if shift:
+		meas.cycle_material()
+	_remeasure()
+
+
+func _remeasure() -> void:
+	if meas == null:
+		return
+	var r := meas.measure(mesh, sel)
+	_ov.queue_redraw()
+	m._say("Model: measure %s%s" % [r["text"], "" if meas.material == "" else " (%s %.0f kg/m³)" % [meas.material, meas.density]])
+
+
 func _report() -> void:
+	if meas != null:
+		_remeasure()
+		return
 	var nm: String = ["vertices", "edges", "faces"][sel.mode]
 	if sel.count() == 0:
 		m._say("Model: nothing selected. Click an element, or B and drag a box")
@@ -177,6 +217,8 @@ func _report() -> void:
 
 
 func _draw_overlay() -> void:
+	if on and meas != null:
+		meas.draw_label(_ov, m.cam)
 	if not on or not _drag:
 		return
 	var c := Tok.c("pick_hover")
