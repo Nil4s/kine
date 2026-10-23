@@ -154,12 +154,15 @@ static func clip_stun(RS: Scene, RB: Body, c: int, fps := FrameData.FPS) -> Dict
 
 ## TWO FIGHTERS ON THE STAGE: attacker AS on AB, defender DS on DB placed by xf (his space -> the attacker's); DS is his track
 ## WITH the hit reaction in it (HitReaction / the picker put it at the contact). block_clip: a block reaction clip (or null);
-## moves: the defender's moves as scenes (his own track counts as one when it has an active part).
-static func of_actors(AS: Scene, AB: Body, DS: Scene, DB: Body, xf: Transform3D, fps := FrameData.FPS, block_clip: Scene = null, moves: Array = []) -> Dictionary:
+## moves: the defender's moves as scenes (his own track counts as one when it has an active part). hits: the attacker's
+## Dummy.fighter_hits rows when the caller already has them (null = found here). They are found at Dummy's own 30 Hz: it
+## samples at 240 Hz wherever the bodies may touch and bisects the onset to 1/1024 of a frame, so the 60 fps contact frame
+## is the same, at half the cost (combo3 vs a fighter: ~20 s at 60 Hz on a loaded machine is the run_par timeout's enemy).
+static func of_actors(AS: Scene, AB: Body, DS: Scene, DB: Body, xf: Transform3D, fps := FrameData.FPS, block_clip: Scene = null, moves: Array = [], hits: Variant = null) -> Dictionary:
 	var fd := FrameData.analyze(AS, AB, fps)
 	if fd.is_empty():
 		return {}
-	var ct := contact(fd, Dummy.fighter_hits(AS, AB, DS, DB, xf, fps))
+	var ct := contact(fd, hits if hits is Array else Dummy.fighter_hits(AS, AB, DS, DB, xf))
 	var hit := {}
 	if int(ct["c"]) >= 0:
 		hit = stun(DS, DB, float(ct["t"]) if float(ct["t"]) >= 0.0 else float(ct["c"]) / float(fps), fps)

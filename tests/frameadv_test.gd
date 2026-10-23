@@ -16,7 +16,7 @@
 ##  5 EXPORT: FrameData.write_json of the exchange's frame data has exchange.{on_hit, on_block, hitstun, blockstun, punishable,
 ##    recovery_end, contact_f} equal to the numbers; a frame data without an exchange exports with no "exchange" key.
 ##  6 SERVE: frame_data on combo3 by default has startup/active/recovery and NO "exchange" and no "frames"; with hit_clip and
-##    block_clip it has the exchange, equal to of_clips' numbers. An unknown clip path is a -32602 error.
+##    block_clip it has the exchange: on hit = startup + 43 - (startup + active + recovery), on block = startup + 23 - (...), hitstun 42. An unknown clip path is a -32602 error.
 extends SceneTree
 
 var fails := 0
@@ -187,7 +187,8 @@ func _init() -> void:
 		var own_Eb := c + own_stun_end(blk, stand(), 0.0, 0.02)
 		print("combo3: %d f, startup %d active %d recovery %d, contact %s (%s, %.3f s on %s), hit stun end %s (own %d) peak %s, block end %s (own %d); %s (%d ms)"
 			% [fdc["n"], fdc["startup"], fdc["active"], fdc["recovery"], c, c3["contact_from"], ct["t"], ct["on"], c3["hit_stun_end"], own_E, "-", c3["block_stun_end"], own_Eb, FrameAdvantage.words(c3), Time.get_ticks_msec() - t0])
-		ok(c3["contact_from"] == "contact" and int(c3["hitstun"]) >= 1, "4 a real contact (%s) and a hitstun of %s f" % [c3["contact_from"], c3["hitstun"]])
+		ok(c3["contact_from"] == "contact" and int(c3["hitstun"]) >= 1 and c == int(ct["c"]),
+			"4 a real contact (%s; frame %d, the test's own 60 Hz search: %d) and a hitstun of %s f" % [c3["contact_from"], c, ct["c"], c3["hitstun"]])
 		ok(int(c3["recovery_end"]) == own_R and own_R == lastf + int(fdc["recovery"]) + 1, "4 recovery end %s = own count %d = last active %d + recovery %d + 1" % [c3["recovery_end"], own_R, lastf, fdc["recovery"]])
 		ok(int(c3["hit_stun_end"]) == own_E and int(c3["on_hit"]) == own_E - own_R and int(c3["hitstun"]) == own_E - c - 1,
 			"4 on hit: stun end %s = own %d, advantage %s = %d - %d, hitstun %s = %d - %d - 1" % [c3["hit_stun_end"], own_E, c3["on_hit"], own_E, own_R, c3["hitstun"], own_E, c])
@@ -205,7 +206,9 @@ func _init() -> void:
 		# 3 on combo3: the last card held 10 f longer
 		var C2 := C.clone()
 		C2.cards[-1]["hold"] = float(C2.cards[-1]["hold"]) + 10.0 / FPS
-		var c3b := FrameAdvantage.of_actors(C2, CB, DS, D0, xf, FPS, blk, [])
+		# (the contacts are the test's own 60 Hz ones: only the last card's hold changed, after every strike, and the reaction
+		# starts at the first contact, so the first contact is the same; this saves one fighter_hits pass)
+		var c3b := FrameAdvantage.of_actors(C2, CB, DS, D0, xf, FPS, blk, [], hits)
 		ok(int(c3b["fd"]["recovery"]) - int(fdc["recovery"]) == 10 and int(c3b["on_hit"]) - int(c3["on_hit"]) == -10 and int(c3b["on_block"]) - int(c3["on_block"]) == -10
 			and c3b["hitstun"] == c3["hitstun"],
 			"3 combo3 +10 f recovery: recovery %+d, on hit %+d, on block %+d" % [int(c3b["fd"]["recovery"]) - int(fdc["recovery"]), int(c3b["on_hit"]) - int(c3["on_hit"]), int(c3b["on_block"]) - int(c3["on_block"])])
@@ -245,12 +248,15 @@ func _init() -> void:
 	var d2: Dictionary = await T.request(4, "frame_data", {"hit_clip": "nope/none.json"})
 	var r0: Dictionary = d0.get("result", {})
 	var r1: Dictionary = d1.get("result", {})
-	var want := FrameAdvantage.of_clips(C, stand(), reaction(40), reaction(20), stand(), FPS)
+	# expected without measuring again: the clips start on combo3's first active frame (= its startup), the hit clip is back
+	# on its frame 43 and the block clip on its frame 23 (bar 1), and the attacker can act on startup + active + recovery
+	var R0 := int(r0.get("startup", 0)) + int(r0.get("active", 0)) + int(r0.get("recovery", 0))
+	var want := {"on_hit": int(r0.get("startup", 0)) + 43 - R0, "on_block": int(r0.get("startup", 0)) + 23 - R0, "hitstun": 42}
 	var x1: Dictionary = r1.get("exchange", {})
 	ok(r0.has("startup") and r0.has("recovery") and not r0.has("exchange") and not r0.has("frames"),
 		"6 serve default: %s" % JSON.stringify(r0).left(160))
 	ok(not x1.is_empty() and x1.get("on_hit") == want["on_hit"] and x1.get("on_block") == want["on_block"] and x1.get("hitstun") == want["hitstun"],
-		"6 serve opt-in exchange: on hit %s on block %s hitstun %s (of_clips: %s %s %s)" % [x1.get("on_hit"), x1.get("on_block"), x1.get("hitstun"), want["on_hit"], want["on_block"], want["hitstun"]])
+		"6 serve opt-in exchange: on hit %s on block %s hitstun %s (want %s %s %s)" % [x1.get("on_hit"), x1.get("on_block"), x1.get("hitstun"), want["on_hit"], want["on_block"], want["hitstun"]])
 	ok(d2.has("error") and int(d2["error"]["code"]) == -32602, "6 a missing clip: %s" % JSON.stringify(d2.get("error", {})).left(160))
 	m.queue_free()
 	DirAccess.remove_absolute(hp)
