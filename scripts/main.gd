@@ -159,6 +159,7 @@ var se_ui: SpeedEnvUI = SpeedEnvUI.new(self)   # SPEED LIMITS (ROADMAP I47): scr
 var bt_ui: BestTakeUI = BestTakeUI.new(self)   # MY BEST TAKE (ROADMAP I38): scripts/best_take_ui.gd + best_take.gd
 var style_ui: StyleUI = StyleUI.new(self)   # LEARN MY STYLE (ROADMAP I17): scripts/style_ui.gd + style_print.gd
 var gz_ui: GazeUI   # GAZE DIRECTOR (ROADMAP I41): scripts/gaze_ui.gd
+var el_ui: EyeLifeUI   # LIVING EYES (ROADMAP I08): scripts/eye_life_ui.gd
 var sh_ui: SellHitUI   # SELL THE HIT (ROADMAP I21): scripts/sell_hit_ui.gd
 var bk_ui: BreakfallUI   # BREAKFALL CHECK (ROADMAP I25): scripts/breakfall_ui.gd
 var rc_ui: RecoveryUI   # RECOVERY STEP (ROADMAP I39): scripts/recovery_ui.gd
@@ -3016,6 +3017,8 @@ func _process(dt: float) -> void:
 		sh_ui.tick(dt)
 	if gz_ui != null:
 		gz_ui.tick(dt)
+	if el_ui != null:
+		el_ui.tick(dt)
 	if bk_ui != null:
 		bk_ui.tick(dt)
 	if rc_ui != null:
@@ -5667,6 +5670,8 @@ func _restore(u: Dictionary) -> void:
 		sh_ui.halt()
 	if gz_ui != null:
 		gz_ui.halt()
+	if el_ui != null:
+		el_ui.halt()
 	if bk_ui != null:
 		bk_ui.halt()
 	if rc_ui != null:
@@ -14060,6 +14065,9 @@ func _commands() -> Array:
 	if gz_ui == null:
 		gz_ui = GazeUI.new(self)
 	gz_ui.commands(add)   # GAZE DIRECTOR (ROADMAP I41)
+	if el_ui == null:
+		el_ui = EyeLifeUI.new(self)
+	el_ui.commands(add)   # LIVING EYES (ROADMAP I08)
 	if bk_ui == null:
 		bk_ui = BreakfallUI.new(self)
 	bk_ui.commands(add)   # BREAKFALL CHECK (ROADMAP I25)
@@ -19133,7 +19141,8 @@ func _face_make() -> void:
 func _face_draw() -> void:
 	var live := face_ui != null and face_ui.live()
 	var ex: Dictionary = S.expr_at(playhead)
-	var on := live or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
+	var elp := el_ui != null and el_ui.pv   # I08: the living eyes preview shows its track
+	var on := live or elp or not S.lip.is_empty() or not S.face.is_empty() or not ex.is_empty()
 	if not on:
 		if mouth_mi != null:
 			mouth_mi.visible = false
@@ -19151,7 +19160,7 @@ func _face_draw() -> void:
 		add_child(mouth_mi)
 	if face_root == null:
 		_face_make()
-	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else Face.at(S.face, S.lip, playhead, ex)
+	var P: Dictionary = Face.pose(face_ui.values(), {}, playhead) if live else (el_ui.pose_now() if elp else Face.at(S.face, S.lip, playhead, ex))
 	var geo := _face_geo()
 	if geo.is_empty():
 		return   # no head mesh to anchor on
