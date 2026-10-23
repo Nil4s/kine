@@ -74,6 +74,8 @@ const TOOLS := [
 	{"id": "mesh_mat_assign", "label": "Model: assign the material to the selected faces", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_assign", "also": "material materials pbr assign apply paint slot surface metal rough", "desc": "the Materials panel's picked slot goes on the selected faces (E01, one undo step)"},
 	{"id": "mesh_mat_select", "label": "Model: select the faces of a material", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_select", "also": "material materials pbr slot by which faces", "desc": "the faces wearing the Materials panel's picked slot become the selection"},
 	{"id": "mesh_wpaint", "label": "Model: weight paint (skin weights)", "page": "MODEL", "keys": "", "bl": "", "do": "op:wpaint", "also": "weight paint skin weights bone brush smooth normalise normalize mirror lock influence skinning", "desc": "H02: paint the active bone's skin weights (heat blue -> red): add / subtract / set / smooth, X mirror, lock bones (on / off)"},
+	{"id": "mesh_realsize", "label": "Model: real-size check", "page": "MODEL", "keys": "", "bl": "", "do": "op:realsize", "also": "real size scale units dimensions sanity check too big small long sword helmet glove boot body proportions cm mm", "desc": "B27: the model's box against the fighter (a sword vs the arm, a helmet vs the head), with a readout beside it"},
+	{"id": "mesh_realsize_fix", "label": "Model: real-size rescale (units fix)", "page": "MODEL", "keys": "", "bl": "", "do": "op:realsize_fix", "also": "real size rescale units cm mm fix scale 100 1000 import", "desc": "B27: a model made in cm or mm scaled back to metres, one undo step"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -250,6 +252,10 @@ static func op(name: String, m) -> String:
 			ui.toggle_uv_editor()
 		"mat_assign", "mat_select":   # E01: the Materials panel says what it did
 			var _n: int = ui.mat_panel.assign_selection() if name == "mat_assign" else ui.mat_panel.select_by(ui.mat_panel.cur)
+		"realsize":   # B27 (scripts/real_size.gd): the readout says it
+			return RealSizeUI.toggle(m)
+		"realsize_fix":
+			return RealSizeUI.fix_op(m)
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
