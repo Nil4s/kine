@@ -92,6 +92,8 @@ const TOOLS := [
 	{"id": "mesh_fset_colors", "label": "Model: face-set colours on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_colors", "also": "face set sets colour color overlay tint polygroup show", "desc": "each face set tinted in its own colour (C09)"},
 	{"id": "mesh_realsize", "label": "Model: real-size check", "page": "MODEL", "keys": "", "bl": "", "do": "op:realsize", "also": "real size scale units dimensions sanity check too big small long sword helmet glove boot body proportions cm mm", "desc": "B27: the model's box against the fighter (a sword vs the arm, a helmet vs the head), with a readout beside it"},
 	{"id": "mesh_realsize_fix", "label": "Model: real-size rescale (units fix)", "page": "MODEL", "keys": "", "bl": "", "do": "op:realsize_fix", "also": "real size rescale units cm mm fix scale 100 1000 import", "desc": "B27: a model made in cm or mm scaled back to metres, one undo step"},
+	{"id": "mesh_refplane_add", "label": "Model: add a reference image (front / side / top plane)", "page": "MODEL", "keys": "", "bl": "", "do": "op:refplane_add", "also": "reference image picture photo blueprint plane background front side top opacity trace drop", "desc": "a picture on a plane behind the mesh, with opacity, offset, real height, two-point scale, flip, lock (B21; or drop a picture on the window)"},
+	{"id": "mesh_refplane_two", "label": "Model: reference image: scale by two points", "page": "MODEL", "keys": "", "bl": "", "do": "op:refplane_two", "also": "reference image picture blueprint scale two points distance calibrate size real", "desc": "click two points on the picture, then type their real distance (B21)"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -285,6 +287,8 @@ static func op(name: String, m) -> String:
 				said = KMeshDecimate.op(name, m)   # F03
 			elif name.begins_with("lod"):
 				said = KMeshLOD.op(name, m)   # F04
+			elif name.begins_with("refplane"):   # B21 (scripts/kmesh_refplanes_ui.gd): it says what it did
+				return ui.refp.open_dialog() if name == "refplane_add" else ui.refp.arm_two_points()
 			elif name.begins_with("fset_"):
 				said = KMeshFaceSetsUI.op(name, m)   # C09
 			elif name.begins_with("boolean_"):

@@ -75,6 +75,7 @@ var source: Callable   # G01 (scripts/base_body.gd): what mesh to open, -> {"mes
 var left: Callable     # G01: called after leaving (the fighter shows again)
 var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
 var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
+var refp: KMeshRefPlanesUI   # B21: reference images on planes + their panel (scripts/kmesh_refplanes_ui.gd)
 
 
 func setup(main: Node) -> void:
@@ -98,6 +99,9 @@ func setup(main: Node) -> void:
 	pivot = KMeshPivot.new()
 	add_child(pivot)
 	pivot.setup(self)
+	refp = KMeshRefPlanesUI.new()
+	add_child(refp)
+	refp.setup(self)
 
 
 func start() -> void:
@@ -182,6 +186,8 @@ func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
 	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
+		return true
+	if refp.input(ev):   # B21: only the two-point clicks while armed
 		return true
 	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)
 		return true
