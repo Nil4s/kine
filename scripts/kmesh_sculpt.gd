@@ -52,6 +52,8 @@ var _carry := 0.0          # the path laid since the last dab
 var _grab0 := Vector3.ZERO # grab: the press point
 var _grab_w := {}          # grab: vert -> weight at the press
 var _grab_v := {}          # grab: vert -> position at the press
+var _symx: KMeshSculptSym  # C07: Y / Z / radial symmetry (scripts/kmesh_sculpt_sym.gd), null when off
+var _pend = null           # C07: while an Array, _apply holds the deltas back for the copies of one dab
 
 
 static func falloff(kind: String, t: float) -> float:
@@ -87,6 +89,7 @@ func begin(m: KMesh, params := {}) -> void:
 	_cell = maxf(float(p["radius"]), 1e-4)
 	_build_hash()
 	_sym = m.symmetry_map(0, 1e-4) if p["sym_x"] else PackedInt32Array()
+	_symx = KMeshSculptSym.make(self)
 
 
 func _build_hash() -> void:
@@ -162,6 +165,8 @@ func end() -> void:
 
 ## one dab at `hit` (on the surface, mesh-local space) with the stroke normal `normal`; returns the verts moved
 func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
+	if _symx != null and _pend == null:
+		return _symx.dab(self, hit, normal, pressure)
 	var r := float(p["radius"])
 	var a := float(p["strength"]) * clampf(pressure, 0.0, 1.0)
 	var sgn := -1.0 if p["invert"] else 1.0
@@ -245,6 +250,9 @@ static func _toward(q: Vector3, target: Vector3, s: float) -> Vector3:
 
 ## add the displacements (and their mirror images to the partners); the normals of the faces touched are refreshed
 func _apply(ids: PackedInt32Array, d: PackedVector3Array) -> int:
+	if _pend != null:
+		_pend.append([ids, d])
+		return 0
 	var tot := {}
 	for i in ids.size():
 		if d[i] == Vector3.ZERO:

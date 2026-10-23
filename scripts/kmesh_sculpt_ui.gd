@@ -6,6 +6,7 @@ extends Node
 ##   D draw  C clay strips  I inflate  S smooth  F flatten  P pinch  E crease  G grab  K snake hook
 ##   [ / ]  radius smaller / bigger     Shift+[ / ]  strength less / more     O  next falloff     X  X symmetry on / off
 ##   Ctrl while stroking  invert (push in)     Shift while stroking  smooth     Ctrl+Z / Ctrl+Shift+Z  undo / redo a stroke
+##   C07: Y / Z  Y / Z symmetry on / off   R / Shift+R  radial copies up / down (1 = off .. 32)   Alt+R  radial axis X Y Z
 ##   Esc  leave (nothing is saved).  A tablet's pen pressure scales each dab (a mouse is full pressure).
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
@@ -26,6 +27,10 @@ var radius := 0.08
 var strength := 0.004
 var falloff := KMeshSculpt.F_SMOOTH
 var sym_x := true
+var sym_y := false          # C07 (scripts/kmesh_sculpt_sym.gd)
+var sym_z := false
+var radial := 1
+var radial_axis := 1
 var _stroking := false
 var _grab_plane := Plane()
 var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {}
@@ -90,11 +95,24 @@ func _params(ev: InputEvent) -> Dictionary:
 		inv = (ev as InputEventWithModifiers).ctrl_pressed
 		if (ev as InputEventWithModifiers).shift_pressed:
 			b = KMeshSculpt.SMOOTH
-	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "invert": inv, "sym_x": sym_x}
+	return {"brush": b, "radius": radius, "strength": strength, "falloff": falloff, "invert": inv, "sym_x": sym_x,
+		"sym_y": sym_y, "sym_z": sym_z, "radial": radial, "radial_axis": radial_axis}
 
 
 func _status() -> void:
-	m._say("Sculpt: %s, radius %d mm, strength %.1f mm, %s falloff, X symmetry %s" % [brush, roundi(radius * 1000.0), strength * 1000.0, falloff, "on" if sym_x else "off"])
+	m._say("Sculpt: %s, radius %d mm, strength %.1f mm, %s falloff, symmetry %s" % [brush, roundi(radius * 1000.0), strength * 1000.0, falloff, sym_words()])
+
+
+## "X Z, radial 6 around Y", or "off"
+func sym_words() -> String:
+	var w := PackedStringArray()
+	for a in [[sym_x, "X"], [sym_y, "Y"], [sym_z, "Z"]]:
+		if a[0]:
+			w.append(a[1])
+	var s := " ".join(w)
+	if radial > 1:
+		s += ("%sradial %d around %s" % [", " if s != "" else "", radial, "XYZ"[radial_axis]])
+	return s if s != "" else "off"
 
 
 ## the surface under the screen point: {"point", "normal"} in world space, or {}
@@ -144,6 +162,18 @@ func input(ev: InputEvent) -> bool:
 				_status()
 			KEY_X:
 				sym_x = not sym_x
+				_status()
+			KEY_Y:
+				sym_y = not sym_y
+				_status()
+			KEY_Z:
+				sym_z = not sym_z
+				_status()
+			KEY_R:
+				if ke.alt_pressed:
+					radial_axis = (radial_axis + 1) % 3
+				else:
+					radial = clampi(radial + (-1 if ke.shift_pressed else 1), 1, KMeshSculptSym.MAX_RADIAL)
 				_status()
 			KEY_ESCAPE:
 				stop()
