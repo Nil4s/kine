@@ -6,6 +6,8 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
+##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 
 const SIDE := 0.6
@@ -26,6 +28,7 @@ var _kind := ""               # the gesture in progress: "click", "box", "lasso"
 var _add := false
 var _lasso := PackedVector2Array()
 var _ov: Control
+var legend: PanelContainer   # F08: the heat map's legend (built on first use)
 
 
 func setup(main: Node) -> void:
@@ -64,6 +67,8 @@ func stop() -> void:
 	on = false
 	_drag = false
 	_ov.visible = false
+	if legend != null:
+		legend.visible = false
 	view.queue_free()
 	view = null
 	m._say("Model: left the test cube (nothing was saved). Run Model: edit a test cube (preview) to come back")
@@ -81,6 +86,23 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if k == KEY_T and (ev as InputEventKey).ctrl_pressed:
+			topo("tri")
+			return true
+		if k == KEY_J and (ev as InputEventKey).alt_pressed:
+			topo("quad")
+			return true
+		if k == KEY_Z and (ev as InputEventKey).ctrl_pressed and (undo.steps.size() > 0 if not (ev as InputEventKey).shift_pressed else undo.redos.size() > 0):
+			var lbl := undo.redo() if (ev as InputEventKey).shift_pressed else undo.undo()   # the mesh's own steps first
+			sel.clear()
+			view.mark_dirty()
+			view.rebuild()
+			_legend_update()
+			m._say("Model: %s %s (%d faces)" % ["redone" if (ev as InputEventKey).shift_pressed else "undone", lbl, mesh.face_count()])
+			return true
+		if k == KEY_H and not (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).alt_pressed:
+			topo("heat")
+			return true
 		match k:
 			KEY_1:
 				set_mode(KMeshSelect.VERT)
@@ -186,3 +208,79 @@ func _draw_overlay() -> void:
 		_ov.draw_rect(r, c, false, 1.0)
 	elif _kind == "lasso" and _lasso.size() > 1:
 		_ov.draw_polyline(_lasso, c, 1.5)
+
+
+# ---------------------------------------------------------------- F06 / F08
+
+## "tri" (triangulate), "quad" (tris to quads): the selected faces in face mode, else every face; one KMeshUndo step.
+## "heat": the topology heat map on / off.
+func topo(what: String) -> void:
+	if not on:
+		return
+	if what == "heat":
+		view.show_heat = not view.show_heat
+		view.rebuild()
+		_legend_update()
+		if view.show_heat:
+			m._say("Model: topology heat map on: " + KMeshTopo.words(view.heat) + ". H turns it off")
+		else:
+			m._say("Model: topology heat map off (H turns it on)")
+		return
+	var only = sel.faces.keys() if sel.mode == KMeshSelect.FACE and not sel.faces.is_empty() else null
+	var nf0 := mesh.face_count()
+	undo.begin(mesh)
+	var r := KMeshTopo.triangulate(mesh, only) if what == "tri" else KMeshTopo.quadrangulate(mesh, only)
+	var st := undo.commit("triangulate" if what == "tri" else "tris to quads")
+	sel.clear()
+	view.mark_dirty()
+	view.rebuild()
+	_legend_update()
+	var scope := "the selected faces" if only != null else "the whole mesh"
+	if st.is_empty():
+		m._say("Model: nothing to %s in %s (%s)" % ["triangulate" if what == "tri" else "join", scope, "every face is already a triangle" if what == "tri" else "no pair of triangles is flat and square enough"])
+	elif what == "tri":
+		m._say("Model: triangulated %s: %d faces became %d triangles (%d faces now). Ctrl+Z undoes" % [scope, int(r["faces"]), int(r["tris"]), mesh.face_count()])
+	else:
+		m._say("Model: tris to quads on %s: %d quads made, %d triangles left (%d faces, was %d). Ctrl+Z undoes" % [scope, int(r["quads"]), int(r["left"]), mesh.face_count(), nf0])
+
+
+func _legend_update() -> void:
+	if legend == null:
+		legend = PanelContainer.new()
+		legend.name = "topo_legend"
+		legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(Tok.c("float"), 0.92)
+		st.set_corner_radius_all(8)
+		st.set_content_margin_all(8)
+		legend.add_theme_stylebox_override("panel", st)
+		var vb := VBoxContainer.new()
+		vb.name = "rows"
+		vb.add_theme_constant_override("separation", 3)
+		legend.add_child(vb)
+		vb.add_child(m._label("Topology heat map (H)", 14, "text"))
+		for r in KMeshTopo.LEGEND:
+			var row := HBoxContainer.new()
+			row.name = r[0]
+			row.add_theme_constant_override("separation", 6)
+			var sw := ColorRect.new()
+			sw.name = "swatch"
+			sw.color = r[3]
+			sw.custom_minimum_size = Vector2(14, 14)
+			sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(sw)
+			var lb: Label = m._label("", 13, "text:0.8")
+			lb.name = "words"
+			row.add_child(lb)
+			vb.add_child(row)
+		m.ui_root.add_child(legend)
+	legend.visible = on and view != null and view.show_heat
+	if not legend.visible:
+		return
+	var c: Dictionary = view.heat["counts"]
+	for r in KMeshTopo.LEGEND:
+		var lb: Label = legend.get_node("rows/%s/words" % r[0])
+		lb.text = "%s: %d  (%s)" % [r[1], int(c[r[0]]), r[2]]
+	legend.reset_size()
+	var cl: Rect2 = m.nav_clear_rect()
+	legend.position = Vector2(cl.position.x + 12.0, cl.end.y - legend.get_combined_minimum_size().y - 12.0)
