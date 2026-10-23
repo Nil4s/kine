@@ -21,6 +21,7 @@ var sel: KMeshSelect
 var dirty := true
 var show_wire := true
 var show_verts := true   # points in vert mode
+var smooth_shade := false   # C01: the sculpt sphere shades with the vertex normals (the MODEL cube stays flat)
 var _pal_dark := true
 
 var _surf: MeshInstance3D
@@ -137,7 +138,7 @@ func _surface() -> ArrayMesh:
 		for i in range(1, fp.size() - 1):
 			for v in [fp[0], fp[i + 1], fp[i]]:
 				pos.append(mesh.verts[v])
-				nor.append(mesh.face_normals[fi])
+				nor.append(mesh.vert_normals[v] if smooth_shade else mesh.face_normals[fi])
 	var am := ArrayMesh.new()
 	if pos.is_empty():
 		return am
