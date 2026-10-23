@@ -49,6 +49,7 @@ const TOOLS := [
 	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "key:F", "also": "fill face make new close hole bridge grid", "desc": "a face on the selected vertices or across a hole"},
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
 	{"id": "mesh_modifiers", "label": "Model: modifier stack (mirror, subdivide, solidify, array, displace)", "page": "MODEL", "keys": "", "bl": "", "do": "op:modifiers", "also": "modifier modifiers stack non-destructive mirror symmetry subdivide subdivision solidify thickness shell array repeat copies displace noise bump apply bake", "desc": "a live stack on the mesh, shown in the view; edits stay on the base (A11, the panel on the right)"},
+	{"id": "mesh_uv_editor", "label": "Model: UV editor panel on / off", "page": "MODEL", "keys": "Shift+U", "bl": "", "do": "op:uv_editor", "also": "uv uvs editor unwrap texture island islands layout 2d move rotate scale", "desc": "the mesh's UVs in 2D: select verts or islands, G / R / S move / rotate / scale them (one undo step each)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_uv_export", "label": "Model: export UV layout", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_export_uv_layout", "also": "uv layout export png svg texture template", "desc": ""},
 	{"id": "mesh_uvpack", "label": "Model: pack UV islands", "page": "MODEL", "keys": "Ctrl+P", "bl": "", "do": "op:uv_pack", "also": "pack uv islands packing layout margin texel density rotate atlas", "desc": "D04: islands packed into 0..1 (MaxRects), 4 px margin at 1024, equal texel density, each island turned to its smallest box"},
@@ -204,6 +205,8 @@ static func op(name: String, m) -> String:
 			said = ui.mods.say_stack()
 		"uv_pack", "uv_game_2k", "uv_game_4k":   # D04 / D15 (KMeshUVPack): one undo step, says the px/cm
 			return KMeshUVPack.run_ui(ui, {"uv_pack": "pack", "uv_game_2k": "2k", "uv_game_4k": "4k"}[name])
+		"uv_editor":
+			ui.toggle_uv_editor()
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
