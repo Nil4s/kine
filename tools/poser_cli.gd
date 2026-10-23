@@ -19,6 +19,8 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- lint C:/any/clip.bvh|.glb|.gltf|.fbx [--json]   (N018: judge a clip made anywhere)
+##   $G --headless --path . -s tools/poser_cli.gd -- knobs templates/punch.json card=3 [reach_pct=95 guard_cm=-5 ...] [--out scenes/_wip/x.json]
+##        (N025 move knobs: read, or set and re-solve; scripts/move_knobs.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -80,6 +82,10 @@
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
 ##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
 ##                                 path = open it first (as open)
+##   knobs {card, read: true} | {card, set: {strike_height_cm, reach_pct, stance_cm, guard_cm}}  N025 (scripts/move_knobs.gd): a
+##                                 strike card's height (cm over his chin), reach (% of the limb), stance (cm between the ankles),
+##                                 guard (cm of the guard wrist over the chin); set re-solves the card and its neighbours by IK as
+##                                 ONE undo step, planted feet kept; "unreached" names the joint whose limit stopped a knob
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -269,6 +275,33 @@ func _init() -> void:
 			var br := await SceneBrief.brief(m, T, tk)
 			say(br["text"])
 			done(br)
+		"knobs":   # N025: knobs <scene> card=N [knob=value ...] [--out path] (scripts/move_knobs.gd)
+			var oi := a.find("--out")
+			var kout: String = res(a[oi + 1]) if oi >= 0 and oi + 1 < a.size() else ""
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "knobs <scene.json> card=N [strike_height_cm=.. reach_pct=.. stance_cm=.. guard_cm=..] [--out <path>]"})
+				return
+			var kp := {"card": m.sel_card + 1}
+			var kset := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					kp["card"] = int(kv[1])
+				elif kv.size() == 2 and kv[0] in MoveKnobs.KNOBS and kv[1].is_valid_float():
+					kset[kv[0]] = float(kv[1])
+			if not kset.is_empty():
+				kp["set"] = kset
+			var kr := MoveKnobs.serve(m, kp)
+			say(String(kr.get("said", kr.get("error", JSON.stringify(kr.get("values", {}))))))
+			if kr["ok"] and kout != "":
+				var kwhy := T.out_refused(kout)
+				if kwhy != "":
+					done({"ok": false, "error": kwhy})
+					return
+				T.write_scene(kout, "poser_cli knobs")
+				kr["out"] = kout
+			done(kr)
 		"lint":   # N018: scripts/clip_lint.gd
 			var lr := ClipLint.lint(m, a[1] if a.size() > 1 else "")
 			for l in ClipLint.lines(lr):

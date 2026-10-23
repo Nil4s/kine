@@ -443,4 +443,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
+		"knobs":   # N025 MOVE KNOBS (scripts/move_knobs.gd): {card, read: true} the values; {card, set: {...}} one undo step
+			var kn := MoveKnobs.serve(m, p)
+			return _ok(id, kn) if kn["ok"] else _err(id, -32602, String(kn["error"]))
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

@@ -154,6 +154,7 @@ var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red 
 var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
 var clash_ui: RomClashUI   # ARMOUR CLASH (ROADMAP_400 B24 / B25): ROM test + scene, worst frames, red verts, clearance heat map (scripts/rom_clash_ui.gd)
 var tm_ui: TimingMatchUI   # MATCH THE REFERENCE TIMING (ROADMAP I29): scripts/timing_match_ui.gd
+var knobs_ui: MoveKnobsUI   # N025 MOVE KNOBS: strike height / reach / stance / guard spin boxes in the inspector's NUMBERS
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
@@ -11710,6 +11711,8 @@ func _ui() -> void:
 	ui_math.visible = false
 	num.add_child(ui_math)
 	num.add_child(attrs_sec)
+	knobs_ui = MoveKnobsUI.new(self)   # N025 MOVE KNOBS (scripts/move_knobs_ui.gd): rows in NUMBERS (a header of its own: over the 300 px bar)
+	num.add_child(knobs_ui)
 
 	# ---- bottom: the scene
 	var bp := PanelContainer.new()
