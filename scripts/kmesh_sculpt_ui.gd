@@ -13,6 +13,9 @@ extends Node
 ##   Shift+B blur   Shift+M mask by cavity. Masked verts are frozen for every brush and drawn darker (KMeshMaskTint).
 ##   Each mask op is one undo step.
 ##   C12: V / Shift+V  next / previous matcap (scripts/sculpt_matcap.gd)   C14: B  brush presets panel (scripts/brush_presets_panel.gd)
+##   FACE SETS (C09, scripts/kmesh_face_sets_ui.gd): W face-set brush (Ctrl+drag grows the set pressed)   H hide the set
+##   under the mouse   Shift+H isolate it   Alt+H show all   Shift+W sculpt only the set under the press   Alt+] / Alt+[
+##   grow / shrink it one ring   Ctrl+M mask it (Ctrl+Shift+M everything but it)   Alt+W colours on / off.
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
 const R := 0.3
@@ -47,6 +50,7 @@ var _hover := {}     # {"point" (world), "normal" (world)} under the mouse, or {
 var _mouse := Vector2.ZERO
 var _ov: Control
 var tint: KMeshMaskTint
+var fsets := KMeshFaceSetsUI.new()   # C09
 
 
 func setup(main: Node) -> void:
@@ -88,6 +92,7 @@ func start() -> void:
 	m.stage_root.add_child(view)
 	tint = KMeshMaskTint.new(mesh)
 	view.add_child(tint)
+	fsets.attach(self)
 	view.position = AT
 	on = true
 	_stroking = false
@@ -179,7 +184,7 @@ func surface_at(cam: Camera3D, p: Vector2) -> Dictionary:
 	if hit.is_empty():
 		return {}
 	var nl: Vector3 = mesh.face_normals[int(hit["face"])]
-	return {"point": hit["point"], "normal": (view.global_transform.basis * nl).normalized()}
+	return {"point": hit["point"], "normal": (view.global_transform.basis * nl).normalized(), "face": int(hit["face"])}
 
 
 func _local(wp: Vector3) -> Vector3:
@@ -206,7 +211,7 @@ func input(ev: InputEvent) -> bool:
 			view.mark_dirty()
 			m._say("Sculpt: %s %s" % ["redo" if ke.shift_pressed else "undo", lb] if lb != "" else "Sculpt: nothing to %s" % ("redo" if ke.shift_pressed else "undo"))
 			return true
-		if _mask_key(ke):
+		if _mask_key(ke) or fsets.key(self, ke):
 			return true
 		if KEYS.has(k) and not ke.ctrl_pressed:
 			brush = KEYS[k]
@@ -256,7 +261,7 @@ func input(ev: InputEvent) -> bool:
 			if s.is_empty():
 				return false   # a press off the sphere is not a stroke
 			undo.begin(mesh)
-			sculpt.begin(mesh, _params(mb))
+			sculpt.begin(mesh, fsets.params(self, _params(mb), s))
 			_grab_plane = Plane(cam.global_transform.basis.z, s["point"])   # grab: the drag slides on a screen-facing plane
 			sculpt.to(_local(s["point"]), _local_n(s["normal"]), 1.0)
 			_stroking = true

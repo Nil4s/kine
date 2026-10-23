@@ -11,6 +11,7 @@ extends Node3D
 ##   select_region: box / lasso (any 2D test) over verts / edges / faces by the selection mode. Without x-ray only what the
 ##     camera can see counts (a vertex is seen when the nearest front-facing hit on its view ray is the vertex's own
 ##     distance, a face when it faces the camera and its centre is seen); with x-ray everything inside the shape counts.
+## C09 FACE SETS (KMeshFaceSets): the faces of a hidden set are not drawn (surface, wire) and not hit by ray_face.
 ## HEAT (F08, show_heat): KMeshTopo.heat's faces as a colour tint (triangles, n-gons, stretched quads) and its poles as
 ## big coloured points, rebuilt with the mesh; `heat` holds the last result (the legend's counts).
 
@@ -152,7 +153,10 @@ func _surface() -> ArrayMesh:
 	stretch = KMeshUV.stretch(mesh) if shading == "uv_stretch" else {}
 	var cd = mesh.attr_data("color") if show_color and ud == null and stretch.is_empty() and KMeshVPaint.usable(mesh) else null
 	var cv: bool = cd != null and mesh.attr_info("color")["domain"] == KMesh.AD_VERT
+	var hid := KMeshFaceSets.hidden_faces(mesh)   # C09: a hidden face set is not drawn
 	for fi in mesh.face_count():
+		if not hid.is_empty() and hid[fi]:
+			continue
 		var fp: PackedInt32Array = mesh.faces[fi]
 		for i in range(1, fp.size() - 1):
 			for c in [0, i + 1, i]:
@@ -205,7 +209,17 @@ func rebuild() -> void:
 	# wire: every edge
 	var wp := PackedVector3Array()
 	if show_wire:
+		var hid := KMeshFaceSets.hidden_faces(mesh)   # C09: only the edges of the shown faces
+		var shown := {}
+		if not hid.is_empty():
+			for fi in mesh.face_count():
+				if not hid[fi]:
+					var fp: PackedInt32Array = mesh.faces[fi]
+					for i in fp.size():
+						shown[KMeshSelect.ekey(fp[i], fp[(i + 1) % fp.size()])] = true
 		for e in mesh.edges():
+			if not hid.is_empty() and not shown.has(KMeshSelect.ekey(e.x, e.y)):
+				continue
 			wp.append(_out(e.x, OFF_WIRE))
 			wp.append(_out(e.y, OFF_WIRE))
 	_put(_wire, Mesh.PRIMITIVE_LINES, wp, _mat(Tok.c("cube_edge")))
@@ -291,10 +305,11 @@ func _build_pick_cache() -> void:
 	_ftri0 = PackedInt32Array()
 	_ftri_n = PackedInt32Array()
 	_fbox = []
+	var hid := KMeshFaceSets.hidden_faces(mesh)   # C09: a hidden face is not hit (its triangles are kept, not counted)
 	for fi in mesh.face_count():
 		var fp: PackedInt32Array = mesh.faces[fi]
 		_ftri0.append(_tri_face.size())
-		_ftri_n.append(maxi(fp.size() - 2, 0))
+		_ftri_n.append(0 if not hid.is_empty() and hid[fi] else maxi(fp.size() - 2, 0))
 		var bb := AABB(mesh.verts[fp[0]], Vector3.ZERO)
 		for v in fp:
 			bb = bb.expand(mesh.verts[v])

@@ -10,7 +10,8 @@ extends RefCounted
 ##   sharpen(s)   unsharp mask, the inverse step: each vert moves AWAY from the mean of its neighbours by s times the
 ##                gap (s up to 1 per pass, as smooth); bumps stand higher, dents sink deeper
 ## MASK: when the mesh has a per-vert float channel "mask" (A09), a vert moves by (1 - mask) of its push, so mask = 1 is
-## frozen. Nothing else of the masking tools is needed: the channel is just read.
+## frozen. Nothing else of the masking tools is needed: the channel is just read. C09: the verts of a hidden face set
+## (KMeshFaceSets.frozen) are frozen too.
 ## Pure functions below; the SESSION (begin / set_amount / commit / cancel) is the interactive part: the filter is
 ## previewed from a snapshot while the strength is dragged or typed, and commit closes one KMeshUndo step.
 ## In sculpt (scripts/kmesh_sculpt_ui.gd): L starts a filter (L again: inflate -> smooth -> sharpen), drag left / right sets
@@ -46,6 +47,10 @@ static func free_of(m: KMesh) -> PackedFloat32Array:
 			var mk: PackedFloat32Array = m.attr_data("mask")
 			for v in mini(mk.size(), w.size()):
 				w[v] = 1.0 - clampf(mk[v], 0.0, 1.0)
+	var lk := KMeshFaceSets.frozen(m)   # C09: the verts of a hidden face set stay put
+	for v in lk.size():
+		if lk[v]:
+			w[v] = 0.0
 	return w
 
 

@@ -78,6 +78,17 @@ const TOOLS := [
 	{"id": "mesh_mat_assign", "label": "Model: assign the material to the selected faces", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_assign", "also": "material materials pbr assign apply paint slot surface metal rough", "desc": "the Materials panel's picked slot goes on the selected faces (E01, one undo step)"},
 	{"id": "mesh_mat_select", "label": "Model: select the faces of a material", "page": "MODEL", "keys": "", "bl": "", "do": "op:mat_select", "also": "material materials pbr slot by which faces", "desc": "the faces wearing the Materials panel's picked slot become the selection"},
 	{"id": "mesh_wpaint", "label": "Model: weight paint (skin weights)", "page": "MODEL", "keys": "", "bl": "", "do": "op:wpaint", "also": "weight paint skin weights bone brush smooth normalise normalize mirror lock influence skinning", "desc": "H02: paint the active bone's skin weights (heat blue -> red): add / subtract / set / smooth, X mirror, lock bones (on / off)"},
+	{"id": "mesh_fset_from_sel", "label": "Model: face set from the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_from_sel", "also": "face set sets group polygroup selection selected new", "desc": "the selected faces become a new face set (C09; one undo step)"},
+	{"id": "mesh_fset_anatomy", "label": "Model: face sets from the anatomy tags", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_anatomy", "also": "face set sets group polygroup anatomy tag tags muscle", "desc": "one face set per A19 anatomy tag, face for face (C09)"},
+	{"id": "mesh_fset_regions", "label": "Model: face sets from the body regions", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_regions", "also": "face set sets group polygroup body region regions bone", "desc": "one face set per A18 body region (C09)"},
+	{"id": "mesh_fset_materials", "label": "Model: face sets from the material slots", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_materials", "also": "face set sets group polygroup material materials slot", "desc": "one face set per material slot (C09)"},
+	{"id": "mesh_fset_uv", "label": "Model: face sets from the UV islands", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_uv", "also": "face set sets group polygroup uv island islands", "desc": "one face set per UV island (C09)"},
+	{"id": "mesh_fset_hide", "label": "Model: hide the face sets of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_hide", "also": "face set sets hide hidden polygroup", "desc": "the sets of the selected faces are not drawn and not sculpted (C09)"},
+	{"id": "mesh_fset_isolate", "label": "Model: isolate the face set of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_isolate", "also": "face set sets isolate solo only polygroup", "desc": "every other face set hidden (C09)"},
+	{"id": "mesh_fset_show_all", "label": "Model: show every face set", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_show_all", "also": "face set sets show unhide reveal all polygroup", "desc": "every hidden face set drawn again (C09)"},
+	{"id": "mesh_fset_grow", "label": "Model: grow the face sets of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_grow", "also": "face set sets grow expand ring polygroup", "desc": "each set of the selected faces takes one more ring of faces (C09)"},
+	{"id": "mesh_fset_shrink", "label": "Model: shrink the face sets of the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_shrink", "also": "face set sets shrink contract ring polygroup", "desc": "each set of the selected faces gives up its outer ring (C09)"},
+	{"id": "mesh_fset_colors", "label": "Model: face-set colours on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:fset_colors", "also": "face set sets colour color overlay tint polygroup show", "desc": "each face set tinted in its own colour (C09)"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -265,6 +276,8 @@ static func op(name: String, m) -> String:
 				said = KMeshDecimate.op(name, m)   # F03
 			elif name.begins_with("lod"):
 				said = KMeshLOD.op(name, m)   # F04
+			elif name.begins_with("fset_"):
+				said = KMeshFaceSetsUI.op(name, m)   # C09
 			elif name.begins_with("boolean_"):
 				said = KMeshBoolean.op(name, m)   # B10
 	if said != "":
