@@ -6,11 +6,15 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   E  extrude (Shift+E: each face on its own)   I  inset (Shift+I: each face)   Ctrl+E  bridge two edge loops   (B02 / B03)
+##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
 ## Right / middle mouse still orbit and pan the camera. Nothing is written to the scene; the cube is dropped on leaving.
 
 const SIDE := 0.6
 const SPLIT := 4
 const AT := Vector3(1.0, SIDE * 0.5, 0.0)   # on the floor, beside the fighter at the origin
+const EXTRUDE_D := 0.05   # B02: E lifts the selection 5 cm along its normal (then G moves it on, with Blender keys on)
+const INSET_D := 0.02     # B03: I insets 2 cm
 
 var m: Node
 var on := false
@@ -55,7 +59,7 @@ func start() -> void:
 	xray = false
 	_ov.visible = true
 	view.rebuild()
-	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Esc leaves")
+	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, E extrude, I inset, Esc leaves")
 
 
 func stop() -> void:
@@ -81,6 +85,8 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if _edit_key(ev as InputEventKey):
+			return true
 		match k:
 			KEY_1:
 				set_mode(KMeshSelect.VERT)
@@ -166,6 +172,38 @@ func input(ev: InputEvent) -> bool:
 
 
 var _cur := Vector2.ZERO
+
+
+## B02 / B03 (scripts/kmesh_extrude.gd): E extrude, I inset, Ctrl+E bridge, Ctrl+Z / Ctrl+Y undo / redo; true = used
+func _edit_key(k: InputEventKey) -> bool:
+	if k.ctrl_pressed and (k.keycode == KEY_Z or k.keycode == KEY_Y):
+		var lb := undo.undo() if k.keycode == KEY_Z else undo.redo()
+		sel.clear()
+		view.mark_dirty()
+		m._say("Model: %s %s" % ["undone:" if k.keycode == KEY_Z else "redone:", lb] if lb != "" else "Model: nothing to %s on the test cube" % ("undo" if k.keycode == KEY_Z else "redo"))
+		return true
+	if not (k.keycode == KEY_E or k.keycode == KEY_I) or k.alt_pressed or (k.ctrl_pressed and k.keycode == KEY_I):
+		return false
+	var each := k.shift_pressed
+	var what := "Bridge" if k.ctrl_pressed else ("Extrude" if k.keycode == KEY_E else "Inset")
+	undo.begin(mesh)
+	var r: Dictionary
+	match what:
+		"Bridge":
+			r = KMeshExtrude.bridge(mesh, sel)
+		"Extrude":
+			r = KMeshExtrude.extrude(mesh, sel, EXTRUDE_D, each)
+		_:
+			r = KMeshExtrude.inset(mesh, sel, INSET_D, each)
+	undo.commit(what)
+	view.mark_dirty()
+	if String(r.get("error", "")) != "":
+		m._say("Model: %s: %s" % [what.to_lower(), r["error"]])
+	elif what == "Bridge":
+		m._say("Model: bridged the two loops with a ring of new faces (Ctrl+Z takes it back)")
+	else:
+		m._say("Model: %s by %s%s; the new part is selected (Ctrl+Z takes it back)" % [what.to_lower(), Units.len(EXTRUDE_D if what == "Extrude" else INSET_D), ", each face on its own" if each else ""])
+	return true
 
 
 func _report() -> void:
