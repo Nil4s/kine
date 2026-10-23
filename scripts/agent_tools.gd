@@ -455,4 +455,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N013 SAFE RANGE SWEEP: the values of one joint axis that keep EVERY condition true (scripts/range_sweep.gd); not in METHODS
 			var rs := RangeSweep.run(m, p)
 			return _ok(id, rs) if rs["ok"] else _err(id, -32602, rs["error"], {"grammar": rs["grammar"]} if rs.has("grammar") else null)
+		"knobs":   # N025 MOVE KNOBS (scripts/move_knobs.gd): {card, read: true} the values; {card, set: {...}} one undo step
+			var kn := MoveKnobs.serve(m, p)
+			return _ok(id, kn) if kn["ok"] else _err(id, -32602, String(kn["error"]))
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
