@@ -47,6 +47,7 @@ const TOOLS := [
 	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
 	{"id": "mesh_add", "label": "Model: add a primitive (cube, sphere, cylinder...)", "page": "MODEL", "keys": "Shift+A", "bl": "", "do": "", "also": "add new primitive cube sphere cylinder plane cone torus shape create", "desc": "a new shape on the stage to model from"},
 	{"id": "mesh_autoweights", "label": "", "page": "MODEL", "keys": "", "bl": "", "do": "cmd:model_bind_to_the_skeleton_auto_weights", "also": "skin weights bind bones heat", "desc": ""},
+	{"id": "mesh_wpaint", "label": "Model: weight paint (skin weights)", "page": "MODEL", "keys": "", "bl": "", "do": "op:wpaint", "also": "weight paint skin weights bone brush smooth normalise normalize mirror lock influence skinning", "desc": "H02: paint the active bone's skin weights (heat blue -> red): add / subtract / set / smooth, X mirror, lock bones (on / off)"},
 	{"id": "mesh_quad", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_quad_view_on_off", "also": "mesh model four views", "desc": ""},
 	{"id": "mesh_local", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_isolate_the_selected_part", "also": "mesh model local view", "desc": ""},
 	{"id": "mesh_frame", "label": "", "page": "", "keys": "", "bl": "", "do": "cmd:view_frame_the_selected_part", "also": "mesh model frame selected", "desc": ""},
@@ -187,6 +188,8 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"wpaint":
+			said = KMeshWPaintUI.toggle(m)
 		"wire":
 			ui.view.show_wire = not ui.view.show_wire
 			ui.view.mark_dirty()
