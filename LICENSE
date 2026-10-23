@@ -1,21 +1,24 @@
-MIT License
+Kine
+Copyright (c) 2026 Nick Teschima (Teschima Studios). All rights reserved except as granted below.
 
-Copyright (c) 2026 Nick Teschima (Teschima Studios) and the Kine contributors
+Required Notice: Copyright 2026 Nick Teschima (Teschima Studios) (https://github.com/Nil4s/kine)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Kine is source-available, not open source. You may use it under EITHER of these two licences,
+whichever fits you (the full texts are in the LICENSES folder):
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+  1. PolyForm Noncommercial License 1.0.0   LICENSES/PolyForm-Noncommercial-1.0.0.md
+     Free for personal use, hobby projects, study, research, schools, charities and governments.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  2. PolyForm Small Business License 1.0.0  LICENSES/PolyForm-Small-Business-1.0.0.md
+     Free for any company, freelancer or studio with fewer than 100 people AND less than
+     1,000,000 USD (2019, adjusted for inflation) revenue in the prior tax year, including
+     commercial work such as selling games.
+
+Anyone else (a bigger company, or any use neither licence allows) needs a commercial licence
+from Teschima Studios. See COMMERCIAL.md.
+
+Neither licence lets anyone rebrand Kine and sell it as their own product beyond what the
+licence they use allows, and neither grants any right to the name "Kine" or its logos.
+
+What you make with Kine (animations, poses, scenes, bodies, meshes and exported files) is yours,
+whatever licence you use Kine under. See NOTICE.md.

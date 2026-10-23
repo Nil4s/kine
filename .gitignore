@@ -10,3 +10,12 @@ moves/*.png
 .playwright-mcp/
 exports/
 __pycache__/
+
+# private working notes: stay on Nick's machine, never on GitHub
+THE_TOTEM.md
+GATES.md
+NIGHT_*.md
+UPGRADES_*.md
+SPEC.md
+**/__pycache__/
+*.pyc

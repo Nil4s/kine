@@ -13,4 +13,5 @@ See `assets/LICENSES.txt`.
 - `assets/mannequin.glb`: Quaternius "Universal Animation Library 2" mannequin, CC0 1.0 (public domain).
   It may ship inside your exports with no conditions.
 
-Kine's own code is under the MIT licence (`LICENSE`).
+Kine's own code is source-available under the PolyForm Noncommercial or PolyForm Small Business licence,
+your choice (`LICENSE`); bigger companies need a commercial licence (`COMMERCIAL.md`).
