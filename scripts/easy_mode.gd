@@ -231,6 +231,9 @@ func set_on(v: bool, save := true) -> void:
 			frame_clip.call_deferred()   # the free rect is the Easy panel's now: the body is framed in it again
 	if m != null and m.tag != null:
 		m._refresh()   # the body's pick light, name tag, dots and axis names follow the mode now (EASY QUIET in main._refresh), at boot too
+	if m != null and m.ui_status != null and m.is_welcome(m.ui_status.text):
+		m.ui_status.text = m.welcome_words()   # the teaching strip says the words of the mode it is in (one line in Easy)
+		m._status_look()
 	if save and m != null:
 		_set_cfg("mode", "easy" if on else "expert")
 		m._say("Easy: 7 big buttons (More has the rest), panels hidden." if on else "Expert: every panel is back.")

@@ -387,7 +387,7 @@ const LINE_FS := 13
 
 
 func _status_look() -> void:
-	var teach := ui_status.text == WELCOME
+	var teach := is_welcome(ui_status.text)
 	ui_status.add_theme_stylebox_override("normal", ui_say_box if teach else StyleBoxEmpty.new())
 	ui_status.add_theme_font_size_override("font_size", 16 if teach else LINE_FS)
 	ui_status.add_theme_color_override("font_color", Tok.c("say") if teach else (Tok.c("warn") if ui_status.text.contains("STOPPED") else Tok.of("text:0.7")))
@@ -404,7 +404,7 @@ var _teach_pending := false
 
 
 func _end_teach() -> void:
-	if ui_status != null and ui_status.text == WELCOME:
+	if ui_status != null and is_welcome(ui_status.text):
 		_say_plain("")
 	if _teach_pending:
 		_taught()
@@ -422,7 +422,7 @@ func _strip_fit() -> void:
 	if ui_status == null:
 		return
 	_status_look()
-	if ui_status.text != WELCOME:
+	if not is_welcome(ui_status.text):
 		_line_fit()
 		return
 	ui_status.offset_top = -bottom_h - 82
@@ -981,7 +981,7 @@ func _line_fit() -> void:
 	ui_bar.offset_right = x1
 	ui_bar.offset_top = y0
 	ui_bar.offset_bottom = -bottom_h - 6
-	if ui_status.text != WELCOME:
+	if not is_welcome(ui_status.text):
 		ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
 		ui_status.clip_text = true
 		ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -2936,7 +2936,7 @@ func _ready() -> void:
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
 	# test wrote "taught" into it)
 	_teach_pending = not cf.get_value("look", "taught", false)
-	if not _teach_pending and ui_status.text == WELCOME:
+	if not _teach_pending and is_welcome(ui_status.text):
 		_say_plain("")
 	for k in fold:   # QQ4: a user's folds, remembered (the first start: FOLD_DEFAULT); a test starts open
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
@@ -10828,6 +10828,14 @@ func _set_scale(pct: int) -> void:
 ## HINTS ON/OFF (round 35a, GATES QQ3): the teaching texts (the welcome line on the yellow strip, the selected part's
 ## "Drag: rotate it..." line, the Poses and Scene captions) go; what the app SAYS about what you did still shows
 const WELCOME := "Click a part, then drag it to turn it."
+## the strip's words in Easy: Easy's one teaching line (the hint row's own words, MouseHint.EASY_LINE), so a first start in Easy says one thing
+func welcome_words() -> String:
+	return MouseHint.EASY_LINE if easy != null and easy.on else WELCOME
+
+
+## is this line the first-start strip (in either mode's words)?
+func is_welcome(t: String) -> bool:
+	return t == WELCOME or t == MouseHint.EASY_LINE
 var hints_on := true
 var ui_hint_labels: Array = []
 
@@ -10884,7 +10892,7 @@ func _hints_apply() -> void:
 	if ui_how != null:
 		ui_how.visible = false   # RR2: how to use the part is the title's tooltip, never a line in the box
 	if ui_status != null:
-		if not hints_on and ui_status.text == WELCOME:
+		if not hints_on and is_welcome(ui_status.text):
 			ui_status.text = ""
 		ui_status.visible = hints_on or ui_status.text != ""
 
