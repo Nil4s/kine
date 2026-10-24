@@ -100,6 +100,7 @@ def main():
     last = None
     frames = []
     lost = 0
+    seen = 0
     with_hand = 0
     i = 0
     step = max(1, int(round(src_fps / a.fps)))
@@ -115,6 +116,7 @@ def main():
             continue
         t = i / src_fps
         i += 1
+        seen += 1   # every sampled frame the tracker looked at, the ones with no body too (EasyTake's score needs the clip's count)
         if a.progress and total > 0 and i % 10 == 0:
             with open(a.progress, "w") as pf:
                 pf.write("%.3f" % min(1.0, i / total))
@@ -143,7 +145,7 @@ def main():
         print("NO the tracker found a person in %d frames" % len(frames))
         sys.exit(1)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    json.dump({"fps": round(out_fps, 4), "video": os.path.basename(a.video), "size": [W, H], "frames": frames,
+    json.dump({"fps": round(out_fps, 4), "video": os.path.basename(a.video), "size": [W, H], "frames": frames, "seen": seen,
                "note": "MediaPipe world landmarks (m, hips at 0, y down), 33 per frame; image = (x, y, visibility) 0-1; "
                        "hands (optional per frame): MediaPipe hand world landmarks (m) and image (x, y) 0-1, 21 each; "
                        "l = the person's left"},

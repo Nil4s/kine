@@ -52,6 +52,9 @@ var _gen_words := ""          # the typed words Kine could not build: the button
 var _make_btn: Button
 var _cancel_btn: Button
 var _clip_word := "the move"   # the clip's name in the say line of a tweak ("the punch now takes 0.8 s")
+var _take_n := 0              # MAKE IT WITH AI VIDEO: the take in flight, 1 or 2 (0 = none; a copied video is not a take)
+var _take_seed := 1           # the seed of the take in flight: take 2 is take 1's seed + 1
+var _takes: Array = []        # this run's takes: {video, pose}; a discarded take's files are removed (_drop_takes)
 
 
 func build(root: Control) -> void:
@@ -177,7 +180,7 @@ func _process(dt: float) -> void:
 		_toast.visible = false
 	_close.visible = not empty and not _gen_on
 	_make_btn.visible = _gen_words != "" and not _gen_on
-	_cancel_btn.visible = _gen_on or m._imp_busy()   # the generator, or the fit's own Cancel
+	_cancel_btn.visible = _gen_on or m._imp_busy() or m._video_pid >= 0   # the generator, or the tracker's / the fit's own Cancel
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
 		last_ms = Time.get_ticks_msec() - _t0
 		_t0 = -1
@@ -302,8 +305,11 @@ const NO_READER := "The video reader would not start on this computer, so this v
 const GEN_NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
 const GEN_SHORT := "Say the move in a few more words, such as 'swings a sledgehammer down onto the ground'."
 const GEN_BUSY := "A video is already being made or copied: wait for it, or press Cancel."
+const UNCLEAR := "The video was unclear; try different words."   # both takes came out bad with a person found
 
 
+## ONE RETAKE (EasyTake): a take the tracker reads as bad (no person in half its frames, or a score under 0.5) is made once
+## more with the next seed; the good take is imported, and a second bad one imports nothing and says why. Two takes at most.
 func make_ai() -> void:
 	if _gen_words == "":
 		return
@@ -314,19 +320,33 @@ func make_ai() -> void:
 		_fail(GEN_SHORT)
 		return
 	m.gen_move.python = m.video_python
-	if m.gen_move.start(_gen_words) != "":   # no Python / the maker's script did not start: the same plain sentence
-		_fail(GEN_NOT_RUNNING)
-		return
+	_take_n = 1
+	_take_seed = randi_range(1, 99998)
+	_takes = []
+	m.video_gate = _take_gate   # every take's tracker output comes through the gate (main._video_poll)
+	_start_take()   # no Python / the maker's script did not start: the same plain sentence, nothing kept
+
+
+## one take: the generator starts with _take_seed. false = it did not start (the abort has said why)
+func _start_take() -> bool:
+	if m.gen_move.start(_gen_words, 5.0, _take_seed) != "":
+		_take_abort(GEN_NOT_RUNNING)
+		return false
+	_takes.append({"video": String(m.gen_move.out), "pose": ""})
 	_gen_on = true
 	_open = true
 	m.gen_easy = true   # main's _gen_poll stays out: this home polls the run, says it and lands it
 	_msg.text = ""
 	m._say_plain(_gen_line())
+	return true
 
 
 func _gen_line() -> String:
 	var s := int(m.gen_move.t)
-	return "Making the video… %d:%02d" % [int(s / 60.0), s % 60]
+	var clock := "%d:%02d" % [int(s / 60.0), s % 60]
+	if _take_n == 2:
+		return "That video came out unclear. Making another one (about %d more minutes)... %s" % [EasyTake.TAKE_MINUTES, clock]
+	return "Making the video… %s" % clock
 
 
 ## every frame while the generator runs: the progress on the say line; when it is over, the clip lands like a copied video
@@ -338,7 +358,7 @@ func _gen_tick(dt: float) -> void:
 	_gen_on = false
 	m.gen_easy = false
 	if r != "done":
-		_fail(GEN_NOT_RUNNING)
+		_take_abort(GEN_NOT_RUNNING)
 		return
 	_vid_busy = true
 	_vid_cancel = false
@@ -347,14 +367,68 @@ func _gen_tick(dt: float) -> void:
 	_t0 = -1
 	m._land_undo = "Make it with AI video"
 	m._say_plain("Reading the video: 0 %")
-	m._import_video(m.gen_move.out)
+	m._import_video(m.gen_move.out)   # the tracker; when it exits, _take_gate judges the take
 	if m._video_pid < 0 and not m._imp_busy():
+		_take_abort(NO_READER)
+
+
+## main's video_gate: the take's tracker output is judged (EasyTake). Good: the import goes on. Bad and the first: the retake
+## starts now (false: main stops here). Bad and the second: nothing is imported, and the plain sentence says why.
+func _take_gate(pose: String) -> bool:
+	if _take_n == 0:
+		return true
+	var v := EasyTake.judge(pose)
+	_takes[_takes.size() - 1]["pose"] = pose
+	if not bool(v["bad"]):
+		_drop_takes(true)   # the other take's files go; this one's stay (its import is the scene)
+		_takes = []
+		_take_n = 0
+		m.video_gate = Callable()
+		return true
+	if _take_n == 1:
+		_take_n = 2
+		_take_seed += 1
 		_vid_busy = false
 		m._land_undo = ""
-		_fail(NO_READER)
+		_start_take()   # says the retake line itself
+		return false
+	_take_abort(NO_PERSON if float(v["found"]) < EasyTake.BAD_FOUND else UNCLEAR)
+	return false
 
 
-## Cancel: the generator is stopped (its python process killed) and nothing is changed; during the fit the import's own Cancel
+## the run is over with no import: every take's files go, the gate is cleared, and the sentence says why
+func _take_abort(sentence: String) -> void:
+	_take_stop()
+	m.gen_easy = false
+	_gen_on = false
+	_fail(sentence)
+
+
+## removes the takes' files: all of them, or all but the last (the one kept). A take's pose has its .progress file beside it
+func _drop_takes(keep_last: bool) -> void:
+	var n: int = maxi(_takes.size() - 1 if keep_last else _takes.size(), 0)
+	for i in n:
+		var t: Dictionary = _takes[i]
+		var files: Array = [String(t["video"])]
+		if String(t["pose"]) != "":
+			files.append(String(t["pose"]))
+			files.append(String(t["pose"]).get_basename() + ".progress")
+		for f in files:
+			if f != "" and FileAccess.file_exists(f):
+				DirAccess.remove_absolute(f)
+	_takes = _takes.slice(n)
+
+
+## a run that stops (Cancel, or every take bad): the takes' files go and the gate is cleared (the say line is the caller's)
+func _take_stop() -> void:
+	_drop_takes(false)
+	_take_n = 0
+	m.video_gate = Callable()
+	_vid_busy = false
+	m._land_undo = ""
+
+
+## Cancel: the generator is stopped (its python process killed) and nothing is changed; during the tracker or the fit, the import's own Cancel
 func cancel_run() -> void:
 	if _gen_on:
 		if m.gen_move.pid >= 0:
@@ -364,10 +438,11 @@ func cancel_run() -> void:
 		_gen_on = false
 		m.gen_easy = false
 		_t0 = -1
+		_take_stop()
 		m._say_plain("Stopped. Nothing was changed.")
 		return
-	if m._imp_busy():
-		m._imp_cancel()
+	if m._video_pid >= 0 or m._imp_busy():
+		m._import_cancel()
 
 
 func copy_video() -> void:
@@ -419,16 +494,21 @@ func _video_tick() -> void:
 			_vid_cancel = true
 		m._say_plain("Fitting the moves to the body: %d %%" % roundi(VideoIQ.progress * 100.0))
 		return
-	_vid_busy = false
-	m._land_undo = ""
 	if String(m.scene_path) != _vid_before and not m.S.cards.is_empty():
+		_vid_busy = false
+		m._land_undo = ""
+		_takes = []   # the kept take is the scene now: its files stay
+		_take_n = 0
+		m.video_gate = Callable()
 		_copied()
 	elif m._video_cancelled:   # stopped while the tracker read the video: nothing landed
+		_take_stop()
 		m._say_plain("Stopped. Nothing was changed.")
 	elif _vid_cancel:
+		_take_stop()
 		m._say_plain("Cancelled. The scene is as it was.")
 	else:
-		_fail(NO_PERSON)
+		_take_abort(NO_PERSON)
 
 
 ## the tracker's fraction read (tools/see_video.py --progress), or -1 when none is written yet

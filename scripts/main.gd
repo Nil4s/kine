@@ -20032,6 +20032,10 @@ func _audio_scrub() -> void:
 ## (one card per frame, like a .bvh: Animator tools / Simplify make it sparse). Nothing else changes; one refusal line.
 const VIDEO_EXT := ["mp4", "mov", "avi", "webm", "mkv", "m4v"]
 var video_python := "python"   # the interpreter that has mediapipe + opencv (tests point it elsewhere to check refusals)
+var video_tool := "res://tools/see_video.py"   # the tracker (a test points it at a stand-in, as gen_move.tool)
+## Easy's AI take check (easy_home.gd _take_gate): called with the tracker's pose path once the tracker has exited (the path may
+## not exist). false = the gate took over (no fit, no message from here); "" / true = the import goes on as it always does
+var video_gate := Callable()
 var _video_pid := -1
 var _video_out := ""
 var _video_name := ""
@@ -20185,7 +20189,7 @@ func _import_video(path: String, raw := false) -> void:
 	_video_prog = _video_out.get_basename() + ".progress"
 	if FileAccess.file_exists(_video_prog):
 		DirAccess.remove_absolute(_video_prog)
-	var tool := ProjectSettings.globalize_path("res://tools/see_video.py")
+	var tool := ProjectSettings.globalize_path(video_tool)
 	_video_pid = OS.create_process(video_python, PackedStringArray([tool, path, _video_out, "--progress", _video_prog]))
 	Children.add(_video_pid)
 	if _video_pid < 0:
@@ -20240,6 +20244,8 @@ func _video_poll(dt: float) -> void:
 	_video_pid = -1
 	if _imp.is_empty():
 		_imp_show(false)   # no fit follows (the tracker found no person, or the video was not read): the bar goes
+	if video_gate.is_valid() and not bool(video_gate.call(_video_out)):
+		return
 	if not FileAccess.file_exists(_video_out):
 		_video_reh = false
 		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
