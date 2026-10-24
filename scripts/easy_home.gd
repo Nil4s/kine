@@ -99,7 +99,7 @@ func build(root: Control) -> void:
 	v.add_child(_msg)
 	_make_btn = Button.new()
 	_make_btn.name = "eh_make_ai"
-	_make_btn.text = "Make it with AI video (about 10 minutes)"   # measured: ~8.5 min to make a 5 s clip on this 8 GB card, ~1 min to read it (COMFY_E2E, 2026-10-24)
+	_make_btn.text = "Make it with AI video (about %d minutes)" % EasyTake.TAKE_MINUTES   # the fast setting: ~150 s to make a 5 s clip (RESULTS.txt, 2026-10-24)
 	_make_btn.focus_mode = Control.FOCUS_NONE
 	_make_btn.tooltip_text = "make these words as a video on the local AI video maker, then it opens like a copied video"
 	_make_btn.visible = false
@@ -335,7 +335,7 @@ func make_ai() -> void:
 
 ## one take: the generator starts with _take_seed. false = it did not start (the abort has said why)
 func _start_take() -> bool:
-	if m.gen_move.start(_gen_words, 5.0, _take_seed) != "":
+	if m.gen_move.start(_gen_words, 5.0, _take_seed, EasyTake.FAST_STEPS, EasyTake.FAST_WIDTH, EasyTake.FAST_HEIGHT) != "":
 		_take_abort(GEN_NOT_RUNNING)
 		return false
 	_takes.append({"video": String(m.gen_move.out), "pose": ""})

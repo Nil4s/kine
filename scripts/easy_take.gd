@@ -15,8 +15,14 @@ const BAD_SCORE := 0.5
 const BAD_FOUND := 0.5
 ## a side (a foot or a hand) is lost in a frame when its mean visibility is under this (RESULTS.txt "lost span" rule)
 const SIDE_MIN := 0.5
-## COMFY_E2E (easy_home.gd): about 8.5 min for one 5 s clip at the default 30 steps, 832x480; said as "about 9 more minutes"
-const TAKE_MINUTES := 9
+## FAST SETTING for EASY's takes only (Expert keeps the default 30 steps, 832x480). RESULTS.txt (C:/Temp/claude/comfy3): 20 steps at
+## 640x368 made a 5 s clip in 148-160 s, against 505-655 s at 30 steps 832x480; the best of a pair of fast takes matched the slow
+## takes' scores (punch 0.923 vs 0.878, jumping jack 0.487 vs 0.526). Their seed-to-seed swing is why Easy retakes once.
+const FAST_STEPS := 20
+const FAST_WIDTH := 640
+const FAST_HEIGHT := 368
+## the time said to the beginner per take: about 150 s (2.5 min) to make the clip, plus the tracker's read, said as "about 3 minutes"
+const TAKE_MINUTES := 3
 ## the landmark indices of the four sides (MediaPipe pose): left foot, right foot, left hand, right hand
 const SIDES := [[27, 29, 31], [28, 30, 32], [15, 17, 19, 21], [16, 18, 20, 22]]
 
