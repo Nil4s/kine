@@ -25,7 +25,8 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"WeaponRebound": "res://scripts/weapon_rebound.gd", "TimingCoach": "res://scripts/timing_coach.gd",
 	"Counter": "res://scripts/counter.gd", "Momentum": "res://scripts/momentum.gd", "Recovery": "res://scripts/recovery.gd",
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
-	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd"}
+	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
+	"OuchMeter": "res://scripts/ouch_meter.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
 const _SABR := "https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/"
@@ -172,6 +173,11 @@ const REG := {
 	"CoupledLimits.RECT_SD": {"s": M, "u": "deg", "src": "Ferber 2010's SD 9.61; FAIL = mean + 2 SD is ours", "url": "https://doi.org/10.4085/1062-6050-45.4.344"},
 	"CoupledLimits.RECT_KNEE_FLAT": {"s": H, "u": "deg", "src": "Kendall's pass criterion (thigh flat with the knee at 90), as Peeler & Anderson 2008 quote it: a clinical cut-off, not a mean; held flat past 90 (no source)", "url": "https://doi.org/10.4085/1062-6050-43.5.470"},
 	"CoupledLimits.HIP_EXT_MAX": {"s": U, "u": "deg", "src": "data/body_limits.json thigh bend min (not opened)", "url": "res://data/body_limits.json"},
+	# --- N064 ouch meter (scripts/ouch_meter.gd, docs/research/OUCH_METER.md) ---
+	"OuchMeter.ELBOW_COMFORT": {"s": M, "u": "deg", "src": "LUBA elbow flexion classes 0-45 (score 1), 45-120 (2 sitting / 3 standing), > 120 (5) (Kee & Karwowski 2001, Appl Ergon 32:357), read in INSST NTP 674 Table 2; taking the 3 -> 5 jump as the comfortable edge is ours", "url": "https://doi.org/10.1016/S0003-6870(01)00006-0"},
+	"OuchMeter.ELBOW_COMFORT_RULA": {"s": M, "u": "deg", "src": "RULA lower arm: 60-100 deg scores 1, 0-60 or > 100 scores 2 (McAtamney & Corlett 1993, Appl Ergon 24:91), read in the DGUV/IFA RULA worksheet (BGIA-Report 2/2007)", "url": "https://doi.org/10.1016/0003-6870(93)90080-S"},
+	"OuchMeter.COMFORT_FRAC": {"s": H, "u": "fraction of the range from neutral", "src": "ours: one comfortable share for every joint without its own row, anchored on RULA's elbow cut (100 / 145 = 0.69); per-joint comfort tables (Kee & Karwowski 2001 Ergonomics 44:614; Naddeo et al. 2019 Work 63:219) not opened", "url": "res://docs/research/OUCH_METER.md"},
+	"OuchMeter.TOL": {"s": H, "u": "deg", "src": "ours: 'at the max' within Body.at_limit's 0.5 deg rounding", "url": "res://docs/research/OUCH_METER.md"},
 	# --- hit reaction (docs/physics_constants.md, gt1: UNVERIFIED list) ---
 	"HitReaction.WEAPON_KG": {"s": U, "u": "kg", "src": "weapon masses are estimates (no source opened)", "url": _PC},
 }
