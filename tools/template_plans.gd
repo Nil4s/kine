@@ -194,19 +194,22 @@ static func plan_punch() -> Dictionary:
 	g.merge(guard_arm_l, true)
 	g.merge(guard_arm_r, true)
 	g.merge({"pelvis": [4, 0, -12], "spine_01": [4, 0, -3], "spine_02": [6, 0, -3], "spine_03": [6, 0, -3]}, true)
-	var clips := [{"name": "guard", "move": -1, "hold": 0.4, "set": g, "fist": ["l", "r"], "y": -0.10, "hips": [0, 0, 0.0],
+	# the whole stance sits 6 cm back over the rear foot on EVERY card (guard ~50 % rear, 49 % as the cross starts: WEIGHT
+	# TRANSFER wants >= 45). The template plays hips-first, so a shift on the load card alone has already left by the time
+	# the fist starts (10-23: load -0.12 m reached only 45 %); one offset on every card adds no motion and no HITCH.
+	var clips := [{"name": "guard", "move": -1, "hold": 0.4, "set": g, "fist": ["l", "r"], "y": -0.10, "hips": [0, 0, -0.06],
 		"plant": {"_l": lead, "_r": rear}}]
 	var load := g.duplicate()
 	load.merge({"pelvis": [5, 0, -17], "spine_01": [4, 0, -5], "spine_02": [6, 0, -5], "spine_03": [6, 0, -5],
 		"upperarm_r": [8, -56, -8], "neck_01": [8, 0, 6]}, true)
-	clips.append({"name": "load", "move": 0.25, "hold": 0.0, "set": load, "fist": ["l", "r"], "y": -0.11, "hips": [0, 0, -0.02], "keep_feet": true})
+	clips.append({"name": "load", "move": 0.25, "hold": 0.0, "set": load, "fist": ["l", "r"], "y": -0.11, "hips": [0, 0, -0.08], "keep_feet": true})
 	var x := base.duplicate()
 	x.merge(guard_arm_l, true)
 	x.merge({"pelvis": [4, 0, 14], "spine_01": [4, 0, 5], "spine_02": [6, 0, 5], "spine_03": [6, 0, 5], "neck_01": [8, 0, -12],
 		"clavicle_r": [0, 22, 0], "upperarm_r": [88, -6, 0], "lowerarm_r": [4, 0, 0], "hand_r": [0, 0, 0]}, true)
-	clips.append({"name": "CROSS", "move": 0.11, "hold": 0.0, "set": x, "fist": ["l", "r"], "y": -0.05, "hips": [0, 0, 0.0],
+	clips.append({"name": "CROSS", "move": 0.11, "hold": 0.0, "set": x, "fist": ["l", "r"], "y": -0.05, "hips": [0, 0, -0.06],
 		"heel_up": ["_r"], "heel_deg": 0, "keep_feet": true})
-	clips.append({"name": "recover", "move": 0.3, "hold": 0.3, "set": g, "fist": ["l", "r"], "y": -0.10, "hips": [0, 0, 0.0], "keep_feet": true})
+	clips.append({"name": "recover", "move": 0.3, "hold": 0.3, "set": g, "fist": ["l", "r"], "y": -0.10, "hips": [0, 0, -0.06], "keep_feet": true})
 	return {"name": "punch", "base": "poses/stand.json", "clips": clips, "spline": true,
 		"note": "PUNCH template: a rear-hand cross from an orthodox guard. Fist peak ~9 m/s (straight punch 9.3 +- 2.1, Piorkowski 2011; lead hook 11.95 +- 1.84, Stanley 2018); hips, then chest, then fist; the rear foot pivots on its ball."}
 
