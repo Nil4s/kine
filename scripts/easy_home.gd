@@ -6,6 +6,7 @@ extends Node
 ## templates/ files for walk, run, jump, punch, sit down, wave and the kick (roundhouse.json, baked); TextBlocking for typed words), one undo step, then it plays by itself.
 ## After that the panel is a strip with buttons: Again, Change it (the panel and its text box come back), and four big ones
 ## that tweak the clip just built (EasyTweak): Faster, Slower (its timing), Bigger, Smaller (its motion). Save video is on the Easy bar.
+## With a clip already there, the picker's "Then:" row says Add after (the default: the cards go after the clip) or Start over (replace).
 ## Expert never shows it: it is a child of EasyMode and only Easy's bar shows it.
 ## A card the builders cannot make says so in one plain sentence and leaves the scene as it was.
 
@@ -55,6 +56,11 @@ var _clip_word := "the move"   # the clip's name in the say line of a tweak ("th
 var _take_n := 0              # MAKE IT WITH AI VIDEO: the take in flight, 1 or 2 (0 = none; a copied video is not a take)
 var _take_seed := 1           # the seed of the take in flight: take 2 is take 1's seed + 1
 var _takes: Array = []        # this run's takes: {video, pose}; a discarded take's files are removed (_drop_takes)
+var _then_add := true         # the picker's "Then:" choice: true = Add after (the cards go after the clip), false = Start over
+var _then_box: HBoxContainer  # the "Then:" row: shown only when the scene has cards (an empty scene has nothing to add after)
+var _then_add_btn: Button
+var _then_start_btn: Button
+const JOIN_S := 0.5           # ADD AFTER: the first added card is reached this many seconds after the clip's end (the join)
 
 
 func build(root: Control) -> void:
@@ -78,6 +84,19 @@ func build(root: Control) -> void:
 	title.name = "eh_title"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(title)
+	_then_box = HBoxContainer.new()
+	_then_box.name = "eh_then"
+	_then_box.add_theme_constant_override("separation", 8)
+	v.add_child(_then_box)
+	_then_box.add_child(_label("Then:", 18, "text"))
+	var then_group := ButtonGroup.new()
+	_then_add_btn = _then_button("eh_then_add", "Add after", "keep the clip and add this move after it (one undo step)", then_group)
+	_then_add_btn.toggled.connect(func(on: bool): if on: _then_add = true)
+	_then_box.add_child(_then_add_btn)
+	_then_start_btn = _then_button("eh_then_start", "Start over", "replace the clip with this move (one undo step)", then_group)
+	_then_start_btn.toggled.connect(func(on: bool): if on: _then_add = false)
+	_then_box.add_child(_then_start_btn)
+	_then_add_btn.button_pressed = true
 	var grid := GridContainer.new()
 	grid.name = "eh_cards"
 	grid.columns = 4
@@ -185,6 +204,7 @@ func _process(dt: float) -> void:
 	if not on:
 		_toast.visible = false
 	_close.visible = not empty and not _gen_on
+	_then_box.visible = not empty
 	_make_btn.visible = _gen_words != "" and not _gen_on
 	_cancel_btn.visible = _gen_on or m._imp_busy() or m._video_pid >= 0   # the generator, or the tracker's / the fit's own Cancel
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
@@ -276,7 +296,9 @@ func _go(what: String, label: String, typed := false) -> void:
 		m._say_plain(GEN_BUSY)
 		return
 	var t := Time.get_ticks_msec()
-	var err := _build(what, label, what if typed else label)
+	var add: bool = m.easy.on and _then_add and not m.S.cards.is_empty()   # Easy's "Then: Add after" with a clip in the scene: the cards go after it (Expert's cards still replace)
+	var prev := _clip_word
+	var err := _build(what, label, what if typed else label, add)
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
 		_gen_words = what if typed else ""   # a typed line Kine cannot build: the AI video button makes it
@@ -286,11 +308,14 @@ func _go(what: String, label: String, typed := false) -> void:
 	_open = false
 	_gen_words = ""
 	_msg.text = ""
-	_clip_word = "the typed move" if typed else "the " + label.to_lower()
+	_clip_word = "the clip" if add else ("the typed move" if typed else "the " + label.to_lower())
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
 	_play()
-	# the say line names the clip just built (it kept the last clip's words: "Faster: the walk now takes..." after a typed wave)
-	m._say_plain("Made %s. Again plays it; Change it types another move." % ("'%s'" % what if typed else "the " + label.to_lower()))
+	var new_word := "'%s'" % what if typed else "the " + label.to_lower()
+	if add:   # the say line says both moves in plain words; it still opens "Made the wave" (the card's name)
+		m._say_plain("Made %s, added after %s. Again plays the whole clip; Undo takes it back." % [new_word, prev])
+	else:   # the say line names the clip just built (it kept the last clip's words: "Faster: the walk now takes..." after a typed wave)
+		m._say_plain("Made %s. Again plays it; Change it types another move." % new_word)
 	m.easy.frame_clip_next()  # EASY CAMERA: framed in the free rect under the bar / strip, one frame AFTER the clip starts (the click-to-motion bar)
 
 
@@ -540,7 +565,7 @@ func _copied() -> void:
 
 
 ## the clip for one card or one typed line: one undo step. "" = built; else the one sentence why not
-func _build(what: String, label: String, easy := "") -> String:
+func _build(what: String, label: String, easy := "", add := false) -> String:
 	var nm := what.strip_edges().to_lower()
 	var d: Dictionary
 	var path := ""
@@ -555,6 +580,8 @@ func _build(what: String, label: String, easy := "") -> String:
 			return String(r["error"])
 		d = r["dict"]
 		path = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), load("res://scripts/text_blocking.gd").slug(nm))
+	if add:   # ADD AFTER: the new cards join the clip in the scene (no new scene file)
+		return _append(d, label, easy)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
 	m._step_hint = label   # the undo step is named after the card (main's undo list shows it)
@@ -564,6 +591,29 @@ func _build(what: String, label: String, easy := "") -> String:
 	m._write(path, d)
 	m._load_scene(path)
 	m._rebuild_cards()
+	m._refresh()
+	return ""
+
+
+## ADD AFTER: the move's cards go after the clip's last card in the scene that is open (one undo step, main._do: the
+## same as the copied video's landing). The first added card is reached JOIN_S seconds after the clip ends, at the
+## clip's end root position, so the body carries on from where the clip stopped instead of jumping back to the move's start.
+func _append(d: Dictionary, label: String, easy: String) -> String:
+	var T := Scene.new()
+	T.from_dict(d)
+	var new_cards: Array = T.cards
+	if new_cards.is_empty():
+		return "The %s has no cards to add." % label.to_lower()
+	var S: Scene = m.S
+	var o: Vector3 = S.sample(S.length())["offset"]
+	var first: Dictionary = new_cards[0]
+	first["move"] = JOIN_S
+	first["pose"]["offset"] = [o.x, o.y, o.z]
+	m._step_hint = "Add " + label.to_lower()
+	m._step_easy = ("Add " + easy.to_lower()) if m.easy.on else ""   # Easy's undo names it: "Undo: Add wave"
+	m._do(func():
+		S.cards.append_array(new_cards)
+		m._rebuild_cards())
 	m._refresh()
 	return ""
 
@@ -688,6 +738,19 @@ func _card_button(i: int) -> Button:
 	word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(word)
 	b.pressed.connect(card.bind(i))
+	return b
+
+
+func _then_button(nm: String, text: String, tip: String, group: ButtonGroup) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = text
+	b.tooltip_text = tip
+	b.toggle_mode = true
+	b.button_group = group
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(150, 40)
+	b.add_theme_font_size_override("font_size", 18)
 	return b
 
 
