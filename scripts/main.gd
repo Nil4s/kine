@@ -13196,7 +13196,8 @@ func _rebuild_cards() -> void:
 	_sg_strip = null   # R27: the strip was emptied just above
 	_layout_bottom()
 	if S.cards.is_empty() and easy != null and easy.on:
-		ui_cards.add_child(_label("Your moves will show here. Pick one in \"What should he do?\"", 16, "text:0.55"))   # Easy home holds the ways in
+		ui_cards.add_child(easy.strip_button())   # + Add pose: an empty scene's strip shows it with its tip (Easy home holds the other ways in)
+		ui_cards.add_child(_label("Drag his arms and legs, then press + Add pose", 16, "text:0.55"))
 	elif S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
@@ -13324,6 +13325,8 @@ func _rebuild_cards() -> void:
 		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i); _card_timing_look(tb, i))
 		hh.add_child(hs)
 		pc.add_child(pp)
+	if easy != null and easy.on and not S.cards.is_empty():
+		ui_cards.add_child(easy.strip_button())   # + Add pose: after the last card (the strip scrolls to it)
 	_sg_strip_sync()   # R27: the three mini thumbnails after the current card
 
 
@@ -13350,6 +13353,8 @@ var _pl_card := -1     # the card at the playhead (marked on the strip)
 func _easy_card_name(n: String, i := -1) -> String:
 	var t := String(n).strip_edges()
 	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy shows its place in the strip
+		return "Pose %d" % (i + 1)
+	if i >= 0 and t.to_lower().begins_with("pose ") and t.substr(5).strip_edges().is_valid_int():   # "pose 3" (a new card's name): its place in the strip, so a card added between two reads right
 		return "Pose %d" % (i + 1)
 	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
 		return EASY_CARD_NAME[t.to_lower()]
@@ -14447,12 +14452,15 @@ func _layout_bottom() -> void:
 	var eo: bool = easy.on and not empty and not folded   # EASY BOTTOM: the card row and the ruler, no more (a beginner's panel is not a timeline)
 	if eo:
 		bottom_h = EASY_ROW_H + EASY_SEP + EASY_RULER + 6 + PAGE_H
+	var eempty: bool = easy.on and empty   # EASY EMPTY: the strip holds the + Add pose button (a card's height), not the 26 px line
+	if eempty:
+		bottom_h += EASY_ROW_H - 26
 	_easy_bottom_style(eo)
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
 		ui_fold_btn["bottom"].visible = not empty
-	ui_card_row.custom_minimum_size.y = 26 if empty else (EASY_ROW_H if eo else 104)
+	ui_card_row.custom_minimum_size.y = (EASY_ROW_H if eempty else 26) if empty else (EASY_ROW_H if eo else 104)
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty and not easy.on
 	ui_bp.offset_top = -bottom_h
