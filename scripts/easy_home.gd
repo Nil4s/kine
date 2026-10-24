@@ -40,7 +40,11 @@ var _toast_file := ""         # what Show the file opens: the .mp4 (its folder i
 var _vid_busy := false        # COPY A VIDEO: an import from a video is running (the tracker, then the fit)
 var _vid_before := ""         # the scene path when the copy began: a new path when it lands
 var _vid_cancel := false      # the fit's own Cancel was pressed
-var _vid_name := ""           # the video's file name, for the say line
+var _vid_said := ""           # the say line's opening words for the landed clip ("Copied clip.mp4" / "Made \"swing...\"")
+var _gen_on := false          # MAKE IT WITH AI VIDEO: main's gen_move (scripts/gen_move.gd) is making the clip
+var _gen_words := ""          # the typed words Kine could not build: the button under the message makes them as a video
+var _make_btn: Button
+var _cancel_btn: Button
 
 
 func build(root: Control) -> void:
@@ -82,6 +86,22 @@ func build(root: Control) -> void:
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_msg.custom_minimum_size = Vector2(560, 0)
 	v.add_child(_msg)
+	_make_btn = Button.new()
+	_make_btn.name = "eh_make_ai"
+	_make_btn.text = "Make it with AI video (takes a few minutes)"
+	_make_btn.focus_mode = Control.FOCUS_NONE
+	_make_btn.tooltip_text = "make these words as a video on the local AI video maker, then it opens like a copied video"
+	_make_btn.visible = false
+	_make_btn.pressed.connect(make_ai)
+	v.add_child(_make_btn)
+	_cancel_btn = Button.new()
+	_cancel_btn.name = "eh_gen_cancel"
+	_cancel_btn.text = "Cancel"
+	_cancel_btn.focus_mode = Control.FOCUS_NONE
+	_cancel_btn.tooltip_text = "stop it; the scene stays exactly as it is"
+	_cancel_btn.visible = false
+	_cancel_btn.pressed.connect(cancel_run)
+	v.add_child(_cancel_btn)
 	_close = Button.new()
 	_close.name = "eh_close"
 	_close.text = "Close"
@@ -130,19 +150,23 @@ func build(root: Control) -> void:
 	tr.add_child(_toast_button("eh_toast_ok", "Got it", "hide this message", func(): _toast.visible = false))
 
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	if m == null or panel == null:
 		return
 	var on: bool = m.easy.on
 	var empty: bool = m.S.cards.is_empty()
-	panel.visible = on and (empty or _open)
-	strip.visible = on and not (empty or _open) and _built
+	panel.visible = on and (empty or _open or _gen_on)
+	strip.visible = on and not (empty or _open or _gen_on) and _built
 	if not on:
 		_toast.visible = false
-	_close.visible = not empty
+	_close.visible = not empty and not _gen_on
+	_make_btn.visible = _gen_words != "" and not _gen_on
+	_cancel_btn.visible = _gen_on or m._imp_busy()   # the generator, or the fit's own Cancel
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
 		last_ms = Time.get_ticks_msec() - _t0
 		_t0 = -1
+	if _gen_on:
+		_gen_tick(dt)
 	if _vid_busy:
 		_video_tick()
 
@@ -214,18 +238,23 @@ func _words(text: String) -> void:
 		return
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1
-	_go(t, "Typed: " + t)
+	_go(t, "Typed: " + t, true)
 
 
-func _go(what: String, label: String) -> void:
+func _go(what: String, label: String, typed := false) -> void:
+	if _gen_on:
+		m._say_plain(GEN_BUSY)
+		return
 	var t := Time.get_ticks_msec()
 	var err := _build(what, label)
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
+		_gen_words = what if typed else ""   # a typed line Kine cannot build: the AI video button makes it
 		_fail(err)
 		return
 	_built = true
 	_open = false
+	_gen_words = ""
 	_msg.text = ""
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
 	_play()
@@ -243,8 +272,81 @@ const NO_PERSON := "No person found in the video. Try a clip where the whole bod
 const NO_READER := "The video reader would not start on this computer, so this video cannot be read."
 
 
+## MAKE IT WITH AI VIDEO (the button under a typed line Kine cannot build): the words -> main's gen_move (the same local
+## ComfyUI clip as Expert's "Video: make a move from words"), then the copy's landing (main._import_video: one undo step,
+## the clip plays, the camera frames it). Cancel stops the generator and the scene stays as it was.
+const GEN_NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
+const GEN_SHORT := "Say the move in a few more words, such as 'swings a sledgehammer down onto the ground'."
+const GEN_BUSY := "A video is already being made or copied: wait for it, or press Cancel."
+
+
+func make_ai() -> void:
+	if _gen_words == "":
+		return
+	if _gen_on or _vid_busy or m._imp_busy() or m._video_pid >= 0 or m.gen_move.busy():
+		m._say_plain(GEN_BUSY)
+		return
+	if _gen_words.length() < 4:
+		_fail(GEN_SHORT)
+		return
+	m.gen_move.python = m.video_python
+	if m.gen_move.start(_gen_words) != "":   # no Python / the maker's script did not start: the same plain sentence
+		_fail(GEN_NOT_RUNNING)
+		return
+	_gen_on = true
+	_open = true
+	m.gen_easy = true   # main's _gen_poll stays out: this home polls the run, says it and lands it
+	_msg.text = ""
+	m._say_plain(_gen_line())
+
+
+func _gen_line() -> String:
+	var s := int(m.gen_move.t)
+	return "Making the video… %d:%02d" % [int(s / 60.0), s % 60]
+
+
+## every frame while the generator runs: the progress on the say line; when it is over, the clip lands like a copied video
+func _gen_tick(dt: float) -> void:
+	var r: String = m.gen_move.poll(dt)
+	if r == "":
+		m._say_plain(_gen_line())
+		return
+	_gen_on = false
+	m.gen_easy = false
+	if r != "done":
+		_fail(GEN_NOT_RUNNING)
+		return
+	_vid_busy = true
+	_vid_cancel = false
+	_vid_before = String(m.scene_path)
+	_vid_said = "Made \"%s\"" % _gen_words
+	_t0 = -1
+	m._land_undo = "Make it with AI video"
+	m._say_plain("Reading the video: 0 %")
+	m._import_video(m.gen_move.out)
+	if m._video_pid < 0 and not m._imp_busy():
+		_vid_busy = false
+		m._land_undo = ""
+		_fail(NO_READER)
+
+
+## Cancel: the generator is stopped (its python process killed) and nothing is changed; during the fit the import's own Cancel
+func cancel_run() -> void:
+	if _gen_on:
+		if m.gen_move.pid >= 0:
+			OS.kill(m.gen_move.pid)
+		m.gen_move.pid = -1
+		_gen_on = false
+		m.gen_easy = false
+		_t0 = -1
+		m._say_plain("Stopped. Nothing was changed.")
+		return
+	if m._imp_busy():
+		m._imp_cancel()
+
+
 func copy_video() -> void:
-	if _vid_busy or m._imp_busy() or m._video_pid >= 0:
+	if _gen_on or _vid_busy or m._imp_busy() or m._video_pid >= 0:
 		m._say("A video is already being copied: wait for it, or press Cancel on the bar")
 		return
 	var fd := FileDialog.new()
@@ -262,7 +364,7 @@ func copy_video() -> void:
 
 ## the copy of one file (the dialog's pick; a test calls it with its own clip)
 func copy_video_file(path: String) -> void:
-	if _vid_busy or m._imp_busy() or m._video_pid >= 0:
+	if _gen_on or _vid_busy or m._imp_busy() or m._video_pid >= 0:
 		m._say("A video is already being copied: wait for it, or press Cancel on the bar")
 		return
 	if not FileAccess.file_exists(path):
@@ -271,7 +373,7 @@ func copy_video_file(path: String) -> void:
 	_vid_busy = true
 	_vid_cancel = false
 	_vid_before = String(m.scene_path)
-	_vid_name = path.get_file()
+	_vid_said = "Copied %s" % path.get_file()
 	_t0 = -1
 	m._land_undo = "Copy a video"
 	m._import_video(path)
@@ -317,11 +419,12 @@ func _tracker_progress() -> float:
 func _copied() -> void:
 	_built = true
 	_open = false
+	_gen_words = ""
 	_msg.text = ""
 	m._layout_bottom()
 	_play()
 	m.easy.frame_clip_next()
-	m._say_plain("Copied %s: %d cards. Again plays it from the start; Undo takes it back." % [_vid_name, m.S.cards.size()])
+	m._say_plain("%s: %d cards. Again plays it from the start; Undo takes it back." % [_vid_said, m.S.cards.size()])
 
 
 ## the clip for one card or one typed line: one undo step. "" = built; else the one sentence why not

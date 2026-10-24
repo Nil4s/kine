@@ -19903,6 +19903,7 @@ func _grip_record(label: String) -> void:
 
 ## A MOVE FROM WORDS (scripts/gen_move.gd): the words -> a clip from the local ComfyUI -> _import_video, as a dropped video
 var gen_move := GenMove.new()
+var gen_easy := false   # Easy's MAKE IT WITH AI VIDEO runs it: its home (easy_home.gd _gen_tick) polls, says and lands it
 var _gen_said := 0
 
 
@@ -19942,6 +19943,8 @@ func _gen_start(words: String) -> void:
 
 
 func _gen_poll(dt: float) -> void:
+	if gen_easy:
+		return
 	var r := gen_move.poll(dt)
 	if r == "":
 		if gen_move.busy() and int(gen_move.t / 60.0) > _gen_said:
