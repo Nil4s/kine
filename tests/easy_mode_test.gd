@@ -390,17 +390,32 @@ func _init() -> void:
 	ok(not m.easy._more.visible, "B: pressing a bar button (Play / Stop) closes the More menu that was open")
 	m.easy.button("Play / Stop").pressed.emit()   # stop again
 	await idle()
+	# the precondition (an empty list would pass): a draft in scenes/_wip, and a saved scene that is also recent
+	var draft_made := Templates.create("run")   # a draft file in scenes/_wip, not opened: the open scene stays as it is
+	ok(draft_made != "", "precondition: a Run draft is in scenes/_wip for the Open check (%s)" % draft_made)
+	m._fill_scene_list()
+	for i in m.ui_scenes.item_count:
+		var rp := String(m.ui_scenes.get_item_metadata(i))
+		if not (rp.begins_with("#") or m.is_draft_path(rp) or m.ui_scenes.is_item_disabled(i)):
+			m._recent_note(rp, true)
+			break
 	m.easy.pick_more("Open a saved scene")
 	await idle()
-	# Open (drafts 10-24): the SAVED scenes the list has, then a "Recent drafts" separator and the newest 5 drafts (not every draft)
-	var saved_rows := 0
+	# Open (Easy, plain words): ONE entry per saved scene (the list's recent row and its saved row are the same scene), no
+	# "Recent drafts" section and no "(draft)" word. Expert's list is not this menu (its list keeps its own rows)
+	var saved_paths := {}
 	for i in m.ui_scenes.item_count:
 		var mp := String(m.ui_scenes.get_item_metadata(i))
-		if not (mp.begins_with("#") or m.is_draft_path(mp)):
-			saved_rows += 1
-	var nd := mini(5, m.draft_paths().size())
-	var want_menu := saved_rows + (nd + 1 if nd > 0 else 0)
-	ok(m.easy._menu.item_count == want_menu and saved_rows > 0, "Open a saved scene lists the saved scenes (%d) then 'Recent drafts' with the newest %d: %d rows, want %d" % [saved_rows, nd, m.easy._menu.item_count, want_menu])
+		if not (mp.begins_with("#") or m.is_draft_path(mp) or m.ui_scenes.is_item_disabled(i)):
+			saved_paths[mp] = true
+	var om_paths := {}
+	var om_text := []
+	for k in m.easy._menu.item_count:
+		om_paths[String(m.easy._menu_paths.get(k, ""))] = true
+		om_text.append(m.easy._menu.get_item_text(k))
+	var om_bad := om_text.filter(func(t): return String(t).to_lower().find("draft") >= 0 or String(t).find("(recent)") >= 0 or String(t).find("Recent") >= 0)
+	ok(m.easy._menu.item_count == saved_paths.size() and saved_paths.size() > 0 and om_paths.size() == m.easy._menu.item_count and om_bad.is_empty(),
+		"Easy's Open: one entry per saved scene (%d), no duplicate, no draft or recent words: %d rows, %d distinct, bad %s" % [saved_paths.size(), m.easy._menu.item_count, om_paths.size(), str(om_bad)])
 	m.easy._menu.hide()
 	await idle()
 
@@ -725,6 +740,49 @@ func _init() -> void:
 	var p_want_sorted := p_want.duplicate()
 	p_want_sorted.sort()
 	ok(p_caps.is_empty() and p_sorted == p_want_sorted, "10: the Punch card's strip names are plain words, in sentence case: %s (all caps: %s)" % [str(p_names), str(p_caps)])
+	m._new_scene()
+	await idle()
+	# 10b. the Run card's strip (round 2): no template code ("mid R0", "off L1", "air 0", "land R2", "half step L", "stop: ...",
+	# "swing 3") is shown, and the first card reads "Run 1" (its name is "<Move> <place in the strip>")
+	m.easy.home.card(1)
+	await idle(12)
+	var r_lines := card_lines()
+	var r_names := []
+	for i in m.S.cards.size():
+		r_names.append(String(r_lines.get("card_%d/b_pick" % (i + 1), "")))
+	var code_re := RegEx.create_from_string("^(mid|off|air|land|swing|half step|step|stop)\\b")   # the template codes (main.EASY_CODE_NAME)
+	var r_codes := r_names.filter(func(t): return code_re.search(String(t).to_lower()) != null)
+	ok(r_names.size() >= 4 and r_codes.is_empty() and r_names[0] == "Run 1" and r_names.all(func(t): return String(t).begins_with("Run ")),
+		"10b: Easy's Run strip has no template codes and reads 'Run 1' first: %s (codes: %s)" % [str(r_names), str(r_codes)])
+	m.easy.set_on(false, false)
+	m._refresh()
+	await idle(12)
+	var x_run := card_lines()
+	ok(x_run.get("card_1/b_pick", "") == "1 %s" % String(m.S.cards[0]["name"]), "10b: Expert's strip keeps the stored names with the number: '%s'" % str(x_run.get("card_1/b_pick", "")))
+	m.easy.set_on(true, false)
+	await idle(6)
+	# 10c. the drag's stop in Easy: plain words, no digits and no degree sign; Expert's line keeps its numbers
+	var drag_lim := {"kind": "limit", "joint": "upperarm_r", "axis": "side", "at": 90.0, "lo": -95.0, "hi": 90.0}
+	var e_stop: String = m.stop_words(drag_lim)
+	var e_digits := RegEx.create_from_string("[0-9°]").search(e_stop)
+	ok(e_digits == null and e_stop.find("His arm can't bend further that way.") >= 0,
+		"10c: Easy's drag limit has no digits or degree sign and names the arm: '%s'" % e_stop.strip_edges())
+	m.easy.set_on(false, false)
+	var x_stop: String = m.stop_words(drag_lim)
+	ok("STOPPED: the right upper arm is at its limit, side 90" in x_stop, "10c: Expert's drag limit keeps its numbers: '%s'" % x_stop.strip_edges())
+	m.easy.set_on(true, false)
+	# 10d. Save (Easy): "Saved <name> (<seconds> seconds)."; Expert keeps "saved scene <name>: N cards, ..."
+	m._save_scene_now("zz_run_68")
+	await idle(2)
+	var e_save: String = m.ui_status.text
+	var sv_re := RegEx.create_from_string("^Saved .*seconds\\)\\.$")
+	ok(sv_re.search(e_save) != null and e_save.find("zz run 68") >= 0, "10d: Easy's save status reads 'Saved <name> (<n> seconds).': '%s'" % e_save)
+	m.easy.set_on(false, false)
+	m._save_scene_now("zz_run_68")
+	await idle(2)
+	var x_save: String = m.ui_status.text
+	ok(x_save.begins_with("saved scene zz_run_68: ") and x_save.find(" frames with parts inside each other") >= 0, "10d: Expert's save status keeps its words: '%s'" % x_save)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(UserPaths.w("res://scenes/zz_run_68.json")))
 	m.easy.set_on(false, false)
 	await idle(6)
 

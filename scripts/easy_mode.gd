@@ -29,7 +29,6 @@ var _vis := {}              # node -> its visibility before Easy hid it (Expert 
 var _btns := {}             # label -> Button
 var _menu: PopupMenu        # the scene list Open shows
 var _menu_paths := {}       # Open's row index -> the scene file it opens (the separator has none)
-const OPEN_DRAFTS := 5      # Open: the saved scenes, then "Recent drafts" with the newest this many drafts
 var _dummy_was := false   # the target dummy was on when Easy came on (Expert puts it back)
 var _more: PopupMenu        # the More menu: the actions that are not on the bar (its item id = index in _more_acts)
 var _more_acts: Array = []  # [label, tip, Callable] per More entry
@@ -425,15 +424,13 @@ func _open() -> void:
 	m._show_open_scene()
 	_menu.clear()
 	_menu_paths.clear()
-	for i in m.ui_scenes.item_count:   # the saved scenes, in the list's order (newest first); its group rows and drafts are not here
+	var seen := {}
+	for i in m.ui_scenes.item_count:   # the saved scenes, once each, in the list's order (newest first): the recent row of a scene is the same scene; its group rows and drafts are not here
 		var p := String(m.ui_scenes.get_item_metadata(i))
-		if not (p.begins_with("#") or m.is_draft_path(p)):
-			_open_row(m.ui_scenes.get_item_text(i), p)
-	var drafts: Array = m.draft_paths().slice(0, OPEN_DRAFTS)
-	if not drafts.is_empty():
-		_menu.add_separator("Recent drafts")
-		for p in drafts:
-			_open_row(String(p).get_file().get_basename().replace("_", " ") + "   (draft)", String(p))
+		if p.begins_with("#") or m.is_draft_path(p) or seen.has(p) or m.ui_scenes.is_item_disabled(i):
+			continue
+		seen[p] = true
+		_open_row(p.get_file().get_basename().replace("_", " "), p)
 	if _menu_paths.is_empty():
 		m._say("No scenes yet: New scene starts one, and Save keeps it.")
 		return
