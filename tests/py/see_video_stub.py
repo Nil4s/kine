@@ -1,8 +1,10 @@
 """Stand-in for tools/see_video.py in tests (no MediaPipe): same arguments: <video> <out> --progress <file>.
-TRK_STUB_PLAN = "good,bad,lost": the verdict of each call in turn (1-based; the last one repeats):
-  good: the world landmarks of tests/fixtures/gen_hammer_pose.json, every landmark visible at 0.95, all 81 frames
+TRK_STUB_PLAN = "good,bad,lost,frozen": the verdict of each call in turn (1-based; the last one repeats):
+  good: the world landmarks of tests/fixtures/gen_hammer_pose.json, every landmark visible at 0.95, all 81 frames; the image
+        points are the real tracked ones of tests/fixtures/vidspeed_pose_A.json (the same clip, so the take MOVES)
   bad:  the first 20 of 81 frames (a person in about a quarter of the clip: "Couldn't find a person")
   lost: all 81 frames, the left hand (15, 17, 19, 21) at 0.1 in every frame (a score under 0.5)
+  frozen: all 81 frames tracked well, but the image points are frame 1's in every frame (a statue: EasyTake's frozen bar)
 The pose file has "seen" (the frames the tracker looked at), as the real tracker writes it.
 TRK_STUB_LOG: each call appends "<video>\t<out>\t<progress>" to it (the call number is the line count)."""
 import json
@@ -10,6 +12,7 @@ import os
 import sys
 
 FIXTURE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "gen_hammer_pose.json")
+MOVING = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "vidspeed_pose_A.json")
 LEFT_HAND = (15, 17, 19, 21)
 SEEN = 81
 
@@ -26,9 +29,11 @@ if log:
 verdict = plan[min(n, len(plan)) - 1] if plan else "good"
 
 src = json.load(open(FIXTURE))
+moving = json.load(open(MOVING))["frames"]
 frames = []
-for f in src["frames"][:SEEN]:
-    vis = [[0.5, 0.5, 0.95] for _ in range(33)]
+for i, f in enumerate(src["frames"][:SEEN]):
+    xy_src = moving[0 if verdict == "frozen" else i]["image"]
+    vis = [[xy_src[k][0], xy_src[k][1], 0.95] for k in range(33)]
     if verdict == "lost":
         for k in LEFT_HAND:
             vis[k][2] = 0.1

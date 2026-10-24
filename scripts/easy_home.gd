@@ -473,10 +473,11 @@ const GEN_BUSY := "A video is already being made or copied: wait for it, or pres
 const AI_WHY := "The computer makes a short video of a person doing it, then copies the move. Takes about 3 minutes."
 const AI_NO := "AI video isn't set up on this computer."   # shown in place of the button when the maker is not on this computer
 const UNCLEAR := "The video was unclear; try different words."   # both takes came out bad with a person found
+const BARELY := "The AI video barely moved. Try other words, like 'throws a fast punch'."   # the second take is still for most of its clip (EasyTake.frozen_fraction)
 
 
-## ONE RETAKE (EasyTake): a take the tracker reads as bad (no person in half its frames, or a score under 0.5) is made once
-## more with the next seed; the good take is imported, and a second bad one imports nothing and says why. Two takes at most.
+## ONE RETAKE (EasyTake): a take the tracker reads as bad (no person in half its frames, a score under 0.5, or still for over half
+## its clip) is made once more with the next seed; the good take is imported, and a second bad one imports nothing and says why. Two takes at most.
 func make_ai() -> void:
 	if _gen_words == "":
 		return
@@ -562,7 +563,8 @@ func _take_gate(pose: String) -> bool:
 		m._land_undo = ""
 		_start_take()   # says the retake line itself
 		return false
-	_take_abort(NO_PERSON if float(v["found"]) < EasyTake.BAD_FOUND else UNCLEAR)
+	var why := NO_PERSON if float(v["found"]) < EasyTake.BAD_FOUND else (BARELY if float(v["frozen"]) > EasyTake.BAD_FROZEN else UNCLEAR)
+	_take_abort(why)
 	return false
 
 
