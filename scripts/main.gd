@@ -500,6 +500,7 @@ var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ri
 var sk := SketchPose.new()   # ROADMAP I9: sketch a stick figure over the view -> pose (scripts/sketch_pose.gd)
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
+var redspots := RedSpots.new()   # N074: Check's problems glow on the body part they are about (scripts/red_spots.gd)
 var cshadow := ContactShadow.new()   # CONTACT SHADOWS (ROADMAP R4): a soft blob under each foot, darker the nearer the sole is to the floor
 var force_on := false        # FORCE VIEW (ROADMAP I8, scripts/force_view.gd): the body coloured by joint torque, the power chain strip. Off by default, view only
 var force_cache := {}        # {"key": the cards + body it was made for, "sm": ForceView.sample's result}
@@ -2708,6 +2709,9 @@ func _ready() -> void:
 	add_child(bal)
 	add_child(rc_view)
 	add_child(cshadow)
+	add_child(redspots)
+	redspots.setup(self)
+	redspots.load_from(settings)   # N074: VIEW > Show problems on the body (on unless turned off)
 	add_child(loa)
 	add_child(rings)
 	ov.setup()
@@ -4601,6 +4605,10 @@ func _refresh() -> void:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
+	var _rk := {sel: true}
+	for sj in sel_more:
+		_rk[sj] = true
+	redspots.apply(looks, playhead, B, check_ran and not clean and not wp_on, _rk)   # N074: the spots at the playhead (the picked part keeps its pick)
 	_force_looks(looks)
 	skp.set_looks(looks)
 	for m in [bat_handle, bat_barrel, bat_knob]:
@@ -4952,6 +4960,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				if sel_prop >= 0:
 					sel_prop = -1
 					_props_show()
+				redspots.press(j, mb.position, playhead)   # N074: a glowing part opens its finding and Fix (the press goes on)
 				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
 					sel = j
 					playing = false
@@ -11410,6 +11419,8 @@ func _ui() -> void:
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
 	tog.call("VIEW", "Local API", func(): _set_api(api == null or not api.running()), func(): return api != null and api.running(),
 		"a local HTTP API on 127.0.0.1 only (off by default): describe, run, check, shot over JSON, for a script on this machine. Needs the session token the status line shows. The port is [api] port in the settings file (default 8765)")
+	tog.call("VIEW", "Show problems on the body", func(): redspots.set_on(not redspots.on, settings); _refresh(), func(): return redspots.on,
+		"Check's problems glow on the body part at the frames they cover (red = must fix, yellow = look); click the glow for the finding and its Fix (remembered, on by default)")
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
@@ -15871,6 +15882,7 @@ func _check(given = null) -> void:
 		findings = Rulebook.check(S, ov.GB, _sm)
 	check_ran = true
 	check_at = undo.size()
+	redspots.set_findings(findings)   # N074: the glows come from this list, never from a Check of their own
 	for c in ui_find_list.get_children():
 		ui_find_list.remove_child(c)   # detach now: queue_free alone leaves the old rows listed until the frame ends
 		c.queue_free()

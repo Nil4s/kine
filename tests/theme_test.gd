@@ -28,7 +28,7 @@ const ALLOW := {
 		["Color(0, 0, 0, 0.85))", "the drag readout's own dark box"],
 		["13, Color(1, 0.95, 0.5))", "the drag readout's text on its own dark box"],
 	],
-	"scripts/ring_menu.gd": [], "scripts/view_cube.gd": [], "scripts/command_search.gd": [], "scripts/browser.gd": [],
+	"scripts/ring_menu.gd": [], "scripts/red_spots.gd": [], "scripts/view_cube.gd": [], "scripts/command_search.gd": [], "scripts/browser.gd": [],
 }
 ## main.gd: only the UI-building functions are audited (the 3D scene's materials, lights and labels are content)
 const MAIN_UI := ["_theme", "_set_light", "_retheme", "_label", "_button", "_row", "_section", "_ui", "_rebuild_cards", "_draw_graph", "_check"]
