@@ -538,7 +538,6 @@ func tweak(how: String) -> void:
 	m._say_plain(said)
 	_play()
 	m.easy.frame_clip_next()
-	print("easy tweak %s: length %.3f -> %.3f s" % [how, before, S.length()])
 
 
 func _change() -> void:
