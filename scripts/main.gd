@@ -5344,6 +5344,8 @@ func _do(f: Callable) -> void:
 ## WORDS TO A POSE (round 13, #93): "raise the right arm 90, bend the left elbow 45" (scripts/pose_words.gd). ONE undo
 ## step. Every op is reported with what was asked and what the joint REACHED (a limit or a contact stops it)
 func _pose_words(text: String) -> Dictionary:
+	if SupportPose.claims(text) and not PoseWords.parse(text)["ok"]:
+		return SupportPose.run(self, text)   # N015: "kneeling on the right knee, left foot flat" solves a pose on those contacts
 	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
 		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
 	if MeshWords.claims(text, kmed != null and kmed.on):
