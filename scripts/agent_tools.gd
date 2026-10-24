@@ -478,4 +478,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, cl) if cl["ok"] else _err(id, -32602, cl["error"])
 		"fix_until":   # N005: the fixes in order of predicted gain until the saved assertions pass and the score clears a bar (scripts/fix_loop.gd)
 			return await FixLoop.serve(self, id, p)
+		"hit_harder":   # N065 HIT HARDER (scripts/hit_harder.gd): {card, dry?, allow_retime?}; one undo step; not in METHODS (the transcript)
+			var hh := HitHarder.serve(m, p)
+			return _ok(id, hh) if hh["ok"] else _err(id, -32602, String(hh["error"]))
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
