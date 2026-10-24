@@ -24,7 +24,8 @@ extends RefCounted
 ## ON THE FIGHTER (attach): a skinned MeshInstance3D beside the body pieces (same parent, skeleton and skin), named
 ##   armour_<n>, ONE step of main's undo: main's snapshot carries the list of attached parts (snap) and _restore puts
 ##   that list back (restore). Shown in the body preview as an unskinned copy under the preview's view (ArmourUI keeps
-##   them in step). Like G01's applied body, parts live until the app closes: not saved with the scene.
+##   them in step). THE SCENE KEEPS THEM: the scene's "armour" key (to_file / from_scene, the KMesh exact), written by
+##   main._scene_dict, so the save, the autosave and the journal hold them; a scene file without the key has none.
 ## Tests: tests/armour_test.gd.
 
 const GAP := 0.004
@@ -711,8 +712,47 @@ static func restore(m: Node, list: Array) -> void:
 	ArmourUI.of(m).sync()
 
 
-## the shell onto the fighter as a separate skinned part: ONE step of main's undo. -> the MeshInstance3D (null: no body)
-static func attach(m: Node, k: KMesh, label: String) -> MeshInstance3D:
+## the scene's key: every plate on the fighter now, as the scene file holds them (absent when there are none)
+const KEY := "armour"
+
+## the scene's "armour" list: {"label", "name", "kmesh": KMesh.to_dict()} per plate, in attach order (KMesh.to_dict is exact)
+static func to_file(m: Node) -> Array:
+	var out := []
+	for mi in parts(m):
+		if not is_instance_valid(mi):
+			continue
+		var n := mi as Node
+		out.append({"label": String(n.get_meta("armour_label", "")), "name": String(n.name), "kmesh": (n.get_meta("armour_kmesh") as KMesh).to_dict()})
+	return out
+
+
+## main._load_scene / _restore_work: the fighter's plates are the scene's (the list it holds; none when the key is absent).
+## Plates already there leave the fighter and are dropped; no undo step (opening a file is not an edit)
+static func from_scene(m: Node, d: Dictionary) -> void:
+	for mi in m.get_meta(META_ALL, []):
+		if is_instance_valid(mi):
+			var par0: Node = (mi as Node).get_parent()
+			if par0 != null:
+				par0.remove_child(mi)
+			(mi as Node).queue_free()
+	m.set_meta(META_ALL, [])
+	m.set_meta(META_PARTS, [])
+	var list = d.get(KEY, [])
+	if list is Array:
+		for e in list:
+			if not (e is Dictionary and e.get("kmesh") is Dictionary):
+				continue
+			var k := KMesh.new().from_dict(e["kmesh"])
+			if k == null:
+				continue
+			var mi := attach(m, k, String(e.get("label", "")), false)
+			if mi != null and String(e.get("name", "")) != "":
+				mi.name = String(e["name"])
+	ArmourUI.of(m).sync()
+
+
+## the shell onto the fighter as a separate skinned part: ONE step of main's undo (none when undo is false: a restore). -> the MeshInstance3D (null: no body)
+static func attach(m: Node, k: KMesh, label: String, undo := true) -> MeshInstance3D:
 	if m.pieces.is_empty():
 		return null
 	var p0: MeshInstance3D = m.pieces.values()[0]
@@ -730,7 +770,8 @@ static func attach(m: Node, k: KMesh, label: String) -> MeshInstance3D:
 	var par := p0.get_parent()
 	mi.set_meta("armour_parent", par)
 	m._step_hint = "Armour from the body (%s)" % label
-	m._push_undo()
+	if undo:
+		m._push_undo()
 	par.add_child(mi)
 	mi.skeleton = p0.skeleton   # the same parent: the same path to the skeleton
 	all.append(mi)
