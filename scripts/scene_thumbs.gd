@@ -36,10 +36,16 @@ var _pbusy := false
 var _drawing := false     # the one stage draws one picture at a time (scenes and poses share it)
 var _cam: Camera3D        # the stage's camera: aimed at each picture's own body (_aim)
 const FRAME_VER := "f2"   # the picture's framing: f2 = aimed at the body's root (f1 framed the origin: a walk's first cards fell off the edge); the cache keys carry it
+const POSE_BATCH := 8     # the strip's pictures: up to this many poses are drawn in ONE frame, each on its own stage (see _pool_stages)
+const BATCH_US := 6000    # ...and a frame stops adding poses to its batch once this much time has gone (a frame never takes long)
+const POSE_TRIES := 3    # a picture that comes back empty is drawn again this many times, then the card keeps none
+var _pool_st: Array = []  # the stages the strip's pictures are drawn in: made on the first batch, reused (scene pictures keep _vp)
+var _inbatch := {}        # pose key -> true while its picture is being drawn: a request for it waits for that draw
 
 
 func _ready() -> void:
 	_stage.call_deferred()   # the mannequin is loaded at start-up, not on the first open of the list
+	_pool_stages.call_deferred(POSE_BATCH)   # the strip's stages too: the first Run does not pay for building them (75 ms)
 
 
 ## the card a picture is drawn from: the first strike-like card, else the middle one (-1: no cards)
@@ -142,15 +148,21 @@ func pose_picture(pose: Dictionary) -> Texture2D:
 	return _ptex.get(pose_key(pose))
 
 
-## ask for the picture of a pose; made_pose(key) says when it is there. Returns the key
-func request_pose(pose: Dictionary) -> String:
+## ask for the picture of a pose; made_pose(key) says when it is there. Returns the key. rank orders the queue (a lower
+## rank is drawn first; the strip gives the cards in view the lowest ranks); a request with no rank goes last
+func request_pose(pose: Dictionary, rank := 1 << 30) -> String:
 	var key := pose_key(pose)
-	if _ptex.has(key):
-		return key
+	if _ptex.has(key) or _inbatch.has(key):
+		return key   # made_pose(key) comes with the picture (a batch in flight, or the picture is at hand)
 	for q in _pq:
 		if q[0] == key:
 			return key
-	_pq.append([key, pose])
+	var at := _pq.size()
+	for j in _pq.size():
+		if int(_pq[j][2]) > rank:
+			at = j
+			break
+	_pq.insert(at, [key, pose, rank, 0])
 	_ppump()
 	return key
 
@@ -161,37 +173,108 @@ func _frame() -> Signal:
 	return (Engine.get_main_loop() as SceneTree).process_frame
 
 
+## the queue, in rank order. Pictures on disk (or in memory) are taken at once; the rest are drawn in batches of up to
+## POSE_BATCH poses in ONE frame (_draw_batch), so the strip's pictures come a few frames apart, not one a frame.
+## Every queued key is made once: a key drawn in one batch is not drawn again (its made_pose serves every card)
 func _ppump() -> void:
 	if _pbusy:
 		return
 	_pbusy = true
 	await _frame()   # never on the frame that asked
 	while not _pq.is_empty():
-		var q: Array = _pq.pop_front()
-		var key: String = q[0]
-		if not _ptex.has(key):
-			var f := "%s/p_%s.png" % [DIR, key]
-			var img: Image = null
-			if FileAccess.file_exists(f):
-				img = Image.load_from_file(f)
-				if img != null and not img.is_empty():
-					disk_hits += 1
-			if img == null or img.is_empty():
-				var t0 := Time.get_ticks_usec()
-				for attempt in 3:   # an empty read-back (the stage not yet rendered) is drawn again, never left as a card with no picture
-					img = await draw_pose(q[1])
-					if img != null and not img.is_empty():
-						break
-				if img != null and not img.is_empty():
-					DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR))
-					img.save_png(ProjectSettings.globalize_path(f))
-					renders += 1
-					render_ms.append((Time.get_ticks_usec() - t0) / 1000.0)
-			if img != null and not img.is_empty():
+		var t0 := Time.get_ticks_usec()
+		var batch: Array = []   # [key, pose, rank, tries] to draw in this frame
+		while not _pq.is_empty() and batch.size() < POSE_BATCH:
+			var q: Array = _pq.pop_front()
+			var key: String = q[0]
+			if _ptex.has(key):
+				made_pose.emit(key)
+				continue
+			var img := _disk_pose(key)
+			if img != null:
 				_ptex[key] = ImageTexture.create_from_image(img)
-		made_pose.emit(key)
-		await _frame()
+				made_pose.emit(key)
+			else:
+				batch.append(q)
+				_inbatch[key] = true
+			if Time.get_ticks_usec() - t0 > BATCH_US:
+				break
+		if batch.is_empty():
+			await _frame()   # only disk hits so far: the next frame takes the rest
+			continue
+		var t1 := Time.get_ticks_usec()
+		var poses: Array = []
+		for q in batch:
+			poses.append(q[1])
+		var imgs: Array = await _draw_batch(poses)
+		var per_ms := (Time.get_ticks_usec() - t1) / 1000.0 / float(batch.size())
+		for j in batch.size():
+			var q: Array = batch[j]
+			var key: String = q[0]
+			var img: Image = imgs[j] if j < imgs.size() else null
+			_inbatch.erase(key)
+			if img != null and not img.is_empty():
+				DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR))
+				img.save_png(ProjectSettings.globalize_path("%s/p_%s.png" % [DIR, key]))
+				renders += 1
+				render_ms.append(per_ms)
+				_ptex[key] = ImageTexture.create_from_image(img)
+			elif int(q[3]) + 1 < POSE_TRIES:
+				q[3] = int(q[3]) + 1   # an empty read-back (the stage not yet rendered) is drawn again, never left as a card with no picture
+				_pq.push_front(q)
+				continue
+			made_pose.emit(key)
 	_pbusy = false
+
+
+## the picture of a pose from the disk cache, or null (a file that is missing or empty)
+func _disk_pose(key: String) -> Image:
+	var f := "%s/p_%s.png" % [DIR, key]
+	if not FileAccess.file_exists(f):
+		return null
+	var img := Image.load_from_file(f)
+	if img == null or img.is_empty():
+		return null
+	disk_hits += 1
+	return img
+
+
+## several poses in ONE frame: pose j on stage j of the pool, all stages rendered together and read back together.
+## Returns one Image (or null) per pose, in order
+func _draw_batch(poses: Array) -> Array:
+	var out: Array = []
+	out.resize(poses.size())
+	out.fill(null)
+	while _drawing:
+		await _frame()
+	_drawing = true
+	var sts := _pool_stages(poses.size())
+	for j in poses.size():
+		var st: Dictionary = sts[j]
+		(st["tb"] as Body).from_dict(poses[j])
+		_aim_at(st["cam"], st["tb"])
+		Overlays.pose_skeleton(st["sk"], st["idx"], st["tb"])
+	await _frame()
+	if not is_inside_tree():
+		_drawing = false
+		return out
+	for st in sts:
+		(st["vp"] as SubViewport).render_target_update_mode = SubViewport.UPDATE_ONCE
+	await RenderingServer.frame_post_draw
+	if is_inside_tree():
+		for j in poses.size():
+			var vp := sts[j]["vp"] as SubViewport
+			if is_instance_valid(vp):
+				out[j] = vp.get_texture().get_image()
+	_drawing = false
+	return out
+
+
+## the pool's first n stages (made as they are needed, then kept)
+func _pool_stages(n: int) -> Array:
+	while _pool_st.size() < n:
+		_pool_st.append(_new_stage("pose_stage_%d" % _pool_st.size()))
+	return _pool_st.slice(0, n)
 
 
 ## the picture of a pose, drawn now on the thumbnail stage (two frames); null when it cannot be drawn
@@ -223,17 +306,30 @@ func settle() -> void:
 		await _frame()
 
 
+## the scene pictures' stage (the one draw_pose and _render use): made once
 func _stage() -> void:
 	if _vp != null:
 		return
-	_vp = SubViewport.new()
-	_vp.name = "scene_thumb_stage"
-	_vp.size = SIZE
-	_vp.own_world_3d = true
-	_vp.transparent_bg = false
-	_vp.msaa_3d = Viewport.MSAA_4X
-	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	add_child(_vp)
+	var st := _new_stage("scene_thumb_stage")
+	_vp = st["vp"]
+	_cam = st["cam"]
+	_sk = st["sk"]
+	_idx = st["idx"]
+	_tb = st["tb"]
+	_aim()
+
+
+## one stage: its own world, lights, camera and mannequin (the same look as every picture). Returns
+## {vp, cam, sk, idx, tb}; the stage is a child of this node
+func _new_stage(nm: String) -> Dictionary:
+	var vp := SubViewport.new()
+	vp.name = nm
+	vp.size = SIZE
+	vp.own_world_3d = true
+	vp.transparent_bg = false
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(vp)
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = PoseLibrary.BG
@@ -242,32 +338,30 @@ func _stage() -> void:
 	env.ambient_light_energy = 0.45
 	var we := WorldEnvironment.new()
 	we.environment = env
-	_vp.add_child(we)
+	vp.add_child(we)
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-40, 35, 0)
 	key.light_energy = 1.1
-	_vp.add_child(key)
+	vp.add_child(key)
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-15, -140, 0)
 	fill.light_energy = 0.35
-	_vp.add_child(fill)
+	vp.add_child(fill)
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	cam.size = PoseLibrary.CAM_SIZE
 	cam.near = 0.05
 	cam.far = 20.0
-	_vp.add_child(cam)
-	_cam = cam
-	_aim()
+	vp.add_child(cam)
+	var tb := Body.new()
+	tb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	_aim_at(cam, tb)
 	cam.current = true
 	var skin := StandardMaterial3D.new()
 	skin.albedo_color = PoseLibrary.SKIN
 	skin.roughness = 0.55
-	var mq := Overlays.mannequin(_vp, skin)
-	_sk = mq[1]
-	_idx = mq[2]
-	_tb = Body.new()
-	_tb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var mq := Overlays.mannequin(vp, skin)
+	return {"vp": vp, "cam": cam, "sk": mq[1], "idx": mq[2], "tb": tb}
 
 
 ## the camera looks at the body where it stands: its root (the hips' offset, x and z) moves with the walk, so a card
@@ -275,8 +369,12 @@ func _stage() -> void:
 func _aim() -> void:
 	if _cam == null or _tb == null:
 		return
-	var c := Vector3(_tb.offset.x, PoseLibrary.CAM_AT.y, _tb.offset.z)
-	_cam.look_at_from_position(c + (PoseLibrary.CAM_FROM - PoseLibrary.CAM_AT), c)
+	_aim_at(_cam, _tb)
+
+
+func _aim_at(cam: Camera3D, tb: Body) -> void:
+	var c := Vector3(tb.offset.x, PoseLibrary.CAM_AT.y, tb.offset.z)
+	cam.look_at_from_position(c + (PoseLibrary.CAM_FROM - PoseLibrary.CAM_AT), c)
 
 
 ## draw one scene's picture: its strike (or middle) card posed on the mannequin, saved to the cache under its hash

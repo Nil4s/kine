@@ -44,6 +44,31 @@ func visible_cards() -> int:
 	return n
 
 
+## [pictures, visible cards with a picture, visible cards, cards] of the strip now
+func card_icons() -> Array:
+	var sc: ScrollContainer = m.ui_card_row
+	var x0 := sc.get_global_rect().position.x
+	var x1 := sc.get_global_rect().end.x
+	var all := 0
+	var vis := 0
+	var vtot := 0
+	var n := 0
+	for pc in m.ui_cards.get_children():
+		if not String(pc.name).begins_with("card_"):
+			continue
+		n += 1
+		var nb := (pc as Node).find_child("b_pick", true, false) as Button
+		var has := nb != null and nb.icon != null
+		if has:
+			all += 1
+		var r := (pc as Control).get_global_rect()
+		if r.position.x >= x0 - 1.0 and r.end.x <= x1 + 1.0:
+			vtot += 1
+			if has:
+				vis += 1
+	return [all, vis, vtot, n]
+
+
 func mean_diff(a: Image, b: Image) -> float:
 	var w := mini(a.get_width(), b.get_width())
 	var h := mini(a.get_height(), b.get_height())
@@ -268,5 +293,42 @@ func _init() -> void:
 	ok(sc.scroll_horizontal > 0 and pc23.get_global_rect().position.x >= sc.get_global_rect().position.x - 1.0 and pc23.get_global_rect().end.x <= sc.get_global_rect().end.x + 1.0,
 		"a click on the timeline's block 23: the strip scrolled to %d px and card 23 is whole in view" % sc.scroll_horizontal)
 	ok(FileAccess.get_file_as_string(src) == file0, "combo3.json byte-identical (nothing was saved)")
+
+	# 8 EASY'S RUN: a beginner clicks Run (37 cards): the strip's pictures come fast. The pose pictures on disk are removed first
+	# (a cold start: the draws are measured, not the cache). Frames are counted from the click; the frame gap is the time
+	# between two process frames (the bar: no frame over 33 ms while the pictures are drawn)
+	var da := DirAccess.open("user://thumbs")
+	if da != null:
+		for f in da.get_files():
+			if f.begins_with("p_"):
+				da.remove(f)
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(6)
+	var t_click := Time.get_ticks_usec()
+	m.easy.home.card(1)   # Run
+	var n_run: int = m.S.cards.size()
+	var vis_ok_at := -1
+	var all_at := -1
+	var worst_gap := 0.0
+	var last := Time.get_ticks_usec()
+	for f in range(1, 41):
+		await process_frame
+		var now := Time.get_ticks_usec()
+		if f > 1:
+			worst_gap = maxf(worst_gap, (now - last) / 1000.0)
+		last = now
+		var st := card_icons()
+		if vis_ok_at < 0 and st[1] == st[2]:
+			vis_ok_at = f
+		if all_at < 0 and st[0] == st[3]:
+			all_at = f
+			break
+	print("     Run: %d cards; visible cards all have icons at frame %d, all cards at frame %d (%.0f ms from the click); worst frame gap %.1f ms" % [n_run, vis_ok_at, all_at, (Time.get_ticks_usec() - t_click) / 1000.0, worst_gap])
+	ok(n_run == 37 and vis_ok_at > 0 and vis_ok_at <= 10, "Run: every visible strip card has its picture within 10 frames (frame %d; bar <= 10)" % vis_ok_at)
+	ok(all_at > 0 and all_at <= 40, "Run: all %d cards have their picture within 40 frames (frame %d; bar <= 40)" % [n_run, all_at])
+	ok(worst_gap <= 33.0, "Run: no frame over 33 ms while the pictures are drawn (worst %.1f ms; bar <= 33)" % worst_gap)
+	m.easy.set_on(false, false)
 	print("CARDSTRIP %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

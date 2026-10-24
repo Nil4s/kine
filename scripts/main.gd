@@ -13216,6 +13216,7 @@ func _rebuild_cards() -> void:
 	var ts := S.times()
 	_pl_card = _play_card_idx()
 	msel = msel.filter(func(k): return k >= 0 and k < S.cards.size())   # R19: an undo or a load may have shortened the strip
+	var pic_rank := _pic_ranks()
 	for i in S.cards.size():
 		var c: Dictionary = S.cards[i]
 		var pc := PanelContainer.new()
@@ -13245,7 +13246,7 @@ func _rebuild_cards() -> void:
 		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
 		_card_flat(nb)
 		nb.set_drag_forwarding(Callable(), _card_can_drop.bind(i, nb), _card_drop.bind(i, nb))   # R18: the drag itself is _card_drag_input (6 px, a gold line); R8: a library pose can drop here
-		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
+		nb.set_meta("pkey", thumbs.request_pose(c["pose"], pic_rank[i]))
 		var tex := thumbs.pose_picture(c["pose"])
 		if tex != null:
 			nb.icon = tex
@@ -13475,6 +13476,32 @@ func _mark_play_card() -> void:
 		var pc := pc_now
 		if pc.position.x < sc.scroll_horizontal or pc.position.x + pc.size.x > sc.scroll_horizontal + sc.size.x:
 			sc.scroll_horizontal = int(maxf(0.0, pc.position.x - 16.0))
+
+
+## the order the strip's pictures are drawn in (SceneThumbs.request_pose's rank): the cards in view come first, from the
+## selected card on (view order, round from it), then the rest in order. The view is the scroll position and the row's width
+func _pic_ranks() -> Array:
+	var n := S.cards.size()
+	var ranks: Array = []
+	ranks.resize(n)
+	if n == 0 or ui_card_row == null:
+		return ranks
+	var step := float(CARD_W + 2)   # a card and the strip's gap (ui_cards separation)
+	var w := ui_card_row.size.x if ui_card_row.size.x > 0.0 else 1000.0
+	var a := clampi(int(floor(ui_card_row.scroll_horizontal / step)), 0, n - 1)
+	var b := clampi(a + int(ceil(w / step)), a, n - 1)
+	var vis: Array = range(a, b + 1)
+	var start := sel_card if vis.has(sel_card) else a
+	var order: Array = []
+	var k := vis.find(start)
+	for j in vis.size():
+		order.append(vis[(k + j) % vis.size()])
+	for i in n:
+		if not vis.has(i):
+			order.append(i)
+	for j in order.size():
+		ranks[order[j]] = j
+	return ranks
 
 
 ## a pose picture is ready: every card showing that pose gets it
