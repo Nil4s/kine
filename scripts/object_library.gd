@@ -246,6 +246,7 @@ static func arm_cards(S: Scene, B: Body) -> void:
 		var s0 := B._state0()
 		s0.merge(held, true)
 		B._set_state0(s0)
+		_clear_body(B)
 		var d := B.to_dict()
 		c["pose"]["weapon"] = d["weapon"]
 		if d.has("weapon2"):
@@ -253,6 +254,52 @@ static func arm_cards(S: Scene, B: Body) -> void:
 		else:
 			(c["pose"] as Dictionary).erase("weapon2")
 	B.set_state(keep)
+	B.fk()
+
+
+## the held weapon's contacts with the body in the pose now (Body.contacts, the test that stops a joint at the weapon):
+## the number of body parts the weapon's parts sink into
+static func _wep_hits(B: Body) -> int:
+	var n := 0
+	for c in B.contacts():
+		if (String(c[0]) in Body.WEAPON or String(c[1]) in Body.WEAPON) and float(c[2]) > 0.001:
+			n += 1
+	return n
+
+
+## a weapon that goes into the body in this pose is turned IN THE HAND, about the palm, by the smallest angle that clears
+## it: the hand, fingers and body stay where they are (only the weapon's own place in the hand changes). Angles grow by
+## 2 degrees; each size is tried in 10-degree steps round the shaft's two cross axes. No clear angle: the weapon stays
+## as it was (the blade then stays in the body, and the Check tests show it)
+static func _clear_body(B: Body) -> void:
+	if not B.wep_on or B.wep_hand == "" or _wep_hits(B) == 0:
+		return
+	var h := B.wep_hand
+	var pivot := B.palm_point(h)
+	var x := B.wep_xform()
+	var p0: Vector3 = x[0]
+	var r0: Quaternion = x[1]
+	var e1 := r0 * Vector3.RIGHT
+	var e2 := r0 * Vector3.BACK
+	var keep := [p0, r0]
+	var mag := 2.0
+	while mag <= 180.0:
+		for k in 36:
+			var phi := deg_to_rad(10.0 * k)
+			var axis := (e1 * cos(phi) + e2 * sin(phi)).normalized()
+			var rw := Quaternion(axis, deg_to_rad(mag))
+			B.wep_hand = ""
+			B.wep_pos = pivot + rw * (p0 - pivot)
+			B.wep_rot = (rw * r0).normalized()
+			B.lock_weapon(h)
+			B.fk()
+			if _wep_hits(B) == 0:
+				return
+		mag += 2.0
+	B.wep_hand = ""
+	B.wep_pos = keep[0]
+	B.wep_rot = keep[1]
+	B.lock_weapon(h)
 	B.fk()
 
 

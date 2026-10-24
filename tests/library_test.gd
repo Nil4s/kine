@@ -18,6 +18,8 @@
 ##      tab, never lets one frame take longer than FRAME_MAX_MS = 50 ms between two process frames.
 ##  B10 CACHE: a second open of the panel draws 0 pictures (renders delta 0), and a fresh LibraryThumbs on the same
 ##      folder draws 0 (every object read from disk: disk hits = 38).
+##  B12 CLEAR BODY: sword, longsword, katana, metal bat placed on Easy's Punch and Walk clips: 0 cards where the blade sinks
+##      into the body, the hands where they were (< 1 mm), one undo step, and that undo restores the cards exactly.
 ## Clicks are the tile's own "pressed" signal (the same path a mouse click takes after the button's own press handling).
 ##  B11 SHIPPED KEY: data/thumbs/armour/default_body.txt (the shipped armour pictures' body hash) is the default body's own hash
 extends SceneTree
@@ -303,6 +305,53 @@ func _init() -> void:
 	ok(have == want, "B11 the shipped armour pictures' body key is the default body's own (stale: run tools/make_lib_thumbs.gd): %s" % [have == want])
 	root.remove_child(fresh)
 	fresh.free()
+
+	# B12: a weapon placed from the library never leaves its blade inside the body, in any card. Easy's Punch and Walk
+	# clips; sword, longsword, katana, metal bat. Per placement: 0 cards where a weapon part sinks into a body part
+	# (Body.contacts, the test that stops a joint at the weapon; read here directly, not through object_library's helper),
+	# every card's hands where they were before the placement (< 1 mm), one undo step, and that undo restores the cards exactly.
+	var B12_IDS := ["weapon:sword", "weapon:longsword", "weapon:katana", "weapon:metal_bat"]
+	for cs in [["punch", "Punch"], ["walk", "Walk"]]:
+		var err: String = m.easy.home._build(cs[0], cs[1])
+		ok(err == "", "B12 %s card builds a clip of %d cards%s" % [cs[1], m.S.cards.size(), "" if err == "" else " (" + err + ")"])
+		await idle(2)
+		var B: Body = m.B
+		var keep_body: Dictionary = B.state()
+		for wid in B12_IDS:
+			var cards: Array = m.S.cards
+			var before := var_to_str(m.S.cards)
+			var hands0: Array = []
+			for c in cards:
+				Scene.put(B, Moves._flat(c["pose"]))
+				B.fk()
+				hands0.append([B.P["hand_r"], B.P["hand_l"]])
+			var b0: int = m.undo.size()
+			var placed: bool = lib.place(wid)
+			await idle(2)
+			var b1: int = m.undo.size()
+			var hit_cards := 0
+			var worst := 0.0
+			var hand_move := 0.0
+			for i in cards.size():
+				Scene.put(B, Moves._flat(cards[i]["pose"]))
+				B.fk()
+				var sunk := 0.0
+				for pr in B.contacts():
+					if (String(pr[0]) in Body.WEAPON or String(pr[1]) in Body.WEAPON) and float(pr[2]) > 0.001:
+						sunk = maxf(sunk, float(pr[2]))
+				if sunk > 0.0:
+					hit_cards += 1
+					worst = maxf(worst, sunk)
+				hand_move = maxf(hand_move, (B.P["hand_r"] as Vector3).distance_to(hands0[i][0]))
+				hand_move = maxf(hand_move, (B.P["hand_l"] as Vector3).distance_to(hands0[i][1]))
+			ok(placed and hit_cards == 0, "B12 %s on %s: 0 cards with the blade in the body (%d of %d cards; deepest %.1f mm)" % [wid, cs[1], hit_cards, cards.size(), worst * 1000.0])
+			ok(hand_move < 0.001, "B12 %s on %s: the hands stay where they were (largest move %.2f mm)" % [wid, cs[1], hand_move * 1000.0])
+			ok(b1 - b0 == 1, "B12 %s on %s: one undo step (the undo stack grew by %d)" % [wid, cs[1], b1 - b0])
+			m._undo()
+			await idle(2)
+			ok(var_to_str(m.S.cards) == before, "B12 %s on %s: one undo restores the cards exactly" % [wid, cs[1]])
+		B.set_state(keep_body)
+		B.fk()
 
 	# the Weapons tab, for the eye (user://thumbs/library_weapons.png)
 	lib._pick_tab(0)
