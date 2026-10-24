@@ -8,6 +8,9 @@ extends RefCounted
 const DIR := "res://templates"
 const WIP := "res://scenes/_wip"
 const NAMES := ["walk", "run", "jump", "punch", "sword_swing", "sit_down", "wave", "fall"]
+## baked files the picker does NOT list: name -> the words TextBlocking builds them from (tools/make_templates.gd bakes them).
+## "roundhouse" is StrikeBlocking's generated kick: built live it took ~3.6 s on Easy's Kick card, so the file holds that build.
+const BAKED := {"roundhouse": "roundhouse"}
 ## the picker's text: [title, what you get]
 const INFO := {
 	"walk": ["Walk", "A half step, five steps at 105 a minute, feet together; arms swing against the legs."],
@@ -31,9 +34,14 @@ static func new_path(nm: String, dir := WIP) -> String:
 	return path
 
 
-## the template's scene file as a dictionary ({} when the name is not one of the five or the file is gone)
+## a name with a file in templates/: the picker's seven, or a baked one
+static func has_file(nm: String) -> bool:
+	return nm in NAMES or BAKED.has(nm)
+
+
+## the template's scene file as a dictionary ({} when the name has no file or the file is gone)
 static func read(nm: String) -> Dictionary:
-	if not nm in NAMES:
+	if not has_file(nm):
 		return {}
 	var p := "%s/%s.json" % [DIR, nm]
 	if not FileAccess.file_exists(p):

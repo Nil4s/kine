@@ -156,13 +156,30 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 	return d
 
 
+## the baked files (Templates.BAKED): the words TextBlocking builds, exactly as the Easy home card builds them
+## (godot --headless --path . -s tools/make_templates.gd -- roundhouse). The report is the bake's own check of the build.
+static func bake_words(nm: String) -> Dictionary:
+	var r: Dictionary = EasyHome.new()._words_dict(String(Templates.BAKED[nm]))
+	if not r["ok"]:
+		push_error("bake %s: %s" % [nm, r["error"]])
+		return {}
+	var d: Dictionary = r["dict"]
+	d["plan"] = "templates/%s (tools/make_templates.gd: the words '%s', built by TextBlocking)" % [nm, Templates.BAKED[nm]]
+	return d
+
+
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	var names: Array = args if not args.is_empty() else Templates.NAMES
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://templates"))
 	for nm in names:
 		var rep := []
-		var d := bake(plan(nm), rep)
+		var d: Dictionary
+		if Templates.BAKED.has(nm):
+			d = bake_words(nm)
+			rep.append("  %s: baked from the words '%s' (%d cards)" % [nm, Templates.BAKED[nm], (d.get("cards", []) as Array).size()])
+		else:
+			d = bake(plan(nm), rep)
 		var f := FileAccess.open("res://templates/%s.json" % nm, FileAccess.WRITE)
 		f.store_string(JSON.stringify(d, " "))
 		f.close()

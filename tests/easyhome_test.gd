@@ -7,11 +7,13 @@
 ##  4. One Ctrl+Z after a card gives back the empty scene (one undo step per card).
 ##  5. Typing "jab then cross" builds 2 strikes (the cards are the two single strikes, in order).
 ##  6. The panel fits inside the window at 1280x720 (its rect is inside the visible viewport).
+##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
 const BUILDS := [0, 1, 2, 3, 4, 5, 6, 7]   # the cards that build: walk, run, jump, punch, kick, sit down, wave, fall
 const BAR_MS := 2000
+const FAST_MS := 500     # bar 7: every card's click to its first moving frame (a beginner thinks a slower one froze)
 
 var fails := 0
 var m: Node
@@ -74,6 +76,7 @@ func _init() -> void:
 
 	# 2 and 3. every card: builds (or says why not), plays, times the click to the first played frame
 	var times := []
+	var fast_ms := []
 	for i in 8:
 		m.playing = false
 		m._new_scene()
@@ -95,6 +98,9 @@ func _init() -> void:
 			else:
 				ok(home.last_ms >= 0 and home.last_ms < BAR_MS, "3. %s: click to the first played frame %d ms (builder %d ms; bar %d ms)" % [name, home.last_ms, home.last_build_ms, BAR_MS])
 			times.append([name, home.last_build_ms, home.last_ms])
+			# 7. the beginner's wait: every card's click to its first moving frame under 500 ms (the Kick card was 3.6 s live)
+			ok(home.last_ms >= 0 and home.last_ms < FAST_MS, "7. %s: click to the first moving frame %d ms (bar %d ms)" % [name, home.last_ms, FAST_MS])
+			fast_ms.append("%s %d" % [name, home.last_ms])
 		else:
 			ok(m.S.cards.is_empty() and home.shown() == "panel" and home.panel.find_child("eh_msg", true, false).text != "",
 				"2. %s has no builder yet: the scene stays empty and one plain sentence says why: '%s'" % [name, (home.panel.find_child("eh_msg", true, false) as Label).text])
@@ -156,5 +162,6 @@ func _init() -> void:
 	await idle()
 	ok(home.shown() == "hidden", "Expert hides the panel and strip again")
 	print("timings: " + str(times))
+	print("card ms (click -> first moving frame): " + ", ".join(fast_ms))
 	print("EASYHOME TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

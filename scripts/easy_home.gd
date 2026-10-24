@@ -2,7 +2,7 @@ class_name EasyHome
 extends Node
 ## EASY HOME (monkey brain easy): what a beginner sees in Easy mode when the scene is empty. A centred panel,
 ## "What should he do?", with eight picture cards and one text box ("or type it"). A card builds its clip (the
-## templates/ files for walk, run, jump, punch; TextBlocking for the rest), one undo step, then it plays by itself.
+## templates/ files for walk, run, jump, punch, sit down, wave and the kick (roundhouse.json, baked); TextBlocking for typed words), one undo step, then it plays by itself.
 ## After that the panel is a strip with three buttons: Again, Change it (the panel and its text box come back), Save video.
 ## Expert never shows it: it is a child of EasyMode and only Easy's bar shows it.
 ## A card the builders cannot make says so in one plain sentence and leaves the scene as it was.
@@ -229,7 +229,7 @@ func _build(what: String, label: String) -> String:
 	var nm := what.strip_edges().to_lower()
 	var d: Dictionary
 	var path := ""
-	if nm in Templates.NAMES:
+	if Templates.has_file(nm):   # the picker's templates and the baked kick (templates/roundhouse.json: instant)
 		d = Templates.read(nm)
 		if d.is_empty():
 			return "The %s template file is missing: rebuild the templates (tools/make_templates.gd) and try again." % nm
