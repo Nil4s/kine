@@ -21,6 +21,7 @@ func top(q: String, n: int) -> Array:
 
 
 func _init() -> void:
+	CommandSearch.user_files_off = true   # the user's own saved poses / scenes (scenes/_wip drafts) must not change this result
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await process_frame
