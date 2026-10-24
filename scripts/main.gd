@@ -4899,7 +4899,7 @@ func _refresh() -> void:
 		at.visible = not (easy != null and easy.on)
 	for dj in dots:
 		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
-	tag.text = nice(sel)
+	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
 	_pk = PerfDoc.t()
@@ -5126,7 +5126,26 @@ func _pick(mp: Vector2) -> String:
 			best = j
 	_pick_t = best_t
 	pick_us = Time.get_ticks_usec() - t0
-	return best
+	return easy_hand_of(best) if easy != null and easy.on else best
+
+
+## EASY PICKS THE HAND (Nick: a beginner presses a hand, gets a finger, and the drag does nothing): in Easy every finger and
+## thumb joint picks its hand, and each toe (ball) its foot, so a press anywhere on the hand moves the arm by the hand (IK).
+## Expert keeps the finger. Used by _pick only: the one place the pick, the hover and the press all read it
+static func easy_hand_of(j: String) -> String:
+	var side := "_l" if j.ends_with("_l") else "_r"
+	if j in Body.FINGERS:
+		return "hand" + side
+	if j.begins_with("ball_"):
+		return "foot" + side
+	return j
+
+
+## the part's name the words show: Easy says "right hand" / "left foot"; Expert says nice(j)
+func part_words(j: String) -> String:
+	if easy != null and easy.on and (j.begins_with("hand_") or j.begins_with("foot_")):
+		return ("left " if j.ends_with("_l") else "right ") + ("hand" if j.begins_with("hand") else "foot")
+	return nice(j)
 
 
 static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
@@ -5530,7 +5549,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
 	if easy != null and easy.on:   # Easy: the stop in plain words, no degree readout (stop_words says which)
-		_say("%s the %s%s%s" % [what, nice(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+		_say("%s the %s%s%s" % [what, part_words(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 	else:
 		_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 
@@ -12834,7 +12853,7 @@ func bar_text() -> String:
 	elif kmed != null and kmed.on:   # ROADMAP_400 A14: the mesh being edited, counted (scripts/kmesh_stats.gd)
 		what = kmed.stats_text()
 	elif _bar_hover != "" and _bar_hover != sel:
-		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else nice(_bar_hover))
+		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else part_words(_bar_hover))
 	elif sel in Body.WEAPON:
 		what = wep_noun() + ("  in the " + nice(B.wep_hand) if B.wep_hand != "" else "  free")
 	else:
