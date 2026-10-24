@@ -81,6 +81,21 @@ Next steps if pursued:
 2. `mesh_tools`: 21 scripts / 9.8k lines, the biggest. It is built at boot for the command box (`ui_cmd.tools`). Making it lazy needs the command box to build its tool rows on first open.
 3. The savings are linear in lines. Lazy loading alone will not reach the "few seconds" target. The next step is to make `main.gd`'s 22k lines (13% of the graph) and its typed `class_name` members cheaper, or to split the Easy first frame from the Expert classes.
 
+## Lazy load
+
+What loads on first use now, not at boot:
+
+- `scripts/mesh_tool_ops.gd`: the model-preview op dispatcher (`MeshTools.op` loads it on the first op). The 21 scripts it reaches stay out of the boot closure.
+- The command box builds its mesh-tool rows on its first search (`CommandSearch.tool_rows()`), not when the box is created.
+- `KMeshSculptUI`, `ArmourFromBody` / `ArmourUI`, and `TextBlocking` are loaded with `load(...)` at their first use. Their call sites are untyped (`var kmed`, `var r = ...`), so the class is not parsed at boot.
+
+Numbers, exported binary, tokens build, median of 3, timed at the end of `main._ready`:
+
+| build | boot |
+|---|---|
+| base | 6393 ms |
+| lazy load | 5670 ms (-723 ms, -11%) |
+
 ## Setup notes
 
 - `w4-boot2` = `w4-boot` plus `w4-integ`. The one conflict was `tools/run_all.sh` (the EXTRA list); resolved by keeping `boot:w` and adding `readpose:w`.

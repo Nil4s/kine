@@ -78,7 +78,8 @@ func _init() -> void:
 		else:
 			n_rows += 1
 	ok(ids.size() == MeshTools.TOOLS.size() and bad.is_empty(), "1a %d lines, ids unique, every cmd: line is a command row with a page (missing %s)" % [MeshTools.TOOLS.size(), bad])
-	ok(cs.tools.size() == n_rows and cs.tools.all(func(r): return r["kind"] == "mesh"), "1b %d mesh rows for the %d non-command lines" % [cs.tools.size(), n_rows])
+	var trows: Array = cs.tool_rows()   # built on first use (lazy load): the same rows the box searches
+	ok(trows.size() == n_rows and trows.all(func(r): return r["kind"] == "mesh"), "1b %d mesh rows for the %d non-command lines" % [trows.size(), n_rows])
 	search("")
 	ok(cs.shown.size() == cs.commands.size(), "1c the empty box lists the %d commands only (%d rows)" % [cs.commands.size(), cs.shown.size()])
 

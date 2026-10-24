@@ -21,7 +21,7 @@ const STEP_WORDS := ["update", "delete", "add", "undo", "redo"]
 const STEP_PREFIXES := ["card=", "sel=", "set=", "name=", "pose=", "retime=", "fix="]
 
 var m: Node
-var tools: AgentTools
+var tools
 var server: TCPServer
 var token := ""
 var port := 0
@@ -31,7 +31,7 @@ var _busy := false
 
 func _init(main: Node) -> void:
 	m = main
-	tools = AgentTools.new(main)
+	tools = load("res://scripts/agent_tools.gd").new(main)
 
 
 ## true when listening
@@ -43,7 +43,7 @@ func start(p: int) -> bool:
 		return false
 	port = p
 	token = Crypto.new().generate_random_bytes(16).hex_encode()
-	tools = AgentTools.new(m)   # the registry as it is now
+	tools = load("res://scripts/agent_tools.gd").new(m)   # the registry as it is now
 	return true
 
 

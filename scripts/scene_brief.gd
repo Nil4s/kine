@@ -77,13 +77,13 @@ static func _end(s: String) -> String:
 # ---- facts ------------------------------------------------------------------------------------------------------------------------
 
 ## every fact the brief is made from, as JSON-able values. Coroutine (the dummy's measurement lands first)
-static func facts(m: Node, T: AgentTools) -> Dictionary:
+static func facts(m: Node, T) -> Dictionary:
 	var k := _key(m)
 	if _cache.has(k):
 		return _cache[k]
 	await m.dummy_settle()
 	var S: Scene = m.S
-	var d := T.describe()
+	var d = T.describe()
 	var f := {"scene": S.name, "path": m.scene_path.replace("res://", ""), "length_s": d["length_s"], "fps": S.fps,
 		"frames": int(round(S.length() * S.fps))}
 	# cards, with their kind
@@ -188,7 +188,7 @@ static func _contacts(m: Node) -> Array:
 
 
 ## the score's 3 reasons, each with its card and the serve steps that fix it
-static func _reasons(m: Node, T: AgentTools, rs: RealismUI) -> Array:
+static func _reasons(m: Node, T, rs: RealismUI) -> Array:
 	var S: Scene = m.S
 	var out := []
 	var cur := []
@@ -378,7 +378,7 @@ static func render(f: Dictionary, tokens: int) -> Dictionary:
 
 
 ## the brief of the live scene. Coroutine. {"ok", "scene", "path", "text", "tokens", "budget", "kept", "dropped", ["facts"]}
-static func brief(m: Node, T: AgentTools, tokens := DEFAULT_TOKENS, with_facts := false) -> Dictionary:
+static func brief(m: Node, T, tokens := DEFAULT_TOKENS, with_facts := false) -> Dictionary:
 	var f: Dictionary = await facts(m, T)
 	var r := render(f, tokens)
 	var out := {"ok": true, "scene": f["scene"], "path": f["path"]}
@@ -389,7 +389,7 @@ static func brief(m: Node, T: AgentTools, tokens := DEFAULT_TOKENS, with_facts :
 
 
 ## serve `brief {path?, tokens?, facts?}`: path = open that file first (as `open`: the live scene is replaced); none = the live scene
-static func serve(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
+static func serve(T, id: Variant, p: Dictionary) -> Dictionary:
 	var m: Node = T.m
 	var tk: Variant = p.get("tokens", DEFAULT_TOKENS)
 	if not (tk is int or tk is float) or int(tk) < MIN_TOKENS or int(tk) > 100000:

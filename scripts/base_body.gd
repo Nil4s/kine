@@ -507,7 +507,7 @@ static func start(m: Node) -> void:
 		m._say("Model: the fighter has no skinned body to edit")
 		return
 	if m.kmed == null:
-		m.kmed = KMeshEditUI.new()
+		m.kmed = load("res://scripts/kmesh_edit_ui.gd").new()
 		m.add_child(m.kmed)
 		m.kmed.setup(m)
 	if m.kmed.on:

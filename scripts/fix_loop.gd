@@ -104,7 +104,7 @@ static func _candidates(m: Node, rs: RealismUI, banned: Dictionary, low: Array =
 
 
 ## the reason in the brief's words: its rule, card, the serve step that makes the same edit (SceneBrief._reasons on this one item)
-static func _words(m: Node, T: AgentTools, rs: RealismUI, it: Dictionary) -> Dictionary:
+static func _words(m: Node, T, rs: RealismUI, it: Dictionary) -> Dictionary:
 	var keep: Array = rs.res["reasons"]
 	rs.res["reasons"] = [it]
 	var row: Dictionary = SceneBrief._reasons(m, T, rs)[0]
@@ -145,7 +145,7 @@ static func _view(ms: Dictionary) -> Dictionary:
 
 
 ## the loop. Coroutine (the dummy's measurement lands first). Returns the report (see the header; `ok` false only on bad input)
-static func run(m: Node, T: AgentTools, bar := DEFAULT_BAR, max_steps := DEFAULT_STEPS, dry := false) -> Dictionary:
+static func run(m: Node, T, bar := DEFAULT_BAR, max_steps := DEFAULT_STEPS, dry := false) -> Dictionary:
 	var S: Scene = m.S
 	if S.cards.size() < 2:
 		return {"ok": false, "error": "fix_until needs a scene of 2+ cards: open one first ({\"path\": \"scenes/combo3.json\"})"}
@@ -266,7 +266,7 @@ static func run(m: Node, T: AgentTools, bar := DEFAULT_BAR, max_steps := DEFAULT
 
 
 ## serve `fix_until {bar?, max_steps?, dry?, path?}`: path = open that file first (as `open`)
-static func serve(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
+static func serve(T, id: Variant, p: Dictionary) -> Dictionary:
 	var bar: Variant = p.get("bar", DEFAULT_BAR)
 	var ns: Variant = p.get("max_steps", DEFAULT_STEPS)
 	if not (bar is int or bar is float) or float(bar) < 0.0 or float(bar) > 100.0:

@@ -212,7 +212,7 @@ func place(id: String) -> bool:
 		return true
 	# ArmourFromBody.make is ONE undo step by itself (its attach pushes it, after the plate is built): no _do around it,
 	# and a plate that fails to build pushes nothing
-	var r: Dictionary = ArmourFromBody.make(m, String(it["key"]), {})
+	var r: Dictionary = load("res://scripts/armour_from_body.gd").make(m, String(it["key"]), {})
 	if r.has("said"):
 		m._say(String(r["said"]))
 	if not bool(r.get("ok", false)):
@@ -382,8 +382,8 @@ func thumb_source(it: Dictionary) -> Dictionary:
 		if _armour_hash == "":
 			_armour_hash = body_hash(m)
 		# the body's rest vertices (their bytes, so a change of proportion is a change of spec), the builder's version and constants
-		src["spec"] = var_to_str(["armour", key, ArmourFromBody.BUILDER, ArmourFromBody.GAP, ArmourFromBody.THICK, ArmourFromBody.BEVEL,
-			ArmourFromBody.SEGMENTS, _armour_hash])
+		src["spec"] = var_to_str(["armour", key, load("res://scripts/armour_from_body.gd").BUILDER, load("res://scripts/armour_from_body.gd").GAP, load("res://scripts/armour_from_body.gd").THICK, load("res://scripts/armour_from_body.gd").BEVEL,
+			load("res://scripts/armour_from_body.gd").SEGMENTS, _armour_hash])
 		src["shipped"] = LibraryThumbs.shipped_path(String(it["id"]), String(src["spec"]))
 		src["build"] = func() -> Node3D: return _armour_node(key)
 	return src
@@ -404,18 +404,18 @@ static func body_hash(m: Node, read_file := true) -> String:
 		var parts := FileAccess.get_file_as_string(DEFAULT_BODY).strip_edges().split("|")
 		if parts.size() == 2 and parts[0] == body_sig(m):
 			return parts[1]
-	return var_to_str((ArmourFromBody.body_source(m)[0] as KMesh).verts).sha256_text()
+	return var_to_str((load("res://scripts/armour_from_body.gd").body_source(m)[0] as KMesh).verts).sha256_text()
 
 
 func _armour_node(words: String) -> Node3D:
 	if m == null or m.pieces.is_empty() or BaseBody.skin_of(m) == null:
 		return null
-	var sb: Array = ArmourFromBody.body_source(m)
-	var r: Dictionary = ArmourFromBody.build(sb[0], m.skel, sb[1], words, {})
+	var sb: Array = load("res://scripts/armour_from_body.gd").body_source(m)
+	var r: Dictionary = load("res://scripts/armour_from_body.gd").build(sb[0], m.skel, sb[1], words, {})
 	if not bool(r.get("ok", false)):
 		return null
 	var mi := MeshInstance3D.new()
-	mi.mesh = ArmourFromBody.array_mesh(r["mesh"])
+	mi.mesh = load("res://scripts/armour_from_body.gd").array_mesh(r["mesh"])
 	var root := Node3D.new()
 	root.add_child(mi)
 	return root

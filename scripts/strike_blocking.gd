@@ -547,7 +547,7 @@ static func build(P: Dictionary, B: Body, move: String, text: String) -> Diction
 	notes.append("no saved %s to start from: generated as key poses (%s; StrikeBlocking)" % [move, sm0[2]])
 	var kr := keys(B, move, sd)
 	var S := Scene.new()
-	S.name = TextBlocking.slug(text)
+	S.name = load("res://scripts/text_blocking.gd").slug(text)
 	S.cards = kr[0]
 	var roles: Array = kr[1]
 	var n := S.cards.size()
@@ -563,21 +563,21 @@ static func build(P: Dictionary, B: Body, move: String, text: String) -> Diction
 	if kick and foot in ["in", "back", "lunge"]:
 		notes.append("%s: a kick stands on its other foot; the step is not added" % foot)
 	elif foot != "":
-		var fw := TextBlocking._footwork(S, roles, foot, mirror)
+		var fw = load("res://scripts/text_blocking.gd")._footwork(S, roles, foot, mirror)
 		if fw != "":
 			notes.append(fw)
 	S.pin_cards(B)
 	# the wind-up and the recovery: the fist's row of ATTACK_RULES (knife: a hand's speed), a kick's HEURISTIC times
-	var sp: Array = TextBlocking.SPEED_F.get(P["speed"], [1.0, 1.0])
+	var sp: Array = load("res://scripts/text_blocking.gd").SPEED_F.get(P["speed"], [1.0, 1.0])
 	var rules: Array = AT.RULES["knife"]
-	var ant: float = (KICK_CHAMBER if kick else TextBlocking._mid(rules[0])) * float(sp[0])
-	var rec: float = (KICK_BACK if kick else TextBlocking._mid(rules[2])) * float(sp[1])
+	var ant: float = (KICK_CHAMBER if kick else load("res://scripts/text_blocking.gd")._mid(rules[0])) * float(sp[0])
+	var rec: float = (KICK_BACK if kick else load("res://scripts/text_blocking.gd")._mid(rules[2])) * float(sp[1])
 	var retimes := {}
 	var s0 := first_of_strike(S, s)
 	if s0 >= 2:
-		retimes["anticipation"] = TextBlocking._retime_to(S, 1, s0 - 1, ant)
+		retimes["anticipation"] = load("res://scripts/text_blocking.gd")._retime_to(S, 1, s0 - 1, ant)
 	if n - 1 > s:
-		retimes["recovery"] = TextBlocking._retime_to(S, s + 1, n - 1, rec, true)
+		retimes["recovery"] = load("res://scripts/text_blocking.gd")._retime_to(S, s + 1, n - 1, rec, true)
 	if String(P["speed"]) == "heavy":
 		S.cards[s]["ease"] = "in"
 		notes.append("heavy: the strike's ease is \"in\" (it accelerates into the contact)")
@@ -604,7 +604,7 @@ static func build(P: Dictionary, B: Body, move: String, text: String) -> Diction
 		for i in spx.size():
 			if float(spx[i]) > float(spx[bx]):
 				bx = i
-		if float(spx[bx]) > TextBlocking.SAFE * cap:
+		if float(spx[bx]) > load("res://scripts/text_blocking.gd").SAFE * cap:
 			bad.push_front({"rule": "TIP SPEED", "t": bx / 60.0})
 		if bad.is_empty():
 			break
@@ -670,7 +670,7 @@ static func build(P: Dictionary, B: Body, move: String, text: String) -> Diction
 	zeros.fill(0.0)
 
 	return {"ok": true, "scene": S, "source": src, "mirror": mirror, "roles": roles, "kind": "", "shape": move,
-		"asked_shape": TextBlocking._shape(P["attack"]), "row": "knife" if not kick else "", "cap": cap,
+		"asked_shape": load("res://scripts/text_blocking.gd")._shape(P["attack"]), "row": "knife" if not kick else "", "cap": cap,
 		"cap_name": cap_name,
 		"findings": fs, "must_fix": must.size(), "must_fix_new": words.call(must), "src_must_fix": 0, "human": human,
 		"human_new": words.call(human), "src_human": 0, "peak": peak_v, "peak_t": peak_t,

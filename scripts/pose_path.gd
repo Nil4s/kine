@@ -852,7 +852,7 @@ static func step_token(m: Node, tok: String) -> String:
 
 
 ## serve `path_to_pose {target, max_steps?, apply?}`
-static func serve(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
+static func serve(T, id: Variant, p: Dictionary) -> Dictionary:
 	var mx := int(p.get("max_steps", MAX_STEPS))
 	if mx < 1:
 		return T._err(id, -32602, "max_steps must be 1 or more")

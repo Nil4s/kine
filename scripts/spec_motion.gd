@@ -1091,13 +1091,13 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 ## (or a new one: "-"), each line printed, the scene written with --out. `cli` is poser_cli itself (its m, T, say, done, res)
 static func cli(c: Object, a: Array) -> void:
 	var m: Node = c.m
-	var T: AgentTools = c.T
+	var T = c.T
 	var out := ""
 	var i := a.find("--out")
 	if i >= 0 and i + 1 < a.size():
 		out = c.res(a[i + 1])
 		a = a.slice(0, i) + a.slice(i + 2)
-		var why := T.out_refused(out)
+		var why = T.out_refused(out)
 		if why != "":
 			c.done({"ok": false, "error": why.replace("the output", "--out")})
 			return

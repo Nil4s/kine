@@ -239,7 +239,7 @@ func _build(what: String, label: String) -> String:
 		if not r["ok"]:
 			return String(r["error"])
 		d = r["dict"]
-		path = TextBlocking.unique_path("res://scenes/_wip", TextBlocking.slug(nm))
+		path = load("res://scripts/text_blocking.gd").unique_path("res://scenes/_wip", load("res://scripts/text_blocking.gd").slug(nm))
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
 	m._step_hint = label   # the undo step is named after the card (main's undo list shows it)
@@ -269,7 +269,7 @@ func _words_dict(text: String) -> Dictionary:
 				return {"ok": false, "error": "Kine can't build '%s' yet: it knows strikes, walks, runs, jumps and punches so far." % p}
 		var W := Body.new()   # a scratch body: TextBlocking poses it card by card (main's words box does the same)
 		W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-		var r: Dictionary = TextBlocking.build(p, W)
+		var r: Dictionary = load("res://scripts/text_blocking.gd").build(p, W)
 		if not r["ok"]:
 			if String(r["error"]).begins_with("no attack"):
 				return {"ok": false, "error": "Kine can't build '%s' yet: it knows strikes, walks, runs, jumps and punches so far." % p}

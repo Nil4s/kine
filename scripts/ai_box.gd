@@ -33,7 +33,7 @@ const TOOLS := {
 const SYSTEM := """You animate a human figure in Kine, an animation app. The user tells you what should happen; you build it with the tools, on the scene they are looking at. A scene is a row of CARDS (key poses); playing it moves the body from card to card. To make a card: pose the body (pose), then run ["add"]. To change a card: run ["card=N"], pose, run ["update"]. Name the cards (run ["name=..."]) after what happens in them. Angles are degrees; left / right are HIS. Keep it simple: 3 to 8 cards for a short action. When done, run check; if it lists MUST FIX findings, fix them (run ["fix=N"] or change the card), then check again. Finish with one or two plain sentences saying what you made. Do not ask the user questions: decide."""
 
 var main: Node
-var tools: AgentTools
+var tools
 var client: Node   # LlmClient, or a stand-in with the same chat() / stop() / answered / busy (the test's scripted model)
 var running := false
 var convo := []
@@ -52,7 +52,7 @@ var ui_key: LineEdit
 
 func setup(m: Node) -> void:
 	main = m
-	tools = AgentTools.new(m)
+	tools = load("res://scripts/agent_tools.gd").new(m)
 	name = "AiBox"
 	if client == null:
 		var c := LlmClient.new()

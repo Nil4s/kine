@@ -33,8 +33,8 @@ const DESC_WORDS := ["writes ", "exports/", "user://", "scenes/_wip", "saved in"
 
 ## "" = may run dry; else why it is refused
 static func refused(tok: String, reg: Dictionary) -> String:
-	if AgentTools.REFUSE.has(tok):
-		return AgentTools.REFUSE[tok]
+	if load("res://scripts/agent_tools.gd").REFUSE.has(tok):
+		return load("res://scripts/agent_tools.gd").REFUSE[tok]
 	if tok.begins_with("physics="):
 		return "physics= imports a reaction as a NEW scene file in scenes/_wip: a dry run writes nothing"
 	if not reg.has(tok):
@@ -54,7 +54,7 @@ static func refused(tok: String, reg: Dictionary) -> String:
 
 
 ## the serve method: {"steps": [...], "score": true} -> JSON-RPC result / error (T's own _ok / _err)
-static func request(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
+static func request(T, id: Variant, p: Dictionary) -> Dictionary:
 	var steps: Variant = p.get("steps")
 	if not (steps is Array) or steps.is_empty() or not steps.all(func(s): return s is String):
 		return T._err(id, -32602, "dry needs {\"steps\": [\"card=2\", \"mirror_the_whole_pose\", \"update\"]} (run's steps; nothing is changed), optional \"score\": false to skip the realism score")
@@ -67,7 +67,7 @@ static func request(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
 ## THE DRY RUN. score = also the realism score before / after (the timing coach's move database is read once, ~20 s).
 ## probe (N019 try N ways): called once in the dry state, after the steps and before anything is put back; its answer is
 ## r["probe"] (what the caller measures on the variant: assertions, a score read its own way)
-static func run(T: AgentTools, steps: Array, score := true, probe := Callable()) -> Dictionary:
+static func run(T, steps: Array, score := true, probe := Callable()) -> Dictionary:
 	var m: Node = T.m
 	var no := []
 	for s: String in steps:

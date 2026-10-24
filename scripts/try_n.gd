@@ -56,7 +56,7 @@ static func variants(p: Dictionary) -> Dictionary:
 
 
 ## the serve method
-static func request(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
+static func request(T, id: Variant, p: Dictionary) -> Dictionary:
 	var vr := variants(p)
 	if vr.has("error"):
 		return T._err(id, -32602, String(vr["error"]) + "; optional score: false, asserts: [...], apply: \"best\" | n")
@@ -84,7 +84,7 @@ static func _asserts(m: Node, al: Array) -> Variant:
 
 
 ## THE TRY. score: read the realism score; al: N002 lines; ap: null, "best" or a variant number
-static func run(T: AgentTools, vs: Array, score := true, al: Array = [], ap: Variant = null) -> Dictionary:
+static func run(T, vs: Array, score := true, al: Array = [], ap: Variant = null) -> Dictionary:
 	var m: Node = T.m
 	var t0 := Time.get_ticks_msec()
 	var sc0: Variant = DryRun.cold_score(m) if score else null
@@ -155,7 +155,7 @@ static func better(a: Dictionary, b: Dictionary) -> bool:
 
 ## the steps for real, their undo entries squashed into ONE step (main._squash_undo, the AI box's way): one Ctrl+Z
 ## takes the whole variant back. Entries counted by identity (DryRun's way): at the 60-entry cap a size difference reads 0
-static func apply(T: AgentTools, steps: Array, name: String) -> Dictionary:
+static func apply(T, steps: Array, name: String) -> Dictionary:
 	var m: Node = T.m
 	var undo0: Array = (m.undo as Array).duplicate()
 	var out := []
