@@ -12570,6 +12570,8 @@ func _fill_scene_list() -> void:
 	var n := _draft_paths.size() if _drafts_all else mini(DRAFTS_SHOWN, _draft_paths.size())
 	for k in n:
 		_add_scene_row(_draft_paths[k], "   (work copy)", "    ")
+	if _draft_paths.find(scene_path) >= n:   # the open scene is an older draft: it is listed too (the list shows what is on screen)
+		_add_scene_row(scene_path, "   (work copy)", "    ")
 	if n < _draft_paths.size():
 		ui_scenes.add_item("    Show all %d drafts" % _draft_paths.size())
 		ui_scenes.set_item_metadata(ui_scenes.item_count - 1, "#drafts-all")

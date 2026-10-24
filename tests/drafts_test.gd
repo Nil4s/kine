@@ -148,7 +148,7 @@ func _init() -> void:
 	var t0 := Time.get_ticks_usec()
 	m._fill_scene_list()
 	var warm := (Time.get_ticks_usec() - t0) / 1000.0
-	ok(m.draft_paths().size() == 300 and warm < 30.0,
+	ok(m.draft_paths().size() >= 300 and warm < 30.0,   # at least 300: the checkout's own scenes/_wip clips add to the 300
 		"6 with %d drafts _fill_scene_list takes %.1f ms (bar 30 ms, the cached list; collapsed)" % [m.draft_paths().size(), warm])
 
 	# cleanup: this test's own folder only
