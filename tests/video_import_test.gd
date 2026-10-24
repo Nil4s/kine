@@ -106,6 +106,7 @@ func _init() -> void:
 	var r3 := VideoImport.parse(JSON.stringify({"frames": [frames[0]]}))
 	ok(not r1["ok"] and not r2["ok"] and not r3["ok"] and String(r3["why"]).length() > 10, "6 bad files refused: %s | %s | %s" % [r1["why"], r2["why"], r3["why"]])
 	_bar7_fps16()
+	_bar8_flight()
 	print("VIDEO IMPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
 
@@ -137,3 +138,42 @@ func _bar7_fps16() -> void:
 	ok(R["frames"].size() == nf, "7 the fit keeps every tracked frame: %d in, %d out (bar: none invented)" % [nf, R["frames"].size()])
 	ok(V.fps == 16 and absf(V.length() - 2.0) <= 1.0 / 16.0 + 1e-6,
 		"7 the scene plays %.4f s at %d fps (bar: the clip's 2.0 s within 1/16 s, fps 16)" % [V.length(), V.fps])
+
+
+## 8 A JUMP IN THE AIR (round 56; the hurdles clip's trail foot was "planted" in its clearance and the body was pinned to the floor).
+## tests/data/flight_jump_pose.json, 2 s at 60 fps, made by a script (not in the repo): run, a 0.4 s jump with the whole body 22 cm
+## up (its image hip and ankle heights carry the rise, the tracker's hips-relative landmarks do not), run again. Bars:
+##   a no foot contact overlaps the jump's middle (0.9-1.1 s: the flight)
+##   b the pelvis peaks at least 0.12 m above its standing height in the jump (the old body never left the floor: 0)
+##   c no frame's pelvis height steps more than 3 cm (the landing eases in, the take-off is the tracker's rise)
+func _bar8_flight() -> void:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var P := VideoImport.load_file("res://tests/data/flight_jump_pose.json")
+	ok(P["ok"], "8 the synthetic jump file reads (%s)" % P.get("why", ""))
+	if not P["ok"]:
+		return
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "flight_test", false)
+	B.set_state(keep)
+	var fit: Array = R["fitted"]
+	var clash := []
+	for c in R["iq"]["contacts"]:
+		if float(c["t1"]) > 0.9 and float(c["t0"]) < 1.1:
+			clash.append("%s %.2f-%.2f" % [c["part"], float(c["t0"]), float(c["t1"])])
+	ok(clash.is_empty(), "8a no foot contact in the air at 0.9-1.1 s: %s (bar none)" % (str(clash) if not clash.is_empty() else "none"))
+	var stand := float(fit[int(0.78 * 60.0)]["offset"].y)
+	var peak := -INF
+	var step := 0.0
+	var step_at := 0
+	for i in fit.size():
+		var t := float(P["frames"][i]["t"])
+		if t >= 0.8 and t <= 1.2:
+			peak = maxf(peak, float(fit[i]["offset"].y))
+		if i > 0:
+			var d := absf(float(fit[i]["offset"].y) - float(fit[i - 1]["offset"].y))
+			if d > step:
+				step = d
+				step_at = i
+	ok(peak - stand >= 0.12, "8b the pelvis peaks %.3f m above its standing height in the jump (bar 0.12)" % (peak - stand))
+	ok(step <= 0.03, "8c the largest pelvis step between frames is %.3f m at frame %d (bar 0.03)" % [step, step_at])

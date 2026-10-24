@@ -558,6 +558,76 @@ const HEEL_UP := 0.03     # m: a heel this far above its own ground has left it 
 const TRIM := 1           # frames cut off the end of a plant (the toe-off). R14c set 0 (coverage 61 vs 55 %) but the held foot then slid 8.3 cm on combo3 (videoiq 1b, bar 1 cm); 2 gives 0.4 cm
 
 
+## FLIGHT (round 56; Nick: the hurdles clip's trail foot was "planted" 3.56-4.06 s while the athlete cleared the hurdle, and the high
+## jump's body ended on the floor). The tracker's hips-relative landmarks cannot see a rigid rise (the whole body moves, the feet
+## stay where they are against the hips), and Body.ground() put the lowest sole on the floor every frame, so a jump was never
+## in the scene. The image can: the hips' and the ankles' image heights in the same picture. The metres per image unit come
+## from the leg itself (the ankles' image height above the hips over their world height above the hips, the first frames),
+## and the pelvis's rise is its image height against its standing height. A frame is airborne when that rise is FLY_RISE or more;
+## a run shorter than FLY_MIN frames is a blink. {"on": [bool per frame], "rise": [m per frame, + up]}; empty when the file has no image.
+const FLY_RISE := 0.12     # m: the pelvis this far above its standing height is in the air (a stride's bob is ~5 cm)
+const FLY_MIN := 4         # frames: a shorter airborne run is not a flight
+
+
+static func flight_of(frames: Array) -> Dictionary:
+	var n := frames.size()
+	var on := []
+	var rise := []
+	for i in n:
+		on.append(false)
+		rise.append(0.0)
+	if n < 3 or not (frames[0] as Dictionary).has("hy") or not (frames[0] as Dictionary).has("ay"):
+		return {"on": on, "rise": rise}
+	var ref := 0.0
+	var ppm := 0.0
+	var k := mini(3, n)
+	for i in k:
+		var f: Dictionary = frames[i]
+		var w: Array = f["w"]
+		var leg := -((w[27] as Vector3).y + (w[28] as Vector3).y) * 0.5   # ankles below the hips, m (y up)
+		ref += float(f["hy"]) / float(k)
+		if leg > 0.1:
+			ppm += (float(f["ay"]) - float(f["hy"])) / leg / float(k)
+	if ppm <= 0.0:
+		return {"on": on, "rise": rise}
+	var air := []
+	for i in n:
+		var r := (ref - float(frames[i]["hy"])) / ppm
+		rise[i] = r
+		air.append(r >= FLY_RISE)
+	var runs := _clean_runs(air, FLY_MIN)
+	for i in n:
+		on[i] = bool(runs[i])
+	return {"on": on, "rise": rise}
+
+
+## the body's height for one frame: the lowest sole on the floor (Body.ground) unless the frame is airborne (flight_of): then the
+## body keeps the rise the image shows above its last grounded height, so a jump stays in the air. When the flight ends, the
+## height eases from the last flight height to the grounded one over BLEND_IN frames (no pelvis step at the landing), so the
+## body does not drop in one frame. `last` carries the grounded height and the rise there (empty until the first grounded frame).
+const BLEND_IN := 6        # frames: the landing eases from the flight's height to the floor's over this many frames
+static func vertical(B: Body, fly: Dictionary, i: int, last: Dictionary) -> void:
+	var on: Array = fly.get("on", [])
+	if i < on.size() and bool(on[i]) and last.has("y"):
+		B.offset.y = float(last["y"]) + float(fly["rise"][i]) - float(last["r"])
+		last["fly"] = B.offset.y
+		last["landing"] = true
+		B.fk()
+		return
+	B.ground()
+	var g := B.offset.y
+	if last.get("landing", false):
+		last["from"] = float(last.get("fly", g))
+		last["n"] = 0
+		last["landing"] = false
+	if last.has("from") and int(last["n"]) < BLEND_IN:
+		last["n"] = int(last["n"]) + 1
+		B.offset.y = lerpf(float(last["from"]), g, float(last["n"]) / float(BLEND_IN))
+		B.fk()
+	last["y"] = g
+	last["r"] = float(fly["rise"][i]) if i < (fly.get("rise", []) as Array).size() else 0.0
+
+
 static func _hxz(v: Vector3) -> Vector2:
 	return Vector2(v.x, v.z)
 
@@ -565,7 +635,7 @@ static func _hxz(v: Vector3) -> Vector2:
 ## CONTACTS on landmark frames {"t","w"} (hips-relative). Returns {"list": [{"kind": "foot"/"hand", "part", "f0", "f1", "t0",
 ## "t1"}] by f0 (t from the first frame), "hint": [per frame "_l" / "_r" / "" : the one foot down], "ground": per-frame ground
 ## height relative to the hips, "root": per-frame root velocity (xz, m/s)}
-static func contacts(frames: Array, fps: float) -> Dictionary:
+static func contacts(frames: Array, fps: float, fly := {}) -> Dictionary:
 	var n := frames.size()
 	var T0 := float(frames[0]["t"])
 	var dtf := 1.0 / maxf(fps, 1.0)
@@ -662,6 +732,8 @@ static func contacts(frames: Array, fps: float) -> Dictionary:
 				st = hh < H_OFF and ground_v < V_OFF
 			else:
 				st = hh < H_ON and ground_v < V_ON
+			if i < (fly.get("on", []) as Array).size() and bool(fly["on"][i]):
+				st = false   # FLIGHT: no foot is on the floor in the air, whatever its height and its speed read as (flight_of)
 			on.append(st)
 		flag[sd] = _clean_runs(on)
 		for k in 2:   # the pivots that are down: the heel and the ball, each while it is within H_PIV of its ground
@@ -1072,6 +1144,15 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	var fps := float(P["fps"])
 	progress = 0.0
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
+	# FLIGHT: read from the tracker's image on the file's own frames, carried to the filled frames by time
+	var fly_raw := flight_of(P["frames"])
+	var fly := {"on": [], "rise": []}
+	var pj := 0
+	for f in frames:
+		while pj + 1 < P["frames"].size() and absf(float(P["frames"][pj + 1]["t"]) - float(f["t"])) <= absf(float(P["frames"][pj]["t"]) - float(f["t"])):
+			pj += 1
+		(fly["on"] as Array).append(fly_raw["on"][pj] if not (fly_raw["on"] as Array).is_empty() else false)
+		(fly["rise"] as Array).append(fly_raw["rise"][pj] if not (fly_raw["rise"] as Array).is_empty() else 0.0)
 	var conf := confidence(frames, fps)
 	var repaired := repair(frames, conf)
 	var dp := fix_depth(frames, P.get("axis", Vector3(0, 0, 1)), limits_of(B))
@@ -1080,15 +1161,15 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	progress = 0.1
 	var C := VideoCleanup.run(frames, fps, float(P.get("tilt", 0.0)))
 	normalize_lengths(C["frames"])
-	var K := contacts(C["frames"], fps)
+	var K := contacts(C["frames"], fps, fly)
 	if cancelled():
 		return {}
 	progress = 0.2
 	var fitted: Array
 	if retarget and held == "":   # "Retarget to body (IK)": VideoRetarget, with THIS pass's contacts pinning the planted feet
-		fitted = VideoRetarget.solve(C["frames"], B, {"fps": fps, "smooth": false, "iq": K})
+		fitted = VideoRetarget.solve(C["frames"], B, {"fps": fps, "smooth": false, "iq": K, "fly": fly})
 	else:
-		fitted = VideoImport.solve(B, C["frames"], held, fps, K["piv"])
+		fitted = VideoImport.solve(B, C["frames"], held, fps, K["piv"], fly)
 	if cancelled():
 		return {}
 	progress = 0.7
