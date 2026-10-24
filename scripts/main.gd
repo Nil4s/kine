@@ -15573,6 +15573,8 @@ func _retimed(rebuild := true) -> void:
 func _timeline_pick(i: int) -> void:
 	_card_pick(i)
 	await get_tree().process_frame
+	ui_card_row.queue_sort()   # after a rebuild the strip's scroll range can stay 0 (no re-sort comes): sort it again, so the
+	await get_tree().process_frame   # scroll below can reach the card (else ensure_control_visible clamps to 0)
 	var pc := ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
 	if pc != null:
 		(ui_cards.get_parent() as ScrollContainer).ensure_control_visible(pc)
