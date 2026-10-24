@@ -34,6 +34,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- fixuntil scenes/combo3.json [--bar 70] [--steps 10] --out scenes/_wip/x.json   (N005; --dry: the plan only)
 ##   $G --headless --path . -s tools/poser_cli.gd -- hit_harder templates/punch.json card=3 [--dry] [--retime] [--out scenes/_wip/x.json]
 ##        (N065 hit harder: the strike made more powerful within the body's limits, the gain as a number; scripts/hit_harder.gd)
+##   $G --headless --path . -s tools/poser_cli.gd -- spec scenes/combo3.json|- C:/specs/jab.json [--dummy 0.85] [--out scenes/_wip/x.json]   (N004 spec to motion, scripts/spec_motion.gd; serve: spec {spec, apply?})
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -351,6 +352,8 @@ func _init() -> void:
 			var cx := ConflictExplain.serve(m, cp)
 			say(String(cx.get("say", cx.get("error", ""))))
 			done(cx)
+		"spec":   # N004: spec <scene.json|-> <spec.json> [--dummy D] [--out <path>] (scripts/spec_motion.gd)
+			await SpecMotion.cli(self, a)
 		"run":
 			await run(a)
 		"serve":
