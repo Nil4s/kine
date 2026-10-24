@@ -295,12 +295,12 @@
     [
      "spine_01",
      "thigh_l",
-     0.004
+     0.005
     ],
     [
      "spine_01",
      "thigh_r",
-     0.004
+     0.005
     ]
    ]
   ],
@@ -311,12 +311,12 @@
     [
      "spine_01",
      "thigh_l",
-     0.003
+     0.005
     ],
     [
      "spine_01",
      "thigh_r",
-     0.003
+     0.005
     ]
    ]
   ],
@@ -327,12 +327,76 @@
     [
      "spine_01",
      "thigh_l",
+     0.004
+    ],
+    [
+     "spine_01",
+     "thigh_r",
+     0.004
+    ]
+   ]
+  ],
+  [
+   40,
+   1.333,
+   [
+    [
+     "spine_01",
+     "thigh_l",
+     0.004
+    ],
+    [
+     "spine_01",
+     "thigh_r",
+     0.004
+    ]
+   ]
+  ],
+  [
+   41,
+   1.367,
+   [
+    [
+     "spine_01",
+     "thigh_l",
+     0.003
+    ],
+    [
+     "spine_01",
+     "thigh_r",
+     0.003
+    ]
+   ]
+  ],
+  [
+   42,
+   1.4,
+   [
+    [
+     "spine_01",
+     "thigh_l",
      0.002
     ],
     [
      "spine_01",
      "thigh_r",
      0.002
+    ]
+   ]
+  ],
+  [
+   43,
+   1.433,
+   [
+    [
+     "spine_01",
+     "thigh_l",
+     0.001
+    ],
+    [
+     "spine_01",
+     "thigh_r",
+     0.001
     ]
    ]
   ]
@@ -9258,11 +9322,11 @@
    "steps": {}
   },
   {
-   "arrive_s": 1.28,
+   "arrive_s": 1.4,
    "flow": true,
    "hold": 0.0,
-   "leave_s": 1.28,
-   "move": 0.18,
+   "leave_s": 1.4,
+   "move": 0.3,
    "name": "rising 2/8",
    "plant": [
     "_l",
@@ -10749,11 +10813,11 @@
    "steps": {}
   },
   {
-   "arrive_s": 1.46,
+   "arrive_s": 1.7,
    "flow": true,
    "hold": 0.0,
-   "leave_s": 1.46,
-   "move": 0.18,
+   "leave_s": 1.7,
+   "move": 0.3,
    "name": "rising 1/8",
    "plant": [
     "_l",
@@ -12229,9 +12293,9 @@
    "steps": {}
   },
   {
-   "arrive_s": 1.64,
+   "arrive_s": 1.88,
    "hold": 0.6,
-   "leave_s": 2.24,
+   "leave_s": 2.48,
    "move": 0.18,
    "name": "seated",
    "plant": [
@@ -13710,7 +13774,7 @@
  ],
  "floor_body": false,
  "fps": 30,
- "length_s": 2.24,
+ "length_s": 2.48,
  "natural": true,
  "note": "SIT DOWN template: from standing to a 45 cm chair, feet planted; the hips reach the seat at 1.1 s, the knees bend, the trunk leans forward and comes back up. Built from the stand-up keys of scripts/rise.gd (played backwards).",
  "on_floor": true,

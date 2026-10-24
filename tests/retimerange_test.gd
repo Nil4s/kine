@@ -25,11 +25,18 @@ func ok(c: bool, what: String) -> void:
 
 
 ## eight cards: card 0 holds 0.5 s; every card after moves 0.5 s and holds 0.5 s. Arrival of card i = i s, end of its hold = i + 0.5 s
+## each card holds the rest pose: an empty pose is not a card the app can make, and main's background bake samples it
+var _rest := {}
 func make() -> Scene:
+	if _rest.is_empty():
+		var B := Body.new()
+		B.load_files(PoseBake.SKEL, PoseBake.LIMS)
+		B.fk()
+		_rest = B.to_dict()
 	var S := Scene.new()
 	S.fps = 30
 	for i in 8:
-		S.cards.append({"name": "c%d" % i, "pose": {}, "move": 0.0 if i == 0 else 0.5, "hold": 0.5})
+		S.cards.append({"name": "c%d" % i, "pose": _rest.duplicate(true), "move": 0.0 if i == 0 else 0.5, "hold": 0.5})
 	S.part_keys = {"lowerarm_r": [
 		{"t": 0.5, "v": Vector3(10, 0, 0)},
 		{"t": 1.0, "v": Vector3(20, 0, 0)},
