@@ -17,6 +17,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
 ##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
+##   $G --headless --path . -s tools/poser_cli.gd -- fixuntil scenes/combo3.json [--bar 70] [--steps 10] --out scenes/_wip/x.json   (N005; --dry: the plan only)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -72,6 +73,11 @@
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
 ##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
 ##                                 path = open it first (as open)
+##   fix_until {bar?, max_steps?, dry?, path?}  N005: Check fixes, the timing coach and the I45 judges' fixes in order of predicted
+##                                 gain until every saved assertion passes and realism >= bar (default 70), or no fix helps, or
+##                                 max_steps (10); a fix that lowers the score or breaks a passing line is reverted. ONE undo step;
+##                                 dry = the plan only, nothing changed. Each step with the score and failing lines before / after
+##                                 (scripts/fix_loop.gd)
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -261,6 +267,28 @@ func _init() -> void:
 			var br := await SceneBrief.brief(m, T, tk)
 			say(br["text"])
 			done(br)
+		"fixuntil":   # N005 (scripts/fix_loop.gd)
+			var dry := "--dry" in a
+			var fo := a.find("--out")
+			var fb := a.find("--bar")
+			var fn := a.find("--steps")
+			var outp: String = res(a[fo + 1]) if fo >= 0 and fo + 1 < a.size() else ""
+			var why_out := T.out_refused(outp) if outp != "" else ""
+			if a.size() < 2 or (outp == "" and not dry) or why_out != "" or not open_scene(a[1]):
+				if a.size() < 2 or (outp == "" and not dry) or why_out != "":
+					done({"ok": false, "error": why_out if why_out != "" else "fixuntil <scene.json> [--bar N] [--steps N] --out <path>  (or --dry: the plan only)"})
+				return
+			var fr: Dictionary = await FixLoop.run(m, T, float(a[fb + 1]) if fb >= 0 and fb + 1 < a.size() else FixLoop.DEFAULT_BAR,
+				int(a[fn + 1]) if fn >= 0 and fn + 1 < a.size() else FixLoop.DEFAULT_STEPS, dry)
+			if fr["ok"]:
+				for st in fr["steps"]:
+					say("%2d %-8s card %d  %s  predicted %+.2f  score %.2f -> %.2f  %s" % [st["n"], st["rule"], st["card"], st["fix"], st["predicted_gain"],
+						st["before"]["score"], st["after"]["score"], "kept" if st["kept"] else "REVERTED: " + String(st["reverted"])])
+				say("STOPPED (%s): %s" % [fr["stopped"], fr["why"]])
+				if outp != "" and not dry:
+					T.write_scene(outp, "fixuntil (N005)")
+					fr["out"] = outp
+			done(fr)
 		_:
 			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | events <scene> \"<query>\" | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})

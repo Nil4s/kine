@@ -432,4 +432,6 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
+		"fix_until":   # N005: the fixes in order of predicted gain until the saved assertions pass and the score clears a bar (scripts/fix_loop.gd)
+			return await FixLoop.serve(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
