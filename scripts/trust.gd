@@ -27,6 +27,7 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
 	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
 	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd"}
+	"OuchMeter": "res://scripts/ouch_meter.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
 const _SABR := "https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/"
@@ -179,6 +180,11 @@ const REG := {
 	"WeightXfer.KICK_MIN": {"s": H, "u": "share of body weight", "src": "ours: in single support the support foot carries all of it (statics); the support leg drives the READY phase before toe-off (Kinoshita & Fujii 2014, ISBS, 13 taekwondo athletes, no weight split reported)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
 	"WeightXfer.FIX_MARGIN": {"s": H, "u": "share of body weight", "src": "ours: the fix aims 15 points over the bar on the card (a cross: 60 %, Evolve's own split)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
 	"WeightXfer.FIX_GOAL": {"s": H, "u": "share of body weight", "src": "ours: the fix is done when the strike starts 12 points over the bar", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
+	# --- N064 ouch meter (scripts/ouch_meter.gd, docs/research/OUCH_METER.md) ---
+	"OuchMeter.ELBOW_COMFORT": {"s": M, "u": "deg", "src": "LUBA elbow flexion classes 0-45 (score 1), 45-120 (2 sitting / 3 standing), > 120 (5) (Kee & Karwowski 2001, Appl Ergon 32:357), read in INSST NTP 674 Table 2; taking the 3 -> 5 jump as the comfortable edge is ours", "url": "https://doi.org/10.1016/S0003-6870(01)00006-0"},
+	"OuchMeter.ELBOW_COMFORT_RULA": {"s": M, "u": "deg", "src": "RULA lower arm: 60-100 deg scores 1, 0-60 or > 100 scores 2 (McAtamney & Corlett 1993, Appl Ergon 24:91), read in the DGUV/IFA RULA worksheet (BGIA-Report 2/2007)", "url": "https://doi.org/10.1016/0003-6870(93)90080-S"},
+	"OuchMeter.COMFORT_FRAC": {"s": H, "u": "fraction of the range from neutral", "src": "ours: one comfortable share for every joint without its own row, anchored on RULA's elbow cut (100 / 145 = 0.69); per-joint comfort tables (Kee & Karwowski 2001 Ergonomics 44:614; Naddeo et al. 2019 Work 63:219) not opened", "url": "res://docs/research/OUCH_METER.md"},
+	"OuchMeter.TOL": {"s": H, "u": "deg", "src": "ours: 'at the max' within Body.at_limit's 0.5 deg rounding", "url": "res://docs/research/OUCH_METER.md"},
 	# --- hit reaction (docs/physics_constants.md, gt1: UNVERIFIED list) ---
 	"HitReaction.WEAPON_KG": {"s": U, "u": "kg", "src": "weapon masses are estimates (no source opened)", "url": _PC},
 	# --- who could do this? (N027, scripts/who_could.gd; docs/research/WHO_COULD.md) ---

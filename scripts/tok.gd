@@ -8,6 +8,7 @@ extends RefCounted
 
 const DARK := {
 	"text": Color(1, 1, 1), "heading": Color(0.6, 0.78, 1.0), "info": Color(0.75, 0.9, 1.0), "say": Color(1.0, 0.9, 0.55),
+	"ok": Color(0.55, 0.92, 0.6),   # N064 ouch meter: inside the comfortable range (with warn / fail)
 	"warn": Color(1.0, 0.86, 0.5), "fail": Color(1.0, 0.55, 0.5), "dummy": Color(1.0, 0.6, 0.5), "dummy_text": Color(1.0, 0.8, 0.75),
 	"panel": Color(0.085, 0.09, 0.105, 0.94), "float": Color(0.09, 0.1, 0.12, 0.94), "say_bg": Color(0.05, 0.05, 0.07, 0.85),
 	"btn": Color(0.19, 0.21, 0.25), "btn_hover": Color(0.26, 0.3, 0.37), "accent": Color(0.2, 0.42, 0.75), "on_accent": Color(1, 1, 1), "focus": Color(1.0, 0.78, 0.2),
@@ -32,6 +33,7 @@ const DARK := {
 }
 const LIGHT := {
 	"text": Color(0.1, 0.11, 0.13), "heading": Color(0.08, 0.3, 0.68), "info": Color(0.12, 0.27, 0.5), "say": Color(0.42, 0.27, 0.0),
+	"ok": Color(0.08, 0.45, 0.16),
 	"warn": Color(0.5, 0.32, 0.0), "fail": Color(0.7, 0.12, 0.08), "dummy": Color(0.62, 0.2, 0.12), "dummy_text": Color(0.5, 0.2, 0.15),
 	"panel": Color(0.955, 0.957, 0.965, 0.96), "float": Color(0.97, 0.97, 0.975, 0.97), "say_bg": Color(1.0, 0.97, 0.88, 0.94),
 	"btn": Color(0.87, 0.88, 0.9), "btn_hover": Color(0.8, 0.83, 0.88), "accent": Color(0.16, 0.4, 0.8), "on_accent": Color(1, 1, 1), "focus": Color(0.72, 0.3, 0.0),
