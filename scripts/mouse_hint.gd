@@ -10,6 +10,7 @@ const H := 22
 const GLYPH_W := 14
 const GAP := 10
 const FS := 12
+const EASY_LINE := "Drag a body part to move it  ·  Right-drag to look around  ·  Wheel to zoom"
 
 var m: Node
 var ctx := ""
@@ -85,6 +86,9 @@ func show_ctx(c: String) -> void:
 	var its := items(m, c)
 	var sig := c + "|" + str(its) + "|" + str(Tok.dark) + "|" + str(int(size.x))
 	if sig == _sig:
+		var ez = m.get("easy") if m != null else null
+		if ez != null and ez.on:   # Easy's line never changes, so its visibility must follow the welcome line on its own
+			_vis_now()
 		return
 	_sig = sig
 	ctx = c
@@ -128,8 +132,13 @@ func _rebuild() -> void:
 		box.add_child(cell)
 		used += need
 		shown_any = true
-	visible = shown_any and (m.get("hints_on") != false) and not (m.ui_status != null and m.ui_status.text == m.WELCOME and m.ui_status.visible)
+	_vis_now()
 	queue_redraw()
+
+
+## shown when a line fits, the hints are on, and the first-run welcome line is not up (it says the same thing)
+func _vis_now() -> void:
+	visible = box.get_child_count() > 0 and (m.get("hints_on") != false) and not (m.ui_status != null and m.ui_status.text == m.WELCOME and m.ui_status.visible)
 
 
 ## the words as shown (the test reads this)
@@ -202,6 +211,9 @@ static func _i(b: String, t: String) -> Dictionary:
 
 ## the [button, words] list of one situation, most useful first
 static func items(m: Node, c: String) -> Array:
+	var ez = m.get("easy") if m != null else null
+	if ez != null and ez.on:   # Easy: one plain line for everyone, whatever the mouse is over (no icons, no jargon)
+		return [_i("", EASY_LINE)]
 	var part := String(m.get_meta("mh_part", "")) if m != null else ""
 	var nm: String = m.nice(part) if part != "" else "part"
 	match c:
