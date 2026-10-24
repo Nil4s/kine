@@ -167,6 +167,9 @@ func _process(dt: float) -> void:
 		return
 	var on: bool = m.easy.on
 	var empty: bool = m.S.cards.is_empty()
+	var pb: Button = m.easy.button("Play / Stop")
+	if pb != null:   # the button says what a click does now (the walk-through found "Play / Stop" gave no state)
+		pb.text = "Stop" if m.playing else "Play"
 	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
 	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on)
 	strip.visible = on and not (empty or _open or _gen_on) and _built and not lib   # the open library covers the strip's place too: one at a time
