@@ -764,7 +764,7 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 	m._push_undo()
 	m.undo[-1]["swap"] = true   # the card makes a NEW Scene object: Ctrl+Z puts the empty one back whole (main._restore; path_walk_ui does the same)
 	m._write(path, d)
-	m._load_scene(path)
+	m._load_scene(path, true)   # a card build is a work copy in scenes/_wip: unsaved until the user saves it
 	m._rebuild_cards()
 	m._refresh()
 	return ""
