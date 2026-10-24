@@ -72,6 +72,32 @@ func watch_copy(path: String) -> Dictionary:
 	return w
 
 
+## the strip's card buttons in card order (the picture button "b_pick" of each card_N)
+func strip_buttons() -> Array:
+	var rows := []
+	for pc in m.ui_cards.get_children():
+		if String(pc.name).begins_with("card_"):
+			rows.append([int(String(pc.name).trim_prefix("card_")), pc.find_child("b_pick", true, false)])
+	rows.sort_custom(func(a, b): return a[0] < b[0])
+	return rows.map(func(r): return r[1])
+
+
+func strip_names() -> Array:
+	var out := []
+	for nb in strip_buttons():
+		out.append(String((nb as Button).text) if nb != null else "")
+	return out
+
+
+## how many cards have no icon on their picture button (missing button or a null icon both count)
+func missing_icons() -> int:
+	var n := 0
+	for nb in strip_buttons():
+		if nb == null or (nb as Button).icon == null:
+			n += 1
+	return n
+
+
 func visible_cancels(n: Node) -> int:
 	var c := 0
 	if n is Button and (n as Button).text == "Cancel" and n.is_visible_in_tree():
@@ -110,6 +136,23 @@ func _init() -> void:
 		"2 copied %s: %d cards (bar >= 2), playing %s, shown %s, status: \"%s\"" % [CLIP.get_file(), c1, m.playing, home.shown(), m.ui_status.text])
 	print("   progress sentence seen on the status line while it ran: %s" % saw)
 	ok(not String(m.ui_status.text).contains("outside the video"), "2b whole-body clip: no limb caution on the status line (\"%s\")" % m.ui_status.text)
+
+	# 12 the strip's names after the copy: "Pose 1" .. "Pose N" in order (the stored names stay v0, v10, ...)
+	var names := strip_names()
+	var want_names := []
+	for i in m.S.cards.size():
+		want_names.append("Pose %d" % (i + 1))
+	ok(names == want_names and names.size() >= 2,
+		"12 strip names after the copy: %s (want Pose 1..%d)" % [names, m.S.cards.size()])
+
+	# 13 every card's picture button has an icon (a non-null texture) within 300 frames of the copy
+	var missing := -1
+	for fr in 300:
+		missing = missing_icons()
+		if missing == 0:
+			break
+		await process_frame
+	ok(missing == 0, "13 card pictures: %d of %d cards still without an icon after %d frames" % [missing, m.S.cards.size(), 300])
 
 	# 9 the progress words while the tracker read: the top bar and the status line, the same Easy sentence
 	var prog_ok := String(w["status"]).begins_with("Reading your video: ") and String(w["status"]).ends_with(" %")
@@ -227,6 +270,14 @@ func _init() -> void:
 		ok(at > 0 and cap.ends_with(tail) and cap.count(head) == 1 and cap.substr(at).length() > head.length() + tail.length()
 			and m.S.cards.size() >= 2 and m.playing,
 			"11 feet out of frame: status \"%s\" (want the caution once, after the copy's sentence)" % cap)
+		# 13b the same clip's cards (the feet-cut one): every picture gets its icon too, the last card included
+		var miss_cut := -1
+		for fr in 300:
+			miss_cut = missing_icons()
+			if miss_cut == 0:
+				break
+			await process_frame
+		ok(miss_cut == 0, "13b feet-cut copy: %d of %d cards without an icon after 300 frames (names %s)" % [miss_cut, m.S.cards.size(), strip_names()])
 	else:
 		print("skip 11: ffmpeg could not make the cut clip (exit %d)" % rc_cut)
 	if FileAccess.file_exists(cut):
