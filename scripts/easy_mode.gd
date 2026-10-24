@@ -2,8 +2,8 @@ class_name EasyMode
 extends Node
 ## EASY MODE (docs/ROADMAP.md items 3 and 4; beginners are lost in 140+ commands).
 ## Easy: ONE bar of 7 big labelled buttons (Library, Save video, Play / Stop, Undo, New scene, More, Switch to Expert)
-## takes the top strip's place; More opens a menu with the rest (Key this pose, Pose, Undo, Redo, Save scene, Mirror
-## pose, Floor, Copy a video). The side panels, the top tools, the scene header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
+## takes the top strip's place; More opens a menu with the rest (Save this pose as a card, Move his arms and legs, Redo,
+## Open a saved scene, Save the scene, Flip left and right, Put his feet on the floor, Copy a video). The side panels, the top tools, the scene header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
 ## The mode is remembered in poser.cfg [look] mode. A fresh config is Easy; an existing config with no mode key is
 ## Expert, so nothing changes for people who already use the app. A test is Expert unless it says otherwise.
 ## First-run tour (Easy only, once, skippable, Help: show the tour): five steps, each moved on by the real action.
@@ -11,9 +11,9 @@ extends Node
 const CFG := "look"
 const TOUR := [
 	["Drag a hand", "Press on a hand of the body and drag it. The arm follows, and the pose changes."],
-	["Key the pose", "Press More, then Key this pose. The body's pose becomes a card on the timeline at the bottom."],
+	["Save the pose", "Press More, then Save this pose as a card. The body's pose becomes a card on the timeline at the bottom."],
 	["Move the playhead", "Drag the playhead (the line on the timeline) to another moment."],
-	["Change the pose and key again", "Move a part to a new place, then press More, then Key this pose again."],
+	["Change the pose and save again", "Move a part to a new place, then press More, then Save this pose as a card again."],
 	["Press play", "Press Play. The body moves from card to card by itself."],
 ]
 
@@ -89,18 +89,18 @@ func build(root: Control, expert: Array) -> void:
 		["Play / Stop", "Play the scene from the playhead, or stop it (Space)", m._toggle_play],
 		["New scene", "Start an empty scene (it asks first over unsaved work)", _new],
 		["Undo", "Take back the last change (Ctrl+Z): a beginner's first need, so it stays on the bar", m._undo],
-		["More", "The other things: Key this pose, Pose, Redo, Open, Save scene, Mirror pose, Floor (snap feet)", _more_open],
+		["More", "The other things: Save this pose as a card, Move his arms and legs, Redo, Open a saved scene, Save the scene, Flip left and right, Put his feet on the floor", _more_open],
 		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	var more := [
-		["Key this pose", "Keep the body's pose as a card on the timeline (Enter)", m._card_add],
-		["Pose (drag parts)", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
+		["Save this pose as a card", "Keep the body's pose as a card on the timeline (Enter)", m._card_add],
+		["Move his arms and legs", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
 		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
-		["Open", "Open one of your scenes", _open],
+		["Open a saved scene", "Open one of your scenes", _open],
 		["Copy a video", "Turn a video of one person into an animation: pick the file (mp4, mov, webm, avi, mkv)", func(): home.copy_video()],
-		["Save scene", "Save the scene (Ctrl+Shift+S)", m._save_scene],
-		["Mirror pose", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
-		["Floor (snap feet)", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
+		["Save the scene", "Save the scene (Ctrl+Shift+S)", m._save_scene],
+		["Flip left and right", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
+		["Put his feet on the floor", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
 	]
 	for a in acts:
 		var b := _big(a[0], a[1], a[2])
@@ -147,7 +147,7 @@ func _big(label: String, tip: String, f: Callable) -> Button:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	b.add_child(l)
-	b.pressed.connect(func(): m._step_hint = label; f.call())   # the undo step is named after the button
+	b.pressed.connect(func(): _close_more(); m._step_hint = label; f.call())   # the undo step is named after the button; a bar press closes More
 	return b
 
 
@@ -255,7 +255,11 @@ func free_rect() -> Rect2:
 		top = maxf(top, 82.0 + home.strip.get_combined_minimum_size().y)   # the strip sits at 82 (under the bar), see easy_home.gd
 	top += FREE_PAD
 	var bottom := vs.y - float(m.bottom_h) - float(m.LINE_H) - FREE_PAD
-	return Rect2(0.0, top, vs.x, maxf(bottom - top, 40.0))
+	# the empty scene's "What should he do?" panel sits at the left: the body is framed in the room to its right
+	var left := 0.0
+	if home != null and home.panel != null and m.S.cards.is_empty():
+		left = EasyHome.PANEL_LEFT + home.panel.get_combined_minimum_size().x + FREE_PAD
+	return Rect2(left, top, vs.x - left, maxf(bottom - top, 40.0))
 
 
 ## the camera's offsets for Easy: the look-at point sits at the free rect's centre (mpp = world units per px at the target)
@@ -352,8 +356,14 @@ func _more_open() -> void:
 
 func _more_picked(i: int) -> void:
 	var a: Array = _more_acts[i]
+	_close_more()         # the menu closes as its item runs (a dialog it opens must not sit under the menu)
 	m._step_hint = a[0]   # the undo step is named after the entry, as a bar button's is
 	(a[2] as Callable).call()
+
+
+func _close_more() -> void:
+	if _more != null:
+		_more.hide()
 
 
 ## a test or the tour: the bar's More button, then the entry with these words (two clicks, as a beginner makes them)
@@ -461,7 +471,7 @@ func _place_card() -> void:
 	var at: Rect2
 	match tour_step:
 		0: at = Rect2(vp.x - 20, vp.y * 0.3, 0, 0)   # the body is in the middle: the card sits at its right edge
-		1, 3: at = (_btns["More"] as Control).get_global_rect()   # Key this pose is in More
+		1, 3: at = (_btns["More"] as Control).get_global_rect()   # Save this pose as a card is in More
 		2: at = m.ui_timeline.get_global_rect()
 		_: at = (_btns["Play / Stop"] as Control).get_global_rect()
 	var sz := tour_card.get_combined_minimum_size()

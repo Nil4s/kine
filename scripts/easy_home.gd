@@ -1,6 +1,7 @@
 class_name EasyHome
 extends Node
-## EASY HOME (monkey brain easy): what a beginner sees in Easy mode when the scene is empty. A centred panel,
+## EASY HOME (monkey brain easy): what a beginner sees in Easy mode when the scene is empty. A panel at the left edge,
+## beside the body (easy_mode.gd free_rect frames the body in the room to its right),
 ## "What should he do?", with eight picture cards and one text box ("or type it"). A card builds its clip (the
 ## templates/ files for walk, run, jump, punch, sit down, wave and the kick (roundhouse.json, baked); TextBlocking for typed words), one undo step, then it plays by itself.
 ## After that the panel is a strip with buttons: Again, Change it (the panel and its text box come back), and four big ones
@@ -19,6 +20,8 @@ const CARDS := [   # [the word on the card, what it builds (a templates/ name or
 	["Fall", "fall", "fall"],
 ]
 const HINT := "or type a move: 'jab then cross'"
+const PANEL_LEFT := 12.0       # px between the window's left edge and the home panel
+const PANEL_W := 478.0         # the cards' grid (4 x 112 + 3 x 10) and the text box and message under it
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
@@ -55,8 +58,9 @@ func build(root: Control) -> void:
 	panel = PanelContainer.new()
 	panel.name = "easy_home"
 	panel.visible = false
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)   # centred; grows both ways from the middle
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)   # at the left edge, vertically centred
+	panel.offset_left = PANEL_LEFT
+	panel.grow_horizontal = Control.GROW_DIRECTION_END
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var st := StyleBoxFlat.new()
 	st.bg_color = Tok.c("panel")
@@ -82,13 +86,13 @@ func build(root: Control) -> void:
 	_edit = LineEdit.new()
 	_edit.name = "eh_text"
 	_edit.placeholder_text = HINT
-	_edit.custom_minimum_size = Vector2(560, 0)
+	_edit.custom_minimum_size = Vector2(PANEL_W, 0)
 	_edit.text_submitted.connect(func(t: String): _words(t))
 	v.add_child(_edit)
 	_msg = _label("", 15, "text")
 	_msg.name = "eh_msg"
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_msg.custom_minimum_size = Vector2(560, 0)
+	_msg.custom_minimum_size = Vector2(PANEL_W, 0)
 	v.add_child(_msg)
 	_make_btn = Button.new()
 	_make_btn.name = "eh_make_ai"
@@ -571,7 +575,7 @@ func _card_button(i: int) -> Button:
 	b.name = "eh_card_%d" % i
 	b.set_meta("label", CARDS[i][0])
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(150, 124)
+	b.custom_minimum_size = Vector2(112, 92)
 	b.tooltip_text = "build %s and play it (one undo step)" % String(CARDS[i][0]).to_lower()
 	var v := VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -581,13 +585,13 @@ func _card_button(i: int) -> Button:
 	var pic := TextureRect.new()
 	pic.name = "icon"
 	pic.texture = Icons.big(String(CARDS[i][2]))
-	pic.custom_minimum_size = Vector2(64, 64)
+	pic.custom_minimum_size = Vector2(40, 40)
 	pic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(pic)
-	var word := _label(String(CARDS[i][0]), 18, "text")
+	var word := _label(String(CARDS[i][0]), 16, "text")
 	word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(word)
 	b.pressed.connect(card.bind(i))

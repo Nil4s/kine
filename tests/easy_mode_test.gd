@@ -5,7 +5,7 @@
 extends SceneTree
 
 const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "More", "Switch to Expert"]   # the bar (7)
-const MORE := ["Key this pose", "Pose (drag parts)", "Redo", "Open", "Copy a video", "Save scene", "Mirror pose", "Floor (snap feet)"]
+const MORE := ["Save this pose as a card", "Move his arms and legs", "Redo", "Open a saved scene", "Copy a video", "Save the scene", "Flip left and right", "Put his feet on the floor"]
 
 var fails := 0
 var m: Node
@@ -173,28 +173,28 @@ func _init() -> void:
 	await idle()
 
 	# 3. each button runs its action
-	m.easy.pick_more("Pose (drag parts)")
+	m.easy.pick_more("Move his arms and legs")
 	await idle()
-	ok(m.ui_status.text.begins_with("Drag a part"), "Pose says how to pose, on the say line")
+	ok(m.ui_status.text.begins_with("Drag a part"), "Move his arms and legs says how to pose, on the say line")
 	var n0: int = m.S.cards.size()
-	m.easy.pick_more("Key this pose")
+	m.easy.pick_more("Save this pose as a card")
 	await idle()
-	ok(m.S.cards.size() == n0 + 1, "Key this pose adds a card (%d -> %d)" % [n0, m.S.cards.size()])
+	ok(m.S.cards.size() == n0 + 1, "Save this pose as a card adds a card (%d -> %d)" % [n0, m.S.cards.size()])
 	m.easy.button("Undo").pressed.emit()
 	await idle()
 	ok(m.S.cards.size() == n0, "Undo (on the bar) takes the card back")
 	m.easy.pick_more("Redo")
 	await idle()
 	ok(m.S.cards.size() == n0 + 1, "Redo puts it back")
-	m.easy.pick_more("Key this pose")
+	m.easy.pick_more("Save this pose as a card")
 	await idle()
 	ok(m.S.cards.size() == n0 + 2, "a second card: two are needed to play")
 	m._pose_words("raise the right arm 90")
 	await idle()
 	var body_before := JSON.stringify(m.B.state())
-	m.easy.pick_more("Mirror pose")
+	m.easy.pick_more("Flip left and right")
 	await idle()
-	ok(JSON.stringify(m.B.state()) != body_before, "Mirror pose changes the body (a raised right arm goes to the left)")
+	ok(JSON.stringify(m.B.state()) != body_before, "Flip left and right changes the body (a raised right arm goes to the left)")
 	m.easy.button("Undo").pressed.emit()
 	await idle()
 	m.easy.button("Play / Stop").pressed.emit()
@@ -203,10 +203,20 @@ func _init() -> void:
 	m.easy.button("Play / Stop").pressed.emit()
 	await idle()
 	ok(not m.playing, "Play / Stop again stops it")
-	m.easy.pick_more("Floor (snap feet)")
+	m.easy.pick_more("Put his feet on the floor")
 	await idle()
-	ok(true, "Floor (snap feet) runs without an error")
-	m.easy.pick_more("Open")
+	ok(true, "Put his feet on the floor runs without an error")
+	# B: the More menu closes as its item runs (after_08: it stayed open behind New scene's "Unsaved changes" dialog)
+	ok(not m.easy._more.visible, "B: the More menu is closed after its item (Put his feet on the floor) runs")
+	m.easy._more_open()
+	await idle()
+	ok(m.easy._more.visible, "B: More opens its menu (precondition for the bar check)")
+	m.easy.button("Play / Stop").pressed.emit()   # a bar button runs while More is open: More closes too
+	await idle()
+	ok(not m.easy._more.visible, "B: pressing a bar button (Play / Stop) closes the More menu that was open")
+	m.easy.button("Play / Stop").pressed.emit()   # stop again
+	await idle()
+	m.easy.pick_more("Open a saved scene")
 	await idle()
 	# Open (drafts 10-24): the SAVED scenes the list has, then a "Recent drafts" separator and the newest 5 drafts (not every draft)
 	var saved_rows := 0
@@ -216,7 +226,7 @@ func _init() -> void:
 			saved_rows += 1
 	var nd := mini(5, m.draft_paths().size())
 	var want_menu := saved_rows + (nd + 1 if nd > 0 else 0)
-	ok(m.easy._menu.item_count == want_menu and saved_rows > 0, "Open lists the saved scenes (%d) then 'Recent drafts' with the newest %d: %d rows, want %d" % [saved_rows, nd, m.easy._menu.item_count, want_menu])
+	ok(m.easy._menu.item_count == want_menu and saved_rows > 0, "Open a saved scene lists the saved scenes (%d) then 'Recent drafts' with the newest %d: %d rows, want %d" % [saved_rows, nd, m.easy._menu.item_count, want_menu])
 	m.easy._menu.hide()
 	await idle()
 
@@ -226,15 +236,15 @@ func _init() -> void:
 	m.easy.tour_start()
 	await idle()
 	ok(m.easy.tour_step == 0 and m.easy.tour_card.visible, "the tour starts at step 1 and its card is on screen")
-	m.easy.pick_more("Key this pose")
+	m.easy.pick_more("Save this pose as a card")
 	await idle()
-	ok(m.easy.tour_step == 0, "step 1 (drag a hand) does not move on for a Key press")
+	ok(m.easy.tour_step == 0, "step 1 (drag a hand) does not move on for a Save-the-pose press")
 	await drag("hand_r")
 	await idle()
 	ok(m.easy.tour_step == 1, "step 1: dragging a hand moves on (now %d)" % (m.easy.tour_step + 1))
-	m.easy.pick_more("Key this pose")
+	m.easy.pick_more("Save this pose as a card")
 	await idle()
-	ok(m.easy.tour_step == 2, "step 2: Key this pose moves on (now %d)" % (m.easy.tour_step + 1))
+	ok(m.easy.tour_step == 2, "step 2: Save this pose as a card moves on (now %d)" % (m.easy.tour_step + 1))
 	var ph0: float = m.playhead
 	var tl: Control = m.ui_timeline
 	var length: float = m._ps().length()
@@ -257,9 +267,9 @@ func _init() -> void:
 	ok(absf(m.playhead - ph0) > 0.005 and m.easy.tour_step == 3, "step 3: a click on the timeline moves the playhead and moves on (playhead %.2f)" % m.playhead)
 	await drag("hand_l")
 	await idle()
-	m.easy.pick_more("Key this pose")
+	m.easy.pick_more("Save this pose as a card")
 	await idle()
-	ok(m.easy.tour_step == 4, "step 4: change the pose and Key again moves on (now %d)" % (m.easy.tour_step + 1))
+	ok(m.easy.tour_step == 4, "step 4: change the pose and save again moves on (now %d)" % (m.easy.tour_step + 1))
 	m.easy.button("Play / Stop").pressed.emit()
 	await idle()
 	ok(m.easy.tour_step == -1 and not m.easy.tour_due(), "step 5: Play ends the tour, and it is done (not due again)")

@@ -8,9 +8,9 @@ extends SceneTree
 const BAR_MAX := 7
 # the old bar's 13 actions, by the label they had -> the label they have now (Export video is Save video; Save is Save scene)
 const OLD13 := {
-	"Pose (drag parts)": "Pose (drag parts)", "Key this pose": "Key this pose", "Play / Stop": "Play / Stop",
-	"Undo": "Undo", "Redo": "Redo", "New scene": "New scene", "Open": "Open", "Save": "Save scene",
-	"Mirror pose": "Mirror pose", "Floor (snap feet)": "Floor (snap feet)", "Export video": "Save video",
+	"Pose (drag parts)": "Move his arms and legs", "Key this pose": "Save this pose as a card", "Play / Stop": "Play / Stop",
+	"Undo": "Undo", "Redo": "Redo", "New scene": "New scene", "Open": "Open a saved scene", "Save": "Save the scene",
+	"Mirror pose": "Flip left and right", "Floor (snap feet)": "Put his feet on the floor", "Export video": "Save video",
 	"Library": "Library", "Switch to Expert": "Switch to Expert",
 }
 

@@ -9,6 +9,8 @@
 ##  6. The panel fits inside the window at 1280x720 (its rect is inside the visible viewport).
 ##  8. The Library opened over the empty scene hides the panel; Close brings it back.
 ##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
+##  C. (the layout) At 1280x720 and at 1600x900 the home panel covers at most 15 % of the body's screen box (the body's capsule
+##     ends projected with m.cam.unproject_position): the body is visible beside the panel, not under it.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -38,6 +40,24 @@ func wait_playing(limit := 120) -> bool:
 			return true
 		await process_frame
 	return false
+
+
+## the body's screen box: each capsule end (Turntable.points: the joints and their ends, the weapons) projected by m.cam, grown
+## by its radius in px (the same px-per-metre as the Easy framing: 2 d tan(fov/2) / view height)
+func body_box() -> Rect2:
+	var cam: Camera3D = m.cam
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var mpp: float = 2.0 * float(m.dist) * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in Turntable.points(m.B):
+		if cam.is_position_behind(p[0]):
+			continue
+		var q := cam.unproject_position(p[0])
+		var r: float = float(p[1]) / mpp
+		lo = lo.min(q - Vector2(r, r))
+		hi = hi.max(q + Vector2(r, r))
+	return Rect2(lo, hi - lo) if lo.x < INF else Rect2()
 
 
 func card_btn(i: int) -> Button:
@@ -154,6 +174,18 @@ func _init() -> void:
 	var shot := "user://easyhome_panel.png"
 	img.save_png(shot)
 	print("screenshot %s" % ProjectSettings.globalize_path(shot))
+	# C. the body is visible beside the panel: its screen box (every capsule end projected by m.cam, with its radius) is covered
+	# by the panel by at most 15 % of its area. Measured at 1280x720 (the bar) and at 1600x900 (the window the beginner had)
+	for sz in [Vector2i(1280, 720), Vector2i(1600, 900)]:
+		root.content_scale_size = sz
+		await idle(6)
+		m._cam()
+		await idle(2)
+		var pr: Rect2 = home.panel.get_global_rect()
+		var br := body_box()
+		var frac := pr.intersection(br).get_area() / maxf(br.get_area(), 1.0)
+		ok(home.shown() == "panel" and br.get_area() > 0.0 and frac <= 0.15,
+			"C. at %dx%d the panel covers %.1f %% of the body's screen box (panel %s, body %s; bar 15 %%)" % [sz.x, sz.y, frac * 100.0, str(pr), str(br)])
 	root.content_scale_size = was_size   # back to the window's own size
 	root.content_scale_mode = was_mode
 	await idle(4)
