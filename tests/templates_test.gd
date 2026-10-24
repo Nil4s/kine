@@ -31,8 +31,27 @@
 ##          CHECK: the template's Check (Rulebook.check) has no FAIL (MUST FIX); each WARN is printed and justified in its line below.
 ##          BODY ACCEL: no FAIL (the pelvis drops no faster than free fall, BodyCaps FALL, with its 10% grace).
 ##          LENGTH: 1.6 to 2.0 s, the whole fall (stand to lying still).
-##          WARNs of the Check, each justified (the justification names the rule and why the fall keeps it):
-##            (filled in below after the first measured run)
+##          TOUCH: the hips first rest on the floor (HumanLimits.hips_on_floor, the hips' lowest surface within 2 cm): the lowest centre of
+##          mass before that is <= 0.45 m (knee height of a full squat), and the hips' descent in the 1/60 s before it is <= 1.5 m/s.
+##          Measured now: the CoM is 0.24 m at the touch (the sit back lowers the hips to 7 cm above the floor, the roll lowers
+##          them the rest of the way: the touch is in the roll, not in the sit), descent 0.01 m/s in the frame before (a slow, real fall).
+##          KNOWN, NOT FIXED: the squat bottoms at 0.62 m and the sit leaves the buttocks 7 cm above the floor, held by the heels.
+##          Lowering the hips onto the floor in the sit (a deeper squat, a lower sit) moved the touch earlier but made the centre
+##          of mass drop past free fall at the start of the sit (BODY ACCEL FAIL, a foot snapping to the floor): not kept.
+##          WARNs of the Check that remain, each with its reason (the Check's WARNs are not FAILs):
+##            BALANCE 1.15-1.55 s (card 4, the sit back): with both feet down his centre of mass is up to 74 cm behind the feet while the
+##              buttocks are still 7-20 cm above the floor, nothing under them. A real defect of the motion (the sit's buttocks do not
+##              reach the floor before the CoM goes behind the heels); the checker's BALANCE rule is right to report it. Kept, not hidden.
+##            TRUNK LEAN 1.37 s (card 4, the roll's start): the trunk leans 52 deg back while the hips are still 9 cm up: the roll starts
+##              before the buttocks land. A real defect of the motion, kept for the same reason.
+##            TRUNK LEAN 1.73 s (card 5, lying still): 84-90 deg back, the back on the floor. The checker's exemption (HumanLimits.hips_on_floor
+##              while the hips rest on the floor) does not cover it: the lying pelvis is 2.4 cm above the floor (the test's own bar is
+##              2 cm), so the rule the checker uses to say "held by the floor" does not see the lie as held. A checker exemption that
+##              would fit this pose exactly is 2 cm off here; kept.
+##          THE SWAY (card 1): the first WARN was a real defect (the sway back put the CoM 7 cm behind the heels for 0.2 s); the sway is
+##          smaller now (pelvis -2 deg, no spine), no WARN.
+##          TRUNK LEAN exemption (scripts/trunk_lean.gd): a back lean is not counted on a frame where the hips rest on the floor (the same
+##          rule as HumanLimits.supported). The lie and the roll's end pass it.
 extends SceneTree
 
 var fails := 0
@@ -273,6 +292,26 @@ func _init() -> void:
 	ok(trunk_deg <= 20.0, "fall: lying, the trunk is %.1f deg from horizontal, within 20" % trunk_deg)
 	ok(accel_fail.is_empty(), "fall: no BODY ACCEL FAIL (%d)" % accel_fail.size())
 	ok(inr(Sf.length(), 1.6, 2.0), "fall: %.2f s from stand to lying still, inside 1.6-2.0" % Sf.length())
+	# TOUCH (header): the first frame the hips rest on the floor, the lowest CoM before it, the hips' descent in the 1/60 s before it
+	var com_low := 9.0
+	var v_touch := -1.0
+	var k_t := 0
+	var prev_hl := 9.0
+	while k_t / 120.0 <= Sf.length():
+		var t_k := k_t / 120.0
+		Sf.apply(bf, t_k)
+		var hcs: Array = bf.cap("hips_wide")
+		var hl_k := minf((hcs[0] as Vector3).y, (hcs[1] as Vector3).y) - float(bf.rad["hips_wide"])
+		if HumanLimits.hips_on_floor(bf):
+			var pre := maxf(0.0, (prev_hl - hl_k) * 120.0)
+			v_touch = pre
+			print("     fall touch: hips on the floor at %.3f s, CoM %.3f m, descent %.2f m/s in the frame before" % [t_k, Balance.com(bf).y, pre])
+			break
+		com_low = minf(com_low, Balance.com(bf).y)
+		prev_hl = hl_k
+		k_t += 1
+	ok(v_touch >= 0.0 and com_low <= 0.45, "fall: the lowest CoM before the hips touch the floor %.2f m, at most 0.45" % com_low)
+	ok(v_touch >= 0.0 and v_touch <= 1.5, "fall: the hips reach the floor at %.2f m/s, at most 1.5" % v_touch)
 
 	# CREATE never overwrites, never writes templates/
 	var dir := "user://zz_templates_test"

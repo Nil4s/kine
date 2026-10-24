@@ -95,7 +95,12 @@ static func supported(B: Body) -> bool:
 		var base2 := 0.0 if B.props.is_empty() else B.surface_at(tip, B.wep_r_barrel)
 		if tip.y - B.wep_r_barrel - base2 < TOUCH:
 			return true
-	# the hips resting on the floor (or a surface): sitting or lying, the body is held up and cannot tip (the fall template)
+	return hips_on_floor(B)
+
+
+## the hips resting on the floor (or a surface): sitting or lying, the body is held up and cannot tip (the fall template).
+## One rule for every checker that lets a body lie or sit: HumanLimits.supported, TrunkLean's back lean (scripts/trunk_lean.gd)
+static func hips_on_floor(B: Body) -> bool:
 	var c: Array = B.cap("hips_wide")
 	for p in c:
 		var hp: Vector3 = p

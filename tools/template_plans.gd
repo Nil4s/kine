@@ -331,7 +331,7 @@ static func plan_fall() -> Dictionary:
 	var clips := [{"name": "stand", "move": -1, "hold": 0.3, "set": stand, "relaxed": ["l", "r"], "hips": [0, 0, 0.0]}]
 	var arms_fwd := {"upperarm_l": [80, -15, 0], "upperarm_r": [80, -15, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
 	var sway := stand_set()
-	sway.merge({"pelvis": [-4, 0, 0], "spine_01": [-1, 0, 0], "spine_02": [-1, 0, 0], "spine_03": [-1, 0, 0]}, true)
+	sway.merge({"pelvis": [-2, 0, 0], "spine_01": [0, 0, 0], "spine_02": [0, 0, 0], "spine_03": [0, 0, 0]}, true)
 	sway.merge(arms_fwd, true)
 	clips.append({"name": "sway back", "move": 0.15, "hold": 0.0, "set": sway, "hips": [0, 0, -0.02]})
 	var squat := {"pelvis": [10, 0, 0], "spine_01": [6, 0, 0], "spine_02": [6, 0, 0], "spine_03": [6, 0, 0],
