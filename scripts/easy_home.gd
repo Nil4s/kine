@@ -292,7 +292,7 @@ func _go(what: String, label: String, typed := false) -> void:
 ## The clip plays at once and the camera frames it, as a card does. A video with no person, or one that cannot be read, is
 ## one sentence saying why and what to try.
 const VIDEO_TYPES := "*.mp4, *.mov, *.webm, *.avi, *.mkv ; videos"
-const NO_PERSON := "No person found in the video. Try a clip where the whole body is visible."
+const NO_PERSON := "Couldn't find a person in this video. Try one where the whole body is in view."
 const NO_READER := "The video reader would not start on this computer, so this video cannot be read."
 
 

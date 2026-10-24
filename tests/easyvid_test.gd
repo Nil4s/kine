@@ -14,7 +14,7 @@ extends SceneTree
 
 const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
 const MISSING := "C:/zz_no_such_video_easyvid.mp4"
-const NO_PERSON := "No person found in the video. Try a clip where the whole body is visible."
+const NO_PERSON := "Couldn't find a person in this video. Try one where the whole body is in view."
 const NOT_FOUND := "That video file could not be found. Pick it again with Copy a video."
 
 var fails := 0
@@ -97,6 +97,26 @@ func _init() -> void:
 	ok(String(m.ui_status.text) == NO_PERSON and not home._vid_busy and m.S.cards.size() == n0 and m.scene_path == path0,
 		"3b garbage file: \"%s\" (scene %d cards, as before)" % [m.ui_status.text, m.S.cards.size()])
 	DirAccess.remove_absolute(junk_g)
+
+	# 3c a real, decodable clip with an odd size (333x201) and no person in it: the tracker reads it and finds 0 frames, and
+	# Easy shows the same plain sentence (no exit code, no stack). Made by ffmpeg into user:// and deleted; skipped if no ffmpeg
+	var odd := "user://zz_odd_noperson_easyvid.webm"
+	var odd_g := ProjectSettings.globalize_path(odd)
+	var fo := []
+	var rc_ff := OS.execute("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=333x201:d=1:r=16",
+		"-c:v", "libvpx", "-b:v", "200k", odd_g], fo, true)
+	if rc_ff == 0 and FileAccess.file_exists(odd):
+		var n3: int = m.S.cards.size()
+		var sp3: String = m.scene_path
+		home.copy_video_file(odd_g)
+		await wait_copy()
+		await idle(2)
+		ok(String(m.ui_status.text) == NO_PERSON and not home._vid_busy and m.S.cards.size() == n3 and m.scene_path == sp3,
+			"3c odd-size clip with no person (333x201 webm): \"%s\" (scene %d cards, as before)" % [m.ui_status.text, m.S.cards.size()])
+	else:
+		print("skip 3c: ffmpeg could not make the odd-size clip (exit %d)" % rc_ff)
+	if FileAccess.file_exists(odd):
+		DirAccess.remove_absolute(odd_g)
 
 	# 6 cancel while the tracker reads the clip, with the bar's own Cancel button. A Punch card first: the scene the cancel
 	# must leave alone has cards (an empty scene compared 0 with 0)
