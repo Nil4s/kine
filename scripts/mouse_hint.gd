@@ -138,7 +138,7 @@ func _rebuild() -> void:
 
 ## shown when a line fits, the hints are on, and the first-run welcome line is not up (it says the same thing)
 func _vis_now() -> void:
-	visible = box.get_child_count() > 0 and (m.get("hints_on") != false) and not (m.ui_status != null and m.ui_status.text == m.WELCOME and m.ui_status.visible)
+	visible = box.get_child_count() > 0 and (m.get("hints_on") != false) and not (m.ui_status != null and m.is_welcome(m.ui_status.text) and m.ui_status.visible)
 
 
 ## the words as shown (the test reads this)

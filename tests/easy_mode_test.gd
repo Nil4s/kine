@@ -94,6 +94,32 @@ func cfg_mode() -> String:
 	return String(cf.get_value("look", "mode", ""))
 
 
+## a fresh start: the settings file removed, the app built again (Easy under EasyMode.start_fresh, Expert without it)
+func fresh_start(easy: bool) -> void:
+	var path: String = m.settings
+	m.queue_free()
+	await idle(3)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	EasyMode.start_fresh = easy
+	m = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(m)
+	await idle(6)
+	EasyMode.start_fresh = false
+
+
+## the teaching texts on screen now: the first-start strip, the hint row, the hint labels (only what is shown)
+func teach_lines() -> Array:
+	var out: Array = []
+	if m.ui_status.is_visible_in_tree() and m.is_welcome(m.ui_status.text):
+		out.append(m.ui_status.text)
+	if m.ui_mouse.visible and m.ui_mouse.shown_text() != "":
+		out.append(m.ui_mouse.shown_text())
+	for l in m.ui_hint_labels:
+		if is_instance_valid(l) and (l as Control).is_visible_in_tree() and (not (l is Label) or (l as Label).text != ""):
+			out.append(str(l.get("text")) if l is Label else str(l))
+	return out
+
+
 func _init() -> void:
 	# 1. the rule, from in-memory settings (no window needed for this part)
 	var cf := ConfigFile.new()
@@ -412,6 +438,32 @@ func _init() -> void:
 	# Expert: the step's name never uses the Easy short name, and Expert's Undo tooltip is the Expert name
 	var ex: Dictionary = {"name": "Cards 1-8 at 80 %: the scene is now 3.96 s", "easy": "Faster"}
 	ok(m._step_label(ex) == "Cards 1-8 at 80 %: the scene is now 3.96 s", "6: Expert's _step_label ignores the Easy name")
+
+	# 9. THE FIRST-START LINE: a fresh Easy start shows exactly one teaching line, in Easy's words; the first real pick ends
+	# it for good; an Expert fresh start still shows the Expert welcome (the strip's own words)
+	await fresh_start(true)
+	var lines := teach_lines()
+	ok(lines.size() == 1 and lines[0] == MouseHint.EASY_LINE, "9: a fresh Easy start shows exactly one teaching line, in Easy's words: %s" % str(lines))
+	var head_p: Vector2 = m.cam.unproject_position((m.B.cap("head")[0] + m.B.cap("head")[1]) * 0.5)
+	for down in [true, false]:
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.pressed = down
+		e.position = head_p
+		e.global_position = head_p
+		if down:
+			e.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(e)
+		await process_frame
+	await idle(3)
+	cf = ConfigFile.new()
+	cf.load(m.settings)
+	ok(m.sel == "head" and not (m.ui_status.is_visible_in_tree() and m.is_welcome(m.ui_status.text)) and cf.get_value("look", "taught", false) == true,
+		"9: after the first real pick the teaching strip is gone and the settings say taught ('%s')" % m.ui_status.text.left(40))
+	ok(not teach_lines().any(func(t): return t != MouseHint.EASY_LINE), "9: and what is left teaching is Easy's line only: %s" % str(teach_lines()))
+	await fresh_start(false)
+	lines = teach_lines()
+	ok(not m.easy.on and lines.size() == 1 and lines[0] == m.WELCOME, "9: an Expert fresh start still shows the Expert welcome: %s" % str(lines))
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("EASY MODE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
