@@ -168,6 +168,25 @@ const OVERLAP_WANT := {   # the panels each state must show (so an empty screen 
 }
 
 
+## the "Then <move>" buttons after the move just made (the strip's second row), visible ones only
+func next_btns() -> Array:
+	var out := []
+	for b in m.easy.home.strip.find_children("eh_next_*", "Button", true, false):
+		if b.is_visible_in_tree():
+			out.append(b)
+	return out
+
+
+## every visible button in Easy's bar, the picker and the strip
+func easy_buttons() -> Array:
+	var out := []
+	for host in [m.easy.bar, m.easy.home.strip, m.easy.home.panel]:
+		for b in host.find_children("*", "Button", true, false):
+			if b.is_visible_in_tree():
+				out.append(b)
+	return out
+
+
 ## the global rects of what is on screen in Easy: [name, rect] for each visible item with content
 func easy_rects() -> Array:
 	var out := []
@@ -917,6 +936,69 @@ func _init() -> void:
 	m.easy.set_on(false, false)
 	await idle(4)
 	ok(m.ui_cards.get_node_or_null("add_pose") == null, "10e: Expert has no '+ Add pose' button")
+	m._new_scene()
+	await idle(4)
+
+	# 10f. NEXT MOVES (Easy): after the Walk card, three "Then <move>" buttons (Catalog.next_after). None overlaps another Easy
+	# control. A press adds that move after the clip as ONE undo step (the strip's cards grow); Undo takes it back; after the
+	# add the buttons offer the added move's next moves; Expert shows none, and an empty scene shows none.
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	if m.ui_library != null and m.ui_library.visible:   # an open library covers the picker: close it, as the overlap bar does
+		m.ui_library.hide_panel()
+		await idle(4)
+	await click_ctl(m.easy.home.panel.find_child("eh_card_0", true, false))   # Walk, a real click
+	await idle(4)
+	var nb := next_btns()
+	var texts := nb.map(func(b): return String(b.text))
+	ok(texts == ["Then run", "Then wave", "Then sit down"], "10f: after the Walk card three buttons read 'Then run', 'Then wave', 'Then sit down' (%s)" % str(texts))
+	if m.ui_toast != null:   # a Redo toast left by an earlier step of this run is not this bar's subject: hidden, as overlap_set does
+		m.ui_toast.visible = false
+	var rs: Array = easy_rects().filter(func(r): return r[0] != "picker strip" and r[0] != "easy top bar")
+	for b in nb:
+		rs.append(["then " + b.text, b.get_global_rect()])
+	for b in easy_buttons():
+		if not String(b.name).begins_with("eh_next_"):   # the Then buttons are the rects above
+			rs.append(["button " + b.name, b.get_global_rect()])
+	var then_over := overlap_pairs(rs)
+	ok(then_over.is_empty(), "10f: the Then buttons overlap no other Easy control (%s)" % str(then_over))
+	ok(outside_window(rs, Vector2(m.get_window().size)).is_empty(), "10f: the Then buttons and the Easy controls sit inside the window")
+	var nw0: int = m.S.cards.size()
+	var uw0: int = m.undo.size()
+	await click_ctl(nb[0])
+	await idle(4)
+	var run_n: int = Templates.read("run")["cards"].size()
+	ok(m.S.cards.size() == nw0 + run_n and m.undo.size() == uw0 + 1, "10f: 'Then run' adds the run's %d cards after the walk as ONE undo step (cards %d -> %d, undo %d -> %d)" % [run_n, nw0, m.S.cards.size(), uw0, m.undo.size()])
+	ok(undo_words() == "Undo: Add run", "10f: the undo step is named after the move: 'Undo: Add run' (%s)" % undo_words())
+	var nb2 := next_btns().map(func(b): return String(b.text))
+	ok(nb2 == ["Then jump", "Then sword swing", "Then walk"], "10f: after the run the buttons offer the run's next moves (%s)" % str(nb2))
+	m.easy.button("Undo").pressed.emit()
+	await idle(4)
+	ok(m.S.cards.size() == nw0 and m.undo.size() == uw0, "10f: Undo removes the added run in one step (%d cards)" % m.S.cards.size())
+	var nb3 := next_btns().map(func(b): return String(b.text))
+	ok(nb3 == texts, "10f: after Undo the buttons offer the walk's moves again (%s)" % str(nb3))
+	m.easy.set_on(false, false)
+	await idle(4)
+	ok(next_btns().is_empty(), "10f: Expert shows no Then buttons")
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	ok(next_btns().is_empty(), "10f: an empty scene shows no Then buttons")
+	# the catalog: the shipped file is good, and a copy with one missing source fails the check
+	var entries: Array = Catalog.load()
+	ok(entries.size() > 0 and Catalog.problems(entries).is_empty(), "10f: the shipped catalog has %d entries and no problems (%s)" % [entries.size(), str(Catalog.problems(entries))])
+	var broken: Array = entries.duplicate(true)
+	broken[0]["source"] = "templates/no_such_move.json"
+	var tmp := "user://poser_test_catalog.json"
+	var wf := FileAccess.open(tmp, FileAccess.WRITE)
+	wf.store_string(JSON.stringify(broken))
+	wf.close()
+	var probs: Array = Catalog.problems(Catalog.load(tmp))
+	ok(probs.size() == 1 and String(probs[0]).find("no_such_move") >= 0, "10f: a catalog with one missing source fails the check (%s)" % str(probs))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+	m.easy.set_on(false, false)
+	await idle(4)
 	m._new_scene()
 	await idle(4)
 

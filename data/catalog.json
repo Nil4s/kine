@@ -1,0 +1,430 @@
+[
+ {
+  "id": "walk",
+  "words": "Walk",
+  "kind": "move",
+  "category": "Moves",
+  "tags": [
+   "legs",
+   "locomotion",
+   "loop"
+  ],
+  "seconds": 4.95,
+  "source": "templates/walk.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "run",
+   "wave",
+   "sit_down",
+   "punch"
+  ]
+ },
+ {
+  "id": "run",
+  "words": "Run",
+  "kind": "move",
+  "category": "Moves",
+  "tags": [
+   "legs",
+   "locomotion",
+   "loop"
+  ],
+  "seconds": 3.25,
+  "source": "templates/run.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "jump",
+   "sword_swing",
+   "walk"
+  ]
+ },
+ {
+  "id": "jump",
+  "words": "Jump",
+  "kind": "move",
+  "category": "Sports",
+  "tags": [
+   "legs",
+   "air"
+  ],
+  "seconds": 3.12,
+  "source": "templates/jump.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "walk",
+   "run"
+  ]
+ },
+ {
+  "id": "punch",
+  "words": "Punch",
+  "kind": "move",
+  "category": "Fighting",
+  "tags": [
+   "arm",
+   "strike"
+  ],
+  "seconds": 1.36,
+  "source": "templates/punch.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "roundhouse",
+   "punch",
+   "walk"
+  ]
+ },
+ {
+  "id": "roundhouse",
+  "words": "Kick",
+  "kind": "move",
+  "category": "Fighting",
+  "tags": [
+   "leg",
+   "strike"
+  ],
+  "seconds": 6.03,
+  "source": "templates/roundhouse.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "walk",
+   "punch"
+  ]
+ },
+ {
+  "id": "sword_swing",
+  "words": "Sword swing",
+  "kind": "move",
+  "category": "Fighting",
+  "tags": [
+   "arm",
+   "strike",
+   "weapon"
+  ],
+  "seconds": 2.22,
+  "source": "templates/sword_swing.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "sword_swing",
+   "walk"
+  ]
+ },
+ {
+  "id": "sit_down",
+  "words": "Sit down",
+  "kind": "move",
+  "category": "Everyday",
+  "tags": [
+   "legs",
+   "floor"
+  ],
+  "seconds": 2.48,
+  "source": "templates/sit_down.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "wave"
+  ]
+ },
+ {
+  "id": "wave",
+  "words": "Wave",
+  "kind": "move",
+  "category": "Everyday",
+  "tags": [
+   "arm",
+   "greeting"
+  ],
+  "seconds": 2.85,
+  "source": "templates/wave.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "walk",
+   "sit_down"
+  ]
+ },
+ {
+  "id": "fall",
+  "words": "Fall",
+  "kind": "move",
+  "category": "Everyday",
+  "tags": [
+   "floor"
+  ],
+  "seconds": 1.97,
+  "source": "templates/fall.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "bat_hold",
+  "words": "Bat hold",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/bat_hold.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "bat_ready_nick",
+  "words": "Bat ready (Nick)",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/bat_ready_nick.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "command_point",
+  "words": "Command point",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "arm"
+  ],
+  "seconds": 0.0,
+  "source": "poses/command_point.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "salute",
+  "words": "Salute",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "arm"
+  ],
+  "seconds": 0.0,
+  "source": "poses/salute.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "stand",
+  "words": "Stand",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "stand"
+  ],
+  "seconds": 0.0,
+  "source": "poses/stand.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "t_pose",
+  "words": "T-pose",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "rig"
+  ],
+  "seconds": 0.0,
+  "source": "poses/t_pose.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_backhand_contact",
+  "words": "Backhand contact",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/backhand_contact.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_bat_up",
+  "words": "Bat up",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/bat_up.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_bo_low_coil",
+  "words": "Bo low coil",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/bo_low_coil.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_bo_rest",
+  "words": "Bo rest",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/bo_rest.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_dodge_low",
+  "words": "Dodge low",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "lib"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/dodge_low.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_forehand_contact",
+  "words": "Forehand contact",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/forehand_contact.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_guard_bat",
+  "words": "Guard bat",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/guard_bat.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_hit_flinch",
+  "words": "Hit flinch",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "lib"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/hit_flinch.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_overhead_load",
+  "words": "Overhead load",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "lib"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/overhead_load.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_shoulder_lift",
+  "words": "Shoulder lift",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "lib"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/shoulder_lift.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_shoulder_over",
+  "words": "Shoulder over",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "lib"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/shoulder_over.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_shoulder_rest",
+  "words": "Shoulder rest",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "lib"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/shoulder_rest.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_strike_lunge",
+  "words": "Strike lunge",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "lib"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/strike_lunge.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_walk_bat_down",
+  "words": "Walk bat down",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/walk_bat_down.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ },
+ {
+  "id": "lib_windup_high",
+  "words": "Windup high",
+  "kind": "pose",
+  "category": "Poses",
+  "tags": [
+   "bat"
+  ],
+  "seconds": 0.0,
+  "source": "poses/lib/windup_high.json",
+  "made_by": "hand-made",
+  "goes_after": []
+ }
+]
