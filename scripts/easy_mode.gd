@@ -3,7 +3,7 @@ extends Node
 ## EASY MODE (docs/ROADMAP.md items 3 and 4; beginners are lost in 140+ commands).
 ## Easy: ONE bar of 7 big labelled buttons (Library, Save video, Play / Stop, Undo, New scene, More, Switch to Expert)
 ## takes the top strip's place; More opens a menu with the rest (Key this pose, Pose, Undo, Redo, Save scene, Mirror
-## pose, Floor). The side panels, the top tools, the scene header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
+## pose, Floor, Copy a video). The side panels, the top tools, the scene header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
 ## The mode is remembered in poser.cfg [look] mode. A fresh config is Easy; an existing config with no mode key is
 ## Expert, so nothing changes for people who already use the app. A test is Expert unless it says otherwise.
 ## First-run tour (Easy only, once, skippable, Help: show the tour): five steps, each moved on by the real action.
@@ -95,6 +95,7 @@ func build(root: Control, expert: Array) -> void:
 		["Pose (drag parts)", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
 		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
 		["Open", "Open one of your scenes", _open],
+		["Copy a video", "Turn a video of one person into an animation: pick the file (mp4, mov, webm, avi, mkv)", func(): home.copy_video()],
 		["Save scene", "Save the scene (Ctrl+Shift+S)", m._save_scene],
 		["Mirror pose", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
 		["Floor (snap feet)", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],

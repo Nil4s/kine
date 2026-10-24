@@ -19793,6 +19793,8 @@ var _video_out := ""
 var _video_name := ""
 var _video_t := 0.0
 var _video_raw := false   # "import raw": the tracker's frames go straight to the fit, no VideoCleanup (jitter, floor, plants)
+var _video_prog := ""     # the tracker's progress file (its fraction 0-1, rewritten as it goes): Easy's "Reading the video: 40 %"
+var _land_undo := ""     # EASY's Copy a video: the name of the one undo step the landing makes (the scene before the import); "" = none
 
 
 ## THE GRIP BOOK (scripts/grip_book.gd): the weapon's recorded grips, one after another; and the pose's grip recorded
@@ -19931,8 +19933,11 @@ func _import_video(path: String, raw := false) -> void:
 	DirAccess.make_dir_recursive_absolute(_video_out.get_base_dir())
 	if FileAccess.file_exists(_video_out):
 		DirAccess.remove_absolute(_video_out)
+	_video_prog = _video_out.get_basename() + ".progress"
+	if FileAccess.file_exists(_video_prog):
+		DirAccess.remove_absolute(_video_prog)
 	var tool := ProjectSettings.globalize_path("res://tools/see_video.py")
-	_video_pid = OS.create_process(video_python, PackedStringArray([tool, path, _video_out]))
+	_video_pid = OS.create_process(video_python, PackedStringArray([tool, path, _video_out, "--progress", _video_prog]))
 	if _video_pid < 0:
 		_say("could not track %s: \"%s\" did not start (it needs Python with mediapipe and opencv-python: run pip install mediapipe opencv-python)" % [_video_name, video_python])
 		return
@@ -20042,6 +20047,11 @@ func _import_land(res: Dictionary, src: String, held: String) -> String:
 	while FileAccess.file_exists(out):   # never over an earlier import
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
+	if _land_undo != "":   # Easy's Copy a video: the scene as it is now is the one undo step (a whole-scene swap, as Easy's cards)
+		_step_hint = _land_undo
+		_push_undo()
+		undo[-1]["swap"] = true
+		_land_undo = ""
 	_write(out, d)
 	_load_scene(out)
 	_rebuild_cards()

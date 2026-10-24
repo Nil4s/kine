@@ -37,6 +37,10 @@ var last_video := {}          # the last Easy save: the playblast's result ({dir
 var _toast: PanelContainer
 var _toast_text: Label
 var _toast_file := ""         # what Show the file opens: the .mp4 (its folder is shown with it)
+var _vid_busy := false        # COPY A VIDEO: an import from a video is running (the tracker, then the fit)
+var _vid_before := ""         # the scene path when the copy began: a new path when it lands
+var _vid_cancel := false      # the fit's own Cancel was pressed
+var _vid_name := ""           # the video's file name, for the say line
 
 
 func build(root: Control) -> void:
@@ -139,6 +143,8 @@ func _process(_dt: float) -> void:
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
 		last_ms = Time.get_ticks_msec() - _t0
 		_t0 = -1
+	if _vid_busy:
+		_video_tick()
 
 
 ## what is on screen: "panel", "strip" or "hidden" (the test reads it)
@@ -224,6 +230,95 @@ func _go(what: String, label: String) -> void:
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
 	_play()
 	m.easy.frame_clip_next()  # EASY CAMERA: framed in the free rect under the bar / strip, one frame AFTER the clip starts (the click-to-motion bar)
+
+
+## COPY A VIDEO (Easy's More): a video of one person -> the Expert import (main._import_video: the tracker, then the fit: the
+## same pipeline, not a second one). One undo step (the scene before the copy: main._import_land pushes it). The status line
+## says the progress in one plain sentence; the import's own bar (with its Cancel, during the fit) is shown as it always is.
+## The clip plays at once and the camera frames it, as a card does. A video with no person, or one that cannot be read, is
+## one sentence saying why and what to try.
+const VIDEO_TYPES := "*.mp4, *.mov, *.webm, *.avi, *.mkv ; videos"
+const NO_PERSON := "No person found in the video. Try a clip where the whole body is visible."
+const NO_READER := "The video reader would not start on this computer, so this video cannot be read."
+
+
+func copy_video() -> void:
+	if _vid_busy or m._imp_busy() or m._video_pid >= 0:
+		m._say("A video is already being copied: wait for it, or press Cancel on the bar")
+		return
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray([VIDEO_TYPES])
+	fd.use_native_dialog = true
+	fd.title = "Copy a video of a person"
+	fd.current_dir = String(OS.get_system_dir(OS.SYSTEM_DIR_MOVIES))
+	fd.file_selected.connect(func(p: String): fd.queue_free(); copy_video_file(p))
+	fd.canceled.connect(fd.queue_free)
+	m.add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+## the copy of one file (the dialog's pick; a test calls it with its own clip)
+func copy_video_file(path: String) -> void:
+	if _vid_busy or m._imp_busy() or m._video_pid >= 0:
+		m._say("A video is already being copied: wait for it, or press Cancel on the bar")
+		return
+	if not FileAccess.file_exists(path):
+		_fail("That video file could not be found. Pick it again with Copy a video.")
+		return
+	_vid_busy = true
+	_vid_cancel = false
+	_vid_before = String(m.scene_path)
+	_vid_name = path.get_file()
+	_t0 = -1
+	m._land_undo = "Copy a video"
+	m._import_video(path)
+	if m._video_pid < 0 and not m._imp_busy():   # the tracker did not start: there is nothing to wait for
+		_vid_busy = false
+		m._land_undo = ""
+		_fail(NO_READER)
+
+
+## every frame while a copy runs: the say line shows the progress; when both steps are over, the result
+func _video_tick() -> void:
+	if m._video_pid >= 0:   # the tracker reads the video
+		var f := _tracker_progress()
+		m._say_plain("Reading the video: %d %%" % roundi(f * 100.0) if f >= 0.0 else "Reading the video...")
+		return
+	if m._imp_busy():   # the fit: the import's own bar and Cancel show it too
+		if bool(m._imp.get("cancel", false)):
+			_vid_cancel = true
+		m._say_plain("Fitting the moves to the body: %d %%" % roundi(VideoIQ.progress * 100.0))
+		return
+	_vid_busy = false
+	m._land_undo = ""
+	if String(m.scene_path) != _vid_before and not m.S.cards.is_empty():
+		_copied()
+	elif _vid_cancel:
+		m._say_plain("Cancelled. The scene is as it was.")
+	else:
+		_fail(NO_PERSON)
+
+
+## the tracker's fraction read (tools/see_video.py --progress), or -1 when none is written yet
+func _tracker_progress() -> float:
+	var pf := String(m._video_prog)
+	if pf == "" or not FileAccess.file_exists(pf):
+		return -1.0
+	var t := FileAccess.get_file_as_string(pf).strip_edges()
+	return t.to_float() if t.is_valid_float() else -1.0
+
+
+## the copied clip: built and playing, framed like a card's (the same steps as _go)
+func _copied() -> void:
+	_built = true
+	_open = false
+	_msg.text = ""
+	m._layout_bottom()
+	_play()
+	m.easy.frame_clip_next()
+	m._say_plain("Copied %s: %d cards. Again plays it from the start; Undo takes it back." % [_vid_name, m.S.cards.size()])
 
 
 ## the clip for one card or one typed line: one undo step. "" = built; else the one sentence why not

@@ -94,7 +94,7 @@ func _init() -> void:
 	for i in more.item_count:
 		if more.get_item_tooltip(i).strip_edges() == "":
 			mtips.append(more.get_item_text(i))
-	ok(bar_button("More") != null and more.item_count == 7 and mtips.is_empty(),
+	ok(bar_button("More") != null and more.item_count == 8 and mtips.is_empty(),
 		"More holds %d entries, each with a tooltip (no tip: %s)" % [more.item_count, str(mtips)])
 
 	# 3. every action that was on the old bar: found by its text, reached in at most 2 clicks

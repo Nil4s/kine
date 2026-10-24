@@ -22,6 +22,7 @@ EXTRA="$EXTRA library:w"   # object library (scripts/object_library.gd)
 EXTRA="$EXTRA easybar:w"   # Easy bar: 7 buttons, More holds the rest (scripts/easy_mode.gd)
 EXTRA="$EXTRA userpaths:w"   # an exported build writes the user's files to Documents/Kine (scripts/user_paths.gd)
 EXTRA="$EXTRA easycam:w"   # Easy camera: the body framed in the free rect under the Easy bar / strip (scripts/easy_mode.gd frame_clip)
+EXTRA="$EXTRA easyvid:w"   # Easy: Copy a video (More): the Expert import, one undo step, plain sentences (tests/easyvid_test.gd)
 # suites that are slow BY DESIGN (name=seconds): text_blocking fits both hands on every card of every phrase (~0.25 s per arm fit, ~700 s alone),
 # gentle runs every one of 450+ commands from 7 hostile states (~2600+ cells); the default cap would stop them while they are still working
 SLOW="text_blocking=1800 gentle=2400 brief=1500 dryrun=900 lint=600 tryn=1800 recognize=900 fixloop=1500"
