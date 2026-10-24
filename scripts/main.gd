@@ -1176,12 +1176,13 @@ func versions_dir() -> String:
 ## the open scene's versions, newest first
 func versions() -> Array:
 	var out := []
-	var d := DirAccess.open(versions_dir())
-	if d == null:
-		return out
-	for f in d.get_files():
-		if f.begins_with("v") and f.ends_with(".json"):
-			out.append(versions_dir() + "/" + f)
+	for dir in UserPaths.dirs(versions_dir()):   # where _save_version wrote them (the user's folder in a build)
+		var d := DirAccess.open(dir)
+		if d == null:
+			continue
+		for f in d.get_files():
+			if f.begins_with("v") and f.ends_with(".json"):
+				out.append(dir + "/" + f)
 	out.sort()
 	out.reverse()
 	return out
@@ -1983,6 +1984,7 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 ## kept in a temporary folder and removed after) -> ONE self-contained page, root/<scene>_<date>.html (never over an
 ## earlier one). Returns the page's path; "" when refused. Nothing leaves the machine.
 func _export_review(root_dir := Review.DIR) -> String:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a review page needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return ""

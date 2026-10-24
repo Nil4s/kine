@@ -268,7 +268,8 @@ func render_thumbs(host: Node) -> void:
 
 
 ## write the page. dir: where (scenes/_safety by default; a test passes user://...). Returns the path ("" on failure)
-func write_page(host: Node, dir := DIR) -> String:
+func write_page(host: Node, dir0 := DIR) -> String:
+	var dir := UserPaths.w(dir0)   # an exported build: the user's folder
 	if rep.is_empty():
 		compute()
 	if pics.size() != rep.get("items", []).size():

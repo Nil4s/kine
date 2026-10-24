@@ -614,7 +614,7 @@ static func _try(S: Scene, opt: Dictionary, ms: Dictionary, read: Dictionary, po
 		expect = "pick the variant that reads best"
 		return {"steps": steps, "why": why, "expect": expect,
 			"cli": "poser_cli try %s %s --sweep pct=80,90,100,110,120" % [path, steps[0]]}
-	var out := "scenes/_wip/%s_try.json" % path.get_file().get_basename()
+	var out := UserPaths.w("res://scenes/_wip/%s_try.json" % path.get_file().get_basename()).trim_prefix("res://")   # the user's folder in a build
 	return {"steps": steps, "why": why, "expect": expect, "cli": "poser_cli run %s %s --out %s" % [path, " ".join(steps.map(func(s): return ('"%s"' % s) if " " in s else s)), out]}
 
 
