@@ -70,7 +70,7 @@ func _init() -> void:
 			cards += 1
 	ok(cards == 8, "1. the panel has the 8 picture cards (%d)" % cards)
 	var edit := home.panel.find_child("eh_text", true, false) as LineEdit
-	ok(edit != null and edit.placeholder_text.begins_with("or type it: 'jab then cross'"), "1. the text box says 'or type it: ...'")
+	ok(edit != null and edit.placeholder_text.begins_with("or type a move: 'jab then cross'"), "1. the text box says 'or type a move: ...'")
 
 	# 2 and 3. every card: builds (or says why not), plays, times the click to the first played frame
 	var times := []
