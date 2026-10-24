@@ -37,5 +37,8 @@ func _run() -> void:
 		img.save_png(ProjectSettings.globalize_path(path))
 		print("WROTE %s" % path)
 		n += 1
+	var f := FileAccess.open(ObjectLibrary.DEFAULT_BODY, FileAccess.WRITE)   # the default body's hash (ObjectLibrary.body_hash)
+	f.store_string(ObjectLibrary.body_sig(m) + "|" + ObjectLibrary.body_hash(m, false))
+	f.close()
 	print("MAKE_LIB_THUMBS wrote %d armour pictures" % n)
 	quit(0)

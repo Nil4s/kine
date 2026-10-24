@@ -19,6 +19,7 @@
 ##  B10 CACHE: a second open of the panel draws 0 pictures (renders delta 0), and a fresh LibraryThumbs on the same
 ##      folder draws 0 (every object read from disk: disk hits = 38).
 ## Clicks are the tile's own "pressed" signal (the same path a mouse click takes after the button's own press handling).
+##  B11 SHIPPED KEY: data/thumbs/armour/default_body.txt (the shipped armour pictures' body hash) is the default body's own hash
 extends SceneTree
 
 const BUILT_IN := {"Weapons": 11, "Furniture": 5, "Sports": 1, "Everyday": 13, "Armour": 7}
@@ -286,6 +287,9 @@ func _init() -> void:
 		fresh.request(String(it["id"]), lib.thumb_source(it))
 	await fresh.settle()
 	ok(fresh.renders == 0 and fresh.disk_hits == lib.items.size(), "B10 a fresh instance on the same folder draws 0 (renders %d, disk hits %d of %d)" % [fresh.renders, fresh.disk_hits, lib.items.size()])
+	var want: String = ObjectLibrary.body_sig(m) + "|" + ObjectLibrary.body_hash(m, false)
+	var have := FileAccess.get_file_as_string(ObjectLibrary.DEFAULT_BODY).strip_edges()
+	ok(have == want, "B11 the shipped armour pictures' body key is the default body's own (stale: run tools/make_lib_thumbs.gd): %s" % [have == want])
 	root.remove_child(fresh)
 	fresh.free()
 

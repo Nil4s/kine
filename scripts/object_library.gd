@@ -346,10 +346,8 @@ func thumb_source(it: Dictionary) -> Dictionary:
 		src["build"] = func() -> Node3D: return Props.mesh(Props.make(key))
 	elif m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
 		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
-		if _armour_body.is_empty():
-			_armour_body = ArmourFromBody.body_source(m)
-			_armour_hash = var_to_str((_armour_body[0] as KMesh).verts).sha256_text()
-		var sb: Array = _armour_body
+		if _armour_hash == "":
+			_armour_hash = body_hash(m)
 		# the body's rest vertices (their bytes, so a change of proportion is a change of spec), the builder's version and constants
 		src["spec"] = var_to_str(["armour", key, ArmourFromBody.BUILDER, ArmourFromBody.GAP, ArmourFromBody.THICK, ArmourFromBody.BEVEL,
 			ArmourFromBody.SEGMENTS, _armour_hash])
@@ -359,6 +357,23 @@ func thumb_source(it: Dictionary) -> Dictionary:
 
 
 ## a plate built on the fighter's body (ArmourFromBody.build, the same call make() makes), unskinned, for its picture
+## the hash of the fighter body the plates are cut from. The default body (as loaded: base-body generation 0, no proportions, its
+## pieces' mesh paths: empty for the built-in body, so in effect their count) reads it from DEFAULT_BODY, written by tools/make_lib_thumbs.gd with the pictures, so the Armour tab
+## does not read the whole body (~170 ms) to name pictures that are shipped; library_test checks the file is not stale.
+## Any other body (edited, re-proportioned, another fighter) is read and hashed.
+const DEFAULT_BODY := "res://data/thumbs/armour/default_body.txt"
+static func body_sig(m: Node) -> String:
+	return ",".join(m.pieces.values().map(func(p): return String((p as MeshInstance3D).mesh.resource_path) if (p as MeshInstance3D).mesh != null else "-"))
+
+
+static func body_hash(m: Node, read_file := true) -> String:
+	if read_file and BaseBody.gen(m) == 0 and not BaseBody.is_open(m) and (m.B.body as Dictionary).is_empty() and FileAccess.file_exists(DEFAULT_BODY):
+		var parts := FileAccess.get_file_as_string(DEFAULT_BODY).strip_edges().split("|")
+		if parts.size() == 2 and parts[0] == body_sig(m):
+			return parts[1]
+	return var_to_str((ArmourFromBody.body_source(m)[0] as KMesh).verts).sha256_text()
+
+
 func _armour_node(words: String) -> Node3D:
 	if m == null or m.pieces.is_empty() or BaseBody.skin_of(m) == null:
 		return null
