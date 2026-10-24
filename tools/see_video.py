@@ -60,6 +60,8 @@ def main():
     ap.add_argument("--model", default="D:/pose_models/pose_landmarker_heavy.task")
     ap.add_argument("--hand-model", default="D:/hand_models_handcap/hand_landmarker.task")
     ap.add_argument("--no-hands", action="store_true")
+    ap.add_argument("--progress", default="",
+                    help="a file rewritten as the tracker goes: the fraction of the video read (0-1), for the app's progress line")
     ap.add_argument("--hand-reach", type=float, default=0.12,
                     help="a hand's wrist within this many picture widths of a body wrist is that hand")
     a = ap.parse_args()
@@ -79,6 +81,7 @@ def main():
         sys.exit(1)
     cap = cv2.VideoCapture(a.video)
     src_fps = cap.get(cv2.CAP_PROP_FPS) or a.fps
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     det = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(
@@ -112,6 +115,9 @@ def main():
             continue
         t = i / src_fps
         i += 1
+        if a.progress and total > 0 and i % 10 == 0:
+            with open(a.progress, "w") as pf:
+                pf.write("%.3f" % min(1.0, i / total))
         mpimg = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         # SPEED: the hand model runs on its own thread while the pose model runs here. Each detector still sees every frame in
         # the same order with the same timestamp, so its output is the same; only the wall clock overlaps (hand ~1/4 of pose)

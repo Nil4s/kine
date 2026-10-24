@@ -5,7 +5,7 @@
 extends SceneTree
 
 const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "More", "Switch to Expert"]   # the bar (7)
-const MORE := ["Key this pose", "Pose (drag parts)", "Redo", "Open", "Save scene", "Mirror pose", "Floor (snap feet)"]
+const MORE := ["Key this pose", "Pose (drag parts)", "Redo", "Open", "Copy a video", "Save scene", "Mirror pose", "Floor (snap feet)"]
 
 var fails := 0
 var m: Node
