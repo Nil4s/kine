@@ -5,8 +5,7 @@ extends Node
 ## templates/ files for walk, run, jump, punch; TextBlocking for the rest), one undo step, then it plays by itself.
 ## After that the panel is a strip with three buttons: Again, Change it (the panel and its text box come back), Save video.
 ## Expert never shows it: it is a child of EasyMode and only Easy's bar shows it.
-## A card the builders cannot make (fall: Kine has no builder for it yet) says so in one plain sentence
-## and leaves the scene as it was.
+## A card the builders cannot make says so in one plain sentence and leaves the scene as it was.
 
 const CARDS := [   # [the word on the card, what it builds (a templates/ name or the words TextBlocking reads), its icon]
 	["Walk", "walk", "walk"],
@@ -20,7 +19,7 @@ const CARDS := [   # [the word on the card, what it builds (a templates/ name or
 ]
 const HINT := "or type it: 'jab then cross', 'roundhouse'…"
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
-const NOT_YET := ["sit", "fall"]   # typed words Kine cannot build yet (sit down and wave are templates now; fall is not)
+const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
 
 var m: Node                    # main (untyped: the same pattern as EasyMode)
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
