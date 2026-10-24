@@ -38,7 +38,7 @@ func refresh() -> void:
 	_sig = [m.sel_card, m.undo.size(), m.S.get_instance_id(), m.S.cards.size()]
 	var why := "pick a strike card (a card named punch / kick / swing / cut ..., or one with a hit marker) to make it hit harder" if m.sel_card < 0 else HitHarder.not_strike(m.S, m.sel_card)
 	button.disabled = why != ""
-	button.tooltip_text = TIP if why == "" else "%s\n(greyed: %s)" % [TIP, why]
+	button.tooltip_text = TIP if why == "" else "%s\nNOT NOW: %s" % [TIP, why]
 	note.text = why
 
 

@@ -73,7 +73,8 @@ func refresh() -> void:
 		var sb: SpinBox = boxes[k]
 		var na: String = String(r.get("na", {}).get(k, "")) if why == "" else why
 		sb.editable = na == ""
-		sb.tooltip_text = TIP[k] if na == "" else "%s\n(greyed: %s)" % [TIP[k], na]
+		sb.tooltip_text = TIP[k] if na == "" else "%s\nNOT NOW: %s" % [TIP[k], na]   # the app-wide greyed form (greyed_why)
+		sb.get_line_edit().tooltip_text = sb.tooltip_text
 		if na == "" and r["values"][k] != null:
 			sb.set_value_no_signal(float(r["values"][k]))
 			sb.get_line_edit().text = str(snappedf(float(r["values"][k]), 0.1))
