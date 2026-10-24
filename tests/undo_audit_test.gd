@@ -587,6 +587,13 @@ func trial(c: Dictionary, kind: String) -> String:
 	var t_r := Time.get_ticks_msec()
 	(c["run"] as Callable).call()
 	var t_run := Time.get_ticks_msec() - t_r
+	# an async command runs on after call() returns: the breakdown video poses the body frame by frame and puts it back
+	# at its end (judge_busy), and the perf doctor plays the scene for 3 s (pdoc.running, which re-starts the playback
+	# each frame). Reading the body before those end read them mid-way, and they ran on into the commands after: wait
+	# for both to finish, as for the cape job below
+	var t_busy := Time.get_ticks_msec()
+	while (m.get("judge_busy") or m.get("pdoc").running) and Time.get_ticks_msec() - t_busy < 1200000:
+		await process_frame
 	var waited := 0   # a background job (the cape bake, ClothJob) lands its one undo step frames later: wait for it
 	while m.get("_cape_job") != null and waited < 3000:
 		await process_frame
