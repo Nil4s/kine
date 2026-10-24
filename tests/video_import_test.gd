@@ -7,6 +7,7 @@
 ##   4 the floor: the lower sole within 1 cm of the floor in every frame
 ##   5 the scene: one card per frame plays the fitted angles back (0.01 deg) at the frame times
 ##   6 a bad file is refused with a sentence, never a crash
+##   7 a 16 fps clip: the tracker writes fps 16, no frame is invented, the scene plays the clip's length (within 1 frame)
 extends SceneTree
 
 var fails := 0
@@ -104,5 +105,35 @@ func _init() -> void:
 	var r2 := VideoImport.parse("not json")
 	var r3 := VideoImport.parse(JSON.stringify({"frames": [frames[0]]}))
 	ok(not r1["ok"] and not r2["ok"] and not r3["ok"] and String(r3["why"]).length() > 10, "6 bad files refused: %s | %s | %s" % [r1["why"], r2["why"], r3["why"]])
+	_bar7_fps16()
 	print("VIDEO IMPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
+
+
+## 7 A 16 FPS CLIP (round 45 fps fix): tests/fixtures/fps16_hammer_2s.webm is 2 s at 16 fps (32 frames). tools/see_video.py must
+## write fps 16 (it wrote 30, the sampling target, and the importer's filters and gap fill ran on a 30 fps clock: a fake frame
+## between every two real ones). Bars: the file's fps is 16 and its frames are 1/16 s apart; the fit keeps the 32 frames (none
+## invented); the scene's length is the clip's 2.0 s within one frame (1/16 s) and its fps is 16.
+func _bar7_fps16() -> void:
+	var out := ProjectSettings.globalize_path("user://fps16_pose.json")
+	if FileAccess.file_exists("user://fps16_pose.json"):
+		DirAccess.remove_absolute(out)
+	var log := []
+	var code := OS.execute("python", PackedStringArray([ProjectSettings.globalize_path("res://tools/see_video.py"),
+		ProjectSettings.globalize_path("res://tests/fixtures/fps16_hammer_2s.webm"), out]), log, true)
+	ok(code == 0 and FileAccess.file_exists("user://fps16_pose.json"), "7 the tracker runs on the 16 fps fixture (exit %d, %s)" % [code, String(log[0]).strip_edges().left(60) if log.size() > 0 else "no output"])
+	if not FileAccess.file_exists("user://fps16_pose.json"):
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string("user://fps16_pose.json"))
+	var nf: int = (d["frames"] as Array).size()
+	var t_last := float(d["frames"][nf - 1]["t"])
+	ok(absf(float(d["fps"]) - 16.0) < 0.01 and absf(t_last - float(nf - 1) / 16.0) < 0.002,
+		"7 the pose file says fps %.2f (bar 16) and its %d frames span %.4f s (16 fps: %.4f)" % [float(d["fps"]), nf, t_last, float(nf - 1) / 16.0])
+	var P := VideoImport.load_file("user://fps16_pose.json")
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var R := VideoIQ.process(B, P, "", "fps16", false)
+	var V: Scene = R["scene"]
+	ok(R["frames"].size() == nf, "7 the fit keeps every tracked frame: %d in, %d out (bar: none invented)" % [nf, R["frames"].size()])
+	ok(V.fps == 16 and absf(V.length() - 2.0) <= 1.0 / 16.0 + 1e-6,
+		"7 the scene plays %.4f s at %d fps (bar: the clip's 2.0 s within 1/16 s, fps 16)" % [V.length(), V.fps])

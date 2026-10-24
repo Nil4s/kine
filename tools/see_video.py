@@ -7,7 +7,7 @@ frames. Each hand is matched to the body's wrist it sits on: the nearest of the 
 16 (right) in the picture, within --hand-reach picture widths; each wrist takes at most one hand, nearest pair first.
 MediaPipe's handedness label is NOT used. A matched frame gets "hands": {"l": {"world", "image"}, "r": {...}}; a frame
 with no hand, or a clip with no hand model, has no "hands" key, so the body import is exactly as before.
-    python -I tools/see_video.py <video> <out pose.json> [--fps 30] [--pick 0.5,0.6] [--people 2]
+    python tools/see_video.py <video> <out pose.json> [--fps 30] [--pick 0.5,0.6] [--people 2]
          [--model D:/pose_models/pose_landmarker_heavy.task] [--hand-model D:/hand_models_handcap/hand_landmarker.task]
          [--no-hands] [--hand-reach 0.12]
 The hand model is MediaPipe's official release, downloaded (ROADMAP 90) into the new folder D:/hand_models_handcap/:
@@ -100,6 +100,9 @@ def main():
     with_hand = 0
     i = 0
     step = max(1, int(round(src_fps / a.fps)))
+    # the rate the KEPT frames really come at: a 16 fps clip sampled "at 30" keeps every frame, so 16, not 30 (the importer
+    # reads this field for its filters and gap fill; each frame's own t is src frame index / src_fps either way)
+    out_fps = src_fps / step
     while True:
         ok, img = cap.read()
         if not ok:
@@ -134,7 +137,7 @@ def main():
         print("NO the tracker found a person in %d frames" % len(frames))
         sys.exit(1)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    json.dump({"fps": a.fps, "video": os.path.basename(a.video), "size": [W, H], "frames": frames,
+    json.dump({"fps": round(out_fps, 4), "video": os.path.basename(a.video), "size": [W, H], "frames": frames,
                "note": "MediaPipe world landmarks (m, hips at 0, y down), 33 per frame; image = (x, y, visibility) 0-1; "
                        "hands (optional per frame): MediaPipe hand world landmarks (m) and image (x, y) 0-1, 21 each; "
                        "l = the person's left"},

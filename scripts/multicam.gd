@@ -12,7 +12,7 @@
 ##     Confidence 0 (occluded) drops the view outright.
 ##   4 OUT: triangulate_all gives frames {"t", "w"} in the layout VideoImport.parse makes (33 world points, y up, hips at 0),
 ##     so the existing VideoCleanup -> VideoImport.solve path takes them unchanged.
-## Input is the person's own video, tracked by tools/see_video.py run with python -I (track_args). Nothing here reads a video.
+## Input is the person's own video, tracked by tools/see_video.py run with plain python (track_args). Nothing here reads a video.
 class_name MultiCam
 extends RefCounted
 
@@ -606,7 +606,8 @@ static func obs_from_poses(texts: Array, tol := 0.02) -> Dictionary:
 	return {"ok": true, "why": "", "obs": obs, "sizes": sizes}
 
 
-## the tracker's command line: python -I (isolated: no current directory or user site on the path; the videos are the user's
-## own, and nothing from their folder is imported). tool = see_video.py's path, video and out the files
+## the tracker's command line: plain python, the same call the single-view import makes (main.gd _video_poll). No -I: it hides
+## the user site-packages, where mediapipe and cv2 live on this machine, so the tracker could not import. tool = see_video.py's
+## path, video and out the files
 static func track_args(tool: String, video: String, out: String) -> PackedStringArray:
-	return PackedStringArray(["-I", tool, video, out])
+	return PackedStringArray([tool, video, out])
