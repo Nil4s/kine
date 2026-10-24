@@ -1030,6 +1030,88 @@ func _init() -> void:
 	m._new_scene()
 	await idle(4)
 
+	# 10i. PLAIN MOVE NAMES (Easy): every card of a move (a template, a Then move) reads "<Move> <n>" in plain words, numbered per
+	# move run in strip order ("Punch 1..4", then "Kick 1..7"): no ":" and no card label wider than its card. The full name
+	# stays in the tooltip; Expert shows the stored names.
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	if m.ui_library != null and m.ui_library.visible:
+		m.ui_library.hide_panel()
+		await idle(4)
+	await click_ctl(m.easy.home.panel.find_child("eh_card_3", true, false))   # Punch, a real click
+	await idle(8)
+	var s10i_kick_btn: Button = null
+	for b in next_btns():
+		if b.text == "Then kick":
+			s10i_kick_btn = b
+	ok(s10i_kick_btn != null, "10i: after Punch the Then row offers 'Then kick' (%s)" % str(next_btns().map(func(x): return x.text)))
+	if s10i_kick_btn != null:
+		await click_ctl(s10i_kick_btn)
+		await idle(12)
+	var s10i_pl := card_lines()
+	var s10i_pl_names := []
+	var s10i_plain_re := RegEx.create_from_string("^[A-Z][a-z]+( [a-z]+)? [0-9]+$")
+	var s10i_tight := []
+	var s10i_strip_tip_ok := true
+	for i in m.S.cards.size():
+		var s10i_nb: Button = null
+		for n in m.ui_cards.find_children("b_pick", "Button", true, false):
+			if n.get_parent().get_parent().name == "card_%d" % (i + 1):
+				s10i_nb = n
+		if s10i_nb == null:
+			s10i_tight.append("card %d missing" % (i + 1))
+			continue
+		s10i_pl_names.append(s10i_nb.text)
+		var s10i_card_w: float = (s10i_nb.get_parent().get_parent() as Control).size.x
+		if s10i_nb.get_combined_minimum_size().x > s10i_card_w + 0.5:
+			s10i_tight.append("%s (%.0f > %.0f)" % [s10i_nb.text, s10i_nb.get_combined_minimum_size().x, s10i_card_w])
+		if s10i_nb.tooltip_text.find(String(m.S.cards[i]["name"])) < 0:
+			s10i_strip_tip_ok = false
+	var s10i_names_ok: bool = s10i_pl_names.size() == m.S.cards.size() and s10i_pl_names.all(func(t): return String(t) in ["Guard", "Wind up", "Punch", "Back to guard"] or s10i_plain_re.search(String(t)) != null)
+	var s10i_no_colon: bool = s10i_pl_names.all(func(t): return String(t).find(":") < 0)
+	var s10i_jargon_left: Array = s10i_pl_names.filter(func(t): return String(t).to_lower().begins_with("anticipation") or String(t).to_lower().begins_with("strike") or String(t).to_lower().begins_with("follow-through") or String(t).to_lower().begins_with("recovery") or String(t).to_lower().begins_with("ready"))
+	ok(m.S.cards.size() >= 9 and s10i_names_ok and s10i_no_colon and s10i_jargon_left.is_empty(), "10i: no jargon left: every label is a plain name or '<Word> <n>', no ':' (%s)" % str(s10i_pl_names))
+	ok(s10i_pl_names.size() >= 9 and s10i_pl_names.slice(0, 4) == ["Guard", "Wind up", "Punch", "Back to guard"] and s10i_pl_names.slice(4).all(func(t): return String(t).begins_with("Kick ")) and s10i_pl_names[4] == "Kick 1" and s10i_pl_names[-1] == "Kick %d" % (m.S.cards.size() - 4),
+		"10i: the plain names stay (Guard, Wind up, Punch, Back to guard); the jargon cards are 'Kick 1..n' in their run (%s)" % str(s10i_pl_names))
+	ok(s10i_tight.is_empty(), "10i: no strip label is wider than its card (%s)" % str(s10i_tight))
+	ok(s10i_strip_tip_ok, "10i: each card's tooltip keeps the original name")
+	# Expert: the stored names, as before
+	m.easy.set_on(false, false)
+	m._refresh()
+	await idle(12)
+	var s10i_xl := card_lines()
+	var s10i_x_ok := true
+	for i in m.S.cards.size():
+		if String(s10i_xl.get("card_%d/b_pick" % (i + 1), "")) != "%d %s" % [i + 1, m.S.cards[i]["name"]]:
+			s10i_x_ok = false
+	ok(s10i_x_ok, "10i: Expert's strip shows the original names with their numbers")
+	m.easy.set_on(true, false)
+	await idle(6)
+	# "Then sword swing" (a Then button after Walk + Then run) fits its button
+	m._new_scene()
+	await idle(4)
+	await click_ctl(m.easy.home.panel.find_child("eh_card_0", true, false))
+	await idle(6)
+	for b in next_btns():
+		if b.text == "Then run":
+			await click_ctl(b)
+			await idle(10)
+			break
+	var s10i_sw_btn: Button = null
+	for b in next_btns():
+		if b.text == "Then sword swing":
+			s10i_sw_btn = b
+	ok(s10i_sw_btn != null, "10i: after Walk + Then run the Then row offers 'Then sword swing'")
+	if s10i_sw_btn != null:
+		var s10i_tw: float = s10i_sw_btn.get_theme_font("font", "Button").get_string_size(s10i_sw_btn.text, HORIZONTAL_ALIGNMENT_LEFT, -1, s10i_sw_btn.get_theme_font_size("font_size", "Button")).x
+		var s10i_pad: float = s10i_sw_btn.get_theme_stylebox("normal").get_minimum_size().x
+		ok(s10i_tw + s10i_pad <= s10i_sw_btn.size.x + 0.5 and s10i_sw_btn.get_combined_minimum_size().x <= s10i_sw_btn.size.x + 0.5,
+			"10i: the 'Then sword swing' text fits its button (text %.0f + s10i_pad %.0f <= button %.0f)" % [s10i_tw, s10i_pad, s10i_sw_btn.size.x])
+	m.easy.set_on(false, false)
+	m._new_scene()
+	await idle(4)
+
 	# 11. the overlap bar: Easy's panels, toast and lines, at the window's own size (both sizes: the easy_overlap suite)
 	m.easy.set_on(true, false)
 	await idle(4)

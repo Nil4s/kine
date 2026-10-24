@@ -390,6 +390,8 @@ func _refresh_next() -> void:
 				var w := String(list[i]["words"]).to_lower()
 				b.name = "eh_next_%d" % i
 				b.text = "Then " + w
+				var fw := b.get_theme_font("font", "Button")   # the button grows to its words: "Then sword swing" is not cut at the edge
+				b.custom_minimum_size.x = maxf(170.0, fw.get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 2.0 * b.get_theme_stylebox("normal").get_minimum_size().x + 8.0)
 				b.tooltip_text = "add %s after %s (one undo step)" % [w, _clip_word]
 		_next_row.visible = not list.is_empty()
 	var h: float = strip.get_combined_minimum_size().y
@@ -748,6 +750,7 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 		d = Templates.read(nm)
 		if d.is_empty():
 			return "The %s template file is missing: rebuild the templates (tools/make_templates.gd) and try again." % nm
+		_tag_cards(d, nm)
 		path = UserPaths.w(Templates.new_path(nm))
 	else:
 		var r := _words_dict(nm)
@@ -832,6 +835,7 @@ func _words_dict(text: String) -> Dictionary:
 			d = Templates.read(tmpl)
 			if d.is_empty():
 				return {"ok": false, "error": "The %s template file is missing: rebuild the templates (tools/make_templates.gd) and try again." % tmpl}
+			_tag_cards(d, tmpl)
 		else:
 			for w in String(p).split(" ", false):
 				if w in NOT_YET:
@@ -844,11 +848,20 @@ func _words_dict(text: String) -> Dictionary:
 					return {"ok": false, "error": _cannot_build(p)}
 				return {"ok": false, "error": "Kine can't build '%s': %s." % [p, String(r["error"])]}
 			d = (r["scene"] as Scene).to_dict(W)
+			_tag_cards(d, p)
 		if out.is_empty():
 			out = d
 		else:
 			(out["cards"] as Array).append_array(d["cards"])
 	return {"ok": true, "dict": out, "strikes": parts.size()}
+
+
+## EASY: every card of one move build is tagged with the move it came from ("punch|<serial>"): the strip reads "Punch 1, 2..".
+## The serial makes two punches in a row two runs. Saved with the card (Scene.to_dict "from"); Expert never reads it
+static func _tag_cards(d: Dictionary, tag: String) -> void:
+	var s := "%s|%d" % [tag.strip_edges().to_lower(), Time.get_ticks_usec()]
+	for c in d.get("cards", []):
+		(c as Dictionary)["from"] = s
 
 
 ## play from the start: a playing clip is stopped first, so Again and a new build both start at 0
