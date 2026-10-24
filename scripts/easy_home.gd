@@ -199,14 +199,14 @@ func _process(dt: float) -> void:
 		if ul != null and ul.text != ut:
 			ul.text = ut
 	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
-	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on)
+	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on) and not _copying()
 	strip.visible = on and not (empty or _open or _gen_on) and _built and not lib   # the open library covers the strip's place too: one at a time
 	if not on:
 		_toast.visible = false
 	_close.visible = not empty and not _gen_on
 	_then_box.visible = not empty
 	_make_btn.visible = _gen_words != "" and not _gen_on
-	_cancel_btn.visible = _gen_on or m._imp_busy() or m._video_pid >= 0   # the generator, or the tracker's / the fit's own Cancel
+	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
 		last_ms = Time.get_ticks_msec() - _t0
 		_t0 = -1
@@ -397,7 +397,7 @@ func _gen_tick(dt: float) -> void:
 	_vid_said = "Made \"%s\"" % _gen_words
 	_t0 = -1
 	m._land_undo = "Make it with AI video"
-	m._say_plain("Reading the video: 0 %")
+	m._say_plain("Reading your video: 0 %")
 	m._import_video(m.gen_move.out)   # the tracker; when it exits, _take_gate judges the take
 	if m._video_pid < 0 and not m._imp_busy():
 		_take_abort(NO_READER)
@@ -503,6 +503,7 @@ func copy_video_file(path: String) -> void:
 		return
 	_vid_busy = true
 	_vid_cancel = false
+	panel.visible = false   # the picker goes at once (_process sets it again each frame: _copying keeps it away)
 	_vid_before = String(m.scene_path)
 	_vid_said = "Copied %s" % path.get_file()
 	_t0 = -1
@@ -518,7 +519,12 @@ func copy_video_file(path: String) -> void:
 func _video_tick() -> void:
 	if m._video_pid >= 0:   # the tracker reads the video
 		var f := _tracker_progress()
-		m._say_plain("Reading the video: %d %%" % roundi(f * 100.0) if f >= 0.0 else "Reading the video...")
+		var words := "Reading your video: %d %%" % roundi(f * 100.0) if f >= 0.0 else "Reading your video..."
+		m._say_plain(words)
+		if m._imp_lbl != null:   # the top bar's line (main's _imp_show named it "tracking <file>" for Expert)
+			m._imp_lbl.text = words
+		if m._imp_bar != null and f >= 0.0:   # its own percent follows the same read (main's _video_bar runs only every 4th of a second)
+			m._imp_bar.value = f * 100.0
 		return
 	if m._imp_busy():   # the fit: the import's own bar and Cancel show it too
 		if bool(m._imp.get("cancel", false)):
@@ -561,7 +567,34 @@ func _copied() -> void:
 	m._layout_bottom()
 	_play()
 	m.easy.frame_clip_next()
-	m._say_plain("%s: %d cards. Again plays it from the start; Undo takes it back." % [_vid_said, m.S.cards.size()])
+	var say := "%s: %d cards. Again plays it from the start; Undo takes it back." % [_vid_said, m.S.cards.size()]
+	var caution := _limb_caution()
+	m._say_plain(say + " " + caution if caution != "" else say)
+
+
+## the tracker's own word for a limb it lost or was unsure of (Scene.iq spans on a hand or a foot: a limb out of view, or
+## low confidence): one plain sentence, "" when every limb was seen
+func _limb_caution() -> String:
+	var items := []
+	for sp in (m.S.iq.get("spans", []) as Array):
+		var p := String(sp.get("part", ""))
+		if not (p.begins_with("hand_") or p.begins_with("foot_")):
+			continue
+		var what := "%s %s" % ["left" if p.ends_with("_l") else "right", "leg" if p.begins_with("foot_") else "arm"]
+		if not items.has(what):
+			items.append(what)
+	if items.is_empty():
+		return ""
+	var who := "his " + String(items[0])
+	if items.size() > 1:
+		var legs := items.filter(func(s): return String(s).ends_with("leg")).size()
+		who = "his legs" if legs == items.size() else ("his arms" if legs == 0 else "his arms and legs")
+	return "Part of him was outside the video, so %s may look wrong: drag it to fix it." % who
+
+
+## a copy is running (Easy's Copy a video; the AI take's own tracker is not one): the picker stays away and the bar's Cancel is the one
+func _copying() -> bool:
+	return _vid_busy and m._land_undo == "Copy a video"
 
 
 ## the clip for one card or one typed line: one undo step. "" = built; else the one sentence why not
