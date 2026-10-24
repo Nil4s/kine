@@ -118,7 +118,11 @@ func hit_name(p: Vector2) -> String:
 
 ## a real click on a Control: the mouse goes down and up on its middle
 func click_ctl(c: Control) -> bool:
-	var p := c.get_global_rect().get_center()
+	var r := c.get_global_rect()
+	var w := c.get_window()
+	if w != null and w != get_root():   # an embedded dialog (a Window inside the app): its rect is in its own space, add its place
+		r.position += Vector2(w.position)
+	var p := r.get_center()
 	await hover(p)
 	var under := get_root().get_viewport().gui_get_hovered_control()
 	var inside := under != null and (under == c or c.is_ancestor_of(under))
@@ -235,6 +239,13 @@ func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(10)
+	# the run is Easy by construction: if the app came up in Expert, the Easy toggle's own function (set_on(true)) runs.
+	# Under a test, m.settings is a temp file (user://poser_test_<pid>.cfg): the user's poser.cfg is never written
+	say("settings file for this run: %s | Easy on at start: %s" % [m.settings, str(m.easy.on)])
+	if not m.easy.on:
+		m.easy.set_on(true)
+		await idle(10)
+		say("   forced Easy (set_on(true)) | Easy now: %s" % str(m.easy.on))
 
 	# 1. FIRST OPEN: a fresh start, nothing clicked
 	begin_goal("1 first open")
@@ -349,33 +360,7 @@ func _init() -> void:
 	begin_goal("7 start a new scene")
 	var nw := await click_text("New scene")
 	await shot("18_new_scene_dialog")
-	var ask := ""
-	for n in visible_nodes():
-		if n is Label and (n as Label).text.strip_edges() != "":
-			ask += " || " + (n as Label).text
-	say("   save question on screen:" + ask)
-	var dsn := root.find_child("DontSave", true, false)
-	if dsn != null:
-		var chain := ""
-		var q: Node = dsn
-		while q != null:
-			var vis := str((q as CanvasItem).is_visible_in_tree()) if q is CanvasItem else ("win:" + str((q as Window).visible) if q is Window else "-")
-			chain += " < %s(%s, %s)" % [q.name, q.get_class(), vis]
-			q = q.get_parent()
-		say("   DontSave chain:" + chain)
-		say("   DontSave text='%s' rect=%s" % [(dsn as Button).text, str((dsn as Control).get_global_rect())])
-	var dn := find_btn("Don't save")
-	say("   'Don't save' button: %s" % (str(dn.name) if dn != null else "NOT VISIBLE (named DontSave in the tree: %s)" % str(root.find_child("DontSave", true, false) != null)))
-	var in_vis := dsn != null and visible_nodes().has(dsn)
-	var in_btns := dsn != null and visible_buttons().has(dsn)
-	say("   DontSave in visible_nodes: %s | in visible_buttons: %s | is Button: %s" % [str(in_vis), str(in_btns), str(dsn is Button)])
-	var dont := false
-	if find_btn("Don't save") != null:
-		dont = await click_text("Don't save")
-	elif in_vis and dsn is Button:
-		clicks += 1
-		say("   click 'Don't save' (found by its node name DontSave: the text search did not return it)")
-		dont = await click_ctl(dsn as Button)
+	var dont := await click_text("Don't save")
 	await shot("19_new_scene_empty")
 	end_goal(nw and (dont or m.S.cards.is_empty()), "(cards now %d)" % m.S.cards.size())
 
@@ -385,7 +370,23 @@ func _init() -> void:
 	if box != null:
 		await click_ctl(box)
 		await type_text("backflip", true)
-		await shot("20_ai_button_text")
+		await shot("20_typed_backflip")
+		var tr: Node = m.easy.home._try_row if m.easy.home != null and m.easy.home._try_row != null else null
+		say("   Or try row visible: %s | buttons: %s" % [str(tr != null and tr.is_visible_in_tree()), str([] if tr == null else tr.get_children().map(func(c): return c.text if c is Button else c.name))])
+		await shot("21_or_try_row")
+		var tb := root.find_child("eh_try_punch", true, false) as Button
+		if tb != null and tb.is_visible_in_tree():
+			await hover(tb.get_global_rect().get_center())
+			await idle(40)
+		await shot("22_or_try_hover")
+		var mb := root.find_child("eh_make_ai", true, false) as Button
+		if mb != null and mb.is_visible_in_tree():
+			await hover(mb.get_global_rect().get_center())
+			await idle(40)
+			say("   AI button shown: '%s' tip: %s" % [mb.text, mb.tooltip_text])
+		else:
+			say("   AI button not shown for backflip")
+		await shot("23_ai_button_hover")
 		var why := ""
 		for n in visible_nodes():
 			if n is Label and (n as Label).text.strip_edges() != "":
