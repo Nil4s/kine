@@ -98,7 +98,7 @@ func idle(n := 4) -> void:
 
 ## a real click on a Control: the mouse goes down and up on its middle, as a beginner's press does
 func add_btn() -> Button:   # the strip's + Add pose, fetched fresh: a card's change rebuilds the strip (an old reference is freed)
-	return m.ui_cards.get_node_or_null("add_pose") as Button
+	return m.easy.add_button()
 
 
 func click_ctl(c: Control) -> void:
@@ -955,7 +955,7 @@ func _init() -> void:
 	ok(m.S.cards.size() == 2, "10e: More > Save this pose as a card still adds a card (%d)" % m.S.cards.size())
 	m.easy.set_on(false, false)
 	await idle(4)
-	ok(m.ui_cards.get_node_or_null("add_pose") == null, "10e: Expert has no '+ Add pose' button")
+	ok(m.easy.add_button() == null, "10e: Expert has no '+ Add pose' button")
 	m._new_scene()
 	await idle(4)
 
@@ -990,6 +990,14 @@ func _init() -> void:
 	await idle(4)
 	var run_n: int = Templates.read("run")["cards"].size()
 	ok(m.S.cards.size() == nw0 + run_n and m.undo.size() == uw0 + 1, "10f: 'Then run' adds the run's %d cards after the walk as ONE undo step (cards %d -> %d, undo %d -> %d)" % [run_n, nw0, m.S.cards.size(), uw0, m.undo.size()])
+	await idle(3)
+	# + Add pose stays in reach on a long strip: the walk + run is many cards, more than the strip shows, and the button is pinned
+	var apb := add_btn()
+	var row_r: Rect2 = m.ui_card_row.get_global_rect()
+	var ap_r: Rect2 = apb.get_global_rect() if apb != null else Rect2()
+	var win_r := Rect2(Vector2.ZERO, Vector2(m.get_window().size))
+	ok(apb != null and apb.is_visible_in_tree() and win_r.encloses(ap_r) and (m.ui_cards.size.x > row_r.size.x) and ap_r.position.x >= row_r.end.x - 1.0,
+		"10f: with %d cards (strip %.0f px wide in a %.0f px view) '+ Add pose' is on screen, right of the strip (%s)" % [m.S.cards.size(), m.ui_cards.size.x, row_r.size.x, str(ap_r)])
 	ok(undo_words() == "Undo: Add run", "10f: the undo step is named after the move: 'Undo: Add run' (%s)" % undo_words())
 	var nb2 := next_btns().map(func(b): return String(b.text))
 	ok(nb2 == ["Then jump", "Then sword swing", "Then walk"], "10f: after the run the buttons offer the run's next moves (%s)" % str(nb2))

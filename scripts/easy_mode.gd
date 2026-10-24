@@ -444,9 +444,17 @@ func strip_button() -> Button:
 	return b
 
 
+## the "+ Add pose" button wherever it is: the pinned slot right of the strip (cards), or inside the empty strip with its tip
+func add_button() -> Button:
+	for box in [m.ui_add_slot, m.ui_cards]:
+		if box != null and box.get_node_or_null("add_pose") != null:
+			return box.get_node("add_pose") as Button
+	return null
+
+
 ## where the tour points for "+ Add pose": the strip's button when it is there, else the More button
 func _add_rect() -> Rect2:
-	var ab: Control = m.ui_cards.get_node_or_null("add_pose") if m.ui_cards != null else null
+	var ab: Control = add_button()
 	if ab != null and ab.is_visible_in_tree():
 		return ab.get_global_rect()
 	return (_btns["More"] as Control).get_global_rect()

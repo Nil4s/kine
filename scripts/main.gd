@@ -121,6 +121,7 @@ var check_at := 0   # the undo depth when Check ran: a different depth = the cou
 var ui_poses: ItemList
 var ui_pose_name: LineEdit
 var ui_cards: HBoxContainer
+var ui_add_slot: HBoxContainer   # right of the card strip, outside its scroll: Easy's "+ Add pose" when there are cards
 var ui_time: HSlider
 var ui_time_lbl: Label
 var ui_fps_lbl: Label   # XX10: the frames per second really reached while playing, and the dropped ones
@@ -3631,7 +3632,7 @@ func _dummy_ghost_update(h: Dictionary) -> void:
 ## EASY BOTTOM (Easy only, the panel's rows and margins): the panel keeps only its card row and the ruler, its margins are
 ## 0 and the rows sit 4 px apart; the timeline clips what is under its ruler. Expert gets every one of these back as it was.
 func _easy_bottom_style(eo: bool) -> void:
-	var bv := ui_card_row.get_parent() as VBoxContainer
+	var bv := ui_card_row.get_parent().get_parent() as VBoxContainer   # the strip sits in card_row_box (with the pinned add slot)
 	bv.add_theme_constant_override("separation", EASY_SEP if eo else 6)   # 6 is the value the panel is built with
 	if eo:
 		if not ui_bp.has_theme_stylebox_override("panel"):
@@ -12216,7 +12217,14 @@ func _ui() -> void:
 	var cs := ScrollContainer.new()
 	cs.custom_minimum_size = Vector2(0, 112)
 	cs.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	bv.add_child(cs)
+	cs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var crow := HBoxContainer.new()   # the strip, and to its right a slot that does not scroll (Easy's "+ Add pose")
+	crow.name = "card_row_box"
+	bv.add_child(crow)
+	crow.add_child(cs)
+	ui_add_slot = HBoxContainer.new()
+	ui_add_slot.name = "add_slot"
+	crow.add_child(ui_add_slot)
 	ui_card_row = cs
 	ui_cards = HBoxContainer.new()
 	ui_cards.add_theme_constant_override("separation", 2)
@@ -13189,8 +13197,8 @@ func _rebuild_cards() -> void:
 	wt.mark_dirty()
 	if ui_browser != null:
 		ui_browser.refresh()
-	for c in ui_cards.get_children():
-		ui_cards.remove_child(c)   # detach now: a freed card_3 would still hold its name for a frame
+	for c in ui_cards.get_children() + (ui_add_slot.get_children() if ui_add_slot != null else []):
+		c.get_parent().remove_child(c)   # detach now: a freed card_3 would still hold its name for a frame
 		c.queue_free()
 	_ease_bias_armed = false   # a rebuild (pick, undo, any edit) ends the slider's drag: its next move gets its own undo step
 	_sg_strip = null   # R27: the strip was emptied just above
@@ -13326,7 +13334,7 @@ func _rebuild_cards() -> void:
 		hh.add_child(hs)
 		pc.add_child(pp)
 	if easy != null and easy.on and not S.cards.is_empty():
-		ui_cards.add_child(easy.strip_button())   # + Add pose: after the last card (the strip scrolls to it)
+		ui_add_slot.add_child(easy.strip_button())   # + Add pose: pinned right of the strip, so a 37-card run never scrolls it away
 	_sg_strip_sync()   # R27: the three mini thumbnails after the current card
 
 
