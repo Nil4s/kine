@@ -121,7 +121,7 @@ func _init() -> void:
 		for r in want_map:
 			if rules.has(r):
 				ok(str(rules[r]).contains(want_map[r]), "%s: %s maps to %s: %s" % [tag, r, want_map[r], str(rules[r])])
-		ok(rs.unmapped.all(func(r): return r in ["TIPPING", "FEASIBLE", "BALANCE", "FEASIBLE BALANCE", "FEASIBLE FLIGHT", "GAIT", "JUMP", "STRIKE FRAMES", "ASSERT"]), "%s: only the whole-body rules have no part: %s" % [tag, str(rs.unmapped)])
+		ok(rs.unmapped.all(func(r): return r in ["TIPPING", "FEASIBLE", "BALANCE", "FEASIBLE BALANCE", "FEASIBLE FLIGHT", "GAIT", "JUMP", "STRIKE FRAMES", "ASSERT", "BODY ACCEL"]), "%s: only the whole-body rules have no part: %s" % [tag, str(rs.unmapped)])
 		sweep(fs, tag)
 
 	# (2) frame 40-60 left foot slide

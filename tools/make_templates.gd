@@ -51,7 +51,7 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 		for c in r["cards"]:
 			S.add(c["name"], c["pose"])
 			var cd: Dictionary = S.cards[-1]
-			cd["move"] = float(p["move"]) if i > 0 else -1.0
+			cd["move"] = float(p.get("move_of", {}).get(i, p["move"])) if i > 0 else -1.0   # "move_of": {card: s} slows one move
 			cd["hold"] = float(p.get("hold0", 0.4)) if i == 0 else (0.6 if i == (r["cards"] as Array).size() - 1 else 0.0)
 			cd["steps"] = {}
 			cd["plant"] = c["plant"]

@@ -95,6 +95,14 @@ static func supported(B: Body) -> bool:
 		var base2 := 0.0 if B.props.is_empty() else B.surface_at(tip, B.wep_r_barrel)
 		if tip.y - B.wep_r_barrel - base2 < TOUCH:
 			return true
+	# the hips resting on the floor (or a surface): sitting or lying, the body is held up and cannot tip (the fall template)
+	var c: Array = B.cap("hips_wide")
+	for p in c:
+		var hp: Vector3 = p
+		var rr: float = float(B.rad["hips_wide"])
+		var base3 := 0.0 if B.props.is_empty() else B.surface_at(hp, rr)
+		if hp.y - rr - base3 < TOUCH:
+			return true
 	return false
 
 

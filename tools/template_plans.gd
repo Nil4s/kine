@@ -292,9 +292,10 @@ static func plan_sword_swing() -> Dictionary:
 ## played backwards (scripts/rise.gd: the stand-up's keys, cited to Schenkman 1990 and Riley 1991: seat-off at 35-40 % of the rise,
 ## trunk flexion 40-50 deg; the knees bend, the trunk leans forward over the seat and comes back up to the seated pose); the feet
 ## never move (each key plants both feet). "rise": the bake takes the cards, "move" is the time between two cards: the hips reach
-## the seat at 5 moves (1.1 s) and the seated pose is at 8 moves. REAL SIT-DOWNS: the hips reach the seat in ~1.0-1.4 s.
+## the seat at 5 moves (1.1 s) and the seated pose is at 8 moves; the two moves after the seat contact take 0.30 s (at 0.18 the trunk coming
+## back up pushed the centre of mass 16 m/s^2, past BODY ACCEL's caps: N031). REAL SIT-DOWNS: the hips reach the seat in ~1.0-1.4 s.
 static func plan_sit_down() -> Dictionary:
-	return {"name": "sit_down", "base": "poses/stand.json", "rise": true, "move": 0.18, "hold0": 0.2, "flow_from": 6, "no_pin": true, "clips": [],
+	return {"name": "sit_down", "base": "poses/stand.json", "rise": true, "move": 0.18, "move_of": {6: 0.30, 7: 0.30}, "hold0": 0.2, "flow_from": 6, "no_pin": true, "clips": [],
 		"note": "SIT DOWN template: from standing to a 45 cm chair, feet planted; the hips reach the seat at 1.1 s, the knees bend, the trunk leans forward and comes back up. Built from the stand-up keys of scripts/rise.gd (played backwards)."}
 
 
