@@ -2754,7 +2754,7 @@ func _ready() -> void:
 	page_tour.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
-	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
+	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
 	onboard.start_when_clear.call_deferred()
 	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
@@ -12780,7 +12780,9 @@ func _rebuild_cards() -> void:
 	_ease_bias_armed = false   # a rebuild (pick, undo, any edit) ends the slider's drag: its next move gets its own undo step
 	_sg_strip = null   # R27: the strip was emptied just above
 	_layout_bottom()
-	if S.cards.is_empty():
+	if S.cards.is_empty() and easy != null and easy.on:
+		ui_cards.add_child(_label("No clips yet: pick a move above, or pose him and press Key this pose.", 16, "text:0.55"))   # Easy home holds the ways in
+	elif S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
 		for st in [["Clip this pose  (Enter)", _card_add, "the body as it is now becomes clip 1; pose the next moment and clip again, then Play"],
