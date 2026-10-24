@@ -1532,7 +1532,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
 			await get_tree().process_frame
 	var made := FileAccess.file_exists(mp4) and done == n
 	_pb_layer.visible = false
-	_pb_busy = false
+	_pb_busy = cancelled   # a cancelled save stays busy until its folder is gone and it says so (else "not busy" was seen mid-cleanup)
 	_pb_cancel = false
 	if cancelled:
 		for _try in 100:   # Windows keeps a file busy for a moment after ffmpeg exits: retry until the folder is gone
@@ -1541,6 +1541,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
 				break
 			await get_tree().process_frame
 		_say_plain("Video cancelled: nothing was kept")
+		_pb_busy = false
 		return {}
 	if refused_pipe or (not pipe.is_empty() and not made):
 		_say_plain("NOT DONE: ffmpeg (%s) could not make the video: close anything using %s and save the video again" % [ff, dir])
