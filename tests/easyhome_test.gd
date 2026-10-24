@@ -182,8 +182,11 @@ func _init() -> void:
 	edit.text_submitted.emit("dance")
 	await idle(2)
 	var why := (home.panel.find_child("eh_msg", true, false) as Label).text
-	ok(m.S.cards.is_empty() and why.begins_with("Kine can't build 'dance'") and why.contains("sit down") and why.contains("fall") and not why.contains("walks, runs"),
-		"5c. typed 'dance' builds nothing and says what Kine knows (says: '%s')" % why)
+	var try_names := []
+	for n in ["walk", "punch", "kick", "wave"]:
+		try_names.append(home.panel.find_child("eh_try_%s" % n, true, false) as Button)
+	ok(m.S.cards.is_empty() and why == "Kine doesn't know 'dance' yet." and home._try_row.visible and not try_names.has(null),
+		"5c. typed 'dance' builds nothing, says one short line, and offers the Or-try moves (says: '%s')" % why)
 
 	# 6. the panel fits the window at 1280x720 (the empty scene's panel)
 	m._new_scene()
