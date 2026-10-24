@@ -26,7 +26,7 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"Counter": "res://scripts/counter.gd", "Momentum": "res://scripts/momentum.gd", "Recovery": "res://scripts/recovery.gd",
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
 	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
-	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd"}
+	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd",
 	"OuchMeter": "res://scripts/ouch_meter.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
