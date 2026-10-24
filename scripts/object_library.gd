@@ -212,11 +212,14 @@ func _place_item(it: Dictionary) -> bool:
 	if how == "weapon":
 		var pick: Callable = m._two_daggers if it["key"] == "two_daggers" else m._kind.bind(it["key"])
 		m._do(func(): pick.call(); arm_cards(m.S, m.B))
-		_note.text = "%s: right hand%s, Ctrl+Z undoes" % [it["name"], " in every card" if not m.S.cards.is_empty() else ""]
+		if m.easy.on:   # Easy: the plain line (no undo key, no weights)
+			_note.text = m.easy_holds(String(it["key"]))
+		else:
+			_note.text = "%s: right hand%s, Ctrl+Z undoes" % [it["name"], " in every card" if not m.S.cards.is_empty() else ""]
 		return true
 	if how == "prop":
 		m._prop_add(String(it["key"]))   # main pushes its own undo step, as the Add prop menu does
-		_note.text = "%s: on the floor, Ctrl+Z undoes" % it["name"]
+		_note.text = ("%s is on the floor. Undo takes it away." if m.easy.on else "%s: on the floor, Ctrl+Z undoes") % it["name"]
 		return true
 	# ArmourFromBody.make is ONE undo step by itself (its attach pushes it, after the plate is built): no _do around it,
 	# and a plate that fails to build pushes nothing
@@ -226,7 +229,7 @@ func _place_item(it: Dictionary) -> bool:
 	if not bool(r.get("ok", false)):
 		_note.text = "%s not placed: %s" % [it["name"], String(r.get("said", ""))]
 		return false
-	_note.text = "%s placed over the body (Ctrl+Z takes it back)" % it["name"]
+	_note.text = ("%s is on him now. Undo takes it away." if m.easy.on else "%s placed over the body (Ctrl+Z takes it back)") % it["name"]
 	return true
 
 
@@ -335,7 +338,7 @@ func _rebuild() -> void:
 			"No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here."
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
-	_note.text = "%d shown. Click a tile to place it in the set or the hand." % shown.size()
+	_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
 	reset_size.call_deferred()   # the panel is as tall as what it shows now (a taller tab, or a wrapping label measured before its width, left it 1572 px over a 900 px window)
 
 
@@ -344,7 +347,7 @@ func _tile(it: Dictionary) -> Control:
 	b.name = "tile_" + String(it["id"]).replace(":", "_")
 	b.custom_minimum_size = TILE
 	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = "%s: click to place it (one undo step)" % it["name"]
+	b.tooltip_text = ("%s: click to give it to him" if m.easy.on else "%s: click to place it (one undo step)") % it["name"]
 	b.set_meta("item", it["id"])
 	b.pressed.connect(place.bind(String(it["id"])))
 	var v := VBoxContainer.new()

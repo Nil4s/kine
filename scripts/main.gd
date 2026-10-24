@@ -4229,7 +4229,7 @@ func _library_toggle() -> void:
 		ui_root.add_child(ui_library)
 		ui_library.setup(self, WEAPONS)
 	ui_library.open()
-	_say("object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
+	_say("Click a picture to give it to him." if easy != null and easy.on else "object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
 
 
 func _reactions_samples() -> void:
@@ -5302,7 +5302,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					var r := GripMagnet.drag(B, sel, _grab)   # NA6: the one full fit, on release (the drag was quick)
 					_after_edit()
 					if r != "free":
-						_say("the %s %s the %s" % [nice(sel), {"snap": "holds", "held": "holds", "let go": "let go of"}[r], B.wep_kind.replace("_", " ")])
+						_say(_grip_said(r, sel))
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
 			if was == "joint":
@@ -10160,7 +10160,7 @@ func _kind(k: String) -> void:
 	elif not B.wep_on:
 		B.weapon_to_hand("hand_r")
 	sel = "bat_handle"
-	_say({"metal_bat": "metal bat (84 cm)", "staff": "staff / bo (180 cm): slide your hand along it with , and .  and put the other hand on with G, [ ]",
+	_say(easy_holds(k) if easy != null and easy.on else {"metal_bat": "metal bat (84 cm)", "staff": "staff / bo (180 cm): slide your hand along it with , and .  and put the other hand on with G, [ ]",
 		"long_hammer": "long hammer (110 cm, steel head across the tip): G for both hands, [ ] to slide the other hand",
 		"long_axe": "long axe (1.2 m haft, a Dane axe's): G for both hands, [ ] to slide the other hand. Import a video now and he holds it in both",
 		"sword": "arming sword (92 cm, one hand, 1.1 kg)",
@@ -13274,7 +13274,32 @@ var _pl_card := -1     # the card at the playhead (marked on the strip)
 ## Easy's card line: the card's name with a capital and the rest as typed ("CROSS" -> "Cross", "guard" -> "Guard")
 func _easy_card_name(n: String) -> String:
 	var t := String(n).strip_edges()
+	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
+		return EASY_CARD_NAME[t.to_lower()]
 	return t.substr(0, 1).to_upper() + t.substr(1).to_lower() if t != "" else "Card"
+
+
+const EASY_CARD_NAME := {"load": "Wind up", "cross": "Punch", "recover": "Back to guard"}
+const EASY_WEAPON := {"sword": "a sword", "longsword": "a longsword", "katana": "a katana", "metal_bat": "a bat", "staff": "a staff",
+	"long_hammer": "a hammer", "long_axe": "an axe", "spear": "a spear", "dagger": "a dagger", "two_daggers": "two daggers"}
+
+
+## the word on a drag that put the second hand on the weapon (GripMagnet.drag's r): the hand that KEEPS the weapon is named
+## (the one it is in), a let-go names the hand that let go. Easy says "his left / right hand" in plain words
+func _grip_said(r: String, sel_h: String) -> String:
+	if easy != null and easy.on:
+		var keep := "left" if B.wep_hand == "hand_l" else "right"
+		if r == "let go":
+			var let := "left" if sel_h == "hand_l" else "right"
+			return "His %s hand let go. His %s hand still holds the sword." % [let, keep]
+		return "His %s hand holds the sword." % keep
+	var holder := sel_h if r == "let go" else B.wep_hand
+	return "the %s %s the %s" % [nice(holder), {"snap": "holds", "held": "holds", "let go": "let go of"}[r], B.wep_kind.replace("_", " ")]
+
+
+## Easy's line for a weapon put in his hand: no weight, no length, no key names
+static func easy_holds(key: String) -> String:
+	return "He holds %s now. Undo takes it away." % EASY_WEAPON.get(key, "it")
 
 
 ## "0.4 s + hold 0.05": the time to get here (a ~ when it is automatic) and the hold; the first card has only a hold
