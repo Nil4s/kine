@@ -257,3 +257,18 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - What to do: move the limb out of the body.
 - Used by: `Feasible.rule_pen`, const `PEN_FIX`.
 - Tested by: `tests/feasible_test.gd`.
+
+## WEIGHT TRANSFER
+- Source: [docs/research/WEIGHT_TRANSFER.md](research/WEIGHT_TRANSFER.md), each opened 2026-10-23. Cross: Evolve MMA, "more than
+  half of your weight on your rear leg" before a hard cross, 60 / 40 in the stance:
+  https://evolve-mma.com/blog/how-to-throw-a-stronger-and-more-powerful-cross/ ; Peloton, "transfer your weight from your back
+  foot to your front foot": https://www.onepeloton.com/en-GB/blog/cross-boxing . Lead hook: Boxing News, "the weight shifts
+  slightly to the front foot": https://boxingnewsonline.net/features/fight-school-the-hook . Kicks: Kinoshita & Fujii 2014
+  (ISBS, 13 taekwondo athletes, force plates under both legs: the support leg drives the phase before the kicking leg's
+  toe-off): https://ojs.ub.uni-konstanz.de/cpa/article/view/6038 ; and statics (one foot down carries it all).
+- Numbers: none of them is a measured split at a strike's start. The bars are ours: rear foot >= 45 % at a cross's start,
+  lead foot >= 40 % at a lead hook's start, support foot >= 50 % at a kick's lift-off; the share is the lever rule over the
+  two footprints (N001). The fix aims 15 points over the bar and stops at 12 over.
+- Used by: `WeightXfer.findings` / `WeightXfer.fix` (scripts/weight_xfer.gd), consts `CROSS_MIN`, `HOOK_MIN`, `KICK_MIN`,
+  `FIX_MARGIN`, `FIX_GOAL`; the strikes named by N016 `MoveRecognizer.analyze`; Check calls it from `Rulebook.check`.
+- Tested by: `tests/weightxfer_test.gd`.

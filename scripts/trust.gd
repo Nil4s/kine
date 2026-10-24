@@ -25,7 +25,8 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"WeaponRebound": "res://scripts/weapon_rebound.gd", "TimingCoach": "res://scripts/timing_coach.gd",
 	"Counter": "res://scripts/counter.gd", "Momentum": "res://scripts/momentum.gd", "Recovery": "res://scripts/recovery.gd",
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
-	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd"}
+	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
+	"WeightXfer": "res://scripts/weight_xfer.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
 const _SABR := "https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/"
@@ -172,6 +173,12 @@ const REG := {
 	"CoupledLimits.RECT_SD": {"s": M, "u": "deg", "src": "Ferber 2010's SD 9.61; FAIL = mean + 2 SD is ours", "url": "https://doi.org/10.4085/1062-6050-45.4.344"},
 	"CoupledLimits.RECT_KNEE_FLAT": {"s": H, "u": "deg", "src": "Kendall's pass criterion (thigh flat with the knee at 90), as Peeler & Anderson 2008 quote it: a clinical cut-off, not a mean; held flat past 90 (no source)", "url": "https://doi.org/10.4085/1062-6050-43.5.470"},
 	"CoupledLimits.HIP_EXT_MAX": {"s": U, "u": "deg", "src": "data/body_limits.json thigh bend min (not opened)", "url": "res://data/body_limits.json"},
+	# --- N029 weight transfer (scripts/weight_xfer.gd; docs/research/WEIGHT_TRANSFER.md, each source opened 2026-10-23) ---
+	"WeightXfer.CROSS_MIN": {"s": H, "u": "share of body weight", "src": "ours, set under the coaching split: 'more than half of your weight on your rear leg' before a hard cross, 'sixty percent ... rear leg' (Evolve MMA); 5 points of grace for the lever rule's footprints", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
+	"WeightXfer.HOOK_MIN": {"s": H, "u": "share of body weight", "src": "ours: 'the weight shifts slightly to the front foot' in the lead hook (Boxing News, Fight school: the hook); lenient because styles differ (an American-style hook turns the weight onto the back foot as the hips go over, Evolve)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
+	"WeightXfer.KICK_MIN": {"s": H, "u": "share of body weight", "src": "ours: in single support the support foot carries all of it (statics); the support leg drives the READY phase before toe-off (Kinoshita & Fujii 2014, ISBS, 13 taekwondo athletes, no weight split reported)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
+	"WeightXfer.FIX_MARGIN": {"s": H, "u": "share of body weight", "src": "ours: the fix aims 15 points over the bar on the card (a cross: 60 %, Evolve's own split)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
+	"WeightXfer.FIX_GOAL": {"s": H, "u": "share of body weight", "src": "ours: the fix is done when the strike starts 12 points over the bar", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
 	# --- hit reaction (docs/physics_constants.md, gt1: UNVERIFIED list) ---
 	"HitReaction.WEAPON_KG": {"s": U, "u": "kg", "src": "weapon masses are estimates (no source opened)", "url": _PC},
 }
@@ -207,6 +214,7 @@ const RULES := {
 	"FEASIBLE PENETRATION": ["Feasible.PEN_FIX"],
 	"COUPLED LIMIT": ["CoupledLimits.HAM_STRAIGHT", "CoupledLimits.HAM_TRAINED", "CoupledLimits.HAM_SLOPE", "CoupledLimits.GAS_STRAIGHT",
 		"CoupledLimits.GAS_BENT", "CoupledLimits.GAS_FREE_KNEE", "CoupledLimits.RECT_EXT", "CoupledLimits.RECT_KNEE", "CoupledLimits.RECT_KNEE_FLAT"],
+	"WEIGHT TRANSFER": ["WeightXfer.CROSS_MIN", "WeightXfer.HOOK_MIN", "WeightXfer.KICK_MIN", "Balance.MASS"],
 }
 
 ## measure's kinds: geometry of THIS scene is exact (no human data in it); the body models behind com / balance /

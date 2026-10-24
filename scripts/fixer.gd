@@ -24,6 +24,8 @@ static func label(f: Dictionary, S: Scene) -> String:
 			# round 5 had none on purpose (rewriting a card's stance is the animator's call). Round 10 (#51) plants the
 			# foot instead: no pose changes, one undo, and it is still the animator who presses it
 			return "Fix: plant this foot" if f.has("foot") else ""
+		"WEIGHT TRANSFER":   # N029: the hips shifted onto the needed foot on the card the strike leaves from (weight_xfer.gd)
+			return "Fix: shift the weight onto the %s foot first" % ("left" if f.get("need", "") == "_l" else "right") if f.has("need") else ""
 	return ""
 
 
@@ -47,6 +49,8 @@ static func propose(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Array:
 			_steady_head(f, S, B, sm0 if not sm0.is_empty() else Rulebook.sample(S, B))
 		"FOOT SLIDE":
 			_plant(f, S, B)
+		"WEIGHT TRANSFER":
+			WeightXfer.fix(f, S, B)
 	var after := S.cards
 	S.cards = orig
 	return after
@@ -80,6 +84,8 @@ static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 			r = _steady_head(f, S, B, sm0)
 		"FOOT SLIDE":
 			r = _plant(f, S, B)
+		"WEIGHT TRANSFER":
+			r = WeightXfer.fix(f, S, B)
 	assert(S.cards.map(func(c): return c["name"]) == names, "a fix changed the cards' count, names or order")
 	var did: String = r["did"]
 	var all1: Array = r["after"] if r.get("after") != null else Rulebook.check(S, B)
