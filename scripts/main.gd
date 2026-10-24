@@ -20014,7 +20014,7 @@ func _imp_show(on: bool) -> void:
 
 
 ## ---- SEVERAL CAMERAS (roadmap 89; scripts/multicam.gd). Two to four videos of ONE person, filmed at the same time from
-## different places. Each goes to tools/see_video.py (python -I, one after another: the window keeps working, _multicam_poll);
+## different places. Each goes to tools/see_video.py (plain python, one after another: the window keeps working, _multicam_poll);
 ## the pose files are read as MultiCam.obs_from_poses, the rig is solved from the person's own keypoints (MultiCam.solve_extrinsics:
 ## the bones' known lengths, gravity, one floor), every joint triangulated (MultiCam.triangulate_all), and the frames go through
 ## the single-view path (VideoCleanup, VideoImport.solve, thin). They land as ONE edit on the open scene (the mirror-in-place
