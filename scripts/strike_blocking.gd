@@ -260,9 +260,9 @@ const LOAD_SINK := 0.04      # m: the most the hips sink to keep the back toes d
                              # figure, the chamber then RAISED the centre of mass 0.08-0.13 m in one card: RISE 25.5 m/s^2, cap 14.7)
 const LOAD_SHARE := 0.5     # of the way from the guard's centre of mass to the chamber's, the load carries it (HEURISTIC: all the way,
                              # the back toes could not reach their spot without the hips sinking 0.08+)
-static func _load(B: Body, sd: String, angs: Dictionary, head: float, chamber_com: Vector3, guard_com: Vector3) -> Dictionary:
+static func _load(B: Body, sd: String, angs: Dictionary, head: float, chamber_com: Vector3, guard_com: Vector3, share := LOAD_SHARE) -> Dictionary:
 	var o := _o(sd)
-	var goal := guard_com.lerp(chamber_com, LOAD_SHARE)
+	var goal := guard_com.lerp(chamber_com, share)
 	var feet := {o: [STANCE[o][0], float(STANCE[o][1]) + head, true], sd: [STANCE[sd][0], float(STANCE[sd][1]), true]}
 	pose(B, angs, feet)
 	for it in 12:
@@ -383,7 +383,7 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 			var sup2 := {o: [STANCE[o][0], float(STANCE[o][1]) + 2.0 * sg, true]}
 			# the chamber: the support heel turns, the hips half over, the knee up level with the hip pointing ahead, the
 			# shin folded back out to the kicking side and level (the plane the shin will sweep)
-			pose(B, {"pelvis": Vector3(0, 0, -20 + 70.0 * sg), "spine_03": Vector3(0, 0, -5.0 * sg)}, {})
+			pose(B, {"pelvis": Vector3(0, 0, -20 + 40.0 * sg), "spine_03": Vector3(0, 0, -5.0 * sg)}, {})
 			_leg(B, sd, Vector3(0.05 * X, 0.0, 1.0), Vector3(0.85 * X, -0.3, -0.4))
 			for k2 in sup1:
 				B.plant(k2, sup1[k2][0], sup1[k2][1], sup1[k2][2])
@@ -393,7 +393,7 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 			var ld := _load(B, sd, {"pelvis": Vector3(0, 0, -20 + 30.0 * sg)}, 0.5 * sg, Balance.com(B), g_com)
 			add.call("anticipation: load", "anticipation", ld, KICK_LOAD, 0.0)
 			add.call("anticipation: pivot and chamber", "anticipation", chamber, KICK_CHAMBER, 0.0)
-			cards[-1]["flow"] = true   # a roundhouse does not stop at the chamber: the hips turn on through it into the kick
+			# (N031: no flow on the chamber: the load carries the wind-up; the strike starts from the chamber)
 			# the strike: the hips turned over (~120 deg from the guard; Gavagan & Sayers' pelvis ~130), the shin swept level
 			# round to the front, the leg near straight at rib height, the body leaning away
 			pose(B, {"pelvis": Vector3(0, 0, -20 + 120.0 * sg), "spine_03": Vector3(0, 0, -5.0 * sg), "neck_01": Vector3(0, 0, -30.0 * sg)}, {})
@@ -424,7 +424,7 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 				B.plant(k2, sup[k2][0], sup[k2][1], sup[k2][2])
 			_balance(B, o, sup[o])
 			var chamber := B.to_dict()
-			var ld := _load(B, sd, {"pelvis": Vector3(0, 0, -20 + 40.0 * sg)}, 0.75 * sg, Balance.com(B), g_com)
+			var ld := _load(B, sd, {"pelvis": Vector3(0, 0, -20 + 25.0 * sg)}, 0.75 * sg, Balance.com(B), g_com, 0.45)
 			add.call("anticipation: load", "anticipation", ld, KICK_LOAD, 0.0)
 			add.call("anticipation: chamber", "anticipation", chamber, KICK_CHAMBER + 0.05, 0.0)
 			# the strike: the leg driven straight out along the hip line at hip height, heel leading (toes pulled up)
