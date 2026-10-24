@@ -10272,11 +10272,58 @@ func _toast(t: String) -> void:
 	ui_toast.visible = true
 	ui_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE)
 	ui_toast.position.y = 96
+	if easy != null and easy.on:
+		_easy_toast_place(ui_toast)
 	_toast_gen += 1
 	var g := _toast_gen
 	get_tree().create_timer(TOAST_T).timeout.connect(func():
 		if g == _toast_gen and is_instance_valid(ui_toast):
 			ui_toast.visible = false)
+
+
+## EASY TOAST PLACE (walk-through item 1): in Easy the toast takes the first place in the window that covers no visible Button:
+## under the top bar, then just under each button's or panel's bottom edge (Easy's strip sits there). Falls back to the old place (y 96).
+func _easy_toast_place(t: Label) -> void:
+	var org := Vector2.ZERO
+	if t.get_parent() is Control:
+		org = (t.get_parent() as Control).global_position
+	t.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE)
+	var sz := t.size
+	var vp := get_viewport().get_visible_rect().size
+	var btns: Array = []
+	_collect_button_rects(self, btns)
+	# the Easy panels a toast must not sit on either (the picker, its strip, the welcome and status lines, the card strip)
+	var panels := [ui_mouse, ui_status, ui_bar, ui_cards, easy.home.strip, easy.home.panel, ui_library]
+	for n in panels:
+		if n is Control and is_instance_valid(n) and (n as Control).is_visible_in_tree() and (n as Control).size.y > 0.0:
+			btns.append((n as Control).get_global_rect())
+	var ys: Array = [float(TOP_H) + 8.0]
+	for b in btns:
+		ys.append((b as Rect2).end.y + 6.0)
+	ys.sort()
+	var x := (vp.x - sz.x) * 0.5
+	for y in ys:
+		var r := Rect2(Vector2(x, y), sz)
+		if r.end.y > vp.y:
+			continue
+		var free := true
+		for b in btns:
+			var q: Rect2 = r.intersection(b)
+			if q.size.x > 1.0 and q.size.y > 1.0:
+				free = false
+				break
+		if free:
+			t.position = Vector2(x, y) - org
+			return
+	t.position = Vector2(x, 96.0) - org
+
+
+## the global rects of the visible Buttons under n (a button in a hidden panel is not visible in the tree)
+func _collect_button_rects(n: Node, out: Array) -> void:
+	if n is Button and (n as Button).is_visible_in_tree() and (n as Button).size.x > 0.0:
+		out.append((n as Control).get_global_rect())
+	for c in n.get_children():
+		_collect_button_rects(c, out)
 
 
 ## I46: the line of a hit reaction ("your usual x0.8 amplitude, +1 frame, ...") over the view for NOTE_T, under the toast's place (the status bar is too narrow for it)

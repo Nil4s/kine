@@ -198,22 +198,27 @@ func _build_tour_card(root: Control) -> void:
 	_tour_title.add_theme_font_size_override("font_size", 17)
 	_tour_title.add_theme_color_override("font_color", Tok.c("on_accent"))
 	_tour_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tour_title.custom_minimum_size = Vector2(TOUR_W - 24.0 - 52.0, 0)   # the wrap width: a wrapped label is measured at it, never at 1 px
+	_tour_title.custom_minimum_size = Vector2(TOUR_W - 24.0, 0)   # the wrap width: a wrapped label is measured at it, never at 1 px
 	_tour_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(_tour_title)
-	var skip := Button.new()
-	skip.name = "easy_tour_skip"
-	skip.text = "Skip"
-	skip.focus_mode = Control.FOCUS_NONE
-	skip.tooltip_text = "end the tour; it won't show again (Help: show the tour brings it back)"
-	skip.pressed.connect(_finish.bind(true))
-	h.add_child(skip)
 	_tour_text = Label.new()
 	_tour_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tour_text.add_theme_font_size_override("font_size", 14)
 	_tour_text.add_theme_color_override("font_color", Tok.c("on_accent"))
 	_tour_text.custom_minimum_size = Vector2(TOUR_W - 24.0, 0)   # its height is measured at the card's width (a 1 px width made the card 1500 px tall)
 	v.add_child(_tour_text)
+	# SKIP (walk-through item 3): a normal-size button, "Skip tour", in its own row at the card's right (it was a tiny corner word)
+	var foot := HBoxContainer.new()
+	v.add_child(foot)
+	var skip := Button.new()
+	skip.name = "easy_tour_skip"
+	skip.text = "Skip tour"
+	skip.focus_mode = Control.FOCUS_NONE
+	skip.tooltip_text = "end the tour; it won't show again (Help: show the tour brings it back)"
+	skip.custom_minimum_size = Vector2(130, 40)
+	skip.size_flags_horizontal = Control.SIZE_SHRINK_END
+	skip.pressed.connect(_finish.bind(true))
+	foot.add_child(skip)
 	root.add_child(tour_card)
 
 
