@@ -47,6 +47,12 @@ static func check_dir(dir: String) -> String:
 	if low == scenes or low.begins_with(scenes + "/"):
 		if not (low == scenes + "/_wip" or low.begins_with(scenes + "/_wip/")):
 			return "NOT NOW: a batch never writes into scenes/ except scenes/_wip: use res://scenes/_wip/batch or a folder outside the project"
+	# an exported build: res://scenes/_wip is the user's folder (UserPaths.w), and that is the only scenes/ folder a batch may use
+	if UserPaths.exported():
+		var us := ProjectSettings.globalize_path(UserPaths.user_root()).replace("\\", "/").trim_suffix("/").to_lower() + "/scenes"
+		if low == us or low.begins_with(us + "/"):
+			if not (low == us + "/_wip" or low.begins_with(us + "/_wip/")):
+				return "NOT NOW: a batch never writes into scenes/ except scenes/_wip: use res://scenes/_wip/batch or a folder outside the project"
 	return ""
 
 
@@ -114,7 +120,8 @@ static func run(scene_paths: Array, fmt: String, dir: String, progress := Callab
 	var bad := check_dir(dir)
 	if bad != "":
 		return {"done": 0, "files": [], "failed": [], "lines": [bad]}
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir.strip_edges().replace("\\", "/").trim_suffix("/")))
+	var out_dir := UserPaths.w(dir.strip_edges().replace("\\", "/").trim_suffix("/"))   # an exported build: the user's folder
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
 	var files := []
 	var failed := []
 	var taken := {}
@@ -122,7 +129,7 @@ static func run(scene_paths: Array, fmt: String, dir: String, progress := Callab
 		var p := String(scene_paths[i])
 		if progress.is_valid():
 			progress.call(i, scene_paths.size(), p.get_file())
-		var r := export_one(p, fmt, dir, taken)
+		var r := export_one(p, fmt, out_dir, taken)
 		if r["ok"]:
 			files.append(r["file"])
 		else:

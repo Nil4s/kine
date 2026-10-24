@@ -4,6 +4,8 @@
 ##   2 force on: w() maps res://scenes|moves|poses|exports|bodies|trash/... into the user's folder; other paths unchanged
 ##   3 an Easy card's clip (scenes/_wip) is written in the user's folder, and NO new file appears in res://scenes
 ##   4 Save scene writes the user's folder; scene_path points there; the scene list offers it; opening it loads its cards
+##   5 a batch export (force on) writes its files in the user's folder: scenes/_wip is accepted, scenes/ is refused, nothing new in res://
+##   6 the agent_tools output guard (force on): res://scenes/_wip and the user's scenes/_wip are accepted, the user's scenes/ is refused
 extends SceneTree
 
 var fails := 0
@@ -73,6 +75,20 @@ func _init() -> void:
 	# by a name only this test uses (other suites, run from source, write their own punch_N clips into res:// meanwhile,
 	# under the same names: bar 3 shows where the clip went)
 	ok(not FileAccess.file_exists("res://scenes/up_test_scene.json"), "4 the saved scene is not under res://scenes")
+	# 5 the batch (Batch...) under force: its folder check and its writes go to the user's folder
+	ok(BatchExport.check_dir("res://scenes/_wip/up_batch") == "" and BatchExport.check_dir("res://scenes") != ""
+		and BatchExport.check_dir(R + "/scenes/_wip/up_batch") == "" and BatchExport.check_dir(R + "/scenes") != "",
+		"5 forced: res://scenes/_wip and the user's scenes/_wip are accepted; res://scenes and the user's scenes/ are refused")
+	var br: Dictionary = BatchExport.run(["res://scenes/thrust.json"], "bvh", "res://scenes/_wip/up_batch")
+	ok(int(br["done"]) == 1 and (br["failed"] as Array).is_empty(), "5 forced: a batch of 1 scene (bvh) writes it: %s" % str(br["lines"]))
+	ok(DirAccess.get_files_at(R + "/scenes/_wip/up_batch").size() == 1 and not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path("res://scenes/_wip/up_batch")),
+		"5 forced: the file is in %s/scenes/_wip/up_batch, and no up_batch folder appears in res://" % R)
+	# 6 the agent guard under force
+	var ag := AgentTools.new(m)
+	ok(ag.out_refused("res://scenes/_wip/up_guard.json") == "" and ag.out_refused(R + "/scenes/_wip/up_guard.json") == "",
+		"6 forced: res://scenes/_wip and the user's scenes/_wip are accepted")
+	ok(ag.out_refused("res://scenes/up_guard.json") != "" and ag.out_refused(R + "/scenes/up_guard.json") != "",
+		"6 forced: res://scenes and the user's scenes/ (not _wip) are refused")
 
 	UserPaths.force = false
 	UserPaths.root = ""

@@ -51,7 +51,8 @@ static func read(nm: String) -> Dictionary:
 
 
 ## a NEW scene from the template, written to dir (scenes/_wip); returns its path ("" = it could not be made)
-static func create(nm: String, dir := WIP) -> String:
+static func create(nm: String, dir0 := WIP) -> String:
+	var dir := UserPaths.w(dir0)   # an exported build: the user's folder (res:// is read-only)
 	var d := read(nm)
 	if d.is_empty():
 		return ""

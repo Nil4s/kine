@@ -56,6 +56,12 @@ func out_refused(out: String) -> String:
 	var proj := ProjectSettings.globalize_path("res://").replace("\\", "/")
 	if g.begins_with(proj) and not g.begins_with(proj + "scenes/_wip/"):
 		return "the output must be in scenes/_wip/ or outside the project (Nick's scenes/, poses/, data/ are never written): " + out
+	# an exported build: the scenes/_wip that write_scene writes to is the user's folder (UserPaths.w), and the same rule holds there
+	if UserPaths.exported():
+		var mg := ProjectSettings.globalize_path(UserPaths.w(out)).replace("\\", "/").simplify_path().to_lower()
+		var us := ProjectSettings.globalize_path(UserPaths.user_root()).replace("\\", "/").trim_suffix("/").to_lower() + "/scenes"
+		if (mg == us or mg.begins_with(us + "/")) and not (mg == us + "/_wip" or mg.begins_with(us + "/_wip/")):
+			return "the output must be in scenes/_wip/ or outside the project (Nick's scenes/, poses/, data/ are never written): " + out
 	return ""
 
 

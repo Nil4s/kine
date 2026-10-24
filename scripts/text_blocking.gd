@@ -950,7 +950,8 @@ static func unique_path(dir: String, name: String) -> String:
 
 
 ## the scene as the file the scene list reads (Scene.to_dict, the same writer as Save), its "plan" = the status
-static func save(S: Scene, B: Body, path: String, plan := "") -> bool:
+static func save(S: Scene, B: Body, path0: String, plan := "") -> bool:
+	var path := UserPaths.w(path0)   # an exported build: res://scenes|... is read-only, the user's folder is written
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:

@@ -22,14 +22,15 @@ func _init(host_: Node) -> void:
 ## the scenes the batch lists: scenes/*.json (the files the app opens; _archive and _wip are not listed)
 static func scene_paths() -> Array:
 	var out := []
-	var d := DirAccess.open("res://scenes")
-	if d == null:
-		return out
-	var files := Array(d.get_files())
-	files.sort()
-	for f in files:
-		if String(f).ends_with(".json"):
-			out.append("res://scenes/" + String(f))
+	for dir in UserPaths.dirs("res://scenes"):   # the bundled folder, and the user's copy in an exported build
+		var d := DirAccess.open(dir)
+		if d == null:
+			continue
+		var files := Array(d.get_files())
+		files.sort()
+		for f in files:
+			if String(f).ends_with(".json"):
+				out.append(dir + "/" + String(f))
 	return out
 
 
