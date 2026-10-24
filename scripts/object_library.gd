@@ -324,8 +324,44 @@ func _tile(it: Dictionary) -> Control:
 	v.add_child(lab)
 	_pics[String(it["id"])] = pic
 	if pic.texture == null:
-		thumbs.request(String(it["id"]), it["shapes"])   # drawn once, then read from user://thumbs/lib
+		thumbs.request(String(it["id"]), thumb_source(it))   # the schematic until the real mesh is drawn once, then user://thumbs/lib
 	return b
+
+
+## what a tile's picture is drawn from: the schematic shapes, the spec the real picture's cache name is made of, and the
+## Callable that builds the real mesh on the main thread (see LibraryThumbs.request)
+func thumb_source(it: Dictionary) -> Dictionary:
+	var how := String(it["how"])
+	var key := String(it["key"])
+	var src := {"shapes": it["shapes"], "spec": "", "build": Callable()}
+	if how == "weapon":
+		src["spec"] = var_to_str(["weapon", key, Body.KINDS["dagger" if key == "two_daggers" else key]])
+		src["build"] = func() -> Node3D: return LibraryThumbs.weapon_node(key)
+	elif how == "prop":
+		src["spec"] = var_to_str(["prop", key, Props.kind_of(key)])
+		src["build"] = func() -> Node3D: return Props.mesh(Props.make(key))
+	elif m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
+		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
+		var sb: Array = ArmourFromBody.body_source(m)
+		src["spec"] = var_to_str(["armour", key, ArmourFromBody.GAP, ArmourFromBody.THICK, ArmourFromBody.BEVEL,
+			ArmourFromBody.SEGMENTS, (sb[0] as KMesh).verts.size()])
+		src["build"] = func() -> Node3D: return _armour_node(key)
+	return src
+
+
+## a plate built on the fighter's body (ArmourFromBody.build, the same call make() makes), unskinned, for its picture
+func _armour_node(words: String) -> Node3D:
+	if m == null or m.pieces.is_empty() or BaseBody.skin_of(m) == null:
+		return null
+	var sb: Array = ArmourFromBody.body_source(m)
+	var r: Dictionary = ArmourFromBody.build(sb[0], m.skel, sb[1], words, {})
+	if not bool(r.get("ok", false)):
+		return null
+	var mi := MeshInstance3D.new()
+	mi.mesh = ArmourFromBody.array_mesh(r["mesh"])
+	var root := Node3D.new()
+	root.add_child(mi)
+	return root
 
 
 func _made(id: String) -> void:
