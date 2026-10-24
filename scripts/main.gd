@@ -19,6 +19,9 @@ const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sent
 const PAGE_H := 34   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
 const BOTTOM_H := 248 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
 const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
+const EASY_ROW_H := 88    # Easy: the card row (a picture and its one word line)
+const EASY_RULER := 34   # Easy: the timeline's ruler, the only row under the cards
+const EASY_SEP := 4      # Easy: the gap between the card row and the ruler
 const BOTTOM_EMPTY := 100 + PAGE_H   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
 							# and play row took a third of the screen for nothing)
 var ui_bh: HBoxContainer   # the bottom panel's header row (the scene's name and buttons): folded away with the cards
@@ -3612,8 +3615,28 @@ func _dummy_ghost_update(h: Dictionary) -> void:
 	dummy_mat.albedo_color = col
 
 
+## EASY BOTTOM (Easy only, the panel's rows and margins): the panel keeps only its card row and the ruler, its margins are
+## 0 and the rows sit 4 px apart; the timeline clips what is under its ruler. Expert gets every one of these back as it was.
+func _easy_bottom_style(eo: bool) -> void:
+	var bv := ui_card_row.get_parent() as VBoxContainer
+	bv.add_theme_constant_override("separation", EASY_SEP if eo else 6)   # 6 is the value the panel is built with
+	if eo:
+		if not ui_bp.has_theme_stylebox_override("panel"):
+			var sb := ui_bp.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+			sb.content_margin_top = 0
+			sb.content_margin_bottom = 0
+			ui_bp.add_theme_stylebox_override("panel", sb)
+	elif ui_bp.has_theme_stylebox_override("panel"):
+		ui_bp.remove_theme_stylebox_override("panel")
+	ui_timeline.clip_contents = eo
+	_tl_height()
+
+
 ## the timeline's height: its 34 px of rows, and the strips under the ruler (the frame strip, ROADMAP 12; the boxes lane, ROADMAP 36)
 func _tl_height() -> void:
+	if easy != null and easy.on:   # Easy: the ruler only (_easy_bottom_style)
+		ui_timeline.custom_minimum_size.y = EASY_RULER
+		return
 	ui_timeline.custom_minimum_size.y = 34.0 + Timeline.LANE_H * S.audio_tracks.size() + ui_timeline.clip_px() + _tl_under_ruler()
 
 
@@ -4783,6 +4806,8 @@ func _refresh() -> void:
 			dots[j].position = B.P[j]
 		var lk := part_look(j, touching)
 		if quiet and lk == "sel":
+			lk = ""
+		if easy != null and easy.on and lk == "limit":   # EASY QUIET: no joint-limit tint either (no action a beginner can take on it)
 			lk = ""
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
@@ -13065,9 +13090,10 @@ func _rebuild_cards() -> void:
 		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
 		# the picture IS the pick button: the pose on the body, the number and name under it
-		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
+		var easy_on: bool = easy != null and easy.on   # Easy: a picture and one plain word (the name); no number, no seconds
+		var nb := _button(_easy_card_name(c["name"]) if easy_on else "%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
-		nb.tooltip_text = "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
+		nb.tooltip_text = ("%s.  Click shows it, double-click renames, drag moves it, right-click for more" % _easy_card_name(c["name"])) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
 		nb.flat = true
 		nb.clip_text = true
@@ -13116,7 +13142,8 @@ func _rebuild_cards() -> void:
 		tb.add_theme_constant_override("h_separation", 0)
 		_card_flat(tb)
 		_card_timing_look(tb, i)
-		v.add_child(tb)
+		if not (easy != null and easy.on):   # Easy: no timing line (the seconds and the hold are Expert's)
+			v.add_child(tb)
 		var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
 		pp.name = "time_edit"
 		pp.top_level = true
@@ -13178,6 +13205,12 @@ func _card_flat(b: Button) -> void:
 const CARD_W := 91     # a card: the picture, "3 CONTACT", "0.4 s + hold 0.05": 17 fit a 1600 window (the old cards: 8)
 const CARD_PIC_H := 55
 var _pl_card := -1     # the card at the playhead (marked on the strip)
+
+
+## Easy's card line: the card's name with a capital and the rest as typed ("CROSS" -> "Cross", "guard" -> "Guard")
+func _easy_card_name(n: String) -> String:
+	var t := String(n).strip_edges()
+	return t.substr(0, 1).to_upper() + t.substr(1).to_lower() if t != "" else "Card"
 
 
 ## "0.4 s + hold 0.05": the time to get here (a ~ when it is automatic) and the hold; the first card has only a hold
@@ -14148,11 +14181,15 @@ func _layout_bottom() -> void:
 	ui_bh.visible = not folded and not easy.on
 	if not empty:
 		bottom_h += int(ui_timeline.clip_px() + _tl_under_ruler() + ui_timeline.audio_h())   # CLIPS: the panel grows by the strips' rows (none: as before); the frame strip, the boxes lane and one row per audio track too (ROADMAP 12 / 36 / 77)
+	var eo: bool = easy.on and not empty and not folded   # EASY BOTTOM: the card row and the ruler, no more (a beginner's panel is not a timeline)
+	if eo:
+		bottom_h = EASY_ROW_H + EASY_SEP + EASY_RULER + 6 + PAGE_H
+	_easy_bottom_style(eo)
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
 		ui_fold_btn["bottom"].visible = not empty
-	ui_card_row.custom_minimum_size.y = 26 if empty else 104
+	ui_card_row.custom_minimum_size.y = 26 if empty else (EASY_ROW_H if eo else 104)
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty and not easy.on
 	ui_bp.offset_top = -bottom_h
