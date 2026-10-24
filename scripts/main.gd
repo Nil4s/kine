@@ -1652,6 +1652,7 @@ func _export_turntable(seconds := 6.0, fps := 30, size := Vector2i(1280, 720), r
 ## nothing in the scene changes (not an edit). Returns {"avi", "mp4", "frames", "captions", "verdicts", "size", "fps", "sbs", "cam", "crop",
 ## "area", "images" ({k: Image} for the frames in keep_frames)}; {} when refused.
 var judge_layer: JudgeRender
+var judge_busy := false   # true while the breakdown pass runs: it poses the body frame by frame and restores it at the end
 
 
 func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.ALL, fps := 0, size := Vector2i(1280, 720), root_dir := JudgeRender.ROOT, ffmpeg_path := "", keep_frames: Array = []) -> Dictionary:
@@ -1669,6 +1670,7 @@ func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.AL
 	if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root_dir)) != OK:
 		_say_plain("NOT DONE: the folder %s could not be made: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
 		return {}
+	judge_busy = true
 	var keep := B.state()
 	var keep_t := playhead
 	var keep_playing := playing
@@ -1792,6 +1794,7 @@ func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.AL
 	for vd in verdicts:
 		fired += 1 if not (vd as Array).is_empty() else 0
 	_say_plain(("breakdown: %d frames at %d fps, %s, %dx%d, a verdict fires on %d of them, in %s.avi%s" % [n, rate, "side by side" if side_by_side else "one view", size.x, size.y, fired, stem, how]) if wrote else "NOT DONE: the video file could not be written to %s: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
+	judge_busy = false
 	return {"avi": avi if wrote else "", "mp4": mp4, "frames": n, "captions": captions, "verdicts": verdicts, "size": size, "fps": rate, "sbs": side_by_side, "cam": cam_xf, "crop": rect, "area": Vector2i(aw, ah), "images": images}
 
 
