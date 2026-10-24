@@ -111,7 +111,10 @@ func place() -> void:
 	var w := get_combined_minimum_size().x
 	var h := minf(420.0, cl.size.y - 24.0)
 	size = Vector2(w, h)
-	global_position = Vector2(maxf(cl.position.x + 12.0, pr.position.x - w - 10.0), cl.position.y + 12.0)
+	if pan.ui.m._mesh_page():   # a mesh page: Materials is at the window's right edge, so the picker takes the left of the clear view (over the figure's far arm, never its head)
+		global_position = Vector2(cl.position.x + 12.0, cl.position.y + 12.0)
+	else:
+		global_position = Vector2(maxf(cl.position.x + 12.0, pr.position.x - w - 10.0), cl.position.y + 12.0)
 
 
 ## the grid from the presets that match the search; their pictures come in one by one (cached ones at once)

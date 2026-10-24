@@ -248,7 +248,11 @@ func _fit() -> void:
 	var vh := panel.get_viewport_rect().size.y
 	_scroll.custom_minimum_size = Vector2(ms.x, minf(ms.y, vh * MAX_H))
 	panel.reset_size()
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT, Control.PRESET_MODE_MINSIZE, PANEL_GAP)
+	if ed != null and ed.m != null and ed.m._mesh_page():   # a mesh page: the top of the left column (Materials has the right edge, Add primitive the middle)
+		panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, 0)
+		panel.position = Vector2(PANEL_GAP, ed.m.nav_clear_rect().position.y + PANEL_GAP)
+	else:
+		panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT, Control.PRESET_MODE_MINSIZE, PANEL_GAP)
 
 
 func _block(i: int, mod: Dictionary) -> Control:
