@@ -7,6 +7,13 @@
 ##     the middle frame equals what the viewport shows when scrubbed to that time by hand (same path as play/scrub)
 ##   3 ffmpeg on PATH (or POSER_FFMPEG): the .mp4 exists and ffprobe counts the frames; else the message says how to get it
 ##   4 the app comes back as it was (playhead, panels visible)
+##   5 EASY SAVE VIDEO (Easy's strip, Save video), punch and walk templates, timed click -> "Video saved".
+##     BASELINE (measured before the change, 1600x900): punch 3445 ms (42 frames), walk 13123 ms (149 frames).
+##     BARS: punch <= 2067 ms and walk <= 7874 ms (at least 40 % faster); the frame count and the size (1600x900) are
+##     identical to the baseline; the mp4's frames match the baseline's frames within a mean |diff| of 2/255 per
+##     channel (the faster x264 preset may move pixels a little; this states how much).
+##   6 progress: while the save runs, the big progress line reads "Saving video... k of N frames" and Cancel is shown.
+##   7 cancel: a save cancelled part-way leaves no folder and no .mp4 behind, and Easy says it was cancelled.
 extends SceneTree
 
 var fails := 0
@@ -195,6 +202,117 @@ func _init() -> void:
 	var r5: Dictionary = await m._export_playblast(base + "_e", "")
 	ok(r5.is_empty() and m.ui_status.text.contains("NOT NOW") and m.ui_status.text.contains("press Enter"), "  an empty scene is refused and says what to do: %s" % m.ui_status.text.left(90))
 	m.S = S0
+
+	# 5 EASY SAVE VIDEO (Easy's Save video) on the punch and walk templates: timed, frame count and size from the .mp4, pixels
+	# against the Expert export's PNG frames of the same scene (every 10th frame, decoded from the .mp4)
+	m.easy.set_on(true, false)
+	await idle(3)
+	var home: EasyHome = m.easy.home
+	var ff5 := PlayblastExport.find_ffmpeg()
+	var probe5 := ff5.get_base_dir() + "/ffprobe" + (".exe" if OS.get_name() == "Windows" else "")
+	var ms_of := {}
+	for card_i in [3, 0]:
+		var nm5 := "punch" if card_i == 3 else "walk"
+		m._new_scene()
+		await idle(2)
+		home.card(card_i)
+		var tw := Time.get_ticks_msec()
+		while not m.playing and Time.get_ticks_msec() - tw < 60000:
+			await process_frame
+		await idle(3)
+		home.video_root = base + "_easy_" + nm5
+		var t0 := Time.get_ticks_msec()
+		await home.save_video()
+		var ms := Time.get_ticks_msec() - t0
+		ms_of[nm5] = ms
+		var mp4 := String(home.last_video.get("mp4", ""))
+		var want5 := 0
+		var n_frames := -1
+		var wh := "-"
+		if ff5 != "" and mp4 != "" and FileAccess.file_exists(mp4):
+			var out := []
+			OS.execute(probe5 if FileAccess.file_exists(probe5) else "ffprobe", ["-v", "error", "-count_frames", "-select_streams", "v:0",
+				"-show_entries", "stream=width,height,nb_read_frames", "-of", "csv=p=0", mp4], out, true)
+			var parts := String(out[0]).strip_edges().split(",") if not out.is_empty() else PackedStringArray()
+			if parts.size() == 3:
+				wh = "%sx%s" % [parts[0], parts[1]]
+				n_frames = int(parts[2])
+		print("EASY SAVE %s: %d ms, frames %d, size %s, mp4 %s" % [nm5, ms, n_frames, wh, mp4.get_file()])
+		# the reference: the Expert export's PNGs of the same scene (the same renderer, no encoder in between)
+		var ref: Dictionary = await m._export_playblast(base + "_ref_" + nm5, "")
+		var refl := pngs(ref.get("dir", "")) if ref.has("dir") else []
+		var fix := n_frames == refl.size() and n_frames > 0 and wh == "1600x900"
+		ok(ms_of[nm5] >= 0 and n_frames == refl.size() and n_frames > 0, "5 %s: the .mp4 has %d frames, the Expert export %d (identical)" % [nm5, n_frames, refl.size()])
+		ok(wh == "1600x900" and Image.load_from_file(ref["dir"] + "/" + refl[0]).get_size() == Vector2i(1600, 900), "5 %s: %s, the same size as the viewport's frames" % [nm5, wh])
+		var worst5 := 0.0
+		var sum := 0.0
+		var cnt := 0
+		if fix and mp4 != "":
+			var raw := ProjectSettings.globalize_path(base + "_" + nm5 + ".raw")
+			OS.execute(ff5, ["-y", "-v", "error", "-i", mp4, "-vf", "select=not(mod(n\\,10))", "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", raw], [], true)
+			var rb := FileAccess.get_file_as_bytes(raw)
+			var fsz := 1600 * 900 * 3
+			var k := 0
+			for j in range(0, refl.size(), 10):
+				if (k + 1) * fsz > rb.size():
+					break
+				var refi := Image.load_from_file(ref["dir"] + "/" + refl[j])
+				refi.convert(Image.FORMAT_RGB8)
+				var rd := refi.get_data()
+				var tot := 0
+				for i in fsz:
+					tot += absi(int(rd[i]) - int(rb[k * fsz + i]))
+				var md := float(tot) / fsz / 255.0
+				sum += md
+				worst5 = maxf(worst5, md)
+				cnt += 1
+				k += 1
+			DirAccess.remove_absolute(raw)
+		var mean_md := sum / maxf(cnt, 1)
+		ok(cnt > 0 and mean_md <= 2.0 / 255.0, "5 %s: pixels match the Expert export: mean |diff| %.5f over %d sampled frames, worst frame %.5f (bar: mean <= 2/255 = %.5f)" % [nm5, mean_md, cnt, worst5, 2.0 / 255.0])
+		_rm(ProjectSettings.globalize_path(base + "_easy_" + nm5))
+		_rm(ProjectSettings.globalize_path(base + "_ref_" + nm5))
+	var base_punch: int = ms_of["punch"]
+	var base_walk: int = ms_of["walk"]
+	ok(base_punch <= 2067, "5 punch: click to 'Video saved' %d ms (bar <= 2067 = 40 %% faster than the 3445 ms baseline)" % base_punch)
+	ok(base_walk <= 7874, "5 walk: click to 'Video saved' %d ms (bar <= 7874 = 40 %% faster than the 13123 ms baseline)" % base_walk)
+	print("SPEED: punch %d -> %d ms, walk %d -> %d ms" % [3445, base_punch, 13123, base_walk])
+
+	# 6 progress: "Saving video... k of N frames" shows while it saves, with a Cancel button
+	m._new_scene()
+	await idle(2)
+	home.card(3)
+	var tw6 := Time.get_ticks_msec()
+	while not m.playing and Time.get_ticks_msec() - tw6 < 60000:
+		await process_frame
+	await idle(3)
+	home.video_root = base + "_cancel"
+	home.last_video = {}
+	home.save_video()   # not awaited: it runs beside this loop
+	var seen := ""
+	var cancel_seen := false
+	var tp := Time.get_ticks_msec()
+	while m._pb_busy and Time.get_ticks_msec() - tp < 120000:
+		if m._pb_layer != null and m._pb_layer.visible:
+			var txt: String = m._pb_label.text
+			if txt.begins_with("Saving video... ") and txt.contains(" of ") and txt.ends_with(" frames"):
+				seen = txt
+			if m._pb_cancel_btn != null and m._pb_cancel_btn.is_visible_in_tree():
+				cancel_seen = true
+		if seen != "" and cancel_seen and not m._pb_cancel and not m._pb_label.text.is_empty():
+			var k6 := int(seen.split(" ")[2])
+			if k6 >= 3:
+				m._pb_cancel_btn.pressed.emit()   # 7: Cancel pressed part-way
+		await process_frame
+	ok(seen != "" and cancel_seen, "6 while saving, the progress line reads 'Saving video... k of N frames' with a Cancel button (last seen: '%s')" % seen)
+
+	# 7 cancel: no folder, no .mp4 left, and the app says it was cancelled
+	var left := DirAccess.get_directories_at(base + "_cancel").size() + DirAccess.get_files_at(base + "_cancel").size() if DirAccess.dir_exists_absolute(base + "_cancel") else 0
+	var names7 := (Array(DirAccess.get_directories_at(base + "_cancel")) + Array(DirAccess.get_files_at(base + "_cancel"))) if DirAccess.dir_exists_absolute(base + "_cancel") else []
+	ok(left == 0 and home.last_video.is_empty() and m.ui_status.text.contains("cancelled"), "7 cancel leaves no file or folder (%d entries left: %s) and says it was cancelled: %s" % [left, str(names7), m.ui_status.text.left(70)])
+	ok(absf(m.playhead - 0.3) < 1e-6 or m.ui_root.visible, "7 after cancel the app is back: panels visible (%s)" % str(m.ui_root.visible))
+	_rm(ProjectSettings.globalize_path(base + "_cancel"))
+	m.easy.set_on(false, false)
 
 	for b in ["_a", "_b", "_c", "_d", "_e", "_f", "_g"]:
 		_rm(ProjectSettings.globalize_path(base + b))
