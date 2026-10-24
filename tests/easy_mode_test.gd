@@ -1,11 +1,11 @@
 ## godot --path . -s tests/easy_mode_test.gd     (EASY MODE, docs/ROADMAP.md 3 and 4; needs a window)
-## The mode rule (fresh = Easy, existing = Expert, a test = Expert unless it says so); Easy shows exactly the 12 big
+## The mode rule (fresh = Easy, existing = Expert, a test = Expert unless it says so); Easy shows exactly the 13 big
 ## buttons and hides the expert panels; each button runs its action; Expert puts every panel's visibility back exactly
 ## as it was; the tour advances on the real actions only. The settings are the test's own file (user://poser_test_*.cfg).
 extends SceneTree
 
 const LABELS := ["Pose (drag parts)", "Key this pose", "Play / Stop", "Undo", "Redo", "New scene", "Open", "Save",
-	"Mirror pose", "Floor (snap feet)", "Export video", "Switch to Expert"]
+	"Mirror pose", "Floor (snap feet)", "Export video", "Library", "Switch to Expert"]
 
 var fails := 0
 var m: Node
@@ -109,7 +109,7 @@ func _init() -> void:
 	for n in m.easy.bar.find_children("*", "Button", true, false):
 		if n.get_meta("label", "") != "":
 			shown.append(n.get_meta("label"))
-	ok(shown.size() == 12 and LABELS.all(func(l): return l in shown) and bts.size() == 12, "Easy shows exactly the 12 labelled buttons: %s" % str(shown))
+	ok(shown.size() == 13 and LABELS.all(func(l): return l in shown) and bts.size() == 13, "Easy shows exactly the 13 labelled buttons: %s" % str(shown))
 	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube %s" % str(range(panels().size()).filter(func(i): return panels()[i].visible)))
 	ok(m.ui_bp.visible, "the bottom panel (timeline and cards) stays: the tour and Play need it")
 	ok(m.lw() == 0.0 and m.rw() == 0.0, "the body view takes the room the hidden side panels had")
