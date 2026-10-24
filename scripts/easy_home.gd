@@ -173,6 +173,12 @@ func _process(dt: float) -> void:
 	var pb: Button = m.easy.button("Play / Stop")
 	if pb != null:   # the button says what a click does now (the walk-through found "Play / Stop" gave no state)
 		(pb.get_node("label") as Label).text = "Stop" if m.playing else "Play"   # the words are the child Label (Button.text drew over them)
+	var ub: Button = m.easy.button("Undo") if on else null   # Expert runs none of this
+	if ub != null:   # UNDO SAYS WHAT IT TAKES BACK: "Undo: Walk" (the top undo step's short name), plain "Undo" with nothing to undo
+		var ut: String = "Undo: " + m.easy_name(m.undo[-1]) if not m.undo.is_empty() else "Undo"
+		var ul: Label = ub.get_node_or_null("label")   # the bar's words are this child Label (easy_mode._big), not the Button's own text
+		if ul != null and ul.text != ut:
+			ul.text = ut
 	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
 	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on)
 	strip.visible = on and not (empty or _open or _gen_on) and _built and not lib   # the open library covers the strip's place too: one at a time
@@ -270,7 +276,7 @@ func _go(what: String, label: String, typed := false) -> void:
 		m._say_plain(GEN_BUSY)
 		return
 	var t := Time.get_ticks_msec()
-	var err := _build(what, label)
+	var err := _build(what, label, what if typed else label)
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
 		_gen_words = what if typed else ""   # a typed line Kine cannot build: the AI video button makes it
@@ -534,7 +540,7 @@ func _copied() -> void:
 
 
 ## the clip for one card or one typed line: one undo step. "" = built; else the one sentence why not
-func _build(what: String, label: String) -> String:
+func _build(what: String, label: String, easy := "") -> String:
 	var nm := what.strip_edges().to_lower()
 	var d: Dictionary
 	var path := ""
@@ -552,6 +558,7 @@ func _build(what: String, label: String) -> String:
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
 	m._step_hint = label   # the undo step is named after the card (main's undo list shows it)
+	m._step_easy = easy if m.easy.on else ""   # and, in Easy, by its short name: "Walk", or the typed words (cut to 18 characters)
 	m._push_undo()
 	m.undo[-1]["swap"] = true   # the card makes a NEW Scene object: Ctrl+Z puts the empty one back whole (main._restore; path_walk_ui does the same)
 	m._write(path, d)
@@ -617,7 +624,9 @@ func tweak(how: String) -> void:
 		if stop != "":
 			m._say_plain(stop)
 			return
+		m._step_easy = how.capitalize() if m.easy.on else ""   # "Faster" / "Slower": the undo step's Easy name (main.retime pushes it)
 		var err: String = m.retime(0, S.cards.size() - 1, k * 100.0)   # main.retime: one undo step, the holds and moves x k
+		m._step_easy = ""
 		if err != "":
 			m._say_plain(err)
 			return
@@ -628,6 +637,7 @@ func tweak(how: String) -> void:
 		if poses.is_empty():
 			m._say_plain("Nothing to make %s: the clip has no pose to move from." % ("bigger" if k > 1.0 else "smaller"))
 			return
+		m._step_easy = how.capitalize() if m.easy.on else ""   # "Bigger" / "Smaller"
 		m._push_undo()
 		for i in poses:
 			S.cards[i]["pose"] = poses[i]

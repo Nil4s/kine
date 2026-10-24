@@ -539,6 +539,8 @@ var ui_hist_btn: Button
 const HIST_SHOWN := 10             # ROADMAP 45: the History panel lists the newest 10 steps
 var ui_undo_btn: Button            # ROADMAP 45: its tooltip is "Undo: <the step it takes back>"
 var ui_redo_btn: Button
+var _step_easy := ""   # EASY ONLY: the short name of the step about to be made (Easy's card, tweak, library tile, More item): kept on the
+                       # undo entry as "easy", read by the Easy bar's Undo button and toast; Expert's names never use it
 var _step_hint := ""   # what the user just pressed (a button's text, a command's name, a shortcut's command): the undo
                        # step's name when nothing is said about it (#75)
 const KEY_WORD := {KEY_BRACKETLEFT: "[", KEY_BRACKETRIGHT: "]", KEY_COMMA: ",", KEY_PERIOD: ".", KEY_MINUS: "-", KEY_EQUAL: "="}
@@ -6230,6 +6232,9 @@ func _push_undo() -> void:
 	if _step_hint != "":
 		u["hint"] = step_name(_step_hint)
 	_step_hint = ""
+	if _step_easy != "":
+		u["easy"] = _step_easy
+	_step_easy = ""
 	undo.append(u)
 	_tree.push(u)   # a new branch node when there was a redo: the abandoned future stays in the tree
 	_undo_tips()
@@ -6260,6 +6265,8 @@ func _undo() -> void:
 		now["lib"] = u["lib"]
 	if u.get("swap", false):
 		now["swap"] = true   # a whole-scene swap goes back and forth
+	if u.has("easy"):
+		now["easy"] = u["easy"]   # the Easy short name goes back and forth with the step, as its name does
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
@@ -6277,7 +6284,7 @@ func _undo() -> void:
 		sk.fitted = SketchPose._skel(B, cam)
 		_sk_show_handles()
 	_say("undone: " + now["name"])
-	_toast("Undid: " + now["name"])
+	_toast("Undid: " + (easy_name(u) if easy.on else now["name"]))   # Easy's toast says the short name ("Undid: Faster")
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -6296,6 +6303,8 @@ func _redo() -> void:
 		now["lib"] = r["lib"]
 	if r.get("swap", false):
 		now["swap"] = true
+	if r.has("easy"):
+		now["easy"] = r["easy"]
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
@@ -10372,6 +10381,12 @@ func _undo_tips() -> void:
 static func _step_label(u: Dictionary) -> String:
 	var n := String(u.get("name", u.get("hint", "change")))
 	return n.left(1).to_upper() + n.substr(1)
+
+
+## EASY: the short name of a step for Easy's Undo button and toast: the Easy name it was made with, else its own name; at most 18 characters
+static func easy_name(u: Dictionary) -> String:
+	var n := String(u.get("easy", "")) if u.has("easy") else _step_label(u)
+	return (n.left(16) + "..") if n.length() > 18 else n
 
 
 ## a status line -> a short step name: up to the first double space / "(" / ".  ", at most 48 characters

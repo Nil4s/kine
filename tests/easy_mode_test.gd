@@ -74,6 +74,12 @@ func idle(n := 4) -> void:
 		await process_frame
 
 
+## the words on the Easy bar's Undo button (its child Label, as easy_mode._big builds it)
+func undo_words() -> String:
+	var b: Button = m.easy.button("Undo")
+	return String(b.get_node("label").text) if b != null else "?"
+
+
 func panels() -> Array:
 	return [m.ui_top_bar, m.ui_side_of["left"], m.ui_side_of["right"], m.ui_cube, m.ui_nav, m.ui_bh, m.ui_play_row] + m.ui_rails.values()
 
@@ -344,6 +350,68 @@ func _init() -> void:
 	ok(m.easy.on and cfg_mode() == "easy", "turning Easy on again is saved as easy")
 	m.easy.set_on(false)
 	await idle()
+
+	# 6. UNDO SAYS WHAT IT TAKES BACK (Easy only): "Undo: Walk", "Undo: Faster", "Undo" with nothing to undo; the toast says the short name
+	m.easy.set_on(true, false)
+	m.undo.clear()
+	m.redo.clear()
+	m._new_scene()
+	m.undo.clear()
+	m.redo.clear()
+	await idle(3)
+	ok(undo_words() == "Undo", "6: an empty scene with nothing to undo: the Undo button reads 'Undo' (%s)" % undo_words())
+	m.easy.home.panel.find_child("eh_card_0", true, false).pressed.emit()   # Walk
+	await idle(30)
+	ok(undo_words() == "Undo: Walk", "6: after the Walk card the Undo button reads 'Undo: Walk' (%s)" % undo_words())
+	m.easy.home.strip.find_child("eh_faster", true, false).pressed.emit()
+	await idle(10)
+	ok(undo_words() == "Undo: Faster", "6: after Faster the Undo button reads 'Undo: Faster' (%s)" % undo_words())
+	m.easy.button("Undo").pressed.emit()
+	await idle(10)
+	ok(undo_words() == "Undo: Walk", "6: after Undo the button reads 'Undo: Walk' (%s)" % undo_words())
+	ok(m.ui_toast != null and m.ui_toast.text == "Undid: Faster", "6: the toast after Undo says 'Undid: Faster' (%s)" % (m.ui_toast.text if m.ui_toast else "none"))
+	m.easy.button("Undo").pressed.emit()
+	await idle(10)
+	ok(undo_words() == "Undo", "6: undoing the Walk card leaves nothing to undo: 'Undo' (%s)" % undo_words())
+	# a placed library object is one undo step, named by its tile
+	m._library_toggle()
+	await idle(3)
+	var sword_id := ""
+	for it in m.ui_library.items:
+		if it["name"] == "Sword":
+			sword_id = String(it["id"])
+	var u0: int = m.undo.size()
+	var placed: bool = sword_id != "" and m.ui_library.place(sword_id)
+	await idle(6)
+	ok(placed and m.undo.size() == u0 + 1, "6: a library Sword is one undo step (%d -> %d steps; id '%s')" % [u0, m.undo.size(), sword_id])
+	ok(undo_words() == "Undo: Sword", "6: after a library Sword the Undo button reads 'Undo: Sword' (%s)" % undo_words())
+	m.easy.button("Undo").pressed.emit()
+	await idle(4)
+	ok(undo_words() == "Undo", "6: undoing the Sword leaves nothing to undo: 'Undo' (%s)" % undo_words())
+	m.ui_library.hide_panel()
+	# More's entries that change the body: one undo step each, named in Easy ("Flip", "Feet on floor")
+	m.easy.pick_more("Flip left and right")
+	await idle(4)
+	ok(undo_words() == "Undo: Flip" and m.undo.size() == 1, "6: More > Flip left and right is one step: 'Undo: Flip' (%s, %d steps)" % [undo_words(), m.undo.size()])
+	m.easy.button("Undo").pressed.emit()
+	await idle(4)
+	m.easy.pick_more("Put his feet on the floor")
+	await idle(4)
+	# feet on the floor keeps nothing on an empty scene: the step is dropped (Fixer.plant_all: "one undo step, or none"), so no step
+	ok(undo_words() == "Undo" and m.undo.size() == 0, "6: More > Put his feet on the floor with nothing to plant adds no step (%s, %d steps)" % [undo_words(), m.undo.size()])
+	# the button never grows: a long name is cut to 18 characters (+ "..") and the bar's button keeps its height
+	var h0: float = m.easy.button("Undo").size.y
+	m._step_easy = "a very long typed move name that is cut"
+	m._push_undo()
+	await idle(3)
+	var cut := undo_words()
+	ok(cut.begins_with("Undo: a very long type") and cut.length() <= 24 and cut.ends_with(".."), "6: a long name is cut in the button: '%s'" % cut)
+	ok(is_equal_approx(m.easy.button("Undo").size.y, h0), "6: the Undo button keeps its height with a long name (%.0f -> %.0f px)" % [h0, m.easy.button("Undo").size.y])
+	m._undo()
+	await idle(2)
+	# Expert: the step's name never uses the Easy short name, and Expert's Undo tooltip is the Expert name
+	var ex: Dictionary = {"name": "Cards 1-8 at 80 %: the scene is now 3.96 s", "easy": "Faster"}
+	ok(m._step_label(ex) == "Cards 1-8 at 80 %: the scene is now 3.96 s", "6: Expert's _step_label ignores the Easy name")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("EASY MODE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

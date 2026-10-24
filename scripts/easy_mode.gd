@@ -39,6 +39,7 @@ var _moved := false         # step 4: the body changed since the step began
 static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
 var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Easy came on: Expert gets exactly this back
+const EASY_MORE := {"Save this pose as a card": "Saved pose", "Flip left and right": "Flip", "Put his feet on the floor": "Feet on floor"}   # a More entry's undo name in Easy (its Expert name is the entry's words)
 const FREE_PAD := 8.0       # px between the free rect and the Easy bar, the strip, or the bottom panel
 const FRAME_PAD := 12.0     # px of air the body keeps inside the free rect (the framing's margin)
 const FRAME_STEP := 2       # the clip is sampled every 2nd frame: a frame moves a hand a few px, inside FRAME_PAD
@@ -358,7 +359,9 @@ func _more_picked(i: int) -> void:
 	var a: Array = _more_acts[i]
 	_close_more()         # the menu closes as its item runs (a dialog it opens must not sit under the menu)
 	m._step_hint = a[0]   # the undo step is named after the entry, as a bar button's is
+	m._step_easy = EASY_MORE.get(a[0], "") if on else ""   # and in Easy by its short name ("Flip", "Saved pose")
 	(a[2] as Callable).call()
+	m._step_easy = ""
 
 
 func _close_more() -> void:

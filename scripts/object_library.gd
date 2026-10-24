@@ -201,6 +201,13 @@ func place(id: String) -> bool:
 	if it.is_empty() or m == null:
 		return false
 	m._step_hint = "Library: %s" % it["name"]
+	m._step_easy = String(it["name"]) if m.easy.on else ""   # Easy's undo step is the tile's name ("Undo: Sword")
+	var ok := _place_item(it)
+	m._step_easy = ""
+	return ok
+
+
+func _place_item(it: Dictionary) -> bool:
 	var how: String = it["how"]
 	if how == "weapon":
 		var pick: Callable = m._two_daggers if it["key"] == "two_daggers" else m._kind.bind(it["key"])
