@@ -61,6 +61,7 @@ func _init() -> void:
 	var play0: float = m.playhead
 	var shade0: String = m.shading.mode
 	var undo0: int = m.undo.size()
+	m._refresh()   # the weapon's drawn pieces (WeaponMesh) are built on a refresh: snapshot the figure as it is drawn, all of it
 	var mats0 := []
 	for mi in Shading.bodies(m):
 		mats0.append([mi.material_override, mi.layers, mi.material_overlay])
