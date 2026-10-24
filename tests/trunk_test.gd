@@ -262,6 +262,35 @@ func _init() -> void:
 			"1 %s dragged %.0f cm (smart + balance on): trunk pitch %.1f roll %.1f deg (bar 5), spine bend %.1f side %.1f (bar 4.1), pelvis tilt %.2f (bar 0.01)" % [
 			part, moved * 100.0, worst["pitch"], worst["roll"], worst["bend"], worst["side"], tilt])
 		m._undo()
+	# 7 EASY: a drag moves only the part you drag (Nick 10-24: "while dragging an arm the whole body moves"); smart drag stays on
+	# in the settings (Expert keeps it), Easy does not use it
+	MB.set_state(base)
+	MB.fk()
+	m.easy.set_on(true, false)
+	for i in 4:
+		await process_frame
+	var ecam: Camera3D = m.cam
+	var keep := ["head", "pelvis", "foot_l", "foot_r", "hand_l"]
+	var before := {}
+	for j in keep:
+		before[j] = MB.P[j]
+	var hs: Vector3 = MB.P["hand_r"]
+	var ecp: Array = MB.cap("hand_r")
+	var e_at := _find(m, "hand_r", ecam.unproject_position(((ecp[0] as Vector3) + (ecp[1] as Vector3)) * 0.5))
+	m._unhandled_input(_ev_btn(e_at, true))
+	var e_prev := e_at
+	for k in 24:
+		var pos: Vector2 = e_at + Vector2(-4.0, -6.0) * (k + 1)
+		m._unhandled_input(_ev_move(pos, pos - e_prev))
+		e_prev = pos
+	m._unhandled_input(_ev_btn(e_prev, false))
+	var e_moved: float = ((MB.P["hand_r"] as Vector3) - hs).length()
+	var others := 0.0
+	for j in keep:
+		others = maxf(others, ((MB.P[j] as Vector3) - (before[j] as Vector3)).length())
+	ok(m.smart_drag and m.sel == "hand_r" and e_moved > 0.10 and others <= 0.002,
+		"7 Easy: the right hand dragged %.0f cm moved the head, hips, feet and other hand at most %.2f cm (bar 0.2; smart drag setting still %s)" % [e_moved * 100.0, others * 100.0, m.smart_drag])
+	m.easy.set_on(false, false)
 	m.queue_free()
 	await process_frame
 	print("TRUNK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

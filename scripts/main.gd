@@ -5532,6 +5532,8 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 func _smart_begin(j: String, alt: bool) -> Dictionary:
 	if not smart_drag or alt or smart_follow <= 0.0 or j in Body.WEAPON or not sel_more.is_empty() or j == "pelvis":
 		return {}
+	if easy != null and easy.on:
+		return {}   # Easy: a drag moves only the part you drag (Nick 10-24: "while dragging an arm the whole body moves"); Expert keeps the follow
 	if not sd.ready_model() and not sd.refresh():
 		return {}
 	return sd.begin(B, j, locked_parts.keys())
