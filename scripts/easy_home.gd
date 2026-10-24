@@ -24,6 +24,7 @@ const HINT := "or type a move: 'jab then cross'"
 const PANEL_LEFT := 12.0       # px between the window's left edge and the home panel
 const PANEL_W := 478.0         # the cards' grid (4 x 112 + 3 x 10) and the text box and message under it
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
+const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
 
@@ -207,18 +208,22 @@ func _process(dt: float) -> void:
 	if pb != null:   # the button says what a click does now (the walk-through found "Play / Stop" gave no state)
 		(pb.get_node("label") as Label).text = "Stop" if m.playing else "Play"   # the words are the child Label (Button.text drew over them)
 	var ub: Button = m.easy.button("Undo") if on else null   # Expert runs none of this
-	if ub != null:   # UNDO SAYS WHAT IT TAKES BACK: "Undo: Walk" (the top undo step's short name), plain "Undo" with nothing to undo
-		var ut: String = "Undo: " + m.easy_name(m.undo[-1]) if not m.undo.is_empty() else "Undo"
+	if ub != null:   # UNDO SAYS WHAT IT TAKES BACK, IN THE TOOLTIP: the label stays "Undo" (a beginner finds it each step); the tooltip reads "Undo: Walk"
+		var ut: String = "Undo: " + m.easy_name(m.undo[-1]) if not m.undo.is_empty() else UNDO_NONE
 		var ul: Label = ub.get_node_or_null("label")   # the bar's words are this child Label (easy_mode._big), not the Button's own text
-		if ul != null and ul.text != ut:
-			ul.text = ut
+		if ul != null and ul.text != "Undo":
+			ul.text = "Undo"
+		if ub.tooltip_text != ut:
+			ub.tooltip_text = ut
 	var rb: Button = m.easy.button("Redo")   # REDO: one click after Undo, only while something can be put back; named as Undo is ("Redo: Faster")
 	rb.visible = on and not m.redo.is_empty()
 	if rb.visible:
 		var rl: Label = rb.get_node_or_null("label")
 		var rt: String = "Redo: " + m.easy_name(m.redo[-1])
-		if rl != null and rl.text != rt:
-			rl.text = rt
+		if rl != null and rl.text != "Redo":
+			rl.text = "Redo"
+		if rb.tooltip_text != rt:
+			rb.tooltip_text = rt
 	var note: PanelContainer = m.easy.red_note
 	var red_on: bool = on and not m.redspots.last.is_empty()   # a red spot is lit on the body at the playhead
 	note.visible = red_on
@@ -281,7 +286,8 @@ func save_video() -> void:
 	if r.is_empty():   # refused or cancelled: the playblast's status line says why
 		return
 	if String(r["mp4"]) != "":
-		_show_toast("Your video is saved: %s" % String(r["mp4"]).get_file(), String(r["mp4"]))
+		_show_toast("Your video is saved: %s
+%s" % [String(r["mp4"]).get_file(), folder_line(String(r["mp4"]))], String(r["mp4"]))
 		m._say_plain("Your video is saved: %s" % String(r["mp4"]).get_file())   # the status line says it short
 	else:
 		_show_toast("Could not make the video here. Your frames are kept: Open folder opens them.", String(r["dir"]))
@@ -297,6 +303,20 @@ func video_folder() -> String:
 		if String(base) != "" and (DirAccess.dir_exists_absolute(dir) or DirAccess.make_dir_recursive_absolute(dir) == OK):
 			return dir
 	return "user://Kine"
+
+
+## the folder a saved video is in, for the toast's second line: the home folder shortened and the folders joined with " > "
+## ("Videos > Kine > run_68_20261024_114713"). A path outside the home folder keeps its last two folders. home_dir: a test's home
+func folder_line(mp4: String, home_dir := "") -> String:
+	var p := mp4
+	if p.begins_with("user://") or p.begins_with("res://"):
+		p = ProjectSettings.globalize_path(p)
+	p = p.replace("\\", "/").get_base_dir()
+	var h := (home_dir if home_dir != "" else OS.get_environment("USERPROFILE")).replace("\\", "/").trim_suffix("/")
+	if h != "" and p.to_lower().begins_with(h.to_lower() + "/"):
+		return " > ".join(p.substr(h.length() + 1).split("/", false))
+	var parts := p.split("/", false)
+	return " > ".join(parts.slice(maxi(0, parts.size() - 2)))
 
 
 func _show_toast(text: String, file: String) -> void:

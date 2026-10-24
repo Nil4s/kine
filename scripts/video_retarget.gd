@@ -530,9 +530,9 @@ static func solve(frames: Array, B: Body, opts := {}) -> Array:
 	var held: String = opts.get("held", "")
 	for f in frames:
 		if (f as Dictionary).has("hands"):
-			return VideoImport.solve(B, frames, held, float(opts.get("fps", 30.0)))
+			return VideoImport.solve(B, frames, held, float(opts.get("fps", 30.0)), {}, opts.get("fly", {}))
 	if held != "":
-		return VideoImport.solve(B, frames, held, float(opts.get("fps", 30.0)))
+		return VideoImport.solve(B, frames, held, float(opts.get("fps", 30.0)), {}, opts.get("fly", {}))
 	var n := frames.size()
 	if n == 0:
 		return []
@@ -604,6 +604,8 @@ static func solve(frames: Array, B: Body, opts := {}) -> Array:
 	var root := Vector3.ZERO
 	var anchor := {}
 	var fade := {}   # sd -> [anchor, frames since the release]
+	var vlast := {}  # VideoIQ.vertical: the last grounded height (a flight keeps its rise from there)
+	var fly: Dictionary = opts.get("fly", {})
 	for i in n:
 		if i > 0:
 			var rs := []
@@ -634,7 +636,7 @@ static func solve(frames: Array, B: Body, opts := {}) -> Array:
 			B.ang[j] = poses[i][j]
 		B.offset = root
 		B.fk()
-		B.ground()
+		VideoIQ.vertical(B, fly, i, vlast)
 		# FOOT LOCK: two planted feet whose spacing the fit did not keep share the miss through the mean root above; each is
 		# now put exactly on its anchor by a leg reach (the ankle moves by the middle's miss, limits kept)
 		if i > 0:

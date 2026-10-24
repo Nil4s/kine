@@ -175,6 +175,9 @@ const LOOP_DEG := 3.0              # deg: a joint's last pose this far off its f
 const LOOP_GAP := 0.02             # m: a point (hand, foot, head...) this far from where it started
 const LOOP_JUMP := 0.5             # m/s: a point's velocity changing this much across the seam (a hitch each lap)
 const FOOT_STILL := 0.005          # m per 60 fps frame (0.3 m/s): slower than this = meant to stand (landings are faster)
+const SMOOTH_HALF := 3              # frames either side of a ball averaged by the noise-tolerant FOOT SLIDE pass (0.1 s window)
+const STANCE_MIN := 15             # frames (0.25 s): the shortest stance the noise-tolerant pass measures
+const JITTER_MIN := 0.003          # m: the noise-tolerant pass runs only on a jittery ball (rms off its smoothed path > this AND turning back on > 40% of frames); on clean motion the strict pass is exact
 
 
 ## two rotations' difference in degrees, by how far they carry each axis (float32 acos near 1 floors at ~0.04 deg)
@@ -413,7 +416,91 @@ static func rule_feet(sm: Dictionary) -> Array:
 				out.append(_f("WARN", sm["t"][a], "FOOT SLIDE", "the %s foot creeps %.1f cm along the floor while it should stand (%.2f-%.2f s); more than 2.5 cm reads as skating. Plant it on these cards (the Fix), or give it the same place in the cards around it." % ["left" if k == "ball_l" else "right", far * 100.0, sm["t"][a], sm["t"][i - 1]], far))
 				out[-1]["foot"] = k.substr(4)   # "_l" / "_r": the Fix plants this foot over [t, t1] (round 10)
 				out[-1]["t1"] = sm["t"][i - 1]
+	# the noise-tolerant pass (round 44): a jittery capture (~1 cm a frame) never has 5 settled frames in a row above,
+	# so a planted foot that creeps there was silent. Only stretches the strict pass did not already report are added.
+	for k in ["ball_l", "ball_r"]:
+		out.append_array(_creep_smoothed(sm, k, out))
 	return out
+
+
+## FOOT SLIDE, noise-tolerant: the ball is smoothed over +-SMOOTH_HALF frames first (jitter averages out, a creep does
+## not), and a stance is a run of at least STANCE_MIN frames under FOOT_DOWN whose smoothed speed along the floor is under
+## FOOT_STILL. Its creep is the farthest smoothed point from the mean of its first STANCE_MIN / 3 frames.
+## A run that overlaps a finding already made for this foot (the strict pass) is not reported twice.
+static func _creep_smoothed(sm: Dictionary, k: String, have: Array) -> Array:
+	var out := []
+	var s: Array = sm[k]
+	var n := s.size()
+	if n < 2 * SMOOTH_HALF + 2:
+		return out
+	var q := []
+	for i in n:
+		var acc := Vector3.ZERO
+		var c := 0
+		for j in range(maxi(0, i - SMOOTH_HALF), mini(n, i + SMOOTH_HALF + 1)):
+			acc += s[j] as Vector3
+			c += 1
+		q.append(acc / c)
+	var foot := k.substr(4)
+	var i := 1
+	while i < n - 1:
+		if not _stance_s(q, i):
+			i += 1
+			continue
+		var a := i
+		while i < n - 1 and _stance_s(q, i):
+			i += 1
+		var b := i - 1
+		if b - a + 1 < STANCE_MIN:
+			continue
+		# the smoother still carries the arrival in the first and the departure in the last SMOOTH_HALF * 2 frames: they are
+		# not measured (a landing that stops within 0.1 s is a landing, not a creep)
+		var e0 := a + 2 * SMOOTH_HALF
+		var e1 := b - 2 * SMOOTH_HALF
+		if e1 - e0 + 1 < STANCE_MIN / 3:
+			continue
+		var ref := Vector3.ZERO
+		var m := int(STANCE_MIN / 3)
+		for j in range(e0, e0 + m):
+			ref += q[j] as Vector3
+		ref /= m
+		var far := 0.0
+		for j in range(e0, e1 + 1):
+			var d: Vector3 = (q[j] as Vector3) - ref
+			far = maxf(far, Vector2(d.x, d.z).length())
+		var t_a: float = sm["t"][a]
+		var t_b: float = sm["t"][b]
+		var dup := false
+		for f in have:
+			if f.get("foot", "") == foot and float(f.get("t1", -1.0)) >= t_a and float(f["t"]) <= t_b:
+				dup = true
+		var rms := 0.0   # the stance's jitter: the strict pass already measures a clean foot exactly (a pinned combo pivot is its call, not this pass's)
+		for j in range(a, b + 1):
+			var r: Vector3 = (s[j] as Vector3) - (q[j] as Vector3)
+			rms += r.x * r.x + r.z * r.z
+		rms = sqrt(rms / (b - a + 1))
+		var flips := 0   # jitter turns back almost every frame (~half the steps); a real move, even a sharp one, does not
+		for j in range(a + 2, b + 1):
+			var v0: Vector3 = (s[j - 1] as Vector3) - (s[j - 2] as Vector3)
+			var v1: Vector3 = (s[j] as Vector3) - (s[j - 1] as Vector3)
+			if v0.x * v1.x < 0.0 or v0.z * v1.z < 0.0:
+				flips += 1
+		var noisy := rms > JITTER_MIN and flips > 0.4 * (b - a - 1)
+		if far > FOOT_SKATE and not dup and noisy:
+			out.append(_f("WARN", t_a, "FOOT SLIDE", "the %s foot creeps %.1f cm along the floor while it should stand (%.2f-%.2f s); more than 2.5 cm reads as skating. Plant it on these cards (the Fix), or give it the same place in the cards around it." % ["left" if k == "ball_l" else "right", far * 100.0, t_a, t_b], far))
+			out[-1]["foot"] = foot
+			out[-1]["t1"] = t_b
+	return out
+
+
+## the speed over the whole smoothing window (SMOOTH_HALF either side), per frame: a 2-frame difference of a
+## jittery ball is ~1.4 cm a frame and reads as a step, the window's average does not
+static func _stance_s(q: Array, i: int) -> bool:
+	var p: Vector3 = q[i]
+	var lo := maxi(0, i - SMOOTH_HALF)
+	var hi := mini(q.size() - 1, i + SMOOTH_HALF)
+	var d: Vector3 = (q[hi] as Vector3) - (q[lo] as Vector3)
+	return p.y < FOOT_DOWN and Vector2(d.x, d.z).length() / maxf(hi - lo, 1) < FOOT_STILL
 
 
 static func _settled(s: Array, i: int) -> bool:

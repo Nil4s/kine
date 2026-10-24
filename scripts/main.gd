@@ -5528,7 +5528,10 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		return
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
-	_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+	if easy != null and easy.on:   # Easy: the stop in plain words, no degree readout (stop_words says which)
+		_say("%s the %s%s%s" % [what, nice(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+	else:
+		_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 
 
 ## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
@@ -5599,6 +5602,11 @@ func _toggle_smart_drag() -> void:
 func stop_words(st: Dictionary) -> String:
 	if st.is_empty():
 		return ""
+	if easy != null and easy.on:   # Easy: a beginner's words, no numbers ("His arm can't bend further that way.")
+		var part := easy_limit_part(String(st["joint"]))
+		if st["kind"] == "limit":
+			return "     His %s can't bend further that way." % part
+		return "     His %s can't go further: it would go into the body." % part
 	if st["kind"] == "limit":
 		return "     STOPPED: the %s is at its limit, %s %.0f (its range %.0f to %.0f)" % [nice(st["joint"]), st["axis"], st["at"], st["lo"], st["hi"]]
 	var ps: Array = st["pairs"]
@@ -10272,11 +10280,58 @@ func _toast(t: String) -> void:
 	ui_toast.visible = true
 	ui_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE)
 	ui_toast.position.y = 96
+	if easy != null and easy.on:
+		_easy_toast_place(ui_toast)
 	_toast_gen += 1
 	var g := _toast_gen
 	get_tree().create_timer(TOAST_T).timeout.connect(func():
 		if g == _toast_gen and is_instance_valid(ui_toast):
 			ui_toast.visible = false)
+
+
+## EASY TOAST PLACE (walk-through item 1): in Easy the toast takes the first place in the window that covers no visible Button:
+## under the top bar, then just under each button's or panel's bottom edge (Easy's strip sits there). Falls back to the old place (y 96).
+func _easy_toast_place(t: Label) -> void:
+	var org := Vector2.ZERO
+	if t.get_parent() is Control:
+		org = (t.get_parent() as Control).global_position
+	t.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE)
+	var sz := t.size
+	var vp := get_viewport().get_visible_rect().size
+	var btns: Array = []
+	_collect_button_rects(self, btns)
+	# the Easy panels a toast must not sit on either (the picker, its strip, the welcome and status lines, the card strip)
+	var panels := [ui_mouse, ui_status, ui_bar, ui_cards, easy.home.strip, easy.home.panel, ui_library]
+	for n in panels:
+		if n is Control and is_instance_valid(n) and (n as Control).is_visible_in_tree() and (n as Control).size.y > 0.0:
+			btns.append((n as Control).get_global_rect())
+	var ys: Array = [float(TOP_H) + 8.0]
+	for b in btns:
+		ys.append((b as Rect2).end.y + 6.0)
+	ys.sort()
+	var x := (vp.x - sz.x) * 0.5
+	for y in ys:
+		var r := Rect2(Vector2(x, y), sz)
+		if r.end.y > vp.y:
+			continue
+		var free := true
+		for b in btns:
+			var q: Rect2 = r.intersection(b)
+			if q.size.x > 1.0 and q.size.y > 1.0:
+				free = false
+				break
+		if free:
+			t.position = Vector2(x, y) - org
+			return
+	t.position = Vector2(x, 96.0) - org
+
+
+## the global rects of the visible Buttons under n (a button in a hidden panel is not visible in the tree)
+func _collect_button_rects(n: Node, out: Array) -> void:
+	if n is Button and (n as Button).is_visible_in_tree() and (n as Button).size.x > 0.0:
+		out.append((n as Control).get_global_rect())
+	for c in n.get_children():
+		_collect_button_rects(c, out)
 
 
 ## I46: the line of a hit reaction ("your usual x0.8 amplitude, +1 frame, ...") over the view for NOTE_T, under the toast's place (the status bar is too narrow for it)
@@ -10390,6 +10445,13 @@ func _undo_tips() -> void:
 static func _step_label(u: Dictionary) -> String:
 	var n := String(u.get("name", u.get("hint", "change")))
 	return n.left(1).to_upper() + n.substr(1)
+
+
+## EASY: the part a drag's stop names, in plain words: arm, leg, head, back (the spine), else hand / foot / body
+static func easy_limit_part(j: String) -> String:
+	if j.begins_with("spine"):
+		return "back"
+	return easy_part(j)
 
 
 ## EASY: a joint's everyday word for Easy's undo names: hand, arm, foot, leg, head or body
@@ -13154,6 +13216,7 @@ func _rebuild_cards() -> void:
 	var ts := S.times()
 	_pl_card = _play_card_idx()
 	msel = msel.filter(func(k): return k >= 0 and k < S.cards.size())   # R19: an undo or a load may have shortened the strip
+	var pic_rank := _pic_ranks()
 	for i in S.cards.size():
 		var c: Dictionary = S.cards[i]
 		var pc := PanelContainer.new()
@@ -13183,7 +13246,7 @@ func _rebuild_cards() -> void:
 		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
 		_card_flat(nb)
 		nb.set_drag_forwarding(Callable(), _card_can_drop.bind(i, nb), _card_drop.bind(i, nb))   # R18: the drag itself is _card_drag_input (6 px, a gold line); R8: a library pose can drop here
-		nb.set_meta("pkey", thumbs.request_pose(c["pose"]))
+		nb.set_meta("pkey", thumbs.request_pose(c["pose"], pic_rank[i]))
 		var tex := thumbs.pose_picture(c["pose"])
 		if tex != null:
 			nb.icon = tex
@@ -13290,9 +13353,24 @@ func _easy_card_name(n: String, i := -1) -> String:
 		return "Pose %d" % (i + 1)
 	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
 		return EASY_CARD_NAME[t.to_lower()]
+	if i >= 0 and EASY_CODE_NAME.search(t.to_lower()) != null:   # a template's own codes ("mid r0", "off l1", "air 0", "step r", "stop: feet together"): "<Move> <n>"
+		return "%s %d" % [easy_move_word(S.name), i + 1]
 	return t.substr(0, 1).to_upper() + t.substr(1).to_lower() if t != "" else "Card"
 
 
+## EASY: the card codes the templates use, at the start of a name (matched on the lower case name)
+static var EASY_CODE_NAME := RegEx.create_from_string("^(mid|off|air|land|swing|half step|step|stop)\\b")
+
+
+## EASY: the move a scene is named for, in plain words: its name without the copy number ("run 68", "run_2" -> "Run");
+## "Move" when the name is not a move's (a scene the user named)
+static func easy_move_word(scene_name: String) -> String:
+	var base := RegEx.create_from_string("[ _]\\d+$").sub(scene_name.strip_edges().to_lower(), "")
+	return EASY_MOVE_WORD.get(base.replace(" ", "_"), "Move")
+
+
+const EASY_MOVE_WORD := {"walk": "Walk", "run": "Run", "jump": "Jump", "punch": "Punch", "sword_swing": "Sword swing",
+	"sit_down": "Sit down", "wave": "Wave", "fall": "Fall", "roundhouse": "Kick"}
 const EASY_CARD_NAME := {"load": "Wind up", "cross": "Punch", "recover": "Back to guard"}
 const EASY_WEAPON := {"sword": "a sword", "longsword": "a longsword", "katana": "a katana", "metal_bat": "a bat", "staff": "a staff",
 	"long_hammer": "a hammer", "long_axe": "an axe", "spear": "a spear", "dagger": "a dagger", "two_daggers": "two daggers"}
@@ -13398,6 +13476,32 @@ func _mark_play_card() -> void:
 		var pc := pc_now
 		if pc.position.x < sc.scroll_horizontal or pc.position.x + pc.size.x > sc.scroll_horizontal + sc.size.x:
 			sc.scroll_horizontal = int(maxf(0.0, pc.position.x - 16.0))
+
+
+## the order the strip's pictures are drawn in (SceneThumbs.request_pose's rank): the cards in view come first, from the
+## selected card on (view order, round from it), then the rest in order. The view is the scroll position and the row's width
+func _pic_ranks() -> Array:
+	var n := S.cards.size()
+	var ranks: Array = []
+	ranks.resize(n)
+	if n == 0 or ui_card_row == null:
+		return ranks
+	var step := float(CARD_W + 2)   # a card and the strip's gap (ui_cards separation)
+	var w := ui_card_row.size.x if ui_card_row.size.x > 0.0 else 1000.0
+	var a := clampi(int(floor(ui_card_row.scroll_horizontal / step)), 0, n - 1)
+	var b := clampi(a + int(ceil(w / step)), a, n - 1)
+	var vis: Array = range(a, b + 1)
+	var start := sel_card if vis.has(sel_card) else a
+	var order: Array = []
+	var k := vis.find(start)
+	for j in vis.size():
+		order.append(vis[(k + j) % vis.size()])
+	for i in n:
+		if not vis.has(i):
+			order.append(i)
+	for j in order.size():
+		ranks[order[j]] = j
+	return ranks
 
 
 ## a pose picture is ready: every card showing that pose gets it
@@ -17967,7 +18071,10 @@ func _save_scene_now(nm: String) -> void:
 	_journal_saved()
 	_lists()
 	_refresh()
-	_say("saved scene %s: %d cards, %s, %d frames with parts inside each other" % [H.name, H.cards.size(), Units.time(H.length(), S.fps), d["bad_frames"].size()])
+	if easy != null and easy.on:   # Easy: "Saved run 68 (3.3 seconds)." (the name as its words; the length to a tenth of a second)
+		_say("Saved %s (%.1f seconds)." % [H.name.replace("_", " "), roundf(H.length() * 10.0 + 0.001) / 10.0])   # the 0.001: 3.25 s reads 3.3, not 3.2 (float)
+	else:
+		_say("saved scene %s: %d cards, %s, %d frames with parts inside each other" % [H.name, H.cards.size(), Units.time(H.length(), S.fps), d["bad_frames"].size()])
 
 
 ## the scene list's pick: opens it at once when nothing would be lost, asks first when the scene open now has changes

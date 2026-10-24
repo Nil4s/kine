@@ -5,6 +5,7 @@
 extends SceneTree
 
 const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "More", "Switch to Expert"]   # the bar (7)
+const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const MORE := ["Save this pose as a card", "Move his arms and legs", "Redo", "Open a saved scene", "Copy a video", "Save the scene", "Flip left and right", "Put his feet on the floor"]
 
 var fails := 0
@@ -91,10 +92,14 @@ func has_caps_word(t: String) -> bool:
 	return false
 
 
-## the words on the Easy bar's Undo button (its child Label, as easy_mode._big builds it)
+## the step's name on the Easy bar's Undo button. The button's LABEL is always "Undo" (a beginner finds it again each step);
+## the name is its TOOLTIP ("Undo: Walk"). A label that is not "Undo" returns "label reads ..", which no name check accepts.
 func undo_words() -> String:
 	var b: Button = m.easy.button("Undo")
-	return String(b.get_node("label").text) if b != null else "?"
+	if b == null:
+		return "?"
+	var lab := String((b.get_node("label") as Label).text)
+	return b.tooltip_text if lab == "Undo" else "label reads '%s'" % lab
 
 
 func panels() -> Array:
@@ -140,11 +145,12 @@ func teach_lines() -> Array:
 ## OVERLAP (Nick's beginner walk-through): in Easy the library panel, the picker, the welcome line, the status line, the
 ## save toast, the card strip and the Easy top bar never overlap one another, and all sit inside the window, at 1600x900 and 1280x720
 const OVERLAP_SIZES := [Vector2i(1600, 900), Vector2i(1280, 720)]
-const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast"]
+const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast", "picker + redo toast", "strip + redo toast"]
 const OVERLAP_WANT := {   # the panels each state must show (so an empty screen cannot pass)
 	"picker": ["picker panel"], "picker + toast": ["picker panel", "save toast"],
 	"library": ["library panel"], "library + toast": ["library panel", "save toast"],
 	"strip": ["picker strip", "card strip"], "strip + toast": ["picker strip", "save toast"],
+	"picker + redo toast": ["picker panel", "redo toast"], "strip + redo toast": ["picker strip", "card strip", "redo toast"],
 }
 
 
@@ -160,6 +166,7 @@ func easy_rects() -> Array:
 		["status line", m.ui_status, m.ui_status.text != ""],
 		["readout", m.ui_bar, m.ui_bar.text != ""],
 		["save toast", m.easy.home._toast, true],
+		["redo toast", m.ui_toast, m.ui_toast != null and m.ui_toast.visible],
 		["card strip", m.ui_cards, true],
 	]
 	for c in cands:
@@ -207,10 +214,41 @@ func overlap_set(st: String) -> void:
 	if st.begins_with("library"):
 		m.ui_library.open()
 	m.easy.home._toast.visible = false
-	if st.ends_with("toast"):
+	if m.ui_toast != null:   # made on its first toast (main._toast)
+		m.ui_toast.visible = false
+	if st.ends_with("+ toast"):
 		m.easy.home._show_toast("Your video is saved: punch_169.mp4", "C:/Users/Nick/Videos/Kine/punch_169.mp4")
+	if st.ends_with("redo toast"):
+		m._toast("Redid: Move hand")   # the Redo toast (main's _toast), as Ctrl+Y and the Easy More menu's Redo show it
 	m._say_plain("Sword picked up: it is in his right hand now. Undo takes it back.")
 	await idle(8)
+
+
+## ITEM 1 (walk-through): a toast in Easy covers no visible Button. Each shown toast's global rect is checked against every
+## visible Button under the window (a 1 px edge touch does not count). Returns the names of the toasts that cover one
+func toast_over_buttons() -> Array:
+	var bad := []
+	var toasts := {"redo toast": m.ui_toast, "save toast": m.easy.home._toast}
+	for nm in toasts:
+		var t: Control = toasts[nm]
+		if t == null or not t.is_visible_in_tree():
+			continue
+		var btns := []
+		_visible_buttons(m, btns, t)   # the toast's own buttons (Open folder, Got it) are part of it, not a button it covers
+		for b in btns:
+			var x: Rect2 = t.get_global_rect().intersection(b)
+			if x.size.x > 1.0 and x.size.y > 1.0:
+				bad.append("%s over a button at %s" % [nm, str(Rect2i(b))])
+	return bad
+
+
+func _visible_buttons(n: Node, out: Array, skip: Node) -> void:
+	if n == skip:
+		return
+	if n is Button and (n as Button).is_visible_in_tree() and (n as Button).size.x > 0.0:
+		out.append((n as Control).get_global_rect())
+	for c in n.get_children():
+		_visible_buttons(c, out, skip)
 
 
 ## sizes: the window sizes to measure. Embedded (run_par's host window) a test cannot resize its window, so easy_mode
@@ -228,9 +266,10 @@ func overlap_bar(sizes: Array = OVERLAP_SIZES) -> void:
 			var bad := overlap_pairs(rects)
 			var out := outside_window(rects, Vector2(m.get_viewport().get_visible_rect().size))
 			var geo := rects.map(func(r): return "%s %s" % [r[0], str(Rect2i(r[1]))])
-			ok(miss.is_empty() and bad.is_empty() and out.is_empty(),
-				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing); rects %s" % [sz.x, sz.y, st,
-				str(bad), str(out), str(miss), str(geo)])
+			var over := toast_over_buttons()
+			ok(miss.is_empty() and bad.is_empty() and out.is_empty() and over.is_empty(),
+				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing), no toast over a button (%s); rects %s" % [sz.x, sz.y, st,
+				str(bad), str(out), str(miss), str(over), str(geo)])
 	m.get_window().size = win0
 	m.ui_library.hide_panel()
 	await idle(4)
@@ -352,7 +391,7 @@ func _init() -> void:
 	await idle()
 	var rbtn: Button = m.easy.button("Redo")
 	ok(rbtn.visible and m.S.cards.size() == n0 + 1, "Easy: after Undo the bar shows Redo (visible %s, %d cards)" % [str(rbtn.visible), m.S.cards.size()])
-	ok((rbtn.get_node("label") as Label).text.begins_with("Redo: "), "Easy: the Redo button is named as Undo is (%s)" % (rbtn.get_node("label") as Label).text)
+	ok((rbtn.get_node("label") as Label).text == "Redo" and rbtn.tooltip_text.begins_with("Redo: "), "Easy: the Redo button reads 'Redo' and its tooltip names the step (label '%s', tooltip '%s')" % [(rbtn.get_node("label") as Label).text, rbtn.tooltip_text])
 	rbtn.pressed.emit()
 	await idle()
 	ok(m.S.cards.size() == n0 + 2 and not rbtn.visible, "Easy: one press on Redo restores the step (%d cards) and Redo hides with nothing left" % m.S.cards.size())
@@ -390,17 +429,32 @@ func _init() -> void:
 	ok(not m.easy._more.visible, "B: pressing a bar button (Play / Stop) closes the More menu that was open")
 	m.easy.button("Play / Stop").pressed.emit()   # stop again
 	await idle()
+	# the precondition (an empty list would pass): a draft in scenes/_wip, and a saved scene that is also recent
+	var draft_made := Templates.create("run")   # a draft file in scenes/_wip, not opened: the open scene stays as it is
+	ok(draft_made != "", "precondition: a Run draft is in scenes/_wip for the Open check (%s)" % draft_made)
+	m._fill_scene_list()
+	for i in m.ui_scenes.item_count:
+		var rp := String(m.ui_scenes.get_item_metadata(i))
+		if not (rp.begins_with("#") or m.is_draft_path(rp) or m.ui_scenes.is_item_disabled(i)):
+			m._recent_note(rp, true)
+			break
 	m.easy.pick_more("Open a saved scene")
 	await idle()
-	# Open (drafts 10-24): the SAVED scenes the list has, then a "Recent drafts" separator and the newest 5 drafts (not every draft)
-	var saved_rows := 0
+	# Open (Easy, plain words): ONE entry per saved scene (the list's recent row and its saved row are the same scene), no
+	# "Recent drafts" section and no "(draft)" word. Expert's list is not this menu (its list keeps its own rows)
+	var saved_paths := {}
 	for i in m.ui_scenes.item_count:
 		var mp := String(m.ui_scenes.get_item_metadata(i))
-		if not (mp.begins_with("#") or m.is_draft_path(mp)):
-			saved_rows += 1
-	var nd := mini(5, m.draft_paths().size())
-	var want_menu := saved_rows + (nd + 1 if nd > 0 else 0)
-	ok(m.easy._menu.item_count == want_menu and saved_rows > 0, "Open a saved scene lists the saved scenes (%d) then 'Recent drafts' with the newest %d: %d rows, want %d" % [saved_rows, nd, m.easy._menu.item_count, want_menu])
+		if not (mp.begins_with("#") or m.is_draft_path(mp) or m.ui_scenes.is_item_disabled(i)):
+			saved_paths[mp] = true
+	var om_paths := {}
+	var om_text := []
+	for k in m.easy._menu.item_count:
+		om_paths[String(m.easy._menu_paths.get(k, ""))] = true
+		om_text.append(m.easy._menu.get_item_text(k))
+	var om_bad := om_text.filter(func(t): return String(t).to_lower().find("draft") >= 0 or String(t).find("(recent)") >= 0 or String(t).find("Recent") >= 0)
+	ok(m.easy._menu.item_count == saved_paths.size() and saved_paths.size() > 0 and om_paths.size() == m.easy._menu.item_count and om_bad.is_empty(),
+		"Easy's Open: one entry per saved scene (%d), no duplicate, no draft or recent words: %d rows, %d distinct, bad %s" % [saved_paths.size(), m.easy._menu.item_count, om_paths.size(), str(om_bad)])
 	m.easy._menu.hide()
 	await idle()
 
@@ -428,6 +482,15 @@ func _init() -> void:
 		"4a the tour's text colour differs from the card's background (text %s, card %s)" % [str(tx.get_theme_color("font_color")), str(bg)])
 	ok(sk.get_global_rect().get_center().x > 0 and sk.mouse_filter != Control.MOUSE_FILTER_IGNORE and vp.has_point(sk.get_global_rect().get_center()),
 		"4a the Skip button takes a click, centred on the window")
+	# 4a+ (walk-through item 3): the Skip button reads "Skip tour" and is a normal-size button: as tall as a plain Next button
+	# of the same theme (the Easy tour has no Next of its own, so the reference is a plain Button with that word)
+	var ref_b := Button.new()
+	ref_b.text = "Next"
+	get_root().add_child(ref_b)
+	var ref_h: float = ref_b.get_combined_minimum_size().y
+	ref_b.queue_free()
+	ok(sk.text == "Skip tour" and sk.size.y >= ref_h - 0.5 and sk.get_combined_minimum_size().y >= ref_h - 0.5,
+		"4a+ the tour's Skip reads 'Skip tour' and is as tall as a plain Next (%s, height %.0f, Next %.0f)" % [sk.text, sk.size.y, ref_h])
 	var body_r := Rect2()
 	var body_first := true
 	for pt in Turntable.points(m.B):
@@ -579,7 +642,7 @@ func _init() -> void:
 	m.undo.clear()
 	m.redo.clear()
 	await idle(3)
-	ok(undo_words() == "Undo", "6: an empty scene with nothing to undo: the Undo button reads 'Undo' (%s)" % undo_words())
+	ok(undo_words() == UNDO_NONE, "6: an empty scene with nothing to undo: the Undo button reads 'Undo' and its tooltip says so (%s)" % undo_words())
 	m.easy.home.panel.find_child("eh_card_0", true, false).pressed.emit()   # Walk
 	await idle(30)
 	ok(undo_words() == "Undo: Walk", "6: after the Walk card the Undo button reads 'Undo: Walk' (%s)" % undo_words())
@@ -593,7 +656,7 @@ func _init() -> void:
 	ok(m.ui_status.text.begins_with("Took back: Faster"), "6: the say line after Undo says 'Took back: Faster', no Expert step name (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(10)
-	ok(undo_words() == "Undo", "6: undoing the Walk card leaves nothing to undo: 'Undo' (%s)" % undo_words())
+	ok(undo_words() == UNDO_NONE, "6: undoing the Walk card leaves nothing to undo: 'Undo' (%s)" % undo_words())
 	# a placed library object is one undo step, named by its tile
 	m._library_toggle()
 	await idle(3)
@@ -605,7 +668,17 @@ func _init() -> void:
 	var placed: bool = sword_id != "" and m.ui_library.place(sword_id)
 	await idle(6)
 	ok(placed and m.undo.size() == u0 + 1, "6: a library Sword is one undo step (%d -> %d steps; id '%s')" % [u0, m.undo.size(), sword_id])
-	ok(undo_words() == "Undo: Sword", "6: after a library Sword the Undo button reads 'Undo: Sword' (%s)" % undo_words())
+	ok(undo_words() == "Undo: Sword", "6: after a library Sword the Undo button reads 'Undo' with the tooltip 'Undo: Sword' (%s)" % undo_words())
+	# 6b. ITEM 5 (Easy): the sword at its pick is clear. No body part reads "touch" (the red pick_touch tint) and the held sword
+	# sinks into no body part, so the frozen pick-time pose shows no red
+	var red := Tok.c("pick_touch")
+	var tinted := []
+	for j in Body.ORDER:
+		var sc: Color = m.skin_col(j)
+		if sc.a > 0.0 and sc.is_equal_approx(Color(red, sc.a)):
+			tinted.append(j)
+	var sword_hits := ObjectLibrary._wep_hits(m.B)
+	ok(tinted.is_empty() and sword_hits == 0, "6b: the sword at its pick: no body part red (%s), the sword sinks into %d part(s)" % [str(tinted), sword_hits])
 	# a drag's undo is named in everyday words: "Undo: Move hand", not "Drag left wrist / h.."
 	m._library_toggle()
 	await idle(3)
@@ -618,7 +691,7 @@ func _init() -> void:
 	ok(m.ui_status.text.begins_with("Took back: Move hand"), "6: its toast says 'Took back: Move hand' (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(4)
-	ok(undo_words() == "Undo", "6: undoing the Sword leaves nothing to undo: 'Undo' (%s)" % undo_words())
+	ok(undo_words() == UNDO_NONE, "6: undoing the Sword leaves nothing to undo: 'Undo' (%s)" % undo_words())
 	m.ui_library.hide_panel()
 	# More's entries that change the body: one undo step each, named in Easy ("Flip", "Feet on floor")
 	m.easy.pick_more("Flip left and right")
@@ -629,7 +702,7 @@ func _init() -> void:
 	m.easy.pick_more("Put his feet on the floor")
 	await idle(4)
 	# feet on the floor keeps nothing on an empty scene: the step is dropped (Fixer.plant_all: "one undo step, or none"), so no step
-	ok(undo_words() == "Undo" and m.undo.size() == 0, "6: More > Put his feet on the floor with nothing to plant adds no step (%s, %d steps)" % [undo_words(), m.undo.size()])
+	ok(undo_words() == UNDO_NONE and m.undo.size() == 0,"6: More > Put his feet on the floor with nothing to plant adds no step (%s, %d steps)" % [undo_words(), m.undo.size()])
 	# the button never grows: a long name is cut to 18 characters (+ "..") and the bar's button keeps its height
 	var h0: float = m.easy.button("Undo").size.y
 	m._step_easy = "a very long typed move name that is cut"
@@ -637,7 +710,8 @@ func _init() -> void:
 	await idle(3)
 	var cut := undo_words()
 	ok(cut.begins_with("Undo: a very long type") and cut.length() <= 24 and cut.ends_with(".."), "6: a long name is cut in the button: '%s'" % cut)
-	ok(is_equal_approx(m.easy.button("Undo").size.y, h0), "6: the Undo button keeps its height with a long name (%.0f -> %.0f px)" % [h0, m.easy.button("Undo").size.y])
+	ok(m.easy.button("Undo") != null and (m.easy.button("Undo").get_node("label") as Label).text == "Undo", "6: the Undo label stays 'Undo' with a long name (the name is the tooltip only)")
+	ok(is_equal_approx(m.easy.button("Undo").size.y, h0),"6: the Undo button keeps its height with a long name (%.0f -> %.0f px)" % [h0, m.easy.button("Undo").size.y])
 	m._undo()
 	await idle(2)
 	# Expert: the step's name never uses the Easy short name, and Expert's Undo tooltip is the Expert name
@@ -725,6 +799,49 @@ func _init() -> void:
 	var p_want_sorted := p_want.duplicate()
 	p_want_sorted.sort()
 	ok(p_caps.is_empty() and p_sorted == p_want_sorted, "10: the Punch card's strip names are plain words, in sentence case: %s (all caps: %s)" % [str(p_names), str(p_caps)])
+	m._new_scene()
+	await idle()
+	# 10b. the Run card's strip (round 2): no template code ("mid R0", "off L1", "air 0", "land R2", "half step L", "stop: ...",
+	# "swing 3") is shown, and the first card reads "Run 1" (its name is "<Move> <place in the strip>")
+	m.easy.home.card(1)
+	await idle(12)
+	var r_lines := card_lines()
+	var r_names := []
+	for i in m.S.cards.size():
+		r_names.append(String(r_lines.get("card_%d/b_pick" % (i + 1), "")))
+	var code_re := RegEx.create_from_string("^(mid|off|air|land|swing|half step|step|stop)\\b")   # the template codes (main.EASY_CODE_NAME)
+	var r_codes := r_names.filter(func(t): return code_re.search(String(t).to_lower()) != null)
+	ok(r_names.size() >= 4 and r_codes.is_empty() and r_names[0] == "Run 1" and r_names.all(func(t): return String(t).begins_with("Run ")),
+		"10b: Easy's Run strip has no template codes and reads 'Run 1' first: %s (codes: %s)" % [str(r_names), str(r_codes)])
+	m.easy.set_on(false, false)
+	m._refresh()
+	await idle(12)
+	var x_run := card_lines()
+	ok(x_run.get("card_1/b_pick", "") == "1 %s" % String(m.S.cards[0]["name"]), "10b: Expert's strip keeps the stored names with the number: '%s'" % str(x_run.get("card_1/b_pick", "")))
+	m.easy.set_on(true, false)
+	await idle(6)
+	# 10c. the drag's stop in Easy: plain words, no digits and no degree sign; Expert's line keeps its numbers
+	var drag_lim := {"kind": "limit", "joint": "upperarm_r", "axis": "side", "at": 90.0, "lo": -95.0, "hi": 90.0}
+	var e_stop: String = m.stop_words(drag_lim)
+	var e_digits := RegEx.create_from_string("[0-9°]").search(e_stop)
+	ok(e_digits == null and e_stop.find("His arm can't bend further that way.") >= 0,
+		"10c: Easy's drag limit has no digits or degree sign and names the arm: '%s'" % e_stop.strip_edges())
+	m.easy.set_on(false, false)
+	var x_stop: String = m.stop_words(drag_lim)
+	ok("STOPPED: the right upper arm is at its limit, side 90" in x_stop, "10c: Expert's drag limit keeps its numbers: '%s'" % x_stop.strip_edges())
+	m.easy.set_on(true, false)
+	# 10d. Save (Easy): "Saved <name> (<seconds> seconds)."; Expert keeps "saved scene <name>: N cards, ..."
+	m._save_scene_now("zz_run_68")
+	await idle(2)
+	var e_save: String = m.ui_status.text
+	var sv_re := RegEx.create_from_string("^Saved .*seconds\\)\\.$")
+	ok(sv_re.search(e_save) != null and e_save.find("zz run 68") >= 0, "10d: Easy's save status reads 'Saved <name> (<n> seconds).': '%s'" % e_save)
+	m.easy.set_on(false, false)
+	m._save_scene_now("zz_run_68")
+	await idle(2)
+	var x_save: String = m.ui_status.text
+	ok(x_save.begins_with("saved scene zz_run_68: ") and x_save.find(" frames with parts inside each other") >= 0, "10d: Expert's save status keeps its words: '%s'" % x_save)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(UserPaths.w("res://scenes/zz_run_68.json")))
 	m.easy.set_on(false, false)
 	await idle(6)
 

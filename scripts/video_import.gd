@@ -125,6 +125,9 @@ static func parse(txt: String) -> Dictionary:
 			for q in f["im"]:
 				vs.append(float(q[2]))
 			e["vis"] = vs
+			# FLIGHT (VideoIQ.flight_of): the hips' and the ankles' image heights (normalized, y down): the one place the tracker shows a rigid rise
+			e["hy"] = (float(f["im"][23][1]) + float(f["im"][24][1])) * 0.5
+			e["ay"] = (float(f["im"][27][1]) + float(f["im"][28][1])) * 0.5
 		if f["hd"] is Dictionary:
 			# ROADMAP 90: each hand's 21 world points, ours (the same 180 deg about x). A hand without 21 points is no hand
 			var hd := {}
@@ -399,7 +402,7 @@ static func _rest_n(B: Body, mid: String) -> Vector3:
 
 ## every frame fitted: [{"t", "ang": {joint: Vector3}, "offset": Vector3}], the travel rebuilt from the stance foot and the
 ## lower sole put on the floor
-static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}) -> Array:
+static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}, fly := {}) -> Array:
 	# pass 1: every frame's pose, and each foot's two pivots (the heel's back, the toe joint: people roll over the heel,
 	# then over the toes) with the hips at 0
 	var poses := []
@@ -512,6 +515,7 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 	var out := []
 	var root := Vector3.ZERO
 	var anchor := {}
+	var vlast := {}   # VideoIQ.vertical's last grounded height (a flight keeps its rise from there)
 	var lockd := not contact.is_empty()
 	var rhist := []
 	var gap := 0
@@ -582,7 +586,7 @@ static func solve(B: Body, frames: Array, held := "", fps := 30.0, contact := {}
 			B.ang[j] = poses[i][j]
 		B.offset = root
 		B.fk()
-		B.ground()
+		VideoIQ.vertical(B, fly, i, vlast)
 		var fr := {"t": frames[i]["t"], "ang": poses[i], "offset": B.offset}
 		if held != "":
 			B.grip_u = grips[i]

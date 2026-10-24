@@ -234,7 +234,11 @@ func _place_item(it: Dictionary) -> bool:
 	var how: String = it["how"]
 	if how == "weapon":
 		var pick: Callable = m._two_daggers if it["key"] == "two_daggers" else m._kind.bind(it["key"])
-		m._do(func(): pick.call(); arm_cards(m.S, m.B))
+		m._do(func():
+			pick.call()
+			arm_cards(m.S, m.B)
+			if m.easy.on:   # Easy: the live pose at the pick is clear of the body too (see _clear_live)
+				_clear_live(m.B))
 		if m.easy.on:   # Easy: the plain line (no undo key, no weights)
 			_note.text = m.easy_holds(String(it["key"]))
 		else:
@@ -277,6 +281,14 @@ static func arm_cards(S: Scene, B: Body) -> void:
 		else:
 			(c["pose"] as Dictionary).erase("weapon2")
 	B.set_state(keep)
+	B.fk()
+
+
+## EASY, AT THE PICK (walk-through item 5): arm_cards turns the weapon clear of the body in each CARD's pose only, and the live
+## pose keeps the weapon as it was picked, so the frozen pick-time pose showed the sword through the head (red = the touch tint).
+## The live weapon is turned clear the same way (_clear_body), so the pose at the pick shows no red
+static func _clear_live(B: Body) -> void:
+	_clear_body(B)
 	B.fk()
 
 
