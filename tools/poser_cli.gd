@@ -19,6 +19,7 @@
 ##        (N006: the smallest set of those wishes that clash at one moment, and the cost to free each; nothing is changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
+##   $G --headless --path . -s tools/poser_cli.gd -- explain scenes/combo3.json [card=N | t0=S t1=S] [--json]   (N091: the strike in plain words + numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- try scenes/combo3.json retime=3-3:{pct} --sweep pct=80,90,100,110,120 [--no-score] [--apply best|N --out <path>]
 ##        or  try scenes/combo3.json slower_10 --or faster_10 --or ease_linear   (N019: each variant dry-run, scored, ranked)
@@ -108,6 +109,10 @@
 ##                                 N019: each variant an N003 dry run, ranked best first (fewest assertions failing, realism
 ##                                 score, MUST FIX, findings) with its diff (cards changed, joints moved); variants with a bad
 ##                                 step listed under "failed"; apply: "best" | n runs that one for real as ONE undo step (scripts/try_n.gd)
+##   explain {card? | t0?, t1?}    N091 (scripts/explain_motion.gd): the main strike as {phases: anticipation / action / contact /
+##                                 follow-through / recovery (s + frames), power: I8 chain + I36 weight transfer, read: words + the
+##                                 ratios, ease, holds, overshoot, kinks against cited / HEURISTIC norms, try: steps + a CLI line,
+##                                 text (< 250 words), sentences: [{s, fields}]}; nothing is changed
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
 ##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
 ##                                 path = open it first (as open)
@@ -338,6 +343,19 @@ func _init() -> void:
 			await run(a)
 		"serve":
 			await serve()
+		"explain":   # N091: explain <scene> [card=N | t0=S t1=S] (scripts/explain_motion.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "explain <scene.json> [card=N | t0=S t1=S]  (N091; scripts/explain_motion.gd)"})
+				return
+			var xp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=", true, 1)
+				if kv.size() == 2 and kv[0] in ["card", "t0", "t1"] and kv[1].is_valid_float():
+					xp[kv[0]] = int(kv[1]) if kv[0] == "card" else float(kv[1])
+			var xr := ExplainMotion.serve(m, xp)
+			say(String(xr.get("text", xr.get("error", ""))))
+			done(xr)
 		"brief":   # N011 (scripts/scene_brief.gd)
 			var ti := a.find("--tokens")
 			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS

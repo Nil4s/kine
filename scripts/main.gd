@@ -14379,6 +14379,7 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
+	add.call("Check: explain this motion", "", ExplainMotion.show.bind(self), "explain motion phases anticipation action contact follow-through recovery power chain weight read heavy fast snappy floaty beginner why", false, "N091: the strike in plain words with its numbers: phases, where the power comes from, what makes it read fast / heavy, one thing to try (scripts/explain_motion.gd)")
 	add.call("Check: weights broke here", "", _weights_broke, "weights broke skin vertex stretch spike pop wrong bone bad weight worst frame skinning candy", false, "over the whole animation finds the vertex with the worst weight problem (edges stretched against rest, jumps between frames, weights far from the vertex's own bone, weights not adding up to a whole or over 4 bones), jumps the playhead to its worst frame, frames the camera on it and marks it; the report has a button that opens Weight paint on the bone (ROADMAP_400 H24)")
 	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
@@ -15999,6 +16000,7 @@ func _critique() -> void:
 	var title := _label("CRITIQUE  -  " + ("nothing to note in the craft rules" if notes.is_empty() else "%d notes (never must-fix)" % notes.size()), 18, "heading")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
+	head.add_child(_button("Explain", ExplainMotion.show.bind(self), "N091: this motion in plain words, with the numbers (phases, power, read, one thing to try)"))
 	head.add_child(_button("Close", _close_findings))
 	ui_find_list.add_child(_label("Animation craft, from the twelve principles: notes, not errors. Click one to jump to its moment.", 13, "text:0.6", true))
 	for k in notes.size():

@@ -447,6 +447,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N017 EVENT QUERY: when is X true, measured on the played body (scripts/event_query.gd); unknown phrase -> the known list
 			var ev: Dictionary = await EventQuery.run(m, p)
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
+		"explain":   # N091 EXPLAIN THIS MOTION (scripts/explain_motion.gd): phases, power, read, one thing to try; scene untouched. Not in METHODS
+			var xm := ExplainMotion.serve(m, p)
+			return _ok(id, xm) if xm["ok"] else _err(id, -32602, String(xm["error"]))
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
 		"text_view":
