@@ -416,11 +416,21 @@ func _decompose_bone(j: String, q: Quaternion) -> Vector3:
 	return Vector3(rad_to_deg(rv.dot(b_ax[j])), rad_to_deg(rv.dot(a_ax[j])), rad_to_deg(tw))
 
 
+## N028 COUPLED LIMITS, opt-in: 0 = off (the default: Nick's saved poses and every scene play exactly as before), 1 = keep the
+## legs inside the healthy-adult two-joint curves (hamstrings, gastrocnemius, rectus femoris), 2 = the trained curves.
+## The curves and their sources: scripts/coupled_limits.gd. Check judges them either way (rule COUPLED LIMIT)
+var coupled_clamp := 0
+
+
 ## keep each angle inside the body's range
 func clamp_ang(j: String, v: Vector3) -> Vector3:
 	var L: Dictionary = lim[j]
-	return Vector3(clampf(v.x, L["bend"].x, L["bend"].y), clampf(v.y, L["side"].x, L["side"].y),
+	var r := Vector3(clampf(v.x, L["bend"].x, L["bend"].y), clampf(v.y, L["side"].x, L["side"].y),
 		clampf(v.z, L["twist"].x, L["twist"].y))
+	if coupled_clamp > 0:
+		r = CoupledLimits.clamp(self, j, r)
+		r.x = clampf(r.x, L["bend"].x, L["bend"].y)
+	return r
 
 
 ## which of the joint's three angles sit on a limit (within 0.5 deg); locked axes don't count, nor a limit AT the
@@ -1168,6 +1178,10 @@ func set_ang_safe(j: String, v: Vector3) -> bool:
 		if r.y - r.x > 0.5 and absf(cl[k] - v[k]) > 0.5:   # a locked axis (a hinge's side, twist) is not a stop
 			last_stop = {"kind": "limit", "joint": j, "axis": ["bend", "side", "twist"][k], "at": cl[k], "lo": r.x, "hi": r.y}
 			break
+	if coupled_clamp > 0:   # N028: cut short by a two-joint muscle, not the table (the loop above read it as a table stop)
+		var cs := CoupledLimits.stop(self, j, v, cl)
+		if not cs.is_empty():
+			last_stop = cs
 	var old: Vector3 = ang[j]
 	var pen0 := penetration_moving(j)   # NA6: only the pairs this turn can change
 	set_ang(j, v)

@@ -91,6 +91,8 @@
 ##                                 EVERY condition true ("balance", "reach right fist to 0.25,1.35,0.45 within 2 cm", "limits 5",
 ##                                 an N002 line): intervals in deg with what bounds each end; joint2 = a pass / fail map
 ##                                 (scripts/range_sweep.gd; CLI: range <scene|-> [card=N] [t=S] [step=D] <joint> <axis> "<cond>" ...)
+##   limits {joint, other_angles?}  N028: the joint's bend range now (table, healthy adult, trained) given the other leg joints
+##                                 ({"calf_r": 0} or {"knee": 0}; missing = the body as it stands), each two-joint muscle with its why + source
 ##   explain_conflict {lines, t? | card?}  N006 (scripts/conflict_explain.gd): wishes (assert lines + "both feet planted",
 ##                                 "lean 40 deg forward") at one moment -> "no conflict", or the minimal clashing set and the
 ##                                 cost to free each ("needs 12 cm more reach: step 12 cm forward, or lean 5 deg, or drop ...")

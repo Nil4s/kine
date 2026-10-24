@@ -375,6 +375,7 @@ static func findings(S: Scene, B: Body, sm := {}, with_torque := false) -> Array
 	if with_torque:
 		out += rule_torque(sm)
 	out += rule_tipping(sm)
+	out += CoupledLimits.findings(S, B)   # N028: two-joint muscles (straight-leg kick vs the hamstrings): scripts/coupled_limits.gd
 	for f in out:
 		f["card"] = Rulebook.card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])
