@@ -95,8 +95,8 @@ func _init() -> void:
 	await idle(3)
 	var home: EasyHome = m.easy.home
 
-	# 1 the More entry, and the bar is still 7 buttons
-	ok("Copy a video" in m.easy.more_labels() and m.easy.labels().size() == 7,
+	# 1 the More entry, and the bar is still 7 buttons (+ Redo, the 8th: shown only after an Undo); Copy is not on the bar
+	ok("Copy a video" in m.easy.more_labels() and m.easy.labels().size() == 8 and "Redo" in m.easy.labels() and not ("Copy a video" in m.easy.labels()),
 		"1 More has \"Copy a video\" (%d entries); the bar has %d buttons (bar 7)" % [m.easy.more_labels().size(), m.easy.labels().size()])
 
 	# 2 the copy: >= 2 cards, the clip plays at once
