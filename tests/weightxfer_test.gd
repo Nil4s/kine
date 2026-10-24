@@ -204,6 +204,7 @@ func _init() -> void:
 
 	# 7 + 8
 	var path := "res://scenes/_wip/zz_weightxfer.json"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://scenes/_wip"))   # gitignored: a fresh clone has none
 	var src := cross(0.70)
 	var fw := FileAccess.open(path, FileAccess.WRITE)
 	fw.store_string(JSON.stringify(src.to_dict(B)))

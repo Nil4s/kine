@@ -155,6 +155,8 @@ static func _same_finding(f: Dictionary, x: Dictionary) -> bool:
 		return false
 	if f["rule"] == "HITCH":
 		return absf(x["t"] - f["t"]) < 0.12
+	if f["rule"] == "WEIGHT TRANSFER" and f.has("strike_card"):   # N029: the same strike (its own card), not the card its start falls on
+		return x.get("strike_card", -1) == f["strike_card"] and x.get("class", "") == f.get("class", "")
 	if f["rule"] == "FOOT SLIDE":   # the same foot sliding over the same stretch
 		return x.get("foot", "") == f.get("foot", "") and x["t"] < f.get("t1", f["t"]) + 0.1 and x.get("t1", x["t"]) > f["t"] - 0.1
 	return x["card"] == f["card"]

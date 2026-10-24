@@ -1052,7 +1052,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 		out += Feasible.verdict_finding(S, fz) + fz["findings"].filter(func(f): return f["rule"] != "COUPLED LIMIT")   # N028: listed once, by HumanLimits
 	FrameMemo.tick("feasible total", tk)
 	if attack:
-		out += WeightXfer.findings(S, B)   # N029: each strike starts with the weight on the foot it needs (scripts/weight_xfer.gd)
+		out += WeightXfer.findings(S, B, sm)   # N029: each strike starts with the weight on the foot it needs (scripts/weight_xfer.gd)
 	out += BodyAssert.findings(S, B)   # N002: the scene's saved assertions, re-checked on every Check
 	for f in out:
 		f["card"] = card_at(S, f["t"])

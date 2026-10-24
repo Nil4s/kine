@@ -49,6 +49,9 @@ const SINK_MAX := 0.08      # m: the most the hips sink to keep both feet plante
 const PEAK_GAP := 0.25      # s: Rulebook.strikes's own spacing; two windows peaking closer name one strike
 const LOOKBACK := 1.0       # s before a kick's peak in which its lift-off is looked for
 const KICKS := ["front kick", "side kick", "roundhouse", "knee"]
+const MEMO_MAX := 16        # scenes (by their play signature) whose strikes are remembered: Check and Fix ask again and again
+
+static var _memo := {}
 
 
 ## the graded strikes of a scene, each with the weight where it starts:
@@ -62,7 +65,16 @@ static func strikes(S: Scene, B: Body) -> Array:
 	var keep := B.state()
 	var was := S.stepped
 	S.stepped = false   # graded as it really plays (Rulebook.sample's rule)
-	var clip := EventQuery.sample([{"S": S, "B": B, "xf": Transform3D.IDENTITY, "name": String(S.name)}], FPS, {"cross": false, "bal": false})
+	# off the main thread (the Fix PREVIEW runs Fixer.propose in a WorkerThreadPool task): the serial sampler, which neither
+	# touches EventQuery's shared cache nor starts a group task from inside a pool thread
+	var main := OS.get_thread_caller_id() == OS.get_main_thread_id()
+	var key := ""
+	if main:
+		key = PoseBake.signature(S).hex_encode().sha256_text() + str(B.body.hash())
+		if _memo.has(key):
+			S.stepped = was
+			return (_memo[key] as Array).duplicate(true)
+	var clip := EventQuery.sample([{"S": S, "B": B, "xf": Transform3D.IDENTITY, "name": String(S.name)}], FPS, {"cross": false, "bal": false}, not main)
 	var ts := S.times()
 	var dn: PackedByteArray = clip["down"][0]
 	var n: int = clip["n"]
@@ -95,6 +107,8 @@ static func strikes(S: Scene, B: Body) -> Array:
 			it.merge({"need": other, "role": "support", "bar": KICK_MIN, "when": "lift-off", "f": lift})
 		else:
 			continue
+		if int(dn[it["f"]]) == 0:
+			continue   # in the air at the measured moment: no foot to load (before the duplicate test, so it cannot evict one)
 		# the same strike seen from two cards' windows: keep the faster
 		var dup := -1
 		for i in out.size():
@@ -107,8 +121,6 @@ static func strikes(S: Scene, B: Body) -> Array:
 		var fr: int = it["f"]
 		var d := int(dn[fr])
 		var need_bit := 1 if it["need"] == "_l" else 2
-		if d == 0:
-			continue   # in the air: no foot to load
 		var share := 0.0
 		if d == 3:
 			S.apply(B, fr / FPS)
@@ -122,6 +134,10 @@ static func strikes(S: Scene, B: Body) -> Array:
 	S.stepped = was
 	B.set_state(keep)
 	B.fk()
+	if main:
+		if _memo.size() >= MEMO_MAX:
+			_memo.clear()
+		_memo[key] = out.duplicate(true)
 	return out
 
 
@@ -148,8 +164,12 @@ static func _why(it: Dictionary) -> String:
 
 
 ## Check's findings: one WARN per graded strike that starts under its bar. v = the share on the needed foot (0..1)
-static func findings(S: Scene, B: Body) -> Array:
+## sm: Rulebook's sample of this scene, when the caller has one: a scene holding a weapon in EVERY frame is skipped without
+## sampling again (its strikes are weapon strikes, not graded; a kick with a weapon in hand is not graded either: stated)
+static func findings(S: Scene, B: Body, sm := {}) -> Array:
 	var out := []
+	if sm.has("_raw") and not (sm["_raw"] as Array).is_empty() and (sm["_raw"] as Array).all(func(r): return bool(r.get("wep", false))):
+		return out
 	for it in strikes(S, B):
 		if float(it["share"]) >= float(it["bar"]):
 			continue
@@ -202,8 +222,10 @@ static func _again(S: Scene, B: Body, f: Dictionary) -> Dictionary:
 ## the ball on its mark, the foot pointing as it pointed; flat first, the heel let up if a flat foot cannot reach, as a
 ## pushing back foot does). If a leg still cannot reach, the hips sink 1 cm at a time (up to SINK_MAX): a weight shift
 ## bends the knees a little, as it does in people. Leaves the pose in B; returns the worst ball miss (m)
-static func shift(B: Body, orig: Dictionary, dxz: Vector2) -> float:
+static func shift(B: Body, orig: Dictionary, dxz: Vector2, S: Scene = null) -> float:
 	Scene.put(B, Moves._flat(orig))
+	if S != null and S.on_floor:
+		S._ground(B)
 	B.fk()
 	var fs := {}
 	for sd in ["_l", "_r"]:
@@ -250,6 +272,8 @@ static func fix(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	for k in FIX_TRIES:
 		tries += 1
 		Scene.put(B, Moves._flat(orig))
+		if S.on_floor:
+			S._ground(B)   # as it plays: the soles on the floor (a card stored 1-2 cm up still has its stance)
 		B.fk()
 		var cen := _centres(B)
 		if cen.is_empty():
@@ -262,9 +286,10 @@ static func fix(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 		var c := Balance.com(B)
 		var now := clampf((Vector2(c.x, c.z) - (cen[other] as Vector2)).dot(d) / d.length_squared(), 0.0, 1.0)
 		var dxz := d * (minf(aim, SHARE_MAX) - now)
-		var miss := shift(B, orig, dxz)
+		var miss := shift(B, orig, dxz, S)
 		if miss > PLANT_TOL:
 			stop = "the legs cannot keep the feet planted that far (%.1f cm off)" % (miss * 100.0)
+			break   # a shift that slides a foot is not kept; the best try so far (if any) stands
 		S.cards[j]["pose"] = B.to_dict()
 		var it := _again(S, B, f)
 		var sh := float(it["share"]) if not it.is_empty() else -1.0
