@@ -80,7 +80,11 @@
       "staff",
       "long_hammer",
       "dagger",
-      "long_axe"
+      "long_axe",
+      "sword",
+      "longsword",
+      "katana",
+      "spear"
      ]
     },
     "length": {
@@ -287,6 +291,38 @@
     },
     "walk": {
      "type": "boolean"
+    },
+    "air": {
+     "type": "boolean"
+    },
+    "take": {
+     "type": "object",
+     "required": ["prop"],
+     "properties": {
+      "prop": {"type": "integer", "minimum": 0},
+      "hands": {"type": "array", "items": {"enum": ["_l", "_r"]}, "uniqueItems": true}
+     },
+     "additionalProperties": false
+    },
+    "drop": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "drop_rig": {
+     "type": "object",
+     "required": ["in", "poses"],
+     "properties": {
+      "in": {"type": "array"},
+      "poses": {"type": "array"}
+     },
+     "additionalProperties": false
+    },
+    "ktype": {
+     "enum": ["breakdown", "moving_hold", "extreme"]
+    },
+    "weight_i": {
+     "type": "number",
+     "minimum": 0
     },
     "ease": {
      "enum": [

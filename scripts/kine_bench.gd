@@ -255,9 +255,8 @@ static func table_json(rows: Array, title: String) -> Dictionary:
 
 
 ## a scene file opened on the app's body the way serve `open` opens it (main._load_scene, the card strip rebuilt, card 1 picked)
-## WITHOUT the schema check first: docs/scene.schema.json does not list the "air" card key that the committed jump and run templates
-## carry (VV1 flights), so serve `open` refuses those files ("'air' is not a property this file can have"). The bench's runner and
-## test open result scenes here so a scene with a jump in it is graded, not refused. -> false when the file is missing or not JSON
+## without serve's schema check (the schema lacked the "air" card key until 10-24, so serve `open` refused jump/run scenes; it lists
+## it now, with take/drop/drop_rig/ktype/weight_i). The bench grades the scene whatever its file says. -> false when missing or not JSON
 static func open_scene(m: Node, path: String) -> bool:
 	var probe: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
 	if not (probe is Dictionary):
