@@ -4,8 +4,8 @@
 ## as it was; the tour advances on the real actions only. The settings are the test's own file (user://poser_test_*.cfg).
 extends SceneTree
 
-const LABELS := ["Library", "Save video", "Play / Stop", "New scene", "Open", "More", "Switch to Expert"]   # the bar (7)
-const MORE := ["Key this pose", "Pose (drag parts)", "Undo", "Redo", "Save scene", "Mirror pose", "Floor (snap feet)"]
+const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "More", "Switch to Expert"]   # the bar (7)
+const MORE := ["Key this pose", "Pose (drag parts)", "Redo", "Open", "Save scene", "Mirror pose", "Floor (snap feet)"]
 
 var fails := 0
 var m: Node
@@ -113,7 +113,7 @@ func _init() -> void:
 	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube %s" % str(range(panels().size()).filter(func(i): return panels()[i].visible)))
 	ok(m.ui_bp.visible, "the bottom panel (timeline and cards) stays: the tour and Play need it")
 	ok(m.lw() == 0.0 and m.rw() == 0.0, "the body view takes the room the hidden side panels had")
-	ok(m.easy.button("Open") != null and m.easy.more_labels() == MORE, "Open is on the bar; the More menu holds the other %d actions" % MORE.size())
+	ok(m.easy.button("Undo") != null and m.easy.more_labels() == MORE, "Undo is on the bar; the More menu holds the other %d actions" % MORE.size())
 	ok(m.easy.button("New scene").pressed.get_connections().size() > 0 and m.easy.button("Save video").pressed.get_connections().size() > 0, "New scene and Save video are wired (not run here: a dialog / a render)")
 	
 	m.easy.set_on(false, false)
@@ -130,9 +130,9 @@ func _init() -> void:
 	m.easy.pick_more("Key this pose")
 	await idle()
 	ok(m.S.cards.size() == n0 + 1, "Key this pose adds a card (%d -> %d)" % [n0, m.S.cards.size()])
-	m.easy.pick_more("Undo")
+	m.easy.button("Undo").pressed.emit()
 	await idle()
-	ok(m.S.cards.size() == n0, "Undo takes the card back")
+	ok(m.S.cards.size() == n0, "Undo (on the bar) takes the card back")
 	m.easy.pick_more("Redo")
 	await idle()
 	ok(m.S.cards.size() == n0 + 1, "Redo puts it back")
@@ -145,7 +145,7 @@ func _init() -> void:
 	m.easy.pick_more("Mirror pose")
 	await idle()
 	ok(JSON.stringify(m.B.state()) != body_before, "Mirror pose changes the body (a raised right arm goes to the left)")
-	m.easy.pick_more("Undo")
+	m.easy.button("Undo").pressed.emit()
 	await idle()
 	m.easy.button("Play / Stop").pressed.emit()
 	await idle()
@@ -156,7 +156,7 @@ func _init() -> void:
 	m.easy.pick_more("Floor (snap feet)")
 	await idle()
 	ok(true, "Floor (snap feet) runs without an error")
-	m.easy.button("Open").pressed.emit()
+	m.easy.pick_more("Open")
 	await idle()
 	ok(m.easy._menu.item_count == m.ui_scenes.item_count and m.ui_scenes.item_count > 0, "Open lists the scenes the list has (%d)" % m.ui_scenes.item_count)
 	m.easy._menu.hide()

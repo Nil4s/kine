@@ -1,7 +1,7 @@
 class_name EasyMode
 extends Node
 ## EASY MODE (docs/ROADMAP.md items 3 and 4; beginners are lost in 140+ commands).
-## Easy: ONE bar of 7 big labelled buttons (Library, Save video, Play / Stop, New scene, Open, More, Switch to Expert)
+## Easy: ONE bar of 7 big labelled buttons (Library, Save video, Play / Stop, Undo, New scene, More, Switch to Expert)
 ## takes the top strip's place; More opens a menu with the rest (Key this pose, Pose, Undo, Redo, Save scene, Mirror
 ## pose, Floor). The side panels, the top tools, the scene header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
 ## The mode is remembered in poser.cfg [look] mode. A fresh config is Easy; an existing config with no mode key is
@@ -80,15 +80,15 @@ func build(root: Control, expert: Array) -> void:
 		["Save video", "Render the scene from the camera to a video in your Videos folder (Kine/), with a button to show it", func(): home.save_video()],
 		["Play / Stop", "Play the scene from the playhead, or stop it (Space)", m._toggle_play],
 		["New scene", "Start an empty scene (it asks first over unsaved work)", _new],
-		["Open", "Open one of your scenes", _open],
-		["More", "The other things: Key this pose, Pose, Undo, Redo, Save scene, Mirror pose, Floor (snap feet)", _more_open],
+		["Undo", "Take back the last change (Ctrl+Z): a beginner's first need, so it stays on the bar", m._undo],
+		["More", "The other things: Key this pose, Pose, Redo, Open, Save scene, Mirror pose, Floor (snap feet)", _more_open],
 		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	var more := [
 		["Key this pose", "Keep the body's pose as a card on the timeline (Enter)", m._card_add],
 		["Pose (drag parts)", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
-		["Undo", "Take back the last change (Ctrl+Z)", m._undo],
 		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
+		["Open", "Open one of your scenes", _open],
 		["Save scene", "Save the scene (Ctrl+Shift+S)", m._save_scene],
 		["Mirror pose", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
 		["Floor (snap feet)", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
@@ -257,7 +257,7 @@ func _open() -> void:
 	_menu.clear()
 	for i in m.ui_scenes.item_count:
 		_menu.add_item(m.ui_scenes.get_item_text(i), i)
-	var at: Rect2 = (_btns["Open"] as Control).get_global_rect()
+	var at: Rect2 = (_btns["More"] as Control).get_global_rect()   # Open is in the More menu: its list drops under More
 	_menu.position = Vector2i(at.position + Vector2(0, at.size.y))
 	_menu.popup()
 
