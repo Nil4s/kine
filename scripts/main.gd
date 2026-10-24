@@ -17980,7 +17980,8 @@ func _ask_save(what: String, then: Callable, quitting := false) -> void:
 	_save_ask_quit = quitting
 	ui_save_ask.dialog_text = "Save changes to %s?\nThey are not saved yet. Don't save throws them away." % what
 	ui_save_ask.popup_centered()
-	_say("Save changes to %s? Save keeps them, Don't save throws them away, Cancel keeps the scene open" % what)
+	if not easy.on:   # Easy: the dialog says it; the same words again in the status line under the body only repeat it
+		_say("Save changes to %s? Save keeps them, Don't save throws them away, Cancel keeps the scene open" % what)
 
 
 ## how = "save" | "discard" | "cancel" (the dialog's buttons, and what a test calls)

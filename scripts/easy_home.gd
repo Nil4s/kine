@@ -48,6 +48,7 @@ var _toast: PanelContainer
 var _toast_text: Label
 var _toast_show: Button       # "Open folder": hidden when the message has no file (the empty-scene hint)
 var _toast_file := ""         # what Show the file opens: the .mp4 (its folder is shown with it)
+var _toast_at := []           # [cards, undo steps] when the saved-video message came up: it goes once the clip changes
 var _vid_busy := false        # COPY A VIDEO: an import from a video is running (the tracker, then the fit)
 var _vid_before := ""         # the scene path when the copy began: a new path when it lands
 var _vid_cancel := false      # the fit's own Cancel was pressed
@@ -135,7 +136,6 @@ func build(root: Control) -> void:
 	_make_btn.tooltip_text = AI_WHY   # what it does and how long: the button's tooltip (the two lines under the box stay short)
 	_make_btn.visible = false
 	_make_btn.pressed.connect(make_ai)
-	v.add_child(_make_btn)
 	_try_row = HBoxContainer.new()
 	_try_row.name = "eh_try"
 	_try_row.add_theme_constant_override("separation", 6)
@@ -150,6 +150,7 @@ func build(root: Control) -> void:
 		_try_row.add_child(tb)
 	_try_row.visible = false
 	v.add_child(_try_row)
+	v.add_child(_make_btn)   # under the Or try row: the instant moves first, the 3-minute AI take after (walk-through round 4)
 	_ai_no = _label(AI_NO, 15, "warn")
 	_ai_no.name = "eh_ai_no"
 	_ai_no.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -273,6 +274,10 @@ func _process(dt: float) -> void:
 	_refresh_next()
 	if not on:
 		_toast.visible = false
+	elif _toast.visible and _toast_file != "":   # a saved-video message is about THAT clip: a new scene, an edit or the save question takes it down
+		var asking: bool = m.ui_save_ask != null and m.ui_save_ask.visible
+		if asking or m.S.cards.size() != int(_toast_at[0]) or m.undo.size() != int(_toast_at[1]):
+			_toast.visible = false
 	_close.visible = not empty and not _gen_on
 	_then_box.visible = not empty
 	var typed_gap: bool = _gen_words != "" and not _gen_on   # a typed line Kine cannot build
@@ -356,6 +361,7 @@ func _show_toast(text: String, file: String) -> void:
 	_toast_file = file
 	_toast_show.visible = file != ""
 	_toast.visible = true
+	_toast_at = [m.S.cards.size(), m.undo.size()]
 
 
 func _toast_button(nm: String, text: String, tip: String, f: Callable) -> Button:

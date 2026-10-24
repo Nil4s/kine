@@ -310,6 +310,36 @@ func _init() -> void:
 	await idle(4)
 	ok(m.S.cards.size() == wave_n and String(m.S.cards[0]["name"]) == wave_name, "11. Start over: the wave replaces the walk (%d cards, the wave's %d)" % [m.S.cards.size(), wave_n])
 
+	# 12. THE SAVED-VIDEO MESSAGE IS ABOUT THAT CLIP (walk-through round 4): it stays while nothing changes, goes when the save
+	# question comes up or the clip changes (New scene), and the save question's words are not repeated in Easy's status line
+	m._new_scene()
+	await idle(4)
+	card_btn(3).pressed.emit()   # Punch
+	await idle(4)
+	m.playing = false
+	home._show_toast("Your video is saved: test.mp4", "C:/nowhere/test.mp4")
+	await idle(3)
+	var sv: Control = home._toast
+	ok(sv.visible, "12. the saved-video message shows while the clip is unchanged")
+	var st0: String = m.ui_status.text
+	m._ask_save("this scene", func(): pass)
+	await idle(3)
+	ok(not sv.visible, "12. the save question takes the saved-video message down")
+	ok(m.ui_status.text == st0 and not m.ui_status.text.contains("Don't save throws"), "12. Easy: the status line does not repeat the save question ('%s')" % m.ui_status.text)
+	m._save_ask_choose("cancel")
+	await idle(2)
+	home._show_toast("Your video is saved: test.mp4", "C:/nowhere/test.mp4")
+	await idle(2)
+	m.S.cards.clear()
+	await idle(3)
+	ok(not sv.visible, "12. the clip changing takes the saved-video message down")
+	home._show_toast("Nothing here yet", "")   # a message with no file (the empty-scene hint) is not a saved-video message: it stays
+	await idle(3)
+	ok(sv.visible, "12. a message with no file is left alone")
+	sv.visible = false
+	m._new_scene()
+	await idle(4)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
