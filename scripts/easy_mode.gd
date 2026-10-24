@@ -36,6 +36,10 @@ var _armed := false         # step 1: a hand was dragged (the drag is not let go
 var _moved := false         # step 4: the body changed since the step began
 static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
+var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Easy came on: Expert gets exactly this back
+const FREE_PAD := 8.0       # px between the free rect and the Easy bar, the strip, or the bottom panel
+const FRAME_PAD := 12.0     # px of air the body keeps inside the free rect (the framing's margin)
+const FRAME_STEP := 2       # the clip is sampled every 2nd frame: a frame moves a hand a few px, inside FRAME_PAD
 
 
 ## which mode a settings file asks for. A key decides. No key: a file with sections is an existing user (Expert);
@@ -112,6 +116,7 @@ func build(root: Control, expert: Array) -> void:
 	_menu.id_pressed.connect(func(i: int): m._scene_picked(i))
 	bar.add_child(_menu)
 	_build_tour_card(root)
+	get_viewport().size_changed.connect(_resized)   # EASY CAMERA: a window resize re-frames the clip (frame_clip)
 	home = EasyHome.new()   # the empty scene's "What should he do?" panel: a child of Easy, so Expert never shows it
 	home.name = "easy_home_node"
 	home.m = m
@@ -183,6 +188,8 @@ func set_on(v: bool, save := true) -> void:
 	var was := on
 	on = v
 	if on and not was:
+		if m != null:
+			_saved_cam = {"yaw": m.yaw, "pitch": m.pitch, "dist": m.dist, "target": m.target}   # Expert's own view, kept for the way back
 		for n in _expert:
 			if n != null and not _vis.has(n):
 				_vis[n] = n.visible
@@ -194,6 +201,12 @@ func set_on(v: bool, save := true) -> void:
 	elif was and not on:
 		if tour_step >= 0:
 			_finish(true, false)
+		if not _saved_cam.is_empty() and m != null:   # Expert's camera is exactly what it was before Easy (main._cam places it)
+			m.yaw = _saved_cam["yaw"]
+			m.pitch = _saved_cam["pitch"]
+			m.dist = _saved_cam["dist"]
+			m.target = _saved_cam["target"]
+			_saved_cam = {}
 		for n in _vis:
 			if is_instance_valid(n):
 				n.visible = _vis[n]
@@ -220,6 +233,90 @@ func _set_cfg(key: String, v: Variant) -> void:
 	cf.load(m.settings)
 	cf.set_value(CFG, key, v)
 	cf.save(m.settings)
+
+
+# ---------------------------------------------------------------- the camera (Easy's frame)
+
+## the free rect (px): below the Easy bar, or below the strip when it is there (the strip's own height, shown or not), above the
+## bottom card panel and the status line. The body is framed inside it (frame_clip); Expert's camera does not use it.
+func free_rect() -> Rect2:
+	var vs := get_viewport().get_visible_rect().size
+	var top := float(m.TOP_H)
+	if home != null and home.strip != null:
+		top = maxf(top, 82.0 + home.strip.get_combined_minimum_size().y)   # the strip sits at 82 (under the bar), see easy_home.gd
+	top += FREE_PAD
+	var bottom := vs.y - float(m.bottom_h) - float(m.LINE_H) - FREE_PAD
+	return Rect2(0.0, top, vs.x, maxf(bottom - top, 40.0))
+
+
+## the camera's offsets for Easy: the look-at point sits at the free rect's centre (mpp = world units per px at the target)
+func offsets(vs: Vector2, mpp: float) -> Vector2:
+	var c := free_rect().get_center()
+	return Vector2((vs.x * 0.5 - c.x) * mpp, (c.y - vs.y * 0.5) * mpp)
+
+
+## FRAME THE CLIP: the body over the whole clip (every frame, joints, ends and any weapon, each with its radius) is framed
+## inside the free rect: the target is the middle of its box, the distance the smallest that keeps every point inside.
+## Called when a clip is built and when the window resizes. The playhead's pose is put back after the sampling.
+func frame_clip() -> void:
+	if m == null or not on or m.S.cards.is_empty():
+		if m != null:
+			m._cam()
+		return
+	var vs := get_viewport().get_visible_rect().size
+	var F := free_rect().grow(-FRAME_PAD)
+	var fps := float(m.S.fps)
+	var pts := []
+	var last := int(ceil(m.S.length() * fps))
+	var ks := range(0, last + 1, FRAME_STEP)   # every 2nd frame (a pose is ~3.5 ms: the click waits for it), the last one too
+	if ks[-1] != last:
+		ks.append(last)
+	for k in ks:
+		m._ps().apply(m.B, float(k) / fps)
+		pts.append_array(Turntable.points(m.B))
+	m._ps().apply(m.B, m.playhead)
+	var lo := Vector3(INF, INF, INF)
+	var hi := -lo
+	for p in pts:
+		lo = lo.min(p[0])
+		hi = hi.max(p[0])
+	var centre := (lo + hi) * 0.5
+	var a := 0.6
+	var b := 40.0
+	for it in 16:   # 40 m / 2^16: under a millimetre (each step runs every point, so the count is the click's cost)
+		var mid := (a + b) * 0.5
+		if _fits(pts, centre, mid, vs, F):
+			b = mid
+		else:
+			a = mid
+	m.target = centre
+	m.dist = b
+	m._cam()
+
+
+## every point (with its radius) projects inside F with the camera at centre, distance d (the offsets as _cam sets them)
+func _fits(pts: Array, centre: Vector3, d: float, vs: Vector2, F: Rect2) -> bool:
+	var cam: Camera3D = m.cam
+	var b := Basis.from_euler(Vector3(deg_to_rad(m.pitch), deg_to_rad(m.yaw), 0))
+	cam.transform = Transform3D(b, centre + b * Vector3(0, 0, d))
+	var mpp := 2.0 * d * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
+	var o := offsets(vs, mpp)
+	cam.h_offset = o.x
+	cam.v_offset = o.y
+	for p in pts:
+		var c: Vector3 = p[0]
+		if cam.is_position_behind(c):
+			return false
+		var q := cam.unproject_position(c)
+		var r := float(p[1]) / mpp
+		if q.x - r < F.position.x or q.x + r > F.end.x or q.y - r < F.position.y or q.y + r > F.end.y:
+			return false
+	return true
+
+
+func _resized() -> void:
+	if on:
+		frame_clip.call_deferred()
 
 
 # ---------------------------------------------------------------- the bar's actions

@@ -221,6 +221,8 @@ func _go(what: String, label: String) -> void:
 	_built = true
 	_open = false
 	_msg.text = ""
+	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
+	m.easy.frame_clip()  # EASY CAMERA: the clip is framed in the free rect under the bar / strip
 	_play()
 
 
