@@ -149,6 +149,20 @@ func run_posture(S: Scene, B: Body) -> Dictionary:
 	return {"air": float(air) / n, "elb": elb / n, "hand_cm": minf(rng_l, rng_r) * 100.0, "phase": maxf(_corr(hl, tl), _corr(hr, tr))}
 
 
+## each hand's fore-aft position relative to the pelvis over the clip (240 samples): {"l": [min, max], "r": [min, max]}, metres,
+## + = in front (the body's +Z). A runner's back hand goes behind the hip and the front hand reaches the chest.
+func hand_reach(S: Scene, B: Body) -> Dictionary:
+	var out := {"l": [9.0, -9.0], "r": [9.0, -9.0]}
+	for i in 241:
+		S.apply(B, S.length() * float(i) / 240.0)
+		var pz: float = (B.P["pelvis"] as Vector3).z
+		for sd in ["l", "r"]:
+			var dz: float = (B.E["hand_" + sd] as Vector3).z - pz
+			out[sd][0] = minf(float(out[sd][0]), dz)
+			out[sd][1] = maxf(float(out[sd][1]), dz)
+	return out
+
+
 func _corr(a: Array, b: Array) -> float:
 	var n := a.size()
 	var ma := 0.0
@@ -230,6 +244,11 @@ func _init() -> void:
 	print("     run look: airborne %.2f, mean elbow %.1f deg, hand fore-aft %.1f cm, arm/thigh r max %.2f, cadence %.1f" % [rp["air"], rp["elb"], rp["hand_cm"], rp["phase"], gr["cad"]])
 	ok(inr(float(rp["elb"]), 70.0, 110.0), "run look: mean elbow bend %.1f deg inside 70-110 (a runner's elbows ~90)" % rp["elb"])
 	ok(float(rp["hand_cm"]) >= 25.0 and float(rp["phase"]) < 0.0, "run look: hand fore-aft swing %.1f cm (>= 25) and each hand against the same-side thigh (r %.2f < 0)" % [rp["hand_cm"], rp["phase"]])
+	# RUN, the arms swing like a runner's: each hand gets behind the hip at the back of the swing and in front of the trunk at the front
+	var hr_reach := hand_reach(Sr, B)
+	print("     run hands (fore-aft from the pelvis, cm): left %.1f..%.1f, right %.1f..%.1f" % [float(hr_reach["l"][0]) * 100.0, float(hr_reach["l"][1]) * 100.0, float(hr_reach["r"][0]) * 100.0, float(hr_reach["r"][1]) * 100.0])
+	for sd in ["l", "r"]:
+		ok(float(hr_reach[sd][0]) <= -0.05 and float(hr_reach[sd][1]) >= 0.20, "run arms: hand_%s reaches %.1f cm behind the pelvis (<= -5) and %.1f cm in front (>= 20)" % [sd, float(hr_reach[sd][0]) * 100.0, float(hr_reach[sd][1]) * 100.0])
 	ok(float(rp["air"]) >= 0.2, "run look: airborne fraction %.2f >= 0.2 (both feet off the floor in a fifth of the clip or more)" % rp["air"])
 	ok(inr(float(gr["cad"]), 150.0, 190.0), "run look: cadence %.1f steps/min inside 150-190 (a jog 160-170; not slow motion)" % gr["cad"])
 	# CONTROL for the arm bars: the walk's arms are not run arms (the walk's hand swing is judged on the walk's own bars)
