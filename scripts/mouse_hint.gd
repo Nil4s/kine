@@ -232,7 +232,7 @@ static func items(m: Node, c: String) -> Array:
 		"pose_locked":
 			return [_i("L", "Left: picks the %s (it is locked, it will not turn)" % nm), _i("R", "Right: orbit (a click: Unlock)"), _i("M", "Wheel: zoom")]
 		"pose_empty":
-			return [_i("L", "Left: nothing; press a part to pick it"), _i("R", "Right: orbit"), _i("M", "Wheel: zoom"), _i("M", "Middle: pan")]
+			return [_i("L", "Left: nothing here, press a part to pick it"), _i("R", "Right: orbit"), _i("M", "Wheel: zoom"), _i("M", "Middle: pan")]
 		"nav_orbit":
 			return [_i("L", "Left: drag to orbit the view"), _i("M", "Wheel: zoom"), _i("", "Esc: back to posing")]
 		"nav_pan":
