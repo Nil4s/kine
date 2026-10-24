@@ -15979,7 +15979,7 @@ func _mirror_scene() -> void:
 	# refuses); always in scenes/_wip, whatever folder the name gives
 	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), H.name])
@@ -16196,7 +16196,7 @@ func _style_save(style: String, pct: float) -> void:
 	var d := StyleTransfer.make(_scene_dict(), style, pct)
 	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("style %s at %d%%: saved as %s and opened; '%s' is untouched" % [style, int(round(pct)), path.get_file(), H.name])
@@ -16245,7 +16245,7 @@ func _words_build() -> void:
 	var d := S2.to_dict(W)
 	d["plan"] = "Block out a move from words '%s': %s" % [text, r["status"]]
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("'%s' blocked out as %s and opened (%d cards: %s). %s" % [text, path.get_file(), S2.cards.size(), ", ".join(S2.cards.map(func(c): return String(c["name"]).get_slice(":", 0))), r["status"]])
@@ -16412,7 +16412,7 @@ func _template_build_now(nm: String, d: Dictionary) -> void:
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "from the %s template" % String(Templates.INFO[nm][0]).to_lower()
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("%s template: saved as %s and opened (%d cards); the template itself is untouched" % [Templates.INFO[nm][0], path.get_file(), S.cards.size()])
@@ -17169,7 +17169,7 @@ func _polish() -> void:
 	var d := D.to_dict(ov.GB)
 	d["plan"] = "Polish (tools/detail.gd) from " + base
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("polished: %d cards -> %d, one smooth curve.  Saved as %s; your '%s' is untouched.  Press Check to see what is left." % [n0, D.cards.size(), path.get_file(), base])
@@ -17207,7 +17207,7 @@ func _ragdoll_fall() -> void:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("ragdoll: %d cards, first floor contact %s, %s. Saved as %s; your '%s' is untouched." % [
@@ -17926,6 +17926,7 @@ func _confirm(msg: String, ok_text: String, f: Callable) -> void:
 ## away, its autosave and journal with it), Cancel (nothing happens, the scene stays open). Nothing unsaved: no dialog.
 ## A crash or a kill never reaches this code: the journal still offers the work at the next start.
 var ui_save_ask: ConfirmationDialog
+var ui_save_discard: Button       # the dialog's own "Don't save" button (a named Button: a test or a driver presses it)
 var _save_ask_then: Callable      # what goes on after Save or Don't save
 var _save_ask_quit := false       # the question is for the window's close: Don't save then quits without a dialog
 var _discarding := false          # Don't save on the way out: the exit drops the autosave and the journal too
@@ -17969,7 +17970,8 @@ func _ask_save(what: String, then: Callable, quitting := false) -> void:
 		ui_save_ask.dialog_autowrap = true
 		ui_save_ask.min_size = Vector2i(440, 0)
 		ui_save_ask.ok_button_text = "Save"
-		ui_save_ask.add_button("Don't save", false, "discard")
+		ui_save_discard = ui_save_ask.add_button("Don't save", false, "discard")
+		ui_save_discard.name = "DontSave"
 		ui_save_ask.confirmed.connect(func(): _save_ask_choose("save"))
 		ui_save_ask.custom_action.connect(func(a: StringName): _save_ask_choose(String(a)))
 		ui_save_ask.canceled.connect(func(): _save_ask_choose("cancel"))
@@ -18810,7 +18812,7 @@ func _restore_copy(r: Dictionary) -> void:
 	var nm := safe_file(String(r["name"])).trim_prefix("_wip/")
 	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), (nm if nm != "" else "autosave") + "_restored")
 	_write(path, a["scene"])
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("restored the autosave from %s as scenes/_wip/%s: %d cards. Your scenes are untouched" % [r["at"], path.get_file(), r["cards"]])
@@ -20631,7 +20633,7 @@ func _import_land(res: Dictionary, src: String, held: String) -> String:
 		undo[-1]["swap"] = true
 		_land_undo = ""
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), int(res["frames"]), int(res["cards"]), int(res["locked"]),
@@ -21089,7 +21091,7 @@ func _live_record() -> void:
 	if not r["ok"]:
 		_say("live: the take was not kept: %s (try recording again)" % r["why"])
 		return
-	_load_scene(r["path"])
+	_load_scene(r["path"], true)
 	_rebuild_cards()
 	_refresh()
 	_say("live: the take is the new scene scenes/_wip/%s: %d frames at %.0f fps in %d cards. Check it, then move its cards like any others" % [String(r["path"]).get_file(), r["frames"], r["fps"], r["cards"]])
@@ -21138,7 +21140,7 @@ func _import_bvh(path: String) -> void:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %s" % [path.get_file(), out.get_file(), r["text"]])
@@ -21174,7 +21176,7 @@ func _import_anim(path: String) -> String:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"]])
@@ -21210,7 +21212,7 @@ func _import_physics(path: String) -> String:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), r["text"]])
@@ -21536,7 +21538,7 @@ func _doc_key() -> String:
 	return k
 
 
-func _load_scene(path0: String) -> void:
+func _load_scene(path0: String, work := false) -> void:   # work: a copy the app wrote into scenes/_wip (a card build, a mirror, a restore), not a file the user saved or opened
 	var path := path0
 	if not FileAccess.file_exists(path) and FileAccess.file_exists(UserPaths.w(path)):
 		path = UserPaths.w(path)   # written as res://... in an exported build: it is in the user's folder
@@ -21580,8 +21582,9 @@ func _load_scene(path0: String) -> void:
 	_dummy_hits()
 	sel_card = -1
 	playhead = 0.0
-	_clean = _doc_key()
-	if not _recovering:
+	if not work:   # the user's file (opened, or saved by Save) is the clean state; a work copy is unsaved work until the user saves it (ROADMAP 50)
+		_clean = _doc_key()
+	if not _recovering and not work:
 		_autosave_drop()   # opened a scene: what was unsaved was given up (it asks first, V3)
 		if journal_on:
 			journal.trim()   # ... and its journal goes with it
