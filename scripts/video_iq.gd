@@ -778,7 +778,7 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 		var hi := 15.0
 		for it in 12:
 			if cancelled():
-				return best
+				return _unmemo(best)
 			var mid := sqrt(lo * hi)
 			var idx := dp_keys(feat, ts, mid)
 			var ex := {}
@@ -786,6 +786,7 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 				ex[i] = true
 			var V := VideoImport.thin(dense, 1000000, ex)
 			V.spline = spline
+			V.memo_slopes = true   # VIDEO SPEED: the trial scenes sample the same cards at every t (see Scene._slope)
 			var e := pos_error(ref, _positions(V, B, ts))
 			if e.x <= target and e.y <= worst_cap:
 				lo = mid
@@ -795,7 +796,16 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 				hi = mid
 	if best.is_empty():   # nothing passed: every frame (the dense scene itself)
 		best = {"scene": dense, "keys": range(n), "mean": 0.0, "worst": 0.0, "spline": false, "dense": n, "cards": n}
-	return best
+	return _unmemo(best)
+
+
+## the scene a caller gets back is an ordinary scene again (its slope memo is dropped: a later edit must read live cards)
+static func _unmemo(d: Dictionary) -> Dictionary:
+	if d.has("scene"):
+		(d["scene"] as Scene).memo_slopes = false
+		(d["scene"] as Scene)._slope_cache = {}
+		(d["scene"] as Scene)._sample_memo = {}
+	return d
 
 
 # ================================================================ THE WHOLE IMPORT =======================================
@@ -911,8 +921,10 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 		return {}
 	progress = 0.95
 	var V: Scene = sk["scene"]
+	V.memo_slopes = true   # VIDEO SPEED: this scene's cards are fixed from here to the return below (reachable and the located pass only read it)
 	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps, K["heeloff"])), V.fps)
 	var located := locate_played(B, V, K["list"])
+	_unmemo(sk)
 	var feet := 0
 	var hands := 0
 	for c in located:

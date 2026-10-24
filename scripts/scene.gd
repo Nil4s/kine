@@ -330,7 +330,12 @@ func _sample_cards(t: float) -> Dictionary:
 	if cards.is_empty():
 		return {}
 	if spline:
-		return _spline_sample(t)
+		if not memo_slopes:
+			return _spline_sample(t)
+		# VIDEO SPEED: within a memo scope the same t is sampled again and again (a foot plant's scans re-walk one time grid)
+		if not _sample_memo.has(t):
+			_sample_memo[t] = _spline_sample(t)
+		return _sample_memo[t]
 	var ts := times()
 	for i in cards.size():
 		if t < ts[i][1] and i > 0 and (_flow(i) or _flow(i - 1)):
@@ -576,11 +581,29 @@ static func _d(a: Vector3, b: Vector3, j: String) -> Vector3:
 	return d
 
 
+# VIDEO SPEED: the slope at card k depends on the cards and the time grid only, not on t, and a spline sample reads the slopes of
+# two cards for every joint. memo_slopes (set by VideoIQ for the scenes it builds, and off again when it hands one back) keeps them
+# per (joint, card): the same numbers, no recomputation. A scene that is edited while the memo is on must clear it (_slope_cache = {})
+var memo_slopes := false
+var _slope_cache := {}
+var _sample_memo := {}   # t -> the spline sample at t (memo scope only; callers never write into it: put() reads it)
+
+
 ## joint j's speed (units/s) at card k: 0 at a stop or where it turns back, else the weighted harmonic mean of the two
 ## secants (Brodlie: w1 = 2 h_right + h_left, w2 = h_right + 2 h_left) - never more than 3x the smaller: monotone
 func _slope(F: Dictionary, k: int, j: String, ts: Array) -> Vector3:
 	if _stop(k):
 		return Vector3.ZERO
+	if not memo_slopes:
+		return _slope_calc(F, k, j, ts)
+	var m: Dictionary = _slope_cache.get(j, {})
+	if not m.has(k):
+		m[k] = _slope_calc(F, k, j, ts)
+		_slope_cache[j] = m
+	return m[k]
+
+
+func _slope_calc(F: Dictionary, k: int, j: String, ts: Array) -> Vector3:
 	var hl: float = maxf(1e-6, ts[k][1] - ts[k][0])
 	var hr: float = maxf(1e-6, ts[k + 1][1] - ts[k + 1][0])
 	var y := _val(F, k, j)
