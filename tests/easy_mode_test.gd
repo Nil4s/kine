@@ -60,6 +60,15 @@ func drag(j: String) -> void:
 	await process_frame
 
 
+## every card's line (the picture's name button and the timing line): text by node name, "" when none
+func card_lines() -> Dictionary:
+	var out := {}
+	for n in m.ui_cards.find_children("*", "Button", true, false):
+		if n.name == "b_pick" or n.name == "b_timing":
+			out[str(n.get_parent().get_parent().name) + "/" + str(n.name)] = String(n.text)
+	return out
+
+
 func idle(n := 4) -> void:
 	for i in n:
 		await process_frame
@@ -231,6 +240,49 @@ func _init() -> void:
 	m.easy.tour_card.find_child("easy_tour_skip", true, false).pressed.emit()
 	await idle()
 	ok(m.easy.tour_step == -1 and not m.easy.tour_card.visible and not m.easy.tour_due(), "Skip ends the tour and it is not due again")
+
+	# 4b. a Punch card (EasyHome.CARDS 3): Easy's card lines and bottom panel, and Expert's exactly as they were
+	m.easy.set_on(false, false)
+	await idle()
+	m.easy.home.card(3)
+	await idle(12)
+	var x_lines := card_lines()
+	var x_h: float = m.ui_bp.size.y
+	m.easy.set_on(true, false)
+	await idle(12)
+	m._refresh()
+	await idle(2)
+	var e_lines := card_lines()
+	var e_names := []
+	for c in m.S.cards:
+		e_names.append(m._easy_card_name(c["name"]))
+	var e_bad := []
+	for k in e_lines:
+		var t: String = e_lines[k]
+		if t.find(" s") >= 0 or t.to_lower().find("hold") >= 0 or k.ends_with("/b_timing"):
+			e_bad.append(t)
+	var e_picks := []
+	for k in e_lines:
+		if k.ends_with("/b_pick"):
+			e_picks.append(e_lines[k])
+	ok(m.S.cards.size() >= 4 and e_bad.is_empty(), "Easy after the Punch card: no card line has seconds, a hold or a timing line %s" % str(e_bad))
+	ok(e_picks.size() == m.S.cards.size() and e_picks.all(func(t): return t in e_names) and e_picks[0] == "Guard", "Easy: each card's line is its name, capitalised (%s)" % str(e_picks))
+	ok(m.ui_bp.size.y <= m.ui_card_row.size.y + 40.0, "Easy: the bottom panel (%d px) is no taller than the card row (%d px) + 40" % [int(m.ui_bp.size.y), int(m.ui_card_row.size.y)])
+	var lim := []
+	for j in Body.ORDER:
+		if m.part_look(j) == "limit":
+			lim.append(j)
+	ok(not lim.is_empty(), "the Punch card puts a body part at its joint limit (so the bar below has something to check): %s" % str(lim))
+	ok(lim.all(func(j): return m.skin_col(j).a == 0.0), "Easy: no body part has the limit tint (%s)" % str(lim))
+	m.easy.set_on(false, false)
+	await idle(12)
+	m._refresh()
+	await idle(2)
+	ok(lim.any(func(j): return m.skin_col(j).a > 0.0), "Expert: the limit tint shows on the same body (the check above can see it)")
+	ok(card_lines() == x_lines, "Expert switch: every card line is the old text again (%d lines)" % x_lines.size())
+	ok(absf(m.ui_bp.size.y - x_h) < 0.5, "Expert switch: the bottom panel is its old height (%d px -> %d px)" % [int(x_h), int(m.ui_bp.size.y)])
+	m.easy.set_on(true, false)
+	await idle(4)
 
 	# 5. Expert: every panel's visibility exactly as before the Easy switch
 	m.easy.button("Switch to Expert").pressed.emit()

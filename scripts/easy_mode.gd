@@ -223,8 +223,11 @@ func set_on(v: bool, save := true) -> void:
 		bar.visible = on
 	if on != was and m != null and m.ui_status != null:
 		m._sides_apply()   # main's own pieces follow the mode (the side panels stay hidden while Easy is on)
+		m._rebuild_cards()   # the card lines follow the mode (a name and a picture in Easy; the number and the timing in Expert)
 		m._layout_bottom()
 		m._fit_rows.call_deferred()
+		if on:
+			frame_clip.call_deferred()   # the free rect is the Easy panel's now: the body is framed in it again
 	if m != null and m.tag != null:
 		m._refresh()   # the body's pick light, name tag, dots and axis names follow the mode now (EASY QUIET in main._refresh), at boot too
 	if save and m != null:
