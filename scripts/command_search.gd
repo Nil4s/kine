@@ -39,6 +39,7 @@ var commands: Array = []:
 const KINDS := ["command", "pose", "scene", "macro", "script", "mesh"]   # ROADMAP 81: "macro:" lists the recorded macros; P02 "mesh:" the mesh tools
 var files_provider: Callable
 var files: Array = []
+static var user_files_off := false   # a test sets it: the box lists no saved files (the user's own poses and scenes do not change its results)
 ## ROADMAP_400 P02: the mesh tools that are not commands (scripts/mesh_tools.gd rows, kind "mesh"): found by typed words
 ## like the files, each row with its hotkey and its page. tools_provider (main's MeshTools.rows) runs on the box's FIRST
 ## search, not at boot: the registry is built when someone opens the S box (tool_rows())
@@ -80,7 +81,7 @@ func _ready() -> void:
 func open() -> void:
 	visible = true
 	box.text = ""
-	files = files_provider.call() if files_provider.is_valid() else []
+	files = files_provider.call() if files_provider.is_valid() and not user_files_off else []
 	_filter()
 	box.grab_focus()
 
