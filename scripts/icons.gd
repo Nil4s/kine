@@ -102,6 +102,7 @@ const DRAW := {
 		["box", Rect2(8.5, 8.5, 7, 7), 1.6]],
 	"grid": [["seg", Vector2(3, 8), Vector2(21, 8), 1.4], ["seg", Vector2(3, 16), Vector2(21, 16), 1.4], ["seg", Vector2(8, 3), Vector2(8, 21), 1.4],
 		["seg", Vector2(16, 3), Vector2(16, 21), 1.4], ["box", Rect2(3, 3, 18, 18), 1.4]],
+	"library": [["box", Rect2(3, 3, 8, 8), 1.6], ["box", Rect2(13, 3, 8, 8), 1.6], ["box", Rect2(3, 13, 8, 8), 1.6], ["box", Rect2(13, 13, 8, 8), 1.6]],   # the object library's four tiles
 	"prop": [["box", Rect2(4, 10, 16, 10), 1.8], ["seg", Vector2(4, 10), Vector2(8, 5), 1.6], ["seg", Vector2(20, 10), Vector2(16, 5), 1.6],
 		["seg", Vector2(8, 5), Vector2(16, 5), 1.6]],
 	"ai": [["box", Rect2(3, 4, 16, 11), 1.8], ["seg", Vector2(7, 15), Vector2(6, 20), 1.8], ["seg", Vector2(6, 20), Vector2(11, 15), 1.8], ["seg", Vector2(7, 9.5), Vector2(15, 9.5), 1.8]],

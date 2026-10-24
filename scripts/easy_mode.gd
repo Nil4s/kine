@@ -81,7 +81,8 @@ func build(root: Control, expert: Array) -> void:
 		["Mirror pose", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
 		["Floor (snap feet)", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
 		["Export video", "Render the scene from the camera to a video in exports/", func(): m._export_playblast()],
-		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
+		["Library", "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it", func(): m._library_toggle()],
+			["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	for a in acts:
 		var b := _big(a[0], a[1], a[2])

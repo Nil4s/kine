@@ -3984,6 +3984,24 @@ func _reactions_toggle() -> void:
 	_say("reaction picker: drag a clip onto the fighter who gets hit" if actors_rt.size() >= 2 else "reaction picker: it needs two fighters to drop on: 'Actor: add a second fighter' first")
 
 
+## OBJECT LIBRARY (scripts/object_library.gd): one panel of the objects the app can place, in tabs, with thumbnails and a
+## search. Opened from Easy's Library button, the SET row (STAGE) and the command search. Built on first use; hidden on other pages.
+var ui_library: ObjectLibrary = null
+
+
+func _library_toggle() -> void:
+	if ui_library != null and ui_library.visible:
+		ui_library.hide_panel()
+		_say("object library closed")
+		return
+	if ui_library == null:
+		ui_library = ObjectLibrary.new()
+		ui_root.add_child(ui_library)
+		ui_library.setup(self, WEAPONS)
+	ui_library.open()
+	_say("object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
+
+
 func _reactions_samples() -> void:
 	var made := ReactionPicker.make_samples()
 	if ui_reactions != null:
@@ -10873,7 +10891,7 @@ const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hi
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
-	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
+	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
 	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
@@ -11403,6 +11421,7 @@ func _ui() -> void:
 	ap.about_to_popup.connect(_prop_menu_fill.bind(ap))
 	ap.get_popup().id_pressed.connect(_prop_menu_pick.bind(ap))
 	ui_ribbon["SET"].add_child(ap)
+	ui_ribbon["SET"].add_child(_button("Object library...", _library_toggle, "the object library: weapons, furniture, sports, everyday things, armour and your own models in tabs, with thumbnails and a search. Click one to place it: a weapon in the right hand, a prop on the floor, a plate over the body (one undo step each)"))
 	ui_ribbon["SET"].add_child(_button("Import model", _import_ask, "bring in your own .glb model (a box, furniture, an object): it is checked, copied into your library and put in the set. Or drop the file on the window"))
 	for tt in [["Turn left", -15.0], ["Turn right", 15.0]]:
 		var ptb := _button(tt[0], _prop_turn.bind(tt[1]), "turn the picked prop 15° round its middle")
@@ -13684,6 +13703,8 @@ func _page_set(p: String, save := true) -> void:
 	_ribbon_row(PAGE_ROW[p])
 	if ui_reactions != null and p != "STAGE":
 		ui_reactions.visible = false   # R16: the picker belongs to the STAGE page
+	if ui_library != null and p != "STAGE":
+		ui_library.visible = false   # the object library too (STAGE's SET row opens it)
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
@@ -14359,6 +14380,7 @@ func _commands() -> Array:
 	add.call("Root path: scale length...", "", _rp_scale_dialog, "root motion path scale length longer shorter stretch factor percent travel distance", true, "every card's root moves about the first card's root by the factor you pick (25 to 300 %): the path gets longer or shorter, its headings and card times stay; one undo step (ROADMAP 91)")
 	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
 	add.call("React to the hit (physics)", "", _react_physics, "react reaction hit physics mujoco impulse struck fighter weapon fist impact contact simulate humanoid", true, "where a weapon or fist touches a fighter, Kine measures the blow (the struck part, the direction, the impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact frame, in the background; strength light / medium / hard and whether it fell; one Ctrl+Z (ROADMAP I2)")
+	add.call("Object library...", "", _library_toggle, "library objects things props weapons furniture armour sports everyday models place thumbnails search", false, "a panel of objects in tabs (Weapons, Furniture, Sports, Everyday, Armour, My models) with thumbnails and a search: click one to place it, one undo step")
 	add.call("Reactions: hit reaction picker", "", _reactions_toggle, "reaction reactions hit picker thumbnails physics struck fighter drag drop knock fall stage", false, "a panel of the reaction clips found in scenes/reactions and scenes/_wip: a thumbnail, where it hits, how hard, whether the fighter falls; drag one onto the struck fighter (ROADMAP R16)")
 	add.call("Reactions: make 3 sample clips", "", _reactions_samples, "reaction reactions sample clips make example head snap knock down bat", false, "three sample hit reactions (a bat to the torso, a head snap, a knock-down) in scenes/_wip/reactions, made from the app's own poses")
 	add.call("Fight phrase: build the defender's answer (preview)", "", _fight_build, "fight phrase defender answer block slip range combo build preview ghost", false, "walks the attacker's strikes (the active fighter's tip-speed peaks) and picks one defence per strike, a block or a slip, in place 2 frames before each contact (it starts one reaction time, 0.2 s, earlier), keeps the pair at fighting range (steps the defender in or out) and flags a strike no distance can make. A ghost shows the answer; nothing is written until 'Fight phrase: accept' (I11)")
