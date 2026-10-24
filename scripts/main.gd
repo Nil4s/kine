@@ -1399,6 +1399,158 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
 
 
+## SAVE VIDEO (Easy's strip, Save video): the playblast as an .mp4 with no PNG frames. Each frame goes straight into ffmpeg's stdin
+## while the next one renders (the encoder runs beside the renderer). A big progress line ("Saving video... 12 of 60 frames") and a
+## Cancel button sit on a panel that is hidden only for each capture. Cancel deletes the folder, so no partial file stays. With no
+## ffmpeg the PNG frames are kept (as Export playblast keeps them). Returns {"dir", "frames", "mp4", "ffmpeg"}; {} when refused or cancelled
+var _pb_busy := false
+var _pb_cancel := false
+var _pb_layer: CanvasLayer
+var _pb_label: Label
+var _pb_bar: ProgressBar
+var _pb_cancel_btn: Button
+
+
+func _pb_panel_make() -> void:
+	if _pb_layer != null:
+		return
+	_pb_layer = CanvasLayer.new()
+	_pb_layer.layer = 90
+	_pb_layer.name = "save_video_progress"
+	add_child(_pb_layer)
+	var pc := PanelContainer.new()
+	pc.name = "panel"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.c("float")
+	sb.border_color = Tok.c("accent")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(14)
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	pc.offset_top = 70
+	pc.custom_minimum_size = Vector2(560, 0)
+	pc.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_pb_layer.add_child(pc)
+	var vb := VBoxContainer.new()
+	pc.add_child(vb)
+	_pb_label = Label.new()
+	_pb_label.name = "text"
+	_pb_label.add_theme_font_size_override("font_size", 30)
+	_pb_label.add_theme_color_override("font_color", Tok.c("text"))
+	vb.add_child(_pb_label)
+	_pb_bar = ProgressBar.new()
+	_pb_bar.name = "bar"
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Tok.c("accent")
+	_pb_bar.add_theme_stylebox_override("fill", fill)
+	_pb_bar.custom_minimum_size = Vector2(0, 22)
+	vb.add_child(_pb_bar)
+	_pb_cancel_btn = Button.new()
+	_pb_cancel_btn.name = "cancel"
+	_pb_cancel_btn.text = "Cancel"
+	_pb_cancel_btn.add_theme_font_size_override("font_size", 22)
+	_pb_cancel_btn.tooltip_text = "stop saving the video: the folder and anything made so far are deleted; no video is kept"
+	_pb_cancel_btn.pressed.connect(func(): _pb_cancel = true)
+	vb.add_child(_pb_cancel_btn)
+	_pb_layer.visible = false
+
+
+func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
+	if _pb_busy:
+		_say_plain("A video is already being saved: press Cancel on the progress panel to stop it")
+		return {}
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a playblast needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
+		return {}
+	var sp := PlayblastExport.span(pv_in, pv_out, _ps().length())
+	var fps: int = S.fps
+	var n := PlayblastExport.frame_count(sp[0], sp[1], fps)
+	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var gdir := ProjectSettings.globalize_path(dir)
+	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
+		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and save the video again" % dir)
+		return {}
+	var ff := PlayblastExport.find_ffmpeg()
+	var mp4 := "%s/%s.mp4" % [gdir, nm]
+	_pb_busy = true
+	_pb_cancel = false
+	_pb_panel_make()
+	_pb_layer.visible = true
+	_pb_bar.value = 0.0
+	_pb_label.text = "Saving video... 0 of %d frames" % n
+	var keep := B.state()
+	var keep_t := playhead
+	var keep_playing := playing
+	var keep_clean := clean
+	playing = false
+	clean = true
+	_sides_apply()
+	ui_root.visible = false
+	var shot := _shot_blast_begin()
+	var pipe := {}   # the ffmpeg process and its stdin, started with the first frame (its size is the frame's)
+	var done := 0
+	var refused_pipe := false
+	for f in n:
+		if _pb_cancel:
+			break
+		_pb_layer.visible = false   # the panel is not in the picture of this capture
+		var img: Image = await _blast_frame(shot, PlayblastExport.time_of(f, sp[0], sp[1], fps), fps, sp[0], sp[1])
+		img.convert(Image.FORMAT_RGB8)
+		if ff != "" and pipe.is_empty():
+			var io := OS.execute_with_pipe(ff, PlayblastExport.args_pipe(img.get_width(), img.get_height(), fps, mp4, AudioTrack.audible_list(S.audio_tracks), sp[0]))
+			if io.is_empty():
+				refused_pipe = true
+				break
+			pipe = {"stdin": io["stdio"], "pid": io["pid"]}
+		if pipe.is_empty():
+			img.save_png("%s/frame_%04d.png" % [gdir, f])   # no ffmpeg: the PNG frames, as Export playblast keeps them
+		else:
+			(pipe["stdin"] as FileAccess).store_buffer(img.get_data())
+		done += 1
+		_pb_label.text = "Saving video... %d of %d frames" % [done, n]
+		_pb_bar.value = 100.0 * float(done) / float(n)
+		_pb_layer.visible = true
+		await RenderingServer.frame_post_draw   # the panel is drawn (with the count, and Cancel reads) before the next frame
+	_shot_blast_end(shot)
+	ui_root.visible = true
+	clean = keep_clean
+	_sides_apply()
+	B.set_state(keep)
+	playhead = keep_t
+	playing = keep_playing
+	_refresh()
+	var cancelled := _pb_cancel
+	if not pipe.is_empty():
+		_pb_label.text = "Saving video... encoding the last frames" if not cancelled else "Cancelling..."
+		_pb_layer.visible = true
+		if cancelled:
+			OS.kill(pipe["pid"])
+		(pipe["stdin"] as FileAccess).close()
+		while OS.is_process_running(pipe["pid"]):
+			await get_tree().process_frame
+	var made := FileAccess.file_exists(mp4) and done == n
+	_pb_layer.visible = false
+	_pb_busy = false
+	_pb_cancel = false
+	if cancelled:
+		for _try in 100:   # Windows keeps a file busy for a moment after ffmpeg exits: retry until the folder is gone
+			PlayblastExport.rm_tree(gdir)
+			if not DirAccess.dir_exists_absolute(gdir):
+				break
+			await get_tree().process_frame
+		_say_plain("Video cancelled: nothing was kept")
+		return {}
+	if refused_pipe or (not pipe.is_empty() and not made):
+		_say_plain("NOT DONE: ffmpeg (%s) could not make the video: close anything using %s and save the video again" % [ff, dir])
+		return {}
+	if pipe.is_empty() and ff == "":
+		_say_plain("playblast: %d PNG frames at %d fps in %s. No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then save the video again, or set POSER_FFMPEG to ffmpeg.exe" % [n, fps, dir])
+		return {"dir": gdir, "frames": n, "mp4": "", "ffmpeg": ""}
+	return {"dir": gdir, "frames": n, "mp4": mp4 if pipe.is_empty() == false else "", "ffmpeg": ff}
+
+
 ## DELIVER: TURNTABLE VIDEO OF THIS POSE (ROADMAP_400 K08; scripts/turntable.gd): the CAMERA orbits the body once (frame k at yaw
 ## 360 k / n, n = seconds * fps), framed to the body and the held weapons with 15% margin, the 3D view only (no panels).
 ## The pose is the one on screen now (nothing is applied, nothing changes: not an edit). Written as an MJPEG .avi in
@@ -1645,8 +1797,7 @@ func _blast_frame(shot: Dictionary, t: float, fps: int, lo: float, hi: float) ->
 		wt.render_active = true   # R23: the weapon trail ribbon is part of the render (option "Weapon trail in renders")
 		_refresh()
 		_shot_blast_frame(shot)
-		await get_tree().process_frame
-		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw   # one drawn frame: the pose set above is what it shows (no extra frame wait)
 		imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
 		wt.render_active = false
 		wt.draw(_ps(), playhead)

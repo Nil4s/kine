@@ -99,8 +99,23 @@ static func _winget_ffmpeg() -> String:
 ## starts before t0 is cut with -ss, one after it is delayed with -itsoffset. One sound: the same arguments as before;
 ## several: each gets its gain, and amix sums them. No usable sound file = the same arguments as without
 static func args(dir: String, fps: int, mp4: String, audio: Variant = [], t0 := 0.0) -> PackedStringArray:
+	return _with_audio(PackedStringArray(["-y", "-loglevel", "error", "-framerate", str(fps), "-i", dir + "/frame_%04d.png"]), audio, t0, mp4, "")
+
+
+## the same encode, the picture piped in: raw RGB24 frames of w x h on stdin (Save video encodes while it renders, so no PNG is
+## written). The preset is "veryfast" (x264's default is "medium"): the pixels move by a small amount (the test states the bar)
+const PIPE_PRESET := "veryfast"
+
+
+static func args_pipe(w: int, h: int, fps: int, mp4: String, audio: Variant = [], t0 := 0.0) -> PackedStringArray:
+	var head := PackedStringArray(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % [w, h],
+		"-framerate", str(fps), "-i", "-"])
+	return _with_audio(head, audio, t0, mp4, PIPE_PRESET)
+
+
+## the picture input (a, already built) + the sound inputs and the encode; preset "" = x264's default
+static func _with_audio(a: PackedStringArray, audio: Variant, t0: float, mp4: String, preset: String) -> PackedStringArray:
 	var tracks: Array = audio if audio is Array else [audio]
-	var a := PackedStringArray(["-y", "-loglevel", "error", "-framerate", str(fps), "-i", dir + "/frame_%04d.png"])
 	var snds := []
 	for t in tracks:
 		var snd := sound_path(t)
@@ -113,7 +128,10 @@ static func args(dir: String, fps: int, mp4: String, audio: Variant = [], t0 := 
 			a.append_array(["-ss", "%.4f" % -d])
 		a.append_array(["-i", snd])
 		snds.append(t)
-	a.append_array(["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-c:v", "libx264", "-pix_fmt", "yuv420p"])
+	a.append_array(["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-c:v", "libx264"])
+	if preset != "":
+		a.append_array(["-preset", preset])
+	a.append_array(["-pix_fmt", "yuv420p"])
 	if snds.size() == 1:
 		a.append_array(["-af", "volume=%.2fdB" % float(snds[0].get("gain_db", 0.0)), "-c:a", "aac", "-shortest"])
 	elif snds.size() > 1:
@@ -141,3 +159,14 @@ static func sound_path(audio: Dictionary) -> String:
 static func encode(ffmpeg: String, dir: String, fps: int, mp4: String, audio: Variant = [], t0 := 0.0) -> int:
 	var out := []
 	return OS.execute(ffmpeg, args(dir, fps, mp4, audio, t0), out, true)
+
+
+## deletes a folder and everything in it (a cancelled save leaves nothing behind)
+static func rm_tree(p: String) -> void:
+	if not DirAccess.dir_exists_absolute(p):
+		return
+	for d in DirAccess.get_directories_at(p):
+		rm_tree(p + "/" + d)
+	for f in DirAccess.get_files_at(p):
+		DirAccess.remove_absolute(p + "/" + f)
+	DirAccess.remove_absolute(p)
