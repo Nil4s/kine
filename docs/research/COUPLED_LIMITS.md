@@ -64,8 +64,10 @@ The paper also says: "knee flexion beyond 20 deg could not further increase ADF"
 | knee 0 | -25 | the one-joint table's thigh bend min (UNVERIFIED). |
 
 Curve: `[[0, -25], [50, -10.6], [90, 0], [145, 0]]`.
-- The Thomas points come from a gravity hang, not an end range pushed by a tester, so they are on the strict side.
-- FAIL: the curve - 2 SD (-19.2).
+- The Thomas points come from a gravity hang, not an end range pushed by a tester: half of all people hang past the mean, so
+  the mean is not a limit. This coupling has no WARN tier. It flags only past the curve - 2 SD (19.2 deg further back), and then
+  as FAIL. The first version warned at the mean, and that flagged the run template's swing leg (hip -14 with the knee at 75,
+  `tools/template_plans.gd`): an ordinary jog. That is how the mistake was found.
 - Also opened: Eimiller et al. 2024, Int J Sports Phys Ther 19(8):997,
   [doi:10.26603/001c.120899](https://doi.org/10.26603/001c.120899). Modified Thomas test with a neutral pelvis enforced:
   hip extension 5.43 +- 9.73 deg in 64 healthy adults. Not used: it sits within one SD of Ferber, and the knee angle is
@@ -80,7 +82,7 @@ invent a curve for them.
 ## Where it is used
 
 - Check: `HumanLimits.findings` (on with "could a human do this?"), rule `COUPLED LIMIT`. WARN past the healthy-adult
-  curve, FAIL past the trained one. Every finding names the muscle, the bar, the source and both ways out ("bend the
+  curve, FAIL past the trained one (rectus femoris: FAIL only, see above). Every finding names the muscle, the bar, the source and both ways out ("bend the
   knee to 40 deg, or lower the leg to 90 deg").
 - `Feasible.check`: FAIL findings only. A WARN is a range a trained person has, so it does not make a clip infeasible.
   `Rulebook.check` lists a coupled finding once (HumanLimits'), not twice.
@@ -90,5 +92,6 @@ invent a curve for them.
 - serve `limits {joint, other_angles?}`: the effective bend range (table, healthy adult, trained), with the why and the
   source of each coupling.
 - Nick's scenes (`scenes/*.json`): none is flagged. Their highest straight-ish hip is 85 deg with the knee at 59
-  (`axe_strike_pose`, inside its 120 bar). The `bo_spin` back leg (hip -17, knee 25) sits 1 deg inside its -18 bar, and
-  `swing_fore`'s recover (hip -25, knee 0) is exactly at the table.
+  (`axe_strike_pose`, inside its 120 bar). The `bo_spin` back leg (hip -17, knee 25) was 1 deg inside
+  the rectus mean (-18); it is far inside the flagged bar (-37). `swing_fore`'s recover (hip -25, knee 0) is exactly at the table.
+  The five templates (`templates/*.json`) are not flagged either.

@@ -204,7 +204,8 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
   in `docs/research/COUPLED_LIMITS.md`.
 - Numbers: the hip at most 90 deg with the knee straight, rising 0.5 deg per deg of knee bend to the table's 120 at knee 60
   (WARN), or 141 for gymnasts (FAIL). Dorsiflexion 25 deg with the knee straight, 39 from knee 20. Hip extension -25 at
-  knee 0, -10.6 at knee 50, 0 from knee 90 (FAIL 2 SD = 19.2 deg past that).
+  knee 0, -10.6 at knee 50, 0 from knee 90. That is where a thigh hangs under gravity, not an end range, so only
+  2 SD (19.2 deg) past it is flagged, and as FAIL.
 - What to do: bend the knee to the angle the finding names, or bring the joint back to its bar.
 - Used by: `CoupledLimits.findings` (through `HumanLimits.findings` and `Feasible.check`), `CoupledLimits.clamp`
   (opt-in `Body.coupled_clamp`), serve `limits`.
