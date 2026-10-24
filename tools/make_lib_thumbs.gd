@@ -1,10 +1,10 @@
 extends SceneTree
-## PRE-RENDERED ARMOUR PICTURES (w4-thumbs). Renders the object library's armour tiles (the plates on the default body) into
-## res://data/thumbs/armour/<id>_<hash16>_128.png, so the panel shows them at once; the name's hash is of the plate builder's
-## version and constants and the default body's rest vertices (LibraryThumbs.shipped_path). A changed builder or body gives
-## a new name: the panel then renders that plate live, until this tool is run again.
+## PRE-RENDERED OBJECT PICTURES (w4-thumbs, w4-libfirst). Renders the object library's tiles (weapons, props, armour plates on the
+## default body; not the user's own models) into res://data/thumbs/lib/<id>_<hash16>_128.png, so the panel shows them at once on the
+## first open; the name's hash is of the object's spec (LibraryThumbs.shipped_path). A changed spec or body gives a new name: the
+## panel then renders that object live, until this tool is run again.
 ##   godot --path . -s tools/make_lib_thumbs.gd        (a WINDOW is needed: a renderer; not --headless)
-## Writes only res://data/thumbs/armour/. Re-run after a change to ArmourFromBody or the default body, then commit the PNGs.
+## Writes only res://data/thumbs/lib/. Re-run after a change to a weapon, prop, ArmourFromBody or the default body, then commit the PNGs.
 
 func _init() -> void:
 	call_deferred("_run")
@@ -20,12 +20,12 @@ func _run() -> void:
 	var lib = m.ui_library
 	for i in 3:
 		await process_frame
-	var out_dir := ProjectSettings.globalize_path("res://data/thumbs/armour")
+	var out_dir := ProjectSettings.globalize_path("res://data/thumbs/lib")
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var n := 0
 	for it in lib.items:
-		if String(it["how"]) != "armour":
-			continue
+		if String(it["cat"]) == "My models":
+			continue   # the user's own models are not shipped
 		var src: Dictionary = lib.thumb_source(it)
 		var node: Node3D = (src["build"] as Callable).call()
 		var img: Image = await lib.thumbs.draw_node(node, LibraryThumbs.SIZE)
@@ -40,5 +40,5 @@ func _run() -> void:
 	var f := FileAccess.open(ObjectLibrary.DEFAULT_BODY, FileAccess.WRITE)   # the default body's hash (ObjectLibrary.body_hash)
 	f.store_string(ObjectLibrary.body_sig(m) + "|" + ObjectLibrary.body_hash(m, false))
 	f.close()
-	print("MAKE_LIB_THUMBS wrote %d armour pictures" % n)
+	print("MAKE_LIB_THUMBS wrote %d object pictures" % n)
 	quit(0)

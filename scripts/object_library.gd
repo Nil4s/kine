@@ -89,7 +89,7 @@ func setup(main: Node, weapon_list: Array) -> void:
 	head.add_child(close)
 	_search = LineEdit.new()
 	_search.name = "library_search"
-	_search.placeholder_text = "Search by name: sw finds the sword"
+	_search.placeholder_text = "Search: sword, chair, football..."
 	_search.clear_button_enabled = true
 	_search.tooltip_text = "filters every category by name while it has words; clicking a tab clears it"
 	_search.text_changed.connect(_on_search)
@@ -459,6 +459,19 @@ func _tile(it: Dictionary) -> Control:
 	pic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	pic.texture = thumbs.picture(String(it["id"]))
 	v.add_child(pic)
+	if pic.texture == null:
+		# until the picture is ready: the category and the name, in the picture's place (never an empty box)
+		var ph := Label.new()
+		ph.name = "placeholder"
+		ph.text = "%s\n%s" % [String(it["cat"]), String(it["name"])]
+		ph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ph.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ph.add_theme_font_size_override("font_size", 11)
+		ph.add_theme_color_override("font_color", Tok.of("text:0.6"))
+		pic.add_child(ph)
 	var lab := Label.new()
 	lab.text = String(it["name"])
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -485,6 +498,8 @@ func thumb_source(it: Dictionary) -> Dictionary:
 	elif how == "prop":
 		src["spec"] = var_to_str(["prop", key, Props.kind_of(key)])
 		src["build"] = func() -> Node3D: return Props.mesh(Props.make(key))
+	if how == "weapon" or how == "prop":
+		src["shipped"] = LibraryThumbs.shipped_path(String(it["id"]), String(src["spec"]))   # the pictures shipped with the app (tools/make_lib_thumbs.gd)
 	elif m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
 		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
 		if _armour_hash == "":
@@ -502,7 +517,7 @@ func thumb_source(it: Dictionary) -> Dictionary:
 ## pieces' mesh paths: empty for the built-in body, so in effect their count) reads it from DEFAULT_BODY, written by tools/make_lib_thumbs.gd with the pictures, so the Armour tab
 ## does not read the whole body (~170 ms) to name pictures that are shipped; library_test checks the file is not stale.
 ## Any other body (edited, re-proportioned, another fighter) is read and hashed.
-const DEFAULT_BODY := "res://data/thumbs/armour/default_body.txt"
+const DEFAULT_BODY := "res://data/thumbs/lib/default_body.txt"
 static func body_sig(m: Node) -> String:
 	return ",".join(m.pieces.values().map(func(p): return String((p as MeshInstance3D).mesh.resource_path) if (p as MeshInstance3D).mesh != null else "-"))
 
@@ -531,4 +546,8 @@ func _armour_node(words: String) -> Node3D:
 
 func _made(id: String) -> void:
 	if _pics.has(id) and is_instance_valid(_pics[id]):
-		(_pics[id] as TextureRect).texture = thumbs.picture(id)
+		var pic := _pics[id] as TextureRect
+		pic.texture = thumbs.picture(id)
+		var ph := pic.get_node_or_null("placeholder")
+		if ph != null:
+			ph.queue_free()

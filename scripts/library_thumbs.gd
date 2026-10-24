@@ -7,7 +7,8 @@ extends Node
 ## framed so its projected extent fills FILL (80 %) of the longer side, one key light and a fill light.
 ##
 ## THE OLD SCHEMATIC FIRST: a tile shows the schematic bar (the shapes of Props.kind_of / Body.KINDS, 64 px) until the real
-## picture is ready; a real picture on disk shows at once and no schematic is drawn.
+## picture is ready; a real picture on disk or shipped shows at once and no schematic is drawn. Until a picture is ready the
+## tile shows a placeholder label (the category and the name; scripts/object_library.gd), never an empty box.
 ##
 ## CACHE: user://thumbs/lib/<id with ":" as "_">_<hash16>_128.png for a real picture, where the hash is of VERSION + the
 ## object's spec (the data its mesh is built from: Body.KINDS entry, Props.kind_of entry, the armour's words and constants).
@@ -59,11 +60,11 @@ static func real_path(id: String, spec: String) -> String:
 	return "%s/%s_%s_%d.png" % [DIR, id.replace(":", "_"), (VERSION + spec).sha256_text().left(16), SIZE.x]
 
 
-## the shipped (pre-rendered) picture of an object: res://data/thumbs/armour/<id>_<hash16>_128.png, where the hash is of VERSION +
-## the spec (the plate builder's version and constants, the default body's rest vertices): a changed body or builder is a new name,
-## so the live render takes over until tools/make_lib_thumbs.gd is run again
+## the shipped (pre-rendered) picture of an object: res://data/thumbs/lib/<id>_<hash16>_128.png, where the hash is of VERSION +
+## the spec (a weapon's or prop's data, an armour plate's builder version, constants and the default body's rest vertices): a changed
+## spec is a new name, so the live render takes over until tools/make_lib_thumbs.gd is run again
 static func shipped_path(id: String, spec: String) -> String:
-	return "res://data/thumbs/armour/%s_%s_%d.png" % [id.replace(":", "_"), (VERSION + spec).sha256_text().left(16), SIZE.x]
+	return "res://data/thumbs/lib/%s_%s_%d.png" % [id.replace(":", "_"), (VERSION + spec).sha256_text().left(16), SIZE.x]
 
 
 static func abs_path(p: String) -> String:
