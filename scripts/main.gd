@@ -110,6 +110,8 @@ var ui_hips := []
 var ui_math: Label
 var ui_math_btn: Button
 var ui_status: Label
+var ui_mesh_hint: Label      # MESH PAGES: the centred hint in the view while MODEL / SCULPT / SURFACE have no mesh open (Expert only)
+var _pose_dummy_was := false  # the dummy was on when a mesh page opened (the posing overlays come back with it)
 var ui_mouse: MouseHint   # ROADMAP_400 P05: what the mouse buttons do now (scripts/mouse_hint.gd), just above the status line
 var ui_bar: Label   # STATUS BAR (round 9, GATES P4): what is picked, where you are, what Check said; always on
 var check_ran := false   # the bar says "not run" until Check has graded this scene
@@ -346,12 +348,19 @@ func _sides_apply() -> void:
 	if easy.on and ExpertPages.PAGES.has(cur_page):
 		_page_set("POSE", false)
 		return
+	var mesh_pg := _mesh_page()
 	for k in ui_side_of:
-		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY")
+		var pose_only: bool = k == "right" and mesh_pg   # the pose inspector: the mesh pages have their own tools, not its sliders
+		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY") and not pose_only
 		if ui_rails.has(k):
-			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on
+			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on and not pose_only
 		if ui_fold_btn.has(k):
-			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on
+			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on and not pose_only
+	if ui_mesh_hint != null:
+		ui_mesh_hint.offset_left = lw()
+		ui_mesh_hint.offset_right = -rw()
+		ui_mesh_hint.offset_top = TOP_H
+		ui_mesh_hint.offset_bottom = -(bottom_h + LINE_H)
 	if ui_body != null:
 		ui_body.visible = cur_page == "BODY" and not big_view and not fold["left"] and not clean and not easy.on
 		if ui_body.visible:
@@ -3180,6 +3189,7 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	_mesh_hint_sync()
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
@@ -4802,6 +4812,7 @@ func _refresh() -> void:
 	# EASY QUIET: no standing pick light, name tag or joint dots on a beginner's body (a blue "right upper arm" over the punch
 	# read as a fault); the hover light stays (what a click would grab) and the pick shows while a part is dragged
 	var quiet: bool = easy != null and easy.on and dragging == ""
+	var mesh_pg := _mesh_page()   # the mesh pages: no part tag, no joint dots (the posing overlays)
 	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var body: bool = not (j in Body.WEAPON or j in Body.WEAPON2)
 		if dots.has(j):
@@ -4881,11 +4892,11 @@ func _refresh() -> void:
 			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 		_wep_model_place(wep_model, B.wep_kind, B.wep_xform())
 	var c2: Array = B.cap(sel)
-	tag.visible = not clean and not quiet
+	tag.visible = not clean and not quiet and not mesh_pg
 	for at in axis_tags:
 		at.visible = not (easy != null and easy.on)
 	for dj in dots:
-		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj)
+		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
@@ -12309,6 +12320,19 @@ func _ui() -> void:
 	ui_status.add_child(hx)
 	ui_status.add_theme_stylebox_override("normal", sb)
 	ui_root.add_child(ui_status)
+	ui_mesh_hint = Label.new()   # MESH PAGES: what to click first (ExpertPages.HINTS); the view's centre, never takes a click
+	ui_mesh_hint.name = "mesh_hint"
+	ui_mesh_hint.visible = false
+	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_mesh_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_mesh_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ui_mesh_hint.add_theme_font_size_override("font_size", 20)
+	ui_mesh_hint.add_theme_color_override("font_color", Color(0.80, 0.84, 0.92, 0.85))
+	ui_mesh_hint.add_theme_color_override("font_outline_color", Color(0.05, 0.06, 0.08, 0.9))
+	ui_mesh_hint.add_theme_constant_override("outline_size", 6)
+	ui_mesh_hint.anchor_right = 1.0
+	ui_mesh_hint.anchor_bottom = 1.0
+	ui_root.add_child(ui_mesh_hint)
 	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
 	ui_vdiff = PanelContainer.new()
 	ui_vdiff.name = "vdiff_panel"
@@ -13966,6 +13990,20 @@ func _page_set(p: String, save := true) -> void:
 		return
 	if easy != null and easy.on and ExpertPages.PAGES.has(p):
 		return   # the expert pages are hidden in Easy mode (ExpertPages; the Shift+7..9 keys too)
+	var was_mesh := ExpertPages.PAGES.has(cur_page)
+	var is_mesh := ExpertPages.PAGES.has(p)
+	if is_mesh and not was_mesh:   # a mesh page: the posing body's target dummy goes away (as Easy does), remembered
+		_pose_dummy_was = dummy_on
+		if dummy_on:
+			dummy_on = false
+			_dummy_hits()
+	elif was_mesh and not is_mesh and _pose_dummy_was:   # back to a posing page: the dummy is as it was
+		_pose_dummy_was = false
+		if easy != null and easy.on:
+			easy._dummy_was = true   # Easy came on from the mesh page: Easy's own way back gets the dummy (its set_on saved it off)
+		elif not dummy_on:
+			dummy_on = true
+			_dummy_hits()
 	cur_page = p
 	for k in fold:
 		fold[k] = _page_want(p, k)
@@ -13977,6 +14015,9 @@ func _page_set(p: String, save := true) -> void:
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
+	if tag != null:
+		_refresh()   # the part tag and the joint dots follow the page (hidden on the mesh pages)
+		_cam()   # _refresh shows every axis word again: the camera's fit hides those under the bottom bars
 	if page_tour != null and page_tour.card != null:
 		page_tour.opened.call_deferred(p)   # P01: the page's first-use tour, once its panels are laid out
 	if save:
@@ -13985,6 +14026,27 @@ func _page_set(p: String, save := true) -> void:
 		if cf.get_value("layout", "page", "POSE") != p:
 			cf.set_value("layout", "page", p)
 			cf.save(settings)
+
+
+## MESH PAGES (Expert only): the posing overlays (inspector, part tag, joint dots, target dummy) stay off on MODEL / SCULPT / SURFACE
+func _mesh_page() -> bool:
+	return ExpertPages.PAGES.has(cur_page) and not (easy != null and easy.on)
+
+
+func _mesh_open() -> bool:
+	return (kmed != null and kmed.on) or (ksc != null and ksc.on)
+
+
+## the hint in the view while a mesh page has no mesh open; gone as soon as one is open or the page is left
+func _mesh_hint_sync() -> void:
+	if ui_mesh_hint == null:
+		return
+	var txt: String = ExpertPages.HINTS.get(cur_page, "") if _mesh_page() else ""
+	var show := txt != "" and not _mesh_open()
+	if ui_mesh_hint.text != txt:
+		ui_mesh_hint.text = txt
+	if ui_mesh_hint.visible != show:
+		ui_mesh_hint.visible = show
 
 
 func _page_want(p: String, which: String) -> bool:

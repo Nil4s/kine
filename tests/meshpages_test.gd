@@ -5,6 +5,8 @@ extends SceneTree
 ##   2 MODEL: extrude one face of the test cube from the ribbon: the vertex count grows (8 -> 12 for a cube face), one undo step
 ##   3 SCULPT: a draw stroke from the ribbon on the test sphere: >= 10 verts move
 ##   4 Easy mode hides the three pages (their page-bar buttons not visible; a page switch to one is refused)
+##   5 the hint (the view's centre): shown on MODEL / SCULPT / SURFACE with no mesh open, gone once one is open
+##   6 the posing overlays (inspector, part tag, joint dots, target dummy) are off on the mesh pages, back exactly on POSE
 ## Script errors are checked by the runner's log scan (a SCRIPT ERROR line fails the suite).
 var fails := 0
 func ok(c: bool, w: String) -> void:
@@ -53,6 +55,14 @@ func button(m: Node, p: String, label: String) -> Button:
 		if b is Button and String(b.text) == label:
 			return b
 	return null
+
+func _overlays(m: Node) -> Dictionary:
+	var n := 0
+	for k in m.dots:
+		if m.dots[k].visible:
+			n += 1
+	return {"insp": m.ui_insp.visible, "tag": m.tag.visible, "dots": n, "dummy_on": m.dummy_on, "dummy": m.dummy_node.visible}
+
 
 func _init() -> void:
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
@@ -112,6 +122,62 @@ func _init() -> void:
 	ok(ui.on and moved >= 10, "3 draw stroke from the ribbon on the sphere: %d verts moved" % moved)
 	m.ksc.stop()
 	await idle(2)
+
+	# 5 the hint: on each page with no mesh open it says what to click first; it goes once a mesh is open
+	if m.kmed != null and m.kmed.on:
+		m.kmed.stop()
+	if m.ksc != null and m.ksc.on:
+		m.ksc.stop()
+	await idle(2)
+	var hint_on: Array = []
+	for p in ["MODEL", "SCULPT", "SURFACE"]:
+		m.ui_page_btns[p].pressed.emit()
+		await idle(3)
+		hint_on.append(m.ui_mesh_hint.visible and m.ui_mesh_hint.text == ExpertPages.HINTS[p])
+	ok(hint_on == [true, true, true], "5a the hint on MODEL / SCULPT / SURFACE with no mesh open: %s (SURFACE says \"%s\")" % [hint_on, m.ui_mesh_hint.text])
+	var hint_gone: Array = []
+	m.ui_page_btns["MODEL"].pressed.emit()
+	await idle(2)
+	button(m, "MODEL", "Test cube").pressed.emit()
+	await idle(3)
+	hint_gone.append(not m.ui_mesh_hint.visible)
+	m.kmed.stop()
+	await idle(2)
+	m.ui_page_btns["SCULPT"].pressed.emit()
+	await idle(2)
+	button(m, "SCULPT", "Test sphere").pressed.emit()
+	await idle(3)
+	hint_gone.append(not m.ui_mesh_hint.visible)
+	m.ksc.stop()
+	await idle(2)
+	m.ui_page_btns["SURFACE"].pressed.emit()
+	await idle(2)
+	m._kmesh_edit_start()
+	await idle(3)
+	hint_gone.append(not m.ui_mesh_hint.visible)
+	m.kmed.stop()
+	await idle(2)
+	ok(hint_gone == [true, true, true], "5b the hint is gone once a mesh is open (cube on MODEL, sphere on SCULPT, cube on SURFACE): %s" % [hint_gone])
+
+	# 6 the posing overlays (inspector, part tag, joint dots, target dummy) are off on the mesh pages and come back as they were
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	m.dummy_on = true
+	m._dummy_hits()
+	m._refresh()
+	await idle(2)
+	var before := _overlays(m)
+	var off_all := true
+	for p in ["MODEL", "SCULPT", "SURFACE"]:
+		m.ui_page_btns[p].pressed.emit()
+		await idle(3)
+		var o := _overlays(m)
+		off_all = off_all and not o["insp"] and not o["tag"] and o["dots"] == 0 and not o["dummy_on"] and not o["dummy"]
+	ok(off_all, "6a inspector, tag, joint dots and dummy off on MODEL / SCULPT / SURFACE (last: %s)" % [_overlays(m)])
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	var after := _overlays(m)
+	ok(after == before, "6b back on POSE the overlays are exactly as before: %s -> %s" % [before, after])
 
 	# 4 Easy mode hides the three pages
 	m.easy.set_on(true, false)
