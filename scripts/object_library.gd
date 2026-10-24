@@ -282,6 +282,20 @@ static func _clear_body(B: Body) -> void:
 	var e1 := r0 * Vector3.RIGHT
 	var e2 := r0 * Vector3.BACK
 	var keep := [p0, r0]
+	# first the hand's own roll: about the wrist-to-palm line, which keeps the grip where it was against both the wrist and
+	# the palm (the knob does not ride along the hand through the clip, as a turn about the palm alone made it: 2 cm)
+	var roll: Vector3 = (pivot - B.P[h]).normalized()
+	if roll.length() > 0.5:
+		for deg in range(5, 181, 5):
+			for sgn in [1.0, -1.0]:
+				var rr := Quaternion(roll, deg_to_rad(float(deg) * sgn))
+				B.wep_hand = ""
+				B.wep_pos = pivot + rr * (p0 - pivot)
+				B.wep_rot = (rr * r0).normalized()
+				B.lock_weapon(h)
+				B.fk()
+				if _wep_hits(B) == 0:
+					return
 	var mag := 2.0
 	while mag <= 180.0:
 		for k in 36:
