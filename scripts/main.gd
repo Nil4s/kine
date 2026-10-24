@@ -7291,6 +7291,9 @@ func _scene_dict(frames := true) -> Dictionary:
 	var d := H.to_dict(hb, frames)
 	hb.set_state(keep)
 	BodyFile.put_key(self, d)   # G07: the applied body's .kbody, by reference (scripts/body_file.gd)
+	var ar := ArmourFromBody.to_file(self)   # B23: the armour plates on the fighter, when there are any (scripts/armour_from_body.gd)
+	if not ar.is_empty():
+		d[ArmourFromBody.KEY] = ar
 	return d
 
 
@@ -18508,6 +18511,11 @@ func _restore_work(a: Dictionary) -> void:
 		_recovering = false
 	S = Scene.new()
 	S.from_dict(a["scene"])
+	# the autosave / journal is the whole state: its body and plates replace whatever the file on disk put on the fighter
+	if not a["scene"].has(BodyFile.KEY):
+		BaseBody.restore_gen(self, 0)   # the mannequin as shipped (the state held no applied body)
+	BodyFile.from_scene(self, a["scene"])   # G07: an applied body back, from its file or inline
+	ArmourFromBody.from_scene(self, a["scene"])   # B23: the armour plates back
 	scene_path = path
 	if ui_loop != null:
 		ui_natural.set_pressed_no_signal(S.natural)
@@ -20913,6 +20921,8 @@ func _doc_key() -> String:
 		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
 	for a in H.actors:
 		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
+	# the fighter's applied body and armour plates are the scene's too (an edit to them is unsaved, so the autosave holds it)
+	k += "|body%d|plates%d" % [BaseBody.gen(self), ArmourFromBody.parts(self).size()]
 	return k
 
 
@@ -20938,6 +20948,7 @@ func _load_scene(path0: String) -> void:
 		if not S.props_skipped.is_empty():
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
+		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
 		for k in d.get("keys", []):

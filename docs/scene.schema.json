@@ -493,13 +493,27 @@
     },
     "body_mesh": {
      "type": "object",
-     "description": "G07 THE BODY MESH (scripts/body_file.gd): the .kbody the fighter's applied body is saved in, by reference (not embedded: a body is ~1 MB, a scene is autosaved, versioned and diffed); written only when the fighter draws an applied body. file = the .kbody path; sha256 = that file's hash when the scene was saved (a different file still opens, with a note).",
-     "required": ["file"],
+     "description": "G07 THE BODY MESH (scripts/body_file.gd): the .kbody the fighter's applied body is saved in, by reference (not embedded: a body is ~1 MB, a scene is autosaved, versioned and diffed); written only when the fighter draws an applied body. file = the .kbody path; sha256 = that file's hash when the scene was saved (a different file still opens, with a note). kbody = the body itself, inline, only in an autosave or journal entry of an applied body that has no file yet (a save always names a file).",
      "properties": {
       "file": {"type": "string"},
-      "sha256": {"type": "string"}
+      "sha256": {"type": "string"},
+      "kbody": {"type": "object", "description": "a .kbody dict: {format, version, name, params, mesh} (scripts/body_file.gd to_dict)"}
      },
      "additionalProperties": false
+    },
+    "armour": {
+     "type": "array",
+     "description": "B23 ARMOUR PLATES (scripts/armour_from_body.gd): the plates on the fighter, in the order they were made, each a skinned KMesh (KMesh.to_dict: exact). Written only when there are any; a file without the key has none.",
+     "items": {
+      "type": "object",
+      "required": ["kmesh"],
+      "properties": {
+       "label": {"type": "string", "description": "the anatomy tags or regions the plate covers"},
+       "name": {"type": "string", "description": "the part's node name on the fighter (armour_<n>)"},
+       "kmesh": {"type": "object", "description": "KMesh.to_dict(): verts, faces, attributes (the skin:<bone> weights, armour_part, armour_src)"}
+      },
+      "additionalProperties": false
+     }
     },
     "body": {
      "type": "object",
