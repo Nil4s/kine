@@ -43,6 +43,8 @@ const SKIP := {"undo": "is the undo", "redo": "is the redo", "save_pose": "write
 	"strike_aim_the_fist_at_the_dummy's_head": "needs a fist punch in the cards (New from template: Punch); templates_test and the strike tests run it",
 	"look_at_the_picked_prop": "needs a picked prop (no start picks one); the same _look_at path is audited by look_at_the_camera and its solve by look_at_test",
 	"play_pause": "plays (the playhead moves the body by design); stopped at once below",
+	"clip_pick_its_best_thumbnail_frame": "moves the playhead to the picked frame by design (the body follows it, as a timeline click); thumbpick_test checks the pick",
+	"check_weights_broke_here": "jumps the playhead to the worst frame by design (the body follows it, as a timeline click); wbroke_test checks the scan",
 	"audio_add_a_sound_file_wav_ogg_mp3": "opens a file dialog (audio_track_test runs the add itself: one undo step)",
 	"beats_find_the_beats_in_the_sound": "needs a wav sound on the timeline (beat_track_test runs the find and its undo through the same snapshot)",
 	"beats_snap_the_contact_cards_to_the_nearest_beat": "needs beats and hit markers on the scene (beat_track_test runs the snap on a clone and checks it)",
