@@ -40,6 +40,7 @@ var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Ea
 const FREE_PAD := 8.0       # px between the free rect and the Easy bar, the strip, or the bottom panel
 const FRAME_PAD := 12.0     # px of air the body keeps inside the free rect (the framing's margin)
 const FRAME_STEP := 2       # the clip is sampled every 2nd frame: a frame moves a hand a few px, inside FRAME_PAD
+const FRAME_SAMPLES := 24   # the most poses frame_clip samples (the click waits for them)
 
 
 ## which mode a settings file asks for. A key decides. No key: a file with sections is an existing user (Expert);
@@ -258,6 +259,12 @@ func offsets(vs: Vector2, mpp: float) -> Vector2:
 ## FRAME THE CLIP: the body over the whole clip (every frame, joints, ends and any weapon, each with its radius) is framed
 ## inside the free rect: the target is the middle of its box, the distance the smallest that keeps every point inside.
 ## Called when a clip is built and when the window resizes. The playhead's pose is put back after the sampling.
+## frame_clip one frame later: the clip's first moving frame is not held up by the sampling (~100 ms on the Run card)
+func frame_clip_next() -> void:
+	await get_tree().process_frame
+	frame_clip()
+
+
 func frame_clip() -> void:
 	if m == null or not on or m.S.cards.is_empty():
 		if m != null:
@@ -268,7 +275,10 @@ func frame_clip() -> void:
 	var fps := float(m.S.fps)
 	var pts := []
 	var last := int(ceil(m.S.length() * fps))
-	var ks := range(0, last + 1, FRAME_STEP)   # every 2nd frame (a pose is ~3.5 ms: the click waits for it), the last one too
+	# at most FRAME_SAMPLES poses spread over the clip (a pose is ~3.5 ms and the click waits for them: every 2nd frame of a
+	# 5 s walk cost ~260 ms, past easyhome's 500 ms click-to-motion bar), the last frame too; easycam checks every 4th frame
+	var step := maxi(FRAME_STEP, int(ceil(float(last) / float(FRAME_SAMPLES))))
+	var ks := range(0, last + 1, step)
 	if ks[-1] != last:
 		ks.append(last)
 	for k in ks:

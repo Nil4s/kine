@@ -47,7 +47,6 @@ func _init() -> void:
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(8)
-	var res0 := count_res("res://scenes")
 	# 3
 	m.easy.home.card(3)   # Punch
 	await idle(20)
@@ -71,7 +70,9 @@ func _init() -> void:
 	m._load_scene(saved)
 	await idle(3)
 	ok(m.S.cards.size() == n_cards and n_cards >= 2, "4 opening it loads its %d cards" % m.S.cards.size())
-	ok(count_res("res://scenes") == res0, "3+4 no new file under res://scenes (%d -> %d)" % [res0, count_res("res://scenes")])
+	# by a name only this test uses (other suites, run from source, write their own punch_N clips into res:// meanwhile,
+	# under the same names: bar 3 shows where the clip went)
+	ok(not FileAccess.file_exists("res://scenes/up_test_scene.json"), "4 the saved scene is not under res://scenes")
 
 	UserPaths.force = false
 	UserPaths.root = ""

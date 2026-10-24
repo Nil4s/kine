@@ -12467,8 +12467,7 @@ func _lists() -> void:
 			if not f.ends_with(".json"):
 				continue
 			var path: String = dir + "/" + f
-			var txt := FileAccess.get_file_as_string(path)
-			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
+			if _is_scene_file(path):
 				continue
 			var i := ui_poses.add_item(f.get_basename().replace("_", " ") + {"res://poses": "", "res://poses/lib": "   (library)"}.get(dir, "   (yours)"))
 			ui_poses.set_item_metadata(i, path)
@@ -12480,6 +12479,19 @@ func _lists() -> void:
 
 ## THE DROPDOWN'S ROWS (ROADMAP 59): the recent scenes first, then every scene; the open scene is selected by _show_open_scene
 ## (the last row with its file wins, so the picked row is the one in the list proper)
+var _scene_kind := {}   # path -> [modified time, is a scene]: the list is refilled on every open, and reading every file
+						# each time grew with the work (200+ clips in scenes/_wip: ~270 ms an Easy card click)
+
+func _is_scene_file(path: String) -> bool:
+	var mt := FileAccess.get_modified_time(path)
+	var c: Array = _scene_kind.get(path, [])
+	if c.is_empty() or int(c[0]) != mt:
+		var txt := FileAccess.get_file_as_string(path)
+		c = [mt, txt.contains("\"keys\"") or txt.contains("\"cards\"")]
+		_scene_kind[path] = c
+	return bool(c[1])
+
+
 func _fill_scene_list() -> void:
 	ui_scenes.clear()
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the last scenes opened or saved, first and marked; a missing one greyed
@@ -12498,8 +12510,7 @@ func _fill_scene_list() -> void:
 			if not f.ends_with(".json"):
 				continue
 			var path: String = dir + "/" + f
-			var txt := FileAccess.get_file_as_string(path)
-			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
+			if _is_scene_file(path):
 				ui_scenes.add_item(f.get_basename().replace("_", " ") + ("   (work copy)" if dir.ends_with("_wip") else ""))
 				ui_scenes.set_item_metadata(ui_scenes.item_count - 1, path)
 

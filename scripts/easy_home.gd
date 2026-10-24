@@ -222,8 +222,8 @@ func _go(what: String, label: String) -> void:
 	_open = false
 	_msg.text = ""
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
-	m.easy.frame_clip()  # EASY CAMERA: the clip is framed in the free rect under the bar / strip
 	_play()
+	m.easy.frame_clip_next()  # EASY CAMERA: framed in the free rect under the bar / strip, one frame AFTER the clip starts (the click-to-motion bar)
 
 
 ## the clip for one card or one typed line: one undo step. "" = built; else the one sentence why not

@@ -729,6 +729,9 @@ static func to_file(m: Node) -> Array:
 ## main._load_scene / _restore_work: the fighter's plates are the scene's (the list it holds; none when the key is absent).
 ## Plates already there leave the fighter and are dropped; no undo step (opening a file is not an edit)
 static func from_scene(m: Node, d: Dictionary) -> void:
+	var list0 = d.get(KEY, [])
+	if (m.get_meta(META_ALL, []) as Array).is_empty() and not (list0 is Array and not list0.is_empty()):
+		return   # no plates before, none in the file: nothing to do (every scene load comes here: an Easy card's click waits)
 	for mi in m.get_meta(META_ALL, []):
 		if is_instance_valid(mi):
 			var par0: Node = (mi as Node).get_parent()
