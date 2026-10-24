@@ -182,8 +182,12 @@ func shapes_node(shapes: Array) -> Node3D:
 
 
 ## the real mesh of a weapon: its shape from WeaponMesh (the same pieces the hand draws, scripts/weapon_mesh.gd)
+## the thumbnails' girth: a long thin shaft drawn thicker in its picture only (the hand is drawn at 1.0, the hit radii are data).
+## Staff and spear would reach 3-4 % of the square at true thickness (a diagonal rod fills ~2W/L of it); the bar is 5 %.
+const THUMB_GIRTH := {"staff": 2.0, "spear": 2.0}
+
 static func weapon_node(kind: String) -> Node3D:
-	return WeaponMesh.build(kind)
+	return WeaponMesh.build(kind, float(THUMB_GIRTH.get(kind, 1.0)))
 
 
 ## the picture of a built node, drawn now at px; the node is freed after. Null when there is nothing to draw or no renderer.

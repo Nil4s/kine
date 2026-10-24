@@ -6901,12 +6901,10 @@ func _actors_draw() -> void:
 		var tag: Label3D = mq["tag"]
 		tag.text = String(actors_rt[k]["name"])
 		tag.position = b.P["head"] + Vector3(0, 0.28, 0)
-		var w: Array = mq["wep"]
-		for mi in w:
-			(mi as MeshInstance3D).visible = b.wep_on
+		var wm: Node3D = mq["wep"][0]
+		wm.visible = b.wep_on
 		if b.wep_on:
-			_place(w[0], b.wep_point(0.0), b.wep_point(b.wep_handle), 0.0, false)
-			_place(w[1], b.wep_point(b.wep_handle), b.wep_point(b.wep_len), 0.0, false)
+			_wep_model_place(wm, b.wep_kind, b.wep_xform())
 		_fh_draw(k, b)   # the off-hand weapon and the fighter-hover light (own functions, below _actor_man)
 
 
@@ -6930,16 +6928,10 @@ func _actor_man() -> Dictionary:
 	tag.outline_size = 6
 	tag.modulate = skin.albedo_color.lightened(0.35)
 	root.add_child(tag)
-	var w := []
-	for r in [[B.wep_r_handle, B.wep_r_handle, "tape"], [B.wep_r_barrel, B.wep_r_handle, "metal"]]:
-		var mi := MeshInstance3D.new()
-		var c := CylinderMesh.new()
-		c.top_radius = r[0]
-		c.bottom_radius = r[1]
-		mi.mesh = c
-		mi.material_override = wep_mats[r[2]]
-		root.add_child(mi)
-		w.append(mi)
+	var wep_node := Node3D.new()   # this fighter's weapon: its shape (WeaponMesh), placed in its frame each refresh
+	wep_node.name = "weapon_model"
+	root.add_child(wep_node)
+	var w := [wep_node]
 	var fp := SkinPick.new()   # PRECISE PICK on this fighter too: its click and its hover light are on its own skin
 	fp.build((mq[0] as Node).find_children("*", "MeshInstance3D", true, false), mq[1])
 	var mdict := {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag, "skp": fp}
@@ -6951,32 +6943,20 @@ func _actor_man() -> Dictionary:
 ## (d2_handle, d2_blade: the dagger's look), under the fighter's node, so the node's visibility covers them. The hovered
 ## part's light is on the fighter's own skin (its SkinPick, _fh_draw), as the active body's is
 func _fh_meshes(root: Node3D) -> Dictionary:
-	var tape: Material = wep_mats["tape"]
-	var steel: Material = wep_mats["steel"]
-	var w2 := []
-	for r in [[0.013, 0.013, tape], [0.004, 0.011, steel]]:
-		var mi := MeshInstance3D.new()
-		var c := CylinderMesh.new()
-		c.top_radius = r[0]
-		c.bottom_radius = r[1]
-		mi.mesh = c
-		mi.material_override = r[2]
-		root.add_child(mi)
-		w2.append(mi)
-	return {"wep2": w2}
+	var w2_node := Node3D.new()   # its off-hand weapon: the same shapes (WeaponMesh), placed in its frame
+	w2_node.name = "weapon2_model"
+	root.add_child(w2_node)
+	return {"wep2": [w2_node]}
 
 
 ## one fighter that is not active, this refresh: its off-hand weapon where its body holds it, and the hovered part's light
 ## (only when the mouse is on that fighter: hover_fighter)
 func _fh_draw(k: int, b: Body) -> void:
 	var mq: Dictionary = actor_men[k]
-	var w2: Array = mq["wep2"]
-	for mi in w2:
-		(mi as MeshInstance3D).visible = b.wep2_on
+	var w2m: Node3D = mq["wep2"][0]
+	w2m.visible = b.wep2_on
 	if b.wep2_on:
-		var hu := float(Body.KINDS[b.wep2_kind]["handle"])
-		_place(w2[0], b.wep2_point(0.0), b.wep2_point(hu), 0.0, false)
-		_place(w2[1], b.wep2_point(hu), b.wep2_point(b.wep2_len()), 0.0, false)
+		_wep_model_place(w2m, b.wep2_kind, b.wep2_xform())
 	var j := hover_fpart if k == hover_fighter else ""
 	(mq["skp"] as SkinPick).set_looks({j: _look_of("hover")} if j != "" and b.P.has(j) and not clean else {})
 

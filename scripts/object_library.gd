@@ -43,6 +43,7 @@ var _scroll: ScrollContainer
 var _grid: GridContainer
 var _note: Label
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
+var _armour_body := []            # the fighter body the armour pictures are cut from: read once per open, not once per tile
 
 
 ## main: the app; weapon_list: main's WEAPONS (the Weapons tab reads the kinds the picker reads)
@@ -160,6 +161,7 @@ func names_matching(text: String) -> Array:
 
 ## show the panel (under the strip, beside the left panel) and refresh its tiles
 func open() -> void:
+	_armour_body = []
 	visible = true
 	fit(get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1280, 720))
 	_refresh_tabs()
@@ -342,7 +344,9 @@ func thumb_source(it: Dictionary) -> Dictionary:
 		src["build"] = func() -> Node3D: return Props.mesh(Props.make(key))
 	elif m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
 		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
-		var sb: Array = ArmourFromBody.body_source(m)
+		if _armour_body.is_empty():
+			_armour_body = ArmourFromBody.body_source(m)
+		var sb: Array = _armour_body
 		src["spec"] = var_to_str(["armour", key, ArmourFromBody.GAP, ArmourFromBody.THICK, ArmourFromBody.BEVEL,
 			ArmourFromBody.SEGMENTS, (sb[0] as KMesh).verts.size()])
 		src["build"] = func() -> Node3D: return _armour_node(key)

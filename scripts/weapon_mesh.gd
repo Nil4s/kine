@@ -14,7 +14,9 @@ const SHARP := 0.22   # a blade's thickness against its width (the local Z scale
 
 
 ## the weapon of kind (a Body.KINDS key, or "two_daggers"): one Node3D with the pieces as MeshInstance3D children
-static func build(kind: String) -> Node3D:
+static func build(kind: String, girth := 1.0) -> Node3D:
+	## girth: a visual multiplier on a long shaft's radius (staff, spear). Only the thumbnails pass it (LibraryThumbs.THUMB_GIRTH);
+	## the hand is built at 1.0, so the hit radii and the grip are never drawn from a girth.
 	var root := Node3D.new()
 	root.name = kind
 	if kind == "two_daggers":
@@ -34,15 +36,16 @@ static func build(kind: String) -> Node3D:
 		"metal_bat":
 			_tube(root, 0.0, 0.03, rh * 1.6, rh * 1.6, mt.tape, 10)   # the knob
 			_tube(root, 0.03, wh, rh, rh, mt.tape, 10)                # the taped handle
-			_tube(root, wh, L, rh, rb, mt.metal, 12)                  # the barrel swells to the end
-			_ball(root, Vector3(0, L - rb, 0), rb, mt.metal)          # the rounded end, its top at the tip
+			_tube(root, wh, L, rh, rb, mt.wood, 12)                   # the barrel: wood, a cone from the handle to the thick end
+			_ball(root, Vector3(0, L - rb, 0), rb, mt.wood)           # the rounded end, its top at the tip
 		"staff":
-			_tube(root, 0.0, L, rh, rh, mt.wood, 8)
-			_tube(root, 0.0, 0.05, 0.02, rh, mt.metal, 8)             # the ferrule
-			_tube(root, 0.25, 0.5, rh * 1.6, rh * 1.6, mt.tape, 8)    # the wrapped grip (visual: the hands close on the shaft)
-			_tube(root, 0.25, 0.27, rh * 1.8, rh * 1.8, mt.metal, 8)  # the bands at its ends
-			_tube(root, 0.48, 0.5, rh * 1.8, rh * 1.8, mt.metal, 8)
-			_ball(root, Vector3(0, L - rh, 0), rh, mt.wood)
+			var sr := rh * girth
+			_tube(root, 0.0, L, sr, sr, mt.wood, 8)
+			_tube(root, 0.0, 0.05, 0.02 * girth, sr, mt.metal, 8)     # the ferrule
+			_tube(root, 0.25, 0.5, sr * 1.6, sr * 1.6, mt.tape, 8)    # the wrapped grip (visual: the hands close on the shaft)
+			_tube(root, 0.25, 0.27, sr * 1.8, sr * 1.8, mt.metal, 8)  # the bands at its ends
+			_tube(root, 0.48, 0.5, sr * 1.8, sr * 1.8, mt.metal, 8)
+			_ball(root, Vector3(0, L - sr, 0), sr, mt.wood)
 		"long_hammer":
 			var hw := float(k["head"][0])
 			var hr := float(k["head"][1])
@@ -58,20 +61,21 @@ static func build(kind: String) -> Node3D:
 		"katana":
 			_katana(root, k, mt)
 		"spear":
-			_tube(root, 0.0, wh, rh, rh, mt.wood, 8)
-			_tube(root, wh, wh + 0.02, 0.02, 0.02, mt.metal, 8)       # the socket collar
+			_tube(root, 0.0, wh, rh * girth, rh * girth, mt.wood, 8)  # the shaft (the girth is the thumbnail's only)
+			_tube(root, wh, wh + 0.02, 0.02 * girth, 0.02 * girth, mt.metal, 8)   # the socket collar
 			_leaf(root, wh + 0.02, L, 0.05, mt.steel)                 # the leaf-shaped head
 		"long_axe":
 			var ahw := float(k["head"][0])
 			_tube(root, 0.012, wh, rh, rh, mt.tape, 8)                # the haft
-			_box(root, Vector3(0, wh + 0.04, 0), Vector3(0.05, 0.09, 0.05), mt.metal)
+			_box(root, Vector3(0, wh + 0.04, 0), Vector3(0.05, 0.09, 0.05), mt.metal)   # the socket
 			_rod(root, Vector3(0, L - 0.08, 0), Vector3(0, L, 0), 0.02, 0.0, mt.metal, 4, 1.0)   # the spike at the top
-			for s in [1.0, -1.0]:                                     # two crescent blades, one each side
-				var px := [0.13, 0.6, 0.93, 1.0, 0.87, 0.53, 0.13]
-				var py := [-0.06, -0.01, -0.02, -0.06, -0.11, -0.115, -0.10]
-				for i in px.size() - 1:
-					_rod(root, Vector3(s * ahw * px[i], L + py[i], 0), Vector3(s * ahw * px[i + 1], L + py[i + 1], 0),
-						0.026, 0.026, mt.steel, 4, 0.35)
+			# ONE wedge blade on the right: spokes fan from the socket to the edge, so it is a filled wedge, and its edge is a thicker rod
+			var hub := Vector3(0.0, L - 0.07, 0.0)
+			var edge := [Vector3(ahw * 0.2, L - 0.01, 0), Vector3(ahw, L - 0.03, 0), Vector3(ahw * 1.05, L - 0.08, 0), Vector3(ahw * 0.8, L - 0.13, 0), Vector3(ahw * 0.2, L - 0.12, 0)]
+			for e in edge:
+				_rod(root, hub, e, 0.012, 0.012, mt.steel, 4, 0.35)
+			for i in edge.size() - 1:
+				_rod(root, edge[i], edge[i + 1], 0.016, 0.016, mt.steel, 4, 0.35)
 		_:
 			_tube(root, 0.0, L, rh, rb, mt.metal, 8)                  # an unknown kind: a plain bar, never an empty weapon
 	return root

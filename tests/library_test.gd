@@ -138,9 +138,15 @@ func _init() -> void:
 	ok(total == lib.items.size() and total == 38, "the inventory: %d objects in all (38 with one model of your own)" % total)
 	var shown_all := 0
 	var empty_tab := []
+	var tab_gap := {}          # B9, per tab: the longest frame while that tab's tiles were drawn (its pictures settled)
+	var all_gap := _gap_ms     # the cold open's longest frame so far
 	for i in cats.size():
+		_gap_ms = 0.0
 		lib._pick_tab(i)
 		await idle(2)
+		await lib.thumbs.settle()
+		tab_gap[cats[i]] = _gap_ms
+		all_gap = maxf(all_gap, _gap_ms)
 		var n := 0
 		for b in lib._grid.get_children():
 			if b is Button:
@@ -151,12 +157,21 @@ func _init() -> void:
 		ok(n == per[cats[i]], "tab %s: %d tiles on screen = %d in the inventory" % [cats[i], n, per[cats[i]]])
 	await lib.thumbs.settle()   # every tab's tiles drawn: the B9 window ends here
 	_measuring = false
+	_gap_ms = all_gap
 	ok(empty_tab.is_empty(), "every category holds at least 1 tile %s" % str(empty_tab))
 	ok(shown_all == total, "the tiles on screen add up to the inventory (%d = %d)" % [shown_all, total])
 	print("info: cold start drew %d pictures (%d real); longest build %.1f ms, longest draw %.1f ms; failed real: %s" % [lib.thumbs.renders, lib.thumbs.real_renders, lib.thumbs.build_ms_max, lib.thumbs.draw_ms_max, str(lib.thumbs.failed_real)])
 
 	# B9: the frames of the cold open and the tab-by-tab drawing
 	ok(_gap_ms <= FRAME_MAX_MS, "B9 the panel's cold open and its tiles drawn tab by tab: the longest frame %.1f ms (at most %.0f)" % [_gap_ms, FRAME_MAX_MS])
+	# the same bar, split: the tabs without armour, and the Armour tab (its plates are built on the main thread, one per tab visit)
+	var quiet_gap := 0.0
+	for c in cats:
+		if c != "Armour":
+			quiet_gap = maxf(quiet_gap, float(tab_gap.get(c, 0.0)))
+	print("info: B9 split: longest frame by tab %s" % str(tab_gap))
+	ok(quiet_gap <= FRAME_MAX_MS, "B9a the tabs without armour (Weapons, Furniture, Sports, Everyday, My models): the longest frame %.1f ms (at most %.0f)" % [quiet_gap, FRAME_MAX_MS])
+	ok(float(tab_gap.get("Armour", 0.0)) <= FRAME_MAX_MS, "B9b the Armour tab's first open: the longest frame %.1f ms (at most %.0f)" % [float(tab_gap.get("Armour", 0.0)), FRAME_MAX_MS])
 
 	# B2 + B3: a sword into the right hand, a chair onto the floor; each one undo step
 	lib._pick_tab(0)
