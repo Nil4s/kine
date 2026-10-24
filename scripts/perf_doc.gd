@@ -36,6 +36,7 @@ var _secs := 3.0
 var _frames := 0
 var _tp := []            # TIME_PROCESS (s) of each frame: the report shows the median (one slow frame must not set it)
 var _was := {}           # the state the run borrowed and gives back
+var _body = null         # the body as the run found it (its pose at the playhead moves while the scene plays)
 var _after := false      # this run follows a fix
 var last := {}           # the last result {"rows": [{"k","ms"}], "fps", "frame_ms", "draw", "prims", "mem_mb", "mode"}
 var before := {}         # the result before a fix: the 'after' line compares to it
@@ -78,6 +79,7 @@ func start(secs := 3.0, after_fix := false) -> void:
 	var play: bool = m.S.cards.size() >= 2
 	_was["mode"] = "playback" if play else "orbit"
 	if play:
+		_body = m.B.state()
 		m.playhead = 0.0
 		m.playing = true
 	if panel != null:
@@ -133,6 +135,9 @@ func _finish() -> void:
 		"prims": int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)),
 		"mem_mb": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
 	}
+	if _body != null:
+		m.B.set_state(_body)   # playing moved the body (root offset, ground): put it back as it was
+		_body = null
 	m.playing = bool(_was["playing"])
 	m.playhead = float(_was["playhead"])
 	m.yaw = float(_was["yaw"])

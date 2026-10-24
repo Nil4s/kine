@@ -77,6 +77,12 @@ func pose(angs: Dictionary, plant := ["_l", "_r"]) -> Dictionary:
 	return B.to_dict()
 
 
+## a foot's heading on the floor (ankle -> ball, deg about vertical): bar 6 compares it before and after a drag
+func heading(BB: Body, sd: String) -> float:
+	var d: Vector3 = BB.P["ball" + sd] - BB.P["foot" + sd]
+	return rad_to_deg(atan2(d.x, d.z))
+
+
 func lean_now() -> float:
 	return TrunkLean.lean_of(B.P["pelvis"], B.P["neck_01"], B.P["thigh_l"], B.P["thigh_r"], TrunkLean.rest_pitch(B)).x
 
@@ -243,6 +249,7 @@ func _init() -> void:
 			continue
 		var a0 := TrunkLean.angles(MB)
 		var p0: Vector3 = MB.ang["pelvis"]
+		var h0 := {"_l": heading(MB, "_l"), "_r": heading(MB, "_r")}
 		var end_at: Vector2 = press_at + (cam.unproject_position(target) - cam.unproject_position(start))
 		var prev := press_at
 		var worst := {"pitch": 0.0, "roll": 0.0, "bend": 0.0, "side": 0.0}
@@ -258,10 +265,46 @@ func _init() -> void:
 			tilt = maxf(tilt, maxf(absf(pn.x - p0.x), absf(pn.y - p0.y)))
 		var moved: float = ((MB.P[part] as Vector3) - start).length()
 		m._unhandled_input(_ev_btn(end_at, false))
+		# 6 PLANTED FEET KEEP THEIR HEADING (Nick 10-24: "feet always try to point to each other"): a limb drag with smart drag
+		# on turned the hips, and the planted feet with them (8-9 deg in, measured); the dragged leg's own foot is not planted
+		var turn := 0.0
+		for sd in ["_l", "_r"]:
+			if not part.ends_with(sd) or part.begins_with("hand"):
+				turn = maxf(turn, absf(wrapf(heading(MB, sd) - float(h0[sd]), -180.0, 180.0)))
+		ok(turn <= 1.0 and moved > 0.15, "6 %s dragged %.0f cm (smart on): the planted feet turned %.2f deg (bar 1)" % [part, moved * 100.0, turn])
 		ok(worst["pitch"] < 5.0 and worst["roll"] < 5.0 and worst["bend"] <= 4.1 and worst["side"] <= 4.1 and tilt <= 0.01 and moved > 0.15,
 			"1 %s dragged %.0f cm (smart + balance on): trunk pitch %.1f roll %.1f deg (bar 5), spine bend %.1f side %.1f (bar 4.1), pelvis tilt %.2f (bar 0.01)" % [
 			part, moved * 100.0, worst["pitch"], worst["roll"], worst["bend"], worst["side"], tilt])
 		m._undo()
+	# 7 EASY: a drag moves only the part you drag (Nick 10-24: "while dragging an arm the whole body moves"); smart drag stays on
+	# in the settings (Expert keeps it), Easy does not use it
+	MB.set_state(base)
+	MB.fk()
+	m.easy.set_on(true, false)
+	for i in 4:
+		await process_frame
+	var ecam: Camera3D = m.cam
+	var keep := ["head", "pelvis", "foot_l", "foot_r", "hand_l"]
+	var before := {}
+	for j in keep:
+		before[j] = MB.P[j]
+	var hs: Vector3 = MB.P["hand_r"]
+	var ecp: Array = MB.cap("hand_r")
+	var e_at := _find(m, "hand_r", ecam.unproject_position(((ecp[0] as Vector3) + (ecp[1] as Vector3)) * 0.5))
+	m._unhandled_input(_ev_btn(e_at, true))
+	var e_prev := e_at
+	for k in 24:
+		var pos: Vector2 = e_at + Vector2(-4.0, -6.0) * (k + 1)
+		m._unhandled_input(_ev_move(pos, pos - e_prev))
+		e_prev = pos
+	m._unhandled_input(_ev_btn(e_prev, false))
+	var e_moved: float = ((MB.P["hand_r"] as Vector3) - hs).length()
+	var others := 0.0
+	for j in keep:
+		others = maxf(others, ((MB.P[j] as Vector3) - (before[j] as Vector3)).length())
+	ok(m.smart_drag and m.sel == "hand_r" and e_moved > 0.10 and others <= 0.002,
+		"7 Easy: the right hand dragged %.0f cm moved the head, hips, feet and other hand at most %.2f cm (bar 0.2; smart drag setting still %s)" % [e_moved * 100.0, others * 100.0, m.smart_drag])
+	m.easy.set_on(false, false)
 	m.queue_free()
 	await process_frame
 	print("TRUNK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

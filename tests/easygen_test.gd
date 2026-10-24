@@ -3,18 +3,20 @@
 ## No ComfyUI here: main's gen_move points at a stand-in (tests/py/gen_video_stub.py) that copies the video_import_test clip
 ## (GEN_STUB_SRC), or makes nothing (ComfyUI down), or sleeps first (GEN_STUB_SLEEP, for Cancel). The tracking and the landing are the real ones.
 ## BARS (stated before measuring):
-##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line AND the one button "Make it with AI video (about 10 minutes)"
+##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line AND the one button "Make it with AI video (about 3 minutes)"
 ##  2 typed "punch" (a known word, a template): it builds, and NO button
 ##  3 with the stand-in clip: clicking the button shows "Making the video" on the say line, then the clip lands: at least 2 cards, playing
 ##  4 one Undo after that success gives back the card count the scene had before it (the punch clip's)
 ##  5 ComfyUI down (the stand-in makes nothing): the one plain sentence on the message line and the say line, cards unchanged, no script error
 ##  6 Cancel mid-run (a stand-in that sleeps): the generator is stopped, "Stopped. Nothing was changed.", card count and undo size unchanged
+##  8 the Easy generator call (first take AND the retake) carries the FAST setting: --steps 20 --width 640 --height 368
+##  9 the message says "about 3 minutes" (the button, and the retake line "about 3 more minutes")
 extends SceneTree
 
 const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
 const WORDS := "backflip"
 const NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
-const BUTTON := "Make it with AI video (about 10 minutes)"
+const BUTTON := "Make it with AI video (about 3 minutes)"
 
 var fails := 0
 var m: Node
@@ -98,6 +100,25 @@ func unit_bar() -> void:
 	ok(bool(no_seen["bad"]), "0k a clip with no sampled frames count is bad")
 
 
+## the arguments of each generator call (GEN_STUB_ARGS, a JSON list per line) as Arrays of strings
+func args_of(path: String) -> Array:
+	var out := []
+	for l in lines_of(path):
+		out.append(JSON.parse_string(String(l)))
+	return out
+
+
+## the value after a flag in one call's arguments, "" when the flag is not there
+func flag_of(argv: Array, flag: String) -> String:
+	var i := argv.find(flag)
+	return String(argv[i + 1]) if i >= 0 and i + 1 < argv.size() else ""
+
+
+## a call carries the Easy fast setting: 20 steps at 640x368
+func is_fast(argv: Variant) -> bool:
+	return argv is Array and flag_of(argv, "--steps") == "20" and flag_of(argv, "--width") == "640" and flag_of(argv, "--height") == "368"
+
+
 func lines_of(path: String) -> Array:
 	if not FileAccess.file_exists(path):
 		return []
@@ -109,7 +130,9 @@ func lines_of(path: String) -> Array:
 func take_run(label: String, plan: String, slow_call := 0, stop_at := 0) -> Dictionary:
 	var gl: String = String(m.gen_move.out_dir).path_join(label + "_gen.log")
 	var tl: String = String(m.gen_move.out_dir).path_join(label + "_trk.log")
+	var al: String = String(m.gen_move.out_dir).path_join(label + "_args.log")
 	OS.set_environment("GEN_STUB_LOG", gl)
+	OS.set_environment("GEN_STUB_ARGS", al)
 	OS.set_environment("TRK_STUB_LOG", tl)
 	OS.set_environment("TRK_STUB_PLAN", plan)
 	OS.set_environment("GEN_STUB_SLOW_CALL", str(slow_call))
@@ -153,6 +176,7 @@ func take_run(label: String, plan: String, slow_call := 0, stop_at := 0) -> Dict
 		"status": String(m.ui_status.text), "cards": m.S.cards.size(), "added": m.S.cards.size() - c0,
 		"moved": m.scene_path != sp0, "undo": m.undo.size() - u0, "left": left, "first_gone": first_gone,
 		"cancelled": cancelled, "seen_cancel": seen_cancel, "wip": m.scene_path.begins_with("res://scenes/_wip/"),
+		"args": args_of(al),
 		"landed": m.scene_path, "playing": m.playing}
 
 
@@ -283,6 +307,15 @@ func _init() -> void:
 		"7c bad then bad: %d generations, %d trackings, nothing imported (scene moved %s, cards %+d, undo %+d), message \"%s\", no files left %s"
 		% [c["gens"], c["tracks"], c["moved"], c["added"], c["undo"], c["msg"], c["left"].is_empty()])
 
+	# 8 the fast setting: the first take's one call, and both calls of the retake (b), carry 20 steps at 640x368
+	var fast_a: bool = a["args"].size() == 1 and is_fast(a["args"][0])
+	var fast_b: bool = b["args"].size() == 2 and is_fast(b["args"][0]) and is_fast(b["args"][1])
+	ok(fast_a and fast_b, "8 Easy's generator calls carry --steps 20 --width 640 --height 368: first take %s, retake %s (call args %s / %s)"
+		% [fast_a, fast_b, str(a["args"]), str(b["args"])])
+	# 9 the time the beginner is told: about 3 minutes (the button, the retake line)
+	ok(BUTTON.ends_with("(about 3 minutes)") and EasyTake.TAKE_MINUTES == 3 and b["saw"].begins_with("That video came out unclear. Making another one (about 3 more minutes)"),
+		"9 the button says \"%s\" and the retake line says \"about 3 more minutes\" (seen: \"%s\")" % [BUTTON, String(b["saw"]).substr(0, 80)])
+
 	var d := await take_run("d", "bad", 2, 2)
 	ok(d["cancelled"] and d["seen_cancel"] and d["gens"] == 2 and d["tracks"] == 1 and not d["moved"] and d["added"] == 0 and d["undo"] == 0
 		and d["status"] == "Stopped. Nothing was changed." and d["left"].is_empty() and not home._gen_on and not m.gen_move.busy()
@@ -292,6 +325,7 @@ func _init() -> void:
 
 	m.video_tool = "res://tools/see_video.py"
 	OS.set_environment("GEN_STUB_LOG", "")
+	OS.set_environment("GEN_STUB_ARGS", "")
 	OS.set_environment("TRK_STUB_LOG", "")
 	OS.set_environment("GEN_STUB_SLOW_CALL", "")
 	for f in DirAccess.get_files_at(dir):

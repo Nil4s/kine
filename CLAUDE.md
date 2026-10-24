@@ -19,7 +19,7 @@ E/I extrude/inset, Ctrl+T triangulate, H heat map, U UV shading, K shape key. Ne
 `scripts/mesh_tools.gd` (P02 search registry) and fill its "do" field.
 Known failures on the base too (not caused by this work): `units` (unitless numbers). `command_search` and
 `search_forgive` were fixed on w4-integ (they ignore the user's own saved files: `CommandSearch.user_files_off`);
-command_search takes ~10-20 min, so give it `TIMEOUT=1800`.
+command_search takes ~10-20 min, so give it `TIMEOUT=1800`; undo_audit_s3 (~9 min, it waits for async commands) and explain need `TIMEOUT=1500`. undo_audit_s3 still fails 3 `new_from_template_*` lines (they open a new scene: not an in-place edit) and s0 `help_show_the_tour`.
 Agents: never kill Godot by image name (`taskkill /IM`); other runs on this machine die with it (exit 1, no error).
 
 ROADMAP 22 (type a move, get blocking) is done and merged as `wt-textmove2`. Ignore the old `wt-textmove`.

@@ -138,7 +138,7 @@ func _rebuild() -> void:
 
 ## shown when a line fits, the hints are on, and the first-run welcome line is not up (it says the same thing)
 func _vis_now() -> void:
-	visible = box.get_child_count() > 0 and (m.get("hints_on") != false) and not (m.ui_status != null and m.ui_status.text == m.WELCOME and m.ui_status.visible)
+	visible = box.get_child_count() > 0 and (m.get("hints_on") != false) and not (m.ui_status != null and m.is_welcome(m.ui_status.text) and m.ui_status.visible)
 
 
 ## the words as shown (the test reads this)
@@ -232,7 +232,7 @@ static func items(m: Node, c: String) -> Array:
 		"pose_locked":
 			return [_i("L", "Left: picks the %s (it is locked, it will not turn)" % nm), _i("R", "Right: orbit (a click: Unlock)"), _i("M", "Wheel: zoom")]
 		"pose_empty":
-			return [_i("L", "Left: nothing; press a part to pick it"), _i("R", "Right: orbit"), _i("M", "Wheel: zoom"), _i("M", "Middle: pan")]
+			return [_i("L", "Left: nothing here, press a part to pick it"), _i("R", "Right: orbit"), _i("M", "Wheel: zoom"), _i("M", "Middle: pan")]
 		"nav_orbit":
 			return [_i("L", "Left: drag to orbit the view"), _i("M", "Wheel: zoom"), _i("", "Esc: back to posing")]
 		"nav_pan":

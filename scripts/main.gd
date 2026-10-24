@@ -387,7 +387,7 @@ const LINE_FS := 13
 
 
 func _status_look() -> void:
-	var teach := ui_status.text == WELCOME
+	var teach := is_welcome(ui_status.text)
 	ui_status.add_theme_stylebox_override("normal", ui_say_box if teach else StyleBoxEmpty.new())
 	ui_status.add_theme_font_size_override("font_size", 16 if teach else LINE_FS)
 	ui_status.add_theme_color_override("font_color", Tok.c("say") if teach else (Tok.c("warn") if ui_status.text.contains("STOPPED") else Tok.of("text:0.7")))
@@ -404,7 +404,7 @@ var _teach_pending := false
 
 
 func _end_teach() -> void:
-	if ui_status != null and ui_status.text == WELCOME:
+	if ui_status != null and is_welcome(ui_status.text):
 		_say_plain("")
 	if _teach_pending:
 		_taught()
@@ -422,7 +422,7 @@ func _strip_fit() -> void:
 	if ui_status == null:
 		return
 	_status_look()
-	if ui_status.text != WELCOME:
+	if not is_welcome(ui_status.text):
 		_line_fit()
 		return
 	ui_status.offset_top = -bottom_h - 82
@@ -539,6 +539,8 @@ var ui_hist_btn: Button
 const HIST_SHOWN := 10             # ROADMAP 45: the History panel lists the newest 10 steps
 var ui_undo_btn: Button            # ROADMAP 45: its tooltip is "Undo: <the step it takes back>"
 var ui_redo_btn: Button
+var _step_easy := ""   # EASY ONLY: the short name of the step about to be made (Easy's card, tweak, library tile, More item): kept on the
+                       # undo entry as "easy", read by the Easy bar's Undo button and toast; Expert's names never use it
 var _step_hint := ""   # what the user just pressed (a button's text, a command's name, a shortcut's command): the undo
                        # step's name when nothing is said about it (#75)
 const KEY_WORD := {KEY_BRACKETLEFT: "[", KEY_BRACKETRIGHT: "]", KEY_COMMA: ",", KEY_PERIOD: ".", KEY_MINUS: "-", KEY_EQUAL: "="}
@@ -979,7 +981,7 @@ func _line_fit() -> void:
 	ui_bar.offset_right = x1
 	ui_bar.offset_top = y0
 	ui_bar.offset_bottom = -bottom_h - 6
-	if ui_status.text != WELCOME:
+	if not is_welcome(ui_status.text):
 		ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
 		ui_status.clip_text = true
 		ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -1650,6 +1652,7 @@ func _export_turntable(seconds := 6.0, fps := 30, size := Vector2i(1280, 720), r
 ## nothing in the scene changes (not an edit). Returns {"avi", "mp4", "frames", "captions", "verdicts", "size", "fps", "sbs", "cam", "crop",
 ## "area", "images" ({k: Image} for the frames in keep_frames)}; {} when refused.
 var judge_layer: JudgeRender
+var judge_busy := false   # true while the breakdown pass runs: it poses the body frame by frame and restores it at the end
 
 
 func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.ALL, fps := 0, size := Vector2i(1280, 720), root_dir := JudgeRender.ROOT, ffmpeg_path := "", keep_frames: Array = []) -> Dictionary:
@@ -1667,6 +1670,7 @@ func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.AL
 	if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root_dir)) != OK:
 		_say_plain("NOT DONE: the folder %s could not be made: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
 		return {}
+	judge_busy = true
 	var keep := B.state()
 	var keep_t := playhead
 	var keep_playing := playing
@@ -1790,6 +1794,7 @@ func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.AL
 	for vd in verdicts:
 		fired += 1 if not (vd as Array).is_empty() else 0
 	_say_plain(("breakdown: %d frames at %d fps, %s, %dx%d, a verdict fires on %d of them, in %s.avi%s" % [n, rate, "side by side" if side_by_side else "one view", size.x, size.y, fired, stem, how]) if wrote else "NOT DONE: the video file could not be written to %s: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
+	judge_busy = false
 	return {"avi": avi if wrote else "", "mp4": mp4, "frames": n, "captions": captions, "verdicts": verdicts, "size": size, "fps": rate, "sbs": side_by_side, "cam": cam_xf, "crop": rect, "area": Vector2i(aw, ah), "images": images}
 
 
@@ -2934,7 +2939,7 @@ func _ready() -> void:
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
 	# test wrote "taught" into it)
 	_teach_pending = not cf.get_value("look", "taught", false)
-	if not _teach_pending and ui_status.text == WELCOME:
+	if not _teach_pending and is_welcome(ui_status.text):
 		_say_plain("")
 	for k in fold:   # QQ4: a user's folds, remembered (the first start: FOLD_DEFAULT); a test starts open
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
@@ -5530,6 +5535,8 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 func _smart_begin(j: String, alt: bool) -> Dictionary:
 	if not smart_drag or alt or smart_follow <= 0.0 or j in Body.WEAPON or not sel_more.is_empty() or j == "pelvis":
 		return {}
+	if easy != null and easy.on:
+		return {}   # Easy: a drag moves only the part you drag (Nick 10-24: "while dragging an arm the whole body moves"); Expert keeps the follow
 	if not sd.ready_model() and not sd.refresh():
 		return {}
 	return sd.begin(B, j, locked_parts.keys())
@@ -6230,6 +6237,9 @@ func _push_undo() -> void:
 	if _step_hint != "":
 		u["hint"] = step_name(_step_hint)
 	_step_hint = ""
+	if _step_easy != "":
+		u["easy"] = _step_easy
+	_step_easy = ""
 	undo.append(u)
 	_tree.push(u)   # a new branch node when there was a redo: the abandoned future stays in the tree
 	_undo_tips()
@@ -6260,6 +6270,8 @@ func _undo() -> void:
 		now["lib"] = u["lib"]
 	if u.get("swap", false):
 		now["swap"] = true   # a whole-scene swap goes back and forth
+	if u.has("easy"):
+		now["easy"] = u["easy"]   # the Easy short name goes back and forth with the step, as its name does
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
@@ -6276,8 +6288,8 @@ func _undo() -> void:
 		sk.flips = fl
 		sk.fitted = SketchPose._skel(B, cam)
 		_sk_show_handles()
-	_say("undone: " + now["name"])
-	_toast("Undid: " + now["name"])
+	_say(("Took back: " + easy_name(u)) if easy != null and easy.on else "undone: " + now["name"])   # Easy says the short name too
+	_toast("Undid: " + (easy_name(u) if easy.on else now["name"]))   # Easy's toast says the short name ("Undid: Faster")
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -6296,14 +6308,16 @@ func _redo() -> void:
 		now["lib"] = r["lib"]
 	if r.get("swap", false):
 		now["swap"] = true
+	if r.has("easy"):
+		now["easy"] = r["easy"]
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
-	_say("redone: " + now["name"])
-	_toast("Redid: " + now["name"])
+	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "redone: " + now["name"])
+	_toast("Redid: " + (easy_name(r) if easy != null and easy.on else now["name"]))
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -10376,6 +10390,12 @@ static func _step_label(u: Dictionary) -> String:
 	return n.left(1).to_upper() + n.substr(1)
 
 
+## EASY: the short name of a step for Easy's Undo button and toast: the Easy name it was made with, else its own name; at most 18 characters
+static func easy_name(u: Dictionary) -> String:
+	var n := String(u.get("easy", "")) if u.has("easy") else _step_label(u)
+	return (n.left(16) + "..") if n.length() > 18 else n
+
+
 ## a status line -> a short step name: up to the first double space / "(" / ".  ", at most 48 characters
 static func step_name(t: String) -> String:
 	var n := t.strip_edges()
@@ -10815,6 +10835,14 @@ func _set_scale(pct: int) -> void:
 ## HINTS ON/OFF (round 35a, GATES QQ3): the teaching texts (the welcome line on the yellow strip, the selected part's
 ## "Drag: rotate it..." line, the Poses and Scene captions) go; what the app SAYS about what you did still shows
 const WELCOME := "Click a part, then drag it to turn it."
+## the strip's words in Easy: Easy's one teaching line (the hint row's own words, MouseHint.EASY_LINE), so a first start in Easy says one thing
+func welcome_words() -> String:
+	return MouseHint.EASY_LINE if easy != null and easy.on else WELCOME
+
+
+## is this line the first-start strip (in either mode's words)?
+func is_welcome(t: String) -> bool:
+	return t == WELCOME or t == MouseHint.EASY_LINE
 var hints_on := true
 var ui_hint_labels: Array = []
 
@@ -10871,7 +10899,7 @@ func _hints_apply() -> void:
 	if ui_how != null:
 		ui_how.visible = false   # RR2: how to use the part is the title's tooltip, never a line in the box
 	if ui_status != null:
-		if not hints_on and ui_status.text == WELCOME:
+		if not hints_on and is_welcome(ui_status.text):
 			ui_status.text = ""
 		ui_status.visible = hints_on or ui_status.text != ""
 
