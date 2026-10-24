@@ -635,7 +635,11 @@ static func _hxz(v: Vector3) -> Vector2:
 ## CONTACTS on landmark frames {"t","w"} (hips-relative). Returns {"list": [{"kind": "foot"/"hand", "part", "f0", "f1", "t0",
 ## "t1"}] by f0 (t from the first frame), "hint": [per frame "_l" / "_r" / "" : the one foot down], "ground": per-frame ground
 ## height relative to the hips, "root": per-frame root velocity (xz, m/s)}
-static func contacts(frames: Array, fps: float, fly := {}) -> Dictionary:
+## `seen` (optional) {"_l": [bool], "_r": [bool]} per frame: false where the tracker LOST that foot (confidence under LOST). A
+## lost foot gives no evidence of a contact: its landmarks are the repair's fill (a held or straight-line guess), which reads
+## as low and still, and a whole clip of it planted the foot over 1 s of the body walking away (93 cm of slide on a 20-frame
+## AI walk). A contact run more than half unseen is dropped; one crossing a short dropout stays
+static func contacts(frames: Array, fps: float, fly := {}, seen := {}) -> Dictionary:
 	var n := frames.size()
 	var T0 := float(frames[0]["t"])
 	var dtf := 1.0 / maxf(fps, 1.0)
@@ -736,6 +740,15 @@ static func contacts(frames: Array, fps: float, fly := {}) -> Dictionary:
 				st = false   # FLIGHT: no foot is on the floor in the air, whatever its height and its speed read as (flight_of)
 			on.append(st)
 		flag[sd] = _clean_runs(on)
+		var sn: Array = seen.get(sd, [])
+		if sn.size() == n:   # LOST: a contact made mostly of frames the tracker did not see is the fill's guess, not a stance (see `seen`);
+			for r in _runs_of(flag[sd]):   # one that only crosses a short dropout keeps it (walk_bat's real stances do)
+				var unseen := 0
+				for i in range(int(r[0]), int(r[1]) + 1):
+					unseen += 0 if bool(sn[i]) else 1
+				if unseen * 2 > int(r[1]) - int(r[0]) + 1:
+					for i in range(int(r[0]), int(r[1]) + 1):
+						flag[sd][i] = false
 		for k in 2:   # the pivots that are down: the heel and the ball, each while it is within H_PIV of its ground
 			var pv := []
 			for i in n:
@@ -769,6 +782,23 @@ static func contacts(frames: Array, fps: float, fly := {}) -> Dictionary:
 		var r: bool = flag["_r"][i]
 		hint.append("_l" if l and not r else ("_r" if r and not l else ""))
 	return {"list": list, "heeloff": heeloff, "hint": hint, "flags": flag, "piv": piv, "ground": gm, "root": root}
+
+
+## per foot, per frame of `to`: whether the tracker saw that foot (its confidence >= LOST) at the nearest frame of `from` in time
+static func seen_feet(conf: Dictionary, from: Array, to: Array) -> Dictionary:
+	var out := {"_l": [], "_r": []}
+	if from.is_empty():
+		return out
+	var j := 0
+	for f in to:
+		while j + 1 < from.size() and absf(float(from[j + 1]["t"]) - float(f["t"])) <= absf(float(from[j]["t"]) - float(f["t"])):
+			j += 1
+		for sd in ["_l", "_r"]:
+			var pc: Array = conf["parts"].get("foot" + sd, [])
+			# a frame where the WHOLE body was lost (fill_gaps) is not this: the fill between good frames is a fair guess for a
+			# planted foot there (walk_bat's 8 lost frames sit inside real stances); only a foot lost while the body is seen counts
+			(out[sd] as Array).append(j >= pc.size() or float(pc[j]) >= LOST or bool(from[j].get("lost", false)))
+	return out
 
 
 ## a bool series with gaps of BRIDGE or fewer frames closed and runs under `min_run` dropped
@@ -1161,7 +1191,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	progress = 0.1
 	var C := VideoCleanup.run(frames, fps, float(P.get("tilt", 0.0)))
 	normalize_lengths(C["frames"])
-	var K := contacts(C["frames"], fps, fly)
+	var K := contacts(C["frames"], fps, fly, seen_feet(conf, frames, C["frames"]))
 	if cancelled():
 		return {}
 	progress = 0.2

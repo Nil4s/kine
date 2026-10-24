@@ -107,6 +107,7 @@ func _init() -> void:
 	ok(not r1["ok"] and not r2["ok"] and not r3["ok"] and String(r3["why"]).length() > 10, "6 bad files refused: %s | %s | %s" % [r1["why"], r2["why"], r3["why"]])
 	_bar7_fps16()
 	_bar8_flight()
+	_bar9_lost_foot()
 	print("VIDEO IMPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
 
@@ -177,3 +178,33 @@ func _bar8_flight() -> void:
 				step_at = i
 	ok(peak - stand >= 0.12, "8b the pelvis peaks %.3f m above its standing height in the jump (bar 0.12)" % (peak - stand))
 	ok(step <= 0.03, "8c the largest pelvis step between frames is %.3f m at frame %d (bar 0.03)" % [step, step_at])
+
+
+## 9 A LOST FOOT IS NOT PLANTED (round 57; an AI walk where the person walks out of shot: 20 frames, the left foot under the
+## tracker's LOST confidence in most of them). Its landmarks are the repair's fill, which reads low and still, and the old
+## contacts planted that foot for the whole 1.19 s clip while the body walked away (93 cm of slide). Bars:
+##   a no left-foot contact lasts 0.6 s or more (old: one 0.00-1.19 s contact)
+##   b contacts() with a foot marked unseen in every frame gives that foot no contact at all
+func _bar9_lost_foot() -> void:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var P := VideoImport.load_file("res://tests/data/lost_foot_walk_pose.json")
+	ok(P["ok"], "9 the lost-foot walk file reads (%s)" % P.get("why", ""))
+	if not P["ok"]:
+		return
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "lost_foot_test", true)
+	B.set_state(keep)
+	var longest := 0.0
+	for c in R["iq"]["contacts"]:
+		if c["part"] == "foot_l":
+			longest = maxf(longest, float(c["t1"]) - float(c["t0"]))
+	ok(longest < 0.6, "9a the left foot (lost in most frames) has no contact of 0.6 s or more: longest %.2f s (old 1.19)" % longest)
+	var fr: Array = R["frames"]
+	var none := {"_l": [], "_r": []}
+	for i in fr.size():
+		none["_l"].append(false)
+		none["_r"].append(true)
+	var K := VideoIQ.contacts(fr, float(P["fps"]), {}, none)
+	var left := (K["list"] as Array).filter(func(c): return c["part"] == "foot_l")
+	ok(left.is_empty(), "9b a foot unseen in every frame gets no contact (%d)" % left.size())
