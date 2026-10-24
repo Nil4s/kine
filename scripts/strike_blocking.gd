@@ -547,15 +547,16 @@ static func build(P: Dictionary, B: Body, move: String, text: String) -> Diction
 			break
 		var f: Dictionary = bad[0]
 		var ts := S.times()
-		var part := _part(float(f["t"]), ts, s, n, s0)
+		var part := _part(float(f["peak_frame"]) / BodyCaps.FPS if f.has("peak_frame") else float(f["t"]), ts, s, n, s0)   # N031: BODY ACCEL: where it peaks
 		var why := "%s%s" % [f["rule"], (" (" + String(f["joint"]).replace("_", " ") + ")") if f.has("joint") else ""]
+		var pct := BodyCaps.stretch(f) if f["rule"] == "BODY ACCEL" else 115.0   # N031: a whole-body lurch slowed as much as it needs
 		match part:
 			"anticipation":
-				S.retime(1, s0 - 1, 115.0)
+				S.retime(1, s0 - 1, pct)
 			"strike":
-				S.retime(s0, s, 115.0)
+				S.retime(s0, s, pct)
 			_:
-				S.retime(s + 1, n - 1, 115.0)
+				S.retime(s + 1, n - 1, pct)
 		(slowed[part] as Array).append(why)
 	# the human-limit retimes slow the strike too: the wind-up and the return slowed again under it (the recognizer reads
 	# the fastest moment as the strike), then the Check read once more

@@ -245,6 +245,13 @@ static func cards_under(S: Scene, t: float) -> Array:
 	return out
 
 
+## how much slower (percent of the move's time) a stretch of moves must play for f's peak to fall under AIM x its cap: an
+## acceleration over a fixed path goes as 1 / T^2, so T x sqrt(peak / (AIM x cap)). For the blockers' retime loops (TextBlocking,
+## StrikeBlocking), which otherwise slow by a fixed step and run out of tries on a 2-3x lurch. Clamped 110..200.
+static func stretch(f: Dictionary) -> float:
+	return clampf(sqrt(float(f.get("accel", 0.0)) / maxf(AIM * float(f.get("cap", 1.0)), 1e-6)) * 100.0, 110.0, 200.0)
+
+
 ## FIX in place: lengthen the moves of the cards under f's peak until that channel peaks under AIM x its WARN cap. Only "move" changes.
 ## {"did", "cards", "from", "to", "peak_before", "peak_after", "cap", "kind"} (no "after": Fixer reads that key as the findings after)
 static func retime(f: Dictionary, S: Scene, B: Body) -> Dictionary:

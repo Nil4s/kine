@@ -844,7 +844,7 @@ static func build(text: String, B: Body) -> Dictionary:
 			human = HumanLimits.findings(S, B)
 			human_read = true
 			var trouble := _new(src_fs, Rulebook.check(S, B, sm), "FAIL").filter(func(f): return f["rule"] in RETIME_RULES)
-			trouble += _new(src_human, human).filter(func(f): return f["rule"] == "JOINT SPEED")
+			trouble += _new(src_human, human).filter(func(f): return f["rule"] == "JOINT SPEED" or f["rule"] == "BODY ACCEL")   # N031: a whole-body lurch the source did not have is retimed too
 			for f in trouble:
 				if f["rule"] == "SEQUENCE":
 					# hips -> chest -> weapon: a timing matter only when the weapon's fastest turn is the wind-up's (sped
@@ -867,6 +867,10 @@ static func build(text: String, B: Body) -> Dictionary:
 					if f.has("joint"):
 						why = "%s turned %.0f°/s, faster than in the source" % [String(f["joint"]).replace("_", " "), f["v"]]
 						pct = clampf(float(f["v"]) / float(HumanLimits.SPEED[String(f["joint"]).split("_")[0]]) * 105.0, 110.0, 200.0)
+					elif f["rule"] == "BODY ACCEL":
+						why = "the centre of mass %s at %.1f m/s^2, over the %.1f cap (BODY ACCEL)" % [f["kind"], f["accel"], f["cap"]]
+						pct = BodyCaps.stretch(f)   # N031: as slow as the lurch needs (1 / T^2), not 125% a try
+						part = part_of.call(float(f["peak_frame"]) / BodyCaps.FPS, ts)   # the part the lurch PEAKS in (its "t" is where it starts)
 					else:
 						why = "%s (the Check), which the source did not have" % f["rule"]
 				break
