@@ -195,6 +195,14 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Used by: `HumanLimits.rule_tipping`, consts `GRAV`, `TOUCH`.
 - Tested by: `tests/human_limits_test.gd`.
 
+## ASSERT
+- What it checks: the check lines saved in the scene ("left foot planted from 0.2 to 0.6 s", "right fist touches the opponent's chin at 0.35 s"). Each one is judged on the body every time Check runs.
+- Source: none of its own. The bars are the numbers the author wrote in the line. Kine's only bars under it are "touching" and "planted".
+- Numbers: touching = within 1 cm (Balance.TOUCH); planted = the toe base within 2 cm of its standing height (Body.foot_state) and sliding under 2.5 cm (FOOT SLIDE's bar).
+- What to do: change the motion back so the line holds, or edit or remove the line if the wish changed.
+- Used by: `BodyAssert.findings` (Check), serve `assert`, the scene's `asserts` list.
+- Tested by: `tests/asserts_test.gd`.
+
 ## COUPLED LIMIT
 - What it checks: two-joint muscles of the leg. Hip flexion with the knee straight (hamstrings), ankle dorsiflexion with
   the knee straight (gastrocnemius), and hip extension with the knee bent (rectus femoris), each as a curve over the knee's bend.
