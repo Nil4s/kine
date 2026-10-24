@@ -48,6 +48,8 @@ const PEAK := {"jab": [8.4, "jab_speed"], "cross": [8.4, "jab_speed"], "hook": [
 const PEAK_TOL := 0.06       # the measured peak within 6 % of the target is on it (the retime is a % of the move: HEURISTIC)
 const KICK_CHAMBER := 0.22   # s, HEURISTIC: the move into the chamber (no kick row in docs/ATTACK_RULES.md)
 const KICK_BACK := 0.30      # s, HEURISTIC: re-chamber to the foot down again
+const KICK_LOAD := 0.20      # s, HEURISTIC: the guard to the load (_load); inside the anticipation's retime with the chamber
+const KICK_LAND := 0.15      # s, HEURISTIC: the re-chamber to the foot down (the load pose again); inside the recovery's retime
 ## the orthodox stance (left foot forward), the test's guard: the balls of the feet and their headings (rad)
 const STANCE := {"_l": [Vector3(0.12, 0.0152, 0.28), 0.0], "_r": [Vector3(-0.14, 0.0152, -0.18), -0.35]}   # rear toes ~20 deg out
 ## to his right, with the bladed hips (at +0.5, the recognizer test's, the rear thigh sat on its twist stop)
@@ -245,6 +247,56 @@ static func _balance(B: Body, sd: String, f: Array) -> void:
 		B.plant(sd, f[0], f[1], f[2])
 
 
+## THE LOAD (N031): the weight put over the support foot with BOTH feet still down, before the kicking foot leaves. A kicker's
+## support leg loads before toe-off (Kinoshita & Fujii 2014, ISBS, taekwondo roundhouse: the support hip "generated the largest
+## energy of all joints" in the READY phase before toe-off; docs/research/WEIGHT_TRANSFER.md). Built without it, the chamber
+## carried the centre of mass ~0.2 m forward and 0.1 m across in one 0.22 s card (BODY ACCEL start 17.0 / stop 17.4 m/s^2 on
+## the roundhouse, the cap 8.48 / 11.02), and the fix slowed the flowing chamber-and-strike until the foot came in at 7.1 m/s.
+## Here the hips are moved (the offset) until the centre of mass stands where the chamber's will (`goal`, x and z), the
+## support foot flat and turned `head`, the kicking foot on its stance spot with the heel up (the toes the last thing down);
+## the hips sink (up to LOAD_SINK) while that back foot cannot reach its spot. The same pose is the landing after the kick:
+## the foot down first, the weight still forward, THEN back to the guard (in the air the weight moved back over nothing: TIPPING).
+const LOAD_SINK := 0.04      # m: the most the hips sink to keep the back toes down in the load (HEURISTIC: at 0.08, WeightXfer.SINK_MAX's
+                             # figure, the chamber then RAISED the centre of mass 0.08-0.13 m in one card: RISE 25.5 m/s^2, cap 14.7)
+const LOAD_SHARE := 0.5     # of the way from the guard's centre of mass to the chamber's, the load carries it (HEURISTIC: all the way,
+                             # the back toes could not reach their spot without the hips sinking 0.08+)
+static func _load(B: Body, sd: String, angs: Dictionary, head: float, chamber_com: Vector3, guard_com: Vector3) -> Dictionary:
+	var o := _o(sd)
+	var goal := guard_com.lerp(chamber_com, LOAD_SHARE)
+	var feet := {o: [STANCE[o][0], float(STANCE[o][1]) + head, true], sd: [STANCE[sd][0], float(STANCE[sd][1]), true]}
+	pose(B, angs, feet)
+	for it in 12:
+		var c := Balance.com(B)
+		var d := Vector3(goal.x - c.x, 0.0, goal.z - c.z)
+		var miss := 0.0
+		B.offset += d
+		B.fk()
+		for k in feet:
+			miss = maxf(miss, B.plant(k, feet[k][0], feet[k][1], feet[k][2]))
+		if miss > 0.01 and B.offset.y > DROP - LOAD_SINK:
+			B.offset.y -= 0.01
+			B.fk()
+			for k in feet:
+				B.plant(k, feet[k][0], feet[k][1], feet[k][2])
+		elif d.length() < 0.003 and miss <= 0.01:
+			break
+	# the back foot's toes flat on the floor: heel up, the foot pitched, the toe tip dug 5.6 cm under it (the floor pass
+	# then lifted the whole body that much as the card played: a 0.06 m bob, BODY ACCEL rise 20.9 m/s^2); bent at the ball
+	var toe := "ball" + sd
+	var best := INF
+	var keep: Vector3 = B.ang[toe]
+	for x in range(-60, 61, 2):
+		B.ang[toe] = B.clamp_ang(toe, Vector3(x, 0, 0))
+		B.fk()
+		var dy := absf((B.E[toe] as Vector3).y - (B.e0[toe] as Vector3).y)
+		if dy < best:
+			best = dy
+			keep = B.ang[toe]
+	B.ang[toe] = keep
+	B.fk()
+	return B.to_dict()
+
+
 ## a card: {name, pose, move, hold}
 static func _c(nm: String, p: Dictionary, mv: float, hold: float) -> Dictionary:
 	return {"name": nm, "pose": p, "move": mv, "hold": hold}
@@ -258,6 +310,7 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 	var roles := []
 	var g := stance()
 	var ready := pose(B, {}, g)
+	var g_com := Balance.com(B)
 	cards.append(_c("ready: guard", ready, -1.0, 0.3))
 	roles.append("ready")
 	var add := func(nm: String, role: String, p: Dictionary, mv: float, hold: float) -> void:
@@ -312,6 +365,8 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 			pose(B, ch, sup)
 			_balance(B, o, sup[o])
 			var chamber := B.to_dict()
+			var ld := _load(B, sd, {"pelvis": Vector3(-3, 0, -15)}, 0.0, Balance.com(B), g_com)
+			add.call("anticipation: load", "anticipation", ld, KICK_LOAD, 0.0)
 			add.call("anticipation: chamber", "anticipation", chamber, KICK_CHAMBER, 0.0)
 			var ex := {"thigh" + sd: Vector3(85, 0, 0), "calf" + sd: Vector3(5, 0, 0), "foot" + sd: Vector3(-25, 0, 0), "ball" + sd: Vector3(-30, 0, 0),
 				"pelvis": Vector3(-12, 0, -5), "spine_01": Vector3(-8, 0, 0)}
@@ -319,6 +374,7 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 			_balance(B, o, sup[o])
 			add.call("STRIKE: front kick", "strike", B.to_dict(), 0.12, 0.05)
 			add.call("follow-through: re-chamber", "follow-through", chamber.duplicate(true), 0.14, 0.0)
+			add.call("recovery: foot down", "recovery", ld.duplicate(true), KICK_LAND, 0.0)
 			add.call("recovery: guard", "recovery", ready.duplicate(true), KICK_BACK, 0.3)
 		"roundhouse":
 			# directions in the world frame (x = his left; so a right leg's "out" is -x): mirrored for a left leg
@@ -333,6 +389,9 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 				B.plant(k2, sup1[k2][0], sup1[k2][1], sup1[k2][2])
 			_balance(B, o, sup1[o])
 			var chamber := B.to_dict()
+			# the load: the support heel starting to turn, the hips a third of the way round, the weight already over the support
+			var ld := _load(B, sd, {"pelvis": Vector3(0, 0, -20 + 30.0 * sg)}, 0.5 * sg, Balance.com(B), g_com)
+			add.call("anticipation: load", "anticipation", ld, KICK_LOAD, 0.0)
 			add.call("anticipation: pivot and chamber", "anticipation", chamber, KICK_CHAMBER, 0.0)
 			cards[-1]["flow"] = true   # a roundhouse does not stop at the chamber: the hips turn on through it into the kick
 			# the strike: the hips turned over (~120 deg from the guard; Gavagan & Sayers' pelvis ~130), the shin swept level
@@ -352,6 +411,7 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 				B.plant(k2, sup2[k2][0], sup2[k2][1], sup2[k2][2])
 			_balance(B, o, sup2[o])
 			add.call("follow-through: re-chamber", "follow-through", B.to_dict(), 0.18, 0.0)
+			add.call("recovery: foot down", "recovery", ld.duplicate(true), KICK_LAND, 0.0)
 			add.call("recovery: guard", "recovery", ready.duplicate(true), KICK_BACK + 0.1, 0.3)
 		"side kick":
 			var X := -sg
@@ -364,6 +424,8 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 				B.plant(k2, sup[k2][0], sup[k2][1], sup[k2][2])
 			_balance(B, o, sup[o])
 			var chamber := B.to_dict()
+			var ld := _load(B, sd, {"pelvis": Vector3(0, 0, -20 + 40.0 * sg)}, 0.75 * sg, Balance.com(B), g_com)
+			add.call("anticipation: load", "anticipation", ld, KICK_LOAD, 0.0)
 			add.call("anticipation: chamber", "anticipation", chamber, KICK_CHAMBER + 0.05, 0.0)
 			# the strike: the leg driven straight out along the hip line at hip height, heel leading (toes pulled up)
 			pose(B, {"pelvis": Vector3(0, 0, -20 + 95.0 * sg), "spine_03": Vector3(0, 0, -5.0 * sg), "neck_01": Vector3(0, 0, -30.0 * sg)}, {})
@@ -375,6 +437,7 @@ static func keys(B: Body, move: String, sd: String) -> Array:
 			_balance(B, o, sup[o])
 			add.call("STRIKE: side kick", "strike", B.to_dict(), 0.12, 0.05)
 			add.call("follow-through: re-chamber", "follow-through", chamber.duplicate(true), 0.15, 0.0)
+			add.call("recovery: foot down", "recovery", ld.duplicate(true), KICK_LAND, 0.0)
 			add.call("recovery: guard", "recovery", ready.duplicate(true), KICK_BACK + 0.05, 0.3)
 	return [cards, roles]
 
