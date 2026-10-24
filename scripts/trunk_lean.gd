@@ -202,10 +202,16 @@ static func turn(B: Body, dp: float, dr: float, keep_tip := "", keep_at := Vecto
 
 
 ## THE FIX (Fixer.apply / propose): {"did", "same" when nothing could be changed, "over0", "over1", "card"}
+## Two levers, in this order. The SPINE first (spine_01..03, a third each): the spine turns the trunk line only about 0.4
+## deg per deg (its joints sit low, the neck high), and its limits (bend -7..20 each) stop it at about 19 deg of trunk.
+## Then the PELVIS for the rest: the trunk line starts at the pelvis, so a pelvis tilt turns the line 1 deg per deg. The
+## pelvis moves the legs, so the kicking foot is reached back onto its contact point and each planted foot is put back on
+## its ball (Body.plant), and a punching fist is re-reached (Body.reach).
 static func fix(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	var it := _again(S, B, f)
 	if it.is_empty() or float(it["over"]) <= 0.0:
 		return {"did": "the trunk is already inside its range", "same": true}
+	var it0 := it.duplicate()
 	var j := _card_near(S, float(it["t"]))
 	if j < 0:
 		return {"did": "no card to turn", "same": true}
@@ -251,11 +257,70 @@ static func fix(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 		it = it2
 	B.set_state(keep)
 	B.fk()
-	if best.is_empty() or o1 >= o0 - 1e-3:
-		S.cards[j]["pose"] = orig
-		return {"did": "card %d: the spine could not bring the trunk back (its limits)" % (j + 1), "same": true}
-	S.cards[j]["pose"] = best
-	return {"did": "card %d '%s': the spine turned %.0f deg %s%s (spread over its three joints; %s, the feet untouched); now %s" % [
-		j + 1, S.cards[j]["name"], acc.length(), "forward" if acc.x > 0.5 else ("back" if acc.x < -0.5 else "upright"),
-		"" if absf(acc.y) < 0.5 else " and %.0f deg sideways" % absf(acc.y), "the fist kept on its point" if tip != "" else "the legs not touched",
-		"inside the range" if o1 <= 0.0 else "%.0f deg past it (was %.0f)" % [o1, o0]], "over0": o0, "over1": o1, "card": j}
+	if not best.is_empty() and o1 <= 0.0:
+		S.cards[j]["pose"] = best
+		return {"did": "card %d '%s': the spine turned %.0f deg %s%s (spread over its three joints; %s, the feet untouched); now %s" % [
+			j + 1, S.cards[j]["name"], acc.length(), "forward" if acc.x > 0.5 else ("back" if acc.x < -0.5 else "upright"),
+			"" if absf(acc.y) < 0.5 else " and %.0f deg sideways" % absf(acc.y), "the fist kept on its point" if tip != "" else "the legs not touched",
+			"inside the range"], "over0": o0, "over1": o1, "card": j}
+	# the spine is not enough: the pelvis takes the rest (pitch only; a roll the spine could not give is not forced)
+	var base: Dictionary = best if not best.is_empty() else orig
+	var pr := _tilt(S, B, f, it0, orig, base, j) if String(it0["what"]) != "sideways" else {}
+	B.set_state(keep)
+	B.fk()
+	if not pr.is_empty():
+		S.cards[j]["pose"] = pr["pose"]
+		var it3 := _again(S, B, f)
+		if not it3.is_empty() and float(it3["over"]) <= 0.0:
+			return {"did": "card %d '%s': the spine turned as far as its limits allow, then the pelvis tilted %.0f deg %s (the legs re-planted: the planted feet on their marks, the kicking foot or fist on its contact point); now inside the range" % [
+				j + 1, S.cards[j]["name"], absf(float(pr["tilt"])), "forward" if float(pr["tilt"]) > 0.0 else "back"],
+				"over0": o0, "over1": float(it3["over"]), "card": j}
+	S.cards[j]["pose"] = orig
+	return {"did": "card %d: the spine and the pelvis could not bring the trunk back (their limits; the feet and the contact kept)" % (j + 1), "same": true}
+
+
+## the pelvis's share: the card `base` (the spine already turned) with the pelvis tilted so the trunk line reaches its
+## goal; the planted feet put back on their balls of `orig`, a kicking foot reached back onto its contact point and a
+## punching fist onto its point. Returns {"pose", "tilt"} (deg, + forward) or {} when the window is not a pitch one
+static func _tilt(S: Scene, B: Body, f: Dictionary, w0: Dictionary, orig: Dictionary, base: Dictionary, j: int) -> Dictionary:
+	var nm: Array = w0["norm"]
+	var ksd: String = String(w0["side"]) if w0["class"] in KICKS else ""
+	var pt: String = String(w0.get("point", ""))
+	Scene.put(B, Moves._flat(orig))
+	B.fk()
+	var at: Vector3 = B.P[pt] if pt != "" else Vector3.ZERO
+	var plant_at := {}
+	for sd in ["_l", "_r"]:
+		if sd == ksd:
+			continue
+		var ball: Vector3 = B.P["ball" + sd]
+		if ball.y < 0.03:   # on the floor on this card
+			var d: Vector3 = ball - (B.P["foot" + sd] as Vector3)
+			plant_at[sd] = [ball, atan2(d.x, d.z)]
+	S.cards[j]["pose"] = base
+	var now := _again(S, B, f)
+	if now.is_empty():
+		return {}
+	var want := 0.0
+	match String(f["what"]):
+		"back":
+			want = (-float(nm[0]) + FIX_MARGIN) - float(now["pitch"])
+		"forward":
+			want = (float(nm[1]) - FIX_MARGIN) - float(now["pitch"])
+		_:
+			return {}
+	Scene.put(B, Moves._flat(base))
+	B.fk()
+	var fr := _frame(B.P["thigh_l"], B.P["thigh_r"])
+	B.turn_world("pelvis", Quaternion(fr[0], deg_to_rad(want)))   # the same sense as turn(): + tips the trunk forward
+	B.fk()
+	for k in 10:
+		for sd in plant_at:
+			B.plant(sd, plant_at[sd][0], plant_at[sd][1], true)
+		if ksd != "":
+			var d2: Vector3 = (B.P["ball" + ksd] as Vector3) - (B.P["foot" + ksd] as Vector3)
+			B.reach("foot" + ksd, at - d2)
+		elif pt.begins_with("hand_"):
+			B.reach(pt, at)
+		B.fk()
+	return {"pose": B.to_dict(), "tilt": want}

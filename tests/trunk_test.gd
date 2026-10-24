@@ -83,18 +83,21 @@ func lean_now() -> float:
 
 ## the kick card with its trunk `back` deg behind vertical: the pelvis tilted back (bisection on its bend), support replanted
 func kick_pose(back: float) -> Dictionary:
-	var kick := {"pelvis": Vector3(0, 35, 110), "thigh_r": Vector3(20, 45, 0), "calf_r": Vector3(5, 0, 0)}
+	# the pelvis is bent only (side 0, twist 0): with the old twist 110 the bend's axis was turned, so the bend tipped the
+	# trunk sideways and the bisection ran away (trunk -184, 10-23 run). Pelvis bend + tips the trunk forward (the sign
+	# check in _init prints it), so a trunk still too far forward (lean above -back) needs a smaller bend
+	var kick := {"pelvis": Vector3(0, 0, 0), "thigh_r": Vector3(20, 45, 0), "calf_r": Vector3(5, 0, 0)}
 	var lo := -100.0
 	var hi := 100.0
-	for i in 20:
+	for i in 30:
 		var mid := (lo + hi) * 0.5
-		kick["pelvis"] = Vector3(mid, 35, 110)
+		kick["pelvis"] = Vector3(mid, 0, 0)
 		pose(kick, LEFT)
 		if lean_now() > -back:
-			hi = mid   # still leaning too little back: tilt further (lower bend; the sign is checked by the result)
+			hi = mid
 		else:
 			lo = mid
-	kick["pelvis"] = Vector3((lo + hi) * 0.5, 35, 110)
+	kick["pelvis"] = Vector3((lo + hi) * 0.5, 0, 0)
 	var p := pose(kick, LEFT)
 	print("     kick card: pelvis bend %.1f -> trunk %.1f deg (- = back)" % [(lo + hi) * 0.5, lean_now()])
 	return p
@@ -128,6 +131,16 @@ func _init() -> void:
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	B.fk()
 	print("rest offset %.1f deg (taken off: standing tall reads 0)" % TrunkLean.rest_pitch(B))
+	# the sign check: a plain upright pose, then the pelvis bent 30 deg each way (+ bend leans the trunk back, - forward)
+	for sg in [0.0, -30.0, 30.0]:
+		for j in B.ang:
+			B.ang[j] = Vector3.ZERO
+		B.ang["pelvis"] = Vector3(sg, 0, 0)
+		B.fk()
+		print("sign check: pelvis bend %+.0f -> trunk pitch %+.1f (rest offset taken off; + forward)" % [sg, lean_now()])
+	for j in B.ang:
+		B.ang[j] = Vector3.ZERO
+	B.fk()
 
 	# 2 + 3
 	var bad := roundhouse(50.0)
@@ -148,17 +161,27 @@ func _init() -> void:
 		var cf: int = r0["frames"]["contact"]
 		var pt: String = r0["point"]
 		var c0 := MoveRecognizer._p(clip0, 0, cf, pt)
+		var pre_pose: Dictionary = (bad.cards[2]["pose"] as Dictionary).duplicate(true)
 		var r := Fixer.apply(fb[0], bad, B)
 		print("  %s" % r["msg"])
 		show_windows("after the fix", bad)
 		var clip1 := EventQuery.sample([{"S": bad, "B": B, "xf": Transform3D.IDENTITY, "name": "rh"}], 60.0, {"cross": false, "bal": false})
 		var c1 := MoveRecognizer._p(clip1, 0, cf, pt)
+		# the planted feet's mark: where the kick card itself puts them (the card the fix turned), not the pre-fix clip: the
+		# original clip slides a planted ankle up to 15 cm between the chamber and the kick (its own transition), which
+		# the fix now stops; comparing with that slide would measure the slide, not the fix
 		var worst_foot := 0.0
-		var dn: PackedByteArray = clip0["down"][0]
+		var mark := {}
+		Scene.put(B, Moves._flat(pre_pose))
+		B.fk()
+		for k in [["foot_l", 1], ["foot_r", 2]]:
+			if (B.P["ball" + k[0].substr(4)] as Vector3).y < 0.03:   # planted on the card (the kicking foot is up)
+				mark[k[0]] = (B.P[k[0]] as Vector3)
+		var dn1: PackedByteArray = clip1["down"][0]
 		for f in mini(int(clip0["n"]), int(clip1["n"])):
 			for k in [["foot_l", 1], ["foot_r", 2]]:
-				if int(dn[f]) & int(k[1]):
-					worst_foot = maxf(worst_foot, MoveRecognizer._p(clip0, 0, f, k[0]).distance_to(MoveRecognizer._p(clip1, 0, f, k[0])))
+				if int(dn1[f]) & int(k[1]) and mark.has(k[0]):
+					worst_foot = maxf(worst_foot, MoveRecognizer._p(clip1, 0, f, k[0]).distance_to(mark[k[0]]))
 		var inside := TrunkLean.windows(bad, B).all(func(it): return float(it["over"]) <= 0.0)
 		ok(r["kept"] and tl(bad).is_empty() and inside and c0.distance_to(c1) <= 0.03 and worst_foot <= 0.01 and bad.cards.map(func(c): return c["name"]) == names,
 			"3 the fix is kept, the finding gone, every window inside (%s), the contact (%s) moved %.1f cm (bar 3), the planted ankles %.2f cm (bar 1)" % [inside, pt, c0.distance_to(c1) * 100.0, worst_foot * 100.0])

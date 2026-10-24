@@ -273,3 +273,9 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Used by: `WeightXfer.findings` / `WeightXfer.fix` (scripts/weight_xfer.gd), consts `CROSS_MIN`, `HOOK_MIN`, `KICK_MIN`,
   `FIX_MARGIN`, `FIX_GOAL`; the strikes named by N016 `MoveRecognizer.analyze`; Check calls it from `Rulebook.check`.
 - Tested by: `tests/weightxfer_test.gd`.
+
+## TRUNK LEAN
+- Source: [docs/research/TRUNK_LEAN.md](research/TRUNK_LEAN.md), each source opened 2026-10-23: Kim, Yenuga & Kwon 2008 (ISBS, roundhouse, n=12, ROM only); Gavagan & Sayers 2017 (doi:10.1371/journal.pone.0182645, pelvis tilt ROM); Blaszczyszyn et al. 2019 (doi:10.3390/ijerph16173155, mae-geri flexion, checked from a summary); Chung et al. 2010 (doi:10.1186/1743-0003-7-9, walking trunk range 4.0 +- 1.8); Krebs et al. 1992 (doi:10.1093/ptj/72.7.505, abstract only).
+- Numbers: the back, forward and lateral ranges per move in `scripts/trunk_lean.gd` (NORMS, GENERAL) are HEURISTIC working norms; none is a direct reading of a source. The limb-drag bar (5 deg) and TRUNK_FOLLOW (4 deg) rest on Chung 2010's walking range, HEURISTIC.
+- Used by: `TrunkLean.findings` / `TrunkLean.fix` (scripts/trunk_lean.gd), `SmartDrag.TRUNK_FOLLOW` (scripts/smart_drag.gd); Check calls it from `Rulebook.check`.
+- Tested by: `tests/trunk_test.gd`.
