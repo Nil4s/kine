@@ -1,0 +1,15 @@
+{
+ "id": "strike_uppercut_chin",
+ "kind": "strike",
+ "brief": "A right uppercut: the fist drops, then rises into the target's jaw (the head, from below) at 0.8 s, elbow bent at least 80 deg, feet planted.",
+ "start": "bench/start/strike_uppercut_chin.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps.",
+ "asserts": [
+  {"line": "right fist touches fighter 2 head at 0.8 s +-2 f", "w": 3},
+  {"line": "right elbow above 80 deg bend at 0.8 s +-2 f", "w": 1},
+  {"line": "right fist at least 25 cm from fighter 2 head at 0.6 s +-2 f", "w": 1},
+  {"line": "left foot planted all clip", "w": 1},
+  {"line": "right foot planted all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

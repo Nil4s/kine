@@ -1,0 +1,14 @@
+{
+ "id": "strike_cross_chin",
+ "kind": "strike",
+ "brief": "A right cross that lands on the target's chin at 0.8 s, both feet planted.",
+ "start": "bench/start/strike_cross_chin.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps.",
+ "asserts": [
+  {"line": "right fist touches fighter 2 chin at 0.8 s +-2 f", "w": 3},
+  {"line": "right fist speed over 6 m/s at 0.77 s +-3 f", "w": 2},
+  {"line": "left foot planted all clip", "w": 1},
+  {"line": "right foot planted all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0, "realism": 50}
+}

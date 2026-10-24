@@ -481,4 +481,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"hit_harder":   # N065 HIT HARDER (scripts/hit_harder.gd): {card, dry?, allow_retime?}; one undo step; not in METHODS (the transcript)
 			var hh := HitHarder.serve(m, p)
 			return _ok(id, hh) if hh["ok"] else _err(id, -32602, String(hh["error"]))
+		"bench":   # N024 KINE-BENCH: {list} | {task} (brief, start, rules) | {task, score} grades the live scene (scripts/kine_bench.gd).
+			# Not in METHODS: its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			return KineBench.serve(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

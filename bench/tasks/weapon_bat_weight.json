@@ -1,0 +1,12 @@
+{
+ "id": "weapon_bat_weight",
+ "kind": "weapon",
+ "brief": "REPAIR: the start scene is a forehand bat swing blocked from words that moves the bat like a twig (33 m/s at the tip); give the bat its weight so the WEAPON judge passes, and keep the tip landing on the target's head.",
+ "start": "bench/start/weapon_bat_weight.json",
+ "notes": "The start is the whole raw swing (TextBlocking.build 'forehand bat swing'). WEAPON (scripts/weapon_torque.gd) flags it: about 336 N m at the wrist against a measured 14.9 N m maximum. Slowing the swing (torque goes as 1/T^2), a wind-up and an overshoot are the usual repairs. The contact time is free; the tip must touch the head somewhere in the clip.",
+ "asserts": [
+  {"line": "weapon tip touches fighter 2 head at 2.07 s +-30 f", "w": 2},
+  {"line": "weapon tip speed under 12 m/s all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0, "named": [{"judge": "WEAPON", "min_sub": 1.0, "need": true}]}
+}

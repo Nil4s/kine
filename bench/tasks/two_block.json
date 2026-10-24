@@ -1,0 +1,13 @@
+{
+ "id": "two_block",
+ "kind": "two-fighter",
+ "brief": "Fighter 2 throws a right cross that lands on your head at 0.8 s if you stay in the guard; block it with the left forearm: the fist meets the forearm at about 0.8 s and never comes within 3 cm of the head.",
+ "start": "bench/start/two_block.json",
+ "notes": "Fighter 2 plays the punch template's cross (templates/punch.json) facing the hero, placed so the fist meets the guard's head at 0.8 s. 30 fps.",
+ "asserts": [
+  {"line": "fighter 2 right fist touches fighter 1 left forearm at 0.8 s +-2 f", "w": 2},
+  {"line": "fighter 2 right fist at least 3 cm from fighter 1 head all clip", "w": 2},
+  {"line": "left foot planted all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

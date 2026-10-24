@@ -137,6 +137,8 @@
 ##                                 and keeps joint limits, the I47 human caps, balance, the contact frame (+-1) and the saved
 ##                                 assertions. {before: {speed_mps, impulse_Ns}, after, gain_pct, levers: [{name, gain, applied,
 ##                                 why_not}]}; ONE undo step; dry = the same answer, nothing written
+##   bench {list} | {task} | {task, score}  N024 Kine-Bench (scripts/kine_bench.gd): the 20 graded tasks; one task's brief, start
+##                                 scene and rules; {score: true} grades the live scene: per-assertion pass/fail, judge bars, 0-100
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
