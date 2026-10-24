@@ -11,6 +11,10 @@ extends RefCounted
 
 const PAGES := ["MODEL", "SCULPT", "SURFACE"]
 
+## the hint in the view while a page has no mesh open (main._mesh_hint_sync): what to click first. Gone when a mesh is open.
+const HINTS := {"MODEL": "Start with Test cube, or Body mesh to edit the body's mesh", "SCULPT": "Start with Test sphere",
+	"SURFACE": "Open UV editor, or Material from photo"}
+
 ## the sculpt brushes on the ribbon: label, the key the sphere reads (main's KEYS table in kmesh_sculpt_ui.gd)
 const BRUSHES := [["Draw", KEY_D], ["Inflate", KEY_I], ["Grab", KEY_G], ["Clay", KEY_C], ["Crease", KEY_E],
 	["Smooth", KEY_S], ["Flatten", KEY_F], ["Pinch", KEY_P], ["Snake", KEY_K]]
