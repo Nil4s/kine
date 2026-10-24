@@ -1,6 +1,6 @@
 ## godot --path . -s tests/pages_test.gd     (docs/PAGES_PLAN.md step 1; needs a window)
 ## THE PAGE BAR. BARS (written before measuring):
-##  1 the bar has BODY POSE ANIMATE STAGE CHECK DELIVER (live) and MODEL SCULPT SURFACE (greyed, tooltip "coming...", no action)
+##  1 the bar has BODY POSE ANIMATE STAGE CHECK DELIVER MODEL SCULPT SURFACE, all live (the three expert pages were greyed "coming" until the mesh tools; now they are real pages)
 ##  2 switching to each page shows exactly its ribbon row, exactly its groups' captions, and only that page's button lit
 ##  3 the page's name is on screen (its lit button's text) and the page bar is at the very bottom, inside the window
 ##  4 every command in the registry is found by name in the search box, on every page (the search ignores the page)
@@ -79,10 +79,10 @@ func _init() -> void:
 		if b == m.ui_next:   # R6: the bar also carries the one next-step line (a deliberate feature, not a page); it is checked in the R6 test
 			continue
 		names.append(b.text)
-		if b.text in m.PAGES_SOON:
-			# P11: a coming page explains itself on a click (it no longer does nothing), so it has one action and a "coming: the X page" tooltip
-			soon_ok = soon_ok and b.tooltip_text.begins_with("coming: the %s page" % b.text) and b.pressed.get_connections().size() == 1 and b.modulate.a < 0.6
-	ok(names == ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "MODEL", "SCULPT", "SURFACE"] and soon_ok, "1 the page bar: %s; the three coming pages greyed, tooltip, no action" % [names])
+		if b.text in ExpertPages.PAGES:
+			# the expert pages: live (not greyed), a tooltip that names the page and its key, a page switch on press
+			soon_ok = soon_ok and b.modulate.a >= 0.6 and not b.disabled and b.tooltip_text.begins_with("%s page (Shift+" % b.text)
+	ok(names == ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "MODEL", "SCULPT", "SURFACE"] and soon_ok, "1 the page bar: %s; the three expert pages live, tooltip, not greyed" % [names])
 	ok(bar.get_global_rect().end.y >= vs.y - 0.5 and bar.get_global_rect().size.y >= m.PAGE_H - 0.5 and bar.get_global_rect().position.x == 0.0, "3 the bar is the window's very bottom: %s of %s" % [bar.get_global_rect(), vs])
 	# 2 / 3 each page: its row, its captions, its button lit, its name on screen
 	var scene0 := JSON.stringify(m.S.to_dict(m.B))

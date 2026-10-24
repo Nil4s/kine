@@ -37,6 +37,29 @@ static func com(B: Body) -> Vector3:
 	return s / w
 
 
+## SEAT: the top of a seat the hips rest on (a chair, a stool, a bench: the hips' lowest surface within SEAT_TOUCH of its top, the
+## hips' middle over it or within the hips' radius of its edge). Its four corners on the floor plane join the support polygon: a sitter's centre of mass is held up by the
+## seat, not by the feet (the BALANCE and TIPPING rules read this margin). Empty when nothing is under the hips.
+const SEAT_TOUCH := 0.01   # m: the hips' lowest surface this close to the seat's top = resting on it
+static func seat_pts(B: Body) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if B.props.is_empty():
+		return out
+	var c: Array = B.cap("hips_wide")
+	var lo := minf((c[0] as Vector3).y, (c[1] as Vector3).y) - float(B.rad["hips_wide"])
+	var mid := ((c[0] as Vector3) + (c[1] as Vector3)) * 0.5
+	for p in B.props:
+		for s in Props.supports(p):
+			# the hips' middle over the seat, or within the hips' own radius of its edge (the hips sit ON the edge while they lower)
+			if absf(lo - float(s["y"])) <= SEAT_TOUCH and Props._over(s, mid, float(B.rad["hips_wide"])):
+				var cc: Vector2 = s["c"]
+				var h: Vector2 = s["half"]
+				for k in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+					var w: Vector3 = (s["xf"] as Transform3D) * Vector3(cc.x + k.x * h.x, float(s["y"]), cc.y + k.y * h.y)
+					out.append(Vector2(w.x, w.z))
+	return out
+
+
 ## the floor points of one foot ("_l" / "_r"); empty = that foot is off the floor
 static func footprint(B: Body, side: String) -> PackedVector2Array:
 	var out := PackedVector2Array()
@@ -106,5 +129,6 @@ static func read(B: Body) -> Dictionary:
 		if f.size() > 0:
 			down.append(side)
 			pts.append_array(f)
+	pts.append_array(seat_pts(B))   # a seated body: the seat it sits on holds up its weight (the hips' support, below)
 	var poly := hull(pts)
 	return {"com": c, "margin": signed_dist(poly, Vector2(c.x, c.z)), "down": down, "poly": poly}

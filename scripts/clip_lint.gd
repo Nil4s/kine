@@ -41,6 +41,7 @@ const RULES := {
 	"BALANCE": ["cm", 100.0, Rulebook.BAL_OUT * 100.0, "HEURISTIC: Kine's bar; masses from de Leva 1996"],
 	"TIPPING": ["s", 1.0, null, "HEURISTIC: the free-fall time sqrt(2h/g) of the centre of mass"],
 	"JOINT SPEED": ["deg/s", 1.0, null, "MEASURED: in-sport peaks (docs/research/HUMAN_LIMITS.md)"],
+	"BODY ACCEL": ["m/s^2", 1.0, null, "MEASURED: sprint-start, braking, cutting and jump data (docs/research/BODY_SPEED_CAPS.md); the 0.1 s window and the grace on g are HEURISTIC"],
 	"JOINT TORQUE": ["Nm", 1.0, null, "MEASURED: Fleisig 1995, scaled by mass (docs/research/HUMAN_LIMITS.md)"],
 	"FIST SPEED": ["m/s", 1.0, Rulebook.FIST_WARN, "MEASURED: Stanley et al. 2018"],
 	"HEAD QUIET": ["cm", 100.0, Rulebook.HEAD_WARN * 100.0, "MEASURED + HEURISTIC: hitters' heads ~9 cm (Inkster et al.) + Kine's 6 cm grace"],

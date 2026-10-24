@@ -487,16 +487,19 @@ func _spline_sample(t: float) -> Dictionary:
 	var T: float = ts[-1][2]
 	var F := {}   # card -> its flat pose, read once per sample
 	var ang := {}
+	# VIDEO SPEED: _where is a scan of the cards, and every joint reads at one of ~7 times (its level's lead), so each
+	# distinct time is scanned once per sample (a pure function of tt and ts: the same numbers, ~4x fewer scans)
+	var wc := {}
 	# the lead RAMPS IN over the first LEAD * 5 s less the first card's hold (round 18, GATES Y2): read at t + lead x k,
 	# k = (t + hold0) / (LEAD * 5) clamped to 0..1, so at t = 0 every joint reads at most hold0 ahead (inside the first
 	# card's hold: the first frame IS the first card, as the end's clamp makes the last frame the last card). With
 	# hold0 >= 75 ms, k = 1 from t = 0: unchanged. t + lead x k rises with t (slope 1 + lead / 75 ms): no joint runs back
 	var k := clampf((t + float(ts[0][2])) / (LEAD * 5.0), 0.0, 1.0)
 	for j in _flat_of(F, 0)["ang"]:
-		ang[j] = _curve(F, j, clampf(t + LEAD * (5 - level(j)) * k, 0.0, T), ts)
-	var off := _curve(F, "_off", clampf(t + LEAD * 5.0 * k, 0.0, T), ts)
+		ang[j] = _curve(F, j, clampf(t + LEAD * (5 - level(j)) * k, 0.0, T), ts, wc)
+	var off := _curve(F, "_off", clampf(t + LEAD * 5.0 * k, 0.0, T), ts, wc)
 	# the weapon's place in the hand: the plain blend inside the piece the hand is in (as in a flow run)
-	var w := _where(clampf(t, 0.0, T), ts)
+	var w := _where_memo(clampf(t, 0.0, T), ts, wc)
 	var piece: Dictionary
 	if w[1] < 0.0:
 		piece = _flat_of(F, w[0])
@@ -509,6 +512,13 @@ func _flat_of(F: Dictionary, k: int) -> Dictionary:
 	if not F.has(k):
 		F[k] = Moves._flat(cards[k]["pose"])
 	return F[k]
+
+
+## _where through a per-sample cache wc (time -> result); wc = {} is no cache. Same result as _where, scanned once per time
+func _where_memo(tt: float, ts: Array, wc: Dictionary) -> Array:
+	if not wc.has(tt):
+		wc[tt] = _where(tt, ts)
+	return wc[tt]
 
 
 ## where time tt falls: [i, s] = moving into card i, s = 0..1 of the move;  [i, -1] = holding card i
@@ -586,8 +596,8 @@ func _slope(F: Dictionary, k: int, j: String, ts: Array) -> Vector3:
 
 
 ## joint j at time tt: held at a card, a cubic Hermite between two cards
-func _curve(F: Dictionary, j: String, tt: float, ts: Array) -> Vector3:
-	var w := _where(tt, ts)
+func _curve(F: Dictionary, j: String, tt: float, ts: Array, wc := {}) -> Vector3:
+	var w := _where_memo(tt, ts, wc)
 	var i: int = w[0]
 	var s: float = w[1]
 	if s < 0.0:
@@ -1869,6 +1879,16 @@ var _flight_memo := []   # [key, flights]
 
 ## [{"k", "l", "t0", "t1"}] in time order (a run with no card before or after it is not a flight)
 func flights() -> Array:
+	# VIDEO SPEED: apply() asks for flights on every frame of a floor scene, and most scenes have no air card. Then the answer is
+	# [] and the times() check and the key string (a lambda per card, every call) are wasted: a plain scan is ~6x cheaper on 465
+	# cards (3 ms per apply on a 15 s video was ~1 ms of this). Same result; the memo below still serves the scenes that fly
+	var any_air := false
+	for c in cards:
+		if c.get("air", false):
+			any_air = true
+			break
+	if not any_air:
+		return []
 	var ts := times()
 	var key := "".join(cards.map(func(c): return "1" if c.get("air", false) else "0"))
 	if not _flight_memo.is_empty() and is_same(_flight_memo[0][0], ts) and _flight_memo[0][1] == key:

@@ -7,7 +7,7 @@
 ##    text showing its hotkey (E, X ...) and its page (MODEL); "mesh:" lists every tool row
 ##  3 one typo forgiven like the commands: "extrdue", "wirre", "valdate", "lassso" find the same rows first
 ##  4 a pick off the MODEL page opens the model preview first and runs the tool: Enter on "x ray" -> the test cube is
-##    open and x-ray is on; validate says the cube is clean; wire turns the wire off; extrude (not built) is greyed and
+##    open and x-ray is on; validate says the cube is clean; wire turns the wire off; extrude is live (the E key; it was greyed until the mesh tools landed) and
 ##    says why; the Blender grab is greyed with the layer off, shows G and is not greyed with it on
 ##  5 PLACEMENT: the first row's hotkey cell ("X   MODEL") is inside the list and the window, the text fits the cell,
 ##    and the cell has >= 20 pixels of the heading colour (the text is drawn); screenshot env MESHSEARCH_SHOT
@@ -115,7 +115,7 @@ func _init() -> void:
 	ok(m.kmed.view.show_wire == not w0, "4e 'wire' Enter: wire %s -> %s" % [w0, m.kmed.view.show_wire])
 	var ex := first_text("extrude")
 	await key(KEY_ENTER)
-	ok(ex[2] and String(ex[1]).ends_with("soon") and String(m.ui_status.text).contains("not built yet"), "4f extrude is greyed ('%s') and says why: '%s'" % [ex[1], m.ui_status.text])
+	ok(not ex[2] and String(ex[1]).contains("E   MODEL") and not String(m.ui_status.text).contains("not built yet"), "4f extrude is live now ('%s'), not greyed: '%s'" % [ex[1], m.ui_status.text])
 	var gr := first_text("grab vertices")
 	ok(gr[0] == "Model: grab the selected vertices" and gr[2] and String(gr[1]).begins_with("G"), "4g layer off: grab greyed, shows '%s'" % gr[1])
 	await key(KEY_ENTER)

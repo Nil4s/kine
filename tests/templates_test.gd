@@ -17,6 +17,13 @@
 ## WARN/FAIL (NOTEs are advice); the toe joint never bends past 45 deg (in swing <= 10 deg, except in a run or jump's flight).
 ## CREATE: Templates.create writes a NEW file (_2, _3), never over one, and never touches templates/. The picker lists five.
 ## CONTROL (anti-vacuity): the jump is not read as a walk and the walk has no flight, so those bars have teeth.
+##   SIT DOWN (Props "chair", seat top 0.45 m; the cards are scripts/rise.gd's keys played backwards, retimed): the hips' lowest surface
+##          reaches the seat top (0.45 m) within 5 cm and stays there at the end; the first contact is at 1.0-1.4 s (the hips lower
+##          onto the seat in about 1.0-1.4 s, Schenkman 1990: the seat-off is at 35-40 % of the rise). The seat holds the weight
+##          (Balance.seat_pts), so the BALANCE and TIPPING findings are read with the seat under him.
+##   WAVE   the right hand's highest point passes the head's top (hand above head height, bar: >= the head's top); the hand swings
+##          side to side at least 2 times: 2 reversals of its lateral (x) position at least 5 cm past the last turn.
+##   FALL   NOT YET A TEMPLATE (the head-clear and body-ends-lying bars are written when it is): see the report.
 extends SceneTree
 
 var fails := 0
@@ -98,7 +105,7 @@ func peak(a: Array) -> float:
 
 func _init() -> void:
 	var B := body()
-	ok(Templates.NAMES.size() == 5, "five templates listed: %s" % [Templates.NAMES])
+	ok(Templates.NAMES.size() == 7, "seven templates listed (was five; sit down and wave added): %s" % [Templates.NAMES])
 	for nm in Templates.NAMES:
 		var S0 := build(nm)
 		var sm0 := Rulebook.sample(S0, B)
@@ -171,6 +178,55 @@ func _init() -> void:
 	ok(fr <= 6.0, "sword: the strike lasts %.0f frames at 30 fps, at most 6 (Aztez)" % fr)
 	ok(sms["armed"], "sword: the scene carries the blade (a bat stand-in, 1.0 m)")
 
+	# SIT DOWN
+	var Sit := build("sit_down")
+	var sb := body()
+	var seat_top := 0.45
+	var lo_end := 0.0
+	var first := -1.0
+	var kk := 0
+	while kk / 60.0 <= Sit.length():
+		Sit.apply(sb, kk / 60.0)
+		var hc: Array = sb.cap("hips_wide")
+		var lo := minf((hc[0] as Vector3).y, (hc[1] as Vector3).y) - float(sb.rad["hips_wide"])
+		if first < 0.0 and absf(lo - seat_top) <= 0.01:
+			first = kk / 60.0
+		lo_end = lo
+		kk += 1
+	var pelvis_end: float = (sb.P["pelvis"] as Vector3).y
+	print("     sit: hips' lowest surface %.3f m at the end (seat top 0.45), pelvis joint %.3f m, first contact %.2f s" % [lo_end, pelvis_end, first])
+	ok(absf(lo_end - seat_top) <= 0.05, "sit: the hips' lowest surface ends %.3f m, within 5 cm of the seat top 0.45 m" % lo_end)
+	ok(inr(first, 1.0, 1.4), "sit: the hips reach the seat at %.2f s, inside 1.0-1.4 s" % first)
+
+	# WAVE
+	var Wv := build("wave")
+	var wb := body()
+	var head_top := -9.0
+	var hand_top := -9.0
+	var xs := []
+	kk = 0
+	while kk / 60.0 <= Wv.length():
+		Wv.apply(wb, kk / 60.0)
+		var hc2: Array = wb.cap("head")
+		head_top = maxf(head_top, maxf((hc2[0] as Vector3).y, (hc2[1] as Vector3).y) + float(wb.rad["head"]))
+		hand_top = maxf(hand_top, (wb.P["hand_r"] as Vector3).y)
+		xs.append((wb.P["hand_r"] as Vector3).x)
+		kk += 1
+	var turns := 0
+	var last: float = xs[0]
+	var dirn := 0
+	for x in xs:
+		var dx: float = float(x) - last
+		if absf(dx) >= 0.05:
+			var d := 1 if dx > 0.0 else -1
+			if dirn != 0 and d != dirn:
+				turns += 1
+			dirn = d
+			last = x
+	print("     wave: hand_r top %.3f m, head top %.3f m, lateral turns %d" % [hand_top, head_top, turns])
+	ok(hand_top >= head_top, "wave: the hand's top %.3f m passes the head's top %.3f m" % [hand_top, head_top])
+	ok(turns >= 2, "wave: the hand swings side to side %d times, at least 2" % turns)
+
 	# CREATE never overwrites, never writes templates/
 	var dir := "user://zz_templates_test"
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -197,7 +253,7 @@ func _init() -> void:
 	m._template_ask()
 	await process_frame
 	await process_frame
-	ok(m.ui_tpl_dlg.visible and m.ui_tpl_list.item_count == 5, "picker: a dialog with five templates (%d)" % m.ui_tpl_list.item_count)
+	ok(m.ui_tpl_dlg.visible and m.ui_tpl_list.item_count == 7, "picker: a dialog with seven templates (%d)" % m.ui_tpl_list.item_count)
 	m.ui_tpl_list.select(4)
 	m._template_blurb(4)
 	await process_frame

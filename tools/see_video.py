@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 
 def match_hands(body, hres, reach):
@@ -91,6 +92,7 @@ def main():
                 num_hands=2))
         else:
             print("note: no hand model at %s, the body is tracked without hands" % a.hand_model)
+    pool = ThreadPoolExecutor(max_workers=1)
     px, py = (float(v) for v in a.pick.split(","))
     last = None
     frames = []
@@ -108,8 +110,11 @@ def main():
         t = i / src_fps
         i += 1
         mpimg = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        # SPEED: the hand model runs on its own thread while the pose model runs here. Each detector still sees every frame in
+        # the same order with the same timestamp, so its output is the same; only the wall clock overlaps (hand ~1/4 of pose)
+        hfut = pool.submit(hdet.detect_for_video, mpimg, int(t * 1000)) if hdet is not None else None
         res = det.detect_for_video(mpimg, int(t * 1000))
-        hres = hdet.detect_for_video(mpimg, int(t * 1000)) if hdet is not None else None
+        hres = hfut.result() if hfut is not None else None
         if not res.pose_world_landmarks:
             lost += 1
             continue

@@ -4,7 +4,7 @@ extends Onboarding
 ## SCULPT / SURFACE), a 5-step tour points at that page's real controls, one callout and one arrow at a time. It is the
 ## first-launch guide's machinery (scripts/onboarding.gd: the callout beside its target, inside the window, never over
 ## it), moved on by Next instead of by an action: a page tour shows, it does not test. A greyed page's steps tell what
-## already works for it, in P11's words (main.PAGE_SOON_WHY); its search step lists the commands of its prefix that exist.
+## its steps name its real controls (the ribbon's tools and their keys).
 ## Seen = pagetour/<PAGE> = true in the settings file, written when the tour starts (a page is toured once); "Page tour"
 ## in the search box plays the tour of the page you are on (BODY when on a page without one) whenever asked.
 ## A test never gets one by itself: auto is false until main says this is a real launch (or the test sets it).
@@ -12,7 +12,8 @@ extends Onboarding
 const SEC := "pagetour"
 const TOURED := ["BODY", "MODEL", "SCULPT", "SURFACE"]
 ## per page: [title, text, target]; a target is a node name under the window (a | b = both, merged), or one of
-## "page:<PAGE>" (that page's button on the page bar), "status" (the status line), "search" (the Search button), "undo"
+## "page:<PAGE>" (that page's button on the page bar), "ribbon:<PAGE>:<label>" (that page's ribbon button with that text),
+## "status" (the status line), "search" (the Search button), "undo"
 const TOUR := {
 	"BODY": [
 		["Who you are posing", "The readout: this person's stature and mass, as ANSUR II percentiles.", "body_readout"],
@@ -22,27 +23,26 @@ const TOUR := {
 		["Keep a character", "Name this person and Save: a character for any scene (never written into data).", "char_name|char_save"],
 	],
 	"MODEL": [
-		["MODEL is coming", "Greyed, never dead: click it any time for what works and what is next.", "page:MODEL"],
-		["Why it is greyed", "", "status"],
-		["What works now", "", "search"],
-		["The test cube", "Search, Model: edit a test cube: a cube on the stage. 1 / 2 / 3 vertex / edge / face, B box, L lasso, X x-ray.", "search"],
-		["Mesh undo", "Every mesh step is one undo step, the same Undo as the body and the cards.", "undo"],
+		["The mesh page", "Model the test cube or the fighter's own body. Select a face and press E to extrude it, Ctrl+B to bevel.", "page:MODEL"],
+		["Pick what to edit", "Click an element, Shift+click adds, B box, L lasso, X x-ray takes the far side too.", "page:MODEL"],
+		["The ribbon groups", "MESH, EDIT and SHAPE hold the mesh tools by name; the captions open a menu of them.", "page:MODEL"],
+		["Search the mesh", "Search (S) finds every mesh tool by its words, with its key.", "search"],
+		["Mesh undo", "Each mesh step is one undo step, the same Undo as the body and the cards.", "undo"],
 	],
 	"SCULPT": [
-		["SCULPT is coming", "Greyed, never dead: click it any time for what works and what is next.", "page:SCULPT"],
-		["Why it is greyed", "", "status"],
-		["What works now", "", "search"],
-		["Shape the body now", "Until the brushes come, the BODY page shapes the person: ANSUR II sliders, no mesh needed.", "page:BODY"],
-		["Then the mesh", "Sculpting comes after the MODEL tools: the mesh core is in, its brushes are next.", "page:MODEL"],
+		["The test sphere", "Sculpt a sphere: drag on it with a brush (D draw, I inflate, S smooth, G grab).", "page:SCULPT"],
+		["The brushes", "The ribbon's BRUSH group holds the same brushes as the keys: pick one, then drag on the sphere.", "page:SCULPT"],
+		["The sphere's keys", "Each brush has its key too (C clay, E crease, S smooth, G grab, F flatten, P pinch, K snake).", "page:SCULPT"],
+		["Search the sculpt", "Search (S) finds the sculpt tools by their words.", "search"],
+		["Undo", "Ctrl+Z takes the last change back, the same Undo as the body and the cards.", "undo"],
 	],
 	"SURFACE": [
-		["SURFACE is coming", "Greyed, never dead: click it any time for what works and what is next.", "page:SURFACE"],
-		["Why it is greyed", "", "status"],
-		["What works now", "", "search"],
-		["Edit the mesh first", "UVs and materials need a mesh you can edit: the MODEL page comes first.", "page:MODEL"],
-		["Out to a renderer", "Meanwhile DELIVER exports the animation (FBX, glTF) to a tool that paints and renders.", "page:DELIVER"],
-	],
-}
+		["UVs and materials", "The UV editor shows the mesh's UVs in 2D; pack them, export the layout, make a material from a photo.", "page:SURFACE"],
+		["Edit the mesh first", "The UVs come from the mesh: the MODEL page makes and edits it.", "page:MODEL"],
+		["Export the UVs", "UV editor, game UVs and Export UVs are on the ribbon's UV group.", "page:SURFACE"],
+		["Out to a renderer", "DELIVER exports the animation (FBX, glTF) to a tool that paints and renders.", "page:DELIVER"],
+		["Pack the UVs", "Pack UVs fits the islands into the 0 to 1 square with a margin and equal texel density; Ctrl+P does it too.", "ribbon:SURFACE:Pack UVs"],
+	],}
 
 var page := ""        # the page being toured ("" = none)
 var auto := false     # main: a real launch (a test turns it on itself)
@@ -103,9 +103,9 @@ func begin_page(p: String) -> void:
 		return
 	if m.easy != null and m.easy.on:
 		m.easy.set_on(false, false)   # the tour points at the pages: Expert for this run (the saved mode is untouched)
-	if p == "BODY" and m.cur_page != "BODY":
+	if m.cur_page != p:   # the tour points at this page's controls: the page is up (its ribbon row shown)
 		_changing = true
-		m._page_set("BODY", false)
+		m._page_set(p, false)
 		_changing = false
 	page = p
 	var cf := ConfigFile.new()
@@ -129,8 +129,6 @@ func _go(k: int) -> void:
 	_title.text = "%s %d of %d:  %s" % [page, k + 1, st.size(), s[0]]
 	_text.text = step_text(page, k)
 	_next.text = "Done" if k == st.size() - 1 else "Next"
-	if String(s[2]) == "status":
-		m._say(m._page_soon_why(page))   # the line the step points at says it
 	_reveal(String(s[2]))
 	card.visible = true
 	arrow.visible = true
@@ -139,21 +137,12 @@ func _go(k: int) -> void:
 	_place()
 
 
-## a step's sentence; the greyed pages' "why" and "works now" come from P11's own words and the command registry
+## a step's sentence (every step has one)
 func step_text(p: String, k: int) -> String:
 	var s: Array = steps_of(p)[k]
 	if String(s[1]) != "":
 		return s[1]
-	var w: Array = m.PAGE_SOON_WHY.get(p, ["", "coming"])
-	if String(s[2]) == "status":
-		return "Not built yet: %s." % w[1]
-	var have := []
-	for c in m._commands():
-		if String(w[0]) != "" and String(c["name"]).begins_with(String(w[0])):
-			have.append(String(c["name"]))
-	if have.is_empty():
-		return "Nothing to click for %s yet. Search (S) and type \"%s\": its commands show there as they arrive." % [p, String(w[0]).trim_suffix(":").to_lower()]
-	return "Search (S), type \"%s\": %s." % [String(w[0]).trim_suffix(":").to_lower(), ", ".join(have.slice(0, 3))]
+	return ""
 
 
 func finish(skipped: bool, save := true) -> void:
@@ -198,7 +187,12 @@ func _rect_of(t: String) -> Rect2:
 
 func _controls(t: String) -> Array:
 	var out := []
-	if t.begins_with("page:"):
+	if t.begins_with("ribbon:"):
+		var parts := t.split(":")   # ribbon:<PAGE>:<label>: the button on that page's ribbon row with that text
+		for b in m.ui_ribbon[parts[1]].get_children():
+			if b is Button and String(b.text) == parts[2]:
+				out.append(b)
+	elif t.begins_with("page:"):
 		var p := t.trim_prefix("page:")
 		out.append(m.ui_page_btns[p] if m.ui_page_btns.has(p) else _node("page_" + p.to_lower()))
 	elif t == "status":
@@ -247,6 +241,8 @@ func _sides() -> Array:
 		return ["above", "right", "left", "below"]   # the page bar and the status line are low in the window
 	if t == "search" or t == "undo":
 		return ["below", "left", "right", "above"]   # the top strip
+	if t.begins_with("ribbon:"):
+		return ["below", "right", "left", "above"]   # a ribbon button: the callout goes beside the row first
 	return ["right", "below", "above", "left"]       # the body panel is on the left
 
 
