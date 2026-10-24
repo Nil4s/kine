@@ -49,9 +49,29 @@ func inside(j: String) -> Vector2:
 	return m.cam.unproject_position(c[0].lerp(c[1], 0.75))
 
 
+## where a person presses a part: a point of its capsule that is on screen, not under a panel (the bottom bar hides what is
+## behind it: a press there lands on the bar), and that the pick takes for this part (a finger in front of the hand is
+## what a person sees and presses, so such a point is passed over). Falls back to inside() when no point qualifies.
+func press_point(j: String) -> Vector2:
+	var c: Array = m.B.cap(j)
+	var vp := m.get_viewport().get_visible_rect()
+	for t in [0.75, 0.6, 0.9, 0.45, 0.3, 0.15]:
+		var q: Vector2 = m.cam.unproject_position(c[0].lerp(c[1], t))
+		if not vp.has_point(q):
+			continue
+		var hm := InputEventMouseMotion.new()   # the pointer over the point, no button: the hover the press will see
+		hm.position = q
+		hm.global_position = q
+		root.push_input(hm)
+		await process_frame
+		if m.get_viewport().gui_get_hovered_control() == null and m._pick(q) == j:
+			return q
+	return inside(j)
+
+
 ## a real drag of a part: press on it, move in steps, let go
 func drag(j: String, d := Vector2(48, -48)) -> void:
-	var p := inside(j)
+	var p := await press_point(j)
 	var st := d / 6.0
 	btn(true, p)
 	await process_frame
