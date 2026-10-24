@@ -168,6 +168,29 @@ func _init() -> void:
 	await idle()
 	ok(home.panel.visible, "8. closing the Library brings the home panel back")
 
+	# 9. a built clip's strip (Again, Change it, Faster...) steps aside while the Library is open (it covered them), and comes back on Close
+	m._new_scene()
+	await idle()
+	home.card(0)
+	await idle(8)
+	ok(home.shown() == "strip", "9. a built clip shows the strip (shown: %s)" % home.shown())
+	m._library_toggle()
+	await idle()
+	ok(home.shown() == "hidden" and m.ui_library.visible, "9. the open Library hides the strip too (shown: %s)" % home.shown())
+	m._library_toggle()
+	await idle()
+	ok(home.shown() == "strip", "9. closing the Library brings the strip back (shown: %s)" % home.shown())
+
+	# 10. the say line names the clip just built, not the last one's words (a typed 'wave' after a walk said 'the walk')
+	m._new_scene()
+	await idle()
+	home.card(0)
+	await idle(4)
+	ok(m.ui_status.text.begins_with("Made the walk"), "10. the say line names the built card (says: '%s')" % m.ui_status.text)
+	home.card(6)
+	await idle(4)
+	ok(m.ui_status.text.begins_with("Made the wave"), "10. the say line follows the next card (says: '%s')" % m.ui_status.text)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()

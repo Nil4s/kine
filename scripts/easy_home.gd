@@ -165,7 +165,7 @@ func _process(dt: float) -> void:
 	var empty: bool = m.S.cards.is_empty()
 	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
 	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on)
-	strip.visible = on and not (empty or _open or _gen_on) and _built
+	strip.visible = on and not (empty or _open or _gen_on) and _built and not lib   # the open library covers the strip's place too: one at a time
 	if not on:
 		_toast.visible = false
 	_close.visible = not empty and not _gen_on
@@ -273,6 +273,8 @@ func _go(what: String, label: String, typed := false) -> void:
 	_clip_word = "the typed move" if typed else "the " + label.to_lower()
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
 	_play()
+	# the say line names the clip just built (it kept the last clip's words: "Faster: the walk now takes..." after a typed wave)
+	m._say_plain("Made %s. Again plays it; Change it types another move." % ("'%s'" % what if typed else "the " + label.to_lower()))
 	m.easy.frame_clip_next()  # EASY CAMERA: framed in the free rect under the bar / strip, one frame AFTER the clip starts (the click-to-motion bar)
 
 
