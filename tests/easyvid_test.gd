@@ -98,7 +98,10 @@ func _init() -> void:
 		"3b garbage file: \"%s\" (scene %d cards, as before)" % [m.ui_status.text, m.S.cards.size()])
 	DirAccess.remove_absolute(junk_g)
 
-	# 6 cancel while the tracker reads the clip, with the bar's own Cancel button
+	# 6 cancel while the tracker reads the clip, with the bar's own Cancel button. A Punch card first: the scene the cancel
+	# must leave alone has cards (an empty scene compared 0 with 0)
+	home.card(3)
+	await idle(20)
 	var c_before: int = m.S.cards.size()
 	var u_before: int = m.undo.size()
 	var s_before := String(m.scene_path)
@@ -113,6 +116,8 @@ func _init() -> void:
 			break
 		await process_frame
 	var was_tracking: bool = m._video_pid >= 0 and reading
+	ok(c_before >= 2 and m._imp_panel != null and m._imp_panel.visible and m._imp_cancel_btn.is_visible_in_tree(),
+		"6 while the tracker reads: the bar and its Cancel are on screen (the scene has %d cards to keep)" % c_before)
 	if was_tracking:
 		m._imp_cancel_btn.pressed.emit()
 	await wait_copy()

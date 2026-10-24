@@ -3150,6 +3150,10 @@ func _exit_tree() -> void:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
+	if _video_pid >= 0 and OS.is_process_running(_video_pid):
+		OS.kill(_video_pid)   # the video tracker is a separate program: closing the app mid-read left it running
+	if gen_move.pid >= 0 and OS.is_process_running(gen_move.pid):
+		OS.kill(gen_move.pid)   # ... and so is the AI video maker's script
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
