@@ -36,6 +36,8 @@ func hashes() -> Dictionary:
 		while not stack.is_empty():
 			var d: String = stack.pop_back()
 			for fn in DirAccess.get_files_at(d):
+				if fn.ends_with(".import") or fn.ends_with(".uid"):
+					continue   # the engine's own import/uid files: any Godot run beside this one rewrites them (not the app's writes)
 				out[d + fn] = FileAccess.get_md5(d + fn)
 			for sub in DirAccess.get_directories_at(d):
 				stack.append(d + sub + "/")
