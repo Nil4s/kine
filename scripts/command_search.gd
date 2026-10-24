@@ -144,9 +144,13 @@ func _word_score(text: String, words: PackedStringArray, w: String, is_name: boo
 	if syns > 0:
 		best = maxi(best, (8 + syns) if is_name else 2)
 	if best == 0 and w.length() >= 4:
-		for word in words:
-			if typo1(w, word) or (word.length() > w.length() and typo1(w, word, w.length())):
-				best = 7 if is_name else 1
+		for i in words.size():
+			var word := words[i]
+			# a one-letter typo of a whole word; or of the start of a longer word, but only for a 5+ letter query (a 4-letter
+			# one "mirr" fits "migr" of "migrate" with one letter off, and that is how Help rows answered "mirr")
+			if typo1(w, word) or (w.length() >= 5 and word.length() > w.length() and typo1(w, word, w.length())):
+				# a typo of the name's FIRST word is the command's subject ("chekc" -> "Check the motion"): it ranks as a word start
+				best = (8 if i == 0 else 7) if is_name else 1
 				break
 	return best
 
