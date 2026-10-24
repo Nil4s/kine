@@ -340,7 +340,7 @@ func _iso_nodes() -> Array:
 		for c in m.ui_props_root.get_children():
 			if c is Node3D:
 				out.append(c)
-	for n in [m.bat_handle, m.bat_barrel, m.bat_knob, m.d2_handle, m.d2_blade]:
+	for n in [m.bat_handle, m.bat_barrel, m.bat_knob, m.d2_handle, m.d2_blade] + m.weapon_pieces():
 		if n != null:
 			out.append(n)
 	return out

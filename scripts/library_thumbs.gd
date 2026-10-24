@@ -22,9 +22,11 @@ signal made(id: String)   # a picture is ready for this object (memory, disk or 
 const SIZE := Vector2i(128, 128)     # the real picture
 const SCHEM := Vector2i(64, 64)      # the schematic bar (the old picture)
 const DIR := "user://thumbs/lib"
-const VERSION := "1"                 # bump when the drawing changes: every real picture is drawn again
+const VERSION := "2"                 # bump when the drawing changes: every real picture is drawn again (2: weapons are WeaponMesh shapes)
 const FILL := 0.8                    # the object's projected extent is this share of the picture's longer side
 const DIR_TO_CAMERA := Vector3(0.45, 0.25, 1.0)   # from the front, right and above: the three-quarter view
+const FILL_THIN := 0.94              # a rolled (thin) object fills more: its diagonal reaches nearly the corners
+const THIN_ASPECT := 2.0            # a picture whose object runs at least this many times longer than it is wide rolls its long axis to the diagonal
 
 var renders := 0        # pictures drawn this session, schematic and real (the test counts them)
 var real_renders := 0   # the real pictures among them
@@ -179,72 +181,9 @@ func shapes_node(shapes: Array) -> Node3D:
 	return root
 
 
-## the real mesh of a weapon: the cylinders main.gd draws on the hand (knob, tape handle, metal barrel; a hammer or axe head
-## across the tip; a staff with no knob; two daggers side by side), from Body.KINDS
+## the real mesh of a weapon: its shape from WeaponMesh (the same pieces the hand draws, scripts/weapon_mesh.gd)
 static func weapon_node(kind: String) -> Node3D:
-	var root := Node3D.new()
-	root.name = kind
-	if kind == "two_daggers":
-		var a := weapon_node("dagger")
-		a.position = Vector3(-0.05, 0.0, 0.0)
-		var b := weapon_node("dagger")
-		b.position = Vector3(0.05, 0.0, 0.0)
-		root.add_child(a)
-		root.add_child(b)
-		return root
-	var k: Dictionary = Body.KINDS[kind]
-	var L := float(k["len"])
-	var rh := float(k["r_handle"])
-	var rb := float(k["r_barrel"])
-	var hd := float(k["handle"])
-	var wh := (L + hd) if hd < 0.0 else hd      # main's wep_handle: where the handle ends and the barrel starts
-	var head: Array = k["head"]
-	var tape := _mat_of(Color(0.08, 0.08, 0.09), 0.0, 0.9)
-	var metal := _mat_of(Color(0.62, 0.64, 0.68), 0.85, 0.3)
-	if kind != "staff":
-		_cyl(root, 0.0, 0.012, rh * 1.6, rh * 1.6, tape)   # the knob
-	if kind == "staff":
-		_cyl(root, 0.0, wh, rh, rh, tape)
-		_cyl(root, wh, L, rb, rh, metal)
-	elif not head.is_empty():
-		_cyl(root, 0.012, L - 0.02, rh, rh, tape)
-		var hw := float(head[0])
-		var hr := float(head[1])
-		var mi := MeshInstance3D.new()   # the head: across the shaft at the tip, along X
-		var cy := CylinderMesh.new()
-		cy.height = 2.0 * hw
-		cy.top_radius = hr
-		cy.bottom_radius = hr
-		mi.mesh = cy
-		mi.material_override = metal
-		mi.rotation = Vector3(0.0, 0.0, PI * 0.5)
-		mi.position = Vector3(0.0, L - hr, 0.0)
-		root.add_child(mi)
-	else:
-		_cyl(root, 0.012, wh, rh, rh, tape)
-		_cyl(root, wh, L, rh, rb, metal)   # the barrel swells from the handle's radius to its own (top = the tip)
-	return root
-
-
-static func _mat_of(c: Color, metallic: float, rough: float) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.metallic = metallic
-	m.roughness = rough
-	return m
-
-
-## a cylinder along Y from y0 to y1 (bottom radius at y0, top radius at y1)
-static func _cyl(parent: Node3D, y0: float, y1: float, r0: float, r1: float, mat: Material) -> void:
-	var mi := MeshInstance3D.new()
-	var c := CylinderMesh.new()
-	c.height = maxf(y1 - y0, 0.001)
-	c.bottom_radius = r0
-	c.top_radius = r1
-	mi.mesh = c
-	mi.material_override = mat
-	mi.position = Vector3(0.0, (y0 + y1) * 0.5, 0.0)
-	parent.add_child(mi)
+	return WeaponMesh.build(kind)
 
 
 ## the picture of a built node, drawn now at px; the node is freed after. Null when there is nothing to draw or no renderer.
@@ -273,6 +212,18 @@ func draw_node(node: Node3D, px: Vector2i) -> Image:
 		hi = hi.max(p)
 	var mid := (lo + hi) * 0.5
 	_cam.look_at_from_position(mid + DIR_TO_CAMERA.normalized() * 10.0, mid, Vector3.UP)
+	# A THIN OBJECT ON ITS DIAGONAL: a long thin object (a blade, a pole) fills a square picture only along its length, and
+	# its length is the square's diagonal at most. Rolling the camera so the long axis runs corner to corner gives it ~40 %
+	# more length in the picture (a rod upright is 1-3 % of the square; the roll is what makes it readable)
+	var la := _long_axis(pts)
+	var thin := la.y >= THIN_ASPECT
+	if thin:
+		var delta := wrapf(PI * 0.25 - la.x, -PI * 0.5, PI * 0.5)
+		var eps := 0.1
+		_cam.rotate_object_local(Vector3.BACK, eps)   # a small test roll: which way the picture turns
+		var turn := wrapf(_long_axis(pts).x - la.x, -PI * 0.5, PI * 0.5)
+		_cam.rotate_object_local(Vector3.BACK, -eps)
+		_cam.rotate_object_local(Vector3.BACK, (1.0 if turn >= 0.0 else -1.0) * delta)
 	var inv := _cam.global_transform.affine_inverse()
 	var lo2 := Vector2(INF, INF)
 	var hi2 := -lo2
@@ -282,7 +233,7 @@ func draw_node(node: Node3D, px: Vector2i) -> Image:
 		hi2 = hi2.max(Vector2(q.x, q.y))
 	var c2 := (lo2 + hi2) * 0.5
 	_cam.global_position += _cam.global_basis * Vector3(c2.x, c2.y, 0.0)
-	_cam.size = maxf(hi2.x - lo2.x, hi2.y - lo2.y) / FILL
+	_cam.size = maxf(hi2.x - lo2.x, hi2.y - lo2.y) / (FILL_THIN if thin else FILL)
 	await _frame()
 	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
 		return null
@@ -295,6 +246,31 @@ func draw_node(node: Node3D, px: Vector2i) -> Image:
 		_world.remove_child(node)
 		node.free()
 	return img
+
+
+## the long axis of the points as the camera sees them: x = its angle in the picture (radians, mod PI), y = the long-to-short ratio
+func _long_axis(pts: PackedVector3Array) -> Vector2:
+	var inv := _cam.global_transform.affine_inverse()
+	var q := PackedVector2Array()
+	var mean := Vector2.ZERO
+	for p in pts:
+		var v: Vector3 = inv * p
+		q.append(Vector2(v.x, v.y))
+		mean += Vector2(v.x, v.y)
+	mean /= float(q.size())
+	var cxx := 0.0
+	var cyy := 0.0
+	var cxy := 0.0
+	for v in q:
+		var d := v - mean
+		cxx += d.x * d.x
+		cyy += d.y * d.y
+		cxy += d.x * d.y
+	var tr := cxx + cyy
+	var disc := sqrt((cxx - cyy) * (cxx - cyy) + 4.0 * cxy * cxy)
+	var l1 := (tr + disc) * 0.5
+	var l2 := maxf((tr - disc) * 0.5, 1e-12)
+	return Vector2(0.5 * atan2(2.0 * cxy, cxx - cyy), sqrt(l1 / l2))
 
 
 static func _meshes(n: Node) -> Array:

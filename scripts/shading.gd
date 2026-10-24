@@ -80,7 +80,7 @@ static func bodies(m: Node) -> Array:
 	var out := []
 	for j in m.pieces:
 		out.append(m.pieces[j])
-	for n in [m.bat_handle, m.bat_barrel, m.bat_knob, m.d2_handle, m.d2_blade]:
+	for n in [m.bat_handle, m.bat_barrel, m.bat_knob, m.d2_handle, m.d2_blade] + m.weapon_pieces():
 		if n != null:
 			out.append(n)
 	if m.ui_props_root != null:   # K01: the set's props are drawn in the same mode as the body
