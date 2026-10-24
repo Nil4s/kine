@@ -3,7 +3,7 @@
 ## No ComfyUI here: main's gen_move points at a stand-in (tests/py/gen_video_stub.py) that copies the video_import_test clip
 ## (GEN_STUB_SRC), or makes nothing (ComfyUI down), or sleeps first (GEN_STUB_SLEEP, for Cancel). The tracking and the landing are the real ones.
 ## BARS (stated before measuring):
-##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line AND the one button "Make it with AI video (about 3 minutes)"
+##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line ("Kine doesn't know 'backflip' yet.") AND the one button "Make it with AI video (about 3 minutes)"
 ##  2 typed "punch" (a known word, a template): it builds, and NO button
 ##  3 with the stand-in clip: clicking the button shows "Making the video" on the say line, then the clip lands: at least 2 cards, playing
 ##  4 one Undo after that success gives back the card count the scene had before it (the punch clip's)
@@ -11,7 +11,9 @@
 ##  6 Cancel mid-run (a stand-in that sleeps): the generator is stopped, "Stopped. Nothing was changed.", card count and undo size unchanged
 ##  8 the Easy generator call (first take AND the retake) carries the FAST setting: --steps 20 --width 640 --height 368
 ##  9 the message says "about 3 minutes" (the button, and the retake line "about 3 more minutes")
-## 10 the one plain line under the button: what it does and that it takes about 3 minutes (shown with the button)
+## 10 the button's tooltip: what it does and that it takes about 3 minutes (the line under the button moved there)
+## 13 the "Or try" words (Punch, Kick, Wave, Walk) are buttons: each, clicked, builds its move: cards appear, one undo step
+## 14 the unknown-move text is at most 2 lines and 90 characters, with no jargon (jab, cross, hook, uppercut, roundhouse)
 ## 11 the AI video maker not set up here (comfy_main missing): no button, no line, the plain "isn't set up" line shows, Make does nothing
 ## 12 the failed button's sentence carries no path, no colon and no slash (a beginner should not see a stack trace or a folder)
 ## 0l-0o THE STILL BAR (EasyTake.frozen_fraction): the jab file (tracked well, a statue) is bad; the real moving take is good with its
@@ -24,7 +26,7 @@ const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
 const WORDS := "backflip"
 const NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
 const BUTTON := "Make it with AI video (about 3 minutes)"
-const WHY := "The computer makes a short video of a person doing it, then copies the move. Takes about 3 minutes."
+const WHY := "Makes a short video of a person doing it on this computer, then copies the move. Takes about 3 minutes."   # the button's tooltip
 const NA_LINE := "AI video isn't set up on this computer."
 const BARELY := "The AI video barely moved. Try other words, like 'throws a fast punch'."
 const STUB_MAIN := "res://tests/py/gen_video_stub.py"   # the ComfyUI entry point this test counts as present (no D:/ComfyUI needed)
@@ -239,21 +241,28 @@ func _init() -> void:
 	# 1 unknown words: the reason and the button
 	await type_line(WORDS)
 	var msg := String(home._msg.text)
-	ok(msg.begins_with("Kine can't build") and make_btn() != null and make_btn().visible and make_btn().text == BUTTON,
+	ok(msg == "Kine doesn't know '%s' yet." % WORDS and make_btn() != null and make_btn().visible and make_btn().text == BUTTON,
 		"1 typed \"%s\": reason \"%s\", button shown %s" % [WORDS, msg, make_btn().visible if make_btn() != null else false])
 
-	# 10 the plain line under the button says what it does and how long (the same panel, shown with the button)
-	var why := home.panel.find_child("eh_make_why", true, false) as Label
-	var why_ok: bool = why != null and why.visible and why.text == WHY and make_btn().visible
-	ok(why_ok, "10 the explaining line under the button: shown %s, \"%s\"" % [why != null and why.visible, why.text if why != null else "(no line)"])
+	# 10 what the button does and how long is its tooltip (the line under the button moved there; the panel stays short)
+	ok(make_btn().visible and make_btn().tooltip_text == WHY,
+		"10 the button's tooltip says what it does and how long: \"%s\"" % make_btn().tooltip_text)
+
+	# 14 the unknown-move text: at most 2 lines and 90 characters (the button excluded), no jargon
+	var jargon := ["jab", "cross", "hook", "uppercut", "roundhouse"]
+	var jarg_hit := ""
+	for j in jargon:
+		if msg.to_lower().contains(j):
+			jarg_hit = j
+	ok(home._msg.get_line_count() <= 2 and msg.length() <= 90 and jarg_hit == "",
+		"14 unknown-move text: %d lines (max 2), %d characters (max 90), jargon %s" % [home._msg.get_line_count(), msg.length(), jarg_hit if jarg_hit != "" else "none"])
 
 	# 11 the maker is not set up here: no button and no explaining line, one plain sentence instead; Make does nothing
 	m.gen_move.comfy_main = NO_MAIN
 	await type_line(WORDS)
 	var na := home.panel.find_child("eh_ai_no", true, false) as Label
-	var why11 := home.panel.find_child("eh_make_why", true, false) as Label
 	var na_shown: bool = na != null and na.visible and na.text == NA_LINE
-	var btn_hidden: bool = make_btn() != null and not make_btn().visible and why11 != null and not why11.visible
+	var btn_hidden: bool = make_btn() != null and not make_btn().visible
 	var busy0: bool = m.gen_move.busy()
 	home.make_ai()
 	await idle(3)
@@ -263,6 +272,26 @@ func _init() -> void:
 	m.gen_move.comfy_main = STUB_MAIN
 	await type_line(WORDS)
 	ok(make_btn().visible and not (na != null and na.visible), "11 set up again: the button is back and the plain line is hidden")
+
+	# 13 each "Or try" word, clicked, builds its move: cards appear, one undo step, and the row goes away
+	for w in ["Punch", "Kick", "Wave", "Walk"]:
+		m._new_scene()
+		await idle(3)
+		await type_line(WORDS)
+		var tb := home.panel.find_child("eh_try_%s" % w.to_lower(), true, false) as Button
+		var tb_shown: bool = tb != null and tb.visible and tb.text == w
+		var c13: int = m.S.cards.size()
+		var u13: int = m.undo.size()
+		if tb != null:
+			tb.pressed.emit()
+		await idle(3)
+		var built: bool = m.S.cards.size() > c13 and m.undo.size() == u13 + 1
+		ok(tb_shown and built and home._msg.text == "" and not home._try_row.visible,
+			"13 \"Or try\" %s: button shown %s, cards %d -> %d, undo %d -> %d, row gone %s"
+			% [w, tb_shown, c13, m.S.cards.size(), u13, m.undo.size(), not home._try_row.visible])
+	m._new_scene()
+	await idle(3)
+	await type_line(WORDS)
 
 	# 2 a known word builds, no button
 	await type_line("punch")

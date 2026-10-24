@@ -28,6 +28,7 @@ const PANEL_W := 478.0         # the cards' grid (4 x 112 + 3 x 10) and the text
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
 const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
+const TRY := [3, 4, 6, 0]   # the cards offered under an unknown move (CARDS indices): Punch, Kick, Wave, Walk
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
 
 var m: Node                    # main (untyped: the same pattern as EasyMode)
@@ -54,7 +55,7 @@ var _vid_said := ""           # the say line's opening words for the landed clip
 var _gen_on := false          # MAKE IT WITH AI VIDEO: main's gen_move (scripts/gen_move.gd) is making the clip
 var _gen_words := ""          # the typed words Kine could not build: the button under the message makes them as a video
 var _make_btn: Button
-var _make_why: Label          # the one plain line under the button: what it does and how long it takes
+var _try_row: HBoxContainer    # "Or try:" and four card words: a typed move Kine cannot build offers moves it can
 var _ai_no: Label             # shown instead of the button when the AI video maker is not set up here
 var _cancel_btn: Button
 var _clip_word := "the move"   # the clip's name in the say line of a tweak ("the punch now takes 0.8 s")
@@ -131,16 +132,24 @@ func build(root: Control) -> void:
 	_make_btn.name = "eh_make_ai"
 	_make_btn.text = "Make it with AI video (about %d minutes)" % EasyTake.TAKE_MINUTES   # the fast setting: ~150 s to make a 5 s clip (RESULTS.txt, 2026-10-24)
 	_make_btn.focus_mode = Control.FOCUS_NONE
-	_make_btn.tooltip_text = "make these words as a video on the local AI video maker, then it opens like a copied video"
+	_make_btn.tooltip_text = AI_WHY   # what it does and how long: the button's tooltip (the two lines under the box stay short)
 	_make_btn.visible = false
 	_make_btn.pressed.connect(make_ai)
 	v.add_child(_make_btn)
-	_make_why = _label(AI_WHY, 14, "text")
-	_make_why.name = "eh_make_why"
-	_make_why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_make_why.custom_minimum_size = Vector2(PANEL_W, 0)
-	_make_why.visible = false
-	v.add_child(_make_why)
+	_try_row = HBoxContainer.new()
+	_try_row.name = "eh_try"
+	_try_row.add_theme_constant_override("separation", 6)
+	_try_row.add_child(_label("Or try:", 15, "text"))
+	for i in TRY:
+		var tb := Button.new()
+		tb.name = "eh_try_%s" % String(CARDS[i][0]).to_lower()
+		tb.text = String(CARDS[i][0])
+		tb.focus_mode = Control.FOCUS_NONE
+		tb.tooltip_text = "build %s and play it (one undo step)" % String(CARDS[i][0]).to_lower()
+		tb.pressed.connect(card.bind(i))
+		_try_row.add_child(tb)
+	_try_row.visible = false
+	v.add_child(_try_row)
 	_ai_no = _label(AI_NO, 15, "warn")
 	_ai_no.name = "eh_ai_no"
 	_ai_no.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -269,7 +278,7 @@ func _process(dt: float) -> void:
 	var typed_gap: bool = _gen_words != "" and not _gen_on   # a typed line Kine cannot build
 	var ai_ok: bool = typed_gap and m.gen_move.available()
 	_make_btn.visible = ai_ok
-	_make_why.visible = ai_ok
+	_try_row.visible = typed_gap   # the same moves as the cards, one click each
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
@@ -471,7 +480,7 @@ const NO_READER := "The video reader would not start on this computer, so this v
 const GEN_NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
 const GEN_SHORT := "Say the move in a few more words, such as 'swings a sledgehammer down onto the ground'."
 const GEN_BUSY := "A video is already being made or copied: wait for it, or press Cancel."
-const AI_WHY := "The computer makes a short video of a person doing it, then copies the move. Takes about 3 minutes."
+const AI_WHY := "Makes a short video of a person doing it on this computer, then copies the move. Takes about 3 minutes."
 const AI_NO := "AI video isn't set up on this computer."   # shown in place of the button when the maker is not on this computer
 const UNCLEAR := "The video was unclear; try different words."   # both takes came out bad with a person found
 const BARELY := "The AI video barely moved. Try other words, like 'throws a fast punch'."   # the second take is still for most of its clip (EasyTake.frozen_fraction)
@@ -805,13 +814,10 @@ static func _card_template(part: String) -> String:
 	return ""
 
 
-## the sentence for a typed part Kine cannot build: it names only what it accepts (the cards' words, then the strikes)
+## the sentence for a typed part Kine cannot build: one short line (the "Or try" buttons carry the moves it knows)
 static func _cannot_build(part: String) -> String:
-	var words: Array = []
-	for c in CARDS:
-		words.append(String(c[0]).to_lower())
-	return "Kine can't build '%s' yet. It knows %s, and strikes such as jab, cross, hook, uppercut, front kick, roundhouse or side kick." % [
-		part, ", ".join(words)]
+	var shown := part if part.length() <= 40 else part.substr(0, 37) + "..."
+	return "Kine doesn't know '%s' yet." % shown
 
 
 ## words -> one scene dict. "jab then cross" is two strikes (split on "then", "," and ";"); a part that is a card's word
