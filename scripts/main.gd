@@ -5528,7 +5528,10 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		return
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
-	_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+	if easy != null and easy.on:   # Easy: the stop in plain words, no degree readout (stop_words says which)
+		_say("%s the %s%s%s" % [what, nice(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+	else:
+		_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 
 
 ## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
@@ -5599,6 +5602,11 @@ func _toggle_smart_drag() -> void:
 func stop_words(st: Dictionary) -> String:
 	if st.is_empty():
 		return ""
+	if easy != null and easy.on:   # Easy: a beginner's words, no numbers ("His arm can't bend further that way.")
+		var part := easy_limit_part(String(st["joint"]))
+		if st["kind"] == "limit":
+			return "     His %s can't bend further that way." % part
+		return "     His %s can't go further: it would go into the body." % part
 	if st["kind"] == "limit":
 		return "     STOPPED: the %s is at its limit, %s %.0f (its range %.0f to %.0f)" % [nice(st["joint"]), st["axis"], st["at"], st["lo"], st["hi"]]
 	var ps: Array = st["pairs"]
@@ -10392,6 +10400,13 @@ static func _step_label(u: Dictionary) -> String:
 	return n.left(1).to_upper() + n.substr(1)
 
 
+## EASY: the part a drag's stop names, in plain words: arm, leg, head, back (the spine), else hand / foot / body
+static func easy_limit_part(j: String) -> String:
+	if j.begins_with("spine"):
+		return "back"
+	return easy_part(j)
+
+
 ## EASY: a joint's everyday word for Easy's undo names: hand, arm, foot, leg, head or body
 static func easy_part(j: String) -> String:
 	for w in [["hand", "hand"], ["thumb", "hand"], ["index", "hand"], ["middle", "hand"], ["ring", "hand"], ["pinky", "hand"], ["lowerarm", "arm"], ["elbow", "arm"],
@@ -13290,9 +13305,24 @@ func _easy_card_name(n: String, i := -1) -> String:
 		return "Pose %d" % (i + 1)
 	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
 		return EASY_CARD_NAME[t.to_lower()]
+	if i >= 0 and EASY_CODE_NAME.search(t.to_lower()) != null:   # a template's own codes ("mid r0", "off l1", "air 0", "step r", "stop: feet together"): "<Move> <n>"
+		return "%s %d" % [easy_move_word(S.name), i + 1]
 	return t.substr(0, 1).to_upper() + t.substr(1).to_lower() if t != "" else "Card"
 
 
+## EASY: the card codes the templates use, at the start of a name (matched on the lower case name)
+static var EASY_CODE_NAME := RegEx.create_from_string("^(mid|off|air|land|swing|half step|step|stop)\\b")
+
+
+## EASY: the move a scene is named for, in plain words: its name without the copy number ("run 68", "run_2" -> "Run");
+## "Move" when the name is not a move's (a scene the user named)
+static func easy_move_word(scene_name: String) -> String:
+	var base := RegEx.create_from_string("[ _]\\d+$").sub(scene_name.strip_edges().to_lower(), "")
+	return EASY_MOVE_WORD.get(base.replace(" ", "_"), "Move")
+
+
+const EASY_MOVE_WORD := {"walk": "Walk", "run": "Run", "jump": "Jump", "punch": "Punch", "sword_swing": "Sword swing",
+	"sit_down": "Sit down", "wave": "Wave", "fall": "Fall", "roundhouse": "Kick"}
 const EASY_CARD_NAME := {"load": "Wind up", "cross": "Punch", "recover": "Back to guard"}
 const EASY_WEAPON := {"sword": "a sword", "longsword": "a longsword", "katana": "a katana", "metal_bat": "a bat", "staff": "a staff",
 	"long_hammer": "a hammer", "long_axe": "an axe", "spear": "a spear", "dagger": "a dagger", "two_daggers": "two daggers"}
@@ -17967,7 +17997,10 @@ func _save_scene_now(nm: String) -> void:
 	_journal_saved()
 	_lists()
 	_refresh()
-	_say("saved scene %s: %d cards, %s, %d frames with parts inside each other" % [H.name, H.cards.size(), Units.time(H.length(), S.fps), d["bad_frames"].size()])
+	if easy != null and easy.on:   # Easy: "Saved run 68 (3.3 seconds)." (the name as its words; the length to a tenth of a second)
+		_say("Saved %s (%.1f seconds)." % [H.name.replace("_", " "), roundf(H.length() * 10.0 + 0.001) / 10.0])   # the 0.001: 3.25 s reads 3.3, not 3.2 (float)
+	else:
+		_say("saved scene %s: %d cards, %s, %d frames with parts inside each other" % [H.name, H.cards.size(), Units.time(H.length(), S.fps), d["bad_frames"].size()])
 
 
 ## the scene list's pick: opens it at once when nothing would be lost, asks first when the scene open now has changes
