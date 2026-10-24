@@ -12,7 +12,8 @@ extends Onboarding
 const SEC := "pagetour"
 const TOURED := ["BODY", "MODEL", "SCULPT", "SURFACE"]
 ## per page: [title, text, target]; a target is a node name under the window (a | b = both, merged), or one of
-## "page:<PAGE>" (that page's button on the page bar), "status" (the status line), "search" (the Search button), "undo"
+## "page:<PAGE>" (that page's button on the page bar), "ribbon:<PAGE>:<label>" (that page's ribbon button with that text),
+## "status" (the status line), "search" (the Search button), "undo"
 const TOUR := {
 	"BODY": [
 		["Who you are posing", "The readout: this person's stature and mass, as ANSUR II percentiles.", "body_readout"],
@@ -40,6 +41,7 @@ const TOUR := {
 		["Edit the mesh first", "The UVs come from the mesh: the MODEL page makes and edits it.", "page:MODEL"],
 		["Export the UVs", "UV editor, game UVs and Export UVs are on the ribbon's UV group.", "page:SURFACE"],
 		["Out to a renderer", "DELIVER exports the animation (FBX, glTF) to a tool that paints and renders.", "page:DELIVER"],
+		["Pack the UVs", "Pack UVs fits the islands into the 0 to 1 square with a margin and equal texel density; Ctrl+P does it too.", "ribbon:SURFACE:Pack UVs"],
 	],}
 
 var page := ""        # the page being toured ("" = none)
@@ -101,9 +103,9 @@ func begin_page(p: String) -> void:
 		return
 	if m.easy != null and m.easy.on:
 		m.easy.set_on(false, false)   # the tour points at the pages: Expert for this run (the saved mode is untouched)
-	if p == "BODY" and m.cur_page != "BODY":
+	if m.cur_page != p:   # the tour points at this page's controls: the page is up (its ribbon row shown)
 		_changing = true
-		m._page_set("BODY", false)
+		m._page_set(p, false)
 		_changing = false
 	page = p
 	var cf := ConfigFile.new()
@@ -185,7 +187,12 @@ func _rect_of(t: String) -> Rect2:
 
 func _controls(t: String) -> Array:
 	var out := []
-	if t.begins_with("page:"):
+	if t.begins_with("ribbon:"):
+		var parts := t.split(":")   # ribbon:<PAGE>:<label>: the button on that page's ribbon row with that text
+		for b in m.ui_ribbon[parts[1]].get_children():
+			if b is Button and String(b.text) == parts[2]:
+				out.append(b)
+	elif t.begins_with("page:"):
 		var p := t.trim_prefix("page:")
 		out.append(m.ui_page_btns[p] if m.ui_page_btns.has(p) else _node("page_" + p.to_lower()))
 	elif t == "status":
@@ -234,6 +241,8 @@ func _sides() -> Array:
 		return ["above", "right", "left", "below"]   # the page bar and the status line are low in the window
 	if t == "search" or t == "undo":
 		return ["below", "left", "right", "above"]   # the top strip
+	if t.begins_with("ribbon:"):
+		return ["below", "right", "left", "above"]   # a ribbon button: the callout goes beside the row first
 	return ["right", "below", "above", "left"]       # the body panel is on the left
 
 

@@ -5163,7 +5163,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				ui_cmd.open()
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.alt_pressed and not k.shift_pressed:   # Alt+1..5: the camera views, now that Shift+1..5 are the pages
 				_view(k.keycode - KEY_0)
-			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6 when k.shift_pressed:   # Shift+1..6: the pages
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9 when k.shift_pressed:   # Shift+1..9: the pages (7-9: the expert pages)
 				_page_set(PAGES[k.keycode - KEY_1])
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_view(k.keycode - KEY_0)
@@ -8333,6 +8333,8 @@ func _sculpt_start() -> void:
 	if ksc.on:
 		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
 		return
+	if kmed != null and kmed.on:
+		kmed.stop()   # the test cube is still open (its box select takes every left press first): the sphere gets the strokes
 	ksc.start()
 
 
