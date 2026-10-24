@@ -62,7 +62,7 @@ func commands(add: Callable) -> void:
 static func files(kind: String) -> Array:
 	var out := []
 	var dirs := ["res://scenes", "res://scenes/_wip", "res://moves"] if kind == "scene" else ["res://moves", "res://poses/lib", "res://poses"]
-	for dir in dirs:
+	for dir in dirs.reduce(func(a, x): return a + UserPaths.dirs(x), []):   # + the user's folders (an exported build)
 		var d := DirAccess.open(dir)
 		if d == null:
 			continue

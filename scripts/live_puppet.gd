@@ -26,7 +26,7 @@ const PORT_HI := 65000
 const WINDOW := 60       # frames the fps and latency readouts average over
 const N_LM := 33
 
-var rec_dir := "res://scenes/_wip"   # where a take is kept (a test points it at user:// so it never writes scenes/)
+var rec_dir := UserPaths.w("res://scenes/_wip")   # where a take is kept (a test points it at user:// so it never writes scenes/)
 var python := "python"               # the interpreter that has mediapipe + opencv-python (as the video import's)
 var port := 0
 var pid := -1

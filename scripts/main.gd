@@ -1201,6 +1201,7 @@ func _save_version() -> void:
 ## EXPORT TO GAME (round 31, GATES LL2): the scene as the ARPG's PoseTable, exports/<scene>.json + .cs (never scenes/).
 ## The table is sampled from the scene frame by frame, so the body's pose is kept and put back.
 func _export_game(dir := "res://exports") -> Array:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: export to the game needs at least 2 cards (a move)")
 		return []
@@ -1228,6 +1229,7 @@ func _export_game(dir := "res://exports") -> Array:
 ## exports/<scene>.glb: the mannequin, its skeleton with UE5's bone names, one animation keyed on every frame, the
 ## weapons as animated nodes. Godot, Blender and Unreal 5 import it as it is; Unity through glTFast (docs/EXPORT.md).
 func _export_glb(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1257,6 +1259,7 @@ func _export_glb(dir := "res://exports") -> String:
 ## SHARE: VIEWER PAGE (ROADMAP N23): user://share/<scene>/ holds the .glb, index.html (loads the .glb beside it) and
 ## <scene>_one_file.html (the .glb inside the page as base64: ONE file to send). Nothing is uploaded; the folder opens after.
 func _share_viewer(root := ShareLink.ROOT, open_folder := true) -> Dictionary:
+	root = UserPaths.w(root)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a viewer page needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return {}
@@ -1285,6 +1288,7 @@ func _share_viewer(root := ShareLink.ROOT, open_folder := true) -> Dictionary:
 ## travel onto the root bone. Several fighters: one .fbx each, its rig placed where it stands (a root null). The
 ## weapons and props are not in it. Blender 4.5 reads this binary file; it cannot read ASCII FBX.
 func _export_fbx(dir := "res://exports", root_motion := false) -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1324,6 +1328,7 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 ## EXPORT FOR AN ENGINE (ROADMAP item 9): the pre-flight report prints line by line BEFORE the file is written; the
 ## logic and the checks are in scripts/engine_export.gd (EngineExport), the needs in docs/research/ENGINES.md.
 func _export_engine(id: String, dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1351,6 +1356,7 @@ func _export_dialog_open() -> void:
 ## path play and scrub use, so frame k is what the view shows at its time. The panels are hidden while it renders.
 ## Returns {"dir", "frames", "mp4", "ffmpeg"}; {} when refused. with_mp4 = false: the PNG frames only (the review page's frames)
 func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with_mp4 := true) -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a playblast needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return {}
@@ -1457,6 +1463,7 @@ func _pb_panel_make() -> void:
 
 
 func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _pb_busy:
 		_say_plain("A video is already being saved: press Cancel on the progress panel to stop it")
 		return {}
@@ -1558,6 +1565,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
 ## user://turntables/<scene>_<stamp>.avi (AviWriter), plus an .mp4 beside it when ffmpeg is found. Returns {"avi", "mp4", "frames",
 ## "cams" (the camera of each frame), "quarters" ({k: Image} at 0/90/180/270 deg), "crop", "size", "fps"}; {} when refused.
 func _export_turntable(seconds := 6.0, fps := 30, size := Vector2i(1280, 720), root_dir := Turntable.ROOT, ffmpeg_path := "") -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if seconds <= 0.0 or fps < 1 or size.x < 16 or size.y < 16:
 		_say_plain("NOT DONE: a turntable needs seconds > 0, fps >= 1 and a size of at least 16x16: run Deliver: turntable video of this pose again with those")
 		return {}
@@ -1634,6 +1642,7 @@ var judge_layer: JudgeRender
 
 
 func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.ALL, fps := 0, size := Vector2i(1280, 720), root_dir := JudgeRender.ROOT, ffmpeg_path := "", keep_frames: Array = []) -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a breakdown video needs at least 2 cards (a move): press Enter to add a card, then run Deliver: breakdown video (with the judges drawn) again")
 		return {}
@@ -1862,6 +1871,7 @@ func _sr_panel_make() -> void:
 
 
 func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _sr_busy:
 		_say_plain("A shot render is already running: press Esc (or Cancel render) to stop it, then run Render shots to video again")
 		return {}
@@ -2040,6 +2050,7 @@ func _review_import(path: String) -> int:
 ## EXPORT .BVH (round 34, GATES OO2): the scene as exports/<scene>.bvh (BvhExport, the writer tools/export_bvh.gd uses):
 ## the skeleton with UE5's bone names, every frame, the weapons as joints in their hands. Every retargeter reads BVH.
 func _export_bvh(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -2068,6 +2079,7 @@ func _export_bvh(dir := "res://exports") -> String:
 ## EXPORT .USDA (round 42, GATES XX9): the scene as exports/<scene>.usda (UsdExport): a UsdSkel SkelRoot, Skeleton and
 ## SkelAnimation, one time sample per frame. Opens in Blender, Houdini, Maya, usdview, Omniverse.
 func _export_usd(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -2097,6 +2109,7 @@ func _export_usd(dir := "res://exports") -> String:
 ## the base animation and the skeleton. Returns the root's path ("" when not written). One fighter only: with several, the
 ## flat Export animation (.usda) holds them all.
 func _export_usd_layers(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -12469,7 +12482,7 @@ func _fill_scene_list() -> void:
 		ui_scenes.set_item_disabled(i, miss)
 	# round 45 (Nick 10-18: his video import "doesn't show on open scene"): the work copies in scenes/_wip (imports,
 	# mirrors, polishes) are listed too, marked; opening one picks it, so Delete still trashes only the scene on screen
-	for dir in ["res://scenes", "res://moves", "res://scenes/_wip"]:
+	for dir in ["res://scenes", "res://moves", "res://scenes/_wip"].reduce(func(a, x): return a + UserPaths.dirs(x), []):   # + the user's folders (a build)
 		var d := DirAccess.open(dir)
 		if d == null:
 			continue
@@ -15475,7 +15488,7 @@ func _mirror_scene() -> void:
 	var d := _mirrored_dict()
 	# the file name made safe (round 19: the raw name wrote "_wip/x" into scenes/_wip/_wip/, and "a:b" was a name Windows
 	# refuses); always in scenes/_wip, whatever folder the name gives
-	var path := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/")
+	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
 	_load_scene(path)
 	_rebuild_cards()
@@ -15692,7 +15705,7 @@ func _style_dialog(style: String) -> void:
 func _style_save(style: String, pct: float) -> void:
 	var H := _hero_scene()   # TC3: the file is the hero's scene (with its actors), whoever is active
 	var d := StyleTransfer.make(_scene_dict(), style, pct)
-	var path := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/")
+	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
 	_load_scene(path)
 	_rebuild_cards()
@@ -15739,7 +15752,7 @@ func _words_build() -> void:
 		_say("'%s': %s: type a move like 'overhead axe strike, step in'" % [text, r["error"]])
 		return
 	var S2: Scene = r["scene"]
-	var path := TextBlocking.unique_path("res://scenes/_wip", TextBlocking.slug(text))
+	var path := TextBlocking.unique_path(UserPaths.w("res://scenes/_wip"), TextBlocking.slug(text))
 	var d := S2.to_dict(W)
 	d["plan"] = "Block out a move from words '%s': %s" % [text, r["status"]]
 	_write(path, d)
@@ -16663,7 +16676,7 @@ func _polish() -> void:
 	var D: Scene = r[0]
 	var base := S.name.trim_suffix("_polished")
 	D.name = base + "_polished"
-	var path := "res://scenes/_wip/%s.json" % D.name
+	var path := UserPaths.w("res://scenes/_wip/%s.json" % D.name)
 	var d := D.to_dict(ov.GB)
 	d["plan"] = "Polish (tools/detail.gd) from " + base
 	_write(path, d)
@@ -16699,10 +16712,10 @@ func _ragdoll_fall() -> void:
 	C.pin = false
 	var d := C.to_dict(B)
 	d["plan"] = "Ragdoll (scripts/ragdoll.gd) from %s, pins: %s" % [S.name, ", ".join(pins) if not pins.is_empty() else "none"]
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier fall: _ragdoll_2, _ragdoll_3 ...
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -17271,7 +17284,8 @@ func _stamp() -> String:
 	return Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "_")
 
 
-func _write(path: String, d: Dictionary) -> void:
+func _write(path0: String, d: Dictionary) -> void:
+	var path := UserPaths.w(path0)   # an exported build's res:// is read-only: the user's folder (as run from source: unchanged)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, " "))
@@ -17280,7 +17294,7 @@ func _write(path: String, d: Dictionary) -> void:
 
 func _save_pose() -> void:
 	var nm := safe_file(ui_pose_name.text).replace("_wip/", "")   # X3: a safe file name (poses have no _wip)
-	var path := "res://moves/%s.json" % (nm if nm != "" else "pose_" + _stamp())
+	var path := UserPaths.w("res://moves/%s.json" % (nm if nm != "" else "pose_" + _stamp()))
 	if FileAccess.file_exists(path):
 		_confirm("A pose called '%s' already exists.\nReplace it with the body as it is now? Ctrl+Z can't bring the old file back." % path.get_file().get_basename(),
 			"Replace it", _save_pose_now.bind(path))
@@ -17509,8 +17523,8 @@ func _trash(path: String) -> void:
 
 
 func _trash_now(path: String) -> bool:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://trash"))
-	var to := "res://trash/%s_%s.json" % [path.get_file().get_basename(), _stamp()]
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(UserPaths.w("res://trash")))
+	var to := UserPaths.w("res://trash/%s_%s.json" % [path.get_file().get_basename(), _stamp()])
 	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(to))
 	if err != OK:
 		_say("couldn't delete (error %d): close any program that has the file open, then press Delete again" % err)
@@ -17573,7 +17587,7 @@ func _save_scene() -> void:
 		_say("the scene is empty: press Enter to add the body as a card, then Save scene")
 		return
 	var nm := ui_scene_name.text.strip_edges()
-	var to := "res://scenes/%s.json" % (safe_file(nm) if safe_file(nm) != "" else "scene_" + _stamp())
+	var to := UserPaths.w("res://scenes/%s.json" % (safe_file(nm) if safe_file(nm) != "" else "scene_" + _stamp()))
 	if FileAccess.file_exists(to) and to != scene_path:
 		_confirm("A different scene called '%s' already exists.\nReplace it with this one? Ctrl+Z can't bring the old file back." % to.get_file().get_basename(),
 			"Replace it", _save_scene_now.bind(nm))
@@ -17616,10 +17630,10 @@ func _save_scene_now(nm: String) -> void:
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	_write("res://scenes/%s.json" % fname, d)
 	if np.loaded:
-		np.update_file("res://scenes/%s.json" % fname)   # R27: the index of your habits learns the saved scene
+		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
 	_clean = _doc_key()
 	_autosave_drop()
-	scene_path = "res://scenes/%s.json" % fname
+	scene_path = UserPaths.w("res://scenes/%s.json" % fname)
 	_recent_note(scene_path, true)
 	_journal_saved()
 	_lists()
@@ -17662,7 +17676,7 @@ func _new_asked() -> void:
 func _search_files() -> Array:
 	var rows := []
 	var scene := {}   # path -> is a scene file (each file read once)
-	for dir in ["res://poses/lib", "res://poses", "res://moves", "res://scenes", "res://scenes/_wip"]:
+	for dir in ["res://poses/lib", "res://poses", "res://moves", "res://scenes", "res://scenes/_wip"].reduce(func(a, x): return a + UserPaths.dirs(x), []):
 		var d := DirAccess.open(dir)
 		if d == null:
 			continue
@@ -17677,7 +17691,7 @@ func _search_files() -> Array:
 				scene[path] = txt.contains("\"keys\"") or txt.contains("\"cards\"")
 			var is_scene: bool = scene[path]
 			# poses/ holds pose files and scenes/ scene files; moves/ holds both (each goes to the list the app shows it in)
-			if (is_scene and dir.begins_with("res://poses")) or (not is_scene and dir.begins_with("res://scenes")):
+			if (is_scene and "/poses" in dir) or (not is_scene and "/scenes" in dir):   # res:// or the user's copy (a build)
 				continue
 			rows.append(_file_row(path, "scene" if is_scene else "pose"))
 	for mac in macros:   # ROADMAP 81: each saved macro is a row "Macro: <name>"
@@ -18248,7 +18262,7 @@ func _restore_go() -> void:
 func _restore_copy(r: Dictionary) -> void:
 	var a: Dictionary = r["a"]
 	var nm := safe_file(String(r["name"])).trim_prefix("_wip/")
-	var path := TextBlocking.unique_path("res://scenes/_wip", (nm if nm != "" else "autosave") + "_restored")
+	var path := TextBlocking.unique_path(UserPaths.w("res://scenes/_wip"), (nm if nm != "" else "autosave") + "_restored")
 	_write(path, a["scene"])
 	_load_scene(path)
 	_rebuild_cards()
@@ -19999,10 +20013,10 @@ func _import_land(res: Dictionary, src: String, held: String) -> String:
 		return ""
 	var d: Dictionary = res["d"]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -20495,10 +20509,10 @@ func _import_bvh(path: String) -> void:
 	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
 	d["plan"] = "BVH import of %s: %s" % [path.get_file(), r["text"]]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import: walk_2, walk_3 ...
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -20531,10 +20545,10 @@ func _import_anim(path: String) -> String:
 	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
 	d["plan"] = "Animation import of %s: %s. %s" % [path.get_file(), r["text"], r["report"]]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -20567,10 +20581,10 @@ func _import_physics(path: String) -> String:
 	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
 	d["plan"] = "Physics reaction from %s: %s" % [path.get_file(), r["text"]]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -20897,7 +20911,10 @@ func _doc_key() -> String:
 	return k
 
 
-func _load_scene(path: String) -> void:
+func _load_scene(path0: String) -> void:
+	var path := path0
+	if not FileAccess.file_exists(path) and FileAccess.file_exists(UserPaths.w(path)):
+		path = UserPaths.w(path)   # written as res://... in an exported build: it is in the user's folder
 	var probe: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
 	if not (probe is Dictionary):   # a missing, empty or non-JSON file is refused with a message, not a crash
 		_say_plain("NOT NOW: %s is not a scene file (missing, empty or not JSON)" % path.get_file())

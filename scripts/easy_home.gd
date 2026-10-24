@@ -233,13 +233,13 @@ func _build(what: String, label: String) -> String:
 		d = Templates.read(nm)
 		if d.is_empty():
 			return "The %s template file is missing: rebuild the templates (tools/make_templates.gd) and try again." % nm
-		path = Templates.new_path(nm)
+		path = UserPaths.w(Templates.new_path(nm))
 	else:
 		var r := _words_dict(nm)
 		if not r["ok"]:
 			return String(r["error"])
 		d = r["dict"]
-		path = TextBlocking.unique_path("res://scenes/_wip", TextBlocking.slug(nm))
+		path = TextBlocking.unique_path(UserPaths.w("res://scenes/_wip"), TextBlocking.slug(nm))
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
 	m._step_hint = label   # the undo step is named after the card (main's undo list shows it)

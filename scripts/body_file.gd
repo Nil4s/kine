@@ -28,7 +28,7 @@ const VERSION := 1
 const EXT := "kbody"
 const KEY := "body_mesh"
 
-static var dir := "res://bodies"
+static var dir := UserPaths.w("res://bodies")   # an exported build: the user's folder
 static var last_error := ""
 
 
