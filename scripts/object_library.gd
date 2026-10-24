@@ -35,7 +35,8 @@ const PROP_NAME := {"ball": "Football", "sword": "Sword on the floor"}
 ## [name, region word]: a plate over the body region (KMeshBody.REGIONS); the words are the ones ArmourFromBody.make reads
 const ARMOUR := [["Chest plate", "chest"], ["Abdomen plate", "abdomen"], ["Helmet", "head"], ["Upper arm plate (left)", "upperarm_l"],
 	["Forearm plate (right)", "forearm_r"], ["Thigh plate (left)", "thigh_l"], ["Shin plate (right)", "shin_r"]]
-const TILE := Vector2(124, 104)   # a 64 px picture and the name under it, two lines at most
+const PIC := 104                   # the picture as shown (the 128 px render, scaled): the tile holds it and its name
+const TILE := Vector2(124, PIC + 48)   # the picture and the name under it, two lines at most (B8b: nothing spills)
 const COLS := 4
 const CHROME := 150.0             # px of the panel that is not the grid: header, search, tabs, note, margins
 
@@ -344,7 +345,7 @@ func _tile(it: Dictionary) -> Control:
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	b.add_child(v)
 	var pic := TextureRect.new()
-	pic.custom_minimum_size = Vector2(LibraryThumbs.SIZE)
+	pic.custom_minimum_size = Vector2(PIC, PIC)
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -372,7 +373,7 @@ func thumb_source(it: Dictionary) -> Dictionary:
 	var key := String(it["key"])
 	var src := {"shapes": it["shapes"], "spec": "", "build": Callable()}
 	if how == "weapon":
-		src["spec"] = var_to_str(["weapon", key, Body.KINDS["dagger" if key == "two_daggers" else key]])
+		src["spec"] = var_to_str(["weapon", key, Body.KINDS["dagger" if key == "two_daggers" else key], LibraryThumbs.SAME_SCALE])   # the scale is in the cache name
 		src["build"] = func() -> Node3D: return LibraryThumbs.weapon_node(key)
 	elif how == "prop":
 		src["spec"] = var_to_str(["prop", key, Props.kind_of(key)])

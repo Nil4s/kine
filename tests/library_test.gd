@@ -11,8 +11,8 @@
 ##  B6  Easy's Library button opens the panel with one click, and a second click closes it.
 ##  B7  REAL thumbnails: every object (38) has its 128 x 128 PNG under user://thumbs/lib (LibraryThumbs.real_path) and its
 ##      picture in memory; each picture is not empty: at least 5 % of its pixels differ from its corner pixel (the background).
-##  B8  DISTINCT WEAPONS: sword, katana, spear and metal bat are pairwise different: the mean absolute difference over
-##      R, G, B (0..255, every pixel) is above DIFF_MIN = 2.0 for all six pairs. Noise floor: the sword drawn again differs
+##  B8  DISTINCT WEAPONS: sword, katana, spear, metal bat and longsword are pairwise different: the mean absolute difference over
+##      R, G, B (0..255, every pixel) is above DIFF_MIN = 2.0 for all ten pairs. Noise floor: the sword drawn again differs
 ##      from its picture by less than NOISE_MAX = 0.5 (printed).
 ##  B9  FRAMES: the panel opened on a cold cache (every real and schematic PNG deleted first) and drawing its tiles, tab by
 ##      tab, never lets one frame take longer than FRAME_MAX_MS = 50 ms between two process frames.
@@ -27,7 +27,7 @@ const DIFF_MIN := 2.0          # B8: the mean absolute difference (0..255, R G B
 const NOISE_MAX := 0.5         # B8: the same weapon drawn again must differ by less than this
 const FRAME_MAX_MS := 50.0     # B9
 const NONBG_MIN := 0.05        # B7: the share of pixels that differ from the corner (the background)
-const WEAPON_IDS := ["weapon:sword", "weapon:katana", "weapon:spear", "weapon:metal_bat"]
+const WEAPON_IDS := ["weapon:sword", "weapon:katana", "weapon:spear", "weapon:metal_bat", "weapon:longsword"]
 
 var fails := 0
 var m: Node
@@ -273,6 +273,17 @@ func _init() -> void:
 	var again: Image = await lib.thumbs.draw_node(LibraryThumbs.weapon_node("sword"), LibraryThumbs.SIZE)
 	var noise := mean_diff(again, pics["weapon:sword"]) if again != null else INF
 	ok(noise < NOISE_MAX, "B8 noise floor: the sword drawn again differs by %.2f (less than %.1f)" % [noise, NOISE_MAX])
+
+	# B8b: every tile's name is on screen: its picture and label lie inside the tile (the picture grew to 128 px in a
+	# 104 px tile and the row under each tile covered its name: only the last row's names showed)
+	var spill := []
+	for b in lib.find_children("tile_*", "Button", true, false):
+		var tr: Rect2 = (b as Control).get_global_rect().grow(0.5)
+		for c in (b as Node).find_children("*", "", true, false):
+			if (c is Label or c is TextureRect) and not tr.encloses((c as Control).get_global_rect()):
+				spill.append(String((b as Node).name))
+				break
+	ok(spill.is_empty(), "B8b every tile holds its picture and its name (spilling: %s)" % str(spill.slice(0, 6)))
 
 	# B10: a second open draws nothing; a fresh instance on the same folder reads every object from disk
 	var r0 := lib.thumbs.renders

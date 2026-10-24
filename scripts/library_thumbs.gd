@@ -202,8 +202,19 @@ func shapes_node(shapes: Array) -> Node3D:
 ## Staff and spear would reach 3-4 % of the square at true thickness (a diagonal rod fills ~2W/L of it); the bar is 5 %.
 const THUMB_GIRTH := {"staff": 2.0, "spear": 2.0}
 
+## ONE SCALE FOR THE SWORDS: each picture is fitted to its tile, so a 0.92 m sword and a 1.20 m longsword came out the
+## same size (the monkey test could not tell them apart). These kinds are drawn at their length's share of the longest
+## one's (draw_node reads the node's "thumb_shrink"): the longsword fills the tile, the sword is 77 % of it.
+const SAME_SCALE := ["sword", "longsword"]   # the katana reads as itself (its curve); shrunk it fell under B7's 5 % of the tile
+
 static func weapon_node(kind: String) -> Node3D:
-	return WeaponMesh.build(kind, float(THUMB_GIRTH.get(kind, 1.0)), true)
+	var n := WeaponMesh.build(kind, float(THUMB_GIRTH.get(kind, 1.0)), true)
+	if n != null and kind in SAME_SCALE:
+		var longest := 0.0
+		for k in SAME_SCALE:
+			longest = maxf(longest, float(Body.KINDS[k]["len"]))
+		n.set_meta("thumb_shrink", float(Body.KINDS[kind]["len"]) / longest)
+	return n
 
 
 ## the picture of a built node, drawn now at px; the node is freed after. Null when there is nothing to draw or no renderer.
@@ -253,7 +264,7 @@ func draw_node(node: Node3D, px: Vector2i) -> Image:
 		hi2 = hi2.max(Vector2(q.x, q.y))
 	var c2 := (lo2 + hi2) * 0.5
 	_cam.global_position += _cam.global_basis * Vector3(c2.x, c2.y, 0.0)
-	_cam.size = maxf(hi2.x - lo2.x, hi2.y - lo2.y) / (FILL_THIN if thin else FILL)
+	_cam.size = maxf(hi2.x - lo2.x, hi2.y - lo2.y) / (FILL_THIN if thin else FILL) / float(node.get_meta("thumb_shrink", 1.0))
 	await _frame()
 	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
 		return null
