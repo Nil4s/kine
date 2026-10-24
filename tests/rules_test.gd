@@ -54,6 +54,12 @@ func _init() -> void:
 	var chest := sm_of(n)
 	chest["w_trunk"] = bell(n, 63, 8, 600.0)
 	ok(rules(Rulebook.rule_sequence(chest, st)) == ["FAIL SEQUENCE"], "SEQUENCE fires: chest after the weapon")
+	# the words name what strikes: a bare hand (a punch, or a tracked clip's fast hand) is "the hand", a held weapon "the weapon"
+	late["armed"] = false
+	var bare_msg: String = Rulebook.rule_sequence(late, st)[0]["msg"]
+	late["armed"] = true
+	var held_msg: String = Rulebook.rule_sequence(late, st)[0]["msg"]
+	ok(bare_msg.ends_with("-> hand.") and not bare_msg.contains("weapon") and held_msg.ends_with("-> weapon."), "SEQUENCE names the hand when unarmed, the weapon when armed ('%s' / '%s')" % [bare_msg, held_msg])
 	var still := sm_of(n)
 	still["w_pelvis"] = bell(n, 45, 8, 40.0)
 	ok(rules(Rulebook.rule_sequence(still, st)) == ["WARN HIPS TURN"], "HIPS TURN fires: hips peak 40 deg/s")
