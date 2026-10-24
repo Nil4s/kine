@@ -568,8 +568,29 @@ func _build(what: String, label: String, easy := "") -> String:
 	return ""
 
 
-## words -> one scene dict. "jab then cross" is two strikes (split on "then", "," and ";"); each strike is built by
-## TextBlocking on a fresh body and the cards are joined in order. {ok, dict} or {ok: false, error}
+## the template a typed part names, when it is a card's own word ("walk", "sit down", "kick" = the Kick card's roundhouse
+## file). "" = not a card word: TextBlocking builds it. CARDS is the one list, so the typed box and the cards cannot part ways.
+## (bare "roundhouse" is not here on purpose: tools/make_templates.gd bakes that file from the words, and must not read it back)
+static func _card_template(part: String) -> String:
+	var w := part.strip_edges().to_lower()
+	for c in CARDS:
+		if String(c[0]).to_lower() == w:
+			return String(c[1])
+	return ""
+
+
+## the sentence for a typed part Kine cannot build: it names only what it accepts (the cards' words, then the strikes)
+static func _cannot_build(part: String) -> String:
+	var words: Array = []
+	for c in CARDS:
+		words.append(String(c[0]).to_lower())
+	return "Kine can't build '%s' yet. It knows %s, and strikes such as jab, cross, hook, uppercut, front kick, roundhouse or side kick." % [
+		part, ", ".join(words)]
+
+
+## words -> one scene dict. "jab then cross" is two strikes (split on "then", "," and ";"); a part that is a card's word
+## is that card's template file, any other part is built by TextBlocking on a fresh body. The parts are joined in order.
+## {ok, dict} or {ok: false, error}
 func _words_dict(text: String) -> Dictionary:
 	var parts: Array = []
 	for p in text.replace(",", " then ").replace(";", " then ").split(" then ", false):
@@ -580,17 +601,24 @@ func _words_dict(text: String) -> Dictionary:
 		return {"ok": false, "error": "Type a move first, such as 'jab then cross' or 'roundhouse'."}
 	var out := {}
 	for p in parts:
-		for w in String(p).split(" ", false):
-			if w in NOT_YET:
-				return {"ok": false, "error": "Kine can't build '%s' yet: it knows strikes, walks, runs, jumps and punches so far." % p}
-		var W := Body.new()   # a scratch body: TextBlocking poses it card by card (main's words box does the same)
-		W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-		var r: Dictionary = load("res://scripts/text_blocking.gd").build(p, W)
-		if not r["ok"]:
-			if String(r["error"]).begins_with("no attack"):
-				return {"ok": false, "error": "Kine can't build '%s' yet: it knows strikes, walks, runs, jumps and punches so far." % p}
-			return {"ok": false, "error": "Kine can't build '%s': %s." % [p, String(r["error"])]}
-		var d: Dictionary = (r["scene"] as Scene).to_dict(W)
+		var d: Dictionary
+		var tmpl := _card_template(p)
+		if tmpl != "":
+			d = Templates.read(tmpl)
+			if d.is_empty():
+				return {"ok": false, "error": "The %s template file is missing: rebuild the templates (tools/make_templates.gd) and try again." % tmpl}
+		else:
+			for w in String(p).split(" ", false):
+				if w in NOT_YET:
+					return {"ok": false, "error": _cannot_build(p)}
+			var W := Body.new()   # a scratch body: TextBlocking poses it card by card (main's words box does the same)
+			W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+			var r: Dictionary = load("res://scripts/text_blocking.gd").build(p, W)
+			if not r["ok"]:
+				if String(r["error"]).begins_with("no attack"):
+					return {"ok": false, "error": _cannot_build(p)}
+				return {"ok": false, "error": "Kine can't build '%s': %s." % [p, String(r["error"])]}
+			d = (r["scene"] as Scene).to_dict(W)
 		if out.is_empty():
 			out = d
 		else:
