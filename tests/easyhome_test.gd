@@ -6,9 +6,13 @@
 ##  3. The click -> the first frame the clip plays is under 2000 ms for each card that builds (the builder time is printed).
 ##  4. One Ctrl+Z after a card gives back the empty scene (one undo step per card).
 ##  5. Typing "jab then cross" builds 2 strikes (the cards are the two single strikes, in order).
+##  5b. Typing "walk", "jump", "walk then wave", "jump then kick", "sit down then fall" in the box builds >= 2 cards, no "can't build".
+##  5c. Typing "dance" builds nothing, and its sentence names the cards' moves (never one Kine cannot build).
 ##  6. The panel fits inside the window at 1280x720 (its rect is inside the visible viewport).
 ##  8. The Library opened over the empty scene hides the panel; Close brings it back.
 ##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
+##  11. CHAIN: with a walk built, Change it and a card (Add after, the default) keeps the walk and adds the wave after it:
+##     cards = walk + wave, the walk first; Undo takes the add back in one step; Start over replaces the clip.
 ##  C. (the layout) At 1280x720 and at 1600x900 the home panel covers at most 15 % of the body's screen box (the body's capsule
 ##     ends projected with m.cam.unproject_position): the body is visible beside the panel, not under it.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
@@ -161,6 +165,26 @@ func _init() -> void:
 	ok(home.strip.find_child("eh_again", true, false) != null and home.strip.find_child("eh_change", true, false) != null and home.strip.find_child("eh_save", true, false) == null,
 		"the strip has Again and Change it; Save video is on the Easy bar only (one button per label)")
 
+	# 5b. the typed box builds a card's word alone or in a chain ("walk then wave"), the same moves as the cards: no "can't build"
+	for t in ["walk", "jump", "walk then wave", "jump then kick", "sit down then fall"]:
+		m._new_scene()
+		await idle(2)
+		edit.text = t
+		edit.text_submitted.emit(t)
+		await idle(2)
+		var said: String = m.ui_status.text + " " + (home.panel.find_child("eh_msg", true, false) as Label).text
+		ok(m.S.cards.size() >= 2 and not "can't build" in said,
+			"5b. typed '%s' builds %d cards and never says \"can't build\" (says: '%s')" % [t, m.S.cards.size(), said.strip_edges()])
+	# 5c. a word Kine cannot build builds nothing, and its sentence names only what Kine accepts (the cards' words, then strikes)
+	m._new_scene()
+	await idle(2)
+	edit.text = "dance"
+	edit.text_submitted.emit("dance")
+	await idle(2)
+	var why := (home.panel.find_child("eh_msg", true, false) as Label).text
+	ok(m.S.cards.is_empty() and why.begins_with("Kine can't build 'dance'") and why.contains("sit down") and why.contains("fall") and not why.contains("walks, runs"),
+		"5c. typed 'dance' builds nothing and says what Kine knows (says: '%s')" % why)
+
 	# 6. the panel fits the window at 1280x720 (the empty scene's panel)
 	m._new_scene()
 	await idle(3)
@@ -224,6 +248,64 @@ func _init() -> void:
 	home.card(6)
 	await idle(4)
 	ok(m.ui_status.text.begins_with("Made the wave"), "10. the say line follows the next card (says: '%s')" % m.ui_status.text)
+
+	# 11. CHAIN: "walk, then wave" from the cards. With a clip built, the picker's "Then:" row (Add after is the default) keeps
+	# the walk and adds the wave's cards after it (one undo step); Start over replaces it (today's behaviour). Undo takes the add back.
+	m._new_scene()
+	await idle(2)
+	ok(home.panel.find_child("eh_then", true, false).visible == false, "11. the Then: row is hidden on an empty scene (nothing to add after)")
+	home.card(0)
+	await idle(4)
+	var walk_n: int = m.S.cards.size()
+	var walk_len: float = m.S.length()
+	var walk_names: Array = []
+	for c in m.S.cards:
+		walk_names.append(c["name"])
+	m._new_scene()
+	await idle(2)
+	home.card(6)
+	await idle(4)
+	var wave_n: int = m.S.cards.size()
+	var wave_name: String = String(m.S.cards[0]["name"])
+	var add_btn := home.panel.find_child("eh_then_add", true, false) as Button
+	var start_btn := home.panel.find_child("eh_then_start", true, false) as Button
+	m._new_scene()
+	await idle(2)
+	home.card(0)
+	await idle(4)
+	home._change()   # Change it: the picker comes back over the walk, with the Then: row
+	await idle(4)
+	ok(home.shown() == "panel" and add_btn != null and add_btn.button_pressed and home.panel.find_child("eh_then", true, false).visible,
+		"11. with a walk built, Change it shows the picker with the Then: row and Add after chosen (shown: %s)" % home.shown())
+	var before_u: int = m.undo.size()
+	var chain_img: Image = m.get_viewport().get_texture().get_image()
+	chain_img.save_png("user://easy_chain_picker.png")
+	print("chain screenshot %s" % ProjectSettings.globalize_path("user://easy_chain_picker.png"))
+	card_btn(6).pressed.emit()
+	await idle(4)
+	var names_now: Array = []
+	for c in m.S.cards:
+		names_now.append(c["name"])
+	ok(m.S.cards.size() == walk_n + wave_n, "11. Walk, then Wave by cards: %d cards = the walk's %d + the wave's %d (%d)" % [m.S.cards.size(), walk_n, wave_n, m.S.cards.size()])
+	ok(names_now.slice(0, walk_n) == walk_names and String(names_now[walk_n]) == wave_name,
+		"11. the walk's cards come first, then the wave's (the card at %d is '%s')" % [walk_n, String(names_now[walk_n]) if names_now.size() > walk_n else ""])
+	ok(m.S.length() > walk_len + 0.4 and home.shown() == "strip", "11. the clip runs past the walk's end (%.2f s after %.2f s); the strip shows (shown: %s)" % [m.S.length(), walk_len, home.shown()])
+	ok(m.undo.size() == before_u + 1, "11. the add is one undo step (%d -> %d)" % [before_u, m.undo.size()])
+	ok(m.ui_status.text.begins_with("Made the wave") and m.ui_status.text.contains("added after the walk"), "11. the say line says the wave was added after the walk (says: '%s')" % m.ui_status.text)
+	m._undo()
+	await idle(4)
+	var back_names: Array = []
+	for c in m.S.cards:
+		back_names.append(c["name"])
+	ok(back_names == walk_names, "11. Undo takes the add back: the walk's cards only (%d cards)" % m.S.cards.size())
+	# Start over: the same two moves, the wave replaces the walk (today's behaviour)
+	home._change()
+	await idle(4)
+	start_btn.button_pressed = true   # the click: the group turns Add after off and this one on (toggled sets the choice)
+	await idle(1)
+	card_btn(6).pressed.emit()
+	await idle(4)
+	ok(m.S.cards.size() == wave_n and String(m.S.cards[0]["name"]) == wave_name, "11. Start over: the wave replaces the walk (%d cards, the wave's %d)" % [m.S.cards.size(), wave_n])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

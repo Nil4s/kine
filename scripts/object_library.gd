@@ -54,6 +54,7 @@ var _note: Label
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
 var _armour_body := []            # the fighter body the armour pictures are cut from: read once per open, not once per tile
 var _armour_hash := ""            # the hash of its rest vertices, once per open (the spec of every armour tile)
+var _fit_key := ""                # the window size and the bottom panel's height the panel was last fitted to
 
 
 ## main: the app; weapon_list: main's WEAPONS (the Weapons tab reads the kinds the picker reads)
@@ -184,15 +185,37 @@ func hide_panel() -> void:
 	visible = false
 
 
+## refit when the window or the bottom panel changes size (a resize, Easy's strip coming or going), not only on open
+func _process(_dt: float) -> void:
+	if not visible or m == null:
+		return
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	var key := "%s|%s" % [str(vp), str(m.bottom_h)]
+	if key != _fit_key:
+		_fit_key = key
+		fit(vp)
+
+
 ## the panel's size and place for a window of size vp: the grid takes what the strip, the search and the tabs leave
 func fit(vp: Vector2) -> void:
 	var top := float(m.TOP_H) + 12.0 if m != null else 86.0
 	var left := float(m.lw()) + 12.0 if m != null else 12.0
-	var h := clampf(vp.y - top - 12.0 - CHROME, 160.0, 460.0)
+	var low := low_edge(vp, float(m.bottom_h), float(m.LINE_H)) if m != null else vp.y - 120.0
+	var h := clampf(low - top - CHROME, 160.0, 460.0)
 	_scroll.custom_minimum_size = Vector2(float(COLS) * (TILE.x + 8.0) + 24.0, h)
 	reset_size()
+	var over := top + size.y - low   # the panel's own rows (header, search, tabs, note) are more than CHROME on a short window: the grid gives way
+	if over > 0.0 and h > 160.0:
+		_scroll.custom_minimum_size.y = maxf(160.0, h - over)
+		reset_size()
 	position = Vector2(minf(left, maxf(12.0, vp.x - size.x - 12.0)), top)
 	reset_size()
+
+
+## the lowest y a panel beside the body may reach: 8 px above the welcome line, which sits above the status line and the
+## scene panel (the bottom panel's height, the status line's band). Easy's picker and the library both stop there
+static func low_edge(vp: Vector2, bottom_h: float, line_h: float) -> float:
+	return vp.y - bottom_h - 6.0 - line_h - float(MouseHint.H) - 2.0 - 8.0
 
 
 ## the tile under the mouse: place its object (one undo step); the picker's own names and undo labels
@@ -212,11 +235,14 @@ func _place_item(it: Dictionary) -> bool:
 	if how == "weapon":
 		var pick: Callable = m._two_daggers if it["key"] == "two_daggers" else m._kind.bind(it["key"])
 		m._do(func(): pick.call(); arm_cards(m.S, m.B))
-		_note.text = "%s: right hand%s, Ctrl+Z undoes" % [it["name"], " in every card" if not m.S.cards.is_empty() else ""]
+		if m.easy.on:   # Easy: the plain line (no undo key, no weights)
+			_note.text = m.easy_holds(String(it["key"]))
+		else:
+			_note.text = "%s: right hand%s, Ctrl+Z undoes" % [it["name"], " in every card" if not m.S.cards.is_empty() else ""]
 		return true
 	if how == "prop":
 		m._prop_add(String(it["key"]))   # main pushes its own undo step, as the Add prop menu does
-		_note.text = "%s: on the floor, Ctrl+Z undoes" % it["name"]
+		_note.text = ("%s is on the floor. Undo takes it away." if m.easy.on else "%s: on the floor, Ctrl+Z undoes") % it["name"]
 		return true
 	# ArmourFromBody.make is ONE undo step by itself (its attach pushes it, after the plate is built): no _do around it,
 	# and a plate that fails to build pushes nothing
@@ -226,7 +252,7 @@ func _place_item(it: Dictionary) -> bool:
 	if not bool(r.get("ok", false)):
 		_note.text = "%s not placed: %s" % [it["name"], String(r.get("said", ""))]
 		return false
-	_note.text = "%s placed over the body (Ctrl+Z takes it back)" % it["name"]
+	_note.text = ("%s is on him now. Undo takes it away." if m.easy.on else "%s placed over the body (Ctrl+Z takes it back)") % it["name"]
 	return true
 
 
@@ -243,6 +269,7 @@ static func arm_cards(S: Scene, B: Body) -> void:
 		var s0 := B._state0()
 		s0.merge(held, true)
 		B._set_state0(s0)
+		_clear_body(B)
 		var d := B.to_dict()
 		c["pose"]["weapon"] = d["weapon"]
 		if d.has("weapon2"):
@@ -250,6 +277,66 @@ static func arm_cards(S: Scene, B: Body) -> void:
 		else:
 			(c["pose"] as Dictionary).erase("weapon2")
 	B.set_state(keep)
+	B.fk()
+
+
+## the held weapon's contacts with the body in the pose now (Body.contacts, the test that stops a joint at the weapon):
+## the number of body parts the weapon's parts sink into
+static func _wep_hits(B: Body) -> int:
+	var n := 0
+	for c in B.contacts():
+		if (String(c[0]) in Body.WEAPON or String(c[1]) in Body.WEAPON) and float(c[2]) > 0.001:
+			n += 1
+	return n
+
+
+## a weapon that goes into the body in this pose is turned IN THE HAND, about the palm, by the smallest angle that clears
+## it: the hand, fingers and body stay where they are (only the weapon's own place in the hand changes). Angles grow by
+## 2 degrees; each size is tried in 10-degree steps round the shaft's two cross axes. No clear angle: the weapon stays
+## as it was (the blade then stays in the body, and the Check tests show it)
+static func _clear_body(B: Body) -> void:
+	if not B.wep_on or B.wep_hand == "" or _wep_hits(B) == 0:
+		return
+	var h := B.wep_hand
+	var pivot := B.palm_point(h)
+	var x := B.wep_xform()
+	var p0: Vector3 = x[0]
+	var r0: Quaternion = x[1]
+	var e1 := r0 * Vector3.RIGHT
+	var e2 := r0 * Vector3.BACK
+	var keep := [p0, r0]
+	# first the hand's own roll: about the wrist-to-palm line, which keeps the grip where it was against both the wrist and
+	# the palm (the knob does not ride along the hand through the clip, as a turn about the palm alone made it: 2 cm)
+	var roll: Vector3 = (pivot - B.P[h]).normalized()
+	if roll.length() > 0.5:
+		for deg in range(5, 181, 5):
+			for sgn in [1.0, -1.0]:
+				var rr := Quaternion(roll, deg_to_rad(float(deg) * sgn))
+				B.wep_hand = ""
+				B.wep_pos = pivot + rr * (p0 - pivot)
+				B.wep_rot = (rr * r0).normalized()
+				B.lock_weapon(h)
+				B.fk()
+				if _wep_hits(B) == 0:
+					return
+	var mag := 2.0
+	while mag <= 180.0:
+		for k in 36:
+			var phi := deg_to_rad(10.0 * k)
+			var axis := (e1 * cos(phi) + e2 * sin(phi)).normalized()
+			var rw := Quaternion(axis, deg_to_rad(mag))
+			B.wep_hand = ""
+			B.wep_pos = pivot + rw * (p0 - pivot)
+			B.wep_rot = (rw * r0).normalized()
+			B.lock_weapon(h)
+			B.fk()
+			if _wep_hits(B) == 0:
+				return
+		mag += 2.0
+	B.wep_hand = ""
+	B.wep_pos = keep[0]
+	B.wep_rot = keep[1]
+	B.lock_weapon(h)
 	B.fk()
 
 
@@ -335,7 +422,7 @@ func _rebuild() -> void:
 			"No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here."
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
-	_note.text = "%d shown. Click a tile to place it in the set or the hand." % shown.size()
+	_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
 	reset_size.call_deferred()   # the panel is as tall as what it shows now (a taller tab, or a wrapping label measured before its width, left it 1572 px over a 900 px window)
 
 
@@ -344,7 +431,7 @@ func _tile(it: Dictionary) -> Control:
 	b.name = "tile_" + String(it["id"]).replace(":", "_")
 	b.custom_minimum_size = TILE
 	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = "%s: click to place it (one undo step)" % it["name"]
+	b.tooltip_text = ("%s: click to give it to him" if m.easy.on else "%s: click to place it (one undo step)") % it["name"]
 	b.set_meta("item", it["id"])
 	b.pressed.connect(place.bind(String(it["id"])))
 	var v := VBoxContainer.new()

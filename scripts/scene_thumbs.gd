@@ -34,6 +34,8 @@ var _ptex := {}           # pose key -> ImageTexture (the strip's cards)
 var _pq: Array = []       # [key, pose] waiting for a draw or a disk read
 var _pbusy := false
 var _drawing := false     # the one stage draws one picture at a time (scenes and poses share it)
+var _cam: Camera3D        # the stage's camera: aimed at each picture's own body (_aim)
+const FRAME_VER := "f2"   # the picture's framing: f2 = aimed at the body's root (f1 framed the origin: a walk's first cards fell off the edge); the cache keys carry it
 
 
 func _ready() -> void:
@@ -53,7 +55,7 @@ static func pick_card(cards: Array) -> int:
 
 
 static func cache_path(sha: String) -> String:
-	return "%s/%s.png" % [DIR, sha]
+	return "%s/%s_%s.png" % [DIR, FRAME_VER, sha]   # the framing version is in the name: an old picture is never read back
 
 
 ## the scene's picture if it is at hand: from memory, or read from the disk cache (no draw). Otherwise the file is
@@ -132,7 +134,7 @@ func _pump() -> void:
 ## so a card that is moved, renamed, retimed or duplicated never draws again; only an Update (a new pose) does. Drawn one
 ## per frame like the scene pictures, after the frame that asked, so a rebuild of the strip never waits for them.
 static func pose_key(pose: Dictionary) -> String:
-	return JSON.stringify(pose, "", true).sha256_text()
+	return (JSON.stringify(pose, "", true) + "|" + FRAME_VER).sha256_text()
 
 
 ## the picture of this pose if it is at hand (memory), else null
@@ -196,6 +198,7 @@ func draw_pose(pose: Dictionary) -> Image:
 	_drawing = true
 	_stage()
 	_tb.from_dict(pose)
+	_aim()
 	Overlays.pose_skeleton(_sk, _idx, _tb)
 	await _frame()
 	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):
@@ -251,7 +254,8 @@ func _stage() -> void:
 	cam.near = 0.05
 	cam.far = 20.0
 	_vp.add_child(cam)
-	cam.look_at_from_position(PoseLibrary.CAM_AT + (PoseLibrary.CAM_FROM - PoseLibrary.CAM_AT), PoseLibrary.CAM_AT)
+	_cam = cam
+	_aim()
 	cam.current = true
 	var skin := StandardMaterial3D.new()
 	skin.albedo_color = PoseLibrary.SKIN
@@ -261,6 +265,15 @@ func _stage() -> void:
 	_idx = mq[2]
 	_tb = Body.new()
 	_tb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+
+
+## the camera looks at the body where it stands: its root (the hips' offset, x and z) moves with the walk, so a card
+## standing 3.9 m back is framed as well as the one at the origin (the same view direction, only shifted)
+func _aim() -> void:
+	if _cam == null or _tb == null:
+		return
+	var c := Vector3(_tb.offset.x, PoseLibrary.CAM_AT.y, _tb.offset.z)
+	_cam.look_at_from_position(c + (PoseLibrary.CAM_FROM - PoseLibrary.CAM_AT), c)
 
 
 ## draw one scene's picture: its strike (or middle) card posed on the mannequin, saved to the cache under its hash
@@ -283,6 +296,7 @@ func _render(path: String) -> void:
 		picked[path] = pick_into(d as Dictionary, _tb)
 	else:
 		_tb.from_dict((cards[i] as Dictionary)["pose"])
+	_aim()
 	Overlays.pose_skeleton(_sk, _idx, _tb)
 	await _frame()
 	if not is_inside_tree() or _vp == null or not is_instance_valid(_vp):

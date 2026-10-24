@@ -10,6 +10,11 @@
 ##    no partial file is left (the .json nor the .progress), the card count and the undo count are as before, the scene is
 ##    the same, the status line says "Stopped. Nothing was changed.", and the bar is hidden
 ##  7 a second copy after that cancel still succeeds (>= 2 cards, playing)
+##  8 the copy's undo step is named "Copied video" (the Undo button's word and the status line after Undo)
+##  9 while the tracker reads, the top bar's line and the status line say "Reading your video: N %"
+## 10 during the copy the "What should he do?" picker is hidden, and exactly one Cancel is on screen
+## 11 a clip with the feet out of frame (cut at the bottom): the tracker loses both legs and the status line says so, once
+## 2b a whole-body clip (the fixture) gets no such caution
 extends SceneTree
 
 const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
@@ -44,6 +49,38 @@ func wait_copy(limit := 3000) -> bool:
 	return seen
 
 
+## the copy with its screen read every frame: the top bar's line and the status line while the tracker reads (the first
+## line with a "%"), whether the picker was on screen, and the most visible Cancel buttons seen at once
+func watch_copy(path: String) -> Dictionary:
+	var w := {"seen": false, "bar": "", "status": "", "picker": false, "cancels": 0}
+	var home: EasyHome = m.easy.home
+	home.copy_video_file(path)
+	for i in 3000:
+		if home._vid_busy:
+			var st := String(m.ui_status.text)
+			if st.contains("%"):
+				w["seen"] = true
+			if m._video_pid >= 0 and st.contains("%") and String(w["status"]) == "":
+				w["status"] = st
+				w["bar"] = String(m._imp_lbl.text)
+			if home.shown() == "panel":
+				w["picker"] = true
+			w["cancels"] = maxi(int(w["cancels"]), visible_cancels(root))
+		if not home._vid_busy:
+			break
+		await process_frame
+	return w
+
+
+func visible_cancels(n: Node) -> int:
+	var c := 0
+	if n is Button and (n as Button).text == "Cancel" and n.is_visible_in_tree():
+		c = 1
+	for ch in n.get_children():
+		c += visible_cancels(ch)
+	return c
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -58,25 +95,36 @@ func _init() -> void:
 	await idle(3)
 	var home: EasyHome = m.easy.home
 
-	# 1 the More entry, and the bar is still 7 buttons
-	ok("Copy a video" in m.easy.more_labels() and m.easy.labels().size() == 7,
+	# 1 the More entry, and the bar is still 7 buttons (+ Redo, the 8th: shown only after an Undo); Copy is not on the bar
+	ok("Copy a video" in m.easy.more_labels() and m.easy.labels().size() == 8 and "Redo" in m.easy.labels() and not ("Copy a video" in m.easy.labels()),
 		"1 More has \"Copy a video\" (%d entries); the bar has %d buttons (bar 7)" % [m.easy.more_labels().size(), m.easy.labels().size()])
 
 	# 2 the copy: >= 2 cards, the clip plays at once
 	var n0: int = m.S.cards.size()
 	var clip := ProjectSettings.globalize_path(CLIP)
-	home.copy_video_file(clip)
-	var saw := await wait_copy()
+	var w := await watch_copy(clip)
+	var saw: bool = w["seen"]
 	var c1: int = m.S.cards.size()
 	await idle(3)
 	ok(c1 >= 2 and m.playing and home.shown() == "strip" and String(m.ui_status.text).begins_with("Copied"),
 		"2 copied %s: %d cards (bar >= 2), playing %s, shown %s, status: \"%s\"" % [CLIP.get_file(), c1, m.playing, home.shown(), m.ui_status.text])
 	print("   progress sentence seen on the status line while it ran: %s" % saw)
+	ok(not String(m.ui_status.text).contains("outside the video"), "2b whole-body clip: no limb caution on the status line (\"%s\")" % m.ui_status.text)
+
+	# 9 the progress words while the tracker read: the top bar and the status line, the same Easy sentence
+	var prog_ok := String(w["status"]).begins_with("Reading your video: ") and String(w["status"]).ends_with(" %")
+	ok(prog_ok and String(w["bar"]) == String(w["status"]),
+		"9 while it read: status \"%s\", top bar \"%s\" (Easy's words, the same line on both)" % [w["status"], w["bar"]])
+
+	# 10 the picker is hidden during the copy, and one Cancel is on screen (the bar's)
+	ok(not bool(w["picker"]) and int(w["cancels"]) == 1,
+		"10 during the copy: picker shown %s (want hidden), visible Cancel buttons at most %d (want 1)" % [w["picker"], w["cancels"]])
 
 	# 4 one Undo gives back the count before the copy
 	m._undo()
 	await idle(3)
 	ok(m.S.cards.size() == n0 and c1 != n0, "4 one Undo: %d cards (before the copy: %d)" % [m.S.cards.size(), n0])
+	ok(String(m.ui_status.text) == "Took back: Copied video", "8 Undo names the copy \"Copied video\": status \"%s\"" % m.ui_status.text)
 
 	# 3a a missing file
 	home.copy_video_file(MISSING)
@@ -162,6 +210,27 @@ func _init() -> void:
 	await idle(3)
 	ok(m.S.cards.size() >= 2 and m.playing and String(m.ui_status.text).begins_with("Copied"),
 		"7 second copy after the cancel: %d cards, playing %s, status: \"%s\"" % [m.S.cards.size(), m.playing, m.ui_status.text])
+
+	# 11 a clip with both feet out of frame (the bottom 40 % cut off, made by ffmpeg into user:// and deleted; skipped if no ffmpeg)
+	var cut := "user://zz_cut_feet_easyvid.webm"
+	var cut_g := ProjectSettings.globalize_path(cut)
+	var fcut := []
+	var rc_cut := OS.execute("ffmpeg", ["-v", "error", "-y", "-i", ProjectSettings.globalize_path(CLIP), "-vf", "crop=iw:ih*0.6:0:0",
+		"-c:v", "libvpx", "-b:v", "400k", cut_g], fcut, true)
+	if rc_cut == 0 and FileAccess.file_exists(cut):
+		var wc := await watch_copy(cut_g)
+		await idle(3)
+		var cap := String(m.ui_status.text)
+		var head := "Part of him was outside the video, so his "   # the limbs the tracker lost name it: legs, arms, or both
+		var tail := " may look wrong: drag it to fix it."
+		var at := cap.find(head)
+		ok(at > 0 and cap.ends_with(tail) and cap.count(head) == 1 and cap.substr(at).length() > head.length() + tail.length()
+			and m.S.cards.size() >= 2 and m.playing,
+			"11 feet out of frame: status \"%s\" (want the caution once, after the copy's sentence)" % cap)
+	else:
+		print("skip 11: ffmpeg could not make the cut clip (exit %d)" % rc_cut)
+	if FileAccess.file_exists(cut):
+		DirAccess.remove_absolute(cut_g)
 
 	m.easy.set_on(false, false)
 	root.content_scale_size = was_size

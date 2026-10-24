@@ -172,6 +172,29 @@ func _init() -> void:
 	ok(m.S.cards.is_empty() and m.scene_path == "" and cards_new > 0 and not m._unsaved(),
 		"11 New, then Don't save: a new empty scene; nothing unsaved (before: %d cards)" % cards_new)
 
+	# 11b: the dialog's own Don't save button (not the signal): the scene is emptied, and the status says so, not "kept open"
+	m._load_scene("res://scenes/combo3.json")
+	m._rebuild_cards()
+	await idle()
+	edit(m)
+	await idle()
+	m._new_asked()
+	await idle()
+	var dont: Button = null
+	for b in m.ui_save_ask.find_children("*", "Button", true, false):
+		if (b as Button).text == "Don't save":
+			dont = b
+	ok(dont != null and asking(m), "11b the save dialog shows its Don't save button")
+	if dont != null:
+		dont.pressed.emit()
+	await idle()
+	ok(dont != null and m.S.cards.is_empty() and not String(m.ui_status.text).contains("kept open") and not String(m.ui_status.text).begins_with("Save changes"),
+		"11b Don't save on New (the button): the scene is emptied and the status says so, not 'kept open' or the question (status: %s)" % m.ui_status.text)
+	m.ui_save_ask.canceled.emit()   # the dialog's own close after the button: it is not a Cancel of the answered question
+	await idle()
+	ok(not String(m.ui_status.text).contains("kept open") and m.S.cards.is_empty(),
+		"11b a late canceled after Don't save does not say 'kept open' (status: %s)" % m.ui_status.text)
+
 	# New with nothing unsaved: no dialog
 	m._new_asked()
 	await idle()

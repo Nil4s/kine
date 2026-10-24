@@ -4229,7 +4229,7 @@ func _library_toggle() -> void:
 		ui_root.add_child(ui_library)
 		ui_library.setup(self, WEAPONS)
 	ui_library.open()
-	_say("object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
+	_say("Click a picture to give it to him." if easy != null and easy.on else "object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
 
 
 func _reactions_samples() -> void:
@@ -5235,6 +5235,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_num_text = ""   # each drag types afresh
 					_push_undo()
 					undo[-1]["name"] = "Drag " + nice(j)   # ROADMAP 45: the drag's step is named by what it moved
+					if easy.on:
+						undo[-1]["easy"] = "Move " + easy_part(j)   # Easy's Undo: "Undo: Move hand", not "Drag left wrist .."
 					_tree.set_name(_tree.cur, undo[-1]["name"])
 					_undo_tips()
 					_group_press(j, mb.ctrl_pressed, mb.position)
@@ -5302,7 +5304,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					var r := GripMagnet.drag(B, sel, _grab)   # NA6: the one full fit, on release (the drag was quick)
 					_after_edit()
 					if r != "free":
-						_say("the %s %s the %s" % [nice(sel), {"snap": "holds", "held": "holds", "let go": "let go of"}[r], B.wep_kind.replace("_", " ")])
+						_say(_grip_said(r, sel))
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
 			if was == "joint":
@@ -7658,7 +7660,7 @@ func _iq_prints_draw() -> void:
 		add_child(_iq_mesh)
 	var im := _iq_mesh.mesh as ImmediateMesh
 	im.clear_surfaces()
-	if clean or not iq_show or S == null or S.iq.is_empty():
+	if clean or not iq_show or S == null or S.iq.is_empty() or (easy != null and easy.on):   # EASY: no foot pads on a beginner's body
 		return
 	for f in iq_prints():
 		var pts: Array = f["pts"]
@@ -7689,7 +7691,7 @@ func _foot_plant_draw() -> void:
 		add_child(_fp_line)
 	var im := _fp_line.mesh as ImmediateMesh
 	im.clear_surfaces()
-	if clean or S == null or S.plants.is_empty():
+	if clean or S == null or S.plants.is_empty() or (easy != null and easy.on):   # EASY: no foot footprints either (the feet stay as they are)
 		return
 	var t := clampf(playhead, 0.0, S.length())
 	for f in FootPlant.footprint(B, S.plants, t, S.fps):
@@ -8530,6 +8532,7 @@ func _kmesh_edit_start() -> void:
 	if kmed.on:
 		_say("The test cube is already open: click an element, or press Esc to leave")
 		return
+	_mesh_page_for("MODEL")
 	kmed.start()
 
 
@@ -8572,6 +8575,7 @@ func _sculpt_start() -> void:
 		return
 	if kmed != null and kmed.on:
 		kmed.stop()   # the test cube is still open (its box select takes every left press first): the sphere gets the strokes
+	_mesh_page_for("SCULPT")
 	ksc.start()
 
 
@@ -10158,7 +10162,7 @@ func _kind(k: String) -> void:
 	elif not B.wep_on:
 		B.weapon_to_hand("hand_r")
 	sel = "bat_handle"
-	_say({"metal_bat": "metal bat (84 cm)", "staff": "staff / bo (180 cm): slide your hand along it with , and .  and put the other hand on with G, [ ]",
+	_say(easy_holds(k) if easy != null and easy.on else {"metal_bat": "metal bat (84 cm)", "staff": "staff / bo (180 cm): slide your hand along it with , and .  and put the other hand on with G, [ ]",
 		"long_hammer": "long hammer (110 cm, steel head across the tip): G for both hands, [ ] to slide the other hand",
 		"long_axe": "long axe (1.2 m haft, a Dane axe's): G for both hands, [ ] to slide the other hand. Import a video now and he holds it in both",
 		"sword": "arming sword (92 cm, one hand, 1.1 kg)",
@@ -10386,6 +10390,16 @@ func _undo_tips() -> void:
 static func _step_label(u: Dictionary) -> String:
 	var n := String(u.get("name", u.get("hint", "change")))
 	return n.left(1).to_upper() + n.substr(1)
+
+
+## EASY: a joint's everyday word for Easy's undo names: hand, arm, foot, leg, head or body
+static func easy_part(j: String) -> String:
+	for w in [["hand", "hand"], ["thumb", "hand"], ["index", "hand"], ["middle", "hand"], ["ring", "hand"], ["pinky", "hand"], ["lowerarm", "arm"], ["elbow", "arm"],
+			["upperarm", "arm"], ["shoulder", "arm"], ["clav", "arm"], ["ball", "foot"], ["toe", "foot"], ["foot", "foot"],
+			["calf", "leg"], ["knee", "leg"], ["thigh", "leg"], ["head", "head"], ["neck", "head"]]:
+		if j.contains(w[0]):
+			return w[1]
+	return "body"
 
 
 ## EASY: the short name of a step for Easy's Undo button and toast: the Easy name it was made with, else its own name; at most 18 characters
@@ -13272,7 +13286,32 @@ var _pl_card := -1     # the card at the playhead (marked on the strip)
 ## Easy's card line: the card's name with a capital and the rest as typed ("CROSS" -> "Cross", "guard" -> "Guard")
 func _easy_card_name(n: String) -> String:
 	var t := String(n).strip_edges()
+	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
+		return EASY_CARD_NAME[t.to_lower()]
 	return t.substr(0, 1).to_upper() + t.substr(1).to_lower() if t != "" else "Card"
+
+
+const EASY_CARD_NAME := {"load": "Wind up", "cross": "Punch", "recover": "Back to guard"}
+const EASY_WEAPON := {"sword": "a sword", "longsword": "a longsword", "katana": "a katana", "metal_bat": "a bat", "staff": "a staff",
+	"long_hammer": "a hammer", "long_axe": "an axe", "spear": "a spear", "dagger": "a dagger", "two_daggers": "two daggers"}
+
+
+## the word on a drag that put the second hand on the weapon (GripMagnet.drag's r): the hand that KEEPS the weapon is named
+## (the one it is in), a let-go names the hand that let go. Easy says "his left / right hand" in plain words
+func _grip_said(r: String, sel_h: String) -> String:
+	if easy != null and easy.on:
+		var keep := "left" if B.wep_hand == "hand_l" else "right"
+		if r == "let go":
+			var let := "left" if sel_h == "hand_l" else "right"
+			return "His %s hand let go. His %s hand still holds the sword." % [let, keep]
+		return "His %s hand holds the sword." % keep
+	var holder := sel_h if r == "let go" else B.wep_hand
+	return "the %s %s the %s" % [nice(holder), {"snap": "holds", "held": "holds", "let go": "let go of"}[r], B.wep_kind.replace("_", " ")]
+
+
+## Easy's line for a weapon put in his hand: no weight, no length, no key names
+static func easy_holds(key: String) -> String:
+	return "He holds %s now. Undo takes it away." % EASY_WEAPON.get(key, "it")
 
 
 ## "0.4 s + hold 0.05": the time to get here (a ~ when it is automatic) and the hold; the first card has only a hold
@@ -14067,6 +14106,13 @@ func _page_set(p: String, save := true) -> void:
 ## MESH PAGES (Expert only): the posing overlays (inspector, part tag, joint dots, target dummy) stay off on MODEL / SCULPT / SURFACE
 func _mesh_page() -> bool:
 	return ExpertPages.PAGES.has(cur_page) and not (easy != null and easy.on)
+
+
+## a mesh opened from a posing page (the search box, a shortcut): its own page first, so the posing browser and inspector
+## step aside and the mesh panels have the left column (a cube opened on POSE drew its primitive panel over the browser)
+func _mesh_page_for(p: String) -> void:
+	if not _mesh_page() and not (easy != null and easy.on) and ui_page_btns.has(p):
+		_page_set(p)
 
 
 func _mesh_open() -> bool:
@@ -15527,6 +15573,8 @@ func _retimed(rebuild := true) -> void:
 func _timeline_pick(i: int) -> void:
 	_card_pick(i)
 	await get_tree().process_frame
+	ui_card_row.queue_sort()   # after a rebuild the strip's scroll range can stay 0 (no re-sort comes): sort it again, so the
+	await get_tree().process_frame   # scroll below can reach the card (else ensure_control_visible clamps to 0)
 	var pc := ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
 	if pc != null:
 		(ui_cards.get_parent() as ScrollContainer).ensure_control_visible(pc)
@@ -17734,9 +17782,11 @@ func _ask_save(what: String, then: Callable, quitting := false) -> void:
 
 ## how = "save" | "discard" | "cancel" (the dialog's buttons, and what a test calls)
 func _save_ask_choose(how: String) -> void:
-	ui_save_ask.hide()
+	if not _save_ask_then.is_valid():   # already answered: a late canceled (the dialog's own close after a button) is not a Cancel
+		return
 	var then := _save_ask_then
 	_save_ask_then = Callable()
+	ui_save_ask.hide()
 	if how == "cancel" or not then.is_valid():
 		_say("kept open: the scene stays as it is (Save scene keeps your work)")
 		return
@@ -17745,6 +17795,7 @@ func _save_ask_choose(how: String) -> void:
 		_autosave_drop()   # the work goes: no Recover offer for it next start
 		if journal_on:
 			journal.trim()
+		_say("Don't save: the changes are thrown away")   # the question's words must not stay on the status line (said first: the action's own words follow)
 		then.call()
 		return
 	if save_hook.is_valid():
@@ -20371,6 +20422,7 @@ func _import_land(res: Dictionary, src: String, held: String) -> String:
 		n += 1
 	if _land_undo != "":   # Easy's Copy a video: the scene as it is now is the one undo step (a whole-scene swap, as Easy's cards)
 		_step_hint = _land_undo
+		_step_easy = EasyMode.EASY_MORE.get(_land_undo, "") if easy != null and easy.on else ""   # Easy names it "Copied video"
 		_push_undo()
 		undo[-1]["swap"] = true
 		_land_undo = ""

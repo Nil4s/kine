@@ -8,7 +8,8 @@ extends SceneTree
 ##   5 the hint (the top centre of the clear view): shown on MODEL / SCULPT / SURFACE with no mesh open, gone once one is open
 ##   6 the posing overlays (inspector, part tag, joint dots, target dummy) are off on the mesh pages, back exactly on POSE
 ##   7 the panels of MODEL do not overlap (browser, primitive panel, materials, modifiers, inspector, hint; 1 px tolerance)
-##     at 1600x900 and 1280x720, the cube open and closed; 7b the browser back on POSE exactly as before
+##     at 1600x900 and 1280x720, the cube open and closed, Materials at FULL content (4 slots, its rect at least its
+##     minimum height); 7b the browser back on POSE exactly as before
 ## Script errors are checked by the runner's log scan (a SCRIPT ERROR line fails the suite).
 var fails := 0
 func ok(c: bool, w: String) -> void:
@@ -228,11 +229,16 @@ func _init() -> void:
 		var closed := _visible_panels(m)
 		button(m, "MODEL", "Test cube").pressed.emit()
 		await idle(4)
+		# Materials at FULL content: 4 slots (a populated list, the fields of the picked slot), not the empty default
+		while m.kmed.mat_panel.ui.mesh.materials.size() < 4:
+			m.kmed.mat_panel.add_slot()
+		await idle(4)
 		var opened := _visible_panels(m)
 		var c_clash := _clashes(closed)
 		var o_clash := _clashes(opened)
+		var mat_full: bool = opened.has("mat") and (opened["mat"] as Rect2).size.y >= m.kmed.mat_panel.get_combined_minimum_size().y - 1.0
 		ok(c_clash.is_empty() and o_clash.is_empty() and closed.has("hint") and not closed.has("browser")
-			and opened.has("prim") and opened.has("mat") and opened.has("mods") and not opened.has("browser") and not opened.has("inspector"),
+			and opened.has("prim") and opened.has("mat") and opened.has("mods") and not opened.has("browser") and not opened.has("inspector") and mat_full,
 			"7a at %dx%d on MODEL: cube open %s, clashes %s; cube closed %s, clashes %s" % [sz.x, sz.y, opened.keys(), o_clash, closed.keys(), c_clash])
 		m.kmed.stop()
 		await idle(2)
@@ -245,6 +251,19 @@ func _init() -> void:
 	root.content_scale_size = was_scale
 	root.content_scale_mode = was_mode
 	await idle(4)
+
+	# 8 a cube opened from a posing page (the search box): the MODEL page comes with it (the browser steps aside)
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	if m.kmed != null and m.kmed.on:
+		m.kmed.stop()
+		await idle(2)
+	m._kmesh_edit_start()
+	await idle(3)
+	ok(m.cur_page == "MODEL" and not m.ui_side_of["left"].visible, "8 Test cube from POSE opens the MODEL page (page %s, browser shown %s)" % [m.cur_page, m.ui_side_of["left"].visible])
+	m.kmed.stop()
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
 
 	# 4 Easy mode hides the three pages
 	m.easy.set_on(true, false)

@@ -18,7 +18,8 @@
 ##     puts the assignment back; a slider drag (drag_started, 5 values, drag_ended on the panel's own slider) is ONE step
 ##     and its undo puts the roughness back exactly; Select gives the faces of a slot (count = its count)
 ##   6 E15: from_photo points albedo / roughness / normal maps at user://materials/<name>/{albedo,rough,normal}.png
-##   7 PLACEMENT: with the UI shown the panel is visible, wholly inside the window and inside the clear view rect, and its
+##   7 PLACEMENT: with the UI shown the panel is visible, wholly inside the window and inside the clear view rect (or docked
+##     in the right column, wholly right of it: Nick 2026-10-24), and its
 ##     rect does not overlap the Add primitive panel's rect (nor the heat legend's when it is on); the S search box
 ##     (opened over the view) draws on top of it
 extends SceneTree
@@ -239,8 +240,11 @@ func _init() -> void:
 	var pp_r := ui.prim_panel.get_global_rect()
 	var lg_r := ui.legend.get_global_rect() if ui.legend != null and ui.legend.visible else Rect2()
 	var cl: Rect2 = m.nav_clear_rect()
-	ok(pan.visible and pan.is_visible_in_tree() and vr.encloses(pr_r) and cl.grow(1.0).encloses(pr_r) and pr_r.size.x > 100 and pr_r.size.y > 100,
-		"7a the panel is on screen %s, inside the window %s and the clear view %s" % [pr_r, vr, cl])
+	# Nick 2026-10-24: the panel may sit inside the clear view OR docked in the right column (wholly right of the clear
+	# view, covering none of it)
+	var docked := pr_r.position.x >= cl.end.x - 1.0
+	ok(pan.visible and pan.is_visible_in_tree() and vr.encloses(pr_r) and (cl.grow(1.0).encloses(pr_r) or docked) and pr_r.size.x > 100 and pr_r.size.y > 100,
+		"7a the panel is on screen %s, inside the window %s and inside the clear view %s or docked right of it (%s)" % [pr_r, vr, cl, docked])
 	ok(ui.prim_panel.visible and not pr_r.intersects(pp_r) and (lg_r.size == Vector2.ZERO or not pr_r.intersects(lg_r)),
 		"7b it does not overlap the Add primitive panel %s (nor the heat legend %s)" % [pp_r, lg_r])
 	(await shot()).save_png(OS.get_environment("TMP").path_join("pbrmat_ui.png") if OS.get_environment("TMP") != "" else DIR + "/pbrmat_ui.png")

@@ -74,6 +74,23 @@ func idle(n := 4) -> void:
 		await process_frame
 
 
+## the words of a line that are size, weight, key or jargon (the Easy bar's rule for its own hints)
+func plain_bad(t: String) -> Array:
+	var out := []
+	for w in ["cm", "kg", "Ctrl+Z", "arming"]:
+		if t.find(w) >= 0:
+			out.append(w)
+	return out
+
+
+## a word typed in capitals (CROSS, RECOVER): two or more letters, all upper case
+func has_caps_word(t: String) -> bool:
+	for w in t.split(" ", false):
+		if w.length() >= 2 and w == w.to_upper() and w != w.to_lower():
+			return true
+	return false
+
+
 ## the words on the Easy bar's Undo button (its child Label, as easy_mode._big builds it)
 func undo_words() -> String:
 	var b: Button = m.easy.button("Undo")
@@ -120,6 +137,105 @@ func teach_lines() -> Array:
 	return out
 
 
+## OVERLAP (Nick's beginner walk-through): in Easy the library panel, the picker, the welcome line, the status line, the
+## save toast, the card strip and the Easy top bar never overlap one another, and all sit inside the window, at 1600x900 and 1280x720
+const OVERLAP_SIZES := [Vector2i(1600, 900), Vector2i(1280, 720)]
+const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast"]
+const OVERLAP_WANT := {   # the panels each state must show (so an empty screen cannot pass)
+	"picker": ["picker panel"], "picker + toast": ["picker panel", "save toast"],
+	"library": ["library panel"], "library + toast": ["library panel", "save toast"],
+	"strip": ["picker strip", "card strip"], "strip + toast": ["picker strip", "save toast"],
+}
+
+
+## the global rects of what is on screen in Easy: [name, rect] for each visible item with content
+func easy_rects() -> Array:
+	var out := []
+	var cands := [
+		["easy top bar", m.easy.bar, true],
+		["library panel", m.ui_library, m.ui_library != null and m.ui_library.visible],
+		["picker panel", m.easy.home.panel, true],
+		["picker strip", m.easy.home.strip, true],
+		["welcome line", m.ui_mouse, m.ui_mouse.visible and m.ui_mouse.shown_text() != ""],
+		["status line", m.ui_status, m.ui_status.text != ""],
+		["readout", m.ui_bar, m.ui_bar.text != ""],
+		["save toast", m.easy.home._toast, true],
+		["card strip", m.ui_cards, true],
+	]
+	for c in cands:
+		var n: Control = c[1]
+		if c[2] and is_instance_valid(n) and n.is_visible_in_tree() and n.size.x > 0.0 and n.size.y > 0.0:
+			out.append([c[0], n.get_global_rect()])
+	return out
+
+
+## the pairs of rects that share an area (a 1 px edge touch does not count)
+func overlap_pairs(rects: Array) -> Array:
+	var bad := []
+	for i in rects.size():
+		for j in range(i + 1, rects.size()):
+			var x: Rect2 = rects[i][1].intersection(rects[j][1])
+			if x.size.x > 1.0 and x.size.y > 1.0:
+				bad.append("%s x %s" % [rects[i][0], rects[j][0]])
+	return bad
+
+
+## the names of the rects that reach past the window's edge
+func outside_window(rects: Array, win: Vector2) -> Array:
+	var out := []
+	for r in rects:
+		var q: Rect2 = r[1]
+		if q.position.x < -0.5 or q.position.y < -0.5 or q.end.x > win.x + 0.5 or q.end.y > win.y + 0.5:
+			out.append(r[0])
+	return out
+
+
+## one state of the overlap bar: the scene and the panels the state names, then settled
+func overlap_set(st: String) -> void:
+	m._new_scene()
+	await idle(4)
+	if m.ui_library == null:   # made on its first open (the easy_overlap suite runs this bar first)
+		m._library_toggle()
+		await idle(2)
+	m.ui_library.hide_panel()
+	if st.begins_with("strip"):
+		m.easy.home.card(0)
+		var t := 0
+		while m.easy.home.shown() != "strip" and t < 300:
+			await process_frame
+			t += 1
+	if st.begins_with("library"):
+		m.ui_library.open()
+	m.easy.home._toast.visible = false
+	if st.ends_with("toast"):
+		m.easy.home._show_toast("Your video is saved: punch_169.mp4", "C:/Users/Nick/Videos/Kine/punch_169.mp4")
+	m._say_plain("Sword picked up: it is in his right hand now. Undo takes it back.")
+	await idle(8)
+
+
+## sizes: the window sizes to measure. Embedded (run_par's host window) a test cannot resize its window, so easy_mode
+## measures the size it has; tests/easy_overlap_test.gd (a TOPLEVEL window suite) measures both OVERLAP_SIZES
+func overlap_bar(sizes: Array = OVERLAP_SIZES) -> void:
+	var win0: Vector2i = m.get_window().size
+	for sz in sizes:
+		m.get_window().size = sz
+		await idle(8)
+		for st in OVERLAP_STATES:
+			await overlap_set(st)
+			var rects := easy_rects()
+			var names := rects.map(func(r): return r[0])
+			var miss: Array = OVERLAP_WANT[st].filter(func(w): return not (w in names))
+			var bad := overlap_pairs(rects)
+			var out := outside_window(rects, Vector2(m.get_viewport().get_visible_rect().size))
+			var geo := rects.map(func(r): return "%s %s" % [r[0], str(Rect2i(r[1]))])
+			ok(miss.is_empty() and bad.is_empty() and out.is_empty(),
+				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing); rects %s" % [sz.x, sz.y, st,
+				str(bad), str(out), str(miss), str(geo)])
+	m.get_window().size = win0
+	m.ui_library.hide_panel()
+	await idle(4)
+
+
 func _init() -> void:
 	# 1. the rule, from in-memory settings (no window needed for this part)
 	var cf := ConfigFile.new()
@@ -137,6 +253,16 @@ func _init() -> void:
 	await idle(3)
 	ok(m.easy != null and not m.easy.on, "a test starts in Expert (no key in its own settings file)")
 	ok(cfg_mode() == "", "and writes no mode into its settings file at start")
+	if (get_script() as Script).resource_path.get_file() == "easy_overlap_test.gd":   # the window suite: only the overlap bar, at both sizes
+		m.easy.set_on(true, false)
+		await idle(4)
+		await overlap_bar()
+		m.easy.set_on(false, false)
+		await idle(4)
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
+		print("EASY OVERLAP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+		quit(fails)
+		return
 
 	# 2. Expert before anything: remember every panel's visibility, then check Easy hides exactly those
 	m._new_scene()
@@ -150,9 +276,9 @@ func _init() -> void:
 	var bts: Array = m.easy.labels()
 	var shown: Array = []
 	for n in m.easy.bar.find_children("*", "Button", true, false):
-		if n.get_meta("label", "") != "":
+		if n.get_meta("label", "") != "" and n.visible:   # Redo is on the bar only while something can be put back (checked below)
 			shown.append(n.get_meta("label"))
-	ok(shown.size() == 7 and LABELS.all(func(l): return l in shown) and bts.size() == 7, "Easy shows exactly the 7 labelled buttons: %s" % str(shown))
+	ok(shown.size() == 7 and LABELS.all(func(l): return l in shown) and bts.size() == 8, "Easy shows exactly the 7 labelled buttons (Redo is the 8th, hidden with nothing to redo): %s" % str(shown))
 	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube %s" % str(range(panels().size()).filter(func(i): return panels()[i].visible)))
 	ok(m.ui_bp.visible, "the bottom panel (timeline and cards) stays: the tour and Play need it")
 	ok(m.lw() == 0.0 and m.rw() == 0.0, "the body view takes the room the hidden side panels had")
@@ -221,6 +347,15 @@ func _init() -> void:
 	m.easy.pick_more("Save this pose as a card")
 	await idle()
 	ok(m.S.cards.size() == n0 + 2, "a second card: two are needed to play")
+	# REDO ON THE BAR (Easy): after an Undo a visible Redo control, named as Undo is; one press puts the step back; it hides when nothing is left
+	m.easy.button("Undo").pressed.emit()
+	await idle()
+	var rbtn: Button = m.easy.button("Redo")
+	ok(rbtn.visible and m.S.cards.size() == n0 + 1, "Easy: after Undo the bar shows Redo (visible %s, %d cards)" % [str(rbtn.visible), m.S.cards.size()])
+	ok((rbtn.get_node("label") as Label).text.begins_with("Redo: "), "Easy: the Redo button is named as Undo is (%s)" % (rbtn.get_node("label") as Label).text)
+	rbtn.pressed.emit()
+	await idle()
+	ok(m.S.cards.size() == n0 + 2 and not rbtn.visible, "Easy: one press on Redo restores the step (%d cards) and Redo hides with nothing left" % m.S.cards.size())
 	m._pose_words("raise the right arm 90")
 	await idle()
 	var body_before := JSON.stringify(m.B.state())
@@ -275,6 +410,35 @@ func _init() -> void:
 	m.easy.tour_start()
 	await idle()
 	ok(m.easy.tour_step == 0 and m.easy.tour_card.visible, "the tour starts at step 1 and its card is on screen")
+	# 4a. the tour card is READABLE and out of the body's way: its text and Skip are on screen with a size, inside the
+	# window, the text colour is not the card's own colour, and the card's rect does not cover the body's screen rect
+	var tc: PanelContainer = m.easy.tour_card
+	var tt: Label = m.easy._tour_title
+	var tx: Label = m.easy._tour_text
+	var sk: Button = tc.find_child("easy_tour_skip", true, false)
+	var vp := Rect2(Vector2.ZERO, get_root().get_visible_rect().size)
+	ok(tt.is_visible_in_tree() and tx.is_visible_in_tree() and sk.is_visible_in_tree(),
+		"4a the tour's step label, text and Skip button are visible in the tree")
+	ok(tt.size.x > 0 and tt.size.y > 0 and tx.size.x > 0 and tx.size.y > 0 and sk.size.x > 0 and sk.size.y > 0,
+		"4a the step label, text and Skip have a size (%s, %s, %s)" % [str(tt.size), str(tx.size), str(sk.size)])
+	ok(vp.encloses(tt.get_global_rect()) and vp.encloses(tx.get_global_rect()) and vp.encloses(sk.get_global_rect()) and vp.encloses(tc.get_global_rect()),
+		"4a the tour card, its text and Skip lie inside the window (card %s)" % str(tc.get_global_rect()))
+	var bg: Color = (tc.get_theme_stylebox("panel") as StyleBoxFlat).bg_color
+	ok(tx.get_theme_color("font_color") != bg and tt.get_theme_color("font_color") != bg,
+		"4a the tour's text colour differs from the card's background (text %s, card %s)" % [str(tx.get_theme_color("font_color")), str(bg)])
+	ok(sk.get_global_rect().get_center().x > 0 and sk.mouse_filter != Control.MOUSE_FILTER_IGNORE and vp.has_point(sk.get_global_rect().get_center()),
+		"4a the Skip button takes a click, centred on the window")
+	var body_r := Rect2()
+	var body_first := true
+	for pt in Turntable.points(m.B):
+		var wp: Vector3 = pt[0]
+		if m.cam.is_position_behind(wp):
+			continue
+		var sp: Vector2 = m.cam.unproject_position(wp)
+		body_r = Rect2(sp, Vector2.ZERO) if body_first else body_r.expand(sp)
+		body_first = false
+	ok(not body_first and not body_r.intersects(tc.get_global_rect()),
+		"4a the tour card does not cover the body's screen rect (body %s, card %s)" % [str(body_r), str(tc.get_global_rect())])
 	m.easy.pick_more("Save this pose as a card")
 	await idle()
 	ok(m.easy.tour_step == 0, "step 1 (drag a hand) does not move on for a Save-the-pose press")
@@ -354,11 +518,41 @@ func _init() -> void:
 			lim.append(j)
 	ok(not lim.is_empty(), "the Punch card puts a body part at its joint limit (so the bar below has something to check): %s" % str(lim))
 	ok(lim.all(func(j): return m.skin_col(j).a == 0.0), "Easy: no body part has the limit tint (%s)" % str(lim))
+	# FOOT PADS AND THE RED (Easy playback): the video's footprint pads are not drawn; a red spot on the body gets its one line
+	m.S.iq = {"contacts": [{"part": "foot_r", "kind": "foot", "x": 0.0, "z": 0.0, "yaw": 0.0, "t0": 0.0, "t1": m.S.length()}]}
+	m._check()
+	await idle(3)
+	m._refresh()
+	await idle(2)
+	var pads := 0
+	if m._iq_mesh != null:
+		pads += (m._iq_mesh.mesh as ImmediateMesh).get_surface_count()
+	if m._fp_line != null:
+		pads += (m._fp_line.mesh as ImmediateMesh).get_surface_count()
+	ok(pads == 0, "Easy playback of the Punch card: no foot pad or footprint is drawn (%d surfaces)" % pads)
+	if m.redspots.spots.is_empty():   # the Punch card has no problem Check glows: one FAIL on the hips at mid-clip, so the line has a red to explain
+		m.redspots.set_findings([{"rule": "HIPS TURN", "sev": "FAIL", "msg": "the hips turn too fast", "t": m.S.length() * 0.5}])
+	var t_keep: float = m.playhead
+	var lit_t := -1.0   # the first frame (every 3rd) where Check's red spot is on the body: the line must show there
+	for k in range(0, int(m.S.length() * m.S.fps) + 1, 3):
+		m.playhead = float(k) / float(m.S.fps)
+		m._refresh()
+		if not m.redspots.last.is_empty():
+			lit_t = m.playhead
+			break
+	var red_lit: bool = lit_t >= 0.0
+	m.playhead = lit_t if red_lit else t_keep
+	m._refresh()
+	await idle(2)
+	ok(not red_lit or m.easy.red_note.visible, "Easy: a red spot on the body is said in one line (red lit at %.2f s: %s, line shown: %s)" % [lit_t, str(red_lit), str(m.easy.red_note.visible)])
+	ok(red_lit or not m.easy.red_note.visible, "Easy: no red spot at the playhead, no red line (lit: %s)" % str(red_lit))
 	m.easy.set_on(false, false)
 	await idle(12)
 	m._refresh()
 	await idle(2)
 	ok(lim.any(func(j): return m.skin_col(j).a > 0.0), "Expert: the limit tint shows on the same body (the check above can see it)")
+	ok(m._iq_mesh != null and (m._iq_mesh.mesh as ImmediateMesh).get_surface_count() > 0, "Expert: the foot pad shows (the check above can see it)")
+	ok(not m.easy.red_note.visible, "Expert: no Easy red line")
 	ok(card_lines() == x_lines, "Expert switch: every card line is the old text again (%d lines)" % x_lines.size())
 	ok(absf(m.ui_bp.size.y - x_h) < 0.5, "Expert switch: the bottom panel is its old height (%d px -> %d px)" % [int(x_h), int(m.ui_bp.size.y)])
 	m.easy.set_on(true, false)
@@ -412,6 +606,16 @@ func _init() -> void:
 	await idle(6)
 	ok(placed and m.undo.size() == u0 + 1, "6: a library Sword is one undo step (%d -> %d steps; id '%s')" % [u0, m.undo.size(), sword_id])
 	ok(undo_words() == "Undo: Sword", "6: after a library Sword the Undo button reads 'Undo: Sword' (%s)" % undo_words())
+	# a drag's undo is named in everyday words: "Undo: Move hand", not "Drag left wrist / h.."
+	m._library_toggle()
+	await idle(3)
+	m.playing = false
+	await drag("hand_l")
+	await idle(6)
+	ok(undo_words() == "Undo: Move hand", "6: after dragging a hand the Undo button reads 'Undo: Move hand' (%s)" % undo_words())
+	m.easy.button("Undo").pressed.emit()
+	await idle(6)
+	ok(m.ui_status.text.begins_with("Took back: Move hand"), "6: its toast says 'Took back: Move hand' (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(4)
 	ok(undo_words() == "Undo", "6: undoing the Sword leaves nothing to undo: 'Undo' (%s)" % undo_words())
@@ -465,6 +669,71 @@ func _init() -> void:
 	await fresh_start(false)
 	lines = teach_lines()
 	ok(not m.easy.on and lines.size() == 1 and lines[0] == m.WELCOME, "9: an Expert fresh start still shows the Expert welcome: %s" % str(lines))
+
+	# 10. THE PLAIN WORDS (a beginner's walk-through): the sword's place line and the library's line have no size, weight,
+	# key or jargon; the drag's hand is the hand that holds the sword; the Punch card's strip names are plain words
+	m.easy.set_on(true, false)
+	await idle(6)
+	if m.ui_library != null and m.ui_library.visible:
+		m.ui_library.hide_panel()
+	m._library_toggle()
+	await idle(2)
+	var lib_open := plain_bad(m.ui_status.text)
+	ok(lib_open.is_empty(), "10: Easy's library line has none of cm / kg / Ctrl+Z / arming (%s)" % str(lib_open))
+	if m.B.wep_on:
+		m._bat_remove()
+		await idle(2)
+	m._kind("sword")
+	await idle(2)
+	var sword_said: String = m.ui_status.text
+	var sword_bad := plain_bad(sword_said)
+	ok(sword_bad.is_empty() and sword_said != "", "10: Easy's sword place line has none of cm / kg / Ctrl+Z / arming: '%s' %s" % [sword_said, str(sword_bad)])
+	var sid := ""
+	for it in m.ui_library.items:
+		if String(it["name"]).to_lower() == "sword":
+			sid = String(it["id"])
+	ok(sid != "", "10: the library lists a Sword tile")
+	if sid != "":
+		m.ui_library.place(sid)
+		await idle(2)
+	var tile_note: String = m.ui_library._note.text
+	var note_bad := plain_bad(tile_note)
+	ok(note_bad.is_empty(), "10: Easy's library hint after a sword tile has none of cm / kg / Ctrl+Z / arming: '%s' %s" % [tile_note, str(note_bad)])
+	# a left-hand drag onto the sword that is in the right hand: the hint names the hand that holds it (his right)
+	m._kind("sword")
+	await idle(2)
+	ok(m.B.wep_hand == "hand_r", "10: the sword is in his right hand before the drag (%s)" % m.B.wep_hand)
+	m.sel = "hand_l"
+	m.dragging = "joint"
+	m._grab = m.B.wep_point(m.B.wep_handle * 0.5)
+	btn(false, Vector2(10, 10))
+	await idle(3)
+	var drag_said: String = m.ui_status.text
+	ok(drag_said.to_lower().find("right hand") >= 0 and drag_said.find("wrist") < 0 and drag_said.find("left hand holds") < 0,
+		"10: the drag's hint names the hand that holds the sword (his right): '%s'" % drag_said)
+	# the Punch card's strip names: plain words, no all-caps word, the names of the card as they are
+	m.easy.home.card(3)
+	await idle(12)
+	var p_names := []
+	for k in card_lines():
+		if k.ends_with("/b_pick"):
+			p_names.append(card_lines()[k])
+	var p_caps := p_names.filter(func(t): return has_caps_word(String(t)))
+	var p_want := ["Guard", "Wind up", "Punch", "Back to guard"]
+	var p_sorted := p_names.duplicate()
+	p_sorted.sort()
+	var p_want_sorted := p_want.duplicate()
+	p_want_sorted.sort()
+	ok(p_caps.is_empty() and p_sorted == p_want_sorted, "10: the Punch card's strip names are plain words, in sentence case: %s (all caps: %s)" % [str(p_names), str(p_caps)])
+	m.easy.set_on(false, false)
+	await idle(6)
+
+	# 11. the overlap bar: Easy's panels, toast and lines, at the window's own size (both sizes: the easy_overlap suite)
+	m.easy.set_on(true, false)
+	await idle(4)
+	await overlap_bar([m.get_window().size])
+	m.easy.set_on(false, false)
+	await idle(4)
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("EASY MODE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
