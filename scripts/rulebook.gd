@@ -73,7 +73,6 @@ const WHY := {
 	"COUPLED LIMIT": "Some muscles cross two joints: a straight knee keeps the hamstrings long, so a straight-leg kick cannot go as high as a bent-knee one. Past that, only a trained body (a gymnast, a dancer) does it.",
 	"WEIGHT TRANSFER": "A strike is thrown from the legs: a cross pushes off the back foot, a kick needs the other foot holding him before it leaves. Started from the wrong foot, it reads as an arm swing, or as a kick that should topple him.",
 	"TRUNK LEAN": "The trunk leans off a kick to balance it, but only so far: past what fighters are measured at, the back looks broken or he looks about to fall.",
-	"ASSERT": "Someone wrote this down as something the motion must do. It no longer does: an edit broke it, or it never held."
 	"ASSERT": "Someone wrote this down as something the motion must do. It no longer does: an edit broke it, or it never held.",
 	"BODY ACCEL": "The whole body cannot start, stop or turn faster than the legs can push it: past the best sprinters and cutters it reads as pulled on a wire. And nothing pulls a body down faster than gravity.",
 }

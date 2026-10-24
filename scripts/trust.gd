@@ -27,8 +27,6 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
 	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
 	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd", "TrunkLean": "res://scripts/trunk_lean.gd", "SmartDrag": "res://scripts/smart_drag.gd",
-	"OuchMeter": "res://scripts/ouch_meter.gd"}
-	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd",
 	"OuchMeter": "res://scripts/ouch_meter.gd",
 	"BodyCaps": "res://scripts/body_caps.gd"}
 
