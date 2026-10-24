@@ -13280,12 +13280,20 @@ func _rebuild_cards() -> void:
 		var easy_on: bool = easy != null and easy.on   # Easy: a picture and one plain word (the name); no number, no seconds
 		var nb := _button(_easy_card_name(c["name"], i) if easy_on else "%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
-		nb.tooltip_text = ("%s.  Click shows it, double-click renames, drag moves it, right-click for more" % _easy_card_name(c["name"], i)) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
+		nb.tooltip_text = ("%s  (%s).  Click shows it, double-click renames, drag moves it, right-click for more" % [_easy_card_name(c["name"], i), c["name"]]) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
 		nb.flat = true
 		nb.clip_text = true
 		nb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		nb.add_theme_font_size_override("font_size", 11)
+		if easy_on and c.has("from") and nb.get_combined_minimum_size().x > CARD_W:   # a plain name too wide for its card: smaller type first, then "<Move> <n>"
+			var fs := 11
+			while fs > 8 and nb.get_combined_minimum_size().x > CARD_W:
+				fs -= 1
+				nb.add_theme_font_size_override("font_size", fs)
+			if nb.get_combined_minimum_size().x > CARD_W:
+				nb.remove_theme_font_size_override("font_size")
+				nb.text = _easy_move_label(i)
 		nb.add_theme_constant_override("icon_max_width", CARD_W - 8)
 		nb.add_theme_constant_override("h_separation", 0)
 		nb.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -13399,6 +13407,8 @@ var _pl_card := -1     # the card at the playhead (marked on the strip)
 ## Easy's card line: the card's name with a capital and the rest as typed ("CROSS" -> "Cross", "guard" -> "Guard")
 func _easy_card_name(n: String, i := -1) -> String:
 	var t := String(n).strip_edges()
+	if i >= 0 and i < S.cards.size() and S.cards[i].has("from") and easy_is_jargon(t):   # a move's jargon name ("Anticipation: load"): "<Move> <n>" by its place in the move's run
+		return _easy_move_label(i)
 	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy shows its place in the strip
 		return "Pose %d" % (i + 1)
 	if i >= 0 and t.to_lower().begins_with("pose ") and t.substr(5).strip_edges().is_valid_int():   # "pose 3" (a new card's name): its place in the strip, so a card added between two reads right
@@ -13414,6 +13424,34 @@ func _easy_card_name(n: String, i := -1) -> String:
 static var EASY_CODE_NAME := RegEx.create_from_string("^(mid|off|air|land|swing|half step|step|stop)\\b")
 
 
+## EASY: a card's own name is animator jargon when it has a ":" or starts with a phase word (the template's and TextBlocking's)
+static func easy_is_jargon(n: String) -> bool:
+	var t := n.strip_edges().to_lower()
+	if t.find(":") >= 0:
+		return true
+	for w in ["ready", "anticipation", "strike", "follow-through", "recovery", "contact", "settle"]:
+		if t.begins_with(w):
+			return true
+	return false
+
+
+## EASY: "<Move> <n>" for a card of a move: n is its place in the move's run (consecutive cards with the same tag)
+func _easy_move_label(i: int) -> String:
+	var tag := String(S.cards[i]["from"])
+	var k := 1
+	var j := i - 1
+	while j >= 0 and S.cards[j].get("from", "") == tag:
+		k += 1
+		j -= 1
+	return "%s %d" % [easy_from_word(tag), k]
+
+
+## EASY: the word for a card's move tag ("punch|<serial>", "roundhouse|<serial>", "jab|<serial>"): the move in plain words
+static func easy_from_word(tag: String) -> String:
+	var t := tag.split("|")[0].strip_edges().to_lower().replace(" ", "_")
+	return EASY_MOVE_WORD.get(t, t.substr(0, 1).to_upper() + t.substr(1))
+
+
 ## EASY: the move a scene is named for, in plain words: its name without the copy number ("run 68", "run_2" -> "Run");
 ## "Move" when the name is not a move's (a scene the user named)
 static func easy_move_word(scene_name: String) -> String:
@@ -13421,7 +13459,7 @@ static func easy_move_word(scene_name: String) -> String:
 	return EASY_MOVE_WORD.get(base.replace(" ", "_"), "Move")
 
 
-const EASY_MOVE_WORD := {"walk": "Walk", "run": "Run", "jump": "Jump", "punch": "Punch", "sword_swing": "Sword swing",
+const EASY_MOVE_WORD := {"walk": "Walk", "run": "Run", "jump": "Jump", "punch": "Punch", "sword_swing": "Sword",
 	"sit_down": "Sit down", "wave": "Wave", "fall": "Fall", "roundhouse": "Kick"}
 const EASY_CARD_NAME := {"load": "Wind up", "cross": "Punch", "recover": "Back to guard"}
 const EASY_WEAPON := {"sword": "a sword", "longsword": "a longsword", "katana": "a katana", "metal_bat": "a bat", "staff": "a staff",
