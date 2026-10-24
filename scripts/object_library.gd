@@ -202,8 +202,9 @@ func place(id: String) -> bool:
 	m._step_hint = "Library: %s" % it["name"]
 	var how: String = it["how"]
 	if how == "weapon":
-		m._do(m._two_daggers if it["key"] == "two_daggers" else m._kind.bind(it["key"]))
-		_note.text = "%s: right hand, Ctrl+Z undoes" % it["name"]
+		var pick: Callable = m._two_daggers if it["key"] == "two_daggers" else m._kind.bind(it["key"])
+		m._do(func(): pick.call(); arm_cards(m.S, m.B))
+		_note.text = "%s: right hand%s, Ctrl+Z undoes" % [it["name"], " in every card" if not m.S.cards.is_empty() else ""]
 		return true
 	if how == "prop":
 		m._prop_add(String(it["key"]))   # main pushes its own undo step, as the Add prop menu does
@@ -219,6 +220,29 @@ func place(id: String) -> bool:
 		return false
 	_note.text = "%s placed over the body (Ctrl+Z takes it back)" % it["name"]
 	return true
+
+
+## the weapon the body holds now into EVERY card of the scene: a card is the whole pose (Scene.put turns the weapon off on a
+## card without one), so a weapon picked on the body alone vanished as soon as the clip played (the monkey test: "give him a
+## sword" while the punch plays). Each card keeps its own pose; the weapon rides in its hand. The body is left as it was
+static func arm_cards(S: Scene, B: Body) -> void:
+	if S.cards.is_empty():
+		return
+	var held := PoseBake.held_of(B)
+	var keep := B.state()
+	for c in S.cards:
+		Scene.put(B, Moves._flat(c["pose"]))
+		var s0 := B._state0()
+		s0.merge(held, true)
+		B._set_state0(s0)
+		var d := B.to_dict()
+		c["pose"]["weapon"] = d["weapon"]
+		if d.has("weapon2"):
+			c["pose"]["weapon2"] = d["weapon2"]
+		else:
+			(c["pose"] as Dictionary).erase("weapon2")
+	B.set_state(keep)
+	B.fk()
 
 
 func _item(cat: String, nm: String, how: String, key: String, shapes: Array, id: String) -> Dictionary:

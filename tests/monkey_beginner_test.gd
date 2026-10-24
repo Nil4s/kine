@@ -193,9 +193,8 @@ func _init() -> void:
 
 	# 4. "give him a sword": Easy's Library, the Weapons tab, the Sword tile. Ends with the sword in his right hand
 	begin()
-	var stopped := false
-	if m.playing:   # a beginner stops the clip before picking a weapon (not measured: whether a pick during play sticks)
-		stopped = await press("Play / Stop")
+	var stopped := false   # a beginner does not stop the clip first: the pick is made WHILE the punch plays, and must stick
+	var was_playing: bool = m.playing
 	var lib := await press("Library")
 	var tab := await press("Weapons", true)
 	var sword := await press("Sword")
@@ -203,7 +202,21 @@ func _init() -> void:
 	ok(lib and tab and sword and held, "4. the Sword tile puts a sword in his right hand (on: %s, kind: %s, hand: %s)" % [str(m.B.wep_on), m.B.wep_kind, m.B.wep_hand])
 	await idle(10)
 	var kept: bool = m.B.wep_on and m.B.wep_kind == "sword"
-	ok(kept, "4. the sword is still in his hand 10 frames later (on: %s)" % str(m.B.wep_on))
+	# the sword rides in the hand through the whole clip: the knob's distance from the wrist is the same on every frame (1 cm)
+	var ride := -1.0
+	if held and not m.S.cards.is_empty():
+		var d0 := -1.0
+		ride = 0.0
+		var L: float = m.S.length()
+		for q in 9:
+			m.S.apply(m.B, L * float(q) / 8.0)
+			var kn: Array = m.B.to_dict()["weapon"].get("knob", [0, 0, 0])
+			var d: float = Vector3(kn[0], kn[1], kn[2]).distance_to(m.B.P["hand_r"])
+			if d0 < 0.0:
+				d0 = d
+			ride = maxf(ride, absf(d - d0))
+	ok(ride >= 0.0 and ride <= 0.01 and m.B.wep_on, "4. through the clip the sword stays in the hand: the knob-to-wrist distance varies %.2f cm (bar 1)" % [ride * 100.0])
+	ok(kept, "4. the sword is still in his hand 10 frames later (on: %s; the clip was playing at the pick: %s, still playing: %s)" % [str(m.B.wep_on), str(was_playing), str(m.playing)])
 	if not lib:
 		blocked("4 give him a sword", "no visible 'Library' button in Easy")
 	elif not tab:

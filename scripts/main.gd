@@ -3746,6 +3746,14 @@ func _bake_scenes() -> Array:
 
 var _bake_rr := 0
 
+## the body a baked scene plays on (the hero's, or that fighter's)
+func _bake_body(sc: Scene) -> Body:
+	for a in actors_rt:
+		if a["S"] == sc:
+			return a["B"]
+	return B
+
+
 func _bake_poll() -> void:
 	var t0 := Time.get_ticks_usec()
 	var live := _bake_scenes()
@@ -3767,10 +3775,10 @@ func _bake_poll() -> void:
 			continue
 		if sc_s.baker == null:
 			sc_s.baker = PoseBake.new()
-			sc_s.baker.start(sc_s, playhead, horizon)
+			sc_s.baker.start(sc_s, playhead, horizon, PoseBake.held_of(_bake_body(sc_s)))
 		elif edited or not playing or _bake_rr % live.size() == i:
-			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon:
-				sc_s.baker.start(sc_s, playhead, horizon)   # the content changed: the old table is dropped, a new bake starts at the playhead
+			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon or sc_s.baker.held_at != PoseBake.held_of(_bake_body(sc_s)):
+				sc_s.baker.start(sc_s, playhead, horizon, PoseBake.held_of(_bake_body(sc_s)))   # the content changed: the old table is dropped, a new bake starts at the playhead
 	bake_sigs_ms = (Time.get_ticks_usec() - t0) / 1000.0
 
 
