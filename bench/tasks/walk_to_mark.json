@@ -1,0 +1,28 @@
+{
+ "id": "walk_to_mark",
+ "kind": "walk",
+ "brief": "Walk forward from a standing start (about 3.85 m, five steps or so) and stop, feet together, in front of the person standing ahead: head within 1.1 m of his head (surface to surface) by 4.9 s, never closer than 50 cm.",
+ "start": "bench/start/walk_to_mark.json",
+ "notes": "Fighter 2 stands still facing the hero. The walk template (templates/walk.json) is one way: its note cites step length 0.415 of height and cadence 105 steps/min. 30 fps.",
+ "asserts": [
+  {
+   "line": "fighter 1 head at most 110 cm from fighter 2 head at 4.9 s +-6 f",
+   "w": 2
+  },
+  {
+   "line": "fighter 1 head at least 50 cm from fighter 2 head all clip",
+   "w": 1
+  },
+  {
+   "line": "left foot planted 4.5-4.9 s",
+   "w": 1
+  },
+  {
+   "line": "right foot planted 4.5-4.9 s",
+   "w": 1
+  }
+ ],
+ "judges": {
+  "must_fix": 0
+ }
+}

@@ -1,0 +1,14 @@
+{
+ "id": "kick_roundhouse",
+ "kind": "kick",
+ "brief": "A right roundhouse kick: the hips turned at least 60 deg to the left at impact, the shin landing on the target's hips at 0.7 s, the left foot planted.",
+ "start": "bench/start/kick_roundhouse.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps. 'Hips turned' is the pelvis joint's twist (+ = to his left).",
+ "asserts": [
+  {"line": "right shin touches fighter 2 hips at 0.7 s +-2 f", "w": 3},
+  {"line": "pelvis twist above 60 deg at 0.7 s +-2 f", "w": 2},
+  {"line": "left foot planted all clip", "w": 1},
+  {"line": "right knee below 40 deg bend at 0.7 s +-2 f", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

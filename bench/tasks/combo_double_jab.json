@@ -1,0 +1,16 @@
+{
+ "id": "combo_double_jab",
+ "kind": "combo",
+ "brief": "Jab, jab, cross: two left jabs that land on the target's head at 0.5 s and 0.85 s, the hand coming back to the guard between them, then a right cross on the chin at about 1.38 s; both feet stay planted.",
+ "start": "bench/start/combo_double_jab.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps.",
+ "asserts": [
+  {"line": "left fist touches fighter 2 head at 0.5 s +-2 f", "w": 2},
+  {"line": "left fist touches fighter 2 head at 0.85 s +-2 f", "w": 2},
+  {"line": "left fist at least 10 cm from fighter 2 head at 0.7 s +-1 f", "w": 1},
+  {"line": "right fist touches fighter 2 chin at 1.38 s +-3 f", "w": 2},
+  {"line": "left foot planted all clip", "w": 1},
+  {"line": "right foot planted all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

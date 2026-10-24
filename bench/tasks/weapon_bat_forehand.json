@@ -1,0 +1,13 @@
+{
+ "id": "weapon_bat_forehand",
+ "kind": "weapon",
+ "brief": "A forehand metal-bat swing from the ready stance whose tip lands on the head of the standing target at about 2.07 s, with a swing a human arm can actually drive (the WEAPON judge) and nothing Check must fix.",
+ "start": "bench/start/weapon_bat_forehand.json",
+ "notes": "The bat is in the hand from the start. Fighter 2 stands where the reference's tip lands. The WEAPON judge (scripts/weapon_torque.gd) reads the torque the wrist and shoulder must give against measured human maxima (wrist 14.9 N m, shoulder 77.2 N m: docs/physics_constants.md) and wants a wind-up and a follow-through. 30 fps.",
+ "asserts": [
+  {"line": "weapon tip touches fighter 2 head at 2.07 s +-6 f", "w": 2},
+  {"line": "weapon tip speed over 3 m/s at 2.07 s +-6 f", "w": 1},
+  {"line": "fighter 2 head at least 10 cm from fighter 1 weapon tip 0-1.5 s", "w": 1}
+ ],
+ "judges": {"must_fix": 0, "named": [{"judge": "WEAPON", "min_sub": 1.0, "need": true}]}
+}

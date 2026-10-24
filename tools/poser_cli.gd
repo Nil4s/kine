@@ -80,6 +80,8 @@
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
 ##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
 ##                                 path = open it first (as open)
+##   bench {list} | {task} | {task, score}  N024 Kine-Bench (scripts/kine_bench.gd): the 20 graded tasks; one task's brief, start
+##                                 scene and rules; {score: true} grades the live scene: per-assertion pass/fail, judge bars, 0-100
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree

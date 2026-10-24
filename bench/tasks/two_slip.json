@@ -1,0 +1,14 @@
+{
+ "id": "two_slip",
+ "kind": "two-fighter",
+ "brief": "Fighter 2 throws a right cross that lands on your head at 0.8 s if you stay in the guard; slip it: move the head off the line in time so the fist never comes within 5 cm of it, staying balanced with the feet planted.",
+ "start": "bench/start/two_slip.json",
+ "notes": "Fighter 2 plays the punch template's cross (templates/punch.json) facing the hero, placed so the fist meets the guard's head at 0.8 s. 30 fps.",
+ "asserts": [
+  {"line": "fighter 2 right fist at least 5 cm from fighter 1 head all clip", "w": 3},
+  {"line": "com inside the feet all clip", "w": 1},
+  {"line": "left foot planted all clip", "w": 1},
+  {"line": "right foot planted all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

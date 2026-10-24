@@ -1,0 +1,12 @@
+{
+ "id": "fall_side",
+ "kind": "fall",
+ "brief": "A side fall from the guard: drop low and roll back onto the right side, so the hip side and the back take the landing and the Breakfall check passes.",
+ "start": "bench/start/fall_side.json",
+ "notes": "The Breakfall check (scripts/breakfall.gd) judges the landing (HEURISTIC thresholds named there); its spread rule counts the hip side only when the body has rolled over (the thighs' axis over 30 deg from the floor). The pelvis 'side' angle is its roll; negative rolls the body to its right.",
+ "asserts": [
+  {"line": "com inside the feet 0-0.2 s", "w": 1},
+  {"line": "pelvis side below -20 deg at 1.5 s +-9 f", "w": 2}
+ ],
+ "judges": {"named": [{"judge": "BREAKFALL", "min_sub": 1.0, "need": true}]}
+}

@@ -1,0 +1,14 @@
+{
+ "id": "kick_front_belly",
+ "kind": "kick",
+ "brief": "A right front kick that reaches the target's belly at 0.7 s, the left foot planted the whole time, back to the guard by the end.",
+ "start": "bench/start/kick_front_belly.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps. Orthodox guard: the right leg is the rear leg.",
+ "asserts": [
+  {"line": "right foot touches fighter 2 belly at 0.7 s +-2 f", "w": 3},
+  {"line": "right knee below 45 deg bend at 0.7 s +-2 f", "w": 1},
+  {"line": "left foot planted all clip", "w": 2},
+  {"line": "right foot at least 40 cm from fighter 2 belly at 0.2 s", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

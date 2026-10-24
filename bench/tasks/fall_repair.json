@@ -1,0 +1,12 @@
+{
+ "id": "fall_repair",
+ "kind": "fall",
+ "brief": "REPAIR: the start scene is a backward fall done untrained (head carried upright, hands kept in the guard); make it a fall the Breakfall check passes, with the chin tucked at the landing (about 1.0 s).",
+ "start": "bench/start/fall_repair.json",
+ "notes": "The Breakfall check (scripts/breakfall.gd) judges the landing: head clear and chin tucked (neck + head flexion 25 deg or more), no locked arm catching, the impact spread over arm / back / hip side, the first touch under 2.5 m/s (HEURISTIC thresholds named in that file). Its fix buttons (tuck, slap, roll, lower) are one way.",
+ "asserts": [
+  {"line": "neck_01 bend above 15 deg at 1.0 s +-6 f", "w": 2},
+  {"line": "com inside the feet 0-0.2 s", "w": 1}
+ ],
+ "judges": {"named": [{"judge": "BREAKFALL", "min_sub": 1.0, "need": true}]}
+}
