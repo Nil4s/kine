@@ -6,6 +6,8 @@
 ##  3. The click -> the first frame the clip plays is under 2000 ms for each card that builds (the builder time is printed).
 ##  4. One Ctrl+Z after a card gives back the empty scene (one undo step per card).
 ##  5. Typing "jab then cross" builds 2 strikes (the cards are the two single strikes, in order).
+##  5b. Typing "walk", "jump", "walk then wave", "jump then kick", "sit down then fall" in the box builds >= 2 cards, no "can't build".
+##  5c. Typing "dance" builds nothing, and its sentence names the cards' moves (never one Kine cannot build).
 ##  6. The panel fits inside the window at 1280x720 (its rect is inside the visible viewport).
 ##  8. The Library opened over the empty scene hides the panel; Close brings it back.
 ##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
@@ -162,6 +164,26 @@ func _init() -> void:
 	ok(not m.S.cards.is_empty() and home.shown() == "strip", "5. typed 'jab then cross' builds a clip and the panel shrinks to the strip (shown: %s)" % home.shown())
 	ok(home.strip.find_child("eh_again", true, false) != null and home.strip.find_child("eh_change", true, false) != null and home.strip.find_child("eh_save", true, false) == null,
 		"the strip has Again and Change it; Save video is on the Easy bar only (one button per label)")
+
+	# 5b. the typed box builds a card's word alone or in a chain ("walk then wave"), the same moves as the cards: no "can't build"
+	for t in ["walk", "jump", "walk then wave", "jump then kick", "sit down then fall"]:
+		m._new_scene()
+		await idle(2)
+		edit.text = t
+		edit.text_submitted.emit(t)
+		await idle(2)
+		var said: String = m.ui_status.text + " " + (home.panel.find_child("eh_msg", true, false) as Label).text
+		ok(m.S.cards.size() >= 2 and not "can't build" in said,
+			"5b. typed '%s' builds %d cards and never says \"can't build\" (says: '%s')" % [t, m.S.cards.size(), said.strip_edges()])
+	# 5c. a word Kine cannot build builds nothing, and its sentence names only what Kine accepts (the cards' words, then strikes)
+	m._new_scene()
+	await idle(2)
+	edit.text = "dance"
+	edit.text_submitted.emit("dance")
+	await idle(2)
+	var why := (home.panel.find_child("eh_msg", true, false) as Label).text
+	ok(m.S.cards.is_empty() and why.begins_with("Kine can't build 'dance'") and why.contains("sit down") and why.contains("fall") and not why.contains("walks, runs"),
+		"5c. typed 'dance' builds nothing and says what Kine knows (says: '%s')" % why)
 
 	# 6. the panel fits the window at 1280x720 (the empty scene's panel)
 	m._new_scene()
