@@ -104,8 +104,15 @@ func _init() -> void:
 	if ff != "" and mp4 != "":
 		var size := FileAccess.get_file_as_bytes(mp4).size() if FileAccess.file_exists(mp4) else 0
 		ok(size > 0, "2. the video the message names exists and is > 0 bytes (%d bytes: %s)" % [size, mp4.get_file()])
-		ok(home._toast.visible and toast == "Your video is saved: %s" % mp4.get_file(),
-			"2. the done message reads 'Your video is saved: <file name>': '%s'" % toast)
+		# ITEM 4: the done message names the file AND its folder on a second line ("Videos > Kine > run_68_<stamp>"), home shortened
+		var fl := String(home.folder_line(mp4)) if home.has_method("folder_line") else "(no folder_line)"
+		var want := "Your video is saved: %s
+%s" % [mp4.get_file(), fl]
+		var said_ok: bool = home._toast.visible and toast == want and fl != "" and not fl.contains("C:/")
+		ok(said_ok, "2. the done message reads 'Your video is saved: <file name>' and the folder on a second line: '%s' (expected '%s')" % [toast, want])
+		# the folder line of a saved video under the user's Videos/Kine: home shortened, no C:/Users path, the timestamped folder last
+		var rel: String = home.folder_line("C:/Users/Nick/Videos/Kine/run_68_20261024_114713/run_68.mp4", "C:/Users/Nick") if home.has_method("folder_line") else ""
+		ok(rel == "Videos > Kine > run_68_20261024_114713", "2. the folder line shortens the home folder: 'Videos > Kine > run_68_20261024_114713' (got '%s')" % rel)
 	else:
 		ok(String(home.last_video.get("dir", "")) != "" and home._toast.visible and toast.begins_with("Could not make the video here"),
 			"2. no ffmpeg: the message says the video could not be made and the frames are kept: '%s'" % toast)

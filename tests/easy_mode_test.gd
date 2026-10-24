@@ -5,6 +5,7 @@
 extends SceneTree
 
 const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "More", "Switch to Expert"]   # the bar (7)
+const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const MORE := ["Save this pose as a card", "Move his arms and legs", "Redo", "Open a saved scene", "Copy a video", "Save the scene", "Flip left and right", "Put his feet on the floor"]
 
 var fails := 0
@@ -91,10 +92,14 @@ func has_caps_word(t: String) -> bool:
 	return false
 
 
-## the words on the Easy bar's Undo button (its child Label, as easy_mode._big builds it)
+## the step's name on the Easy bar's Undo button. The button's LABEL is always "Undo" (a beginner finds it again each step);
+## the name is its TOOLTIP ("Undo: Walk"). A label that is not "Undo" returns "label reads ..", which no name check accepts.
 func undo_words() -> String:
 	var b: Button = m.easy.button("Undo")
-	return String(b.get_node("label").text) if b != null else "?"
+	if b == null:
+		return "?"
+	var lab := String((b.get_node("label") as Label).text)
+	return b.tooltip_text if lab == "Undo" else "label reads '%s'" % lab
 
 
 func panels() -> Array:
@@ -140,11 +145,12 @@ func teach_lines() -> Array:
 ## OVERLAP (Nick's beginner walk-through): in Easy the library panel, the picker, the welcome line, the status line, the
 ## save toast, the card strip and the Easy top bar never overlap one another, and all sit inside the window, at 1600x900 and 1280x720
 const OVERLAP_SIZES := [Vector2i(1600, 900), Vector2i(1280, 720)]
-const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast"]
+const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast", "picker + redo toast", "strip + redo toast"]
 const OVERLAP_WANT := {   # the panels each state must show (so an empty screen cannot pass)
 	"picker": ["picker panel"], "picker + toast": ["picker panel", "save toast"],
 	"library": ["library panel"], "library + toast": ["library panel", "save toast"],
 	"strip": ["picker strip", "card strip"], "strip + toast": ["picker strip", "save toast"],
+	"picker + redo toast": ["picker panel", "redo toast"], "strip + redo toast": ["picker strip", "card strip", "redo toast"],
 }
 
 
@@ -160,6 +166,7 @@ func easy_rects() -> Array:
 		["status line", m.ui_status, m.ui_status.text != ""],
 		["readout", m.ui_bar, m.ui_bar.text != ""],
 		["save toast", m.easy.home._toast, true],
+		["redo toast", m.ui_toast, m.ui_toast != null and m.ui_toast.visible],
 		["card strip", m.ui_cards, true],
 	]
 	for c in cands:
@@ -207,10 +214,41 @@ func overlap_set(st: String) -> void:
 	if st.begins_with("library"):
 		m.ui_library.open()
 	m.easy.home._toast.visible = false
-	if st.ends_with("toast"):
+	if m.ui_toast != null:   # made on its first toast (main._toast)
+		m.ui_toast.visible = false
+	if st.ends_with("+ toast"):
 		m.easy.home._show_toast("Your video is saved: punch_169.mp4", "C:/Users/Nick/Videos/Kine/punch_169.mp4")
+	if st.ends_with("redo toast"):
+		m._toast("Redid: Move hand")   # the Redo toast (main's _toast), as Ctrl+Y and the Easy More menu's Redo show it
 	m._say_plain("Sword picked up: it is in his right hand now. Undo takes it back.")
 	await idle(8)
+
+
+## ITEM 1 (walk-through): a toast in Easy covers no visible Button. Each shown toast's global rect is checked against every
+## visible Button under the window (a 1 px edge touch does not count). Returns the names of the toasts that cover one
+func toast_over_buttons() -> Array:
+	var bad := []
+	var toasts := {"redo toast": m.ui_toast, "save toast": m.easy.home._toast}
+	for nm in toasts:
+		var t: Control = toasts[nm]
+		if t == null or not t.is_visible_in_tree():
+			continue
+		var btns := []
+		_visible_buttons(m, btns, t)   # the toast's own buttons (Open folder, Got it) are part of it, not a button it covers
+		for b in btns:
+			var x: Rect2 = t.get_global_rect().intersection(b)
+			if x.size.x > 1.0 and x.size.y > 1.0:
+				bad.append("%s over a button at %s" % [nm, str(Rect2i(b))])
+	return bad
+
+
+func _visible_buttons(n: Node, out: Array, skip: Node) -> void:
+	if n == skip:
+		return
+	if n is Button and (n as Button).is_visible_in_tree() and (n as Button).size.x > 0.0:
+		out.append((n as Control).get_global_rect())
+	for c in n.get_children():
+		_visible_buttons(c, out, skip)
 
 
 ## sizes: the window sizes to measure. Embedded (run_par's host window) a test cannot resize its window, so easy_mode
@@ -228,9 +266,10 @@ func overlap_bar(sizes: Array = OVERLAP_SIZES) -> void:
 			var bad := overlap_pairs(rects)
 			var out := outside_window(rects, Vector2(m.get_viewport().get_visible_rect().size))
 			var geo := rects.map(func(r): return "%s %s" % [r[0], str(Rect2i(r[1]))])
-			ok(miss.is_empty() and bad.is_empty() and out.is_empty(),
-				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing); rects %s" % [sz.x, sz.y, st,
-				str(bad), str(out), str(miss), str(geo)])
+			var over := toast_over_buttons()
+			ok(miss.is_empty() and bad.is_empty() and out.is_empty() and over.is_empty(),
+				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing), no toast over a button (%s); rects %s" % [sz.x, sz.y, st,
+				str(bad), str(out), str(miss), str(over), str(geo)])
 	m.get_window().size = win0
 	m.ui_library.hide_panel()
 	await idle(4)
@@ -352,7 +391,7 @@ func _init() -> void:
 	await idle()
 	var rbtn: Button = m.easy.button("Redo")
 	ok(rbtn.visible and m.S.cards.size() == n0 + 1, "Easy: after Undo the bar shows Redo (visible %s, %d cards)" % [str(rbtn.visible), m.S.cards.size()])
-	ok((rbtn.get_node("label") as Label).text.begins_with("Redo: "), "Easy: the Redo button is named as Undo is (%s)" % (rbtn.get_node("label") as Label).text)
+	ok((rbtn.get_node("label") as Label).text == "Redo" and rbtn.tooltip_text.begins_with("Redo: "), "Easy: the Redo button reads 'Redo' and its tooltip names the step (label '%s', tooltip '%s')" % [(rbtn.get_node("label") as Label).text, rbtn.tooltip_text])
 	rbtn.pressed.emit()
 	await idle()
 	ok(m.S.cards.size() == n0 + 2 and not rbtn.visible, "Easy: one press on Redo restores the step (%d cards) and Redo hides with nothing left" % m.S.cards.size())
@@ -443,6 +482,15 @@ func _init() -> void:
 		"4a the tour's text colour differs from the card's background (text %s, card %s)" % [str(tx.get_theme_color("font_color")), str(bg)])
 	ok(sk.get_global_rect().get_center().x > 0 and sk.mouse_filter != Control.MOUSE_FILTER_IGNORE and vp.has_point(sk.get_global_rect().get_center()),
 		"4a the Skip button takes a click, centred on the window")
+	# 4a+ (walk-through item 3): the Skip button reads "Skip tour" and is a normal-size button: as tall as a plain Next button
+	# of the same theme (the Easy tour has no Next of its own, so the reference is a plain Button with that word)
+	var ref_b := Button.new()
+	ref_b.text = "Next"
+	get_root().add_child(ref_b)
+	var ref_h: float = ref_b.get_combined_minimum_size().y
+	ref_b.queue_free()
+	ok(sk.text == "Skip tour" and sk.size.y >= ref_h - 0.5 and sk.get_combined_minimum_size().y >= ref_h - 0.5,
+		"4a+ the tour's Skip reads 'Skip tour' and is as tall as a plain Next (%s, height %.0f, Next %.0f)" % [sk.text, sk.size.y, ref_h])
 	var body_r := Rect2()
 	var body_first := true
 	for pt in Turntable.points(m.B):
@@ -594,7 +642,7 @@ func _init() -> void:
 	m.undo.clear()
 	m.redo.clear()
 	await idle(3)
-	ok(undo_words() == "Undo", "6: an empty scene with nothing to undo: the Undo button reads 'Undo' (%s)" % undo_words())
+	ok(undo_words() == UNDO_NONE, "6: an empty scene with nothing to undo: the Undo button reads 'Undo' and its tooltip says so (%s)" % undo_words())
 	m.easy.home.panel.find_child("eh_card_0", true, false).pressed.emit()   # Walk
 	await idle(30)
 	ok(undo_words() == "Undo: Walk", "6: after the Walk card the Undo button reads 'Undo: Walk' (%s)" % undo_words())
@@ -608,7 +656,7 @@ func _init() -> void:
 	ok(m.ui_status.text.begins_with("Took back: Faster"), "6: the say line after Undo says 'Took back: Faster', no Expert step name (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(10)
-	ok(undo_words() == "Undo", "6: undoing the Walk card leaves nothing to undo: 'Undo' (%s)" % undo_words())
+	ok(undo_words() == UNDO_NONE, "6: undoing the Walk card leaves nothing to undo: 'Undo' (%s)" % undo_words())
 	# a placed library object is one undo step, named by its tile
 	m._library_toggle()
 	await idle(3)
@@ -620,7 +668,17 @@ func _init() -> void:
 	var placed: bool = sword_id != "" and m.ui_library.place(sword_id)
 	await idle(6)
 	ok(placed and m.undo.size() == u0 + 1, "6: a library Sword is one undo step (%d -> %d steps; id '%s')" % [u0, m.undo.size(), sword_id])
-	ok(undo_words() == "Undo: Sword", "6: after a library Sword the Undo button reads 'Undo: Sword' (%s)" % undo_words())
+	ok(undo_words() == "Undo: Sword", "6: after a library Sword the Undo button reads 'Undo' with the tooltip 'Undo: Sword' (%s)" % undo_words())
+	# 6b. ITEM 5 (Easy): the sword at its pick is clear. No body part reads "touch" (the red pick_touch tint) and the held sword
+	# sinks into no body part, so the frozen pick-time pose shows no red
+	var red := Tok.c("pick_touch")
+	var tinted := []
+	for j in Body.ORDER:
+		var sc: Color = m.skin_col(j)
+		if sc.a > 0.0 and sc.is_equal_approx(Color(red, sc.a)):
+			tinted.append(j)
+	var sword_hits := ObjectLibrary._wep_hits(m.B)
+	ok(tinted.is_empty() and sword_hits == 0, "6b: the sword at its pick: no body part red (%s), the sword sinks into %d part(s)" % [str(tinted), sword_hits])
 	# a drag's undo is named in everyday words: "Undo: Move hand", not "Drag left wrist / h.."
 	m._library_toggle()
 	await idle(3)
@@ -633,7 +691,7 @@ func _init() -> void:
 	ok(m.ui_status.text.begins_with("Took back: Move hand"), "6: its toast says 'Took back: Move hand' (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(4)
-	ok(undo_words() == "Undo", "6: undoing the Sword leaves nothing to undo: 'Undo' (%s)" % undo_words())
+	ok(undo_words() == UNDO_NONE, "6: undoing the Sword leaves nothing to undo: 'Undo' (%s)" % undo_words())
 	m.ui_library.hide_panel()
 	# More's entries that change the body: one undo step each, named in Easy ("Flip", "Feet on floor")
 	m.easy.pick_more("Flip left and right")
@@ -644,7 +702,7 @@ func _init() -> void:
 	m.easy.pick_more("Put his feet on the floor")
 	await idle(4)
 	# feet on the floor keeps nothing on an empty scene: the step is dropped (Fixer.plant_all: "one undo step, or none"), so no step
-	ok(undo_words() == "Undo" and m.undo.size() == 0, "6: More > Put his feet on the floor with nothing to plant adds no step (%s, %d steps)" % [undo_words(), m.undo.size()])
+	ok(undo_words() == UNDO_NONE and m.undo.size() == 0,"6: More > Put his feet on the floor with nothing to plant adds no step (%s, %d steps)" % [undo_words(), m.undo.size()])
 	# the button never grows: a long name is cut to 18 characters (+ "..") and the bar's button keeps its height
 	var h0: float = m.easy.button("Undo").size.y
 	m._step_easy = "a very long typed move name that is cut"
@@ -652,7 +710,8 @@ func _init() -> void:
 	await idle(3)
 	var cut := undo_words()
 	ok(cut.begins_with("Undo: a very long type") and cut.length() <= 24 and cut.ends_with(".."), "6: a long name is cut in the button: '%s'" % cut)
-	ok(is_equal_approx(m.easy.button("Undo").size.y, h0), "6: the Undo button keeps its height with a long name (%.0f -> %.0f px)" % [h0, m.easy.button("Undo").size.y])
+	ok(m.easy.button("Undo") != null and (m.easy.button("Undo").get_node("label") as Label).text == "Undo", "6: the Undo label stays 'Undo' with a long name (the name is the tooltip only)")
+	ok(is_equal_approx(m.easy.button("Undo").size.y, h0),"6: the Undo button keeps its height with a long name (%.0f -> %.0f px)" % [h0, m.easy.button("Undo").size.y])
 	m._undo()
 	await idle(2)
 	# Expert: the step's name never uses the Easy short name, and Expert's Undo tooltip is the Expert name
