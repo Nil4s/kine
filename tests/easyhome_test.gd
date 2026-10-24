@@ -7,6 +7,7 @@
 ##  4. One Ctrl+Z after a card gives back the empty scene (one undo step per card).
 ##  5. Typing "jab then cross" builds 2 strikes (the cards are the two single strikes, in order).
 ##  6. The panel fits inside the window at 1280x720 (its rect is inside the visible viewport).
+##  8. The Library opened over the empty scene hides the panel; Close brings it back.
 ##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
@@ -156,6 +157,16 @@ func _init() -> void:
 	root.content_scale_size = was_size   # back to the window's own size
 	root.content_scale_mode = was_mode
 	await idle(4)
+
+	# 8. the Library opened over an empty Easy scene: the panel steps aside (the library covered its left half), and comes back on Close
+	m._new_scene()
+	await idle()
+	m._library_toggle()
+	await idle()
+	ok(not home.panel.visible and m.ui_library.visible, "8. the open Library hides the home panel (no half-covered cards)")
+	m._library_toggle()
+	await idle()
+	ok(home.panel.visible, "8. closing the Library brings the home panel back")
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

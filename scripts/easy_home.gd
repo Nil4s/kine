@@ -160,7 +160,8 @@ func _process(dt: float) -> void:
 		return
 	var on: bool = m.easy.on
 	var empty: bool = m.S.cards.is_empty()
-	panel.visible = on and (empty or _open or _gen_on)
+	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
+	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on)
 	strip.visible = on and not (empty or _open or _gen_on) and _built
 	if not on:
 		_toast.visible = false

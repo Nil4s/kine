@@ -3406,6 +3406,7 @@ func _world() -> void:
 		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		stage_root.add_child(l)
 		axis_tags.append(l)
+		l.visible = not (easy != null and easy.on)   # a fresh start is Easy: born hidden (_refresh keeps it so)
 	cam = Camera3D.new()
 	cam.fov = 40
 	add_child(cam)
