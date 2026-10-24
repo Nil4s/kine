@@ -198,6 +198,18 @@ func _process(dt: float) -> void:
 		var ul: Label = ub.get_node_or_null("label")   # the bar's words are this child Label (easy_mode._big), not the Button's own text
 		if ul != null and ul.text != ut:
 			ul.text = ut
+	var rb: Button = m.easy.button("Redo")   # REDO: one click after Undo, only while something can be put back; named as Undo is ("Redo: Faster")
+	rb.visible = on and not m.redo.is_empty()
+	if rb.visible:
+		var rl: Label = rb.get_node_or_null("label")
+		var rt: String = "Redo: " + m.easy_name(m.redo[-1])
+		if rl != null and rl.text != rt:
+			rl.text = rt
+	var note: PanelContainer = m.easy.red_note
+	var red_on: bool = on and not m.redspots.last.is_empty()   # a red spot is lit on the body at the playhead
+	note.visible = red_on
+	if red_on and m.ui_mouse != null:   # the line sits just above the mouse strip, at its left
+		note.global_position = m.ui_mouse.global_position + Vector2(0, -note.size.y - 6)
 	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
 	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on) and not _copying()
 	if panel.visible:   # centred between the top bar and the welcome line (a short window must not run the picker into the line)

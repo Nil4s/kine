@@ -7660,7 +7660,7 @@ func _iq_prints_draw() -> void:
 		add_child(_iq_mesh)
 	var im := _iq_mesh.mesh as ImmediateMesh
 	im.clear_surfaces()
-	if clean or not iq_show or S == null or S.iq.is_empty():
+	if clean or not iq_show or S == null or S.iq.is_empty() or (easy != null and easy.on):   # EASY: no foot pads on a beginner's body
 		return
 	for f in iq_prints():
 		var pts: Array = f["pts"]
@@ -7691,7 +7691,7 @@ func _foot_plant_draw() -> void:
 		add_child(_fp_line)
 	var im := _fp_line.mesh as ImmediateMesh
 	im.clear_surfaces()
-	if clean or S == null or S.plants.is_empty():
+	if clean or S == null or S.plants.is_empty() or (easy != null and easy.on):   # EASY: no foot footprints either (the feet stay as they are)
 		return
 	var t := clampf(playhead, 0.0, S.length())
 	for f in FootPlant.footprint(B, S.plants, t, S.fps):
