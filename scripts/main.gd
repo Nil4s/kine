@@ -76,6 +76,8 @@ var bat_barrel: MeshInstance3D
 var d2_handle: MeshInstance3D   # the off-hand dagger (round 33): drawn, riding its hand
 var d2_blade: MeshInstance3D
 var bat_knob: MeshInstance3D
+var wep_model: Node3D    # the held weapon's drawn shape (scripts/weapon_mesh.gd), in the weapon's frame
+var wep2_model: Node3D   # the off-hand weapon's, in its frame
 var wep_mats := {}
 var slide_body := true   # , . slide the main hand: true = the weapon stays, the body follows; false = the weapon slides in the hand
 var ui_slide_btn: Button   # "metal" / "tape" / "wood" / "steel": the weapon's looks per kind
@@ -3262,27 +3264,20 @@ func _body() -> void:
 		d.material_override = dm
 		add_child(d)
 		dots[j] = d
-	# the metal bat: a taped handle, a barrel swelling from the handle to full width, a knob
-	var metal := StandardMaterial3D.new()
-	metal.albedo_color = Color(0.62, 0.64, 0.68)
-	metal.metallic = 0.85
-	metal.roughness = 0.3
-	var tape := StandardMaterial3D.new()
-	tape.albedo_color = Color(0.08, 0.08, 0.09)
-	tape.roughness = 0.9
-	bat_handle = _cyl(B.wep_r_handle, B.wep_r_handle, tape)
-	bat_barrel = _cyl(B.wep_r_barrel, B.wep_r_handle, metal)
-	bat_knob = _cyl(B.wep_r_handle * 1.6, B.wep_r_handle * 1.6, tape)
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.36, 0.24, 0.14)
-	wood.roughness = 0.75
-	var steel := StandardMaterial3D.new()
-	steel.albedo_color = Color(0.3, 0.31, 0.33)
-	steel.metallic = 0.9
-	steel.roughness = 0.35
-	wep_mats = {"metal": metal, "tape": tape, "wood": wood, "steel": steel}
-	d2_handle = _cyl(0.013, 0.013, tape)
-	d2_blade = _cyl(0.004, 0.011, steel)
+	# the weapons: a placement cylinder per piece (its transform is the grip's frame: hits and tests read its visibility; it has
+	# no radius, so it draws nothing), and the shape itself (WeaponMesh, placed in the weapon's frame each refresh)
+	wep_mats = WeaponMesh.materials()
+	bat_handle = _cyl(0.0, 0.0, null)
+	bat_barrel = _cyl(0.0, 0.0, null)
+	bat_knob = _cyl(0.0, 0.0, null)
+	wep_model = Node3D.new()
+	wep_model.name = "weapon_model"
+	add_child(wep_model)
+	d2_handle = _cyl(0.0, 0.0, null)
+	d2_blade = _cyl(0.0, 0.0, null)
+	wep2_model = Node3D.new()
+	wep2_model.name = "weapon2_model"
+	add_child(wep2_model)
 	tag = Label3D.new()
 	tag.pixel_size = 0.0009
 	tag.fixed_size = true
@@ -4478,33 +4473,25 @@ func _hit_ui_tick() -> void:
 		hit_offer_btn.visible = false
 
 
-## the weapon's radii + materials for its kind
-func _wep_look() -> void:
-	var hm := bat_handle.mesh as CylinderMesh
-	var bm := bat_barrel.mesh as CylinderMesh
-	hm.top_radius = B.wep_r_handle
-	hm.bottom_radius = B.wep_r_handle
-	if B.wep_kind == "dagger":
-		# a taped grip, a steel blade narrowing to the point
-		bm.top_radius = 0.004
-		bm.bottom_radius = B.wep_r_barrel
-		bat_handle.material_override = wep_mats["tape"]
-		bat_barrel.material_override = wep_mats["steel"]
-	elif B.wep_kind == "staff":
-		bm.top_radius = B.wep_r_handle
-		bm.bottom_radius = B.wep_r_handle
-		bat_handle.material_override = wep_mats["wood"]
-		bat_barrel.material_override = wep_mats["wood"]
-	elif not B.wep_head.is_empty():
-		bm.top_radius = float(B.wep_head[1])
-		bm.bottom_radius = float(B.wep_head[1])
-		bat_handle.material_override = wep_mats["tape"]
-		bat_barrel.material_override = wep_mats["steel"]
-	else:
-		bm.top_radius = B.wep_r_barrel
-		bm.bottom_radius = B.wep_r_handle
-		bat_handle.material_override = wep_mats["tape"]
-		bat_barrel.material_override = wep_mats["metal"]
+## the weapon's drawn shape: rebuilt when its kind changes (WeaponMesh), then placed in the weapon's frame, the knob at
+## x[0] and +Y along x[1] (Body.wep_xform), so each piece sits where its grip-frame cylinder is
+func _wep_model_place(model: Node3D, kind: String, x: Array) -> void:
+	if String(model.get_meta("kind", "")) != kind:
+		for c in model.get_children():
+			model.remove_child(c)
+			c.queue_free()
+		model.add_child(WeaponMesh.build(kind))
+		model.set_meta("kind", kind)
+	model.transform = Transform3D(Basis(x[1] as Quaternion), x[0] as Vector3)
+
+
+## the drawn pieces of both weapons (the shading modes and the isolation switch them with the body)
+func weapon_pieces() -> Array:
+	var out := []
+	for root in [wep_model, wep2_model]:
+		if root != null:
+			out.append_array(root.find_children("*", "MeshInstance3D", true, false))
+	return out
 
 
 func _cyl(top: float, bottom: float, m: Material) -> MeshInstance3D:
@@ -4653,19 +4640,19 @@ func _refresh() -> void:
 		m.visible = B.wep_on
 	d2_handle.visible = B.wep2_on
 	d2_blade.visible = B.wep2_on
+	wep_model.visible = B.wep_on
+	wep2_model.visible = B.wep2_on
 	if B.wep2_on:
 		var hu := float(Body.KINDS[B.wep2_kind]["handle"])
 		_place(d2_handle, B.wep2_point(0.0), B.wep2_point(hu), 0.0, false)
 		_place(d2_blade, B.wep2_point(hu), B.wep2_point(B.wep2_len()), 0.0, false)
+		_wep_model_place(wep2_model, B.wep2_kind, B.wep2_xform())
 	if B.wep_on:
-		_wep_look()
 		if B.wep_kind == "staff":
-			# one even wooden shaft (the two halves drawn the same), no knob
 			bat_knob.visible = false
 			_place(bat_handle, B.wep_point(0.0), B.wep_point(B.wep_handle), 0.0, false)
 			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 		elif not B.wep_head.is_empty():
-			# the long hammer: a taped shaft to the head, the steel head across the tip
 			_place(bat_knob, B.wep_point(0.0), B.wep_point(0.012), 0.0, false)
 			_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_len - 0.02), 0.0, false)
 			var hc: Array = B.cap("bat_barrel")
@@ -4675,6 +4662,7 @@ func _refresh() -> void:
 			_place(bat_knob, B.wep_point(0.0), B.wep_point(0.012), 0.0, false)
 			_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_handle), 0.0, false)
 			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
+		_wep_model_place(wep_model, B.wep_kind, B.wep_xform())
 	var c2: Array = B.cap(sel)
 	tag.visible = not clean
 	for dj in dots:
@@ -6913,12 +6901,10 @@ func _actors_draw() -> void:
 		var tag: Label3D = mq["tag"]
 		tag.text = String(actors_rt[k]["name"])
 		tag.position = b.P["head"] + Vector3(0, 0.28, 0)
-		var w: Array = mq["wep"]
-		for mi in w:
-			(mi as MeshInstance3D).visible = b.wep_on
+		var wm: Node3D = mq["wep"][0]
+		wm.visible = b.wep_on
 		if b.wep_on:
-			_place(w[0], b.wep_point(0.0), b.wep_point(b.wep_handle), 0.0, false)
-			_place(w[1], b.wep_point(b.wep_handle), b.wep_point(b.wep_len), 0.0, false)
+			_wep_model_place(wm, b.wep_kind, b.wep_xform())
 		_fh_draw(k, b)   # the off-hand weapon and the fighter-hover light (own functions, below _actor_man)
 
 
@@ -6942,16 +6928,10 @@ func _actor_man() -> Dictionary:
 	tag.outline_size = 6
 	tag.modulate = skin.albedo_color.lightened(0.35)
 	root.add_child(tag)
-	var w := []
-	for r in [[B.wep_r_handle, B.wep_r_handle, "tape"], [B.wep_r_barrel, B.wep_r_handle, "metal"]]:
-		var mi := MeshInstance3D.new()
-		var c := CylinderMesh.new()
-		c.top_radius = r[0]
-		c.bottom_radius = r[1]
-		mi.mesh = c
-		mi.material_override = wep_mats[r[2]]
-		root.add_child(mi)
-		w.append(mi)
+	var wep_node := Node3D.new()   # this fighter's weapon: its shape (WeaponMesh), placed in its frame each refresh
+	wep_node.name = "weapon_model"
+	root.add_child(wep_node)
+	var w := [wep_node]
 	var fp := SkinPick.new()   # PRECISE PICK on this fighter too: its click and its hover light are on its own skin
 	fp.build((mq[0] as Node).find_children("*", "MeshInstance3D", true, false), mq[1])
 	var mdict := {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag, "skp": fp}
@@ -6963,32 +6943,20 @@ func _actor_man() -> Dictionary:
 ## (d2_handle, d2_blade: the dagger's look), under the fighter's node, so the node's visibility covers them. The hovered
 ## part's light is on the fighter's own skin (its SkinPick, _fh_draw), as the active body's is
 func _fh_meshes(root: Node3D) -> Dictionary:
-	var tape: Material = wep_mats["tape"]
-	var steel: Material = wep_mats["steel"]
-	var w2 := []
-	for r in [[0.013, 0.013, tape], [0.004, 0.011, steel]]:
-		var mi := MeshInstance3D.new()
-		var c := CylinderMesh.new()
-		c.top_radius = r[0]
-		c.bottom_radius = r[1]
-		mi.mesh = c
-		mi.material_override = r[2]
-		root.add_child(mi)
-		w2.append(mi)
-	return {"wep2": w2}
+	var w2_node := Node3D.new()   # its off-hand weapon: the same shapes (WeaponMesh), placed in its frame
+	w2_node.name = "weapon2_model"
+	root.add_child(w2_node)
+	return {"wep2": [w2_node]}
 
 
 ## one fighter that is not active, this refresh: its off-hand weapon where its body holds it, and the hovered part's light
 ## (only when the mouse is on that fighter: hover_fighter)
 func _fh_draw(k: int, b: Body) -> void:
 	var mq: Dictionary = actor_men[k]
-	var w2: Array = mq["wep2"]
-	for mi in w2:
-		(mi as MeshInstance3D).visible = b.wep2_on
+	var w2m: Node3D = mq["wep2"][0]
+	w2m.visible = b.wep2_on
 	if b.wep2_on:
-		var hu := float(Body.KINDS[b.wep2_kind]["handle"])
-		_place(w2[0], b.wep2_point(0.0), b.wep2_point(hu), 0.0, false)
-		_place(w2[1], b.wep2_point(hu), b.wep2_point(b.wep2_len()), 0.0, false)
+		_wep_model_place(w2m, b.wep2_kind, b.wep2_xform())
 	var j := hover_fpart if k == hover_fighter else ""
 	(mq["skp"] as SkinPick).set_looks({j: _look_of("hover")} if j != "" and b.P.has(j) and not clean else {})
 
@@ -20530,13 +20498,14 @@ func _obj_posed_meshes() -> Array:
 			out.append({"name": String(j) + ("" if mi.mesh.get_surface_count() == 1 else "_%d" % si), "mesh": am, "xf": Transform3D.IDENTITY, "color": col})
 	var ws := []
 	if B.wep_on:
-		ws += [["weapon_handle", bat_handle], ["weapon_barrel", bat_barrel], ["weapon_knob", bat_knob]]
+		ws += [["weapon", wep_model]]
 	if B.wep2_on:
-		ws += [["weapon2_handle", d2_handle], ["weapon2_blade", d2_blade]]
+		ws += [["weapon2", wep2_model]]
 	for w in ws:
-		var wm := w[1] as MeshInstance3D
-		if wm != null and wm.visible and wm.mesh != null:
-			out.append({"name": w[0], "mesh": wm.mesh, "xf": wm.global_transform if wm.is_inside_tree() else wm.transform, "color": _obj_color(wm)})
+		for wm in (w[1] as Node3D).find_children("*", "MeshInstance3D", true, false):
+			var mi := wm as MeshInstance3D
+			if mi.visible and mi.mesh != null:
+				out.append({"name": "%s_%s" % [w[0], mi.name], "mesh": mi.mesh, "xf": mi.global_transform if mi.is_inside_tree() else mi.transform, "color": _obj_color(mi)})
 	return out
 
 

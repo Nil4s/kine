@@ -43,6 +43,8 @@ var _scroll: ScrollContainer
 var _grid: GridContainer
 var _note: Label
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
+var _armour_body := []            # the fighter body the armour pictures are cut from: read once per open, not once per tile
+var _armour_hash := ""            # the hash of its rest vertices, once per open (the spec of every armour tile)
 
 
 ## main: the app; weapon_list: main's WEAPONS (the Weapons tab reads the kinds the picker reads)
@@ -160,6 +162,8 @@ func names_matching(text: String) -> Array:
 
 ## show the panel (under the strip, beside the left panel) and refresh its tiles
 func open() -> void:
+	_armour_body = []
+	_armour_hash = ""
 	visible = true
 	fit(get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1280, 720))
 	_refresh_tabs()
@@ -324,8 +328,64 @@ func _tile(it: Dictionary) -> Control:
 	v.add_child(lab)
 	_pics[String(it["id"])] = pic
 	if pic.texture == null:
-		thumbs.request(String(it["id"]), it["shapes"])   # drawn once, then read from user://thumbs/lib
+		thumbs.request(String(it["id"]), thumb_source(it))   # the schematic until the real mesh is drawn once, then user://thumbs/lib
 	return b
+
+
+## what a tile's picture is drawn from: the schematic shapes, the spec the real picture's cache name is made of, and the
+## Callable that builds the real mesh on the main thread (see LibraryThumbs.request)
+func thumb_source(it: Dictionary) -> Dictionary:
+	var how := String(it["how"])
+	var key := String(it["key"])
+	var src := {"shapes": it["shapes"], "spec": "", "build": Callable()}
+	if how == "weapon":
+		src["spec"] = var_to_str(["weapon", key, Body.KINDS["dagger" if key == "two_daggers" else key]])
+		src["build"] = func() -> Node3D: return LibraryThumbs.weapon_node(key)
+	elif how == "prop":
+		src["spec"] = var_to_str(["prop", key, Props.kind_of(key)])
+		src["build"] = func() -> Node3D: return Props.mesh(Props.make(key))
+	elif m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
+		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
+		if _armour_hash == "":
+			_armour_hash = body_hash(m)
+		# the body's rest vertices (their bytes, so a change of proportion is a change of spec), the builder's version and constants
+		src["spec"] = var_to_str(["armour", key, ArmourFromBody.BUILDER, ArmourFromBody.GAP, ArmourFromBody.THICK, ArmourFromBody.BEVEL,
+			ArmourFromBody.SEGMENTS, _armour_hash])
+		src["shipped"] = LibraryThumbs.shipped_path(String(it["id"]), String(src["spec"]))
+		src["build"] = func() -> Node3D: return _armour_node(key)
+	return src
+
+
+## a plate built on the fighter's body (ArmourFromBody.build, the same call make() makes), unskinned, for its picture
+## the hash of the fighter body the plates are cut from. The default body (as loaded: base-body generation 0, no proportions, its
+## pieces' mesh paths: empty for the built-in body, so in effect their count) reads it from DEFAULT_BODY, written by tools/make_lib_thumbs.gd with the pictures, so the Armour tab
+## does not read the whole body (~170 ms) to name pictures that are shipped; library_test checks the file is not stale.
+## Any other body (edited, re-proportioned, another fighter) is read and hashed.
+const DEFAULT_BODY := "res://data/thumbs/armour/default_body.txt"
+static func body_sig(m: Node) -> String:
+	return ",".join(m.pieces.values().map(func(p): return String((p as MeshInstance3D).mesh.resource_path) if (p as MeshInstance3D).mesh != null else "-"))
+
+
+static func body_hash(m: Node, read_file := true) -> String:
+	if read_file and BaseBody.gen(m) == 0 and not BaseBody.is_open(m) and (m.B.body as Dictionary).is_empty() and FileAccess.file_exists(DEFAULT_BODY):
+		var parts := FileAccess.get_file_as_string(DEFAULT_BODY).strip_edges().split("|")
+		if parts.size() == 2 and parts[0] == body_sig(m):
+			return parts[1]
+	return var_to_str((ArmourFromBody.body_source(m)[0] as KMesh).verts).sha256_text()
+
+
+func _armour_node(words: String) -> Node3D:
+	if m == null or m.pieces.is_empty() or BaseBody.skin_of(m) == null:
+		return null
+	var sb: Array = ArmourFromBody.body_source(m)
+	var r: Dictionary = ArmourFromBody.build(sb[0], m.skel, sb[1], words, {})
+	if not bool(r.get("ok", false)):
+		return null
+	var mi := MeshInstance3D.new()
+	mi.mesh = ArmourFromBody.array_mesh(r["mesh"])
+	var root := Node3D.new()
+	root.add_child(mi)
+	return root
 
 
 func _made(id: String) -> void:

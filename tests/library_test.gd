@@ -9,16 +9,32 @@
 ##  B4  the search "sw" finds the sword (weapon:sword) and no tile of another category is needed for it.
 ##  B5  the panel fits at 1280x720: its whole rectangle is inside a 1280x720 window (laid out by fit(), see the test).
 ##  B6  Easy's Library button opens the panel with one click, and a second click closes it.
-##  B7  thumbnails: every object is drawn once or read from the cache (renders + disk hits = objects), each has its PNG
-##      under user://thumbs/lib, and the panel's tiles hold a picture.
+##  B7  REAL thumbnails: every object (38) has its 128 x 128 PNG under user://thumbs/lib (LibraryThumbs.real_path) and its
+##      picture in memory; each picture is not empty: at least 5 % of its pixels differ from its corner pixel (the background).
+##  B8  DISTINCT WEAPONS: sword, katana, spear and metal bat are pairwise different: the mean absolute difference over
+##      R, G, B (0..255, every pixel) is above DIFF_MIN = 2.0 for all six pairs. Noise floor: the sword drawn again differs
+##      from its picture by less than NOISE_MAX = 0.5 (printed).
+##  B9  FRAMES: the panel opened on a cold cache (every real and schematic PNG deleted first) and drawing its tiles, tab by
+##      tab, never lets one frame take longer than FRAME_MAX_MS = 50 ms between two process frames.
+##  B10 CACHE: a second open of the panel draws 0 pictures (renders delta 0), and a fresh LibraryThumbs on the same
+##      folder draws 0 (every object read from disk: disk hits = 38).
 ## Clicks are the tile's own "pressed" signal (the same path a mouse click takes after the button's own press handling).
+##  B11 SHIPPED KEY: data/thumbs/armour/default_body.txt (the shipped armour pictures' body hash) is the default body's own hash
 extends SceneTree
 
 const BUILT_IN := {"Weapons": 11, "Furniture": 5, "Sports": 1, "Everyday": 13, "Armour": 7}
+const DIFF_MIN := 2.0          # B8: the mean absolute difference (0..255, R G B, every pixel) a pair must exceed
+const NOISE_MAX := 0.5         # B8: the same weapon drawn again must differ by less than this
+const FRAME_MAX_MS := 50.0     # B9
+const NONBG_MIN := 0.05        # B7: the share of pixels that differ from the corner (the background)
+const WEAPON_IDS := ["weapon:sword", "weapon:katana", "weapon:spear", "weapon:metal_bat"]
 
 var fails := 0
 var m: Node
 var lib: ObjectLibrary
+var _last_us := 0
+var _gap_ms := 0.0
+var _measuring := false
 
 
 func ok(c: bool, what: String) -> void:
@@ -49,15 +65,65 @@ func bottom_of(p: Dictionary) -> float:
 	return lo
 
 
+## every frame's start: the longest gap between two frames while _measuring (B9)
+func _tick() -> void:
+	var now := Time.get_ticks_usec()
+	if _measuring and _last_us > 0:
+		_gap_ms = maxf(_gap_ms, (now - _last_us) / 1000.0)
+	_last_us = now
+
+
+## the mean absolute difference of two pictures over R, G, B, every pixel, on 0..255
+func mean_diff(a: Image, b: Image) -> float:
+	var x := a.duplicate() as Image
+	x.convert(Image.FORMAT_RGBA8)
+	var y := b.duplicate() as Image
+	y.convert(Image.FORMAT_RGBA8)
+	var da := x.get_data()
+	var db := y.get_data()
+	if da.size() != db.size():
+		return INF
+	var s := 0
+	var n := 0
+	for i in range(0, da.size(), 4):
+		s += absi(da[i] - db[i]) + absi(da[i + 1] - db[i + 1]) + absi(da[i + 2] - db[i + 2])
+		n += 3
+	return float(s) / float(n)
+
+
+## the share of pixels that differ from the corner pixel (the background) by more than 5 levels in any channel
+func nonbg_share(img: Image) -> float:
+	var x := img.duplicate() as Image
+	x.convert(Image.FORMAT_RGBA8)
+	var d := x.get_data()
+	var n := d.size() / 4
+	var c := 0
+	for i in n:
+		if absi(d[i * 4] - d[0]) > 5 or absi(d[i * 4 + 1] - d[1]) > 5 or absi(d[i * 4 + 2] - d[2]) > 5:
+			c += 1
+	return float(c) / float(n)
+
+
+func _clear_cache() -> void:
+	var d := DirAccess.open(LibraryThumbs.DIR)
+	if d == null:
+		return
+	for f in d.get_files():
+		d.remove(f)
+
+
 func _init() -> void:
+	process_frame.connect(_tick)
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(6)
 	Props.register("my test_box", AABB(Vector3.ZERO, Vector3(0.3, 0.3, 0.3)), "")   # one model of "your own" for the My models tab
 	m._new_scene()
 	await idle()
+	_clear_cache()   # B9: a cold start, every picture drawn again
+	_measuring = true
 	m._library_toggle()
-	await idle()
+	await idle(2)
 	lib = m.ui_library
 
 	# B1: every category has an item; the tiles on screen per tab equal the inventory
@@ -73,9 +139,15 @@ func _init() -> void:
 	ok(total == lib.items.size() and total == 38, "the inventory: %d objects in all (38 with one model of your own)" % total)
 	var shown_all := 0
 	var empty_tab := []
+	var tab_gap := {}          # B9, per tab: the longest frame while that tab's tiles were drawn (its pictures settled)
+	var all_gap := _gap_ms     # the cold open's longest frame so far
 	for i in cats.size():
+		_gap_ms = 0.0
 		lib._pick_tab(i)
 		await idle(2)
+		await lib.thumbs.settle()
+		tab_gap[cats[i]] = _gap_ms
+		all_gap = maxf(all_gap, _gap_ms)
 		var n := 0
 		for b in lib._grid.get_children():
 			if b is Button:
@@ -84,8 +156,23 @@ func _init() -> void:
 		if n == 0:
 			empty_tab.append(cats[i])
 		ok(n == per[cats[i]], "tab %s: %d tiles on screen = %d in the inventory" % [cats[i], n, per[cats[i]]])
+	await lib.thumbs.settle()   # every tab's tiles drawn: the B9 window ends here
+	_measuring = false
+	_gap_ms = all_gap
 	ok(empty_tab.is_empty(), "every category holds at least 1 tile %s" % str(empty_tab))
 	ok(shown_all == total, "the tiles on screen add up to the inventory (%d = %d)" % [shown_all, total])
+	print("info: cold start drew %d pictures (%d real); longest build %.1f ms, longest draw %.1f ms; failed real: %s" % [lib.thumbs.renders, lib.thumbs.real_renders, lib.thumbs.build_ms_max, lib.thumbs.draw_ms_max, str(lib.thumbs.failed_real)])
+
+	# B9: the frames of the cold open and the tab-by-tab drawing
+	ok(_gap_ms <= FRAME_MAX_MS, "B9 the panel's cold open and its tiles drawn tab by tab: the longest frame %.1f ms (at most %.0f)" % [_gap_ms, FRAME_MAX_MS])
+	# the same bar, split: the tabs without armour, and the Armour tab (its plates are built on the main thread, one per tab visit)
+	var quiet_gap := 0.0
+	for c in cats:
+		if c != "Armour":
+			quiet_gap = maxf(quiet_gap, float(tab_gap.get(c, 0.0)))
+	print("info: B9 split: longest frame by tab %s" % str(tab_gap))
+	ok(quiet_gap <= FRAME_MAX_MS, "B9a the tabs without armour (Weapons, Furniture, Sports, Everyday, My models): the longest frame %.1f ms (at most %.0f)" % [quiet_gap, FRAME_MAX_MS])
+	ok(float(tab_gap.get("Armour", 0.0)) <= FRAME_MAX_MS, "B9b the Armour tab's first open: the longest frame %.1f ms (at most %.0f)" % [float(tab_gap.get("Armour", 0.0)), FRAME_MAX_MS])
 
 	# B2 + B3: a sword into the right hand, a chair onto the floor; each one undo step
 	lib._pick_tab(0)
@@ -147,20 +234,74 @@ func _init() -> void:
 	lib.open()
 	await idle(2)
 
-	# B7: thumbnails
+	# B7: real thumbnails, every object
 	await lib.thumbs.settle()
-	var have := 0
+	var real_n := 0
+	var least := 1.0
+	var least_id := ""
 	for it in lib.items:
-		if FileAccess.file_exists(ProjectSettings.globalize_path(LibraryThumbs.cache_path(LibraryThumbs.key_of(it["shapes"])))):
-			have += 1
-	var pics := 0
+		var id := String(it["id"])
+		var path := LibraryThumbs.real_path(id, String(lib.thumb_source(it)["spec"]))
+		var tex := lib.thumbs.picture(id)
+		if not FileAccess.file_exists(ProjectSettings.globalize_path(path)) or tex == null:
+			continue
+		var img := (tex as ImageTexture).get_image()
+		var share := nonbg_share(img)
+		if img.get_width() == 128 and img.get_height() == 128 and share >= NONBG_MIN:
+			real_n += 1
+		if share < NONBG_MIN:
+			print("info: coverage %s %.2f %% (%d x %d)" % [id, share * 100.0, img.get_width(), img.get_height()])
+		if share < least:
+			least = share
+			least_id = id
 	for it in lib.items:
-		if lib.thumbs.picture(String(it["id"])) != null:
-			pics += 1
-	ok(lib.thumbs.renders + lib.thumbs.disk_hits == lib.items.size() and have == lib.items.size(),
-		"thumbnails: %d drawn, %d read from disk, %d PNGs under %s (objects %d)" % [lib.thumbs.renders, lib.thumbs.disk_hits, have, LibraryThumbs.DIR, lib.items.size()])
-	ok(pics == lib.items.size(), "every object has its picture in memory (%d)" % pics)
-	ok(LibraryThumbs.DIR.begins_with("user://") and lib.thumbs.picture("weapon:sword") is ImageTexture, "the sword's picture is an ImageTexture")
+		var pth := LibraryThumbs.real_path(String(it["id"]), String(lib.thumb_source(it)["spec"]))
+		if not FileAccess.file_exists(ProjectSettings.globalize_path(pth)):
+			print("info: no real PNG for %s (%s)" % [it["id"], pth.get_file()])
+	ok(real_n == lib.items.size(), "B7 %d of %d objects have a real 128 px PNG and at least %.0f %% non-background pixels (least: %.1f %%, %s)" % [real_n, lib.items.size(), NONBG_MIN * 100.0, least * 100.0, least_id])
+
+	# B8: the four weapons differ pairwise; the same sword drawn again is the noise floor
+	var pics := {}
+	for id in WEAPON_IDS:
+		pics[id] = (lib.thumbs.picture(id) as ImageTexture).get_image()
+	for i in WEAPON_IDS.size():
+		for j in range(i + 1, WEAPON_IDS.size()):
+			var a: String = WEAPON_IDS[i]
+			var b: String = WEAPON_IDS[j]
+			var d := mean_diff(pics[a], pics[b])
+			ok(d > DIFF_MIN, "B8 %s vs %s: mean difference %.2f (more than %.1f)" % [a, b, d, DIFF_MIN])
+	var again: Image = await lib.thumbs.draw_node(LibraryThumbs.weapon_node("sword"), LibraryThumbs.SIZE)
+	var noise := mean_diff(again, pics["weapon:sword"]) if again != null else INF
+	ok(noise < NOISE_MAX, "B8 noise floor: the sword drawn again differs by %.2f (less than %.1f)" % [noise, NOISE_MAX])
+
+	# B10: a second open draws nothing; a fresh instance on the same folder reads every object from disk
+	var r0 := lib.thumbs.renders
+	lib.hide_panel()
+	lib.open()
+	await idle(2)
+	await lib.thumbs.settle()
+	ok(lib.thumbs.renders == r0, "B10 a second open draws nothing (renders %d -> %d)" % [r0, lib.thumbs.renders])
+	var fresh := LibraryThumbs.new()
+	root.add_child(fresh)
+	for it in lib.items:
+		fresh.request(String(it["id"]), lib.thumb_source(it))
+	await fresh.settle()
+	ok(fresh.renders == 0 and fresh.disk_hits == lib.items.size(), "B10 a fresh instance on the same folder draws 0 (renders %d, disk hits %d of %d)" % [fresh.renders, fresh.disk_hits, lib.items.size()])
+	var want: String = ObjectLibrary.body_sig(m) + "|" + ObjectLibrary.body_hash(m, false)
+	var have := FileAccess.get_file_as_string(ObjectLibrary.DEFAULT_BODY).strip_edges()
+	ok(have == want, "B11 the shipped armour pictures' body key is the default body's own (stale: run tools/make_lib_thumbs.gd): %s" % [have == want])
+	root.remove_child(fresh)
+	fresh.free()
+
+	# the Weapons tab, for the eye (user://thumbs/library_weapons.png)
+	lib._pick_tab(0)
+	await idle(4)
+	await lib.thumbs.settle()
+	await idle(2)
+	var shot := root.get_texture().get_image()
+	var shot_path := ProjectSettings.globalize_path("user://thumbs/library_weapons.png")
+	shot.save_png(shot_path)
+	print("SHOT %s" % shot_path)
 
 	print("LIBRARY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
