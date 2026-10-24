@@ -163,6 +163,7 @@ static var ANGLE_FILL := true   # false: every run is the straight line of its p
 const LIMB := {   # part -> the chain (root, mid, tip) the angle fill turns, and the points carried with the tip (a foot's heel, toe)
 	"hand_l": {"root": 11, "mid": 13, "tip": 15, "ext": []}, "hand_r": {"root": 12, "mid": 14, "tip": 16, "ext": []},
 	"foot_l": {"root": 23, "mid": 25, "tip": 27, "ext": [29, 31]}, "foot_r": {"root": 24, "mid": 26, "tip": 28, "ext": [30, 32]}}
+const BEND_MIN := 0.14     # rad (8 deg): a joint bent less than this has no hinge plane to read at its good end
 const PLANT_MOVE := 0.03   # m: the other ankle moves no more than this (over the span and a quarter second either side) to read as planted
 const PLANT_PELVIS := 5.0  # deg: the hip line turns no more than this between the span's two good ends: the pelvis is steady
 
@@ -267,11 +268,27 @@ static func _fill_limb(frames: Array, conf: Dictionary, p: String, a: int, b: in
 		fB = _dir(B, tip, ext[1])
 		fp = _dir(pre, tip, ext[1]) if not pre.is_empty() else null
 		fn = _dir(nxt, tip, ext[1]) if not nxt.is_empty() else null
+	# the bend (the angle between the two bones) at each good end, its speed from the frame beside it, and the hinge there
+	var bA := d1A.angle_to(d2A)
+	var bB := d1B.angle_to(d2B)
+	var M0b := 0.0
+	var M1b := 0.0
+	if d1p != null:
+		M0b = (bA - float(d1p.angle_to(d2p))) / dt * T
+	if d1n != null:
+		M1b = (float(d1n.angle_to(d2n)) - bB) / dt * T
+	var hA := (d1A.cross(d2A)).normalized() if bA >= BEND_MIN else Vector3.ZERO
+	var hB := (d1B.cross(d2B)).normalized() if bB >= BEND_MIN else Vector3.ZERO
 	for i in range(a, b + 1):
 		var s := float(i - ia) / float(ib - ia)
 		var W: Array = frames[i]["w"]
-		var M: Vector3 = (W[root] as Vector3) + _turn(d1A, d1B, d1p, d1n, T, dt, s) * L1
-		var Tp: Vector3 = M + _turn(d2A, d2B, d2p, d2n, T, dt, s) * L2
+		var d1 := _turn(d1A, d1B, d1p, d1n, T, dt, s)
+		var M: Vector3 = (W[root] as Vector3) + d1 * L1
+		# the forearm = the upper arm turned about the HINGE by the bend: the hinge (the bend's plane) and the bend are
+		# interpolated, not the forearm's own direction, so the plane cannot swing when the joint is nearly straight
+		var hn := _hinge(hA, hB, d1A, d1B, s)
+		var bend := _herm(bA, bB, M0b, M1b, s)
+		var Tp: Vector3 = M + (Quaternion(hn, bend) * d1) * L2
 		W[mid] = M
 		W[tip] = Tp
 		if not ext.is_empty():
@@ -284,6 +301,29 @@ static func _fill_limb(frames: Array, conf: Dictionary, p: String, a: int, b: in
 ## the unit direction of the bone a -> b in a frame
 static func _dir(W: Array, a: int, b: int) -> Vector3:
 	return ((W[b] as Vector3) - (W[a] as Vector3)).normalized()
+
+
+## the hinge (the bend's plane normal) at fraction s: slerped between the two good ends' hinges when both bend enough to read a
+## plane (BEND_MIN), else the one that does; when neither does, the normal of the two upper bones' own turn
+static func _hinge(hA: Vector3, hB: Vector3, d1A: Vector3, d1B: Vector3, s: float) -> Vector3:
+	if hA != Vector3.ZERO and hB != Vector3.ZERO:
+		var nb := hB
+		if hA.dot(nb) < 0.0:
+			nb = -nb
+		return (Quaternion.IDENTITY.slerp(Quaternion(hA, nb), s) * hA).normalized()
+	if hA != Vector3.ZERO:
+		return hA
+	if hB != Vector3.ZERO:
+		return hB
+	var ax := d1A.cross(d1B)
+	return ax.normalized() if ax.length() > 1e-9 else Vector3.UP
+
+
+## a cubic Hermite between a and b with speeds m0, m1 (in units of the value per span) at fraction s
+static func _herm(a: float, b: float, m0: float, m1: float, s: float) -> float:
+	var s2 := s * s
+	var s3 := s2 * s
+	return (2.0 * s3 - 3.0 * s2 + 1.0) * a + (s3 - 2.0 * s2 + s) * m0 + (-2.0 * s3 + 3.0 * s2) * b + (s3 - s2) * m1
 
 
 ## a bone's direction at fraction s (0..1) of a span of T seconds, from dA (the good end before) to dB (the good end after): the
