@@ -29,6 +29,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- path_to_pose scenes/combo3.json|- "salute"|"raise the right leg 90" [--max N] [--json]
 ##        (N008: the run steps from card 1 (or the default body, -) to that pose; nothing is changed; scripts/pose_path.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- recognize scenes/thrust.json [card=N] [t0=S] [t1=S] [fighter=N]   (N016: which strike)
+##   $G --headless --path . -s tools/poser_cli.gd -- whocould scenes/combo3.json [card=N] [t0=S] [t1=S]   (N027: who could do this)
 ##   $G --headless --path . -s tools/poser_cli.gd -- fixuntil scenes/combo3.json [--bar 70] [--steps 10] --out scenes/_wip/x.json   (N005; --dry: the plan only)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
@@ -117,6 +118,8 @@
 ##                                 strike card's height (cm over his chin), reach (% of the limb), stance (cm between the ankles),
 ##                                 guard (cm of the guard wrist over the chin); set re-solves the card and its neighbours by IK as
 ##                                 ONE undo step, planted feet kept; "unreached" names the joint whose limit stopped a knob
+##   who_could {card?} | {t0?, t1?}  N027: the minimum body per capacity (hip / ankle / spine / shoulder flexibility, hand and foot
+##                                 speed, jump power) as population percentiles + tiers; "no human" past a record (scripts/who_could.gd)
 ##   recognize {card?, t0?, t1?, fighter?}  N016: the strike the body does (jab ... roundhouse, weapon swings, thrust; else
 ##                                 "unknown" + the nearest) from path, chain, speed and feet, and its form vs the textbook
 ##                                 ("the elbow drops 25 deg below shoulder height"); scripts/move_recognizer.gd
@@ -466,6 +469,21 @@ func _init() -> void:
 			var rr: Dictionary = await MoveRecognizer.serve(m, rp)
 			say(String(rr.get("text", rr.get("error", ""))))
 			done(rr)
+		"whocould":   # N027 (scripts/who_could.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "whocould <scene.json> [card=N] [t0=S] [t1=S]  (N027)"})
+				return
+			var wp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					wp["card"] = int(kv[1])
+				elif kv.size() == 2 and kv[0] in ["t0", "t1"]:
+					wp[kv[0]] = float(kv[1])
+			var wr := WhoCould.serve(m, wp)
+			say(String(wr.get("text", wr.get("error", ""))))
+			done(wr)
 		"fixuntil":   # N005 (scripts/fix_loop.gd)
 			var dry := "--dry" in a
 			var fo := a.find("--out")

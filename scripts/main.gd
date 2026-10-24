@@ -15887,6 +15887,9 @@ func _check(given = null) -> void:
 		var vl := _label("Is this clip physically possible?  %s" % vword + ("" if vword == "PASS" else "  (the frames and reasons are below; click one)"), 16, "heading" if vword == "PASS" else "warn", true)
 		vl.name = "verdict"
 		ui_find_list.add_child(vl)
+		var wl := _label(String(WhoCould.of_scene(S, ov.GB)["text"]), 14, "text:0.85", true)   # N027 (scripts/who_could.gd)
+		wl.name = "whocould"
+		ui_find_list.add_child(wl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
 	var n_push := _push_rows()   # R24: each hit contact against the MuJoCo push-limit table (above the findings: always on screen)
