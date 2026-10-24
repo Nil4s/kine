@@ -275,6 +275,35 @@ func _init() -> void:
 	m.easy.tour_start()
 	await idle()
 	ok(m.easy.tour_step == 0 and m.easy.tour_card.visible, "the tour starts at step 1 and its card is on screen")
+	# 4a. the tour card is READABLE and out of the body's way: its text and Skip are on screen with a size, inside the
+	# window, the text colour is not the card's own colour, and the card's rect does not cover the body's screen rect
+	var tc: PanelContainer = m.easy.tour_card
+	var tt: Label = m.easy._tour_title
+	var tx: Label = m.easy._tour_text
+	var sk: Button = tc.find_child("easy_tour_skip", true, false)
+	var vp := Rect2(Vector2.ZERO, get_root().get_visible_rect().size)
+	ok(tt.is_visible_in_tree() and tx.is_visible_in_tree() and sk.is_visible_in_tree(),
+		"4a the tour's step label, text and Skip button are visible in the tree")
+	ok(tt.size.x > 0 and tt.size.y > 0 and tx.size.x > 0 and tx.size.y > 0 and sk.size.x > 0 and sk.size.y > 0,
+		"4a the step label, text and Skip have a size (%s, %s, %s)" % [str(tt.size), str(tx.size), str(sk.size)])
+	ok(vp.encloses(tt.get_global_rect()) and vp.encloses(tx.get_global_rect()) and vp.encloses(sk.get_global_rect()) and vp.encloses(tc.get_global_rect()),
+		"4a the tour card, its text and Skip lie inside the window (card %s)" % str(tc.get_global_rect()))
+	var bg: Color = (tc.get_theme_stylebox("panel") as StyleBoxFlat).bg_color
+	ok(tx.get_theme_color("font_color") != bg and tt.get_theme_color("font_color") != bg,
+		"4a the tour's text colour differs from the card's background (text %s, card %s)" % [str(tx.get_theme_color("font_color")), str(bg)])
+	ok(sk.get_global_rect().get_center().x > 0 and sk.mouse_filter != Control.MOUSE_FILTER_IGNORE and vp.has_point(sk.get_global_rect().get_center()),
+		"4a the Skip button takes a click, centred on the window")
+	var body_r := Rect2()
+	var body_first := true
+	for pt in Turntable.points(m.B):
+		var wp: Vector3 = pt[0]
+		if m.cam.is_position_behind(wp):
+			continue
+		var sp: Vector2 = m.cam.unproject_position(wp)
+		body_r = Rect2(sp, Vector2.ZERO) if body_first else body_r.expand(sp)
+		body_first = false
+	ok(not body_first and not body_r.intersects(tc.get_global_rect()),
+		"4a the tour card does not cover the body's screen rect (body %s, card %s)" % [str(body_r), str(tc.get_global_rect())])
 	m.easy.pick_more("Save this pose as a card")
 	await idle()
 	ok(m.easy.tour_step == 0, "step 1 (drag a hand) does not move on for a Save-the-pose press")

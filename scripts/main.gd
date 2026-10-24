@@ -17743,9 +17743,11 @@ func _ask_save(what: String, then: Callable, quitting := false) -> void:
 
 ## how = "save" | "discard" | "cancel" (the dialog's buttons, and what a test calls)
 func _save_ask_choose(how: String) -> void:
-	ui_save_ask.hide()
+	if not _save_ask_then.is_valid():   # already answered: a late canceled (the dialog's own close after a button) is not a Cancel
+		return
 	var then := _save_ask_then
 	_save_ask_then = Callable()
+	ui_save_ask.hide()
 	if how == "cancel" or not then.is_valid():
 		_say("kept open: the scene stays as it is (Save scene keeps your work)")
 		return
@@ -17755,6 +17757,7 @@ func _save_ask_choose(how: String) -> void:
 		if journal_on:
 			journal.trim()
 		then.call()
+		_say("Don't save: the changes are thrown away")   # the question's words must not stay on the status line
 		return
 	if save_hook.is_valid():
 		save_hook.call()
