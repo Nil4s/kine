@@ -59,6 +59,13 @@ static func real_path(id: String, spec: String) -> String:
 	return "%s/%s_%s_%d.png" % [DIR, id.replace(":", "_"), (VERSION + spec).sha256_text().left(16), SIZE.x]
 
 
+## the shipped (pre-rendered) picture of an object: res://data/thumbs/armour/<id>_<hash16>_128.png, where the hash is of VERSION +
+## the spec (the plate builder's version and constants, the default body's rest vertices): a changed body or builder is a new name,
+## so the live render takes over until tools/make_lib_thumbs.gd is run again
+static func shipped_path(id: String, spec: String) -> String:
+	return "res://data/thumbs/armour/%s_%s_%d.png" % [id.replace(":", "_"), (VERSION + spec).sha256_text().left(16), SIZE.x]
+
+
 static func abs_path(p: String) -> String:
 	return ProjectSettings.globalize_path(p)
 
@@ -99,6 +106,15 @@ func _pump() -> void:
 			if disk != null and not disk.is_empty():
 				disk_hits += 1
 				_show_picture(id, disk)
+				await _frame()
+				continue
+		var shipped := String(src.get("shipped", ""))
+		if real != "" and shipped != "" and FileAccess.file_exists(shipped):
+			var sh := Image.load_from_file(abs_path(shipped))
+			if sh != null and not sh.is_empty():
+				disk_hits += 1
+				_write(sh, real)   # a copy in the user cache, so the next open reads it there
+				_show_picture(id, sh)
 				await _frame()
 				continue
 		if not _tex.has(id):   # the schematic first, until the real one is ready
@@ -187,7 +203,7 @@ func shapes_node(shapes: Array) -> Node3D:
 const THUMB_GIRTH := {"staff": 2.0, "spear": 2.0}
 
 static func weapon_node(kind: String) -> Node3D:
-	return WeaponMesh.build(kind, float(THUMB_GIRTH.get(kind, 1.0)))
+	return WeaponMesh.build(kind, float(THUMB_GIRTH.get(kind, 1.0)), true)
 
 
 ## the picture of a built node, drawn now at px; the node is freed after. Null when there is nothing to draw or no renderer.

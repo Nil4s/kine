@@ -14,9 +14,10 @@ const SHARP := 0.22   # a blade's thickness against its width (the local Z scale
 
 
 ## the weapon of kind (a Body.KINDS key, or "two_daggers"): one Node3D with the pieces as MeshInstance3D children
-static func build(kind: String, girth := 1.0) -> Node3D:
-	## girth: a visual multiplier on a long shaft's radius (staff, spear). Only the thumbnails pass it (LibraryThumbs.THUMB_GIRTH);
-	## the hand is built at 1.0, so the hit radii and the grip are never drawn from a girth.
+static func build(kind: String, girth := 1.0, thumb := false) -> Node3D:
+	## girth: a visual multiplier on a long shaft's radius (staff, spear). thumb: the library picture's own look (a longsword's
+	## big pommel and wide quillons, so it reads apart from the sword). Only the thumbnails pass these; the hand is built at 1.0 / false,
+	## so the hit radii and the grip are never drawn from them.
 	var root := Node3D.new()
 	root.name = kind
 	if kind == "two_daggers":
@@ -58,6 +59,10 @@ static func build(kind: String, girth := 1.0) -> Node3D:
 			_sword(root, k, 0.13, 0.03, mt)
 		"longsword":
 			_sword(root, k, 0.15, 0.032, mt)
+			if thumb:
+				var lp := _span(k, "pommel")
+				_ball(root, Vector3(0, lp.x + 0.03, 0), 0.04, mt.metal)            # a big round pommel
+				_box(root, Vector3(0, _span(k, "cross").x, 0), Vector3(0.24, 0.024, 0.04), mt.metal)   # wide quillons
 		"katana":
 			_katana(root, k, mt)
 		"spear":

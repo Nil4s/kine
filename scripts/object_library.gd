@@ -44,6 +44,7 @@ var _grid: GridContainer
 var _note: Label
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
 var _armour_body := []            # the fighter body the armour pictures are cut from: read once per open, not once per tile
+var _armour_hash := ""            # the hash of its rest vertices, once per open (the spec of every armour tile)
 
 
 ## main: the app; weapon_list: main's WEAPONS (the Weapons tab reads the kinds the picker reads)
@@ -162,6 +163,7 @@ func names_matching(text: String) -> Array:
 ## show the panel (under the strip, beside the left panel) and refresh its tiles
 func open() -> void:
 	_armour_body = []
+	_armour_hash = ""
 	visible = true
 	fit(get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1280, 720))
 	_refresh_tabs()
@@ -346,9 +348,12 @@ func thumb_source(it: Dictionary) -> Dictionary:
 		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
 		if _armour_body.is_empty():
 			_armour_body = ArmourFromBody.body_source(m)
+			_armour_hash = var_to_str((_armour_body[0] as KMesh).verts).sha256_text()
 		var sb: Array = _armour_body
-		src["spec"] = var_to_str(["armour", key, ArmourFromBody.GAP, ArmourFromBody.THICK, ArmourFromBody.BEVEL,
-			ArmourFromBody.SEGMENTS, (sb[0] as KMesh).verts.size()])
+		# the body's rest vertices (their bytes, so a change of proportion is a change of spec), the builder's version and constants
+		src["spec"] = var_to_str(["armour", key, ArmourFromBody.BUILDER, ArmourFromBody.GAP, ArmourFromBody.THICK, ArmourFromBody.BEVEL,
+			ArmourFromBody.SEGMENTS, _armour_hash])
+		src["shipped"] = LibraryThumbs.shipped_path(String(it["id"]), String(src["spec"]))
 		src["build"] = func() -> Node3D: return _armour_node(key)
 	return src
 

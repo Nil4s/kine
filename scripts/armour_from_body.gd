@@ -31,6 +31,7 @@ const GAP := 0.004
 const THICK := 0.003
 const BEVEL := 0.001
 const SEGMENTS := 1
+const BUILDER := "1"           # the plate builder's version: bump when build() changes what a plate looks like (keys the shipped pictures)
 const MIN_FACES := 4
 const GAP_ITERS := 3
 const KEEP := 0.875           # a plate point nearer other skin than this x the gap is cut back (KEEP CLEAR)

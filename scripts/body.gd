@@ -117,8 +117,8 @@ const KINDS := {
 	## handle runs from the pommel to the guard; com = the point of balance (a sword's sits a hand or so past the guard);
 	## a blade is drawn as a thin capsule. ARMING SWORD (one hand): ~0.9 m overall, a 10 cm grip + pommel, ~1.1 kg.
 	"sword": {"len": 0.92, "handle": 0.16, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.10, "com": 0.30, "k": 0.25, "parts": [["pommel", 0.0, 0.04, "hold"], ["grip", 0.04, 0.15, "hold"], ["cross", 0.15, 0.17, "no"], ["blade", 0.17, 0.92, "blade"]]},
-	## LONGSWORD (hand-and-a-half: one hand or both): 1.1-1.3 m overall, a grip for two hands (~30 cm + pommel), 1.1-1.8 kg. Round 10-23 (w4-thumbs): 1.26 m, a 36 cm grip (was 1.20 m, 30 cm): the library shows it longer than the arming sword
-	"longsword": {"len": 1.26, "handle": 0.36, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.45, "com": 0.33, "k": 0.25, "parts": [["pommel", 0.0, 0.05, "hold"], ["grip", 0.05, 0.35, "hold"], ["cross", 0.35, 0.37, "no"], ["blade", 0.37, 1.26, "blade"]]},
+	## LONGSWORD (hand-and-a-half: one hand or both): 1.1-1.3 m overall, a grip for two hands (~25 cm + pommel), 1.1-1.8 kg
+	"longsword": {"len": 1.20, "handle": 0.30, "r_handle": 0.015, "r_barrel": 0.012, "head": [], "aim": true, "grip": "power", "mass": 1.45, "com": 0.33, "k": 0.25, "parts": [["pommel", 0.0, 0.05, "hold"], ["grip", 0.05, 0.29, "hold"], ["cross", 0.29, 0.31, "no"], ["blade", 0.31, 1.20, "blade"]]},
 	## KATANA: a ~70 cm blade, a ~27 cm tsuka for two hands, ~1.0 m overall, 1.1-1.3 kg; balance ~12 cm past the tsuba
 	"katana": {"len": 1.00, "handle": 0.27, "r_handle": 0.016, "r_barrel": 0.011, "head": [], "aim": true, "grip": "power", "mass": 1.20, "com": 0.39, "k": 0.26, "parts": [["kashira", 0.0, 0.02, "hold"], ["tsuka", 0.02, 0.26, "hold"], ["tsuba", 0.26, 0.28, "no"], ["blade", 0.28, 1.00, "no"]]},
 	## SPEAR: a 2 m wooden shaft (~3 cm thick), a ~25 cm steel head at the tip, ~1.8 kg; both hands, both ends work
