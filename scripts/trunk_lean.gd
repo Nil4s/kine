@@ -26,6 +26,7 @@ const FPS := 60.0
 const SPINE := ["spine_01", "spine_02", "spine_03"]
 const FIX_MARGIN := 3.0   # HEURISTIC: deg the fix aims inside the range (the move out of the card blends part of it away)
 const FIX_TRIES := 4
+const CONTACT_TOL := 0.005   # m: the pelvis fix re-aims the strike until the played contact is this close (test bar 3 cm)
 const MEMO_MAX := 16
 
 ## per move: [back max, forward max, lateral max] (deg; back = -pitch, lateral = |roll|). See docs/research/TRUNK_LEAN.md
@@ -309,18 +310,57 @@ static func _tilt(S: Scene, B: Body, f: Dictionary, w0: Dictionary, orig: Dictio
 			want = (float(nm[1]) - FIX_MARGIN) - float(now["pitch"])
 		_:
 			return {}
-	Scene.put(B, Moves._flat(base))
-	B.fk()
-	var fr := _frame(B.P["thigh_l"], B.P["thigh_r"])
-	B.turn_world("pelvis", Quaternion(fr[0], deg_to_rad(want)))   # the same sense as turn(): + tips the trunk forward
-	B.fk()
-	for k in 10:
-		for sd in plant_at:
-			B.plant(sd, plant_at[sd][0], plant_at[sd][1], true)
-		if ksd != "":
-			var d2: Vector3 = (B.P["ball" + ksd] as Vector3) - (B.P["foot" + ksd] as Vector3)
-			B.reach("foot" + ksd, at - d2)
-		elif pt.begins_with("hand_"):
-			B.reach(pt, at)
+	# the contact as it PLAYS (the in-between frames carry the tilt too, so the card's own point is not enough): the strike's
+	# point at the recognizer's contact frame, before; each pass below moves the reach target by what the played clip missed
+	S.cards[j]["pose"] = orig
+	var c0 := _contact(S, B, int(w0["card"]))
+	var goal := at
+	var pose := {}
+	for pass_i in 3:
+		Scene.put(B, Moves._flat(base))
 		B.fk()
-	return {"pose": B.to_dict(), "tilt": want}
+		var fr := _frame(B.P["thigh_l"], B.P["thigh_r"])
+		B.turn_world("pelvis", Quaternion(fr[0], deg_to_rad(want)))   # the same sense as turn(): + tips the trunk forward
+		B.fk()
+		for k in 10:
+			for sd in plant_at:
+				B.plant(sd, plant_at[sd][0], plant_at[sd][1], true)
+			if ksd != "":
+				var d2: Vector3 = (B.P["ball" + ksd] as Vector3) - (B.P["foot" + ksd] as Vector3)
+				B.reach("foot" + ksd, goal - d2)
+			elif pt.begins_with("hand_"):
+				B.reach(pt, goal)
+			B.fk()
+		pose = B.to_dict()
+		if c0.is_empty() or (ksd == "" and not pt.begins_with("hand_")):
+			break
+		S.cards[j]["pose"] = pose
+		var c1 := _contact(S, B, int(w0["card"]), int(c0["f"]), String(c0["pt"]))
+		var miss: Vector3 = (c0["at"] as Vector3) - (c1["at"] as Vector3)
+		if miss.length() < CONTACT_TOL:
+			break
+		goal += miss
+	S.cards[j]["pose"] = base
+	return {"pose": pose, "tilt": want}
+
+
+## the strike's contact as it plays: {"f" (frame), "pt" (point name), "at" (world)} for card window k, or {} when the
+## recognizer names no strike there. f / pt given: that same frame and point again (after an edit)
+static func _contact(S: Scene, B: Body, k: int, f := -1, pt := "") -> Dictionary:
+	var keep := B.state()
+	var was := S.stepped
+	S.stepped = false
+	var clip := EventQuery.sample([{"S": S, "B": B, "xf": Transform3D.IDENTITY, "name": String(S.name)}], FPS, {"cross": false, "bal": false})
+	S.stepped = was
+	var out := {}
+	if f < 0:
+		var ts := S.times()
+		var r := MoveRecognizer.analyze(clip, 0, int(round(float(ts[k][0]) * FPS)), mini(int(round(float(ts[k][2]) * FPS)), int(clip["n"]) - 1))
+		if r.get("strike", false) and r.has("frames") and String(r.get("point", "")) != "":
+			f = int(r["frames"]["contact"])
+			pt = String(r["point"])
+	if f >= 0 and pt != "":
+		out = {"f": f, "pt": pt, "at": MoveRecognizer._p(clip, 0, f, pt)}
+	B.set_state(keep)
+	B.fk()
+	return out
