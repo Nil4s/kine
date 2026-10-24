@@ -370,6 +370,7 @@ func _init() -> void:
 	await idle(10)
 	ok(undo_words() == "Undo: Walk", "6: after Undo the button reads 'Undo: Walk' (%s)" % undo_words())
 	ok(m.ui_toast != null and m.ui_toast.text == "Undid: Faster", "6: the toast after Undo says 'Undid: Faster' (%s)" % (m.ui_toast.text if m.ui_toast else "none"))
+	ok(m.ui_status.text.begins_with("Took back: Faster"), "6: the say line after Undo says 'Took back: Faster', no Expert step name (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(10)
 	ok(undo_words() == "Undo", "6: undoing the Walk card leaves nothing to undo: 'Undo' (%s)" % undo_words())

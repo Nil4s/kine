@@ -6283,7 +6283,7 @@ func _undo() -> void:
 		sk.flips = fl
 		sk.fitted = SketchPose._skel(B, cam)
 		_sk_show_handles()
-	_say("undone: " + now["name"])
+	_say(("Took back: " + easy_name(u)) if easy != null and easy.on else "undone: " + now["name"])   # Easy says the short name too
 	_toast("Undid: " + (easy_name(u) if easy.on else now["name"]))   # Easy's toast says the short name ("Undid: Faster")
 	_undo_tips()
 	_history_rows()
@@ -6311,8 +6311,8 @@ func _redo() -> void:
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
-	_say("redone: " + now["name"])
-	_toast("Redid: " + now["name"])
+	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "redone: " + now["name"])
+	_toast("Redid: " + (easy_name(r) if easy != null and easy.on else now["name"]))
 	_undo_tips()
 	_history_rows()
 	_jpending = true
