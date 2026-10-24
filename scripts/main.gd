@@ -8516,6 +8516,7 @@ func _kmesh_edit_start() -> void:
 	if kmed.on:
 		_say("The test cube is already open: click an element, or press Esc to leave")
 		return
+	_mesh_page_for("MODEL")
 	kmed.start()
 
 
@@ -8558,6 +8559,7 @@ func _sculpt_start() -> void:
 		return
 	if kmed != null and kmed.on:
 		kmed.stop()   # the test cube is still open (its box select takes every left press first): the sphere gets the strokes
+	_mesh_page_for("SCULPT")
 	ksc.start()
 
 
@@ -14039,6 +14041,13 @@ func _page_set(p: String, save := true) -> void:
 ## MESH PAGES (Expert only): the posing overlays (inspector, part tag, joint dots, target dummy) stay off on MODEL / SCULPT / SURFACE
 func _mesh_page() -> bool:
 	return ExpertPages.PAGES.has(cur_page) and not (easy != null and easy.on)
+
+
+## a mesh opened from a posing page (the search box, a shortcut): its own page first, so the posing browser and inspector
+## step aside and the mesh panels have the left column (a cube opened on POSE drew its primitive panel over the browser)
+func _mesh_page_for(p: String) -> void:
+	if not _mesh_page() and not (easy != null and easy.on) and ui_page_btns.has(p):
+		_page_set(p)
 
 
 func _mesh_open() -> bool:

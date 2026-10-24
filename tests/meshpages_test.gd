@@ -246,6 +246,19 @@ func _init() -> void:
 	root.content_scale_mode = was_mode
 	await idle(4)
 
+	# 8 a cube opened from a posing page (the search box): the MODEL page comes with it (the browser steps aside)
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	if m.kmed != null and m.kmed.on:
+		m.kmed.stop()
+		await idle(2)
+	m._kmesh_edit_start()
+	await idle(3)
+	ok(m.cur_page == "MODEL" and not m.ui_side_of["left"].visible, "8 Test cube from POSE opens the MODEL page (page %s, browser shown %s)" % [m.cur_page, m.ui_side_of["left"].visible])
+	m.kmed.stop()
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+
 	# 4 Easy mode hides the three pages
 	m.easy.set_on(true, false)
 	await idle(3)
