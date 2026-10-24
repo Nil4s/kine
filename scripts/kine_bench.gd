@@ -65,7 +65,7 @@ static func problem(t: Dictionary) -> String:
 			return "no '%s'" % k
 	if not String(t["kind"]) in KINDS:
 		return "kind '%s' is not one of %s" % [t["kind"], KINDS]
-	if not FileAccess.file_exists(AgentTools.res(String(t["start"]))):
+	if not FileAccess.file_exists(load("res://scripts/agent_tools.gd").res(String(t["start"]))):
 		return "no start scene %s" % t["start"]
 	for a in t["asserts"]:
 		if not (a is Dictionary) or not a.has("line"):
@@ -111,7 +111,7 @@ static func card(t: Dictionary) -> Dictionary:
 
 
 ## the judges' bars on the live hero scene -> [{"bar", ..., "value", "pass", "say"}]
-static func _judge(m: Node, T: AgentTools, t: Dictionary) -> Array:
+static func _judge(m: Node, T, t: Dictionary) -> Array:
 	var out := []
 	var playable: bool = m.S.cards.size() >= 2
 	for b in bars(t):
@@ -126,9 +126,9 @@ static func _judge(m: Node, T: AgentTools, t: Dictionary) -> Array:
 			"must_fix":
 				var keep: bool = HumanLimits.on
 				HumanLimits.on = false   # the default Check (see the header)
-				var fs := T.findings()
+				var fs = T.findings()
 				HumanLimits.on = keep
-				var mf := fs.filter(func(f): return f["sev"] == "MUST FIX")
+				var mf = fs.filter(func(f): return f["sev"] == "MUST FIX")
 				r["value"] = mf.size()
 				r["pass"] = mf.size() <= int(b["max"])
 				r["rules"] = mf.map(func(f): return "%s @ %.2f s" % [f["rule"], float(f["t"])])
@@ -179,7 +179,7 @@ static func _named(m: Node, jd: String) -> Dictionary:
 
 
 ## GRADE the live scene (the hero) against task t -> the row the tables are made of
-static func grade(m: Node, T: AgentTools, t: Dictionary) -> Dictionary:
+static func grade(m: Node, T, t: Dictionary) -> Dictionary:
 	if m.has_method("_actor_go") and int(m.actor_on) != 0:
 		m._actor_set(0)   # the hero is graded (see the header)
 	var S: Scene = m.S
@@ -268,7 +268,7 @@ static func open_scene(m: Node, path: String) -> bool:
 
 
 ## SERVE: bench {list: true} | {task: id} | {task: id, score: true}
-static func serve(T: AgentTools, id: Variant, p: Dictionary) -> Dictionary:
+static func serve(T, id: Variant, p: Dictionary) -> Dictionary:
 	if bool(p.get("list", false)):
 		return T._ok(id, {"tasks": tasks().map(func(t): return {"id": t["id"], "kind": t.get("kind", "?"), "brief": t.get("brief", ""),
 			"criteria": criteria(t) if not t.has("error") else 0, "error": t.get("error", "")})})

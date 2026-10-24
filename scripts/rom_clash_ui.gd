@@ -63,7 +63,7 @@ func run(how := "rom") -> void:
 	if err != "":
 		m._say(err)
 		return
-	_parts = ArmourFromBody.parts(m).filter(func(x): return is_instance_valid(x) and (x as Node).is_inside_tree())
+	_parts = load("res://scripts/armour_from_body.gd").parts(m).filter(func(x): return is_instance_valid(x) and (x as Node).is_inside_tree())
 	tick_ms = [float(Time.get_ticks_usec() - t0) / 1000.0]   # the start counts as a stall too
 	_say_t = 0.0
 	m._say(("checking the armour over a range-of-motion sweep (%d poses)" % job._nf if how == "rom" else "checking the armour over every frame of '%s'" % m.S.name) + " (keep working; the list opens when it is done)...")

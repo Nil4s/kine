@@ -66,12 +66,12 @@ func open() -> String:
 	if not BaseBody.is_open(m):
 		return "Model: open the fighter's body first (Search \"Model: edit the body mesh\"), then sculpt it in pose"
 	if m.get("ksc") == null:
-		m.ksc = KMeshSculptUI.new()
+		m.ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
 		m.add_child(m.ksc)
 		m.ksc.setup(m)
 	if m.ksc.on:
 		return "Model: leave the test sphere first (Esc), then sculpt the body in pose"
-	var kmed: KMeshEditUI = m.kmed
+	var kmed = m.kmed
 	var skin := BaseBody.skin_of(m)
 	KMeshMask.ensure(kmed.mesh)   # the channel the sculpt UI makes, made on rest first: no undo step of its own
 	var corr := sp.corrective if sp != null else false
@@ -81,7 +81,7 @@ func open() -> String:
 	sp.reskin()
 	_sig = _pose_sig()
 	undo = SculptPose.PoseUndo.new(sp)
-	var ksc: KMeshSculptUI = m.ksc
+	var ksc = m.ksc
 	_sym = [ksc.sym_x, ksc.sym_y, ksc.sym_z, ksc.radial]
 	ksc.sym_x = false
 	ksc.sym_y = false
@@ -100,7 +100,7 @@ func open() -> String:
 
 ## Esc in the sculpt UI: the model preview back on the edited rest body, the strokes on its undo stack
 func _leave() -> void:
-	var ksc: KMeshSculptUI = m.ksc
+	var ksc = m.ksc
 	ksc.source = Callable()
 	ksc.left = Callable()
 	if _sym.size() == 4:
@@ -108,7 +108,7 @@ func _leave() -> void:
 		ksc.sym_y = _sym[1]
 		ksc.sym_z = _sym[2]
 		ksc.radial = _sym[3]
-	var kmed: KMeshEditUI = m.kmed
+	var kmed = m.kmed
 	var n := undo.steps.size() if undo != null else 0
 	if kmed != null and kmed.view != null:
 		kmed.on = true

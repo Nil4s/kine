@@ -219,7 +219,7 @@ static func _stand() -> Body:
 
 
 static func _scene(path: String) -> Scene:
-	var r := AgentTools.res(path)
+	var r = load("res://scripts/agent_tools.gd").res(path)
 	if path == "" or not FileAccess.file_exists(r):
 		return null
 	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(r))

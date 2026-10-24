@@ -40,8 +40,11 @@ const KINDS := ["command", "pose", "scene", "macro", "script", "mesh"]   # ROADM
 var files_provider: Callable
 var files: Array = []
 ## ROADMAP_400 P02: the mesh tools that are not commands (scripts/mesh_tools.gd rows, kind "mesh"): found by typed words
-## like the files, each row with its hotkey and its page
-var tools: Array = []
+## like the files, each row with its hotkey and its page. tools_provider (main's MeshTools.rows) runs on the box's FIRST
+## search, not at boot: the registry is built when someone opens the S box (tool_rows())
+var tools_provider: Callable
+var _tools: Array = []
+var _tools_built := false
 var box: LineEdit
 var list: Tree
 var shown: Array = []   # the rows in the list now, in order
@@ -224,6 +227,14 @@ static func parse_box(raw_text: String) -> Array:
 	return ["", raw]
 
 
+## the mesh-tool rows, built once, on first use (see tools_provider)
+func tool_rows() -> Array:
+	if not _tools_built:
+		_tools_built = true
+		_tools = tools_provider.call() if tools_provider.is_valid() else []
+	return _tools
+
+
 ## the rows that answer a search (no words: every row of the kind, or the commands): better hits first, a tie keeps the
 ## pool's order (commands, then files). kind "" = any kind; q = the words after the "kind:" prefix. No drawing here
 func matches(kind: String, q: String) -> Array:
@@ -231,7 +242,7 @@ func matches(kind: String, q: String) -> Array:
 	if kind == "" or kind == "command":
 		pool.append_array(commands)
 	if kind != "command" and (q != "" or kind != ""):
-		pool.append_array((files + tools).filter(func(c): return kind == "" or c["kind"] == kind))
+		pool.append_array((files + tool_rows()).filter(func(c): return kind == "" or c["kind"] == kind))
 	var qwords := _query_words(q)
 	var hits := []   # [score, pool index, row]
 	for i in pool.size():

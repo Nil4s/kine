@@ -5900,7 +5900,7 @@ func _snapshot() -> Dictionary:
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
-		"armour": ArmourFromBody.snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
+		"armour": load("res://scripts/armour_from_body.gd").snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
@@ -6070,7 +6070,7 @@ func _restore(u: Dictionary) -> void:
 	if u.has("body_gen"):
 		BaseBody.restore_gen(self, int(u["body_gen"]))   # G01: before the weights, which are sized by its vertices
 	if u.has("armour"):
-		ArmourFromBody.restore(self, u["armour"])   # B23: the armour parts as they were
+		load("res://scripts/armour_from_body.gd").restore(self, u["armour"])   # B23: the armour parts as they were
 	if u.has("skin_w") and not wp.is_empty():
 		if SkinPaint.restore(wp, u["skin_w"]):
 			_skp_build()
@@ -8451,12 +8451,12 @@ func _dgb_release() -> void:
 	_say(DragBalance.words(d["r"]) + "   (keyed at %s; Ctrl+Z takes it back in one step)" % Units.time(t, S.fps))
 
 ## MODEL PAGE, FIRST STEP (ROADMAP_400 A05/A06; scripts/kmesh_view.gd, kmesh_edit_ui.gd): a test cube you can select on
-var kmed: KMeshEditUI
+var kmed   # KMeshEditUI (scripts/kmesh_edit_ui.gd), loaded on first use: not typed, so the class is not parsed at boot
 
 
 func _kmesh_edit_start() -> void:
 	if kmed == null:
-		kmed = KMeshEditUI.new()
+		kmed = load("res://scripts/kmesh_edit_ui.gd").new()
 		add_child(kmed)
 		kmed.setup(self)
 	if kmed.on:
@@ -8491,12 +8491,12 @@ func _kmesh_uv_export() -> void:
 
 
 ## SCULPT PAGE, FIRST STEP (ROADMAP_400 C01/C02; scripts/kmesh_sculpt.gd, kmesh_sculpt_ui.gd): a test sphere you can sculpt
-var ksc: KMeshSculptUI
+var ksc   # KMeshSculptUI (scripts/kmesh_sculpt_ui.gd): loaded on the first Sculpt open, not at boot
 
 
 func _sculpt_start() -> void:
 	if ksc == null:
-		ksc = KMeshSculptUI.new()
+		ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
 		add_child(ksc)
 		ksc.setup(self)
 	if ksc.on:
@@ -12337,7 +12337,7 @@ func _ui() -> void:
 	_nt_sync()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
-	ui_cmd.tools = MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), each with its hotkey and page
+	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
 	_hover_hints()
 	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
 	tips.name = "tips"
@@ -15768,12 +15768,12 @@ func _words_build() -> void:
 		return
 	var W := Body.new()   # a scratch body: the build poses it card by card; the live body takes the opened scene
 	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-	var r: Dictionary = TextBlocking.build(text, W)
+	var r: Dictionary = load("res://scripts/text_blocking.gd").build(text, W)
 	if not r["ok"]:
 		_say("'%s': %s: type a move like 'overhead axe strike, step in'" % [text, r["error"]])
 		return
 	var S2: Scene = r["scene"]
-	var path := TextBlocking.unique_path(UserPaths.w("res://scenes/_wip"), TextBlocking.slug(text))
+	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), load("res://scripts/text_blocking.gd").slug(text))
 	var d := S2.to_dict(W)
 	d["plan"] = "Block out a move from words '%s': %s" % [text, r["status"]]
 	_write(path, d)
@@ -17834,7 +17834,7 @@ func _hs_run_text(text: String, label: String) -> Dictionary:
 	if rec_name != "":
 		_say("click 'Stop macro recording' first: a script cannot play while '%s' is being recorded" % rec_name)
 		return {"ok": false, "done": 0, "undo_steps": 0}
-	var tools := AgentTools.new(self)
+	var tools = load("res://scripts/agent_tools.gd").new(self)
 	var rows := Histscript.parse(text)
 	var u0 := undo.size()
 	_hs_playing = true
@@ -18283,7 +18283,7 @@ func _restore_go() -> void:
 func _restore_copy(r: Dictionary) -> void:
 	var a: Dictionary = r["a"]
 	var nm := safe_file(String(r["name"])).trim_prefix("_wip/")
-	var path := TextBlocking.unique_path(UserPaths.w("res://scenes/_wip"), (nm if nm != "" else "autosave") + "_restored")
+	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), (nm if nm != "" else "autosave") + "_restored")
 	_write(path, a["scene"])
 	_load_scene(path)
 	_rebuild_cards()
