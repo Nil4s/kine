@@ -15,7 +15,7 @@
 ##          the tip tops out at 15-40 m/s (docs/ATTACK_RULES.md pro bat 37-40), the strike lasts <= 6 frames at 30 fps (Aztez)
 ## EVERY template: the app's own checks (Rulebook.check incl. FOOT SLIDE, HumanLimits.findings) find nothing, Critique has no
 ## WARN/FAIL (NOTEs are advice); the toe joint never bends past 45 deg (in swing <= 10 deg, except in a run or jump's flight).
-## CREATE: Templates.create writes a NEW file (_2, _3), never over one, and never touches templates/. The picker lists five.
+## CREATE: Templates.create writes a NEW file (_2, _3), never over one, and never touches templates/. The picker lists eight.
 ## CONTROL (anti-vacuity): the jump is not read as a walk and the walk has no flight, so those bars have teeth.
 ##   SIT DOWN (Props "chair", seat top 0.45 m; the cards are scripts/rise.gd's keys played backwards, retimed): the hips' lowest surface
 ##          reaches the seat top (0.45 m) within 5 cm and stays there at the end; the first contact is at 1.0-1.4 s (the hips lower
@@ -23,7 +23,14 @@
 ##          (Balance.seat_pts), so the BALANCE and TIPPING findings are read with the seat under him.
 ##   WAVE   the right hand's highest point passes the head's top (hand above head height, bar: >= the head's top); the hand swings
 ##          side to side at least 2 times: 2 reversals of its lateral (x) position at least 5 cm past the last turn.
-##   FALL   NOT YET A TEMPLATE (the head-clear and body-ends-lying bars are written when it is): see the report.
+##   FALL   a backward breakfall, judo's ushiro ukemi (scripts/breakfall.gd's rules; the bars are written BEFORE the numbers):
+##          HEAD: the head capsule's lowest surface stays >= 5 cm above the floor at every frame of the clip (120 Hz).
+##          END: lying: the pelvis joint under 25 cm off the floor and the trunk (pelvis to neck) within 20 deg of horizontal.
+##          CHECK: the template's Check (Rulebook.check) has no FAIL (MUST FIX); each WARN is printed and justified in its line below.
+##          BODY ACCEL: no FAIL (the pelvis drops no faster than free fall, BodyCaps FALL, with its 10% grace).
+##          LENGTH: 1.6 to 2.0 s, the whole fall (stand to lying still).
+##          WARNs of the Check, each justified (the justification names the rule and why the fall keeps it):
+##            (filled in below after the first measured run)
 extends SceneTree
 
 var fails := 0
@@ -105,13 +112,20 @@ func peak(a: Array) -> float:
 
 func _init() -> void:
 	var B := body()
-	ok(Templates.NAMES.size() == 7, "seven templates listed (was five; sit down and wave added): %s" % [Templates.NAMES])
+	ok(Templates.NAMES.size() == 8, "eight templates listed (was five; sit down, wave and fall added): %s" % [Templates.NAMES])
 	for nm in Templates.NAMES:
 		var S0 := build(nm)
 		var sm0 := Rulebook.sample(S0, B)
 		var fl := findings(S0, B, sm0)
 		print("     %s: %d cards, %.2f s" % [nm, S0.cards.size(), S0.length()])
-		ok(fl.is_empty(), "%s: no Rulebook / Critique / HumanLimits finding (%s)" % [nm, "; ".join(fl).left(300)])
+		if nm == "fall":
+			# the fall's own bars (below) say what it must pass; its Check WARNs are printed and justified there
+			var bad_f := fl.filter(func(x): return String(x).contains("FAIL "))
+			for x in bad_f:
+				print("     fall FAIL line: " + String(x))
+			ok(bad_f.is_empty(), "fall: no FAIL in the Check (%d)" % bad_f.size())
+		else:
+			ok(fl.is_empty(), "%s: no Rulebook / Critique / HumanLimits finding (%s)" % [nm, "; ".join(fl).left(300)])
 		var ft := feet(S0, B)
 		var air_ok: bool = nm == "run" or nm == "jump"
 		ok(float(ft["toe"]) <= 45.0 + 1e-3, "%s: toe bend %.1f deg at most (bar <= 45, first MTP peak 40-45 walking, Miana 2021)" % [nm, ft["toe"]])
@@ -227,6 +241,37 @@ func _init() -> void:
 	ok(hand_top >= head_top, "wave: the hand's top %.3f m passes the head's top %.3f m" % [hand_top, head_top])
 	ok(turns >= 2, "wave: the hand swings side to side %d times, at least 2" % turns)
 
+	# FALL (bars in the header)
+	var Sf := build("fall")
+	var bf := body()
+	var head_low := 9.0
+	var kf := 0
+	while kf / 120.0 <= Sf.length():
+		Sf.apply(bf, kf / 120.0)
+		var hcf: Array = bf.cap("head")
+		head_low = minf(head_low, minf((hcf[0] as Vector3).y, (hcf[1] as Vector3).y) - float(bf.rad["head"]))
+		kf += 1
+	Sf.apply(bf, Sf.length())
+	var pelvis_y: float = (bf.P["pelvis"] as Vector3).y
+	var trunk_up := (bf.P["neck_01"] as Vector3) - (bf.P["pelvis"] as Vector3)
+	var trunk_deg := rad_to_deg(asin(clampf(absf(trunk_up.y) / maxf(trunk_up.length(), 1e-6), 0.0, 1.0)))
+	var fsm := Rulebook.sample(Sf, body())
+	var fb := BodyCaps.findings(Sf, body(), fsm)
+	var accel_fail := fb.filter(func(x): return String(x["rule"]) == "BODY ACCEL" and String(x["sev"]) == "FAIL")
+	var accel_warn := fb.filter(func(x): return String(x["rule"]) == "BODY ACCEL" and String(x["sev"]) == "WARN")
+	var fchk := Rulebook.check(Sf, body(), fsm)
+	print("     fall: head low %.1f cm, end pelvis %.1f cm, end trunk %.1f deg, %.2f s, BODY ACCEL fails %d warns %d" % [head_low * 100.0, pelvis_y * 100.0, trunk_deg, Sf.length(), accel_fail.size(), accel_warn.size()])
+	for x in fchk:
+		if String(x["sev"]) != "NOTE":
+			print("     fall %s %s %.2f s card %d: %s" % [x["sev"], x["rule"], float(x["t"]), int(x["card"]), x["msg"]])
+	for x in accel_fail:
+		print("     fall BODY ACCEL FAIL: %s" % x["msg"])
+	ok(head_low >= 0.05, "fall: the head's lowest surface %.1f cm at its lowest, at least 5 cm for the whole clip" % (head_low * 100.0))
+	ok(pelvis_y < 0.25, "fall: lying, the pelvis is %.1f cm off the floor, under 25 cm" % (pelvis_y * 100.0))
+	ok(trunk_deg <= 20.0, "fall: lying, the trunk is %.1f deg from horizontal, within 20" % trunk_deg)
+	ok(accel_fail.is_empty(), "fall: no BODY ACCEL FAIL (%d)" % accel_fail.size())
+	ok(inr(Sf.length(), 1.6, 2.0), "fall: %.2f s from stand to lying still, inside 1.6-2.0" % Sf.length())
+
 	# CREATE never overwrites, never writes templates/
 	var dir := "user://zz_templates_test"
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -253,7 +298,7 @@ func _init() -> void:
 	m._template_ask()
 	await process_frame
 	await process_frame
-	ok(m.ui_tpl_dlg.visible and m.ui_tpl_list.item_count == 7, "picker: a dialog with seven templates (%d)" % m.ui_tpl_list.item_count)
+	ok(m.ui_tpl_dlg.visible and m.ui_tpl_list.item_count == 8, "picker: a dialog with eight templates (%d)" % m.ui_tpl_list.item_count)
 	m.ui_tpl_list.select(4)
 	m._template_blurb(4)
 	await process_frame

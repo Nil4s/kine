@@ -1,4 +1,4 @@
-## templates.gd - STARTING SCENES (ROADMAP 44): "New from template..." lists five (walk, run, jump, punch, sword swing); picking
+## templates.gd - STARTING SCENES (ROADMAP 44): "New from template..." lists eight (walk, run, jump, punch, sword swing, sit down, wave, fall); picking
 ## one copies it to a NEW file scenes/_wip/<template>[_N].json (never over one) and the app opens that copy. The templates
 ## themselves are the files in templates/ (read only; tools/make_templates.gd writes them from tools/template_plans.gd, and
 ## tests/templates_test.gd measures each against the real human data cited in the plan).
@@ -7,7 +7,7 @@ extends RefCounted
 
 const DIR := "res://templates"
 const WIP := "res://scenes/_wip"
-const NAMES := ["walk", "run", "jump", "punch", "sword_swing", "sit_down", "wave"]
+const NAMES := ["walk", "run", "jump", "punch", "sword_swing", "sit_down", "wave", "fall"]
 ## the picker's text: [title, what you get]
 const INFO := {
 	"walk": ["Walk", "A half step, five steps at 105 a minute, feet together; arms swing against the legs."],
@@ -17,6 +17,7 @@ const INFO := {
 	"sword_swing": ["Sword swing", "A one-hand cut across the body: hips, then chest, then the arm, then the blade."],
 	"sit_down": ["Sit down", "From standing onto a chair: the knees bend, the trunk leans forward and comes back up, feet planted."],
 	"wave": ["Wave", "The right hand raised, the forearm swung side to side two and a half times, then lowered."],
+	"fall": ["Fall", "A backward breakfall: off balance, one step back into a deep crouch, sit down close to the heel, roll onto the back, arms slapping the floor."],
 }
 
 

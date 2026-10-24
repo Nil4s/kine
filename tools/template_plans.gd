@@ -13,6 +13,7 @@ static func get_plan(nm: String) -> Dictionary:
 		"sword_swing": return plan_sword_swing()
 		"sit_down": return plan_sit_down()
 		"wave": return plan_wave()
+		"fall": return plan_fall()
 	return {}
 
 
@@ -315,3 +316,35 @@ static func plan_wave() -> Dictionary:
 	clips.append({"name": "lower", "move": 0.45, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]})
 	return {"name": "wave", "base": "poses/stand.json", "clips": clips, "spline": false,
 		"note": "WAVE template: the right hand raised, the forearm swung side to side 2.5 times (about 1.2 s), then lowered. Hand passes head height."}
+
+
+## FALL. A backward fall, judo's ushiro ukemi (a back breakfall): stand, lean back with the arms forward, one step back and a deep crouch
+## with the chin tucked, sit down onto the floor close to the heel, roll onto the back with the arms slapping the floor, lie still.
+## The bars are in tests/templates_test.gd (the head stays 5 cm off the floor, the body ends lying). The pelvis drops no faster
+## than free fall (BodyCaps FALL). Breakfall's rules (scripts/breakfall.gd) judge the landing: chin tucked, elbows bent, the
+## slap at 30-45 deg from the body, the weight spread over arm and back.
+static func plan_fall() -> Dictionary:
+	var clips := [{"name": "stand", "move": -1, "hold": 0.2, "set": stand_set(), "relaxed": ["l", "r"], "hips": [0, 0, 0.0]}]
+	var arms_fwd := {"upperarm_l": [80, -15, 0], "upperarm_r": [80, -15, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
+	var off := stand_set()
+	off.merge({"pelvis": [-6, 0, 0], "spine_01": [-2, 0, 0], "spine_02": [-2, 0, 0], "spine_03": [-2, 0, 0]}, true)
+	off.merge(arms_fwd, true)
+	clips.append({"name": "off balance", "move": 0.25, "hold": 0.0, "set": off, "hips": [0, 0, -0.03]})
+	var crouch := {"pelvis": [8, 0, 0], "spine_01": [5, 0, 0], "spine_02": [5, 0, 0], "spine_03": [5, 0, 0],
+		"neck_01": [24, 0, 0], "head": [14, 0, 0], "thigh_l": [95, 7, 0], "thigh_r": [95, 7, 0], "calf_l": [120, 0, 0], "calf_r": [120, 0, 0],
+		"upperarm_l": [85, -15, 0], "upperarm_r": [85, -15, 0], "lowerarm_l": [40, 0, 0], "lowerarm_r": [40, 0, 0]}
+	clips.append({"name": "step back and crouch", "move": 0.4, "hold": 0.0, "set": crouch, "hips": [0, 0, -0.10], "keep_feet": true, "step": {"_r": [0, 0, -0.30]}})
+	var sit := {"pelvis": [-30, 0, 0], "spine_01": [-2, 0, 0], "spine_02": [-2, 0, 0], "spine_03": [-2, 0, 0],
+		"neck_01": [26, 0, 0], "head": [14, 0, 0], "thigh_l": [80, 7, 0], "thigh_r": [80, 7, 0], "calf_l": [110, 0, 0], "calf_r": [110, 0, 0],
+		"upperarm_l": [60, -40, 0], "upperarm_r": [60, -40, 0], "lowerarm_l": [40, 0, 0], "lowerarm_r": [40, 0, 0]}
+	clips.append({"name": "sit down", "move": 0.3, "hold": 0.0, "set": sit, "hips": [0, 0, -0.10], "keep_now": true})
+	var roll := {"pelvis": [-75, 0, 0], "spine_01": [-1, 0, 0], "spine_02": [-1, 0, 0], "spine_03": [-1, 0, 0],
+		"neck_01": [26, 0, 0], "head": [14, 0, 0], "thigh_l": [60, 7, 0], "thigh_r": [60, 7, 0], "calf_l": [95, 0, 0], "calf_r": [95, 0, 0],
+		"upperarm_l": [0, 20, 0], "upperarm_r": [0, 20, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
+	clips.append({"name": "roll onto the back", "move": 0.25, "hold": 0.0, "set": roll, "hips": [0, 0, -0.28], "y": -0.68, "keep_now": true})
+	var lie := {"pelvis": [-90, 0, 0], "spine_01": [0, 0, 0], "spine_02": [0, 0, 0], "spine_03": [0, 0, 0],
+		"neck_01": [26, 0, 0], "head": [14, 0, 0], "thigh_l": [85, 7, 0], "thigh_r": [85, 7, 0], "calf_l": [90, 0, 0], "calf_r": [90, 0, 0],
+		"upperarm_l": [0, 45, 0], "upperarm_r": [0, 45, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
+	clips.append({"name": "lying, still", "move": 0.25, "hold": 0.2, "set": lie, "hips": [0, 0, -0.40], "y": -0.82, "keep_now": true})
+	return {"name": "fall", "base": "poses/stand.json", "clips": clips, "spline": true, "floor_body": true, "pin": false, "no_pin": true,
+		"note": "FALL template: a backward breakfall (ushiro ukemi): off balance, one step back into a deep crouch with the chin tucked, sit down close to the heel, roll onto the back with the arms slapping the floor, lie still."}
