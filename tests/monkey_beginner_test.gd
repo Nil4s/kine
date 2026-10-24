@@ -146,40 +146,26 @@ func snapshot() -> void:
 
 
 func _init() -> void:
+	EasyMode.start_fresh = true   # a fresh install: no settings file, so the app opens in Easy (no mode key = Easy)
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(8)
 	var home: EasyHome = m.easy.home
 
-	# 1. app open: a test starts in Expert (no mode key in its own settings file). Easy is reached the way a person
-	#    would: the View menu, then its "Easy mode" item. Then: the body on screen, the Easy home panel shown.
+	# 1. app open: a FRESH start (no settings file) opens straight into Easy, the home panel showing. 0 clicks.
 	begin()
-	var mb := find_btn("View") as MenuButton
-	var reached1 := false
-	if mb != null:
-		clicks += 1
-		pressed_names.append("View")
-		mb.about_to_popup.emit()   # the menu fills itself as it opens
-		var pm := mb.get_popup()
-		for i in pm.item_count:
-			if pm.get_item_text(i) == "Easy mode":
-				clicks += 1
-				pressed_names.append("Easy mode")
-				pm.id_pressed.emit(pm.get_item_id(i))
-				reached1 = true
-				break
-	await idle(6)
-	ok(m.easy.on, "1. Easy is on after View > Easy mode (%d clicks)" % clicks)
-	if home.shown() != "panel" and m.S.cards.size() > 0:
-		# a scene with cards is open: a beginner starts a new one (and answers the unsaved-work question if asked)
-		await press("New scene")
-		await idle(4)
-		if await press("Don't save"):
+	var fresh_easy: bool = m.easy.on
+	ok(fresh_easy, "1. a fresh start (no settings file) opens in Easy")
+	await idle(4)
+	if home.shown() != "panel" and m.S.cards.size() > 0:   # a scene with cards is open: a new one first
+		if await press("New scene"):
+			await idle(4)
+			await press("Don't save")
 			await idle(4)
 	ok(body_on_screen(), "1. the body is on screen (his middle projects inside the window)")
 	ok(home.shown() == "panel", "1. the Easy home panel is visible (shown: %s)" % home.shown())
 	snapshot()
-	end("1 app open", reached1 and body_on_screen() and home.shown() == "panel", "(Expert at start; reached Easy by View > Easy mode)")
+	end("1 app open", fresh_easy and body_on_screen() and home.shown() == "panel", "(fresh start, no settings file)")
 
 	# 2. "make him punch": the Punch card builds a clip and plays it
 	begin()
@@ -241,17 +227,25 @@ func _init() -> void:
 	snapshot()
 	end("5 make him kick", closed and changed and kicked and kick_played, "")
 
-	# 6. "save it and send me the video": reachable from the strip by the visible "Save video" button. NOT pressed:
-	#    that button always writes to res://exports/playblast (PlayblastExport.ROOT, a const), never to user://.
+	# 6. "save it and send me the video": the strip's Save video, pressed. Its folder is a test's user:// folder
+	#    (EasyHome.video_root); the real default is the user's Videos folder, Kine/.
 	begin()
-	var save_visible := find_btn("Save video") != null
-	var bar_visible := find_btn("Export video") != null
+	home.video_root = "user://monkey_out_%d" % OS.get_process_id()
+	var pressed6 := await press("Save video")
+	var t0 := Time.get_ticks_msec()
+	while home.last_video.is_empty() and Time.get_ticks_msec() - t0 < 120000:
+		await process_frame
+	var mp4 := String(home.last_video.get("mp4", ""))
+	var toast := ""
+	for n in visible_nodes():
+		if n is Label and (n as Label).text.begins_with("Video saved: "):
+			toast = (n as Label).text
+	var show_btn := find_btn("Show the file") != null
+	var wrote := pressed6 and mp4 != "" and FileAccess.file_exists(mp4) and mp4.contains(home.video_root.trim_prefix("user://"))
+	ok(wrote, "6. Save video writes a video file to the test folder: %s" % mp4)
+	ok(toast != "" and show_btn, "6. a toast says '%s' with a Show the file button" % toast)
 	snapshot()
-	end("6 save and send the video", save_visible or bar_visible, "(not pressed: see BLOCKED)")
-	if save_visible:
-		blocked("6 save and send the video", "reachable (visible 'Save video', also 'Export video' on the bar), but it writes to res://exports/playblast with no folder choice, so the test cannot send it to user:// without writing into the real exports")
-	else:
-		blocked("6 save and send the video", "no visible 'Save video' after a clip is built")
+	end("6 save and send the video", wrote and toast != "" and show_btn, "(test folder %s)" % home.video_root)
 
 	# the other checks: every visible Easy button, all visible text, shared labels
 	print("TOOLTIPS: %d visible buttons checked; no tooltip: %s" % [tip_checked, str(no_tip.keys())])

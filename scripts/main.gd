@@ -289,7 +289,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
-var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
+var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 13-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
 
 ## ROOM TO WORK (round 35a, GATES QQ4; Nick 10-16 "not like fusion that is more minimalist, more space to design"):
@@ -10607,7 +10607,7 @@ func _set_scale(pct: int) -> void:
 
 ## HINTS ON/OFF (round 35a, GATES QQ3): the teaching texts (the welcome line on the yellow strip, the selected part's
 ## "Drag: rotate it..." line, the Poses and Scene captions) go; what the app SAYS about what you did still shows
-const WELCOME := "Click a body part to select it.  Drag it to rotate.  POSES, on the left, has poses to start from."
+const WELCOME := "Click a part, then drag it to turn it."
 var hints_on := true
 var ui_hint_labels: Array = []
 
@@ -11473,7 +11473,7 @@ func _ui() -> void:
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
 	tog.call("VIEW", "Corrective shapes", func(): corr.on = not corr.on; dummy_corr.on = corr.on; _refresh(); dummy_corr.update(T.D), func(): return corr.on,
 		"the elbows and knees keep their volume as they bend: the skin pushes out along its normals as the bend goes 0 -> 140 deg (scripts/corrective.gd). Off = the plain skinning, which pinches at a bent joint")
-	tog.call("VIEW", "Easy mode", func(): easy.set_on(not easy.on), func(): return easy.on, "Easy: the 12 big buttons, the panels hidden (a fresh start is Easy). Off = Expert: every panel and tool, as before (remembered)")
+	tog.call("VIEW", "Easy mode", func(): easy.set_on(not easy.on), func(): return easy.on, "Easy: the 13 big buttons, the panels hidden (a fresh start is Easy). Off = Expert: every panel and tool, as before (remembered)")
 	var us := MenuButton.new()
 	us.text = "UI size"
 	us.flat = false
@@ -12444,6 +12444,8 @@ func bar_text() -> String:
 	var chk := "Check: not run" if not check_ran else ("Check: clean" if findings.is_empty() else "Check: %d (%d must fix)" % [findings.size(), fails])
 	if check_ran and undo.size() != check_at:
 		chk += ", changed since"
+	if easy != null and easy.on:   # Easy: the short line (the picked part and the Check result are in Expert)
+		return "  |  ".join([card, t])
 	return "   |   ".join([what, card, t, chk])
 
 
@@ -12798,7 +12800,7 @@ func _rebuild_cards() -> void:
 	_sg_strip = null   # R27: the strip was emptied just above
 	_layout_bottom()
 	if S.cards.is_empty() and easy != null and easy.on:
-		ui_cards.add_child(_label("No clips yet: pick a move above, or pose him and press Key this pose.", 16, "text:0.55"))   # Easy home holds the ways in
+		ui_cards.add_child(_label("No clips yet: pick a move or key a pose", 16, "text:0.55"))   # Easy home holds the ways in
 	elif S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
@@ -14092,7 +14094,7 @@ func _commands() -> Array:
 	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
-	add.call("Mode: Easy (12 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 buttons stay large (remembered)")
+	add.call("Mode: Easy (13 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 13 buttons stay large (remembered)")
 	add.call("Mode: Expert (every panel and tool)", "", easy.set_on.bind(false), "expert advanced full mode panels all tools", false, "every panel and tool back, as before (remembered)")
 	add.call("Edit: undo history...", "", _toggle_history, "steps list back forward", false, "every change by name, as a tree: branches where an edit came after an undo; click one to jump to exactly that state")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")

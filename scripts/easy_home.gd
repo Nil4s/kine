@@ -18,7 +18,7 @@ const CARDS := [   # [the word on the card, what it builds (a templates/ name or
 	["Wave", "wave", "wave"],
 	["Fall", "fall", "fall"],
 ]
-const HINT := "or type it: 'jab then cross', 'roundhouse'…"
+const HINT := "or type a move: 'jab then cross'"
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
 const NOT_YET := ["sit", "fall"]   # typed words Kine cannot build yet (sit down and wave are templates now; fall is not)
 
@@ -33,6 +33,11 @@ var _open := false             # Change it (or a failed build): the full panel, 
 var _t0 := -1                  # msec at the last click; -1 = nothing being timed
 var last_ms := -1              # click -> the first frame the clip plays, msec (the test reads it; -1 = none yet)
 var last_build_ms := -1        # the builder alone (the build of the last card or line), msec: reported, not hidden
+var video_root := ""           # a TEST's folder (user://...) for Save video; "" = the user's Videos folder (Kine/)
+var last_video := {}          # the last Easy save: the playblast's result ({dir, frames, mp4, ffmpeg}); {} = none, or refused
+var _toast: PanelContainer
+var _toast_text: Label
+var _toast_file := ""         # what Show the file opens: the .mp4 (its folder is shown with it)
 
 
 func build(root: Control) -> void:
@@ -95,7 +100,31 @@ func build(root: Control) -> void:
 	strip.add_child(row)
 	row.add_child(_strip_button("eh_again", "Again", "play the clip from its start", _play))
 	row.add_child(_strip_button("eh_change", "Change it", "type another move in the box", _change))
-	row.add_child(_strip_button("eh_save", "Save video", "render the scene from the camera to a video in exports/", func(): m._export_playblast()))
+	row.add_child(_strip_button("eh_save", "Save video", "render the scene from the camera to a video in your Videos folder (Kine/), with a button to show it", save_video))
+	_toast = PanelContainer.new()
+	_toast.name = "easy_toast"
+	_toast.visible = false
+	_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_toast.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_toast.offset_bottom = -40.0
+	var tst := StyleBoxFlat.new()
+	tst.bg_color = Tok.c("accent")
+	tst.set_corner_radius_all(10)
+	tst.set_content_margin_all(18)
+	_toast.add_theme_stylebox_override("panel", tst)
+	root.add_child(_toast)
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", 12)
+	_toast.add_child(tv)
+	_toast_text = _label("", 26, "on_accent")
+	_toast_text.name = "eh_toast_text"
+	tv.add_child(_toast_text)
+	var tr := HBoxContainer.new()
+	tr.add_theme_constant_override("separation", 10)
+	tv.add_child(tr)
+	tr.add_child(_toast_button("eh_toast_show", "Show the file", "open the folder with the video in it", func(): OS.shell_show_in_file_manager(_toast_file)))
+	tr.add_child(_toast_button("eh_toast_ok", "Got it", "hide this message", func(): _toast.visible = false))
 
 
 func _process(_dt: float) -> void:
@@ -105,6 +134,8 @@ func _process(_dt: float) -> void:
 	var empty: bool = m.S.cards.is_empty()
 	panel.visible = on and (empty or _open)
 	strip.visible = on and not (empty or _open) and _built
+	if not on:
+		_toast.visible = false
 	_close.visible = not empty
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
 		last_ms = Time.get_ticks_msec() - _t0
@@ -123,6 +154,51 @@ func card(i: int) -> void:
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1
 	_go(String(CARDS[i][1]), String(CARDS[i][0]))
+
+
+## SAVE VIDEO (Easy's strip and the bar's Export video): the playblast (PNG frames, and an .mp4 when ffmpeg is found) in the
+## user's Videos folder, Kine/ (video_folder). A toast names the file and offers Show the file. Expert's export is not changed.
+func save_video() -> void:
+	last_video = {}
+	var r: Dictionary = await m._export_playblast(video_folder())
+	last_video = r
+	if r.is_empty():   # refused: the playblast's status line says why
+		return
+	if String(r["mp4"]) != "":
+		_show_toast("Video saved: %s" % String(r["mp4"]).get_file(), String(r["mp4"]))
+		m._say_plain("Video saved: %s" % String(r["mp4"]).get_file())   # the status line says it short (the playblast's own line is long)
+	else:
+		_show_toast("No video: ffmpeg was not found. The frames are saved.", String(r["dir"]))
+		m._say_plain("No video: no ffmpeg found")
+
+
+## where Easy's video goes: a test's folder if one is set, else Videos/Kine, else Documents/Kine
+func video_folder() -> String:
+	if video_root != "":
+		return video_root
+	for base in [OS.get_system_dir(OS.SYSTEM_DIR_MOVIES), OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS)]:
+		var dir := String(base).path_join("Kine")
+		if String(base) != "" and (DirAccess.dir_exists_absolute(dir) or DirAccess.make_dir_recursive_absolute(dir) == OK):
+			return dir
+	return "user://Kine"
+
+
+func _show_toast(text: String, file: String) -> void:
+	_toast_text.text = text
+	_toast_file = file
+	_toast.visible = true
+
+
+func _toast_button(nm: String, text: String, tip: String, f: Callable) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = text
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(200, 52)
+	b.add_theme_font_size_override("font_size", 20)
+	b.pressed.connect(f)
+	return b
 
 
 ## the text box: the same build as a card, named by what was typed

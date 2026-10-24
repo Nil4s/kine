@@ -21,6 +21,14 @@ extends PanelContainer
 ## Totals with no models of your own: 11 + 5 + 1 + 13 + 7 = 37 built-in objects (the thin tabs are Sports and Armour).
 
 const CATS := ["Weapons", "Furniture", "Sports", "Everyday", "Armour", "My models"]
+const TAB_TIPS := {   # the tab tooltips: what the tab holds and what a click on its tiles does
+	"Weapons": "Weapons: swords, bats, staffs, spears, daggers. A click puts one in his right hand",
+	"Furniture": "Furniture: chairs, tables, stools and the like. A click puts one on the floor in front of him",
+	"Sports": "Sports gear: balls, bats and kit. A click puts one on the floor in front of him",
+	"Everyday": "Everyday things: cups, bags, bottles and more. A click puts one on the floor in front of him",
+	"Armour": "Armour plates. A click fits one to his body",
+	"My models": "Models you have added yourself. A click puts one on the floor in front of him",
+}
 const PROP_CAT := {"table": "Furniture", "chair": "Furniture", "stool": "Furniture", "bench": "Furniture", "bed": "Furniture",
 	"ball": "Sports", "sword": "Weapons"}   # every other prop kind is Everyday
 const PROP_NAME := {"ball": "Football", "sword": "Sword on the floor"}
@@ -89,6 +97,7 @@ func setup(main: Node, weapon_list: Array) -> void:
 	for i in CATS.size():
 		var b := Button.new()
 		b.name = "tab_%d" % i
+		b.tooltip_text = TAB_TIPS[CATS[i]]
 		b.toggle_mode = true
 		b.button_group = grp
 		b.focus_mode = Control.FOCUS_NONE
@@ -190,11 +199,11 @@ func place(id: String) -> bool:
 	var how: String = it["how"]
 	if how == "weapon":
 		m._do(m._two_daggers if it["key"] == "two_daggers" else m._kind.bind(it["key"]))
-		_note.text = "%s in the right hand (Ctrl+Z takes it back)" % it["name"]
+		_note.text = "%s: right hand, Ctrl+Z undoes" % it["name"]
 		return true
 	if how == "prop":
 		m._prop_add(String(it["key"]))   # main pushes its own undo step, as the Add prop menu does
-		_note.text = "%s on the floor in front of the body (Ctrl+Z takes it back)" % it["name"]
+		_note.text = "%s: on the floor, Ctrl+Z undoes" % it["name"]
 		return true
 	# ArmourFromBody.make is ONE undo step by itself (its attach pushes it, after the plate is built): no _do around it,
 	# and a plate that fails to build pushes nothing

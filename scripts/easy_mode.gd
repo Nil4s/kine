@@ -1,7 +1,7 @@
 class_name EasyMode
 extends Node
 ## EASY MODE (docs/ROADMAP.md items 3 and 4; beginners are lost in 140+ commands).
-## Easy: ONE bar of 12 big labelled buttons takes the top strip's place; the side panels, the top tools, the scene
+## Easy: ONE bar of 13 big labelled buttons takes the top strip's place; the side panels, the top tools, the scene
 ## header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
 ## The mode is remembered in poser.cfg [look] mode. A fresh config is Easy; an existing config with no mode key is
 ## Expert, so nothing changes for people who already use the app. A test is Expert unless it says otherwise.
@@ -30,6 +30,7 @@ var _menu: PopupMenu
 var _snap := {}             # the state at the start of the tour step
 var _armed := false         # step 1: a hand was dragged (the drag is not let go yet)
 var _moved := false         # step 4: the body changed since the step began
+static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
 
 
@@ -48,7 +49,7 @@ static func mode_for(cf: ConfigFile, testing := false) -> bool:
 func start(cf: ConfigFile, testing: bool) -> void:
 	var args := OS.get_cmdline_user_args()
 	var forced := args.has("--easy") or args.has("--expert")
-	var want := args.has("--easy") if forced else mode_for(cf, testing)
+	var want := args.has("--easy") if forced else mode_for(cf, testing and not start_fresh)
 	if not testing and not forced and not cf.has_section_key(CFG, "mode"):
 		_set_cfg("mode", "easy" if want else "expert")   # the first start writes it down: later tour writes cannot flip it
 	set_on(want, false)
@@ -81,7 +82,7 @@ func build(root: Control, expert: Array) -> void:
 		["Save", "Save the scene (Ctrl+Shift+S)", m._save_scene],
 		["Mirror pose", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
 		["Floor (snap feet)", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
-		["Export video", "Render the scene from the camera to a video in exports/", func(): m._export_playblast()],
+		["Export video", "Render the scene from the camera to a video in your Videos folder (Kine/), with a button to show it", func(): home.save_video()],
 		["Library", "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it", func(): m._library_toggle()],
 			["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
@@ -101,7 +102,7 @@ func build(root: Control, expert: Array) -> void:
 	home.build(root)
 
 
-## one big button: its label wraps in the button (two lines at 12 buttons across a 1280-px window)
+## one big button: its label wraps in the button (two lines at 13 buttons across a 1280-px window)
 func _big(label: String, tip: String, f: Callable) -> Button:
 	var b := Button.new()
 	b.name = "easy_" + str(_btns.size() + 1)
@@ -184,7 +185,7 @@ func set_on(v: bool, save := true) -> void:
 		m._fit_rows.call_deferred()
 	if save and m != null:
 		_set_cfg("mode", "easy" if on else "expert")
-		m._say("Easy mode: the 12 buttons, larger. Expert brings every panel back." if on else "Expert mode: every panel and tool is back.")
+		m._say("Easy: 13 big buttons, panels hidden." if on else "Expert: every panel is back.")
 
 
 func _set_cfg(key: String, v: Variant) -> void:
@@ -196,7 +197,7 @@ func _set_cfg(key: String, v: Variant) -> void:
 	cf.save(m.settings)
 
 
-# ---------------------------------------------------------------- the 12 buttons' actions
+# ---------------------------------------------------------------- the 13 buttons' actions
 
 func _pose() -> void:
 	m._say("Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.")
