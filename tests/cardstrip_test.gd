@@ -7,6 +7,8 @@
 ##    picture by a mean pixel difference <= 0.02 (of 1.0), while pictures of two DIFFERENT poses differ by >= 0.01
 ##  4 rename / retime / reorder (drag-drop) / delete are each ONE undo step, and the undo restores the scene's JSON exactly
 ##  5 the selected card has Tok card_sel; the card at the playhead has the Tok card_play frame; they follow the playhead
+##  7 each walk-template thumb (8 cards, the body walks forward) frames its own body: inside the thumb with a 2 px margin, centre
+##    within 25 % of the width from the thumb centre (measured by scanning the thumb image for pixels off the backdrop colour)
 ##  6 playing combo3 from 0: after the first frame the card at the playhead is inside the strip's viewport on >= 95 % of the
 ##    frames, and the strip scrolled when the card was past the edge (with the window narrowed to 700 px so it must)
 extends SceneTree
@@ -136,6 +138,36 @@ func _init() -> void:
 	var nb4: Button = m.ui_cards.get_node("card_4").find_child("b_pick", true, false)
 	ok(nb4.icon != null and nb4.get_global_rect().size.y >= 70.0 and pc4.get_global_rect().encloses(nb4.get_global_rect()) and nb4.text.begins_with("4 "),
 		"card 4: picture and '%s' are inside the card (%.0f x %.0f px)" % [nb4.text, pc4.size.x, pc4.size.y])
+
+	# 3b the walk's thumbs frame their own body: the template's 8 cards (the body walks forward, root z from -3.9 to 0), each
+	# drawn alone by the same renderer; the body's pixels (any pixel off the stage's backdrop colour, measured on the
+	# thumb image itself) lie inside the thumb with a 2 px margin, and their centre is within 25 % of the width from the middle
+	var wcards: Array = (Templates.read("walk") as Dictionary).get("cards", [])
+	var tw := SceneThumbs.SIZE.x
+	var th := SceneThumbs.SIZE.y
+	var frame_bad: Array = []
+	var frame_worst := 0.0
+	for i in wcards.size():
+		var wimg: Image = await fresh.draw_pose((wcards[i] as Dictionary)["pose"])
+		var lo := Vector2i(tw, th)
+		var hi := Vector2i(-1, -1)
+		for y in th:
+			for x in tw:
+				var px := wimg.get_pixel(x, y)
+				var bgc := PoseLibrary.BG
+				if absf(px.r - bgc.r) + absf(px.g - bgc.g) + absf(px.b - bgc.b) > 0.06:
+					lo = Vector2i(mini(lo.x, x), mini(lo.y, y))
+					hi = Vector2i(maxi(hi.x, x), maxi(hi.y, y))
+		if hi.x < 0:
+			frame_bad.append("%d: no body" % i)
+			continue
+		var cen := (lo.x + hi.x + 1) / 2.0
+		var off := absf(cen - tw / 2.0) / float(tw)
+		frame_worst = maxf(frame_worst, off)
+		var inside := lo.x >= 2 and lo.y >= 2 and hi.x <= tw - 3 and hi.y <= th - 3
+		if not inside or off > 0.25:
+			frame_bad.append("%d: x %d..%d y %d..%d centre off %.2f" % [i, lo.x, hi.x, lo.y, hi.y, off])
+	ok(wcards.size() == 8 and frame_bad.is_empty(), "walk thumbs: %d cards, each body inside its thumb with a 2 px margin and centred (worst centre offset %.2f of the width, bar <= 0.25) %s" % [wcards.size(), frame_worst, str(frame_bad)])
 
 	# 4 edits: one undo step each, exactly restored
 	var before := scene_json()
