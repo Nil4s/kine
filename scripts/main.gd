@@ -19837,6 +19837,7 @@ var _video_name := ""
 var _video_t := 0.0
 var _video_raw := false   # "import raw": the tracker's frames go straight to the fit, no VideoCleanup (jitter, floor, plants)
 var _video_prog := ""     # the tracker's progress file (its fraction 0-1, rewritten as it goes): Easy's "Reading the video: 40 %"
+var _video_cancelled := false   # the last import was stopped by Cancel while the tracker ran (Easy says "Stopped. Nothing was changed.")
 var _land_undo := ""     # EASY's Copy a video: the name of the one undo step the landing makes (the scene before the import); "" = none
 
 
@@ -19967,6 +19968,7 @@ func _import_video(path: String, raw := false) -> void:
 	if _video_pid >= 0 and OS.is_process_running(_video_pid):
 		_say("still tracking %s: one video at a time; try again when it arrives" % _video_name)
 		return
+	_video_cancelled = false
 	if not FileAccess.file_exists(path):
 		_say("could not track %s: no such file; pick the video again" % path.get_file())
 		return
@@ -19985,16 +19987,52 @@ func _import_video(path: String, raw := false) -> void:
 		_say("could not track %s: \"%s\" did not start (it needs Python with mediapipe and opencv-python: run pip install mediapipe opencv-python)" % [_video_name, video_python])
 		return
 	_video_t = 0.0
+	_imp_show(true, "tracking %s" % _video_name)   # the bar fills as the tracker reads; Cancel stops it (_video_cancel)
 	_say("tracking %s: finding the person in every frame (about a second per second of video)..." % _video_name)
+
+
+## THE CANCEL WHILE TRACKING (Easy's Copy a video and the Expert import alike): the tracker is killed, its partial files are
+## removed, and nothing lands: no undo step, no card change. Waits (up to a second) for the process to be gone first, so
+## a file it was still writing is not left behind.
+func _video_cancel() -> void:
+	if _video_pid < 0:
+		return
+	var pid := _video_pid
+	_video_pid = -1
+	_video_cancelled = true
+	OS.kill(pid)
+	for i in 50:
+		if not OS.is_process_running(pid):
+			break
+		OS.delay_msec(20)
+	for f in [_video_out, _video_prog]:
+		if f != "" and FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+	_imp_show(false)
+	_say("Stopped. Nothing was changed.")
+
+
+## the progress bar of the tracker's read (its fraction in the progress file), ~4 times a second
+func _video_bar() -> void:
+	if _imp_panel == null or not _imp_panel.visible or _video_prog == "" or not FileAccess.file_exists(_video_prog):
+		return
+	var t := FileAccess.get_file_as_string(_video_prog).strip_edges()
+	if t.is_valid_float():
+		_imp_bar.value = clampf(t.to_float(), 0.0, 1.0) * 100.0
 
 
 func _video_poll(dt: float) -> void:
 	if _video_pid < 0:
 		return
+	var tick := int(_video_t * 4.0) != int((_video_t + dt) * 4.0)
 	_video_t += dt
 	if OS.is_process_running(_video_pid):
+		if tick:
+			_video_bar()
 		return
 	_video_pid = -1
+	if _imp.is_empty():
+		_imp_show(false)   # no fit follows (the tracker found no person, or the video was not read): the bar goes
 	if not FileAccess.file_exists(_video_out):
 		_video_reh = false
 		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
@@ -20142,6 +20180,14 @@ func _imp_begin(label: String, work: Callable, land: Callable, fail := Callable(
 	return ""
 
 
+## the bar's Cancel: while the tracker reads the video it stops that (_video_cancel), during the fit the fit (_imp_cancel)
+func _import_cancel() -> void:
+	if _video_pid >= 0:
+		_video_cancel()
+	else:
+		_imp_cancel()
+
+
 func _imp_cancel() -> void:
 	if _imp.is_empty() or _imp["cancel"]:
 		return
@@ -20178,7 +20224,7 @@ func _imp_stop() -> void:
 	_imp = {}
 
 
-func _imp_show(on: bool) -> void:
+func _imp_show(on: bool, text := "") -> void:
 	if _imp_panel == null:
 		if not on:
 			return
@@ -20224,12 +20270,12 @@ func _imp_show(on: bool) -> void:
 		_imp_cancel_btn.text = "Cancel"
 		_imp_cancel_btn.name = "import_cancel"
 		_imp_cancel_btn.tooltip_text = "stop this import; the scene stays exactly as it is"
-		_imp_cancel_btn.pressed.connect(_imp_cancel)
+		_imp_cancel_btn.pressed.connect(_import_cancel)
 		row.add_child(_imp_cancel_btn)
 		ui_root.add_child(_imp_panel)
 	_imp_panel.visible = on
 	if on:
-		_imp_lbl.text = String(_imp["label"])
+		_imp_lbl.text = text if text != "" else String(_imp["label"])
 		_imp_bar.value = 0.0
 		_imp_cancel_btn.disabled = false
 

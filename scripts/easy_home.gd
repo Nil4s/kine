@@ -234,7 +234,8 @@ func _go(what: String, label: String) -> void:
 
 ## COPY A VIDEO (Easy's More): a video of one person -> the Expert import (main._import_video: the tracker, then the fit: the
 ## same pipeline, not a second one). One undo step (the scene before the copy: main._import_land pushes it). The status line
-## says the progress in one plain sentence; the import's own bar (with its Cancel, during the fit) is shown as it always is.
+## says the progress in one plain sentence; the import's own bar (with its Cancel: during the tracking it stops the tracker, during
+## the fit the fit) is shown as it always is.
 ## The clip plays at once and the camera frames it, as a card does. A video with no person, or one that cannot be read, is
 ## one sentence saying why and what to try.
 const VIDEO_TYPES := "*.mp4, *.mov, *.webm, *.avi, *.mkv ; videos"
@@ -295,6 +296,8 @@ func _video_tick() -> void:
 	m._land_undo = ""
 	if String(m.scene_path) != _vid_before and not m.S.cards.is_empty():
 		_copied()
+	elif m._video_cancelled:   # stopped while the tracker read the video: nothing landed
+		m._say_plain("Stopped. Nothing was changed.")
 	elif _vid_cancel:
 		m._say_plain("Cancelled. The scene is as it was.")
 	else:

@@ -6,6 +6,10 @@
 ##    Easy shows, and no script error; the scene does not change
 ##  4 one Undo after the copy gives back the card count the scene had before it
 ##  5 the progress sentence ("Reading the video: N %") was on the status line while the tracker ran (printed, not a bar)
+##  6 Cancel while the tracker reads the clip (the bar's button, the progress file seen first): the tracker process is gone,
+##    no partial file is left (the .json nor the .progress), the card count and the undo count are as before, the scene is
+##    the same, the status line says "Stopped. Nothing was changed.", and the bar is hidden
+##  7 a second copy after that cancel still succeeds (>= 2 cards, playing)
 extends SceneTree
 
 const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
@@ -93,6 +97,46 @@ func _init() -> void:
 	ok(String(m.ui_status.text) == NO_PERSON and not home._vid_busy and m.S.cards.size() == n0 and m.scene_path == path0,
 		"3b garbage file: \"%s\" (scene %d cards, as before)" % [m.ui_status.text, m.S.cards.size()])
 	DirAccess.remove_absolute(junk_g)
+
+	# 6 cancel while the tracker reads the clip, with the bar's own Cancel button
+	var c_before: int = m.S.cards.size()
+	var u_before: int = m.undo.size()
+	var s_before := String(m.scene_path)
+	home.copy_video_file(clip)
+	var pid: int = m._video_pid
+	var reading := false
+	for i in 3000:
+		if m._video_pid < 0:
+			break
+		if FileAccess.file_exists(m._video_prog) and FileAccess.get_file_as_string(m._video_prog).to_float() > 0.0:
+			reading = true
+			break
+		await process_frame
+	var was_tracking: bool = m._video_pid >= 0 and reading
+	if was_tracking:
+		m._imp_cancel_btn.pressed.emit()
+	await wait_copy()
+	var gone := false
+	for i in 300:
+		if not OS.is_process_running(pid):
+			gone = true
+			break
+		await process_frame
+	await idle(2)
+	ok(was_tracking and gone, "6a Cancel while the tracker read the clip (read seen %s, tracker pid %d) and the tracker is no longer running: %s" % [reading, pid, gone])
+	ok(not FileAccess.file_exists(m._video_out) and not FileAccess.file_exists(m._video_prog),
+		"6b no partial file left (the pose .json and the .progress are removed)")
+	ok(m.S.cards.size() == c_before and m.undo.size() == u_before and String(m.scene_path) == s_before,
+		"6c scene as before: %d cards (was %d), undo %d (was %d), same scene" % [m.S.cards.size(), c_before, m.undo.size(), u_before])
+	ok(String(m.ui_status.text) == "Stopped. Nothing was changed." and (m._imp_panel == null or not m._imp_panel.visible),
+		"6d status line: \"%s\", and the bar is hidden" % m.ui_status.text)
+
+	# 7 a second copy after the cancel still succeeds
+	home.copy_video_file(clip)
+	await wait_copy()
+	await idle(3)
+	ok(m.S.cards.size() >= 2 and m.playing and String(m.ui_status.text).begins_with("Copied"),
+		"7 second copy after the cancel: %d cards, playing %s, status: \"%s\"" % [m.S.cards.size(), m.playing, m.ui_status.text])
 
 	m.easy.set_on(false, false)
 	root.content_scale_size = was_size
