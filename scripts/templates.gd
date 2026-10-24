@@ -7,7 +7,7 @@ extends RefCounted
 
 const DIR := "res://templates"
 const WIP := "res://scenes/_wip"
-const NAMES := ["walk", "run", "jump", "punch", "sword_swing"]
+const NAMES := ["walk", "run", "jump", "punch", "sword_swing", "sit_down", "wave"]
 ## the picker's text: [title, what you get]
 const INFO := {
 	"walk": ["Walk", "A half step, five steps at 105 a minute, feet together; arms swing against the legs."],
@@ -15,6 +15,8 @@ const INFO := {
 	"jump": ["Jump", "Stand, dip, push off, fly, land soft in a crouch and stand: a 0.40 m countermovement jump."],
 	"punch": ["Punch", "A guard, a cross: the back foot turns, the hips and shoulders open, the fist reaches and returns."],
 	"sword_swing": ["Sword swing", "A one-hand cut across the body: hips, then chest, then the arm, then the blade."],
+	"sit_down": ["Sit down", "From standing onto a chair: the knees bend, the trunk leans forward and comes back up, feet planted."],
+	"wave": ["Wave", "The right hand raised, the forearm swung side to side two and a half times, then lowered."],
 }
 
 

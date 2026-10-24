@@ -40,6 +40,22 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 	S.spline = bool(p.get("spline", false))
 	var hips := Vector3.ZERO
 	var marks := {}
+	if p.has("rise"):
+		# the sit-down: scripts/rise.gd's keys played backwards, on a chair at the origin (the set is the scene's own props)
+		S.props = [Props.make("chair", Props.xf_at(Vector3.ZERO, 0.0))]
+		var r := Rise.sit_down(B, S.props[0])
+		var i := 0
+		for c in r["cards"]:
+			S.add(c["name"], c["pose"])
+			var cd: Dictionary = S.cards[-1]
+			cd["move"] = float(p["move"]) if i > 0 else -1.0
+			cd["hold"] = float(p.get("hold0", 0.4)) if i == 0 else (0.6 if i == (r["cards"] as Array).size() - 1 else 0.0)
+			cd["steps"] = {}
+			cd["plant"] = c["plant"]
+			if i >= int(p.get("flow_from", 99)) and i < (r["cards"] as Array).size() - 1:
+				cd["flow"] = true   # a pass-through key from this card on: the speed carries on through it (no stop between two fast moves: HITCH)
+			i += 1
+		report.append("  Rise.sit_down: %d cards, seat-off margin %.1f cm, miss_max %.4f" % [i, float(r["report"]["margin_off"]) * 100.0, float(r["report"]["miss_max"])])
 	for c in p["clips"]:
 		for j in B.ang.keys():   # every clip is absolute: all body joints back to rest, the hands' fingers kept
 			if not (String(j).begins_with("thumb") or String(j).begins_with("index") or String(j).begins_with("middle") or String(j).begins_with("ring") or String(j).begins_with("pinky")):

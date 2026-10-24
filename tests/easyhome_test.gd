@@ -1,8 +1,8 @@
 ## godot --path . -s tests/easyhome_test.gd     (EASY HOME, "monkey brain easy": the empty scene's picture panel; needs a window)
 ## BARS (stated before measuring):
 ##  1. Easy with an empty scene shows the "What should he do?" panel (8 picture cards and the text box); Expert shows none.
-##  2. Every card builds a non-empty clip that plays (walk, run, jump, punch from templates/; kick = "roundhouse" by TextBlocking).
-##     Sit down, wave and fall have no builder yet: each says one plain sentence and leaves the scene empty.
+##  2. Every card builds a non-empty clip that plays (walk, run, jump, punch, sit down, wave from templates/; kick = "roundhouse" by
+##     TextBlocking). Fall has no builder yet (w4-basics: not a template yet): it says one plain sentence and leaves the scene empty.
 ##  3. The click -> the first frame the clip plays is under 2000 ms for each card that builds (the builder time is printed).
 ##  4. One Ctrl+Z after a card gives back the empty scene (one undo step per card).
 ##  5. Typing "jab then cross" builds 2 strikes (the cards are the two single strikes, in order).
@@ -10,8 +10,8 @@
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
-const BUILDS := [0, 1, 2, 3, 4]   # the cards that build: walk, run, jump, punch, kick
-const NO_BUILDER := [5, 6, 7]     # sit down, wave, fall back: a plain sentence, no clip
+const BUILDS := [0, 1, 2, 3, 4, 5, 6]   # the cards that build: walk, run, jump, punch, kick, sit down, wave
+const NO_BUILDER := [7]                # fall back: a plain sentence, no clip (not a template yet)
 const BAR_MS := 2000
 
 var fails := 0
