@@ -138,6 +138,37 @@ func _init() -> void:
 		"Expert: the part name tag, the joint dots and the axis names are back")
 	ok(vis_now() == before, "Expert restores every panel's visibility exactly as it was, on the same scene: %s" % str(before))
 	ok(m.dummy_on == dummy0, "Expert brings the target dummy back as it was (%s)" % str(m.dummy_on))
+
+	# 2b. the hint row and the readout: Easy's one plain line and no readout; Expert's exactly as they were (stored in Expert first)
+	m.ui_mouse.refresh()
+	await idle(2)
+	var x_hint: String = m.ui_mouse.shown_text()
+	var x_bar_text: String = m.ui_bar.text
+	var x_bar_vis: bool = m.ui_bar.visible
+	m.easy.set_on(true, false)
+	await idle(4)
+	m.ui_mouse.refresh()
+	await idle(2)
+	var e_hint: String = m.ui_mouse.shown_text()
+	var e_bad_words := []
+	for w in ["nothing", "pan", "pick", "Middle"]:
+		if e_hint.contains(w):
+			e_bad_words.append(w)
+	ok(e_hint != "" and e_bad_words.is_empty(), "Easy: the hint row is one plain line with none of nothing / pan / pick / Middle: '%s'" % e_hint)
+	ok(not m.ui_bar.visible, "Easy: the readout (the card count and the seconds) is hidden")
+	var w_status: String = m.ui_status.text
+	m.ui_status.text = "Your video is saved: punch_2.mp4"   # the welcome line is gone: the one-line hint row must show
+	await idle(2)
+	m.ui_mouse.refresh()
+	await idle(2)
+	ok(m.ui_mouse.visible, "Easy: the hint row is on screen once the welcome line is gone")
+	m.ui_status.text = w_status
+	m.easy.set_on(false, false)
+	await idle(4)
+	m.ui_mouse.refresh()
+	await idle(2)
+	ok(m.ui_mouse.shown_text() == x_hint, "Expert switch: the hint row is its old text again ('%s')" % x_hint)
+	ok(m.ui_bar.visible == x_bar_vis and m.ui_bar.text == x_bar_text, "Expert switch: the readout is shown again, as it was ('%s')" % x_bar_text)
 	m.easy.set_on(true, false)
 	await idle()
 

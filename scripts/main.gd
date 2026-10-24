@@ -3299,6 +3299,7 @@ func _process(dt: float) -> void:
 		var bt := bar_text()
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
+		ui_bar.visible = not (easy != null and easy.on)   # Easy: no card count or seconds readout (Expert keeps it)
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
