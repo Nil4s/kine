@@ -283,9 +283,33 @@ const DRAW := {
 	"kind_script": [["seg", Vector2(6, 5), Vector2(6, 19), 2.0], ["seg", Vector2(6, 19), Vector2(18, 19), 2.0], ["seg", Vector2(11, 8), Vector2(19, 8), 2.0], ["seg", Vector2(11, 13), Vector2(17, 13), 2.0]],
 	"kind_scene": [["box", Rect2(2, 4, 20, 16), 1.6], ["box", Rect2(6, 7.5, 12, 9), 1.2], ["disc", Vector2(4.5, 6), 0.9], ["disc", Vector2(19.5, 6), 0.9],
 		["disc", Vector2(4.5, 18), 0.9], ["disc", Vector2(19.5, 18), 0.9]],
+	# EASY HOME (scripts/easy_home.gd): one stick figure per card, 24-unit grid, drawn large by big()
+	"walk": [["disc", Vector2(12, 4.5), 2.6], ["seg", Vector2(12, 8), Vector2(12, 15), 2.4], ["seg", Vector2(12, 9.5), Vector2(7, 13), 2.0],
+		["seg", Vector2(12, 9.5), Vector2(17, 13), 2.0], ["seg", Vector2(12, 15), Vector2(6.5, 21), 2.2], ["seg", Vector2(12, 15), Vector2(17.5, 21), 2.2]],
+	"run": [["disc", Vector2(15, 4.5), 2.6], ["seg", Vector2(14, 8.5), Vector2(11, 15), 2.4], ["seg", Vector2(13, 10), Vector2(20, 11), 2.0],
+		["seg", Vector2(13, 10), Vector2(6, 8), 2.0], ["seg", Vector2(11, 15), Vector2(4, 19), 2.2], ["seg", Vector2(11, 15), Vector2(17, 21), 2.2]],
+	"jump": [["disc", Vector2(12, 4), 2.6], ["seg", Vector2(12, 8), Vector2(12, 14), 2.4], ["seg", Vector2(12, 9.5), Vector2(6, 3), 2.0],
+		["seg", Vector2(12, 9.5), Vector2(18, 3), 2.0], ["seg", Vector2(12, 14), Vector2(7, 18), 2.2], ["seg", Vector2(7, 18), Vector2(10, 22), 2.2],
+		["seg", Vector2(12, 14), Vector2(16, 18), 2.2], ["seg", Vector2(16, 18), Vector2(13, 22), 2.2]],
+	"punch": [["disc", Vector2(10, 4.5), 2.6], ["seg", Vector2(10, 8), Vector2(10, 15), 2.4], ["seg", Vector2(10, 9.5), Vector2(21, 9.5), 2.2],
+		["seg", Vector2(10, 9.5), Vector2(7, 14), 2.0], ["seg", Vector2(10, 15), Vector2(6, 22), 2.2], ["seg", Vector2(10, 15), Vector2(16, 22), 2.2]],
+	"kick": [["disc", Vector2(9, 4.5), 2.6], ["seg", Vector2(9, 8), Vector2(9, 15), 2.4], ["seg", Vector2(9, 9.5), Vector2(5, 14), 2.0],
+		["seg", Vector2(9, 9.5), Vector2(14, 12), 2.0], ["seg", Vector2(9, 15), Vector2(7, 22), 2.2], ["seg", Vector2(9, 15), Vector2(20, 9), 2.2]],
+	"wave": [["disc", Vector2(11, 4.5), 2.6], ["seg", Vector2(11, 8), Vector2(11, 15), 2.4], ["seg", Vector2(11, 9.5), Vector2(19, 2.5), 2.2],
+		["seg", Vector2(11, 9.5), Vector2(6, 15), 2.0], ["seg", Vector2(11, 15), Vector2(7, 22), 2.2], ["seg", Vector2(11, 15), Vector2(15, 22), 2.2]],
+	"fall": [["disc", Vector2(4.5, 8), 2.6], ["seg", Vector2(7.5, 9.5), Vector2(16, 14), 2.4], ["seg", Vector2(16, 14), Vector2(21, 20), 2.2],
+		["seg", Vector2(16, 14), Vector2(20, 21), 2.2], ["seg", Vector2(8.5, 11), Vector2(5, 17), 2.0], ["seg", Vector2(2, 21.5), Vector2(22, 21.5), 1.2]],
 }
 
 static var _cache := {}
+
+
+## the icon at 64 px for a big picture card (Easy home): the same drawing, painted at the larger size
+static func big(name: String) -> ImageTexture:
+	var k := name + "@64"
+	if not _cache.has(k):
+		_cache[k] = ImageTexture.create_from_image(paint(DRAW[name], 64))
+	return _cache[k]
 
 
 ## the icon as a texture (made once)
@@ -305,11 +329,11 @@ static func small(name: String) -> ImageTexture:
 	return _cache[k]
 
 
-static func paint(shapes: Array) -> Image:
-	var img := Image.create(SIZE, SIZE, false, Image.FORMAT_RGBA8)
-	var k := 24.0 / SIZE   # pixels -> grid units
-	for y in SIZE:
-		for x in SIZE:
+static func paint(shapes: Array, px := SIZE) -> Image:
+	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	var k := 24.0 / px   # pixels -> grid units
+	for y in px:
+		for x in px:
 			var p := Vector2(x + 0.5, y + 0.5) * k
 			var d := INF
 			for s in shapes:

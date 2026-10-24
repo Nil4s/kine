@@ -30,6 +30,7 @@ var _menu: PopupMenu
 var _snap := {}             # the state at the start of the tour step
 var _armed := false         # step 1: a hand was dragged (the drag is not let go yet)
 var _moved := false         # step 4: the body changed since the step began
+var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
 
 
 ## which mode a settings file asks for. A key decides. No key: a file with sections is an existing user (Expert);
@@ -92,6 +93,11 @@ func build(root: Control, expert: Array) -> void:
 	_menu.id_pressed.connect(func(i: int): m._scene_picked(i))
 	bar.add_child(_menu)
 	_build_tour_card(root)
+	home = EasyHome.new()   # the empty scene's "What should he do?" panel: a child of Easy, so Expert never shows it
+	home.name = "easy_home_node"
+	home.m = m
+	add_child(home)
+	home.build(root)
 
 
 ## one big button: its label wraps in the button (two lines at 12 buttons across a 1280-px window)
