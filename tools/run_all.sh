@@ -26,6 +26,8 @@ EXTRA="$EXTRA easyvid:w"
 EXTRA="$EXTRA easygen:w"   # Easy: Copy a video (More): the Expert import, one undo step, plain sentences (tests/easyvid_test.gd)
 EXTRA="$EXTRA easytweak:w"   # Easy: the strip's Faster / Slower / Bigger / Smaller (tests/easytweak_test.gd)
 EXTRA="$EXTRA children:w"   # the child programs end with the app (scripts/children.gd; tests/children_test.gd)
+EXTRA="$EXTRA drafts:w"   # the scene list: saved scenes first, one Drafts group (tests/drafts_test.gd)
+EXTRA="$EXTRA easyvid:w"   # Easy: Copy a video (More): the Expert import, one undo step, plain sentences (tests/easyvid_test.gd)
 # suites that are slow BY DESIGN (name=seconds): text_blocking fits both hands on every card of every phrase (~0.25 s per arm fit, ~700 s alone),
 # gentle runs every one of 450+ commands from 7 hostile states (~2600+ cells); the default cap would stop them while they are still working
 SLOW="text_blocking=1800 gentle=2400 brief=1500 dryrun=900 lint=600 tryn=1800 recognize=900 fixloop=1500"

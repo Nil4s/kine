@@ -12505,6 +12505,48 @@ func _is_scene_file(path: String) -> bool:
 	return bool(c[1])
 
 
+## THE DRAFTS (10-24: 300+ Easy clips in scenes/_wip buried the saved scenes). The list is the SAVED scenes first (scenes/
+## and moves/, newest first), then ONE group "Drafts (N)" with the _wip clips, newest first. The group is collapsed by default;
+## expanded it shows the newest DRAFTS_SHOWN and "Show all N drafts". A draft that is open is listed expanded (the open scene
+## is always the pick: Delete trashes it, and the list says what is open). A group row's metadata is "#drafts" or
+## "#drafts-all", never a path: every scene row's metadata is its path.
+const DRAFTS_SHOWN := 20
+var _draft_paths: Array = []   # the _wip clips as the last list read them, newest first (Easy's Open shows the newest 5)
+var _drafts_open := false      # the group was expanded by its row
+var _drafts_all := false       # "Show all N drafts" was picked
+
+
+func is_draft_path(p: String) -> bool:
+	return p.contains("/_wip/")
+
+
+func draft_paths() -> Array:
+	return _draft_paths.duplicate()
+
+
+## the scene files in these folders as [path, modified time] pairs, newest first (the name breaks a tie)
+func _scene_files(dirs: Array) -> Array:
+	var out := []
+	for dir in dirs:
+		var d := DirAccess.open(dir)
+		if d == null:
+			continue
+		for f in d.get_files():
+			if not f.ends_with(".json"):
+				continue
+			var path: String = dir + "/" + f
+			if _is_scene_file(path):   # the cache also holds the modified time: no second read of the file
+				out.append([path, int(_scene_kind[path][0])])
+	out.sort_custom(func(a, b): return a[1] > b[1] or (a[1] == b[1] and a[0] < b[0]))
+	return out
+
+
+func _add_scene_row(path: String, tail: String, indent := "") -> void:
+	var i := ui_scenes.item_count
+	ui_scenes.add_item(indent + path.get_file().get_basename().replace("_", " ") + tail)
+	ui_scenes.set_item_metadata(i, path)
+
+
 func _fill_scene_list() -> void:
 	ui_scenes.clear()
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the last scenes opened or saved, first and marked; a missing one greyed
@@ -12513,26 +12555,33 @@ func _fill_scene_list() -> void:
 		ui_scenes.add_item(p.get_file().get_basename().replace("_", " ") + ("   (missing)" if miss else "   (recent)"))
 		ui_scenes.set_item_metadata(i, p)
 		ui_scenes.set_item_disabled(i, miss)
-	# round 45 (Nick 10-18: his video import "doesn't show on open scene"): the work copies in scenes/_wip (imports,
-	# mirrors, polishes) are listed too, marked; opening one picks it, so Delete still trashes only the scene on screen
-	for dir in ["res://scenes", "res://moves", "res://scenes/_wip"].reduce(func(a, x): return a + UserPaths.dirs(x), []):   # + the user's folders (a build)
-		var d := DirAccess.open(dir)
-		if d == null:
-			continue
-		for f in d.get_files():
-			if not f.ends_with(".json"):
-				continue
-			var path: String = dir + "/" + f
-			if _is_scene_file(path):
-				ui_scenes.add_item(f.get_basename().replace("_", " ") + ("   (work copy)" if dir.ends_with("_wip") else ""))
-				ui_scenes.set_item_metadata(ui_scenes.item_count - 1, path)
+	# the saved scenes (+ the user's folders in a build), newest first
+	for f in _scene_files(["res://scenes", "res://moves"].reduce(func(a, x): return a + UserPaths.dirs(x), [])):
+		_add_scene_row(f[0], "")
+	# the drafts: the work copies in scenes/_wip (imports, mirrors, polishes, Easy's clips), one group, newest first
+	_draft_paths = _scene_files(UserPaths.dirs("res://scenes/_wip")).map(func(f): return f[0])
+	if _draft_paths.is_empty():
+		return
+	var expanded := _drafts_open or _draft_paths.has(scene_path)
+	ui_scenes.add_item(("- " if expanded else "+ ") + "Drafts (%d)" % _draft_paths.size())
+	ui_scenes.set_item_metadata(ui_scenes.item_count - 1, "#drafts")
+	if not expanded:
+		return
+	var n := _draft_paths.size() if _drafts_all else mini(DRAFTS_SHOWN, _draft_paths.size())
+	for k in n:
+		_add_scene_row(_draft_paths[k], "   (work copy)", "    ")
+	if n < _draft_paths.size():
+		ui_scenes.add_item("    Show all %d drafts" % _draft_paths.size())
+		ui_scenes.set_item_metadata(ui_scenes.item_count - 1, "#drafts-all")
 
 
 ## the list opens: each scene's picture is asked for (a cached one is set at once, the rest are drawn a frame apart)
 func _scenes_opening() -> void:
 	if thumbs != null:
 		for i in ui_scenes.item_count:
-			thumbs.request(ui_scenes.get_item_metadata(i))
+			var p := String(ui_scenes.get_item_metadata(i))
+			if not p.begins_with("#"):   # not the Drafts group's rows
+				thumbs.request(p)
 	_fit_scene_list.call_deferred()   # once the popup has its place: its size is set after it is shown
 
 
@@ -17579,7 +17628,7 @@ func _delete_pose() -> void:
 
 
 func _delete_scene() -> void:
-	if ui_scenes.selected < 0:
+	if ui_scenes.selected < 0 or String(ui_scenes.get_item_metadata(ui_scenes.selected)).begins_with("#"):
 		_say("pick the scene to delete in the list first")
 		return
 	_trash(ui_scenes.get_item_metadata(ui_scenes.selected))
@@ -17712,7 +17761,22 @@ func _save_scene_now(nm: String) -> void:
 ## the scene list's pick: opens it at once when nothing would be lost, asks first when the scene open now has changes
 ## that are not saved (opening can't be undone)
 func _scene_picked(i: int) -> void:
-	_open_scene_file(ui_scenes.get_item_metadata(i))
+	var p := String(ui_scenes.get_item_metadata(i))
+	if p.begins_with("#"):   # the Drafts group's row: expands or collapses, and the list drops open again
+		_drafts_row(p)
+		return
+	_open_scene_file(p)
+
+
+func _drafts_row(tag: String) -> void:
+	if tag == "#drafts-all":
+		_drafts_all = true
+	else:
+		_drafts_open = not _drafts_open
+		_drafts_all = false
+	_fill_scene_list()
+	_show_open_scene()
+	_open_scene_popup()
 
 
 ## opens a scene file the one way every pick does (the scene list, the S box's scene rows): at once, or asking first

@@ -161,7 +161,15 @@ func _init() -> void:
 	ok(true, "Floor (snap feet) runs without an error")
 	m.easy.pick_more("Open")
 	await idle()
-	ok(m.easy._menu.item_count == m.ui_scenes.item_count and m.ui_scenes.item_count > 0, "Open lists the scenes the list has (%d)" % m.ui_scenes.item_count)
+	# Open (drafts 10-24): the SAVED scenes the list has, then a "Recent drafts" separator and the newest 5 drafts (not every draft)
+	var saved_rows := 0
+	for i in m.ui_scenes.item_count:
+		var mp := String(m.ui_scenes.get_item_metadata(i))
+		if not (mp.begins_with("#") or m.is_draft_path(mp)):
+			saved_rows += 1
+	var nd := mini(5, m.draft_paths().size())
+	var want_menu := saved_rows + (nd + 1 if nd > 0 else 0)
+	ok(m.easy._menu.item_count == want_menu and saved_rows > 0, "Open lists the saved scenes (%d) then 'Recent drafts' with the newest %d: %d rows, want %d" % [saved_rows, nd, m.easy._menu.item_count, want_menu])
 	m.easy._menu.hide()
 	await idle()
 

@@ -28,6 +28,8 @@ var _expert: Array = []     # the nodes Easy hides (main's panels and tools)
 var _vis := {}              # node -> its visibility before Easy hid it (Expert puts it back)
 var _btns := {}             # label -> Button
 var _menu: PopupMenu        # the scene list Open shows
+var _menu_paths := {}       # Open's row index -> the scene file it opens (the separator has none)
+const OPEN_DRAFTS := 5      # Open: the saved scenes, then "Recent drafts" with the newest this many drafts
 var _dummy_was := false   # the target dummy was on when Easy came on (Expert puts it back)
 var _more: PopupMenu        # the More menu: the actions that are not on the bar (its item id = index in _more_acts)
 var _more_acts: Array = []  # [label, tip, Callable] per More entry
@@ -115,7 +117,7 @@ func build(root: Control, expert: Array) -> void:
 	_more_acts = more
 	_menu = PopupMenu.new()
 	_menu.name = "easy_open_menu"
-	_menu.id_pressed.connect(func(i: int): m._scene_picked(i))
+	_menu.index_pressed.connect(func(i: int): if _menu_paths.has(i): m._open_scene_file(_menu_paths[i]))
 	bar.add_child(_menu)
 	_build_tour_card(root)
 	get_viewport().size_changed.connect(_resized)   # EASY CAMERA: a window resize re-frames the clip (frame_clip)
@@ -368,15 +370,30 @@ func _new() -> void:
 
 
 func _open() -> void:
-	if m.ui_scenes.item_count == 0:
+	m._fill_scene_list()   # the drafts as they are now (Easy's clip of this click is one of them)
+	m._show_open_scene()
+	_menu.clear()
+	_menu_paths.clear()
+	for i in m.ui_scenes.item_count:   # the saved scenes, in the list's order (newest first); its group rows and drafts are not here
+		var p := String(m.ui_scenes.get_item_metadata(i))
+		if not (p.begins_with("#") or m.is_draft_path(p)):
+			_open_row(m.ui_scenes.get_item_text(i), p)
+	var drafts: Array = m.draft_paths().slice(0, OPEN_DRAFTS)
+	if not drafts.is_empty():
+		_menu.add_separator("Recent drafts")
+		for p in drafts:
+			_open_row(String(p).get_file().get_basename().replace("_", " ") + "   (draft)", String(p))
+	if _menu_paths.is_empty():
 		m._say("No scenes yet: New scene starts one, and Save keeps it.")
 		return
-	_menu.clear()
-	for i in m.ui_scenes.item_count:
-		_menu.add_item(m.ui_scenes.get_item_text(i), i)
 	var at: Rect2 = (_btns["More"] as Control).get_global_rect()   # Open is in the More menu: its list drops under More
 	_menu.position = Vector2i(at.position + Vector2(0, at.size.y))
 	_menu.popup()
+
+
+func _open_row(text: String, path: String) -> void:
+	_menu.add_item(text)
+	_menu_paths[_menu.item_count - 1] = path
 
 
 ## the bar's button for a label (Expert's tests and the tour use it)
