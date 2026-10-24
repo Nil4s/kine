@@ -194,7 +194,10 @@ func place() -> void:
 	var ms := get_combined_minimum_size()
 	var h := minf((get_child(0).get_child(0) as Control).get_combined_minimum_size().y + 16.0, cl.size.y - 24.0)
 	size = Vector2(ms.x + 14.0, h)
-	position = Vector2(cl.end.x - size.x - 12.0, cl.position.y + 12.0)
+	if ui.m._mesh_page():   # a mesh page: the browser is off, so the panel takes the top of the left column (the body keeps the middle)
+		position = Vector2(12.0, cl.position.y + 12.0)
+	else:
+		position = Vector2(cl.end.x - size.x - 12.0, cl.position.y + 12.0)
 
 
 ## the list and the fields from the mesh as it is now (after an undo too)
