@@ -26,6 +26,8 @@ static func label(f: Dictionary, S: Scene) -> String:
 			return "Fix: plant this foot" if f.has("foot") else ""
 		"WEIGHT TRANSFER":   # N029: the hips shifted onto the needed foot on the card the strike leaves from (weight_xfer.gd)
 			return "Fix: shift the weight onto the %s foot first" % ("left" if f.get("need", "") == "_l" else "right") if f.has("need") else ""
+		"BODY ACCEL":   # N031: the moves under the peak get more time (scripts/body_caps.gd)
+			return "Fix: give the body more time for this move" if f.has("kind") else ""
 	return ""
 
 
@@ -51,6 +53,8 @@ static func propose(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Array:
 			_plant(f, S, B)
 		"WEIGHT TRANSFER":
 			WeightXfer.fix(f, S, B)
+		"BODY ACCEL":
+			BodyCaps.retime(f, S, B)
 	var after := S.cards
 	S.cards = orig
 	return after
@@ -86,6 +90,8 @@ static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 			r = _plant(f, S, B)
 		"WEIGHT TRANSFER":
 			r = WeightXfer.fix(f, S, B)
+		"BODY ACCEL":
+			r = BodyCaps.retime(f, S, B)
 	assert(S.cards.map(func(c): return c["name"]) == names, "a fix changed the cards' count, names or order")
 	var did: String = r["did"]
 	var all1: Array = r["after"] if r.get("after") != null else Rulebook.check(S, B)
@@ -159,6 +165,8 @@ static func _same_finding(f: Dictionary, x: Dictionary) -> bool:
 		return x.get("strike_card", -1) == f["strike_card"] and x.get("class", "") == f.get("class", "")
 	if f["rule"] == "FOOT SLIDE":   # the same foot sliding over the same stretch
 		return x.get("foot", "") == f.get("foot", "") and x["t"] < f.get("t1", f["t"]) + 0.1 and x.get("t1", x["t"]) > f["t"] - 0.1
+	if f["rule"] == "BODY ACCEL":   # N031: the same channel over the same stretch (a retime moves the later frames, so allow 0.3 s)
+		return x.get("kind", "") == f.get("kind", "") and x["t"] < f.get("t1", f["t"]) + 0.3 and x.get("t1", x["t"]) > f["t"] - 0.3
 	return x["card"] == f["card"]
 
 

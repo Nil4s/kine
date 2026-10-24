@@ -273,3 +273,24 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Used by: `WeightXfer.findings` / `WeightXfer.fix` (scripts/weight_xfer.gd), consts `CROSS_MIN`, `HOOK_MIN`, `KICK_MIN`,
   `FIX_MARGIN`, `FIX_GOAL`; the strikes named by N016 `MoveRecognizer.analyze`; Check calls it from `Rulebook.check`.
 - Tested by: `tests/weightxfer_test.gd`.
+
+## BODY ACCEL
+- What it checks: how hard the WHOLE body speeds up, slows down, changes direction, pushes up and drops: the centre of mass
+  (de Leva masses, `Balance.com`) at 60 Hz, each acceleration a 0.1 s central difference of a 0.1 s central difference
+  of its path. I47's caps are the limbs; this is the body as one mass (N031). Opt-in with "Check: could a human do this?".
+- Source: `docs/research/BODY_SPEED_CAPS.md` (each paper opened 2026-10-23):
+  START Haugen, Breitschaedel & Seiler 2019, PLoS ONE, sprint F0 of 666 athletes [background] https://doi.org/10.1371/journal.pone.0215551
+  STOP Harper et al. 2022, Sports Med review of horizontal deceleration [background] https://doi.org/10.1007/s40279-022-01693-0
+  CUT Yamashita et al. 2025, Front Sports Act Living, 45 deg cut in elite American football [background] https://doi.org/10.3389/fspor.2025.1576614
+  RISE Lin, Goldstein & Schroeder 2025, Sports, countermovement jump of NCAA D1 players [background] https://doi.org/10.3390/sports13090292
+  FALL: g, physics (feet can only push).
+- Numbers (m/s^2, WARN / FAIL): START 10 / 11 (F0 7-10 N/kg in trained men; world-class sprinters ~11); STOP 8.48 / 11.02
+  (peak sprint-to-stop deceleration; the fastest 505-turn group); CUT 11.5 / 13.1 (medial impulse 1.75 +- 0.12 Ns/kg over a
+  0.152 s stance: mean, mean + 2 SD, derived); RISE 14.7 / 19.0 net of g (24.51 +- 2.17 N/kg peak push: mean, mean + 2 SD);
+  FALL past 1.1 g with no hand holding on = FAIL. The 0.1 s difference, the 10 % grace on g and the 2 SD are MINE.
+  A countermovement or landing brake (upward push while still going down) is not graded here: that is stunt load's LANDING LOAD.
+- What to do: give the move more time ("Fix: give the body more time for this move" lengthens the moves under the peak until
+  it is under the WARN cap), or add a step: a real start, stop or cut is spread over two or three steps.
+- Used by: `BodyCaps.rule`, `BodyCaps.findings` (from `HumanLimits.findings`), `BodyCaps.retime` (the fix, via `Fixer`),
+  consts `START_WARN`, `START_FAIL`, `STOP_WARN`, `STOP_FAIL`, `CUT_WARN`, `CUT_FAIL`, `RISE_WARN`, `RISE_FAIL`, `FALL_K`, `K`.
+- Tested by: `tests/bodycaps_test.gd`.
