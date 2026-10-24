@@ -887,7 +887,7 @@ func _init() -> void:
 	ok(m.ui_status.text.begins_with("added card"), "10e: the status line says the card was added (%s)" % m.ui_status.text)
 	move(inside("hand_r"), Vector2.ZERO)   # the pointer over the hand first, as a person's is (the press picks what it hovers)
 	await idle(2)
-	await drag("hand_r", Vector2(-48, 48))   # back the way it came: a pose that differs from card 1
+	await drag("hand_r", Vector2(0, -70))   # up: a pose clearly different from card 1 (back the way it came could land on the rest pose the arm started from)
 	await idle(2)
 	await click_ctl(add_btn())
 	ok(m.S.cards.size() == 2 and m.sel_card == 1, "10e: a second drag and '+ Add pose' make 2 cards, the second selected (%d, sel %d)" % [m.S.cards.size(), m.sel_card])
@@ -907,7 +907,8 @@ func _init() -> void:
 			m._ps().apply(m.B, lerpf(float(ttimes[1][0]), float(ttimes[1][1]), k / 20.0))
 			var pm: Vector3 = m.B.P["hand_r"]
 			best = maxf(best, minf(pm.distance_to(p0), pm.distance_to(p1)))
-	ok(ends.size() == 2 and ends[0].distance_to(ends[1]) > 0.05 and best > 0.02, "10e: Play moves the hand between the two '+ Add pose' poses (%d poses; the hand's furthest point from both ends %.3f m)" % [ttimes.size(), best])
+	var span: float = ends[0].distance_to(ends[1]) if ends.size() == 2 else 0.0
+	ok(span > 0.05 and best > 0.25 * span, "10e: Play moves the hand between the two '+ Add pose' poses (%d poses %.3f m apart; mid-move the hand is %.3f m from both ends)" % [ttimes.size(), span, best])
 	await click_ctl(m.easy.button("Undo"))
 	ok(m.S.cards.size() == 1, "10e: Undo removes the added card (%d)" % m.S.cards.size())
 	m.easy.pick_more("Save this pose as a card")
