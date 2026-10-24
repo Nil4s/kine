@@ -329,6 +329,7 @@ func _rebuild() -> void:
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
 	_note.text = "%d shown. Click a tile to place it in the set or the hand." % shown.size()
+	reset_size.call_deferred()   # the panel is as tall as what it shows now (a taller tab, or a wrapping label measured before its width, left it 1572 px over a 900 px window)
 
 
 func _tile(it: Dictionary) -> Control:

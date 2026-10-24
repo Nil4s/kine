@@ -164,6 +164,8 @@ func _init() -> void:
 	m._library_toggle()
 	await idle()
 	ok(not home.panel.visible and m.ui_library.visible, "8. the open Library hides the home panel (no half-covered cards)")
+	var lr: Rect2 = m.ui_library.get_global_rect()
+	ok(lr.end.y <= m.get_viewport().get_visible_rect().size.y + 0.5, "8. the Library ends inside the window (bottom %.0f px, window %.0f; it once grew to 1572 px over the cards)" % [lr.end.y, m.get_viewport().get_visible_rect().size.y])
 	m._library_toggle()
 	await idle()
 	ok(home.panel.visible, "8. closing the Library brings the home panel back")
