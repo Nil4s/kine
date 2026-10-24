@@ -310,21 +310,24 @@ func offsets(vs: Vector2, mpp: float) -> Vector2:
 ## inside the free rect: the target is the middle of its box, the distance the smallest that keeps every point inside.
 ## Called when a clip is built and when the window resizes. The playhead's pose is put back after the sampling.
 ## frame_clip one frame later: the clip's first moving frame is not held up by the sampling (~100 ms on the Run card)
-func frame_clip_next() -> void:
+func frame_clip_next(keep_body := false) -> void:
 	await get_tree().process_frame
-	frame_clip()
+	frame_clip(keep_body)
 
 
-func frame_clip() -> void:
-	if m == null or not on or m.S.cards.is_empty():
+func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back exactly as it was (a card just added: its pose is the card's)
+	if m == null or not on:
 		if m != null:
 			m._cam()
 		return
+	var keep: Dictionary = m.B.state() if keep_body else {}
 	var vs := get_viewport().get_visible_rect().size
 	var F := free_rect().grow(-FRAME_PAD)
 	var fps := float(m.S.fps)
 	var pts := []
-	var last := int(ceil(m.S.length() * fps))
+	# an empty scene frames the body as it stands (its rest pose): the camera kept the last clip's look-at point otherwise,
+	# and the body could sit under the bottom bar (the press on a hand there lands on the bar, not the body)
+	var last := 0 if m.S.cards.is_empty() else int(ceil(m.S.length() * fps))
 	# at most FRAME_SAMPLES poses spread over the clip (a pose is ~3.5 ms and the click waits for them: every 2nd frame of a
 	# 5 s walk cost ~260 ms, past easyhome's 500 ms click-to-motion bar), the last frame too; easycam checks every 4th frame
 	var step := maxi(FRAME_STEP, int(ceil(float(last) / float(FRAME_SAMPLES))))
@@ -334,7 +337,10 @@ func frame_clip() -> void:
 	for k in ks:
 		m._ps().apply(m.B, float(k) / fps)
 		pts.append_array(Turntable.points(m.B))
-	m._ps().apply(m.B, m.playhead)
+	if keep_body:
+		m.B.set_state(keep)
+	else:
+		m._ps().apply(m.B, m.playhead)
 	var lo := Vector3(INF, INF, INF)
 	var hi := -lo
 	for p in pts:

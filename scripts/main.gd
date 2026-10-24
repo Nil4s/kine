@@ -13819,6 +13819,8 @@ func _card_add() -> void:
 	playhead = S.times()[sel_card][1]
 	_rebuild_cards()
 	_refresh()
+	if easy != null and easy.on:
+		easy.frame_clip_next(true)   # the strip grew: the bottom bar is taller, so the body is framed again in the free rect above it
 	_say("added card %d%s.  Pose the next moment and add it too, then Play." % [sel_card + 1, (" with your usual timing (%s s; U or a click on the time changes it)" % String.num(float(S.cards[sel_card]["move"]), 2)) if us else ""])
 
 
