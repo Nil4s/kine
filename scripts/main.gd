@@ -13060,7 +13060,7 @@ func _rebuild_cards() -> void:
 	_sg_strip = null   # R27: the strip was emptied just above
 	_layout_bottom()
 	if S.cards.is_empty() and easy != null and easy.on:
-		ui_cards.add_child(_label("No clips yet: pick a move or key a pose", 16, "text:0.55"))   # Easy home holds the ways in
+		ui_cards.add_child(_label("Your moves will show here. Pick one in \"What should he do?\"", 16, "text:0.55"))   # Easy home holds the ways in
 	elif S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
