@@ -61,7 +61,7 @@ func _overlays(m: Node) -> Dictionary:
 	for k in m.dots:
 		if m.dots[k].visible:
 			n += 1
-	return {"insp": m.ui_insp.visible, "tag": m.tag.visible, "dots": n, "dummy_on": m.dummy_on, "dummy": m.dummy_node.visible}
+	return {"insp": m.ui_insp.visible, "tag": m.tag.visible, "dots": n, "dummy_on": m.dummy_on, "dummy": m.dummy_node.visible, "pick": m.skp._state.has(m.sel)}
 
 
 func _init() -> void:
@@ -172,8 +172,8 @@ func _init() -> void:
 		m.ui_page_btns[p].pressed.emit()
 		await idle(3)
 		var o := _overlays(m)
-		off_all = off_all and not o["insp"] and not o["tag"] and o["dots"] == 0 and not o["dummy_on"] and not o["dummy"]
-	ok(off_all, "6a inspector, tag, joint dots and dummy off on MODEL / SCULPT / SURFACE (last: %s)" % [_overlays(m)])
+		off_all = off_all and not o["insp"] and not o["tag"] and o["dots"] == 0 and not o["dummy_on"] and not o["dummy"] and not o["pick"]
+	ok(off_all, "6a inspector, tag, joint dots, dummy and the part's pick light off on MODEL / SCULPT / SURFACE (last: %s)" % [_overlays(m)])
 	m.ui_page_btns["POSE"].pressed.emit()
 	await idle(3)
 	var after := _overlays(m)

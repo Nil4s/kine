@@ -4818,7 +4818,7 @@ func _refresh() -> void:
 		if dots.has(j):
 			dots[j].position = B.P[j]
 		var lk := part_look(j, touching)
-		if quiet and lk == "sel":
+		if (quiet or (mesh_pg and dragging == "")) and lk in ["sel", "limit"]:   # the mesh pages: the posing pick and limit lights are not the mesh's
 			lk = ""
 		if easy != null and easy.on and lk == "limit":   # EASY QUIET: no joint-limit tint either (no action a beginner can take on it)
 			lk = ""
