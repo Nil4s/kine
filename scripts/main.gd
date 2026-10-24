@@ -3405,6 +3405,7 @@ func _world() -> void:
 		l.pixel_size = 0.0018
 		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		stage_root.add_child(l)
+		axis_tags.append(l)
 	cam = Camera3D.new()
 	cam.fov = 40
 	add_child(cam)
@@ -3475,6 +3476,7 @@ const GRID_STEP := 0.1
 const AXIS_Y := 0.3
 const AXES := [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, AXIS_Y, 0), Color(0.35, 0.8, 0.35)], [Vector3(0, 0.001, 0.6), Color(0.3, 0.5, 0.95)]]
 var axis_mesh: ImmediateMesh
+var axis_tags: Array = []   # the floor's axis names ("Z  he faces this way"): Expert's reading aids, hidden in Easy (_refresh)
 
 
 ## ROADMAP 95: with a crowd the floor grows to cover every copy's feet (+0.5 m): the fade then runs over the square
@@ -4772,11 +4774,16 @@ func _refresh() -> void:
 			touching[pr[0]] = true
 			touching[pr[1]] = true
 	var looks := {}   # PRECISE PICK: each body part's light on its own skin (SkinPick.set_looks)
+	# EASY QUIET: no standing pick light, name tag or joint dots on a beginner's body (a blue "right upper arm" over the punch
+	# read as a fault); the hover light stays (what a click would grab) and the pick shows while a part is dragged
+	var quiet: bool = easy != null and easy.on and dragging == ""
 	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var body: bool = not (j in Body.WEAPON or j in Body.WEAPON2)
 		if dots.has(j):
 			dots[j].position = B.P[j]
 		var lk := part_look(j, touching)
+		if quiet and lk == "sel":
+			lk = ""
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
 				looks[j] = _look_of(lk)
@@ -4847,9 +4854,11 @@ func _refresh() -> void:
 			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 		_wep_model_place(wep_model, B.wep_kind, B.wep_xform())
 	var c2: Array = B.cap(sel)
-	tag.visible = not clean
+	tag.visible = not clean and not quiet
+	for at in axis_tags:
+		at.visible = not (easy != null and easy.on)
 	for dj in dots:
-		dots[dj].visible = not clean and not hidden_parts.has(dj)
+		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj)
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()

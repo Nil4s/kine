@@ -123,8 +123,8 @@ func build(root: Control) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	strip.add_child(row)
-	row.add_child(_strip_button("eh_again", "Again", "play the clip from its start", _play))
-	row.add_child(_strip_button("eh_change", "Change it", "type another move in the box", _change))
+	row.add_child(_strip_button("eh_again", "Again", "play the clip from its start", _play, Vector2(150, 56), 22))   # one size for the six
+	row.add_child(_strip_button("eh_change", "Change it", "type another move in the box", _change, Vector2(150, 56), 22))
 	for t in [["eh_faster", "Faster", "the clip's timing x 0.8 (one undo step)", "faster"], ["eh_slower", "Slower", "the clip's timing x 1.25 (one undo step)", "slower"],
 			["eh_bigger", "Bigger", "the motion 20 % further from the rest pose (one undo step)", "bigger"], ["eh_smaller", "Smaller", "the motion 20 % less from the rest pose (one undo step)", "smaller"]]:
 		row.add_child(_strip_button(t[0], t[1], t[2], tweak.bind(t[3]), Vector2(150, 56), 22))
