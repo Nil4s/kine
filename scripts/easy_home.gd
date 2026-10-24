@@ -20,6 +20,7 @@ const CARDS := [   # [the word on the card, what it builds (a templates/ name or
 ]
 const HINT := "or type a move: 'jab then cross'"
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
+const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
 
 var m: Node                    # main (untyped: the same pattern as EasyMode)
@@ -37,6 +38,7 @@ var video_root := ""           # a TEST's folder (user://...) for Save video; ""
 var last_video := {}          # the last Easy save: the playblast's result ({dir, frames, mp4, ffmpeg}); {} = none, or refused
 var _toast: PanelContainer
 var _toast_text: Label
+var _toast_show: Button       # "Show it": hidden when the message has no file (the empty-scene hint)
 var _toast_file := ""         # what Show the file opens: the .mp4 (its folder is shown with it)
 var _vid_busy := false        # COPY A VIDEO: an import from a video is running (the tracker, then the fit)
 var _vid_before := ""         # the scene path when the copy began: a new path when it lands
@@ -151,7 +153,8 @@ func build(root: Control) -> void:
 	var tr := HBoxContainer.new()
 	tr.add_theme_constant_override("separation", 10)
 	tv.add_child(tr)
-	tr.add_child(_toast_button("eh_toast_show", "Show the file", "open the folder with the video in it", func(): OS.shell_show_in_file_manager(_toast_file)))
+	_toast_show = _toast_button("eh_toast_show", "Show it", "open the folder with your video in it", func(): OS.shell_show_in_file_manager(_toast_file))
+	tr.add_child(_toast_show)
 	tr.add_child(_toast_button("eh_toast_ok", "Got it", "hide this message", func(): _toast.visible = false))
 
 
@@ -195,16 +198,20 @@ func card(i: int) -> void:
 ## user's Videos folder, Kine/ (video_folder). A toast names the file and offers Show the file. Expert's export is not changed.
 func save_video() -> void:
 	last_video = {}
+	if m.S.cards.size() < 2:   # nothing to film yet: say what to do, render nothing
+		_show_toast(NO_MOVE, "")
+		m._say_plain(NO_MOVE)
+		return
 	var r: Dictionary = await m._save_video_playblast(video_folder())   # piped to ffmpeg, with the progress line and Cancel
 	last_video = r
-	if r.is_empty():   # refused: the playblast's status line says why
+	if r.is_empty():   # refused or cancelled: the playblast's status line says why
 		return
 	if String(r["mp4"]) != "":
-		_show_toast("Video saved: %s" % String(r["mp4"]).get_file(), String(r["mp4"]))
-		m._say_plain("Video saved: %s" % String(r["mp4"]).get_file())   # the status line says it short (the playblast's own line is long)
+		_show_toast("Your video is saved: %s" % String(r["mp4"]).get_file(), String(r["mp4"]))
+		m._say_plain("Your video is saved: %s" % String(r["mp4"]).get_file())   # the status line says it short
 	else:
-		_show_toast("No video: ffmpeg was not found. The frames are saved.", String(r["dir"]))
-		m._say_plain("No video: no ffmpeg found")
+		_show_toast("Could not make the video here. Your frames are kept: Show it opens them.", String(r["dir"]))
+		m._say_plain("Could not make the video here. Your frames are kept.")
 
 
 ## where Easy's video goes: a test's folder if one is set, else Videos/Kine, else Documents/Kine
@@ -221,6 +228,7 @@ func video_folder() -> String:
 func _show_toast(text: String, file: String) -> void:
 	_toast_text.text = text
 	_toast_file = file
+	_toast_show.visible = file != ""
 	_toast.visible = true
 
 

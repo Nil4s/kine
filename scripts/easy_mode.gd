@@ -85,7 +85,7 @@ func build(root: Control, expert: Array) -> void:
 	# the bar: 7 buttons at most (More counts). Each More entry is one click after More, so it is reachable in 2.
 	var acts := [
 		["Library", "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it", func(): m._library_toggle()],
-		["Save video", "Render the scene from the camera to a video in your Videos folder (Kine/), with a button to show it", func(): home.save_video()],
+		["Save video", "Save the clip as a video in your Videos folder (Kine), with a button to show it", func(): home.save_video()],
 		["Play / Stop", "Play the scene from the playhead, or stop it (Space)", m._toggle_play],
 		["New scene", "Start an empty scene (it asks first over unsaved work)", _new],
 		["Undo", "Take back the last change (Ctrl+Z): a beginner's first need, so it stays on the bar", m._undo],
