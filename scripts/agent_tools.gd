@@ -458,4 +458,7 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"knobs":   # N025 MOVE KNOBS (scripts/move_knobs.gd): {card, read: true} the values; {card, set: {...}} one undo step
 			var kn := MoveKnobs.serve(m, p)
 			return _ok(id, kn) if kn["ok"] else _err(id, -32602, String(kn["error"]))
+		"hit_harder":   # N065 HIT HARDER (scripts/hit_harder.gd): {card, dry?, allow_retime?}; one undo step; not in METHODS (the transcript)
+			var hh := HitHarder.serve(m, p)
+			return _ok(id, hh) if hh["ok"] else _err(id, -32602, String(hh["error"]))
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

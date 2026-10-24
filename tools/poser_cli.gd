@@ -24,6 +24,8 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- textview scenes/combo3.json [card=N]   (N001: the pose as ASCII + words)
 ##   $G --headless --path . -s tools/poser_cli.gd -- knobs templates/punch.json card=3 [reach_pct=95 guard_cm=-5 ...] [--out scenes/_wip/x.json]
 ##        (N025 move knobs: read, or set and re-solve; scripts/move_knobs.gd)
+##   $G --headless --path . -s tools/poser_cli.gd -- hit_harder templates/punch.json card=3 [--dry] [--retime] [--out scenes/_wip/x.json]
+##        (N065 hit harder: the strike made more powerful within the body's limits, the gain as a number; scripts/hit_harder.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -98,6 +100,11 @@
 ##                                 strike card's height (cm over his chin), reach (% of the limb), stance (cm between the ankles),
 ##                                 guard (cm of the guard wrist over the chin); set re-solves the card and its neighbours by IK as
 ##                                 ONE undo step, planted feet kept; "unreached" names the joint whose limit stopped a knob
+##   hit_harder {card, dry?, allow_retime?}  N065 (scripts/hit_harder.gd): follow-through, hip + shoulder coil, longer wind-up,
+##                                 weight transfer, ease sequencing (retime only if allowed), each kept only if it raises the blow
+##                                 and keeps joint limits, the I47 human caps, balance, the contact frame (+-1) and the saved
+##                                 assertions. {before: {speed_mps, impulse_Ns}, after, gain_pct, levers: [{name, gain, applied,
+##                                 why_not}]}; ONE undo step; dry = the same answer, nothing written
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -348,6 +355,28 @@ func _init() -> void:
 				T.write_scene(kout, "poser_cli knobs")
 				kr["out"] = kout
 			done(kr)
+		"hit_harder":   # N065: hit_harder <scene> card=N [--dry] [--retime] [--out path] (scripts/hit_harder.gd)
+			var hi := a.find("--out")
+			var hout: String = res(a[hi + 1]) if hi >= 0 and hi + 1 < a.size() else ""
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "hit_harder <scene.json> card=N [--dry] [--retime] [--out <path>]"})
+				return
+			var hp := {"card": m.sel_card + 1, "dry": a.has("--dry"), "allow_retime": a.has("--retime")}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					hp["card"] = int(kv[1])
+			var hr := HitHarder.serve(m, hp)
+			say(String(hr.get("said", hr.get("error", ""))))
+			if hr["ok"] and hout != "" and not hp["dry"]:
+				var hwhy := T.out_refused(hout)
+				if hwhy != "":
+					done({"ok": false, "error": hwhy})
+					return
+				T.write_scene(hout, "poser_cli hit_harder")
+				hr["out"] = hout
+			done(hr)
 		"lint":   # N018: scripts/clip_lint.gd
 			var lr := ClipLint.lint(m, a[1] if a.size() > 1 else "")
 			for l in ClipLint.lines(lr):
