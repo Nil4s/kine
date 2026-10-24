@@ -136,6 +136,22 @@ func _init() -> void:
 		lifted["ball_l"][i].y = 0.08
 	ok(Rulebook.rule_feet(lifted).is_empty(), "FOOT SLIDE stands down for a foot in the air (8 cm)")
 
+	# round 44: mocap jitter (1 cm a frame per axis) broke every settled run above, so a creeping planted foot was silent.
+	# tests/data/foot_creep_noisy.json: 3 s at 60 fps, the right ball creeps 8 cm in 0.5 s, jitter 1 cm; the left stands still.
+	# tests/data/foot_still_noisy.json: the same jitter, nothing creeps (must stay quiet).
+	for pair in [["res://tests/data/foot_creep_noisy.json", true], ["res://tests/data/foot_still_noisy.json", false]]:
+		var d = JSON.parse_string(FileAccess.get_file_as_string(pair[0]))
+		var nz := {"t": [], "ball_l": [], "ball_r": []}
+		for i in d["ball_r"].size():
+			nz["t"].append(i / F)
+			nz["ball_l"].append(Vector3(d["ball_l"][i][0], d["ball_l"][i][1], d["ball_l"][i][2]))
+			nz["ball_r"].append(Vector3(d["ball_r"][i][0], d["ball_r"][i][1], d["ball_r"][i][2]))
+		var fz := Rulebook.rule_feet(nz)
+		if pair[1]:
+			ok(fz.size() == 1 and fz[0]["foot"] == "_r" and fz[0]["v"] >= 0.06, "FOOT SLIDE finds the creeping foot under 1 cm jitter (%d findings, %.1f cm; bar 6 cm)" % [fz.size(), fz[0]["v"] * 100.0 if not fz.is_empty() else 0.0])
+		else:
+			ok(fz.is_empty(), "FOOT SLIDE quiet on a foot still under 1 cm jitter (%d findings)" % fz.size())
+
 	# real scenes
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
