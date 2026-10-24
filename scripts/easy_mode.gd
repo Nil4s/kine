@@ -422,8 +422,21 @@ func add_pose(undo_name := "Add pose", strip := true) -> void:
 		if same_pose(m.S.cards[ref]["pose"], m.B.to_dict()):
 			m._say("Move him first, then add the pose.")
 			return
+	# EASY: a drag followed by + Add pose is ONE undo step: the drag's own step (taken at its press, so it holds the body as it
+	# was before the drag) takes the card too. Undo then removes the card and puts the body back; Redo puts both back.
+	var merge: bool = on and not m.undo.is_empty() and bool(m.undo[-1].get("drag", false))
 	m._step_easy = undo_name if on else ""
+	m._undo_merge = merge
 	m._card_add()
+	m._undo_merge = false
+	if merge:
+		var d: Dictionary = m.undo[-1]
+		d.erase("drag")   # the merged step is no longer a bare drag: the next + Add pose makes its own step
+		d["easy"] = undo_name
+		d["name"] = undo_name
+		m._tree.set_name(m._tree.cur, undo_name)
+		m._undo_tips()
+		m._history_rows()
 	var i: int = m.sel_card
 	await m.get_tree().process_frame
 	m.ui_card_row.queue_sort()   # after a rebuild the strip's scroll range can stay 0 until the next sort

@@ -342,6 +342,7 @@ func folder_line(mp4: String, home_dir := "") -> String:
 
 
 func _show_toast(text: String, file: String) -> void:
+	m._toast_clear()   # the saved-video message replaces the last Easy toast (it stayed up across it)
 	_toast_text.text = text
 	_toast_file = file
 	_toast_show.visible = file != ""

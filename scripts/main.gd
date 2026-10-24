@@ -542,6 +542,7 @@ var ui_undo_btn: Button            # ROADMAP 45: its tooltip is "Undo: <the step
 var ui_redo_btn: Button
 var _step_easy := ""   # EASY ONLY: the short name of the step about to be made (Easy's card, tweak, library tile, More item): kept on the
                        # undo entry as "easy", read by the Easy bar's Undo button and toast; Expert's names never use it
+var _undo_merge := false   # EASY ONLY: the next _push_undo joins the step already made (easy_mode.add_pose: + Add pose right after a drag is one step)
 var _step_hint := ""   # what the user just pressed (a button's text, a command's name, a shortcut's command): the undo
                        # step's name when nothing is said about it (#75)
 const KEY_WORD := {KEY_BRACKETLEFT: "[", KEY_BRACKETRIGHT: "]", KEY_COMMA: ",", KEY_PERIOD: ".", KEY_MINUS: "-", KEY_EQUAL: "="}
@@ -4221,6 +4222,7 @@ var ui_library: ObjectLibrary = null
 
 
 func _library_toggle() -> void:
+	_toast_clear()   # Easy: opening or closing the library is an action: an older toast goes
 	if ui_library != null and ui_library.visible:
 		ui_library.hide_panel()
 		_say("object library closed")
@@ -5238,6 +5240,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					undo[-1]["name"] = "Drag " + nice(j)   # ROADMAP 45: the drag's step is named by what it moved
 					if easy.on:
 						undo[-1]["easy"] = "Move " + easy_part(j)   # Easy's Undo: "Undo: Move hand", not "Drag left wrist .."
+						undo[-1]["drag"] = true   # Easy: a + Add pose straight after this drag joins this step (easy_mode.add_pose)
 					_tree.set_name(_tree.cur, undo[-1]["name"])
 					_undo_tips()
 					_group_press(j, mb.ctrl_pressed, mb.position)
@@ -6237,6 +6240,12 @@ func _push_undo() -> void:
 	_bake_drop()
 	if mm_ui != null:
 		mm_ui.halt()   # an edit ends the motion matching preview: it would write its next frame over the edit (the toggle pushes its step first, then starts)
+	if _undo_merge:   # Easy's + Add pose after a drag: no new step; easy_mode.add_pose renames the drag's step and keeps its undo state
+		_step_hint = ""
+		_step_easy = ""
+		_jpending = true
+		_co_sync()
+		return
 	if _macro_nest > 0:   # ROADMAP 81: a macro's edits share the one undo step, opened before its first edit
 		if _macro_pushed:
 			return
@@ -6300,7 +6309,7 @@ func _undo() -> void:
 		sk.fitted = SketchPose._skel(B, cam)
 		_sk_show_handles()
 	_say(("Took back: " + easy_name(u)) if easy != null and easy.on else "undone: " + now["name"])   # Easy says the short name too
-	_toast("Undid: " + (easy_name(u) if easy.on else now["name"]))   # Easy's toast says the short name ("Undid: Faster")
+	_toast(("Took back: " + easy_name(u)) if easy.on else "Undid: " + now["name"])   # Easy's toast and status line say the same words ("Took back: Faster")
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -6328,7 +6337,7 @@ func _redo() -> void:
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
 	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "redone: " + now["name"])
-	_toast("Redid: " + (easy_name(r) if easy != null and easy.on else now["name"]))
+	_toast(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])   # Easy: the same words as the status line
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -10256,6 +10265,7 @@ func _how(j: String) -> String:
 ## FEEDBACK YOU CAN SEE (round 24, GATES EE3, UPGRADES #41): Ctrl+Z / Ctrl+Y show a toast over the view naming the
 ## step, gone after TOAST_T (a new one replaces it); a Fix flashes the cards it changed, fading back over FLASH_T
 const TOAST_T := 1.6
+const EASY_TOAST_T := 3.0   # Easy's toast: a few seconds, then gone (or replaced by the next action's message)
 const FLASH_T := 0.7
 const FLASH_COL := Color(1.7, 1.5, 0.75)
 var ui_toast: Label
@@ -10279,15 +10289,23 @@ func _toast(t: String) -> void:
 		ui_root.add_child(ui_toast)
 	ui_toast.text = t
 	ui_toast.visible = true
+	var hold := EASY_TOAST_T if easy != null and easy.on else TOAST_T
 	ui_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE)
 	ui_toast.position.y = 96
 	if easy != null and easy.on:
 		_easy_toast_place(ui_toast)
 	_toast_gen += 1
 	var g := _toast_gen
-	get_tree().create_timer(TOAST_T).timeout.connect(func():
+	get_tree().create_timer(hold).timeout.connect(func():
 		if g == _toast_gen and is_instance_valid(ui_toast):
 			ui_toast.visible = false)
+
+
+## the toast is taken down now: an Easy action's new message replaces the old one (say, the library, a saved video)
+func _toast_clear() -> void:
+	if ui_toast != null:
+		ui_toast.visible = false
+
 
 
 ## EASY TOAST PLACE (walk-through item 1): in Easy the toast takes the first place in the window that covers no visible Button:
@@ -10377,6 +10395,8 @@ func _flash_cards(idx: Array) -> void:
 
 
 func _say(t: String) -> void:
+	if easy != null and easy.on:
+		_toast_clear()   # Easy: the next action's message replaces the last toast (a toast that is still up named an older step)
 	if WhyWrong.is_problem(t):   # WHAT WENT WRONG? keeps the last refusal with its command, part and frame
 		_why_last = {"text": t, "cmd": _why_cmd if _why_cmd != "" else "a key press", "part": nice(sel),
 			"frame": roundi(playhead * float(S.fps)), "at": playhead}
