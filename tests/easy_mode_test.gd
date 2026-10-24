@@ -1,11 +1,11 @@
 ## godot --path . -s tests/easy_mode_test.gd     (EASY MODE, docs/ROADMAP.md 3 and 4; needs a window)
-## The mode rule (fresh = Easy, existing = Expert, a test = Expert unless it says so); Easy shows exactly the 13 big
-## buttons and hides the expert panels; each button runs its action; Expert puts every panel's visibility back exactly
+## The mode rule (fresh = Easy, existing = Expert, a test = Expert unless it says so); Easy shows exactly the 7 big
+## buttons (More holds the rest, one click away) and hides the expert panels; each action runs; Expert puts every panel's visibility back exactly
 ## as it was; the tour advances on the real actions only. The settings are the test's own file (user://poser_test_*.cfg).
 extends SceneTree
 
-const LABELS := ["Pose (drag parts)", "Key this pose", "Play / Stop", "Undo", "Redo", "New scene", "Open", "Save",
-	"Mirror pose", "Floor (snap feet)", "Export video", "Library", "Switch to Expert"]
+const LABELS := ["Library", "Save video", "Play / Stop", "New scene", "Open", "More", "Switch to Expert"]   # the bar (7)
+const MORE := ["Key this pose", "Pose (drag parts)", "Undo", "Redo", "Save scene", "Mirror pose", "Floor (snap feet)"]
 
 var fails := 0
 var m: Node
@@ -109,14 +109,13 @@ func _init() -> void:
 	for n in m.easy.bar.find_children("*", "Button", true, false):
 		if n.get_meta("label", "") != "":
 			shown.append(n.get_meta("label"))
-	ok(shown.size() == 13 and LABELS.all(func(l): return l in shown) and bts.size() == 13, "Easy shows exactly the 13 labelled buttons: %s" % str(shown))
+	ok(shown.size() == 7 and LABELS.all(func(l): return l in shown) and bts.size() == 7, "Easy shows exactly the 7 labelled buttons: %s" % str(shown))
 	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube %s" % str(range(panels().size()).filter(func(i): return panels()[i].visible)))
 	ok(m.ui_bp.visible, "the bottom panel (timeline and cards) stays: the tour and Play need it")
 	ok(m.lw() == 0.0 and m.rw() == 0.0, "the body view takes the room the hidden side panels had")
-	ok(m.easy.button("Open") != null and m.easy.button("Save").pressed.get_connections().size() > 0, "Open and Save are wired (their dialogs are not run here)")
-	ok(m.easy.button("New scene").pressed.get_connections().size() > 0 and m.easy.button("Export video").pressed.get_connections().size() > 0, "New scene and Export video are wired (not run here: a dialog / a render)")
-	ok(m.easy.button("Floor (snap feet)").pressed.get_connections().size() > 0, "Floor (snap feet) is wired")
-
+	ok(m.easy.button("Open") != null and m.easy.more_labels() == MORE, "Open is on the bar; the More menu holds the other %d actions" % MORE.size())
+	ok(m.easy.button("New scene").pressed.get_connections().size() > 0 and m.easy.button("Save video").pressed.get_connections().size() > 0, "New scene and Save video are wired (not run here: a dialog / a render)")
+	
 	m.easy.set_on(false, false)
 	await idle()
 	ok(vis_now() == before, "Expert restores every panel's visibility exactly as it was, on the same scene: %s" % str(before))
@@ -124,29 +123,29 @@ func _init() -> void:
 	await idle()
 
 	# 3. each button runs its action
-	m.easy.button("Pose (drag parts)").pressed.emit()
+	m.easy.pick_more("Pose (drag parts)")
 	await idle()
 	ok(m.ui_status.text.begins_with("Drag a part"), "Pose says how to pose, on the say line")
 	var n0: int = m.S.cards.size()
-	m.easy.button("Key this pose").pressed.emit()
+	m.easy.pick_more("Key this pose")
 	await idle()
 	ok(m.S.cards.size() == n0 + 1, "Key this pose adds a card (%d -> %d)" % [n0, m.S.cards.size()])
-	m.easy.button("Undo").pressed.emit()
+	m.easy.pick_more("Undo")
 	await idle()
 	ok(m.S.cards.size() == n0, "Undo takes the card back")
-	m.easy.button("Redo").pressed.emit()
+	m.easy.pick_more("Redo")
 	await idle()
 	ok(m.S.cards.size() == n0 + 1, "Redo puts it back")
-	m.easy.button("Key this pose").pressed.emit()
+	m.easy.pick_more("Key this pose")
 	await idle()
 	ok(m.S.cards.size() == n0 + 2, "a second card: two are needed to play")
 	m._pose_words("raise the right arm 90")
 	await idle()
 	var body_before := JSON.stringify(m.B.state())
-	m.easy.button("Mirror pose").pressed.emit()
+	m.easy.pick_more("Mirror pose")
 	await idle()
 	ok(JSON.stringify(m.B.state()) != body_before, "Mirror pose changes the body (a raised right arm goes to the left)")
-	m.easy.button("Undo").pressed.emit()
+	m.easy.pick_more("Undo")
 	await idle()
 	m.easy.button("Play / Stop").pressed.emit()
 	await idle()
@@ -154,7 +153,7 @@ func _init() -> void:
 	m.easy.button("Play / Stop").pressed.emit()
 	await idle()
 	ok(not m.playing, "Play / Stop again stops it")
-	m.easy.button("Floor (snap feet)").pressed.emit()
+	m.easy.pick_more("Floor (snap feet)")
 	await idle()
 	ok(true, "Floor (snap feet) runs without an error")
 	m.easy.button("Open").pressed.emit()
@@ -169,13 +168,13 @@ func _init() -> void:
 	m.easy.tour_start()
 	await idle()
 	ok(m.easy.tour_step == 0 and m.easy.tour_card.visible, "the tour starts at step 1 and its card is on screen")
-	m.easy.button("Key this pose").pressed.emit()
+	m.easy.pick_more("Key this pose")
 	await idle()
 	ok(m.easy.tour_step == 0, "step 1 (drag a hand) does not move on for a Key press")
 	await drag("hand_r")
 	await idle()
 	ok(m.easy.tour_step == 1, "step 1: dragging a hand moves on (now %d)" % (m.easy.tour_step + 1))
-	m.easy.button("Key this pose").pressed.emit()
+	m.easy.pick_more("Key this pose")
 	await idle()
 	ok(m.easy.tour_step == 2, "step 2: Key this pose moves on (now %d)" % (m.easy.tour_step + 1))
 	var ph0: float = m.playhead
@@ -200,7 +199,7 @@ func _init() -> void:
 	ok(absf(m.playhead - ph0) > 0.005 and m.easy.tour_step == 3, "step 3: a click on the timeline moves the playhead and moves on (playhead %.2f)" % m.playhead)
 	await drag("hand_l")
 	await idle()
-	m.easy.button("Key this pose").pressed.emit()
+	m.easy.pick_more("Key this pose")
 	await idle()
 	ok(m.easy.tour_step == 4, "step 4: change the pose and Key again moves on (now %d)" % (m.easy.tour_step + 1))
 	m.easy.button("Play / Stop").pressed.emit()

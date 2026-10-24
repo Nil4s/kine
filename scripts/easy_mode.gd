@@ -1,8 +1,9 @@
 class_name EasyMode
 extends Node
 ## EASY MODE (docs/ROADMAP.md items 3 and 4; beginners are lost in 140+ commands).
-## Easy: ONE bar of 13 big labelled buttons takes the top strip's place; the side panels, the top tools, the scene
-## header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
+## Easy: ONE bar of 7 big labelled buttons (Library, Save video, Play / Stop, New scene, Open, More, Switch to Expert)
+## takes the top strip's place; More opens a menu with the rest (Key this pose, Pose, Undo, Redo, Save scene, Mirror
+## pose, Floor). The side panels, the top tools, the scene header and the play row are HIDDEN (never removed). Expert: every one of them is back exactly as it was.
 ## The mode is remembered in poser.cfg [look] mode. A fresh config is Easy; an existing config with no mode key is
 ## Expert, so nothing changes for people who already use the app. A test is Expert unless it says otherwise.
 ## First-run tour (Easy only, once, skippable, Help: show the tour): five steps, each moved on by the real action.
@@ -10,9 +11,9 @@ extends Node
 const CFG := "look"
 const TOUR := [
 	["Drag a hand", "Press on a hand of the body and drag it. The arm follows, and the pose changes."],
-	["Key the pose", "Press Key this pose. The body's pose becomes a card on the timeline at the bottom."],
+	["Key the pose", "Press More, then Key this pose. The body's pose becomes a card on the timeline at the bottom."],
 	["Move the playhead", "Drag the playhead (the line on the timeline) to another moment."],
-	["Change the pose and key again", "Move a part to a new place, then press Key this pose again."],
+	["Change the pose and key again", "Move a part to a new place, then press More, then Key this pose again."],
 	["Press play", "Press Play. The body moves from card to card by itself."],
 ]
 
@@ -26,7 +27,9 @@ var _tour_text: Label
 var _expert: Array = []     # the nodes Easy hides (main's panels and tools)
 var _vis := {}              # node -> its visibility before Easy hid it (Expert puts it back)
 var _btns := {}             # label -> Button
-var _menu: PopupMenu
+var _menu: PopupMenu        # the scene list Open shows
+var _more: PopupMenu        # the More menu: the actions that are not on the bar (its item id = index in _more_acts)
+var _more_acts: Array = []  # [label, tip, Callable] per More entry
 var _snap := {}             # the state at the start of the tour step
 var _armed := false         # step 1: a hand was dragged (the drag is not let go yet)
 var _moved := false         # step 4: the body changed since the step began
@@ -71,25 +74,38 @@ func build(root: Control, expert: Array) -> void:
 	row.name = "easy_row"
 	row.add_theme_constant_override("separation", 4)
 	bar.add_child(row)
+	# the bar: 7 buttons at most (More counts). Each More entry is one click after More, so it is reachable in 2.
 	var acts := [
-		["Pose (drag parts)", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
-		["Key this pose", "Keep the body's pose as a card on the timeline (Enter)", m._card_add],
+		["Library", "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it", func(): m._library_toggle()],
+		["Save video", "Render the scene from the camera to a video in your Videos folder (Kine/), with a button to show it", func(): home.save_video()],
 		["Play / Stop", "Play the scene from the playhead, or stop it (Space)", m._toggle_play],
-		["Undo", "Take back the last change (Ctrl+Z)", m._undo],
-		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
 		["New scene", "Start an empty scene (it asks first over unsaved work)", _new],
 		["Open", "Open one of your scenes", _open],
-		["Save", "Save the scene (Ctrl+Shift+S)", m._save_scene],
+		["More", "The other things: Key this pose, Pose, Undo, Redo, Save scene, Mirror pose, Floor (snap feet)", _more_open],
+		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
+	]
+	var more := [
+		["Key this pose", "Keep the body's pose as a card on the timeline (Enter)", m._card_add],
+		["Pose (drag parts)", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
+		["Undo", "Take back the last change (Ctrl+Z)", m._undo],
+		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
+		["Save scene", "Save the scene (Ctrl+Shift+S)", m._save_scene],
 		["Mirror pose", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
 		["Floor (snap feet)", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
-		["Export video", "Render the scene from the camera to a video in your Videos folder (Kine/), with a button to show it", func(): home.save_video()],
-		["Library", "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it", func(): m._library_toggle()],
-			["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	for a in acts:
 		var b := _big(a[0], a[1], a[2])
 		row.add_child(b)
 		_btns[a[0]] = b
+	_more = PopupMenu.new()
+	_more.name = "easy_more_menu"
+	_more.add_theme_font_size_override("font_size", 18)
+	for i in more.size():
+		_more.add_item(more[i][0], i)
+		_more.set_item_tooltip(i, more[i][1])
+	_more.id_pressed.connect(_more_picked)
+	bar.add_child(_more)
+	_more_acts = more
 	_menu = PopupMenu.new()
 	_menu.name = "easy_open_menu"
 	_menu.id_pressed.connect(func(i: int): m._scene_picked(i))
@@ -102,7 +118,7 @@ func build(root: Control, expert: Array) -> void:
 	home.build(root)
 
 
-## one big button: its label wraps in the button (two lines at 13 buttons across a 1280-px window)
+## one big button: its label wraps in the button (two lines at 7 buttons across a 1280-px window)
 func _big(label: String, tip: String, f: Callable) -> Button:
 	var b := Button.new()
 	b.name = "easy_" + str(_btns.size() + 1)
@@ -185,7 +201,7 @@ func set_on(v: bool, save := true) -> void:
 		m._fit_rows.call_deferred()
 	if save and m != null:
 		_set_cfg("mode", "easy" if on else "expert")
-		m._say("Easy: 13 big buttons, panels hidden." if on else "Expert: every panel is back.")
+		m._say("Easy: 7 big buttons (More has the rest), panels hidden." if on else "Expert: every panel is back.")
 
 
 func _set_cfg(key: String, v: Variant) -> void:
@@ -197,10 +213,37 @@ func _set_cfg(key: String, v: Variant) -> void:
 	cf.save(m.settings)
 
 
-# ---------------------------------------------------------------- the 13 buttons' actions
+# ---------------------------------------------------------------- the bar's actions
 
 func _pose() -> void:
 	m._say("Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.")
+
+
+func _more_open() -> void:
+	var at: Rect2 = (_btns["More"] as Control).get_global_rect()
+	var vw := get_viewport().get_visible_rect().size.x
+	_more.position = Vector2i(int(clampf(at.position.x, 0.0, vw - 280.0)), int(at.end.y))
+	_more.popup()
+
+
+func _more_picked(i: int) -> void:
+	var a: Array = _more_acts[i]
+	m._step_hint = a[0]   # the undo step is named after the entry, as a bar button's is
+	(a[2] as Callable).call()
+
+
+## a test or the tour: the bar's More button, then the entry with these words (two clicks, as a beginner makes them)
+func pick_more(label: String) -> bool:
+	for i in _more_acts.size():
+		if _more_acts[i][0] == label:
+			(_btns["More"] as Button).pressed.emit()
+			_more_picked(i)
+			return true
+	return false
+
+
+func more_labels() -> Array:
+	return _more_acts.map(func(a): return a[0])
 
 
 func _new() -> void:
@@ -279,7 +322,7 @@ func _place_card() -> void:
 	var at: Rect2
 	match tour_step:
 		0: at = Rect2(vp.x - 20, vp.y * 0.3, 0, 0)   # the body is in the middle: the card sits at its right edge
-		1, 3: at = (_btns["Key this pose"] as Control).get_global_rect()
+		1, 3: at = (_btns["More"] as Control).get_global_rect()   # Key this pose is in More
 		2: at = m.ui_timeline.get_global_rect()
 		_: at = (_btns["Play / Stop"] as Control).get_global_rect()
 	var sz := tour_card.get_combined_minimum_size()
