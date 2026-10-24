@@ -28,6 +28,9 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
 	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd", "TrunkLean": "res://scripts/trunk_lean.gd", "SmartDrag": "res://scripts/smart_drag.gd",
 	"OuchMeter": "res://scripts/ouch_meter.gd"}
+	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd",
+	"OuchMeter": "res://scripts/ouch_meter.gd",
+	"BodyCaps": "res://scripts/body_caps.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
 const _SABR := "https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/"
@@ -189,6 +192,19 @@ const REG := {
 	"OuchMeter.ELBOW_COMFORT_RULA": {"s": M, "u": "deg", "src": "RULA lower arm: 60-100 deg scores 1, 0-60 or > 100 scores 2 (McAtamney & Corlett 1993, Appl Ergon 24:91), read in the DGUV/IFA RULA worksheet (BGIA-Report 2/2007)", "url": "https://doi.org/10.1016/0003-6870(93)90080-S"},
 	"OuchMeter.COMFORT_FRAC": {"s": H, "u": "fraction of the range from neutral", "src": "ours: one comfortable share for every joint without its own row, anchored on RULA's elbow cut (100 / 145 = 0.69); per-joint comfort tables (Kee & Karwowski 2001 Ergonomics 44:614; Naddeo et al. 2019 Work 63:219) not opened", "url": "res://docs/research/OUCH_METER.md"},
 	"OuchMeter.TOL": {"s": H, "u": "deg", "src": "ours: 'at the max' within Body.at_limit's 0.5 deg rounding", "url": "res://docs/research/OUCH_METER.md"},
+	# --- N031 whole-body speed caps (scripts/body_caps.gd; docs/research/BODY_SPEED_CAPS.md, each source opened 2026-10-23) ---
+	"BodyCaps.START_WARN": {"s": M, "u": "m/s^2", "src": "sprint F0 (max horizontal force at zero speed per kg) of 666 athletes in 23 sports: 'in the range 7-10 N/kg for men' (Haugen, Breitschaedel & Seiler 2019, PLoS ONE 14(7):e0215551); the top of the range", "url": "https://doi.org/10.1371/journal.pone.0215551"},
+	"BodyCaps.START_FAIL": {"s": M, "u": "m/s^2", "src": "world-class male sprinters' F0 ~11 N/kg, as Haugen et al. 2019 cite it (the primary not opened here)", "url": "https://doi.org/10.1371/journal.pone.0215551"},
+	"BodyCaps.STOP_WARN": {"s": M, "u": "m/s^2", "src": "20 m sprint-to-stop, peak deceleration -8.48 (Harper et al., Table 1 of the Harper et al. 2022 Sports Med 52:2321 review, PMC9474351)", "url": "https://doi.org/10.1007/s40279-022-01693-0"},
+	"BodyCaps.STOP_FAIL": {"s": M, "u": "m/s^2", "src": "505 change-of-direction test, youth soccer, fast group, peak deceleration -11.02 (Kaneko et al., Table 2 of the same review)", "url": "https://doi.org/10.1007/s40279-022-01693-0"},
+	"BodyCaps.CUT_WARN": {"s": M, "u": "m/s^2", "src": "45 deg cut at max effort, 10 highly trained / elite American football players: medial impulse 1.75 +- 0.12 Ns/kg over a 0.152 s stance (Yamashita et al. 2025, Front Sports Act Living 7:1576614); 1.75 / 0.152 = 11.5 is derived", "url": "https://doi.org/10.3389/fspor.2025.1576614"},
+	"BodyCaps.CUT_FAIL": {"s": M, "u": "m/s^2", "src": "the same, (1.75 + 2 x 0.12) / 0.152 = 13.1: mean + 2 SD (the 2 SD is ours)", "url": "https://doi.org/10.3389/fspor.2025.1576614"},
+	"BodyCaps.RISE_WARN": {"s": M, "u": "m/s^2", "src": "countermovement-jump concentric peak force 24.51 +- 2.17 N/kg, 38 NCAA D1 men (Lin, Goldstein & Schroeder 2025, Sports 13(9):292); net of g: 14.7", "url": "https://doi.org/10.3390/sports13090292"},
+	"BodyCaps.RISE_FAIL": {"s": M, "u": "m/s^2", "src": "the same, mean + 2 SD net of g: 19.0 (the 2 SD is ours)", "url": "https://doi.org/10.3390/sports13090292"},
+	"BodyCaps.GRAV": {"s": M, "u": "m/s^2", "src": "standard gravity: nothing but a pull makes a body fall faster", "url": "res://docs/research/BODY_SPEED_CAPS.md"},
+	"BodyCaps.FALL_K": {"s": H, "u": "x g", "src": "ours: 10 % grace on g for the floor pass and the card blend at 60 Hz", "url": "res://docs/research/BODY_SPEED_CAPS.md"},
+	"BodyCaps.K": {"s": H, "u": "frames at 60 Hz", "src": "ours: 0.1 s central differences, about one ground contact (the caps are contact averages)", "url": "res://docs/research/BODY_SPEED_CAPS.md"},
+	"BodyCaps.STILL": {"s": H, "u": "m/s", "src": "ours: under this both ways the body is at rest and every horizontal push counts as a start", "url": "res://docs/research/BODY_SPEED_CAPS.md"},
 	# --- hit reaction (docs/physics_constants.md, gt1: UNVERIFIED list) ---
 	"HitReaction.WEAPON_KG": {"s": U, "u": "kg", "src": "weapon masses are estimates (no source opened)", "url": _PC},
 	# --- who could do this? (N027, scripts/who_could.gd; docs/research/WHO_COULD.md) ---
@@ -251,6 +267,8 @@ const RULES := {
 		"CoupledLimits.GAS_BENT", "CoupledLimits.GAS_FREE_KNEE", "CoupledLimits.RECT_EXT", "CoupledLimits.RECT_KNEE", "CoupledLimits.RECT_KNEE_FLAT"],
 	"TRUNK LEAN": ["TrunkLean.NORMS", "TrunkLean.GENERAL"],
 	"WEIGHT TRANSFER": ["WeightXfer.CROSS_MIN", "WeightXfer.HOOK_MIN", "WeightXfer.KICK_MIN", "Balance.MASS"],
+	"BODY ACCEL": ["BodyCaps.START_WARN", "BodyCaps.START_FAIL", "BodyCaps.STOP_WARN", "BodyCaps.STOP_FAIL", "BodyCaps.CUT_WARN", "BodyCaps.CUT_FAIL",
+		"BodyCaps.RISE_WARN", "BodyCaps.RISE_FAIL", "BodyCaps.GRAV", "BodyCaps.FALL_K", "BodyCaps.K", "Balance.MASS"],
 }
 
 ## measure's kinds: geometry of THIS scene is exact (no human data in it); the body models behind com / balance /

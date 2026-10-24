@@ -40,6 +40,7 @@ const SRC := {
 	"WEIGHT TRANSFER": "each strike starts with the weight where it needs it (N029, scripts/weight_xfer.gd): a cross off the back foot (Evolve MMA: more than half on the rear leg before it; Peloton: from the back foot to the front), a lead hook over the lead side (Boxing News: the weight shifts to the front foot), a kick with the support foot loaded before the kicking leg leaves (statics; Kinoshita & Fujii 2014, ISBS: the support leg drives the phase before toe-off); the share is the lever rule over the feet (N001); the bars are ours (docs/research/WEIGHT_TRANSFER.md)",
 	"TRUNK LEAN": "the trunk (pelvis to neck) against vertical, per move (scripts/trunk_lean.gd): a roundhouse's pelvis tilts back through 60 +- 8 deg while the trunk counter-bends 22 +- 7 deg on it (Kim, Yenuga & Kwon 2008, ISBS, 12 black belts); punches and walking keep the trunk near upright; the bars are ours, set from those ranges (docs/research/TRUNK_LEAN.md)",
 	"ASSERT": "a check line saved in the scene (N002, scripts/body_assert.gd): the bars are the line's own numbers; touching = within 1 cm (Balance.TOUCH), planted = toe base within 2 cm of its standing height (Body.foot_state) and sliding under 2.5 cm (FOOT SLIDE's bar)",
+	"BODY ACCEL": "the whole body's centre of mass (N031, scripts/body_caps.gd), accelerations over 0.1 s differences at 60 Hz: START past 10 m/s^2 (sprint-start F0 of 666 athletes 7-10 N/kg, world-class sprinters ~11 = FAIL; Haugen et al. 2019), STOP past 8.48 (peak sprint-to-stop deceleration; FAIL 11.02, fastest change-of-direction group; Harper et al. 2022 review), CUT past 11.5 (45 deg cut, medial impulse 1.75 Ns/kg over 0.152 s, elite American football; FAIL 13.1 = mean + 2 SD; Yamashita et al. 2025), RISE past 14.7 net (countermovement push 24.5 N/kg, NCAA D1; FAIL 19.0; Lin et al. 2025), FALL faster than g without a hand holding on (FAIL; docs/research/BODY_SPEED_CAPS.md)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
 ## and WHERE the number comes from (the panel's "source" button opens it). The links are docs/MOTION_RULES.md's own
@@ -73,6 +74,8 @@ const WHY := {
 	"WEIGHT TRANSFER": "A strike is thrown from the legs: a cross pushes off the back foot, a kick needs the other foot holding him before it leaves. Started from the wrong foot, it reads as an arm swing, or as a kick that should topple him.",
 	"TRUNK LEAN": "The trunk leans off a kick to balance it, but only so far: past what fighters are measured at, the back looks broken or he looks about to fall.",
 	"ASSERT": "Someone wrote this down as something the motion must do. It no longer does: an edit broke it, or it never held."
+	"ASSERT": "Someone wrote this down as something the motion must do. It no longer does: an edit broke it, or it never held.",
+	"BODY ACCEL": "The whole body cannot start, stop or turn faster than the legs can push it: past the best sprinters and cutters it reads as pulled on a wire. And nothing pulls a body down faster than gravity.",
 }
 const URL := {
 	"SEQUENCE": "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737",
@@ -103,6 +106,7 @@ const URL := {
 	"WEIGHT TRANSFER": "res://docs/research/WEIGHT_TRANSFER.md",
 	"TRUNK LEAN": "res://docs/research/TRUNK_LEAN.md",
 	"ASSERT": "res://scripts/body_assert.gd",
+	"BODY ACCEL": "res://docs/research/BODY_SPEED_CAPS.md",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
 const PROP_WARN := 0.005   # m inside a prop: a WARN (Props.REST_SINK: less is resting on it)
