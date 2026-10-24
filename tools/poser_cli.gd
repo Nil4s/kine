@@ -11,6 +11,30 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- diff scenes/combo3.json scenes/_wip/combo3_b.json   (cards by name, joints > 0.5 deg)
 ##   $G --headless --path . -s tools/poser_cli.gd -- validate scenes/combo3.json     (docs/scene.schema.json; tools/validate.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 sel=lowerarm_r snap_the_part_to_90 update --out scenes/_wip/x.json
+##   $G --headless --path . -s tools/poser_cli.gd -- assert scenes/combo3.json "left foot planted 0-0.4 s" "COM inside the feet all clip"
+##        (N002 body assertions, scripts/body_assert.gd: pass / fail per line, the worst miss in cm / deg / m/s and its frame;
+##        no lines = the scene's saved "asserts"; an unread line gets the grammar back)
+##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
+##   $G --headless --path . -s tools/poser_cli.gd -- explain_conflict scenes/combo3.json "right fist touches fighter 2 chin" "both feet planted" [t=0.6] [card=N]
+##        (N006: the smallest set of those wishes that clash at one moment, and the cost to free each; nothing is changed)
+##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
+##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
+##   $G --headless --path . -s tools/poser_cli.gd -- explain scenes/combo3.json [card=N | t0=S t1=S] [--json]   (N091: the strike in plain words + numbers)
+##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
+##   $G --headless --path . -s tools/poser_cli.gd -- try scenes/combo3.json retime=3-3:{pct} --sweep pct=80,90,100,110,120 [--no-score] [--apply best|N --out <path>]
+##        or  try scenes/combo3.json slower_10 --or faster_10 --or ease_linear   (N019: each variant dry-run, scored, ranked)
+##   $G --headless --path . -s tools/poser_cli.gd -- lint C:/any/clip.bvh|.glb|.gltf|.fbx [--json]   (N018: judge a clip made anywhere)
+##   $G --headless --path . -s tools/poser_cli.gd -- textview scenes/combo3.json [card=N]   (N001: the pose as ASCII + words)
+##   $G --headless --path . -s tools/poser_cli.gd -- knobs templates/punch.json card=3 [reach_pct=95 guard_cm=-5 ...] [--out scenes/_wip/x.json]
+##        (N025 move knobs: read, or set and re-solve; scripts/move_knobs.gd)
+##   $G --headless --path . -s tools/poser_cli.gd -- path_to_pose scenes/combo3.json|- "salute"|"raise the right leg 90" [--max N] [--json]
+##        (N008: the run steps from card 1 (or the default body, -) to that pose; nothing is changed; scripts/pose_path.gd)
+##   $G --headless --path . -s tools/poser_cli.gd -- recognize scenes/thrust.json [card=N] [t0=S] [t1=S] [fighter=N]   (N016: which strike)
+##   $G --headless --path . -s tools/poser_cli.gd -- whocould scenes/combo3.json [card=N] [t0=S] [t1=S]   (N027: who could do this)
+##   $G --headless --path . -s tools/poser_cli.gd -- fixuntil scenes/combo3.json [--bar 70] [--steps 10] --out scenes/_wip/x.json   (N005; --dry: the plan only)
+##   $G --headless --path . -s tools/poser_cli.gd -- hit_harder templates/punch.json card=3 [--dry] [--retime] [--out scenes/_wip/x.json]
+##        (N065 hit harder: the strike made more powerful within the body's limits, the gain as a number; scripts/hit_harder.gd)
+##   $G --headless --path . -s tools/poser_cli.gd -- spec scenes/combo3.json|- C:/specs/jab.json [--dummy 0.85] [--out scenes/_wip/x.json]   (N004 spec to motion, scripts/spec_motion.gd; serve: spec {spec, apply?})
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -25,6 +49,8 @@
 ##   retime=A-B:pct    cards A to B (1 = the first) play at pct % (the move into each and its hold; 150 = slower)
 ##   physics=<file.bvh>  import a tools/physics hit reaction as a NEW scene in scenes/_wip (R15)
 ##   undo | redo
+##   root=x,y,z        the body's root (pelvis offset, m), one undo step (N008: path_to_pose's steps carry it)
+##   put=<joint>:b,s,t like set= for any joint (fingers too), limits kept but NOT stopped at a contact (N008)
 ## Output: readable lines, then ONE JSON line last (it starts with {"ok": ...}). With --json only the JSON line.
 ## Writes: only `run ... --out <path>` / serve's `save`, and only into scenes/_wip/ or outside the project; never Nick's
 ## scenes/, poses/ or data/ (a registry command that writes them, save_pose / save_scene, is refused: use --out).
@@ -35,11 +61,16 @@
 ##   commands                      the registry (id, name, keys, edits, desc)
 ##   open {path} | new             load a scene / start an empty one
 ##   run {steps: [...]}            run's steps above, in order; stops at the first that fails (that is an error)
-##   pose {text}                   words to a pose; the result says what each joint reached
+##   pose {text}                   words to a pose; the result says what each joint reached. Or the floor contacts
+##                                 ("kneeling on the right knee, left foot flat", "push-up plank"; N015 scripts/support_pose.gd):
+##                                 a balanced pose on them, each contact's gap and weight share, or why not
 ##   measure {t | frame, fps, what}  numbers a blind agent needs, each with its unit (docs/AGENT_MATH.md): what = a list
 ##                                 of "distance A B", "angle A B C", "height A", "speed A", "clearance", "com",
 ##                                 "balance"; A = a joint
-##                                 name, weapon_tip or weapon_knob
+##                                 name, weapon_tip or weapon_knob; frame: "body" adds each part in the body's words (N007)
+##   where {point | joint, who, of}  N007 (scripts/body_frame.gd): a point in words + cm, e.g. "15 cm in front of the
+##                                 sternum, 3 cm above chin height, 10 cm toward his left"; of = "opponent": his landmarks
+##   place {text, who}             those words back to a point (m, the space state gives); "at the opponent's chin" too
 ##   state {t | frame, fps}        the body: every joint's bend / side / twist, the offset, the weapon, and where 17 parts
 ##                                 ARE (points, m); at a moment of the scene if t or frame is given (the same every run)
 ##   describe                      the scene: cards, times, settings; {joint: "elbow_r"} = that joint's frame in words + limits
@@ -47,10 +78,71 @@
 ##                                 (more changes after ;): the hands' / feet's new world positions and reach %, the nearest
 ##                                 parts and their gap, the limit margin, balance (inside / outside, cm), the weapon tip
 ##   check                         the findings, as `check --json`
+##   assert {lines, save?, clear?}  N002 body assertions ("left foot planted 0-0.4 s"): pass / fail and the worst miss
+##                                 per line; save keeps them in the scene (Check re-runs them); no lines = the saved ones
+##   check {trust: true} | measure {..., trust: true}   + a "trust" per finding / measure: MEASURED (source), HEURISTIC or
+##                                 UNVERIFIED, with the bars behind it (N020, scripts/trust.gd)
+##   facts {q} | {list: true} | {registry: true}   cited human numbers ("how fast is a real jab?"): value, unit, range,
+##                                 source, trust; "no cited number" + the nearest topics when none (N022, human_facts.gd)
 ##   diff {path} | diff {a, b}     what the live scene changed from a file (file -> live), or a -> b
 ##   validate {path?}              a file, or the live scene, against docs/scene.schema.json
+##   events {q, fighter?, fps?}    N017: WHEN is it true, measured on the played body: q = "right foot leaves the floor",
+##                                 "guard down for at least 0.2 s", "right fist fastest", "fighters touch" -> spans / an instant
+##                                 in s and frames (scripts/event_query.gd); an unknown phrase lists the known ones
+##   dry {steps, score?}           N003: what run's steps WOULD do, nothing changed (scripts/dry_run.gd): parts moved, findings
+##                                 added / removed, realism score change, cards / keys touched; file-writing steps refused
+##   frame_data {fps, frames, exchange, hit_clip, block_clip, moves}  N080 (scripts/frame_advantage.gd): startup / active /
+##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
+##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
+##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
+##   range {joint, axis, conditions, card? | t?, step?, from?, to?, joint2?, axis2?}   N013: the values of that axis that keep
+##                                 EVERY condition true ("balance", "reach right fist to 0.25,1.35,0.45 within 2 cm", "limits 5",
+##                                 an N002 line): intervals in deg with what bounds each end; joint2 = a pass / fail map
+##                                 (scripts/range_sweep.gd; CLI: range <scene|-> [card=N] [t=S] [step=D] <joint> <axis> "<cond>" ...)
+##   limits {joint, other_angles?}  N028: the joint's bend range now (table, healthy adult, trained) given the other leg joints
+##                                 ({"calf_r": 0} or {"knee": 0}; missing = the body as it stands), each two-joint muscle with its why + source
+##   explain_conflict {lines, t? | card?}  N006 (scripts/conflict_explain.gd): wishes (assert lines + "both feet planted",
+##                                 "lean 40 deg forward") at one moment -> "no conflict", or the minimal clashing set and the
+##                                 cost to free each ("needs 12 cm more reach: step 12 cm forward, or lean 5 deg, or drop ...")
+##   path_to_pose {target, max_steps?, apply?}  N008 (scripts/pose_path.gd): target = a pose name / file, pose words or search
+##                                 words; returns steps (run tokens per waypoint, each with why), checks (limits, planted feet,
+##                                 floor, self-intersection, target reached), blocked (the joint past its range, ...); a dry plan
 ##   save {out}                    write the live scene (scenes/_wip/ or outside the project only)
 ##   quit
+##   try {variants: [[steps], ...] | base: [steps with {p}], sweep: {param: p, values: [...]}, score?, asserts?, apply?}
+##                                 N019: each variant an N003 dry run, ranked best first (fewest assertions failing, realism
+##                                 score, MUST FIX, findings) with its diff (cards changed, joints moved); variants with a bad
+##                                 step listed under "failed"; apply: "best" | n runs that one for real as ONE undo step (scripts/try_n.gd)
+##   explain {card? | t0?, t1?}    N091 (scripts/explain_motion.gd): the main strike as {phases: anticipation / action / contact /
+##                                 follow-through / recovery (s + frames), power: I8 chain + I36 weight transfer, read: words + the
+##                                 ratios, ease, holds, overshoot, kinks against cited / HEURISTIC norms, try: steps + a CLI line,
+##                                 text (< 250 words), sentences: [{s, fields}]}; nothing is changed
+##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
+##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
+##                                 path = open it first (as open)
+##   text_view {t | frame, fps | card}  N001: the pose as text: front + side ASCII stick figures and one paragraph
+##                                 (stance, weight split, lean, hands in landmarks, feet, facing, balance); scripts/text_view.gd
+##   knobs {card, read: true} | {card, set: {strike_height_cm, reach_pct, stance_cm, guard_cm}}  N025 (scripts/move_knobs.gd): a
+##                                 strike card's height (cm over his chin), reach (% of the limb), stance (cm between the ankles),
+##                                 guard (cm of the guard wrist over the chin); set re-solves the card and its neighbours by IK as
+##                                 ONE undo step, planted feet kept; "unreached" names the joint whose limit stopped a knob
+##   who_could {card?} | {t0?, t1?}  N027: the minimum body per capacity (hip / ankle / spine / shoulder flexibility, hand and foot
+##                                 speed, jump power) as population percentiles + tiers; "no human" past a record (scripts/who_could.gd)
+##   recognize {card?, t0?, t1?, fighter?}  N016: the strike the body does (jab ... roundhouse, weapon swings, thrust; else
+##                                 "unknown" + the nearest) from path, chain, speed and feet, and its form vs the textbook
+##                                 ("the elbow drops 25 deg below shoulder height"); scripts/move_recognizer.gd
+##   fix_until {bar?, max_steps?, dry?, path?}  N005: Check fixes, the timing coach and the I45 judges' fixes in order of predicted
+##                                 gain until every saved assertion passes and realism >= bar (default 70), or no fix helps, or
+##                                 max_steps (10); a fix that lowers the score or breaks a passing line is reverted. ONE undo step;
+##                                 dry = the plan only, nothing changed. Each step with the score and failing lines before / after
+##                                 (scripts/fix_loop.gd)
+##   hit_harder {card, dry?, allow_retime?}  N065 (scripts/hit_harder.gd): follow-through, hip + shoulder coil, longer wind-up,
+##                                 weight transfer, ease sequencing (retime only if allowed), each kept only if it raises the blow
+##                                 and keeps joint limits, the I47 human caps, balance, the contact frame (+-1) and the saved
+##                                 assertions. {before: {speed_mps, impulse_Ns}, after, gain_pct, levers: [{name, gain, applied,
+##                                 why_not}]}; ONE undo step; dry = the same answer, nothing written
+##   bench {list} | {task} | {task, score}  N024 Kine-Bench (scripts/kine_bench.gd): the 20 graded tasks; one task's brief, start
+##                                 scene and rules; {score: true} grades the live scene: per-assertion pass/fail, judge bars, 0-100
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -111,6 +203,12 @@ func _init() -> void:
 				cs.append({"id": c["id"], "name": c["name"], "keys": c["keys"], "edits": c["edits"], "desc": c["desc"]})
 				say("%-38s %-8s %s  %s" % [c["id"], c["keys"], "EDIT" if c["edits"] else "    ", c["desc"]])
 			done({"ok": true, "commands": cs})
+		"facts":   # N022: facts "how fast is a real jab?" | facts list
+			var fq := " ".join(a.slice(1))
+			var fr := HumanFacts.serve({"list": true} if fq == "list" else {"q": fq})
+			say(String(fr.get("answer", "%d facts" % fr.get("count", 0))) if not fr.is_empty() else "facts \"<question>\" | facts list")
+			fr["ok"] = not fr.is_empty()
+			done(fr)
 		"describe":
 			if a.size() >= 2 and a[1] == "joint":
 				var dj := WhatIf.describe_joint(m, " ".join(a.slice(2)))
@@ -171,6 +269,23 @@ func _init() -> void:
 			done({"ok": true, "scene": m.S.name, "clean": fs.is_empty(), "must_fix": must, "findings": fs})
 		"check_all":
 			check_all(a)
+		"assert":
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "assert <scene.json> \"<line>\" ...", "grammar": BodyAssert.GRAMMAR})
+				return
+			var rq: Dictionary = await T.request(1, "assert", {"lines": a.slice(2)} if a.size() > 2 else {})
+			if rq.has("error"):
+				done({"ok": false, "error": rq["error"]["message"]})
+				return
+			var ar: Dictionary = rq["result"]
+			for x in ar.get("results", []):
+				say(x.get("say", "UNREAD  %s:  %s" % [x["line"], x.get("error", "")]))
+			if ar.get("unread", 0) > 0:
+				for g in BodyAssert.GRAMMAR:
+					say(g)
+			ar["ok"] = ar.get("pass", false)
+			done(ar)
 		"diff":
 			if a.size() < 3 or not FileAccess.file_exists(res(a[1])) or not FileAccess.file_exists(res(a[2])):
 				done({"ok": false, "error": "diff <a.json> <b.json>  (both scene files that exist)"})
@@ -189,12 +304,262 @@ func _init() -> void:
 				say("%s: %s" % [e["path"], e["msg"]])
 			say("VALID" if es.is_empty() else "%d problem(s)" % es.size())
 			done({"ok": es.is_empty(), "file": a[1], "errors": es})
+		"events":
+			if a.size() < 3 or not open_scene(a[1]):
+				if a.size() < 3:
+					done({"ok": false, "error": "events <scene.json> \"<query>\" [fighter=N] [fps=F]  (N017; scripts/event_query.gd)"})
+				return
+			var ep := {"q": " ".join(a.slice(2).filter(func(x): return not (String(x).begins_with("fighter=") or String(x).begins_with("fps="))))}
+			for x in a.slice(2):
+				if String(x).begins_with("fighter="):
+					ep["fighter"] = int(String(x).substr(8))
+				elif String(x).begins_with("fps="):
+					ep["fps"] = float(String(x).substr(4))
+			var ev: Dictionary = await EventQuery.run(m, ep)
+			say(String(ev.get("text", ev.get("error", ""))))
+			done(ev)
+		"range":   # N013: range <scene|-> [card=N] [t=S] [step=D] [from=A] [to=B] <joint> <axis> "<condition>" ...
+			if a.size() < 5 or (a[1] != "-" and not open_scene(a[1])):
+				if a.size() < 5:
+					done({"ok": false, "error": "range <scene.json|-> [card=N] [t=S] [step=D] <joint> <axis> \"<condition>\" ...  (N013; scripts/range_sweep.gd)"})
+				return
+			var rp := {"conditions": []}
+			var pos := []
+			for x in a.slice(2):
+				var kv := String(x).split("=", true, 1)
+				if kv.size() == 2 and kv[0] in ["card", "t", "step", "from", "to"] and kv[1].is_valid_float():
+					rp[kv[0]] = int(kv[1]) if kv[0] == "card" else float(kv[1])
+				else:
+					pos.append(x)
+			rp["joint"] = pos[0] if pos.size() > 0 else ""
+			rp["axis"] = pos[1] if pos.size() > 1 else ""
+			rp["conditions"] = pos.slice(2)
+			var rr := RangeSweep.run(m, rp)
+			for l in rr.get("text", [rr.get("error", "")]):
+				say(l)
+			done(rr)
+		"explain_conflict":   # N006
+			if a.size() < 3 or not open_scene(a[1]):
+				if a.size() < 3:
+					done({"ok": false, "error": "explain_conflict <scene.json> \"<wish>\" ... [t=s] [card=N]  (N006; scripts/conflict_explain.gd)"})
+				return
+			var cp := {"lines": a.slice(2).filter(func(x): return not (String(x).begins_with("t=") or String(x).begins_with("card=")))}
+			for x in a.slice(2):
+				if String(x).begins_with("t="):
+					cp["t"] = float(String(x).substr(2))
+				elif String(x).begins_with("card="):
+					cp["card"] = int(String(x).substr(5))
+			var cx := ConflictExplain.serve(m, cp)
+			say(String(cx.get("say", cx.get("error", ""))))
+			done(cx)
+		"spec":   # N004: spec <scene.json|-> <spec.json> [--dummy D] [--out <path>] (scripts/spec_motion.gd)
+			await SpecMotion.cli(self, a)
 		"run":
 			await run(a)
 		"serve":
 			await serve()
+		"explain":   # N091: explain <scene> [card=N | t0=S t1=S] (scripts/explain_motion.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "explain <scene.json> [card=N | t0=S t1=S]  (N091; scripts/explain_motion.gd)"})
+				return
+			var xp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=", true, 1)
+				if kv.size() == 2 and kv[0] in ["card", "t0", "t1"] and kv[1].is_valid_float():
+					xp[kv[0]] = int(kv[1]) if kv[0] == "card" else float(kv[1])
+			var xr := ExplainMotion.serve(m, xp)
+			say(String(xr.get("text", xr.get("error", ""))))
+			done(xr)
+		"brief":   # N011 (scripts/scene_brief.gd)
+			var ti := a.find("--tokens")
+			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS
+			if a.size() < 2 or tk < SceneBrief.MIN_TOKENS or not open_scene(a[1]):
+				if a.size() < 2 or tk < SceneBrief.MIN_TOKENS:
+					done({"ok": false, "error": "brief <scene.json> [--tokens N]  (N >= %d)" % SceneBrief.MIN_TOKENS})
+				return
+			var br := await SceneBrief.brief(m, T, tk)
+			say(br["text"])
+			done(br)
+		"knobs":   # N025: knobs <scene> card=N [knob=value ...] [--out path] (scripts/move_knobs.gd)
+			var oi := a.find("--out")
+			var kout: String = res(a[oi + 1]) if oi >= 0 and oi + 1 < a.size() else ""
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "knobs <scene.json> card=N [strike_height_cm=.. reach_pct=.. stance_cm=.. guard_cm=..] [--out <path>]"})
+				return
+			var kp := {"card": m.sel_card + 1}
+			var kset := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					kp["card"] = int(kv[1])
+				elif kv.size() == 2 and kv[0] in MoveKnobs.KNOBS and kv[1].is_valid_float():
+					kset[kv[0]] = float(kv[1])
+			if not kset.is_empty():
+				kp["set"] = kset
+			var kr := MoveKnobs.serve(m, kp)
+			say(String(kr.get("said", kr.get("error", JSON.stringify(kr.get("values", {}))))))
+			if kr["ok"] and kout != "":
+				var kwhy := T.out_refused(kout)
+				if kwhy != "":
+					done({"ok": false, "error": kwhy})
+					return
+				T.write_scene(kout, "poser_cli knobs")
+				kr["out"] = kout
+			done(kr)
+		"try":   # N019 (scripts/try_n.gd): try <scene> <steps> [--or <steps>]... | <steps with {p}> --sweep p=v1,v2 [--no-score] [--apply best|N --out path]
+			var tp := {"score": not "--no-score" in a}
+			var tq := a.filter(func(x): return x != "--no-score" and x != "--json")
+			for flag in ["--apply", "--out", "--sweep"]:
+				var fi := tq.find(flag)
+				if fi >= 0 and fi + 1 < tq.size():
+					tp[flag] = tq[fi + 1]
+					tq = tq.slice(0, fi) + tq.slice(fi + 2)
+			if tp.has("--apply"):
+				tp["apply"] = "best" if tp["--apply"] == "best" else int(tp["--apply"])
+			if tp.has("--sweep"):
+				var sw: PackedStringArray = String(tp["--sweep"]).split("=")
+				tp["base"] = tq.slice(2)
+				tp["sweep"] = {"param": sw[0], "values": Array(sw[1].split(",")) if sw.size() == 2 else []}
+			else:
+				tp["variants"] = [[]]
+				for x in tq.slice(2):
+					if x == "--or":
+						tp["variants"].append([])
+					else:
+						tp["variants"][-1].append(x)
+			var tout: String = res(tp.get("--out", "")) if tp.has("--out") else ""
+			if tout != "" and T.out_refused(tout) != "":
+				done({"ok": false, "error": T.out_refused(tout)})
+				return
+			if tq.size() < 3 or not open_scene(tq[1]):
+				if tq.size() < 3:
+					done({"ok": false, "error": "try <scene.json> <steps> --or <steps> ... | try <scene.json> retime=3-3:{pct} --sweep pct=80,90,100 [--no-score] [--apply best|N --out <path>]"})
+				return
+			m._card_pick(0)
+			var tr: Dictionary = await T.request(1, "try", tp)
+			var trr: Dictionary = tr.get("result", tr.get("error", {}).get("data", {}))
+			for l in TryN.lines(trr):
+				say(l)
+			trr["ok"] = tr.has("result")
+			if tr.has("error"):
+				trr["error"] = tr["error"]["message"]
+			if trr["ok"] and tout != "" and trr.has("applied"):
+				T.write_scene(tout, "poser_cli try")
+				trr["out"] = tout
+			done(trr)
+		"path_to_pose":   # N008: scripts/pose_path.gd
+			var mi := a.find("--max")
+			var mx := int(a[mi + 1]) if mi >= 0 and mi + 1 < a.size() else PosePath.MAX_STEPS
+			if a.size() < 3:
+				done({"ok": false, "error": "path_to_pose <scene.json|-> \"<pose name | pose words>\" [--max N]"})
+				return
+			if a[1] != "-":
+				if not open_scene(a[1]):
+					return
+				m._card_pick(0)
+			var pr := PosePath.plan(m.B, String(a[2]), mx)
+			if a[1] != "-" and pr.has("run"):
+				pr["cli"] = "run %s %s" % [a[1], " ".join(pr["run"]["params"]["steps"])]
+			for l in PosePath.lines(pr):
+				say(l)
+			pr["ok"] = pr.get("ok", false) and not pr.has("blocked")
+			done(pr)
+		"hit_harder":   # N065: hit_harder <scene> card=N [--dry] [--retime] [--out path] (scripts/hit_harder.gd)
+			var hi := a.find("--out")
+			var hout: String = res(a[hi + 1]) if hi >= 0 and hi + 1 < a.size() else ""
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "hit_harder <scene.json> card=N [--dry] [--retime] [--out <path>]"})
+				return
+			var hp := {"card": m.sel_card + 1, "dry": a.has("--dry"), "allow_retime": a.has("--retime")}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					hp["card"] = int(kv[1])
+			var hr := HitHarder.serve(m, hp)
+			say(String(hr.get("said", hr.get("error", ""))))
+			if hr["ok"] and hout != "" and not hp["dry"]:
+				var hwhy := T.out_refused(hout)
+				if hwhy != "":
+					done({"ok": false, "error": hwhy})
+					return
+				T.write_scene(hout, "poser_cli hit_harder")
+				hr["out"] = hout
+			done(hr)
+		"lint":   # N018: scripts/clip_lint.gd
+			var lr := ClipLint.lint(m, a[1] if a.size() > 1 else "")
+			for l in ClipLint.lines(lr):
+				say(l)
+			done(lr)
+		"textview":
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "textview <scene.json> [card=N]"})
+				return
+			var tc := 1
+			for x in a.slice(2):
+				if String(x).begins_with("card=") and String(x).substr(5).is_valid_int():
+					tc = int(String(x).substr(5))
+			var tv: Dictionary = await TextView.on_main(m, {"card": tc})
+			if tv["ok"]:
+				say(tv["text"])
+			done(tv)
+		"recognize":   # N016 (scripts/move_recognizer.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "recognize <scene.json> [card=N] [t0=S] [t1=S] [fighter=N]  (N016)"})
+				return
+			var rp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] in ["card", "fighter"]:
+					rp[kv[0]] = int(kv[1])
+				elif kv.size() == 2 and kv[0] in ["t0", "t1"]:
+					rp[kv[0]] = float(kv[1])
+			var rr: Dictionary = await MoveRecognizer.serve(m, rp)
+			say(String(rr.get("text", rr.get("error", ""))))
+			done(rr)
+		"whocould":   # N027 (scripts/who_could.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "whocould <scene.json> [card=N] [t0=S] [t1=S]  (N027)"})
+				return
+			var wp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					wp["card"] = int(kv[1])
+				elif kv.size() == 2 and kv[0] in ["t0", "t1"]:
+					wp[kv[0]] = float(kv[1])
+			var wr := WhoCould.serve(m, wp)
+			say(String(wr.get("text", wr.get("error", ""))))
+			done(wr)
+		"fixuntil":   # N005 (scripts/fix_loop.gd)
+			var dry := "--dry" in a
+			var fo := a.find("--out")
+			var fb := a.find("--bar")
+			var fn := a.find("--steps")
+			var outp: String = res(a[fo + 1]) if fo >= 0 and fo + 1 < a.size() else ""
+			var why_out := T.out_refused(outp) if outp != "" else ""
+			if a.size() < 2 or (outp == "" and not dry) or why_out != "" or not open_scene(a[1]):
+				if a.size() < 2 or (outp == "" and not dry) or why_out != "":
+					done({"ok": false, "error": why_out if why_out != "" else "fixuntil <scene.json> [--bar N] [--steps N] --out <path>  (or --dry: the plan only)"})
+				return
+			var fr: Dictionary = await FixLoop.run(m, T, float(a[fb + 1]) if fb >= 0 and fb + 1 < a.size() else FixLoop.DEFAULT_BAR,
+				int(a[fn + 1]) if fn >= 0 and fn + 1 < a.size() else FixLoop.DEFAULT_STEPS, dry)
+			if fr["ok"]:
+				for st in fr["steps"]:
+					say("%2d %-8s card %d  %s  predicted %+.2f  score %.2f -> %.2f  %s" % [st["n"], st["rule"], st["card"], st["fix"], st["predicted_gain"],
+						st["before"]["score"], st["after"]["score"], "kept" if st["kept"] else "REVERTED: " + String(st["reverted"])])
+				say("STOPPED (%s): %s" % [fr["stopped"], fr["why"]])
+				if outp != "" and not dry:
+					T.write_scene(outp, "fixuntil (N005)")
+					fr["out"] = outp
+			done(fr)
 		_:
-			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
+			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | events <scene> \"<query>\" | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})
 
 
@@ -303,6 +668,12 @@ func check_html(folder: String, rows: Array, per: Dictionary, tot: Dictionary) -
 
 
 func run(a: Array) -> void:
+	var dry := "--dry" in a   # N003: report what the steps would do, put everything back (scripts/dry_run.gd)
+	var no_score := "--no-score" in a   # the realism score costs ~5 s a read (twice when the cards change)
+	a = a.filter(func(x): return x != "--dry" and x != "--no-score")
+	if dry and "--out" in a:
+		done({"ok": false, "error": "--dry writes nothing: drop --out"})
+		return
 	var out := ""
 	var i := a.find("--out")
 	if i >= 0:
@@ -321,6 +692,14 @@ func run(a: Array) -> void:
 		return
 	m._card_pick(0)
 	m.undo.clear()
+	if dry:
+		var dr := await DryRun.run(T, a.slice(2), not no_score)
+		for l in dr.get("cards", {}).get("lines", []):
+			say(l)
+		say("DRY %s: %d parts moved, findings %s -> %s, score %s, restored %s" % ["refused" if dr.has("refused") else ("ok" if dr["ok"] else "FAIL"),
+			dr.get("parts_moved", []).size(), dr.get("findings", {}).get("before", "-"), dr.get("findings", {}).get("after", "-"), dr.get("score", {}).get("delta", "-"), dr.get("restored", "-")])
+		done(dr)
+		return
 	var steps := []
 	var ok := true
 	for tok: String in a.slice(2):

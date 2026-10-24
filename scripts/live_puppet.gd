@@ -26,7 +26,7 @@ const PORT_HI := 65000
 const WINDOW := 60       # frames the fps and latency readouts average over
 const N_LM := 33
 
-var rec_dir := "res://scenes/_wip"   # where a take is kept (a test points it at user:// so it never writes scenes/)
+var rec_dir := UserPaths.w("res://scenes/_wip")   # where a take is kept (a test points it at user:// so it never writes scenes/)
 var python := "python"               # the interpreter that has mediapipe + opencv-python (as the video import's)
 var port := 0
 var pid := -1
@@ -77,6 +77,7 @@ func _start(tool_path: String, extra: PackedStringArray) -> String:
 	var args := PackedStringArray([tool_path, "--port", str(port)])
 	args.append_array(extra)
 	pid = OS.create_process(python, args)
+	Children.add(pid)
 	if pid < 0:
 		var why := "\"%s\" did not start (it needs Python with mediapipe and opencv-python: run pip install mediapipe opencv-python)" % python
 		stop()
@@ -95,6 +96,7 @@ func stop() -> void:
 		_server.stop()
 	if pid >= 0 and OS.is_process_running(pid):
 		OS.kill(pid)
+	Children.done(pid)
 	pid = -1
 	port = 0
 	running = false

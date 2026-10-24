@@ -70,6 +70,7 @@ func begin(S: Scene, Bx: Body, python := "python") -> String:
 	f.close()
 	var tool := ProjectSettings.globalize_path("res://tools/physics/judge.py")
 	pid = OS.create_process(python, PackedStringArray([tool, cp, out_path, "--progress", prog_path]))
+	Children.add(pid)
 	done = false
 	failed = ""
 	progress = 0.0
@@ -87,6 +88,7 @@ func poll() -> bool:
 		progress = clampf(FileAccess.get_file_as_string(prog_path).to_float(), 0.0, 1.0)
 	if OS.is_process_running(pid):
 		return false
+	Children.done(pid)
 	pid = -1
 	return load_result(out_path)
 
@@ -112,6 +114,7 @@ func load_result(path: String) -> bool:
 func stop() -> void:
 	if pid >= 0 and OS.is_process_running(pid):
 		OS.kill(pid)
+	Children.done(pid)
 	pid = -1
 
 

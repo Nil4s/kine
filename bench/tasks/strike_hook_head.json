@@ -1,0 +1,14 @@
+{
+ "id": "strike_hook_head",
+ "kind": "strike",
+ "brief": "A right hook that lands on the side of the target's head at 0.8 s, the elbow bent at least 70 deg at impact, feet planted.",
+ "start": "bench/start/strike_hook_head.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps. A hook is a bent arm swung across, not a straight punch.",
+ "asserts": [
+  {"line": "right fist touches fighter 2 head at 0.8 s +-2 f", "w": 3},
+  {"line": "right elbow above 70 deg bend at 0.8 s +-2 f", "w": 2},
+  {"line": "left foot planted all clip", "w": 1},
+  {"line": "right foot planted all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

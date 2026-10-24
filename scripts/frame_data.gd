@@ -67,13 +67,17 @@ static func analyze(S: Scene, B: Body, fps := FPS, dummy: Dummy = null) -> Dicti
 	var last := -1
 	var nact := 0
 	for f in N:
-		var tip := _tip(raw[f], key)
+		var tip = _tip(raw[f], key)   # null when the weapon is not held on this frame: no speed, not active
 		var v := Vector3.ZERO
-		if N > 1:
+		if N > 1 and tip != null:
 			if f < N - 1:
-				v = (_tip(raw[f + 1], key) - tip) * float(fps)
+				var nxt = _tip(raw[f + 1], key)
+				if nxt != null:
+					v = (nxt - tip) * float(fps)
 			else:
-				v = (tip - _tip(raw[f - 1], key)) * float(fps)
+				var prv = _tip(raw[f - 1], key)
+				if prv != null:
+					v = (tip - prv) * float(fps)
 		var speed := v.length()
 		var act: bool = (speed > TIP_SPEED and v.dot(dir) > 0.0) or bool(raw[f]["touch"])
 		var hit := []
@@ -125,15 +129,16 @@ static func _cap(B: Body, part: String) -> Dictionary:
 	return {"a": c[0], "b": c[1], "r": float(B.rad[part])}
 
 
-static func _tip(s: Dictionary, key: String) -> Vector3:
+## the striking point of key on this frame; null for the weapon on a frame where no weapon is held (no tip to read)
+static func _tip(s: Dictionary, key: String) -> Variant:
 	if key == "weapon":
-		return s["tip"]
+		return s.get("tip")
 	return s["tips"][key]
 
 
 static func _hitboxes(s: Dictionary, key: String) -> Array:
 	if key == "weapon":
-		return (s["wcaps"] as Array).duplicate()
+		return (s.get("wcaps", []) as Array).duplicate()
 	return (s["caps"][key] as Array).duplicate()
 
 
@@ -189,6 +194,8 @@ static func to_json(fd: Dictionary) -> Dictionary:
 	var out := {"fps": fd["fps"], "startup": fd["startup"], "active": fd["active"], "recovery": fd["recovery"], "frames": frames}
 	if fd.has("boxes"):
 		out["boxes"] = fd["boxes"]   # the scene's boxes (hit_boxes.gd), as the scene file keeps them
+	if fd.has("exchange"):
+		out["exchange"] = fd["exchange"]   # N080: hitstun, blockstun, advantage (frame_advantage.gd); only with a second fighter
 	return out
 
 

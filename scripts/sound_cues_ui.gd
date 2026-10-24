@@ -157,7 +157,8 @@ func _close() -> void:
 
 
 ## the cue sheet next to the other exports
-func export_sheet(dir := "res://exports", name := "") -> Dictionary:
+func export_sheet(dir0 := "res://exports", name := "") -> Dictionary:
+	var dir := UserPaths.w(dir0)   # an exported build: the user's folder
 	if cues.is_empty():
 		compute()
 	if cues.is_empty():

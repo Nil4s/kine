@@ -19,8 +19,9 @@ var seconds := 5.0
 var seed := 1
 
 
-## starts making the clip. "" when started, else the reason
-func start(w: String, secs := 5.0, sd := -1) -> String:
+## starts making the clip. "" when started, else the reason. steps / width / height: 0 = tools/gen_video.py's own default
+## (Expert: 30 steps, 832x480); Easy passes its fast setting for one take (easy_take.gd). Nothing is kept between calls.
+func start(w: String, secs := 5.0, sd := -1, steps := 0, width := 0, height := 0) -> String:
 	if pid >= 0 and OS.is_process_running(pid):
 		return "a move is still being made (%s): one at a time" % words
 	w = w.strip_edges()
@@ -35,7 +36,12 @@ func start(w: String, secs := 5.0, sd := -1) -> String:
 	out = dir.path_join("%s_%d.webm" % [base, seed])
 	log_path = dir.path_join("%s_%d.log" % [base, seed])
 	var args := PackedStringArray([ProjectSettings.globalize_path(tool), w, out, "--seconds", str(seconds), "--seed", str(seed)])
+	if steps > 0:
+		args.append_array(PackedStringArray(["--steps", str(steps)]))
+	if width > 0 and height > 0:
+		args.append_array(PackedStringArray(["--width", str(width), "--height", str(height)]))
 	pid = OS.create_process(python, args)
+	Children.add(pid)
 	if pid < 0:
 		return "\"%s\" did not start (gen_video.py needs Python 3)" % python
 	t = 0.0
@@ -49,6 +55,7 @@ func poll(dt: float) -> String:
 	t += dt
 	if OS.is_process_running(pid):
 		return ""
+	Children.done(pid)
 	pid = -1
 	if FileAccess.file_exists(out) and FileAccess.get_file_as_bytes(out).size() > 1000:
 		return "done"

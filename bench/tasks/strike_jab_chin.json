@@ -1,0 +1,15 @@
+{
+ "id": "strike_jab_chin",
+ "kind": "strike",
+ "brief": "A left jab that lands on the target's chin at 0.5 s, both feet planted, back to the guard after.",
+ "start": "bench/start/strike_jab_chin.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps.",
+ "asserts": [
+  {"line": "left fist touches fighter 2 chin at 0.5 s +-2 f", "w": 3},
+  {"line": "left fist speed over 3 m/s at 0.43 s +-3 f", "w": 1},
+  {"line": "left fist at most 20 cm from chin at 1.1 s +-3 f", "w": 1},
+  {"line": "left foot planted all clip", "w": 1},
+  {"line": "right foot planted all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}

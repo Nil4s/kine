@@ -44,23 +44,26 @@ var _drag := {}                  # {"i", "from", "ghost"}: a row being dragged
 ## every reaction clip file at hand: the folders above, plus the physics import's output in scenes/_wip (named for it)
 static func scan() -> Array:
 	var out := []
-	for dir in DIRS:
-		var d := DirAccess.open(dir)
-		if d == null:
+	for base in DIRS:
+		for dir in UserPaths.dirs(base):   # the bundled folder, and the user's copy in an exported build
+			var d := DirAccess.open(dir)
+			if d == null:
+				continue
+			var fs := Array(d.get_files())
+			fs.sort()
+			for f in fs:
+				if String(f).ends_with(".json"):
+					out.append(dir + "/" + f)
+	for wip in UserPaths.dirs(WIP):
+		var w := DirAccess.open(wip)
+		if w == null:
 			continue
-		var fs := Array(d.get_files())
-		fs.sort()
-		for f in fs:
-			if String(f).ends_with(".json"):
-				out.append(dir + "/" + f)
-	var w := DirAccess.open(WIP)
-	if w != null:
 		var fs2 := Array(w.get_files())
 		fs2.sort()
 		for f in fs2:
 			var low := String(f).to_lower()
 			if low.ends_with(".json") and WIP_WORDS.any(func(x): return low.contains(x)):
-				out.append(WIP + "/" + f)
+				out.append(wip + "/" + f)
 	return out.filter(func(p): return _is_clip(p))
 
 
@@ -214,7 +217,8 @@ static func _clip_card(clip: Scene, i: int, move: float) -> Dictionary:
 ## three sample clips written once under scenes/_wip/reactions/ (NEW files only; a folder that already holds clips is left
 ## as it is), made from poses already in the app: the bat hit of scenes/hit_react.json (read only) and the stand pose bent
 ## by hand into a head snap and a knock-down. Returns the paths
-static func make_samples(dir := SAMPLE_DIR) -> Array:
+static func make_samples(dir0 := SAMPLE_DIR) -> Array:
+	var dir := UserPaths.w(dir0)   # an exported build: the user's folder (res:// is read-only)
 	var have := []
 	var d0 := DirAccess.open(dir)
 	if d0 != null:

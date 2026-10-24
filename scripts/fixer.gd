@@ -24,6 +24,12 @@ static func label(f: Dictionary, S: Scene) -> String:
 			# round 5 had none on purpose (rewriting a card's stance is the animator's call). Round 10 (#51) plants the
 			# foot instead: no pose changes, one undo, and it is still the animator who presses it
 			return "Fix: plant this foot" if f.has("foot") else ""
+		"WEIGHT TRANSFER":   # N029: the hips shifted onto the needed foot on the card the strike leaves from (weight_xfer.gd)
+			return "Fix: shift the weight onto the %s foot first" % ("left" if f.get("need", "") == "_l" else "right") if f.has("need") else ""
+		"TRUNK LEAN":   # trunk_lean.gd: the spine turned back inside the move's range, the contact and the feet kept
+			return "Fix: bring the trunk back inside the range" if f.has("window") else ""
+		"BODY ACCEL":   # N031: the moves under the peak get more time (scripts/body_caps.gd)
+			return "Fix: give the body more time for this move" if f.has("kind") else ""
 	return ""
 
 
@@ -47,6 +53,12 @@ static func propose(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Array:
 			_steady_head(f, S, B, sm0 if not sm0.is_empty() else Rulebook.sample(S, B))
 		"FOOT SLIDE":
 			_plant(f, S, B)
+		"WEIGHT TRANSFER":
+			WeightXfer.fix(f, S, B)
+		"TRUNK LEAN":
+			TrunkLean.fix(f, S, B)
+		"BODY ACCEL":
+			BodyCaps.retime(f, S, B)
 	var after := S.cards
 	S.cards = orig
 	return after
@@ -80,6 +92,12 @@ static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 			r = _steady_head(f, S, B, sm0)
 		"FOOT SLIDE":
 			r = _plant(f, S, B)
+		"WEIGHT TRANSFER":
+			r = WeightXfer.fix(f, S, B)
+		"TRUNK LEAN":
+			r = TrunkLean.fix(f, S, B)
+		"BODY ACCEL":
+			r = BodyCaps.retime(f, S, B)
 	assert(S.cards.map(func(c): return c["name"]) == names, "a fix changed the cards' count, names or order")
 	var did: String = r["did"]
 	var all1: Array = r["after"] if r.get("after") != null else Rulebook.check(S, B)
@@ -149,8 +167,14 @@ static func _same_finding(f: Dictionary, x: Dictionary) -> bool:
 		return false
 	if f["rule"] == "HITCH":
 		return absf(x["t"] - f["t"]) < 0.12
+	if f["rule"] == "WEIGHT TRANSFER" and f.has("strike_card"):   # N029: the same strike (its own card), not the card its start falls on
+		return x.get("strike_card", -1) == f["strike_card"] and x.get("class", "") == f.get("class", "")
+	if f["rule"] == "TRUNK LEAN" and f.has("window"):   # the same card window, whatever card its worst frame falls on now
+		return x.get("window", -1) == f["window"]
 	if f["rule"] == "FOOT SLIDE":   # the same foot sliding over the same stretch
 		return x.get("foot", "") == f.get("foot", "") and x["t"] < f.get("t1", f["t"]) + 0.1 and x.get("t1", x["t"]) > f["t"] - 0.1
+	if f["rule"] == "BODY ACCEL":   # N031: the same channel over the same stretch (a retime moves the later frames, so allow 0.3 s)
+		return x.get("kind", "") == f.get("kind", "") and x["t"] < f.get("t1", f["t"]) + 0.3 and x.get("t1", x["t"]) > f["t"] - 0.3
 	return x["card"] == f["card"]
 
 

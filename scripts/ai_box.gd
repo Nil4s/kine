@@ -17,7 +17,7 @@ const N := {"type": "number"}
 const TOOLS := {
 	"describe": ["describe", "The scene now: its cards (name, arrive / move / hold seconds), length, settings, the picked card and part.",
 		{"type": "object", "properties": {}, "additionalProperties": false}],
-	"pose": ["pose", "Pose the body in words: 'raise the right arm 90, bend the left elbow 45, turn the head left 30'. A number turns BY that much; 'to N' sets the angle. Says what each joint REACHED and where a limit stopped it. The pose is on the body only: run [\"add\"] makes it a card.",
+	"pose": ["pose", "Pose the body in words: 'raise the right arm 90, bend the left elbow 45, turn the head left 30'. A number turns BY that much; 'to N' sets the angle. Says what each joint REACHED and where a limit stopped it. Or say what touches the floor ('kneeling on the right knee, left foot flat', 'left hand on the floor, both feet', 'sitting on the floor', 'push-up plank'): Kine solves a balanced pose on those contacts and says the weight on each, or why it can't. The pose is on the body only: run [\"add\"] makes it a card.",
 		{"type": "object", "properties": {"text": S}, "required": ["text"], "additionalProperties": false}],
 	"run": ["run", "Run steps in order, as the window's buttons: [\"add\"] (the body as a new card after the picked one), [\"card=2\"] (pick card 2: its pose goes on the body), [\"update\"] (the body onto the picked card), [\"delete\"], [\"name=wave up\"], [\"pose=raise the right arm 90\"], [\"set=lowerarm_r:90,0,0\"] (bend, side, twist deg), [\"retime=2-4:150\"] (cards 2-4 at 150 %, slower), [\"fix=1\"] (Check's first finding's fix), [\"undo\"]; plus any id from commands (e.g. mirror_the_whole_pose, slower_10, weapon_metal_bat). Stops at the first failing step.",
 		{"type": "object", "properties": {"steps": {"type": "array", "items": S, "minItems": 1}}, "required": ["steps"], "additionalProperties": false}],
@@ -33,7 +33,7 @@ const TOOLS := {
 const SYSTEM := """You animate a human figure in Kine, an animation app. The user tells you what should happen; you build it with the tools, on the scene they are looking at. A scene is a row of CARDS (key poses); playing it moves the body from card to card. To make a card: pose the body (pose), then run ["add"]. To change a card: run ["card=N"], pose, run ["update"]. Name the cards (run ["name=..."]) after what happens in them. Angles are degrees; left / right are HIS. Keep it simple: 3 to 8 cards for a short action. When done, run check; if it lists MUST FIX findings, fix them (run ["fix=N"] or change the card), then check again. Finish with one or two plain sentences saying what you made. Do not ask the user questions: decide."""
 
 var main: Node
-var tools: AgentTools
+var tools
 var client: Node   # LlmClient, or a stand-in with the same chat() / stop() / answered / busy (the test's scripted model)
 var running := false
 var convo := []
@@ -52,7 +52,7 @@ var ui_key: LineEdit
 
 func setup(m: Node) -> void:
 	main = m
-	tools = AgentTools.new(m)
+	tools = load("res://scripts/agent_tools.gd").new(m)
 	name = "AiBox"
 	if client == null:
 		var c := LlmClient.new()

@@ -1,0 +1,12 @@
+{
+ "id": "fall_back",
+ "kind": "fall",
+ "brief": "A fall backwards from the guard that passes the Breakfall check: sink, sit back, roll onto the back with the chin tucked and the arms slapping the floor.",
+ "start": "bench/start/fall_back.json",
+ "notes": "The Breakfall check (scripts/breakfall.gd) is the judge: head clear of the floor, chin tucked, arm not locked, the landing spread over arm / back / hip, the first touch under 2.5 m/s. 30 fps.",
+ "asserts": [
+  {"line": "com inside the feet 0-0.2 s", "w": 1},
+  {"line": "pelvis speed under 3 m/s all clip", "w": 1}
+ ],
+ "judges": {"named": [{"judge": "BREAKFALL", "min_sub": 1.0, "need": true}]}
+}

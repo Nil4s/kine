@@ -5,6 +5,8 @@
 ##   JOINT TORQUE  the shoulder's net moment from inverse dynamics (point masses + segment rotational inertia, de Leva's
 ##                 shares and radii, the bat's load shared between the two hands) against the in-sport peak moment
 ##                 (shoulder internal rotation in pitching). OFF in the default Check (opt-in: with_torque)
+##   BODY ACCEL    (N031) the centre of mass's start / stop / cut / rise / fall acceleration against sprint, braking, cutting and
+##                 jump data and g (scripts/body_caps.gd)
 ##   TIPPING       the centre of mass past the support polygon, with no hand or weapon holding it up, for longer than
 ##                 a fall from its height would take: t = sqrt(2 h / g)
 ## Findings have the Rulebook shape ({"sev", "t", "card", "rule", "msg", "v"}), so the CHECK panel and the timeline
@@ -93,6 +95,19 @@ static func supported(B: Body) -> bool:
 		var base2 := 0.0 if B.props.is_empty() else B.surface_at(tip, B.wep_r_barrel)
 		if tip.y - B.wep_r_barrel - base2 < TOUCH:
 			return true
+	return hips_on_floor(B)
+
+
+## the hips resting on the floor (or a surface): sitting or lying, the body is held up and cannot tip (the fall template).
+## One rule for every checker that lets a body lie or sit: HumanLimits.supported, TrunkLean's back lean (scripts/trunk_lean.gd)
+static func hips_on_floor(B: Body) -> bool:
+	var c: Array = B.cap("hips_wide")
+	for p in c:
+		var hp: Vector3 = p
+		var rr: float = float(B.rad["hips_wide"])
+		var base3 := 0.0 if B.props.is_empty() else B.surface_at(hp, rr)
+		if hp.y - rr - base3 < TOUCH:
+			return true
 	return false
 
 
@@ -146,7 +161,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 		return row
 	var rows: Array = FrameMemo.frames("hl", S, B, n, FPS, mk)
 	S.stepped = was_stepped
-	var out := {"t": [], "speed": {}, "torque": {}, "margin": [], "h": [], "down": [], "sup": [], "cv": [], "mass": mass_of(B)}
+	var out := {"t": [], "speed": {}, "torque": {}, "margin": [], "h": [], "down": [], "sup": [], "cv": [], "mass": mass_of(B), "com": []}
 	for i in n:
 		out["t"].append(i / FPS)
 		var c0: Vector3 = rows[maxi(i - 1, 0)]["com"]
@@ -156,6 +171,7 @@ static func sample(S: Scene, B: Body) -> Dictionary:
 		out["h"].append(rows[i]["h"])
 		out["down"].append(rows[i]["down"])
 		out["sup"].append(rows[i]["sup"])
+		out["com"].append(rows[i]["com"])   # N031 BODY ACCEL reads the same frames (scripts/body_caps.gd)
 	for j in TURN:
 		var s := []
 		for i in n:
@@ -375,6 +391,8 @@ static func findings(S: Scene, B: Body, sm := {}, with_torque := false) -> Array
 	if with_torque:
 		out += rule_torque(sm)
 	out += rule_tipping(sm)
+	out += BodyCaps.findings(S, B, sm)   # N031: whole-body start / stop / cut / rise / fall caps on the COM (scripts/body_caps.gd)
+	out += CoupledLimits.findings(S, B)   # N028: two-joint muscles (straight-leg kick vs the hamstrings): scripts/coupled_limits.gd
 	for f in out:
 		f["card"] = Rulebook.card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])

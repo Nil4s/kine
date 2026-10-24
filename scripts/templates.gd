@@ -1,4 +1,4 @@
-## templates.gd - STARTING SCENES (ROADMAP 44): "New from template..." lists five (walk, run, jump, punch, sword swing); picking
+## templates.gd - STARTING SCENES (ROADMAP 44): "New from template..." lists eight (walk, run, jump, punch, sword swing, sit down, wave, fall); picking
 ## one copies it to a NEW file scenes/_wip/<template>[_N].json (never over one) and the app opens that copy. The templates
 ## themselves are the files in templates/ (read only; tools/make_templates.gd writes them from tools/template_plans.gd, and
 ## tests/templates_test.gd measures each against the real human data cited in the plan).
@@ -7,7 +7,10 @@ extends RefCounted
 
 const DIR := "res://templates"
 const WIP := "res://scenes/_wip"
-const NAMES := ["walk", "run", "jump", "punch", "sword_swing"]
+const NAMES := ["walk", "run", "jump", "punch", "sword_swing", "sit_down", "wave", "fall"]
+## baked files the picker does NOT list: name -> the words TextBlocking builds them from (tools/make_templates.gd bakes them).
+## "roundhouse" is StrikeBlocking's generated kick: built live it took ~3.6 s on Easy's Kick card, so the file holds that build.
+const BAKED := {"roundhouse": "roundhouse"}
 ## the picker's text: [title, what you get]
 const INFO := {
 	"walk": ["Walk", "A half step, five steps at 105 a minute, feet together; arms swing against the legs."],
@@ -15,6 +18,9 @@ const INFO := {
 	"jump": ["Jump", "Stand, dip, push off, fly, land soft in a crouch and stand: a 0.40 m countermovement jump."],
 	"punch": ["Punch", "A guard, a cross: the back foot turns, the hips and shoulders open, the fist reaches and returns."],
 	"sword_swing": ["Sword swing", "A one-hand cut across the body: hips, then chest, then the arm, then the blade."],
+	"sit_down": ["Sit down", "From standing onto a chair: the knees bend, the trunk leans forward and comes back up, feet planted."],
+	"wave": ["Wave", "The right hand raised, the forearm swung side to side two and a half times, then lowered."],
+	"fall": ["Fall", "A backward breakfall: off balance, one step back into a deep crouch, sit down close to the heel, roll onto the back, arms slapping the floor."],
 }
 
 
@@ -28,9 +34,14 @@ static func new_path(nm: String, dir := WIP) -> String:
 	return path
 
 
-## the template's scene file as a dictionary ({} when the name is not one of the five or the file is gone)
+## a name with a file in templates/: the picker's seven, or a baked one
+static func has_file(nm: String) -> bool:
+	return nm in NAMES or BAKED.has(nm)
+
+
+## the template's scene file as a dictionary ({} when the name has no file or the file is gone)
 static func read(nm: String) -> Dictionary:
-	if not nm in NAMES:
+	if not has_file(nm):
 		return {}
 	var p := "%s/%s.json" % [DIR, nm]
 	if not FileAccess.file_exists(p):
@@ -40,7 +51,8 @@ static func read(nm: String) -> Dictionary:
 
 
 ## a NEW scene from the template, written to dir (scenes/_wip); returns its path ("" = it could not be made)
-static func create(nm: String, dir := WIP) -> String:
+static func create(nm: String, dir0 := WIP) -> String:
+	var dir := UserPaths.w(dir0)   # an exported build: the user's folder (res:// is read-only)
 	var d := read(nm)
 	if d.is_empty():
 		return ""

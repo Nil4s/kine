@@ -9,6 +9,7 @@ extends SceneTree
 ## file -> [substring a remaining literal line must contain, why it is not a token]
 const ALLOW := {
 	"scripts/timeline.gd": [
+		["draw_rect(r, Color(col, 0.18))", "airborne spin box (I43): an 18 % fill of its own token colour (fail / fv_ok)"],
 		["Color(0.32, 0.5, 0.82) if i % 2", "the cards' alternating block colours: content, readable white-on-colour in both"],
 		["base = Color(0.95, 0.7, 0.3)", "the picked card's block: content"],
 		["Color(1, 1, 1, 0.55), 1.0)", "auto-timing dashes ON a coloured block"],
@@ -27,7 +28,7 @@ const ALLOW := {
 		["Color(0, 0, 0, 0.85))", "the drag readout's own dark box"],
 		["13, Color(1, 0.95, 0.5))", "the drag readout's text on its own dark box"],
 	],
-	"scripts/ring_menu.gd": [], "scripts/view_cube.gd": [], "scripts/command_search.gd": [], "scripts/browser.gd": [],
+	"scripts/ring_menu.gd": [], "scripts/red_spots.gd": [], "scripts/ouch_meter.gd": [], "scripts/view_cube.gd": [], "scripts/command_search.gd": [], "scripts/browser.gd": [],
 }
 ## main.gd: only the UI-building functions are audited (the 3D scene's materials, lights and labels are content)
 const MAIN_UI := ["_theme", "_set_light", "_retheme", "_label", "_button", "_row", "_section", "_ui", "_rebuild_cards", "_draw_graph", "_check"]

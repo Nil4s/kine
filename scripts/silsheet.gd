@@ -253,6 +253,11 @@ static func make(m: Node, save := true) -> Dictionary:
 	if shading_was != "solid":
 		m.shading.set_mode(m, "solid")
 	var playhead_was: float = m.playhead
+	# the tiles pose a SCRATCH body, never the user's: B (the pose the user made, an unkeyed bend too) is what the
+	# scene and undo see, and it must not move while the sheet is drawn (DeformCheck does the same with its own Body)
+	var pose := Body.new()
+	pose.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	pose.set_proportions(m.B.body)
 	var vp := SubViewport.new()
 	vp.name = "silsheet_stage"
 	vp.size = TILE
@@ -293,14 +298,14 @@ static func make(m: Node, save := true) -> Dictionary:
 		var t: float = (times[i] as Array)[1]
 		m.playhead = t
 		var ps: Scene = m._ps()
-		ps.apply(m.B, ps.play_t(t))
-		m._refresh()
-		for mi in orig:   # _refresh puts the skin looks back on the pieces: the flat black goes on again, after it
+		ps.apply(pose, ps.play_t(t))
+		Overlays.pose_skeleton(m.skel, m.bone_idx, pose)
+		for mi in orig:   # the flat black goes on for this tile
 			mi.material_override = flat
 			mi.material_overlay = null
 			mi.layers = Shading.SIL_LAYER
 		# the camera: the main camera's direction, looking at the figure's pelvis column, far enough back to hold the whole body
-		var pel: Vector3 = m.B.P["pelvis"]
+		var pel: Vector3 = pose.P["pelvis"]
 		var at := Vector3(pel.x, m.target.y, pel.z)
 		var basis: Basis = m.cam.global_transform.basis
 		var back := FIT_DIST
@@ -309,11 +314,11 @@ static func make(m: Node, save := true) -> Dictionary:
 		var lo := INF
 		var hi := -INF
 		var span_pts := []
-		for j in m.B.P:
-			span_pts.append(m.B.P[j])
-		if m.B.wep_on:
-			span_pts.append(m.B.wep_point(0.0))
-			span_pts.append(m.B.wep_point(m.B.wep_len))
+		for j in pose.P:
+			span_pts.append(pose.P[j])
+		if pose.wep_on:
+			span_pts.append(pose.wep_point(0.0))
+			span_pts.append(pose.wep_point(pose.wep_len))
 		for q in span_pts:
 			lo = minf(lo, (q as Vector3).dot(rt))
 			hi = maxf(hi, (q as Vector3).dot(rt))
@@ -326,10 +331,10 @@ static func make(m: Node, save := true) -> Dictionary:
 		var mk := mask_of(img)
 		var r := measure(mk, img.get_width(), img.get_height())
 		# the arms-in-torso test with the tile camera's own projection
-		var sh_l := cam.unproject_position(m.B.P["upperarm_l"])
-		var sh_r := cam.unproject_position(m.B.P["upperarm_r"])
-		var hp_l := cam.unproject_position(m.B.P["thigh_l"])
-		var hp_r := cam.unproject_position(m.B.P["thigh_r"])
+		var sh_l := cam.unproject_position(pose.P["upperarm_l"])
+		var sh_r := cam.unproject_position(pose.P["upperarm_r"])
+		var hp_l := cam.unproject_position(pose.P["thigh_l"])
+		var hp_r := cam.unproject_position(pose.P["thigh_r"])
 		var poly := PackedVector2Array([sh_l, sh_r, hp_r, hp_l])
 		var grown := Geometry2D.offset_polygon(poly, 0.5 * sh_l.distance_to(sh_r))
 		var torso := poly
@@ -337,7 +342,7 @@ static func make(m: Node, save := true) -> Dictionary:
 			torso = grown[0]
 		var pts := []
 		for j in LIMB_JOINTS:
-			pts.append(cam.unproject_position(m.B.P[j]))
+			pts.append(cam.unproject_position(pose.P[j]))
 		r["arms_hidden"] = arms_inside(torso, pts)
 		r["name"] = String((S.cards[i] as Dictionary).get("name", "card %d" % (i + 1)))
 		r["verdict"] = verdict(r)
@@ -351,9 +356,7 @@ static func make(m: Node, save := true) -> Dictionary:
 			mi.layers = lay[mi]
 	vp.queue_free()
 	m.playhead = playhead_was
-	var ps2: Scene = m._ps()
-	ps2.apply(m.B, ps2.play_t(playhead_was))
-	m._refresh()
+	m._refresh()   # the skeleton goes back to the user's body (B was never posed here)
 	if shading_was != "solid":
 		m.shading.set_mode(m, shading_was)
 	var sheet := tile_sheet(tiles, columns_for(tiles.size()))

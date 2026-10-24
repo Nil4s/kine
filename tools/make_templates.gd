@@ -38,8 +38,27 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 	var S := Scene.new()
 	S.name = p["name"]
 	S.spline = bool(p.get("spline", false))
+	S.floor_body = bool(p.get("floor_body", false))   # a fall: the whole body's lowest point is on the floor (the get-ups do the same)
+	S.pin = bool(p.get("pin", true))                  # a fall: no planted feet (a planted leg holds the body up off the floor it lies on)
 	var hips := Vector3.ZERO
 	var marks := {}
+	var last := {}
+	if p.has("rise"):
+		# the sit-down: scripts/rise.gd's keys played backwards, on a chair at the origin (the set is the scene's own props)
+		S.props = [Props.make("chair", Props.xf_at(Vector3.ZERO, 0.0))]
+		var r := Rise.sit_down(B, S.props[0])
+		var i := 0
+		for c in r["cards"]:
+			S.add(c["name"], c["pose"])
+			var cd: Dictionary = S.cards[-1]
+			cd["move"] = float(p.get("move_of", {}).get(i, p["move"])) if i > 0 else -1.0   # "move_of": {card: s} slows one move
+			cd["hold"] = float(p.get("hold0", 0.4)) if i == 0 else (0.6 if i == (r["cards"] as Array).size() - 1 else 0.0)
+			cd["steps"] = {}
+			cd["plant"] = c["plant"]
+			if i >= int(p.get("flow_from", 99)) and i < (r["cards"] as Array).size() - 1:
+				cd["flow"] = true   # a pass-through key from this card on: the speed carries on through it (no stop between two fast moves: HITCH)
+			i += 1
+		report.append("  Rise.sit_down: %d cards, seat-off margin %.1f cm, miss_max %.4f" % [i, float(r["report"]["margin_off"]) * 100.0, float(r["report"]["miss_max"])])
 	for c in p["clips"]:
 		for j in B.ang.keys():   # every clip is absolute: all body joints back to rest, the hands' fingers kept
 			if not (String(j).begins_with("thumb") or String(j).begins_with("index") or String(j).begins_with("middle") or String(j).begins_with("ring") or String(j).begins_with("pinky")):
@@ -75,6 +94,12 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 		if c.get("keep_feet", false):
 			for sd in ["_l", "_r"]:
 				plant[sd] = marks[sd]   # "keep_feet": both toe bases go back to where the first card stood
+		if c.get("keep_now", false):
+			for sd in ["_l", "_r"]:
+				plant[sd] = last[sd]    # "keep_now": both toe bases stay where the card before left them (as the bake placed them)
+		for sd in c.get("step", {}):
+			var st: Array = c["step"][sd]   # "step": {"_r": [x, 0, z]}: that foot steps by this much from its first-card mark
+			plant[sd] = [float(marks[sd][0]) + float(st[0]), float(marks[sd][1]) + float(st[2]), float(marks[sd][2])]
 		for sd in plant:
 			# "plant": {"_r": [x, z]}  that foot's toe base goes to this world mark (the leg alone is solved), heading 0
 			var m: Array = plant[sd]
@@ -82,6 +107,8 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 			B.plant(sd, Vector3(float(m[0]), (B.p0["ball" + sd] as Vector3).y, float(m[1])), float(m[2]) if m.size() > 2 else float(c.get("head", 0.0)), not up)
 			if up:
 				B.toes_flat(sd)
+		for sd in ["_l", "_r"]:
+			last[sd] = [(B.P["ball" + sd] as Vector3).x, (B.P["ball" + sd] as Vector3).z, B.foot_heading(sd)]   # where the feet stand after this card (keep_now)
 		if B.wep_on:
 			# the weapon hand reaches `hand` (metres in the chest's frame: from spine_03, +x his left, +y up, +z the way the
 			# chest faces) with the blade along `aim` (tools/cook.gd's reach), the other hand follows onto the grip
@@ -129,13 +156,30 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 	return d
 
 
+## the baked files (Templates.BAKED): the words TextBlocking builds, exactly as the Easy home card builds them
+## (godot --headless --path . -s tools/make_templates.gd -- roundhouse). The report is the bake's own check of the build.
+static func bake_words(nm: String) -> Dictionary:
+	var r: Dictionary = EasyHome.new()._words_dict(String(Templates.BAKED[nm]))
+	if not r["ok"]:
+		push_error("bake %s: %s" % [nm, r["error"]])
+		return {}
+	var d: Dictionary = r["dict"]
+	d["plan"] = "templates/%s (tools/make_templates.gd: the words '%s', built by TextBlocking)" % [nm, Templates.BAKED[nm]]
+	return d
+
+
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	var names: Array = args if not args.is_empty() else Templates.NAMES
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://templates"))
 	for nm in names:
 		var rep := []
-		var d := bake(plan(nm), rep)
+		var d: Dictionary
+		if Templates.BAKED.has(nm):
+			d = bake_words(nm)
+			rep.append("  %s: baked from the words '%s' (%d cards)" % [nm, Templates.BAKED[nm], (d.get("cards", []) as Array).size()])
+		else:
+			d = bake(plan(nm), rep)
 		var f := FileAccess.open("res://templates/%s.json" % nm, FileAccess.WRITE)
 		f.store_string(JSON.stringify(d, " "))
 		f.close()

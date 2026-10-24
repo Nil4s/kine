@@ -82,6 +82,7 @@ var boxes := []        # HIT / HURT BOXES per frame (ROADMAP 36): the file's "bo
 var shots := []        # THE SHOTS (ROADMAP 75): [{"t" cut s, "name", "keys": the shot camera [{"t", "pos", "aim", "f" mm}]}]; scripts/shot_camera.gd
 var ik_last := {}      # what the last apply()'s IK pass did per limb (LimbIK.play: miss, clamped joints, weight); {} = nothing
 var plants := []      # FOOT PLANTS over a time range (ROADMAP 8): [{"foot", "t0", "t1"}] by t0; scripts/foot_plant.gd; in the file as "plants" (only when any)
+var asserts := []     # BODY ASSERTIONS (N002): the agent's check lines ("left foot planted 0-0.4 s"), re-run by Check; scripts/body_assert.gd; in the file as "asserts" (only when any)
 var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: miss, ball turn, weight, clamped); {} = nothing
 var _plants_off := false   # set while FootPlant.refs reads the pose at a plant's t0: the plants do not play then
 var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n"}} (the release ramp, read once per scene state)
@@ -318,10 +319,30 @@ func retime(a: int, b: int, pct: float) -> void:
 ## the pose at time t: {"offset", "ang", "weapon"} (same shape as Moves.sample). PART KEYS (round 41, WW1) go on top
 ## of the card blend: a keyed joint's angles are its keys' curve (PartKeys.at); no part keys = the card blend as it was
 func sample(t: float) -> Dictionary:
-	var s := _sample_cards(t)
+	var s := _owned(_sample_cards(t))
 	if part_keys.is_empty() or s.is_empty():
 		return s
 	return PartKeys.over(s, part_keys, t)
+
+
+## VIDEO SPEED: in a memo scope a sample's weapon may be a card's cached dictionary (see _flat_card): the caller gets its own copy
+func _owned(s: Dictionary) -> Dictionary:
+	if not memo_slopes or s.is_empty() or not s.has("weapon"):
+		return s
+	s = s.duplicate()
+	s["weapon"] = (s["weapon"] as Dictionary).duplicate(true)
+	if s.has("weapon2"):
+		s["weapon2"] = (s["weapon2"] as Dictionary).duplicate(true)
+	return s
+
+
+## card k's flat pose (Moves._flat): in a memo scope read once and kept (_flat_memo_cards), else read now
+func _flat_card(k: int) -> Dictionary:
+	if not memo_slopes:
+		return Moves._flat(cards[k]["pose"])
+	if not _flat_memo_cards.has(k):
+		_flat_memo_cards[k] = Moves._flat(cards[k]["pose"])
+	return _flat_memo_cards[k]
 
 
 ## the card blend alone (every joint from the cards)
@@ -329,25 +350,30 @@ func _sample_cards(t: float) -> Dictionary:
 	if cards.is_empty():
 		return {}
 	if spline:
-		return _spline_sample(t)
+		if not memo_slopes:
+			return _spline_sample(t)
+		# VIDEO SPEED: within a memo scope the same t is sampled again and again (a foot plant's scans re-walk one time grid)
+		if not _sample_memo.has(t):
+			_sample_memo[t] = _spline_sample(t)
+		return _sample_memo[t]
 	var ts := times()
 	for i in cards.size():
 		if t < ts[i][1] and i > 0 and (_flow(i) or _flow(i - 1)):
 			return _flow_sample(t, i, ts)
 		if t < ts[i][1] and i > 0:
 			var u := clampf((t - ts[i][0]) / maxf(1e-6, ts[i][1] - ts[i][0]), 0.0, 1.0)
-			var a := Moves._flat(cards[i - 1]["pose"])
+			var a := _flat_card(i - 1)
 			if _drifts(i - 1, ts):
 				a = _drift(i - 1, 1.0)
-			var r := blend(a, Moves._flat(cards[i]["pose"]), u, cards[i].get("ease", ""), float(cards[i].get("ease_bias", 0.0)))
+			var r := blend(a, _flat_card(i), u, cards[i].get("ease", ""), float(cards[i].get("ease_bias", 0.0)))
 			if bool(cards[i].get("walk", false)):
 				r["offset"] = _walk_offset(t, i, ts)
 			return r
 		if t < ts[i][2]:
 			if _drifts(i, ts):
 				return _drift(i, (t - ts[i][1]) / maxf(1e-6, ts[i][2] - ts[i][1]))
-			return Moves._flat(cards[i]["pose"])
-	return Moves._flat(cards[-1]["pose"])
+			return _flat_card(i)
+	return _flat_card(cards.size() - 1)
 
 
 ## does card i's hold drift? (moving holds on, a real hold, a card after it, and that move is a plain one)
@@ -394,6 +420,18 @@ func _walk_offset(t: float, i: int, ts: Array) -> Vector3:
 			v.append((y as Vector3)[c])
 		out[c] = _hermite0(xs, v, t)
 	return out
+
+
+## memo scope: segment i of joint j = [a, b, h x slope at i-1, h x slope at i] (the Hermite terms of _curve, computed once)
+func _seg(F: Dictionary, j: String, i: int, ts: Array) -> Array:
+	var m: Dictionary = _seg_memo.get(j, {})
+	if not m.has(i):
+		var a := _val(F, i - 1, j)
+		var b := a + _d(a, _val(F, i, j), j)
+		var h: float = maxf(1e-6, ts[i][1] - ts[i][0])
+		m[i] = [a, b, h * _slope(F, i - 1, j, ts), h * _slope(F, i, j, ts)]
+		_seg_memo[j] = m
+	return m[i]
 
 
 ## monotone cubic Hermite through (xs, ys), slope 0 at both ends (_mono's interior slopes)
@@ -484,18 +522,22 @@ static func _mono(xs: Array, ys: Array, x: float) -> float:
 func _spline_sample(t: float) -> Dictionary:
 	var ts := times()
 	var T: float = ts[-1][2]
-	var F := {}   # card -> its flat pose, read once per sample
+	# card -> its flat pose, read once per sample; in a memo scope (memo_slopes) it is the scene's own cache, kept until memo_clear
+	var F: Dictionary = _flat_memo_cards if memo_slopes else {}
 	var ang := {}
+	# VIDEO SPEED: _where is a scan of the cards, and every joint reads at one of ~7 times (its level's lead), so each
+	# distinct time is scanned once per sample (a pure function of tt and ts: the same numbers, ~4x fewer scans)
+	var wc := {}
 	# the lead RAMPS IN over the first LEAD * 5 s less the first card's hold (round 18, GATES Y2): read at t + lead x k,
 	# k = (t + hold0) / (LEAD * 5) clamped to 0..1, so at t = 0 every joint reads at most hold0 ahead (inside the first
 	# card's hold: the first frame IS the first card, as the end's clamp makes the last frame the last card). With
 	# hold0 >= 75 ms, k = 1 from t = 0: unchanged. t + lead x k rises with t (slope 1 + lead / 75 ms): no joint runs back
 	var k := clampf((t + float(ts[0][2])) / (LEAD * 5.0), 0.0, 1.0)
 	for j in _flat_of(F, 0)["ang"]:
-		ang[j] = _curve(F, j, clampf(t + LEAD * (5 - level(j)) * k, 0.0, T), ts)
-	var off := _curve(F, "_off", clampf(t + LEAD * 5.0 * k, 0.0, T), ts)
+		ang[j] = _curve(F, j, clampf(t + LEAD * (5 - level(j)) * k, 0.0, T), ts, wc)
+	var off := _curve(F, "_off", clampf(t + LEAD * 5.0 * k, 0.0, T), ts, wc)
 	# the weapon's place in the hand: the plain blend inside the piece the hand is in (as in a flow run)
-	var w := _where(clampf(t, 0.0, T), ts)
+	var w := _where_memo(clampf(t, 0.0, T), ts, wc)
 	var piece: Dictionary
 	if w[1] < 0.0:
 		piece = _flat_of(F, w[0])
@@ -508,6 +550,13 @@ func _flat_of(F: Dictionary, k: int) -> Dictionary:
 	if not F.has(k):
 		F[k] = Moves._flat(cards[k]["pose"])
 	return F[k]
+
+
+## _where through a per-sample cache wc (time -> result); wc = {} is no cache. Same result as _where, scanned once per time
+func _where_memo(tt: float, ts: Array, wc: Dictionary) -> Array:
+	if not wc.has(tt):
+		wc[tt] = _where(tt, ts)
+	return wc[tt]
 
 
 ## where time tt falls: [i, s] = moving into card i, s = 0..1 of the move;  [i, -1] = holding card i
@@ -565,11 +614,40 @@ static func _d(a: Vector3, b: Vector3, j: String) -> Vector3:
 	return d
 
 
+# VIDEO SPEED: the slope at card k depends on the cards and the time grid only, not on t, and a spline sample reads the slopes of
+# two cards for every joint. memo_slopes (set by VideoIQ for the scenes it builds, and off again when it hands one back) keeps them
+# per (joint, card): the same numbers, no recomputation. A scene that is edited while the memo is on must clear it (_slope_cache = {})
+var memo_slopes := false
+var _slope_cache := {}
+var _sample_memo := {}   # t -> the spline sample at t (memo scope only; callers never write into it: put() reads it)
+var _flat_memo_cards := {}   # card -> its flat pose (memo scope only; see _spline_sample)
+var _seg_memo := {}          # joint -> {segment -> Hermite terms} (memo scope only; see _seg)
+
+
+## drops the memo scope's caches (VideoIQ._unmemo, when the scene goes back to a caller, or its cards change)
+func memo_clear() -> void:
+	memo_slopes = false
+	_slope_cache = {}
+	_sample_memo = {}
+	_flat_memo_cards = {}
+	_seg_memo = {}
+
+
 ## joint j's speed (units/s) at card k: 0 at a stop or where it turns back, else the weighted harmonic mean of the two
 ## secants (Brodlie: w1 = 2 h_right + h_left, w2 = h_right + 2 h_left) - never more than 3x the smaller: monotone
 func _slope(F: Dictionary, k: int, j: String, ts: Array) -> Vector3:
 	if _stop(k):
 		return Vector3.ZERO
+	if not memo_slopes:
+		return _slope_calc(F, k, j, ts)
+	var m: Dictionary = _slope_cache.get(j, {})
+	if not m.has(k):
+		m[k] = _slope_calc(F, k, j, ts)
+		_slope_cache[j] = m
+	return m[k]
+
+
+func _slope_calc(F: Dictionary, k: int, j: String, ts: Array) -> Vector3:
 	var hl: float = maxf(1e-6, ts[k][1] - ts[k][0])
 	var hr: float = maxf(1e-6, ts[k + 1][1] - ts[k + 1][0])
 	var y := _val(F, k, j)
@@ -585,12 +663,23 @@ func _slope(F: Dictionary, k: int, j: String, ts: Array) -> Vector3:
 
 
 ## joint j at time tt: held at a card, a cubic Hermite between two cards
-func _curve(F: Dictionary, j: String, tt: float, ts: Array) -> Vector3:
-	var w := _where(tt, ts)
+func _curve(F: Dictionary, j: String, tt: float, ts: Array, wc := {}) -> Vector3:
+	var w := _where_memo(tt, ts, wc)
 	var i: int = w[0]
 	var s: float = w[1]
 	if s < 0.0:
 		return _val(F, i, j)
+	if memo_slopes:
+		# VIDEO SPEED: the segment's ends, slopes and h are the same at every t in its move: read once per (joint, segment)
+		var g := _seg(F, j, i, ts)
+		var a: Vector3 = g[0]
+		var b: Vector3 = g[1]
+		var s2m := s * s
+		var s3m := s2m * s
+		var vm := (2 * s3m - 3 * s2m + 1) * a + (s3m - 2 * s2m + s) * (g[2] as Vector3) + (-2 * s3m + 3 * s2m) * b + (s3m - s2m) * (g[3] as Vector3)
+		if j == "pelvis":
+			vm.z = wrapf(vm.z, -180.0, 180.0)
+		return vm
 	var h: float = maxf(1e-6, ts[i][1] - ts[i][0])
 	var a := _val(F, i - 1, j)
 	var b := a + _d(a, _val(F, i, j), j)
@@ -683,7 +772,7 @@ func regrip_layered(B: Body, t: float, arm_from_cards := true) -> float:
 	var sd := o.right(2)
 	var arm := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, o]
 	var acted := B.state()
-	put(B, _sample_cards(t), free_limits)
+	put(B, _owned(_sample_cards(t)), free_limits)
 	var x0 := B.wep_xform()
 	var q0i: Quaternion = (x0[1] as Quaternion).inverse()
 	var lp: Vector3 = q0i * ((B.P[o] as Vector3) - (x0[0] as Vector3))
@@ -1606,6 +1695,7 @@ func clone() -> Scene:
 		c.actors.append({"name": a["name"], "xf": (a["xf"] as Dictionary).duplicate(true), "scene": (a["scene"] as Scene).clone()})
 	c.ik = ik.duplicate(true)   # IK keys (limb_ik.gd)
 	c.plants = plants.duplicate(true)   # foot plants (foot_plant.gd)
+	c.asserts = asserts.duplicate()   # N002 body assertions (body_assert.gd)
 	c.cons = cons.duplicate(true)   # constraints (constraints.gd)
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
@@ -1867,6 +1957,16 @@ var _flight_memo := []   # [key, flights]
 
 ## [{"k", "l", "t0", "t1"}] in time order (a run with no card before or after it is not a flight)
 func flights() -> Array:
+	# VIDEO SPEED: apply() asks for flights on every frame of a floor scene, and most scenes have no air card. Then the answer is
+	# [] and the times() check and the key string (a lambda per card, every call) are wasted: a plain scan is ~6x cheaper on 465
+	# cards (3 ms per apply on a 15 s video was ~1 ms of this). Same result; the memo below still serves the scenes that fly
+	var any_air := false
+	for c in cards:
+		if c.get("air", false):
+			any_air = true
+			break
+	if not any_air:
+		return []
 	var ts := times()
 	var key := "".join(cards.map(func(c): return "1" if c.get("air", false) else "0"))
 	if not _flight_memo.is_empty() and is_same(_flight_memo[0][0], ts) and _flight_memo[0][1] == key:
@@ -2213,6 +2313,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["ik"] = LimbIK.to_file(ik)   # IK keys: the same, only when there is one
 	if not plants.is_empty():
 		out["plants"] = FootPlant.to_file(plants)   # foot plants: the same, only when there is one
+	if not asserts.is_empty():
+		out["asserts"] = asserts.duplicate()   # N002 body assertions: the lines, only when there is one
 	if not drivers.is_empty():
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cape.is_empty():
@@ -2262,6 +2364,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"drivers": "SIDED: Drivers.mirror_file (driven and source to their twins; each factor and offset reflected by its axes' signs)",
 	"secondary": "SIDED: SecondaryMotion.mirror_file (the attach joint to its twin, the offset x negated, an x-swinging chain's angles negated)",
 	"plants": "SIDED: foot_l <-> foot_r (the times are free; scripts/foot_plant.gd)",
+	"asserts": "SIDED: BodyAssert.mirror_file (left <-> right, _l <-> _r in each line; fighters and times free)",
 	"ik": "SIDED: LimbIK.mirror_file (each limb's keys to its twin, hand_l <-> hand_r, foot_l <-> foot_r; target and pole x negated; the tip rotation reflected; the back's spline key \"spine\" is its own twin: its mid and chest points x negated, its hip / chest twists negated)",
 	"constraints": "SIDED: Constraints.mirror_file (owner and part targets to their twins, a point's x negated, the stored offset reflected; props, weapon, fighters keep their index)",
 	"camera": "SIDED: ShotCam.mirror_file (the camera's position and aim point x negated across the body's mirror plane x = 0; lens and times free)",
@@ -2326,6 +2429,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["ik"] = LimbIK.mirror_file(d2["ik"], M)   # as main._mirror_scene: hand_l <-> hand_r, points x negated
 	if d2.has("plants"):
 		d2["plants"] = FootPlant.mirror_file(d2["plants"])   # foot plants: foot_l <-> foot_r, the times kept
+	if d2.has("asserts"):
+		d2["asserts"] = BodyAssert.mirror_file(d2["asserts"])   # N002: left <-> right in each line
 	if d2.has("drivers"):
 		d2["drivers"] = Drivers.mirror_file(d2["drivers"], M)   # user drivers (drivers.gd), before S2 reads the file
 	if d2.has("secondary"):
@@ -2409,6 +2514,7 @@ func from_dict(d: Dictionary) -> void:
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
+	asserts = BodyAssert.from_file(d.get("asserts", []))   # N002 body assertions: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
 	secondary = SecondaryMotion.from_file(d.get("secondary", {}))   # secondary motion: absent = none
 	hair = Hair.from_file(d.get("hair", {}))   # hair strands: absent = none

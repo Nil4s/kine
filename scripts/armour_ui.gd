@@ -74,10 +74,10 @@ func _build() -> void:
 	var g := GridContainer.new()
 	g.columns = 2
 	vb.add_child(g)
-	for f in [["gap", "Gap from skin (mm)", ArmourFromBody.GAP * 1000.0, 0.0, 50.0, 0.5],
-			["thickness", "Thickness (mm)", ArmourFromBody.THICK * 1000.0, 0.5, 50.0, 0.5],
-			["bevel", "Bevel (mm)", ArmourFromBody.BEVEL * 1000.0, 0.0, 10.0, 0.25],
-			["segments", "Bevel segments", ArmourFromBody.SEGMENTS, 1, 8, 1]]:
+	for f in [["gap", "Gap from skin (mm)", load("res://scripts/armour_from_body.gd").GAP * 1000.0, 0.0, 50.0, 0.5],
+			["thickness", "Thickness (mm)", load("res://scripts/armour_from_body.gd").THICK * 1000.0, 0.5, 50.0, 0.5],
+			["bevel", "Bevel (mm)", load("res://scripts/armour_from_body.gd").BEVEL * 1000.0, 0.0, 10.0, 0.25],
+			["segments", "Bevel segments", load("res://scripts/armour_from_body.gd").SEGMENTS, 1, 8, 1]]:
 		var lb := Label.new()
 		lb.text = f[1]
 		g.add_child(lb)
@@ -117,7 +117,7 @@ func opts() -> Dictionary:
 
 ## "Make plate": the op on the panel's words and fields; says what it did
 func make_plate() -> Dictionary:
-	var r := ArmourFromBody.make(m, words.text, opts())
+	var r = load("res://scripts/armour_from_body.gd").make(m, words.text, opts())
 	m._say(r["said"])
 	sync()
 	return r
@@ -132,7 +132,7 @@ func sync() -> void:
 	if m == null:
 		return
 	var open := BaseBody.is_open(m)
-	var on: Array = ArmourFromBody.parts(m)
+	var on: Array = load("res://scripts/armour_from_body.gd").parts(m)
 	for mi in on:   # shown / hidden with the body pieces when the preview opens or closes (else left as they are)
 		if is_instance_valid(mi) and (not (mi as Node).has_meta("armour_open") or bool((mi as Node).get_meta("armour_open")) != open):
 			(mi as Node).set_meta("armour_open", open)
@@ -155,6 +155,6 @@ func sync() -> void:
 		if is_instance_valid(mi) and not have.has(mi):
 			var pv := MeshInstance3D.new()
 			pv.name = "armour_preview_" + String((mi as Node).name)
-			pv.mesh = ArmourFromBody.array_mesh((mi as Node).get_meta("armour_kmesh"))
+			pv.mesh = load("res://scripts/armour_from_body.gd").array_mesh((mi as Node).get_meta("armour_kmesh"))
 			pv.set_meta("armour_of", mi)
 			view.add_child(pv)

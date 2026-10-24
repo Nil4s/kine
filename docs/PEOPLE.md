@@ -195,6 +195,30 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - Used by: `HumanLimits.rule_tipping`, consts `GRAV`, `TOUCH`.
 - Tested by: `tests/human_limits_test.gd`.
 
+## ASSERT
+- What it checks: the check lines saved in the scene ("left foot planted from 0.2 to 0.6 s", "right fist touches the opponent's chin at 0.35 s"). Each one is judged on the body every time Check runs.
+- Source: none of its own. The bars are the numbers the author wrote in the line. Kine's only bars under it are "touching" and "planted".
+- Numbers: touching = within 1 cm (Balance.TOUCH); planted = the toe base within 2 cm of its standing height (Body.foot_state) and sliding under 2.5 cm (FOOT SLIDE's bar).
+- What to do: change the motion back so the line holds, or edit or remove the line if the wish changed.
+- Used by: `BodyAssert.findings` (Check), serve `assert`, the scene's `asserts` list.
+- Tested by: `tests/asserts_test.gd`.
+
+## COUPLED LIMIT
+- What it checks: two-joint muscles of the leg. Hip flexion with the knee straight (hamstrings), ankle dorsiflexion with
+  the knee straight (gastrocnemius), and hip extension with the knee bent (rectus femoris), each as a curve over the knee's bend.
+- Source: the passive straight-leg raise in healthy adults (Thomas et al. 2022) and in team-sport athletes and gymnasts
+  (Donti et al. 2020); weight-bearing dorsiflexion at six knee angles (Baumbach et al. 2014); the modified Thomas test
+  (Ferber et al. 2010; Peeler & Anderson 2008). The slope between the hamstring points is MINE. The DOIs and the tables are
+  in `docs/research/COUPLED_LIMITS.md`.
+- Numbers: the hip at most 90 deg with the knee straight, rising 0.5 deg per deg of knee bend to the table's 120 at knee 60
+  (WARN), or 141 for gymnasts (FAIL). Dorsiflexion 25 deg with the knee straight, 39 from knee 20. Hip extension -25 at
+  knee 0, -10.6 at knee 50, 0 from knee 90. That is where a thigh hangs under gravity, not an end range, so only
+  2 SD (19.2 deg) past it is flagged, and as FAIL.
+- What to do: bend the knee to the angle the finding names, or bring the joint back to its bar.
+- Used by: `CoupledLimits.findings` (through `HumanLimits.findings` and `Feasible.check`), `CoupledLimits.clamp`
+  (opt-in `Body.coupled_clamp`), serve `limits`.
+- Tested by: `tests/coupled_test.gd`.
+
 ## FEASIBLE
 - What it checks: one answer for the whole clip, PASS / FIX / IMPOSSIBLE: could a body actually do it as keyed? It lists the reasons and the frames.
 - Source: KungfuBot's physics filter (Xie et al. 2025, arXiv:2506.12851), with free fall in the air, foot slide per contact and self-penetration below.
@@ -234,3 +258,44 @@ Where a bar is ours and not a paper's, the entry says so. A figure that could no
 - What to do: move the limb out of the body.
 - Used by: `Feasible.rule_pen`, const `PEN_FIX`.
 - Tested by: `tests/feasible_test.gd`.
+
+## WEIGHT TRANSFER
+- Source: [docs/research/WEIGHT_TRANSFER.md](research/WEIGHT_TRANSFER.md), each opened 2026-10-23. Cross: Evolve MMA, "more than
+  half of your weight on your rear leg" before a hard cross, 60 / 40 in the stance:
+  https://evolve-mma.com/blog/how-to-throw-a-stronger-and-more-powerful-cross/ ; Peloton, "transfer your weight from your back
+  foot to your front foot": https://www.onepeloton.com/en-GB/blog/cross-boxing . Lead hook: Boxing News, "the weight shifts
+  slightly to the front foot": https://boxingnewsonline.net/features/fight-school-the-hook . Kicks: Kinoshita & Fujii 2014
+  (ISBS, 13 taekwondo athletes, force plates under both legs: the support leg drives the phase before the kicking leg's
+  toe-off): https://ojs.ub.uni-konstanz.de/cpa/article/view/6038 ; and statics (one foot down carries it all).
+- Numbers: none of them is a measured split at a strike's start. The bars are ours: rear foot >= 45 % at a cross's start,
+  lead foot >= 40 % at a lead hook's start, support foot >= 50 % at a kick's lift-off; the share is the lever rule over the
+  two footprints (N001). The fix aims 15 points over the bar and stops at 12 over.
+- Used by: `WeightXfer.findings` / `WeightXfer.fix` (scripts/weight_xfer.gd), consts `CROSS_MIN`, `HOOK_MIN`, `KICK_MIN`,
+  `FIX_MARGIN`, `FIX_GOAL`; the strikes named by N016 `MoveRecognizer.analyze`; Check calls it from `Rulebook.check`.
+- Tested by: `tests/weightxfer_test.gd`.
+
+## TRUNK LEAN
+- Source: [docs/research/TRUNK_LEAN.md](research/TRUNK_LEAN.md), each source opened 2026-10-23: Kim, Yenuga & Kwon 2008 (ISBS, roundhouse, n=12, ROM only); Gavagan & Sayers 2017 (doi:10.1371/journal.pone.0182645, pelvis tilt ROM); Blaszczyszyn et al. 2019 (doi:10.3390/ijerph16173155, mae-geri flexion, checked from a summary); Chung et al. 2010 (doi:10.1186/1743-0003-7-9, walking trunk range 4.0 +- 1.8); Krebs et al. 1992 (doi:10.1093/ptj/72.7.505, abstract only).
+- Numbers: the back, forward and lateral ranges per move in `scripts/trunk_lean.gd` (NORMS, GENERAL) are HEURISTIC working norms; none is a direct reading of a source. The limb-drag bar (5 deg) and TRUNK_FOLLOW (4 deg) rest on Chung 2010's walking range, HEURISTIC.
+- Used by: `TrunkLean.findings` / `TrunkLean.fix` (scripts/trunk_lean.gd), `SmartDrag.TRUNK_FOLLOW` (scripts/smart_drag.gd); Check calls it from `Rulebook.check`.
+- Tested by: `tests/trunk_test.gd`.
+## BODY ACCEL
+- What it checks: how hard the WHOLE body speeds up, slows down, changes direction, pushes up and drops: the centre of mass
+  (de Leva masses, `Balance.com`) at 60 Hz, each acceleration a 0.1 s central difference of a 0.1 s central difference
+  of its path. I47's caps are the limbs; this is the body as one mass (N031). Opt-in with "Check: could a human do this?".
+- Source: `docs/research/BODY_SPEED_CAPS.md` (each paper opened 2026-10-23):
+  START Haugen, Breitschaedel & Seiler 2019, PLoS ONE, sprint F0 of 666 athletes [background] https://doi.org/10.1371/journal.pone.0215551
+  STOP Harper et al. 2022, Sports Med review of horizontal deceleration [background] https://doi.org/10.1007/s40279-022-01693-0
+  CUT Yamashita et al. 2025, Front Sports Act Living, 45 deg cut in elite American football [background] https://doi.org/10.3389/fspor.2025.1576614
+  RISE Lin, Goldstein & Schroeder 2025, Sports, countermovement jump of NCAA D1 players [background] https://doi.org/10.3390/sports13090292
+  FALL: g, physics (feet can only push).
+- Numbers (m/s^2, WARN / FAIL): START 10 / 11 (F0 7-10 N/kg in trained men; world-class sprinters ~11); STOP 8.48 / 11.02
+  (peak sprint-to-stop deceleration; the fastest 505-turn group); CUT 11.5 / 13.1 (medial impulse 1.75 +- 0.12 Ns/kg over a
+  0.152 s stance: mean, mean + 2 SD, derived); RISE 14.7 / 19.0 net of g (24.51 +- 2.17 N/kg peak push: mean, mean + 2 SD);
+  FALL past 1.1 g with no hand holding on = FAIL. The 0.1 s difference, the 10 % grace on g and the 2 SD are MINE.
+  A countermovement or landing brake (upward push while still going down) is not graded here: that is stunt load's LANDING LOAD.
+- What to do: give the move more time ("Fix: give the body more time for this move" lengthens the moves under the peak until
+  it is under the WARN cap), or add a step: a real start, stop or cut is spread over two or three steps.
+- Used by: `BodyCaps.rule`, `BodyCaps.findings` (from `HumanLimits.findings`), `BodyCaps.retime` (the fix, via `Fixer`),
+  consts `START_WARN`, `START_FAIL`, `STOP_WARN`, `STOP_FAIL`, `CUT_WARN`, `CUT_FAIL`, `RISE_WARN`, `RISE_FAIL`, `FALL_K`, `K`.
+- Tested by: `tests/bodycaps_test.gd`.

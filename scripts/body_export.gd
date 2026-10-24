@@ -63,6 +63,7 @@ static func write(k: KMesh, path: String, B: Body = null) -> Dictionary:
 
 ## "Model: export the body as glb (skin weights)": the fighter's body as it is drawn now
 static func export_cmd(m: Node, dir := DIR) -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if m.pieces.is_empty() or BaseBody.skin_of(m) == null:
 		m._say("Model: the fighter has no skinned body to export")
 		return ""

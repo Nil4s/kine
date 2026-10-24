@@ -1,0 +1,20 @@
+{
+ "id": "step_back",
+ "kind": "walk",
+ "brief": "From the guard, step back out of the range of the person in front: rear foot back then front foot back, about 30 cm each, keeping the guard and the balance; head at least 70 cm from his head (surface to surface) by 1.2 s.",
+ "start": "bench/start/step_back.json",
+ "notes": "Fighter 2 stands still facing the hero; at the start the heads are 48 cm apart (surface to surface). A step is a card's 'steps' entry (each foot's floor displacement on that card) with the hips moved by the card's offset. 30 fps.",
+ "asserts": [
+  {
+   "line": "fighter 1 head at least 70 cm from fighter 2 head at 1.2 s +-3 f",
+   "w": 2
+  },
+  {
+   "line": "com inside the feet all clip",
+   "w": 1
+  }
+ ],
+ "judges": {
+  "must_fix": 0
+ }
+}

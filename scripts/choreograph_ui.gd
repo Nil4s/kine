@@ -12,7 +12,7 @@ var energy: Array = []
 var pv: Scene = null
 var pv_t := 0.0
 var pv_end := 0.0
-var out_dir := "res://scenes/_wip"   # a test points this at user://
+var out_dir := UserPaths.w("res://scenes/_wip")   # a test points this at user://
 var paths: Array = []                # the clips the bank is read from; [] = Nick's clips (StylePrint.clip_paths)
 var style_fp: Dictionary = {}        # the I17 fingerprint, when the style panel has one
 var saved := ""                      # the file Accept wrote

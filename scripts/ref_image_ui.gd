@@ -2,7 +2,7 @@
 ## "View: reference image..." loads a PNG / JPG as an overlay on the 3D view (camera mode) or as a plane behind the body
 ## (front / side / free). The entry lives in the scene file (Scene.refimgs); the picture itself is never copied: the entry
 ## holds its path, relative to the scene file when it could be. Every change is one undo step (the scene's snapshot holds
-## "refimgs"). MATCH runs tools/see_image.py (python -I, a separate process, polled each frame: the window keeps working) on
+## "refimgs"). MATCH runs tools/see_image.py (plain python, a separate process, polled each frame: the window keeps working) on
 ## the one picture; with no detector in the environment it falls back to a 2-point fit: click the head top, then the heel.
 class_name RefImageUI
 extends RefCounted
@@ -246,7 +246,8 @@ func match_body() -> void:
 	_out = dir.path_join("landmarks.json")
 	if FileAccess.file_exists(_out):
 		DirAccess.remove_absolute(_out)
-	_pid = OS.create_process(python, PackedStringArray(["-I", ProjectSettings.globalize_path(tool), abs_path(e), _out]))
+	_pid = OS.create_process(python, PackedStringArray([ProjectSettings.globalize_path(tool), abs_path(e), _out]))
+	Children.add(_pid)
 	if _pid < 0:
 		_no_detector("the interpreter \"%s\" did not start" % python)
 		return
@@ -258,6 +259,7 @@ func poll(_dt: float) -> void:
 		layout_all()
 	if _pid < 0 or OS.is_process_running(_pid):
 		return
+	Children.done(_pid)
 	_pid = -1
 	var d = JSON.parse_string(FileAccess.get_file_as_string(_out)) if FileAccess.file_exists(_out) else null
 	if not d is Dictionary or not (d as Dictionary).has("image"):

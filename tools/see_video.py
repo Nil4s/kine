@@ -7,7 +7,7 @@ frames. Each hand is matched to the body's wrist it sits on: the nearest of the 
 16 (right) in the picture, within --hand-reach picture widths; each wrist takes at most one hand, nearest pair first.
 MediaPipe's handedness label is NOT used. A matched frame gets "hands": {"l": {"world", "image"}, "r": {...}}; a frame
 with no hand, or a clip with no hand model, has no "hands" key, so the body import is exactly as before.
-    python -I tools/see_video.py <video> <out pose.json> [--fps 30] [--pick 0.5,0.6] [--people 2]
+    python tools/see_video.py <video> <out pose.json> [--fps 30] [--pick 0.5,0.6] [--people 2]
          [--model D:/pose_models/pose_landmarker_heavy.task] [--hand-model D:/hand_models_handcap/hand_landmarker.task]
          [--no-hands] [--hand-reach 0.12]
 The hand model is MediaPipe's official release, downloaded (ROADMAP 90) into the new folder D:/hand_models_handcap/:
@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 
 def match_hands(body, hres, reach):
@@ -59,6 +60,8 @@ def main():
     ap.add_argument("--model", default="D:/pose_models/pose_landmarker_heavy.task")
     ap.add_argument("--hand-model", default="D:/hand_models_handcap/hand_landmarker.task")
     ap.add_argument("--no-hands", action="store_true")
+    ap.add_argument("--progress", default="",
+                    help="a file rewritten as the tracker goes: the fraction of the video read (0-1), for the app's progress line")
     ap.add_argument("--hand-reach", type=float, default=0.12,
                     help="a hand's wrist within this many picture widths of a body wrist is that hand")
     a = ap.parse_args()
@@ -78,6 +81,7 @@ def main():
         sys.exit(1)
     cap = cv2.VideoCapture(a.video)
     src_fps = cap.get(cv2.CAP_PROP_FPS) or a.fps
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     det = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(
@@ -91,13 +95,18 @@ def main():
                 num_hands=2))
         else:
             print("note: no hand model at %s, the body is tracked without hands" % a.hand_model)
+    pool = ThreadPoolExecutor(max_workers=1)
     px, py = (float(v) for v in a.pick.split(","))
     last = None
     frames = []
     lost = 0
+    seen = 0
     with_hand = 0
     i = 0
     step = max(1, int(round(src_fps / a.fps)))
+    # the rate the KEPT frames really come at: a 16 fps clip sampled "at 30" keeps every frame, so 16, not 30 (the importer
+    # reads this field for its filters and gap fill; each frame's own t is src frame index / src_fps either way)
+    out_fps = src_fps / step
     while True:
         ok, img = cap.read()
         if not ok:
@@ -107,9 +116,16 @@ def main():
             continue
         t = i / src_fps
         i += 1
+        seen += 1   # every sampled frame the tracker looked at, the ones with no body too (EasyTake's score needs the clip's count)
+        if a.progress and total > 0 and i % 10 == 0:
+            with open(a.progress, "w") as pf:
+                pf.write("%.3f" % min(1.0, i / total))
         mpimg = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        # SPEED: the hand model runs on its own thread while the pose model runs here. Each detector still sees every frame in
+        # the same order with the same timestamp, so its output is the same; only the wall clock overlaps (hand ~1/4 of pose)
+        hfut = pool.submit(hdet.detect_for_video, mpimg, int(t * 1000)) if hdet is not None else None
         res = det.detect_for_video(mpimg, int(t * 1000))
-        hres = hdet.detect_for_video(mpimg, int(t * 1000)) if hdet is not None else None
+        hres = hfut.result() if hfut is not None else None
         if not res.pose_world_landmarks:
             lost += 1
             continue
@@ -129,7 +145,7 @@ def main():
         print("NO the tracker found a person in %d frames" % len(frames))
         sys.exit(1)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    json.dump({"fps": a.fps, "video": os.path.basename(a.video), "size": [W, H], "frames": frames,
+    json.dump({"fps": round(out_fps, 4), "video": os.path.basename(a.video), "size": [W, H], "frames": frames, "seen": seen,
                "note": "MediaPipe world landmarks (m, hips at 0, y down), 33 per frame; image = (x, y, visibility) 0-1; "
                        "hands (optional per frame): MediaPipe hand world landmarks (m) and image (x, y) 0-1, 21 each; "
                        "l = the person's left"},

@@ -19,6 +19,9 @@ const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sent
 const PAGE_H := 34   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
 const BOTTOM_H := 248 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
 const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
+const EASY_ROW_H := 88    # Easy: the card row (a picture and its one word line)
+const EASY_RULER := 34   # Easy: the timeline's ruler, the only row under the cards
+const EASY_SEP := 4      # Easy: the gap between the card row and the ruler
 const BOTTOM_EMPTY := 100 + PAGE_H   # no clips yet: the scene row + the CLIP hint only (round 7: the empty card row, timeline
 							# and play row took a third of the screen for nothing)
 var ui_bh: HBoxContainer   # the bottom panel's header row (the scene's name and buttons): folded away with the cards
@@ -76,6 +79,8 @@ var bat_barrel: MeshInstance3D
 var d2_handle: MeshInstance3D   # the off-hand dagger (round 33): drawn, riding its hand
 var d2_blade: MeshInstance3D
 var bat_knob: MeshInstance3D
+var wep_model: Node3D    # the held weapon's drawn shape (scripts/weapon_mesh.gd), in the weapon's frame
+var wep2_model: Node3D   # the off-hand weapon's, in its frame
 var wep_mats := {}
 var slide_body := true   # , . slide the main hand: true = the weapon stays, the body follows; false = the weapon slides in the hand
 var ui_slide_btn: Button   # "metal" / "tape" / "wood" / "steel": the weapon's looks per kind
@@ -105,6 +110,9 @@ var ui_hips := []
 var ui_math: Label
 var ui_math_btn: Button
 var ui_status: Label
+var ui_mesh_hint: Label      # MESH PAGES: the hint in the view while MODEL / SCULPT / SURFACE have no mesh open (Expert only)
+var ui_mesh_hint_box: PanelContainer   # its dark box: the hint sits at the top centre of the clear view, under the ribbon
+var _pose_dummy_was := false  # the dummy was on when a mesh page opened (the posing overlays come back with it)
 var ui_mouse: MouseHint   # ROADMAP_400 P05: what the mouse buttons do now (scripts/mouse_hint.gd), just above the status line
 var ui_bar: Label   # STATUS BAR (round 9, GATES P4): what is picked, where you are, what Check said; always on
 var check_ran := false   # the bar says "not run" until Check has graded this scene
@@ -154,6 +162,8 @@ var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red 
 var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
 var clash_ui: RomClashUI   # ARMOUR CLASH (ROADMAP_400 B24 / B25): ROM test + scene, worst frames, red verts, clearance heat map (scripts/rom_clash_ui.gd)
 var tm_ui: TimingMatchUI   # MATCH THE REFERENCE TIMING (ROADMAP I29): scripts/timing_match_ui.gd
+var knobs_ui: MoveKnobsUI   # N025 MOVE KNOBS: strike height / reach / stance / guard spin boxes in the inspector's NUMBERS
+var hit_harder_ui: HitHarderUI   # N065 HIT HARDER: one button under the move knobs (scripts/hit_harder_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
@@ -209,15 +219,19 @@ var _hs_sel := ""              # the part the log last said was picked
 var _hs_playing := false       # a script is running: its steps are not logged again
 var ui_cube: ViewCube
 var ui_browser: Browser
-const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
+const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW", "MODEL", "SCULPT", "SURFACE"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
 const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as real percentiles", "POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
 	"SET": "props to pose with: add, move, turn, delete, your own models", "CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: Export... (any engine or tool), frame data, a version",
-	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)"}
+	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)",
+	"MODEL": "the mesh: the test cube or the body, extrude, inset, bevel, loop cut, modifiers", "SCULPT": "brushes on the test sphere", "SURFACE": "UVs and materials of the mesh"}
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
+	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
+	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
+	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
-	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
@@ -233,9 +247,9 @@ const RIBBON_GROUPS := {
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
 ## page: its tools are the "View" menu in the top bar, on every page. Layout values: true = folded, false = open; a key
 ## a page does not name follows the user's own folds. The user's changes on a page are remembered for that page.
-const PAGES := ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER"]
-const PAGES_SOON := ["MODEL", "SCULPT", "SURFACE"]
-const PAGE_ROW := {"BODY": "BODY", "POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT"}
+## the expert pages (MODEL, SCULPT, SURFACE: scripts/expert_pages.gd) are pages too; Easy mode hides them (ExpertPages.PAGES)
+const PAGES := ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "MODEL", "SCULPT", "SURFACE"]
+const PAGE_ROW := {"BODY": "BODY", "POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT", "MODEL": "MODEL", "SCULPT": "SCULPT", "SURFACE": "SURFACE"}
 const PAGE_LAYOUT := {
 	"BODY": {"left": false, "bottom": true},                     # the body panel (it takes the browser's place), the strip a thin line
 	"POSE": {},                                                  # the body and its inspector: as the user left them
@@ -243,10 +257,14 @@ const PAGE_LAYOUT := {
 	"STAGE": {"left": false, "bottom": true},                    # the browser (props, cast) open, the strip a thin line
 	"CHECK": {"right": false, "bottom": true},                   # the inspector open (the findings), the strip a thin line
 	"DELIVER": {"left": true, "right": true, "bottom": true},    # the body big: only the export tools
+	"MODEL": {"bottom": true},                                   # the test cube or the body mesh in the preview, its tools in the ribbon
+	"SCULPT": {"bottom": true},                                  # the test sphere and its brushes
+	"SURFACE": {"bottom": true},                                 # the UVs and the materials of the mesh
 }
 const PAGE_TIPS := {"BODY": "make the person: stature, mass and proportions as percentiles of the ANSUR II survey", "POSE": "pose one moment: the body, the inspector, the pose library", "ANIMATE": "cards, timeline, curves, overlays",
 	"STAGE": "the set and the cast: props, cameras, crowd, several fighters", "CHECK": "is it right: grade, human check, frame data",
-	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions"}
+	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions",
+	"MODEL": "model the mesh: the test cube, the fighter's body mesh, extrude, bevel, loop cut, modifiers", "SCULPT": "sculpt the test sphere: draw, inflate, smooth, grab with the brushes", "SURFACE": "UVs and materials: the UV editor, unwrap, pack, a material from a photo"}
 var cur_page := "POSE"
 var base_fold := {"left": false, "right": false, "bottom": false}   # the user's own folds (a page that names none follows them)
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
@@ -279,7 +297,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
-var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 12-button bar; Expert = every panel and tool
+var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 13-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
 
 ## ROOM TO WORK (round 35a, GATES QQ4; Nick 10-16 "not like fusion that is more minimalist, more space to design"):
@@ -325,12 +343,20 @@ func _fold(which: String, on: bool, save := true) -> void:
 
 ## every side piece shown or hidden, and everything that sits beside the panels moved to the view's new edges
 func _sides_apply() -> void:
+	for p in ExpertPages.PAGES:   # the expert pages: their buttons show in Expert only; an Easy start on one goes to POSE
+		if ui_page_btns.has(p):
+			ui_page_btns[p].visible = not easy.on
+	if easy.on and ExpertPages.PAGES.has(cur_page):
+		_page_set("POSE", false)
+		return
+	var mesh_pg := _mesh_page()
 	for k in ui_side_of:
-		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY")
+		var pose_only: bool = mesh_pg   # the posing panels (the inspector, the browser's Body / Poses tree) are off on the mesh pages: back as they were on leaving
+		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY") and not pose_only
 		if ui_rails.has(k):
-			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on
+			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on and not pose_only
 		if ui_fold_btn.has(k):
-			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on
+			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on and not pose_only
 	if ui_body != null:
 		ui_body.visible = cur_page == "BODY" and not big_view and not fold["left"] and not clean and not easy.on
 		if ui_body.visible:
@@ -361,7 +387,7 @@ const LINE_FS := 13
 
 
 func _status_look() -> void:
-	var teach := ui_status.text == WELCOME
+	var teach := is_welcome(ui_status.text)
 	ui_status.add_theme_stylebox_override("normal", ui_say_box if teach else StyleBoxEmpty.new())
 	ui_status.add_theme_font_size_override("font_size", 16 if teach else LINE_FS)
 	ui_status.add_theme_color_override("font_color", Tok.c("say") if teach else (Tok.c("warn") if ui_status.text.contains("STOPPED") else Tok.of("text:0.7")))
@@ -378,7 +404,7 @@ var _teach_pending := false
 
 
 func _end_teach() -> void:
-	if ui_status != null and ui_status.text == WELCOME:
+	if ui_status != null and is_welcome(ui_status.text):
 		_say_plain("")
 	if _teach_pending:
 		_taught()
@@ -396,7 +422,7 @@ func _strip_fit() -> void:
 	if ui_status == null:
 		return
 	_status_look()
-	if ui_status.text != WELCOME:
+	if not is_welcome(ui_status.text):
 		_line_fit()
 		return
 	ui_status.offset_top = -bottom_h - 82
@@ -485,6 +511,9 @@ var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overl
 var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
 var smart_drag := true      # the other joints follow a dragged one the way your poses move together; Alt+drag = off
 var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint drag)
+var keep_balance := true    # N066 (scripts/live_balance.gd): a drag keeps him over his feet, live; Alt+drag lets him fall
+var _lb := {}               # N066: this drag's live balance (LiveBalance.begin; {} = off for this drag)
+var _lb_r := {}             # N066: its last frame (LiveBalance.step)
 var _sd := {}               # the current drag's smart state ({} = none)
 var sj := SuggestionJournal.new()   # LEARN FROM MY EDITS (ROADMAP I26): scripts/suggestion_journal.gd; the panel is sj_ui
 var sj_ui: SuggestionJournalUI
@@ -496,6 +525,8 @@ var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ri
 var sk := SketchPose.new()   # ROADMAP I9: sketch a stick figure over the view -> pose (scripts/sketch_pose.gd)
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
+var redspots := RedSpots.new()   # N074: Check's problems glow on the body part they are about (scripts/red_spots.gd)
+var ouch := OuchMeter.new()   # N064: the dragged joint glows ok / warn / fail by comfortable vs max range (scripts/ouch_meter.gd)
 var cshadow := ContactShadow.new()   # CONTACT SHADOWS (ROADMAP R4): a soft blob under each foot, darker the nearer the sole is to the floor
 var force_on := false        # FORCE VIEW (ROADMAP I8, scripts/force_view.gd): the body coloured by joint torque, the power chain strip. Off by default, view only
 var force_cache := {}        # {"key": the cards + body it was made for, "sm": ForceView.sample's result}
@@ -508,6 +539,8 @@ var ui_hist_btn: Button
 const HIST_SHOWN := 10             # ROADMAP 45: the History panel lists the newest 10 steps
 var ui_undo_btn: Button            # ROADMAP 45: its tooltip is "Undo: <the step it takes back>"
 var ui_redo_btn: Button
+var _step_easy := ""   # EASY ONLY: the short name of the step about to be made (Easy's card, tweak, library tile, More item): kept on the
+                       # undo entry as "easy", read by the Easy bar's Undo button and toast; Expert's names never use it
 var _step_hint := ""   # what the user just pressed (a button's text, a command's name, a shortcut's command): the undo
                        # step's name when nothing is said about it (#75)
 const KEY_WORD := {KEY_BRACKETLEFT: "[", KEY_BRACKETRIGHT: "]", KEY_COMMA: ",", KEY_PERIOD: ".", KEY_MINUS: "-", KEY_EQUAL: "="}
@@ -948,7 +981,7 @@ func _line_fit() -> void:
 	ui_bar.offset_right = x1
 	ui_bar.offset_top = y0
 	ui_bar.offset_bottom = -bottom_h - 6
-	if ui_status.text != WELCOME:
+	if not is_welcome(ui_status.text):
 		ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
 		ui_status.clip_text = true
 		ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -1153,12 +1186,13 @@ func versions_dir() -> String:
 ## the open scene's versions, newest first
 func versions() -> Array:
 	var out := []
-	var d := DirAccess.open(versions_dir())
-	if d == null:
-		return out
-	for f in d.get_files():
-		if f.begins_with("v") and f.ends_with(".json"):
-			out.append(versions_dir() + "/" + f)
+	for dir in UserPaths.dirs(versions_dir()):   # where _save_version wrote them (the user's folder in a build)
+		var d := DirAccess.open(dir)
+		if d == null:
+			continue
+		for f in d.get_files():
+			if f.begins_with("v") and f.ends_with(".json"):
+				out.append(dir + "/" + f)
 	out.sort()
 	out.reverse()
 	return out
@@ -1178,6 +1212,7 @@ func _save_version() -> void:
 ## EXPORT TO GAME (round 31, GATES LL2): the scene as the ARPG's PoseTable, exports/<scene>.json + .cs (never scenes/).
 ## The table is sampled from the scene frame by frame, so the body's pose is kept and put back.
 func _export_game(dir := "res://exports") -> Array:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: export to the game needs at least 2 cards (a move)")
 		return []
@@ -1205,6 +1240,7 @@ func _export_game(dir := "res://exports") -> Array:
 ## exports/<scene>.glb: the mannequin, its skeleton with UE5's bone names, one animation keyed on every frame, the
 ## weapons as animated nodes. Godot, Blender and Unreal 5 import it as it is; Unity through glTFast (docs/EXPORT.md).
 func _export_glb(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1234,6 +1270,7 @@ func _export_glb(dir := "res://exports") -> String:
 ## SHARE: VIEWER PAGE (ROADMAP N23): user://share/<scene>/ holds the .glb, index.html (loads the .glb beside it) and
 ## <scene>_one_file.html (the .glb inside the page as base64: ONE file to send). Nothing is uploaded; the folder opens after.
 func _share_viewer(root := ShareLink.ROOT, open_folder := true) -> Dictionary:
+	root = UserPaths.w(root)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a viewer page needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return {}
@@ -1262,6 +1299,7 @@ func _share_viewer(root := ShareLink.ROOT, open_folder := true) -> Dictionary:
 ## travel onto the root bone. Several fighters: one .fbx each, its rig placed where it stands (a root null). The
 ## weapons and props are not in it. Blender 4.5 reads this binary file; it cannot read ASCII FBX.
 func _export_fbx(dir := "res://exports", root_motion := false) -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1301,6 +1339,7 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 ## EXPORT FOR AN ENGINE (ROADMAP item 9): the pre-flight report prints line by line BEFORE the file is written; the
 ## logic and the checks are in scripts/engine_export.gd (EngineExport), the needs in docs/research/ENGINES.md.
 func _export_engine(id: String, dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1328,6 +1367,7 @@ func _export_dialog_open() -> void:
 ## path play and scrub use, so frame k is what the view shows at its time. The panels are hidden while it renders.
 ## Returns {"dir", "frames", "mp4", "ffmpeg"}; {} when refused. with_mp4 = false: the PNG frames only (the review page's frames)
 func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with_mp4 := true) -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a playblast needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return {}
@@ -1376,12 +1416,169 @@ func _export_playblast(root_dir := PlayblastExport.ROOT, ffmpeg_path := "", with
 	return {"dir": gdir, "frames": n, "mp4": mp4, "ffmpeg": ff}
 
 
+## SAVE VIDEO (Easy's strip, Save video): the playblast as an .mp4 with no PNG frames. Each frame goes straight into ffmpeg's stdin
+## while the next one renders (the encoder runs beside the renderer). A big progress line ("Saving video... 12 of 60 frames") and a
+## Cancel button sit on a panel that is hidden only for each capture. Cancel deletes the folder, so no partial file stays. With no
+## ffmpeg the PNG frames are kept (as Export playblast keeps them). Returns {"dir", "frames", "mp4", "ffmpeg"}; {} when refused or cancelled
+var _pb_busy := false
+var _pb_cancel := false
+var _pb_layer: CanvasLayer
+var _pb_label: Label
+var _pb_bar: ProgressBar
+var _pb_cancel_btn: Button
+
+
+func _pb_panel_make() -> void:
+	if _pb_layer != null:
+		return
+	_pb_layer = CanvasLayer.new()
+	_pb_layer.layer = 90
+	_pb_layer.name = "save_video_progress"
+	add_child(_pb_layer)
+	var pc := PanelContainer.new()
+	pc.name = "panel"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.c("float")
+	sb.border_color = Tok.c("accent")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(14)
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	pc.offset_top = 70
+	pc.custom_minimum_size = Vector2(560, 0)
+	pc.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_pb_layer.add_child(pc)
+	var vb := VBoxContainer.new()
+	pc.add_child(vb)
+	_pb_label = Label.new()
+	_pb_label.name = "text"
+	_pb_label.add_theme_font_size_override("font_size", 30)
+	_pb_label.add_theme_color_override("font_color", Tok.c("text"))
+	vb.add_child(_pb_label)
+	_pb_bar = ProgressBar.new()
+	_pb_bar.name = "bar"
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Tok.c("accent")
+	_pb_bar.add_theme_stylebox_override("fill", fill)
+	_pb_bar.custom_minimum_size = Vector2(0, 22)
+	vb.add_child(_pb_bar)
+	_pb_cancel_btn = Button.new()
+	_pb_cancel_btn.name = "cancel"
+	_pb_cancel_btn.text = "Cancel"
+	_pb_cancel_btn.add_theme_font_size_override("font_size", 22)
+	_pb_cancel_btn.tooltip_text = "stop saving the video: the folder and anything made so far are deleted; no video is kept"
+	_pb_cancel_btn.pressed.connect(func(): _pb_cancel = true)
+	vb.add_child(_pb_cancel_btn)
+	_pb_layer.visible = false
+
+
+func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
+	if _pb_busy:
+		_say_plain("A video is already being saved: press Cancel on the progress panel to stop it")
+		return {}
+	if S.cards.size() < 2:
+		_say_plain("NOT NOW: a playblast needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
+		return {}
+	var sp := PlayblastExport.span(pv_in, pv_out, _ps().length())
+	var fps: int = S.fps
+	var n := PlayblastExport.frame_count(sp[0], sp[1], fps)
+	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var gdir := ProjectSettings.globalize_path(dir)
+	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
+		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and save the video again" % dir)
+		return {}
+	var ff := PlayblastExport.find_ffmpeg()
+	var mp4 := "%s/%s.mp4" % [gdir, nm]
+	_pb_busy = true
+	_pb_cancel = false
+	_pb_panel_make()
+	_pb_layer.visible = true
+	_pb_bar.value = 0.0
+	_pb_label.text = "Saving video... 0 of %d frames" % n
+	var keep := B.state()
+	var keep_t := playhead
+	var keep_playing := playing
+	var keep_clean := clean
+	playing = false
+	clean = true
+	_sides_apply()
+	ui_root.visible = false
+	var shot := _shot_blast_begin()
+	var pipe := {}   # the ffmpeg process and its stdin, started with the first frame (its size is the frame's)
+	var done := 0
+	var refused_pipe := false
+	for f in n:
+		if _pb_cancel:
+			break
+		_pb_layer.visible = false   # the panel is not in the picture of this capture
+		var img: Image = await _blast_frame(shot, PlayblastExport.time_of(f, sp[0], sp[1], fps), fps, sp[0], sp[1])
+		img.convert(Image.FORMAT_RGB8)
+		if ff != "" and pipe.is_empty():
+			var io := OS.execute_with_pipe(ff, PlayblastExport.args_pipe(img.get_width(), img.get_height(), fps, mp4, AudioTrack.audible_list(S.audio_tracks), sp[0]))
+			if io.is_empty():
+				refused_pipe = true
+				break
+			pipe = {"stdin": io["stdio"], "pid": io["pid"]}
+			Children.add(io["pid"], io["stdio"])   # closing the app mid-save: the pipe is closed, then ffmpeg is killed
+		if pipe.is_empty():
+			img.save_png("%s/frame_%04d.png" % [gdir, f])   # no ffmpeg: the PNG frames, as Export playblast keeps them
+		else:
+			(pipe["stdin"] as FileAccess).store_buffer(img.get_data())
+		done += 1
+		_pb_label.text = "Saving video... %d of %d frames" % [done, n]
+		_pb_bar.value = 100.0 * float(done) / float(n)
+		_pb_layer.visible = true
+		await RenderingServer.frame_post_draw   # the panel is drawn (with the count, and Cancel reads) before the next frame
+	_shot_blast_end(shot)
+	ui_root.visible = true
+	clean = keep_clean
+	_sides_apply()
+	B.set_state(keep)
+	playhead = keep_t
+	playing = keep_playing
+	_refresh()
+	var cancelled := _pb_cancel
+	if not pipe.is_empty():
+		_pb_label.text = "Saving video... encoding the last frames" if not cancelled else "Cancelling..."
+		_pb_layer.visible = true
+		if cancelled:
+			OS.kill(pipe["pid"])
+		(pipe["stdin"] as FileAccess).close()
+		while OS.is_process_running(pipe["pid"]):
+			await get_tree().process_frame
+		Children.done(pipe["pid"])
+	var made := FileAccess.file_exists(mp4) and done == n
+	_pb_layer.visible = false
+	_pb_busy = cancelled   # a cancelled save stays busy until its folder is gone and it says so (else "not busy" was seen mid-cleanup)
+	_pb_cancel = false
+	if cancelled:
+		for _try in 100:   # Windows keeps a file busy for a moment after ffmpeg exits: retry until the folder is gone
+			PlayblastExport.rm_tree(gdir)
+			if not DirAccess.dir_exists_absolute(gdir):
+				break
+			await get_tree().process_frame
+		_say_plain("Video cancelled: nothing was kept")
+		_pb_busy = false
+		return {}
+	if refused_pipe or (not pipe.is_empty() and not made):
+		_say_plain("NOT DONE: ffmpeg (%s) could not make the video: close anything using %s and save the video again" % [ff, dir])
+		return {}
+	if pipe.is_empty() and ff == "":
+		_say_plain("playblast: %d PNG frames at %d fps in %s. No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then save the video again, or set POSER_FFMPEG to ffmpeg.exe" % [n, fps, dir])
+		return {"dir": gdir, "frames": n, "mp4": "", "ffmpeg": ""}
+	return {"dir": gdir, "frames": n, "mp4": mp4 if pipe.is_empty() == false else "", "ffmpeg": ff}
+
+
 ## DELIVER: TURNTABLE VIDEO OF THIS POSE (ROADMAP_400 K08; scripts/turntable.gd): the CAMERA orbits the body once (frame k at yaw
 ## 360 k / n, n = seconds * fps), framed to the body and the held weapons with 15% margin, the 3D view only (no panels).
 ## The pose is the one on screen now (nothing is applied, nothing changes: not an edit). Written as an MJPEG .avi in
 ## user://turntables/<scene>_<stamp>.avi (AviWriter), plus an .mp4 beside it when ffmpeg is found. Returns {"avi", "mp4", "frames",
 ## "cams" (the camera of each frame), "quarters" ({k: Image} at 0/90/180/270 deg), "crop", "size", "fps"}; {} when refused.
 func _export_turntable(seconds := 6.0, fps := 30, size := Vector2i(1280, 720), root_dir := Turntable.ROOT, ffmpeg_path := "") -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if seconds <= 0.0 or fps < 1 or size.x < 16 or size.y < 16:
 		_say_plain("NOT DONE: a turntable needs seconds > 0, fps >= 1 and a size of at least 16x16: run Deliver: turntable video of this pose again with those")
 		return {}
@@ -1455,9 +1652,11 @@ func _export_turntable(seconds := 6.0, fps := 30, size := Vector2i(1280, 720), r
 ## nothing in the scene changes (not an edit). Returns {"avi", "mp4", "frames", "captions", "verdicts", "size", "fps", "sbs", "cam", "crop",
 ## "area", "images" ({k: Image} for the frames in keep_frames)}; {} when refused.
 var judge_layer: JudgeRender
+var judge_busy := false   # true while the breakdown pass runs: it poses the body frame by frame and restores it at the end
 
 
 func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.ALL, fps := 0, size := Vector2i(1280, 720), root_dir := JudgeRender.ROOT, ffmpeg_path := "", keep_frames: Array = []) -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a breakdown video needs at least 2 cards (a move): press Enter to add a card, then run Deliver: breakdown video (with the judges drawn) again")
 		return {}
@@ -1471,6 +1670,7 @@ func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.AL
 	if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root_dir)) != OK:
 		_say_plain("NOT DONE: the folder %s could not be made: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
 		return {}
+	judge_busy = true
 	var keep := B.state()
 	var keep_t := playhead
 	var keep_playing := playing
@@ -1594,6 +1794,7 @@ func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.AL
 	for vd in verdicts:
 		fired += 1 if not (vd as Array).is_empty() else 0
 	_say_plain(("breakdown: %d frames at %d fps, %s, %dx%d, a verdict fires on %d of them, in %s.avi%s" % [n, rate, "side by side" if side_by_side else "one view", size.x, size.y, fired, stem, how]) if wrote else "NOT DONE: the video file could not be written to %s: close anything using it and run Deliver: breakdown video (with the judges drawn) again" % root_dir)
+	judge_busy = false
 	return {"avi": avi if wrote else "", "mp4": mp4, "frames": n, "captions": captions, "verdicts": verdicts, "size": size, "fps": rate, "sbs": side_by_side, "cam": cam_xf, "crop": rect, "area": Vector2i(aw, ah), "images": images}
 
 
@@ -1622,8 +1823,7 @@ func _blast_frame(shot: Dictionary, t: float, fps: int, lo: float, hi: float) ->
 		wt.render_active = true   # R23: the weapon trail ribbon is part of the render (option "Weapon trail in renders")
 		_refresh()
 		_shot_blast_frame(shot)
-		await get_tree().process_frame
-		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw   # one drawn frame: the pose set above is what it shows (no extra frame wait)
 		imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
 		wt.render_active = false
 		wt.draw(_ps(), playhead)
@@ -1687,6 +1887,7 @@ func _sr_panel_make() -> void:
 
 
 func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _sr_busy:
 		_say_plain("A shot render is already running: press Esc (or Cancel render) to stop it, then run Render shots to video again")
 		return {}
@@ -1798,6 +1999,7 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 ## kept in a temporary folder and removed after) -> ONE self-contained page, root/<scene>_<date>.html (never over an
 ## earlier one). Returns the page's path; "" when refused. Nothing leaves the machine.
 func _export_review(root_dir := Review.DIR) -> String:
+	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a review page needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return ""
@@ -1865,6 +2067,7 @@ func _review_import(path: String) -> int:
 ## EXPORT .BVH (round 34, GATES OO2): the scene as exports/<scene>.bvh (BvhExport, the writer tools/export_bvh.gd uses):
 ## the skeleton with UE5's bone names, every frame, the weapons as joints in their hands. Every retargeter reads BVH.
 func _export_bvh(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1893,6 +2096,7 @@ func _export_bvh(dir := "res://exports") -> String:
 ## EXPORT .USDA (round 42, GATES XX9): the scene as exports/<scene>.usda (UsdExport): a UsdSkel SkelRoot, Skeleton and
 ## SkelAnimation, one time sample per frame. Opens in Blender, Houdini, Maya, usdview, Omniverse.
 func _export_usd(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -1922,6 +2126,7 @@ func _export_usd(dir := "res://exports") -> String:
 ## the base animation and the skeleton. Returns the root's path ("" when not written). One fighter only: with several, the
 ## flat Export animation (.usda) holds them all.
 func _export_usd_layers(dir := "res://exports") -> String:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
@@ -2644,6 +2849,7 @@ func _ready() -> void:
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
 		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
+		keep_balance = false   # N066: off in a test until it turns it on (the older drag tests measure the plain drag)
 		sj = SuggestionJournal.new("user://zz_suggestion_journal_%d.json" % OS.get_process_id())   # I26: a test never reads or writes the real journal
 		myhits.sj = sj
 		nt.path = "user://zz_next_tool_%d.json" % OS.get_process_id()   # P17: a test never reads or writes the real next-command file (its chips made small_window / pages flaky)
@@ -2703,6 +2909,12 @@ func _ready() -> void:
 	add_child(bal)
 	add_child(rc_view)
 	add_child(cshadow)
+	add_child(redspots)
+	redspots.setup(self)
+	redspots.load_from(settings)   # N074: VIEW > Show problems on the body (on unless turned off)
+	add_child(ouch)
+	ouch.setup(self)
+	ouch.load_from(settings)   # N064: POSE > Ouch meter (on unless turned off)
 	add_child(loa)
 	add_child(rings)
 	ov.setup()
@@ -2727,7 +2939,7 @@ func _ready() -> void:
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
 	# test wrote "taught" into it)
 	_teach_pending = not cf.get_value("look", "taught", false)
-	if not _teach_pending and ui_status.text == WELCOME:
+	if not _teach_pending and is_welcome(ui_status.text):
 		_say_plain("")
 	for k in fold:   # QQ4: a user's folds, remembered (the first start: FOLD_DEFAULT); a test starts open
 		if not testing and cf.get_value("layout", "fold_" + k, FOLD_DEFAULT[k]):
@@ -2740,11 +2952,14 @@ func _ready() -> void:
 	page_tour.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
-	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"]] + ui_rails.values())
+	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
 	onboard.start_when_clear.call_deferred()
 	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
 		_tour_after_recover.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
+	intro = KineIntro.maybe_start(self, cf, testing)   # THE OPENING INTRO over the finished app (scripts/intro/intro.gd): never in a test, a shot or headless
+	if intro != null:
+		intro.finished.connect(func(): intro = null)
 	var args := OS.get_cmdline_user_args()
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):
 		_recover_offer.call_deferred()
@@ -2933,6 +3148,14 @@ func _ready() -> void:
 		get_tree().quit()
 
 
+	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
+		await _selfcheck_save()
+		return
+
+
+var intro: KineIntro   # the opening intro while it plays (null after, or when off)
+
+
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
 	if nb_ui != null:
@@ -2942,6 +3165,7 @@ func _exit_tree() -> void:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
+	Children.kill_all()   # the separate programs (video tracker, AI video maker, Save video's ffmpeg, webcam and multicam readers...) end with the app
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -2966,6 +3190,7 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	_mesh_hint_sync()
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
@@ -3085,6 +3310,7 @@ func _process(dt: float) -> void:
 		var bt := bar_text()
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
+		ui_bar.visible = not (easy != null and easy.on)   # Easy: no card count or seconds readout (Expert keeps it)
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
@@ -3194,6 +3420,8 @@ func _world() -> void:
 		l.pixel_size = 0.0018
 		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		stage_root.add_child(l)
+		axis_tags.append(l)
+		l.visible = not (easy != null and easy.on)   # a fresh start is Easy: born hidden (_refresh keeps it so)
 	cam = Camera3D.new()
 	cam.fov = 40
 	add_child(cam)
@@ -3228,27 +3456,20 @@ func _body() -> void:
 		d.material_override = dm
 		add_child(d)
 		dots[j] = d
-	# the metal bat: a taped handle, a barrel swelling from the handle to full width, a knob
-	var metal := StandardMaterial3D.new()
-	metal.albedo_color = Color(0.62, 0.64, 0.68)
-	metal.metallic = 0.85
-	metal.roughness = 0.3
-	var tape := StandardMaterial3D.new()
-	tape.albedo_color = Color(0.08, 0.08, 0.09)
-	tape.roughness = 0.9
-	bat_handle = _cyl(B.wep_r_handle, B.wep_r_handle, tape)
-	bat_barrel = _cyl(B.wep_r_barrel, B.wep_r_handle, metal)
-	bat_knob = _cyl(B.wep_r_handle * 1.6, B.wep_r_handle * 1.6, tape)
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.36, 0.24, 0.14)
-	wood.roughness = 0.75
-	var steel := StandardMaterial3D.new()
-	steel.albedo_color = Color(0.3, 0.31, 0.33)
-	steel.metallic = 0.9
-	steel.roughness = 0.35
-	wep_mats = {"metal": metal, "tape": tape, "wood": wood, "steel": steel}
-	d2_handle = _cyl(0.013, 0.013, tape)
-	d2_blade = _cyl(0.004, 0.011, steel)
+	# the weapons: a placement cylinder per piece (its transform is the grip's frame: hits and tests read its visibility; it has
+	# no radius, so it draws nothing), and the shape itself (WeaponMesh, placed in the weapon's frame each refresh)
+	wep_mats = WeaponMesh.materials()
+	bat_handle = _cyl(0.0, 0.0, null)
+	bat_barrel = _cyl(0.0, 0.0, null)
+	bat_knob = _cyl(0.0, 0.0, null)
+	wep_model = Node3D.new()
+	wep_model.name = "weapon_model"
+	add_child(wep_model)
+	d2_handle = _cyl(0.0, 0.0, null)
+	d2_blade = _cyl(0.0, 0.0, null)
+	wep2_model = Node3D.new()
+	wep2_model.name = "weapon2_model"
+	add_child(wep2_model)
 	tag = Label3D.new()
 	tag.pixel_size = 0.0009
 	tag.fixed_size = true
@@ -3271,6 +3492,7 @@ const GRID_STEP := 0.1
 const AXIS_Y := 0.3
 const AXES := [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, AXIS_Y, 0), Color(0.35, 0.8, 0.35)], [Vector3(0, 0.001, 0.6), Color(0.3, 0.5, 0.95)]]
 var axis_mesh: ImmediateMesh
+var axis_tags: Array = []   # the floor's axis names ("Z  he faces this way"): Expert's reading aids, hidden in Easy (_refresh)
 
 
 ## ROADMAP 95: with a crowd the floor grows to cover every copy's feet (+0.5 m): the fade then runs over the square
@@ -3406,8 +3628,28 @@ func _dummy_ghost_update(h: Dictionary) -> void:
 	dummy_mat.albedo_color = col
 
 
+## EASY BOTTOM (Easy only, the panel's rows and margins): the panel keeps only its card row and the ruler, its margins are
+## 0 and the rows sit 4 px apart; the timeline clips what is under its ruler. Expert gets every one of these back as it was.
+func _easy_bottom_style(eo: bool) -> void:
+	var bv := ui_card_row.get_parent() as VBoxContainer
+	bv.add_theme_constant_override("separation", EASY_SEP if eo else 6)   # 6 is the value the panel is built with
+	if eo:
+		if not ui_bp.has_theme_stylebox_override("panel"):
+			var sb := ui_bp.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+			sb.content_margin_top = 0
+			sb.content_margin_bottom = 0
+			ui_bp.add_theme_stylebox_override("panel", sb)
+	elif ui_bp.has_theme_stylebox_override("panel"):
+		ui_bp.remove_theme_stylebox_override("panel")
+	ui_timeline.clip_contents = eo
+	_tl_height()
+
+
 ## the timeline's height: its 34 px of rows, and the strips under the ruler (the frame strip, ROADMAP 12; the boxes lane, ROADMAP 36)
 func _tl_height() -> void:
+	if easy != null and easy.on:   # Easy: the ruler only (_easy_bottom_style)
+		ui_timeline.custom_minimum_size.y = EASY_RULER
+		return
 	ui_timeline.custom_minimum_size.y = 34.0 + Timeline.LANE_H * S.audio_tracks.size() + ui_timeline.clip_px() + _tl_under_ruler()
 
 
@@ -3459,7 +3701,7 @@ func _fd_cycle_fps() -> void:
 ## the frame data of the scene as it is now (a fresh body: the live one is not moved). Made again only when the cards,
 ## the dummy or the frame rate change
 func _fd_data() -> Dictionary:
-	var key := "%d|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes)]
+	var key := "%d|%s|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
 	if String(fd_cache.get("key", "")) != key:
 		if _force_body == null:   # I16b: the skeleton is read once, not at every score
 			_force_body = Body.new()
@@ -3467,7 +3709,8 @@ func _fd_data() -> Dictionary:
 		var Bc: Body = _force_body
 		Bc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
 		Bc.ground()
-		fd_cache = {"key": key, "fd": FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
+		var fdx := {} if dummy_on else FrameAdvantage.app_fd(self, Bc, fd_fps)   # N080: two fighters: hitstun / advantage as well
+		fd_cache = {"key": key, "fd": fdx if not fdx.is_empty() else FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
 	return fd_cache["fd"]
 
 
@@ -3609,7 +3852,8 @@ func _fd_export() -> void:
 	dlg.file_selected.connect(func(p):
 		var e := FrameData.write_json(data, p)
 		if e == OK:
-			_say_plain("frame data written: %s (startup %d f, active %d f, recovery %d f at %d fps)" % [p.get_file(), data["startup"], data["active"], data["recovery"], data["fps"]])
+			_say_plain("frame data written: %s (startup %d f, active %d f, recovery %d f at %d fps)%s" % [p.get_file(), data["startup"], data["active"], data["recovery"], data["fps"],
+				"; " + FrameAdvantage.words(data["exchange"]) if data.has("exchange") else ""])
 		else:
 			_say_plain("NOT WRITTEN: %s could not be saved (error %d)" % [p.get_file(), e])
 		dlg.queue_free())
@@ -3715,6 +3959,14 @@ func _bake_scenes() -> Array:
 
 var _bake_rr := 0
 
+## the body a baked scene plays on (the hero's, or that fighter's)
+func _bake_body(sc: Scene) -> Body:
+	for a in actors_rt:
+		if a["S"] == sc:
+			return a["B"]
+	return B
+
+
 func _bake_poll() -> void:
 	var t0 := Time.get_ticks_usec()
 	var live := _bake_scenes()
@@ -3736,10 +3988,10 @@ func _bake_poll() -> void:
 			continue
 		if sc_s.baker == null:
 			sc_s.baker = PoseBake.new()
-			sc_s.baker.start(sc_s, playhead, horizon)
+			sc_s.baker.start(sc_s, playhead, horizon, PoseBake.held_of(_bake_body(sc_s)))
 		elif edited or not playing or _bake_rr % live.size() == i:
-			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon:
-				sc_s.baker.start(sc_s, playhead, horizon)   # the content changed: the old table is dropped, a new bake starts at the playhead
+			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon or sc_s.baker.held_at != PoseBake.held_of(_bake_body(sc_s)):
+				sc_s.baker.start(sc_s, playhead, horizon, PoseBake.held_of(_bake_body(sc_s)))   # the content changed: the old table is dropped, a new bake starts at the playhead
 	bake_sigs_ms = (Time.get_ticks_usec() - t0) / 1000.0
 
 
@@ -3960,6 +4212,24 @@ func _reactions_toggle() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	ui_reactions.position = Vector2(maxf(12.0, vp.x - 358.0), 318.0)   # under the part panel on the right, over the view's edge
 	_say("reaction picker: drag a clip onto the fighter who gets hit" if actors_rt.size() >= 2 else "reaction picker: it needs two fighters to drop on: 'Actor: add a second fighter' first")
+
+
+## OBJECT LIBRARY (scripts/object_library.gd): one panel of the objects the app can place, in tabs, with thumbnails and a
+## search. Opened from Easy's Library button, the SET row (STAGE) and the command search. Built on first use; hidden on other pages.
+var ui_library: ObjectLibrary = null
+
+
+func _library_toggle() -> void:
+	if ui_library != null and ui_library.visible:
+		ui_library.hide_panel()
+		_say("object library closed")
+		return
+	if ui_library == null:
+		ui_library = ObjectLibrary.new()
+		ui_root.add_child(ui_library)
+		ui_library.setup(self, WEAPONS)
+	ui_library.open()
+	_say("object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
 
 
 func _reactions_samples() -> void:
@@ -4424,33 +4694,25 @@ func _hit_ui_tick() -> void:
 		hit_offer_btn.visible = false
 
 
-## the weapon's radii + materials for its kind
-func _wep_look() -> void:
-	var hm := bat_handle.mesh as CylinderMesh
-	var bm := bat_barrel.mesh as CylinderMesh
-	hm.top_radius = B.wep_r_handle
-	hm.bottom_radius = B.wep_r_handle
-	if B.wep_kind == "dagger":
-		# a taped grip, a steel blade narrowing to the point
-		bm.top_radius = 0.004
-		bm.bottom_radius = B.wep_r_barrel
-		bat_handle.material_override = wep_mats["tape"]
-		bat_barrel.material_override = wep_mats["steel"]
-	elif B.wep_kind == "staff":
-		bm.top_radius = B.wep_r_handle
-		bm.bottom_radius = B.wep_r_handle
-		bat_handle.material_override = wep_mats["wood"]
-		bat_barrel.material_override = wep_mats["wood"]
-	elif not B.wep_head.is_empty():
-		bm.top_radius = float(B.wep_head[1])
-		bm.bottom_radius = float(B.wep_head[1])
-		bat_handle.material_override = wep_mats["tape"]
-		bat_barrel.material_override = wep_mats["steel"]
-	else:
-		bm.top_radius = B.wep_r_barrel
-		bm.bottom_radius = B.wep_r_handle
-		bat_handle.material_override = wep_mats["tape"]
-		bat_barrel.material_override = wep_mats["metal"]
+## the weapon's drawn shape: rebuilt when its kind changes (WeaponMesh), then placed in the weapon's frame, the knob at
+## x[0] and +Y along x[1] (Body.wep_xform), so each piece sits where its grip-frame cylinder is
+func _wep_model_place(model: Node3D, kind: String, x: Array) -> void:
+	if String(model.get_meta("kind", "")) != kind:
+		for c in model.get_children():
+			model.remove_child(c)
+			c.queue_free()
+		model.add_child(WeaponMesh.build(kind))
+		model.set_meta("kind", kind)
+	model.transform = Transform3D(Basis(x[1] as Quaternion), x[0] as Vector3)
+
+
+## the drawn pieces of both weapons (the shading modes and the isolation switch them with the body)
+func weapon_pieces() -> Array:
+	var out := []
+	for root in [wep_model, wep2_model]:
+		if root != null:
+			out.append_array(root.find_children("*", "MeshInstance3D", true, false))
+	return out
 
 
 func _cyl(top: float, bottom: float, m: Material) -> MeshInstance3D:
@@ -4548,11 +4810,19 @@ func _refresh() -> void:
 			touching[pr[0]] = true
 			touching[pr[1]] = true
 	var looks := {}   # PRECISE PICK: each body part's light on its own skin (SkinPick.set_looks)
+	# EASY QUIET: no standing pick light, name tag or joint dots on a beginner's body (a blue "right upper arm" over the punch
+	# read as a fault); the hover light stays (what a click would grab) and the pick shows while a part is dragged
+	var quiet: bool = easy != null and easy.on and dragging == ""
+	var mesh_pg := _mesh_page()   # the mesh pages: no part tag, no joint dots (the posing overlays)
 	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var body: bool = not (j in Body.WEAPON or j in Body.WEAPON2)
 		if dots.has(j):
 			dots[j].position = B.P[j]
 		var lk := part_look(j, touching)
+		if (quiet or (mesh_pg and dragging == "")) and lk in ["sel", "limit"]:   # the mesh pages: the posing pick and limit lights are not the mesh's
+			lk = ""
+		if easy != null and easy.on and lk == "limit":   # EASY QUIET: no joint-limit tint either (no action a beginner can take on it)
+			lk = ""
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
 				looks[j] = _look_of(lk)
@@ -4588,25 +4858,30 @@ func _refresh() -> void:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
+	var _rk := {sel: true}
+	for sj in sel_more:
+		_rk[sj] = true
+	redspots.apply(looks, playhead, B, check_ran and not clean and not wp_on, _rk)   # N074: the spots at the playhead (the picked part keeps its pick)
+	ouch.apply(looks, B, sel, dragging == "joint" and not clean and not wp_on, get_viewport().get_mouse_position())   # N064: during a joint drag only
 	_force_looks(looks)
 	skp.set_looks(looks)
 	for m in [bat_handle, bat_barrel, bat_knob]:
 		m.visible = B.wep_on
 	d2_handle.visible = B.wep2_on
 	d2_blade.visible = B.wep2_on
+	wep_model.visible = B.wep_on
+	wep2_model.visible = B.wep2_on
 	if B.wep2_on:
 		var hu := float(Body.KINDS[B.wep2_kind]["handle"])
 		_place(d2_handle, B.wep2_point(0.0), B.wep2_point(hu), 0.0, false)
 		_place(d2_blade, B.wep2_point(hu), B.wep2_point(B.wep2_len()), 0.0, false)
+		_wep_model_place(wep2_model, B.wep2_kind, B.wep2_xform())
 	if B.wep_on:
-		_wep_look()
 		if B.wep_kind == "staff":
-			# one even wooden shaft (the two halves drawn the same), no knob
 			bat_knob.visible = false
 			_place(bat_handle, B.wep_point(0.0), B.wep_point(B.wep_handle), 0.0, false)
 			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
 		elif not B.wep_head.is_empty():
-			# the long hammer: a taped shaft to the head, the steel head across the tip
 			_place(bat_knob, B.wep_point(0.0), B.wep_point(0.012), 0.0, false)
 			_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_len - 0.02), 0.0, false)
 			var hc: Array = B.cap("bat_barrel")
@@ -4616,10 +4891,13 @@ func _refresh() -> void:
 			_place(bat_knob, B.wep_point(0.0), B.wep_point(0.012), 0.0, false)
 			_place(bat_handle, B.wep_point(0.012), B.wep_point(B.wep_handle), 0.0, false)
 			_place(bat_barrel, B.wep_point(B.wep_handle), B.wep_point(B.wep_len), 0.0, false)
+		_wep_model_place(wep_model, B.wep_kind, B.wep_xform())
 	var c2: Array = B.cap(sel)
-	tag.visible = not clean
+	tag.visible = not clean and not quiet and not mesh_pg
+	for at in axis_tags:
+		at.visible = not (easy != null and easy.on)
 	for dj in dots:
-		dots[dj].visible = not clean and not hidden_parts.has(dj)
+		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
 	tag.text = nice(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
@@ -4730,8 +5008,13 @@ func _cam() -> void:
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
-	cam.h_offset = (rw() - lw()) * 0.5 * mpp
-	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
+	if easy.on:   # EASY: the look-at point sits in the free rect under the Easy bar / strip, the body framed there (easy_mode.gd frame_clip)
+		var eo: Vector2 = easy.offsets(vs, mpp)
+		cam.h_offset = eo.x
+		cam.v_offset = eo.y
+	else:
+		cam.h_offset = (rw() - lw()) * 0.5 * mpp
+		cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
 	if vx != null and vx.quad_on:
 		vx.cam_quad()   # K14: the perspective pane is a quarter of the free view
 	_axis_labels_fit(vs)
@@ -4939,6 +5222,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				if sel_prop >= 0:
 					sel_prop = -1
 					_props_show()
+				redspots.press(j, mb.position, playhead)   # N074: a glowing part opens its finding and Fix (the press goes on)
 				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
 					sel = j
 					playing = false
@@ -4964,6 +5248,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j) and sel_more.is_empty():   # a SET (Select: spine, Ctrl+click) turns every member by the same change (the old drag): PartDrag spreads or swings a turn its own way
 						_pd = PartDrag.begin(B, j, cam.project_ray_origin(mb.position), cam.project_ray_normal(mb.position))
 					_sd = _smart_begin(j, mb.alt_pressed)
+					_lb = LiveBalance.begin(B, j) if keep_balance and not mb.alt_pressed and sel_more.is_empty() else {}   # N066
+					_lb_r = {}
 					playing = false
 					_refresh()
 			elif mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -4980,6 +5266,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		else:
 			var was := dragging
 			dragging = ""
+			_lb = {}   # N066: the pose stays as the last frame left it
+			ouch.hide_readout()   # N064: the meter is for the drag only
 			_num_on = false
 			if was == "prop":
 				_prop_release()
@@ -5117,7 +5405,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				ui_cmd.open()
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5 when k.alt_pressed and not k.shift_pressed:   # Alt+1..5: the camera views, now that Shift+1..5 are the pages
 				_view(k.keycode - KEY_0)
-			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6 when k.shift_pressed:   # Shift+1..6: the pages
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9 when k.shift_pressed:   # Shift+1..9: the pages (7-9: the expert pages)
 				_page_set(PAGES[k.keycode - KEY_1])
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_view(k.keycode - KEY_0)
@@ -5226,6 +5514,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
 	if not _sd.is_empty() and not alt and not twist and not move:
 		_smart_step(tip)
+	_lb_step(tip and not alt and not move and not twist, alt)   # N066: keep him over his feet (the dragged joint untouched)
 	_arm_edit = sel if sel.begins_with("upperarm") and not move and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
@@ -5237,7 +5526,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		return
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
-	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
+	_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 
 
 ## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
@@ -5246,6 +5535,8 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 func _smart_begin(j: String, alt: bool) -> Dictionary:
 	if not smart_drag or alt or smart_follow <= 0.0 or j in Body.WEAPON or not sel_more.is_empty() or j == "pelvis":
 		return {}
+	if easy != null and easy.on:
+		return {}   # Easy: a drag moves only the part you drag (Nick 10-24: "while dragging an arm the whole body moves"); Expert keeps the follow
 	if not sd.ready_model() and not sd.refresh():
 		return {}
 	return sd.begin(B, j, locked_parts.keys())
@@ -5262,6 +5553,33 @@ func _smart_step(tip: bool) -> void:
 			fl = func(): B.shoulder_follow(sel.right(2))
 		PartDrag.move(B, _pd, cam.project_ray_origin(_pd_mp), cam.project_ray_normal(_pd_mp), fl)
 	sd.apply(B, _sd, smart_follow)
+
+
+## NEVER FALLS WHILE POSING (N066, scripts/live_balance.gd): after the drag's own edit, the hips slide so the COM stays inside the
+## planted feet. pull: a hand / foot on IK, put back on its target after the hips move. Alt during the drag: the correction is
+## taken back and he is let fall for the rest of this drag
+func _lb_step(pull: bool, alt: bool) -> void:
+	if _lb.is_empty():
+		_lb_r = {}
+		return
+	var redo := Callable()
+	if pull and not is_nan(_grab.x) and not (sel in ["hand_r", "hand_l"] and (ik_contact or (B.wep_on and B.wep_hand != "" and B.wep_hand != sel))):
+		redo = func(): B.reach(sel, _grab)
+	if alt:
+		LiveBalance.untake(B, _lb, redo)
+		_lb = {}
+		_lb_r = {}
+		return
+	_lb_r = LiveBalance.step(B, _lb, redo)
+
+
+func _toggle_keep_balance() -> void:
+	keep_balance = not keep_balance
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("pose", "keep_balance", keep_balance)
+	cf.save(settings)
+	_say("KEEP BALANCE ON: while you drag, the hips slide so he stays over his feet (Alt+drag lets him fall)" if keep_balance else "keep balance off: a drag can tip him over his feet")
 
 
 func _smart_set_follow(d: float) -> void:
@@ -5335,6 +5653,8 @@ func _do(f: Callable) -> void:
 ## WORDS TO A POSE (round 13, #93): "raise the right arm 90, bend the left elbow 45" (scripts/pose_words.gd). ONE undo
 ## step. Every op is reported with what was asked and what the joint REACHED (a limit or a contact stops it)
 func _pose_words(text: String) -> Dictionary:
+	if SupportPose.claims(text) and not PoseWords.parse(text)["ok"]:
+		return SupportPose.run(self, text)   # N015: "kneeling on the right knee, left foot flat" solves a pose on those contacts
 	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
 		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
 	if MeshWords.claims(text, kmed != null and kmed.on):
@@ -5638,7 +5958,7 @@ func _snapshot() -> Dictionary:
 		"hair": S.hair.duplicate(true),   # the hair strands' parameters (ROADMAP 87): undone like a card, the frames baked again
 		"skin_w": SkinPaint.snapshot(wp),   # WEIGHT PAINT (ROADMAP 72): every stroke is one step, undone with the weights
 		"body_gen": BaseBody.gen(self),   # G01: the body mesh applied from the model preview (scripts/base_body.gd)
-		"armour": ArmourFromBody.snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
+		"armour": load("res://scripts/armour_from_body.gd").snap(self),   # B23: the armour parts on the fighter (scripts/armour_from_body.gd)
 		"plants": S.plants.duplicate(true),   # foot plants (foot_plant.gd), undone like a card
 		"drivers": S.drivers.duplicate(true),   # user drivers (drivers.gd), undone like a card
 		"audio_tracks": S.audio_tracks.duplicate(true),   # the sounds on the timeline (AudioTrack, ROADMAP 77), undone like a card
@@ -5808,7 +6128,7 @@ func _restore(u: Dictionary) -> void:
 	if u.has("body_gen"):
 		BaseBody.restore_gen(self, int(u["body_gen"]))   # G01: before the weights, which are sized by its vertices
 	if u.has("armour"):
-		ArmourFromBody.restore(self, u["armour"])   # B23: the armour parts as they were
+		load("res://scripts/armour_from_body.gd").restore(self, u["armour"])   # B23: the armour parts as they were
 	if u.has("skin_w") and not wp.is_empty():
 		if SkinPaint.restore(wp, u["skin_w"]):
 			_skp_build()
@@ -5917,6 +6237,9 @@ func _push_undo() -> void:
 	if _step_hint != "":
 		u["hint"] = step_name(_step_hint)
 	_step_hint = ""
+	if _step_easy != "":
+		u["easy"] = _step_easy
+	_step_easy = ""
 	undo.append(u)
 	_tree.push(u)   # a new branch node when there was a redo: the abandoned future stays in the tree
 	_undo_tips()
@@ -5947,6 +6270,8 @@ func _undo() -> void:
 		now["lib"] = u["lib"]
 	if u.get("swap", false):
 		now["swap"] = true   # a whole-scene swap goes back and forth
+	if u.has("easy"):
+		now["easy"] = u["easy"]   # the Easy short name goes back and forth with the step, as its name does
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
@@ -5963,8 +6288,8 @@ func _undo() -> void:
 		sk.flips = fl
 		sk.fitted = SketchPose._skel(B, cam)
 		_sk_show_handles()
-	_say("undone: " + now["name"])
-	_toast("Undid: " + now["name"])
+	_say(("Took back: " + easy_name(u)) if easy != null and easy.on else "undone: " + now["name"])   # Easy says the short name too
+	_toast("Undid: " + (easy_name(u) if easy.on else now["name"]))   # Easy's toast says the short name ("Undid: Faster")
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -5983,14 +6308,16 @@ func _redo() -> void:
 		now["lib"] = r["lib"]
 	if r.get("swap", false):
 		now["swap"] = true
+	if r.has("easy"):
+		now["easy"] = r["easy"]
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
-	_say("redone: " + now["name"])
-	_toast("Redid: " + now["name"])
+	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "redone: " + now["name"])
+	_toast("Redid: " + (easy_name(r) if easy != null and easy.on else now["name"]))
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -6241,6 +6568,7 @@ func _qr_open_camera() -> void:
 	if FileAccess.file_exists(_qr_cam_file):
 		DirAccess.remove_absolute(_qr_cam_file)
 	_qr_cam_pid = OS.create_process(_qr_py(), PackedStringArray([ProjectSettings.globalize_path("res://tools/qr_tool.py"), "camera", "0", _qr_cam_file, "--seconds", "25"]))
+	Children.add(_qr_cam_pid)
 	if _qr_cam_pid < 0:
 		_say("could not start the camera reader: \"%s\" did not start. Install Python and run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture" % _qr_py())
 		return
@@ -6258,6 +6586,7 @@ func _qr_cam_poll() -> void:
 		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(_qr_cam_file))
 		DirAccess.remove_absolute(_qr_cam_file)
 		_qr_cam_timer.stop()
+		Children.done(_qr_cam_pid)
 		_qr_cam_pid = -1
 		if d is Dictionary and bool(d.get("ok", false)):
 			_qr_open_text(String(d["text"]))
@@ -6265,6 +6594,7 @@ func _qr_cam_poll() -> void:
 			_say(String((d as Dictionary).get("why", "no QR seen: try again")) if d is Dictionary else "the camera reader gave no answer: try again, or open a picture")
 	elif _qr_cam_pid < 0 or not OS.is_process_running(_qr_cam_pid):
 		_qr_cam_timer.stop()
+		Children.done(_qr_cam_pid)
 		_qr_cam_pid = -1
 		_say("the camera reader stopped without an answer: run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture")
 
@@ -6819,12 +7149,10 @@ func _actors_draw() -> void:
 		var tag: Label3D = mq["tag"]
 		tag.text = String(actors_rt[k]["name"])
 		tag.position = b.P["head"] + Vector3(0, 0.28, 0)
-		var w: Array = mq["wep"]
-		for mi in w:
-			(mi as MeshInstance3D).visible = b.wep_on
+		var wm: Node3D = mq["wep"][0]
+		wm.visible = b.wep_on
 		if b.wep_on:
-			_place(w[0], b.wep_point(0.0), b.wep_point(b.wep_handle), 0.0, false)
-			_place(w[1], b.wep_point(b.wep_handle), b.wep_point(b.wep_len), 0.0, false)
+			_wep_model_place(wm, b.wep_kind, b.wep_xform())
 		_fh_draw(k, b)   # the off-hand weapon and the fighter-hover light (own functions, below _actor_man)
 
 
@@ -6848,16 +7176,10 @@ func _actor_man() -> Dictionary:
 	tag.outline_size = 6
 	tag.modulate = skin.albedo_color.lightened(0.35)
 	root.add_child(tag)
-	var w := []
-	for r in [[B.wep_r_handle, B.wep_r_handle, "tape"], [B.wep_r_barrel, B.wep_r_handle, "metal"]]:
-		var mi := MeshInstance3D.new()
-		var c := CylinderMesh.new()
-		c.top_radius = r[0]
-		c.bottom_radius = r[1]
-		mi.mesh = c
-		mi.material_override = wep_mats[r[2]]
-		root.add_child(mi)
-		w.append(mi)
+	var wep_node := Node3D.new()   # this fighter's weapon: its shape (WeaponMesh), placed in its frame each refresh
+	wep_node.name = "weapon_model"
+	root.add_child(wep_node)
+	var w := [wep_node]
 	var fp := SkinPick.new()   # PRECISE PICK on this fighter too: its click and its hover light are on its own skin
 	fp.build((mq[0] as Node).find_children("*", "MeshInstance3D", true, false), mq[1])
 	var mdict := {"node": root, "skel": mq[1], "idx": mq[2], "wep": w, "tag": tag, "skp": fp}
@@ -6869,32 +7191,20 @@ func _actor_man() -> Dictionary:
 ## (d2_handle, d2_blade: the dagger's look), under the fighter's node, so the node's visibility covers them. The hovered
 ## part's light is on the fighter's own skin (its SkinPick, _fh_draw), as the active body's is
 func _fh_meshes(root: Node3D) -> Dictionary:
-	var tape: Material = wep_mats["tape"]
-	var steel: Material = wep_mats["steel"]
-	var w2 := []
-	for r in [[0.013, 0.013, tape], [0.004, 0.011, steel]]:
-		var mi := MeshInstance3D.new()
-		var c := CylinderMesh.new()
-		c.top_radius = r[0]
-		c.bottom_radius = r[1]
-		mi.mesh = c
-		mi.material_override = r[2]
-		root.add_child(mi)
-		w2.append(mi)
-	return {"wep2": w2}
+	var w2_node := Node3D.new()   # its off-hand weapon: the same shapes (WeaponMesh), placed in its frame
+	w2_node.name = "weapon2_model"
+	root.add_child(w2_node)
+	return {"wep2": [w2_node]}
 
 
 ## one fighter that is not active, this refresh: its off-hand weapon where its body holds it, and the hovered part's light
 ## (only when the mouse is on that fighter: hover_fighter)
 func _fh_draw(k: int, b: Body) -> void:
 	var mq: Dictionary = actor_men[k]
-	var w2: Array = mq["wep2"]
-	for mi in w2:
-		(mi as MeshInstance3D).visible = b.wep2_on
+	var w2m: Node3D = mq["wep2"][0]
+	w2m.visible = b.wep2_on
 	if b.wep2_on:
-		var hu := float(Body.KINDS[b.wep2_kind]["handle"])
-		_place(w2[0], b.wep2_point(0.0), b.wep2_point(hu), 0.0, false)
-		_place(w2[1], b.wep2_point(hu), b.wep2_point(b.wep2_len()), 0.0, false)
+		_wep_model_place(w2m, b.wep2_kind, b.wep2_xform())
 	var j := hover_fpart if k == hover_fighter else ""
 	(mq["skp"] as SkinPick).set_looks({j: _look_of("hover")} if j != "" and b.P.has(j) and not clean else {})
 
@@ -7051,6 +7361,9 @@ func _scene_dict(frames := true) -> Dictionary:
 	var d := H.to_dict(hb, frames)
 	hb.set_state(keep)
 	BodyFile.put_key(self, d)   # G07: the applied body's .kbody, by reference (scripts/body_file.gd)
+	var ar := ArmourFromBody.to_file(self)   # B23: the armour plates on the fighter, when there are any (scripts/armour_from_body.gd)
+	if not ar.is_empty():
+		d[ArmourFromBody.KEY] = ar
 	return d
 
 
@@ -8206,12 +8519,12 @@ func _dgb_release() -> void:
 	_say(DragBalance.words(d["r"]) + "   (keyed at %s; Ctrl+Z takes it back in one step)" % Units.time(t, S.fps))
 
 ## MODEL PAGE, FIRST STEP (ROADMAP_400 A05/A06; scripts/kmesh_view.gd, kmesh_edit_ui.gd): a test cube you can select on
-var kmed: KMeshEditUI
+var kmed   # KMeshEditUI (scripts/kmesh_edit_ui.gd), loaded on first use: not typed, so the class is not parsed at boot
 
 
 func _kmesh_edit_start() -> void:
 	if kmed == null:
-		kmed = KMeshEditUI.new()
+		kmed = load("res://scripts/kmesh_edit_ui.gd").new()
 		add_child(kmed)
 		kmed.setup(self)
 	if kmed.on:
@@ -8246,17 +8559,19 @@ func _kmesh_uv_export() -> void:
 
 
 ## SCULPT PAGE, FIRST STEP (ROADMAP_400 C01/C02; scripts/kmesh_sculpt.gd, kmesh_sculpt_ui.gd): a test sphere you can sculpt
-var ksc: KMeshSculptUI
+var ksc   # KMeshSculptUI (scripts/kmesh_sculpt_ui.gd): loaded on the first Sculpt open, not at boot
 
 
 func _sculpt_start() -> void:
 	if ksc == null:
-		ksc = KMeshSculptUI.new()
+		ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
 		add_child(ksc)
 		ksc.setup(self)
 	if ksc.on:
 		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
 		return
+	if kmed != null and kmed.on:
+		kmed.stop()   # the test cube is still open (its box select takes every left press first): the sphere gets the strokes
 	ksc.start()
 
 
@@ -10073,6 +10388,12 @@ static func _step_label(u: Dictionary) -> String:
 	return n.left(1).to_upper() + n.substr(1)
 
 
+## EASY: the short name of a step for Easy's Undo button and toast: the Easy name it was made with, else its own name; at most 18 characters
+static func easy_name(u: Dictionary) -> String:
+	var n := String(u.get("easy", "")) if u.has("easy") else _step_label(u)
+	return (n.left(16) + "..") if n.length() > 18 else n
+
+
 ## a status line -> a short step name: up to the first double space / "(" / ".  ", at most 48 characters
 static func step_name(t: String) -> String:
 	var n := t.strip_edges()
@@ -10511,7 +10832,15 @@ func _set_scale(pct: int) -> void:
 
 ## HINTS ON/OFF (round 35a, GATES QQ3): the teaching texts (the welcome line on the yellow strip, the selected part's
 ## "Drag: rotate it..." line, the Poses and Scene captions) go; what the app SAYS about what you did still shows
-const WELCOME := "Click a body part to select it.  Drag it to rotate.  POSES, on the left, has poses to start from."
+const WELCOME := "Click a part, then drag it to turn it."
+## the strip's words in Easy: Easy's one teaching line (the hint row's own words, MouseHint.EASY_LINE), so a first start in Easy says one thing
+func welcome_words() -> String:
+	return MouseHint.EASY_LINE if easy != null and easy.on else WELCOME
+
+
+## is this line the first-start strip (in either mode's words)?
+func is_welcome(t: String) -> bool:
+	return t == WELCOME or t == MouseHint.EASY_LINE
 var hints_on := true
 var ui_hint_labels: Array = []
 
@@ -10568,7 +10897,7 @@ func _hints_apply() -> void:
 	if ui_how != null:
 		ui_how.visible = false   # RR2: how to use the part is the title's tooltip, never a line in the box
 	if ui_status != null:
-		if not hints_on and ui_status.text == WELCOME:
+		if not hints_on and is_welcome(ui_status.text):
 			ui_status.text = ""
 		ui_status.visible = hints_on or ui_status.text != ""
 
@@ -10590,6 +10919,7 @@ func _onion_load() -> void:
 	ov.onion_step = clampi(int(cf.get_value("onion", "step", 1)), 1, Overlays.ONION_STEP_MAX)
 	ov.onion_picks = Array(cf.get_value("onion", "picks", []))
 	sg_on = bool(cf.get_value("suggest", "on", sg_on))   # R27: the next-pose ghosts (View > Next poses)
+	keep_balance = bool(cf.get_value("pose", "keep_balance", keep_balance))   # N066: Keep balance (POSE toolbar)
 
 
 func _onion_save() -> void:
@@ -10803,14 +11133,14 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
+const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
-	"Add prop": "prop", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
+	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
 	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
 
@@ -11131,6 +11461,7 @@ func _ui() -> void:
 	_build_page_bar()
 	for t in RIBBON:
 		tb.add_child(ui_ribbon[t])
+	ExpertPages.build(self)   # MODEL / SCULPT / SURFACE: their ribbon tools (scripts/expert_pages.gd), before the groups are laid out
 	var tog := func(tab: String, label: String, f: Callable, on: Callable, tip := ""):
 		var b := _button(label, f, tip)
 		b.toggle_mode = true
@@ -11156,6 +11487,10 @@ func _ui() -> void:
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
 	tog.call("POSE", "Smart drag", _toggle_smart_drag, func(): return smart_drag,
 		"on: dragging a joint also moves the rest of the body the way YOUR poses move together (learned from poses/ and scenes/; feet planted, balance held). Alt+drag = the one joint only. Command search: 'smart drag follow' sets the strength")
+	tog.call("POSE", "Keep balance", _toggle_keep_balance, func(): return keep_balance,
+		"on: while you drag a joint he stays over his feet: the hips slide (the back leans a little) so the centre of mass stays 2 cm inside the planted feet; the dragged joint keeps exactly what you gave it. Alt+drag lets him fall. Remembered")
+	tog.call("POSE", "Ouch meter", func(): ouch.set_on(not ouch.on, settings); _refresh(), func(): return ouch.on,
+		"while you drag a joint it glows green inside its comfortable range, yellow past it, red at the max (the joint table, or the two-joint muscle bar: a straight knee stops the hip at 90), with the angle and both bars beside the cursor. Sources: docs/research/OUCH_METER.md. Remembered")
 	tog.call("POSE", "Line of action", func(): loa.on = not loa.on; _refresh(), func(): return loa.on,
 		"the current line of action, faint: head, spine, pelvis, support knee and ankle. A C or an S shows the pose's shape")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
@@ -11336,6 +11671,7 @@ func _ui() -> void:
 	ap.about_to_popup.connect(_prop_menu_fill.bind(ap))
 	ap.get_popup().id_pressed.connect(_prop_menu_pick.bind(ap))
 	ui_ribbon["SET"].add_child(ap)
+	ui_ribbon["SET"].add_child(_button("Object library...", _library_toggle, "the object library: weapons, furniture, sports, everyday things, armour and your own models in tabs, with thumbnails and a search. Click one to place it: a weapon in the right hand, a prop on the floor, a plate over the body (one undo step each)"))
 	ui_ribbon["SET"].add_child(_button("Import model", _import_ask, "bring in your own .glb model (a box, furniture, an object): it is checked, copied into your library and put in the set. Or drop the file on the window"))
 	for tt in [["Turn left", -15.0], ["Turn right", 15.0]]:
 		var ptb := _button(tt[0], _prop_turn.bind(tt[1]), "turn the picked prop 15° round its middle")
@@ -11361,6 +11697,8 @@ func _ui() -> void:
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
 	tog.call("VIEW", "Local API", func(): _set_api(api == null or not api.running()), func(): return api != null and api.running(),
 		"a local HTTP API on 127.0.0.1 only (off by default): describe, run, check, shot over JSON, for a script on this machine. Needs the session token the status line shows. The port is [api] port in the settings file (default 8765)")
+	tog.call("VIEW", "Show problems on the body", func(): redspots.set_on(not redspots.on, settings); _refresh(), func(): return redspots.on,
+		"Check's problems glow on the body part at the frames they cover (red = must fix, yellow = look); click the glow for the finding and its Fix (remembered, on by default)")
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
@@ -11368,7 +11706,7 @@ func _ui() -> void:
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
 	tog.call("VIEW", "Corrective shapes", func(): corr.on = not corr.on; dummy_corr.on = corr.on; _refresh(); dummy_corr.update(T.D), func(): return corr.on,
 		"the elbows and knees keep their volume as they bend: the skin pushes out along its normals as the bend goes 0 -> 140 deg (scripts/corrective.gd). Off = the plain skinning, which pinches at a bent joint")
-	tog.call("VIEW", "Easy mode", func(): easy.set_on(not easy.on), func(): return easy.on, "Easy: the 12 big buttons, the panels hidden (a fresh start is Easy). Off = Expert: every panel and tool, as before (remembered)")
+	tog.call("VIEW", "Easy mode", func(): easy.set_on(not easy.on), func(): return easy.on, "Easy: the 13 big buttons, the panels hidden (a fresh start is Easy). Off = Expert: every panel and tool, as before (remembered)")
 	var us := MenuButton.new()
 	us.text = "UI size"
 	us.flat = false
@@ -11708,6 +12046,10 @@ func _ui() -> void:
 	ui_math.visible = false
 	num.add_child(ui_math)
 	num.add_child(attrs_sec)
+	knobs_ui = MoveKnobsUI.new(self)   # N025 MOVE KNOBS (scripts/move_knobs_ui.gd): rows in NUMBERS (a header of its own: over the 300 px bar)
+	num.add_child(knobs_ui)
+	hit_harder_ui = HitHarderUI.new(self)   # N065 (scripts/hit_harder_ui.gd): the strike card's "Hit harder" button
+	num.add_child(hit_harder_ui)
 
 	# ---- bottom: the scene
 	var bp := PanelContainer.new()
@@ -12002,6 +12344,31 @@ func _ui() -> void:
 	ui_status.add_child(hx)
 	ui_status.add_theme_stylebox_override("normal", sb)
 	ui_root.add_child(ui_status)
+	# MESH PAGES: what to click first (ExpertPages.HINTS): a dark box at the top centre of the clear view, under the ribbon
+	# (its own size, not the whole view: nothing else on the page is covered); it never takes a click
+	ui_mesh_hint_box = PanelContainer.new()
+	ui_mesh_hint_box.name = "mesh_hint_box"
+	ui_mesh_hint_box.visible = false
+	ui_mesh_hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var hsb := StyleBoxFlat.new()
+	hsb.bg_color = Color(0.05, 0.06, 0.08, 0.78)
+	hsb.set_corner_radius_all(10)
+	hsb.content_margin_left = 16.0
+	hsb.content_margin_right = 16.0
+	hsb.content_margin_top = 6.0
+	hsb.content_margin_bottom = 6.0
+	ui_mesh_hint_box.add_theme_stylebox_override("panel", hsb)
+	ui_root.add_child(ui_mesh_hint_box)
+	ui_mesh_hint = Label.new()
+	ui_mesh_hint.name = "mesh_hint"
+	ui_mesh_hint.visible = false
+	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_mesh_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_mesh_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ui_mesh_hint.add_theme_font_size_override("font_size", 20)
+	ui_mesh_hint.add_theme_color_override("font_color", Color(0.80, 0.84, 0.92, 0.95))
+	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_mesh_hint_box.add_child(ui_mesh_hint)
 	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
 	ui_vdiff = PanelContainer.new()
 	ui_vdiff.name = "vdiff_panel"
@@ -12077,7 +12444,7 @@ func _ui() -> void:
 	_nt_sync()
 	ui_cmd.files_provider = _search_files   # ROADMAP 52: the saved poses and scenes, read each time the box opens
 	ui_cmd.pose_by_words = _pose_words
-	ui_cmd.tools = MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), each with its hotkey and page
+	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
 	_hover_hints()
 	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
 	tips.name = "tips"
@@ -12209,8 +12576,7 @@ func _lists() -> void:
 			if not f.ends_with(".json"):
 				continue
 			var path: String = dir + "/" + f
-			var txt := FileAccess.get_file_as_string(path)
-			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
+			if _is_scene_file(path):
 				continue
 			var i := ui_poses.add_item(f.get_basename().replace("_", " ") + {"res://poses": "", "res://poses/lib": "   (library)"}.get(dir, "   (yours)"))
 			ui_poses.set_item_metadata(i, path)
@@ -12222,6 +12588,61 @@ func _lists() -> void:
 
 ## THE DROPDOWN'S ROWS (ROADMAP 59): the recent scenes first, then every scene; the open scene is selected by _show_open_scene
 ## (the last row with its file wins, so the picked row is the one in the list proper)
+var _scene_kind := {}   # path -> [modified time, is a scene]: the list is refilled on every open, and reading every file
+						# each time grew with the work (200+ clips in scenes/_wip: ~270 ms an Easy card click)
+
+func _is_scene_file(path: String) -> bool:
+	var mt := FileAccess.get_modified_time(path)
+	var c: Array = _scene_kind.get(path, [])
+	if c.is_empty() or int(c[0]) != mt:
+		var txt := FileAccess.get_file_as_string(path)
+		c = [mt, txt.contains("\"keys\"") or txt.contains("\"cards\"")]
+		_scene_kind[path] = c
+	return bool(c[1])
+
+
+## THE DRAFTS (10-24: 300+ Easy clips in scenes/_wip buried the saved scenes). The list is the SAVED scenes first (scenes/
+## and moves/, newest first), then ONE group "Drafts (N)" with the _wip clips, newest first. The group is collapsed by default;
+## expanded it shows the newest DRAFTS_SHOWN and "Show all N drafts". A draft that is open is listed expanded (the open scene
+## is always the pick: Delete trashes it, and the list says what is open). A group row's metadata is "#drafts" or
+## "#drafts-all", never a path: every scene row's metadata is its path.
+const DRAFTS_SHOWN := 20
+var _draft_paths: Array = []   # the _wip clips as the last list read them, newest first (Easy's Open shows the newest 5)
+var _drafts_open := false      # the group was expanded by its row
+var _drafts_all := false       # "Show all N drafts" was picked
+
+
+func is_draft_path(p: String) -> bool:
+	return p.contains("/_wip/")
+
+
+func draft_paths() -> Array:
+	return _draft_paths.duplicate()
+
+
+## the scene files in these folders as [path, modified time] pairs, newest first (the name breaks a tie)
+func _scene_files(dirs: Array) -> Array:
+	var out := []
+	for dir in dirs:
+		var d := DirAccess.open(dir)
+		if d == null:
+			continue
+		for f in d.get_files():
+			if not f.ends_with(".json"):
+				continue
+			var path: String = dir + "/" + f
+			if _is_scene_file(path):   # the cache also holds the modified time: no second read of the file
+				out.append([path, int(_scene_kind[path][0])])
+	out.sort_custom(func(a, b): return a[1] > b[1] or (a[1] == b[1] and a[0] < b[0]))
+	return out
+
+
+func _add_scene_row(path: String, tail: String, indent := "") -> void:
+	var i := ui_scenes.item_count
+	ui_scenes.add_item(indent + path.get_file().get_basename().replace("_", " ") + tail)
+	ui_scenes.set_item_metadata(i, path)
+
+
 func _fill_scene_list() -> void:
 	ui_scenes.clear()
 	for p in _recent_list():   # File > Recent (ROADMAP 59): the last scenes opened or saved, first and marked; a missing one greyed
@@ -12230,27 +12651,35 @@ func _fill_scene_list() -> void:
 		ui_scenes.add_item(p.get_file().get_basename().replace("_", " ") + ("   (missing)" if miss else "   (recent)"))
 		ui_scenes.set_item_metadata(i, p)
 		ui_scenes.set_item_disabled(i, miss)
-	# round 45 (Nick 10-18: his video import "doesn't show on open scene"): the work copies in scenes/_wip (imports,
-	# mirrors, polishes) are listed too, marked; opening one picks it, so Delete still trashes only the scene on screen
-	for dir in ["res://scenes", "res://moves", "res://scenes/_wip"]:
-		var d := DirAccess.open(dir)
-		if d == null:
-			continue
-		for f in d.get_files():
-			if not f.ends_with(".json"):
-				continue
-			var path: String = dir + "/" + f
-			var txt := FileAccess.get_file_as_string(path)
-			if txt.contains("\"keys\"") or txt.contains("\"cards\""):
-				ui_scenes.add_item(f.get_basename().replace("_", " ") + ("   (work copy)" if dir.ends_with("_wip") else ""))
-				ui_scenes.set_item_metadata(ui_scenes.item_count - 1, path)
+	# the saved scenes (+ the user's folders in a build), newest first
+	for f in _scene_files(["res://scenes", "res://moves"].reduce(func(a, x): return a + UserPaths.dirs(x), [])):
+		_add_scene_row(f[0], "")
+	# the drafts: the work copies in scenes/_wip (imports, mirrors, polishes, Easy's clips), one group, newest first
+	_draft_paths = _scene_files(UserPaths.dirs("res://scenes/_wip")).map(func(f): return f[0])
+	if _draft_paths.is_empty():
+		return
+	var expanded := _drafts_open or _draft_paths.has(scene_path)
+	ui_scenes.add_item(("- " if expanded else "+ ") + "Drafts (%d)" % _draft_paths.size())
+	ui_scenes.set_item_metadata(ui_scenes.item_count - 1, "#drafts")
+	if not expanded:
+		return
+	var n := _draft_paths.size() if _drafts_all else mini(DRAFTS_SHOWN, _draft_paths.size())
+	for k in n:
+		_add_scene_row(_draft_paths[k], "   (work copy)", "    ")
+	if _draft_paths.find(scene_path) >= n:   # the open scene is an older draft: it is listed too (the list shows what is on screen)
+		_add_scene_row(scene_path, "   (work copy)", "    ")
+	if n < _draft_paths.size():
+		ui_scenes.add_item("    Show all %d drafts" % _draft_paths.size())
+		ui_scenes.set_item_metadata(ui_scenes.item_count - 1, "#drafts-all")
 
 
 ## the list opens: each scene's picture is asked for (a cached one is set at once, the rest are drawn a frame apart)
 func _scenes_opening() -> void:
 	if thumbs != null:
 		for i in ui_scenes.item_count:
-			thumbs.request(ui_scenes.get_item_metadata(i))
+			var p := String(ui_scenes.get_item_metadata(i))
+			if not p.begins_with("#"):   # not the Drafts group's rows
+				thumbs.request(p)
 	_fit_scene_list.call_deferred()   # once the popup has its place: its size is set after it is shown
 
 
@@ -12335,6 +12764,8 @@ func bar_text() -> String:
 	var chk := "Check: not run" if not check_ran else ("Check: clean" if findings.is_empty() else "Check: %d (%d must fix)" % [findings.size(), fails])
 	if check_ran and undo.size() != check_at:
 		chk += ", changed since"
+	if easy != null and easy.on:   # Easy: the short line (the picked part and the Check result are in Expert)
+		return "  |  ".join([card, t])
 	return "   |   ".join([what, card, t, chk])
 
 
@@ -12688,7 +13119,9 @@ func _rebuild_cards() -> void:
 	_ease_bias_armed = false   # a rebuild (pick, undo, any edit) ends the slider's drag: its next move gets its own undo step
 	_sg_strip = null   # R27: the strip was emptied just above
 	_layout_bottom()
-	if S.cards.is_empty():
+	if S.cards.is_empty() and easy != null and easy.on:
+		ui_cards.add_child(_label("Your moves will show here. Pick one in \"What should he do?\"", 16, "text:0.55"))   # Easy home holds the ways in
+	elif S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
 		for st in [["Clip this pose  (Enter)", _card_add, "the body as it is now becomes clip 1; pose the next moment and clip again, then Play"],
@@ -12719,9 +13152,10 @@ func _rebuild_cards() -> void:
 		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
 		# the picture IS the pick button: the pose on the body, the number and name under it
-		var nb := _button("%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
+		var easy_on: bool = easy != null and easy.on   # Easy: a picture and one plain word (the name); no number, no seconds
+		var nb := _button(_easy_card_name(c["name"]) if easy_on else "%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
-		nb.tooltip_text = "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
+		nb.tooltip_text = ("%s.  Click shows it, double-click renames, drag moves it, right-click for more" % _easy_card_name(c["name"])) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
 		nb.flat = true
 		nb.clip_text = true
@@ -12770,7 +13204,8 @@ func _rebuild_cards() -> void:
 		tb.add_theme_constant_override("h_separation", 0)
 		_card_flat(tb)
 		_card_timing_look(tb, i)
-		v.add_child(tb)
+		if not (easy != null and easy.on):   # Easy: no timing line (the seconds and the hold are Expert's)
+			v.add_child(tb)
 		var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
 		pp.name = "time_edit"
 		pp.top_level = true
@@ -12832,6 +13267,12 @@ func _card_flat(b: Button) -> void:
 const CARD_W := 91     # a card: the picture, "3 CONTACT", "0.4 s + hold 0.05": 17 fit a 1600 window (the old cards: 8)
 const CARD_PIC_H := 55
 var _pl_card := -1     # the card at the playhead (marked on the strip)
+
+
+## Easy's card line: the card's name with a capital and the rest as typed ("CROSS" -> "Cross", "guard" -> "Guard")
+func _easy_card_name(n: String) -> String:
+	var t := String(n).strip_edges()
+	return t.substr(0, 1).to_upper() + t.substr(1).to_lower() if t != "" else "Card"
 
 
 ## "0.4 s + hold 0.05": the time to get here (a ~ when it is automatic) and the hold; the first card has only a hold
@@ -13141,24 +13582,6 @@ func _scene_menu_pick(id: int) -> void:
 			_delete_scene()
 
 
-## P11 (docs/ROADMAP_400.md): a greyed page says why it is greyed and what already works for it (the commands of its
-## prefix that exist in the registry today), so a click is never a dead end
-const PAGE_SOON_WHY := {"MODEL": ["Model:", "the mesh core is in (half-edge mesh, selection, loops, symmetry, mesh undo); the modeling tools (extrude, bevel, loop cut) come next"],
-	"SCULPT": ["Sculpt:", "sculpting needs the mesh core's brushes and multires levels: planned after the MODEL tools"],
-	"SURFACE": ["Surface:", "UVs and materials come after the mesh can be edited: unwrap, seams, packing, then PBR materials"]}
-
-
-func _page_soon_why(p: String) -> String:
-	var w: Array = PAGE_SOON_WHY.get(p, ["", "coming"])
-	var have := []
-	for c in _commands():
-		if String(w[0]) != "" and String(c["name"]).begins_with(String(w[0])):
-			have.append(String(c["name"]))
-	if have.is_empty():
-		return "%s is greyed because it is not built yet: %s. Nothing to click for it yet" % [p, w[1]]
-	return "%s is greyed because it is not built yet: %s. Works now: %s%s (S, then type \"%s\")" % [p, w[1], ", ".join(have.slice(0, 4)), "..." if have.size() > 4 else "", String(w[0]).trim_suffix(":").to_lower()]
-
-
 ## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
 func _open_scene_popup() -> void:
 	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
@@ -13329,7 +13752,7 @@ func _ribbon_row(t: String) -> void:
 	_place_caps.call_deferred()
 
 
-## THE PAGE BAR: nine buttons, icon and name; the five that exist, then BODY / MODEL / SCULPT / SURFACE greyed (coming)
+## THE PAGE BAR: nine buttons, icon and name; every page is a real page (the expert ones are hidden in Easy mode)
 func _build_page_bar() -> void:
 	var bar := PanelContainer.new()
 	bar.name = "page_bar"
@@ -13346,7 +13769,7 @@ func _build_page_bar() -> void:
 	h.add_theme_constant_override("separation", 4)
 	bar.add_child(h)
 	var group := ButtonGroup.new()
-	for p in PAGES + PAGES_SOON:
+	for p in PAGES:
 		var b := Button.new()
 		b.name = ("tab_" + String(PAGE_ROW[p]).to_lower()) if PAGE_ROW.has(p) else ("page_" + p.to_lower())
 		b.text = p
@@ -13362,12 +13785,8 @@ func _build_page_bar() -> void:
 			b.pressed.connect(func(): _step_hint = "Page: " + p; _page_set(p))
 			ui_page_btns[p] = b
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
-		else:
-			b.tooltip_text = "coming: the %s page. Click it: what works already and what is next" % p
-			b.modulate = Color(1, 1, 1, 0.38)   # greyed: a click explains instead of doing nothing (P11)
-			b.pressed.connect(func(): _say(_page_soon_why(p)); page_tour.opened(p))
 		h.add_child(b)
-		if p == PAGES[-1]:
+		if p == "DELIVER":
 			var sep := VSeparator.new()
 			sep.custom_minimum_size.x = 14
 			h.add_child(sep)
@@ -13605,15 +14024,36 @@ func _next_run() -> void:
 func _page_set(p: String, save := true) -> void:
 	if not PAGE_ROW.has(p):
 		return
+	if easy != null and easy.on and ExpertPages.PAGES.has(p):
+		return   # the expert pages are hidden in Easy mode (ExpertPages; the Shift+7..9 keys too)
+	var was_mesh := ExpertPages.PAGES.has(cur_page)
+	var is_mesh := ExpertPages.PAGES.has(p)
+	if is_mesh and not was_mesh:   # a mesh page: the posing body's target dummy goes away (as Easy does), remembered
+		_pose_dummy_was = dummy_on
+		if dummy_on:
+			dummy_on = false
+			_dummy_hits()
+	elif was_mesh and not is_mesh and _pose_dummy_was:   # back to a posing page: the dummy is as it was
+		_pose_dummy_was = false
+		if easy != null and easy.on:
+			easy._dummy_was = true   # Easy came on from the mesh page: Easy's own way back gets the dummy (its set_on saved it off)
+		elif not dummy_on:
+			dummy_on = true
+			_dummy_hits()
 	cur_page = p
 	for k in fold:
 		fold[k] = _page_want(p, k)
 	_ribbon_row(PAGE_ROW[p])
 	if ui_reactions != null and p != "STAGE":
 		ui_reactions.visible = false   # R16: the picker belongs to the STAGE page
+	if ui_library != null and p != "STAGE":
+		ui_library.visible = false   # the object library too (STAGE's SET row opens it)
 	_sides_apply()
 	_layout_bottom()
 	_fit_rows.call_deferred()
+	if tag != null:
+		_refresh()   # the part tag and the joint dots follow the page (hidden on the mesh pages)
+		_cam()   # _refresh shows every axis word again: the camera's fit hides those under the bottom bars
 	if page_tour != null and page_tour.card != null:
 		page_tour.opened.call_deferred(p)   # P01: the page's first-use tour, once its panels are laid out
 	if save:
@@ -13622,6 +14062,38 @@ func _page_set(p: String, save := true) -> void:
 		if cf.get_value("layout", "page", "POSE") != p:
 			cf.set_value("layout", "page", p)
 			cf.save(settings)
+
+
+## MESH PAGES (Expert only): the posing overlays (inspector, part tag, joint dots, target dummy) stay off on MODEL / SCULPT / SURFACE
+func _mesh_page() -> bool:
+	return ExpertPages.PAGES.has(cur_page) and not (easy != null and easy.on)
+
+
+func _mesh_open() -> bool:
+	return (kmed != null and kmed.on) or (ksc != null and ksc.on)
+
+
+## the hint in the view while a mesh page has no mesh open; gone as soon as one is open or the page is left
+func _mesh_hint_sync() -> void:
+	if ui_mesh_hint == null:
+		return
+	var txt: String = ExpertPages.HINTS.get(cur_page, "") if _mesh_page() else ""
+	var show := txt != "" and not _mesh_open()
+	if ui_mesh_hint.text != txt:
+		ui_mesh_hint.text = txt
+	if ui_mesh_hint.visible != show:
+		ui_mesh_hint.visible = show
+	if ui_mesh_hint_box.visible != show:
+		ui_mesh_hint_box.visible = show
+	if show:
+		_mesh_hint_place()
+
+
+## the hint's box: top centre of the clear view (under the ribbon), sized to its text
+func _mesh_hint_place() -> void:
+	ui_mesh_hint_box.reset_size()
+	var cl := nav_clear_rect()
+	ui_mesh_hint_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_hint_box.size.x) * 0.5, cl.position.y + 8.0)
 
 
 func _page_want(p: String, which: String) -> bool:
@@ -13820,11 +14292,15 @@ func _layout_bottom() -> void:
 	ui_bh.visible = not folded and not easy.on
 	if not empty:
 		bottom_h += int(ui_timeline.clip_px() + _tl_under_ruler() + ui_timeline.audio_h())   # CLIPS: the panel grows by the strips' rows (none: as before); the frame strip, the boxes lane and one row per audio track too (ROADMAP 12 / 36 / 77)
+	var eo: bool = easy.on and not empty and not folded   # EASY BOTTOM: the card row and the ruler, no more (a beginner's panel is not a timeline)
+	if eo:
+		bottom_h = EASY_ROW_H + EASY_SEP + EASY_RULER + 6 + PAGE_H
+	_easy_bottom_style(eo)
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
 		ui_fold_btn["bottom"].visible = not empty
-	ui_card_row.custom_minimum_size.y = 26 if empty else 104
+	ui_card_row.custom_minimum_size.y = 26 if empty else (EASY_ROW_H if eo else 104)
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty and not easy.on
 	ui_bp.offset_top = -bottom_h
@@ -13999,7 +14475,7 @@ func _commands() -> Array:
 	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
-	add.call("Mode: Easy (12 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 12 buttons stay large (remembered)")
+	add.call("Mode: Easy (13 buttons, large)", "", easy.set_on.bind(true), "easy beginner simple mode buttons hide panels", false, "hide the panels and tools; the 13 buttons stay large (remembered)")
 	add.call("Mode: Expert (every panel and tool)", "", easy.set_on.bind(false), "expert advanced full mode panels all tools", false, "every panel and tool back, as before (remembered)")
 	add.call("Edit: undo history...", "", _toggle_history, "steps list back forward", false, "every change by name, as a tree: branches where an edit came after an undo; click one to jump to exactly that state")
 	add.call("Save pose", "Ctrl+S", _save_pose, "store keep", false, "save the body as a pose file in poses/ (the Poses list)")
@@ -14286,6 +14762,7 @@ func _commands() -> Array:
 	add.call("Root path: scale length...", "", _rp_scale_dialog, "root motion path scale length longer shorter stretch factor percent travel distance", true, "every card's root moves about the first card's root by the factor you pick (25 to 300 %): the path gets longer or shorter, its headings and card times stay; one undo step (ROADMAP 91)")
 	add.call("Range rings on/off", "", _rings_toggle, "range rings distance reach arm weapon step in opponent fighter spacing measure guide", false, "floor rings around the picked fighter at its arm reach, arm and weapon reach, and a step-in range; a ring turns bright when the other fighter's nearest part is inside it; the label gives the distance in cm (ROADMAP 38)")
 	add.call("React to the hit (physics)", "", _react_physics, "react reaction hit physics mujoco impulse struck fighter weapon fist impact contact simulate humanoid", true, "where a weapon or fist touches a fighter, Kine measures the blow (the struck part, the direction, the impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact frame, in the background; strength light / medium / hard and whether it fell; one Ctrl+Z (ROADMAP I2)")
+	add.call("Object library...", "", _library_toggle, "library objects things props weapons furniture armour sports everyday models place thumbnails search", false, "a panel of objects in tabs (Weapons, Furniture, Sports, Everyday, Armour, My models) with thumbnails and a search: click one to place it, one undo step")
 	add.call("Reactions: hit reaction picker", "", _reactions_toggle, "reaction reactions hit picker thumbnails physics struck fighter drag drop knock fall stage", false, "a panel of the reaction clips found in scenes/reactions and scenes/_wip: a thumbnail, where it hits, how hard, whether the fighter falls; drag one onto the struck fighter (ROADMAP R16)")
 	add.call("Reactions: make 3 sample clips", "", _reactions_samples, "reaction reactions sample clips make example head snap knock down bat", false, "three sample hit reactions (a bat to the torso, a head snap, a knock-down) in scenes/_wip/reactions, made from the app's own poses")
 	add.call("Fight phrase: build the defender's answer (preview)", "", _fight_build, "fight phrase defender answer block slip range combo build preview ghost", false, "walks the attacker's strikes (the active fighter's tip-speed peaks) and picks one defence per strike, a block or a slip, in place 2 frames before each contact (it starts one reaction time, 0.2 s, earlier), keeps the pair at fighting range (steps the defender in or out) and flags a strike no distance can make. A ghost shows the answer; nothing is written until 'Fight phrase: accept' (I11)")
@@ -14317,6 +14794,7 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
+	add.call("Check: explain this motion", "", ExplainMotion.show.bind(self), "explain motion phases anticipation action contact follow-through recovery power chain weight read heavy fast snappy floaty beginner why", false, "N091: the strike in plain words with its numbers: phases, where the power comes from, what makes it read fast / heavy, one thing to try (scripts/explain_motion.gd)")
 	add.call("Check: weights broke here", "", _weights_broke, "weights broke skin vertex stretch spike pop wrong bone bad weight worst frame skinning candy", false, "over the whole animation finds the vertex with the worst weight problem (edges stretched against rest, jumps between frames, weights far from the vertex's own bone, weights not adding up to a whole or over 4 bones), jumps the playhead to its worst frame, frames the camera on it and marks it; the report has a button that opens Weight paint on the bone (ROADMAP_400 H24)")
 	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
@@ -15250,7 +15728,7 @@ func _mirror_scene() -> void:
 	var d := _mirrored_dict()
 	# the file name made safe (round 19: the raw name wrote "_wip/x" into scenes/_wip/_wip/, and "a:b" was a name Windows
 	# refuses); always in scenes/_wip, whatever folder the name gives
-	var path := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/")
+	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
 	_load_scene(path)
 	_rebuild_cards()
@@ -15467,7 +15945,7 @@ func _style_dialog(style: String) -> void:
 func _style_save(style: String, pct: float) -> void:
 	var H := _hero_scene()   # TC3: the file is the hero's scene (with its actors), whoever is active
 	var d := StyleTransfer.make(_scene_dict(), style, pct)
-	var path := "res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/")
+	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
 	_load_scene(path)
 	_rebuild_cards()
@@ -15509,12 +15987,12 @@ func _words_build() -> void:
 		return
 	var W := Body.new()   # a scratch body: the build poses it card by card; the live body takes the opened scene
 	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-	var r: Dictionary = TextBlocking.build(text, W)
+	var r: Dictionary = load("res://scripts/text_blocking.gd").build(text, W)
 	if not r["ok"]:
 		_say("'%s': %s: type a move like 'overhead axe strike, step in'" % [text, r["error"]])
 		return
 	var S2: Scene = r["scene"]
-	var path := TextBlocking.unique_path("res://scenes/_wip", TextBlocking.slug(text))
+	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), load("res://scripts/text_blocking.gd").slug(text))
 	var d := S2.to_dict(W)
 	d["plan"] = "Block out a move from words '%s': %s" % [text, r["status"]]
 	_write(path, d)
@@ -15820,6 +16298,7 @@ func _check(given = null) -> void:
 		findings = Rulebook.check(S, ov.GB, _sm)
 	check_ran = true
 	check_at = undo.size()
+	redspots.set_findings(findings)   # N074: the glows come from this list, never from a Check of their own
 	for c in ui_find_list.get_children():
 		ui_find_list.remove_child(c)   # detach now: queue_free alone leaves the old rows listed until the frame ends
 		c.queue_free()
@@ -15836,6 +16315,9 @@ func _check(given = null) -> void:
 		var vl := _label("Is this clip physically possible?  %s" % vword + ("" if vword == "PASS" else "  (the frames and reasons are below; click one)"), 16, "heading" if vword == "PASS" else "warn", true)
 		vl.name = "verdict"
 		ui_find_list.add_child(vl)
+		var wl := _label(String(WhoCould.of_scene(S, ov.GB)["text"]), 14, "text:0.85", true)   # N027 (scripts/who_could.gd)
+		wl.name = "whocould"
+		ui_find_list.add_child(wl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
 	var n_push := _push_rows()   # R24: each hit contact against the MuJoCo push-limit table (above the findings: always on screen)
@@ -15936,6 +16418,7 @@ func _critique() -> void:
 	var title := _label("CRITIQUE  -  " + ("nothing to note in the craft rules" if notes.is_empty() else "%d notes (never must-fix)" % notes.size()), 18, "heading")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
+	head.add_child(_button("Explain", ExplainMotion.show.bind(self), "N091: this motion in plain words, with the numbers (phases, power, read, one thing to try)"))
 	head.add_child(_button("Close", _close_findings))
 	ui_find_list.add_child(_label("Animation craft, from the twelve principles: notes, not errors. Click one to jump to its moment.", 13, "text:0.6", true))
 	for k in notes.size():
@@ -16433,7 +16916,7 @@ func _polish() -> void:
 	var D: Scene = r[0]
 	var base := S.name.trim_suffix("_polished")
 	D.name = base + "_polished"
-	var path := "res://scenes/_wip/%s.json" % D.name
+	var path := UserPaths.w("res://scenes/_wip/%s.json" % D.name)
 	var d := D.to_dict(ov.GB)
 	d["plan"] = "Polish (tools/detail.gd) from " + base
 	_write(path, d)
@@ -16469,10 +16952,10 @@ func _ragdoll_fall() -> void:
 	C.pin = false
 	var d := C.to_dict(B)
 	d["plan"] = "Ragdoll (scripts/ragdoll.gd) from %s, pins: %s" % [S.name, ", ".join(pins) if not pins.is_empty() else "none"]
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier fall: _ragdoll_2, _ragdoll_3 ...
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -17041,7 +17524,8 @@ func _stamp() -> String:
 	return Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "_")
 
 
-func _write(path: String, d: Dictionary) -> void:
+func _write(path0: String, d: Dictionary) -> void:
+	var path := UserPaths.w(path0)   # an exported build's res:// is read-only: the user's folder (as run from source: unchanged)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, " "))
@@ -17050,7 +17534,7 @@ func _write(path: String, d: Dictionary) -> void:
 
 func _save_pose() -> void:
 	var nm := safe_file(ui_pose_name.text).replace("_wip/", "")   # X3: a safe file name (poses have no _wip)
-	var path := "res://moves/%s.json" % (nm if nm != "" else "pose_" + _stamp())
+	var path := UserPaths.w("res://moves/%s.json" % (nm if nm != "" else "pose_" + _stamp()))
 	if FileAccess.file_exists(path):
 		_confirm("A pose called '%s' already exists.\nReplace it with the body as it is now? Ctrl+Z can't bring the old file back." % path.get_file().get_basename(),
 			"Replace it", _save_pose_now.bind(path))
@@ -17279,8 +17763,8 @@ func _trash(path: String) -> void:
 
 
 func _trash_now(path: String) -> bool:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://trash"))
-	var to := "res://trash/%s_%s.json" % [path.get_file().get_basename(), _stamp()]
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(UserPaths.w("res://trash")))
+	var to := UserPaths.w("res://trash/%s_%s.json" % [path.get_file().get_basename(), _stamp()])
 	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(to))
 	if err != OK:
 		_say("couldn't delete (error %d): close any program that has the file open, then press Delete again" % err)
@@ -17303,7 +17787,7 @@ func _delete_pose() -> void:
 
 
 func _delete_scene() -> void:
-	if ui_scenes.selected < 0:
+	if ui_scenes.selected < 0 or String(ui_scenes.get_item_metadata(ui_scenes.selected)).begins_with("#"):
 		_say("pick the scene to delete in the list first")
 		return
 	_trash(ui_scenes.get_item_metadata(ui_scenes.selected))
@@ -17343,7 +17827,7 @@ func _save_scene() -> void:
 		_say("the scene is empty: press Enter to add the body as a card, then Save scene")
 		return
 	var nm := ui_scene_name.text.strip_edges()
-	var to := "res://scenes/%s.json" % (safe_file(nm) if safe_file(nm) != "" else "scene_" + _stamp())
+	var to := UserPaths.w("res://scenes/%s.json" % (safe_file(nm) if safe_file(nm) != "" else "scene_" + _stamp()))
 	if FileAccess.file_exists(to) and to != scene_path:
 		_confirm("A different scene called '%s' already exists.\nReplace it with this one? Ctrl+Z can't bring the old file back." % to.get_file().get_basename(),
 			"Replace it", _save_scene_now.bind(nm))
@@ -17375,6 +17859,42 @@ static func safe_file(nm: String) -> String:
 	return pre + out if out != "" else ""
 
 
+## `Kine.exe --position 3000,3000 -- --selfcheck-save` (an exported build's own check; not run from source, no test uses it):
+## one Easy card (Punch) builds its clip, Save scene writes the scene, the scene is reopened and must hold the same cards (>= 2).
+## Files go to the user's real folder (UserPaths.w: Documents/Kine in a build), named selfcheck_<unix time>, so they stay there
+## for the check. One line goes to user://selfcheck.txt (SELFCHECK OK|FAIL ...), then the app quits.
+func _selfcheck_save() -> void:
+	var clip := ""
+	for i in 1200:   # the clip builds over frames: wait for it (about 20 s at most)
+		await get_tree().process_frame
+		if i == 0:
+			easy.home.card(3)   # Punch
+		if scene_path.begins_with(UserPaths.user_root() + "/scenes/_wip/") and FileAccess.file_exists(scene_path):
+			clip = scene_path
+			break
+	for _k in 10:
+		await get_tree().process_frame
+	var nm := "selfcheck_%d" % Time.get_unix_time_from_system()
+	ui_scene_name.text = nm
+	_save_scene_now(nm)
+	var saved := scene_path
+	_new_scene()
+	_load_scene(saved)
+	_rebuild_cards()
+	for _k in 4:
+		await get_tree().process_frame
+	var n := S.cards.size()
+	var ok := clip != "" and FileAccess.file_exists(clip) and FileAccess.file_exists(saved) and n >= 2
+	var line := "SELFCHECK %s clip=%s (exists %s) scene=%s (exists %s) reopened_cards=%d root=%s" % ["OK" if ok else "FAIL", clip,
+		FileAccess.file_exists(clip), saved, FileAccess.file_exists(saved), n, UserPaths.user_root()]
+	print(line)
+	var f := FileAccess.open("user://selfcheck.txt", FileAccess.WRITE)
+	if f != null:
+		f.store_line(line)
+		f.close()
+	get_tree().quit()
+
+
 func _save_scene_now(nm: String) -> void:
 	if co != null and co.connected() and not co.is_host:
 		_say("live co-edit: the host saves the scene (your fighter's work is on its side too): ask the host to save, or save your own copy under another name")
@@ -17386,10 +17906,10 @@ func _save_scene_now(nm: String) -> void:
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
 	_write("res://scenes/%s.json" % fname, d)
 	if np.loaded:
-		np.update_file("res://scenes/%s.json" % fname)   # R27: the index of your habits learns the saved scene
+		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
 	_clean = _doc_key()
 	_autosave_drop()
-	scene_path = "res://scenes/%s.json" % fname
+	scene_path = UserPaths.w("res://scenes/%s.json" % fname)
 	_recent_note(scene_path, true)
 	_journal_saved()
 	_lists()
@@ -17400,7 +17920,22 @@ func _save_scene_now(nm: String) -> void:
 ## the scene list's pick: opens it at once when nothing would be lost, asks first when the scene open now has changes
 ## that are not saved (opening can't be undone)
 func _scene_picked(i: int) -> void:
-	_open_scene_file(ui_scenes.get_item_metadata(i))
+	var p := String(ui_scenes.get_item_metadata(i))
+	if p.begins_with("#"):   # the Drafts group's row: expands or collapses, and the list drops open again
+		_drafts_row(p)
+		return
+	_open_scene_file(p)
+
+
+func _drafts_row(tag: String) -> void:
+	if tag == "#drafts-all":
+		_drafts_all = true
+	else:
+		_drafts_open = not _drafts_open
+		_drafts_all = false
+	_fill_scene_list()
+	_show_open_scene()
+	_open_scene_popup()
 
 
 ## opens a scene file the one way every pick does (the scene list, the S box's scene rows): at once, or asking first
@@ -17432,7 +17967,7 @@ func _new_asked() -> void:
 func _search_files() -> Array:
 	var rows := []
 	var scene := {}   # path -> is a scene file (each file read once)
-	for dir in ["res://poses/lib", "res://poses", "res://moves", "res://scenes", "res://scenes/_wip"]:
+	for dir in ["res://poses/lib", "res://poses", "res://moves", "res://scenes", "res://scenes/_wip"].reduce(func(a, x): return a + UserPaths.dirs(x), []):
 		var d := DirAccess.open(dir)
 		if d == null:
 			continue
@@ -17447,7 +17982,7 @@ func _search_files() -> Array:
 				scene[path] = txt.contains("\"keys\"") or txt.contains("\"cards\"")
 			var is_scene: bool = scene[path]
 			# poses/ holds pose files and scenes/ scene files; moves/ holds both (each goes to the list the app shows it in)
-			if (is_scene and dir.begins_with("res://poses")) or (not is_scene and dir.begins_with("res://scenes")):
+			if (is_scene and "/poses" in dir) or (not is_scene and "/scenes" in dir):   # res:// or the user's copy (a build)
 				continue
 			rows.append(_file_row(path, "scene" if is_scene else "pose"))
 	for mac in macros:   # ROADMAP 81: each saved macro is a row "Macro: <name>"
@@ -17569,7 +18104,7 @@ func _hs_run_text(text: String, label: String) -> Dictionary:
 	if rec_name != "":
 		_say("click 'Stop macro recording' first: a script cannot play while '%s' is being recorded" % rec_name)
 		return {"ok": false, "done": 0, "undo_steps": 0}
-	var tools := AgentTools.new(self)
+	var tools = load("res://scripts/agent_tools.gd").new(self)
 	var rows := Histscript.parse(text)
 	var u0 := undo.size()
 	_hs_playing = true
@@ -18018,7 +18553,7 @@ func _restore_go() -> void:
 func _restore_copy(r: Dictionary) -> void:
 	var a: Dictionary = r["a"]
 	var nm := safe_file(String(r["name"])).trim_prefix("_wip/")
-	var path := TextBlocking.unique_path("res://scenes/_wip", (nm if nm != "" else "autosave") + "_restored")
+	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), (nm if nm != "" else "autosave") + "_restored")
 	_write(path, a["scene"])
 	_load_scene(path)
 	_rebuild_cards()
@@ -18259,6 +18794,11 @@ func _restore_work(a: Dictionary) -> void:
 		_recovering = false
 	S = Scene.new()
 	S.from_dict(a["scene"])
+	# the autosave / journal is the whole state: its body and plates replace whatever the file on disk put on the fighter
+	if not a["scene"].has(BodyFile.KEY):
+		BaseBody.restore_gen(self, 0)   # the mannequin as shipped (the state held no applied body)
+	BodyFile.from_scene(self, a["scene"])   # G07: an applied body back, from its file or inline
+	ArmourFromBody.from_scene(self, a["scene"])   # B23: the armour plates back
 	scene_path = path
 	if ui_loop != null:
 		ui_natural.set_pressed_no_signal(S.natural)
@@ -19520,11 +20060,18 @@ func _audio_scrub() -> void:
 ## (one card per frame, like a .bvh: Animator tools / Simplify make it sparse). Nothing else changes; one refusal line.
 const VIDEO_EXT := ["mp4", "mov", "avi", "webm", "mkv", "m4v"]
 var video_python := "python"   # the interpreter that has mediapipe + opencv (tests point it elsewhere to check refusals)
+var video_tool := "res://tools/see_video.py"   # the tracker (a test points it at a stand-in, as gen_move.tool)
+## Easy's AI take check (easy_home.gd _take_gate): called with the tracker's pose path once the tracker has exited (the path may
+## not exist). false = the gate took over (no fit, no message from here); "" / true = the import goes on as it always does
+var video_gate := Callable()
 var _video_pid := -1
 var _video_out := ""
 var _video_name := ""
 var _video_t := 0.0
 var _video_raw := false   # "import raw": the tracker's frames go straight to the fit, no VideoCleanup (jitter, floor, plants)
+var _video_prog := ""     # the tracker's progress file (its fraction 0-1, rewritten as it goes): Easy's "Reading the video: 40 %"
+var _video_cancelled := false   # the last import was stopped by Cancel while the tracker ran (Easy says "Stopped. Nothing was changed.")
+var _land_undo := ""     # EASY's Copy a video: the name of the one undo step the landing makes (the scene before the import); "" = none
 
 
 ## THE GRIP BOOK (scripts/grip_book.gd): the weapon's recorded grips, one after another; and the pose's grip recorded
@@ -19585,6 +20132,7 @@ func _grip_record(label: String) -> void:
 
 ## A MOVE FROM WORDS (scripts/gen_move.gd): the words -> a clip from the local ComfyUI -> _import_video, as a dropped video
 var gen_move := GenMove.new()
+var gen_easy := false   # Easy's MAKE IT WITH AI VIDEO runs it: its home (easy_home.gd _gen_tick) polls, says and lands it
 var _gen_said := 0
 
 
@@ -19624,6 +20172,8 @@ func _gen_start(words: String) -> void:
 
 
 func _gen_poll(dt: float) -> void:
+	if gen_easy:
+		return
 	var r := gen_move.poll(dt)
 	if r == "":
 		if gen_move.busy() and int(gen_move.t / 60.0) > _gen_said:
@@ -19654,6 +20204,7 @@ func _import_video(path: String, raw := false) -> void:
 	if _video_pid >= 0 and OS.is_process_running(_video_pid):
 		_say("still tracking %s: one video at a time; try again when it arrives" % _video_name)
 		return
+	_video_cancelled = false
 	if not FileAccess.file_exists(path):
 		_say("could not track %s: no such file; pick the video again" % path.get_file())
 		return
@@ -19663,22 +20214,66 @@ func _import_video(path: String, raw := false) -> void:
 	DirAccess.make_dir_recursive_absolute(_video_out.get_base_dir())
 	if FileAccess.file_exists(_video_out):
 		DirAccess.remove_absolute(_video_out)
-	var tool := ProjectSettings.globalize_path("res://tools/see_video.py")
-	_video_pid = OS.create_process(video_python, PackedStringArray([tool, path, _video_out]))
+	_video_prog = _video_out.get_basename() + ".progress"
+	if FileAccess.file_exists(_video_prog):
+		DirAccess.remove_absolute(_video_prog)
+	var tool := ProjectSettings.globalize_path(video_tool)
+	_video_pid = OS.create_process(video_python, PackedStringArray([tool, path, _video_out, "--progress", _video_prog]))
+	Children.add(_video_pid)
 	if _video_pid < 0:
 		_say("could not track %s: \"%s\" did not start (it needs Python with mediapipe and opencv-python: run pip install mediapipe opencv-python)" % [_video_name, video_python])
 		return
 	_video_t = 0.0
+	_imp_show(true, "tracking %s" % _video_name)   # the bar fills as the tracker reads; Cancel stops it (_video_cancel)
 	_say("tracking %s: finding the person in every frame (about a second per second of video)..." % _video_name)
+
+
+## THE CANCEL WHILE TRACKING (Easy's Copy a video and the Expert import alike): the tracker is killed, its partial files are
+## removed, and nothing lands: no undo step, no card change. Waits (up to a second) for the process to be gone first, so
+## a file it was still writing is not left behind.
+func _video_cancel() -> void:
+	if _video_pid < 0:
+		return
+	var pid := _video_pid
+	_video_pid = -1
+	_video_cancelled = true
+	Children.done(pid)
+	OS.kill(pid)
+	for i in 50:
+		if not OS.is_process_running(pid):
+			break
+		OS.delay_msec(20)
+	for f in [_video_out, _video_prog]:
+		if f != "" and FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+	_imp_show(false)
+	_say("Stopped. Nothing was changed.")
+
+
+## the progress bar of the tracker's read (its fraction in the progress file), ~4 times a second
+func _video_bar() -> void:
+	if _imp_panel == null or not _imp_panel.visible or _video_prog == "" or not FileAccess.file_exists(_video_prog):
+		return
+	var t := FileAccess.get_file_as_string(_video_prog).strip_edges()
+	if t.is_valid_float():
+		_imp_bar.value = clampf(t.to_float(), 0.0, 1.0) * 100.0
 
 
 func _video_poll(dt: float) -> void:
 	if _video_pid < 0:
 		return
+	var tick := int(_video_t * 4.0) != int((_video_t + dt) * 4.0)
 	_video_t += dt
 	if OS.is_process_running(_video_pid):
+		if tick:
+			_video_bar()
 		return
+	Children.done(_video_pid)
 	_video_pid = -1
+	if _imp.is_empty():
+		_imp_show(false)   # no fit follows (the tracker found no person, or the video was not read): the bar goes
+	if video_gate.is_valid() and not bool(video_gate.call(_video_out)):
+		return
 	if not FileAccess.file_exists(_video_out):
 		_video_reh = false
 		_say("could not track %s: the tracker found no person, or could not read the video. Try a clip with one person, whole body in view" % _video_name)
@@ -19769,11 +20364,16 @@ func _import_land(res: Dictionary, src: String, held: String) -> String:
 		return ""
 	var d: Dictionary = res["d"]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
+	if _land_undo != "":   # Easy's Copy a video: the scene as it is now is the one undo step (a whole-scene swap, as Easy's cards)
+		_step_hint = _land_undo
+		_push_undo()
+		undo[-1]["swap"] = true
+		_land_undo = ""
 	_write(out, d)
 	_load_scene(out)
 	_rebuild_cards()
@@ -19821,6 +20421,14 @@ func _imp_begin(label: String, work: Callable, land: Callable, fail := Callable(
 	return ""
 
 
+## the bar's Cancel: while the tracker reads the video it stops that (_video_cancel), during the fit the fit (_imp_cancel)
+func _import_cancel() -> void:
+	if _video_pid >= 0:
+		_video_cancel()
+	else:
+		_imp_cancel()
+
+
 func _imp_cancel() -> void:
 	if _imp.is_empty() or _imp["cancel"]:
 		return
@@ -19857,7 +20465,7 @@ func _imp_stop() -> void:
 	_imp = {}
 
 
-func _imp_show(on: bool) -> void:
+func _imp_show(on: bool, text := "") -> void:
 	if _imp_panel == null:
 		if not on:
 			return
@@ -19903,18 +20511,18 @@ func _imp_show(on: bool) -> void:
 		_imp_cancel_btn.text = "Cancel"
 		_imp_cancel_btn.name = "import_cancel"
 		_imp_cancel_btn.tooltip_text = "stop this import; the scene stays exactly as it is"
-		_imp_cancel_btn.pressed.connect(_imp_cancel)
+		_imp_cancel_btn.pressed.connect(_import_cancel)
 		row.add_child(_imp_cancel_btn)
 		ui_root.add_child(_imp_panel)
 	_imp_panel.visible = on
 	if on:
-		_imp_lbl.text = String(_imp["label"])
+		_imp_lbl.text = text if text != "" else String(_imp["label"])
 		_imp_bar.value = 0.0
 		_imp_cancel_btn.disabled = false
 
 
 ## ---- SEVERAL CAMERAS (roadmap 89; scripts/multicam.gd). Two to four videos of ONE person, filmed at the same time from
-## different places. Each goes to tools/see_video.py (python -I, one after another: the window keeps working, _multicam_poll);
+## different places. Each goes to tools/see_video.py (plain python, one after another: the window keeps working, _multicam_poll);
 ## the pose files are read as MultiCam.obs_from_poses, the rig is solved from the person's own keypoints (MultiCam.solve_extrinsics:
 ## the bones' known lengths, gravity, one floor), every joint triangulated (MultiCam.triangulate_all), and the frames go through
 ## the single-view path (VideoCleanup, VideoImport.solve, thin). They land as ONE edit on the open scene (the mirror-in-place
@@ -19978,6 +20586,7 @@ func _multicam_start(paths: PackedStringArray) -> void:
 func _multicam_track_next() -> void:
 	var args := MultiCam.track_args(ProjectSettings.globalize_path(multicam_tool), _mc_videos[_mc_i], _mc_outs[_mc_i])
 	_mc_pid = OS.create_process(multicam_python, args)
+	Children.add(_mc_pid)
 	if _mc_pid < 0:
 		_multicam_end("could not track camera %d (%s): the interpreter \"%s\" did not start (it needs Python with mediapipe and opencv-python)" % [_mc_i + 1, _mc_videos[_mc_i].get_file(), multicam_python])
 		return
@@ -19986,6 +20595,7 @@ func _multicam_track_next() -> void:
 
 func _multicam_end(why: String) -> void:
 	_mc_i = -1
+	Children.done(_mc_pid)
 	_mc_pid = -1
 	_say(why)
 
@@ -19993,6 +20603,7 @@ func _multicam_end(why: String) -> void:
 func _multicam_poll(_dt: float) -> void:
 	if _mc_i < 0 or _mc_pid < 0 or OS.is_process_running(_mc_pid):
 		return
+	Children.done(_mc_pid)
 	_mc_pid = -1
 	if not FileAccess.file_exists(_mc_outs[_mc_i]):
 		_multicam_end("could not track camera %d (%s): the tracker found no person, or could not read the video" % [_mc_i + 1, _mc_videos[_mc_i].get_file()])
@@ -20265,10 +20876,10 @@ func _import_bvh(path: String) -> void:
 	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
 	d["plan"] = "BVH import of %s: %s" % [path.get_file(), r["text"]]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import: walk_2, walk_3 ...
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -20301,10 +20912,10 @@ func _import_anim(path: String) -> String:
 	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
 	d["plan"] = "Animation import of %s: %s. %s" % [path.get_file(), r["text"], r["report"]]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -20337,10 +20948,10 @@ func _import_physics(path: String) -> String:
 	var d: Dictionary = (r["scene"] as Scene).to_dict(B)
 	d["plan"] = "Physics reaction from %s: %s" % [path.get_file(), r["text"]]
 	var base := safe_file(String(d["scene"]))
-	var out := "res://scenes/_wip/%s.json" % base
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
 	var n := 2
 	while FileAccess.file_exists(out):   # never over an earlier import
-		out = "res://scenes/_wip/%s_%d.json" % [base, n]
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
 	_load_scene(out)
@@ -20430,13 +21041,14 @@ func _obj_posed_meshes() -> Array:
 			out.append({"name": String(j) + ("" if mi.mesh.get_surface_count() == 1 else "_%d" % si), "mesh": am, "xf": Transform3D.IDENTITY, "color": col})
 	var ws := []
 	if B.wep_on:
-		ws += [["weapon_handle", bat_handle], ["weapon_barrel", bat_barrel], ["weapon_knob", bat_knob]]
+		ws += [["weapon", wep_model]]
 	if B.wep2_on:
-		ws += [["weapon2_handle", d2_handle], ["weapon2_blade", d2_blade]]
+		ws += [["weapon2", wep2_model]]
 	for w in ws:
-		var wm := w[1] as MeshInstance3D
-		if wm != null and wm.visible and wm.mesh != null:
-			out.append({"name": w[0], "mesh": wm.mesh, "xf": wm.global_transform if wm.is_inside_tree() else wm.transform, "color": _obj_color(wm)})
+		for wm in (w[1] as Node3D).find_children("*", "MeshInstance3D", true, false):
+			var mi := wm as MeshInstance3D
+			if mi.visible and mi.mesh != null:
+				out.append({"name": "%s_%s" % [w[0], mi.name], "mesh": mi.mesh, "xf": mi.global_transform if mi.is_inside_tree() else mi.transform, "color": _obj_color(mi)})
 	return out
 
 
@@ -20663,10 +21275,15 @@ func _doc_key() -> String:
 		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
 	for a in H.actors:
 		k += "|" + JSON.stringify([a["name"], a["xf"], (a["scene"] as Scene).cards])
+	# the fighter's applied body and armour plates are the scene's too (an edit to them is unsaved, so the autosave holds it)
+	k += "|body%d|plates%d" % [BaseBody.gen(self), ArmourFromBody.parts(self).size()]
 	return k
 
 
-func _load_scene(path: String) -> void:
+func _load_scene(path0: String) -> void:
+	var path := path0
+	if not FileAccess.file_exists(path) and FileAccess.file_exists(UserPaths.w(path)):
+		path = UserPaths.w(path)   # written as res://... in an exported build: it is in the user's folder
 	var probe: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
 	if not (probe is Dictionary):   # a missing, empty or non-JSON file is refused with a message, not a crash
 		_say_plain("NOT NOW: %s is not a scene file (missing, empty or not JSON)" % path.get_file())
@@ -20685,6 +21302,7 @@ func _load_scene(path: String) -> void:
 		if not S.props_skipped.is_empty():
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
+		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
 		for k in d.get("keys", []):

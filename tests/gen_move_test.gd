@@ -6,6 +6,7 @@ extends SceneTree
 ##   2 the words -> the clip -> tracked -> a NEW scene opened in scenes/_wip with cards (removed again here)
 ##   3 ComfyUI down (the stand-in makes nothing): one line says how to start it, nothing opens
 ##   4 the command is in the palette
+##   5 Expert's call carries NO fast setting (no --steps / --width / --height): tools/gen_video.py makes its default, 30 steps at 832x480
 var fails := 0
 
 
@@ -37,6 +38,8 @@ func _init() -> void:
 
 	# (2)
 	OS.set_environment("GEN_STUB_SRC", ProjectSettings.globalize_path("res://tests/fixtures/gen_hammer.webm"))
+	var args_log: String = dir.path_join("expert_args.log")
+	OS.set_environment("GEN_STUB_ARGS", args_log)
 	var before: String = m.scene_path
 	m._gen_start("swings a sledgehammer down onto the ground")
 	ok(m.gen_move.busy() or FileAccess.file_exists(m.gen_move.out), "(2) the clip is being made")
@@ -49,6 +52,15 @@ func _init() -> void:
 			opened = sp
 			break
 	ok(opened != "" and m.S.cards.size() >= 3 and m.S.length() > 4.0, "(2) tracked and opened as a new scene: %s, %d cards, %.1f s" % [opened, m.S.cards.size(), m.S.length()])
+	OS.set_environment("GEN_STUB_ARGS", "")
+	# (5) Expert's call: no steps or size flags, so gen_video.py's defaults (30 steps, 832x480) apply, as before Easy's fast setting
+	var ex_calls := []
+	if FileAccess.file_exists(args_log):
+		for l in FileAccess.get_file_as_string(args_log).split("\n", false):
+			ex_calls.append(JSON.parse_string(l))
+	var ex_argv: Array = ex_calls[0] if ex_calls.size() == 1 and ex_calls[0] is Array else []
+	ok(ex_argv.size() > 0 and not ex_argv.has("--steps") and not ex_argv.has("--width") and not ex_argv.has("--height"),
+		"(5) Expert's call carries the default (no --steps / --width / --height): %s" % str(ex_argv))
 	if opened != "":
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(opened))
 

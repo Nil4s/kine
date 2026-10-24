@@ -6,7 +6,10 @@ ComfyUI is a separate program on this machine (D:/ComfyUI, GPL-3.0): this script
 nothing of it is linked into Kine or shipped with it.
 The prompt is wrapped in what the tracker needs (the Mixkit / kata lessons): ONE person, the WHOLE body head to feet in
 frame, light plain clothes, a plain dark background, a static camera, side-on or three-quarter view.
-    python tools/gen_video.py "swings a sledgehammer down onto the ground" out.webm [--seconds 5] [--seed 1] [--steps 30]
+Framing v2 (--style v2, NOT yet the default: its feet-out was not measured, see D:/kine_refs/v2/REPORT_V2.md): a wide shot
+from far away, feet on a plain floor, and a negative prompt against close-ups and camera moves. The default is still the
+first batch's settings (v1 prompt, 30 steps, 832x480); --quality names them explicitly.
+    python tools/gen_video.py "swings a sledgehammer down onto the ground" out.webm [--seconds 5] [--seed 1] [--steps 20]
 Prints one line "VIDEO <path> <frames> frames <fps> fps <seconds> s" or "ERROR <why>"."""
 import argparse
 import json
@@ -16,22 +19,46 @@ import urllib.parse
 import urllib.request
 
 HOST = "http://127.0.0.1:8188"
-FRAME = ("one athletic adult, the whole body from head to feet always in frame with space around it, wearing plain "
-         "light grey fitted clothes and dark shoes, plain dark grey studio background, empty floor, static locked-off "
-         "camera, three-quarter side view, even soft light, realistic motion, real-time speed")
-NEGATIVE = ("cropped, out of frame, close-up, cut off feet, cut off head, camera movement, zoom, pan, shaky, two people, "
-            "crowd, extra limbs, extra arms, extra legs, deformed hands, fused limbs, blurry, slow motion, text, watermark")
+# v1: the prompt of the first batch (REPORT.md). Kept for --quality and for the comparison runs.
+FRAME_V1 = ("one athletic adult, the whole body from head to feet always in frame with space around it, wearing plain "
+            "light grey fitted clothes and dark shoes, plain dark grey studio background, empty floor, static locked-off "
+            "camera, three-quarter side view, even soft light, realistic motion, real-time speed")
+NEGATIVE_V1 = ("cropped, out of frame, close-up, cut off feet, cut off head, camera movement, zoom, pan, shaky, two people, "
+               "crowd, extra limbs, extra arms, extra legs, deformed hands, fused limbs, blurry, slow motion, text, watermark")
+# v2: the whole figure, far away, feet on the floor; the negative prompt names the framings that cut the feet off.
+FRAME_V2 = ("one athletic adult standing in a wide shot, the camera far away, the whole body from the top of the head to "
+            "both feet visible in the middle of the frame with a lot of empty space above and below, feet flat on a plain "
+            "floor, plain light grey fitted clothes and dark shoes, plain dark grey studio background, static locked-off "
+            "camera, side view, even soft light, realistic motion, real-time speed")
+NEGATIVE_V2 = ("close-up, medium shot, cropped, out of frame, cut off feet, cut off legs, cut off head, feet out of frame, "
+               "zoom, camera movement, pan, tilt, tracking shot, handheld, shaky, two people, crowd, extra limbs, extra arms, "
+               "extra legs, deformed hands, fused limbs, blurry, slow motion, text, watermark")
+STYLES = {"v1": (FRAME_V1, NEGATIVE_V1), "v2": (FRAME_V2, NEGATIVE_V2)}
+DEFAULT_STYLE = "v1"   # v2 becomes the default only after its feet-out is measured to pass
+# the old settings (--quality)
+QUALITY = {"style": "v1", "steps": 30, "width": 832, "height": 480}
+# the defaults: unchanged until a speed setting and the v2 framing both pass REPORT_V2.md
+DEFAULTS = {"style": "v1", "steps": 30, "width": 832, "height": 480}
 FPS = 16   # Wan 2.1's own rate
 
 
-def graph(prompt, seconds, seed, steps, w, h):
+def build_prompt(words, style=DEFAULT_STYLE):
+    """the positive and negative prompt for a move in a few words; style is a key of STYLES"""
+    if style not in STYLES:
+        raise ValueError("unknown style %r (one of %s)" % (style, ", ".join(STYLES)))
+    frame, negative = STYLES[style]
+    return "%s, %s" % (words.strip(), frame), negative
+
+
+def graph(prompt, seconds, seed, steps, w, h, style=DEFAULT_STYLE):
     n = int(round(seconds * FPS / 4.0)) * 4 + 1   # Wan wants 4k + 1 frames
+    text, negative = build_prompt(prompt, style)
     return {
         "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "wan2.1_t2v_1.3B_fp16.safetensors", "weight_dtype": "default"}},
         "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan"}},
         "3": {"class_type": "VAELoader", "inputs": {"vae_name": "wan_2.1_vae.safetensors"}},
-        "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": "%s, %s" % (prompt, FRAME)}},
-        "5": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": NEGATIVE}},
+        "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": text}},
+        "5": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": negative}},
         "6": {"class_type": "EmptyHunyuanLatentVideo", "inputs": {"width": w, "height": h, "length": n, "batch_size": 1}},
         "7": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["1", 0], "shift": 8.0}},
         "8": {"class_type": "KSampler", "inputs": {"model": ["7", 0], "positive": ["4", 0], "negative": ["5", 0],
@@ -56,12 +83,21 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--seconds", type=float, default=5.0)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--steps", type=int, default=30)
-    ap.add_argument("--width", type=int, default=832)
-    ap.add_argument("--height", type=int, default=480)
+    ap.add_argument("--style", choices=sorted(STYLES), default=None,
+                    help="prompt template (default %s; v1 = the first batch)" % DEFAULT_STYLE)
+    ap.add_argument("--steps", type=int, default=None, help="sampling steps (default %d)" % DEFAULTS["steps"])
+    ap.add_argument("--width", type=int, default=None, help="picture width (default %d)" % DEFAULTS["width"])
+    ap.add_argument("--height", type=int, default=None, help="picture height (default %d)" % DEFAULTS["height"])
+    ap.add_argument("--quality", action="store_true",
+                    help="the old settings: v1 prompt, 30 steps, 832x480 (what the first batch used)")
     ap.add_argument("--timeout", type=float, default=1800.0)
     a = ap.parse_args()
-    g, n = graph(a.prompt, a.seconds, a.seed, a.steps, a.width, a.height)
+    base = QUALITY if a.quality else DEFAULTS
+    style = a.style or base["style"]
+    steps = a.steps if a.steps is not None else base["steps"]
+    width = a.width if a.width is not None else base["width"]
+    height = a.height if a.height is not None else base["height"]
+    g, n = graph(a.prompt, a.seconds, a.seed, steps, width, height, style)
     try:
         pid = json.loads(call("/prompt", {"prompt": g}))["prompt_id"]
     except Exception as e:

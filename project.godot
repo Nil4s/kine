@@ -10,6 +10,9 @@ config/icon="res://assets/brand/icon.svg"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="Godot/app_userdata/Poser"
 run/main_scene="res://main.tscn"
+; the loading screen is the intro's own dark (scripts/intro/intro.gd), so the start is one dark field into the intro
+boot_splash/bg_color=Color(0.0862745, 0.0901961, 0.105882, 1)
+boot_splash/show_image=false
 config/features=PackedStringArray("4.7")
 
 [display]

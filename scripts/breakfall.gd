@@ -450,12 +450,17 @@ const LAST_WIN := 0.4
 const STRETCH := 1.2
 const SLOW_TARGET := 2.3
 const FALL_CAP := 1.0
+const ARM_REACH := 30.0
 
 
 static func _legs(card: Dictionary, th: float, ca: float) -> void:
 	for sd in ["_l", "_r"]:
 		_joint(card, "thigh" + sd)["bend"] = snappedf(th, 0.01)
 		_joint(card, "calf" + sd)["bend"] = snappedf(ca, 0.01)
+
+
+static func _rank(g: Dictionary, k: String) -> int:
+	return ["ok", "warn", "fail"].find(String(g[k]))
 
 
 static func lower(S: Scene, f: Dictionary) -> Dictionary:
@@ -465,60 +470,70 @@ static func lower(S: Scene, f: Dictionary) -> Dictionary:
 	if cs.is_empty() or int(cs[0]) == 0:
 		return {"ok": false, "why": "no card arrives before this fall to lower from: add a standing pose before the fall, then try again"}
 	var best := {}
-	var bsp := INF
+	var bsc := INF
+	var lim := DistanceKeeper.new_body().lim
+	# every candidate: crouch or not, and the arms in the stretched cards pushed ahead of the trunk (ARM_REACH deg of shoulder flexion, or back):
+	# the stretch slows the hands and the trunk alike, so the arms have to be made to reach the floor first
 	for crouch in [true, false]:
-		var nS := S.clone()
-		var cs2 := landing_cards(nS, f)
-		var first: int = cs2[0]
-		var last: int = cs2[cs2.size() - 1]
-		if crouch:
-			var nc := {"name": "lower", "pose": (nS.cards[first - 1]["pose"] as Dictionary).duplicate(true), "move": LOW_T, "hold": 0.0}
-			_legs(nc, LOW_THIGH, LOW_CALF)
-			for k in cs2.size():
-				var c: Dictionary = nS.cards[cs2[k]]
-				var w := 1.0 - float(k + 1) / float(cs2.size())
-				var th := maxf(float(_joint(c, "thigh_l")["bend"]), LOW_THIGH * w)
-				var ca := maxf(float(_joint(c, "calf_l")["bend"]), LOW_CALF * w)
-				_legs(c, th, ca)
-			nS.cards.insert(first, nc)
-			cs2 = landing_cards(nS, f)
-		var rounds := 0
-		var rep := {}
-		var g := {}
-		while rounds < 14:
-			rep = analyze(nS)
-			g = _near(rep, f)
-			if g.is_empty() or float(g["speed"]) <= SLOW_TARGET:
-				break
-			var ts := nS.times()
-			var tc: float = g["t_c"]
-			var any := false
-			if tc - float(g["t0"]) > FALL_CAP:   # no room left: the early cards (the drop before the last LAST_WIN s) are shortened to pay for the slow ones
+		for arm in [0.0, ARM_REACH, -ARM_REACH]:
+			var nS := S.clone()
+			var cs2 := landing_cards(nS, f)
+			var first: int = cs2[0]
+			if crouch:
+				var nc := {"name": "lower", "pose": (nS.cards[first - 1]["pose"] as Dictionary).duplicate(true), "move": LOW_T, "hold": 0.0}
+				_legs(nc, LOW_THIGH, LOW_CALF)
+				for k in cs2.size():
+					var c: Dictionary = nS.cards[cs2[k]]
+					var w := 1.0 - float(k + 1) / float(cs2.size())
+					var th := maxf(float(_joint(c, "thigh_l")["bend"]), LOW_THIGH * w)
+					var ca := maxf(float(_joint(c, "calf_l")["bend"]), LOW_CALF * w)
+					_legs(c, th, ca)
+				nS.cards.insert(first, nc)
+				cs2 = landing_cards(nS, f)
+			var rounds := 0
+			while rounds <= 14:
+				var rep := analyze(nS)
+				var g := _near(rep, f)
+				if g.is_empty():
+					break   # the fall is lost in this round: the earlier rounds were scored and stay candidates
+				var ok_verdicts := _rank(g, "a") <= _rank(f, "a") and _rank(g, "b") <= _rank(f, "b")
+				if ok_verdicts:
+					var sc := float(g["speed"]) + (0.0 if tc_ok(g) else 10.0) + (0.0 if String(g["d"]) == "ok" else 5.0)
+					if float(g["speed"]) <= SLOW_TARGET and String(g["a"]) == "ok" and String(g["b"]) == "ok" and String(g["c"]) != "fail":
+						sc -= 100.0
+					if sc < bsc:
+						bsc = sc
+						best = {"scene": nS.clone(), "rep": rep, "after": g, "crouch": crouch, "arm": arm, "rounds": rounds}
+				if rounds == 14 or (float(g["speed"]) <= SLOW_TARGET and ok_verdicts):
+					break
+				var ts := nS.times()
+				var tc: float = g["t_c"]
+				var any := false
+				if tc - float(g["t0"]) > FALL_CAP:   # no room left: the early cards (the drop before the last LAST_WIN s) are shortened to pay for the slow ones
+					for i in nS.cards.size():
+						if float(ts[i][1]) <= tc - LAST_WIN and float(ts[i][0]) >= float(g["t0"]) - 0.02 and i > 0 and float(nS.cards[i]["move"]) > 0.08:
+							nS.cards[i]["move"] = snappedf(maxf(0.06, float(nS.cards[i]["move"]) * 0.8), 0.001)
+							any = true
 				for i in nS.cards.size():
-					if float(ts[i][1]) <= tc - LAST_WIN and float(ts[i][0]) >= float(g["t0"]) - 0.02 and i > 0 and float(nS.cards[i]["move"]) > 0.08:
-						nS.cards[i]["move"] = snappedf(maxf(0.06, float(nS.cards[i]["move"]) * 0.8), 0.001)
+					if float(ts[i][1]) > tc - LAST_WIN and float(ts[i][0]) < tc + 1e-4 and i > 0:
+						nS.cards[i]["move"] = snappedf(float(nS.cards[i]["move"]) * STRETCH, 0.001)
+						if arm != 0.0:
+							for sd in ["_l", "_r"]:
+								var ua := _joint(nS.cards[i], "upperarm" + sd)
+								var rb: Vector2 = lim["upperarm" + sd]["bend"]
+								ua["bend"] = snappedf(clampf(float(ua["bend"]) + arm, rb.x, rb.y), 0.01)
 						any = true
-			for i in nS.cards.size():
-				if float(ts[i][1]) > tc - LAST_WIN and float(ts[i][0]) < tc + 1e-4 and i > 0:
-					nS.cards[i]["move"] = snappedf(float(nS.cards[i]["move"]) * STRETCH, 0.001)
-					any = true
-			if not any:
-				break
-			rounds += 1
-		if g.is_empty():
-			continue
-		# the lowering is preferred (it is the taught way) when it reaches the target with the head, arm and spread verdicts kept; else the lowest speed wins
-		var sc := float(g["speed"]) + (0.0 if tc_ok(g) else 10.0)
-		if crouch and sc <= SLOW_TARGET and String(g["a"]) == "ok" and String(g["b"]) == "ok" and String(g["c"]) != "fail":
-			sc -= 100.0
-		if sc < bsp:
-			bsp = sc
-			best = {"scene": nS, "rep": rep, "after": g, "crouch": crouch, "rounds": rounds}
+				if not any:
+					break
+				rounds += 1
 	if best.is_empty():
 		return {"ok": false, "why": "the fall is lost when retimed: check the cards around the landing"}
 	var g2: Dictionary = best["after"]
-	return {"ok": true, "kind": "lower", "scene": best["scene"], "rep": best["rep"], "after": g2, "msg": "slow the landing: %s the last cards stretched %d times by %.0f%%: first contact %.1f m/s (was %.1f m/s), the fall lasts %.2f s from its start to the impact" % [
-		"knees bend first (%.0f deg hips, %.0f deg knees, %.2f s) and unwind as the trunk tips;" % [LOW_THIGH, LOW_CALF, LOW_T] if bool(best["crouch"]) else "", int(best["rounds"]), (STRETCH - 1.0) * 100.0, float(g2["speed"]), float(f["speed"]), float(g2["t_c"]) - float(g2["t0"])]}
+	return {"ok": true, "kind": "lower", "scene": best["scene"], "rep": best["rep"], "after": g2, "msg": "slow the landing: %s the last cards stretched %d times by %.0f%%%s: first contact %.1f m/s (was %.1f m/s), the fall lasts %.2f s from its start to the impact" % [
+		"knees bend first (%.0f deg hips, %.0f deg knees, %.2f s) and unwind as the trunk tips;" % [LOW_THIGH, LOW_CALF, LOW_T] if bool(best["crouch"]) else "",
+		int(best["rounds"]), (STRETCH - 1.0) * 100.0,
+		"" if float(best["arm"]) == 0.0 else ", the arms reach %s by %.0f deg" % ["ahead" if float(best["arm"]) > 0.0 else "back", absf(float(best["arm"]))],
+		float(g2["speed"]), float(f["speed"]), float(g2["t_c"]) - float(g2["t0"])]}
 
 
 static func tc_ok(g: Dictionary) -> bool:

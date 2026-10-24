@@ -172,7 +172,7 @@ static func fan(faces: Array) -> PackedInt32Array:
 ## parts), "joints" (bone names of the F14 entries to sweep; default the relevant ones), "lims" (see sweep), "step"
 ## (deg). -> "" or what is missing
 func begin_clash(m: Node, how: String, o := {}) -> String:
-	var plist: Array = o.get("parts", ArmourFromBody.parts(m))
+	var plist: Array = o.get("parts", load("res://scripts/armour_from_body.gd").parts(m))
 	plist = plist.filter(func(x): return is_instance_valid(x) and x is MeshInstance3D and (x as Node).is_inside_tree())
 	if plist.is_empty():
 		return "The clash check needs a part on the fighter: make one first (Model: armour from the body)"

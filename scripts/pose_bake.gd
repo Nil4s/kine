@@ -74,7 +74,11 @@ func ready() -> bool:
 
 
 ## (re)bake `S` from the playhead's frame on; any bake in flight is cancelled first
-func start(S: Scene, from_t: float, horizon := 0.0) -> void:
+var held_at := {}   # the weapon state the table was baked from (start's held): a change re-bakes, as a content change does
+## held: the live body's weapon state (Body._state0's wep_* / grip keys) the worker body starts from: a card without a "weapon"
+## leaves the body's weapon as it is when the scene plays live, so the table must start from the same one (a sword picked
+## during play was dropped by every baked frame: the worker body held no weapon)
+func start(S: Scene, from_t: float, horizon := 0.0, held := {}) -> void:
 	stop()
 	scene = S
 	sig = signature(S)
@@ -89,6 +93,8 @@ func start(S: Scene, from_t: float, horizon := 0.0) -> void:
 	if not eligible(S):
 		task = -1
 		return
+	held_at = held.duplicate(true)
+	var wk := held.duplicate(true)
 	var cl := S.clone()
 	cl.baker = null
 	var k0 := clampi(roundi(from_t * grid), 0, n - 1)
@@ -102,6 +108,10 @@ func start(S: Scene, from_t: float, horizon := 0.0) -> void:
 	task = WorkerThreadPool.add_task(func():
 		var BB := Body.new()
 		BB.load_files(SKEL, LIMS)
+		if not wk.is_empty():
+			var s0 := BB._state0()
+			s0.merge(wk, true)
+			BB._set_state0(s0, false)
 		BB.fk()
 		for i in nn:
 			if cc[0]:
@@ -129,6 +139,15 @@ func stop() -> void:
 
 func done() -> bool:
 	return task >= 0 and WorkerThreadPool.is_task_completed(task)
+
+
+## the weapon keys of a body's state: what start(held) takes
+static func held_of(B: Body) -> Dictionary:
+	var out := {}
+	for k in B._state0():
+		if String(k).begins_with("wep") or String(k).begins_with("grip"):
+			out[k] = B._state0()[k]
+	return out
 
 
 static func capture(S: Scene, B: Body) -> Dictionary:

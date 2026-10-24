@@ -262,6 +262,7 @@ static func _ident(name: String) -> String:
 
 ## writes exports/<name>.json and exports/<name>.cs; -> [json path, cs path, the table]
 static func write(S: Scene, B: Body, dir := "res://exports") -> Array:
+	dir = UserPaths.w(dir)   # an exported build: the user's folder
 	return _write(S, B, dir, S.name, {})
 
 

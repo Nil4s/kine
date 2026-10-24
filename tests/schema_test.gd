@@ -35,7 +35,7 @@ func _init() -> void:
 		["a hold below 0", func(d): d["cards"][2]["hold"] = -1.0, "$.cards[2].hold", sd],
 		["a joint name typo", func(d): d["cards"][0]["pose"]["joints"]["lowerarm_rr"] = d["cards"][0]["pose"]["joints"]["lowerarm_r"], "$.cards[0].pose.joints.lowerarm_rr", sd],
 		["an angle as text", func(d): d["cards"][1]["pose"]["joints"]["head"]["bend"] = "90", "$.cards[1].pose.joints.head.bend", sd],
-		["a weapon that isn't one", func(d): d["cards"][0]["pose"]["weapon"]["kind"] = "sword", "$.cards[0].pose.weapon.kind", sd],
+		["a weapon that isn't one", func(d): d["cards"][0]["pose"]["weapon"]["kind"] = "chainsaw", "$.cards[0].pose.weapon.kind", sd],
 		["a top-level typo", func(d): d["fsp"] = 30, "$.fsp", sd],
 		["an ease that isn't one", func(d): d["cards"][3]["ease"] = "bounce", "$.cards[3].ease", sd],
 		["a card with no pose", func(d): d["cards"][4].erase("pose"), "$.cards[4]", sd],

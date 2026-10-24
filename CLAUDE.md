@@ -17,8 +17,10 @@ Licence: source-available, PolyForm Noncommercial or Small Business + commercial
 Model-preview keys are crowded now (see the header of `scripts/kmesh_edit_ui.gd`): M = merge, T = measure,
 E/I extrude/inset, Ctrl+T triangulate, H heat map, U UV shading, K shape key. New mesh ops: add a line to
 `scripts/mesh_tools.gd` (P02 search registry) and fill its "do" field.
-Known failures on the base too (not caused by this work): `units` (unitless numbers), `command_search`
-(frame_data.gd `_tip`/`_hitboxes` script errors, 'mirr', lambda-bound file commands), `search_forgive` ('chekc').
+Known failures on the base too (not caused by this work): `units` (unitless numbers). `command_search` and
+`search_forgive` were fixed on w4-integ (they ignore the user's own saved files: `CommandSearch.user_files_off`);
+command_search takes ~10-20 min, so give it `TIMEOUT=1800`; undo_audit_s3 (~9 min, it waits for async commands) and explain need `TIMEOUT=1500`. undo_audit_s3 still fails 3 `new_from_template_*` lines (they open a new scene: not an in-place edit) and s0 `help_show_the_tour`.
+Agents: never kill Godot by image name (`taskkill /IM`); other runs on this machine die with it (exit 1, no error).
 
 ROADMAP 22 (type a move, get blocking) is done and merged as `wt-textmove2`. Ignore the old `wt-textmove`.
 

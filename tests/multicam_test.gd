@@ -8,7 +8,7 @@
 ##   4 a gross error (a wrist 150 px off in one camera): that view is rejected and the wrist stays < 4 cm
 ##   5 the extrinsics solved from a rough ring (yaws 20 deg off, radii 15 % off, cam0 pitch 4 deg off), with the bones' known lengths: the
 ##     mean joint error < 2 cm and the bone lengths within 2 % of the body's
-##   6 the pose-file loader reads the trackers' JSON back to the same pixels (< 0.01 px), and the tracker is run with python -I
+##   6 the pose-file loader reads the trackers' JSON back to the same pixels (< 0.01 px), and the tracker is run with plain python (no -I)
 ##   7 every camera's yaw and pitch within 3 deg and its position within 5 cm of the truth, from a STANDING clip (bar 5's rig):
 ##     gravity needs a standing body, and the walk leans ~4.7 deg on average (see the comment at the standing clip)
 extends SceneTree
@@ -188,7 +188,7 @@ func _init() -> void:
 					pm = maxf(pm, ((L["obs"][i]["cams"][c]["uv"] as Array)[j] as Vector2).distance_to((obs[i]["cams"][c]["uv"] as Array)[j]))
 	ok(L["ok"] and pm < 0.01, "6 the pose files read back: worst %.4f px off" % pm)
 	var args := MultiCam.track_args("C:/x/see_video.py", "C:/v/walk.mp4", "C:/o/pose.json")
-	ok(args[0] == "-I" and args.size() == 4, "6 the tracker runs as python -I %s" % args[1].get_file())
+	ok(args[0] == "C:/x/see_video.py" and args.size() == 3 and not "-I" in args, "6 the tracker runs as plain python (no -I, which hides mediapipe's site-packages) %s" % args[0].get_file())
 	print("multicam: %s" % ("PASS" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails > 0 else 0)
 

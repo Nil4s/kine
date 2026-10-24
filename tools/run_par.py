@@ -34,7 +34,7 @@ SILENT = ["--audio-driver", "Dummy"]   # no test makes a sound on Nick's speaker
 # there ("asked 1280 x 720 ... stays 1600 x 900"). Found 10-23 by running every listed test that sets get_window().size
 # / window_set_size (21) embedded, then each failure again as a top-level window: these 3 failed only embedded (or, for
 # ring_edges, failed differently); pathwalk's 10.5 deg facing gap fails either way, so it is not here.
-TOPLEVEL = {"small_window", "r25", "ring_edges"}
+TOPLEVEL = {"small_window", "r25", "ring_edges", "easycam"}   # easycam sets the window size itself (1600x900, 1280x720)
 # shared state on disk (the scenes list, moves/ and trash/, exports, the CLI's files): kept out of the parallel batch.
 # r50b: actors_file read every file in scenes/ while others wrote there (parsed a half-written file). 10-23: + every
 # test writing a fixed res://(scenes|moves|...)/zz* path, and the suites that list scenes/.
@@ -42,13 +42,13 @@ SERIAL_SHARED = {"scene_list", "browser_tree", "browser", "versions", "cli", "se
                  "bvh_export", "engine_names", "autosave", "names_disk", "launcher", "empty_paths", "confirm", "examples",
                  "actors_file", "audio_track", "anim_import", "bvh_import", "usd_export", "check_all", "clicks",
                  "game_table", "journal", "markers", "mirror_list", "r20", "recent", "refimg", "set", "grip_book",
-                 "posematch", "save_prompt"}
+                 "posematch", "save_prompt", "drafts"}
 # wall-clock bars: under load they measure the neighbours, not the code. Built 10-23 by grepping tests/*.gd for
 # (a) an ok()/check() condition on a variable derived from Time.get_ticks_msec/usec, (b) an ok() message with
 # "N ms"/"%f ms" beside bar/under/</budget, (c) a condition comparing a *ms/*us/elapsed/took/stall/fps/p95 value,
 # then read by eye, dropping those whose "ms" is animation time (eyelife playblast shading i15 i17 i2 i5 i27 i9
 # pathrun r27 rise proportions actors_export multicam_app popup_leak).
-SERIAL_TIMING = set("""romclash actors_hit actors_main alphas anatomy armour audio_track audiotracks bodymesh boolean cloth
+SERIAL_TIMING = set("""romclash lint actors_hit actors_main alphas anatomy armour audio_track audiotracks bodymesh boolean cloth
 cross_contact crowd decimate deformscene dqskin drag_speed dummy_async edgeflow fix_preview gentle grip_save grip_wrap
 i1 i4 i7 i8 i12 i16 i22 i44 i45 kmesh kmesh_attrs live_layer llm_client lod meshfile meshsel modstack motion_match pages
 perf4 perfdoc photomat play_perf play_speed precise_pick r13 r21 scene_diff scene_thumbs sculpt searchall shrinkwrap
@@ -124,8 +124,16 @@ def changed(ref, listed):
     def refs(k):
         return sorted(n for n, (w, _) in tests.items() if w & k)
 
+    def suite_list_only(r):   # every changed line of run_all.sh is an ALL= / EXTRA= suite list: adding a suite is not a broad change
+        d = git("diff", r.split("..")[0], "--", "tools/run_all.sh") or ""
+        ch = [l[1:] for l in d.splitlines() if l[:1] in "+-" and not l.startswith(("+++", "---"))]
+        return bool(ch) and all(re.match(r'\s*(ALL|EXTRA)="', l) for l in ch)
+
     chosen, broad, code = [], [], False
     for f in sorted(files):
+        if f == "tools/run_all.sh" and suite_list_only(ref):
+            print("#   %s: only the suite list changed (a new suite runs as itself)" % f)
+            continue
         if f in BROAD:
             broad.append(f)
             print("#   %s: too broad to map" % f)

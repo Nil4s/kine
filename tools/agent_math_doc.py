@@ -50,6 +50,19 @@ Parts: any joint name, or `weapon_tip` / `weapon_knob`. Every answer carries its
   down. The polygon: the convex hull of each foot capsule's shadow where its underside is within 1 cm of the floor.
   At rest he stands 0.07 m inside. CHECK warns (BALANCE) past 3 cm for 0.1 s with both feet down.
 
+- `frame: "body"` (N007): each part named (and the com) also gets `body`: its place in the words below.
+
+## `where {point | joint, who, of}` and `place {text, who}`: no world axes (N007, scripts/body_frame.gd)
+`where` says a point (m, as `state` gives it) or a joint of fighter `who` (1 = the hero) in the body's own frame:
+"15 cm in front of the sternum, 3 cm above chin height, 10 cm toward his left", plus `forward_cm`, `above_cm`,
+`left_cm`, the `anchor` and `height_of` landmarks. `place` reads such words back to a point. The frame: up = +y;
+left = the hip line and the shoulder line (left minus right, each unit length) added and laid flat; forward = left x up.
+So a fighter turned any way gives the same words. Landmarks: head top, chin, sternum, navel, and left / right hip,
+knee, foot (ankle joint), hand (wrist joint: the same point `measure` calls hand_r). The along landmark is the nearest
+one, the height landmark the nearest in height; numbers to 0.1 cm. `of: "opponent"` (or "the opponent's chin" in
+`place`) uses the other fighter's landmarks AND frame: "in front of the opponent's sternum" is toward whoever he faces.
+With one fighter, the dummy (when on) is the opponent.
+
 ## The joints: limits and what + means
 | joint | bend | side | twist | what + means |
 |---|---|---|---|---|

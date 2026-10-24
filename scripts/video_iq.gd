@@ -155,8 +155,19 @@ static func _spans(frames: Array, parts: Dictionary, t0: float) -> Array:
 	return out
 
 
-## the landmarks of every flagged run (confidence < LOW) put back on the line between the good frames either side (held at the
-## clip's ends). Runs longer than GAP_FILL are left. Returns how many landmark-frames were replaced
+## the landmarks of every flagged run (confidence < LOW) filled from the good frames either side (held at the clip's ends).
+## A HAND or FOOT run the body still shows is filled by its JOINT ANGLES (_fill_limb: each bone's direction turns along the arc between its two
+## good ends along the Hermite curve through their speeds (an ease in / out), the bone keeps its length; a foot planted on its other foot is held). Other parts
+## keep the straight line of their points. Runs longer than GAP_FILL are left. Returns how many landmark-frames were replaced
+static var ANGLE_FILL := true   # false: every run is the straight line of its points (the pre-fix fill, for the before / after numbers)
+const LIMB := {   # part -> the chain (root, mid, tip) the angle fill turns, and the points carried with the tip (a foot's heel, toe)
+	"hand_l": {"root": 11, "mid": 13, "tip": 15, "ext": []}, "hand_r": {"root": 12, "mid": 14, "tip": 16, "ext": []},
+	"foot_l": {"root": 23, "mid": 25, "tip": 27, "ext": [29, 31]}, "foot_r": {"root": 24, "mid": 26, "tip": 28, "ext": [30, 32]}}
+const BEND_MIN := 0.14     # rad (8 deg): a joint bent less than this has no hinge plane to read at its good end
+const PLANT_MOVE := 0.03   # m: the other ankle moves no more than this (over the span and a quarter second either side) to read as planted
+const PLANT_PELVIS := 5.0  # deg: the hip line turns no more than this between the span's two good ends: the pelvis is steady
+
+
 static func repair(frames: Array, conf: Dictionary) -> int:
 	var n := frames.size()
 	var done := 0
@@ -170,6 +181,9 @@ static func repair(frames: Array, conf: Dictionary) -> int:
 			var ia := a - 1
 			var ib := b + 1
 			if ia < 0 and ib >= n:
+				continue
+			if ANGLE_FILL and LIMB.has(p) and not _body_lost(conf, a, b):
+				done += _fill_limb(frames, conf, p, a, b)
 				continue
 			var fa: Array = (frames[ia]["w"] if ia >= 0 else frames[ib]["w"])
 			var fb: Array = (frames[ib]["w"] if ib < n else frames[ia]["w"])
@@ -188,6 +202,175 @@ static func repair(frames: Array, conf: Dictionary) -> int:
 					(frames[i]["w"] as Array)[k] = v
 					done += 1
 	return done
+
+
+## the whole body is flagged somewhere in a..b (the tracker lost the person, not one limb): that run is a straight line as before
+## (the joint-angle fill is for a limb lost on its own; it moved the feet of walk_bat's 8 lost frames past the contact bar)
+static func _body_lost(conf: Dictionary, a: int, b: int) -> bool:
+	for i in range(a, b + 1):
+		if float((conf["parts"]["body"] as Array)[i]) < LOW:
+			return true
+	return false
+
+
+## one limb's flagged run (a hand: shoulder - elbow - wrist; a foot: hip - knee - ankle, the heel and toe carried with the ankle),
+## filled from its two good frames by joint angles (_turn). A run at a clip's end holds the nearest good pose (in the root's frame,
+## so the body's own motion stays). Returns the landmark-frames written
+static func _fill_limb(frames: Array, conf: Dictionary, p: String, a: int, b: int) -> int:
+	var L: Dictionary = LIMB[p]
+	var root: int = L["root"]
+	var mid: int = L["mid"]
+	var tip: int = L["tip"]
+	var ext: Array = L["ext"]
+	var pts: Array = [mid, tip] + ext
+	var n := frames.size()
+	var ia := a - 1
+	var ib := b + 1
+	if ia < 0 or ib >= n:   # the run touches a clip's end: hold the nearest good pose
+		var G: Array = frames[ia if ia >= 0 else ib]["w"]
+		for i in range(a, b + 1):
+			var W: Array = frames[i]["w"]
+			for k in pts:
+				W[k] = ((G[k] as Vector3) - (G[root] as Vector3)) + (W[root] as Vector3)
+		return (b - a + 1) * pts.size()
+	var A: Array = frames[ia]["w"]
+	var B: Array = frames[ib]["w"]
+	if p.begins_with("foot") and _planted(frames, conf, p, a, b):
+		# the other foot is planted and the pelvis steady: this foot stays where it is (the mean of its two good ends)
+		for i in range(a, b + 1):
+			var W: Array = frames[i]["w"]
+			for k in pts:
+				W[k] = ((A[k] as Vector3) + (B[k] as Vector3)) * 0.5
+		return (b - a + 1) * pts.size()
+	var dt := float(conf["dt"])
+	var T := float(ib - ia) * dt
+	var good: Array = conf["parts"][p]
+	var pre: Array = frames[ia - 1]["w"] if ia >= 1 and float(good[ia - 1]) >= LOW else []
+	var nxt: Array = frames[ib + 1]["w"] if ib + 1 < n and float(good[ib + 1]) >= LOW else []
+	var d1A := _dir(A, root, mid)
+	var d1B := _dir(B, root, mid)
+	var d2A := _dir(A, mid, tip)
+	var d2B := _dir(B, mid, tip)
+	var L1 := ((A[mid] as Vector3) - (A[root] as Vector3)).length() * 0.5 + ((B[mid] as Vector3) - (B[root] as Vector3)).length() * 0.5
+	var L2 := ((A[tip] as Vector3) - (A[mid] as Vector3)).length() * 0.5 + ((B[tip] as Vector3) - (B[mid] as Vector3)).length() * 0.5
+	# the bones' own velocities at the two good ends (one frame either side), so the fill leaves the span at the speed the
+	# limb was moving: a limb in motion at the span's edge is not held still by an ease with zero speed at both ends
+	var d1p = _dir(pre, root, mid) if not pre.is_empty() else null
+	var d1n = _dir(nxt, root, mid) if not nxt.is_empty() else null
+	var d2p = _dir(pre, mid, tip) if not pre.is_empty() else null
+	var d2n = _dir(nxt, mid, tip) if not nxt.is_empty() else null
+	var fA := Vector3.ZERO
+	var fB := Vector3.ZERO
+	var fp = null
+	var fn = null
+	if not ext.is_empty():
+		fA = _dir(A, tip, ext[1])
+		fB = _dir(B, tip, ext[1])
+		fp = _dir(pre, tip, ext[1]) if not pre.is_empty() else null
+		fn = _dir(nxt, tip, ext[1]) if not nxt.is_empty() else null
+	# the bend (the angle between the two bones) at each good end, its speed from the frame beside it, and the hinge there
+	var bA := d1A.angle_to(d2A)
+	var bB := d1B.angle_to(d2B)
+	var M0b := 0.0
+	var M1b := 0.0
+	if d1p != null:
+		M0b = (bA - float(d1p.angle_to(d2p))) / dt * T
+	if d1n != null:
+		M1b = (float(d1n.angle_to(d2n)) - bB) / dt * T
+	var hA := (d1A.cross(d2A)).normalized() if bA >= BEND_MIN else Vector3.ZERO
+	var hB := (d1B.cross(d2B)).normalized() if bB >= BEND_MIN else Vector3.ZERO
+	for i in range(a, b + 1):
+		var s := float(i - ia) / float(ib - ia)
+		var W: Array = frames[i]["w"]
+		var d1 := _turn(d1A, d1B, d1p, d1n, T, dt, s)
+		var M: Vector3 = (W[root] as Vector3) + d1 * L1
+		# the forearm = the upper arm turned about the HINGE by the bend: the hinge (the bend's plane) and the bend are
+		# interpolated, not the forearm's own direction, so the plane cannot swing when the joint is nearly straight
+		var hn := _hinge(hA, hB, d1A, d1B, s)
+		var bend := _herm(bA, bB, M0b, M1b, s)
+		var Tp: Vector3 = M + (Quaternion(hn, bend) * d1) * L2
+		W[mid] = M
+		W[tip] = Tp
+		if not ext.is_empty():
+			var Rf := Quaternion(fA, _turn(fA, fB, fp, fn, T, dt, s))
+			for k in ext:
+				W[k] = Tp + Rf * ((A[k] as Vector3) - (A[tip] as Vector3))
+	return (b - a + 1) * pts.size()
+
+
+## the unit direction of the bone a -> b in a frame
+static func _dir(W: Array, a: int, b: int) -> Vector3:
+	return ((W[b] as Vector3) - (W[a] as Vector3)).normalized()
+
+
+## the hinge (the bend's plane normal) at fraction s: slerped between the two good ends' hinges when both bend enough to read a
+## plane (BEND_MIN), else the one that does; when neither does, the normal of the two upper bones' own turn
+static func _hinge(hA: Vector3, hB: Vector3, d1A: Vector3, d1B: Vector3, s: float) -> Vector3:
+	if hA != Vector3.ZERO and hB != Vector3.ZERO:
+		var nb := hB
+		if hA.dot(nb) < 0.0:
+			nb = -nb
+		return (Quaternion.IDENTITY.slerp(Quaternion(hA, nb), s) * hA).normalized()
+	if hA != Vector3.ZERO:
+		return hA
+	if hB != Vector3.ZERO:
+		return hB
+	var ax := d1A.cross(d1B)
+	return ax.normalized() if ax.length() > 1e-9 else Vector3.UP
+
+
+## a cubic Hermite between a and b with speeds m0, m1 (in units of the value per span) at fraction s
+static func _herm(a: float, b: float, m0: float, m1: float, s: float) -> float:
+	var s2 := s * s
+	var s3 := s2 * s
+	return (2.0 * s3 - 3.0 * s2 + 1.0) * a + (s3 - 2.0 * s2 + s) * m0 + (-2.0 * s3 + 3.0 * s2) * b + (s3 - s2) * m1
+
+
+## a bone's direction at fraction s (0..1) of a span of T seconds, from dA (the good end before) to dB (the good end after): the
+## arc between them about its own axis, with the Hermite curve through the two ends' angular speeds (dp, dn: the direction one
+## frame before / after, null when that frame is not good: then the speed is 0 and the curve is the smoothstep, an ease in / out)
+static func _turn(dA: Vector3, dB: Vector3, dp, dn, T: float, dt: float, s: float) -> Vector3:
+	var th := dA.angle_to(dB)
+	var ax := dA.cross(dB)
+	if th < 1e-9 or ax.length() < 1e-9:
+		return dA.lerp(dB, s).normalized() if dA.lerp(dB, s).length() > 1e-9 else dA
+	ax = ax.normalized()
+	var m0 := 0.0
+	var m1 := 0.0
+	if dp != null:
+		m0 = dp.angle_to(dA) * signf(dp.cross(dA).dot(ax)) / dt * T
+	if dn != null:
+		m1 = dB.angle_to(dn) * signf(dB.cross(dn).dot(ax)) / dt * T
+	var s2 := s * s
+	var s3 := s2 * s
+	var ang := (s3 - 2.0 * s2 + s) * m0 + (-2.0 * s3 + 3.0 * s2) * th + (s3 - s2) * m1
+	return Quaternion(ax, ang) * dA
+
+
+## a foot's run is planted when the OTHER foot is good and barely moves over the run (and a quarter second either side) and the
+## hip line turns less than PLANT_PELVIS between the run's two good ends
+static func _planted(frames: Array, conf: Dictionary, p: String, a: int, b: int) -> bool:
+	var other := "foot_r" if p == "foot_l" else "foot_l"
+	var dt := float(conf["dt"])
+	var win := int(round(0.25 / maxf(dt, 1e-6)))
+	var n := frames.size()
+	var lo := maxi(a - win, 0)
+	var hi := mini(b + win, n - 1)
+	var ank: int = LIMB[other]["tip"]
+	var mean := Vector3.ZERO
+	var cnt := 0
+	for i in range(lo, hi + 1):
+		if float((conf["parts"][other] as Array)[i]) < LOW:
+			return false
+		mean += (frames[i]["w"] as Array)[ank] as Vector3
+		cnt += 1
+	mean /= float(maxi(cnt, 1))
+	for i in range(lo, hi + 1):
+		if ((frames[i]["w"] as Array)[ank] as Vector3).distance_to(mean) > PLANT_MOVE:
+			return false
+	var hA: Vector3 = (((frames[a - 1]["w"] as Array)[24] as Vector3) - ((frames[a - 1]["w"] as Array)[23] as Vector3)).normalized()
+	var hB: Vector3 = (((frames[b + 1]["w"] as Array)[24] as Vector3) - ((frames[b + 1]["w"] as Array)[23] as Vector3)).normalized()
+	return rad_to_deg(hA.angle_to(hB)) < PLANT_PELVIS
 
 
 ## the lane as the timeline reads it: {"n", "dt", "c": [0..100 per frame], "spans": [...]} out of Scene.iq
@@ -778,7 +961,7 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 		var hi := 15.0
 		for it in 12:
 			if cancelled():
-				return best
+				return _unmemo(best)
 			var mid := sqrt(lo * hi)
 			var idx := dp_keys(feat, ts, mid)
 			var ex := {}
@@ -786,6 +969,7 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 				ex[i] = true
 			var V := VideoImport.thin(dense, 1000000, ex)
 			V.spline = spline
+			V.memo_slopes = true   # VIDEO SPEED: the trial scenes sample the same cards at every t (see Scene._slope)
 			var e := pos_error(ref, _positions(V, B, ts))
 			if e.x <= target and e.y <= worst_cap:
 				lo = mid
@@ -795,7 +979,14 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 				hi = mid
 	if best.is_empty():   # nothing passed: every frame (the dense scene itself)
 		best = {"scene": dense, "keys": range(n), "mean": 0.0, "worst": 0.0, "spline": false, "dense": n, "cards": n}
-	return best
+	return _unmemo(best)
+
+
+## the scene a caller gets back is an ordinary scene again (its slope memo is dropped: a later edit must read live cards)
+static func _unmemo(d: Dictionary) -> Dictionary:
+	if d.has("scene"):
+		(d["scene"] as Scene).memo_clear()
+	return d
 
 
 # ================================================================ THE WHOLE IMPORT =======================================
@@ -911,8 +1102,10 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 		return {}
 	progress = 0.95
 	var V: Scene = sk["scene"]
+	V.memo_slopes = true   # VIDEO SPEED: this scene's cards are fixed from here to the return below (reachable and the located pass only read it)
 	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps, K["heeloff"])), V.fps)
 	var located := locate_played(B, V, K["list"])
+	_unmemo(sk)
 	var feet := 0
 	var hands := 0
 	for c in located:

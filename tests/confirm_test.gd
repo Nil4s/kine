@@ -38,7 +38,7 @@ func _init() -> void:
 		"_set_api": "the settings file only (user://poser.cfg api section: on/port, a preference, not work)",
 		"_retarget_toggle": "the settings file only (user://poser.cfg video section: retarget, a preference, not work)",
 		"_rename_pose": "refuses an existing name; the old name is free again", "_exit_tree": "the test's own settings file",
-		"_write": "the writer itself (callers above)", "_set_light": "the settings file (a preference, not work)", "_set_scale": "the settings file (a preference, not work)", "_save_settings": "the settings file", "_tour_end": "the settings file (tour done: a preference, not work)",
+		"_write": "the writer itself (callers above)", "_set_light": "the settings file (a preference, not work)", "_toggle_keep_balance": "the settings file (POSE > Keep balance: a preference, not work)", "_set_scale": "the settings file (a preference, not work)", "_save_settings": "the settings file", "_tour_end": "the settings file (tour done: a preference, not work)",
 		"autosave_now": "user://autosave.json only (never scenes/): a copy of unsaved work, atomic", "_autosave_drop": "removes only the autosave file and its .tmp", "_fold": "the settings file (the layout: a preference, not work)",
 		"_page_set": "the settings file (the page shown: a preference, not work)", "_set_hints": "the settings file (a preference, not work)", "_taught": "the settings file (look/taught: the first start is over; a preference, not work)",
 		"_recover_closed": "Discard button: removes the offered autosave (or the Later slot); Esc / x: MOVES it to <autosave>_later.json (kept, offered next start)",
@@ -105,6 +105,12 @@ func _init() -> void:
 		bnone = bnone and not t.contains("DirAccess.remove") and not t.contains("res://scenes") and not t.contains("rename_absolute")
 	ok(bnew and bnone and tsrc.count("save_png") == 1 and BodyThumbs.DIR.begins_with("user://") and not tsrc.contains("FileAccess.WRITE") and not esrc.contains("FileAccess.WRITE") and BodyExport.DIR == "res://exports",
 		"bodies: one NEW-file .kbody writer (never over a file), pictures only under %s, the body .glb only in exports/; nothing removed" % BodyThumbs.DIR)
+	# (1h) OBJECT LIBRARY thumbnails (scripts/library_thumbs.gd): policy = a picture per object, written ONCE under user://thumbs/lib
+	# (a PNG named by its shapes' sha256), never in scenes/ or exports/; the panel (object_library.gd) writes no file at all
+	var lsrc := FileAccess.get_file_as_string("res://scripts/library_thumbs.gd")
+	var osrc := FileAccess.get_file_as_string("res://scripts/object_library.gd")
+	ok(lsrc.count("save_png") == 1 and not lsrc.contains("FileAccess.WRITE") and not lsrc.contains("DirAccess.remove") and not lsrc.contains("res://scenes") and LibraryThumbs.DIR == "user://thumbs/lib" and not osrc.contains("save_png") and not osrc.contains("FileAccess.WRITE"),
+		"object library: one PNG writer (the thumbnail cache, user://thumbs/lib), nothing removed, no file written by the panel")
 	# (2) every editing command: no dialog
 	m._load_scene("res://scenes/combo3.json")
 	m._card_pick(2)

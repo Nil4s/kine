@@ -12,7 +12,7 @@ const REFUSE := {"save_pose": "writes poses/: use --out for the scene instead", 
 ## the parts `state` gives the place of
 const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r",
 	"thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"]
-const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit"]
+const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 
 var m: Node
 var reg := {}
@@ -56,6 +56,12 @@ func out_refused(out: String) -> String:
 	var proj := ProjectSettings.globalize_path("res://").replace("\\", "/")
 	if g.begins_with(proj) and not g.begins_with(proj + "scenes/_wip/"):
 		return "the output must be in scenes/_wip/ or outside the project (Nick's scenes/, poses/, data/ are never written): " + out
+	# an exported build: the scenes/_wip that write_scene writes to is the user's folder (UserPaths.w), and the same rule holds there
+	if UserPaths.exported():
+		var mg := ProjectSettings.globalize_path(UserPaths.w(out)).replace("\\", "/").simplify_path().to_lower()
+		var us := ProjectSettings.globalize_path(UserPaths.user_root()).replace("\\", "/").trim_suffix("/").to_lower() + "/scenes"
+		if (mg == us or mg.begins_with(us + "/")) and not (mg == us + "/_wip" or mg.begins_with(us + "/_wip/")):
+			return "the output must be in scenes/_wip/ or outside the project (Nick's scenes/, poses/, data/ are never written): " + out
 	return ""
 
 
@@ -142,6 +148,8 @@ func step(tok: String) -> Dictionary:
 	elif tok.begins_with("physics="):
 		if m._import_physics(tok.substr(8)) == "":
 			err = String(m.ui_status.text)
+	elif tok.begins_with("root=") or tok.begins_with("put="):   # N008: the root (pelvis offset, m) / a joint with no contact stop
+		err = PosePath.step_token(m, tok)   # (scripts/pose_path.gd); path_to_pose's steps carry them
 	elif tok == "add":
 		m._card_add()
 	elif tok == "undo":
@@ -202,7 +210,7 @@ func measure(id: Variant, p: Dictionary) -> Dictionary:
 	if m.S.cards.size() < 2:
 		return _err(id, -32602, "measure needs a scene of 2+ cards: open one or add cards first")
 	var fps := float(p.get("fps", m.S.fps))
-	var t := float(p["frame"]) / fps if p.has("frame") else float(p.get("t", m.playhead))
+	var t := float(p["frame"]) / fps if p.has("frame") and not (p["frame"] is String) else float(p.get("t", m.playhead))   # N007: frame "body" is not a frame number
 	await m.dummy_settle()
 	var ps: Scene = m._ps()
 	var L := ps.length()
@@ -263,6 +271,8 @@ func measure(id: Variant, p: Dictionary) -> Dictionary:
 				out.append({"what": w, "value": snappedf(best, 0.0001), "unit": "m", "part": at, "inside": best < 0.0})
 	ps.apply(m.B, t)
 	m.playhead = t
+	if p.get("frame") is String and p["frame"] == "body":   # N007: each part also in the body's own words (scripts/body_frame.gd)
+		BodyFrame.annotate(m, out)
 	return _ok(id, {"t": snappedf(t, 0.0001), "plays": "landed on the dummy" if ps != m.S else "the cards as made", "measures": out})
 
 
@@ -347,7 +357,8 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				"t": snappedf(m.playhead, 0.0001), "plays": "landed on the dummy" if m._ps() != m.S else "the cards as made",
 				"selected_part": m.sel, "selected_card": m.sel_card + 1})
 		"measure":
-			return await measure(id, p)
+			var mr := await measure(id, p)
+			return Trust.label("measure", mr) if p.get("trust", false) == true else mr   # N020: trust labels, opt-in
 		"describe":
 			if p.has("joint"):
 				var dj := WhatIf.describe_joint(m, String(p["joint"]))
@@ -361,7 +372,8 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			if m.S.cards.size() < 2:
 				return _err(id, -32000, "check needs a scene of two cards or more: run {\"steps\": [\"add\", \"add\"]} or open one")
 			var fs := findings()
-			return _ok(id, {"clean": fs.is_empty(), "must_fix": fs.filter(func(f): return f["sev"] == "MUST FIX").size(), "findings": fs})
+			var cr := _ok(id, {"clean": fs.is_empty(), "must_fix": fs.filter(func(f): return f["sev"] == "MUST FIX").size(), "findings": fs})
+			return Trust.label("check", cr) if p.get("trust", false) == true else cr   # N020: trust labels, opt-in
 		"diff":
 			var b: String = p.get("b", p.get("path", ""))
 			if b == "" or not FileAccess.file_exists(res(b)):
@@ -392,6 +404,98 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 				return _err(id, -32000, "the scene is empty: nothing written. Add cards first: run {\"steps\": [\"add\"]}")
 			write_scene(o, "poser_cli serve")
 			return _ok(id, {"out": o, "cards": m.S.cards.size(), "length_s": snappedf(m.S.length(), 0.001)})
+		"assert":
+			# N002 BODY ASSERTIONS (scripts/body_assert.gd): {lines: [...]} checks them on the scene as made; {save: true} also keeps
+			# the lines that read in the scene's "asserts" (Check re-runs them); {clear: true} drops the saved ones; no lines = the saved
+			if m.S.cards.size() < 2:
+				return _err(id, -32602, "assert needs a scene of 2+ cards: open one or add cards first")
+			if bool(p.get("clear", false)):
+				m.S.asserts = []
+			var al: Variant = p.get("lines", m.S.asserts)
+			if not (al is Array) or not al.all(func(s): return s is String):
+				return _err(id, -32602, "assert needs {\"lines\": [\"left foot planted 0-0.4 s\", ...]}", {"grammar": BodyAssert.GRAMMAR})
+			var ar := BodyAssert.run(m.S, m.B, al)
+			if bool(p.get("save", false)):
+				for x in ar["results"]:
+					if x["ok"] and not String(x["line"]).strip_edges() in m.S.asserts:
+						m.S.asserts.append(String(x["line"]).strip_edges())
+			ar["saved"] = m.S.asserts.duplicate()
+			if ar["unread"] > 0:
+				ar["grammar"] = BodyAssert.GRAMMAR
+			return _ok(id, ar)
+		"where", "place":
+			# N007 BODY-FRAME NUMBERS (scripts/body_frame.gd): a point in the body's words + numbers / such words to a point.
+			# Not in METHODS: its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			var bf := BodyFrame.serve(m, method, p)
+			return _ok(id, bf) if bf["ok"] else _err(id, -32602, bf["error"])
+		"facts":
+			# N022 HUMAN FACTS: cited human numbers by keywords (scripts/human_facts.gd); not in METHODS (the transcript's ready line)
+			var fr := HumanFacts.serve(p)
+			return _ok(id, fr) if not fr.is_empty() else _err(id, -32602, "facts needs {\"q\": \"how fast is a real jab?\"}, {\"list\": true} or {\"registry\": true}")
+		"dry":
+			# N003: what run's steps WOULD do (parts moved, findings added / removed, score change, cards / keys touched), the
+			# scene, body and undo put back byte for byte; file-writing steps refused: scripts/dry_run.gd
+			return await DryRun.request(self, id, p)
+		"frame_data":   # N080: frame data + opt-in hitstun / blockstun / advantage (scripts/frame_advantage.gd). Not in METHODS:
+			# its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			var fa := FrameAdvantage.serve(m, p)
+			return _ok(id, fa["result"]) if fa["ok"] else _err(id, -32602, String(fa["error"]))
+		"lint":   # N018: a clip made anywhere, judged on Kine's body (scripts/clip_lint.gd); the live scene is put back
+			var lr := ClipLint.lint(m, String(p.get("path", "")))
+			return _ok(id, lr) if lr["ok"] else _err(id, -32602, String(lr["error"]), lr)
+		"explain_conflict":
+			# N006 CONFLICT EXPLAINER (scripts/conflict_explain.gd): the smallest clashing set of wishes + the cost to free each; scene untouched
+			var cx := ConflictExplain.serve(m, p)
+			return _ok(id, cx) if cx["ok"] else _err(id, -32602, cx["error"], {"grammar": cx["grammar"]} if cx.has("grammar") else null)
 		"quit":
 			return _ok(id, {"bye": true})
+		"events":
+			# N017 EVENT QUERY: when is X true, measured on the played body (scripts/event_query.gd); unknown phrase -> the known list
+			var ev: Dictionary = await EventQuery.run(m, p)
+			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
+		"explain":   # N091 EXPLAIN THIS MOTION (scripts/explain_motion.gd): phases, power, read, one thing to try; scene untouched. Not in METHODS
+			var xm := ExplainMotion.serve(m, p)
+			return _ok(id, xm) if xm["ok"] else _err(id, -32602, String(xm["error"]))
+		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
+			return await SceneBrief.serve(self, id, p)
+		"text_view":
+			# N001: front + side ASCII stick figures and one paragraph (scripts/text_view.gd); {t | frame, fps | card}
+			var tv: Dictionary = await TextView.on_main(m, p)
+			return _ok(id, tv) if tv["ok"] else _err(id, -32602, tv["error"])
+		"spec":
+			# N004 SPEC TO MOTION: a structured move spec -> a clip that passes its assertions, or what it could not meet and why
+			# (scripts/spec_motion.gd); a dry plan unless apply: true (then ONE undo step). Not in METHODS (the transcript's ready line)
+			var sm := SpecMotion.serve(m, p)
+			return _ok(id, sm["result"]) if sm["ok"] else _err(id, -32602, String(sm.get("error", "bad spec")), {"grammar": sm["grammar"]} if sm.has("grammar") else null)
+		"range":
+			# N013 SAFE RANGE SWEEP: the values of one joint axis that keep EVERY condition true (scripts/range_sweep.gd); not in METHODS
+			var rs := RangeSweep.run(m, p)
+			return _ok(id, rs) if rs["ok"] else _err(id, -32602, rs["error"], {"grammar": rs["grammar"]} if rs.has("grammar") else null)
+		"knobs":   # N025 MOVE KNOBS (scripts/move_knobs.gd): {card, read: true} the values; {card, set: {...}} one undo step
+			var kn := MoveKnobs.serve(m, p)
+			return _ok(id, kn) if kn["ok"] else _err(id, -32602, String(kn["error"]))
+		"try":   # N019 TRY N WAYS: variants (or one change swept) each dry-run, scored, ranked; apply = the pick as one undo step (scripts/try_n.gd)
+			return await TryN.request(self, id, p)
+		"path_to_pose":   # N008: from the body now to a named / described pose, as `run` steps that keep limits, planted feet and
+			# the body whole on the way (scripts/pose_path.gd); a dry plan unless apply: true. Not in METHODS (the transcript's ready line)
+			return await PosePath.serve(self, id, p)
+		"recognize":   # N016: which strike the body does and how far from the textbook form (scripts/move_recognizer.gd)
+			var rr: Dictionary = await MoveRecognizer.serve(m, p)
+			return _ok(id, rr) if rr["ok"] else _err(id, -32602, rr["error"])
+		"limits":
+			# N028 COUPLED LIMITS: a joint's effective bend range given the other leg joints (two-joint muscles), with the why and
+			# the source (scripts/coupled_limits.gd); not in METHODS (the transcript's ready line)
+			var cl := CoupledLimits.serve(m, p)
+			return _ok(id, cl) if cl["ok"] else _err(id, -32602, cl["error"])
+		"who_could":   # N027: the minimum body that could do the clip / card / span, per capacity (scripts/who_could.gd); not in METHODS
+			var wc := WhoCould.serve(m, p)
+			return _ok(id, wc) if wc["ok"] else _err(id, -32602, wc["error"])
+		"fix_until":   # N005: the fixes in order of predicted gain until the saved assertions pass and the score clears a bar (scripts/fix_loop.gd)
+			return await FixLoop.serve(self, id, p)
+		"hit_harder":   # N065 HIT HARDER (scripts/hit_harder.gd): {card, dry?, allow_retime?}; one undo step; not in METHODS (the transcript)
+			var hh := HitHarder.serve(m, p)
+			return _ok(id, hh) if hh["ok"] else _err(id, -32602, String(hh["error"]))
+		"bench":   # N024 KINE-BENCH: {list} | {task} (brief, start, rules) | {task, score} grades the live scene (scripts/kine_bench.gd).
+			# Not in METHODS: its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			return KineBench.serve(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

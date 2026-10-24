@@ -21,14 +21,16 @@ extends RefCounted
 ##   Saving a scene whose applied body has no file yet writes it first (before_save: <scene>_body.kbody, a NEW file).
 ##   Opening a scene with the key puts that body on the fighter (no undo step: opening is not an edit); a scene without the
 ##   key leaves the fighter's body as it is (an applied body is not dropped by opening a scene to animate with it).
-##   NOT covered: the autosave of a body applied but never saved as a file (the key needs a file to point at).
+##   NO FILE YET (an applied body the autosave or the journal holds before any save): the key holds the body itself,
+##   {"kbody": the .kbody dict}, inline. A save writes the file first (before_save) and names it, so only the autosave /
+##   journal carry the inline form; a restore puts it back (from_scene), and its save then writes the file.
 
 const FORMAT := "kbody"
 const VERSION := 1
 const EXT := "kbody"
 const KEY := "body_mesh"
 
-static var dir := "res://bodies"
+static var dir := UserPaths.w("res://bodies")   # an exported build: the user's folder
 static var last_error := ""
 
 
@@ -154,13 +156,15 @@ static func open(m: Node, path: String, undo := true) -> Dictionary:
 	return r
 
 
-## the scene's key for the body drawn now ({} for the mannequin as shipped, or an applied body with no file yet)
+## the scene's key for the body drawn now ({} for the mannequin as shipped): the file it was saved in, or, for an applied
+## body with no file yet, the body inline (see the header)
 static func scene_key(m: Node) -> Dictionary:
 	if m.get("pieces") == null or not m.has_meta(BaseBody.META_GENS) or BaseBody.gen(m) == 0:
 		return {}
 	var rec := _rec(m)
 	if not rec.has("kbody"):
-		return {}
+		var k := BaseBody.read(m)
+		return {"kbody": to_dict(k, _params(m), "body")} if k != null else {}
 	return {"file": rec["kbody"], "sha256": rec["sha"]}
 
 
@@ -186,6 +190,9 @@ static func from_scene(m: Node, d: Dictionary) -> void:
 	var key = d.get(KEY)
 	if not (key is Dictionary):
 		return
+	if key.get("kbody") is Dictionary:
+		_from_inline(m, key["kbody"])
+		return
 	var p := String(key.get("file", ""))
 	if not FileAccess.file_exists(p):
 		m._say.call_deferred("this scene's body file %s is missing: the fighter keeps the body it has (restore the file to bodies/ and open the scene again)" % p.get_file())
@@ -200,6 +207,23 @@ static func from_scene(m: Node, d: Dictionary) -> void:
 		m._say.call_deferred("this scene's body %s could not be opened: %s" % [p.get_file(), r["error"]])
 	elif sha != String(key.get("sha256", sha)):
 		m._say.call_deferred("this scene's body %s changed since the scene was saved: the file as it is now was put on the fighter" % p.get_file())
+
+
+## the inline form (scene_key): the body the autosave held, put back as one applied generation (no undo step); a body
+## already drawn with the same content is left as it is
+static func _from_inline(m: Node, kb) -> void:
+	var sha := JSON.stringify(kb).sha256_text()
+	if m.has_meta(BaseBody.META_GENS) and BaseBody.gen(m) > 0 and not _rec(m).has("kbody") and _rec(m).get("inline_sha", "") == sha:
+		return
+	var b := from_dict(kb)
+	if b.is_empty():
+		m._say.call_deferred("the scene's body could not be opened: " + last_error)
+		return
+	var r := BaseBody.apply(m, b["mesh"], false)
+	if not r["ok"]:
+		m._say.call_deferred("the scene's body could not be put on the fighter: " + String(r["error"]))
+		return
+	_rec(m)["inline_sha"] = sha
 
 
 # ---------------------------------------------------------------- the commands and the Browser

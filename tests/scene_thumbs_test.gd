@@ -25,7 +25,8 @@ func ok(c: bool, what: String) -> void:
 func listed() -> Array:
 	var out := []
 	for i in m.ui_scenes.item_count:
-		out.append(m.ui_scenes.get_item_metadata(i))
+		if not String(m.ui_scenes.get_item_metadata(i)).begins_with("#"):   # the Drafts group's rows are not scenes (no picture)
+			out.append(m.ui_scenes.get_item_metadata(i))
 	return out
 
 
@@ -34,7 +35,8 @@ func icons() -> Dictionary:
 	var pop: PopupMenu = m.ui_scenes.get_popup()
 	var out := {}
 	for i in m.ui_scenes.item_count:
-		out[m.ui_scenes.get_item_metadata(i)] = pop.get_item_icon(i)
+		if not String(m.ui_scenes.get_item_metadata(i)).begins_with("#"):
+			out[m.ui_scenes.get_item_metadata(i)] = pop.get_item_icon(i)
 	return out
 
 
@@ -161,8 +163,13 @@ func _init() -> void:
 	m.get_window().size = Vector2i(1024, 600)
 	for _i in 4:
 		await process_frame
+	# the Drafts group is expanded here: the list must be long enough to scroll (collapsed, the saved scenes fit)
+	m._drafts_open = true
+	m._fill_scene_list()
+	m._show_open_scene()
+	files = listed()
 	var pop: PopupMenu = m.ui_scenes.get_popup()
-	m.ui_scenes.select(files.size() - 1)
+	m.ui_scenes.select(m.ui_scenes.item_count - 1)
 	m.ui_scenes.show_popup()
 	for _i in 4:
 		await process_frame
@@ -175,7 +182,7 @@ func _init() -> void:
 	ok(sb != null and sb.value > 0.0, "opened with the last (open) scene in view (scroll %.0f)" % (sb.value if sb else 0.0))
 	sb.value = 0.0
 	await process_frame
-	pop.scroll_to_item(files.size() - 1)
+	pop.scroll_to_item(m.ui_scenes.item_count - 1)
 	for _i in 3:
 		await process_frame
 	ok(sb.value > 0.0, "the last scene is reachable: scrolled down to it (value %.0f of max %.0f)" % [sb.value, sb.max_value])

@@ -39,9 +39,13 @@ var commands: Array = []:
 const KINDS := ["command", "pose", "scene", "macro", "script", "mesh"]   # ROADMAP 81: "macro:" lists the recorded macros; P02 "mesh:" the mesh tools
 var files_provider: Callable
 var files: Array = []
+static var user_files_off := false   # a test sets it: the box lists no saved files (the user's own poses and scenes do not change its results)
 ## ROADMAP_400 P02: the mesh tools that are not commands (scripts/mesh_tools.gd rows, kind "mesh"): found by typed words
-## like the files, each row with its hotkey and its page
-var tools: Array = []
+## like the files, each row with its hotkey and its page. tools_provider (main's MeshTools.rows) runs on the box's FIRST
+## search, not at boot: the registry is built when someone opens the S box (tool_rows())
+var tools_provider: Callable
+var _tools: Array = []
+var _tools_built := false
 var box: LineEdit
 var list: Tree
 var shown: Array = []   # the rows in the list now, in order
@@ -77,7 +81,7 @@ func _ready() -> void:
 func open() -> void:
 	visible = true
 	box.text = ""
-	files = files_provider.call() if files_provider.is_valid() else []
+	files = files_provider.call() if files_provider.is_valid() and not user_files_off else []
 	_filter()
 	box.grab_focus()
 
@@ -141,9 +145,13 @@ func _word_score(text: String, words: PackedStringArray, w: String, is_name: boo
 	if syns > 0:
 		best = maxi(best, (8 + syns) if is_name else 2)
 	if best == 0 and w.length() >= 4:
-		for word in words:
-			if typo1(w, word) or (word.length() > w.length() and typo1(w, word, w.length())):
-				best = 7 if is_name else 1
+		for i in words.size():
+			var word := words[i]
+			# a one-letter typo of a whole word; or of the start of a longer word, but only for a 5+ letter query (a 4-letter
+			# one "mirr" fits "migr" of "migrate" with one letter off, and that is how Help rows answered "mirr")
+			if typo1(w, word) or (w.length() >= 5 and word.length() > w.length() and typo1(w, word, w.length())):
+				# a typo of the name's FIRST word is the command's subject ("chekc" -> "Check the motion"): it ranks as a word start
+				best = (8 if i == 0 else 7) if is_name else 1
 				break
 	return best
 
@@ -224,6 +232,14 @@ static func parse_box(raw_text: String) -> Array:
 	return ["", raw]
 
 
+## the mesh-tool rows, built once, on first use (see tools_provider)
+func tool_rows() -> Array:
+	if not _tools_built:
+		_tools_built = true
+		_tools = tools_provider.call() if tools_provider.is_valid() else []
+	return _tools
+
+
 ## the rows that answer a search (no words: every row of the kind, or the commands): better hits first, a tie keeps the
 ## pool's order (commands, then files). kind "" = any kind; q = the words after the "kind:" prefix. No drawing here
 func matches(kind: String, q: String) -> Array:
@@ -231,7 +247,7 @@ func matches(kind: String, q: String) -> Array:
 	if kind == "" or kind == "command":
 		pool.append_array(commands)
 	if kind != "command" and (q != "" or kind != ""):
-		pool.append_array((files + tools).filter(func(c): return kind == "" or c["kind"] == kind))
+		pool.append_array((files + tool_rows()).filter(func(c): return kind == "" or c["kind"] == kind))
 	var qwords := _query_words(q)
 	var hits := []   # [score, pool index, row]
 	for i in pool.size():
@@ -346,6 +362,8 @@ func _model_on() -> bool:   # B29: is the model preview open (main.kmed)? the me
 
 
 func _words_ok(q: String) -> bool:
+	if q.strip_edges().contains(" ") and SupportPose.claims(q):
+		return true   # N015: "on both knees", "push-up plank" (scripts/support_pose.gd; two words or more, as Model: rows)
 	if MeshWords.offers(q, _model_on()):
 		return true   # B29: "extrude the top 5 cm" goes through the same words row (scripts/mesh_words.gd)
 	if RigWords.is_rig(q) and RigWords.parse(q)["ok"]:

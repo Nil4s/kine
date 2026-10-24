@@ -23,6 +23,15 @@ const MAX_K := 40
 const RIDGE_ABS := 1.0
 const RIDGE_REL := 0.02
 const MAX_FOLLOW := 45.0       # deg: no follower is moved further than this by a drag
+## TRUNK (Nick 10-23: "the whole body moves ... the back plus torso bend too much back or too much forward"): measured with
+## tools/trunk_drag_measure.gd, a right foot dragged to kick height leaned the trunk 13-20 deg (the pelvis tilting 14-21 deg
+## and twisting 45, the spine bending 8-23 summed) while smart drag was on, and 0 with it off: the library's co-variation
+## (kicks lean back) was followed through the pelvis and spine. A LIMB drag (a hand, a foot, an arm or leg part) now leaves the
+## pelvis's tilt (bend, side) alone and lets the spine follow at most TRUNK_FOLLOW deg of bend and of side bend in all,
+## spread evenly over spine_01..03. The pelvis's twist still follows (it turns the trunk about vertical, no lean; I12's link)
+const TRUNK_FOLLOW := 4.0      # deg: HEURISTIC at the walking trunk's sagittal range, 4.0 +- 1.8 (Chung et al. 2010, doi:10.1186/1743-0003-7-9)
+const TRUNK := ["spine_01", "spine_02", "spine_03"]
+const LIMB_PREFIX := ["hand_", "foot_", "ball_", "lowerarm_", "upperarm_", "clavicle_", "calf_", "thigh_"]
 const FOOT_TOL := 0.003        # m: a planted foot is put back to within 3 mm (the bar of the test is 1 cm)
 const POSE_DIRS := ["res://poses/", "res://poses/lib/"]
 const SCENE_DIRS := ["res://scenes/"]
@@ -345,7 +354,7 @@ func begin(B: Body, part: String, locked := []) -> Dictionary:
 			continue   # the dragged leg is not planted
 		if Balance.footprint(B, sd).size() > 0:
 			var fn: String = FEET[sd]
-			feet[sd] = {"p": B.P[fn], "g": B.G[fn]}
+			feet[sd] = {"p": B.P[fn], "g": B.G[fn], "h": heading(B, sd)}
 			for j in LEG[sd]:
 				skip[j] = true
 	var foll := []
@@ -354,7 +363,15 @@ func begin(B: Body, part: String, locked := []) -> Dictionary:
 			foll.append(j)
 	var bal := Balance.read(B)
 	return {"part": part, "chain": chain, "cdims": cdims, "gain": gains(cdims), "ang0": B.ang.duplicate(), "feet": feet,
-		"followers": foll, "floor": minf(float(bal["margin"]), 0.0), "scale": 1.0, "miss": 0.0}
+		"followers": foll, "floor": minf(float(bal["margin"]), 0.0), "scale": 1.0, "miss": 0.0, "limb": is_limb(part)}
+
+
+## a limb part: its drag must not lean the trunk (TRUNK_FOLLOW)
+static func is_limb(part: String) -> bool:
+	for p in LIMB_PREFIX:
+		if part.begins_with(p):
+			return true
+	return false
 
 
 ## one mouse move: the followers go to ang0 + follow * dx; the feet are put back; the balance is held. Returns the scale of
@@ -382,16 +399,30 @@ func apply(B: Body, st: Dictionary, follow: float) -> float:
 		for r in D:
 			dx[r] += g[r] * da
 	var foll: Array = st["followers"]
+	var limb: bool = st.get("limb", false)
 	var s := 1.0
 	var tries := 0
 	while true:
+		var tb := Vector2.ZERO   # a limb drag: the spine's summed (bend, side) follow, capped and spread below
 		for j in foll:
 			var o: Vector3 = ang0[j]
 			var i := int(_oi[j]) * 3
 			var v := o
 			for a in 3:
 				v[a] = o[a] + clampf(follow * s * dx[i + a], -MAX_FOLLOW, MAX_FOLLOW)
+			if limb and j == "pelvis":
+				v = Vector3(o.x, o.y, v.z)   # the pelvis turns (twist) but does not tilt the trunk
+			elif limb and j in TRUNK:
+				tb += Vector2(v.x - o.x, v.y - o.y)
+				continue
 			B.ang[j] = B.clamp_ang(j, v)
+		if limb:
+			tb = Vector2(clampf(tb.x, -TRUNK_FOLLOW, TRUNK_FOLLOW), clampf(tb.y, -TRUNK_FOLLOW, TRUNK_FOLLOW)) / 3.0
+			for j in TRUNK:
+				if j in foll:
+					var o: Vector3 = ang0[j]
+					var i := int(_oi[j]) * 3
+					B.ang[j] = B.clamp_ang(j, Vector3(o.x + tb.x, o.y + tb.y, o.z + clampf(follow * s * dx[i + 2], -MAX_FOLLOW, MAX_FOLLOW)))
 		B.fk()
 		var miss := plant(B, st)
 		st["miss"] = miss
@@ -407,6 +438,12 @@ func apply(B: Body, st: Dictionary, follow: float) -> float:
 	return s
 
 
+## a foot's heading on the floor: ankle -> ball about the vertical (deg)
+static func heading(B: Body, sd: String) -> float:
+	var d: Vector3 = (B.P["ball" + sd] as Vector3) - (B.P["foot" + sd] as Vector3)
+	return rad_to_deg(atan2(d.x, d.z))
+
+
 ## the planted feet back on their spots (position and world orientation, as PartDrag does for a body move); the worst miss (m)
 func plant(B: Body, st: Dictionary) -> float:
 	var worst := 0.0
@@ -416,7 +453,32 @@ func plant(B: Body, st: Dictionary) -> float:
 	for sd in feet:
 		var fl: String = FEET[sd]
 		var f: Dictionary = feet[sd]
+		var th: String = "thigh" + sd
 		B.reach(fl, f["p"])
+		# THE HIP TAKES THE TWIST (Nick 10-24: "feet always try to point to each other"): the pelvis's twist follows a limb drag
+		# and turns the planted leg with it; the ankle cannot turn the foot back that far. The thigh's own twist (about its bone)
+		# turns the foot's heading back: the ankle's position is put back by reach, the heading is what the thigh changed
+		var slope := 0.0
+		for it in 3:
+			var e := wrapf(heading(B, sd) - float(f["h"]), -180.0, 180.0)
+			if absf(e) < 0.05:
+				break
+			var a0: Vector3 = B.ang[th]
+			if slope == 0.0:
+				var h0 := heading(B, sd)
+				B.set_ang(th, Vector3(a0.x, a0.y, a0.z + 1.0))
+				B.fk()
+				B.reach(fl, f["p"])
+				slope = wrapf(heading(B, sd) - h0, -180.0, 180.0)
+				B.set_ang(th, a0)
+				B.fk()
+				B.reach(fl, f["p"])
+				e = wrapf(heading(B, sd) - float(f["h"]), -180.0, 180.0)
+				if absf(slope) < 0.05 or absf(e) < 0.05:
+					break
+			B.set_ang(th, Vector3(a0.x, a0.y, a0.z - e / slope))
+			B.fk()
+			B.reach(fl, f["p"])
 		var gc: Quaternion = B.G[B.parent[fl]]
 		var v := B.decompose(fl, (gc.inverse() * (f["g"] as Quaternion)).normalized())
 		var old: Vector3 = B.ang[fl]

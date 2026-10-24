@@ -1,0 +1,14 @@
+{
+ "id": "kick_knee_belly",
+ "kind": "kick",
+ "brief": "A right knee strike driven into the target's belly at 0.55 s, the knee bent past 90 deg, the left foot planted and both hands kept up near the chin.",
+ "start": "bench/start/kick_knee_belly.json",
+ "notes": "Fighter 2 is a still target facing the hero. 30 fps.",
+ "asserts": [
+  {"line": "right thigh touches fighter 2 belly at 0.55 s +-2 f", "w": 3},
+  {"line": "right knee above 90 deg bend at 0.55 s +-2 f", "w": 1},
+  {"line": "left foot planted all clip", "w": 2},
+  {"line": "left fist at most 25 cm from chin all clip", "w": 1}
+ ],
+ "judges": {"must_fix": 0}
+}
