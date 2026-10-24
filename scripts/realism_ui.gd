@@ -53,7 +53,7 @@ func gather(db: Dictionary) -> Dictionary:
 	FrameMemo.on = true   # only the frames a fix changed are played again (frame_memo.gd)
 	var body0: Dictionary = m.B.state()   # a view: the body comes back as it was
 	var t0 := Time.get_ticks_usec()
-	var ck := var_to_str(S.cards) + var_to_str(S.body)   # a judge's answer is kept while the cards and the body are the same
+	var ck := var_to_str(S.cards) + var_to_str(S.body) + var_to_str(S.asserts)   # a judge's answer is kept while the cards and the body are the same (N005: and the saved N002 lines, which Check grades)
 	if String(_memo.get("key", "")) != ck:
 		m._bake_validate()
 		var sm := Rulebook.sample(S, m.ov.GB)
@@ -158,7 +158,7 @@ func _score_with(changes: Array, tc_fix := {}) -> float:
 
 ## the points a reason's own fix would add, worked out on a copy: -1.0 = this reason has no fix that can be scored
 func gain_of(r: Dictionary) -> float:
-	var gk := key + "|" + String(r["text"])
+	var gk := key + "|" + var_to_str(m.S.asserts) + "|" + String(r["text"])   # N005: a saved line changes what a fix is worth
 	if gains.has(gk):
 		return gains[gk]
 	var fx: Dictionary = r["fix"]

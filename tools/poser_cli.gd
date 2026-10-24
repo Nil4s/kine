@@ -19,6 +19,7 @@
 ##        (N006: the smallest set of those wishes that clash at one moment, and the cost to free each; nothing is changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- facts "how fast is a real jab?"   (or: facts list; N022, cited numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- brief scenes/combo3.json [--tokens 400]   (N011: the scene for an agent's context)
+##   $G --headless --path . -s tools/poser_cli.gd -- explain scenes/combo3.json [card=N | t0=S t1=S] [--json]   (N091: the strike in plain words + numbers)
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- try scenes/combo3.json retime=3-3:{pct} --sweep pct=80,90,100,110,120 [--no-score] [--apply best|N --out <path>]
 ##        or  try scenes/combo3.json slower_10 --or faster_10 --or ease_linear   (N019: each variant dry-run, scored, ranked)
@@ -29,6 +30,11 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- path_to_pose scenes/combo3.json|- "salute"|"raise the right leg 90" [--max N] [--json]
 ##        (N008: the run steps from card 1 (or the default body, -) to that pose; nothing is changed; scripts/pose_path.gd)
 ##   $G --headless --path . -s tools/poser_cli.gd -- recognize scenes/thrust.json [card=N] [t0=S] [t1=S] [fighter=N]   (N016: which strike)
+##   $G --headless --path . -s tools/poser_cli.gd -- whocould scenes/combo3.json [card=N] [t0=S] [t1=S]   (N027: who could do this)
+##   $G --headless --path . -s tools/poser_cli.gd -- fixuntil scenes/combo3.json [--bar 70] [--steps 10] --out scenes/_wip/x.json   (N005; --dry: the plan only)
+##   $G --headless --path . -s tools/poser_cli.gd -- hit_harder templates/punch.json card=3 [--dry] [--retime] [--out scenes/_wip/x.json]
+##        (N065 hit harder: the strike made more powerful within the body's limits, the gain as a number; scripts/hit_harder.gd)
+##   $G --headless --path . -s tools/poser_cli.gd -- spec scenes/combo3.json|- C:/specs/jab.json [--dummy 0.85] [--out scenes/_wip/x.json]   (N004 spec to motion, scripts/spec_motion.gd; serve: spec {spec, apply?})
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -107,6 +113,10 @@
 ##                                 N019: each variant an N003 dry run, ranked best first (fewest assertions failing, realism
 ##                                 score, MUST FIX, findings) with its diff (cards changed, joints moved); variants with a bad
 ##                                 step listed under "failed"; apply: "best" | n runs that one for real as ONE undo step (scripts/try_n.gd)
+##   explain {card? | t0?, t1?}    N091 (scripts/explain_motion.gd): the main strike as {phases: anticipation / action / contact /
+##                                 follow-through / recovery (s + frames), power: I8 chain + I36 weight transfer, read: words + the
+##                                 ratios, ease, holds, overshoot, kinks against cited / HEURISTIC norms, try: steps + a CLI line,
+##                                 text (< 250 words), sentences: [{s, fields}]}; nothing is changed
 ##   brief {path?, tokens?, facts?}  N011: the scene in under `tokens` (default 400, about 4 characters each): who, cards, beats,
 ##                                 contacts, realism score, top 3 problems with their fix steps, what to do next (scripts/scene_brief.gd);
 ##                                 path = open it first (as open)
@@ -116,9 +126,23 @@
 ##                                 strike card's height (cm over his chin), reach (% of the limb), stance (cm between the ankles),
 ##                                 guard (cm of the guard wrist over the chin); set re-solves the card and its neighbours by IK as
 ##                                 ONE undo step, planted feet kept; "unreached" names the joint whose limit stopped a knob
+##   who_could {card?} | {t0?, t1?}  N027: the minimum body per capacity (hip / ankle / spine / shoulder flexibility, hand and foot
+##                                 speed, jump power) as population percentiles + tiers; "no human" past a record (scripts/who_could.gd)
 ##   recognize {card?, t0?, t1?, fighter?}  N016: the strike the body does (jab ... roundhouse, weapon swings, thrust; else
 ##                                 "unknown" + the nearest) from path, chain, speed and feet, and its form vs the textbook
 ##                                 ("the elbow drops 25 deg below shoulder height"); scripts/move_recognizer.gd
+##   fix_until {bar?, max_steps?, dry?, path?}  N005: Check fixes, the timing coach and the I45 judges' fixes in order of predicted
+##                                 gain until every saved assertion passes and realism >= bar (default 70), or no fix helps, or
+##                                 max_steps (10); a fix that lowers the score or breaks a passing line is reverted. ONE undo step;
+##                                 dry = the plan only, nothing changed. Each step with the score and failing lines before / after
+##                                 (scripts/fix_loop.gd)
+##   hit_harder {card, dry?, allow_retime?}  N065 (scripts/hit_harder.gd): follow-through, hip + shoulder coil, longer wind-up,
+##                                 weight transfer, ease sequencing (retime only if allowed), each kept only if it raises the blow
+##                                 and keeps joint limits, the I47 human caps, balance, the contact frame (+-1) and the saved
+##                                 assertions. {before: {speed_mps, impulse_Ns}, after, gain_pct, levers: [{name, gain, applied,
+##                                 why_not}]}; ONE undo step; dry = the same answer, nothing written
+##   bench {list} | {task} | {task, score}  N024 Kine-Bench (scripts/kine_bench.gd): the 20 graded tasks; one task's brief, start
+##                                 scene and rules; {score: true} grades the live scene: per-assertion pass/fail, judge bars, 0-100
 ## Errors are JSON-RPC errors: -32700 not JSON, -32600 not a request, -32601 no such method (lists them), -32602 bad
 ## params (says what to send), -32000 a step or a save failed (data.steps has what ran). Every message says what to do.
 extends SceneTree
@@ -328,10 +352,25 @@ func _init() -> void:
 			var cx := ConflictExplain.serve(m, cp)
 			say(String(cx.get("say", cx.get("error", ""))))
 			done(cx)
+		"spec":   # N004: spec <scene.json|-> <spec.json> [--dummy D] [--out <path>] (scripts/spec_motion.gd)
+			await SpecMotion.cli(self, a)
 		"run":
 			await run(a)
 		"serve":
 			await serve()
+		"explain":   # N091: explain <scene> [card=N | t0=S t1=S] (scripts/explain_motion.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "explain <scene.json> [card=N | t0=S t1=S]  (N091; scripts/explain_motion.gd)"})
+				return
+			var xp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=", true, 1)
+				if kv.size() == 2 and kv[0] in ["card", "t0", "t1"] and kv[1].is_valid_float():
+					xp[kv[0]] = int(kv[1]) if kv[0] == "card" else float(kv[1])
+			var xr := ExplainMotion.serve(m, xp)
+			say(String(xr.get("text", xr.get("error", ""))))
+			done(xr)
 		"brief":   # N011 (scripts/scene_brief.gd)
 			var ti := a.find("--tokens")
 			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS
@@ -427,6 +466,28 @@ func _init() -> void:
 				say(l)
 			pr["ok"] = pr.get("ok", false) and not pr.has("blocked")
 			done(pr)
+		"hit_harder":   # N065: hit_harder <scene> card=N [--dry] [--retime] [--out path] (scripts/hit_harder.gd)
+			var hi := a.find("--out")
+			var hout: String = res(a[hi + 1]) if hi >= 0 and hi + 1 < a.size() else ""
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "hit_harder <scene.json> card=N [--dry] [--retime] [--out <path>]"})
+				return
+			var hp := {"card": m.sel_card + 1, "dry": a.has("--dry"), "allow_retime": a.has("--retime")}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					hp["card"] = int(kv[1])
+			var hr := HitHarder.serve(m, hp)
+			say(String(hr.get("said", hr.get("error", ""))))
+			if hr["ok"] and hout != "" and not hp["dry"]:
+				var hwhy := T.out_refused(hout)
+				if hwhy != "":
+					done({"ok": false, "error": hwhy})
+					return
+				T.write_scene(hout, "poser_cli hit_harder")
+				hr["out"] = hout
+			done(hr)
 		"lint":   # N018: scripts/clip_lint.gd
 			var lr := ClipLint.lint(m, a[1] if a.size() > 1 else "")
 			for l in ClipLint.lines(lr):
@@ -460,6 +521,43 @@ func _init() -> void:
 			var rr: Dictionary = await MoveRecognizer.serve(m, rp)
 			say(String(rr.get("text", rr.get("error", ""))))
 			done(rr)
+		"whocould":   # N027 (scripts/who_could.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "whocould <scene.json> [card=N] [t0=S] [t1=S]  (N027)"})
+				return
+			var wp := {}
+			for x in a.slice(2):
+				var kv := String(x).split("=")
+				if kv.size() == 2 and kv[0] == "card":
+					wp["card"] = int(kv[1])
+				elif kv.size() == 2 and kv[0] in ["t0", "t1"]:
+					wp[kv[0]] = float(kv[1])
+			var wr := WhoCould.serve(m, wp)
+			say(String(wr.get("text", wr.get("error", ""))))
+			done(wr)
+		"fixuntil":   # N005 (scripts/fix_loop.gd)
+			var dry := "--dry" in a
+			var fo := a.find("--out")
+			var fb := a.find("--bar")
+			var fn := a.find("--steps")
+			var outp: String = res(a[fo + 1]) if fo >= 0 and fo + 1 < a.size() else ""
+			var why_out := T.out_refused(outp) if outp != "" else ""
+			if a.size() < 2 or (outp == "" and not dry) or why_out != "" or not open_scene(a[1]):
+				if a.size() < 2 or (outp == "" and not dry) or why_out != "":
+					done({"ok": false, "error": why_out if why_out != "" else "fixuntil <scene.json> [--bar N] [--steps N] --out <path>  (or --dry: the plan only)"})
+				return
+			var fr: Dictionary = await FixLoop.run(m, T, float(a[fb + 1]) if fb >= 0 and fb + 1 < a.size() else FixLoop.DEFAULT_BAR,
+				int(a[fn + 1]) if fn >= 0 and fn + 1 < a.size() else FixLoop.DEFAULT_STEPS, dry)
+			if fr["ok"]:
+				for st in fr["steps"]:
+					say("%2d %-8s card %d  %s  predicted %+.2f  score %.2f -> %.2f  %s" % [st["n"], st["rule"], st["card"], st["fix"], st["predicted_gain"],
+						st["before"]["score"], st["after"]["score"], "kept" if st["kept"] else "REVERTED: " + String(st["reverted"])])
+				say("STOPPED (%s): %s" % [fr["stopped"], fr["why"]])
+				if outp != "" and not dry:
+					T.write_scene(outp, "fixuntil (N005)")
+					fr["out"] = outp
+			done(fr)
 		_:
 			say("verbs: commands | describe <scene> | describe joint <name> | ask <scene> \"joint=.. axis=.. value=..\" | check <scene> [--json] | events <scene> \"<query>\" | diff <a> <b> | validate <file> | run <scene> <step> ... [--out <path>] | serve   (head of tools/poser_cli.gd)")
 			done({"ok": false, "error": "unknown verb '%s'" % verb})

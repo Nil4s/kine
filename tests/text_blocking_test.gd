@@ -6,6 +6,12 @@
 ## and under the weapon's cap (docs/ATTACK_RULES.md); the default Check with no MUST FIX the source segment did not
 ## have; HumanLimits.findings with no finding the source did not have; unknown words listed back; the scene saved to
 ## user:// only and read back. Nick's scenes/, poses/, data/ are read, never written.
+## STRIKES (StrikeBlocking's generated key poses: no saved scene has a punch or a kick), bars stated before measuring:
+## "front kick", "roundhouse", "side kick", "hook", "cross" and "left roundhouse" each built and, for each: MoveRecognizer
+## (N016, of_scene on the built scene) names the move asked (the left roundhouse with the LEFT leg); the default Check has
+## NO MUST FIX at all (not only none new); HumanLimits.findings has no finding; every card's SAVED joint angles (the card's
+## own dict, not the body, whose from_dict clamps) inside data/body_limits.json, with an anti-vacuity copy (a card with the
+## knee bent 200 deg) flagged by the same check; the striking point's peak inside the strike's move and under its cap.
 extends SceneTree
 
 var fails := 0
@@ -24,6 +30,27 @@ const PHRASES := [
 	["overhead axe strike, spinning", "long_axe", "overhead", ["spinning"]],
 	["slow staff thrust, step in", "staff", "thrust", []],
 ]
+
+
+## [phrase, the class MoveRecognizer must name, the side it must name ("" = either)]
+const STRIKES := [["front kick", "front kick", ""], ["roundhouse", "roundhouse", ""], ["side kick", "side kick", ""],
+	["hook", "hook", ""], ["cross", "cross", ""], ["left roundhouse", "roundhouse", "left"]]
+
+
+## the card poses' saved joint angles outside the body's limits: ["card: joint axis value"], read off the dicts
+static func out_of_limits(B: Body, cards: Array) -> Array:
+	var out := []
+	for c in cards:
+		var js: Dictionary = c["pose"]["joints"]
+		for j in js:
+			if not B.lim.has(j):
+				continue
+			for k in ["bend", "side", "twist"]:
+				var r: Vector2 = B.lim[j][k]
+				var v := float(js[j][k])
+				if v < r.x - 0.01 or v > r.y + 0.01:
+					out.append("%s: %s %s %.1f (%.0f..%.0f)" % [c["name"], j, k, v, r.x, r.y])
+	return out
 
 
 func ok(c: bool, what: String) -> void:
@@ -109,5 +136,37 @@ func _init() -> void:
 		var back := Scene.new()
 		back.from_dict(JSON.parse_string(FileAccess.get_file_as_string(path)))
 		ok(saved and back.cards.size() == n, "'%s': saved to user:// and read back with %d cards" % [phrase, back.cards.size()])
+	# ---- STRIKES: generated punches and kicks
+	for row in STRIKES:
+		var phrase: String = row[0]
+		var r: Dictionary = TextBlocking.build(phrase, B)
+		if not r["ok"]:
+			ok(false, "'%s' builds: %s" % [phrase, r["error"]])
+			continue
+		var S: Scene = r["scene"]
+		var rr := MoveRecognizer.of_scene(S, B)
+		print("-- '%s' -> %s: %s" % [phrase, r["source"]["scene"], rr["text"]])
+		print("   status: %s" % r["status"])
+		print("   times: %s" % str(S.times().map(func(t): return [snappedf(t[0], 0.01), snappedf(t[1], 0.01), snappedf(t[2], 0.01)])))
+		for f in r["findings"]:
+			if f["sev"] == "FAIL":
+				print("   MUST FIX %s at %.2f s: %s" % [f["rule"], f["t"], f["msg"]])
+		for f in r["human"]:
+			print("   human %s %s: %s" % [f["sev"], f["rule"], f["msg"]])
+		ok(rr["class"] == row[1] and (row[2] == "" or String(rr.get("side", "")) == row[2]),
+			"'%s': MoveRecognizer names it %s%s (wants %s%s)" % [phrase, rr["class"], (" " + String(rr.get("side", ""))) if rr.get("strike", false) else "", row[1], (" " + row[2]) if row[2] != "" else ""])
+		ok(int(r["must_fix"]) == 0, "'%s': the default Check has no MUST FIX (%d)" % [phrase, int(r["must_fix"])])
+		ok((r["human"] as Array).is_empty(), "'%s': HumanLimits has no finding (%s)" % [phrase, str(r["human_new"])])
+		var bad := out_of_limits(B, S.cards)
+		ok(bad.is_empty(), "'%s': every card's saved joint angles inside the body's limits (%d cards; out: %s)" % [phrase, S.cards.size(), str(bad)])
+		var pk_t: float = r["peak_t"]
+		var win: Array = r["window"]
+		ok(pk_t >= float(win[0]) - 1e-3 and pk_t <= float(win[1]) + 1e-3 and float(r["peak"]) <= float(r["cap"]),
+			"'%s': the %s peaks at %.1f m/s at %.2f s, inside the strike's move (%.2f-%.2f s) and under the %s cap %.1f" % [phrase, r["point"], r["peak"], pk_t, win[0], win[1], r["cap_name"], r["cap"]])
+		if phrase == "front kick":   # anti-vacuity: the limit check flags a knee bent past its range
+			var bent: Array = S.cards.duplicate(true)
+			bent[2]["pose"]["joints"]["calf_r"]["bend"] = 200.0
+			var flag := out_of_limits(B, bent)
+			ok(flag.size() == 1, "anti-vacuity: a card with the knee bent 200 deg is flagged by the same check (%s)" % str(flag))
 	print("TEXT BLOCKING TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

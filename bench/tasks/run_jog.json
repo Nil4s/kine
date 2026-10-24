@@ -1,0 +1,20 @@
+{
+ "id": "run_jog",
+ "kind": "walk",
+ "brief": "A jog of about 2.5 s at a slow running pace: the hips over 1.5 m/s through the middle of the clip, nothing Check must fix.",
+ "start": "bench/start/run_jog.json",
+ "notes": "The run template (templates/run.json) is one way: 170 steps/min, 0.78 m steps (its note cites preferred step rates of ~170-172). Fighter 2 is not used. 30 fps.",
+ "asserts": [
+  {
+   "line": "pelvis speed over 1.5 m/s 0.6-2.0 s",
+   "w": 2
+  },
+  {
+   "line": "com speed under 4 m/s all clip",
+   "w": 1
+  }
+ ],
+ "judges": {
+  "must_fix": 0
+ }
+}

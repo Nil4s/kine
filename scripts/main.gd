@@ -155,6 +155,7 @@ var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-f
 var clash_ui: RomClashUI   # ARMOUR CLASH (ROADMAP_400 B24 / B25): ROM test + scene, worst frames, red verts, clearance heat map (scripts/rom_clash_ui.gd)
 var tm_ui: TimingMatchUI   # MATCH THE REFERENCE TIMING (ROADMAP I29): scripts/timing_match_ui.gd
 var knobs_ui: MoveKnobsUI   # N025 MOVE KNOBS: strike height / reach / stance / guard spin boxes in the inspector's NUMBERS
+var hit_harder_ui: HitHarderUI   # N065 HIT HARDER: one button under the move knobs (scripts/hit_harder_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
@@ -218,7 +219,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
-	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
@@ -486,6 +487,9 @@ var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overl
 var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
 var smart_drag := true      # the other joints follow a dragged one the way your poses move together; Alt+drag = off
 var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint drag)
+var keep_balance := true    # N066 (scripts/live_balance.gd): a drag keeps him over his feet, live; Alt+drag lets him fall
+var _lb := {}               # N066: this drag's live balance (LiveBalance.begin; {} = off for this drag)
+var _lb_r := {}             # N066: its last frame (LiveBalance.step)
 var _sd := {}               # the current drag's smart state ({} = none)
 var sj := SuggestionJournal.new()   # LEARN FROM MY EDITS (ROADMAP I26): scripts/suggestion_journal.gd; the panel is sj_ui
 var sj_ui: SuggestionJournalUI
@@ -497,6 +501,7 @@ var wt := WeaponTrail.new()   # WEAPON TRAILS (ROADMAP 35): the blade's sweep ri
 var sk := SketchPose.new()   # ROADMAP I9: sketch a stick figure over the view -> pose (scripts/sketch_pose.gd)
 var loa := LineOfAction.new()   # ROADMAP 23: sketch a line of action -> pose (scripts/line_of_action.gd)
 var rings := RangeRings.new()   # ROADMAP 38: floor rings at the picked fighter's reach, the other fighter inside or not (scripts/range_rings.gd)
+var redspots := RedSpots.new()   # N074: Check's problems glow on the body part they are about (scripts/red_spots.gd)
 var cshadow := ContactShadow.new()   # CONTACT SHADOWS (ROADMAP R4): a soft blob under each foot, darker the nearer the sole is to the floor
 var force_on := false        # FORCE VIEW (ROADMAP I8, scripts/force_view.gd): the body coloured by joint torque, the power chain strip. Off by default, view only
 var force_cache := {}        # {"key": the cards + body it was made for, "sm": ForceView.sample's result}
@@ -2645,6 +2650,7 @@ func _ready() -> void:
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
 		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
+		keep_balance = false   # N066: off in a test until it turns it on (the older drag tests measure the plain drag)
 		sj = SuggestionJournal.new("user://zz_suggestion_journal_%d.json" % OS.get_process_id())   # I26: a test never reads or writes the real journal
 		myhits.sj = sj
 		nt.path = "user://zz_next_tool_%d.json" % OS.get_process_id()   # P17: a test never reads or writes the real next-command file (its chips made small_window / pages flaky)
@@ -2704,6 +2710,9 @@ func _ready() -> void:
 	add_child(bal)
 	add_child(rc_view)
 	add_child(cshadow)
+	add_child(redspots)
+	redspots.setup(self)
+	redspots.load_from(settings)   # N074: VIEW > Show problems on the body (on unless turned off)
 	add_child(loa)
 	add_child(rings)
 	ov.setup()
@@ -4597,6 +4606,10 @@ func _refresh() -> void:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
+	var _rk := {sel: true}
+	for sj in sel_more:
+		_rk[sj] = true
+	redspots.apply(looks, playhead, B, check_ran and not clean and not wp_on, _rk)   # N074: the spots at the playhead (the picked part keeps its pick)
 	_force_looks(looks)
 	skp.set_looks(looks)
 	for m in [bat_handle, bat_barrel, bat_knob]:
@@ -4948,6 +4961,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				if sel_prop >= 0:
 					sel_prop = -1
 					_props_show()
+				redspots.press(j, mb.position, playhead)   # N074: a glowing part opens its finding and Fix (the press goes on)
 				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
 					sel = j
 					playing = false
@@ -4973,6 +4987,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j) and sel_more.is_empty():   # a SET (Select: spine, Ctrl+click) turns every member by the same change (the old drag): PartDrag spreads or swings a turn its own way
 						_pd = PartDrag.begin(B, j, cam.project_ray_origin(mb.position), cam.project_ray_normal(mb.position))
 					_sd = _smart_begin(j, mb.alt_pressed)
+					_lb = LiveBalance.begin(B, j) if keep_balance and not mb.alt_pressed and sel_more.is_empty() else {}   # N066
+					_lb_r = {}
 					playing = false
 					_refresh()
 			elif mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -4989,6 +5005,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		else:
 			var was := dragging
 			dragging = ""
+			_lb = {}   # N066: the pose stays as the last frame left it
 			_num_on = false
 			if was == "prop":
 				_prop_release()
@@ -5235,6 +5252,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
 	if not _sd.is_empty() and not alt and not twist and not move:
 		_smart_step(tip)
+	_lb_step(tip and not alt and not move and not twist, alt)   # N066: keep him over his feet (the dragged joint untouched)
 	_arm_edit = sel if sel.begins_with("upperarm") and not move and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
@@ -5246,7 +5264,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		return
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
-	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
+	_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 
 
 ## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
@@ -5271,6 +5289,33 @@ func _smart_step(tip: bool) -> void:
 			fl = func(): B.shoulder_follow(sel.right(2))
 		PartDrag.move(B, _pd, cam.project_ray_origin(_pd_mp), cam.project_ray_normal(_pd_mp), fl)
 	sd.apply(B, _sd, smart_follow)
+
+
+## NEVER FALLS WHILE POSING (N066, scripts/live_balance.gd): after the drag's own edit, the hips slide so the COM stays inside the
+## planted feet. pull: a hand / foot on IK, put back on its target after the hips move. Alt during the drag: the correction is
+## taken back and he is let fall for the rest of this drag
+func _lb_step(pull: bool, alt: bool) -> void:
+	if _lb.is_empty():
+		_lb_r = {}
+		return
+	var redo := Callable()
+	if pull and not is_nan(_grab.x) and not (sel in ["hand_r", "hand_l"] and (ik_contact or (B.wep_on and B.wep_hand != "" and B.wep_hand != sel))):
+		redo = func(): B.reach(sel, _grab)
+	if alt:
+		LiveBalance.untake(B, _lb, redo)
+		_lb = {}
+		_lb_r = {}
+		return
+	_lb_r = LiveBalance.step(B, _lb, redo)
+
+
+func _toggle_keep_balance() -> void:
+	keep_balance = not keep_balance
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("pose", "keep_balance", keep_balance)
+	cf.save(settings)
+	_say("KEEP BALANCE ON: while you drag, the hips slide so he stays over his feet (Alt+drag lets him fall)" if keep_balance else "keep balance off: a drag can tip him over his feet")
 
 
 func _smart_set_follow(d: float) -> void:
@@ -10601,6 +10646,7 @@ func _onion_load() -> void:
 	ov.onion_step = clampi(int(cf.get_value("onion", "step", 1)), 1, Overlays.ONION_STEP_MAX)
 	ov.onion_picks = Array(cf.get_value("onion", "picks", []))
 	sg_on = bool(cf.get_value("suggest", "on", sg_on))   # R27: the next-pose ghosts (View > Next poses)
+	keep_balance = bool(cf.get_value("pose", "keep_balance", keep_balance))   # N066: Keep balance (POSE toolbar)
 
 
 func _onion_save() -> void:
@@ -10814,7 +10860,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
+const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -11167,6 +11213,8 @@ func _ui() -> void:
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
 	tog.call("POSE", "Smart drag", _toggle_smart_drag, func(): return smart_drag,
 		"on: dragging a joint also moves the rest of the body the way YOUR poses move together (learned from poses/ and scenes/; feet planted, balance held). Alt+drag = the one joint only. Command search: 'smart drag follow' sets the strength")
+	tog.call("POSE", "Keep balance", _toggle_keep_balance, func(): return keep_balance,
+		"on: while you drag a joint he stays over his feet: the hips slide (the back leans a little) so the centre of mass stays 2 cm inside the planted feet; the dragged joint keeps exactly what you gave it. Alt+drag lets him fall. Remembered")
 	tog.call("POSE", "Line of action", func(): loa.on = not loa.on; _refresh(), func(): return loa.on,
 		"the current line of action, faint: head, spine, pelvis, support knee and ankle. A C or an S shows the pose's shape")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
@@ -11372,6 +11420,8 @@ func _ui() -> void:
 	ui_ribbon["VIEW"].add_child(_button("Big view (Tab)", _big_view, "hide the side panels so the body fills the screen"))
 	tog.call("VIEW", "Local API", func(): _set_api(api == null or not api.running()), func(): return api != null and api.running(),
 		"a local HTTP API on 127.0.0.1 only (off by default): describe, run, check, shot over JSON, for a script on this machine. Needs the session token the status line shows. The port is [api] port in the settings file (default 8765)")
+	tog.call("VIEW", "Show problems on the body", func(): redspots.set_on(not redspots.on, settings); _refresh(), func(): return redspots.on,
+		"Check's problems glow on the body part at the frames they cover (red = must fix, yellow = look); click the glow for the finding and its Fix (remembered, on by default)")
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
@@ -11721,6 +11771,8 @@ func _ui() -> void:
 	num.add_child(attrs_sec)
 	knobs_ui = MoveKnobsUI.new(self)   # N025 MOVE KNOBS (scripts/move_knobs_ui.gd): rows in NUMBERS (a header of its own: over the 300 px bar)
 	num.add_child(knobs_ui)
+	hit_harder_ui = HitHarderUI.new(self)   # N065 (scripts/hit_harder_ui.gd): the strike card's "Hit harder" button
+	num.add_child(hit_harder_ui)
 
 	# ---- bottom: the scene
 	var bp := PanelContainer.new()
@@ -14330,6 +14382,7 @@ func _commands() -> Array:
 	add.call("Check: could a human do this? (on / off)", "", _human_check, "human limits speed torque balance tipping real possible biomechanics", false, "adds joint speed and tipping against recorded human limits to Check. Speed bars are checked against the papers (shoulder, trunk: Fortenbaugh 2009; knee: Manolopoulos 2006, a group mean); torque and tipping stay experimental, see docs/research/HUMAN_LIMITS.md")
 	add.call("Check the motion", "", _check, "grade problems rules", false, "grade the scene against the rulebook; each finding jumps to its moment")
 	add.call("Check: critique the animation", "", _critique, "critique notes anticipation follow-through floaty even timing craft", false, "animation-craft notes that point at frames (NOTE only, never must-fix): anticipation, floaty, dead stop, even timing")
+	add.call("Check: explain this motion", "", ExplainMotion.show.bind(self), "explain motion phases anticipation action contact follow-through recovery power chain weight read heavy fast snappy floaty beginner why", false, "N091: the strike in plain words with its numbers: phases, where the power comes from, what makes it read fast / heavy, one thing to try (scripts/explain_motion.gd)")
 	add.call("Check: weights broke here", "", _weights_broke, "weights broke skin vertex stretch spike pop wrong bone bad weight worst frame skinning candy", false, "over the whole animation finds the vertex with the worst weight problem (edges stretched against rest, jumps between frames, weights far from the vertex's own bone, weights not adding up to a whole or over 4 bones), jumps the playhead to its worst frame, frames the camera on it and marks it; the report has a button that opens Weight paint on the bone (ROADMAP_400 H24)")
 	add.call("Check: arcs (kinks in the paths)", "", _arc_check, "arcs arc kink path curve mechanical wrist ankle head weapon tip direction change twelve principles", false, "wrists, ankles, head and weapon tip: lists the places a path turns sharply without a stop (not an arc), jumps to the worst and draws the kinked paths (ROADMAP L26): NOTES only")
 	add.call("Check: stunt load report", "", _stunt_check, "stunt injury load landing impact valgus spine neck fall injury", false, "landing load (body weights), knee valgus, spine compression and flex+twist, neck speed for stunt teams (ROADMAP 24): NOTES only, never must-fix")
@@ -15833,6 +15886,7 @@ func _check(given = null) -> void:
 		findings = Rulebook.check(S, ov.GB, _sm)
 	check_ran = true
 	check_at = undo.size()
+	redspots.set_findings(findings)   # N074: the glows come from this list, never from a Check of their own
 	for c in ui_find_list.get_children():
 		ui_find_list.remove_child(c)   # detach now: queue_free alone leaves the old rows listed until the frame ends
 		c.queue_free()
@@ -15849,6 +15903,9 @@ func _check(given = null) -> void:
 		var vl := _label("Is this clip physically possible?  %s" % vword + ("" if vword == "PASS" else "  (the frames and reasons are below; click one)"), 16, "heading" if vword == "PASS" else "warn", true)
 		vl.name = "verdict"
 		ui_find_list.add_child(vl)
+		var wl := _label(String(WhoCould.of_scene(S, ov.GB)["text"]), 14, "text:0.85", true)   # N027 (scripts/who_could.gd)
+		wl.name = "whocould"
+		ui_find_list.add_child(wl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
 	var n_push := _push_rows()   # R24: each hit contact against the MuJoCo push-limit table (above the findings: always on screen)
@@ -15949,6 +16006,7 @@ func _critique() -> void:
 	var title := _label("CRITIQUE  -  " + ("nothing to note in the craft rules" if notes.is_empty() else "%d notes (never must-fix)" % notes.size()), 18, "heading")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
+	head.add_child(_button("Explain", ExplainMotion.show.bind(self), "N091: this motion in plain words, with the numbers (phases, power, read, one thing to try)"))
 	head.add_child(_button("Close", _close_findings))
 	ui_find_list.add_child(_label("Animation craft, from the twelve principles: notes, not errors. Click one to jump to its moment.", 13, "text:0.6", true))
 	for k in notes.size():

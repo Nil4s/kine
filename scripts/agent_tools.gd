@@ -447,12 +447,20 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N017 EVENT QUERY: when is X true, measured on the played body (scripts/event_query.gd); unknown phrase -> the known list
 			var ev: Dictionary = await EventQuery.run(m, p)
 			return _ok(id, ev) if ev["ok"] else _err(id, -32602, ev["error"], {"known": ev["known"]} if ev.has("known") else null)
+		"explain":   # N091 EXPLAIN THIS MOTION (scripts/explain_motion.gd): phases, power, read, one thing to try; scene untouched. Not in METHODS
+			var xm := ExplainMotion.serve(m, p)
+			return _ok(id, xm) if xm["ok"] else _err(id, -32602, String(xm["error"]))
 		"brief":   # N011: the scene in under N tokens (scripts/scene_brief.gd)
 			return await SceneBrief.serve(self, id, p)
 		"text_view":
 			# N001: front + side ASCII stick figures and one paragraph (scripts/text_view.gd); {t | frame, fps | card}
 			var tv: Dictionary = await TextView.on_main(m, p)
 			return _ok(id, tv) if tv["ok"] else _err(id, -32602, tv["error"])
+		"spec":
+			# N004 SPEC TO MOTION: a structured move spec -> a clip that passes its assertions, or what it could not meet and why
+			# (scripts/spec_motion.gd); a dry plan unless apply: true (then ONE undo step). Not in METHODS (the transcript's ready line)
+			var sm := SpecMotion.serve(m, p)
+			return _ok(id, sm["result"]) if sm["ok"] else _err(id, -32602, String(sm.get("error", "bad spec")), {"grammar": sm["grammar"]} if sm.has("grammar") else null)
 		"range":
 			# N013 SAFE RANGE SWEEP: the values of one joint axis that keep EVERY condition true (scripts/range_sweep.gd); not in METHODS
 			var rs := RangeSweep.run(m, p)
@@ -473,4 +481,15 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# the source (scripts/coupled_limits.gd); not in METHODS (the transcript's ready line)
 			var cl := CoupledLimits.serve(m, p)
 			return _ok(id, cl) if cl["ok"] else _err(id, -32602, cl["error"])
+		"who_could":   # N027: the minimum body that could do the clip / card / span, per capacity (scripts/who_could.gd); not in METHODS
+			var wc := WhoCould.serve(m, p)
+			return _ok(id, wc) if wc["ok"] else _err(id, -32602, wc["error"])
+		"fix_until":   # N005: the fixes in order of predicted gain until the saved assertions pass and the score clears a bar (scripts/fix_loop.gd)
+			return await FixLoop.serve(self, id, p)
+		"hit_harder":   # N065 HIT HARDER (scripts/hit_harder.gd): {card, dry?, allow_retime?}; one undo step; not in METHODS (the transcript)
+			var hh := HitHarder.serve(m, p)
+			return _ok(id, hh) if hh["ok"] else _err(id, -32602, String(hh["error"]))
+		"bench":   # N024 KINE-BENCH: {list} | {task} (brief, start, rules) | {task, score} grades the live scene (scripts/kine_bench.gd).
+			# Not in METHODS: its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
+			return KineBench.serve(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])

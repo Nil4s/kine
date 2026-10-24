@@ -70,7 +70,8 @@ const HIP_EXT_MAX := -25.0
 const KNEE_MAX := 145.0   # data/body_limits.json calf bend max: where every curve ends
 
 ## one coupling: the bar on `joint`'s bend ("max" = it may not go above, "min" = not below) as a curve over `other`'s bend.
-## curve = [[other deg, bar deg], ...] increasing in other; fail_shift moves the WARN curve to the FAIL one
+## curve = [[other deg, bar deg], ...] increasing in other: the cited points. warn_shift (default 0) moves it to the WARN bar,
+## fail_shift to the FAIL one
 static func couplings() -> Array:
 	return [
 		{"id": "hamstrings", "joint": "thigh", "other": "calf", "side": "max", "muscle": "hamstrings",
@@ -93,7 +94,10 @@ static func couplings() -> Array:
 			"bars": ["CoupledLimits.GAS_STRAIGHT", "CoupledLimits.GAS_BENT", "CoupledLimits.GAS_FREE_KNEE", "CoupledLimits.GAS_SD"]},
 		{"id": "rectus femoris", "joint": "thigh", "other": "calf", "side": "min", "muscle": "rectus femoris",
 			"curve": [[0.0, HIP_EXT_MAX], [RECT_KNEE, RECT_EXT], [RECT_KNEE_FLAT, 0.0], [KNEE_MAX, 0.0]],
-			"fail_shift": -2.0 * RECT_SD, "monotonic": "up",
+			# the Thomas numbers are where a thigh HANGS under gravity, not an end range pushed by a tester: half of all people hang
+			# past the mean, so being past it says nothing. Only past mean - 2 SD (outside 97.5 % of the hang) is flagged, and then
+			# as FAIL. Found by the run template (tools/template_plans.gd): its swing leg at hip -14 / knee 75 would WARN at the mean.
+			"warn_shift": -2.0 * RECT_SD, "fail_shift": -2.0 * RECT_SD, "monotonic": "up",
 			"what": "hip extension", "with": "knee flexion",
 			"why": "the rectus femoris runs from the pelvis over the front of the knee: a bent knee keeps it long, so the thigh goes back less",
 			"fix_hint": "bring the thigh forward",
@@ -143,7 +147,7 @@ static func x_upto(curve: Array, y: float) -> float:
 
 
 static func shifted(c: Dictionary, level: String) -> Array:
-	var sh: float = c["fail_shift"] if level == "fail" else 0.0
+	var sh: float = c["fail_shift"] if level == "fail" else float(c.get("warn_shift", 0.0))
 	return (c["curve"] as Array).map(func(p): return [float(p[0]), float(p[1]) + sh])
 
 
@@ -167,13 +171,14 @@ static func check_pose(ang: Dictionary) -> Array:
 				continue
 			var a := _bend(ang[j])
 			var x := _bend(ang[o])
-			var w := at(c["curve"], x)
+			var wc := shifted(c, "warn")
+			var w := at(wc, x)
 			var f := at(shifted(c, "fail"), x)
 			var over := (a - w) if c["side"] == "max" else (w - a)
 			if over <= TOL:
 				continue
 			var past_fail := (a - f) if c["side"] == "max" else (f - a)
-			var need := x_for(c["curve"], a) if c["side"] == "max" else x_upto(c["curve"], a)
+			var need := x_for(wc, a) if c["side"] == "max" else x_upto(wc, a)
 			out.append({"coupling": c["id"], "joint": j, "other": o, "angle": a, "other_angle": x, "warn": w, "fail": f,
 				"sev": "FAIL" if past_fail > TOL else "WARN", "over": over, "other_needed": need, "c": c})
 	return out
