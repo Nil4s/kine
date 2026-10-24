@@ -77,6 +77,7 @@ func _start(tool_path: String, extra: PackedStringArray) -> String:
 	var args := PackedStringArray([tool_path, "--port", str(port)])
 	args.append_array(extra)
 	pid = OS.create_process(python, args)
+	Children.add(pid)
 	if pid < 0:
 		var why := "\"%s\" did not start (it needs Python with mediapipe and opencv-python: run pip install mediapipe opencv-python)" % python
 		stop()
@@ -95,6 +96,7 @@ func stop() -> void:
 		_server.stop()
 	if pid >= 0 and OS.is_process_running(pid):
 		OS.kill(pid)
+	Children.done(pid)
 	pid = -1
 	port = 0
 	running = false

@@ -36,6 +36,7 @@ func start(w: String, secs := 5.0, sd := -1) -> String:
 	log_path = dir.path_join("%s_%d.log" % [base, seed])
 	var args := PackedStringArray([ProjectSettings.globalize_path(tool), w, out, "--seconds", str(seconds), "--seed", str(seed)])
 	pid = OS.create_process(python, args)
+	Children.add(pid)
 	if pid < 0:
 		return "\"%s\" did not start (gen_video.py needs Python 3)" % python
 	t = 0.0
@@ -49,6 +50,7 @@ func poll(dt: float) -> String:
 	t += dt
 	if OS.is_process_running(pid):
 		return ""
+	Children.done(pid)
 	pid = -1
 	if FileAccess.file_exists(out) and FileAccess.get_file_as_bytes(out).size() > 1000:
 		return "done"

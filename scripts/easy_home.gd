@@ -341,6 +341,7 @@ func cancel_run() -> void:
 	if _gen_on:
 		if m.gen_move.pid >= 0:
 			OS.kill(m.gen_move.pid)
+		Children.done(m.gen_move.pid)
 		m.gen_move.pid = -1
 		_gen_on = false
 		m.gen_easy = false

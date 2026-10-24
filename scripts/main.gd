@@ -1512,6 +1512,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
 				refused_pipe = true
 				break
 			pipe = {"stdin": io["stdio"], "pid": io["pid"]}
+			Children.add(io["pid"], io["stdio"])   # closing the app mid-save: the pipe is closed, then ffmpeg is killed
 		if pipe.is_empty():
 			img.save_png("%s/frame_%04d.png" % [gdir, f])   # no ffmpeg: the PNG frames, as Export playblast keeps them
 		else:
@@ -1538,6 +1539,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
 		(pipe["stdin"] as FileAccess).close()
 		while OS.is_process_running(pipe["pid"]):
 			await get_tree().process_frame
+		Children.done(pipe["pid"])
 	var made := FileAccess.file_exists(mp4) and done == n
 	_pb_layer.visible = false
 	_pb_busy = cancelled   # a cancelled save stays busy until its folder is gone and it says so (else "not busy" was seen mid-cleanup)
@@ -3150,10 +3152,7 @@ func _exit_tree() -> void:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
-	if _video_pid >= 0 and OS.is_process_running(_video_pid):
-		OS.kill(_video_pid)   # the video tracker is a separate program: closing the app mid-read left it running
-	if gen_move.pid >= 0 and OS.is_process_running(gen_move.pid):
-		OS.kill(gen_move.pid)   # ... and so is the AI video maker's script
+	Children.kill_all()   # the separate programs (video tracker, AI video maker, Save video's ffmpeg, webcam and multicam readers...) end with the app
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
@@ -6512,6 +6511,7 @@ func _qr_open_camera() -> void:
 	if FileAccess.file_exists(_qr_cam_file):
 		DirAccess.remove_absolute(_qr_cam_file)
 	_qr_cam_pid = OS.create_process(_qr_py(), PackedStringArray([ProjectSettings.globalize_path("res://tools/qr_tool.py"), "camera", "0", _qr_cam_file, "--seconds", "25"]))
+	Children.add(_qr_cam_pid)
 	if _qr_cam_pid < 0:
 		_say("could not start the camera reader: \"%s\" did not start. Install Python and run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture" % _qr_py())
 		return
@@ -6529,6 +6529,7 @@ func _qr_cam_poll() -> void:
 		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(_qr_cam_file))
 		DirAccess.remove_absolute(_qr_cam_file)
 		_qr_cam_timer.stop()
+		Children.done(_qr_cam_pid)
 		_qr_cam_pid = -1
 		if d is Dictionary and bool(d.get("ok", false)):
 			_qr_open_text(String(d["text"]))
@@ -6536,6 +6537,7 @@ func _qr_cam_poll() -> void:
 			_say(String((d as Dictionary).get("why", "no QR seen: try again")) if d is Dictionary else "the camera reader gave no answer: try again, or open a picture")
 	elif _qr_cam_pid < 0 or not OS.is_process_running(_qr_cam_pid):
 		_qr_cam_timer.stop()
+		Children.done(_qr_cam_pid)
 		_qr_cam_pid = -1
 		_say("the camera reader stopped without an answer: run pip install opencv-python zxing-cpp pillow, or use Open from QR... on a picture")
 
@@ -19990,6 +19992,7 @@ func _import_video(path: String, raw := false) -> void:
 		DirAccess.remove_absolute(_video_prog)
 	var tool := ProjectSettings.globalize_path("res://tools/see_video.py")
 	_video_pid = OS.create_process(video_python, PackedStringArray([tool, path, _video_out, "--progress", _video_prog]))
+	Children.add(_video_pid)
 	if _video_pid < 0:
 		_say("could not track %s: \"%s\" did not start (it needs Python with mediapipe and opencv-python: run pip install mediapipe opencv-python)" % [_video_name, video_python])
 		return
@@ -20007,6 +20010,7 @@ func _video_cancel() -> void:
 	var pid := _video_pid
 	_video_pid = -1
 	_video_cancelled = true
+	Children.done(pid)
 	OS.kill(pid)
 	for i in 50:
 		if not OS.is_process_running(pid):
@@ -20037,6 +20041,7 @@ func _video_poll(dt: float) -> void:
 		if tick:
 			_video_bar()
 		return
+	Children.done(_video_pid)
 	_video_pid = -1
 	if _imp.is_empty():
 		_imp_show(false)   # no fit follows (the tracker found no person, or the video was not read): the bar goes
@@ -20352,6 +20357,7 @@ func _multicam_start(paths: PackedStringArray) -> void:
 func _multicam_track_next() -> void:
 	var args := MultiCam.track_args(ProjectSettings.globalize_path(multicam_tool), _mc_videos[_mc_i], _mc_outs[_mc_i])
 	_mc_pid = OS.create_process(multicam_python, args)
+	Children.add(_mc_pid)
 	if _mc_pid < 0:
 		_multicam_end("could not track camera %d (%s): the interpreter \"%s\" did not start (it needs Python with mediapipe and opencv-python)" % [_mc_i + 1, _mc_videos[_mc_i].get_file(), multicam_python])
 		return
@@ -20360,6 +20366,7 @@ func _multicam_track_next() -> void:
 
 func _multicam_end(why: String) -> void:
 	_mc_i = -1
+	Children.done(_mc_pid)
 	_mc_pid = -1
 	_say(why)
 
@@ -20367,6 +20374,7 @@ func _multicam_end(why: String) -> void:
 func _multicam_poll(_dt: float) -> void:
 	if _mc_i < 0 or _mc_pid < 0 or OS.is_process_running(_mc_pid):
 		return
+	Children.done(_mc_pid)
 	_mc_pid = -1
 	if not FileAccess.file_exists(_mc_outs[_mc_i]):
 		_multicam_end("could not track camera %d (%s): the tracker found no person, or could not read the video" % [_mc_i + 1, _mc_videos[_mc_i].get_file()])

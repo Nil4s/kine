@@ -247,6 +247,7 @@ func match_body() -> void:
 	if FileAccess.file_exists(_out):
 		DirAccess.remove_absolute(_out)
 	_pid = OS.create_process(python, PackedStringArray([ProjectSettings.globalize_path(tool), abs_path(e), _out]))
+	Children.add(_pid)
 	if _pid < 0:
 		_no_detector("the interpreter \"%s\" did not start" % python)
 		return
@@ -258,6 +259,7 @@ func poll(_dt: float) -> void:
 		layout_all()
 	if _pid < 0 or OS.is_process_running(_pid):
 		return
+	Children.done(_pid)
 	_pid = -1
 	var d = JSON.parse_string(FileAccess.get_file_as_string(_out)) if FileAccess.file_exists(_out) else null
 	if not d is Dictionary or not (d as Dictionary).has("image"):
