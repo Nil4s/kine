@@ -33,6 +33,8 @@ const OPEN_DRAFTS := 5      # Open: the saved scenes, then "Recent drafts" with 
 var _dummy_was := false   # the target dummy was on when Easy came on (Expert puts it back)
 var _more: PopupMenu        # the More menu: the actions that are not on the bar (its item id = index in _more_acts)
 var _more_acts: Array = []  # [label, tip, Callable] per More entry
+var red_note: PanelContainer   # Easy: the one line that says what the red on the body means (shown while a red spot is lit)
+const RED_NOTE := "Red = Check found a problem in this part. Click the red part to see the fix."
 var _snap := {}             # the state at the start of the tour step
 var _armed := false         # step 1: a hand was dragged (the drag is not let go yet)
 var _moved := false         # step 4: the body changed since the step began
@@ -109,6 +111,29 @@ func build(root: Control, expert: Array) -> void:
 		var b := _big(a[0], a[1], a[2])
 		row.add_child(b)
 		_btns[a[0]] = b
+	# REDO, one click after Undo: a narrow button that is there only while something can be put back (easy_home._process
+	# shows it and names it "Redo: Faster", as Undo is named). The More entry stays too.
+	var rb := _big("Redo", "Put back what Undo took back (Ctrl+Y)", m._redo)
+	rb.name = "easy_redo"
+	rb.custom_minimum_size = Vector2(150, m.TOP_H - 12)
+	rb.size_flags_horizontal = Control.SIZE_FILL
+	rb.visible = false
+	row.add_child(rb)
+	row.move_child(rb, (_btns["Undo"] as Control).get_index() + 1)
+	_btns["Redo"] = rb
+	# RED IS SAID: Check's red spots on the body (main's redspots) get one plain line in Easy, above the mouse strip
+	red_note = PanelContainer.new()
+	red_note.name = "easy_red_note"
+	red_note.visible = false
+	red_note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rnl := Label.new()
+	rnl.text = RED_NOTE
+	rnl.custom_minimum_size = Vector2(300, 0)
+	rnl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rnl.add_theme_font_size_override("font_size", 15)
+	rnl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	red_note.add_child(rnl)
+	root.add_child(red_note)
 	_more = PopupMenu.new()
 	_more.name = "easy_more_menu"
 	_more.add_theme_font_size_override("font_size", 18)

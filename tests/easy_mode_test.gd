@@ -167,9 +167,9 @@ func _init() -> void:
 	var bts: Array = m.easy.labels()
 	var shown: Array = []
 	for n in m.easy.bar.find_children("*", "Button", true, false):
-		if n.get_meta("label", "") != "":
+		if n.get_meta("label", "") != "" and n.visible:   # Redo is on the bar only while something can be put back (checked below)
 			shown.append(n.get_meta("label"))
-	ok(shown.size() == 7 and LABELS.all(func(l): return l in shown) and bts.size() == 7, "Easy shows exactly the 7 labelled buttons: %s" % str(shown))
+	ok(shown.size() == 7 and LABELS.all(func(l): return l in shown) and bts.size() == 8, "Easy shows exactly the 7 labelled buttons (Redo is the 8th, hidden with nothing to redo): %s" % str(shown))
 	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube %s" % str(range(panels().size()).filter(func(i): return panels()[i].visible)))
 	ok(m.ui_bp.visible, "the bottom panel (timeline and cards) stays: the tour and Play need it")
 	ok(m.lw() == 0.0 and m.rw() == 0.0, "the body view takes the room the hidden side panels had")
@@ -238,6 +238,15 @@ func _init() -> void:
 	m.easy.pick_more("Save this pose as a card")
 	await idle()
 	ok(m.S.cards.size() == n0 + 2, "a second card: two are needed to play")
+	# REDO ON THE BAR (Easy): after an Undo a visible Redo control, named as Undo is; one press puts the step back; it hides when nothing is left
+	m.easy.button("Undo").pressed.emit()
+	await idle()
+	var rbtn: Button = m.easy.button("Redo")
+	ok(rbtn.visible and m.S.cards.size() == n0 + 1, "Easy: after Undo the bar shows Redo (visible %s, %d cards)" % [str(rbtn.visible), m.S.cards.size()])
+	ok((rbtn.get_node("label") as Label).text.begins_with("Redo: "), "Easy: the Redo button is named as Undo is (%s)" % (rbtn.get_node("label") as Label).text)
+	rbtn.pressed.emit()
+	await idle()
+	ok(m.S.cards.size() == n0 + 2 and not rbtn.visible, "Easy: one press on Redo restores the step (%d cards) and Redo hides with nothing left" % m.S.cards.size())
 	m._pose_words("raise the right arm 90")
 	await idle()
 	var body_before := JSON.stringify(m.B.state())
@@ -400,11 +409,41 @@ func _init() -> void:
 			lim.append(j)
 	ok(not lim.is_empty(), "the Punch card puts a body part at its joint limit (so the bar below has something to check): %s" % str(lim))
 	ok(lim.all(func(j): return m.skin_col(j).a == 0.0), "Easy: no body part has the limit tint (%s)" % str(lim))
+	# FOOT PADS AND THE RED (Easy playback): the video's footprint pads are not drawn; a red spot on the body gets its one line
+	m.S.iq = {"contacts": [{"part": "foot_r", "kind": "foot", "x": 0.0, "z": 0.0, "yaw": 0.0, "t0": 0.0, "t1": m.S.length()}]}
+	m._check()
+	await idle(3)
+	m._refresh()
+	await idle(2)
+	var pads := 0
+	if m._iq_mesh != null:
+		pads += (m._iq_mesh.mesh as ImmediateMesh).get_surface_count()
+	if m._fp_line != null:
+		pads += (m._fp_line.mesh as ImmediateMesh).get_surface_count()
+	ok(pads == 0, "Easy playback of the Punch card: no foot pad or footprint is drawn (%d surfaces)" % pads)
+	if m.redspots.spots.is_empty():   # the Punch card has no problem Check glows: one FAIL on the hips at mid-clip, so the line has a red to explain
+		m.redspots.set_findings([{"rule": "HIPS TURN", "sev": "FAIL", "msg": "the hips turn too fast", "t": m.S.length() * 0.5}])
+	var t_keep: float = m.playhead
+	var lit_t := -1.0   # the first frame (every 3rd) where Check's red spot is on the body: the line must show there
+	for k in range(0, int(m.S.length() * m.S.fps) + 1, 3):
+		m.playhead = float(k) / float(m.S.fps)
+		m._refresh()
+		if not m.redspots.last.is_empty():
+			lit_t = m.playhead
+			break
+	var red_lit: bool = lit_t >= 0.0
+	m.playhead = lit_t if red_lit else t_keep
+	m._refresh()
+	await idle(2)
+	ok(not red_lit or m.easy.red_note.visible, "Easy: a red spot on the body is said in one line (red lit at %.2f s: %s, line shown: %s)" % [lit_t, str(red_lit), str(m.easy.red_note.visible)])
+	ok(red_lit or not m.easy.red_note.visible, "Easy: no red spot at the playhead, no red line (lit: %s)" % str(red_lit))
 	m.easy.set_on(false, false)
 	await idle(12)
 	m._refresh()
 	await idle(2)
 	ok(lim.any(func(j): return m.skin_col(j).a > 0.0), "Expert: the limit tint shows on the same body (the check above can see it)")
+	ok(m._iq_mesh != null and (m._iq_mesh.mesh as ImmediateMesh).get_surface_count() > 0, "Expert: the foot pad shows (the check above can see it)")
+	ok(not m.easy.red_note.visible, "Expert: no Easy red line")
 	ok(card_lines() == x_lines, "Expert switch: every card line is the old text again (%d lines)" % x_lines.size())
 	ok(absf(m.ui_bp.size.y - x_h) < 0.5, "Expert switch: the bottom panel is its old height (%d px -> %d px)" % [int(x_h), int(m.ui_bp.size.y)])
 	m.easy.set_on(true, false)
