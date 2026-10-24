@@ -74,6 +74,23 @@ func idle(n := 4) -> void:
 		await process_frame
 
 
+## the words of a line that are size, weight, key or jargon (the Easy bar's rule for its own hints)
+func plain_bad(t: String) -> Array:
+	var out := []
+	for w in ["cm", "kg", "Ctrl+Z", "arming"]:
+		if t.find(w) >= 0:
+			out.append(w)
+	return out
+
+
+## a word typed in capitals (CROSS, RECOVER): two or more letters, all upper case
+func has_caps_word(t: String) -> bool:
+	for w in t.split(" ", false):
+		if w.length() >= 2 and w == w.to_upper() and w != w.to_lower():
+			return true
+	return false
+
+
 ## the words on the Easy bar's Undo button (its child Label, as easy_mode._big builds it)
 func undo_words() -> String:
 	var b: Button = m.easy.button("Undo")
@@ -465,6 +482,64 @@ func _init() -> void:
 	await fresh_start(false)
 	lines = teach_lines()
 	ok(not m.easy.on and lines.size() == 1 and lines[0] == m.WELCOME, "9: an Expert fresh start still shows the Expert welcome: %s" % str(lines))
+
+	# 10. THE PLAIN WORDS (a beginner's walk-through): the sword's place line and the library's line have no size, weight,
+	# key or jargon; the drag's hand is the hand that holds the sword; the Punch card's strip names are plain words
+	m.easy.set_on(true, false)
+	await idle(6)
+	if m.ui_library != null and m.ui_library.visible:
+		m.ui_library.hide_panel()
+	m._library_toggle()
+	await idle(2)
+	var lib_open := plain_bad(m.ui_status.text)
+	ok(lib_open.is_empty(), "10: Easy's library line has none of cm / kg / Ctrl+Z / arming (%s)" % str(lib_open))
+	if m.B.wep_on:
+		m._bat_remove()
+		await idle(2)
+	m._kind("sword")
+	await idle(2)
+	var sword_said: String = m.ui_status.text
+	var sword_bad := plain_bad(sword_said)
+	ok(sword_bad.is_empty() and sword_said != "", "10: Easy's sword place line has none of cm / kg / Ctrl+Z / arming: '%s' %s" % [sword_said, str(sword_bad)])
+	var sid := ""
+	for it in m.ui_library.items:
+		if String(it["name"]).to_lower() == "sword":
+			sid = String(it["id"])
+	ok(sid != "", "10: the library lists a Sword tile")
+	if sid != "":
+		m.ui_library.place(sid)
+		await idle(2)
+	var tile_note: String = m.ui_library._note.text
+	var note_bad := plain_bad(tile_note)
+	ok(note_bad.is_empty(), "10: Easy's library hint after a sword tile has none of cm / kg / Ctrl+Z / arming: '%s' %s" % [tile_note, str(note_bad)])
+	# a left-hand drag onto the sword that is in the right hand: the hint names the hand that holds it (his right)
+	m._kind("sword")
+	await idle(2)
+	ok(m.B.wep_hand == "hand_r", "10: the sword is in his right hand before the drag (%s)" % m.B.wep_hand)
+	m.sel = "hand_l"
+	m.dragging = "joint"
+	m._grab = m.B.wep_point(m.B.wep_handle * 0.5)
+	btn(false, Vector2(10, 10))
+	await idle(3)
+	var drag_said: String = m.ui_status.text
+	ok(drag_said.to_lower().find("right hand") >= 0 and drag_said.find("wrist") < 0 and drag_said.find("left hand holds") < 0,
+		"10: the drag's hint names the hand that holds the sword (his right): '%s'" % drag_said)
+	# the Punch card's strip names: plain words, no all-caps word, the names of the card as they are
+	m.easy.home.card(3)
+	await idle(12)
+	var p_names := []
+	for k in card_lines():
+		if k.ends_with("/b_pick"):
+			p_names.append(card_lines()[k])
+	var p_caps := p_names.filter(func(t): return has_caps_word(String(t)))
+	var p_want := ["Guard", "Wind up", "Punch", "Back to guard"]
+	var p_sorted := p_names.duplicate()
+	p_sorted.sort()
+	var p_want_sorted := p_want.duplicate()
+	p_want_sorted.sort()
+	ok(p_caps.is_empty() and p_sorted == p_want_sorted, "10: the Punch card's strip names are plain words, in sentence case: %s (all caps: %s)" % [str(p_names), str(p_caps)])
+	m.easy.set_on(false, false)
+	await idle(6)
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("EASY MODE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
