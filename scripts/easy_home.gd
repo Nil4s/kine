@@ -90,7 +90,7 @@ func build(root: Control) -> void:
 	v.add_child(_msg)
 	_make_btn = Button.new()
 	_make_btn.name = "eh_make_ai"
-	_make_btn.text = "Make it with AI video (takes a few minutes)"
+	_make_btn.text = "Make it with AI video (about 10 minutes)"   # measured: ~8.5 min to make a 5 s clip on this 8 GB card, ~1 min to read it (COMFY_E2E, 2026-10-24)
 	_make_btn.focus_mode = Control.FOCUS_NONE
 	_make_btn.tooltip_text = "make these words as a video on the local AI video maker, then it opens like a copied video"
 	_make_btn.visible = false

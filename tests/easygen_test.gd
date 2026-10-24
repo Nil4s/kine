@@ -2,7 +2,7 @@
 ## No ComfyUI here: main's gen_move points at a stand-in (tests/py/gen_video_stub.py) that copies the video_import_test clip
 ## (GEN_STUB_SRC), or makes nothing (ComfyUI down), or sleeps first (GEN_STUB_SLEEP, for Cancel). The tracking and the landing are the real ones.
 ## BARS (stated before measuring):
-##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line AND the one button "Make it with AI video (takes a few minutes)"
+##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line AND the one button "Make it with AI video (about 10 minutes)"
 ##  2 typed "punch" (a known word, a template): it builds, and NO button
 ##  3 with the stand-in clip: clicking the button shows "Making the video" on the say line, then the clip lands: at least 2 cards, playing
 ##  4 one Undo after that success gives back the card count the scene had before it (the punch clip's)
@@ -13,7 +13,7 @@ extends SceneTree
 const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
 const WORDS := "backflip"
 const NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
-const BUTTON := "Make it with AI video (takes a few minutes)"
+const BUTTON := "Make it with AI video (about 10 minutes)"
 
 var fails := 0
 var m: Node
