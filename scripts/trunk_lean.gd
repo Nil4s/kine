@@ -130,6 +130,8 @@ static func windows(S: Scene, B: Body) -> Array:
 			if cls in KICKS:
 				roll = l.y if sd == "_r" else -l.y   # + = away from the kicking leg (a right kick: toward his left)
 			var o := {"back": -l.x - float(norm[0]), "forward": l.x - float(norm[1]), "sideways": absf(roll) - float(norm[2])}
+			if float(o["back"]) > 0.0 and _lies(S, B, f):
+				o["back"] = -INF   # a back lean with the hips on the floor: lying or sitting on it, held up by the floor (HumanLimits.hips_on_floor)
 			for w in o:
 				if float(o[w]) > float(worst["over"]):
 					worst = {"over": float(o[w]), "what": w, "f": f, "pitch": l.x, "roll": roll}
@@ -146,6 +148,12 @@ static func windows(S: Scene, B: Body) -> Array:
 			_memo.clear()
 		_memo[key] = out.duplicate(true)
 	return out
+
+
+## the hips rest on the floor (or a surface) this frame: the trunk's back lean is held up by the floor, not by the spine's range
+static func _lies(S: Scene, B: Body, f: int) -> bool:
+	S.apply(B, float(f) / FPS)
+	return HumanLimits.hips_on_floor(B)
 
 
 static func _move_words(it: Dictionary) -> String:
