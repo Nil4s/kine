@@ -802,9 +802,7 @@ static func smart_cards(B: Body, dense: Scene, fitted: Array, target := 0.0299, 
 ## the scene a caller gets back is an ordinary scene again (its slope memo is dropped: a later edit must read live cards)
 static func _unmemo(d: Dictionary) -> Dictionary:
 	if d.has("scene"):
-		(d["scene"] as Scene).memo_slopes = false
-		(d["scene"] as Scene)._slope_cache = {}
-		(d["scene"] as Scene)._sample_memo = {}
+		(d["scene"] as Scene).memo_clear()
 	return d
 
 

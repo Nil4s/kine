@@ -319,10 +319,30 @@ func retime(a: int, b: int, pct: float) -> void:
 ## the pose at time t: {"offset", "ang", "weapon"} (same shape as Moves.sample). PART KEYS (round 41, WW1) go on top
 ## of the card blend: a keyed joint's angles are its keys' curve (PartKeys.at); no part keys = the card blend as it was
 func sample(t: float) -> Dictionary:
-	var s := _sample_cards(t)
+	var s := _owned(_sample_cards(t))
 	if part_keys.is_empty() or s.is_empty():
 		return s
 	return PartKeys.over(s, part_keys, t)
+
+
+## VIDEO SPEED: in a memo scope a sample's weapon may be a card's cached dictionary (see _flat_card): the caller gets its own copy
+func _owned(s: Dictionary) -> Dictionary:
+	if not memo_slopes or s.is_empty() or not s.has("weapon"):
+		return s
+	s = s.duplicate()
+	s["weapon"] = (s["weapon"] as Dictionary).duplicate(true)
+	if s.has("weapon2"):
+		s["weapon2"] = (s["weapon2"] as Dictionary).duplicate(true)
+	return s
+
+
+## card k's flat pose (Moves._flat): in a memo scope read once and kept (_flat_memo_cards), else read now
+func _flat_card(k: int) -> Dictionary:
+	if not memo_slopes:
+		return Moves._flat(cards[k]["pose"])
+	if not _flat_memo_cards.has(k):
+		_flat_memo_cards[k] = Moves._flat(cards[k]["pose"])
+	return _flat_memo_cards[k]
 
 
 ## the card blend alone (every joint from the cards)
@@ -342,18 +362,18 @@ func _sample_cards(t: float) -> Dictionary:
 			return _flow_sample(t, i, ts)
 		if t < ts[i][1] and i > 0:
 			var u := clampf((t - ts[i][0]) / maxf(1e-6, ts[i][1] - ts[i][0]), 0.0, 1.0)
-			var a := Moves._flat(cards[i - 1]["pose"])
+			var a := _flat_card(i - 1)
 			if _drifts(i - 1, ts):
 				a = _drift(i - 1, 1.0)
-			var r := blend(a, Moves._flat(cards[i]["pose"]), u, cards[i].get("ease", ""), float(cards[i].get("ease_bias", 0.0)))
+			var r := blend(a, _flat_card(i), u, cards[i].get("ease", ""), float(cards[i].get("ease_bias", 0.0)))
 			if bool(cards[i].get("walk", false)):
 				r["offset"] = _walk_offset(t, i, ts)
 			return r
 		if t < ts[i][2]:
 			if _drifts(i, ts):
 				return _drift(i, (t - ts[i][1]) / maxf(1e-6, ts[i][2] - ts[i][1]))
-			return Moves._flat(cards[i]["pose"])
-	return Moves._flat(cards[-1]["pose"])
+			return _flat_card(i)
+	return _flat_card(cards.size() - 1)
 
 
 ## does card i's hold drift? (moving holds on, a real hold, a card after it, and that move is a plain one)
@@ -400,6 +420,18 @@ func _walk_offset(t: float, i: int, ts: Array) -> Vector3:
 			v.append((y as Vector3)[c])
 		out[c] = _hermite0(xs, v, t)
 	return out
+
+
+## memo scope: segment i of joint j = [a, b, h x slope at i-1, h x slope at i] (the Hermite terms of _curve, computed once)
+func _seg(F: Dictionary, j: String, i: int, ts: Array) -> Array:
+	var m: Dictionary = _seg_memo.get(j, {})
+	if not m.has(i):
+		var a := _val(F, i - 1, j)
+		var b := a + _d(a, _val(F, i, j), j)
+		var h: float = maxf(1e-6, ts[i][1] - ts[i][0])
+		m[i] = [a, b, h * _slope(F, i - 1, j, ts), h * _slope(F, i, j, ts)]
+		_seg_memo[j] = m
+	return m[i]
 
 
 ## monotone cubic Hermite through (xs, ys), slope 0 at both ends (_mono's interior slopes)
@@ -490,7 +522,8 @@ static func _mono(xs: Array, ys: Array, x: float) -> float:
 func _spline_sample(t: float) -> Dictionary:
 	var ts := times()
 	var T: float = ts[-1][2]
-	var F := {}   # card -> its flat pose, read once per sample
+	# card -> its flat pose, read once per sample; in a memo scope (memo_slopes) it is the scene's own cache, kept until memo_clear
+	var F: Dictionary = _flat_memo_cards if memo_slopes else {}
 	var ang := {}
 	# VIDEO SPEED: _where is a scan of the cards, and every joint reads at one of ~7 times (its level's lead), so each
 	# distinct time is scanned once per sample (a pure function of tt and ts: the same numbers, ~4x fewer scans)
@@ -587,6 +620,17 @@ static func _d(a: Vector3, b: Vector3, j: String) -> Vector3:
 var memo_slopes := false
 var _slope_cache := {}
 var _sample_memo := {}   # t -> the spline sample at t (memo scope only; callers never write into it: put() reads it)
+var _flat_memo_cards := {}   # card -> its flat pose (memo scope only; see _spline_sample)
+var _seg_memo := {}          # joint -> {segment -> Hermite terms} (memo scope only; see _seg)
+
+
+## drops the memo scope's caches (VideoIQ._unmemo, when the scene goes back to a caller, or its cards change)
+func memo_clear() -> void:
+	memo_slopes = false
+	_slope_cache = {}
+	_sample_memo = {}
+	_flat_memo_cards = {}
+	_seg_memo = {}
 
 
 ## joint j's speed (units/s) at card k: 0 at a stop or where it turns back, else the weighted harmonic mean of the two
@@ -625,6 +669,17 @@ func _curve(F: Dictionary, j: String, tt: float, ts: Array, wc := {}) -> Vector3
 	var s: float = w[1]
 	if s < 0.0:
 		return _val(F, i, j)
+	if memo_slopes:
+		# VIDEO SPEED: the segment's ends, slopes and h are the same at every t in its move: read once per (joint, segment)
+		var g := _seg(F, j, i, ts)
+		var a: Vector3 = g[0]
+		var b: Vector3 = g[1]
+		var s2m := s * s
+		var s3m := s2m * s
+		var vm := (2 * s3m - 3 * s2m + 1) * a + (s3m - 2 * s2m + s) * (g[2] as Vector3) + (-2 * s3m + 3 * s2m) * b + (s3m - s2m) * (g[3] as Vector3)
+		if j == "pelvis":
+			vm.z = wrapf(vm.z, -180.0, 180.0)
+		return vm
 	var h: float = maxf(1e-6, ts[i][1] - ts[i][0])
 	var a := _val(F, i - 1, j)
 	var b := a + _d(a, _val(F, i, j), j)
@@ -717,7 +772,7 @@ func regrip_layered(B: Body, t: float, arm_from_cards := true) -> float:
 	var sd := o.right(2)
 	var arm := ["clavicle" + sd, "upperarm" + sd, "lowerarm" + sd, o]
 	var acted := B.state()
-	put(B, _sample_cards(t), free_limits)
+	put(B, _owned(_sample_cards(t)), free_limits)
 	var x0 := B.wep_xform()
 	var q0i: Quaternion = (x0[1] as Quaternion).inverse()
 	var lp: Vector3 = q0i * ((B.P[o] as Vector3) - (x0[0] as Vector3))
