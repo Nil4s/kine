@@ -3133,6 +3133,11 @@ func _ready() -> void:
 		get_tree().quit()
 
 
+	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
+		await _selfcheck_save()
+		return
+
+
 var intro: KineIntro   # the opening intro while it plays (null after, or when off)
 
 
@@ -17638,6 +17643,42 @@ static func safe_file(nm: String) -> String:
 		out += "_"
 	out = out.left(100)
 	return pre + out if out != "" else ""
+
+
+## `Kine.exe --position 3000,3000 -- --selfcheck-save` (an exported build's own check; not run from source, no test uses it):
+## one Easy card (Punch) builds its clip, Save scene writes the scene, the scene is reopened and must hold the same cards (>= 2).
+## Files go to the user's real folder (UserPaths.w: Documents/Kine in a build), named selfcheck_<unix time>, so they stay there
+## for the check. One line goes to user://selfcheck.txt (SELFCHECK OK|FAIL ...), then the app quits.
+func _selfcheck_save() -> void:
+	var clip := ""
+	for i in 1200:   # the clip builds over frames: wait for it (about 20 s at most)
+		await get_tree().process_frame
+		if i == 0:
+			easy.home.card(3)   # Punch
+		if scene_path.begins_with(UserPaths.user_root() + "/scenes/_wip/") and FileAccess.file_exists(scene_path):
+			clip = scene_path
+			break
+	for _k in 10:
+		await get_tree().process_frame
+	var nm := "selfcheck_%d" % Time.get_unix_time_from_system()
+	ui_scene_name.text = nm
+	_save_scene_now(nm)
+	var saved := scene_path
+	_new_scene()
+	_load_scene(saved)
+	_rebuild_cards()
+	for _k in 4:
+		await get_tree().process_frame
+	var n := S.cards.size()
+	var ok := clip != "" and FileAccess.file_exists(clip) and FileAccess.file_exists(saved) and n >= 2
+	var line := "SELFCHECK %s clip=%s (exists %s) scene=%s (exists %s) reopened_cards=%d root=%s" % ["OK" if ok else "FAIL", clip,
+		FileAccess.file_exists(clip), saved, FileAccess.file_exists(saved), n, UserPaths.user_root()]
+	print(line)
+	var f := FileAccess.open("user://selfcheck.txt", FileAccess.WRITE)
+	if f != null:
+		f.store_line(line)
+		f.close()
+	get_tree().quit()
 
 
 func _save_scene_now(nm: String) -> void:
