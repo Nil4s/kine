@@ -178,7 +178,10 @@ func _ppump() -> void:
 					disk_hits += 1
 			if img == null or img.is_empty():
 				var t0 := Time.get_ticks_usec()
-				img = await draw_pose(q[1])
+				for attempt in 3:   # an empty read-back (the stage not yet rendered) is drawn again, never left as a card with no picture
+					img = await draw_pose(q[1])
+					if img != null and not img.is_empty():
+						break
 				if img != null and not img.is_empty():
 					DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR))
 					img.save_png(ProjectSettings.globalize_path(f))
