@@ -3,7 +3,8 @@ extends Node
 ## EASY HOME (monkey brain easy): what a beginner sees in Easy mode when the scene is empty. A centred panel,
 ## "What should he do?", with eight picture cards and one text box ("or type it"). A card builds its clip (the
 ## templates/ files for walk, run, jump, punch, sit down, wave and the kick (roundhouse.json, baked); TextBlocking for typed words), one undo step, then it plays by itself.
-## After that the panel is a strip with three buttons: Again, Change it (the panel and its text box come back), Save video.
+## After that the panel is a strip with buttons: Again, Change it (the panel and its text box come back), and four big ones
+## that tweak the clip just built (EasyTweak): Faster, Slower (its timing), Bigger, Smaller (its motion). Save video is on the Easy bar.
 ## Expert never shows it: it is a child of EasyMode and only Easy's bar shows it.
 ## A card the builders cannot make says so in one plain sentence and leaves the scene as it was.
 
@@ -45,6 +46,7 @@ var _gen_on := false          # MAKE IT WITH AI VIDEO: main's gen_move (scripts/
 var _gen_words := ""          # the typed words Kine could not build: the button under the message makes them as a video
 var _make_btn: Button
 var _cancel_btn: Button
+var _clip_word := "the move"   # the clip's name in the say line of a tweak ("the punch now takes 0.8 s")
 
 
 func build(root: Control) -> void:
@@ -123,6 +125,9 @@ func build(root: Control) -> void:
 	strip.add_child(row)
 	row.add_child(_strip_button("eh_again", "Again", "play the clip from its start", _play))
 	row.add_child(_strip_button("eh_change", "Change it", "type another move in the box", _change))
+	for t in [["eh_faster", "Faster", "the clip's timing x 0.8 (one undo step)", "faster"], ["eh_slower", "Slower", "the clip's timing x 1.25 (one undo step)", "slower"],
+			["eh_bigger", "Bigger", "the motion 20 % further from the rest pose (one undo step)", "bigger"], ["eh_smaller", "Smaller", "the motion 20 % less from the rest pose (one undo step)", "smaller"]]:
+		row.add_child(_strip_button(t[0], t[1], t[2], tweak.bind(t[3]), Vector2(150, 56), 22))
 	# no Save video here: the Easy bar has it (two buttons with one label confused the monkey test's beginner)
 	_toast = PanelContainer.new()
 	_toast.name = "easy_toast"
@@ -256,6 +261,7 @@ func _go(what: String, label: String, typed := false) -> void:
 	_open = false
 	_gen_words = ""
 	_msg.text = ""
+	_clip_word = "the typed move" if typed else "the " + label.to_lower()
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
 	_play()
 	m.easy.frame_clip_next()  # EASY CAMERA: framed in the free rect under the bar / strip, one frame AFTER the clip starts (the click-to-motion bar)
@@ -421,6 +427,7 @@ func _copied() -> void:
 	_open = false
 	_gen_words = ""
 	_msg.text = ""
+	_clip_word = "the copied clip"
 	m._layout_bottom()
 	_play()
 	m.easy.frame_clip_next()
@@ -493,6 +500,47 @@ func _play() -> void:
 	m._toggle_play()
 
 
+## FASTER / SLOWER / BIGGER / SMALLER on the clip just built: one press = one undo step, the clip plays again from its start,
+## the camera frames it, and the say line names what happened. A press at a limit changes nothing and says why.
+func tweak(how: String) -> void:
+	if _gen_on or _vid_busy or m._imp_busy():
+		m._say_plain(GEN_BUSY)
+		return
+	var S: Scene = m.S
+	if S.cards.size() < 2:
+		m._say_plain("Nothing to change yet: build a move first.")
+		return
+	var before := S.length()
+	var said := ""
+	if how == "faster" or how == "slower":
+		var k: float = EasyTweak.FASTER if how == "faster" else EasyTweak.SLOWER
+		var stop := EasyTweak.timing_stop(S, k)
+		if stop != "":
+			m._say_plain(stop)
+			return
+		var err: String = m.retime(0, S.cards.size() - 1, k * 100.0)   # main.retime: one undo step, the holds and moves x k
+		if err != "":
+			m._say_plain(err)
+			return
+		said = "%s: %s now takes %.1f s." % [how.capitalize(), _clip_word, S.length()]
+	else:
+		var k: float = EasyTweak.BIGGER if how == "bigger" else EasyTweak.SMALLER
+		var poses := EasyTweak.exaggerated(S, m.B, k)
+		if poses.is_empty():
+			m._say_plain("Nothing to make %s: the clip has no pose to move from." % ("bigger" if k > 1.0 else "smaller"))
+			return
+		m._push_undo()
+		for i in poses:
+			S.cards[i]["pose"] = poses[i]
+		m._retimed()
+		var pct := roundi(absf(k - 1.0) * 100.0)
+		said = "%s: %s now moves %d %% %s." % [how.capitalize(), _clip_word, pct, "further" if k > 1.0 else "less"]
+	m._say_plain(said)
+	_play()
+	m.easy.frame_clip_next()
+	print("easy tweak %s: length %.3f -> %.3f s" % [how, before, S.length()])
+
+
 func _change() -> void:
 	_open = true
 	_msg.text = ""
@@ -535,13 +583,15 @@ func _card_button(i: int) -> Button:
 	return b
 
 
-func _strip_button(nm: String, text: String, tip: String, f: Callable) -> Button:
+func _strip_button(nm: String, text: String, tip: String, f: Callable, size := Vector2(120, 40), font := 0) -> Button:
 	var b := Button.new()
 	b.name = nm
 	b.text = text
 	b.tooltip_text = tip
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(120, 40)
+	b.custom_minimum_size = size
+	if font > 0:
+		b.add_theme_font_size_override("font_size", font)
 	b.pressed.connect(f)
 	return b
 
