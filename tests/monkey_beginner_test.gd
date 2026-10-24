@@ -253,10 +253,10 @@ func _init() -> void:
 	for n in visible_nodes():
 		if n is Label and (n as Label).text.begins_with("Your video is saved: "):
 			toast = (n as Label).text
-	var show_btn := find_btn("Show it") != null
+	var show_btn := find_btn("Open folder") != null
 	var wrote := pressed6 and mp4 != "" and FileAccess.file_exists(mp4) and mp4.contains(home.video_root.trim_prefix("user://"))
 	ok(wrote, "6. Save video writes a video file to the test folder: %s" % mp4)
-	ok(toast != "" and show_btn, "6. a toast says '%s' with a Show it button" % toast)
+	ok(toast != "" and show_btn, "6. a toast says '%s' with an Open folder button" % toast)
 	snapshot()
 	end("6 save and send the video", wrote and toast != "" and show_btn, "(test folder %s)" % home.video_root)
 

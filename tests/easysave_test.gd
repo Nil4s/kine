@@ -1,12 +1,12 @@
 ## godot --path . -s tests/easysave_test.gd     (EASY SAVE VIDEO, "monkey brain easy": the progress while it saves, the plain done message, Cancel, the empty-scene hint; needs a window: it renders)
 ## BARS (stated before measuring):
 ##  1 while a clip saves in Easy, the progress panel is up: its "Saving video..." line, its bar and a Cancel button
-##  2 the done message is plain: "Your video is saved: <file name>" with a "Show it" button; the file it names exists
+##  2 the done message is plain: "Your video is saved: <file name>" with an "Open folder" button; the file it names exists
 ##    and is > 0 bytes (the .mp4 when ffmpeg is found; else the message says the video could not be made and the frames are kept)
 ##  3 Cancel part-way (the progress says 3 or more frames): the save stops, no .mp4 and no folder are left in the test folder,
 ##    the status line says "cancelled" and the done message does not show
 ##  4 an empty scene (no move): Save video says "Pick a move first", renders nothing (no progress, no folder, no file), and
-##    the message has no "Show it" button
+##    the message has no "Open folder" button
 ##  5 every file this test makes is under user://easysave_<pid> and is deleted at the end (the real Videos/Kine is never written)
 ## The test folder is a test's user:// folder (EasyHome.video_root); the real default is the user's Videos folder, Kine/.
 extends SceneTree
@@ -64,7 +64,7 @@ func _init() -> void:
 	await idle(2)
 	ok(home._toast.visible and home._toast_text.text.begins_with("Pick a move first"),
 		"4. Save video on an empty scene says 'Pick a move first' (shown: '%s')" % home._toast_text.text)
-	ok(not home._toast_show.visible, "4. the empty-scene hint has no 'Show it' button")
+	ok(not home._toast_show.visible, "4. the empty-scene hint has no 'Open folder' button")
 	ok(progress_text() == "" and not m._pb_busy and home.last_video.is_empty(), "4. the empty scene renders nothing: no progress, no result")
 	ok(entries_under(base + "/empty") == 0, "4. the empty scene writes no folder and no file")
 	home._toast.visible = false
@@ -110,7 +110,7 @@ func _init() -> void:
 		ok(String(home.last_video.get("dir", "")) != "" and home._toast.visible and toast.begins_with("Could not make the video here"),
 			"2. no ffmpeg: the message says the video could not be made and the frames are kept: '%s'" % toast)
 		print("info: no ffmpeg on this computer, so no .mp4 was made (frames %s)" % String(home.last_video.get("dir", "")))
-	ok(home._toast_show.visible and home._toast_show.text == "Show it", "2. the done message has a 'Show it' button")
+	ok(home._toast_show.visible and home._toast_show.text == "Open folder", "2. the done message has an 'Open folder' button")
 	ok(String(home.last_video.get("dir", "")) != "" and home.last_video.get("dir", "").begins_with(ProjectSettings.globalize_path(base)),
 		"5. the video is written under the test folder only")
 

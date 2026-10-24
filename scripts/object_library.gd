@@ -54,6 +54,7 @@ var _note: Label
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
 var _armour_body := []            # the fighter body the armour pictures are cut from: read once per open, not once per tile
 var _armour_hash := ""            # the hash of its rest vertices, once per open (the spec of every armour tile)
+var _fit_key := ""                # the window size and the bottom panel's height the panel was last fitted to
 
 
 ## main: the app; weapon_list: main's WEAPONS (the Weapons tab reads the kinds the picker reads)
@@ -184,15 +185,37 @@ func hide_panel() -> void:
 	visible = false
 
 
+## refit when the window or the bottom panel changes size (a resize, Easy's strip coming or going), not only on open
+func _process(_dt: float) -> void:
+	if not visible or m == null:
+		return
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	var key := "%s|%s" % [str(vp), str(m.bottom_h)]
+	if key != _fit_key:
+		_fit_key = key
+		fit(vp)
+
+
 ## the panel's size and place for a window of size vp: the grid takes what the strip, the search and the tabs leave
 func fit(vp: Vector2) -> void:
 	var top := float(m.TOP_H) + 12.0 if m != null else 86.0
 	var left := float(m.lw()) + 12.0 if m != null else 12.0
-	var h := clampf(vp.y - top - 12.0 - CHROME, 160.0, 460.0)
+	var low := low_edge(vp, float(m.bottom_h), float(m.LINE_H)) if m != null else vp.y - 120.0
+	var h := clampf(low - top - CHROME, 160.0, 460.0)
 	_scroll.custom_minimum_size = Vector2(float(COLS) * (TILE.x + 8.0) + 24.0, h)
 	reset_size()
+	var over := top + size.y - low   # the panel's own rows (header, search, tabs, note) are more than CHROME on a short window: the grid gives way
+	if over > 0.0 and h > 160.0:
+		_scroll.custom_minimum_size.y = maxf(160.0, h - over)
+		reset_size()
 	position = Vector2(minf(left, maxf(12.0, vp.x - size.x - 12.0)), top)
 	reset_size()
+
+
+## the lowest y a panel beside the body may reach: 8 px above the welcome line, which sits above the status line and the
+## scene panel (the bottom panel's height, the status line's band). Easy's picker and the library both stop there
+static func low_edge(vp: Vector2, bottom_h: float, line_h: float) -> float:
+	return vp.y - bottom_h - 6.0 - line_h - float(MouseHint.H) - 2.0 - 8.0
 
 
 ## the tile under the mouse: place its object (one undo step); the picker's own names and undo labels

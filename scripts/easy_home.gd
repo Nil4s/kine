@@ -42,7 +42,7 @@ var video_root := ""           # a TEST's folder (user://...) for Save video; ""
 var last_video := {}          # the last Easy save: the playblast's result ({dir, frames, mp4, ffmpeg}); {} = none, or refused
 var _toast: PanelContainer
 var _toast_text: Label
-var _toast_show: Button       # "Show it": hidden when the message has no file (the empty-scene hint)
+var _toast_show: Button       # "Open folder": hidden when the message has no file (the empty-scene hint)
 var _toast_file := ""         # what Show the file opens: the .mp4 (its folder is shown with it)
 var _vid_busy := false        # COPY A VIDEO: an import from a video is running (the tracker, then the fit)
 var _vid_before := ""         # the scene path when the copy began: a new path when it lands
@@ -67,10 +67,10 @@ func build(root: Control) -> void:
 	panel = PanelContainer.new()
 	panel.name = "easy_home"
 	panel.visible = false
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)   # at the left edge, vertically centred
+	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)   # at the left edge; _process centres it between the top bar and the welcome line
 	panel.offset_left = PANEL_LEFT
 	panel.grow_horizontal = Control.GROW_DIRECTION_END
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_END
 	var st := StyleBoxFlat.new()
 	st.bg_color = Tok.c("panel")
 	st.set_corner_radius_all(10)
@@ -160,10 +160,10 @@ func build(root: Control) -> void:
 	_toast = PanelContainer.new()
 	_toast.name = "easy_toast"
 	_toast.visible = false
-	_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)   # the right of the view, above the status line (_process keeps it there)
+	_toast.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_toast.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_toast.offset_bottom = -40.0
+	_toast.offset_right = -12.0
 	var tst := StyleBoxFlat.new()
 	tst.bg_color = Tok.c("accent")
 	tst.set_corner_radius_all(10)
@@ -179,7 +179,7 @@ func build(root: Control) -> void:
 	var tr := HBoxContainer.new()
 	tr.add_theme_constant_override("separation", 10)
 	tv.add_child(tr)
-	_toast_show = _toast_button("eh_toast_show", "Show it", "open the folder with your video in it", func(): OS.shell_show_in_file_manager(_toast_file))
+	_toast_show = _toast_button("eh_toast_show", "Open folder", "open the folder with your video in it", func(): OS.shell_show_in_file_manager(_toast_file))
 	tr.add_child(_toast_show)
 	tr.add_child(_toast_button("eh_toast_ok", "Got it", "hide this message", func(): _toast.visible = false))
 
@@ -200,6 +200,14 @@ func _process(dt: float) -> void:
 			ul.text = ut
 	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
 	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on)
+	if panel.visible:   # centred between the top bar and the welcome line (a short window must not run the picker into the line)
+		var vs := panel.get_viewport().get_visible_rect().size
+		var top := float(m.TOP_H) + 12.0
+		var low := ObjectLibrary.low_edge(vs, float(m.bottom_h), float(m.LINE_H))
+		panel.reset_size()
+		panel.position = Vector2(PANEL_LEFT, maxf(top, top + (low - top - panel.size.y) * 0.5))
+	# the toast sits above the welcome line (which runs the width of the view), so it never covers the line, the status or the strip
+	_toast.offset_bottom = -(float(m.bottom_h) + float(m.LINE_H) + float(MouseHint.H) + 14.0)
 	strip.visible = on and not (empty or _open or _gen_on) and _built and not lib   # the open library covers the strip's place too: one at a time
 	if not on:
 		_toast.visible = false
@@ -246,7 +254,7 @@ func save_video() -> void:
 		_show_toast("Your video is saved: %s" % String(r["mp4"]).get_file(), String(r["mp4"]))
 		m._say_plain("Your video is saved: %s" % String(r["mp4"]).get_file())   # the status line says it short
 	else:
-		_show_toast("Could not make the video here. Your frames are kept: Show it opens them.", String(r["dir"]))
+		_show_toast("Could not make the video here. Your frames are kept: Open folder opens them.", String(r["dir"]))
 		m._say_plain("Could not make the video here. Your frames are kept.")
 
 

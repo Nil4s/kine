@@ -38,7 +38,7 @@ pick=${*:-$ALL $EXTRA}
 # are parented (--wid) to one host window at -30000,-30000 (tools/offscreen_host.ps1: never activated, no taskbar
 # button), with no sound. TOPLEVEL suites resize their own window, which an embedded one cannot: --position only (they
 # show at 0,0). SHOW=1: every window on screen, as before. Parallel runs: tools/run_par.py.
-TOPLEVEL="small_window r25 ring_edges"   # as tools/run_par.py TOPLEVEL
+TOPLEVEL="small_window r25 ring_edges easy_mode"   # as tools/run_par.py TOPLEVEL
 HOSTWID=""; hf="$LOGS/.host.$$.hwnd"
 if [ -z "$SHOW" ] && command -v powershell >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
   rm -f "$hf"
