@@ -25,7 +25,8 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"WeaponRebound": "res://scripts/weapon_rebound.gd", "TimingCoach": "res://scripts/timing_coach.gd",
 	"Counter": "res://scripts/counter.gd", "Momentum": "res://scripts/momentum.gd", "Recovery": "res://scripts/recovery.gd",
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
-	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd"}
+	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
+	"WhoCould": "res://scripts/who_could.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
 const _SABR := "https://sabr.org/journal/article/baseball-swing-stride-and-head-movement-relationships/"
@@ -174,6 +175,31 @@ const REG := {
 	"CoupledLimits.HIP_EXT_MAX": {"s": U, "u": "deg", "src": "data/body_limits.json thigh bend min (not opened)", "url": "res://data/body_limits.json"},
 	# --- hit reaction (docs/physics_constants.md, gt1: UNVERIFIED list) ---
 	"HitReaction.WEAPON_KG": {"s": U, "u": "kg", "src": "weapon masses are estimates (no source opened)", "url": _PC},
+	# --- who could do this? (N027, scripts/who_could.gd; docs/research/WHO_COULD.md) ---
+	"WhoCould.TIER_TRAINED": {"s": H, "u": "percentile", "src": "ours: past the 75th percentile of healthy adults a capacity is a trained body's", "url": "res://docs/research/WHO_COULD.md"},
+	"WhoCould.TIER_ELITE": {"s": H, "u": "percentile", "src": "ours: past mean + 2 SD of healthy adults (97.7th percentile) a capacity is an elite body's", "url": "res://docs/research/WHO_COULD.md"},
+	"WhoCould.HAM_SD": {"s": M, "u": "deg", "src": "passive straight-leg raise baseline SDs 21.1-22.9 (Thomas et al. 2022, PMC9714235, Table 1, 32 students)", "url": "https://doi.org/10.1186/s13102-022-00599-8"},
+	"WhoCould.GYM_SD": {"s": M, "u": "deg", "src": "gymnasts' straight-leg raise SD 20.4 (Donti et al. 2020, PMC7183084, 14 gymnasts)", "url": "https://doi.org/10.3390/sports8030028"},
+	"WhoCould.ANKLE_SD": {"s": M, "u": "deg", "src": "weight-bearing dorsiflexion, knee straight, SD 6 (Baumbach et al. 2014, Table 2, 20 healthy adults)", "url": "https://doi.org/10.1186/1471-2474-15-246"},
+	"WhoCould.BEYOND_SD": {"s": H, "u": "SD", "src": "ours: past mean + 4 SD of healthy adults a joint range is called beyond", "url": "res://docs/research/WHO_COULD.md"},
+	"WhoCould.SPINE_ANY": {"s": H, "u": "share of the table", "src": "ours: no spine-ROM distribution opened", "url": "res://docs/research/WHO_COULD.md"},
+	"WhoCould.SPINE_TRAINED": {"s": H, "u": "share of the table", "src": "ours: no spine-ROM distribution opened", "url": "res://docs/research/WHO_COULD.md"},
+	"WhoCould.SHOULDER_ANY": {"s": H, "u": "deg", "src": "ours: an arm overhead in line with the trunk; no shoulder-ROM distribution opened", "url": "res://docs/research/WHO_COULD.md"},
+	"WhoCould.FIST_MEAN": {"s": M, "u": "m/s", "src": "lead hook peak fist speed 11.95 +- 1.84, 15 male amateur boxers, 3D mocap (Stanley et al. 2018)", "url": _STANLEY},
+	"WhoCould.FIST_SD": {"s": M, "u": "m/s", "src": "the same paper's SD 1.84", "url": _STANLEY},
+	"WhoCould.FIST_ANY": {"s": H, "u": "m/s", "src": "junior boxers' lead straight peak 6.317 +- 0.415 (Chen et al. 2022, PMC9798280: measured); calling it any adult's ceiling is ours", "url": "https://doi.org/10.3389/fphys.2022.1015154"},
+	"WhoCould.FIST_TRAINED": {"s": H, "u": "m/s", "src": "Stanley 2018 mean + 1 SD (SpeedEnv's I47 limit); the trained / elite cut is ours", "url": _STANLEY},
+	"WhoCould.FIST_RECORD": {"s": U, "u": "m/s", "src": "Guinness 'fastest punch', Keith Liddell, 45 mph (via Wikipedia, citing guinnessworldrecords.com 2013; the Guinness page not opened)", "url": "https://en.wikipedia.org/wiki/Keith_Liddell"},
+	"WhoCould.FOOT_MEAN": {"s": M, "u": "m/s", "src": "taekwondo roundhouse max foot speed 14.66 +- 1.18, 8 black belts (Gavagan & Sayers 2017, Table 2)", "url": "https://doi.org/10.1371/journal.pone.0182645"},
+	"WhoCould.FOOT_SD": {"s": M, "u": "m/s", "src": "the same table's SD 1.18", "url": "https://doi.org/10.1371/journal.pone.0182645"},
+	"WhoCould.FOOT_ANY": {"s": H, "u": "m/s", "src": "Muay Thai 13.24 - 2 x 2.30 (the same table: measured); calling it any adult's ceiling is ours", "url": "https://doi.org/10.1371/journal.pone.0182645"},
+	"WhoCould.FOOT_TRAINED": {"s": H, "u": "m/s", "src": "taekwondo mean + 1 SD (SpeedEnv's I47 limit); the trained / elite cut is ours", "url": "https://doi.org/10.1371/journal.pone.0182645"},
+	"WhoCould.FOOT_BEYOND": {"s": H, "u": "m/s", "src": "ours: taekwondo mean + 4 SD (no kick speed record found)", "url": "https://doi.org/10.1371/journal.pone.0182645"},
+	"WhoCould.JUMP_MEAN": {"s": M, "u": "m", "src": "countermovement jump, men 26-30, 34.9 (8.5) cm, n = 54, contact mat flight time (Koivunen et al. 2026, PMC13280190, Table 1)", "url": "https://doi.org/10.1111/sms.70322"},
+	"WhoCould.JUMP_SD": {"s": M, "u": "m", "src": "the same table's SD 8.5 cm", "url": "https://doi.org/10.1111/sms.70322"},
+	"WhoCould.JUMP_ELITE": {"s": M, "u": "m", "src": "national-team sprinters (men) 62.7 (4.8) cm, the highest group of 989 men (Haugen et al. 2021, IJSPP 16:184, abstract)", "url": "https://doi.org/10.1123/ijspp.2019-0964"},
+	"WhoCould.JUMP_RECORD": {"s": U, "u": "m", "src": "NFL Combine best vertical jump 46.0 in, Gerald Sensabaugh 2005 (via Wikipedia citing DraftScout); a jump-and-reach, generous against a COM rise", "url": "https://en.wikipedia.org/wiki/Gerald_Sensabaugh"},
+	"WhoCould.FLIGHT_MIN": {"s": H, "u": "s", "src": "ours: a shorter flight is a foot skimming the 1 cm touch band", "url": "res://docs/research/WHO_COULD.md"},
 }
 
 ## Check's rules -> the bars a finding of that rule is graded against (first = the deciding bar)

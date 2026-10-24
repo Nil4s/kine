@@ -476,6 +476,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# the source (scripts/coupled_limits.gd); not in METHODS (the transcript's ready line)
 			var cl := CoupledLimits.serve(m, p)
 			return _ok(id, cl) if cl["ok"] else _err(id, -32602, cl["error"])
+		"who_could":   # N027: the minimum body that could do the clip / card / span, per capacity (scripts/who_could.gd); not in METHODS
+			var wc := WhoCould.serve(m, p)
+			return _ok(id, wc) if wc["ok"] else _err(id, -32602, wc["error"])
 		"fix_until":   # N005: the fixes in order of predicted gain until the saved assertions pass and the score clears a bar (scripts/fix_loop.gd)
 			return await FixLoop.serve(self, id, p)
 		"hit_harder":   # N065 HIT HARDER (scripts/hit_harder.gd): {card, dry?, allow_retime?}; one undo step; not in METHODS (the transcript)
