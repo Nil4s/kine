@@ -4937,8 +4937,13 @@ func _cam() -> void:
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
-	cam.h_offset = (rw() - lw()) * 0.5 * mpp
-	cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
+	if easy.on:   # EASY: the look-at point sits in the free rect under the Easy bar / strip, the body framed there (easy_mode.gd frame_clip)
+		var eo: Vector2 = easy.offsets(vs, mpp)
+		cam.h_offset = eo.x
+		cam.v_offset = eo.y
+	else:
+		cam.h_offset = (rw() - lw()) * 0.5 * mpp
+		cam.v_offset = (bottom_h + 6 + LINE_H - TOP_H) * 0.5 * mpp * -1.0   # RR5: centred above the status line too
 	if vx != null and vx.quad_on:
 		vx.cam_quad()   # K14: the perspective pane is a quarter of the free view
 	_axis_labels_fit(vs)
