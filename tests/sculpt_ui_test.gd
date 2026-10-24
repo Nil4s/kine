@@ -90,9 +90,11 @@ func _init() -> void:
 	m._sculpt_start()
 	await idle(3)
 	ui = m.ksc
-	var why := String(m._page_soon_why("SCULPT"))
-	ok(ui.on and ui.mesh.vert_count() == 3458 and ui.mesh.is_closed() and why.contains("Sculpt: a test sphere"),
-		"(1) the command opens the sphere: %d verts, closed %s; SCULPT page says: %s" % [ui.mesh.vert_count(), ui.mesh.is_closed(), why.left(200)])
+	var why := ""
+	for b in m.ui_ribbon["SCULPT"].get_children():
+		why += String(b.text) + ", "
+	ok(ui.on and ui.mesh.vert_count() == 3458 and ui.mesh.is_closed() and why.contains("Test sphere"),
+		"(1) the command opens the sphere: %d verts, closed %s; the SCULPT ribbon has: %s" % [ui.mesh.vert_count(), ui.mesh.is_closed(), why.left(200)])
 	var wc: Vector3 = ui.view.global_position
 	m._turn_to(0.0, 0.0, 1.6, wc, false)
 	await idle(6)

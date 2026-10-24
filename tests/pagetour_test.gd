@@ -2,7 +2,7 @@
 ## PAGE TOUR (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE each get a 5-step tour the first time they open.
 ## BARS, written before measuring:
 ##  1 STEPS: each of the 4 pages has exactly 5 steps, every step a title and a sentence; a greyed page's "why" step says
-##    P11's own reason (main.PAGE_SOON_WHY) and its status line says "greyed because"
+##    its real controls (the ribbon tools; the expert pages are live now, not greyed)
 ##  2 PLACEMENT, every step of every page, at UI size 100 (1600 x 900) and 150 (1920 x 1080): the target is a visible
 ##    control, at least 8 x 8 px, inside the window; the callout is inside the window and clear of the target; the
 ##    arrow's tip is within 6 px of the target
@@ -72,7 +72,7 @@ func _init() -> void:
 	pt.page = ""
 	ok(all5, "(1) BODY / MODEL / SCULPT / SURFACE: 5 steps each, each with a title and a sentence")
 	var why := pt.step_text("SCULPT", 1)
-	ok(why.contains(String(m.PAGE_SOON_WHY["SCULPT"][1])), "(1) SCULPT's why step is P11's reason: %s" % why)
+	ok(why.contains("brush"), "(1) SCULPT's brushes step names the brushes: %s" % why)
 	print("  MODEL works-now: ", pt.step_text("MODEL", 2))
 
 	# 2. placement at two sizes
@@ -129,13 +129,13 @@ func _init() -> void:
 	ok(pt.page == "", "(3) BODY again: no tour (seen)")
 	m._page_set("POSE", false)
 	await idle(2)
-	var mb: Button = m.find_child("page_model", true, false)
+	var mb: Button = m.find_child("tab_model", true, false)
 	mb.pressed.emit()
 	await idle(3)
 	ok(pt.page == "MODEL" and pt.step == 0, "(3) the greyed MODEL button: its tour starts")
 	nx.pressed.emit()
 	await idle(2)
-	ok(String(m.ui_status.text).contains("greyed because") and String(m.ui_status.text).contains("MODEL"), "(3) MODEL step 2: the status line says why: %s" % String(m.ui_status.text).left(120))
+	ok(pt.page == "MODEL" and pt.step == 1, "(3) MODEL: the next step moves on (step 2 of 3): %s" % pt.step_text("MODEL", 1).left(80))
 	pt.finish(true)
 	mb.pressed.emit()
 	await idle(3)

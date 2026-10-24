@@ -211,13 +211,17 @@ var _hs_sel := ""              # the part the log last said was picked
 var _hs_playing := false       # a script is running: its steps are not logged again
 var ui_cube: ViewCube
 var ui_browser: Browser
-const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
+const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW", "MODEL", "SCULPT", "SURFACE"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
 const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as real percentiles", "POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
 	"SET": "props to pose with: add, move, turn, delete, your own models", "CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: Export... (any engine or tool), frame data, a version",
-	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)"}
+	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)",
+	"MODEL": "the mesh: the test cube or the body, extrude, inset, bevel, loop cut, modifiers", "SCULPT": "brushes on the test sphere", "SURFACE": "UVs and materials of the mesh"}
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
+	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
+	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
+	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
@@ -235,9 +239,9 @@ const RIBBON_GROUPS := {
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
 ## page: its tools are the "View" menu in the top bar, on every page. Layout values: true = folded, false = open; a key
 ## a page does not name follows the user's own folds. The user's changes on a page are remembered for that page.
-const PAGES := ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER"]
-const PAGES_SOON := ["MODEL", "SCULPT", "SURFACE"]
-const PAGE_ROW := {"BODY": "BODY", "POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT"}
+## the expert pages (MODEL, SCULPT, SURFACE: scripts/expert_pages.gd) are pages too; Easy mode hides them (ExpertPages.PAGES)
+const PAGES := ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "MODEL", "SCULPT", "SURFACE"]
+const PAGE_ROW := {"BODY": "BODY", "POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT", "MODEL": "MODEL", "SCULPT": "SCULPT", "SURFACE": "SURFACE"}
 const PAGE_LAYOUT := {
 	"BODY": {"left": false, "bottom": true},                     # the body panel (it takes the browser's place), the strip a thin line
 	"POSE": {},                                                  # the body and its inspector: as the user left them
@@ -245,10 +249,14 @@ const PAGE_LAYOUT := {
 	"STAGE": {"left": false, "bottom": true},                    # the browser (props, cast) open, the strip a thin line
 	"CHECK": {"right": false, "bottom": true},                   # the inspector open (the findings), the strip a thin line
 	"DELIVER": {"left": true, "right": true, "bottom": true},    # the body big: only the export tools
+	"MODEL": {"bottom": true},                                   # the test cube or the body mesh in the preview, its tools in the ribbon
+	"SCULPT": {"bottom": true},                                  # the test sphere and its brushes
+	"SURFACE": {"bottom": true},                                 # the UVs and the materials of the mesh
 }
 const PAGE_TIPS := {"BODY": "make the person: stature, mass and proportions as percentiles of the ANSUR II survey", "POSE": "pose one moment: the body, the inspector, the pose library", "ANIMATE": "cards, timeline, curves, overlays",
 	"STAGE": "the set and the cast: props, cameras, crowd, several fighters", "CHECK": "is it right: grade, human check, frame data",
-	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions"}
+	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions",
+	"MODEL": "model the mesh: the test cube, the fighter's body mesh, extrude, bevel, loop cut, modifiers", "SCULPT": "sculpt the test sphere: draw, inflate, smooth, grab with the brushes", "SURFACE": "UVs and materials: the UV editor, unwrap, pack, a material from a photo"}
 var cur_page := "POSE"
 var base_fold := {"left": false, "right": false, "bottom": false}   # the user's own folds (a page that names none follows them)
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
@@ -327,6 +335,12 @@ func _fold(which: String, on: bool, save := true) -> void:
 
 ## every side piece shown or hidden, and everything that sits beside the panels moved to the view's new edges
 func _sides_apply() -> void:
+	for p in ExpertPages.PAGES:   # the expert pages: their buttons show in Expert only; an Easy start on one goes to POSE
+		if ui_page_btns.has(p):
+			ui_page_btns[p].visible = not easy.on
+	if easy.on and ExpertPages.PAGES.has(cur_page):
+		_page_set("POSE", false)
+		return
 	for k in ui_side_of:
 		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY")
 		if ui_rails.has(k):
@@ -11194,6 +11208,7 @@ func _ui() -> void:
 	_build_page_bar()
 	for t in RIBBON:
 		tb.add_child(ui_ribbon[t])
+	ExpertPages.build(self)   # MODEL / SCULPT / SURFACE: their ribbon tools (scripts/expert_pages.gd), before the groups are laid out
 	var tog := func(tab: String, label: String, f: Callable, on: Callable, tip := ""):
 		var b := _button(label, f, tip)
 		b.toggle_mode = true
@@ -13214,24 +13229,6 @@ func _scene_menu_pick(id: int) -> void:
 			_delete_scene()
 
 
-## P11 (docs/ROADMAP_400.md): a greyed page says why it is greyed and what already works for it (the commands of its
-## prefix that exist in the registry today), so a click is never a dead end
-const PAGE_SOON_WHY := {"MODEL": ["Model:", "the mesh core is in (half-edge mesh, selection, loops, symmetry, mesh undo); the modeling tools (extrude, bevel, loop cut) come next"],
-	"SCULPT": ["Sculpt:", "sculpting needs the mesh core's brushes and multires levels: planned after the MODEL tools"],
-	"SURFACE": ["Surface:", "UVs and materials come after the mesh can be edited: unwrap, seams, packing, then PBR materials"]}
-
-
-func _page_soon_why(p: String) -> String:
-	var w: Array = PAGE_SOON_WHY.get(p, ["", "coming"])
-	var have := []
-	for c in _commands():
-		if String(w[0]) != "" and String(c["name"]).begins_with(String(w[0])):
-			have.append(String(c["name"]))
-	if have.is_empty():
-		return "%s is greyed because it is not built yet: %s. Nothing to click for it yet" % [p, w[1]]
-	return "%s is greyed because it is not built yet: %s. Works now: %s%s (S, then type \"%s\")" % [p, w[1], ", ".join(have.slice(0, 4)), "..." if have.size() > 4 else "", String(w[0]).trim_suffix(":").to_lower()]
-
-
 ## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
 func _open_scene_popup() -> void:
 	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
@@ -13402,7 +13399,7 @@ func _ribbon_row(t: String) -> void:
 	_place_caps.call_deferred()
 
 
-## THE PAGE BAR: nine buttons, icon and name; the five that exist, then BODY / MODEL / SCULPT / SURFACE greyed (coming)
+## THE PAGE BAR: nine buttons, icon and name; every page is a real page (the expert ones are hidden in Easy mode)
 func _build_page_bar() -> void:
 	var bar := PanelContainer.new()
 	bar.name = "page_bar"
@@ -13419,7 +13416,7 @@ func _build_page_bar() -> void:
 	h.add_theme_constant_override("separation", 4)
 	bar.add_child(h)
 	var group := ButtonGroup.new()
-	for p in PAGES + PAGES_SOON:
+	for p in PAGES:
 		var b := Button.new()
 		b.name = ("tab_" + String(PAGE_ROW[p]).to_lower()) if PAGE_ROW.has(p) else ("page_" + p.to_lower())
 		b.text = p
@@ -13435,12 +13432,8 @@ func _build_page_bar() -> void:
 			b.pressed.connect(func(): _step_hint = "Page: " + p; _page_set(p))
 			ui_page_btns[p] = b
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
-		else:
-			b.tooltip_text = "coming: the %s page. Click it: what works already and what is next" % p
-			b.modulate = Color(1, 1, 1, 0.38)   # greyed: a click explains instead of doing nothing (P11)
-			b.pressed.connect(func(): _say(_page_soon_why(p)); page_tour.opened(p))
 		h.add_child(b)
-		if p == PAGES[-1]:
+		if p == "DELIVER":
 			var sep := VSeparator.new()
 			sep.custom_minimum_size.x = 14
 			h.add_child(sep)
@@ -13678,6 +13671,8 @@ func _next_run() -> void:
 func _page_set(p: String, save := true) -> void:
 	if not PAGE_ROW.has(p):
 		return
+	if easy != null and easy.on and ExpertPages.PAGES.has(p):
+		return   # the expert pages are hidden in Easy mode (ExpertPages; the Shift+7..9 keys too)
 	cur_page = p
 	for k in fold:
 		fold[k] = _page_want(p, k)
