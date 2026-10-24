@@ -40,7 +40,9 @@
 ##   commands                      the registry (id, name, keys, edits, desc)
 ##   open {path} | new             load a scene / start an empty one
 ##   run {steps: [...]}            run's steps above, in order; stops at the first that fails (that is an error)
-##   pose {text}                   words to a pose; the result says what each joint reached
+##   pose {text}                   words to a pose; the result says what each joint reached. Or the floor contacts
+##                                 ("kneeling on the right knee, left foot flat", "push-up plank"; N015 scripts/support_pose.gd):
+##                                 a balanced pose on them, each contact's gap and weight share, or why not
 ##   measure {t | frame, fps, what}  numbers a blind agent needs, each with its unit (docs/AGENT_MATH.md): what = a list
 ##                                 of "distance A B", "angle A B C", "height A", "speed A", "clearance", "com",
 ##                                 "balance"; A = a joint

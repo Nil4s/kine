@@ -346,6 +346,8 @@ func _model_on() -> bool:   # B29: is the model preview open (main.kmed)? the me
 
 
 func _words_ok(q: String) -> bool:
+	if q.strip_edges().contains(" ") and SupportPose.claims(q):
+		return true   # N015: "on both knees", "push-up plank" (scripts/support_pose.gd; two words or more, as Model: rows)
 	if MeshWords.offers(q, _model_on()):
 		return true   # B29: "extrude the top 5 cm" goes through the same words row (scripts/mesh_words.gd)
 	if RigWords.is_rig(q) and RigWords.parse(q)["ok"]:
