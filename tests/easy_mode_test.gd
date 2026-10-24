@@ -458,6 +458,16 @@ func _init() -> void:
 	await idle(6)
 	ok(placed and m.undo.size() == u0 + 1, "6: a library Sword is one undo step (%d -> %d steps; id '%s')" % [u0, m.undo.size(), sword_id])
 	ok(undo_words() == "Undo: Sword", "6: after a library Sword the Undo button reads 'Undo: Sword' (%s)" % undo_words())
+	# a drag's undo is named in everyday words: "Undo: Move hand", not "Drag left wrist / h.."
+	m._library_toggle()
+	await idle(3)
+	m.playing = false
+	await drag("hand_l")
+	await idle(6)
+	ok(undo_words() == "Undo: Move hand", "6: after dragging a hand the Undo button reads 'Undo: Move hand' (%s)" % undo_words())
+	m.easy.button("Undo").pressed.emit()
+	await idle(6)
+	ok(m.ui_status.text.begins_with("Took back: Move hand"), "6: its toast says 'Took back: Move hand' (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(4)
 	ok(undo_words() == "Undo", "6: undoing the Sword leaves nothing to undo: 'Undo' (%s)" % undo_words())

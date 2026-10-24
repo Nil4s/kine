@@ -5235,6 +5235,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_num_text = ""   # each drag types afresh
 					_push_undo()
 					undo[-1]["name"] = "Drag " + nice(j)   # ROADMAP 45: the drag's step is named by what it moved
+					if easy.on:
+						undo[-1]["easy"] = "Move " + easy_part(j)   # Easy's Undo: "Undo: Move hand", not "Drag left wrist .."
 					_tree.set_name(_tree.cur, undo[-1]["name"])
 					_undo_tips()
 					_group_press(j, mb.ctrl_pressed, mb.position)
@@ -10388,6 +10390,16 @@ func _undo_tips() -> void:
 static func _step_label(u: Dictionary) -> String:
 	var n := String(u.get("name", u.get("hint", "change")))
 	return n.left(1).to_upper() + n.substr(1)
+
+
+## EASY: a joint's everyday word for Easy's undo names: hand, arm, foot, leg, head or body
+static func easy_part(j: String) -> String:
+	for w in [["hand", "hand"], ["thumb", "hand"], ["index", "hand"], ["middle", "hand"], ["ring", "hand"], ["pinky", "hand"], ["lowerarm", "arm"], ["elbow", "arm"],
+			["upperarm", "arm"], ["shoulder", "arm"], ["clav", "arm"], ["ball", "foot"], ["toe", "foot"], ["foot", "foot"],
+			["calf", "leg"], ["knee", "leg"], ["thigh", "leg"], ["head", "head"], ["neck", "head"]]:
+		if j.contains(w[0]):
+			return w[1]
+	return "body"
 
 
 ## EASY: the short name of a step for Easy's Undo button and toast: the Easy name it was made with, else its own name; at most 18 characters
