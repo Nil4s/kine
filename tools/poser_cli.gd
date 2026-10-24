@@ -20,6 +20,7 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- run scenes/combo3.json card=3 mirror_the_whole_pose --dry [--no-score]   (N003: what it WOULD do; nothing changed)
 ##   $G --headless --path . -s tools/poser_cli.gd -- lint C:/any/clip.bvh|.glb|.gltf|.fbx [--json]   (N018: judge a clip made anywhere)
 ##   $G --headless --path . -s tools/poser_cli.gd -- textview scenes/combo3.json [card=N]   (N001: the pose as ASCII + words)
+##   $G --headless --path . -s tools/poser_cli.gd -- spec scenes/combo3.json|- C:/specs/jab.json [--dummy 0.85] [--out scenes/_wip/x.json]   (N004 spec to motion, scripts/spec_motion.gd; serve: spec {spec, apply?})
 ##   $G --headless --path . -s tools/poser_cli.gd -- serve      (a LIVE session: JSON-RPC 2.0 on stdin / stdout, below)
 ## run's steps, in order (stops at the first that fails):
 ##   <id>              a registry command (see `commands`); e.g. mirror_the_whole_pose, faster_10, weapon_bo_staff
@@ -282,6 +283,8 @@ func _init() -> void:
 			for l in rr.get("text", [rr.get("error", "")]):
 				say(l)
 			done(rr)
+		"spec":   # N004: spec <scene.json|-> <spec.json> [--dummy D] [--out <path>] (scripts/spec_motion.gd)
+			await SpecMotion.cli(self, a)
 		"run":
 			await run(a)
 		"serve":
