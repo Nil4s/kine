@@ -20422,6 +20422,7 @@ func _import_land(res: Dictionary, src: String, held: String) -> String:
 		n += 1
 	if _land_undo != "":   # Easy's Copy a video: the scene as it is now is the one undo step (a whole-scene swap, as Easy's cards)
 		_step_hint = _land_undo
+		_step_easy = EasyMode.EASY_MORE.get(_land_undo, "") if easy != null and easy.on else ""   # Easy names it "Copied video"
 		_push_undo()
 		undo[-1]["swap"] = true
 		_land_undo = ""

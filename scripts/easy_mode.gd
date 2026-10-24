@@ -39,7 +39,7 @@ var _moved := false         # step 4: the body changed since the step began
 static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
 var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Easy came on: Expert gets exactly this back
-const EASY_MORE := {"Save this pose as a card": "Saved pose", "Flip left and right": "Flip", "Put his feet on the floor": "Feet on floor"}   # a More entry's undo name in Easy (its Expert name is the entry's words)
+const EASY_MORE := {"Save this pose as a card": "Saved pose", "Flip left and right": "Flip", "Put his feet on the floor": "Feet on floor", "Copy a video": "Copied video"}   # a More entry's undo name in Easy (its Expert name is the entry's words)
 const FREE_PAD := 8.0       # px between the free rect and the Easy bar, the strip, or the bottom panel
 const FRAME_PAD := 12.0     # px of air the body keeps inside the free rect (the framing's margin)
 const TOUR_W := 300.0       # the tour card's width (px); its text wraps inside it
