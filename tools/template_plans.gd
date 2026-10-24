@@ -325,29 +325,30 @@ static func plan_wave() -> Dictionary:
 ## than free fall (BodyCaps FALL). Breakfall's rules (scripts/breakfall.gd) judge the landing: chin tucked, elbows bent, the
 ## slap at 30-45 deg from the body, the weight spread over arm and back.
 static func plan_fall() -> Dictionary:
+	# a controlled squat from standing (the centre of mass stays over the feet), then the sit back to the floor beside the heels
 	var stand := stand_set()
 	stand.merge({"pelvis": [4, 0, 0], "spine_01": [3, 0, 0]}, true)   # the weight a little forward: the centre of mass over the feet at rest
-	var clips := [{"name": "stand", "move": -1, "hold": 0.1, "set": stand, "relaxed": ["l", "r"], "hips": [0, 0, 0.0]}]
+	var clips := [{"name": "stand", "move": -1, "hold": 0.3, "set": stand, "relaxed": ["l", "r"], "hips": [0, 0, 0.0]}]
 	var arms_fwd := {"upperarm_l": [80, -15, 0], "upperarm_r": [80, -15, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
-	var off := stand_set()
-	off.merge({"pelvis": [-6, 0, 0], "spine_01": [-2, 0, 0], "spine_02": [-2, 0, 0], "spine_03": [-2, 0, 0]}, true)
-	off.merge(arms_fwd, true)
-	clips.append({"name": "off balance", "move": 0.08, "hold": 0.0, "set": off, "hips": [0, 0, -0.03], "y": -0.16})
-	var crouch := {"pelvis": [8, 0, 0], "spine_01": [5, 0, 0], "spine_02": [5, 0, 0], "spine_03": [5, 0, 0],
-		"neck_01": [24, 0, 0], "head": [14, 0, 0], "thigh_l": [95, 7, 0], "thigh_r": [95, 7, 0], "calf_l": [120, 0, 0], "calf_r": [120, 0, 0],
-		"upperarm_l": [85, -15, 0], "upperarm_r": [85, -15, 0], "lowerarm_l": [40, 0, 0], "lowerarm_r": [40, 0, 0]}
-	clips.append({"name": "step back and crouch", "move": 0.10, "hold": 0.0, "set": crouch, "hips": [0, 0, -0.10], "keep_feet": true, "step": {"_r": [0, 0, -0.30]}, "y": -0.05})
+	var sway := stand_set()
+	sway.merge({"pelvis": [-4, 0, 0], "spine_01": [-1, 0, 0], "spine_02": [-1, 0, 0], "spine_03": [-1, 0, 0]}, true)
+	sway.merge(arms_fwd, true)
+	clips.append({"name": "sway back", "move": 0.15, "hold": 0.0, "set": sway, "hips": [0, 0, -0.02]})
+	var squat := {"pelvis": [10, 0, 0], "spine_01": [6, 0, 0], "spine_02": [6, 0, 0], "spine_03": [6, 0, 0],
+		"neck_01": [24, 0, 0], "head": [14, 0, 0], "thigh_l": [112, 7, 0], "thigh_r": [112, 7, 0], "calf_l": [140, 0, 0], "calf_r": [140, 0, 0],
+		"upperarm_l": [80, -15, 0], "upperarm_r": [80, -15, 0], "lowerarm_l": [40, 0, 0], "lowerarm_r": [40, 0, 0]}
+	clips.append({"name": "squat", "move": 0.55, "hold": 0.0, "set": squat, "hips": [0, 0, 0.0], "keep_feet": true})
 	var sit := {"pelvis": [-30, 0, 0], "spine_01": [-2, 0, 0], "spine_02": [-2, 0, 0], "spine_03": [-2, 0, 0],
-		"neck_01": [26, 0, 0], "head": [14, 0, 0], "thigh_l": [80, 7, 0], "thigh_r": [80, 7, 0], "calf_l": [110, 0, 0], "calf_r": [110, 0, 0],
+		"neck_01": [26, 0, 0], "head": [14, 0, 0], "thigh_l": [100, 7, 0], "thigh_r": [100, 7, 0], "calf_l": [140, 0, 0], "calf_r": [140, 0, 0],
 		"upperarm_l": [60, -40, 0], "upperarm_r": [60, -40, 0], "lowerarm_l": [40, 0, 0], "lowerarm_r": [40, 0, 0]}
-	clips.append({"name": "sit down", "move": 0.08, "hold": 0.0, "set": sit, "hips": [0, 0, -0.10], "y": -0.22})
+	clips.append({"name": "sit back", "move": 0.36, "hold": 0.0, "set": sit, "hips": [0, 0, -0.22]})
 	var roll := {"pelvis": [-75, 0, 0], "spine_01": [-1, 0, 0], "spine_02": [-1, 0, 0], "spine_03": [-1, 0, 0],
 		"neck_01": [26, 0, 0], "head": [14, 0, 0], "thigh_l": [60, 7, 0], "thigh_r": [60, 7, 0], "calf_l": [95, 0, 0], "calf_r": [95, 0, 0],
-		"upperarm_l": [0, 20, 0], "upperarm_r": [0, 20, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
-	clips.append({"name": "roll onto the back", "move": 0.08, "hold": 0.0, "set": roll, "hips": [0, 0, -0.28], "y": -0.50})
+		"upperarm_l": [0, 40, 0], "upperarm_r": [0, 40, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
+	clips.append({"name": "roll onto the back", "move": 0.2, "hold": 0.0, "set": roll, "hips": [0, 0, -0.28]})
 	var lie := {"pelvis": [-90, 0, 0], "spine_01": [0, 0, 0], "spine_02": [0, 0, 0], "spine_03": [0, 0, 0],
 		"neck_01": [26, 0, 0], "head": [14, 0, 0], "thigh_l": [85, 7, 0], "thigh_r": [85, 7, 0], "calf_l": [90, 0, 0], "calf_r": [90, 0, 0],
 		"upperarm_l": [0, 45, 0], "upperarm_r": [0, 45, 0], "lowerarm_l": [30, 0, 0], "lowerarm_r": [30, 0, 0]}
-	clips.append({"name": "lying, still", "move": 0.10, "hold": 1.10, "set": lie, "hips": [0, 0, -0.40], "y": -0.87})
+	clips.append({"name": "lying, still", "move": 0.25, "hold": 0.16, "set": lie, "hips": [0, 0, -0.40]})
 	return {"name": "fall", "base": "poses/stand.json", "clips": clips, "spline": true, "floor_body": true, "pin": false, "no_pin": true,
-		"note": "FALL template: a backward breakfall (ushiro ukemi): off balance, one step back into a deep crouch with the chin tucked, sit down close to the heel, roll onto the back with the arms slapping the floor, lie still."}
+		"note": "FALL template: a backward breakfall (ushiro ukemi): stand, a small sway back, a controlled squat with the centre of mass over the feet and the chin tucked, sit back to the floor beside the heels, roll onto the back with the arms slapping the floor, lie still."}
