@@ -28,6 +28,7 @@ var _expert: Array = []     # the nodes Easy hides (main's panels and tools)
 var _vis := {}              # node -> its visibility before Easy hid it (Expert puts it back)
 var _btns := {}             # label -> Button
 var _menu: PopupMenu        # the scene list Open shows
+var _dummy_was := false   # the target dummy was on when Easy came on (Expert puts it back)
 var _more: PopupMenu        # the More menu: the actions that are not on the bar (its item id = index in _more_acts)
 var _more_acts: Array = []  # [label, tip, Callable] per More entry
 var _snap := {}             # the state at the start of the tour step
@@ -186,6 +187,10 @@ func set_on(v: bool, save := true) -> void:
 			if n != null and not _vis.has(n):
 				_vis[n] = n.visible
 				n.visible = false
+		_dummy_was = m != null and m.dummy_on
+		if _dummy_was:   # the target dummy stands between the camera and the body, a dark giant over him: Easy puts it away
+			m.dummy_on = false
+			m._dummy_hits()
 	elif was and not on:
 		if tour_step >= 0:
 			_finish(true, false)
@@ -193,6 +198,10 @@ func set_on(v: bool, save := true) -> void:
 			if is_instance_valid(n):
 				n.visible = _vis[n]
 		_vis.clear()
+		if _dummy_was and m != null and not m.dummy_on:   # Expert gets its dummy back as it was
+			m.dummy_on = true
+			m._dummy_hits()
+		_dummy_was = false
 	if bar != null:
 		bar.visible = on
 	if on != was and m != null and m.ui_status != null:

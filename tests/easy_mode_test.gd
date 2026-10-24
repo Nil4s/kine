@@ -101,8 +101,10 @@ func _init() -> void:
 	m._new_scene()
 	await idle()
 	var before := vis_now()
+	var dummy0: bool = m.dummy_on
 	m.easy.set_on(true, false)
 	await idle()
+	ok(dummy0 and not m.dummy_on, "Easy puts the target dummy away (it stood between the camera and the body): on %s -> %s" % [str(dummy0), str(m.dummy_on)])
 	ok(m.easy.bar.visible, "Easy: the bar is on screen")
 	var bts: Array = m.easy.labels()
 	var shown: Array = []
@@ -119,6 +121,7 @@ func _init() -> void:
 	m.easy.set_on(false, false)
 	await idle()
 	ok(vis_now() == before, "Expert restores every panel's visibility exactly as it was, on the same scene: %s" % str(before))
+	ok(m.dummy_on == dummy0, "Expert brings the target dummy back as it was (%s)" % str(m.dummy_on))
 	m.easy.set_on(true, false)
 	await idle()
 
