@@ -17756,8 +17756,8 @@ func _save_ask_choose(how: String) -> void:
 		_autosave_drop()   # the work goes: no Recover offer for it next start
 		if journal_on:
 			journal.trim()
+		_say("Don't save: the changes are thrown away")   # the question's words must not stay on the status line (said first: the action's own words follow)
 		then.call()
-		_say("Don't save: the changes are thrown away")   # the question's words must not stay on the status line
 		return
 	if save_hook.is_valid():
 		save_hook.call()
