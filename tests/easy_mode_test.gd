@@ -194,6 +194,9 @@ func outside_window(rects: Array, win: Vector2) -> Array:
 func overlap_set(st: String) -> void:
 	m._new_scene()
 	await idle(4)
+	if m.ui_library == null:   # made on its first open (the easy_overlap suite runs this bar first)
+		m._library_toggle()
+		await idle(2)
 	m.ui_library.hide_panel()
 	if st.begins_with("strip"):
 		m.easy.home.card(0)
@@ -210,9 +213,11 @@ func overlap_set(st: String) -> void:
 	await idle(8)
 
 
-func overlap_bar() -> void:
+## sizes: the window sizes to measure. Embedded (run_par's host window) a test cannot resize its window, so easy_mode
+## measures the size it has; tests/easy_overlap_test.gd (a TOPLEVEL window suite) measures both OVERLAP_SIZES
+func overlap_bar(sizes: Array = OVERLAP_SIZES) -> void:
 	var win0: Vector2i = m.get_window().size
-	for sz in OVERLAP_SIZES:
+	for sz in sizes:
 		m.get_window().size = sz
 		await idle(8)
 		for st in OVERLAP_STATES:
@@ -248,6 +253,16 @@ func _init() -> void:
 	await idle(3)
 	ok(m.easy != null and not m.easy.on, "a test starts in Expert (no key in its own settings file)")
 	ok(cfg_mode() == "", "and writes no mode into its settings file at start")
+	if (get_script() as Script).resource_path.get_file() == "easy_overlap_test.gd":   # the window suite: only the overlap bar, at both sizes
+		m.easy.set_on(true, false)
+		await idle(4)
+		await overlap_bar()
+		m.easy.set_on(false, false)
+		await idle(4)
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
+		print("EASY OVERLAP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+		quit(fails)
+		return
 
 	# 2. Expert before anything: remember every panel's visibility, then check Easy hides exactly those
 	m._new_scene()
@@ -674,10 +689,10 @@ func _init() -> void:
 	m.easy.set_on(false, false)
 	await idle(6)
 
-	# 11. the overlap bar: Easy's panels, toast and lines, at both sizes
+	# 11. the overlap bar: Easy's panels, toast and lines, at the window's own size (both sizes: the easy_overlap suite)
 	m.easy.set_on(true, false)
 	await idle(4)
-	await overlap_bar()
+	await overlap_bar([m.get_window().size])
 	m.easy.set_on(false, false)
 	await idle(4)
 
