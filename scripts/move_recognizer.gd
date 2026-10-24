@@ -59,6 +59,11 @@ const LEAD_MIN := 0.08      # m, HEURISTIC: feet closer than this along the body
 const LEG_RISE := 0.25      # m, HEURISTIC: a foot that never rises this far in the window is stepping, not kicking (a walk's
                             # toe clears the floor by centimetres; the lowest kick here, a knee, lifts the ball ~0.5 m)
 const ARMED_SHARE := 0.8    # HEURISTIC: an armed fighter strikes with the weapon when its tip peaks at 80 %+ of the fastest point
+const OPEN_MIN := 40.0       # deg, HEURISTIC: a limb's inner angle must open this much around the strike's peak (a punch or kick)
+const OPEN_D := 0.05           # m, HEURISTIC: and the end must move this much further from its root over the opening
+# [end point, root, joint, the end's angle point]: the arms (hand at the elbow) and the legs (ball at the knee, the foot's angle)
+const STRIKE_LIMBS := [["hand_l", "upperarm_l", "lowerarm_l", "hand_l"], ["hand_r", "upperarm_r", "lowerarm_r", "hand_r"],
+	["ball_l", "thigh_l", "calf_l", "foot_l"], ["ball_r", "thigh_r", "calf_r", "foot_r"]]
 const FLAT_AREA := 0.04     # HEURISTIC: a path whose widest triangle is under 4 % of chord^2 has no plane (it is straight)
 const WINDOW := 0.8         # s before the peak in which the chain's peaks are looked for (ForceView.WINDOW)
 const TIE := 1              # frames: chain peaks this close count as in order (ForceView.TIE, at 60 fps here)
@@ -271,6 +276,43 @@ static func form_of(cls: String, ft: Dictionary) -> Array:
 	return out
 
 
+## a foot (ball) rises LEG_RISE in the window (the same test the candidates use)
+static func _leg_rises(clip: Dictionary, me: int, nm: String, f0: int, f1: int) -> bool:
+	var lo := INF
+	var hi := -INF
+	for f in range(f0, f1 + 1):
+		var y := _p(clip, me, f, nm).y
+		lo = minf(lo, y)
+		hi = maxf(hi, y)
+	return hi - lo >= LEG_RISE
+
+
+## does the limb open around its speed peak pk? [start, contact] = the least-bent frame up to WINDOW before the peak and the
+## most-open frame up to 0.5 s after it; ok when the inner angle opens by OPEN_MIN and the end moves further from its root
+static func _opening(clip: Dictionary, me: int, L: Array, pk: int, f0: int, f1: int) -> Dictionary:
+	var root: String = L[1]
+	var joint: String = L[2]
+	var endj: String = L[3]
+	var n := f1 - f0 + 1
+	var A := PackedFloat32Array()
+	var D := PackedFloat32Array()
+	for f in range(f0, f1 + 1):
+		A.append(_angle(_p(clip, me, f, root) - _p(clip, me, f, joint), _p(clip, me, f, endj) - _p(clip, me, f, joint)))
+		D.append((_p(clip, me, f, L[0]) - _p(clip, me, f, root)).length())
+	var ip := pk - f0
+	var a := maxi(0, ip - int(WINDOW * float(clip["fps"])))
+	for i in range(a, ip + 1):
+		if A[i] < A[a]:
+			a = i
+	var c := mini(n - 1, ip + int(0.5 * float(clip["fps"])))
+	var cb := ip
+	for i in range(ip, c + 1):
+		if A[i] > A[cb]:
+			cb = i
+	var gain := A[cb] - A[a]
+	return {"ok": gain >= OPEN_MIN and D[cb] - D[a] >= OPEN_D, "gain": gain, "start": a + f0, "contact": cb + f0}
+
+
 ## the move in frames f0..f1 of fighter `me` of a sampled clip (EventQuery.sample) -> the answer
 static func analyze(clip: Dictionary, me: int, f0: int, f1: int) -> Dictionary:
 	var n: int = clip["n"]
@@ -295,7 +337,27 @@ static func analyze(clip: Dictionary, me: int, f0: int, f1: int) -> Dictionary:
 	var sp := PackedFloat32Array()
 	var pk := f0
 	var top := -1.0
-	for c in cands:
+	# THE STRIKING LIMB BY EXTENSION (10-23, the real-video refs): the strike is the end point whose LIMB OPENS around its own
+	# speed peak (the elbow or knee inner angle rises by OPEN_MIN or more, the end moving away from its root). A hand that
+	# goes back to the guard closes its elbow and is passed over. The fastest opening limb wins; no opening: the old pick.
+	var opened := -1.0
+	for L in STRIKE_LIMBS:
+		var end: String = L[0]
+		if end.begins_with("ball") and not _leg_rises(clip, me, end, f0, f1):
+			continue
+		var s := rel_speed(clip, me, end)
+		var bf := f0
+		for f in range(f0, f1 + 1):
+			if s[f] > s[bf]:
+				bf = f
+		var op: Dictionary = _opening(clip, me, L, bf, f0, f1)
+		if op["ok"] and s[bf] > opened:
+			opened = s[bf]
+			eff = end
+			sp = s
+			pk = bf
+			top = s[bf]
+	for c in (cands if eff == "" else []):
 		if c.begins_with("ball") or c.begins_with("calf"):
 			var lo := INF
 			var hi := -INF
