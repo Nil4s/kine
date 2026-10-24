@@ -82,6 +82,44 @@ func drag(j: String, d := Vector2(48, -48)) -> void:
 	await process_frame
 
 
+## the pointer over a screen point with no button: the hover the bar's words follow once it has rested (BAR_REST)
+func hover_at(q: Vector2) -> void:
+	var hm := InputEventMouseMotion.new()
+	hm.position = q
+	hm.global_position = q
+	root.push_input(hm)
+	await process_frame
+	await create_timer(m.BAR_REST + 0.1).timeout
+	await idle(2)
+
+
+## a screen point on the part's capsule that the pick takes as `want` (default: the part itself), read as the view stands now:
+## in Expert the finger's own point, in Easy (the view is framed again) a point of the finger that the pick takes as its hand.
+## NAN when no point qualifies
+func finger_point(j: String, want := "") -> Vector2:
+	var c: Array = m.B.cap(j)
+	var vp := m.get_viewport().get_visible_rect()
+	for t in [0.5, 0.35, 0.65, 0.25, 0.75, 0.15, 0.85]:
+		var q: Vector2 = m.cam.unproject_position(c[0].lerp(c[1], t))
+		if not vp.has_point(q) or q.y > vp.size.y - 140.0:
+			continue
+		if m._pick(q) == (want if want != "" else j):
+			return q
+	return Vector2(NAN, NAN)
+
+
+## a real drag started on a screen point: press there, move in steps, let go
+func drag_at(p: Vector2, d: Vector2) -> void:
+	var st := d / 6.0
+	btn(true, p)
+	await process_frame
+	for i in 6:
+		move(p + st * (i + 1), st)
+		await process_frame
+	btn(false, p + d)
+	await process_frame
+
+
 ## every card's line (the picture's name button and the timing line): text by node name, "" when none
 func card_lines() -> Dictionary:
 	var out := {}
@@ -915,7 +953,7 @@ func _init() -> void:
 	for st in m.easy.TOUR:
 		tour_t += String(st[1]) + " "
 	ok(tour_t.find("+ Add pose") >= 0 and tour_t.find("Save this pose as a card") < 0 and tour_t.find("then press More") < 0, "10e: the Easy tour says 'press + Add pose' (no 'More, then Save this pose as a card')")
-	await drag("hand_r")
+	await drag_at(spot("hand_r"), Vector2(48, -48))   # a plain press on the hand's centre, as a beginner's (a finger under it picks the hand in Easy: 10g)
 	await idle(2)
 	await click_ctl(add_btn())
 	ok(m.S.cards.size() == 1, "10e: a real click on '+ Add pose' after a drag adds one card (%d)" % m.S.cards.size())
@@ -1072,6 +1110,37 @@ func _init() -> void:
 	await idle(2)
 	m.easy.set_on(false, false)
 	await idle(4)
+	# 10g. THE FINGER IS THE HAND (Easy): a beginner presses a hand and lands on a finger; in Easy the press picks the hand, so a real
+	# press + drag started on a finger's screen point moves the arm by the hand (>= 5 cm), its undo step is named for the hand, and the
+	# hover over the finger says "right hand". Expert keeps the finger: the same point picks and names the finger.
+	m.easy.set_on(false, false)
+	m._new_scene()
+	await idle(4)
+	var fq := finger_point("middle_01_r")
+	ok(fq.is_finite(), "10g: a screen point of the right middle finger's base joint is found (%s)" % str(fq))
+	await hover_at(fq)
+	ok(m._pick(fq) == "middle_01_r" and m.bar_text().contains("right middle finger"), "10g: Expert: the hover over the finger names it (pick '%s', bar '%s')" % [m._pick(fq), m.bar_text()])
+	btn(true, fq)
+	await process_frame
+	btn(false, fq)
+	await idle(2)
+	ok(m.sel == "middle_01_r", "10g: Expert: a press on the finger picks the finger (sel '%s')" % m.sel)
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	fq = finger_point("middle_01_r", "hand_r")
+	ok(fq.is_finite(), "10g: in Easy a point of the finger picks the right hand (%s)" % str(fq))
+	await hover_at(fq)
+	# Easy's bar keeps its words hidden (the short line), so the hover's name is the part the hover lights and what the words call it
+	ok(m.hover_part == "hand_r" and m.part_words(m.hover_part) == "right hand", "10g: Easy: the hover over the finger lights the hand and calls it 'right hand' (hover '%s', words '%s')" % [m.hover_part, m.part_words(m.hover_part)])
+	var hand0: Vector3 = m.B.P["hand_r"]
+	await drag_at(fq, Vector2(48, -48))
+	await idle(2)
+	var hand_moved: float = (m.B.P["hand_r"] - hand0).length()
+	ok(hand_moved >= 0.05, "10g: Easy: a press + drag started on the finger moves the hand %.3f m (>= 0.05)" % hand_moved)
+	var last_undo: Dictionary = m.undo[-1] if not m.undo.is_empty() else {}
+	ok(m.easy_name(last_undo) == "Move hand", "10g: Easy: the undo step is named for the hand: '%s'" % m.easy_name(last_undo))
+	m.easy.set_on(false, false)
 	m._new_scene()
 	await idle(4)
 

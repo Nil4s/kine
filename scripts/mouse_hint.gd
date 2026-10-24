@@ -215,7 +215,7 @@ static func items(m: Node, c: String) -> Array:
 	if ez != null and ez.on:   # Easy: one plain line for everyone, whatever the mouse is over (no icons, no jargon)
 		return [_i("", EASY_LINE)]
 	var part := String(m.get_meta("mh_part", "")) if m != null else ""
-	var nm: String = m.nice(part) if part != "" else "part"
+	var nm: String = m.part_words(part) if part != "" else "part"
 	match c:
 		"pose_part":
 			return [_i("L", "Left: drag to turn the %s" % nm), _i("R", "Right: orbit (a click: the part's menu)"), _i("M", "Wheel: zoom"),
