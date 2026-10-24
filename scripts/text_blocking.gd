@@ -23,8 +23,12 @@
 ##   balance    a card whose re-planted feet leave the centre of mass past them (the source's did not): the hips moved
 ##              over the feet (the BALANCE rule's own advice, the card's offset), the feet re-pinned
 ##   intensity  "heavy": the strike card's ease "in" (the EASE PRESETS)
-## Where no saved segment fits (no dagger thrust exists, no uppercut, no punch) the status SAYS so: "no saved thrust to
-## start from: blocked from the closest, a jab". A word the lexicon does not know is listed back, not guessed at.
+## Where no saved segment fits the status SAYS so: "no saved thrust to start from: blocked from the closest, a jab". A word
+## the lexicon does not know is listed back, not guessed at.
+## PUNCHES AND KICKS are not retrieved: scenes/ has none, and adapting the closest (a bat thrust with the bat taken away
+## for a jab) gave a wrong move (N016's recognizer named it). Those words go to StrikeBlocking (strike_blocking.gd), which
+## generates the key poses and times them to the cited human speeds. (A staff / spear thrust is still retrieved: a
+## dagger's thrust with the staff swapped in, which arcs like a swing; see strike_blocking.gd's header.)
 ## build(text, B) -> {ok, error} | {ok, scene, source, status, notes, unknown, grip (m per card), peak, peak_t, window,
 ## cap, must_fix_new, human_new, ...}. B is posed as a side effect; nothing is written here (save() writes where told).
 class_name TextBlocking
@@ -41,7 +45,13 @@ const WEAPON := {"axe": "long_axe", "hatchet": "long_axe", "bat": "metal_bat", "
 const ATTACK := {"overhead": "overhead", "downward": "overhead", "down": "overhead", "chop": "overhead",
 	"horizontal": "sweep", "sweep": "sweep", "swing": "sweep", "cut": "sweep", "slash": "sweep", "arc": "sweep",
 	"thrust": "thrust", "stab": "thrust", "poke": "thrust", "jab": "jab", "punch": "jab", "straight": "jab",
-	"uppercut": "uppercut", "hook": "hook", "backhand": "sweep", "forehand": "sweep"}
+	"uppercut": "uppercut", "hook": "hook", "backhand": "sweep", "forehand": "sweep",
+	"cross": "cross", "roundhouse": "roundhouse", "kick": "front kick", "teep": "front kick"}
+## two words -> the attack (StrikeBlocking generates these: no saved scene has one)
+const ATTACK2 := {"front kick": "front kick", "push kick": "front kick", "side kick": "side kick", "round kick": "roundhouse",
+	"round house": "roundhouse", "roundhouse kick": "roundhouse", "turning kick": "roundhouse"}
+## word -> which hand / leg of the stance strikes (StrikeBlocking.side_of)
+const LEAD := {"lead": "lead", "front": "lead", "rear": "rear", "back": "rear"}
 ## word -> the side the swing ENDS on: "left" = his left (+x, where swing_fore's forehand lands), "right" = his right
 const SIDE := {"left": "left", "right": "right", "forehand": "left", "backhand": "right"}
 ## phrase -> footwork ("in" = the lead foot steps forward, "back" = it steps back, "lunge" = a long step forward)
@@ -89,12 +99,21 @@ static func parse(text: String) -> Dictionary:
 		clean = clean.replace(ch, " ")
 	var words: Array = clean.split(" ", false)
 	var out := {"ok": false, "error": "", "weapon": "", "kind": "", "attack": "", "side": "", "foot": "", "speed": "",
-		"unknown": [], "notes": []}
+		"unknown": [], "notes": [], "lead": ""}
 	var weapon_word := ""
 	var i := 0
 	while i < words.size():
 		var w: String = words[i]
 		var nxt: String = words[i + 1] if i + 1 < words.size() else ""
+		if ATTACK2.has(w + " " + nxt):
+			out["attack"] = ATTACK2[w + " " + nxt]
+			i += 2
+			continue
+		var nxt2: String = (nxt + " " + words[i + 2]) if i + 2 < words.size() else ""
+		if LEAD.has(w) and w != "back" and nxt != "" and (ATTACK.has(nxt) or ATTACK2.has(nxt2) or nxt in ["hand", "leg"]):
+			out["lead"] = LEAD[w]   # "rear hook", "lead uppercut" ("back" stays footwork: "step back")
+			i += 1
+			continue
 		if FOOT.has(w + " " + nxt):
 			out["foot"] = FOOT[w + " " + nxt]
 			i += 2
@@ -124,7 +143,7 @@ static func parse(text: String) -> Dictionary:
 		if weapon_word == "knife":
 			(out["notes"] as Array).append("knife: the dagger kind is used (the short blade)")
 	if String(out["attack"]) == "":
-		out["error"] = "no attack in it: say overhead, sweep, thrust, jab, uppercut or hook"
+		out["error"] = "no attack in it: say overhead, sweep, thrust, jab, cross, hook, uppercut, front kick, roundhouse or side kick"
 		return out
 	out["ok"] = true
 	return out
@@ -680,6 +699,9 @@ static func build(text: String, B: Body) -> Dictionary:
 	var P: Dictionary = parse(text)
 	if not P["ok"]:
 		return P
+	var gen := StrikeBlocking.move_of(P)
+	if gen != "":
+		return StrikeBlocking.build(P, B, gen, text)   # no saved punch or kick exists: generated key poses
 	var kind: String = P["kind"]
 	var armed := kind != ""
 	var two := armed and TWO.has(kind)
