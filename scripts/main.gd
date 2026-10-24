@@ -110,7 +110,8 @@ var ui_hips := []
 var ui_math: Label
 var ui_math_btn: Button
 var ui_status: Label
-var ui_mesh_hint: Label      # MESH PAGES: the centred hint in the view while MODEL / SCULPT / SURFACE have no mesh open (Expert only)
+var ui_mesh_hint: Label      # MESH PAGES: the hint in the view while MODEL / SCULPT / SURFACE have no mesh open (Expert only)
+var ui_mesh_hint_box: PanelContainer   # its dark box: the hint sits at the top centre of the clear view, under the ribbon
 var _pose_dummy_was := false  # the dummy was on when a mesh page opened (the posing overlays come back with it)
 var ui_mouse: MouseHint   # ROADMAP_400 P05: what the mouse buttons do now (scripts/mouse_hint.gd), just above the status line
 var ui_bar: Label   # STATUS BAR (round 9, GATES P4): what is picked, where you are, what Check said; always on
@@ -350,17 +351,12 @@ func _sides_apply() -> void:
 		return
 	var mesh_pg := _mesh_page()
 	for k in ui_side_of:
-		var pose_only: bool = k == "right" and mesh_pg   # the pose inspector: the mesh pages have their own tools, not its sliders
+		var pose_only: bool = mesh_pg   # the posing panels (the inspector, the browser's Body / Poses tree) are off on the mesh pages: back as they were on leaving
 		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY") and not pose_only
 		if ui_rails.has(k):
 			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on and not pose_only
 		if ui_fold_btn.has(k):
 			ui_fold_btn[k].visible = not big_view and not fold[k] and not clean and not easy.on and not pose_only
-	if ui_mesh_hint != null:
-		ui_mesh_hint.offset_left = lw()
-		ui_mesh_hint.offset_right = -rw()
-		ui_mesh_hint.offset_top = TOP_H
-		ui_mesh_hint.offset_bottom = -(bottom_h + LINE_H)
 	if ui_body != null:
 		ui_body.visible = cur_page == "BODY" and not big_view and not fold["left"] and not clean and not easy.on
 		if ui_body.visible:
@@ -12320,19 +12316,31 @@ func _ui() -> void:
 	ui_status.add_child(hx)
 	ui_status.add_theme_stylebox_override("normal", sb)
 	ui_root.add_child(ui_status)
-	ui_mesh_hint = Label.new()   # MESH PAGES: what to click first (ExpertPages.HINTS); the view's centre, never takes a click
+	# MESH PAGES: what to click first (ExpertPages.HINTS): a dark box at the top centre of the clear view, under the ribbon
+	# (its own size, not the whole view: nothing else on the page is covered); it never takes a click
+	ui_mesh_hint_box = PanelContainer.new()
+	ui_mesh_hint_box.name = "mesh_hint_box"
+	ui_mesh_hint_box.visible = false
+	ui_mesh_hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var hsb := StyleBoxFlat.new()
+	hsb.bg_color = Color(0.05, 0.06, 0.08, 0.78)
+	hsb.set_corner_radius_all(10)
+	hsb.content_margin_left = 16.0
+	hsb.content_margin_right = 16.0
+	hsb.content_margin_top = 6.0
+	hsb.content_margin_bottom = 6.0
+	ui_mesh_hint_box.add_theme_stylebox_override("panel", hsb)
+	ui_root.add_child(ui_mesh_hint_box)
+	ui_mesh_hint = Label.new()
 	ui_mesh_hint.name = "mesh_hint"
 	ui_mesh_hint.visible = false
 	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_mesh_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ui_mesh_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	ui_mesh_hint.add_theme_font_size_override("font_size", 20)
-	ui_mesh_hint.add_theme_color_override("font_color", Color(0.80, 0.84, 0.92, 0.85))
-	ui_mesh_hint.add_theme_color_override("font_outline_color", Color(0.05, 0.06, 0.08, 0.9))
-	ui_mesh_hint.add_theme_constant_override("outline_size", 6)
-	ui_mesh_hint.anchor_right = 1.0
-	ui_mesh_hint.anchor_bottom = 1.0
-	ui_root.add_child(ui_mesh_hint)
+	ui_mesh_hint.add_theme_color_override("font_color", Color(0.80, 0.84, 0.92, 0.95))
+	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_mesh_hint_box.add_child(ui_mesh_hint)
 	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
 	ui_vdiff = PanelContainer.new()
 	ui_vdiff.name = "vdiff_panel"
@@ -14047,6 +14055,17 @@ func _mesh_hint_sync() -> void:
 		ui_mesh_hint.text = txt
 	if ui_mesh_hint.visible != show:
 		ui_mesh_hint.visible = show
+	if ui_mesh_hint_box.visible != show:
+		ui_mesh_hint_box.visible = show
+	if show:
+		_mesh_hint_place()
+
+
+## the hint's box: top centre of the clear view (under the ribbon), sized to its text
+func _mesh_hint_place() -> void:
+	ui_mesh_hint_box.reset_size()
+	var cl := nav_clear_rect()
+	ui_mesh_hint_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_hint_box.size.x) * 0.5, cl.position.y + 8.0)
 
 
 func _page_want(p: String, which: String) -> bool:

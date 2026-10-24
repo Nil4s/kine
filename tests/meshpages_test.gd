@@ -5,8 +5,10 @@ extends SceneTree
 ##   2 MODEL: extrude one face of the test cube from the ribbon: the vertex count grows (8 -> 12 for a cube face), one undo step
 ##   3 SCULPT: a draw stroke from the ribbon on the test sphere: >= 10 verts move
 ##   4 Easy mode hides the three pages (their page-bar buttons not visible; a page switch to one is refused)
-##   5 the hint (the view's centre): shown on MODEL / SCULPT / SURFACE with no mesh open, gone once one is open
+##   5 the hint (the top centre of the clear view): shown on MODEL / SCULPT / SURFACE with no mesh open, gone once one is open
 ##   6 the posing overlays (inspector, part tag, joint dots, target dummy) are off on the mesh pages, back exactly on POSE
+##   7 the panels of MODEL do not overlap (browser, primitive panel, materials, modifiers, inspector, hint; 1 px tolerance)
+##     at 1600x900 and 1280x720, the cube open and closed; 7b the browser back on POSE exactly as before
 ## Script errors are checked by the runner's log scan (a SCRIPT ERROR line fails the suite).
 var fails := 0
 func ok(c: bool, w: String) -> void:
@@ -55,6 +57,33 @@ func button(m: Node, p: String, label: String) -> Button:
 		if b is Button and String(b.text) == label:
 			return b
 	return null
+
+## the panels of a mesh page that are on screen now, by name -> global rect (a hidden one is not in the list)
+func _visible_panels(m: Node) -> Dictionary:
+	var out := {}
+	var cands := {"browser": m.ui_side_of["left"], "inspector": m.ui_side_of["right"], "hint": m.ui_mesh_hint_box}
+	if m.kmed != null:
+		cands["prim"] = m.kmed.prim_panel
+		cands["mat"] = m.kmed.mat_panel
+		if m.kmed.mods != null:
+			cands["mods"] = m.kmed.mods.panel
+	for k in cands:
+		var c: Control = cands[k]
+		if c != null and c.is_visible_in_tree():
+			out[k] = c.get_global_rect()
+	return out
+
+
+## the pairs of panels whose rects overlap by more than 1 px (each rect is shrunk by half a px first)
+func _clashes(r: Dictionary) -> Array:
+	var out := []
+	var keys := r.keys()
+	for i in keys.size():
+		for j in range(i + 1, keys.size()):
+			if (r[keys[i]] as Rect2).grow(-0.5).intersects((r[keys[j]] as Rect2).grow(-0.5)):
+				out.append("%s x %s" % [keys[i], keys[j]])
+	return out
+
 
 func _overlays(m: Node) -> Dictionary:
 	var n := 0
@@ -178,6 +207,44 @@ func _init() -> void:
 	await idle(3)
 	var after := _overlays(m)
 	ok(after == before, "6b back on POSE the overlays are exactly as before: %s -> %s" % [before, after])
+
+	# 7 the MODEL panels at two window sizes: the cube open (primitive, materials, modifiers) and closed (the hint alone)
+	var was_scale: Vector2i = root.content_scale_size
+	var was_mode: int = root.content_scale_mode
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	root.content_scale_size = Vector2i(1600, 900)
+	await idle(6)
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	var browser_before := [m.ui_side_of["left"].visible, m.ui_side_of["left"].get_global_rect()]
+	for sz in [Vector2i(1600, 900), Vector2i(1280, 720)]:
+		root.content_scale_size = sz
+		await idle(6)
+		m.ui_page_btns["MODEL"].pressed.emit()
+		await idle(3)
+		if m.kmed != null and m.kmed.on:
+			m.kmed.stop()
+		await idle(3)
+		var closed := _visible_panels(m)
+		button(m, "MODEL", "Test cube").pressed.emit()
+		await idle(4)
+		var opened := _visible_panels(m)
+		var c_clash := _clashes(closed)
+		var o_clash := _clashes(opened)
+		ok(c_clash.is_empty() and o_clash.is_empty() and closed.has("hint") and not closed.has("browser")
+			and opened.has("prim") and opened.has("mat") and opened.has("mods") and not opened.has("browser") and not opened.has("inspector"),
+			"7a at %dx%d on MODEL: cube open %s, clashes %s; cube closed %s, clashes %s" % [sz.x, sz.y, opened.keys(), o_clash, closed.keys(), c_clash])
+		m.kmed.stop()
+		await idle(2)
+	root.content_scale_size = Vector2i(1600, 900)
+	await idle(6)
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	var browser_after := [m.ui_side_of["left"].visible, m.ui_side_of["left"].get_global_rect()]
+	ok(browser_after == browser_before, "7b back on POSE the browser is as before: %s -> %s" % [browser_before, browser_after])
+	root.content_scale_size = was_scale
+	root.content_scale_mode = was_mode
+	await idle(4)
 
 	# 4 Easy mode hides the three pages
 	m.easy.set_on(true, false)
