@@ -11,6 +11,8 @@ static func get_plan(nm: String) -> Dictionary:
 		"jump": return plan_jump()
 		"punch": return plan_punch()
 		"sword_swing": return plan_sword_swing()
+		"sit_down": return plan_sit_down()
+		"wave": return plan_wave()
 	return {}
 
 
@@ -248,3 +250,33 @@ static func plan_sword_swing() -> Dictionary:
 	return {"name": "sword_swing", "base": "poses/stand.json", "clips": clips, "spline": true, "aim_weight": 0.3,
 		"weapon": {"kind": "metal_bat", "len": 1.0, "hand": "hand_r"},
 		"note": "SWORD SWING template: a one-hand cut across the body with a 1.0 m blade, from the bat swing data (scenes/swing_fore.json): hips, then chest, then arm, then blade; ready, wind-up, cut, follow-through, recover. Feet planted."}
+
+
+## SIT DOWN. Standing to a chair (Props "chair": seat top 0.45 m, back at -Z, so he faces +Z). The cards are Rise.sit_down's keys
+## played backwards (scripts/rise.gd: the stand-up's keys, cited to Schenkman 1990 and Riley 1991: seat-off at 35-40 % of the rise,
+## trunk flexion 40-50 deg; the knees bend, the trunk leans forward over the seat and comes back up to the seated pose); the feet
+## never move (each key plants both feet). "rise": the bake takes the cards, "move" is the time between two cards: the hips reach
+## the seat at 5 moves (1.1 s) and the seated pose is at 8 moves. REAL SIT-DOWNS: the hips reach the seat in ~1.0-1.4 s.
+static func plan_sit_down() -> Dictionary:
+	return {"name": "sit_down", "base": "poses/stand.json", "rise": true, "move": 0.18, "hold0": 0.2, "flow_from": 6, "no_pin": true, "clips": [],
+		"note": "SIT DOWN template: from standing to a 45 cm chair, feet planted; the hips reach the seat at 1.1 s, the knees bend, the trunk leans forward and comes back up. Built from the stand-up keys of scripts/rise.gd (played backwards)."}
+
+
+## WAVE. The right hand waves hello: the upper arm raised out to the side (side 88: nearly straight up), the forearm forward at
+## 95 deg of elbow bend, and the upper arm's twist swings the forearm side to side, 2.5 swings in about 1.2 s (two full swings
+## is the bar). The forearm itself has no twist bone (lowerarm side and twist are locked), so the swing is the upper arm's roll.
+static func plan_wave() -> Dictionary:
+	var rest := stand_set()
+	var up := rest.duplicate()
+	up.merge({"upperarm_r": [-15, 80, 0], "lowerarm_r": [40, 0, 0]}, true)
+	var clips := [{"name": "stand", "move": -1, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]},
+		{"name": "raise", "move": 0.4, "hold": 0.0, "set": up}]
+	var tw := [-45.0, 45.0, -45.0, 45.0, -45.0]
+	var mv := [0.2, 0.25, 0.25, 0.25, 0.25]
+	for i in tw.size():
+		var w := up.duplicate()
+		w["upperarm_r"] = [-15, 80, tw[i]]
+		clips.append({"name": "swing %d" % (i + 1), "move": mv[i], "hold": 0.0, "set": w})
+	clips.append({"name": "lower", "move": 0.45, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]})
+	return {"name": "wave", "base": "poses/stand.json", "clips": clips, "spline": false,
+		"note": "WAVE template: the right hand raised, the forearm swung side to side 2.5 times (about 1.2 s), then lowered. Hand passes head height."}

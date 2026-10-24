@@ -163,7 +163,7 @@ const AIR := 0.05                  # m: the lower foot this far above its lowest
 ## not swings (the swing rules are measured on hitters): attack_timing's list + the get-ups
 ## scenes with no strike in them (the strike rules skip them): a name, or a name and a copy number ("walk_2": ROADMAP 44's
 ## templates, scenes/_wip/<template>_N.json). Their hands move fast (a jump's arm swing, a runner's drive) and are no attack
-const NOT_SWINGS := ["getup_back", "getup_front", "walk", "run", "jump"]
+const NOT_SWINGS := ["getup_back", "getup_front", "walk", "run", "jump", "sit_down", "wave", "fall"]   # the templates' new names: a sit, a wave and a fall are no strike
 const FOOT_DOWN := 0.05            # m: the ball of the foot this low = on the floor (Karunratanakul 2023)
 const FOOT_SKATE := 0.025          # m: sliding more than this along the floor while down = skating
 const BAL_OUT := 0.03             # m: the centre of mass this far past the support polygon...
