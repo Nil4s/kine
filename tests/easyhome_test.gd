@@ -137,8 +137,8 @@ func _init() -> void:
 	edit.text_submitted.emit("jab then cross")
 	await idle(2)
 	ok(not m.S.cards.is_empty() and home.shown() == "strip", "5. typed 'jab then cross' builds a clip and the panel shrinks to the strip (shown: %s)" % home.shown())
-	ok(home.strip.find_child("eh_again", true, false) != null and home.strip.find_child("eh_change", true, false) != null and home.strip.find_child("eh_save", true, false) != null,
-		"the strip has Again, Change it and Save video")
+	ok(home.strip.find_child("eh_again", true, false) != null and home.strip.find_child("eh_change", true, false) != null and home.strip.find_child("eh_save", true, false) == null,
+		"the strip has Again and Change it; Save video is on the Easy bar only (one button per label)")
 
 	# 6. the panel fits the window at 1280x720 (the empty scene's panel)
 	m._new_scene()

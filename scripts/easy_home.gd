@@ -99,7 +99,7 @@ func build(root: Control) -> void:
 	strip.add_child(row)
 	row.add_child(_strip_button("eh_again", "Again", "play the clip from its start", _play))
 	row.add_child(_strip_button("eh_change", "Change it", "type another move in the box", _change))
-	row.add_child(_strip_button("eh_save", "Save video", "render the scene from the camera to a video in your Videos folder (Kine/), with a button to show it", save_video))
+	# no Save video here: the Easy bar has it (two buttons with one label confused the monkey test's beginner)
 	_toast = PanelContainer.new()
 	_toast.name = "easy_toast"
 	_toast.visible = false
