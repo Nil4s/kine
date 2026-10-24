@@ -132,6 +132,7 @@ const DRAW := {
 	"collision": [["ring", Vector2(9, 12), 6, 1.8], ["ring", Vector2(15, 12), 6, 1.8]],
 	"trail": [["disc", Vector2(3, 19), 1.4], ["disc", Vector2(5.5, 13.5), 1.6], ["disc", Vector2(9.5, 8.5), 1.8], ["disc", Vector2(15, 5.5), 2.0], ["disc", Vector2(21, 4.5), 2.4]],
 	"nextpose": [["disc", Vector2(7, 7), 2.6], ["seg", Vector2(7, 10), Vector2(7, 19), 1.8], ["ring", Vector2(16, 7), 2.6, 1.3], ["seg", Vector2(16, 10), Vector2(18.5, 19), 1.4], ["seg", Vector2(11, 14), Vector2(14, 14), 1.4]],
+	"keep_balance": [["disc", Vector2(13, 4), 2.4], ["seg", Vector2(13, 7), Vector2(10, 14), 1.8], ["seg", Vector2(12, 9), Vector2(21, 8), 1.6], ["seg", Vector2(10, 14), Vector2(7, 20), 1.6], ["seg", Vector2(10, 14), Vector2(14, 20), 1.6], ["seg", Vector2(4, 21), Vector2(17, 21), 1.6]],   # N066: arm out, hips the other way, over the feet
 	"balance": [["seg", Vector2(12, 3), Vector2(12, 17), 1.6], ["disc", Vector2(12, 5), 2.6], ["ring", Vector2(12, 19), 9, 1.4], ["seg", Vector2(9, 19), Vector2(15, 19), 1.6]],
 	"force": [["seg", Vector2(5, 19), Vector2(12, 11), 1.8], ["seg", Vector2(12, 11), Vector2(19, 5), 1.8], ["disc", Vector2(12, 11), 2.8], ["seg", Vector2(19, 5), Vector2(19, 11), 1.6], ["seg", Vector2(19, 5), Vector2(13, 5), 1.6]],
 	"autokey": [["ring", Vector2(12, 12), 8.5, 2.0], ["disc", Vector2(12, 12), 4.5]],

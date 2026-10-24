@@ -218,7 +218,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
-	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag"]],
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
@@ -486,6 +486,9 @@ var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overl
 var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
 var smart_drag := true      # the other joints follow a dragged one the way your poses move together; Alt+drag = off
 var smart_follow := 0.6     # the follow strength 0..1 (0 = the old one-joint drag)
+var keep_balance := true    # N066 (scripts/live_balance.gd): a drag keeps him over his feet, live; Alt+drag lets him fall
+var _lb := {}               # N066: this drag's live balance (LiveBalance.begin; {} = off for this drag)
+var _lb_r := {}             # N066: its last frame (LiveBalance.step)
 var _sd := {}               # the current drag's smart state ({} = none)
 var sj := SuggestionJournal.new()   # LEARN FROM MY EDITS (ROADMAP I26): scripts/suggestion_journal.gd; the panel is sj_ui
 var sj_ui: SuggestionJournalUI
@@ -2645,6 +2648,7 @@ func _ready() -> void:
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
 		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
+		keep_balance = false   # N066: off in a test until it turns it on (the older drag tests measure the plain drag)
 		sj = SuggestionJournal.new("user://zz_suggestion_journal_%d.json" % OS.get_process_id())   # I26: a test never reads or writes the real journal
 		myhits.sj = sj
 		nt.path = "user://zz_next_tool_%d.json" % OS.get_process_id()   # P17: a test never reads or writes the real next-command file (its chips made small_window / pages flaky)
@@ -4973,6 +4977,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					if not j in Body.WEAPON and not j in ["hand_r", "hand_l", "foot_r", "foot_l"] and B.P.has(j) and sel_more.is_empty():   # a SET (Select: spine, Ctrl+click) turns every member by the same change (the old drag): PartDrag spreads or swings a turn its own way
 						_pd = PartDrag.begin(B, j, cam.project_ray_origin(mb.position), cam.project_ray_normal(mb.position))
 					_sd = _smart_begin(j, mb.alt_pressed)
+					_lb = LiveBalance.begin(B, j) if keep_balance and not mb.alt_pressed and sel_more.is_empty() else {}   # N066
+					_lb_r = {}
 					playing = false
 					_refresh()
 			elif mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -4989,6 +4995,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		else:
 			var was := dragging
 			dragging = ""
+			_lb = {}   # N066: the pose stays as the last frame left it
 			_num_on = false
 			if was == "prop":
 				_prop_release()
@@ -5235,6 +5242,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 			B.turn_world(sel, Quaternion(ax.normalized(), r1.angle_to(r2)))
 	if not _sd.is_empty() and not alt and not twist and not move:
 		_smart_step(tip)
+	_lb_step(tip and not alt and not move and not twist, alt)   # N066: keep him over his feet (the dragged joint untouched)
 	_arm_edit = sel if sel.begins_with("upperarm") and not move and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
@@ -5246,7 +5254,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 		return
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
-	_say("%s the %s     %s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop)])
+	_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 
 
 ## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
@@ -5271,6 +5279,33 @@ func _smart_step(tip: bool) -> void:
 			fl = func(): B.shoulder_follow(sel.right(2))
 		PartDrag.move(B, _pd, cam.project_ray_origin(_pd_mp), cam.project_ray_normal(_pd_mp), fl)
 	sd.apply(B, _sd, smart_follow)
+
+
+## NEVER FALLS WHILE POSING (N066, scripts/live_balance.gd): after the drag's own edit, the hips slide so the COM stays inside the
+## planted feet. pull: a hand / foot on IK, put back on its target after the hips move. Alt during the drag: the correction is
+## taken back and he is let fall for the rest of this drag
+func _lb_step(pull: bool, alt: bool) -> void:
+	if _lb.is_empty():
+		_lb_r = {}
+		return
+	var redo := Callable()
+	if pull and not is_nan(_grab.x) and not (sel in ["hand_r", "hand_l"] and (ik_contact or (B.wep_on and B.wep_hand != "" and B.wep_hand != sel))):
+		redo = func(): B.reach(sel, _grab)
+	if alt:
+		LiveBalance.untake(B, _lb, redo)
+		_lb = {}
+		_lb_r = {}
+		return
+	_lb_r = LiveBalance.step(B, _lb, redo)
+
+
+func _toggle_keep_balance() -> void:
+	keep_balance = not keep_balance
+	var cf := ConfigFile.new()
+	cf.load(settings)
+	cf.set_value("pose", "keep_balance", keep_balance)
+	cf.save(settings)
+	_say("KEEP BALANCE ON: while you drag, the hips slide so he stays over his feet (Alt+drag lets him fall)" if keep_balance else "keep balance off: a drag can tip him over his feet")
 
 
 func _smart_set_follow(d: float) -> void:
@@ -10601,6 +10636,7 @@ func _onion_load() -> void:
 	ov.onion_step = clampi(int(cf.get_value("onion", "step", 1)), 1, Overlays.ONION_STEP_MAX)
 	ov.onion_picks = Array(cf.get_value("onion", "picks", []))
 	sg_on = bool(cf.get_value("suggest", "on", sg_on))   # R27: the next-pose ghosts (View > Next poses)
+	keep_balance = bool(cf.get_value("pose", "keep_balance", keep_balance))   # N066: Keep balance (POSE toolbar)
 
 
 func _onion_save() -> void:
@@ -10814,7 +10850,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Collision (C)": "collision",
+const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -11167,6 +11203,8 @@ func _ui() -> void:
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
 	tog.call("POSE", "Smart drag", _toggle_smart_drag, func(): return smart_drag,
 		"on: dragging a joint also moves the rest of the body the way YOUR poses move together (learned from poses/ and scenes/; feet planted, balance held). Alt+drag = the one joint only. Command search: 'smart drag follow' sets the strength")
+	tog.call("POSE", "Keep balance", _toggle_keep_balance, func(): return keep_balance,
+		"on: while you drag a joint he stays over his feet: the hips slide (the back leans a little) so the centre of mass stays 2 cm inside the planted feet; the dragged joint keeps exactly what you gave it. Alt+drag lets him fall. Remembered")
 	tog.call("POSE", "Line of action", func(): loa.on = not loa.on; _refresh(), func(): return loa.on,
 		"the current line of action, faint: head, spine, pelvis, support knee and ankle. A C or an S shows the pose's shape")
 	tog.call("POSE", "Collision (C)", func(): show_caps = not show_caps; _refresh(), func(): return show_caps,
