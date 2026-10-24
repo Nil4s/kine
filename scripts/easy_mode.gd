@@ -42,6 +42,8 @@ var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Ea
 const EASY_MORE := {"Save this pose as a card": "Saved pose", "Flip left and right": "Flip", "Put his feet on the floor": "Feet on floor"}   # a More entry's undo name in Easy (its Expert name is the entry's words)
 const FREE_PAD := 8.0       # px between the free rect and the Easy bar, the strip, or the bottom panel
 const FRAME_PAD := 12.0     # px of air the body keeps inside the free rect (the framing's margin)
+const TOUR_W := 300.0       # the tour card's width (px); its text wraps inside it
+const PANEL_MARGIN := 12.0  # px between the tour card and the window's edge
 const FRAME_STEP := 2       # the clip is sampled every 2nd frame: a frame moves a hand a few px, inside FRAME_PAD
 const FRAME_SAMPLES := 24   # the most poses frame_clip samples (the click waits for them)
 
@@ -157,7 +159,7 @@ func _build_tour_card(root: Control) -> void:
 	tour_card.name = "easy_tour"
 	tour_card.visible = false
 	tour_card.mouse_filter = Control.MOUSE_FILTER_IGNORE   # the card never takes a click meant for the body; its Skip button still does
-	tour_card.custom_minimum_size = Vector2(300, 0)
+	tour_card.custom_minimum_size = Vector2(TOUR_W, 0)
 	var st := StyleBoxFlat.new()
 	st.bg_color = Tok.c("accent")
 	st.set_corner_radius_all(8)
@@ -170,6 +172,8 @@ func _build_tour_card(root: Control) -> void:
 	_tour_title = Label.new()
 	_tour_title.add_theme_font_size_override("font_size", 17)
 	_tour_title.add_theme_color_override("font_color", Tok.c("on_accent"))
+	_tour_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tour_title.custom_minimum_size = Vector2(TOUR_W - 24.0 - 52.0, 0)   # the wrap width: a wrapped label is measured at it, never at 1 px
 	_tour_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(_tour_title)
 	var skip := Button.new()
@@ -183,6 +187,7 @@ func _build_tour_card(root: Control) -> void:
 	_tour_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tour_text.add_theme_font_size_override("font_size", 14)
 	_tour_text.add_theme_color_override("font_color", Tok.c("on_accent"))
+	_tour_text.custom_minimum_size = Vector2(TOUR_W - 24.0, 0)   # its height is measured at the card's width (a 1 px width made the card 1500 px tall)
 	v.add_child(_tour_text)
 	root.add_child(tour_card)
 
@@ -463,28 +468,59 @@ func _go(k: int) -> void:
 	_tour_title.text = "Step %d of %d:  %s" % [k + 1, TOUR.size(), TOUR[k][0]]
 	_tour_text.text = TOUR[k][1]
 	tour_card.visible = true
-	tour_card.reset_size()
 	set_process(true)
 	_place_card.call_deferred()
 
 
 ## the card sits by the thing the step is about: the body for 1, the Key button for 2 and 4, the timeline for 3,
-## the Play button for 5. Above the target when it sits low on the window, else below it.
+## the Play button for 5. Above the target when it sits low on the window, else below it. Step 1 starts at the top left
+## (the free room under the bar). Any spot that covers the body's screen rect is passed over for the top corners.
 func _place_card() -> void:
 	if tour_card == null or not tour_card.visible:
 		return
 	var vp := get_viewport().get_visible_rect().size
+	var sz := Vector2(TOUR_W, tour_card.get_combined_minimum_size().y)
+	var top := float(m.TOP_H) + FREE_PAD
 	var at: Rect2
 	match tour_step:
-		0: at = Rect2(vp.x - 20, vp.y * 0.3, 0, 0)   # the body is in the middle: the card sits at its right edge
+		0: at = Rect2(PANEL_MARGIN, top, 0, 0)   # the body is in the middle and its arm reaches the right edge: the top left is free
 		1, 3: at = (_btns["More"] as Control).get_global_rect()   # Save this pose as a card is in More
 		2: at = m.ui_timeline.get_global_rect()
 		_: at = (_btns["Play / Stop"] as Control).get_global_rect()
-	var sz := tour_card.get_combined_minimum_size()
-	var x := clampf(at.get_center().x - sz.x * 0.5, 8.0, vp.x - sz.x - 8.0)
-	var y := at.end.y + 10.0 if at.get_center().y < vp.y * 0.5 else at.position.y - sz.y - 10.0
-	tour_card.position = Vector2(x, clampf(y, 8.0, vp.y - sz.y - 8.0))
+	var cands: Array = []
+	if tour_step == 0:
+		cands = [Vector2(PANEL_MARGIN, top), Vector2(vp.x - sz.x - PANEL_MARGIN, top)]
+	else:
+		var x := clampf(at.get_center().x - sz.x * 0.5, PANEL_MARGIN, vp.x - sz.x - PANEL_MARGIN)
+		var y := at.end.y + 10.0 if at.get_center().y < vp.y * 0.5 else at.position.y - sz.y - 10.0
+		cands = [Vector2(x, y), Vector2(PANEL_MARGIN, top), Vector2(vp.x - sz.x - PANEL_MARGIN, top)]
+	var body := _body_rect()
+	var pick: Vector2 = cands[-1]
+	for c in cands:
+		var p: Vector2 = Vector2(clampf(c.x, PANEL_MARGIN, maxf(PANEL_MARGIN, vp.x - sz.x - PANEL_MARGIN)), clampf(c.y, top, maxf(top, vp.y - sz.y - PANEL_MARGIN)))
+		if not body.has_area() or not Rect2(p, sz).intersects(body):
+			pick = p
+			break
+	tour_card.position = pick
 	tour_card.size = sz
+
+
+## the body's screen rect (px): every joint, end and weapon point projected; empty when nothing is on screen
+func _body_rect() -> Rect2:
+	if m == null or m.B == null or m.cam == null:
+		return Rect2()
+	var lo := Vector2(INF, INF)
+	var hi := -lo
+	for p in Turntable.points(m.B):
+		var v: Vector3 = p[0]
+		if m.cam.is_position_behind(v):
+			continue
+		var s: Vector2 = m.cam.unproject_position(v)
+		lo = lo.min(s)
+		hi = hi.max(s)
+	if lo.x == INF:
+		return Rect2()
+	return Rect2(lo, hi - lo)
 
 
 ## every frame, while a step waits: the user's real action moves it on
