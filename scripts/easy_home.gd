@@ -51,6 +51,8 @@ var _vid_said := ""           # the say line's opening words for the landed clip
 var _gen_on := false          # MAKE IT WITH AI VIDEO: main's gen_move (scripts/gen_move.gd) is making the clip
 var _gen_words := ""          # the typed words Kine could not build: the button under the message makes them as a video
 var _make_btn: Button
+var _make_why: Label          # the one plain line under the button: what it does and how long it takes
+var _ai_no: Label             # shown instead of the button when the AI video maker is not set up here
 var _cancel_btn: Button
 var _clip_word := "the move"   # the clip's name in the say line of a tweak ("the punch now takes 0.8 s")
 var _take_n := 0              # MAKE IT WITH AI VIDEO: the take in flight, 1 or 2 (0 = none; a copied video is not a take)
@@ -124,6 +126,18 @@ func build(root: Control) -> void:
 	_make_btn.visible = false
 	_make_btn.pressed.connect(make_ai)
 	v.add_child(_make_btn)
+	_make_why = _label(AI_WHY, 14, "text")
+	_make_why.name = "eh_make_why"
+	_make_why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_make_why.custom_minimum_size = Vector2(PANEL_W, 0)
+	_make_why.visible = false
+	v.add_child(_make_why)
+	_ai_no = _label(AI_NO, 15, "warn")
+	_ai_no.name = "eh_ai_no"
+	_ai_no.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ai_no.custom_minimum_size = Vector2(PANEL_W, 0)
+	_ai_no.visible = false
+	v.add_child(_ai_no)
 	_cancel_btn = Button.new()
 	_cancel_btn.name = "eh_gen_cancel"
 	_cancel_btn.text = "Cancel"
@@ -225,7 +239,11 @@ func _process(dt: float) -> void:
 		_toast.visible = false
 	_close.visible = not empty and not _gen_on
 	_then_box.visible = not empty
-	_make_btn.visible = _gen_words != "" and not _gen_on
+	var typed_gap: bool = _gen_words != "" and not _gen_on   # a typed line Kine cannot build
+	var ai_ok: bool = typed_gap and m.gen_move.available()
+	_make_btn.visible = ai_ok
+	_make_why.visible = ai_ok
+	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
 		last_ms = Time.get_ticks_msec() - _t0
@@ -356,6 +374,8 @@ const NO_READER := "The video reader would not start on this computer, so this v
 const GEN_NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
 const GEN_SHORT := "Say the move in a few more words, such as 'swings a sledgehammer down onto the ground'."
 const GEN_BUSY := "A video is already being made or copied: wait for it, or press Cancel."
+const AI_WHY := "The computer makes a short video of a person doing it, then copies the move. Takes about 3 minutes."
+const AI_NO := "AI video isn't set up on this computer."   # shown in place of the button when the maker is not on this computer
 const UNCLEAR := "The video was unclear; try different words."   # both takes came out bad with a person found
 
 
@@ -363,6 +383,9 @@ const UNCLEAR := "The video was unclear; try different words."   # both takes ca
 ## more with the next seed; the good take is imported, and a second bad one imports nothing and says why. Two takes at most.
 func make_ai() -> void:
 	if _gen_words == "":
+		return
+	if not m.gen_move.available():
+		_fail(AI_NO)
 		return
 	if _gen_on or _vid_busy or m._imp_busy() or m._video_pid >= 0 or m.gen_move.busy():
 		m._say_plain(GEN_BUSY)

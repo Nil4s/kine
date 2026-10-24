@@ -13167,9 +13167,9 @@ func _rebuild_cards() -> void:
 		pc.add_child(v)
 		# the picture IS the pick button: the pose on the body, the number and name under it
 		var easy_on: bool = easy != null and easy.on   # Easy: a picture and one plain word (the name); no number, no seconds
-		var nb := _button(_easy_card_name(c["name"]) if easy_on else "%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
+		var nb := _button(_easy_card_name(c["name"], i) if easy_on else "%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
-		nb.tooltip_text = ("%s.  Click shows it, double-click renames, drag moves it, right-click for more" % _easy_card_name(c["name"])) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
+		nb.tooltip_text = ("%s.  Click shows it, double-click renames, drag moves it, right-click for more" % _easy_card_name(c["name"], i)) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
 		nb.flat = true
 		nb.clip_text = true
@@ -13284,8 +13284,10 @@ var _pl_card := -1     # the card at the playhead (marked on the strip)
 
 
 ## Easy's card line: the card's name with a capital and the rest as typed ("CROSS" -> "Cross", "guard" -> "Guard")
-func _easy_card_name(n: String) -> String:
+func _easy_card_name(n: String, i := -1) -> String:
 	var t := String(n).strip_edges()
+	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy shows its place in the strip
+		return "Pose %d" % (i + 1)
 	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
 		return EASY_CARD_NAME[t.to_lower()]
 	return t.substr(0, 1).to_upper() + t.substr(1).to_lower() if t != "" else "Card"

@@ -11,12 +11,19 @@
 ##  6 Cancel mid-run (a stand-in that sleeps): the generator is stopped, "Stopped. Nothing was changed.", card count and undo size unchanged
 ##  8 the Easy generator call (first take AND the retake) carries the FAST setting: --steps 20 --width 640 --height 368
 ##  9 the message says "about 3 minutes" (the button, and the retake line "about 3 more minutes")
+## 10 the one plain line under the button: what it does and that it takes about 3 minutes (shown with the button)
+## 11 the AI video maker not set up here (comfy_main missing): no button, no line, the plain "isn't set up" line shows, Make does nothing
+## 12 the failed button's sentence carries no path, no colon and no slash (a beginner should not see a stack trace or a folder)
 extends SceneTree
 
 const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
 const WORDS := "backflip"
 const NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
 const BUTTON := "Make it with AI video (about 3 minutes)"
+const WHY := "The computer makes a short video of a person doing it, then copies the move. Takes about 3 minutes."
+const NA_LINE := "AI video isn't set up on this computer."
+const STUB_MAIN := "res://tests/py/gen_video_stub.py"   # the ComfyUI entry point this test counts as present (no D:/ComfyUI needed)
+const NO_MAIN := "res://tests/py/no_comfyui_here/main.py"   # a missing one: the maker is not set up
 
 var fails := 0
 var m: Node
@@ -191,6 +198,7 @@ func _init() -> void:
 	var dir := OS.get_user_data_dir().path_join("easygen_test_%d" % OS.get_process_id())
 	m.gen_move.out_dir = dir
 	m.gen_move.tool = "res://tests/py/gen_video_stub.py"
+	m.gen_move.comfy_main = STUB_MAIN   # the maker counts as set up here (bars 1-9); bar 11 points it at a missing one
 	m.easy.set_on(true, false)
 	m._new_scene()
 	await idle(3)
@@ -201,6 +209,28 @@ func _init() -> void:
 	var msg := String(home._msg.text)
 	ok(msg.begins_with("Kine can't build") and make_btn() != null and make_btn().visible and make_btn().text == BUTTON,
 		"1 typed \"%s\": reason \"%s\", button shown %s" % [WORDS, msg, make_btn().visible if make_btn() != null else false])
+
+	# 10 the plain line under the button says what it does and how long (the same panel, shown with the button)
+	var why := home.panel.find_child("eh_make_why", true, false) as Label
+	var why_ok: bool = why != null and why.visible and why.text == WHY and make_btn().visible
+	ok(why_ok, "10 the explaining line under the button: shown %s, \"%s\"" % [why != null and why.visible, why.text if why != null else "(no line)"])
+
+	# 11 the maker is not set up here: no button and no explaining line, one plain sentence instead; Make does nothing
+	m.gen_move.comfy_main = NO_MAIN
+	await type_line(WORDS)
+	var na := home.panel.find_child("eh_ai_no", true, false) as Label
+	var why11 := home.panel.find_child("eh_make_why", true, false) as Label
+	var na_shown: bool = na != null and na.visible and na.text == NA_LINE
+	var btn_hidden: bool = make_btn() != null and not make_btn().visible and why11 != null and not why11.visible
+	var busy0: bool = m.gen_move.busy()
+	home.make_ai()
+	await idle(3)
+	ok(na_shown and btn_hidden and not busy0 and not m.gen_move.busy() and not home._gen_on and String(home._msg.text) == NA_LINE,
+		"11 maker not set up: button hidden %s, plain line shown %s (\"%s\"), Make starts nothing %s"
+		% [btn_hidden, na_shown, na.text if na != null else "(no line)", not m.gen_move.busy()])
+	m.gen_move.comfy_main = STUB_MAIN
+	await type_line(WORDS)
+	ok(make_btn().visible and not (na != null and na.visible), "11 set up again: the button is back and the plain line is hidden")
 
 	# 2 a known word builds, no button
 	await type_line("punch")
@@ -250,6 +280,12 @@ func _init() -> void:
 	ok(String(home._msg.text) == NOT_RUNNING and String(m.ui_status.text) == NOT_RUNNING and not home._gen_on
 		and m.S.cards.size() == n5 and m.scene_path == sp5,
 		"5 ComfyUI down: \"%s\" (cards %d, as before)" % [m.ui_status.text, m.S.cards.size()])
+
+	# 12 the failed button's sentence is plain: no path, colon or slash (no stack trace, no folder)
+	var plain := true
+	for s in [String(home._msg.text), String(m.ui_status.text)]:
+		plain = plain and not (s.contains("/") or s.contains("\\") or s.contains(":") or s.contains("res://"))
+	ok(plain and home._msg.text != "", "12 the failed button's sentences carry no path or colon: \"%s\" / \"%s\"" % [home._msg.text, m.ui_status.text])
 
 	# 6 Cancel mid-run: the generator is stopped and nothing changes
 	OS.set_environment("GEN_STUB_SRC", ProjectSettings.globalize_path(CLIP))

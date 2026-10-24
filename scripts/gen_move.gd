@@ -17,6 +17,13 @@ var log_path := ""
 var t := 0.0
 var seconds := 5.0
 var seed := 1
+var comfy_main := "D:/ComfyUI/main.py"   # the local ComfyUI's entry script (a test points it at a stand-in or a missing path)
+
+
+## is the AI video maker set up on this computer? A cheap check on disk only (the generator script and ComfyUI's main.py
+## both exist): nothing is started and no network is touched. A missing ComfyUI shows as "not set up", not as a failed button.
+func available() -> bool:
+	return FileAccess.file_exists(ProjectSettings.globalize_path(tool)) and FileAccess.file_exists(comfy_main)
 
 
 ## starts making the clip. "" when started, else the reason. steps / width / height: 0 = tools/gen_video.py's own default

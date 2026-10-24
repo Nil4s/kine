@@ -63,19 +63,31 @@ static func plan_walk() -> Dictionary:
 ## both feet off the floor (running has a flight phase, walking does not: Novacheck 1998, Gait Posture 7:77; flight is ~0.05-0.15 s at
 ## jogging speeds); the body is lowest at mid-stance (knee ~40 deg: Novacheck) and the centre of mass rises ~ g T^2 / 8 = 1.2 cm in
 ## the flight; elbows ~90 deg, arms against the legs. The numbers are the template's design and tests/templates_test.gd measures them.
+const RUN_ARM_MID := -5.0       # upper arm bend (deg, + = forward) at mid-stance; the shoulder's back stop is -45 (body_limits)
+const RUN_ARM_SWING := 40.0     # the swing either side of mid: back -45 (the stop), forward +35
+const RUN_ARM_SIDE := -55.0   # the shoulder's side angle (-65 relaxed, -55 a little more to the body): the swing is about the same at any of these
+const RUN_ELBOW := 90.0         # mean elbow bend
+const RUN_ELBOW_SPLIT := 32.0   # back arm 58, forward arm 122: the back forearm must point back for the hand to reach behind the hip (the shoulder's back stop is -45)
+
 static func plan_run() -> Dictionary:
 	var step := 0.78
 	var x := {"_r": -0.10, "_l": 0.10}
 	# the arms against the legs: at a landing the arm of the stance side is back and the other forward, at mid-stance both hang
 	# near the body, at take-off they have swapped (swing 52 deg peak to peak at the shoulder, elbows 50-65 deg flexed)
+	# PUMPING ARMS (the run's look: the upper arms swing front to back from the shoulder, the back hand gets behind the hip and the
+	# front hand reaches the chest). The shoulder's back stop is -45 (body_limits), so the upper arm alone cannot reach behind the
+	# hip: the forearm must point back, which takes the back elbow to ~58 deg and the front one to ~122 (mean 90). Before this the
+	# elbows were all ~90 and the forearm swung the hand forward every frame (both hands >= 17 cm in front of the pelvis).
 	var arm := func(F: String, ph: String, k := 1.0) -> Dictionary:   # k: the swing's size (a shorter step swings the arms less)
 		var O := "_l" if F == "_r" else "_r"
-		var bF: float = 4.0 + ({"land": -26.0, "mid": 0.0, "off": 26.0}[ph] as float) * k
-		var bO: float = 4.0 + ({"land": 26.0, "mid": 0.0, "off": -26.0}[ph] as float) * k
-		var eF: float = {"land": 52.0, "mid": 56.0, "off": 62.0}[ph]
-		var eO: float = {"land": 62.0, "mid": 56.0, "off": 52.0}[ph]
-		return {"upperarm" + F: [bF, -65, 0], "upperarm" + O: [bO, -65, 0], "lowerarm" + F: [eF, 0, 0], "lowerarm" + O: [eO, 0, 0]}
-	var lean := {"pelvis": [3, 0, 0], "spine_01": [2, 0, 0], "spine_02": [3, 0, 0], "spine_03": [3, 0, 0], "neck_01": [-4, 0, 0]}
+		var sw: float = {"land": -0.6, "mid": 0.0, "off": 0.6, "air": 1.0}[ph] as float   # F's arm: -1 back, +1 forward (O's is the mirror); the extreme only in the flight, so the arm turns there and does not dwell across the take-off and landing cards (a dwell reads as a HITCH)
+		var bF: float = RUN_ARM_MID + RUN_ARM_SWING * sw * k
+		var bO: float = RUN_ARM_MID - RUN_ARM_SWING * sw * k
+		var eF: float = RUN_ELBOW + RUN_ELBOW_SPLIT * sw   # the back arm bends less (its forearm then points back), the forward arm more
+		var eO: float = RUN_ELBOW - RUN_ELBOW_SPLIT * sw
+		return {"upperarm" + F: [bF, RUN_ARM_SIDE, 0], "upperarm" + O: [bO, RUN_ARM_SIDE, 0], "lowerarm" + F: [eF, 0, 0], "lowerarm" + O: [eO, 0, 0]}
+	# the whole body leans forward from the ankles about 7 deg (the head steady: the neck takes back part of it)
+	var lean := {"pelvis": [3, 0, 0], "spine_01": [1, 0, 0], "spine_02": [2, 0, 0], "spine_03": [2, 0, 0], "neck_01": [-2, 0, 0]}
 	var clips := []
 	var feet := ["_r", "_l"]
 	# N031 BODY ACCEL: the steps BUILD the speed and give it back. A run from a standstill takes several steps to reach its pace
@@ -119,12 +131,12 @@ static func plan_run() -> Dictionary:
 			clips.append(c)
 		if i < n - 1:
 			var a := lean.duplicate()
-			a.merge(arm.call(F, "off", pow(s_out, 2.0)), true)
+			a.merge(arm.call(F, "air", pow(s_out, 2.0)), true)
 			a["thigh" + O] = [52, 3, 0]
 			a["calf" + O] = [maxf(42.0 - 50.0 * (1.0 - s_out), 0.0), 0, 0]   # a shorter step: the leading knee opens sooner (its foot clear of the floor in the flight)
 			a["foot" + O] = [-5, 0, 0]
 			a["thigh" + F] = [-12, 3, 0]
-			a["calf" + F] = [70, 0, 0]
+			a["calf" + F] = [90, 0, 0]   # heel recovery: the leaving heel comes up high behind, toward the glute (not a kick out in front)
 			a["foot" + F] = [-8, 0, 0]
 			clips.append({"name": "air %d" % i, "set": a, "hips": [0, 0, zf + (0.22 + 0.14) * s_out], "y": -0.09, "free_feet": ["_l", "_r"], "air": true,
 				"move": 0.06, "hold": 0.0})
