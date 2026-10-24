@@ -50,14 +50,15 @@ func inside(j: String) -> Vector2:
 
 
 ## a real drag of a part: press on it, move in steps, let go
-func drag(j: String) -> void:
+func drag(j: String, d := Vector2(48, -48)) -> void:
 	var p := inside(j)
+	var st := d / 6.0
 	btn(true, p)
 	await process_frame
 	for i in 6:
-		move(p + Vector2(8, -8) * (i + 1), Vector2(8, -8))
+		move(p + st * (i + 1), st)
 		await process_frame
-	btn(false, p + Vector2(48, -48))
+	btn(false, p + d)
 	await process_frame
 
 
@@ -73,6 +74,19 @@ func card_lines() -> Dictionary:
 func idle(n := 4) -> void:
 	for i in n:
 		await process_frame
+
+
+## a real click on a Control: the mouse goes down and up on its middle, as a beginner's press does
+func add_btn() -> Button:   # the strip's + Add pose, fetched fresh: a card's change rebuilds the strip (an old reference is freed)
+	return m.ui_cards.get_node_or_null("add_pose") as Button
+
+
+func click_ctl(c: Control) -> void:
+	var p := c.get_global_rect().get_center()
+	btn(true, p)
+	await process_frame
+	btn(false, p)
+	await idle(3)
 
 
 ## the words of a line that are size, weight, key or jargon (the Easy bar's rule for its own hints)
@@ -844,6 +858,66 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(UserPaths.w("res://scenes/zz_run_68.json")))
 	m.easy.set_on(false, false)
 	await idle(6)
+
+	# 10e. + ADD POSE (Easy): the strip's end button. An empty scene shows it with the tip; a press adds the body's pose as a
+	# card after the selected one (the new card selected, in view, one undo step "Add pose"); the same pose as the card
+	# before is refused in plain words; More's Save this pose as a card still adds; Expert has no button
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	var tip_ok := false
+	for c in m.ui_cards.get_children():
+		if c is Label and (c as Label).text == "Drag his arms and legs, then press + Add pose":
+			tip_ok = true
+	var ab: Button = add_btn()
+	ok(ab != null and ab.is_visible_in_tree() and ab.text == "+ Add pose", "10e: an empty Easy scene shows the '+ Add pose' button in the strip")
+	ok(tip_ok, "10e: the empty strip has the tip 'Drag his arms and legs, then press + Add pose'")
+	var tour_t := ""
+	for st in m.easy.TOUR:
+		tour_t += String(st[1]) + " "
+	ok(tour_t.find("+ Add pose") >= 0 and tour_t.find("Save this pose as a card") < 0 and tour_t.find("then press More") < 0, "10e: the Easy tour says 'press + Add pose' (no 'More, then Save this pose as a card')")
+	await drag("hand_r")
+	await idle(2)
+	await click_ctl(add_btn())
+	ok(m.S.cards.size() == 1, "10e: a real click on '+ Add pose' after a drag adds one card (%d)" % m.S.cards.size())
+	ok(undo_words() == "Undo: Add pose", "10e: the undo step is named 'Add pose' (%s)" % undo_words())
+	var pc1 := m.ui_cards.get_node_or_null("card_1") as Control
+	var row: Rect2 = m.ui_card_row.get_global_rect()
+	ok(m.sel_card == 0 and pc1 != null and pc1.get_global_rect().position.x >= row.position.x - 1.0 and pc1.get_global_rect().end.x <= row.end.x + 1.0, "10e: the new card is selected and in view in the strip (sel %d)" % m.sel_card)
+	ok(m.ui_status.text.begins_with("added card"), "10e: the status line says the card was added (%s)" % m.ui_status.text)
+	move(inside("hand_r"), Vector2.ZERO)   # the pointer over the hand first, as a person's is (the press picks what it hovers)
+	await idle(2)
+	await drag("hand_r", Vector2(-48, 48))   # back the way it came: a pose that differs from card 1
+	await idle(2)
+	await click_ctl(add_btn())
+	ok(m.S.cards.size() == 2 and m.sel_card == 1, "10e: a second drag and '+ Add pose' make 2 cards, the second selected (%d, sel %d)" % [m.S.cards.size(), m.sel_card])
+	await click_ctl(add_btn())
+	ok(m.S.cards.size() == 2 and m.ui_status.text == "Move him first, then add the pose.", "10e: '+ Add pose' with the body unmoved adds nothing and says 'Move him first, then add the pose.' (%d cards, '%s')" % [m.S.cards.size(), m.ui_status.text])
+	# PLAY: the hand moves from the first pose to the second (somewhere between the two card times it is clearly away from both ends)
+	var ttimes: Array = m.S.times()
+	var ends: Array = []
+	var best := 0.0
+	if ttimes.size() >= 2:
+		m._ps().apply(m.B, float(ttimes[0][1]))
+		var p0: Vector3 = m.B.P["hand_r"]
+		m._ps().apply(m.B, float(ttimes[1][1]))
+		var p1: Vector3 = m.B.P["hand_r"]
+		ends = [p0, p1]
+		for k in range(1, 20):   # the move itself: from the first card's leaving to the second card's arriving
+			m._ps().apply(m.B, lerpf(float(ttimes[1][0]), float(ttimes[1][1]), k / 20.0))
+			var pm: Vector3 = m.B.P["hand_r"]
+			best = maxf(best, minf(pm.distance_to(p0), pm.distance_to(p1)))
+	ok(ends.size() == 2 and ends[0].distance_to(ends[1]) > 0.05 and best > 0.02, "10e: Play moves the hand between the two '+ Add pose' poses (%d poses; the hand's furthest point from both ends %.3f m)" % [ttimes.size(), best])
+	await click_ctl(m.easy.button("Undo"))
+	ok(m.S.cards.size() == 1, "10e: Undo removes the added card (%d)" % m.S.cards.size())
+	m.easy.pick_more("Save this pose as a card")
+	await idle(2)
+	ok(m.S.cards.size() == 2, "10e: More > Save this pose as a card still adds a card (%d)" % m.S.cards.size())
+	m.easy.set_on(false, false)
+	await idle(4)
+	ok(m.ui_cards.get_node_or_null("add_pose") == null, "10e: Expert has no '+ Add pose' button")
+	m._new_scene()
+	await idle(4)
 
 	# 11. the overlap bar: Easy's panels, toast and lines, at the window's own size (both sizes: the easy_overlap suite)
 	m.easy.set_on(true, false)

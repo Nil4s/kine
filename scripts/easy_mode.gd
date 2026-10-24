@@ -11,9 +11,9 @@ extends Node
 const CFG := "look"
 const TOUR := [
 	["Drag a hand", "Press on a hand of the body and drag it. The arm follows, and the pose changes."],
-	["Save the pose", "Press More, then Save this pose as a card. The body's pose becomes a card on the timeline at the bottom."],
+	["Save the pose", "Press + Add pose, at the end of the cards. The body's pose becomes a card on the timeline at the bottom."],
 	["Move the playhead", "Drag the playhead (the line on the timeline) to another moment."],
-	["Change the pose and save again", "Move a part to a new place, then press More, then Save this pose as a card again."],
+	["Change the pose and save again", "Move a part to a new place, then press + Add pose again."],
 	["Press play", "Press Play. The body moves from card to card by itself."],
 ]
 
@@ -97,7 +97,7 @@ func build(root: Control, expert: Array) -> void:
 		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	var more := [
-		["Save this pose as a card", "Keep the body's pose as a card on the timeline (Enter)", m._card_add],
+		["Save this pose as a card", "Keep the body's pose as a card on the timeline (Enter)", func(): add_pose("Saved pose", false)],
 		["Move his arms and legs", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
 		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
 		["Open a saved scene", "Open one of your scenes", _open],
@@ -406,6 +406,67 @@ func _close_more() -> void:
 		_more.hide()
 
 
+## + ADD POSE (the strip's end button, Easy only) and More's Save this pose as a card: the one way a pose becomes a card.
+## strip = the button's press: a pose the card before it already has is refused in plain words (no duplicate card).
+## The card goes after the selected card (at the end when none or the last is selected), is selected, is scrolled into view,
+## and its undo step is named undo_name (Easy: "Add pose" / "Saved pose").
+func add_pose(undo_name := "Add pose", strip := true) -> void:
+	if strip and not m.S.cards.is_empty():
+		var ref: int = m.sel_card if m.sel_card >= 0 else m.S.cards.size() - 1
+		if same_pose(m.S.cards[ref]["pose"], m.B.to_dict()):
+			m._say("Move him first, then add the pose.")
+			return
+	m._step_easy = undo_name if on else ""
+	m._card_add()
+	var i: int = m.sel_card
+	await m.get_tree().process_frame
+	m.ui_card_row.queue_sort()   # after a rebuild the strip's scroll range can stay 0 until the next sort
+	await m.get_tree().process_frame
+	var pc := m.ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
+	if pc != null:
+		m.ui_card_row.ensure_control_visible(pc)
+
+
+## the strip's button (main's _rebuild_cards puts it after the last card, or in an empty Easy strip with its tip)
+func strip_button() -> Button:
+	var b: Button = m._button("Add pose", add_pose, "Add a card: the body's pose now, after the selected card. Drag his arms and legs first, then press it")
+	b.text = "+ Add pose"
+	b.name = "add_pose"
+	b.custom_minimum_size = Vector2(m.CARD_W - 8, m.CARD_PIC_H + 16)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.add_theme_font_size_override("font_size", 14)
+	return b
+
+
+## where the tour points for "+ Add pose": the strip's button when it is there, else the More button
+func _add_rect() -> Rect2:
+	var ab: Control = m.ui_cards.get_node_or_null("add_pose") if m.ui_cards != null else null
+	if ab != null and ab.is_visible_in_tree():
+		return ab.get_global_rect()
+	return (_btns["More"] as Control).get_global_rect()
+
+
+## two poses the same: every number within half a thousandth (a pose saved from the body and read back is the same)
+static func same_pose(a: Variant, b: Variant) -> bool:
+	if a is Dictionary and b is Dictionary:
+		if a.size() != b.size():
+			return false
+		for k in a:
+			if not b.has(k) or not same_pose(a[k], b[k]):
+				return false
+		return true
+	if a is Array and b is Array:
+		if a.size() != b.size():
+			return false
+		for k in a.size():
+			if not same_pose(a[k], b[k]):
+				return false
+		return true
+	if (a is float or a is int) and (b is float or b is int):
+		return absf(float(a) - float(b)) < 0.0005
+	return a == b
+
+
 ## a test or the tour: the bar's More button, then the entry with these words (two clicks, as a beginner makes them)
 func pick_more(label: String) -> bool:
 	for i in _more_acts.size():
@@ -511,7 +572,7 @@ func _place_card() -> void:
 	var at: Rect2
 	match tour_step:
 		0: at = Rect2(PANEL_MARGIN, top, 0, 0)   # the body is in the middle and its arm reaches the right edge: the top left is free
-		1, 3: at = (_btns["More"] as Control).get_global_rect()   # Save this pose as a card is in More
+		1, 3: at = _add_rect()   # + Add pose: the strip's button (More's Save this pose as a card when the strip has none)
 		2: at = m.ui_timeline.get_global_rect()
 		_: at = (_btns["Play / Stop"] as Control).get_global_rect()
 	var cands: Array = []
