@@ -26,7 +26,7 @@ const FILES := {"Rulebook": "res://scripts/rulebook.gd", "AttackTiming": "res://
 	"Counter": "res://scripts/counter.gd", "Momentum": "res://scripts/momentum.gd", "Recovery": "res://scripts/recovery.gd",
 	"Breakfall": "res://scripts/breakfall.gd", "SpeedEnv": "res://scripts/speed_env.gd", "Feasible": "res://scripts/feasible.gd",
 	"HitReaction": "res://scripts/hit_reaction.gd", "CoupledLimits": "res://scripts/coupled_limits.gd",
-	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd",
+	"WhoCould": "res://scripts/who_could.gd", "WeightXfer": "res://scripts/weight_xfer.gd", "TrunkLean": "res://scripts/trunk_lean.gd", "SmartDrag": "res://scripts/smart_drag.gd",
 	"OuchMeter": "res://scripts/ouch_meter.gd"}
 
 const _ISBS := "https://ojs.ub.uni-konstanz.de/cpa/article/view/6368/5737"
@@ -179,6 +179,10 @@ const REG := {
 	"WeightXfer.HOOK_MIN": {"s": H, "u": "share of body weight", "src": "ours: 'the weight shifts slightly to the front foot' in the lead hook (Boxing News, Fight school: the hook); lenient because styles differ (an American-style hook turns the weight onto the back foot as the hips go over, Evolve)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
 	"WeightXfer.KICK_MIN": {"s": H, "u": "share of body weight", "src": "ours: in single support the support foot carries all of it (statics); the support leg drives the READY phase before toe-off (Kinoshita & Fujii 2014, ISBS, 13 taekwondo athletes, no weight split reported)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
 	"WeightXfer.FIX_MARGIN": {"s": H, "u": "share of body weight", "src": "ours: the fix aims 15 points over the bar on the card (a cross: 60 %, Evolve's own split)", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
+	"TrunkLean.NORMS": {"s": H, "u": "deg (back, forward, sideways)", "src": "ours, from measured ranges: a roundhouse's pelvis tilts through 60.2 +- 7.6 deg (mediolateral axis) and 30.5 +- 8.1 (AP), the trunk on it through 21.7 +- 7.4 and 16.8 +- 4.2 (Kim, Yenuga & Kwon 2008, ISBS, n=12); front-kick torso flexion 15-30 deg on the pelvis (Blaszczyszyn et al. 2019, doi:10.3390/ijerph16173155); side kick and punches: no measured trunk angle found", "url": "res://docs/research/TRUNK_LEAN.md"},
+	"TrunkLean.GENERAL": {"s": H, "u": "deg (back, forward, sideways)", "src": "ours: no move named; walking keeps the trunk within 4.0 +- 1.8 deg sagittal and 3.3 +- 1.4 lateral of the ground (Chung et al. 2010, doi:10.1186/1743-0003-7-9), the cap is wide so bows and pick-ups pass", "url": "res://docs/research/TRUNK_LEAN.md"},
+	"TrunkLean.FIX_MARGIN": {"s": H, "u": "deg", "src": "ours: the fix aims this far inside the range", "url": "res://docs/research/TRUNK_LEAN.md"},
+	"SmartDrag.TRUNK_FOLLOW": {"s": H, "u": "deg", "src": "ours, set at the walking trunk's sagittal range, 4.0 +- 1.8 deg (Chung et al. 2010, doi:10.1186/1743-0003-7-9): a limb drag leans the trunk no more than walking sways it", "url": "res://docs/research/TRUNK_LEAN.md"},
 	"WeightXfer.FIX_GOAL": {"s": H, "u": "share of body weight", "src": "ours: the fix is done when the strike starts 12 points over the bar", "url": "res://docs/research/WEIGHT_TRANSFER.md"},
 	# --- N064 ouch meter (scripts/ouch_meter.gd, docs/research/OUCH_METER.md) ---
 	"OuchMeter.ELBOW_COMFORT": {"s": M, "u": "deg", "src": "LUBA elbow flexion classes 0-45 (score 1), 45-120 (2 sitting / 3 standing), > 120 (5) (Kee & Karwowski 2001, Appl Ergon 32:357), read in INSST NTP 674 Table 2; taking the 3 -> 5 jump as the comfortable edge is ours", "url": "https://doi.org/10.1016/S0003-6870(01)00006-0"},
@@ -245,6 +249,7 @@ const RULES := {
 	"FEASIBLE PENETRATION": ["Feasible.PEN_FIX"],
 	"COUPLED LIMIT": ["CoupledLimits.HAM_STRAIGHT", "CoupledLimits.HAM_TRAINED", "CoupledLimits.HAM_SLOPE", "CoupledLimits.GAS_STRAIGHT",
 		"CoupledLimits.GAS_BENT", "CoupledLimits.GAS_FREE_KNEE", "CoupledLimits.RECT_EXT", "CoupledLimits.RECT_KNEE", "CoupledLimits.RECT_KNEE_FLAT"],
+	"TRUNK LEAN": ["TrunkLean.NORMS", "TrunkLean.GENERAL"],
 	"WEIGHT TRANSFER": ["WeightXfer.CROSS_MIN", "WeightXfer.HOOK_MIN", "WeightXfer.KICK_MIN", "Balance.MASS"],
 }
 
