@@ -162,7 +162,7 @@ func _init() -> void:
 	ok(head.size() == 1 and head[0]["sev"] == "FAIL" and absf(head[0]["t"] - 3.1) < 0.1, "combo3: the head lurch flagged near 3.1 s (%s)" % str(head.map(func(f): return "%s %.2f" % [f["sev"], f["t"]])))
 	for nm in ["swing_fore_detail", "swing_fore_flow"]:
 		S = Scene.new()
-		S.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/_wip/%s.json" % nm)))
+		S.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://tests/data/scenes/%s.json" % nm)))
 		S.name = nm
 		var fs := Rulebook.check(S, B)
 		ok(fs.is_empty(), "%s (spline) comes out clean: %d findings" % [nm, fs.size()])

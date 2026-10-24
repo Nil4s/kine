@@ -26,7 +26,7 @@ func _init() -> void:
 	root.add_child(m)
 	await process_frame
 	# (1) the audit, from the source
-	var policy := {"_ring_push": "user://autosave_N.json only (the rotating autosaves, RING_N = 5; never scenes/)", "_recent_note": "the settings file (File > Recent: a preference, not work)", "_restore_copy": "a NEW scene in scenes/_wip/ (never over a file: _2, _3)", "_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
+	var policy := {"_selfcheck_save": "only with --selfcheck-save (the exported build's self-check): a NEW scene selfcheck_<unix time> + user://selfcheck.txt", "_video_cancel": "deletes only the tracker's own temp output + .progress under user://video_track/ (the clip being cancelled); never a scene", "_ring_push": "user://autosave_N.json only (the rotating autosaves, RING_N = 5; never scenes/)", "_recent_note": "the settings file (File > Recent: a preference, not work)", "_restore_copy": "a NEW scene in scenes/_wip/ (never over a file: _2, _3)", "_save_grip_now": "asked by _save_grip", "_save_pose_now": "asked by _save_pose when the name exists",
 		"_save_scene_now": "asked by _save_scene when another file has the name (G07: an applied body with no file is first saved as a NEW .kbody, BodyFile.before_save, never over a file)", "_trash_now": "asked by _trash",
 		"_polish": "a NEW machine copy in scenes/_wip/", "_template_build": "a NEW scene in scenes/_wip/ (never over an earlier one: _2, _3; the templates/ files are only read)", "_words_build": "a NEW machine copy in scenes/_wip/ (the move built from words)", "_ragdoll_fall": "a NEW machine copy in scenes/_wip/ (<name>_ragdoll[_N], never overwrites)", "_style_save": "a NEW machine copy in scenes/_wip/ (the style's own file; the scene it came from is untouched)", "_mirror_scene": "a NEW machine copy in scenes/_wip/", "_import_bvh": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)",
 		"_import_land": "a NEW scene in scenes/_wip/ (the landing of _import_pose)", "_import_pose": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_physics": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_anim": "a NEW scene in scenes/_wip/ (never over an earlier import: _2, _3)", "_import_video": "the tracker's pose file in user://video_track/ (its own, replaced per video)",
@@ -125,7 +125,7 @@ func _init() -> void:
 	ok(asked.is_empty(), "every editing command in the registry ran without a dialog (asked: %s)" % [asked])
 	# (3) delete a scratch file
 	var f := FileAccess.open(SCRATCH, FileAccess.WRITE)
-	f.store_string(FileAccess.get_file_as_string("res://scenes/_wip/combo3_detail.json"))
+	f.store_string(FileAccess.get_file_as_string("res://tests/data/scenes/combo3_detail.json"))
 	f.close()
 	m._trash(SCRATCH)
 	await process_frame

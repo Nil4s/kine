@@ -30,6 +30,9 @@ func _init() -> void:
 		m._rebuild_cards()
 		await process_frame
 		ok(shown() == p, "opened %s -> the dropdown shows '%s'" % [p.get_file(), shown().get_file()])
+	# the work copy comes from the tracked fixture (scenes/_wip is untracked and may be cleaned)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://scenes/_wip"))
+	DirAccess.copy_absolute(ProjectSettings.globalize_path("res://tests/data/scenes/combo3_detail.json"), ProjectSettings.globalize_path("res://scenes/_wip/combo3_detail.json"))
 	m._load_scene("res://scenes/_wip/combo3_detail.json")
 	await process_frame
 	var wl := ""

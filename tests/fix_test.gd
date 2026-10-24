@@ -46,10 +46,10 @@ func _init() -> void:
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	window_exact("res://scenes/combo3.json", 9, B)
-	window_exact("res://scenes/_wip/combo3_detail.json", 23, B)
+	window_exact("res://tests/data/scenes/combo3_detail.json", 23, B)
 	var kept := {}
 	var putback := 0
-	for path in ["res://scenes/combo3.json", "res://scenes/bo_spin.json", "res://scenes/thrust.json", "res://scenes/_wip/combo3_detail.json"]:
+	for path in ["res://scenes/combo3.json", "res://scenes/bo_spin.json", "res://scenes/thrust.json", "res://tests/data/scenes/combo3_detail.json"]:
 		var S0 := load_scene(path)
 		var sm := Rulebook.sample(S0, B)
 		var found := Rulebook.check(S0, B, sm)
