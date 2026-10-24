@@ -38,6 +38,7 @@ const SRC := {
 	"FEASIBLE PENETRATION": "body capsules inside each other deeper than 20 mm (our bar, Body.contacts)",
 	"COUPLED LIMIT": "two-joint muscles (N028, scripts/coupled_limits.gd): hip flexion with the knee straight against the straight-leg raise (90 deg in healthy adults, Thomas et al. 2022; gymnasts 141, Donti et al. 2020), ankle dorsiflexion with the knee straight (25 vs 39 bent, Baumbach et al. 2014), hip extension with the knee bent (modified Thomas test, Ferber et al. 2010); the curves between the points are interpolated (docs/research/COUPLED_LIMITS.md)",
 	"WEIGHT TRANSFER": "each strike starts with the weight where it needs it (N029, scripts/weight_xfer.gd): a cross off the back foot (Evolve MMA: more than half on the rear leg before it; Peloton: from the back foot to the front), a lead hook over the lead side (Boxing News: the weight shifts to the front foot), a kick with the support foot loaded before the kicking leg leaves (statics; Kinoshita & Fujii 2014, ISBS: the support leg drives the phase before toe-off); the share is the lever rule over the feet (N001); the bars are ours (docs/research/WEIGHT_TRANSFER.md)",
+	"TRUNK LEAN": "the trunk (pelvis to neck) against vertical, per move (scripts/trunk_lean.gd): a roundhouse's pelvis tilts back through 60 +- 8 deg while the trunk counter-bends 22 +- 7 deg on it (Kim, Yenuga & Kwon 2008, ISBS, 12 black belts); punches and walking keep the trunk near upright; the bars are ours, set from those ranges (docs/research/TRUNK_LEAN.md)",
 	"ASSERT": "a check line saved in the scene (N002, scripts/body_assert.gd): the bars are the line's own numbers; touching = within 1 cm (Balance.TOUCH), planted = toe base within 2 cm of its standing height (Body.foot_state) and sliding under 2.5 cm (FOOT SLIDE's bar)",
 }
 ## WHY each rule matters, in a sentence anyone can read (round 11, #78: the CHECK panel shows it under the finding),
@@ -70,6 +71,7 @@ const WHY := {
 	"FEASIBLE PENETRATION": "Limbs passing through the body or each other cannot be done by a solid person or a robot.",
 	"COUPLED LIMIT": "Some muscles cross two joints: a straight knee keeps the hamstrings long, so a straight-leg kick cannot go as high as a bent-knee one. Past that, only a trained body (a gymnast, a dancer) does it.",
 	"WEIGHT TRANSFER": "A strike is thrown from the legs: a cross pushes off the back foot, a kick needs the other foot holding him before it leaves. Started from the wrong foot, it reads as an arm swing, or as a kick that should topple him.",
+	"TRUNK LEAN": "The trunk leans off a kick to balance it, but only so far: past what fighters are measured at, the back looks broken or he looks about to fall.",
 	"ASSERT": "Someone wrote this down as something the motion must do. It no longer does: an edit broke it, or it never held."
 }
 const URL := {
@@ -99,6 +101,7 @@ const URL := {
 	"FEASIBLE PENETRATION": "res://docs/research/ROBOT_MOTION.md",
 	"COUPLED LIMIT": "res://docs/research/COUPLED_LIMITS.md",
 	"WEIGHT TRANSFER": "res://docs/research/WEIGHT_TRANSFER.md",
+	"TRUNK LEAN": "res://docs/research/TRUNK_LEAN.md",
 	"ASSERT": "res://scripts/body_assert.gd",
 }
 ## THE SET (round 38, GATES TT1 / TT4)
@@ -1053,6 +1056,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	FrameMemo.tick("feasible total", tk)
 	if attack:
 		out += WeightXfer.findings(S, B, sm)   # N029: each strike starts with the weight on the foot it needs (scripts/weight_xfer.gd)
+	out += TrunkLean.findings(S, B)   # Nick 10-23: the trunk leaning past what people do in that move (scripts/trunk_lean.gd)
 	out += BodyAssert.findings(S, B)   # N002: the scene's saved assertions, re-checked on every Check
 	for f in out:
 		f["card"] = card_at(S, f["t"])
