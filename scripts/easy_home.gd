@@ -8,6 +8,8 @@ extends Node
 ## that tweak the clip just built (EasyTweak): Faster, Slower (its timing), Bigger, Smaller (its motion). Save video is on the Easy bar.
 ## With a clip already there, the picker's "Then:" row says Add after (the default: the cards go after the clip) or Start over (replace).
 ## Expert never shows it: it is a child of EasyMode and only Easy's bar shows it.
+## Under the strip, a second row offers up to three "Then <move>" buttons after the move just made (data/catalog.json via
+## Catalog.next_after); a press is the same Add after as the Then row's, one undo step.
 ## A card the builders cannot make says so in one plain sentence and leaves the scene as it was.
 
 const CARDS := [   # [the word on the card, what it builds (a templates/ name or the words TextBlocking reads), its icon]
@@ -63,6 +65,12 @@ var _then_add := true         # the picker's "Then:" choice: true = Add after (t
 var _then_box: HBoxContainer  # the "Then:" row: shown only when the scene has cards (an empty scene has nothing to add after)
 var _then_add_btn: Button
 var _then_start_btn: Button
+var _next_row: HBoxContainer  # the strip's second row: up to three "Then <move>" buttons after the move just made (Catalog.next_after)
+var _next_btns: Array = []    # the three buttons of _next_row (eh_next_0 .. eh_next_2)
+var _next_list: Array = []    # the catalog entries those buttons offer, in order (the press adds that move after the clip)
+var _hist: Array = []         # [undo depth, move id] for each move built or added here: the last one is the move at the scene's end
+var _row_key := ""            # the ids the row shows now: the row is redrawn only when they change
+var _row_h := -1.0            # the strip's height when the camera last framed the clip (a row that grows it reframes)
 const JOIN_S := 0.5           # ADD AFTER: the first added card is reached this many seconds after the clip's end (the join)
 
 
@@ -163,9 +171,22 @@ func build(root: Control) -> void:
 	strip.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	strip.add_theme_stylebox_override("panel", st)
 	root.add_child(strip)
+	var sv := VBoxContainer.new()
+	sv.add_theme_constant_override("separation", 8)
+	strip.add_child(sv)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	strip.add_child(row)
+	sv.add_child(row)
+	_next_row = HBoxContainer.new()
+	_next_row.name = "eh_next"
+	_next_row.add_theme_constant_override("separation", 8)
+	_next_row.visible = false
+	sv.add_child(_next_row)
+	for i in 3:
+		var nb := _strip_button("eh_next_%d" % i, "", "", _next_pressed.bind(i), Vector2(170, 44), 20)
+		nb.visible = false
+		_next_row.add_child(nb)
+		_next_btns.append(nb)
 	row.add_child(_strip_button("eh_again", "Again", "play the clip from its start", _play, Vector2(150, 56), 22))   # one size for the six
 	row.add_child(_strip_button("eh_change", "Change it", "type another move in the box", _change, Vector2(150, 56), 22))
 	for t in [["eh_faster", "Faster", "the clip's timing x 0.8 (one undo step)", "faster"], ["eh_slower", "Slower", "the clip's timing x 1.25 (one undo step)", "slower"],
@@ -240,6 +261,7 @@ func _process(dt: float) -> void:
 	# the toast sits above the welcome line (which runs the width of the view), so it never covers the line, the status or the strip
 	_toast.offset_bottom = -(float(m.bottom_h) + float(m.LINE_H) + float(MouseHint.H) + 14.0)
 	strip.visible = on and not (empty or _open or _gen_on) and _built and not lib   # the open library covers the strip's place too: one at a time
+	_refresh_next()
 	if not on:
 		_toast.visible = false
 	_close.visible = not empty and not _gen_on
@@ -338,6 +360,55 @@ func _toast_button(nm: String, text: String, tip: String, f: Callable) -> Button
 	return b
 
 
+## THE NEXT MOVES (Easy, the strip's second row): up to three "Then <move>" buttons after the move just made, from
+## Catalog.next_after. A press is _go's Add after for that move (one undo step, named after the move, the same path as the
+## "Add after" choice). Hidden in Expert, with an empty scene, and after a copied clip or a clip that is no catalog move.
+func _current_move() -> String:
+	var depth: int = m.undo.size()
+	for i in range(_hist.size() - 1, -1, -1):
+		if int(_hist[i][0]) <= depth:   # Undo back past a move's step: the move before it is the last one again
+			return String(_hist[i][1])
+	return ""
+
+
+func _refresh_next() -> void:
+	if _next_row == null or m == null:
+		return
+	var shown_on: bool = m.easy.on and _built and not m.S.cards.is_empty()
+	var id := _current_move() if shown_on else ""
+	var list: Array = Catalog.next_after(id, 3) if id != "" else []
+	var key := ""
+	for e in list:
+		key += String(e["id"]) + ","
+	if key != _row_key:
+		_row_key = key
+		_next_list = list
+		for i in _next_btns.size():
+			var b: Button = _next_btns[i]
+			b.visible = i < list.size()
+			if i < list.size():
+				var w := String(list[i]["words"]).to_lower()
+				b.name = "eh_next_%d" % i
+				b.text = "Then " + w
+				b.tooltip_text = "add %s after %s (one undo step)" % [w, _clip_word]
+		_next_row.visible = not list.is_empty()
+	var h: float = strip.get_combined_minimum_size().y
+	if h != _row_h:   # the row changed the strip's height: the body is framed under the strip again
+		_row_h = h
+		if shown_on and m.S.cards.size() > 0:
+			m.easy.frame_clip_next()
+
+
+## a "Then <move>" button: the move is added after the clip, as Add after does
+func _next_pressed(i: int) -> void:
+	if i >= _next_list.size():
+		return
+	var e: Dictionary = _next_list[i]
+	_t0 = Time.get_ticks_msec()
+	last_ms = -1
+	_go(String(e["id"]), String(e["words"]), false, true)
+
+
 ## the text box: the same build as a card, named by what was typed
 func _words(text: String) -> void:
 	var t := text.strip_edges()
@@ -349,12 +420,12 @@ func _words(text: String) -> void:
 	_go(t, "Typed: " + t, true)
 
 
-func _go(what: String, label: String, typed := false) -> void:
+func _go(what: String, label: String, typed := false, force_add := false) -> void:
 	if _gen_on:
 		m._say_plain(GEN_BUSY)
 		return
 	var t := Time.get_ticks_msec()
-	var add: bool = m.easy.on and _then_add and not m.S.cards.is_empty()   # Easy's "Then: Add after" with a clip in the scene: the cards go after it (Expert's cards still replace)
+	var add: bool = m.easy.on and (_then_add or force_add) and not m.S.cards.is_empty()   # force_add: a "Then <move>" button (the same Add after)   # Easy's "Then: Add after" with a clip in the scene: the cards go after it (Expert's cards still replace)
 	var prev := _clip_word
 	var err := _build(what, label, what if typed else label, add)
 	last_build_ms = Time.get_ticks_msec() - t
@@ -367,6 +438,11 @@ func _go(what: String, label: String, typed := false) -> void:
 	_gen_words = ""
 	_msg.text = ""
 	_clip_word = "the clip" if add else ("the typed move" if typed else "the " + label.to_lower())
+	var nm := what.strip_edges().to_lower()
+	if not add:
+		_hist.clear()
+	_hist.append([m.undo.size(), nm if String(Catalog.by_id(nm).get("kind", "")) == "move" else ""])   # the move just made: its "Then" buttons come from the catalog
+	_refresh_next()
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
 	_play()
 	var new_word := "'%s'" % what if typed else "the " + label.to_lower()
@@ -622,6 +698,7 @@ func _tracker_progress() -> float:
 
 ## the copied clip: built and playing, framed like a card's (the same steps as _go)
 func _copied() -> void:
+	_hist.clear()   # a copied clip is not a catalog move: no "Then" buttons for it
 	_built = true
 	_open = false
 	_gen_words = ""
