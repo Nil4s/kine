@@ -615,15 +615,8 @@ func _init() -> void:
 		if p.contains("_wip") and FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 			say("removed the run's scene file " + p)
-	# the Videos/Kine files this run made (the folder existed before: only the new files go)
-	for f in _kine_videos():
-		if not videos_before.has(f):
-			DirAccess.remove_absolute(ProjectSettings.globalize_path("C:/Users/Nick/Videos/Kine/" + f))
-			say("removed the run's video " + f)
-	for d in _kine_dirs():
-		if not videos_before.has(d):
-			_rm_tree("C:/Users/Nick/Videos/Kine/" + d)
-			say("removed the run's video folder " + d)
+	# NOTHING is deleted from the user's Videos/Kine: an earlier cleanup here removed ~40 older folders (it snapshotted files, not
+	# folders). The run's videos stay; the log names the last one
 	var lf := FileAccess.open(OUT + "log.txt", FileAccess.WRITE)
 	lf.store_string("\n".join(lines) + "\n")
 	lf.close()
@@ -636,11 +629,3 @@ func _kine_videos() -> Array:
 
 func _kine_dirs() -> Array:
 	return Array(DirAccess.get_directories_at("C:/Users/Nick/Videos/Kine"))
-
-
-func _rm_tree(path: String) -> void:
-	for f in DirAccess.get_files_at(path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(path + "/" + f))
-	for d in DirAccess.get_directories_at(path):
-		_rm_tree(path + "/" + d)
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
