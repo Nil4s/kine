@@ -97,3 +97,4 @@ EXTRA="$EXTRA modelfix3:w"   # round 3 walk: UV editor / Materials / ViewCube la
 EXTRA="$EXTRA walk8_beginner:w"   # walk-through round 8: eight beginner goals in Easy mode, real clicks (tests/walk8_beginner_test.gd)
 EXTRA="$EXTRA extrudeflow:w"   # walk 4 friction 7: Extrude / Inset buttons apply at once; E drag confirms on release
 EXTRA="$EXTRA modelview4:w"   # walk-through 4 goal 1: MODEL orbit under the floor, Ctrl+Numpad7 bottom view, Numpad . frame selected
+EXTRA="$EXTRA realism_lazy:w"   # I16 lazy gains: the panel predicts no gain until "Find the biggest gain" (tests/realism_lazy_test.gd)
