@@ -105,6 +105,7 @@ func hover_by(p: Vector2, d: Vector2) -> void:
 		var hm := InputEventMouseMotion.new()
 		var q := p + d * float(i + 1) / 6.0
 		hm.position = q
+		hm.relative = d / 6.0   # a real mouse motion carries its step (the G / R / S modal moves by it)
 		hm.global_position = q
 		root.push_input(hm)
 		await process_frame
