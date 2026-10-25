@@ -31,7 +31,9 @@ const TAB_TIPS := {   # the tab tooltips: what the tab holds and what a click on
 }
 const PROP_CAT := {"table": "Furniture", "chair": "Furniture", "stool": "Furniture", "bench": "Furniture", "bed": "Furniture",
 	"ball": "Sports", "sword": "Weapons"}   # every other prop kind is Everyday
-const PROP_NAME := {"ball": "Football", "sword": "Sword on the floor"}
+## the tile names of the props whose kind name reads as jargon (step_code, ramp15, door_frame ...); every other kind is its _title
+const PROP_NAME := {"ball": "Football", "sword": "Sword (on the floor)", "step": "Step", "step_code": "Box step", "stairs": "Stairs",
+	"stairs_code": "Stairs (4 steps)", "ramp": "Ramp", "ramp15": "Gentle ramp", "moving_box": "Box (moves)", "door_frame": "Doorway"}
 ## [name, region word]: a plate over the body region (KMeshBody.REGIONS); the words are the ones ArmourFromBody.make reads
 const ARMOUR := [["Chest plate", "chest"], ["Abdomen plate", "abdomen"], ["Helmet", "head"], ["Upper arm plate (left)", "upperarm_l"],
 	["Forearm plate (right)", "forearm_r"], ["Thigh plate (left)", "thigh_l"], ["Shin plate (right)", "shin_r"]]
