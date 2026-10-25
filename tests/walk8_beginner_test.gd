@@ -11,6 +11,7 @@ extends SceneTree
 const OUT := "C:/Temp/claude/walk8/"
 
 var made: Array = []   # scene files this run saved (deleted at the end when they sit in scenes/_wip)
+var video_dir := ""   # this run's own video folder under user:// (the Save video goal writes there, not to Videos/Kine)
 var m: Node
 var n_shot := 0
 var lines: Array = []
@@ -405,6 +406,9 @@ func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(10)
+	video_dir = ProjectSettings.globalize_path("user://walk8_out_%d" % OS.get_process_id())   # the test's own folder: never the user's Videos/Kine
+	DirAccess.make_dir_recursive_absolute(video_dir)
+	m.easy.home.video_root = video_dir
 	say("settings file for this run: %s | Easy on at start: %s" % [m.settings, str(m.easy.on)])
 	if not m.easy.on:
 		m.easy.set_on(true)
@@ -612,6 +616,10 @@ func _init() -> void:
 	for r in results:
 		say("  %s | %s | %d | %.1f" % [r[0], "yes" if r[1] else "NO", r[2], r[3]])
 	say("\nlast video: " + str(m.easy.home.last_video))
+	var vid: String = String(m.easy.home.last_video.get("mp4", ""))
+	if vid != "" and video_dir != "" and vid.begins_with(video_dir) and FileAccess.file_exists(vid):   # only the run's own video, in its own folder
+		DirAccess.remove_absolute(vid)
+		say("removed the run's video " + vid)
 	for p in made:   # only the scene files this run's save CREATED (scenes/_wip, or a new name in this checkout's scenes/): a left-over
 		# named scene made the next run's New scene hit a name clash
 		if FileAccess.file_exists(p):
