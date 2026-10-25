@@ -408,7 +408,8 @@ func _on_search(t: String) -> void:
 func _refresh_tabs() -> void:
 	for i in _tabs.size():
 		var b: Button = _tabs[i]
-		b.text = "%s %d" % [CATS[i], in_cat(CATS[i]).size()]
+		b.text = CATS[i]   # the name alone (beginner round 8, friction 8): the count is in the tooltip
+		b.tooltip_text = "%d objects. %s" % [in_cat(CATS[i]).size(), TAB_TIPS[CATS[i]]]
 		b.button_pressed = i == tab and query == ""
 
 

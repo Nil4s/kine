@@ -11,6 +11,7 @@
 ##  B14 FIRST OPEN, cold cache: on every frame until the tab's pictures land, each tile on screen shows its picture or its placeholder
 ##      label (never an empty box). The frame count of blank tiles is printed; it must be 0.
 ##  B15 FIRST OPEN: the visible tiles' pictures land before any tile off screen does (landing order, cold cache).
+##  B16 each tab's text is exactly its category name (Weapons, not "Weapons 11": the count is in the tooltip).
 ##  B5  the panel fits at 1280x720: its whole rectangle is inside a 1280x720 window (laid out by fit(), see the test).
 ##  B6  Easy's Library button opens the panel with one click, and a second click closes it.
 ##  B7  REAL thumbnails: every object (38) has its 128 x 128 PNG under user://thumbs/lib (LibraryThumbs.real_path) and its
@@ -214,6 +215,14 @@ func _init() -> void:
 		ok(per[c] == BUILT_IN[c], "%s holds %d (built-in %d)" % [c, per[c], BUILT_IN[c]])
 	ok(per["My models"] >= 1, "My models holds the registered model (%d)" % per["My models"])
 	ok(total == lib.items.size() and total == 38, "the inventory: %d objects in all (38 with one model of your own)" % total)
+	# B16 (beginner round 8, friction 8): a tab's text IS its category name (the count moved to the tooltip)
+	var tabs16 := lib._tabs
+	var bad16 := []
+	for i in cats.size():
+		var tx16: String = (tabs16[i] as Button).text if i < tabs16.size() else "(no tab)"
+		if tx16 != cats[i]:
+			bad16.append("%s -> \"%s\"" % [cats[i], tx16])
+	ok(tabs16.size() == cats.size() and bad16.is_empty(), "B16 each tab's text equals its category name exactly (%d tabs; not: %s)" % [tabs16.size(), str(bad16)])
 	var shown_all := 0
 	var empty_tab := []
 	var tab_gap := {}          # B9, per tab: the longest frame while that tab's tiles were drawn (its pictures settled)

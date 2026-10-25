@@ -67,6 +67,10 @@
 ##  77. PLAYING MOVES IT: while the clip plays the slider follows the playhead (its value moves, it matches the playhead).
 ##  78. THE LABEL: "eh_scrub_time" reads "<t> s / <len> s" (t follows the slider; len is the clip's length).
 ##  79. THE GRAB AREA: the slider is at least 28 px tall (global rect) at 1280x720.
+##  90. THE HIT MARKS (beginner round 8, friction 7): punch then kick -> 2 ticks on the scrub, each at its strike card's contact
+##      time (within 1 frame; the templates carry no hit marker, so the contact is the card's arrival).
+##  91. clicking the kick's tick puts the playhead at the kick's contact (within 1 frame) and stops the play.
+##  92. each tick lies inside the slider's rect at 1280x720, and no tick touches a strip button (easy_overlap).
 ##  85. WALK TO THE CHAIR AND SIT (round 8, goal 1): a walk built, a chair 2 m past where it ends, the strip's "Sit on the chair":
 ##      the root's horizontal path is continuous over the whole clip (no frame-to-frame jump > 0.15 m, sampled every 1/30 s).
 ##  86. the clip ends seated: the pelvis within 0.15 m of the seat horizontally and >= 0.2 m below standing.
@@ -375,6 +379,17 @@ func _cards_key() -> String:
 	for c in m.S.cards:
 		parts.append(JSON.stringify(c.get("pose", {})))
 	return "|".join(parts)
+
+
+## the x (local to the slider) of a time on the slider: the grabber's centre runs from half a grabber in from each end
+func tick_x90(sl: HSlider, t: float) -> float:
+	var gw := 16.0
+	var ic := sl.get_theme_icon("grabber")
+	if ic != null:
+		gw = float(ic.get_width())
+	var span := sl.max_value - sl.min_value
+	var f := 0.0 if span <= 0.0 else clampf((t - sl.min_value) / span, 0.0, 1.0)
+	return gw * 0.5 + f * maxf(sl.size.x - gw, 0.0)
 
 
 func _init() -> void:
@@ -1731,6 +1746,92 @@ func _init() -> void:
 	ok(home._scrub_row.is_visible_in_tree() and (hit80.size.x < 1.0 or hit80.size.y < 1.0),
 		"80. no toast ('%s' at %s) covers the scrub row (%s)" % [m.ui_toast.text if m.ui_toast != null else "", str(toast80), str(row80)])
 	ok(home._scrub.has_theme_stylebox_override("slider"), "80. the slider's whole track is drawn (a 'slider' style of its own)")
+	m._new_scene()
+	await idle(2)
+
+	# 90-92. THE HIT MARKS (beginner round 8, friction 7): a tick on the scrub at each strike card's contact.
+	# The members are read untyped (home.get): on code without the ticks each bar FAILS by its line, not by a parse error.
+	# The layout is 1280x720 here (the window is embedded at its host's size; the scale is set and put back below).
+	root.content_scale_size = Vector2i(1280, 720)
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	await idle(8)
+	m._new_scene()
+	await idle(4)
+	home._words("punch then kick")
+	await idle(8)
+	var S90: Scene = m.S
+	var ts90 := S90.times()
+	var fps90 := float(maxi(S90.fps, 1))
+	var want90 := {}   # label -> the contact times of the strike cards (is_strike, by the move they came from)
+	for i in range(1, S90.cards.size()):
+		var w90 := String(S90.cards[i].get("from", "")).split("|")[0]
+		if TimingCoach.is_strike(S90, i) and w90 in ["punch", "kick", "roundhouse"]:
+			var lab90 := "Punch lands" if w90 == "punch" else "Kick lands"
+			if not want90.has(lab90):
+				want90[lab90] = []
+			want90[lab90].append(float(ts90[i][1]))
+	var tl90: Array = home.get("_tick_list") if home.get("_tick_list") != null else []
+	var tn90: Node = home.get("_scrub_ticks")
+	var sc90: HSlider = home.get("_scrub")
+	var hit90 := tl90.size() == 2 and want90.has("Punch lands") and want90.has("Kick lands")
+	var worst90 := 0.0
+	if hit90:
+		for tk in tl90:
+			var lab: String = tk["label"]
+			var t90: float = tk["t"]
+			var best := 1e9
+			for w in want90.get(lab, []):
+				best = minf(best, absf(float(w) - t90))
+			worst90 = maxf(worst90, best)
+	ok(hit90 and worst90 <= 1.0 / fps90 + 1e-6, "90. punch then kick: 2 ticks, each at its strike card's contact within 1 frame (%d ticks: %s; worst miss %.4f s, frame %.4f s; expected %s)" % [tl90.size(), str(tl90), worst90, 1.0 / fps90, str(want90)])
+	ok(tn90 != null and sc90 != null and tn90.get_parent() == sc90, "90. the ticks are a child of the scrub slider (eh_scrub_ticks)")
+	# the slider with its ticks, for the eye (the scrub row's rect plus a margin, cropped from the window)
+	if sc90 != null:
+		await RenderingServer.frame_post_draw
+		var shot90 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easy_ticks.png"
+		DirAccess.make_dir_recursive_absolute(shot90.get_base_dir())
+		var img90 := root.get_texture().get_image()
+		if img90 != null:
+			var rr90 := sc90.get_global_rect().grow(16.0).intersection(Rect2(Vector2.ZERO, Vector2(img90.get_size())))
+			img90.get_region(Rect2i(Vector2i(rr90.position), Vector2i(rr90.size))).save_png(shot90)
+			print("   ticks screenshot: " + shot90)
+	# 91. a real click on the kick's tick: the playhead goes to the kick's contact and the play stops
+	var kt91 := -1.0
+	for tk in tl90:
+		if String(tk["label"]) == "Kick lands":
+			kt91 = float(tk["t"])
+	if not m.playing:
+		m._toggle_play()
+	await wait_playing()
+	var at91 := Vector2(-1, -1)
+	if kt91 >= 0.0 and tn90 != null and sc90 != null:
+		var tr91: Rect2 = sc90.get_global_rect()
+		at91 = Vector2(tr91.position.x + tick_x90(sc90, kt91), tr91.position.y + 6.0)
+	await click_at(at91)
+	await idle(4)
+	var sv91 := sc90.value if sc90 != null else -1.0
+	ok(kt91 >= 0.0 and not m.playing and absf(m.playhead - kt91) <= 1.0 / fps90 + 1e-6 and absf(sv91 - kt91) <= 1.0 / fps90 + 1e-6,
+		"91. a click on the kick's tick at (%.0f, %.0f) puts the playhead at the kick's contact: %.3f s (contact %.3f s, frame %.3f s; playing %s, slider %.3f)" % [at91.x, at91.y, m.playhead, kt91, 1.0 / fps90, str(m.playing), sv91])
+	# 92. the ticks sit inside the slider's rect (1280x720) and touch no button of the strip
+	var inside92 := false
+	var touch92 := []
+	var sr92 := Rect2()
+	if sc90 != null and tn90 != null:
+		sr92 = sc90.get_global_rect()
+		inside92 = sr92.encloses(tn90.get_global_rect()) and Rect2(Vector2.ZERO, root.get_visible_rect().size).encloses(sr92)
+		for tk in tl90:
+			var x92 := sr92.position.x + tick_x90(sc90, float(tk["t"]))
+			var tkr := Rect2(x92 - 4.0, sr92.position.y, 8.0, sr92.size.y)
+			if not sr92.encloses(tkr):
+				inside92 = false
+			for b in home.strip.find_children("*", "Button", true, false):
+				var bb := b as Button
+				if bb.is_visible_in_tree() and bb.get_global_rect().intersects(tkr):
+					touch92.append(bb.name)
+	ok(inside92 and touch92.is_empty() and root.get_visible_rect().size == Vector2(1280, 720) and tl90.size() == 2,
+		"92. the ticks lie inside the slider %s at 1280x720 (view %s) and touch no strip button (%s; %d ticks)" % [str(sr92), str(root.get_visible_rect().size), str(touch92), tl90.size()])
+	root.content_scale_size = was_size   # back to the window's own size
+	root.content_scale_mode = was_mode
 	m._new_scene()
 	await idle(2)
 
