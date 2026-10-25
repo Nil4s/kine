@@ -21589,8 +21589,19 @@ func scene_object_names() -> Array:
 		out.append("body")
 	if kmed != null and kmed.on and kmed.mesh != null:
 		out.append("body_mesh" if BaseBody.is_open(self) else "test_cube")
+	out.append_array(_prop_object_names())
+	return out
+
+
+## the set pieces' object names: the kind, and a second piece of the same kind kind_2 (else "only the selected" would
+## match both pieces)
+func _prop_object_names() -> Array:
+	var out := []
+	var seen := {}
 	for p in S.props:
-		out.append(String((p as Dictionary)["kind"]))
+		var k := String((p as Dictionary)["kind"])
+		seen[k] = int(seen.get(k, 0)) + 1
+		out.append(k if int(seen[k]) == 1 else "%s_%d" % [k, int(seen[k])])
 	return out
 
 
@@ -21605,15 +21616,16 @@ func scene_objects() -> Array:
 		out.append({"name": "body", "mesh": am, "xf": Transform3D.IDENTITY})
 	if kmed != null and kmed.on and kmed.mesh != null:
 		var cube := ArrayMesh.new()
-		_append_surfaces(cube, kmed.mesh.to_array_mesh(), Transform3D.IDENTITY)
+		_append_surfaces(cube, kmed.mesh.to_array_mesh(), kmed.view.transform)   # where it stands beside the body, not at the origin
 		out.append({"name": "body_mesh" if BaseBody.is_open(self) else "test_cube", "mesh": cube, "xf": Transform3D.IDENTITY})
-	for p in S.props:
-		var pd := p as Dictionary
+	var pnames := _prop_object_names()
+	for i in S.props.size():
+		var pd := S.props[i] as Dictionary
 		var node := Props.mesh(pd)
 		var pm := ArrayMesh.new()
 		_collect_props_meshes(node, node.transform, pm)
 		node.free()
-		out.append({"name": String(pd["kind"]), "mesh": pm, "xf": Transform3D.IDENTITY})
+		out.append({"name": String(pnames[i]), "mesh": pm, "xf": Transform3D.IDENTITY})
 	return out
 
 
@@ -21654,7 +21666,7 @@ func selected_object_name() -> String:
 	if kmed != null and kmed.on and kmed.mesh != null:
 		return "body_mesh" if BaseBody.is_open(self) else "test_cube"
 	if sel_prop >= 0 and sel_prop < S.props.size():
-		return String((S.props[sel_prop] as Dictionary)["kind"])
+		return String(_prop_object_names()[sel_prop])
 	return "body"
 
 

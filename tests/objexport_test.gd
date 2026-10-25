@@ -38,6 +38,16 @@ static func read_glb(path: String) -> Dictionary:
 	return {"ok": true, "meshes": st.get_meshes().size(), "verts": verts}
 
 
+static func _xf_to(n: Node, top: Node) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var c := n
+	while c != null and c != top:
+		if c is Node3D:
+			t = (c as Node3D).transform * t
+		c = c.get_parent()
+	return t
+
+
 func clean(d: String) -> void:
 	var g := ProjectSettings.globalize_path(d)
 	if DirAccess.dir_exists_absolute(g):
@@ -89,6 +99,37 @@ func _init() -> void:
 	var rn := read_glb(String(got_all))
 	ok(bool(ra["ok"]) and bool(rn["ok"]) and int(ra["meshes"]) == int(rn["meshes"]) and int(ra["verts"]) == int(rn["verts"]),
 		"(c) GUARD: Everything writes the old writer's meshes (%d mesh, %d verts vs %d, %d)" % [int(rn["meshes"]), int(rn["verts"]), int(ra["meshes"]), int(ra["verts"])])
+
+	# (d) the cube is written where it stands beside the body (KMeshEditUI.AT), not at the origin: its vertices' mean x
+	var cx := 0.0
+	if "ui_what" in ui:
+		var gd = ui.export_now("web", 0, DIR + "/new", 1)
+		var doc := GLTFDocument.new()
+		var st := GLTFState.new()
+		if gd is String and doc.append_from_file(ProjectSettings.globalize_path(String(gd)), st) == OK:
+			var sc: Node = doc.generate_scene(st)
+			var mi: MeshInstance3D = sc.find_children("*", "MeshInstance3D", true, false)[0]
+			var vs: PackedVector3Array = mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+			var xf := _xf_to(mi, sc)
+			for v in vs:
+				cx += (xf * v).x
+			cx /= maxf(1.0, vs.size())
+			sc.free()
+	var want_x: float = m.kmed.view.transform.origin.x
+	ok(absf(cx - want_x) < 0.02, "(d) the cube is written where it stands: mean x %.3f m (the view's %.3f)" % [cx, want_x])
+
+	# (e) two set pieces of the same kind: "only the selected" writes ONE of them (each piece has its own name)
+	m.kmed.stop()
+	await idle(2)
+	m._prop_add("crate")
+	m._prop_add("crate")
+	await idle(2)
+	m.sel_prop = 1
+	var names: Array = m.scene_object_names()
+	var ge = ui.export_now("web", 0, DIR + "/new", 1) if "ui_what" in ui else ""
+	var re: Dictionary = read_glb(String(ge)) if ge is String and String(ge) != "" else {"ok": false, "meshes": 0, "verts": 0}
+	ok(names.count(names[names.size() - 1]) == 1 and bool(re["ok"]) and int(re["meshes"]) == 1,
+		"(e) two crates: names %s, only the selected one: %d mesh (file %s)" % [str(names), int(re["meshes"]), String(ge).get_file()])
 
 	clean(DIR + "/new")
 	clean(DIR + "/old")
