@@ -28,6 +28,7 @@ EXTRA="$EXTRA easycam:w"   # Easy camera: the body framed in the free rect under
 EXTRA="$EXTRA easyvid:w"
 EXTRA="$EXTRA easygen:w"   # Easy: Copy a video (More): the Expert import, one undo step, plain sentences (tests/easyvid_test.gd)
 EXTRA="$EXTRA easytweak:w"   # Easy: the strip's Faster / Slower / Bigger / Smaller (tests/easytweak_test.gd)
+EXTRA="$EXTRA walk_model4:w"   # WALK-THROUGH 4: the expert model / sculpt / surface walk (tests/walk_model4_test.gd)
 EXTRA="$EXTRA easysave:w"   # Easy: Save video: the progress, the plain done message, Cancel, the empty-scene hint (tests/easysave_test.gd)
 EXTRA="$EXTRA children:w"   # the child programs end with the app (scripts/children.gd; tests/children_test.gd)
 EXTRA="$EXTRA drafts:w"   # the scene list: saved scenes first, one Drafts group (tests/drafts_test.gd)
