@@ -92,3 +92,4 @@ echo "SUITES $((n-bad))/$n PASS   (logs: $LOGS)"
 exit $bad
 EXTRA="$EXTRA modelfix3:w"   # round 3 walk: UV editor / Materials / ViewCube layout, knife misses, mirror centre, Z readout, export as a prop
 EXTRA="$EXTRA walk8_beginner:w"   # walk-through round 8: eight beginner goals in Easy mode, real clicks (tests/walk8_beginner_test.gd)
+EXTRA="$EXTRA modelview4:w"   # walk-through 4 goal 1: MODEL orbit under the floor, Ctrl+Numpad7 bottom view, Numpad . frame selected

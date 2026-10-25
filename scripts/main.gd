@@ -5006,6 +5006,69 @@ func _keys_camera(dt: float) -> void:
 	_cam()
 
 
+## the mesh pages (walk-through 4): the orbit may go under the floor (a downward right-drag, pitch up to +89), and the bottom view
+## is Ctrl+Numpad7 (Blender's). The animation pages keep their camera as it was.
+func _mesh_orbit() -> bool:
+	return cur_page == "MODEL" or cur_page == "SCULPT"
+
+
+## Numpad . frames the selection (the faces' centres, else the verts), Home frames the whole mesh; Ctrl+Numpad7 is the bottom view
+func _mesh_view_key(k: InputEventKey) -> bool:
+	if not _mesh_orbit():
+		return false
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit or fo is SpinBox:
+		return false
+	var plain := not (k.ctrl_pressed or k.alt_pressed or k.shift_pressed)
+	if k.keycode == KEY_KP_7 and k.ctrl_pressed and not (k.alt_pressed or k.shift_pressed):
+		_view(6, true)   # from below: the ViewCube's bottom face (pitch +89)
+		return true
+	if k.keycode == KEY_KP_PERIOD and plain:
+		return _frame_pts(_sel_points(), "the selection")
+	if k.keycode == KEY_HOME and plain:
+		return _frame_pts(_mesh_points(), "the mesh")
+	return false
+
+
+func _sel_points() -> Array:
+	var pts := []
+	if kmed == null or not kmed.on or kmed.mesh == null or kmed.sel == null:
+		return pts
+	if not kmed.sel.faces.is_empty():
+		for fi in kmed.sel.faces.keys():
+			pts.append(kmed.view.global_transform * kmed.mesh.face_center(int(fi)))
+	elif not kmed.sel.verts.is_empty():
+		for v in kmed.sel.verts.keys():
+			pts.append(kmed.view._to_world(int(v)))
+	return pts
+
+
+func _mesh_points() -> Array:
+	var pts := []
+	if kmed == null or not kmed.on or kmed.mesh == null:
+		return pts
+	for v in kmed.mesh.verts.size():
+		pts.append(kmed.view._to_world(v))
+	return pts
+
+
+## the view turns (keeping yaw and pitch) to look at the centre of pts, the distance taking in their spread
+func _frame_pts(pts: Array, what: String) -> bool:
+	if pts.is_empty():
+		_say("Model: nothing to frame yet: pick something first (Home frames the whole mesh)")
+		return true
+	var c := Vector3.ZERO
+	for p in pts:
+		c += p
+	c /= float(pts.size())
+	var r := 0.0
+	for p in pts:
+		r = maxf(r, (p - c).length())
+	_turn_to(yaw, pitch, clampf(maxf(r * 3.0, 0.6), 0.4, 12.0), c, true)
+	_say("Model: framed %s" % what)
+	return true
+
+
 ## the camera looks at the body, shifted so the body sits in the middle of the free space between the panels
 func _cam() -> void:
 	if shot_through and _shot_apply():
@@ -5013,6 +5076,8 @@ func _cam() -> void:
 		return   # THE SHOT CAMERA: looking through it, the view is the keyed camera (_shot_apply)
 	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
+	if grid_node != null:
+		grid_node.transparency = 0.85 if (_mesh_orbit() and cam.transform.origin.y < 0.0) else 0.0   # under the floor (MODEL / SCULPT): the grid fades, the underside shows
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	if easy.on:   # EASY: the look-at point sits in the free rect under the Easy bar / strip, the body framed there (easy_mode.gd frame_clip)
@@ -5185,6 +5250,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if kmed != null and kmed.on and kmed.showing and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
+		get_viewport().set_input_as_handled()
+		return
+	if ev is InputEventKey and ev.pressed and not ev.echo and _mesh_view_key(ev as InputEventKey):   # walk-through 4: Ctrl+Numpad7 bottom, Numpad . frame the selection, Home frames the mesh
 		get_viewport().set_input_as_handled()
 		return
 	if ksc != null and ksc.on and ksc.showing and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
@@ -5372,7 +5440,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if shot_through:
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
 			yaw -= rel.x * 0.4
-			pitch = clampf(pitch - rel.y * 0.4, -89.0, 89.0)
+			pitch = clampf(pitch + (rel.y if _mesh_orbit() else -rel.y) * 0.4, -89.0, 89.0)   # MODEL / SCULPT: a downward drag turns the camera under the floor
 			_cam()
 		elif dragging == "pan":
 			var k := dist * 0.0012
