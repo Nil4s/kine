@@ -200,9 +200,11 @@ func begin(m: KMesh, params := {}) -> void:
 
 ## stroke to a new surface point (mesh-local): a dab every spacing * radius along the way (the first call lays one at the
 ## point). Returns the dabs laid.
-func to(point: Vector3, pressure := 1.0) -> int:
+## face: the face under the point (mesh-local face index) when the caller knows it, -1 when not. The first dab of a
+## stroke (the press) takes it: its face's own corners get the full weight (see weights()).
+func to(point: Vector3, pressure := 1.0, face := -1) -> int:
 	if not _has_last:
-		dab(point, pressure)
+		dab(point, pressure, face)
 		_has_last = true
 		_prev = point
 		_carry = 0.0
@@ -225,8 +227,11 @@ func end() -> void:
 	_has_last = false
 
 
-## the weights one dab at `hit` gives: {vert: w}, mirror partners included
-func weights(hit: Vector3, pressure := 1.0) -> Dictionary:
+## the weights one dab at `hit` gives: {vert: w}, mirror partners included. FACE (>= 0): the dab is on that face, so its
+## own corners get the full centre weight whatever the radius: a press on a low-poly face's centre paints the face (the
+## corners of a 12-sided side are 15 cm from its centre, past a 12 cm brush's reach, and used to get nothing). On a dense
+## mesh the face's corners sit within a hair of the centre, so their falloff weight is the same as the boost.
+func weights(hit: Vector3, pressure := 1.0, face := -1) -> Dictionary:
 	var r := float(p["radius"])
 	var a := clampf(float(p["strength"]), 0.0, 1.0) * clampf(pressure, 0.0, 1.0)
 	var fk := String(p["falloff"])
@@ -235,17 +240,25 @@ func weights(hit: Vector3, pressure := 1.0) -> Dictionary:
 		var w := a * KMeshSculpt.falloff(fk, mesh.verts[v].distance_to(hit) / r)
 		if w <= 0.0:
 			continue
-		out[v] = maxf(w, float(out.get(v, 0.0)))
-		if not _sym.is_empty():
-			var u := _sym[v]
-			if u >= 0:
-				out[u] = maxf(w, float(out.get(u, 0.0)))
+		_put(out, v, w)
+	if face >= 0 and face < mesh.faces.size() and a > 0.0:
+		for v in (mesh.faces[face] as PackedInt32Array):
+			_put(out, v, a)
 	return out
 
 
+## out[v] = the larger of w and what v had, and the same for its mirror partner (X symmetry)
+func _put(out: Dictionary, v: int, w: float) -> void:
+	out[v] = maxf(w, float(out.get(v, 0.0)))
+	if not _sym.is_empty():
+		var u := _sym[v]
+		if u >= 0:
+			out[u] = maxf(w, float(out.get(u, 0.0)))
+
+
 ## one dab at `hit` (mesh-local); returns the verts painted
-func dab(hit: Vector3, pressure := 1.0) -> int:
-	var ws := weights(hit, pressure)
+func dab(hit: Vector3, pressure := 1.0, face := -1) -> int:
+	var ws := weights(hit, pressure, face)
 	dabs += 1
 	if ws.is_empty():
 		return 0

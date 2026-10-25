@@ -20,6 +20,7 @@ EXTRA="$EXTRA kmesh_grs:h"   # round 2 walk: G R S with the Blender layer off, A
 EXTRA="$EXTRA armour:w"   # B23
 EXTRA="$EXTRA meshsbox:w"   # mesh edit: F3 opens the S box (S is Scale there); the status line wraps clear of the mesh readout
 EXTRA="$EXTRA modelfix4:w"   # walk-through 4: S box undo, library focus, view click, SURFACE Paint
+EXTRA="$EXTRA paintfix:w"   # paint fixes: the paint panel beside Materials (Library clickable), a press on a low-poly face paints it
 EXTRA="$EXTRA stagelib:w"   # the STAGE page's own Library button, the library listing my models, no overlap with STAGE panels
 EXTRA="$EXTRA groundspeed:h"   # GROUNDSPEED: Body.ground() cached sole / seat helpers, legacy_ground equality + speed
 EXTRA="$EXTRA persist2:w"   # the armour, the body and the autosave (tests/persist2_test.gd)
