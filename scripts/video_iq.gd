@@ -569,6 +569,13 @@ const FLY_RISE := 0.12     # m: the pelvis this far above its standing height is
 const FLY_MIN := 4         # frames: a shorter airborne run is not a flight
 
 
+static func _hips_ankles_seen(f: Dictionary) -> bool:
+	var vis: Array = f.get("vis", [])
+	if vis.size() < 29:
+		return true
+	return minf(minf(float(vis[23]), float(vis[24])), minf(float(vis[27]), float(vis[28]))) >= 0.5
+
+
 static func flight_of(frames: Array) -> Dictionary:
 	var n := frames.size()
 	var on := []
@@ -592,7 +599,8 @@ static func flight_of(frames: Array) -> Dictionary:
 		return {"on": on, "rise": rise}
 	var air := []
 	for i in n:
-		var r := (ref - float(frames[i]["hy"])) / ppm
+		# a frame whose hips or ankles the tracker does not see (visibility under 0.5) has no image height to read: it is grounded
+		var r := (ref - float(frames[i]["hy"])) / ppm if _hips_ankles_seen(frames[i]) else 0.0
 		rise[i] = r
 		air.append(r >= FLY_RISE)
 	var runs := _clean_runs(air, FLY_MIN)
