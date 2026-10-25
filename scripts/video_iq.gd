@@ -177,6 +177,121 @@ static func dip_filter(frames: Array, fps: float) -> int:
 	return done
 
 
+# ============================================================ 3d INVERTED BODY ============================================
+## A TRACKER FLIP ABOUT THE HIPS (cmb02_cross, tests/data/spike_cross_pose.json, 2.9-3.7 s): the tracker turns the whole body upside
+## down about the hips, the shoulders go from above the hips to below them and the ankles from below to above, and then back; the
+## frames either side of the flip are lost. The body did not move that way, so the hand peak (16.4 m/s) was the flip's. A run is one
+## when it is bounded by upright frames and is brief:
+##   U  the frame before and the frame after are upright: the shoulder centre above the hip centre by INV_UP on the clip's own up axis
+##   I  the frames between them include inverted ones (the shoulder centre below the hip centre by INV_UP)
+##   T  the first and last inverted frames are within INV_TRANS frames of the upright ones (a flip, not a slow turn; a cartwheel
+##      goes through the sideways pose for longer than that)
+##   L  the inverted stretch, first to last inverted frame, is INV_MAX_LEN s or less (a handstand is not a tracker flip)
+## The whole stretch between the two upright frames is lost: every landmark is the straight line between those two frames (as
+## fill_gaps does), and the frames are marked "lost" so the confidence lane and the Easy caution name the span (the repair then
+## leaves them as they are: the line is its own fill). INVERSION_FILL = false is the pre-fix pipeline, for the before numbers.
+const INV_UP := 0.10        # m: the shoulder centre this far off the hip centre, on the body's own up axis, is upright (+) or inverted (-)
+const INV_TRANS := 3        # frames: at most this many frames between the last upright frame and the first inverted one, and back
+const INV_MAX_LEN := 1.0    # s: first to last inverted frame
+const INV_MIN_FRAMES := 3  # frames: inverted readings in the run; one or two are blips (the pick-up has single-frame ones)
+const INV_MIRROR := 0.10    # m: the shoulders' left-right axis this far on the wrong side (the tracker swapped left and right): not an upright anchor
+static var INVERSION_FILL := true
+
+
+## the flip runs as {"p", "q" (the upright frames either side), "lo", "hi" (the frames replaced: p+1 to q-1), "t0", "t1" (the inverted
+## stretch, seconds on the file's clock)}. Lost frames (fill_gaps) are neither upright nor inverted: they only count as frames between
+static func inversion_spans(frames: Array, fps: float) -> Array:
+	var out := []
+	var n := frames.size()
+	if n < 3:
+		return out
+	var dt := 1.0 / maxf(fps, 1.0)
+	var dy := []
+	var mx := []   # the shoulders' left-right axis, x: a MIRRORED body (the tracker swapped left and right) reads negative
+	var real_ank := []   # the ankles' centre less the hips' (y): a standing body has its ankles BELOW its hips (y runs down)
+	var real_mx := []
+	for i in n:
+		if bool(frames[i].get("lost", false)):
+			dy.append(0.0)
+			mx.append(0.0)
+			continue
+		var w: Array = frames[i]["w"]
+		var v := ((w[11] as Vector3).y + (w[12] as Vector3).y - (w[23] as Vector3).y - (w[24] as Vector3).y) * 0.5
+		var m := (w[11] as Vector3).x - (w[12] as Vector3).x
+		dy.append(v)
+		mx.append(m)
+		real_ank.append(((w[27] as Vector3).y + (w[28] as Vector3).y - (w[23] as Vector3).y - (w[24] as Vector3).y) * 0.5)
+		real_mx.append(m)
+	if real_ank.is_empty():
+		return out
+	var k := -1.0 if _median(real_ank) > 0.0 else 1.0   # up = away from the feet: the usual side, read from the ankles (the shoulders swing in a bend)
+	var kx := -1.0 if _median(real_mx) < 0.0 else 1.0  # the usual left-right side
+	var st := []   # 1 upright, -1 inverted or mirrored, 0 between (sideways), 2 lost
+	var ups := []
+	for i in n:
+		if bool(frames[i].get("lost", false)):
+			st.append(2)
+			continue
+		# a flip is UPSIDE DOWN (the vertical test); a shoulder swap alone (the body upright, left and right exchanged: combo3's 0.9 s)
+		# is not one, and is no upright anchor either: a swap inside a real flip (cross, 3.0 s) is still replaced with it
+		var s := 0
+		var swapped := kx * float(mx[i]) <= -INV_MIRROR
+		if k * float(dy[i]) <= -INV_UP:
+			s = -1
+		elif k * float(dy[i]) >= INV_UP and not swapped:
+			s = 1
+			ups.append(i)
+		st.append(s)
+	for x in range(ups.size() - 1):
+		var p: int = ups[x]
+		var q: int = ups[x + 1]
+		var a := -1
+		var b := -1
+		var cnt := 0
+		for i in range(p + 1, q):
+			if int(st[i]) == -1:
+				if a < 0:
+					a = i
+				b = i
+				cnt += 1
+		if a < 0 or cnt < INV_MIN_FRAMES:   # a single inverted reading is a blip (the pick-up's, 2.19 s), not a flip
+			continue
+		var gap_in := int(round((float(frames[a]["t"]) - float(frames[p]["t"])) / dt)) - 1
+		var gap_out := int(round((float(frames[q]["t"]) - float(frames[b]["t"])) / dt)) - 1
+		var span := float(frames[b]["t"]) - float(frames[a]["t"])
+		if gap_in > INV_TRANS or gap_out > INV_TRANS or span > INV_MAX_LEN:
+			continue
+		out.append({"p": p, "q": q, "lo": p + 1, "hi": q - 1, "t0": float(frames[a]["t"]), "t1": float(frames[b]["t"])})
+	return out
+
+
+## replaces each flip's frames by the straight line (all 33 landmarks, by time) between its two upright frames and marks them lost.
+## Returns how many frames were replaced
+static func inversion_filter(frames: Array, fps: float) -> int:
+	if not INVERSION_FILL:
+		return 0
+	var done := 0
+	var z := []
+	z.resize(33)
+	z.fill(0.0)
+	for r in inversion_spans(frames, fps):
+		var p: int = r["p"]
+		var q: int = r["q"]
+		var tp := float(frames[p]["t"])
+		var tq := float(frames[q]["t"])
+		var wp: Array = frames[p]["w"]
+		var wq: Array = frames[q]["w"]
+		for i in range(int(r["lo"]), int(r["hi"]) + 1):
+			var u := (float(frames[i]["t"]) - tp) / maxf(tq - tp, 1e-6)
+			var w: Array = frames[i]["w"]
+			for j in 33:
+				w[j] = (wp[j] as Vector3).lerp(wq[j] as Vector3, u)
+			frames[i]["lost"] = true
+			frames[i]["vis"] = z.duplicate()
+			done += 1
+	return done
+
+
 # ============================================================ 4 CONFIDENCE ================================================
 
 ## the frames the tracker skipped (no body found) put back as interpolated frames marked "lost" (vis 0), so the clip is
@@ -1313,6 +1428,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	var fps := float(P["fps"])
 	progress = 0.0
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
+	var inverted := VideoIQ.inversion_filter(frames, fps)   # a tracker flip about the hips (3d INVERTED BODY): lost, a straight line between the upright frames
 	VideoIQ.torso_filter(frames)   # a glitch on the shoulders or hips (3b TORSO SPIKES), before anything reads the body
 	VideoIQ.dip_filter(frames, fps)   # a glitch that moves the whole upper body for 1-5 frames (3c UPPER-BODY DIPS)
 	# FLIGHT: read from the tracker's image on the file's own frames, carried to the filled frames by time
@@ -1374,7 +1490,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 		located.size(), feet, hands, V.plants.size(), fitted.size(), int(sk["cards"]), "spline" if sk["spline"] else "linear", float(sk["mean"]) * 100.0,
 		int(dp["flipped"]), int(dp["frames"]), (conf["spans"] as Array).size(), ("; " + "; ".join((conf["spans"] as Array).map(func(s): return s["text"]))) if not (conf["spans"] as Array).is_empty() else ""]
 	return {"scene": V, "iq": iq, "text": txt, "conf": conf, "depth": dp, "contacts": K, "keys": sk, "fitted": fitted, "frames": C["frames"],
-		"dense": dense, "repaired": repaired, "located": located}
+		"dense": dense, "repaired": repaired, "located": located, "inverted": inverted}
 
 
 ## the iq dict of a scene file, kept only if it is well formed (a hand-edited file never crashes the timeline)
