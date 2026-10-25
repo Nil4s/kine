@@ -154,6 +154,27 @@ func _init() -> void:
 		if (ui.view.global_transform * g0[v] - wc).dot(front) < 0.0 and ui.mesh.verts[v] != g0[v]:
 			back_still = false
 	ok(lift > 0.01 and back_still and ui.undo.steps.size() == 1, "(3) grab: the vert under the press rose %.4f m, back half still %s, %d undo step" % [lift, back_still, ui.undo.steps.size()])
+	# 3b grab 1:1: a 70 px drag moves the vert under the press 70 px on screen (+- 10 %), on the first drag and on a second one.
+	# The second press is off the X mirror plane: with symmetry on, a vert on x = 0 cannot move sideways (by design).
+	var g1 := true
+	var g_px := []
+	for press in [cs + Vector2(0, -100), cs + Vector2(40, -100)]:
+		var hit2: Dictionary = ui.surface_at(cam, press)
+		var sv := -1
+		var sd := INF
+		for v in ui.mesh.verts.size():
+			var dv: float = (ui.view.global_transform * ui.mesh.verts[v]).distance_to(hit2["point"])
+			if dv < sd:
+				sd = dv
+				sv = v
+		var sp0: Vector2 = cam.unproject_position(ui.view.global_transform * ui.mesh.verts[sv])
+		var u0: int = ui.undo.steps.size()
+		await drag(press, press + Vector2(0, -70))
+		var sp1: Vector2 = cam.unproject_position(ui.view.global_transform * ui.mesh.verts[sv])
+		var px := (sp1 - sp0).length()
+		g_px.append(px)
+		g1 = g1 and absf(px - 70.0) <= 7.0 and ui.undo.steps.size() == u0 + 1
+	ok(g1, "(3b) grab 1:1: a 70 px drag moved the vert under the press %.1f px, a second drag %.1f px (bar 70 +- 10 %%), one undo step each" % [g_px[0], g_px[1]])
 	# 4 placement
 	var lo := INF
 	for v in ui.mesh.verts.size():
