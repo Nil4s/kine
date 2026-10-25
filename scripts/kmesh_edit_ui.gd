@@ -744,6 +744,9 @@ func _build_prim_panel() -> void:
 	add.text = "Add"
 	add.tooltip_text = "add this primitive beside the mesh (one undo step); its fields stay live until the next edit"
 	add.pressed.connect(func(): add_prim(KMeshPrims.KINDS[_prim_kind.selected], _field_params()))
+	# the keys go back to the model view: Enter (keeping a G / E value) re-pressed the focused Add and added another primitive
+	# each time (MODEL walk-through 6: +64 verts per Enter)
+	add.focus_mode = Control.FOCUS_NONE
 	hb.add_child(add)
 	vb.add_child(hb)
 	_prim_box = GridContainer.new()
@@ -838,7 +841,9 @@ func add_prim(kind: String, params := {}) -> bool:
 		for v in mesh.verts:
 			lo = lo.min(v)
 			hi = hi.max(v)
-		at = Vector3(hi.x + PRIM_GAP, lo.y, 0.0)
+		# walk-through 6, friction 5: the part rests on the floor (y = 0) when the mesh reaches up to it; a mesh wholly
+		# under the floor gets the part at its lowest point
+		at = Vector3(hi.x + PRIM_GAP, 0.0 if hi.y >= 0.0 else lo.y, 0.0)
 	var base_v := mesh.verts.duplicate()
 	var base_f := mesh.faces.duplicate()
 	undo.begin(mesh)
@@ -846,6 +851,14 @@ func add_prim(kind: String, params := {}) -> bool:
 	var st := undo.commit("Add " + KMeshPrims.NAMES[kind])
 	live = {"kind": kind, "params": p, "step": st, "base_v": base_v, "base_f": base_f, "at": at}
 	_after_topo()
+	# the new part comes selected, so G / S / R move it at once (walk-through 6: a box select through x-ray caught the
+	# neighbouring table verts and missed some of the cylinder's)
+	var md := sel.mode
+	sel.mode = KMeshSelect.VERT
+	for v in range(base_v.size(), mesh.vert_count()):
+		sel.verts[v] = true
+	sel.set_mode(md)
+	view.rebuild()
 	var ki := KMeshPrims.KINDS.find(kind)
 	if _prim_kind.selected != ki:
 		_prim_kind.select(ki)

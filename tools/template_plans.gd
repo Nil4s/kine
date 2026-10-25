@@ -15,6 +15,9 @@ static func get_plan(nm: String) -> Dictionary:
 		"wave": return plan_wave()
 		"fall": return plan_fall()
 		"dance": return plan_dance()
+		"turn_around": return plan_turn(180.0)
+		"turn_left": return plan_turn(90.0)
+		"turn_right": return plan_turn(-90.0)
 	return {}
 
 
@@ -222,7 +225,7 @@ static func plan_jump() -> Dictionary:
 	clips.append({"name": "touch-down", "move": 0.271, "hold": 0.0, "set": td, "heel_up": ["_l", "_r"], "heel_deg": 0, "keep_feet": true, "hips": [0, 0, 0.04]})
 	var cr := squat.duplicate()
 	cr.merge({"pelvis": [14, 0, 0], "thigh_l": [75, 7, 0], "thigh_r": [75, 7, 0], "calf_l": [105, 0, 0], "calf_r": [105, 0, 0],
-		"upperarm_l": [90, -5, 0], "upperarm_r": [90, -5, 0], "lowerarm_l": [15, 0, 0], "lowerarm_r": [15, 0, 0]}, true)
+		"upperarm_l": [70, 0, 0], "upperarm_r": [70, 0, 0], "lowerarm_l": [15, 0, 0], "lowerarm_r": [15, 0, 0]}, true)
 	clips.append({"name": "absorb", "move": 0.22, "hold": 0.1, "set": cr, "hips": [0, 0, -0.2], "keep_feet": true})
 	clips.append({"name": "stand", "move": 0.6, "hold": 0.4, "set": stand_set(), "hips": [0, 0, 0], "keep_feet": true})
 	return {"name": "jump", "base": "poses/stand.json", "clips": clips, "spline": true,
@@ -438,3 +441,35 @@ static func plan_dance() -> Dictionary:
 			"hips": [hx, 0, 0], "y": bounce, "plant": {"_l": row[5], "_r": row[6]}, "hold_feet": row[7], "free_feet": row[8]})
 	return {"name": "dance", "base": "poses/stand.json", "clips": clips, "no_pin": true,
 		"note": "DANCE: a side-step, 0.5 s a count: step right, close, step left, close (3.5 s); both arms raise and pump overhead on counts 1-2, clap in front of the chest on counts 3-4, the knees bounce on each count, the chest follows the hips. Typed, not a picker card (Templates.TYPED)."}
+
+
+## TURN ON THE SPOT (round 10): "turn around" = 180 to his left, "turn left" = 90 to his left, "turn right" = 90 to his right (total_deg < 0).
+## Four steps: each foot walks half of a circle round the centre of his stance (the left foot's start is at +x, his left side; for a left
+## turn it goes round the FRONT, the right foot round the BACK), and each foot's heading turns with the body (the toes turn with the turn).
+## The feet are planted at each card (the Scene holds them between cards). The turn is in the pelvis (the thighs turn with it, the feet's
+## headings turn with the body). The radius is 0.10 m standing (the dance's stance) and 0.20 m at the middle of the turn.
+const TURN_R0 := 0.10
+const TURN_R1 := 0.20
+const TURN_N := 4
+
+
+static func plan_turn(total_deg: float) -> Dictionary:
+	var clips := []
+	var name := "turn_around" if absf(total_deg) > 120.0 else ("turn_left" if total_deg > 0.0 else "turn_right")
+	for k in range(TURN_N + 1):
+		var th_deg := total_deg * float(k) / float(TURN_N)
+		var th := deg_to_rad(th_deg)
+		var r := TURN_R0 + (TURN_R1 - TURN_R0) * sin(PI * float(k) / float(TURN_N))
+		var lx := r * cos(th)
+		var lz := r * sin(th)
+		var set := stand_set()
+		set.merge({"pelvis": [0, 0, th_deg]}, true)   # the hips turn the whole way (the hips' yaw is the pelvis's own; the spines stay square)
+		var plant := {"_l": [lx, lz, th], "_r": [-lx, -lz, th]}
+		if k == 0:
+			clips.append({"name": "stand", "move": -1.0, "hold": 0.4, "set": set, "relaxed": ["l", "r"], "hips": [0, 0, 0],
+				"plant": plant, "hold_feet": ["_l", "_r"]})
+		else:
+			clips.append({"name": "turn %d" % k, "move": 0.5, "hold": 0.4 if k == TURN_N else 0.0, "set": set, "relaxed": ["l", "r"],
+				"hips": [0, 0, 0], "plant": plant, "hold_feet": ["_l", "_r"]})
+	return {"name": name, "base": "poses/stand.json", "clips": clips, "no_pin": true,
+		"note": "TURN (%s): %.0f deg on the spot in %d steps, each foot half a circle round the stance; hips and spine turn with it." % [name, total_deg, TURN_N]}

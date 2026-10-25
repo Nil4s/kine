@@ -40,7 +40,9 @@ var _snap := {}             # the state at the start of the tour step
 var _armed := false         # step 1: a hand was dragged (the drag is not let go yet)
 var _moved := false         # step 4: the body changed since the step began
 static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
+var scenes: EasyScenes      # MY SCENES (scripts/easy_scenes.gd): the saved scenes and the examples as big tiles, from the bar's My scenes
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
+var sliders: EasySliders    # EASY SIDE SLIDERS (scripts/easy_sliders.gd): a picked body part's sliders at the right, Easy only
 var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Easy came on: Expert gets exactly this back
 const EASY_MORE := {"Save this pose as a card": "Saved pose", "Flip left and right": "Flip", "Put his feet on the floor": "Feet on floor", "Copy a video": "Copied video"}   # a More entry's undo name in Easy (its Expert name is the entry's words)
 const FREE_PAD := 8.0       # px between the free rect and the Easy bar, the strip, or the bottom panel
@@ -98,20 +100,21 @@ func build(root: Control, expert: Array) -> void:
 	var acts := [
 		["Library", "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it", func(): m._library_toggle()],
 		["Save video", "Save the clip as a video in your Videos folder (Kine), with a button to show it", func(): home.save_video()],
-		["Play / Stop", "Play the scene from the playhead, or stop it (Space)", m._toggle_play],
+		["Play / Stop", "Play the scene from the playhead, or stop it", m._toggle_play],
 		["New scene", "Start an empty scene (it asks first over unsaved work)", _new],
-		["Undo", "Take back the last change (Ctrl+Z): a beginner's first need, so it stays on the bar", m._undo],
+		["My scenes", "Your saved scenes as big pictures, newest first, and the examples: click one to open it and play it", _my_scenes],
+		["Undo", "Take back the last change: a beginner's first need, so it stays on the bar", m._undo],
 		["More", "The other things: Save this pose as a card, Move his arms and legs, Redo, Open a saved scene, Save the scene, Flip left and right, Put his feet on the floor", _more_open],
 		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	var more := [
-		["Save this pose as a card", "Keep the body's pose as a card on the timeline (Enter)", func(): add_pose("Saved pose", false)],
+		["Save this pose as a card", "Keep the body's pose as a card on the timeline", func(): add_pose("Saved pose", false)],
 		["Move his arms and legs", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
-		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
+		["Redo", "Put back what Undo took back", m._redo],
 		["Open a saved scene", "Open one of your scenes", _open],
 		["Copy a video", "Turn a video of one person into an animation: pick the file (mp4, mov, webm, avi, mkv)", func(): home.copy_video()],
-		["Save the scene", "Save the scene (Ctrl+Shift+S)", func(): home.save_scene()],
-		["Flip left and right", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
+		["Save the scene", "Save the scene", func(): home.save_scene()],
+		["Flip left and right", "The whole body reflected left and right", m._press.bind(KEY_M, true)],
 		["Put his feet on the floor", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
 	]
 	for a in acts:
@@ -120,7 +123,7 @@ func build(root: Control, expert: Array) -> void:
 		_btns[a[0]] = b
 	# REDO, one click after Undo: a narrow button that is there only while something can be put back (easy_home._process
 	# shows it and names it "Redo: Faster", as Undo is named). The More entry stays too.
-	var rb := _big("Redo", "Put back what Undo took back (Ctrl+Y)", m._redo)
+	var rb := _big("Redo", "Put back what Undo took back", m._redo)
 	rb.name = "easy_redo"
 	rb.custom_minimum_size = Vector2(150, m.TOP_H - 12)
 	rb.size_flags_horizontal = Control.SIZE_FILL
@@ -155,6 +158,9 @@ func build(root: Control, expert: Array) -> void:
 	_menu.index_pressed.connect(func(i: int): if _menu_paths.has(i): m._open_scene_file(_menu_paths[i]))
 	bar.add_child(_menu)
 	_build_views(root)
+	scenes = EasyScenes.new()   # MY SCENES: its panel is over the bar (added last), hidden until its button is pressed
+	scenes.m = m
+	scenes.build(root)
 	_build_tour_card(root)
 	get_viewport().size_changed.connect(_resized)   # EASY CAMERA: a window resize re-frames the clip (frame_clip)
 	home = EasyHome.new()   # the empty scene's "What should he do?" panel: a child of Easy, so Expert never shows it
@@ -162,6 +168,11 @@ func build(root: Control, expert: Array) -> void:
 	home.m = m
 	add_child(home)
 	home.build(root)
+	sliders = EasySliders.new()   # EASY SIDE SLIDERS: the picked part's panel (its own _process hides it outside Easy)
+	sliders.name = "easy_sliders_node"
+	sliders.m = m
+	add_child(sliders)
+	sliders.build(root)
 
 
 ## VIEW BUTTONS: the view keys 1 (front), 2 (side, -90), 4 (back) and HOME, turned smoothly; a small column at the right edge
@@ -188,7 +199,7 @@ func _build_views(root: Control) -> void:
 		["easy_view_side", "Side", "the view from the side: the camera turns 90 degrees", func(): m._view(2, true)],
 		["easy_view_back", "Back", "the view from the back", func(): m._view(4, true)],
 		["easy_view_reset", "Reset view", "the first view: the body from the front, a little from above", func(): m._view_home(true)],
-		["easy_body_colour", "His colour", "change his colour: skin, white, grey, blue, red, dark, then skin again (one undo step; Ctrl+Z gives the old one back)", func(): m._body_colour_next()],
+		["easy_body_colour", "His colour", "change his colour: skin, white, grey, blue, red, dark, then skin again (one undo step; the Undo button gives the old one back)", func(): m._body_colour_next()],
 	]
 	for a in acts:
 		var b := Button.new()
@@ -302,6 +313,8 @@ func set_on(v: bool, save := true) -> void:
 			m.dummy_on = true
 			m._dummy_hits()
 		_dummy_was = false
+	if not on and scenes != null:
+		scenes.close_panel()
 	if bar != null:
 		bar.visible = on
 	if views != null:
@@ -351,8 +364,18 @@ func free_rect() -> Rect2:
 
 
 ## the camera's offsets for Easy: the look-at point sits at the free rect's centre (mpp = world units per px at the target)
+## SIDE PANEL UP (easy_sliders.gd): the centre moves to the middle of the free rect left of the panel (its edge less 10 px), so the
+## body stays in view beside the panel. The distance is not changed; the offset goes back when the panel shuts.
 func offsets(vs: Vector2, mpp: float) -> Vector2:
-	var c := free_rect().get_center()
+	var fr := free_rect()
+	var c := fr.get_center()
+	if sliders != null and sliders.shifted():
+		# the Library open at the left too: the body goes between the two panels (left of it the hand slid under the Library)
+		var left := fr.position.x
+		if m.ui_library != null and m.ui_library.is_visible_in_tree():
+			left = maxf(left, m.ui_library.get_global_rect().end.x + 10.0)
+		var right := minf(fr.end.x, sliders.left_x() - 10.0)
+		c.x = (left + maxf(right, left + 40.0)) * 0.5
 	return Vector2((vs.x * 0.5 - c.x) * mpp, (c.y - vs.y * 0.5) * mpp)
 
 
@@ -559,7 +582,7 @@ func card_follows_drag() -> void:
 	m._undo_tips()
 	m._history_rows()
 	m._rebuild_cards()
-	m._say("card %d takes the body's new pose (Ctrl+Z takes it back)" % (i + 1))
+	m._say("card %d takes the body's new pose (Undo takes it back)" % (i + 1))
 
 
 ## the strip's button (main's _rebuild_cards puts it after the last card, or in an empty Easy strip with its tip)
@@ -626,6 +649,10 @@ func more_labels() -> Array:
 
 func _new() -> void:
 	m._new_asked()   # ROADMAP 50: Save / Don't save / Cancel when the open scene has unsaved changes
+
+
+func _my_scenes() -> void:
+	scenes.open_panel()
 
 
 func _open() -> void:

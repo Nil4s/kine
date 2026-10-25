@@ -113,6 +113,7 @@ func _write(p: String) -> void:
 		return
 	path = p
 	_mesh_ref = ui.mesh
+	MeshProps.sync_saved()   # the saved mesh is listed under Add prop and in Library > My models now
 	ui.m._say("Saved %s (%d verts, %d faces) in %s. Ctrl+S saves it again" % [p.get_file(), ui.mesh.vert_count(), ui.mesh.face_count(), p.get_base_dir()])
 
 

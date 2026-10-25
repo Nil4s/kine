@@ -7,9 +7,9 @@
 #   One job running everything with -j 4 hit the 60-minute cap every time (10-23: 149 of 493 suites done, ~95 s a
 #   suite under software rendering), so the full run is sharded: ~62 suites a shard, ~40 min expected each.
 name: tests
+# 10-25 (Nick): PRs no longer trigger it: every suite runs locally before a PR, and the private repo's Actions minutes ran
+# out (each PR showed a red X for a job GitHub refused to start). Run it by hand (Actions > tests > Run workflow) if wanted.
 on:
-  pull_request:
-    branches: [poser-ui-rounds]
   workflow_dispatch:
 
 jobs:

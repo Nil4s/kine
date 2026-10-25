@@ -26,7 +26,7 @@ const HINT := "or type a move: 'jab then cross'"
 const PANEL_LEFT := 12.0       # px between the window's left edge and the home panel
 const PANEL_W := 478.0         # the cards' grid (4 x 112 + 3 x 10) and the text box and message under it
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
-const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
+const UNDO_NONE := "Undo: nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
 const TRY := [3, 4, 6, 0]   # the four most common cards (CARDS indices): Punch, Kick, Wave, Walk. An unknown move offers these when no card word is close to it
 const TRY_MIN := 0.3        # a card word counts as close to a typed word at this bigram Dice score (try_pick)
@@ -53,6 +53,7 @@ var _pbar_drop: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
+var _go_btn: Button          # Go: a visible button right of the box; it does what Enter does in the box
 var _msg: Label
 var _close: Button
 var _built := false            # a clip was built from here: the strip shows once the scene has cards
@@ -95,6 +96,7 @@ var _take_n := 0              # MAKE IT WITH AI VIDEO: the take in flight, 1 or 
 var _take_seed := 1           # the seed of the take in flight: take 2 is take 1's seed + 1
 var _takes: Array = []        # this run's takes: {video, pose}; a discarded take's files are removed (_drop_takes)
 var _then_add := true         # the picker's "Then:" choice: true = Add after (the cards go after the clip), false = Start over
+var _typed_note := ""          # the typed grammar's say for the last typed line (a repeat count capped at 10); "" = none
 var _then_box: HBoxContainer  # the "Then:" row: shown only when the scene has cards (an empty scene has nothing to add after)
 var _then_add_btn: Button
 var _then_start_btn: Button
@@ -115,7 +117,7 @@ var _help_lbl: Label
 var _help_tour: Button
 var _grid: GridContainer
 var _row_h := -1.0            # the strip's height when the camera last framed the clip (a row that grows it reframes)
-const HELP_TEXT := "Click a picture, or type a move and press Enter ('jab then cross' is two strikes). Then: Add after puts the next move after the clip.\nAfter a clip: Again plays it. Faster, Slower, Bigger and Smaller tweak it. Change it types another move.\nThe bar: Library adds objects. Save video makes a video file."
+const HELP_TEXT := "Click a picture, or type a move and click Go (or press Enter; 'jab then cross' is two strikes). Then: Add after puts the next move after the clip.\nAfter a clip: Again plays it. Faster, Slower, Bigger and Smaller tweak it. Change it types another move.\nThe bar: Library adds objects. Save video makes a video file."
 const HELP_Q := ["how do i", "how do you", "how do we", "how to", "how can i", "how can you", "how would i", "how does", "what can", "help"]   # a typed question: answered with help, not "doesn't know"
 const JOIN_S := 0.5           # ADD AFTER: the first added card is reached this many seconds after the clip's end (the join)
 
@@ -202,7 +204,7 @@ func build(root: Control) -> void:
 	_edit.name = "eh_text"
 	_edit.placeholder_text = HINT
 	_edit.select_all_on_focus = true   # a click into the box selects what is there: a new move replaces it (Windows search, Blender fields)
-	_edit.custom_minimum_size = Vector2(PANEL_W - 160.0, 0)
+	_edit.custom_minimum_size = Vector2(PANEL_W - 230.0, 0)   # room for the Go button right of it
 	_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edit.text_submitted.connect(func(t: String): _words(t))
 	_edit.text_changed.connect(func(_t: String): _drop_saved_toast())   # typing is an action: a saved-video message goes
@@ -211,6 +213,14 @@ func build(root: Control) -> void:
 	ask_row.add_theme_constant_override("separation", 8)
 	v.add_child(ask_row)
 	ask_row.add_child(_edit)
+	_go_btn = Button.new()
+	_go_btn.name = "eh_go"
+	_go_btn.text = "Go"
+	_go_btn.focus_mode = Control.FOCUS_NONE
+	_go_btn.custom_minimum_size = Vector2(64, 0)
+	_go_btn.tooltip_text = "build the move typed in the box"
+	_go_btn.pressed.connect(func(): _words(_edit.text))
+	ask_row.add_child(_go_btn)
 	_msg = _label("", 15, "text")
 	_msg.name = "eh_msg"
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -403,7 +413,7 @@ func build(root: Control) -> void:
 	_pbar_hand_name.custom_minimum_size.x = 150
 	_pbar_hand_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_pbar_hand.add_child(_pbar_hand_name)
-	_pbar_drop = _strip_button("eh_hand_drop", "Drop it", "put the weapon down: he stops holding it (one undo step; Ctrl+Z puts it back in his hand)", _hand_drop, Vector2(150, 40), 18)
+	_pbar_drop = _strip_button("eh_hand_drop", "Drop it", "put the weapon down: he stops holding it (one undo step; the Undo button puts it back in his hand)", _hand_drop, Vector2(150, 40), 18)
 	_pbar_hand.add_child(_pbar_drop)
 	_pbar_name = _label("", 18, "text")
 	_pbar_name.name = "eh_prop_name"
@@ -418,13 +428,13 @@ func build(root: Control) -> void:
 	_pbar_size.name = "eh_prop_size_row"
 	_pbar_size.add_theme_constant_override("separation", 6)
 	pr.add_child(_pbar_size)
-	_pbar_bigger = _strip_button("eh_prop_bigger", "Grow", "make the picked object 15 % bigger (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
+	_pbar_bigger = _strip_button("eh_prop_bigger", "Grow", "make the picked object 15 % bigger (one undo step; the Undo button gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_bigger)
-	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
+	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; the Undo button gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_smaller)
 	_pbar_colour = _strip_button("eh_prop_colour", "Colour it", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_colour)
-	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (Ctrl+Z puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
+	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (the Undo button puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_remove)
 	_pbar_next = _strip_button("eh_prop_next", "Next object", "pick the next object in the scene (in the order they were added)", _prop_next, Vector2(150, 40), 18)
 	pr.add_child(_pbar_next)
@@ -1063,9 +1073,9 @@ func _ask_help(t: String) -> void:
 	var w := _move_in(t)
 	_edit.text = ""   # the question is used: the next typing starts clean (the box kept old words in round 5)
 	if w != "":
-		_msg.text = "Type '%s' in the box and press Enter, or click its picture." % w
+		_msg.text = "Type '%s' in the box and click Go, or click its picture." % w
 	else:
-		_msg.text = "Type a move in the box and press Enter, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
+		_msg.text = "Type a move in the box and click Go, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
 	_msg.add_theme_color_override("font_color", Tok.c("text"))
 	_open = true
 	_help_on = false
@@ -1086,6 +1096,7 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	var t := Time.get_ticks_msec()
 	var add: bool = m.easy.on and (_then_add or force_add) and not m.S.cards.is_empty()   # force_add: a "Then <move>" button (the same Add after)   # Easy's "Then: Add after" with a clip in the scene: the cards go after it (Expert's cards still replace)
 	var prev := _clip_word
+	_typed_note = ""
 	var err := _build(what, label, what if typed else label, add)
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
@@ -1111,6 +1122,8 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	_play()
 	var new_word := "'%s'" % what if typed else "the " + label.to_lower()
 	var tail := (" " + _ball_line) if _ball_line != "" else ""
+	if _typed_note != "":   # the repeat cap, said after the build's own line
+		tail += " " + _typed_note
 	if add:   # the say line says both moves in plain words; it still opens "Made the wave" (the card's name)
 		m._say_plain("Made %s, added after %s. Again plays the whole clip; Undo takes it back.%s" % [new_word, prev, tail])
 	else:   # the say line names the clip just built (it kept the last clip's words: "Faster: the walk now takes..." after a typed wave)
@@ -1538,11 +1551,12 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 	m._step_easy = easy if m.easy.on else ""   # and, in Easy, by its short name: "Walk", or the typed words (cut to 18 characters)
 	m._push_undo()
 	m.undo[-1]["swap"] = true   # the card makes a NEW Scene object: Ctrl+Z puts the empty one back whole (main._restore; path_walk_ui does the same)
-	m._write(path, d)
-	m._load_scene(path, true)   # a card build is a work copy in scenes/_wip: unsaved until the user saves it
+	m._load_scene_built(path, d)   # a card build is a work copy in scenes/_wip: unsaved until the user saves it (the file is written after the frame)
 	if not held.is_empty():
 		_hold_again(held)
+	m._dot_later = true   # the unsaved dot is read after the frame (main._doc_line)
 	m._rebuild_cards()
+	m._dot_later = false
 	m._refresh()
 	return ""
 
@@ -1728,10 +1742,97 @@ static func _cannot_build(part: String) -> String:
 	return "Kine doesn't know '%s' yet." % shown
 
 
+## TYPED GRAMMAR (round 10): repetition ("twice", "two times", "3 times", "x3", "3x", "again"), the turns ("turn around",
+## "spin around", "turn back" = 180; "turn left" / "turn right" = 90) and filler ("please", "a bit", "walk forward", "and then")
+## are rewritten into the plain "then" line before the parts are built. A line with none of them comes back as the same parts.
+const COUNT_WORDS := {"once": 1, "twice": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+const TURN_WORDS := {"turn around": "turn around", "spin around": "turn around", "turn back": "turn around", "turn round": "turn around",
+	"spin round": "turn around", "about turn": "turn around", "turn left": "turn left", "turn right": "turn right"}
+const MAX_REPEAT := 10   # a repeat count above this is capped here, and the say line says so
+
+
+## a count word or digits ("3", "three") -> the number; 0 when the word is no count
+static func _count_of(w: String) -> int:
+	if w.is_valid_int():
+		return int(w)
+	return int(COUNT_WORDS.get(w, 0))
+
+
+## "x3" or "3x" -> 3; 0 when the word is neither
+static func _x_count(w: String) -> int:
+	var digits := w
+	if w.begins_with("x"):
+		digits = w.substr(1)
+	elif w.ends_with("x"):
+		digits = w.substr(0, w.length() - 1)
+	else:
+		return 0
+	return int(digits) if digits.is_valid_int() else 0
+
+
+## the typed line rewritten: {ok: true, text: the plain "then" line, note: "" or the cap's say} or {ok: false, error}
+static func typed_expand(text: String) -> Dictionary:
+	var low := text.to_lower().strip_edges().replace(",", " then ").replace(";", " then ").replace(" and then ", " then ")
+	var parts: Array = []
+	var note := ""
+	for raw in low.split(" then ", false):
+		var words: Array = String(raw).strip_edges().split(" ", false)
+		if words.is_empty():
+			continue
+		if words == ["again"]:   # "again" alone: the part before it, once more
+			if parts.is_empty():
+				return {"ok": false, "error": "Type a move before 'again', such as 'punch then again'."}
+			parts.append(parts[-1])
+			continue
+		var n := 1
+		var last: String = words[-1]
+		if last == "again" or last == "twice":   # "punch twice", "punch again": two of it
+			words.pop_back()
+			n = 2
+		elif words.size() >= 2 and last == "times" and _count_of(words[-2]) > 0:   # "punch 3 times", "punch two times"
+			n = _count_of(words[-2])
+			words.resize(words.size() - 2)
+		elif _x_count(last) > 0:   # "punch x3", "punch 3x"
+			n = _x_count(last)
+			words.pop_back()
+		var kept: Array = []
+		var i := 0
+		while i < words.size():
+			var w: String = words[i]
+			if w == "please":
+				i += 1
+				continue
+			if w == "a" and i + 1 < words.size() and words[i + 1] == "bit":
+				i += 2
+				continue
+			if w == "forward" and not kept.is_empty() and (kept[-1] == "walk" or kept[-1] == "run"):
+				i += 1
+				continue
+			kept.append(w)
+			i += 1
+		var move := " ".join(PackedStringArray(kept))
+		if move == "":
+			return {"ok": false, "error": "Type a move first, such as 'jab then cross' or 'roundhouse'."}
+		move = String(TURN_WORDS.get(move, move))
+		if n > MAX_REPEAT:
+			note = "%s x%d: Kine repeats it 10 times at most." % [move, n]
+			n = MAX_REPEAT
+		elif n < 1:
+			return {"ok": false, "error": "The count must be 1 or more: 'punch 3 times'."}
+		for k in n:
+			parts.append(move)
+	return {"ok": true, "text": " then ".join(PackedStringArray(parts)), "note": note}
+
+
 ## words -> one scene dict. "jab then cross" is two strikes (split on "then", "," and ";"); a part that is a card's word
 ## is that card's template file, any other part is built by TextBlocking on a fresh body. The parts are joined in order.
 ## {ok, dict} or {ok: false, error}
 func _words_dict(text: String) -> Dictionary:
+	var ex := typed_expand(text)
+	if not ex["ok"]:
+		return {"ok": false, "error": ex["error"]}
+	text = ex["text"]
+	_typed_note = ex["note"]
 	var parts: Array = []
 	for p in text.replace(",", " then ").replace(";", " then ").split(" then ", false):
 		var s := String(p).strip_edges()
@@ -1765,7 +1866,7 @@ func _words_dict(text: String) -> Dictionary:
 			out = d
 		else:
 			(out["cards"] as Array).append_array(d["cards"])
-	return {"ok": true, "dict": out, "strikes": parts.size()}
+	return {"ok": true, "dict": out, "strikes": parts.size(), "note": _typed_note}
 
 
 ## EASY: every card of one move build is tagged with the move it came from ("punch|<serial>"): the strip reads "Punch 1, 2..".

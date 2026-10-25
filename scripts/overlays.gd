@@ -149,31 +149,8 @@ static func split_parts(man: Node3D, sk: Skeleton3D, idx: Dictionary) -> Diction
 	var out := {}
 	for mi in man.find_children("*", "MeshInstance3D", true, false):
 		var src := mi as MeshInstance3D
-		var tris := {}   # part -> [surface -> PackedInt32Array]
 		var mesh := src.mesh
-		for si in mesh.get_surface_count():
-			var arr := mesh.surface_get_arrays(si)
-			var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
-			var wts: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
-			var nv: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-			var per := bones.size() / nv   # 4 or 8 influences
-			var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(nv))
-			for t in range(0, ix.size(), 3):
-				var w := {}
-				for k in 3:
-					var v: int = ix[t + k]
-					for q in per:
-						var pj: String = part_of.get(bones[v * per + q], "pelvis")
-						w[pj] = w.get(pj, 0.0) + wts[v * per + q]
-				var best := ""
-				for pj in w:
-					if best == "" or w[pj] > w[best]:
-						best = pj
-				if not tris.has(best):
-					tris[best] = {}
-				if not tris[best].has(si):
-					tris[best][si] = PackedInt32Array()
-				tris[best][si].append_array(ix.slice(t, t + 3))
+		var tris: Dictionary = BodyCache.fetch("split", [src.name, part_of, _surfaces(mesh)], func(): return _classify(mesh, part_of))   # the triangles per part (cached: BodyCache)
 		for pj in tris:
 			var am := ArrayMesh.new()
 			for si in tris[pj]:
@@ -191,6 +168,43 @@ static func split_parts(man: Node3D, sk: Skeleton3D, idx: Dictionary) -> Diction
 			out[pj] = piece
 		src.visible = false
 	return out
+
+
+## the surfaces of a mesh as they were read (the cache's input)
+static func _surfaces(mesh: ArrayMesh) -> Array:
+	var out := []
+	for si in mesh.get_surface_count():
+		out.append(mesh.surface_get_arrays(si))
+	return out
+
+
+## part -> [surface -> the triangles' indices]: each triangle goes to the part whose bones weigh most on its corners
+static func _classify(mesh: ArrayMesh, part_of: Dictionary) -> Dictionary:
+	var tris := {}
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+		var wts: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+		var nv: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		var per := bones.size() / nv   # 4 or 8 influences
+		var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(nv))
+		for t in range(0, ix.size(), 3):
+			var w := {}
+			for k in 3:
+				var v: int = ix[t + k]
+				for q in per:
+					var pj: String = part_of.get(bones[v * per + q], "pelvis")
+					w[pj] = w.get(pj, 0.0) + wts[v * per + q]
+			var best := ""
+			for pj in w:
+				if best == "" or w[pj] > w[best]:
+					best = pj
+			if not tris.has(best):
+				tris[best] = {}
+			if not tris[best].has(si):
+				tris[best][si] = PackedInt32Array()
+			tris[best][si].append_array(ix.slice(t, t + 3))
+	return tris
 
 
 ## write a body's pose into a mannequin's skeleton (glTF local rotations, the pelvis's position)

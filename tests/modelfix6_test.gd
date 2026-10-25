@@ -90,6 +90,26 @@ func click(p: Vector2, shift := false) -> void:
 	await idle(3)
 
 
+func alt_click(p: Vector2) -> void:
+	var hm := InputEventMouseMotion.new()
+	hm.position = p
+	hm.global_position = p
+	root.push_input(hm, true)
+	await process_frame
+	for down in [true, false]:
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.pressed = down
+		e.position = p
+		e.global_position = p
+		e.alt_pressed = true
+		if down:
+			e.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(e, true)
+		await process_frame
+	await idle(3)
+
+
 func nv() -> int:
 	return kmed.mesh.verts.size()
 
@@ -348,6 +368,149 @@ func _init() -> void:
 		await idle(3)
 	else:
 		ok(false, "(f) the test cube opened")
+
+	# ---- C (g): the search box: "join parts" runs "Model: join parts" (walk-through 5, goal 7), not the boolean row that also
+	# holds the words "join" and "parts" ("boolean union (join two parts)"): a tie on the words goes to the row with the phrase
+	var jr: Array = m.ui_cmd.matches("", "join parts")
+	var jfirst := String(jr[0]["name"]) if not jr.is_empty() else ""
+	ok(jfirst == "Model: join parts", "(g) the search 'join parts' ranks 'Model: join parts' first (first is '%s')" % jfirst)
+
+	# ---- D (h): Add primitive, then Enter (walk-through 6, friction 1): the Add button kept the keys, so each Enter added
+	# another primitive (+64 verts). Enter after the click must not add a second one
+	await fresh()
+	if kmed != null and kmed.on:
+		var addb := m.find_child("btn_prim_add", true, false) as Button
+		var v0: int = kmed.mesh.verts.size()
+		if addb != null and addb.is_visible_in_tree():
+			await click(addb.get_global_rect().get_center())
+		await idle(4)
+		var v1: int = kmed.mesh.verts.size()
+		await key(KEY_ENTER)
+		await key(KEY_ENTER)
+		var v2: int = kmed.mesh.verts.size()
+		var sv: Array = kmed.sel.verts.keys()
+		sv.sort()
+		ok(sv.size() == v1 - v0 and not sv.is_empty() and int(sv[0]) == v0, "(i) the added primitive comes selected, nothing else (%d of %d new verts, first %s)" % [sv.size(), v1 - v0, str(sv.slice(0, 1))])
+		ok(addb != null and v1 > v0 and v2 == v1, "(h) Add primitive once, then Enter twice: one primitive (verts %d -> %d -> %d)" % [v0, v1, v2])
+	else:
+		ok(false, "(h) the test cube opened")
+
+	# ---- (j) walk-through 6, friction 4: Alt+click on a top edge of the test cube selects the full ring round the top
+	# (16 edges, every one on the top), not the 4 edges up to the corners
+	await fresh()
+	if kmed != null and kmed.on:
+		await key(KEY_2)
+		var top := maxf(kmed.mesh.verts[0].y, 0.0)
+		for v in kmed.mesh.verts:
+			top = maxf(top, v.y)
+		var e: Array = pick_edge(func(a: int, b: int) -> bool:
+			return absf(kmed.mesh.verts[a].y - top) < 1e-4 and absf(kmed.mesh.verts[b].y - top) < 1e-4)
+		if not e.is_empty():
+			await alt_click(e[2])
+		var all_top := true
+		for ek in kmed.sel.edges:
+			if absf(kmed.mesh.verts[ek.x].y - top) > 1e-4 or absf(kmed.mesh.verts[ek.y].y - top) > 1e-4:
+				all_top = false
+		print("   (j) Alt+click on a top edge: %d edges selected" % kmed.sel.edges.size())
+		ok(not e.is_empty() and kmed.sel.edges.size() == 16 and all_top, "(j) Alt+click on a top edge selects the full ring round the top (16 edges, all on the top; got %d)" % kmed.sel.edges.size())
+	else:
+		ok(false, "(j) the test cube opened")
+
+	# ---- (k) friction 4 after a bevel: the top's rim is beveled, then a loop through the inner rim ring is the whole ring
+	await fresh()
+	if kmed != null and kmed.on:
+		await key(KEY_2)
+		var top_k := -INF
+		var perim := []
+		for v in kmed.mesh.verts:
+			top_k = maxf(top_k, v.y)
+		for ek in kmed.mesh.edges():
+			var pa: Vector3 = kmed.mesh.verts[ek.x]
+			var pb: Vector3 = kmed.mesh.verts[ek.y]
+			var half := top_k   # the test cube is centred: its top is half its side
+			if absf(pa.y - top_k) < 1e-4 and absf(pb.y - top_k) < 1e-4 and (absf(pa.x) > half - 1e-4 and absf(pb.x) > half - 1e-4 or absf(pa.z) > half - 1e-4 and absf(pb.z) > half - 1e-4):
+				perim.append(ek)
+		kmed.sel.clear()
+		for ek in perim:
+			kmed.sel.edges[ek] = true
+		KMeshBevel.bevel(kmed.mesh, kmed.sel, 0.08)
+		var xin := INF
+		for v in kmed.mesh.verts:
+			if absf(v.y - top_k) < 1e-4:
+				xin = minf(xin, v.x)
+		var ring := KMeshSelect.new(kmed.mesh, KMeshSelect.EDGE)
+		var rp := []
+		for ek in kmed.mesh.edges():
+			var pa: Vector3 = kmed.mesh.verts[ek.x]
+			var pb: Vector3 = kmed.mesh.verts[ek.y]
+			if absf(pa.y - top_k) < 1e-4 and absf(pb.y - top_k) < 1e-4 and absf(pa.x - xin) < 1e-4 and absf(pb.x - xin) < 1e-4:
+				rp = [ek.x, ek.y]
+				break
+		if not rp.is_empty():
+			ring.select_loop(rp[0], rp[1])
+		print("   (k) beveled: %d rim edges, inner ring loop %d edges" % [perim.size(), ring.edges.size()])
+		ok(perim.size() == 16 and not rp.is_empty() and ring.edges.size() == 16, "(k) after a bevel of the top rim, a loop along the inner rim goes round the corners (16 edges; got %d)" % ring.edges.size())
+	else:
+		ok(false, "(k) the test cube opened")
+
+	# ---- (l) walk-through 6, friction 5: a primitive added to a mesh that reaches up to the floor rests on the floor (y = 0)
+	await fresh()
+	if kmed != null and kmed.on:
+		var v0: int = nv()
+		var lo_y := INF
+		for v in kmed.mesh.verts:
+			lo_y = minf(lo_y, v.y)
+		var addb_l := m.find_child("btn_prim_add", true, false) as Button
+		if addb_l != null and addb_l.is_visible_in_tree():
+			await click(addb_l.get_global_rect().get_center())
+		await idle(4)
+		var new_lo := INF
+		for i in range(v0, nv()):
+			new_lo = minf(new_lo, kmed.mesh.verts[i].y)
+		print("   (l) mesh lowest %.3f, the new part's lowest %.3f" % [lo_y, new_lo])
+		ok(nv() > v0 and absf(new_lo) < 1e-4, "(l) an added primitive rests on the floor (its lowest point y = %.4f, want 0)" % new_lo)
+	else:
+		ok(false, "(l) the test cube opened")
+
+	# ---- (m) walk-through 6, friction 6: S on a part that stands on the floor squashes it about the floor, not the middle
+	await fresh()
+	if kmed != null and kmed.on:
+		var addb_m := m.find_child("btn_prim_add", true, false) as Button
+		var v0m: int = nv()
+		if addb_m != null and addb_m.is_visible_in_tree():
+			await click(addb_m.get_global_rect().get_center())
+		await idle(4)
+		await key(KEY_S)
+		await typed("0.5")
+		await key(KEY_ENTER)
+		var low_m := INF
+		for i in range(v0m, nv()):
+			low_m = minf(low_m, kmed.mesh.verts[i].y)
+		print("   (m) status: %s" % str(m.ui_status.text).left(160))
+		ok(nv() > v0m and absf(low_m) < 1e-4, "(m) S 0.5 on a part on the floor keeps its lowest point on the floor (y = %.4f, want 0)" % low_m)
+	else:
+		ok(false, "(m) the test cube opened")
+
+	# ---- (n) walk-through 6, friction 7: G names the axes; typing Z says "Z is depth here; Y is up", once
+	await fresh()
+	if kmed != null and kmed.on:
+		var addb_n := m.find_child("btn_prim_add", true, false) as Button
+		if addb_n != null and addb_n.is_visible_in_tree():
+			await click(addb_n.get_global_rect().get_center())
+		await idle(4)
+		await key(KEY_G)
+		var st_g := str(m.ui_status.text)
+		await key(KEY_Z)
+		var st_z := str(m.ui_status.text)
+		await key(KEY_ESCAPE)
+		await key(KEY_G)
+		await key(KEY_Z)
+		var st_z2 := str(m.ui_status.text)
+		await key(KEY_ESCAPE)
+		ok("X sideways, Y up, Z depth" in st_g, "(n) G names the axes in the status line (%s)" % st_g.left(120))
+		ok("Z is depth here; Y is up" in st_z and not ("Z is depth here; Y is up" in st_z2), "(n) typing Z after G says 'Z is depth here; Y is up', once")
+	else:
+		ok(false, "(n) the test cube opened")
 
 	print("fails: %d" % fails)
 	quit(1 if fails > 0 else 0)

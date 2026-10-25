@@ -93,6 +93,12 @@
 ##  90d. SLOWER OVER 60 s IS REFUSED ON A TOAST: a 50 s clip: Slower changes nothing, the status line and the Easy toast say why.
 ##  116. HIS COLOUR (beginner walk-through 10, goal 3): no prop picked, a visible 'His colour' button changes the body's colour (one undo step, status says so); Undo restores it.
 ##  117. EASY WAVE READS AS A HELLO (walk-through 10, goal 1): the left hand stays down after the first card, the right goes over the shoulder; no "Pivot" / number > 9 card names; the chair message names the visible Sit button; the Sit label stays put while playing.
+##  124. EASY SIDE SLIDERS (all mouse): a click on the left arm opens a panel at the right with its plain name and sliders in range
+##      (a: inside the window, clear of the bar and the card strip); a Raise drag moves the hand > 10 cm, one undo step (b); Undo puts
+##      the hand back within 1 cm (c); a drag past the end stops at the limit (d); Reset this part goes to the card pose (e).
+##  125. SIDE PANEL KEEPS THE BODY IN VIEW (Nick: the panel covers the body at 1280x720): the left arm picked, the body's projected
+##      box (every joint of B.P through the camera) lies left of the panel with >= 10 px to spare (a); closing the panel puts the
+##      camera back exactly (b); with the panel open the body's projected height is >= 80 % of its closed height (c).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -308,6 +314,15 @@ func visible_texts(n: Node, out: Array) -> Array:
 	for c in n.get_children():
 		visible_texts(c, out)
 	return out
+
+
+## the texts (visible Labels and Buttons, tooltips too, in the whole window) that name a key: section 122's scan
+func key_hits(rx: RegEx, texts: Array) -> Array:
+	var h := []
+	for t in texts:
+		if rx.search(String(t)) != null:
+			h.append(String(t))
+	return h
 
 
 ## a real drag of one part on the body: the pointer goes to the part, down, six moves, up at the end of d
@@ -570,6 +585,63 @@ func bad_names_117(names: Array) -> Array:
 				bad = true
 		if bad:
 			out.append(t)
+	return out
+
+
+## a real drag of an HSlider (Easy's side sliders): the press on its current grabber, six moves to frac (0..1 along the slider's
+## rect, past 1 = beyond its right end), the release. The press on the track moves the grabber under the pointer.
+func slider_drag124(sl: HSlider, frac: float) -> void:
+	var r: Rect2 = sl.get_global_rect()
+	var span := maxf(sl.max_value - sl.min_value, 1e-6)
+	var at: Vector2 = r.position + Vector2(r.size.x * (sl.value - sl.min_value) / span, r.size.y * 0.5)
+	var to: Vector2 = Vector2(r.position.x + r.size.x * frac, at.y)
+	var dn := InputEventMouseButton.new()
+	dn.button_index = MOUSE_BUTTON_LEFT
+	dn.pressed = true
+	dn.position = at
+	dn.global_position = at
+	dn.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(dn, true)
+	await process_frame
+	for i in 6:
+		var p: Vector2 = at.lerp(to, float(i + 1) / 6.0)
+		var mm := InputEventMouseMotion.new()
+		mm.position = p
+		mm.global_position = p
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(mm, true)
+		await process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	up.position = to
+	up.global_position = to
+	root.push_input(up, true)
+	await idle(3)
+
+
+## section 125: the body's projected box (every joint of B.P through the camera; the joints behind the lens are left out)
+func proj_box125() -> Rect2:
+	var lo := Vector2(INF, INF)
+	var hi := -lo
+	for j in m.B.P.keys():
+		var v: Vector3 = m.B.P[j]
+		if m.cam.is_position_behind(v):
+			continue
+		var s: Vector2 = m.cam.unproject_position(v)
+		lo = lo.min(s)
+		hi = hi.max(s)
+	if lo.x == INF:
+		return Rect2()
+	return Rect2(lo, hi - lo)
+
+
+## section 125: the camera as numbers (the transform's origin and basis, and the lens shift h_offset / v_offset)
+func cam_vec125() -> PackedFloat64Array:
+	var t: Transform3D = m.cam.transform
+	var out := PackedFloat64Array([t.origin.x, t.origin.y, t.origin.z, m.cam.h_offset, m.cam.v_offset])
+	for c in [t.basis.x, t.basis.y, t.basis.z]:
+		out.append_array(PackedFloat64Array([c.x, c.y, c.z]))
 	return out
 
 
@@ -2688,6 +2760,431 @@ func _init() -> void:
 	await idle(2)
 	_rm118(abs118)
 
+	# 119. A WALK TO A CHAIR DOES NOT ARM HIM (beginner walk-through 10, goals 2 to 5: the bat turned up in his hand after the sit).
+	# The walk to the chair is built from a donor pose that holds a bat (res://scenes/walk_bat.json), so every walk card carried it.
+	# A walk built, a chair placed 2 m past where it ends, the strip's "Sit on the chair" pressed by a real click: after it he holds
+	# nothing (m.B.wep_on false) and no card's pose has a non-empty "weapon". Old code: the walk's cards carry the bat.
+	m._new_scene()
+	m.B.wep_on = false   # a beginner's start: nothing in his hand (section 24 left its sword in the body; _new_scene keeps the body)
+	m.B.wep2_on = false
+	m.B.fk()
+	await idle(4)
+	await click_ctl(card_btn(0))   # Walk
+	await idle(6)
+	if m.playing:
+		m._toggle_play()
+	m.playhead = m.S.length()
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	await idle(2)
+	var end119: Vector3 = m.B.P["pelvis"]
+	m._prop_add("chair")
+	await idle(4)
+	var pc119: Dictionary = m.S.props[m.sel_prop]
+	var xf119: Transform3D = pc119["xf"]
+	xf119.basis = Basis(Vector3.UP, -PI * 0.5)
+	xf119.origin = Vector3(end119.x + 2.0, xf119.origin.y, end119.z)
+	pc119["xf"] = xf119
+	m._refresh()
+	await idle(4)
+	var sb119 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var n119: int = m.S.cards.size()
+	if sb119 != null and sb119.is_visible_in_tree():
+		await click_ctl(sb119)
+	await idle(8)
+	var armed119 := []
+	for i in m.S.cards.size():
+		var wp119: Dictionary = m.S.cards[i]["pose"].get("weapon", {})
+		if not wp119.is_empty():
+			armed119.append(i)
+	ok(sb119 != null and m.S.cards.size() > n119 + 1 and not m.B.wep_on and armed119.is_empty(),
+		"119. a walk, a chair 2 m past its end, Sit on the chair (a real click, %d -> %d cards): he holds nothing (wep_on %s, kind %s) and no card carries a weapon (cards with one: %s)" % [n119, m.S.cards.size(), str(m.B.wep_on), m.B.wep_kind, str(armed119)])
+
+	# 120. MY SCENES (Nick: "Easy mode can't let you open already made scenes easily"): (a) a visible "My scenes" button on the
+	# bar, nothing clipped; (b) its click shows a tile per saved scene, with a picture and the readable name, newest first;
+	# (c) a click on a tile opens that scene (m.S's cards are the file's) and it plays; (d) an "Examples" row with >= 1 tile.
+	# The scenes folder is a user:// test folder of this run (UserPaths.root, as section 118): two scenes are written there.
+	m._new_scene()
+	await idle(2)
+	var keep120 := UserPaths.force
+	var root120 := UserPaths.root
+	var abs120 := ProjectSettings.globalize_path("user://myscenes_%d" % OS.get_process_id())
+	var scn120 := abs120 + "/scenes"
+	DirAccess.make_dir_recursive_absolute(scn120)
+	UserPaths.force = true
+	UserPaths.root = abs120
+	var f120a := FileAccess.open(scn120 + "/Thrust_old.json", FileAccess.WRITE)
+	f120a.store_string(FileAccess.get_file_as_string("res://scenes/thrust.json"))
+	f120a.close()
+	OS.delay_msec(1100)   # a later modified time: Walk_new is the newer file
+	var f120b := FileAccess.open(scn120 + "/Walk_new.json", FileAccess.WRITE)
+	f120b.store_string(FileAccess.get_file_as_string("res://scenes/walk_bat.json"))
+	f120b.close()
+	await idle(3)
+	var bmy: Button = m.easy.button("My scenes")
+	var bar120: Rect2 = m.easy.bar.get_global_rect()
+	var clipped120 := []
+	for lb in m.easy.labels():
+		var bb: Button = m.easy.button(lb)
+		if bb != null and bb.is_visible_in_tree() and not bar120.encloses(bb.get_global_rect()):
+			clipped120.append(lb)
+	var inside120 := bmy != null and bmy.is_visible_in_tree() and bar120.encloses(bmy.get_global_rect())
+	ok(inside120 and clipped120.is_empty(),
+		"120a. a visible 'My scenes' button on the bar, nothing clipped (button %s, bar %s, clipped %s)" % [str(bmy.get_global_rect() if bmy != null else null), str(bar120), str(clipped120)])
+	# (b) the click shows the tiles
+	if bmy != null:
+		await click_ctl(bmy)
+	await idle(3)
+	var sc120: Variant = m.easy.get("scenes")
+	var mine120: Array = sc120.tile_paths(false) if sc120 != null else []
+	var g120 := 0
+	while sc120 != null and g120 < 900 and not (sc120.tile_picture(scn120 + "/Walk_new.json") != null and sc120.tile_picture(scn120 + "/Thrust_old.json") != null):
+		await process_frame
+		g120 += 1
+	var in_new := mine120.find(scn120 + "/Walk_new.json")
+	var in_old := mine120.find(scn120 + "/Thrust_old.json")
+	var pic_new: Texture2D = sc120.tile_picture(scn120 + "/Walk_new.json") if sc120 != null else null
+	var pic_old: Texture2D = sc120.tile_picture(scn120 + "/Thrust_old.json") if sc120 != null else null
+	var names120 := [sc120.tile_name(scn120 + "/Walk_new.json"), sc120.tile_name(scn120 + "/Thrust_old.json")] if sc120 != null else []
+	var shot120 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easyopen.png"
+	if sc120 != null and sc120.visible:
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(shot120)
+	ok(sc120 != null and sc120.visible and in_new >= 0 and in_old >= 0 and in_new < in_old and pic_new != null and pic_old != null
+		and names120 == ["Walk new", "Thrust old"],
+		"120b. My scenes shows both test scenes as tiles, newest first (Walk_new at %d, Thrust_old at %d of %d tiles), with pictures (%s, %s) and names %s (%d picture waits)"
+		% [in_new, in_old, mine120.size(), str(pic_new != null), str(pic_old != null), str(names120), g120])
+	# (d) the examples row
+	var ex120: Array = sc120.tile_paths(true) if sc120 != null else []
+	ok(ex120.size() >= 1 and sc120 != null and sc120.tile_picture(String(ex120[0])) != null if ex120.size() > 0 else false,
+		"120d. an Examples row with %d tile(s), the first with a picture (%s)" % [ex120.size(), str(ex120)])
+	# Esc shuts the panel
+	await key_press(KEY_ESCAPE)
+	ok(sc120 != null and not sc120.visible, "120b. Esc closes the panel")
+	# (c) reopen, a real click on Walk new: it opens and plays
+	if bmy != null:
+		await click_ctl(bmy)
+	await idle(2)
+	var tile120: Button = sc120.tile_button(scn120 + "/Walk_new.json") if sc120 != null else null
+	if tile120 != null:
+		await click_ctl(tile120)
+	await idle(6)
+	var played120 := await wait_playing(200)
+	var fd120: Variant = JSON.parse_string(FileAccess.get_file_as_string(scn120 + "/Walk_new.json"))
+	var same120: bool = fd120 is Dictionary and (fd120 as Dictionary).has("cards") and m.S.cards.size() == (fd120 as Dictionary)["cards"].size() 		and m.S.cards.size() > 0 and String(m.S.cards[0]["name"]) == String((fd120 as Dictionary)["cards"][0]["name"])
+	ok(tile120 != null and same120 and played120 and not sc120.visible and m.scene_path == scn120 + "/Walk_new.json",
+		"120c. a click on the Walk new tile opens it (%d cards, the file's %s), it plays (%s), the panel closes (visible %s)"
+		% [m.S.cards.size(), str(fd120["cards"].size() if fd120 is Dictionary and fd120.has("cards") else -1), str(played120), str(sc120.visible if sc120 != null else null)])
+	m._toggle_play() if m.playing else null
+	m._new_scene()
+	await idle(2)
+	UserPaths.force = keep120
+	UserPaths.root = root120
+	_rm118(abs120)
+	# 121. A CARD'S BUILD IS FAST (buildspeed): card(1) (Run), the click's own synchronous call (the build, the scene load, the rebuild of
+	# the strip, the refresh, the start of play), median of 5 reps from an empty scene. The base before this change: 215.3 ms (5 reps);
+	# the bar is 60 % of it: 129.2 ms. Old code: FAIL (about 215 ms).
+	var ts121 := []
+	for rep121 in 5:
+		m.playing = false
+		m._new_scene()
+		await idle(3)
+		var t121 := Time.get_ticks_usec()
+		home.card(1)
+		ts121.append(Time.get_ticks_usec() - t121)
+		await idle(3)
+	ts121.sort()
+	var med121: float = ts121[2] / 1000.0
+	ok(med121 <= 0.6 * 215.3, "121. card(1) Run: the click's synchronous build median %.1f ms over 5 reps (bar: <= 129.2 ms = 60 %% of the old median 215.3 ms)" % med121)
+
+	# 122. EASY IS MOUSE-ONLY (walk-through: most people never learn the keys). (a) a visible Go button right of the type box builds what
+	# Enter builds; (b) no key name ("Ctrl+", "Shift+", "Alt+", "(Enter)", "Esc") in any visible text of the window in Easy: the panel,
+	# the strip, the More menu, the prop bar (a chair picked), My scenes; (c) a library item dragged with the mouse and let go over the
+	# floor is placed where the mouse let go (within 25 cm of the floor point under it), one undo step; Undo removes it.
+	# Old code: (a) no Go button; (b) "Ctrl+Z" and "(Enter)" in Easy's text; (c) a press and a release off the tile add nothing.
+	var rx122 := RegEx.new()
+	rx122.compile("Ctrl\\+|Shift\\+|Alt\\+|\\(Enter\\)|\\bEsc\\b")
+	m._new_scene()
+	await idle(4)
+	var box122: LineEdit = home._edit
+	var go122 := home.panel.find_child("eh_go", true, false) as Button
+	var same122 := box122 != null and go122 != null and go122.is_visible_in_tree() and go122.get_global_rect().position.x >= box122.get_global_rect().end.x - 1.0 and absf(go122.get_global_rect().get_center().y - box122.get_global_rect().get_center().y) < 8.0
+	ok(same122, "122a. a visible Go button right of the type box (Go %s, box %s)" % [str(go122.get_global_rect() if go122 != null else "none"), str(box122.get_global_rect() if box122 != null else "none")])
+	box122.text = "jump"
+	if go122 != null:
+		await click_ctl(go122)
+	await idle(6)
+	var go_names122 := []
+	for c122 in m.S.cards:
+		go_names122.append(String(c122["name"]))
+	ok(not go_names122.is_empty(), "122a. typed 'jump' then a click on Go builds the jump (%d cards: %s)" % [go_names122.size(), str(go_names122)])
+	m._undo()
+	await idle(6)
+	box122.text = "jump"
+	box122.text_submitted.emit("jump")
+	await idle(6)
+	var enter_names122 := []
+	for c122 in m.S.cards:
+		enter_names122.append(String(c122["name"]))
+	ok(not enter_names122.is_empty() and enter_names122 == go_names122, "122a. Go builds the same cards as Enter (Go %s, Enter %s)" % [str(go_names122), str(enter_names122)])
+	# (b) the scan: the panel, the strip with a clip, the More menu, the prop bar, My scenes
+	var hits122 := []
+	var states122 := 0
+	m._undo()
+	await idle(6)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	home.card(1)
+	await idle(8)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	m.easy._more_open()
+	await idle(4)
+	var more_t122 := []
+	for i122 in m.easy._more.item_count:
+		more_t122.append(m.easy._more.get_item_text(i122))
+		more_t122.append(m.easy._more.get_item_tooltip(i122))
+	hits122 += key_hits(rx122, more_t122)
+	states122 += 1
+	m.easy._close_more()
+	await idle(2)
+	m.playing = false
+	m._new_scene()
+	await idle(4)
+	m._prop_add("chair")
+	m.sel_prop = 0
+	m._props_show()
+	await idle(6)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	m.easy._my_scenes()
+	await idle(6)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	if m.easy.scenes != null:
+		m.easy.scenes.close_panel()
+	await idle(4)
+	ok(hits122.is_empty(), "122b. no key name in any visible Easy text (%d states scanned: panel, strip, More, prop bar, My scenes): hits %s" % [states122, str(hits122)])
+	# (c) a chair dragged from the Library and let go over the floor 1 m left of him
+	m._new_scene()
+	await idle(4)
+	m._library_toggle()
+	await idle(4)
+	var srch122 := m.ui_library.find_child("library_search", true, false) as LineEdit
+	if srch122 != null:
+		srch122.text = "chair"
+		srch122.text_changed.emit("chair")
+	await idle(4)
+	var tile122 := m.ui_library.find_child("tile_*chair*", true, false) as Control
+	var props122: int = m.S.props.size()
+	var depth122: int = m.undo.size() + m.undo_dropped
+	var ch122 := Vector3(m.B.offset.x, 0.0, m.B.offset.z)
+	var right122: Vector3 = m.cam.global_transform.basis.x
+	right122.y = 0.0
+	var fp122: Vector3 = ch122 - right122.normalized() * 1.0
+	var at122: Vector2 = m.cam.unproject_position(fp122)
+	var from122: Vector2 = tile122.get_global_rect().get_center() if tile122 != null else Vector2.ZERO
+	var shot122 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easydrag.png"
+	if tile122 != null:
+		var pe := InputEventMouseButton.new()
+		pe.button_index = MOUSE_BUTTON_LEFT
+		pe.pressed = true
+		pe.position = from122
+		pe.global_position = from122
+		pe.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(pe, true)
+		await idle(2)
+		for k122 in range(1, 7):
+			var p122: Vector2 = from122.lerp(at122, float(k122) / 6.0)
+			var me := InputEventMouseMotion.new()
+			me.position = p122
+			me.global_position = p122
+			me.relative = (at122 - from122) / 6.0
+			me.button_mask = MOUSE_BUTTON_MASK_LEFT
+			root.push_input(me, true)
+			await idle(2)
+			if k122 == 4:
+				await RenderingServer.frame_post_draw
+				root.get_texture().get_image().save_png(shot122)
+		var re := InputEventMouseButton.new()
+		re.button_index = MOUSE_BUTTON_LEFT
+		re.pressed = false
+		re.position = at122
+		re.global_position = at122
+		re.button_mask = 0
+		root.push_input(re, true)
+		await idle(4)
+	var placed122: bool = m.S.props.size() == props122 + 1
+	var dist122 := 999.0
+	var kind122 := ""
+	if placed122:
+		dist122 = ((m.S.props[m.S.props.size() - 1]["xf"] as Transform3D).origin).distance_to(fp122)
+		kind122 = String(m.S.props[m.S.props.size() - 1]["kind"])
+	ok(placed122 and kind122 == "chair" and dist122 <= 0.25, "122c. a chair dragged from the Library and let go 1 m left of him lands within 25 cm of the floor point under the mouse (props %d -> %d, kind %s, %.3f m from it, release at %s)" % [props122, m.S.props.size(), kind122, dist122, str(at122)])
+	ok(m.undo.size() + m.undo_dropped == depth122 + 1, "122c. the drop is one undo step (depth %d -> %d)" % [depth122, m.undo.size() + m.undo_dropped])
+	m._undo()
+	await idle(4)
+	ok(m.S.props.size() == props122, "122c. Undo removes the dropped chair (props %d)" % m.S.props.size())
+	m._library_toggle()
+	await idle(2)
+	# 123. THE HANDS DO NOT MEET IN A JUMP (Nick: "hands touching each other after walking and jumping"): card(2) (Jump), every 1/30 s
+	# over the clip, the closest gap between the two hands' capsules (the hand and every finger of each side, palms and tips). Old code:
+	# the touch-down / absorb squat puts the two thumbs 2.2 cm into each other (min -2.2 cm). The bar: at least 1 cm apart everywhere.
+	# Old code: FAIL.
+	m.playing = false
+	m._new_scene()
+	await idle(3)
+	home.card(2)
+	await idle(4)
+	var gap123 := 1e9
+	var at123 := -1.0
+	var L123: float = m.S.length()
+	var t123 := 0.0
+	while t123 <= L123 + 1e-6:
+		m.playhead = t123
+		m._ps().apply(m.B, t123)
+		m._refresh()
+		for hl123 in ["hand_l"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_l")):
+			var al123: Array = m.B.cap(hl123)
+			for hr123 in ["hand_r"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_r")):
+				var ar123: Array = m.B.cap(hr123)
+				var g123: float = Body.seg_seg(al123[0], al123[1], ar123[0], ar123[1]) - float(m.B.rad[hl123]) - float(m.B.rad[hr123])
+				if g123 < gap123:
+					gap123 = g123
+					at123 = t123
+		t123 += 1.0 / 30.0
+	ok(gap123 >= 0.01, "123. the Jump: the two hands' closest capsule gap over the clip %.1f cm at %.2f s (bar: >= 1 cm apart)" % [gap123 * 100.0, at123])
+
+	# 124. EASY SIDE SLIDERS (Nick: "all mouse ... sliding movers on the side"): a click on the left upper arm opens a panel at the
+	# right with its plain name and sliders in its range; a Raise drag moves the hand and is ONE undo step; Undo puts the hand back;
+	# a slider stops at the joint's limit; Reset this part goes back to the card's pose.
+	root.content_scale_size = Vector2i(1280, 720)   # pinned like the other layout blocks, and put back below
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	await idle(8)
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(3)
+	var sl124: Variant = m.easy.get("sliders")
+	var B124: Body = m.B
+	var c124: Array = B124.cap("upperarm_l")
+	# a point on the left upper arm that the pick returns as the arm (the arm's middle first; the hands hang near it in some views)
+	var at124: Vector2 = Vector2.ZERO
+	var pick124 := ""
+	for t124 in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at124 = m.cam.unproject_position((c124[0] as Vector3).lerp(c124[1], t124))
+		pick124 = m._pick(at124)
+		if pick124 == "upperarm_l":
+			break
+	await click_at(at124)
+	await idle(3)
+	var rows124: Array = sl124.sliders() if sl124 != null else []
+	var pr124: Rect2 = sl124.panel.get_global_rect() if sl124 != null else Rect2()
+	var title124: String = sl124._title.text if sl124 != null else ""
+	var vp124 := Rect2(Vector2.ZERO, root.get_visible_rect().size)
+	var bar124: Rect2 = m.easy.bar.get_global_rect()
+	var strip124: Rect2 = m.ui_bp.get_global_rect()
+	var shot124 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/sliders.png"
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(shot124)
+	ok(sl124 != null and sl124.panel.visible and title124 == "Left arm" and rows124.size() >= 2 and vp124.encloses(pr124)
+		and not pr124.intersects(bar124) and not pr124.intersects(strip124),
+		"124a. a click on the left arm (picked %s) opens the side panel '%s' with %d sliders; panel %s in the window %s, clear of the Easy bar %s and the card strip %s (shot %s)"
+		% [pick124, title124, rows124.size(), str(pr124), str(vp124), str(bar124), str(strip124), shot124])
+	if rows124.is_empty():
+		for lbl124 in ["124b. dragging 'Raise' moves the hand over 10 cm, one undo step", "124c. Undo puts the hand back within 1 cm",
+				"124d. a drag past the end stops at the joint's limit", "124e. Reset this part goes to the card's pose"]:
+			ok(false, lbl124 + " (no side panel: the pick was %s)" % pick124)
+	else:
+		var raise124: HSlider = rows124[0]
+		# (b) the Raise drag: the hand moves over 10 cm, and the undo steps go up by exactly one for the whole drag
+		var hand0: Vector3 = B124.P["hand_l"]
+		var ang0: Vector3 = B124.ang["upperarm_l"]
+		var clav0: Vector3 = B124.P["clavicle_l"]
+		var undo0: int = m.undo.size() + m.undo_dropped
+		await slider_drag124(raise124, 0.8)
+		var undo1: int = m.undo.size() + m.undo_dropped
+		var moved124: float = hand0.distance_to(B124.P["hand_l"])
+		var ang1: Vector3 = B124.ang["upperarm_l"]
+		print("DBG124 side %.2f -> %.2f (slider %.2f) bend %.2f -> %.2f twist %.2f -> %.2f; hand %s -> %s; clavicle %s -> %s; lowerarm %s -> %s" % [ang0.y, ang1.y, raise124.value, ang0.x, ang1.x, ang0.z, ang1.z, str(hand0), str(B124.P["hand_l"]), str(clav0), str(B124.P["clavicle_l"]), str(B124.P["lowerarm_l"]), str(B124.P["lowerarm_l"])])
+		ok(moved124 > 0.10 and undo1 - undo0 == 1 and absf(ang1.y - raise124.value) < 2.0,
+			"124b. dragging 'Raise' (slider %.1f, arm side %.1f deg) moves the hand %.1f cm (over 10), the angle equals the slider within 2 deg, and the undo steps go up by %d (one for the whole drag)"
+			% [raise124.value, ang1.y, moved124 * 100.0, undo1 - undo0])
+		# (c) Undo (the bar's button) puts the hand back within 1 cm
+		var ub124: Button = m.easy.button("Undo")
+		if ub124 != null:
+			await click_ctl(ub124)
+		await idle(2)
+		var back124: float = B124.P["hand_l"].distance_to(hand0)
+		ok(back124 < 0.01, "124c. Undo puts the hand back within 1 cm (%.2f cm off)" % (back124 * 100.0))
+		# (d) a drag past the end stops at the joint's limit
+		var lim124: Vector2 = B124.lim["upperarm_l"]["side"]
+		await slider_drag124(raise124, 1.3)
+		var side124: float = B124.ang["upperarm_l"].y
+		ok(raise124.max_value == lim124.y and side124 <= lim124.y + 0.5 and raise124.value <= lim124.y + 0.01,
+			"124d. dragged past the end: the slider stops at the limit %.1f (its max %.1f), the arm at %.1f deg" % [lim124.y, raise124.max_value, side124])
+		# (e) Reset this part goes back to the card's pose: a card keeps the raised arm, the arm is dragged down, Reset brings it back
+		await m.easy.add_pose()
+		await idle(2)
+		var cards124: int = m.S.cards.size()
+		await slider_drag124(raise124, 0.52)
+		await idle(2)
+		var low124: float = B124.ang["upperarm_l"].y
+		var reset124: Button = sl124.get("_reset") if sl124 != null else null
+		var u_r0: int = m.undo.size() + m.undo_dropped
+		if reset124 != null:
+			await click_ctl(reset124)
+		await idle(2)
+		var want124: float = (Moves._flat(m.S.cards[0]["pose"])["ang"] as Dictionary)["upperarm_l"].y if m.S.cards.size() > 0 else 0.0
+		var now124: float = B124.ang["upperarm_l"].y
+		ok(reset124 != null and cards124 == 1 and m.S.cards.size() == 1 and absf(low124 - want124) > 5.0 and absf(now124 - want124) < 0.5 and m.undo.size() + m.undo_dropped == u_r0 + 1,
+			"124e. Reset this part: the card keeps %.1f deg, the dragged arm was %.1f deg, Reset brings it to %.1f deg (cards %d, one undo step)" % [want124, low124, now124, m.S.cards.size()])
+	# 125. SIDE PANEL KEEPS THE BODY IN VIEW (Nick: the side panel covers the body at 1280x720): the left arm picked, the body's
+	# projected box lies left of the panel (a); closing puts the camera back exactly (b); the open body is >= 80 % of its closed height (c).
+	# Old code: (a) FAILS (the panel's left edge at x 872 cuts the body's box at x 809..1000).
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(3)
+	var sl125: Variant = m.easy.get("sliders")
+	var B125: Body = m.B
+	var closed125 := proj_box125()
+	var cam0_125 := cam_vec125()
+	var c125: Array = B125.cap("upperarm_l")
+	var at125 := Vector2.ZERO
+	var pick125 := ""
+	for t125 in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at125 = m.cam.unproject_position((c125[0] as Vector3).lerp(c125[1], t125))
+		pick125 = m._pick(at125)
+		if pick125 == "upperarm_l":
+			break
+	await click_at(at125)
+	await idle(4)
+	var shown125: bool = sl125 != null and sl125.panel.visible
+	var pr125: Rect2 = sl125.panel.get_global_rect() if shown125 else Rect2()
+	var open125 := proj_box125()
+	ok(shown125 and open125.size.x > 0.0 and open125.end.x <= pr125.position.x - 10.0,
+		"125a. left arm picked (%s), panel open %s: the body's projected box x %.0f..%.0f lies left of the panel's edge x %.0f with %.0f px to spare (bar: >= 10)"
+		% [pick125, str(pr125), open125.position.x, open125.end.x, pr125.position.x, pr125.position.x - open125.end.x])
+	ok(shown125 and open125.size.y >= 0.8 * closed125.size.y,
+		"125c. with the panel open the body's projected height %.0f px is %.0f %% of its closed height %.0f px (bar: >= 80 %%)"
+		% [open125.size.y, 100.0 * open125.size.y / maxf(closed125.size.y, 1.0), closed125.size.y])
+	var shot125 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/sideframe.png"
+	root.get_texture().get_image().save_png(shot125)
+	print("125 shot %s" % shot125)
+	# close: a press on the empty room shuts the panel (nothing picked)
+	await click_at(Vector2(700.0, 200.0))
+	await idle(4)
+	var cam1_125 := cam_vec125()
+	var camdiff125 := 0.0
+	for i in cam0_125.size():
+		camdiff125 = maxf(camdiff125, absf(cam1_125[i] - cam0_125[i]))
+	ok(sl125 != null and not sl125.panel.visible and camdiff125 < 1e-4,
+		"125b. closing the panel (shown %s) puts the camera back: largest difference %.6f (bar: < 1e-4)" % [str(sl125.panel.visible) if sl125 != null else "none", camdiff125])
+
+	root.content_scale_size = was_size
+	root.content_scale_mode = was_mode
+	await idle(4)
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
