@@ -228,6 +228,39 @@ func _init() -> void:
 				if f["sev"] != "OK":
 					print("   check %s %s %.2f s: %s" % [f["sev"], f["rule"], f["t"], f["msg"]])
 			ok(dfail.is_empty(), "(e) 'dance': the app's Check has no FAIL (%d)" % dfail.size())
+			# (f) THE ARMS GO UP (a beginner reads a dance by the arms): at each count card's arrival (times()[i][1]) at least one
+			# hand is above its shoulder (world y, the upper arm's start) on at least half the cards; (g) the hands travel 1.5 m+
+			# in total (both hands' path, summed over the 120 Hz scrub the Scene plays)
+			var tms: Array = DS.times()
+			var up_cards := 0
+			for ci in DS.cards.size():
+				DS.apply(B, float(tms[ci][1]))
+				var hl0: Vector3 = B.P["hand_l"]
+				var hr0: Vector3 = B.P["hand_r"]
+				if hl0.y > (B.P["upperarm_l"] as Vector3).y or hr0.y > (B.P["upperarm_r"] as Vector3).y:
+					up_cards += 1
+			ok(up_cards * 2 >= DS.cards.size(), "(f) 'dance': a hand is above its shoulder on %d of %d count cards (bar: half)" % [up_cards, DS.cards.size()])
+			# the hands' own travel: measured from the pelvis (the hands ride the sway of the hips: that is the body moving, not
+			# the arms); the room's travel is printed beside it
+			var travel := 0.0
+			var room := 0.0
+			var prev_rel := [Vector3.ZERO, Vector3.ZERO]
+			var prev_world := [Vector3.ZERO, Vector3.ZERO]
+			k = 0
+			while k / 120.0 <= dlen + 1e-6:
+				DS.apply(B, k / 120.0)
+				var pv: Vector3 = B.P["pelvis"]
+				var hw := [B.P["hand_l"] as Vector3, B.P["hand_r"] as Vector3]
+				for hh in 2:
+					var rel: Vector3 = (hw[hh] as Vector3) - pv
+					if k > 0:
+						travel += rel.distance_to(prev_rel[hh])
+						room += (hw[hh] as Vector3).distance_to(prev_world[hh])
+					prev_rel[hh] = rel
+					prev_world[hh] = hw[hh]
+				k += 1
+			print("-- 'dance' hands: %.2f m from the pelvis, %.2f m in the room" % [travel, room])
+			ok(travel >= 1.5, "(g) GUARD 'dance': the hands travel %.2f m in total from the pelvis (bar 1.5; in the room %.2f m; passes on the old dance, so a guard, not fail-first)" % [travel, room])
 	var dw: Dictionary = ed._words_dict("dance then wave")
 	ok(bool(dw.get("ok", false)) and dw.has("dict") and (dw["dict"]["cards"] as Array).size() > 12, "(d) 'dance then wave' builds the dance's cards then the wave's (%s cards)" % str((dw.get("dict", {}) as Dictionary).get("cards", []).size()))
 	print("TEXT BLOCKING TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

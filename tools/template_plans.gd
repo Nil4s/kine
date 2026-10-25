@@ -397,14 +397,22 @@ static func plan_dance() -> Dictionary:
 		["close right, down", 0.25, 0.3, 0.0, -0.014, [L, 0.0], [R, 0.0], ["_l", "_r"], []],
 	]
 	var clips := []
-	for row in rows:
+	for ri in rows.size():
+		var row: Array = rows[ri]
 		var hx: float = row[3]
-		var s := 1.0 if hx > 0.0 else (-1.0 if hx < 0.0 else 0.0)   # the sway's side: counter-phase arms, the pelvis leans into it
+		var s := 1.0 if hx > 0.0 else (-1.0 if hx < 0.0 else 0.0)   # the sway's side: the arm on that side goes UP, the hips lean into it
+		# THE ARMS GO UP (a beginner reads a dance by the arms): on each count the arm on the sway's side is raised overhead
+		# (upper arm side 75 = near straight up: 90 is the limit, 0 horizontal; elbow 50, hand above the shoulder), the other arm
+		# stays out by the hip. The raised arm alternates with the sway; the head turns to follow it.
+		var up_l := [10.0, 75.0, 0.0] if s > 0.0 else [4.0, -50.0, 0.0]
+		var up_r := [10.0, 75.0, 0.0] if s < 0.0 else [4.0, -50.0, 0.0]
 		var set := stand_set()
-		set.merge({"pelvis": [2, 3.0 * s, -8.0 * s], "spine_01": [1, 0, 0],
-			"upperarm_l": [4.0 - 34.0 * s, -65, 0], "upperarm_r": [4.0 + 34.0 * s, -65, 0],
-			"lowerarm_l": [60, 0, 0], "lowerarm_r": [60, 0, 0]}, true)
+		set.merge({"pelvis": [2, 3.0 * s, -8.0 * s], "spine_01": [1, 0, 0], "head": [0, 3.0 * s, 8.0 * s],
+			"upperarm_l": up_l, "upperarm_r": up_r,
+			"lowerarm_l": [50 if s > 0.0 else 60, 0, 0], "lowerarm_r": [50 if s < 0.0 else 60, 0, 0]}, true)
+		# THE KNEES BOUNCE ON EVERY COUNT: the body dips on the odd cards and rises on the even ones (the dip is the knee bend)
+		var bounce: float = -0.012 if ri % 2 == 0 else -0.040
 		clips.append({"name": row[0], "move": row[1], "hold": row[2], "set": set, "relaxed": ["l", "r"],
-			"hips": [hx, 0, 0], "y": row[4], "plant": {"_l": row[5], "_r": row[6]}, "hold_feet": row[7], "free_feet": row[8]})
+			"hips": [hx, 0, 0], "y": bounce, "plant": {"_l": row[5], "_r": row[6]}, "hold_feet": row[7], "free_feet": row[8]})
 	return {"name": "dance", "base": "poses/stand.json", "clips": clips, "no_pin": true,
 		"note": "DANCE: a side-step, 0.5 s a count: step right, close, step left, close (3.5 s); the arms swing in counter-phase to the hips, the knees bounce on each count. Typed, not a picker card (Templates.TYPED)."}
