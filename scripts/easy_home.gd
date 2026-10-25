@@ -96,6 +96,7 @@ var _take_n := 0              # MAKE IT WITH AI VIDEO: the take in flight, 1 or 
 var _take_seed := 1           # the seed of the take in flight: take 2 is take 1's seed + 1
 var _takes: Array = []        # this run's takes: {video, pose}; a discarded take's files are removed (_drop_takes)
 var _then_add := true         # the picker's "Then:" choice: true = Add after (the cards go after the clip), false = Start over
+var _typed_note := ""          # the typed grammar's say for the last typed line (a repeat count capped at 10); "" = none
 var _then_box: HBoxContainer  # the "Then:" row: shown only when the scene has cards (an empty scene has nothing to add after)
 var _then_add_btn: Button
 var _then_start_btn: Button
@@ -1095,6 +1096,7 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	var t := Time.get_ticks_msec()
 	var add: bool = m.easy.on and (_then_add or force_add) and not m.S.cards.is_empty()   # force_add: a "Then <move>" button (the same Add after)   # Easy's "Then: Add after" with a clip in the scene: the cards go after it (Expert's cards still replace)
 	var prev := _clip_word
+	_typed_note = ""
 	var err := _build(what, label, what if typed else label, add)
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
@@ -1120,6 +1122,8 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	_play()
 	var new_word := "'%s'" % what if typed else "the " + label.to_lower()
 	var tail := (" " + _ball_line) if _ball_line != "" else ""
+	if _typed_note != "":   # the repeat cap, said after the build's own line
+		tail += " " + _typed_note
 	if add:   # the say line says both moves in plain words; it still opens "Made the wave" (the card's name)
 		m._say_plain("Made %s, added after %s. Again plays the whole clip; Undo takes it back.%s" % [new_word, prev, tail])
 	else:   # the say line names the clip just built (it kept the last clip's words: "Faster: the walk now takes..." after a typed wave)
@@ -1738,10 +1742,97 @@ static func _cannot_build(part: String) -> String:
 	return "Kine doesn't know '%s' yet." % shown
 
 
+## TYPED GRAMMAR (round 10): repetition ("twice", "two times", "3 times", "x3", "3x", "again"), the turns ("turn around",
+## "spin around", "turn back" = 180; "turn left" / "turn right" = 90) and filler ("please", "a bit", "walk forward", "and then")
+## are rewritten into the plain "then" line before the parts are built. A line with none of them comes back as the same parts.
+const COUNT_WORDS := {"once": 1, "twice": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+const TURN_WORDS := {"turn around": "turn around", "spin around": "turn around", "turn back": "turn around", "turn round": "turn around",
+	"spin round": "turn around", "about turn": "turn around", "turn left": "turn left", "turn right": "turn right"}
+const MAX_REPEAT := 10   # a repeat count above this is capped here, and the say line says so
+
+
+## a count word or digits ("3", "three") -> the number; 0 when the word is no count
+static func _count_of(w: String) -> int:
+	if w.is_valid_int():
+		return int(w)
+	return int(COUNT_WORDS.get(w, 0))
+
+
+## "x3" or "3x" -> 3; 0 when the word is neither
+static func _x_count(w: String) -> int:
+	var digits := w
+	if w.begins_with("x"):
+		digits = w.substr(1)
+	elif w.ends_with("x"):
+		digits = w.substr(0, w.length() - 1)
+	else:
+		return 0
+	return int(digits) if digits.is_valid_int() else 0
+
+
+## the typed line rewritten: {ok: true, text: the plain "then" line, note: "" or the cap's say} or {ok: false, error}
+static func typed_expand(text: String) -> Dictionary:
+	var low := text.to_lower().strip_edges().replace(",", " then ").replace(";", " then ").replace(" and then ", " then ")
+	var parts: Array = []
+	var note := ""
+	for raw in low.split(" then ", false):
+		var words: Array = String(raw).strip_edges().split(" ", false)
+		if words.is_empty():
+			continue
+		if words == ["again"]:   # "again" alone: the part before it, once more
+			if parts.is_empty():
+				return {"ok": false, "error": "Type a move before 'again', such as 'punch then again'."}
+			parts.append(parts[-1])
+			continue
+		var n := 1
+		var last: String = words[-1]
+		if last == "again" or last == "twice":   # "punch twice", "punch again": two of it
+			words.pop_back()
+			n = 2
+		elif words.size() >= 2 and last == "times" and _count_of(words[-2]) > 0:   # "punch 3 times", "punch two times"
+			n = _count_of(words[-2])
+			words.resize(words.size() - 2)
+		elif _x_count(last) > 0:   # "punch x3", "punch 3x"
+			n = _x_count(last)
+			words.pop_back()
+		var kept: Array = []
+		var i := 0
+		while i < words.size():
+			var w: String = words[i]
+			if w == "please":
+				i += 1
+				continue
+			if w == "a" and i + 1 < words.size() and words[i + 1] == "bit":
+				i += 2
+				continue
+			if w == "forward" and not kept.is_empty() and (kept[-1] == "walk" or kept[-1] == "run"):
+				i += 1
+				continue
+			kept.append(w)
+			i += 1
+		var move := " ".join(PackedStringArray(kept))
+		if move == "":
+			return {"ok": false, "error": "Type a move first, such as 'jab then cross' or 'roundhouse'."}
+		move = String(TURN_WORDS.get(move, move))
+		if n > MAX_REPEAT:
+			note = "%s x%d: Kine repeats it 10 times at most." % [move, n]
+			n = MAX_REPEAT
+		elif n < 1:
+			return {"ok": false, "error": "The count must be 1 or more: 'punch 3 times'."}
+		for k in n:
+			parts.append(move)
+	return {"ok": true, "text": " then ".join(PackedStringArray(parts)), "note": note}
+
+
 ## words -> one scene dict. "jab then cross" is two strikes (split on "then", "," and ";"); a part that is a card's word
 ## is that card's template file, any other part is built by TextBlocking on a fresh body. The parts are joined in order.
 ## {ok, dict} or {ok: false, error}
 func _words_dict(text: String) -> Dictionary:
+	var ex := typed_expand(text)
+	if not ex["ok"]:
+		return {"ok": false, "error": ex["error"]}
+	text = ex["text"]
+	_typed_note = ex["note"]
 	var parts: Array = []
 	for p in text.replace(",", " then ").replace(";", " then ").split(" then ", false):
 		var s := String(p).strip_edges()
@@ -1775,7 +1866,7 @@ func _words_dict(text: String) -> Dictionary:
 			out = d
 		else:
 			(out["cards"] as Array).append_array(d["cards"])
-	return {"ok": true, "dict": out, "strikes": parts.size()}
+	return {"ok": true, "dict": out, "strikes": parts.size(), "note": _typed_note}
 
 
 ## EASY: every card of one move build is tagged with the move it came from ("punch|<serial>"): the strip reads "Punch 1, 2..".
