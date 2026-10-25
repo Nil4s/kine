@@ -269,20 +269,6 @@ func _build_tour_card(root: Control) -> void:
 
 # ---------------------------------------------------------------- the mode
 
-## SAY WHY A CLICK DID NOTHING (beginner walk-through 10, friction 2): a question (a dialog) is up in the middle of the screen, so
-## the clicks outside it never reach the bar's buttons (Save video did nothing for 240 s). The click is seen here first (_input runs
-## before the GUI) and the status line says what to do. The dialog itself still takes its answer.
-func _input(ev: InputEvent) -> void:
-	if not on or m == null or not (ev is InputEventMouseButton) or not (ev as InputEventMouseButton).pressed:
-		return
-	for c in m.get_children():
-		if c is AcceptDialog and (c as Window).visible:
-			var r := Rect2(Vector2((c as Window).position), Vector2((c as Window).size))
-			if not r.has_point((ev as InputEventMouseButton).position):
-				m._say("A question is open in the middle of the screen: answer it first (its buttons say what each does), then press this again")
-				return
-
-
 func set_on(v: bool, save := true) -> void:
 	var was := on
 	on = v

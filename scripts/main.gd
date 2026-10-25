@@ -18146,7 +18146,10 @@ func _ask_save(what: String, then: Callable, quitting := false) -> void:
 	_save_ask_quit = quitting
 	ui_save_ask.dialog_text = "Save changes to %s?\nThey are not saved yet. Don't save throws them away." % what
 	ui_save_ask.popup_centered()
-	if not easy.on:   # Easy: the dialog says it; the same words again in the status line under the body only repeat it
+	if easy.on:   # Easy: the dialog says it; the status line says only that it waits (an old line, "Your video is saved", stayed
+		# under it, and a click on the bar while the question is up reaches nothing: the beginner thought Save video had worked)
+		_say_plain("A question is open in the middle of the screen: answer it first (Save, Don't save or Cancel).")
+	else:
 		_say("Save changes to %s? Save keeps them, Don't save throws them away, Cancel keeps the scene open" % what)
 
 
