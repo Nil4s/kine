@@ -2688,6 +2688,46 @@ func _init() -> void:
 	await idle(2)
 	_rm118(abs118)
 
+	# 119. A WALK TO A CHAIR DOES NOT ARM HIM (beginner walk-through 10, goals 2 to 5: the bat turned up in his hand after the sit).
+	# The walk to the chair is built from a donor pose that holds a bat (res://scenes/walk_bat.json), so every walk card carried it.
+	# A walk built, a chair placed 2 m past where it ends, the strip's "Sit on the chair" pressed by a real click: after it he holds
+	# nothing (m.B.wep_on false) and no card's pose has a non-empty "weapon". Old code: the walk's cards carry the bat.
+	m._new_scene()
+	m.B.wep_on = false   # a beginner's start: nothing in his hand (section 24 left its sword in the body; _new_scene keeps the body)
+	m.B.wep2_on = false
+	m.B.fk()
+	await idle(4)
+	await click_ctl(card_btn(0))   # Walk
+	await idle(6)
+	if m.playing:
+		m._toggle_play()
+	m.playhead = m.S.length()
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	await idle(2)
+	var end119: Vector3 = m.B.P["pelvis"]
+	m._prop_add("chair")
+	await idle(4)
+	var pc119: Dictionary = m.S.props[m.sel_prop]
+	var xf119: Transform3D = pc119["xf"]
+	xf119.basis = Basis(Vector3.UP, -PI * 0.5)
+	xf119.origin = Vector3(end119.x + 2.0, xf119.origin.y, end119.z)
+	pc119["xf"] = xf119
+	m._refresh()
+	await idle(4)
+	var sb119 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var n119: int = m.S.cards.size()
+	if sb119 != null and sb119.is_visible_in_tree():
+		await click_ctl(sb119)
+	await idle(8)
+	var armed119 := []
+	for i in m.S.cards.size():
+		var wp119: Dictionary = m.S.cards[i]["pose"].get("weapon", {})
+		if not wp119.is_empty():
+			armed119.append(i)
+	ok(sb119 != null and m.S.cards.size() > n119 + 1 and not m.B.wep_on and armed119.is_empty(),
+		"119. a walk, a chair 2 m past its end, Sit on the chair (a real click, %d -> %d cards): he holds nothing (wep_on %s, kind %s) and no card carries a weapon (cards with one: %s)" % [n119, m.S.cards.size(), str(m.B.wep_on), m.B.wep_kind, str(armed119)])
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
