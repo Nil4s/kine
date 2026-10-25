@@ -194,7 +194,7 @@ const INV_UP := 0.10        # m: the shoulder centre this far off the hip centre
 const INV_TRANS := 3        # frames: at most this many frames between the last upright frame and the first inverted one, and back
 const INV_MAX_LEN := 1.0    # s: first to last inverted frame
 const INV_MIN_FRAMES := 3  # frames: inverted readings in the run; one or two are blips (the pick-up has single-frame ones)
-const INV_MIRROR := 0.10    # m: the shoulders' left-right axis this far on the wrong side (the tracker swapped left and right) is inverted too
+const INV_MIRROR := 0.10    # m: the shoulders' left-right axis this far on the wrong side (the tracker swapped left and right): not an upright anchor
 static var INVERSION_FILL := true
 
 
@@ -232,10 +232,13 @@ static func inversion_spans(frames: Array, fps: float) -> Array:
 		if bool(frames[i].get("lost", false)):
 			st.append(2)
 			continue
+		# a flip is UPSIDE DOWN (the vertical test); a shoulder swap alone (the body upright, left and right exchanged: combo3's 0.9 s)
+		# is not one, and is no upright anchor either: a swap inside a real flip (cross, 3.0 s) is still replaced with it
 		var s := 0
-		if k * float(dy[i]) <= -INV_UP or kx * float(mx[i]) <= -INV_MIRROR:
+		var swapped := kx * float(mx[i]) <= -INV_MIRROR
+		if k * float(dy[i]) <= -INV_UP:
 			s = -1
-		elif k * float(dy[i]) >= INV_UP:
+		elif k * float(dy[i]) >= INV_UP and not swapped:
 			s = 1
 			ups.append(i)
 		st.append(s)
