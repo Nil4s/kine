@@ -266,13 +266,16 @@ func _init() -> void:
 			# (h) THE PARTY READ (round 9): both arms move on the count, as a raise or a clap: on at least half the count cards BOTH
 			# hands are above their shoulders (world y), or the two hands are within 15 cm of each other (a clap)
 			var both := 0
+			var closest := 9.0
 			for ci in DS.cards.size():
 				DS.apply(B, float(tms[ci][1]))
 				var hl1: Vector3 = B.P["hand_l"]
 				var hr1: Vector3 = B.P["hand_r"]
 				var both_up := hl1.y > (B.P["upperarm_l"] as Vector3).y and hr1.y > (B.P["upperarm_r"] as Vector3).y
+				closest = minf(closest, hl1.distance_to(hr1))
 				if both_up or hl1.distance_to(hr1) < 0.15:
 					both += 1
+			print("-- 'dance' closest wrists %.1f cm" % (closest * 100.0))
 			ok(both * 2 >= DS.cards.size(), "(h) 'dance': both hands up or together (a clap) on %d of %d count cards (bar: half)" % [both, DS.cards.size()])
 			# (i) NO HAND OR FOREARM INSIDE THE CHEST (round 9): the bake's own self-contact check (Scene.check, the bad_frames the
 			# file records) has no hand or forearm touching the chest, the collarbones or the spine in any frame. Hand on hand (a clap) is not counted here

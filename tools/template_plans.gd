@@ -405,7 +405,7 @@ static func plan_dance() -> Dictionary:
 		# 8-9): both hands up and pumping overhead, elbows bent (upper arm 75 = near straight up; the hands stay above the shoulders:
 		# the elbow 60 on the first count, 95 on the second). Counts 3-4 (cards 2-3, 6-7, 10-11): a clap in front of the chest, the
 		# hands apart on the first count (upper arm 45 forward, 60 out, elbow 70: the elbows out at chest height) and together on the second
-		# (upper arm 60 forward, 35 in, elbow 110: the hands meet in front of the chest, the forearms clear of the collarbones).
+		# (see the clap below).
 		var phase := (ri / 2) % 2   # 0: the raise (counts 1-2), 1: the clap (counts 3-4)
 		var odd := ri % 2 == 1
 		var up_arm := [10.0, 75.0, 0.0]
@@ -419,11 +419,11 @@ static func plan_dance() -> Dictionary:
 			arm_r = up_arm
 			low_l = 95 if odd else 60
 			low_r = low_l
-		elif odd:   # the clap: the hands meet about 25-30 cm in front of the sternum, at chest height, the elbows out (not hugging)
-			arm_l = [60.0, 35.0, 0.0]
-			arm_r = [60.0, -35.0, 0.0]
-			low_l = 110
-			low_r = 110
+		elif odd:   # the clap: the hands together in front of the chest, the wrists about 37 cm apart (upper arm 50 forward, 25 in, elbow 80): tighter (wrists 28 cm, elbow 90, 52/28) leaves 19 forearm and palm contacts, so this is the 0-contact clap
+			arm_l = [50.0, 25.0, 0.0]
+			arm_r = [50.0, -25.0, 0.0]
+			low_l = 80
+			low_r = 80
 		else:       # the clap opens: the hands apart in front of the chest, the elbows out
 			arm_l = [45.0, 60.0, 0.0]
 			arm_r = [45.0, -60.0, 0.0]
