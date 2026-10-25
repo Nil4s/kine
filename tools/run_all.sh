@@ -105,3 +105,5 @@ EXTRA="$EXTRA modelfix5:w"   # walk-through 5 friction 1: Enter in the search bo
 EXTRA="$EXTRA modelfix6:w"   # walk-through 5 frictions A + B: Alt+F / F / Alt+F with nothing selected close the hole in one undo step; F2 name box gives the keys back on Enter / Esc (tests/modelfix6_test.gd)
 EXTRA="$EXTRA meshsave:w"   # MODEL mesh file: Ctrl+S saves the mesh (name box once, then silent), Open... loads one, F3 "save mesh" (tests/meshsave_test.gd)
 EXTRA="$EXTRA walk10_beginner:w"   # monkey test round 10: wave, chair + sit, colour/look, play, save scene + video in Easy mode (tests/walk10_beginner_test.gd)
+EXTRA="$EXTRA walk_model6:w"   # walk-through 6: table (flatten, legs), bevel the top rim, wood material from the library, cylinder onto the table, undo x3 / redo x3, the table as a prop (tests/walk_model6_test.gd)
+EXTRA="$EXTRA longplay:w"   # LONG PLAY: the 61-card axe clip at 30 ms median, the playhead in real time, served frames = live (tests/longplay_test.gd)

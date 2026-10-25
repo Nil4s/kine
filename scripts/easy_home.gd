@@ -1538,11 +1538,12 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 	m._step_easy = easy if m.easy.on else ""   # and, in Easy, by its short name: "Walk", or the typed words (cut to 18 characters)
 	m._push_undo()
 	m.undo[-1]["swap"] = true   # the card makes a NEW Scene object: Ctrl+Z puts the empty one back whole (main._restore; path_walk_ui does the same)
-	m._write(path, d)
-	m._load_scene(path, true)   # a card build is a work copy in scenes/_wip: unsaved until the user saves it
+	m._load_scene_built(path, d)   # a card build is a work copy in scenes/_wip: unsaved until the user saves it (the file is written after the frame)
 	if not held.is_empty():
 		_hold_again(held)
+	m._dot_later = true   # the unsaved dot is read after the frame (main._doc_line)
 	m._rebuild_cards()
+	m._dot_later = false
 	m._refresh()
 	return ""
 

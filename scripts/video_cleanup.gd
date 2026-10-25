@@ -184,6 +184,7 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 	# the scans below that run with NO plants (V.plants = []) read a time's pose the same way, so each time is one Scene.apply,
 	# shared by the heel pivot scan and the sole scan (they walk the same grid of times from the same t0)
 	var pose_memo := {}
+	V.free_memo = {}   # R2: the cards are fixed until the return below (no card is written by apply or the scans), so a plants-off pose is read once per time
 	for p in plants:
 		var sd: String = String(p["foot"]).right(2)
 		var t := float(p["t0"])
@@ -197,8 +198,7 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 				break
 			th0 += step
 		if th0 < float(p["t1"]) - PLANT_MIN * dt:
-			V.apply(B, th0)
-			if (B.P["ball" + sd] as Vector3).y > SEAT_TOL:
+			if float(_plant_free_pose(V, B, th0, pose_memo)[sd][0]) > SEAT_TOL:   # R2: the ball height of the plants-off pose at th0 (the memo's own read)
 				var tf := th0 + step
 				while tf < minf(th0 + PIVOT_MAX, float(p["t1"]) - PLANT_MIN * dt):
 					var pf: Array = _plant_free_pose(V, B, tf, pose_memo)[sd]
@@ -222,8 +222,7 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 		# pivot did not bring flat) is a hold in the air: the plant ends where the heel-off would have begun instead
 		if p.has("th"):
 			var sdh: String = String(p["foot"]).right(2)
-			V.apply(B, FootPlant.ref_time(p))
-			if (B.P["ball" + sdh] as Vector3).y > SEAT_TOL:
+			if float(_plant_free_pose(V, B, FootPlant.ref_time(p), pose_memo)[sdh][0]) > SEAT_TOL:   # R2: the memo's plants-off read
 				p["t1"] = minf(float(p["t1"]), float(p["th"]))
 				p.erase("th")
 	for p in plants:
@@ -297,6 +296,7 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 		V.apply(B, float(p["t1"]))
 		p["dend"] = maxf((B.P["pelvis"] as Vector3).y - yon, 0.0)
 	V.plants = out
+	V.free_memo = null   # R2: the scope of the plants-off memo ends here
 	return out
 
 

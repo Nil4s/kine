@@ -41,6 +41,15 @@ static func plant_ref(S: Scene, B: Body, i: int) -> Dictionary:
 	var p: Dictionary = S.plants[i]
 	var foot := String(p["foot"])
 	var ball := "ball" + foot.right(2)
+	# R2 MEMO (inside a scope that holds the cards fixed, Scene.free_memo): the reference is read at ref_time(p) with the plants off,
+	# so it depends on the scene's content and that time only, not on the plant list (which the scans change every step)
+	if S.free_memo != null and S.baker == null and _plain_cons(S):
+		var mk := [FootPlant.ref_time(p), foot]
+		if S.free_memo.has(mk):
+			return S.free_memo[mk]
+		var rr := _compute(S, B, i, foot, ball, p)
+		S.free_memo[mk] = rr
+		return rr
 	var key := _key(S, B)
 	if not enabled or key.is_empty():
 		return _compute(S, B, i, foot, ball, p)
@@ -55,6 +64,15 @@ static func plant_ref(S: Scene, B: Body, i: int) -> Dictionary:
 	store[i] = r
 	S.set_meta("pose_cache_refs", store)
 	return r
+
+
+## R2: no constraint reads another actor or the weapon (the cases _key refuses to cache)
+static func _plain_cons(S: Scene) -> bool:
+	for c in S.cons:
+		var kind := String((c as Dictionary).get("target", {}).get("kind", ""))
+		if kind == "actor" or kind == "weapon":
+			return false
+	return true
 
 
 static func _compute(S: Scene, B: Body, i: int, foot: String, ball: String, p: Dictionary) -> Dictionary:

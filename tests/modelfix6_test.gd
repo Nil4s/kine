@@ -349,5 +349,31 @@ func _init() -> void:
 	else:
 		ok(false, "(f) the test cube opened")
 
+	# ---- C (g): the search box: "join parts" runs "Model: join parts" (walk-through 5, goal 7), not the boolean row that also
+	# holds the words "join" and "parts" ("boolean union (join two parts)"): a tie on the words goes to the row with the phrase
+	var jr: Array = m.ui_cmd.matches("", "join parts")
+	var jfirst := String(jr[0]["name"]) if not jr.is_empty() else ""
+	ok(jfirst == "Model: join parts", "(g) the search 'join parts' ranks 'Model: join parts' first (first is '%s')" % jfirst)
+
+	# ---- D (h): Add primitive, then Enter (walk-through 6, friction 1): the Add button kept the keys, so each Enter added
+	# another primitive (+64 verts). Enter after the click must not add a second one
+	await fresh()
+	if kmed != null and kmed.on:
+		var addb := m.find_child("btn_prim_add", true, false) as Button
+		var v0: int = kmed.mesh.verts.size()
+		if addb != null and addb.is_visible_in_tree():
+			await click(addb.get_global_rect().get_center())
+		await idle(4)
+		var v1: int = kmed.mesh.verts.size()
+		await key(KEY_ENTER)
+		await key(KEY_ENTER)
+		var v2: int = kmed.mesh.verts.size()
+		var sv: Array = kmed.sel.verts.keys()
+		sv.sort()
+		ok(sv.size() == v1 - v0 and not sv.is_empty() and int(sv[0]) == v0, "(i) the added primitive comes selected, nothing else (%d of %d new verts, first %s)" % [sv.size(), v1 - v0, str(sv.slice(0, 1))])
+		ok(addb != null and v1 > v0 and v2 == v1, "(h) Add primitive once, then Enter twice: one primitive (verts %d -> %d -> %d)" % [v0, v1, v2])
+	else:
+		ok(false, "(h) the test cube opened")
+
 	print("fails: %d" % fails)
 	quit(1 if fails > 0 else 0)

@@ -2688,6 +2688,143 @@ func _init() -> void:
 	await idle(2)
 	_rm118(abs118)
 
+	# 119. A WALK TO A CHAIR DOES NOT ARM HIM (beginner walk-through 10, goals 2 to 5: the bat turned up in his hand after the sit).
+	# The walk to the chair is built from a donor pose that holds a bat (res://scenes/walk_bat.json), so every walk card carried it.
+	# A walk built, a chair placed 2 m past where it ends, the strip's "Sit on the chair" pressed by a real click: after it he holds
+	# nothing (m.B.wep_on false) and no card's pose has a non-empty "weapon". Old code: the walk's cards carry the bat.
+	m._new_scene()
+	m.B.wep_on = false   # a beginner's start: nothing in his hand (section 24 left its sword in the body; _new_scene keeps the body)
+	m.B.wep2_on = false
+	m.B.fk()
+	await idle(4)
+	await click_ctl(card_btn(0))   # Walk
+	await idle(6)
+	if m.playing:
+		m._toggle_play()
+	m.playhead = m.S.length()
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	await idle(2)
+	var end119: Vector3 = m.B.P["pelvis"]
+	m._prop_add("chair")
+	await idle(4)
+	var pc119: Dictionary = m.S.props[m.sel_prop]
+	var xf119: Transform3D = pc119["xf"]
+	xf119.basis = Basis(Vector3.UP, -PI * 0.5)
+	xf119.origin = Vector3(end119.x + 2.0, xf119.origin.y, end119.z)
+	pc119["xf"] = xf119
+	m._refresh()
+	await idle(4)
+	var sb119 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var n119: int = m.S.cards.size()
+	if sb119 != null and sb119.is_visible_in_tree():
+		await click_ctl(sb119)
+	await idle(8)
+	var armed119 := []
+	for i in m.S.cards.size():
+		var wp119: Dictionary = m.S.cards[i]["pose"].get("weapon", {})
+		if not wp119.is_empty():
+			armed119.append(i)
+	ok(sb119 != null and m.S.cards.size() > n119 + 1 and not m.B.wep_on and armed119.is_empty(),
+		"119. a walk, a chair 2 m past its end, Sit on the chair (a real click, %d -> %d cards): he holds nothing (wep_on %s, kind %s) and no card carries a weapon (cards with one: %s)" % [n119, m.S.cards.size(), str(m.B.wep_on), m.B.wep_kind, str(armed119)])
+
+	# 120. MY SCENES (Nick: "Easy mode can't let you open already made scenes easily"): (a) a visible "My scenes" button on the
+	# bar, nothing clipped; (b) its click shows a tile per saved scene, with a picture and the readable name, newest first;
+	# (c) a click on a tile opens that scene (m.S's cards are the file's) and it plays; (d) an "Examples" row with >= 1 tile.
+	# The scenes folder is a user:// test folder of this run (UserPaths.root, as section 118): two scenes are written there.
+	m._new_scene()
+	await idle(2)
+	var keep120 := UserPaths.force
+	var root120 := UserPaths.root
+	var abs120 := ProjectSettings.globalize_path("user://myscenes_%d" % OS.get_process_id())
+	var scn120 := abs120 + "/scenes"
+	DirAccess.make_dir_recursive_absolute(scn120)
+	UserPaths.force = true
+	UserPaths.root = abs120
+	var f120a := FileAccess.open(scn120 + "/Thrust_old.json", FileAccess.WRITE)
+	f120a.store_string(FileAccess.get_file_as_string("res://scenes/thrust.json"))
+	f120a.close()
+	OS.delay_msec(1100)   # a later modified time: Walk_new is the newer file
+	var f120b := FileAccess.open(scn120 + "/Walk_new.json", FileAccess.WRITE)
+	f120b.store_string(FileAccess.get_file_as_string("res://scenes/walk_bat.json"))
+	f120b.close()
+	await idle(3)
+	var bmy: Button = m.easy.button("My scenes")
+	var bar120: Rect2 = m.easy.bar.get_global_rect()
+	var clipped120 := []
+	for lb in m.easy.labels():
+		var bb: Button = m.easy.button(lb)
+		if bb != null and bb.is_visible_in_tree() and not bar120.encloses(bb.get_global_rect()):
+			clipped120.append(lb)
+	var inside120 := bmy != null and bmy.is_visible_in_tree() and bar120.encloses(bmy.get_global_rect())
+	ok(inside120 and clipped120.is_empty(),
+		"120a. a visible 'My scenes' button on the bar, nothing clipped (button %s, bar %s, clipped %s)" % [str(bmy.get_global_rect() if bmy != null else null), str(bar120), str(clipped120)])
+	# (b) the click shows the tiles
+	if bmy != null:
+		await click_ctl(bmy)
+	await idle(3)
+	var sc120: Variant = m.easy.get("scenes")
+	var mine120: Array = sc120.tile_paths(false) if sc120 != null else []
+	var g120 := 0
+	while sc120 != null and g120 < 900 and not (sc120.tile_picture(scn120 + "/Walk_new.json") != null and sc120.tile_picture(scn120 + "/Thrust_old.json") != null):
+		await process_frame
+		g120 += 1
+	var in_new := mine120.find(scn120 + "/Walk_new.json")
+	var in_old := mine120.find(scn120 + "/Thrust_old.json")
+	var pic_new: Texture2D = sc120.tile_picture(scn120 + "/Walk_new.json") if sc120 != null else null
+	var pic_old: Texture2D = sc120.tile_picture(scn120 + "/Thrust_old.json") if sc120 != null else null
+	var names120 := [sc120.tile_name(scn120 + "/Walk_new.json"), sc120.tile_name(scn120 + "/Thrust_old.json")] if sc120 != null else []
+	var shot120 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easyopen.png"
+	if sc120 != null and sc120.visible:
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(shot120)
+	ok(sc120 != null and sc120.visible and in_new >= 0 and in_old >= 0 and in_new < in_old and pic_new != null and pic_old != null
+		and names120 == ["Walk new", "Thrust old"],
+		"120b. My scenes shows both test scenes as tiles, newest first (Walk_new at %d, Thrust_old at %d of %d tiles), with pictures (%s, %s) and names %s (%d picture waits)"
+		% [in_new, in_old, mine120.size(), str(pic_new != null), str(pic_old != null), str(names120), g120])
+	# (d) the examples row
+	var ex120: Array = sc120.tile_paths(true) if sc120 != null else []
+	ok(ex120.size() >= 1 and sc120 != null and sc120.tile_picture(String(ex120[0])) != null if ex120.size() > 0 else false,
+		"120d. an Examples row with %d tile(s), the first with a picture (%s)" % [ex120.size(), str(ex120)])
+	# Esc shuts the panel
+	await key_press(KEY_ESCAPE)
+	ok(sc120 != null and not sc120.visible, "120b. Esc closes the panel")
+	# (c) reopen, a real click on Walk new: it opens and plays
+	if bmy != null:
+		await click_ctl(bmy)
+	await idle(2)
+	var tile120: Button = sc120.tile_button(scn120 + "/Walk_new.json") if sc120 != null else null
+	if tile120 != null:
+		await click_ctl(tile120)
+	await idle(6)
+	var played120 := await wait_playing(200)
+	var fd120: Variant = JSON.parse_string(FileAccess.get_file_as_string(scn120 + "/Walk_new.json"))
+	var same120: bool = fd120 is Dictionary and (fd120 as Dictionary).has("cards") and m.S.cards.size() == (fd120 as Dictionary)["cards"].size() 		and m.S.cards.size() > 0 and String(m.S.cards[0]["name"]) == String((fd120 as Dictionary)["cards"][0]["name"])
+	ok(tile120 != null and same120 and played120 and not sc120.visible and m.scene_path == scn120 + "/Walk_new.json",
+		"120c. a click on the Walk new tile opens it (%d cards, the file's %s), it plays (%s), the panel closes (visible %s)"
+		% [m.S.cards.size(), str(fd120["cards"].size() if fd120 is Dictionary and fd120.has("cards") else -1), str(played120), str(sc120.visible if sc120 != null else null)])
+	m._toggle_play() if m.playing else null
+	m._new_scene()
+	await idle(2)
+	UserPaths.force = keep120
+	UserPaths.root = root120
+	_rm118(abs120)
+	# 121. A CARD'S BUILD IS FAST (buildspeed): card(1) (Run), the click's own synchronous call (the build, the scene load, the rebuild of
+	# the strip, the refresh, the start of play), median of 5 reps from an empty scene. The base before this change: 215.3 ms (5 reps);
+	# the bar is 60 % of it: 129.2 ms. Old code: FAIL (about 215 ms).
+	var ts121 := []
+	for rep121 in 5:
+		m.playing = false
+		m._new_scene()
+		await idle(3)
+		var t121 := Time.get_ticks_usec()
+		home.card(1)
+		ts121.append(Time.get_ticks_usec() - t121)
+		await idle(3)
+	ts121.sort()
+	var med121: float = ts121[2] / 1000.0
+	ok(med121 <= 0.6 * 215.3, "121. card(1) Run: the click's synchronous build median %.1f ms over 5 reps (bar: <= 129.2 ms = 60 %% of the old median 215.3 ms)" % med121)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
