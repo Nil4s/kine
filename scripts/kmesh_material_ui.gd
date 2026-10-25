@@ -195,11 +195,15 @@ func _process(_dt: float) -> void:
 func place() -> void:
 	var cl: Rect2 = ui.m.nav_clear_rect()
 	var ms := get_combined_minimum_size()
-	var h := minf((get_child(0).get_child(0) as Control).get_combined_minimum_size().y + 16.0, cl.size.y - 24.0)
-	size = Vector2(ms.x + 14.0, h)
 	if ui.m._mesh_page():   # a mesh page: the browser is off, so the left column keeps the Add primitive / model check panels; Materials takes the right edge of the window (the body and its head stay clear)
-		position = Vector2(ui.m.get_viewport().get_visible_rect().size.x - size.x - 12.0, cl.position.y + 12.0)
+		# walk-through 3: never over the ViewCube or its menus (they sit above this panel's top, which starts under them)
+		var y: float = maxf(cl.position.y + 12.0, ui.m.cube_stack_bottom() + 8.0)
+		var h := minf((get_child(0).get_child(0) as Control).get_combined_minimum_size().y + 16.0, cl.end.y - y - 12.0)
+		size = Vector2(ms.x + 14.0, h)
+		position = Vector2(ui.m.get_viewport().get_visible_rect().size.x - size.x - 12.0, y)
 	else:
+		var h := minf((get_child(0).get_child(0) as Control).get_combined_minimum_size().y + 16.0, cl.size.y - 24.0)
+		size = Vector2(ms.x + 14.0, h)
 		position = Vector2(cl.end.x - size.x - 12.0, cl.position.y + 12.0)
 
 

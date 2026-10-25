@@ -42,7 +42,7 @@ SERIAL_SHARED = {"scene_list", "browser_tree", "browser", "versions", "cli", "se
                  "bvh_export", "meshexport", "engine_names", "autosave", "names_disk", "launcher", "empty_paths", "confirm", "examples",
                  "actors_file", "audio_track", "anim_import", "bvh_import", "usd_export", "check_all", "clicks",
                  "game_table", "journal", "markers", "mirror_list", "r20", "recent", "refimg", "set", "grip_book",
-                 "posematch", "save_prompt", "drafts"}
+                 "posematch", "save_prompt", "drafts", "modelfix3"}
 # wall-clock bars: under load they measure the neighbours, not the code. Built 10-23 by grepping tests/*.gd for
 # (a) an ok()/check() condition on a variable derived from Time.get_ticks_msec/usec, (b) an ok() message with
 # "N ms"/"%f ms" beside bar/under/</budget, (c) a condition comparing a *ms/*us/elapsed/took/stall/fps/p95 value,
