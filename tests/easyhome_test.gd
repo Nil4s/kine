@@ -543,6 +543,21 @@ func inside_sweep(step := 0.1) -> Array:
 	return [worst, at, L]
 
 
+## the card names (Easy's words) that read "Pivot" or carry a number above 9: returned as a list
+func bad_names_116(names: Array) -> Array:
+	var out: Array = []
+	var rx := RegEx.create_from_string("[0-9]+")
+	for n in names:
+		var t := String(n)
+		var bad := t.findn("pivot") >= 0
+		for mm in rx.search_all(t):
+			if mm.get_string().to_int() > 9:
+				bad = true
+		if bad:
+			out.append(t)
+	return out
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -2493,6 +2508,76 @@ func _init() -> void:
 	await idle(4)
 	ok(_cards_key() == c115d and m.undo.size() == u115d and "start" in m.ui_status.text.to_lower() and "Cut start" in m.ui_status.text,
 		"115d. slider at 0, Cut start: nothing cut (undo %d -> %d) and the status says why: '%s'" % [u115d, m.undo.size(), m.ui_status.text])
+
+	# 116. EASY WAVE READS AS A HELLO (walk-through 10, goal 1). The Wave card in a fresh scene: (a) after the first card (the stand) the
+	# left hand stays put (< 0.15 m, below its shoulder all the way) and the right hand goes above its shoulder; (b) no card name reads
+	# "Pivot" or has a number above 9 (the cards as Easy names them); (c) a chair added with the clip there names a button the user can see;
+	# (d) the strip's sit button keeps its text while the clip plays.
+	m._new_scene()
+	await idle(3)
+	card_btn(6).pressed.emit()   # Wave
+	await idle(6)
+	var L116: float = m.S.length()
+	var t116: float = float(m.S.cards[1].get("arrive_s", 0.8)) if m.S.cards.size() > 1 else 0.8
+	var rest116 := Vector3.ZERO
+	var lmoved116 := 0.0
+	var lbelow116 := true
+	var rabove116 := -1e9
+	var k116 := t116
+	var first116 := true
+	while k116 <= L116 + 1e-6:
+		m._ps().apply(m.B, k116)
+		var hl116: Vector3 = m.B.P["hand_l"]
+		var hr116: Vector3 = m.B.P["hand_r"]
+		if first116:
+			rest116 = hl116
+			first116 = false
+		lmoved116 = maxf(lmoved116, hl116.distance_to(rest116))
+		lbelow116 = lbelow116 and hl116.y < (m.B.P["upperarm_l"] as Vector3).y
+		rabove116 = maxf(rabove116, hr116.y - (m.B.P["upperarm_r"] as Vector3).y)
+		k116 += 1.0 / 30.0
+	ok(lmoved116 < 0.15 and lbelow116 and rabove116 > 0.0,
+		"116a. Easy Wave, from %.2f s (after the first card) to %.2f s: the left hand moves %.3f m (< 0.15), stays below its shoulder: %s; the right hand is %.3f m above its shoulder at the top (> 0)" % [t116, L116, lmoved116, str(lbelow116), rabove116])
+	# the picture for the review: the Wave mid-clip (the right hand up, the swing under way), scratchpad/easywave.png
+	m.playhead = L116 * 0.4
+	m._ps().apply(m.B, m.playhead)
+	await idle(4)
+	await RenderingServer.frame_post_draw
+	get_root().get_texture().get_image().save_png("C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easywave.png")
+	var names116: Array = []
+	for i in m.S.cards.size():
+		names116.append(m._easy_card_name(String(m.S.cards[i]["name"]), i))
+	var bad116 := bad_names_116(names116)
+	ok(bad116.is_empty(), "116b. the Wave's cards read in plain words, no 'Pivot' and no number above 9: %s (bad: %s)" % [str(names116), str(bad116)])
+	m._prop_add("chair")
+	await idle(4)
+	var st116 := String(m.ui_status.text)
+	var sp116 := home.panel.find_child("eh_sit", true, false) as Button
+	var ss116 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var named_panel116 := st116.contains("Sit on it")
+	var named_strip116 := st116.contains("Sit on the chair")
+	var visible116 := (named_panel116 and sp116 != null and sp116.is_visible_in_tree()) or (named_strip116 and ss116 != null and ss116.is_visible_in_tree())
+	ok(visible116 and (named_panel116 or named_strip116), "116c. a chair added with the Wave in Easy: the status names a button the user can see ('%s'; panel sit visible %s, strip sit visible %s)" % [st116, str(sp116 != null and sp116.is_visible_in_tree()), str(ss116 != null and ss116.is_visible_in_tree())])
+	var s116 := ss116.text if ss116 != null else "(no strip sit button)"
+	var sitnames116: Array = []
+	for i in m.S.cards.size():
+		sitnames116.append(m._easy_card_name(String(m.S.cards[i]["name"]), i))
+	var sitbad116 := bad_names_116(sitnames116)
+	var same116 := true
+	var seen116 := ""
+	var played116 := false
+	if ss116 != null:
+		ss116.pressed.emit()   # the sit after the Wave: the clip plays (the walk to the chair, the rise)
+	for i in 60:
+		await idle(2)
+		played116 = played116 or m.playing
+		if ss116 != null:
+			seen116 = ss116.text
+			same116 = same116 and seen116 == s116
+	if m.playing:
+		m._toggle_play()
+	ok(sitbad116.is_empty() and m.S.cards.size() > names116.size(), "116b2. the same card names after the Wave and the sit to the chair (%d cards): no 'Pivot', no number above 9 (bad: %s)" % [m.S.cards.size(), str(sitbad116)])
+	ok(same116 and played116 and ss116 != null and s116 == "Sit on the chair", "116d. the strip's sit button reads '%s' before the sit plays and '%s' after it (the same text all along, playing seen: %s, text same: %s)" % [s116, seen116, str(played116), str(same116)])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

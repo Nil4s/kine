@@ -1481,7 +1481,7 @@
    "hold": 0.0,
    "leave_s": 0.8,
    "move": 0.4,
-   "name": "raise",
+   "name": "Hand up",
    "pose": {
     "contacts": [],
     "joints": {
@@ -2956,7 +2956,7 @@
    "hold": 0.0,
    "leave_s": 1.0,
    "move": 0.2,
-   "name": "swing 1",
+   "name": "Wave",
    "pose": {
     "contacts": [],
     "joints": {
@@ -4431,7 +4431,7 @@
    "hold": 0.0,
    "leave_s": 1.25,
    "move": 0.25,
-   "name": "swing 2",
+   "name": "Wave",
    "pose": {
     "contacts": [],
     "joints": {
@@ -5906,7 +5906,7 @@
    "hold": 0.0,
    "leave_s": 1.5,
    "move": 0.25,
-   "name": "swing 3",
+   "name": "Wave",
    "pose": {
     "contacts": [],
     "joints": {
@@ -7381,7 +7381,7 @@
    "hold": 0.0,
    "leave_s": 1.75,
    "move": 0.25,
-   "name": "swing 4",
+   "name": "Wave",
    "pose": {
     "contacts": [],
     "joints": {
@@ -8856,7 +8856,7 @@
    "hold": 0.0,
    "leave_s": 2.0,
    "move": 0.25,
-   "name": "swing 5",
+   "name": "Wave",
    "pose": {
     "contacts": [],
     "joints": {
@@ -10331,7 +10331,7 @@
    "hold": 0.4,
    "leave_s": 2.85,
    "move": 0.45,
-   "name": "lower",
+   "name": "Hand down",
    "pose": {
     "contacts": [],
     "joints": {

@@ -13523,6 +13523,8 @@ func _easy_card_name(n: String, i := -1) -> String:
 		return _easy_move_label(i)
 	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy names it "Video <n>", n its place in the copy
 		return "Video %d" % _copy_place(i)
+	if t.to_lower().begins_with("pivot ") and t.substr(6).contains("."):   # a path walk's turn card ("pivot 1.2": the feet turn before a step): "Turn" in plain words (walk-through 10, B)
+		return "Turn"
 	if i >= 0 and t.to_lower().begins_with("pose ") and t.substr(5).strip_edges().is_valid_int():   # "pose 3" (a new card's name): its place in the strip, so a card added between two reads right
 		return "Pose %d" % (i + 1)
 	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
@@ -19508,9 +19510,11 @@ func _prop_add(kind: String) -> void:
 	sel_prop = S.props.size() - 1
 	_props_show()
 	_doc_line()
-	if easy.on:   # Easy has no SET ribbon: the sit is the panel's "Sit on it" (walk-through round 5)
-		_say("added a %s in front of the body: drag it to move it%s; Ctrl+Z takes it back" % [_prop_name(sel_prop),
-			"; Sit on it in the panel seats him on it" if kind in SIT_ON else ""])
+	if easy.on:   # Easy has no SET ribbon: the sit is the panel's "Sit on it" (walk-through round 5), or the strip's "Sit on the chair" once a clip is built (the panel is hidden then: walk-through 10, B)
+		var sit_say := ""
+		if kind in SIT_ON:
+			sit_say = "; the strip's Sit on the chair seats him on it" if easy.home.shown() == "strip" else "; Sit on it in the panel seats him on it"
+		_say("added a %s in front of the body: drag it to move it%s; Ctrl+Z takes it back" % [_prop_name(sel_prop), sit_say])
 	else:
 		_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
 
