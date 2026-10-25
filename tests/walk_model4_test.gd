@@ -573,11 +573,13 @@ func _init() -> void:
 		var v_pre: int = nv()
 		var ymin_pre: float = bb[0].y
 		if picked.size() > 0:
+			# the user's own route: the mouse stays where the last face was clicked, E is pressed there, and the hand
+			# moves 40 px down the screen (the drag's start point is the pointer's; the old walk jumped it to face 1)
+			var last_spot: Vector2 = face_spot(picked[picked.size() - 1])
 			await key(KEY_E, false, false, "E (extrude)")
-			var sp: Vector2 = face_spot(picked[0])
-			await hover_by(sp, Vector2(0, 40))
+			await hover_by(last_spot, Vector2(0, 40))
 			await shot("05_extrude_live")
-			await click_at(sp + Vector2(0, 40), "to confirm the extrude")
+			await click_at(last_spot + Vector2(0, 40), "to confirm the extrude")
 		await shot("06_legs")
 		var added: int = nv() - v_pre
 		var ymin_now := 1e9
