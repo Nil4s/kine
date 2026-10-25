@@ -291,5 +291,85 @@ func _init() -> void:
 			ok(chest_hits == 0, "(i) 'dance': no hand or forearm inside the chest in any frame (%d contacts with the chest, collarbones or spine; the bake's check)" % chest_hits)
 	var dw: Dictionary = ed._words_dict("dance then wave")
 	ok(bool(dw.get("ok", false)) and dw.has("dict") and (dw["dict"]["cards"] as Array).size() > 12, "(d) 'dance then wave' builds the dance's cards then the wave's (%s cards)" % str((dw.get("dict", {}) as Dictionary).get("cards", []).size()))
+	# ---- TYPED GRAMMAR (round 10): repeats, turns and filler in Easy's typed line (section 10 below)
+	fails += typed_bars(ed)
 	print("TEXT BLOCKING TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
+
+
+## ---- 10. TYPED GRAMMAR (round 10, Easy's typed line). Each phrase must build (no "doesn't know"), and what it asks is MEASURED on the
+## built scene, scrubbed at 120 Hz as the Scene plays: "jump twice" and "jump twice then turn around" have 2 airborne spans (both feet
+## 2 cm+ above the floor, the body's rest; a span = one jump); "walk forward then jump" has 1; "punch 3 times" has 3 punch moves (the
+## cards' move tags: one per punch); the turns ("turn around", "spin around", "walk then turn around", "jump twice then turn around")
+## end with the hips' yaw 180 deg +- 15 from the start (TextView.yaw); "punch 11 times" caps at 10 with the say (the note). Also: "jump zorp"
+## still refused with "doesn't know". Returns the number of FAILs. Static: the bars also run alone (a copy with the old files).
+const TYPED_BUILDS := ["jump twice", "jump twice then turn around", "walk forward then jump", "walk then turn around", "punch 3 times",
+	"turn around", "spin around"]
+
+
+static func _tbar(c: bool, what: String) -> int:
+	print(("ok   " if c else "FAIL ") + what)
+	return 0 if c else 1
+
+
+static func _airborne_spans(DS: Scene, B: Body) -> int:
+	var n := 0
+	var inair := false
+	var k := 0
+	while k / 120.0 <= DS.length() + 1e-6:
+		DS.apply(B, k / 120.0)
+		var up := true
+		for sd in ["_l", "_r"]:
+			up = up and ((B.P["ball" + sd] as Vector3).y - (B.p0["ball" + sd] as Vector3).y) > 0.02
+		if up and not inair:
+			n += 1
+		inair = up
+		k += 1
+	return n
+
+
+static func _yaw_change(DS: Scene, B: Body) -> float:
+	DS.apply(B, 0.0)
+	var y0 := TextView.yaw(B)
+	DS.apply(B, DS.length())
+	var y1 := TextView.yaw(B)
+	return wrapf(y1 - y0, -180.0, 180.0)
+
+
+static func typed_bars(ed: EasyHome) -> int:
+	var fails := 0
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	for phrase in TYPED_BUILDS:
+		var r: Dictionary = ed._words_dict(phrase)
+		var err := String(r.get("error", ""))
+		var built: bool = bool(r.get("ok", false)) and not err.begins_with("Kine doesn't know")
+		fails += _tbar(built, "'%s' builds a clip, no \"doesn't know\" (%s)" % [phrase, err if not built else "%d cards" % (r["dict"]["cards"] as Array).size()])
+		if not built:
+			continue
+		var DS := Scene.new()
+		DS.from_dict(r["dict"])
+		var cards: Array = r["dict"]["cards"]
+		if phrase.begins_with("jump") or phrase.begins_with("walk forward"):
+			var want := 2 if phrase.begins_with("jump twice") else 1
+			var spans := _airborne_spans(DS, B)
+			fails += _tbar(spans == want, "'%s': %d airborne spans (both feet 2 cm+ up), want %d" % [phrase, spans, want])
+		if phrase.begins_with("punch"):
+			var moves := {}
+			for c in cards:
+				moves[String(c.get("from", ""))] = true
+			fails += _tbar(moves.size() == 3, "'%s': %d punch moves in the clip (one tag per punch), want 3" % [phrase, moves.size()])
+		if phrase.ends_with("turn around") or phrase.begins_with("turn") or phrase.begins_with("spin"):
+			var yc := _yaw_change(DS, B)
+			fails += _tbar(absf(yc) >= 165.0 and absf(yc) <= 195.0, "'%s': the hips' yaw ends %.1f deg from the start (180 +- 15)" % [phrase, yc])
+	var cap: Dictionary = ed._words_dict("punch 11 times")
+	var capped_moves := {}
+	if bool(cap.get("ok", false)):
+		for c in (cap["dict"]["cards"] as Array):
+			capped_moves[String(c.get("from", ""))] = true
+	fails += _tbar(bool(cap.get("ok", false)) and capped_moves.size() == 10 and String(cap.get("note", "")).contains("10 times"),
+		"'punch 11 times' caps at 10 punches with the say '%s' (%d punch moves)" % [String(cap.get("note", "")), capped_moves.size()])
+	var nope: Dictionary = ed._words_dict("jump zorp")
+	fails += _tbar(not bool(nope.get("ok", true)) and String(nope.get("error", "")).begins_with("Kine doesn't know"),
+		"'jump zorp' is still refused: \"doesn't know\" (unknown words stay unknown)")
+	return fails
