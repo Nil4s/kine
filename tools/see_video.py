@@ -30,6 +30,7 @@ import argparse
 import json
 import os
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
@@ -45,6 +46,7 @@ WRIST_MIN_SIDE = 64   # the wrist crop is at least this many picture pixels a si
 WRIST_PX = 320        # the wrist crop is upscaled to this many pixels a side for HandLandmarker
 WRIST_VIS = 0.3       # a wrist (and its elbow) with less visibility than this gets no hand pass
 WRIST_HAND_CONF = 0.2  # the wrist crops find a hand at this detection confidence (a fist 12 px tall misses at 0.5)
+CROP_WORKERS = 3      # the crop pass in this many chunks at once (threads: MediaPipe releases the GIL; 3 measured ~1.9x)
 
 
 def match_hands(body, hres, reach):
@@ -160,11 +162,12 @@ def wrist_hands(cv2, mp, wdet, img, pose, W, H):
     return SimpleNamespace(hand_landmarks=hl, hand_world_landmarks=hw)
 
 
-def run_track(a, env, step, every=1, crop=None, hands=True, progress="", pbase=(0.0, 1.0), conf=0.5):
+def run_track(a, env, step, every=1, crop=None, hands=True, report=None, conf=0.5, lo=0, hi=None):
     """one tracking pass over the clip. every: track every Nth sampled frame (pass 1 uses PASS1_EVERY). crop: None (the
-    whole picture: the hand model runs on the whole frame) or crop_plan's crop(s) (the pose model sees the square crop and
-    its points are mapped back to the whole picture; the hands are then found per wrist, by wrist_hands, on the whole
-    picture). Returns (frames, lost, seen, with_hand, W, H), frames = [(sampled index, frame dict)]."""
+    whole picture) or crop_plan's crop(s): the pose and hand models see the square crop and the points are mapped back to
+    the whole picture. lo, hi: only the sampled frames lo <= s < hi (a chunk of a parallel crop pass; hi None = to the end).
+    report(fraction): the progress, every few frames. Returns (frames, lost, seen, with_hand, W, H), frames = [(sampled
+    index, frame dict)]."""
     cv2, mp, mpt, vision = env
     cap = cv2.VideoCapture(a.video)
     src_fps = cap.get(cv2.CAP_PROP_FPS) or a.fps
@@ -206,14 +209,15 @@ def run_track(a, env, step, every=1, crop=None, hands=True, progress="", pbase=(
             i += 1
             continue
         s_idx = i // step
+        if hi is not None and s_idx >= hi:
+            break
         t = i / src_fps
         i += 1
-        if s_idx % every:
+        if s_idx < lo or s_idx % every:
             continue
         seen += 1   # every sampled frame the tracker looked at, the ones with no body too (EasyTake's score needs the clip's count)
-        if progress and total > 0 and i % 10 == 0:
-            with open(progress, "w") as pf:
-                pf.write("%.3f" % (pbase[0] + (pbase[1] - pbase[0]) * min(1.0, i / total)))
+        if report is not None and total > 0 and i % 10 == 0:
+            report(i / total if hi is None else (s_idx - lo) / max(1, hi - lo))
         if crop is None:
             src = img
             x0 = y0 = 0
@@ -256,6 +260,51 @@ def run_track(a, env, step, every=1, crop=None, hands=True, progress="", pbase=(
     return frames, lost, seen, with_hand, W, H
 
 
+def _progress_writer(path, pbase, k):
+    """report(chunk, fraction) -> the --progress file: the mean of the k chunks' fractions, mapped into pbase (0-1 of the
+    whole run). Nothing is written with no path."""
+    lock = threading.Lock()
+    fr = [0.0] * k
+
+    def report(c, f):
+        if not path:
+            return
+        with lock:
+            fr[c] = f
+            with open(path, "w") as pf:
+                pf.write("%.3f" % (pbase[0] + (pbase[1] - pbase[0]) * min(1.0, sum(fr) / k)))
+    return report
+
+
+def run_chunks(a, env, step, crop, conf, progress, pbase, workers):
+    """the crop pass cut into contiguous chunks of sampled frames, one thread each (its own pose and hand detectors and
+    its own decoder). The crop is a fixed function of the sampled index and the follow is per frame, so a chunk needs
+    nothing from its neighbours; only the tracker's warm-up differs at each chunk's first frame (it detects afresh there).
+    Chunks are joined in order, so the result is the same frame list as one run."""
+    cv2 = env[0]
+    cap = cv2.VideoCapture(a.video)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    cap.release()
+    S = -(-total // step) if total > 0 else 0
+    K = max(1, min(workers, S // 8))   # at least 8 sampled frames a chunk
+    rep = _progress_writer(progress, pbase, K)
+    if K == 1:
+        return run_track(a, env, step, crop=crop, report=lambda f: rep(0, f), conf=conf)
+    bounds = [int(round(k * S / K)) for k in range(K + 1)]
+    with ThreadPoolExecutor(max_workers=K) as ex:
+        futs = [ex.submit(run_track, a, env, step, 1, crop, True, (lambda f, c=k: rep(c, f)), conf, bounds[k], bounds[k + 1])
+                for k in range(K)]
+        res = [f.result() for f in futs]
+    frames = []
+    lost = seen = with_hand = 0
+    for fr, l, s, h, _, _ in res:
+        frames += fr
+        lost += l
+        seen += s
+        with_hand += h
+    return frames, lost, seen, with_hand, res[0][4], res[0][5]
+
+
 def _map_point(q, x0, y0, si, W, H):
     """a crop's normalized point (x, y, visibility) -> the whole picture's normalized point, clamped to the picture"""
     x = min(max((x0 + q.x * si) / W, 0.0), 1.0)
@@ -279,6 +328,8 @@ def main():
                     help="track the whole picture only (no second pass on a crop round a small person)")
     ap.add_argument("--progress", default="",
                     help="a file rewritten as the tracker goes: the fraction of the video read (0-1), for the app's progress line")
+    ap.add_argument("--workers", type=int, default=CROP_WORKERS,
+                    help="the crop pass runs in this many chunks at once (threads, each with its own detectors); 1 = one run")
     ap.add_argument("--hand-reach", type=float, default=0.12,
                     help="a hand's wrist within this many picture widths of a body wrist is that hand")
     a = ap.parse_args()
@@ -308,8 +359,9 @@ def main():
     pbase = (0.0, 1.0)
     if not a.no_crop:
         # pass 1: the person's box over the clip, every 4th frame, body only
+        rep1 = _progress_writer(a.progress, (0.0, 0.25), 1)
         p1, _, _, _, _, _ = run_track(a, env, step, every=PASS1_EVERY, crop=None, hands=False,
-                                      progress=a.progress, pbase=(0.0, 0.25), conf=LOCATE_CONF)
+                                      report=lambda f: rep1(0, f), conf=LOCATE_CONF)
         boxes = []
         shares = []
         for s, fr in p1:
@@ -333,8 +385,12 @@ def main():
             else:
                 print("crop: the person is %.0f%% of the picture height: tracked whole, no crop" % (share * 100),
                       file=sys.stderr)
-    frames_s, lost, seen, with_hand, W, H = run_track(a, env, step, every=1, crop=crop, hands=True,
-                                                      progress=a.progress, pbase=pbase, conf=a.detect_conf)
+    if crop is not None:
+        frames_s, lost, seen, with_hand, W, H = run_chunks(a, env, step, crop, a.detect_conf, a.progress, pbase, a.workers)
+    else:
+        rep2 = _progress_writer(a.progress, pbase, 1)
+        frames_s, lost, seen, with_hand, W, H = run_track(a, env, step, every=1, crop=None, hands=True,
+                                                          report=lambda f: rep2(0, f), conf=a.detect_conf)
     frames = [fr for _, fr in frames_s]
     if len(frames) < 2:
         print("NO the tracker found a person in %d frames" % len(frames))
