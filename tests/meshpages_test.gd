@@ -356,6 +356,20 @@ func _init() -> void:
 		m.ksc.stop()
 	await idle(2)
 
+	# 9f the sphere opened from MODEL (search box / shortcut while the cube is open): the page moves to SCULPT, so the sphere is
+	# shown and takes strokes (it stayed on MODEL, which hides the sphere: every stroke was dropped; sculptpose's 8 bars)
+	m.ui_page_btns["MODEL"].pressed.emit()
+	await idle(2)
+	m._kmesh_edit_start()
+	await idle(2)
+	m._sculpt_start()
+	await idle(3)
+	ok(m.cur_page == "SCULPT" and m.ksc != null and m.ksc.on and m.ksc.showing,
+		"9f the sphere opened from MODEL: page %s, sphere on %s, shown %s" % [m.cur_page, str(m.ksc != null and m.ksc.on), str(m.ksc != null and m.ksc.showing)])
+	m.ksc.stop()
+	m.kmed.stop()
+	await idle(2)
+
 	# 4 Easy mode hides the three pages
 	m.easy.set_on(true, false)
 	await idle(3)

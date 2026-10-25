@@ -14325,8 +14325,12 @@ func _mesh_page() -> bool:
 
 ## a mesh opened from a posing page (the search box, a shortcut): its own page first, so the posing browser and inspector
 ## step aside and the mesh panels have the left column (a cube opened on POSE drew its primitive panel over the browser)
+## Also from a mesh page that does not show this object (the sphere opened from MODEL, the cube from SCULPT): that page hides it
+## (_mesh_show_sync) and its strokes / clicks waited, so a sculpt in pose opened from MODEL moved nothing
 func _mesh_page_for(p: String) -> void:
-	if not _mesh_page() and not (easy != null and easy.on) and ui_page_btns.has(p):
+	if (easy != null and easy.on) or not ui_page_btns.has(p):
+		return
+	if not _mesh_page() or ((p == "SCULPT") != (cur_page == "SCULPT")):
 		_page_set(p)
 
 
