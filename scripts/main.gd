@@ -5330,7 +5330,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 						_say(_grip_said(r, sel))
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
-			if was == "joint":
+			if was == "joint" and easy != null and easy.on and sel_card >= 0 and not auto_key:
+				easy.card_follows_drag()   # walk-through 5: Easy, a card picked: the drag changes that card (one undo step, "Change pose")
+			elif was == "joint":
 				_autokey_card()   # ROADMAP 42: the drag that moved the body keys a card at the playhead (its undo step is the press's)
 	elif ev is InputEventMouseMotion and dragging != "":
 		var mm := ev as InputEventMouseMotion
@@ -13896,6 +13898,8 @@ func _ease_bias_drag(i: int, x: float) -> void:
 ## (round 7) the four card edits push an undo step: a card's X could not be undone ("we always have ctrl+z")
 func _card_add() -> void:
 	_push_undo()
+	if easy != null:
+		easy.edit_pick = -1   # an added card is selected but was not picked: the next drag poses a new card, not this one
 	var nm := ui_pose_name.text.strip_edges()
 	var at := sel_card + 1 if sel_card >= 0 else -1
 	S.add(nm if nm != "" else "pose %d" % (S.cards.size() + 1), B.to_dict(), at)
@@ -13911,6 +13915,8 @@ func _card_add() -> void:
 
 func _card_pick(i: int) -> void:
 	_push_undo()
+	if easy != null:
+		easy.edit_pick = i   # Easy: this card was picked on purpose, so a body drag now changes it (easy_mode.card_follows_drag)
 	_tween_armed = false   # a new card: its first tween nudge gets its own undo step
 	_ease_bias_armed = false
 	sel_card = i
@@ -17756,6 +17762,8 @@ func _mode_paint() -> void:
 ## refresh, so the speed graph stayed up over the empty scene with the old scene's curves)
 func _new_scene() -> void:
 	_actors_home()   # TC3
+	if easy != null:
+		easy.edit_pick = -1
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
 	if not reh.is_empty():   # I14: so does a rehearsal

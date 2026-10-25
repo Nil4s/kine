@@ -365,11 +365,12 @@ func _init() -> void:
 	else:
 		say("   NOT VISIBLE: no timeline card is on screen to pick")
 	await shot("04_card_picked")
+	var pick3: int = m.sel_card
+	var before3: Dictionary = m.S.cards[pick3]["pose"].duplicate(true) if pick3 >= 0 and pick3 < n_before else {}
 	await drag("hand_r", Vector2(-70, -30))
 	await shot("05_arm_dragged")
-	var kept := false
-	if await click_text("More"):
-		kept = await click_menu_item(m.easy._more, "Save this pose as a card")
+	# the picked card takes the dragged pose in place (no More > Save this pose as a card: that adds a card, it changes nothing)
+	var kept := not before3.is_empty() and not EasyMode.same_pose(m.S.cards[pick3]["pose"], before3) and EasyMode.same_pose(m.S.cards[pick3]["pose"], m.B.to_dict())
 	await shot("06_pose_kept")
 	var pl3 := await click_text("Play", true)
 	var played3 := await wait_playing()
@@ -377,7 +378,7 @@ func _init() -> void:
 	var n_after: int = m.S.cards.size()
 	say("   cards before %d, after %d" % [n_before, n_after])
 	# done = the picked card's pose changed in place: a NEW card (count up) is not a change
-	end_goal(pick_ok and kept and played3 and n_after == n_before, "(a card picked: %s, pose kept: %s, cards %d -> %d (a new card, not a change, when up), played: %s)" % [str(pick_ok), str(kept), n_before, n_after, str(played3)])
+	end_goal(pick_ok and kept and played3 and n_after == n_before, "(a card picked: %s, pose changed in place: %s, cards %d -> %d (a new card, not a change, when up), played: %s)" % [str(pick_ok), str(kept), n_before, n_after, str(played3)])
 
 	# 4. A CHAIR FROM THE LIBRARY, THEN MAKE HIM SIT ON IT
 	begin_goal("4 chair from the Library, then make him sit on it")
