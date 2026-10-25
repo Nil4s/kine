@@ -65,7 +65,7 @@ func key(k: InputEventKey, layer_on: bool) -> String:
 	var s := "Model: proportional editing on: %s falloff, radius %s, %s. Shift+O next falloff, Alt+O connected only, the wheel sizes it during G / R / S" % [
 		falloff, Units.len(radius), "connected only (along the edges)" if connected else "everything within the radius"]
 	if not layer_on:
-		s += ". It works on the Blender-style G / R / S: turn that layer on (S, \"Keys: Blender-style G R S on / off\")"
+		s += ". It works on the G / R / S of the model preview"
 	return s
 
 
