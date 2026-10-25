@@ -175,12 +175,14 @@ func mesh() -> KMesh:
 
 
 func _process(_dt: float) -> void:
-	var want: bool = ui.on and ui.mesh != null
+	var want: bool = ui.on and ui.mesh != null and ui.showing   # the Materials panel goes with the cube off its page
 	if visible != want:
 		visible = want
 		_sig = ""
 	if not visible:
 		return
+	if ui.uved != null and ui.uved.visible:
+		ui.uved.place()   # the UV panel sits left of this one, level with its top: it follows this panel's size
 	var sig := "%d %d %d %d" % [ui.undo.steps.size(), ui.undo.redos.size(), mesh().face_count(), mesh().materials.size()]
 	if sig != _sig and not _open:
 		_sig = sig

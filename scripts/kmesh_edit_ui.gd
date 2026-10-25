@@ -76,6 +76,9 @@ var left: Callable     # G01: called after leaving (the fighter shows again)
 var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
 var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
 var refp: KMeshRefPlanesUI   # B21: reference images on planes + their panel (scripts/kmesh_refplanes_ui.gd)
+var showing := true          # the page shows this mesh (MODEL, SURFACE); off on the other pages: hidden, never stopped (set_showing)
+var _mods_back := false      # the Modifiers panel was open when the page left it
+var _uv_back := false        # the UV editor was open when the page left it
 
 
 func setup(main: Node) -> void:
@@ -163,6 +166,37 @@ func stop() -> void:
 	m._say("Model: left the test cube (nothing was saved). Run Model: edit a test cube (preview) to come back")
 	if left.is_valid():
 		left.call()
+
+
+## the page shows the cube (MODEL, SURFACE) or not (the other pages). Off: the cube, its primitive / Modifiers / UV panels and
+## its Materials panel are hidden, and its keys and clicks wait; nothing is stopped, so the edits, the undo and the open panels
+## come back as they were. A body-mesh edit's fighter parts (base_body.gd, meta fighter_vis) are put back on leaving and hidden again
+func set_showing(v: bool) -> void:
+	if showing == v:
+		return
+	showing = v
+	if view != null and on:
+		view.visible = v
+	if _ov != null:
+		_ov.visible = on and v
+	if prim_panel != null:
+		prim_panel.visible = on and v
+	if mods != null and mods.panel != null:
+		if not v:
+			_mods_back = mods.panel.visible
+		mods.panel.visible = v and on and _mods_back
+	if uved != null:
+		if not v:
+			_uv_back = uved.visible
+			uved.visible = false
+		elif on and _uv_back:
+			uved.visible = true
+			uved.place()
+	if has_meta("fighter_vis"):
+		var fv: Dictionary = get_meta("fighter_vis")
+		for mi in fv:
+			if is_instance_valid(mi):
+				(mi as MeshInstance3D).visible = fv[mi] if not v else false
 
 
 func set_mode(md: int) -> void:
@@ -810,7 +844,7 @@ func _legend_update() -> void:
 			row.add_child(lb)
 			vb.add_child(row)
 		m.ui_root.add_child(legend)
-	legend.visible = on and view != null and view.show_heat
+	legend.visible = on and showing and view != null and view.show_heat
 	if not legend.visible:
 		return
 	var c: Dictionary = view.heat["counts"]

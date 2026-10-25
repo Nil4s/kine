@@ -61,6 +61,23 @@ var tint: KMeshMaskTint
 var fsets := KMeshFaceSetsUI.new()   # C09
 var source: Callable   # C19 (scripts/sculpt_pose_ui.gd): the mesh to sculpt, -> {"mesh", "at", "undo", "say"}; empty = the sphere
 var left: Callable     # C19: called after leaving
+var showing := true    # the page shows the sphere (SCULPT); off on the other pages: hidden, never stopped (set_showing)
+
+## the page shows the sphere (SCULPT) or not: off = the sphere, its brush ring and the strokes wait, and it comes back as it was
+## (kmesh_edit_ui.set_showing; a sculpt of the posed body or of the fighter's parts puts the fighter parts back on leaving)
+func set_showing(v: bool) -> void:
+	if showing == v:
+		return
+	showing = v
+	if view != null and on:
+		view.visible = v
+	if _ov != null:
+		_ov.visible = on and v
+	if has_meta("fighter_vis"):
+		var fv: Dictionary = get_meta("fighter_vis")
+		for mi in fv:
+			if is_instance_valid(mi):
+				(mi as MeshInstance3D).visible = fv[mi] if not v else false
 
 
 func setup(main: Node) -> void:

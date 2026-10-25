@@ -5180,10 +5180,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if bed != null and bed.on and bed.input(ev):   # J01: the bone editor's keys (E, Shift+A, X, Tab, Esc), picks and end-ball drags
 		get_viewport().set_input_as_handled()
 		return
-	if kmed != null and kmed.on and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
+	if kmed != null and kmed.on and kmed.showing and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
 		get_viewport().set_input_as_handled()
 		return
-	if ksc != null and ksc.on and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
+	if ksc != null and ksc.on and ksc.showing and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
 		get_viewport().set_input_as_handled()
 		return
 	if sk.on and _sk_input(ev):   # I9: a left drag is a stroke; Enter fits, Backspace takes the last stroke back
@@ -5690,7 +5690,7 @@ func _pose_words(text: String) -> Dictionary:
 		return SupportPose.run(self, text)   # N015: "kneeling on the right knee, left foot flat" solves a pose on those contacts
 	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
 		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
-	if MeshWords.claims(text, kmed != null and kmed.on):
+	if MeshWords.claims(text, kmed != null and kmed.on and kmed.showing):   # a cube hidden on another page takes no mesh words
 		return MeshWords.run(self, text)   # B29: "extrude the top 5 cm" is a model edit (scripts/mesh_words.gd; never a rig / face / pose phrase)
 	var rt := FaceWords.route(text)   # FACE WORDS (I20): "tired and angry", "raise the right arm 90 and look angry": face keyed at the playhead, same step
 	var has_face: bool = rt["face"] != ""
@@ -8571,6 +8571,7 @@ func _kmesh_edit_start() -> void:
 		return
 	_mesh_page_for("MODEL")
 	kmed.start()
+	_mesh_show_sync()
 
 
 func _kmesh_subdivide() -> void:   # A12: Catmull-Clark the test cube (opens it first), one undo step
@@ -8610,10 +8611,9 @@ func _sculpt_start() -> void:
 	if ksc.on:
 		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
 		return
-	if kmed != null and kmed.on:
-		kmed.stop()   # the test cube is still open (its box select takes every left press first): the sphere gets the strokes
 	_mesh_page_for("SCULPT")
-	ksc.start()
+	ksc.start()   # the test cube, if it is open, is kept and hidden on this page (set_showing): the sphere gets the strokes
+	_mesh_show_sync()
 
 
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
@@ -12870,7 +12870,7 @@ func bar_text() -> String:
 	var what := ""
 	if _num_on:
 		what = "TYPE %s = %s_   (it is %.1f)   Tab: next axis   Enter: done   Esc: cancel the drag" % [NUM_AXES[_num_axis], _num_text, (B.ang[sel] as Vector3)[_num_axis]]
-	elif kmed != null and kmed.on:   # ROADMAP_400 A14: the mesh being edited, counted (scripts/kmesh_stats.gd)
+	elif kmed != null and kmed.on and kmed.showing:   # ROADMAP_400 A14: the mesh being edited, counted (scripts/kmesh_stats.gd)
 		what = kmed.stats_text()
 	elif _bar_hover != "" and _bar_hover != sel:
 		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else part_words(_bar_hover))
@@ -14263,6 +14263,7 @@ func _page_set(p: String, save := true) -> void:
 		return
 	if easy != null and easy.on and ExpertPages.PAGES.has(p):
 		return   # the expert pages are hidden in Easy mode (ExpertPages; the Shift+7..9 keys too)
+	var was_page := cur_page
 	var was_mesh := ExpertPages.PAGES.has(cur_page)
 	var is_mesh := ExpertPages.PAGES.has(p)
 	if is_mesh and not was_mesh:   # a mesh page: the posing body's target dummy goes away (as Easy does), remembered
@@ -14278,6 +14279,9 @@ func _page_set(p: String, save := true) -> void:
 			dummy_on = true
 			_dummy_hits()
 	cur_page = p
+	_mesh_show_sync()
+	if save and p != was_page:   # the status line says this page's own hint (it was the last page's message)
+		_say("%s page: %s" % [p, PAGE_TIPS[p]])
 	for k in fold:
 		fold[k] = _page_want(p, k)
 	_ribbon_row(PAGE_ROW[p])
@@ -14313,8 +14317,21 @@ func _mesh_page_for(p: String) -> void:
 		_page_set(p)
 
 
+## the mesh this page shows is open: the sphere on SCULPT, the cube on MODEL and SURFACE
 func _mesh_open() -> bool:
-	return (kmed != null and kmed.on) or (ksc != null and ksc.on)
+	if cur_page == "SCULPT":
+		return ksc != null and ksc.on
+	return kmed != null and kmed.on
+
+
+## each mesh page shows only its own object: the cube on MODEL and SURFACE, the sphere on SCULPT, neither on the other pages.
+## A hidden object is kept (its edits, undo and panels), so leaving and coming back loses nothing
+func _mesh_show_sync() -> void:
+	var mesh_pg := _mesh_page()
+	if kmed != null:
+		kmed.set_showing(mesh_pg and cur_page != "SCULPT")
+	if ksc != null:
+		ksc.set_showing(mesh_pg and cur_page == "SCULPT")
 
 
 ## the hint in the view while a mesh page has no mesh open; gone as soon as one is open or the page is left
