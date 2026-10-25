@@ -84,6 +84,12 @@ func _init() -> void:
 			same = false
 			break
 	ok(same, "3b _where_memo equals _where at 500 times on the fitted scene")
+	# 3c REACH CALLS: VideoCleanup.reachable made 4022 Scene.apply calls on clip A before the shared-pose memo (measured on w4-reach
+	# HEAD, 2026-10-25); the bar is 60 % of that. Its number is printed with it, KNOWN FAIL until it is met
+	const OLD_REACH_APPLIES := 4022
+	var n_reach := VideoIQ.reach_applies
+	print("     reachable made %d Scene.apply calls (old count %d, bar %d)" % [n_reach, OLD_REACH_APPLIES, int(OLD_REACH_APPLIES * 0.6)])
+	kf(n_reach <= int(OLD_REACH_APPLIES * 0.6), "3c reachable on clip A calls Scene.apply at most %d times (60 %% of %d): %d" % [int(OLD_REACH_APPLIES * 0.6), OLD_REACH_APPLIES, n_reach])
 	# 3 SPEED (a bar the numbers may not meet: KNOWN FAIL with its number)
 	print("     process %.2f s on this run (pre-speed-up %.1f s)" % [secs, BASE_PROCESS_S])
 	kf(secs <= BASE_PROCESS_S * SPEED_BAR, "3 SPEED: process %.2f s <= %.1f s (70 %% of %.1f s)" % [secs, BASE_PROCESS_S * SPEED_BAR, BASE_PROCESS_S])

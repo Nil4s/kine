@@ -840,7 +840,10 @@ func apply_true(B: Body, t: float) -> void:
 	baker = bk
 
 
+static var apply_calls := 0   # every Scene.apply call (nested ones too): the speed bars count the calls a stage makes
+
 func apply(B: Body, t: float) -> void:
+	apply_calls += 1
 	B.squash = ImpactFrames.squash_at(self, t) if not attrs.is_empty() else {}   # I13: the struck part's squash at t
 	if B.body != body:
 		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body

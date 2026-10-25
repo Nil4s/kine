@@ -195,6 +195,7 @@ const INV_TRANS := 3        # frames: at most this many frames between the last 
 const INV_MAX_LEN := 1.0    # s: first to last inverted frame
 const INV_MIN_FRAMES := 3  # frames: inverted readings in the run; one or two are blips (the pick-up has single-frame ones)
 const INV_MIRROR := 0.10    # m: the shoulders' left-right axis this far on the wrong side (the tracker swapped left and right): not an upright anchor
+static var reach_applies := 0   # Scene.apply calls the last VideoCleanup.reachable made (tests/vidspeed_test.gd 3c)
 static var INVERSION_FILL := true
 
 
@@ -1471,7 +1472,9 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	progress = 0.95
 	var V: Scene = sk["scene"]
 	V.memo_slopes = true   # VIDEO SPEED: this scene's cards are fixed from here to the return below (reachable and the located pass only read it)
+	var reach_n0 := Scene.apply_calls
 	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps, K["heeloff"])), V.fps)
+	reach_applies = Scene.apply_calls - reach_n0   # the Scene.apply calls reachable made (tests/vidspeed_test.gd 3c)
 	var located := locate_played(B, V, K["list"])
 	_unmemo(sk)
 	var feet := 0

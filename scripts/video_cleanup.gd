@@ -157,6 +157,18 @@ static func detect(frames: Array, fps: float) -> Array:
 	return out
 
 
+## the sole's heights at t with NO plants on the scene: {"_l": [ball y, heel y], "_r": [...]}, one Scene.apply per time (memo)
+static func _plant_free_pose(V: Scene, B: Body, t: float, memo: Dictionary) -> Dictionary:
+	if memo.has(t):
+		return memo[t]
+	V.apply(B, t)
+	var out := {}
+	for sd in ["_l", "_r"]:
+		out[sd] = [(B.P["ball" + sd] as Vector3).y, FootRoll.heel_point(B, sd).y]
+	memo[t] = out
+	return out
+
+
 ## REACH: a plant holds only while the leg can still reach its pin. FootPlant.scan reads each sample's miss (the ankle off its
 ## pin, MISS_BAR = 1 mm); a plant that misses is ended one step before its first bad sample, and dropped if that leaves less
 ## than PLANT_MIN frames. Scene V must hold the thinned cards; its plants are set to the result by the caller
@@ -169,6 +181,9 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 	# which the body's own sole (ball, heel) is within SEAT_TOL of the floor (y = 0, the scene's on_floor), so the hold keeps the
 	# foot where it stands on the ground; the foot's turn is the played one. A plant that never gets there keeps its t0
 	V.plants = []
+	# the scans below that run with NO plants (V.plants = []) read a time's pose the same way, so each time is one Scene.apply,
+	# shared by the heel pivot scan and the sole scan (they walk the same grid of times from the same t0)
+	var pose_memo := {}
 	for p in plants:
 		var sd: String = String(p["foot"]).right(2)
 		var t := float(p["t0"])
@@ -178,8 +193,7 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 		# toes stay up is not planted (no toes floating through a stance)
 		var th0 := t
 		while th0 < float(p["t1"]) - PLANT_MIN * dt:
-			V.apply(B, th0)
-			if FootRoll.heel_point(B, sd).y <= PIVOT_H:
+			if float(_plant_free_pose(V, B, th0, pose_memo)[sd][1]) <= PIVOT_H:
 				break
 			th0 += step
 		if th0 < float(p["t1"]) - PLANT_MIN * dt:
@@ -187,8 +201,8 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 			if (B.P["ball" + sd] as Vector3).y > SEAT_TOL:
 				var tf := th0 + step
 				while tf < minf(th0 + PIVOT_MAX, float(p["t1"]) - PLANT_MIN * dt):
-					V.apply(B, tf)
-					if (B.P["ball" + sd] as Vector3).y <= SEAT_TOL and FootRoll.heel_point(B, sd).y <= SEAT_TOL:
+					var pf: Array = _plant_free_pose(V, B, tf, pose_memo)[sd]
+					if float(pf[0]) <= SEAT_TOL and float(pf[1]) <= SEAT_TOL:
 						break
 					tf += step
 				if tf < minf(th0 + PIVOT_MAX, float(p["t1"]) - PLANT_MIN * dt):
@@ -196,8 +210,8 @@ static func reachable(V: Scene, B: Body, plants: Array, fps: float) -> Array:
 					p["tf"] = tf
 					continue
 		while t < float(p["t1"]) - PLANT_MIN * dt:
-			V.apply(B, t)
-			if minf((B.P["ball" + sd] as Vector3).y, FootRoll.heel_point(B, sd).y) <= SEAT_TOL:
+			var pt: Array = _plant_free_pose(V, B, t, pose_memo)[sd]
+			if minf(float(pt[0]), float(pt[1])) <= SEAT_TOL:
 				break
 			t += step
 		if t < float(p["t1"]) - PLANT_MIN * dt:
