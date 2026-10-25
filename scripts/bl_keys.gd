@@ -357,6 +357,8 @@ func _apply_mesh() -> void:
 func readout() -> String:
 	var v := value()
 	var ax := axis_name(axis)
+	if axis == 2:   # Kine is Y-up: Z is depth, so a Blender user's "Z = up" is said once, here
+		ax = "Z (depth; up is Y here)"
 	var amount := ""
 	var t := typed()
 	match active:

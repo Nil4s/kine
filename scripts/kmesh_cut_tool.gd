@@ -227,6 +227,9 @@ func confirm() -> void:
 			var r := KMeshCut.loop_cut(ui.mesh, e.x, e.y, n, f)
 			_finish(r, "Loop cut", "loop cut: %d new loop%s across %d edges (slide %.2f); the new edges are selected. Ctrl+Z takes it back" % [n, "" if n == 1 else "s", int(r.get("ring", 0)), clampf(f, -KMeshCut.SLIDE_MAX, KMeshCut.SLIDE_MAX)])
 		"knife":
+			if pts.size() < 2:   # one point cuts nothing: the knife keeps running, and says how many it needs
+				_say("knife: needs 2 points, you have %d. Click two points on the model's faces (Backspace takes one back, Esc cancels)" % pts.size())
+				return
 			var p := pts.duplicate()
 			mode = ""
 			pts = []
@@ -272,7 +275,7 @@ func start_knife() -> void:
 func add_point(p: Vector2) -> bool:
 	var h: Dictionary = ui.view.pick(_cam(), p, PICK_SNAP_PX)
 	if h.is_empty():
-		_say("knife: click on the surface (%d points so far)" % pts.size())
+		_say("knife: that click missed the model (%d points so far). Click on a visible face of the model itself, not the grid or the empty space; Enter cuts from 2 points" % pts.size())
 		return false
 	var r: Array = ui.view.ray_at(_cam(), p)
 	var inv: Transform3D = ui.view.global_transform.affine_inverse()

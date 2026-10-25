@@ -613,9 +613,16 @@ func _init() -> void:
 		if kf >= 0:
 			var c0: Vector2 = face_spot(kf)
 			var v_k: int = nv()
+			# the two points: the midpoints of two opposite edges of the face (a cut across it; the snap lands each click
+			# on its edge). The round-3 walk used fixed +-60 / +-25 px offsets from the face centre, which fell off this
+			# small face: "0 points", nothing cut.
+			var fv: PackedInt32Array = kmed.mesh.faces[kf]
+			var h := fv.size() / 2
+			var k1: Vector2 = scr(vw(fv[0])).lerp(scr(vw(fv[1])), 0.5)
+			var k2: Vector2 = scr(vw(fv[h])).lerp(scr(vw(fv[(h + 1) % fv.size()])), 0.5)
 			await key(KEY_K, false, true, "Shift+K (knife)")
-			await click_at(c0 + Vector2(-60, -25), "knife point 1 on the face")
-			await click_at(c0 + Vector2(60, 25), "knife point 2 on the face")
+			await click_at(k1, "knife point 1 (midpoint of an edge of the face)")
+			await click_at(k2, "knife point 2 (midpoint of the opposite edge)")
 			await shot("09_knife_points")
 			await key(KEY_ENTER, false, false, "Enter (cut)")
 			await shot("10_knife_cut")
@@ -697,6 +704,40 @@ func _init() -> void:
 	end_goal("5", t5_ok, t5_note)
 
 	# ---- 6. SURFACE: unwrap, checker, second material on some faces ----
+	# ---- 5b. SCULPT: Inflate and Draw with X symmetry on the test sphere, then Smooth (the brief's sculpt goal; the round-3
+	# driver never reached it). The test cube stays open, hidden, on this page.
+	begin_goal("5b sculpt: Inflate and Draw with X symmetry on the test sphere, then Smooth")
+	var t5b_ok := false
+	var t5b_note := ""
+	await click_text("SCULPT")
+	await idle(6)
+	await click_text("Test sphere")
+	await idle(10)
+	ksc = m.ksc
+	if ksc != null and ksc.on:
+		await key(KEY_X, false, false, "X (X symmetry on)")
+		say("   symmetry: %s" % ksc.sym_words())
+		await click_text("Inflate")
+		var s0: PackedVector3Array = ksc.mesh.verts.duplicate()
+		await drag_at(sphere_spot(), Vector2(60, 0), "across the sphere with Inflate")
+		await shot("29_sculpt_inflate")
+		var n_inf := moved_count(s0, ksc.mesh.verts)
+		var s1: PackedVector3Array = ksc.mesh.verts.duplicate()
+		await click_text("Draw")
+		await drag_at(sphere_spot(), Vector2(0, 60), "across the sphere with Draw")
+		await shot("30_sculpt_draw")
+		var n_draw := moved_count(s1, ksc.mesh.verts)
+		var s2: PackedVector3Array = ksc.mesh.verts.duplicate()
+		await click_text("Smooth")
+		await drag_at(sphere_spot(), Vector2(70, 0), "across the sphere with Smooth")
+		await shot("31_sculpt_smooth")
+		var n_sm := moved_count(s2, ksc.mesh.verts)
+		t5b_ok = n_inf >= 10 and n_draw >= 1 and n_sm >= 1
+		t5b_note = "(verts moved: Inflate %d, Draw %d, Smooth %d; symmetry: %s)" % [n_inf, n_draw, n_sm, ksc.sym_words()]
+	else:
+		t5b_note = "(the test sphere did not open)"
+	end_goal("5b", t5b_ok, t5b_note)
+
 	begin_goal("6 surface: unwrap (U), checker, a second material on some faces")
 	var t6_ok := false
 	var t6_note := ""
@@ -778,20 +819,35 @@ func _init() -> void:
 	end_goal("7", t7_ok, t7_note)
 
 	# ---- 8. RE-IMPORT the GLB as a prop (Object library > My models) and check its size ----
-	begin_goal("8 re-import the GLB as a prop (Library > My models), check its size")
+	begin_goal("8 Use as a prop (Export section), then Library > My models, check its size")
 	var t8_ok := false
 	var t8_note := ""
+	await click_text("DELIVER")
+	await idle(6)
+	var used: bool = await click_text("Use as a prop")
+	await idle(12)
+	await shot("26_use_as_prop")
+	say("   status after 'Use as a prop': %s" % str(m.ui_status.text))
 	await click_text("STAGE")
-	await shot("26_stage_page")
+	await idle(6)
 	var lib := find_btn("Object library", true)
 	say("   'Object library' button on STAGE: %s" % str(lib != null))
+	var kind := "my test_cube"
+	var size_note := ""
 	if lib != null:
 		await click_text("Object library", true)
 		await shot("27_library_open")
 		if await click_text("My models"):
 			await shot("28_my_models")
-	t8_note = "(Object library button found: %s; My models opened: see shots 27 / 28; the driver does not drop a file, so the re-import is not proven here)" % str(lib != null)
-	end_goal("8", false, t8_note)
+	if used and Props.has_kind(kind):
+		var kd: Dictionary = Props.kind_of(kind)
+		size_note = String(kd["label"])
+		t8_ok = true
+		Props.EXTRA.erase(kind)   # the run's own prop copy: removed with its file below
+		if FileAccess.file_exists(String(kd["glb"])):
+			DirAccess.remove_absolute(String(kd["glb"]))
+	t8_note = "(Use as a prop pressed: %s; prop registered: %s; label: %s; Object library button: %s)" % [str(used), str(t8_ok), size_note, str(lib != null)]
+	end_goal("8", t8_ok, t8_note)
 
 	say("\n| # | Goal | Done | Actions | Notes |")
 	say("|---|---|---|---|---|")
