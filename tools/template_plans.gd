@@ -14,6 +14,7 @@ static func get_plan(nm: String) -> Dictionary:
 		"sit_down": return plan_sit_down()
 		"wave": return plan_wave()
 		"fall": return plan_fall()
+		"dance": return plan_dance()
 	return {}
 
 
@@ -364,3 +365,46 @@ static func plan_fall() -> Dictionary:
 	clips.append({"name": "lying, still", "move": 0.25, "hold": 0.16, "set": lie, "hips": [0, 0, -0.40]})
 	return {"name": "fall", "base": "poses/stand.json", "clips": clips, "spline": true, "floor_body": true, "pin": false, "no_pin": true,
 		"note": "FALL template: a backward breakfall (ushiro ukemi): stand, a small sway back, a controlled squat with the centre of mass over the feet and the chin tucked, sit back to the floor beside the heels, roll onto the back with the arms slapping the floor, lie still."}
+
+
+## DANCE (beginner walk-through round 8: "dance", typed; not a picker card). A side-step, 3.5 s at 120 beats a minute (0.5 s a
+## count): step right, close, step left, close, with the arms swinging in counter-phase to the hips' sway and a slight knee bounce.
+## Feet are planted with "hold_feet" (the runtime holds a planted foot where it stood in the card before the run, Scene's PLANTED
+## FEET) and the bake places each card's feet by its marks: [x, z] on the floor, [x, z, heading, lift] in the air. x is +his left.
+## REAL SIDE-STEPS: a step of 0.25 m to the side is a short shuffle at this tempo; the weight shifts over the foot that stays
+## before it lifts (the centre of mass goes over the stance foot first), so no card lifts a foot with the centre of mass outside it.
+const DANCE_L := 0.10    # the left foot's mark when standing (m, +x his left); the right foot stands at -DANCE_L
+const DANCE_OUT := -0.35 # the right foot stepped out to his right (m)
+const DANCE_IN := -0.15  # the left foot closed beside the right (m)
+
+
+static func plan_dance() -> Dictionary:
+	var L := DANCE_L
+	var R := -DANCE_L
+	# [name, move, hold, hips x, knee bounce y, left mark, right mark, planted feet, the free foot]
+	var rows := [
+		["stand", -1.0, 0.3, 0.0, -0.014, [L, 0.0], [R, 0.0], ["_l", "_r"], []],
+		["weight to left", 0.5, 0.0, 0.08, -0.034, [L, 0.0], [R, 0.0], ["_l", "_r"], []],
+		["step right, lift", 0.25, 0.0, 0.08, -0.014, [L, 0.0], [-0.22, 0.0, 0.0, 0.05], ["_l"], ["_r"]],
+		["step right, down", 0.25, 0.0, 0.08, -0.034, [L, 0.0], [DANCE_OUT, 0.0], ["_l"], []],
+		["weight to right", 0.4, 0.0, -0.30, -0.014, [L, 0.0], [DANCE_OUT, 0.0], ["_l", "_r"], []],
+		["close left, lift", 0.25, 0.0, -0.30, -0.014, [-0.02, 0.0, 0.0, 0.05], [DANCE_OUT, 0.0], ["_r"], ["_l"]],
+		["close left, down", 0.25, 0.0, -0.25, -0.034, [DANCE_IN, 0.0], [DANCE_OUT, 0.0], ["_l", "_r"], []],
+		["step left, lift", 0.25, 0.0, -0.33, -0.014, [-0.02, 0.0, 0.0, 0.05], [DANCE_OUT, 0.0], ["_r"], ["_l"]],
+		["step left, down", 0.25, 0.0, -0.33, -0.034, [L, 0.0], [DANCE_OUT, 0.0], ["_r"], []],
+		["weight to left again", 0.4, 0.0, 0.08, -0.014, [L, 0.0], [DANCE_OUT, 0.0], ["_l", "_r"], []],
+		["close right, lift", 0.25, 0.0, 0.08, -0.014, [L, 0.0], [-0.22, 0.0, 0.0, 0.05], ["_l"], ["_r"]],
+		["close right, down", 0.25, 0.3, 0.0, -0.014, [L, 0.0], [R, 0.0], ["_l", "_r"], []],
+	]
+	var clips := []
+	for row in rows:
+		var hx: float = row[3]
+		var s := 1.0 if hx > 0.0 else (-1.0 if hx < 0.0 else 0.0)   # the sway's side: counter-phase arms, the pelvis leans into it
+		var set := stand_set()
+		set.merge({"pelvis": [2, 3.0 * s, -8.0 * s], "spine_01": [1, 0, 0],
+			"upperarm_l": [4.0 - 34.0 * s, -65, 0], "upperarm_r": [4.0 + 34.0 * s, -65, 0],
+			"lowerarm_l": [60, 0, 0], "lowerarm_r": [60, 0, 0]}, true)
+		clips.append({"name": row[0], "move": row[1], "hold": row[2], "set": set, "relaxed": ["l", "r"],
+			"hips": [hx, 0, 0], "y": row[4], "plant": {"_l": row[5], "_r": row[6]}, "hold_feet": row[7], "free_feet": row[8]})
+	return {"name": "dance", "base": "poses/stand.json", "clips": clips, "no_pin": true,
+		"note": "DANCE: a side-step, 0.5 s a count: step right, close, step left, close (3.5 s); the arms swing in counter-phase to the hips, the knees bounce on each count. Typed, not a picker card (Templates.TYPED)."}

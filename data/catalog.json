@@ -159,6 +159,23 @@
   ]
  },
  {
+  "id": "dance",
+  "words": "Dance",
+  "kind": "move",
+  "category": "Moves",
+  "tags": [
+   "legs",
+   "loop"
+  ],
+  "seconds": 3.5,
+  "source": "templates/dance.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "wave",
+   "walk"
+  ]
+ },
+ {
   "id": "fall",
   "words": "Fall",
   "kind": "move",

@@ -7,7 +7,7 @@
 ##  4. One Ctrl+Z after a card gives back the empty scene (one undo step per card).
 ##  5. Typing "jab then cross" builds 2 strikes (the cards are the two single strikes, in order).
 ##  5b. Typing "walk", "jump", "walk then wave", "jump then kick", "sit down then fall" in the box builds >= 2 cards, no "can't build".
-##  5c. Typing "dance" builds nothing, and its sentence names the cards' moves (never one Kine cannot build).
+##  5c. Typing "tango" (not a move: "dance" is one now, round 8) builds nothing, and its sentence names the cards' moves (never one Kine cannot build).
 ##  6. The panel fits inside the window at 1280x720 (its rect is inside the visible viewport).
 ##  8. The Library opened over the empty scene hides the panel; Close brings it back.
 ##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
@@ -50,7 +50,7 @@
 ##  51. STAND UP (round 7, goal 2): a sat-down body typed "stand up then wave" builds cards; the wave is last, the stand-up cards
 ##      come from the sit reversed: the body ends standing (pelvis back within 4 cm of its standing height), not seated.
 ##  52. THEN STAND UP: after a sit the Then row offers "Then stand up" first, and its press builds the stand-up move.
-##  105. A REFUSED LINE IS SELECTED (round 8, friction 3): "dance" refused, the box selected; typed "punch" builds a punch, no "dance" in the cards.
+##  105. A REFUSED LINE IS SELECTED (round 8, friction 3): "tango" refused (not a move; "dance" is one now), the box selected; typed "punch" builds a punch, no "tango" in the cards.
 ##  106. THE REFUSAL OFFERS THE CLOSEST MOVES (round 8, friction 5): "sit dwn" refused; >= 3 try buttons, Sit down first; its press builds the sit down.
 ##  53. UNDO IN EASY: a 3-step sequence (Walk, Then wave, Bigger): each Undo changes the card list (count or the cards' poses), and
 ##      the status names the step it took back. Old code: the first Undo here took the same step, unnamed by the strip.
@@ -585,15 +585,15 @@ func _init() -> void:
 	# 5c. a word Kine cannot build builds nothing, and its sentence names only what Kine accepts (the cards' words, then strikes)
 	m._new_scene()
 	await idle(2)
-	edit.text = "dance"
-	edit.text_submitted.emit("dance")
+	edit.text = "tango"
+	edit.text_submitted.emit("tango")
 	await idle(2)
 	var why := (home.panel.find_child("eh_msg", true, false) as Label).text
 	var try_names := []
 	for n in ["walk", "punch", "kick", "wave"]:
 		try_names.append(home.panel.find_child("eh_try_%s" % n, true, false) as Button)
-	ok(m.S.cards.is_empty() and why == "Kine doesn't know 'dance' yet." and home._try_row.visible and not try_names.has(null),
-		"5c. typed 'dance' builds nothing, says one short line, and offers the Or-try moves (says: '%s')" % why)
+	ok(m.S.cards.is_empty() and why == "Kine doesn't know 'tango' yet." and home._try_row.visible and not try_names.has(null),
+		"5c. typed 'tango' builds nothing, says one short line, and offers the Or-try moves (says: '%s')" % why)
 
 	# 6. the panel fits the window at 1280x720 (the empty scene's panel)
 	m._new_scene()
@@ -2194,17 +2194,17 @@ func _init() -> void:
 	m._new_scene()
 	await idle(2)
 
-	# 105. A REFUSED LINE IS SELECTED, NOT GLUED (walk-through round 8, friction 3): "dance" is refused and the box keeps its word,
-	# selected, so the next keystrokes replace it. "punch" typed after it builds a punch, and no card name says "dance".
-	# Old code: the refused word stayed unselected, so the insertion glued on ("dancepunch").
+	# 105. A REFUSED LINE IS SELECTED, NOT GLUED (walk-through round 8, friction 3): "tango" is refused and the box keeps its word,
+	# selected, so the next keystrokes replace it. "punch" typed after it builds a punch, and no card name says "tango".
+	# Old code: the refused word stayed unselected, so the insertion glued on ("tangopunch").
 	m._new_scene()
 	await idle(3)
 	home._change()
 	await idle(2)
-	edit.text = "dance"
-	edit.text_submitted.emit("dance")
+	edit.text = "tango"
+	edit.text_submitted.emit("tango")
 	await idle(3)
-	var sel105 := edit.has_selection() and edit.get_selected_text() == "dance"
+	var sel105 := edit.has_selection() and edit.get_selected_text() == "tango"
 	if edit.has_selection():   # a keystroke over a selection deletes it first (insert_text_at_caret does not), then goes at the caret
 		var f105 := edit.get_selection_from_column()
 		edit.text = edit.text.substr(0, f105) + edit.text.substr(edit.get_selection_to_column())
@@ -2215,10 +2215,10 @@ func _init() -> void:
 	await idle(4)
 	var dance105 := false
 	for c in m.S.cards:
-		if "dance" in String(c["name"]).to_lower():
+		if "tango" in String(c["name"]).to_lower():
 			dance105 = true
 	ok(sel105 and typed105 == "punch" and not m.S.cards.is_empty() and not dance105,
-		"105. after 'dance' is refused its word is selected (%s), typing 'punch' gives box '%s' and builds %d card(s), none named dance (%s)"
+		"105. after 'tango' is refused its word is selected (%s), typing 'punch' gives box '%s' and builds %d card(s), none named tango (%s)"
 		% [sel105, typed105, m.S.cards.size(), str(m.S.cards.map(func(c): return c["name"]))])
 
 	# 106. THE REFUSAL OFFERS THE CLOSEST MOVES (round 8, friction 5): "sit dwn" is refused; at least three try buttons show, the first is

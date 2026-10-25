@@ -1650,6 +1650,8 @@ static func _card_template(part: String) -> String:
 	var w := part.strip_edges().to_lower()
 	if STAND_WORDS.has(w):
 		return String(STAND_WORDS[w])
+	if Templates.WORDS.has(w):   # typed dance words: "dance", "groove" (not a card: the Easy cards and the refusal's buttons are unchanged)
+		return String(Templates.WORDS[w])
 	for c in CARDS:
 		if String(c[0]).to_lower() == w:
 			return String(c[1])
