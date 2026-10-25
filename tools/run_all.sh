@@ -99,3 +99,4 @@ EXTRA="$EXTRA walk8_beginner:w"   # walk-through round 8: eight beginner goals i
 EXTRA="$EXTRA extrudeflow:w"   # walk 4 friction 7: Extrude / Inset buttons apply at once; E drag confirms on release
 EXTRA="$EXTRA modelview4:w"   # walk-through 4 goal 1: MODEL orbit under the floor, Ctrl+Numpad7 bottom view, Numpad . frame selected
 EXTRA="$EXTRA walk_model5:w"   # walk-through 5: chair, mirror, subdivide + decimate, knife, UV, fill, separate / join, rename + save + reopen (tests/walk_model5_test.gd)
+EXTRA="$EXTRA modelfix5:w"   # walk-through 5 friction 1: Enter in the search box runs the shown top row (Model row names it), not the typed words (tests/modelfix5_test.gd)

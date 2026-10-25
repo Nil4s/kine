@@ -788,8 +788,14 @@ func _init() -> void:
 		var front: int = pick_face(func(fi: int, c: Vector3) -> bool: return absf(c.z - fz) < 0.02)
 		var f_k0 := nf()
 		if front >= 0:
-			var a := scr(Vector3(fx0 + 0.02, fy, fz))
-			var b := scr(Vector3(fx1 - 0.02, fy + 0.05, fz))
+			# the two points: spots on the front face that no panel covers (the Materials panel sits over the right edge)
+			var spots: Array = []
+			for fr in [0.25, 0.5, 0.75, 0.15]:
+				var q := scr(Vector3(lerpf(fx0, fx1, fr), fy, fz))
+				if not ui_covers(q) and on_screen(q):
+					spots.append(q)
+			var a: Vector2 = spots[0] if spots.size() >= 1 else scr(Vector3(fx0 + 0.02, fy, fz))
+			var b: Vector2 = spots[1] if spots.size() >= 2 else scr(Vector3(fx1 - 0.02, fy + 0.05, fz))
 			await key(KEY_K, false, true, "Shift+K (knife)")
 			await hover(a)
 			await click_at(a, "knife start, left edge of the front")
