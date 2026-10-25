@@ -26,12 +26,19 @@ const HINT := "or type a move: 'jab then cross'"
 const PANEL_LEFT := 12.0       # px between the window's left edge and the home panel
 const PANEL_W := 478.0         # the cards' grid (4 x 112 + 3 x 10) and the text box and message under it
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
-const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
+const UNDO_NONE := "Undo: nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
 const TRY := [3, 4, 6, 0]   # the four most common cards (CARDS indices): Punch, Kick, Wave, Walk. An unknown move offers these when no card word is close to it
 const TRY_MIN := 0.3        # a card word counts as close to a typed word at this bigram Dice score (try_pick)
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
 const STAND_WORDS := {"stand up": "stand_up"}   # typed words that are a derived template (templates.gd DERIVED): sit down played backwards
+## TYPED RETIME (walk11 G3): the whole clip x1.5 longer ("slower") or x0.67 ("faster"), one undo step; the say names both lengths
+const RETIME_WORDS := {"slower": 1.5, "make it slower": 1.5, "slow motion": 1.5, "faster": 0.6667, "make it faster": 0.6667, "quicker": 0.6667}
+## A TYPED LINE THAT STARTS WITH one of these APPENDS its moves to the clip (walk11 G2): "then turn around" after "jump twice"
+const THEN_WORDS := ["and then ", "then ", "after that "]
+## DID YOU MEAN (walk11 G4): a refused typed line gets the closest known move word within DID_MAX edits, as a button (mouse only)
+const KNOWN_MOVES := ["walk", "walk forward", "run", "run forward", "jump", "punch", "kick", "roundhouse", "sit down", "stand up", "wave", "dance", "fall", "sword swing", "turn around"]
+const DID_MAX := 2
 
 var m: Node                    # main (untyped: the same pattern as EasyMode)
 const SIT_KINDS := ["chair", "stool", "bench"]   # the props SET's sit takes (main.gd SIT_ON)
@@ -53,6 +60,7 @@ var _pbar_drop: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
+var _go_btn: Button          # Go: a visible button right of the box; it does what Enter does in the box
 var _msg: Label
 var _close: Button
 var _built := false            # a clip was built from here: the strip shows once the scene has cards
@@ -88,6 +96,8 @@ var _gen_words := ""          # the typed words Kine could not build: the button
 var _make_btn: Button
 var _try_row: HBoxContainer    # "Or try:" and four card words: a typed move Kine cannot build offers moves it can
 var _try_btns: Array = []      # one button per card (CARDS order); the refusal shows the four try_pick chose, in that order
+var _did_btn: Button          # "Did you mean: walk forward?": the refused typed line's closest known move (did_you_mean); mouse only
+var _did_word := ""           # the move that button builds ("" = no suggestion for the last refusal)
 var _ai_no: Label             # shown instead of the button when the AI video maker is not set up here
 var _cancel_btn: Button
 var _clip_word := "the move"   # the clip's name in the say line of a tweak ("the punch now takes 0.8 s")
@@ -95,6 +105,7 @@ var _take_n := 0              # MAKE IT WITH AI VIDEO: the take in flight, 1 or 
 var _take_seed := 1           # the seed of the take in flight: take 2 is take 1's seed + 1
 var _takes: Array = []        # this run's takes: {video, pose}; a discarded take's files are removed (_drop_takes)
 var _then_add := true         # the picker's "Then:" choice: true = Add after (the cards go after the clip), false = Start over
+var _typed_note := ""          # the typed grammar's say for the last typed line (a repeat count capped at 10); "" = none
 var _then_box: HBoxContainer  # the "Then:" row: shown only when the scene has cards (an empty scene has nothing to add after)
 var _then_add_btn: Button
 var _then_start_btn: Button
@@ -115,7 +126,7 @@ var _help_lbl: Label
 var _help_tour: Button
 var _grid: GridContainer
 var _row_h := -1.0            # the strip's height when the camera last framed the clip (a row that grows it reframes)
-const HELP_TEXT := "Click a picture, or type a move and press Enter ('jab then cross' is two strikes). Then: Add after puts the next move after the clip.\nAfter a clip: Again plays it. Faster, Slower, Bigger and Smaller tweak it. Change it types another move.\nThe bar: Library adds objects. Save video makes a video file."
+const HELP_TEXT := "Click a picture, or type a move and click Go (or press Enter; 'jab then cross' is two strikes). Then: Add after puts the next move after the clip.\nAfter a clip: Again plays it. Faster, Slower, Bigger and Smaller tweak it. Change it types another move.\nThe bar: Library adds objects. Save video makes a video file."
 const HELP_Q := ["how do i", "how do you", "how do we", "how to", "how can i", "how can you", "how would i", "how does", "what can", "help"]   # a typed question: answered with help, not "doesn't know"
 const JOIN_S := 0.5           # ADD AFTER: the first added card is reached this many seconds after the clip's end (the join)
 
@@ -202,7 +213,7 @@ func build(root: Control) -> void:
 	_edit.name = "eh_text"
 	_edit.placeholder_text = HINT
 	_edit.select_all_on_focus = true   # a click into the box selects what is there: a new move replaces it (Windows search, Blender fields)
-	_edit.custom_minimum_size = Vector2(PANEL_W - 160.0, 0)
+	_edit.custom_minimum_size = Vector2(PANEL_W - 230.0, 0)   # room for the Go button right of it
 	_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edit.text_submitted.connect(func(t: String): _words(t))
 	_edit.text_changed.connect(func(_t: String): _drop_saved_toast())   # typing is an action: a saved-video message goes
@@ -211,6 +222,14 @@ func build(root: Control) -> void:
 	ask_row.add_theme_constant_override("separation", 8)
 	v.add_child(ask_row)
 	ask_row.add_child(_edit)
+	_go_btn = Button.new()
+	_go_btn.name = "eh_go"
+	_go_btn.text = "Go"
+	_go_btn.focus_mode = Control.FOCUS_NONE
+	_go_btn.custom_minimum_size = Vector2(64, 0)
+	_go_btn.tooltip_text = "build the move typed in the box"
+	_go_btn.pressed.connect(func(): _words(_edit.text))
+	ask_row.add_child(_go_btn)
 	_msg = _label("", 15, "text")
 	_msg.name = "eh_msg"
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -239,6 +258,13 @@ func build(root: Control) -> void:
 		_try_btns.append(tb)
 	_try_row.visible = false
 	v.add_child(_try_row)
+	_did_btn = Button.new()
+	_did_btn.name = "eh_did"
+	_did_btn.focus_mode = Control.FOCUS_NONE
+	_did_btn.visible = false
+	_did_btn.tooltip_text = "build the move Kine thinks you meant (one undo step)"
+	_did_btn.pressed.connect(_did_pressed)
+	v.add_child(_did_btn)
 	var fv := Button.new()   # FROM A VIDEO on Easy's own panel (video walk-through round 6, goal 1): the same action as More > Copy a video
 	fv.name = "eh_from_video"
 	fv.text = "From a video"
@@ -403,7 +429,7 @@ func build(root: Control) -> void:
 	_pbar_hand_name.custom_minimum_size.x = 150
 	_pbar_hand_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_pbar_hand.add_child(_pbar_hand_name)
-	_pbar_drop = _strip_button("eh_hand_drop", "Drop it", "put the weapon down: he stops holding it (one undo step; Ctrl+Z puts it back in his hand)", _hand_drop, Vector2(150, 40), 18)
+	_pbar_drop = _strip_button("eh_hand_drop", "Drop it", "put the weapon down: he stops holding it (one undo step; the Undo button puts it back in his hand)", _hand_drop, Vector2(150, 40), 18)
 	_pbar_hand.add_child(_pbar_drop)
 	_pbar_name = _label("", 18, "text")
 	_pbar_name.name = "eh_prop_name"
@@ -418,13 +444,13 @@ func build(root: Control) -> void:
 	_pbar_size.name = "eh_prop_size_row"
 	_pbar_size.add_theme_constant_override("separation", 6)
 	pr.add_child(_pbar_size)
-	_pbar_bigger = _strip_button("eh_prop_bigger", "Grow", "make the picked object 15 % bigger (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
+	_pbar_bigger = _strip_button("eh_prop_bigger", "Grow", "make the picked object 15 % bigger (one undo step; the Undo button gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_bigger)
-	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
+	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; the Undo button gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_smaller)
 	_pbar_colour = _strip_button("eh_prop_colour", "Colour it", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_colour)
-	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (Ctrl+Z puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
+	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (the Undo button puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_remove)
 	_pbar_next = _strip_button("eh_prop_next", "Next object", "pick the next object in the scene (in the order they were added)", _prop_next, Vector2(150, 40), 18)
 	pr.add_child(_pbar_next)
@@ -536,6 +562,7 @@ func _process(dt: float) -> void:
 	_refresh_sit_strip()
 	_scrub_show()
 	_try_row.visible = typed_gap and not _help_on   # the same moves as the cards, one click each
+	_did_btn.visible = typed_gap and _did_word != "" and not _help_on   # the closest known move to the refused line
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
@@ -1019,18 +1046,73 @@ func _sit_typed(t: String) -> bool:
 
 func _words(text: String) -> void:
 	_drop_saved_toast()
+	_did_word = ""
 	var t := text.strip_edges()
+	var low := t.to_lower()
+	var follow := false   # a line that STARTS with then / and then / after that: its moves go after the clip (G2)
+	if low == "then" or low == "and then":
+		t = ""
+	else:
+		for p in THEN_WORDS:
+			if low.begins_with(p):
+				t = t.substr(p.length()).strip_edges()
+				follow = true
+				break
 	if t == "":
 		_fail("Type a move first, such as 'jab then cross' or 'roundhouse', or click a picture.")
 		return
 	if _is_help_question(t):   # "how do I make him jump": the answer is help, not "doesn't know"
 		_ask_help(t)
 		return
-	if _sit_typed(t):   # "sit", "sit down", "sit on the chair" with a chair in the scene: he sits on it
+	if not follow and _retime_typed(t):   # "slower", "make it faster": the whole clip retimed (G3)
+		return
+	if not follow and _sit_typed(t):   # "sit", "sit down", "sit on the chair" with a chair in the scene: he sits on it
 		return
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1
-	_go(t, "Typed: " + t, true)
+	_go(t, "Typed: " + t, true, follow)
+
+
+## TYPED RETIME (walk11 G3): a typed word from RETIME_WORDS retimes the WHOLE clip (the same code as the Slower / Faster buttons:
+## _stretch). One undo step; the say line gives the length before and after in plain words. true = the line was handled here.
+func _retime_typed(t: String) -> bool:
+	var low := t.to_lower().strip_edges().trim_suffix(".").trim_suffix("!").strip_edges()
+	if not RETIME_WORDS.has(low):
+		return false
+	var k: float = RETIME_WORDS[low]
+	var how := "Slower" if k > 1.0 else "Faster"
+	if _gen_on or _vid_busy or m._imp_busy():
+		m._say_plain(GEN_BUSY)
+		return true
+	var S: Scene = m.S
+	if S.cards.size() < 2:
+		_fail("Nothing to change yet: build a move first, such as 'walk'.")
+		return true
+	var before := S.length()
+	var err := _stretch(k, how)
+	if err != "":
+		m._say_plain(err)
+		m._toast(err)
+		return true
+	_t0 = -1
+	_edit.text = ""
+	_msg.text = ""
+	m._say_plain("%s: %.1f s -> %.1f s." % [how, before, S.length()])
+	_play()
+	m.easy.frame_clip_next()
+	return true
+
+
+## THE WHOLE CLIP RETIMED (the Slower / Faster buttons and the typed words): one undo step (main.retime). "" = done, else the sentence why not
+func _stretch(k: float, how: String) -> String:
+	var S: Scene = m.S
+	var stop := EasyTweak.timing_stop(S, k)
+	if stop != "":
+		return stop
+	m._step_easy = how if m.easy.on else ""   # "Faster" / "Slower": the undo step's Easy name (main.retime pushes it)
+	var err: String = m.retime(0, S.cards.size() - 1, k * 100.0)   # main.retime: one undo step, the holds and moves x k
+	m._step_easy = ""
+	return err
 
 
 ## a typed question about how to use Easy ("how do I ...", "how to ...", "help", "?")
@@ -1063,9 +1145,9 @@ func _ask_help(t: String) -> void:
 	var w := _move_in(t)
 	_edit.text = ""   # the question is used: the next typing starts clean (the box kept old words in round 5)
 	if w != "":
-		_msg.text = "Type '%s' in the box and press Enter, or click its picture." % w
+		_msg.text = "Type '%s' in the box and click Go, or click its picture." % w
 	else:
-		_msg.text = "Type a move in the box and press Enter, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
+		_msg.text = "Type a move in the box and click Go, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
 	_msg.add_theme_color_override("font_color", Tok.c("text"))
 	_open = true
 	_help_on = false
@@ -1086,18 +1168,23 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	var t := Time.get_ticks_msec()
 	var add: bool = m.easy.on and (_then_add or force_add) and not m.S.cards.is_empty()   # force_add: a "Then <move>" button (the same Add after)   # Easy's "Then: Add after" with a clip in the scene: the cards go after it (Expert's cards still replace)
 	var prev := _clip_word
+	_typed_note = ""
 	var err := _build(what, label, what if typed else label, add)
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
 		_gen_words = what if typed else ""   # a typed line Kine cannot build: the AI video button makes it
 		if typed:
 			_try_show(what)
+			_did_word = did_you_mean(what) if err.begins_with("Kine doesn't know") else ""
+			if _did_word != "":
+				_did_btn.text = "Did you mean: %s?" % _did_word
 			_edit.select_all.call_deferred()   # the refused words stay in the box, selected: the next keystroke replaces them, not glues to them
 		_fail(err, err.begins_with("Kine doesn't know"))
 		return
 	_built = true
 	_open = false
 	_gen_words = ""
+	_did_word = ""
 	_msg.text = ""
 	_edit.text = ""   # a built move uses the box's words: the next typing starts clean (walk-through round 5)
 	_note_name(what if typed else label, not add)
@@ -1111,6 +1198,8 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	_play()
 	var new_word := "'%s'" % what if typed else "the " + label.to_lower()
 	var tail := (" " + _ball_line) if _ball_line != "" else ""
+	if _typed_note != "":   # the repeat cap, said after the build's own line
+		tail += " " + _typed_note
 	if add:   # the say line says both moves in plain words; it still opens "Made the wave" (the card's name)
 		m._say_plain("Made %s, added after %s. Again plays the whole clip; Undo takes it back.%s" % [new_word, prev, tail])
 	else:   # the say line names the clip just built (it kept the last clip's words: "Faster: the walk now takes..." after a typed wave)
@@ -1558,10 +1647,10 @@ func _append(d: Dictionary, label: String, easy: String) -> String:
 	if new_cards.is_empty():
 		return "The %s has no cards to add." % label.to_lower()
 	var S: Scene = m.S
-	var o: Vector3 = S.sample(S.length())["offset"]
+	var e: Dictionary = S.sample(S.length())
 	var first: Dictionary = new_cards[0]
 	first["move"] = JOIN_S
-	first["pose"]["offset"] = [o.x, o.y, o.z]
+	place_after(new_cards, e["offset"], e["ang"]["pelvis"] if (e["ang"] as Dictionary).has("pelvis") else Vector3.ZERO)
 	_ball_line = ""
 	var ball = _ball_at(S.props)
 	var move := Vector2.ZERO
@@ -1723,16 +1812,139 @@ func _try_show(typed: String) -> void:
 		tb.visible = true
 
 
+## DID YOU MEAN (walk11 G4): the button's press types its move again, as the box would (one undo step, the same build)
+func _did_pressed() -> void:
+	var w := _did_word
+	_did_word = ""
+	_did_btn.visible = false
+	if w != "":
+		_words(w)
+
+
+## the known move word closest to a typed line, when it is within DID_MAX edits ("wlak forward" -> "walk forward"); "" = none
+static func did_you_mean(typed: String) -> String:
+	var w := typed.to_lower().strip_edges().trim_suffix(".").trim_suffix("!").strip_edges()
+	var best := ""
+	var best_d := DID_MAX + 1
+	for k in KNOWN_MOVES:
+		var d := levenshtein(w, String(k))
+		if d < best_d:
+			best_d = d
+			best = String(k)
+	return best if best_d <= DID_MAX else ""
+
+
+## Levenshtein edit distance (insert, delete, substitute: one each) between two strings
+static func levenshtein(a: String, b: String) -> int:
+	var prev: Array = []
+	for j in range(b.length() + 1):
+		prev.append(j)
+	for i in range(1, a.length() + 1):
+		var cur: Array = [i]
+		for j in range(1, b.length() + 1):
+			var cost := 0 if a.unicode_at(i - 1) == b.unicode_at(j - 1) else 1
+			cur.append(mini(mini(int(prev[j]) + 1, int(cur[j - 1]) + 1), int(prev[j - 1]) + cost))
+		prev = cur
+	return int(prev[b.length()])
+
+
 ## the sentence for a typed part Kine cannot build: one short line (the "Or try" buttons carry the moves it knows)
 static func _cannot_build(part: String) -> String:
 	var shown := part if part.length() <= 40 else part.substr(0, 37) + "..."
 	return "Kine doesn't know '%s' yet." % shown
 
 
+## TYPED GRAMMAR (round 10): repetition ("twice", "two times", "3 times", "x3", "3x", "again"), the turns ("turn around",
+## "spin around", "turn back" = 180; "turn left" / "turn right" = 90) and filler ("please", "a bit", "walk forward", "and then")
+## are rewritten into the plain "then" line before the parts are built. A line with none of them comes back as the same parts.
+const COUNT_WORDS := {"once": 1, "twice": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+const TURN_WORDS := {"turn around": "turn around", "spin around": "turn around", "turn back": "turn around", "turn round": "turn around",
+	"spin round": "turn around", "about turn": "turn around", "turn left": "turn left", "turn right": "turn right"}
+const MAX_REPEAT := 10   # a repeat count above this is capped here, and the say line says so
+
+
+## a count word or digits ("3", "three") -> the number; 0 when the word is no count
+static func _count_of(w: String) -> int:
+	if w.is_valid_int():
+		return int(w)
+	return int(COUNT_WORDS.get(w, 0))
+
+
+## "x3" or "3x" -> 3; 0 when the word is neither
+static func _x_count(w: String) -> int:
+	var digits := w
+	if w.begins_with("x"):
+		digits = w.substr(1)
+	elif w.ends_with("x"):
+		digits = w.substr(0, w.length() - 1)
+	else:
+		return 0
+	return int(digits) if digits.is_valid_int() else 0
+
+
+## the typed line rewritten: {ok: true, text: the plain "then" line, note: "" or the cap's say} or {ok: false, error}
+static func typed_expand(text: String) -> Dictionary:
+	var low := text.to_lower().strip_edges().replace(",", " then ").replace(";", " then ").replace(" and then ", " then ")
+	var parts: Array = []
+	var note := ""
+	for raw in low.split(" then ", false):
+		var words: Array = String(raw).strip_edges().split(" ", false)
+		if words.is_empty():
+			continue
+		if words == ["again"]:   # "again" alone: the part before it, once more
+			if parts.is_empty():
+				return {"ok": false, "error": "Type a move before 'again', such as 'punch then again'."}
+			parts.append(parts[-1])
+			continue
+		var n := 1
+		var last: String = words[-1]
+		if last == "again" or last == "twice":   # "punch twice", "punch again": two of it
+			words.pop_back()
+			n = 2
+		elif words.size() >= 2 and last == "times" and _count_of(words[-2]) > 0:   # "punch 3 times", "punch two times"
+			n = _count_of(words[-2])
+			words.resize(words.size() - 2)
+		elif _x_count(last) > 0:   # "punch x3", "punch 3x"
+			n = _x_count(last)
+			words.pop_back()
+		var kept: Array = []
+		var i := 0
+		while i < words.size():
+			var w: String = words[i]
+			if w == "please":
+				i += 1
+				continue
+			if w == "a" and i + 1 < words.size() and words[i + 1] == "bit":
+				i += 2
+				continue
+			if w == "forward" and not kept.is_empty() and (kept[-1] == "walk" or kept[-1] == "run"):
+				i += 1
+				continue
+			kept.append(w)
+			i += 1
+		var move := " ".join(PackedStringArray(kept))
+		if move == "":
+			return {"ok": false, "error": "Type a move first, such as 'jab then cross' or 'roundhouse'."}
+		move = String(TURN_WORDS.get(move, move))
+		if n > MAX_REPEAT:
+			note = "%s x%d: Kine repeats it 10 times at most." % [move, n]
+			n = MAX_REPEAT
+		elif n < 1:
+			return {"ok": false, "error": "The count must be 1 or more: 'punch 3 times'."}
+		for k in n:
+			parts.append(move)
+	return {"ok": true, "text": " then ".join(PackedStringArray(parts)), "note": note}
+
+
 ## words -> one scene dict. "jab then cross" is two strikes (split on "then", "," and ";"); a part that is a card's word
 ## is that card's template file, any other part is built by TextBlocking on a fresh body. The parts are joined in order.
 ## {ok, dict} or {ok: false, error}
 func _words_dict(text: String) -> Dictionary:
+	var ex := typed_expand(text)
+	if not ex["ok"]:
+		return {"ok": false, "error": ex["error"]}
+	text = ex["text"]
+	_typed_note = ex["note"]
 	var parts: Array = []
 	for p in text.replace(",", " then ").replace(";", " then ").split(" then ", false):
 		var s := String(p).strip_edges()
@@ -1765,8 +1977,86 @@ func _words_dict(text: String) -> Dictionary:
 		if out.is_empty():
 			out = d
 		else:
+			var last: Dictionary = (out["cards"] as Array)[-1]["pose"]
+			var lo: Array = last.get("offset", [0, 0, 0])
+			var lj: Dictionary = last.get("joints", {})
+			place_after(d["cards"], Vector3(lo[0], lo[1], lo[2]), _pelvis_ang(lj))
 			(out["cards"] as Array).append_array(d["cards"])
-	return {"ok": true, "dict": out, "strikes": parts.size()}
+	return {"ok": true, "dict": out, "strikes": parts.size(), "note": _typed_note}
+
+
+## A PART PLACED AFTER THE CLIP (the typed join, Add after): its cards turned and moved as one, so its first card stands where
+## the clip ends and faces the way the body faces there (after "turn around" the punch goes the new way, not back to the start:
+## walk11 G5, a 192 deg snap). The turn is a WORLD yaw R about the up axis (the pelvis's facing at the end vs at the part's
+## first card): each card's pelvis rotation becomes R * its own (Body.compose / decompose, as Body.turn_world does). Adding to
+## the pelvis's twist number alone tipped a bent-forward pelvis sideways, the legs with it (the punch's guard crouched 11 cm).
+## R also turns the floor offsets (from the part's first card), the steps and a held weapon. The first card takes the end's
+## height too (the join stands where the clip stood); the cards' other heights stay their own.
+static var _pb: Body = null
+
+
+static func _pelvis_body() -> Body:
+	if _pb == null:
+		_pb = Body.new()
+		_pb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	return _pb
+
+
+## a card pose's pelvis angles (bend, side, twist)
+static func _pelvis_ang(joints: Dictionary) -> Vector3:
+	if not joints.has("pelvis"):
+		return Vector3.ZERO
+	var x: Dictionary = joints["pelvis"]
+	return Vector3(float(x["bend"]), float(x["side"]), float(x["twist"]))
+
+
+## the way a pelvis with these angles faces, on the floor: radians about +y, 0 = +z
+static func _heading(pa: Vector3) -> float:
+	var f: Vector3 = _pelvis_body().compose("pelvis", pa) * Vector3(0, 0, 1)
+	return atan2(f.x, f.z)
+
+
+static func place_after(cards: Array, o_end: Vector3, pelvis_end: Vector3) -> void:
+	if cards.is_empty():
+		return
+	var PB := _pelvis_body()
+	var p0: Dictionary = cards[0]["pose"]
+	var a0: Array = p0.get("offset", [0, 0, 0])
+	var o0 := Vector3(float(a0[0]), 0.0, float(a0[2]))
+	var dy := wrapf(_heading(pelvis_end) - _heading(_pelvis_ang(p0.get("joints", {}))), -PI, PI)
+	var R := Basis(Vector3.UP, dy)
+	var RQ := Quaternion(R)
+	var at := Vector3(o_end.x, 0.0, o_end.z)
+	for i in cards.size():
+		var c: Dictionary = cards[i]
+		var p: Dictionary = c["pose"]
+		var a: Array = p.get("offset", [0, 0, 0])
+		var f := at + R * (Vector3(float(a[0]), 0.0, float(a[2])) - o0)
+		p["offset"] = [f.x, o_end.y if i == 0 else float(a[1]), f.z]
+		var jj: Dictionary = p.get("joints", {})
+		if jj.has("pelvis") and absf(dy) > 1e-6:
+			var old := _pelvis_ang(jj)
+			var v: Vector3 = PB.decompose("pelvis", (RQ * PB.compose("pelvis", old)).normalized())
+			while v.z - old.z > 180.0:
+				v.z -= 360.0
+			while v.z - old.z < -180.0:
+				v.z += 360.0
+			jj["pelvis"]["bend"] = v.x
+			jj["pelvis"]["side"] = v.y
+			jj["pelvis"]["twist"] = v.z
+		var st: Dictionary = c.get("steps", {})
+		for sd in st:
+			var sv: Array = st[sd]
+			var r := R * Vector3(float(sv[0]), float(sv[1]), float(sv[2]))
+			st[sd] = [r.x, r.y, r.z]
+		var w: Dictionary = p.get("weapon", {})
+		if w.has("knob") and w.has("rot"):
+			var k: Array = w["knob"]
+			var kv := at + R * (Vector3(float(k[0]), 0.0, float(k[2])) - o0)
+			w["knob"] = [kv.x, float(k[1]), kv.z]
+			var q: Array = w["rot"]
+			var rq := RQ * Quaternion(float(q[0]), float(q[1]), float(q[2]), float(q[3]))
+			w["rot"] = [rq.x, rq.y, rq.z, rq.w]
 
 
 ## EASY: every card of one move build is tagged with the move it came from ("punch|<serial>"): the strip reads "Punch 1, 2..".
@@ -1801,16 +2091,10 @@ func tweak(how: String) -> void:
 	var said := ""
 	if how == "faster" or how == "slower":
 		var k: float = EasyTweak.FASTER if how == "faster" else EasyTweak.SLOWER
-		var stop := EasyTweak.timing_stop(S, k)
-		if stop != "":
-			m._say_plain(stop)
-			m._toast(stop)   # round 8: the refusal is also the Easy toast (the status line alone was missed)
-			return
-		m._step_easy = how.capitalize() if m.easy.on else ""   # "Faster" / "Slower": the undo step's Easy name (main.retime pushes it)
-		var err: String = m.retime(0, S.cards.size() - 1, k * 100.0)   # main.retime: one undo step, the holds and moves x k
-		m._step_easy = ""
+		var err := _stretch(k, how.capitalize())
 		if err != "":
 			m._say_plain(err)
+			m._toast(err)   # round 8: the refusal is also the Easy toast (the status line alone was missed)
 			return
 		said = "%s: %s now takes %.1f s." % [how.capitalize(), _clip_word, S.length()]
 	else:

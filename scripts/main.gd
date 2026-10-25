@@ -229,7 +229,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body", "Save", "Open..."]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
+	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
@@ -581,6 +581,9 @@ var _magnet := ""   # the last hand drag's magnet step (GripMagnet.drag): what t
 var ik_contact := false   # ROADMAP 88: on, a hand dragged with a wall / table in the set slides along it (ContactIK), not through
 var _sm := {}   # the sample the last Check took of S (a Fix re-uses it instead of re-playing the scene)
 var _fixing := false
+var _fixall_on := false          # FIX ALL is running (its button reads Stop)
+var _fixall_stop := false        # Stop pressed: the run ends after the fix in hand
+var _fixall_btn: Button = null   # the Fix all button of the findings list (relabelled while it runs)
 var ui_find: PanelContainer   # CHECK: the rulebook's findings (scripts/rulebook.gd), each one a button to its moment
 var ui_find_list: VBoxContainer
 var findings := []
@@ -2847,6 +2850,7 @@ func _ps() -> Scene:
 
 
 func _ready() -> void:
+	BootProfile.start()   # KINE_BOOT_PROFILE=1 / --boot-profile: the start-up blocks, timed (scripts/boot_profile.gd)
 	RenderingServer.set_debug_generate_wireframes(true)   # K01: the wireframe view needs this before any mesh is made
 	# EVERY WIDGET BY NAME (round 14, U2): each control the window builds is named from what it says (scripts/names.gd)
 	# at once (a click that rebuilds a row must not leave it nameless for a frame); one with nothing to say yet (its
@@ -2862,13 +2866,17 @@ func _ready() -> void:
 	onboard = Onboarding.new()
 	onboard.m = self
 	add_child(onboard)
+	BootProfile.mark("onboard node")
 	page_tour = PageTour.new()
 	page_tour.m = self
 	add_child(page_tour)
+	BootProfile.mark("page_tour node")
 	easy = EasyMode.new()   # first: lw() / rw() read easy.on while the world is built (scripts/easy_mode.gd)
 	easy.m = self
 	add_child(easy)
+	BootProfile.mark("easy node")
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	BootProfile.mark("load skeleton+limits")
 	var testing: bool = Engine.get_main_loop().get_script() != null
 	if testing:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
@@ -2887,12 +2895,17 @@ func _ready() -> void:
 		bt_ui.stars_path = "user://zz_best_take_%d.json" % OS.get_process_id()   # I38: a test's own stars file
 		style_ui.path = "user://zz_style_print_%d.json" % OS.get_process_id()   # I17: a test's own fingerprint file
 		usual_on = false   # I10: a test keeps the app's default timing on new cards until it turns this on
+		BootProfile.mark("test settings")
 	_autover_cfg_load(testing)
+	BootProfile.mark("autover cfg")
 	ui_props_root = Node3D.new()
 	ui_props_root.name = "set"
 	add_child(ui_props_root)
+	BootProfile.mark("set root")
 	_library_load()
+	BootProfile.mark("library load")
 	macros = Macros.load_file(macros_file)   # ROADMAP 81
+	BootProfile.mark("macros")
 	get_window().files_dropped.connect(_on_drop)
 	get_tree().set_auto_accept_quit(false)   # ROADMAP 50: the window's close asks first (_notification below)
 	if OS.get_environment("POSER_AUTOSAVE") != "":
@@ -2902,6 +2915,7 @@ func _ready() -> void:
 	journal_dir = jenv if jenv != "" else JOURNAL
 	if journal_on:
 		_journal_boot()
+		BootProfile.mark("journal boot")
 	var cf := ConfigFile.new()
 	cf.load(settings)
 	# THE THEME (ROADMAP 58): "system" on a first start (Windows' dark mode), or the user's own "light" / "dark". A test
@@ -2926,12 +2940,15 @@ func _ready() -> void:
 	while not scale_fits(ui_scale):   # remembered from a bigger screen: the largest that fits this one
 		ui_scale = SCALES[SCALES.find(ui_scale) - 1]
 	get_window().content_scale_factor = ui_scale / 100.0
+	BootProfile.mark("scale")
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
 	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
+	BootProfile.mark("world")
 	_body()
+	BootProfile.mark("body")
 	add_child(ov)
 	add_child(wt)
 	add_child(bal)
@@ -2950,20 +2967,26 @@ func _ready() -> void:
 	wt.setup()
 	loa.setup()
 	rings.setup()
+	BootProfile.mark("overlay nodes+setup")
 	vx = ViewX.new(self)
+	BootProfile.mark("vx")
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
 	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
 	blk.load_from(settings)
+	BootProfile.mark("hotkeys/keymap/blk")
 	_ui()
+	BootProfile.mark("_ui")
 	if scale_auto:
 		_auto_scale_now()
+		BootProfile.mark("auto scale")
 	if not testing and not cf.get_value("look", "hints", true):
 		_set_hints(false, false)   # remembered (QQ3)
 	if not testing and cf.get_value("api", "on", false):
 		_set_api(true, false)   # remembered: off unless Nick turned it on
+		BootProfile.mark("hints+api")
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
 	# test wrote "taught" into it)
 	_teach_pending = not cf.get_value("look", "taught", false)
@@ -2974,14 +2997,18 @@ func _ready() -> void:
 			_fold(k, true, false)
 	_pages_load(cf)
 	shading.load_cfg(self)   # K01 / K02: the remembered shading mode, matcap, studio lights and sky (a test's own file)
+	BootProfile.mark("pages+shading")
 	_fit_rows.call_deferred()
+	BootProfile.mark("teach+folds")
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
 	page_tour.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
+	BootProfile.mark("easy build")
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
+	BootProfile.mark("easy start")
 	onboard.start_when_clear.call_deferred()
 	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
 		_tour_after_recover.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
@@ -2994,6 +3021,7 @@ func _ready() -> void:
 	recents = Recents.new(self)
 	if not testing and not args.has("--shot") and not args.has("--tour") and not _recent_list().is_empty() and recents.start_on():
 		_recents_start.call_deferred()   # P13: a test never gets it (it asks with File: recent scenes); nor a first-run tour (no recents yet)
+		BootProfile.mark("recents")
 	ov.trail_on = args.has("--trail")
 	var pi := args.find("--pin")   # --pin foot_l,head: trails on those parts (shots and checks)
 	if pi >= 0 and pi + 1 < args.size():
@@ -3082,7 +3110,10 @@ func _ready() -> void:
 		_cam()
 	_refresh()
 	_rebuild_cards()
+	BootProfile.mark("cards")
+	_boot_watch.call_deferred()
 	await dummy_settle()   # round 14: the dummy measures on a worker; a shot shows what PLAYS (landed on it or not)
+	BootProfile.mark("dummy settle")
 	if args.find("--t") >= 0 or args.find("--frame") >= 0:
 		_ps().apply(B, playhead)   # (and --dummy's range now counts: it used to move the dummy after --t had posed)
 		_refresh()
@@ -3179,6 +3210,25 @@ func _ready() -> void:
 	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
 		await _selfcheck_save()
 		return
+## BOOT PROFILE: the first frame the body and the Easy home panel are on screen (and the frame after is drawn): the table
+## prints there. --boot-quit ends the app then (the boot bench, tools/boot_bench.py)
+func _boot_watch() -> void:
+	if not BootProfile.on:
+		return
+	while not _boot_usable():
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	BootProfile.usable("first usable frame")
+	if OS.get_cmdline_user_args().has("--boot-quit"):
+		get_tree().quit()
+
+
+func _boot_usable() -> bool:
+	if skel == null or pieces.is_empty() or easy == null or easy.home == null:
+		return false
+	if not easy.on:
+		return is_inside_tree()   # Expert: the body is what is on screen
+	return easy.home.panel.is_visible_in_tree() or easy.home.strip.is_visible_in_tree()
 
 
 var intro: KineIntro   # the opening intro while it plays (null after, or when off)
@@ -3467,11 +3517,17 @@ func _body() -> void:
 	var mq := Overlays.mannequin(self, skin)
 	skel = mq[1]
 	bone_idx = mq[2]
+	BootProfile.mark("body: mannequin load")
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
+	BootProfile.mark("body: split parts")
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
+	BootProfile.mark("body: skin weights")
 	corr.attach(pieces.values(), skel)
+	BootProfile.mark("body: corrective attach")
 	dq_skin_pass.attach(pieces.values(), skel)
+	BootProfile.mark("body: dq skin attach")
 	_skp_build()   # PRECISE PICK: the picked / hovered part's own skin is tinted (scripts/skin_pick.gd)
+	BootProfile.mark("body: skin pick build")
 	for j in Body.WEAPON + Body.WEAPON2:   # the weapon's capsules: its pick and its light (a body part has none: its skin is lit)
 		_new_cap(j)
 	for j in Body.BODY:
@@ -3489,6 +3545,7 @@ func _body() -> void:
 		dots[j] = d
 	# the weapons: a placement cylinder per piece (its transform is the grip's frame: hits and tests read its visibility; it has
 	# no radius, so it draws nothing), and the shape itself (WeaponMesh, placed in the weapon's frame each refresh)
+	BootProfile.mark("body: dots+capsules")
 	wep_mats = WeaponMesh.materials()
 	bat_handle = _cyl(0.0, 0.0, null)
 	bat_barrel = _cyl(0.0, 0.0, null)
@@ -3501,6 +3558,7 @@ func _body() -> void:
 	wep2_model = Node3D.new()
 	wep2_model.name = "weapon2_model"
 	add_child(wep2_model)
+	BootProfile.mark("body: weapon models")
 	tag = Label3D.new()
 	tag.pixel_size = 0.0009
 	tag.fixed_size = true
@@ -3510,7 +3568,9 @@ func _body() -> void:
 	tag.outline_size = 5
 	tag.font_size = 16   # RR5: the part's name on the body, small (was 30: a headline over the shoulder)
 	add_child(tag)
+	BootProfile.mark("body: label")
 	_dummy_build()
+	BootProfile.mark("body: dummy build")
 
 
 ## the floor grid in the theme's colours (a theme switch rebuilds it; the two axis lines are content)
@@ -4266,7 +4326,7 @@ func _library_toggle() -> void:
 		ui_root.add_child(ui_library)
 		ui_library.setup(self, WEAPONS)
 	ui_library.open()
-	_say("Click a picture to give it to him." if easy != null and easy.on else "object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
+	_say("Click a picture to give it to him, or drag it onto the floor." if easy != null and easy.on else "object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
 
 
 func _reactions_samples() -> void:
@@ -5306,6 +5366,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
+		if mb.pressed and easy != null and easy.sliders != null and easy.sliders.hit(mb.position):
+			return   # EASY SIDE SLIDERS: a press on that panel belongs to its slider, not to the body behind it
 		if mb.pressed and vx != null:
 			vx.press(mb.position)   # K14: a press on the perspective pane makes it the active one
 		if mb.pressed and ui_cmd.visible:
@@ -5353,6 +5415,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					sel_prop = -1
 					_props_show()
 				redspots.press(j, mb.position, playhead)   # N074: a glowing part opens its finding and Fix (the press goes on)
+				if easy != null and easy.sliders != null:
+					easy.sliders.part_picked(j)   # EASY SIDE SLIDERS: the part's panel opens; a press on nothing shuts it ("" = nothing picked)
 				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
 					sel = j
 					playing = false
@@ -16739,6 +16803,12 @@ func _check(given = null) -> void:
 		ui_find_list.add_child(wl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
+	var n_fixable := findings.filter(func(x): return Fixer.label(x, S) != "").size()
+	if n_fixable > 0:   # FIX ALL: every Fix below, in order, one undo step (the same Fixer.apply each Fix button runs)
+		_fixall_btn = _button("Fix all (%d)" % n_fixable, _fix_all_press, "applies every Fix in this list, in order, re-checking after each one: one Ctrl+Z takes the whole run back. A fix that would make the clip worse is skipped, and the words say which")
+		_fixall_btn.name = "fix_all"
+		_fixall_btn.add_theme_font_size_override("font_size", 15)
+		ui_find_list.add_child(_fixall_btn)
 	var n_push := _push_rows()   # R24: each hit contact against the MuJoCo push-limit table (above the findings: always on screen)
 	for fk in findings.size():
 		var f: Dictionary = findings[fk]
@@ -17325,6 +17395,103 @@ func _fix(f: Dictionary) -> void:
 		_flash_cards(changed)
 	_say(r["msg"] + ("   (Ctrl+Z undoes it)" if r["kept"] else "") + "   [%.1f s]" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	_fixing = false
+
+
+func _fix_key(f: Dictionary) -> String:
+	return "%s|%d|%.2f" % [f["rule"], int(f["card"]), float(f["t"])]
+
+
+## FIX ALL (Nick, 10-25: "why not a button to fix all suggested"): every Fix in the CHECK list, in list order, one after the
+## other. Each is the same Fixer.apply its own Fix button runs (kept only if its finding goes and nothing gets worse; else its
+## cards go back and the words say why), and the list is read again after each kept fix. The whole run is ONE undo step: the
+## snapshot is taken before the first fix. The frame is given back before each fix (progress on the button and the status
+## line); Stop ends the run after the fix in hand. Its summary: "Fixed N; M need you: ..." (the refused fixes, skipped ones, and
+## the findings with no automatic fix). _fixall_last keeps the numbers of the last run.
+var _fixall_last := {}
+
+
+func _fix_all_press() -> void:
+	if _fixall_on:
+		_fixall_stop = true
+		_say("fix all: stopping after the fix in hand...")
+		return
+	_fix_all()
+
+
+func _fix_all() -> void:
+	if _fixing or _fixall_on or S.cards.size() < 2 or not check_ran:
+		return
+	_fixall_on = true
+	_fixall_stop = false
+	_fixing = true
+	_previews.clear()
+	_pv_hover = {}
+	ov.fix_preview(S, [], 0.0)
+	var u := _snapshot()   # taken before the first fix: the run is one undo step
+	var t_run := Time.get_ticks_msec()
+	var total := findings.filter(func(x): return Fixer.label(x, S) != "").size()
+	var tried := {}
+	var kept := 0
+	var refused := []   # "rule at t s: why" for each fix Fixer put back
+	var worst := 0      # the longest single Fixer.apply (ms): the window is frozen that long
+	var n := 0
+	var cap := total * 3 + 5   # a kept fix can surface new findings; this bounds the run
+	while n < cap and not _fixall_stop:
+		var nxt = null
+		for f in findings:
+			if Fixer.label(f, S) != "" and not tried.has(_fix_key(f)):
+				nxt = f
+				break
+		if nxt == null:
+			break
+		var f: Dictionary = nxt
+		tried[_fix_key(f)] = true
+		n += 1
+		var prog := "Fixing %d of %d..." % [n, maxi(total, n)]
+		if is_instance_valid(_fixall_btn):
+			_fixall_btn.text = "Stop  (%s)" % prog
+		_say("fix all: %s  %s at %.2f s, card %d" % [prog, f["rule"], f["t"], f["card"] + 1])
+		await get_tree().process_frame
+		if _fixall_stop:
+			break
+		# the fix runs on the MAIN thread, exactly as the Fix button runs it: Fixer's sampler keeps static caches (FrameMemo,
+		# PoseCache, Rulebook) that the main thread also uses, so a worker would race them. The window waits for each fix
+		# (its worst case is in the report); the frame is given back before each one.
+		var t0 := Time.get_ticks_usec()
+		var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
+		worst = maxi(worst, (Time.get_ticks_usec() - t0) / 1000)
+		if r["kept"]:
+			kept += 1
+			findings = r["after"]   # the scene the fix left, checked by Fixer
+			_sm = {}
+			_bake_drop()   # the cards changed in place: the bake still holds the old poses
+			refused.append("%s at %.2f s: %s" % [f["rule"], f["t"], String(r["msg"]).left(120)])
+	var not_reached := []
+	for f in findings:
+		if Fixer.label(f, S) != "" and not tried.has(_fix_key(f)):
+			not_reached.append("%s at %.2f s (stopped)" % [f["rule"], f["t"]])
+	var no_fix := []
+	for f in findings:
+		if Fixer.label(f, S) == "":
+			no_fix.append("%s at %.2f s" % [f["rule"], f["t"]])
+	if kept > 0:
+		undo.append(u)
+		redo.clear()
+		_rebuild_cards()
+		_ps().apply(B, playhead)
+	_fixall_on = false
+	_fixing = false
+	_fixall_last = {"tried": n, "kept": kept, "total": total, "refused": refused, "not_reached": not_reached, "no_fix": no_fix,
+		"worst_ms": worst, "ms": Time.get_ticks_msec() - t_run, "stopped": _fixall_stop}
+	_check(findings)   # the list again, from the scene the run left (no second Check)
+	_refresh()
+	var need := []
+	need.append_array(refused.map(func(s): return "skipped, it would make the clip worse (" + s + ")"))
+	need.append_array(not_reached)
+	need.append_array(no_fix.map(func(s): return "no automatic fix: " + s))
+	_say("Fix all: fixed %d of %d in %.1f s%s.  %s" % [kept, total, (Time.get_ticks_msec() - t_run) / 1000.0,
+		"  (Ctrl+Z takes the whole run back)" if kept > 0 else "",
+		("%d need you: %s" % [need.size(), "; ".join(need)]) if not need.is_empty() else "nothing left to need you"])
 
 
 ## POLISH: the detail pass (tools/detail.gd) on the open scene -> scenes/_wip/<name>_polished.json, opened. Nick's file
@@ -19531,11 +19698,12 @@ func _foot(p: Dictionary) -> Rect2:
 
 
 ## a prop of the set in front of the body, on the floor (or on what it lands over); picked; one undo step
-func _prop_add(kind: String) -> void:
+func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point to put it on (Easy's drop from the Library; Use in scene beside the body); null = the spot in front of the body
 	if not Props.has_kind(kind):
 		return
 	_push_undo()
-	var p := Props.make(kind, Props.xf_at(_prop_spot(kind), 0.0))
+	var spot: Vector3 = _prop_spot(kind) if at == null or at == Vector3.INF else (at as Vector3)
+	var p := Props.make(kind, Props.xf_at(spot, 0.0))
 	var xf: Transform3D = p["xf"]
 	xf.origin.y = Props.snap_y(p, S.props)
 	p["xf"] = xf
@@ -19547,7 +19715,7 @@ func _prop_add(kind: String) -> void:
 		var sit_say := ""
 		if kind in SIT_ON:
 			sit_say = "; the strip's Sit on the chair seats him on it" if easy.home.shown() == "strip" else "; Sit on it in the panel seats him on it"
-		_say("added a %s in front of the body: drag it to move it%s; Ctrl+Z takes it back" % [_prop_name(sel_prop), sit_say])
+		_say("added a %s in front of the body: drag it to move it%s; Undo takes it back" % [_prop_name(sel_prop), sit_say])
 	else:
 		_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
 
@@ -20031,6 +20199,7 @@ func _prop_select(i: int) -> void:
 
 ## ---- IMPORT (SS6): a dropped file, or Import model's picker, goes through the importer (scripts/importer.gd)
 func _library_load() -> void:
+	MeshProps.sync_saved()   # the saved meshes (meshes/*.kmesh) get their models first: Add prop and My models list them
 	for e in Importer.library_list(library)["props"]:
 		var r: Dictionary = Importer.inspect(e["path"])
 		if r["ok"]:
@@ -21862,6 +22031,25 @@ func _export_objects(dir := "res://exports", only_selected := false) -> String:
 	return path
 
 
+## MODEL > Use in scene: the open mesh goes into the scene as a prop beside the character (on the floor, at its real size, with its
+## material). One undo step (the prop add), and the POSE page shows it. The model is written to the library as <name>.glb
+## (MeshProps.write_model), so the prop keeps its shape when the file is saved and the scene is opened again
+func _mesh_use_in_scene() -> void:
+	if kmed == null or not kmed.on or kmed.mesh == null:
+		_say("Model: open the test cube or the body mesh first (MODEL page), then Use in scene")
+		return
+	var src: String = String(kmed.files.path) if kmed.files != null else ""
+	var stem := src.get_file().get_basename() if src != "" else ("body_mesh" if BaseBody.is_open(self) else "test_cube")
+	var kind := MeshProps.write_model(kmed.mesh, MeshProps.free_stem(stem), src)
+	if kind == "":
+		_say("Model: NOT DONE: the mesh could not be written to the library (%s). Check that the folder is writable" % KMesh.last_error)
+		return
+	# beside the body, on the floor, one metre to his side (his left, the screen's right), not toward the camera
+	_prop_add(kind, Vector3(B.offset.x + 0.9, 0.0, B.offset.z - 0.4))   # one undo step; 90 cm to his side and 40 cm back: clear of the panels
+	_page_set("POSE")
+	_say("Model: %s is in the scene next to the body at its real size; Ctrl+Z takes it back" % kind.trim_prefix("my "))
+
+
 ## Use as a prop: the last exported model goes through the same import as a .glb dropped in (Importer.accept copies it into
 ## the library, Props.register gives it its real size from the file's bounds), so it appears in Library > My models
 func _use_export_as_prop() -> void:
@@ -22128,6 +22316,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 		_autosave_drop()   # opened a scene: what was unsaved was given up (it asks first, V3)
 		if journal_on:
 			journal.trim()   # ... and its journal goes with it
+	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
 	S.apply(B, 0.0)
 
 

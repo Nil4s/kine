@@ -1,7 +1,7 @@
 ## godot --path . --position 3000,3000 -s tests/walk_model6_test.gd   (WALK-THROUGH 6: EXPERT MODEL, a hobbyist who knows some Blender)
 ## Real keys and clicks only (root.push_input). One table built in order: 1 flatten + four legs, 2 bevel the top's front rim,
 ## 3 wood material from the library, 4 a cylinder from Add primitive moved onto the table, 5 undo x3 + redo x3 (exact),
-## 6 the table as a prop: save, SET page Add prop, POSE page with the character.
+## 6 the table as a prop: save, MODEL page Use in scene (one undo step), the POSE page shows it, listed under Add prop.
 ## Screenshots to C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/wm6_NN_name.png; the log to ..../scratchpad/wm6_log.txt.
 ## MEASURES, FIXES NOTHING: a failed goal is logged as failed and the walk goes on. Runs 1280x720 pinned. Exits 0.
 extends SceneTree
@@ -994,29 +994,21 @@ func _init() -> void:
 		await idle(10)
 		saved_ok = sv and str(m.ui_status.text).findn("saved") >= 0
 		say("   save: status '%s'" % str(m.ui_status.text))
-		await key(KEY_ESCAPE, false, false, "Esc (leave the cube: the table is dropped, nothing scene-side)")
-	await click_text("STAGE")
-	await idle(6)
-	await shot("06_set_page")
-	await click_text("ADD", true)
-	await idle(15)
-	var lt: Array = []
-	for n in visible_nodes():
-		if n is Label and (n as Label).text.strip_edges() != "":
-			lt.append((n as Label).text)
-	say("   visible labels after ADD: %s" % str(lt.slice(0, 14)))
-	# the ADD panel's rows are drawn, not controls: the walk cannot find them by name; the first row sits at (225, 95) in the shot
-	var add_p := true
-	await click_at(Vector2(225, 95), "ADD panel row 'Add prop' (drawn, at its screen spot)")
-	await idle(10)
-	await shot("07_add_prop")
-	var seen: bool = any_visible_text_has(MESH_NAME)
-	say("   the saved table '%s' is listed on SET > Add prop: %s" % [MESH_NAME, str(seen)])
-	await click_text("POSE")
-	await idle(10)
-	await shot("08_pose_with_character")
-	t6 = saved_ok and add_p and seen
-	n6 = "(the ADD rows and the prop list are drawn, so the text check cannot see them: see wm6_08; save %s; SET > Add prop opened %s; table listed (text check) %s; no 'Use in scene' / Apply-to-scene button: %s)" % [str(saved_ok), str(add_p), str(seen), str(find_btn("Use in scene") == null)]
+	# the table goes into the scene from the MODEL page itself: Use in scene (one undo step), the POSE page shows it
+	var n_props: int = m.S.props.size()
+	var used: bool = await click_text("Use in scene")
+	await idle(12)
+	await shot("07_use_in_scene")
+	var on_pose: bool = m.cur_page == "POSE"
+	var added: bool = m.S.props.size() == n_props + 1
+	var kind: String = String(m.S.props.back()["kind"]) if added else ""
+	var listed := false
+	for e in Props.catalogue():   # Add prop's list (main._prop_menu_fill reads it): the saved table is in it
+		if String(e[0]) == "my " + MESH_NAME:
+			listed = true
+	say("   prop %s: page POSE %s, listed under Add prop %s" % [kind, str(on_pose), str(listed)])
+	t6 = saved_ok and used and on_pose and added and listed
+	n6 = "(save %s; Use in scene clicked %s; back on POSE %s; prop '%s' in the scene %s; listed under Add prop %s; the Use in scene button is on the MODEL page: %s)" % [str(saved_ok), str(used), str(on_pose), kind, str(added), str(listed), str(find_btn("Use in scene") != null)]
 	# the mesh this run saved is removed again (only if it sits inside the project folder)
 	var fp: String = ProjectSettings.globalize_path(UserPaths.w("res://meshes")) + "/" + MESH_NAME + ".kmesh"
 	if FileAccess.file_exists(fp) and fp.begins_with(ProjectSettings.globalize_path("res://")):

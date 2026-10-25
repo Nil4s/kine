@@ -5,7 +5,7 @@
 extends SceneTree
 
 const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "My scenes", "More", "Switch to Expert"]   # the bar (8: My scenes, Easy 120)
-const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
+const UNDO_NONE := "Undo: nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const MORE := ["Save this pose as a card", "Move his arms and legs", "Redo", "Open a saved scene", "Copy a video", "Save the scene", "Flip left and right", "Put his feet on the floor"]
 
 var fails := 0

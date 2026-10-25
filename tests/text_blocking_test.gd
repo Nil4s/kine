@@ -291,5 +291,207 @@ func _init() -> void:
 			ok(chest_hits == 0, "(i) 'dance': no hand or forearm inside the chest in any frame (%d contacts with the chest, collarbones or spine; the bake's check)" % chest_hits)
 	var dw: Dictionary = ed._words_dict("dance then wave")
 	ok(bool(dw.get("ok", false)) and dw.has("dict") and (dw["dict"]["cards"] as Array).size() > 12, "(d) 'dance then wave' builds the dance's cards then the wave's (%s cards)" % str((dw.get("dict", {}) as Dictionary).get("cards", []).size()))
+	# ---- TYPED GRAMMAR (round 10): repeats, turns and filler in Easy's typed line (section 10 below)
+	fails += typed_bars(ed)
 	print("TEXT BLOCKING TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
+
+
+## ---- 10. TYPED GRAMMAR (round 10, Easy's typed line). Each phrase must build (no "doesn't know"), and what it asks is MEASURED on the
+## built scene, scrubbed at 120 Hz as the Scene plays: "jump twice" and "jump twice then turn around" have 2 airborne spans (both feet
+## 2 cm+ above the floor, the body's rest; a span = one jump); "walk forward then jump" has 1; "punch 3 times" has 3 punch moves (the
+## cards' move tags: one per punch); the turns ("turn around", "spin around", "walk then turn around", "jump twice then turn around")
+## end with the hips' yaw 180 deg +- 15 from the start (TextView.yaw); "punch 11 times" caps at 10 with the say (the note). Also: "jump zorp"
+## still refused with "doesn't know". Returns the number of FAILs. Static: the bars also run alone (a copy with the old files).
+## The turns: templates turn_* (scripts/turn_walk.gd; tests/turn_test.gd measures them alone and joined)
+const TYPED_BUILDS := ["jump twice", "jump twice then turn around", "walk forward then jump", "walk then turn around", "punch 3 times", "turn around", "spin around"]
+
+
+static func _tbar(c: bool, what: String) -> int:
+	print(("ok   " if c else "FAIL ") + what)
+	return 0 if c else 1
+
+
+static func _airborne_spans(DS: Scene, B: Body) -> int:
+	var n := 0
+	var inair := false
+	var k := 0
+	while k / 120.0 <= DS.length() + 1e-6:
+		DS.apply(B, k / 120.0)
+		var up := true
+		for sd in ["_l", "_r"]:
+			up = up and ((B.P["ball" + sd] as Vector3).y - (B.p0["ball" + sd] as Vector3).y) > 0.02
+		if up and not inair:
+			n += 1
+		inair = up
+		k += 1
+	return n
+
+
+static func _both_up_frames(DS: Scene, B: Body, bar: float) -> int:
+	var n := 0
+	var k := 0
+	while k / 120.0 <= DS.length() + 1e-6:
+		DS.apply(B, k / 120.0)
+		var up := true
+		for sd in ["_l", "_r"]:
+			up = up and ((B.P["ball" + sd] as Vector3).y - (B.p0["ball" + sd] as Vector3).y) > bar
+		if up:
+			n += 1
+		k += 1
+	return n
+
+
+static func _yaw_change(DS: Scene, B: Body) -> float:
+	DS.apply(B, 0.0)
+	var y0 := TextView.yaw(B)
+	DS.apply(B, DS.length())
+	var y1 := TextView.yaw(B)
+	return wrapf(y1 - y0, -180.0, 180.0)
+
+
+static func typed_bars(ed: EasyHome) -> int:
+	var fails := 0
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	for phrase in TYPED_BUILDS:
+		var r: Dictionary = ed._words_dict(phrase)
+		var err := String(r.get("error", ""))
+		var built: bool = bool(r.get("ok", false)) and not err.begins_with("Kine doesn't know")
+		fails += _tbar(built, "'%s' builds a clip, no \"doesn't know\" (%s)" % [phrase, err if not built else "%d cards" % (r["dict"]["cards"] as Array).size()])
+		if not built:
+			continue
+		var DS := Scene.new()
+		DS.from_dict(r["dict"])
+		var cards: Array = r["dict"]["cards"]
+		if phrase.begins_with("jump") or phrase.begins_with("walk forward"):
+			var want := 2 if phrase.begins_with("jump twice") else 1
+			var spans := _airborne_spans(DS, B)
+			fails += _tbar(spans == want, "'%s': %d airborne spans (both feet 2 cm+ up), want %d" % [phrase, spans, want])
+		if phrase.begins_with("punch"):
+			var moves := {}
+			for c in cards:
+				moves[String(c.get("from", ""))] = true
+			fails += _tbar(moves.size() == 3, "'%s': %d punch moves in the clip (one tag per punch), want 3" % [phrase, moves.size()])
+		if phrase == "turn around":   # round 10 (the floor): a turn never lifts both feet off the floor; 0 frames with both feet over 1 cm up
+			var both_up := _both_up_frames(DS, B, 0.01)
+			fails += _tbar(both_up == 0, "'turn around' alone: %d frames with both feet over 1 cm above the floor (bar 0: a turn is never a hop)" % both_up)
+		if phrase.ends_with("turn around") or phrase.begins_with("turn") or phrase.begins_with("spin"):
+			var yc := _yaw_change(DS, B)
+			fails += _tbar(absf(yc) >= 165.0 and absf(yc) <= 195.0, "'%s': the hips' yaw ends %.1f deg from the start (180 +- 15)" % [phrase, yc])
+	var cap: Dictionary = ed._words_dict("punch 11 times")
+	var capped_moves := {}
+	if bool(cap.get("ok", false)):
+		for c in (cap["dict"]["cards"] as Array):
+			capped_moves[String(c.get("from", ""))] = true
+	fails += _tbar(bool(cap.get("ok", false)) and capped_moves.size() == 10 and String(cap.get("note", "")).contains("10 times"),
+		"'punch 11 times' caps at 10 punches with the say '%s' (%d punch moves)" % [String(cap.get("note", "")), capped_moves.size()])
+	var nope: Dictionary = ed._words_dict("jump zorp")
+	fails += _tbar(not bool(nope.get("ok", true)) and String(nope.get("error", "")).begins_with("Kine doesn't know"),
+		"'jump zorp' is still refused: \"doesn't know\" (unknown words stay unknown)")
+	fails += join_bars(ed)
+	return fails
+
+
+## ---- 11. TYPED JOIN NEEDS A STEP (walk11 goal 5, Easy's "then"): "turn around then punch" joins the punch to the turn at the
+## turn's end, where the feet stand side by side; the punch's own first card wants a staggered stance, so a foot must step at the
+## join (the card's "steps"). Bars, stated before measuring, against "punch" built alone: (a) the punch part's lowest hips within
+## 3 cm of the punch alone's; (b) the LEFT-hand punch ("punch with the left hand" alone, walk11 goal 5): its left hand's forward
+## reach (the capsule middle's travel along the facing, from the part's start) >= 80 % of the alone's; (c) no frame in the join (the part's start to its first card's move end) with both balls over 2 cm up.
+## the facing: the feet's capsules point ankle to toe (walk11's face_now); the hand is its capsule's middle (walk11's mid)
+static func _facing(B: Body) -> Vector3:
+	var f := Vector3.ZERO
+	for part in ["foot_l", "foot_r"]:
+		var c: Array = B.cap(part)
+		var d: Vector3 = c[1] - c[0]
+		d.y = 0.0
+		f += d
+	return f.normalized()
+
+
+static func _hand_l(B: Body) -> Vector3:
+	var c: Array = B.cap("hand_l")
+	return (c[0] + c[1]) * 0.5
+
+
+static func _lowest_hip(DS: Scene, B: Body, t0: float, t1: float) -> float:
+	var low := INF
+	var k := ceili(t0 * 120.0)
+	while k / 120.0 <= t1 + 1e-6:
+		DS.apply(B, k / 120.0)
+		low = minf(low, (B.P["pelvis"] as Vector3).y)
+		k += 1
+	return low
+
+
+static func _fwd_reach_l(DS: Scene, B: Body, t0: float, t1: float) -> float:
+	DS.apply(B, t0)
+	var h0 := _hand_l(B)
+	var fw := _facing(B)
+	var best := 0.0
+	var k := ceili(t0 * 120.0)
+	while k / 120.0 <= t1 + 1e-6:
+		DS.apply(B, k / 120.0)
+		best = maxf(best, (_hand_l(B) - h0).dot(fw))
+		k += 1
+	return best
+
+
+## the first card of the part after the join: the first card whose move tag differs from the first card's
+static func _part_start(cs: Array) -> int:
+	for i in cs.size():
+		if String(cs[i].get("from", "")) != String(cs[0].get("from", "")):
+			return i
+	return -1
+
+
+## [part phrase, whole phrase] -> the part's lowest hips (a), the part's left-hand reach (b) and the join's both-up frames (c)
+static func _join_part(ed: EasyHome, B: Body, alone: String, joined: String) -> Dictionary:
+	var ra: Dictionary = ed._words_dict(alone)
+	var rj: Dictionary = ed._words_dict(joined)
+	if not bool(ra.get("ok", false)) or not bool(rj.get("ok", false)):
+		return {"ok": false, "error": "'%s' / '%s' do not both build (%s / %s)" % [alone, joined, str(ra.get("error", "")), str(rj.get("error", ""))]}
+	var Da := Scene.new()
+	Da.from_dict(ra["dict"])
+	var Dj := Scene.new()
+	Dj.from_dict(rj["dict"])
+	var cj: Array = rj["dict"]["cards"]
+	var first := _part_start(cj)
+	if first < 0:
+		return {"ok": false, "error": "'%s': no part after the first move" % joined}
+	var tj := Dj.times()
+	var t_start := float(tj[first][0])
+	var t_end := Dj.length()
+	return {"ok": true, "low_alone": _lowest_hip(Da, B, 0.0, Da.length()), "low_join": _lowest_hip(Dj, B, t_start, t_end),
+		"reach_alone": _fwd_reach_l(Da, B, 0.0, Da.length()), "reach_join": _fwd_reach_l(Dj, B, t_start, t_end),
+		"both": _both_up_join(Dj, B, t_start, float(tj[first][1])), "win": [t_start, float(tj[first][1])]}
+
+
+static func _both_up_join(DS: Scene, B: Body, t0: float, t1: float) -> int:
+	var n := 0
+	var k := ceili(t0 * 120.0)
+	while k / 120.0 <= t1 + 1e-6:
+		DS.apply(B, k / 120.0)
+		if (B.P["ball_l"] as Vector3).y - (B.p0["ball_l"] as Vector3).y > 0.02 and (B.P["ball_r"] as Vector3).y - (B.p0["ball_r"] as Vector3).y > 0.02:
+			n += 1
+		k += 1
+	return n
+
+
+static func join_bars(ed: EasyHome) -> int:
+	var fails := 0
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var a: Dictionary = _join_part(ed, B, "punch", "turn around then punch")
+	if not bool(a["ok"]):
+		return _tbar(false, String(a["error"]))
+	var b: Dictionary = _join_part(ed, B, "punch with the left hand", "turn around then punch with the left hand")
+	if not bool(b["ok"]):
+		return _tbar(false, String(b["error"]))
+	fails += _tbar(absf(float(a["low_join"]) - float(a["low_alone"])) <= 0.03,
+		"(a) 'turn around then punch': the punch part's lowest hips %.3f m vs 'punch' alone %.3f m (within 3 cm)" % [a["low_join"], a["low_alone"]])
+	fails += _tbar(float(b["reach_join"]) >= 0.8 * float(b["reach_alone"]),
+		"(b) 'turn around then punch with the left hand': the left hand reaches %.3f m forward vs %.3f m alone (>= 80 %%)" % [b["reach_join"], b["reach_alone"]])
+	fails += _tbar(int(a["both"]) == 0 and int(b["both"]) == 0,
+		"(c) the joins: %d and %d frames with both balls over 2 cm up in the join %s (bar 0: no hop)" % [a["both"], b["both"], str(a["win"])])
+	return fails

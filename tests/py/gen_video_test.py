@@ -15,9 +15,12 @@ def ok(c, what):
         fails += 1
 
 
-text, neg = g.build_prompt("walks forward at a steady pace")
-ok(text.startswith("walks forward at a steady pace, ") and text.endswith(g.FRAME_V1) and g.MOTION in text, "the move's words lead the prompt (default v1m: v1 + the motion words)")
-ok(g.DEFAULT_STYLE == "v1m" and "frozen" in neg and neg.endswith(g.NEGATIVE_V1), "the default says no to a frozen take (negative: %s...)" % neg[:40])
+text, neg = g.build_prompt("walks forward at a steady pace", "v1m")
+ok(text.startswith("walks forward at a steady pace, ") and text.endswith(g.FRAME_V1) and g.MOTION in text, "the move's words lead the prompt (v1m: v1 + the motion words)")
+ok("frozen" in neg and neg.endswith(g.NEGATIVE_V1), "v1m says no to a frozen take (negative: %s...)" % neg[:40])
+text3, neg3 = g.build_prompt("walks forward at a steady pace")
+ok(g.DEFAULT_STYLE == "v3" and text3.endswith(g.FRAME_V3) and "frozen" in neg3 and "motion blur" in neg3 and "hands out of frame" in neg3,
+   "the default is v3 (comfy4: hands and feet in frame and sharp; it says no to a frozen take and to motion blur)")
 text2, neg2 = g.build_prompt("walks forward at a steady pace", "v2")
 ok(text2.startswith("walks forward at a steady pace, ") and "whole body" in text2 and "wide shot" in text2, "v2 asks for the whole body and a wide shot")
 ok("cropped" in neg2 and "out of frame" in neg2 and "close-up" in neg2, "v2 negative names cropped, out of frame and close-up")

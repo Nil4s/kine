@@ -196,11 +196,21 @@ static func dir_deg(a: Vector3, b: Vector3) -> float:
 ## base + [t0, t1] (10-14, the Fix button): frames outside the window are taken from base's raw frames instead of
 ## re-played (a pose edit on one card cannot move them; tests/fix_test.gd asserts window == full, bit for bit).
 ## contacts: also count each frame's parts-inside-each-other in the window ("bad", a Fix may not add any).
-static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contacts := false) -> Dictionary:
+## audit: a candidate's windowed sample (prefix_t, below) is compared with a full sample; audit_n / audit_diff count the frames
+static var audit := false
+static var audit_n := 0
+static var audit_diff := 0
+
+
+static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contacts := false, prefix_t := -INF) -> Dictionary:
+	var tk_all := Time.get_ticks_usec()
 	var n := int(ceil(S.length() * FPS)) + 1
 	var was_stepped := S.stepped
 	S.stepped = false   # the stepped preview is a view: the rules grade the scene as it really plays
 	var reuse: bool = not base.is_empty() and base["_raw"].size() == n
+	# prefix_t: every frame before that time is base's raw record (the edit starts at prefix_t: the cards and their times before it are
+	# unchanged, so the pose there is the same); the frames from prefix_t on are played. Works when the clip got longer or shorter.
+	var prefix := prefix_t > -INF and not base.is_empty()
 	var raw := []
 	var bad := 0
 	var mk := func(_i: int, t: float) -> Dictionary:
@@ -218,12 +228,15 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			r["fo"] = B.foot_state("_l")[2] or B.foot_state("_r")[2]
 			r["cf"] = carry_form(S, t, B)
 		return r
-	if not reuse and not contacts and FrameMemo.on:
+	if not reuse and not contacts and not prefix and FrameMemo.on:
 		raw = FrameMemo.frames("rb", S, B, n, FPS, mk)   # the realism score: only the frames a fix changed are played again
 	else:
 		for i in n:
 			var t := minf(i / FPS, S.length())
 			if reuse and (t < t0 or t > t1):
+				raw.append(base["_raw"][i])
+				continue
+			if prefix and t < prefix_t and i < base["_raw"].size():
 				raw.append(base["_raw"][i])
 				continue
 			raw.append(mk.call(i, t))
@@ -233,6 +246,8 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 	var out := {"t": [], "tip": [], "hips": [], "head": [], "hand_l": [], "hand_r": [], "w_pelvis": [], "w_trunk": [],
 		"w_weapon": [], "head_pos": [], "foot_y": [], "ball_l": [], "ball_r": [], "armed": false, "kind": "",
 		"spline": S.spline, "_raw": raw, "bad": bad, "balance": [], "both_down": [], "lift_form": [], "gait": []}
+	FrameMemo.tick("sample: play", tk_all)
+	tk_all = Time.get_ticks_usec()
 	for i in n:
 		var now: Dictionary = raw[i]
 		var prev: Dictionary = raw[maxi(i - 1, 0)]
@@ -264,6 +279,7 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 		out["w_pelvis"].append(ang_deg(prev["gp"], now["gp"]) * FPS if i > 0 else 0.0)
 		out["w_trunk"].append(ang_deg(prev["gt"], now["gt"]) * FPS if i > 0 else 0.0)
 		out["w_weapon"].append(dir_deg(prev["wd"], now["wd"]) * FPS if i > 0 else 0.0)
+	FrameMemo.tick("sample: derive", tk_all)
 	for k in ["tip", "hips", "head", "hand_l", "hand_r", "w_pelvis", "w_trunk", "w_weapon"]:
 		if out[k].size() > 1:
 			out[k][0] = out[k][1]
@@ -1092,6 +1108,50 @@ static func card_at(S: Scene, t: float) -> int:
 	return ts.size() - 1
 
 
+## is this scene a strike (the sequence, head and weapon rules read it): not a named non-swing template, nor its numbered copy
+static func is_attack(S: Scene) -> bool:
+	var base_name := S.name
+	var cut := base_name.rfind("_")
+	if cut > 0 and base_name.substr(cut + 1).is_valid_int():
+		base_name = base_name.substr(0, cut)   # "jump_2" is the jump template's second copy
+	return not S.name in AT.NOT_ATTACKS and not S.name in NOT_SWINGS and not base_name in NOT_SWINGS
+
+
+## the findings of check(S, B, sm) whose rule is in `rules`, and nothing else: only the rule functions that make those rules run
+## (the same gating and the same sample as check). A fix's candidate loop asks one or two rules, so it does not pay for the
+## trunk lean and the rest of the rulebook (~1.4 s a call on axe_strike_pose); the last Check of a fix is still the full one.
+static func check_some(S: Scene, B: Body, rules: Array, sm := {}) -> Array:
+	var out := []
+	if S.cards.size() < 2:
+		return out
+	if sm.is_empty():
+		sm = sample(S, B)
+	if is_attack(S) and ("TIP SPEED" in rules or "STRIKE FRAMES" in rules or "SEQUENCE" in rules or "HIPS TURN" in rules or "HEAD QUIET" in rules):
+		for st in strikes(sm["tip"]):
+			out += rule_sequence(sm, st)
+			out += rule_head(sm, st)
+			out += rule_weapon(sm, st)
+	if "FIST SPEED" in rules:
+		out += rule_fist(sm)
+	out = out.filter(func(x): return x["rule"] in rules)
+	for f in out:
+		f["card"] = card_at(S, f["t"])
+	return out
+
+
+## the HEAD QUIET findings of check(S, B, sm) and nothing else (same strikes, same rule_head, same card): a fix's bisection
+## asks only this one rule, so it does not pay for the whole rulebook (trunk lean alone is ~1.4 s a call on axe_strike_pose)
+static func head_quiet(S: Scene, sm: Dictionary) -> Array:
+	var out := []
+	if S.cards.size() < 2 or not is_attack(S):
+		return out
+	for st in strikes(sm["tip"]):
+		out += rule_head(sm, st)
+	for f in out:
+		f["card"] = card_at(S, f["t"])
+	return out
+
+
 ## every rule over a scene; sorted by time
 ## sm: a sample already taken of this scene (the Fix button re-samples only a window)
 static func check(S: Scene, B: Body, sm := {}) -> Array:
@@ -1103,11 +1163,7 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 		FrameMemo.tick("rb sample total", tk)
 	tk = Time.get_ticks_usec()
 	var out := []
-	var base_name := S.name
-	var cut := base_name.rfind("_")
-	if cut > 0 and base_name.substr(cut + 1).is_valid_int():
-		base_name = base_name.substr(0, cut)   # "jump_2" is the jump template's second copy
-	var attack := not S.name in AT.NOT_ATTACKS and not S.name in NOT_SWINGS and not base_name in NOT_SWINGS
+	var attack := is_attack(S)
 	if attack:
 		for st in strikes(sm["tip"]):
 			out += rule_sequence(sm, st)
@@ -1145,10 +1201,16 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 		var fz := Feasible.check(S, B)
 		out += Feasible.verdict_finding(S, fz) + fz["findings"].filter(func(f): return f["rule"] != "COUPLED LIMIT")   # N028: listed once, by HumanLimits
 	FrameMemo.tick("feasible total", tk)
+	tk = Time.get_ticks_usec()
 	if attack:
 		out += WeightXfer.findings(S, B, sm)   # N029: each strike starts with the weight on the foot it needs (scripts/weight_xfer.gd)
+	FrameMemo.tick("rules weight_xfer", tk)
+	tk = Time.get_ticks_usec()
 	out += TrunkLean.findings(S, B)   # Nick 10-23: the trunk leaning past what people do in that move (scripts/trunk_lean.gd)
+	FrameMemo.tick("rules trunk_lean", tk)
+	tk = Time.get_ticks_usec()
 	out += BodyAssert.findings(S, B)   # N002: the scene's saved assertions, re-checked on every Check
+	FrameMemo.tick("rules body_assert", tk)
 	for f in out:
 		f["card"] = card_at(S, f["t"])
 	out.sort_custom(func(x, y): return x["t"] < y["t"])
