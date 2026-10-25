@@ -213,6 +213,21 @@ func set_mode(md: int) -> void:
 	_remeasure()
 
 
+## a text box that still holds the keyboard eats Ctrl+Z / Ctrl+Y (LineEdit's own undo runs before the mesh sees the key):
+## while the mesh is on, an empty one gives the key back; the view click above releases any other
+func _input(ev: InputEvent) -> void:
+	if on and ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed and (ev as InputEventKey).keycode in [KEY_Z, KEY_Y]:
+		var fo := get_viewport().gui_get_focus_owner()
+		if fo is LineEdit and (fo as LineEdit).text == "":
+			fo.release_focus()
+
+
+func _release_text_focus() -> void:
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit:
+		fo.release_focus()
+
+
 func _process(_dt: float) -> void:
 	if on and (meas != null or prop.showing(m.blk) or not prop.last_circle.is_empty()):   # B07: one more frame clears the circle
 		_ov.queue_redraw()   # the label follows the camera
@@ -226,6 +241,8 @@ func _process(_dt: float) -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed:
+		_release_text_focus()   # a click on the view leaves a text box (the library search, the S box): Ctrl+Z goes to the mesh again
 	if KMeshDragOp.handle(self, ev):   # E / I live drag: the mouse sets the distance, click / Enter confirms, Esc cancels (scripts/kmesh_drag_op.gd)
 		return true
 	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)

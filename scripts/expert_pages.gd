@@ -47,6 +47,7 @@ static func build(m: Node) -> void:
 		var key: Key = b[1]
 		row.add_child(m._button(b[0], _brush.bind(m, key), "sculpt with %s: drag on the sphere (key %s)" % [String(b[0]).to_lower(), OS.get_keycode_string(key)]))
 	row = m.ui_ribbon["SURFACE"]
+	row.add_child(tool.call("mesh_vpaint", "Paint"))   # the same op the S box runs (op:vpaint): paint mode on / off on the model
 	row.add_child(tool.call("mesh_uv_editor", "UV editor"))
 	row.add_child(tool.call("mesh_uvgame2k", "Game UVs 2k"))
 	row.add_child(tool.call("mesh_uvpack", "Pack UVs"))
