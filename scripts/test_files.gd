@@ -29,6 +29,11 @@ const PATTERNS := [
 ]
 
 
+## a driver's output folders (pictures, logs, takes) are read AFTER the run: cleanup() keeps them; only
+## tools/purge_test_files.py removes them
+const KEEP_AT_QUIT := ["monkey_out", "walk_out", "i22_out", "i_run"]
+
+
 ## the regex of one pattern for this process id
 static func regex_for(pattern: String) -> RegEx:
 	var rx := RegEx.new()
@@ -90,6 +95,8 @@ static func cleanup() -> int:
 	for name in names:
 		var hit := false
 		for p in PATTERNS:
+			if KEEP_AT_QUIT.has(p[0]):
+				continue
 			if regex_for(p[1]).search(name) != null:
 				hit = true
 				break
