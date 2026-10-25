@@ -3368,6 +3368,8 @@ func _process(dt: float) -> void:
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
+	if easy != null and easy.on:
+		easy.follow_tick()   # EASY FOLLOW: the look-at point rides the body at the playhead (Expert: no follow)
 	if sc_ui != null:
 		sc_ui.tick(_a_before, playhead, playing, dt)   # I35: the cues the playhead passed sound
 	_light_apply()   # the playhead crossed a cut: the next shot's lights
@@ -5146,6 +5148,9 @@ func _view_dir(d: Vector3, smooth := true) -> void:
 
 
 func _view_home(smooth := true) -> void:
+	if easy != null and easy.on and easy.frame_dist() > 0.0:   # Easy: the first view keeps the body framed (easy_mode.gd frame_clip)
+		_turn_to(HOME["yaw"], HOME["pitch"], easy.frame_dist(), easy.follow_target(), smooth)
+		return
 	_turn_to(HOME["yaw"], HOME["pitch"], _home_dist(), HOME["target"], smooth)
 
 
@@ -5181,7 +5186,8 @@ func _turn_to(y1: float, p1: float, d1: float, t1: Vector3, smooth: bool) -> voi
 		yaw = lerpf(y0, y1, e)
 		pitch = lerpf(p0, p1, e)
 		dist = lerpf(d0, d1, e)
-		target = t0.lerp(t1, e)
+		if not (easy != null and easy.on):   # Easy: the look-at point is the follow's (easy_mode.gd follow_tick), not the tween's
+			target = t0.lerp(t1, e)
 		_cam(), 0.0, 1.0, VIEW_T)
 	_view_tw.tween_callback(func(): yaw = y_goal; _cam())
 

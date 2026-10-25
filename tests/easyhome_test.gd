@@ -473,6 +473,17 @@ func tick_x110(sl: HSlider, t: float) -> float:
 	return gw * 0.5 + f * maxf(sl.size.x - gw, 0.0)
 
 
+## Easy framing (113): the clip at time t, posed as the app does; [body height / free rect height, the body's centre inside the free rect]
+func framed_at(t: float) -> Array:
+	m.playhead = t
+	m._ps().apply(m.B, t)
+	m._refresh()
+	await idle(3)
+	var fr: Rect2 = m.easy.free_rect()
+	var box := body_box()
+	return [box.size.y / maxf(fr.size.y, 1.0), fr.has_point(box.get_center())]
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -2255,6 +2266,85 @@ func _init() -> void:
 		"106. pressing the first try button builds its move: cards %d -> %d, undo %d -> %d, names %s, pressed %s" % [c106, m.S.cards.size(), u106, m.undo.size(), str(m.S.cards.map(func(c): return c["name"])), pressed106])
 	m._new_scene()
 	await idle(2)
+
+	# 113. EASY FRAMING (round 9, beginner: the body is small in the free view): the Walk card, and the typed "dance": at 3 times
+	# in the clip the body's screen height is 70-90 % of the free rect's height and its centre is inside the free rect (1280x720).
+	# GUARD: Front / Side / Back still turn the view to their angle, and the body stays inside the free rect.
+	# Old code: one fit for the whole clip leaves a travelling walk at ~60 % of the free height (the body small).
+	m._new_scene()
+	await idle(3)
+	home.card(0)   # Walk
+	await idle(6)
+	var L113w: float = m.S.length()
+	var walk113: Array = []
+	for f113 in [0.25, 0.5, 0.75]:
+		walk113.append(await framed_at(L113w * f113))
+	var walk113_ok: bool = true
+	var walk113_s := ""
+	for r113 in walk113:
+		walk113_ok = walk113_ok and r113[0] >= 0.70 and r113[0] <= 0.90 and r113[1]
+		walk113_s += " [%.2f %s]" % [r113[0], str(r113[1])]
+	ok(walk113_ok, "113a. Walk: body height / free height at 3 times in the clip (25/50/75 %%):%s (70-90 %%, centre in the free rect)" % walk113_s)
+	m._new_scene()
+	await idle(3)
+	home._change()
+	await idle(2)
+	edit.text = "dance"
+	edit.text_submitted.emit("dance")
+	await idle(6)
+	var L113d: float = m.S.length()
+	var dance113: Array = []
+	for f113 in [0.25, 0.5, 0.75]:
+		dance113.append(await framed_at(L113d * f113))
+	var dance113_ok: bool = m.S.cards.size() >= 1
+	var dance113_s := ""
+	for r113 in dance113:
+		dance113_ok = dance113_ok and r113[0] >= 0.70 and r113[0] <= 0.90 and r113[1]
+		dance113_s += " [%.2f %s]" % [r113[0], str(r113[1])]
+	ok(dance113_ok, "113b. typed 'dance' (%d cards, %.1f s): body height / free height at 3 times:%s (70-90 %%, centre in the free rect)" % [m.S.cards.size(), L113d, dance113_s])
+	# 113c. GUARD: the view buttons on the walk: each turns to its angle and keeps the body inside the free rect
+	m._new_scene()
+	await idle(3)
+	home.card(0)
+	await idle(6)
+	var guard113: Array = []
+	for pair113 in [["easy_view_front", 0.0], ["easy_view_side", -90.0], ["easy_view_back", 180.0]]:
+		var vb113 := home.get_tree().root.find_child(pair113[0], true, false) as Button
+		if vb113 == null:
+			vb113 = m.easy.views.find_child(pair113[0], true, false) as Button
+		vb113.pressed.emit()
+		await wait_ms(900)
+		var yaw_ok := absf(wrapf(m.yaw - float(pair113[1]), -180.0, 180.0)) < 1.0
+		m.playhead = L113w * 0.5
+		m._ps().apply(m.B, m.playhead)
+		m._refresh()
+		await idle(3)
+		var fr113: Rect2 = m.easy.free_rect()
+		var box113 := body_box()
+		var inside113 := fr113.encloses(box113) and fr113.has_point(box113.get_center())
+		guard113.append([pair113[0], yaw_ok, inside113, snappedf(m.yaw, 0.1)])
+	var guard113_ok: bool = true
+	for g113 in guard113:
+		guard113_ok = guard113_ok and g113[1] and g113[2]
+	ok(guard113_ok, "113c. GUARD: Front / Side / Back turn to their angles and keep the body inside the free rect: %s" % str(guard113))
+	# 113 SHOT: the Easy home with the typed dance at 1600x900 (the beginner's window), for the report (not a bar)
+	m._new_scene()
+	await idle(3)
+	home._change()
+	await idle(2)
+	edit.text = "dance"
+	edit.text_submitted.emit("dance")
+	await idle(6)
+	root.content_scale_size = Vector2i(1600, 900)
+	await idle(10)
+	m.playhead = m.S.length() * 0.5
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	await idle(4)
+	m.get_viewport().get_texture().get_image().save_png("user://easy_framed.png")
+	print("screenshot %s" % ProjectSettings.globalize_path("user://easy_framed.png"))
+	root.content_scale_size = Vector2i(1280, 720)
+	await idle(10)
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
