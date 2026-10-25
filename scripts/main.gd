@@ -11777,6 +11777,8 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Unpack zip...", _unpack_ask, "pick a .kinezip and a folder under the app's user folder: the files are checked against their hashes, unpacked there, and the scene opens with its paths pointing at them"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
+	# the object library first in the row (a click here opens the same panel as Easy's Library button and the command search)
+	ui_ribbon["SET"].add_child(_button("Library", _library_toggle, "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it"))
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
@@ -11800,7 +11802,6 @@ func _ui() -> void:
 	ap.about_to_popup.connect(_prop_menu_fill.bind(ap))
 	ap.get_popup().id_pressed.connect(_prop_menu_pick.bind(ap))
 	ui_ribbon["SET"].add_child(ap)
-	ui_ribbon["SET"].add_child(_button("Object library...", _library_toggle, "the object library: weapons, furniture, sports, everyday things, armour and your own models in tabs, with thumbnails and a search. Click one to place it: a weapon in the right hand, a prop on the floor, a plate over the body (one undo step each)"))
 	ui_ribbon["SET"].add_child(_button("Import model", _import_ask, "bring in your own .glb model (a box, furniture, an object): it is checked, copied into your library and put in the set. Or drop the file on the window"))
 	for tt in [["Turn left", -15.0], ["Turn right", 15.0]]:
 		var ptb := _button(tt[0], _prop_turn.bind(tt[1]), "turn the picked prop 15° round its middle")
