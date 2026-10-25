@@ -1317,7 +1317,7 @@ func _share_viewer(root := ShareLink.ROOT, open_folder := true) -> Dictionary:
 	r["info"] = info
 	_say_plain("viewer page written: %s (%d frames at %d fps). One file to send: %s, %.1f KB (the .glb is %.1f KB inside it). Nothing was uploaded" % [r["dir"], info.get("frames", 0), S.fps, String(r["one"]).get_file(), r["one_bytes"] / 1024.0, r["glb_bytes"] / 1024.0])
 	if open_folder:
-		OS.shell_open(ProjectSettings.globalize_path(r["dir"]))
+		_shell_open(String(r["dir"]))
 	return r
 
 
@@ -11858,7 +11858,7 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export model (GLB / OBJ)", _export_model, "the test cube or the edited body mesh as res://exports/<model>.glb and .obj (static, the model editor's mesh); the status line gives the path, Open exports folder opens it"))
 	ui_ribbon["EXPORT"].add_child(_button("Use as a prop", _use_export_as_prop, "put the last Export model GLB in Library > My models at its real size (the same import as dropping a .glb in); then Add prop puts it in a scene"))
-	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): OS.shell_open(ProjectSettings.globalize_path("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
+	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): _shell_open(UserPaths.w("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
 	if fp_ui == null:
@@ -14838,7 +14838,7 @@ func _cheat_sheet() -> void:
 		_say(String(r["why"]))
 		return
 	if cheat_open:
-		OS.shell_open(ProjectSettings.globalize_path(r["path"]))
+		_shell_open(String(r["path"]))
 	_say("cheat sheet: %d keys, %d groups -> %s (print it from the browser)" % [r["keyed"], (r["groups"] as Array).size(), ProjectSettings.globalize_path(r["path"])])
 
 
@@ -17160,8 +17160,18 @@ var last_source := ""
 func _open_source(url: String) -> void:
 	last_source = url
 	_say("source: " + url)
+	_shell_open(url)
+
+
+## every file / folder / page the app hands to the system: a test run only records it (a browser started from a test
+## outlives Godot, holds the test runner's console pipe, and the run never exits; and it opens windows on the screen)
+var last_shell := ""
+
+
+func _shell_open(path: String) -> void:
+	last_shell = path
 	if Engine.get_main_loop().get_script() == null:
-		OS.shell_open(ProjectSettings.globalize_path(url) if url.begins_with("res://") else url)
+		OS.shell_open(ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path)
 
 
 func _close_findings() -> void:
