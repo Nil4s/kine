@@ -28,7 +28,8 @@ const PANEL_W := 478.0         # the cards' grid (4 x 112 + 3 x 10) and the text
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
 const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
-const TRY := [3, 4, 6, 0]   # the cards offered under an unknown move (CARDS indices): Punch, Kick, Wave, Walk
+const TRY := [3, 4, 6, 0]   # the four most common cards (CARDS indices): Punch, Kick, Wave, Walk. An unknown move offers these when no card word is close to it
+const TRY_MIN := 0.3        # a card word counts as close to a typed word at this bigram Dice score (try_pick)
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
 const STAND_WORDS := {"stand up": "stand_up"}   # typed words that are a derived template (templates.gd DERIVED): sit down played backwards
 
@@ -86,6 +87,7 @@ var _gen_on := false          # MAKE IT WITH AI VIDEO: main's gen_move (scripts/
 var _gen_words := ""          # the typed words Kine could not build: the button under the message makes them as a video
 var _make_btn: Button
 var _try_row: HBoxContainer    # "Or try:" and four card words: a typed move Kine cannot build offers moves it can
+var _try_btns: Array = []      # one button per card (CARDS order); the refusal shows the four try_pick chose, in that order
 var _ai_no: Label             # shown instead of the button when the AI video maker is not set up here
 var _cancel_btn: Button
 var _clip_word := "the move"   # the clip's name in the say line of a tweak ("the punch now takes 0.8 s")
@@ -222,14 +224,16 @@ func build(root: Control) -> void:
 	_try_row.name = "eh_try"
 	_try_row.add_theme_constant_override("separation", 6)
 	_try_row.add_child(_label("Or try:", 15, "text"))
-	for i in TRY:
+	for i in range(CARDS.size()):   # one button per card, hidden until a refusal picks it (_try_show)
 		var tb := Button.new()
 		tb.name = "eh_try_%s" % String(CARDS[i][0]).to_lower()
 		tb.text = String(CARDS[i][0])
 		tb.focus_mode = Control.FOCUS_NONE
 		tb.tooltip_text = "build %s and play it (one undo step)" % String(CARDS[i][0]).to_lower()
+		tb.visible = false
 		tb.pressed.connect(card.bind(i))
 		_try_row.add_child(tb)
+		_try_btns.append(tb)
 	_try_row.visible = false
 	v.add_child(_try_row)
 	var fv := Button.new()   # FROM A VIDEO on Easy's own panel (video walk-through round 6, goal 1): the same action as More > Copy a video
@@ -1004,6 +1008,9 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
 		_gen_words = what if typed else ""   # a typed line Kine cannot build: the AI video button makes it
+		if typed:
+			_try_show(what)
+			_edit.select_all.call_deferred()   # the refused words stay in the box, selected: the next keystroke replaces them, not glues to them
 		_fail(err, err.begins_with("Kine doesn't know"))
 		return
 	_built = true
@@ -1568,6 +1575,67 @@ static func _card_template(part: String) -> String:
 		if String(c[0]).to_lower() == w:
 			return String(c[1])
 	return ""
+
+
+## THE REFUSAL'S TRY BUTTONS: the card moves whose word is closest to the typed line (bigram Dice on the whole line and on each
+## of its words, at least TRY_MIN), closest first; the rest of the four come from TRY. Returns four card indices (fewer never).
+static func try_pick(typed: String, n := 4) -> Array:
+	var whole := typed.to_lower().strip_edges()
+	var parts: Array = [whole]
+	for w in whole.split(" ", false):
+		parts.append(String(w))
+	var near: Array = []   # [score, card index]
+	for i in range(CARDS.size()):
+		var w := String(CARDS[i][0]).to_lower()
+		var best := 0.0
+		for p in parts:
+			best = maxf(best, _dice(String(p), w))
+		if best >= TRY_MIN:
+			near.append([best, i])
+	near.sort_custom(func(a, b): return a[0] > b[0] or (a[0] == b[0] and a[1] < b[1]))
+	var out: Array = []
+	for pair in near:
+		out.append(pair[1])
+	for i in TRY:
+		if out.size() >= n:
+			break
+		if not out.has(i):
+			out.append(i)
+	return out.slice(0, n)
+
+
+## bigram Dice similarity of two strings, 0..1 (0 when either is shorter than two letters)
+static func _dice(a: String, b: String) -> float:
+	var ga := _bigrams(a)
+	var gb := _bigrams(b)
+	if ga.is_empty() or gb.is_empty():
+		return 0.0
+	var total := ga.size() + gb.size()
+	var common := 0
+	for g in ga:
+		var at: int = gb.find(g)
+		if at >= 0:
+			common += 1
+			gb.remove_at(at)
+	return 2.0 * float(common) / float(total)
+
+
+static func _bigrams(s: String) -> Array:
+	var out: Array = []
+	for i in range(s.length() - 1):
+		out.append(s.substr(i, 2))
+	return out
+
+
+## the refusal's buttons: the picked cards in order, after the "Or try:" label (the rest stay hidden)
+func _try_show(typed: String) -> void:
+	var pick: Array = try_pick(typed)
+	for tb in _try_btns:
+		(tb as Button).visible = false
+	for k in range(pick.size()):
+		var tb: Button = _try_btns[pick[k]]
+		_try_row.move_child(tb, k + 1)
+		tb.visible = true
 
 
 ## the sentence for a typed part Kine cannot build: one short line (the "Or try" buttons carry the moves it knows)
