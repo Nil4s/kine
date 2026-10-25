@@ -338,5 +338,62 @@ func _init() -> void:
 	ok("second hand" in m.ui_status.text and m.blk.active == "", "(G) POSE: G is still the second hand (%s)" % m.ui_status.text.left(70))
 	await tap(KEY_G)
 
+	# (H) Alt+click AFTER an extrude AND with a Mirror modifier on: the loop through an interior top edge is >= 4 edges
+	# (the walk's cube: a front face extruded, Mirror added; one edge was selected instead of its loop)
+	await fresh()
+	ui = m.kmed
+	var zf := -1
+	var zmax := -1.0e9
+	for fi in ui.mesh.face_count():
+		var fc: Vector3 = ui.mesh.face_center(fi)
+		if fc.z > zmax:
+			zmax = fc.z
+			zf = fi
+	var nf_h0: int = ui.mesh.face_count()
+	ui.sel.clear()
+	ui.sel.set_mode(KMeshSelect.FACE)
+	ui.sel.faces[zf] = true
+	ui.undo.begin(ui.mesh)
+	KMeshExtrude.extrude(ui.mesh, ui.sel, 0.2)
+	ui.undo.commit("Extrude")
+	ui.sel.clear()
+	KMeshModifiers.add(ui.mesh, "mirror")
+	ui.view.mark_dirty()
+	await idle(4)
+	ok(ui.mesh.face_count() > nf_h0 and ui.mesh.modifiers.size() == 1, "(H0) an extrude (faces %d -> %d) and a Mirror on the stack" % [nf_h0, ui.mesh.face_count()])
+	var hcam: Camera3D = m.cam
+	var hedge := Vector2.ZERO
+	var hfound := false
+	for fi in ui.mesh.face_count():
+		if absf(ui.mesh.face_center(fi).y - 0.3) > 1e-6 or hfound:
+			continue
+		var hfv: PackedInt32Array = ui.mesh.faces[fi]
+		for i in hfv.size():
+			var ha: int = hfv[i]
+			var hb: int = hfv[(i + 1) % hfv.size()]
+			var hpa: Vector3 = ui.mesh.verts[ha]
+			var hpb: Vector3 = ui.mesh.verts[hb]
+			if maxf(maxf(absf(hpa.x), absf(hpb.x)), maxf(absf(hpa.z), absf(hpb.z))) > 0.25:
+				continue   # a rim edge, as in (C)
+			var hw: Vector3 = ui.view.global_transform * ((hpa + hpb) * 0.5)
+			if hcam.is_position_behind(hw):
+				continue
+			var hsp: Vector2 = hcam.unproject_position(hw)
+			var hh: Dictionary = ui.view.pick(hcam, hsp)
+			if not hh.is_empty() and (hh["edge"] as Vector2i) == KMeshSelect.ekey(ha, hb):
+				hedge = hsp
+				hfound = true
+				break
+	ok(hfound, "(H0) an interior top edge is under the mouse at %s" % str(hedge))
+	ui.sel.clear()
+	ui.sel.set_mode(KMeshSelect.EDGE)
+	ui.view.mark_dirty()
+	await idle(2)
+	await send(mbtn(hedge, MOUSE_BUTTON_LEFT, true, true))
+	await send(mbtn(hedge, MOUSE_BUTTON_LEFT, false, true))
+	await idle(2)
+	var h_loop: int = ui.sel.edges.size()
+	ok(h_loop >= 4, "(H) Alt+click after the extrude and with Mirror on selects the loop: %d edges (want >= 4)" % h_loop)
+
 	print("kmesh_grs: %d failures" % fails)
 	quit(1 if fails > 0 else 0)
