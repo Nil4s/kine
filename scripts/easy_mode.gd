@@ -364,8 +364,18 @@ func free_rect() -> Rect2:
 
 
 ## the camera's offsets for Easy: the look-at point sits at the free rect's centre (mpp = world units per px at the target)
+## SIDE PANEL UP (easy_sliders.gd): the centre moves to the middle of the free rect left of the panel (its edge less 10 px), so the
+## body stays in view beside the panel. The distance is not changed; the offset goes back when the panel shuts.
 func offsets(vs: Vector2, mpp: float) -> Vector2:
-	var c := free_rect().get_center()
+	var fr := free_rect()
+	var c := fr.get_center()
+	if sliders != null and sliders.shifted():
+		# the Library open at the left too: the body goes between the two panels (left of it the hand slid under the Library)
+		var left := fr.position.x
+		if m.ui_library != null and m.ui_library.is_visible_in_tree():
+			left = maxf(left, m.ui_library.get_global_rect().end.x + 10.0)
+		var right := minf(fr.end.x, sliders.left_x() - 10.0)
+		c.x = (left + maxf(right, left + 40.0)) * 0.5
 	return Vector2((vs.x * 0.5 - c.x) * mpp, (c.y - vs.y * 0.5) * mpp)
 
 

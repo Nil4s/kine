@@ -96,6 +96,9 @@
 ##  124. EASY SIDE SLIDERS (all mouse): a click on the left arm opens a panel at the right with its plain name and sliders in range
 ##      (a: inside the window, clear of the bar and the card strip); a Raise drag moves the hand > 10 cm, one undo step (b); Undo puts
 ##      the hand back within 1 cm (c); a drag past the end stops at the limit (d); Reset this part goes to the card pose (e).
+##  125. SIDE PANEL KEEPS THE BODY IN VIEW (Nick: the panel covers the body at 1280x720): the left arm picked, the body's projected
+##      box (every joint of B.P through the camera) lies left of the panel with >= 10 px to spare (a); closing the panel puts the
+##      camera back exactly (b); with the panel open the body's projected height is >= 80 % of its closed height (c).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -615,6 +618,31 @@ func slider_drag124(sl: HSlider, frac: float) -> void:
 	up.global_position = to
 	root.push_input(up, true)
 	await idle(3)
+
+
+## section 125: the body's projected box (every joint of B.P through the camera; the joints behind the lens are left out)
+func proj_box125() -> Rect2:
+	var lo := Vector2(INF, INF)
+	var hi := -lo
+	for j in m.B.P.keys():
+		var v: Vector3 = m.B.P[j]
+		if m.cam.is_position_behind(v):
+			continue
+		var s: Vector2 = m.cam.unproject_position(v)
+		lo = lo.min(s)
+		hi = hi.max(s)
+	if lo.x == INF:
+		return Rect2()
+	return Rect2(lo, hi - lo)
+
+
+## section 125: the camera as numbers (the transform's origin and basis, and the lens shift h_offset / v_offset)
+func cam_vec125() -> PackedFloat64Array:
+	var t: Transform3D = m.cam.transform
+	var out := PackedFloat64Array([t.origin.x, t.origin.y, t.origin.z, m.cam.h_offset, m.cam.v_offset])
+	for c in [t.basis.x, t.basis.y, t.basis.z]:
+		out.append_array(PackedFloat64Array([c.x, c.y, c.z]))
+	return out
 
 
 func _init() -> void:
@@ -3111,6 +3139,49 @@ func _init() -> void:
 		var now124: float = B124.ang["upperarm_l"].y
 		ok(reset124 != null and cards124 == 1 and m.S.cards.size() == 1 and absf(low124 - want124) > 5.0 and absf(now124 - want124) < 0.5 and m.undo.size() + m.undo_dropped == u_r0 + 1,
 			"124e. Reset this part: the card keeps %.1f deg, the dragged arm was %.1f deg, Reset brings it to %.1f deg (cards %d, one undo step)" % [want124, low124, now124, m.S.cards.size()])
+	# 125. SIDE PANEL KEEPS THE BODY IN VIEW (Nick: the side panel covers the body at 1280x720): the left arm picked, the body's
+	# projected box lies left of the panel (a); closing puts the camera back exactly (b); the open body is >= 80 % of its closed height (c).
+	# Old code: (a) FAILS (the panel's left edge at x 872 cuts the body's box at x 809..1000).
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(3)
+	var sl125: Variant = m.easy.get("sliders")
+	var B125: Body = m.B
+	var closed125 := proj_box125()
+	var cam0_125 := cam_vec125()
+	var c125: Array = B125.cap("upperarm_l")
+	var at125 := Vector2.ZERO
+	var pick125 := ""
+	for t125 in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at125 = m.cam.unproject_position((c125[0] as Vector3).lerp(c125[1], t125))
+		pick125 = m._pick(at125)
+		if pick125 == "upperarm_l":
+			break
+	await click_at(at125)
+	await idle(4)
+	var shown125: bool = sl125 != null and sl125.panel.visible
+	var pr125: Rect2 = sl125.panel.get_global_rect() if shown125 else Rect2()
+	var open125 := proj_box125()
+	ok(shown125 and open125.size.x > 0.0 and open125.end.x <= pr125.position.x - 10.0,
+		"125a. left arm picked (%s), panel open %s: the body's projected box x %.0f..%.0f lies left of the panel's edge x %.0f with %.0f px to spare (bar: >= 10)"
+		% [pick125, str(pr125), open125.position.x, open125.end.x, pr125.position.x, pr125.position.x - open125.end.x])
+	ok(shown125 and open125.size.y >= 0.8 * closed125.size.y,
+		"125c. with the panel open the body's projected height %.0f px is %.0f %% of its closed height %.0f px (bar: >= 80 %%)"
+		% [open125.size.y, 100.0 * open125.size.y / maxf(closed125.size.y, 1.0), closed125.size.y])
+	var shot125 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/sideframe.png"
+	root.get_texture().get_image().save_png(shot125)
+	print("125 shot %s" % shot125)
+	# close: a press on the empty room shuts the panel (nothing picked)
+	await click_at(Vector2(700.0, 200.0))
+	await idle(4)
+	var cam1_125 := cam_vec125()
+	var camdiff125 := 0.0
+	for i in cam0_125.size():
+		camdiff125 = maxf(camdiff125, absf(cam1_125[i] - cam0_125[i]))
+	ok(sl125 != null and not sl125.panel.visible and camdiff125 < 1e-4,
+		"125b. closing the panel (shown %s) puts the camera back: largest difference %.6f (bar: < 1e-4)" % [str(sl125.panel.visible) if sl125 != null else "none", camdiff125])
+
 	root.content_scale_size = was_size
 	root.content_scale_mode = was_mode
 	await idle(4)

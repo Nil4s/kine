@@ -5,7 +5,8 @@ extends Node
 ## body live; one drag is ONE undo step and keys into the picked card the way a body drag does (EasyMode.card_follows_drag).
 ## Reset this part puts the part back to its card's pose (the picked card, else the card at the playhead, else straight).
 ## The panel shows only while a part is picked (part_picked); it sits left of the view buttons, under the Easy bar.
-## It does not change the body's framing (a framing change moved the drag points of easy_mode 10e).
+## It does not change the body's framing: the distance stays, and only the view centre moves left of the panel while it shows
+## (EasyMode.offsets), so the drag points of easy_mode 10e are where they were.
 
 const W := 250.0            # the panel's width (px)
 const TOP := 8.0            # px under the Easy bar (main's TOP_H) for the panel's top edge
@@ -19,6 +20,9 @@ var _rows: Array = []       # per slider: {"label", "slider", "axis", "on"}
 var _reset: Button
 var _shown_part := ""       # the part the rows were set up for
 var _scene: Object = null    # the scene the pick was made in
+var _side_shift := false     # the panel's view shift as the camera has it (latched during a body drag)
+var _cam_pending := false    # the panel changed during a body drag: the camera follows at the release
+var _lib_up := false         # the Library panel open as the camera last framed (the shift keeps the body right of it)
 
 
 ## the panel's words and sliders for a joint: [title, [[label, axis], ...]], or [] for a part without sliders
@@ -140,7 +144,22 @@ func _process(_dt: float) -> void:
 		part = ""   # a pick does not outlive Easy, nor the scene it was made in (a new or opened scene starts with nothing picked)
 	_scene = m.S
 	var on: bool = m.easy != null and m.easy.on and part != "" and m.B != null and m.B.ang.has(part)
+	var was := panel.visible
 	panel.visible = on
+	# the view centre moves left of the panel while it shows (easy_mode.offsets). Not during a body drag: the drag keeps the view it
+	# started in (a camera shift under the pointer moves the body wrong), so the shift follows at the release
+	if m.dragging == "":
+		_side_shift = on
+	var lib: bool = m.ui_library != null and m.ui_library.is_visible_in_tree()
+	if lib != _lib_up and on:
+		_cam_pending = true   # the Library opened or shut beside the panel: the body is re-framed between them
+	_lib_up = lib
+	if (was != on or _cam_pending) and m.easy != null and m.easy.on:
+		if m.dragging == "":
+			_cam_pending = false
+			m._cam()
+		else:
+			_cam_pending = true
 	if not on:
 		return
 	if part != _shown_part:
@@ -178,6 +197,16 @@ func _setup() -> void:
 		(r["label"] as Control).visible = r["on"]
 		sl.visible = r["on"]
 	_reset.visible = true
+
+
+## the panel is up and the camera keeps the body left of it (easy_mode.offsets reads this; latched during a body drag)
+func shifted() -> bool:
+	return _side_shift
+
+
+## the panel's left edge (px) where it sits now
+func left_x() -> float:
+	return _left_x()
 
 
 ## the panel sits left of the view buttons (or at the right edge when they are not there), under the Easy bar
