@@ -31,7 +31,9 @@ const TAB_TIPS := {   # the tab tooltips: what the tab holds and what a click on
 }
 const PROP_CAT := {"table": "Furniture", "chair": "Furniture", "stool": "Furniture", "bench": "Furniture", "bed": "Furniture",
 	"ball": "Sports", "sword": "Weapons"}   # every other prop kind is Everyday
-const PROP_NAME := {"ball": "Football", "sword": "Sword on the floor"}
+## the tile names of the props whose kind name reads as jargon (step_code, ramp15, door_frame ...); every other kind is its _title
+const PROP_NAME := {"ball": "Football", "sword": "Sword (on the floor)", "step": "Step", "step_code": "Box step", "stairs": "Stairs",
+	"stairs_code": "Stairs (4 steps)", "ramp": "Ramp", "ramp15": "Gentle ramp", "moving_box": "Box (moves)", "door_frame": "Doorway"}
 ## [name, region word]: a plate over the body region (KMeshBody.REGIONS); the words are the ones ArmourFromBody.make reads
 const ARMOUR := [["Chest plate", "chest"], ["Abdomen plate", "abdomen"], ["Helmet", "head"], ["Upper arm plate (left)", "upperarm_l"],
 	["Forearm plate (right)", "forearm_r"], ["Thigh plate (left)", "thigh_l"], ["Shin plate (right)", "shin_r"]]
@@ -89,7 +91,7 @@ func setup(main: Node, weapon_list: Array) -> void:
 	head.add_child(close)
 	_search = LineEdit.new()
 	_search.name = "library_search"
-	_search.placeholder_text = "Search by name: sw finds the sword"
+	_search.placeholder_text = "Search: sword, chair, football..."
 	_search.clear_button_enabled = true
 	_search.tooltip_text = "filters every category by name while it has words; clicking a tab clears it"
 	_search.text_changed.connect(_on_search)
@@ -173,6 +175,7 @@ func names_matching(text: String) -> Array:
 
 ## show the panel (under the strip, beside the left panel) and refresh its tiles
 func open() -> void:
+	items = inventory()   # the list is read again on every open: a model exported or used as a prop since the last open is listed
 	_armour_body = []
 	_armour_hash = ""
 	visible = true
@@ -405,7 +408,8 @@ func _on_search(t: String) -> void:
 func _refresh_tabs() -> void:
 	for i in _tabs.size():
 		var b: Button = _tabs[i]
-		b.text = "%s %d" % [CATS[i], in_cat(CATS[i]).size()]
+		b.text = CATS[i]   # the name alone (beginner round 8, friction 8): the count is in the tooltip
+		b.tooltip_text = "%d objects. %s" % [in_cat(CATS[i]).size(), TAB_TIPS[CATS[i]]]
 		b.button_pressed = i == tab and query == ""
 
 
@@ -423,22 +427,31 @@ func _rebuild() -> void:
 	_pics.clear()
 	_refresh_tabs()
 	var shown := _shown()
+	var one := _one_category(shown)
 	for it in shown:
-		_grid.add_child(_tile(it))
+		_grid.add_child(_tile(it, one))
 	if shown.is_empty():
 		var empty := Label.new()
 		empty.name = "library_empty"
 		empty.custom_minimum_size = Vector2(TILE.x * COLS, 60)
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty.text = ("Nothing matches \"%s\"." % query) if query != "" else \
-			"No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here."
+			("No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
 	_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
 	reset_size.call_deferred()   # the panel is as tall as what it shows now (a taller tab, or a wrapping label measured before its width, left it 1572 px over a 900 px window)
 
 
-func _tile(it: Dictionary) -> Control:
+## true when every tile shown is one category: the tiles then need no category caption (the tab's name is the header)
+func _one_category(shown: Array) -> bool:
+	for it in shown:
+		if String(it["cat"]) != String(shown[0]["cat"]):
+			return false
+	return not shown.is_empty()
+
+
+func _tile(it: Dictionary, one := false) -> Control:
 	var b := Button.new()
 	b.name = "tile_" + String(it["id"]).replace(":", "_")
 	b.custom_minimum_size = TILE
@@ -459,6 +472,20 @@ func _tile(it: Dictionary) -> Control:
 	pic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	pic.texture = thumbs.picture(String(it["id"]))
 	v.add_child(pic)
+	if pic.texture == null:
+		# until the picture is ready: the category, in the picture's place (never an empty box; the name is the label under it).
+		# A list of one category (round 7): the caption would repeat on every tile, so the placeholder stays blank
+		var ph := Label.new()
+		ph.name = "placeholder"
+		ph.text = "" if one else String(it["cat"])
+		ph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ph.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ph.add_theme_font_size_override("font_size", 11)
+		ph.add_theme_color_override("font_color", Tok.of("text:0.6"))
+		pic.add_child(ph)
 	var lab := Label.new()
 	lab.text = String(it["name"])
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -485,6 +512,8 @@ func thumb_source(it: Dictionary) -> Dictionary:
 	elif how == "prop":
 		src["spec"] = var_to_str(["prop", key, Props.kind_of(key)])
 		src["build"] = func() -> Node3D: return Props.mesh(Props.make(key))
+	if how == "weapon" or how == "prop":
+		src["shipped"] = LibraryThumbs.shipped_path(String(it["id"]), String(src["spec"]))   # the pictures shipped with the app (tools/make_lib_thumbs.gd)
 	elif m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
 		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
 		if _armour_hash == "":
@@ -502,7 +531,7 @@ func thumb_source(it: Dictionary) -> Dictionary:
 ## pieces' mesh paths: empty for the built-in body, so in effect their count) reads it from DEFAULT_BODY, written by tools/make_lib_thumbs.gd with the pictures, so the Armour tab
 ## does not read the whole body (~170 ms) to name pictures that are shipped; library_test checks the file is not stale.
 ## Any other body (edited, re-proportioned, another fighter) is read and hashed.
-const DEFAULT_BODY := "res://data/thumbs/armour/default_body.txt"
+const DEFAULT_BODY := "res://data/thumbs/lib/default_body.txt"
 static func body_sig(m: Node) -> String:
 	return ",".join(m.pieces.values().map(func(p): return String((p as MeshInstance3D).mesh.resource_path) if (p as MeshInstance3D).mesh != null else "-"))
 
@@ -531,4 +560,8 @@ func _armour_node(words: String) -> Node3D:
 
 func _made(id: String) -> void:
 	if _pics.has(id) and is_instance_valid(_pics[id]):
-		(_pics[id] as TextureRect).texture = thumbs.picture(id)
+		var pic := _pics[id] as TextureRect
+		pic.texture = thumbs.picture(id)
+		var ph := pic.get_node_or_null("placeholder")
+		if ph != null:
+			ph.queue_free()

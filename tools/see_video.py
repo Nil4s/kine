@@ -7,20 +7,50 @@ frames. Each hand is matched to the body's wrist it sits on: the nearest of the 
 16 (right) in the picture, within --hand-reach picture widths; each wrist takes at most one hand, nearest pair first.
 MediaPipe's handedness label is NOT used. A matched frame gets "hands": {"l": {"world", "image"}, "r": {...}}; a frame
 with no hand, or a clip with no hand model, has no "hands" key, so the body import is exactly as before.
+CROP (two passes, when the person is small in the picture): pass 1 tracks every 4th frame to find the person's box over
+the clip. When the median box is under 60% of the picture height, pass 2 tracks EVERY frame on a square crop around the
+person (the box's longer side + 25%, smoothed over time, clamped to the picture, upscaled to >= 512 px). The body image
+points are mapped back to the whole picture (x, y 0-1 of the original picture, the same convention as a full-frame
+run); world landmarks need no mapping. In that pass the hands are found per wrist (wrist_hands): a square crop of the
+whole picture round each visible wrist, 6 forearm lengths wide (at least 64 px), upscaled to 320 px, so a small hand is big enough for
+HandLandmarker. --no-crop turns the second pass off. A person at 60% or more of the picture height is tracked exactly as
+before (one pass, the same output, the whole-frame hand pass).
     python tools/see_video.py <video> <out pose.json> [--fps 30] [--pick 0.5,0.6] [--people 2]
          [--model D:/pose_models/pose_landmarker_heavy.task] [--hand-model D:/hand_models_handcap/hand_landmarker.task]
-         [--no-hands] [--hand-reach 0.12]
+         [--no-hands] [--hand-reach 0.12] [--no-crop]
 The hand model is MediaPipe's official release, downloaded (ROADMAP 90) into the new folder D:/hand_models_handcap/:
     https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task
     sha256 fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1 (7,819,105 bytes, fetched 2026-10-19)
 With --people N it finds up to N bodies and follows ONE: the nearest --pick (x, y 0-1 of the picture) in the first frame
-it finds anyone, then the one whose hips are nearest the last frame's.
-Prints one line: "POSE <frames> frames, <lost> without a body, <hands> with a hand -> <out>", or "NO <why>" and exits 1."""
+it finds anyone, then the one whose hips are nearest the last frame's. In the crop pass the followed person is the one
+nearest the crop's centre.
+Prints one line: "POSE <frames> frames, <lost> without a body, <hands> with a hand -> <out>", or "NO <why>" and exits 1.
+A crop run also says "crop: ..." on stderr."""
 import argparse
 import json
 import os
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
+
+CROP_BELOW = 0.60     # crop only when the person's median box is under this share of the picture height
+CROP_PAD = 1.25       # the square crop's side = the box's longer side x this (about 25% padding)
+CROP_MIN_PX = 512     # the crop is upscaled to at least this many pixels a side
+CROP_MIN_SIDE = 64    # a box smaller than this (picture pixels) is widened to it
+PASS1_EVERY = 4       # pass 1 tracks every 4th sampled frame
+LOCATE_CONF = 0.2     # pass 1 finds the person at this detection confidence (a 30% person misses at MediaPipe's 0.5)
+WRIST_CROP = 6.0      # a wrist's hand crop: a square of this many forearm lengths centred on the wrist (small fixture:
+                      # 2.5 gave the right fist on 55 of 81 frames, 6 on 77 of 81; the left fist is found by neither)
+WRIST_MIN_SIDE = 64   # the wrist crop is at least this many picture pixels a side
+WRIST_PX = 320        # the wrist crop is upscaled to this many pixels a side for HandLandmarker
+WRIST_VIS = 0.3       # a wrist (and its elbow) with less visibility than this gets no hand pass
+WRIST_HAND_CONF = 0.2  # the wrist crops find a hand at this detection confidence (a fist 12 px tall misses at 0.5)
+WRIST_DEAD_AFTER = 3  # SPEED: a wrist whose crops found no hand on this many probes in a row (a fist the hand model never
+                      # sees, e.g. the left one on the small fixture) is probed only every WRIST_REPROBE sampled frames
+WRIST_REPROBE = 4     # the re-probe interval of such a wrist (a hand that comes back is found at most this many frames late)
+WRIST_STATS = [0, 0, threading.Lock()]   # [wrist crops run, visible wrists seen] over a crop pass (printed on stderr)
+CROP_WORKERS = 3      # the crop pass in this many chunks at once (threads: MediaPipe releases the GIL; 3 measured ~1.9x)
 
 
 def match_hands(body, hres, reach):
@@ -50,6 +80,276 @@ def match_hands(body, hres, reach):
     return out
 
 
+def box_of(image, eps=0.5):
+    """the person's box in picture fractions from the points with visibility >= eps: (x0, y0, x1, y1), or None"""
+    pts = [(min(max(q[0], 0.0), 1.0), min(max(q[1], 0.0), 1.0)) for q in image if q[2] >= eps]
+    if len(pts) < 5:
+        return None
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def crop_plan(boxes, W, H, np):
+    """boxes: [(sampled index, cx, cy, side)] in picture pixels from pass 1. Returns crop(s) -> (x0, y0, side, T): the
+    square window of sampled frame s in picture pixels and the size T it is run at. The centre and side are interpolated
+    between the pass-1 boxes and smoothed with a 3-box moving average, so the window does not jump."""
+    ss = np.array([b[0] for b in boxes], float)
+    cx = np.array([b[1] for b in boxes], float)
+    cy = np.array([b[2] for b in boxes], float)
+    sd = np.array([b[3] for b in boxes], float)
+
+    def smooth(v):
+        if len(v) < 3:
+            return v
+        p = np.concatenate([[v[0]], v, [v[-1]]])
+        return (p[:-2] + p[1:-1] + p[2:]) / 3.0
+
+    cx, cy, sd = smooth(cx), smooth(cy), smooth(sd)
+    top = min(W, H)
+
+    def crop(s):
+        x = float(np.interp(s, ss, cx))
+        y = float(np.interp(s, ss, cy))
+        side = min(max(float(np.interp(s, ss, sd)), CROP_MIN_SIDE), top)
+        si = int(round(side))
+        x0 = int(round(min(max(x - si / 2.0, 0), W - si)))
+        y0 = int(round(min(max(y - si / 2.0, 0), H - si)))
+        return x0, y0, si, max(CROP_MIN_PX, si)
+
+    return crop
+
+
+def wrist_hands(cv2, mp, wdet, img, pose, W, H, s_idx=0, miss=None):
+    """the hands of one frame in crop mode: a square crop of the WHOLE picture round each visible wrist (side = WRIST_CROP
+    forearm lengths, at least WRIST_MIN_SIDE px, clamped to the picture), upscaled to WRIST_PX and run through HandLandmarker
+    (IMAGE mode). Of the hands in a crop, the one whose wrist is nearest the crop's wrist point is that wrist's hand. pose =
+    the body's 33 image points in the whole picture. Returns a SimpleNamespace shaped like HandLandmarker's result (image
+    points in the whole picture, world points in metres), or None when no hand was found."""
+    body = [q for q in pose if q.visibility >= 0.5]
+    if len(body) >= 5:
+        ys = [q.y for q in body]
+        body_px = (max(ys) - min(ys)) * H
+    else:
+        body_px = 0.5 * max(W, H)
+    hl, hw = [], []
+    if miss is None:
+        miss = {15: 0, 16: 0}
+    for wi, ei in ((15, 13), (16, 14)):
+        w = pose[wi]
+        if w.visibility < WRIST_VIS:
+            continue
+        with WRIST_STATS[2]:
+            WRIST_STATS[1] += 1
+        if miss[wi] >= WRIST_DEAD_AFTER and s_idx % WRIST_REPROBE:
+            continue
+        with WRIST_STATS[2]:
+            WRIST_STATS[0] += 1
+        wx, wy = w.x * W, w.y * H
+        e = pose[ei]
+        if e.visibility >= WRIST_VIS:
+            fore = ((e.x * W - wx) ** 2 + (e.y * H - wy) ** 2) ** 0.5
+        else:
+            fore = 0.15 * body_px   # no elbow: a forearm is about 15% of the body's height
+        si = int(round(min(max(WRIST_CROP * fore, WRIST_MIN_SIDE), min(W, H))))
+        x0 = int(round(min(max(wx - si / 2.0, 0), W - si)))
+        y0 = int(round(min(max(wy - si / 2.0, 0), H - si)))
+        src = cv2.resize(img[y0:y0 + si, x0:x0 + si], (WRIST_PX, WRIST_PX), interpolation=cv2.INTER_CUBIC)
+        r = wdet.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(src, cv2.COLOR_BGR2RGB)))
+        if not r.hand_landmarks:
+            miss[wi] += 1
+            continue
+        cxn, cyn = (wx - x0) / si, (wy - y0) / si   # the wrist, in the crop's own 0-1 coordinates
+        best = min(range(len(r.hand_landmarks)),
+                   key=lambda h: (r.hand_landmarks[h][0].x - cxn) ** 2 + (r.hand_landmarks[h][0].y - cyn) ** 2)
+        # a crop 6 forearms wide also sees the other hand: the hand is this wrist's only if its wrist point is no nearer
+        # the other body wrist (else the same fist would go to both sides)
+        hx, hy = x0 + r.hand_landmarks[best][0].x * si, y0 + r.hand_landmarks[best][0].y * si
+        ow = pose[31 - wi]   # 15 <-> 16
+        if ow.visibility >= WRIST_VIS and ((hx - ow.x * W) ** 2 + (hy - ow.y * H) ** 2) < ((hx - wx) ** 2 + (hy - wy) ** 2):
+            miss[wi] += 1
+            continue
+        miss[wi] = 0
+        hl.append([_map_point(q, x0, y0, si, W, H) for q in r.hand_landmarks[best]])
+        hw.append(r.hand_world_landmarks[best])
+    if not hl:
+        return None
+    return SimpleNamespace(hand_landmarks=hl, hand_world_landmarks=hw)
+
+
+def run_track(a, env, step, every=1, crop=None, hands=True, report=None, conf=0.5, lo=0, hi=None):
+    """one tracking pass over the clip. every: track every Nth sampled frame (pass 1 uses PASS1_EVERY). crop: None (the
+    whole picture) or crop_plan's crop(s): the pose and hand models see the square crop and the points are mapped back to
+    the whole picture. lo, hi: only the sampled frames lo <= s < hi (a chunk of a parallel crop pass; hi None = to the end).
+    report(fraction): the progress, every few frames. Returns (frames, lost, seen, with_hand, W, H), frames = [(sampled
+    index, frame dict)]."""
+    cv2, mp, mpt, vision = env
+    cap = cv2.VideoCapture(a.video)
+    src_fps = cap.get(cv2.CAP_PROP_FPS) or a.fps
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    det = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(
+        base_options=mpt.BaseOptions(model_asset_path=a.model), running_mode=vision.RunningMode.VIDEO,
+        num_poses=a.people, min_pose_detection_confidence=conf, min_pose_presence_confidence=conf,
+        min_tracking_confidence=conf))
+    hdet = None     # whole-frame hands (no crop)
+    wdet = None     # per-wrist hands (crop)
+    if hands and not a.no_hands:
+        if os.path.exists(a.hand_model):
+            base = mpt.BaseOptions(model_asset_path=a.hand_model)
+            if crop is None:
+                hdet = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
+                    base_options=base, running_mode=vision.RunningMode.VIDEO, num_hands=2))
+            else:
+                wdet = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
+                    base_options=base, running_mode=vision.RunningMode.IMAGE, num_hands=2,
+                    min_hand_detection_confidence=WRIST_HAND_CONF, min_hand_presence_confidence=WRIST_HAND_CONF,
+                    min_tracking_confidence=WRIST_HAND_CONF))
+        else:
+            print("note: no hand model at %s, the body is tracked without hands" % a.hand_model)
+    pool = ThreadPoolExecutor(max_workers=1)
+    wpool = ThreadPoolExecutor(max_workers=1)   # SPEED: the per-wrist hand crops (crop mode) run here, in frame order
+    px, py = (float(v) for v in a.pick.split(","))
+    last = None
+    frames = []
+    lost = 0
+    seen = 0
+    with_hand = 0
+    wmiss = {15: 0, 16: 0}   # consecutive probes with no hand, per wrist (this run's; see WRIST_DEAD_AFTER)
+    pend = None              # the last frame whose wrist hands are still running: (sampled index, frame, body, future)
+
+    def finish(p):
+        nonlocal with_hand
+        s, fr, body_xy, fut = p
+        hres = fut.result()
+        hands_out = match_hands(body_xy, hres, a.hand_reach) if hres is not None else {}
+        if hands_out:
+            fr["hands"] = hands_out
+            with_hand += 1
+        frames.append((s, fr))
+    i = 0
+    while True:
+        ok, img = cap.read()
+        if not ok:
+            break
+        if i % step:
+            i += 1
+            continue
+        s_idx = i // step
+        if hi is not None and s_idx >= hi:
+            break
+        t = i / src_fps
+        i += 1
+        if s_idx < lo or s_idx % every:
+            continue
+        seen += 1   # every sampled frame the tracker looked at, the ones with no body too (EasyTake's score needs the clip's count)
+        if report is not None and total > 0 and i % 10 == 0:
+            report(i / total if hi is None else (s_idx - lo) / max(1, hi - lo))
+        if crop is None:
+            src = img
+            x0 = y0 = 0
+            si = None
+        else:
+            x0, y0, si, T = crop(s_idx)
+            src = cv2.resize(img[y0:y0 + si, x0:x0 + si], (T, T), interpolation=cv2.INTER_CUBIC)
+        mpimg = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(src, cv2.COLOR_BGR2RGB))
+        # SPEED: the hand model runs on its own thread while the pose model runs here. Each detector still sees every frame in
+        # the same order with the same timestamp, so its output is the same; only the wall clock overlaps (hand ~1/4 of pose)
+        hfut = pool.submit(hdet.detect_for_video, mpimg, int(t * 1000)) if hdet is not None else None
+        res = det.detect_for_video(mpimg, int(t * 1000))
+        hres = hfut.result() if hfut is not None else None
+        if not res.pose_world_landmarks:
+            lost += 1
+            continue
+        if crop is None:
+            want = (px, py) if last is None else last
+            hips = [((p[23].x + p[24].x) / 2, (p[23].y + p[24].y) / 2) for p in res.pose_landmarks]
+            k = min(range(len(hips)), key=lambda n: (hips[n][0] - want[0]) ** 2 + (hips[n][1] - want[1]) ** 2)
+            last = hips[k]
+            body = res.pose_landmarks[k]
+            image = [[round(q.x, 4), round(q.y, 4), round(q.visibility, 3)] for q in body]
+            pose_xy = body
+        else:
+            # the crop is centred on the person, so the followed one is the pose nearest the crop's middle
+            hips = [((p[23].x + p[24].x) / 2, (p[23].y + p[24].y) / 2) for p in res.pose_landmarks]
+            k = min(range(len(hips)), key=lambda n: (hips[n][0] - 0.5) ** 2 + (hips[n][1] - 0.5) ** 2)
+            pose_xy = [_map_point(q, x0, y0, si, W, H) for q in res.pose_landmarks[k]]
+            image = [[round(q.x, 4), round(q.y, 4), round(q.visibility, 3)] for q in pose_xy]
+            hres = None
+        fr = {"t": round(t, 3),
+              "world": [[round(q.x, 4), round(q.y, 4), round(q.z, 4)] for q in res.pose_world_landmarks[k]],
+              "image": image}
+        if crop is not None and wdet is not None:
+            # SPEED: this frame's wrist hands run on wpool while the next frame's pose runs here. wpool runs them one at a
+            # time in frame order, so wmiss and the detector see the same sequence as before; the frame is kept in order
+            if pend is not None:
+                finish(pend)
+            pend = (s_idx, fr, pose_xy, wpool.submit(wrist_hands, cv2, mp, wdet, img, pose_xy, W, H, s_idx, wmiss))
+            continue
+        hands_out = match_hands(pose_xy, hres, a.hand_reach) if hres is not None else {}
+        if hands_out:
+            fr["hands"] = hands_out
+            with_hand += 1
+        frames.append((s_idx, fr))
+    if pend is not None:
+        finish(pend)
+    wpool.shutdown()
+    return frames, lost, seen, with_hand, W, H
+
+
+def _progress_writer(path, pbase, k):
+    """report(chunk, fraction) -> the --progress file: the mean of the k chunks' fractions, mapped into pbase (0-1 of the
+    whole run). Nothing is written with no path."""
+    lock = threading.Lock()
+    fr = [0.0] * k
+
+    def report(c, f):
+        if not path:
+            return
+        with lock:
+            fr[c] = f
+            with open(path, "w") as pf:
+                pf.write("%.3f" % (pbase[0] + (pbase[1] - pbase[0]) * min(1.0, sum(fr) / k)))
+    return report
+
+
+def run_chunks(a, env, step, crop, conf, progress, pbase, workers):
+    """the crop pass cut into contiguous chunks of sampled frames, one thread each (its own pose and hand detectors and
+    its own decoder). The crop is a fixed function of the sampled index and the follow is per frame, so a chunk needs
+    nothing from its neighbours; only the tracker's warm-up differs at each chunk's first frame (it detects afresh there).
+    Chunks are joined in order, so the result is the same frame list as one run."""
+    cv2 = env[0]
+    cap = cv2.VideoCapture(a.video)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    cap.release()
+    S = -(-total // step) if total > 0 else 0
+    K = max(1, min(workers, S // 8))   # at least 8 sampled frames a chunk
+    rep = _progress_writer(progress, pbase, K)
+    if K == 1:
+        return run_track(a, env, step, crop=crop, report=lambda f: rep(0, f), conf=conf)
+    bounds = [int(round(k * S / K)) for k in range(K + 1)]
+    with ThreadPoolExecutor(max_workers=K) as ex:
+        futs = [ex.submit(run_track, a, env, step, 1, crop, True, (lambda f, c=k: rep(c, f)), conf, bounds[k], bounds[k + 1])
+                for k in range(K)]
+        res = [f.result() for f in futs]
+    frames = []
+    lost = seen = with_hand = 0
+    for fr, l, s, h, _, _ in res:
+        frames += fr
+        lost += l
+        seen += s
+        with_hand += h
+    return frames, lost, seen, with_hand, res[0][4], res[0][5]
+
+
+def _map_point(q, x0, y0, si, W, H):
+    """a crop's normalized point (x, y, visibility) -> the whole picture's normalized point, clamped to the picture"""
+    x = min(max((x0 + q.x * si) / W, 0.0), 1.0)
+    y = min(max((y0 + q.y * si) / H, 0.0), 1.0)
+    return SimpleNamespace(x=x, y=y, z=q.z, visibility=q.visibility)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("video")
@@ -60,14 +360,21 @@ def main():
     ap.add_argument("--model", default="D:/pose_models/pose_landmarker_heavy.task")
     ap.add_argument("--hand-model", default="D:/hand_models_handcap/hand_landmarker.task")
     ap.add_argument("--no-hands", action="store_true")
+    ap.add_argument("--detect-conf", type=float, default=0.5,
+                    help="the pose model's detection, presence and tracking confidence (MediaPipe's default 0.5)")
+    ap.add_argument("--no-crop", action="store_true",
+                    help="track the whole picture only (no second pass on a crop round a small person)")
     ap.add_argument("--progress", default="",
                     help="a file rewritten as the tracker goes: the fraction of the video read (0-1), for the app's progress line")
+    ap.add_argument("--workers", type=int, default=CROP_WORKERS,
+                    help="the crop pass runs in this many chunks at once (threads, each with its own detectors); 1 = one run")
     ap.add_argument("--hand-reach", type=float, default=0.12,
                     help="a hand's wrist within this many picture widths of a body wrist is that hand")
     a = ap.parse_args()
     try:
         import cv2
         import mediapipe as mp
+        import numpy as np
         from mediapipe.tasks import python as mpt
         from mediapipe.tasks.python import vision
     except ImportError as e:
@@ -81,69 +388,56 @@ def main():
         sys.exit(1)
     cap = cv2.VideoCapture(a.video)
     src_fps = cap.get(cv2.CAP_PROP_FPS) or a.fps
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    det = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(
-        base_options=mpt.BaseOptions(model_asset_path=a.model), running_mode=vision.RunningMode.VIDEO,
-        num_poses=a.people))
-    hdet = None
-    if not a.no_hands:
-        if os.path.exists(a.hand_model):
-            hdet = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
-                base_options=mpt.BaseOptions(model_asset_path=a.hand_model), running_mode=vision.RunningMode.VIDEO,
-                num_hands=2))
-        else:
-            print("note: no hand model at %s, the body is tracked without hands" % a.hand_model)
-    pool = ThreadPoolExecutor(max_workers=1)
-    px, py = (float(v) for v in a.pick.split(","))
-    last = None
-    frames = []
-    lost = 0
-    seen = 0
-    with_hand = 0
-    i = 0
+    cap.release()
     step = max(1, int(round(src_fps / a.fps)))
-    # the rate the KEPT frames really come at: a 16 fps clip sampled "at 30" keeps every frame, so 16, not 30 (the importer
-    # reads this field for its filters and gap fill; each frame's own t is src frame index / src_fps either way)
-    out_fps = src_fps / step
-    while True:
-        ok, img = cap.read()
-        if not ok:
-            break
-        if i % step:
-            i += 1
-            continue
-        t = i / src_fps
-        i += 1
-        seen += 1   # every sampled frame the tracker looked at, the ones with no body too (EasyTake's score needs the clip's count)
-        if a.progress and total > 0 and i % 10 == 0:
-            with open(a.progress, "w") as pf:
-                pf.write("%.3f" % min(1.0, i / total))
-        mpimg = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        # SPEED: the hand model runs on its own thread while the pose model runs here. Each detector still sees every frame in
-        # the same order with the same timestamp, so its output is the same; only the wall clock overlaps (hand ~1/4 of pose)
-        hfut = pool.submit(hdet.detect_for_video, mpimg, int(t * 1000)) if hdet is not None else None
-        res = det.detect_for_video(mpimg, int(t * 1000))
-        hres = hfut.result() if hfut is not None else None
-        if not res.pose_world_landmarks:
-            lost += 1
-            continue
-        want = (px, py) if last is None else last
-        hips = [((p[23].x + p[24].x) / 2, (p[23].y + p[24].y) / 2) for p in res.pose_landmarks]
-        k = min(range(len(hips)), key=lambda n: (hips[n][0] - want[0]) ** 2 + (hips[n][1] - want[1]) ** 2)
-        last = hips[k]
-        fr = {"t": round(t, 3),
-              "world": [[round(q.x, 4), round(q.y, 4), round(q.z, 4)] for q in res.pose_world_landmarks[k]],
-              "image": [[round(q.x, 4), round(q.y, 4), round(q.visibility, 3)] for q in res.pose_landmarks[k]]}
-        hands = match_hands(res.pose_landmarks[k], hres, a.hand_reach) if hres is not None else {}
-        if hands:
-            fr["hands"] = hands
-            with_hand += 1
-        frames.append(fr)
+    env = (cv2, mp, mpt, vision)
+    crop = None
+    pbase = (0.0, 1.0)
+    if not a.no_crop:
+        # pass 1: the person's box over the clip, every 4th frame, body only
+        rep1 = _progress_writer(a.progress, (0.0, 0.25), 1)
+        p1, _, _, _, _, _ = run_track(a, env, step, every=PASS1_EVERY, crop=None, hands=False,
+                                      report=lambda f: rep1(0, f), conf=LOCATE_CONF)
+        boxes = []
+        shares = []
+        for s, fr in p1:
+            b = box_of(fr["image"])
+            if b is None:
+                continue
+            x0, y0, x1, y1 = b
+            shares.append(y1 - y0)
+            cxp = (x0 + x1) / 2.0 * W
+            cyp = (y0 + y1) / 2.0 * H
+            side = CROP_PAD * max((x1 - x0) * W, (y1 - y0) * H)
+            boxes.append((s, cxp, cyp, side))
+        if len(boxes) >= 2:
+            share = sorted(shares)[len(shares) // 2]
+            if share < CROP_BELOW:
+                import numpy as np
+                crop = crop_plan(boxes, W, H, np)
+                pbase = (0.25, 1.0)
+                print("crop: the person is %.0f%% of the picture height (median of %d boxes): tracked on a crop, every frame"
+                      % (share * 100, len(boxes)), file=sys.stderr)
+            else:
+                print("crop: the person is %.0f%% of the picture height: tracked whole, no crop" % (share * 100),
+                      file=sys.stderr)
+    if crop is not None:
+        frames_s, lost, seen, with_hand, W, H = run_chunks(a, env, step, crop, a.detect_conf, a.progress, pbase, a.workers)
+        print("wrist crops: %d run of %d visible wrists (a dead wrist is re-probed every %d frames)"
+              % (WRIST_STATS[0], WRIST_STATS[1], WRIST_REPROBE), file=sys.stderr)
+    else:
+        rep2 = _progress_writer(a.progress, pbase, 1)
+        frames_s, lost, seen, with_hand, W, H = run_track(a, env, step, every=1, crop=None, hands=True,
+                                                          report=lambda f: rep2(0, f), conf=a.detect_conf)
+    frames = [fr for _, fr in frames_s]
     if len(frames) < 2:
         print("NO the tracker found a person in %d frames" % len(frames))
         sys.exit(1)
+    out_fps = src_fps / step
+    # the rate the KEPT frames really come at: a 16 fps clip sampled "at 30" keeps every frame, so 16, not 30 (the importer
+    # reads this field for its filters and gap fill; each frame's own t is src frame index / src_fps either way)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     json.dump({"fps": round(out_fps, 4), "video": os.path.basename(a.video), "size": [W, H], "frames": frames, "seen": seen,
                "note": "MediaPipe world landmarks (m, hips at 0, y down), 33 per frame; image = (x, y, visibility) 0-1; "

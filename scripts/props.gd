@@ -24,6 +24,25 @@ const STEP := 0.01        # the capsule axis is sampled every 1 cm
 const REST_GAP := 0.02    # a capsule rests when its lowest point is within 2 cm above the surface
 const REST_SINK := 0.005  # ...or up to 5 mm into it (and then depth is under this too)
 const GREY := Color(0.70, 0.67, 0.62)   # warm neutral: scenery, not a second body (the dummy is blue-grey)
+## SIZE and COLOUR (Easy's prop bar: Bigger / Smaller / Colour; Expert and the file read the same fields): "scale" (a
+## uniform factor about the prop's middle on the floor, 1 = its real size) and "colour" (a name in COLOURS, "grey" = the
+## default). Both are written to the scene only when they differ from the default, so an older file reads the same
+const SIZE_MIN := 0.25
+const SIZE_MAX := 4.0
+const COLOURS := {"grey": Color(0.70, 0.67, 0.62), "blue": Color(0.15, 0.36, 0.88), "red": Color(0.84, 0.14, 0.12),
+	"green": Color(0.16, 0.62, 0.24), "yellow": Color(0.95, 0.80, 0.12), "white": Color(0.95, 0.95, 0.93), "black": Color(0.08, 0.08, 0.09)}
+const COLOUR_ORDER := ["blue", "red", "green", "yellow", "white", "black", "grey"]   # Colour cycles these; the first press gives blue
+
+
+## the prop's size factor (clamped to SIZE_MIN..SIZE_MAX); 1 for a prop without one
+static func scale_of(p: Dictionary) -> float:
+	return clampf(float(p.get("scale", 1.0)), SIZE_MIN, SIZE_MAX)
+
+
+## the prop's colour name ("grey" for the default)
+static func colour_of(p: Dictionary) -> String:
+	var c := String(p.get("colour", "grey"))
+	return c if COLOURS.has(c) else "grey"
 
 const KINDS := {
 	"box": {"label": "40 cm cube", "solids": [[Vector3(0, 0.2, 0), Vector3(0.4, 0.4, 0.4)]],
@@ -159,6 +178,10 @@ static func to_dict(p: Dictionary) -> Dictionary:
 		"yaw": snappedf(yaw, 0.0001)}
 	if p.has("mat"):
 		d["mat"] = String(p["mat"])   # a photo material (user://materials/<name>, E15)
+	if scale_of(p) != 1.0:
+		d["scale"] = snappedf(scale_of(p), 0.0001)
+	if colour_of(p) != "grey":
+		d["colour"] = colour_of(p)
 	if p.has("swing") and hinged(p) and float(p["swing"]) != 0.0:
 		d["swing"] = snappedf(float(p["swing"]), 0.0001)
 	if animated(p):
@@ -179,6 +202,10 @@ static func from_dict(d: Dictionary) -> Dictionary:
 	var p := make(String(d["kind"]), xf_at(Vector3(float(a[0]), float(a[1]), float(a[2])), float(d.get("yaw", 0.0))))
 	if d.has("mat") and String(d["mat"]) != "":
 		p["mat"] = String(d["mat"])
+	if d.has("scale"):
+		p["scale"] = clampf(float(d["scale"]), SIZE_MIN, SIZE_MAX)
+	if d.has("colour") and COLOURS.has(String(d["colour"])):
+		p["colour"] = String(d["colour"])
 	if d.has("swing"):
 		p["swing"] = float(d["swing"])
 	if d.get("keys") is Array and not (d["keys"] as Array).is_empty():
@@ -198,6 +225,9 @@ static func from_dict(d: Dictionary) -> Dictionary:
 static func mirror_dict(q: Dictionary) -> Dictionary:
 	var h := has_kind(String(q["kind"])) and bool(kind_of(String(q["kind"])).get("hinged", false))
 	var out := {"kind": q["kind"], "pos": [-float(q["pos"][0]), q["pos"][1], q["pos"][2]], "yaw": _mirror_yaw(float(q["yaw"]), h)}
+	for f in ["scale", "colour"]:   # a mirror keeps the size and the colour
+		if q.has(f):
+			out[f] = q[f]
 	if q.has("swing"):
 		out["swing"] = -float(q["swing"])
 	if q.has("keys"):
@@ -216,8 +246,9 @@ static func _mirror_yaw(y: float, hinge: bool) -> float:
 ## one solid's frame in the world (its centre, tilted by its pitch) and its half sizes
 static func _solid_world(p: Dictionary, s: Array) -> Dictionary:
 	var pitch := deg_to_rad(float(s[2])) if s.size() > 2 else 0.0
-	var local := Transform3D(Basis(Vector3.RIGHT, -pitch), s[0])
-	return {"xf": (p["xf"] as Transform3D) * leaf_xf(p) * local, "half": (s[1] as Vector3) * 0.5}
+	var k := scale_of(p)   # every local length of the kind is scaled about the origin (the floor): the box, its place, its half size
+	var local := Transform3D(Basis(Vector3.RIGHT, -pitch), (s[0] as Vector3) * k)
+	return {"xf": (p["xf"] as Transform3D) * leaf_xf(p) * local, "half": (s[1] as Vector3) * (0.5 * k)}
 
 
 ## the prop's solid boxes in world space: [{"xf": Transform3D at the box centre, "half": Vector3}]; a sphere (the ball)
@@ -227,12 +258,13 @@ static func solids(p: Dictionary) -> Array:
 	var kd := kind_of(p["kind"])
 	for s in kd["solids"]:
 		out.append(_solid_world(p, s))
+	var k := scale_of(p)
 	for sp in kd.get("spheres", []):
-		var r: float = sp[1]
-		out.append({"xf": (p["xf"] as Transform3D) * Transform3D(Basis(), sp[0]), "half": Vector3(r, r, r), "r": r})
+		var r: float = float(sp[1]) * k
+		out.append({"xf": (p["xf"] as Transform3D) * Transform3D(Basis(), (sp[0] as Vector3) * k), "half": Vector3(r, r, r), "r": r})
 	for w in kd.get("wedges", []):
-		var size: Vector3 = w[1]
-		out.append({"xf": (p["xf"] as Transform3D) * leaf_xf(p) * Transform3D(Basis(), w[0]), "half": size * 0.5,
+		var size: Vector3 = (w[1] as Vector3) * k
+		out.append({"xf": (p["xf"] as Transform3D) * leaf_xf(p) * Transform3D(Basis(), (w[0] as Vector3) * k), "half": size * 0.5,
 			"poly": wedge_profile(size), "w": size.x * 0.5})
 	return out
 
@@ -285,7 +317,8 @@ static func leaf_xf(p: Dictionary) -> Transform3D:
 static func free_edge(p: Dictionary) -> Vector3:
 	var kd := kind_of(p["kind"])
 	var s: Array = kd["solids"][0]
-	return (p["xf"] as Transform3D) * leaf_xf(p) * Vector3(float(kd.get("width", 0.0)), (s[0] as Vector3).y, 0.0)
+	var k := scale_of(p)
+	return (p["xf"] as Transform3D) * leaf_xf(p) * Vector3(float(kd.get("width", 0.0)) * k, (s[0] as Vector3).y * k, 0.0)
 
 
 static func animated(p: Dictionary) -> bool:
@@ -317,6 +350,10 @@ static func posed(p: Dictionary, t: float) -> Dictionary:
 	var out := {"kind": p["kind"], "xf": xf_at(pos, a.x)}
 	if p.has("mat"):
 		out["mat"] = p["mat"]
+	if p.has("scale"):
+		out["scale"] = p["scale"]
+	if p.has("colour"):
+		out["colour"] = p["colour"]
 	if hinged(p):
 		out["swing"] = a.y
 	return out
@@ -353,8 +390,9 @@ static func key_at(p: Dictionary, t: float, xf: Transform3D, swing := 0.0) -> vo
 static func supports(p: Dictionary) -> Array:
 	var xf: Transform3D = p["xf"]
 	var out := []
+	var k := scale_of(p)
 	for s in kind_of(p["kind"])["supports"]:
-		out.append({"y": xf.origin.y + float(s[0]), "xf": xf, "c": s[1], "half": (s[2] as Vector2) * 0.5})
+		out.append({"y": xf.origin.y + float(s[0]) * k, "xf": xf, "c": (s[1] as Vector2) * k, "half": (s[2] as Vector2) * (0.5 * k)})
 	return out
 
 
@@ -376,9 +414,9 @@ static func model_missing(p: Dictionary) -> bool:
 static func mesh(p: Dictionary) -> Node3D:
 	var root := Node3D.new()
 	root.name = String(p["kind"])
-	root.transform = p["xf"]
+	root.transform = (p["xf"] as Transform3D).scaled_local(Vector3.ONE * scale_of(p))
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = GREY
+	mat.albedo_color = COLOURS[colour_of(p)]
 	mat.roughness = 0.9
 	if p.has("mat"):
 		var pm := PhotoMaterial.load_material(String(p["mat"]))
@@ -398,6 +436,7 @@ static func mesh(p: Dictionary) -> Node3D:
 		n.scale = Vector3.ONE * f
 		n.position = -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z) * f
 		root.add_child(n)
+		_tint_models(n, colour_of(p), p)
 		return root
 	if String(kd.get("glb", "")) != "" and not model_missing(p):   # an imported model: the model itself, on the floor, centred, at the importer's scale
 		var doc := GLTFDocument.new()
@@ -410,6 +449,7 @@ static func mesh(p: Dictionary) -> Node3D:
 				n.scale = Vector3.ONE * f
 				n.position = -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z) * f
 				root.add_child(n)
+				_tint_models(n, colour_of(p), p)
 				return root
 	var holder := root
 	if bool(kd.get("hinged", false)):   # the door: its solids under a "leaf" node turned about the hinge
@@ -441,6 +481,17 @@ static func mesh(p: Dictionary) -> Node3D:
 		mi.position = sp[0]
 		holder.add_child(mi)
 	return root
+
+
+## an imported model keeps its own materials unless it is coloured (then one plain material in that colour, the same as a box)
+static func _tint_models(n: Node, colour: String, p: Dictionary) -> void:
+	if colour == "grey" or p.has("mat"):
+		return
+	var m := StandardMaterial3D.new()
+	m.albedo_color = COLOURS[colour]
+	m.roughness = 0.9
+	for c in n.find_children("*", "MeshInstance3D", true, false):
+		(c as MeshInstance3D).material_override = m
 
 
 ## a wedge's triangular prism as a mesh: two triangles at each end, two per profile edge along the length; each face's
@@ -658,6 +709,140 @@ static func _wedge_faces_under(sw: Dictionary, x: float, z: float) -> Array:
 		if absf(lp.x) <= float(sw["w"]) + 1e-6 and tpar >= -1e-6 and tpar <= 1.0 + 1e-6:
 			out.append({"y": y, "n": n, "sw": sw})
 	return out
+
+
+## GROUNDSPEED: the cached twins of surface_below and its helpers (Body._sole_low_set reads these; the legacy functions above
+## are unchanged and Body.legacy_ground runs them). The same arithmetic on the same numbers: each solid's inverse transform and
+## box axes are computed once per cache, not per point. A box or sphere the point is beyond the bounding radius of is not
+## inside it (its sd is >= 0 there), so the column test skips it without changing any answer.
+static func solid_cache(props: Array) -> Array:
+	var out := []
+	for p in props:
+		for sw in solids(p):
+			var X: Transform3D = sw["xf"]
+			sw["inv"] = X.affine_inverse()
+			if sw.has("poly"):
+				sw["rad"] = INF
+			elif sw.has("r"):
+				sw["rad"] = float(sw["r"])
+			else:
+				var h: Vector3 = sw["half"]
+				sw["rad"] = h.length()
+				sw["ax"] = [X.basis.x.normalized(), X.basis.y.normalized(), X.basis.z.normalized()]
+			out.append(sw)
+	return out
+
+
+## _sd of a point given in the solid's own frame
+static func _sd_local(sw: Dictionary, l: Vector3) -> float:
+	if sw.has("r"):
+		return l.length() - float(sw["r"])
+	if sw.has("poly"):
+		var d2 := _sdf2(Vector2(l.z, l.y), sw["poly"])
+		var q2 := Vector2(d2, absf(l.x) - float(sw["w"]))
+		return Vector2(maxf(q2.x, 0.0), maxf(q2.y, 0.0)).length() + minf(maxf(q2.x, q2.y), 0.0)
+	var h: Vector3 = sw["half"]
+	var q := Vector3(absf(l.x) - h.x, absf(l.y) - h.y, absf(l.z) - h.z)
+	return Vector3(maxf(q.x, 0.0), maxf(q.y, 0.0), maxf(q.z, 0.0)).length() + minf(maxf(q.x, maxf(q.y, q.z)), 0.0)
+
+
+static func _sd_c(sw: Dictionary, pt: Vector3) -> float:
+	return _sd_local(sw, (sw["inv"] as Transform3D) * pt)
+
+
+## is a point inside any cached solid (by more than REST_SINK)? A solid whose bounding radius the point is beyond is skipped
+static func _inside_c(cache: Array, q: Vector3) -> bool:
+	for sw in cache:
+		var l: Vector3 = (sw["inv"] as Transform3D) * q
+		if l.length() > float(sw["rad"]):
+			continue
+		if _sd_local(sw, l) < -REST_SINK:
+			return true
+	return false
+
+
+## _column_blocked over the cache: the same points, the same test
+static func _column_blocked_c(cache: Array, x: float, z: float, y0: float, y1: float) -> bool:
+	if y1 < y0:
+		return false
+	var n := maxi(1, ceili((y1 - y0) / 0.01))
+	for k in n + 1:
+		var q := Vector3(x, minf(y0 + k * 0.01, y1), z)
+		if _inside_c(cache, q):
+			return true
+	return false
+
+
+## _faces_under over the cache (same candidates, same order)
+static func _faces_under_c(cache: Array, x: float, z: float) -> Array:
+	var cands := [{"y": 0.0, "n": Vector3.UP}]
+	for sw in cache:
+		if sw.has("r"):
+			continue
+		if sw.has("poly"):
+			cands.append_array(_wedge_faces_c(sw, x, z))
+			continue
+		var X: Transform3D = sw["xf"]
+		var h: Vector3 = sw["half"]
+		var ax: Array = sw["ax"]
+		for i in 3:
+			for s in [-1.0, 1.0]:
+				var n: Vector3 = ax[i] * s
+				if n.y < 0.5:
+					continue
+				var c: Vector3 = X.origin + n * h[i]
+				var y := c.y - (n.x * (x - c.x) + n.z * (z - c.z)) / n.y
+				var d := Vector3(x, y, z) - c
+				var j := (i + 1) % 3
+				var k := (i + 2) % 3
+				if absf(d.dot(ax[j])) <= h[j] + 1e-6 and absf(d.dot(ax[k])) <= h[k] + 1e-6:
+					cands.append({"y": y, "n": n, "sw": sw})
+	return cands
+
+
+## _wedge_faces_under over a cached wedge
+static func _wedge_faces_c(sw: Dictionary, x: float, z: float) -> Array:
+	var out := []
+	var X: Transform3D = sw["xf"]
+	var poly: PackedVector2Array = sw["poly"]
+	var inv: Transform3D = sw["inv"]
+	for i in poly.size():
+		var a: Vector2 = poly[i]
+		var b: Vector2 = poly[(i + 1) % poly.size()]
+		var e := b - a
+		var n := (X.basis * Vector3(0.0, -e.x, e.y).normalized()).normalized()
+		if n.y < 0.5:
+			continue
+		var mid := (a + b) * 0.5
+		var c := X * Vector3(0.0, mid.y, mid.x)
+		var y := c.y - (n.x * (x - c.x) + n.z * (z - c.z)) / n.y
+		var lp := inv * Vector3(x, y, z)
+		var tpar := ((lp.z - a.x) * e.x + (lp.y - a.y) * e.y) / maxf(e.length_squared(), 1e-12)
+		if absf(lp.x) <= float(sw["w"]) + 1e-6 and tpar >= -1e-6 and tpar <= 1.0 + 1e-6:
+			out.append({"y": y, "n": n, "sw": sw})
+	return out
+
+
+## surface_below(props, pt) over a cached solid list: the same answer, {"y", "n"}
+static func surface_below_c(cache: Array, pt: Vector3) -> Dictionary:
+	var cands := _faces_under_c(cache, pt.x, pt.z)
+	cands.sort_custom(func(a, b): return float(a["y"]) > float(b["y"]))
+	for c in cands:
+		var h := float(c["y"])
+		var inside: bool = c.has("sw") and _sd_c(c["sw"], pt) < -REST_SINK
+		if h > pt.y + SNAP_UP and not inside:
+			continue
+		if not _column_blocked_c(cache, pt.x, pt.z, h + 0.01, pt.y):
+			return c
+	return {"y": 0.0, "n": Vector3.UP}
+
+
+## _over with the support's inverse transform cached (sup["inv"] = the affine inverse of its xf)
+static func _over_c(sup: Dictionary, pt: Vector3) -> bool:
+	var l: Vector3 = (sup["inv"] as Transform3D) * pt
+	var c: Vector2 = sup["c"]
+	var h: Vector2 = sup["half"]
+	return absf(l.x - c.x) <= h.x and absf(l.z - c.y) <= h.y
 
 
 ## the height p should stand at: the floor (0), or the highest support of another prop that p's origin is over

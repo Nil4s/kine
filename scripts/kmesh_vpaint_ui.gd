@@ -119,6 +119,22 @@ func _process(_dt: float) -> void:
 		_stroking = false
 		_ov.visible = false
 		panel.visible = false
+	elif on:
+		_place()
+
+
+## the panel sits LEFT of the Materials panel, top aligned with it (the Materials panel's "Library..." button stays clear
+## of it: the two used to share the right edge, and Library could not be clicked with paint on). Without a Materials
+## panel it sits at the right edge, centred vertically.
+func _place() -> void:
+	panel.reset_size()
+	var sz := panel.size
+	var mp: Control = ui.mat_panel if ui != null and ui.get("mat_panel") != null else null
+	if mp != null and mp.visible:
+		panel.position = Vector2(mp.position.x - sz.x - 12.0, mp.position.y)
+	else:
+		var vs := m.get_viewport().get_visible_rect().size
+		panel.position = Vector2(vs.x - sz.x - 12.0, (vs.y - sz.y) * 0.5)
 
 
 func params(ev: InputEvent = null) -> Dictionary:
@@ -221,7 +237,7 @@ func input(ev: InputEvent) -> bool:
 				return true
 			ui.undo.begin(mesh)
 			vp.begin(mesh, params(mb))
-			vp.to(_local(s["point"]), 1.0)
+			vp.to(_local(s["point"]), 1.0, int(s["face"]))
 			_stroking = true
 			view.mark_dirty()
 			return true
@@ -264,10 +280,7 @@ func _build_panel() -> void:
 	panel = PanelContainer.new()
 	panel.name = "vpaint_panel"
 	panel.visible = false
-	panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	panel.position.x -= 12
+	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)   # _place() puts it beside the Materials panel
 	var box := VBoxContainer.new()
 	panel.add_child(box)
 	var title := Label.new()

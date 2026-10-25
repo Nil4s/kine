@@ -65,6 +65,22 @@ func key(k: int, ctrl := false, shift := false) -> void:
 	await idle(2)
 
 
+## a real left click in the middle of a button, the way a mouse presses it
+func press_button(b: Button) -> void:
+	var c: Vector2 = b.get_global_rect().get_center()
+	for down in [true, false]:
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.pressed = down
+		e.position = c
+		e.global_position = c
+		if down:
+			e.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(e)
+		await process_frame
+	await idle(3)
+
+
 func fc(fi: int) -> Vector2:
 	return m.cam.unproject_position(ui.view.global_transform * ui.mesh.face_center(fi))
 
@@ -227,6 +243,34 @@ func _init() -> void:
 	var ns := pan.select_by(0)
 	ok(ns == KMeshMaterial.counts(mesh)[0] and ui.sel.mode == KMeshSelect.FACE, "5f Select by slot 0: %d faces (its count %d)" % [ns, KMeshMaterial.counts(mesh)[0]])
 
+	# 5R REAL BUTTONS: two faces picked on the cube, a new slot by a real press on Add, then a real press on Assign:
+	# exactly the two picked faces are on the new slot, and the Assign is one undo step
+	m.ui_root.visible = true
+	ui.sel.clear()
+	ui.sel.set_mode(KMeshSelect.FACE)
+	ui.sel.faces[5] = true
+	ui.sel.faces[60] = true
+	ui.view.mark_dirty()
+	await idle(3)
+	var add_b := pan.find_child("btn_mat_add", true, false) as Button
+	var assign_b := pan.find_child("btn_mat_assign", true, false) as Button
+	ok(add_b != null and assign_b != null and add_b.is_visible_in_tree() and assign_b.is_visible_in_tree(), "5R0 the Materials panel's Add and Assign buttons are on screen")
+	var nslot0 := mesh.materials.size()
+	ui.sel.clear()   # Add material with faces selected already gives them the slot (R2): Add an empty slot, then pick and Assign
+	await press_button(add_b)
+	ok(mesh.materials.size() == nslot0 + 1 and pan.cur == nslot0 and KMeshMaterial.faces_of(mesh, nslot0).is_empty(), "5R1 a real press on Add (nothing selected) makes slot %d (%d slots), empty, and picks it" % [nslot0, mesh.materials.size()])
+	ui.sel.set_mode(KMeshSelect.FACE)
+	ui.sel.faces[5] = true
+	ui.sel.faces[60] = true
+	ui.view.mark_dirty()
+	await idle(2)
+	var n5r := ui.undo.steps.size()
+	await press_button(assign_b)
+	var got: Array = Array(KMeshMaterial.faces_of(mesh, nslot0))
+	got.sort()
+	ok(got == [5, 60], "5R2 a real press on Assign: slot %d holds exactly the picked faces (%s, want [5, 60])" % [nslot0, str(got)])
+	ok(ui.undo.steps.size() == n5r + 1, "5R3 the Assign is one undo step (%d -> %d)" % [n5r, ui.undo.steps.size()])
+
 	# 6 E15
 	var ph := KMeshMaterial.from_photo(mesh.materials[0], "bricks")
 	ok(ph["albedo_tex"] == "user://materials/bricks/albedo.png" and ph["roughness_tex"] == "user://materials/bricks/rough.png" and ph["normal_tex"] == "user://materials/bricks/normal.png" and ph["name"] == "Red rough",
@@ -257,4 +301,20 @@ func _init() -> void:
 	ok(not pan.visible, "7d leaving the cube hides the panel")
 
 	print("PBRMAT: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	# ---- round 2 bar: Add material with faces selected gives the new slot those faces only
+	if not ui.on or ui.view == null:   # the cube may be stopped by an earlier bar: open it again
+		m._kmesh_edit_start()
+		await idle(3)
+		ui = m.kmed
+		pan = ui.mat_panel
+	var sel_fs := [3, 4, 5]
+	ui.sel.set_mode(KMeshSelect.FACE)
+	ui.sel.clear()
+	for fi in sel_fs:
+		ui.sel.faces[fi] = true
+	var new_i: int = pan.add_slot({"name": "Round2 sel"})
+	var got_r2 := Array(KMeshMaterial.faces_of(ui.mesh, new_i))
+	got_r2.sort()
+	ok(got_r2 == sel_fs, "R2 Add material with faces %s selected: the new slot holds %s (bar: exactly those faces)" % [str(sel_fs), str(got_r2)])
+
 	quit(1 if fails > 0 else 0)

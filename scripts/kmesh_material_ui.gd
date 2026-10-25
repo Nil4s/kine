@@ -54,12 +54,12 @@ func _init(edit_ui: KMeshEditUI) -> void:
 	list.item_selected.connect(func(i): cur = i; _fill())
 	vb.add_child(list)
 	var hb := HBoxContainer.new()
-	for b in [["Add", "add a material slot (the first one covers every face)", func(): add_slot()],
+	for b in [["Add material", "add a material slot: with faces selected it takes exactly those faces (Assign does the same later); with none selected it starts empty, and the first slot covers every face (one undo step)", func(): add_slot()],
 			["Remove", "remove the picked slot: its faces go to the first slot", func(): remove_slot(cur)],
-			["Assign", "the selected faces get the picked slot (one undo step)", func(): assign_selection()],
+			["Assign", "give the SELECTED faces the picked slot (one undo step); the status line says how many moved", func(): assign_selection()],
 			["Select", "select the faces of the picked slot", func(): select_by(cur)]]:
 		var bt := Button.new()
-		bt.name = "btn_mat_" + String(b[0]).to_lower()
+		bt.name = "btn_mat_" + String(b[0]).get_slice(" ", 0).to_lower()   # btn_mat_add even though it now reads "Add material" (tests and the help find it by name)
 		bt.text = b[0]
 		bt.tooltip_text = b[1]
 		bt.pressed.connect(b[2])
@@ -88,9 +88,10 @@ func _init(edit_ui: KMeshEditUI) -> void:
 		_row(g, ck[1])
 		var cp := ColorPickerButton.new()
 		cp.name = "mat_" + ck[0]
-		cp.custom_minimum_size = Vector2(80, 24)
+		cp.custom_minimum_size = Vector2(130, 26)   # a labelled swatch: its hex code is the text
+		cp.tooltip_text = "click to pick the " + String(ck[1]).to_lower() + " (the hex code is shown)"
 		cp.pressed.connect(func(): edit_begin())
-		cp.color_changed.connect(func(c): edit_set(ck[0], c))
+		cp.color_changed.connect(func(c): cp.text = _hex(c); edit_set(ck[0], c))
 		cp.popup_closed.connect(func(): edit_end("Material " + ck[1].to_lower()))
 		g.add_child(cp)
 		fields[ck[0]] = cp
@@ -175,12 +176,14 @@ func mesh() -> KMesh:
 
 
 func _process(_dt: float) -> void:
-	var want: bool = ui.on and ui.mesh != null
+	var want: bool = ui.on and ui.mesh != null and ui.showing   # the Materials panel goes with the cube off its page
 	if visible != want:
 		visible = want
 		_sig = ""
 	if not visible:
 		return
+	if ui.uved != null and ui.uved.visible:
+		ui.uved.place()   # the UV panel sits left of this one, level with its top: it follows this panel's size
 	var sig := "%d %d %d %d" % [ui.undo.steps.size(), ui.undo.redos.size(), mesh().face_count(), mesh().materials.size()]
 	if sig != _sig and not _open:
 		_sig = sig
@@ -192,11 +195,15 @@ func _process(_dt: float) -> void:
 func place() -> void:
 	var cl: Rect2 = ui.m.nav_clear_rect()
 	var ms := get_combined_minimum_size()
-	var h := minf((get_child(0).get_child(0) as Control).get_combined_minimum_size().y + 16.0, cl.size.y - 24.0)
-	size = Vector2(ms.x + 14.0, h)
 	if ui.m._mesh_page():   # a mesh page: the browser is off, so the left column keeps the Add primitive / model check panels; Materials takes the right edge of the window (the body and its head stay clear)
-		position = Vector2(ui.m.get_viewport().get_visible_rect().size.x - size.x - 12.0, cl.position.y + 12.0)
+		# walk-through 3: never over the ViewCube or its menus (they sit above this panel's top, which starts under them)
+		var y: float = maxf(cl.position.y + 12.0, ui.m.cube_stack_bottom() + 8.0)
+		var h := minf((get_child(0).get_child(0) as Control).get_combined_minimum_size().y + 16.0, cl.end.y - y - 12.0)
+		size = Vector2(ms.x + 14.0, h)
+		position = Vector2(ui.m.get_viewport().get_visible_rect().size.x - size.x - 12.0, y)
 	else:
+		var h := minf((get_child(0).get_child(0) as Control).get_combined_minimum_size().y + 16.0, cl.size.y - 24.0)
+		size = Vector2(ms.x + 14.0, h)
 		position = Vector2(cl.end.x - size.x - 12.0, cl.position.y + 12.0)
 
 
@@ -217,6 +224,10 @@ func refresh() -> void:
 	_fill()
 
 
+func _hex(c: Color) -> String:
+	return "#" + c.to_html(false)
+
+
 func _swatch(c: Color) -> ImageTexture:
 	var img := Image.create(14, 14, false, Image.FORMAT_RGBA8)
 	img.fill(c)
@@ -232,6 +243,7 @@ func _fill() -> void:
 	(fields["name"] as LineEdit).text = s["name"]
 	for k in KMeshMaterial.COL_KEYS:
 		(fields[k] as ColorPickerButton).color = s[k]
+		(fields[k] as ColorPickerButton).text = _hex(s[k])
 	for sk in SLIDERS:
 		(fields[sk[0]] as HSlider).value = s[sk[0]]
 	for mk in MAPS:
@@ -251,12 +263,24 @@ func _after(say: String) -> void:
 
 # ---------------------------------------------------------------- the edits (one undo step each)
 
+## Add material: the new slot takes the SELECTED faces (one undo step). With no slot yet and only some faces selected, the
+## rest go to a base slot made first, so the selection is not the whole mesh. Nothing selected: an empty slot.
 func add_slot(over := {}) -> int:
+	var fs := selected_faces()
 	ui.undo.begin(mesh())
+	var base := false
+	if mesh().materials.is_empty() and not fs.is_empty() and fs.size() < mesh().face_count():
+		KMeshMaterial.add(mesh())
+		base = true
 	var i := KMeshMaterial.add(mesh(), over)
+	var n := KMeshMaterial.assign(mesh(), fs, i) if not fs.is_empty() else 0
 	ui.undo.commit("Add material")
 	cur = i
-	_after("material slot '%s' added%s (Ctrl+Z takes it back)" % [mesh().materials[i]["name"], ": it covers every face" if i == 0 else "; select faces and press Assign"])
+	var nm: String = mesh().materials[i]["name"]
+	if not fs.is_empty():
+		_after("material '%s' added and given the %d selected faces%s (Ctrl+Z takes it back; its colour is the swatch under Base colour)" % [nm, n, "; the other faces went to a new '%s' slot" % mesh().materials[0]["name"] if base else ""])
+	else:
+		_after("material '%s' added, empty: select faces and press Assign to give it faces (Ctrl+Z takes it back)" % nm)
 	return i
 
 

@@ -7,6 +7,11 @@
 ##      clicking the Chair tile puts a chair on the floor: its lowest corner within 1 cm of the floor (|y| <= 0.01 m).
 ##  B3  each click is ONE undo step: the undo stack grows by exactly 1 (sword, chair, chest plate).
 ##  B4  the search "sw" finds the sword (weapon:sword) and no tile of another category is needed for it.
+##  B13 the search box hint has no "finds" and names three real objects (sword, chair, football): a beginner types a name, not "sw".
+##  B14 FIRST OPEN, cold cache: on every frame until the tab's pictures land, each tile on screen shows its picture or its placeholder
+##      label (never an empty box). The frame count of blank tiles is printed; it must be 0.
+##  B15 FIRST OPEN: the visible tiles' pictures land before any tile off screen does (landing order, cold cache).
+##  B16 each tab's text is exactly its category name (Weapons, not "Weapons 11": the count is in the tooltip).
 ##  B5  the panel fits at 1280x720: its whole rectangle is inside a 1280x720 window (laid out by fit(), see the test).
 ##  B6  Easy's Library button opens the panel with one click, and a second click closes it.
 ##  B7  REAL thumbnails: every object (38) has its 128 x 128 PNG under user://thumbs/lib (LibraryThumbs.real_path) and its
@@ -21,7 +26,7 @@
 ##  B12 CLEAR BODY: sword, longsword, katana, metal bat placed on Easy's Punch and Walk clips: 0 cards where the blade sinks
 ##      into the body, the hands where they were (< 1 mm), one undo step, and that undo restores the cards exactly.
 ## Clicks are the tile's own "pressed" signal (the same path a mouse click takes after the button's own press handling).
-##  B11 SHIPPED KEY: data/thumbs/armour/default_body.txt (the shipped armour pictures' body hash) is the default body's own hash
+##  B11 SHIPPED KEY: data/thumbs/lib/default_body.txt (the shipped armour pictures' body hash) is the default body's own hash
 extends SceneTree
 
 const BUILT_IN := {"Weapons": 11, "Furniture": 5, "Sports": 1, "Everyday": 13, "Armour": 7}
@@ -114,6 +119,76 @@ func _clear_cache() -> void:
 		d.remove(f)
 
 
+## FIRST OPEN (B14, B15): the panel's first frames on a cold cache, frame by frame until the tab's tiles all hold a picture.
+## A tile on screen (its rect meets the scroll's) must show its picture or its placeholder label on every frame. The landing
+## order of the pictures is kept: each visible tile lands before any tile off screen. Times are from the open (ms).
+## LIB_FIRST_SHOT=<png path> saves the picture of the panel once its tiles are drawn (a windowed run).
+func _first_open() -> void:
+	var t0 := Time.get_ticks_usec()   # the panel was opened by the toggle just before this (no frame in between)
+	var blank := 0
+	var first_blank := ""
+	var landed: Array = []
+	var seen := {}
+	var visible := {}
+	var fixed := false   # the on-screen tiles are read once, on the first frame the layout is there
+	var vis_ms := -1.0
+	var all_ms := -1.0
+	for f in 900:
+		await process_frame
+		var sr := lib._scroll.get_global_rect()
+		if not fixed and sr.size.y > 0.0:
+			fixed = true
+			for b in lib._grid.get_children():
+				if b is Button and b.has_meta("item") and b.get_global_rect().intersects(sr):
+					visible[String(b.get_meta("item"))] = true
+		var all_have := true
+		var vis_have := true
+		for b in lib._grid.get_children():
+			if not (b is Button) or not b.has_meta("item"):
+				continue
+			var id := String(b.get_meta("item"))
+			var pic := lib._pics.get(id) as TextureRect
+			if pic == null or not is_instance_valid(pic):
+				continue
+			var has := pic.texture != null
+			var ph := pic.get_node_or_null("placeholder") as Control
+			if has and not seen.has(id):
+				seen[id] = true
+				landed.append(id)
+			if not has:
+				all_have = false
+				if visible.has(id):
+					vis_have = false
+					if not (ph != null and ph.visible):
+						blank += 1
+						if first_blank == "":
+							first_blank = "%s at frame %d" % [id, f]
+		if fixed and vis_ms < 0.0 and vis_have and not visible.is_empty():
+			vis_ms = (Time.get_ticks_usec() - t0) / 1000.0
+		if all_have:
+			all_ms = (Time.get_ticks_usec() - t0) / 1000.0
+			break
+	var last_vis := -1
+	var first_off := 1 << 30
+	for i in landed.size():
+		if visible.has(landed[i]):
+			last_vis = i
+		else:
+			first_off = mini(first_off, i)
+	print("info: FIRST OPEN (cold cache, %d tiles, %d on screen): all visible pictures at %.0f ms, all %d pictures at %.0f ms; %d frames with a blank visible tile%s" % [lib._pics.size(), visible.size(), vis_ms, lib._pics.size(), all_ms, blank, (" (first: " + first_blank + ")") if first_blank != "" else ""])
+	ok(blank == 0, "B14 first open: no visible tile is drawn blank on any frame (%d blank tile-frames%s)" % [blank, (", first " + first_blank) if first_blank != "" else ""])
+	ok(all_ms >= 0.0 and last_vis < first_off, "B15 first open: the visible tiles land before any off-screen tile (last visible landed #%d, first off-screen #%d; %d landed)" % [last_vis, first_off if first_off < (1 << 30) else -1, landed.size()])
+	await idle(2)
+	var shot_env := OS.get_environment("LIB_FIRST_SHOT")
+	if shot_env != "":
+		var was := _measuring
+		_measuring = false   # the capture itself stalls the main thread: it is not a frame of the panel (B9)
+		root.get_texture().get_image().save_png(shot_env)
+		_measuring = was
+		_last_us = 0
+		print("SHOT %s" % shot_env)
+
+
 func _init() -> void:
 	process_frame.connect(_tick)
 	m = (load("res://main.tscn") as PackedScene).instantiate()
@@ -127,6 +202,7 @@ func _init() -> void:
 	m._library_toggle()
 	await idle(2)
 	lib = m.ui_library
+	await _first_open()
 
 	# B1: every category has an item; the tiles on screen per tab equal the inventory
 	var cats := ObjectLibrary.CATS
@@ -139,6 +215,14 @@ func _init() -> void:
 		ok(per[c] == BUILT_IN[c], "%s holds %d (built-in %d)" % [c, per[c], BUILT_IN[c]])
 	ok(per["My models"] >= 1, "My models holds the registered model (%d)" % per["My models"])
 	ok(total == lib.items.size() and total == 38, "the inventory: %d objects in all (38 with one model of your own)" % total)
+	# B16 (beginner round 8, friction 8): a tab's text IS its category name (the count moved to the tooltip)
+	var tabs16 := lib._tabs
+	var bad16 := []
+	for i in cats.size():
+		var tx16: String = (tabs16[i] as Button).text if i < tabs16.size() else "(no tab)"
+		if tx16 != cats[i]:
+			bad16.append("%s -> \"%s\"" % [cats[i], tx16])
+	ok(tabs16.size() == cats.size() and bad16.is_empty(), "B16 each tab's text equals its category name exactly (%d tabs; not: %s)" % [tabs16.size(), str(bad16)])
 	var shown_all := 0
 	var empty_tab := []
 	var tab_gap := {}          # B9, per tab: the longest frame while that tab's tiles were drawn (its pictures settled)
@@ -214,6 +298,14 @@ func _init() -> void:
 	ok("weapon:sword" in lib._shown().map(func(it): return it["id"]) and tile("weapon:sword") != null, "search sw finds the sword (%d matches: %s)" % [found.size(), str(found)])
 	lib._search.text = ""
 	lib._on_search("")
+
+	# B13: the hint
+	var hint := lib._search.placeholder_text
+	ok(not hint.contains("finds"), "B13 the search hint has no 'finds': \"%s\"" % hint)
+	var names_ok := true
+	for want in ["sword", "chair", "football"]:
+		names_ok = names_ok and lib.items.any(func(it): return String(it["name"]).to_lower() == want)
+	ok(names_ok and hint.to_lower().contains("sword") and hint.to_lower().contains("chair") and hint.to_lower().contains("football"), "B13 the hint names three real objects (sword, chair, football): \"%s\"" % hint)
 
 	# B5: fits 1280x720 (the window is set to that size above)
 	await idle(8)

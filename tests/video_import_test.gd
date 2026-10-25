@@ -19,6 +19,129 @@ func ok(c: bool, what: String) -> void:
 		fails += 1
 
 
+## 10 A FLIGHT READ ON AN UNSEEN HIP (round 58, the cmb02_cross clip of the kine batch: its hip image sat at the frame's top edge with
+## visibility 0.5 and its ankles at 0.05 in raw frame 49, so the flight detector read a 0.3 m rise and lifted the whole pelvis for two
+## frames, a 19.6 m/s hand peak with it). tests/data/spike_cross_pose.json (kine batch combat/cmb02_cross, 2.7-4.0 s; 138 KB). Bar:
+##   c the cross clip's peak hand speed is 20 m/s or less (old 48.6; the torso filter gives 16.4)
+##   b the keeper (tests/fixtures/gen_hammer_pose.json) keeps its peak hand speed within 10 % (base 1.84 m/s)
+##   a the largest pelvis step between frames in 3.05-3.13 s is 0.05 m or less (old: a flight read lifted the pelvis at 3.07-3.08 s)
+func _bar10_spike_pelvis() -> void:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var P := VideoImport.load_file("res://tests/data/spike_cross_pose.json")
+	ok(P["ok"], "10 the cross-punch spike file reads (%s)" % P.get("why", ""))
+	if not P["ok"]:
+		return
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "spike_test", true)
+	B.set_state(keep)
+	var fit: Array = R["fitted"]
+	var step := 0.0
+	var step_at := 0.0
+	for i in range(1, fit.size()):
+		var t := float(R["frames"][i]["t"])   # the fitted frame's own time (the tracker's clock, after the fill)
+		if t < 3.05 or t > 3.13:
+			continue
+		var d := absf(float(fit[i]["offset"].y) - float(fit[i - 1]["offset"].y))
+		if d > step:
+			step = d
+			step_at = t
+	# b the keeper: a clip with no glitch keeps its hand speed (tests/fixtures/gen_hammer_pose.json, peak 1.84 m/s on base; the
+	# fast-move keeper cmb01_jab is not in the repo). Within 10 % of the old peak
+	var K := VideoImport.load_file("res://tests/fixtures/gen_hammer_pose.json")
+	if K["ok"]:
+		var B3 := Body.new()
+		B3.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var keep3 := B3.state()
+		var RK := VideoIQ.process(B3, K, "", "keeper_test", true)
+		B3.set_state(keep3)
+		var B4 := Body.new()
+		B4.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var smk := Rulebook.sample(RK["scene"], B4)
+		var pk := 0.0
+		for hk in ["hand_l", "hand_r"]:
+			for x in smk[hk]:
+				pk = maxf(pk, float(x))
+		ok(absf(pk - 1.84) <= 0.184, "10b the keeper's peak hand speed is %.2f m/s (base 1.84; bar within 10 %%)" % pk)
+	# c the fitted hand peak of the cross clip (old 48.6 m/s at 2.97 s, the left shoulder's one-frame jump at 3.00 s; the torso filter
+	# brings it to 16.4): bar 20. The 12 m/s fist bar is not reached yet (the shoulder steps 0.24 m at 3.00 s and stays low)
+	var B5 := Body.new()
+	B5.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var smc := Rulebook.sample(R["scene"], B5)
+	var pkc := 0.0
+	for hk in ["hand_l", "hand_r"]:
+		for x in smc[hk]:
+			pkc = maxf(pkc, float(x))
+	ok(pkc <= 20.0, "10c the cross clip's peak hand speed is %.1f m/s (old 48.6; bar 20, the fist bar 12 is not reached)" % pkc)
+	ok(step <= 0.05, "10a the largest pelvis step in 3.05-3.13 s is %.3f m at %.3f s (bar 0.05; old code 1.22 m at 3.125 s)" % [step, step_at])
+
+
+
+## 10d THE UPPER-BODY DIPS (round 59, scripts/video_iq.gd 3c): the tracker moves the whole upper body for 1-5 frames (pick_up frames
+## 45-47: the wrists swing 0.9 m and back, 15 m/s, after the per-point torso filter). Peak hand speeds, the three spike clips:
+##   d pick-up: 13.7 m/s or less (old 22.2; the 12 m/s fist bar is not reached: the level shifts of the cross and push-up are not dips)
+##   e cross: 16.5 m/s or less (old 16.4; unchanged: its peak is a shoulder step that stays low, not a dip)
+##   f push-up: 16.0 m/s or less (old 15.9; unchanged, see e)
+##   g the real jump (flight_jump, old 15.20) keeps its peak within 0.5 m/s: the block moves with the hips, nothing is a dip
+##   h the lost-foot walk (old 3.34) keeps its peak within 0.1 m/s
+func _peak_hand(path: String) -> float:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var P := VideoImport.load_file(path)
+	if not P["ok"]:
+		return -1.0
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "dip_test", true)
+	B.set_state(keep)
+	var B2 := Body.new()
+	B2.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var sm := Rulebook.sample(R["scene"], B2)
+	var pk := 0.0
+	for hk in ["hand_l", "hand_r"]:
+		for x in sm[hk]:
+			pk = maxf(pk, float(x))
+	return pk
+
+
+func _bar10d_dips() -> void:
+	var pu := _peak_hand("res://tests/data/spike_pick_up_pose.json")
+	var cr := _peak_hand("res://tests/data/spike_cross_pose.json")
+	var pp := _peak_hand("res://tests/data/spike_push_up_pose.json")
+	var fj := _peak_hand("res://tests/data/flight_jump_pose.json")
+	var lf := _peak_hand("res://tests/data/lost_foot_walk_pose.json")
+	ok(pu >= 0.0 and pu <= 13.7, "10d pick-up peak hand speed %.2f m/s (old 22.21; bar 13.7; the 12 m/s bar is not reached)" % pu)
+	ok(cr >= 0.0 and cr <= 16.5, "10e cross peak hand speed %.2f m/s (old 16.40; bar 16.5; unchanged, its peak is a level step)" % cr)
+	ok(pp >= 0.0 and pp <= 16.0, "10f push-up peak hand speed %.2f m/s (old 15.87; bar 16.0; unchanged)" % pp)
+	ok(absf(fj - 15.20) <= 0.5, "10g the real jump keeps its peak hand speed: %.2f m/s (old 15.20; within 0.5)" % fj)
+	ok(absf(lf - 3.34) <= 0.1, "10h the lost-foot walk keeps its peak hand speed: %.2f m/s (old 3.34; within 0.1)" % lf)
+	_bar10i_flip()
+
+
+## 10i THE TRACKER FLIP ABOUT THE HIPS (round 60, scripts/video_iq.gd 3d INVERTED BODY): the cross clip's body is turned upside down
+## about the hips for about 0.4 s (2.94-3.6 s, lost either side); that flip read as a 16.4 m/s hand peak. Bars:
+##   i  the cross clip's peak hand speed is 12 m/s or less (the fist bar; the flip is a lost span now, not a motion)
+##   i (2) the flip is reported: at least 6 frames replaced, and the confidence lane has a body "tracking lost" span over 3.0-3.6 s
+## The old pipeline (VideoIQ.INVERSION_FILL = false) is printed for the before numbers.
+func _bar10i_flip() -> void:
+	var pk := _peak_hand("res://tests/data/spike_cross_pose.json")
+	VideoIQ.INVERSION_FILL = false
+	var old := _peak_hand("res://tests/data/spike_cross_pose.json")
+	VideoIQ.INVERSION_FILL = true
+	var P := VideoImport.load_file("res://tests/data/spike_cross_pose.json")
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "flip_test", true)
+	B.set_state(keep)
+	var lost_span := false
+	for s in R["conf"]["spans"]:
+		if s["part"] == "body" and float(s["t0"]) <= 3.1 and float(s["t1"]) >= 3.5:
+			lost_span = true
+	print("10i flip: old pipeline peak %.2f m/s, new %.2f m/s, frames replaced %d" % [old, pk, int(R["inverted"])])
+	ok(pk >= 0.0 and pk <= 12.0, "10i the cross clip's peak hand speed is %.2f m/s (old %.2f; bar 12, the fist bar)" % [pk, old])
+	ok(int(R["inverted"]) >= 6 and lost_span, "10i the flip is reported as a lost span: %d frames replaced, body tracking-lost span over 3.0-3.6 s: %s" % [int(R["inverted"]), lost_span])
+
+
 func _init() -> void:
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -107,6 +230,9 @@ func _init() -> void:
 	ok(not r1["ok"] and not r2["ok"] and not r3["ok"] and String(r3["why"]).length() > 10, "6 bad files refused: %s | %s | %s" % [r1["why"], r2["why"], r3["why"]])
 	_bar7_fps16()
 	_bar8_flight()
+	_bar9_lost_foot()
+	_bar10_spike_pelvis()
+	_bar10d_dips()
 	print("VIDEO IMPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
 
@@ -177,3 +303,33 @@ func _bar8_flight() -> void:
 				step_at = i
 	ok(peak - stand >= 0.12, "8b the pelvis peaks %.3f m above its standing height in the jump (bar 0.12)" % (peak - stand))
 	ok(step <= 0.03, "8c the largest pelvis step between frames is %.3f m at frame %d (bar 0.03)" % [step, step_at])
+
+
+## 9 A LOST FOOT IS NOT PLANTED (round 57; an AI walk where the person walks out of shot: 20 frames, the left foot under the
+## tracker's LOST confidence in most of them). Its landmarks are the repair's fill, which reads low and still, and the old
+## contacts planted that foot for the whole 1.19 s clip while the body walked away (93 cm of slide). Bars:
+##   a no left-foot contact lasts 0.6 s or more (old: one 0.00-1.19 s contact)
+##   b contacts() with a foot marked unseen in every frame gives that foot no contact at all
+func _bar9_lost_foot() -> void:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var P := VideoImport.load_file("res://tests/data/lost_foot_walk_pose.json")
+	ok(P["ok"], "9 the lost-foot walk file reads (%s)" % P.get("why", ""))
+	if not P["ok"]:
+		return
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "lost_foot_test", true)
+	B.set_state(keep)
+	var longest := 0.0
+	for c in R["iq"]["contacts"]:
+		if c["part"] == "foot_l":
+			longest = maxf(longest, float(c["t1"]) - float(c["t0"]))
+	ok(longest < 0.6, "9a the left foot (lost in most frames) has no contact of 0.6 s or more: longest %.2f s (old 1.19)" % longest)
+	var fr: Array = R["frames"]
+	var none := {"_l": [], "_r": []}
+	for i in fr.size():
+		none["_l"].append(false)
+		none["_r"].append(true)
+	var K := VideoIQ.contacts(fr, float(P["fps"]), {}, none)
+	var left := (K["list"] as Array).filter(func(c): return c["part"] == "foot_l")
+	ok(left.is_empty(), "9b a foot unseen in every frame gets no contact (%d)" % left.size())

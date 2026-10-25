@@ -225,6 +225,89 @@ func _init() -> void:
 	ok(m.scene_path == "res://scenes/walk_bat.json" and not m._unsaved() and not asking(m),
 		"15 Don't save: the other scene opens, nothing unsaved")
 
+	# the work copies the app writes into scenes/_wip (an Easy card build, a typed move) are unsaved until the user saves them
+	# (the walk-through: Punch card, then New scene threw the punch away with no question)
+	m._new_scene()
+	await idle()
+	m.easy.set_on(true, false)
+	await idle(2)
+	m._new_asked()
+	await idle()
+	ok(not asking(m) and m.S.cards.is_empty(), "E0 Easy: an empty fresh scene, New asks nothing")
+	m.easy.home.card(3)   # the Punch card: four cards, built into a work copy in scenes/_wip
+	await idle(2)
+	var punch := JSON.stringify(m.S.cards)
+	ok(m.S.cards.size() >= 4 and m._unsaved(), "E1 Easy Punch card: the built scene is unsaved (%d cards)" % m.S.cards.size())
+	m._new_asked()
+	await idle()
+	ok(asking(m) and JSON.stringify(m.S.cards) == punch, "E2 Easy Punch card, then New scene: asks, and the punch is kept while it asks")
+	m.ui_save_ask.canceled.emit()
+	await idle()
+	ok(not asking(m) and JSON.stringify(m.S.cards) == punch and m._unsaved(), "E3 Cancel: the punch is kept, still unsaved")
+	m._new_asked()
+	await idle()
+	ok(asking(m) and m.ui_save_discard is Button, "E4 asks again, and Don't save is a real Button (ui_save_discard)")
+	m.ui_save_discard.pressed.emit()
+	await idle()
+	ok(m.S.cards.is_empty() and m.scene_path == "" and not m._unsaved() and not asking(m),
+		"E5 Don't save (the button): an empty new scene, nothing unsaved")
+	m.easy.set_on(false, false)
+	await idle(2)
+	m._new_scene()
+	await idle()
+	m._words_ask()   # the typed-move box (made on first use), then the Block it out path
+	await idle()
+	m.ui_words.text = "jab"
+	m._words_build()
+	m.ui_words_dlg.hide()
+	await idle(2)
+	ok(m.S.cards.size() > 0 and m._unsaved(), "E6 Expert: a typed move builds a work copy, and it is unsaved (%d cards)" % m.S.cards.size())
+	var typed := JSON.stringify(m.S.cards)
+	m._new_asked()
+	await idle()
+	ok(asking(m) and JSON.stringify(m.S.cards) == typed, "E7 Expert after a typed move: New scene asks, the move kept")
+	m.ui_save_ask.canceled.emit()
+	await idle()
+
+	# an opened saved scene, changed by nothing: New asks nothing (the open itself is the clean state)
+	m._load_scene("res://scenes/combo3.json")
+	m._rebuild_cards()
+	await idle()
+	m._new_asked()
+	await idle()
+	ok(not asking(m) and not m._unsaved(), "O1 a saved scene just opened, nothing changed: New asks nothing")
+	m._load_scene("res://scenes/combo3.json")
+	m._rebuild_cards()
+	await idle()
+	ok(not asking(m), "O2 a saved scene just opened: no dialog")
+
+	# the other app-made work copies (mirror, template): the same as a card build, New asks before it is lost
+	m._mirror_scene()   # combo3, mirrored into scenes/_wip: a scene nobody saved
+	await idle()
+	var mir_path: String = m.scene_path
+	ok(m._unsaved(), "O3 a mirrored scene (a work copy in scenes/_wip) is unsaved (%s)" % mir_path)
+	m._new_asked()
+	await idle()
+	ok(asking(m), "O4 after Mirror the scene, New asks")
+	m.ui_save_discard.pressed.emit()
+	await idle()
+	if mir_path.contains("/_wip/") and FileAccess.file_exists(mir_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(mir_path))
+	m._template_make("punch")
+	await idle()
+	var tpl_path: String = m.scene_path
+	ok(m.S.cards.size() > 0 and m._unsaved(), "O5 a scene made from the punch template is unsaved (%d cards, %s)" % [m.S.cards.size(), tpl_path])
+	m._new_asked()
+	await idle()
+	ok(asking(m), "O6 after New from template, New asks")
+	m.ui_save_discard.pressed.emit()
+	await idle()
+	if tpl_path.contains("/_wip/") and FileAccess.file_exists(tpl_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(tpl_path))
+	m._load_scene("res://scenes/combo3.json")   # back to the saved scene the journal steps below edit
+	m._rebuild_cards()
+	await idle()
+
 	# a kill still recovers through the journal: no prompt, the edit is in the journal, the next start offers it
 	edit(m)
 	await idle()

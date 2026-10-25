@@ -46,6 +46,253 @@ static func _median(a: Array) -> float:
 	return float(s[s.size() / 2])
 
 
+# ============================================================ 3b TORSO SPIKES ==============================================
+## A TRACKER GLITCH ON THE TORSO (round 58, cmb02_cross: the left shoulder moved 0.3 m in one frame at 3.00 s at visibility 1.00, and
+## the arm fitted from it peaked at 48.6 m/s). Two tests on the shoulders (11, 12) and hips (23, 24), on the file's own frames:
+##   P a point more than TORSO_DEV from the mean of its two neighbours, while the neighbours agree (under TORSO_AGREE apart), is replaced
+##     by that mean
+##   W the shoulder width (11 to 12) more than TORSO_WIDTH off the mean of its neighbours' widths (when those are wide enough to read)
+##     is a glitch: both shoulders of that frame are replaced by the mean of the neighbours' shoulders
+## Returns how many landmark-frames were replaced. The neighbours are read before any change (no cascade).
+const TORSO := [11, 12, 23, 24]
+const TORSO_DEV := 0.12       # m
+const TORSO_AGREE := 0.05     # m
+const TORSO_WIDTH := 0.25     # fraction of the neighbours' mean width
+const WIDTH_MIN := 0.05       # m: a shoulder width under this is too narrow to read a ratio from
+
+
+static func torso_filter(frames: Array) -> int:
+	var n := frames.size()
+	var done := 0
+	var snap := []
+	for f in frames:
+		var c := []
+		for w in (f["w"] as Array):
+			c.append(w)
+		snap.append(c)
+	for i in range(1, n - 1):
+		var prv: Array = snap[i - 1]
+		var cur: Array = snap[i]
+		var nxt: Array = snap[i + 1]
+		var out: Array = frames[i]["w"]
+		for k in TORSO:
+			var a: Vector3 = prv[k]
+			var b: Vector3 = nxt[k]
+			var m := (a + b) * 0.5
+			if (cur[k] as Vector3).distance_to(m) > TORSO_DEV and a.distance_to(b) < TORSO_AGREE:
+				out[k] = m
+				done += 1
+		var wc: float = (cur[11] as Vector3).distance_to(cur[12] as Vector3)
+		var wn: float = ((prv[11] as Vector3).distance_to(prv[12] as Vector3) + (nxt[11] as Vector3).distance_to(nxt[12] as Vector3)) * 0.5
+		if wn > WIDTH_MIN and absf(wc / wn - 1.0) > TORSO_WIDTH:
+			out[11] = ((prv[11] as Vector3) + (nxt[11] as Vector3)) * 0.5
+			out[12] = ((prv[12] as Vector3) + (nxt[12] as Vector3)) * 0.5
+			done += 2
+	return done
+
+
+# ============================================================ 3c UPPER-BODY DIPS ==========================================
+## A TRACKER GLITCH THAT MOVES THE WHOLE UPPER BODY (the spike clips, round 59): for 1 to 5 frames the head, shoulders, elbows and
+## wrists all move together, relative to the hips, and come back. pick_up frames 45-47: the tracker's upper body swings about 0.4 m
+## from where it was in frames 44 and 48 (the wrists go from -0.87 m to +0.11 m and back in one frame each way: 15 m/s). torso_filter's
+## per-point test cannot see it: every point of the block agrees with the others. So this test works on the block as a whole:
+##   C  the block's centre = the mean of landmarks 0-22 (nose to index fingers) less the hips' mid point (a whole-body move, a jump
+##      or a drop, leaves C where it was: the block is measured from the hips)
+##   a run of 1 to DIP_MAX_LEN frames where C departs from the line between the frame before and the frame after by more than
+##     DIP_DEV, with those two frames agreeing within DIP_AGREE
+##   its departure rate (the largest frame-to-frame move of C across the run and its two ends, per second) is more than DIP_RATE
+##     times the body's own median rate over the clip (and at least DIP_MIN_RATE): a slow lean, a crouch, a real fast move that does
+##     not come back within 5 frames is not this
+## Replaced by linear interpolation across the gap for landmarks 0-22 (the hips and legs keep their values).
+## dip_runs returns the runs as [first, last, departure, rate]; dip_filter applies them and returns the landmark-frames replaced.
+const DIP_MAX_LEN := 5
+const DIP_DEV := 0.10         # m: the block centre's departure from the line between its neighbours
+const DIP_AGREE := 0.10       # m: the frames before and after the run agree this closely
+const DIP_RATE := 5.0         # x the body's median rate of the block centre
+const DIP_MIN_RATE := 1.0     # m/s: the rate floor (a still clip has a median near 0)
+const DIP_LAST_UPPER := 22    # landmarks 0 to 22 move with the upper body; 23 on is the hips and the legs
+
+
+static func _block_c(w: Array) -> Vector3:
+	var c := Vector3.ZERO
+	for j in range(DIP_LAST_UPPER + 1):
+		c += (w[j] as Vector3)
+	c /= float(DIP_LAST_UPPER + 1)
+	return c - (((w[23] as Vector3) + (w[24] as Vector3)) * 0.5)
+
+
+static func dip_runs(frames: Array, fps: float) -> Array:
+	var n := frames.size()
+	var out := []
+	if n < 7:
+		return out
+	var C := []
+	for f in frames:
+		C.append(_block_c(f["w"]))
+	var rates := []
+	for i in range(1, n):
+		rates.append((C[i] as Vector3).distance_to(C[i - 1]) * fps)
+	var lim := maxf(DIP_RATE * _median(rates), DIP_MIN_RATE)
+	var a := 1
+	while a < n - 1:
+		var found := false
+		for L in range(1, DIP_MAX_LEN + 1):
+			var b := a + L - 1
+			if b > n - 2:
+				break
+			var c0: Vector3 = C[a - 1]
+			var c1: Vector3 = C[b + 1]
+			if c0.distance_to(c1) > DIP_AGREE:
+				continue
+			var worst := 0.0
+			for k in range(a, b + 1):
+				var t := float(k - (a - 1)) / float(b + 1 - (a - 1))
+				worst = maxf(worst, (C[k] as Vector3).distance_to(c0.lerp(c1, t)))
+			if worst <= DIP_DEV:
+				continue
+			var rate := 0.0
+			for k in range(a, b + 2):
+				rate = maxf(rate, (C[k] as Vector3).distance_to(C[k - 1]) * fps)
+			if rate > lim:
+				out.append([a, b, worst, rate])
+				found = true
+				break
+		a = (out[out.size() - 1][1] + 2) if found else a + 1   # the frame after a run is a return point
+	return out
+
+
+static func dip_filter(frames: Array, fps: float) -> int:
+	var done := 0
+	for r in dip_runs(frames, fps):
+		var a: int = r[0]
+		var b: int = r[1]
+		var p: Array = frames[a - 1]["w"]
+		var q: Array = frames[b + 1]["w"]
+		for k in range(a, b + 1):
+			var t := float(k - (a - 1)) / float(b + 1 - (a - 1))
+			var w: Array = frames[k]["w"]
+			for j in range(DIP_LAST_UPPER + 1):
+				w[j] = (p[j] as Vector3).lerp(q[j] as Vector3, t)
+				done += 1
+	return done
+
+
+# ============================================================ 3d INVERTED BODY ============================================
+## A TRACKER FLIP ABOUT THE HIPS (cmb02_cross, tests/data/spike_cross_pose.json, 2.9-3.7 s): the tracker turns the whole body upside
+## down about the hips, the shoulders go from above the hips to below them and the ankles from below to above, and then back; the
+## frames either side of the flip are lost. The body did not move that way, so the hand peak (16.4 m/s) was the flip's. A run is one
+## when it is bounded by upright frames and is brief:
+##   U  the frame before and the frame after are upright: the shoulder centre above the hip centre by INV_UP on the clip's own up axis
+##   I  the frames between them include inverted ones (the shoulder centre below the hip centre by INV_UP)
+##   T  the first and last inverted frames are within INV_TRANS frames of the upright ones (a flip, not a slow turn; a cartwheel
+##      goes through the sideways pose for longer than that)
+##   L  the inverted stretch, first to last inverted frame, is INV_MAX_LEN s or less (a handstand is not a tracker flip)
+## The whole stretch between the two upright frames is lost: every landmark is the straight line between those two frames (as
+## fill_gaps does), and the frames are marked "lost" so the confidence lane and the Easy caution name the span (the repair then
+## leaves them as they are: the line is its own fill). INVERSION_FILL = false is the pre-fix pipeline, for the before numbers.
+const INV_UP := 0.10        # m: the shoulder centre this far off the hip centre, on the body's own up axis, is upright (+) or inverted (-)
+const INV_TRANS := 3        # frames: at most this many frames between the last upright frame and the first inverted one, and back
+const INV_MAX_LEN := 1.0    # s: first to last inverted frame
+const INV_MIN_FRAMES := 3  # frames: inverted readings in the run; one or two are blips (the pick-up has single-frame ones)
+const INV_MIRROR := 0.10    # m: the shoulders' left-right axis this far on the wrong side (the tracker swapped left and right): not an upright anchor
+static var reach_applies := 0   # Scene.apply calls the last VideoCleanup.reachable made (tests/vidspeed_test.gd 3c)
+static var INVERSION_FILL := true
+
+
+## the flip runs as {"p", "q" (the upright frames either side), "lo", "hi" (the frames replaced: p+1 to q-1), "t0", "t1" (the inverted
+## stretch, seconds on the file's clock)}. Lost frames (fill_gaps) are neither upright nor inverted: they only count as frames between
+static func inversion_spans(frames: Array, fps: float) -> Array:
+	var out := []
+	var n := frames.size()
+	if n < 3:
+		return out
+	var dt := 1.0 / maxf(fps, 1.0)
+	var dy := []
+	var mx := []   # the shoulders' left-right axis, x: a MIRRORED body (the tracker swapped left and right) reads negative
+	var real_ank := []   # the ankles' centre less the hips' (y): a standing body has its ankles BELOW its hips (y runs down)
+	var real_mx := []
+	for i in n:
+		if bool(frames[i].get("lost", false)):
+			dy.append(0.0)
+			mx.append(0.0)
+			continue
+		var w: Array = frames[i]["w"]
+		var v := ((w[11] as Vector3).y + (w[12] as Vector3).y - (w[23] as Vector3).y - (w[24] as Vector3).y) * 0.5
+		var m := (w[11] as Vector3).x - (w[12] as Vector3).x
+		dy.append(v)
+		mx.append(m)
+		real_ank.append(((w[27] as Vector3).y + (w[28] as Vector3).y - (w[23] as Vector3).y - (w[24] as Vector3).y) * 0.5)
+		real_mx.append(m)
+	if real_ank.is_empty():
+		return out
+	var k := -1.0 if _median(real_ank) > 0.0 else 1.0   # up = away from the feet: the usual side, read from the ankles (the shoulders swing in a bend)
+	var kx := -1.0 if _median(real_mx) < 0.0 else 1.0  # the usual left-right side
+	var st := []   # 1 upright, -1 inverted or mirrored, 0 between (sideways), 2 lost
+	var ups := []
+	for i in n:
+		if bool(frames[i].get("lost", false)):
+			st.append(2)
+			continue
+		# a flip is UPSIDE DOWN (the vertical test); a shoulder swap alone (the body upright, left and right exchanged: combo3's 0.9 s)
+		# is not one, and is no upright anchor either: a swap inside a real flip (cross, 3.0 s) is still replaced with it
+		var s := 0
+		var swapped := kx * float(mx[i]) <= -INV_MIRROR
+		if k * float(dy[i]) <= -INV_UP:
+			s = -1
+		elif k * float(dy[i]) >= INV_UP and not swapped:
+			s = 1
+			ups.append(i)
+		st.append(s)
+	for x in range(ups.size() - 1):
+		var p: int = ups[x]
+		var q: int = ups[x + 1]
+		var a := -1
+		var b := -1
+		var cnt := 0
+		for i in range(p + 1, q):
+			if int(st[i]) == -1:
+				if a < 0:
+					a = i
+				b = i
+				cnt += 1
+		if a < 0 or cnt < INV_MIN_FRAMES:   # a single inverted reading is a blip (the pick-up's, 2.19 s), not a flip
+			continue
+		var gap_in := int(round((float(frames[a]["t"]) - float(frames[p]["t"])) / dt)) - 1
+		var gap_out := int(round((float(frames[q]["t"]) - float(frames[b]["t"])) / dt)) - 1
+		var span := float(frames[b]["t"]) - float(frames[a]["t"])
+		if gap_in > INV_TRANS or gap_out > INV_TRANS or span > INV_MAX_LEN:
+			continue
+		out.append({"p": p, "q": q, "lo": p + 1, "hi": q - 1, "t0": float(frames[a]["t"]), "t1": float(frames[b]["t"])})
+	return out
+
+
+## replaces each flip's frames by the straight line (all 33 landmarks, by time) between its two upright frames and marks them lost.
+## Returns how many frames were replaced
+static func inversion_filter(frames: Array, fps: float) -> int:
+	if not INVERSION_FILL:
+		return 0
+	var done := 0
+	var z := []
+	z.resize(33)
+	z.fill(0.0)
+	for r in inversion_spans(frames, fps):
+		var p: int = r["p"]
+		var q: int = r["q"]
+		var tp := float(frames[p]["t"])
+		var tq := float(frames[q]["t"])
+		var wp: Array = frames[p]["w"]
+		var wq: Array = frames[q]["w"]
+		for i in range(int(r["lo"]), int(r["hi"]) + 1):
+			var u := (float(frames[i]["t"]) - tp) / maxf(tq - tp, 1e-6)
+			var w: Array = frames[i]["w"]
+			for j in 33:
+				w[j] = (wp[j] as Vector3).lerp(wq[j] as Vector3, u)
+			frames[i]["lost"] = true
+			frames[i]["vis"] = z.duplicate()
+			done += 1
+	return done
+
+
 # ============================================================ 4 CONFIDENCE ================================================
 
 ## the frames the tracker skipped (no body found) put back as interpolated frames marked "lost" (vis 0), so the clip is
@@ -569,6 +816,13 @@ const FLY_RISE := 0.12     # m: the pelvis this far above its standing height is
 const FLY_MIN := 4         # frames: a shorter airborne run is not a flight
 
 
+static func _hips_ankles_seen(f: Dictionary) -> bool:
+	var vis: Array = f.get("vis", [])
+	if vis.size() < 29:
+		return true
+	return minf(minf(float(vis[23]), float(vis[24])), minf(float(vis[27]), float(vis[28]))) >= 0.5
+
+
 static func flight_of(frames: Array) -> Dictionary:
 	var n := frames.size()
 	var on := []
@@ -592,7 +846,8 @@ static func flight_of(frames: Array) -> Dictionary:
 		return {"on": on, "rise": rise}
 	var air := []
 	for i in n:
-		var r := (ref - float(frames[i]["hy"])) / ppm
+		# a frame whose hips or ankles the tracker does not see (visibility under 0.5) has no image height to read: it is grounded
+		var r := (ref - float(frames[i]["hy"])) / ppm if _hips_ankles_seen(frames[i]) else 0.0
 		rise[i] = r
 		air.append(r >= FLY_RISE)
 	var runs := _clean_runs(air, FLY_MIN)
@@ -635,7 +890,11 @@ static func _hxz(v: Vector3) -> Vector2:
 ## CONTACTS on landmark frames {"t","w"} (hips-relative). Returns {"list": [{"kind": "foot"/"hand", "part", "f0", "f1", "t0",
 ## "t1"}] by f0 (t from the first frame), "hint": [per frame "_l" / "_r" / "" : the one foot down], "ground": per-frame ground
 ## height relative to the hips, "root": per-frame root velocity (xz, m/s)}
-static func contacts(frames: Array, fps: float, fly := {}) -> Dictionary:
+## `seen` (optional) {"_l": [bool], "_r": [bool]} per frame: false where the tracker LOST that foot (confidence under LOST). A
+## lost foot gives no evidence of a contact: its landmarks are the repair's fill (a held or straight-line guess), which reads
+## as low and still, and a whole clip of it planted the foot over 1 s of the body walking away (93 cm of slide on a 20-frame
+## AI walk). A contact run more than half unseen is dropped; one crossing a short dropout stays
+static func contacts(frames: Array, fps: float, fly := {}, seen := {}) -> Dictionary:
 	var n := frames.size()
 	var T0 := float(frames[0]["t"])
 	var dtf := 1.0 / maxf(fps, 1.0)
@@ -736,6 +995,15 @@ static func contacts(frames: Array, fps: float, fly := {}) -> Dictionary:
 				st = false   # FLIGHT: no foot is on the floor in the air, whatever its height and its speed read as (flight_of)
 			on.append(st)
 		flag[sd] = _clean_runs(on)
+		var sn: Array = seen.get(sd, [])
+		if sn.size() == n:   # LOST: a contact made mostly of frames the tracker did not see is the fill's guess, not a stance (see `seen`);
+			for r in _runs_of(flag[sd]):   # one that only crosses a short dropout keeps it (walk_bat's real stances do)
+				var unseen := 0
+				for i in range(int(r[0]), int(r[1]) + 1):
+					unseen += 0 if bool(sn[i]) else 1
+				if unseen * 2 > int(r[1]) - int(r[0]) + 1:
+					for i in range(int(r[0]), int(r[1]) + 1):
+						flag[sd][i] = false
 		for k in 2:   # the pivots that are down: the heel and the ball, each while it is within H_PIV of its ground
 			var pv := []
 			for i in n:
@@ -769,6 +1037,23 @@ static func contacts(frames: Array, fps: float, fly := {}) -> Dictionary:
 		var r: bool = flag["_r"][i]
 		hint.append("_l" if l and not r else ("_r" if r and not l else ""))
 	return {"list": list, "heeloff": heeloff, "hint": hint, "flags": flag, "piv": piv, "ground": gm, "root": root}
+
+
+## per foot, per frame of `to`: whether the tracker saw that foot (its confidence >= LOST) at the nearest frame of `from` in time
+static func seen_feet(conf: Dictionary, from: Array, to: Array) -> Dictionary:
+	var out := {"_l": [], "_r": []}
+	if from.is_empty():
+		return out
+	var j := 0
+	for f in to:
+		while j + 1 < from.size() and absf(float(from[j + 1]["t"]) - float(f["t"])) <= absf(float(from[j]["t"]) - float(f["t"])):
+			j += 1
+		for sd in ["_l", "_r"]:
+			var pc: Array = conf["parts"].get("foot" + sd, [])
+			# a frame where the WHOLE body was lost (fill_gaps) is not this: the fill between good frames is a fair guess for a
+			# planted foot there (walk_bat's 8 lost frames sit inside real stances); only a foot lost while the body is seen counts
+			(out[sd] as Array).append(j >= pc.size() or float(pc[j]) >= LOST or bool(from[j].get("lost", false)))
+	return out
 
 
 ## a bool series with gaps of BRIDGE or fewer frames closed and runs under `min_run` dropped
@@ -1144,6 +1429,9 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	var fps := float(P["fps"])
 	progress = 0.0
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
+	var inverted := VideoIQ.inversion_filter(frames, fps)   # a tracker flip about the hips (3d INVERTED BODY): lost, a straight line between the upright frames
+	VideoIQ.torso_filter(frames)   # a glitch on the shoulders or hips (3b TORSO SPIKES), before anything reads the body
+	VideoIQ.dip_filter(frames, fps)   # a glitch that moves the whole upper body for 1-5 frames (3c UPPER-BODY DIPS)
 	# FLIGHT: read from the tracker's image on the file's own frames, carried to the filled frames by time
 	var fly_raw := flight_of(P["frames"])
 	var fly := {"on": [], "rise": []}
@@ -1161,7 +1449,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	progress = 0.1
 	var C := VideoCleanup.run(frames, fps, float(P.get("tilt", 0.0)))
 	normalize_lengths(C["frames"])
-	var K := contacts(C["frames"], fps, fly)
+	var K := contacts(C["frames"], fps, fly, seen_feet(conf, frames, C["frames"]))
 	if cancelled():
 		return {}
 	progress = 0.2
@@ -1184,7 +1472,9 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	progress = 0.95
 	var V: Scene = sk["scene"]
 	V.memo_slopes = true   # VIDEO SPEED: this scene's cards are fixed from here to the return below (reachable and the located pass only read it)
+	var reach_n0 := Scene.apply_calls
 	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps, K["heeloff"])), V.fps)
+	reach_applies = Scene.apply_calls - reach_n0   # the Scene.apply calls reachable made (tests/vidspeed_test.gd 3c)
 	var located := locate_played(B, V, K["list"])
 	_unmemo(sk)
 	var feet := 0
@@ -1203,7 +1493,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 		located.size(), feet, hands, V.plants.size(), fitted.size(), int(sk["cards"]), "spline" if sk["spline"] else "linear", float(sk["mean"]) * 100.0,
 		int(dp["flipped"]), int(dp["frames"]), (conf["spans"] as Array).size(), ("; " + "; ".join((conf["spans"] as Array).map(func(s): return s["text"]))) if not (conf["spans"] as Array).is_empty() else ""]
 	return {"scene": V, "iq": iq, "text": txt, "conf": conf, "depth": dp, "contacts": K, "keys": sk, "fitted": fitted, "frames": C["frames"],
-		"dense": dense, "repaired": repaired, "located": located}
+		"dense": dense, "repaired": repaired, "located": located, "inverted": inverted}
 
 
 ## the iq dict of a scene file, kept only if it is well formed (a hand-edited file never crashes the timeline)

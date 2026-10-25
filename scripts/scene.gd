@@ -840,7 +840,10 @@ func apply_true(B: Body, t: float) -> void:
 	baker = bk
 
 
+static var apply_calls := 0   # every Scene.apply call (nested ones too): the speed bars count the calls a stage makes
+
 func apply(B: Body, t: float) -> void:
+	apply_calls += 1
 	B.squash = ImpactFrames.squash_at(self, t) if not attrs.is_empty() else {}   # I13: the struck part's squash at t
 	if B.body != body:
 		B.set_proportions(body)   # PR2: whatever plays this scene plays it on the scene's own body
@@ -2233,6 +2236,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["lift"] = c["lift"]
 		if c.has("expr"):
 			cs[-1]["expr"] = c["expr"]   # R22: the card's face expression, only when set
+		if c.has("from"):
+			cs[-1]["from"] = c["from"]   # Easy: the move the card came from ("punch|<serial>"), only when set
 		if c.get("ease", "smooth") != "smooth":
 			cs[-1]["ease"] = c["ease"]
 		if c.has("ease_bias"):
@@ -2548,6 +2553,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["expr"] = String(c["expr"])   # R22: absent = neutral
 		if c.get("walk", false):
 			cards[-1]["walk"] = true
+		if c.has("from"):
+			cards[-1]["from"] = String(c["from"])   # Easy: the move the card came from, absent = none
 		if String(c.get("ease", "smooth")) in ALL_EASES and c.get("ease", "smooth") != "smooth":
 			cards[-1]["ease"] = c["ease"]
 		if c.has("ease_bias") and absf(float(c["ease_bias"])) >= 0.005:

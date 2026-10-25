@@ -15,6 +15,7 @@ extends RefCounted
 ##   or are already joined by an edge.
 ## Fill holes (Alt+F): every open border loop (KMeshValidate._holes) with a selected vert on it becomes one n-gon wound
 ##   to match its border, or (triangulate) an ear-clipped fan of triangles in the loop's own plane (a concave hole too).
+##   Nothing selected: every open border loop of the mesh (Blender's fill-all). A rim edge or the verts of one counts.
 ## Grid fill (Ctrl+F): a border loop of an even number N of verts becomes a quad grid of span x (N/2 - span) quads.
 ##   The loop is cut into four sides at four corners (sides span, N/2 - span, span, N/2 - span); the interior verts are
 ##   a Coons patch of the four sides (each side blended across, the corners' bilinear part taken off), so a flat square
@@ -255,9 +256,10 @@ static func holes_touching(m: KMesh, verts: Array) -> Array:
 
 ## Alt+F: every hole touching the verts becomes one n-gon (or triangles, ear-clipped in the hole's plane)
 static func fill_holes(m: KMesh, verts: Array, triangulate := false) -> Dictionary:
-	var hs := holes_touching(m, verts)
+	# nothing selected: every hole of the mesh (Blender's fill-all); a selection: the holes it touches
+	var hs := holes_touching(m, verts) if not verts.is_empty() else KMeshValidate._holes(m)
 	if hs.is_empty():
-		return _none("no open border touches the selection (select a vert on the edge of a hole)")
+		return _none("no open border touches the selection (select a vert on the edge of a hole)" if not verts.is_empty() else "the mesh has no open hole to fill")
 	var nf: Array = m.faces.duplicate()
 	var f0 := nf.size()
 	for l in hs:

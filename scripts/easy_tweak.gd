@@ -14,13 +14,18 @@ const SMALLER := 0.8
 ## MAX_LEN; a move is not cut under Scene.retime's own floor (MIN_MOVE: a shorter one would not scale by k); a move over
 ## SLOW_MAX_MOVE drags and a hold over SLOW_MAX_HOLD is a freeze
 const MIN_LEN := 0.3          # s
-const MAX_LEN := 10.0         # s
+## MAX_LEN was 10 s: a walk then a sit down is 10.3 s, so Slower could never touch a clip that a beginner made by chaining
+## two moves (walk-through round 5). 20 s was the round-5 cap (a clip "still reads whole in the strip"; the per-move and hold
+## limits below stop a drag). Walk-through round 8: longer chains hit it, and the refusal showed only in the status line: the cap
+## is 60 s, and the refusal also comes as the Easy toast. The per-move and hold limits stay.
+const MAX_LEN := 60.0         # s
 const MIN_MOVE := 0.04        # s: Scene.retime's floor
 const SLOW_MAX_MOVE := 3.0    # s
 const SLOW_MAX_HOLD := 6.0    # s
 const STAND_M := 0.01         # m: a card whose lowest sole is this close to the floor is standing on it (FloorSnap's rule)
 const FAST_STOP := "That's as fast as it goes."
-const SLOW_STOP := "That's as slow as it goes."
+const SLOW_MOVE_STOP := "One move would pass %.0f s and drag: remove a step or pick Faster."
+const SLOW_LEN_STOP := "This clip is already %.1f s, the longest Easy makes is %.0f s. Remove a step to slow the rest."
 
 
 ## "" when the timing can move by factor k, else the one sentence why not (the press then changes nothing, no undo step)
@@ -33,13 +38,13 @@ static func timing_stop(S: Scene, k: float) -> String:
 				return FAST_STOP
 	else:
 		if S.length() * k > MAX_LEN:
-			return SLOW_STOP
+			return SLOW_LEN_STOP % [S.length(), MAX_LEN]
 		for i in range(1, S.cards.size()):
 			if S.move_time(i) * k > SLOW_MAX_MOVE:
-				return SLOW_STOP
+				return SLOW_MOVE_STOP % SLOW_MAX_MOVE
 		for c in S.cards:
 			if float(c["hold"]) * k > SLOW_MAX_HOLD:
-				return SLOW_STOP
+				return "One hold would pass %.0f s and freeze the body: pick Faster or remove a hold." % SLOW_MAX_HOLD
 	return ""
 
 
@@ -49,6 +54,21 @@ static func timing_stop(S: Scene, k: float) -> String:
 ## FEET: a card whose lowest sole stands on the floor is put back on it with FloorSnap's own rule (its root moves, the
 ## joints do not); a card in the air keeps its height. B is scratch: its pose is replaced.
 ## Returns {card index: the new pose}; {} when the clip has no rest pose to move from.
+## A JUMP'S HEIGHT (walk-through round 8: Bigger raised a jump 1.5 %). In the air the cards' heights are not used:
+## Scene._fly puts the centre of mass on the ballistic arc, apex G T^2 / 8 over the flight's time T. So a jump goes k
+## times as high when its flight lasts sqrt(k) times as long: the take-off card's leave to the landing card's arrival,
+## i.e. the moves into the air cards and the landing, and the air cards' holds. Returns {card index: {"move", "hold"}}
+## ({} with no flight); the caller writes them in the same undo step as the poses.
+static func flight_retimed(S: Scene, k: float) -> Dictionary:
+	var out := {}
+	var f := sqrt(maxf(0.01, k))
+	for fl in S.flights():
+		for i in range(int(fl["k"]) + 1, int(fl["l"]) + 1):
+			var c: Dictionary = S.cards[i]
+			out[i] = {"move": float(c["move"]) * f, "hold": float(c["hold"]) * f if i < int(fl["l"]) else float(c["hold"])}
+	return out
+
+
 static func exaggerated(S: Scene, B: Body, k: float) -> Dictionary:
 	var out := {}
 	if S.cards.size() < 2:
@@ -85,3 +105,51 @@ static func exaggerated(S: Scene, B: Body, k: float) -> Dictionary:
 ## the travel of one value from the rest value by factor k
 static func _mix(rest: float, v: float, k: float) -> float:
 	return rest + k * (v - rest)
+
+
+## SMOOTHER (video walk-through round 6, goal 5): one step. Each card between the first and the last takes its own pose blended
+## with its two neighbours' (1/2 itself, 1/4 each side), joint by joint on bend, side and twist, and on the root's offset. The
+## first and last cards stay (the clip starts and ends where it did). The neighbours are read from the clip as it was, so one
+## step does not smooth twice. Joint limits hold (Body.from_dict clamps); a card standing on the floor is snapped back as in
+## exaggerated(). Returns {card index: the new pose}; {} when there are fewer than 3 cards to blend.
+static func smoothed(S: Scene, B: Body) -> Dictionary:
+	var out := {}
+	if S.cards.size() < 3:
+		return out
+	var src: Array = []
+	for c in S.cards:
+		src.append((c["pose"] as Dictionary).duplicate(true))
+	var props := S.solid_props()
+	for i in range(1, S.cards.size() - 1):
+		var d: Dictionary = src[i]
+		if d.is_empty() or not d.has("joints"):
+			continue
+		var pa: Dictionary = src[i - 1]
+		var pb: Dictionary = src[i + 1]
+		var nd := d.duplicate(true)
+		var o: Array = d.get("offset", [0, 0, 0])
+		var oa: Array = pa.get("offset", o)
+		var ob: Array = pb.get("offset", o)
+		nd["offset"] = [_blend(float(oa[0]), float(o[0]), float(ob[0])), _blend(float(oa[1]), float(o[1]), float(ob[1])), _blend(float(oa[2]), float(o[2]), float(ob[2]))]
+		for j in nd["joints"]:
+			var x: Dictionary = nd["joints"][j]
+			var xa: Dictionary = (pa.get("joints", {}) as Dictionary).get(j, x)   # a neighbour without this joint / axis (an empty pose,
+			var xb: Dictionary = (pb.get("joints", {}) as Dictionary).get(j, x)   # a card from another rig) counts as this card's own value
+			for ax in ["bend", "side", "twist"]:
+				if not x.has(ax):
+					continue
+				x[ax] = _blend(float(xa.get(ax, x[ax])), float(x[ax]), float(xb.get(ax, x[ax])))
+		B.from_dict(d)
+		var standing := absf(B.floor_shift()) < STAND_M
+		B.from_dict(nd)
+		nd = B.to_dict()
+		if standing:
+			nd = FloorSnap.snapped_pose(B, nd, props)
+		out[i] = nd
+	return out
+
+
+## one value blended with its two neighbours: 1/2 itself, 1/4 each neighbour
+static func _blend(a: float, v: float, b: float) -> float:
+	return 0.25 * a + 0.5 * v + 0.25 * b
+

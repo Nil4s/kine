@@ -23,6 +23,10 @@ static func op(name: String, m) -> String:
 			ui.sel.clear()   # the repair renumbers verts and faces: the old selection would name others
 			ui.view.mark_dirty()
 			said = "Model: nothing to repair" if done.is_empty() else "Model: repaired %s (one mesh undo step)" % ", ".join(done.keys().map(func(k): return "%s %d" % [k, done[k]]))
+		"save_mesh":   # the mesh file (scripts/kmesh_file_ui.gd): Ctrl+S / Save asks the name the first time
+			ui.files.save_cmd()
+		"open_mesh":   # Open...: the saved meshes (kmesh_file_ui.gd), one undo step
+			ui.files.open_cmd()
 		"snap_target":
 			said = "Model: snap to " + KMeshSnap.NAMES[ui.snap.cycle()]
 		"snap_toggle":

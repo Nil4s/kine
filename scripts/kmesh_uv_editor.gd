@@ -97,6 +97,19 @@ func place() -> void:
 	var pp: Control = ui.prim_panel
 	if pp != null and pp.is_visible_in_tree() and get_global_rect().intersects(pp.get_global_rect()):
 		position.x = pp.get_global_rect().end.x + 8.0
+	var mp: Control = ui.mat_panel
+	if mp != null and mp.is_visible_in_tree():
+		# walk-through 3: docked in the Materials column, UNDER that panel (beside it, the panel covered the mesh and its
+		# clicks landed here). Its width is the Materials column's; its height is what the page has left above the status row
+		# below the lowest visible control of the Materials column too (a clipped Name / colour field sits under the panel's box)
+		var bottom: float = ui.m.nav_clear_rect().end.y
+		var top: float = mp.position.y + mp.size.y + 8.0
+		for c in mp.find_children("*", "Control", true, false):
+			if (c as Control).is_visible_in_tree():
+				top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
+		s = clampf(bottom - top - TITLE, 120.0, SIDE)
+		size = Vector2(mp.size.x, s + TITLE)
+		position = Vector2(mp.position.x, top)
 
 
 func frame_all() -> void:

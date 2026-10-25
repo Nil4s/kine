@@ -6,17 +6,23 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   G / R / S  grab / rotate / scale the selected vertices (on the model preview WITHOUT the Blender-keys layer; then X / Y / Z,
+##      a typed number, click or Enter keeps, Esc or right click cancels; O proportional, the wheel its radius: scripts/bl_keys.gd)
+##   Alt+click  select the edge LOOP through the edge under the mouse (Shift+Alt+click adds it; kmesh_select.gd select_loop)
+##   Ctrl+1 / Ctrl+2 / Ctrl+3  a Subdivide modifier at level 1 / 2 / 3 on the stack (one undo step; the modifiers panel)
 ##   Ctrl+Z  undo the last mesh edit (A12: "Model: subdivide the test cube (Catmull-Clark)" is one step)
 ##   K  add a shape key from the current shape (A13)                    [ / ]  the last key's value -0.1 / +0.1
 ##   T  measure the selection (B20, KMeshMeasure; follows the selection)  Shift+T  next material (the mass with the volume)
 ##   B05: Delete  delete the selection (Shift+Delete: only the faces)   Ctrl+Delete  dissolve it (verts / edges / faces)
 ##   M  merge at centre (Shift+M at the first, Alt+M by distance)       Ctrl+Z / Ctrl+Shift+Z  undo / redo
-##   E  extrude (Shift+E: each face on its own)   I  inset (Shift+I: each face)   Ctrl+E  bridge two edge loops   (B02 / B03)
+##   E  extrude, I  inset (Shift: each face on its own): live, the mouse sets the distance (from where E / I was pressed),
+##      click or Enter confirms (one undo step), Esc or right click cancels (nothing changed), a typed number sets it exactly
+##      (scripts/kmesh_drag_op.gd)   Ctrl+E  bridge two edge loops   (B02 / B03)
 ##   Ctrl+B  bevel the selected edges (2 cm, 1 segment, round; B03, kmesh_bevel.gd): live until the next edit, [ / ] segments, Shift+[ / ] width, Alt+[ / ] profile
 ##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
 ##   B06: F  make a face (2 verts: an edge)   Alt+F  fill the holes touching the selection (Shift+Alt+F: triangles)   Ctrl+F  grid fill
 ##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
-##   Ctrl+R  loop cut (hover, wheel = cuts, click, slide, click)   Shift+K  knife   V  edge split   (B04, kmesh_cut_tool.gd)
+##   Ctrl+R  loop cut (hover, wheel = cuts, click cuts; Shift+click slides first, then click)   Shift+K  knife   V  edge split   (B04, kmesh_cut_tool.gd)
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
@@ -76,6 +82,10 @@ var left: Callable     # G01: called after leaving (the fighter shows again)
 var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
 var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
 var refp: KMeshRefPlanesUI   # B21: reference images on planes + their panel (scripts/kmesh_refplanes_ui.gd)
+var files: KMeshFileUI       # the mesh file: Ctrl+S (save), Save / Open... on the MESH group (scripts/kmesh_file_ui.gd)
+var showing := true          # the page shows this mesh (MODEL, SURFACE); off on the other pages: hidden, never stopped (set_showing)
+var _mods_back := false      # the Modifiers panel was open when the page left it
+var _uv_back := false        # the UV editor was open when the page left it
 
 
 func setup(main: Node) -> void:
@@ -102,6 +112,9 @@ func setup(main: Node) -> void:
 	refp = KMeshRefPlanesUI.new()
 	add_child(refp)
 	refp.setup(self)
+	files = KMeshFileUI.new()   # the mesh file: Ctrl+S, Save, Open... (scripts/kmesh_file_ui.gd)
+	add_child(files)
+	files.setup(self)
 
 
 func start() -> void:
@@ -111,6 +124,7 @@ func start() -> void:
 	mesh = src["mesh"] if src.has("mesh") else KMeshView.make_cube(SIDE, SPLIT)
 	undo = KMeshUndo.new()
 	sel = KMeshSelect.new(mesh, KMeshSelect.VERT)
+	undo.sel = sel   # the undo steps keep the picks (Ctrl+Z puts back the selection the edit started from)
 	KMeshShapes.ensure(mesh)   # A13: the cube as made is the basis; K captures an edit as a key
 	view = KMeshView.new()
 	view.name = "kmesh_view"
@@ -137,7 +151,7 @@ func start() -> void:
 		anat.setup(self)
 		add_child(anat)
 	anat.tick()   # A19: tagged from the first frame
-	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, E extrude, I inset, Esc leaves")
+	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, Alt+click an edge loop, B box, L lasso, G R S move rotate scale, E extrude, I inset, Ctrl+1 subdivide, Delete, M merge, Esc leaves")
 
 
 func stop() -> void:
@@ -165,11 +179,57 @@ func stop() -> void:
 		left.call()
 
 
+## the page shows the cube (MODEL, SURFACE) or not (the other pages). Off: the cube, its primitive / Modifiers / UV panels and
+## its Materials panel are hidden, and its keys and clicks wait; nothing is stopped, so the edits, the undo and the open panels
+## come back as they were. A body-mesh edit's fighter parts (base_body.gd, meta fighter_vis) are put back on leaving and hidden again
+func set_showing(v: bool) -> void:
+	if showing == v:
+		return
+	showing = v
+	if view != null and on:
+		view.visible = v
+	if _ov != null:
+		_ov.visible = on and v
+	if prim_panel != null:
+		prim_panel.visible = on and v
+	if mods != null and mods.panel != null:
+		if not v:
+			_mods_back = mods.panel.visible
+		mods.panel.visible = v and on and _mods_back
+	if uved != null:
+		if not v:
+			_uv_back = uved.visible
+			uved.visible = false
+		elif on and _uv_back:
+			uved.visible = true
+			uved.place()
+	if has_meta("fighter_vis"):
+		var fv: Dictionary = get_meta("fighter_vis")
+		for mi in fv:
+			if is_instance_valid(mi):
+				(mi as MeshInstance3D).visible = fv[mi] if not v else false
+
+
 func set_mode(md: int) -> void:
 	sel.set_mode(md)
 	view.mark_dirty()
-	m._say("Model: %s mode, %d selected. Click an element, or B and drag a box" % [["vertex", "edge", "face"][md], sel.count()])
+	m._say("Model: %s mode, %d selected. Click an element, or B and drag a box; then G R S move, rotate, scale" % [["vertex", "edge", "face"][md], sel.count()])
 	_remeasure()
+
+
+## a text box that still holds the keyboard eats Ctrl+Z / Ctrl+Y (LineEdit's own undo runs before the mesh sees the key):
+## while the mesh is on, an empty one gives the key back; the view click above releases any other
+func _input(ev: InputEvent) -> void:
+	if on and ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed and (ev as InputEventKey).keycode in [KEY_Z, KEY_Y]:
+		var fo := get_viewport().gui_get_focus_owner()
+		if fo is LineEdit and (fo as LineEdit).text == "":
+			fo.release_focus()
+
+
+func _release_text_focus() -> void:
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit:
+		fo.release_focus()
 
 
 func _process(_dt: float) -> void:
@@ -185,6 +245,19 @@ func _process(_dt: float) -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	# B (walk-through 5): while the name box holds the keyboard (F2), its typing is its own (the letters are not tool keys);
+	# Esc gives the keys back to the view and is used up there, so the cube stays open and F3 opens the search again
+	if ev is InputEventKey and ev.pressed and not ev.echo and m.ui_scene_name != null and m.get_viewport().gui_get_focus_owner() == m.ui_scene_name:
+		var kn := ev as InputEventKey
+		if kn.keycode == KEY_ESCAPE:
+			m.ui_scene_name.release_focus()
+			return true
+		if kn.keycode != KEY_F3 and kn.unicode > 0 and not kn.ctrl_pressed:
+			return false
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed:
+		_release_text_focus()   # a click on the view leaves a text box (the library search, the S box): Ctrl+Z goes to the mesh again
+	if KMeshDragOp.handle(self, ev):   # E / I live drag: the mouse sets the distance, click / Enter confirms, Esc cancels (scripts/kmesh_drag_op.gd)
+		return true
 	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
 		return true
 	if KMeshCurvesUI.handle(self, ev):   # B12: drag a curve point / handle, Alt+click adds one (scripts/kmesh_curves_ui.gd)
@@ -193,6 +266,12 @@ func input(ev: InputEvent) -> bool:
 		return true
 	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)
 		return true
+	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).keycode == KEY_S and (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed:
+		files.save_cmd()   # Ctrl+S here saves the mesh file (POSE keeps its own Ctrl+S: main's pose box, off this page)
+		return true
+	if ev is InputEventKey and ev.pressed and not ev.echo and _ctrl_digit(ev as InputEventKey) > 0:
+		_subdiv_key(_ctrl_digit(ev as InputEventKey))   # Blender's Ctrl+1..3: a Subdivide modifier at that level
+		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
 		var ck := (ev as InputEventKey).keycode
@@ -200,6 +279,15 @@ func input(ev: InputEvent) -> bool:
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if k == KEY_F2 and not (ev as InputEventKey).is_command_or_control_pressed() and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed and m.ui_scene_name != null:
+			# B (walk-through 5): F2 (rename) puts the caret in the name box, its text selected; Enter or Esc gives the view back
+			m.ui_scene_name.grab_focus()
+			m.ui_scene_name.select_all()
+			return true
+		if k == KEY_F3 and not (ev as InputEventKey).is_command_or_control_pressed() and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed:
+			# the S box (command search) from here: S is Scale in this mode (Blender), so the box cannot open on S (Blender's F3 = menu search)
+			m.ui_cmd.open()
+			return true
 		if KMeshBevel.key(self, ev as InputEventKey):   # B03: Ctrl+B, and [ / ] while the bevel is live
 			return true
 		if k == KEY_T and (ev as InputEventKey).ctrl_pressed:
@@ -294,6 +382,9 @@ func input(ev: InputEvent) -> bool:
 			_cur = mb.position
 			if armed != "":
 				_kind = armed
+			elif mb.alt_pressed and _alt_loop(cam, mb.position, _add):   # Blender's Alt+click: the edge loop through that edge
+				_kind = "click"
+				_report()
 			else:
 				if view.click(cam, mb.position, _add):
 					_kind = "click"
@@ -442,7 +533,7 @@ func _remeasure() -> void:
 func _b05_key(e: InputEventKey) -> void:
 	if e.keycode == KEY_Z:
 		var lb := undo.redo() if e.shift_pressed else undo.undo()
-		sel.clear()
+		sel.restore(undo.last_sel)
 		view.mark_dirty()
 		if view.show_heat:
 			view.rebuild()   # F08: the legend counts the mesh as it is now
@@ -480,16 +571,44 @@ func _b05_key(e: InputEventKey) -> void:
 	m._say("Model: %s: %s now %s verts %s faces. Ctrl+Z undoes" % [what, before, str(mesh.vert_count()), str(mesh.face_count())])
 
 
+## Alt+click on an edge (Blender): the edge loop through it. False when no edge is under the mouse (then the click is a plain one).
+func _alt_loop(cam: Camera3D, p: Vector2, add: bool) -> bool:
+	var h: Dictionary = view.pick(cam, p)
+	if h.is_empty() or (h["edge"] as Vector2i).x < 0:
+		return false
+	var e: Vector2i = h["edge"]
+	sel.select_loop(e.x, e.y, add)
+	view.mark_dirty()
+	m._say("Model: edge loop selected (%d edges). Shift+Alt+click adds another loop; S scales it, G moves it" % sel.count())
+	return true
+
+
+## Ctrl+1..3 alone (no Shift / Alt): the digit 1..3, else 0
+static func _ctrl_digit(k: InputEventKey) -> int:
+	if not k.ctrl_pressed or k.alt_pressed or k.shift_pressed or k.keycode not in [KEY_1, KEY_2, KEY_3]:
+		return 0
+	return int(k.keycode - KEY_0)
+
+
+## Ctrl+1..3 (Blender): a Subdivide modifier at `levels` on the stack; if the stack refuses it, the mesh is subdivided
+## by the direct path (subdivide), which says so in the status line.
+func _subdiv_key(levels: int) -> void:
+	if mods == null or mods.add_level(levels) < 0:   # the stack refused it (its status said why): subdivide the mesh, which says so
+		subdivide(levels)
+
+
 ## B02 / B03 (scripts/kmesh_extrude.gd): E extrude, I inset, Ctrl+E bridge, Ctrl+Z / Ctrl+Y undo / redo; true = used
 func _edit_key(k: InputEventKey) -> bool:
 	if k.ctrl_pressed and (k.keycode == KEY_Z or k.keycode == KEY_Y):
 		var lb := undo.undo() if k.keycode == KEY_Z else undo.redo()
-		sel.clear()
+		sel.restore(undo.last_sel)
 		view.mark_dirty()
 		m._say("Model: %s %s" % ["undone:" if k.keycode == KEY_Z else "redone:", lb] if lb != "" else "Model: nothing to %s on the test cube" % ("undo" if k.keycode == KEY_Z else "redo"))
 		return true
 	if not (k.keycode == KEY_E or k.keycode == KEY_I) or k.alt_pressed or (k.ctrl_pressed and k.keycode == KEY_I):
 		return false
+	if not k.ctrl_pressed and KMeshDragOp.start(self, "extrude" if k.keycode == KEY_E else "inset", k.shift_pressed):
+		return true   # E / I with a selection: the live drag (KMeshDragOp); nothing selected: the immediate path below reports it
 	var each := k.shift_pressed
 	var what := "Bridge" if k.ctrl_pressed else ("Extrude" if k.keycode == KEY_E else "Inset")
 	undo.begin(mesh)
@@ -510,6 +629,36 @@ func _edit_key(k: InputEventKey) -> bool:
 	else:
 		m._say("Model: %s by %s%s; the new part is selected (Ctrl+Z takes it back)" % [what.to_lower(), Units.len(EXTRUDE_D if what == "Extrude" else INSET_D), ", each face on its own" if each else ""])
 	return true
+
+
+## The ribbon's Extrude / Inset buttons (scripts/expert_pages.gd): the op applies at once, one undo step, the new part
+## selected; no drag. Extrude lifts the faces BUTTON_EXTRUDE_D; Inset insets by BUTTON_INSET_F of the face's size
+## (sqrt of the mean area of the selected faces). To size it differently: E (or I) then a number and Enter (E 0.3
+## Enter), or E then a drag and a click or Enter (KMeshDragOp), all of them one step too.
+const BUTTON_EXTRUDE_D := 0.10   # m
+const BUTTON_INSET_F := 0.20
+
+
+func quick(kind_: String) -> void:
+	if sel.is_empty():
+		m._say("Model: %s: pick a face first (click it, or B to box-select), then the button" % kind_)
+		return
+	var amt := BUTTON_EXTRUDE_D
+	if kind_ == "inset":
+		var fs: Array = sel.faces.keys()
+		var mean := 0.0
+		for fi in fs:
+			mean += sqrt(KMeshMeasure.face_area(mesh, fi))
+		amt = BUTTON_INSET_F * (mean / float(maxi(fs.size(), 1)))
+	var what := "Extrude" if kind_ == "extrude" else "Inset"
+	undo.begin(mesh)
+	var r: Dictionary = KMeshExtrude.extrude(mesh, sel, amt) if kind_ == "extrude" else KMeshExtrude.inset(mesh, sel, amt)
+	undo.commit(what)   # an op that changed nothing keeps no step
+	view.mark_dirty()
+	if String(r.get("error", "")) != "":
+		m._say("Model: %s: %s" % [kind_, r["error"]])
+	else:
+		m._say("Model: %s by %s (Ctrl+Z undoes). E or I, then a number and Enter, sizes it" % [kind_, Units.len(amt)])
 
 
 ## D05: plain -> "uv_checker" -> "uv_stretch" -> plain. A mesh without UVs is unwrapped first (seams by angle + LSCM).
@@ -744,6 +893,7 @@ func set_prim_param(param: String, value) -> bool:
 ## the topology changed: a fresh selection on the same mesh, the view rebuilt
 func _after_topo() -> void:
 	sel = KMeshSelect.new(mesh, sel.mode)
+	undo.sel = sel
 	view.set_mesh(mesh, sel)
 	view.rebuild()
 # ---------------------------------------------------------------- F06 / F08
@@ -810,7 +960,7 @@ func _legend_update() -> void:
 			row.add_child(lb)
 			vb.add_child(row)
 		m.ui_root.add_child(legend)
-	legend.visible = on and view != null and view.show_heat
+	legend.visible = on and showing and view != null and view.show_heat
 	if not legend.visible:
 		return
 	var c: Dictionary = view.heat["counts"]

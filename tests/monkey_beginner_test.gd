@@ -66,8 +66,8 @@ func visible_buttons() -> Array:
 func text_of(b: Button) -> String:
 	if b.text.strip_edges() != "":
 		return b.text.strip_edges()
-	for n in walk(b, []):
-		if n is Label and (n as Label).text.strip_edges() != "":
+	for n in walk(b, []):   # a library tile's "placeholder" (its category, until the picture lands) is not its name: the label under it is
+		if n is Label and n.name != "placeholder" and (n as Label).text.strip_edges() != "":
 			return (n as Label).text.strip_edges()
 	return ""
 

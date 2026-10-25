@@ -36,7 +36,7 @@ func _init() -> void:
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	var done := false
 	var timing_done := false
-	for path in ["res://scenes/combo3.json", "res://scenes/bo_spin.json", "res://scenes/thrust.json", "res://scenes/_wip/combo3_detail.json"]:
+	for path in ["res://scenes/combo3.json", "res://scenes/bo_spin.json", "res://scenes/thrust.json", "res://tests/data/scenes/combo3_detail.json"]:
 		if done and timing_done:
 			break
 		var S0 := load_scene(path)

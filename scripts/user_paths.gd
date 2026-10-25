@@ -6,7 +6,7 @@
 class_name UserPaths
 extends RefCounted
 
-const OWNED := ["res://scenes", "res://moves", "res://poses", "res://exports", "res://bodies", "res://trash"]
+const OWNED := ["res://scenes", "res://moves", "res://poses", "res://exports", "res://bodies", "res://meshes", "res://trash"]
 
 static var force := false   # a test: behave as an exported build
 static var root := ""       # a test: the user's folder (else Documents/Kine, else user://Kine)

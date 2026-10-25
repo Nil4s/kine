@@ -6,6 +6,7 @@ extends SceneTree
 
 var fails := 0
 var m: Node
+var t0 := 0
 
 
 func ok(c: bool, what: String) -> void:
@@ -33,11 +34,59 @@ func type(t: String) -> void:
 	await process_frame
 
 
+## the folders this test's commands may write into (the user's work lives there too: only files NEW during the run go)
+const OWNED := ["res://bodies", "res://scenes", "res://poses"]
+
+func listing() -> Dictionary:
+	var out := {}
+	for d in OWNED:
+		_walk(d, out)
+	return out
+
+
+func _walk(dir: String, out: Dictionary) -> void:
+	var da := DirAccess.open(dir)
+	if da == null:
+		return
+	for f in da.get_files():
+		out[dir.path_join(f)] = true
+	for s in da.get_directories():
+		_walk(dir.path_join(s), out)
+
+
+## delete the files this run created inside OWNED (never one that existed before, never outside res://)
+func remove_run_files(before: Dictionary) -> int:
+	var n := 0
+	for p in listing():
+		if before.has(p) or not String(p).begins_with("res://"):
+			continue
+		var err := DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+		print("removed run file %s (%s)" % [p, "ok" if err == OK else "error %d" % err])
+		n += 1
+	return n
+
+
+func _windows(n: Node) -> Array:
+	var out := []
+	for c in n.get_children():
+		if c is Window:
+			out.append(c)
+		out.append_array(_windows(c))
+	return out
+
+
 func names() -> Array:
 	return m.ui_cmd.shown.map(func(c): return c["name"])
 
 
+func stamp(what: String) -> void:   # TIMING (temporary): when each phase ends, to find where a run stops
+	print("T+%7.1fs %s" % [(Time.get_ticks_msec() - t0) / 1000.0, what])
+
+
 func _init() -> void:
+	t0 = Time.get_ticks_msec()
+	stamp("start")
+	root.tree_exiting.connect(func(): stamp("root tree_exiting"))
 	CommandSearch.user_files_off = true   # the user's own saved poses / scenes (scenes/_wip drafts) must not change this result
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -102,6 +151,10 @@ func _init() -> void:
 	# EVERY command, once, through the box's run path. The file writers: by what they are bound to
 	var writers := {"Save pose": "_save_pose", "Save scene": "_save_scene", "Polish the scene (new copy)": "_polish", "Mirror the scene (left-handed copy)": "_tool", "Save a version": "_save_version", "Export to game": "_export_game", "Export animation (.glb)": "_export_glb", "Export animation (.bvh)": "_export_bvh", "Export playblast (video)": "_export_playblast", "Audio: add a sound file (wav / ogg / mp3)": "_audio_ask", "Import animation (fbx / glb / gltf / bvh)...": "_anim_import_ask"}
 	var ran := 0
+	var times := []
+	var files_before := listing()
+	var seen_files := files_before.duplicate()
+	stamp("sweep start (%d commands)" % n_all)
 	for c in cs.commands:
 		var f: Callable = c["run"]
 		if writers.has(c["name"]):
@@ -110,12 +163,40 @@ func _init() -> void:
 			continue
 		cs.open()
 		cs.shown = [c]
+		var ct := Time.get_ticks_msec()
 		cs._run(0)
 		await process_frame
+		times.append([Time.get_ticks_msec() - ct, c["name"]])
+		var now_files := listing()   # which command wrote a file of its own (named in the log, removed below)
+		for p in now_files:
+			if not seen_files.has(p):
+				print("WROTE %s by '%s'" % [p, c["name"]])
+				seen_files[p] = true
 		ran += 1
 		if m.ui_help.visible:
 			m.ui_help.visible = false
+	stamp("sweep done")
+	# the commands left dialogs open (Save changes?, template, restore, a file picker): an exclusive window left up at quit is
+	# what the exit then waits on, so they are put away first (hidden, then freed) and the box with them
+	cs.close()
+	var left := 0
+	for w in _windows(m):
+		if (w as Window).visible:   # only the ones a command left up: the app's own windows stay as they are
+			(w as Window).hide()
+			left += 1
+	print("closed %d open window(s) before quit" % left)
+	for _k in 3:
+		await process_frame
+	var removed := remove_run_files(files_before)
+	ok(true, "removed %d file(s) this run created in %s" % [removed, str(OWNED)])
+	times.sort_custom(func(a, b): return a[0] > b[0])
+	for i in mini(10, times.size()):
+		print("SLOW %6d ms  %s" % [times[i][0], times[i][1]])
 	ok(ran + writers.size() == n_all, "ran %d commands + %d checked by binding = all %d" % [ran, writers.size(), n_all])
 	ok(not cs.visible, "the box is closed after each")
+	# the cheat sheet (and every folder / page the app opens) is only recorded under a test: a browser started from the sweep
+	# outlived Godot, held the runner's console pipe and the run never exited (exit 124 at the timeout)
+	ok(String(m.get("last_shell")).ends_with("cheat_sheet.html"), "the sweep's opens go through _shell_open (last: '%s'), nothing launched" % str(m.get("last_shell")))
 	print("COMMAND SEARCH %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	stamp("quit(%d)" % fails)
 	quit(fails)

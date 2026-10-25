@@ -329,12 +329,13 @@ static func rule_sequence(sm: Dictionary, st: Dictionary) -> Array:
 	var tol := 1   # one frame at 60 fps: a tie
 	var t: float = sm["t"][pk]
 	var wp: float = sm["w_pelvis"][ip]
+	var tip := "weapon" if bool(sm.get("armed", false)) else "hand"   # a bare-handed strike (a punch) is the hand, not a weapon
 	if wp < HIPS_MIN:
 		out.append(_f("WARN", t, "HIPS TURN", "the hips barely turn into this swing: %.0f°/s at most (real hitters ~389°/s, bar %.0f°/s). The arms swing alone." % [wp, HIPS_MIN]))
 	elif it + tol < ip or iw + tol < ip:
-		out.append(_f("FAIL" if iw + tol < ip else "WARN", t, "SEQUENCE", "the hips turn LATE: their fastest moment is %.0f ms after the %s's. Real swings go hips -> chest -> weapon." % [(ip - mini(it, iw)) * 1000.0 / FPS, "weapon" if iw < it else "chest"]))
+		out.append(_f("FAIL" if iw + tol < ip else "WARN", t, "SEQUENCE", "the hips turn LATE: their fastest moment is %.0f ms after the %s's. Real swings go hips -> chest -> %s." % [(ip - mini(it, iw)) * 1000.0 / FPS, tip if iw < it else "chest", tip]))
 	elif iw + tol < it:
-		out.append(_f("FAIL", t, "SEQUENCE", "the chest turns after the weapon: %.0f ms late. Real swings go hips -> chest -> weapon." % ((it - iw) * 1000.0 / FPS)))
+		out.append(_f("FAIL", t, "SEQUENCE", "the chest turns after the %s: %.0f ms late. Real swings go hips -> chest -> %s." % [tip, (it - iw) * 1000.0 / FPS, tip]))
 	return out
 
 

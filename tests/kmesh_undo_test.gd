@@ -57,5 +57,22 @@ func _init() -> void:
 	c.verts[1] += Vector3.UP
 	U.commit("y")
 	ok(U.redos.is_empty(), "(5) a new edit after undo clears the redo")
+	# (6) the pick survives an undo: extrude the selected face, Ctrl+Z -> the original face is selected again, so the user can
+	# extrude again at once (Blender keeps the selection when its indices still exist; the UI calls sel.restore(undo.last_sel))
+	var q := KMeshView.make_cube(1.0, 2)
+	var sel = KMeshSelect.new(q, KMeshSelect.FACE)
+	sel.faces[0] = true
+	var U2 = KMeshUndo.new()
+	U2.sel = sel
+	U2.begin(q)
+	var f_before := q.face_count()
+	KMeshExtrude.extrude(q, sel, 0.1, false)
+	U2.commit("extrude")
+	var f_after := q.face_count()
+	var grown := f_after > f_before
+	U2.undo()
+	sel.restore(U2.last_sel)
+	ok(grown and sel.faces.has(0) and sel.count() == 1 and q.face_count() == f_before,
+		"(6) extrude then Ctrl+Z: %d -> %d faces -> %d; the original face is still selected %s (one pick)" % [f_before, f_after, q.face_count(), sel.faces.has(0)])
 	print("KMESH UNDO ", "PASS" if fails == 0 else "FAIL %d" % fails)
 	quit(1 if fails else 0)

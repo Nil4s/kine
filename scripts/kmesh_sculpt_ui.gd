@@ -35,7 +35,8 @@ var undo := KMeshUndo.new()
 var sculpt := KMeshSculpt.new()
 var brush := KMeshSculpt.DRAW
 var radius := 0.08
-var strength := 0.004
+var strength := 0.001        # metres per dab at full pressure: 1 mm (was 4 mm: a default stroke moved the sphere 59 mm)
+var readout: Label           # the brush readout on the SCULPT page: brush, strength, radius (always shown while the sphere is)
 var falloff := KMeshSculpt.F_SMOOTH
 var sym_x := true
 var sym_y := false          # C07 (scripts/kmesh_sculpt_sym.gd)
@@ -61,6 +62,23 @@ var tint: KMeshMaskTint
 var fsets := KMeshFaceSetsUI.new()   # C09
 var source: Callable   # C19 (scripts/sculpt_pose_ui.gd): the mesh to sculpt, -> {"mesh", "at", "undo", "say"}; empty = the sphere
 var left: Callable     # C19: called after leaving
+var showing := true    # the page shows the sphere (SCULPT); off on the other pages: hidden, never stopped (set_showing)
+
+## the page shows the sphere (SCULPT) or not: off = the sphere, its brush ring and the strokes wait, and it comes back as it was
+## (kmesh_edit_ui.set_showing; a sculpt of the posed body or of the fighter's parts puts the fighter parts back on leaving)
+func set_showing(v: bool) -> void:
+	if showing == v:
+		return
+	showing = v
+	if view != null and on:
+		view.visible = v
+	if _ov != null:
+		_ov.visible = on and v
+	if has_meta("fighter_vis"):
+		var fv: Dictionary = get_meta("fighter_vis")
+		for mi in fv:
+			if is_instance_valid(mi):
+				(mi as MeshInstance3D).visible = fv[mi] if not v else false
 
 
 func setup(main: Node) -> void:
@@ -72,6 +90,12 @@ func setup(main: Node) -> void:
 	_ov.visible = false
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
+	readout = Label.new()
+	readout.name = "sculpt_readout"
+	readout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	readout.position = Vector2(16, float(m.TOP_H) + 64.0)   # below the top bar and the Matcap / Alpha rows (it was drawn under them)
+	readout.z_index = 10
+	_ov.add_child(readout)
 	matcap = SculptMatcap.new()
 	add_child(matcap)
 	matcap.setup(self)
@@ -113,6 +137,7 @@ func start() -> void:
 	on = true
 	_stroking = false
 	_ov.visible = true
+	_update_readout()
 	view.rebuild()
 	if matcap != null:
 		matcap.attach(view)
@@ -160,6 +185,13 @@ func _params(ev: InputEvent) -> Dictionary:
 
 func _status() -> void:
 	m._say("Sculpt: %s, radius %d mm, strength %.1f mm, %s falloff, symmetry %s" % [brush, roundi(radius * 1000.0), strength * 1000.0, falloff, sym_words()])
+	_update_readout()
+
+
+## the readout on the page: the brush, its strength and radius, and the keys that change them
+func _update_readout() -> void:
+	if readout != null:
+		readout.text = "%s   strength %.1f mm (Shift+[ ] )   radius %d mm ( [ ] )" % [brush, strength * 1000.0, roundi(radius * 1000.0)]
 
 
 ## "X Z, radial 6 around Y", or "off"

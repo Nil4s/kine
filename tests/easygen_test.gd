@@ -3,7 +3,7 @@
 ## No ComfyUI here: main's gen_move points at a stand-in (tests/py/gen_video_stub.py) that copies the video_import_test clip
 ## (GEN_STUB_SRC), or makes nothing (ComfyUI down), or sleeps first (GEN_STUB_SLEEP, for Cancel). The tracking and the landing are the real ones.
 ## BARS (stated before measuring):
-##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line AND the one button "Make it with AI video (about 3 minutes)"
+##  1 typed "backflip" (Kine cannot build it): the plain reason on the message line ("Kine doesn't know 'backflip' yet.") AND the one button "Make it with AI video (about 3 minutes)"
 ##  2 typed "punch" (a known word, a template): it builds, and NO button
 ##  3 with the stand-in clip: clicking the button shows "Making the video" on the say line, then the clip lands: at least 2 cards, playing
 ##  4 one Undo after that success gives back the card count the scene had before it (the punch clip's)
@@ -11,17 +11,24 @@
 ##  6 Cancel mid-run (a stand-in that sleeps): the generator is stopped, "Stopped. Nothing was changed.", card count and undo size unchanged
 ##  8 the Easy generator call (first take AND the retake) carries the FAST setting: --steps 20 --width 640 --height 368
 ##  9 the message says "about 3 minutes" (the button, and the retake line "about 3 more minutes")
-## 10 the one plain line under the button: what it does and that it takes about 3 minutes (shown with the button)
+## 10 the button's tooltip: what it does and that it takes about 3 minutes (the line under the button moved there)
+## 13 the "Or try" words (Punch, Kick, Wave, Walk) are buttons: each, clicked, builds its move: cards appear, one undo step
+## 14 the unknown-move text is at most 2 lines and 90 characters, with no jargon (jab, cross, hook, uppercut, roundhouse)
 ## 11 the AI video maker not set up here (comfy_main missing): no button, no line, the plain "isn't set up" line shows, Make does nothing
 ## 12 the failed button's sentence carries no path, no colon and no slash (a beginner should not see a stack trace or a folder)
+## 0l-0o THE STILL BAR (EasyTake.frozen_fraction): the jab file (tracked well, a statue) is bad; the real moving take is good with its
+##     old score; a still clip with good tracking is bad; a moving synthetic clip reads 0 still
+## 7e a still first take is made again with the next seed, and the moving retake is imported; 7f two still takes import nothing and
+##     say "The AI video barely moved..." (both fail on the old code: a still take was judged good)
 extends SceneTree
 
 const CLIP := "res://tests/fixtures/fps16_hammer_2s.webm"
 const WORDS := "backflip"
 const NOT_RUNNING := "The AI video maker is not running on this computer, so this move can't be made. Try one of the cards."
 const BUTTON := "Make it with AI video (about 3 minutes)"
-const WHY := "The computer makes a short video of a person doing it, then copies the move. Takes about 3 minutes."
+const WHY := "Makes a short video of a person doing it on this computer, then copies the move. Takes about 3 minutes."   # the button's tooltip
 const NA_LINE := "AI video isn't set up on this computer."
+const BARELY := "The AI video barely moved. Try other words, like 'throws a fast punch'."
 const STUB_MAIN := "res://tests/py/gen_video_stub.py"   # the ComfyUI entry point this test counts as present (no D:/ComfyUI needed)
 const NO_MAIN := "res://tests/py/no_comfyui_here/main.py"   # a missing one: the maker is not set up
 
@@ -81,6 +88,19 @@ func frames_of(n: int, vis := 0.95, lost_hand := false, lost_foot := false) -> A
 	return out
 
 
+## a clip of n tracked frames of one body: shoulders at y 0.3, ankles at y 0.8 (body height 0.5), every point moved sideways
+## by step per frame (0 = a statue)
+func xy_of(n: int, step: float) -> Array:
+	var out := []
+	for i in n:
+		var pts := []
+		for k in 33:
+			var y := 0.3 if k in [11, 12] else (0.8 if k in [27, 28] else 0.5)
+			pts.append([0.4 + step * i, y])
+		out.append(pts)
+	return out
+
+
 func unit_bar() -> void:
 	var g := EasyTake.score(frames_of(81), 81)
 	ok(not g["bad"] and absf(float(g["score"]) - 0.95) < 1e-6 and float(g["found"]) == 1.0,
@@ -105,6 +125,20 @@ func unit_bar() -> void:
 	ok(bool(none["bad"]) and float(none["found"]) == 0.0, "0j no frames at all is bad")
 	var no_seen := EasyTake.score(frames_of(5), 0)
 	ok(bool(no_seen["bad"]), "0k a clip with no sampled frames count is bad")
+	# 0l the jab file: its tracking is fine (the old score alone passes), it is still for most of the clip: bad
+	var jab := EasyTake.judge("res://tests/fixtures/easy_jab_frozen_pose.json")
+	ok(bool(jab["bad"]) and float(jab.get("frozen", 0.0)) > 0.5 and float(jab["score"]) >= EasyTake.BAD_SCORE,
+		"0l the jab file is BAD for still: still %.3f (bar > 0.5), tracking score %.3f (passes alone)" % [float(jab.get("frozen", 0.0)), jab["score"]])
+	# 0m the real moving take (gen_hammer, tracked): good, still for 1 % of its clip, its tracking score unchanged (0.862)
+	var mov := EasyTake.judge("res://tests/fixtures/vidspeed_pose_A.json")
+	ok(not bool(mov["bad"]) and float(mov.get("frozen", 1.0)) < 0.1 and absf(float(mov["score"]) - 0.862) < 0.005,
+		"0m the moving take is good: still %.3f (bar 0.5), score %.3f (was 0.862)" % [float(mov.get("frozen", 1.0)), mov["score"]])
+	# 0n a still clip with good tracking is bad; 0o a moving one with the same frames reads 0 still
+	var statue := EasyTake.frozen_fraction(xy_of(81, 0.0), 81)
+	var walk := EasyTake.frozen_fraction(xy_of(81, 0.02), 81)
+	ok(statue > 0.9 and walk == 0.0, "0n a statue (every frame the same) reads still %.3f; 0o a walk of 0.04 body heights a frame reads still %.3f" % [statue, walk])
+	ok(bool(EasyTake.score(frames_of(81), 81, 1.0)["bad"]) and not bool(EasyTake.score(frames_of(81), 81, 0.5)["bad"]),
+		"0p still 1.0 with good tracking is bad; still exactly 0.5 is not")
 
 
 ## the arguments of each generator call (GEN_STUB_ARGS, a JSON list per line) as Arrays of strings
@@ -207,21 +241,28 @@ func _init() -> void:
 	# 1 unknown words: the reason and the button
 	await type_line(WORDS)
 	var msg := String(home._msg.text)
-	ok(msg.begins_with("Kine can't build") and make_btn() != null and make_btn().visible and make_btn().text == BUTTON,
+	ok(msg == "Kine doesn't know '%s' yet." % WORDS and make_btn() != null and make_btn().visible and make_btn().text == BUTTON,
 		"1 typed \"%s\": reason \"%s\", button shown %s" % [WORDS, msg, make_btn().visible if make_btn() != null else false])
 
-	# 10 the plain line under the button says what it does and how long (the same panel, shown with the button)
-	var why := home.panel.find_child("eh_make_why", true, false) as Label
-	var why_ok: bool = why != null and why.visible and why.text == WHY and make_btn().visible
-	ok(why_ok, "10 the explaining line under the button: shown %s, \"%s\"" % [why != null and why.visible, why.text if why != null else "(no line)"])
+	# 10 what the button does and how long is its tooltip (the line under the button moved there; the panel stays short)
+	ok(make_btn().visible and make_btn().tooltip_text == WHY,
+		"10 the button's tooltip says what it does and how long: \"%s\"" % make_btn().tooltip_text)
+
+	# 14 the unknown-move text: at most 2 lines and 90 characters (the button excluded), no jargon
+	var jargon := ["jab", "cross", "hook", "uppercut", "roundhouse"]
+	var jarg_hit := ""
+	for j in jargon:
+		if msg.to_lower().contains(j):
+			jarg_hit = j
+	ok(home._msg.get_line_count() <= 2 and msg.length() <= 90 and jarg_hit == "",
+		"14 unknown-move text: %d lines (max 2), %d characters (max 90), jargon %s" % [home._msg.get_line_count(), msg.length(), jarg_hit if jarg_hit != "" else "none"])
 
 	# 11 the maker is not set up here: no button and no explaining line, one plain sentence instead; Make does nothing
 	m.gen_move.comfy_main = NO_MAIN
 	await type_line(WORDS)
 	var na := home.panel.find_child("eh_ai_no", true, false) as Label
-	var why11 := home.panel.find_child("eh_make_why", true, false) as Label
 	var na_shown: bool = na != null and na.visible and na.text == NA_LINE
-	var btn_hidden: bool = make_btn() != null and not make_btn().visible and why11 != null and not why11.visible
+	var btn_hidden: bool = make_btn() != null and not make_btn().visible
 	var busy0: bool = m.gen_move.busy()
 	home.make_ai()
 	await idle(3)
@@ -231,6 +272,26 @@ func _init() -> void:
 	m.gen_move.comfy_main = STUB_MAIN
 	await type_line(WORDS)
 	ok(make_btn().visible and not (na != null and na.visible), "11 set up again: the button is back and the plain line is hidden")
+
+	# 13 each "Or try" word, clicked, builds its move: cards appear, one undo step, and the row goes away
+	for w in ["Punch", "Kick", "Wave", "Walk"]:
+		m._new_scene()
+		await idle(3)
+		await type_line(WORDS)
+		var tb := home.panel.find_child("eh_try_%s" % w.to_lower(), true, false) as Button
+		var tb_shown: bool = tb != null and tb.visible and tb.text == w
+		var c13: int = m.S.cards.size()
+		var u13: int = m.undo.size()
+		if tb != null:
+			tb.pressed.emit()
+		await idle(3)
+		var built: bool = m.S.cards.size() > c13 and m.undo.size() == u13 + 1
+		ok(tb_shown and built and home._msg.text == "" and not home._try_row.visible,
+			"13 \"Or try\" %s: button shown %s, cards %d -> %d, undo %d -> %d, row gone %s"
+			% [w, tb_shown, c13, m.S.cards.size(), u13, m.undo.size(), not home._try_row.visible])
+	m._new_scene()
+	await idle(3)
+	await type_line(WORDS)
 
 	# 2 a known word builds, no button
 	await type_line("punch")
@@ -358,6 +419,26 @@ func _init() -> void:
 		and not m.video_gate.is_valid(),
 		"7d Cancel during the retake: Cancel shown %s, %d generations, nothing imported (cards %+d, undo %+d), say \"%s\", no files left %s"
 		% [d["seen_cancel"], d["gens"], d["added"], d["undo"], d["status"], d["left"].is_empty()])
+
+	# 7e - 7f THE STILL TAKE: a first take the person holds still is made again; the moving retake is imported
+	await type_line(WORDS)
+	var e := await take_run("e", "frozen,good")
+	ok(e["gens"] == 2 and e["tracks"] == 2 and e["saw"].begins_with(retake_line) and e["wip"] and m.S.cards.size() >= 2
+		and e["undo"] == 1 and e["first_gone"] and e["msg"] == "",
+		"7e still then moving: %d generations, %d trackings, the retake line seen %s, landed %s (undo +%d), the still take's files gone %s"
+		% [e["gens"], e["tracks"], e["saw"] != "", String(e["landed"]).get_file(), e["undo"], e["first_gone"]])
+	if e["wip"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(String(e["landed"])))
+	for f in e["left"]:
+		if FileAccess.file_exists(String(f)):
+			DirAccess.remove_absolute(String(f))
+	# 7f two still takes: nothing imported, and the sentence says the video barely moved
+	await type_line(WORDS)
+	var f7 := await take_run("f", "frozen,frozen")
+	ok(f7["gens"] == 2 and f7["tracks"] == 2 and not f7["moved"] and f7["added"] == 0 and f7["undo"] == 0 and f7["msg"] == BARELY
+		and f7["left"].is_empty() and home._gen_words != "" and make_btn().visible,
+		"7f still then still: %d generations, %d trackings, nothing imported (scene moved %s, cards %+d), message \"%s\", no files left %s"
+		% [f7["gens"], f7["tracks"], f7["moved"], f7["added"], f7["msg"], f7["left"].is_empty()])
 
 	m.video_tool = "res://tools/see_video.py"
 	OS.set_environment("GEN_STUB_LOG", "")

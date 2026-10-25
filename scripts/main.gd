@@ -121,6 +121,7 @@ var check_at := 0   # the undo depth when Check ran: a different depth = the cou
 var ui_poses: ItemList
 var ui_pose_name: LineEdit
 var ui_cards: HBoxContainer
+var ui_add_slot: HBoxContainer   # right of the card strip, outside its scroll: Easy's "+ Add pose" when there are cards
 var ui_time: HSlider
 var ui_time_lbl: Label
 var ui_fps_lbl: Label   # XX10: the frames per second really reached while playing, and the dropped ones
@@ -154,6 +155,7 @@ var _light_home := []
 var floor_mat: StandardMaterial3D
 var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
+var undo_dropped := 0   # undo steps pushed out of the 60-step stack: undo.size() + this is a step's depth that never saturates (easy_home._note_name)
 var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
@@ -227,7 +229,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
+	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body", "Save", "Open..."]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
@@ -541,6 +543,7 @@ var ui_undo_btn: Button            # ROADMAP 45: its tooltip is "Undo: <the step
 var ui_redo_btn: Button
 var _step_easy := ""   # EASY ONLY: the short name of the step about to be made (Easy's card, tweak, library tile, More item): kept on the
                        # undo entry as "easy", read by the Easy bar's Undo button and toast; Expert's names never use it
+var _undo_merge := false   # EASY ONLY: the next _push_undo joins the step already made (easy_mode.add_pose: + Add pose right after a drag is one step)
 var _step_hint := ""   # what the user just pressed (a button's text, a command's name, a shortcut's command): the undo
                        # step's name when nothing is said about it (#75)
 const KEY_WORD := {KEY_BRACKETLEFT: "[", KEY_BRACKETRIGHT: "]", KEY_COMMA: ",", KEY_PERIOD: ".", KEY_MINUS: "-", KEY_EQUAL: "="}
@@ -966,6 +969,9 @@ func _place_nav() -> void:
 ## the line's two texts left of the camera bar: the messages from the view's left edge, the readout right-aligned
 ## against the bar; the readout keeps its whole width up to half the room, the messages get the rest (each clipped
 ## with an ellipsis)
+var _say_row_box: StyleBoxFlat = null
+
+
 func _line_fit() -> void:
 	if ui_status == null or ui_bar == null or ui_nav == null:
 		return
@@ -981,18 +987,39 @@ func _line_fit() -> void:
 	ui_bar.offset_right = x1
 	ui_bar.offset_top = y0
 	ui_bar.offset_bottom = -bottom_h - 6
+	var lift := 0.0   # the messages on their own row above the band (the mouse hint moves up with them)
 	if not is_welcome(ui_status.text):
-		ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
-		ui_status.clip_text = true
-		ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		ui_status.anchor_right = 0.0
-		ui_status.offset_left = lw() + 12
 		var fs := ui_status.get_theme_font("font")
 		var said := fs.get_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, -1, LINE_FS).x + 4
-		ui_status.offset_right = minf(lw() + 12 + said, split - 16)   # as wide as its words
-		ui_status.offset_top = y0
-		ui_status.offset_bottom = -bottom_h - 6
-	_mouse_fit(y0, x0, x1)
+		if said <= split - 16 - x0:   # one row beside the readout, as wide as its words
+			ui_status.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+			ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
+			ui_status.clip_text = true
+			ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			ui_status.anchor_right = 0.0
+			ui_status.offset_left = x0
+			ui_status.offset_right = minf(x0 + said, split - 16)
+			ui_status.offset_top = y0
+			ui_status.offset_bottom = -bottom_h - 6
+		else:   # longer than the room beside the readout (the mesh stats take half the line): the whole message, wrapped, on the row above
+			var fsz := ui_status.get_theme_font_size("font_size")
+			var h := fs.get_multiline_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 12.0, fsz).y + 6.0   # 12: the box's margins
+			ui_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			ui_status.clip_text = false
+			ui_status.anchor_right = 0.0
+			ui_status.offset_left = x0
+			ui_status.offset_right = x1
+			ui_status.offset_bottom = y0 - 2.0
+			ui_status.offset_top = y0 - 2.0 - h
+			lift = h + 2.0
+			if _say_row_box == null:   # its own row lies over the 3D view: a dim box keeps the words readable over the body
+				_say_row_box = StyleBoxFlat.new()
+				_say_row_box.bg_color = Color(Tok.c("panel"), 0.82)
+				_say_row_box.set_corner_radius_all(4)
+				_say_row_box.content_margin_left = 6
+				_say_row_box.content_margin_right = 6
+			ui_status.add_theme_stylebox_override("normal", _say_row_box)
+	_mouse_fit(y0 - lift, x0, x1)
 
 
 ## P05: the mouse-button strip sits on the row just above the line's two texts, from the view's left edge to the nav bar
@@ -1290,7 +1317,7 @@ func _share_viewer(root := ShareLink.ROOT, open_folder := true) -> Dictionary:
 	r["info"] = info
 	_say_plain("viewer page written: %s (%d frames at %d fps). One file to send: %s, %.1f KB (the .glb is %.1f KB inside it). Nothing was uploaded" % [r["dir"], info.get("frames", 0), S.fps, String(r["one"]).get_file(), r["one_bytes"] / 1024.0, r["glb_bytes"] / 1024.0])
 	if open_folder:
-		OS.shell_open(ProjectSettings.globalize_path(r["dir"]))
+		_shell_open(String(r["dir"]))
 	return r
 
 
@@ -1473,7 +1500,7 @@ func _pb_panel_make() -> void:
 	_pb_layer.visible = false
 
 
-func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
+func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "") -> Dictionary:   # clip: the name the file takes (Easy: the clip's move words); "" = the scene's name
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _pb_busy:
 		_say_plain("A video is already being saved: press Cancel on the progress panel to stop it")
@@ -1484,7 +1511,8 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
 	var sp := PlayblastExport.span(pv_in, pv_out, _ps().length())
 	var fps: int = S.fps
 	var n := PlayblastExport.frame_count(sp[0], sp[1], fps)
-	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var base := clip if clip != "" else S.name
+	var nm := safe_file(base) if base != "" else "scene"
 	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
 	var gdir := ProjectSettings.globalize_path(dir)
 	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
@@ -3340,6 +3368,8 @@ func _process(dt: float) -> void:
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
+	if easy != null and easy.on:
+		easy.follow_tick()   # EASY FOLLOW: the look-at point rides the body at the playhead (Expert: no follow)
 	if sc_ui != null:
 		sc_ui.tick(_a_before, playhead, playing, dt)   # I35: the cues the playhead passed sound
 	_light_apply()   # the playhead crossed a cut: the next shot's lights
@@ -3431,8 +3461,9 @@ func _world() -> void:
 
 func _body() -> void:
 	var skin := StandardMaterial3D.new()
-	skin.albedo_color = Color(0.78, 0.72, 0.64)
+	skin.albedo_color = BODY_COLOURS[body_colour][1]
 	skin.roughness = 0.55
+	body_skin = skin
 	var mq := Overlays.mannequin(self, skin)
 	skel = mq[1]
 	bone_idx = mq[2]
@@ -3631,7 +3662,7 @@ func _dummy_ghost_update(h: Dictionary) -> void:
 ## EASY BOTTOM (Easy only, the panel's rows and margins): the panel keeps only its card row and the ruler, its margins are
 ## 0 and the rows sit 4 px apart; the timeline clips what is under its ruler. Expert gets every one of these back as it was.
 func _easy_bottom_style(eo: bool) -> void:
-	var bv := ui_card_row.get_parent() as VBoxContainer
+	var bv := ui_card_row.get_parent().get_parent() as VBoxContainer   # the strip sits in an unnamed box (with the pinned add slot)
 	bv.add_theme_constant_override("separation", EASY_SEP if eo else 6)   # 6 is the value the panel is built with
 	if eo:
 		if not ui_bp.has_theme_stylebox_override("panel"):
@@ -4220,6 +4251,7 @@ var ui_library: ObjectLibrary = null
 
 
 func _library_toggle() -> void:
+	_toast_clear()   # Easy: opening or closing the library is an action: an older toast goes
 	if ui_library != null and ui_library.visible:
 		ui_library.hide_panel()
 		_say("object library closed")
@@ -4823,6 +4855,8 @@ func _refresh() -> void:
 			lk = ""
 		if easy != null and easy.on and lk == "limit":   # EASY QUIET: no joint-limit tint either (no action a beginner can take on it)
 			lk = ""
+		if easy != null and easy.on and lk == "touch":   # EASY QUIET: the contact red (two parts in contact: thighs, torso) is not shown; a beginner cannot act on it, and Easy's red note means Check
+			lk = ""
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
 				looks[j] = _look_of(lk)
@@ -4898,7 +4932,7 @@ func _refresh() -> void:
 		at.visible = not (easy != null and easy.on)
 	for dj in dots:
 		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
-	tag.text = nice(sel)
+	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
 	_dummy_refresh()
 	_pk = PerfDoc.t()
@@ -4999,6 +5033,69 @@ func _keys_camera(dt: float) -> void:
 	_cam()
 
 
+## the mesh pages (walk-through 4): the orbit may go under the floor (a downward right-drag, pitch up to +89), and the bottom view
+## is Ctrl+Numpad7 (Blender's). The animation pages keep their camera as it was.
+func _mesh_orbit() -> bool:
+	return cur_page == "MODEL" or cur_page == "SCULPT"
+
+
+## Numpad . frames the selection (the faces' centres, else the verts), Home frames the whole mesh; Ctrl+Numpad7 is the bottom view
+func _mesh_view_key(k: InputEventKey) -> bool:
+	if not _mesh_orbit():
+		return false
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit or fo is SpinBox:
+		return false
+	var plain := not (k.ctrl_pressed or k.alt_pressed or k.shift_pressed)
+	if k.keycode == KEY_KP_7 and k.ctrl_pressed and not (k.alt_pressed or k.shift_pressed):
+		_view(6, true)   # from below: the ViewCube's bottom face (pitch +89)
+		return true
+	if k.keycode == KEY_KP_PERIOD and plain:
+		return _frame_pts(_sel_points(), "the selection")
+	if k.keycode == KEY_HOME and plain:
+		return _frame_pts(_mesh_points(), "the mesh")
+	return false
+
+
+func _sel_points() -> Array:
+	var pts := []
+	if kmed == null or not kmed.on or kmed.mesh == null or kmed.sel == null:
+		return pts
+	if not kmed.sel.faces.is_empty():
+		for fi in kmed.sel.faces.keys():
+			pts.append(kmed.view.global_transform * kmed.mesh.face_center(int(fi)))
+	elif not kmed.sel.verts.is_empty():
+		for v in kmed.sel.verts.keys():
+			pts.append(kmed.view._to_world(int(v)))
+	return pts
+
+
+func _mesh_points() -> Array:
+	var pts := []
+	if kmed == null or not kmed.on or kmed.mesh == null:
+		return pts
+	for v in kmed.mesh.verts.size():
+		pts.append(kmed.view._to_world(v))
+	return pts
+
+
+## the view turns (keeping yaw and pitch) to look at the centre of pts, the distance taking in their spread
+func _frame_pts(pts: Array, what: String) -> bool:
+	if pts.is_empty():
+		_say("Model: nothing to frame yet: pick something first (Home frames the whole mesh)")
+		return true
+	var c := Vector3.ZERO
+	for p in pts:
+		c += p
+	c /= float(pts.size())
+	var r := 0.0
+	for p in pts:
+		r = maxf(r, (p - c).length())
+	_turn_to(yaw, pitch, clampf(maxf(r * 3.0, 0.6), 0.4, 12.0), c, true)
+	_say("Model: framed %s" % what)
+	return true
+
+
 ## the camera looks at the body, shifted so the body sits in the middle of the free space between the panels
 func _cam() -> void:
 	if shot_through and _shot_apply():
@@ -5006,6 +5103,8 @@ func _cam() -> void:
 		return   # THE SHOT CAMERA: looking through it, the view is the keyed camera (_shot_apply)
 	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
+	if grid_node != null:
+		grid_node.transparency = 0.85 if (_mesh_orbit() and cam.transform.origin.y < 0.0) else 0.0   # under the floor (MODEL / SCULPT): the grid fades, the underside shows
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	if easy.on:   # EASY: the look-at point sits in the free rect under the Easy bar / strip, the body framed there (easy_mode.gd frame_clip)
@@ -5050,6 +5149,9 @@ func _view_dir(d: Vector3, smooth := true) -> void:
 
 
 func _view_home(smooth := true) -> void:
+	if easy != null and easy.on and easy.frame_dist() > 0.0:   # Easy: the first view keeps the body framed (easy_mode.gd frame_clip)
+		_turn_to(HOME["yaw"], HOME["pitch"], easy.frame_dist(), easy.follow_target(), smooth)
+		return
 	_turn_to(HOME["yaw"], HOME["pitch"], _home_dist(), HOME["target"], smooth)
 
 
@@ -5085,7 +5187,8 @@ func _turn_to(y1: float, p1: float, d1: float, t1: Vector3, smooth: bool) -> voi
 		yaw = lerpf(y0, y1, e)
 		pitch = lerpf(p0, p1, e)
 		dist = lerpf(d0, d1, e)
-		target = t0.lerp(t1, e)
+		if not (easy != null and easy.on):   # Easy: the look-at point is the follow's (easy_mode.gd follow_tick), not the tween's
+			target = t0.lerp(t1, e)
 		_cam(), 0.0, 1.0, VIEW_T)
 	_view_tw.tween_callback(func(): yaw = y_goal; _cam())
 
@@ -5125,7 +5228,26 @@ func _pick(mp: Vector2) -> String:
 			best = j
 	_pick_t = best_t
 	pick_us = Time.get_ticks_usec() - t0
-	return best
+	return easy_hand_of(best) if easy != null and easy.on else best
+
+
+## EASY PICKS THE HAND (Nick: a beginner presses a hand, gets a finger, and the drag does nothing): in Easy every finger and
+## thumb joint picks its hand, and each toe (ball) its foot, so a press anywhere on the hand moves the arm by the hand (IK).
+## Expert keeps the finger. Used by _pick only: the one place the pick, the hover and the press all read it
+static func easy_hand_of(j: String) -> String:
+	var side := "_l" if j.ends_with("_l") else "_r"
+	if j in Body.FINGERS:
+		return "hand" + side
+	if j.begins_with("ball_"):
+		return "foot" + side
+	return j
+
+
+## the part's name the words show: Easy says "right hand" / "left foot"; Expert says nice(j)
+func part_words(j: String) -> String:
+	if easy != null and easy.on and (j.begins_with("hand_") or j.begins_with("foot_")):
+		return ("left " if j.ends_with("_l") else "right ") + ("hand" if j.begins_with("hand") else "foot")
+	return nice(j)
 
 
 static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
@@ -5146,7 +5268,7 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
-	if blk != null and blk.on and blk.input(ev):   # B16: the optional Blender-style G / R / S layer (off by default: Kine's own keys)
+	if blk != null and blk.input(ev):   # B16 / GRS: G / R / S: the model preview's always, the body's with the Blender-style layer on (off by default)
 		get_viewport().set_input_as_handled()
 		return
 	if feint_ui != null and feint_ui.on and feint_ui.input(ev):   # I20: Tab picks the variant, P previews, Enter accepts, Esc puts the ghosts away
@@ -5158,10 +5280,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if bed != null and bed.on and bed.input(ev):   # J01: the bone editor's keys (E, Shift+A, X, Tab, Esc), picks and end-ball drags
 		get_viewport().set_input_as_handled()
 		return
-	if kmed != null and kmed.on and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
+	if kmed != null and kmed.on and kmed.showing and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
 		get_viewport().set_input_as_handled()
 		return
-	if ksc != null and ksc.on and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
+	if ev is InputEventKey and ev.pressed and not ev.echo and _mesh_view_key(ev as InputEventKey):   # walk-through 4: Ctrl+Numpad7 bottom, Numpad . frame the selection, Home frames the mesh
+		get_viewport().set_input_as_handled()
+		return
+	if ksc != null and ksc.on and ksc.showing and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
 		get_viewport().set_input_as_handled()
 		return
 	if sk.on and _sk_input(ev):   # I9: a left drag is a stroke; Enter fits, Backspace takes the last stroke back
@@ -5237,6 +5362,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					undo[-1]["name"] = "Drag " + nice(j)   # ROADMAP 45: the drag's step is named by what it moved
 					if easy.on:
 						undo[-1]["easy"] = "Move " + easy_part(j)   # Easy's Undo: "Undo: Move hand", not "Drag left wrist .."
+						undo[-1]["drag"] = true   # Easy: a + Add pose straight after this drag joins this step (easy_mode.add_pose)
 					_tree.set_name(_tree.cur, undo[-1]["name"])
 					_undo_tips()
 					_group_press(j, mb.ctrl_pressed, mb.position)
@@ -5307,7 +5433,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 						_say(_grip_said(r, sel))
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
-			if was == "joint":
+			if was == "joint" and easy != null and easy.on and sel_card >= 0 and not auto_key:
+				easy.card_follows_drag()   # walk-through 5: Easy, a card picked: the drag changes that card (one undo step, "Change pose")
+			elif was == "joint":
 				_autokey_card()   # ROADMAP 42: the drag that moved the body keys a card at the playhead (its undo step is the press's)
 	elif ev is InputEventMouseMotion and dragging != "":
 		var mm := ev as InputEventMouseMotion
@@ -5343,7 +5471,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if shot_through:
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
 			yaw -= rel.x * 0.4
-			pitch = clampf(pitch - rel.y * 0.4, -89.0, 89.0)
+			pitch = clampf(pitch + (rel.y if _mesh_orbit() else -rel.y) * 0.4, -89.0, 89.0)   # MODEL / SCULPT: a downward drag turns the camera under the floor
 			_cam()
 		elif dragging == "pan":
 			var k := dist * 0.0012
@@ -5430,6 +5558,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_F: _do(func(): _fingers_cycle())
 			KEY_G: _do(_toggle_second)
 			KEY_H: _dummy_toggle()
+			KEY_DELETE when sel_prop >= 0 and not k.ctrl_pressed and not k.alt_pressed:   # the picked prop goes (Easy's bar and Expert's SET have the same Remove / Delete prop; one undo step inside _prop_del)
+				_prop_del()
 			KEY_U when not k.shift_pressed: cards_use_usual()   # I10: the picked cards take your usual timing
 			KEY_K: _key_part()
 			KEY_T when k.shift_pressed:
@@ -5529,7 +5659,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
 	if easy != null and easy.on:   # Easy: the stop in plain words, no degree readout (stop_words says which)
-		_say("%s the %s%s%s" % [what, nice(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+		_say("%s the %s%s%s" % [what, part_words(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 	else:
 		_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
 
@@ -5667,7 +5797,7 @@ func _pose_words(text: String) -> Dictionary:
 		return SupportPose.run(self, text)   # N015: "kneeling on the right knee, left foot flat" solves a pose on those contacts
 	if RigWords.is_rig(text) and not PoseWords.parse(text)["ok"]:
 		return _rig_words(text)   # J24: "add a tail with 8 bones" is a rig edit, not a pose
-	if MeshWords.claims(text, kmed != null and kmed.on):
+	if MeshWords.claims(text, kmed != null and kmed.on and kmed.showing):   # a cube hidden on another page takes no mesh words
 		return MeshWords.run(self, text)   # B29: "extrude the top 5 cm" is a model edit (scripts/mesh_words.gd; never a rig / face / pose phrase)
 	var rt := FaceWords.route(text)   # FACE WORDS (I20): "tired and angry", "raise the right arm 90 and look angry": face keyed at the playhead, same step
 	var has_face: bool = rt["face"] != ""
@@ -5957,7 +6087,7 @@ func _snapshot() -> Dictionary:
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
-		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
+		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
@@ -6102,6 +6232,9 @@ func _restore(u: Dictionary) -> void:
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
+	if u.has("bcol") and int(u["bcol"]) != body_colour:
+		body_colour = int(u["bcol"])   # His colour, undone like the photo materials
+		_body_colour_show()
 	if u.has("bmats") and var_to_str(u["bmats"]) != var_to_str(body_mats):
 		body_mats = u["bmats"].duplicate()   # the photo materials on body parts, undone like a card (E15)
 		photomat.sync_body()
@@ -6236,6 +6369,12 @@ func _push_undo() -> void:
 	_bake_drop()
 	if mm_ui != null:
 		mm_ui.halt()   # an edit ends the motion matching preview: it would write its next frame over the edit (the toggle pushes its step first, then starts)
+	if _undo_merge:   # Easy's + Add pose after a drag: no new step; easy_mode.add_pose renames the drag's step and keeps its undo state
+		_step_hint = ""
+		_step_easy = ""
+		_jpending = true
+		_co_sync()
+		return
 	if _macro_nest > 0:   # ROADMAP 81: a macro's edits share the one undo step, opened before its first edit
 		if _macro_pushed:
 			return
@@ -6256,6 +6395,7 @@ func _push_undo() -> void:
 	_history_rows.call_deferred()
 	if undo.size() > 60:
 		undo.pop_front()
+		undo_dropped += 1
 		_tree.trim_root()
 	redo.clear()
 	_jpending = true
@@ -6299,7 +6439,7 @@ func _undo() -> void:
 		sk.fitted = SketchPose._skel(B, cam)
 		_sk_show_handles()
 	_say(("Took back: " + easy_name(u)) if easy != null and easy.on else "undone: " + now["name"])   # Easy says the short name too
-	_toast("Undid: " + (easy_name(u) if easy.on else now["name"]))   # Easy's toast says the short name ("Undid: Faster")
+	_toast(("Took back: " + easy_name(u)) if easy.on else "Undid: " + now["name"])   # Easy's toast and status line say the same words ("Took back: Faster")
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -6327,7 +6467,7 @@ func _redo() -> void:
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
 	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "redone: " + now["name"])
-	_toast("Redid: " + (easy_name(r) if easy != null and easy.on else now["name"]))
+	_toast(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])   # Easy: the same words as the status line
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -8542,6 +8682,7 @@ func _kmesh_edit_start() -> void:
 		return
 	_mesh_page_for("MODEL")
 	kmed.start()
+	_mesh_show_sync()
 
 
 func _kmesh_subdivide() -> void:   # A12: Catmull-Clark the test cube (opens it first), one undo step
@@ -8581,10 +8722,9 @@ func _sculpt_start() -> void:
 	if ksc.on:
 		_say("The test sphere is already open: drag on it to sculpt, or press Esc to leave")
 		return
-	if kmed != null and kmed.on:
-		kmed.stop()   # the test cube is still open (its box select takes every left press first): the sphere gets the strokes
 	_mesh_page_for("SCULPT")
-	ksc.start()
+	ksc.start()   # the test cube, if it is open, is kept and hidden on this page (set_showing): the sphere gets the strokes
+	_mesh_show_sync()
 
 
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
@@ -10255,6 +10395,7 @@ func _how(j: String) -> String:
 ## FEEDBACK YOU CAN SEE (round 24, GATES EE3, UPGRADES #41): Ctrl+Z / Ctrl+Y show a toast over the view naming the
 ## step, gone after TOAST_T (a new one replaces it); a Fix flashes the cards it changed, fading back over FLASH_T
 const TOAST_T := 1.6
+const EASY_TOAST_T := 3.0   # Easy's toast: a few seconds, then gone (or replaced by the next action's message)
 const FLASH_T := 0.7
 const FLASH_COL := Color(1.7, 1.5, 0.75)
 var ui_toast: Label
@@ -10278,15 +10419,24 @@ func _toast(t: String) -> void:
 		ui_root.add_child(ui_toast)
 	ui_toast.text = t
 	ui_toast.visible = true
+	var hold := EASY_TOAST_T if easy != null and easy.on else TOAST_T
 	ui_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE)
 	ui_toast.position.y = 96
 	if easy != null and easy.on:
 		_easy_toast_place(ui_toast)
+		_easy_toast_place.call_deferred(ui_toast)   # again once the strip has its new size (an undo can grow or shrink it this frame)
 	_toast_gen += 1
 	var g := _toast_gen
-	get_tree().create_timer(TOAST_T).timeout.connect(func():
+	get_tree().create_timer(hold).timeout.connect(func():
 		if g == _toast_gen and is_instance_valid(ui_toast):
 			ui_toast.visible = false)
+
+
+## the toast is taken down now: an Easy action's new message replaces the old one (say, the library, a saved video)
+func _toast_clear() -> void:
+	if ui_toast != null:
+		ui_toast.visible = false
+
 
 
 ## EASY TOAST PLACE (walk-through item 1): in Easy the toast takes the first place in the window that covers no visible Button:
@@ -10301,7 +10451,7 @@ func _easy_toast_place(t: Label) -> void:
 	var btns: Array = []
 	_collect_button_rects(self, btns)
 	# the Easy panels a toast must not sit on either (the picker, its strip, the welcome and status lines, the card strip)
-	var panels := [ui_mouse, ui_status, ui_bar, ui_cards, easy.home.strip, easy.home.panel, ui_library]
+	var panels := [ui_mouse, ui_status, ui_bar, ui_cards, easy.home.strip, easy.home._scrub_row, easy.home.panel, ui_library]   # the scrub row: a slider is no button
 	for n in panels:
 		if n is Control and is_instance_valid(n) and (n as Control).is_visible_in_tree() and (n as Control).size.y > 0.0:
 			btns.append((n as Control).get_global_rect())
@@ -10376,6 +10526,8 @@ func _flash_cards(idx: Array) -> void:
 
 
 func _say(t: String) -> void:
+	if easy != null and easy.on:
+		_toast_clear()   # Easy: the next action's message replaces the last toast (a toast that is still up named an older step)
 	if WhyWrong.is_problem(t):   # WHAT WENT WRONG? keeps the last refusal with its command, part and frame
 		_why_last = {"text": t, "cmd": _why_cmd if _why_cmd != "" else "a key press", "part": nice(sel),
 			"frame": roundi(playhead * float(S.fps)), "at": playhead}
@@ -11714,6 +11866,9 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(fd_btn)
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
+	ui_ribbon["EXPORT"].add_child(_button("Export model (GLB / OBJ)", _export_model, "the test cube or the edited body mesh as res://exports/<model>.glb and .obj (static, the model editor's mesh); the status line gives the path, Open exports folder opens it"))
+	ui_ribbon["EXPORT"].add_child(_button("Use as a prop", _use_export_as_prop, "put the last Export model GLB in Library > My models at its real size (the same import as dropping a .glb in); then Add prop puts it in a scene"))
+	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): _shell_open(UserPaths.w("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
 	if fp_ui == null:
@@ -11724,6 +11879,8 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Unpack zip...", _unpack_ask, "pick a .kinezip and a folder under the app's user folder: the files are checked against their hashes, unpacked there, and the scene opens with its paths pointing at them"))
 	ui_ribbon["EXPORT"].add_child(_button("Save version", _save_version, "the scene as it is now kept as a version (Versions, in the scene row, brings it back)"))
 	# SET (round 37, SS5 / SS6): props to pose with
+	# the object library first in the row (a click here opens the same panel as Easy's Library button and the command search)
+	ui_ribbon["SET"].add_child(_button("Library", _library_toggle, "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it"))
 	for lid in LightRig.IDS:   # ROADMAP R1: the lighting presets on the shot camera (light_rig.gd), one click each
 		ui_ribbon["SET"].add_child(_button(LightRig.NAMES[lid], _light_preset.bind(lid), LightRig.tip(lid)))
 	ui_ribbon["SET"].add_child(_button("Crowd: make 20 copies of this fighter", _crowd_make, "20 copies of this fighter's clip around it: each its own time, speed, slight joint noise, mirror and stature (ANSUR II). Ctrl+Z undoes"))
@@ -11747,7 +11904,6 @@ func _ui() -> void:
 	ap.about_to_popup.connect(_prop_menu_fill.bind(ap))
 	ap.get_popup().id_pressed.connect(_prop_menu_pick.bind(ap))
 	ui_ribbon["SET"].add_child(ap)
-	ui_ribbon["SET"].add_child(_button("Object library...", _library_toggle, "the object library: weapons, furniture, sports, everyday things, armour and your own models in tabs, with thumbnails and a search. Click one to place it: a weapon in the right hand, a prop on the floor, a plate over the body (one undo step each)"))
 	ui_ribbon["SET"].add_child(_button("Import model", _import_ask, "bring in your own .glb model (a box, furniture, an object): it is checked, copied into your library and put in the set. Or drop the file on the window"))
 	for tt in [["Turn left", -15.0], ["Turn right", 15.0]]:
 		var ptb := _button(tt[0], _prop_turn.bind(tt[1]), "turn the picked prop 15° round its middle")
@@ -12154,7 +12310,7 @@ func _ui() -> void:
 	ui_scene_name.placeholder_text = "scene name"
 	ui_scene_name.custom_minimum_size = Vector2(200, 0)
 	ui_scene_name.tooltip_text = "the scene's name: type here, Enter saves it under that name"
-	ui_scene_name.text_submitted.connect(func(_t): _step_hint = "Save scene"; _save_scene())   # Enter saves (V3: one action less)
+	ui_scene_name.text_submitted.connect(func(_t): _step_hint = "Save scene"; _save_scene(); ui_scene_name.release_focus())   # Enter saves (V3: one action less); the keys go back to the view (walk-through 5, F2)
 	bh.add_child(ui_scene_name)
 	# ONE Scene menu holds Save, Open, Versions, New, Template and Delete (the strip used to be eight text buttons)
 	ui_scene_btn = MenuButton.new()
@@ -12216,7 +12372,14 @@ func _ui() -> void:
 	var cs := ScrollContainer.new()
 	cs.custom_minimum_size = Vector2(0, 112)
 	cs.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	bv.add_child(cs)
+	cs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var crow := HBoxContainer.new()   # the strip, and to its right a slot that does not scroll (Easy's "+ Add pose")
+	# unnamed on purpose: a named box would add a part to every card's address (agents and the keyboard reach "card_2/b_pick")
+	bv.add_child(crow)
+	crow.add_child(cs)
+	ui_add_slot = HBoxContainer.new()
+	ui_add_slot.name = "add_slot"
+	crow.add_child(ui_add_slot)
 	ui_card_row = cs
 	ui_cards = HBoxContainer.new()
 	ui_cards.add_theme_constant_override("separation", 2)
@@ -12823,10 +12986,10 @@ func bar_text() -> String:
 	var what := ""
 	if _num_on:
 		what = "TYPE %s = %s_   (it is %.1f)   Tab: next axis   Enter: done   Esc: cancel the drag" % [NUM_AXES[_num_axis], _num_text, (B.ang[sel] as Vector3)[_num_axis]]
-	elif kmed != null and kmed.on:   # ROADMAP_400 A14: the mesh being edited, counted (scripts/kmesh_stats.gd)
+	elif kmed != null and kmed.on and kmed.showing:   # ROADMAP_400 A14: the mesh being edited, counted (scripts/kmesh_stats.gd)
 		what = kmed.stats_text()
 	elif _bar_hover != "" and _bar_hover != sel:
-		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else nice(_bar_hover))
+		what = "pointing at the %s  (click: pick it, drag: turn it)" % (wep_noun() if _bar_hover in Body.WEAPON else part_words(_bar_hover))
 	elif sel in Body.WEAPON:
 		what = wep_noun() + ("  in the " + nice(B.wep_hand) if B.wep_hand != "" else "  free")
 	else:
@@ -13189,14 +13352,15 @@ func _rebuild_cards() -> void:
 	wt.mark_dirty()
 	if ui_browser != null:
 		ui_browser.refresh()
-	for c in ui_cards.get_children():
-		ui_cards.remove_child(c)   # detach now: a freed card_3 would still hold its name for a frame
+	for c in ui_cards.get_children() + (ui_add_slot.get_children() if ui_add_slot != null else []):
+		c.get_parent().remove_child(c)   # detach now: a freed card_3 would still hold its name for a frame
 		c.queue_free()
 	_ease_bias_armed = false   # a rebuild (pick, undo, any edit) ends the slider's drag: its next move gets its own undo step
 	_sg_strip = null   # R27: the strip was emptied just above
 	_layout_bottom()
 	if S.cards.is_empty() and easy != null and easy.on:
-		ui_cards.add_child(_label("Your moves will show here. Pick one in \"What should he do?\"", 16, "text:0.55"))   # Easy home holds the ways in
+		ui_cards.add_child(easy.strip_button())   # + Add pose: an empty scene's strip shows it with its tip (Easy home holds the other ways in)
+		ui_cards.add_child(_label("Drag his arms and legs, then press + Add pose", 16, "text:0.55"))
 	elif S.cards.is_empty():
 		# THREE WAYS IN (round 26, GATES GG1, UPGRADES #47): clip the body as it is, open a scene, or an example (a copy)
 		ui_cards.add_child(_label("No clips yet.  Start here:", 16, "text:0.55"))
@@ -13232,12 +13396,20 @@ func _rebuild_cards() -> void:
 		var easy_on: bool = easy != null and easy.on   # Easy: a picture and one plain word (the name); no number, no seconds
 		var nb := _button(_easy_card_name(c["name"], i) if easy_on else "%d %s" % [i + 1, c["name"]], _card_pick_click.bind(i), "")
 		nb.name = "b_pick"   # not from its text: the card's name changes
-		nb.tooltip_text = ("%s.  Click shows it, double-click renames, drag moves it, right-click for more" % _easy_card_name(c["name"], i)) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
+		nb.tooltip_text = ("%s  (%s).  Click shows it, double-click renames, drag moves it, right-click for more" % [_easy_card_name(c["name"], i), c["name"]]) if easy_on else "%d  %s  (at %.2f s).  Click shows it, double-click renames, drag moves it, right-click for more" % [i + 1, c["name"], ts[i][1]]
 		nb.gui_input.connect(_card_title_input.bind(i, nb))   # V3: a card's name, in place
 		nb.flat = true
 		nb.clip_text = true
 		nb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		nb.add_theme_font_size_override("font_size", 11)
+		if easy_on and c.has("from") and nb.get_combined_minimum_size().x > CARD_W:   # a plain name too wide for its card: smaller type first, then "<Move> <n>"
+			var fs := 11
+			while fs > 8 and nb.get_combined_minimum_size().x > CARD_W:
+				fs -= 1
+				nb.add_theme_font_size_override("font_size", fs)
+			if nb.get_combined_minimum_size().x > CARD_W:
+				nb.remove_theme_font_size_override("font_size")
+				nb.text = _easy_move_label(i)
 		nb.add_theme_constant_override("icon_max_width", CARD_W - 8)
 		nb.add_theme_constant_override("h_separation", 0)
 		nb.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -13324,6 +13496,8 @@ func _rebuild_cards() -> void:
 		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i); _card_timing_look(tb, i))
 		hh.add_child(hs)
 		pc.add_child(pp)
+	if easy != null and easy.on and not S.cards.is_empty():
+		ui_add_slot.add_child(easy.strip_button())   # + Add pose: pinned right of the strip, so a 37-card run never scrolls it away
 	_sg_strip_sync()   # R27: the three mini thumbnails after the current card
 
 
@@ -13349,7 +13523,13 @@ var _pl_card := -1     # the card at the playhead (marked on the strip)
 ## Easy's card line: the card's name with a capital and the rest as typed ("CROSS" -> "Cross", "guard" -> "Guard")
 func _easy_card_name(n: String, i := -1) -> String:
 	var t := String(n).strip_edges()
-	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy shows its place in the strip
+	if i >= 0 and i < S.cards.size() and S.cards[i].has("from") and easy_is_jargon(t):   # a move's jargon name ("Anticipation: load"): "<Move> <n>" by its place in the move's run
+		return _easy_move_label(i)
+	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy names it "Video <n>", n its place in the copy
+		return "Video %d" % _copy_place(i)
+	if t.to_lower().begins_with("pivot ") and t.substr(6).contains("."):   # a path walk's turn card ("pivot 1.2": the feet turn before a step): "Turn" in plain words (walk-through 10, B)
+		return "Turn"
+	if i >= 0 and t.to_lower().begins_with("pose ") and t.substr(5).strip_edges().is_valid_int():   # "pose 3" (a new card's name): its place in the strip, so a card added between two reads right
 		return "Pose %d" % (i + 1)
 	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
 		return EASY_CARD_NAME[t.to_lower()]
@@ -13362,6 +13542,48 @@ func _easy_card_name(n: String, i := -1) -> String:
 static var EASY_CODE_NAME := RegEx.create_from_string("^(mid|off|air|land|swing|half step|step|stop)\\b")
 
 
+## EASY: a card's own name is animator jargon when it has a ":" or starts with a phase word (the template's and TextBlocking's)
+static func easy_is_jargon(n: String) -> bool:
+	var t := n.strip_edges().to_lower()
+	if t.find(":") >= 0:
+		return true
+	for w in ["ready", "anticipation", "strike", "follow-through", "recovery", "contact", "settle"]:
+		if t.begins_with(w):
+			return true
+	return false
+
+
+## EASY: the place of a copied-video card in its run of copied cards (the v<frame> cards in a row), 1 for the run's first
+func _copy_place(i: int) -> int:
+	var k := 1
+	var j := i - 1
+	while j >= 0 and _is_copy_name(String(S.cards[j]["name"])):
+		k += 1
+		j -= 1
+	return k
+
+
+static func _is_copy_name(n: String) -> bool:
+	return n.begins_with("v") and n.substr(1).is_valid_int()
+
+
+## EASY: "<Move> <n>" for a card of a move: n is its place in the move's run (consecutive cards with the same tag)
+func _easy_move_label(i: int) -> String:
+	var tag := String(S.cards[i]["from"])
+	var k := 1
+	var j := i - 1
+	while j >= 0 and S.cards[j].get("from", "") == tag:
+		k += 1
+		j -= 1
+	return "%s %d" % [easy_from_word(tag), k]
+
+
+## EASY: the word for a card's move tag ("punch|<serial>", "roundhouse|<serial>", "jab|<serial>"): the move in plain words
+static func easy_from_word(tag: String) -> String:
+	var t := tag.split("|")[0].strip_edges().to_lower().replace(" ", "_")
+	return EASY_MOVE_WORD.get(t, t.substr(0, 1).to_upper() + t.substr(1))
+
+
 ## EASY: the move a scene is named for, in plain words: its name without the copy number ("run 68", "run_2" -> "Run");
 ## "Move" when the name is not a move's (a scene the user named)
 static func easy_move_word(scene_name: String) -> String:
@@ -13369,7 +13591,7 @@ static func easy_move_word(scene_name: String) -> String:
 	return EASY_MOVE_WORD.get(base.replace(" ", "_"), "Move")
 
 
-const EASY_MOVE_WORD := {"walk": "Walk", "run": "Run", "jump": "Jump", "punch": "Punch", "sword_swing": "Sword swing",
+const EASY_MOVE_WORD := {"walk": "Walk", "run": "Run", "jump": "Jump", "punch": "Punch", "sword_swing": "Sword",
 	"sit_down": "Sit down", "wave": "Wave", "fall": "Fall", "roundhouse": "Kick"}
 const EASY_CARD_NAME := {"load": "Wind up", "cross": "Punch", "recover": "Back to guard"}
 const EASY_WEAPON := {"sword": "a sword", "longsword": "a longsword", "katana": "a katana", "metal_bat": "a bat", "staff": "a staff",
@@ -13806,6 +14028,8 @@ func _ease_bias_drag(i: int, x: float) -> void:
 ## (round 7) the four card edits push an undo step: a card's X could not be undone ("we always have ctrl+z")
 func _card_add() -> void:
 	_push_undo()
+	if easy != null:
+		easy.edit_pick = -1   # an added card is selected but was not picked: the next drag poses a new card, not this one
 	var nm := ui_pose_name.text.strip_edges()
 	var at := sel_card + 1 if sel_card >= 0 else -1
 	S.add(nm if nm != "" else "pose %d" % (S.cards.size() + 1), B.to_dict(), at)
@@ -13814,11 +14038,15 @@ func _card_add() -> void:
 	playhead = S.times()[sel_card][1]
 	_rebuild_cards()
 	_refresh()
+	if easy != null and easy.on:
+		easy.frame_clip_next(true)   # the strip grew: the bottom bar is taller, so the body is framed again in the free rect above it
 	_say("added card %d%s.  Pose the next moment and add it too, then Play." % [sel_card + 1, (" with your usual timing (%s s; U or a click on the time changes it)" % String.num(float(S.cards[sel_card]["move"]), 2)) if us else ""])
 
 
 func _card_pick(i: int) -> void:
 	_push_undo()
+	if easy != null:
+		easy.edit_pick = i   # Easy: this card was picked on purpose, so a body drag now changes it (easy_mode.card_follows_drag)
 	_tween_armed = false   # a new card: its first tween nudge gets its own undo step
 	_ease_bias_armed = false
 	sel_card = i
@@ -14171,6 +14399,7 @@ func _page_set(p: String, save := true) -> void:
 		return
 	if easy != null and easy.on and ExpertPages.PAGES.has(p):
 		return   # the expert pages are hidden in Easy mode (ExpertPages; the Shift+7..9 keys too)
+	var was_page := cur_page
 	var was_mesh := ExpertPages.PAGES.has(cur_page)
 	var is_mesh := ExpertPages.PAGES.has(p)
 	if is_mesh and not was_mesh:   # a mesh page: the posing body's target dummy goes away (as Easy does), remembered
@@ -14186,6 +14415,9 @@ func _page_set(p: String, save := true) -> void:
 			dummy_on = true
 			_dummy_hits()
 	cur_page = p
+	_mesh_show_sync()
+	if save and p != was_page:   # the status line says this page's own hint (it was the last page's message)
+		_say("%s page: %s" % [p, PAGE_TIPS[p]])
 	for k in fold:
 		fold[k] = _page_want(p, k)
 	_ribbon_row(PAGE_ROW[p])
@@ -14216,13 +14448,30 @@ func _mesh_page() -> bool:
 
 ## a mesh opened from a posing page (the search box, a shortcut): its own page first, so the posing browser and inspector
 ## step aside and the mesh panels have the left column (a cube opened on POSE drew its primitive panel over the browser)
+## Also from a mesh page that does not show this object (the sphere opened from MODEL, the cube from SCULPT): that page hides it
+## (_mesh_show_sync) and its strokes / clicks waited, so a sculpt in pose opened from MODEL moved nothing
 func _mesh_page_for(p: String) -> void:
-	if not _mesh_page() and not (easy != null and easy.on) and ui_page_btns.has(p):
+	if (easy != null and easy.on) or not ui_page_btns.has(p):
+		return
+	if not _mesh_page() or ((p == "SCULPT") != (cur_page == "SCULPT")):
 		_page_set(p)
 
 
+## the mesh this page shows is open: the sphere on SCULPT, the cube on MODEL and SURFACE
 func _mesh_open() -> bool:
-	return (kmed != null and kmed.on) or (ksc != null and ksc.on)
+	if cur_page == "SCULPT":
+		return ksc != null and ksc.on
+	return kmed != null and kmed.on
+
+
+## each mesh page shows only its own object: the cube on MODEL and SURFACE, the sphere on SCULPT, neither on the other pages.
+## A hidden object is kept (its edits, undo and panels), so leaving and coming back loses nothing
+func _mesh_show_sync() -> void:
+	var mesh_pg := _mesh_page()
+	if kmed != null:
+		kmed.set_showing(mesh_pg and cur_page != "SCULPT")
+	if ksc != null:
+		ksc.set_showing(mesh_pg and cur_page == "SCULPT")
 
 
 ## the hint in the view while a mesh page has no mesh open; gone as soon as one is open or the page is left
@@ -14447,12 +14696,15 @@ func _layout_bottom() -> void:
 	var eo: bool = easy.on and not empty and not folded   # EASY BOTTOM: the card row and the ruler, no more (a beginner's panel is not a timeline)
 	if eo:
 		bottom_h = EASY_ROW_H + EASY_SEP + EASY_RULER + 6 + PAGE_H
+	var eempty: bool = easy.on and empty   # EASY EMPTY: the strip holds the + Add pose button (a card's height), not the 26 px line
+	if eempty:
+		bottom_h += EASY_ROW_H - 26
 	_easy_bottom_style(eo)
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
 		ui_fold_btn["bottom"].visible = not empty
-	ui_card_row.custom_minimum_size.y = 26 if empty else (EASY_ROW_H if eo else 104)
+	ui_card_row.custom_minimum_size.y = (EASY_ROW_H if eempty else 26) if empty else (EASY_ROW_H if eo else 104)
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty and not easy.on
 	ui_bp.offset_top = -bottom_h
@@ -14598,7 +14850,7 @@ func _cheat_sheet() -> void:
 		_say(String(r["why"]))
 		return
 	if cheat_open:
-		OS.shell_open(ProjectSettings.globalize_path(r["path"]))
+		_shell_open(String(r["path"]))
 	_say("cheat sheet: %d keys, %d groups -> %s (print it from the browser)" % [r["keyed"], (r["groups"] as Array).size(), ProjectSettings.globalize_path(r["path"])])
 
 
@@ -15884,7 +16136,7 @@ func _mirror_scene() -> void:
 	# refuses); always in scenes/_wip, whatever folder the name gives
 	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("mirrored scene saved as %s and opened; '%s' is untouched" % [path.get_file(), H.name])
@@ -16101,7 +16353,7 @@ func _style_save(style: String, pct: float) -> void:
 	var d := StyleTransfer.make(_scene_dict(), style, pct)
 	var path := UserPaths.w("res://scenes/_wip/%s.json" % safe_file(String(d["scene"])).trim_prefix("_wip/"))
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("style %s at %d%%: saved as %s and opened; '%s' is untouched" % [style, int(round(pct)), path.get_file(), H.name])
@@ -16150,7 +16402,7 @@ func _words_build() -> void:
 	var d := S2.to_dict(W)
 	d["plan"] = "Block out a move from words '%s': %s" % [text, r["status"]]
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("'%s' blocked out as %s and opened (%d cards: %s). %s" % [text, path.get_file(), S2.cards.size(), ", ".join(S2.cards.map(func(c): return String(c["name"]).get_slice(":", 0))), r["status"]])
@@ -16317,7 +16569,7 @@ func _template_build_now(nm: String, d: Dictionary) -> void:
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "from the %s template" % String(Templates.INFO[nm][0]).to_lower()
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("%s template: saved as %s and opened (%d cards); the template itself is untouched" % [Templates.INFO[nm][0], path.get_file(), S.cards.size()])
@@ -16920,8 +17172,18 @@ var last_source := ""
 func _open_source(url: String) -> void:
 	last_source = url
 	_say("source: " + url)
+	_shell_open(url)
+
+
+## every file / folder / page the app hands to the system: a test run only records it (a browser started from a test
+## outlives Godot, holds the test runner's console pipe, and the run never exits; and it opens windows on the screen)
+var last_shell := ""
+
+
+func _shell_open(path: String) -> void:
+	last_shell = path
 	if Engine.get_main_loop().get_script() == null:
-		OS.shell_open(ProjectSettings.globalize_path(url) if url.begins_with("res://") else url)
+		OS.shell_open(ProjectSettings.globalize_path(path) if path.begins_with("res://") or path.begins_with("user://") else path)
 
 
 func _close_findings() -> void:
@@ -17074,7 +17336,7 @@ func _polish() -> void:
 	var d := D.to_dict(ov.GB)
 	d["plan"] = "Polish (tools/detail.gd) from " + base
 	_write(path, d)
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("polished: %d cards -> %d, one smooth curve.  Saved as %s; your '%s' is untouched.  Press Check to see what is left." % [n0, D.cards.size(), path.get_file(), base])
@@ -17112,7 +17374,7 @@ func _ragdoll_fall() -> void:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("ragdoll: %d cards, first floor contact %s, %s. Saved as %s; your '%s' is untouched." % [
@@ -17644,6 +17906,8 @@ func _mode_paint() -> void:
 ## refresh, so the speed graph stayed up over the empty scene with the old scene's curves)
 func _new_scene() -> void:
 	_actors_home()   # TC3
+	if easy != null:
+		easy.edit_pick = -1
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
 	if not reh.is_empty():   # I14: so does a rehearsal
@@ -17831,7 +18095,11 @@ func _confirm(msg: String, ok_text: String, f: Callable) -> void:
 ## away, its autosave and journal with it), Cancel (nothing happens, the scene stays open). Nothing unsaved: no dialog.
 ## A crash or a kill never reaches this code: the journal still offers the work at the next start.
 var ui_save_ask: ConfirmationDialog
+var ui_save_discard: Button       # the dialog's own "Don't save" button (a named Button: a test or a driver presses it)
 var _save_ask_then: Callable      # what goes on after Save or Don't save
+var ui_clash: ConfirmationDialog   # a scene name is taken: Replace it / Save as a new name / Cancel (round 8)
+var ui_clash_new: Button
+var _clash_do: Callable           # the answer's work: _clash_go bound to the name and `then`
 var _save_ask_quit := false       # the question is for the window's close: Don't save then quits without a dialog
 var _discarding := false          # Don't save on the way out: the exit drops the autosave and the journal too
 var quit_fn: Callable             # a test's stand-in for get_tree().quit() (empty in the app)
@@ -17874,7 +18142,8 @@ func _ask_save(what: String, then: Callable, quitting := false) -> void:
 		ui_save_ask.dialog_autowrap = true
 		ui_save_ask.min_size = Vector2i(440, 0)
 		ui_save_ask.ok_button_text = "Save"
-		ui_save_ask.add_button("Don't save", false, "discard")
+		ui_save_discard = ui_save_ask.add_button("Don't save", false, "discard")
+		ui_save_discard.name = "DontSave"
 		ui_save_ask.confirmed.connect(func(): _save_ask_choose("save"))
 		ui_save_ask.custom_action.connect(func(a: StringName): _save_ask_choose(String(a)))
 		ui_save_ask.canceled.connect(func(): _save_ask_choose("cancel"))
@@ -17883,7 +18152,8 @@ func _ask_save(what: String, then: Callable, quitting := false) -> void:
 	_save_ask_quit = quitting
 	ui_save_ask.dialog_text = "Save changes to %s?\nThey are not saved yet. Don't save throws them away." % what
 	ui_save_ask.popup_centered()
-	_say("Save changes to %s? Save keeps them, Don't save throws them away, Cancel keeps the scene open" % what)
+	if not easy.on:   # Easy: the dialog says it; the same words again in the status line under the body only repeat it
+		_say("Save changes to %s? Save keeps them, Don't save throws them away, Cancel keeps the scene open" % what)
 
 
 ## how = "save" | "discard" | "cancel" (the dialog's buttons, and what a test calls)
@@ -17906,12 +18176,12 @@ func _save_ask_choose(how: String) -> void:
 		return
 	if save_hook.is_valid():
 		save_hook.call()
+		if _unsaved():   # the save did not happen (an empty name, a co-edit guest)
+			_say("not saved yet, so the scene stays open: answer the question, or Save scene, then close or open again")
+			return
+		then.call()
 	else:
-		_save_scene()
-	if _unsaved():   # the save did not happen (an empty name, a co-edit guest, or a replace question is up now)
-		_say("not saved yet, so the scene stays open: answer the question, or Save scene, then close or open again")
-		return
-	then.call()
+		_save_scene(then)   # `then` goes on when the save lands: a taken name asks Replace / Save as a new name first (round 8)
 
 
 func _trash(path: String) -> void:
@@ -17979,17 +18249,89 @@ func _load_pose(path: String) -> void:
 	B.capture_second()   # a pose with both hands on the shaft loads with both hands holding it
 
 
-func _save_scene() -> void:
+## then (round 8): what goes on once the scene is saved (New scene, Open): it waits for a Replace / Save as a new name answer
+func _save_scene(then := Callable()) -> void:
 	if _hero_scene().cards.is_empty():
 		_say("the scene is empty: press Enter to add the body as a card, then Save scene")
 		return
 	var nm := ui_scene_name.text.strip_edges()
 	var to := UserPaths.w("res://scenes/%s.json" % (safe_file(nm) if safe_file(nm) != "" else "scene_" + _stamp()))
 	if FileAccess.file_exists(to) and to != scene_path:
-		_confirm("A different scene called '%s' already exists.\nReplace it with this one? Ctrl+Z can't bring the old file back." % to.get_file().get_basename(),
-			"Replace it", _save_scene_now.bind(nm))
+		if easy != null and easy.on:
+			# EASY (beginner walk-through 10, friction 1): a different scene has this name: no question, the next free name
+			# (wave_2) and the status line says so. The same scene (scene_path) overwrites silently, as Ctrl+S does.
+			var taken := nm
+			nm = _free_name(nm)
+			ui_scene_name.text = nm
+			_save_scene_now(nm)
+			if _unsaved():
+				return
+			_say("Saved %s (%.1f seconds): '%s' was taken by another scene, so this one has the next name" % [nm.replace("_", " "), roundf(_hero_scene().length() * 10.0 + 0.001) / 10.0, taken.replace("_", " ")])
+			_then_if_saved(then)
+			return
+		_clash_ask(nm, then)
 		return
 	_save_scene_now(nm)
+	_then_if_saved(then)
+
+
+## THE NAME IS TAKEN (walk-through round 8, friction 1): a different scene file has this name. Replace it (Ctrl+Z can't bring the
+## old file back), or Save as a new name (name_2, the first free _n: "Save as a new name" is the default in Easy). Either answer
+## saves; Cancel saves nothing and `then` is dropped (the scene stays open).
+func _clash_ask(nm: String, then: Callable) -> void:
+	if ui_clash == null:
+		ui_clash = ConfirmationDialog.new()
+		ui_clash.title = "Name taken"
+		ui_clash.dialog_autowrap = true
+		ui_clash.min_size = Vector2i(440, 0)
+		ui_clash.ok_button_text = "Replace it"
+		ui_clash_new = ui_clash.add_button("Save as a new name", true, "newname")
+		ui_clash_new.name = "SaveAsNew"
+		ui_clash.confirmed.connect(func(): _clash_choose("replace"))
+		ui_clash.custom_action.connect(func(a: StringName): _clash_choose("new"))
+		ui_clash.canceled.connect(func(): _clash_choose("cancel"))
+		add_child(ui_clash)
+	_clash_do = _clash_go.bind(nm, then)
+	ui_clash.dialog_text = "A different scene called '%s' already exists.\nReplace it with this one? Ctrl+Z can't bring the old file back.\nOr save this one as '%s_2'." % [nm, nm]
+	ui_clash.popup_centered()
+	if easy != null and easy.on:
+		ui_clash_new.call_deferred("grab_focus")   # Easy: Enter takes the new name
+	_say("A scene called '%s' already exists: Replace it, or Save as a new name" % nm)
+
+
+## how = "replace" | "new" | "cancel" (the dialog's buttons, and what a test calls)
+func _clash_choose(how: String) -> void:
+	if not _clash_do.is_valid():   # already answered (a canceled after a button is not a second answer)
+		return
+	var go := _clash_do
+	_clash_do = Callable()
+	ui_clash.hide()
+	go.call(how)
+
+
+func _clash_go(how: String, nm: String, then: Callable) -> void:
+	if how == "cancel":
+		_say("kept open: nothing was saved under the name '%s'" % nm)
+		return
+	if how == "new":
+		nm = _free_name(nm)
+		ui_scene_name.text = nm
+	_save_scene_now(nm)
+	_then_if_saved(then)
+
+
+## the first name_2, name_3... whose scene file is free
+func _free_name(nm: String) -> String:
+	var k := 2
+	while FileAccess.file_exists(UserPaths.w("res://scenes/%s.json" % safe_file("%s_%d" % [nm, k]))):
+		k += 1
+	return "%s_%d" % [nm, k]
+
+
+## the save went through: `then` goes on (an unsaved scene, a refused save, a guest's save: nothing goes on)
+func _then_if_saved(then: Callable) -> void:
+	if then.is_valid() and not _unsaved():
+		then.call()
 
 
 ## A NAME AS A FILE (round 17, GATES X3): the name as typed stays the scene's (or pose's) name, shown and saved inside the
@@ -18073,6 +18415,8 @@ func _save_scene_now(nm: String) -> void:
 	_refresh()
 	if easy != null and easy.on:   # Easy: "Saved run 68 (3.3 seconds)." (the name as its words; the length to a tenth of a second)
 		_say("Saved %s (%.1f seconds)." % [H.name.replace("_", " "), roundf(H.length() * 10.0 + 0.001) / 10.0])   # the 0.001: 3.25 s reads 3.3, not 3.2 (float)
+		if easy.home != null:   # the toast says where it went: the file's name and its folder (the status line keeps its words)
+			_toast("Saved as %s in %s" % [fname, easy.home.folder_line(scene_path)])
 	else:
 		_say("saved scene %s: %d cards, %s, %d frames with parts inside each other" % [H.name, H.cards.size(), Units.time(H.length(), S.fps), d["bad_frames"].size()])
 
@@ -18715,7 +19059,7 @@ func _restore_copy(r: Dictionary) -> void:
 	var nm := safe_file(String(r["name"])).trim_prefix("_wip/")
 	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), (nm if nm != "" else "autosave") + "_restored")
 	_write(path, a["scene"])
-	_load_scene(path)
+	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
 	_say("restored the autosave from %s as scenes/_wip/%s: %d cards. Your scenes are untouched" % [r["at"], path.get_file(), r["cards"]])
@@ -19071,7 +19415,7 @@ func _prop_press(i: int, mp: Vector2, t: float) -> void:
 	dragging = "prop"
 	_end_teach()
 	_props_show()
-	_say_plain("the %s: drag to move it (it steps onto what it stands over); Turn left / right and Delete are in SET" % _prop_name(i))
+	_say_plain(("the %s: drag to move it (it steps onto what it stands over); Turn left / right and Remove are in the bar at the top right" if easy.on else "the %s: drag to move it (it steps onto what it stands over); Turn left / right and Delete are in SET") % _prop_name(i))
 
 
 func _prop_move(mp: Vector2) -> void:
@@ -19182,7 +19526,13 @@ func _prop_add(kind: String) -> void:
 	sel_prop = S.props.size() - 1
 	_props_show()
 	_doc_line()
-	_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
+	if easy.on:   # Easy has no SET ribbon: the sit is the panel's "Sit on it" (walk-through round 5), or the strip's "Sit on the chair" once a clip is built (the panel is hidden then: walk-through 10, B)
+		var sit_say := ""
+		if kind in SIT_ON:
+			sit_say = "; the strip's Sit on the chair seats him on it" if easy.home.shown() == "strip" else "; Sit on it in the panel seats him on it"
+		_say("added a %s in front of the body: drag it to move it%s; Ctrl+Z takes it back" % [_prop_name(sel_prop), sit_say])
+	else:
+		_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
 
 
 func _prop_turn(deg: float) -> void:
@@ -19197,6 +19547,70 @@ func _prop_turn(deg: float) -> void:
 	_props_show()
 	_doc_line()
 	_say("turned the %s to %.0f°" % [_prop_name(sel_prop), float(d["yaw"])])
+
+
+## SIZE of the picked prop (Easy's Bigger / Smaller: f = 1.15 or 1 / 1.15; Expert reads the same field): one undo step; the
+## range is Props.SIZE_MIN..SIZE_MAX, and at the end of it the status says so
+func _prop_resize(f: float) -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		return
+	var old := Props.scale_of(S.props[sel_prop])
+	var new_s := clampf(old * f, Props.SIZE_MIN, Props.SIZE_MAX)
+	if absf(new_s - old) < 0.0005:
+		_say("the %s is as %s as it goes" % [_prop_name(sel_prop), "big" if f > 1.0 else "small"])
+		return
+	_push_undo()
+	_prop_live(sel_prop)
+	var d := Props.to_dict(S.props[sel_prop])
+	d["scale"] = snappedf(new_s, 0.0001)
+	S.props[sel_prop] = Props.from_dict(d)
+	_prop_autokey(sel_prop)
+	_props_show()
+	_doc_line()
+	_say("the %s is %s now (%d%% of its real size)" % [_prop_name(sel_prop), "bigger" if f > 1.0 else "smaller", roundi(new_s * 100.0)])
+
+
+## COLOUR of the picked prop (Easy's Colour button cycles Props.COLOUR_ORDER; the first press gives blue): one undo step
+func _prop_colour() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		return
+	_push_undo()
+	_prop_live(sel_prop)
+	var order: Array = Props.COLOUR_ORDER
+	var cur := order.find(Props.colour_of(S.props[sel_prop]))
+	var nxt := String(order[(cur + 1) % order.size()])
+	var d := Props.to_dict(S.props[sel_prop])
+	if nxt == "grey":
+		d.erase("colour")
+	else:
+		d["colour"] = nxt
+	S.props[sel_prop] = Props.from_dict(d)
+	_prop_autokey(sel_prop)
+	_props_show()
+	_doc_line()
+	_say("the %s is %s now" % [_prop_name(sel_prop), nxt])
+
+
+## HIS COLOUR (Easy's "His colour" button): the body's skin cycles skin, white, grey, blue, red, dark. The body parts with a
+## photo material keep it (Surface: material from a photo). One undo step; the colour is view state like the photo materials
+func _body_colour_next() -> void:
+	if body_skin == null:
+		_say("his colour: the body is not there yet")
+		return
+	_step_hint = "His colour"
+	_push_undo()
+	body_colour = (body_colour + 1) % BODY_COLOURS.size()
+	_body_colour_show()
+	_doc_line()
+	if easy.on:   # Easy's plain line: no key names
+		_say_plain("His colour is %s now. Press again for the next one; Undo gives the old one back." % BODY_COLOURS[body_colour][0])
+	else:
+		_say("his colour is %s now (Ctrl+Z gives the old one back)" % BODY_COLOURS[body_colour][0])
+
+
+func _body_colour_show() -> void:
+	if body_skin != null:
+		body_skin.albedo_color = BODY_COLOURS[body_colour][1]
 
 
 func _prop_del() -> void:
@@ -19282,6 +19696,27 @@ func _rise_add(r: Dictionary, flags: Dictionary) -> void:
 		for k in flags:
 			S.set(k, flags[k])
 		sel_card = first
+		playhead = S.times()[sel_card][1]
+		_rebuild_cards()
+		S.apply(B, playhead))
+
+
+## WALK TO A CHAIR AND SIT (easy_home's walk_to_sit): the walk's cards then the sit run, appended after the last card as ONE undo
+## step. Each card keeps its own move (a card with none, -1, takes a half second: the way in from the clip's end)
+func _walk_sit_add(cards: Array) -> void:
+	var at := S.cards.size()
+	_do(func():
+		var i := at
+		for c in cards:
+			S.add(c["name"], c["pose"], i)
+			var cd: Dictionary = S.cards[i]
+			cd["move"] = c["move"] if (i > at and float(c["move"]) >= 0.0) else 0.5
+			cd["hold"] = c["hold"]
+			for k in ["plant", "ease", "steps", "lift", "walk"]:
+				if c.has(k):
+					cd[k] = c[k]
+			i += 1
+		sel_card = S.cards.size() - 1
 		playhead = S.times()[sel_card][1]
 		_rebuild_cards()
 		S.apply(B, playhead))
@@ -19574,7 +20009,7 @@ func _prop_select(i: int) -> void:
 		return
 	sel_prop = i
 	_props_show()
-	_say_plain("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i))
+	_say_plain(("the %s: drag it in the view to move it" % _prop_name(i)) if easy.on else ("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i)))
 
 
 ## ---- IMPORT (SS6): a dropped file, or Import model's picker, goes through the importer (scripts/importer.gd)
@@ -20232,6 +20667,7 @@ var _video_raw := false   # "import raw": the tracker's frames go straight to th
 var _video_prog := ""     # the tracker's progress file (its fraction 0-1, rewritten as it goes): Easy's "Reading the video: 40 %"
 var _video_cancelled := false   # the last import was stopped by Cancel while the tracker ran (Easy says "Stopped. Nothing was changed.")
 var _land_undo := ""     # EASY's Copy a video: the name of the one undo step the landing makes (the scene before the import); "" = none
+var easy_copy_land := Callable()   # EASY's Copy a video, "Add after": the copied scene goes to this (easy_home.gd) instead of opening; invalid = none
 
 
 ## THE GRIP BOOK (scripts/grip_book.gd): the weapon's recorded grips, one after another; and the pose's grip recorded
@@ -20522,6 +20958,11 @@ static func _import_compute(Bw: Body, keep: Dictionary, P: Dictionary, held: Str
 func _import_land(res: Dictionary, src: String, held: String) -> String:
 	if res.is_empty():
 		return ""
+	if easy_copy_land.is_valid():   # Easy's Copy a video, Add after: the copy's cards join the open scene; no file is opened or written
+		var land := easy_copy_land
+		easy_copy_land = Callable()
+		land.call(res["d"])
+		return ""
 	var d: Dictionary = res["d"]
 	var base := safe_file(String(d["scene"]))
 	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
@@ -20536,7 +20977,7 @@ func _import_land(res: Dictionary, src: String, held: String) -> String:
 		undo[-1]["swap"] = true
 		_land_undo = ""
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %d frames in %d cards, the feet planted (%d locked)%s. The leg away from the camera is the least sure: check its knee, then move its cards like any others" % [src, out.get_file(), int(res["frames"]), int(res["cards"]), int(res["locked"]),
@@ -20679,6 +21120,7 @@ func _imp_show(on: bool, text := "") -> void:
 	if on:
 		_imp_lbl.text = text if text != "" else String(_imp["label"])
 		_imp_bar.value = 0.0
+		_imp_bar.visible = true   # Easy's copy hides it while its own whole-copy bar runs (easy_home._copy_show)
 		_imp_cancel_btn.disabled = false
 
 
@@ -20692,6 +21134,10 @@ const MULTI_MAX := 4
 const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most this many frames (GDScript: a 300-frame clip takes minutes)
 var photomat := PhotoMaterialUI.new(self)   # MATERIAL FROM A PHOTO (scripts/photo_material_ui.gd, E15)
 var body_mats := {}   # part -> the name of its photo material (user://materials/<name>); view state, undone with the rest
+var body_skin: StandardMaterial3D   # the skin material every body part without a photo material wears (_body); His colour sets its albedo
+var body_colour := 0               # HIS COLOUR: the index in BODY_COLOURS; view state, undone with the rest (not saved, as body_mats is not)
+const BODY_COLOURS := [["skin", Color(0.78, 0.72, 0.64)], ["white", Color(0.93, 0.93, 0.91)], ["grey", Color(0.52, 0.53, 0.55)],
+	["blue", Color(0.25, 0.42, 0.78)], ["red", Color(0.74, 0.18, 0.16)], ["dark", Color(0.16, 0.15, 0.15)]]
 var refimg := RefImageUI.new(self)   # REFERENCE IMAGES (scripts/ref_image_ui.gd): a picture under or behind the figure, and Match
 var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
 var multicam_tool := "res://tools/see_video.py"
@@ -20994,7 +21440,7 @@ func _live_record() -> void:
 	if not r["ok"]:
 		_say("live: the take was not kept: %s (try recording again)" % r["why"])
 		return
-	_load_scene(r["path"])
+	_load_scene(r["path"], true)
 	_rebuild_cards()
 	_refresh()
 	_say("live: the take is the new scene scenes/_wip/%s: %d frames at %.0f fps in %d cards. Check it, then move its cards like any others" % [String(r["path"]).get_file(), r["frames"], r["fps"], r["cards"]])
@@ -21043,7 +21489,7 @@ func _import_bvh(path: String) -> void:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %s" % [path.get_file(), out.get_file(), r["text"]])
@@ -21079,7 +21525,7 @@ func _import_anim(path: String) -> String:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"]])
@@ -21115,7 +21561,7 @@ func _import_physics(path: String) -> String:
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
 	_write(out, d)
-	_load_scene(out)
+	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
 	_say("imported %s as scenes/_wip/%s: %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), r["text"]])
@@ -21264,6 +21710,162 @@ func _export_obj(dir := "user://exports") -> String:
 		return ""
 	_say_plain("exported %s.obj: %d triangles in %d groups at the playhead (metres, Y up)%s. A static mesh: for the animation use Export animation" % [nm, r["tris"], ms.size(), ", the held weapon included" if B.wep_on else ""])
 	return path
+
+
+## MODEL EXPORT: the open model editor's mesh (the test cube, or the body mesh) as a static .glb and .obj in res://exports
+func _export_model() -> String:
+	if kmed == null or not kmed.on or kmed.mesh == null:
+		_say("Model: open the test cube or the body mesh first (MODEL page), then Export model (GLB / OBJ)")
+		return ""
+	var k: KMesh = kmed.mesh
+	var stem := "body_mesh" if BaseBody.is_open(self) else "test_cube"
+	var dir := UserPaths.w("res://exports")   # an exported build: the user's folder (res:// is read-only there)
+	var am := k.to_array_mesh()
+	var e := KMeshVPaint.export_glb(k, "%s/%s.glb" % [dir, stem], stem)
+	var r := ObjIO.export([{"name": stem, "mesh": am, "xf": Transform3D.IDENTITY, "color": ObjIO.DEFAULT_COLOR}], "%s/%s.obj" % [dir, stem])
+	var gp := ProjectSettings.globalize_path(dir)
+	if e != OK or not r["ok"]:
+		_say("Model: NOT DONE: the model could not be written (%s%s). Check that %s is writable" % [error_string(e), "" if r["ok"] else "; obj: " + String(r["why"]), gp])
+		return ""
+	_say("Model: exported %s.glb and %s.obj (%d verts, %d triangles) to %s. Use as a prop (Export section) puts the GLB in Library > My models at its real size" % [stem, stem, k.vert_count(), int(r["tris"]), gp])
+	_last_export_glb = gp + "/" + stem + ".glb"
+	return _last_export_glb
+
+
+var _last_export_glb := ""   # the GLB the last Export model wrote (Use as a prop imports it)
+
+
+## the mesh objects in the scene, by name (the export dialog's "What to export"): the body (its posed pieces, one mesh),
+## the test cube or body mesh when the model editor has it open, and each set piece (Props) at its place
+func scene_object_names() -> Array:
+	var out := []
+	if not _obj_posed_meshes().is_empty():
+		out.append("body")
+	if kmed != null and kmed.on and kmed.mesh != null:
+		out.append("body_mesh" if BaseBody.is_open(self) else "test_cube")
+	out.append_array(_prop_object_names())
+	return out
+
+
+## the set pieces' object names: the kind, and a second piece of the same kind kind_2 (else "only the selected" would
+## match both pieces)
+func _prop_object_names() -> Array:
+	var out := []
+	var seen := {}
+	for p in S.props:
+		var k := String((p as Dictionary)["kind"])
+		seen[k] = int(seen.get(k, 0)) + 1
+		out.append(k if int(seen[k]) == 1 else "%s_%d" % [k, int(seen[k])])
+	return out
+
+
+## one entry per mesh object: [{name, mesh (ArrayMesh, in the scene's place), xf}]; the same order as scene_object_names
+func scene_objects() -> Array:
+	var out := []
+	var body := _obj_posed_meshes()
+	if not body.is_empty():
+		var am := ArrayMesh.new()
+		for e in body:
+			_append_surfaces(am, (e as Dictionary)["mesh"], Transform3D.IDENTITY)
+		out.append({"name": "body", "mesh": am, "xf": Transform3D.IDENTITY})
+	if kmed != null and kmed.on and kmed.mesh != null:
+		var cube := ArrayMesh.new()
+		_append_surfaces(cube, kmed.mesh.to_array_mesh(), kmed.view.transform)   # where it stands beside the body, not at the origin
+		out.append({"name": "body_mesh" if BaseBody.is_open(self) else "test_cube", "mesh": cube, "xf": Transform3D.IDENTITY})
+	var pnames := _prop_object_names()
+	for i in S.props.size():
+		var pd := S.props[i] as Dictionary
+		var node := Props.mesh(pd)
+		var pm := ArrayMesh.new()
+		_collect_props_meshes(node, node.transform, pm)
+		node.free()
+		out.append({"name": String(pnames[i]), "mesh": pm, "xf": Transform3D.IDENTITY})
+	return out
+
+
+func _collect_props_meshes(n: Node, acc: Transform3D, am: ArrayMesh) -> void:
+	for c in n.get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh != null:
+			var cx := acc * (c as MeshInstance3D).transform
+			_append_surfaces(am, (c as MeshInstance3D).mesh, cx)
+		if c is Node3D:
+			_collect_props_meshes(c, acc * (c as Node3D).transform, am)
+
+
+## the surfaces of mesh, moved by xf (vertices and normals), added to am
+static func _append_surfaces(am: ArrayMesh, mesh: Mesh, xf: Transform3D) -> void:
+	for s in mesh.get_surface_count():
+		var arr: Array = mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		if v.is_empty():
+			continue
+		var nv := PackedVector3Array()
+		nv.resize(v.size())
+		for i in v.size():
+			nv[i] = xf * v[i]
+		arr[Mesh.ARRAY_VERTEX] = nv
+		if arr[Mesh.ARRAY_NORMAL] != null:
+			var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+			var nn := PackedVector3Array()
+			nn.resize(nrm.size())
+			for i in nrm.size():
+				nn[i] = (xf.basis * nrm[i]).normalized()
+			arr[Mesh.ARRAY_NORMAL] = nn
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+
+
+## the selected object's name: the test cube (or body mesh) while the model editor has it open, else the set piece
+## picked (sel_prop), else the body
+func selected_object_name() -> String:
+	if kmed != null and kmed.on and kmed.mesh != null:
+		return "body_mesh" if BaseBody.is_open(self) else "test_cube"
+	if sel_prop >= 0 and sel_prop < S.props.size():
+		return String(_prop_object_names()[sel_prop])
+	return "body"
+
+
+## EXPORT DIALOG "What to export" (only_selected: the one object; else every object by its name): a static .glb of the
+## mesh objects in the scene at res:// dir (user's folder in an exported build). Everything is _export_glb, not this.
+func _export_objects(dir := "res://exports", only_selected := false) -> String:
+	dir = UserPaths.w(dir)
+	var objs := scene_objects()
+	if only_selected:
+		var want := selected_object_name()
+		objs = objs.filter(func(o): return String(o["name"]) == want)
+	if objs.is_empty():
+		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
+		return ""
+	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var path := "%s/%s.glb" % [dir, stem]
+	var err := GltfExport.write_meshes(objs, path)
+	if err != OK:
+		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
+		return ""
+	_say_plain("exported %s: %d mesh object%s (%s), static, no animation" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"])))])
+	return path
+
+
+## Use as a prop: the last exported model goes through the same import as a .glb dropped in (Importer.accept copies it into
+## the library, Props.register gives it its real size from the file's bounds), so it appears in Library > My models
+func _use_export_as_prop() -> void:
+	if _last_export_glb == "" or not FileAccess.file_exists(_last_export_glb):
+		_say("Model: nothing exported yet. Export model (GLB / OBJ) first, then Use as a prop")
+		return
+	var r: Dictionary = _import_file(_last_export_glb)
+	if not r.get("ok", false):
+		return
+	_say("Model: %s is in Library > My models at its real size (Add prop puts it in a scene)" % _last_export_glb.get_file())
+
+
+## the bottom of the ViewCube and its two menus: the panels on the right edge of a mesh page start under it
+func cube_stack_bottom() -> float:
+	if ui_cube == null:
+		return 0.0
+	var b := ui_cube.get_global_rect().end.y
+	for k in [ui_light_btn, ui_shade_btn]:
+		if k != null and k.is_visible_in_tree():
+			b = maxf(b, k.get_global_rect().end.y)
+	return b
 
 
 func _obj_import_ask() -> void:
@@ -21441,7 +22043,7 @@ func _doc_key() -> String:
 	return k
 
 
-func _load_scene(path0: String) -> void:
+func _load_scene(path0: String, work := false) -> void:   # work: a copy the app wrote into scenes/_wip (a card build, a mirror, a restore), not a file the user saved or opened
 	var path := path0
 	if not FileAccess.file_exists(path) and FileAccess.file_exists(UserPaths.w(path)):
 		path = UserPaths.w(path)   # written as res://... in an exported build: it is in the user's folder
@@ -21485,8 +22087,9 @@ func _load_scene(path0: String) -> void:
 	_dummy_hits()
 	sel_card = -1
 	playhead = 0.0
-	_clean = _doc_key()
-	if not _recovering:
+	if not work:   # the user's file (opened, or saved by Save) is the clean state; a work copy is unsaved work until the user saves it (ROADMAP 50)
+		_clean = _doc_key()
+	if not _recovering and not work:
 		_autosave_drop()   # opened a scene: what was unsaved was given up (it asks first, V3)
 		if journal_on:
 			journal.trim()   # ... and its journal goes with it

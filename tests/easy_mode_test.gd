@@ -26,7 +26,7 @@ func btn(down: bool, p: Vector2) -> void:
 	e.global_position = p
 	if down:
 		e.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(e)
+	root.push_input(e, true)
 
 
 func move(p: Vector2, rel: Vector2) -> void:
@@ -35,7 +35,7 @@ func move(p: Vector2, rel: Vector2) -> void:
 	e.global_position = p
 	e.relative = rel
 	e.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(e)
+	root.push_input(e, true)
 
 
 func spot(j: String) -> Vector2:
@@ -49,15 +49,74 @@ func inside(j: String) -> Vector2:
 	return m.cam.unproject_position(c[0].lerp(c[1], 0.75))
 
 
+## where a person presses a part: a point of its capsule that is on screen, not under a panel (the bottom bar hides what is
+## behind it: a press there lands on the bar), and that the pick takes for this part (a finger in front of the hand is
+## what a person sees and presses, so such a point is passed over). Falls back to inside() when no point qualifies.
+func press_point(j: String) -> Vector2:
+	var c: Array = m.B.cap(j)
+	var vp := m.get_viewport().get_visible_rect()
+	for t in [0.75, 0.6, 0.9, 0.45, 0.3, 0.15]:
+		var q: Vector2 = m.cam.unproject_position(c[0].lerp(c[1], t))
+		if not vp.has_point(q):
+			continue
+		var hm := InputEventMouseMotion.new()   # the pointer over the point, no button: the hover the press will see
+		hm.position = q
+		hm.global_position = q
+		root.push_input(hm, true)
+		await process_frame
+		if m.get_viewport().gui_get_hovered_control() == null and m._pick(q) == j:
+			return q
+	return inside(j)
+
+
 ## a real drag of a part: press on it, move in steps, let go
-func drag(j: String) -> void:
-	var p := inside(j)
+func drag(j: String, d := Vector2(48, -48)) -> void:
+	var p := await press_point(j)
+	var st := d / 6.0
 	btn(true, p)
 	await process_frame
 	for i in 6:
-		move(p + Vector2(8, -8) * (i + 1), Vector2(8, -8))
+		move(p + st * (i + 1), st)
 		await process_frame
-	btn(false, p + Vector2(48, -48))
+	btn(false, p + d)
+	await process_frame
+
+
+## the pointer over a screen point with no button: the hover the bar's words follow once it has rested (BAR_REST)
+func hover_at(q: Vector2) -> void:
+	var hm := InputEventMouseMotion.new()
+	hm.position = q
+	hm.global_position = q
+	root.push_input(hm, true)
+	await process_frame
+	await create_timer(m.BAR_REST + 0.1).timeout
+	await idle(2)
+
+
+## a screen point on the part's capsule that the pick takes as `want` (default: the part itself), read as the view stands now:
+## in Expert the finger's own point, in Easy (the view is framed again) a point of the finger that the pick takes as its hand.
+## NAN when no point qualifies
+func finger_point(j: String, want := "") -> Vector2:
+	var c: Array = m.B.cap(j)
+	var vp := m.get_viewport().get_visible_rect()
+	for t in [0.5, 0.35, 0.65, 0.25, 0.75, 0.15, 0.85]:
+		var q: Vector2 = m.cam.unproject_position(c[0].lerp(c[1], t))
+		if not vp.has_point(q) or q.y > vp.size.y - 140.0:
+			continue
+		if m._pick(q) == (want if want != "" else j):
+			return q
+	return Vector2(NAN, NAN)
+
+
+## a real drag started on a screen point: press there, move in steps, let go
+func drag_at(p: Vector2, d: Vector2) -> void:
+	var st := d / 6.0
+	btn(true, p)
+	await process_frame
+	for i in 6:
+		move(p + st * (i + 1), st)
+		await process_frame
+	btn(false, p + d)
 	await process_frame
 
 
@@ -73,6 +132,27 @@ func card_lines() -> Dictionary:
 func idle(n := 4) -> void:
 	for i in n:
 		await process_frame
+
+
+## a real click on a Control: the mouse goes down and up on its middle, as a beginner's press does
+func add_btn() -> Button:   # the strip's + Add pose, fetched fresh: a card's change rebuilds the strip (an old reference is freed)
+	return m.easy.add_button()
+
+
+func click_ctl(c: Control) -> void:
+	var p := c.get_global_rect().get_center()
+	btn(true, p)
+	await process_frame
+	_click_check(c, p)
+	btn(false, p)
+	await idle(3)
+
+
+## CLICK MISS: after the press, the GUI's hovered control must be c or inside c (else the click went to another control)
+func _click_check(c: Control, at: Vector2) -> void:
+	var h: Control = m.get_viewport().gui_get_hovered_control()
+	if h == null or not (h == c or c.is_ancestor_of(h)):
+		print("CLICK MISS %s hit %s (at %s, final transform %s)" % [c.name, h.name if h != null else "none", str(at), str(root.get_final_transform())])
 
 
 ## the words of a line that are size, weight, key or jargon (the Easy bar's rule for its own hints)
@@ -145,13 +225,33 @@ func teach_lines() -> Array:
 ## OVERLAP (Nick's beginner walk-through): in Easy the library panel, the picker, the welcome line, the status line, the
 ## save toast, the card strip and the Easy top bar never overlap one another, and all sit inside the window, at 1600x900 and 1280x720
 const OVERLAP_SIZES := [Vector2i(1600, 900), Vector2i(1280, 720)]
-const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast", "picker + redo toast", "strip + redo toast"]
+const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast", "picker + redo toast", "strip + redo toast", "strip + prop bar"]
 const OVERLAP_WANT := {   # the panels each state must show (so an empty screen cannot pass)
 	"picker": ["picker panel"], "picker + toast": ["picker panel", "save toast"],
 	"library": ["library panel"], "library + toast": ["library panel", "save toast"],
 	"strip": ["picker strip", "card strip"], "strip + toast": ["picker strip", "save toast"],
 	"picker + redo toast": ["picker panel", "redo toast"], "strip + redo toast": ["picker strip", "card strip", "redo toast"],
+	"strip + prop bar": ["picker strip", "card strip", "prop bar"],
 }
+
+
+## the "Then <move>" buttons after the move just made (the strip's second row), visible ones only
+func next_btns() -> Array:
+	var out := []
+	for b in m.easy.home.strip.find_children("eh_next_*", "Button", true, false):
+		if b.is_visible_in_tree():
+			out.append(b)
+	return out
+
+
+## every visible button in Easy's bar, the picker and the strip
+func easy_buttons() -> Array:
+	var out := []
+	for host in [m.easy.bar, m.easy.home.strip, m.easy.home.panel]:
+		for b in host.find_children("*", "Button", true, false):
+			if b.is_visible_in_tree():
+				out.append(b)
+	return out
 
 
 ## the global rects of what is on screen in Easy: [name, rect] for each visible item with content
@@ -166,8 +266,10 @@ func easy_rects() -> Array:
 		["status line", m.ui_status, m.ui_status.text != ""],
 		["readout", m.ui_bar, m.ui_bar.text != ""],
 		["save toast", m.easy.home._toast, true],
+		["prop bar", m.easy.home._pbar, m.easy.home._pbar != null and m.easy.home._pbar.is_visible_in_tree()],
 		["redo toast", m.ui_toast, m.ui_toast != null and m.ui_toast.visible],
 		["card strip", m.ui_cards, true],
+		["view buttons", m.easy.views, m.easy.views != null],   # Front / Side / Back / Reset view: the strip covered them at 1280x720
 	]
 	for c in cands:
 		var n: Control = c[1]
@@ -197,6 +299,51 @@ func outside_window(rects: Array, win: Vector2) -> Array:
 	return out
 
 
+## THE SCRUB (Easy's slider under the strip's buttons): the slider and its time label must not overlap a visible strip button,
+## the prop bar or the body's screen box; a strip state shows the row. Returns the names it overlaps (empty = fine)
+func scrub_bad(st: String) -> Array:
+	var out := []
+	var h = m.easy.home
+	var row: Control = h._scrub_row
+	if row == null or not row.is_visible_in_tree():
+		if st.begins_with("strip"):
+			out.append("scrub row hidden")
+		return out
+	var parts := [["scrub", h._scrub.get_global_rect()], ["scrub time", h._scrub_time.get_global_rect()]]
+	var others := []
+	for b in h.strip.find_children("*", "Button", true, false):
+		if b.is_visible_in_tree():
+			others.append([b.name, (b as Control).get_global_rect()])
+	if h._pbar.is_visible_in_tree():
+		others.append(["prop bar", h._pbar.get_global_rect()])
+	var bb := body_screen_box()
+	if bb.size.x > 0.0:
+		others.append(["body", bb])
+	for p in parts:
+		for o in others:
+			var x: Rect2 = (p[1] as Rect2).intersection(o[1])
+			if x.size.x > 1.0 and x.size.y > 1.0:
+				out.append("%s x %s" % [p[0], o[0]])
+	return out
+
+
+## the body's screen box (each capsule end projected by m.cam, grown by its radius): the same measure as easyhome_test's body_box
+func body_screen_box() -> Rect2:
+	var cam: Camera3D = m.cam
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var mpp: float = 2.0 * float(m.dist) * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in Turntable.points(m.B):
+		if cam.is_position_behind(p[0]):
+			continue
+		var q := cam.unproject_position(p[0])
+		var r: float = float(p[1]) / mpp
+		lo = lo.min(q - Vector2(r, r))
+		hi = hi.max(q + Vector2(r, r))
+	return Rect2(lo, hi - lo) if lo.x < INF else Rect2()
+
+
 ## one state of the overlap bar: the scene and the panels the state names, then settled
 func overlap_set(st: String) -> void:
 	m._new_scene()
@@ -213,6 +360,9 @@ func overlap_set(st: String) -> void:
 			t += 1
 	if st.begins_with("library"):
 		m.ui_library.open()
+	if st.contains("prop bar"):   # a prop in the scene: the prop bar (Easy, under Front / Side / Back) is on screen
+		m._prop_add("chair")
+		await idle(4)
 	m.easy.home._toast.visible = false
 	if m.ui_toast != null:   # made on its first toast (main._toast)
 		m.ui_toast.visible = false
@@ -267,9 +417,10 @@ func overlap_bar(sizes: Array = OVERLAP_SIZES) -> void:
 			var out := outside_window(rects, Vector2(m.get_viewport().get_visible_rect().size))
 			var geo := rects.map(func(r): return "%s %s" % [r[0], str(Rect2i(r[1]))])
 			var over := toast_over_buttons()
-			ok(miss.is_empty() and bad.is_empty() and out.is_empty() and over.is_empty(),
-				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing), no toast over a button (%s); rects %s" % [sz.x, sz.y, st,
-				str(bad), str(out), str(miss), str(over), str(geo)])
+			var scrub := scrub_bad(st)
+			ok(miss.is_empty() and bad.is_empty() and out.is_empty() and over.is_empty() and scrub.is_empty(),
+				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing), no toast over a button (%s), the scrub clear of the buttons, prop bar and body (%s); rects %s" % [sz.x, sz.y, st,
+				str(bad), str(out), str(miss), str(over), str(scrub), str(geo)])
 	m.get_window().size = win0
 	m.ui_library.hide_panel()
 	await idle(4)
@@ -652,7 +803,7 @@ func _init() -> void:
 	m.easy.button("Undo").pressed.emit()
 	await idle(10)
 	ok(undo_words() == "Undo: Walk", "6: after Undo the button reads 'Undo: Walk' (%s)" % undo_words())
-	ok(m.ui_toast != null and m.ui_toast.text == "Undid: Faster", "6: the toast after Undo says 'Undid: Faster' (%s)" % (m.ui_toast.text if m.ui_toast else "none"))
+	ok(m.ui_toast != null and m.ui_toast.text == "Took back: Faster", "6: the toast after Undo says 'Took back: Faster' (the same words as the status line) (%s)" % (m.ui_toast.text if m.ui_toast else "none"))
 	ok(m.ui_status.text.begins_with("Took back: Faster"), "6: the say line after Undo says 'Took back: Faster', no Expert step name (%s)" % m.ui_status.text)
 	m.easy.button("Undo").pressed.emit()
 	await idle(10)
@@ -732,7 +883,7 @@ func _init() -> void:
 		e.global_position = head_p
 		if down:
 			e.button_mask = MOUSE_BUTTON_MASK_LEFT
-		root.push_input(e)
+		root.push_input(e, true)
 		await process_frame
 	await idle(3)
 	cf = ConfigFile.new()
@@ -844,6 +995,292 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(UserPaths.w("res://scenes/zz_run_68.json")))
 	m.easy.set_on(false, false)
 	await idle(6)
+
+	# 10e. + ADD POSE (Easy): the strip's end button. An empty scene shows it with the tip; a press adds the body's pose as a
+	# card after the selected one (the new card selected, in view, one undo step "Add pose"); the same pose as the card
+	# before is refused in plain words; More's Save this pose as a card still adds; Expert has no button
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	var tip_ok := false
+	for c in m.ui_cards.get_children():
+		if c is Label and (c as Label).text == "Drag his arms and legs, then press + Add pose":
+			tip_ok = true
+	var ab: Button = add_btn()
+	ok(ab != null and ab.is_visible_in_tree() and ab.text == "+ Add pose", "10e: an empty Easy scene shows the '+ Add pose' button in the strip")
+	ok(tip_ok, "10e: the empty strip has the tip 'Drag his arms and legs, then press + Add pose'")
+	var tour_t := ""
+	for st in m.easy.TOUR:
+		tour_t += String(st[1]) + " "
+	ok(tour_t.find("+ Add pose") >= 0 and tour_t.find("Save this pose as a card") < 0 and tour_t.find("then press More") < 0, "10e: the Easy tour says 'press + Add pose' (no 'More, then Save this pose as a card')")
+	await drag_at(spot("hand_r"), Vector2(48, -48))   # a plain press on the hand's centre, as a beginner's (a finger under it picks the hand in Easy: 10g)
+	await idle(2)
+	await click_ctl(add_btn())
+	ok(m.S.cards.size() == 1, "10e: a real click on '+ Add pose' after a drag adds one card (%d)" % m.S.cards.size())
+	ok(undo_words() == "Undo: Add pose", "10e: the undo step is named 'Add pose' (%s)" % undo_words())
+	var pc1 := m.ui_cards.get_node_or_null("card_1") as Control
+	var row: Rect2 = m.ui_card_row.get_global_rect()
+	ok(m.sel_card == 0 and pc1 != null and pc1.get_global_rect().position.x >= row.position.x - 1.0 and pc1.get_global_rect().end.x <= row.end.x + 1.0, "10e: the new card is selected and in view in the strip (sel %d)" % m.sel_card)
+	ok(m.ui_status.text.begins_with("added card"), "10e: the status line says the card was added (%s)" % m.ui_status.text)
+	move(inside("hand_r"), Vector2.ZERO)   # the pointer over the hand first, as a person's is (the press picks what it hovers)
+	await idle(2)
+	await drag("hand_r", Vector2(0, -70))   # up: a pose clearly different from card 1 (back the way it came could land on the rest pose the arm started from)
+	await idle(2)
+	await click_ctl(add_btn())
+	ok(m.S.cards.size() == 2 and m.sel_card == 1, "10e: a second drag and '+ Add pose' make 2 cards, the second selected (%d, sel %d)" % [m.S.cards.size(), m.sel_card])
+	await click_ctl(add_btn())
+	ok(m.S.cards.size() == 2 and m.ui_status.text == "Move him first, then add the pose.", "10e: '+ Add pose' with the body unmoved adds nothing and says 'Move him first, then add the pose.' (%d cards, '%s')" % [m.S.cards.size(), m.ui_status.text])
+	# PLAY: the hand moves from the first pose to the second (somewhere between the two card times it is clearly away from both ends)
+	var ttimes: Array = m.S.times()
+	var ends: Array = []
+	var best := 0.0
+	if ttimes.size() >= 2:
+		m._ps().apply(m.B, float(ttimes[0][1]))
+		var p0: Vector3 = m.B.P["hand_r"]
+		m._ps().apply(m.B, float(ttimes[1][1]))
+		var p1: Vector3 = m.B.P["hand_r"]
+		ends = [p0, p1]
+		for k in range(1, 20):   # the move itself: from the first card's leaving to the second card's arriving
+			m._ps().apply(m.B, lerpf(float(ttimes[1][0]), float(ttimes[1][1]), k / 20.0))
+			var pm: Vector3 = m.B.P["hand_r"]
+			best = maxf(best, minf(pm.distance_to(p0), pm.distance_to(p1)))
+	var span: float = ends[0].distance_to(ends[1]) if ends.size() == 2 else 0.0
+	ok(span > 0.05 and best > 0.25 * span, "10e: Play moves the hand between the two '+ Add pose' poses (%d poses %.3f m apart; mid-move the hand is %.3f m from both ends)" % [ttimes.size(), span, best])
+	await click_ctl(m.easy.button("Undo"))
+	ok(m.S.cards.size() == 1, "10e: Undo removes the added card (%d)" % m.S.cards.size())
+	m.easy.pick_more("Save this pose as a card")
+	await idle(2)
+	ok(m.S.cards.size() == 2, "10e: More > Save this pose as a card still adds a card (%d)" % m.S.cards.size())
+	m.easy.set_on(false, false)
+	await idle(4)
+	ok(m.easy.add_button() == null, "10e: Expert has no '+ Add pose' button")
+	m._new_scene()
+	await idle(4)
+
+	# 10f. NEXT MOVES (Easy): after the Walk card, three "Then <move>" buttons (Catalog.next_after). None overlaps another Easy
+	# control. A press adds that move after the clip as ONE undo step (the strip's cards grow); Undo takes it back; after the
+	# add the buttons offer the added move's next moves; Expert shows none, and an empty scene shows none.
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	if m.ui_library != null and m.ui_library.visible:   # an open library covers the picker: close it, as the overlap bar does
+		m.ui_library.hide_panel()
+		await idle(4)
+	await click_ctl(m.easy.home.panel.find_child("eh_card_0", true, false))   # Walk, a real click
+	await idle(4)
+	var nb := next_btns()
+	var texts := nb.map(func(b): return String(b.text))
+	ok(texts == ["Then run", "Then wave", "Then sit down"], "10f: after the Walk card three buttons read 'Then run', 'Then wave', 'Then sit down' (%s)" % str(texts))
+	if m.ui_toast != null:   # a Redo toast left by an earlier step of this run is not this bar's subject: hidden, as overlap_set does
+		m.ui_toast.visible = false
+	var rs: Array = easy_rects().filter(func(r): return r[0] != "picker strip" and r[0] != "easy top bar")
+	for b in nb:
+		rs.append(["then " + b.text, b.get_global_rect()])
+	for b in easy_buttons():
+		if not String(b.name).begins_with("eh_next_"):   # the Then buttons are the rects above
+			rs.append(["button " + b.name, b.get_global_rect()])
+	var then_over := overlap_pairs(rs)
+	ok(then_over.is_empty(), "10f: the Then buttons overlap no other Easy control (%s)" % str(then_over))
+	ok(outside_window(rs, Vector2(m.get_window().size)).is_empty(), "10f: the Then buttons and the Easy controls sit inside the window")
+	var nw0: int = m.S.cards.size()
+	var uw0: int = m.undo.size()
+	await click_ctl(nb[0])
+	await idle(4)
+	var run_n: int = Templates.read("run")["cards"].size()
+	ok(m.S.cards.size() == nw0 + run_n and m.undo.size() == uw0 + 1, "10f: 'Then run' adds the run's %d cards after the walk as ONE undo step (cards %d -> %d, undo %d -> %d)" % [run_n, nw0, m.S.cards.size(), uw0, m.undo.size()])
+	await idle(3)
+	# + Add pose stays in reach on a long strip: the walk + run is many cards, more than the strip shows, and the button is pinned
+	var apb := add_btn()
+	var row_r: Rect2 = m.ui_card_row.get_global_rect()
+	var ap_r: Rect2 = apb.get_global_rect() if apb != null else Rect2()
+	var win_r := Rect2(Vector2.ZERO, Vector2(m.get_window().size))
+	ok(apb != null and apb.is_visible_in_tree() and win_r.encloses(ap_r) and (m.ui_cards.size.x > row_r.size.x) and ap_r.position.x >= row_r.end.x - 1.0,
+		"10f: with %d cards (strip %.0f px wide in a %.0f px view) '+ Add pose' is on screen, right of the strip (%s)" % [m.S.cards.size(), m.ui_cards.size.x, row_r.size.x, str(ap_r)])
+	ok(undo_words() == "Undo: Add run", "10f: the undo step is named after the move: 'Undo: Add run' (%s)" % undo_words())
+	var nb2 := next_btns().map(func(b): return String(b.text))
+	ok(nb2 == ["Then jump", "Then sword swing", "Then walk"], "10f: after the run the buttons offer the run's next moves (%s)" % str(nb2))
+	m.easy.button("Undo").pressed.emit()
+	await idle(4)
+	ok(m.S.cards.size() == nw0 and m.undo.size() == uw0, "10f: Undo removes the added run in one step (%d cards)" % m.S.cards.size())
+	var nb3 := next_btns().map(func(b): return String(b.text))
+	ok(nb3 == texts, "10f: after Undo the buttons offer the walk's moves again (%s)" % str(nb3))
+	m.easy.set_on(false, false)
+	await idle(4)
+	ok(next_btns().is_empty(), "10f: Expert shows no Then buttons")
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	ok(next_btns().is_empty(), "10f: an empty scene shows no Then buttons")
+	# the catalog: the shipped file is good, and a copy with one missing source fails the check
+	var entries: Array = Catalog.load()
+	ok(entries.size() > 0 and Catalog.problems(entries).is_empty(), "10f: the shipped catalog has %d entries and no problems (%s)" % [entries.size(), str(Catalog.problems(entries))])
+	var broken: Array = entries.duplicate(true)
+	broken[0]["source"] = "templates/no_such_move.json"
+	var tmp := "user://poser_test_catalog.json"
+	var wf := FileAccess.open(tmp, FileAccess.WRITE)
+	wf.store_string(JSON.stringify(broken))
+	wf.close()
+	var probs: Array = Catalog.problems(Catalog.load(tmp))
+	ok(probs.size() == 1 and String(probs[0]).find("no_such_move") >= 0, "10f: a catalog with one missing source fails the check (%s)" % str(probs))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+	m.easy.set_on(false, false)
+	await idle(4)
+	m._new_scene()
+	await idle(4)
+
+	# 10h. A DRAG + "+ Add pose" IS ONE UNDO STEP (Easy, walk-through a/b/c): Undo removes the card AND puts the body back as it
+	# was before the drag; Redo puts both back. Toast and status line use the same words; a toast is gone after a few seconds
+	# and the next action's message replaces it.
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	var pose0 := JSON.stringify(m.B.state())
+	var u0h: int = m.undo.size()
+	await drag("hand_r")
+	await idle(2)
+	var pose1 := JSON.stringify(m.B.state())
+	ok(pose1 != pose0 and m.undo.size() == u0h + 1, "10h: the drag is one undo step (pose moved %s, undo %d -> %d)" % [str(pose1 != pose0), u0h, m.undo.size()])
+	await click_ctl(add_btn())
+	await idle(4)
+	ok(m.S.cards.size() == 1 and m.undo.size() == u0h + 1, "10h: '+ Add pose' after the drag adds a card with no step of its own (cards %d, undo %d -> %d)" % [m.S.cards.size(), u0h + 1, m.undo.size()])
+	ok(undo_words() == "Undo: Add pose", "10h: the one step is named 'Add pose' (%s)" % undo_words())
+	var pose_after := JSON.stringify(m.B.state())
+	var cards_after := JSON.stringify(m.S.cards)
+	await click_ctl(m.easy.button("Undo"))
+	await idle(4)
+	ok(m.S.cards.size() == 0, "10h: Undo removes the card (%d cards)" % m.S.cards.size())
+	ok(JSON.stringify(m.B.state()) == pose0, "10h: Undo puts the hand back as it was before the drag")
+	ok(m.ui_status.text.begins_with("Took back: Add pose") and m.ui_toast.text == "Took back: Add pose", "10h: Undo says 'Took back: Add pose' in the toast and the status line (toast '%s', status '%s')" % [m.ui_toast.text, m.ui_status.text])
+	await click_ctl(m.easy.button("Redo"))
+	await idle(4)
+	ok(m.S.cards.size() == 1 and JSON.stringify(m.S.cards) == cards_after, "10h: Redo puts the card back")
+	ok(JSON.stringify(m.B.state()) == pose_after, "10h: Redo puts the pose back as it was after the add")
+	ok(m.ui_status.text.begins_with("Put back: Add pose") and m.ui_toast.text == "Put back: Add pose", "10h: Redo says 'Put back: Add pose' in the toast and the status line (toast '%s', status '%s')" % [m.ui_toast.text, m.ui_status.text])
+	# a toast is gone after a few seconds (5 s bar: the Easy toast is up for 3 s)
+	await create_timer(4.0).timeout
+	ok(not m.ui_toast.visible, "10h: the Redo toast is gone 4 s later")
+	# the next action's message replaces a toast that is still up: opening the library takes the old one down
+	m._undo()
+	await idle(2)
+	ok(m.ui_toast.visible, "10h: a fresh toast shows after an Undo (%s)" % m.ui_toast.text)
+	m._library_toggle()
+	await idle(2)
+	ok(not m.ui_toast.visible, "10h: opening the library takes the stale toast down")
+	m._library_toggle()
+	await idle(2)
+	m.easy.set_on(false, false)
+	await idle(4)
+	# 10g. THE FINGER IS THE HAND (Easy): a beginner presses a hand and lands on a finger; in Easy the press picks the hand, so a real
+	# press + drag started on a finger's screen point moves the arm by the hand (>= 5 cm), its undo step is named for the hand, and the
+	# hover over the finger says "right hand". Expert keeps the finger: the same point picks and names the finger.
+	m.easy.set_on(false, false)
+	m._new_scene()
+	await idle(4)
+	var fq := finger_point("middle_01_r")
+	ok(fq.is_finite(), "10g: a screen point of the right middle finger's base joint is found (%s)" % str(fq))
+	await hover_at(fq)
+	ok(m._pick(fq) == "middle_01_r" and m.bar_text().contains("right middle finger"), "10g: Expert: the hover over the finger names it (pick '%s', bar '%s')" % [m._pick(fq), m.bar_text()])
+	btn(true, fq)
+	await process_frame
+	btn(false, fq)
+	await idle(2)
+	ok(m.sel == "middle_01_r", "10g: Expert: a press on the finger picks the finger (sel '%s')" % m.sel)
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	fq = finger_point("middle_01_r", "hand_r")
+	ok(fq.is_finite(), "10g: in Easy a point of the finger picks the right hand (%s)" % str(fq))
+	await hover_at(fq)
+	# Easy's bar keeps its words hidden (the short line), so the hover's name is the part the hover lights and what the words call it
+	ok(m.hover_part == "hand_r" and m.part_words(m.hover_part) == "right hand", "10g: Easy: the hover over the finger lights the hand and calls it 'right hand' (hover '%s', words '%s')" % [m.hover_part, m.part_words(m.hover_part)])
+	var hand0: Vector3 = m.B.P["hand_r"]
+	await drag_at(fq, Vector2(48, -48))
+	await idle(2)
+	var hand_moved: float = (m.B.P["hand_r"] - hand0).length()
+	ok(hand_moved >= 0.05, "10g: Easy: a press + drag started on the finger moves the hand %.3f m (>= 0.05)" % hand_moved)
+	var last_undo: Dictionary = m.undo[-1] if not m.undo.is_empty() else {}
+	ok(m.easy_name(last_undo) == "Move hand", "10g: Easy: the undo step is named for the hand: '%s'" % m.easy_name(last_undo))
+	# 10i. PLAIN MOVE NAMES (Easy): every card of a move (a template, a Then move) reads "<Move> <n>" in plain words, numbered per
+	# move run in strip order ("Punch 1..4", then "Kick 1..7"): no ":" and no card label wider than its card. The full name
+	# stays in the tooltip; Expert shows the stored names.
+	m.easy.set_on(true, false)
+	m._new_scene()
+	await idle(4)
+	if m.ui_library != null and m.ui_library.visible:
+		m.ui_library.hide_panel()
+		await idle(4)
+	await click_ctl(m.easy.home.panel.find_child("eh_card_3", true, false))   # Punch, a real click
+	await idle(8)
+	var s10i_kick_btn: Button = null
+	for b in next_btns():
+		if b.text == "Then kick":
+			s10i_kick_btn = b
+	ok(s10i_kick_btn != null, "10i: after Punch the Then row offers 'Then kick' (%s)" % str(next_btns().map(func(x): return x.text)))
+	if s10i_kick_btn != null:
+		await click_ctl(s10i_kick_btn)
+		await idle(12)
+	var s10i_pl := card_lines()
+	var s10i_pl_names := []
+	var s10i_plain_re := RegEx.create_from_string("^[A-Z][a-z]+( [a-z]+)? [0-9]+$")
+	var s10i_tight := []
+	var s10i_strip_tip_ok := true
+	for i in m.S.cards.size():
+		var s10i_nb: Button = null
+		for n in m.ui_cards.find_children("b_pick", "Button", true, false):
+			if n.get_parent().get_parent().name == "card_%d" % (i + 1):
+				s10i_nb = n
+		if s10i_nb == null:
+			s10i_tight.append("card %d missing" % (i + 1))
+			continue
+		s10i_pl_names.append(s10i_nb.text)
+		var s10i_card_w: float = (s10i_nb.get_parent().get_parent() as Control).size.x
+		if s10i_nb.get_combined_minimum_size().x > s10i_card_w + 0.5:
+			s10i_tight.append("%s (%.0f > %.0f)" % [s10i_nb.text, s10i_nb.get_combined_minimum_size().x, s10i_card_w])
+		if s10i_nb.tooltip_text.find(String(m.S.cards[i]["name"])) < 0:
+			s10i_strip_tip_ok = false
+	var s10i_names_ok: bool = s10i_pl_names.size() == m.S.cards.size() and s10i_pl_names.all(func(t): return String(t) in ["Guard", "Wind up", "Punch", "Back to guard"] or s10i_plain_re.search(String(t)) != null)
+	var s10i_no_colon: bool = s10i_pl_names.all(func(t): return String(t).find(":") < 0)
+	var s10i_jargon_left: Array = s10i_pl_names.filter(func(t): return String(t).to_lower().begins_with("anticipation") or String(t).to_lower().begins_with("strike") or String(t).to_lower().begins_with("follow-through") or String(t).to_lower().begins_with("recovery") or String(t).to_lower().begins_with("ready"))
+	ok(m.S.cards.size() >= 9 and s10i_names_ok and s10i_no_colon and s10i_jargon_left.is_empty(), "10i: no jargon left: every label is a plain name or '<Word> <n>', no ':' (%s)" % str(s10i_pl_names))
+	ok(s10i_pl_names.size() >= 9 and s10i_pl_names.slice(0, 4) == ["Guard", "Wind up", "Punch", "Back to guard"] and s10i_pl_names.slice(4).all(func(t): return String(t).begins_with("Kick ")) and s10i_pl_names[4] == "Kick 1" and s10i_pl_names[-1] == "Kick %d" % (m.S.cards.size() - 4),
+		"10i: the plain names stay (Guard, Wind up, Punch, Back to guard); the jargon cards are 'Kick 1..n' in their run (%s)" % str(s10i_pl_names))
+	ok(s10i_tight.is_empty(), "10i: no strip label is wider than its card (%s)" % str(s10i_tight))
+	ok(s10i_strip_tip_ok, "10i: each card's tooltip keeps the original name")
+	# Expert: the stored names, as before
+	m.easy.set_on(false, false)
+	m._refresh()
+	await idle(12)
+	var s10i_xl := card_lines()
+	var s10i_x_ok := true
+	for i in m.S.cards.size():
+		if String(s10i_xl.get("card_%d/b_pick" % (i + 1), "")) != "%d %s" % [i + 1, m.S.cards[i]["name"]]:
+			s10i_x_ok = false
+	ok(s10i_x_ok, "10i: Expert's strip shows the original names with their numbers")
+	m.easy.set_on(true, false)
+	await idle(6)
+	# "Then sword swing" (a Then button after Walk + Then run) fits its button
+	m._new_scene()
+	await idle(4)
+	await click_ctl(m.easy.home.panel.find_child("eh_card_0", true, false))
+	await idle(6)
+	for b in next_btns():
+		if b.text == "Then run":
+			await click_ctl(b)
+			await idle(10)
+			break
+	var s10i_sw_btn: Button = null
+	for b in next_btns():
+		if b.text == "Then sword swing":
+			s10i_sw_btn = b
+	ok(s10i_sw_btn != null, "10i: after Walk + Then run the Then row offers 'Then sword swing'")
+	if s10i_sw_btn != null:
+		var s10i_tw: float = s10i_sw_btn.get_theme_font("font", "Button").get_string_size(s10i_sw_btn.text, HORIZONTAL_ALIGNMENT_LEFT, -1, s10i_sw_btn.get_theme_font_size("font_size", "Button")).x
+		var s10i_pad: float = s10i_sw_btn.get_theme_stylebox("normal").get_minimum_size().x
+		ok(s10i_tw + s10i_pad <= s10i_sw_btn.size.x + 0.5 and s10i_sw_btn.get_combined_minimum_size().x <= s10i_sw_btn.size.x + 0.5,
+			"10i: the 'Then sword swing' text fits its button (text %.0f + s10i_pad %.0f <= button %.0f)" % [s10i_tw, s10i_pad, s10i_sw_btn.size.x])
+	m.easy.set_on(false, false)
+	m._new_scene()
+	await idle(4)
 
 	# 11. the overlap bar: Easy's panels, toast and lines, at the window's own size (both sizes: the easy_overlap suite)
 	m.easy.set_on(true, false)

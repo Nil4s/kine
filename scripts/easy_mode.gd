@@ -11,16 +11,18 @@ extends Node
 const CFG := "look"
 const TOUR := [
 	["Drag a hand", "Press on a hand of the body and drag it. The arm follows, and the pose changes."],
-	["Save the pose", "Press More, then Save this pose as a card. The body's pose becomes a card on the timeline at the bottom."],
+	["Save the pose", "Press + Add pose, at the end of the cards. The body's pose becomes a card on the timeline at the bottom."],
 	["Move the playhead", "Drag the playhead (the line on the timeline) to another moment."],
-	["Change the pose and save again", "Move a part to a new place, then press More, then Save this pose as a card again."],
+	["Change the pose and save again", "Move a part to a new place, then press + Add pose again."],
 	["Press play", "Press Play. The body moves from card to card by itself."],
 ]
 
 var m: Node                 # main (untyped: the same pattern as Browser)
 var on := false             # Easy is showing
+var edit_pick := -1         # the card the user clicked on the strip (-1: none); a + Add pose clears it (card_follows_drag)
 var tour_step := -1         # -1 = no tour
 var bar: PanelContainer
+var views: PanelContainer   # VIEW BUTTONS (walk-through round 5, goal 7): Front, Side, Back, Reset view at the right edge, Easy only
 var tour_card: PanelContainer
 var _tour_title: Label
 var _tour_text: Label
@@ -47,6 +49,12 @@ const TOUR_W := 300.0       # the tour card's width (px); its text wraps inside 
 const PANEL_MARGIN := 12.0  # px between the tour card and the window's edge
 const FRAME_STEP := 2       # the clip is sampled every 2nd frame: a frame moves a hand a few px, inside FRAME_PAD
 const FRAME_SAMPLES := 24   # the most poses frame_clip samples (the click waits for them)
+const FRAME_FILL := 0.8     # Easy: the body's height (head to feet, radii in) as a share of the free rect's height: a beginner sees the move
+const FRAME_WIDTH := 0.9    # Easy: the body's widest reach as a share of the free rect's width
+const FRAME_MAX := 0.96     # Easy: the clip's TALLEST moment (hands overhead) at most this share of the free height
+var _track: Array = []      # Easy follow: the body's centre (Vector3) at each sample of the clip
+var _track_ks: Array = []   # the frame each _track entry is at
+var _frame_d := -1.0        # the distance frame_clip set for this clip (-1 = none yet)
 
 
 ## which mode a settings file asks for. A key decides. No key: a file with sections is an existing user (Expert);
@@ -97,12 +105,12 @@ func build(root: Control, expert: Array) -> void:
 		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	var more := [
-		["Save this pose as a card", "Keep the body's pose as a card on the timeline (Enter)", m._card_add],
+		["Save this pose as a card", "Keep the body's pose as a card on the timeline (Enter)", func(): add_pose("Saved pose", false)],
 		["Move his arms and legs", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
 		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
 		["Open a saved scene", "Open one of your scenes", _open],
 		["Copy a video", "Turn a video of one person into an animation: pick the file (mp4, mov, webm, avi, mkv)", func(): home.copy_video()],
-		["Save the scene", "Save the scene (Ctrl+Shift+S)", m._save_scene],
+		["Save the scene", "Save the scene (Ctrl+Shift+S)", func(): home.save_scene()],
 		["Flip left and right", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
 		["Put his feet on the floor", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
 	]
@@ -146,6 +154,7 @@ func build(root: Control, expert: Array) -> void:
 	_menu.name = "easy_open_menu"
 	_menu.index_pressed.connect(func(i: int): if _menu_paths.has(i): m._open_scene_file(_menu_paths[i]))
 	bar.add_child(_menu)
+	_build_views(root)
 	_build_tour_card(root)
 	get_viewport().size_changed.connect(_resized)   # EASY CAMERA: a window resize re-frames the clip (frame_clip)
 	home = EasyHome.new()   # the empty scene's "What should he do?" panel: a child of Easy, so Expert never shows it
@@ -153,6 +162,44 @@ func build(root: Control, expert: Array) -> void:
 	home.m = m
 	add_child(home)
 	home.build(root)
+
+
+## VIEW BUTTONS: the view keys 1 (front), 2 (side, -90), 4 (back) and HOME, turned smoothly; a small column at the right edge
+func _build_views(root: Control) -> void:
+	views = PanelContainer.new()
+	views.name = "easy_views"
+	views.visible = false
+	views.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)   # under the bar, at the right: clear of the picker, the strip and the save toast
+	views.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	views.grow_vertical = Control.GROW_DIRECTION_END
+	views.offset_top = float(m.TOP_H) + 8.0
+	views.offset_right = -12.0
+	var st := StyleBoxFlat.new()
+	st.bg_color = Tok.c("panel")
+	st.set_corner_radius_all(10)
+	st.set_content_margin_all(8)
+	views.add_theme_stylebox_override("panel", st)
+	root.add_child(views)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	views.add_child(col)
+	var acts := [
+		["easy_view_front", "Front", "the view from the front", func(): m._view(1, true)],
+		["easy_view_side", "Side", "the view from the side: the camera turns 90 degrees", func(): m._view(2, true)],
+		["easy_view_back", "Back", "the view from the back", func(): m._view(4, true)],
+		["easy_view_reset", "Reset view", "the first view: the body from the front, a little from above", func(): m._view_home(true)],
+		["easy_body_colour", "His colour", "change his colour: skin, white, grey, blue, red, dark, then skin again (one undo step; Ctrl+Z gives the old one back)", func(): m._body_colour_next()],
+	]
+	for a in acts:
+		var b := Button.new()
+		b.name = a[0]
+		b.text = a[1]
+		b.tooltip_text = a[2]
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(120, 40)
+		b.add_theme_font_size_override("font_size", 18)
+		b.pressed.connect(a[3])
+		col.add_child(b)
 
 
 ## one big button: its label wraps in the button (two lines at 7 buttons across a 1280-px window)
@@ -240,6 +287,7 @@ func set_on(v: bool, save := true) -> void:
 	elif was and not on:
 		if tour_step >= 0:
 			_finish(true, false)
+		_track = []   # Easy's follow stops with Easy
 		if not _saved_cam.is_empty() and m != null:   # Expert's camera is exactly what it was before Easy (main._cam places it)
 			m.yaw = _saved_cam["yaw"]
 			m.pitch = _saved_cam["pitch"]
@@ -256,6 +304,8 @@ func set_on(v: bool, save := true) -> void:
 		_dummy_was = false
 	if bar != null:
 		bar.visible = on
+	if views != null:
+		views.visible = on
 	if on != was and m != null and m.ui_status != null:
 		m._sides_apply()   # main's own pieces follow the mode (the side panels stay hidden while Easy is on)
 		m._rebuild_cards()   # the card lines follow the mode (a name and a picture in Easy; the number and the timing in Expert)
@@ -310,68 +360,119 @@ func offsets(vs: Vector2, mpp: float) -> Vector2:
 ## inside the free rect: the target is the middle of its box, the distance the smallest that keeps every point inside.
 ## Called when a clip is built and when the window resizes. The playhead's pose is put back after the sampling.
 ## frame_clip one frame later: the clip's first moving frame is not held up by the sampling (~100 ms on the Run card)
-func frame_clip_next() -> void:
+func frame_clip_next(keep_body := false) -> void:
 	await get_tree().process_frame
-	frame_clip()
+	frame_clip(keep_body)
 
 
-func frame_clip() -> void:
-	if m == null or not on or m.S.cards.is_empty():
+func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back exactly as it was (a card just added: its pose is the card's)
+	if m == null or not on:
 		if m != null:
 			m._cam()
 		return
+	var keep: Dictionary = m.B.state() if keep_body else {}
 	var vs := get_viewport().get_visible_rect().size
-	var F := free_rect().grow(-FRAME_PAD)
+	var fr := free_rect()
 	var fps := float(m.S.fps)
-	var pts := []
-	var last := int(ceil(m.S.length() * fps))
+	# an empty scene frames the body as it stands (its rest pose): the camera kept the last clip's look-at point otherwise,
+	# and the body could sit under the bottom bar (the press on a hand there lands on the bar, not the body)
+	var last := 0 if m.S.cards.is_empty() else int(ceil(m.S.length() * fps))
 	# at most FRAME_SAMPLES poses spread over the clip (a pose is ~3.5 ms and the click waits for them: every 2nd frame of a
-	# 5 s walk cost ~260 ms, past easyhome's 500 ms click-to-motion bar), the last frame too; easycam checks every 4th frame
+	# 5 s walk cost ~260 ms, past easyhome's 500 ms click-to-motion bar), the last frame too
 	var step := maxi(FRAME_STEP, int(ceil(float(last) / float(FRAME_SAMPLES))))
 	var ks := range(0, last + 1, step)
 	if ks[-1] != last:
 		ks.append(last)
+	# EASY FOLLOW: each sample gives the body's centre (the middle of its box, radii in) and its height and reach from that centre.
+	# The distance is set from the clip's tallest height and widest reach, so the body fills FRAME_FILL of the free rect's height
+	# at every frame, and the look-at point follows the centre (follow_tick): a walk that travels stays big and in the free view.
+	var centres: Array = []
+	var tallest := 0.0
+	var heights: Array = []
+	var reach := 0.0
 	for k in ks:
 		m._ps().apply(m.B, float(k) / fps)
-		pts.append_array(Turntable.points(m.B))
-	m._ps().apply(m.B, m.playhead)
-	var lo := Vector3(INF, INF, INF)
-	var hi := -lo
-	for p in pts:
-		lo = lo.min(p[0])
-		hi = hi.max(p[0])
-	var centre := (lo + hi) * 0.5
-	var a := 0.6
-	var b := 40.0
-	for it in 16:   # 40 m / 2^16: under a millimetre (each step runs every point, so the count is the click's cost)
-		var mid := (a + b) * 0.5
-		if _fits(pts, centre, mid, vs, F):
-			b = mid
-		else:
-			a = mid
-	m.target = centre
-	m.dist = b
+		var lo := Vector3(INF, INF, INF)
+		var hi := -lo
+		var pts := Turntable.points(m.B)
+		for p in pts:
+			var rr := Vector3.ONE * float(p[1])
+			lo = lo.min((p[0] as Vector3) - rr)
+			hi = hi.max((p[0] as Vector3) + rr)
+		var c := (lo + hi) * 0.5 if lo.x < INF else Vector3.ZERO
+		centres.append(c)
+		if lo.x < INF:
+			tallest = maxf(tallest, hi.y - lo.y)
+			heights.append(hi.y - lo.y)
+			for p in pts:
+				var flat := Vector2((p[0] as Vector3).x - c.x, (p[0] as Vector3).z - c.z)
+				reach = maxf(reach, flat.length() + float(p[1]))
+	if keep_body:
+		m.B.set_state(keep)
+	else:
+		m._ps().apply(m.B, m.playhead)
+	# world units per px at the target: the body's typical height is FRAME_FILL of the free height, its width fits FRAME_WIDTH of the free width
+	# The TYPICAL height (the median sample) is FRAME_FILL: a dance with the hands overhead for a beat is framed for the body
+	# most of the clip (the tallest moment framed at 80 % left the arms-down body at 67 %), and the tallest moment still fits
+	# (FRAME_MAX)
+	heights.sort()
+	var typical: float = heights[heights.size() / 2] if not heights.is_empty() else tallest
+	var mpp := maxf(maxf(typical / (FRAME_FILL * maxf(fr.size.y, 1.0)), tallest / (FRAME_MAX * maxf(fr.size.y, 1.0))), 2.0 * reach / (FRAME_WIDTH * maxf(fr.size.x, 1.0)))
+	mpp = maxf(mpp, 1e-4)
+	var tan_half: float = tan(deg_to_rad(m.cam.fov * 0.5))
+	_frame_d = mpp * vs.y / (2.0 * tan_half)
+	_track = centres
+	_track_ks = ks
+	m.dist = _frame_d
+	m.target = _track_at(m.playhead)
 	m._cam()
 
 
-## every point (with its radius) projects inside F with the camera at centre, distance d (the offsets as _cam sets them)
-func _fits(pts: Array, centre: Vector3, d: float, vs: Vector2, F: Rect2) -> bool:
-	var cam: Camera3D = m.cam
-	var b := Basis.from_euler(Vector3(deg_to_rad(m.pitch), deg_to_rad(m.yaw), 0))
-	cam.transform = Transform3D(b, centre + b * Vector3(0, 0, d))
-	var mpp := 2.0 * d * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
-	var o := offsets(vs, mpp)
-	cam.h_offset = o.x
-	cam.v_offset = o.y
-	for p in pts:
-		var c: Vector3 = p[0]
-		if cam.is_position_behind(c):
-			return false
-		var q := cam.unproject_position(c)
-		var r := float(p[1]) / mpp
-		if q.x - r < F.position.x or q.x + r > F.end.x or q.y - r < F.position.y or q.y + r > F.end.y:
-			return false
-	return true
+## the look-at point at clip time t: the sampled centres, interpolated between the samples
+func _track_at(t: float) -> Vector3:
+	if _track.is_empty():
+		return m.target
+	var f := clampf(t * float(m.S.fps), 0.0, float(_track_ks[-1]))
+	var i := 0
+	while i + 1 < _track_ks.size() - 1 and float(_track_ks[i + 1]) <= f:
+		i += 1
+	var a := float(_track_ks[i])
+	var b := float(_track_ks[mini(i + 1, _track_ks.size() - 1)])
+	var w := clampf((f - a) / maxf(b - a, 1e-6), 0.0, 1.0)
+	return (_track[i] as Vector3).lerp(_track[mini(i + 1, _track.size() - 1)], w)
+
+
+## EASY FOLLOW (main calls it every frame while Easy shows): the look-at point rides the body's centre at the playhead. The
+## distance stays the one frame_clip set, so the body keeps its size and the wheel still zooms.
+func follow_tick() -> void:
+	if m == null or not on or _track.is_empty():
+		return
+	var c := _body_centre()
+	if not c.is_equal_approx(m.target):
+		m.target = c
+		m._cam()
+
+
+## the middle of the body's box as it is posed now (every point with its radius): the look-at point of the follow. The
+## sampled centres (frame_clip) were 0.77 s apart: a jump's apex and a walk's step were framed 50-110 px off centre
+func _body_centre() -> Vector3:
+	var lo := Vector3(INF, INF, INF)
+	var hi := -lo
+	for p in Turntable.points(m.B):
+		var rr := Vector3.ONE * float(p[1])
+		lo = lo.min((p[0] as Vector3) - rr)
+		hi = hi.max((p[0] as Vector3) + rr)
+	return (lo + hi) * 0.5 if lo.x < INF else m.target
+
+
+## the distance frame_clip set for the clip (-1: no clip framed yet): Reset view uses it in Easy
+func frame_dist() -> float:
+	return _frame_d
+
+
+## the look-at point the follow has now (main's target while Easy shows)
+func follow_target() -> Vector3:
+	return m.target
 
 
 func _resized() -> void:
@@ -404,6 +505,109 @@ func _more_picked(i: int) -> void:
 func _close_more() -> void:
 	if _more != null:
 		_more.hide()
+
+
+## + ADD POSE (the strip's end button, Easy only) and More's Save this pose as a card: the one way a pose becomes a card.
+## strip = the button's press: a pose the card before it already has is refused in plain words (no duplicate card).
+## The card goes after the selected card (at the end when none or the last is selected), is selected, is scrolled into view,
+## and its undo step is named undo_name (Easy: "Add pose" / "Saved pose").
+func add_pose(undo_name := "Add pose", strip := true) -> void:
+	if strip and not m.S.cards.is_empty():
+		var ref: int = m.sel_card if m.sel_card >= 0 else m.S.cards.size() - 1
+		if same_pose(m.S.cards[ref]["pose"], m.B.to_dict()):
+			m._say("Move him first, then add the pose.")
+			return
+	# EASY: a drag followed by + Add pose is ONE undo step: the drag's own step (taken at its press, so it holds the body as it
+	# was before the drag) takes the card too. Undo then removes the card and puts the body back; Redo puts both back.
+	var merge: bool = on and not m.undo.is_empty() and bool(m.undo[-1].get("drag", false))
+	m._step_easy = undo_name if on else ""
+	m._undo_merge = merge
+	m._card_add()
+	m._undo_merge = false
+	if merge:
+		var d: Dictionary = m.undo[-1]
+		d.erase("drag")   # the merged step is no longer a bare drag: the next + Add pose makes its own step
+		d["easy"] = undo_name
+		d["name"] = undo_name
+		m._tree.set_name(m._tree.cur, undo_name)
+		m._undo_tips()
+		m._history_rows()
+	var i: int = m.sel_card
+	await m.get_tree().process_frame
+	m.ui_card_row.queue_sort()   # after a rebuild the strip's scroll range can stay 0 until the next sort
+	await m.get_tree().process_frame
+	var pc := m.ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
+	if pc != null:
+		m.ui_card_row.ensure_control_visible(pc)
+
+
+## EDIT A PICKED CARD (walk-through round 5, goal 3): in Easy, a body drag with a card picked on the strip writes the body's pose
+## into that card, in place. The drag's own undo step (taken at its press, so it holds the card as it was) takes the change too,
+## and is named "Change pose". The card count and the other cards do not move; the pick can change after it and the edit stays.
+func card_follows_drag() -> void:
+	var i: int = m.sel_card
+	if i < 0 or i >= m.S.cards.size() or i != edit_pick or m.undo.is_empty():
+		return   # only a card the user clicked (edit_pick): + Add pose's new card is selected but waits for its own pose
+	if m.undo.back().get("body") == m.B.state():
+		return   # nothing moved: the card keeps its pose
+	m.S.cards[i]["pose"] = m.B.to_dict()
+	var d: Dictionary = m.undo[-1]
+	d.erase("drag")   # the step is no longer a bare drag: a + Add pose after it makes its own step
+	d["easy"] = "Change pose"
+	d["name"] = "Change pose"
+	m._tree.set_name(m._tree.cur, "Change pose")
+	m._undo_tips()
+	m._history_rows()
+	m._rebuild_cards()
+	m._say("card %d takes the body's new pose (Ctrl+Z takes it back)" % (i + 1))
+
+
+## the strip's button (main's _rebuild_cards puts it after the last card, or in an empty Easy strip with its tip)
+func strip_button() -> Button:
+	var b: Button = m._button("Add pose", add_pose, "Add a card: the body's pose now, after the selected card. Drag his arms and legs first, then press it")
+	b.text = "+ Add pose"
+	b.name = "add_pose"
+	b.custom_minimum_size = Vector2(m.CARD_W - 8, m.CARD_PIC_H + 16)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.add_theme_font_size_override("font_size", 14)
+	return b
+
+
+## the "+ Add pose" button wherever it is: the pinned slot right of the strip (cards), or inside the empty strip with its tip
+func add_button() -> Button:
+	for box in [m.ui_add_slot, m.ui_cards]:
+		if box != null and box.get_node_or_null("add_pose") != null:
+			return box.get_node("add_pose") as Button
+	return null
+
+
+## where the tour points for "+ Add pose": the strip's button when it is there, else the More button
+func _add_rect() -> Rect2:
+	var ab: Control = add_button()
+	if ab != null and ab.is_visible_in_tree():
+		return ab.get_global_rect()
+	return (_btns["More"] as Control).get_global_rect()
+
+
+## two poses the same: every number within half a thousandth (a pose saved from the body and read back is the same)
+static func same_pose(a: Variant, b: Variant) -> bool:
+	if a is Dictionary and b is Dictionary:
+		if a.size() != b.size():
+			return false
+		for k in a:
+			if not b.has(k) or not same_pose(a[k], b[k]):
+				return false
+		return true
+	if a is Array and b is Array:
+		if a.size() != b.size():
+			return false
+		for k in a.size():
+			if not same_pose(a[k], b[k]):
+				return false
+		return true
+	if (a is float or a is int) and (b is float or b is int):
+		return absf(float(a) - float(b)) < 0.0005
+	return a == b
 
 
 ## a test or the tour: the bar's More button, then the entry with these words (two clicks, as a beginner makes them)
@@ -511,7 +715,7 @@ func _place_card() -> void:
 	var at: Rect2
 	match tour_step:
 		0: at = Rect2(PANEL_MARGIN, top, 0, 0)   # the body is in the middle and its arm reaches the right edge: the top left is free
-		1, 3: at = (_btns["More"] as Control).get_global_rect()   # Save this pose as a card is in More
+		1, 3: at = _add_rect()   # + Add pose: the strip's button (More's Save this pose as a card when the strip has none)
 		2: at = m.ui_timeline.get_global_rect()
 		_: at = (_btns["Play / Stop"] as Control).get_global_rect()
 	var cands: Array = []

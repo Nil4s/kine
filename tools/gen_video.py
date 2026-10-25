@@ -33,12 +33,20 @@ FRAME_V2 = ("one athletic adult standing in a wide shot, the camera far away, th
 NEGATIVE_V2 = ("close-up, medium shot, cropped, out of frame, cut off feet, cut off legs, cut off head, feet out of frame, "
                "zoom, camera movement, pan, tilt, tracking shot, handheld, shaky, two people, crowd, extra limbs, extra arms, "
                "extra legs, deformed hands, fused limbs, blurry, slow motion, text, watermark")
-STYLES = {"v1": (FRAME_V1, NEGATIVE_V1), "v2": (FRAME_V2, NEGATIVE_V2)}
-DEFAULT_STYLE = "v1"   # v2 becomes the default only after its feet-out is measured to pass
+# v1m: v1 plus words against the FROZEN take. Wan 1.3B often holds one pose for most of the clip (a jab frozen 4.69 of 5 s by
+# ffmpeg freezedetect); the take tracks perfectly and imports as a statue. A/B, 4 prompts, same seeds, FAST (20 steps 640x368):
+# with these words the walk / jab / cheer / squat froze 0 / 0.45 / 0.37 / 0 of the clip, against 0.68 / 0.94 / 0.28+ / - without;
+# the old quality setting (30 steps 832x480, ~490 s) with them froze 0.22 / 0.63 / 0.68 (C:/Temp/claude/kine_batch_ab, batch 1766061)
+MOTION = ("one continuous action, the same action the whole time, no other moves, brisk and clearly visible movement, "
+          "continuous motion, never pauses, the body moves the whole time")
+NEGATIVE_MOTION = "still, frozen, static pose, slow motion, freeze frame, holding a pose"
+STYLES = {"v1": (FRAME_V1, NEGATIVE_V1), "v2": (FRAME_V2, NEGATIVE_V2),
+          "v1m": (MOTION + ", " + FRAME_V1, NEGATIVE_MOTION + ", " + NEGATIVE_V1)}
+DEFAULT_STYLE = "v1m"   # v2 becomes the default only after its feet-out is measured to pass
 # the old settings (--quality)
 QUALITY = {"style": "v1", "steps": 30, "width": 832, "height": 480}
 # the defaults: unchanged until a speed setting and the v2 framing both pass REPORT_V2.md
-DEFAULTS = {"style": "v1", "steps": 30, "width": 832, "height": 480}
+DEFAULTS = {"style": "v1m", "steps": 30, "width": 832, "height": 480}
 FPS = 16   # Wan 2.1's own rate
 
 

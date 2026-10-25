@@ -9,7 +9,7 @@ extends RefCounted
 ##   "cmd:<id>"  a command of main's registry (main._commands()): the S box's row for it gets the page and the words
 ##               here; no second row (the line names a tool that is already a command)
 ##   "key:<K>"   a key of the model preview, sent the way a real key comes (main._unhandled_input)
-##   "bl:<K>"    a key of the Blender-style layer (G / R / S on the selected vertices): greyed while the layer is off
+##   "bl:<K>"    a key of the Blender-style layer: greyed while the layer is off (G / R / S are "key:" rows now: they work with it off)
 ##   "op:<name>" an op of this file on the model preview's mesh (op())
 ##   ""          not built yet: the row shows greyed with "soon", a pick says so (the line is there so the search finds
 ##               it and the key is reserved; the agent who builds it fills "do")
@@ -36,13 +36,15 @@ const TOOLS := [
 	{"id": "mesh_body", "label": "Model: colour by body region", "page": "MODEL", "keys": "Shift+H", "bl": "", "do": "op:body_regions", "also": "body region bone nearest anatomy limb arm leg hand head colour color skin aware label", "desc": "every vertex coloured by its body region (nearest UE5 bone), a legend, and the bone + distance under the mouse (A18)"},
 	{"id": "mesh_anatomy", "label": "Model: colour by anatomy (tags)", "page": "MODEL", "keys": "Alt+H", "bl": "", "do": "op:anatomy", "also": "anatomy tag tags muscle deltoid biceps triceps patella kneecap knuckle elbow olecranon pectoral glutes calf shin palm sole skull face colour color paint brush", "desc": "every vertex coloured by its anatomy tag (deltoid, patella, knuckles ...), a legend, the tag under the mouse; Alt+drag paints the brush tag (A19)"},
 	{"id": "mesh_anatomy_seed", "label": "Model: anatomy tags from the bones again", "page": "MODEL", "keys": "", "bl": "", "do": "op:anatomy_seed", "also": "anatomy tags reset reseed seed rule bones again clear paint", "desc": "every vertex's anatomy tag back to the rule (nearest bone, along it, round it); one undo step (A19)"},
+	{"id": "mesh_save", "label": "Model: save mesh", "page": "MODEL", "keys": "Ctrl+S", "bl": "", "do": "op:save_mesh", "also": "save store keep write file kmesh stash keep archive export mesh", "desc": "the mesh as a .kmesh in meshes/ (the first time asks its name; then Ctrl+S writes the same file)"},
+	{"id": "mesh_open", "label": "Model: open a saved mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:open_mesh", "also": "open load read import mesh kmesh file saved recall restore", "desc": "lists the saved meshes; the pick loads into the editor as one undo step"},
 	{"id": "mesh_model_checks", "label": "Model: model checks (grade for animation)", "page": "MODEL", "keys": "", "bl": "", "do": "op:model_checks", "also": "grade score animation ready rig deform bend joint joints poles ngon ngons triangles thin loops elbow knee quality topology", "desc": "B30: one button grades the mesh 0-100 for animation; problems worst first, each with Show me and a next step (scripts/model_checks.gd)"},
 	{"id": "mesh_repair", "label": "Model: repair the mesh", "page": "MODEL", "keys": "", "bl": "", "do": "op:repair", "also": "repair fix clean merge distance doubles holes fill flip normals consistent cleanup", "desc": "fixes every problem that can be fixed alone (one undo step)"},
 	{"id": "mesh_vpaint", "label": "Model: vertex paint on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:vpaint", "also": "vertex paint colour color brush blend mix add multiply blur eyedropper symmetry pressure", "desc": "drag on the mesh to paint its corner colours (E04, scripts/kmesh_vpaint_ui.gd): [ ] radius, N blend, X symmetry, F fill, Ctrl+click eyedropper, Esc leaves"},
 	{"id": "mesh_vpaint_fill", "label": "Model: vertex paint: fill the selection", "page": "MODEL", "keys": "", "bl": "", "do": "op:vpaint_fill", "also": "vertex paint fill colour color selection faces flood", "desc": "the selected faces (or verts) take the paint colour, one undo step"},
-	{"id": "mesh_grab", "label": "Model: grab the selected vertices", "page": "MODEL", "keys": "", "bl": "G", "do": "bl:G", "also": "grab move translate drag vertices", "desc": "the selection follows the mouse; X / Y / Z an axis, a number metres; Enter keeps"},
-	{"id": "mesh_rotate", "label": "Model: rotate the selected vertices", "page": "MODEL", "keys": "", "bl": "R", "do": "bl:R", "also": "rotate turn spin vertices", "desc": "turn the selection round its centre; X / Y / Z an axis, a number degrees; Enter keeps"},
-	{"id": "mesh_scale", "label": "Model: scale the selected vertices", "page": "MODEL", "keys": "", "bl": "S", "do": "bl:S", "also": "scale size grow shrink resize vertices", "desc": "scale the selection about its centre; a number = the factor; Enter keeps"},
+	{"id": "mesh_grab", "label": "Model: grab the selected vertices", "page": "MODEL", "keys": "G", "bl": "", "do": "key:G", "also": "grab move translate drag vertices", "desc": "the selection follows the mouse; X / Y / Z an axis, a number metres; Enter keeps; works with the Blender-keys layer off too"},
+	{"id": "mesh_rotate", "label": "Model: rotate the selected vertices", "page": "MODEL", "keys": "R", "bl": "", "do": "key:R", "also": "rotate turn spin vertices", "desc": "turn the selection round its centre; X / Y / Z an axis, a number degrees; Enter keeps; works with the Blender-keys layer off too"},
+	{"id": "mesh_scale", "label": "Model: scale the selected vertices", "page": "MODEL", "keys": "S", "bl": "", "do": "key:S", "also": "scale size grow shrink resize vertices", "desc": "scale the selection about its centre; a number = the factor; Enter keeps; works with the Blender-keys layer off too"},
 	{"id": "mesh_snap_target", "label": "Model: snap target (vertex, edge, face, grid, body)", "page": "MODEL", "keys": "Shift+Tab", "bl": "", "do": "op:snap_target", "also": "snap snapping target vertex edge midpoint face surface grid increment body skin ctrl magnet", "desc": "the next thing G snaps onto while Ctrl is held (B08)"},
 	{"id": "mesh_snap_toggle", "label": "Model: snapping always on / off", "page": "MODEL", "keys": "", "bl": "", "do": "op:snap_toggle", "also": "snap snapping toggle always magnet ctrl", "desc": "snap without holding Ctrl (then Ctrl lets go)"},
 	{"id": "mesh_pivot", "label": "Model: pivot for rotate / scale (median, active, cursor, individual)", "page": "MODEL", "keys": ".", "bl": "", "do": "op:pivot", "also": "pivot point origin centre center median active cursor individual origins rotate scale", "desc": "what R / S turn and scale about (B14)"},
@@ -57,7 +59,7 @@ const TOOLS := [
 	{"id": "mesh_delete", "label": "Model: delete", "page": "MODEL", "keys": "Del", "bl": "", "do": "", "also": "delete remove erase vertices edges faces", "desc": "delete the selected elements"},
 	{"id": "mesh_merge", "label": "Model: merge vertices", "page": "MODEL", "keys": "M", "bl": "", "do": "", "also": "merge weld collapse join center vertices", "desc": "the selected vertices become one"},
 	{"id": "mesh_fill", "label": "Model: fill (make a face)", "page": "MODEL", "keys": "F", "bl": "", "do": "key:F", "also": "fill face make new close hole bridge grid", "desc": "a face on the selected vertices or across a hole"},
-	{"id": "mesh_subdiv", "label": "Model: subdivide", "page": "MODEL", "keys": "", "bl": "", "do": "", "also": "subdivide subdivision catmull clark smooth split more faces", "desc": "every selected face split in four (Catmull-Clark: A12)"},
+	{"id": "mesh_subdiv", "label": "Model: subdivide (Subdivide modifier, levels 1-3)", "page": "MODEL", "keys": "Ctrl+1", "bl": "", "do": "key:Ctrl+1", "also": "subdivide subdivision catmull clark smooth split more faces modifier level", "desc": "a Subdivide modifier at that level on the stack (Ctrl+2, Ctrl+3 for levels 2, 3); the stack refusing it subdivides the mesh instead, and says so (A12)"},
 	{"id": "mesh_modifiers", "label": "Model: modifier stack (mirror, subdivide, solidify, array, displace)", "page": "MODEL", "keys": "", "bl": "", "do": "op:modifiers", "also": "modifier modifiers stack non-destructive mirror symmetry subdivide subdivision solidify thickness shell array repeat copies displace noise bump apply bake", "desc": "a live stack on the mesh, shown in the view; edits stay on the base (A11, the panel on the right)"},
 	{"id": "mesh_shrinkwrap", "label": "Model: shrinkwrap onto the body (+4 mm)", "page": "MODEL", "keys": "", "bl": "", "do": "op:shrinkwrap", "also": "shrinkwrap shrink wrap project snap conform fit onto body skin surface armour armor plate offset nearest", "desc": "the selected verts (all when none) go to the nearest point of the fighter's skin at its current pose, 4 mm out (B13, one undo step)"},
 	{"id": "mesh_shrinkwrap_view", "label": "Model: project onto the body along the view", "page": "MODEL", "keys": "", "bl": "", "do": "op:shrinkwrap_view", "also": "shrinkwrap project projection along view camera direction ray cast onto body skin armour armor decal", "desc": "the selected verts cast along the view direction (both ways) onto the skin, 4 mm out (B13, one undo step)"},
@@ -242,7 +244,11 @@ static func run(t: Dictionary, m) -> void:
 			return   # nothing to leave: it was just opened
 	if d.begins_with("key:") or d.begins_with("bl:"):
 		var ev := InputEventKey.new()
-		ev.keycode = OS.find_keycode_from_string(d.substr(d.find(":") + 1))
+		var parts := d.substr(d.find(":") + 1).split("+")
+		ev.keycode = OS.find_keycode_from_string(parts[-1])
+		ev.ctrl_pressed = "Ctrl" in parts
+		ev.shift_pressed = "Shift" in parts
+		ev.alt_pressed = "Alt" in parts
 		ev.pressed = true
 		m._unhandled_input(ev)   # the way a real key comes: the Blender layer first, then the model preview
 	elif d.begins_with("op:"):

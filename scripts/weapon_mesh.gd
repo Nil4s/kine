@@ -36,9 +36,13 @@ static func build(kind: String, girth := 1.0, thumb := false) -> Node3D:
 	match kind:
 		"metal_bat":
 			_tube(root, 0.0, 0.03, rh * 1.6, rh * 1.6, mt.tape, 10)   # the knob
+			_name_last(root, "knob")
 			_tube(root, 0.03, wh, rh, rh, mt.tape, 10)                # the taped handle
+			_name_last(root, "handle")
 			_tube(root, wh, L, rh, rb, mt.wood, 12)                   # the barrel: wood, a cone from the handle to the thick end
+			_name_last(root, "barrel")
 			_ball(root, Vector3(0, L - rb, 0), rb, mt.wood)           # the rounded end, its top at the tip
+			_name_last(root, "end")
 		"staff":
 			var sr := rh * girth
 			_tube(root, 0.0, L, sr, sr, mt.wood, 8)
@@ -168,6 +172,11 @@ static func materials() -> Dictionary:
 	wood.albedo_color = Color(0.5, 0.34, 0.2)
 	wood.roughness = 0.75
 	return {"tape": tape, "metal": metal, "steel": steel, "wood": wood}
+
+
+## the piece just added gets a part name (an exported file lists it as weapon_<name>: weapon_knob, weapon_handle...)
+static func _name_last(root: Node3D, nm: String) -> void:
+	root.get_child(root.get_child_count() - 1).name = nm
 
 
 ## a piece as a MeshInstance3D child of root (named p<index>, so a listing can tell the pieces apart)

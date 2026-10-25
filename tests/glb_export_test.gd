@@ -194,4 +194,33 @@ func _init() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR + "/" + f))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
 	print("GLB EXPORT: %d failed" % fails)
+	# ---- round 2 bar: Export model writes a .glb that loads and an .obj with one 'v' line per vertex
+	var me = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(me)
+	await process_frame
+	await process_frame
+	await process_frame
+	var mp := ""
+	var obj_v := -1
+	var nv := -1
+	var glb_ok := false
+	if me.has_method("_export_model"):
+		me._kmesh_edit_start()
+		await process_frame
+		await process_frame
+		await process_frame
+		nv = me.kmed.mesh.to_array_mesh().surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
+		mp = me._export_model()
+		var st2 := GLTFState.new()
+		glb_ok = mp != "" and GLTFDocument.new().append_from_file(mp, st2) == OK and st2.get_meshes().size() > 0
+		var objp := mp.get_basename() + ".obj"
+		if FileAccess.file_exists(objp):
+			obj_v = 0
+			for line in FileAccess.get_file_as_string(objp).split("\n"):
+				if line.begins_with("v "):
+					obj_v += 1
+	ok(glb_ok and obj_v > 0 and obj_v == nv, "R2 Export model: .glb loads %s, .obj has %d 'v' lines for %d mesh verts (bar: equal, > 0)" % [glb_ok, obj_v, nv])
+	me.queue_free()
+	await process_frame
+
 	quit(1 if fails > 0 else 0)
