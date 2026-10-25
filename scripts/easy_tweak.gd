@@ -117,10 +117,12 @@ static func smoothed(S: Scene, B: Body) -> Dictionary:
 		nd["offset"] = [_blend(float(oa[0]), float(o[0]), float(ob[0])), _blend(float(oa[1]), float(o[1]), float(ob[1])), _blend(float(oa[2]), float(o[2]), float(ob[2]))]
 		for j in nd["joints"]:
 			var x: Dictionary = nd["joints"][j]
-			var xa: Dictionary = pa["joints"].get(j, x)
-			var xb: Dictionary = pb["joints"].get(j, x)
+			var xa: Dictionary = (pa.get("joints", {}) as Dictionary).get(j, x)   # a neighbour without this joint / axis (an empty pose,
+			var xb: Dictionary = (pb.get("joints", {}) as Dictionary).get(j, x)   # a card from another rig) counts as this card's own value
 			for ax in ["bend", "side", "twist"]:
-				x[ax] = _blend(float(xa[ax]), float(x[ax]), float(xb[ax]))
+				if not x.has(ax):
+					continue
+				x[ax] = _blend(float(xa.get(ax, x[ax])), float(x[ax]), float(xb.get(ax, x[ax])))
 		B.from_dict(d)
 		var standing := absf(B.floor_shift()) < STAND_M
 		B.from_dict(nd)

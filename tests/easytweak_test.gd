@@ -160,6 +160,14 @@ func _init() -> void:
 	var again := await press("eh_faster")
 	ok(say() == FAST_STOP and int(again["undo"]) == 0 and absf(m.S.length() - L_before) < 1e-9, "6. one more Faster at the limit: the same sentence, no undo step")
 
+	# 7. Smoother with an empty neighbouring card pose (a card whose pose was cleared): no script error, every inner card smoothed
+	var n7: int = m.S.cards.size()
+	var keep7: Dictionary = (m.S.cards[0]["pose"] as Dictionary).duplicate(true)
+	(m.S.cards[0]["pose"] as Dictionary).clear()
+	var sm7: Dictionary = EasyTweak.smoothed(m.S, m.B)
+	m.S.cards[0]["pose"] = keep7   # put the card back before anything plays it
+	ok(n7 >= 3 and sm7.size() == n7 - 2, "7. Smoother next to an empty card pose smooths the %d inner cards (got %d)" % [n7 - 2, sm7.size()])
+
 	m.easy.set_on(false, false)
 	await idle(2)
 	print("EASYTWEAK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
