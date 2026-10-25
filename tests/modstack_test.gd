@@ -275,6 +275,26 @@ func _init() -> void:
 
 	await preview()
 	print("MODSTACK ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	# ---- round 2 bar: the stack rows say what their buttons do, the Add buttons name the thing added
+	var mstk = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(mstk)
+	await idle(6)
+	mstk.tour_step = -1
+	if mstk.ui_tour != null:
+		mstk.ui_tour.visible = false
+	mstk._kmesh_edit_start()
+	await idle(3)
+	mstk.kmed.mods.add(KMeshModifiers.TYPES[0])
+	await idle(2)
+	var ap = mstk.kmed.mods.panel.find_child("mod_0_apply", true, false)
+	var ad = mstk.kmed.mods.panel.find_child("btn_mod_add", true, false)
+	var am = mstk.kmed.mat_panel.find_child("btn_mat_add_material", true, false)
+	var at := String(ap.text) if ap != null else "(none)"
+	ok(at == "Apply " + KMeshModifiers.NAMES[KMeshModifiers.TYPES[0]] and ad != null and ad.text == "Add modifier" and am != null and am.text == "Add material",
+		"R2 modifier row button reads '%s' (bar 'Apply %s'); Add buttons read '%s' / '%s' (bar 'Add modifier' / 'Add material')" % [at, KMeshModifiers.NAMES[KMeshModifiers.TYPES[0]], String(ad.text) if ad != null else "(none)", String(am.text) if am != null else "(none)"])
+	mstk.queue_free()
+	await idle(2)
+
 	quit(1 if fails else 0)
 
 

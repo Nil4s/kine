@@ -515,7 +515,6 @@ static func start(m: Node) -> void:
 		m.kmed.stop()
 	var info := {}
 	var k := read(m, info)
-	m.set_meta(META_BASE, sig_of(k))   # Apply with no edit since this (or since the last Apply) writes nothing
 	var p0 := m.pieces.values()[0] as MeshInstance3D
 	var at: Transform3D = (m.stage_root as Node3D).global_transform.affine_inverse() * p0.global_transform
 	var vis := {}
@@ -526,6 +525,7 @@ static func start(m: Node) -> void:
 	m.kmed.left = func(): _leave(m, vis, cam_was)
 	m._mesh_page_for("MODEL")   # the body's mesh is edited on the MODEL page (its keys and panels)
 	m.kmed.start()
+	m.set_meta(META_BASE, sig_of(m.kmed.mesh))   # after the editor starts: Apply with no edit since then writes nothing
 	m.kmed.prim_panel.visible = false   # the cube's "Add primitive" panel is not the body's
 	m.kmed.set_meta("base_body", true)
 	m.kmed.set_meta("fighter_vis", vis)   # the fighter's parts come back on another page, and go again on MODEL (kmesh_edit_ui.set_showing)

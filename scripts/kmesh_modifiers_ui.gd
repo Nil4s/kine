@@ -69,6 +69,7 @@ func open() -> void:
 	ed.view.rebuilt.connect(_on_rebuilt)
 	_sig = 0
 	refresh_list()
+	_fit.call_deferred()   # the Add primitive panel is placed when the cube opens: fit the list above it then
 	_on_rebuilt()
 
 
@@ -253,12 +254,24 @@ func refresh_list() -> void:
 func _fit() -> void:
 	var ms := _list.get_combined_minimum_size()
 	var vh := panel.get_viewport_rect().size.y
-	_scroll.custom_minimum_size = Vector2(ms.x, minf(ms.y, vh * MAX_H))
-	panel.reset_size()
-	if ed != null and ed.m != null and ed.m._mesh_page():   # a mesh page: the top of the left column (Materials has the right edge, Add primitive the middle)
+	var room := vh * MAX_H
+	var on_mesh: bool = ed != null and ed.m != null and ed.m._mesh_page()
+	if on_mesh:   # a mesh page: the top of the left column (Materials has the right edge, Add primitive the middle)
 		panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, 0)
 		panel.position = Vector2(PANEL_GAP, ed.m.nav_clear_rect().position.y + PANEL_GAP)
-	else:
+		var pp: PanelContainer = ed.prim_panel
+		if pp != null:   # Add primitive sits centre left (its top is half its height above the middle): the list stops above it and scrolls
+			var head := 0.0
+			var vb := panel.get_child(0) as VBoxContainer
+			for i in 2:
+				head += (vb.get_child(i) as Control).get_combined_minimum_size().y + vb.get_theme_constant("separation")
+			var ph: float = pp.size.y if pp.size.y > 0.0 else 260.0
+			var prim_top: float = vh * 0.5 - ph * 0.5
+			room = minf(room, prim_top - PANEL_GAP - panel.position.y - head - 8.0)
+		room = maxf(room, 120.0)
+	_scroll.custom_minimum_size = Vector2(ms.x, minf(ms.y, room))
+	panel.reset_size()
+	if not on_mesh:
 		panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT, Control.PRESET_MODE_MINSIZE, PANEL_GAP)
 
 

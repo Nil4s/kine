@@ -21402,7 +21402,7 @@ func _export_model() -> String:
 		return ""
 	var k: KMesh = kmed.mesh
 	var stem := "body_mesh" if BaseBody.is_open(self) else "test_cube"
-	var dir := "res://exports"
+	var dir := UserPaths.w("res://exports")   # an exported build: the user's folder (res:// is read-only there)
 	var am := k.to_array_mesh()
 	var e := KMeshVPaint.export_glb(k, "%s/%s.glb" % [dir, stem], stem)
 	var r := ObjIO.export([{"name": stem, "mesh": am, "xf": Transform3D.IDENTITY, "color": ObjIO.DEFAULT_COLOR}], "%s/%s.obj" % [dir, stem])
