@@ -50,8 +50,8 @@
 ##  51. STAND UP (round 7, goal 2): a sat-down body typed "stand up then wave" builds cards; the wave is last, the stand-up cards
 ##      come from the sit reversed: the body ends standing (pelvis back within 4 cm of its standing height), not seated.
 ##  52. THEN STAND UP: after a sit the Then row offers "Then stand up" first, and its press builds the stand-up move.
-##  90. A REFUSED LINE IS SELECTED (round 8, friction 3): "dance" refused, the box selected; typed "punch" builds a punch, no "dance" in the cards.
-##  91. THE REFUSAL OFFERS THE CLOSEST MOVES (round 8, friction 5): "sit dwn" refused; >= 3 try buttons, Sit down first; its press builds the sit down.
+##  105. A REFUSED LINE IS SELECTED (round 8, friction 3): "dance" refused, the box selected; typed "punch" builds a punch, no "dance" in the cards.
+##  106. THE REFUSAL OFFERS THE CLOSEST MOVES (round 8, friction 5): "sit dwn" refused; >= 3 try buttons, Sit down first; its press builds the sit down.
 ##  53. UNDO IN EASY: a 3-step sequence (Walk, Then wave, Bigger): each Undo changes the card list (count or the cards' poses), and
 ##      the status names the step it took back. Old code: the first Undo here took the same step, unnamed by the strip.
 ##  70. SIT AFTER A WALK (walk-through round 7, goal 1): a chair placed, a walk built, nothing picked (as after Library Close): the strip
@@ -1829,7 +1829,7 @@ func _init() -> void:
 	m._new_scene()
 	await idle(2)
 
-	# 90. A REFUSED LINE IS SELECTED, NOT GLUED (walk-through round 8, friction 3): "dance" is refused and the box keeps its word,
+	# 105. A REFUSED LINE IS SELECTED, NOT GLUED (walk-through round 8, friction 3): "dance" is refused and the box keeps its word,
 	# selected, so the next keystrokes replace it. "punch" typed after it builds a punch, and no card name says "dance".
 	# Old code: the refused word stayed unselected, so the insertion glued on ("dancepunch").
 	m._new_scene()
@@ -1839,24 +1839,24 @@ func _init() -> void:
 	edit.text = "dance"
 	edit.text_submitted.emit("dance")
 	await idle(3)
-	var sel90 := edit.has_selection() and edit.get_selected_text() == "dance"
+	var sel105 := edit.has_selection() and edit.get_selected_text() == "dance"
 	if edit.has_selection():   # a keystroke over a selection deletes it first (insert_text_at_caret does not), then goes at the caret
-		var f90 := edit.get_selection_from_column()
-		edit.text = edit.text.substr(0, f90) + edit.text.substr(edit.get_selection_to_column())
-		edit.caret_column = f90
+		var f105 := edit.get_selection_from_column()
+		edit.text = edit.text.substr(0, f105) + edit.text.substr(edit.get_selection_to_column())
+		edit.caret_column = f105
 	edit.insert_text_at_caret("punch")   # the keystrokes of "punch" in the box
-	var typed90 := edit.text
-	edit.text_submitted.emit(typed90)
+	var typed105 := edit.text
+	edit.text_submitted.emit(typed105)
 	await idle(4)
-	var dance90 := false
+	var dance105 := false
 	for c in m.S.cards:
 		if "dance" in String(c["name"]).to_lower():
-			dance90 = true
-	ok(sel90 and typed90 == "punch" and not m.S.cards.is_empty() and not dance90,
-		"90. after 'dance' is refused its word is selected (%s), typing 'punch' gives box '%s' and builds %d card(s), none named dance (%s)"
-		% [sel90, typed90, m.S.cards.size(), str(m.S.cards.map(func(c): return c["name"]))])
+			dance105 = true
+	ok(sel105 and typed105 == "punch" and not m.S.cards.is_empty() and not dance105,
+		"105. after 'dance' is refused its word is selected (%s), typing 'punch' gives box '%s' and builds %d card(s), none named dance (%s)"
+		% [sel105, typed105, m.S.cards.size(), str(m.S.cards.map(func(c): return c["name"]))])
 
-	# 91. THE REFUSAL OFFERS THE CLOSEST MOVES (round 8, friction 5): "sit dwn" is refused; at least three try buttons show, the first is
+	# 106. THE REFUSAL OFFERS THE CLOSEST MOVES (round 8, friction 5): "sit dwn" is refused; at least three try buttons show, the first is
 	# "Sit down" (the card word closest to what was typed), and its press builds the sit down (one undo step).
 	# Old code: the same four buttons (Punch, Kick, Wave, Walk) for every refusal, and no Sit down button at all.
 	m._new_scene()
@@ -1866,28 +1866,28 @@ func _init() -> void:
 	edit.text = "sit dwn"
 	edit.text_submitted.emit("sit dwn")
 	await idle(3)
-	var why91 := (home.panel.find_child("eh_msg", true, false) as Label).text
-	var shown91: Array = []
+	var why106 := (home.panel.find_child("eh_msg", true, false) as Label).text
+	var shown106: Array = []
 	for c in home._try_row.get_children():
 		if c is Button and (c as Button).visible:
-			shown91.append(c)
-	var names91 := []
-	for b in shown91:
-		names91.append((b as Button).text)
-	var c91: int = m.S.cards.size()
-	var u91: int = m.undo.size()
-	var shot91 := "user://easy_refusal.png"   # the refusal with its try buttons, for the report (before the press)
-	m.get_viewport().get_texture().get_image().save_png(shot91)
-	print("screenshot %s" % ProjectSettings.globalize_path(shot91))
-	var pressed91 := false
-	if shown91.size() > 0:
-		(shown91[0] as Button).pressed.emit()
-		pressed91 = true
+			shown106.append(c)
+	var names106 := []
+	for b in shown106:
+		names106.append((b as Button).text)
+	var c106: int = m.S.cards.size()
+	var u106: int = m.undo.size()
+	var shot106 := "user://easy_refusal.png"   # the refusal with its try buttons, for the report (before the press)
+	m.get_viewport().get_texture().get_image().save_png(shot106)
+	print("screenshot %s" % ProjectSettings.globalize_path(shot106))
+	var pressed106 := false
+	if shown106.size() > 0:
+		(shown106[0] as Button).pressed.emit()
+		pressed106 = true
 	await idle(3)
-	ok(why91 == "Kine doesn't know 'sit dwn' yet." and shown91.size() >= 3 and names91[0] == "Sit down",
-		"91. the refusal shows >= 3 try buttons, the closest first (sentence '%s', buttons %s)" % [why91, str(names91)])
-	ok(pressed91 and m.S.cards.size() > c91 and m.undo.size() == mini(u91 + 1, 60) and m.S.cards.any(func(c): return "seated" in String(c["name"]).to_lower()),
-		"91. pressing the first try button builds its move: cards %d -> %d, undo %d -> %d, names %s, pressed %s" % [c91, m.S.cards.size(), u91, m.undo.size(), str(m.S.cards.map(func(c): return c["name"])), pressed91])
+	ok(why106 == "Kine doesn't know 'sit dwn' yet." and shown106.size() >= 3 and names106[0] == "Sit down",
+		"106. the refusal shows >= 3 try buttons, the closest first (sentence '%s', buttons %s)" % [why106, str(names106)])
+	ok(pressed106 and m.S.cards.size() > c106 and m.undo.size() == mini(u106 + 1, 60) and m.S.cards.any(func(c): return "seated" in String(c["name"]).to_lower()),
+		"106. pressing the first try button builds its move: cards %d -> %d, undo %d -> %d, names %s, pressed %s" % [c106, m.S.cards.size(), u106, m.undo.size(), str(m.S.cards.map(func(c): return c["name"])), pressed106])
 	m._new_scene()
 	await idle(2)
 
