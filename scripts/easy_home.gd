@@ -102,6 +102,7 @@ var _scrub_row: HBoxContainer # THE SCRUB (strip's last row): the slider over th
 var _scrub: HSlider           # eh_scrub: dragging it stops play and poses the body at that time (as the timeline's scrub does)
 var _scrub_time: Label       # eh_scrub_time: "1.2 s / 4.0 s"
 var _scrub_ticks: Control    # eh_scrub_ticks: a child of the slider; a tick at each strike card's contact (drawn inside the slider's rect)
+var _tick_key: Array = []    # [scene, its times() array, marker count] the ticks were built for
 var _tick_list: Array = []   # [{"t": contact time s, "label": "Punch lands", "card": index}], rebuilt with the scrub
 var _scrub_sync := false      # true while _process moves the slider to the playhead (that move is not a drag)
 var _help_on := false          # the panel shows the help text in place of the picture cards (Help, or the strip's Help)
@@ -747,9 +748,15 @@ func _scrub_show() -> void:
 ## THE HIT MARKS: each strike card's contact time (its "hit" marker, else the card's arrival: BeatFight.contacts) is a tick
 ## on the slider. Rebuilt with the scrub, so a changed clip moves its ticks.
 func _scrub_ticks_build() -> void:
-	_tick_list.clear()
 	var S: Scene = m.S
 	var ts: Array = S.times()
+	# _scrub_show runs every frame: rebuild only when the clip changed (times() hands back the same memo array until a card's
+	# pose or timing changes) or its markers did
+	var key := [S, ts, S.markers.size()]
+	if not _tick_key.is_empty() and is_same(_tick_key[0], key[0]) and is_same(_tick_key[1], key[1]) and _tick_key[2] == key[2]:
+		return
+	_tick_key = key
+	_tick_list.clear()
 	for i in BeatFight.contacts(S):
 		var t: float = float(ts[i][1])
 		for mk in S.markers:
