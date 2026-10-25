@@ -5456,6 +5456,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_F: _do(func(): _fingers_cycle())
 			KEY_G: _do(_toggle_second)
 			KEY_H: _dummy_toggle()
+			KEY_DELETE when sel_prop >= 0 and not k.ctrl_pressed and not k.alt_pressed:   # the picked prop goes (Easy's bar and Expert's SET have the same Remove / Delete prop; one undo step inside _prop_del)
+				_prop_del()
 			KEY_U when not k.shift_pressed: cards_use_usual()   # I10: the picked cards take your usual timing
 			KEY_K: _key_part()
 			KEY_T when k.shift_pressed:
@@ -19199,7 +19201,7 @@ func _prop_press(i: int, mp: Vector2, t: float) -> void:
 	dragging = "prop"
 	_end_teach()
 	_props_show()
-	_say_plain("the %s: drag to move it (it steps onto what it stands over); Turn left / right and Delete are in SET" % _prop_name(i))
+	_say_plain(("the %s: drag to move it (it steps onto what it stands over); Turn left / right and Remove are in the bar at the top right" if easy.on else "the %s: drag to move it (it steps onto what it stands over); Turn left / right and Delete are in SET") % _prop_name(i))
 
 
 func _prop_move(mp: Vector2) -> void:
