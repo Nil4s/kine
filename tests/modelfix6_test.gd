@@ -368,6 +368,9 @@ func _init() -> void:
 		await key(KEY_ENTER)
 		await key(KEY_ENTER)
 		var v2: int = kmed.mesh.verts.size()
+		var sv: Array = kmed.sel.verts.keys()
+		sv.sort()
+		ok(sv.size() == v1 - v0 and not sv.is_empty() and int(sv[0]) == v0, "(i) the added primitive comes selected, nothing else (%d of %d new verts, first %s)" % [sv.size(), v1 - v0, str(sv.slice(0, 1))])
 		ok(addb != null and v1 > v0 and v2 == v1, "(h) Add primitive once, then Enter twice: one primitive (verts %d -> %d -> %d)" % [v0, v1, v2])
 	else:
 		ok(false, "(h) the test cube opened")

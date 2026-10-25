@@ -849,6 +849,14 @@ func add_prim(kind: String, params := {}) -> bool:
 	var st := undo.commit("Add " + KMeshPrims.NAMES[kind])
 	live = {"kind": kind, "params": p, "step": st, "base_v": base_v, "base_f": base_f, "at": at}
 	_after_topo()
+	# the new part comes selected, so G / S / R move it at once (walk-through 6: a box select through x-ray caught the
+	# neighbouring table verts and missed some of the cylinder's)
+	var md := sel.mode
+	sel.mode = KMeshSelect.VERT
+	for v in range(base_v.size(), mesh.vert_count()):
+		sel.verts[v] = true
+	sel.set_mode(md)
+	view.rebuild()
 	var ki := KMeshPrims.KINDS.find(kind)
 	if _prim_kind.selected != ki:
 		_prim_kind.select(ki)
