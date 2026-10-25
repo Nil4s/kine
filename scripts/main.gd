@@ -10387,25 +10387,27 @@ func _hands_block(easy_side: bool) -> VBoxContainer:
 	else:
 		d["state"] = _label("", 15, "info", true)
 		d["state"].name = "hands_state"
-		d["state"].custom_minimum_size = Vector2(300, 0)
 		box.add_child(d["state"])
-		d["both"] = _button("Both hands hold it", _do.bind(_hands_both), "puts the second hand back on the weapon's handle (one undo step)")
+		var hb := HBoxContainer.new()   # one strip of buttons under the state line (a column of them covered the body)
+		hb.add_theme_constant_override("separation", 4)
+		box.add_child(hb)
+		d["both"] = _button("Both hands", _do.bind(_hands_both), "puts the second hand back on the weapon's handle (one undo step)")
 		d["both"].name = "btn_both_hands"
-		box.add_child(d["both"])
-		d["let_l"] = _button("Let go: left hand", _do.bind(_hands_let_go.bind("hand_l")), "takes the left hand off the weapon: it stays where it is, free to move (one undo step)")
+		hb.add_child(d["both"])
+		d["let_l"] = _button("Free left hand", _do.bind(_hands_let_go.bind("hand_l")), "takes the left hand off the weapon: it stays where it is, free to move (one undo step)")
 		d["let_l"].name = "btn_let_go_left"
-		box.add_child(d["let_l"])
-		d["let_r"] = _button("Let go: right hand", _do.bind(_hands_let_go.bind("hand_r")), "takes the right hand off the weapon: it stays where it is, free to move (one undo step)")
+		hb.add_child(d["let_l"])
+		d["let_r"] = _button("Free right hand", _do.bind(_hands_let_go.bind("hand_r")), "takes the right hand off the weapon: it stays where it is, free to move (one undo step)")
 		d["let_r"].name = "btn_let_go_right"
-		box.add_child(d["let_r"])
-		d["follow"] = _button("Weapon follows the hand", _do.bind(_bat_lock), "on: the weapon moves with the hand that holds it. Off: the weapon moves alone (the old Free the bat)")
+		hb.add_child(d["let_r"])
+		d["follow"] = _button("Weapon in hand", _do.bind(_bat_lock), "on: the weapon moves with the hand that holds it. Off: the weapon moves alone (the old Free the bat)")
 		d["follow"].toggle_mode = true
 		d["follow"].name = "btn_weapon_follows"
-		box.add_child(d["follow"])
-		d["only"] = _button("Only the part I drag", _only_part_toggle, "on (default): a drag moves only the part you grab: no smart follow, no balance re-centre, and a second hand on the weapon lets go. Off: the old follow")
+		hb.add_child(d["follow"])
+		d["only"] = _button("Only this part", _only_part_toggle, "on (default): a drag moves only the part you grab: no smart follow, no balance re-centre, and a second hand on the weapon lets go. Off: the old follow")
 		d["only"].toggle_mode = true
 		d["only"].name = "btn_only_part"
-		box.add_child(d["only"])
+		hb.add_child(d["only"])
 	ui_hands.append(d)
 	_hands_refresh()
 	return box
@@ -10429,7 +10431,12 @@ func _hands_refresh() -> void:
 	var easy_on: bool = easy != null and easy.on
 	if ui_hands_panel != null and is_instance_valid(ui_hands_panel):
 		ui_hands_panel.visible = held and (not easy_on or arm_pick)
-		ui_hands_panel.position = Vector2(12.0 if easy_on else 312.0, float(TOP_H) + 8.0)
+		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
+		# left it met the "Click a part" tip)
+		var vs := get_viewport().get_visible_rect().size
+		ui_hands_panel.reset_size()
+		var rx := vs.x - (12.0 if easy_on else float(RIGHT_W) + 12.0) - ui_hands_panel.size.x
+		ui_hands_panel.position = Vector2(rx, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 40.0)
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
