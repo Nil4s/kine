@@ -175,6 +175,7 @@ func names_matching(text: String) -> Array:
 
 ## show the panel (under the strip, beside the left panel) and refresh its tiles
 func open() -> void:
+	items = inventory()   # the list is read again on every open: a model exported or used as a prop since the last open is listed
 	_armour_body = []
 	_armour_hash = ""
 	visible = true

@@ -818,7 +818,7 @@ func _init() -> void:
 		t7_note = "no Export... on DELIVER"
 	end_goal("7", t7_ok, t7_note)
 
-	# ---- 8. RE-IMPORT the GLB as a prop (Object library > My models) and check its size ----
+	# ---- 8. RE-IMPORT the GLB as a prop (STAGE Library > My models) and check its size ----
 	begin_goal("8 Use as a prop (Export section), then Library > My models, check its size")
 	var t8_ok := false
 	var t8_note := ""
@@ -830,14 +830,14 @@ func _init() -> void:
 	say("   status after 'Use as a prop': %s" % str(m.ui_status.text))
 	await click_text("STAGE")
 	await idle(6)
-	var lib := find_btn("Object library", true)
-	say("   'Object library' button on STAGE: %s" % str(lib != null))
+	# the STAGE page's own Library button (no fallback): a visible button that opens the object library
+	var lib := find_btn("Library")
+	say("   'Library' button on STAGE: %s" % str(lib != null))
 	var kind := "my test_cube"
 	var size_note := ""
-	if lib != null:
-		await click_text("Object library", true)
+	if lib != null and await click_text("Library"):
 		await shot("27_library_open")
-		if await click_text("My models"):
+		if await click_text("My models", true):
 			await shot("28_my_models")
 	if used and Props.has_kind(kind):
 		var kd: Dictionary = Props.kind_of(kind)
@@ -846,7 +846,7 @@ func _init() -> void:
 		Props.EXTRA.erase(kind)   # the run's own prop copy: removed with its file below
 		if FileAccess.file_exists(String(kd["glb"])):
 			DirAccess.remove_absolute(String(kd["glb"]))
-	t8_note = "(Use as a prop pressed: %s; prop registered: %s; label: %s; Object library button: %s)" % [str(used), str(t8_ok), size_note, str(lib != null)]
+	t8_note = "(Use as a prop pressed: %s; prop registered: %s; label: %s; STAGE Library button: %s)" % [str(used), str(t8_ok), size_note, str(lib != null)]
 	end_goal("8", t8_ok, t8_note)
 
 	say("\n| # | Goal | Done | Actions | Notes |")
