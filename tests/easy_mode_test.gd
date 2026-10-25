@@ -261,6 +261,7 @@ func easy_rects() -> Array:
 		["prop bar", m.easy.home._pbar, m.easy.home._pbar != null and m.easy.home._pbar.is_visible_in_tree()],
 		["redo toast", m.ui_toast, m.ui_toast != null and m.ui_toast.visible],
 		["card strip", m.ui_cards, true],
+		["view buttons", m.easy.views, m.easy.views != null],   # Front / Side / Back / Reset view: the strip covered them at 1280x720
 	]
 	for c in cands:
 		var n: Control = c[1]

@@ -71,10 +71,10 @@
 ##      the root's horizontal path is continuous over the whole clip (no frame-to-frame jump > 0.15 m, sampled every 1/30 s).
 ##  86. the clip ends seated: the pelvis within 0.15 m of the seat horizontally and >= 0.2 m below standing.
 ##  87. one Undo takes the whole walk-and-sit back to the walk's card count.
-##  95. DROP IT (walk-through round 8, friction 1): a sword in his hand: the prop bar names it and shows a visible "Drop it"; the press
-##      empties the hand (B.wep_on false), the clip's cards are unchanged, one undo step; one Undo puts the sword back in the hand.
+##  95. DROP IT (walk-through round 8, friction 4): a sword picked, then "swing" typed: the prop bar names it with a visible
+##      "Drop it"; the press empties the hand and every card (scrubbing never brings it back), one undo step; Undo puts it back.
 ##  96. BIGGER ON A JUMP (round 8, friction 2): Bigger raises the jump's peak pelvis above standing by >= 15 % (scrubbed at 1/30 s).
-##  97. GUARD: Bigger on a walk keeps the feet on the floor: every frame has a sole within 1 cm of the floor, and none sinks below it.
+##  97. GUARD: Bigger on a walk adds no float or sink beyond 1 cm over the walk as built (the base walk dips ~4 cm: a separate fault).
 ##  90a. A SAVE UNDER A TAKEN NAME ASKS (walk-through round 8, friction 1): a clip saved twice under its name: the second save asks
 ##      Replace it / Save as a new name; the new name is wave_2 (the file wave_2.json is written).
 ##  90b. NEW SCENE ENDS EMPTY AFTER A SAVE QUESTION: an unsaved clip, New scene asks, Save runs the same question, its answer

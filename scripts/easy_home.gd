@@ -455,6 +455,7 @@ func _input(ev: InputEvent) -> void:
 func _process(dt: float) -> void:
 	if m == null or panel == null:
 		return
+	_strip_clear_views()
 	var on: bool = m.easy.on
 	var empty: bool = m.S.cards.is_empty()
 	var pb: Button = m.easy.button("Play / Stop")
@@ -558,6 +559,21 @@ func _prop_bar_update() -> void:
 	if strip.visible:   # the strip (its scrub row too) is taller than the views' place: the bar sits under it, never under the strip
 		top = maxf(top, strip.get_global_rect().end.y + 8.0)
 	_pbar.position = Vector2(vs.x - _pbar.size.x - 12.0, top)
+
+
+## THE STRIP CLEAR OF THE VIEW BUTTONS: centred under the bar, but at 1280x720 its 7-button row reached x 1168 and covered
+## Front / Side / Back (x 1135+). It moves left until its right edge is 8 px short of the view buttons (never past x 12).
+func _strip_clear_views() -> void:
+	if strip == null or not strip.visible:
+		return
+	var vs := strip.get_viewport().get_visible_rect().size
+	var x := (vs.x - strip.size.x) * 0.5
+	var views: Control = m.easy.views
+	if views != null and views.is_visible_in_tree():
+		x = minf(x, views.get_global_rect().position.x - 8.0 - strip.size.x)
+	x = maxf(12.0, x)
+	if absf(strip.position.x - x) > 0.5:
+		strip.position.x = x
 
 
 ## the held weapon's plain name ("sword", "2 daggers"): the picker's row for what the body holds, lower-cased
