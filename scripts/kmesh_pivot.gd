@@ -51,7 +51,7 @@ func cycle() -> String:
 func input(ev: InputEvent) -> bool:
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := ev as InputEventKey
-		if k.keycode in [KEY_PERIOD, KEY_KP_PERIOD] and not (k.ctrl_pressed or k.alt_pressed or k.shift_pressed):
+		if k.keycode == KEY_PERIOD and not (k.ctrl_pressed or k.alt_pressed or k.shift_pressed):   # Numpad . is frame selected (main.gd _mesh_view_key)
 			cycle()
 			return true
 		return false
