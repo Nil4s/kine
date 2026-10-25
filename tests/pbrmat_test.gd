@@ -257,4 +257,20 @@ func _init() -> void:
 	ok(not pan.visible, "7d leaving the cube hides the panel")
 
 	print("PBRMAT: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	# ---- round 2 bar: Add material with faces selected gives the new slot those faces only
+	if not ui.on or ui.view == null:   # the cube may be stopped by an earlier bar: open it again
+		m._kmesh_edit_start()
+		await idle(3)
+		ui = m.kmed
+		pan = ui.mat_panel
+	var sel_fs := [3, 4, 5]
+	ui.sel.set_mode(KMeshSelect.FACE)
+	ui.sel.clear()
+	for fi in sel_fs:
+		ui.sel.faces[fi] = true
+	var new_i: int = pan.add_slot({"name": "Round2 sel"})
+	var got := Array(KMeshMaterial.faces_of(ui.mesh, new_i))
+	got.sort()
+	ok(got == sel_fs, "R2 Add material with faces %s selected: the new slot holds %s (bar: exactly those faces)" % [str(sel_fs), str(got)])
+
 	quit(1 if fails > 0 else 0)

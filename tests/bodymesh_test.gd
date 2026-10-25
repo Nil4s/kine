@@ -436,5 +436,26 @@ func _init() -> void:
 	ok(int(bd.last.get("n", -1)) == 1 and not bd.last.get("full", true), "bar 9: a 1 mm nudge relabelled %d vert next frame (full %s)" % [int(bd.last.get("n", -1)), bd.last.get("full", null)])
 	await key(KEY_H, true)
 	ok(not bd.on and (bd.layer == null or not bd.layer.visible) and not bd.legend.visible, "bar 9: Shift+H again: layer and legend hidden")
+		# ---- round 2 bar: Apply body with NO edit writes nothing (the rebuild split the UV seams: 6994 -> 7330 verts)
+	var mb = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(mb)
+	await idle(6)
+	mb._load_scene("res://scenes/combo3.json")
+	mb._rebuild_cards()
+	await idle(3)
+	var n_before := BaseBody.read(mb).verts.size()
+	var g_before := BaseBody.gen(mb)
+	for c in mb._commands():
+		if c["name"] == "Model: edit the body mesh":
+			(c["run"] as Callable).call()
+	await idle(3)
+	for c in mb._commands():
+		if c["name"] == "Model: apply the body mesh to the fighter":
+			(c["run"] as Callable).call()
+	await idle(2)
+	var n_after := BaseBody.read(mb).verts.size()
+	ok(n_after == n_before and BaseBody.gen(mb) == g_before, "R2 apply body with no edit: %d -> %d verts, generations %d -> %d (bar: unchanged)" % [n_before, n_after, g_before, BaseBody.gen(mb)])
+	mb.queue_free()
+	await idle(2)
 	print("BODYMESH ", "PASS" if fails == 0 else "FAIL %d" % fails)
 	quit(1 if fails else 0)

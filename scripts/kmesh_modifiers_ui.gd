@@ -24,6 +24,7 @@ var _list: VBoxContainer
 var _scroll: ScrollContainer
 var _sig := 0
 var _list_sig := 0
+var _fresh := -1   # the row added last: its Apply / name say so until another stack edit (the target the user just made)
 
 
 func setup(editor: KMeshEditUI) -> void:
@@ -44,8 +45,8 @@ func setup(editor: KMeshEditUI) -> void:
 	hb.add_child(_kind)
 	var b := Button.new()
 	b.name = "btn_mod_add"
-	b.text = "Add"
-	b.tooltip_text = "add this modifier at the bottom of the stack (one undo step); the mesh itself is not changed"
+	b.text = "Add modifier"
+	b.tooltip_text = "add the picked modifier at the bottom of the stack (one undo step); the mesh itself is not changed"
 	b.pressed.connect(func(): add.call_deferred(KMeshModifiers.TYPES[_kind.selected]))
 	hb.add_child(b)
 	vb.add_child(hb)
@@ -68,6 +69,7 @@ func open() -> void:
 	ed.view.rebuilt.connect(_on_rebuilt)
 	_sig = 0
 	refresh_list()
+	_fit.call_deferred()   # the Add primitive panel is placed when the cube opens: fit the list above it then
 	_on_rebuilt()
 
 
@@ -146,7 +148,10 @@ func _step(label: String, f: Callable):
 
 
 func add(type: String) -> int:
+	_fresh = _mesh().modifiers.size()   # the row this add makes: marked before the list is rebuilt
 	var i: int = _step("Add %s modifier" % KMeshModifiers.NAMES.get(type, type), func(): return KMeshModifiers.add(_mesh(), type))
+	if i < 0:
+		_fresh = -1
 	m._say("Model: %s" % (KMeshModifiers.last_error if i < 0 else "added %s (the mesh itself is unchanged; Apply bakes it, Ctrl+Z takes it back)" % KMeshModifiers.describe(_mesh().modifiers[i])))
 	return i
 
@@ -164,6 +169,7 @@ func add_level(levels: int) -> int:
 
 func remove(i: int) -> bool:
 	var nm := _name(i)
+	_fresh = -1
 	var r: bool = _step("Remove %s modifier" % nm, func(): return KMeshModifiers.remove(_mesh(), i))
 	if r:
 		m._say("Model: removed %s (Ctrl+Z brings it back)" % nm)
@@ -173,6 +179,7 @@ func remove(i: int) -> bool:
 func move(i: int, to: int) -> int:
 	if to < 0 or to >= _mesh().modifiers.size() or to == i:
 		return i
+	_fresh = -1
 	var r: int = _step("Move %s modifier" % _name(i), func(): return KMeshModifiers.move(_mesh(), i, to))
 	m._say("Model: %s is now %d of %d (the order changes the result)" % [_name(r), r + 1, _mesh().modifiers.size()])
 	return r
@@ -210,6 +217,7 @@ func set_param(i: int, key: String, value):
 func apply(i: int) -> bool:
 	var mesh := _mesh()
 	var nm := _name(i)
+	_fresh = -1
 	ed.undo.begin(mesh)
 	var err := KMeshModifiers.apply_mod(mesh, i)
 	ed.undo.commit("Apply %s modifier" % nm)
@@ -257,12 +265,24 @@ func refresh_list() -> void:
 func _fit() -> void:
 	var ms := _list.get_combined_minimum_size()
 	var vh := panel.get_viewport_rect().size.y
-	_scroll.custom_minimum_size = Vector2(ms.x, minf(ms.y, vh * MAX_H))
-	panel.reset_size()
-	if ed != null and ed.m != null and ed.m._mesh_page():   # a mesh page: the top of the left column (Materials has the right edge, Add primitive the middle)
+	var room := vh * MAX_H
+	var on_mesh: bool = ed != null and ed.m != null and ed.m._mesh_page()
+	if on_mesh:   # a mesh page: the top of the left column (Materials has the right edge, Add primitive the middle)
 		panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, 0)
 		panel.position = Vector2(PANEL_GAP, ed.m.nav_clear_rect().position.y + PANEL_GAP)
-	else:
+		var pp: PanelContainer = ed.prim_panel
+		if pp != null:   # Add primitive sits centre left (its top is half its height above the middle): the list stops above it and scrolls
+			var head := 0.0
+			var vb := panel.get_child(0) as VBoxContainer
+			for i in 2:
+				head += (vb.get_child(i) as Control).get_combined_minimum_size().y + vb.get_theme_constant("separation")
+			var ph: float = pp.size.y if pp.size.y > 0.0 else 260.0
+			var prim_top: float = vh * 0.5 - ph * 0.5
+			room = minf(room, prim_top - PANEL_GAP - panel.position.y - head - 8.0)
+		room = maxf(room, 120.0)
+	_scroll.custom_minimum_size = Vector2(ms.x, minf(ms.y, room))
+	panel.reset_size()
+	if not on_mesh:
 		panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT, Control.PRESET_MODE_MINSIZE, PANEL_GAP)
 
 
@@ -270,6 +290,12 @@ func _block(i: int, mod: Dictionary) -> Control:
 	var vb := VBoxContainer.new()
 	vb.name = "mod_%d" % i
 	var hb := HBoxContainer.new()
+	if i == _fresh:
+		var nw := Label.new()
+		nw.name = "mod_%d_new" % i
+		nw.text = "NEW >"
+		nw.add_theme_color_override("font_color", Color(0.95, 0.75, 0.2))
+		hb.add_child(nw)
 	var on := CheckBox.new()
 	on.name = "mod_%d_on" % i
 	on.text = KMeshModifiers.describe(mod)
@@ -277,11 +303,13 @@ func _block(i: int, mod: Dictionary) -> Control:
 	on.toggled.connect(func(_p): toggle.call_deferred(i))   # deferred: the list is rebuilt under the button
 	on.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hb.add_child(on)
+	var mname: String = KMeshModifiers.NAMES.get(mod["type"], String(mod["type"]))
 	for b in [["up", "↑", "move up (runs earlier)", func(): move.call_deferred(i, i - 1)], ["down", "↓", "move down (runs later)", func(): move.call_deferred(i, i + 1)],
-			["apply", "Apply", "bake it into the mesh (one undo step)", func(): apply.call_deferred(i)], ["x", "×", "remove it", func(): remove.call_deferred(i)]]:
+			["apply", "Apply " + mname, "bake the " + mname + " modifier into the mesh (one undo step; the mesh changes, the stack loses this row)", func(): apply.call_deferred(i)],
+			["x", "Remove", "remove the " + mname + " modifier (one undo step)", func(): remove.call_deferred(i)]]:
 		var bt := Button.new()
 		bt.name = "mod_%d_%s" % [i, b[0]]
-		bt.text = b[1]
+		bt.text = "Remove" if b[0] == "x" else b[1]
 		bt.tooltip_text = b[2]
 		bt.pressed.connect(b[3])
 		hb.add_child(bt)
