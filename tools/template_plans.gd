@@ -400,19 +400,41 @@ static func plan_dance() -> Dictionary:
 	for ri in rows.size():
 		var row: Array = rows[ri]
 		var hx: float = row[3]
-		var s := 1.0 if hx > 0.0 else (-1.0 if hx < 0.0 else 0.0)   # the sway's side: the arm on that side goes UP, the hips lean into it
-		# THE ARMS GO UP (a beginner reads a dance by the arms): on each count the arm on the sway's side is raised overhead
-		# (upper arm side 75 = near straight up: 90 is the limit, 0 horizontal; elbow 50, hand above the shoulder), the other arm
-		# stays out by the hip. The raised arm alternates with the sway; the head turns to follow it.
-		var up_l := [10.0, 75.0, 0.0] if s > 0.0 else [4.0, -50.0, 0.0]
-		var up_r := [10.0, 75.0, 0.0] if s < 0.0 else [4.0, -50.0, 0.0]
+		var s := 1.0 if hx > 0.0 else (-1.0 if hx < 0.0 else 0.0)   # the sway's side: the hips lean into it, the chest follows
+		# THE PARTY READ (round 9): BOTH arms move on every count, in a clear rhythm of two counts each. Counts 1-2 (cards 0-1, 4-5,
+		# 8-9): both hands up and pumping overhead, elbows bent (upper arm 75 = near straight up; the hands stay above the shoulders:
+		# the elbow 60 on the first count, 95 on the second). Counts 3-4 (cards 2-3, 6-7, 10-11): a clap in front of the chest, the
+		# hands apart on the first count (upper arm 45 forward, 60 out, elbow 70: the elbows out at chest height) and together on the second
+		# (upper arm 60 forward, 35 in, elbow 110: the hands meet in front of the chest, the forearms clear of the collarbones).
+		var phase := (ri / 2) % 2   # 0: the raise (counts 1-2), 1: the clap (counts 3-4)
+		var odd := ri % 2 == 1
+		var up_arm := [10.0, 75.0, 0.0]
 		var set := stand_set()
-		set.merge({"pelvis": [2, 3.0 * s, -8.0 * s], "spine_01": [1, 0, 0], "head": [0, 3.0 * s, 8.0 * s],
-			"upperarm_l": up_l, "upperarm_r": up_r,
-			"lowerarm_l": [50 if s > 0.0 else 60, 0, 0], "lowerarm_r": [50 if s < 0.0 else 60, 0, 0]}, true)
+		var arm_l: Array
+		var arm_r: Array
+		var low_l: int
+		var low_r: int
+		if phase == 0:
+			arm_l = up_arm
+			arm_r = up_arm
+			low_l = 95 if odd else 60
+			low_r = low_l
+		elif odd:   # the clap: the hands meet about 25-30 cm in front of the sternum, at chest height, the elbows out (not hugging)
+			arm_l = [60.0, 35.0, 0.0]
+			arm_r = [60.0, -35.0, 0.0]
+			low_l = 110
+			low_r = 110
+		else:       # the clap opens: the hands apart in front of the chest, the elbows out
+			arm_l = [45.0, 60.0, 0.0]
+			arm_r = [45.0, -60.0, 0.0]
+			low_l = 70
+			low_r = 70
+		set.merge({"pelvis": [2, 3.0 * s, -4.0 * s], "spine_01": [1, 0, 0], "spine_02": [4, 2.5 * s, 0], "head": [0, 3.0 * s, 8.0 * s],
+			"upperarm_l": arm_l, "upperarm_r": arm_r,
+			"lowerarm_l": [low_l, 0, 0], "lowerarm_r": [low_r, 0, 0]}, true)
 		# THE KNEES BOUNCE ON EVERY COUNT: the body dips on the odd cards and rises on the even ones (the dip is the knee bend)
 		var bounce: float = -0.012 if ri % 2 == 0 else -0.040
 		clips.append({"name": row[0], "move": row[1], "hold": row[2], "set": set, "relaxed": ["l", "r"],
 			"hips": [hx, 0, 0], "y": bounce, "plant": {"_l": row[5], "_r": row[6]}, "hold_feet": row[7], "free_feet": row[8]})
 	return {"name": "dance", "base": "poses/stand.json", "clips": clips, "no_pin": true,
-		"note": "DANCE: a side-step, 0.5 s a count: step right, close, step left, close (3.5 s); the arms swing in counter-phase to the hips, the knees bounce on each count. Typed, not a picker card (Templates.TYPED)."}
+		"note": "DANCE: a side-step, 0.5 s a count: step right, close, step left, close (3.5 s); both arms raise and pump overhead on counts 1-2, clap in front of the chest on counts 3-4, the knees bounce on each count, the chest follows the hips. Typed, not a picker card (Templates.TYPED)."}
