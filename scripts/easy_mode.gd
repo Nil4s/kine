@@ -104,7 +104,7 @@ func build(root: Control, expert: Array) -> void:
 		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
 		["Open a saved scene", "Open one of your scenes", _open],
 		["Copy a video", "Turn a video of one person into an animation: pick the file (mp4, mov, webm, avi, mkv)", func(): home.copy_video()],
-		["Save the scene", "Save the scene (Ctrl+Shift+S)", m._save_scene],
+		["Save the scene", "Save the scene (Ctrl+Shift+S)", func(): home.save_scene()],
 		["Flip left and right", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
 		["Put his feet on the floor", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
 	]

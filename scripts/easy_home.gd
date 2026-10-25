@@ -554,12 +554,21 @@ func folder_line(mp4: String, home_dir := "") -> String:
 ## THE CLIP'S NAME (the saved file's): the move words of the clip as it is now, joined "walk then sit down" -> "walk_then_sit_down".
 ## A card or a typed line that adds a move adds its words; Start over and a copied clip begin again; Undo takes its words back.
 ## "" = no clip here (main names the file after the scene then)
+## Easy's Save the scene: a clip never saved yet (no file, or a work copy in scenes/_wip) is named after the whole clip, as its video is
+## ("walk_then_stand_up_then_wave", not its first card's "walk"); a scene the user saved or opened keeps its own name
+func save_scene() -> void:
+	var cn := clip_name()
+	if cn != "" and (String(m.scene_path) == "" or String(m.scene_path).contains("/_wip/")):
+		m.ui_scene_name.text = cn
+	m._save_scene()
+
+
 func clip_name() -> String:
 	if m.S.cards.is_empty():
 		return ""
 	var words := []
 	for e in _names:
-		if int(e[0]) > m.undo.size():
+		if int(e[0]) > m.undo.size() + m.undo_dropped:
 			break
 		if bool(e[2]):
 			words = []
@@ -569,7 +578,7 @@ func clip_name() -> String:
 
 ## a move's words went into the clip: an undo step at depth m.undo.size() (after the step) replaces the words above it
 func _note_name(words: String, starts_over: bool) -> void:
-	var d: int = m.undo.size()
+	var d: int = m.undo.size() + m.undo_dropped   # not undo.size() alone: at the 60-step cap every move had depth 60 and wiped the words before it
 	var kept := []
 	for e in _names:
 		if int(e[0]) < d:

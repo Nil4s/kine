@@ -155,6 +155,7 @@ var _light_home := []
 var floor_mat: StandardMaterial3D
 var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
+var undo_dropped := 0   # undo steps pushed out of the 60-step stack: undo.size() + this is a step's depth that never saturates (easy_home._note_name)
 var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
@@ -6292,6 +6293,7 @@ func _push_undo() -> void:
 	_history_rows.call_deferred()
 	if undo.size() > 60:
 		undo.pop_front()
+		undo_dropped += 1
 		_tree.trim_root()
 	redo.clear()
 	_jpending = true

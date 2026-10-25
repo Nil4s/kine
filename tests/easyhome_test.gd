@@ -1374,6 +1374,28 @@ func _init() -> void:
 	m._new_scene()
 	await idle(4)
 
+	# 60. SAVE THE SCENE NAMES IT AFTER THE CLIP (walk-through round 7, goal 7): Walk, then Wave added after it, Save the scene from
+	# Easy's More: the file is walk_then_wave (as its video is), not the first card's "walk"
+	m._new_scene()
+	await idle(2)
+	home.card(0)
+	await idle(4)
+	home._change()   # Change it: the picker over the walk, Add after chosen (as section 11)
+	await idle(4)
+	home._then_add = true
+	home.card(6)
+	await idle(4)
+	var had60 := FileAccess.file_exists(UserPaths.w("res://scenes/walk_then_wave.json"))
+	home.save_scene()   # what More > Save the scene calls (easy_mode.gd)
+	await idle(3)
+	var f60 := String(m.scene_path).get_file()
+	ok(f60 == "walk_then_wave.json", "60. Easy's Save the scene names the file after the clip (%s, clip '%s')" % [f60, home.clip_name()])
+	ok(m.undo.size() == 60, "60. the undo stack is at its 60-step cap here (%d), so the names survive a full stack" % m.undo.size())
+	if not had60 and f60 == "walk_then_wave.json":
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(m.scene_path))
+	m._new_scene()
+	await idle(2)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
