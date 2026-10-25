@@ -305,6 +305,32 @@ func _init() -> void:
 	ok("subdiv" in m.ui_status.text.to_lower(), "(F) the status says what it did (%s)" % m.ui_status.text.left(90))
 	ok(ui.undo.steps.size() == s0 + 1, "(F) one undo step")
 
+	# (F2) Ctrl+1 under a longer stack (walk-through round 2): the Modifiers panel opens with the new row's "Apply Subdivide"
+	# inside the list's visible area (it was below the scroll edge, so the click hit nothing), and pressing it bakes it
+	await fresh()
+	ui = m.kmed
+	for t in ["mirror", "solidify", "array"]:
+		KMeshModifiers.add(ui.mesh, t)
+	await tap(KEY_1, true)
+	ui.mods.open()
+	await idle(6)
+	var k_new: int = ui.mesh.modifiers.size() - 1
+	var ap := ui.mods.panel.find_child("mod_%d_apply" % k_new, true, false) as Button
+	var sc := ui.mods.panel.find_child("mod_scroll", true, false) as ScrollContainer
+	var shown := ap != null and sc != null and sc.get_global_rect().encloses(ap.get_global_rect())
+	ok(ap != null and ap.text == "Apply Subdivide" and shown, "(F2) the new row's '%s' is inside the list's visible area: %s" % [ap.text if ap != null else "?", str(shown)])
+	var nf1: int = ui.mesh.face_count()
+	if ap != null:
+		var cp := ap.get_global_rect().get_center()
+		var mv := InputEventMouseMotion.new()
+		mv.position = cp
+		await send(mv)
+		await send(mbtn(cp))
+		await send(mbtn(cp, MOUSE_BUTTON_LEFT, false))
+		await idle(4)
+	ok(ui.mesh.face_count() > nf1, "(F2) a real click on it bakes the Subdivide (%d -> %d faces)" % [nf1, ui.mesh.face_count()])
+	ui.mods.close()
+
 	# (G) POSE: with the model preview off, G is the second hand (no grab)
 	ui.stop()
 	await idle(2)

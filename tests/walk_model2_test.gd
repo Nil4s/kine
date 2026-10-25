@@ -493,7 +493,7 @@ func _init() -> void:
 		await shot("mirror_panel_open")
 		var ob := find_option(kmed.mods.panel)
 		if await pick_option(ob, "Mirror"):
-			await click_in(kmed.mods.panel, "Add")
+			await click_in(kmed.mods.panel, "Add modifier")
 			await shot("mirror_added")
 			var base_before := mesh_snapshot()
 			var ev0: int = kmed.mods.evaluated.vert_count() if kmed.mods.evaluated != null else -1
@@ -566,14 +566,20 @@ func _init() -> void:
 	var ctrl1_did := nf() != f_pre
 	say("   after Ctrl+1: verts %d -> %d, faces %d -> %d" % [v_pre, nv(), f_pre, nf()])
 	var sub_note := "Ctrl+1 changed the mesh: %s" % str(ctrl1_did)
-	if not ctrl1_did:
+	if not ctrl1_did and String(m.ui_status.text).contains("added Subdivide"):   # Ctrl+1 put a Subdivide on the stack: the user applies it
+		await click_text("Modifiers")
+		var f_mod1 := nf()
+		await click_text("Apply Subdivide")
+		await shot("subdiv_applied")
+		sub_note += "; Ctrl+1 added a Subdivide modifier, 'Apply Subdivide' pressed: faces %d -> %d, verts %d -> %d" % [f_mod1, nf(), v_pre, nv()]
+	elif not ctrl1_did:
 		await click_text("Modifiers")
 		var ob4 := find_option(kmed.mods.panel)
 		if await pick_option(ob4, "Subdivide"):
-			await click_in(kmed.mods.panel, "Add")
+			await click_in(kmed.mods.panel, "Add modifier")
 			await shot("subdiv_added")
 			var f_mod := nf()
-			await click_text("Apply")
+			await click_text("Apply Subdivide")
 			await shot("subdiv_applied")
 			sub_note += "; Subdivide added and Apply pressed: faces %d -> %d, verts %d -> %d" % [f_mod, nf(), v_pre, nv()]
 		else:

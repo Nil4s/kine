@@ -159,8 +159,10 @@ func add(type: String) -> int:
 ## GRS / Ctrl+1..3 (Blender): a Subdivide modifier at `levels` at the bottom of the stack, one undo step. -1 when the stack
 ## refuses it (last_error says why): the caller then subdivides the mesh itself and says so.
 func add_level(levels: int) -> int:
+	_fresh = _mesh().modifiers.size()   # Ctrl+1..3's row is the new one too: its Apply is the one shown
 	var i: int = _step("Add Subdivide x%d modifier" % levels, func(): return KMeshModifiers.add(_mesh(), "subdiv", {"levels": levels}))
 	if i < 0:
+		_fresh = -1
 		m._say("Model: %s" % KMeshModifiers.last_error)
 		return -1
 	m._say("Model: added Subdivide x%d (Catmull-Clark) as a modifier: the mesh itself is unchanged; Apply bakes it, Ctrl+Z takes it back" % levels)
@@ -259,6 +261,17 @@ func refresh_list() -> void:
 		_list.add_child(_block(i, mesh.modifiers[i]))
 	_fit()
 	_fit.call_deferred()   # the new rows' minimum sizes settle a frame later
+	if _fresh >= 0 and is_inside_tree():
+		_show_fresh()
+
+
+## the row just added is scrolled into view (a long stack put its Apply below the list's edge: a click there hit nothing)
+func _show_fresh() -> void:
+	for f in 2:   # the rows and the list's height settle over the next frames
+		await get_tree().process_frame
+	var b := _list.get_node_or_null("mod_%d" % _fresh) as Control
+	if b != null:
+		_scroll.ensure_control_visible(b)
 
 
 ## the list scrolls past MAX_H of the window's height, so a long stack never runs off the screen
