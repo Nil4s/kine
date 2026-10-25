@@ -86,6 +86,7 @@ var asserts := []     # BODY ASSERTIONS (N002): the agent's check lines ("left f
 var plant_last := {}  # what the last apply()'s plant pass did (FootPlant.play: miss, ball turn, weight, clamped); {} = nothing
 var _plants_off := false   # set while FootPlant.refs reads the pose at a plant's t0: the plants do not play then
 var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n"}} (the release ramp, read once per scene state)
+var free_memo = null   # R2 (VideoCleanup.reachable): the plants-off reads of one reachable() call (PoseCache.plant_ref), null outside it, where the cards are fixed
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth frames; in the file as "cape" only when baked
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
