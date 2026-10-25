@@ -19487,6 +19487,27 @@ func _rise_add(r: Dictionary, flags: Dictionary) -> void:
 		S.apply(B, playhead))
 
 
+## WALK TO A CHAIR AND SIT (easy_home's walk_to_sit): the walk's cards then the sit run, appended after the last card as ONE undo
+## step. Each card keeps its own move (a card with none, -1, takes a half second: the way in from the clip's end)
+func _walk_sit_add(cards: Array) -> void:
+	var at := S.cards.size()
+	_do(func():
+		var i := at
+		for c in cards:
+			S.add(c["name"], c["pose"], i)
+			var cd: Dictionary = S.cards[i]
+			cd["move"] = c["move"] if (i > at and float(c["move"]) >= 0.0) else 0.5
+			cd["hold"] = c["hold"]
+			for k in ["plant", "ease", "steps", "lift", "walk"]:
+				if c.has(k):
+					cd[k] = c[k]
+			i += 1
+		sel_card = S.cards.size() - 1
+		playhead = S.times()[sel_card][1]
+		_rebuild_cards()
+		S.apply(B, playhead))
+
+
 func _rise_sit_down() -> void:
 	if not _rise_prop_ok("Sit down"):
 		return

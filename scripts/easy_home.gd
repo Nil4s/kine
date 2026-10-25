@@ -794,7 +794,14 @@ func sit_on_chair() -> void:
 	if m.S.cards.size() > 0:
 		m.sel_card = m.S.cards.size() - 1
 	var was: int = m.S.cards.size()
-	m._prop_sit()
+	var go := _walk_to_sit(t)
+	var walked := not (go["cards"] as Array).is_empty()   # a clip that ends away from the chair: the walk to its front, then the sit (one undo step)
+	if String(go["why"]) != "":
+		m._say_plain("%s; the sit is placed at the chair" % String(go["why"]))
+	if (go["cards"] as Array).is_empty():
+		m._prop_sit()
+	else:
+		m._walk_sit_add(go["cards"])
 	_note_name("sit on the %s" % m._prop_name(m.sel_prop), was == 0)   # the saved video is named after it too ("walk_then_sit_on_the_chair")
 	_built = true
 	_open = false
@@ -807,8 +814,44 @@ func sit_on_chair() -> void:
 	_refresh_next()
 	m._layout_bottom()
 	_play()
-	m._say_plain("He sits on the %s. Again plays it; Undo takes it back." % m._prop_name(m.sel_prop))
+	m._say_plain(("He walks to the %s and sits on it. Again plays it; Undo takes it back." if walked else "He sits on the %s. Again plays it; Undo takes it back.") % m._prop_name(m.sel_prop))
 	m.easy.frame_clip_next()
+
+
+## WALK TO THE CHAIR (round 8, goal 1): the clip's end is walked to the stand point in front of the chair (Rise.fwd_of /
+## Rise.seat_of: STAND_FWD ahead of the seat, facing away from it), by PathWalk's walk, then Rise.sit_down's run backs him onto the
+## seat. Returns {"cards": [...]} (the walk then the sit, names as the sit's), or {"cards": [], "why": "..."} when no walk is
+## needed (the body already stands there) or the walk is refused (why: the walk's own words; the sit is then placed alone).
+func _walk_to_sit(t: int) -> Dictionary:
+	var none := {"cards": [], "why": ""}
+	if m.S.cards.is_empty():
+		return none
+	var p: Dictionary = m.S.props[t]
+	var seat := Rise.seat_of(p)
+	var fwd := Rise.fwd_of(p)
+	var stand := Vector3(seat.x, 0.0, seat.z) + fwd * Rise.STAND_FWD
+	var keep: Dictionary = m.B.state()
+	m._ps().apply(m.B, m.S.length())
+	var pel: Vector3 = m.B.P["pelvis"]
+	m.B.set_state(keep)
+	var at_end := Vector3(pel.x, 0.0, pel.z)
+	if at_end.distance_to(stand) < 0.15:
+		return none
+	var d := (stand - at_end).normalized()
+	# PathWalk's stand card puts its hips HIP_BACK behind its first point: the first point is set so the hips start where the clip ends
+	var r: Dictionary = PathWalk.build([at_end + d * PathWalk.HIP_BACK, stand], 1.3)
+	if not bool(r["ok"]):
+		return {"cards": [], "why": "the walk to the chair is refused (%s)" % String(r["why"])}
+	var walk: Array = (r["scene"] as Dictionary)["cards"]
+	var rise: Dictionary = Rise.sit_down(m.B, p)
+	m.B.set_state(keep)
+	var kind: String = m._prop_name(t)
+	var cards: Array = walk.duplicate()
+	for c in rise["cards"]:
+		var cc: Dictionary = c.duplicate()
+		cc["name"] = "sit on the %s: %s" % [kind, String(c["name"])]
+		cards.append(cc)
+	return {"cards": cards, "why": ""}
 
 
 ## typed "sit", "sit down", "sit on the chair" (no "then", no comma) with a chair, stool or bench in the scene: he sits on it.

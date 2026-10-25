@@ -67,6 +67,10 @@
 ##  77. PLAYING MOVES IT: while the clip plays the slider follows the playhead (its value moves, it matches the playhead).
 ##  78. THE LABEL: "eh_scrub_time" reads "<t> s / <len> s" (t follows the slider; len is the clip's length).
 ##  79. THE GRAB AREA: the slider is at least 28 px tall (global rect) at 1280x720.
+##  85. WALK TO THE CHAIR AND SIT (round 8, goal 1): a walk built, a chair 2 m past where it ends, the strip's "Sit on the chair":
+##      the root's horizontal path is continuous over the whole clip (no frame-to-frame jump > 0.15 m, sampled every 1/30 s).
+##  86. the clip ends seated: the pelvis within 0.15 m of the seat horizontally and >= 0.2 m below standing.
+##  87. one Undo takes the whole walk-and-sit back to the walk's card count.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -1575,7 +1579,7 @@ func _init() -> void:
 	if sb70 != null:
 		await click_ctl(sb70)
 	await idle(8)
-	ok(m.S.cards.size() == n70 + 1 and String(m.S.cards.back()["name"]).begins_with("sit on the chair"), "70. the press adds the sit after the walk (%d -> %d cards; last '%s')" % [n70, m.S.cards.size(), String(m.S.cards.back()["name"]) if not m.S.cards.is_empty() else ""])
+	ok(m.S.cards.size() > n70 and String(m.S.cards.back()["name"]).begins_with("sit on the chair"), "70. the press adds the sit after the walk (%d -> %d cards; last '%s')" % [n70, m.S.cards.size(), String(m.S.cards.back()["name"]) if not m.S.cards.is_empty() else ""])
 	ok(m.undo.size() == u70 + 1, "70. the press is one undo step (undo stack %d -> %d)" % [u70, m.undo.size()])
 	m.playing = false
 	m.playhead = m.S.length()
@@ -1645,7 +1649,7 @@ func _init() -> void:
 	if sb73 != null:
 		await click_ctl(sb73)
 	await idle(8)
-	ok(sb73 != null and m.S.cards.size() == n73 + 1 and String(m.S.cards.back()["name"]).begins_with("sit on the chair") and m.sel_card == m.S.cards.size() - 1, "73. a card picked at the walk's start: the sit is still the last card (%d -> %d; picked %d)" % [n73, m.S.cards.size(), m.sel_card])
+	ok(sb73 != null and m.S.cards.size() > n73 and String(m.S.cards.back()["name"]).begins_with("sit on the chair") and m.sel_card == m.S.cards.size() - 1, "73. a card picked at the walk's start: the sit is still the last card (%d -> %d; picked %d)" % [n73, m.S.cards.size(), m.sel_card])
 	# 75-79. THE SCRUB: a slider in the strip, hidden on an empty scene, shown once a clip is built
 	m._new_scene()
 	await idle(4)
@@ -1723,6 +1727,90 @@ func _init() -> void:
 	ok(home._scrub_row.is_visible_in_tree() and (hit80.size.x < 1.0 or hit80.size.y < 1.0),
 		"80. no toast ('%s' at %s) covers the scrub row (%s)" % [m.ui_toast.text if m.ui_toast != null else "", str(toast80), str(row80)])
 	ok(home._scrub.has_theme_stylebox_override("slider"), "80. the slider's whole track is drawn (a 'slider' style of its own)")
+	m._new_scene()
+	await idle(2)
+
+	# 85-87. WALK TO THE CHAIR AND SIT (round 8, goal 1): a walk built, a chair 2 m past where the walk ends (its front faces the
+	# walk's end), the strip's "Sit on the chair" pressed. The body walks to the stand point in front of the chair, then sits.
+	m._new_scene()
+	await idle(4)
+	home.card(0)
+	await idle(6)
+	if m.playing:
+		m._toggle_play()
+	m.playhead = 0.0
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	await idle(2)
+	var stand85 := pelvis_y()
+	m.playhead = m.S.length()
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	await idle(2)
+	var end85: Vector3 = m.B.P["pelvis"]
+	m._prop_add("chair")
+	await idle(4)
+	var pc85: Dictionary = m.S.props[m.sel_prop]
+	var xf85: Transform3D = pc85["xf"]
+	xf85.basis = Basis(Vector3.UP, -PI * 0.5)   # the chair's front (+Z) turned to face back along -X, toward the walker
+	xf85.origin = Vector3(end85.x + 2.0, xf85.origin.y, end85.z)
+	pc85["xf"] = xf85
+	m._refresh()
+	await idle(4)
+	var sb85 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var n85: int = m.S.cards.size()
+	var u85: int = m.undo.size()
+	if sb85 != null:
+		await click_ctl(sb85)
+	await idle(8)
+	ok(sb85 != null and m.S.cards.size() > n85 + 1, "85. the press adds the walk to the chair and the sit (%d -> %d cards)" % [n85, m.S.cards.size()])
+	ok(m.undo.size() == u85 + 1, "85. the press is one undo step (undo stack %d -> %d)" % [u85, m.undo.size()])
+	# (a) the root's horizontal path, sampled as the app scrubs it every 1/30 s: no frame-to-frame jump above 0.15 m
+	var L85: float = m.S.length()
+	var worst85 := 0.0
+	var prev85 := Vector2.ZERO
+	var t85 := 0.0
+	var first85 := true
+	var t0_85: float = float(m.S.times()[n85 - 1][1])   # the walk's end: from here he goes to the chair
+	var low85 := {"ball_l": 1e9, "ball_r": 1e9}
+	var high85 := {"ball_l": -1e9, "ball_r": -1e9}
+	var path85 := 0.0
+	m.playing = false
+	while t85 <= L85 + 1e-6:
+		m.playhead = t85
+		m._ps().apply(m.B, t85)
+		m._refresh()
+		var pp85: Vector3 = m.B.P["pelvis"]
+		var xz85 := Vector2(pp85.x, pp85.z)
+		if not first85:
+			worst85 = maxf(worst85, xz85.distance_to(prev85))
+			if t85 > t0_85:
+				path85 += xz85.distance_to(prev85)
+		if t85 > t0_85:
+			for bk in ["ball_l", "ball_r"]:
+				var y85: float = (m.B.P[bk] as Vector3).y
+				low85[bk] = minf(low85[bk], y85)
+				high85[bk] = maxf(high85[bk], y85)
+		first85 = false
+		prev85 = xz85
+		t85 += 1.0 / 30.0
+	ok(worst85 <= 0.15, "85. the root's horizontal path is continuous: the largest jump between frames is %.3f m over %.1f s (at most 0.15)" % [worst85, L85])
+	var lift85 := minf(high85["ball_l"] - low85["ball_l"], high85["ball_r"] - low85["ball_r"])
+	ok(path85 >= 0.5 and lift85 >= 0.05, "85. he WALKS to the chair, not glides: hips travel %.2f m after the walk and each foot lifts %.3f m (at least 0.05; a slide lifts none)" % [path85, lift85])
+	# (b) the clip's end: seated on the chair
+	m.playhead = L85
+	m._ps().apply(m.B, L85)
+	m._refresh()
+	await idle(2)
+	var pe85: Vector3 = m.B.P["pelvis"]
+	var seat85 := Rise.seat_of(m.S.props[m.sel_prop])
+	var dh85 := Vector2(pe85.x - seat85.x, pe85.z - seat85.z).length()
+	var drop85 := stand85 - pelvis_y()
+	ok(dh85 <= 0.15 and drop85 >= 0.2, "86. the end is seated: the pelvis %.3f m from the seat (at most 0.15), %.3f m below standing (at least 0.2)" % [dh85, drop85])
+	# (c) one Undo gives back the walk's cards
+	m._undo()
+	await idle(4)
+	ok(m.S.cards.size() == n85, "87. one Undo returns to the walk's card count (%d, was %d before the press)" % [m.S.cards.size(), n85])
 	m._new_scene()
 	await idle(2)
 
