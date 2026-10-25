@@ -26,7 +26,7 @@ const HINT := "or type a move: 'jab then cross'"
 const PANEL_LEFT := 12.0       # px between the window's left edge and the home panel
 const PANEL_W := 478.0         # the cards' grid (4 x 112 + 3 x 10) and the text box and message under it
 ## words Kine has no builder for. TextBlocking would read "down" as an overhead strike, so these are refused first
-const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
+const UNDO_NONE := "Undo: nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
 const TRY := [3, 4, 6, 0]   # the four most common cards (CARDS indices): Punch, Kick, Wave, Walk. An unknown move offers these when no card word is close to it
 const TRY_MIN := 0.3        # a card word counts as close to a typed word at this bigram Dice score (try_pick)
@@ -53,6 +53,7 @@ var _pbar_drop: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
+var _go_btn: Button          # Go: a visible button right of the box; it does what Enter does in the box
 var _msg: Label
 var _close: Button
 var _built := false            # a clip was built from here: the strip shows once the scene has cards
@@ -115,7 +116,7 @@ var _help_lbl: Label
 var _help_tour: Button
 var _grid: GridContainer
 var _row_h := -1.0            # the strip's height when the camera last framed the clip (a row that grows it reframes)
-const HELP_TEXT := "Click a picture, or type a move and press Enter ('jab then cross' is two strikes). Then: Add after puts the next move after the clip.\nAfter a clip: Again plays it. Faster, Slower, Bigger and Smaller tweak it. Change it types another move.\nThe bar: Library adds objects. Save video makes a video file."
+const HELP_TEXT := "Click a picture, or type a move and click Go (or press Enter; 'jab then cross' is two strikes). Then: Add after puts the next move after the clip.\nAfter a clip: Again plays it. Faster, Slower, Bigger and Smaller tweak it. Change it types another move.\nThe bar: Library adds objects. Save video makes a video file."
 const HELP_Q := ["how do i", "how do you", "how do we", "how to", "how can i", "how can you", "how would i", "how does", "what can", "help"]   # a typed question: answered with help, not "doesn't know"
 const JOIN_S := 0.5           # ADD AFTER: the first added card is reached this many seconds after the clip's end (the join)
 
@@ -202,7 +203,7 @@ func build(root: Control) -> void:
 	_edit.name = "eh_text"
 	_edit.placeholder_text = HINT
 	_edit.select_all_on_focus = true   # a click into the box selects what is there: a new move replaces it (Windows search, Blender fields)
-	_edit.custom_minimum_size = Vector2(PANEL_W - 160.0, 0)
+	_edit.custom_minimum_size = Vector2(PANEL_W - 230.0, 0)   # room for the Go button right of it
 	_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edit.text_submitted.connect(func(t: String): _words(t))
 	_edit.text_changed.connect(func(_t: String): _drop_saved_toast())   # typing is an action: a saved-video message goes
@@ -211,6 +212,14 @@ func build(root: Control) -> void:
 	ask_row.add_theme_constant_override("separation", 8)
 	v.add_child(ask_row)
 	ask_row.add_child(_edit)
+	_go_btn = Button.new()
+	_go_btn.name = "eh_go"
+	_go_btn.text = "Go"
+	_go_btn.focus_mode = Control.FOCUS_NONE
+	_go_btn.custom_minimum_size = Vector2(64, 0)
+	_go_btn.tooltip_text = "build the move typed in the box"
+	_go_btn.pressed.connect(func(): _words(_edit.text))
+	ask_row.add_child(_go_btn)
 	_msg = _label("", 15, "text")
 	_msg.name = "eh_msg"
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -403,7 +412,7 @@ func build(root: Control) -> void:
 	_pbar_hand_name.custom_minimum_size.x = 150
 	_pbar_hand_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_pbar_hand.add_child(_pbar_hand_name)
-	_pbar_drop = _strip_button("eh_hand_drop", "Drop it", "put the weapon down: he stops holding it (one undo step; Ctrl+Z puts it back in his hand)", _hand_drop, Vector2(150, 40), 18)
+	_pbar_drop = _strip_button("eh_hand_drop", "Drop it", "put the weapon down: he stops holding it (one undo step; the Undo button puts it back in his hand)", _hand_drop, Vector2(150, 40), 18)
 	_pbar_hand.add_child(_pbar_drop)
 	_pbar_name = _label("", 18, "text")
 	_pbar_name.name = "eh_prop_name"
@@ -418,13 +427,13 @@ func build(root: Control) -> void:
 	_pbar_size.name = "eh_prop_size_row"
 	_pbar_size.add_theme_constant_override("separation", 6)
 	pr.add_child(_pbar_size)
-	_pbar_bigger = _strip_button("eh_prop_bigger", "Grow", "make the picked object 15 % bigger (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
+	_pbar_bigger = _strip_button("eh_prop_bigger", "Grow", "make the picked object 15 % bigger (one undo step; the Undo button gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_bigger)
-	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
+	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; the Undo button gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_smaller)
 	_pbar_colour = _strip_button("eh_prop_colour", "Colour it", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_colour)
-	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (Ctrl+Z puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
+	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (the Undo button puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_remove)
 	_pbar_next = _strip_button("eh_prop_next", "Next object", "pick the next object in the scene (in the order they were added)", _prop_next, Vector2(150, 40), 18)
 	pr.add_child(_pbar_next)
@@ -1063,9 +1072,9 @@ func _ask_help(t: String) -> void:
 	var w := _move_in(t)
 	_edit.text = ""   # the question is used: the next typing starts clean (the box kept old words in round 5)
 	if w != "":
-		_msg.text = "Type '%s' in the box and press Enter, or click its picture." % w
+		_msg.text = "Type '%s' in the box and click Go, or click its picture." % w
 	else:
-		_msg.text = "Type a move in the box and press Enter, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
+		_msg.text = "Type a move in the box and click Go, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
 	_msg.add_theme_color_override("font_color", Tok.c("text"))
 	_open = true
 	_help_on = false

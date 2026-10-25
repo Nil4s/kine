@@ -4266,7 +4266,7 @@ func _library_toggle() -> void:
 		ui_root.add_child(ui_library)
 		ui_library.setup(self, WEAPONS)
 	ui_library.open()
-	_say("Click a picture to give it to him." if easy != null and easy.on else "object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
+	_say("Click a picture to give it to him, or drag it onto the floor." if easy != null and easy.on else "object library: click a tile to place it (one undo step; Ctrl+Z takes it back)")
 
 
 func _reactions_samples() -> void:
@@ -19531,11 +19531,12 @@ func _foot(p: Dictionary) -> Rect2:
 
 
 ## a prop of the set in front of the body, on the floor (or on what it lands over); picked; one undo step
-func _prop_add(kind: String) -> void:
+func _prop_add(kind: String, at: Variant = null) -> void:   # at: the floor point to put it on (Easy's drop from the Library); null = the spot in front of the body
 	if not Props.has_kind(kind):
 		return
 	_push_undo()
-	var p := Props.make(kind, Props.xf_at(_prop_spot(kind), 0.0))
+	var spot: Vector3 = _prop_spot(kind) if at == null else (at as Vector3)
+	var p := Props.make(kind, Props.xf_at(spot, 0.0))
 	var xf: Transform3D = p["xf"]
 	xf.origin.y = Props.snap_y(p, S.props)
 	p["xf"] = xf
@@ -19547,7 +19548,7 @@ func _prop_add(kind: String) -> void:
 		var sit_say := ""
 		if kind in SIT_ON:
 			sit_say = "; the strip's Sit on the chair seats him on it" if easy.home.shown() == "strip" else "; Sit on it in the panel seats him on it"
-		_say("added a %s in front of the body: drag it to move it%s; Ctrl+Z takes it back" % [_prop_name(sel_prop), sit_say])
+		_say("added a %s in front of the body: drag it to move it%s; Undo takes it back" % [_prop_name(sel_prop), sit_say])
 	else:
 		_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
 

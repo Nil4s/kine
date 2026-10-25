@@ -99,21 +99,21 @@ func build(root: Control, expert: Array) -> void:
 	var acts := [
 		["Library", "Open the object library: weapons, furniture, sports, everyday things, armour and your own models. Click one to place it", func(): m._library_toggle()],
 		["Save video", "Save the clip as a video in your Videos folder (Kine), with a button to show it", func(): home.save_video()],
-		["Play / Stop", "Play the scene from the playhead, or stop it (Space)", m._toggle_play],
+		["Play / Stop", "Play the scene from the playhead, or stop it", m._toggle_play],
 		["New scene", "Start an empty scene (it asks first over unsaved work)", _new],
 		["My scenes", "Your saved scenes as big pictures, newest first, and the examples: click one to open it and play it", _my_scenes],
-		["Undo", "Take back the last change (Ctrl+Z): a beginner's first need, so it stays on the bar", m._undo],
+		["Undo", "Take back the last change: a beginner's first need, so it stays on the bar", m._undo],
 		["More", "The other things: Save this pose as a card, Move his arms and legs, Redo, Open a saved scene, Save the scene, Flip left and right, Put his feet on the floor", _more_open],
 		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
 	]
 	var more := [
-		["Save this pose as a card", "Keep the body's pose as a card on the timeline (Enter)", func(): add_pose("Saved pose", false)],
+		["Save this pose as a card", "Keep the body's pose as a card on the timeline", func(): add_pose("Saved pose", false)],
 		["Move his arms and legs", "Drag a part on the body to pose it. Click a part first to pick it, or drag it straight away.", _pose],
-		["Redo", "Put back what Undo took back (Ctrl+Y)", m._redo],
+		["Redo", "Put back what Undo took back", m._redo],
 		["Open a saved scene", "Open one of your scenes", _open],
 		["Copy a video", "Turn a video of one person into an animation: pick the file (mp4, mov, webm, avi, mkv)", func(): home.copy_video()],
-		["Save the scene", "Save the scene (Ctrl+Shift+S)", func(): home.save_scene()],
-		["Flip left and right", "The whole body reflected left and right (Shift+M)", m._press.bind(KEY_M, true)],
+		["Save the scene", "Save the scene", func(): home.save_scene()],
+		["Flip left and right", "The whole body reflected left and right", m._press.bind(KEY_M, true)],
 		["Put his feet on the floor", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
 	]
 	for a in acts:
@@ -122,7 +122,7 @@ func build(root: Control, expert: Array) -> void:
 		_btns[a[0]] = b
 	# REDO, one click after Undo: a narrow button that is there only while something can be put back (easy_home._process
 	# shows it and names it "Redo: Faster", as Undo is named). The More entry stays too.
-	var rb := _big("Redo", "Put back what Undo took back (Ctrl+Y)", m._redo)
+	var rb := _big("Redo", "Put back what Undo took back", m._redo)
 	rb.name = "easy_redo"
 	rb.custom_minimum_size = Vector2(150, m.TOP_H - 12)
 	rb.size_flags_horizontal = Control.SIZE_FILL
@@ -193,7 +193,7 @@ func _build_views(root: Control) -> void:
 		["easy_view_side", "Side", "the view from the side: the camera turns 90 degrees", func(): m._view(2, true)],
 		["easy_view_back", "Back", "the view from the back", func(): m._view(4, true)],
 		["easy_view_reset", "Reset view", "the first view: the body from the front, a little from above", func(): m._view_home(true)],
-		["easy_body_colour", "His colour", "change his colour: skin, white, grey, blue, red, dark, then skin again (one undo step; Ctrl+Z gives the old one back)", func(): m._body_colour_next()],
+		["easy_body_colour", "His colour", "change his colour: skin, white, grey, blue, red, dark, then skin again (one undo step; the Undo button gives the old one back)", func(): m._body_colour_next()],
 	]
 	for a in acts:
 		var b := Button.new()
@@ -566,7 +566,7 @@ func card_follows_drag() -> void:
 	m._undo_tips()
 	m._history_rows()
 	m._rebuild_cards()
-	m._say("card %d takes the body's new pose (Ctrl+Z takes it back)" % (i + 1))
+	m._say("card %d takes the body's new pose (Undo takes it back)" % (i + 1))
 
 
 ## the strip's button (main's _rebuild_cards puts it after the last card, or in an empty Easy strip with its tip)
