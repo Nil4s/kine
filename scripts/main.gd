@@ -19586,7 +19586,10 @@ func _body_colour_next() -> void:
 	body_colour = (body_colour + 1) % BODY_COLOURS.size()
 	_body_colour_show()
 	_doc_line()
-	_say("his colour is %s now (Ctrl+Z gives the old one back)" % BODY_COLOURS[body_colour][0])
+	if easy.on:   # Easy's plain line: no key names
+		_say_plain("His colour is %s now. Press again for the next one; Undo gives the old one back." % BODY_COLOURS[body_colour][0])
+	else:
+		_say("his colour is %s now (Ctrl+Z gives the old one back)" % BODY_COLOURS[body_colour][0])
 
 
 func _body_colour_show() -> void:
