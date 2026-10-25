@@ -340,6 +340,7 @@ func _init() -> void:
 	var v_after_e := nv()
 	var f_after_e := nf()
 	var y_after_e := ymax()
+	var c_f0 := face_center(f0)   # the face E lifts (it faces the camera, so the move is toward the camera, not up)
 	await shot("04_after_E")
 	# E is live: the mouse moves the new face along its normal, a click confirms
 	await hover_by(face_spot(f0), Vector2(0, -60))
@@ -347,9 +348,9 @@ func _init() -> void:
 	var y_mid := ymax()
 	await click_at(face_spot(f0) + Vector2(0, -60), "to confirm the extrude (where the mouse is now)")
 	await shot("05b_confirmed")
-	var moved := absf(ymax() - y_after_e)
-	say("   extrusion: faces %d -> %d; the top at the mouse %.4f m above the cube's, after the click %.4f m" % [f_before, f_after_e, y_mid - y_after_e, moved])
-	end_goal("2", f_after_e > f_before and moved > 0.05, "(faces %d -> %d; mouse 60 px up: the top %.1f cm up; counts now %s)" % [f_before, f_after_e, moved * 100.0, counts()])
+	var moved := face_center(f0).distance_to(c_f0)
+	say("   extrusion: faces %d -> %d; the lifted face moved %.4f m along its normal after the click (the top moved %.4f m at the mouse)" % [f_before, f_after_e, moved, y_mid - y_after_e])
+	end_goal("2", f_after_e > f_before and moved > 0.05, "(faces %d -> %d; mouse 60 px up: the face moved %.1f cm after the click; counts now %s)" % [f_before, f_after_e, moved * 100.0, counts()])
 
 	# 3. INSET A FACE
 	begin_goal("3 inset a face (I)")
