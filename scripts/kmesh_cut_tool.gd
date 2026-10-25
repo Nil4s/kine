@@ -3,8 +3,8 @@ extends RefCounted
 ## The model preview's cut keys (ROADMAP_400 B04; the ops are scripts/kmesh_cut.gd). KMeshEditUI.input hands every
 ## event here first (handle()); while a tool is running it takes the keys and the left / right clicks:
 ##   Ctrl+R  loop cut: move over an edge, the new loop across its quad ring is drawn; the wheel (or + / -) sets how many
-##           cuts; click starts the slide: the mouse along the hovered edge slides the loop (or type a factor -1..1);
-##           click / Enter cuts (one undo step), right click / Esc cancels
+##           cuts; click cuts at once (one undo step); Shift+click starts the slide instead: the mouse along the hovered
+##           edge slides the loop (or type a factor -1..1); click / Enter cuts, right click / Esc cancels
 ##   Shift+K knife: click points on the surface (near an edge or a corner snaps to it), the cut is drawn between them;
 ##           Backspace takes the last point back, Enter cuts (one undo step), right click / Esc cancels
 ##   V       edge split: the selected edges (vertex mode: between selected verts; face mode: the region's border) are
@@ -89,7 +89,7 @@ func input(ev: InputEvent) -> bool:
 				cancel()
 				return true
 			MOUSE_BUTTON_LEFT:
-				click(mb.position)
+				click(mb.position, mb.shift_pressed)
 				return true
 	return ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
 
@@ -141,7 +141,7 @@ func start_loop() -> void:
 	preview = {}
 	slide = 0.0
 	typed = ""
-	_say("loop cut: move over an edge (the new loop is drawn), the wheel sets the cuts (%d), click to slide, Esc cancels" % cuts)
+	_say("loop cut: move over an edge (the new loop is drawn), the wheel sets the cuts (%d), click cuts, Shift+click slides first, Esc cancels" % cuts)
 	move(mouse)
 
 
@@ -191,13 +191,16 @@ func move(p: Vector2) -> void:
 	ui._ov.queue_redraw()
 
 
-func click(p: Vector2) -> void:
+func click(p: Vector2, shift := false) -> void:
 	mouse = p
 	match mode:
 		"loop":
 			move(p)
 			if edge.x < 0 or (preview.get("lines", []) as Array).is_empty() or (preview["lines"][0] as PackedVector3Array).is_empty():
 				_say("loop cut: no quad ring under the mouse. Move over an edge with a quad beside it (Esc cancels)")
+				return
+			if not shift:
+				confirm()   # a click cuts at the middle of the edge (one undo step)
 				return
 			mode = "slide"
 			slide = 0.0

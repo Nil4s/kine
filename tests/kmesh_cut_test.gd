@@ -267,7 +267,9 @@ func _init() -> void:
 	ok(want.x >= 0 and tool.mode == "loop" and under and px < 12.0 and (tool.preview["lines"] as Array).size() == 1,
 		"(9a) Ctrl+R, hover: the edge %s under the mouse (%.1f px from it), preview %d loop of %d points; status: %s" % [str(tool.edge), px, (tool.preview["lines"] as Array).size(), (tool.preview["lines"][0] as PackedVector3Array).size() if tool.preview.has("lines") else 0, mn.ui_status.text.left(60)])
 	ui.input(mbtn(mouse, MOUSE_BUTTON_WHEEL_UP))
-	ui.input(mbtn(mouse))
+	var sh := mbtn(mouse)   # a plain click cuts now; Shift+click starts the slide
+	sh.shift_pressed = true
+	ui.input(sh)
 	ui.input(mbtn(mouse, MOUSE_BUTTON_LEFT, false))
 	var slide_to := ea.lerp(eb, 0.75)   # 3/4 along the hovered edge on screen -> slide 0.5
 	ui.input(motion(slide_to))
