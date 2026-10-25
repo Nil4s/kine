@@ -74,7 +74,7 @@
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
-const FIX := "C:/Users/Nick/Desktop/poser/.claude/worktrees/w4-easyvid2/tests/data/see_video_crop_small.mp4"
+var FIX: String = ProjectSettings.globalize_path("res://tests/data/see_video_crop_small.mp4")   # this checkout's own copy (a path into another worktree broke when it was removed)
 const BUILDS := [0, 1, 2, 3, 4, 5, 6, 7]   # the cards that build: walk, run, jump, punch, kick, sit down, wave, fall
 const BAR_MS := 2000
 const FAST_MS := 500     # bar 7: every card's click to its first moving frame (a beginner thinks a slower one froze)
@@ -350,8 +350,12 @@ func prop_box(p: Dictionary) -> AABB:
 
 
 func wait_copy(limit := 3000) -> bool:
+	# a CLOCK limit (limit frames at 60 fps, at least 3 minutes): headless frames run unthrottled, so 4000 frames could end before a
+	# 14 s tracker read + 7 s fit (bars 28-30 failed with 0 cards whenever the frames ran fast)
 	var seen := false
-	for i in limit:
+	var t0 := Time.get_ticks_msec()
+	var cap: int = maxi(limit * 1000 / 60, 180000)
+	while Time.get_ticks_msec() - t0 < cap:
 		if String(m.ui_status.text).contains("%"):
 			seen = true
 		if not m.easy.home._vid_busy:
@@ -1759,12 +1763,12 @@ func _init() -> void:
 	await idle(4)
 	var sb85 := home.strip.find_child("eh_sit_strip", true, false) as Button
 	var n85: int = m.S.cards.size()
-	var u85: int = m.undo.size()
+	var u85: int = m.undo.size() + m.undo_dropped   # the depth (the stack stops at 60 steps)
 	if sb85 != null:
 		await click_ctl(sb85)
 	await idle(8)
 	ok(sb85 != null and m.S.cards.size() > n85 + 1, "85. the press adds the walk to the chair and the sit (%d -> %d cards)" % [n85, m.S.cards.size()])
-	ok(m.undo.size() == u85 + 1, "85. the press is one undo step (undo stack %d -> %d)" % [u85, m.undo.size()])
+	ok(m.undo.size() + m.undo_dropped == u85 + 1, "85. the press is one undo step (undo depth %d -> %d)" % [u85, m.undo.size() + m.undo_dropped])
 	# (a) the root's horizontal path, sampled as the app scrubs it every 1/30 s: no frame-to-frame jump above 0.15 m
 	var L85: float = m.S.length()
 	var worst85 := 0.0
@@ -1772,9 +1776,9 @@ func _init() -> void:
 	var t85 := 0.0
 	var first85 := true
 	var t0_85: float = float(m.S.times()[n85 - 1][1])   # the walk's end: from here he goes to the chair
-	var low85 := {"ball_l": 1e9, "ball_r": 1e9}
-	var high85 := {"ball_l": -1e9, "ball_r": -1e9}
 	var path85 := 0.0
+	var feet85 := {}      # the previous frame's ball positions
+	var glide85 := []     # per moving frame: the slower foot's horizontal speed / the hips' (walking: a planted foot, ~0; gliding: ~1)
 	m.playing = false
 	while t85 <= L85 + 1e-6:
 		m.playhead = t85
@@ -1786,17 +1790,26 @@ func _init() -> void:
 			worst85 = maxf(worst85, xz85.distance_to(prev85))
 			if t85 > t0_85:
 				path85 += xz85.distance_to(prev85)
-		if t85 > t0_85:
-			for bk in ["ball_l", "ball_r"]:
-				var y85: float = (m.B.P[bk] as Vector3).y
-				low85[bk] = minf(low85[bk], y85)
-				high85[bk] = maxf(high85[bk], y85)
+		if t85 > t0_85 and not first85 and feet85.size() == 2:
+			var hip_d: float = xz85.distance_to(prev85)
+			if hip_d * 30.0 > 0.3:   # the hips moving faster than 0.3 m/s
+				var fd := []
+				for bk in ["ball_l", "ball_r"]:
+					var bp: Vector3 = m.B.P[bk]
+					fd.append(Vector2(bp.x, bp.z).distance_to(feet85[bk]))
+				glide85.append(minf(fd[0], fd[1]) / hip_d)
+		for bk in ["ball_l", "ball_r"]:
+			var bq: Vector3 = m.B.P[bk]
+			feet85[bk] = Vector2(bq.x, bq.z)
 		first85 = false
 		prev85 = xz85
 		t85 += 1.0 / 30.0
 	ok(worst85 <= 0.15, "85. the root's horizontal path is continuous: the largest jump between frames is %.3f m over %.1f s (at most 0.15)" % [worst85, L85])
-	var lift85 := minf(high85["ball_l"] - low85["ball_l"], high85["ball_r"] - low85["ball_r"])
-	ok(path85 >= 0.5 and lift85 >= 0.05, "85. he WALKS to the chair, not glides: hips travel %.2f m after the walk and each foot lifts %.3f m (at least 0.05; a slide lifts none)" % [path85, lift85])
+	var g85 := 0.0
+	for g in glide85:
+		g85 += float(g)
+	g85 = g85 / maxf(1.0, float(glide85.size()))
+	ok(path85 >= 0.5 and glide85.size() >= 10 and g85 < 0.5, "85. he WALKS to the chair, not glides: hips travel %.2f m after the walk; the slower foot moves %.2f x the hips on average over %d moving frames (under 0.5: a foot is planted; a glide is ~1)" % [path85, g85, glide85.size()])
 	# (b) the clip's end: seated on the chair
 	m.playhead = L85
 	m._ps().apply(m.B, L85)

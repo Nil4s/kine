@@ -11,7 +11,7 @@ extends SceneTree
 
 const OUT := "C:/Temp/claude/walkvid/"
 ## the repo's one video fixture (tests/data only; the copies of 2 and 3 are this clip too: no clips from outside the repo)
-const VID1 := "C:/Users/Nick/Desktop/poser/.claude/worktrees/w4-easyvid3/tests/data/see_video_crop_small.mp4"
+var VID1: String = ProjectSettings.globalize_path("res://tests/data/see_video_crop_small.mp4")   # this checkout's own copy (a path into another worktree broke when it was removed)
 const VID2 := VID1
 const VID3 := VID1
 const WIP := "res://scenes/_wip"
