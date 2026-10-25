@@ -222,7 +222,7 @@ static func plan_jump() -> Dictionary:
 	clips.append({"name": "touch-down", "move": 0.271, "hold": 0.0, "set": td, "heel_up": ["_l", "_r"], "heel_deg": 0, "keep_feet": true, "hips": [0, 0, 0.04]})
 	var cr := squat.duplicate()
 	cr.merge({"pelvis": [14, 0, 0], "thigh_l": [75, 7, 0], "thigh_r": [75, 7, 0], "calf_l": [105, 0, 0], "calf_r": [105, 0, 0],
-		"upperarm_l": [90, -5, 0], "upperarm_r": [90, -5, 0], "lowerarm_l": [15, 0, 0], "lowerarm_r": [15, 0, 0]}, true)
+		"upperarm_l": [70, 0, 0], "upperarm_r": [70, 0, 0], "lowerarm_l": [15, 0, 0], "lowerarm_r": [15, 0, 0]}, true)
 	clips.append({"name": "absorb", "move": 0.22, "hold": 0.1, "set": cr, "hips": [0, 0, -0.2], "keep_feet": true})
 	clips.append({"name": "stand", "move": 0.6, "hold": 0.4, "set": stand_set(), "hips": [0, 0, 0], "keep_feet": true})
 	return {"name": "jump", "base": "poses/stand.json", "clips": clips, "spline": true,
