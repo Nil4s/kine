@@ -93,7 +93,8 @@ func setup(main: Node) -> void:
 	readout = Label.new()
 	readout.name = "sculpt_readout"
 	readout.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	readout.position = Vector2(16, 56)
+	readout.position = Vector2(16, float(m.TOP_H) + 64.0)   # below the top bar and the Matcap / Alpha rows (it was drawn under them)
+	readout.z_index = 10
 	_ov.add_child(readout)
 	matcap = SculptMatcap.new()
 	add_child(matcap)
