@@ -244,7 +244,34 @@ func pick_file(path: String) -> bool:
 	say("   (driver) OK with file: %s" % path)
 	fd.file_selected.emit(path)
 	await idle(4)
+	await answer_copy_question()
 	return true
+
+
+## the unsaved scene's question after a pick ("Replace your clip?", easyhome sections 40-42): a beginner reads it and presses Replace
+## (a real click on the question's button). Returns false when no question came up (an empty scene, a saved one)
+func answer_copy_question() -> bool:
+	var ask: Window = null
+	for i in 120:
+		ask = m.find_child("CopyAsk", true, false) as Window
+		if ask != null and ask.visible:
+			break
+		await process_frame
+	if ask == null or not ask.visible:
+		return false
+	var rb := ask.find_child("Replace", true, false) as Button
+	say("   question up: 'Replace your clip?' | Replace button: %s" % str(rb != null))
+	await shot("ask_replace")
+	if rb == null:
+		return false
+	clicks += 1
+	say("   click 'Replace' (the question's own button)")
+	var pressed := await click_ctl(rb)
+	await idle(3)
+	if ask.visible:   # the click did not reach the dialog's button (its window is embedded): the button's own action, no other
+		say("   (driver) the click did not reach Replace: the button's own action instead")
+		ask.custom_action.emit(&"replace")
+	return pressed
 
 
 func copy_flow(path: String) -> bool:
@@ -293,7 +320,12 @@ func _init() -> void:
 		say("   (driver) OK pressed with the file: %s" % VID1)
 		fd2.file_selected.emit(VID1)
 		await idle(4)
+		await answer_copy_question()
 	var seen := []
+	var ebar_seen := false     # Easy's own progress bar (eh_copy_bar): its highest value, and the "about N s left" line
+	var ebar_max := 0.0
+	var left_text := ""
+	var left_at := -1.0        # the bar's value when the line first showed (it must be 10 % or more)
 	var shot_mid := false
 	var shot_fit := false
 	var t_track_end := -1
@@ -312,6 +344,14 @@ func _init() -> void:
 			cancel_seen = true
 		if m._imp_bar != null and (m._imp_bar as Control).is_visible_in_tree():
 			bar_seen = true
+		var eb := m.find_child("eh_copy_bar", true, false) as ProgressBar
+		if eb != null and eb.is_visible_in_tree():
+			ebar_seen = true
+			ebar_max = maxf(ebar_max, eb.value)
+			var el := m.find_child("eh_copy_left", true, false) as Label
+			if el != null and el.is_visible_in_tree() and left_text == "":
+				left_text = el.text
+				left_at = eb.value
 		if not shot_mid and lab.begins_with("Reading your video:") and lab.contains("%"):
 			var pct := lab.get_slice(":", 1).strip_edges().trim_suffix("%").strip_edges().to_int()
 			if pct >= 40:
@@ -332,7 +372,13 @@ func _init() -> void:
 	var landed: bool = not m.S.cards.is_empty() and not m.easy.home._vid_busy
 	say("   cancel button seen: %s | import bar seen: %s | track->fit at: %s" % [str(cancel_seen), str(bar_seen), str(t_track_end)])
 	say("   copy took %.1f s in total | cards after: %d" % [t_total, m.S.cards.size()])
-	end_goal(landed and cancel_seen, "(landed: %s, cards: %s)" % [str(landed), str(card_names())])
+	var eb_gone := true
+	var eb_end := m.find_child("eh_copy_bar", true, false) as ProgressBar
+	if eb_end != null and eb_end.is_visible_in_tree():
+		eb_gone = false
+	say("   easy's progress bar: seen %s, highest %.0f %% | 'left' line: '%s' (first shown at %.0f %%) | gone after the copy: %s" % [str(ebar_seen), ebar_max, left_text, left_at, str(eb_gone)])
+	var left_ok: bool = left_text.contains("s left") and left_at >= 10.0
+	end_goal(landed and cancel_seen and ebar_seen and left_ok and eb_gone, "(landed: %s, cards: %s, Easy's bar: %s, time left: %s)" % [str(landed), str(card_names()), str(ebar_seen), left_text])
 
 	# 3. THE RESULT: PLAYS? LOOKS LIKE THE VIDEO? JITTER?
 	begin_goal("3 result: does it play, does it look like the video, jitter")
@@ -475,6 +521,7 @@ func _init() -> void:
 		say("   picker opened for the first copy")
 		fd8.file_selected.emit(VID2)
 		await idle(4)
+		await answer_copy_question()   # the scene has the first clip's cards, unsaved: Replace, so the first copy really starts
 	var tracking := false
 	var tw8 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - tw8 < 120000:
@@ -493,7 +540,9 @@ func _init() -> void:
 	say("   second copy request answered with: '%s' | a second picker opened: %s" % [said2, str(second_picker != null)])
 	await shot("11_second_refused")
 	var cancelled := false
-	var cn := find_btn("Cancel")
+	var cn := m.find_child("eh_copy_cancel", true, false) as Button   # the copy bar's own Cancel (Easy's)
+	if cn == null or not cn.is_visible_in_tree():
+		cn = find_btn("Cancel")
 	if tracking and cn != null and m.easy.home._vid_busy:
 		clicks += 1
 		say("   click 'Cancel' (the first copy's own Cancel, mid-way)")
