@@ -188,6 +188,10 @@ func _init() -> void:
 			await process_frame
 		await idle(3)
 		steps_ok = m.undo.size() == undo0 + 1 and JSON.stringify(m.S.cards) != cards0
+		if OS.get_environment("FIXALL_WRITE_REF") == "1":   # run with the OLD Fixer (the pre-speed rulebook / fixer) to re-make the reference
+			var fw := FileAccess.open(OLD_CARDS, FileAccess.WRITE)
+			fw.store_string(var_to_str(m.S.cards))
+			fw.close()
 		same_old = var_to_str(m.S.cards) == FileAccess.get_file_as_string(OLD_CARDS)
 		ok(same_old, "(g) the cards after Fix all equal the old code's (tests/data/fixall_axe_old.var, %d bytes)" % FileAccess.get_file_as_string(OLD_CARDS).length())
 		await key(KEY_Z, true)
