@@ -542,6 +542,14 @@ func _init() -> void:
 	var rest_l := mid("hand_l")
 	var rest_r := mid("hand_r")
 	var w1 := await click_text("Wave")
+	# the hands' rest is the clip's first card (his stand), not the T-pose before the click: the arms coming down from the T at
+	# the clip's start is not "both arms waving" (the first run counted the left arm's drop, 0.67 m, as a wave)
+	if w1 and not m.S.cards.is_empty():
+		var keep1: Dictionary = m.B.state()
+		m._ps().apply(m.B, 0.0)
+		rest_l = mid("hand_l")
+		rest_r = mid("hand_r")
+		m.B.set_state(keep1)
 	var pw1: Dictionary = await play_hands(rest_l, rest_r)
 	var ml1: float = pw1.get("l", 0.0)
 	var mr1: float = pw1.get("r", 0.0)
