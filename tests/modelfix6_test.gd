@@ -349,5 +349,11 @@ func _init() -> void:
 	else:
 		ok(false, "(f) the test cube opened")
 
+	# ---- C (g): the search box: "join parts" runs "Model: join parts" (walk-through 5, goal 7), not the boolean row that also
+	# holds the words "join" and "parts" ("boolean union (join two parts)"): a tie on the words goes to the row with the phrase
+	var jr: Array = m.ui_cmd.matches("", "join parts")
+	var jfirst := String(jr[0]["name"]) if not jr.is_empty() else ""
+	ok(jfirst == "Model: join parts", "(g) the search 'join parts' ranks 'Model: join parts' first (first is '%s')" % jfirst)
+
 	print("fails: %d" % fails)
 	quit(1 if fails > 0 else 0)

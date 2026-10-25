@@ -720,7 +720,20 @@ func _init() -> void:
 		await key(KEY_X, false, false, "X (x-ray: the far side too)")
 		var bb2: Array = bbox()
 		var mid_world := Vector3((bb2[0].x + bb2[1].x) * 0.5, (bb2[0].y + bb2[1].y) * 0.5, (bb2[0].z + bb2[1].z) * 0.5)
+		# the box's right edge: halfway between the left half's furthest screen x and the right half's nearest one (the
+		# depth of the middle plane is not the depth of every vertex, so one projected middle point can cut the left half short)
+		var l_max := -1e9
+		var r_min := 1e9
+		for i in nv():
+			var wv: Vector3 = vw(i)
+			if wv.x < mid_world.x - 0.02:
+				l_max = maxf(l_max, scr(wv).x)
+			elif wv.x > mid_world.x + 0.02:
+				r_min = minf(r_min, scr(wv).x)
 		var edge_p := scr(mid_world + Vector3(-0.075, 0, 0))
+		if l_max < r_min:
+			edge_p.x = (l_max + r_min) * 0.5
+		say("   box edge x %.1f (left half's max %.1f, right half's min %.1f)" % [edge_p.x, l_max, r_min])
 		var tl := Vector2(1e9, 1e9)
 		var br := Vector2(-1e9, -1e9)
 		for i in nv():
@@ -767,12 +780,16 @@ func _init() -> void:
 		await idle(10)
 		var f_b := nf()
 		await shot("07_subdivided")
+		# decimate halves the TRIANGLES (kmesh_decimate.gd op): the subdivided quads become triangles, so the face count
+		# can stay 384 -> 384 while the triangles go 768 -> 384; measure the triangles
+		var tri_b: int = kmed.mesh.triangle_count()
 		var dec: bool = await sbox("decimate to half")
 		await idle(12)
 		var f_c := nf()
+		var tri_c: int = kmed.mesh.triangle_count()
 		await shot("08_decimated")
-		t3 = applied3 and f_b > f_a and f_c < f_b and dec
-		n3 = "(faces %d -> %d -> %d; apply %s; decimate ran %s)" % [f_a, f_b, f_c, str(applied3), str(dec)]
+		t3 = applied3 and f_b > f_a and tri_c < tri_b and tri_c > 0 and dec
+		n3 = "(faces %d -> %d -> %d; triangles %d -> %d; apply %s; decimate ran %s)" % [f_a, f_b, f_c, tri_b, tri_c, str(applied3), str(dec)]
 	end_goal("3", t3, n3)
 
 	# ---- 4. KNIFE: cut the front face in two ----
@@ -789,19 +806,26 @@ func _init() -> void:
 		var front: int = pick_face(func(fi: int, c: Vector3) -> bool: return absf(c.z - fz) < 0.02)
 		var f_k0 := nf()
 		if front >= 0:
-			# the two points: spots on the front face that no panel covers (the Materials panel sits over the right edge)
-			var spots: Array = []
-			for fr in [0.25, 0.5, 0.75, 0.15]:
-				var q := scr(Vector3(lerpf(fx0, fx1, fr), fy, fz))
-				if not ui_covers(q) and on_screen(q):
-					spots.append(q)
-			var a: Vector2 = spots[0] if spots.size() >= 1 else scr(Vector3(fx0 + 0.02, fy, fz))
-			var b: Vector2 = spots[1] if spots.size() >= 2 else scr(Vector3(fx1 - 0.02, fy + 0.05, fz))
+			# the two points: a VERTICAL cut through the front side, down the first column's centre: one point just inside the
+			# top edge, one just inside the bottom edge. The column centre is far from the vertical edges (the knife snaps a
+			# click within 12 px onto an edge: kmesh_cut_tool.gd PICK_SNAP_PX), and the two ends snap onto the top and bottom
+			# edges, so the chord crosses the horizontal edges between them instead of running along one (a row across a steep
+			# view sits within 12 px of a grid line: "the cut runs only along edges the mesh already has")
+			var H4: float = bb4[1].y - bb4[0].y
+			var W4: float = fx1 - fx0
+			var xc: float = fx0 + W4 * 0.125
+			var a := scr(Vector3(xc, bb4[1].y - H4 * 0.04, fz))
+			var b := scr(Vector3(xc, bb4[0].y + H4 * 0.04, fz))
+			say("   knife points: a vertical cut down the first column, inside the top and bottom edges")
 			await key(KEY_K, false, true, "Shift+K (knife)")
 			await hover(a)
 			await click_at(a, "knife start, left edge of the front")
 			await hover(b)
 			await click_at(b, "knife end, right edge of the front")
+			var kt = kmed.get_meta("kcut") if kmed.has_meta("kcut") else null
+			if kt != null:
+				for kp in kt.pts:
+					say("   knife point: face %d at %s" % [int(kp["face"]), str(kp["point"])])
 			await key(KEY_ENTER, false, false, "Enter (confirm the cut)")
 		else:
 			say("   no visible front face")
@@ -892,11 +916,27 @@ func _init() -> void:
 		if rename_box:
 			await type_text("walk5 chair")
 			await key(KEY_ENTER, false, false, "Enter (keeps the name)")
+		# a name no earlier run used (a saved mesh is never written over): letters and digits only
+		var MESH_NAME := "walk5c%d" % (Time.get_ticks_usec() % 1000000000)
+		# Enter in the name box saves the SCENE (main.gd: text_submitted), so the status line below is the mesh's only if the mesh save ran after it
 		var saved: bool = await sbox("save mesh")
+		await idle(6)
+		# the first save of a mesh asks its name in a dialog (kmesh_file_ui.gd _name_dlg): type the name, Enter
+		var nd: Node = m.ui_root.find_child("mesh_save_dialog", true, false)
+		if nd != null and nd.visible:
+			await type_text(MESH_NAME)
+			await key(KEY_ENTER, false, false, "Enter (the mesh's name in its dialog)")
 		await idle(10)
 		var save_st := str(m.ui_status.text)
 		await shot("14_saved")
 		var reopened: bool = await sbox("open mesh")
+		# the open list: pick this run's mesh by name (the list's first row is another saved mesh otherwise)
+		var ld: Node = m.ui_root.find_child("mesh_list", true, false)
+		if ld != null and ld.visible:
+			for i in ld.item_count:
+				if ld.get_item_text(i) == MESH_NAME:
+					ld.select(i)
+			await key(KEY_ENTER, false, false, "Enter (opens the picked mesh)")
 		await idle(10)
 		var open_st := str(m.ui_status.text)
 		await shot("15_reopened")
