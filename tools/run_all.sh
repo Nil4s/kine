@@ -18,6 +18,7 @@ case " $EXTRA " in *" bodymesh:"*) ;; *) EXTRA="$EXTRA bodymesh:w" ;; esac   # A
 EXTRA="$EXTRA anatomy:w autoweights:h basebody:w bevel:h bodymesh:w eyelife:w fill:h kmesh_cut:h kwpaint:w mask:w matlib:w meshfilter:h meshwords:w modstack:w pbrmat:w proportional:w sculptsym:h uveditor:w uvexport:h uvgame:w uvpack:w vpaint:w snap:w pivot:w"   # the suites the w2-decimate merge's line above dropped
 EXTRA="$EXTRA kmesh_grs:h"   # round 2 walk: G R S with the Blender layer off, Alt+click loop, Ctrl+1 subdivide
 EXTRA="$EXTRA armour:w"   # B23
+EXTRA="$EXTRA meshsbox:w"   # mesh edit: F3 opens the S box (S is Scale there); the status line wraps clear of the mesh readout
 EXTRA="$EXTRA modelfix4:w"   # walk-through 4: S box undo, library focus, view click, SURFACE Paint
 EXTRA="$EXTRA stagelib:w"   # the STAGE page's own Library button, the library listing my models, no overlap with STAGE panels
 EXTRA="$EXTRA groundspeed:h"   # GROUNDSPEED: Body.ground() cached sole / seat helpers, legacy_ground equality + speed
@@ -36,6 +37,7 @@ EXTRA="$EXTRA drafts:w"   # the scene list: saved scenes first, one Drafts group
 EXTRA="$EXTRA easyvid:w"   # Easy: Copy a video (More): the Expert import, one undo step, plain sentences (tests/easyvid_test.gd)
 EXTRA="$EXTRA meshexport:h"   # round 2 walk: Apply body no-op, Export model (GLB / OBJ)
 EXTRA="$EXTRA lostspan:w"   # lost spans: a lost hand or foot filled by joint angles (tests/lostspan_test.gd)
+EXTRA="$EXTRA objexport:w"   # EXPORT DIALOG "What to export": the mesh objects in the scene (tests/objexport_test.gd)
 # suites that are slow BY DESIGN (name=seconds): text_blocking fits both hands on every card of every phrase (~0.25 s per arm fit, ~700 s alone),
 # gentle runs every one of 450+ commands from 7 hostile states (~2600+ cells); the default cap would stop them while they are still working
 SLOW="text_blocking=1800 gentle=2400 brief=1500 dryrun=900 lint=600 tryn=1800 recognize=900 fixloop=1500"
@@ -93,3 +95,5 @@ echo "SUITES $((n-bad))/$n PASS   (logs: $LOGS)"
 exit $bad
 EXTRA="$EXTRA modelfix3:w"   # round 3 walk: UV editor / Materials / ViewCube layout, knife misses, mirror centre, Z readout, export as a prop
 EXTRA="$EXTRA walk8_beginner:w"   # walk-through round 8: eight beginner goals in Easy mode, real clicks (tests/walk8_beginner_test.gd)
+EXTRA="$EXTRA extrudeflow:w"   # walk 4 friction 7: Extrude / Inset buttons apply at once; E drag confirms on release
+EXTRA="$EXTRA modelview4:w"   # walk-through 4 goal 1: MODEL orbit under the floor, Ctrl+Numpad7 bottom view, Numpad . frame selected

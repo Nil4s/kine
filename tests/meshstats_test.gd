@@ -133,7 +133,9 @@ func _init() -> void:
 	ok(bar.is_visible_in_tree() and win.encloses(r) and r.size.x > 0 and absf(r.position.y - band) < 2.0 and absf(r.end.y - (win.size.y - m.bottom_h - 6)) < 2.0,
 		"bar 5 the label is visible, inside the window, on the status line's band (%s)" % r)
 	ok(fw <= r.size.x, "bar 5 the mesh part (%.0f px) fits the label (%.0f px): not cut by the ellipsis" % [fw, r.size.x])
-	ok(r.position.x >= st.get_global_rect().end.x - 1.0 or not st.visible, "bar 5 the readout sits right of the say-line, not under it")
+	# right of the say-line, or the say-line wholly on its own row above the band (a long message wraps there: 2335fb8)
+	ok(r.position.x >= st.get_global_rect().end.x - 1.0 or st.get_global_rect().end.y <= r.position.y + 1.0 or not st.visible,
+		"bar 5 the readout sits right of the say-line or below its row, never under its text (say-line %s)" % st.get_global_rect())
 	await idle(3)
 	await RenderingServer.frame_post_draw
 	var shot := "user://meshstats.png"

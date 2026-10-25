@@ -984,18 +984,31 @@ func _line_fit() -> void:
 	ui_bar.offset_right = x1
 	ui_bar.offset_top = y0
 	ui_bar.offset_bottom = -bottom_h - 6
+	var lift := 0.0   # the messages on their own row above the band (the mouse hint moves up with them)
 	if not is_welcome(ui_status.text):
-		ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
-		ui_status.clip_text = true
-		ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		ui_status.anchor_right = 0.0
-		ui_status.offset_left = lw() + 12
 		var fs := ui_status.get_theme_font("font")
 		var said := fs.get_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, -1, LINE_FS).x + 4
-		ui_status.offset_right = minf(lw() + 12 + said, split - 16)   # as wide as its words
-		ui_status.offset_top = y0
-		ui_status.offset_bottom = -bottom_h - 6
-	_mouse_fit(y0, x0, x1)
+		if said <= split - 16 - x0:   # one row beside the readout, as wide as its words
+			ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
+			ui_status.clip_text = true
+			ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			ui_status.anchor_right = 0.0
+			ui_status.offset_left = x0
+			ui_status.offset_right = minf(x0 + said, split - 16)
+			ui_status.offset_top = y0
+			ui_status.offset_bottom = -bottom_h - 6
+		else:   # longer than the room beside the readout (the mesh stats take half the line): the whole message, wrapped, on the row above
+			var fsz := ui_status.get_theme_font_size("font_size")
+			var h := fs.get_multiline_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0, fsz).y + 6.0
+			ui_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			ui_status.clip_text = false
+			ui_status.anchor_right = 0.0
+			ui_status.offset_left = x0
+			ui_status.offset_right = x1
+			ui_status.offset_bottom = y0 - 2.0
+			ui_status.offset_top = y0 - 2.0 - h
+			lift = h + 2.0
+	_mouse_fit(y0 - lift, x0, x1)
 
 
 ## P05: the mouse-button strip sits on the row just above the line's two texts, from the view's left edge to the nav bar
@@ -5006,6 +5019,69 @@ func _keys_camera(dt: float) -> void:
 	_cam()
 
 
+## the mesh pages (walk-through 4): the orbit may go under the floor (a downward right-drag, pitch up to +89), and the bottom view
+## is Ctrl+Numpad7 (Blender's). The animation pages keep their camera as it was.
+func _mesh_orbit() -> bool:
+	return cur_page == "MODEL" or cur_page == "SCULPT"
+
+
+## Numpad . frames the selection (the faces' centres, else the verts), Home frames the whole mesh; Ctrl+Numpad7 is the bottom view
+func _mesh_view_key(k: InputEventKey) -> bool:
+	if not _mesh_orbit():
+		return false
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit or fo is SpinBox:
+		return false
+	var plain := not (k.ctrl_pressed or k.alt_pressed or k.shift_pressed)
+	if k.keycode == KEY_KP_7 and k.ctrl_pressed and not (k.alt_pressed or k.shift_pressed):
+		_view(6, true)   # from below: the ViewCube's bottom face (pitch +89)
+		return true
+	if k.keycode == KEY_KP_PERIOD and plain:
+		return _frame_pts(_sel_points(), "the selection")
+	if k.keycode == KEY_HOME and plain:
+		return _frame_pts(_mesh_points(), "the mesh")
+	return false
+
+
+func _sel_points() -> Array:
+	var pts := []
+	if kmed == null or not kmed.on or kmed.mesh == null or kmed.sel == null:
+		return pts
+	if not kmed.sel.faces.is_empty():
+		for fi in kmed.sel.faces.keys():
+			pts.append(kmed.view.global_transform * kmed.mesh.face_center(int(fi)))
+	elif not kmed.sel.verts.is_empty():
+		for v in kmed.sel.verts.keys():
+			pts.append(kmed.view._to_world(int(v)))
+	return pts
+
+
+func _mesh_points() -> Array:
+	var pts := []
+	if kmed == null or not kmed.on or kmed.mesh == null:
+		return pts
+	for v in kmed.mesh.verts.size():
+		pts.append(kmed.view._to_world(v))
+	return pts
+
+
+## the view turns (keeping yaw and pitch) to look at the centre of pts, the distance taking in their spread
+func _frame_pts(pts: Array, what: String) -> bool:
+	if pts.is_empty():
+		_say("Model: nothing to frame yet: pick something first (Home frames the whole mesh)")
+		return true
+	var c := Vector3.ZERO
+	for p in pts:
+		c += p
+	c /= float(pts.size())
+	var r := 0.0
+	for p in pts:
+		r = maxf(r, (p - c).length())
+	_turn_to(yaw, pitch, clampf(maxf(r * 3.0, 0.6), 0.4, 12.0), c, true)
+	_say("Model: framed %s" % what)
+	return true
+
+
 ## the camera looks at the body, shifted so the body sits in the middle of the free space between the panels
 func _cam() -> void:
 	if shot_through and _shot_apply():
@@ -5013,6 +5089,8 @@ func _cam() -> void:
 		return   # THE SHOT CAMERA: looking through it, the view is the keyed camera (_shot_apply)
 	var b := Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0))
 	cam.transform = Transform3D(b, target + b * Vector3(0, 0, dist))
+	if grid_node != null:
+		grid_node.transparency = 0.85 if (_mesh_orbit() and cam.transform.origin.y < 0.0) else 0.0   # under the floor (MODEL / SCULPT): the grid fades, the underside shows
 	var vs := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1600, 900)
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
 	if easy.on:   # EASY: the look-at point sits in the free rect under the Easy bar / strip, the body framed there (easy_mode.gd frame_clip)
@@ -5185,6 +5263,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if kmed != null and kmed.on and kmed.showing and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
+		get_viewport().set_input_as_handled()
+		return
+	if ev is InputEventKey and ev.pressed and not ev.echo and _mesh_view_key(ev as InputEventKey):   # walk-through 4: Ctrl+Numpad7 bottom, Numpad . frame the selection, Home frames the mesh
 		get_viewport().set_input_as_handled()
 		return
 	if ksc != null and ksc.on and ksc.showing and ksc.input(ev):   # ROADMAP_400 C01/C02: the test sphere's brush keys and strokes
@@ -5372,7 +5453,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if shot_through:
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
 			yaw -= rel.x * 0.4
-			pitch = clampf(pitch - rel.y * 0.4, -89.0, 89.0)
+			pitch = clampf(pitch + (rel.y if _mesh_orbit() else -rel.y) * 0.4, -89.0, 89.0)   # MODEL / SCULPT: a downward drag turns the camera under the floor
 			_cam()
 		elif dragging == "pan":
 			var k := dist * 0.0012
@@ -21579,6 +21660,116 @@ func _export_model() -> String:
 
 
 var _last_export_glb := ""   # the GLB the last Export model wrote (Use as a prop imports it)
+
+
+## the mesh objects in the scene, by name (the export dialog's "What to export"): the body (its posed pieces, one mesh),
+## the test cube or body mesh when the model editor has it open, and each set piece (Props) at its place
+func scene_object_names() -> Array:
+	var out := []
+	if not _obj_posed_meshes().is_empty():
+		out.append("body")
+	if kmed != null and kmed.on and kmed.mesh != null:
+		out.append("body_mesh" if BaseBody.is_open(self) else "test_cube")
+	out.append_array(_prop_object_names())
+	return out
+
+
+## the set pieces' object names: the kind, and a second piece of the same kind kind_2 (else "only the selected" would
+## match both pieces)
+func _prop_object_names() -> Array:
+	var out := []
+	var seen := {}
+	for p in S.props:
+		var k := String((p as Dictionary)["kind"])
+		seen[k] = int(seen.get(k, 0)) + 1
+		out.append(k if int(seen[k]) == 1 else "%s_%d" % [k, int(seen[k])])
+	return out
+
+
+## one entry per mesh object: [{name, mesh (ArrayMesh, in the scene's place), xf}]; the same order as scene_object_names
+func scene_objects() -> Array:
+	var out := []
+	var body := _obj_posed_meshes()
+	if not body.is_empty():
+		var am := ArrayMesh.new()
+		for e in body:
+			_append_surfaces(am, (e as Dictionary)["mesh"], Transform3D.IDENTITY)
+		out.append({"name": "body", "mesh": am, "xf": Transform3D.IDENTITY})
+	if kmed != null and kmed.on and kmed.mesh != null:
+		var cube := ArrayMesh.new()
+		_append_surfaces(cube, kmed.mesh.to_array_mesh(), kmed.view.transform)   # where it stands beside the body, not at the origin
+		out.append({"name": "body_mesh" if BaseBody.is_open(self) else "test_cube", "mesh": cube, "xf": Transform3D.IDENTITY})
+	var pnames := _prop_object_names()
+	for i in S.props.size():
+		var pd := S.props[i] as Dictionary
+		var node := Props.mesh(pd)
+		var pm := ArrayMesh.new()
+		_collect_props_meshes(node, node.transform, pm)
+		node.free()
+		out.append({"name": String(pnames[i]), "mesh": pm, "xf": Transform3D.IDENTITY})
+	return out
+
+
+func _collect_props_meshes(n: Node, acc: Transform3D, am: ArrayMesh) -> void:
+	for c in n.get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh != null:
+			var cx := acc * (c as MeshInstance3D).transform
+			_append_surfaces(am, (c as MeshInstance3D).mesh, cx)
+		if c is Node3D:
+			_collect_props_meshes(c, acc * (c as Node3D).transform, am)
+
+
+## the surfaces of mesh, moved by xf (vertices and normals), added to am
+static func _append_surfaces(am: ArrayMesh, mesh: Mesh, xf: Transform3D) -> void:
+	for s in mesh.get_surface_count():
+		var arr: Array = mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		if v.is_empty():
+			continue
+		var nv := PackedVector3Array()
+		nv.resize(v.size())
+		for i in v.size():
+			nv[i] = xf * v[i]
+		arr[Mesh.ARRAY_VERTEX] = nv
+		if arr[Mesh.ARRAY_NORMAL] != null:
+			var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+			var nn := PackedVector3Array()
+			nn.resize(nrm.size())
+			for i in nrm.size():
+				nn[i] = (xf.basis * nrm[i]).normalized()
+			arr[Mesh.ARRAY_NORMAL] = nn
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+
+
+## the selected object's name: the test cube (or body mesh) while the model editor has it open, else the set piece
+## picked (sel_prop), else the body
+func selected_object_name() -> String:
+	if kmed != null and kmed.on and kmed.mesh != null:
+		return "body_mesh" if BaseBody.is_open(self) else "test_cube"
+	if sel_prop >= 0 and sel_prop < S.props.size():
+		return String(_prop_object_names()[sel_prop])
+	return "body"
+
+
+## EXPORT DIALOG "What to export" (only_selected: the one object; else every object by its name): a static .glb of the
+## mesh objects in the scene at res:// dir (user's folder in an exported build). Everything is _export_glb, not this.
+func _export_objects(dir := "res://exports", only_selected := false) -> String:
+	dir = UserPaths.w(dir)
+	var objs := scene_objects()
+	if only_selected:
+		var want := selected_object_name()
+		objs = objs.filter(func(o): return String(o["name"]) == want)
+	if objs.is_empty():
+		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
+		return ""
+	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var path := "%s/%s.glb" % [dir, stem]
+	var err := GltfExport.write_meshes(objs, path)
+	if err != OK:
+		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
+		return ""
+	_say_plain("exported %s: %d mesh object%s (%s), static, no animation" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"])))])
+	return path
 
 
 ## Use as a prop: the last exported model goes through the same import as a .glb dropped in (Importer.accept copies it into

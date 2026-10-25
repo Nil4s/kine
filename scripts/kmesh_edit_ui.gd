@@ -263,6 +263,10 @@ func input(ev: InputEvent) -> bool:
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if k == KEY_F3 and not (ev as InputEventKey).is_command_or_control_pressed() and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed:
+			# the S box (command search) from here: S is Scale in this mode (Blender), so the box cannot open on S (Blender's F3 = menu search)
+			m.ui_cmd.open()
+			return true
 		if KMeshBevel.key(self, ev as InputEventKey):   # B03: Ctrl+B, and [ / ] while the bevel is live
 			return true
 		if k == KEY_T and (ev as InputEventKey).ctrl_pressed:
@@ -604,6 +608,36 @@ func _edit_key(k: InputEventKey) -> bool:
 	else:
 		m._say("Model: %s by %s%s; the new part is selected (Ctrl+Z takes it back)" % [what.to_lower(), Units.len(EXTRUDE_D if what == "Extrude" else INSET_D), ", each face on its own" if each else ""])
 	return true
+
+
+## The ribbon's Extrude / Inset buttons (scripts/expert_pages.gd): the op applies at once, one undo step, the new part
+## selected; no drag. Extrude lifts the faces BUTTON_EXTRUDE_D; Inset insets by BUTTON_INSET_F of the face's size
+## (sqrt of the mean area of the selected faces). To size it differently: E (or I) then a number and Enter (E 0.3
+## Enter), or E then a drag and a click or Enter (KMeshDragOp), all of them one step too.
+const BUTTON_EXTRUDE_D := 0.10   # m
+const BUTTON_INSET_F := 0.20
+
+
+func quick(kind_: String) -> void:
+	if sel.is_empty():
+		m._say("Model: %s: pick a face first (click it, or B to box-select), then the button" % kind_)
+		return
+	var amt := BUTTON_EXTRUDE_D
+	if kind_ == "inset":
+		var fs: Array = sel.faces.keys()
+		var mean := 0.0
+		for fi in fs:
+			mean += sqrt(KMeshMeasure.face_area(mesh, fi))
+		amt = BUTTON_INSET_F * (mean / float(maxi(fs.size(), 1)))
+	var what := "Extrude" if kind_ == "extrude" else "Inset"
+	undo.begin(mesh)
+	var r: Dictionary = KMeshExtrude.extrude(mesh, sel, amt) if kind_ == "extrude" else KMeshExtrude.inset(mesh, sel, amt)
+	undo.commit(what)   # an op that changed nothing keeps no step
+	view.mark_dirty()
+	if String(r.get("error", "")) != "":
+		m._say("Model: %s: %s" % [kind_, r["error"]])
+	else:
+		m._say("Model: %s by %s (Ctrl+Z undoes). E or I, then a number and Enter, sizes it" % [kind_, Units.len(amt)])
 
 
 ## D05: plain -> "uv_checker" -> "uv_stretch" -> plain. A mesh without UVs is unwrapped first (seams by angle + LSCM).

@@ -15,6 +15,8 @@ var ui_info: Label
 var ui_checks: Label
 var ui_app: Label
 var ui_blur: CheckBox   # playblast motion blur (ROADMAP R3)
+var ui_what: OptionButton   # "What to export": Everything (the default) / Only the selected object / One entry per mesh object
+var ui_objects: Label   # the mesh objects in the scene, by name (what the choice picks from)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 
 ## run: "engine:<id>" (EngineExport preset: root motion, units, pre-flight), "glb", "bvh", "usda", "usda_layers" (ROADMAP 79) or "game" (the PoseTable)
@@ -109,6 +111,18 @@ func _build() -> void:
 	ui_format.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rf.add_child(ui_format)
 	v.add_child(rf)
+	var rw := HBoxContainer.new()
+	var lw := Label.new()
+	lw.text = "What to export"
+	rw.add_child(lw)
+	ui_what = OptionButton.new()
+	ui_what.name = "opt_export_what"
+	ui_what.add_item("Everything")
+	ui_what.add_item("Only the selected object")
+	ui_what.add_item("One entry per mesh object (by its name)")
+	ui_what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rw.add_child(ui_what)
+	v.add_child(rw)
 	# the text scrolls in its own box, so the dialog's buttons stay on a small window too
 	var sc := ScrollContainer.new()
 	sc.name = "export_scroll"
@@ -132,6 +146,11 @@ func _build() -> void:
 	ui_app.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ui_app.custom_minimum_size = Vector2(600, 0)
 	inner.add_child(ui_app)
+	ui_objects = Label.new()
+	ui_objects.name = "export_objects"
+	ui_objects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_objects.custom_minimum_size = Vector2(600, 0)
+	inner.add_child(ui_objects)
 	sc.add_child(inner)
 	v.add_child(sc)
 	ui_blur = CheckBox.new()
@@ -169,6 +188,8 @@ func open() -> void:
 	_fill_formats()
 	_refresh()
 	ui_blur.set_pressed_no_signal(bool(m.blast_blur))
+	ui_what.select(0)
+	_refresh()
 	dlg.popup_centered()
 
 
@@ -197,10 +218,21 @@ func _refresh() -> void:
 	ui_info.text = "%s\n\nNeeds: %s" % [d["format"], d["needs"]]
 	ui_checks.text = "Checklist for this scene\n" + "\n".join(d["checks"])
 	ui_app.text = "What the app does: %s\n\nFrame rate: %s" % [d["app"], d["fps"]]
+	var plain := _cur_run() == "glb"
+	ui_what.disabled = not plain
+	var names := m.scene_object_names() as Array
+	var lst := ", ".join(names) if not names.is_empty() else "none"
+	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
+	ui_objects.text = "Mesh objects in the scene: %s. Only the selected object writes just the one picked in the scene (the test cube when it is open, else the set piece picked, else the body); one entry per mesh object writes each by its name.%s" % [lst, why]
+
+
+func _cur_run() -> String:
+	var fs: Array = (TARGETS[ui_target.selected] as Dictionary)["formats"]
+	return String((fs[clampi(maxi(ui_format.selected, 0), 0, fs.size() - 1)] as Dictionary)["run"])
 
 
 func _on_export() -> void:
-	export_now(_cur_id(), maxi(ui_format.selected, 0), "res://exports")
+	export_now(_cur_id(), maxi(ui_format.selected, 0), "res://exports", maxi(ui_what.selected, 0))
 
 
 ## everything the dialog shows for one target and format, for the scene now: format, needs, app, fps, checks
@@ -280,12 +312,15 @@ func checks(id: String, run: String) -> Array:
 
 ## runs the existing writer for this target and format into dir; returns what that writer returns (a path, or the
 ## PoseTable's paths). Used by the Export button and by tests/export_dialog_test.gd, so both take the same road.
-func export_now(id: String, fi: int, dir: String) -> Variant:
+## what: 0 Everything (the writers above, unchanged), 1 only the selected object, 2 one entry per mesh object (plain .glb only)
+func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 	var t := target(id)
 	if t.is_empty():
 		return ""
 	var fs: Array = t["formats"]
 	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
+	if what > 0 and run == "glb":
+		return m._export_objects(dir, what == 1)
 	if run.begins_with("engine:"):
 		return m._export_engine(run.trim_prefix("engine:"), dir)
 	if run.begins_with("fbx"):

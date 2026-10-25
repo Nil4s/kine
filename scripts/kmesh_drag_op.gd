@@ -5,13 +5,13 @@ extends RefCounted
 ## The mouse sets the amount: extrude = the distance along the selection's normal from where the mouse was when E was
 ## pressed (the closest point of the mouse ray to that normal line); inset = how much farther the mouse is from the face
 ## centre, in the face plane, than it was at the start. Every motion rebuilds the preview in place (the step is replaced,
-## never doubled). Left click or Enter confirms (the step stays: one undo step); right click or Esc cancels: the step is
-## taken back and the selection and the redo list are as they were (no step). Typed numbers set the amount exactly
+## never doubled). The left mouse button's release confirms (a click or a drag-and-let-go; the press does nothing), Enter
+## confirms too (the step stays: one undo step); right click or Esc cancels: the step is taken back and the selection
+## and the redo list are as they were (no step). The ribbon's Extrude / Inset buttons do not start a drag (KMeshEditUI.quick). Typed numbers set the amount exactly
 ## (metres: E 0.3 Enter); Backspace takes a character back. While the drag runs KMeshEditUI.input sends every key and
 ## mouse button here first. The state lives on the UI as meta "kdrag".
 
 const KEY := "kdrag"
-const EAT := "kdrag_eat"       # the release that ends a drag by a click is swallowed (nothing selected by it)
 const INSET_MIN := 0.001       # m: an inset of nothing would leave degenerate faces
 
 var ui                         # KMeshEditUI
@@ -65,23 +65,20 @@ static func handle(u, ev: InputEvent) -> bool:
 		u.set_meta("kmouse", (ev as InputEventMouse).position)
 	var d := active(u)
 	if d == null:
-		if u.has_meta(EAT) and ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not (ev as InputEventMouseButton).pressed:
-			u.remove_meta(EAT)
-			return true
 		return false
 	if ev is InputEventMouseMotion:
 		d.move((ev as InputEventMouseMotion).position)
 		return true
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
-			d.confirm()
-			u.set_meta(EAT, true)
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			if not mb.pressed:
+				d.confirm()   # the release confirms: no second click needed
 			return true
 		if mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
 			d.cancel()
 			return true
-		return mb.button_index == MOUSE_BUTTON_LEFT   # the release of a click: not the camera's
+		return false   # the other buttons: the camera's
 	if ev is InputEventKey:
 		var k := ev as InputEventKey
 		if not k.pressed or k.echo:
