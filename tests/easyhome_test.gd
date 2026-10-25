@@ -99,7 +99,7 @@
 ##  125. SIDE PANEL KEEPS THE BODY IN VIEW (Nick: the panel covers the body at 1280x720): the left arm picked, the body's projected
 ##      box (every joint of B.P through the camera) lies left of the panel with >= 10 px to spare (a); closing the panel puts the
 ##      camera back exactly (b); with the panel open the body's projected height is >= 80 % of its closed height (c).
-##  126. EASY SLIDER REST TICK (Nick: Raise and Twist sit at the right end at rest and look maxed out): every visible side slider has
+##  126. EASY SLIDER REST TICK (Nick: Raise and Twist sit at the right end at rest and look maxed out; (e) the panel clear of the prop bar): every visible side slider has
 ##      a tick at its rest value 0 at the x its grabber has for 0 (a, within 2 px); at rest the labels read "rest" (b); a 30 px drag
 ##      moves the value off rest: the label shows degrees and the tick has not moved (c); opening the panel adds no undo step (d).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
@@ -3306,6 +3306,16 @@ func _init() -> void:
 	ok(u126_1 - u126_0 <= 1 and u126_2 == u126_1 and name126.begins_with("Drag "),
 		"126d. the open panel adds no undo step: the click made %d step ('%s'), and after 10 more frames the depth is %d (was %d)"
 		% [u126_1 - u126_0, name126, u126_2, u126_1])
+	# (e) the panel overlaps nothing else of Easy's: the view buttons, and the prop bar under them (In his hand: the bat / Drop it,
+	# which is wider than the view buttons: on the old placement it sat half under the panel, its words cut)
+	var hits126: Array = []
+	var pr126: Rect2 = sl126.panel.get_global_rect() if sl126 != null else Rect2()
+	var pb126: Control = home._pbar
+	for c126b in [m.easy.views, pb126]:
+		if c126b != null and (c126b as Control).is_visible_in_tree() and (c126b as Control).get_global_rect().intersects(pr126):
+			hits126.append(String((c126b as Control).name))
+	ok(shown126 and pb126 != null and pb126.is_visible_in_tree() and hits126.is_empty(),
+		"126e. the slider panel %s overlaps no other Easy panel (prop bar up: %s): %s" % [pr126, str(pb126 != null and pb126.is_visible_in_tree()), str(hits126)])
 
 	root.content_scale_size = was_size
 	root.content_scale_mode = was_mode

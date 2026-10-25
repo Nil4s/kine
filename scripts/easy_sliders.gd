@@ -22,6 +22,7 @@ var _shown_part := ""       # the part the rows were set up for
 var _scene: Object = null    # the scene the pick was made in
 var _side_shift := false     # the panel's view shift as the camera has it (latched during a body drag)
 var _cam_pending := false    # the panel changed during a body drag: the camera follows at the release
+var _lx_seen := 0.0          # the panel's left edge as the camera last framed it
 var _lib_up := false         # the Library panel open as the camera last framed (the shift keeps the body right of it)
 
 
@@ -158,9 +159,11 @@ func _process(_dt: float) -> void:
 	if m.dragging == "":
 		_side_shift = on
 	var lib: bool = m.ui_library != null and m.ui_library.is_visible_in_tree()
-	if lib != _lib_up and on:
-		_cam_pending = true   # the Library opened or shut beside the panel: the body is re-framed between them
+	var lx := _left_x()
+	if (lib != _lib_up or absf(lx - _lx_seen) > 0.5) and on:
+		_cam_pending = true   # the Library opened or shut, or the panel moved (the prop bar came): the body is re-framed
 	_lib_up = lib
+	_lx_seen = lx
 	if (was != on or _cam_pending) and m.easy != null and m.easy.on:
 		if m.dragging == "":
 			_cam_pending = false
@@ -179,6 +182,10 @@ func _left_x() -> float:
 	var x := get_viewport().get_visible_rect().size.x - 12.0 - W
 	if m.easy.views != null and m.easy.views.is_visible_in_tree():
 		x = m.easy.views.get_global_rect().position.x - 10.0 - W
+	# the prop bar (In his hand: ... / Drop it, the picked prop's buttons) hangs under the view buttons and is wider: left of it too
+	var pb: Control = m.easy.home._pbar if m.easy.home != null else null
+	if pb != null and pb.is_visible_in_tree():
+		x = minf(x, pb.get_global_rect().position.x - 10.0 - W)
 	return x
 
 
@@ -333,4 +340,4 @@ func _reset_part() -> void:
 	m.sel = part
 	m.B.set_ang_safe(part, want)
 	m._after_edit()
-	m._say("%s back to its card's pose (Ctrl+Z takes it back)" % String(spec_of(part)[0]).to_lower())
+	m._say("%s back to its card's pose (Undo takes it back)" % String(spec_of(part)[0]).to_lower())
