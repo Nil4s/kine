@@ -66,7 +66,9 @@ func _draw() -> void:
 ## the throttle: at most one look at the mouse per 50 ms (main calls this from _process)
 func tick(dt: float) -> void:
 	_t += dt
-	if _t < 0.05:
+	# while the scene plays the hint is looked at 4 times a second (its context string is built each look: ~7 ms a time)
+	var playing: bool = m != null and bool(m.get("playing"))
+	if _t < (0.25 if playing else 0.05):
 		return
 	_t = 0.0
 	refresh()
