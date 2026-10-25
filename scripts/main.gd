@@ -2847,6 +2847,7 @@ func _ps() -> Scene:
 
 
 func _ready() -> void:
+	BootProfile.start()   # KINE_BOOT_PROFILE=1 / --boot-profile: the start-up blocks, timed (scripts/boot_profile.gd)
 	RenderingServer.set_debug_generate_wireframes(true)   # K01: the wireframe view needs this before any mesh is made
 	# EVERY WIDGET BY NAME (round 14, U2): each control the window builds is named from what it says (scripts/names.gd)
 	# at once (a click that rebuilds a row must not leave it nameless for a frame); one with nothing to say yet (its
@@ -2862,13 +2863,17 @@ func _ready() -> void:
 	onboard = Onboarding.new()
 	onboard.m = self
 	add_child(onboard)
+	BootProfile.mark("onboard node")
 	page_tour = PageTour.new()
 	page_tour.m = self
 	add_child(page_tour)
+	BootProfile.mark("page_tour node")
 	easy = EasyMode.new()   # first: lw() / rw() read easy.on while the world is built (scripts/easy_mode.gd)
 	easy.m = self
 	add_child(easy)
+	BootProfile.mark("easy node")
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	BootProfile.mark("load skeleton+limits")
 	var testing: bool = Engine.get_main_loop().get_script() != null
 	if testing:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
@@ -2887,12 +2892,17 @@ func _ready() -> void:
 		bt_ui.stars_path = "user://zz_best_take_%d.json" % OS.get_process_id()   # I38: a test's own stars file
 		style_ui.path = "user://zz_style_print_%d.json" % OS.get_process_id()   # I17: a test's own fingerprint file
 		usual_on = false   # I10: a test keeps the app's default timing on new cards until it turns this on
+		BootProfile.mark("test settings")
 	_autover_cfg_load(testing)
+	BootProfile.mark("autover cfg")
 	ui_props_root = Node3D.new()
 	ui_props_root.name = "set"
 	add_child(ui_props_root)
+	BootProfile.mark("set root")
 	_library_load()
+	BootProfile.mark("library load")
 	macros = Macros.load_file(macros_file)   # ROADMAP 81
+	BootProfile.mark("macros")
 	get_window().files_dropped.connect(_on_drop)
 	get_tree().set_auto_accept_quit(false)   # ROADMAP 50: the window's close asks first (_notification below)
 	if OS.get_environment("POSER_AUTOSAVE") != "":
@@ -2902,6 +2912,7 @@ func _ready() -> void:
 	journal_dir = jenv if jenv != "" else JOURNAL
 	if journal_on:
 		_journal_boot()
+		BootProfile.mark("journal boot")
 	var cf := ConfigFile.new()
 	cf.load(settings)
 	# THE THEME (ROADMAP 58): "system" on a first start (Windows' dark mode), or the user's own "light" / "dark". A test
@@ -2926,12 +2937,15 @@ func _ready() -> void:
 	while not scale_fits(ui_scale):   # remembered from a bigger screen: the largest that fits this one
 		ui_scale = SCALES[SCALES.find(ui_scale) - 1]
 	get_window().content_scale_factor = ui_scale / 100.0
+	BootProfile.mark("scale")
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
 	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
+	BootProfile.mark("world")
 	_body()
+	BootProfile.mark("body")
 	add_child(ov)
 	add_child(wt)
 	add_child(bal)
@@ -2950,20 +2964,26 @@ func _ready() -> void:
 	wt.setup()
 	loa.setup()
 	rings.setup()
+	BootProfile.mark("overlay nodes+setup")
 	vx = ViewX.new(self)
+	BootProfile.mark("vx")
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
 	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
 	blk.load_from(settings)
+	BootProfile.mark("hotkeys/keymap/blk")
 	_ui()
+	BootProfile.mark("_ui")
 	if scale_auto:
 		_auto_scale_now()
+		BootProfile.mark("auto scale")
 	if not testing and not cf.get_value("look", "hints", true):
 		_set_hints(false, false)   # remembered (QQ3)
 	if not testing and cf.get_value("api", "on", false):
 		_set_api(true, false)   # remembered: off unless Nick turned it on
+		BootProfile.mark("hints+api")
 	# RR5: the yellow teaching strip only on a first start (a test's own settings file: its first start, unless the
 	# test wrote "taught" into it)
 	_teach_pending = not cf.get_value("look", "taught", false)
@@ -2974,14 +2994,18 @@ func _ready() -> void:
 			_fold(k, true, false)
 	_pages_load(cf)
 	shading.load_cfg(self)   # K01 / K02: the remembered shading mode, matcap, studio lights and sky (a test's own file)
+	BootProfile.mark("pages+shading")
 	_fit_rows.call_deferred()
+	BootProfile.mark("teach+folds")
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
 	page_tour.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
+	BootProfile.mark("easy build")
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
+	BootProfile.mark("easy start")
 	onboard.start_when_clear.call_deferred()
 	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
 		_tour_after_recover.call_deferred()   # FIRST-RUN TOUR: until it is done or skipped once, or asked for
@@ -2994,6 +3018,7 @@ func _ready() -> void:
 	recents = Recents.new(self)
 	if not testing and not args.has("--shot") and not args.has("--tour") and not _recent_list().is_empty() and recents.start_on():
 		_recents_start.call_deferred()   # P13: a test never gets it (it asks with File: recent scenes); nor a first-run tour (no recents yet)
+		BootProfile.mark("recents")
 	ov.trail_on = args.has("--trail")
 	var pi := args.find("--pin")   # --pin foot_l,head: trails on those parts (shots and checks)
 	if pi >= 0 and pi + 1 < args.size():
@@ -3082,7 +3107,10 @@ func _ready() -> void:
 		_cam()
 	_refresh()
 	_rebuild_cards()
+	BootProfile.mark("cards")
+	_boot_watch.call_deferred()
 	await dummy_settle()   # round 14: the dummy measures on a worker; a shot shows what PLAYS (landed on it or not)
+	BootProfile.mark("dummy settle")
 	if args.find("--t") >= 0 or args.find("--frame") >= 0:
 		_ps().apply(B, playhead)   # (and --dummy's range now counts: it used to move the dummy after --t had posed)
 		_refresh()
@@ -3179,6 +3207,25 @@ func _ready() -> void:
 	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
 		await _selfcheck_save()
 		return
+## BOOT PROFILE: the first frame the body and the Easy home panel are on screen (and the frame after is drawn): the table
+## prints there. --boot-quit ends the app then (the boot bench, tools/boot_bench.py)
+func _boot_watch() -> void:
+	if not BootProfile.on:
+		return
+	while not _boot_usable():
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	BootProfile.usable("first usable frame")
+	if OS.get_cmdline_user_args().has("--boot-quit"):
+		get_tree().quit()
+
+
+func _boot_usable() -> bool:
+	if skel == null or pieces.is_empty() or easy == null or easy.home == null:
+		return false
+	if not easy.on:
+		return is_inside_tree()   # Expert: the body is what is on screen
+	return easy.home.panel.is_visible_in_tree() or easy.home.strip.is_visible_in_tree()
 
 
 var intro: KineIntro   # the opening intro while it plays (null after, or when off)
@@ -3467,11 +3514,17 @@ func _body() -> void:
 	var mq := Overlays.mannequin(self, skin)
 	skel = mq[1]
 	bone_idx = mq[2]
+	BootProfile.mark("body: mannequin load")
 	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
+	BootProfile.mark("body: split parts")
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
+	BootProfile.mark("body: skin weights")
 	corr.attach(pieces.values(), skel)
+	BootProfile.mark("body: corrective attach")
 	dq_skin_pass.attach(pieces.values(), skel)
+	BootProfile.mark("body: dq skin attach")
 	_skp_build()   # PRECISE PICK: the picked / hovered part's own skin is tinted (scripts/skin_pick.gd)
+	BootProfile.mark("body: skin pick build")
 	for j in Body.WEAPON + Body.WEAPON2:   # the weapon's capsules: its pick and its light (a body part has none: its skin is lit)
 		_new_cap(j)
 	for j in Body.BODY:
@@ -3489,6 +3542,7 @@ func _body() -> void:
 		dots[j] = d
 	# the weapons: a placement cylinder per piece (its transform is the grip's frame: hits and tests read its visibility; it has
 	# no radius, so it draws nothing), and the shape itself (WeaponMesh, placed in the weapon's frame each refresh)
+	BootProfile.mark("body: dots+capsules")
 	wep_mats = WeaponMesh.materials()
 	bat_handle = _cyl(0.0, 0.0, null)
 	bat_barrel = _cyl(0.0, 0.0, null)
@@ -3501,6 +3555,7 @@ func _body() -> void:
 	wep2_model = Node3D.new()
 	wep2_model.name = "weapon2_model"
 	add_child(wep2_model)
+	BootProfile.mark("body: weapon models")
 	tag = Label3D.new()
 	tag.pixel_size = 0.0009
 	tag.fixed_size = true
@@ -3510,7 +3565,9 @@ func _body() -> void:
 	tag.outline_size = 5
 	tag.font_size = 16   # RR5: the part's name on the body, small (was 30: a headline over the shoulder)
 	add_child(tag)
+	BootProfile.mark("body: label")
 	_dummy_build()
+	BootProfile.mark("body: dummy build")
 
 
 ## the floor grid in the theme's colours (a theme switch rebuilds it; the two axis lines are content)
