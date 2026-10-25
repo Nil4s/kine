@@ -3972,9 +3972,10 @@ func _dm_start() -> void:
 
 
 ## ROADMAP 99: every scene that plays (the fighters', or the open one) keeps a baked pose table (scripts/pose_bake.gd). A table is
-## dropped and re-baked from the playhead when the scene's content signature differs (checked every frame: the edit funnel
+## dropped and re-baked from the playhead when the scene's content signature differs (checked every frame, or every PLAY_BAKE_CHECK frames while it plays: the edit funnel
 ## _dummy_hits bumps _dm_gen, and an edit that does not go through it is still caught by the signature). Off in PerfStub "bake".
 var bake_on := true
+const PLAY_BAKE_CHECK := 15   # frames between the bake's content checks while the scene plays (longplay: the signature is ~20 ms)
 var bake_sigs_ms := 0.0   # what the signature checks cost this frame (read by tests)
 
 
@@ -4020,8 +4021,11 @@ func _bake_poll() -> void:
 		if sc_s.baker == null:
 			sc_s.baker = PoseBake.new()
 			sc_s.baker.start(sc_s, playhead, horizon, PoseBake.held_of(_bake_body(sc_s)))
-		elif edited or not playing or _bake_rr % live.size() == i:
-			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon or sc_s.baker.held_at != PoseBake.held_of(_bake_body(sc_s)):
+		elif edited or not playing or (_bake_rr % live.size() == i and _bake_rr % PLAY_BAKE_CHECK == 0):
+			# while it plays (and no funnel edit) the check runs every PLAY_BAKE_CHECK frames: the signature is ~20 ms a scene, and the
+			# held state carries the weapon's pose, which the baked frames change every frame, so comparing it restarted the bake each frame
+			var held_changed := (not playing or edited) and sc_s.baker.held_at != PoseBake.held_of(_bake_body(sc_s))
+			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon or held_changed:
 				sc_s.baker.start(sc_s, playhead, horizon, PoseBake.held_of(_bake_body(sc_s)))   # the content changed: the old table is dropped, a new bake starts at the playhead
 	bake_sigs_ms = (Time.get_ticks_usec() - t0) / 1000.0
 
