@@ -2864,6 +2864,15 @@ func _ps() -> Scene:
 
 
 func _ready() -> void:
+	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
+	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
+	var wargs := OS.get_cmdline_args()
+	var wi := wargs.find("--kine-quality-worker")
+	if wi >= 0 and wi + 1 < wargs.size():
+		process_mode = Node.PROCESS_MODE_DISABLED   # the app's per-frame work (autosave, auto-version) must not run in this process
+		SceneQualityWorker.run(wargs[wi + 1])
+		get_tree().quit()
+		return
 	BootProfile.start()   # KINE_BOOT_PROFILE=1 / --boot-profile: the start-up blocks, timed (scripts/boot_profile.gd)
 	RenderingServer.set_debug_generate_wireframes(true)   # K01: the wireframe view needs this before any mesh is made
 	# EVERY WIDGET BY NAME (round 14, U2): each control the window builds is named from what it says (scripts/names.gd)

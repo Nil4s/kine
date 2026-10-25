@@ -478,8 +478,12 @@ func _start_worker() -> void:
 	var console := exe.replace("_console.exe", ".exe")   # the same engine without a console window (when it is there)
 	if console != exe and FileAccess.file_exists(console):
 		exe = console
-	var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "-s", "res://tools/scene_quality.gd", "--",
-		ProjectSettings.globalize_path(LIST)]
+	# the same switch in both builds (main.gd runs SceneQualityWorker, then quits). From source the engine needs the project
+	# folder; an export's pck is inside the exe, so no --path (and -s is not used: an exported exe ignores it)
+	var args := ["--headless"]
+	if not OS.has_feature("template"):
+		args += ["--path", ProjectSettings.globalize_path("res://")]
+	args += ["--kine-quality-worker", ProjectSettings.globalize_path(LIST)]
 	_worker_pid = OS.create_process(exe, args)
 	workers_started += 1
 	if _worker_pid < 0:
