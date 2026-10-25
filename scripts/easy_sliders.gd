@@ -99,7 +99,14 @@ func build(root: Control) -> void:
 		sl.drag_ended.connect(_drag_end.bind(i))
 		sl.value_changed.connect(_moved.bind(i))
 		col.add_child(sl)
-		_rows.append({"label": lb, "slider": sl, "axis": "", "on": false})
+		# REST TICK (section 126): a mark across the bar at the rest value 0. The sliders run over asymmetric limits, so at rest the
+		# handle sits at one end and looks maxed out; the tick says where 0 is. A child of the slider: it hides with the slider.
+		var tk := Control.new()
+		tk.name = "easy_slider_rest"
+		tk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tk.draw.connect(_draw_rest.bind(tk))
+		sl.add_child(tk)
+		_rows.append({"label": lb, "slider": sl, "axis": "", "on": false, "tick": tk})
 	_reset = Button.new()
 	_reset.name = "easy_reset_part"
 	_reset.text = "Reset this part"
@@ -225,7 +232,30 @@ func _sync() -> void:
 		var sl: HSlider = r["slider"]
 		if not bool(r.get("dragging", false)):
 			sl.set_value_no_signal(v)
-		(r["label"] as Label).text = "%s   %d°" % [String(spec_of(part)[1][i][0]), roundi(v)]
+		_place_rest(sl, r["tick"])
+		# at rest (within 1 deg of 0) the label says so, with no digits (Easy shows no key names and few numbers)
+		var nm := String(spec_of(part)[1][i][0])
+		(r["label"] as Label).text = ("%s: rest" % nm) if absf(v) <= 1.0 else ("%s   %d°" % [nm, roundi(v)])
+
+
+## the rest tick (section 126): a 2 px mark across the bar at the value 0, at the x the grabber has for 0 (the grabber's centre runs
+## from half a grabber in from each end). No mark when 0 is outside the slider's range.
+static func _place_rest(sl: HSlider, tk: Control) -> void:
+	tk.visible = sl.min_value <= 0.0 and sl.max_value >= 0.0
+	if not tk.visible:
+		return
+	var gw := 16.0
+	var ic := sl.get_theme_icon("grabber")
+	if ic != null:
+		gw = float(ic.get_width())
+	var span := maxf(sl.max_value - sl.min_value, 1e-6)
+	var f := clampf((0.0 - sl.min_value) / span, 0.0, 1.0)
+	tk.position = Vector2(gw * 0.5 + f * maxf(sl.size.x - gw, 0.0) - 1.0, -6.0)
+	tk.size = Vector2(2.0, sl.size.y + 12.0)
+
+
+static func _draw_rest(tk: Control) -> void:
+	tk.draw_rect(Rect2(Vector2.ZERO, tk.size), Tok.c("ink"))
 
 
 static func _axis_value(a: Vector3, axis: String) -> float:

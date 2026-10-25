@@ -99,6 +99,9 @@
 ##  125. SIDE PANEL KEEPS THE BODY IN VIEW (Nick: the panel covers the body at 1280x720): the left arm picked, the body's projected
 ##      box (every joint of B.P through the camera) lies left of the panel with >= 10 px to spare (a); closing the panel puts the
 ##      camera back exactly (b); with the panel open the body's projected height is >= 80 % of its closed height (c).
+##  126. EASY SLIDER REST TICK (Nick: Raise and Twist sit at the right end at rest and look maxed out): every visible side slider has
+##      a tick at its rest value 0 at the x its grabber has for 0 (a, within 2 px); at rest the labels read "rest" (b); a 30 px drag
+##      moves the value off rest: the label shows degrees and the tick has not moved (c); opening the panel adds no undo step (d).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -595,6 +598,42 @@ func slider_drag124(sl: HSlider, frac: float) -> void:
 	var span := maxf(sl.max_value - sl.min_value, 1e-6)
 	var at: Vector2 = r.position + Vector2(r.size.x * (sl.value - sl.min_value) / span, r.size.y * 0.5)
 	var to: Vector2 = Vector2(r.position.x + r.size.x * frac, at.y)
+	var dn := InputEventMouseButton.new()
+	dn.button_index = MOUSE_BUTTON_LEFT
+	dn.pressed = true
+	dn.position = at
+	dn.global_position = at
+	dn.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(dn, true)
+	await process_frame
+	for i in 6:
+		var p: Vector2 = at.lerp(to, float(i + 1) / 6.0)
+		var mm := InputEventMouseMotion.new()
+		mm.position = p
+		mm.global_position = p
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(mm, true)
+		await process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	up.position = to
+	up.global_position = to
+	root.push_input(up, true)
+	await idle(3)
+
+
+## section 126: a real drag of an HSlider by dx px: the press on its grabber's centre (the x the grabber has for its value), six moves, the release
+func slider_px126(sl: HSlider, dx: float) -> void:
+	var r: Rect2 = sl.get_global_rect()
+	var gw := 16.0
+	var ic := sl.get_theme_icon("grabber")
+	if ic != null:
+		gw = float(ic.get_width())
+	var span := maxf(sl.max_value - sl.min_value, 1e-6)
+	var f := clampf((sl.value - sl.min_value) / span, 0.0, 1.0)
+	var at := Vector2(r.position.x + gw * 0.5 + f * maxf(r.size.x - gw, 0.0), r.position.y + r.size.y * 0.5)
+	var to := at + Vector2(dx, 0.0)
 	var dn := InputEventMouseButton.new()
 	dn.button_index = MOUSE_BUTTON_LEFT
 	dn.pressed = true
@@ -3181,6 +3220,92 @@ func _init() -> void:
 		camdiff125 = maxf(camdiff125, absf(cam1_125[i] - cam0_125[i]))
 	ok(sl125 != null and not sl125.panel.visible and camdiff125 < 1e-4,
 		"125b. closing the panel (shown %s) puts the camera back: largest difference %.6f (bar: < 1e-4)" % [str(sl125.panel.visible) if sl125 != null else "none", camdiff125])
+
+	# 126. EASY SLIDER REST TICK (Nick: the Raise and Twist handles sit at the right end at rest and look maxed out). Old code: (a) FAILS
+	# (no tick on any slider). The tick is a child of each slider named easy_slider_rest; its x is the grabber's x for the value 0.
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(3)
+	var sl126: Variant = m.easy.get("sliders")
+	var B126: Body = m.B
+	var c126: Array = B126.cap("upperarm_l")
+	# the body keeps the last section's pose (_new_scene keeps the body): the arm goes to rest first (so the sliders read 0), then the
+	# arm is picked where it now stands
+	B126.set_ang("upperarm_l", Vector3.ZERO)
+	await idle(3)
+	var at126 := Vector2.ZERO
+	var pick126 := ""
+	for t126 in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at126 = m.cam.unproject_position((c126[0] as Vector3).lerp(c126[1], t126))
+		pick126 = m._pick(at126)
+		if pick126 == "upperarm_l":
+			break
+	var u126_0: int = m.undo.size() + m.undo_dropped
+	await click_at(at126)
+	await idle(4)
+	var u126_1: int = m.undo.size() + m.undo_dropped
+	var name126 := String(m.undo[-1]["name"]) if m.undo.size() > 0 else ""
+	await idle(10)   # the panel up for 10 more frames, before the drag of (c)
+	var u126_2: int = m.undo.size() + m.undo_dropped
+	var shown126: bool = sl126 != null and sl126.panel.visible
+	var rows126: Array = sl126.sliders() if shown126 else []
+	var shot126 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/slidezero.png"
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(shot126)
+	print("126 shot %s" % shot126)
+	# (a) every visible slider: its rest tick's centre x against the x its grabber has for the value 0 (the slider's own geometry)
+	var worst126 := 0.0
+	var n_tick126 := 0
+	for sl in rows126:
+		var s := sl as HSlider
+		var tk := s.get_node_or_null("easy_slider_rest") as Control
+		var gw126 := 16.0
+		var ic126 := s.get_theme_icon("grabber")
+		if ic126 != null:
+			gw126 = float(ic126.get_width())
+		var span126 := maxf(s.max_value - s.min_value, 1e-6)
+		var f126 := clampf((0.0 - s.min_value) / span126, 0.0, 1.0)
+		var want126 := s.get_global_rect().position.x + gw126 * 0.5 + f126 * maxf(s.size.x - gw126, 0.0)
+		if tk != null and tk.is_visible_in_tree():
+			n_tick126 += 1
+			worst126 = maxf(worst126, absf(tk.get_global_rect().get_center().x - want126))
+		else:
+			worst126 = INF
+	ok(shown126 and rows126.size() >= 2 and n_tick126 == rows126.size() and worst126 <= 2.0,
+		"126a. the arm's panel is up (%s) and every visible slider (%d, %d with a rest tick) has its rest tick at the grabber's x for 0, within 2 px (worst %.1f px)"
+		% [str(shown126), rows126.size(), n_tick126, worst126])
+	# (b) at rest (every value within 1 deg of 0) every label reads as rest, with no degree sign
+	var rest126 := rows126.size() >= 2
+	var labels126: Array = []
+	var rows126d: Array = sl126._rows if sl126 != null else []
+	for r126 in rows126d:
+		if not bool(r126["on"]):
+			continue
+		var lb126 := r126["label"] as Label
+		labels126.append(lb126.text)
+		if absf((r126["slider"] as HSlider).value) > 1.0 or not lb126.text.contains("rest") or lb126.text.contains("°"):
+			rest126 = false
+	ok(rest126, "126b. at rest the labels read as rest, no degrees: %s" % str(labels126))
+	# (c) a real 30 px drag of the first slider (left): its label shows degrees again, and its tick has not moved
+	if rows126.size() >= 1:
+		var s0126 := rows126[0] as HSlider
+		var tk0126 := s0126.get_node_or_null("easy_slider_rest") as Control
+		var x0126 := tk0126.get_global_rect().get_center().x if tk0126 != null else -1.0
+		await slider_px126(s0126, -30.0)
+		await idle(2)
+		var x1126 := tk0126.get_global_rect().get_center().x if tk0126 != null else -2.0
+		var lb0126 := rows126d[0]["label"] as Label
+		ok(absf(s0126.value) > 1.0 and lb0126.text.contains("°") and not lb0126.text.contains("rest") and absf(x1126 - x0126) < 0.5,
+			"126c. after a 30 px drag the value is %.1f and the label reads '%s'; the rest tick stayed at %.1f px (was %.1f)"
+			% [s0126.value, lb0126.text, x1126, x0126])
+	else:
+		ok(false, "126c. after a 30 px drag the label shows degrees (no slider)")
+	# (d) the panel adds no undo step of its own: the click that picks the arm makes the one step every press on a part makes (a
+	# 'Drag' step, already on the code before this change); the panel up for 10 frames adds none more
+	ok(u126_1 - u126_0 <= 1 and u126_2 == u126_1 and name126.begins_with("Drag "),
+		"126d. the open panel adds no undo step: the click made %d step ('%s'), and after 10 more frames the depth is %d (was %d)"
+		% [u126_1 - u126_0, name126, u126_2, u126_1])
 
 	root.content_scale_size = was_size
 	root.content_scale_mode = was_mode
