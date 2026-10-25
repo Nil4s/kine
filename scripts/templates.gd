@@ -28,12 +28,27 @@ const INFO := {
 
 
 ## a path in WIP not taken yet: <name>.json, <name>_2.json, ... (a template never writes over a scene)
+## FREE NAME FAST (2000+ Easy clips in scenes/_wip: every card click probed walk_2..walk_907 one file at a time): the last free
+## number found for a dir + name is remembered and the probe starts there. The first free name at or after it, as before; a file
+## deleted below it is skipped (a gap, harmless). `probes` counts file checks (tests)
+static var _next_k := {}
+static var probes := 0
+
+
 static func new_path(nm: String, dir := WIP) -> String:
+	var key := dir + "|" + nm
+	var k: int = _next_k.get(key, 2)
 	var path := "%s/%s.json" % [dir, nm]
-	var k := 2
-	while FileAccess.file_exists(path):
+	if k == 2:
+		probes += 1
+	if k > 2 or FileAccess.file_exists(path):
 		path = "%s/%s_%d.json" % [dir, nm, k]
-		k += 1
+		probes += 1
+		while FileAccess.file_exists(path):
+			k += 1
+			path = "%s/%s_%d.json" % [dir, nm, k]
+			probes += 1
+		_next_k[key] = k + 1
 	return path
 
 
