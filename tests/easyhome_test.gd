@@ -45,6 +45,13 @@
 ##  45. BIGGER / SMALLER / COLOUR (library walk-through goal 6): a picked chair in Easy: Bigger makes its box grow, Smaller shrinks it,
 ##      Colour sets its material colour and the status names it; each is one undo step; Ctrl+Z restores; the scene saves and reloads
 ##      with the size and the colour.
+##  50. THE STRIP STAYS (walk-through round 7, goal 2): with a clip built, an unknown typed line leaves the strip on screen (the panel
+##      stays shut) and the refusal goes to the status line.
+##  51. STAND UP (round 7, goal 2): a sat-down body typed "stand up then wave" builds cards; the wave is last, the stand-up cards
+##      come from the sit reversed: the body ends standing (pelvis back within 4 cm of its standing height), not seated.
+##  52. THEN STAND UP: after a sit the Then row offers "Then stand up" first, and its press builds the stand-up move.
+##  53. UNDO IN EASY: a 3-step sequence (Walk, Then wave, Bigger): each Undo changes the card list (count or the cards' poses), and
+##      the status names the step it took back. Old code: the first Undo here took the same step, unnamed by the strip.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -332,6 +339,19 @@ func wait_copy(limit := 3000) -> bool:
 			return seen
 		await process_frame
 	return seen
+
+
+## the pelvis height (m): the middle of the pelvis capsule (walk7's measure)
+func pelvis_y() -> float:
+	return ((m.B.cap("pelvis")[0] + m.B.cap("pelvis")[1]) * 0.5).y
+
+
+## the cards as one string: the count and every card's pose (an Undo that changes a pose or a card changes this)
+func _cards_key() -> String:
+	var parts := [str(m.S.cards.size())]
+	for c in m.S.cards:
+		parts.append(JSON.stringify(c.get("pose", {})))
+	return "|".join(parts)
 
 
 func _init() -> void:
@@ -1395,6 +1415,117 @@ func _init() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(m.scene_path))
 	m._new_scene()
 	await idle(2)
+	# 50. THE STRIP STAYS: a built clip, then an unknown typed line: the strip is on screen, the panel is not, and the status says why
+	m._new_scene()
+	await idle(4)
+	await click_ctl(card_btn(0))
+	await idle(6)
+	ok(m.S.cards.size() == 8 and home.strip.visible and not home.panel.visible, "50. a walk is built: the strip shows, the panel is shut (cards %d)" % m.S.cards.size())
+	home._words("jumping jack")
+	await idle(6)
+	ok(home.strip.visible and not home.panel.visible, "50. an unknown typed line keeps the strip (strip %s, panel %s)" % [str(home.strip.visible), str(home.panel.visible)])
+	ok("doesn't know" in String(m.ui_status.text) and m.S.cards.size() == 8, "50. the refusal is in the status line, the clip unchanged (status '%s', cards %d)" % [m.ui_status.text, m.S.cards.size()])
+	var keep_shot := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easy_strip_kept.png"
+	await RenderingServer.frame_post_draw
+	var strip_img := root.get_texture().get_image()
+	DirAccess.make_dir_recursive_absolute(keep_shot.get_base_dir())
+	if strip_img != null:
+		strip_img.save_png(keep_shot)
+		print("   strip screenshot: " + keep_shot)
+	# Esc takes an open panel back to the strip (Change it opens it; Esc and a second Change it close it)
+	home._change()
+	await idle(4)
+	ok(home.panel.visible, "50. Change it opens the panel over the built clip")
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	Input.parse_input_event(esc)
+	await idle(4)
+	ok(not home.panel.visible and home.strip.visible, "50. Esc puts the strip back (panel %s, strip %s)" % [str(home.panel.visible), str(home.strip.visible)])
+	home._change()
+	await idle(4)
+	home._change()
+	await idle(4)
+	ok(not home.panel.visible and home.strip.visible, "50. a second Change it puts the strip back")
+
+	# 51. STAND UP: sit on a chair (the body seated), then typed "stand up then wave": cards are added; he ends standing
+	m._new_scene()
+	await idle(4)
+	var stand0 := pelvis_y()
+	m._prop_add("chair")
+	await idle(4)
+	var sit51 := home.panel.find_child("eh_sit", true, false) as Button
+	if sit51 != null:
+		sit51.pressed.emit()
+	await idle(6)
+	var seated51 := pelvis_y()
+	var n51: int = m.S.cards.size()
+	ok(n51 == 1 and seated51 < stand0 - 0.2, "51. seated on the chair: one sit card, pelvis %.3f m (standing %.3f m)" % [seated51, stand0])
+	home._words("stand up then wave")
+	await idle(8)
+	var names51 := []
+	for c in m.S.cards:
+		names51.append(String(c.get("from", "")).split("|")[0])
+	ok(m.S.cards.size() > n51 + 2 and (names51.has("stand up") or names51.has("stand_up")) and names51.back() == "wave", "51. 'stand up then wave' builds stand-up cards then the wave (cards %d, tags %s)" % [m.S.cards.size(), str(names51.slice(-1))])
+	ok("doesn't know" not in String(m.ui_status.text), "51. no 'doesn't know' for stand up (status '%s')" % m.ui_status.text)
+	# the clip's last card is the standing card: the playhead at the clip's end
+	if m.playing:
+		m._toggle_play()
+	m.playhead = m.S.length()
+	m._ps().apply(m.B, m.playhead)   # as a scrub does (the playhead alone does not pose the body)
+	m._refresh()
+	await idle(2)
+	var stood51 := pelvis_y()
+	print("   pelvis: standing %.3f, seated %.3f, after stand up %.3f" % [stand0, seated51, stood51])
+	ok(absf(stood51 - stand0) < 0.04, "51. after the stand-up cards he is standing: pelvis %.3f, standing %.3f (within 4 cm)" % [stood51, stand0])
+
+	# 52. THEN STAND UP: after the sit, the Then row's first button is "Then stand up"; its press builds the move
+	m._new_scene()
+	await idle(4)
+	m._prop_add("chair")
+	await idle(4)
+	sit51 = home.panel.find_child("eh_sit", true, false) as Button
+	if sit51 != null:
+		sit51.pressed.emit()
+	await idle(6)
+	var then52 := home.strip.find_child("eh_next_0", true, false) as Button
+	ok(then52 != null and then52.visible and then52.text == "Then stand up", "52. after a sit the Then row's first button reads 'Then stand up' (%s)" % (then52.text if then52 else "none"))
+	var n52: int = m.S.cards.size()
+	if then52 != null:
+		await click_ctl(then52)
+	await idle(8)
+	ok(m.S.cards.size() > n52 and String(m.S.cards.back().get("from", "")).begins_with("stand_up|"), "52. 'Then stand up' adds the stand-up cards (%d -> %d)" % [n52, m.S.cards.size()])
+
+	# 53. UNDO IN EASY: Walk, Then wave, Bigger; three Undos; each changes the cards (count or poses), the status names the step
+	m._new_scene()
+	await idle(4)
+	await click_ctl(card_btn(0))
+	await idle(6)
+	home._words("wave")
+	await idle(6)
+	var eb53 := home.strip.find_child("eh_bigger", true, false) as Button
+	if eb53 != null:
+		await click_ctl(eb53)
+	await idle(6)
+	var states53 := [_cards_key()]
+	var names53 := []
+	for i in 3:
+		var ub: Button = m.easy.button("Undo")
+		if ub != null:
+			await click_ctl(ub)
+		await idle(6)
+		states53.append(_cards_key())
+		names53.append(String(m.ui_status.text))
+	var moved := true
+	for i in range(1, states53.size()):
+		if states53[i] == states53[i - 1]:
+			moved = false
+	print("   undo states: %s" % str(names53))
+	ok(moved, "53. each of the three Undos changes the cards (count or poses)")
+	ok("took back" in String(names53[0]).to_lower() and "bigger" in String(names53[0]).to_lower(), "53. the first Undo names Bigger in the status: '%s'" % names53[0])
+	ok("wave" in String(names53[1]).to_lower(), "53. the second Undo names the wave: '%s'" % names53[1])
+	ok("walk" in String(names53[2]).to_lower(), "53. the third Undo names the walk: '%s'" % names53[2])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

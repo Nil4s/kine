@@ -30,6 +30,7 @@ const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo toolti
 const NO_MOVE := "Pick a move first: click a picture above, or type one in the box."
 const TRY := [3, 4, 6, 0]   # the cards offered under an unknown move (CARDS indices): Punch, Kick, Wave, Walk
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
+const STAND_WORDS := {"stand up": "stand_up"}   # typed words that are a derived template (templates.gd DERIVED): sit down played backwards
 
 var m: Node                    # main (untyped: the same pattern as EasyMode)
 const SIT_KINDS := ["chair", "stool", "bench"]   # the props SET's sit takes (main.gd SIT_ON)
@@ -253,7 +254,7 @@ func build(root: Control) -> void:
 	_close.text = "Close"
 	_close.focus_mode = Control.FOCUS_NONE
 	_close.tooltip_text = "back to the strip: the clip stays"
-	_close.pressed.connect(func(): _open = false; _help_on = false)
+	_close.pressed.connect(_close_panel)
 	v.add_child(_close)
 
 	strip = PanelContainer.new()
@@ -381,6 +382,22 @@ func build(root: Control) -> void:
 	_toast_show = _toast_button("eh_toast_show", "Open folder", "open the folder with your video in it", func(): OS.shell_show_in_file_manager(_toast_file))
 	tr.add_child(_toast_show)
 	tr.add_child(_toast_button("eh_toast_ok", "Got it", "hide this message", func(): _toast.visible = false))
+
+
+## the panel back to the strip (a clip is there); the text box's words stay for the next Change it
+func _close_panel() -> void:
+	_open = false
+	_help_on = false
+	_msg.text = ""
+
+
+## Esc takes the open panel back to the strip when a clip is built (the other Esc uses are untouched)
+func _input(ev: InputEvent) -> void:
+	if not (ev is InputEventKey) or not ev.pressed or ev.echo or (ev as InputEventKey).keycode != KEY_ESCAPE:
+		return
+	if _open and _clip_kept() and panel != null and panel.visible:
+		_close_panel()
+		get_viewport().set_input_as_handled()
 
 
 func _process(dt: float) -> void:
@@ -702,7 +719,7 @@ func sit_on_chair() -> void:
 	_msg.text = ""
 	if was == 0:
 		_hist.clear()
-	_hist.append([m.undo.size(), ""])
+	_hist.append([m.undo.size(), "sit_down"])   # the catalog's sit: its Then row offers Stand up first (goes_after)
 	_clip_word = "the clip"
 	_refresh_next()
 	m._layout_bottom()
@@ -1356,6 +1373,8 @@ func _hold_again(held: Dictionary) -> void:
 ## (bare "roundhouse" is not here on purpose: tools/make_templates.gd bakes that file from the words, and must not read it back)
 static func _card_template(part: String) -> String:
 	var w := part.strip_edges().to_lower()
+	if STAND_WORDS.has(w):
+		return String(STAND_WORDS[w])
 	for c in CARDS:
 		if String(c[0]).to_lower() == w:
 			return String(c[1])
@@ -1536,19 +1555,34 @@ func smooth() -> void:
 	m.easy.frame_clip_next()
 
 
+## Change it: the panel with its box. A second press (or Esc, or Close) puts the strip back when a clip is built.
 func _change() -> void:
 	_drop_saved_toast()
+	if _open and _clip_kept():
+		_close_panel()
+		return
 	_open = true
 	_msg.text = ""
 	_edit.grab_focus.call_deferred()
 	_edit.select_all.call_deferred()   # the box's old words (a failed line) are selected: typing replaces them
 
 
+## THE STRIP STAYS (walk-through round 7, goals 2-5): with a clip built, a refused line does not open the panel (the strip's
+## Again, Then and tweak buttons are the controls the user is using). The refusal goes to the status line. The panel is open
+## only when it already was (Change it): then the sentence goes in its box, as before.
+func _clip_kept() -> bool:
+	return m.easy.on and _built and not m.S.cards.is_empty()
+
+
 func _fail(sentence: String, quiet := false) -> void:   # quiet: the panel alone says it (a typed word Kine doesn't know)
+	_t0 = -1
+	if _clip_kept() and not _open:
+		_msg.text = ""
+		m._say_plain(sentence)
+		return
 	_msg.text = sentence
 	_msg.add_theme_color_override("font_color", Tok.c("warn"))
-	_open = true   # the panel comes back with the sentence, even from the strip
-	_t0 = -1
+	_open = true   # the panel comes back with the sentence (no clip yet, or Change it is open)
 	if quiet and m.easy.on:
 		m._say_plain("")   # Easy: the panel says it; the status line under the body would only repeat it (walk-through round 4)
 	else:

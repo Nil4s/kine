@@ -11,6 +11,9 @@ const NAMES := ["walk", "run", "jump", "punch", "sword_swing", "sit_down", "wave
 ## baked files the picker does NOT list: name -> the words TextBlocking builds them from (tools/make_templates.gd bakes them).
 ## "roundhouse" is StrikeBlocking's generated kick: built live it took ~3.6 s on Easy's Kick card, so the file holds that build.
 const BAKED := {"roundhouse": "roundhouse"}
+## names built from another template's file, played backwards: "stand up" is "sit down" reversed (walk-through round 7: from the
+## seat or the floor, Kine had no stand move). The reversed file is made in read(), never written to templates/.
+const DERIVED := {"stand_up": "sit_down"}
 ## the picker's text: [title, what you get]
 const INFO := {
 	"walk": ["Walk", "A half step, five steps at 105 a minute, feet together; arms swing against the legs."],
@@ -36,11 +39,14 @@ static func new_path(nm: String, dir := WIP) -> String:
 
 ## a name with a file in templates/: the picker's seven, or a baked one
 static func has_file(nm: String) -> bool:
-	return nm in NAMES or BAKED.has(nm)
+	return nm in NAMES or BAKED.has(nm) or DERIVED.has(nm)
 
 
 ## the template's scene file as a dictionary ({} when the name has no file or the file is gone)
 static func read(nm: String) -> Dictionary:
+	if DERIVED.has(nm):
+		var src := read(String(DERIVED[nm]))
+		return backwards(src) if not src.is_empty() else {}
 	if not has_file(nm):
 		return {}
 	var p := "%s/%s.json" % [DIR, nm]
@@ -48,6 +54,29 @@ static func read(nm: String) -> Dictionary:
 		return {}
 	var d = JSON.parse_string(FileAccess.get_file_as_string(p))
 	return d if d is Dictionary else {}
+
+
+## a template's cards played backwards (the last card first). A card keeps its own pose and hold; the time INTO each card in the
+## new order is the time OUT of the card after it in the old one (its move). Flow flags are dropped: a pass-through key has no
+## meaning played back. The chair and the other props stay where the file put them.
+static func backwards(d: Dictionary) -> Dictionary:
+	var cards: Array = d.get("cards", [])
+	var n := cards.size()
+	if n == 0:
+		return {}
+	var out: Array = []
+	for k in n:
+		var c: Dictionary = (cards[n - 1 - k] as Dictionary).duplicate(true)
+		c["move"] = -1.0 if k == 0 else float((cards[n - k] as Dictionary)["move"])
+		c.erase("flow")
+		c.erase("arrive_s")
+		c.erase("leave_s")
+		out.append(c)
+	var r := d.duplicate(true)
+	r["cards"] = out
+	r["note"] = "STAND UP: the sit_down template played backwards (templates.gd backwards())"
+	r["plan"] = "templates/sit_down, reversed"
+	return r
 
 
 ## a NEW scene from the template, written to dir (scenes/_wip); returns its path ("" = it could not be made)
