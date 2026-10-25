@@ -15,9 +15,10 @@ const SMALLER := 0.8
 ## SLOW_MAX_MOVE drags and a hold over SLOW_MAX_HOLD is a freeze
 const MIN_LEN := 0.3          # s
 ## MAX_LEN was 10 s: a walk then a sit down is 10.3 s, so Slower could never touch a clip that a beginner made by chaining
-## two moves (walk-through round 5). 20 s: a clip still reads whole in the strip, and the per-move and hold limits below
-## still stop a drag; the Slower refusal names the length and the way out.
-const MAX_LEN := 20.0         # s
+## two moves (walk-through round 5). 20 s was the round-5 cap (a clip "still reads whole in the strip"; the per-move and hold
+## limits below stop a drag). Walk-through round 8: longer chains hit it, and the refusal showed only in the status line: the cap
+## is 60 s, and the refusal also comes as the Easy toast. The per-move and hold limits stay.
+const MAX_LEN := 60.0         # s
 const MIN_MOVE := 0.04        # s: Scene.retime's floor
 const SLOW_MAX_MOVE := 3.0    # s
 const SLOW_MAX_HOLD := 6.0    # s

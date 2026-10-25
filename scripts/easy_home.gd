@@ -1591,6 +1591,7 @@ func tweak(how: String) -> void:
 		var stop := EasyTweak.timing_stop(S, k)
 		if stop != "":
 			m._say_plain(stop)
+			m._toast(stop)   # round 8: the refusal is also the Easy toast (the status line alone was missed)
 			return
 		m._step_easy = how.capitalize() if m.easy.on else ""   # "Faster" / "Slower": the undo step's Easy name (main.retime pushes it)
 		var err: String = m.retime(0, S.cards.size() - 1, k * 100.0)   # main.retime: one undo step, the holds and moves x k

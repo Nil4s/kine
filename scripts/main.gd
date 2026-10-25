@@ -17983,6 +17983,9 @@ func _confirm(msg: String, ok_text: String, f: Callable) -> void:
 var ui_save_ask: ConfirmationDialog
 var ui_save_discard: Button       # the dialog's own "Don't save" button (a named Button: a test or a driver presses it)
 var _save_ask_then: Callable      # what goes on after Save or Don't save
+var ui_clash: ConfirmationDialog   # a scene name is taken: Replace it / Save as a new name / Cancel (round 8)
+var ui_clash_new: Button
+var _clash_do: Callable           # the answer's work: _clash_go bound to the name and `then`
 var _save_ask_quit := false       # the question is for the window's close: Don't save then quits without a dialog
 var _discarding := false          # Don't save on the way out: the exit drops the autosave and the journal too
 var quit_fn: Callable             # a test's stand-in for get_tree().quit() (empty in the app)
@@ -18059,12 +18062,12 @@ func _save_ask_choose(how: String) -> void:
 		return
 	if save_hook.is_valid():
 		save_hook.call()
+		if _unsaved():   # the save did not happen (an empty name, a co-edit guest)
+			_say("not saved yet, so the scene stays open: answer the question, or Save scene, then close or open again")
+			return
+		then.call()
 	else:
-		_save_scene()
-	if _unsaved():   # the save did not happen (an empty name, a co-edit guest, or a replace question is up now)
-		_say("not saved yet, so the scene stays open: answer the question, or Save scene, then close or open again")
-		return
-	then.call()
+		_save_scene(then)   # `then` goes on when the save lands: a taken name asks Replace / Save as a new name first (round 8)
 
 
 func _trash(path: String) -> void:
@@ -18132,17 +18135,77 @@ func _load_pose(path: String) -> void:
 	B.capture_second()   # a pose with both hands on the shaft loads with both hands holding it
 
 
-func _save_scene() -> void:
+## then (round 8): what goes on once the scene is saved (New scene, Open): it waits for a Replace / Save as a new name answer
+func _save_scene(then := Callable()) -> void:
 	if _hero_scene().cards.is_empty():
 		_say("the scene is empty: press Enter to add the body as a card, then Save scene")
 		return
 	var nm := ui_scene_name.text.strip_edges()
 	var to := UserPaths.w("res://scenes/%s.json" % (safe_file(nm) if safe_file(nm) != "" else "scene_" + _stamp()))
 	if FileAccess.file_exists(to) and to != scene_path:
-		_confirm("A different scene called '%s' already exists.\nReplace it with this one? Ctrl+Z can't bring the old file back." % to.get_file().get_basename(),
-			"Replace it", _save_scene_now.bind(nm))
+		_clash_ask(nm, then)
 		return
 	_save_scene_now(nm)
+	_then_if_saved(then)
+
+
+## THE NAME IS TAKEN (walk-through round 8, friction 1): a different scene file has this name. Replace it (Ctrl+Z can't bring the
+## old file back), or Save as a new name (name_2, the first free _n: "Save as a new name" is the default in Easy). Either answer
+## saves; Cancel saves nothing and `then` is dropped (the scene stays open).
+func _clash_ask(nm: String, then: Callable) -> void:
+	if ui_clash == null:
+		ui_clash = ConfirmationDialog.new()
+		ui_clash.title = "Name taken"
+		ui_clash.dialog_autowrap = true
+		ui_clash.min_size = Vector2i(440, 0)
+		ui_clash.ok_button_text = "Replace it"
+		ui_clash_new = ui_clash.add_button("Save as a new name", true, "newname")
+		ui_clash_new.name = "SaveAsNew"
+		ui_clash.confirmed.connect(func(): _clash_choose("replace"))
+		ui_clash.custom_action.connect(func(a: StringName): _clash_choose("new"))
+		ui_clash.canceled.connect(func(): _clash_choose("cancel"))
+		add_child(ui_clash)
+	_clash_do = _clash_go.bind(nm, then)
+	ui_clash.dialog_text = "A different scene called '%s' already exists.\nReplace it with this one? Ctrl+Z can't bring the old file back.\nOr save this one as '%s_2'." % [nm, nm]
+	ui_clash.popup_centered()
+	if easy != null and easy.on:
+		ui_clash_new.call_deferred("grab_focus")   # Easy: Enter takes the new name
+	_say("A scene called '%s' already exists: Replace it, or Save as a new name" % nm)
+
+
+## how = "replace" | "new" | "cancel" (the dialog's buttons, and what a test calls)
+func _clash_choose(how: String) -> void:
+	if not _clash_do.is_valid():   # already answered (a canceled after a button is not a second answer)
+		return
+	var go := _clash_do
+	_clash_do = Callable()
+	ui_clash.hide()
+	go.call(how)
+
+
+func _clash_go(how: String, nm: String, then: Callable) -> void:
+	if how == "cancel":
+		_say("kept open: nothing was saved under the name '%s'" % nm)
+		return
+	if how == "new":
+		nm = _free_name(nm)
+		ui_scene_name.text = nm
+	_save_scene_now(nm)
+	_then_if_saved(then)
+
+
+## the first name_2, name_3... whose scene file is free
+func _free_name(nm: String) -> String:
+	var k := 2
+	while FileAccess.file_exists(UserPaths.w("res://scenes/%s.json" % safe_file("%s_%d" % [nm, k]))):
+		k += 1
+	return "%s_%d" % [nm, k]
+
+
+## the save went through: `then` goes on (an unsaved scene, a refused save, a guest's save: nothing goes on)
+func _then_if_saved(then: Callable) -> void:
+	if then.is_valid() and not _unsaved():
+		then.call()
 
 
 ## A NAME AS A FILE (round 17, GATES X3): the name as typed stays the scene's (or pose's) name, shown and saved inside the
