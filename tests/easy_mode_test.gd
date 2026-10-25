@@ -26,7 +26,7 @@ func btn(down: bool, p: Vector2) -> void:
 	e.global_position = p
 	if down:
 		e.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(e)
+	root.push_input(e, true)
 
 
 func move(p: Vector2, rel: Vector2) -> void:
@@ -35,7 +35,7 @@ func move(p: Vector2, rel: Vector2) -> void:
 	e.global_position = p
 	e.relative = rel
 	e.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(e)
+	root.push_input(e, true)
 
 
 func spot(j: String) -> Vector2:
@@ -62,7 +62,7 @@ func press_point(j: String) -> Vector2:
 		var hm := InputEventMouseMotion.new()   # the pointer over the point, no button: the hover the press will see
 		hm.position = q
 		hm.global_position = q
-		root.push_input(hm)
+		root.push_input(hm, true)
 		await process_frame
 		if m.get_viewport().gui_get_hovered_control() == null and m._pick(q) == j:
 			return q
@@ -87,7 +87,7 @@ func hover_at(q: Vector2) -> void:
 	var hm := InputEventMouseMotion.new()
 	hm.position = q
 	hm.global_position = q
-	root.push_input(hm)
+	root.push_input(hm, true)
 	await process_frame
 	await create_timer(m.BAR_REST + 0.1).timeout
 	await idle(2)
@@ -143,8 +143,16 @@ func click_ctl(c: Control) -> void:
 	var p := c.get_global_rect().get_center()
 	btn(true, p)
 	await process_frame
+	_click_check(c, p)
 	btn(false, p)
 	await idle(3)
+
+
+## CLICK MISS: after the press, the GUI's hovered control must be c or inside c (else the click went to another control)
+func _click_check(c: Control, at: Vector2) -> void:
+	var h: Control = m.get_viewport().gui_get_hovered_control()
+	if h == null or not (h == c or c.is_ancestor_of(h)):
+		print("CLICK MISS %s hit %s (at %s, final transform %s)" % [c.name, h.name if h != null else "none", str(at), str(root.get_final_transform())])
 
 
 ## the words of a line that are size, weight, key or jargon (the Easy bar's rule for its own hints)
@@ -875,7 +883,7 @@ func _init() -> void:
 		e.global_position = head_p
 		if down:
 			e.button_mask = MOUSE_BUTTON_MASK_LEFT
-		root.push_input(e)
+		root.push_input(e, true)
 		await process_frame
 	await idle(3)
 	cf = ConfigFile.new()
