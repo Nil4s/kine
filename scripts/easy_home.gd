@@ -49,6 +49,9 @@ var _toast_text: Label
 var _toast_show: Button       # "Open folder": hidden when the message has no file (the empty-scene hint)
 var _toast_file := ""         # what Show the file opens: the .mp4 (its folder is shown with it)
 var _toast_at := []           # [cards, undo steps] when the saved-video message came up: it goes once the clip changes
+var _toast_left := 0.0        # seconds a saved-video message stays up (SAVED_TOAST_S); any next action takes it down sooner
+const SAVED_TOAST_S := 8.0
+var _names: Array = []        # the clip's move words, for the saved file's name: [undo steps after it, words, starts over]
 var _vid_busy := false        # COPY A VIDEO: an import from a video is running (the tracker, then the fit)
 var _vid_before := ""         # the scene path when the copy began: a new path when it lands
 var _vid_cancel := false      # the fit's own Cancel was pressed
@@ -123,6 +126,7 @@ func build(root: Control) -> void:
 	_edit.placeholder_text = HINT
 	_edit.custom_minimum_size = Vector2(PANEL_W, 0)
 	_edit.text_submitted.connect(func(t: String): _words(t))
+	_edit.text_changed.connect(func(_t: String): _drop_saved_toast())   # typing is an action: a saved-video message goes
 	v.add_child(_edit)
 	_msg = _label("", 15, "text")
 	_msg.name = "eh_msg"
@@ -275,8 +279,10 @@ func _process(dt: float) -> void:
 	if not on:
 		_toast.visible = false
 	elif _toast.visible and _toast_file != "":   # a saved-video message is about THAT clip: a new scene, an edit or the save question takes it down
+		_toast_left -= dt   # and it goes by itself after its few seconds (a camera turn or a look at the help is no action here)
 		var asking: bool = m.ui_save_ask != null and m.ui_save_ask.visible
-		if asking or m.S.cards.size() != int(_toast_at[0]) or m.undo.size() != int(_toast_at[1]):
+		var helping: bool = m.ui_help != null and m.ui_help.visible
+		if asking or helping or _toast_left <= 0.0 or m.S.cards.size() != int(_toast_at[0]) or m.undo.size() != int(_toast_at[1]):
 			_toast.visible = false
 	_close.visible = not empty and not _gen_on
 	_then_box.visible = not empty
@@ -304,6 +310,7 @@ func shown() -> String:
 
 ## a card's click: build its clip, then play it
 func card(i: int) -> void:
+	_drop_saved_toast()
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1
 	_go(String(CARDS[i][1]), String(CARDS[i][0]))
@@ -317,7 +324,7 @@ func save_video() -> void:
 		_show_toast(NO_MOVE, "")
 		m._say_plain(NO_MOVE)
 		return
-	var r: Dictionary = await m._save_video_playblast(video_folder())   # piped to ffmpeg, with the progress line and Cancel
+	var r: Dictionary = await m._save_video_playblast(video_folder(), clip_name())   # piped to ffmpeg, with the progress line and Cancel
 	last_video = r
 	if r.is_empty():   # refused or cancelled: the playblast's status line says why
 		return
@@ -355,6 +362,35 @@ func folder_line(mp4: String, home_dir := "") -> String:
 	return " > ".join(parts.slice(maxi(0, parts.size() - 2)))
 
 
+## THE CLIP'S NAME (the saved file's): the move words of the clip as it is now, joined "walk then sit down" -> "walk_then_sit_down".
+## A card or a typed line that adds a move adds its words; Start over and a copied clip begin again; Undo takes its words back.
+## "" = no clip here (main names the file after the scene then)
+func clip_name() -> String:
+	if m.S.cards.is_empty():
+		return ""
+	var words := []
+	for e in _names:
+		if int(e[0]) > m.undo.size():
+			break
+		if bool(e[2]):
+			words = []
+		words.append(String(e[1]))
+	return " then ".join(PackedStringArray(words)).replace(" ", "_")
+
+
+## a move's words went into the clip: an undo step at depth m.undo.size() (after the step) replaces the words above it
+func _note_name(words: String, starts_over: bool) -> void:
+	var d: int = m.undo.size()
+	var kept := []
+	for e in _names:
+		if int(e[0]) < d:
+			kept.append(e)
+	if starts_over:
+		kept = []
+	kept.append([d, words.strip_edges().to_lower(), starts_over])
+	_names = kept
+
+
 func _show_toast(text: String, file: String) -> void:
 	m._toast_clear()   # the saved-video message replaces the last Easy toast (it stayed up across it)
 	_toast_text.text = text
@@ -362,6 +398,13 @@ func _show_toast(text: String, file: String) -> void:
 	_toast_show.visible = file != ""
 	_toast.visible = true
 	_toast_at = [m.S.cards.size(), m.undo.size()]
+	_toast_left = SAVED_TOAST_S
+
+
+## the saved-video message goes at the next action (a card, a typed line, a tweak, Again, Change it, a copy)
+func _drop_saved_toast() -> void:
+	if _toast.visible and _toast_file != "":
+		_toast.visible = false
 
 
 func _toast_button(nm: String, text: String, tip: String, f: Callable) -> Button:
@@ -419,6 +462,7 @@ func _refresh_next() -> void:
 
 ## a "Then <move>" button: the move is added after the clip, as Add after does
 func _next_pressed(i: int) -> void:
+	_drop_saved_toast()
 	if i >= _next_list.size():
 		return
 	var e: Dictionary = _next_list[i]
@@ -429,6 +473,7 @@ func _next_pressed(i: int) -> void:
 
 ## the text box: the same build as a card, named by what was typed
 func _words(text: String) -> void:
+	_drop_saved_toast()
 	var t := text.strip_edges()
 	if t == "":
 		_fail("Type a move first, such as 'jab then cross' or 'roundhouse', or click a picture.")
@@ -455,6 +500,7 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	_open = false
 	_gen_words = ""
 	_msg.text = ""
+	_note_name(what if typed else label, not add)
 	_clip_word = "the clip" if add else ("the typed move" if typed else "the " + label.to_lower())
 	var nm := what.strip_edges().to_lower()
 	if not add:
@@ -660,6 +706,7 @@ func copy_video_file(path: String) -> void:
 	if not FileAccess.file_exists(path):
 		_fail("That video file could not be found. Pick it again with Copy a video.")
 		return
+	_drop_saved_toast()
 	_vid_busy = true
 	_vid_cancel = false
 	panel.visible = false   # the picker goes at once (_process sets it again each frame: _copying keeps it away)
@@ -719,6 +766,7 @@ func _tracker_progress() -> float:
 ## the copied clip: built and playing, framed like a card's (the same steps as _go)
 func _copied() -> void:
 	_hist.clear()   # a copied clip is not a catalog move: no "Then" buttons for it
+	_names = []     # nor a name from its move words: the scene's own name is used
 	_built = true
 	_open = false
 	_gen_words = ""
@@ -879,6 +927,7 @@ static func _tag_cards(d: Dictionary, tag: String) -> void:
 
 ## play from the start: a playing clip is stopped first, so Again and a new build both start at 0
 func _play() -> void:
+	_drop_saved_toast()
 	if m.playing:
 		m._toggle_play()
 	m.playhead = 0.0
@@ -888,6 +937,7 @@ func _play() -> void:
 ## FASTER / SLOWER / BIGGER / SMALLER on the clip just built: one press = one undo step, the clip plays again from its start,
 ## the camera frames it, and the say line names what happened. A press at a limit changes nothing and says why.
 func tweak(how: String) -> void:
+	_drop_saved_toast()
 	if _gen_on or _vid_busy or m._imp_busy():
 		m._say_plain(GEN_BUSY)
 		return
@@ -929,6 +979,7 @@ func tweak(how: String) -> void:
 
 
 func _change() -> void:
+	_drop_saved_toast()
 	_open = true
 	_msg.text = ""
 	_edit.grab_focus.call_deferred()

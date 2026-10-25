@@ -351,6 +351,132 @@ func _init() -> void:
 	m._new_scene()
 	await idle(4)
 
+	# 14. SLOWER ON A LONG CLIP (walk-through round 5): a walk then a sit down is 10.3 s; the old 10 s cap refused Slower on it with
+	# "That's as slow as it goes." The cap is 20 s: Slower takes the 10.3 s clip to ~12.9 s. Over the cap the sentence says the length
+	# and the way out (no false "as slow as it goes").
+	m._new_scene()
+	await idle(2)
+	home.card(0)
+	await idle(4)
+	home.card(5)   # Sit down: added after the walk (Add after is the default)
+	await idle(4)
+	var l0: float = m.S.length()
+	m.retime(0, m.S.cards.size() - 1, 10.3 / maxf(l0, 0.01) * 100.0)   # the clip at 10.3 s, as the walk-through had it
+	await idle(2)
+	var l1: float = m.S.length()
+	home.tweak("slower")
+	await idle(4)
+	ok(absf(l1 - 10.3) < 0.15 and m.S.length() > l1 * 1.2 and m.ui_status.text.begins_with("Slower"),
+		"14. Slower works on a %.2f s clip: it takes %.2f s (says: '%s')" % [l1, m.S.length(), m.ui_status.text])
+	m.retime(0, m.S.cards.size() - 1, 19.0 / maxf(m.S.length(), 0.01) * 100.0)
+	await idle(2)
+	var l2: float = m.S.length()
+	home.tweak("slower")
+	await idle(3)
+	var said14: String = m.ui_status.text
+	ok(said14.contains("already") and said14.contains("%.1f s" % l2) and said14.contains("Remove a step") and not said14.contains("as slow as it goes"),
+		"14. at the cap Slower says the length and the way out (says: '%s')" % said14)
+	m._new_scene()
+	await idle(4)
+
+	# 15. THE SAVED FILE IS NAMED AFTER THE CLIP AS IT IS NOW (walk-through round 5): walk, then wave added after it: the name is
+	# walk_then_wave; Undo takes the wave's words back (walk); a start-over names the new move alone
+	m._new_scene()
+	await idle(2)
+	(home.panel.find_child("eh_then_add", true, false) as Button).button_pressed = true   # Add after (section 11 left Start over on)
+	home.card(0)
+	await idle(4)
+	home.card(6)   # Wave, added after the walk
+	await idle(4)
+	var nm15: String = home.clip_name() if home.has_method("clip_name") else "(no clip_name)"
+	ok(nm15 == "walk_then_wave", "15. the clip's name is 'walk_then_wave' after walk then wave (got '%s')" % nm15)
+	m._undo()
+	await idle(4)
+	var nm15b: String = home.clip_name() if home.has_method("clip_name") else "(no clip_name)"
+	ok(nm15b == "walk", "15. Undo takes the wave's words back: the name is 'walk' (got '%s')" % nm15b)
+	home.video_root = ProjectSettings.globalize_path("user://easyhome_name15")
+	DirAccess.make_dir_recursive_absolute(home.video_root)
+	card_btn(6).pressed.emit()   # wave again: the clip is walk then wave
+	await idle(4)
+	await home.save_video()
+	await idle(2)
+	var vdir := String(home.last_video.get("dir", "")).get_file()
+	ok(vdir.begins_with("walk_then_wave_"), "15. the saved folder and file are named after the clip: '%s'" % vdir)
+	home.video_root = ""
+	m._new_scene()
+	await idle(4)
+
+	# 16. THE SAVED-VIDEO MESSAGE GOES AT THE NEXT ACTION (walk-through round 5): a typed line that Kine cannot build changes neither the
+	# cards nor the undo steps, so only the action itself can take the message down; it also goes when its few seconds are up and
+	# when the help opens
+	m._new_scene()
+	await idle(4)
+	home.card(3)   # Punch: a clip is on screen
+	await idle(4)
+	home._show_toast("Your video is saved: test.mp4", "C:/nowhere/test.mp4")
+	await idle(2)
+	var sv16: Control = home._toast
+	home._edit.text = "backflip"
+	home._edit.text_changed.emit("backflip")
+	home._words("backflip")
+	await idle(3)
+	ok(sv16.visible == false, "16. typing a line takes the saved-video message down (the message is %s)" % ("still up" if sv16.visible else "gone"))
+	home._show_toast("Your video is saved: test.mp4", "C:/nowhere/test.mp4")
+	if "_toast_left" in home:   # its few seconds are up: the next frame takes it down (an old build has no such timer: the bar fails)
+		home._toast_left = 0.0
+	await idle(2)
+	var left16: float = home._toast_left if "_toast_left" in home else -1.0
+	ok(sv16.visible == false, "16. the saved-video message goes after its few seconds (left %.2f s, shown %s)" % [left16, sv16.visible])
+	home._show_toast("Your video is saved: test.mp4", "C:/nowhere/test.mp4")
+	m.ui_help.visible = true
+	await idle(3)
+	ok(sv16.visible == false, "16. opening the help takes the saved-video message down")
+	m.ui_help.visible = false
+	m._new_scene()
+	await idle(4)
+
+	# 17. THE SCENE SAVE SAYS WHERE IT WENT (walk-through round 5): the toast names the file and its folder (the status line keeps its words)
+	m._new_scene()
+	await idle(4)
+	home.card(0)
+	await idle(4)
+	m._save_scene_now("zz_toast_17")
+	await idle(3)
+	var t17 := String(m.ui_toast.text) if m.ui_toast != null else ""
+	ok(m.ui_toast != null and m.ui_toast.visible and t17.begins_with("Saved as zz_toast_17 in ") and t17.contains("scenes"),
+		"17. the save toast says the file and its folder: '%s'" % t17)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(UserPaths.w("res://scenes/zz_toast_17.json")))
+	m._new_scene()
+	await idle(4)
+
+	# 18. ONE "THEN" ROW ON SCREEN (walk-through round 5, screens 11 and 15): the picker's Then: row (Add after / Start over) and the
+	# strip's "Then <move>" row are never on screen together, in each state a beginner reaches: a built clip (the strip), Change it
+	# (the picker over the clip), a typed line Kine cannot build, and a reopened scene (the picker over cards). Counted with
+	# is_visible_in_tree, so a hidden parent counts as hidden.
+	m._new_scene()
+	await idle(4)
+	home.card(0)
+	await idle(4)
+	var rows18 := func() -> int:
+		var n := 0
+		if (home.panel.find_child("eh_then", true, false) as Control).is_visible_in_tree():
+			n += 1
+		if home._next_row.is_visible_in_tree():
+			n += 1
+		return n
+	var r_strip: int = rows18.call()
+	home._change()
+	await idle(4)
+	var r_picker: int = rows18.call()
+	home._edit.text = "sit on the chair"
+	home._words("sit on the chair")
+	await idle(4)
+	var r_typed: int = rows18.call()
+	ok(r_strip <= 1 and r_picker <= 1 and r_typed <= 1,
+		"18. at most one 'Then' row on screen: strip %d, picker over a clip %d, typed line kine cannot build %d" % [r_strip, r_picker, r_typed])
+	m._new_scene()
+	await idle(4)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
