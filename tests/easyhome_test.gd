@@ -22,6 +22,12 @@
 ##  19-23. Slower on a 10.3 s clip; the saved video named after the clip; the saved-video message goes at the next action; the scene save says where; one Then row.
 ##  C. (the layout) At 1280x720 and at 1600x900 the home panel covers at most 15 % of the body's screen box (the body's capsule
 ##     ends projected with m.cam.unproject_position): the body is visible beside the panel, not under it.
+##  24. HELD SWORD THROUGH A TYPED SWING (walk-through LP round, goal 2): a sword in the right hand, typed 'swing': every card
+##      the build makes keeps the sword in the same hand (B.wep_on, wep_kind sword, wep_hand hand_r; each card's pose has a weapon).
+##  25. BALL NEAR THE FOOT, THEN A KICK (walk-through LP round, goal 3): a football on the floor, typed 'kick': the kick's foot reaches
+##      the ball (the closest toe is within 6 cm of its surface), the ball is not moved, and the say line says the ball doesn't fly yet.
+##  26. LIBRARY NAMES ARE PLAIN (walk-through LP round, goal 3): no library tile is named with the old jargon (Step code, Stairs code,
+##      Ramp15, Moving box, Door frame, Sword on the floor); the prop sword says (on the floor).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -51,6 +57,21 @@ func wait_playing(limit := 120) -> bool:
 			return true
 		await process_frame
 	return false
+
+
+## the closest distance (m, on the floor) from either toe ball (the body's own solve, Scene.put on a scratch body) to the
+## point p, over the cards; the bars of section 25 read it
+func toe_gap(cards: Array, p: Vector3) -> float:
+	var W := Body.new()
+	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var best := INF
+	for c in cards:
+		Scene.put(W, Moves._flat(c["pose"]))
+		W.fk()
+		for sd in ["_l", "_r"]:
+			var t: Vector3 = W.P["ball" + sd]
+			best = minf(best, Vector2(t.x - p.x, t.z - p.z).length())
+	return best
 
 
 ## the body's screen box: each capsule end (Turntable.points: the joints and their ends, the weapons) projected by m.cam, grown
@@ -767,6 +788,69 @@ func _init() -> void:
 		"23. at most one 'Then' row on screen: strip %d, picker over a clip %d, typed line kine cannot build %d" % [r_strip, r_picker, r_typed])
 	m._new_scene()
 	await idle(4)
+
+	# 24. A HELD SWORD SURVIVES A TYPED SWING (walk-through LP round, goal 2): the sword goes into the right hand (as a library
+	# click does), then "swing" is typed: the cards it builds keep the sword in that hand, every card carries it.
+	m._new_scene()
+	await idle(4)
+	m._kind("sword")
+	await idle(2)
+	ok(m.B.wep_on and m.B.wep_kind == "sword" and m.B.wep_hand == "hand_r", "24. the sword is in the right hand before the swing (on %s, kind %s, hand %s)" % [str(m.B.wep_on), m.B.wep_kind, m.B.wep_hand])
+	home._words("swing")
+	await idle(10)
+	var n24: int = m.S.cards.size()
+	var armed24 := 0
+	for c in m.S.cards:
+		if not (c["pose"] as Dictionary).get("weapon", {}).is_empty():
+			armed24 += 1
+	ok(n24 > 0 and armed24 == n24, "24. the typed swing built %d cards and %d of them carry the sword" % [n24, armed24])
+	ok(m.B.wep_on and m.B.wep_kind == "sword" and m.B.wep_hand == "hand_r", "24. after the swing the sword is still in his right hand (on %s, kind %s, hand %s)" % [str(m.B.wep_on), m.B.wep_kind, m.B.wep_hand])
+	m._new_scene()
+	await idle(4)
+
+	# 25. THE KICK REACHES A BALL ON THE FLOOR, AND SAYS IT DOES NOT FLY (walk-through LP round, goal 3): the football is put
+	# on the floor in front of him, the kick is typed. The kick's closest toe (both feet, every card, the body's own solve) is
+	# within 6 cm of the ball's surface; the ball does not move (nothing makes a ball fly yet); the line says so.
+	m._new_scene()
+	await idle(4)
+	m._prop_add("ball")
+	await idle(2)
+	var bi25 := -1
+	for i in m.S.props.size():
+		if String(m.S.props[i]["kind"]) == "ball":
+			bi25 = i
+	var bc25 := Vector3.ZERO
+	var br25 := 0.0
+	if bi25 >= 0:
+		var sp25: Array = Props.kind_of("ball")["spheres"][0]
+		bc25 = (m.S.props[bi25]["xf"] as Transform3D) * Vector3(sp25[0])
+		br25 = float(sp25[1])
+	var p25_0 := bc25
+	home._words("kick")
+	await idle(10)
+	var gap25 := toe_gap(m.S.cards, bc25) - br25 if bi25 >= 0 else INF
+	var moved25 := 0.0
+	if bi25 >= 0 and bi25 < m.S.props.size():
+		moved25 = ((m.S.props[bi25]["xf"] as Transform3D).origin - p25_0).length()
+	ok(bi25 >= 0 and m.S.cards.size() > 0, "25. a ball is on the floor and the kick built (cards %d, ball %d)" % [m.S.cards.size(), bi25])
+	ok(gap25 <= 0.06, "25. the kick's closest toe is %.1f cm from the ball's surface (bar 6 cm)" % (gap25 * 100.0))
+	ok(moved25 == 0.0 or moved25 > 0.5, "25. the ball moved %.2f m (a kick that flies it moves it > 0.5 m; the honest line is the other branch)" % moved25)
+	var line25: String = m.ui_status.text if m.ui_status != null else ""
+	ok(line25.contains("doesn't fly yet") or line25.contains("does not fly yet"), "25. the say line says the ball does not fly yet (line: '%s')" % line25)
+	m._new_scene()
+	await idle(4)
+
+	# 26. LIBRARY NAMES (walk-through LP round, goal 3): the old jargon is gone from every tile; a weapon says it is in the hand,
+	# a prop says it is on the floor (the sword's two tiles tell apart)
+	var old26 := ["Step code", "Stairs code", "Ramp15", "Moving box", "Door frame", "Sword on the floor"]
+	var bad26 := []
+	var nm26 := []
+	for it in m.ui_library.inventory():
+		nm26.append(String(it["name"]))
+		if old26.has(String(it["name"])):
+			bad26.append(String(it["name"]))
+	ok(bad26.is_empty(), "26. no library tile has an old jargon name (found: %s)" % str(bad26))
+	ok(nm26.has("Sword") and nm26.has("Sword (on the floor)"), "26. the sword tile reads 'Sword' and the prop 'Sword (on the floor)' (names: %s)" % str(nm26))
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

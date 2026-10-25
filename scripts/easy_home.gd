@@ -675,10 +675,11 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	m._layout_bottom()   # the bottom panel has its clip rows now: the free rect is the real one
 	_play()
 	var new_word := "'%s'" % what if typed else "the " + label.to_lower()
+	var tail := (" " + _ball_line) if _ball_line != "" else ""
 	if add:   # the say line says both moves in plain words; it still opens "Made the wave" (the card's name)
-		m._say_plain("Made %s, added after %s. Again plays the whole clip; Undo takes it back." % [new_word, prev])
+		m._say_plain("Made %s, added after %s. Again plays the whole clip; Undo takes it back.%s" % [new_word, prev, tail])
 	else:   # the say line names the clip just built (it kept the last clip's words: "Faster: the walk now takes..." after a typed wave)
-		m._say_plain("Made %s. Again plays it; Change it types another move." % new_word)
+		m._say_plain("Made %s. Again plays it; Change it types another move.%s" % [new_word, tail])
 	m.easy.frame_clip_next()  # EASY CAMERA: framed in the free rect under the bar / strip, one frame AFTER the clip starts (the click-to-motion bar)
 
 
@@ -991,12 +992,21 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 		return _append(d, label, easy)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
+	_ball_line = ""
+	if _has_kick(d.get("cards", [])):   # a kick: the foot reaches a football on the floor (the clip moves, not the ball)
+		var ball = _ball_at(m.S.props)
+		if ball != null:
+			_shift_cards(d.get("cards", []), _reach_delta(d.get("cards", []), ball))
+			_ball_line = BALL_SAID
+	var held: Dictionary = PoseBake.held_of(m.B).duplicate(true) if m.B.wep_on else {}   # the sword in his hand: the new scene's cards keep it
 	m._step_hint = label   # the undo step is named after the card (main's undo list shows it)
 	m._step_easy = easy if m.easy.on else ""   # and, in Easy, by its short name: "Walk", or the typed words (cut to 18 characters)
 	m._push_undo()
 	m.undo[-1]["swap"] = true   # the card makes a NEW Scene object: Ctrl+Z puts the empty one back whole (main._restore; path_walk_ui does the same)
 	m._write(path, d)
 	m._load_scene(path, true)   # a card build is a work copy in scenes/_wip: unsaved until the user saves it
+	if not held.is_empty():
+		_hold_again(held)
 	m._rebuild_cards()
 	m._refresh()
 	return ""
@@ -1016,13 +1026,89 @@ func _append(d: Dictionary, label: String, easy: String) -> String:
 	var first: Dictionary = new_cards[0]
 	first["move"] = JOIN_S
 	first["pose"]["offset"] = [o.x, o.y, o.z]
+	_ball_line = ""
+	var ball = _ball_at(S.props)
+	var move := Vector2.ZERO
+	if ball != null and _has_kick(new_cards):   # a kick: the clip moves so the foot reaches the ball (the whole scene, so the join holds)
+		move = _reach_delta(new_cards, ball)
+		_shift_cards(new_cards, move)
+		_ball_line = BALL_SAID
+	var held: bool = m.B.wep_on
 	m._step_hint = "Add " + label.to_lower()
 	m._step_easy = ("Add " + easy.to_lower()) if m.easy.on else ""   # Easy's undo names it: "Undo: Add wave"
 	m._do(func():
+		if move != Vector2.ZERO:
+			_shift_cards(S.cards, move)
 		S.cards.append_array(new_cards)
+		if held:   # the sword in his hand rides into the added cards (the body is the live one: it still holds it)
+			var added := Scene.new()
+			added.cards = new_cards
+			ObjectLibrary.arm_cards(added, m.B)
 		m._rebuild_cards())
 	m._refresh()
 	return ""
+
+
+const BALL_SAID := "The ball doesn't fly yet: his foot reaches it, and it stays where it is."
+var _ball_line := ""   # the sentence the last kick adds to the say line ("" = no ball in the scene)
+
+
+## the first football in a props list: {c: its centre on the floor, r: its radius}, or null
+static func _ball_at(props: Array) -> Variant:
+	for p in props:
+		if String((p as Dictionary)["kind"]) == "ball":
+			var sp: Array = Props.kind_of("ball")["spheres"][0]
+			return {"c": ((p as Dictionary)["xf"] as Transform3D) * Vector3(sp[0]), "r": float(sp[1])}
+	return null
+
+
+## a kick's clip: any card named roundhouse (the Kick card's move)
+static func _has_kick(cards: Array) -> bool:
+	for c in cards:
+		if String((c as Dictionary).get("name", "")).to_lower().contains("roundhouse"):
+			return true
+	return false
+
+
+## the floor move (x, z) that puts the kicking toe on the ball: the closest toe to the ball's centre, over the cards (both feet,
+## the body's own solve on a scratch body), lands at the ball's edge plus 2 cm, on the line from the ball through where it was
+static func _reach_delta(cards: Array, ball: Dictionary) -> Vector2:
+	var W := Body.new()
+	W.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var bc: Vector3 = ball["c"]
+	var best := INF
+	var at := Vector3.ZERO
+	for c in cards:
+		Scene.put(W, Moves._flat((c as Dictionary)["pose"]))
+		W.fk()
+		for sd in ["_l", "_r"]:
+			var t: Vector3 = W.P["ball" + sd]
+			var dist := Vector2(t.x - bc.x, t.z - bc.z).length()
+			if dist < best:
+				best = dist
+				at = t
+	var bxz := Vector2(bc.x, bc.z)
+	var from := Vector2(at.x, at.z) - bxz
+	var dir := from.normalized() if from.length() > 1e-6 else Vector2(0, 1)
+	return (bxz + dir * (float(ball["r"]) + 0.02)) - Vector2(at.x, at.z)
+
+
+## every card's offset moves by d (x, z): a card's offset is its body's place on the floor
+static func _shift_cards(cards: Array, d: Vector2) -> void:
+	if d == Vector2.ZERO:
+		return
+	for c in cards:
+		var p: Dictionary = (c as Dictionary)["pose"]
+		var o: Array = p.get("offset", [0, 0, 0])
+		p["offset"] = [float(o[0]) + d.x, float(o[1]), float(o[2]) + d.y]
+
+
+## the held sword (or the held weapon, as a state) put back into the body of a freshly loaded scene, then into every card
+func _hold_again(held: Dictionary) -> void:
+	var s0: Dictionary = m.B._state0()
+	s0.merge(held, true)
+	m.B._set_state0(s0)
+	ObjectLibrary.arm_cards(m.S, m.B)
 
 
 ## the template a typed part names, when it is a card's own word ("walk", "sit down", "kick" = the Kick card's roundhouse
