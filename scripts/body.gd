@@ -1215,6 +1215,8 @@ func set_ang_safe(j: String, v: Vector3) -> bool:
 const IK_EPS := 1e-5
 ## PERF1: true runs the pre-optimisation bisections (tests/perf1_test.gd compares the two bit for bit); never set by the app
 static var legacy_ik := false
+## GROUNDSPEED: true runs the pre-optimisation sole / seat helpers (sole_low, seat_lift) as they were; tests/groundspeed_test.gd
+static var legacy_ground := false
 
 
 ## reach: put a limb's tip (hand_r/l = the wrist, foot_r/l = the ankle) on a target point. Two joints, in turns: the
@@ -1912,6 +1914,23 @@ func foot_sole_low(sd: String) -> float:
 ## The toe TIP stands on what the ball of its foot stands on: the heel or the ball carries a foot on a step, a toe tip
 ## touching a crate's face does not (round 39: toes 2 cm into a 1 m crate stack lifted the whole body onto it)
 func _sole_low_set() -> float:
+	if legacy_ground:
+		return _sole_low_set_legacy()
+	# GROUNDSPEED: the same floats per sole; the surface under each point from one solid cache per call
+	var cache := Props.solid_cache(props)
+	var low := INF
+	for sd in ["_l", "_r"]:
+		var ball_up: float = (p0["ball" + sd] as Vector3).y
+		var ball_s := float(Props.surface_below_c(cache, P["ball" + sd])["y"])
+		var heel_up: float = (p0["foot" + sd] as Vector3).y
+		low = minf(low, (P["foot" + sd] as Vector3).y - heel_up - float(Props.surface_below_c(cache, P["foot" + sd])["y"]))
+		low = minf(low, (P["ball" + sd] as Vector3).y - ball_up - ball_s)
+		low = minf(low, (E["ball" + sd] as Vector3).y - (e0["ball" + sd] as Vector3).y - ball_s)
+	return low
+
+
+## GROUNDSPEED: the pre-optimisation sole helper (Body.legacy_ground), kept as it was
+func _sole_low_set_legacy() -> float:
 	var low := INF
 	for sd in ["_l", "_r"]:
 		var ball_up: float = (p0["ball" + sd] as Vector3).y
@@ -1938,6 +1957,37 @@ func surface_at(pt: Vector3, _up: float) -> float:
 ## OVER a support (its axis sampled every 2 cm) whose top is above it, its lowest surface under the top by less than
 ## SEAT_CATCH. Only the part over the seat: a thigh tilting down past the seat's front edge is not lifted by its knee
 func seat_lift() -> float:
+	if legacy_ground:
+		return seat_lift_legacy()
+	# GROUNDSPEED: the same supports in the same order, each one's inverse transform computed once per call
+	var sups := []
+	for p in props:
+		for s in Props.supports(p):
+			s["inv"] = (s["xf"] as Transform3D).affine_inverse()
+			sups.append(s)
+	var lift := 0.0
+	for part in SEAT_PARTS:
+		var c := cap(part)
+		var r: float = rad[part]
+		var a: Vector3 = c[0]
+		var b: Vector3 = c[1]
+		if maxf(a.y, b.y) + r <= 0.0:
+			continue
+		var n := maxi(1, int(ceil(a.distance_to(b) / 0.02)))
+		for s in sups:
+			var top: float = s["y"]
+			var lo := INF
+			for k in n + 1:
+				var q := a.lerp(b, float(k) / n)
+				if Props._over_c(s, q):
+					lo = minf(lo, q.y - r)
+			if lo < top and top - lo < SEAT_CATCH and maxf(a.y, b.y) + r > top:
+				lift = maxf(lift, top - lo)
+	return lift
+
+
+## GROUNDSPEED: the pre-optimisation seat helper (Body.legacy_ground), kept as it was
+func seat_lift_legacy() -> float:
 	var lift := 0.0
 	for part in SEAT_PARTS:
 		var c := cap(part)

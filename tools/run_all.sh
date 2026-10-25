@@ -19,6 +19,7 @@ EXTRA="$EXTRA anatomy:w autoweights:h basebody:w bevel:h bodymesh:w eyelife:w fi
 EXTRA="$EXTRA kmesh_grs:h"   # round 2 walk: G R S with the Blender layer off, Alt+click loop, Ctrl+1 subdivide
 EXTRA="$EXTRA armour:w"   # B23
 EXTRA="$EXTRA stagelib:w"   # the STAGE page's own Library button, the library listing my models, no overlap with STAGE panels
+EXTRA="$EXTRA groundspeed:h"   # GROUNDSPEED: Body.ground() cached sole / seat helpers, legacy_ground equality + speed
 EXTRA="$EXTRA persist2:w"   # the armour, the body and the autosave (tests/persist2_test.gd)
 EXTRA="$EXTRA library:w"   # object library (scripts/object_library.gd)
 EXTRA="$EXTRA easybar:w"   # Easy bar: 7 buttons, More holds the rest (scripts/easy_mode.gd)
