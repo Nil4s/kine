@@ -121,7 +121,24 @@
   "source": "templates/sit_down.json",
   "made_by": "hand-made",
   "goes_after": [
+   "stand_up",
    "wave"
+  ]
+ },
+ {
+  "id": "stand_up",
+  "words": "Stand up",
+  "kind": "move",
+  "category": "Everyday",
+  "tags": [
+   "legs"
+  ],
+  "seconds": 2.48,
+  "source": "templates/sit_down.json",
+  "made_by": "hand-made",
+  "goes_after": [
+   "wave",
+   "walk"
   ]
  },
  {
