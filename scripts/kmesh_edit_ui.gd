@@ -744,6 +744,9 @@ func _build_prim_panel() -> void:
 	add.text = "Add"
 	add.tooltip_text = "add this primitive beside the mesh (one undo step); its fields stay live until the next edit"
 	add.pressed.connect(func(): add_prim(KMeshPrims.KINDS[_prim_kind.selected], _field_params()))
+	# the keys go back to the model view: Enter (keeping a G / E value) re-pressed the focused Add and added another primitive
+	# each time (MODEL walk-through 6: +64 verts per Enter)
+	add.focus_mode = Control.FOCUS_NONE
 	hb.add_child(add)
 	vb.add_child(hb)
 	_prim_box = GridContainer.new()
