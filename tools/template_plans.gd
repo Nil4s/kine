@@ -320,14 +320,14 @@ static func plan_wave() -> Dictionary:
 	var up := rest.duplicate()
 	up.merge({"upperarm_r": [-15, 80, 0], "lowerarm_r": [40, 0, 0]}, true)
 	var clips := [{"name": "stand", "move": -1, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]},
-		{"name": "raise", "move": 0.4, "hold": 0.0, "set": up}]
+		{"name": "Hand up", "move": 0.4, "hold": 0.0, "set": up}]   # Easy's card words: a beginner reads "Hand up", "Wave", "Hand down" (walk-through 10)
 	var tw := [-45.0, 45.0, -45.0, 45.0, -45.0]
 	var mv := [0.2, 0.25, 0.25, 0.25, 0.25]
 	for i in tw.size():
 		var w := up.duplicate()
 		w["upperarm_r"] = [-15, 80, tw[i]]
-		clips.append({"name": "swing %d" % (i + 1), "move": mv[i], "hold": 0.0, "set": w})
-	clips.append({"name": "lower", "move": 0.45, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]})
+		clips.append({"name": "Wave", "move": mv[i], "hold": 0.0, "set": w})
+	clips.append({"name": "Hand down", "move": 0.45, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]})
 	return {"name": "wave", "base": "poses/stand.json", "clips": clips, "spline": false,
 		"note": "WAVE template: the right hand raised, the forearm swung side to side 2.5 times (about 1.2 s), then lowered. Hand passes head height."}
 

@@ -88,6 +88,7 @@
 ##  90c. SLOWER ON AN 18 s CLIP: Slower takes it to x1.25 (the cap is 60 s now).
 ##  90d. SLOWER OVER 60 s IS REFUSED ON A TOAST: a 50 s clip: Slower changes nothing, the status line and the Easy toast say why.
 ##  116. HIS COLOUR (beginner walk-through 10, goal 3): no prop picked, a visible 'His colour' button changes the body's colour (one undo step, status says so); Undo restores it.
+##  117. EASY WAVE READS AS A HELLO (walk-through 10, goal 1): the left hand stays down after the first card, the right goes over the shoulder; no "Pivot" / number > 9 card names; the chair message names the visible Sit button; the Sit label stays put while playing.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -542,6 +543,21 @@ func inside_sweep(step := 0.1) -> Array:
 			worst = over
 			at = t
 	return [worst, at, L]
+
+
+## the card names (Easy's words) that read "Pivot" or carry a number above 9: returned as a list
+func bad_names_117(names: Array) -> Array:
+	var out: Array = []
+	var rx := RegEx.create_from_string("[0-9]+")
+	for n in names:
+		var t := String(n)
+		var bad := t.findn("pivot") >= 0
+		for mm in rx.search_all(t):
+			if mm.get_string().to_int() > 9:
+				bad = true
+		if bad:
+			out.append(t)
+	return out
 
 
 func _init() -> void:
@@ -2520,6 +2536,75 @@ func _init() -> void:
 	var c116u: Color = skin116.albedo_color if skin116 != null else Color(0, 0, 0)
 	ok(c116u.is_equal_approx(c116a), "116b. one Undo restores the body's colour (albedo %s)" % str(c116u))
 	print("note 116c: skipped as the spec allows: Expert's body look (Main.body_mats, the photo material per part) is not saved with the scene, so the colour is not either")
+	# 117. EASY WAVE READS AS A HELLO (walk-through 10, goal 1). The Wave card in a fresh scene: (a) after the first card (the stand) the
+	# left hand stays put (< 0.15 m, below its shoulder all the way) and the right hand goes above its shoulder; (b) no card name reads
+	# "Pivot" or has a number above 9 (the cards as Easy names them); (c) a chair added with the clip there names a button the user can see;
+	# (d) the strip's sit button keeps its text while the clip plays.
+	m._new_scene()
+	await idle(3)
+	card_btn(6).pressed.emit()   # Wave
+	await idle(6)
+	var L117: float = m.S.length()
+	var t117: float = float(m.S.cards[1].get("arrive_s", 0.8)) if m.S.cards.size() > 1 else 0.8
+	var rest117 := Vector3.ZERO
+	var lmoved117 := 0.0
+	var lbelow117 := true
+	var rabove117 := -1e9
+	var k117 := t117
+	var first117 := true
+	while k117 <= L117 + 1e-6:
+		m._ps().apply(m.B, k117)
+		var hl117: Vector3 = m.B.P["hand_l"]
+		var hr117: Vector3 = m.B.P["hand_r"]
+		if first117:
+			rest117 = hl117
+			first117 = false
+		lmoved117 = maxf(lmoved117, hl117.distance_to(rest117))
+		lbelow117 = lbelow117 and hl117.y < (m.B.P["upperarm_l"] as Vector3).y
+		rabove117 = maxf(rabove117, hr117.y - (m.B.P["upperarm_r"] as Vector3).y)
+		k117 += 1.0 / 30.0
+	ok(lmoved117 < 0.15 and lbelow117 and rabove117 > 0.0,
+		"117a. Easy Wave, from %.2f s (after the first card) to %.2f s: the left hand moves %.3f m (< 0.15), stays below its shoulder: %s; the right hand is %.3f m above its shoulder at the top (> 0)" % [t117, L117, lmoved117, str(lbelow117), rabove117])
+	# the picture for the review: the Wave mid-clip (the right hand up, the swing under way), scratchpad/easywave.png
+	m.playhead = L117 * 0.4
+	m._ps().apply(m.B, m.playhead)
+	await idle(4)
+	await RenderingServer.frame_post_draw
+	get_root().get_texture().get_image().save_png("C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easywave.png")
+	var names117: Array = []
+	for i in m.S.cards.size():
+		names117.append(m._easy_card_name(String(m.S.cards[i]["name"]), i))
+	var bad117 := bad_names_117(names117)
+	ok(bad117.is_empty(), "117b. the Wave's cards read in plain words, no 'Pivot' and no number above 9: %s (bad: %s)" % [str(names117), str(bad117)])
+	m._prop_add("chair")
+	await idle(4)
+	var st117 := String(m.ui_status.text)
+	var sp117 := home.panel.find_child("eh_sit", true, false) as Button
+	var ss117 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var named_panel117 := st117.contains("Sit on it")
+	var named_strip117 := st117.contains("Sit on the chair")
+	var visible117 := (named_panel117 and sp117 != null and sp117.is_visible_in_tree()) or (named_strip117 and ss117 != null and ss117.is_visible_in_tree())
+	ok(visible117 and (named_panel117 or named_strip117), "117c. a chair added with the Wave in Easy: the status names a button the user can see ('%s'; panel sit visible %s, strip sit visible %s)" % [st117, str(sp117 != null and sp117.is_visible_in_tree()), str(ss117 != null and ss117.is_visible_in_tree())])
+	var s117 := ss117.text if ss117 != null else "(no strip sit button)"
+	var sitnames117: Array = []
+	for i in m.S.cards.size():
+		sitnames117.append(m._easy_card_name(String(m.S.cards[i]["name"]), i))
+	var sitbad117 := bad_names_117(sitnames117)
+	var same117 := true
+	var seen117 := ""
+	var played117 := false
+	if ss117 != null:
+		ss117.pressed.emit()   # the sit after the Wave: the clip plays (the walk to the chair, the rise)
+	for i in 60:
+		await idle(2)
+		played117 = played117 or m.playing
+		if ss117 != null:
+			seen117 = ss117.text
+			same117 = same117 and seen117 == s117
+	if m.playing:
+		m._toggle_play()
+	ok(sitbad117.is_empty() and m.S.cards.size() > names117.size(), "117b2. the same card names after the Wave and the sit to the chair (%d cards): no 'Pivot', no number above 9 (bad: %s)" % [m.S.cards.size(), str(sitbad117)])
+	ok(same117 and played117 and ss117 != null and s117 == "Sit on the chair", "117d. the strip's sit button reads '%s' before the sit plays and '%s' after it (the same text all along, playing seen: %s, text same: %s)" % [s117, seen117, str(played117), str(same117)])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
