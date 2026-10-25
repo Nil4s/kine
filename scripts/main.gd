@@ -10378,31 +10378,43 @@ func _tilt_word(d: float) -> String:
 
 ## the blade's turn and tilt (radians) now: the turn in the hand from the saved grip, the card keeps it, the other hand follows
 ## the handle or lets go if it can't (said)
-func _blade_apply(turn_rad: float, tilt_rad: float) -> void:
+## returns the words for the status line when the other hand let go ("" when it kept its grip)
+func _blade_apply(turn_rad: float, tilt_rad: float) -> String:
+	var tilt0 := B.wep_tilt
 	B.set_blade(turn_rad, tilt_rad)
+	var note := ""
 	if B.grip:
 		var miss := B.apply_grip()
 		if miss > 0.02:
 			B.grip = false
-			_say("the other hand let go: it can't follow the handle that far round")
+			note = "the other hand let go: it can't follow the handle that far round"
+	if absf(B.wep_tilt - tilt0) > 1e-6:
+		B.refit_fingers()   # w4-fingertilt: the shaft tipped, so the fingers that hold it close round it again
 	_blade_card()
+	return note
 
 
 func _blade_by(deg: float) -> void:
 	if not B.wep_on or B.wep_hand == "":
 		_say("no weapon in a hand: put one in a hand first")
 		return
-	_blade_apply(B.wep_turn + deg_to_rad(deg), B.wep_tilt)
-	_say("the blade turned %d°: %s; the hand and its grip stay" % [roundi(rad_to_deg(B.wep_turn)), _turn_word(rad_to_deg(B.wep_turn))])
+	var note := _blade_apply(B.wep_turn + deg_to_rad(deg), B.wep_tilt)
+	var said := "the blade turned %d°: %s; the hand and its grip stay" % [roundi(rad_to_deg(B.wep_turn)), _turn_word(rad_to_deg(B.wep_turn))]
+	if note != "":
+		said = "the blade turned %d°: %s; %s" % [roundi(rad_to_deg(B.wep_turn)), _turn_word(rad_to_deg(B.wep_turn)), note]
+	_say(said)
 
 
 func _on_blade_slider(v: float, k: String) -> void:
 	if not B.wep_on or B.wep_hand == "":
 		return
+	var note := ""
 	if k == "turn":
-		_blade_apply(deg_to_rad(v), B.wep_tilt)
+		note = _blade_apply(deg_to_rad(v), B.wep_tilt)
 	else:
-		_blade_apply(B.wep_turn, deg_to_rad(v))
+		note = _blade_apply(B.wep_turn, deg_to_rad(v))
+	if note != "":
+		_say(note)
 	_after_edit()
 
 

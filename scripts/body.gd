@@ -2439,6 +2439,27 @@ func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "") -> Di
 	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind))
 
 
+## THE FINGERS AFTER A HEAD TILT (w4-fingertilt): a tilt moves the shaft, not the hands, so the fingers that held the old
+## shaft float or cut in. The holding hand's fingers close round the shaft again (the same wrap the magnet uses), and so do
+## the second hand's when it is still on the shaft: its stored grip takes the new fingers, so a later apply keeps them.
+func refit_fingers() -> void:
+	if wep_hand == "":
+		return
+	var sp := GripMagnet.span(self)
+	wrap_fingers(wep_hand, wep_point(sp.x), wep_point(sp.y), wep_r_handle)
+	fk()
+	var o := "hand_l" if wep_hand == "hand_r" else "hand_r"
+	if grip and String(grip2.get("hand", "")) == o:
+		wrap_fingers(o, wep_point(sp.x), wep_point(sp.y), wep_r_handle)
+		fk()
+		var fing := {}
+		for j in FINGERS:
+			if j.ends_with(o.right(2)):
+				var v: Vector3 = ang[j]
+				fing[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
+		grip2["fingers"] = fing
+
+
 static func grip2_mix(a: Dictionary, b: Dictionary, e: float) -> Dictionary:
 	if a.is_empty() or b.is_empty() or String(a.get("hand", "")) != String(b.get("hand", "")):
 		return a if e < 0.5 else b
