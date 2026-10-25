@@ -52,6 +52,15 @@
 ##  52. THEN STAND UP: after a sit the Then row offers "Then stand up" first, and its press builds the stand-up move.
 ##  53. UNDO IN EASY: a 3-step sequence (Walk, Then wave, Bigger): each Undo changes the card list (count or the cards' poses), and
 ##      the status names the step it took back. Old code: the first Undo here took the same step, unnamed by the strip.
+##  70. SIT AFTER A WALK (walk-through round 7, goal 1): a chair placed, a walk built, nothing picked (as after Library Close): the strip
+##      offers ONE "Sit on the chair"; its press adds the sit after the walk (one undo step); the body ends seated (pelvis >= 0.2 m lower
+##      than standing). Old code: no sit button on the strip unless a chair is picked.
+##  71. THE PROP BAR, NOTHING PICKED (round 7, goal 4): a prop in the scene and none picked: the bar says how to pick it ("Click an object
+##      to pick it", with Remove named), so a beginner sees how the chair comes out. Old code: "Nothing picked".
+##  72. LIBRARY CAPTIONS (round 7, friction 3): the Furniture tab is one category: no tile repeats "Furniture" as a caption under or
+##      over its name (the placeholder node stays: B14 of library_test needs it, with no text).
+##  73. SIT AFTER A PICKED CARD (round 7, goal 1): a card picked in the middle of the walk, then "Sit on the chair": the sit still goes
+##      after the LAST card (the clip's end), not after the picked card.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -1526,6 +1535,111 @@ func _init() -> void:
 	ok("took back" in String(names53[0]).to_lower() and "bigger" in String(names53[0]).to_lower(), "53. the first Undo names Bigger in the status: '%s'" % names53[0])
 	ok("wave" in String(names53[1]).to_lower(), "53. the second Undo names the wave: '%s'" % names53[1])
 	ok("walk" in String(names53[2]).to_lower(), "53. the third Undo names the walk: '%s'" % names53[2])
+
+	# 70. SIT AFTER A WALK: a chair placed, a walk built, nothing picked: the strip offers one "Sit on the chair"; its press adds the sit
+	# after the walk in one undo step, and the body ends seated (pelvis at least 0.2 m below standing)
+	m._new_scene()
+	await idle(4)
+	m._prop_add("chair")
+	await idle(4)
+	m.sel_prop = -1
+	m._props_show()
+	await idle(2)
+	home.card(0)
+	await idle(6)
+	if m.playing:
+		m._toggle_play()
+	m.playhead = 0.0   # the walk's first frame is standing: the reference height
+	m._ps().apply(m.B, m.playhead)
+	m._refresh()
+	await idle(2)
+	var stand70 := pelvis_y()
+	m.sel_prop = -1
+	m._props_show()
+	await idle(4)
+	var sb70 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var on70 := 0
+	for b in home.strip.find_children("*", "Button", true, false):
+		if (b as Button).is_visible_in_tree() and (b as Button).text.begins_with("Sit on"):
+			on70 += 1
+	var t70 := sb70.text if sb70 != null else "none"
+	ok(home.strip.visible and sb70 != null and sb70.is_visible_in_tree() and t70 == "Sit on the chair" and on70 == 1, "70. a walk built, a chair placed, nothing picked: the strip offers one 'Sit on the chair' (strip %s, text '%s', sit buttons %d)" % [str(home.strip.visible), t70, on70])
+	var n70: int = m.S.cards.size()
+	var u70: int = m.undo.size()
+	if sb70 != null:
+		await click_ctl(sb70)
+	await idle(8)
+	ok(m.S.cards.size() == n70 + 1 and String(m.S.cards.back()["name"]).begins_with("sit on the chair"), "70. the press adds the sit after the walk (%d -> %d cards; last '%s')" % [n70, m.S.cards.size(), String(m.S.cards.back()["name"]) if not m.S.cards.is_empty() else ""])
+	ok(m.undo.size() == u70 + 1, "70. the press is one undo step (undo stack %d -> %d)" % [u70, m.undo.size()])
+	m.playing = false
+	m.playhead = m.S.length()
+	m._ps().apply(m.B, m.playhead)   # as a scrub does (the playhead alone does not pose the body)
+	m._refresh()
+	await idle(2)
+	var seat70 := pelvis_y()
+	ok(seat70 < stand70 - 0.2, "70. the body ends seated on the chair: pelvis %.3f m, standing %.3f m (drop %.3f m, at least 0.2)" % [seat70, stand70, stand70 - seat70])
+
+	# 71. THE PROP BAR WITH NOTHING PICKED: a prop in the scene and none picked: the bar says how to pick it and names Remove
+	m._new_scene()
+	await idle(4)
+	m._prop_add("chair")
+	await idle(4)
+	m.sel_prop = -1
+	m._props_show()
+	await idle(4)
+	var bar71 := m.find_child("easy_prop_bar", true, false) as Control
+	var name71 := m.find_child("eh_prop_name", true, false) as Label
+	var t71 := name71.text if name71 != null else "none"
+	ok(bar71 != null and bar71.visible and t71.contains("Click an object to pick it") and t71.contains("Remove"), "71. a prop in the scene, none picked: the bar reads how to pick it and names Remove ('%s')" % t71)
+
+	# 72. LIBRARY CAPTIONS: the Furniture tab is one category: no tile repeats "Furniture" as a caption
+	m._new_scene()
+	await idle(2)
+	m._library_toggle()
+	await idle(4)
+	var lib72 = m.ui_library
+	lib72._search.text = ""   # the search of section 27 ("chair") is still in the box: the tab shows its own category
+	lib72._on_search("")
+	lib72.tab = ObjectLibrary.CATS.find("Furniture")
+	lib72._rebuild()
+	await idle(3)
+	var tiles72 := 0
+	var rep72 := 0
+	var ph72 := 0
+	for b in lib72._grid.get_children():
+		if b is Button and b.has_meta("item"):
+			tiles72 += 1
+			for l in (b as Button).find_children("*", "Label", true, false):
+				if (l as Label).text == "Furniture":
+					rep72 += 1
+				if l.name == "placeholder":
+					ph72 += 1
+	ok(tiles72 >= 4 and rep72 == 0, "72. the Furniture tab (%d tiles, %d still pending a picture): no tile repeats 'Furniture' (%d labels)" % [tiles72, ph72, rep72])
+	m._library_toggle()
+	await idle(4)
+
+	# 73. SIT AFTER A PICKED CARD: a card picked in the middle of the walk, then "Sit on the chair": the sit goes after the last card
+	m._new_scene()
+	await idle(4)
+	m._prop_add("chair")
+	await idle(4)
+	m.sel_prop = -1
+	m._props_show()
+	home.card(0)
+	await idle(6)
+	if m.playing:
+		m._toggle_play()
+	m._card_pick(0)
+	await idle(3)
+	m.sel_prop = -1
+	m._props_show()
+	await idle(4)
+	var sb73 := home.strip.find_child("eh_sit_strip", true, false) as Button
+	var n73: int = m.S.cards.size()
+	if sb73 != null:
+		await click_ctl(sb73)
+	await idle(8)
+	ok(sb73 != null and m.S.cards.size() == n73 + 1 and String(m.S.cards.back()["name"]).begins_with("sit on the chair") and m.sel_card == m.S.cards.size() - 1, "73. a card picked at the walk's start: the sit is still the last card (%d -> %d; picked %d)" % [n73, m.S.cards.size(), m.sel_card])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

@@ -425,8 +425,9 @@ func _rebuild() -> void:
 	_pics.clear()
 	_refresh_tabs()
 	var shown := _shown()
+	var one := _one_category(shown)
 	for it in shown:
-		_grid.add_child(_tile(it))
+		_grid.add_child(_tile(it, one))
 	if shown.is_empty():
 		var empty := Label.new()
 		empty.name = "library_empty"
@@ -440,7 +441,15 @@ func _rebuild() -> void:
 	reset_size.call_deferred()   # the panel is as tall as what it shows now (a taller tab, or a wrapping label measured before its width, left it 1572 px over a 900 px window)
 
 
-func _tile(it: Dictionary) -> Control:
+## true when every tile shown is one category: the tiles then need no category caption (the tab's name is the header)
+func _one_category(shown: Array) -> bool:
+	for it in shown:
+		if String(it["cat"]) != String(shown[0]["cat"]):
+			return false
+	return not shown.is_empty()
+
+
+func _tile(it: Dictionary, one := false) -> Control:
 	var b := Button.new()
 	b.name = "tile_" + String(it["id"]).replace(":", "_")
 	b.custom_minimum_size = TILE
@@ -462,10 +471,11 @@ func _tile(it: Dictionary) -> Control:
 	pic.texture = thumbs.picture(String(it["id"]))
 	v.add_child(pic)
 	if pic.texture == null:
-		# until the picture is ready: the category, in the picture's place (never an empty box; the name is the label under it)
+		# until the picture is ready: the category, in the picture's place (never an empty box; the name is the label under it).
+		# A list of one category (round 7): the caption would repeat on every tile, so the placeholder stays blank
 		var ph := Label.new()
 		ph.name = "placeholder"
-		ph.text = String(it["cat"])
+		ph.text = "" if one else String(it["cat"])
 		ph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		ph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

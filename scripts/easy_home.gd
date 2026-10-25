@@ -287,7 +287,7 @@ func build(root: Control) -> void:
 	for t in [["eh_faster", "Faster", "the clip's timing x 0.8 (one undo step)", "faster"], ["eh_slower", "Slower", "the clip's timing x 1.25 (one undo step)", "slower"],
 			["eh_bigger", "Bigger", "the motion 20 % further from the rest pose (one undo step)", "bigger"], ["eh_smaller", "Smaller", "the motion 20 % less from the rest pose (one undo step)", "smaller"]]:
 		row.add_child(_strip_button(t[0], t[1], t[2], tweak.bind(t[3]), Vector2(150, 56), 22))
-	_sit_strip = _strip_button("eh_sit_strip", "Sit on it", "seat him on the chair, stool or bench you picked (one undo step)", sit_on_chair, Vector2(150, 56), 22)
+	_sit_strip = _strip_button("eh_sit_strip", "Sit on the chair", "seat him on the chair, stool or bench after the clip (one undo step; the sit comes after the last card)", sit_on_chair, Vector2(190, 56), 22)
 	_sit_strip.visible = false
 	row.add_child(_sit_strip)
 	# the second row: the copy's own tools (video walk-through round 6): From a video, Cut start / Cut end, Smoother
@@ -461,7 +461,7 @@ func _process(dt: float) -> void:
 	_make_btn.visible = ai_ok
 	_sit_btn.visible = sit_ready() and not _help_on   # a chair, stool or bench is picked: he can sit on it
 	_prop_bar_update()
-	_sit_strip.visible = sit_ready()
+	_refresh_sit_strip()
 	_try_row.visible = typed_gap and not _help_on   # the same moves as the cards, one click each
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
@@ -484,7 +484,7 @@ func _prop_bar_update() -> void:
 		return
 	var i: int = m.sel_prop
 	var have: bool = i >= 0 and i < n
-	_pbar_name.text = ("Picked: the %s" % m._prop_name(i)) if have else "Nothing picked"
+	_pbar_name.text = ("Picked: the %s" % m._prop_name(i)) if have else "Click an object to pick it. Then Remove takes it out."
 	_pbar_turn_l.visible = have
 	_pbar_turn_r.visible = have
 	_pbar_size.visible = have
@@ -704,12 +704,26 @@ func sit_ready() -> bool:
 	return i >= 0 and i < m.S.props.size() and String(m.S.props[i]["kind"]) in SIT_KINDS
 
 
+## the strip's "Sit on the chair" shows with a clip built and a chair, stool or bench in the scene (the picked one, else the first)
+func _refresh_sit_strip() -> void:
+	var t := _sit_index()
+	_sit_strip.visible = t >= 0
+	if t >= 0:
+		_sit_strip.text = "Sit on the %s" % String(m.S.props[t]["kind"])
+
+
 ## SIT ON IT: SET's own sit (main._prop_sit: a card that puts him on the seat) on the picked chair, then the clip bookkeeping
-## a card build does: the strip shows, the clip plays, the camera frames it. One undo step (main._prop_sit pushes it)
+## a card build does: the strip shows, the clip plays, the camera frames it. One undo step (main._prop_sit pushes it).
+## Nothing picked: the chair _sit_index names is picked first; with a clip, the sit goes after its last card
 func sit_on_chair() -> void:
-	if not sit_ready():
+	var t := _sit_index()
+	if t < 0:
 		m._say_plain("Pick a chair, a stool or a bench first: click it in the view, or add one with Library")
 		return
+	if not sit_ready():
+		m._prop_select(t)
+	if m.S.cards.size() > 0:
+		m.sel_card = m.S.cards.size() - 1
 	var was: int = m.S.cards.size()
 	m._prop_sit()
 	_note_name("sit on the %s" % m._prop_name(m.sel_prop), was == 0)   # the saved video is named after it too ("walk_then_sit_on_the_chair")
@@ -1249,6 +1263,9 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 		return _append(d, label, easy)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
+	var seats: Array = m.S.props.filter(func(p): return String(p["kind"]) in SIT_KINDS)   # the seats stay: a chair placed, then Walk, kept the chair (round 7: it was gone, so no sit). Other props: as before
+	if not seats.is_empty() and not d.has("props"):
+		d["props"] = seats.map(func(p): return Props.to_dict(p))
 	_ball_line = ""
 	if _has_kick(d.get("cards", [])):   # a kick: the foot reaches a football on the floor (the clip moves, not the ball)
 		var ball = _ball_at(m.S.props)
