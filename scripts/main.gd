@@ -4021,8 +4021,9 @@ func _bake_poll() -> void:
 		if sc_s.baker == null:
 			sc_s.baker = PoseBake.new()
 			sc_s.baker.start(sc_s, playhead, horizon, PoseBake.held_of(_bake_body(sc_s)))
-		elif edited or not playing or (_bake_rr % live.size() == i and _bake_rr % PLAY_BAKE_CHECK == 0):
-			# while it plays (and no funnel edit) the check runs every PLAY_BAKE_CHECK frames: the signature is ~20 ms a scene, and the
+		elif edited or not playing or (_bake_rr % PLAY_BAKE_CHECK == 0 and (_bake_rr / PLAY_BAKE_CHECK) % live.size() == i):
+			# while it plays (and no funnel edit) the check runs every PLAY_BAKE_CHECK frames, the scenes in turn (the turn counts
+			# checks, not frames: with 3 scenes, frame % 15 == 0 is always frame % 3 == 0 and scenes 1, 2 were never checked): the signature is ~20 ms a scene, and the
 			# held state carries the weapon's pose, which the baked frames change every frame, so comparing it restarted the bake each frame
 			var held_changed := (not playing or edited) and sc_s.baker.held_at != PoseBake.held_of(_bake_body(sc_s))
 			if sc_s.baker.sig != PoseBake.signature(sc_s) or sc_s.baker.hz < horizon or held_changed:
