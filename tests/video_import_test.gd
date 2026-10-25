@@ -22,6 +22,7 @@ func ok(c: bool, what: String) -> void:
 ## 10 A FLIGHT READ ON AN UNSEEN HIP (round 58, the cmb02_cross clip of the kine batch: its hip image sat at the frame's top edge with
 ## visibility 0.5 and its ankles at 0.05 in raw frame 49, so the flight detector read a 0.3 m rise and lifted the whole pelvis for two
 ## frames, a 19.6 m/s hand peak with it). tests/data/spike_cross_pose.json (kine batch combat/cmb02_cross, 2.7-4.0 s; 138 KB). Bar:
+##   c the cross clip's peak hand speed is 20 m/s or less (old 48.6; the torso filter gives 16.4)
 ##   b the keeper (tests/fixtures/gen_hammer_pose.json) keeps its peak hand speed within 10 % (base 1.84 m/s)
 ##   a the largest pelvis step between frames in 3.05-3.13 s is 0.05 m or less (old: a flight read lifted the pelvis at 3.07-3.08 s)
 func _bar10_spike_pelvis() -> void:
@@ -62,6 +63,16 @@ func _bar10_spike_pelvis() -> void:
 			for x in smk[hk]:
 				pk = maxf(pk, float(x))
 		ok(absf(pk - 1.84) <= 0.184, "10b the keeper's peak hand speed is %.2f m/s (base 1.84; bar within 10 %%)" % pk)
+	# c the fitted hand peak of the cross clip (old 48.6 m/s at 2.97 s, the left shoulder's one-frame jump at 3.00 s; the torso filter
+	# brings it to 16.4): bar 20. The 12 m/s fist bar is not reached yet (the shoulder steps 0.24 m at 3.00 s and stays low)
+	var B5 := Body.new()
+	B5.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var smc := Rulebook.sample(R["scene"], B5)
+	var pkc := 0.0
+	for hk in ["hand_l", "hand_r"]:
+		for x in smc[hk]:
+			pkc = maxf(pkc, float(x))
+	ok(pkc <= 20.0, "10c the cross clip's peak hand speed is %.1f m/s (old 48.6; bar 20, the fist bar 12 is not reached)" % pkc)
 	ok(step <= 0.05, "10a the largest pelvis step in 3.05-3.13 s is %.3f m at %.3f s (bar 0.05; old code 1.22 m at 3.125 s)" % [step, step_at])
 
 

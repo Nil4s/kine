@@ -46,6 +46,51 @@ static func _median(a: Array) -> float:
 	return float(s[s.size() / 2])
 
 
+# ============================================================ 3b TORSO SPIKES ==============================================
+## A TRACKER GLITCH ON THE TORSO (round 58, cmb02_cross: the left shoulder moved 0.3 m in one frame at 3.00 s at visibility 1.00, and
+## the arm fitted from it peaked at 48.6 m/s). Two tests on the shoulders (11, 12) and hips (23, 24), on the file's own frames:
+##   P a point more than TORSO_DEV from the mean of its two neighbours, while the neighbours agree (under TORSO_AGREE apart), is replaced
+##     by that mean
+##   W the shoulder width (11 to 12) more than TORSO_WIDTH off the mean of its neighbours' widths (when those are wide enough to read)
+##     is a glitch: both shoulders of that frame are replaced by the mean of the neighbours' shoulders
+## Returns how many landmark-frames were replaced. The neighbours are read before any change (no cascade).
+const TORSO := [11, 12, 23, 24]
+const TORSO_DEV := 0.12       # m
+const TORSO_AGREE := 0.05     # m
+const TORSO_WIDTH := 0.25     # fraction of the neighbours' mean width
+const WIDTH_MIN := 0.05       # m: a shoulder width under this is too narrow to read a ratio from
+
+
+static func torso_filter(frames: Array) -> int:
+	var n := frames.size()
+	var done := 0
+	var snap := []
+	for f in frames:
+		var c := []
+		for w in (f["w"] as Array):
+			c.append(w)
+		snap.append(c)
+	for i in range(1, n - 1):
+		var prv: Array = snap[i - 1]
+		var cur: Array = snap[i]
+		var nxt: Array = snap[i + 1]
+		var out: Array = frames[i]["w"]
+		for k in TORSO:
+			var a: Vector3 = prv[k]
+			var b: Vector3 = nxt[k]
+			var m := (a + b) * 0.5
+			if (cur[k] as Vector3).distance_to(m) > TORSO_DEV and a.distance_to(b) < TORSO_AGREE:
+				out[k] = m
+				done += 1
+		var wc: float = (cur[11] as Vector3).distance_to(cur[12] as Vector3)
+		var wn: float = ((prv[11] as Vector3).distance_to(prv[12] as Vector3) + (nxt[11] as Vector3).distance_to(nxt[12] as Vector3)) * 0.5
+		if wn > WIDTH_MIN and absf(wc / wn - 1.0) > TORSO_WIDTH:
+			out[11] = ((prv[11] as Vector3) + (nxt[11] as Vector3)) * 0.5
+			out[12] = ((prv[12] as Vector3) + (nxt[12] as Vector3)) * 0.5
+			done += 2
+	return done
+
+
 # ============================================================ 4 CONFIDENCE ================================================
 
 ## the frames the tracker skipped (no body found) put back as interpolated frames marked "lost" (vis 0), so the clip is
@@ -1182,6 +1227,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	var fps := float(P["fps"])
 	progress = 0.0
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
+	VideoIQ.torso_filter(frames)   # a glitch on the shoulders or hips (3b TORSO SPIKES), before anything reads the body
 	# FLIGHT: read from the tracker's image on the file's own frames, carried to the filled frames by time
 	var fly_raw := flight_of(P["frames"])
 	var fly := {"on": [], "rise": []}
