@@ -35,6 +35,12 @@ var m: Node                    # main (untyped: the same pattern as EasyMode)
 const SIT_KINDS := ["chair", "stool", "bench"]   # the props SET's sit takes (main.gd SIT_ON)
 var _sit_btn: Button           # "Sit on it": the picked chair, stool or bench seats him (SET's own sit)
 var _sit_strip: Button         # the same on the strip: with a clip built the panel is hidden, and a chair placed then needs it too
+var _pbar: PanelContainer      # THE PROP BAR (top right, Easy only, shown while the scene has props): the picked prop's Turn left, Turn right, Remove; Next prop cycles the props (the list)
+var _pbar_name: Label
+var _pbar_turn_l: Button
+var _pbar_turn_r: Button
+var _pbar_remove: Button
+var _pbar_next: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
@@ -257,6 +263,29 @@ func build(root: Control) -> void:
 	_sit_strip.visible = false
 	row.add_child(_sit_strip)
 	# no Save video here: the Easy bar has it (two buttons with one label confused the monkey test's beginner)
+	_pbar = PanelContainer.new()
+	_pbar.name = "easy_prop_bar"
+	_pbar.visible = false
+	_pbar.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_pbar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_pbar.add_theme_stylebox_override("panel", st)
+	root.add_child(_pbar)
+	var pr := VBoxContainer.new()   # a column under Front / Side / Back: a row across the view covered his hips at 1280x720
+	pr.add_theme_constant_override("separation", 6)
+	_pbar.add_child(pr)
+	_pbar_name = _label("", 18, "text")
+	_pbar_name.name = "eh_prop_name"
+	_pbar_name.custom_minimum_size.x = 150
+	_pbar_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pr.add_child(_pbar_name)
+	_pbar_turn_l = _strip_button("eh_prop_turn_l", "Turn left", "turn the picked prop 15 degrees to the left (one undo step)", func(): m._prop_turn(-15.0), Vector2(150, 40), 18)
+	pr.add_child(_pbar_turn_l)
+	_pbar_turn_r = _strip_button("eh_prop_turn_r", "Turn right", "turn the picked prop 15 degrees to the right (one undo step)", func(): m._prop_turn(15.0), Vector2(150, 40), 18)
+	pr.add_child(_pbar_turn_r)
+	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (Ctrl+Z puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
+	pr.add_child(_pbar_remove)
+	_pbar_next = _strip_button("eh_prop_next", "Next object", "pick the next object in the scene (in the order they were added)", _prop_next, Vector2(150, 40), 18)
+	pr.add_child(_pbar_next)
 	_toast = PanelContainer.new()
 	_toast.name = "easy_toast"
 	_toast.visible = false
@@ -343,6 +372,7 @@ func _process(dt: float) -> void:
 	var ai_ok: bool = typed_gap and m.gen_move.available()
 	_make_btn.visible = ai_ok
 	_sit_btn.visible = sit_ready() and not _help_on   # a chair, stool or bench is picked: he can sit on it
+	_prop_bar_update()
 	_sit_strip.visible = sit_ready()
 	_try_row.visible = typed_gap and not _help_on   # the same moves as the cards, one click each
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
@@ -354,6 +384,37 @@ func _process(dt: float) -> void:
 		_gen_tick(dt)
 	if _vid_busy:
 		_video_tick()
+
+
+## THE PROP BAR: shown in Easy while the scene has props. With a prop picked (click it in the view, or Next prop) it names it and
+## shows Turn left, Turn right and Remove; with none picked it offers Next prop only. Under the Front / Side / Back buttons, at the right.
+func _prop_bar_update() -> void:
+	var n: int = m.S.props.size()
+	var lib: bool = m.ui_library != null and m.ui_library.visible
+	_pbar.visible = m.easy.on and n > 0 and not lib and not _gen_on and not _copying()
+	if not _pbar.visible:
+		return
+	var i: int = m.sel_prop
+	var have: bool = i >= 0 and i < n
+	_pbar_name.text = ("Picked: the %s" % m._prop_name(i)) if have else "Nothing picked"
+	_pbar_turn_l.visible = have
+	_pbar_turn_r.visible = have
+	_pbar_remove.visible = have
+	_pbar.reset_size()
+	var vs := _pbar.get_viewport().get_visible_rect().size
+	var views: Control = m.easy.views
+	var top := float(m.TOP_H) + 8.0
+	if views != null and views.visible:
+		top = views.get_global_rect().end.y + 8.0
+	_pbar.position = Vector2(vs.x - _pbar.size.x - 12.0, top)
+
+
+## Next prop: the picked prop moves to the next one in the scene (the first one when none is picked)
+func _prop_next() -> void:
+	var n: int = m.S.props.size()
+	if n == 0:
+		return
+	m._prop_select((int(m.sel_prop) + 1) % n)
 
 
 ## what is on screen: "panel", "strip" or "hidden" (the test reads it)

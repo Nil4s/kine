@@ -28,6 +28,9 @@
 ##      the ball (the closest toe is within 6 cm of its surface), the ball is not moved, and the say line says the ball doesn't fly yet.
 ##  26. LIBRARY NAMES ARE PLAIN (walk-through LP round, goal 3): no library tile is named with the old jargon (Step code, Stairs code,
 ##      Ramp15, Moving box, Door frame, Sword on the floor); the prop sword says (on the floor).
+##  27. THE PROP BAR (walk-through round 6, goals 1 and 2): a prop placed through the Library, picked by a real click in the view,
+##     shows Remove on the bar at the top right; Remove takes it out in one undo step; Ctrl+Z brings it back; the Delete key does the same;
+##     Turn right turns it; no visible text in Easy says "SET"; Next object reaches a prop that is not picked.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -138,6 +141,48 @@ func click_ctl(c: Control) -> void:
 	u.global_position = at
 	root.push_input(u)
 	await idle(4)
+
+
+## a real click at a point of the view (the 3D pick: the press and the release go through the viewport's input)
+func click_at(at: Vector2) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	e.position = at
+	e.global_position = at
+	e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e)
+	await idle(1)
+	var u := InputEventMouseButton.new()
+	u.button_index = MOUSE_BUTTON_LEFT
+	u.pressed = false
+	u.position = at
+	u.global_position = at
+	root.push_input(u)
+	await idle(4)
+
+
+## a key press (with Ctrl or not) through the viewport's input
+func key_press(code: int, ctrl := false) -> void:
+	var e := InputEventKey.new()
+	e.keycode = code
+	e.physical_keycode = code
+	e.pressed = true
+	e.ctrl_pressed = ctrl
+	root.push_input(e)
+	await idle(4)
+
+
+## the text of every visible Label and Button under a node (the tooltips too)
+func visible_texts(n: Node, out: Array) -> Array:
+	if n is Control and not (n as Control).is_visible_in_tree():
+		return out
+	if n is Label or n is Button:
+		out.append(String((n as Object).get("text")))
+		out.append(String((n as Control).tooltip_text))
+	for c in n.get_children():
+		visible_texts(c, out)
+	return out
 
 
 ## a real drag of one part on the body: the pointer goes to the part, down, six moves, up at the end of d
@@ -851,6 +896,91 @@ func _init() -> void:
 			bad26.append(String(it["name"]))
 	ok(bad26.is_empty(), "26. no library tile has an old jargon name (found: %s)" % str(bad26))
 	ok(nm26.has("Sword") and nm26.has("Sword (on the floor)"), "26. the sword tile reads 'Sword' and the prop 'Sword (on the floor)' (names: %s)" % str(nm26))
+
+	# 27. THE PROP BAR (walk-through round 6, goals 1 and 2): a chair placed through the Library is picked by a real click in the
+	# view; the bar at the top right shows Remove; Remove is one undo step; Ctrl+Z brings it back; the Delete key removes it too
+	m._new_scene()
+	await idle(4)
+	m._library_toggle()
+	await idle(4)
+	var srch := m.ui_library.find_child("library_search", true, false) as LineEdit
+	if srch != null:
+		srch.text = "chair"
+		srch.text_changed.emit("chair")
+	await idle(4)
+	var tile27 := m.ui_library.find_child("tile_*chair*", true, false) as Control
+	ok(tile27 != null, "27. the Library lists a chair for the search 'chair'")
+	if tile27 != null:
+		await click_ctl(tile27)
+	await idle(6)
+	m._library_toggle()   # the Library closes: the chair is in the view
+	await idle(4)
+	var bar27 := m.find_child("easy_prop_bar", true, false) as Control
+	var rm27 := m.find_child("eh_prop_remove", true, false) as Button
+	ok(m.S.props.size() == 1 and String(m.S.props[0]["kind"]) == "chair", "27. the Library placed one chair (%d props)" % m.S.props.size())
+	m.sel_prop = -1
+	m._props_show()
+	await idle(4)
+	ok(bar27 != null and bar27.visible and rm27 != null and not rm27.visible, "27. a prop in the scene, none picked: the bar shows (Next prop) and no Remove")
+	var sp27 := Vector2(-1, -1)
+	if not m.S.props.is_empty():
+		sp27 = m.cam.unproject_position((m.S.props[0]["xf"] as Transform3D).origin + Vector3(0, 0.5, 0))
+	for hh in [0.0, 0.2, 0.5, 0.8]:
+		var pp: Vector2 = m.cam.unproject_position((m.S.props[0]["xf"] as Transform3D).origin + Vector3(0, hh, 0))
+	await click_at(sp27)
+	ok(m.sel_prop == 0, "27. a real click on the chair in the view picks it (sel_prop %d, at %s)" % [m.sel_prop, str(sp27)])
+	ok(rm27 != null and rm27.is_visible_in_tree(), "27. picked: Remove is visible on the bar")
+	var pb27 := (home._pbar as Control).get_global_rect()
+	var hit27 := []
+	for j27 in Body.BODY:
+		if true:
+			var q27: Vector2 = m.cam.unproject_position(m.B.cap(j27)[0].lerp(m.B.cap(j27)[1], 0.5))
+			if pb27.has_point(q27):
+				hit27.append(j27)
+	ok(hit27.is_empty(), "27. the prop bar %s covers none of his body (covered: %s)" % [str(pb27), str(hit27)])
+	# no visible Easy text names SET, read right after the real click (the press's own line: "... are in SET" in the old code)
+	var bad27 := []
+	for tx27 in visible_texts(m, []):
+		if String(tx27).contains("SET"):
+			bad27.append(tx27)
+	ok(bad27.is_empty(), "27. no visible Easy text says 'SET' after a pick (%s)" % str(bad27))
+	var yaw0: float = Props.yaw_of(m.S.props[0]["xf"]) if not m.S.props.is_empty() else 0.0
+	var tr27 := m.find_child("eh_prop_turn_r", true, false) as Button
+	if tr27 != null and tr27.is_visible_in_tree():
+		await click_ctl(tr27)
+	await idle(2)
+	var dy: float = wrapf(Props.yaw_of(m.S.props[0]["xf"]) - yaw0, -180.0, 180.0) if not m.S.props.is_empty() else 0.0
+	ok(absf(dy - 15.0) < 0.5, "27. Turn right turns the picked chair 15 deg (turned %.2f)" % dy)
+	var u27: int = m.undo.size()
+	if rm27 != null:
+		await click_ctl(rm27)
+	await idle(4)
+	ok(m.S.props.is_empty(), "27. Remove takes the chair out of the scene (%d props)" % m.S.props.size())
+	ok(m.undo.size() == u27 + 1, "27. Remove is one undo step (%d -> %d)" % [u27, m.undo.size()])
+	await key_press(KEY_Z, true)
+	ok(m.S.props.size() == 1 and not m.S.props.is_empty() and String(m.S.props[0]["kind"]) == "chair", "27. Ctrl+Z brings the chair back (%d props)" % m.S.props.size())
+	if not m.S.props.is_empty():
+		await click_at(m.cam.unproject_position((m.S.props[0]["xf"] as Transform3D).origin + Vector3(0, 0.5, 0)))
+	ok(m.sel_prop == 0, "27. the chair is picked again by a real click")
+	await key_press(KEY_DELETE)
+	ok(m.S.props.is_empty(), "27. the Delete key removes the picked chair (%d props)" % m.S.props.size())
+	await key_press(KEY_Z, true)
+	ok(m.S.props.size() == 1, "27. Ctrl+Z after the Delete key brings it back")
+	# Next object reaches every prop: a table added, then Next prop twice from none picked: the chair, then the table
+	m._prop_add("table")
+	await idle(4)
+	m.sel_prop = -1
+	m._props_show()
+	await idle(2)
+	var nx27 := m.find_child("eh_prop_next", true, false) as Button
+	var reach: Array = []
+	for kk27 in 2:
+		if nx27 != null:
+			await click_ctl(nx27)
+		reach.append(String(m._prop_name(m.sel_prop)))
+	ok(reach == ["chair", "table"], "27. Next object reaches the chair, then the table (%s)" % str(reach))
+	m._new_scene()
+	await idle(4)
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
