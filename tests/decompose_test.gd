@@ -42,4 +42,5 @@ func _init() -> void:
 		z = maxf(z, B.decompose(j, Quaternion.IDENTITY).length())
 	ok(z == 0.0, "identity decomposes to exactly 0 on every joint (%.9f)" % z)
 	print("DECOMPOSE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

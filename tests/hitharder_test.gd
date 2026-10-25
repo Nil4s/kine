@@ -305,4 +305,5 @@ func _init() -> void:
 	ok(not src.contains("Color("), "11 hit_harder_ui.gd: no colour literal (the theme's tokens only)")
 	print("HITHARDER %s (%d fails, %d ms)" % ["PASS" if fails == 0 else "FAIL", fails, Time.get_ticks_msec() - t_start])
 	m.queue_free()
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

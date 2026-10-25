@@ -382,4 +382,5 @@ func _init() -> void:
 		ok(cj() == b6, "(8) %s: Ctrl+Z restores the cards exactly" % tag)
 
 	print("I43 ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

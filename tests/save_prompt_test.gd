@@ -213,6 +213,7 @@ func _init() -> void:
 	ok(pick >= 0, "13 the scene list holds walk_bat.json (item %d)" % pick)
 	if pick < 0:
 		fails += 1
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var cards_open := JSON.stringify(m.S.cards)
@@ -326,4 +327,5 @@ func _init() -> void:
 	ok(real_auto_now == real_auto_was and real_journal_now == real_journal_was,
 		"19 user://autosave.json and user://journal untouched by the test")
 	print("SAVEPROMPT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

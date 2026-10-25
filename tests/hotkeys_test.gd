@@ -151,4 +151,5 @@ func _init() -> void:
 	ok(not cf.has_section("hotkeys") or cf.get_section_keys("hotkeys").is_empty(), "18 reset clears the saved section")
 
 	print("HOTKEYS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

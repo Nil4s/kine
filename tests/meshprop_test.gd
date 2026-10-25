@@ -405,6 +405,7 @@ func _init() -> void:
 	say("\n== meshprop: %d of 4 bars hold" % (4 - fails.size()))
 	for s in fails:
 		say(s)
+	TestFiles.cleanup()
 	quit(0)
 
 

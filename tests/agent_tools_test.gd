@@ -64,4 +64,5 @@ func _init() -> void:
 		% [JSON.stringify(r1).length(), u1 - u0, c1 != c0, c2 == c0, r4.get("error", {}).get("code", "-")])
 	m.queue_free()
 	print("AGENT TOOLS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

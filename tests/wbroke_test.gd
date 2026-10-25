@@ -151,4 +151,5 @@ func _init() -> void:
 	ok(JSON.stringify(m.S.cards) == cards0 and m.undo.size() == u0, "(6) cards byte-identical, no undo step (%d)" % m.undo.size())
 	ok(not FileAccess.file_exists(SkinPaint.path("wbroke_test")), "(6) no sidecar written")
 	print("WBROKE RESULT: ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(fails)

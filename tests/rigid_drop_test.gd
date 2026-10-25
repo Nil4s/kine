@@ -252,4 +252,5 @@ func _init() -> void:
 	print("     trail: %d samples over %.2f s, first at %s, rest at %s (playhead %.2f s of %.2f s)" % [tr_n, t_end - tb, first, at.origin, end_t, S.length()])
 
 	print("RESULT: %d failure(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -186,6 +186,7 @@ func _init() -> void:
 	var left := FileAccess.file_exists(OLD) or FileAccess.file_exists(SAME) or DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(DIR))
 	ok(not left, "13 everything it wrote in user:// removed (%s)" % left)
 	print("SCENE_DIFF: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

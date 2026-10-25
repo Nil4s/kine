@@ -74,4 +74,5 @@ func _init() -> void:
 	ok(m.hints_on and m.ui_hint_labels.all(shown) and not shown(m.ui_how) and cf.get_value("look", "hints", false) == true, "VIEW > Hints: back on, saved")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("HINTS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

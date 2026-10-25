@@ -76,6 +76,7 @@ func _run() -> void:
 		print("       %s x%.2f: cover %.0f %%  false %.1f %%  slide %.2f cm  sole %.1f cm  hip drop %.1f cm  fitted hip mean err vs truth %+.1f cm, sd %.1f cm" % ["AFTER " if c["fix"] else "BEFORE", c["scale"], c["cov"], c["fals"], c["slide"], c["air"], c["drop"], c["herr"] * 100.0, c["hsd"] * 100.0])
 	picture(hips[false]["before"], hips[true]["after"], hips[true]["plants"], hips[true]["n"], hips)
 	print("R14 TEST %s%s" % ["PASS" if fails == 0 else "FAIL %d" % fails, (" (with %d KNOWN FAIL bars, numbers above)" % known.size()) if not known.is_empty() else ""])
+	TestFiles.cleanup()
 	quit(fails)
 
 

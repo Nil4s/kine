@@ -176,4 +176,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("res://scenes/%s.json" % OUT))
 	ok(b_locked != "" and b_locked == b_free and not m.locked_parts.has(J), "7 the scene saved locked and unlocked: the same %d bytes (%s)" % [b_locked.length(), b_locked == b_free])
 	print("LOCK PART: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

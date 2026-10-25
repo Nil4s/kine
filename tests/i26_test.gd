@@ -143,4 +143,5 @@ func _init() -> void:
 	ok(real1 == real0, "(4) the real user://suggestion_journal.json is untouched (%s)" % ("absent" if real0 == "<absent>" else "%d bytes" % real0.length()))
 	DirAccess.remove_absolute(m.sj.path)
 	print("RESULT: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

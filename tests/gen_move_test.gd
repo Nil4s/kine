@@ -82,4 +82,5 @@ func _init() -> void:
 		DirAccess.remove_absolute(dir.path_join(f))
 	DirAccess.remove_absolute(dir)
 	print("GEN MOVE ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -178,4 +178,5 @@ func _init() -> void:
 	await idle(2)
 	ok(m.ui_card_menu != null and m.ui_card_menu.visible, "right-click still opens the card menu")
 	print("R18 %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

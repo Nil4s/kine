@@ -104,6 +104,7 @@ func _init() -> void:
 			break
 	ok(not lean_dict.is_empty(), "0 a lean that puts the COM outside the feet was found (margin %.3f)" % lean_margin)
 	if lean_dict.is_empty():
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var S := Scene.new()
@@ -132,6 +133,7 @@ func _init() -> void:
 	var n: int = r.get("frames", 0)
 	ok(n == n_want and n > 1 and (r.get("captions", []) as Array).size() == n, "1 frame count = length x fps = %.2f x 12 = %d (got %d, %d captions)" % [S.length(), n_want, n, (r.get("captions", []) as Array).size()])
 	if n == 0:
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var avi: String = r.get("avi", "")
@@ -216,4 +218,5 @@ func _init() -> void:
 	ok(counts0 == counts1, "7 file counts of scenes/, poses/, data/ unchanged: %s -> %s" % [counts0, counts1])
 	ok(toggles() == tg0, "4 toggles still equal after the other runs")
 	print("JUDGERENDER: %s" % ("PASS" if fails == 0 else "%d FAIL" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

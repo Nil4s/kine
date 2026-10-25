@@ -380,4 +380,5 @@ func _init() -> void:
 		ok(FileAccess.file_exists(shot), "7 the four expressions saved to %s" % shot)
 	m.S.face = {}
 	print("FACE TEST %s" % ["PASS" if fails == 0 else "FAIL %d" % fails])
+	TestFiles.cleanup()
 	quit(fails)

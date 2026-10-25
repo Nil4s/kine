@@ -53,4 +53,5 @@ func _init() -> void:
 	m._refresh()
 	ok(m.ov.builds == b0 + 1, "trail: one edit, one rebuild (%d)" % (m.ov.builds - b0))
 	print("TWEEN UNDO %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

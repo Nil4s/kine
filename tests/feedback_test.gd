@@ -125,4 +125,5 @@ func _init() -> void:
 		"8 a button's pressed look differs from its normal one (%s -> %s)" % [(sn as StyleBoxFlat).bg_color, (sp as StyleBoxFlat).bg_color])
 	b.queue_free()
 	print("FEEDBACK: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

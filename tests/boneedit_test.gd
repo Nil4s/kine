@@ -341,4 +341,5 @@ func _init() -> void:
 	ok(var_to_str(B.p0) + var_to_str(B.e0) == core0, "11 the body's own rest skeleton (p0, e0) is byte-equal after every edit")
 	ed.stop()
 	print("boneedit_test: %s (%d failing)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

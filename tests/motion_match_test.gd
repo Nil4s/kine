@@ -158,4 +158,5 @@ func _init() -> void:
 	ok(finite7, "7 preview 3 s straight ahead: %d of %d frames on walk_bat, %d searches, %d switches, last cost %.3f" % [
 		walk_frames, frames7, pl.searches, pl.switches, pl.cost])
 	print("MOTION MATCH TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

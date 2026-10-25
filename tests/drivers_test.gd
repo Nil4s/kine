@@ -197,4 +197,5 @@ func _init() -> void:
 	ok(untouched and n > 0 and rep0.is_empty() and B.ang["upperarm_r"] == before, "6 %d scenes in scenes/ save without a 'drivers' key; play([]) changes nothing" % n)
 
 	print("%d failures" % fails)
+	TestFiles.cleanup()
 	quit(fails)

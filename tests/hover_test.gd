@@ -111,4 +111,5 @@ func _init() -> void:
 	await idle(2)
 	ok(before == "thigh_l" and m.hover_part == "", "5 hovering the thigh ('%s'), then onto the left panel: the hover goes ('%s')" % [before, m.hover_part])
 	print("HOVER: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

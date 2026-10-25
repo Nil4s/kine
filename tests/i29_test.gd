@@ -188,4 +188,5 @@ func _init() -> void:
 	ok(JSON.stringify(m.S.to_dict(B, false)) == json0, "(5) Ctrl+Z restores the scene JSON byte for byte")
 
 	print("I29 %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

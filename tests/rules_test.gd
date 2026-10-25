@@ -173,4 +173,5 @@ func _init() -> void:
 		var fs := Rulebook.check(S, B)
 		ok(fs.is_empty(), "%s (spline) comes out clean: %d findings" % [nm, fs.size()])
 	print("RULES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

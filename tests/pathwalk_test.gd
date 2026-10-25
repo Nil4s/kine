@@ -118,6 +118,7 @@ func _run() -> void:
 	var a := load_walk([Vector3(0, 0, 0), Vector3(0, 0, 5.0)], 1.3)
 	if not a["ok"]:
 		print("FAIL the straight walk did not build: %s" % a["why"])
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var S: Scene = a["S"]
@@ -144,6 +145,7 @@ func _run() -> void:
 	var b := load_walk(turn, 1.3)
 	if not b["ok"]:
 		print("FAIL the turn did not build: %s" % b["why"])
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var SB: Scene = b["S"]
@@ -183,6 +185,7 @@ func _run() -> void:
 		place = maxf(place, Vector2(ball.x - mark.x, ball.z - mark.z).length())
 	ok(place < 0.02, "7 placement: every landing's ball is on its path mark, worst %.1f mm off (bar < 20 mm)" % (place * 1000.0))
 	print("PATH WALK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

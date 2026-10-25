@@ -288,4 +288,5 @@ func _init() -> void:
 	ok(not src.contains("Color("), "9 move_knobs_ui.gd: no colour literal (the theme's tokens only)")
 	print("KNOBS %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
 	m.queue_free()
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

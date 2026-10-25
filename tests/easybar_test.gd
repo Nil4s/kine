@@ -112,4 +112,5 @@ func _init() -> void:
 		ok(err == OK, "the bar's picture is saved to %s (error %d)" % [shot, err])
 
 	print("EASY BAR %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

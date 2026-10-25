@@ -104,4 +104,5 @@ func _init() -> void:
 	ok(Scene.MIRROR_SCENE.has("layer") and Scene.MIRROR_SCENE.has("layer_w") and flip.call(ua, R.ang["upperarm_l"]) and flip.call(sp, R.ang["spine_03"]) and not mir.has("upperarm_r"),
 		"6 Mirror: upperarm_r (10, 20, 30) -> upperarm_l %s (mirror_pose: %s); spine_03 (5, 6, 7) -> %s (%s)" % [ua, R.ang["upperarm_l"], sp, R.ang["spine_03"]])
 	print("LAYER TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

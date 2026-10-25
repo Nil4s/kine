@@ -271,6 +271,7 @@ func _init() -> void:
 	var t_dab := (Time.get_ticks_usec() - t0) / 1000.0 / 20.0
 	ok(t_hash < 300.0 and t_dab < 16.0, "(9) timing on %d verts: hash %.1f ms, dab %.2f ms (%d verts in the radius)" % [big.verts.size(), t_hash, t_dab, nin])
 	print("SCULPT ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

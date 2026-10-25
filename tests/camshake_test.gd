@@ -170,4 +170,5 @@ func _init() -> void:
 		print("CAMSHAKE TEST PASS")
 	else:
 		print("CAMSHAKE TEST FAIL (%d)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

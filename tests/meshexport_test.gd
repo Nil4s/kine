@@ -92,4 +92,5 @@ func _init() -> void:
 		if not had[i] and FileAccess.file_exists(p):
 			DirAccess.remove_absolute(p)
 	print("MESHEXPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

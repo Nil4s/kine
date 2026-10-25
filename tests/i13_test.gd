@@ -411,4 +411,5 @@ func _init() -> void:
 	await idle(2)
 	ok(all_json() == b9, "9 its undo restores both scenes exactly")
 	print("I13 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

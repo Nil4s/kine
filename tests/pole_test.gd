@@ -97,4 +97,5 @@ func _init() -> void:
 	m._drag_joint(Vector2(30, 0), false, true, false)
 	ok(((B.P["hand_r"] - p3) as Vector3).length() < 0.001 and absf(wrapf(pole_deg(B, "hand_r", Vector3.UP) - a3, -180, 180)) > 5.0, "Ctrl+drag the hand 30 px: the elbow swung %.1f deg, the hand stayed (%.3f mm)" % [wrapf(pole_deg(B, "hand_r", Vector3.UP) - a3, -180, 180), ((B.P["hand_r"] - p3) as Vector3).length() * 1000.0])
 	print("POLE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

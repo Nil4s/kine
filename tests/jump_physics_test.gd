@@ -56,6 +56,7 @@ func _init() -> void:
 	var fl := S.flights()
 	if fl.size() != 1:
 		print("JUMP PHYSICS TEST FAIL (no flight)")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var B := body()
@@ -101,4 +102,5 @@ func _init() -> void:
 	ok(w.size() == 1 and msg.contains("a stiff landing from %.0f cm" % (float(jh[0]["h"]) * 100.0)) and msg.contains("%.0f°" % jh[0]["land"]), "a high jump with a 94 deg landing: WARN names the height and the bend '%s'" % msg)
 	ok(Rulebook.check(lo, body()).filter(func(f): return f["rule"] == "JUMP").is_empty(), "the same 94 deg landing at 0.57 s: silent")
 	print("JUMP PHYSICS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -224,4 +224,5 @@ func _init() -> void:
 
 	wipe()
 	print("bodyfile: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

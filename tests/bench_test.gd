@@ -116,4 +116,5 @@ func _init() -> void:
 	var el := (Time.get_ticks_msec() - t0) / 1000.0
 	ok(el < BUDGET_S, "the suite took %.1f s (< %.0f)" % [el, BUDGET_S])
 	print("%d failure(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -169,4 +169,5 @@ func _init() -> void:
 		ok(e == OK, "screenshot of the body at rest saved (%s)" % SHOT)
 
 	print("ragdoll: %d FAIL" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

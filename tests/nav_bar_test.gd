@@ -199,4 +199,5 @@ func _init() -> void:
 	ok(hid and m.grid_node.visible and (m.ui_nav.get_node("nav_grid") as Button).button_pressed, "8 Grid: hidden (%s), then shown again (%s)" % [hid, m.grid_node.visible])
 	ok(m.undo.size() == u0, "9 no undo steps from any of it (+%d)" % (m.undo.size() - u0))
 	print("NAV BAR: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -96,4 +96,5 @@ func _init() -> void:
 	ok(absf(lp.get_global_rect().end.y - room) < 1.0, "  every folder open: the box stops at the scene panel (%.0f), the tree scrolls" % lp.get_global_rect().end.y)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("VIEW SHARE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -168,4 +168,5 @@ func _init() -> void:
 	for p in [OTHER, own]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	print("CONFIRM TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

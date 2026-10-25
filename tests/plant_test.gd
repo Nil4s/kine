@@ -63,6 +63,7 @@ func _init() -> void:
 	ok(slides.size() >= 1, "combo3 in spline, pinning OFF: Check finds %d FOOT SLIDE %s" % [slides.size(), slides.map(func(x): return "%s %.2f-%.2f s %.1f cm" % [x.get("foot", "?"), x["t"], x.get("t1", -1.0), x["v"] * 100.0])])
 	if slides.is_empty():
 		print("PLANT TEST FAIL (no slide to fix)")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var f: Dictionary = slides[0]
@@ -119,4 +120,5 @@ func _init() -> void:
 	tog.call()
 	ok(not m.S.cards[11].has("plant"), "  again: free (the key is gone, so the scene saves as it was)")
 	print("PLANT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

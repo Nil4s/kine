@@ -159,4 +159,5 @@ func _init() -> void:
 	await idle(2)
 	ok(not m.kmed.on and not bar.text.begins_with("98 verts"), "bar 6 Esc leaves: the readout is the pose's again ('%s')" % bar.text.get_slice("   |   ", 0))
 	print("MESH STATS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

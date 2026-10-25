@@ -82,4 +82,5 @@ func _init() -> void:
 	ok(JSON.stringify(Bz.state()) == JSON.stringify(body().state()), "a body nobody told to look is the same as a fresh one")
 
 	print("LOOK AT TEST %s %d (ok %d)" % ["PASS" if fails == 0 else "FAIL", fails, n_ok])
+	TestFiles.cleanup()
 	quit(fails)

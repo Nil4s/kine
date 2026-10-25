@@ -172,4 +172,5 @@ func _init() -> void:
 	clean(OUT + "_bvh")
 	clean(UI_OUT)
 	clean(SRC)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

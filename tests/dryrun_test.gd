@@ -190,4 +190,5 @@ func _init() -> void:
 	ok(diff.is_empty(), "5 no file: %d files under scenes/ poses/ moves/ data/ exports/ hash the same%s" % [md0.size(), "" if diff.is_empty() else ": changed " + str(diff)])
 
 	print("DRYRUN: %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

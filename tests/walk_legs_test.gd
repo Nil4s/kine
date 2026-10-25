@@ -110,4 +110,5 @@ func _init() -> void:
 	var m2max: float = mid2.max() if not mid2.is_empty() else 0.0
 	ok(m2max > 20.0, "CONTROL: the same scene without its walk flags folds the stance knee to %.1f deg (bar > 20: the bars above can see the bug)" % m2max)
 	print("WALK LEGS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

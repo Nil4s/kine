@@ -84,4 +84,5 @@ func _init() -> void:
 
 	DirAccess.remove_absolute(copy)
 	print("longplay: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

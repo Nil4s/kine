@@ -114,4 +114,5 @@ func _init() -> void:
 		"11 bo_spin's opening stance is %.1f cm past the edge with both feet down (under the 3 cm bar, no finding); its deepest, %.1f cm, is too short to report" % [
 		-smb["balance"][0] * 100.0, deep * 100.0])
 	print("BALANCE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

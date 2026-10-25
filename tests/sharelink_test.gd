@@ -63,6 +63,7 @@ func _init() -> void:
 	ok(none.is_empty() and said1.begins_with("NOT NOW") and said1.contains("press Enter"), "one card: refused with a next step (%s)" % said1)
 	if OS.get_environment("SHARELINK_KEEP") != "":
 		print("kept: ", ProjectSettings.globalize_path(ROOT))
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	var g := ProjectSettings.globalize_path(ROOT + "/combo3")
@@ -71,6 +72,7 @@ func _init() -> void:
 	DirAccess.remove_absolute(g)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(ROOT))
 	print("SHARELINK %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

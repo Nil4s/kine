@@ -308,4 +308,5 @@ func _init() -> void:
 	m.queue_free()
 	await process_frame
 	print("TRUNK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

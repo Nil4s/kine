@@ -85,4 +85,5 @@ func _init() -> void:
 	ok(fonts.size() <= 2, "2 fonts (weights) rendered: %d" % fonts.size())
 	ok(rows_seen >= 12 and row_bad.is_empty(), "3 %d value rows: each name dim, value bright (and its slider's value), hint dim (bad: %s)" % [rows_seen, row_bad.slice(0, 2)])
 	print("TYPE SCALE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

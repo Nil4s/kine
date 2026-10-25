@@ -190,6 +190,7 @@ func _init() -> void:
 	var args := MultiCam.track_args("C:/x/see_video.py", "C:/v/walk.mp4", "C:/o/pose.json")
 	ok(args[0] == "C:/x/see_video.py" and args.size() == 3 and not "-I" in args, "6 the tracker runs as plain python (no -I, which hides mediapipe's site-packages) %s" % args[0].get_file())
 	print("multicam: %s" % ("PASS" if fails == 0 else "%d FAILED" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

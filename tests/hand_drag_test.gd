@@ -52,4 +52,5 @@ func _init() -> void:
 		ok((m.B.P[part] as Vector3).distance_to(p0) < 1e-4, "  Ctrl+Z: the %s back where it was" % part)
 		m.dragging = ""
 	print("HAND DRAG %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -276,6 +276,7 @@ func _init() -> void:
 		"(8) pen pressure 0.5 = a half mix exactly %s; fill of 1 selected face wrote its %d corners only, a hard edge (every other corner white) %s; a blur dab takes the vertex from %s to its neighbours' mean %s (got %s)" % [press_ok, nfill, hard, c_before, mean, blurred])
 	await app_bars()
 	print("VPAINT ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

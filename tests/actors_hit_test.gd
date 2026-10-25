@@ -320,4 +320,5 @@ func _init() -> void:
 	await one_fighter_same("after two fighters")
 
 	print("ACTORS HIT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

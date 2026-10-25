@@ -295,4 +295,5 @@ func _init() -> void:
 	root.content_scale_mode = was_mode
 	m.queue_free()
 	print("EASY VIDEO TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

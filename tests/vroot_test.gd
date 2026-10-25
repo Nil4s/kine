@@ -151,4 +151,5 @@ func _run() -> void:
 		ok(absf(tv - 1.0) <= 0.10, msg1)   # R14b: the root's velocity is the low points' consensus (VideoIQ.contacts), x0.85 now clears too
 		kf(r["cov"] >= 0.70, "2 walk_bat x%.2f: plants cover %.0f %% of the true stance (bar 70 %%). Cause: VideoCleanup.reachable cuts a plant where the leg misses its pin by 1 mm (FootPlant.MISS_BAR); the locked root follows the TRACKER's foot, the pin holds the FITTED foot, and they differ by the fit's own error (the detected contacts cover the stance: F1 > 0.9 in videoiq_test); locking on the fitted foot keeps the pin reachable but the travel falls to 73 %%" % [scale, 100.0 * r["cov"]])
 	print("VROOT TEST %s%s" % ["PASS" if fails == 0 else "FAIL %d" % fails, (" (with %d KNOWN FAIL bars, printed above with their numbers)" % known.size()) if not known.is_empty() else ""])
+	TestFiles.cleanup()
 	quit(fails)

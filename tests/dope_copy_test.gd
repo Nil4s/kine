@@ -170,4 +170,5 @@ func _init() -> void:
 	ok(absf(float(a8[2]) - float(a7[2]) - 0.1) < 1e-6 and S.cards.size() == 4, "7 control: a plain drag of card 2 retimes it: arrival %.4f -> %.4f s, still 4 cards" % [a7[2], a8[2]])
 	m.queue_free()
 	print("DOPE COPY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

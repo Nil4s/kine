@@ -334,4 +334,5 @@ func _init() -> void:
 	im.save_png(out)
 	print("     screenshot %s" % out)
 	print("GRAPH EDITOR: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

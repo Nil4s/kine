@@ -150,6 +150,7 @@ func _init() -> void:
 		print("     %s %.3f s f%d %s | %s" % [it["sev"], it["t"], it["frame"], it["kind"], it["text"]])
 	ok(items.size() == 2 and items[0]["kind"] == "contact" and items[1]["kind"] == "tip", "(1) exactly 2 items: contact then tip pass (%d: %s)" % [items.size(), ", ".join(items.map(func(i): return i["kind"]))])
 	if items.size() != 2:
+		TestFiles.cleanup()
 		quit(1)
 		return
 	# (2) the contact
@@ -248,4 +249,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(hp)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://i28_%d" % OS.get_process_id()))
 	print("i28: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

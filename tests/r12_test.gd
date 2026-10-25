@@ -146,4 +146,5 @@ func _init() -> void:
 	wipe()
 	ok(not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(DIR)), "scratch dir removed")
 	print("R12 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -131,4 +131,5 @@ func _init() -> void:
 	m.get_window().size = Vector2i(1600, 900)
 	await idle(4)
 	print("RING EDGES: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

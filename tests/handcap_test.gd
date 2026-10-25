@@ -215,4 +215,5 @@ func _init() -> void:
 	ok(drift <= 0.01 and pip_sm > 60.0, "7 clean path (One Euro): a held pose moves %.4f deg (bar 0.01), the fist's middle joint stays over 60 deg (%.1f)" % [drift, pip_sm])
 
 	print("HAND CAPTURE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

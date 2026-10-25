@@ -92,4 +92,5 @@ func _init() -> void:
 	ok(same(sync_now()), "on again: measured again, identical")
 
 	print("DUMMY ASYNC: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -141,4 +141,5 @@ func _init() -> void:
 	var seen := br.get_global_rect().has_point(br.get_global_transform() * br.get_item_area_rect(hid).get_center())
 	ok(was_hidden and seen and place()[0] == "foot_l", "10 a part whose row was out of sight (the left foot, scrolled away %s) picked in the view: its row picked and scrolled into sight (%s)" % [was_hidden, seen])
 	print("BROWSER PLACE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -48,4 +48,5 @@ func _init() -> void:
 					break
 			line += "  %s:%s" % [k, top]
 		print(line)
+	TestFiles.cleanup()
 	quit()

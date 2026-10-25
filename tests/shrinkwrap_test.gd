@@ -234,6 +234,7 @@ func _init() -> void:
 
 	await body_part()
 	print("shrinkwrap: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

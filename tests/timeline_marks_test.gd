@@ -126,4 +126,5 @@ func _init() -> void:
 	await idle(3)
 	ok(gone and not tl.marks().is_empty(), "6 a card retimed (an undo step): the marks gone (%s); Check again: %d back" % [gone, tl.marks().size()])
 	print("TIMELINE MARKS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

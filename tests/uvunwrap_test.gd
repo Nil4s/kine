@@ -317,4 +317,5 @@ func _init() -> void:
 		"(6) wavy grid %d faces: LSCM %.1f s CPU, %d ms wall (%d CG iterations, %d wedges), stretch %d ms; angle mean %.4f, max %.4f, L2 %.4f" % [wv.face_count(), cpu, ms, r["iters"], r["wedges"], ms2, s["angle_mean"], s["angle_max"], s["l2"]])
 
 	print("UVUNWRAP ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

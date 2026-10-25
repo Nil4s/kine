@@ -244,4 +244,5 @@ func _init() -> void:
 		"(8) peak_hand on combo3 = %.1f m/s vs independent finite difference %.1f m/s (within 5 %%); a real punch is ~7-12 m/s" % [feat8, ref8])
 
 	print("I38 MY BEST TAKE %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

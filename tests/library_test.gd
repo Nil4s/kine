@@ -456,4 +456,5 @@ func _init() -> void:
 	print("SHOT %s" % shot_path)
 
 	print("LIBRARY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

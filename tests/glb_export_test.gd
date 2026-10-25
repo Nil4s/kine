@@ -223,4 +223,5 @@ func _init() -> void:
 	me.queue_free()
 	await process_frame
 
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

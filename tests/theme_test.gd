@@ -154,4 +154,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	ok(FileAccess.get_file_as_string("user://poser.cfg") == real, "Nick's user://poser.cfg untouched")
 	print("THEME TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

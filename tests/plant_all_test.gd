@@ -61,4 +61,5 @@ func _init() -> void:
 	var rc := Fixer.plant_all(C, B)
 	ok(not rc["kept"] and rc["n0"] == 0 and JSON.stringify(C.cards) == c0, "5 a clean stand: nothing kept, cards byte for byte: '%s'" % rc["msg"])
 	print("PLANT ALL TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

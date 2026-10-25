@@ -149,4 +149,5 @@ func _init() -> void:
 			f2.get("result", {}).get("count"), f3.get("result", {}).get("registry", []).size(), f4.get("error", {}).get("code", "-")])
 	m.queue_free()
 	print("HUMANFACTS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -89,6 +89,7 @@ func _init() -> void:
 	var n: int = r.get("frames", 0)
 	ok(n == 180 and r.get("cams", []).size() == 180, "1 defaults: 6 s x 30 fps = %d frames (want 180), size %s" % [n, r.get("size")])
 	if n == 0:
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var cams: Array = r["cams"]
@@ -155,4 +156,5 @@ func _init() -> void:
 	sheet.save_png(OUT)
 	print("     4-up saved: %s" % OUT)
 	print("TURNTABLE: %s" % ("PASS" if fails == 0 else "%d FAIL" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

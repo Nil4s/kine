@@ -191,4 +191,5 @@ func _init() -> void:
 	await key(KEY_Z, true)
 	ok(pf == 6 and u2 == u0 + 1 and ui.mesh.face_count() == 96, "bar 5: planar decimate: %d faces in 1 step (%d), Ctrl+Z -> %d" % [pf, u2 - u0, ui.mesh.face_count()])
 	print("LOD ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

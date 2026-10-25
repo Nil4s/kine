@@ -147,4 +147,5 @@ func _init() -> void:
 		print("       %s   [%s]" % [k, ", ".join(seen[k])])
 	ok(seen.size() >= 3, "the audit found greyed controls to judge (%d distinct)" % seen.size())
 	print("GREYED WHY: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

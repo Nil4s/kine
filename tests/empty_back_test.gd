@@ -100,4 +100,5 @@ func _init() -> void:
 	open_combo()
 	await visit("SCENE", "combo3 a third time")
 	print("EMPTY BACK: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

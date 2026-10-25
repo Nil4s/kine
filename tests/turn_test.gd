@@ -91,6 +91,7 @@ func _init() -> void:
 		print("     %s: peak knee bend %.0f deg" % [nm, knee])
 	joined(B)
 	print("TURN SUITE: %d FAIL" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

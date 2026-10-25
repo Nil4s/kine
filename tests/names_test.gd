@@ -89,6 +89,7 @@ func _init() -> void:
 	ok(m.ui_find.visible and m.check_ran, "ribbon_check/b_check -> CHECK ran, its panel shows (%d findings)" % m.findings.size())
 	ok(find("check_panel/finding_1") != null and find("check_panel/finding_1").text.contains(m.findings[0]["rule"]), "  check_panel/finding_1 is the first finding (%s)" % m.findings[0]["rule"])
 	print("NAMES: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 
@@ -100,6 +101,7 @@ func find(addr: String) -> Node:
 	if n == null:   # stop here: the next line would press nothing, and a test that hangs reports nothing
 		ok(false, "'%s' is not found" % addr)
 		print("NAMES: %d failed" % fails)
+		TestFiles.cleanup()
 		quit(1)
 	return n
 

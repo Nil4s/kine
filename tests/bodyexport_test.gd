@@ -274,4 +274,5 @@ func _init() -> void:
 	scn.queue_free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	print("bodyexport: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

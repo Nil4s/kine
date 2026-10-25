@@ -321,4 +321,5 @@ func _init() -> void:
 	key(m, KEY_ESCAPE)
 	await process_frame
 	print("basebody: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

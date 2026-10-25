@@ -229,4 +229,5 @@ func _init() -> void:
 		f.close()
 
 	print("MATLIB: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

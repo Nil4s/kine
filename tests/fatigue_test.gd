@@ -116,4 +116,5 @@ func _init() -> void:
 	var d0: Dictionary = m.S.to_dict(m.B, false)
 	ok(is_equal_approx(s3.fitness, 0.8) and d.has("fitness") and not d0.has("fitness"), "6 file: fitness 0.8 written and read back, 0.5 not written")
 	print("FATIGUE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

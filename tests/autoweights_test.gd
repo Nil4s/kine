@@ -129,6 +129,7 @@ func _init() -> void:
 	cyl_tests()
 	await man_tests()
 	print("AUTOWEIGHTS %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

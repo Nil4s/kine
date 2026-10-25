@@ -158,4 +158,5 @@ func _init() -> void:
 	ui.input(key(KEY_M))
 	ok(f1 == f0 - 1 and b1 == 4 and f2 == f0 and f3 == f0 - 1 and ui.mesh.vert_count() == v0 - 1 and clean(ui.mesh) and ui.undo.steps.size() == 2, "(9) preview cube keys: %d faces, Delete -> %d (%d border edges), Ctrl+Z -> %d, Ctrl+Delete 2 -> %d, M -> %d verts (from %d), %d undo steps" % [f0, f1, b1, f2, f3, ui.mesh.vert_count(), v0, ui.undo.steps.size()])
 	print("DISSOLVE ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

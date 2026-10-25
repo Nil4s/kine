@@ -126,4 +126,5 @@ func _init() -> void:
 	ok(msg.begins_with("script '") and vr.encloses(gr) and gr.size.x > 100 and lab.is_visible_in_tree(),
 		"the result message '%s' is in the status line at %s inside the window %s" % [msg, str(gr), str(vr.size)])
 	print("HISTSCRIPT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

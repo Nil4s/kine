@@ -151,4 +151,5 @@ func _init() -> void:
 	ok(Scene.ALL_EASES.slice(0, Scene.EASES.size()) == Scene.EASES, "ALL_EASES starts with EASES (the old dropdown indices stay)")
 
 	print("ease_presets: %s" % ("PASS" if fails == 0 else "%d FAIL" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

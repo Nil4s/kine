@@ -308,4 +308,5 @@ func _init() -> void:
 	var dg := old_digest()
 	ok(dg == OLD_DIGEST, "old scenes (round-37 props, a carried box tossed) save, mirror and play bit for bit as before row 22 (sha256 %s)" % dg.left(16))
 	print("PROPS GENERIC TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

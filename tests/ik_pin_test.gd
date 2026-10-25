@@ -347,4 +347,5 @@ func _init() -> void:
 	ok(absf(ru["miss"] - ((far - B.P["upperarm_l"]).length() - reach)) < 0.002 and rad_to_deg(dirv) < 0.5, "6 unreachable (%.2f m away, the arm %.3f m): straightened toward it, miss reported %.4f m = the shortfall, aimed within %.3f deg" % [(far - B.P["upperarm_l"]).length(), reach, ru["miss"], rad_to_deg(dirv)])
 
 	print("IK PIN TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

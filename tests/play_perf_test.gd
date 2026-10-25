@@ -217,4 +217,5 @@ func _init() -> void:
 		% [r_on, r_off, 100.0 * r_on / r_off, 100.0 * SPEEDUP_BAR, rows[false]["fps"], rows[true]["fps"]])
 	print("     TARGET 60 fps on the heavy scene: %s (measured %.1f fps with the cache on)" % ["MET" if rows[true]["fps"] >= 60.0 else "NOT MET", rows[true]["fps"]])
 	print("PLAY PERF TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

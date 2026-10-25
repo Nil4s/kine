@@ -139,4 +139,5 @@ func _init() -> void:
 	m._load_scene("res://scenes/combo3.json")
 	await idle(1)
 	print("REVIEW TEST %s %d  (%d ok)" % ["PASS" if fails == 0 else "FAIL", fails, n_ok])
+	TestFiles.cleanup()
 	quit(fails)

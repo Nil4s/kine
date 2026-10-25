@@ -192,4 +192,5 @@ func _init() -> void:
 	ok(ui.mesh.verts == moved and ui.undo.steps.size() == 1, "6d Ctrl+Z takes the rotate back")
 	m.blk.set_on(false, false)
 	print("BLKEYS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

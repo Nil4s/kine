@@ -178,4 +178,5 @@ func _init() -> void:
 	ok(FileAccess.get_modified_time(real_cfg) == real_cfg_was if real_cfg_was != -1 else not FileAccess.file_exists(real_cfg),
 		"9 the real poser.cfg untouched")
 	print("RECENT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

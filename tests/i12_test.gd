@@ -281,4 +281,5 @@ func _init() -> void:
 	print("     screenshot saved: ", TMP + "i12.png")
 	m._undo()
 	print("I12 %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

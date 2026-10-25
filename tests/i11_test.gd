@@ -326,4 +326,5 @@ func _init() -> void:
 			defs += 1
 	ok(fl == 3 and why_ok and red == 3 and defs == 0, "6 the defender at 4.5 m: %d beats flagged with a reason %s, %d red FLAG markers, %d defence cards written (bar 0)" % [fl, why_ok, red, defs])
 	print("I11 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

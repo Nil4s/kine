@@ -541,4 +541,5 @@ func _init() -> void:
 
 	ok(worst_ms < 100.0, "4 the slowest fit of all of them: %.1f ms (bar 100)" % worst_ms)
 	print("\nI9 %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

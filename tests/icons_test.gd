@@ -81,4 +81,5 @@ func _init() -> void:
 	m._set_light(light0)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("ICONS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

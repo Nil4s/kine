@@ -231,6 +231,7 @@ func _init() -> void:
 		"(10) preview keys: E %d -> %d faces (lifted %s), I -> %d, Ctrl+Z twice -> %d, clean %s; status: %s" % [nf0, nf1, Units.len(lift), nf2, ui.mesh.face_count(), clean(ui.mesh), mn.ui_status.text.left(70)])
 	ui.stop()
 	print("extrude: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

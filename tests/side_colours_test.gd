@@ -88,4 +88,5 @@ func _init() -> void:
 	await idle(2)
 	ok(not m.ui_title.has_theme_color_override("font_color"), "5 a left part, then %s selected: the side colour does not stick" % m.sel)
 	print("SIDE COLOURS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

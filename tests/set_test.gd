@@ -209,6 +209,7 @@ func _init() -> void:
 	m._rm_tree(dir)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("SET TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

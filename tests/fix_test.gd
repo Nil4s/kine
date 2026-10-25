@@ -81,4 +81,5 @@ func _init() -> void:
 		ok(kept.has(r), "a %s fix was KEPT on a real scene" % r)
 	ok(putback > 0, "the put-back path ran on a real scene (%d times): the guard can refuse" % putback)
 	print("FIX TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

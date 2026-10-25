@@ -320,4 +320,5 @@ func _init() -> void:
 		DirAccess.remove_absolute(out_dir + "/" + f)
 	DirAccess.remove_absolute(out_dir)
 	print("i22: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

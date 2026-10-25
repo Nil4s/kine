@@ -331,4 +331,5 @@ func _init() -> void:
 	ok(worst_gap <= 100.0, "Run: no frame over 100 ms while the pictures are drawn (worst %.1f ms; bar <= 100, the old code 49.7 but 2 s of blank cards)" % worst_gap)
 	m.easy.set_on(false, false)
 	print("CARDSTRIP %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

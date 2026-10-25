@@ -231,6 +231,7 @@ func _init() -> void:
 	ok(frozen and moved > 0.0005, "(6) mask: masked verts bit-exact %s; unmasked moved up to %.2f mm" % [frozen, moved * 1000.0])
 	await presets_and_ui()
 	print("ALPHAS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

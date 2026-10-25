@@ -162,4 +162,5 @@ func _init() -> void:
 	for f in DirAccess.get_files_at(DIR):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR + "/" + f))
 	print("ENGINE EXPORT: %d failed, travel %.3f m" % [fails, travel])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

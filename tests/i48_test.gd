@@ -180,4 +180,5 @@ func _init() -> void:
 	ok(Rect2(Vector2.ZERO, vp).has_point(pb) and Rect2(Vector2.ZERO, vp).has_point(pg) and not pr.has_point(pb) and not pr.has_point(pg), "(6) body and ghost are on screen and clear of the panel")
 	ok(pg.x > pb.x, "(6) the ghost is to the right of the body on screen")
 	print("I48 RESULT: ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(fails)

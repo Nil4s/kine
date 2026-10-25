@@ -126,4 +126,5 @@ func _init() -> void:
 	# the cards themselves are never touched
 	ok(JSON.stringify(S.cards) == JSON.stringify(scene3().cards), "the cards are unchanged by any of it (Update keeps a result)")
 	print("INBETWEEN TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

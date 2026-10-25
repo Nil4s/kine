@@ -115,4 +115,5 @@ func _init() -> void:
 		t += 1.0 / 30.0
 	ok(miss < 0.005 and far < 0.01 and low > 0.395, "three cards on the box, the hips turning 20 deg over a planted right foot (card b re-planted %.1f mm off): it slides %.1f mm between the cards, no sole below the top (lowest %.3f m)" % [miss * 1000.0, far * 1000.0, low])
 	print("STAND SET TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

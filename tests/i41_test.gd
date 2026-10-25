@@ -253,6 +253,7 @@ func _init() -> void:
 	ok(ui.plan["ev"]["tele"].is_empty() and ui.plan["ev"]["weap"].size() == ev["weap"].size() and m.undo.size() == u0, "(2) the panel's telegraph switch off: no telegraph glance, the weapon glances stay, nothing written")
 
 	print("I41 GAZE DIRECTOR %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

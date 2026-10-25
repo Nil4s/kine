@@ -142,4 +142,5 @@ func _init() -> void:
 		"5 clone() is deep: editing the clone's actor 1 (card name, pose, xf) leaves the original (name %s, x %s)" % [S.actors[0]["scene"].cards[0]["name"], S.actors[0]["xf"]["pos"][0]])
 
 	print("ACTORS FILE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

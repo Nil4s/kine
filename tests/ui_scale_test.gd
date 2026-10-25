@@ -72,4 +72,5 @@ func _init() -> void:
 	await process_frame
 	ok(off_screen().is_empty() and m.ui_play_row.is_visible_in_tree(), "back to 100 %: everything back, the strip whole")
 	print("UI SCALE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

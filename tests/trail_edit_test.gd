@@ -182,6 +182,7 @@ func _init() -> void:
 	if OS.get_environment("TRAIL_SHOT") != "":
 		await run_case_shot()
 	print("TRAIL EDIT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

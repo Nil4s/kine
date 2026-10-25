@@ -135,4 +135,5 @@ func _run() -> void:
 	ok(m.S.cards.size() == before, "3 Ctrl+Z takes the import back in one step: %d cards again" % m.S.cards.size())
 	ok(iq_in and JSON.stringify(m.S.to_dict(m.B)) == d_before and m.S.iq.is_empty(), "3b VIDEO IQ: the import carried its confidence lane and contacts (Scene.iq), and the one undo restored the scene exactly (iq in %s, iq now %d keys)" % [iq_in, m.S.iq.size()])
 	print("multicam_app: %s" % ("PASS" if fails == 0 else "%d FAILED" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -257,6 +257,7 @@ func run() -> void:
 	# 12 THE APP WINDOW on a walk: the whole body, the path over its cards, read by a person
 	await walk_section()
 	print("%s  (%d fails)" % ["PASS" if fails == 0 else "FAILED", fails])
+	TestFiles.cleanup()
 	quit(fails)
 
 

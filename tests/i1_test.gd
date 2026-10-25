@@ -148,4 +148,5 @@ func _init() -> void:
 	ok(var_to_str(m.S.cards) == var_to_str(before), "5f the undo restores the cards exactly")
 	ok(m.undo.size() == nundo, "5g and the step is gone (%d)" % m.undo.size())
 	print("FAILS %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

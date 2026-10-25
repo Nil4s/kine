@@ -125,4 +125,5 @@ func _init() -> void:
 	ok(baked_ok and one and back, "5 'Bake to cards' from the registry: %d cards, keys gone, pin / floor off %s; one undo step %s; Ctrl+Z gives the scene back byte for byte %s (pin %s, floor %s, %d cards, keys on %d parts). Said: %s" % [S5.cards.size() if not back else want_n, baked_ok, one, back, S5.pin, S5.on_floor, S5.cards.size(), S5.part_keys.size(), said.left(160)])
 	m.queue_free()
 	print("BAKE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

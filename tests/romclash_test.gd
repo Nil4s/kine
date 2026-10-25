@@ -685,4 +685,5 @@ func _init() -> void:
 	ok(m.B.ang == ang0 and same_w and m.undo.size() == u0, "(12) body angles, the skin's weights and the undo list unchanged by the checks")
 	m.clash_ui.clear()
 	print("ROMCLASH RESULT: ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(fails)

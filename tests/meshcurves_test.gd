@@ -87,6 +87,7 @@ func _init() -> void:
 	b12()
 	await preview()
 	print("meshcurves: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

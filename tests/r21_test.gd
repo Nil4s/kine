@@ -226,4 +226,5 @@ func _init() -> void:
 	var after := snapshot()
 	ok(after == before and before.size() > 0, "NOTHING WRITTEN: %d files under poses/ identical (bytes, modified time)" % before.size())
 	print("R21 ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

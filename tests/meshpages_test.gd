@@ -382,4 +382,5 @@ func _init() -> void:
 	await idle(2)
 
 	print("MESH PAGES ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

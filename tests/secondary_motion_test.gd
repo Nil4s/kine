@@ -250,6 +250,7 @@ func _init() -> void:
 	var shot := OS.get_environment("SECOND_SHOT")
 	if shot != "":
 		await _shot(shot)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

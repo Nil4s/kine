@@ -50,4 +50,5 @@ func _init() -> void:
 	for f in DirAccess.get_files_at(dir):
 		DirAccess.remove_absolute(dir + "/" + f)
 	print("FREENAME TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

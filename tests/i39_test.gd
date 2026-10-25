@@ -99,6 +99,7 @@ func _init() -> void:
 	var B0 := DistanceKeeper.new_body()
 	if not pm.has("scene"):
 		ok(false, "(2) no plan for the medium shove: " + String(pm.get("why", "")))
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var land_sc: Scene = pm["scene"]
@@ -235,4 +236,5 @@ func _init() -> void:
 		same2 = same2 and after_files.get(k, "") == before_files[k]
 	ok(same2, "(7) %d files under scenes/, poses/, data/ hash the same before and after" % before_files.size())
 	print("I39 RECOVERY %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

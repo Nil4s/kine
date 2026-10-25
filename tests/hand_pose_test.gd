@@ -337,4 +337,5 @@ func _initialize() -> void:
 	ok(lo >= 0.0 and hi <= 0.015, "9 FIST ON THE DRAWN PALM (cm, + = outside): %s; range %+.2f to %+.2f (bar 0 to +1.5)" % [" | ".join(rows), lo * 100.0, hi * 100.0])
 
 	print("hand_pose_test: %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

@@ -95,4 +95,5 @@ func _init() -> void:
 	kf(secs <= BASE_PROCESS_S * SPEED_BAR, "3 SPEED: process %.2f s <= %.1f s (70 %% of %.1f s)" % [secs, BASE_PROCESS_S * SPEED_BAR, BASE_PROCESS_S])
 	print("")
 	print("%d FAIL, %d KNOWN FAIL" % [fails, known.size()])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

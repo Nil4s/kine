@@ -106,4 +106,5 @@ func _init() -> void:
 	var s3 := await drag(r, Vector2(0, -3), 4)
 	ok(m.sel == "lowerarm_l" and not ("STOPPED" in s3) and ("ROTATING" in s3), "3 a small free drag says neither: '%s'" % s3.strip_edges())
 	print("DRAG STOP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -134,4 +134,5 @@ func _init() -> void:
 	ok(not m.fold["bottom"] and m.bottom_h == m.BOTTOM_H and m.ui_card_row.visible and saved("bottom") == false, "Clips: the scene panel back, saved")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("FOLD TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

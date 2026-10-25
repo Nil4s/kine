@@ -99,4 +99,5 @@ func _init() -> void:
 	await idle(3)
 	ok(again2 and m.hover_part == "" and not head_hover(), "6 the head's row (%s), then straight onto the right panel: hover '%s', the head lit %s" % [again2, m.hover_part, head_hover()])
 	print("HOVER SYNC: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

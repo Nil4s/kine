@@ -119,4 +119,5 @@ func _init() -> void:
 	ok(not shown(), "8 a ? typed into the scene-name box is text, not the list")
 	m.ui_scene_name.release_focus()
 	print("KEYS OVERLAY: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

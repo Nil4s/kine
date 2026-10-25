@@ -48,4 +48,5 @@ func _init() -> void:
 	ok(same, "the three example files are byte-identical after open, edit and save")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(out))
 	print("EXAMPLES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

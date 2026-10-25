@@ -184,4 +184,5 @@ func _init() -> void:
 	ok(c.get_center().x > bodyr.end.x or c.get_center().x < bodyr.position.x, "step 2 callout sits beside the body (card %s, body %s)" % [c, bodyr])
 	o.finish(true, false)
 	print("fails=", fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

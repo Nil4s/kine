@@ -171,6 +171,7 @@ func _init() -> void:
 	ok(good7 and snap_state() == s1, "7 card mode agrees with BodyAssert.run at the pick and 0.5 deg past each end")
 
 	print("RANGESWEEP: %d failure(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

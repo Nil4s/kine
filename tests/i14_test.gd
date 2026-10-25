@@ -174,4 +174,5 @@ func _init() -> void:
 	# 6 DISK
 	ok(FileAccess.get_md5("res://scenes/combo3.json") == md5_0 and wip() == wip0, "6 scenes/combo3.json is byte-identical and scenes/_wip has no new file")
 	print("I14 %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

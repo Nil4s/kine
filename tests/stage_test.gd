@@ -70,4 +70,5 @@ func _init() -> void:
 	var b: Array = direct.map(func(f): return "%s@%.3f" % [f["rule"], f["t"]])
 	ok(m.check_ran and a == b and a.size() > 0, "4 Check ran after the spline: %d findings, the same as Check on the scene %s" % [a.size(), a])
 	print("STAGE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

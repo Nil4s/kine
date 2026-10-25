@@ -185,4 +185,5 @@ func _init() -> void:
 	ok(JSON.stringify(m.S.cards) == cards0 and JSON.stringify(m.S.to_dict(m.B, false)) == before, "(7) Ctrl+Z: cards and scene JSON exact")
 
 	print("I15 FIGHT TO THE BEAT %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

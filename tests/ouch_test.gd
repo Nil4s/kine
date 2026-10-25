@@ -265,4 +265,5 @@ func _init() -> void:
 	_release(m)
 
 	print("ouch: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

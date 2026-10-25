@@ -125,4 +125,5 @@ func _init() -> void:
 	for pg in shots:
 		(shots[pg] as Image).save_png(dir + "r6_" + String(pg).to_lower() + ".png")
 	print("R6 %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

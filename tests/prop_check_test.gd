@@ -93,4 +93,5 @@ func _init() -> void:
 		else:
 			ok(w.is_empty() and of(f3, "THROUGH A PROP").is_empty(), "the same body resting on the seat: no FLOATS, nothing through the chair")
 	print("PROP CHECK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

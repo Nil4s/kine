@@ -350,4 +350,5 @@ func _init() -> void:
 		"(9e) search rows: loop cut -> '%s', knife (%s) -> '%s'; Esc cancels, the cube stays open, %d verts" % [via_r, rows["mesh_knife"]["keys"], via_k, ui.mesh.vert_count()])
 	ui.stop()
 	print("kmesh_cut: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -505,4 +505,5 @@ func _init() -> void:
 		ok(t_dqs <= t_lbs + 16.0, "bar 10: the DQS frame is at most the LBS frame + 16 ms (%.1f <= %.1f + 16 ms)" % [t_dqs, t_lbs])
 
 	print("RESULT %s (%d fail)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

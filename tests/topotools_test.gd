@@ -296,4 +296,5 @@ func _init() -> void:
 	var nz2: int = ui.mesh.face_count()
 	ok(nq == 96 and nz1 == 192 and nz2 == 96, "bar 6: Alt+J -> %d faces; Ctrl+Z -> %d, Ctrl+Z -> %d" % [nq, nz1, nz2])
 	print("TOPOTOOLS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

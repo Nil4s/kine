@@ -145,4 +145,5 @@ func _init() -> void:
 	m.ui_cmd.close()
 	ok(hits.has("Select: spine"), "3 the search for 'spine' lists 'Select: spine' in its first 5 (%s)" % [hits])
 	print("SEL SETS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -52,4 +52,5 @@ func _init() -> void:
 	var p1: Vector3 = B.P["pelvis"]
 	print("   REPORTED travel: video %.2f m, walk_bat %.2f m" % [Vector2(o1.x - o0.x, o1.z - o0.z).length(), Vector2(p1.x - p0.x, p1.z - p0.z).length()])
 	print("VIDEO PIXELS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

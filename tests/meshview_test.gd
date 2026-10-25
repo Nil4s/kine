@@ -330,4 +330,5 @@ func _init() -> void:
 	ok(ui.on and m.stage_root.get_node_or_null("kmesh_view") != null, "the dev command opens it again")
 
 	print("RESULT: ", "FAIL (%d)" % fails if fails > 0 else "PASS")
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

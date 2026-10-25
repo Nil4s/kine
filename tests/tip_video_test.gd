@@ -126,4 +126,5 @@ func _init() -> void:
 	ok(parked and not tv.panel.visible and mb.tooltip_text == tip0 and tip0 != "",
 		"5 a real mouse on Mirror: its text parked and the panel up with the words (%s); moved away: the panel gone, the text back (%s)" % [parked, mb.tooltip_text == tip0])
 	print("TIP VIDEO TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

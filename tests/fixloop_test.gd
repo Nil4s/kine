@@ -196,4 +196,5 @@ func _init() -> void:
 	ok(snap() == c0, "7 undo restores combo3 bit-exact")
 	print("     all: %d ms" % (Time.get_ticks_msec() - t_all))
 	print("FIXLOOP %s: %d failed" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -237,6 +237,7 @@ func _init() -> void:
 	ok(found, "FIXTURE: a real strike (combo3 card %d) lands on fighter 2 at %s, contact at %.3f s" % [ci + 1, DXF_POS, float(r["path"].get("tc", -1))])
 	if not found:
 		print("fails: ", fails)
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var P: Dictionary = r["path"]
@@ -418,4 +419,5 @@ func _init() -> void:
 		m._refresh()
 		await idle(2)
 	print("fails: ", fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

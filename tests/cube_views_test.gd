@@ -120,4 +120,5 @@ func _init() -> void:
 	ok(is_equal_approx(wrapf(m.yaw, -180, 180), m.HOME["yaw"]) and is_equal_approx(m.pitch, m.HOME["pitch"]) and is_equal_approx(m.dist, m.HOME["dist"]) and m.target.is_equal_approx(m.HOME["target"]),
 		"the house mark: back to the start view (yaw %.1f pitch %.1f dist %.2f target %s)" % [m.yaw, m.pitch, m.dist, m.target])
 	print("CUBE VIEWS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

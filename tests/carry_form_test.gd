@@ -71,6 +71,7 @@ func _init() -> void:
 	if cf.is_empty():
 		ok(false, "the reference carry is measured at all (carry_form returned nothing)")
 		print("CARRY FORM TEST FAIL %d" % fails)
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	var box: Transform3D = S.props[0]["xf"]
@@ -100,4 +101,5 @@ func _init() -> void:
 	S.cards[0]["take"] = {"prop": 0, "hands": ["_r"]}
 	ok(Rulebook.check(S, body()).filter(func(f): return f["rule"] == "CARRY FORM").is_empty(), "the same held in one hand: not graded by CARRY FORM")
 	print("CARRY FORM TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -202,6 +202,7 @@ func _init() -> void:
 		DirAccess.remove_absolute(tmp + fn)
 	DirAccess.remove_absolute(tmp)
 	print("I17 LEARN MY STYLE %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

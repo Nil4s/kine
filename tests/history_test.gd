@@ -90,4 +90,5 @@ func _init() -> void:
 	ok(m.redo.is_empty() and rows().size() == 7, "back to step 4, then a new edit: a branch; the 2 undone steps are kept, 7 rows")
 	ok(cmds.has("Edit: undo history..."), "'Edit: undo history...' is in the command search")
 	print("HISTORY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

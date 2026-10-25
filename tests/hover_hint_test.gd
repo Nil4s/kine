@@ -42,4 +42,5 @@ func _init() -> void:
 	print("     e.g. '%s'" % m.ui_bar.text)
 	btns[0].mouse_exited.emit()
 	print("HOVER HINT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -117,4 +117,5 @@ func _init() -> void:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	print("MIRROR LIST: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

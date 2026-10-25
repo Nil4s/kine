@@ -118,6 +118,7 @@ func _init() -> void:
 	ok(none == 0, "(1) every strike has a response (%d without)" % none)
 	if items.size() < 5:
 		print("I37 AUTO OPPONENT FAIL (no plan)")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var NS: Scene = res["scene"]
@@ -260,4 +261,5 @@ func _init() -> void:
 	root.get_texture().get_image().save_png(SHOT)
 
 	print("I37 AUTO OPPONENT %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -141,4 +141,5 @@ func _init() -> void:
 			ok(kf.is_empty(), "10 knee at 0.9 x the cited peak (%.0f deg in one frame): not flagged" % deg)
 
 	print("HUMAN LIMITS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

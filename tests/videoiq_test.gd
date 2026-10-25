@@ -236,6 +236,7 @@ func _run() -> void:
 	await real_track()
 	await app_part(report["walk_bat"])
 	print("VIDEO IQ TEST %s%s" % ["PASS" if fails == 0 else "FAIL %d" % fails, (" (with %d KNOWN FAIL bars, printed above with their numbers)" % known.size()) if not known.is_empty() else ""])
+	TestFiles.cleanup()
 	quit(fails)
 
 

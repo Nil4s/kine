@@ -146,4 +146,5 @@ func _init() -> void:
 	PlayblastExport.rm_tree(ProjectSettings.globalize_path(base))
 	ok(not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(base)), "5. the test folder is deleted at the end")
 	print("EASYSAVE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

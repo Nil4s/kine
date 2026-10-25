@@ -231,4 +231,5 @@ func _init() -> void:
 	m._rm_tree(m.library)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("OBJIO TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

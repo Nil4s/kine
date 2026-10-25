@@ -167,4 +167,5 @@ func _init() -> void:
 	m._undo()
 	ok(dump_all(m.S) == before, "bar 11: undo restores every timed field byte for byte")
 	print("RETIME RANGE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

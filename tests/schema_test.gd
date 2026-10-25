@@ -73,4 +73,5 @@ func _init() -> void:
 	for p in paths:
 		DirAccess.remove_absolute(p)
 	print("SCHEMA TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

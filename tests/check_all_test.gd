@@ -116,4 +116,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(html_path)
 	ok(not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(WIP)), "7 the test's folder and files removed")
 	print("CHECK ALL: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

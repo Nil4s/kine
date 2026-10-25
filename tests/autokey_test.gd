@@ -105,4 +105,5 @@ func _init() -> void:
 	ok(m.S.cards.size() == n3, "auto-key off again: the drag keys none (%d cards)" % m.S.cards.size())
 
 	print("AUTOKEY %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

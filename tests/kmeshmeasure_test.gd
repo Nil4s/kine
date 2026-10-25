@@ -203,4 +203,5 @@ func _init() -> void:
 	ok(ui.meas == null, "(7) M again turns the measure off")
 	print("  shot: ", ProjectSettings.globalize_path("user://kmeshmeasure.png"), "  (", scr.size, ")")
 	print("KMESH MEASURE ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

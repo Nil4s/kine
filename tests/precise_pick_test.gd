@@ -553,4 +553,5 @@ func _init() -> void:
 	else:
 		ok(false, "A3 no visible index finger skin in the close-up")
 	print("PRECISE PICK: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

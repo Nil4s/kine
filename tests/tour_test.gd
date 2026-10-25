@@ -140,4 +140,5 @@ func _init() -> void:
 	ok(m.tour_step == -1 and not m.ui_tour.visible and not m._tour_due(), "QQ3 Esc closes it and it is not due again")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("TOUR TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

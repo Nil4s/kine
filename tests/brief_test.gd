@@ -155,4 +155,5 @@ func _init() -> void:
 		print("     %s: %d ms" % [sn, Time.get_ticks_msec() - t0])
 	print("     all: %d ms" % (Time.get_ticks_msec() - t_all))
 	print("BRIEF: %s" % ("PASS" if fails == 0 else "%d FAIL" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

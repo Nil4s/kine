@@ -139,4 +139,5 @@ func _init() -> void:
 	ok(float(z["ease_bias"]) == 1.0, "a value past the end is clamped to +1")
 
 	print("FAILS %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

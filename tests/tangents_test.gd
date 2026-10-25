@@ -240,4 +240,5 @@ func _init() -> void:
 	await idle(2)
 	ok(var_to_str(m.S.part_keys) == before, "  three Ctrl+Z (Unify, Break, the drag) bring the keys back exactly")
 	print("TANGENTS TEST %s %d" % ["FAIL" if fails > 0 else "PASS", fails])
+	TestFiles.cleanup()
 	quit(fails)

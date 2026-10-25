@@ -336,4 +336,5 @@ func _init() -> void:
 	fh.close()
 	print("CLICKS before %d -> now %d on the same 9 tasks (%.0f%% fewer); total now %d over %d tasks" % [was, was_n, cut, total, rows.size()])
 	print("CLICKS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

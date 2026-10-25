@@ -630,6 +630,7 @@ func _init() -> void:
 	var lf := FileAccess.open(OUT + "log.txt", FileAccess.WRITE)
 	lf.store_string("\n".join(lines) + "\n")
 	lf.close()
+	TestFiles.cleanup()
 	quit(0)
 
 

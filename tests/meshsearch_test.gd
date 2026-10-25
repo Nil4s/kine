@@ -158,4 +158,5 @@ func _init() -> void:
 	print("     screenshot: ", shot)
 	cs.close()
 	print("MESHSEARCH %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

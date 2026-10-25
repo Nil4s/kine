@@ -87,4 +87,5 @@ func _init() -> void:
 	m.playhead = 3.9
 	await check("playhead written while the play flag flips (3.9 s)")
 	print("DONE fails=%d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

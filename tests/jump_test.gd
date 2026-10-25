@@ -64,6 +64,7 @@ func _init() -> void:
 	ok(fl.size() == 1 and int(fl[0]["k"]) == 1 and int(fl[0]["l"]) == 3, "one flight, from the dip card to the landing card %s" % [fl.map(func(f): return [f["k"], f["l"]])])
 	if fl.size() != 1:
 		print("JUMP TEST FAIL %d" % fails)
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	var t0: float = fl[0]["t0"]
@@ -130,4 +131,5 @@ func _init() -> void:
 	none.cards[2].erase("air")
 	ok(Rulebook.check(none, body()).filter(func(f): return f["rule"] == "JUMP").is_empty(), "no air card: the rule says nothing")
 	print("JUMP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

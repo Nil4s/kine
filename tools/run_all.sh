@@ -112,3 +112,4 @@ EXTRA="$EXTRA longplay:w"   # LONG PLAY: the 61-card axe clip at 30 ms median, t
 EXTRA="$EXTRA meshprop:w"   # MESH AS A PROP: MODEL > Use in scene (one undo step, POSE shows it), the scene saved and loaded with it, a saved mesh under Add prop and My models (tests/meshprop_test.gd)
 EXTRA="$EXTRA turn:h"   # the turns on the spot: turn around 180, left / right 90 bars on templates/turn_*.json (tests/turn_test.gd)
 EXTRA="$EXTRA fixall:w"   # FIX ALL: one button applies every Check fix in order, one undo step (tests/fixall_test.gd)
+EXTRA="$EXTRA testfiles:h"   # TEST FILES: a run removes its own zz_* / autosave_test_* / pid-named leftovers under user:// (scripts/test_files.gd; tests/testfiles_test.gd)

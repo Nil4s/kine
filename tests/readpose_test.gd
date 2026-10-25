@@ -49,4 +49,5 @@ func _init() -> void:
 		ok(m.B.ang["lowerarm_r"].distance_to(bent) < 0.01, "%-28s the unkeyed bend is still there (lowerarm_r %s)" % [pre, m.B.ang["lowerarm_r"]])
 		ok(m.undo.size() == u0, "%-28s a read-only check pushes no undo step" % pre)
 	print("READPOSE %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

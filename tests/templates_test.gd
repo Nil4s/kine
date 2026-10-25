@@ -498,4 +498,5 @@ func _init() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(made))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("TEMPLATES: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

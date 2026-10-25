@@ -251,6 +251,7 @@ func _init() -> void:
 	if OS.get_environment("ZZ_TC4_BASE") != "":   # the pre-TC4 tree: its picture, then out (it has none of the rest)
 		shot_a.save_png("user://zz_tc4_base.png")
 		print("base image written: %s" % ProjectSettings.globalize_path("user://zz_tc4_base.png"))
+		TestFiles.cleanup()
 		quit(0)
 		return
 
@@ -444,6 +445,7 @@ func _init() -> void:
 		print("     differing box (x0 y0 x1 y1, count): %s" % str(diff_box(shot_a, shot_b)))
 	ok(nd == 0, "5: one actor before the add vs after add + remove, same camera, 3D view: %d pixels differ" % nd)
 	print("ACTORS VIEW %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

@@ -451,4 +451,5 @@ func _init() -> void:
 	m.easy.set_on(false, false)
 	m.queue_free()
 	print("EASY GEN TEST ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

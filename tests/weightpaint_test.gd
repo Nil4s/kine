@@ -184,4 +184,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkinPaint.path(KEY)))
 	m.wp_on = false
 	print("WEIGHTPAINT %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

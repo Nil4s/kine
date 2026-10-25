@@ -229,4 +229,5 @@ func _init() -> void:
 	m.S = sv
 	ok(empty_ms < 50.0, "(10) empty scene scores in %.1f ms" % empty_ms)
 	print("i16: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

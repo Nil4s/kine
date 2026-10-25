@@ -234,6 +234,7 @@ func _init() -> void:
 	_bar10_spike_pelvis()
 	_bar10d_dips()
 	print("VIDEO IMPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

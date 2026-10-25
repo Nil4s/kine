@@ -184,4 +184,5 @@ func _init() -> void:
 	ok(frames.size() == 4, "9 sheet: %d frames printed (FRAME lines) at t = %s s" % [frames.size(), str(frames)])
 
 	print("RESULT %s (%d fail)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

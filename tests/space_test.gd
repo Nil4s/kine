@@ -196,4 +196,5 @@ func _init() -> void:
 		"4d mirror, weapon case: hand_l's weapon keys are hand_r's; the mirrored wrist plays %.4f mm from the mirrored place (bar 1)" % (mm3 * 1000.0))
 
 	print("space_test: %s" % ("PASS" if fails == 0 else "%d FAIL" % fails))
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

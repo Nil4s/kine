@@ -239,6 +239,7 @@ func _init() -> void:
 	m._rebuild_cards()
 
 	print("I6 STYLE DIAL %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

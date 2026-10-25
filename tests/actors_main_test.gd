@@ -250,4 +250,5 @@ func _init() -> void:
 	ok(absf(pct) <= 5.0, "4: one actor: 100 refreshes %.2f ms with the hook vs %.2f ms stubbed (%+.2f %%, bar 5 %%; A/A noise %+.2f %%)" % [ab[0], ab[1], pct, pct_aa])
 
 	print("ACTORS MAIN TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

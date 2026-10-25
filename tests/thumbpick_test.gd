@@ -145,4 +145,5 @@ func _init() -> void:
 	m._thumbpick_flag()
 	ok(not th.pick_on, "5d and off again")
 	print("RESULT %s fails" % fails)
+	TestFiles.cleanup()
 	quit(fails)

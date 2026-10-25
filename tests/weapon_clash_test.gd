@@ -211,4 +211,5 @@ func _init() -> void:
 	ok(one.is_empty(), "4 one fighter: nothing reported (%d)" % one.size())
 
 	print("%s: %d failure(s)" % ["PASS" if fails == 0 else "FAILED", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

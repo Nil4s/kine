@@ -172,6 +172,7 @@ func _init() -> void:
 	# 7 the app: one undo step per edit, the lane and the view
 	await app_part()
 	print("HIT BOXES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

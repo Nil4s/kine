@@ -148,4 +148,5 @@ func _init() -> void:
 	ok(gw["walk"], "walk_bat is read as a walk (%s)" % gw.get("why", "yes"))
 	ok(Rulebook.SRC.has("GAIT") and Rulebook.WHY.has("GAIT") and Rulebook.URL.has("GAIT"), "GAIT has its SRC, WHY and URL")
 	print("GAIT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

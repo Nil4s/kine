@@ -666,4 +666,5 @@ func _init() -> void:
 	var lf := FileAccess.open(OUT + "walk10_log.txt", FileAccess.WRITE)
 	lf.store_string("\n".join(lines) + "\n")
 	lf.close()
+	TestFiles.cleanup()
 	quit(0)

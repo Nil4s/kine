@@ -313,4 +313,5 @@ func _run() -> void:
 	snap.save_png(SHOT)
 	print("     shot %s (%dx%d)" % [SHOT, snap.get_width(), snap.get_height()])
 	print("REFIMG %s (%d fail)" % ["FAIL" if fails > 0 else "PASS", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

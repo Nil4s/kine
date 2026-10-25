@@ -177,4 +177,5 @@ func _init() -> void:
 	var err := img.save_png(path)
 	ok(err == OK, "7b screenshot of the C pose with its line saved to %s (%s)" % [ProjectSettings.globalize_path(path), error_string(err)])
 	print("RESULT %s fails" % fails)
+	TestFiles.cleanup()
 	quit(fails)

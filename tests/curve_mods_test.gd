@@ -129,4 +129,5 @@ func _init() -> void:
 	PartKeys.put(pk7, "lowerarm_r", 0.2, Vector3(0, 0, 0))
 	ok(pk7["lowerarm_r"][0].has("mods") and not pk7["lowerarm_r"][1].has("mods") and PartKeys.mods_of(pk7["lowerarm_r"]).size() == 1, "7 a key put before the first: the stack moved to the new first key")
 	print("CURVE MODS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

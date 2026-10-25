@@ -120,4 +120,5 @@ func _init() -> void:
 	# 5 the ground: the lowest planted sole as played
 	ok(absf(soles_low) <= 0.01, "5 lowest planted sole %.4f m from the floor (bar 0.01)" % soles_low)
 	print("VIDEO CLEANUP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

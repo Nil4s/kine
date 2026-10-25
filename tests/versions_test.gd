@@ -139,4 +139,5 @@ func _init() -> void:
 	var left := FileAccess.file_exists(v1) or FileAccess.file_exists(FILE) or DirAccess.open("res://scenes/_versions/_wip/zz_ver") != null
 	ok(not left, "6 everything it wrote removed (%s)" % left)
 	print("VERSIONS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

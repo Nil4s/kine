@@ -137,6 +137,7 @@ func _init() -> void:
 	ok(ui.rows.size() >= 1, "(4) %d contacts judged on the still fighter 2" % ui.rows.size())
 	if ui.rows.is_empty():
 		print("I33 REACTION DIRECTION FAIL (no contact)")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var r0: Dictionary = ui.rows[0]
@@ -234,4 +235,5 @@ func _init() -> void:
 	ok(cards_json() == before and m.undo.size() == u0, "(4) Ctrl+Z: every fighter's cards exact")
 
 	print("I33 REACTION DIRECTION %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -82,4 +82,5 @@ func _init() -> void:
 		ok(same, "(b) rs_best gain %+.2f equals RealismUI.biggest_gain() called directly: %s" % [shown, str(direct.get("gain", "none"))])
 
 	print("realism_lazy: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

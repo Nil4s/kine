@@ -220,4 +220,5 @@ func _init() -> void:
 	var b := VideoImport.solve(B, fr, "", 30.0)
 	ok(a.size() == b.size() and (a[0]["ang"]["thigh_l"] as Vector3).is_equal_approx(b[0]["ang"]["thigh_l"]), "6 a clip with hands is the old path")
 	print("RETARGET TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

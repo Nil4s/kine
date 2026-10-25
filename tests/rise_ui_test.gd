@@ -92,4 +92,5 @@ func _init() -> void:
 	await idle(2)
 	ok(m.S.cards.size() == a2 and m.S.natural == nat0 and m.S.on_floor == fl0, "  Ctrl+Z: %d cards, natural and on_floor back (%s, %s)" % [m.S.cards.size(), m.S.natural, m.S.on_floor])
 	print("RESULT %s (%d fail)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

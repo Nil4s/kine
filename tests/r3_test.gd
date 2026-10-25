@@ -218,4 +218,5 @@ func _init() -> void:
 	m.clean = false
 	m._sides_apply()
 	print("r3: %d FAILS" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

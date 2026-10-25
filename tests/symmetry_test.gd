@@ -167,4 +167,5 @@ func _init() -> void:
 	ok(not m.symmetry and moved(r[1], ["upperarm_r"]) and not moved(r[1], ["upperarm_l", "lowerarm_l", "hand_l"]), "8 clicked off: a drag of the right upper arm moves the right one only")
 	print("     %d frames checked, the worst twin mismatch %.6f" % [frames, worst])
 	print("SYMMETRY: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

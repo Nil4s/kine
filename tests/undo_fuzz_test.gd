@@ -125,4 +125,5 @@ func _init() -> void:
 	for s in SEEDS:
 		await run(s, pool)
 	print("UNDO FUZZ %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

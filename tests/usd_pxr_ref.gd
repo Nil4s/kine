@@ -50,4 +50,5 @@ func _init() -> void:
 	f.store_string(JSON.stringify({"n": n, "fps": fps, "joints": Body.ORDER, "configs": cfgs}))
 	f.close()
 	print("REF written n=%d configs=%s" % [n, cfgs.keys()])
+	TestFiles.cleanup()
 	quit(0)

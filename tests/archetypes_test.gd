@@ -128,4 +128,5 @@ func _init() -> void:
 	out.save_png(OUT)
 	print("     screenshot: %s (%dx%d): flyweight, heavyweight, sumo, gymnast, one camera" % [OUT, out.get_width(), out.get_height()])
 	print("ARCHETYPES %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

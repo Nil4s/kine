@@ -145,4 +145,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
 	print("pxr / usdcat: NOT INSTALLED here (python -c 'import pxr' fails; where usdcat finds nothing), so no external validation")
 	print("USD EXPORT TEST %s %d" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

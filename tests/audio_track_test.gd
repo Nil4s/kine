@@ -279,4 +279,5 @@ func _init() -> void:
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(WAV))
 	print("AUDIO TRACK TEST %s   (worst set-time gap %.2f ms; bar 5.0 ms)" % ["PASS" if fails == 0 else "FAIL %d" % fails, worst * 1000.0])
+	TestFiles.cleanup()
 	quit(fails)

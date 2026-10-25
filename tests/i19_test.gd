@@ -344,4 +344,5 @@ func _init() -> void:
 	ok(not fu.on, "(6) Accept puts the ghosts away")
 
 	print("I19 FIGHT RHYTHM %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

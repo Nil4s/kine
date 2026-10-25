@@ -84,4 +84,5 @@ func _init() -> void:
 	var c := measure("control walk_bat", base)
 	ok(int(c["swing_frames"]) > 100, "control: walk_bat has %d foot-frames in swing (bar > 100)" % int(c["swing_frames"]))
 	print("RESULT toes_walk fails=%d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

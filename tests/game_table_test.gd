@@ -158,6 +158,7 @@ func _init() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH + "/" + f))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	print("GAME TABLE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

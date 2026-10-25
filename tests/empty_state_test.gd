@@ -74,4 +74,5 @@ func _init() -> void:
 	await state("big view, empty", true)
 	m._big_view()
 	print("EMPTY STATE %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

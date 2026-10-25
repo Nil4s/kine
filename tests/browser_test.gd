@@ -108,4 +108,5 @@ func _init() -> void:
 	await click_row(br.rows["bat_handle"])
 	ok(m.sel == "bat_handle", "click it: the weapon handle selected (%s)" % m.sel)
 	print("BROWSER %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -99,4 +99,5 @@ func _init() -> void:
 		await idle(2)
 	ok(absf(m.playhead - 0.25 * T) < 0.02, "4 a press still scrubs: the playhead at %.2f s (a quarter of %.2f)" % [m.playhead, T])
 	print("GRAPH READ: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

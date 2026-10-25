@@ -195,4 +195,5 @@ func _init() -> void:
 	ok(find("Target dummy").get_text(0).contains(m.ui_dummy.text.get_slice("\n", 0).left(10)), "  the row reads the dummy: '%s'" % find("Target dummy").get_text(0))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("BROWSER TREE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

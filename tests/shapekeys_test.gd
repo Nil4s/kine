@@ -202,4 +202,5 @@ func _init() -> void:
 	ok(is_equal_approx(v6, 0.6) and ui.mesh.verts == edited and float(KMeshShapes.keys(ui.mesh)[0]["value"]) == 1.0, "6c undo: 0.6, then back to 1.0 and the edited cube")
 	ui.stop()
 	print("SHAPEKEYS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

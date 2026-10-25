@@ -175,4 +175,5 @@ func _init() -> void:
 	ok(var_to_str(C.part_keys) == var_to_str(S.part_keys) and not is_same(C.part_keys, S.part_keys), "clone() carries the part keys (a copy)")
 
 	print("PART KEYS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

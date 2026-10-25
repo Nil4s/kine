@@ -135,4 +135,5 @@ func _init() -> void:
 	# the file is the test's own; the real user://macros.json is never written
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.macros_file))
 	print("MACROS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -214,4 +214,5 @@ func _run() -> void:
 		near8 = minf(near8, Vector2((q as Vector3).x - m.B.offset.x, (q as Vector3).z - m.B.offset.z).length())
 	ok(up_l > 0.08 and up_r > 0.08 and near8 <= 0.15 and ui.marks.size() > 8, "8 run mid-flight on the bend: balls %.2f / %.2f m up (both off the floor), hips %.3f m from the path, %d footprints drawn" % [up_l, up_r, near8, ui.marks.size()])
 	print("PATH WALK UI TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

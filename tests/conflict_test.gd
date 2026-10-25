@@ -240,4 +240,5 @@ func _init() -> void:
 		"6 bad params are -32602: '%s' / '%s' / '%s'" % [e1.get("error", {}).get("message", ""), e2.get("error", {}).get("message", ""), e3.get("error", {}).get("message", "")])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	print("CONFLICT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

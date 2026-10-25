@@ -150,4 +150,5 @@ func _init() -> void:
 	m.get_viewport().get_texture().get_image().save_png(shot)
 	print("     screenshot: ", shot)
 	print("KEYTRANS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

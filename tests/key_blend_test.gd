@@ -177,4 +177,5 @@ func _init() -> void:
 	ok(bottoms.max() <= CurveEditor.PAD_T and lefts_ok, "the header controls end at %s px (bar <= the 22 px header: none covers the plot) and do not overlap" % [bottoms])
 	m.queue_free()
 	print("KEY BLEND TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

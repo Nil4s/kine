@@ -319,4 +319,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	ok(not DirAccess.dir_exists_absolute(dir), "the zz_ scratch folder is gone")
 	print("failures: %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

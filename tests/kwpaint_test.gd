@@ -484,4 +484,5 @@ func _init() -> void:
 	brush_part()
 	await app_part()
 	print("KWPAINT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

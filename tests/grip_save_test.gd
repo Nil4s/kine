@@ -43,6 +43,7 @@ func _init() -> void:
 	B.capture_second()
 	if B.grip2.is_empty():
 		ok(false, "setup: the second hand is not on the staff (reach miss %.0f mm)" % (miss0 * 1000))
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var g: Dictionary = B.grip2.duplicate(true)
@@ -117,6 +118,7 @@ func _init() -> void:
 	ok(ratio <= FRAME_RATIO, "4 playback with the saved grip: %.2f x one whole-body penetration() a frame (bar %.0f, load-proof; idle that is under 5 ms); %.2f ms a frame here" % [ratio, FRAME_RATIO, ms])
 	m.queue_free()
 	print("GRIP SAVE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

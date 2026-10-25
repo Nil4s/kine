@@ -317,6 +317,7 @@ func _init() -> void:
 	for b in ["_a", "_b", "_c", "_d", "_e", "_f", "_g"]:
 		_rm(ProjectSettings.globalize_path(base + b))
 	print("PLAYBLAST EXPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

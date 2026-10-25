@@ -148,6 +148,7 @@ func _init() -> void:
 		if not got or f == null:   # nothing to measure: say so and stop (a test that hangs reports nothing)
 			ok(false, "the ring: no control has focus to measure (the walk to b_trail found it: %s)" % got)
 			print("KEYBOARD: %d failed" % fails)
+			TestFiles.cleanup()
 			quit(1)
 			return
 		var r := f.get_global_rect()
@@ -175,4 +176,5 @@ func _init() -> void:
 	await key(KEY_SPACE)
 	ok(m.playing != pl, "  Space plays again (%s -> %s)" % [pl, m.playing])
 	print("KEYBOARD: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

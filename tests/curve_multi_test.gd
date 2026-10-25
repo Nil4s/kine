@@ -196,4 +196,5 @@ func _init() -> void:
 		"6 Alt+drag: 75 px left -> times %.4f / %.4f (want %.4f / %.4f, about the playhead); 75 px up -> bends %.2f / %.2f (want 35 / 80, about the mean 50); undo steps %d (bar 2)" % [ks()[1]["t"], ks()[3]["t"], want1, want3, b1, b2, m.undo.size() - u1])
 	m.queue_free()
 	print("CURVE MULTI TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

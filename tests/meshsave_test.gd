@@ -233,4 +233,5 @@ func _init() -> void:
 	# leave the folder as it was found: this test's own file
 	DirAccess.remove_absolute(saved_path())
 	print("meshsave: %d FAIL" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

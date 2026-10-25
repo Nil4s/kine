@@ -105,4 +105,5 @@ func _init() -> void:
 	ok(d[0] < 1e-4 and e[0] == 0.0, "part paste: the arm is card 3's (worst %.6f deg), every other joint untouched (%.6f)" % [d[0], e[0]])
 	ok(m.B.offset.is_equal_approx(off_before), "  the hips stay where they were")
 	print("PASTE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

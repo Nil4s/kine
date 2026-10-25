@@ -134,4 +134,5 @@ func _init() -> void:
 	ok(bad_sev == 0, "3b every note is a NOTE, none MUST FIX (%d notes over %d scenes)" % [total, scenes_run])
 
 	print("STUNT LOAD TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

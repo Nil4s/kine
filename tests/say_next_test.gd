@@ -73,4 +73,5 @@ func _init() -> void:
 	ok(exits.size() > 15 and done.size() >= DONE.size(), "the scan finds the exits (%d) and every listed success" % exits.size())
 	ok(bad.is_empty(), "every refusal / failure names what to do next (%d without)" % bad.size())
 	print("SAY NEXT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

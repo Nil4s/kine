@@ -291,4 +291,5 @@ func _init() -> void:
 
 	m.blk.set_on(false, false)
 	print("PIVOT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

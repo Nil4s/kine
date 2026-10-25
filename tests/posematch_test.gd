@@ -241,4 +241,5 @@ func _init() -> void:
 	ok(FileAccess.get_md5("res://" + SRC) == md_walk and FileAccess.get_md5("res://moves/bo_guard.json") == md_bo,
 		"7 scenes/walk_bat.json and moves/bo_guard.json unchanged (md5)")
 	print("POSEMATCH TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -136,4 +136,5 @@ func _init() -> void:
 	ok(steps.size() == 2 and steps[0]["ok"] and steps[0]["cards_changed"] and steps[0]["undo_steps"] == 1 and not steps[1]["ok"] and "not be after" in String(steps[1].get("error", "")),
 		"8 the CLI: retime=3-6:150 ran (cards changed, 1 undo step); retime=6-3:150 refused: '%s'" % (String(steps[1].get("error", "")) if steps.size() > 1 else "no output"))
 	print("RETIME: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

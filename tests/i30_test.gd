@@ -175,4 +175,5 @@ func _init() -> void:
 	ok(cj(m.S) == before, "(6) Ctrl+Z restores the cards byte for byte")
 
 	print("RESULT i30: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

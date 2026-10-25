@@ -189,6 +189,7 @@ func _init() -> void:
 		"1 dropped: %d plane, node under the view %s, hash %s, panel %s" % [l.size(), node() != null and node().get_parent() == ui.view, String(l[0]["hash"]).left(12) if l.size() > 0 else "-", rp.panel.visible])
 	if l.size() != 1:
 		print("REFPLANES: cannot go on")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var e: Dictionary = l[0]
@@ -380,4 +381,5 @@ func _init() -> void:
 	await idle(3)
 	ok(not rp.panel.visible, "10c leaving the preview hides the panel")
 	print("REFPLANES: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

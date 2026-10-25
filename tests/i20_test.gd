@@ -59,6 +59,7 @@ func _init() -> void:
 			break
 	ok(found, "FIXTURE: combo3 card %d lands on fighter 2 at %s" % [CI + 1, pos])
 	if not found:
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var dxf := xf_at(pos[0], pos[1])
@@ -76,6 +77,7 @@ func _init() -> void:
 	var f := Feint.make(AS, axf, DS, dxf, CI)
 	ok(bool(f["ok"]), "Feint.make ok (%s)" % String(f.get("why", "")))
 	if not bool(f["ok"]):
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var t0: float = f["t0"]
@@ -239,4 +241,5 @@ func _init() -> void:
 	m._undo()
 	ok(before == JSON.stringify([m.actors_rt[0]["S"].cards, m.actors_rt[1]["S"].cards]) and m.undo.size() == n0, "8 ACCEPT: Ctrl+Z restores both fighters' cards exactly and the undo list")
 	print("fails: ", fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

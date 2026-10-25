@@ -143,4 +143,5 @@ func _init() -> void:
 				ok(not r["ok"] and r["layers"].is_empty() and String(r["msg"]).contains("timing"), "4 a %s fix on %s card %d is refused: %s" % [f["rule"], path.get_file(), f["card"] + 1, r["msg"]])
 	ok(done and timing_done, "a HEAD QUIET layer case and a timing case were both found in the real scenes (%s, %s)" % [done, timing_done])
 	print("LAYER FIX TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -78,4 +78,5 @@ func _init() -> void:
 	ok(bad_out.is_empty(), "%d escapes made safe: nothing leaves scenes/, no device names, no leading dot, at most 100 characters (bad: %s)" % [cases.size(), bad_out])
 	print("     e.g. '../escape' -> '%s', '..' -> '%s' (empty = a dated name), 'CON' -> '%s', '_wip/../x' -> '%s'" % [m.safe_file("../escape"), m.safe_file(".."), m.safe_file("CON"), m.safe_file("_wip/../x")])
 	print("NAMES DISK: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

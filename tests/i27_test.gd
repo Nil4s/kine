@@ -214,4 +214,5 @@ func _init() -> void:
 	await idle(2)
 	ok(js(m.S) == before, "6 Ctrl+Z restores the scene JSON exactly (props and IK)")
 	print("i27: %s" % ("PASS" if fails == 0 else "%d FAILED" % fails))
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

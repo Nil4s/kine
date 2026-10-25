@@ -152,4 +152,5 @@ func _init() -> void:
 	ok(ring.visible and String(ring.items[2]["name"]).begins_with("Mirror"), "on the middle back the 3rd wedge is '%s'" % String(ring.items[2]["name"]).replace("\n", " "))
 	ring.close()
 	print("RING %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

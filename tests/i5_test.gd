@@ -224,4 +224,5 @@ func _init() -> void:
 	var rs := SayIt.apply(B3, "salute")
 	ok(String(rs["start"]).contains("salute") and rs["items"][0]["status"] == "placed", "7 salute starts from the saved pose: %s" % rs["lines"][0])
 	print("I5 TEST %s" % ["PASS" if fails == 0 else "FAIL %d" % fails])
+	TestFiles.cleanup()
 	quit(fails)

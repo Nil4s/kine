@@ -181,4 +181,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(bp))
 	ok(t_with < t_without * 1.10, "(5) %d verts: save %.0f ms -> %.0f ms with 1 float/vert (+%.1f%%, bar 10)" % [big.vert_count(), t_without, t_with, (t_with / t_without - 1.0) * 100.0])
 	print("KMESH ATTRS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

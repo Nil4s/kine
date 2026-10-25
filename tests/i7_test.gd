@@ -237,4 +237,5 @@ func _init() -> void:
 	await idle()
 	ok(JSON.stringify(m._hero_scene().to_dict(m.B, false)) == before, "(7) undo of Keep all: the scene JSON is exact again")
 	print("I7 AUTO CAMERA %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

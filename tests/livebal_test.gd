@@ -355,4 +355,5 @@ func _init() -> void:
 	m._undo()
 	m.smart_drag = false
 	print("N066 livebal: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

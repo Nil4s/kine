@@ -132,4 +132,5 @@ func _init() -> void:
 	print("MIRROR: left ankle %.3f toe %.3f | right ankle %.3f toe %.3f" % [da["ankle"], da["toe"], dm["ankle"], dm["toe"]])
 	ok(absf(float(da["ankle"]) - float(dm["ankle"])) < 0.01 and absf(float(da["toe"]) - float(dm["toe"])) < 0.01, "left and right roll the same")
 	print("FOOT ROLL TEST %s %d (ok %d)" % ["PASS" if fails == 0 else "FAIL", fails, nok])
+	TestFiles.cleanup()
 	quit(fails)

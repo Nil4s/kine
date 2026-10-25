@@ -610,6 +610,7 @@ func _init() -> void:
 	await key(KEY_H, false, true)
 	ok(not an.on and (an.layer == null or not an.layer.visible) and not an.legend.visible, "bar 9: Alt+H again: layer and legend hidden")
 	print("ANATOMY ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

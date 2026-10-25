@@ -243,4 +243,5 @@ func _init() -> void:
 	ok(not ed.visible, "7: Shift+U again closes the panel")
 
 	print("RESULT: ", "FAIL (%d)" % fails if fails > 0 else "PASS")
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

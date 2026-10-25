@@ -216,4 +216,5 @@ func _init() -> void:
 	ok(cd >= 3.0 and cl >= 3.0, "10 the slider track (text:0.45) against the panel: dark %.2f, light %.2f (bar 3.0)" % [cd, cl])
 
 	print("CUSTOMATTR %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

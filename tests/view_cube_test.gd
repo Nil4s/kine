@@ -105,4 +105,5 @@ func _init() -> void:
 	ok(r0.end.x <= w - m.RIGHT_W and absf(r1.end.x - (w - 10.0)) < 1.0, "beside the right panel (right edge %.0f), in big view in the corner (%.0f of %.0f)" % [r0.end.x, r1.end.x, w])
 	m._big_view()
 	print("VIEW CUBE %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

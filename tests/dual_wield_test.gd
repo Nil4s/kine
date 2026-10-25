@@ -171,4 +171,5 @@ func _init() -> void:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	print("DUAL WIELD: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

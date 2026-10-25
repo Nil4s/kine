@@ -13,4 +13,5 @@ func _init() -> void:
 	var passed := last.begins_with("AGENT E2E PASS") and code == 0
 	print(("ok   " if passed else "FAIL ") + "the agent built the fight: %s (exit %d)" % [last, code])
 	print("AGENT TEST %s" % ("PASS" if passed else "FAIL 1"))
+	TestFiles.cleanup()
 	quit(0 if passed else 1)

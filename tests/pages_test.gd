@@ -170,4 +170,5 @@ func _init() -> void:
 	ok(m.undo.size() == undo0 and scene1 == scene0, "7 no undo step (%d -> %d) and the scene is byte-identical (%d bytes)" % [undo0, m.undo.size(), scene1.length()])
 	ok(worst < 50.0, "7 a page switch takes %.1f ms at worst of 20 (bar 50)" % worst)
 	print("PAGES %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -302,4 +302,5 @@ func _init() -> void:
 		same2 = same2 and after_files.get(k, "") == before_files[k]
 	ok(same2, "(7) %d files under scenes/, poses/, data/ hash the same before and after" % before_files.size())
 	print("I25 BREAKFALL %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

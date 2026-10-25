@@ -98,4 +98,5 @@ func _init() -> void:
 	m._undo()
 	ok(cards_json(m) == t0, "undo after opening thrust leaves thrust's cards alone")
 	print("FIX WINDOW %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

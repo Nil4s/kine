@@ -130,4 +130,5 @@ func _init() -> void:
 		"6 the model row remembered in the test's own settings file (%s), the key not in it" % m.settings.get_file())
 	m.queue_free()
 	print("AI BOX TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

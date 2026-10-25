@@ -29,4 +29,5 @@ func _init() -> void:
 			out.store_line(line)
 	out.close()
 	print("dumped %d scenes" % files.size())
+	TestFiles.cleanup()
 	quit()

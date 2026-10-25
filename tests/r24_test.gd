@@ -160,4 +160,5 @@ func _init() -> void:
 			diff.append(k)
 	ok(diff.is_empty() and h0.size() == h1.size(), "5 data/, scenes/, poses/ (%d files) byte-identical after the test; changed: %s" % [h0.size(), diff])
 	print("R24 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -294,6 +294,7 @@ func _init() -> void:
 	# ---- TYPED GRAMMAR (round 10): repeats, turns and filler in Easy's typed line (section 10 below)
 	fails += typed_bars(ed)
 	print("TEXT BLOCKING TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

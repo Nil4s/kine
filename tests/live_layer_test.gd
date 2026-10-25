@@ -257,4 +257,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(replay))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	print("LIVE LAYER ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

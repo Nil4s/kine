@@ -189,4 +189,5 @@ func _init() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR + "/" + f))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
 	print("MOCAP CLEAN TEST %s %d" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

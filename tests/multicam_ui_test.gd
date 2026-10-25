@@ -147,6 +147,7 @@ func _run() -> void:
 	img.save_png(OUT)
 	ok(FileAccess.file_exists(OUT), "5 the panel's picture saved: %s" % OUT)
 	print("multicam_ui: %s" % ("PASS" if fails == 0 else "%d FAILED" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

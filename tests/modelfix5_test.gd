@@ -88,6 +88,7 @@ func _init() -> void:
 	var kmed = m.kmed
 	if kmed == null or not kmed.on:
 		ok(false, "the test cube opened")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var f0: int = tris(kmed)
@@ -130,4 +131,5 @@ func _init() -> void:
 	m.ui_cmd.close()
 
 	print("fails: %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

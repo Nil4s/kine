@@ -75,4 +75,5 @@ func _init() -> void:
 	ok(grown and sel.faces.has(0) and sel.count() == 1 and q.face_count() == f_before,
 		"(6) extrude then Ctrl+Z: %d -> %d faces -> %d; the original face is still selected %s (one pick)" % [f_before, f_after, q.face_count(), sel.faces.has(0)])
 	print("KMESH UNDO ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

@@ -107,4 +107,5 @@ func _init() -> void:
 	ok(da["secs"] <= 2.5 * dn["secs"], "5 the import took %.1f s with the axe, %.1f s without (bar 2.5x)" % [da["secs"], dn["secs"]])
 	m.queue_free()
 	print("VIDEO GRIP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

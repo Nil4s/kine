@@ -3494,4 +3494,5 @@ func _init() -> void:
 	print("timings: " + str(times))
 	print("card ms (click -> first moving frame): " + ", ".join(fast_ms))
 	print("EASYHOME TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

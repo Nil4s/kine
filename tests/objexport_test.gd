@@ -135,4 +135,5 @@ func _init() -> void:
 	clean(DIR + "/old")
 	clean(DIR)
 	print("objexport: %d FAIL" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

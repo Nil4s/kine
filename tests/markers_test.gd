@@ -158,4 +158,5 @@ func _init() -> void:
 	ok(JSON.stringify(J2) == JSON.stringify(J3), "27 minus 'events' the export is the one without markers, byte for byte")
 
 	print("MARKERS TEST %s %d  (%d ok)" % ["PASS" if fails == 0 else "FAIL", fails, n_ok])
+	TestFiles.cleanup()
 	quit(fails)

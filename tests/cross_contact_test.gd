@@ -211,4 +211,5 @@ func _init() -> void:
 	print("     (info) close mean %.3f ms, bar not set" % mean_close)
 
 	print("cross_contact: %d failure(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

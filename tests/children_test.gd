@@ -60,6 +60,7 @@ func _init() -> void:
 	var ff := PlayblastExport.find_ffmpeg()
 	if ff == "":
 		print("skip 2 Save video: ffmpeg not found (install it, or set POSER_FFMPEG to ffmpeg.exe); nothing to check")
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	m = (load("res://main.tscn") as PackedScene).instantiate()
@@ -94,4 +95,5 @@ func _init() -> void:
 		ok(gone_within(fp, 2.0), "2 freeing the app ends ffmpeg (pid %d) within 2 s" % fp)
 	ok(Children.running().is_empty(), "2 the registry is empty after the exit")
 	PlayblastExport.rm_tree(ProjectSettings.globalize_path(dir))   # the partial folder of the cut save
+	TestFiles.cleanup()
 	quit(fails)
