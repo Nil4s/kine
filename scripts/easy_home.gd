@@ -106,6 +106,9 @@ var _row_key := ""            # the ids the row shows now: the row is redrawn on
 var _scrub_row: HBoxContainer # THE SCRUB (strip's last row): the slider over the clip's length, and its time beside it
 var _scrub: HSlider           # eh_scrub: dragging it stops play and poses the body at that time (as the timeline's scrub does)
 var _scrub_time: Label       # eh_scrub_time: "1.2 s / 4.0 s"
+var _scrub_ticks: Control    # eh_scrub_ticks: a child of the slider; a tick at each strike card's contact (drawn inside the slider's rect)
+var _tick_key: Array = []    # [scene, its times() array, marker count] the ticks were built for
+var _tick_list: Array = []   # [{"t": contact time s, "label": "Punch lands", "card": index}], rebuilt with the scrub
 var _scrub_sync := false      # true while _process moves the slider to the playhead (that move is not a drag)
 var _help_on := false          # the panel shows the help text in place of the picture cards (Help, or the strip's Help)
 var _help_lbl: Label
@@ -340,6 +343,15 @@ func build(root: Control) -> void:
 	_scrub.add_theme_stylebox_override("grabber_area_highlight", fill)
 	_scrub.value_changed.connect(_scrub_moved)
 	_scrub_row.add_child(_scrub)
+	_scrub_ticks = Control.new()   # THE HIT MARKS (beginner round 8, friction 7): the contact of each punch or kick, on the slider
+	_scrub_ticks.name = "eh_scrub_ticks"
+	_scrub_ticks.mouse_filter = Control.MOUSE_FILTER_PASS   # a click off a tick goes on to the slider (a drag)
+	_scrub_ticks.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_scrub_ticks.tooltip_text = _scrub.tooltip_text
+	_scrub_ticks.draw.connect(_scrub_ticks_draw)
+	_scrub_ticks.gui_input.connect(_scrub_ticks_input)
+	_scrub.add_child(_scrub_ticks)
+	_scrub.resized.connect(_scrub_ticks.queue_redraw)
 	_scrub_time = _label("0.0 s / 0.0 s", 20, "text")
 	_scrub_time.name = "eh_scrub_time"
 	_scrub_time.custom_minimum_size.x = 170
@@ -794,6 +806,73 @@ func _scrub_show() -> void:
 	_scrub.value = t
 	_scrub_sync = false
 	_scrub_time.text = "%.1f s / %.1f s" % [t, len]
+	_scrub_ticks_build()
+
+
+## THE HIT MARKS: each strike card's contact time (its "hit" marker, else the card's arrival: BeatFight.contacts) is a tick
+## on the slider. Rebuilt with the scrub, so a changed clip moves its ticks.
+func _scrub_ticks_build() -> void:
+	var S: Scene = m.S
+	var ts: Array = S.times()
+	# _scrub_show runs every frame: rebuild only when the clip changed (times() hands back the same memo array until a card's
+	# pose or timing changes) or its markers did
+	var key := [S, ts, S.markers.size()]
+	if not _tick_key.is_empty() and is_same(_tick_key[0], key[0]) and is_same(_tick_key[1], key[1]) and _tick_key[2] == key[2]:
+		return
+	_tick_key = key
+	_tick_list.clear()
+	for i in BeatFight.contacts(S):
+		var t: float = float(ts[i][1])
+		for mk in S.markers:
+			if String(mk["kind"]) == "hit" and float(mk["t"]) >= float(ts[i][0]) - 0.001 and float(mk["t"]) <= float(ts[i][2]) + 0.001:
+				t = float(mk["t"])
+				break
+		var word := String(S.cards[i].get("from", "")).split("|")[0]   # the move's tag: "punch|<serial>", "kick" (the Kick card)
+		var nm := "Kick" if word in ["kick", "roundhouse"] else ("Hit" if word == "" else word.capitalize())
+		_tick_list.append({"t": t, "label": "%s lands" % nm, "card": i})
+	_scrub_ticks.queue_redraw()
+
+
+## the slider's x for a time (the grabber's centre runs from half a grabber in from each end)
+func _scrub_tick_x(t: float) -> float:
+	var gw := 16.0
+	var ic := _scrub.get_theme_icon("grabber")
+	if ic != null:
+		gw = float(ic.get_width())
+	var span := _scrub.max_value - _scrub.min_value
+	var f := 0.0 if span <= 0.0 else clampf((t - _scrub.min_value) / span, 0.0, 1.0)
+	return gw * 0.5 + f * maxf(_scrub.size.x - gw, 0.0)
+
+
+func _scrub_ticks_draw() -> void:
+	var col := Tok.c("text")
+	for tk in _tick_list:
+		var x := _scrub_tick_x(float(tk["t"]))
+		_scrub_ticks.draw_line(Vector2(x, 0.0), Vector2(x, 12.0), col, 2.0)
+		_scrub_ticks.draw_colored_polygon(PackedVector2Array([Vector2(x - 4.0, 0.0), Vector2(x + 4.0, 0.0), Vector2(x, 6.0)]), col)
+
+
+## the tick under x (within 7 px), or -1
+func _scrub_tick_at(x: float) -> int:
+	for k in _tick_list.size():
+		if absf(_scrub_tick_x(float(_tick_list[k]["t"])) - x) <= 7.0:
+			return k
+	return -1
+
+
+## a click on a tick puts the playhead there and poses the body (the drag's own path: _scrub_moved); elsewhere the slider takes it
+func _scrub_ticks_input(ev: InputEvent) -> void:
+	if ev is InputEventMouseMotion:
+		var h := _scrub_tick_at(ev.position.x)
+		_scrub_ticks.tooltip_text = ("%s at %.1f s: click to go there" % [_tick_list[h]["label"], float(_tick_list[h]["t"])]) if h >= 0 else _scrub.tooltip_text
+		return
+	if not (ev is InputEventMouseButton) or not ev.pressed or ev.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var k := _scrub_tick_at(ev.position.x)
+	if k < 0:
+		return
+	_scrub_ticks.accept_event()
+	_scrub_moved(float(_tick_list[k]["t"]))
 
 
 ## the slider moved by a drag: the clip stops and the body poses at that time (the timeline's scrub, in the same order)
