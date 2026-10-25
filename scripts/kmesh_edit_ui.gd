@@ -241,6 +241,15 @@ func _process(_dt: float) -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	# B (walk-through 5): while the name box holds the keyboard (F2), its typing is its own (the letters are not tool keys);
+	# Esc gives the keys back to the view and is used up there, so the cube stays open and F3 opens the search again
+	if ev is InputEventKey and ev.pressed and not ev.echo and m.ui_scene_name != null and m.get_viewport().gui_get_focus_owner() == m.ui_scene_name:
+		var kn := ev as InputEventKey
+		if kn.keycode == KEY_ESCAPE:
+			m.ui_scene_name.release_focus()
+			return true
+		if kn.keycode != KEY_F3 and kn.unicode > 0 and not kn.ctrl_pressed:
+			return false
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed:
 		_release_text_focus()   # a click on the view leaves a text box (the library search, the S box): Ctrl+Z goes to the mesh again
 	if KMeshDragOp.handle(self, ev):   # E / I live drag: the mouse sets the distance, click / Enter confirms, Esc cancels (scripts/kmesh_drag_op.gd)
@@ -263,6 +272,11 @@ func input(ev: InputEvent) -> bool:
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if k == KEY_F2 and not (ev as InputEventKey).is_command_or_control_pressed() and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed and m.ui_scene_name != null:
+			# B (walk-through 5): F2 (rename) puts the caret in the name box, its text selected; Enter or Esc gives the view back
+			m.ui_scene_name.grab_focus()
+			m.ui_scene_name.select_all()
+			return true
 		if k == KEY_F3 and not (ev as InputEventKey).is_command_or_control_pressed() and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed:
 			# the S box (command search) from here: S is Scale in this mode (Blender), so the box cannot open on S (Blender's F3 = menu search)
 			m.ui_cmd.open()

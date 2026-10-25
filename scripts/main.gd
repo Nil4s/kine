@@ -12306,7 +12306,7 @@ func _ui() -> void:
 	ui_scene_name.placeholder_text = "scene name"
 	ui_scene_name.custom_minimum_size = Vector2(200, 0)
 	ui_scene_name.tooltip_text = "the scene's name: type here, Enter saves it under that name"
-	ui_scene_name.text_submitted.connect(func(_t): _step_hint = "Save scene"; _save_scene())   # Enter saves (V3: one action less)
+	ui_scene_name.text_submitted.connect(func(_t): _step_hint = "Save scene"; _save_scene(); ui_scene_name.release_focus())   # Enter saves (V3: one action less); the keys go back to the view (walk-through 5, F2)
 	bh.add_child(ui_scene_name)
 	# ONE Scene menu holds Save, Open, Versions, New, Template and Delete (the strip used to be eight text buttons)
 	ui_scene_btn = MenuButton.new()
