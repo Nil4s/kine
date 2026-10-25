@@ -198,6 +198,38 @@ func inside_view(n: Node3D) -> String:
 	return "bounds on screen %s, centre %s, view %s" % [str(rect), str(centre), str(vp)] if vp.has_point(centre) and vp.encloses(rect.intersection(vp)) and rect.intersects(vp) else "NOT on screen: bounds %s, view %s" % [str(rect), str(vp)]
 
 
+## the union of the prop's MeshInstance3D boxes in world space: [min, max] (empty when no mesh)
+func world_bounds(n: Node3D) -> Array:
+	var mn := Vector3(1e9, 1e9, 1e9)
+	var mx := Vector3(-1e9, -1e9, -1e9)
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var ab: AABB = (mi as MeshInstance3D).get_aabb()
+		var xf: Transform3D = (mi as MeshInstance3D).global_transform
+		for i in 8:
+			var c := ab.position + ab.size * Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1)
+			var w := xf * c
+			mn = Vector3(minf(mn.x, w.x), minf(mn.y, w.y), minf(mn.z, w.z))
+			mx = Vector3(maxf(mx.x, w.x), maxf(mx.y, w.y), maxf(mx.z, w.z))
+	return [mn, mx]
+
+
+## the whole screen rect of the prop's bounds is inside the viewport (every corner in front of the camera)
+func rect_inside_viewport(n: Node3D) -> bool:
+	var vp: Rect2 = m.nav_clear_rect()   # the 3D view not covered by panels (the bottom bar, the browser, the ribbon)
+	say("   nav clear rect %s" % str(vp))
+	var b := world_bounds(n)
+	var mn := Vector2(1e9, 1e9)
+	var mx := Vector2(-1e9, -1e9)
+	for i in 8:
+		var c: Vector3 = Vector3(b[0].x if i & 1 == 0 else b[1].x, b[0].y if (i >> 1) & 1 == 0 else b[1].y, b[0].z if (i >> 2) & 1 == 0 else b[1].z)
+		if m.cam.is_position_behind(c):
+			return false
+		var p: Vector2 = m.cam.unproject_position(c)
+		mn = Vector2(minf(mn.x, p.x), minf(mn.y, p.y))
+		mx = Vector2(maxf(mx.x, p.x), maxf(mx.y, p.y))
+	return vp.encloses(Rect2(mn, mx - mn))
+
+
 func shot_to(path: String) -> void:
 	await idle(3)
 	await RenderingServer.frame_post_draw
@@ -264,7 +296,20 @@ func _init() -> void:
 			pv = mesh_verts(node)
 			view_note = inside_view(node)
 	say("   props %d -> %d, kind '%s', page %s, prop verts %d, cube verts %d" % [n0, m.S.props.size(), kind, m.cur_page, pv, cube_verts])
+	var kmesh_size := Vector3.ZERO
+	var prop_size := Vector3.ZERO
+	var inside_all := false
+	if kmed != null and kmed.mesh != null:
+		kmesh_size = kmed.mesh.to_array_mesh().get_aabb().size
+	if node != null:
+		var wb := world_bounds(node)
+		prop_size = (wb[1] as Vector3) - (wb[0] as Vector3)
+		inside_all = rect_inside_viewport(node)
+	say("   kmesh AABB size %s m; prop world AABB size %s m; prop origin %s" % [str(kmesh_size), str(prop_size), str(node.global_position) if node != null else "-"])
 	await shot_to(SHOT)
+	var size_ok := kmesh_size.distance_to(prop_size) < 0.01 * sqrt(3.0) and absf(kmesh_size.x - prop_size.x) < 0.01 and absf(kmesh_size.y - prop_size.y) < 0.01 and absf(kmesh_size.z - prop_size.z) < 0.01
+	report("(e)", size_ok, "prop world AABB %s vs kmesh AABB %s (each axis within 1 cm: %s)" % [str(prop_size), str(kmesh_size), str(size_ok)])
+	report("(f)", inside_all, "whole screen rect of the prop inside the viewport at the default camera: %s" % str(inside_all))
 	var bar_a := a_click and on_pose and added and node != null and pv == cube_verts and pv > 0 and view_note.begins_with("bounds on screen")
 	report("(a)", bar_a, "click %s, back on POSE %s, prop %s (%d verts = the cube's %d), %s" % [str(a_click), str(on_pose), kind, pv, cube_verts, view_note])
 

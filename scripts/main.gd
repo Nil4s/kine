@@ -19531,11 +19531,11 @@ func _foot(p: Dictionary) -> Rect2:
 
 
 ## a prop of the set in front of the body, on the floor (or on what it lands over); picked; one undo step
-func _prop_add(kind: String) -> void:
+func _prop_add(kind: String, at := Vector3.INF) -> void:   # at: a spot on the floor (Use in scene puts a mesh beside the body); INF = the spot in front
 	if not Props.has_kind(kind):
 		return
 	_push_undo()
-	var p := Props.make(kind, Props.xf_at(_prop_spot(kind), 0.0))
+	var p := Props.make(kind, Props.xf_at(at if at != Vector3.INF else _prop_spot(kind), 0.0))
 	var xf: Transform3D = p["xf"]
 	xf.origin.y = Props.snap_y(p, S.props)
 	p["xf"] = xf
@@ -21876,7 +21876,8 @@ func _mesh_use_in_scene() -> void:
 	if kind == "":
 		_say("Model: NOT DONE: the mesh could not be written to the library (%s). Check that the folder is writable" % KMesh.last_error)
 		return
-	_prop_add(kind)   # one undo step: the prop goes in front of the body, on the floor
+	# beside the body, on the floor, one metre to his side (his left, the screen's right), not toward the camera
+	_prop_add(kind, Vector3(B.offset.x + 0.9, 0.0, B.offset.z - 0.4))   # one undo step; 90 cm to his side and 40 cm back: clear of the panels
 	_page_set("POSE")
 	_say("Model: %s is in the scene next to the body at its real size; Ctrl+Z takes it back" % kind.trim_prefix("my "))
 
