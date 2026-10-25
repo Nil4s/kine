@@ -24,6 +24,7 @@ var gain_ms := 0.0   # what the last predictions cost
 var jcache := {}     # I45: the newer judges' answers per scene revision (judge_suite.gd)
 var jlap := {}       # ms per newer judge, the last gather (0 = from the cache)
 var best := {}       # I45: {"item", "gain"}: the fix, of any judge, that adds the most points (biggest_gain)
+var found_key := ""  # the cards + saved lines the biggest-gain search was made for ("" = not searched): the panel shows best only for these
 
 
 func _init(main: Node) -> void:
@@ -158,7 +159,7 @@ func _score_with(changes: Array, tc_fix := {}) -> float:
 
 ## the points a reason's own fix would add, worked out on a copy: -1.0 = this reason has no fix that can be scored
 func gain_of(r: Dictionary) -> float:
-	var gk := key + "|" + var_to_str(m.S.asserts) + "|" + String(r["text"])   # N005: a saved line changes what a fix is worth
+	var gk := _gkey(r)
 	if gains.has(gk):
 		return gains[gk]
 	var fx: Dictionary = r["fix"]
@@ -179,6 +180,16 @@ func gain_of(r: Dictionary) -> float:
 				g = RealismScore.shown(_score_with(fz["changes"])) - RealismScore.shown(float(res["raw"]))
 	gains[gk] = g
 	return g
+
+
+## the cache key of one reason's predicted gain (N005: a saved line changes what a fix is worth)
+func _gkey(r: Dictionary) -> String:
+	return key + "|" + var_to_str(m.S.asserts) + "|" + String(r["text"])
+
+
+## the key the biggest-gain search is kept for: the cards and the saved lines
+func _find_key() -> String:
+	return key + "|" + var_to_str(m.S.asserts)
 
 
 ## I45: the fix, of ANY judge, that adds the most points: each of the MAX_CAND largest fixable reasons is tried on a copy (gain_of; the
@@ -235,7 +246,9 @@ func refresh() -> void:
 	if key != var_to_str(m.S.cards):
 		gains = {}
 	key = var_to_str(m.S.cards)
-	best = {}
+	if found_key != _find_key():
+		best = {}
+		found_key = ""
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
 	prof = FrameMemo.prof.duplicate()
 	m._doc_line(true)
@@ -255,16 +268,20 @@ func _panel() -> void:
 	head.add_child(title)
 	head.add_child(m._button("Close", m._close_findings))
 	var rs: Array = res["reasons"]
-	best = biggest_gain()
-	if not best.is_empty():
-		var bi: Dictionary = best["item"]
-		var bl: Label = m._label("BIGGEST GAIN  %s  +%.1f points\n%s" % [bi["judge"], float(best["gain"]), _short(String(bi["text"]))], 14, "heading", true)
-		bl.name = "rs_best_label"
-		bl.custom_minimum_size = Vector2(380, 0)
-		L.add_child(bl)
-		var bb: Button = m._button("Apply the biggest gain", fix.bind(bi), "the single fix that adds the most points, predicted on a copy of the clip; one undo step")
-		bb.name = "rs_best"
-		L.add_child(bb)
+	if found_key != "" and found_key == _find_key():
+		if not best.is_empty():
+			var bi: Dictionary = best["item"]
+			var bl: Label = m._label("BIGGEST GAIN  %s  +%.1f points\n%s" % [bi["judge"], float(best["gain"]), _short(String(bi["text"]))], 14, "heading", true)
+			bl.name = "rs_best_label"
+			bl.custom_minimum_size = Vector2(380, 0)
+			L.add_child(bl)
+			var bb: Button = m._button("Apply the biggest gain", fix.bind(bi), "the single fix that adds the most points, predicted on a copy of the clip; one undo step")
+			bb.name = "rs_best"
+			L.add_child(bb)
+	else:
+		var fb: Button = m._button("Find the biggest gain", find_biggest, "predicts each reason's fix on a copy of the clip (a few seconds each) and offers the one that adds the most points; nothing changes until you press its button")
+		fb.name = "rs_find"
+		L.add_child(fb)
 	if rs.is_empty():
 		L.add_child(m._label("Nothing flagged: every judge that ran is satisfied.", 14, "text:0.85", true))
 	for k in rs.size():
@@ -276,6 +293,7 @@ func _panel() -> void:
 		var fx: Dictionary = r["fix"]
 		var b: Button = null
 		var why_not := ""
+		var predict_btn := false   # a gain not worked out yet: the row gets a "Predict this fix" button, the gain is worked out when it is pressed
 		match String(fx["kind"]):
 			"check", "timing":
 				var lab := ""
@@ -284,24 +302,33 @@ func _panel() -> void:
 				else:
 					lab = "Fix: accept the timing coach's move time"
 				if lab != "":
-					var gn := gain_of(r)
-					if gn > 0.05:
-						b = m._button("%s   +%.1f points" % [lab, gn], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gn)
-					elif gn > -90.0:
-						why_not = "   its own fix would %s the score (%+.1f points): the judges disagree here, so it is not offered" % ["lower" if gn < -0.05 else "not change", gn]
+					if gains.has(_gkey(r)):
+						var gn := gain_of(r)
+						if gn > 0.05:
+							b = m._button("%s   +%.1f points" % [lab, gn], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gn)
+						elif gn > -90.0:
+							why_not = "   its own fix would %s the score (%+.1f points): the judges disagree here, so it is not offered" % ["lower" if gn < -0.05 else "not change", gn]
+					else:
+						b = _predict_button(r, k)
+						predict_btn = true
 			"judge":
 				var fzz := JudgeSuite.fix(m, r)
-				var gj := gain_of(r)
 				if fzz.is_empty():
 					why_not = "   no one-click fix from the %s judge here: change the pose or timing" % String(r["judge"]).to_lower()
-				elif gj > GAIN_MIN:
-					b = m._button("%s   +%.1f points" % [JudgeSuite.LABEL[r["judge"]], gj], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gj)
+				elif gains.has(_gkey(r)):
+					var gj := gain_of(r)
+					if gj > GAIN_MIN:
+						b = m._button("%s   +%.1f points" % [JudgeSuite.LABEL[r["judge"]], gj], fix.bind(r), "predicted on a copy of the clip: the score goes up by %.1f points; one undo step" % gj)
+					else:
+						why_not = "   its own fix would %s the score (%+.1f points): not offered" % ["lower" if gj < -GAIN_MIN else "not change", gj]
 				else:
-					why_not = "   its own fix would %s the score (%+.1f points): not offered" % ["lower" if gj < -GAIN_MIN else "not change", gj]
+					b = _predict_button(r, k)
+					predict_btn = true
 			"phys":
 				b = m._button("Accept span (Make it physical)", fix.bind(r), "replace the cards in that red span with the physical version; one undo step")
 		if b != null:
-			b.name = "rs_fix_%d" % (k + 1)
+			if not predict_btn:
+				b.name = "rs_fix_%d" % (k + 1)
 			L.add_child(b)
 		else:
 			L.add_child(m._label(why_not if why_not != "" else "   no one-click fix: change the pose or timing there", 12, "text:0.5", true))
@@ -360,3 +387,26 @@ func fix(r: Dictionary) -> void:
 	busy = false
 	refresh()
 	_panel()
+
+
+## the biggest gain, found on demand: each candidate's fix is predicted (a few seconds each), then the panel is drawn with the best one
+func find_biggest() -> void:
+	m._say("Working... (a few seconds per fix)")
+	await m.get_tree().process_frame
+	best = biggest_gain()
+	found_key = _find_key()
+	_panel()
+
+
+## a reason's gain, predicted on demand: then the panel is drawn again with its fix button or its why-not text
+func predict(r: Dictionary) -> void:
+	m._say("Working... (a few seconds per fix)")
+	await m.get_tree().process_frame
+	gain_of(r)
+	_panel()
+
+
+func _predict_button(r: Dictionary, k: int) -> Button:
+	var b: Button = m._button("Predict this fix", predict.bind(r), "predicts what this one fix adds to the score (a few seconds, on a copy of the clip); nothing changes")
+	b.name = "rs_predict_%d" % (k + 1)
+	return b

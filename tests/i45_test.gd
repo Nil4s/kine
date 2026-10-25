@@ -127,6 +127,10 @@ func _init() -> void:
 	rs.show()
 	await idle(4)
 	var tb := Time.get_ticks_usec()
+	m.ui_find_list.find_child("rs_find", true, false).pressed.emit()   # the panel predicts no gain until "Find the biggest gain" is pressed
+	var tw := Time.get_ticks_usec()
+	while m.ui_find_list.find_child("rs_best", true, false) == null and Time.get_ticks_usec() - tw < 300000000:
+		await process_frame
 	var bg: Dictionary = rs.best
 	ok(JSON.stringify(m.S.cards) == before, "(6) cards byte-identical after the predictions")
 	print("     biggest gain: ", "none" if bg.is_empty() else "%s +%.2f  %s" % [bg["item"]["judge"], bg["gain"], String(bg["item"]["text"]).left(100)])

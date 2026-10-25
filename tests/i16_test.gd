@@ -196,6 +196,12 @@ func _init() -> void:
 	await idle(4)
 	var offered := 0
 	for k in range(1, 4):
+		var pb = m.ui_find_list.find_child("rs_predict_%d" % k, true, false)   # the gain is predicted on demand: press "Predict this fix" first
+		if pb != null:
+			pb.pressed.emit()
+			var tp := Time.get_ticks_usec()
+			while m.ui_find_list.find_child("rs_predict_%d" % k, true, false) != null and Time.get_ticks_usec() - tp < 300000000:
+				await process_frame
 		var bt = m.ui_find_list.find_child("rs_fix_%d" % k, true, false)
 		if bt == null:
 			continue
