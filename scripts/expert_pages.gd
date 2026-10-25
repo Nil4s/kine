@@ -20,6 +20,14 @@ const BRUSHES := [["Draw", KEY_D], ["Inflate", KEY_I], ["Grab", KEY_G], ["Clay",
 	["Smooth", KEY_S], ["Flatten", KEY_F], ["Pinch", KEY_P], ["Snake", KEY_K]]
 
 
+## the Extrude / Inset buttons: opens the test cube if it is not open, then applies the op at once (KMeshEditUI.quick)
+static func _quick(m, kind: String) -> void:
+	if not MeshTools._model_on(m):
+		m._kmesh_edit_start()
+	if m.kmed != null and m.kmed.on:
+		m.kmed.quick(kind)
+
+
 ## adds the ribbon buttons of the three pages to main's ribbon rows (main.ui_ribbon[...]); called once, from main's _ui
 static func build(m: Node) -> void:
 	var by_id := {}
@@ -32,8 +40,8 @@ static func build(m: Node) -> void:
 	row.add_child(m._button("Test cube", m._kmesh_edit_start, "a 4 x 4 cube on the stage to model on (nothing is saved)"))
 	row.add_child(m._button("Body mesh", func(): BaseBody.start(m), "open the fighter's own skin as the mesh to edit (Model: edit the body mesh)"))
 	row.add_child(m._button("Apply body", func(): BaseBody.apply_cmd(m), "write the edited body back to the fighter, one undo step (Model: apply the body mesh to the fighter)"))
-	row.add_child(tool.call("mesh_extrude", "Extrude"))
-	row.add_child(tool.call("mesh_inset", "Inset"))
+	row.add_child(m._button("Extrude", _quick.bind(m, "extrude"), "lift the picked faces 10 cm along their normal, now (one undo step; E then a drag sizes it differently)"))
+	row.add_child(m._button("Inset", _quick.bind(m, "inset"), "inset the picked faces by 20 % of their size, now (one undo step; I then a drag sizes it differently)"))
 	row.add_child(tool.call("mesh_loopcut", "Loop cut"))
 	row.add_child(tool.call("mesh_knife", "Knife"))
 	row.add_child(tool.call("mesh_bevel", "Bevel"))
