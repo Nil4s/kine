@@ -3,18 +3,21 @@
 ## (a _wip folder there is the Drafts group); the quality cache is the test's own file. BARS (stated before the run):
 ##  a. the chips show, and the category chips' counts sum to the number of saved scenes (My scenes' tiles = res://scenes + res://moves
 ##     scene files, the examples not counted).
-##  b. a click on Fight shows only tiles whose SceneCat.category is Fight, and every such tile is shown; the planted kick copy is one
-##     of them; the SHIPPED punch/kick saved scenes are there too (the bar as written: at least one shipped Fight scene).
+##  b. (REWORDED in round 2: no shipped saved scene is punch or kick, so the bar plants a punch copy and a kick copy made from
+##     templates/punch.json and templates/roundhouse.json, saved to the test's own folder) a click on Fight shows only Fight tiles,
+##     both copies, and no Walk & run or Weapons tile.
 ##  c. quality: the planted broken copy's badge is "Weird"; scenes/walk_bat.json's is "Good" or "OK".
-##  d. the cache: closing and reopening the panel runs 0 Checks (SceneCat.checks_run counted) and every badge is ready at once.
-##  e. no frame over 100 ms while the badges fill (process frames measured from the My scenes click to the last badge).
+##  d. the cache: closing and reopening the panel starts no worker and runs 0 Checks in this process.
+##  e. no frame over 100 ms from the My scenes click until every badge is ready (the Checks run in a worker process).
 ##  f. Hide weird ones hides the broken copy (and shows it again when unticked); walk_bat stays shown.
 ##  g. a star survives closing and reopening the panel, is saved in the settings file, and a star click does not open the scene.
-##  h. Best first puts the Weird copy last among the saved scenes; Newest first puts it back at the top.
+##  h. Best first lists Good, then OK, then Weird; Newest first puts the saved scenes back in their own order.
+##  i. the worker's results (in the cache file) equal the in-process Check's for walk_bat and the broken copy (same FAIL and WARN).
 extends SceneTree
 
 const DIR := "user://scenecat_test"
 const BROKEN := "user://scenecat_test/scenecat_broken.json"
+const PUNCH := "user://scenecat_test/scenecat_punch.json"
 const KICK := "user://scenecat_test/scenecat_kick.json"
 const DRAFT := "user://scenecat_test/_wip/scenecat_draft.json"
 const WALK := "res://scenes/walk_bat.json"
@@ -111,11 +114,12 @@ func _init() -> void:
 			c["pose"]["joints"][j]["bend"] = 170.0
 	bd["asserts"] = ["left knee below 90 deg all clip"]
 	_write(BROKEN, JSON.stringify(bd))
-	var kd: Dictionary = JSON.parse_string(walk_txt)   # the kick copy: walk_bat's poses with fight names (its own card names must not say walk)
-	var kn := ["ready", "kick", "ready again", "kick back"]
-	for i in kd["cards"].size():
-		kd["cards"][i]["name"] = kn[i % kn.size()]
-	_write(KICK, JSON.stringify(kd))
+	# the punch and kick copies: the shipped templates (Templates.read), saved as scenes of the test's own
+	var pu: Dictionary = Templates.read("punch")
+	var ku: Dictionary = Templates.read("roundhouse")
+	ok(not pu.is_empty() and not ku.is_empty(), "precondition: Templates.read gives the punch and the kick")
+	_write(PUNCH, JSON.stringify(pu))
+	_write(KICK, JSON.stringify(ku))
 	_write(DRAFT, walk_txt)
 
 	m = (load("res://main.tscn") as PackedScene).instantiate()
@@ -135,18 +139,18 @@ func _init() -> void:
 	var worst := 0.0
 	var frames := 0
 	var pt: Vector2 = my.get_global_rect().get_center()
+	var started := Time.get_ticks_msec()
 	btn(true, pt)
 	await process_frame
 	btn(false, pt)
 	var last := Time.get_ticks_usec()
-	var guard := 0
-	while scenes.pending() > 0 and guard < 2000:
+	while scenes.pending() > 0 and Time.get_ticks_msec() - started < 120000:
 		await process_frame
 		var now := Time.get_ticks_usec()
 		worst = maxf(worst, (now - last) / 1000.0)
 		last = now
 		frames += 1
-		guard += 1
+	ok(EasyScenes.workers_started >= 1, "the worker process ran (%d started)" % EasyScenes.workers_started)
 	ok(scenes.visible, "My scenes opens the panel")
 	print("   badges filled in %d frames, the slowest frame %.0f ms" % [frames, worst])
 
@@ -167,22 +171,24 @@ func _init() -> void:
 	var wb := scenes.tile_badge(WALK)
 	ok(wb == "Good" or wb == "OK", "c: walk_bat.json is Good or OK (badge '%s')" % wb)
 
-	# b: the Fight chip
+	# b: the Fight chip (REWORDED in round 2: the shipped scenes have no punch or kick, so the bar plants one of each from the templates)
 	await click(scenes.chip("Fight"))
-	var all_match := true
+	var only_fight := true
 	var fight_shown := 0
-	var shipped_fight := 0
 	for p in scenes.tile_paths(false) + scenes.tile_paths(true):
-		var is_fight := scenes.tile_category(p) == "Fight"
-		if scenes.tile_shown(p) != is_fight:
-			all_match = false
-		if is_fight and scenes.tile_shown(p):
-			fight_shown += 1
-			if String(p).begins_with("res://"):
-				shipped_fight += 1
-	ok(all_match, "b: under Fight, exactly the Fight tiles are shown (%d)" % fight_shown)
-	ok(scenes.tile_shown(KICK), "b: the planted kick copy is under Fight")
-	ok(shipped_fight >= 1, "b: a SHIPPED punch/kick scene is under Fight (%d shipped)" % shipped_fight)
+		if scenes.tile_shown(p):
+			if scenes.tile_category(p) != "Fight":
+				only_fight = false
+			else:
+				fight_shown += 1
+	ok(only_fight and fight_shown >= 2, "b: under Fight only Fight tiles are shown (%d)" % fight_shown)
+	ok(scenes.tile_shown(PUNCH), "b: the planted punch copy (from templates/punch.json) is under Fight")
+	ok(scenes.tile_shown(KICK), "b: the planted kick copy (from templates/roundhouse.json) is under Fight")
+	var walk_or_weapon := 0
+	for p in scenes.tile_paths(false) + scenes.tile_paths(true):
+		if scenes.tile_shown(p) and (scenes.tile_category(p) == "Walk & run" or scenes.tile_category(p) == "Weapons"):
+			walk_or_weapon += 1
+	ok(walk_or_weapon == 0, "b: no Walk & run or Weapons tile is shown under Fight (%d)" % walk_or_weapon)
 	await click(scenes.chip("All"))
 
 	# f: hide weird
@@ -222,14 +228,22 @@ func _init() -> void:
 
 	# d: reopen: no Check runs
 	SceneCat.checks_run = 0
+	var started_workers := EasyScenes.workers_started
 	await click(my)
 	await idle(4)
-	ok(SceneCat.checks_run == 0, "d: reopening runs 0 Checks (ran %d)" % SceneCat.checks_run)
+	ok(SceneCat.checks_run == 0 and EasyScenes.workers_started == started_workers, "d: reopening runs 0 Checks and starts no worker (in-process %d, workers %d)" % [SceneCat.checks_run, EasyScenes.workers_started - started_workers])
 	ok(scenes.pending() == 0, "d: every badge is ready at once on reopen")
 	ok(scenes.tile_badge(BROKEN) == "Weird", "d: the broken copy is still Weird after reopen")
 	ok(scenes.tile_star(WALK).text == "★", "g: walk_bat's star survived the close and reopen")
 
-	ok(worst < 100.0, "e: no frame over 100 ms while the badges fill (slowest %.0f ms)" % worst)
+	ok(worst < 100.0, "e: no frame over 100 ms from the open until every badge is ready (slowest %.0f ms, %d frames)" % [worst, frames])
+	# i: the worker's results (in the cache file) equal the in-process Check's, for the shipped walk and the broken copy
+	var cached := SceneCat.load_cache()
+	for p in [WALK, BROKEN]:
+		var g := SceneCat.grade(p)
+		var e: Dictionary = cached.get(p, {})
+		var same: bool = int(e.get("fails", -1)) == g[0] and int(e.get("warns", -1)) == g[1]
+		ok(same, "i: the worker's result for %s equals the in-process Check (worker %s/%s, in-process %d FAIL %d WARN, badge %s)" % [p.get_file(), str(e.get("fails", "?")), str(e.get("warns", "?")), g[0], g[1], SceneCat.grade_of(g[0], g[1])])
 	var png := OS.get_environment("SCENECAT_PNG")
 	if png != "":   # the picture of the panel, at 1280x720: scenes_cat's own look (a test run with SCENECAT_PNG set)
 		await click(my)
@@ -248,5 +262,5 @@ func _write(p: String, txt: String) -> void:
 
 
 func _cleanup() -> void:
-	for p in [BROKEN, KICK, DRAFT, SceneCat.cache_path]:
+	for p in [BROKEN, PUNCH, KICK, DRAFT, SceneCat.cache_path, EasyScenes.LIST]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))

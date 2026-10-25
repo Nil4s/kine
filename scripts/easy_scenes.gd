@@ -39,9 +39,17 @@ var _order_dr: Array = []         # the drafts' paths, in the order shown
 var _base_mine: Array = []        # the same two lists, newest first (what "Newest first" shows)
 var _base_dr: Array = []
 var _cache := {}                  # SceneCat's cache (path -> entry), read at each open
-var _cache_dirty := false
+var _new_entries := {}            # the categories of the files whose cache entry was stale (merged at the end of _fill)
+const LIST := "user://scene_quality_list.json"   # the worker's list of scenes to grade (written by the panel)
+const POLL_S := 0.5              # the cache file is checked this often (its modified time: cheap)
+static var workers_started := 0  # every worker process the panel started (the test counts them)
 var _grades := {}                 # path -> [fails, warns], for every scene graded (this open or cached)
-var _queue: Array = []            # the paths still to grade, in the order the badges fill
+var _missing: Array = []          # the paths still without a grade, in the order the badges fill
+var _unknown := {}                # paths the worker could not grade: their badge is "?"
+var _worker_pid := -1             # the one worker process of this panel (-1: none)
+var _missing_at_start := 0        # how many were missing when the worker started (no progress = give up)
+var _poll := 0.0
+var _cache_mtime := -1
 var _fav: Array = []              # the starred paths
 var _hide_weird := false
 var _best := false                # "Best first" (true) or "Newest first"
@@ -187,6 +195,7 @@ func open_panel() -> void:
 func close_panel() -> void:
 	visible = false
 	set_process(false)
+	_stop_worker()
 
 
 ## the paths of the tiles shown, in order: the saved scenes (example false) or the examples (example true)
@@ -241,7 +250,7 @@ func sort_box() -> OptionButton:
 
 ## the scenes still waiting for their grade (0 once every badge is in)
 func pending() -> int:
-	return _queue.size()
+	return _missing.size()
 
 
 func _fill() -> void:
@@ -255,7 +264,8 @@ func _fill() -> void:
 	_order_dr = []
 	_base_mine = []
 	_base_dr = []
-	_queue = []
+	_missing = []
+	_unknown = {}
 	_grades = {}
 	var examples := []
 	for ex in m.EXAMPLES:
@@ -284,9 +294,9 @@ func _fill() -> void:
 		_add_tile(p, p.get_file().get_basename().replace("_", " "), "dr")
 	if _order_mine.is_empty():
 		_mine.add_child(_heading("No saved scenes yet: press New scene, then Save the scene, and it is listed here."))
-	if _cache_dirty:
-		SceneCat.save_cache(_cache)
-		_cache_dirty = false
+	if not _new_entries.is_empty():
+		SceneCat.merge_cache(_new_entries)
+		_new_entries = {}
 	if m.thumbs != null:
 		for p in _order_mine + _order_ex + _order_dr:
 			m.thumbs.request(p)
@@ -294,7 +304,9 @@ func _fill() -> void:
 	_resort()
 	_update_chips()
 	_apply()
-	set_process(not _queue.is_empty())
+	_cache_mtime = FileAccess.get_modified_time(SceneCat.cache_path)
+	_start_worker()
+	set_process(not _missing.is_empty())
 
 
 ## one scene's cached facts: its category, and its grade when the cache has it for this file (mtime and size unchanged).
@@ -310,7 +322,7 @@ func _info(p: String) -> Dictionary:
 			scene = v if v is Dictionary else {}
 		e = {"v": SceneCat.CACHE_V, "mtime": st[0], "size": st[1], "cat": SceneCat.category(p, scene)}
 		_cache[p] = e
-		_cache_dirty = true
+		_new_entries[p] = e
 	return e
 
 
@@ -370,7 +382,7 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	if info.has("fails") and info.has("warns"):
 		_grades[path] = [int(info["fails"]), int(info["warns"])]
 	else:
-		_queue.append(path)
+		_missing.append(path)
 	_set_badge(path)
 
 
@@ -403,25 +415,103 @@ func _pick(path: String, example: bool) -> void:
 
 # ---------------------------------------------------------------- the badges (SceneCat.grade, one scene per frame)
 
-func _process(_delta: float) -> void:
-	if _queue.is_empty():
+func _process(delta: float) -> void:
+	_poll -= delta
+	if _poll > 0.0:
+		return
+	_poll = POLL_S
+	var mt := FileAccess.get_modified_time(SceneCat.cache_path)
+	if mt != _cache_mtime:
+		_cache_mtime = mt
+		_cache = SceneCat.load_cache()
+		_take_results()
+	if _worker_pid >= 0 and not _worker_alive():   # the worker has ended: its results are in the file
+		_worker_pid = -1
+		_take_results()
+		if not _missing.is_empty() and _missing.size() >= _missing_at_start:
+			_give_up()   # it made no progress (it cannot start or it failed): "?" rather than a restart loop
+	if _missing.is_empty():
 		set_process(false)
-		return
-	var p: String = _queue.pop_front()
-	if not _tiles.has(p):
-		return
-	var g: Array = SceneCat.grade(p)
-	_grades[p] = g
-	var e: Dictionary = _cache.get(p, {})
-	e["fails"] = g[0]
-	e["warns"] = g[1]
-	_cache[p] = e
-	SceneCat.save_cache(_cache)
-	_set_badge(p)
-	if _queue.is_empty():
+	elif _worker_pid < 0:
+		_start_worker()
+
+
+## the scenes whose cache entry now has a grade for the file as it is: their badges are drawn
+func _take_results() -> void:
+	var still := []
+	for p in _missing:
+		var g := _fresh_grade(p)
+		if g.is_empty():
+			still.append(p)
+		else:
+			_grades[p] = g
+			_set_badge(p)
+	_missing = still
+	_update_chips()
+	_apply()
+	if _missing.is_empty():
 		_resort()
-		_update_chips()
-		_apply()
+
+
+func _fresh_grade(p: String) -> Array:
+	var e: Dictionary = _cache.get(p, {})
+	var st := SceneCat.stamp(p)
+	if int(e.get("v", 0)) != SceneCat.CACHE_V or int(e.get("mtime", -1)) != int(st[0]) or int(e.get("size", -2)) != int(st[1]):
+		return []
+	if not (e.has("fails") and e.has("warns")):
+		return []
+	return [int(e["fails"]), int(e["warns"])]
+
+
+## the worker: one process, the list of the scenes still missing in a user:// file (the cache path in it). A worker that cannot
+## start leaves its badges at "?" (give_up); nothing waits on it
+func _start_worker() -> void:
+	if _missing.is_empty() or _worker_alive():
+		return
+	var f := FileAccess.open(LIST, FileAccess.WRITE)
+	if f == null:
+		_give_up()
+		return
+	f.store_string(JSON.stringify({"cache": SceneCat.cache_path, "scenes": _missing}))
+	f.close()
+	var exe := OS.get_executable_path()
+	var console := exe.replace("_console.exe", ".exe")   # the same engine without a console window (when it is there)
+	if console != exe and FileAccess.file_exists(console):
+		exe = console
+	var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "-s", "res://tools/scene_quality.gd", "--",
+		ProjectSettings.globalize_path(LIST)]
+	_worker_pid = OS.create_process(exe, args)
+	workers_started += 1
+	if _worker_pid < 0:
+		_give_up()
+		return
+	_missing_at_start = _missing.size()
+
+
+func _give_up() -> void:
+	for p in _missing:
+		_unknown[p] = true
+		_set_badge(p)
+	_missing = []
+	_worker_pid = -1
+	_update_chips()
+	_apply()
+	set_process(false)
+
+
+func _worker_alive() -> bool:
+	return _worker_pid >= 0 and OS.is_process_running(_worker_pid)
+
+
+## the panel's own worker is killed (only its PID) when the panel closes or the app quits
+func _stop_worker() -> void:
+	if _worker_alive():
+		OS.kill(_worker_pid)
+	_worker_pid = -1
+
+
+func _exit_tree() -> void:
+	_stop_worker()
 
 
 func _grade_name(p: String) -> String:
@@ -435,7 +525,7 @@ func _set_badge(p: String) -> void:
 	var t: Dictionary = _tiles[p]
 	var gn := _grade_name(p)
 	var lbl: Label = t["badge"]
-	lbl.text = gn if gn != "" else "…"
+	lbl.text = gn if gn != "" else ("?" if _unknown.has(p) else "…")
 	lbl.add_theme_color_override("font_color", BADGE_COL.get(gn, Color(1, 1, 1, 0.5)))
 	lbl.tooltip_text = "" if gn == "" else ("Good: nothing breaks the rulebook" if gn == "Good" else "OK: a few things to look at" if gn == "OK" else "Weird: a must-fix finding in Kine's Check")
 

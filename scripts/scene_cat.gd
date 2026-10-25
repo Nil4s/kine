@@ -9,7 +9,8 @@ extends RefCounted
 ##     rules main's _check runs): "Weird" with any FAIL finding, "Good" with no FAIL and <= 2 WARN, else "OK".
 ## A Check costs seconds on a long clip, so the panel asks for grades lazily, one scene per frame (scripts/easy_scenes.gd), and
 ## CACHE (user://scene_quality.json) keeps each file's category and grade under its path + modified time + size: a second open
-## of the panel runs no Check at all. Plain statics; the Body is loaded once per process.
+## of the panel runs no Check at all. The Checks run in a worker process (tools/scene_quality.gd) that merges each result into the
+## cache as it lands; the panel only reads it. Plain statics; the Body is loaded once per process.
 
 const DRAFTS := "Drafts"
 const CHIPS := ["Walk & run", "Fight", "Weapons", "Jump & dodge", "Dance & other"]   # the order the words are tried in
@@ -99,10 +100,26 @@ static func load_cache() -> Dictionary:
 	return out
 
 
-static func save_cache(c: Dictionary) -> void:
-	var f := FileAccess.open(cache_path, FileAccess.WRITE)
-	if f != null:
-		f.store_string(JSON.stringify(c))
+## merges entries (path -> fields) into the cache file: the file is read again first (the worker and the panel both write it),
+## the fields are merged per path, and the whole file is written to a temp file and renamed over the cache, so a reader never
+## sees half a file
+static func merge_cache(entries: Dictionary) -> void:
+	var cur := load_cache()
+	for k in entries:
+		var e: Dictionary = cur.get(k, {})
+		e.merge(entries[k], true)
+		cur[k] = e
+	var tmp := cache_path + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(cur))
+	f.close()
+	var ga := ProjectSettings.globalize_path(cache_path)
+	var gt := ProjectSettings.globalize_path(tmp)
+	if FileAccess.file_exists(cache_path):
+		DirAccess.remove_absolute(ga)
+	DirAccess.rename_absolute(gt, ga)
 
 
 ## the file's modified time and size: the cache key
