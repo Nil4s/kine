@@ -11756,6 +11756,8 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(fd_btn)
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
+	ui_ribbon["EXPORT"].add_child(_button("Export model (GLB / OBJ)", _export_model, "the test cube or the edited body mesh as res://exports/<model>.glb and .obj (static, the model editor's mesh); the status line gives the path, Open exports folder opens it"))
+	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): OS.shell_open(ProjectSettings.globalize_path("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
 	if fp_ui == null:
@@ -21391,6 +21393,25 @@ func _export_obj(dir := "user://exports") -> String:
 		return ""
 	_say_plain("exported %s.obj: %d triangles in %d groups at the playhead (metres, Y up)%s. A static mesh: for the animation use Export animation" % [nm, r["tris"], ms.size(), ", the held weapon included" if B.wep_on else ""])
 	return path
+
+
+## MODEL EXPORT: the open model editor's mesh (the test cube, or the body mesh) as a static .glb and .obj in res://exports
+func _export_model() -> String:
+	if kmed == null or not kmed.on or kmed.mesh == null:
+		_say("Model: open the test cube or the body mesh first (MODEL page), then Export model (GLB / OBJ)")
+		return ""
+	var k: KMesh = kmed.mesh
+	var stem := "body_mesh" if BaseBody.is_open(self) else "test_cube"
+	var dir := "res://exports"
+	var am := k.to_array_mesh()
+	var e := KMeshVPaint.export_glb(k, "%s/%s.glb" % [dir, stem], stem)
+	var r := ObjIO.export([{"name": stem, "mesh": am, "xf": Transform3D.IDENTITY, "color": ObjIO.DEFAULT_COLOR}], "%s/%s.obj" % [dir, stem])
+	var gp := ProjectSettings.globalize_path(dir)
+	if e != OK or not r["ok"]:
+		_say("Model: NOT DONE: the model could not be written (%s%s). Check that %s is writable" % [error_string(e), "" if r["ok"] else "; obj: " + String(r["why"]), gp])
+		return ""
+	_say("Model: exported %s.glb and %s.obj (%d verts, %d triangles) to %s. Open exports folder opens it" % [stem, stem, k.vert_count(), int(r["tris"]), gp])
+	return gp + "/" + stem + ".glb"
 
 
 func _obj_import_ask() -> void:

@@ -39,6 +39,7 @@ const Q := 65535   # a weight's 16-bit steps (canon)
 
 const META_GENS := "bb_gens"   # on main: Array of generations, each {"pieces": {piece: rest ArrayMesh}, "src": {mi: mesh}}
 const META_GEN := "bb_gen"     # on main: the generation drawn now
+const META_BASE := "bb_base"   # on main: sig_of the body as it was read or last applied
 
 
 # ---------------------------------------------------------------- read
@@ -514,6 +515,7 @@ static func start(m: Node) -> void:
 		m.kmed.stop()
 	var info := {}
 	var k := read(m, info)
+	m.set_meta(META_BASE, sig_of(k))   # Apply with no edit since this (or since the last Apply) writes nothing
 	var p0 := m.pieces.values()[0] as MeshInstance3D
 	var at: Transform3D = (m.stage_root as Node3D).global_transform.affine_inverse() * p0.global_transform
 	var vis := {}
@@ -580,14 +582,24 @@ static func frame(m: Node) -> void:
 
 
 ## "Model: apply the body mesh to the fighter"
+## what the editor's KMesh holds, as a number: the same when no edit changed it (Ctrl+Z back to the start counts too)
+static func sig_of(k: KMesh) -> int:
+	return hash(k.to_dict())
+
+
 static func apply_cmd(m: Node) -> void:
 	if not is_open(m):
 		m._say("Model: open the body first (Search \"Model: edit the body mesh\"), edit it, then apply")
+		return
+	# an unedited body is not rebuilt: the rebuild splits the vertices at UV seams (6994 -> 7330 on the mannequin) for no change
+	if m.has_meta(META_BASE) and sig_of(m.kmed.mesh) == int(m.get_meta(META_BASE)):
+		m._say("Model: the body has no edits since it was read, so nothing is applied (the fighter is as it was: %s)" % ("the applied mesh" if gen(m) > 0 else "the original"))
 		return
 	var r := apply(m, m.kmed.mesh)
 	if not r["ok"]:
 		m._say("Model: " + String(r["error"]))
 		return
+	m.set_meta(META_BASE, sig_of(m.kmed.mesh))
 	for j in m.pieces:
 		(m.pieces[j] as MeshInstance3D).visible = false   # still editing: the preview stands in for it until Esc
 	m._say("Model: the fighter's body is now the edited mesh (%d verts, %d triangles%s). Ctrl+Z after leaving takes it back in one step" % [r["verts"], r["tris"], (", %d unweighted verts given their nearest bone" % r["unweighted"]) if int(r["unweighted"]) > 0 else ""])

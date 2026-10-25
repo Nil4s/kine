@@ -24,6 +24,7 @@ var _list: VBoxContainer
 var _scroll: ScrollContainer
 var _sig := 0
 var _list_sig := 0
+var _fresh := -1   # the row added last: its Apply / name say so until another stack edit (the target the user just made)
 
 
 func setup(editor: KMeshEditUI) -> void:
@@ -44,8 +45,8 @@ func setup(editor: KMeshEditUI) -> void:
 	hb.add_child(_kind)
 	var b := Button.new()
 	b.name = "btn_mod_add"
-	b.text = "Add"
-	b.tooltip_text = "add this modifier at the bottom of the stack (one undo step); the mesh itself is not changed"
+	b.text = "Add modifier"
+	b.tooltip_text = "add the picked modifier at the bottom of the stack (one undo step); the mesh itself is not changed"
 	b.pressed.connect(func(): add.call_deferred(KMeshModifiers.TYPES[_kind.selected]))
 	hb.add_child(b)
 	vb.add_child(hb)
@@ -146,13 +147,17 @@ func _step(label: String, f: Callable):
 
 
 func add(type: String) -> int:
+	_fresh = _mesh().modifiers.size()   # the row this add makes: marked before the list is rebuilt
 	var i: int = _step("Add %s modifier" % KMeshModifiers.NAMES.get(type, type), func(): return KMeshModifiers.add(_mesh(), type))
+	if i < 0:
+		_fresh = -1
 	m._say("Model: %s" % (KMeshModifiers.last_error if i < 0 else "added %s (the mesh itself is unchanged; Apply bakes it, Ctrl+Z takes it back)" % KMeshModifiers.describe(_mesh().modifiers[i])))
 	return i
 
 
 func remove(i: int) -> bool:
 	var nm := _name(i)
+	_fresh = -1
 	var r: bool = _step("Remove %s modifier" % nm, func(): return KMeshModifiers.remove(_mesh(), i))
 	if r:
 		m._say("Model: removed %s (Ctrl+Z brings it back)" % nm)
@@ -162,6 +167,7 @@ func remove(i: int) -> bool:
 func move(i: int, to: int) -> int:
 	if to < 0 or to >= _mesh().modifiers.size() or to == i:
 		return i
+	_fresh = -1
 	var r: int = _step("Move %s modifier" % _name(i), func(): return KMeshModifiers.move(_mesh(), i, to))
 	m._say("Model: %s is now %d of %d (the order changes the result)" % [_name(r), r + 1, _mesh().modifiers.size()])
 	return r
@@ -199,6 +205,7 @@ func set_param(i: int, key: String, value):
 func apply(i: int) -> bool:
 	var mesh := _mesh()
 	var nm := _name(i)
+	_fresh = -1
 	ed.undo.begin(mesh)
 	var err := KMeshModifiers.apply_mod(mesh, i)
 	ed.undo.commit("Apply %s modifier" % nm)
@@ -259,6 +266,12 @@ func _block(i: int, mod: Dictionary) -> Control:
 	var vb := VBoxContainer.new()
 	vb.name = "mod_%d" % i
 	var hb := HBoxContainer.new()
+	if i == _fresh:
+		var nw := Label.new()
+		nw.name = "mod_%d_new" % i
+		nw.text = "NEW >"
+		nw.add_theme_color_override("font_color", Color(0.95, 0.75, 0.2))
+		hb.add_child(nw)
 	var on := CheckBox.new()
 	on.name = "mod_%d_on" % i
 	on.text = KMeshModifiers.describe(mod)
@@ -266,11 +279,13 @@ func _block(i: int, mod: Dictionary) -> Control:
 	on.toggled.connect(func(_p): toggle.call_deferred(i))   # deferred: the list is rebuilt under the button
 	on.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hb.add_child(on)
+	var mname: String = KMeshModifiers.NAMES.get(mod["type"], String(mod["type"]))
 	for b in [["up", "↑", "move up (runs earlier)", func(): move.call_deferred(i, i - 1)], ["down", "↓", "move down (runs later)", func(): move.call_deferred(i, i + 1)],
-			["apply", "Apply", "bake it into the mesh (one undo step)", func(): apply.call_deferred(i)], ["x", "×", "remove it", func(): remove.call_deferred(i)]]:
+			["apply", "Apply " + mname, "bake the " + mname + " modifier into the mesh (one undo step; the mesh changes, the stack loses this row)", func(): apply.call_deferred(i)],
+			["x", "Remove", "remove the " + mname + " modifier (one undo step)", func(): remove.call_deferred(i)]]:
 		var bt := Button.new()
 		bt.name = "mod_%d_%s" % [i, b[0]]
-		bt.text = b[1]
+		bt.text = "Remove" if b[0] == "x" else b[1]
 		bt.tooltip_text = b[2]
 		bt.pressed.connect(b[3])
 		hb.add_child(bt)
