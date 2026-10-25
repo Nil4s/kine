@@ -3661,7 +3661,7 @@ func _dummy_ghost_update(h: Dictionary) -> void:
 ## EASY BOTTOM (Easy only, the panel's rows and margins): the panel keeps only its card row and the ruler, its margins are
 ## 0 and the rows sit 4 px apart; the timeline clips what is under its ruler. Expert gets every one of these back as it was.
 func _easy_bottom_style(eo: bool) -> void:
-	var bv := ui_card_row.get_parent().get_parent() as VBoxContainer   # the strip sits in card_row_box (with the pinned add slot)
+	var bv := ui_card_row.get_parent().get_parent() as VBoxContainer   # the strip sits in an unnamed box (with the pinned add slot)
 	bv.add_theme_constant_override("separation", EASY_SEP if eo else 6)   # 6 is the value the panel is built with
 	if eo:
 		if not ui_bp.has_theme_stylebox_override("panel"):
@@ -12370,7 +12370,7 @@ func _ui() -> void:
 	cs.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	cs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var crow := HBoxContainer.new()   # the strip, and to its right a slot that does not scroll (Easy's "+ Add pose")
-	crow.name = "card_row_box"
+	# unnamed on purpose: a named box would add a part to every card's address (agents and the keyboard reach "card_2/b_pick")
 	bv.add_child(crow)
 	crow.add_child(cs)
 	ui_add_slot = HBoxContainer.new()
