@@ -9,10 +9,12 @@ MediaPipe's handedness label is NOT used. A matched frame gets "hands": {"l": {"
 with no hand, or a clip with no hand model, has no "hands" key, so the body import is exactly as before.
 CROP (two passes, when the person is small in the picture): pass 1 tracks every 4th frame to find the person's box over
 the clip. When the median box is under 60% of the picture height, pass 2 tracks EVERY frame on a square crop around the
-person (the box's longer side + 25%, smoothed over time, clamped to the picture, upscaled to >= 512 px). The body and hand
-image points are mapped back to the whole picture (x, y 0-1 of the original picture, the same convention as a full-frame
-run); world landmarks need no mapping. --no-crop turns the second pass off. A person at 60% or more of the picture height
-is tracked exactly as before (one pass, the same output).
+person (the box's longer side + 25%, smoothed over time, clamped to the picture, upscaled to >= 512 px). The body image
+points are mapped back to the whole picture (x, y 0-1 of the original picture, the same convention as a full-frame
+run); world landmarks need no mapping. In that pass the hands are found per wrist (wrist_hands): a square crop of the
+whole picture round each visible wrist, 6 forearm lengths wide (at least 64 px), upscaled to 320 px, so a small hand is big enough for
+HandLandmarker. --no-crop turns the second pass off. A person at 60% or more of the picture height is tracked exactly as
+before (one pass, the same output, the whole-frame hand pass).
     python tools/see_video.py <video> <out pose.json> [--fps 30] [--pick 0.5,0.6] [--people 2]
          [--model D:/pose_models/pose_landmarker_heavy.task] [--hand-model D:/hand_models_handcap/hand_landmarker.task]
          [--no-hands] [--hand-reach 0.12] [--no-crop]
@@ -37,6 +39,12 @@ CROP_MIN_PX = 512     # the crop is upscaled to at least this many pixels a side
 CROP_MIN_SIDE = 64    # a box smaller than this (picture pixels) is widened to it
 PASS1_EVERY = 4       # pass 1 tracks every 4th sampled frame
 LOCATE_CONF = 0.2     # pass 1 finds the person at this detection confidence (a 30% person misses at MediaPipe's 0.5)
+WRIST_CROP = 6.0      # a wrist's hand crop: a square of this many forearm lengths centred on the wrist (small fixture:
+                      # 2.5 gave the right fist on 55 of 81 frames, 6 on 77 of 81; the left fist is found by neither)
+WRIST_MIN_SIDE = 64   # the wrist crop is at least this many picture pixels a side
+WRIST_PX = 320        # the wrist crop is upscaled to this many pixels a side for HandLandmarker
+WRIST_VIS = 0.3       # a wrist (and its elbow) with less visibility than this gets no hand pass
+WRIST_HAND_CONF = 0.2  # the wrist crops find a hand at this detection confidence (a fist 12 px tall misses at 0.5)
 
 
 def match_hands(body, hres, reach):
@@ -106,10 +114,57 @@ def crop_plan(boxes, W, H, np):
     return crop
 
 
+def wrist_hands(cv2, mp, wdet, img, pose, W, H):
+    """the hands of one frame in crop mode: a square crop of the WHOLE picture round each visible wrist (side = WRIST_CROP
+    forearm lengths, at least WRIST_MIN_SIDE px, clamped to the picture), upscaled to WRIST_PX and run through HandLandmarker
+    (IMAGE mode). Of the hands in a crop, the one whose wrist is nearest the crop's wrist point is that wrist's hand. pose =
+    the body's 33 image points in the whole picture. Returns a SimpleNamespace shaped like HandLandmarker's result (image
+    points in the whole picture, world points in metres), or None when no hand was found."""
+    body = [q for q in pose if q.visibility >= 0.5]
+    if len(body) >= 5:
+        ys = [q.y for q in body]
+        body_px = (max(ys) - min(ys)) * H
+    else:
+        body_px = 0.5 * max(W, H)
+    hl, hw = [], []
+    for wi, ei in ((15, 13), (16, 14)):
+        w = pose[wi]
+        if w.visibility < WRIST_VIS:
+            continue
+        wx, wy = w.x * W, w.y * H
+        e = pose[ei]
+        if e.visibility >= WRIST_VIS:
+            fore = ((e.x * W - wx) ** 2 + (e.y * H - wy) ** 2) ** 0.5
+        else:
+            fore = 0.15 * body_px   # no elbow: a forearm is about 15% of the body's height
+        si = int(round(min(max(WRIST_CROP * fore, WRIST_MIN_SIDE), min(W, H))))
+        x0 = int(round(min(max(wx - si / 2.0, 0), W - si)))
+        y0 = int(round(min(max(wy - si / 2.0, 0), H - si)))
+        src = cv2.resize(img[y0:y0 + si, x0:x0 + si], (WRIST_PX, WRIST_PX), interpolation=cv2.INTER_CUBIC)
+        r = wdet.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(src, cv2.COLOR_BGR2RGB)))
+        if not r.hand_landmarks:
+            continue
+        cxn, cyn = (wx - x0) / si, (wy - y0) / si   # the wrist, in the crop's own 0-1 coordinates
+        best = min(range(len(r.hand_landmarks)),
+                   key=lambda h: (r.hand_landmarks[h][0].x - cxn) ** 2 + (r.hand_landmarks[h][0].y - cyn) ** 2)
+        # a crop 6 forearms wide also sees the other hand: the hand is this wrist's only if its wrist point is no nearer
+        # the other body wrist (else the same fist would go to both sides)
+        hx, hy = x0 + r.hand_landmarks[best][0].x * si, y0 + r.hand_landmarks[best][0].y * si
+        ow = pose[31 - wi]   # 15 <-> 16
+        if ow.visibility >= WRIST_VIS and ((hx - ow.x * W) ** 2 + (hy - ow.y * H) ** 2) < ((hx - wx) ** 2 + (hy - wy) ** 2):
+            continue
+        hl.append([_map_point(q, x0, y0, si, W, H) for q in r.hand_landmarks[best]])
+        hw.append(r.hand_world_landmarks[best])
+    if not hl:
+        return None
+    return SimpleNamespace(hand_landmarks=hl, hand_world_landmarks=hw)
+
+
 def run_track(a, env, step, every=1, crop=None, hands=True, progress="", pbase=(0.0, 1.0), conf=0.5):
     """one tracking pass over the clip. every: track every Nth sampled frame (pass 1 uses PASS1_EVERY). crop: None (the
-    whole picture) or crop_plan's crop(s): the pose and hand models see the square crop and the points are mapped back to
-    the whole picture. Returns (frames, lost, seen, with_hand, W, H), frames = [(sampled index, frame dict)]."""
+    whole picture: the hand model runs on the whole frame) or crop_plan's crop(s) (the pose model sees the square crop and
+    its points are mapped back to the whole picture; the hands are then found per wrist, by wrist_hands, on the whole
+    picture). Returns (frames, lost, seen, with_hand, W, H), frames = [(sampled index, frame dict)]."""
     cv2, mp, mpt, vision = env
     cap = cv2.VideoCapture(a.video)
     src_fps = cap.get(cv2.CAP_PROP_FPS) or a.fps
@@ -120,12 +175,19 @@ def run_track(a, env, step, every=1, crop=None, hands=True, progress="", pbase=(
         base_options=mpt.BaseOptions(model_asset_path=a.model), running_mode=vision.RunningMode.VIDEO,
         num_poses=a.people, min_pose_detection_confidence=conf, min_pose_presence_confidence=conf,
         min_tracking_confidence=conf))
-    hdet = None
+    hdet = None     # whole-frame hands (no crop)
+    wdet = None     # per-wrist hands (crop)
     if hands and not a.no_hands:
         if os.path.exists(a.hand_model):
-            hdet = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
-                base_options=mpt.BaseOptions(model_asset_path=a.hand_model), running_mode=vision.RunningMode.VIDEO,
-                num_hands=2))
+            base = mpt.BaseOptions(model_asset_path=a.hand_model)
+            if crop is None:
+                hdet = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
+                    base_options=base, running_mode=vision.RunningMode.VIDEO, num_hands=2))
+            else:
+                wdet = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
+                    base_options=base, running_mode=vision.RunningMode.IMAGE, num_hands=2,
+                    min_hand_detection_confidence=WRIST_HAND_CONF, min_hand_presence_confidence=WRIST_HAND_CONF,
+                    min_tracking_confidence=WRIST_HAND_CONF))
         else:
             print("note: no hand model at %s, the body is tracked without hands" % a.hand_model)
     pool = ThreadPoolExecutor(max_workers=1)
@@ -182,8 +244,7 @@ def run_track(a, env, step, every=1, crop=None, hands=True, progress="", pbase=(
             k = min(range(len(hips)), key=lambda n: (hips[n][0] - 0.5) ** 2 + (hips[n][1] - 0.5) ** 2)
             pose_xy = [_map_point(q, x0, y0, si, W, H) for q in res.pose_landmarks[k]]
             image = [[round(q.x, 4), round(q.y, 4), round(q.visibility, 3)] for q in pose_xy]
-            if hres is not None:
-                hres = _map_hands(hres, x0, y0, si, W, H)
+            hres = wrist_hands(cv2, mp, wdet, img, pose_xy, W, H) if wdet is not None else None
         fr = {"t": round(t, 3),
               "world": [[round(q.x, 4), round(q.y, 4), round(q.z, 4)] for q in res.pose_world_landmarks[k]],
               "image": image}
@@ -200,13 +261,6 @@ def _map_point(q, x0, y0, si, W, H):
     x = min(max((x0 + q.x * si) / W, 0.0), 1.0)
     y = min(max((y0 + q.y * si) / H, 0.0), 1.0)
     return SimpleNamespace(x=x, y=y, z=q.z, visibility=q.visibility)
-
-
-def _map_hands(hres, x0, y0, si, W, H):
-    """HandLandmarker's result with its image points mapped from the crop to the whole picture (world points are metres
-    and unchanged)"""
-    hl = [[_map_point(q, x0, y0, si, W, H) for q in lm] for lm in hres.hand_landmarks]
-    return SimpleNamespace(hand_landmarks=hl, hand_world_landmarks=hres.hand_world_landmarks)
 
 
 def main():
