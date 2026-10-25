@@ -20881,6 +20881,7 @@ func _imp_show(on: bool, text := "") -> void:
 	if on:
 		_imp_lbl.text = text if text != "" else String(_imp["label"])
 		_imp_bar.value = 0.0
+		_imp_bar.visible = true   # Easy's copy hides it while its own whole-copy bar runs (easy_home._copy_show)
 		_imp_cancel_btn.disabled = false
 
 

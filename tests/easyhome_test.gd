@@ -1321,6 +1321,7 @@ func _init() -> void:
 	var vals55 := []
 	var left_early := 0      # a frame with the 'left' line up below 10 %
 	var left_seen := 0       # frames with the line up
+	var two55 := 0           # frames with two progress figures (the copy's bar and main's step bar / percent)
 	home.copy_video_file(fx)
 	var t55 := Time.get_ticks_msec()
 	while home._vid_busy and Time.get_ticks_msec() - t55 < 300000:
@@ -1329,6 +1330,10 @@ func _init() -> void:
 		var lf := m.find_child("eh_copy_left", true, false) as Label
 		if b != null and b.is_visible_in_tree():
 			vals55.append(b.value)
+			var ib := m.find_child("import_bar", true, false) as ProgressBar
+			var pct55 := RegEx.create_from_string("(\\d+)\\s*%").search(String(m.ui_status.text))
+			if (ib != null and ib.is_visible_in_tree()) or (pct55 != null and absf(float(pct55.get_string(1)) - b.value) > 2.0):
+				two55 += 1   # a second figure on screen: main's step bar, or words with another percent than the bar
 			if lf != null and lf.is_visible_in_tree():
 				left_seen += 1
 				if b.value < 10.0:
@@ -1344,6 +1349,7 @@ func _init() -> void:
 			mono55 = false
 	ok(vals55.size() > 0, "55. the bar is visible while the copy runs (%d frames)" % vals55.size())
 	ok(rises55 and mono55, "55. the bar's value rises (first %.1f, last %.1f, never back: %s)" % [float(vals55[0]) if vals55.size() > 0 else -1.0, float(vals55[-1]) if vals55.size() > 0 else -1.0, str(mono55)])
+	ok(vals55.size() > 0 and two55 <= 2, "55. one progress figure on screen: main's step bar and percent stay hidden in Easy (%d of %d frames showed two)" % [two55, vals55.size()])
 	ok(left_seen > 0, "55. 'about N s left' shows during the copy (%d frames)" % left_seen)
 	ok(left_early == 0, "55. no 'left' line below 10 %% (%d frames early)" % left_early)
 	await idle(8)

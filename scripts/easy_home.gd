@@ -1097,7 +1097,7 @@ func _video_tick() -> void:
 		return
 	if m._video_pid >= 0:   # the tracker reads the video
 		var f := _tracker_progress()
-		var words := "Reading your video: %d %%" % roundi(f * 100.0) if f >= 0.0 else "Reading your video..."
+		var words := "Reading your video: %d %%" % roundi(f * 50.0) if f >= 0.0 else "Reading your video..."   # the whole copy's figure (the read is its first half), the same as the bar
 		m._say_plain(_copy_say(words))
 		_copy_show(f * 0.5 if f >= 0.0 else 0.0, words)
 		if m._imp_lbl != null:   # the top bar's line (main's _imp_show named it "tracking <file>" for Expert)
@@ -1108,7 +1108,7 @@ func _video_tick() -> void:
 	if m._imp_busy():   # the fit: the import's own bar and Cancel show it too
 		if bool(m._imp.get("cancel", false)):
 			_vid_cancel = true
-		m._say_plain(_copy_say("Fitting the moves to the body: %d %%" % roundi(VideoIQ.progress * 100.0)))
+		m._say_plain(_copy_say("Fitting the moves to the body: %d %%" % roundi(50.0 + VideoIQ.progress * 50.0)))   # the whole copy's figure
 		_copy_show(0.5 + VideoIQ.progress * 0.5, "Fitting the moves to the body")
 		return
 	if String(m.scene_path) != _vid_before and not m.S.cards.is_empty():
@@ -1138,6 +1138,10 @@ func _copy_say(words: String) -> String:
 func _copy_show(frac: float, words: String) -> void:
 	var done := maxf(clampf(frac, 0.0, 1.0), _copy_bar.value / 100.0)   # never back: a tracker read that is not written yet is no 0 %
 	_copy_bar.value = done * 100.0
+	# ONE NUMBER: main's import bar counts each step from 0 (it read 27 % while this bar read 13 %): in Easy it is hidden, and the
+	# words' percent is this whole-copy figure too
+	if m._imp_bar != null:
+		m._imp_bar.visible = false
 	_copy_bar.tooltip_text = words
 	if done * 100.0 >= COPY_LEFT_MIN:
 		var secs := (Time.get_ticks_msec() - _vid_t0) / 1000.0
