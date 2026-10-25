@@ -68,6 +68,10 @@ var _names: Array = []        # the clip's move words, for the saved file's name
 var _vid_busy := false        # COPY A VIDEO: an import from a video is running (the tracker, then the fit)
 var _vid_before := ""         # the scene path when the copy began: a new path when it lands
 var _vid_cancel := false      # the fit's own Cancel was pressed
+var _vid_refused := false     # a second copy was refused while this one runs: the bar's line says "Still copying the first video" (a refusal alone was overwritten each frame)
+var _vid_landed := false      # Add after: the copy's cards are in the open scene (_land_added); the next tick finishes it
+var _copy_ask: ConfirmationDialog   # the unsaved open scene's question before a copy: Replace / Add after / Cancel
+var _copy_path := ""          # the video the question is about ("" = no question up)
 var _vid_said := ""           # the say line's opening words for the landed clip ("Copied clip.mp4" / "Made \"swing...\"")
 var _gen_on := false          # MAKE IT WITH AI VIDEO: main's gen_move (scripts/gen_move.gd) is making the clip
 var _gen_words := ""          # the typed words Kine could not build: the button under the message makes them as a video
@@ -313,9 +317,9 @@ func build(root: Control) -> void:
 	_pbar_size.name = "eh_prop_size_row"
 	_pbar_size.add_theme_constant_override("separation", 6)
 	pr.add_child(_pbar_size)
-	_pbar_bigger = _strip_button("eh_prop_bigger", "Bigger", "make the picked prop 15 % bigger (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
+	_pbar_bigger = _strip_button("eh_prop_bigger", "Grow", "make the picked object 15 % bigger (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_bigger)
-	_pbar_smaller = _strip_button("eh_prop_smaller", "Smaller", "make the picked prop 15 % smaller (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
+	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_smaller)
 	_pbar_colour = _strip_button("eh_prop_colour", "Colour", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_colour)
@@ -949,7 +953,7 @@ func cancel_run() -> void:
 
 func copy_video() -> void:
 	if _gen_on or _vid_busy or m._imp_busy() or m._video_pid >= 0:
-		m._say("A video is already being copied: wait for it, or press Cancel on the bar")
+		_refuse()
 		return
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
@@ -964,35 +968,104 @@ func copy_video() -> void:
 	fd.popup_centered(Vector2i(800, 500))
 
 
-## the copy of one file (the dialog's pick; a test calls it with its own clip)
+## a second copy (or any video job) while one runs: refused; the bar's line says the first is still going
+func _refuse() -> void:
+	if _vid_busy:
+		_vid_refused = true
+	m._say("A video is already being copied: wait for it, or press Cancel on the bar")
+
+
+## the copy of one file (the dialog's pick; a test calls it with its own clip). An open scene with unsaved cards is asked about first
 func copy_video_file(path: String) -> void:
 	if _gen_on or _vid_busy or m._imp_busy() or m._video_pid >= 0:
-		m._say("A video is already being copied: wait for it, or press Cancel on the bar")
+		_refuse()
 		return
 	if not FileAccess.file_exists(path):
 		_fail("That video file could not be found. Pick it again with Copy a video.")
 		return
+	if not m.S.cards.is_empty() and m._unsaved():   # the copy would replace these cards: ask first
+		_ask_copy(path)
+		return
+	_start_copy(path, false)
+
+
+## the unsaved open scene's question before a copy (main's _ask_save pattern): Replace / Add after / Cancel
+func _ask_copy(path: String) -> void:
+	_copy_path = path
+	if _copy_ask == null:
+		_copy_ask = ConfirmationDialog.new()
+		_copy_ask.name = "CopyAsk"
+		_copy_ask.title = "Replace your clip?"
+		_copy_ask.dialog_autowrap = true
+		_copy_ask.min_size = Vector2i(440, 0)
+		_copy_ask.ok_button_text = "Add after"
+		var rb := _copy_ask.add_button("Replace", false, "replace")
+		rb.name = "Replace"
+		_copy_ask.confirmed.connect(func(): copy_choose("add"))
+		_copy_ask.custom_action.connect(func(a: StringName): copy_choose(String(a)))
+		_copy_ask.canceled.connect(func(): copy_choose("cancel"))
+		m.add_child(_copy_ask)
+	_copy_ask.dialog_text = "Your clip has changes that are not saved. Replace puts the copied video in its place (Undo brings yours back). Add after keeps yours and adds the copy after it. Cancel keeps the scene as it is."
+	_copy_ask.popup_centered()
+
+
+## how = "replace" | "add" | "cancel" (the question's buttons; a test calls it). A late canceled after a button is no second answer
+func copy_choose(how: String) -> void:
+	var path := _copy_path
+	if path == "":
+		return
+	_copy_path = ""
+	_copy_ask.hide()
+	if how == "cancel":
+		m._say("Cancelled. The scene is as it was.")
+		return
+	_start_copy(path, how == "add")
+
+
+func _start_copy(path: String, add: bool) -> void:
 	_drop_saved_toast()
 	_vid_busy = true
 	_vid_cancel = false
+	_vid_refused = false
+	_vid_landed = false
 	panel.visible = false   # the picker goes at once (_process sets it again each frame: _copying keeps it away)
 	_vid_before = String(m.scene_path)
 	_vid_said = "Copied %s" % path.get_file()
 	_t0 = -1
 	m._land_undo = "Copy a video"
+	if add:   # Add after: the landing hands the copy's cards here instead of opening it as a scene
+		m.easy_copy_land = _land_added
 	m._import_video(path)
 	if m._video_pid < 0 and not m._imp_busy():   # the tracker did not start: there is nothing to wait for
 		_vid_busy = false
 		m._land_undo = ""
+		m.easy_copy_land = Callable()
 		_fail(NO_READER)
+
+
+## Add after, the copy landed: its cards join the open scene at the end (one undo step; the scene's file and place stay)
+func _land_added(d: Dictionary) -> void:
+	m._land_undo = ""
+	var err := _append(d, "Copied video", "Copied video")
+	if err != "":
+		_vid_busy = false
+		_fail(err)
+		return
+	_vid_landed = true
 
 
 ## every frame while a copy runs: the say line shows the progress; when both steps are over, the result
 func _video_tick() -> void:
+	if _vid_landed:   # Add after: the copy's cards are in the scene now
+		_vid_landed = false
+		_vid_busy = false
+		m._land_undo = ""
+		_copied()
+		return
 	if m._video_pid >= 0:   # the tracker reads the video
 		var f := _tracker_progress()
 		var words := "Reading your video: %d %%" % roundi(f * 100.0) if f >= 0.0 else "Reading your video..."
-		m._say_plain(words)
+		m._say_plain(_copy_say(words))
 		if m._imp_lbl != null:   # the top bar's line (main's _imp_show named it "tracking <file>" for Expert)
 			m._imp_lbl.text = words
 		if m._imp_bar != null and f >= 0.0:   # its own percent follows the same read (main's _video_bar runs only every 4th of a second)
@@ -1001,7 +1074,7 @@ func _video_tick() -> void:
 	if m._imp_busy():   # the fit: the import's own bar and Cancel show it too
 		if bool(m._imp.get("cancel", false)):
 			_vid_cancel = true
-		m._say_plain("Fitting the moves to the body: %d %%" % roundi(VideoIQ.progress * 100.0))
+		m._say_plain(_copy_say("Fitting the moves to the body: %d %%" % roundi(VideoIQ.progress * 100.0)))
 		return
 	if String(m.scene_path) != _vid_before and not m.S.cards.is_empty():
 		_vid_busy = false
@@ -1018,6 +1091,11 @@ func _video_tick() -> void:
 		m._say_plain("Cancelled. The scene is as it was.")
 	else:
 		_take_abort(NO_PERSON)
+
+
+## the bar's line while a copy runs: after a refused second copy it names the first one as still going
+func _copy_say(words: String) -> String:
+	return ("Still copying the first video: " + words) if _vid_refused else words
 
 
 ## the tracker's fraction read (tools/see_video.py --progress), or -1 when none is written yet

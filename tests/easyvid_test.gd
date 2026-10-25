@@ -49,12 +49,19 @@ func wait_copy(limit := 3000) -> bool:
 	return seen
 
 
+## the copy, and the unsaved scene's question (walk-through round) answered Replace: these bars test the copy itself, as before
+func copy_replacing(home: EasyHome, path: String) -> void:
+	home.copy_video_file(path)
+	if home._copy_path != "":
+		home.call("copy_choose", "replace")
+
+
 ## the copy with its screen read every frame: the top bar's line and the status line while the tracker reads (the first
 ## line with a "%"), whether the picker was on screen, and the most visible Cancel buttons seen at once
 func watch_copy(path: String) -> Dictionary:
 	var w := {"seen": false, "bar": "", "status": "", "picker": false, "cancels": 0}
 	var home: EasyHome = m.easy.home
-	home.copy_video_file(path)
+	copy_replacing(home, path)
 	for i in 3000:
 		if home._vid_busy:
 			var st := String(m.ui_status.text)
@@ -137,13 +144,13 @@ func _init() -> void:
 	print("   progress sentence seen on the status line while it ran: %s" % saw)
 	ok(not String(m.ui_status.text).contains("outside the video"), "2b whole-body clip: no limb caution on the status line (\"%s\")" % m.ui_status.text)
 
-	# 12 the strip's names after the copy: "Pose 1" .. "Pose N" in order (the stored names stay v0, v10, ...)
+	# 12 the strip's names after the copy: "Video 1" .. "Video N" in order (the stored names stay v0, v10, ...; walk-through round: plain names)
 	var names := strip_names()
 	var want_names := []
 	for i in m.S.cards.size():
-		want_names.append("Pose %d" % (i + 1))
+		want_names.append("Video %d" % (i + 1))
 	ok(names == want_names and names.size() >= 2,
-		"12 strip names after the copy: %s (want Pose 1..%d)" % [names, m.S.cards.size()])
+		"12 strip names after the copy: %s (want Video 1..%d)" % [names, m.S.cards.size()])
 
 	# 13 every card's picture button has an icon (a non-null texture) within 300 frames of the copy
 	var missing := -1
@@ -170,7 +177,7 @@ func _init() -> void:
 	ok(String(m.ui_status.text) == "Took back: Copied video", "8 Undo names the copy \"Copied video\": status \"%s\"" % m.ui_status.text)
 
 	# 3a a missing file
-	home.copy_video_file(MISSING)
+	copy_replacing(home, MISSING)
 	await idle(2)
 	ok(String(m.ui_status.text) == NOT_FOUND and not home._vid_busy and m.S.cards.size() == n0,
 		"3a missing file: \"%s\" (scene %d cards, as before)" % [m.ui_status.text, m.S.cards.size()])
@@ -182,7 +189,7 @@ func _init() -> void:
 	f.close()
 	var junk_g := ProjectSettings.globalize_path(junk)
 	var path0: String = m.scene_path
-	home.copy_video_file(junk_g)
+	copy_replacing(home, junk_g)
 	await wait_copy()
 	await idle(2)
 	ok(String(m.ui_status.text) == NO_PERSON and not home._vid_busy and m.S.cards.size() == n0 and m.scene_path == path0,
@@ -199,7 +206,7 @@ func _init() -> void:
 	if rc_ff == 0 and FileAccess.file_exists(odd):
 		var n3: int = m.S.cards.size()
 		var sp3: String = m.scene_path
-		home.copy_video_file(odd_g)
+		copy_replacing(home, odd_g)
 		await wait_copy()
 		await idle(2)
 		ok(String(m.ui_status.text) == NO_PERSON and not home._vid_busy and m.S.cards.size() == n3 and m.scene_path == sp3,
@@ -216,7 +223,7 @@ func _init() -> void:
 	var c_before: int = m.S.cards.size()
 	var u_before: int = m.undo.size()
 	var s_before := String(m.scene_path)
-	home.copy_video_file(clip)
+	copy_replacing(home, clip)
 	var pid: int = m._video_pid
 	var reading := false
 	for i in 3000:
@@ -248,7 +255,7 @@ func _init() -> void:
 		"6d status line: \"%s\", and the bar is hidden" % m.ui_status.text)
 
 	# 7 a second copy after the cancel still succeeds
-	home.copy_video_file(clip)
+	copy_replacing(home, clip)
 	await wait_copy()
 	await idle(3)
 	ok(m.S.cards.size() >= 2 and m.playing and String(m.ui_status.text).begins_with("Copied"),

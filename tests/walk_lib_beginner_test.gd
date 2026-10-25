@@ -531,7 +531,7 @@ func _init() -> void:
 	var sizes := []
 	for b in visible_buttons():
 		var s := text_of(b).to_lower()
-		if s.contains("size") or s.contains("colo") or s.contains("scale") or s.contains("bigger") or s.contains("smaller"):
+		if s.contains("size") or s.contains("colo") or s.contains("scale") or s.contains("bigger") or s.contains("smaller") or s.contains("grow") or s.contains("shrink"):
 			sizes.append(text_of(b) + " [" + b.tooltip_text + "]")
 	say("   size or colour controls on screen: %s" % str(sizes))
 	if strip_b != null:

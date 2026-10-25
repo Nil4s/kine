@@ -5,14 +5,15 @@
 ## picker is a native dialog, the driver picks the file by emitting its file_selected signal (the same call its OK makes).
 ## A goal the UI does not offer is reported as NOT DONE with what was visible; nothing is worked around.
 ## Screenshots go to C:/Temp/claude/walkvid/ ; the log is printed to stdout. The AI video button is NEVER pressed.
-## Only our own fixtures: tests/data/see_video_crop_small.mp4 and C:/Temp/claude/kine_batch_v2test/combat/*/video.mp4.
+## Only our own fixtures: tests/data/see_video_crop_small.mp4 (the same clip for all three copies).
 ## The Easy settings file is the test's own (EasyMode.start_fresh). Files this run saves are deleted at the end.
 extends SceneTree
 
 const OUT := "C:/Temp/claude/walkvid/"
-const VID1 := "C:/Users/Nick/Desktop/poser/.claude/worktrees/w4-easyvidwalk/tests/data/see_video_crop_small.mp4"
-const VID2 := "C:/Temp/claude/kine_batch_v2test/combat/cmb01_jab/video.mp4"
-const VID3 := "C:/Temp/claude/kine_batch_v2test/combat/cmb02_cross/video.mp4"
+## the repo's one video fixture (tests/data only; the copies of 2 and 3 are this clip too: no clips from outside the repo)
+const VID1 := "C:/Users/Nick/Desktop/poser/.claude/worktrees/w4-easyvid3/tests/data/see_video_crop_small.mp4"
+const VID2 := VID1
+const VID3 := VID1
 const WIP := "res://scenes/_wip"
 
 var made_dirs: Array = []   # playblast folders this run saved (removed at the end)
