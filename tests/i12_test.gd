@@ -115,6 +115,7 @@ func _past(B: Body) -> int:
 func _init() -> void:
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
+	m.only_part = false   # HANDS: these bars test a drag's follow and balance, which Only the part I drag turns off (handlock tests it)
 	await process_frame
 	await process_frame
 	var B: Body = m.B

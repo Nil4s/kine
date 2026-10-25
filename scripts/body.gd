@@ -141,6 +141,7 @@ var wep_hand := ""                           # locked to "hand_r" / "hand_l", or
 var wep_lpos := Vector3.ZERO                 # locked: the knob in the hand's frame:  pos = P[h] + G[h] * lpos
 var wep_lrot := Quaternion.IDENTITY          #                                         rot = G[h] * lrot
 var grip := false      # the OTHER hand holds the bat too
+var free_hand := ""   # HANDS (w4-handlock): the off hand let go of the weapon ("hand_l"/"hand_r"): the magnet does not re-snap it
 var fast := false      # true while a scene plays: set_ang_safe skips the contact bisection (10-13: 300 ms -> ~ms a frame)
 var grip_u := 0.18     # where it holds it: metres up the bat from the knob
 ## the off-hand weapon: locked in wep2_hand (pos = P[h] + G[h] * wep2_lpos, rot = G[h] * wep2_lrot), a dagger
@@ -2502,7 +2503,7 @@ func set_proportions(d: Dictionary) -> void:
 func _state0() -> Dictionary:
 	return {"ang": ang.duplicate(), "offset": offset, "wep_on": wep_on, "wep_kind": wep_kind, "wep_len": wep_len,
 		"wep_pos": wep_pos, "wep_rot": wep_rot, "wep_hand": wep_hand, "wep_lpos": wep_lpos, "wep_lrot": wep_lrot,
-		"grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true), "wep2_on": wep2_on, "wep2_kind": wep2_kind,
+		"grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true), "free_hand": free_hand, "wep2_on": wep2_on, "wep2_kind": wep2_kind,
 		"wep2_hand": wep2_hand, "wep2_lpos": wep2_lpos, "wep2_lrot": wep2_lrot}
 
 
@@ -2525,6 +2526,7 @@ func _set_state0(s: Dictionary, do_fk := true) -> void:
 	grip = s["grip"]
 	grip_u = s["grip_u"]
 	grip2 = (s["grip2"] as Dictionary).duplicate(true)
+	free_hand = s.get("free_hand", "")
 	wep2_on = s.get("wep2_on", false)
 	wep2_kind = s.get("wep2_kind", "dagger")
 	wep2_hand = s.get("wep2_hand", "hand_l")
