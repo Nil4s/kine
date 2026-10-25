@@ -1834,8 +1834,12 @@ func tweak(how: String) -> void:
 	m.easy.frame_clip_next()
 
 
-## CUT START / CUT END (video walk-through round 6, goal 4): the picked card is where the good part starts (Cut start drops the
-## cards before it) or ends (Cut end drops the cards after it). One undo step; the clip plays again from its new start. It keeps 2+ cards.
+## CUT START / CUT END (video walk-through round 6, goal 4; beginner walk-through 9, friction): Cut start drops what is BEFORE the
+## good part's start, Cut end what is AFTER its end. Which point: a card picked on the strip with the playhead on it (the pick sets the
+## playhead to the card's arrival) is the card path, as before. Otherwise the moved slider is the point (the slider is what a beginner
+## just touched; a pick left from earlier is not). The slider's cut keeps the motion at the playhead: a new card holds the pose there,
+## the card it cut into keeps its own move (shortened to what is left). One undo step; the clip plays again from its new start.
+## It keeps 2+ cards.
 func trim(start: bool) -> void:
 	_drop_saved_toast()
 	if _gen_on or _vid_busy or m._imp_busy():
@@ -1844,13 +1848,39 @@ func trim(start: bool) -> void:
 	var S: Scene = m.S
 	var n: int = S.cards.size()
 	var i: int = m.sel_card
-	var word := "starts" if start else "ends"
 	if n < 3:
 		m._say_plain("Nothing to cut: the clip needs 3 or more cards.")
 		return
-	if i < 0 or i >= n:
-		m._say_plain("Click the card where the good part %s on the strip, then press %s." % [word, "Cut start" if start else "Cut end"])
+	var L: float = S.length()
+	var t: float = m.playhead
+	var picked: bool = i >= 0 and i < n
+	var on_pick: bool = picked and absf(t - float(S.times()[i][1])) < 1e-3
+	var nothing_before: bool = t <= 1e-3 if start else t >= L - 1e-3   # the cut would drop nothing on that side
+	var all_of_it: bool = t >= L - 1e-3 if start else t <= 1e-3        # the cut would drop the whole clip
+	if picked and (on_pick or nothing_before or all_of_it):
+		_trim_card(start, i)
 		return
+	if nothing_before or all_of_it:
+		if start:
+			m._say_plain("Cut start: the playhead is at the %s, so %s. Drag the slider to where the good part starts, then press Cut start." % ["start" if nothing_before else "end", "nothing is before it" if nothing_before else "Cut start would drop the whole clip"])
+		else:
+			m._say_plain("Cut end: the playhead is at the %s, so %s. Drag the slider to where the good part ends, then press Cut end." % ["end" if nothing_before else "start", "nothing is after it" if nothing_before else "Cut end would drop the whole clip"])
+		return
+	m.playing = false
+	var err := _cut_at(start, t)
+	if err != "":
+		m._say_plain(err)
+		return
+	m._step_easy = ""
+	_play()
+	m.easy.frame_clip_next()
+
+
+## the card path: the picked card is where the good part starts (or ends); the cards on the far side are dropped
+func _trim_card(start: bool, i: int) -> void:
+	var S: Scene = m.S
+	var n: int = S.cards.size()
+	var word := "starts" if start else "ends"
 	var drop: Array = range(0, i) if start else range(i + 1, n)
 	if drop.is_empty():
 		m._say_plain("The clip already %s here: pick a card further in." % word)
@@ -1872,6 +1902,63 @@ func trim(start: bool) -> void:
 	m._say_plain("Cut %s: %s is now %d cards, %.1f s. Undo takes the cut back." % ["the start" if start else "the end", _clip_word, S.cards.size(), S.length()])
 	_play()
 	m.easy.frame_clip_next()
+
+
+## the playhead's cut at time t (0 < t < length). Returns "" when done, else the status line's words (nothing changed).
+## Cut start: the first card is the pose at t, then the card the playhead is in, its move cut to what is left (or, in its hold,
+## the hold cut to what is left), then the cards after. Cut end: the cards before, then the pose at t arriving by the move it had,
+## or (in a hold) the card with its hold cut to the playhead.
+func _cut_at(start: bool, t: float) -> String:
+	var S: Scene = m.S
+	var n: int = S.cards.size()
+	var ts: Array = S.times()
+	var k := 0
+	for j in n:
+		if float(ts[j][0]) <= t:
+			k = j
+	var in_move: bool = t < float(ts[k][1]) - 1e-3   # the playhead is on the move into card k (not yet arrived there)
+	m._ps().apply(m.B, t)   # the pose at t, as the app plays it (the scrub poses the body the same way)
+	var pose: Dictionary = m.B.to_dict()
+	var new_cards: Array = []
+	if start:
+		if in_move:
+			new_cards.append({"name": "Cut", "pose": pose, "move": 0.0, "hold": 0.0})
+			var rest: Dictionary = (S.cards[k] as Dictionary).duplicate(true)
+			rest["move"] = snappedf(maxf(0.04, float(ts[k][1]) - t), 0.001)
+			new_cards.append(rest)
+			for j in range(k + 1, n):
+				new_cards.append(S.cards[j])
+		else:
+			var hold_left: float = float(ts[k][2]) - t
+			new_cards.append({"name": "Cut", "pose": pose, "move": 0.0, "hold": snappedf(maxf(0.0, hold_left), 0.001)})
+			for j in range(k + 1, n):
+				new_cards.append(S.cards[j])
+	else:
+		if in_move:
+			for j in k:
+				new_cards.append(S.cards[j])
+			new_cards.append({"name": "Cut", "pose": pose, "move": snappedf(maxf(0.04, t - float(ts[k][0])), 0.001), "hold": 0.0})
+		else:
+			for j in range(0, k + 1):
+				new_cards.append(S.cards[j])
+			var last: Dictionary = (new_cards[k] as Dictionary).duplicate(true)
+			last["hold"] = snappedf(maxf(0.0, t - float(ts[k][1])), 0.001)
+			new_cards[k] = last
+	if new_cards.size() < 2:
+		return "That would leave one card: move the slider %s." % ("back" if start else "further in")
+	m._step_hint = "Cut start" if start else "Cut end"
+	m._step_easy = m._step_hint
+	m._push_undo()
+	S.cards.clear()
+	S.cards.append_array(new_cards)
+	m.sel_card = 0 if start else new_cards.size() - 1
+	m.msel = []
+	m.sel_end = -1
+	m.playhead = 0.0
+	m._retimed()
+	m._step_easy = ""
+	m._say_plain("Cut %s at %.1f s: %s is now %d cards, %.1f s. Undo takes the cut back." % ["start" if start else "end", t, _clip_word, S.cards.size(), S.length()])
+	return ""
 
 
 ## SMOOTHER (video walk-through round 6, goal 5): one press smooths the clip one step (EasyTweak.smoothed). One undo step; the clip

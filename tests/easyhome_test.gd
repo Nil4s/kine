@@ -170,6 +170,32 @@ func seat_gap() -> Array:
 	return [Props._over(sup, mid), lo - top]
 
 
+## a real drag of the scrub slider to time t: the press on its grabber's centre, a move, the release (the drag's own path)
+func slider_drag115(sl: HSlider, t: float) -> void:
+	var at: Vector2 = sl.get_global_rect().position + Vector2(tick_x110(sl, t), sl.size.y * 0.5)
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	e.position = at
+	e.global_position = at
+	e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e, true)
+	await idle(1)
+	var mv := InputEventMouseMotion.new()
+	mv.position = at
+	mv.global_position = at
+	mv.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(mv, true)
+	await idle(1)
+	var u := InputEventMouseButton.new()
+	u.button_index = MOUSE_BUTTON_LEFT
+	u.pressed = false
+	u.position = at
+	u.global_position = at
+	root.push_input(u, true)
+	await idle(4)
+
+
 ## a wait by the clock (frames run in the window; a copy's tracker takes seconds)
 func wait_ms(ms: int) -> void:
 	var t := Time.get_ticks_msec()
@@ -2410,6 +2436,63 @@ func _init() -> void:
 	await idle(8)
 	var jump114: Array = await inside_sweep(0.1)
 	ok(jump114[0] <= 2.0, "114b. a jump alone (%.2f s): the body's box inside the free rect at every 0.1 s, worst overflow %.1f px at %.2f s (<= 2)" % [jump114[2], jump114[0], jump114[1]])
+
+	# 115. CUT AT THE SLIDER (beginner walk-through 9, friction): a Walk card, the slider dragged to ~40 % (no card clicked after the
+	# build), Cut start: the clip starts at the pose that was at 40 % (the pelvis within 2 cm of its old place) and is shorter by ~40 %.
+	# 115b. the same at ~60 % with Cut end: the clip ends at the old 60 % pose, shorter by ~40 %. 115c. one Undo: the full walk back.
+	# 115d. the slider at 0 with Cut start (nothing picked): nothing is cut, the status line says why.
+	# Old code: Cut start / Cut end act on the card picked (none: nothing; a stale pick: another cut), so 115a and 115b fail.
+	m._new_scene()
+	await idle(3)
+	home.card(0)   # Walk
+	await idle(6)
+	var sl115 := home.strip.find_child("eh_scrub", true, false) as HSlider
+	var cs115 := home.strip.find_child("eh_cut_start", true, false) as Button
+	var ce115 := home.strip.find_child("eh_cut_end", true, false) as Button
+	var n115: int = m.S.cards.size()
+	var L115: float = m.S.length()
+	await slider_drag115(sl115, L115 * 0.4)
+	var tc115: float = m.playhead
+	m._ps().apply(m.B, tc115)
+	var old115: Vector3 = (m.B.P["pelvis"] as Vector3)
+	var s_before115: bool = cs115 != null and cs115.is_visible_in_tree()
+	if cs115 != null:
+		await click_ctl(cs115)
+	await idle(6)
+	var L115a: float = m.S.length()
+	m._ps().apply(m.B, 0.0)
+	var new115: Vector3 = (m.B.P["pelvis"] as Vector3)
+	ok(s_before115 and absf(new115.distance_to(old115)) <= 0.02 and absf((L115 - L115a) / L115 - 0.4) <= 0.05,
+		"115a. Walk (%.2f s, %d cards), slider at %.2f s (%.0f %%), Cut start: the new start's pelvis %.1f mm from the old pose at the cut (<= 20 mm), the clip %.2f s (%.0f %% shorter, 35-45 %%), %d cards" % [L115, n115, tc115, 100.0 * tc115 / L115, new115.distance_to(old115) * 1000.0, L115a, 100.0 * (L115 - L115a) / L115, m.S.cards.size()])
+	m._undo()
+	await idle(6)
+	ok(m.S.cards.size() == n115 and absf(m.S.length() - L115) < 0.001, "115c. one Undo after Cut start brings the full walk back (%d cards, %.2f s)" % [m.S.cards.size(), m.S.length()])
+	await slider_drag115(sl115, L115 * 0.6)
+	var tc115e: float = m.playhead
+	m._ps().apply(m.B, tc115e)
+	var old115e: Vector3 = (m.B.P["pelvis"] as Vector3)
+	var e_before115: bool = ce115 != null and ce115.is_visible_in_tree()
+	if ce115 != null:
+		await click_ctl(ce115)
+	await idle(6)
+	var L115b: float = m.S.length()
+	m._ps().apply(m.B, L115b)
+	var end115: Vector3 = (m.B.P["pelvis"] as Vector3)
+	ok(e_before115 and absf(end115.distance_to(old115e)) <= 0.02 and absf((L115 - L115b) / L115 - 0.4) <= 0.05,
+		"115b. Cut end at %.2f s (%.0f %%): the clip's last pose %.1f mm from the old pose at the cut (<= 20 mm), %.2f s (%.0f %% shorter, 35-45 %%)" % [tc115e, 100.0 * tc115e / L115, end115.distance_to(old115e) * 1000.0, L115b, 100.0 * (L115 - L115b) / L115])
+	m._undo()
+	await idle(6)
+	ok(m.S.cards.size() == n115 and absf(m.S.length() - L115) < 0.001, "115c. one Undo after Cut end brings the full walk back (%d cards, %.2f s)" % [m.S.cards.size(), m.S.length()])
+	# 115d. the slider at 0, nothing picked
+	m.sel_card = -1
+	await slider_drag115(sl115, 0.0)
+	var c115d: String = _cards_key()
+	var u115d: int = m.undo.size()
+	if cs115 != null:
+		await click_ctl(cs115)
+	await idle(4)
+	ok(_cards_key() == c115d and m.undo.size() == u115d and "start" in m.ui_status.text.to_lower() and "Cut start" in m.ui_status.text,
+		"115d. slider at 0, Cut start: nothing cut (undo %d -> %d) and the status says why: '%s'" % [u115d, m.undo.size(), m.ui_status.text])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
