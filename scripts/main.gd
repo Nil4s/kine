@@ -18378,6 +18378,12 @@ func _trash(path: String) -> void:
 
 
 func _trash_now(path: String) -> bool:
+	# a TEST run never trashes a shipped file (10-25: a run moved scenes/dodge_side.json to trash/ in a worktree): only its
+	# own work copies (_wip/) or zz_ files. The app itself (no test script) deletes what the person picks, as before
+	if Engine.get_main_loop().get_script() != null and path.begins_with("res://") and not path.contains("/_wip/") 			and not path.get_file().begins_with("zz_"):
+		push_warning("test run: refused to trash a shipped file " + path)
+		_say("couldn't delete '%s' (a test run deletes only its own files)" % path.get_file().get_basename())
+		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(UserPaths.w("res://trash")))
 	var to := UserPaths.w("res://trash/%s_%s.json" % [path.get_file().get_basename(), _stamp()])
 	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(to))
