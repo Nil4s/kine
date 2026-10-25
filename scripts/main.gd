@@ -18251,6 +18251,18 @@ func _save_scene(then := Callable()) -> void:
 	var nm := ui_scene_name.text.strip_edges()
 	var to := UserPaths.w("res://scenes/%s.json" % (safe_file(nm) if safe_file(nm) != "" else "scene_" + _stamp()))
 	if FileAccess.file_exists(to) and to != scene_path:
+		if easy != null and easy.on:
+			# EASY (beginner walk-through 10, friction 1): a different scene has this name: no question, the next free name
+			# (wave_2) and the status line says so. The same scene (scene_path) overwrites silently, as Ctrl+S does.
+			var taken := nm
+			nm = _free_name(nm)
+			ui_scene_name.text = nm
+			_save_scene_now(nm)
+			if _unsaved():
+				return
+			_say("Saved %s (%.1f seconds): '%s' was taken by another scene, so this one has the next name" % [nm.replace("_", " "), roundf(_hero_scene().length() * 10.0 + 0.001) / 10.0, taken.replace("_", " ")])
+			_then_if_saved(then)
+			return
 		_clash_ask(nm, then)
 		return
 	_save_scene_now(nm)

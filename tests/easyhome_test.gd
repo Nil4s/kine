@@ -72,6 +72,10 @@
 ##  110. THE HIT MARKS (beginner round 8, friction 7): punch then kick -> 2 ticks on the scrub, each at its strike card's contact
 ##      time (within 1 frame; the templates carry no hit marker, so the contact is the card's arrival).
 ##  111. clicking the kick's tick puts the playhead at the kick's contact (within 1 frame) and stops the play.
+##  116. EASY SAVE WITHOUT A QUESTION (beginner walk-through 10): (a) Wave, Save the scene twice: no question, one file, status Saved;
+##      (b) New scene, Wave, Save the scene: no question, a numbered second file, status says the name was taken; (c) a walk after it, then
+##      Save video by a real click: the video (or its frames) appears; (d) a question up: Save video's click says the question, no video.
+##      Section 90 keeps Expert's Replace / Save as a new name dialog (it runs in Expert).
 ##  112. each tick lies inside the slider's rect at 1280x720, and no tick touches a strip button (easy_overlap).
 ##  85. WALK TO THE CHAIR AND SIT (round 8, goal 1): a walk built, a chair 2 m past where it ends, the strip's "Sit on the chair":
 ##      the root's horizontal path is continuous over the whole clip (no frame-to-frame jump > 0.15 m, sampled every 1/30 s).
@@ -103,6 +107,15 @@ func ok(c: bool, what: String) -> void:
 	print(("ok   " if c else "FAIL ") + what)
 	if not c:
 		fails += 1
+
+
+## removes a folder this run made (section 116's user:// test folder): its files, then its folders
+func _rm116(p: String) -> void:
+	for f in DirAccess.get_files_at(p):
+		DirAccess.remove_absolute(p + "/" + f)
+	for d in DirAccess.get_directories_at(p):
+		_rm116(p + "/" + d)
+	DirAccess.remove_absolute(p)
 
 
 func idle(n := 4) -> void:
@@ -2197,14 +2210,15 @@ func _init() -> void:
 	await idle(2)
 	home.card(6)
 	await idle(4)
-	home.save_scene()   # the same clip name again: the name is taken
+	home.save_scene()   # the same clip name again: the name is taken by another scene
 	await idle(3)
 	var asked90 := clash_up()
-	ok(asked90, "90a. a second save under the same clip name asks Replace it / Save as a new name (question up: %s)" % str(asked90))
-	clash_answer("new")
-	await idle(3)
-	ok(FileAccess.file_exists(sc90.call("wave_2")) and String(m.scene_path).get_file() == "wave_2.json",
-		"90a. Save as a new name writes wave_2.json (scene file '%s', wave_2.json exists %s)" % [String(m.scene_path).get_file(), str(FileAccess.file_exists(sc90.call("wave_2")))])
+	# EASY (section 116, beginner walk-through 10): no question; the next free name is written
+	ok(not asked90 and FileAccess.file_exists(sc90.call("wave_2")) and String(m.scene_path).get_file() == "wave_2.json",
+		"90a. Easy: a second save under the same clip name asks nothing and writes wave_2.json (question up: %s, scene file '%s')" % [str(asked90), String(m.scene_path).get_file()])
+	# 90b (and the Save question of 90b below) is EXPERT's dialog: Expert keeps Replace it / Save as a new name
+	m.easy.set_on(false, false)
+	await idle(2)
 	# 90b. an unsaved clip, New scene: the Save question answers with a taken name, and the new scene comes up empty
 	m._new_scene()
 	await idle(2)
@@ -2225,6 +2239,8 @@ func _init() -> void:
 	await idle(4)
 	ok(m.S.cards.is_empty(), "90b. New scene comes up empty after the save question (cards %d)" % m.S.cards.size())
 	ok(FileAccess.file_exists(sc90.call("wave_3")), "90b. the new name's file wave_3.json is written")
+	m.easy.set_on(true, false)   # back to Easy for 90c and 90d
+	await idle(2)
 	# 90c. an 18 s clip: Slower works (x1.25; the cap is 60 s)
 	m._new_scene()
 	await idle(2)
@@ -2493,6 +2509,85 @@ func _init() -> void:
 	await idle(4)
 	ok(_cards_key() == c115d and m.undo.size() == u115d and "start" in m.ui_status.text.to_lower() and "Cut start" in m.ui_status.text,
 		"115d. slider at 0, Cut start: nothing cut (undo %d -> %d) and the status says why: '%s'" % [u115d, m.undo.size(), m.ui_status.text])
+
+	# 116. EASY SAVE WITHOUT A QUESTION (beginner walk-through 10, friction 1 and 2): a taken name in Easy is numbered, not asked;
+	# the same scene saves over itself; Save video works straight after a save; a question on screen is said, never silent.
+	# (a) Wave, Save the scene twice: no question, one file, the status says Saved.
+	# (b) New scene, Wave again, Save the scene: no question, a second file with the numbered name, the status says why.
+	# (c) a walk after it, then Save video (the bar's button, a real click): the video file (or its frames) appears.
+	# (d) a question up (New scene over an unsaved clip): a click on Save video says the question first and makes no video.
+	# The scenes and the video go to a user:// folder of this run (UserPaths.root), removed at the end.
+	var keep116 := UserPaths.force
+	var root116 := UserPaths.root
+	var abs116 := ProjectSettings.globalize_path("user://easysave_%d" % OS.get_process_id())
+	var scn116 := abs116 + "/scenes"
+	var vid116 := abs116 + "/video"
+	DirAccess.make_dir_recursive_absolute(vid116)
+	UserPaths.force = true
+	UserPaths.root = abs116
+	home.video_root = vid116
+	var btn116: Button = m.easy.button("Save video")
+	m._new_scene()
+	await idle(2)
+	home.card(6)   # Wave
+	await idle(4)
+	home.save_scene()
+	await idle(3)
+	home.save_scene()   # the same scene again: Ctrl+S semantics, no question
+	await idle(3)
+	var n116a := DirAccess.get_files_at(scn116)
+	var st116a: String = m.ui_status.text
+	ok(not clash_up() and n116a.size() == 1 and st116a.begins_with("Saved"),
+		"116a. Wave, Save the scene twice: no question (up %s), one file (%s), status '%s'" % [str(clash_up()), str(n116a), st116a])
+	# (b) a second scene, the same clip name
+	m._new_scene()
+	await idle(2)
+	home.card(6)
+	await idle(4)
+	home.save_scene()
+	await idle(3)
+	var n116b := DirAccess.get_files_at(scn116)
+	var st116b: String = m.ui_status.text
+	ok(not clash_up() and n116b.size() == 2 and FileAccess.file_exists(scn116 + "/wave_2.json") and st116b.begins_with("Saved") and st116b.contains("taken"),
+		"116b. New scene, Wave, Save the scene: no question (up %s), a numbered second file (%s), status '%s'" % [str(clash_up()), str(n116b), st116b])
+	# (c) a second card, then Save video by a real click on the bar
+	home.card(0)   # Walk after the wave
+	await idle(6)
+	var cards116: int = m.S.cards.size()
+	await idle(3)
+	if btn116 != null:
+		await click_ctl(btn116)
+	await idle(3)
+	var g116 := 0
+	while m._pb_busy and g116 < 4000:
+		await process_frame
+		g116 += 1
+	await idle(3)
+	var mp4116 := String(home.last_video.get("mp4", ""))
+	var dir116 := String(home.last_video.get("dir", ""))
+	var vid_ok := (mp4116 != "" and FileAccess.file_exists(mp4116)) or (dir116 != "" and DirAccess.get_files_at(dir116).size() > 0)
+	ok(btn116 != null and cards116 >= 2 and vid_ok,
+		"116c. Save video right after the save (%d cards, %d frames of wait): the file '%s' (mp4 %s), status '%s'" % [cards116, g116, mp4116.get_file(), str(FileAccess.file_exists(mp4116)), m.ui_status.text])
+	# (d) a question up: the scene has the walk unsaved, New scene asks first; a click on Save video is said, and makes no video
+	m._new_asked()
+	await idle(3)
+	var ask116 = m.get("ui_save_ask")
+	var q116 := ask116 != null and (ask116 as Window).visible
+	var vids116 := DirAccess.get_directories_at(vid116).size()
+	if btn116 != null:
+		await click_ctl(btn116)
+	await idle(3)
+	var st116d: String = m.ui_status.text
+	ok(q116 and st116d.contains("question") and DirAccess.get_directories_at(vid116).size() == vids116,
+		"116d. a question up (%s): Save video's click says the question first and makes no video (folders %d -> %d), status '%s'" % [str(q116), vids116, DirAccess.get_directories_at(vid116).size(), st116d])
+	m._save_ask_choose("discard")   # Don't save: the question goes, the new scene comes up
+	await idle(3)
+	UserPaths.force = keep116
+	UserPaths.root = root116
+	home.video_root = ""
+	m._new_scene()
+	await idle(2)
+	_rm116(abs116)
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
