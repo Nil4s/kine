@@ -10057,6 +10057,7 @@ var _shape_i := {"l": 0, "r": 0}
 var ui_hand := {}   # "rcurl" / "rspread" / "lcurl" / "lspread" -> HSlider (YY3)
 var ui_finger := {}   # "rthumb" / "rindex" ... "lpinky" -> HSlider (ROADMAP 73: one curl per finger)
 var ui_back := {}   # "bend" / "side" / "twist" -> HSlider (YY4)
+var ui_blade := {}   # BLADE TURN / HEAD TILT (w4-bladeturn): "turn" / "tilt" -> {slider, label, box, tick} in the WEAPON section
 
 
 func _on_back_slider(v: float, k: String) -> void:
@@ -10358,6 +10359,79 @@ func _slide(d: float) -> void:
 		_say("the arm can't reach further that way: turn the weapon or move the body first")
 
 
+## BLADE TURN / HEAD TILT (w4-bladeturn): the weapon turns inside the hand that holds it; the hand does not move. The card
+## keeps it (one undo step per slider drag or button press). Words for the label: "Blade turn: 90° (edge forward)".
+func _turn_word(d: float) -> String:
+	var a := absf(d)
+	if a <= 22.5:
+		return "as held"
+	if a >= 157.5:
+		return "flipped"
+	return "edge forward" if d > 0.0 else "edge back"
+
+
+func _tilt_word(d: float) -> String:
+	if absf(d) < 1.0:
+		return "level"
+	return "forward" if d > 0.0 else "back"
+
+
+## the blade's turn and tilt (radians) now: the turn in the hand from the saved grip, the card keeps it, the other hand follows
+## the handle or lets go if it can't (said)
+func _blade_apply(turn_rad: float, tilt_rad: float) -> void:
+	B.set_blade(turn_rad, tilt_rad)
+	if B.grip:
+		var miss := B.apply_grip()
+		if miss > 0.02:
+			B.grip = false
+			_say("the other hand let go: it can't follow the handle that far round")
+	_blade_card()
+
+
+func _blade_by(deg: float) -> void:
+	if not B.wep_on or B.wep_hand == "":
+		_say("no weapon in a hand: put one in a hand first")
+		return
+	_blade_apply(B.wep_turn + deg_to_rad(deg), B.wep_tilt)
+	_say("the blade turned %d°: %s; the hand and its grip stay" % [roundi(rad_to_deg(B.wep_turn)), _turn_word(rad_to_deg(B.wep_turn))])
+
+
+func _on_blade_slider(v: float, k: String) -> void:
+	if not B.wep_on or B.wep_hand == "":
+		return
+	if k == "turn":
+		_blade_apply(deg_to_rad(v), B.wep_tilt)
+	else:
+		_blade_apply(B.wep_turn, deg_to_rad(v))
+	_after_edit()
+
+
+## the picked card keeps the body's weapon (as a pose change does): the card the playhead is on when none is picked
+func _blade_card() -> void:
+	var ci := sel_card if sel_card >= 0 else LimbIK.card_at(S, playhead)
+	if ci < 0 or ci >= S.cards.size():
+		return
+	S.cards[ci]["pose"] = B.to_dict()
+	_rebuild_cards()
+
+
+## the blade sliders read the body back (no signal); shown while a weapon is in a hand
+func _blade_sync() -> void:
+	var held: bool = B != null and B.wep_on and B.wep_hand != ""
+	for k in ui_blade:
+		var d: Dictionary = ui_blade[k]
+		if not is_instance_valid(d["box"]):
+			continue
+		(d["box"] as Control).visible = held
+		if not held:
+			continue
+		var v: float = rad_to_deg(B.wep_turn if k == "turn" else B.wep_tilt)
+		var sl := d["slider"] as HSlider
+		sl.set_value_no_signal(v)
+		EasySliders._place_rest(sl, d["tick"])
+		(d["label"] as Label).text = ("Blade turn: %d° (%s)" % [roundi(v), _turn_word(v)]) if k == "turn" else ("Head tilt: %d° (%s)" % [roundi(v), _tilt_word(v)])
+
+
 ## HANDS ROW (w4-handlock). The weapon's two hands in plain buttons: both hold it / let the off hand go / the weapon
 ## follows the hand (the old Free the bat). Each press is one undo step (_do); the state is said in words.
 const HAND_NAME := {"hand_r": "Right hand", "hand_l": "Left hand"}
@@ -10408,6 +10482,12 @@ func _hands_block(easy_side: bool) -> VBoxContainer:
 		d["only"].toggle_mode = true
 		d["only"].name = "btn_only_part"
 		hb.add_child(d["only"])
+		d["turn90"] = _button("Turn blade 90°", _do.bind(_blade_by.bind(90.0)), "the blade rolls a quarter turn about the handle, inside the hand: the hand and its grip stay (one undo step; the card keeps it)")
+		d["turn90"].name = "btn_turn_blade"
+		hb.add_child(d["turn90"])
+		d["flip"] = _button("Flip blade", _do.bind(_blade_by.bind(180.0)), "the blade turns half a turn about the handle: head the other way (one undo step; the card keeps it)")
+		d["flip"].name = "btn_flip_blade"
+		hb.add_child(d["flip"])
 	ui_hands.append(d)
 	_hands_refresh()
 	return box
@@ -10452,6 +10532,7 @@ func _hands_refresh() -> void:
 		(d["let_r"] as Button).disabled = not (on_h and o == "hand_r")
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
+	_blade_sync()
 
 
 func _hands_both() -> void:
@@ -12503,6 +12584,25 @@ func _ui() -> void:
 	_row(attrs_sec, [_label("min", PROP_TXT, "text:0.6"), ui_attr_min, _label("max", PROP_TXT, "text:0.6"), ui_attr_max])
 	_row(attrs_sec, [_label("default", PROP_TXT, "text:0.6"), ui_attr_def, _button("+ attribute", _attr_add, "add the attribute to the picked part: one undo step (Ctrl+Z takes it back)")])
 	var wep := _section(vb, "WEAPON")
+	# BLADE TURN / HEAD TILT (w4-bladeturn): the weapon turned inside its hand (the grip stays); rest tick = the saved grip
+	for k in ["turn", "tilt"]:
+		var bbox := VBoxContainer.new()
+		var bl := _prop_row(bbox)
+		var bs := HSlider.new()
+		bs.name = "slider_blade_" + k
+		bs.step = 1.0
+		bs.min_value = -180.0 if k == "turn" else -45.0
+		bs.max_value = 180.0 if k == "turn" else 45.0
+		bs.drag_started.connect(_push_undo)
+		bs.value_changed.connect(_on_blade_slider.bind(k))
+		_row_slider(bl, bs)
+		var btk := Control.new()
+		btk.name = "blade_rest_" + k
+		btk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btk.draw.connect(EasySliders._draw_rest.bind(btk))
+		bs.add_child(btk)
+		wep.add_child(bbox)
+		ui_blade[k] = {"slider": bs, "label": bl[0], "box": bbox, "tick": btk}
 	_row(wep, [_weapon_picker("opt_weapon_panel")])
 	_row(wep, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
 	_row(wep, [_button("Main hand down (,)", _do.bind(_slide.bind(-0.03)), "the hand slides toward the lower end; the weapon stays, the arm follows"),
@@ -13552,6 +13652,8 @@ func _bat_from_sliders() -> void:
 	if B.wep_hand != "":
 		B.wep_lrot = q
 		B.wep_lpos = B.lpos_from_knob(pos, B.wep_lrot, B.wep_hand)   # stored in default-hand metres (round 52)
+		B.wep_turn = 0.0   # these set the in-hand place outright: that is the new saved grip the blade turn starts from (w4-bladeturn)
+		B.wep_tilt = 0.0
 	else:
 		B.wep_rot = q
 		B.wep_pos = pos

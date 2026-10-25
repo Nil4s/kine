@@ -114,3 +114,4 @@ EXTRA="$EXTRA turn:h"   # the turns on the spot: turn around 180, left / right 9
 EXTRA="$EXTRA fixall:w"   # FIX ALL: one button applies every Check fix in order, one undo step (tests/fixall_test.gd)
 EXTRA="$EXTRA testfiles:h"   # TEST FILES: a run removes its own zz_* / autosave_test_* / pid-named leftovers under user:// (scripts/test_files.gd; tests/testfiles_test.gd)
 EXTRA="$EXTRA handlock:w"   # HANDS: the weapon's hands row, Only the part I drag, Lock this part, the Easy side panel; a real mouse on the axe (tests/handlock_test.gd)
+EXTRA="$EXTRA bladeturn:w"   # BLADE TURN / HEAD TILT: the weapon turned inside its hand, the Expert sliders and buttons, the Easy side slider (tests/bladeturn_test.gd)
