@@ -32,6 +32,8 @@ const TRY := [3, 4, 6, 0]   # the cards offered under an unknown move (CARDS ind
 const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave and fall are templates now)
 
 var m: Node                    # main (untyped: the same pattern as EasyMode)
+const SIT_KINDS := ["chair", "stool", "bench"]   # the props SET's sit takes (main.gd SIT_ON)
+var _sit_btn: Button           # "Sit on it": the picked chair, stool or bench seats him (SET's own sit)
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
@@ -118,6 +120,14 @@ func build(root: Control) -> void:
 	v.add_child(grid)
 	for i in CARDS.size():
 		grid.add_child(_card_button(i))
+	_sit_btn = Button.new()
+	_sit_btn.name = "eh_sit"
+	_sit_btn.text = "Sit on it"
+	_sit_btn.focus_mode = Control.FOCUS_NONE
+	_sit_btn.tooltip_text = "seat him on the chair, stool or bench you picked (one undo step)"
+	_sit_btn.visible = false
+	_sit_btn.pressed.connect(sit_on_chair)
+	v.add_child(_sit_btn)
 	_edit = LineEdit.new()
 	_edit.name = "eh_text"
 	_edit.placeholder_text = HINT
@@ -283,6 +293,7 @@ func _process(dt: float) -> void:
 	var typed_gap: bool = _gen_words != "" and not _gen_on   # a typed line Kine cannot build
 	var ai_ok: bool = typed_gap and m.gen_move.available()
 	_make_btn.visible = ai_ok
+	_sit_btn.visible = sit_ready()   # a chair, stool or bench is picked: he can sit on it
 	_try_row.visible = typed_gap   # the same moves as the cards, one click each
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
@@ -428,10 +439,69 @@ func _next_pressed(i: int) -> void:
 
 
 ## the text box: the same build as a card, named by what was typed
+## SIT ON IT (walk-through round 5, goal 4): the picked chair, stool or bench, else the first one in the scene. -1 = none
+func _sit_index() -> int:
+	var i: int = m.sel_prop
+	if i >= 0 and i < m.S.props.size() and String(m.S.props[i]["kind"]) in SIT_KINDS:
+		return i
+	for j in m.S.props.size():
+		if String(m.S.props[j]["kind"]) in SIT_KINDS:
+			return j
+	return -1
+
+
+## the button shows when the picked prop is a chair, stool or bench
+func sit_ready() -> bool:
+	var i: int = m.sel_prop
+	return i >= 0 and i < m.S.props.size() and String(m.S.props[i]["kind"]) in SIT_KINDS
+
+
+## SIT ON IT: SET's own sit (main._prop_sit: a card that puts him on the seat) on the picked chair, then the clip bookkeeping
+## a card build does: the strip shows, the clip plays, the camera frames it. One undo step (main._prop_sit pushes it)
+func sit_on_chair() -> void:
+	if not sit_ready():
+		m._say_plain("Pick a chair, a stool or a bench first: click it in the view, or add one with Library")
+		return
+	var was: int = m.S.cards.size()
+	m._prop_sit()
+	_built = true
+	_open = false
+	_gen_words = ""
+	_msg.text = ""
+	if was == 0:
+		_hist.clear()
+	_hist.append([m.undo.size(), ""])
+	_clip_word = "the clip"
+	_refresh_next()
+	m._layout_bottom()
+	_play()
+	m._say_plain("He sits on the %s. Again plays it; Undo takes it back." % m._prop_name(m.sel_prop))
+	m.easy.frame_clip_next()
+
+
+## typed "sit", "sit down", "sit on the chair" (no "then", no comma) with a chair, stool or bench in the scene: he sits on it.
+## No such prop: false, and the words go to the builder as before
+func _sit_typed(t: String) -> bool:
+	var low := t.to_lower()
+	if low.contains(",") or low.contains(";") or low.contains(" then "):
+		return false
+	var ws := low.replace(".", " ").replace("!", " ").split(" ", false)
+	if not ws.has("sit"):
+		return false
+	var i := _sit_index()
+	if i < 0:
+		return false
+	m._prop_select(i)
+	sit_on_chair()
+	return true
+
+
 func _words(text: String) -> void:
 	var t := text.strip_edges()
 	if t == "":
 		_fail("Type a move first, such as 'jab then cross' or 'roundhouse', or click a picture.")
+		return
+	if _sit_typed(t):   # "sit", "sit down", "sit on the chair" with a chair in the scene: he sits on it
 		return
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1

@@ -21,6 +21,7 @@ var m: Node                 # main (untyped: the same pattern as Browser)
 var on := false             # Easy is showing
 var tour_step := -1         # -1 = no tour
 var bar: PanelContainer
+var views: PanelContainer   # VIEW BUTTONS (walk-through round 5, goal 7): Front, Side, Back, Reset view at the right edge, Easy only
 var tour_card: PanelContainer
 var _tour_title: Label
 var _tour_text: Label
@@ -146,6 +147,7 @@ func build(root: Control, expert: Array) -> void:
 	_menu.name = "easy_open_menu"
 	_menu.index_pressed.connect(func(i: int): if _menu_paths.has(i): m._open_scene_file(_menu_paths[i]))
 	bar.add_child(_menu)
+	_build_views(root)
 	_build_tour_card(root)
 	get_viewport().size_changed.connect(_resized)   # EASY CAMERA: a window resize re-frames the clip (frame_clip)
 	home = EasyHome.new()   # the empty scene's "What should he do?" panel: a child of Easy, so Expert never shows it
@@ -153,6 +155,43 @@ func build(root: Control, expert: Array) -> void:
 	home.m = m
 	add_child(home)
 	home.build(root)
+
+
+## VIEW BUTTONS: the view keys 1 (front), 2 (side, -90), 4 (back) and HOME, turned smoothly; a small column at the right edge
+func _build_views(root: Control) -> void:
+	views = PanelContainer.new()
+	views.name = "easy_views"
+	views.visible = false
+	views.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)   # under the bar, at the right: clear of the picker, the strip and the save toast
+	views.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	views.grow_vertical = Control.GROW_DIRECTION_END
+	views.offset_top = float(m.TOP_H) + 8.0
+	views.offset_right = -12.0
+	var st := StyleBoxFlat.new()
+	st.bg_color = Tok.c("panel")
+	st.set_corner_radius_all(10)
+	st.set_content_margin_all(8)
+	views.add_theme_stylebox_override("panel", st)
+	root.add_child(views)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	views.add_child(col)
+	var acts := [
+		["easy_view_front", "Front", "the view from the front", func(): m._view(1, true)],
+		["easy_view_side", "Side", "the view from the side: the camera turns 90 degrees", func(): m._view(2, true)],
+		["easy_view_back", "Back", "the view from the back", func(): m._view(4, true)],
+		["easy_view_reset", "Reset view", "the first view: the body from the front, a little from above", func(): m._view_home(true)],
+	]
+	for a in acts:
+		var b := Button.new()
+		b.name = a[0]
+		b.text = a[1]
+		b.tooltip_text = a[2]
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(120, 40)
+		b.add_theme_font_size_override("font_size", 18)
+		b.pressed.connect(a[3])
+		col.add_child(b)
 
 
 ## one big button: its label wraps in the button (two lines at 7 buttons across a 1280-px window)
@@ -256,6 +295,8 @@ func set_on(v: bool, save := true) -> void:
 		_dummy_was = false
 	if bar != null:
 		bar.visible = on
+	if views != null:
+		views.visible = on
 	if on != was and m != null and m.ui_status != null:
 		m._sides_apply()   # main's own pieces follow the mode (the side panels stay hidden while Easy is on)
 		m._rebuild_cards()   # the card lines follow the mode (a name and a picture in Easy; the number and the timing in Expert)

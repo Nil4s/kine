@@ -19297,7 +19297,11 @@ func _prop_add(kind: String) -> void:
 	sel_prop = S.props.size() - 1
 	_props_show()
 	_doc_line()
-	_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
+	if easy.on:   # Easy has no SET ribbon: the sit is the panel's "Sit on it" (walk-through round 5)
+		_say("added a %s in front of the body: drag it to move it%s; Ctrl+Z takes it back" % [_prop_name(sel_prop),
+			"; Sit on it in the panel seats him on it" if kind in SIT_ON else ""])
+	else:
+		_say("added a %s in front of the body: drag it to move it; Turn and Delete are in SET; Ctrl+Z takes it back" % _prop_name(sel_prop))
 
 
 func _prop_turn(deg: float) -> void:
@@ -19689,7 +19693,7 @@ func _prop_select(i: int) -> void:
 		return
 	sel_prop = i
 	_props_show()
-	_say_plain("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i))
+	_say_plain(("the %s: drag it in the view to move it" % _prop_name(i)) if easy.on else ("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i)))
 
 
 ## ---- IMPORT (SS6): a dropped file, or Import model's picker, goes through the importer (scripts/importer.gd)

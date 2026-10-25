@@ -64,6 +64,24 @@ func body_box() -> Rect2:
 	return Rect2(lo, hi - lo) if lo.x < INF else Rect2()
 
 
+## the picked prop (a chair) under the hips: [the pelvis's middle is over its seat, the hips' lowest surface over the seat minus
+## the seat's top] (the same measure as use_set_test's sit: Body.SEAT_PARTS, Props._over)
+func seat_gap() -> Array:
+	var p: Dictionary = m.S.props[m.sel_prop]
+	var sup: Dictionary = Props.supports(p)[0]
+	var top: float = sup["y"]
+	var B: Body = m.B
+	var mid: Vector3 = (B.cap("pelvis")[0] + B.cap("pelvis")[1]) * 0.5
+	var lo := INF
+	for part in Body.SEAT_PARTS:
+		var c = B.cap(part)
+		for k in 41:
+			var q: Vector3 = (c[0] as Vector3).lerp(c[1], k / 40.0)
+			if Props._over(sup, q):
+				lo = minf(lo, q.y - float(B.rad[part]))
+	return [Props._over(sup, mid), lo - top]
+
+
 func card_btn(i: int) -> Button:
 	return m.easy.home.panel.find_child("eh_card_%d" % i, true, false) as Button
 
@@ -348,6 +366,65 @@ func _init() -> void:
 	await idle(4)
 	var said13: String = (home.panel.find_child("eh_msg", true, false) as Label).text
 	ok(said13.contains("backflip") and not m.ui_status.text.contains("backflip"), "13. 'backflip' is said in the panel only (panel '%s', status '%s')" % [said13, m.ui_status.text])
+	m._new_scene()
+	await idle(4)
+
+	# 14. SIT ON A CHAIR, AND VIEW BUTTONS (walk-through round 5, goals 4 and 7). A chair placed in Easy shows "Sit on it" in the
+	# panel; the click seats him on it (SET's own sit: main._prop_sit); typed "sit on the chair" does the same. Front, Side and
+	# Back turn the camera 0 / 90 / 180 deg; Front returns it exactly
+	m._new_scene()
+	await idle(4)
+	var sit_btn := home.panel.find_child("eh_sit", true, false) as Button
+	ok(sit_btn != null and not sit_btn.visible, "14. no chair picked: no 'Sit on it' button in the panel")
+	m._prop_add("chair")
+	await idle(4)
+	sit_btn = home.panel.find_child("eh_sit", true, false) as Button
+	ok(sit_btn != null and sit_btn.visible and not sit_btn.disabled, "14. a chair placed: 'Sit on it' is visible in the panel and live")
+	if sit_btn != null:
+		sit_btn.pressed.emit()
+	await idle(6)
+	var g14: Array = seat_gap()
+	ok(m.S.cards.size() == 1 and String(m.S.cards[0]["name"]).begins_with("sit on the chair"), "14. Sit on it builds the chair's sit card (%d cards)" % m.S.cards.size())
+	ok(bool(g14[0]), "14. click: the hips are over the chair's seat")
+	ok(float(g14[1]) > -0.005 and float(g14[1]) < 0.15, "14. click: the hips end %.3f m above the seat's top (within 0.15)" % float(g14[1]))
+	m._new_scene()
+	await idle(4)
+	m._prop_add("chair")
+	await idle(4)
+	var n14: int = m.S.cards.size()
+	edit.text = "sit on the chair"
+	edit.text_submitted.emit("sit on the chair")
+	await idle(6)
+	ok(m.S.cards.size() == n14 + 1 and String(m.S.cards[m.sel_card]["name"]).begins_with("sit on the chair"), "14. typed 'sit on the chair' adds the chair's sit card (%d cards)" % m.S.cards.size())
+	g14 = seat_gap()
+	ok(bool(g14[0]), "14. typed: the hips are over the chair's seat")
+	ok(float(g14[1]) > -0.005 and float(g14[1]) < 0.15, "14. typed: the hips end %.3f m above the seat's top (within 0.15)" % float(g14[1]))
+	m._new_scene()
+	await idle(4)
+	var front := m.easy.views.find_child("easy_view_front", true, false) as Button
+	var side := m.easy.views.find_child("easy_view_side", true, false) as Button
+	var back := m.easy.views.find_child("easy_view_back", true, false) as Button
+	var reset := m.easy.views.find_child("easy_view_reset", true, false) as Button
+	ok(front != null and side != null and back != null and reset != null and m.easy.views.visible and front.visible, "14. Easy shows the view buttons Front, Side, Back, Reset view")
+	m._turn_to(37.0, -8.0, m.dist, m.target, false)   # the camera starts off the front: Front must do the turn itself
+	await idle(2)
+	if front != null:
+		front.pressed.emit()
+		await create_timer(0.6).timeout
+	var yf0: float = wrapf(m.yaw, -180.0, 180.0)
+	ok(absf(yf0) < 0.01, "14. Front: the camera faces the front (yaw %.2f)" % m.yaw)
+	if side != null:
+		side.pressed.emit()
+		await create_timer(0.6).timeout
+	ok(absf(absf(wrapf(m.yaw, -180.0, 180.0)) - 90.0) < 0.5, "14. Side turns the camera 90 deg (yaw %.2f)" % m.yaw)
+	if back != null:
+		back.pressed.emit()
+		await create_timer(0.6).timeout
+	ok(absf(absf(wrapf(m.yaw, -180.0, 180.0)) - 180.0) < 0.5, "14. Back turns the camera 180 deg (yaw %.2f)" % m.yaw)
+	if front != null:
+		front.pressed.emit()
+		await create_timer(0.6).timeout
+	ok(absf(wrapf(m.yaw, -180.0, 180.0)) < 0.01, "14. Front returns the camera exactly (yaw %.3f)" % m.yaw)
 	m._new_scene()
 	await idle(4)
 
