@@ -328,6 +328,20 @@ static func _airborne_spans(DS: Scene, B: Body) -> int:
 	return n
 
 
+static func _both_up_frames(DS: Scene, B: Body, bar: float) -> int:
+	var n := 0
+	var k := 0
+	while k / 120.0 <= DS.length() + 1e-6:
+		DS.apply(B, k / 120.0)
+		var up := true
+		for sd in ["_l", "_r"]:
+			up = up and ((B.P["ball" + sd] as Vector3).y - (B.p0["ball" + sd] as Vector3).y) > bar
+		if up:
+			n += 1
+		k += 1
+	return n
+
+
 static func _yaw_change(DS: Scene, B: Body) -> float:
 	DS.apply(B, 0.0)
 	var y0 := TextView.yaw(B)
@@ -359,6 +373,9 @@ static func typed_bars(ed: EasyHome) -> int:
 			for c in cards:
 				moves[String(c.get("from", ""))] = true
 			fails += _tbar(moves.size() == 3, "'%s': %d punch moves in the clip (one tag per punch), want 3" % [phrase, moves.size()])
+		if phrase == "turn around":   # round 10 (the floor): a turn never lifts both feet off the floor; 0 frames with both feet over 1 cm up
+			var both_up := _both_up_frames(DS, B, 0.01)
+			fails += _tbar(both_up == 0, "'turn around' alone: %d frames with both feet over 1 cm above the floor (bar 0: a turn is never a hop)" % both_up)
 		if phrase.ends_with("turn around") or phrase.begins_with("turn") or phrase.begins_with("spin"):
 			var yc := _yaw_change(DS, B)
 			fails += _tbar(absf(yc) >= 165.0 and absf(yc) <= 195.0, "'%s': the hips' yaw ends %.1f deg from the start (180 +- 15)" % [phrase, yc])
