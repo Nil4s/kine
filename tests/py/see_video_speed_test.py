@@ -8,6 +8,9 @@ Both tools run on tests/data/see_video_crop_small.mp4 (a 5 s clip, the person ab
 pass runs). The old tool is the base commit's (OLD_REV below) read with git into a temp folder. Runs alternate old, new, 3 each,
 and the bars use the medians of the wall-clock times (the machine is shared: one run is noise).
 
+STAGE (robust, no clock): on the crop pass the wrist hand crops are run on at most WRIST_BAR of the visible wrists (the tool
+prints "wrist crops: N run of M visible wrists"; measured 108 of 162 = 67%: the left fist, which the hand model never finds on
+this clip, is re-probed every 4th frame instead of every frame). The old tool prints no such line, so the bar fails on it.
 TIMING: median(new) <= TARGET x median(old).
 EQUALITY: the same frames are tracked, and the joints agree: the mean world-joint difference over all frames and joints is
 under 1 cm. The hand matching is reported (frames whose hand set differs); it is not part of the joint bar, because the
@@ -27,7 +30,9 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 TOOL = os.path.join(ROOT, "tools", "see_video.py")
 FIXTURE = os.path.join(ROOT, "tests", "data", "see_video_crop_small.mp4")
 OLD_REV = "0dffa8c"          # the base commit: the pass as it was before the chunked crop pass
+HEAD_REV = "c3ae0ef"         # the pass before the wrist-probe skip (the stage bar's and the hands-equality reference)
 TARGET = 0.70                # new median wall time <= this share of the old median
+WRIST_BAR = 0.75             # wrist crops run <= this share of the visible wrists (the stage bar)
 RUNS = 3
 JOINT_BAR_M = 0.01           # mean world-joint difference, metres (1 cm)
 HAND_FRAC_BAR = 0.10         # frames whose hand set differs, share of the frames with a hand in either run
@@ -44,14 +49,18 @@ def check(name, ok, msg):
         FAILS.append(name)
 
 
-def git_old(dest):
-    out = subprocess.run(["git", "-C", ROOT, "show", "%s:tools/see_video.py" % OLD_REV], capture_output=True)
+def git_old(dest, rev=None):
+    rev = rev or OLD_REV
+    out = subprocess.run(["git", "-C", ROOT, "show", "%s:tools/see_video.py" % rev], capture_output=True)
     if out.returncode != 0:
-        say("SKIP", "cannot read %s:tools/see_video.py (%s)" % (OLD_REV, out.stderr.decode(errors="replace").strip()))
+        say("SKIP", "cannot read %s:tools/see_video.py (%s)" % (rev, out.stderr.decode(errors="replace").strip()))
         sys.exit(0)
     with open(dest, "wb") as f:
         f.write(out.stdout)
     return dest
+
+
+git_rev_tool = git_old
 
 
 def run_tool(tool, out):
@@ -63,7 +72,17 @@ def run_tool(tool, out):
         say("FAIL", "%s exited %d: %s" % (tool, p.returncode, last))
         FAILS.append("run")
         sys.exit(1)
+    run_tool.stderr = p.stderr
     return dt, last
+
+
+def wrist_share(stderr):
+    """(run, visible) from the tool's "wrist crops: N run of M visible wrists" line, or None (no such line: the old tool)"""
+    for ln in stderr.splitlines():
+        if ln.startswith("wrist crops:"):
+            w = ln.split()
+            return int(w[2]), int(w[5])
+    return None
 
 
 def joints(path):
@@ -104,15 +123,25 @@ def main():
             dt, msg = run_tool(tool, out)
             times[name].append(dt)
             last[name] = out
+            if name == "new":
+                share = wrist_share(run_tool.stderr)
             say("INFO", "run %d %s: %.2f s (%s)" % (r + 1, name, dt, msg))
+    if share is None:
+        check("stage_wrist_crops", False, "no \"wrist crops\" line on stderr (the tool has no wrist-crop count)")
+    else:
+        run_n, vis = share
+        check("stage_wrist_crops", vis > 0 and run_n <= WRIST_BAR * vis,
+              "wrist hand crops run %d of %d visible wrists (%.0f%%, bar <= %.0f%%)"
+              % (run_n, vis, 100.0 * run_n / max(1, vis), 100 * WRIST_BAR))
     mo, mn = statistics.median(times["old"]), statistics.median(times["new"])
     ratio = mn / mo
     check("timing", ratio <= TARGET,
           "median old %.2f s, new %.2f s, ratio %.2f (bar <= %.2f)%s"
           % (mo, mn, ratio, TARGET, " [self-check: old in the new's place, must fail]" if self_check else ""))
     if self_check:
-        if FAILS:
-            say("RESULT", "self-check OK: the timing bar fails on the old code")
+        if "timing" in FAILS:
+            say("RESULT", "self-check OK: the timing bar fails on the old code (and the stage bar: %s)"
+                % ("fails" if "stage_wrist_crops" in FAILS else "passes"))
             sys.exit(0)
         say("RESULT", "self-check FAILED: the timing bar passed on the old code")
         sys.exit(1)
@@ -121,7 +150,17 @@ def main():
     check("equality_joints", mean < JOINT_BAR_M, "mean world-joint difference %.5f m (bar < %.2f m)" % (mean, JOINT_BAR_M))
     frac = hd / hf if hf else 0.0
     check("equality_hands", frac <= HAND_FRAC_BAR,
-          "hand sets differ in %d of %d frames with a hand (%.1f%%, bar <= %.0f%%)" % (hd, hf, frac * 100, HAND_FRAC_BAR * 100))
+          "hand sets differ in %d of %d frames with a hand (%.1f%%, bar <= %.0f%%) [reference %s predates the wrist crops]"
+          % (hd, hf, frac * 100, HAND_FRAC_BAR * 100, OLD_REV))
+    # the same bar against the tool just before the wrist-crop probe skip (HEAD when this was written): the skip must not move a hand
+    head_tool = git_rev_tool(os.path.join(tmp, "see_video_head.py"), HEAD_REV)
+    head_out = os.path.join(tmp, "head.json")
+    run_tool(head_tool, head_out)
+    _, _, hf2, hd2 = compare(head_out, last["new"])
+    frac2 = hd2 / hf2 if hf2 else 0.0
+    check("equality_hands_head", frac2 <= HAND_FRAC_BAR,
+          "hand sets differ from %s in %d of %d frames with a hand (%.1f%%, bar <= %.0f%%)"
+          % (HEAD_REV, hd2, hf2, frac2 * 100, HAND_FRAC_BAR * 100))
     if FAILS:
         say("RESULT", "FAIL (%d): %s" % (len(FAILS), ", ".join(FAILS)))
         sys.exit(1)

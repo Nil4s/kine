@@ -46,6 +46,10 @@ WRIST_MIN_SIDE = 64   # the wrist crop is at least this many picture pixels a si
 WRIST_PX = 320        # the wrist crop is upscaled to this many pixels a side for HandLandmarker
 WRIST_VIS = 0.3       # a wrist (and its elbow) with less visibility than this gets no hand pass
 WRIST_HAND_CONF = 0.2  # the wrist crops find a hand at this detection confidence (a fist 12 px tall misses at 0.5)
+WRIST_DEAD_AFTER = 3  # SPEED: a wrist whose crops found no hand on this many probes in a row (a fist the hand model never
+                      # sees, e.g. the left one on the small fixture) is probed only every WRIST_REPROBE sampled frames
+WRIST_REPROBE = 4     # the re-probe interval of such a wrist (a hand that comes back is found at most this many frames late)
+WRIST_STATS = [0, 0, threading.Lock()]   # [wrist crops run, visible wrists seen] over a crop pass (printed on stderr)
 CROP_WORKERS = 3      # the crop pass in this many chunks at once (threads: MediaPipe releases the GIL; 3 measured ~1.9x)
 
 
@@ -116,7 +120,7 @@ def crop_plan(boxes, W, H, np):
     return crop
 
 
-def wrist_hands(cv2, mp, wdet, img, pose, W, H):
+def wrist_hands(cv2, mp, wdet, img, pose, W, H, s_idx=0, miss=None):
     """the hands of one frame in crop mode: a square crop of the WHOLE picture round each visible wrist (side = WRIST_CROP
     forearm lengths, at least WRIST_MIN_SIDE px, clamped to the picture), upscaled to WRIST_PX and run through HandLandmarker
     (IMAGE mode). Of the hands in a crop, the one whose wrist is nearest the crop's wrist point is that wrist's hand. pose =
@@ -129,10 +133,18 @@ def wrist_hands(cv2, mp, wdet, img, pose, W, H):
     else:
         body_px = 0.5 * max(W, H)
     hl, hw = [], []
+    if miss is None:
+        miss = {15: 0, 16: 0}
     for wi, ei in ((15, 13), (16, 14)):
         w = pose[wi]
         if w.visibility < WRIST_VIS:
             continue
+        with WRIST_STATS[2]:
+            WRIST_STATS[1] += 1
+        if miss[wi] >= WRIST_DEAD_AFTER and s_idx % WRIST_REPROBE:
+            continue
+        with WRIST_STATS[2]:
+            WRIST_STATS[0] += 1
         wx, wy = w.x * W, w.y * H
         e = pose[ei]
         if e.visibility >= WRIST_VIS:
@@ -145,6 +157,7 @@ def wrist_hands(cv2, mp, wdet, img, pose, W, H):
         src = cv2.resize(img[y0:y0 + si, x0:x0 + si], (WRIST_PX, WRIST_PX), interpolation=cv2.INTER_CUBIC)
         r = wdet.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(src, cv2.COLOR_BGR2RGB)))
         if not r.hand_landmarks:
+            miss[wi] += 1
             continue
         cxn, cyn = (wx - x0) / si, (wy - y0) / si   # the wrist, in the crop's own 0-1 coordinates
         best = min(range(len(r.hand_landmarks)),
@@ -154,7 +167,9 @@ def wrist_hands(cv2, mp, wdet, img, pose, W, H):
         hx, hy = x0 + r.hand_landmarks[best][0].x * si, y0 + r.hand_landmarks[best][0].y * si
         ow = pose[31 - wi]   # 15 <-> 16
         if ow.visibility >= WRIST_VIS and ((hx - ow.x * W) ** 2 + (hy - ow.y * H) ** 2) < ((hx - wx) ** 2 + (hy - wy) ** 2):
+            miss[wi] += 1
             continue
+        miss[wi] = 0
         hl.append([_map_point(q, x0, y0, si, W, H) for q in r.hand_landmarks[best]])
         hw.append(r.hand_world_landmarks[best])
     if not hl:
@@ -200,6 +215,7 @@ def run_track(a, env, step, every=1, crop=None, hands=True, report=None, conf=0.
     lost = 0
     seen = 0
     with_hand = 0
+    wmiss = {15: 0, 16: 0}   # consecutive probes with no hand, per wrist (this run's; see WRIST_DEAD_AFTER)
     i = 0
     while True:
         ok, img = cap.read()
@@ -248,7 +264,7 @@ def run_track(a, env, step, every=1, crop=None, hands=True, report=None, conf=0.
             k = min(range(len(hips)), key=lambda n: (hips[n][0] - 0.5) ** 2 + (hips[n][1] - 0.5) ** 2)
             pose_xy = [_map_point(q, x0, y0, si, W, H) for q in res.pose_landmarks[k]]
             image = [[round(q.x, 4), round(q.y, 4), round(q.visibility, 3)] for q in pose_xy]
-            hres = wrist_hands(cv2, mp, wdet, img, pose_xy, W, H) if wdet is not None else None
+            hres = wrist_hands(cv2, mp, wdet, img, pose_xy, W, H, s_idx, wmiss) if wdet is not None else None
         fr = {"t": round(t, 3),
               "world": [[round(q.x, 4), round(q.y, 4), round(q.z, 4)] for q in res.pose_world_landmarks[k]],
               "image": image}
@@ -387,6 +403,8 @@ def main():
                       file=sys.stderr)
     if crop is not None:
         frames_s, lost, seen, with_hand, W, H = run_chunks(a, env, step, crop, a.detect_conf, a.progress, pbase, a.workers)
+        print("wrist crops: %d run of %d visible wrists (a dead wrist is re-probed every %d frames)"
+              % (WRIST_STATS[0], WRIST_STATS[1], WRIST_REPROBE), file=sys.stderr)
     else:
         rep2 = _progress_writer(a.progress, pbase, 1)
         frames_s, lost, seen, with_hand, W, H = run_track(a, env, step, every=1, crop=None, hands=True,
