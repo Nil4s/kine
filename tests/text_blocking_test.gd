@@ -181,6 +181,8 @@ func _init() -> void:
 		ok(false, "(b) 'dance': the pelvis moves side to side 0.15 m+ (%s)" % why)
 		ok(false, "(c) 'dance': the stance feet slide under 5 mm and no ball sinks over 1 cm (%s)" % why)
 		ok(false, "(e) 'dance': the app's Check has no FAIL (%s)" % why)
+		ok(false, "(h) 'dance': both hands up or together on half the count cards (%s)" % why)
+		ok(false, "(i) 'dance': no hand or forearm inside the chest (%s)" % why)
 	else:
 			var DS := Scene.new()
 			DS.from_dict(dr["dict"])
@@ -228,6 +230,65 @@ func _init() -> void:
 				if f["sev"] != "OK":
 					print("   check %s %s %.2f s: %s" % [f["sev"], f["rule"], f["t"], f["msg"]])
 			ok(dfail.is_empty(), "(e) 'dance': the app's Check has no FAIL (%d)" % dfail.size())
+			# (f) THE ARMS GO UP (a beginner reads a dance by the arms): at each count card's arrival (times()[i][1]) at least one
+			# hand is above its shoulder (world y, the upper arm's start) on at least half the cards; (g) the hands travel 1.5 m+
+			# in total (both hands' path, summed over the 120 Hz scrub the Scene plays)
+			var tms: Array = DS.times()
+			var up_cards := 0
+			for ci in DS.cards.size():
+				DS.apply(B, float(tms[ci][1]))
+				var hl0: Vector3 = B.P["hand_l"]
+				var hr0: Vector3 = B.P["hand_r"]
+				if hl0.y > (B.P["upperarm_l"] as Vector3).y or hr0.y > (B.P["upperarm_r"] as Vector3).y:
+					up_cards += 1
+			ok(up_cards * 2 >= DS.cards.size(), "(f) 'dance': a hand is above its shoulder on %d of %d count cards (bar: half)" % [up_cards, DS.cards.size()])
+			# the hands' own travel: measured from the pelvis (the hands ride the sway of the hips: that is the body moving, not
+			# the arms); the room's travel is printed beside it
+			var travel := 0.0
+			var room := 0.0
+			var prev_rel := [Vector3.ZERO, Vector3.ZERO]
+			var prev_world := [Vector3.ZERO, Vector3.ZERO]
+			k = 0
+			while k / 120.0 <= dlen + 1e-6:
+				DS.apply(B, k / 120.0)
+				var pv: Vector3 = B.P["pelvis"]
+				var hw := [B.P["hand_l"] as Vector3, B.P["hand_r"] as Vector3]
+				for hh in 2:
+					var rel: Vector3 = (hw[hh] as Vector3) - pv
+					if k > 0:
+						travel += rel.distance_to(prev_rel[hh])
+						room += (hw[hh] as Vector3).distance_to(prev_world[hh])
+					prev_rel[hh] = rel
+					prev_world[hh] = hw[hh]
+				k += 1
+			print("-- 'dance' hands: %.2f m from the pelvis, %.2f m in the room" % [travel, room])
+			ok(travel >= 1.5, "(g) GUARD 'dance': the hands travel %.2f m in total from the pelvis (bar 1.5; in the room %.2f m; passes on the old dance, so a guard, not fail-first)" % [travel, room])
+			# (h) THE PARTY READ (round 9): both arms move on the count, as a raise or a clap: on at least half the count cards BOTH
+			# hands are above their shoulders (world y), or the two hands are within 15 cm of each other (a clap)
+			var both := 0
+			var closest := 9.0
+			for ci in DS.cards.size():
+				DS.apply(B, float(tms[ci][1]))
+				var hl1: Vector3 = B.P["hand_l"]
+				var hr1: Vector3 = B.P["hand_r"]
+				var both_up := hl1.y > (B.P["upperarm_l"] as Vector3).y and hr1.y > (B.P["upperarm_r"] as Vector3).y
+				closest = minf(closest, hl1.distance_to(hr1))
+				if both_up or hl1.distance_to(hr1) < 0.15:
+					both += 1
+			print("-- 'dance' closest wrists %.1f cm" % (closest * 100.0))
+			ok(both * 2 >= DS.cards.size(), "(h) 'dance': both hands up or together (a clap) on %d of %d count cards (bar: half)" % [both, DS.cards.size()])
+			# (i) NO HAND OR FOREARM INSIDE THE CHEST (round 9): the bake's own self-contact check (Scene.check, the bad_frames the
+			# file records) has no hand or forearm touching the chest, the collarbones or the spine in any frame. Hand on hand (a clap) is not counted here
+			var chest_hits := 0
+			for bf in DS.check(B):
+				for pr in bf[2]:
+					var pa: String = pr[0]
+					var pb: String = pr[1]
+					if (pa.begins_with("hand") or pa.begins_with("lowerarm")) and (pb.contains("spine") or pb.contains("chest") or pb.contains("clavicle")):
+						chest_hits += 1
+					elif (pb.begins_with("hand") or pb.begins_with("lowerarm")) and (pa.contains("spine") or pa.contains("chest") or pa.contains("clavicle")):
+						chest_hits += 1
+			ok(chest_hits == 0, "(i) 'dance': no hand or forearm inside the chest in any frame (%d contacts with the chest, collarbones or spine; the bake's check)" % chest_hits)
 	var dw: Dictionary = ed._words_dict("dance then wave")
 	ok(bool(dw.get("ok", false)) and dw.has("dict") and (dw["dict"]["cards"] as Array).size() > 12, "(d) 'dance then wave' builds the dance's cards then the wave's (%s cards)" % str((dw.get("dict", {}) as Dictionary).get("cards", []).size()))
 	print("TEXT BLOCKING TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
