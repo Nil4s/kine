@@ -103,3 +103,4 @@ EXTRA="$EXTRA realism_lazy:w"   # I16 lazy gains: the panel predicts no gain unt
 EXTRA="$EXTRA walk_model5:w"   # walk-through 5: chair, mirror, subdivide + decimate, knife, UV, fill, separate / join, rename + save + reopen (tests/walk_model5_test.gd)
 EXTRA="$EXTRA modelfix5:w"   # walk-through 5 friction 1: Enter in the search box runs the shown top row (Model row names it), not the typed words (tests/modelfix5_test.gd)
 EXTRA="$EXTRA modelfix6:w"   # walk-through 5 frictions A + B: Alt+F / F / Alt+F with nothing selected close the hole in one undo step; F2 name box gives the keys back on Enter / Esc (tests/modelfix6_test.gd)
+EXTRA="$EXTRA meshsave:w"   # MODEL mesh file: Ctrl+S saves the mesh (name box once, then silent), Open... loads one, F3 "save mesh" (tests/meshsave_test.gd)

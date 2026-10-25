@@ -82,6 +82,7 @@ var left: Callable     # G01: called after leaving (the fighter shows again)
 var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Shift+Tab) and marker
 var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
 var refp: KMeshRefPlanesUI   # B21: reference images on planes + their panel (scripts/kmesh_refplanes_ui.gd)
+var files: KMeshFileUI       # the mesh file: Ctrl+S (save), Save / Open... on the MESH group (scripts/kmesh_file_ui.gd)
 var showing := true          # the page shows this mesh (MODEL, SURFACE); off on the other pages: hidden, never stopped (set_showing)
 var _mods_back := false      # the Modifiers panel was open when the page left it
 var _uv_back := false        # the UV editor was open when the page left it
@@ -111,6 +112,9 @@ func setup(main: Node) -> void:
 	refp = KMeshRefPlanesUI.new()
 	add_child(refp)
 	refp.setup(self)
+	files = KMeshFileUI.new()   # the mesh file: Ctrl+S, Save, Open... (scripts/kmesh_file_ui.gd)
+	add_child(files)
+	files.setup(self)
 
 
 func start() -> void:
@@ -261,6 +265,9 @@ func input(ev: InputEvent) -> bool:
 	if refp.input(ev):   # B21: only the two-point clicks while armed
 		return true
 	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)
+		return true
+	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).keycode == KEY_S and (ev as InputEventKey).ctrl_pressed and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed:
+		files.save_cmd()   # Ctrl+S here saves the mesh file (POSE keeps its own Ctrl+S: main's pose box, off this page)
 		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and _ctrl_digit(ev as InputEventKey) > 0:
 		_subdiv_key(_ctrl_digit(ev as InputEventKey))   # Blender's Ctrl+1..3: a Subdivide modifier at that level
