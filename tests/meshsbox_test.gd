@@ -89,7 +89,10 @@ func _init() -> void:
 	await idle(2)
 	ok(m.blk.active == "" and m.kmed.on, "(b) Esc cancels the scale; the mesh is still open")
 
-	# ---- (c) the status line's full text at 1280 x 720
+	# ---- (c) the status line's full text at 1280 x 720 (the test window opens at its host's size: pin the UI to 1280 x 720)
+	root.content_scale_size = Vector2i(1280, 720)
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	await idle(6)
 	await key(KEY_E)   # the extrude's message: E, a typed distance in metres (0.1 = 10 cm), Enter
 	for c in "0.1":
 		typed(c)
@@ -100,6 +103,7 @@ func _init() -> void:
 	var text := st.text
 	print("  status: ", text)
 	var win := root.get_visible_rect()
+	print("  the UI at %s" % win.size)
 	var r := st.get_global_rect()
 	var rb := bar.get_global_rect()
 	var f := st.get_theme_font("font")
@@ -112,6 +116,10 @@ func _init() -> void:
 	ok(text.begins_with("Model: extrude by") and text.contains("Ctrl+Z"), "(c) the extrude message is on the status line: '%s'" % text)
 	ok(win.encloses(r) and win.encloses(rb) and (fits or wraps),
 		"(c) the full status text is readable at 1280 x 720: fits the label (%.0f <= %.0f) or wraps clear of the readout (text %.0f px tall in a %.0f px label, rects %s / %s)" % [full_w, r.size.x, wrapped_h, r.size.y, r, rb])
+	# (d) on its own row the message lies over the 3D view (the body's legs behind it): a dim box behind the words
+	var sbx := st.get_theme_stylebox("normal")
+	var bg_a: float = (sbx as StyleBoxFlat).bg_color.a if sbx is StyleBoxFlat else 0.0
+	ok(st.autowrap_mode == TextServer.AUTOWRAP_OFF or bg_a >= 0.7, "(d) the wrapped message has a box behind it over the 3D view (alpha %.2f, at least 0.70)" % bg_a)
 	var shot := OS.get_environment("MESHSB_SHOT")
 	await RenderingServer.frame_post_draw
 	if shot != "":

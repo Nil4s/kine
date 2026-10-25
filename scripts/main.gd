@@ -969,6 +969,9 @@ func _place_nav() -> void:
 ## the line's two texts left of the camera bar: the messages from the view's left edge, the readout right-aligned
 ## against the bar; the readout keeps its whole width up to half the room, the messages get the rest (each clipped
 ## with an ellipsis)
+var _say_row_box: StyleBoxFlat = null
+
+
 func _line_fit() -> void:
 	if ui_status == null or ui_bar == null or ui_nav == null:
 		return
@@ -989,6 +992,7 @@ func _line_fit() -> void:
 		var fs := ui_status.get_theme_font("font")
 		var said := fs.get_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, -1, LINE_FS).x + 4
 		if said <= split - 16 - x0:   # one row beside the readout, as wide as its words
+			ui_status.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 			ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
 			ui_status.clip_text = true
 			ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -999,7 +1003,7 @@ func _line_fit() -> void:
 			ui_status.offset_bottom = -bottom_h - 6
 		else:   # longer than the room beside the readout (the mesh stats take half the line): the whole message, wrapped, on the row above
 			var fsz := ui_status.get_theme_font_size("font_size")
-			var h := fs.get_multiline_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0, fsz).y + 6.0
+			var h := fs.get_multiline_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0 - 12.0, fsz).y + 6.0   # 12: the box's margins
 			ui_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			ui_status.clip_text = false
 			ui_status.anchor_right = 0.0
@@ -1008,6 +1012,13 @@ func _line_fit() -> void:
 			ui_status.offset_bottom = y0 - 2.0
 			ui_status.offset_top = y0 - 2.0 - h
 			lift = h + 2.0
+			if _say_row_box == null:   # its own row lies over the 3D view: a dim box keeps the words readable over the body
+				_say_row_box = StyleBoxFlat.new()
+				_say_row_box.bg_color = Color(Tok.c("panel"), 0.82)
+				_say_row_box.set_corner_radius_all(4)
+				_say_row_box.content_margin_left = 6
+				_say_row_box.content_margin_right = 6
+			ui_status.add_theme_stylebox_override("normal", _say_row_box)
 	_mouse_fit(y0 - lift, x0, x1)
 
 
