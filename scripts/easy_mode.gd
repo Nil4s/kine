@@ -360,10 +360,7 @@ func free_rect() -> Rect2:
 	var left := 0.0
 	if home != null and home.panel != null and m.S.cards.is_empty():
 		left = EasyHome.PANEL_LEFT + home.panel.get_combined_minimum_size().x + FREE_PAD
-	var right := vs.x
-	if sliders != null:
-		right = minf(right, sliders.free_right())   # EASY SIDE SLIDERS: a picked part's panel at the right takes its room out of the frame
-	return Rect2(left, top, right - left, maxf(bottom - top, 40.0))
+	return Rect2(left, top, vs.x - left, maxf(bottom - top, 40.0))
 
 
 ## the camera's offsets for Easy: the look-at point sits at the free rect's centre (mpp = world units per px at the target)

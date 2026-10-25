@@ -5,6 +5,7 @@ extends Node
 ## body live; one drag is ONE undo step and keys into the picked card the way a body drag does (EasyMode.card_follows_drag).
 ## Reset this part puts the part back to its card's pose (the picked card, else the card at the playhead, else straight).
 ## The panel shows only while a part is picked (part_picked); it sits left of the view buttons, under the Easy bar.
+## It does not change the body's framing (a framing change moved the drag points of easy_mode 10e).
 
 const W := 250.0            # the panel's width (px)
 const TOP := 8.0            # px under the Easy bar (main's TOP_H) for the panel's top edge
@@ -18,7 +19,6 @@ var _rows: Array = []       # per slider: {"label", "slider", "axis", "on"}
 var _reset: Button
 var _shown_part := ""       # the part the rows were set up for
 var _scene: Object = null    # the scene the pick was made in
-var _reframe := false       # the panel just showed or shut: the body is framed again once no body drag is on
 
 
 ## the panel's words and sliders for a joint: [title, [[label, axis], ...]], or [] for a part without sliders
@@ -140,26 +140,13 @@ func _process(_dt: float) -> void:
 		part = ""   # a pick does not outlive Easy, nor the scene it was made in (a new or opened scene starts with nothing picked)
 	_scene = m.S
 	var on: bool = m.easy != null and m.easy.on and part != "" and m.B != null and m.B.ang.has(part)
-	if panel.visible != on:
-		panel.visible = on
-		_reframe = true
-	if _reframe and m.dragging == "" and m.easy != null:
-		_reframe = false   # the body is framed in the room left of the panel (EasyMode.free_rect), or in all of it again: never mid-drag
-		m.easy.frame_clip_next(true)
+	panel.visible = on
 	if not on:
 		return
 	if part != _shown_part:
 		_setup()
 	_place()
 	_sync()
-
-
-## the right edge (px) the body may be framed to: the panel's left edge while it shows, else the window's right edge
-func free_right() -> float:
-	var vs := get_viewport().get_visible_rect().size.x
-	if panel == null or not panel.visible:
-		return vs
-	return _left_x() - 8.0
 
 
 func _left_x() -> float:

@@ -2889,13 +2889,17 @@ func _init() -> void:
 		var raise121: HSlider = rows121[0]
 		# (b) the Raise drag: the hand moves over 10 cm, and the undo steps go up by exactly one for the whole drag
 		var hand0: Vector3 = B121.P["hand_l"]
+		var ang0: Vector3 = B121.ang["upperarm_l"]
+		var clav0: Vector3 = B121.P["clavicle_l"]
 		var undo0: int = m.undo.size() + m.undo_dropped
 		await slider_drag121(raise121, 0.8)
 		var undo1: int = m.undo.size() + m.undo_dropped
 		var moved121: float = hand0.distance_to(B121.P["hand_l"])
-		ok(moved121 > 0.10 and undo1 - undo0 == 1,
-			"121b. dragging 'Raise' (%s) moves the hand %.1f cm (over 10) and the undo steps go up by %d (one for the whole drag)"
-			% [str(raise121.value), moved121 * 100.0, undo1 - undo0])
+		var ang1: Vector3 = B121.ang["upperarm_l"]
+		print("DBG121 side %.2f -> %.2f (slider %.2f) bend %.2f -> %.2f twist %.2f -> %.2f; hand %s -> %s; clavicle %s -> %s; lowerarm %s -> %s" % [ang0.y, ang1.y, raise121.value, ang0.x, ang1.x, ang0.z, ang1.z, str(hand0), str(B121.P["hand_l"]), str(clav0), str(B121.P["clavicle_l"]), str(B121.P["lowerarm_l"]), str(B121.P["lowerarm_l"])])
+		ok(moved121 > 0.10 and undo1 - undo0 == 1 and absf(ang1.y - raise121.value) < 2.0,
+			"121b. dragging 'Raise' (slider %.1f, arm side %.1f deg) moves the hand %.1f cm (over 10), the angle equals the slider within 2 deg, and the undo steps go up by %d (one for the whole drag)"
+			% [raise121.value, ang1.y, moved121 * 100.0, undo1 - undo0])
 		# (c) Undo (the bar's button) puts the hand back within 1 cm
 		var ub121: Button = m.easy.button("Undo")
 		if ub121 != null:
