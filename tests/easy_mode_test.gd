@@ -217,12 +217,13 @@ func teach_lines() -> Array:
 ## OVERLAP (Nick's beginner walk-through): in Easy the library panel, the picker, the welcome line, the status line, the
 ## save toast, the card strip and the Easy top bar never overlap one another, and all sit inside the window, at 1600x900 and 1280x720
 const OVERLAP_SIZES := [Vector2i(1600, 900), Vector2i(1280, 720)]
-const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast", "picker + redo toast", "strip + redo toast"]
+const OVERLAP_STATES := ["picker", "picker + toast", "library", "library + toast", "strip", "strip + toast", "picker + redo toast", "strip + redo toast", "strip + prop bar"]
 const OVERLAP_WANT := {   # the panels each state must show (so an empty screen cannot pass)
 	"picker": ["picker panel"], "picker + toast": ["picker panel", "save toast"],
 	"library": ["library panel"], "library + toast": ["library panel", "save toast"],
 	"strip": ["picker strip", "card strip"], "strip + toast": ["picker strip", "save toast"],
 	"picker + redo toast": ["picker panel", "redo toast"], "strip + redo toast": ["picker strip", "card strip", "redo toast"],
+	"strip + prop bar": ["picker strip", "card strip", "prop bar"],
 }
 
 
@@ -257,6 +258,7 @@ func easy_rects() -> Array:
 		["status line", m.ui_status, m.ui_status.text != ""],
 		["readout", m.ui_bar, m.ui_bar.text != ""],
 		["save toast", m.easy.home._toast, true],
+		["prop bar", m.easy.home._pbar, m.easy.home._pbar != null and m.easy.home._pbar.is_visible_in_tree()],
 		["redo toast", m.ui_toast, m.ui_toast != null and m.ui_toast.visible],
 		["card strip", m.ui_cards, true],
 	]
@@ -288,6 +290,51 @@ func outside_window(rects: Array, win: Vector2) -> Array:
 	return out
 
 
+## THE SCRUB (Easy's slider under the strip's buttons): the slider and its time label must not overlap a visible strip button,
+## the prop bar or the body's screen box; a strip state shows the row. Returns the names it overlaps (empty = fine)
+func scrub_bad(st: String) -> Array:
+	var out := []
+	var h = m.easy.home
+	var row: Control = h._scrub_row
+	if row == null or not row.is_visible_in_tree():
+		if st.begins_with("strip"):
+			out.append("scrub row hidden")
+		return out
+	var parts := [["scrub", h._scrub.get_global_rect()], ["scrub time", h._scrub_time.get_global_rect()]]
+	var others := []
+	for b in h.strip.find_children("*", "Button", true, false):
+		if b.is_visible_in_tree():
+			others.append([b.name, (b as Control).get_global_rect()])
+	if h._pbar.is_visible_in_tree():
+		others.append(["prop bar", h._pbar.get_global_rect()])
+	var bb := body_screen_box()
+	if bb.size.x > 0.0:
+		others.append(["body", bb])
+	for p in parts:
+		for o in others:
+			var x: Rect2 = (p[1] as Rect2).intersection(o[1])
+			if x.size.x > 1.0 and x.size.y > 1.0:
+				out.append("%s x %s" % [p[0], o[0]])
+	return out
+
+
+## the body's screen box (each capsule end projected by m.cam, grown by its radius): the same measure as easyhome_test's body_box
+func body_screen_box() -> Rect2:
+	var cam: Camera3D = m.cam
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var mpp: float = 2.0 * float(m.dist) * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in Turntable.points(m.B):
+		if cam.is_position_behind(p[0]):
+			continue
+		var q := cam.unproject_position(p[0])
+		var r: float = float(p[1]) / mpp
+		lo = lo.min(q - Vector2(r, r))
+		hi = hi.max(q + Vector2(r, r))
+	return Rect2(lo, hi - lo) if lo.x < INF else Rect2()
+
+
 ## one state of the overlap bar: the scene and the panels the state names, then settled
 func overlap_set(st: String) -> void:
 	m._new_scene()
@@ -304,6 +351,9 @@ func overlap_set(st: String) -> void:
 			t += 1
 	if st.begins_with("library"):
 		m.ui_library.open()
+	if st.contains("prop bar"):   # a prop in the scene: the prop bar (Easy, under Front / Side / Back) is on screen
+		m._prop_add("chair")
+		await idle(4)
 	m.easy.home._toast.visible = false
 	if m.ui_toast != null:   # made on its first toast (main._toast)
 		m.ui_toast.visible = false
@@ -358,9 +408,10 @@ func overlap_bar(sizes: Array = OVERLAP_SIZES) -> void:
 			var out := outside_window(rects, Vector2(m.get_viewport().get_visible_rect().size))
 			var geo := rects.map(func(r): return "%s %s" % [r[0], str(Rect2i(r[1]))])
 			var over := toast_over_buttons()
-			ok(miss.is_empty() and bad.is_empty() and out.is_empty() and over.is_empty(),
-				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing), no toast over a button (%s); rects %s" % [sz.x, sz.y, st,
-				str(bad), str(out), str(miss), str(over), str(geo)])
+			var scrub := scrub_bad(st)
+			ok(miss.is_empty() and bad.is_empty() and out.is_empty() and over.is_empty() and scrub.is_empty(),
+				"overlap %dx%d [%s]: no two overlap (%s), all inside the window (%s), shown (%s missing), no toast over a button (%s), the scrub clear of the buttons, prop bar and body (%s); rects %s" % [sz.x, sz.y, st,
+				str(bad), str(out), str(miss), str(over), str(scrub), str(geo)])
 	m.get_window().size = win0
 	m.ui_library.hide_panel()
 	await idle(4)

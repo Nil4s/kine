@@ -61,6 +61,12 @@
 ##      over its name (the placeholder node stays: B14 of library_test needs it, with no text).
 ##  73. SIT AFTER A PICKED CARD (round 7, goal 1): a card picked in the middle of the walk, then "Sit on the chair": the sit still goes
 ##      after the LAST card (the clip's end), not after the picked card.
+##  75. THE SCRUB (walk-through: "no scrubber in Easy"): an empty scene hides the slider "eh_scrub"; a built walk shows it in the strip.
+##  76. DRAG TO THE MIDDLE: a real press at the slider's middle while the walk plays stops the play and poses the body at half the
+##      clip (the pelvis is where _ps().apply(B, half) puts it, and not at the start).
+##  77. PLAYING MOVES IT: while the clip plays the slider follows the playhead (its value moves, it matches the playhead).
+##  78. THE LABEL: "eh_scrub_time" reads "<t> s / <len> s" (t follows the slider; len is the clip's length).
+##  79. THE GRAB AREA: the slider is at least 28 px tall (global rect) at 1280x720.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -1640,6 +1646,85 @@ func _init() -> void:
 		await click_ctl(sb73)
 	await idle(8)
 	ok(sb73 != null and m.S.cards.size() == n73 + 1 and String(m.S.cards.back()["name"]).begins_with("sit on the chair") and m.sel_card == m.S.cards.size() - 1, "73. a card picked at the walk's start: the sit is still the last card (%d -> %d; picked %d)" % [n73, m.S.cards.size(), m.sel_card])
+	# 75-79. THE SCRUB: a slider in the strip, hidden on an empty scene, shown once a clip is built
+	m._new_scene()
+	await idle(4)
+	var sc75 := home.strip.find_child("eh_scrub", true, false) as HSlider
+	ok(sc75 != null and not sc75.is_visible_in_tree(), "75. the scrub is hidden on an empty scene (slider %s)" % ("none" if sc75 == null else str(sc75.is_visible_in_tree())))
+	await click_ctl(card_btn(0))
+	await idle(6)
+	sc75 = home.strip.find_child("eh_scrub", true, false) as HSlider
+	var len75: float = m._ps().length()
+	ok(sc75 != null and sc75.is_visible_in_tree() and home.strip.visible, "75. after a walk the scrub shows in the strip (slider %s)" % ("none" if sc75 == null else str(sc75.is_visible_in_tree())))
+	if sc75 != null:
+		ok(sc75.get_global_rect().size.y >= 28.0, "79. the slider is at least 28 px tall (%.0f px)" % sc75.get_global_rect().size.y)
+	else:
+		ok(false, "79. the slider is at least 28 px tall (no slider)")
+	# 76. a real press at the slider's middle while the walk plays: the play stops, the body poses at half the clip
+	if not m.playing:
+		m._toggle_play()
+	var played76 := await wait_playing()
+	if sc75 != null and played76:
+		var r76 := sc75.get_global_rect()
+		await click_at(Vector2(r76.position.x + r76.size.x * 0.5, r76.get_center().y))
+		await idle(4)
+		var v76: float = sc75.value
+		await RenderingServer.frame_post_draw
+		var shot76 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easy_scrub.png"
+		DirAccess.make_dir_recursive_absolute(shot76.get_base_dir())
+		var img76 := root.get_texture().get_image()
+		if img76 != null:
+			img76.save_png(shot76)
+			print("   scrub screenshot: " + shot76)
+		ok(not m.playing and absf(v76 - len75 * 0.5) < 0.03 * len75, "76. a press at the middle stops the play and sets the time to half the clip (%.2f s of %.2f s; playing %s)" % [v76, len75, str(m.playing)])
+		var got76: Vector3 = (m.B.cap("pelvis")[0] + m.B.cap("pelvis")[1]) * 0.5
+		m._ps().apply(m.B, v76)   # the same pose a scrub to that time gives
+		var want76: Vector3 = (m.B.cap("pelvis")[0] + m.B.cap("pelvis")[1]) * 0.5
+		m._ps().apply(m.B, 0.0)
+		var start76: Vector3 = (m.B.cap("pelvis")[0] + m.B.cap("pelvis")[1]) * 0.5
+		ok(got76.distance_to(want76) < 0.005 and got76.distance_to(start76) > 0.01, "76. the body stands at that time: pelvis %s, the pose at %.2f s %s, the start %s" % [str(got76), v76, str(want76), str(start76)])
+		m._ps().apply(m.B, v76)
+		m._refresh()
+	else:
+		ok(false, "76. a press at the middle stops the play and sets the time to half the clip (no slider or no play)")
+		ok(false, "76. the body stands at that time (no slider or no play)")
+	# 77. playing moves the slider (its value follows the playhead)
+	if sc75 != null:
+		if not m.playing:
+			m._toggle_play()
+		await wait_playing()
+		var va77: float = sc75.value
+		await idle(20)
+		var vb77: float = sc75.value
+		ok(vb77 > va77 + 0.05 and absf(vb77 - clampf(m.playhead, 0.0, len75)) < 0.05, "77. while playing the slider moves with the playhead (%.2f -> %.2f s, playhead %.2f s)" % [va77, vb77, m.playhead])
+		if m.playing:
+			m._toggle_play()
+		# 78. the label: "t s / len s"
+		var lbl78 := home.strip.find_child("eh_scrub_time", true, false) as Label
+		var parts78 := lbl78.text.split(" s / ") if lbl78 != null else PackedStringArray()
+		ok(parts78.size() == 2 and absf(float(parts78[0]) - sc75.value) < 0.1 and lbl78.text.ends_with("%.1f s" % len75), "78. the label reads 'time s / length s': '%s' (slider %.2f, length %.2f)" % [lbl78.text if lbl78 != null else "none", sc75.value, len75])
+	else:
+		ok(false, "77. while playing the slider moves with the playhead (no slider)")
+		ok(false, "78. the label reads 'time s / length s' (no slider)")
+
+	# 80. THE TOAST CLEARS THE SLIDER: a walk, Undo ('Took back: Walk' toast), a new walk at once: no toast covers the scrub row; the
+	# slider's track is drawn (its own 'slider' style, not the panel colour)
+	m._new_scene()
+	await idle(2)
+	home.card(0)
+	await idle(4)
+	m._undo()   # 'Took back: Walk': the toast is up, the strip and its slider gone
+	await idle(2)
+	home.card(0)   # a new walk while the toast is still up: the strip and the slider come back under it (the screenshot's case)
+	await idle(4)
+	var row80 := home._scrub_row.get_global_rect()
+	var toast80: Rect2 = m.ui_toast.get_global_rect() if m.ui_toast != null and m.ui_toast.visible else Rect2()
+	var hit80 := row80.intersection(toast80)
+	ok(home._scrub_row.is_visible_in_tree() and (hit80.size.x < 1.0 or hit80.size.y < 1.0),
+		"80. no toast ('%s' at %s) covers the scrub row (%s)" % [m.ui_toast.text if m.ui_toast != null else "", str(toast80), str(row80)])
+	ok(home._scrub.has_theme_stylebox_override("slider"), "80. the slider's whole track is drawn (a 'slider' style of its own)")
+	m._new_scene()
+	await idle(2)
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

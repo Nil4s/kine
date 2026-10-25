@@ -10322,6 +10322,7 @@ func _toast(t: String) -> void:
 	ui_toast.position.y = 96
 	if easy != null and easy.on:
 		_easy_toast_place(ui_toast)
+		_easy_toast_place.call_deferred(ui_toast)   # again once the strip has its new size (an undo can grow or shrink it this frame)
 	_toast_gen += 1
 	var g := _toast_gen
 	get_tree().create_timer(hold).timeout.connect(func():
@@ -10348,7 +10349,7 @@ func _easy_toast_place(t: Label) -> void:
 	var btns: Array = []
 	_collect_button_rects(self, btns)
 	# the Easy panels a toast must not sit on either (the picker, its strip, the welcome and status lines, the card strip)
-	var panels := [ui_mouse, ui_status, ui_bar, ui_cards, easy.home.strip, easy.home.panel, ui_library]
+	var panels := [ui_mouse, ui_status, ui_bar, ui_cards, easy.home.strip, easy.home._scrub_row, easy.home.panel, ui_library]   # the scrub row: a slider is no button
 	for n in panels:
 		if n is Control and is_instance_valid(n) and (n as Control).is_visible_in_tree() and (n as Control).size.y > 0.0:
 			btns.append((n as Control).get_global_rect())
