@@ -460,10 +460,10 @@ func _tile(it: Dictionary) -> Control:
 	pic.texture = thumbs.picture(String(it["id"]))
 	v.add_child(pic)
 	if pic.texture == null:
-		# until the picture is ready: the category and the name, in the picture's place (never an empty box)
+		# until the picture is ready: the category, in the picture's place (never an empty box; the name is the label under it)
 		var ph := Label.new()
 		ph.name = "placeholder"
-		ph.text = "%s\n%s" % [String(it["cat"]), String(it["name"])]
+		ph.text = String(it["cat"])
 		ph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		ph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		ph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

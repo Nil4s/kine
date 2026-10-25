@@ -420,6 +420,8 @@ func _init() -> void:
 	ok(not filed.is_empty(), "roundhouse: templates/roundhouse.json is there and reads")
 	var filed_cmp: Dictionary = filed.duplicate()
 	filed_cmp.erase("plan")   # the file's own note (who baked it); the card writes its plan line over it anyway
+	for c in live.get("cards", []):   # Easy's provenance tag ("roundhouse|<serial>", for the strip's names): a label, not motion
+		(c as Dictionary).erase("from")
 	ok(filed_cmp == live, "roundhouse: the file IS the live build (same cards, poses, timing; %d cards; plan note aside)" % (filed.get("cards", []) as Array).size())
 	var SL := Scene.new()
 	SL.from_dict(live)
