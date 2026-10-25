@@ -114,8 +114,8 @@ func _init() -> void:
 	var lo := Vector3.INF
 	for i in range(98, ui.mesh.vert_count()):
 		lo = lo.min(ui.mesh.verts[i])
-	ok(c1 == Vector2i(98 + 32, 96 + 18) and ui.undo.steps.size() == n0 + 1 and lo.x > 0.3 + 0.09 and absf(lo.y + 0.3) < 1e-6,
-		"(5) added: %s (expect 130 / 114), one step (%d), beside the cube (min x %.3f m > 0.39, floor y %.3f m = -0.3)" % [str(c1), ui.undo.steps.size() - n0, lo.x, lo.y])
+	ok(c1 == Vector2i(98 + 32, 96 + 18) and ui.undo.steps.size() == n0 + 1 and lo.x > 0.3 + 0.09 and absf(lo.y) < 1e-6,
+		"(5) added: %s (expect 130 / 114), one step (%d), beside the cube (min x %.3f m > 0.39, floor y %.3f m = 0: the part rests on the floor, walk-through 6 friction 5)" % [str(c1), ui.undo.steps.size() - n0, lo.x, lo.y])
 	ui._prim_fields["segments"].value = 24
 	ui.set_prim_param("radius", 0.4)
 	await process_frame
