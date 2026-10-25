@@ -42,6 +42,8 @@ var _centre := Vector3.ZERO
 var _p0 := Vector3.ZERO
 var _pc := {}              # B14: individual origins, vertex -> its island's centre (KMeshPivot.origins)
 var last_readout := ""
+var _floor_pivot := false  # walk-through 6, friction 6: S about the floor point under the middle (the selection reaches the floor)
+var _z_said := false       # walk-through 6, friction 7: "Z is depth here; Y is up" is said once per session
 
 
 func _init(main) -> void:
@@ -169,6 +171,15 @@ func _begin_mesh(which: String) -> void:
 		_centre += _verts[i]
 	_centre /= float(_idx.size())
 	_centre = ui.pivot.centre(_idx, _verts, _centre)   # B14: the pivot mode (median / active / cursor)
+	# walk-through 6, friction 6: a box squashed about its middle floats; when the selection reaches the floor (its lowest
+	# vertex is on it), S scales about the floor point under the middle. The pivot "." picks stays in charge otherwise
+	_floor_pivot = false
+	var low := INF
+	for i in _idx:
+		low = minf(low, _verts[i].y)
+	if which == "S" and ui.pivot.mode == "median" and absf(low) < 1e-3:
+		_centre.y = 0.0
+		_floor_pivot = true
 	_pc = ui.pivot.origins(_idx, _verts)
 	if ui.prop.on:
 		ui.prop.begin(ui.mesh, _idx, _verts)
@@ -373,7 +384,14 @@ func readout() -> String:
 
 
 func _readout() -> void:
-	last_readout = readout() + "     Enter keeps, Esc cancels, X Y Z pick the axis, type a number"
+	# walk-through 6, friction 7: a Blender user types G Z for up; the mesh preview says what the axes are, at the start
+	var legend := "     X sideways, Y up, Z depth" if where == "mesh" else ""
+	var pivot := "     Scale about the floor point under the middle (. changes the pivot)" if where == "mesh" and _floor_pivot and active == "S" else ""
+	var z_note := ""
+	if where == "mesh" and axis == 2 and not _z_said:
+		_z_said = true   # said once: the first time Z picks the axis
+		z_note = "     Z is depth here; Y is up"
+	last_readout = readout() + legend + pivot + z_note + "     Enter keeps, Esc cancels, X Y Z pick the axis, type a number"
 	m._say_plain(last_readout)
 
 

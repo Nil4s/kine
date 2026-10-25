@@ -841,7 +841,9 @@ func add_prim(kind: String, params := {}) -> bool:
 		for v in mesh.verts:
 			lo = lo.min(v)
 			hi = hi.max(v)
-		at = Vector3(hi.x + PRIM_GAP, lo.y, 0.0)
+		# walk-through 6, friction 5: the part rests on the floor (y = 0) when the mesh reaches up to it; a mesh wholly
+		# under the floor gets the part at its lowest point
+		at = Vector3(hi.x + PRIM_GAP, 0.0 if hi.y >= 0.0 else lo.y, 0.0)
 	var base_v := mesh.verts.duplicate()
 	var base_f := mesh.faces.duplicate()
 	undo.begin(mesh)

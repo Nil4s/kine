@@ -308,6 +308,8 @@ func _walk_loop(a: int, b: int) -> void:
 ## arriving at b along a->b: the vertex to continue to, or -1 to stop
 func _through(a: int, b: int) -> int:
 	var nb := mesh.vert_neighbors(b)
+	if nb.size() == 3:
+		return _through_corner(a, b, nb)
 	if nb.size() != 4:
 		return -1
 	for n in nb:
@@ -331,6 +333,45 @@ func _through(a: int, b: int) -> int:
 				return -1
 			rest = n
 	return rest
+
+
+## a rim ring turns a corner: at a valence-3 vertex (a box or bevel corner) the loop goes on along the neighbour edge
+## whose shared face with a-b faces the most up (the top of a rim; then the bigger face), so the ring stays on the top,
+## as Blender does for a rim. Only across a crease (the faces of a-b meet at more than 30 degrees): flat folds stop as before.
+func _through_corner(a: int, b: int, nb: PackedInt32Array) -> int:
+	var fs := edge_faces(a, b)
+	if fs.size() != 2:
+		return -1
+	var n0: Vector3 = mesh.face_normals[fs[0]]
+	var n1: Vector3 = mesh.face_normals[fs[1]]
+	if n0.dot(n1) > 0.866:
+		return -1
+	var best := -1
+	var best_score := -INF
+	for n in nb:
+		if n == a:
+			continue
+		var shared := 0
+		var sf := -1
+		for f in edge_faces(b, n):
+			if fs.has(f):
+				shared += 1
+				sf = f
+		if shared != 1:
+			continue
+		var score: float = mesh.face_normals[sf].y + 0.01 * _face_area(sf)
+		if score > best_score:
+			best_score = score
+			best = n
+	return best
+
+
+func _face_area(fi: int) -> float:
+	var f: PackedInt32Array = mesh.faces[fi]
+	var nrm := Vector3.ZERO
+	for i in f.size():
+		nrm += mesh.verts[f[i]].cross(mesh.verts[f[(i + 1) % f.size()]])
+	return nrm.length() * 0.5
 
 
 ## Select the edge ring through edge a-b (switches to edge mode).
