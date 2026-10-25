@@ -211,6 +211,7 @@ static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps
 		marks: Dictionary, walk: bool, arrive: float, s_hip_in := NAN, s_yaw_in := NAN) -> Dictionary:
 	var s_hip := _hip_s(marks) if is_nan(s_hip_in) else s_hip_in
 	B.from_dict(donor["pose"])
+	B.wep_on = false   # the donor (scenes/walk_bat.json) holds a bat; a walk to a chair is not given one: no card carries it
 	B.turn_world("pelvis", Quaternion(Vector3.UP, heading(c, (s_hip if is_nan(s_yaw_in) else s_yaw_in) - YAW_LAG)))
 	var o: Vector3 = at(c, s_hip)
 	B.offset = Vector3(o.x, B.offset.y, o.z)
