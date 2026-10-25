@@ -46,6 +46,9 @@ var _pbar_size: HBoxContainer      # Bigger | Smaller side by side (one row keep
 var _pbar_bigger: Button
 var _pbar_smaller: Button
 var _pbar_colour: Button
+var _pbar_hand: VBoxContainer      # "In his hand: the sword" + Drop it, at the top of the bar while he holds a weapon (one undo step: the hand is empty)
+var _pbar_hand_name: Label
+var _pbar_drop: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
@@ -372,6 +375,17 @@ func build(root: Control) -> void:
 	var pr := VBoxContainer.new()   # a column under Front / Side / Back: a row across the view covered his hips at 1280x720
 	pr.add_theme_constant_override("separation", 6)
 	_pbar.add_child(pr)
+	_pbar_hand = VBoxContainer.new()
+	_pbar_hand.name = "eh_hand_row"
+	_pbar_hand.add_theme_constant_override("separation", 6)
+	pr.add_child(_pbar_hand)
+	_pbar_hand_name = _label("", 18, "text")
+	_pbar_hand_name.name = "eh_hand_name"
+	_pbar_hand_name.custom_minimum_size.x = 150
+	_pbar_hand_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pbar_hand.add_child(_pbar_hand_name)
+	_pbar_drop = _strip_button("eh_hand_drop", "Drop it", "put the weapon down: he stops holding it (one undo step; Ctrl+Z puts it back in his hand)", _hand_drop, Vector2(150, 40), 18)
+	_pbar_hand.add_child(_pbar_drop)
 	_pbar_name = _label("", 18, "text")
 	_pbar_name.name = "eh_prop_name"
 	_pbar_name.custom_minimum_size.x = 150
@@ -518,17 +532,23 @@ func _process(dt: float) -> void:
 func _prop_bar_update() -> void:
 	var n: int = m.S.props.size()
 	var lib: bool = m.ui_library != null and m.ui_library.visible
-	_pbar.visible = m.easy.on and n > 0 and not lib and not _gen_on and not _copying()
+	var held: bool = m.B.wep_on   # a weapon in his hand: the bar's top row names it and offers Drop it, with or without props
+	_pbar.visible = m.easy.on and (n > 0 or held) and not lib and not _gen_on and not _copying()
 	if not _pbar.visible:
 		return
+	_pbar_hand.visible = held
+	if held:
+		_pbar_hand_name.text = "In his hand: the %s" % _held_name()
 	var i: int = m.sel_prop
 	var have: bool = i >= 0 and i < n
+	_pbar_name.visible = n > 0
 	_pbar_name.text = ("Picked: the %s" % m._prop_name(i)) if have else "Click an object to pick it. Then Remove takes it out."
 	_pbar_turn_l.visible = have
 	_pbar_turn_r.visible = have
 	_pbar_size.visible = have
 	_pbar_colour.visible = have
 	_pbar_remove.visible = have
+	_pbar_next.visible = n > 0
 	_pbar.reset_size()
 	var vs := _pbar.get_viewport().get_visible_rect().size
 	var views: Control = m.easy.views
@@ -538,6 +558,30 @@ func _prop_bar_update() -> void:
 	if strip.visible:   # the strip (its scrub row too) is taller than the views' place: the bar sits under it, never under the strip
 		top = maxf(top, strip.get_global_rect().end.y + 8.0)
 	_pbar.position = Vector2(vs.x - _pbar.size.x - 12.0, top)
+
+
+## the held weapon's plain name ("sword", "2 daggers"): the picker's row for what the body holds, lower-cased
+func _held_name() -> String:
+	return String(m.WEAPONS[m.weapon_shown()][0]).to_lower()
+
+
+## DROP IT: the held weapon leaves the hand AND the clip. The weapon is part of each card's pose (Scene.put reads it back at
+## every frame), so emptying only the hand gave it back at the next play. One undo step (main's _do snapshot holds the
+## cards and the body): Ctrl+Z puts it back in the hand and in the cards.
+func _hand_drop() -> void:
+	_drop_saved_toast()
+	if not m.B.wep_on:
+		return
+	var what := _held_name()
+	m._step_easy = "Drop" if m.easy.on else ""   # the undo step's Easy name (main._push_undo takes it)
+	m._do(func() -> void:
+		m._bat_remove()
+		for c in m.S.cards:
+			var d: Dictionary = c.get("pose", {})
+			if d.has("weapon"):
+				d["weapon"] = {}
+			d.erase("weapon2"))
+	m._say_plain("He put the %s down. Undo takes it back." % what)
 
 
 ## Next prop: the picked prop moves to the next one in the scene (the first one when none is picked)
@@ -1601,14 +1645,18 @@ func tweak(how: String) -> void:
 		said = "%s: %s now takes %.1f s." % [how.capitalize(), _clip_word, S.length()]
 	else:
 		var k: float = EasyTweak.BIGGER if how == "bigger" else EasyTweak.SMALLER
+		var fly := EasyTweak.flight_retimed(S, k)   # a jump: the flight lasts sqrt(k) longer, so it goes k times as high
 		var poses := EasyTweak.exaggerated(S, m.B, k)
-		if poses.is_empty():
+		if poses.is_empty() and fly.is_empty():
 			m._say_plain("Nothing to make %s: the clip has no pose to move from." % ("bigger" if k > 1.0 else "smaller"))
 			return
 		m._step_easy = how.capitalize() if m.easy.on else ""   # "Bigger" / "Smaller"
 		m._push_undo()
 		for i in poses:
 			S.cards[i]["pose"] = poses[i]
+		for i in fly:
+			S.cards[i]["move"] = fly[i]["move"]
+			S.cards[i]["hold"] = fly[i]["hold"]
 		m._retimed()
 		var pct := roundi(absf(k - 1.0) * 100.0)
 		said = "%s: %s now moves %d %% %s." % [how.capitalize(), _clip_word, pct, "further" if k > 1.0 else "less"]

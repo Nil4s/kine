@@ -53,6 +53,21 @@ static func timing_stop(S: Scene, k: float) -> String:
 ## FEET: a card whose lowest sole stands on the floor is put back on it with FloorSnap's own rule (its root moves, the
 ## joints do not); a card in the air keeps its height. B is scratch: its pose is replaced.
 ## Returns {card index: the new pose}; {} when the clip has no rest pose to move from.
+## A JUMP'S HEIGHT (walk-through round 8: Bigger raised a jump 1.5 %). In the air the cards' heights are not used:
+## Scene._fly puts the centre of mass on the ballistic arc, apex G T^2 / 8 over the flight's time T. So a jump goes k
+## times as high when its flight lasts sqrt(k) times as long: the take-off card's leave to the landing card's arrival,
+## i.e. the moves into the air cards and the landing, and the air cards' holds. Returns {card index: {"move", "hold"}}
+## ({} with no flight); the caller writes them in the same undo step as the poses.
+static func flight_retimed(S: Scene, k: float) -> Dictionary:
+	var out := {}
+	var f := sqrt(maxf(0.01, k))
+	for fl in S.flights():
+		for i in range(int(fl["k"]) + 1, int(fl["l"]) + 1):
+			var c: Dictionary = S.cards[i]
+			out[i] = {"move": float(c["move"]) * f, "hold": float(c["hold"]) * f if i < int(fl["l"]) else float(c["hold"])}
+	return out
+
+
 static func exaggerated(S: Scene, B: Body, k: float) -> Dictionary:
 	var out := {}
 	if S.cards.size() < 2:
