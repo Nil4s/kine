@@ -6,7 +6,9 @@
 ##   (c) the hips never drop more than 4 cm below standing
 ##   (d) the final hips yaw is 180 (90 left, -90 right) within 10 deg
 ##   (e) no foot (heel, ball or toe joint) goes below the floor: 1 cm allowed
-##   (f) the feet end side by side: ball to ball 15-30 cm across the body, under 5 cm along it
+##   (f) the feet end where they start: the ball-to-ball stance equals the start's +-2 cm across, under 5 cm along the body
+##   (g) JOINED: the typed "jump twice then turn around" and "walk then turn around" (Easy's grammar, EasyHome._words_dict): no frame
+##       in the turn's own cards (the last cards of the build, the turn file's count) has both balls over 1 cm up
 ## Also prints the peak knee bend and the number of frames the feet are on the floor.
 extends SceneTree
 
@@ -70,6 +72,9 @@ func _init() -> void:
 		var fwd: Vector3 = B.G["pelvis"] * Vector3(0, 0, 1)
 		var yaw := rad_to_deg(atan2(fwd.x, fwd.z))
 		var dyaw := absf(wrapf(yaw - want, -180.0, 180.0))
+		S.apply(B, 0.0)
+		var w0: float = ((B.P["ball_l"] as Vector3) - (B.P["ball_r"] as Vector3)).length() * 100.0
+		S.apply(B, S.length())
 		var bl: Vector3 = B.P["ball_l"]
 		var br: Vector3 = B.P["ball_r"]
 		var d := bl - br
@@ -82,10 +87,41 @@ func _init() -> void:
 		ok(pel_min >= -0.04, "%s (c) hips never below standing by 4 cm: lowest %.1f cm" % [nm, pel_min * 100.0])
 		ok(dyaw <= 10.0, "%s (d) final hips yaw %.1f, want %.0f +- 10" % [nm, yaw, want])
 		ok(below >= -0.01, "%s (e) lowest foot joint %.1f mm under the floor, at most 10" % [nm, -below * 1000.0])
-		ok(inr(width, 15.0, 30.0) and along < 5.0, "%s (f) feet side by side: %.1f cm across (15-30), %.1f cm along (under 5)" % [nm, width, along])
+		ok(absf(width - w0) <= 2.0 and along < 5.0, "%s (f) feet end where they start: %.1f cm across, start %.1f (+-2), %.1f cm along (under 5)" % [nm, width, w0, along])
 		print("     %s: peak knee bend %.0f deg" % [nm, knee])
+	joined(B)
 	print("TURN SUITE: %d FAIL" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## (g): the typed builds that end in a turn, sampled at 120 Hz over the turn's own cards (the last cards of the build)
+func joined(B: Body) -> void:
+	var ed = EasyHome.new()
+	var turn_n := (JSON.parse_string(FileAccess.get_file_as_string("res://templates/turn_around.json"))["cards"] as Array).size()
+	for phrase in ["jump twice then turn around", "walk then turn around"]:
+		var r: Dictionary = ed._words_dict(phrase)
+		if not bool(r.get("ok", false)):
+			ok(false, "(g) '%s' builds (%s)" % [phrase, String(r.get("error", ""))])
+			continue
+		var S := Scene.new()
+		S.from_dict(r["dict"])
+		var cards: Array = r["dict"]["cards"]
+		var first := cards.size() - turn_n
+		var tail_ok := first > 0 and String(cards[first]["name"]) == "stand" and String(cards[-1]["name"]) == "square"
+		var ts: Array = S.times()
+		var t0 := float(ts[first][1])
+		var both := 0
+		var k := 0
+		while t0 + k / 120.0 <= S.length():
+			S.apply(B, t0 + k / 120.0)
+			var up := 0
+			for sd in ["_l", "_r"]:
+				if (B.P["ball" + sd] as Vector3).y - (B.p0["ball" + sd] as Vector3).y > 0.01:
+					up += 1
+			if up == 2:
+				both += 1
+			k += 1
+		ok(tail_ok and both == 0, "%s (g) joined: %d frames with both balls over 1 cm up in the turn's %d cards (from %.2f s), want 0; turn tail %s" % [phrase, both, turn_n, t0, "found" if tail_ok else "NOT found"])
 
 
 func inr(v: float, lo: float, hi: float) -> bool:

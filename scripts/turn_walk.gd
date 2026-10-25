@@ -13,6 +13,7 @@ class_name TurnWalk
 extends RefCounted
 
 const DONOR := "res://poses/stand.json"
+const PLANS := preload("res://tools/template_plans.gd")
 const STEP_DEG := 45.0        # the turn per step (a step-turn pivots on the stance foot: 45 deg a step is the usual)
 const PIVOTS := 2             # double-support cards before each step: the hips lead by LEAD of a step
 const LEAD := 0.5
@@ -34,7 +35,7 @@ static func _lat(H: float) -> Vector3:
 
 ## one card: the donor turned to heading H (pelvis), hips over the feet, both feet planted on their marks
 static func _card(B: Body, donor: Dictionary, H: float, pb: Dictionary, fh: Dictionary, name: String, steps: Dictionary,
-		move: float, hold: float, arrive: float) -> Dictionary:
+		move: float, hold: float, arrive: float, plant: Array = []) -> Dictionary:
 	B.from_dict(donor)
 	B.turn_world("pelvis", Quaternion(Vector3.UP, H))
 	var mid: Vector3 = (pb["_l"] + pb["_r"]) * 0.5
@@ -52,6 +53,8 @@ static func _card(B: Body, donor: Dictionary, H: float, pb: Dictionary, fh: Dict
 		card["steps"] = steps
 		card["lift"] = SWING_LIFT
 	card["walk"] = true
+	if not plant.is_empty():
+		card["plant"] = plant   # the stance foot(s) held where they stand (Scene PLANTED FEET): the swing's lean can't lift them
 	return card
 
 
@@ -60,9 +63,22 @@ static func build(nm: String, total_deg: float, B: Body = null) -> Dictionary:
 	if B == null:
 		B = Body.new()
 		B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-	var donor: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DONOR))
-	B.from_dict(donor)
+	# the standard stand: poses/stand.json with the standing legs and relaxed arms every template starts from (stand_set), as
+	# tools/make_templates.gd bakes it: feet hip-width (ball to ball 0.40 m, the balls at x = +-0.200), flat on the floor
+	B.from_dict(JSON.parse_string(FileAccess.get_file_as_string(DONOR)))
+	for j in B.ang.keys():
+		if not (String(j).begins_with("thumb") or String(j).begins_with("index") or String(j).begins_with("middle") or String(j).begins_with("ring") or String(j).begins_with("pinky")):
+			B.ang[j] = Vector3.ZERO
+	var set: Dictionary = PLANS.stand_set()
+	for j in set:
+		B.ang[j] = B.clamp_ang(j, Vector3(set[j][0], set[j][1], set[j][2]))
+	B.offset = Vector3.ZERO
 	B.fk()
+	B.ground()
+	for sd in ["_l", "_r"]:
+		B.flat_foot(sd)
+	B.fk()
+	var donor: Dictionary = B.to_dict()
 	var pb := {}
 	var fh := {}
 	for sd in ["_l", "_r"]:
@@ -85,7 +101,7 @@ static func build(nm: String, total_deg: float, B: Body = null) -> Dictionary:
 		for j in PIVOTS:   # the hips lead: the pelvis turns LEAD of a step while both feet stay on their marks
 			arrive += (1.0 - SWING) * STEP_T / PIVOTS
 			var h_j: float = H + d * LEAD * float(j + 1) / float(PIVOTS)
-			cards.append(_card(B, donor, h_j, pb, fh, "pivot %d.%d" % [k, j + 1], {}, (1.0 - SWING) * STEP_T / PIVOTS, 0.0, arrive))
+			cards.append(_card(B, donor, h_j, pb, fh, "pivot %d.%d" % [k, j + 1], {}, (1.0 - SWING) * STEP_T / PIVOTS, 0.0, arrive, ["_l", "_r"]))
 		var H_new := H + d
 		var old: Vector3 = pb[m]
 		var side := 1.0 if m == "_l" else -1.0
@@ -97,13 +113,13 @@ static func build(nm: String, total_deg: float, B: Body = null) -> Dictionary:
 		fh[m] = H_new
 		arrive += SWING * STEP_T
 		cards.append(_card(B, donor, H_new, pb, fh, "step %s %d" % ["L" if m == "_l" else "R", k], {m: [off.x, 0.0, off.z]},
-			SWING * STEP_T, 0.0, arrive))
+			SWING * STEP_T, 0.0, arrive, [s]))
 		H = H_new
 	# square up: both feet pivot on their balls to the final heading, the hips with them
 	arrive += 0.5 * STEP_T
 	for sd in ["_l", "_r"]:
 		fh[sd] = H
-	cards.append(_card(B, donor, H, pb, fh, "square", {}, 0.5 * STEP_T, HOLD_END, arrive))
+	cards.append(_card(B, donor, H, pb, fh, "square", {}, 0.5 * STEP_T, HOLD_END, arrive, ["_l", "_r"]))
 	arrive += HOLD_END
 	var S := Scene.new()
 	S.name = nm
@@ -116,6 +132,8 @@ static func build(nm: String, total_deg: float, B: Body = null) -> Dictionary:
 		if c.has("lift"):
 			cd["lift"] = float(c["lift"])
 		cd["walk"] = true
+		if c.has("plant"):
+			cd["plant"] = c["plant"]
 	var out := S.to_dict(B)
 	out["plan"] = "templates/%s (tools/make_turns.gd: scripts/turn_walk.gd, %.0f deg in %d steps)" % [nm, total_deg, n]
 	out["note"] = "TURN (%s): %.0f deg on the spot in %d steps, one foot moves per step, the other pivots on its mark; the hips lead." % [nm, total_deg, n]

@@ -303,9 +303,8 @@ func _init() -> void:
 ## cards' move tags: one per punch); the turns ("turn around", "spin around", "walk then turn around", "jump twice then turn around")
 ## end with the hips' yaw 180 deg +- 15 from the start (TextView.yaw); "punch 11 times" caps at 10 with the say (the note). Also: "jump zorp"
 ## still refused with "doesn't know". Returns the number of FAILs. Static: the bars also run alone (a copy with the old files).
-## The turns are PARKED (10-25): the turn templates hopped (both feet 1-3 cm up: the blend of two planted legs tips the standing
-## foot when the hips yaw a lot) and ended in a 12 cm squat, so "turn around" still says "doesn't know" until a turn is made right.
-const TYPED_BUILDS := ["jump twice", "walk forward then jump", "punch 3 times"]
+## The turns: templates turn_* (scripts/turn_walk.gd; tests/turn_test.gd measures them alone and joined)
+const TYPED_BUILDS := ["jump twice", "jump twice then turn around", "walk forward then jump", "walk then turn around", "punch 3 times", "turn around", "spin around"]
 
 
 static func _tbar(c: bool, what: String) -> int:
