@@ -581,6 +581,9 @@ var _magnet := ""   # the last hand drag's magnet step (GripMagnet.drag): what t
 var ik_contact := false   # ROADMAP 88: on, a hand dragged with a wall / table in the set slides along it (ContactIK), not through
 var _sm := {}   # the sample the last Check took of S (a Fix re-uses it instead of re-playing the scene)
 var _fixing := false
+var _fixall_on := false          # FIX ALL is running (its button reads Stop)
+var _fixall_stop := false        # Stop pressed: the run ends after the fix in hand
+var _fixall_btn: Button = null   # the Fix all button of the findings list (relabelled while it runs)
 var ui_find: PanelContainer   # CHECK: the rulebook's findings (scripts/rulebook.gd), each one a button to its moment
 var ui_find_list: VBoxContainer
 var findings := []
@@ -16726,6 +16729,12 @@ func _check(given = null) -> void:
 		ui_find_list.add_child(wl)
 	if not findings.is_empty():
 		ui_find_list.add_child(_label("Click one to jump there.  Red = breaks a real human limit, yellow = looks off.", 13, "text:0.6", true))
+	var n_fixable := findings.filter(func(x): return Fixer.label(x, S) != "").size()
+	if n_fixable > 0:   # FIX ALL: every Fix below, in order, one undo step (the same Fixer.apply each Fix button runs)
+		_fixall_btn = _button("Fix all (%d)" % n_fixable, _fix_all_press, "applies every Fix in this list, in order, re-checking after each one: one Ctrl+Z takes the whole run back. A fix that would make the clip worse is skipped, and the words say which")
+		_fixall_btn.name = "fix_all"
+		_fixall_btn.add_theme_font_size_override("font_size", 15)
+		ui_find_list.add_child(_fixall_btn)
 	var n_push := _push_rows()   # R24: each hit contact against the MuJoCo push-limit table (above the findings: always on screen)
 	for fk in findings.size():
 		var f: Dictionary = findings[fk]
@@ -17312,6 +17321,116 @@ func _fix(f: Dictionary) -> void:
 		_flash_cards(changed)
 	_say(r["msg"] + ("   (Ctrl+Z undoes it)" if r["kept"] else "") + "   [%.1f s]" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	_fixing = false
+
+
+func _fix_key(f: Dictionary) -> String:
+	return "%s|%d|%.2f" % [f["rule"], int(f["card"]), float(f["t"])]
+
+
+## FIX ALL (Nick, 10-25: "why not a button to fix all suggested"): every Fix in the CHECK list, in list order, one after the
+## other. Each is the same Fixer.apply its own Fix button runs (kept only if its finding goes and nothing gets worse; else its
+## cards go back and the words say why), and the list is read again after each kept fix. The whole run is ONE undo step: the
+## snapshot is taken before the first fix. The frame is given back before each fix (progress on the button and the status
+## line); Stop ends the run after the fix in hand. Its summary: "Fixed N; M need you: ..." (the refused fixes, skipped ones, and
+## the findings with no automatic fix). _fixall_last keeps the numbers of the last run.
+var _fixall_last := {}
+
+
+func _fix_all_press() -> void:
+	if _fixall_on:
+		_fixall_stop = true
+		_say("fix all: stopping after the fix in hand...")
+		return
+	_fix_all()
+
+
+func _fix_all() -> void:
+	if _fixing or _fixall_on or S.cards.size() < 2 or not check_ran:
+		return
+	_fixall_on = true
+	_fixall_stop = false
+	_fixing = true
+	_previews.clear()
+	_pv_hover = {}
+	ov.fix_preview(S, [], 0.0)
+	var u := _snapshot()   # taken before the first fix: the run is one undo step
+	var t_run := Time.get_ticks_msec()
+	var total := findings.filter(func(x): return Fixer.label(x, S) != "").size()
+	var tried := {}
+	var kept := 0
+	var refused := []   # "rule at t s: why" for each fix Fixer put back
+	var worst := 0      # the longest single Fixer.apply (ms): the window is frozen that long
+	var n := 0
+	var cap := total * 3 + 5   # a kept fix can surface new findings; this bounds the run
+	while n < cap and not _fixall_stop:
+		var nxt = null
+		for f in findings:
+			if Fixer.label(f, S) != "" and not tried.has(_fix_key(f)):
+				nxt = f
+				break
+		if nxt == null:
+			break
+		var f: Dictionary = nxt
+		tried[_fix_key(f)] = true
+		n += 1
+		var prog := "Fixing %d of %d..." % [n, maxi(total, n)]
+		if is_instance_valid(_fixall_btn):
+			_fixall_btn.text = "Stop  (%s)" % prog
+		_say("fix all: %s  %s at %.2f s, card %d" % [prog, f["rule"], f["t"], f["card"] + 1])
+		await get_tree().process_frame
+		if _fixall_stop:
+			break
+		# the fix runs on a worker thread, on a copy of the scene and a body of its own (as the Fix PREVIEW does): a fix takes
+		# up to ~14 s on a long clip, and the window must not wait for it. The copy's cards come back only if Fixer kept it.
+		var t0 := Time.get_ticks_msec()
+		var sc := S.clone()
+		var b := Body.new()
+		b.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		b.set_state(ov.GB.state())
+		var sm_now: Dictionary = _sm
+		var job := {"out": {}}
+		job["task"] = WorkerThreadPool.add_task(func(): job["out"] = Fixer.apply(f, sc, b, sm_now))
+		while not WorkerThreadPool.is_task_completed(job["task"]):
+			await get_tree().process_frame
+		WorkerThreadPool.wait_for_task_completion(job["task"])
+		worst = maxi(worst, Time.get_ticks_msec() - t0)
+		if _fixall_stop:   # Stop came while the fix was in hand: its result is dropped, the scene stays as the last kept fix left it
+			break
+		var r: Dictionary = job["out"]
+		if r["kept"]:
+			kept += 1
+			S.cards = sc.cards   # Fixer edits the cards only (its own check kept them: no finding gone, no FAIL added)
+			findings = r["after"]   # the scene the fix left, checked by Fixer
+			_sm = {}
+			_bake_drop()   # the cards changed in place: the bake still holds the old poses
+		else:
+			refused.append("%s at %.2f s: %s" % [f["rule"], f["t"], String(r["msg"]).left(120)])
+	var not_reached := []
+	for f in findings:
+		if Fixer.label(f, S) != "" and not tried.has(_fix_key(f)):
+			not_reached.append("%s at %.2f s (stopped)" % [f["rule"], f["t"]])
+	var no_fix := []
+	for f in findings:
+		if Fixer.label(f, S) == "":
+			no_fix.append("%s at %.2f s" % [f["rule"], f["t"]])
+	if kept > 0:
+		undo.append(u)
+		redo.clear()
+		_rebuild_cards()
+		_ps().apply(B, playhead)
+	_fixall_on = false
+	_fixing = false
+	_fixall_last = {"tried": n, "kept": kept, "total": total, "refused": refused, "not_reached": not_reached, "no_fix": no_fix,
+		"worst_ms": worst, "ms": Time.get_ticks_msec() - t_run, "stopped": _fixall_stop}
+	_check(findings)   # the list again, from the scene the run left (no second Check)
+	_refresh()
+	var need := []
+	need.append_array(refused.map(func(s): return "skipped, it would make the clip worse (" + s + ")"))
+	need.append_array(not_reached)
+	need.append_array(no_fix.map(func(s): return "no automatic fix: " + s))
+	_say("Fix all: fixed %d of %d in %.1f s%s.  %s" % [kept, total, (Time.get_ticks_msec() - t_run) / 1000.0,
+		"  (Ctrl+Z takes the whole run back)" if kept > 0 else "",
+		("%d need you: %s" % [need.size(), "; ".join(need)]) if not need.is_empty() else "nothing left to need you"])
 
 
 ## POLISH: the detail pass (tools/detail.gd) on the open scene -> scenes/_wip/<name>_polished.json, opened. Nick's file
