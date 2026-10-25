@@ -10462,8 +10462,10 @@ func _hands_block(easy_side: bool) -> VBoxContainer:
 		d["state"] = _label("", 15, "info", true)
 		d["state"].name = "hands_state"
 		box.add_child(d["state"])
-		var hb := HBoxContainer.new()   # one strip of buttons under the state line (a column of them covered the body)
-		hb.add_theme_constant_override("separation", 4)
+		var hb := HFlowContainer.new()   # the buttons under the state line, wrapping into a second row (a column covered the body; one row ran off the view)
+		hb.custom_minimum_size = Vector2(330, 0)   # narrow: at 1280 wide the view beside a centred body is ~350 px
+		hb.add_theme_constant_override("h_separation", 4)
+		hb.add_theme_constant_override("v_separation", 4)
 		box.add_child(hb)
 		d["both"] = _button("Both hands", _do.bind(_hands_both), "puts the second hand back on the weapon's handle (one undo step)")
 		d["both"].name = "btn_both_hands"
@@ -10515,9 +10517,21 @@ func _hands_refresh() -> void:
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
 		ui_hands_panel.reset_size()
-		var rx := 12.0 if easy_on else vs.x - float(RIGHT_W) - 12.0 - ui_hands_panel.size.x   # Easy: the left (its slider panel is at the right)
-		# Easy: under its top bar at the left, as first built (its floor area is where the arm presses land)
-		ui_hands_panel.position = Vector2(12.0, float(TOP_H) + 8.0) if easy_on else Vector2(rx, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 40.0)
+		if easy_on:   # Easy: under its top bar at the left, as first built (its slider panel is at the right)
+			ui_hands_panel.position = Vector2(12.0, float(TOP_H) + 8.0)
+		else:   # Expert: the first corner of the view the body is not in (it covered the head, then a hand)
+			var ps := ui_hands_panel.size
+			var x0 := float(LEFT_W) + 12.0
+			var x1 := vs.x - float(RIGHT_W) - 12.0 - ps.x
+			var y0 := float(TOP_H) + 8.0
+			var y1 := vs.y - float(BOTTOM_H) - ps.y - 64.0   # above the mouse-hint line
+			var body := _body_screen_rect().grow(12.0)
+			var pick := Vector2(x1, y1)
+			for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
+				if not Rect2(c, ps).intersects(body):
+					pick = c
+					break
+			ui_hands_panel.position = pick
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
@@ -10533,6 +10547,23 @@ func _hands_refresh() -> void:
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
 	_blade_sync()
+
+
+## the body's box on screen (its joints projected; empty when it is behind the camera)
+func _body_screen_rect() -> Rect2:
+	var r := Rect2()
+	var first := true
+	for j in B.P:
+		var p: Vector3 = B.P[j]
+		if cam.is_position_behind(p):
+			continue
+		var q := cam.unproject_position(p)
+		if first:
+			r = Rect2(q, Vector2.ZERO)
+			first = false
+		else:
+			r = r.expand(q)
+	return r
 
 
 func _hands_both() -> void:
