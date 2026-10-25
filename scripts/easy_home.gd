@@ -176,10 +176,15 @@ func build(root: Control) -> void:
 	_edit.name = "eh_text"
 	_edit.placeholder_text = HINT
 	_edit.select_all_on_focus = true   # a click into the box selects what is there: a new move replaces it (Windows search, Blender fields)
-	_edit.custom_minimum_size = Vector2(PANEL_W, 0)
+	_edit.custom_minimum_size = Vector2(PANEL_W - 160.0, 0)
+	_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edit.text_submitted.connect(func(t: String): _words(t))
 	_edit.text_changed.connect(func(_t: String): _drop_saved_toast())   # typing is an action: a saved-video message goes
-	v.add_child(_edit)
+	var ask_row := HBoxContainer.new()   # the two other ways to make a move, side by side: type it, or copy it from a video
+	ask_row.name = "eh_ask_row"          # (From a video on its own row made the panel overlap the welcome / status lines at 1280x720)
+	ask_row.add_theme_constant_override("separation", 8)
+	v.add_child(ask_row)
+	ask_row.add_child(_edit)
 	_msg = _label("", 15, "text")
 	_msg.name = "eh_msg"
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -213,7 +218,8 @@ func build(root: Control) -> void:
 	fv.tooltip_text = "turn a video of one person into a move: pick the file (the same as More > Copy a video)"
 	fv.add_theme_font_size_override("font_size", 18)
 	fv.pressed.connect(copy_video)
-	v.add_child(fv)
+	fv.custom_minimum_size = Vector2(150, 0)
+	ask_row.add_child(fv)
 	v.add_child(_make_btn)   # under the Or try row: the instant moves first, the 3-minute AI take after (walk-through round 4)
 	_ai_no = _label(AI_NO, 15, "warn")
 	_ai_no.name = "eh_ai_no"
