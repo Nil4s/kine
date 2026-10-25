@@ -465,6 +465,26 @@ func _init() -> void:
 	ok(float(g14[1]) > -0.005 and float(g14[1]) < 0.15, "14. typed: the hips end %.3f m above the seat's top (within 0.15)" % float(g14[1]))
 	m._new_scene()
 	await idle(4)
+	home.card(0)   # a clip first (round 5 placed the chair after building moves): the panel is hidden, the strip shows
+	await idle(6)
+	m.playing = false
+	m._prop_add("chair")
+	await idle(4)
+	var sit_s := home.strip.find_child("eh_sit_strip", true, false) as Button
+	ok(home.strip.visible and sit_s != null and sit_s.visible and sit_s.is_visible_in_tree(), "14. a clip built, then a chair placed: 'Sit on it' is on the strip (the panel is hidden)")
+	var n14s: int = m.S.cards.size()
+	if sit_s != null:
+		sit_s.pressed.emit()
+	await idle(6)
+	m.playing = false   # the clip plays from its start (the walk): look at the sit card itself
+	var k14s: int = m.sel_card
+	m._card_pick(k14s)
+	await idle(3)
+	g14 = seat_gap()
+	ok(String(m.S.cards[k14s]["name"]).begins_with("sit on the chair") and k14s == m.S.cards.size() - 1, "14. the sit card comes after the clip (card %d of %d: '%s')" % [k14s + 1, m.S.cards.size(), String(m.S.cards[k14s]["name"])])
+	ok(m.S.cards.size() > n14s and bool(g14[0]) and float(g14[1]) > -0.005 and float(g14[1]) < 0.15, "14. the strip's Sit on it seats him on the chair after the clip (%d -> %d cards, %.3f m above the seat)" % [n14s, m.S.cards.size(), float(g14[1])])
+	m._new_scene()
+	await idle(4)
 	var front := m.easy.views.find_child("easy_view_front", true, false) as Button
 	var side := m.easy.views.find_child("easy_view_side", true, false) as Button
 	var back := m.easy.views.find_child("easy_view_back", true, false) as Button

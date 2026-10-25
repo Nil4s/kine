@@ -34,6 +34,7 @@ const NOT_YET := ["sit"]   # typed words Kine cannot build yet (sit down, wave a
 var m: Node                    # main (untyped: the same pattern as EasyMode)
 const SIT_KINDS := ["chair", "stool", "bench"]   # the props SET's sit takes (main.gd SIT_ON)
 var _sit_btn: Button           # "Sit on it": the picked chair, stool or bench seats him (SET's own sit)
+var _sit_strip: Button         # the same on the strip: with a clip built the panel is hidden, and a chair placed then needs it too
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
@@ -212,6 +213,9 @@ func build(root: Control) -> void:
 	for t in [["eh_faster", "Faster", "the clip's timing x 0.8 (one undo step)", "faster"], ["eh_slower", "Slower", "the clip's timing x 1.25 (one undo step)", "slower"],
 			["eh_bigger", "Bigger", "the motion 20 % further from the rest pose (one undo step)", "bigger"], ["eh_smaller", "Smaller", "the motion 20 % less from the rest pose (one undo step)", "smaller"]]:
 		row.add_child(_strip_button(t[0], t[1], t[2], tweak.bind(t[3]), Vector2(150, 56), 22))
+	_sit_strip = _strip_button("eh_sit_strip", "Sit on it", "seat him on the chair, stool or bench you picked (one undo step)", sit_on_chair, Vector2(150, 56), 22)
+	_sit_strip.visible = false
+	row.add_child(_sit_strip)
 	# no Save video here: the Easy bar has it (two buttons with one label confused the monkey test's beginner)
 	_toast = PanelContainer.new()
 	_toast.name = "easy_toast"
@@ -294,6 +298,7 @@ func _process(dt: float) -> void:
 	var ai_ok: bool = typed_gap and m.gen_move.available()
 	_make_btn.visible = ai_ok
 	_sit_btn.visible = sit_ready()   # a chair, stool or bench is picked: he can sit on it
+	_sit_strip.visible = _sit_btn.visible
 	_try_row.visible = typed_gap   # the same moves as the cards, one click each
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
