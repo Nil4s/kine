@@ -93,6 +93,9 @@
 ##  90d. SLOWER OVER 60 s IS REFUSED ON A TOAST: a 50 s clip: Slower changes nothing, the status line and the Easy toast say why.
 ##  116. HIS COLOUR (beginner walk-through 10, goal 3): no prop picked, a visible 'His colour' button changes the body's colour (one undo step, status says so); Undo restores it.
 ##  117. EASY WAVE READS AS A HELLO (walk-through 10, goal 1): the left hand stays down after the first card, the right goes over the shoulder; no "Pivot" / number > 9 card names; the chair message names the visible Sit button; the Sit label stays put while playing.
+##  121. EASY SIDE SLIDERS (all mouse): a click on the left arm opens a panel at the right with its plain name and sliders in range
+##      (a: inside the window, clear of the bar and the card strip); a Raise drag moves the hand > 10 cm, one undo step (b); Undo puts
+##      the hand back within 1 cm (c); a drag past the end stops at the limit (d); Reset this part goes to the card pose (e).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -571,6 +574,38 @@ func bad_names_117(names: Array) -> Array:
 		if bad:
 			out.append(t)
 	return out
+
+
+## a real drag of an HSlider (Easy's side sliders): the press on its current grabber, six moves to frac (0..1 along the slider's
+## rect, past 1 = beyond its right end), the release. The press on the track moves the grabber under the pointer.
+func slider_drag121(sl: HSlider, frac: float) -> void:
+	var r: Rect2 = sl.get_global_rect()
+	var span := maxf(sl.max_value - sl.min_value, 1e-6)
+	var at: Vector2 = r.position + Vector2(r.size.x * (sl.value - sl.min_value) / span, r.size.y * 0.5)
+	var to: Vector2 = Vector2(r.position.x + r.size.x * frac, at.y)
+	var dn := InputEventMouseButton.new()
+	dn.button_index = MOUSE_BUTTON_LEFT
+	dn.pressed = true
+	dn.position = at
+	dn.global_position = at
+	dn.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(dn, true)
+	await process_frame
+	for i in 6:
+		var p: Vector2 = at.lerp(to, float(i + 1) / 6.0)
+		var mm := InputEventMouseMotion.new()
+		mm.position = p
+		mm.global_position = p
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(mm, true)
+		await process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	up.position = to
+	up.global_position = to
+	root.push_input(up, true)
+	await idle(3)
 
 
 func _init() -> void:
@@ -2810,6 +2845,89 @@ func _init() -> void:
 	UserPaths.root = root120
 	_rm118(abs120)
 
+	# 121. EASY SIDE SLIDERS (Nick: "all mouse ... sliding movers on the side"): a click on the left upper arm opens a panel at the
+	# right with its plain name and sliders in its range; a Raise drag moves the hand and is ONE undo step; Undo puts the hand back;
+	# a slider stops at the joint's limit; Reset this part goes back to the card's pose.
+	root.content_scale_size = Vector2i(1280, 720)   # pinned like the other layout blocks, and put back below
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	await idle(8)
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(3)
+	var sl121: Variant = m.easy.get("sliders")
+	var B121: Body = m.B
+	var c121: Array = B121.cap("upperarm_l")
+	# a point on the left upper arm that the pick returns as the arm (the arm's middle first; the hands hang near it in some views)
+	var at121: Vector2 = Vector2.ZERO
+	var pick121 := ""
+	for t121 in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at121 = m.cam.unproject_position((c121[0] as Vector3).lerp(c121[1], t121))
+		pick121 = m._pick(at121)
+		if pick121 == "upperarm_l":
+			break
+	await click_at(at121)
+	await idle(3)
+	var rows121: Array = sl121.sliders() if sl121 != null else []
+	var pr121: Rect2 = sl121.panel.get_global_rect() if sl121 != null else Rect2()
+	var title121: String = sl121._title.text if sl121 != null else ""
+	var vp121 := Rect2(Vector2.ZERO, root.get_visible_rect().size)
+	var bar121: Rect2 = m.easy.bar.get_global_rect()
+	var strip121: Rect2 = m.ui_bp.get_global_rect()
+	var shot121 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/sliders.png"
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(shot121)
+	ok(sl121 != null and sl121.panel.visible and title121 == "Left arm" and rows121.size() >= 2 and vp121.encloses(pr121)
+		and not pr121.intersects(bar121) and not pr121.intersects(strip121),
+		"121a. a click on the left arm (picked %s) opens the side panel '%s' with %d sliders; panel %s in the window %s, clear of the Easy bar %s and the card strip %s (shot %s)"
+		% [pick121, title121, rows121.size(), str(pr121), str(vp121), str(bar121), str(strip121), shot121])
+	if rows121.is_empty():
+		for lbl121 in ["121b. dragging 'Raise' moves the hand over 10 cm, one undo step", "121c. Undo puts the hand back within 1 cm",
+				"121d. a drag past the end stops at the joint's limit", "121e. Reset this part goes to the card's pose"]:
+			ok(false, lbl121 + " (no side panel: the pick was %s)" % pick121)
+	else:
+		var raise121: HSlider = rows121[0]
+		# (b) the Raise drag: the hand moves over 10 cm, and the undo steps go up by exactly one for the whole drag
+		var hand0: Vector3 = B121.P["hand_l"]
+		var undo0: int = m.undo.size() + m.undo_dropped
+		await slider_drag121(raise121, 0.8)
+		var undo1: int = m.undo.size() + m.undo_dropped
+		var moved121: float = hand0.distance_to(B121.P["hand_l"])
+		ok(moved121 > 0.10 and undo1 - undo0 == 1,
+			"121b. dragging 'Raise' (%s) moves the hand %.1f cm (over 10) and the undo steps go up by %d (one for the whole drag)"
+			% [str(raise121.value), moved121 * 100.0, undo1 - undo0])
+		# (c) Undo (the bar's button) puts the hand back within 1 cm
+		var ub121: Button = m.easy.button("Undo")
+		if ub121 != null:
+			await click_ctl(ub121)
+		await idle(2)
+		var back121: float = B121.P["hand_l"].distance_to(hand0)
+		ok(back121 < 0.01, "121c. Undo puts the hand back within 1 cm (%.2f cm off)" % (back121 * 100.0))
+		# (d) a drag past the end stops at the joint's limit
+		var lim121: Vector2 = B121.lim["upperarm_l"]["side"]
+		await slider_drag121(raise121, 1.3)
+		var side121: float = B121.ang["upperarm_l"].y
+		ok(raise121.max_value == lim121.y and side121 <= lim121.y + 0.5 and raise121.value <= lim121.y + 0.01,
+			"121d. dragged past the end: the slider stops at the limit %.1f (its max %.1f), the arm at %.1f deg" % [lim121.y, raise121.max_value, side121])
+		# (e) Reset this part goes back to the card's pose: a card keeps the raised arm, the arm is dragged down, Reset brings it back
+		await m.easy.add_pose()
+		await idle(2)
+		var cards121: int = m.S.cards.size()
+		await slider_drag121(raise121, 0.52)
+		await idle(2)
+		var low121: float = B121.ang["upperarm_l"].y
+		var reset121: Button = sl121.get("_reset") if sl121 != null else null
+		var u_r0: int = m.undo.size() + m.undo_dropped
+		if reset121 != null:
+			await click_ctl(reset121)
+		await idle(2)
+		var want121: float = (Moves._flat(m.S.cards[0]["pose"])["ang"] as Dictionary)["upperarm_l"].y if m.S.cards.size() > 0 else 0.0
+		var now121: float = B121.ang["upperarm_l"].y
+		ok(reset121 != null and cards121 == 1 and m.S.cards.size() == 1 and absf(low121 - want121) > 5.0 and absf(now121 - want121) < 0.5 and m.undo.size() + m.undo_dropped == u_r0 + 1,
+			"121e. Reset this part: the card keeps %.1f deg, the dragged arm was %.1f deg, Reset brings it to %.1f deg (cards %d, one undo step)" % [want121, low121, now121, m.S.cards.size()])
+	root.content_scale_size = was_size
+	root.content_scale_mode = was_mode
+	await idle(4)
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()

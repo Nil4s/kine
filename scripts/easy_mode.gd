@@ -42,6 +42,7 @@ var _moved := false         # step 4: the body changed since the step began
 static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
 var scenes: EasyScenes      # MY SCENES (scripts/easy_scenes.gd): the saved scenes and the examples as big tiles, from the bar's My scenes
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
+var sliders: EasySliders    # EASY SIDE SLIDERS (scripts/easy_sliders.gd): a picked body part's sliders at the right, Easy only
 var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Easy came on: Expert gets exactly this back
 const EASY_MORE := {"Save this pose as a card": "Saved pose", "Flip left and right": "Flip", "Put his feet on the floor": "Feet on floor", "Copy a video": "Copied video"}   # a More entry's undo name in Easy (its Expert name is the entry's words)
 const FREE_PAD := 8.0       # px between the free rect and the Easy bar, the strip, or the bottom panel
@@ -167,6 +168,11 @@ func build(root: Control, expert: Array) -> void:
 	home.m = m
 	add_child(home)
 	home.build(root)
+	sliders = EasySliders.new()   # EASY SIDE SLIDERS: the picked part's panel (its own _process hides it outside Easy)
+	sliders.name = "easy_sliders_node"
+	sliders.m = m
+	add_child(sliders)
+	sliders.build(root)
 
 
 ## VIEW BUTTONS: the view keys 1 (front), 2 (side, -90), 4 (back) and HOME, turned smoothly; a small column at the right edge
@@ -354,7 +360,10 @@ func free_rect() -> Rect2:
 	var left := 0.0
 	if home != null and home.panel != null and m.S.cards.is_empty():
 		left = EasyHome.PANEL_LEFT + home.panel.get_combined_minimum_size().x + FREE_PAD
-	return Rect2(left, top, vs.x - left, maxf(bottom - top, 40.0))
+	var right := vs.x
+	if sliders != null:
+		right = minf(right, sliders.free_right())   # EASY SIDE SLIDERS: a picked part's panel at the right takes its room out of the frame
+	return Rect2(left, top, right - left, maxf(bottom - top, 40.0))
 
 
 ## the camera's offsets for Easy: the look-at point sits at the free rect's centre (mpp = world units per px at the target)
