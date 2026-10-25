@@ -91,6 +91,92 @@ static func torso_filter(frames: Array) -> int:
 	return done
 
 
+# ============================================================ 3c UPPER-BODY DIPS ==========================================
+## A TRACKER GLITCH THAT MOVES THE WHOLE UPPER BODY (the spike clips, round 59): for 1 to 5 frames the head, shoulders, elbows and
+## wrists all move together, relative to the hips, and come back. pick_up frames 45-47: the tracker's upper body swings about 0.4 m
+## from where it was in frames 44 and 48 (the wrists go from -0.87 m to +0.11 m and back in one frame each way: 15 m/s). torso_filter's
+## per-point test cannot see it: every point of the block agrees with the others. So this test works on the block as a whole:
+##   C  the block's centre = the mean of landmarks 0-22 (nose to index fingers) less the hips' mid point (a whole-body move, a jump
+##      or a drop, leaves C where it was: the block is measured from the hips)
+##   a run of 1 to DIP_MAX_LEN frames where C departs from the line between the frame before and the frame after by more than
+##     DIP_DEV, with those two frames agreeing within DIP_AGREE
+##   its departure rate (the largest frame-to-frame move of C across the run and its two ends, per second) is more than DIP_RATE
+##     times the body's own median rate over the clip (and at least DIP_MIN_RATE): a slow lean, a crouch, a real fast move that does
+##     not come back within 5 frames is not this
+## Replaced by linear interpolation across the gap for landmarks 0-22 (the hips and legs keep their values).
+## dip_runs returns the runs as [first, last, departure, rate]; dip_filter applies them and returns the landmark-frames replaced.
+const DIP_MAX_LEN := 5
+const DIP_DEV := 0.10         # m: the block centre's departure from the line between its neighbours
+const DIP_AGREE := 0.10       # m: the frames before and after the run agree this closely
+const DIP_RATE := 5.0         # x the body's median rate of the block centre
+const DIP_MIN_RATE := 1.0     # m/s: the rate floor (a still clip has a median near 0)
+const DIP_LAST_UPPER := 22    # landmarks 0 to 22 move with the upper body; 23 on is the hips and the legs
+
+
+static func _block_c(w: Array) -> Vector3:
+	var c := Vector3.ZERO
+	for j in range(DIP_LAST_UPPER + 1):
+		c += (w[j] as Vector3)
+	c /= float(DIP_LAST_UPPER + 1)
+	return c - (((w[23] as Vector3) + (w[24] as Vector3)) * 0.5)
+
+
+static func dip_runs(frames: Array, fps: float) -> Array:
+	var n := frames.size()
+	var out := []
+	if n < 7:
+		return out
+	var C := []
+	for f in frames:
+		C.append(_block_c(f["w"]))
+	var rates := []
+	for i in range(1, n):
+		rates.append((C[i] as Vector3).distance_to(C[i - 1]) * fps)
+	var lim := maxf(DIP_RATE * _median(rates), DIP_MIN_RATE)
+	var a := 1
+	while a < n - 1:
+		var found := false
+		for L in range(1, DIP_MAX_LEN + 1):
+			var b := a + L - 1
+			if b > n - 2:
+				break
+			var c0: Vector3 = C[a - 1]
+			var c1: Vector3 = C[b + 1]
+			if c0.distance_to(c1) > DIP_AGREE:
+				continue
+			var worst := 0.0
+			for k in range(a, b + 1):
+				var t := float(k - (a - 1)) / float(b + 1 - (a - 1))
+				worst = maxf(worst, (C[k] as Vector3).distance_to(c0.lerp(c1, t)))
+			if worst <= DIP_DEV:
+				continue
+			var rate := 0.0
+			for k in range(a, b + 2):
+				rate = maxf(rate, (C[k] as Vector3).distance_to(C[k - 1]) * fps)
+			if rate > lim:
+				out.append([a, b, worst, rate])
+				found = true
+				break
+		a = (out[out.size() - 1][1] + 2) if found else a + 1   # the frame after a run is a return point
+	return out
+
+
+static func dip_filter(frames: Array, fps: float) -> int:
+	var done := 0
+	for r in dip_runs(frames, fps):
+		var a: int = r[0]
+		var b: int = r[1]
+		var p: Array = frames[a - 1]["w"]
+		var q: Array = frames[b + 1]["w"]
+		for k in range(a, b + 1):
+			var t := float(k - (a - 1)) / float(b + 1 - (a - 1))
+			var w: Array = frames[k]["w"]
+			for j in range(DIP_LAST_UPPER + 1):
+				w[j] = (p[j] as Vector3).lerp(q[j] as Vector3, t)
+				done += 1
+	return done
+
+
 # ============================================================ 4 CONFIDENCE ================================================
 
 ## the frames the tracker skipped (no body found) put back as interpolated frames marked "lost" (vis 0), so the clip is
@@ -1228,6 +1314,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	progress = 0.0
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
 	VideoIQ.torso_filter(frames)   # a glitch on the shoulders or hips (3b TORSO SPIKES), before anything reads the body
+	VideoIQ.dip_filter(frames, fps)   # a glitch that moves the whole upper body for 1-5 frames (3c UPPER-BODY DIPS)
 	# FLIGHT: read from the tracker's image on the file's own frames, carried to the filled frames by time
 	var fly_raw := flight_of(P["frames"])
 	var fly := {"on": [], "rise": []}

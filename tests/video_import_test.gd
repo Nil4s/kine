@@ -76,6 +76,46 @@ func _bar10_spike_pelvis() -> void:
 	ok(step <= 0.05, "10a the largest pelvis step in 3.05-3.13 s is %.3f m at %.3f s (bar 0.05; old code 1.22 m at 3.125 s)" % [step, step_at])
 
 
+
+## 10d THE UPPER-BODY DIPS (round 59, scripts/video_iq.gd 3c): the tracker moves the whole upper body for 1-5 frames (pick_up frames
+## 45-47: the wrists swing 0.9 m and back, 15 m/s, after the per-point torso filter). Peak hand speeds, the three spike clips:
+##   d pick-up: 13.7 m/s or less (old 22.2; the 12 m/s fist bar is not reached: the level shifts of the cross and push-up are not dips)
+##   e cross: 16.5 m/s or less (old 16.4; unchanged: its peak is a shoulder step that stays low, not a dip)
+##   f push-up: 16.0 m/s or less (old 15.9; unchanged, see e)
+##   g the real jump (flight_jump, old 15.20) keeps its peak within 0.5 m/s: the block moves with the hips, nothing is a dip
+##   h the lost-foot walk (old 3.34) keeps its peak within 0.1 m/s
+func _peak_hand(path: String) -> float:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var P := VideoImport.load_file(path)
+	if not P["ok"]:
+		return -1.0
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "dip_test", true)
+	B.set_state(keep)
+	var B2 := Body.new()
+	B2.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var sm := Rulebook.sample(R["scene"], B2)
+	var pk := 0.0
+	for hk in ["hand_l", "hand_r"]:
+		for x in sm[hk]:
+			pk = maxf(pk, float(x))
+	return pk
+
+
+func _bar10d_dips() -> void:
+	var pu := _peak_hand("res://tests/data/spike_pick_up_pose.json")
+	var cr := _peak_hand("res://tests/data/spike_cross_pose.json")
+	var pp := _peak_hand("res://tests/data/spike_push_up_pose.json")
+	var fj := _peak_hand("res://tests/data/flight_jump_pose.json")
+	var lf := _peak_hand("res://tests/data/lost_foot_walk_pose.json")
+	ok(pu >= 0.0 and pu <= 13.7, "10d pick-up peak hand speed %.2f m/s (old 22.21; bar 13.7; the 12 m/s bar is not reached)" % pu)
+	ok(cr >= 0.0 and cr <= 16.5, "10e cross peak hand speed %.2f m/s (old 16.40; bar 16.5; unchanged, its peak is a level step)" % cr)
+	ok(pp >= 0.0 and pp <= 16.0, "10f push-up peak hand speed %.2f m/s (old 15.87; bar 16.0; unchanged)" % pp)
+	ok(absf(fj - 15.20) <= 0.5, "10g the real jump keeps its peak hand speed: %.2f m/s (old 15.20; within 0.5)" % fj)
+	ok(absf(lf - 3.34) <= 0.1, "10h the lost-foot walk keeps its peak hand speed: %.2f m/s (old 3.34; within 0.1)" % lf)
+
+
 func _init() -> void:
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -166,6 +206,7 @@ func _init() -> void:
 	_bar8_flight()
 	_bar9_lost_foot()
 	_bar10_spike_pelvis()
+	_bar10d_dips()
 	print("VIDEO IMPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
 
