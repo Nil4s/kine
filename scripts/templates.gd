@@ -14,6 +14,10 @@ const BAKED := {"roundhouse": "roundhouse"}
 ## names built from another template's file, played backwards: "stand up" is "sit down" reversed (walk-through round 7: from the
 ## seat or the floor, Kine had no stand move). The reversed file is made in read(), never written to templates/.
 const DERIVED := {"stand_up": "sit_down"}
+## files typed, not picked: "dance" (tools/template_plans.gd plan_dance) is built from its words (WORDS) and has no picker card
+const TYPED := ["dance"]
+## typed words that are a file: "groove" and "boogie" are dances too (Easy's typed box reads them through _card_template)
+const WORDS := {"dance": "dance", "dancing": "dance", "groove": "dance", "boogie": "dance"}
 ## the picker's text: [title, what you get]
 const INFO := {
 	"walk": ["Walk", "A half step, five steps at 105 a minute, feet together; arms swing against the legs."],
@@ -54,7 +58,7 @@ static func new_path(nm: String, dir := WIP) -> String:
 
 ## a name with a file in templates/: the picker's seven, or a baked one
 static func has_file(nm: String) -> bool:
-	return nm in NAMES or BAKED.has(nm) or DERIVED.has(nm)
+	return nm in NAMES or BAKED.has(nm) or DERIVED.has(nm) or nm in TYPED
 
 
 ## the template's scene file as a dictionary ({} when the name has no file or the file is gone)

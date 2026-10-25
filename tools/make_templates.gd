@@ -104,7 +104,7 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 			# "plant": {"_r": [x, z]}  that foot's toe base goes to this world mark (the leg alone is solved), heading 0
 			var m: Array = plant[sd]
 			var up: bool = sd in c.get("heel_up", [])
-			B.plant(sd, Vector3(float(m[0]), (B.p0["ball" + sd] as Vector3).y, float(m[1])), float(m[2]) if m.size() > 2 else float(c.get("head", 0.0)), not up)
+			B.plant(sd, Vector3(float(m[0]), (B.p0["ball" + sd] as Vector3).y + (float(m[3]) if m.size() > 3 else 0.0), float(m[1])), float(m[2]) if m.size() > 2 else float(c.get("head", 0.0)), not up)   # [x, z, heading, lift]: a foot in the air
 			if up:
 				B.toes_flat(sd)
 		for sd in ["_l", "_r"]:
@@ -136,6 +136,8 @@ static func bake(p: Dictionary, report := []) -> Dictionary:
 		S.cards[-1]["steps"] = c.get("steps", {})
 		if c.has("lift"):
 			S.cards[-1]["lift"] = float(c["lift"])
+		if c.has("hold_feet"):
+			S.cards[-1]["plant"] = c["hold_feet"]   # the runtime holds these feet (Scene PLANTED FEET)
 		if c.has("no_steps"):
 			S.cards[-1].erase("steps")
 		for k in ["walk", "air"]:
