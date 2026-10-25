@@ -1650,7 +1650,7 @@ func _append(d: Dictionary, label: String, easy: String) -> String:
 	var e: Dictionary = S.sample(S.length())
 	var first: Dictionary = new_cards[0]
 	first["move"] = JOIN_S
-	place_after(new_cards, e["offset"], (e["ang"]["pelvis"] as Vector3).z if (e["ang"] as Dictionary).has("pelvis") else 0.0)
+	place_after(new_cards, e["offset"], e["ang"]["pelvis"] if (e["ang"] as Dictionary).has("pelvis") else Vector3.ZERO)
 	_ball_line = ""
 	var ball = _ball_at(S.props)
 	var move := Vector2.ZERO
@@ -1980,25 +1980,52 @@ func _words_dict(text: String) -> Dictionary:
 			var last: Dictionary = (out["cards"] as Array)[-1]["pose"]
 			var lo: Array = last.get("offset", [0, 0, 0])
 			var lj: Dictionary = last.get("joints", {})
-			place_after(d["cards"], Vector3(lo[0], lo[1], lo[2]), float(lj["pelvis"]["twist"]) if lj.has("pelvis") else 0.0)
+			place_after(d["cards"], Vector3(lo[0], lo[1], lo[2]), _pelvis_ang(lj))
 			(out["cards"] as Array).append_array(d["cards"])
 	return {"ok": true, "dict": out, "strikes": parts.size(), "note": _typed_note}
 
 
 ## A PART PLACED AFTER THE CLIP (the typed join, Add after): its cards turned and moved as one, so its first card stands where
 ## the clip ends and faces the way the body faces there (after "turn around" the punch goes the new way, not back to the start:
-## walk11 G5, a 192 deg snap). The heading is the pelvis twist (Clips: the walk turned by a match the same way); R turns the
-## floor offsets (from the part's first card), the steps and a held weapon about the up axis. The first card takes the end's
+## walk11 G5, a 192 deg snap). The turn is a WORLD yaw R about the up axis (the pelvis's facing at the end vs at the part's
+## first card): each card's pelvis rotation becomes R * its own (Body.compose / decompose, as Body.turn_world does). Adding to
+## the pelvis's twist number alone tipped a bent-forward pelvis sideways, the legs with it (the punch's guard crouched 11 cm).
+## R also turns the floor offsets (from the part's first card), the steps and a held weapon. The first card takes the end's
 ## height too (the join stands where the clip stood); the cards' other heights stay their own.
-static func place_after(cards: Array, o_end: Vector3, tw_end: float) -> void:
+static var _pb: Body = null
+
+
+static func _pelvis_body() -> Body:
+	if _pb == null:
+		_pb = Body.new()
+		_pb.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	return _pb
+
+
+## a card pose's pelvis angles (bend, side, twist)
+static func _pelvis_ang(joints: Dictionary) -> Vector3:
+	if not joints.has("pelvis"):
+		return Vector3.ZERO
+	var x: Dictionary = joints["pelvis"]
+	return Vector3(float(x["bend"]), float(x["side"]), float(x["twist"]))
+
+
+## the way a pelvis with these angles faces, on the floor: radians about +y, 0 = +z
+static func _heading(pa: Vector3) -> float:
+	var f: Vector3 = _pelvis_body().compose("pelvis", pa) * Vector3(0, 0, 1)
+	return atan2(f.x, f.z)
+
+
+static func place_after(cards: Array, o_end: Vector3, pelvis_end: Vector3) -> void:
 	if cards.is_empty():
 		return
+	var PB := _pelvis_body()
 	var p0: Dictionary = cards[0]["pose"]
 	var a0: Array = p0.get("offset", [0, 0, 0])
 	var o0 := Vector3(float(a0[0]), 0.0, float(a0[2]))
-	var j0: Dictionary = p0.get("joints", {})
-	var dy := wrapf(tw_end - (float(j0["pelvis"]["twist"]) if j0.has("pelvis") else 0.0), -180.0, 180.0)
-	var R := Basis(Vector3.UP, deg_to_rad(Clips.yaw_sign() * dy))
+	var dy := wrapf(_heading(pelvis_end) - _heading(_pelvis_ang(p0.get("joints", {}))), -PI, PI)
+	var R := Basis(Vector3.UP, dy)
+	var RQ := Quaternion(R)
 	var at := Vector3(o_end.x, 0.0, o_end.z)
 	for i in cards.size():
 		var c: Dictionary = cards[i]
@@ -2007,12 +2034,20 @@ static func place_after(cards: Array, o_end: Vector3, tw_end: float) -> void:
 		var f := at + R * (Vector3(float(a[0]), 0.0, float(a[2])) - o0)
 		p["offset"] = [f.x, o_end.y if i == 0 else float(a[1]), f.z]
 		var jj: Dictionary = p.get("joints", {})
-		if jj.has("pelvis"):
-			jj["pelvis"]["twist"] = wrapf(float(jj["pelvis"]["twist"]) + dy, -180.0, 180.0)
+		if jj.has("pelvis") and absf(dy) > 1e-6:
+			var old := _pelvis_ang(jj)
+			var v: Vector3 = PB.decompose("pelvis", (RQ * PB.compose("pelvis", old)).normalized())
+			while v.z - old.z > 180.0:
+				v.z -= 360.0
+			while v.z - old.z < -180.0:
+				v.z += 360.0
+			jj["pelvis"]["bend"] = v.x
+			jj["pelvis"]["side"] = v.y
+			jj["pelvis"]["twist"] = v.z
 		var st: Dictionary = c.get("steps", {})
 		for sd in st:
-			var v: Array = st[sd]
-			var r := R * Vector3(float(v[0]), float(v[1]), float(v[2]))
+			var sv: Array = st[sd]
+			var r := R * Vector3(float(sv[0]), float(sv[1]), float(sv[2]))
 			st[sd] = [r.x, r.y, r.z]
 		var w: Dictionary = p.get("weapon", {})
 		if w.has("knob") and w.has("rot"):
@@ -2020,7 +2055,7 @@ static func place_after(cards: Array, o_end: Vector3, tw_end: float) -> void:
 			var kv := at + R * (Vector3(float(k[0]), 0.0, float(k[2])) - o0)
 			w["knob"] = [kv.x, float(k[1]), kv.z]
 			var q: Array = w["rot"]
-			var rq := Quaternion(R) * Quaternion(float(q[0]), float(q[1]), float(q[2]), float(q[3]))
+			var rq := RQ * Quaternion(float(q[0]), float(q[1]), float(q[2]), float(q[3]))
 			w["rot"] = [rq.x, rq.y, rq.z, rq.w]
 
 
