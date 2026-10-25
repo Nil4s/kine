@@ -36,6 +36,7 @@ func _init() -> void:
 		if a.begins_with("--out="):
 			outdir = a.trim_prefix("--out=")
 	DirAccess.make_dir_recursive_absolute(outdir)
+	Rulebook.audit = "--audit" in OS.get_cmdline_user_args()   # every candidate's windowed sample vs a full one (counts in the log)
 	root.size = Vector2i(1280, 720)
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -73,6 +74,7 @@ func _init() -> void:
 		"ms": run_ms, "refused": run["refused"], "not_reached": run["not_reached"], "no_fix": run["no_fix"],
 		"findings_after": m.findings.size()}, "  "))
 	print("fix all: tried %d kept %d worst %d ms total %d ms, findings after %d" % [run["tried"], run["kept"], run["worst_ms"], run_ms, m.findings.size()])
+	print("audit: %d candidate samples/findings compared, %d differences" % [Rulebook.audit_n, Rulebook.audit_diff])
 	if FileAccess.file_exists(COPY):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(COPY))
 	quit(0)

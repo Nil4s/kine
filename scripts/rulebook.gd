@@ -196,12 +196,21 @@ static func dir_deg(a: Vector3, b: Vector3) -> float:
 ## base + [t0, t1] (10-14, the Fix button): frames outside the window are taken from base's raw frames instead of
 ## re-played (a pose edit on one card cannot move them; tests/fix_test.gd asserts window == full, bit for bit).
 ## contacts: also count each frame's parts-inside-each-other in the window ("bad", a Fix may not add any).
-static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contacts := false) -> Dictionary:
+## audit: a candidate's windowed sample (prefix_t, below) is compared with a full sample; audit_n / audit_diff count the frames
+static var audit := false
+static var audit_n := 0
+static var audit_diff := 0
+
+
+static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contacts := false, prefix_t := -INF) -> Dictionary:
 	var tk_all := Time.get_ticks_usec()
 	var n := int(ceil(S.length() * FPS)) + 1
 	var was_stepped := S.stepped
 	S.stepped = false   # the stepped preview is a view: the rules grade the scene as it really plays
 	var reuse: bool = not base.is_empty() and base["_raw"].size() == n
+	# prefix_t: every frame before that time is base's raw record (the edit starts at prefix_t: the cards and their times before it are
+	# unchanged, so the pose there is the same); the frames from prefix_t on are played. Works when the clip got longer or shorter.
+	var prefix := prefix_t > -INF and not base.is_empty()
 	var raw := []
 	var bad := 0
 	var mk := func(_i: int, t: float) -> Dictionary:
@@ -219,12 +228,15 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			r["fo"] = B.foot_state("_l")[2] or B.foot_state("_r")[2]
 			r["cf"] = carry_form(S, t, B)
 		return r
-	if not reuse and not contacts and FrameMemo.on:
+	if not reuse and not contacts and not prefix and FrameMemo.on:
 		raw = FrameMemo.frames("rb", S, B, n, FPS, mk)   # the realism score: only the frames a fix changed are played again
 	else:
 		for i in n:
 			var t := minf(i / FPS, S.length())
 			if reuse and (t < t0 or t > t1):
+				raw.append(base["_raw"][i])
+				continue
+			if prefix and t < prefix_t and i < base["_raw"].size():
 				raw.append(base["_raw"][i])
 				continue
 			raw.append(mk.call(i, t))

@@ -83,9 +83,9 @@ static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	var r := {}
 	match f["rule"]:
 		"TIP SPEED", "FIST SPEED":
-			r = _more_time(f, S, B)
+			r = _more_time(f, S, B, sm0)
 		"STRIKE FRAMES":
-			r = _quicker(f, S, B)
+			r = _quicker(f, S, B, sm0)
 		"HITCH":
 			r = _flow(f, S, B)
 		"HEAD QUIET":
@@ -192,31 +192,62 @@ static func _plant(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	return {"did": "the %s foot planted on card%s %s" % ["left" if sd == "_l" else "right", "s" if on.size() > 1 else "", ", ".join(on.map(func(x): return str(x)))]}
 
 
+## the sample for a candidate that changes card c's timing or pose: the frames before the first frame the edit can reach
+## (Fixer.window's start) are base's raw records (the cards and their times before c do not change), the rest is played.
+## base = the sample of the cards BEFORE the fix ({} = a full sample). Rulebook.audit compares it with a full sample.
+static func _cand_sample(S: Scene, B: Body, base: Dictionary, c: int) -> Dictionary:
+	if base.is_empty() or base.get("_raw", []).is_empty():
+		return Rulebook.sample(S, B)
+	var x := window(S, c, B).x
+	var sm := Rulebook.sample(S, B, base, INF, -INF, false, x)
+	if Rulebook.audit:
+		var full := Rulebook.sample(S, B)
+		Rulebook.audit_n += 1
+		if var_to_str(sm["_raw"]) != var_to_str(full["_raw"]) or var_to_str(sm["tip"]) != var_to_str(full["tip"]):
+			Rulebook.audit_diff += 1
+	return sm
+
+
+## the full Check of the cards a loop left, from the loop's last sample (the same cards: no second sample)
+static func _cand_after(S: Scene, B: Body, sm: Dictionary) -> Array:
+	var out := Rulebook.check(S, B, sm)
+	if Rulebook.audit:
+		var full := Rulebook.check(S, B)
+		Rulebook.audit_n += 1
+		if var_to_str(out) != var_to_str(full):
+			Rulebook.audit_diff += 1
+	return out
+
+
 ## a too-fast move: its card's move time scaled by speed / bar (speed ~ 1 / time), +5%, until the finding is gone
-## (usually once: speed is ~ distance / time)
-static func _more_time(f: Dictionary, S: Scene, B: Body) -> Dictionary:
+## (usually once: speed is ~ distance / time). The loop's test is this rule alone (Rulebook.check_some); the result is the full Check
+static func _more_time(f: Dictionary, S: Scene, B: Body, base := {}) -> Dictionary:
 	var c: int = f["card"]
 	var m0 := S.move_time(c)
 	var bar: float = Rulebook.FIST_WARN if f["rule"] == "FIST SPEED" else Rulebook.AT.TIP_MAX.get(_kind(S, B), 40.0)
 	var v: float = f["v"]
+	var sm := {}
 	for k in 4:
 		S.cards[c]["move"] = S.move_time(c) * maxf(1.05, v / bar * 1.05)
-		var left := Rulebook.check_some(S, B, [f["rule"]]).filter(func(x): return x["card"] == c)   # this rule alone: the loop's test
+		sm = _cand_sample(S, B, base, c)
+		var left := Rulebook.check_some(S, B, [f["rule"]], sm).filter(func(x): return x["card"] == c)
 		if left.is_empty():
 			break
 		v = left[0]["v"]
-	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": Rulebook.check(S, B)}
+	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": _cand_after(S, B, sm)}
 
 
-## a swing that lasts too many frames: its card's move time x 0.85 until it is gone
-static func _quicker(f: Dictionary, S: Scene, B: Body) -> Dictionary:
+## a swing that lasts too many frames: its card's move time x 0.85 until it is gone (the loop's test: STRIKE FRAMES alone)
+static func _quicker(f: Dictionary, S: Scene, B: Body, base := {}) -> Dictionary:
 	var c: int = f["card"]
 	var m0 := S.move_time(c)
+	var sm := {}
 	for k in 4:
 		S.cards[c]["move"] = maxf(0.05, S.move_time(c) * 0.85)
-		if Rulebook.check_some(S, B, ["STRIKE FRAMES"]).filter(func(x): return x["card"] == c).is_empty():   # this rule alone: the loop's test
+		sm = _cand_sample(S, B, base, c)
+		if Rulebook.check_some(S, B, ["STRIKE FRAMES"], sm).filter(func(x): return x["card"] == c).is_empty():
 			break
-	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": Rulebook.check(S, B)}
+	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": _cand_after(S, B, sm)}
 
 
 ## a dead stop between two fast moves (no spline): the card it stops at becomes a FLOW card (passed through)
@@ -288,6 +319,11 @@ static func _steady_head(f: Dictionary, S: Scene, B: Body, sm0: Dictionary) -> D
 		var k := (lo + hi) * 0.5
 		_put(S, B, c, a, b, k)
 		var sm := Rulebook.sample(S, B, sm0, w.x, w.y)
+		if Rulebook.audit:   # every bisection step: the windowed sample's head findings == the full sample's
+			var full := Rulebook.sample(S, B)
+			Rulebook.audit_n += 1
+			if var_to_str(Rulebook.head_quiet(S, sm)) != var_to_str(Rulebook.head_quiet(S, full)) or var_to_str(sm["_raw"]) != var_to_str(full["_raw"]):
+				Rulebook.audit_diff += 1
 		if Rulebook.head_quiet(S, sm).filter(func(x): return x["card"] == c).is_empty():   # the head rule alone (Rulebook.head_quiet)
 			best = k
 			lo = k   # quiet: try keeping more of the original
