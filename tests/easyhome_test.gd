@@ -35,6 +35,9 @@
 ##  29. Trim: Cut start / Cut end drop the cards before / after the picked card; one undo step each; Ctrl+Z restores; the clip plays.
 ##  30. Smoother: a visible button; mean per-frame hand acceleration goes down; one undo step; Ctrl+Z restores; the status says so.
 ##  31. No red contact tint (pick_touch) in Easy on a typed clip or a copied clip (Expert keeps it).
+##  45. BIGGER / SMALLER / COLOUR (library walk-through goal 6): a picked chair in Easy: Bigger makes its box grow, Smaller shrinks it,
+##      Colour sets its material colour and the status names it; each is one undo step; Ctrl+Z restores; the scene saves and reloads
+##      with the size and the colour.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -283,6 +286,22 @@ func red_while_playing() -> int:
 
 
 ## the copy runs in the background: wait (up to a bound) until Easy says it is over
+## the world box of a prop's solids (its own boxes, corners through each solid's transform): the size the bars read
+func prop_box(p: Dictionary) -> AABB:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for sw in Props.solids(p):
+		var X: Transform3D = sw["xf"]
+		var h: Vector3 = sw["half"]
+		for sx in [-1.0, 1.0]:
+			for sy in [-1.0, 1.0]:
+				for sz in [-1.0, 1.0]:
+					var c: Vector3 = X * Vector3(sx * h.x, sy * h.y, sz * h.z)
+					lo = lo.min(c)
+					hi = hi.max(c)
+	return AABB(lo, hi - lo)
+
+
 func wait_copy(limit := 3000) -> bool:
 	var seen := false
 	for i in limit:
@@ -1138,6 +1157,83 @@ func _init() -> void:
 	await idle(6)
 	var red31: int = await red_while_playing()
 	ok(red31 == 0, "31. a copied clip in Easy: no red contact tint while it plays (%d samples with red)" % red31)
+	m._new_scene()
+	await idle(4)
+
+	# 45. BIGGER / SMALLER / COLOUR (library walk-through goal 6): the picked chair's own box grows and shrinks; its colour changes and the
+	# status names it; each is one undo step (Ctrl+Z restores); the scene saves and reloads with the size and the colour
+	m._new_scene()
+	await idle(4)
+	m.easy.set_on(true, false)
+	await idle(2)
+	m._prop_add("chair")
+	await idle(4)
+	m.sel_prop = 0
+	m._props_show()
+	await idle(4)
+	var bg45 := m.find_child("eh_prop_bigger", true, false) as Button
+	var sm45 := m.find_child("eh_prop_smaller", true, false) as Button
+	var cl45 := m.find_child("eh_prop_colour", true, false) as Button
+	ok(bg45 != null and bg45.is_visible_in_tree() and sm45 != null and sm45.is_visible_in_tree() and cl45 != null and cl45.is_visible_in_tree(),
+		"45. the prop bar shows Bigger, Smaller and Colour for the picked chair")
+	var b45 := prop_box(m.S.props[0]).size
+	var u45: int = m.undo.size()
+	if bg45 != null:
+		await click_ctl(bg45)
+	await idle(4)
+	var b45a := prop_box(m.S.props[0]).size
+	ok(b45a.x > b45.x * 1.1 and b45a.y > b45.y * 1.1 and b45a.z > b45.z * 1.1, "45. Bigger: the picked chair's box grows (%s -> %s)" % [str(b45), str(b45a)])
+	ok(m.undo.size() == u45 + 1, "45. Bigger is one undo step (%d -> %d)" % [u45, m.undo.size()])
+	ok("bigger" in String(m.ui_status.text).to_lower(), "45. the status says the chair is bigger: '%s'" % m.ui_status.text)
+	await key_press(KEY_Z, true)
+	await idle(4)
+	var b45u := prop_box(m.S.props[0]).size
+	ok(b45u.distance_to(b45) < 0.001, "45. Ctrl+Z gives the chair back its size (%s, was %s)" % [str(b45u), str(b45)])
+	if sm45 != null:
+		await click_ctl(sm45)
+	await idle(4)
+	var b45s := prop_box(m.S.props[0]).size
+	ok(b45s.x < b45.x * 0.9 and b45s.y < b45.y * 0.9 and b45s.z < b45.z * 0.9, "45. Smaller: the picked chair's box shrinks (%s -> %s)" % [str(b45), str(b45s)])
+	await key_press(KEY_Z, true)
+	await idle(4)
+	if cl45 != null:
+		await click_ctl(cl45)
+	await idle(4)
+	ok(Props.colour_of(m.S.props[0]) == "blue", "45. Colour makes the picked chair blue (%s)" % Props.colour_of(m.S.props[0]))
+	ok("blue" in String(m.ui_status.text).to_lower() and "chair" in String(m.ui_status.text), "45. the status names the colour: '%s'" % m.ui_status.text)
+	var mi45: Node = m.ui_props_root.find_child("prop_0", true, false)
+	var col45 := Color(0, 0, 0)
+	if mi45 != null:
+		var mis: Array = mi45.find_children("*", "MeshInstance3D", true, false)
+		if not mis.is_empty():
+			var mat45 := (mis[0] as MeshInstance3D).get_active_material(0) as StandardMaterial3D
+			if mat45 != null:
+				col45 = mat45.albedo_color
+	ok(Vector3(col45.r, col45.g, col45.b).distance_to(Vector3(Props.COLOURS["blue"].r, Props.COLOURS["blue"].g, Props.COLOURS["blue"].b)) < 0.01,
+		"45. the chair's material is blue in the view (%s)" % str(col45))
+	await key_press(KEY_Z, true)
+	await idle(4)
+	ok(Props.colour_of(m.S.props[0]) == "grey", "45. Ctrl+Z gives the chair its colour back (%s)" % Props.colour_of(m.S.props[0]))
+	# the size and the colour go into the scene file and come back on a reload
+	if bg45 != null:
+		await click_ctl(bg45)
+	if cl45 != null:
+		await click_ctl(cl45)
+	await idle(4)
+	var big45 := prop_box(m.S.props[0]).size
+	m._save_scene_now("_wip_es45")
+	await idle(4)
+	var path45: String = m.scene_path
+	m._new_scene()
+	await idle(4)
+	m._load_scene(path45)
+	await idle(8)
+	var r45: bool = m.S.props.size() == 1 and Props.colour_of(m.S.props[0]) == "blue" and absf(Props.scale_of(m.S.props[0]) - 1.15) < 0.001
+	ok(r45, "45. the scene reloads with the chair bigger (x%.3f) and blue (%d props)" % [Props.scale_of(m.S.props[0]) if not m.S.props.is_empty() else 0.0, m.S.props.size()])
+	if not m.S.props.is_empty():
+		ok(prop_box(m.S.props[0]).size.distance_to(big45) < 0.001, "45. the reloaded chair's box is the saved size (%s, was %s)" % [str(prop_box(m.S.props[0]).size), str(big45)])
+	if path45 != "" and FileAccess.file_exists(path45):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path45))   # the test's own _wip scene
 	m._new_scene()
 	await idle(4)
 

@@ -24,6 +24,25 @@ const STEP := 0.01        # the capsule axis is sampled every 1 cm
 const REST_GAP := 0.02    # a capsule rests when its lowest point is within 2 cm above the surface
 const REST_SINK := 0.005  # ...or up to 5 mm into it (and then depth is under this too)
 const GREY := Color(0.70, 0.67, 0.62)   # warm neutral: scenery, not a second body (the dummy is blue-grey)
+## SIZE and COLOUR (Easy's prop bar: Bigger / Smaller / Colour; Expert and the file read the same fields): "scale" (a
+## uniform factor about the prop's middle on the floor, 1 = its real size) and "colour" (a name in COLOURS, "grey" = the
+## default). Both are written to the scene only when they differ from the default, so an older file reads the same
+const SIZE_MIN := 0.25
+const SIZE_MAX := 4.0
+const COLOURS := {"grey": Color(0.70, 0.67, 0.62), "blue": Color(0.15, 0.36, 0.88), "red": Color(0.84, 0.14, 0.12),
+	"green": Color(0.16, 0.62, 0.24), "yellow": Color(0.95, 0.80, 0.12), "white": Color(0.95, 0.95, 0.93), "black": Color(0.08, 0.08, 0.09)}
+const COLOUR_ORDER := ["blue", "red", "green", "yellow", "white", "black", "grey"]   # Colour cycles these; the first press gives blue
+
+
+## the prop's size factor (clamped to SIZE_MIN..SIZE_MAX); 1 for a prop without one
+static func scale_of(p: Dictionary) -> float:
+	return clampf(float(p.get("scale", 1.0)), SIZE_MIN, SIZE_MAX)
+
+
+## the prop's colour name ("grey" for the default)
+static func colour_of(p: Dictionary) -> String:
+	var c := String(p.get("colour", "grey"))
+	return c if COLOURS.has(c) else "grey"
 
 const KINDS := {
 	"box": {"label": "40 cm cube", "solids": [[Vector3(0, 0.2, 0), Vector3(0.4, 0.4, 0.4)]],
@@ -159,6 +178,10 @@ static func to_dict(p: Dictionary) -> Dictionary:
 		"yaw": snappedf(yaw, 0.0001)}
 	if p.has("mat"):
 		d["mat"] = String(p["mat"])   # a photo material (user://materials/<name>, E15)
+	if scale_of(p) != 1.0:
+		d["scale"] = snappedf(scale_of(p), 0.0001)
+	if colour_of(p) != "grey":
+		d["colour"] = colour_of(p)
 	if p.has("swing") and hinged(p) and float(p["swing"]) != 0.0:
 		d["swing"] = snappedf(float(p["swing"]), 0.0001)
 	if animated(p):
@@ -179,6 +202,10 @@ static func from_dict(d: Dictionary) -> Dictionary:
 	var p := make(String(d["kind"]), xf_at(Vector3(float(a[0]), float(a[1]), float(a[2])), float(d.get("yaw", 0.0))))
 	if d.has("mat") and String(d["mat"]) != "":
 		p["mat"] = String(d["mat"])
+	if d.has("scale"):
+		p["scale"] = clampf(float(d["scale"]), SIZE_MIN, SIZE_MAX)
+	if d.has("colour") and COLOURS.has(String(d["colour"])):
+		p["colour"] = String(d["colour"])
 	if d.has("swing"):
 		p["swing"] = float(d["swing"])
 	if d.get("keys") is Array and not (d["keys"] as Array).is_empty():
@@ -198,6 +225,9 @@ static func from_dict(d: Dictionary) -> Dictionary:
 static func mirror_dict(q: Dictionary) -> Dictionary:
 	var h := has_kind(String(q["kind"])) and bool(kind_of(String(q["kind"])).get("hinged", false))
 	var out := {"kind": q["kind"], "pos": [-float(q["pos"][0]), q["pos"][1], q["pos"][2]], "yaw": _mirror_yaw(float(q["yaw"]), h)}
+	for f in ["scale", "colour"]:   # a mirror keeps the size and the colour
+		if q.has(f):
+			out[f] = q[f]
 	if q.has("swing"):
 		out["swing"] = -float(q["swing"])
 	if q.has("keys"):
@@ -216,8 +246,9 @@ static func _mirror_yaw(y: float, hinge: bool) -> float:
 ## one solid's frame in the world (its centre, tilted by its pitch) and its half sizes
 static func _solid_world(p: Dictionary, s: Array) -> Dictionary:
 	var pitch := deg_to_rad(float(s[2])) if s.size() > 2 else 0.0
-	var local := Transform3D(Basis(Vector3.RIGHT, -pitch), s[0])
-	return {"xf": (p["xf"] as Transform3D) * leaf_xf(p) * local, "half": (s[1] as Vector3) * 0.5}
+	var k := scale_of(p)   # every local length of the kind is scaled about the origin (the floor): the box, its place, its half size
+	var local := Transform3D(Basis(Vector3.RIGHT, -pitch), (s[0] as Vector3) * k)
+	return {"xf": (p["xf"] as Transform3D) * leaf_xf(p) * local, "half": (s[1] as Vector3) * (0.5 * k)}
 
 
 ## the prop's solid boxes in world space: [{"xf": Transform3D at the box centre, "half": Vector3}]; a sphere (the ball)
@@ -227,12 +258,13 @@ static func solids(p: Dictionary) -> Array:
 	var kd := kind_of(p["kind"])
 	for s in kd["solids"]:
 		out.append(_solid_world(p, s))
+	var k := scale_of(p)
 	for sp in kd.get("spheres", []):
-		var r: float = sp[1]
-		out.append({"xf": (p["xf"] as Transform3D) * Transform3D(Basis(), sp[0]), "half": Vector3(r, r, r), "r": r})
+		var r: float = float(sp[1]) * k
+		out.append({"xf": (p["xf"] as Transform3D) * Transform3D(Basis(), (sp[0] as Vector3) * k), "half": Vector3(r, r, r), "r": r})
 	for w in kd.get("wedges", []):
-		var size: Vector3 = w[1]
-		out.append({"xf": (p["xf"] as Transform3D) * leaf_xf(p) * Transform3D(Basis(), w[0]), "half": size * 0.5,
+		var size: Vector3 = (w[1] as Vector3) * k
+		out.append({"xf": (p["xf"] as Transform3D) * leaf_xf(p) * Transform3D(Basis(), (w[0] as Vector3) * k), "half": size * 0.5,
 			"poly": wedge_profile(size), "w": size.x * 0.5})
 	return out
 
@@ -285,7 +317,8 @@ static func leaf_xf(p: Dictionary) -> Transform3D:
 static func free_edge(p: Dictionary) -> Vector3:
 	var kd := kind_of(p["kind"])
 	var s: Array = kd["solids"][0]
-	return (p["xf"] as Transform3D) * leaf_xf(p) * Vector3(float(kd.get("width", 0.0)), (s[0] as Vector3).y, 0.0)
+	var k := scale_of(p)
+	return (p["xf"] as Transform3D) * leaf_xf(p) * Vector3(float(kd.get("width", 0.0)) * k, (s[0] as Vector3).y * k, 0.0)
 
 
 static func animated(p: Dictionary) -> bool:
@@ -317,6 +350,10 @@ static func posed(p: Dictionary, t: float) -> Dictionary:
 	var out := {"kind": p["kind"], "xf": xf_at(pos, a.x)}
 	if p.has("mat"):
 		out["mat"] = p["mat"]
+	if p.has("scale"):
+		out["scale"] = p["scale"]
+	if p.has("colour"):
+		out["colour"] = p["colour"]
 	if hinged(p):
 		out["swing"] = a.y
 	return out
@@ -353,8 +390,9 @@ static func key_at(p: Dictionary, t: float, xf: Transform3D, swing := 0.0) -> vo
 static func supports(p: Dictionary) -> Array:
 	var xf: Transform3D = p["xf"]
 	var out := []
+	var k := scale_of(p)
 	for s in kind_of(p["kind"])["supports"]:
-		out.append({"y": xf.origin.y + float(s[0]), "xf": xf, "c": s[1], "half": (s[2] as Vector2) * 0.5})
+		out.append({"y": xf.origin.y + float(s[0]) * k, "xf": xf, "c": (s[1] as Vector2) * k, "half": (s[2] as Vector2) * (0.5 * k)})
 	return out
 
 
@@ -376,9 +414,9 @@ static func model_missing(p: Dictionary) -> bool:
 static func mesh(p: Dictionary) -> Node3D:
 	var root := Node3D.new()
 	root.name = String(p["kind"])
-	root.transform = p["xf"]
+	root.transform = (p["xf"] as Transform3D).scaled_local(Vector3.ONE * scale_of(p))
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = GREY
+	mat.albedo_color = COLOURS[colour_of(p)]
 	mat.roughness = 0.9
 	if p.has("mat"):
 		var pm := PhotoMaterial.load_material(String(p["mat"]))
@@ -398,6 +436,7 @@ static func mesh(p: Dictionary) -> Node3D:
 		n.scale = Vector3.ONE * f
 		n.position = -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z) * f
 		root.add_child(n)
+		_tint_models(n, colour_of(p), p)
 		return root
 	if String(kd.get("glb", "")) != "" and not model_missing(p):   # an imported model: the model itself, on the floor, centred, at the importer's scale
 		var doc := GLTFDocument.new()
@@ -410,6 +449,7 @@ static func mesh(p: Dictionary) -> Node3D:
 				n.scale = Vector3.ONE * f
 				n.position = -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z) * f
 				root.add_child(n)
+				_tint_models(n, colour_of(p), p)
 				return root
 	var holder := root
 	if bool(kd.get("hinged", false)):   # the door: its solids under a "leaf" node turned about the hinge
@@ -441,6 +481,17 @@ static func mesh(p: Dictionary) -> Node3D:
 		mi.position = sp[0]
 		holder.add_child(mi)
 	return root
+
+
+## an imported model keeps its own materials unless it is coloured (then one plain material in that colour, the same as a box)
+static func _tint_models(n: Node, colour: String, p: Dictionary) -> void:
+	if colour == "grey" or p.has("mat"):
+		return
+	var m := StandardMaterial3D.new()
+	m.albedo_color = COLOURS[colour]
+	m.roughness = 0.9
+	for c in n.find_children("*", "MeshInstance3D", true, false):
+		(c as MeshInstance3D).material_override = m
 
 
 ## a wedge's triangular prism as a mesh: two triangles at each end, two per profile edge along the length; each face's
