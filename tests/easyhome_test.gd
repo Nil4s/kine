@@ -104,7 +104,7 @@
 ##      moves the value off rest: the label shows degrees and the tick has not moved (c); opening the panel adds no undo step (d).
 ##  128. A CLICK IS NOT A DRAG (beginner walk-through: Undo after a click "does nothing"): a press and release on the left upper arm with
 ##      no movement adds no undo step and opens the side panel (a); a real 40 px drag (left) is one 'Drag' step and Undo restores the pose exactly (b);
-##      a click then a drag is one step (c).
+##      a click then a drag is one step (c); a drag that ENDS over the open side panel ends the drag and is one step (d).
 ##  127. TYPED FOLLOW-UPS AND A TYPO (walk11 monkey round): "then turn around" after "jump twice" appends the turn (a: the hips end at
 ##      180 +- 15 deg, one undo step); "make it slower" retimes the whole clip x1.5 +- 0.05, one undo step, Undo restores it (b: and "faster" x0.67);
 ##      "wlak forward" shows a "Did you mean: walk forward?" button whose click builds the walk (c: feet > 0.5 m forward); "jump zorp" still refused.
@@ -3555,6 +3555,22 @@ func _init() -> void:
 	await drag_px128(at128, -40.0)   # left: a release right of the arm would land on the open side panel
 	var d128_5: int = m.undo.size() + m.undo_dropped
 	ok(d128_5 - d128_4 == 1, "128c. a click, then a 40 px drag: %d undo step(s) (bar: 1)" % (d128_5 - d128_4))
+	# (d) a drag that ENDS over the open side panel: the panel does not take the release, so the drag ends (m.dragging "") and is one step
+	var at128d := Vector2.ZERO
+	for t128d in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at128d = m.cam.unproject_position((m.B.cap("upperarm_l")[0] as Vector3).lerp(m.B.cap("upperarm_l")[1], t128d))
+		if m._pick(at128d) == "upperarm_l":
+			break
+	var pr128d: Rect2 = sl128.panel.get_global_rect()
+	var dx128d: float = pr128d.get_center().x - at128d.x
+	var over128d: bool = pr128d.has_point(Vector2(at128d.x + dx128d, at128d.y))
+	var d128_6: int = m.undo.size() + m.undo_dropped
+	await drag_px128(at128d, dx128d)
+	var d128_7: int = m.undo.size() + m.undo_dropped
+	var still128d: String = str(m.dragging)
+	ok(over128d and still128d == "" and d128_7 - d128_6 == 1,
+		"128d. a drag that ends over the open side panel (release over it %s): the drag ends (dragging '%s') and is %d undo step(s) (bar: 1)"
+		% [str(over128d), still128d, d128_7 - d128_6])
 	m._new_scene()
 	await idle(2)
 
