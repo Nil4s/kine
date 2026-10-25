@@ -148,10 +148,19 @@ func pose_picture(pose: Dictionary) -> Texture2D:
 	return _ptex.get(pose_key(pose))
 
 
+## the same picture by its key (pose_key made once by the caller)
+func picture_of_key(key: String) -> Texture2D:
+	return _ptex.get(key)
+
+
 ## ask for the picture of a pose; made_pose(key) says when it is there. Returns the key. rank orders the queue (a lower
 ## rank is drawn first; the strip gives the cards in view the lowest ranks); a request with no rank goes last
 func request_pose(pose: Dictionary, rank := 1 << 30) -> String:
-	var key := pose_key(pose)
+	return request_key(pose_key(pose), pose, rank)
+
+
+## request_pose with the key already made (a card row makes it once: pose_key is a JSON dump and a hash)
+func request_key(key: String, pose: Dictionary, rank := 1 << 30) -> String:
 	if _ptex.has(key) or _inbatch.has(key):
 		return key   # made_pose(key) comes with the picture (a batch in flight, or the picture is at hand)
 	for q in _pq:

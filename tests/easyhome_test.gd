@@ -2809,6 +2809,21 @@ func _init() -> void:
 	UserPaths.force = keep120
 	UserPaths.root = root120
 	_rm118(abs120)
+	# 121. A CARD'S BUILD IS FAST (buildspeed): card(1) (Run), the click's own synchronous call (the build, the scene load, the rebuild of
+	# the strip, the refresh, the start of play), median of 5 reps from an empty scene. The base before this change: 215.3 ms (5 reps);
+	# the bar is 60 % of it: 129.2 ms. Old code: FAIL (about 215 ms).
+	var ts121 := []
+	for rep121 in 5:
+		m.playing = false
+		m._new_scene()
+		await idle(3)
+		var t121 := Time.get_ticks_usec()
+		home.card(1)
+		ts121.append(Time.get_ticks_usec() - t121)
+		await idle(3)
+	ts121.sort()
+	var med121: float = ts121[2] / 1000.0
+	ok(med121 <= 0.6 * 215.3, "121. card(1) Run: the click's synchronous build median %.1f ms over 5 reps (bar: <= 129.2 ms = 60 %% of the old median 215.3 ms)" % med121)
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
