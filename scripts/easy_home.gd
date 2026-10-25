@@ -41,6 +41,10 @@ var _pbar_turn_l: Button
 var _pbar_turn_r: Button
 var _pbar_remove: Button
 var _pbar_next: Button
+var _pbar_size: HBoxContainer      # Bigger | Smaller side by side (one row keeps the column short at 1280x720)
+var _pbar_bigger: Button
+var _pbar_smaller: Button
+var _pbar_colour: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
 var _edit: LineEdit
@@ -305,6 +309,16 @@ func build(root: Control) -> void:
 	pr.add_child(_pbar_turn_l)
 	_pbar_turn_r = _strip_button("eh_prop_turn_r", "Turn right", "turn the picked prop 15 degrees to the right (one undo step)", func(): m._prop_turn(15.0), Vector2(150, 40), 18)
 	pr.add_child(_pbar_turn_r)
+	_pbar_size = HBoxContainer.new()
+	_pbar_size.name = "eh_prop_size_row"
+	_pbar_size.add_theme_constant_override("separation", 6)
+	pr.add_child(_pbar_size)
+	_pbar_bigger = _strip_button("eh_prop_bigger", "Bigger", "make the picked prop 15 % bigger (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.15), Vector2(73, 40), 17)
+	_pbar_size.add_child(_pbar_bigger)
+	_pbar_smaller = _strip_button("eh_prop_smaller", "Smaller", "make the picked prop 15 % smaller (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
+	_pbar_size.add_child(_pbar_smaller)
+	_pbar_colour = _strip_button("eh_prop_colour", "Colour", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
+	pr.add_child(_pbar_colour)
 	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (Ctrl+Z puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_remove)
 	_pbar_next = _strip_button("eh_prop_next", "Next object", "pick the next object in the scene (in the order they were added)", _prop_next, Vector2(150, 40), 18)
@@ -422,6 +436,8 @@ func _prop_bar_update() -> void:
 	_pbar_name.text = ("Picked: the %s" % m._prop_name(i)) if have else "Nothing picked"
 	_pbar_turn_l.visible = have
 	_pbar_turn_r.visible = have
+	_pbar_size.visible = have
+	_pbar_colour.visible = have
 	_pbar_remove.visible = have
 	_pbar.reset_size()
 	var vs := _pbar.get_viewport().get_visible_rect().size

@@ -19339,6 +19339,48 @@ func _prop_turn(deg: float) -> void:
 	_say("turned the %s to %.0f°" % [_prop_name(sel_prop), float(d["yaw"])])
 
 
+## SIZE of the picked prop (Easy's Bigger / Smaller: f = 1.15 or 1 / 1.15; Expert reads the same field): one undo step; the
+## range is Props.SIZE_MIN..SIZE_MAX, and at the end of it the status says so
+func _prop_resize(f: float) -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		return
+	var old := Props.scale_of(S.props[sel_prop])
+	var new_s := clampf(old * f, Props.SIZE_MIN, Props.SIZE_MAX)
+	if absf(new_s - old) < 0.0005:
+		_say("the %s is as %s as it goes" % [_prop_name(sel_prop), "big" if f > 1.0 else "small"])
+		return
+	_push_undo()
+	_prop_live(sel_prop)
+	var d := Props.to_dict(S.props[sel_prop])
+	d["scale"] = snappedf(new_s, 0.0001)
+	S.props[sel_prop] = Props.from_dict(d)
+	_prop_autokey(sel_prop)
+	_props_show()
+	_doc_line()
+	_say("the %s is %s now (%d%% of its real size)" % [_prop_name(sel_prop), "bigger" if f > 1.0 else "smaller", roundi(new_s * 100.0)])
+
+
+## COLOUR of the picked prop (Easy's Colour button cycles Props.COLOUR_ORDER; the first press gives blue): one undo step
+func _prop_colour() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		return
+	_push_undo()
+	_prop_live(sel_prop)
+	var order: Array = Props.COLOUR_ORDER
+	var cur := order.find(Props.colour_of(S.props[sel_prop]))
+	var nxt := String(order[(cur + 1) % order.size()])
+	var d := Props.to_dict(S.props[sel_prop])
+	if nxt == "grey":
+		d.erase("colour")
+	else:
+		d["colour"] = nxt
+	S.props[sel_prop] = Props.from_dict(d)
+	_prop_autokey(sel_prop)
+	_props_show()
+	_doc_line()
+	_say("the %s is %s now" % [_prop_name(sel_prop), nxt])
+
+
 func _prop_del() -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return

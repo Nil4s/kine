@@ -227,6 +227,22 @@ func prop_origin(i: int) -> Vector3:
 	return (m.S.props[i]["xf"] as Transform3D).origin
 
 
+## the size of prop i's own boxes (the world box of its solids): the number the bar's Bigger / Smaller must move
+func prop_size(i: int) -> Vector3:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for sw in Props.solids(m.S.props[i]):
+		var X: Transform3D = sw["xf"]
+		var h: Vector3 = sw["half"]
+		for sx in [-1.0, 1.0]:
+			for sy in [-1.0, 1.0]:
+				for sz in [-1.0, 1.0]:
+					var c: Vector3 = X * Vector3(sx * h.x, sy * h.y, sz * h.z)
+					lo = lo.min(c)
+					hi = hi.max(c)
+	return hi - lo
+
+
 func find_prop(kind: String) -> int:
 	for i in m.S.props.size():
 		if String(m.S.props[i]["kind"]) == kind:
@@ -543,8 +559,42 @@ func _init() -> void:
 	for s in sizes:
 		if String(s).to_lower().contains("colo") or String(s).to_lower().contains("sword"):
 			size_or_colour = true
-	await shot("13_size_colour_look")
-	end_goal(size_or_colour, "(a sword size or colour control found: %s; 'Bigger' in the strip changes the MOTION, not the object)" % str(size_or_colour))
+	# the honest check: the picked OBJECT (a prop on the floor: the sword, or a chair when there is no sword) gets bigger and changes
+	# colour through the prop bar's own buttons (eh_prop_bigger / eh_prop_smaller / eh_prop_colour), and the view shows it
+	var si6 := find_prop("sword")
+	if si6 < 0:
+		si6 = find_prop("chair")
+	if si6 < 0:
+		say("   setup (not part of the goal): a chair is put on the floor")
+		m._prop_add("chair")
+		await idle(4)
+		si6 = find_prop("chair")
+	m.sel_prop = si6
+	m._props_show()
+	await idle(6)
+	var bar6 := m.find_child("easy_prop_bar", true, false) as Control
+	var big6 := m.find_child("eh_prop_bigger", true, false) as Button
+	var col6 := m.find_child("eh_prop_colour", true, false) as Button
+	say("   prop bar on screen: %s | Bigger: %s | Colour: %s | picked: %s" % [str(bar6 != null and bar6.visible), str(big6 != null and big6.is_visible_in_tree()), str(col6 != null and col6.is_visible_in_tree()), prop_kind(si6)])
+	var sz0 := prop_size(si6) if si6 >= 0 else Vector3.ZERO
+	clicks += 1
+	if big6 != null:
+		await click_ctl(big6)
+	await idle(6)
+	var sz1 := prop_size(si6) if si6 >= 0 else Vector3.ZERO
+	say("   %s size %s -> %s (status: %s)" % [prop_kind(si6), str(sz0), str(sz1), m.ui_status.text])
+	await shot("13b_prop_bigger")
+	var grew6 := sz1.x > sz0.x * 1.1 and sz1.y > sz0.y * 1.1 and sz1.z > sz0.z * 1.1
+	clicks += 1
+	var col0 := String(m.S.props[si6].get("colour", "grey")) if si6 >= 0 else ""
+	if col6 != null:
+		await click_ctl(col6)
+	await idle(6)
+	var col1 := String(m.S.props[si6].get("colour", "grey")) if si6 >= 0 else ""
+	say("   %s colour %s -> %s (status: %s)" % [prop_kind(si6), col0, col1, m.ui_status.text])
+	await shot("13c_prop_coloured")
+	var named6 := col1 != "" and col1 != "grey" and String(m.ui_status.text).to_lower().contains(col1)
+	end_goal(grew6 and col1 != "grey" and named6, "(the picked %s grew: %s, coloured %s and the status names it: %s; a 'Bigger' in the strip changes the MOTION, not the object; sword/chair size control found: %s)" % [prop_kind(si6), str(grew6), col1, str(named6), str(size_or_colour)])
 
 	# 7. BROWSE EVERY CATEGORY ONCE
 	begin_goal("7 browse every category once (note empty, unclear, picture-less, jargon)")
