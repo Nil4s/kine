@@ -18,6 +18,7 @@ var keys := 0
 var t0 := 0
 var goal := ""
 var rows: Array = []   # one row per goal: [number, goal, done, actions, note]
+var base_n := 0       # the cube's vertex count before any edit: a vertex at or above it was added by an extrude
 
 
 func say(s: String) -> void:
@@ -273,6 +274,34 @@ func edge_spot(fi: int, a: int, b: int) -> Vector2:
 	return scr((kmed.view._to_world(f[a]) + kmed.view._to_world(f[b])) * 0.5)
 
 
+## the camera-facing edge (on a face the extrude did not touch, both ends 4-valent, not on the rim): its screen midpoint,
+## its two verts and its face. A loop through it runs round the cube; an edge on the extruded cap stops at its 3-valent corners.
+func loop_edge() -> Array:
+	var best := [Vector2.ZERO, -1, -1, -1]
+	var bd := -2.0
+	var cam_pos: Vector3 = m.cam.global_position
+	for fi in kmed.mesh.face_count():
+		var f: PackedInt32Array = kmed.mesh.faces[fi]
+		var orig := true
+		for vi in f:
+			if vi >= base_n:
+				orig = false
+		if not orig:
+			continue
+		var c := face_center(fi)
+		var n: Vector3 = (kmed.view.global_transform.basis * kmed.mesh.face_normals[fi]).normalized()
+		var d := n.dot((cam_pos - c).normalized())
+		if d <= bd or m.cam.is_position_behind(c):
+			continue
+		for i in f.size():
+			var a: int = f[i]
+			var b: int = f[(i + 1) % f.size()]
+			if kmed.mesh.vert_neighbors(a).size() == 4 and kmed.mesh.vert_neighbors(b).size() == 4 and not kmed.mesh.is_boundary_edge(a, b):
+				bd = d
+				best = [edge_spot(fi, i, (i + 1) % f.size()), a, b, fi]
+	return best
+
+
 ## the sphere point facing the camera, on the screen
 func sphere_spot() -> Vector2:
 	var center: Vector3 = ksc.view.global_position
@@ -440,7 +469,7 @@ func mirror_hits(base: PackedVector3Array, ev: PackedVector3Array, idxs: Array) 
 	for i in idxs:
 		var r := Vector3(-base[i].x, base[i].y, base[i].z)
 		for v in ev:
-			if v.distance_to(r) < 0.0015:
+			if v.distance_to(r) < 0.001:   # 1 mm
 				hit += 1
 				break
 	return hit
@@ -495,6 +524,7 @@ func _init() -> void:
 		if await pick_option(ob, "Mirror"):
 			await click_in(kmed.mods.panel, "Add")
 			await shot("mirror_added")
+			base_n = nv()
 			var base_before := mesh_snapshot()
 			var ev0: int = kmed.mods.evaluated.vert_count() if kmed.mods.evaluated != null else -1
 			say("   base verts %d; evaluated (with mirror) verts %d" % [base_before.size(), ev0])
@@ -506,14 +536,19 @@ func _init() -> void:
 			await click_at(face_spot(f1) + Vector2(0, -60), "to confirm the extrude")
 			await shot("mirror_after_edit")
 			var base_after := mesh_snapshot()
+			# the extrude APPENDS its new verts (it moves none): the new ones are what the mirror must copy
+			var new_idx := []
+			for i in range(base_before.size(), base_after.size()):
+				new_idx.append(i)
 			var moved_idx := []
 			for i in mini(base_before.size(), base_after.size()):
 				if base_before[i].distance_to(base_after[i]) > 0.00005:
 					moved_idx.append(i)
+			var check_idx: Array = new_idx + moved_idx
 			var ev_now: PackedVector3Array = kmed.mods.evaluated.verts.duplicate() if kmed.mods.evaluated != null else PackedVector3Array()
-			var hits := mirror_hits(base_after, ev_now, moved_idx)
-			mir_ok = moved_idx.size() > 0 and hits == moved_idx.size()
-			mir_note = "moved %d base verts; their mirror images in the evaluated mesh: %d; evaluated verts %d" % [moved_idx.size(), hits, ev_now.size()]
+			var hits := mirror_hits(base_after, ev_now, check_idx)
+			mir_ok = check_idx.size() > 0 and hits == check_idx.size() and ev_now.size() > base_after.size()
+			mir_note = "base verts %d -> %d (new %d, moved %d); their mirror images (x flipped, 1 mm) in the evaluated mesh: %d of %d; evaluated verts %d" % [base_before.size(), base_after.size(), new_idx.size(), moved_idx.size(), hits, check_idx.size(), ev_now.size()]
 		else:
 			mir_note = "no Mirror choice in the Modifiers panel"
 	else:
@@ -523,8 +558,9 @@ func _init() -> void:
 	# 2. EDGE LOOP (Alt+click) AND SCALE (S + drag)
 	begin_goal("2 edge loop: Alt+click, then S + drag")
 	await key(KEY_2, false, false, "2 (edge mode)")
-	var fe := front_face()
-	var espot := edge_spot(fe, 0, 1)
+	var pick_e := loop_edge()   # an edge on the cube's own faces (not the extruded part), both ends 4-valent: a loop runs through it
+	var espot: Vector2 = pick_e[0]
+	say("   chosen edge: verts %d-%d on face %d (both ends 4-valent: a loop runs round the cube)" % [pick_e[1], pick_e[2], pick_e[3]])
 	await click_mod(espot, "on an edge, with Alt held", true)
 	var sel_after_alt: int = kmed.sel.count()
 	await shot("loop_alt_click")
@@ -536,7 +572,7 @@ func _init() -> void:
 	await shot("loop_scaled")
 	var s_moved := moved_count(pre_s, mesh_snapshot())
 	say("   vertices moved by the scale: %d" % s_moved)
-	end_goal("2", sel_after_alt > 2 and s_moved > 0, "(selected after Alt+click %d; vertices moved by S: %d)" % [sel_after_alt, s_moved])
+	end_goal("2", sel_after_alt >= 4 and s_moved > 0, "(selected after Alt+click %d; vertices moved by S: %d)" % [sel_after_alt, s_moved])
 
 	# 3. GRAB A VERTEX WITH PROPORTIONAL EDITING, WHEEL FOR RADIUS
 	begin_goal("3 grab a vertex (G + drag) with proportional editing (O), wheel for radius")
@@ -634,16 +670,11 @@ func _init() -> void:
 	if fb >= 0:
 		await click_mod(face_spot(fb), "on a second face, Shift held", false, true)
 	var mats0: int = kmed.mesh.materials.size()
-	var mat_btn := ""
-	for pre in ["New", "Add", "+", "Make", "Create"]:
-		var bb := find_btn(pre, true)
-		if bb != null:
-			mat_btn = text_of(bb)
-			break
 	say("   material panel buttons: %s" % str(_mat_btns()))
-	if mat_btn != "":
-		await click_text(mat_btn)
-		await shot("material_made")
+	await click_in(kmed.mat_panel, "Add")   # slot 0: the app says the first slot covers every face
+	await shot("material_made")
+	await click_in(kmed.mat_panel, "Add")   # slot 1: the one Assign gives the selected faces to
+	await shot("material_second_slot")
 	var as_btn := find_btn("Assign")
 	if as_btn != null:
 		await click_text("Assign")

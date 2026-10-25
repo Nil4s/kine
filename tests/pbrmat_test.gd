@@ -65,6 +65,22 @@ func key(k: int, ctrl := false, shift := false) -> void:
 	await idle(2)
 
 
+## a real left click in the middle of a button, the way a mouse presses it
+func press_button(b: Button) -> void:
+	var c: Vector2 = b.get_global_rect().get_center()
+	for down in [true, false]:
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.pressed = down
+		e.position = c
+		e.global_position = c
+		if down:
+			e.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(e)
+		await process_frame
+	await idle(3)
+
+
 func fc(fi: int) -> Vector2:
 	return m.cam.unproject_position(ui.view.global_transform * ui.mesh.face_center(fi))
 
@@ -226,6 +242,28 @@ func _init() -> void:
 	ok(mesh.materials[1]["roughness"] == r0, "5e its undo puts the roughness back exactly (%.4f, was %.4f)" % [mesh.materials[1]["roughness"], r0])
 	var ns := pan.select_by(0)
 	ok(ns == KMeshMaterial.counts(mesh)[0] and ui.sel.mode == KMeshSelect.FACE, "5f Select by slot 0: %d faces (its count %d)" % [ns, KMeshMaterial.counts(mesh)[0]])
+
+	# 5R REAL BUTTONS: two faces picked on the cube, a new slot by a real press on Add, then a real press on Assign:
+	# exactly the two picked faces are on the new slot, and the Assign is one undo step
+	m.ui_root.visible = true
+	ui.sel.clear()
+	ui.sel.set_mode(KMeshSelect.FACE)
+	ui.sel.faces[5] = true
+	ui.sel.faces[60] = true
+	ui.view.mark_dirty()
+	await idle(3)
+	var add_b := pan.find_child("btn_mat_add", true, false) as Button
+	var assign_b := pan.find_child("btn_mat_assign", true, false) as Button
+	ok(add_b != null and assign_b != null and add_b.is_visible_in_tree() and assign_b.is_visible_in_tree(), "5R0 the Materials panel's Add and Assign buttons are on screen")
+	var nslot0 := mesh.materials.size()
+	await press_button(add_b)
+	ok(mesh.materials.size() == nslot0 + 1 and pan.cur == nslot0, "5R1 a real press on Add makes slot %d (%d slots) and picks it" % [nslot0, mesh.materials.size()])
+	var n5r := ui.undo.steps.size()
+	await press_button(assign_b)
+	var got: Array = Array(KMeshMaterial.faces_of(mesh, nslot0))
+	got.sort()
+	ok(got == [5, 60], "5R2 a real press on Assign: slot %d holds exactly the picked faces (%s, want [5, 60])" % [nslot0, str(got)])
+	ok(ui.undo.steps.size() == n5r + 1, "5R3 the Assign is one undo step (%d -> %d)" % [n5r, ui.undo.steps.size()])
 
 	# 6 E15
 	var ph := KMeshMaterial.from_photo(mesh.materials[0], "bricks")
