@@ -46,8 +46,7 @@ func checkpoint() -> void:
 		_cp_last = -1
 		hist = {}
 	var s: int = kmed.undo.steps.size()
-	if s > _cp_last:
-		hist[s] = mesh_snapshot()
+	hist[s] = mesh_snapshot()   # the LAST idle at this count: a live tool (E drag) moves the mesh before its step is committed
 	_cp_last = s
 
 
@@ -442,6 +441,49 @@ func pick_face(ok: Callable) -> int:
 	return best
 
 
+## the face under a screen point, by the view's own ray: -1 when the point is off the mesh
+func surface_hit(p: Vector2) -> bool:
+	var hit = kmed.view.ray_face(m.cam.project_ray_origin(p), m.cam.project_ray_normal(p))
+	return not (hit as Dictionary).is_empty() if hit is Dictionary else false
+
+
+## true when a panel (a control that takes the mouse) is drawn over this screen spot: a click there would not reach the view
+func ui_covers(p: Vector2) -> bool:
+	for n in visible_nodes():
+		if n is Control and (n as Control).mouse_filter != Control.MOUSE_FILTER_IGNORE and (n as Control).get_global_rect().has_point(p):
+			var r: Rect2 = (n as Control).get_global_rect()
+			if r.size.x < 0.9 * m.get_viewport().get_visible_rect().size.x:   # the full-window roots are not panels
+				return true
+	return false
+
+
+## diagnostics for goal 3: the cylinder's top-cap faces [in the mesh, behind the camera, off screen, facing away, visible]
+func top_cap_report(f3: int, ymax: float) -> Array:
+	var n_all := 0
+	var n_behind := 0
+	var n_off := 0
+	var n_away := 0
+	var n_vis := 0
+	var cam_pos: Vector3 = m.cam.global_position
+	for fi in range(f3, nf()):
+		var c: Vector3 = face_center(fi)
+		if c.y <= ymax - 0.01:
+			continue
+		n_all += 1
+		if m.cam.is_position_behind(c):
+			n_behind += 1
+			continue
+		if not on_screen(scr(c)):
+			n_off += 1
+			continue
+		var n: Vector3 = (kmed.view.global_transform.basis * kmed.mesh.face_normals[fi]).normalized()
+		if n.dot((cam_pos - c).normalized()) <= 0.0:
+			n_away += 1
+			continue
+		n_vis += 1
+	return [n_all, n_behind, n_off, n_away, n_vis, "cam y %.3f, dist %.2f" % [cam_pos.y, cam_pos.distance_to(vw(0))]]
+
+
 ## the visible edge (a face's corner pair) that passes ok(a, b, midpoint); nearest the camera. [a, b, screen point] or []
 func pick_edge(ok: Callable) -> Array:
 	var best := []
@@ -646,6 +688,19 @@ func _init() -> void:
 			ymin = minf(ymin, vw(i).y)
 		var mug_on: bool = nv() > v3 and on_screen(scr((vw(v3) + vw(nv() - 1)) * 0.5))
 		say("   cylinder verts %d-%d (y %.3f..%.3f m); its middle on screen: %s" % [v3, nv() - 1, ymin, ymax, str(mug_on)])
+		say("   before Home: top-cap faces %s" % str(top_cap_report(f3, ymax)))
+		# a user frames what they just added: Home (the mesh framed, as in main.gd) before picking anything on it
+		await key(KEY_HOME, false, false, "Home (frame the mesh)")
+		await idle(10)
+		say("   after Home: top-cap faces %s" % str(top_cap_report(f3, ymax)))
+		# Home keeps the camera's direction: after the under-the-floor orbit of goal 1 the camera is below the table, and the
+		# cylinder's top cap faces away. The ViewCube's HOME mark (top left of the cube, a real click) goes to the home view
+		var vc: Control = m.ui_cube
+		if top_cap_report(f3, ymax)[4] == 0 and vc != null and vc.is_visible_in_tree():
+			var hp: Vector2 = vc.get_global_rect().position + ViewCube.HOME_R.get_center()
+			await click_at(hp, "the ViewCube HOME mark (the view from above)")
+			await idle(30)
+			say("   after HOME mark: top-cap faces %s" % str(top_cap_report(f3, ymax)))
 		var top_fi: int = pick_face(func(fi: int, c: Vector3) -> bool: return fi >= f3 and c.y > ymax - 0.01)
 		if top_fi >= 0 and got_cyl:
 			var tsp: Vector2 = face_spot(top_fi)
@@ -717,36 +772,50 @@ func _init() -> void:
 	if kmed != null and kmed.on:
 		await click_text("SURFACE")
 		await shot("17_surface_page")
-		var paint_here: bool = find_btn("Vertex paint", true) != null or find_btn("Paint", true) != null
-		say("   a paint button on SURFACE: %s" % str(paint_here))
-		if not paint_here:
-			say("   no paint button on SURFACE: opening the S box and typing 'vertex paint'")
+		var paint_here: bool = find_btn("Paint") != null
+		say("   a Paint button on SURFACE: %s" % str(paint_here))
+		if paint_here:
+			# the ribbon's Paint button is the route a user takes: paint mode on (the S box's vertex paint row runs the same op)
+			await click_text("Paint")
+		else:
+			say("   no Paint button on SURFACE: opening the S box and typing 'vertex paint'")
 			await key(KEY_S, false, false, "S (the S box)")
 			await type_text("vertex paint")
 			await shot("18_s_box_paint")
 			await key(KEY_ENTER, false, false, "Enter (the first row)")
 		await shot("19_paint_on")
 		var pv0 := painted_count()
-		var mug_fi: int = pick_face(func(fi: int, c: Vector3) -> bool: return fi >= base_n and c.y > 0.0)
+		# a mug face the panels do not cover (the Materials panel sits over the right of the view)
+		var mug_fi: int = pick_face(func(fi: int, c: Vector3) -> bool: return fi >= base_n and c.y > 0.0 and not ui_covers(face_spot(fi)))
 		if mug_fi < 0:
-			mug_fi = pick_face(func(fi: int, c: Vector3) -> bool: return true)
+			mug_fi = pick_face(func(fi: int, c: Vector3) -> bool: return not ui_covers(face_spot(fi)))
 		var pp: Vector2 = face_spot(mug_fi) if mug_fi >= 0 else Vector2(960, 540)
-		await drag_at(pp + Vector2(-60, 0), Vector2(120, 0), "across the mug with the paint brush")
+		# a stroke starts ON the mesh (a press off it is box select), and the brush (12 cm by default) paints the vertices
+		# inside it: aim at one of the mug face's corners, then drag across it
+		var fverts: PackedInt32Array = kmed.mesh.faces[mug_fi]
+		var pv_at: Vector2 = scr(vw(fverts[0]))
+		say("   paint press at %s (a corner of the mug face; on the mesh: %s); undo steps %d" % [str(pv_at), str(surface_hit(pv_at)), kmed.undo.steps.size()])
+		var pu_d := KMeshVPaintUI.of(m)
+		await drag_at(pv_at, Vector2(-30, 0), "across the mug corner with the paint brush")
+		say("   after the stroke: undo steps %d; dabs %d; painted %d" % [kmed.undo.steps.size(), pu_d.vp.dabs, painted_count()])
 		await shot("20_painted")
 		var pv1 := painted_count()
 		say("   painted corners %d -> %d (paint panel shown: %s)" % [pv0, pv1, str(label_visible("Vertex paint"))])
+		# the Vertex paint panel sits over the Materials panel's Library... button (both at the right edge): leave paint mode
+		# (Esc, as the paint status line says) before the library
+		await key(KEY_ESCAPE, false, false, "Esc (leave paint mode)")
 		var mat0 := str(kmed.mesh.materials[0]) if kmed.mesh.materials.size() > 0 else "none"
 		var lib_ok: bool = await click_in(kmed.mat_panel, "Library...")
+		say("   Library... after the click: lib_panel %s" % str(kmed.mat_panel.lib_panel))
 		await shot("21_library_open")
 		var pick_name := ""
-		if lib_ok and kmed.mat_panel.lib_panel != null:
-			for b in visible_buttons():
-				var bt := text_of(b)
-				if bt != "" and not ["x", "Apply", "Library...", "Save current slot to library"].has(bt) and kmed.mat_panel.lib_panel.is_ancestor_of(b):
-					pick_name = bt
-					break
-		if pick_name != "":
-			await click_text(pick_name)
+		# the presets are the library's ItemList (material_library_ui.gd: grid), not buttons: click one, then Apply
+		var gr: ItemList = kmed.mat_panel.lib_panel.grid if lib_ok and kmed.mat_panel.lib_panel != null else null
+		say("   library list: %s" % ("none" if gr == null else "%d presets, visible %s, first at %s" % [gr.item_count, str(gr.is_visible_in_tree()), str(gr.get_global_rect())]))
+		if gr != null and gr.item_count > 1:
+			var ii := 1
+			await click_at(gr.get_global_rect().position + gr.get_item_rect(ii).get_center(), "the library preset '%s'" % gr.get_item_text(ii))
+			pick_name = gr.get_item_text(ii)
 			await click_in(kmed.mat_panel.lib_panel, "Apply")
 		await shot("22_material_applied")
 		var mat1 := str(kmed.mesh.materials[0]) if kmed.mesh.materials.size() > 0 else "none"
@@ -772,11 +841,20 @@ func _init() -> void:
 		await shot("23_undone_5")
 		var ok5: bool = want5 != null and kmed.undo.steps.size() == top - 5 and mesh_snapshot() == want5
 		say("   after 5 undos: steps %d (want %d), mesh equals the recorded state: %s" % [kmed.undo.steps.size(), top - 5, str(ok5)])
+		if want5 != null:
+			var u_s := mesh_snapshot()
+			say("   undo diagnostics: recorded verts %d, now %d, moved %d; recorded counts per step %s" % [want5.size(), u_s.size(), moved_count(want5, u_s) if want5.size() == u_s.size() else -1, str(hist.keys())])
+		else:
+			say("   undo diagnostics: no recorded state for step %d" % (top - 5))
 		for i in 2:
 			await key(KEY_Y, true, false, "Ctrl+Y (redo %d)" % (i + 1))
 		await shot("24_redone_2")
 		var ok2: bool = want3 != null and kmed.undo.steps.size() == top - 3 and mesh_snapshot() == want3
 		say("   after 2 redos: steps %d (want %d), mesh equals the recorded state: %s" % [kmed.undo.steps.size(), top - 3, str(ok2)])
+		if want3 != null:
+			var now_s := mesh_snapshot()
+			var mv := moved_count(want3, now_s) if want3.size() == now_s.size() else -1
+			say("   redo diagnostics: recorded verts %d, now %d, moved %d; history counts %s" % [want3.size(), now_s.size(), mv, str(hist.keys())])
 		t6_ok = ok5 and ok2
 		t6_note = "(steps %d; after undo 5: %s; after redo 2: %s; recorded states present: %s / %s)" % [top, str(ok5), str(ok2), str(want5 != null), str(want3 != null)]
 	else:
@@ -847,18 +925,25 @@ func _init() -> void:
 	var box_open: bool = m.ui_cmd != null and m.ui_cmd.visible
 	await type_text("inset")
 	await shot("32_s_box_inset")
-	var row_hit := false
+	# the rows are the box's Tree items (command_search.gd _filter: it.set_text(0, name)), not Labels: read the list it shows
+	var row_names: Array = []
 	if box_open:
-		for n in walk(m.ui_cmd, []):
-			if n is Label and (n as Label).text.findn("nset") >= 0 and (n as Label).is_visible_in_tree():
-				row_hit = true
+		for c in m.ui_cmd.shown:
+			row_names.append(String(c["name"]))
+	var row_hit := false
+	for rn in row_names:
+		if String(rn).findn("inset") >= 0:
+			row_hit = true
+	say("   rows shown for 'inset': %s" % str(row_names.slice(0, 6)))
 	var st0 := str(m.ui_status.text)
+	# Enter runs the first row (the selected one): it has to be the Inset tool, not some other row that merely contains the word
+	var first_row := String(m.ui_cmd.shown[0]["name"]) if box_open and not m.ui_cmd.shown.is_empty() else ""
 	await key(KEY_ENTER, false, false, "Enter (runs the first row)")
 	await shot("33_s_box_ran")
 	var closed: bool = m.ui_cmd == null or not m.ui_cmd.visible
 	say("   box open %s; a row names Inset %s; closed after Enter %s; status before '%s' after '%s'" % [str(box_open), str(row_hit), str(closed), st0, str(m.ui_status.text)])
-	t8_ok = box_open and row_hit and closed
-	t8_note = "(box opened %s; a row named Inset %s; closed after Enter %s)" % [str(box_open), str(row_hit), str(closed)]
+	t8_ok = box_open and row_hit and closed and first_row.findn("inset") >= 0
+	t8_note = "(box opened %s; a row named Inset %s; first row '%s'; closed after Enter %s)" % [str(box_open), str(row_hit), first_row, str(closed)]
 	end_goal("8", t8_ok, t8_note)
 
 	say("\n| # | Goal | Done | Actions | Notes |")
