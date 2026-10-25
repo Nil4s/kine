@@ -281,6 +281,33 @@ func _init() -> void:
 	await idle()
 	ok(not asking(m), "O2 a saved scene just opened: no dialog")
 
+	# the other app-made work copies (mirror, template): the same as a card build, New asks before it is lost
+	m._mirror_scene()   # combo3, mirrored into scenes/_wip: a scene nobody saved
+	await idle()
+	var mir_path: String = m.scene_path
+	ok(m._unsaved(), "O3 a mirrored scene (a work copy in scenes/_wip) is unsaved (%s)" % mir_path)
+	m._new_asked()
+	await idle()
+	ok(asking(m), "O4 after Mirror the scene, New asks")
+	m.ui_save_discard.pressed.emit()
+	await idle()
+	if mir_path.contains("/_wip/") and FileAccess.file_exists(mir_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(mir_path))
+	m._template_make("punch")
+	await idle()
+	var tpl_path: String = m.scene_path
+	ok(m.S.cards.size() > 0 and m._unsaved(), "O5 a scene made from the punch template is unsaved (%d cards, %s)" % [m.S.cards.size(), tpl_path])
+	m._new_asked()
+	await idle()
+	ok(asking(m), "O6 after New from template, New asks")
+	m.ui_save_discard.pressed.emit()
+	await idle()
+	if tpl_path.contains("/_wip/") and FileAccess.file_exists(tpl_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(tpl_path))
+	m._load_scene("res://scenes/combo3.json")   # back to the saved scene the journal steps below edit
+	m._rebuild_cards()
+	await idle()
+
 	# a kill still recovers through the journal: no prompt, the edit is in the journal, the next start offers it
 	edit(m)
 	await idle()

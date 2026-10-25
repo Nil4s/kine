@@ -7,6 +7,7 @@ extends SceneTree
 
 const OUT := "C:/Temp/claude/walk5/"
 
+var made: Array = []   # scene files this run saved (deleted at the end)
 var m: Node
 var n_shot := 0
 var lines: Array = []
@@ -418,6 +419,8 @@ func _init() -> void:
 	await idle(20)
 	await shot("12_saved")
 	var saved_path: String = str(m.scene_path)
+	if saved_path != "" and not saved_path.contains("/_wip/"):
+		made.append(saved_path)   # the run's own file: removed at the end (round 5 left walk_then_sit_down_*.json behind)
 	say("   scene file: %s" % saved_path)
 	var nw := await click_text("New scene")
 	var dont := false
@@ -515,6 +518,10 @@ func _init() -> void:
 	end_goal(jump_ok, "(help button found: %s, answer found: %s)" % [str(hb or hp or tour), str(jump_ok)])
 
 	say("\nlast video: " + str(m.easy.home.last_video))
+	for p in made:   # only the scene files this run saved
+		if FileAccess.file_exists(p):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+			say("removed the run's scene file " + p)
 	var f := FileAccess.open(OUT + "log.txt", FileAccess.WRITE)
 	f.store_string("\n".join(lines) + "\n")
 	f.close()
