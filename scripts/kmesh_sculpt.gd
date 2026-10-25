@@ -363,9 +363,20 @@ func _grab_start(point: Vector3, pressure: float) -> void:
 	_has_last = true
 	var r := float(p["radius"])
 	var pr := clampf(pressure, 0.0, 1.0)
+	# the vert nearest the press is the one under the cursor: it follows the mouse 1:1. The falloff at its offset from the
+	# press (6-13 mm on the test sphere, radius 80 mm) held it back 2-7 %, so every weight is divided by the anchor's
+	var near := -1
+	var nd := INF
 	for v in verts_in(point, r):
-		_grab_w[v] = falloff(String(p["falloff"]), mesh.verts[v].distance_to(point) / r) * pr
+		var d: float = mesh.verts[v].distance_to(point)
+		_grab_w[v] = falloff(String(p["falloff"]), d / r)
 		_grab_v[v] = mesh.verts[v]
+		if d < nd:
+			nd = d
+			near = v
+	var anchor := float(_grab_w[near]) if near >= 0 else 0.0
+	for v in _grab_w.keys():
+		_grab_w[v] = minf(float(_grab_w[v]) / anchor, 1.0) * pr if anchor > 1e-6 else float(_grab_w[v]) * pr
 	if not _sym.is_empty():   # the partners follow from where they were too
 		for v in _grab_w.keys():
 			var u := _sym[v]
