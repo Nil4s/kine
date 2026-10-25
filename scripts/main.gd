@@ -13690,6 +13690,9 @@ func _rebuild_cards() -> void:
 		pc.mouse_entered.connect(func(): tools.visible = true)
 		pc.mouse_exited.connect(func(): tools.visible = false)
 		# the timing as one line of text; a click opens the two boxes (move, hold) that edit it
+		if easy_on:
+			continue   # Easy: no timing line and no timing panel (the seconds and the hold are Expert's). The line's button was
+			# made and never added here before: 37 orphan buttons per rebuild of a run (10-25)
 		var tb := _button(_card_timing(i), func(): _card_time_edit(i), "")
 		tb.name = "b_timing"
 		tb.flat = true
@@ -13698,9 +13701,8 @@ func _rebuild_cards() -> void:
 		tb.add_theme_constant_override("h_separation", 0)
 		_card_flat(tb)
 		_card_timing_look(tb, i)
-		if not (easy != null and easy.on):   # Easy: no timing line (the seconds and the hold are Expert's)
-			v.add_child(tb)
-		if not easy_on:   # the timing panel (move, hold) is Expert's: Easy has no timing line to open it, so its boxes are not made
+		v.add_child(tb)
+		if not easy_on:   # the timing panel (move, hold) is Expert's (Easy continued above)
 			var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
 			pp.name = "time_edit"
 			pp.top_level = true
