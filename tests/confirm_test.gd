@@ -18,7 +18,13 @@ func ok(c: bool, what: String) -> void:
 
 
 func asking() -> bool:
-	return m.ui_confirm != null and m.ui_confirm.visible
+	return (m.ui_confirm != null and m.ui_confirm.visible) or (m.ui_clash != null and m.ui_clash.visible)   # Save onto a taken name asks in its own dialog (round 8: Replace / Save as a new name / Cancel)
+
+
+func cancel() -> void:
+	for d in [m.ui_confirm, m.ui_clash]:
+		if d != null and d.visible:
+			d.get_cancel_button().pressed.emit()
 
 
 func _init() -> void:
@@ -149,7 +155,7 @@ func _init() -> void:
 	m._save_scene()
 	await process_frame
 	ok(asking() and FileAccess.get_file_as_string(OTHER) == "{\"keep\": true}", "Save scene onto another scene's file: asks; the file is untouched")
-	m.ui_confirm.get_cancel_button().pressed.emit()
+	cancel()
 	await process_frame
 	ok(FileAccess.get_file_as_string(OTHER) == "{\"keep\": true}", "  Cancel: still untouched")
 	m._load_scene(OTHER.replace("zz_confirm_other", "combo3_detail"))
