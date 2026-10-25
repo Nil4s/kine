@@ -203,15 +203,28 @@ func click_ctl(c: Control) -> void:
 	e.position = at
 	e.global_position = at
 	e.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(e)
+	root.push_input(e, true)
 	await idle(1)
+	_click_check(c, at)
 	var u := InputEventMouseButton.new()
 	u.button_index = MOUSE_BUTTON_LEFT
 	u.pressed = false
 	u.position = at
 	u.global_position = at
-	root.push_input(u)
+	root.push_input(u, true)
 	await idle(4)
+
+
+## STRETCH probe: the window's final transform and its visible rect at a named point of the run
+func _tf(tag: String) -> void:
+	print("STRETCH %s: final transform %s, visible rect %s, window size %s, content_scale_size %s mode %d" % [tag, str(root.get_final_transform()), str(root.get_visible_rect().size), str(root.size), str(root.content_scale_size), root.content_scale_mode])
+
+
+## CLICK MISS: after the press, the GUI's hovered control must be c or inside c (else the click went to another control)
+func _click_check(c: Control, at: Vector2) -> void:
+	var h: Control = m.get_viewport().gui_get_hovered_control()
+	if h == null or not (h == c or c.is_ancestor_of(h)):
+		print("CLICK MISS %s hit %s (at %s, final transform %s)" % [c.name, h.name if h != null else "none", str(at), str(root.get_final_transform())])
 
 
 ## a real click at a point of the view (the 3D pick: the press and the release go through the viewport's input)
@@ -222,14 +235,14 @@ func click_at(at: Vector2) -> void:
 	e.position = at
 	e.global_position = at
 	e.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(e)
+	root.push_input(e, true)
 	await idle(1)
 	var u := InputEventMouseButton.new()
 	u.button_index = MOUSE_BUTTON_LEFT
 	u.pressed = false
 	u.position = at
 	u.global_position = at
-	root.push_input(u)
+	root.push_input(u, true)
 	await idle(4)
 
 
@@ -240,7 +253,7 @@ func key_press(code: int, ctrl := false) -> void:
 	e.physical_keycode = code
 	e.pressed = true
 	e.ctrl_pressed = ctrl
-	root.push_input(e)
+	root.push_input(e, true)
 	await idle(4)
 
 
@@ -263,7 +276,7 @@ func drag_part(j: String, d: Vector2) -> void:
 	var hm := InputEventMouseMotion.new()
 	hm.position = p
 	hm.global_position = p
-	root.push_input(hm)
+	root.push_input(hm, true)
 	await idle(2)
 	var dn := InputEventMouseButton.new()
 	dn.button_index = MOUSE_BUTTON_LEFT
@@ -271,7 +284,7 @@ func drag_part(j: String, d: Vector2) -> void:
 	dn.position = p
 	dn.global_position = p
 	dn.button_mask = MOUSE_BUTTON_MASK_LEFT
-	root.push_input(dn)
+	root.push_input(dn, true)
 	await process_frame
 	var st := d / 6.0
 	for i in 6:
@@ -280,14 +293,14 @@ func drag_part(j: String, d: Vector2) -> void:
 		mm.global_position = mm.position
 		mm.relative = st
 		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
-		root.push_input(mm)
+		root.push_input(mm, true)
 		await process_frame
 	var up := InputEventMouseButton.new()
 	up.button_index = MOUSE_BUTTON_LEFT
 	up.pressed = false
 	up.position = p + d
 	up.global_position = p + d
-	root.push_input(up)
+	root.push_input(up, true)
 	await idle(3)
 
 
@@ -467,9 +480,11 @@ func _init() -> void:
 	# the 2D layout at 1280x720 (the suite's window is embedded and keeps its host's size, so the layout size is set)
 	var was_size: Vector2i = root.content_scale_size
 	var was_mode: int = root.content_scale_mode
+	_tf("T0 start (before the 1280x720 pin)")
 	root.content_scale_size = Vector2i(1280, 720)
 	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	await idle(8)
+	_tf("T1 after the 1280x720 pin (block 1)")
 	var home: EasyHome = m.easy.home
 
 	# 1. Expert: no panel; Easy with an empty scene: the panel, with 8 cards and the text box
@@ -607,6 +622,7 @@ func _init() -> void:
 			"C. at %dx%d the panel covers %.1f %% of the body's screen box (panel %s, body %s; bar 15 %%)" % [sz.x, sz.y, frac * 100.0, str(pr), str(br)])
 	root.content_scale_size = was_size   # back to the window's own size
 	root.content_scale_mode = was_mode
+	_tf("T2 after block C restore")
 	await idle(4)
 
 	# 8. the Library opened over an empty Easy scene: the panel steps aside (the library covered its left half), and comes back on Close
@@ -1823,6 +1839,7 @@ func _init() -> void:
 	root.content_scale_size = Vector2i(1280, 720)
 	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	await idle(8)
+	_tf("T3 block 90 (pin 1280x720 again)")
 	m._new_scene()
 	await idle(4)
 	home._words("punch then kick")
@@ -1911,6 +1928,7 @@ func _init() -> void:
 		"112. the ticks lie inside the slider %s at 1280x720 (view %s) and touch no strip button (%s; %d ticks)" % [str(sr112), str(root.get_visible_rect().size), str(touch112), tl110.size()])
 	root.content_scale_size = was_size   # back to the window's own size
 	root.content_scale_mode = was_mode
+	_tf("T4 after block 90-112 restore")
 	m._new_scene()
 	await idle(2)
 
