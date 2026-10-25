@@ -285,8 +285,8 @@ func _filter() -> void:
 	if q != "" and kind == "" and pose_by_words.is_valid() and _words_ok(q):
 		var wr := ({"name": ("Rig: " if RigWords.is_rig(q) and not PoseWords.parse(q)["ok"] else "Model: " if MeshWords.offers(q, _model_on()) else "Face: " if FaceWords.route(q)["pose"] == "" and FaceWords.route(q)["face"] != "" else "Pose: ") + q, "keys": "words", "words": true, "run": pose_by_words.bind(q),
 			"desc": "turn the joints and set the face as the words say (scripts/pose_words.gd, face_words.gd): one undo step"})
-		# a Model phrase that already names a listed row ("decimate to half") leaves that row on top: Enter runs what the list shows first
-		if not shown.is_empty() and String(wr["name"]).begins_with("Model: "):
+		# a Model phrase that a listed row's name already contains whole ("decimate to half") leaves that row on top (a phrase with more in it, "extrude up 20 cm", stays a words command): Enter runs what the list shows first
+		if not shown.is_empty() and String(wr["name"]).begins_with("Model: ") and String(shown[0]["name"]).to_lower().contains(q.strip_edges().to_lower()):
 			shown.append(wr)
 		else:
 			shown.push_front(wr)

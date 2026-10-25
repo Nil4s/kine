@@ -117,5 +117,17 @@ func _init() -> void:
 	print("   status: %s" % st)
 	ok(rows_now.size() > 0 and rows_now[0].begins_with("Pose: ") and st != "" and st.findn("decimated") < 0, "b: a phrase with no matching row goes to the words command (first row Pose:, status changed)")
 
+	# c: a guard, a Model phrase with more in it than a row's name ("extrude up 20 cm" vs the Extrude row) stays the words
+	# command on top: Enter must not drop the amount and run the bare row
+	await key(KEY_F3)
+	await typed("extrude up 20 cm")
+	await idle(4)
+	var rows_c: Array = []
+	for c in m.ui_cmd.shown:
+		rows_c.append(String(c["name"]))
+	print("   rows for 'extrude up 20 cm': %s" % str(rows_c.slice(0, 3)))
+	ok(rows_c.size() > 0 and String(rows_c[0]).to_lower() == "model: extrude up 20 cm", "c: 'extrude up 20 cm' keeps its words row first (%s)" % str(rows_c.slice(0, 2)))
+	m.ui_cmd.close()
+
 	print("fails: %d" % fails)
 	quit(1 if fails > 0 else 0)
