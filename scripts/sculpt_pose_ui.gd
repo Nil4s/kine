@@ -94,7 +94,9 @@ func open() -> String:
 	ksc.left = _leave
 	kmed.on = false            # the preview keeps its state; its keys and clicks wait until Esc
 	kmed.view.visible = false  # the posed body stands in for it
+	m._mesh_page_for("SCULPT")
 	ksc.start()
+	m._mesh_show_sync()
 	return say
 
 

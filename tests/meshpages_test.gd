@@ -46,6 +46,15 @@ func drag(a: Vector2, b: Vector2, steps := 8) -> void:
 	await mouse(b, false)
 	await idle(2)
 
+## a node that is on screen now (a freed or missing node is not)
+func _shown(n) -> bool:
+	if n == null or not is_instance_valid(n):
+		return false
+	if n is CanvasItem:
+		return (n as CanvasItem).is_visible_in_tree()
+	return n is Node3D and (n as Node3D).is_visible_in_tree()
+
+
 func live_tools(m: Node, p: String) -> int:
 	var n := 0
 	for b in m.ui_ribbon[p].get_children():
@@ -264,6 +273,88 @@ func _init() -> void:
 	m.kmed.stop()
 	m.ui_page_btns["POSE"].pressed.emit()
 	await idle(3)
+
+	# 9 PAGE-SWITCH LEFTOVERS (walk-through 2026-10-24, REPORT.md causes 3 / 4 / 5 / 6): each mesh page shows only its own object,
+	# the status line says the page's own hint on each switch, and leaving the mesh pages hides the cube, the sphere and the
+	# Materials panel (back on MODEL / SURFACE with nothing lost). Materials' Name and colour fields clear of the UV panel.
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	if m.kmed != null and m.kmed.on:
+		m.kmed.stop()
+	if m.ksc != null and m.ksc.on:
+		m.ksc.stop()
+	await idle(2)
+	m.ui_page_btns["MODEL"].pressed.emit()
+	await idle(3)
+	var st_ok: bool = m.ui_status.text.begins_with("MODEL page")   # read right after the switch (before a tool says its own line)
+	button(m, "MODEL", "Test cube").pressed.emit()
+	await idle(3)
+	m.kmed.sel.clear()
+	m.kmed.sel.set_mode(KMeshSelect.FACE)
+	m.kmed.sel.select_by_normal(Vector3.UP, 30.0)
+	button(m, "MODEL", "Extrude").pressed.emit()
+	await idle(3)
+	var v_edit: int = m.kmed.mesh.vert_count()
+	m.ui_page_btns["SCULPT"].pressed.emit()
+	await idle(3)
+	st_ok = st_ok and m.ui_status.text.begins_with("SCULPT page")
+	button(m, "SCULPT", "Test sphere").pressed.emit()
+	await idle(4)
+	var sph_drawn: bool = _shown(m.ksc.view)
+	m.ui_page_btns["SURFACE"].pressed.emit()
+	await idle(3)
+	st_ok = st_ok and m.ui_status.text.begins_with("SURFACE page")
+	var sph_hidden: bool = m.ksc == null or not m.ksc.on or not _shown(m.ksc.view)
+	var cube_back: bool = m.kmed != null and m.kmed.on and _shown(m.kmed.view) and m.kmed.mesh.vert_count() == v_edit
+	ok(sph_drawn and sph_hidden and cube_back, "9a MODEL -> SCULPT -> SURFACE: the sphere is drawn on SCULPT (%s) and not on SURFACE (hidden %s); the cube is on SURFACE with its edit (%s)" % [sph_drawn, sph_hidden, cube_back])
+	ok(st_ok, "9b the status line says each page's own hint on the switch (now: \"%s\")" % m.ui_status.text.left(60))
+	m.ui_page_btns["POSE"].pressed.emit()
+	await idle(3)
+	var pose_clean: bool = not _shown(m.kmed.view) and not _shown(m.kmed.prim_panel) and not _shown(m.kmed.mat_panel) and (not _shown(m.ksc.view))
+	ok(pose_clean and m.ui_status.text.begins_with("POSE page"), "9c MODEL -> POSE: the cube, the sphere, the Materials panel and the primitive panel are hidden (%s), status \"%s\"" % [pose_clean, m.ui_status.text.left(40)])
+	m.ui_page_btns["MODEL"].pressed.emit()
+	await idle(3)
+	var came_back: bool = m.kmed.on and _shown(m.kmed.view) and m.kmed.mesh.vert_count() == v_edit
+	ok(came_back, "9d POSE -> MODEL: the cube is back with its edit (%d verts, was %d)" % [m.kmed.mesh.vert_count(), v_edit])
+	m.ui_page_btns["SURFACE"].pressed.emit()
+	await idle(3)
+	while m.kmed.mesh.materials.size() < 4:
+		m.kmed.mat_panel.add_slot()
+	if m.kmed.uved == null or not m.kmed.uved.visible:
+		m.kmed.toggle_uv_editor()   # builds the UV panel on first use
+	var lay_was: Vector2i = root.content_scale_size
+	var lay_mode: int = root.content_scale_mode
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	var lay_ok := true
+	var lay_note := ""
+	for sz in [Vector2i(1600, 900), Vector2i(1280, 720)]:
+		root.content_scale_size = sz
+		await idle(6)
+		if not m.kmed.uved.visible:
+			m.kmed.toggle_uv_editor()
+		await idle(4)
+		var uv: Rect2 = m.kmed.uved.get_global_rect()
+		var vr := Rect2(Vector2.ZERO, m.get_viewport().get_visible_rect().size)
+		var fields := {}
+		for kind in ["LineEdit", "ColorPickerButton"]:
+			fields[kind] = Rect2()
+			for c in m.kmed.mat_panel.find_children("*", kind, true, false):
+				if (c as Control).is_visible_in_tree():
+					fields[kind] = (c as Control).get_global_rect()
+					break
+		var fine: bool = fields["LineEdit"].size.x > 0.0 and fields["ColorPickerButton"].size.x > 0.0
+		for kind in fields:
+			fine = fine and vr.encloses(fields[kind]) and not (fields[kind] as Rect2).intersects(uv)
+		lay_ok = lay_ok and fine
+		lay_note += "%dx%d: Name %s, colour %s, UV %s; " % [sz.x, sz.y, fields["LineEdit"], fields["ColorPickerButton"], uv]
+	root.content_scale_size = lay_was
+	root.content_scale_mode = lay_mode
+	await idle(4)
+	ok(lay_ok, "9e Materials' Name and colour fields are on screen and clear of the UV panel at 1600x900 and 1280x720: %s" % lay_note)
+	m.kmed.stop()
+	if m.ksc != null and m.ksc.on:
+		m.ksc.stop()
+	await idle(2)
 
 	# 4 Easy mode hides the three pages
 	m.easy.set_on(true, false)

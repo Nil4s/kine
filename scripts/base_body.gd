@@ -522,11 +522,14 @@ static func start(m: Node) -> void:
 	var cam_was := {"target": m.target, "dist": m.dist, "yaw": m.yaw, "pitch": m.pitch}
 	m.kmed.source = func(): return {"mesh": k, "at": at}
 	m.kmed.left = func(): _leave(m, vis, cam_was)
+	m._mesh_page_for("MODEL")   # the body's mesh is edited on the MODEL page (its keys and panels)
 	m.kmed.start()
 	m.kmed.prim_panel.visible = false   # the cube's "Add primitive" panel is not the body's
 	m.kmed.set_meta("base_body", true)
+	m.kmed.set_meta("fighter_vis", vis)   # the fighter's parts come back on another page, and go again on MODEL (kmesh_edit_ui.set_showing)
 	for mi in vis:
 		(mi as MeshInstance3D).visible = false   # the edited copy stands where the fighter stood
+	m._mesh_show_sync()
 	frame(m)
 	var quads := 0
 	for f in k.faces:
@@ -546,6 +549,7 @@ static func _leave(m: Node, vis: Dictionary, cam_was: Dictionary) -> void:
 	m.kmed.source = Callable()
 	m.kmed.left = Callable()
 	m.kmed.remove_meta("base_body")
+	m.kmed.remove_meta("fighter_vis")
 	for key in cam_was:
 		m.set(key, cam_was[key])
 	m._cam()

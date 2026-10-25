@@ -97,6 +97,12 @@ func place() -> void:
 	var pp: Control = ui.prim_panel
 	if pp != null and pp.is_visible_in_tree() and get_global_rect().intersects(pp.get_global_rect()):
 		position.x = pp.get_global_rect().end.x + 8.0
+	var mp: Control = ui.mat_panel   # the Materials panel is on the right edge, top: this panel goes left of it, level with its top, so
+	if mp != null and mp.is_visible_in_tree():   # Materials' Name and colour fields stay clear (walk-through 2026-10-24, cause 6)
+		var left_edge := 8.0 if pp == null or not pp.is_visible_in_tree() else pp.get_global_rect().end.x + 8.0
+		s = minf(s, maxf(160.0, mp.position.x - 8.0 - left_edge))
+		size = Vector2(s, s + TITLE)
+		position = Vector2(maxf(left_edge, mp.position.x - s - 8.0), mp.position.y)
 
 
 func frame_all() -> void:
