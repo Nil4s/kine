@@ -18444,13 +18444,17 @@ func _drafts_row(tag: String) -> void:
 
 ## opens a scene file the one way every pick does (the scene list, the S box's scene rows): at once, or asking first
 ## when the scene open now has unsaved changes
-func _open_scene_file(path: String) -> void:
+func _open_scene_file(path: String, then := Callable()) -> void:   # then: run once the scene is open (Easy's My scenes plays it)
 	if path == scene_path and _unsaved() == false:
+		if then.is_valid():
+			then.call()
 		return
 	var go := func():
 		_load_scene(path)
 		_rebuild_cards()
 		_refresh()
+		if then.is_valid():
+			then.call()
 	if _unsaved():
 		_ask_save(_scene_label(), go)   # ROADMAP 50: Save / Don't save / Cancel
 	else:

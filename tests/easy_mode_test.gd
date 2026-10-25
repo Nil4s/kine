@@ -4,7 +4,7 @@
 ## as it was; the tour advances on the real actions only. The settings are the test's own file (user://poser_test_*.cfg).
 extends SceneTree
 
-const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "More", "Switch to Expert"]   # the bar (7)
+const LABELS := ["Library", "Save video", "Play / Stop", "Undo", "New scene", "My scenes", "More", "Switch to Expert"]   # the bar (8: My scenes, Easy 120)
 const UNDO_NONE := "Undo (Ctrl+Z): nothing to undo yet"   # the Easy Undo tooltip with nothing to take back (the label stays "Undo")
 const MORE := ["Save this pose as a card", "Move his arms and legs", "Redo", "Open a saved scene", "Copy a video", "Save the scene", "Flip left and right", "Put his feet on the floor"]
 
@@ -468,7 +468,7 @@ func _init() -> void:
 	for n in m.easy.bar.find_children("*", "Button", true, false):
 		if n.get_meta("label", "") != "" and n.visible:   # Redo is on the bar only while something can be put back (checked below)
 			shown.append(n.get_meta("label"))
-	ok(shown.size() == 7 and LABELS.all(func(l): return l in shown) and bts.size() == 8, "Easy shows exactly the 7 labelled buttons (Redo is the 8th, hidden with nothing to redo): %s" % str(shown))
+	ok(shown.size() == 8 and LABELS.all(func(l): return l in shown) and bts.size() == 9, "Easy shows exactly the 8 labelled buttons (Redo is the 9th, hidden with nothing to redo): %s" % str(shown))
 	ok(vis_now().all(func(v): return not v), "Easy hides every expert panel, top tools, the scene header, the play row and the nav/cube %s" % str(range(panels().size()).filter(func(i): return panels()[i].visible)))
 	ok(m.ui_bp.visible, "the bottom panel (timeline and cards) stays: the tour and Play need it")
 	ok(m.lw() == 0.0 and m.rw() == 0.0, "the body view takes the room the hidden side panels had")

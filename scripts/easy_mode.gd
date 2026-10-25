@@ -40,6 +40,7 @@ var _snap := {}             # the state at the start of the tour step
 var _armed := false         # step 1: a hand was dragged (the drag is not let go yet)
 var _moved := false         # step 4: the body changed since the step began
 static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
+var scenes: EasyScenes      # MY SCENES (scripts/easy_scenes.gd): the saved scenes and the examples as big tiles, from the bar's My scenes
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
 var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Easy came on: Expert gets exactly this back
 const EASY_MORE := {"Save this pose as a card": "Saved pose", "Flip left and right": "Flip", "Put his feet on the floor": "Feet on floor", "Copy a video": "Copied video"}   # a More entry's undo name in Easy (its Expert name is the entry's words)
@@ -100,6 +101,7 @@ func build(root: Control, expert: Array) -> void:
 		["Save video", "Save the clip as a video in your Videos folder (Kine), with a button to show it", func(): home.save_video()],
 		["Play / Stop", "Play the scene from the playhead, or stop it (Space)", m._toggle_play],
 		["New scene", "Start an empty scene (it asks first over unsaved work)", _new],
+		["My scenes", "Your saved scenes as big pictures, newest first, and the examples: click one to open it and play it", _my_scenes],
 		["Undo", "Take back the last change (Ctrl+Z): a beginner's first need, so it stays on the bar", m._undo],
 		["More", "The other things: Save this pose as a card, Move his arms and legs, Redo, Open a saved scene, Save the scene, Flip left and right, Put his feet on the floor", _more_open],
 		["Switch to Expert", "Show every panel and tool again, as before", func(): set_on(false)],
@@ -155,6 +157,9 @@ func build(root: Control, expert: Array) -> void:
 	_menu.index_pressed.connect(func(i: int): if _menu_paths.has(i): m._open_scene_file(_menu_paths[i]))
 	bar.add_child(_menu)
 	_build_views(root)
+	scenes = EasyScenes.new()   # MY SCENES: its panel is over the bar (added last), hidden until its button is pressed
+	scenes.m = m
+	scenes.build(root)
 	_build_tour_card(root)
 	get_viewport().size_changed.connect(_resized)   # EASY CAMERA: a window resize re-frames the clip (frame_clip)
 	home = EasyHome.new()   # the empty scene's "What should he do?" panel: a child of Easy, so Expert never shows it
@@ -302,6 +307,8 @@ func set_on(v: bool, save := true) -> void:
 			m.dummy_on = true
 			m._dummy_hits()
 		_dummy_was = false
+	if not on and scenes != null:
+		scenes.close_panel()
 	if bar != null:
 		bar.visible = on
 	if views != null:
@@ -626,6 +633,10 @@ func more_labels() -> Array:
 
 func _new() -> void:
 	m._new_asked()   # ROADMAP 50: Save / Don't save / Cancel when the open scene has unsaved changes
+
+
+func _my_scenes() -> void:
+	scenes.open_panel()
 
 
 func _open() -> void:
