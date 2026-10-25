@@ -263,6 +263,10 @@ func input(ev: InputEvent) -> bool:
 			return false
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := (ev as InputEventKey).keycode
+		if k == KEY_F3 and not (ev as InputEventKey).is_command_or_control_pressed() and not (ev as InputEventKey).shift_pressed and not (ev as InputEventKey).alt_pressed:
+			# the S box (command search) from here: S is Scale in this mode (Blender), so the box cannot open on S (Blender's F3 = menu search)
+			m.ui_cmd.open()
+			return true
 		if KMeshBevel.key(self, ev as InputEventKey):   # B03: Ctrl+B, and [ / ] while the bevel is live
 			return true
 		if k == KEY_T and (ev as InputEventKey).ctrl_pressed:
