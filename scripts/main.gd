@@ -984,18 +984,31 @@ func _line_fit() -> void:
 	ui_bar.offset_right = x1
 	ui_bar.offset_top = y0
 	ui_bar.offset_bottom = -bottom_h - 6
+	var lift := 0.0   # the messages on their own row above the band (the mouse hint moves up with them)
 	if not is_welcome(ui_status.text):
-		ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
-		ui_status.clip_text = true
-		ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		ui_status.anchor_right = 0.0
-		ui_status.offset_left = lw() + 12
 		var fs := ui_status.get_theme_font("font")
 		var said := fs.get_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, -1, LINE_FS).x + 4
-		ui_status.offset_right = minf(lw() + 12 + said, split - 16)   # as wide as its words
-		ui_status.offset_top = y0
-		ui_status.offset_bottom = -bottom_h - 6
-	_mouse_fit(y0, x0, x1)
+		if said <= split - 16 - x0:   # one row beside the readout, as wide as its words
+			ui_status.autowrap_mode = TextServer.AUTOWRAP_OFF
+			ui_status.clip_text = true
+			ui_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			ui_status.anchor_right = 0.0
+			ui_status.offset_left = x0
+			ui_status.offset_right = minf(x0 + said, split - 16)
+			ui_status.offset_top = y0
+			ui_status.offset_bottom = -bottom_h - 6
+		else:   # longer than the room beside the readout (the mesh stats take half the line): the whole message, wrapped, on the row above
+			var fsz := ui_status.get_theme_font_size("font_size")
+			var h := fs.get_multiline_string_size(ui_status.text, HORIZONTAL_ALIGNMENT_LEFT, x1 - x0, fsz).y + 6.0
+			ui_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			ui_status.clip_text = false
+			ui_status.anchor_right = 0.0
+			ui_status.offset_left = x0
+			ui_status.offset_right = x1
+			ui_status.offset_bottom = y0 - 2.0
+			ui_status.offset_top = y0 - 2.0 - h
+			lift = h + 2.0
+	_mouse_fit(y0 - lift, x0, x1)
 
 
 ## P05: the mouse-button strip sits on the row just above the line's two texts, from the view's left edge to the nav bar
