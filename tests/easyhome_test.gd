@@ -93,7 +93,7 @@
 ##  90d. SLOWER OVER 60 s IS REFUSED ON A TOAST: a 50 s clip: Slower changes nothing, the status line and the Easy toast say why.
 ##  116. HIS COLOUR (beginner walk-through 10, goal 3): no prop picked, a visible 'His colour' button changes the body's colour (one undo step, status says so); Undo restores it.
 ##  117. EASY WAVE READS AS A HELLO (walk-through 10, goal 1): the left hand stays down after the first card, the right goes over the shoulder; no "Pivot" / number > 9 card names; the chair message names the visible Sit button; the Sit label stays put while playing.
-##  121. EASY SIDE SLIDERS (all mouse): a click on the left arm opens a panel at the right with its plain name and sliders in range
+##  124. EASY SIDE SLIDERS (all mouse): a click on the left arm opens a panel at the right with its plain name and sliders in range
 ##      (a: inside the window, clear of the bar and the card strip); a Raise drag moves the hand > 10 cm, one undo step (b); Undo puts
 ##      the hand back within 1 cm (c); a drag past the end stops at the limit (d); Reset this part goes to the card pose (e).
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
@@ -587,7 +587,7 @@ func bad_names_117(names: Array) -> Array:
 
 ## a real drag of an HSlider (Easy's side sliders): the press on its current grabber, six moves to frac (0..1 along the slider's
 ## rect, past 1 = beyond its right end), the release. The press on the track moves the grabber under the pointer.
-func slider_drag121(sl: HSlider, frac: float) -> void:
+func slider_drag124(sl: HSlider, frac: float) -> void:
 	var r: Rect2 = sl.get_global_rect()
 	var span := maxf(sl.max_value - sl.min_value, 1e-6)
 	var at: Vector2 = r.position + Vector2(r.size.x * (sl.value - sl.min_value) / span, r.size.y * 0.5)
