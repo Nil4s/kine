@@ -266,6 +266,12 @@ func matches(kind: String, q: String) -> Array:
 			var kb: bool = String(b[2].get("keys", "")) != "" or MeshTools.keyed(b[2])
 			if ka != kb:
 				return ka
+			# still a tie: a row whose name holds the whole typed phrase ("join parts" -> "Model: join parts", not "boolean union (join two parts)")
+			var phr := q.strip_edges().to_lower()
+			var pa: bool = String(a[2].get("name", "")).to_lower().contains(phr)
+			var pb: bool = String(b[2].get("name", "")).to_lower().contains(phr)
+			if pa != pb:
+				return pa
 			return a[1] < b[1])
 	return hits.map(func(h): return h[2])
 
