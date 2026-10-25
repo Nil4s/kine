@@ -87,3 +87,4 @@ for s in $pick; do
 done
 echo "SUITES $((n-bad))/$n PASS   (logs: $LOGS)"
 exit $bad
+EXTRA="$EXTRA modelfix3:w"   # round 3 walk: UV editor / Materials / ViewCube layout, knife misses, mirror centre, Z readout, export as a prop

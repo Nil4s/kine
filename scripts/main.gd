@@ -11764,6 +11764,7 @@ func _ui() -> void:
 	# EXPORT (round 35a, QQ4): what leaves Poser, in one place (each also in the search, by its long name)
 	ui_ribbon["EXPORT"].add_child(_button("Export...", _export_dialog_open, "one dialog for every engine and tool: Unreal 5, Unity, Godot, Blender, Maya / MotionBuilder, Web, raw data. It shows what each needs and the warnings for this scene (docs/EXPORT.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export model (GLB / OBJ)", _export_model, "the test cube or the edited body mesh as res://exports/<model>.glb and .obj (static, the model editor's mesh); the status line gives the path, Open exports folder opens it"))
+	ui_ribbon["EXPORT"].add_child(_button("Use as a prop", _use_export_as_prop, "put the last Export model GLB in Library > My models at its real size (the same import as dropping a .glb in); then Add prop puts it in a scene"))
 	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): OS.shell_open(ProjectSettings.globalize_path("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
@@ -21486,8 +21487,35 @@ func _export_model() -> String:
 	if e != OK or not r["ok"]:
 		_say("Model: NOT DONE: the model could not be written (%s%s). Check that %s is writable" % [error_string(e), "" if r["ok"] else "; obj: " + String(r["why"]), gp])
 		return ""
-	_say("Model: exported %s.glb and %s.obj (%d verts, %d triangles) to %s. Open exports folder opens it" % [stem, stem, k.vert_count(), int(r["tris"]), gp])
-	return gp + "/" + stem + ".glb"
+	_say("Model: exported %s.glb and %s.obj (%d verts, %d triangles) to %s. Use as a prop (Export section) puts the GLB in Library > My models at its real size" % [stem, stem, k.vert_count(), int(r["tris"]), gp])
+	_last_export_glb = gp + "/" + stem + ".glb"
+	return _last_export_glb
+
+
+var _last_export_glb := ""   # the GLB the last Export model wrote (Use as a prop imports it)
+
+
+## Use as a prop: the last exported model goes through the same import as a .glb dropped in (Importer.accept copies it into
+## the library, Props.register gives it its real size from the file's bounds), so it appears in Library > My models
+func _use_export_as_prop() -> void:
+	if _last_export_glb == "" or not FileAccess.file_exists(_last_export_glb):
+		_say("Model: nothing exported yet. Export model (GLB / OBJ) first, then Use as a prop")
+		return
+	var r: Dictionary = _import_file(_last_export_glb)
+	if not r.get("ok", false):
+		return
+	_say("Model: %s is in Library > My models at its real size (Add prop puts it in a scene)" % _last_export_glb.get_file())
+
+
+## the bottom of the ViewCube and its two menus: the panels on the right edge of a mesh page start under it
+func cube_stack_bottom() -> float:
+	if ui_cube == null:
+		return 0.0
+	var b := ui_cube.get_global_rect().end.y
+	for k in [ui_light_btn, ui_shade_btn]:
+		if k != null and k.is_visible_in_tree():
+			b = maxf(b, k.get_global_rect().end.y)
+	return b
 
 
 func _obj_import_ask() -> void:
