@@ -105,3 +105,4 @@ EXTRA="$EXTRA modelfix5:w"   # walk-through 5 friction 1: Enter in the search bo
 EXTRA="$EXTRA modelfix6:w"   # walk-through 5 frictions A + B: Alt+F / F / Alt+F with nothing selected close the hole in one undo step; F2 name box gives the keys back on Enter / Esc (tests/modelfix6_test.gd)
 EXTRA="$EXTRA meshsave:w"   # MODEL mesh file: Ctrl+S saves the mesh (name box once, then silent), Open... loads one, F3 "save mesh" (tests/meshsave_test.gd)
 EXTRA="$EXTRA walk10_beginner:w"   # monkey test round 10: wave, chair + sit, colour/look, play, save scene + video in Easy mode (tests/walk10_beginner_test.gd)
+EXTRA="$EXTRA walk11_beginner:w"   # monkey test round 11: typed moves in Easy (jump twice, turn around, slower, typo, punch left, undo twice) (tests/walk11_beginner_test.gd)
