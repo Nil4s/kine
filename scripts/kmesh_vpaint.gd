@@ -228,9 +228,9 @@ func end() -> void:
 
 
 ## the weights one dab at `hit` gives: {vert: w}, mirror partners included. FACE (>= 0): the dab is on that face, so its
-## own corners get the full centre weight whatever the radius: a press on a low-poly face's centre paints the face (the
-## corners of a 12-sided side are 15 cm from its centre, past a 12 cm brush's reach, and used to get nothing). On a dense
-## mesh the face's corners sit within a hair of the centre, so their falloff weight is the same as the boost.
+## own corners get the full centre weight when the brush reaches none of them: a press on a low-poly face's centre paints
+## the face (the corners of a 12-sided side are 15 cm from its centre, past a 12 cm brush's reach, and used to get
+## nothing). A face whose corners the falloff reaches is painted by the falloff alone (dense meshes unchanged).
 func weights(hit: Vector3, pressure := 1.0, face := -1) -> Dictionary:
 	var r := float(p["radius"])
 	var a := clampf(float(p["strength"]), 0.0, 1.0) * clampf(pressure, 0.0, 1.0)
@@ -241,9 +241,13 @@ func weights(hit: Vector3, pressure := 1.0, face := -1) -> Dictionary:
 		if w <= 0.0:
 			continue
 		_put(out, v, w)
+	# only when the brush reached NONE of the pressed face's corners (a low-poly face bigger than the brush): a face the
+	# falloff already paints keeps its smooth falloff exactly
 	if face >= 0 and face < mesh.faces.size() and a > 0.0:
-		for v in (mesh.faces[face] as PackedInt32Array):
-			_put(out, v, a)
+		var corners := mesh.faces[face] as PackedInt32Array
+		if not Array(corners).any(func(v): return out.has(v)):
+			for v in corners:
+				_put(out, v, a)
 	return out
 
 
