@@ -229,7 +229,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body", "Save", "Open..."]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
+	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
@@ -20031,6 +20031,7 @@ func _prop_select(i: int) -> void:
 
 ## ---- IMPORT (SS6): a dropped file, or Import model's picker, goes through the importer (scripts/importer.gd)
 func _library_load() -> void:
+	MeshProps.sync_saved()   # the saved meshes (meshes/*.kmesh) get their models first: Add prop and My models list them
 	for e in Importer.library_list(library)["props"]:
 		var r: Dictionary = Importer.inspect(e["path"])
 		if r["ok"]:
@@ -21862,6 +21863,24 @@ func _export_objects(dir := "res://exports", only_selected := false) -> String:
 	return path
 
 
+## MODEL > Use in scene: the open mesh goes into the scene as a prop beside the character (on the floor, at its real size, with its
+## material). One undo step (the prop add), and the POSE page shows it. The model is written to the library as <name>.glb
+## (MeshProps.write_model), so the prop keeps its shape when the file is saved and the scene is opened again
+func _mesh_use_in_scene() -> void:
+	if kmed == null or not kmed.on or kmed.mesh == null:
+		_say("Model: open the test cube or the body mesh first (MODEL page), then Use in scene")
+		return
+	var src: String = String(kmed.files.path) if kmed.files != null else ""
+	var stem := src.get_file().get_basename() if src != "" else ("body_mesh" if BaseBody.is_open(self) else "test_cube")
+	var kind := MeshProps.write_model(kmed.mesh, MeshProps.free_stem(stem), src)
+	if kind == "":
+		_say("Model: NOT DONE: the mesh could not be written to the library (%s). Check that the folder is writable" % KMesh.last_error)
+		return
+	_prop_add(kind)   # one undo step: the prop goes in front of the body, on the floor
+	_page_set("POSE")
+	_say("Model: %s is in the scene next to the body at its real size; Ctrl+Z takes it back" % kind.trim_prefix("my "))
+
+
 ## Use as a prop: the last exported model goes through the same import as a .glb dropped in (Importer.accept copies it into
 ## the library, Props.register gives it its real size from the file's bounds), so it appears in Library > My models
 func _use_export_as_prop() -> void:
@@ -22128,6 +22147,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 		_autosave_drop()   # opened a scene: what was unsaved was given up (it asks first, V3)
 		if journal_on:
 			journal.trim()   # ... and its journal goes with it
+	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
 	S.apply(B, 0.0)
 
 
