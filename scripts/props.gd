@@ -711,6 +711,140 @@ static func _wedge_faces_under(sw: Dictionary, x: float, z: float) -> Array:
 	return out
 
 
+## GROUNDSPEED: the cached twins of surface_below and its helpers (Body._sole_low_set reads these; the legacy functions above
+## are unchanged and Body.legacy_ground runs them). The same arithmetic on the same numbers: each solid's inverse transform and
+## box axes are computed once per cache, not per point. A box or sphere the point is beyond the bounding radius of is not
+## inside it (its sd is >= 0 there), so the column test skips it without changing any answer.
+static func solid_cache(props: Array) -> Array:
+	var out := []
+	for p in props:
+		for sw in solids(p):
+			var X: Transform3D = sw["xf"]
+			sw["inv"] = X.affine_inverse()
+			if sw.has("poly"):
+				sw["rad"] = INF
+			elif sw.has("r"):
+				sw["rad"] = float(sw["r"])
+			else:
+				var h: Vector3 = sw["half"]
+				sw["rad"] = h.length()
+				sw["ax"] = [X.basis.x.normalized(), X.basis.y.normalized(), X.basis.z.normalized()]
+			out.append(sw)
+	return out
+
+
+## _sd of a point given in the solid's own frame
+static func _sd_local(sw: Dictionary, l: Vector3) -> float:
+	if sw.has("r"):
+		return l.length() - float(sw["r"])
+	if sw.has("poly"):
+		var d2 := _sdf2(Vector2(l.z, l.y), sw["poly"])
+		var q2 := Vector2(d2, absf(l.x) - float(sw["w"]))
+		return Vector2(maxf(q2.x, 0.0), maxf(q2.y, 0.0)).length() + minf(maxf(q2.x, q2.y), 0.0)
+	var h: Vector3 = sw["half"]
+	var q := Vector3(absf(l.x) - h.x, absf(l.y) - h.y, absf(l.z) - h.z)
+	return Vector3(maxf(q.x, 0.0), maxf(q.y, 0.0), maxf(q.z, 0.0)).length() + minf(maxf(q.x, maxf(q.y, q.z)), 0.0)
+
+
+static func _sd_c(sw: Dictionary, pt: Vector3) -> float:
+	return _sd_local(sw, (sw["inv"] as Transform3D) * pt)
+
+
+## is a point inside any cached solid (by more than REST_SINK)? A solid whose bounding radius the point is beyond is skipped
+static func _inside_c(cache: Array, q: Vector3) -> bool:
+	for sw in cache:
+		var l: Vector3 = (sw["inv"] as Transform3D) * q
+		if l.length() > float(sw["rad"]):
+			continue
+		if _sd_local(sw, l) < -REST_SINK:
+			return true
+	return false
+
+
+## _column_blocked over the cache: the same points, the same test
+static func _column_blocked_c(cache: Array, x: float, z: float, y0: float, y1: float) -> bool:
+	if y1 < y0:
+		return false
+	var n := maxi(1, ceili((y1 - y0) / 0.01))
+	for k in n + 1:
+		var q := Vector3(x, minf(y0 + k * 0.01, y1), z)
+		if _inside_c(cache, q):
+			return true
+	return false
+
+
+## _faces_under over the cache (same candidates, same order)
+static func _faces_under_c(cache: Array, x: float, z: float) -> Array:
+	var cands := [{"y": 0.0, "n": Vector3.UP}]
+	for sw in cache:
+		if sw.has("r"):
+			continue
+		if sw.has("poly"):
+			cands.append_array(_wedge_faces_c(sw, x, z))
+			continue
+		var X: Transform3D = sw["xf"]
+		var h: Vector3 = sw["half"]
+		var ax: Array = sw["ax"]
+		for i in 3:
+			for s in [-1.0, 1.0]:
+				var n: Vector3 = ax[i] * s
+				if n.y < 0.5:
+					continue
+				var c: Vector3 = X.origin + n * h[i]
+				var y := c.y - (n.x * (x - c.x) + n.z * (z - c.z)) / n.y
+				var d := Vector3(x, y, z) - c
+				var j := (i + 1) % 3
+				var k := (i + 2) % 3
+				if absf(d.dot(ax[j])) <= h[j] + 1e-6 and absf(d.dot(ax[k])) <= h[k] + 1e-6:
+					cands.append({"y": y, "n": n, "sw": sw})
+	return cands
+
+
+## _wedge_faces_under over a cached wedge
+static func _wedge_faces_c(sw: Dictionary, x: float, z: float) -> Array:
+	var out := []
+	var X: Transform3D = sw["xf"]
+	var poly: PackedVector2Array = sw["poly"]
+	var inv: Transform3D = sw["inv"]
+	for i in poly.size():
+		var a: Vector2 = poly[i]
+		var b: Vector2 = poly[(i + 1) % poly.size()]
+		var e := b - a
+		var n := (X.basis * Vector3(0.0, -e.x, e.y).normalized()).normalized()
+		if n.y < 0.5:
+			continue
+		var mid := (a + b) * 0.5
+		var c := X * Vector3(0.0, mid.y, mid.x)
+		var y := c.y - (n.x * (x - c.x) + n.z * (z - c.z)) / n.y
+		var lp := inv * Vector3(x, y, z)
+		var tpar := ((lp.z - a.x) * e.x + (lp.y - a.y) * e.y) / maxf(e.length_squared(), 1e-12)
+		if absf(lp.x) <= float(sw["w"]) + 1e-6 and tpar >= -1e-6 and tpar <= 1.0 + 1e-6:
+			out.append({"y": y, "n": n, "sw": sw})
+	return out
+
+
+## surface_below(props, pt) over a cached solid list: the same answer, {"y", "n"}
+static func surface_below_c(cache: Array, pt: Vector3) -> Dictionary:
+	var cands := _faces_under_c(cache, pt.x, pt.z)
+	cands.sort_custom(func(a, b): return float(a["y"]) > float(b["y"]))
+	for c in cands:
+		var h := float(c["y"])
+		var inside: bool = c.has("sw") and _sd_c(c["sw"], pt) < -REST_SINK
+		if h > pt.y + SNAP_UP and not inside:
+			continue
+		if not _column_blocked_c(cache, pt.x, pt.z, h + 0.01, pt.y):
+			return c
+	return {"y": 0.0, "n": Vector3.UP}
+
+
+## _over with the support's inverse transform cached (sup["inv"] = the affine inverse of its xf)
+static func _over_c(sup: Dictionary, pt: Vector3) -> bool:
+	var l: Vector3 = (sup["inv"] as Transform3D) * pt
+	var c: Vector2 = sup["c"]
+	var h: Vector2 = sup["half"]
+	return absf(l.x - c.x) <= h.x and absf(l.z - c.y) <= h.y
+
+
 ## the height p should stand at: the floor (0), or the highest support of another prop that p's origin is over
 static func snap_y(p: Dictionary, others: Array) -> float:
 	var o: Vector3 = (p["xf"] as Transform3D).origin

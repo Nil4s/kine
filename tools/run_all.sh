@@ -18,6 +18,7 @@ case " $EXTRA " in *" bodymesh:"*) ;; *) EXTRA="$EXTRA bodymesh:w" ;; esac   # A
 EXTRA="$EXTRA anatomy:w autoweights:h basebody:w bevel:h bodymesh:w eyelife:w fill:h kmesh_cut:h kwpaint:w mask:w matlib:w meshfilter:h meshwords:w modstack:w pbrmat:w proportional:w sculptsym:h uveditor:w uvexport:h uvgame:w uvpack:w vpaint:w snap:w pivot:w"   # the suites the w2-decimate merge's line above dropped
 EXTRA="$EXTRA kmesh_grs:h"   # round 2 walk: G R S with the Blender layer off, Alt+click loop, Ctrl+1 subdivide
 EXTRA="$EXTRA armour:w"   # B23
+EXTRA="$EXTRA groundspeed:h"   # GROUNDSPEED: Body.ground() cached sole / seat helpers, legacy_ground equality + speed
 EXTRA="$EXTRA persist2:w"   # the armour, the body and the autosave (tests/persist2_test.gd)
 EXTRA="$EXTRA library:w"   # object library (scripts/object_library.gd)
 EXTRA="$EXTRA easybar:w"   # Easy bar: 7 buttons, More holds the rest (scripts/easy_mode.gd)
