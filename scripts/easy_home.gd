@@ -1647,10 +1647,10 @@ func _append(d: Dictionary, label: String, easy: String) -> String:
 	if new_cards.is_empty():
 		return "The %s has no cards to add." % label.to_lower()
 	var S: Scene = m.S
-	var o: Vector3 = S.sample(S.length())["offset"]
+	var e: Dictionary = S.sample(S.length())
 	var first: Dictionary = new_cards[0]
 	first["move"] = JOIN_S
-	first["pose"]["offset"] = [o.x, o.y, o.z]
+	place_after(new_cards, e["offset"], (e["ang"]["pelvis"] as Vector3).z if (e["ang"] as Dictionary).has("pelvis") else 0.0)
 	_ball_line = ""
 	var ball = _ball_at(S.props)
 	var move := Vector2.ZERO
@@ -1977,8 +1977,51 @@ func _words_dict(text: String) -> Dictionary:
 		if out.is_empty():
 			out = d
 		else:
+			var last: Dictionary = (out["cards"] as Array)[-1]["pose"]
+			var lo: Array = last.get("offset", [0, 0, 0])
+			var lj: Dictionary = last.get("joints", {})
+			place_after(d["cards"], Vector3(lo[0], lo[1], lo[2]), float(lj["pelvis"]["twist"]) if lj.has("pelvis") else 0.0)
 			(out["cards"] as Array).append_array(d["cards"])
 	return {"ok": true, "dict": out, "strikes": parts.size(), "note": _typed_note}
+
+
+## A PART PLACED AFTER THE CLIP (the typed join, Add after): its cards turned and moved as one, so its first card stands where
+## the clip ends and faces the way the body faces there (after "turn around" the punch goes the new way, not back to the start:
+## walk11 G5, a 192 deg snap). The heading is the pelvis twist (Clips: the walk turned by a match the same way); R turns the
+## floor offsets (from the part's first card), the steps and a held weapon about the up axis. The first card takes the end's
+## height too (the join stands where the clip stood); the cards' other heights stay their own.
+static func place_after(cards: Array, o_end: Vector3, tw_end: float) -> void:
+	if cards.is_empty():
+		return
+	var p0: Dictionary = cards[0]["pose"]
+	var a0: Array = p0.get("offset", [0, 0, 0])
+	var o0 := Vector3(float(a0[0]), 0.0, float(a0[2]))
+	var j0: Dictionary = p0.get("joints", {})
+	var dy := wrapf(tw_end - (float(j0["pelvis"]["twist"]) if j0.has("pelvis") else 0.0), -180.0, 180.0)
+	var R := Basis(Vector3.UP, deg_to_rad(Clips.yaw_sign() * dy))
+	var at := Vector3(o_end.x, 0.0, o_end.z)
+	for i in cards.size():
+		var c: Dictionary = cards[i]
+		var p: Dictionary = c["pose"]
+		var a: Array = p.get("offset", [0, 0, 0])
+		var f := at + R * (Vector3(float(a[0]), 0.0, float(a[2])) - o0)
+		p["offset"] = [f.x, o_end.y if i == 0 else float(a[1]), f.z]
+		var jj: Dictionary = p.get("joints", {})
+		if jj.has("pelvis"):
+			jj["pelvis"]["twist"] = wrapf(float(jj["pelvis"]["twist"]) + dy, -180.0, 180.0)
+		var st: Dictionary = c.get("steps", {})
+		for sd in st:
+			var v: Array = st[sd]
+			var r := R * Vector3(float(v[0]), float(v[1]), float(v[2]))
+			st[sd] = [r.x, r.y, r.z]
+		var w: Dictionary = p.get("weapon", {})
+		if w.has("knob") and w.has("rot"):
+			var k: Array = w["knob"]
+			var kv := at + R * (Vector3(float(k[0]), 0.0, float(k[2])) - o0)
+			w["knob"] = [kv.x, float(k[1]), kv.z]
+			var q: Array = w["rot"]
+			var rq := Quaternion(R) * Quaternion(float(q[0]), float(q[1]), float(q[2]), float(q[3]))
+			w["rot"] = [rq.x, rq.y, rq.z, rq.w]
 
 
 ## EASY: every card of one move build is tagged with the move it came from ("punch|<serial>"): the strip reads "Punch 1, 2..".
