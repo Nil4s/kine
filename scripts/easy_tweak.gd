@@ -14,13 +14,17 @@ const SMALLER := 0.8
 ## MAX_LEN; a move is not cut under Scene.retime's own floor (MIN_MOVE: a shorter one would not scale by k); a move over
 ## SLOW_MAX_MOVE drags and a hold over SLOW_MAX_HOLD is a freeze
 const MIN_LEN := 0.3          # s
-const MAX_LEN := 10.0         # s
+## MAX_LEN was 10 s: a walk then a sit down is 10.3 s, so Slower could never touch a clip that a beginner made by chaining
+## two moves (walk-through round 5). 20 s: a clip still reads whole in the strip, and the per-move and hold limits below
+## still stop a drag; the Slower refusal names the length and the way out.
+const MAX_LEN := 20.0         # s
 const MIN_MOVE := 0.04        # s: Scene.retime's floor
 const SLOW_MAX_MOVE := 3.0    # s
 const SLOW_MAX_HOLD := 6.0    # s
 const STAND_M := 0.01         # m: a card whose lowest sole is this close to the floor is standing on it (FloorSnap's rule)
 const FAST_STOP := "That's as fast as it goes."
-const SLOW_STOP := "That's as slow as it goes."
+const SLOW_MOVE_STOP := "One move would pass %.0f s and drag: remove a step or pick Faster."
+const SLOW_LEN_STOP := "This clip is already %.1f s, the longest Easy makes is %.0f s. Remove a step to slow the rest."
 
 
 ## "" when the timing can move by factor k, else the one sentence why not (the press then changes nothing, no undo step)
@@ -33,13 +37,13 @@ static func timing_stop(S: Scene, k: float) -> String:
 				return FAST_STOP
 	else:
 		if S.length() * k > MAX_LEN:
-			return SLOW_STOP
+			return SLOW_LEN_STOP % [S.length(), MAX_LEN]
 		for i in range(1, S.cards.size()):
 			if S.move_time(i) * k > SLOW_MAX_MOVE:
-				return SLOW_STOP
+				return SLOW_MOVE_STOP % SLOW_MAX_MOVE
 		for c in S.cards:
 			if float(c["hold"]) * k > SLOW_MAX_HOLD:
-				return SLOW_STOP
+				return "One hold would pass %.0f s and freeze the body: pick Faster or remove a hold." % SLOW_MAX_HOLD
 	return ""
 
 

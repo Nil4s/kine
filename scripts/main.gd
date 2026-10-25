@@ -1475,7 +1475,7 @@ func _pb_panel_make() -> void:
 	_pb_layer.visible = false
 
 
-func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
+func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "") -> Dictionary:   # clip: the name the file takes (Easy: the clip's move words); "" = the scene's name
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _pb_busy:
 		_say_plain("A video is already being saved: press Cancel on the progress panel to stop it")
@@ -1486,7 +1486,8 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT) -> Dictionary:
 	var sp := PlayblastExport.span(pv_in, pv_out, _ps().length())
 	var fps: int = S.fps
 	var n := PlayblastExport.frame_count(sp[0], sp[1], fps)
-	var nm := safe_file(S.name) if S.name != "" else "scene"
+	var base := clip if clip != "" else S.name
+	var nm := safe_file(base) if base != "" else "scene"
 	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
 	var gdir := ProjectSettings.globalize_path(dir)
 	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
@@ -18196,6 +18197,8 @@ func _save_scene_now(nm: String) -> void:
 	_refresh()
 	if easy != null and easy.on:   # Easy: "Saved run 68 (3.3 seconds)." (the name as its words; the length to a tenth of a second)
 		_say("Saved %s (%.1f seconds)." % [H.name.replace("_", " "), roundf(H.length() * 10.0 + 0.001) / 10.0])   # the 0.001: 3.25 s reads 3.3, not 3.2 (float)
+		if easy.home != null:   # the toast says where it went: the file's name and its folder (the status line keeps its words)
+			_toast("Saved as %s in %s" % [fname, easy.home.folder_line(scene_path)])
 	else:
 		_say("saved scene %s: %d cards, %s, %d frames with parts inside each other" % [H.name, H.cards.size(), Units.time(H.length(), S.fps), d["bad_frames"].size()])
 
