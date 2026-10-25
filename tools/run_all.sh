@@ -98,3 +98,4 @@ EXTRA="$EXTRA modelfix3:w"   # round 3 walk: UV editor / Materials / ViewCube la
 EXTRA="$EXTRA walk8_beginner:w"   # walk-through round 8: eight beginner goals in Easy mode, real clicks (tests/walk8_beginner_test.gd)
 EXTRA="$EXTRA extrudeflow:w"   # walk 4 friction 7: Extrude / Inset buttons apply at once; E drag confirms on release
 EXTRA="$EXTRA modelview4:w"   # walk-through 4 goal 1: MODEL orbit under the floor, Ctrl+Numpad7 bottom view, Numpad . frame selected
+EXTRA="$EXTRA walk_model5:w"   # walk-through 5: chair, mirror, subdivide + decimate, knife, UV, fill, separate / join, rename + save + reopen (tests/walk_model5_test.gd)
