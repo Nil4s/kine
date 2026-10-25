@@ -75,6 +75,12 @@
 ##      empties the hand (B.wep_on false), the clip's cards are unchanged, one undo step; one Undo puts the sword back in the hand.
 ##  96. BIGGER ON A JUMP (round 8, friction 2): Bigger raises the jump's peak pelvis above standing by >= 15 % (scrubbed at 1/30 s).
 ##  97. GUARD: Bigger on a walk keeps the feet on the floor: every frame has a sole within 1 cm of the floor, and none sinks below it.
+##  90a. A SAVE UNDER A TAKEN NAME ASKS (walk-through round 8, friction 1): a clip saved twice under its name: the second save asks
+##      Replace it / Save as a new name; the new name is wave_2 (the file wave_2.json is written).
+##  90b. NEW SCENE ENDS EMPTY AFTER A SAVE QUESTION: an unsaved clip, New scene asks, Save runs the same question, its answer
+##      (Save as a new name) saves, and the new scene comes up with 0 cards.
+##  90c. SLOWER ON AN 18 s CLIP: Slower takes it to x1.25 (the cap is 60 s now).
+##  90d. SLOWER OVER 60 s IS REFUSED ON A TOAST: a 50 s clip: Slower changes nothing, the status line and the Easy toast say why.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -416,6 +422,25 @@ func _cards_key() -> String:
 	for c in m.S.cards:
 		parts.append(JSON.stringify(c.get("pose", {})))
 	return "|".join(parts)
+
+
+## the save question of a taken name is up: the new dialog (ui_clash) or, on the old code, the Replace confirm
+func clash_up() -> bool:
+	var d = m.get("ui_clash")
+	if d != null and (d as Window).visible:
+		return true
+	var c = m.get("ui_confirm")
+	return c != null and (c as Window).visible
+
+
+## the answer to that question: "replace" | "new" | "cancel" (the old code has no new name: its answer hides the question)
+func clash_answer(how: String) -> void:
+	if m.has_method("_clash_choose"):
+		m._clash_choose(how)
+	elif how == "replace":
+		m.ui_confirm.confirmed.emit()
+	else:
+		m.ui_confirm.hide()
 
 
 func _init() -> void:
@@ -923,7 +948,7 @@ func _init() -> void:
 	await idle(4)
 	ok(absf(l1 - 10.3) < 0.15 and m.S.length() > l1 * 1.2 and m.ui_status.text.begins_with("Slower"),
 		"19. Slower works on a %.2f s clip: it takes %.2f s (says: '%s')" % [l1, m.S.length(), m.ui_status.text])
-	m.retime(0, m.S.cards.size() - 1, 19.0 / maxf(m.S.length(), 0.01) * 100.0)
+	m.retime(0, m.S.cards.size() - 1, 50.0 / maxf(m.S.length(), 0.01) * 100.0)   # 50 s: over the 60 s cap (19 s x1.25 is under it now)
 	await idle(2)
 	var l2: float = m.S.length()
 	home.tweak("slower")
@@ -1949,6 +1974,91 @@ func _init() -> void:
 	print("97. info: the walk before Bigger: highest lowest-sole %.3f m, lowest %.3f m, %d stance frames" % [sc97a[0], sc97a[1], sc97a[2]])
 	ok(bg97 != null and sc97b[0] <= maxf(0.01, sc97a[0] + 0.01) and sc97b[1] >= sc97a[1] - 0.01 and sc97b[2] > 0,
 		"97. Bigger on a walk adds no float or sink: highest lowest-sole %.3f -> %.3f m, lowest %.3f -> %.3f m (1 cm allowed), %d stance frames" % [sc97a[0], sc97b[0], sc97a[1], sc97b[1], sc97b[2]])
+	m._new_scene()
+	await idle(2)
+
+	# 90. THE SAVE QUESTION OF A TAKEN NAME (walk-through round 8, friction 1): the clip is named after its moves: a Wave saved
+	# twice. The second save asks Replace it / Save as a new name (wave_2); New scene after a save question ends with an empty scene.
+	var sc90 := func(n: String) -> String: return UserPaths.w("res://scenes/%s.json" % n)
+	var pre90 := {}
+	for n90 in ["wave", "wave_2", "wave_3"]:
+		pre90[n90] = FileAccess.file_exists(sc90.call(n90))
+	m._new_scene()
+	await idle(2)
+	home.card(6)   # Wave
+	await idle(4)
+	home.save_scene()   # Easy's Save the scene: named after the clip (wave.json)
+	await idle(3)
+	ok(String(m.scene_path).get_file() == "wave.json" and FileAccess.file_exists(sc90.call("wave")),
+		"90a. the first save writes wave.json (scene file '%s')" % String(m.scene_path).get_file())
+	m._new_scene()
+	await idle(2)
+	home.card(6)
+	await idle(4)
+	home.save_scene()   # the same clip name again: the name is taken
+	await idle(3)
+	var asked90 := clash_up()
+	ok(asked90, "90a. a second save under the same clip name asks Replace it / Save as a new name (question up: %s)" % str(asked90))
+	clash_answer("new")
+	await idle(3)
+	ok(FileAccess.file_exists(sc90.call("wave_2")) and String(m.scene_path).get_file() == "wave_2.json",
+		"90a. Save as a new name writes wave_2.json (scene file '%s', wave_2.json exists %s)" % [String(m.scene_path).get_file(), str(FileAccess.file_exists(sc90.call("wave_2")))])
+	# 90b. an unsaved clip, New scene: the Save question answers with a taken name, and the new scene comes up empty
+	m._new_scene()
+	await idle(2)
+	home.card(6)
+	await idle(4)
+	home.save_scene()   # taken again (wave.json): the question is up
+	await idle(3)
+	clash_answer("cancel")   # the scene stays open
+	await idle(2)
+	ok(m.S.cards.size() > 0, "90b. Cancel on the save question keeps the clip (%d cards)" % m.S.cards.size())
+	m._new_asked()   # New scene: the clip is unsaved, so Save / Don't save asks first
+	await idle(3)
+	var ask90: Variant = m.get("ui_save_ask")
+	ok(ask90 != null and (ask90 as Window).visible, "90b. New scene over the unsaved clip asks Save / Don't save first")
+	m._save_ask_choose("save")
+	await idle(3)
+	clash_answer("new")   # wave and wave_2 are taken: Save as a new name -> wave_3
+	await idle(4)
+	ok(m.S.cards.is_empty(), "90b. New scene comes up empty after the save question (cards %d)" % m.S.cards.size())
+	ok(FileAccess.file_exists(sc90.call("wave_3")), "90b. the new name's file wave_3.json is written")
+	# 90c. an 18 s clip: Slower works (x1.25; the cap is 60 s)
+	m._new_scene()
+	await idle(2)
+	home.card(0)
+	await idle(4)
+	home.card(5)
+	await idle(4)
+	m.retime(0, m.S.cards.size() - 1, 18.0 / maxf(m.S.length(), 0.01) * 100.0)
+	await idle(2)
+	var l90c: float = m.S.length()
+	home.tweak("slower")
+	await idle(4)
+	ok(absf(l90c - 18.0) < 0.5 and absf(m.S.length() / maxf(l90c, 0.01) - 1.25) < 0.02 and m.ui_status.text.begins_with("Slower"),
+		"90c. Slower works on an 18 s clip: %.2f s -> %.2f s (says '%s')" % [l90c, m.S.length(), m.ui_status.text])
+	# 90d. a 50 s clip: Slower (62.5 s) is refused, the status line and the Easy toast say why, nothing changes
+	m._new_scene()
+	await idle(2)
+	home.card(0)
+	await idle(4)
+	home.card(5)
+	await idle(4)
+	m.retime(0, m.S.cards.size() - 1, 50.0 / maxf(m.S.length(), 0.01) * 100.0)
+	await idle(2)
+	var l90d: float = m.S.length()
+	var u90d: int = m.undo.size()
+	home.tweak("slower")
+	await idle(4)
+	var said90d: String = m.ui_status.text
+	var toast90d: String = String(m.ui_toast.text) if m.ui_toast != null else ""
+	ok(absf(m.S.length() - l90d) < 1e-9 and m.undo.size() == u90d, "90d. Slower on a %.1f s clip changes nothing (%.2f s, undo %d)" % [l90d, m.S.length(), m.undo.size()])
+	ok(said90d.contains("already") and said90d.contains("Remove a step") and m.ui_toast != null and m.ui_toast.visible and toast90d == said90d,
+		"90d. the refusal is on the status line and the Easy toast: status '%s', toast '%s' (visible %s)" % [said90d, toast90d, str(m.ui_toast != null and m.ui_toast.visible)])
+	# clean up: the files this section wrote (a name that was free before this run)
+	for n90 in ["wave", "wave_2", "wave_3"]:
+		if not pre90[n90] and FileAccess.file_exists(sc90.call(n90)):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(sc90.call(n90)))
 	m._new_scene()
 	await idle(2)
 
