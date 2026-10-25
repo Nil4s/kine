@@ -19,6 +19,52 @@ func ok(c: bool, what: String) -> void:
 		fails += 1
 
 
+## 10 A FLIGHT READ ON AN UNSEEN HIP (round 58, the cmb02_cross clip of the kine batch: its hip image sat at the frame's top edge with
+## visibility 0.5 and its ankles at 0.05 in raw frame 49, so the flight detector read a 0.3 m rise and lifted the whole pelvis for two
+## frames, a 19.6 m/s hand peak with it). tests/data/spike_cross_pose.json (kine batch combat/cmb02_cross, 2.7-4.0 s; 138 KB). Bar:
+##   b the keeper (tests/fixtures/gen_hammer_pose.json) keeps its peak hand speed within 10 % (base 1.84 m/s)
+##   a the largest pelvis step between frames in 3.05-3.13 s is 0.05 m or less (old: a flight read lifted the pelvis at 3.07-3.08 s)
+func _bar10_spike_pelvis() -> void:
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var P := VideoImport.load_file("res://tests/data/spike_cross_pose.json")
+	ok(P["ok"], "10 the cross-punch spike file reads (%s)" % P.get("why", ""))
+	if not P["ok"]:
+		return
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "spike_test", true)
+	B.set_state(keep)
+	var fit: Array = R["fitted"]
+	var step := 0.0
+	var step_at := 0.0
+	for i in range(1, fit.size()):
+		var t := float(R["frames"][i]["t"])   # the fitted frame's own time (the tracker's clock, after the fill)
+		if t < 3.05 or t > 3.13:
+			continue
+		var d := absf(float(fit[i]["offset"].y) - float(fit[i - 1]["offset"].y))
+		if d > step:
+			step = d
+			step_at = t
+	# b the keeper: a clip with no glitch keeps its hand speed (tests/fixtures/gen_hammer_pose.json, peak 1.84 m/s on base; the
+	# fast-move keeper cmb01_jab is not in the repo). Within 10 % of the old peak
+	var K := VideoImport.load_file("res://tests/fixtures/gen_hammer_pose.json")
+	if K["ok"]:
+		var B3 := Body.new()
+		B3.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var keep3 := B3.state()
+		var RK := VideoIQ.process(B3, K, "", "keeper_test", true)
+		B3.set_state(keep3)
+		var B4 := Body.new()
+		B4.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+		var smk := Rulebook.sample(RK["scene"], B4)
+		var pk := 0.0
+		for hk in ["hand_l", "hand_r"]:
+			for x in smk[hk]:
+				pk = maxf(pk, float(x))
+		ok(absf(pk - 1.84) <= 0.184, "10b the keeper's peak hand speed is %.2f m/s (base 1.84; bar within 10 %%)" % pk)
+	ok(step <= 0.05, "10a the largest pelvis step in 3.05-3.13 s is %.3f m at %.3f s (bar 0.05; old code 1.22 m at 3.125 s)" % [step, step_at])
+
+
 func _init() -> void:
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -108,6 +154,7 @@ func _init() -> void:
 	_bar7_fps16()
 	_bar8_flight()
 	_bar9_lost_foot()
+	_bar10_spike_pelvis()
 	print("VIDEO IMPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)
 
