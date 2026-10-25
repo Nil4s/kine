@@ -7,6 +7,7 @@ extends SceneTree
 
 const OUT := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/walk9/"
 
+var video_dir := ""      # the test's own folder for Save video (user://), so the user's Videos/Kine is never written
 var made: Array = []   # scene files this run saved (deleted at the end when they sit in scenes/_wip)
 var m: Node
 var n_shot := 0
@@ -270,6 +271,8 @@ func begin_goal(s: String) -> void:
 
 func end_goal(ok: bool, note_s: String) -> void:
 	var secs := (Time.get_ticks_msec() - t0) / 1000.0
+	if not ok:
+		say("FAIL " + goal)
 	say("== END %s: done=%s clicks=%d time=%.1fs %s" % [goal, "yes" if ok else "NO", clicks, secs, note_s])
 	results.append([goal, ok, clicks, secs, note_s])
 
@@ -437,6 +440,9 @@ func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(10)
+	video_dir = ProjectSettings.globalize_path("user://walk9_out_%d" % OS.get_process_id())   # the test's own folder: never the user's Videos/Kine
+	DirAccess.make_dir_recursive_absolute(video_dir)
+	m.easy.home.video_root = video_dir
 	say("settings file for this run: %s | Easy on at start: %s" % [m.settings, str(m.easy.on)])
 	if not m.easy.on:
 		m.easy.set_on(true)
@@ -486,7 +492,11 @@ func _init() -> void:
 	# 3. WALK, THEN WAVE (the wave must come after the walk)
 	begin_goal("3 make a walk, then a wave after it, and check the order")
 	var n3a: int = m.S.cards.size()
-	var ch3 := await click_text("Change it") if find_btn("Walk") == null else false   # the picture grid is shut after a clip: Change it opens it
+	var hidden3 := find_btn("Walk") == null   # the picture grid is shut after a clip: the Moves button must open it in one click
+	var ch3 := await click_text("Moves") if hidden3 else false
+	var moves3: bool = ch3 if hidden3 else true
+	if not moves3:
+		say("FAIL goal 3 moves: after a clip, no button on screen opens the move cards in one click (wanted 'Moves')")
 	var walk3 := await click_text("Walk")
 	await shot("06_walk_built")
 	var walk_end3: float = m.S.length()
@@ -504,7 +514,7 @@ func _init() -> void:
 	say("   played to %.2f s of %.2f s" % [top3, m.S.length()])
 	if not then3:
 		note("after the walk, no 'Then wave' button on the second row")
-	end_goal(after3 and again3 and top3 >= m.S.length() * 0.9, "(walk %.2f s, wave starts %.2f s, wave cards after: %d, whole clip played: %s)" % [walk_end3, wave_start3, wave_cards3, str(top3 >= m.S.length() * 0.9)])
+	end_goal(moves3 and after3 and again3 and top3 >= m.S.length() * 0.9, "(walk %.2f s, wave starts %.2f s, wave cards after: %d, whole clip played: %s)" % [walk_end3, wave_start3, wave_cards3, str(top3 >= m.S.length() * 0.9)])
 
 	# 4. SWORD FROM THE LIBRARY, THEN TYPE SWING
 	begin_goal("4 sword from the Library (by category), then type swing")
@@ -575,6 +585,9 @@ func _init() -> void:
 	for r in results:
 		say("  %s | %s | %d | %.1f" % [r[0], "yes" if r[1] else "NO", r[2], r[3]])
 	say("\nlast video: " + str(m.easy.home.last_video))
+	if mp4 != "" and mp4.begins_with(video_dir) and FileAccess.file_exists(mp4):
+		DirAccess.remove_absolute(mp4)   # the one file this run made, in its own folder under user://; the folder stays
+		say("removed the run's video " + mp4)
 	var lf := FileAccess.open(OUT + "log.txt", FileAccess.WRITE)
 	lf.store_string("\n".join(lines) + "\n")
 	lf.close()
