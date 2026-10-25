@@ -356,12 +356,12 @@ func _init() -> void:
 	var walk1 := await click_text("Walk")
 	var played1 := await wait_playing()
 	await shot("04_walk_built")
-	var sit1 := await click_text("Sit on it")
+	var sit1 := await click_text("Sit on the chair")
 	await idle(30)
 	await shot("05_sit_on_chair")
 	var sat1: bool = m.S.cards.size() > n1 and has_card("seated")
 	if not sit1:
-		note("'Sit on it' not on screen after the walk")
+		note("'Sit on the chair' not on screen after the walk")
 	end_goal(chair1 and walk1 and played1 and sat1, "(chair placed: %s, walk: %s, sit on it pressed: %s, seated card: %s; cards %d -> %d; pelvis y %.3f)" % [str(chair1), str(walk1), str(sit1), str(sat1), n1, m.S.cards.size(), pelvis_y()])
 
 	# 2. AFTER SITTING: STAND UP AND WAVE (typed first: the box is what a beginner reaches for)
@@ -419,6 +419,8 @@ func _init() -> void:
 	begin_goal("4 remove the chair, see what happens to the sitting")
 	var props4: int = m.S.props.size()
 	var y4a := pelvis_y()
+	var bar4 := m.find_child("eh_prop_name", true, false) as Label
+	say("   prop bar says: %s" % (bar4.text if bar4 != null else "(no bar)"))
 	var rm_btn := find_btn("Remove")
 	if rm_btn == null:
 		say("   'Remove' not on screen (no prop picked?): trying 'Next object'")
