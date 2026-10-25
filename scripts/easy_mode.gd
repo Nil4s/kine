@@ -49,6 +49,11 @@ const TOUR_W := 300.0       # the tour card's width (px); its text wraps inside 
 const PANEL_MARGIN := 12.0  # px between the tour card and the window's edge
 const FRAME_STEP := 2       # the clip is sampled every 2nd frame: a frame moves a hand a few px, inside FRAME_PAD
 const FRAME_SAMPLES := 24   # the most poses frame_clip samples (the click waits for them)
+const FRAME_FILL := 0.8     # Easy: the body's height (head to feet, radii in) as a share of the free rect's height: a beginner sees the move
+const FRAME_WIDTH := 0.9    # Easy: the body's widest reach as a share of the free rect's width
+var _track: Array = []      # Easy follow: the body's centre (Vector3) at each sample of the clip
+var _track_ks: Array = []   # the frame each _track entry is at
+var _frame_d := -1.0        # the distance frame_clip set for this clip (-1 = none yet)
 
 
 ## which mode a settings file asks for. A key decides. No key: a file with sections is an existing user (Expert);
@@ -280,6 +285,7 @@ func set_on(v: bool, save := true) -> void:
 	elif was and not on:
 		if tour_step >= 0:
 			_finish(true, false)
+		_track = []   # Easy's follow stops with Easy
 		if not _saved_cam.is_empty() and m != null:   # Expert's camera is exactly what it was before Easy (main._cam places it)
 			m.yaw = _saved_cam["yaw"]
 			m.pitch = _saved_cam["pitch"]
@@ -364,62 +370,88 @@ func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back
 		return
 	var keep: Dictionary = m.B.state() if keep_body else {}
 	var vs := get_viewport().get_visible_rect().size
-	var F := free_rect().grow(-FRAME_PAD)
+	var fr := free_rect()
 	var fps := float(m.S.fps)
-	var pts := []
 	# an empty scene frames the body as it stands (its rest pose): the camera kept the last clip's look-at point otherwise,
 	# and the body could sit under the bottom bar (the press on a hand there lands on the bar, not the body)
 	var last := 0 if m.S.cards.is_empty() else int(ceil(m.S.length() * fps))
 	# at most FRAME_SAMPLES poses spread over the clip (a pose is ~3.5 ms and the click waits for them: every 2nd frame of a
-	# 5 s walk cost ~260 ms, past easyhome's 500 ms click-to-motion bar), the last frame too; easycam checks every 4th frame
+	# 5 s walk cost ~260 ms, past easyhome's 500 ms click-to-motion bar), the last frame too
 	var step := maxi(FRAME_STEP, int(ceil(float(last) / float(FRAME_SAMPLES))))
 	var ks := range(0, last + 1, step)
 	if ks[-1] != last:
 		ks.append(last)
+	# EASY FOLLOW: each sample gives the body's centre (the middle of its box, radii in) and its height and reach from that centre.
+	# The distance is set from the clip's tallest height and widest reach, so the body fills FRAME_FILL of the free rect's height
+	# at every frame, and the look-at point follows the centre (follow_tick): a walk that travels stays big and in the free view.
+	var centres: Array = []
+	var tallest := 0.0
+	var reach := 0.0
 	for k in ks:
 		m._ps().apply(m.B, float(k) / fps)
-		pts.append_array(Turntable.points(m.B))
+		var lo := Vector3(INF, INF, INF)
+		var hi := -lo
+		var pts := Turntable.points(m.B)
+		for p in pts:
+			var rr := Vector3.ONE * float(p[1])
+			lo = lo.min((p[0] as Vector3) - rr)
+			hi = hi.max((p[0] as Vector3) + rr)
+		var c := (lo + hi) * 0.5 if lo.x < INF else Vector3.ZERO
+		centres.append(c)
+		if lo.x < INF:
+			tallest = maxf(tallest, hi.y - lo.y)
+			for p in pts:
+				var flat := Vector2((p[0] as Vector3).x - c.x, (p[0] as Vector3).z - c.z)
+				reach = maxf(reach, flat.length() + float(p[1]))
 	if keep_body:
 		m.B.set_state(keep)
 	else:
 		m._ps().apply(m.B, m.playhead)
-	var lo := Vector3(INF, INF, INF)
-	var hi := -lo
-	for p in pts:
-		lo = lo.min(p[0])
-		hi = hi.max(p[0])
-	var centre := (lo + hi) * 0.5
-	var a := 0.6
-	var b := 40.0
-	for it in 16:   # 40 m / 2^16: under a millimetre (each step runs every point, so the count is the click's cost)
-		var mid := (a + b) * 0.5
-		if _fits(pts, centre, mid, vs, F):
-			b = mid
-		else:
-			a = mid
-	m.target = centre
-	m.dist = b
+	# world units per px at the target: the body's height is FRAME_FILL of the free height, its width fits FRAME_WIDTH of the free width
+	var mpp := maxf(tallest / (FRAME_FILL * maxf(fr.size.y, 1.0)), 2.0 * reach / (FRAME_WIDTH * maxf(fr.size.x, 1.0)))
+	mpp = maxf(mpp, 1e-4)
+	var tan_half: float = tan(deg_to_rad(m.cam.fov * 0.5))
+	_frame_d = mpp * vs.y / (2.0 * tan_half)
+	_track = centres
+	_track_ks = ks
+	m.dist = _frame_d
+	m.target = _track_at(m.playhead)
 	m._cam()
 
 
-## every point (with its radius) projects inside F with the camera at centre, distance d (the offsets as _cam sets them)
-func _fits(pts: Array, centre: Vector3, d: float, vs: Vector2, F: Rect2) -> bool:
-	var cam: Camera3D = m.cam
-	var b := Basis.from_euler(Vector3(deg_to_rad(m.pitch), deg_to_rad(m.yaw), 0))
-	cam.transform = Transform3D(b, centre + b * Vector3(0, 0, d))
-	var mpp := 2.0 * d * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
-	var o := offsets(vs, mpp)
-	cam.h_offset = o.x
-	cam.v_offset = o.y
-	for p in pts:
-		var c: Vector3 = p[0]
-		if cam.is_position_behind(c):
-			return false
-		var q := cam.unproject_position(c)
-		var r := float(p[1]) / mpp
-		if q.x - r < F.position.x or q.x + r > F.end.x or q.y - r < F.position.y or q.y + r > F.end.y:
-			return false
-	return true
+## the look-at point at clip time t: the sampled centres, interpolated between the samples
+func _track_at(t: float) -> Vector3:
+	if _track.is_empty():
+		return m.target
+	var f := clampf(t * float(m.S.fps), 0.0, float(_track_ks[-1]))
+	var i := 0
+	while i + 1 < _track_ks.size() - 1 and float(_track_ks[i + 1]) <= f:
+		i += 1
+	var a := float(_track_ks[i])
+	var b := float(_track_ks[mini(i + 1, _track_ks.size() - 1)])
+	var w := clampf((f - a) / maxf(b - a, 1e-6), 0.0, 1.0)
+	return (_track[i] as Vector3).lerp(_track[mini(i + 1, _track.size() - 1)], w)
+
+
+## EASY FOLLOW (main calls it every frame while Easy shows): the look-at point rides the body's centre at the playhead. The
+## distance stays the one frame_clip set, so the body keeps its size and the wheel still zooms.
+func follow_tick() -> void:
+	if m == null or not on or _track.is_empty():
+		return
+	var c := _track_at(m.playhead)
+	if not c.is_equal_approx(m.target):
+		m.target = c
+		m._cam()
+
+
+## the distance frame_clip set for the clip (-1: no clip framed yet): Reset view uses it in Easy
+func frame_dist() -> float:
+	return _frame_d
+
+
+## the look-at point the follow has now (main's target while Easy shows)
+func follow_target() -> Vector3:
+	return m.target
 
 
 func _resized() -> void:
