@@ -35,7 +35,8 @@ var undo := KMeshUndo.new()
 var sculpt := KMeshSculpt.new()
 var brush := KMeshSculpt.DRAW
 var radius := 0.08
-var strength := 0.004
+var strength := 0.001        # metres per dab at full pressure: 1 mm (was 4 mm: a default stroke moved the sphere 59 mm)
+var readout: Label           # the brush readout on the SCULPT page: brush, strength, radius (always shown while the sphere is)
 var falloff := KMeshSculpt.F_SMOOTH
 var sym_x := true
 var sym_y := false          # C07 (scripts/kmesh_sculpt_sym.gd)
@@ -89,6 +90,11 @@ func setup(main: Node) -> void:
 	_ov.visible = false
 	_ov.draw.connect(_draw_overlay)
 	m.ui_root.add_child(_ov)
+	readout = Label.new()
+	readout.name = "sculpt_readout"
+	readout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	readout.position = Vector2(16, 56)
+	_ov.add_child(readout)
 	matcap = SculptMatcap.new()
 	add_child(matcap)
 	matcap.setup(self)
@@ -130,6 +136,7 @@ func start() -> void:
 	on = true
 	_stroking = false
 	_ov.visible = true
+	_update_readout()
 	view.rebuild()
 	if matcap != null:
 		matcap.attach(view)
@@ -177,6 +184,13 @@ func _params(ev: InputEvent) -> Dictionary:
 
 func _status() -> void:
 	m._say("Sculpt: %s, radius %d mm, strength %.1f mm, %s falloff, symmetry %s" % [brush, roundi(radius * 1000.0), strength * 1000.0, falloff, sym_words()])
+	_update_readout()
+
+
+## the readout on the page: the brush, its strength and radius, and the keys that change them
+func _update_readout() -> void:
+	if readout != null:
+		readout.text = "%s   strength %.1f mm (Shift+[ ] )   radius %d mm ( [ ] )" % [brush, strength * 1000.0, roundi(radius * 1000.0)]
 
 
 ## "X Z, radial 6 around Y", or "off"

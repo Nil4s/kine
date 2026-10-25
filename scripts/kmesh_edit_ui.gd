@@ -116,6 +116,7 @@ func start() -> void:
 	mesh = src["mesh"] if src.has("mesh") else KMeshView.make_cube(SIDE, SPLIT)
 	undo = KMeshUndo.new()
 	sel = KMeshSelect.new(mesh, KMeshSelect.VERT)
+	undo.sel = sel   # the undo steps keep the picks (Ctrl+Z puts back the selection the edit started from)
 	KMeshShapes.ensure(mesh)   # A13: the cube as made is the basis; K captures an edit as a key
 	view = KMeshView.new()
 	view.name = "kmesh_view"
@@ -480,7 +481,7 @@ func _remeasure() -> void:
 func _b05_key(e: InputEventKey) -> void:
 	if e.keycode == KEY_Z:
 		var lb := undo.redo() if e.shift_pressed else undo.undo()
-		sel.clear()
+		sel.restore(undo.last_sel)
 		view.mark_dirty()
 		if view.show_heat:
 			view.rebuild()   # F08: the legend counts the mesh as it is now
@@ -522,7 +523,7 @@ func _b05_key(e: InputEventKey) -> void:
 func _edit_key(k: InputEventKey) -> bool:
 	if k.ctrl_pressed and (k.keycode == KEY_Z or k.keycode == KEY_Y):
 		var lb := undo.undo() if k.keycode == KEY_Z else undo.redo()
-		sel.clear()
+		sel.restore(undo.last_sel)
 		view.mark_dirty()
 		m._say("Model: %s %s" % ["undone:" if k.keycode == KEY_Z else "redone:", lb] if lb != "" else "Model: nothing to %s on the test cube" % ("undo" if k.keycode == KEY_Z else "redo"))
 		return true
@@ -784,6 +785,7 @@ func set_prim_param(param: String, value) -> bool:
 ## the topology changed: a fresh selection on the same mesh, the view rebuilt
 func _after_topo() -> void:
 	sel = KMeshSelect.new(mesh, sel.mode)
+	undo.sel = sel
 	view.set_mesh(mesh, sel)
 	view.rebuild()
 # ---------------------------------------------------------------- F06 / F08

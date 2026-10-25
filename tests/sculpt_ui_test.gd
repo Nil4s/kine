@@ -58,12 +58,13 @@ func drag(a: Vector2, b: Vector2, steps := 8) -> void:
 	await idle(2)
 
 
-func key(k: int, ctrl := false) -> void:
+func key(k: int, ctrl := false, shift := false) -> void:
 	for down in [true, false]:
 		var e := InputEventKey.new()
 		e.keycode = k
 		e.physical_keycode = k
 		e.ctrl_pressed = ctrl
+		e.shift_pressed = shift
 		e.pressed = down
 		root.push_input(e)
 		await process_frame
@@ -112,9 +113,29 @@ func _init() -> void:
 			moved += 1
 			outward = outward and ui.mesh.verts[v].length() > v0[v].length() - 1e-7
 	var steps: int = ui.undo.steps.size()
+	var peak := 0.0   # the deepest move of any vert in this one default stroke (m)
+	for v in v0.size():
+		peak = maxf(peak, (ui.mesh.verts[v] - v0[v]).length())
+	print("     default draw stroke: peak move %.1f mm, %d verts moved" % [peak * 1000.0, moved])
 	await key(KEY_Z, true)
 	ok(moved > 10 and outward and steps == 1 and ui.mesh.verts == v0,
 		"(2) draw stroke: %d verts moved, all outward %s, %d dabs = %d undo step; Ctrl+Z exact %s" % [moved, outward, ui.sculpt.dabs, steps, ui.mesh.verts == v0])
+	# 2b the strength readout: on the SCULPT page, always (not only after a key), and it follows Shift+[ / Shift+]
+	var rd = ui.get("readout")   # untyped: an old build without the readout fails this bar, it does not stop the suite
+	var rd_text0: String = String(rd.text) if rd is Label else ""
+	var rd_vis: bool = rd is Label and rd.is_visible_in_tree()
+	var s0: float = ui.strength
+	await key(KEY_BRACKETRIGHT, false, true)
+	await key(KEY_BRACKETRIGHT, false, true)
+	await key(KEY_BRACKETRIGHT, false, true)
+	var rd_text1: String = String(ui.get("readout").text) if ui.get("readout") is Label else ""
+	ok(rd_vis and rd_text0.contains("strength") and rd_text0.contains("radius") and rd_text1 != rd_text0 and ui.strength > s0,
+		"(2b) readout on SCULPT: visible %s, \"%s\"; after 3 x Shift+] -> \"%s\", strength %.1f -> %.1f mm" % [rd_vis, rd_text0, rd_text1, s0 * 1000.0, ui.strength * 1000.0])
+	await key(KEY_BRACKETLEFT, false, true)   # back to the default for the strokes below
+	await key(KEY_BRACKETLEFT, false, true)
+	await key(KEY_BRACKETLEFT, false, true)
+	# 2c a default stroke moves at most 20 mm (65 mm per stroke was the walk-through's complaint)
+	ok(peak <= 0.02 and peak > 0.0, "(2c) default draw stroke: peak move %.1f mm (bar <= 20 mm)" % [peak * 1000.0])
 	# 3 grab
 	await key(KEY_G)
 	var hit: Dictionary = ui.surface_at(cam, cs)

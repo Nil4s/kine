@@ -43,6 +43,30 @@ func count() -> int:
 	return _live().size()
 
 
+## the selection as a value (KMeshUndo keeps one before and after each step)
+func snapshot() -> Dictionary:
+	return {"mode": mode, "verts": verts.duplicate(), "edges": edges.duplicate(), "faces": faces.duplicate()}
+
+
+## the picks of a snapshot that still exist in the mesh (an undo can remove the ones made by the edit); {} clears
+func restore(snap: Dictionary) -> void:
+	clear()
+	if snap.is_empty() or mesh == null:
+		return
+	mode = int(snap["mode"])
+	var nv := mesh.vert_count()
+	var nf := mesh.face_count()
+	for v in snap["verts"]:
+		if int(v) < nv:
+			verts[v] = true
+	for e in snap["edges"]:
+		if e.x < nv and e.y < nv and mesh.find_half_edge(e.x, e.y) >= 0:
+			edges[e] = true
+	for f in snap["faces"]:
+		if int(f) < nf:
+			faces[f] = true
+
+
 func is_empty() -> bool:
 	return _live().is_empty()
 

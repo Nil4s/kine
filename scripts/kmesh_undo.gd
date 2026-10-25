@@ -10,6 +10,9 @@ const MAX_BYTES := 256 * 1024 * 1024
 
 var steps: Array = []   # done, oldest first
 var redos: Array = []
+var sel: KMeshSelect = null   # the edit's selection: each step keeps the picks from before and after it (set by the edit UI)
+var last_sel := {}   # the selection the last undo / redo wants back (KMeshSelect.restore); {} = none
+var _before_sel := {}
 var _mesh: KMesh
 var _before_v := PackedVector3Array()
 var _before_f: Array = []
@@ -29,6 +32,7 @@ func begin(m: KMesh) -> void:
 	_before_m = m.modifiers.duplicate(true)
 	_before_mat = KMeshMaterial.snapshot(m.materials)
 	_before_o = m.origin
+	_before_sel = sel.snapshot() if sel != null else {}
 
 
 static func _same_faces(a: Array, b: Array) -> bool:
@@ -108,6 +112,9 @@ func commit(label := "edit") -> Dictionary:
 	if st.has("s_old") and st["kind"] != "shape":
 		st["bytes"] = int(st["bytes"]) + KMeshShapes.bytes(st["s_old"]) + KMeshShapes.bytes(st["s_new"])
 	st["mesh"] = m
+	if sel != null:
+		st["sel_old"] = _before_sel
+		st["sel_new"] = sel.snapshot()
 	steps.append(st)
 	redos.clear()
 	_trim()
@@ -210,6 +217,7 @@ func undo() -> String:
 	var st: Dictionary = steps.pop_back()
 	_apply(st, true)
 	redos.append(st)
+	last_sel = st.get("sel_old", {})
 	return String(st["label"])
 
 
@@ -219,4 +227,5 @@ func redo() -> String:
 	var st: Dictionary = redos.pop_back()
 	_apply(st, false)
 	steps.append(st)
+	last_sel = st.get("sel_new", {})
 	return String(st["label"])
