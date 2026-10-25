@@ -256,8 +256,14 @@ func _init() -> void:
 	var assign_b := pan.find_child("btn_mat_assign", true, false) as Button
 	ok(add_b != null and assign_b != null and add_b.is_visible_in_tree() and assign_b.is_visible_in_tree(), "5R0 the Materials panel's Add and Assign buttons are on screen")
 	var nslot0 := mesh.materials.size()
+	ui.sel.clear()   # Add material with faces selected already gives them the slot (R2): Add an empty slot, then pick and Assign
 	await press_button(add_b)
-	ok(mesh.materials.size() == nslot0 + 1 and pan.cur == nslot0, "5R1 a real press on Add makes slot %d (%d slots) and picks it" % [nslot0, mesh.materials.size()])
+	ok(mesh.materials.size() == nslot0 + 1 and pan.cur == nslot0 and KMeshMaterial.faces_of(mesh, nslot0).is_empty(), "5R1 a real press on Add (nothing selected) makes slot %d (%d slots), empty, and picks it" % [nslot0, mesh.materials.size()])
+	ui.sel.set_mode(KMeshSelect.FACE)
+	ui.sel.faces[5] = true
+	ui.sel.faces[60] = true
+	ui.view.mark_dirty()
+	await idle(2)
 	var n5r := ui.undo.steps.size()
 	await press_button(assign_b)
 	var got: Array = Array(KMeshMaterial.faces_of(mesh, nslot0))
@@ -307,8 +313,8 @@ func _init() -> void:
 	for fi in sel_fs:
 		ui.sel.faces[fi] = true
 	var new_i: int = pan.add_slot({"name": "Round2 sel"})
-	var got := Array(KMeshMaterial.faces_of(ui.mesh, new_i))
-	got.sort()
-	ok(got == sel_fs, "R2 Add material with faces %s selected: the new slot holds %s (bar: exactly those faces)" % [str(sel_fs), str(got)])
+	var got_r2 := Array(KMeshMaterial.faces_of(ui.mesh, new_i))
+	got_r2.sort()
+	ok(got_r2 == sel_fs, "R2 Add material with faces %s selected: the new slot holds %s (bar: exactly those faces)" % [str(sel_fs), str(got_r2)])
 
 	quit(1 if fails > 0 else 0)

@@ -288,7 +288,7 @@ func _init() -> void:
 	await idle(2)
 	var ap = mstk.kmed.mods.panel.find_child("mod_0_apply", true, false)
 	var ad = mstk.kmed.mods.panel.find_child("btn_mod_add", true, false)
-	var am = mstk.kmed.mat_panel.find_child("btn_mat_add_material", true, false)
+	var am = mstk.kmed.mat_panel.find_child("btn_mat_add", true, false)
 	var at := String(ap.text) if ap != null else "(none)"
 	ok(at == "Apply " + KMeshModifiers.NAMES[KMeshModifiers.TYPES[0]] and ad != null and ad.text == "Add modifier" and am != null and am.text == "Add material",
 		"R2 modifier row button reads '%s' (bar 'Apply %s'); Add buttons read '%s' / '%s' (bar 'Add modifier' / 'Add material')" % [at, KMeshModifiers.NAMES[KMeshModifiers.TYPES[0]], String(ad.text) if ad != null else "(none)", String(am.text) if am != null else "(none)"])

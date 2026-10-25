@@ -59,7 +59,7 @@ func _init(edit_ui: KMeshEditUI) -> void:
 			["Assign", "give the SELECTED faces the picked slot (one undo step); the status line says how many moved", func(): assign_selection()],
 			["Select", "select the faces of the picked slot", func(): select_by(cur)]]:
 		var bt := Button.new()
-		bt.name = "btn_mat_" + String(b[0]).to_lower().replace(" ", "_")
+		bt.name = "btn_mat_" + String(b[0]).get_slice(" ", 0).to_lower()   # btn_mat_add even though it now reads "Add material" (tests and the help find it by name)
 		bt.text = b[0]
 		bt.tooltip_text = b[1]
 		bt.pressed.connect(b[2])

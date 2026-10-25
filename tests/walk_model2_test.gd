@@ -677,9 +677,9 @@ func _init() -> void:
 		await click_mod(face_spot(fb), "on a second face, Shift held", false, true)
 	var mats0: int = kmed.mesh.materials.size()
 	say("   material panel buttons: %s" % str(_mat_btns()))
-	await click_in(kmed.mat_panel, "Add")   # slot 0: the app says the first slot covers every face
+	await click_in(kmed.mat_panel, "Add material")   # slot 0: the app says the first slot covers every face
 	await shot("material_made")
-	await click_in(kmed.mat_panel, "Add")   # slot 1: the one Assign gives the selected faces to
+	await click_in(kmed.mat_panel, "Add material")   # slot 1: the one Assign gives the selected faces to
 	await shot("material_second_slot")
 	var as_btn := find_btn("Assign")
 	if as_btn != null:
