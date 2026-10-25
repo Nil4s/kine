@@ -114,6 +114,32 @@ func _bar10d_dips() -> void:
 	ok(pp >= 0.0 and pp <= 16.0, "10f push-up peak hand speed %.2f m/s (old 15.87; bar 16.0; unchanged)" % pp)
 	ok(absf(fj - 15.20) <= 0.5, "10g the real jump keeps its peak hand speed: %.2f m/s (old 15.20; within 0.5)" % fj)
 	ok(absf(lf - 3.34) <= 0.1, "10h the lost-foot walk keeps its peak hand speed: %.2f m/s (old 3.34; within 0.1)" % lf)
+	_bar10i_flip()
+
+
+## 10i THE TRACKER FLIP ABOUT THE HIPS (round 60, scripts/video_iq.gd 3d INVERTED BODY): the cross clip's body is turned upside down
+## about the hips for about 0.4 s (2.94-3.6 s, lost either side); that flip read as a 16.4 m/s hand peak. Bars:
+##   i  the cross clip's peak hand speed is 12 m/s or less (the fist bar; the flip is a lost span now, not a motion)
+##   i (2) the flip is reported: at least 6 frames replaced, and the confidence lane has a body "tracking lost" span over 3.0-3.6 s
+## The old pipeline (VideoIQ.INVERSION_FILL = false) is printed for the before numbers.
+func _bar10i_flip() -> void:
+	var pk := _peak_hand("res://tests/data/spike_cross_pose.json")
+	VideoIQ.INVERSION_FILL = false
+	var old := _peak_hand("res://tests/data/spike_cross_pose.json")
+	VideoIQ.INVERSION_FILL = true
+	var P := VideoImport.load_file("res://tests/data/spike_cross_pose.json")
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	var keep := B.state()
+	var R := VideoIQ.process(B, P, "", "flip_test", true)
+	B.set_state(keep)
+	var lost_span := false
+	for s in R["conf"]["spans"]:
+		if s["part"] == "body" and float(s["t0"]) <= 3.1 and float(s["t1"]) >= 3.5:
+			lost_span = true
+	print("10i flip: old pipeline peak %.2f m/s, new %.2f m/s, frames replaced %d" % [old, pk, int(R["inverted"])])
+	ok(pk >= 0.0 and pk <= 12.0, "10i the cross clip's peak hand speed is %.2f m/s (old %.2f; bar 12, the fist bar)" % [pk, old])
+	ok(int(R["inverted"]) >= 6 and lost_span, "10i the flip is reported as a lost span: %d frames replaced, body tracking-lost span over 3.0-3.6 s: %s" % [int(R["inverted"]), lost_span])
 
 
 func _init() -> void:
