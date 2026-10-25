@@ -10435,8 +10435,9 @@ func _hands_refresh() -> void:
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
 		ui_hands_panel.reset_size()
-		var rx := vs.x - (12.0 if easy_on else float(RIGHT_W) + 12.0) - ui_hands_panel.size.x
-		ui_hands_panel.position = Vector2(rx, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 40.0)
+		var rx := 12.0 if easy_on else vs.x - float(RIGHT_W) - 12.0 - ui_hands_panel.size.x   # Easy: the left (its slider panel is at the right)
+		# Easy: under its top bar at the left, as first built (its floor area is where the arm presses land)
+		ui_hands_panel.position = Vector2(12.0, float(TOP_H) + 8.0) if easy_on else Vector2(rx, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 40.0)
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
