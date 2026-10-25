@@ -7,6 +7,8 @@
 ##  (c) ONE Ctrl+Z restores the original cards exactly (JSON of the cards equal), and the run added exactly one undo step
 ##  (d) no frame gap > 250 ms while the run is going (measured across process frames, from the click to the run's end)
 ##  (e) the shipped scene file's bytes are the same after the test
+##  (f) the longest single fix in that run takes <= 40 % of the old code's (OLD_WORST_MS: tools/fixspeed_dump.gd on the old code)
+##  (g) the cards after Fix all are the old code's, byte for byte (tests/data/fixall_axe_old.var, saved from the old code)
 ## Expected on the old code: (a) and (b) FAIL (there is no button to click), (c) FAILs with them.
 extends SceneTree
 
@@ -15,6 +17,10 @@ var m: Node
 const SRC := "res://scenes/axe_strike_pose.json"
 const COPY := "user://fixall_axe_copy.json"
 const GAP_MS := 250
+## the old code's longest single Fix (ms) in one Fix all on this clip: tools/fixspeed_dump.gd on the code before the speed-up
+## (10-25: fix 4 HEAD QUIET 10.1 s alone; the run's worst 11363 ms)
+const OLD_WORST_MS := 11363
+const OLD_CARDS := "res://tests/data/fixall_axe_old.var"
 
 
 func ok(c: bool, what: String) -> void:
@@ -163,6 +169,8 @@ func _init() -> void:
 
 	var half: bool = end <= int(floor(start * 0.5))
 	var same: bool = end <= int(obo["end"])
+	var worst_ms: int = int(run.get("worst_ms", 1 << 30))
+	ok(worst_ms <= 0.4 * OLD_WORST_MS, "(f) the longest single fix %d ms <= 40%% of the old %d ms (limit %d ms)" % [worst_ms, OLD_WORST_MS, int(0.4 * OLD_WORST_MS)])
 	ok(shown and (half or same) and end < start, "(b) one click: %d -> %d findings (>= 50%% down: %s; reaches the one-by-one count %d: %s)" % [
 		start, end, half, int(obo["end"]), same])
 
@@ -173,12 +181,15 @@ func _init() -> void:
 	undo0 = m.undo.size()
 	var c_ok := false
 	var steps_ok := false
+	var same_old := false
 	if fa != null and fa.is_visible_in_tree():
 		await push_click(fa)
 		while bool(m.get("_fixall_on")):
 			await process_frame
 		await idle(3)
 		steps_ok = m.undo.size() == undo0 + 1 and JSON.stringify(m.S.cards) != cards0
+		same_old = var_to_str(m.S.cards) == FileAccess.get_file_as_string(OLD_CARDS)
+		ok(same_old, "(g) the cards after Fix all equal the old code's (tests/data/fixall_axe_old.var, %d bytes)" % FileAccess.get_file_as_string(OLD_CARDS).length())
 		await key(KEY_Z, true)
 		c_ok = JSON.stringify(m.S.cards) == cards0
 	ok(c_ok and steps_ok, "(c) the run added one undo step (%s) and one Ctrl+Z restores the original cards exactly (%s)" % [steps_ok, c_ok])

@@ -199,28 +199,24 @@ static func _more_time(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	var m0 := S.move_time(c)
 	var bar: float = Rulebook.FIST_WARN if f["rule"] == "FIST SPEED" else Rulebook.AT.TIP_MAX.get(_kind(S, B), 40.0)
 	var v: float = f["v"]
-	var all := []
 	for k in 4:
 		S.cards[c]["move"] = S.move_time(c) * maxf(1.05, v / bar * 1.05)
-		all = Rulebook.check(S, B)
-		var left := all.filter(func(x): return x["rule"] == f["rule"] and x["card"] == c)
+		var left := Rulebook.check_some(S, B, [f["rule"]]).filter(func(x): return x["card"] == c)   # this rule alone: the loop's test
 		if left.is_empty():
 			break
 		v = left[0]["v"]
-	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": all}
+	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": Rulebook.check(S, B)}
 
 
 ## a swing that lasts too many frames: its card's move time x 0.85 until it is gone
 static func _quicker(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	var c: int = f["card"]
 	var m0 := S.move_time(c)
-	var all := []
 	for k in 4:
 		S.cards[c]["move"] = maxf(0.05, S.move_time(c) * 0.85)
-		all = Rulebook.check(S, B)
-		if all.filter(func(x): return x["rule"] == "STRIKE FRAMES" and x["card"] == c).is_empty():
+		if Rulebook.check_some(S, B, ["STRIKE FRAMES"]).filter(func(x): return x["card"] == c).is_empty():   # this rule alone: the loop's test
 			break
-	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": all}
+	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": Rulebook.check(S, B)}
 
 
 ## a dead stop between two fast moves (no spline): the card it stops at becomes a FLOW card (passed through)
@@ -292,7 +288,7 @@ static func _steady_head(f: Dictionary, S: Scene, B: Body, sm0: Dictionary) -> D
 		var k := (lo + hi) * 0.5
 		_put(S, B, c, a, b, k)
 		var sm := Rulebook.sample(S, B, sm0, w.x, w.y)
-		if Rulebook.check(S, B, sm).filter(func(x): return x["rule"] == "HEAD QUIET" and x["card"] == c).is_empty():
+		if Rulebook.head_quiet(S, sm).filter(func(x): return x["card"] == c).is_empty():   # the head rule alone (Rulebook.head_quiet)
 			best = k
 			lo = k   # quiet: try keeping more of the original
 		else:
