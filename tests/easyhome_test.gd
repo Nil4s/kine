@@ -2973,24 +2973,24 @@ func _init() -> void:
 	await idle(3)
 	home.card(2)
 	await idle(4)
-	var gap122 := 1e9
-	var at122 := -1.0
-	var L122: float = m.S.length()
-	var t122 := 0.0
-	while t122 <= L122 + 1e-6:
-		m.playhead = t122
-		m._ps().apply(m.B, t122)
+	var gap123 := 1e9
+	var at123 := -1.0
+	var L123: float = m.S.length()
+	var t123 := 0.0
+	while t123 <= L123 + 1e-6:
+		m.playhead = t123
+		m._ps().apply(m.B, t123)
 		m._refresh()
-		for hl122 in ["hand_l"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_l")):
-			var al122: Array = m.B.cap(hl122)
-			for hr122 in ["hand_r"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_r")):
-				var ar122: Array = m.B.cap(hr122)
-				var g122: float = Body.seg_seg(al122[0], al122[1], ar122[0], ar122[1]) - float(m.B.rad[hl122]) - float(m.B.rad[hr122])
-				if g122 < gap122:
-					gap122 = g122
-					at122 = t122
-		t122 += 1.0 / 30.0
-	ok(gap122 >= 0.01, "123. the Jump: the two hands' closest capsule gap over the clip %.1f cm at %.2f s (bar: >= 1 cm apart)" % [gap122 * 100.0, at122])
+		for hl123 in ["hand_l"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_l")):
+			var al123: Array = m.B.cap(hl123)
+			for hr123 in ["hand_r"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_r")):
+				var ar123: Array = m.B.cap(hr123)
+				var g123: float = Body.seg_seg(al123[0], al123[1], ar123[0], ar123[1]) - float(m.B.rad[hl123]) - float(m.B.rad[hr123])
+				if g123 < gap123:
+					gap123 = g123
+					at123 = t123
+		t123 += 1.0 / 30.0
+	ok(gap123 >= 0.01, "123. the Jump: the two hands' closest capsule gap over the clip %.1f cm at %.2f s (bar: >= 1 cm apart)" % [gap123 * 100.0, at123])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
