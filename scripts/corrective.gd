@@ -234,6 +234,20 @@ static func girthed(base: PackedVector3Array, sh: Array, lam: float) -> PackedVe
 
 
 ## the meshes to correct (each MeshInstance3D with a skin, a skeleton): remembers each one's rest mesh
+
+## the inputs of weights() and girth_shapes(): the joints' rest poses, the skin's binds, the mesh's surfaces (the cache key)
+static func _inputs(sk: Skeleton3D, skin: Skin, src: ArrayMesh) -> Array:
+	var rests := []
+	for b in sk.get_bone_count():
+		rests.append(sk.get_bone_rest(b))
+	var binds := []
+	for k in skin.get_bind_count():
+		binds.append([skin.get_bind_bone(k), skin.get_bind_name(k), skin.get_bind_pose(k)])
+	var surfs := []
+	for si in src.get_surface_count():
+		surfs.append(src.surface_get_arrays(si))
+	return [rests, binds, surfs]
+
 func attach(meshes: Array, sk: Skeleton3D) -> void:
 	_entries = []
 	_last = {}
@@ -244,10 +258,11 @@ func attach(meshes: Array, sk: Skeleton3D) -> void:
 		var src := m.mesh as ArrayMesh
 		var key := "%d|%s|%s" % [m.skin.get_instance_id(), str(_vcounts(src)), weld]
 		if not _wcache.has(key):
-			_wcache[key] = weights(sk, m.skin, src, weld)   # a split piece has the same skin and vertices as its source
+			# a split piece has the same skin and vertices as its source; the result is cached on its inputs (BodyCache)
+			_wcache[key] = BodyCache.fetch("weights", [_inputs(sk, m.skin, src), weld], func(): return weights(sk, m.skin, src, weld))
 		var wd: Array = _wcache[key]
 		if not _gcache.has(key):
-			_gcache[key] = girth_shapes(sk, m.skin, src)
+			_gcache[key] = BodyCache.fetch("girth", [_inputs(sk, m.skin, src)], func(): return girth_shapes(sk, m.skin, src))
 		var arrs := []
 		var flags := []
 		var mats := []
