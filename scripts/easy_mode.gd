@@ -51,6 +51,7 @@ const FRAME_STEP := 2       # the clip is sampled every 2nd frame: a frame moves
 const FRAME_SAMPLES := 24   # the most poses frame_clip samples (the click waits for them)
 const FRAME_FILL := 0.8     # Easy: the body's height (head to feet, radii in) as a share of the free rect's height: a beginner sees the move
 const FRAME_WIDTH := 0.9    # Easy: the body's widest reach as a share of the free rect's width
+const FRAME_MAX := 0.96     # Easy: the clip's TALLEST moment (hands overhead) at most this share of the free height
 var _track: Array = []      # Easy follow: the body's centre (Vector3) at each sample of the clip
 var _track_ks: Array = []   # the frame each _track entry is at
 var _frame_d := -1.0        # the distance frame_clip set for this clip (-1 = none yet)
@@ -386,6 +387,7 @@ func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back
 	# at every frame, and the look-at point follows the centre (follow_tick): a walk that travels stays big and in the free view.
 	var centres: Array = []
 	var tallest := 0.0
+	var heights: Array = []
 	var reach := 0.0
 	for k in ks:
 		m._ps().apply(m.B, float(k) / fps)
@@ -400,6 +402,7 @@ func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back
 		centres.append(c)
 		if lo.x < INF:
 			tallest = maxf(tallest, hi.y - lo.y)
+			heights.append(hi.y - lo.y)
 			for p in pts:
 				var flat := Vector2((p[0] as Vector3).x - c.x, (p[0] as Vector3).z - c.z)
 				reach = maxf(reach, flat.length() + float(p[1]))
@@ -407,8 +410,13 @@ func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back
 		m.B.set_state(keep)
 	else:
 		m._ps().apply(m.B, m.playhead)
-	# world units per px at the target: the body's height is FRAME_FILL of the free height, its width fits FRAME_WIDTH of the free width
-	var mpp := maxf(tallest / (FRAME_FILL * maxf(fr.size.y, 1.0)), 2.0 * reach / (FRAME_WIDTH * maxf(fr.size.x, 1.0)))
+	# world units per px at the target: the body's typical height is FRAME_FILL of the free height, its width fits FRAME_WIDTH of the free width
+	# The TYPICAL height (the median sample) is FRAME_FILL: a dance with the hands overhead for a beat is framed for the body
+	# most of the clip (the tallest moment framed at 80 % left the arms-down body at 67 %), and the tallest moment still fits
+	# (FRAME_MAX)
+	heights.sort()
+	var typical: float = heights[heights.size() / 2] if not heights.is_empty() else tallest
+	var mpp := maxf(maxf(typical / (FRAME_FILL * maxf(fr.size.y, 1.0)), tallest / (FRAME_MAX * maxf(fr.size.y, 1.0))), 2.0 * reach / (FRAME_WIDTH * maxf(fr.size.x, 1.0)))
 	mpp = maxf(mpp, 1e-4)
 	var tan_half: float = tan(deg_to_rad(m.cam.fov * 0.5))
 	_frame_d = mpp * vs.y / (2.0 * tan_half)
