@@ -1311,6 +1311,63 @@ func _init() -> void:
 	m._new_scene()
 	await idle(4)
 
+	# 55. THE COPY'S PROGRESS BAR (walk-through round, friction 6: no time left): while a copy runs, Easy shows a ProgressBar
+	# (eh_copy_bar) whose value rises; "about N s left" (eh_copy_left) shows only once 10 % is done; the bar and its line go when
+	# the copy finishes, and when the import bar's Cancel stops it
+	m._new_scene()
+	await idle(4)
+	var bar55 := m.find_child("eh_copy_bar", true, false) as ProgressBar
+	ok(bar55 != null, "55. Easy has the copy's progress bar (eh_copy_bar)")
+	var vals55 := []
+	var left_early := 0      # a frame with the 'left' line up below 10 %
+	var left_seen := 0       # frames with the line up
+	home.copy_video_file(fx)
+	var t55 := Time.get_ticks_msec()
+	while home._vid_busy and Time.get_ticks_msec() - t55 < 300000:
+		await process_frame
+		var b := m.find_child("eh_copy_bar", true, false) as ProgressBar
+		var lf := m.find_child("eh_copy_left", true, false) as Label
+		if b != null and b.is_visible_in_tree():
+			vals55.append(b.value)
+			if lf != null and lf.is_visible_in_tree():
+				left_seen += 1
+				if b.value < 10.0:
+					left_early += 1
+				if left_seen == 3:   # mid-copy, the bar and the time left on screen (the walk-through's look)
+					await process_frame
+					get_root().get_texture().get_image().save_png(shot_dir + "/easy_vid_progress.png")
+					print("55. screenshot mid-copy: %s (bar %.0f %%, %s)" % [shot_dir + "/easy_vid_progress.png", b.value, lf.text])
+	var rises55 := vals55.size() > 2 and float(vals55[-1]) > float(vals55[0])
+	var mono55 := true
+	for i in range(1, vals55.size()):
+		if float(vals55[i]) < float(vals55[i - 1]) - 0.001:
+			mono55 = false
+	ok(vals55.size() > 0, "55. the bar is visible while the copy runs (%d frames)" % vals55.size())
+	ok(rises55 and mono55, "55. the bar's value rises (first %.1f, last %.1f, never back: %s)" % [float(vals55[0]) if vals55.size() > 0 else -1.0, float(vals55[-1]) if vals55.size() > 0 else -1.0, str(mono55)])
+	ok(left_seen > 0, "55. 'about N s left' shows during the copy (%d frames)" % left_seen)
+	ok(left_early == 0, "55. no 'left' line below 10 %% (%d frames early)" % left_early)
+	await idle(8)
+	var b55f := m.find_child("eh_copy_bar", true, false) as ProgressBar
+	ok(b55f == null or not b55f.is_visible_in_tree(), "55. the bar is gone after the copy finished")
+	# the cancel: a copy stopped by its Cancel takes the bar away too
+	home.copy_video_file(fx)   # the scene has the copied cards, unsaved: the question comes first (section 41), Replace starts the copy
+	await wait_ms(600)
+	home.call("copy_choose", "replace")
+	await wait_ms(1500)
+	var cn55: Button = m._imp_cancel_btn   # the one Cancel on screen during a copy: main's import bar's (Easy's bar has none: easyvid test 10)
+	var up55: bool = cn55 != null and cn55.is_visible_in_tree()
+	ok(up55, "55. the copy's Cancel (the import bar's) is on screen while it runs")
+	if up55:
+		await click_ctl(cn55)
+	var tc55 := Time.get_ticks_msec()
+	while home._vid_busy and Time.get_ticks_msec() - tc55 < 60000:
+		await process_frame
+	await idle(8)
+	var b55c := m.find_child("eh_copy_bar", true, false) as ProgressBar
+	ok(not home._vid_busy and (b55c == null or not b55c.is_visible_in_tree()), "55. Cancel stops the copy and takes the bar away")
+	m._new_scene()
+	await idle(4)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()

@@ -72,6 +72,11 @@ var _vid_refused := false     # a second copy was refused while this one runs: t
 var _vid_landed := false      # Add after: the copy's cards are in the open scene (_land_added); the next tick finishes it
 var _copy_ask: ConfirmationDialog   # the unsaved open scene's question before a copy: Replace / Add after / Cancel
 var _copy_path := ""          # the video the question is about ("" = no question up)
+var _copy_box: PanelContainer # COPY PROGRESS (walk-through friction 6: no time left): Easy's bar for a copy, under the Easy bar; shown only while it runs
+var _copy_bar: ProgressBar    # the copy's whole progress: the read is the first half, the fit the second
+var _copy_left: Label         # "about N s left": shown once COPY_LEFT_MIN % is done (the estimate is the elapsed time scaled to the rest)
+var _vid_t0 := 0              # msec when the copy began (the time-left estimate)
+const COPY_LEFT_MIN := 10.0   # percent done before the time-left line shows (before it the estimate is a guess)
 var _vid_said := ""           # the say line's opening words for the landed clip ("Copied clip.mp4" / "Made \"swing...\"")
 var _gen_on := false          # MAKE IT WITH AI VIDEO: main's gen_move (scripts/gen_move.gd) is making the clip
 var _gen_words := ""          # the typed words Kine could not build: the button under the message makes them as a video
@@ -301,6 +306,30 @@ func build(root: Control) -> void:
 	_pbar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_pbar.add_theme_stylebox_override("panel", st)
 	root.add_child(_pbar)
+	# COPY PROGRESS: the bar and its time-left line, under main's import bar (its Cancel is the copy's one: one Cancel on screen)
+	_copy_box = PanelContainer.new()
+	_copy_box.name = "eh_copy_box"
+	_copy_box.visible = false
+	_copy_box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_copy_box.offset_top = float(82 + 84)   # under main's top import bar (its panel is TOP_H + 14 high 70): the two stack, neither covers the other
+	_copy_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_copy_box.add_theme_stylebox_override("panel", st)
+	root.add_child(_copy_box)
+	var cbv := VBoxContainer.new()
+	cbv.add_theme_constant_override("separation", 6)
+	_copy_box.add_child(cbv)
+	_copy_bar = ProgressBar.new()
+	_copy_bar.name = "eh_copy_bar"
+	_copy_bar.min_value = 0.0
+	_copy_bar.max_value = 100.0
+	_copy_bar.show_percentage = true
+	_copy_bar.custom_minimum_size = Vector2(360, 28)
+	_copy_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cbv.add_child(_copy_bar)
+	_copy_left = _label("", 15, "text")
+	_copy_left.name = "eh_copy_left"
+	_copy_left.visible = false
+	cbv.add_child(_copy_left)
 	var pr := VBoxContainer.new()   # a column under Front / Side / Back: a row across the view covered his hips at 1280x720
 	pr.add_theme_constant_override("separation", 6)
 	_pbar.add_child(pr)
@@ -394,7 +423,8 @@ func _process(dt: float) -> void:
 		panel.position = Vector2(PANEL_LEFT, maxf(top, top + (low - top - panel.size.y) * 0.5))
 	# the toast sits above the welcome line (which runs the width of the view), so it never covers the line, the status or the strip
 	_toast.offset_bottom = -(float(m.bottom_h) + float(m.LINE_H) + float(MouseHint.H) + 14.0)
-	strip.visible = on and not (empty or _open or _gen_on) and _built and not lib   # the open library covers the strip's place too: one at a time
+	_copy_box.visible = on and _copying()   # the copy's bar (the strip's place while a copy runs is the bar's)
+	strip.visible = on and not (empty or _open or _gen_on or _copying()) and _built and not lib   # the open library covers the strip's place too: one at a time
 	_refresh_next()
 	if not on:
 		_toast.visible = false
@@ -1028,6 +1058,9 @@ func _start_copy(path: String, add: bool) -> void:
 	_vid_cancel = false
 	_vid_refused = false
 	_vid_landed = false
+	_vid_t0 = Time.get_ticks_msec()
+	_copy_bar.value = 0.0
+	_copy_left.visible = false
 	panel.visible = false   # the picker goes at once (_process sets it again each frame: _copying keeps it away)
 	_vid_before = String(m.scene_path)
 	_vid_said = "Copied %s" % path.get_file()
@@ -1066,6 +1099,7 @@ func _video_tick() -> void:
 		var f := _tracker_progress()
 		var words := "Reading your video: %d %%" % roundi(f * 100.0) if f >= 0.0 else "Reading your video..."
 		m._say_plain(_copy_say(words))
+		_copy_show(f * 0.5 if f >= 0.0 else 0.0, words)
 		if m._imp_lbl != null:   # the top bar's line (main's _imp_show named it "tracking <file>" for Expert)
 			m._imp_lbl.text = words
 		if m._imp_bar != null and f >= 0.0:   # its own percent follows the same read (main's _video_bar runs only every 4th of a second)
@@ -1075,6 +1109,7 @@ func _video_tick() -> void:
 		if bool(m._imp.get("cancel", false)):
 			_vid_cancel = true
 		m._say_plain(_copy_say("Fitting the moves to the body: %d %%" % roundi(VideoIQ.progress * 100.0)))
+		_copy_show(0.5 + VideoIQ.progress * 0.5, "Fitting the moves to the body")
 		return
 	if String(m.scene_path) != _vid_before and not m.S.cards.is_empty():
 		_vid_busy = false
@@ -1096,6 +1131,20 @@ func _video_tick() -> void:
 ## the bar's line while a copy runs: after a refused second copy it names the first one as still going
 func _copy_say(words: String) -> String:
 	return ("Still copying the first video: " + words) if _vid_refused else words
+
+
+## Easy's copy bar: frac = the whole copy's fraction (0..1; the read is the first half, the fit the second). Once COPY_LEFT_MIN % is
+## done, "about N s left" = the elapsed time scaled to the rest; before that the line stays hidden (too early to guess)
+func _copy_show(frac: float, words: String) -> void:
+	var done := maxf(clampf(frac, 0.0, 1.0), _copy_bar.value / 100.0)   # never back: a tracker read that is not written yet is no 0 %
+	_copy_bar.value = done * 100.0
+	_copy_bar.tooltip_text = words
+	if done * 100.0 >= COPY_LEFT_MIN:
+		var secs := (Time.get_ticks_msec() - _vid_t0) / 1000.0
+		_copy_left.text = "about %d s left" % maxi(1, roundi(secs * (1.0 - done) / done))
+		_copy_left.visible = true
+	else:
+		_copy_left.visible = false
 
 
 ## the tracker's fraction read (tools/see_video.py --progress), or -1 when none is written yet
