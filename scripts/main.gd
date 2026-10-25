@@ -5363,6 +5363,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
+		if mb.pressed and easy != null and easy.sliders != null and easy.sliders.hit(mb.position):
+			return   # EASY SIDE SLIDERS: a press on that panel belongs to its slider, not to the body behind it
 		if mb.pressed and vx != null:
 			vx.press(mb.position)   # K14: a press on the perspective pane makes it the active one
 		if mb.pressed and ui_cmd.visible:
@@ -5410,6 +5412,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					sel_prop = -1
 					_props_show()
 				redspots.press(j, mb.position, playhead)   # N074: a glowing part opens its finding and Fix (the press goes on)
+				if easy != null and easy.sliders != null:
+					easy.sliders.part_picked(j)   # EASY SIDE SLIDERS: the part's panel opens; a press on nothing shuts it ("" = nothing picked)
 				if j != "" and locked_parts.has(j):   # LOCKED (round 26, GG3): picked, never grabbed; no undo step
 					sel = j
 					playing = false
