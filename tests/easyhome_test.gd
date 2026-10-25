@@ -1,5 +1,9 @@
 ## godot --path . -s tests/easyhome_test.gd     (EASY HOME, "monkey brain easy": the empty scene's picture panel; needs a window)
 ## BARS (stated before measuring):
+##  24. From a video: a visible button on the empty panel and on the copied clip's strip, the same action as More > Copy a video.
+##  25. Trim: Cut start / Cut end drop the cards before / after the picked card; one undo step each; Ctrl+Z restores; the clip plays.
+##  26. Smoother: a visible button; mean per-frame hand acceleration goes down; one undo step; Ctrl+Z restores; the status says so.
+##  27. No red contact tint (pick_touch) in Easy on a typed clip or a copied clip (Expert keeps it).
 ##  1. Easy with an empty scene shows the "What should he do?" panel (8 picture cards and the text box); Expert shows none.
 ##  2. Every card builds a non-empty clip that plays (walk, run, jump, punch, sit down, wave from templates/; kick = "roundhouse" by
 ##     TextBlocking). Fall builds too (the fall template: a backward breakfall).
@@ -25,6 +29,7 @@
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
+const FIX := "C:/Users/Nick/Desktop/poser/.claude/worktrees/w4-easyvid2/tests/data/see_video_crop_small.mp4"
 const BUILDS := [0, 1, 2, 3, 4, 5, 6, 7]   # the cards that build: walk, run, jump, punch, kick, sit down, wave, fall
 const BAR_MS := 2000
 const FAST_MS := 500     # bar 7: every card's click to its first moving frame (a beginner thinks a slower one froze)
@@ -152,6 +157,75 @@ func drag_part(j: String, d: Vector2) -> void:
 	up.global_position = p + d
 	root.push_input(up)
 	await idle(3)
+
+
+
+## the mean per-frame acceleration of both hands (m/frame^2) over the built clip at 30 frames a second (the walk driver's sampling)
+func hand_accel() -> float:
+	var ps = m._ps()
+	var n := int(ceil(m.S.length() * 30.0))
+	var hp: Array = []
+	for i in n + 1:
+		m.playhead = float(i) / 30.0
+		ps.apply(m.B, ps.play_t(m.playhead))
+		await idle(1)
+		var hr: Array = m.B.cap("hand_r")
+		var hl: Array = m.B.cap("hand_l")
+		hp.append([(hr[0] + hr[1]) * 0.5, (hl[0] + hl[1]) * 0.5])
+	var tot := 0.0
+	var cnt := 0
+	for i in range(2, hp.size()):
+		for h in 2:
+			tot += ((hp[i][h] - 2.0 * hp[i - 1][h] + hp[i - 2][h]) as Vector3).length()
+			cnt += 1
+	return tot / maxf(1.0, float(cnt))
+
+
+## frames (of 6 across the clip) on which a body part is drawn in the contact (touch) red
+func red_frames() -> int:
+	var ps = m._ps()
+	var L: float = m.S.length()
+	var hits := 0
+	for k in 6:
+		m.playhead = L * (float(k) + 0.5) / 6.0
+		ps.apply(m.B, ps.play_t(m.playhead))
+		m._refresh()
+		await idle(3)
+		if _has_red():
+			hits += 1
+	return hits
+
+
+func _has_red() -> bool:
+	for j in Body.ORDER:
+		var c: Color = m.skin_col(j)
+		if c.a > 0.05 and c.r > 0.9 and c.g < 0.45 and c.b < 0.45:
+			return true
+	return false
+
+
+## red_frames for a copied clip (the scene is played from its start, the samples read as it goes)
+func red_while_playing() -> int:
+	var hits := 0
+	for k in 6:
+		m.playhead = m.S.length() * (float(k) + 0.5) / 6.0
+		m._refresh()
+		await idle(3)
+		if _has_red():
+			hits += 1
+	return hits
+
+
+## the copy runs in the background: wait (up to a bound) until Easy says it is over
+func wait_copy(limit := 3000) -> bool:
+	var seen := false
+	for i in limit:
+		if String(m.ui_status.text).contains("%"):
+			seen = true
+		if not m.easy.home._vid_busy:
+			return seen
+		await process_frame
+	return seen
 
 
 func _init() -> void:
@@ -765,6 +839,94 @@ func _init() -> void:
 	var r_typed: int = rows23.call()
 	ok(r_strip <= 1 and r_picker <= 1 and r_typed <= 1,
 		"23. at most one 'Then' row on screen: strip %d, picker over a clip %d, typed line kine cannot build %d" % [r_strip, r_picker, r_typed])
+	m._new_scene()
+	await idle(4)
+
+	# 24. FROM A VIDEO ON EASY'S OWN SURFACE (video walk-through round 6, goal 1): the empty scene's panel and a built clip's strip each
+	# have a visible "From a video" button whose press is the same action as More > Copy a video (home.copy_video)
+	m._new_scene()
+	await idle(4)
+	var fv_panel := home.panel.find_child("eh_from_video", true, false) as Button
+	var fv_strip := home.strip.find_child("eh_from_video_strip", true, false) as Button
+	ok(fv_panel != null and fv_panel.is_visible_in_tree(), "24. the empty scene's panel shows a 'From a video' button")
+	ok(fv_panel != null and fv_panel.pressed.get_connections().size() > 0 and fv_panel.pressed.get_connections()[0]["callable"] == Callable(home, "copy_video"),
+		"24. 'From a video' (panel) calls the same action as More > Copy a video")
+	home.copy_video_file(FIX)
+	await wait_copy(4000)
+	await idle(6)
+	fv_strip = home.strip.find_child("eh_from_video_strip", true, false) as Button
+	ok(fv_strip != null and fv_strip.is_visible_in_tree(), "24. the copied clip's strip shows a 'From a video' button")
+	ok(fv_strip != null and fv_strip.pressed.get_connections().size() > 0 and fv_strip.pressed.get_connections()[0]["callable"] == Callable(home, "copy_video"),
+		"24. 'From a video' (strip) calls the same action as More > Copy a video")
+
+	# 25. TRIM (goal 4): the picked card is where the good part starts: Cut start drops the cards before it; Cut end drops the
+	# cards after it. One undo step each; Ctrl+Z (undo) gives the cards back; the clip still plays from its new start
+	var n25: int = m.S.cards.size()
+	ok(n25 >= 4, "25. the copied clip has 4+ cards to trim (%d)" % n25)
+	await click_ctl(pick_btn(2))
+	await idle(2)
+	var u25: int = m.undo.size()   # after the pick: a pick is an undo step of its own
+	var cut_s := home.strip.find_child("eh_cut_start", true, false) as Button
+	ok(cut_s != null and cut_s.is_visible_in_tree(), "25. a visible 'Cut start' button on the strip")
+	if cut_s != null:
+		await click_ctl(cut_s)
+	await idle(6)
+	ok(m.S.cards.size() == n25 - 2, "25. Cut start (picked card 3) leaves %d cards, was %d: %d" % [n25 - 2, n25, m.S.cards.size()])
+	ok(m.undo.size() == u25 + 1, "25. Cut start is one undo step (undo %d -> %d)" % [u25, m.undo.size()])
+	home._play()
+	ok(await wait_playing(), "25. the trimmed clip plays from its new start")
+	m._undo()
+	await idle(6)
+	ok(m.S.cards.size() == n25, "25. Ctrl+Z gives back the cut cards (%d)" % m.S.cards.size())
+	await click_ctl(pick_btn(2))
+	await idle(2)
+	u25 = m.undo.size()
+	var cut_e := home.strip.find_child("eh_cut_end", true, false) as Button
+	ok(cut_e != null and cut_e.is_visible_in_tree(), "25. a visible 'Cut end' button on the strip")
+	if cut_e != null:
+		await click_ctl(cut_e)
+	await idle(6)
+	ok(m.S.cards.size() == 3, "25. Cut end (picked card 3) leaves 3 cards: %d" % m.S.cards.size())
+	ok(m.undo.size() == u25 + 1, "25. Cut end is one undo step too")
+	m._undo()
+	await idle(6)
+	ok(m.S.cards.size() == n25, "25. Ctrl+Z after Cut end gives the cards back")
+
+	# 26. SMOOTHER (goal 5): each press smooths the copied motion one step: the mean per-frame hand acceleration goes down, one undo step,
+	# and the status line says what changed
+	var a0: float = await hand_accel()
+	var u26: int = m.undo.size()
+	var sm := home.strip.find_child("eh_smoother", true, false) as Button
+	ok(sm != null and sm.is_visible_in_tree(), "26. a visible 'Smoother' button on the strip")
+	if sm != null:
+		await click_ctl(sm)
+	await idle(6)
+	var a1: float = await hand_accel()
+	print("   hand acceleration mean: %.5f -> %.5f m/frame^2" % [a0, a1])
+	ok(a1 < a0 * 0.98, "26. Smoother lowers the mean hand acceleration (%.5f -> %.5f)" % [a0, a1])
+	ok(m.undo.size() == u26 + 1, "26. Smoother is one undo step")
+	ok("smooth" in String(m.ui_status.text).to_lower(), "26. the status line says what Smoother did: '%s'" % m.ui_status.text)
+	m._undo()
+	await idle(6)
+	var a2: float = await hand_accel()
+	ok(absf(a2 - a0) < 0.0005, "26. Ctrl+Z puts the motion back (%.5f, was %.5f)" % [a2, a0])
+
+	# 27. NO RED TINT IN EASY (goal 9): the red on torso and thighs is the contact warning (pick_touch). Easy does not show it, on a
+	# copied clip or on a typed clip; Expert keeps it (checked on the same clip)
+	m._new_scene()
+	await idle(4)
+	home._edit.text = "swing"
+	home._words("swing")
+	await idle(6)
+	var red_typed: int = await red_frames()
+	ok(red_typed == 0, "27. a typed 'swing' in Easy: no red contact tint on the body (%d of 6 frames with red)" % red_typed)
+	m._new_scene()
+	await idle(4)
+	home.copy_video_file(FIX)
+	await wait_copy(4000)
+	await idle(6)
+	var red27: int = await red_while_playing()
+	ok(red27 == 0, "27. a copied clip in Easy: no red contact tint while it plays (%d samples with red)" % red27)
 	m._new_scene()
 	await idle(4)
 

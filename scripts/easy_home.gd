@@ -200,6 +200,14 @@ func build(root: Control) -> void:
 		_try_row.add_child(tb)
 	_try_row.visible = false
 	v.add_child(_try_row)
+	var fv := Button.new()   # FROM A VIDEO on Easy's own panel (video walk-through round 6, goal 1): the same action as More > Copy a video
+	fv.name = "eh_from_video"
+	fv.text = "From a video"
+	fv.focus_mode = Control.FOCUS_NONE
+	fv.tooltip_text = "turn a video of one person into a move: pick the file (the same as More > Copy a video)"
+	fv.add_theme_font_size_override("font_size", 18)
+	fv.pressed.connect(copy_video)
+	v.add_child(fv)
 	v.add_child(_make_btn)   # under the Or try row: the instant moves first, the 3-minute AI take after (walk-through round 4)
 	_ai_no = _label(AI_NO, 15, "warn")
 	_ai_no.name = "eh_ai_no"
@@ -256,6 +264,15 @@ func build(root: Control) -> void:
 	_sit_strip = _strip_button("eh_sit_strip", "Sit on it", "seat him on the chair, stool or bench you picked (one undo step)", sit_on_chair, Vector2(150, 56), 22)
 	_sit_strip.visible = false
 	row.add_child(_sit_strip)
+	# the second row: the copy's own tools (video walk-through round 6): From a video, Cut start / Cut end, Smoother
+	var fix := HBoxContainer.new()
+	fix.name = "eh_fix"
+	fix.add_theme_constant_override("separation", 8)
+	sv.add_child(fix)
+	fix.add_child(_strip_button("eh_from_video_strip", "From a video", "turn a video of one person into a move: pick the file (the same as More > Copy a video)", copy_video, Vector2(170, 56), 22))
+	fix.add_child(_strip_button("eh_cut_start", "Cut start", "drop the cards before the picked card: the clip starts there (one undo step)", trim.bind(true), Vector2(150, 56), 22))
+	fix.add_child(_strip_button("eh_cut_end", "Cut end", "drop the cards after the picked card: the clip ends there (one undo step)", trim.bind(false), Vector2(150, 56), 22))
+	fix.add_child(_strip_button("eh_smoother", "Smoother", "smooth the motion one step: each pose blends with its neighbours (one undo step)", smooth, Vector2(170, 56), 22))
 	# no Save video here: the Easy bar has it (two buttons with one label confused the monkey test's beginner)
 	_toast = PanelContainer.new()
 	_toast.name = "easy_toast"
@@ -1139,6 +1156,73 @@ func tweak(how: String) -> void:
 		var pct := roundi(absf(k - 1.0) * 100.0)
 		said = "%s: %s now moves %d %% %s." % [how.capitalize(), _clip_word, pct, "further" if k > 1.0 else "less"]
 	m._say_plain(said)
+	_play()
+	m.easy.frame_clip_next()
+
+
+## CUT START / CUT END (video walk-through round 6, goal 4): the picked card is where the good part starts (Cut start drops the
+## cards before it) or ends (Cut end drops the cards after it). One undo step; the clip plays again from its new start. It keeps 2+ cards.
+func trim(start: bool) -> void:
+	_drop_saved_toast()
+	if _gen_on or _vid_busy or m._imp_busy():
+		m._say_plain(GEN_BUSY)
+		return
+	var S: Scene = m.S
+	var n: int = S.cards.size()
+	var i: int = m.sel_card
+	var word := "starts" if start else "ends"
+	if n < 3:
+		m._say_plain("Nothing to cut: the clip needs 3 or more cards.")
+		return
+	if i < 0 or i >= n:
+		m._say_plain("Click the card where the good part %s on the strip, then press %s." % [word, "Cut start" if start else "Cut end"])
+		return
+	var drop: Array = range(0, i) if start else range(i + 1, n)
+	if drop.is_empty():
+		m._say_plain("The clip already %s here: pick a card further in." % word)
+		return
+	if n - drop.size() < 2:
+		m._say_plain("That would leave one card: pick a card further %s." % ("in" if start else "back"))
+		return
+	m._step_hint = "Cut start" if start else "Cut end"
+	m._step_easy = m._step_hint
+	m._push_undo()
+	for k in drop.size():
+		S.cards.remove_at(drop[drop.size() - 1 - k])
+	m.sel_card = 0 if start else i
+	m.msel = []
+	m.sel_end = -1
+	m.playhead = 0.0
+	m._retimed()
+	m._step_easy = ""
+	m._say_plain("Cut %s: %s is now %d cards, %.1f s. Undo takes the cut back." % ["the start" if start else "the end", _clip_word, S.cards.size(), S.length()])
+	_play()
+	m.easy.frame_clip_next()
+
+
+## SMOOTHER (video walk-through round 6, goal 5): one press smooths the clip one step (EasyTweak.smoothed). One undo step; the clip
+## plays again from its start; the status line says what it did.
+func smooth() -> void:
+	_drop_saved_toast()
+	if _gen_on or _vid_busy or m._imp_busy():
+		m._say_plain(GEN_BUSY)
+		return
+	var S: Scene = m.S
+	if S.cards.size() < 3:
+		m._say_plain("Nothing to smooth yet: the clip needs 3 or more cards.")
+		return
+	var poses := EasyTweak.smoothed(S, m.B)
+	if poses.is_empty():
+		m._say_plain("Nothing to smooth: the clip has no poses to blend.")
+		return
+	m._step_hint = "Smoother"
+	m._step_easy = "Smoother"
+	m._push_undo()
+	for i in poses:
+		S.cards[i]["pose"] = poses[i]
+	m._retimed()
+	m._step_easy = ""
+	m._say_plain("Smoother: %s is smoother now (each pose blends with its neighbours). Smoother again smooths it more; Undo takes it back." % _clip_word)
 	_play()
 	m.easy.frame_clip_next()
 
