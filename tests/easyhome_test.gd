@@ -52,6 +52,12 @@
 ##  52. THEN STAND UP: after a sit the Then row offers "Then stand up" first, and its press builds the stand-up move.
 ##  53. UNDO IN EASY: a 3-step sequence (Walk, Then wave, Bigger): each Undo changes the card list (count or the cards' poses), and
 ##      the status names the step it took back. Old code: the first Undo here took the same step, unnamed by the strip.
+##  75. THE SCRUB (walk-through: "no scrubber in Easy"): an empty scene hides the slider "eh_scrub"; a built walk shows it in the strip.
+##  76. DRAG TO THE MIDDLE: a real press at the slider's middle while the walk plays stops the play and poses the body at half the
+##      clip (the pelvis is where _ps().apply(B, half) puts it, and not at the start).
+##  77. PLAYING MOVES IT: while the clip plays the slider follows the playhead (its value moves, it matches the playhead).
+##  78. THE LABEL: "eh_scrub_time" reads "<t> s / <len> s" (t follows the slider; len is the clip's length).
+##  79. THE GRAB AREA: the slider is at least 28 px tall (global rect) at 1280x720.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -1526,6 +1532,67 @@ func _init() -> void:
 	ok("took back" in String(names53[0]).to_lower() and "bigger" in String(names53[0]).to_lower(), "53. the first Undo names Bigger in the status: '%s'" % names53[0])
 	ok("wave" in String(names53[1]).to_lower(), "53. the second Undo names the wave: '%s'" % names53[1])
 	ok("walk" in String(names53[2]).to_lower(), "53. the third Undo names the walk: '%s'" % names53[2])
+
+	# 75-79. THE SCRUB: a slider in the strip, hidden on an empty scene, shown once a clip is built
+	m._new_scene()
+	await idle(4)
+	var sc75 := home.strip.find_child("eh_scrub", true, false) as HSlider
+	ok(sc75 != null and not sc75.is_visible_in_tree(), "75. the scrub is hidden on an empty scene (slider %s)" % ("none" if sc75 == null else str(sc75.is_visible_in_tree())))
+	await click_ctl(card_btn(0))
+	await idle(6)
+	sc75 = home.strip.find_child("eh_scrub", true, false) as HSlider
+	var len75: float = m._ps().length()
+	ok(sc75 != null and sc75.is_visible_in_tree() and home.strip.visible, "75. after a walk the scrub shows in the strip (slider %s)" % ("none" if sc75 == null else str(sc75.is_visible_in_tree())))
+	if sc75 != null:
+		ok(sc75.get_global_rect().size.y >= 28.0, "79. the slider is at least 28 px tall (%.0f px)" % sc75.get_global_rect().size.y)
+	else:
+		ok(false, "79. the slider is at least 28 px tall (no slider)")
+	# 76. a real press at the slider's middle while the walk plays: the play stops, the body poses at half the clip
+	if not m.playing:
+		m._toggle_play()
+	var played76 := await wait_playing()
+	if sc75 != null and played76:
+		var r76 := sc75.get_global_rect()
+		await click_at(Vector2(r76.position.x + r76.size.x * 0.5, r76.get_center().y))
+		await idle(4)
+		var v76: float = sc75.value
+		await RenderingServer.frame_post_draw
+		var shot76 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easy_scrub.png"
+		DirAccess.make_dir_recursive_absolute(shot76.get_base_dir())
+		var img76 := root.get_texture().get_image()
+		if img76 != null:
+			img76.save_png(shot76)
+			print("   scrub screenshot: " + shot76)
+		ok(not m.playing and absf(v76 - len75 * 0.5) < 0.03 * len75, "76. a press at the middle stops the play and sets the time to half the clip (%.2f s of %.2f s; playing %s)" % [v76, len75, str(m.playing)])
+		var got76: Vector3 = (m.B.cap("pelvis")[0] + m.B.cap("pelvis")[1]) * 0.5
+		m._ps().apply(m.B, v76)   # the same pose a scrub to that time gives
+		var want76: Vector3 = (m.B.cap("pelvis")[0] + m.B.cap("pelvis")[1]) * 0.5
+		m._ps().apply(m.B, 0.0)
+		var start76: Vector3 = (m.B.cap("pelvis")[0] + m.B.cap("pelvis")[1]) * 0.5
+		ok(got76.distance_to(want76) < 0.005 and got76.distance_to(start76) > 0.01, "76. the body stands at that time: pelvis %s, the pose at %.2f s %s, the start %s" % [str(got76), v76, str(want76), str(start76)])
+		m._ps().apply(m.B, v76)
+		m._refresh()
+	else:
+		ok(false, "76. a press at the middle stops the play and sets the time to half the clip (no slider or no play)")
+		ok(false, "76. the body stands at that time (no slider or no play)")
+	# 77. playing moves the slider (its value follows the playhead)
+	if sc75 != null:
+		if not m.playing:
+			m._toggle_play()
+		await wait_playing()
+		var va77: float = sc75.value
+		await idle(20)
+		var vb77: float = sc75.value
+		ok(vb77 > va77 + 0.05 and absf(vb77 - clampf(m.playhead, 0.0, len75)) < 0.05, "77. while playing the slider moves with the playhead (%.2f -> %.2f s, playhead %.2f s)" % [va77, vb77, m.playhead])
+		if m.playing:
+			m._toggle_play()
+		# 78. the label: "t s / len s"
+		var lbl78 := home.strip.find_child("eh_scrub_time", true, false) as Label
+		var parts78 := lbl78.text.split(" s / ") if lbl78 != null else PackedStringArray()
+		ok(parts78.size() == 2 and absf(float(parts78[0]) - sc75.value) < 0.1 and lbl78.text.ends_with("%.1f s" % len75), "78. the label reads 'time s / length s': '%s' (slider %.2f, length %.2f)" % [lbl78.text if lbl78 != null else "none", sc75.value, len75])
+	else:
+		ok(false, "77. while playing the slider moves with the playhead (no slider)")
+		ok(false, "78. the label reads 'time s / length s' (no slider)")
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

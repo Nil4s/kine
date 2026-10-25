@@ -98,6 +98,10 @@ var _next_btns: Array = []    # the three buttons of _next_row (eh_next_0 .. eh_
 var _next_list: Array = []    # the catalog entries those buttons offer, in order (the press adds that move after the clip)
 var _hist: Array = []         # [undo depth, move id] for each move built or added here: the last one is the move at the scene's end
 var _row_key := ""            # the ids the row shows now: the row is redrawn only when they change
+var _scrub_row: HBoxContainer # THE SCRUB (strip's last row): the slider over the clip's length, and its time beside it
+var _scrub: HSlider           # eh_scrub: dragging it stops play and poses the body at that time (as the timeline's scrub does)
+var _scrub_time: Label       # eh_scrub_time: "1.2 s / 4.0 s"
+var _scrub_sync := false      # true while _process moves the slider to the playhead (that move is not a drag)
 var _help_on := false          # the panel shows the help text in place of the picture cards (Help, or the strip's Help)
 var _help_lbl: Label
 var _help_tour: Button
@@ -299,6 +303,27 @@ func build(root: Control) -> void:
 	fix.add_child(_strip_button("eh_cut_start", "Cut start", "drop the cards before the picked card: the clip starts there (one undo step)", trim.bind(true), Vector2(150, 56), 22))
 	fix.add_child(_strip_button("eh_cut_end", "Cut end", "drop the cards after the picked card: the clip ends there (one undo step)", trim.bind(false), Vector2(150, 56), 22))
 	fix.add_child(_strip_button("eh_smoother", "Smoother", "smooth the motion one step: each pose blends with its neighbours (one undo step)", smooth, Vector2(170, 56), 22))
+	# THE SCRUB (walk-through: "no scrubber in Easy"): the third row, shown with a clip built; drag to pick the moment
+	_scrub_row = HBoxContainer.new()
+	_scrub_row.name = "eh_scrub_row"
+	_scrub_row.add_theme_constant_override("separation", 12)
+	_scrub_row.visible = false
+	sv.add_child(_scrub_row)
+	_scrub = HSlider.new()
+	_scrub.name = "eh_scrub"
+	_scrub.min_value = 0.0
+	_scrub.max_value = 1.0
+	_scrub.step = 0.0
+	_scrub.focus_mode = Control.FOCUS_NONE
+	_scrub.custom_minimum_size = Vector2(520, 32)   # a big grab area: 32 px tall
+	_scrub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scrub.tooltip_text = "drag to pick a moment of the clip: he stops and stands at that moment"
+	_scrub.value_changed.connect(_scrub_moved)
+	_scrub_row.add_child(_scrub)
+	_scrub_time = _label("0.0 s / 0.0 s", 20, "text")
+	_scrub_time.name = "eh_scrub_time"
+	_scrub_time.custom_minimum_size.x = 170
+	_scrub_row.add_child(_scrub_time)
 	# no Save video here: the Easy bar has it (two buttons with one label confused the monkey test's beginner)
 	_pbar = PanelContainer.new()
 	_pbar.name = "easy_prop_bar"
@@ -462,6 +487,7 @@ func _process(dt: float) -> void:
 	_sit_btn.visible = sit_ready() and not _help_on   # a chair, stool or bench is picked: he can sit on it
 	_prop_bar_update()
 	_sit_strip.visible = sit_ready()
+	_scrub_show()
 	_try_row.visible = typed_gap and not _help_on   # the same moves as the cards, one click each
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
@@ -496,6 +522,8 @@ func _prop_bar_update() -> void:
 	var top := float(m.TOP_H) + 8.0
 	if views != null and views.visible:
 		top = views.get_global_rect().end.y + 8.0
+	if strip.visible:   # the strip (its scrub row too) is taller than the views' place: the bar sits under it, never under the strip
+		top = maxf(top, strip.get_global_rect().end.y + 8.0)
 	_pbar.position = Vector2(vs.x - _pbar.size.x - 12.0, top)
 
 
@@ -673,6 +701,34 @@ func _refresh_next() -> void:
 		_row_h = h
 		if shown_on and m.S.cards.size() > 0:
 			m.easy.frame_clip_next()
+
+
+## THE SCRUB: the slider's row is shown while a clip is built (the strip shows it); while the clip plays or the playhead
+## moves, the slider follows it. Its value moves only from the playhead here (_scrub_sync), so only a real drag scrubs.
+func _scrub_show() -> void:
+	_scrub_row.visible = m.easy.on and not m.S.cards.is_empty()
+	if not _scrub_row.visible:
+		return
+	var len: float = maxf(m._ps().length(), 0.01)
+	var t: float = clampf(m.playhead, 0.0, len)
+	_scrub_sync = true
+	if not is_equal_approx(_scrub.max_value, len):
+		_scrub.max_value = len
+	_scrub.value = t
+	_scrub_sync = false
+	_scrub_time.text = "%.1f s / %.1f s" % [t, len]
+
+
+## the slider moved by a drag: the clip stops and the body poses at that time (the timeline's scrub, in the same order)
+func _scrub_moved(v: float) -> void:
+	if _scrub_sync or m == null:
+		return
+	m.playing = false
+	m.playhead = v
+	m._ps().apply(m.B, m.playhead)
+	m._audio_scrub()
+	m._refresh()
+	_scrub_show()
 
 
 ## a "Then <move>" button: the move is added after the clip, as Add after does
