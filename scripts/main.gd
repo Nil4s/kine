@@ -17380,30 +17380,17 @@ func _fix_all() -> void:
 		await get_tree().process_frame
 		if _fixall_stop:
 			break
-		# the fix runs on a worker thread, on a copy of the scene and a body of its own (as the Fix PREVIEW does): a fix takes
-		# up to ~14 s on a long clip, and the window must not wait for it. The copy's cards come back only if Fixer kept it.
-		var t0 := Time.get_ticks_msec()
-		var sc := S.clone()
-		var b := Body.new()
-		b.load_files("res://data/skeleton.json", "res://data/body_limits.json")
-		b.set_state(ov.GB.state())
-		var sm_now: Dictionary = _sm
-		var job := {"out": {}}
-		job["task"] = WorkerThreadPool.add_task(func(): job["out"] = Fixer.apply(f, sc, b, sm_now))
-		while not WorkerThreadPool.is_task_completed(job["task"]):
-			await get_tree().process_frame
-		WorkerThreadPool.wait_for_task_completion(job["task"])
-		worst = maxi(worst, Time.get_ticks_msec() - t0)
-		if _fixall_stop:   # Stop came while the fix was in hand: its result is dropped, the scene stays as the last kept fix left it
-			break
-		var r: Dictionary = job["out"]
+		# the fix runs on the MAIN thread, exactly as the Fix button runs it: Fixer's sampler keeps static caches (FrameMemo,
+		# PoseCache, Rulebook) that the main thread also uses, so a worker would race them. The window waits for each fix
+		# (its worst case is in the report); the frame is given back before each one.
+		var t0 := Time.get_ticks_usec()
+		var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
+		worst = maxi(worst, (Time.get_ticks_usec() - t0) / 1000)
 		if r["kept"]:
 			kept += 1
-			S.cards = sc.cards   # Fixer edits the cards only (its own check kept them: no finding gone, no FAIL added)
 			findings = r["after"]   # the scene the fix left, checked by Fixer
 			_sm = {}
 			_bake_drop()   # the cards changed in place: the bake still holds the old poses
-		else:
 			refused.append("%s at %.2f s: %s" % [f["rule"], f["t"], String(r["msg"]).left(120)])
 	var not_reached := []
 	for f in findings:

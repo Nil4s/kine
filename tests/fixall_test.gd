@@ -137,7 +137,7 @@ func _init() -> void:
 	var frames := 0
 	if shown:
 		await push_click(fa)   # the click starts the run (its press and release are the only input)
-		while m._fixall_on or frames < 2:
+		while bool(m.get("_fixall_on")) or frames < 2:
 			await process_frame
 			frames += 1
 			var now := Time.get_ticks_msec()
@@ -145,7 +145,7 @@ func _init() -> void:
 			last = now
 	await idle(3)
 	var end: int = m.findings.size()
-	var run: Dictionary = m._fixall_last
+	var run: Dictionary = m.get("_fixall_last") if m.get("_fixall_last") != null else {}
 	var ms := Time.get_ticks_msec() - t0
 	print("     Fix all: %d findings -> %d in %.1f s (%d fixes tried, %d kept, longest single fix %d ms, longest frame gap %d ms)" % [
 		start, end, ms / 1000.0, int(run.get("tried", -1)), int(run.get("kept", -1)), int(run.get("worst_ms", -1)), gap])
@@ -175,7 +175,7 @@ func _init() -> void:
 	var steps_ok := false
 	if fa != null and fa.is_visible_in_tree():
 		await push_click(fa)
-		while m._fixall_on:
+		while bool(m.get("_fixall_on")):
 			await process_frame
 		await idle(3)
 		steps_ok = m.undo.size() == undo0 + 1 and JSON.stringify(m.S.cards) != cards0
@@ -191,7 +191,7 @@ func _init() -> void:
 		last = Time.get_ticks_msec()
 		await push_click(fa)
 		frames = 0
-		while m._fixall_on or frames < 2:
+		while bool(m.get("_fixall_on")) or frames < 2:
 			await process_frame
 			frames += 1
 			var now2 := Time.get_ticks_msec()
