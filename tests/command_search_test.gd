@@ -194,6 +194,9 @@ func _init() -> void:
 		print("SLOW %6d ms  %s" % [times[i][0], times[i][1]])
 	ok(ran + writers.size() == n_all, "ran %d commands + %d checked by binding = all %d" % [ran, writers.size(), n_all])
 	ok(not cs.visible, "the box is closed after each")
+	# the cheat sheet (and every folder / page the app opens) is only recorded under a test: a browser started from the sweep
+	# outlived Godot, held the runner's console pipe and the run never exited (exit 124 at the timeout)
+	ok(String(m.get("last_shell")).ends_with("cheat_sheet.html"), "the sweep's opens go through _shell_open (last: '%s'), nothing launched" % str(m.get("last_shell")))
 	print("COMMAND SEARCH %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	stamp("quit(%d)" % fails)
 	quit(fails)
