@@ -98,6 +98,18 @@ func move(p: Vector2, rel: Vector2) -> void:
 	root.push_input(e)
 
 
+## the mouse moved by d with no button down, in steps (a live tool follows it: E / I, Ctrl+R)
+func hover_by(p: Vector2, d: Vector2) -> void:
+	for i in 6:
+		var hm := InputEventMouseMotion.new()
+		var q := p + d * float(i + 1) / 6.0
+		hm.position = q
+		hm.global_position = q
+		root.push_input(hm)
+		await process_frame
+	await idle(3)
+
+
 func hover(p: Vector2) -> void:
 	var hm := InputEventMouseMotion.new()
 	hm.position = p
@@ -329,11 +341,15 @@ func _init() -> void:
 	var f_after_e := nf()
 	var y_after_e := ymax()
 	await shot("04_after_E")
-	await drag_at(face_spot(f0), Vector2(0, -90), "up on the new part (no tool should need this: the drag is what the user does next)")
+	# E is live: the mouse moves the new face along its normal, a click confirms
+	await hover_by(face_spot(f0), Vector2(0, -60))
 	await shot("05_after_drag")
+	var y_mid := ymax()
+	await click_at(face_spot(f0) + Vector2(0, -60), "to confirm the extrude (where the mouse is now)")
+	await shot("05b_confirmed")
 	var moved := absf(ymax() - y_after_e)
-	say("   extrusion: faces %d -> %d; the drag after E moved the top by %.4f m" % [f_before, f_after_e, moved])
-	end_goal("2", f_after_e > f_before, "(faces %d -> %d; the drag after E moved it %.4f m; counts now %s)" % [f_before, f_after_e, moved, counts()])
+	say("   extrusion: faces %d -> %d; the top at the mouse %.4f m above the cube's, after the click %.4f m" % [f_before, f_after_e, y_mid - y_after_e, moved])
+	end_goal("2", f_after_e > f_before and moved > 0.05, "(faces %d -> %d; mouse 60 px up: the top %.1f cm up; counts now %s)" % [f_before, f_after_e, moved * 100.0, counts()])
 
 	# 3. INSET A FACE
 	begin_goal("3 inset a face (I)")
@@ -341,6 +357,8 @@ func _init() -> void:
 	await click_at(face_spot(f1), "on the face")
 	var f_pre_i := nf()
 	await key(KEY_I, false, false, "I")
+	await hover_by(face_spot(f1), Vector2(-30, 0))
+	await click_at(face_spot(f1) + Vector2(-30, 0), "to confirm the inset (the mouse 30 px out from the face centre)")
 	await shot("06_inset")
 	end_goal("3", nf() > f_pre_i, "(faces %d -> %d)" % [f_pre_i, nf()])
 	var c_inset := [nv(), nf()]   # geometry only: an undo clears the selection, so the selected count is not compared
@@ -355,9 +373,7 @@ func _init() -> void:
 	await hover(spot)
 	await idle(10)
 	await shot("08_loopcut_hover")
-	await click_at(spot, "on the edge to cut")
-	if nf() == f_pre_r:
-		await key(KEY_ENTER, false, false, "Enter (in case the click only set the slide)")
+	await click_at(spot, "on the edge to cut (one click)")
 	await shot("09_loopcut_done")
 	var c_loop := [nv(), nf()]
 	end_goal("4", nf() > f_pre_r, "(faces %d -> %d)" % [f_pre_r, nf()])

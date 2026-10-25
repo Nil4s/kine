@@ -11,12 +11,14 @@ extends Node
 ##   T  measure the selection (B20, KMeshMeasure; follows the selection)  Shift+T  next material (the mass with the volume)
 ##   B05: Delete  delete the selection (Shift+Delete: only the faces)   Ctrl+Delete  dissolve it (verts / edges / faces)
 ##   M  merge at centre (Shift+M at the first, Alt+M by distance)       Ctrl+Z / Ctrl+Shift+Z  undo / redo
-##   E  extrude (Shift+E: each face on its own)   I  inset (Shift+I: each face)   Ctrl+E  bridge two edge loops   (B02 / B03)
+##   E  extrude, I  inset (Shift: each face on its own): live, the mouse sets the distance (from where E / I was pressed),
+##      click or Enter confirms (one undo step), Esc or right click cancels (nothing changed), a typed number sets it exactly
+##      (scripts/kmesh_drag_op.gd)   Ctrl+E  bridge two edge loops   (B02 / B03)
 ##   Ctrl+B  bevel the selected edges (2 cm, 1 segment, round; B03, kmesh_bevel.gd): live until the next edit, [ / ] segments, Shift+[ / ] width, Alt+[ / ] profile
 ##   Ctrl+Z / Ctrl+Y  undo / redo the mesh step
 ##   B06: F  make a face (2 verts: an edge)   Alt+F  fill the holes touching the selection (Shift+Alt+F: triangles)   Ctrl+F  grid fill
 ##   Ctrl+T  triangulate (F06; the selected faces in face mode, else all)  Alt+J  triangles to quads (same rule)
-##   Ctrl+R  loop cut (hover, wheel = cuts, click, slide, click)   Shift+K  knife   V  edge split   (B04, kmesh_cut_tool.gd)
+##   Ctrl+R  loop cut (hover, wheel = cuts, click cuts; Shift+click slides first, then click)   Shift+K  knife   V  edge split   (B04, kmesh_cut_tool.gd)
 ##   H  topology heat map on / off (F08): poles, triangles, n-gons, stretched quads tinted, with a legend of counts
 ##   U  surface shading: plain -> UV checker -> UV stretch heat (D05; the first U unwraps: seams where faces meet at
 ##      over 60 deg, then LSCM, KMeshUV)
@@ -185,6 +187,8 @@ func _process(_dt: float) -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if KMeshDragOp.handle(self, ev):   # E / I live drag: the mouse sets the distance, click / Enter confirms, Esc cancels (scripts/kmesh_drag_op.gd)
+		return true
 	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
 		return true
 	if KMeshCurvesUI.handle(self, ev):   # B12: drag a curve point / handle, Alt+click adds one (scripts/kmesh_curves_ui.gd)
@@ -490,6 +494,8 @@ func _edit_key(k: InputEventKey) -> bool:
 		return true
 	if not (k.keycode == KEY_E or k.keycode == KEY_I) or k.alt_pressed or (k.ctrl_pressed and k.keycode == KEY_I):
 		return false
+	if not k.ctrl_pressed and KMeshDragOp.start(self, "extrude" if k.keycode == KEY_E else "inset", k.shift_pressed):
+		return true   # E / I with a selection: the live drag (KMeshDragOp); nothing selected: the immediate path below reports it
 	var each := k.shift_pressed
 	var what := "Bridge" if k.ctrl_pressed else ("Extrude" if k.keycode == KEY_E else "Inset")
 	undo.begin(mesh)
