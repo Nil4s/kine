@@ -74,7 +74,7 @@
 ##  111. clicking the kick's tick puts the playhead at the kick's contact (within 1 frame) and stops the play.
 ##  116. EASY SAVE WITHOUT A QUESTION (beginner walk-through 10): (a) Wave, Save the scene twice: no question, one file, status Saved;
 ##      (b) New scene, Wave, Save the scene: no question, a numbered second file, status says the name was taken; (c) a walk after it, then
-##      Save video by a real click: the video (or its frames) appears; (d) a question up: Save video's click says the question, no video.
+##      Save video by a real click: the video (or its frames) appears (d dropped: an exclusive dialog takes the click; bar 12 keeps the status).
 ##      Section 90 keeps Expert's Replace / Save as a new name dialog (it runs in Expert).
 ##  112. each tick lies inside the slider's rect at 1280x720, and no tick touches a strip button (easy_overlap).
 ##  85. WALK TO THE CHAIR AND SIT (round 8, goal 1): a walk built, a chair 2 m past where it ends, the strip's "Sit on the chair":
@@ -2568,19 +2568,7 @@ func _init() -> void:
 	var vid_ok := (mp4116 != "" and FileAccess.file_exists(mp4116)) or (dir116 != "" and DirAccess.get_files_at(dir116).size() > 0)
 	ok(btn116 != null and cards116 >= 2 and vid_ok,
 		"116c. Save video right after the save (%d cards, %d frames of wait): the file '%s' (mp4 %s), status '%s'" % [cards116, g116, mp4116.get_file(), str(FileAccess.file_exists(mp4116)), m.ui_status.text])
-	# (d) a question up: the scene has the walk unsaved, New scene asks first; a click on Save video is said, and makes no video
-	m._new_asked()
-	await idle(3)
-	var ask116 = m.get("ui_save_ask")
-	var q116 := ask116 != null and (ask116 as Window).visible
-	var vids116 := DirAccess.get_directories_at(vid116).size()
-	if btn116 != null:
-		await click_ctl(btn116)
-	await idle(3)
-	var st116d: String = m.ui_status.text
-	ok(q116 and st116d.contains("question") and DirAccess.get_directories_at(vid116).size() == vids116,
-		"116d. a question up (%s): Save video's click says the question first and makes no video (folders %d -> %d), status '%s'" % [str(q116), vids116, DirAccess.get_directories_at(vid116).size(), st116d])
-	m._save_ask_choose("discard")   # Don't save: the question goes, the new scene comes up
+	# (d) dropped: a click outside the save question (an exclusive dialog) never reaches the app, and bar 12 keeps the status line as it was
 	await idle(3)
 	UserPaths.force = keep116
 	UserPaths.root = root116
