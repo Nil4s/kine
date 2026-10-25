@@ -2,7 +2,7 @@
 ## A beginner types into Easy's box (not the pictures): 1 "jump twice" (the pelvis rises twice);
 ## 2 "then turn around" after it (the body faces the other way at the end); 3 "make it slower" (the clip gets longer;
 ## the Slower button if the typing does nothing); 4 "wlak forward" (a typo: forgiven and walked, or a helpful sentence);
-## 5 "punch with the left hand" (the LEFT hand goes forward > 30 cm); 6 Undo twice (back to the clip before 4 and 5).
+## 5 "punch with the left hand" (the LEFT hand goes forward > 30 cm); 6 one Undo (the typo made no undo step, so one Undo takes back the punch only).
 ## Only what is visible in Easy: buttons with words, the type box. Reads of state for the checks only (poses are
 ## sampled with Scene.apply and restored with Body.state / set_state).
 ## Prints "GOAL n: PASS|FRICTION - what happened". Exits 0 (frictions are findings). Screenshots: the scratchpad, walk11_<n>.png.
@@ -496,8 +496,10 @@ func _init() -> void:
 		note("the right hand also goes forward %.3f m: not only the left" % fr)
 	finish(5, built5 and fl > 0.30 and fr < 0.5 * fl, "left hand forward %.3f m, right %.3f m" % [fl, fr])
 
-	# 6. UNDO TWICE: back to the clip before step 5 and 4
-	start_goal(6, "Undo twice")
+	# 6. UNDO ONCE (round 11, G6: a driver bug). The refused typo "wlak forward" makes no undo step, so the old driver's second Undo
+	# went one step too far. The only undo step since the typo is the punch (step 5), so ONE Undo returns to the clip before the punch.
+	# (That clip still has the earlier steps: "jump twice", "then turn around", "make it slower" are undo steps of their own.)
+	start_goal(6, "Undo once: the punch goes back (the typo made no undo step)")
 	var Lbefore6: float = m.S.length()
 	var cards6: int = m.S.cards.size()
 	var ub := find_btn("Undo")
@@ -505,22 +507,14 @@ func _init() -> void:
 		say("   Undo tooltip before: '%s'" % ub.tooltip_text)
 	await click_text("Undo")
 	await settle()
-	var ub2 := find_btn("Undo")
-	if ub2 != null:
-		say("   Undo tooltip after the first press: '%s'" % ub2.tooltip_text)
-	await click_text("Undo")
-	await settle()
 	var L6: float = m.S.length()
 	var c6: int = m.S.cards.size()
-	say("   clip before the undos %.2f s (%d cards) | after two: %.2f s (%d cards) | before step 4: %.2f s (%d cards) | after step 3 (Slower): %.2f s" % [Lbefore6, cards6, L6, c6, L4pre, c4, L3])
-	await shot(6, "after Undo twice")
-	var ok6: bool = absf(L6 - L4pre) < 0.02 and c6 == c4
+	say("   clip before the Undo %.2f s (%d cards) | after one Undo: %.2f s (%d cards) | before the punch (step 5): %.2f s (%d cards)" % [Lbefore6, cards6, L6, c6, L5pre, c5])
+	await shot(6, "after one Undo")
+	var ok6: bool = absf(L6 - L5pre) < 0.02 and c6 == c5
 	if not ok6:
-		if absf(L6 - L3) < 0.02:
-			note("two Undos went past step 4: the clip is back to after 'make it slower' (%.2f s), not before 'wlak forward' (%.2f s)" % [L6, L4pre])
-		else:
-			note("two Undos give %.2f s (%d cards): not the clip before step 4 (%.2f s, %d cards)" % [L6, c6, L4pre, c4])
-	finish(6, ok6, "two Undos: %.2f s / %d cards; before step 4: %.2f s / %d cards" % [L6, c6, L4pre, c4])
+		note("one Undo gives %.2f s (%d cards): not the clip before the punch (%.2f s, %d cards)" % [L6, c6, L5pre, c5])
+	finish(6, ok6, "one Undo after the punch: %.2f s / %d cards; before the punch: %.2f s / %d cards" % [L6, c6, L5pre, c5])
 
 	say("\nSUMMARY (goal | pass | clicks | seconds):")
 	for r in results:

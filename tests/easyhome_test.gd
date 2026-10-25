@@ -99,6 +99,9 @@
 ##  125. SIDE PANEL KEEPS THE BODY IN VIEW (Nick: the panel covers the body at 1280x720): the left arm picked, the body's projected
 ##      box (every joint of B.P through the camera) lies left of the panel with >= 10 px to spare (a); closing the panel puts the
 ##      camera back exactly (b); with the panel open the body's projected height is >= 80 % of its closed height (c).
+##  126. TYPED FOLLOW-UPS AND A TYPO (walk11 monkey round): "then turn around" after "jump twice" appends the turn (a: the hips end at
+##      180 +- 15 deg, one undo step); "make it slower" retimes the whole clip x1.5 +- 0.05, one undo step, Undo restores it (b: and "faster" x0.67);
+##      "wlak forward" shows a "Did you mean: walk forward?" button whose click builds the walk (c: feet > 0.5 m forward); "jump zorp" still refused.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -618,6 +621,65 @@ func slider_drag124(sl: HSlider, frac: float) -> void:
 	up.global_position = to
 	root.push_input(up, true)
 	await idle(3)
+
+
+## section 126: the hips' yaw (TextView.yaw, degrees) at clip time t; the body is put back as it was
+func yaw126_at(mm: Node, t: float) -> float:
+	var keep: Dictionary = mm.B.state()
+	mm._ps().apply(mm.B, t)
+	var y := TextView.yaw(mm.B)
+	mm.B.set_state(keep)
+	return y
+
+
+## section 126: the midpoint of the two feet (their capsules' centres) at clip time t; the body is put back as it was
+func feet126(mm: Node, t: float) -> Vector3:
+	var keep: Dictionary = mm.B.state()
+	mm._ps().apply(mm.B, t)
+	var pts: Array = []
+	for part in ["foot_l", "foot_r"]:
+		var c: Array = mm.B.cap(part)
+		pts.append((c[0] + c[1]) * 0.5)
+	mm.B.set_state(keep)
+	return ((pts[0] as Vector3) + (pts[1] as Vector3)) * 0.5
+
+
+## section 126: his facing, horizontal (the feet's capsules point ankle to toe, as the walk test reads it)
+func face126(mm: Node) -> Vector3:
+	var f := Vector3.ZERO
+	for part in ["foot_l", "foot_r"]:
+		var c: Array = mm.B.cap(part)
+		var d: Vector3 = c[1] - c[0]
+		d.y = 0.0
+		f += d
+	return f
+
+
+## section 126: a real mouse click on a Control; true when the Control is under the pointer (not covered)
+func click_ctl_ok126(c: Control) -> bool:
+	var at: Vector2 = c.get_global_rect().get_center()
+	var hm := InputEventMouseMotion.new()
+	hm.position = at
+	hm.global_position = at
+	root.push_input(hm)
+	await idle(2)
+	var inside: bool = get_root().get_viewport().gui_get_hovered_control() == c
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	e.position = at
+	e.global_position = at
+	e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e, true)
+	await idle(1)
+	var u := InputEventMouseButton.new()
+	u.button_index = MOUSE_BUTTON_LEFT
+	u.pressed = false
+	u.position = at
+	u.global_position = at
+	root.push_input(u, true)
+	await idle(4)
+	return inside
 
 
 ## section 125: the body's projected box (every joint of B.P through the camera; the joints behind the lens are left out)
@@ -3181,6 +3243,114 @@ func _init() -> void:
 		camdiff125 = maxf(camdiff125, absf(cam1_125[i] - cam0_125[i]))
 	ok(sl125 != null and not sl125.panel.visible and camdiff125 < 1e-4,
 		"125b. closing the panel (shown %s) puts the camera back: largest difference %.6f (bar: < 1e-4)" % [str(sl125.panel.visible) if sl125 != null else "none", camdiff125])
+
+	# 126. TYPED FOLLOW-UPS AND A TYPO (walk11 monkey round, beginner): (a) "then turn around" after "jump twice" APPENDS the turn to the
+	# clip (one undo step; the hips end at 180 +- 15 deg); (b) "make it slower" retimes the WHOLE clip x1.5 (+- 0.05), one undo step,
+	# Undo restores its exact length; "faster" x0.67; (c) "wlak forward" shows a "Did you mean: walk forward?" button whose click builds
+	# the walk (the feet travel forward > 0.5 m); "jump zorp" is still refused with "doesn't know" and shows no such button.
+	# Old code: (a) "then turn around" is refused (nothing added), (b) "make it slower" is refused (no retime), (c) no button.
+	m._new_scene()
+	await idle(3)
+	var home126: EasyHome = m.easy.home
+	home126._change()
+	await idle(2)
+	var edit126 := home126.panel.find_child("eh_text", true, false) as LineEdit
+	edit126.text = "jump twice"
+	edit126.text_submitted.emit("jump twice")
+	await idle(4)
+	var L126j: float = m.S.length()
+	var n126j: int = m.S.cards.size()
+	var u126j: int = m.undo.size() + m.undo_dropped
+	home126._change()
+	await idle(2)
+	edit126.text = "then turn around"
+	edit126.text_submitted.emit("then turn around")
+	await idle(6)
+	var yaw126: float = yaw126_at(m, m.S.length())
+	var u126a: int = m.undo.size() + m.undo_dropped
+	ok(m.S.cards.size() > n126j and m.S.length() > L126j + 0.01 and absf(wrapf(yaw126 - 180.0, -180.0, 180.0)) <= 15.0 and u126a == u126j + 1,
+		"126a. 'jump twice' then 'then turn around': cards %d -> %d, clip %.2f -> %.2f s, the hips end at yaw %.1f deg (bar 180 +- 15), undo steps %d -> %d (bar: one more)"
+		% [n126j, m.S.cards.size(), L126j, m.S.length(), yaw126, u126j, u126a])
+	m._new_scene()
+	await idle(3)
+	home126._change()
+	await idle(2)
+	edit126 = home126.panel.find_child("eh_text", true, false) as LineEdit
+	edit126.text = "walk"
+	edit126.text_submitted.emit("walk")
+	await idle(4)
+	var Lw: float = m.S.length()
+	var nw: int = m.S.cards.size()
+	var uw: int = m.undo.size() + m.undo_dropped
+	home126._change()
+	await idle(2)
+	edit126.text = "make it slower"
+	edit126.text_submitted.emit("make it slower")
+	await idle(6)
+	var Ls: float = m.S.length()
+	var us: int = m.undo.size() + m.undo_dropped
+	ok(Lw > 0.0 and absf(Ls / Lw - 1.5) <= 0.05 and m.S.cards.size() == nw and us == uw + 1,
+		"126b. 'make it slower': clip %.3f -> %.3f s (x%.3f, bar 1.5 +- 0.05), cards %d -> %d, undo steps %d -> %d (bar: one more)"
+		% [Lw, Ls, Ls / maxf(Lw, 1e-6), nw, m.S.cards.size(), uw, us])
+	m._undo()
+	await idle(4)
+	ok(absf(m.S.length() - Lw) < 1e-4,
+		"126b. Undo restores the exact length: %.5f s (before the slower: %.5f s)" % [m.S.length(), Lw])
+	m._new_scene()
+	await idle(3)
+	home126._change()
+	await idle(2)
+	edit126 = home126.panel.find_child("eh_text", true, false) as LineEdit
+	edit126.text = "walk"
+	edit126.text_submitted.emit("walk")
+	await idle(4)
+	var Lf0: float = m.S.length()
+	home126._change()
+	await idle(2)
+	edit126.text = "faster"
+	edit126.text_submitted.emit("faster")
+	await idle(6)
+	ok(Lf0 > 0.0 and absf(m.S.length() / Lf0 - 0.67) <= 0.05,
+		"126b. 'faster': clip %.3f -> %.3f s (x%.3f, bar 0.67 +- 0.05)" % [Lf0, m.S.length(), m.S.length() / maxf(Lf0, 1e-6)])
+	m._new_scene()
+	await idle(3)
+	home126._change()
+	await idle(2)
+	edit126 = home126.panel.find_child("eh_text", true, false) as LineEdit
+	edit126.text = "wlak forward"
+	edit126.text_submitted.emit("wlak forward")
+	await idle(6)
+	var did126 := home126.panel.find_child("eh_did", true, false) as Button
+	var shown126: bool = did126 != null and did126.is_visible_in_tree() and did126.text == "Did you mean: walk forward?"
+	var cards126: int = m.S.cards.size()
+	var clicked126 := false
+	if shown126:
+		clicked126 = await click_ctl_ok126(did126)
+	await idle(10)
+	var fwd126 := 0.0
+	if m.S.cards.size() > 0:
+		var f0: Vector3 = feet126(m, 0.0)
+		var face: Vector3 = face126(m)
+		var d126: Vector3 = feet126(m, m.S.length()) - f0
+		d126.y = 0.0
+		fwd126 = d126.dot(face.normalized())
+	ok(shown126 and cards126 == 0 and m.S.cards.size() > 0 and fwd126 > 0.5,
+		"126c. 'wlak forward' shows the button (%s, text '%s'); its click builds the walk (cards %d, clicked %s): the feet travel %.2f m forward (bar > 0.5)"
+		% [str(shown126), did126.text if did126 != null else "none", m.S.cards.size(), str(clicked126), fwd126])
+	m._new_scene()
+	await idle(3)
+	home126._change()
+	await idle(2)
+	edit126 = home126.panel.find_child("eh_text", true, false) as LineEdit
+	edit126.text = "jump zorp"
+	edit126.text_submitted.emit("jump zorp")
+	await idle(6)
+	var did126b := home126.panel.find_child("eh_did", true, false) as Button
+	var why126b := (home126.panel.find_child("eh_msg", true, false) as Label).text
+	ok(why126b == "Kine doesn't know 'jump zorp' yet." and m.S.cards.is_empty() and (did126b == null or not did126b.is_visible_in_tree()),
+		"126c. 'jump zorp' is still refused (message '%s', Did you mean button shown: %s)" % [why126b, str(did126b != null and did126b.is_visible_in_tree())])
+	m._new_scene()
+	await idle(2)
 
 	root.content_scale_size = was_size
 	root.content_scale_mode = was_mode
