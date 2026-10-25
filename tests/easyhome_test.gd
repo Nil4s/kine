@@ -310,6 +310,15 @@ func visible_texts(n: Node, out: Array) -> Array:
 	return out
 
 
+## the texts (visible Labels and Buttons, tooltips too, in the whole window) that name a key: section 122's scan
+func key_hits(rx: RegEx, texts: Array) -> Array:
+	var h := []
+	for t in texts:
+		if rx.search(String(t)) != null:
+			h.append(String(t))
+	return h
+
+
 ## a real drag of one part on the body: the pointer goes to the part, down, six moves, up at the end of d
 func drag_part(j: String, d: Vector2) -> void:
 	var c: Array = m.B.cap(j)
@@ -2824,6 +2833,137 @@ func _init() -> void:
 	ts121.sort()
 	var med121: float = ts121[2] / 1000.0
 	ok(med121 <= 0.6 * 215.3, "121. card(1) Run: the click's synchronous build median %.1f ms over 5 reps (bar: <= 129.2 ms = 60 %% of the old median 215.3 ms)" % med121)
+
+	# 122. EASY IS MOUSE-ONLY (walk-through: most people never learn the keys). (a) a visible Go button right of the type box builds what
+	# Enter builds; (b) no key name ("Ctrl+", "Shift+", "Alt+", "(Enter)", "Esc") in any visible text of the window in Easy: the panel,
+	# the strip, the More menu, the prop bar (a chair picked), My scenes; (c) a library item dragged with the mouse and let go over the
+	# floor is placed where the mouse let go (within 25 cm of the floor point under it), one undo step; Undo removes it.
+	# Old code: (a) no Go button; (b) "Ctrl+Z" and "(Enter)" in Easy's text; (c) a press and a release off the tile add nothing.
+	var rx122 := RegEx.new()
+	rx122.compile("Ctrl\\+|Shift\\+|Alt\\+|\\(Enter\\)|\\bEsc\\b")
+	m._new_scene()
+	await idle(4)
+	var box122: LineEdit = home._edit
+	var go122 := home.panel.find_child("eh_go", true, false) as Button
+	var same122 := box122 != null and go122 != null and go122.is_visible_in_tree() and go122.get_global_rect().position.x >= box122.get_global_rect().end.x - 1.0 and absf(go122.get_global_rect().get_center().y - box122.get_global_rect().get_center().y) < 8.0
+	ok(same122, "122a. a visible Go button right of the type box (Go %s, box %s)" % [str(go122.get_global_rect() if go122 != null else "none"), str(box122.get_global_rect() if box122 != null else "none")])
+	box122.text = "jump"
+	if go122 != null:
+		await click_ctl(go122)
+	await idle(6)
+	var go_names122 := []
+	for c122 in m.S.cards:
+		go_names122.append(String(c122["name"]))
+	ok(not go_names122.is_empty(), "122a. typed 'jump' then a click on Go builds the jump (%d cards: %s)" % [go_names122.size(), str(go_names122)])
+	m._undo()
+	await idle(6)
+	box122.text = "jump"
+	box122.text_submitted.emit("jump")
+	await idle(6)
+	var enter_names122 := []
+	for c122 in m.S.cards:
+		enter_names122.append(String(c122["name"]))
+	ok(not enter_names122.is_empty() and enter_names122 == go_names122, "122a. Go builds the same cards as Enter (Go %s, Enter %s)" % [str(go_names122), str(enter_names122)])
+	# (b) the scan: the panel, the strip with a clip, the More menu, the prop bar, My scenes
+	var hits122 := []
+	var states122 := 0
+	m._undo()
+	await idle(6)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	home.card(1)
+	await idle(8)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	m.easy._more_open()
+	await idle(4)
+	var more_t122 := []
+	for i122 in m.easy._more.item_count:
+		more_t122.append(m.easy._more.get_item_text(i122))
+		more_t122.append(m.easy._more.get_item_tooltip(i122))
+	hits122 += key_hits(rx122, more_t122)
+	states122 += 1
+	m.easy._close_more()
+	await idle(2)
+	m.playing = false
+	m._new_scene()
+	await idle(4)
+	m._prop_add("chair")
+	m.sel_prop = 0
+	m._props_show()
+	await idle(6)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	m.easy._my_scenes()
+	await idle(6)
+	hits122 += key_hits(rx122, visible_texts(root, []))
+	states122 += 1
+	if m.easy.scenes != null:
+		m.easy.scenes.close_panel()
+	await idle(4)
+	ok(hits122.is_empty(), "122b. no key name in any visible Easy text (%d states scanned: panel, strip, More, prop bar, My scenes): hits %s" % [states122, str(hits122)])
+	# (c) a chair dragged from the Library and let go over the floor 1 m left of him
+	m._new_scene()
+	await idle(4)
+	m._library_toggle()
+	await idle(4)
+	var srch122 := m.ui_library.find_child("library_search", true, false) as LineEdit
+	if srch122 != null:
+		srch122.text = "chair"
+		srch122.text_changed.emit("chair")
+	await idle(4)
+	var tile122 := m.ui_library.find_child("tile_*chair*", true, false) as Control
+	var props122: int = m.S.props.size()
+	var depth122: int = m.undo.size() + m.undo_dropped
+	var ch122 := Vector3(m.B.offset.x, 0.0, m.B.offset.z)
+	var right122: Vector3 = m.cam.global_transform.basis.x
+	right122.y = 0.0
+	var fp122: Vector3 = ch122 - right122.normalized() * 1.0
+	var at122: Vector2 = m.cam.unproject_position(fp122)
+	var from122: Vector2 = tile122.get_global_rect().get_center() if tile122 != null else Vector2.ZERO
+	var shot122 := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad/easydrag.png"
+	if tile122 != null:
+		var pe := InputEventMouseButton.new()
+		pe.button_index = MOUSE_BUTTON_LEFT
+		pe.pressed = true
+		pe.position = from122
+		pe.global_position = from122
+		pe.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(pe, true)
+		await idle(2)
+		for k122 in range(1, 7):
+			var p122: Vector2 = from122.lerp(at122, float(k122) / 6.0)
+			var me := InputEventMouseMotion.new()
+			me.position = p122
+			me.global_position = p122
+			me.relative = (at122 - from122) / 6.0
+			me.button_mask = MOUSE_BUTTON_MASK_LEFT
+			root.push_input(me, true)
+			await idle(2)
+			if k122 == 4:
+				await RenderingServer.frame_post_draw
+				root.get_texture().get_image().save_png(shot122)
+		var re := InputEventMouseButton.new()
+		re.button_index = MOUSE_BUTTON_LEFT
+		re.pressed = false
+		re.position = at122
+		re.global_position = at122
+		re.button_mask = 0
+		root.push_input(re, true)
+		await idle(4)
+	var placed122: bool = m.S.props.size() == props122 + 1
+	var dist122 := 999.0
+	var kind122 := ""
+	if placed122:
+		dist122 = ((m.S.props[m.S.props.size() - 1]["xf"] as Transform3D).origin).distance_to(fp122)
+		kind122 = String(m.S.props[m.S.props.size() - 1]["kind"])
+	ok(placed122 and kind122 == "chair" and dist122 <= 0.25, "122c. a chair dragged from the Library and let go 1 m left of him lands within 25 cm of the floor point under the mouse (props %d -> %d, kind %s, %.3f m from it, release at %s)" % [props122, m.S.props.size(), kind122, dist122, str(at122)])
+	ok(m.undo.size() + m.undo_dropped == depth122 + 1, "122c. the drop is one undo step (depth %d -> %d)" % [depth122, m.undo.size() + m.undo_dropped])
+	m._undo()
+	await idle(4)
+	ok(m.S.props.size() == props122, "122c. Undo removes the dropped chair (props %d)" % m.S.props.size())
+	m._library_toggle()
+	await idle(2)
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

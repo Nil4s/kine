@@ -451,14 +451,127 @@ func _one_category(shown: Array) -> bool:
 	return not shown.is_empty()
 
 
+## EASY DRAG (the mouse only): a press on a tile and a move of DRAG_PX or more carries the object under a preview; the release over
+## the 3D view puts a prop on the floor under the mouse (one undo step). A release over this panel, or a press without a move, is
+## the click as before (place). Expert keeps the click only.
+const DRAG_PX := 8.0
+var _pd: Dictionary = {}          # the press in progress: {"id", "p"} (Easy only; empty = no press)
+var _pd_on := false               # the press has become a drag
+var _drag_frame := -1             # the frame a drag ended on: the release's own Button press is not a second placement
+var _ghost_layer: CanvasLayer = null
+var _ghost: PanelContainer = null
+
+
+func _input(ev: InputEvent) -> void:
+	if _pd.is_empty():
+		return
+	if ev is InputEventMouseMotion:
+		var mp: Vector2 = (ev as InputEventMouseMotion).global_position
+		if not _pd_on:
+			if mp.distance_to(_pd["p"]) < DRAG_PX:
+				return
+			_pd_on = true
+			_ghost_start(String(_pd["id"]))
+		_ghost_move(mp)
+	elif ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not (ev as InputEventMouseButton).pressed:
+		var id := String(_pd["id"])
+		var was := _pd_on
+		_pd = {}
+		_pd_on = false
+		if was:
+			_drag_frame = Engine.get_process_frames()
+			_ghost_stop()
+			_drop(id, (ev as InputEventMouseButton).global_position)
+
+
+func _tile_input(ev: InputEvent, id: String) -> void:
+	if m == null or not m.easy.on:
+		return
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and (ev as InputEventMouseButton).pressed:
+		_pd = {"id": id, "p": (ev as InputEventMouseButton).global_position}
+		_pd_on = false
+
+
+## a tile's Button press: a drag's release is not a click (the drop already did it or was refused)
+func _tile_pressed(id: String) -> void:
+	if _drag_frame == Engine.get_process_frames():
+		return
+	place(id)
+
+
+## the release of a drag at mouse position mp: a prop goes on the floor point under it (the camera's ray meets y = 0); other
+## kinds (weapons, armour) are placed as a click places them. Over this panel nothing is placed.
+func _drop(id: String, mp: Vector2) -> void:
+	if get_global_rect().has_point(mp):
+		return
+	var it := item(id)
+	if it.is_empty() or m == null:
+		return
+	if String(it["how"]) != "prop":
+		place(id)
+		return
+	var hit = Plane(Vector3.UP, 0.0).intersects_ray(m.cam.project_ray_origin(mp), m.cam.project_ray_normal(mp))
+	if hit == null:
+		_note.text = "Drop it on the floor in the view (the ground), not in the sky."
+		return
+	m._step_hint = "Library: %s" % it["name"]
+	m._step_easy = String(it["name"])
+	m._prop_add(String(it["key"]), hit)
+	m._step_easy = ""
+	_note.text = "%s is on the floor. Undo takes it away." % it["name"]
+
+
+## the preview that follows the mouse: the tile's picture and its name (on a layer over the whole window)
+func _ghost_start(id: String) -> void:
+	_ghost_stop()
+	_ghost_layer = CanvasLayer.new()
+	_ghost_layer.layer = 128
+	get_tree().root.add_child(_ghost_layer)
+	_ghost = PanelContainer.new()
+	_ghost.name = "library_drag_ghost"
+	_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ghost.modulate = Color(1, 1, 1, 0.85)
+	var v := VBoxContainer.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ghost.add_child(v)
+	var pic := _pics.get(id) as TextureRect
+	if pic != null and pic.texture != null:
+		var tr := TextureRect.new()
+		tr.texture = pic.texture
+		tr.custom_minimum_size = Vector2(90, 90)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(tr)
+	var lab := Label.new()
+	var it := item(id)
+	lab.text = String(it["name"]) if not it.is_empty() else id
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(lab)
+	_ghost_layer.add_child(_ghost)
+
+
+func _ghost_move(mp: Vector2) -> void:
+	if _ghost != null:
+		_ghost.position = mp + Vector2(14, 14)
+
+
+func _ghost_stop() -> void:
+	if _ghost_layer != null:
+		_ghost_layer.queue_free()
+	_ghost_layer = null
+	_ghost = null
+
+
 func _tile(it: Dictionary, one := false) -> Control:
 	var b := Button.new()
 	b.name = "tile_" + String(it["id"]).replace(":", "_")
 	b.custom_minimum_size = TILE
 	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = ("%s: click to give it to him" if m.easy.on else "%s: click to place it (one undo step)") % it["name"]
+	b.tooltip_text = ("%s: click it, or drag it onto the floor, to give it to him" if m.easy.on else "%s: click to place it (one undo step)") % it["name"]
 	b.set_meta("item", it["id"])
-	b.pressed.connect(place.bind(String(it["id"])))
+	b.pressed.connect(_tile_pressed.bind(String(it["id"])))
+	b.gui_input.connect(_tile_input.bind(String(it["id"])))
 	var v := VBoxContainer.new()
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.alignment = BoxContainer.ALIGNMENT_CENTER

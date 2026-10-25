@@ -54,7 +54,7 @@ func build(root: Control) -> void:
 	var close := Button.new()
 	close.name = "easy_scenes_close"
 	close.text = "Close"
-	close.tooltip_text = "close this list (Esc)"
+	close.tooltip_text = "close this list"
 	close.focus_mode = Control.FOCUS_NONE
 	close.custom_minimum_size = Vector2(130, 44)
 	close.add_theme_font_size_override("font_size", 18)
