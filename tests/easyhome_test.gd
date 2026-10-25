@@ -87,6 +87,7 @@
 ##      (Save as a new name) saves, and the new scene comes up with 0 cards.
 ##  90c. SLOWER ON AN 18 s CLIP: Slower takes it to x1.25 (the cap is 60 s now).
 ##  90d. SLOWER OVER 60 s IS REFUSED ON A TOAST: a 50 s clip: Slower changes nothing, the status line and the Easy toast say why.
+##  116. HIS COLOUR (beginner walk-through 10, goal 3): no prop picked, a visible 'His colour' button changes the body's colour (one undo step, status says so); Undo restores it.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -2493,6 +2494,32 @@ func _init() -> void:
 	await idle(4)
 	ok(_cards_key() == c115d and m.undo.size() == u115d and "start" in m.ui_status.text.to_lower() and "Cut start" in m.ui_status.text,
 		"115d. slider at 0, Cut start: nothing cut (undo %d -> %d) and the status says why: '%s'" % [u115d, m.undo.size(), m.ui_status.text])
+
+	# 116. HIS COLOUR IN EASY (beginner walk-through 10, goal 3): no prop picked, a visible "His colour" button on the Easy
+	# column changes the body's colour (the body's skin material albedo differs, the status says so); one Undo restores it.
+	# 116c: a save and reopen keeps it only if Expert's look is saved with the scene (it is not: Main.body_mats is view state).
+	# Old code: no such button (116a and 116b FAIL), the body's material is never changed by Easy.
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(4)
+	m.sel_prop = -1
+	var skin116 := (m.pieces.values()[0] as MeshInstance3D).material_override as StandardMaterial3D
+	var c116a: Color = skin116.albedo_color if skin116 != null else Color(0, 0, 0)
+	var bc116 := m.easy.views.find_child("easy_body_colour", true, false) as Button
+	var vis116: bool = bc116 != null and bc116.is_visible_in_tree()
+	var u116: int = m.undo.size()
+	if bc116 != null:
+		await click_ctl(bc116)
+	await idle(4)
+	var c116b: Color = skin116.albedo_color if skin116 != null else Color(0, 0, 0)
+	ok(vis116 and not c116b.is_equal_approx(c116a) and m.undo.size() == u116 + 1 and "colour" in m.ui_status.text.to_lower(),
+		"116a. Easy, no prop: the visible 'His colour' button changes the body's colour (albedo %s -> %s), one undo step, status: '%s'" % [str(c116a), str(c116b), m.ui_status.text])
+	m._undo()
+	await idle(6)
+	var c116u: Color = skin116.albedo_color if skin116 != null else Color(0, 0, 0)
+	ok(c116u.is_equal_approx(c116a), "116b. one Undo restores the body's colour (albedo %s)" % str(c116u))
+	print("note 116c: skipped as the spec allows: Expert's body look (Main.body_mats, the photo material per part) is not saved with the scene, so the colour is not either")
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)

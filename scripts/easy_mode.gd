@@ -188,6 +188,7 @@ func _build_views(root: Control) -> void:
 		["easy_view_side", "Side", "the view from the side: the camera turns 90 degrees", func(): m._view(2, true)],
 		["easy_view_back", "Back", "the view from the back", func(): m._view(4, true)],
 		["easy_view_reset", "Reset view", "the first view: the body from the front, a little from above", func(): m._view_home(true)],
+		["easy_body_colour", "His colour", "change his colour: skin, white, grey, blue, red, dark, then skin again (one undo step; Ctrl+Z gives the old one back)", func(): m._body_colour_next()],
 	]
 	for a in acts:
 		var b := Button.new()

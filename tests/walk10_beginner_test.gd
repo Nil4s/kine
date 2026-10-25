@@ -1,6 +1,6 @@
 ## godot --path . -s tests/walk10_beginner_test.gd   (MONKEY TEST, round 10: EASY mode, real clicks only)
 ## A beginner who has never seen the app: 1 a character waves hello; 2 a chair from the Library, then he sits on it;
-## 3 change his colour or look if Easy offers it; 4 play it back; 5 save the scene, then save a video.
+## 3 change his colour or look (His colour, on the Easy column); 4 play it back; 5 save the scene, then save a video.
 ## Only what is visible in Easy: buttons with words, the type box. Reads of state for the checks only.
 ## Prints "GOAL n: PASS|FRICTION - what happened". Exits 0 (frictions are findings). Screenshots: the scratchpad, walk10_<n>.png.
 extends SceneTree
@@ -591,30 +591,19 @@ func _init() -> void:
 			note("the sit misses the chair: pelvis %.2f m from the seat point (wanted under 0.10 m)" % end_gap)
 	finish(2, lib2 and fur2 and ch2 and cl2 and sit2 and ci >= 0 and end_gap >= 0.0 and end_gap <= 0.10, "chair from the Library, sit %s, %.2f m from the seat" % [str(sit2), end_gap])
 
-	# 3. CHANGE HIS COLOUR OR LOOK
+	# 3. CHANGE HIS COLOUR OR LOOK (the Easy column's "His colour" button: the body's skin colour cycles, one undo step)
 	start_goal(3, "change his colour or look")
-	var look_words := ["colo", "look", "skin", "shirt", "cloth", "outfit", "dress", "appear", "wear"]
-	var found3: Array = []
-	for b in visible_buttons():
-		for t in labels_of(b):
-			if String(t).to_lower().contains("chair"):
-				continue   # "Sit on the chair" is not a look (and "chair" holds "hair")
-			for w in look_words:
-				if String(t).to_lower().contains(w):
-					found3.append(t)
-	var more_items: Array = []
-	var mn: PopupMenu = m.easy._more
-	if mn != null:
-		for i in mn.item_count:
-			more_items.append(mn.get_item_text(i))
-	say("   look words on screen: %s | More menu: %s" % [str(found3), str(more_items)])
-	var colour_btn := find_btn("Colour")
-	if colour_btn != null:
-		note("the 'Colour' button recolours the picked object (the chair), not him: it is the only colour control on screen")
-	else:
-		note("no colour or look control for him in Easy: nothing on the bar, the strip or More says colour or look (More: %s)" % str(more_items))
-	await snap(3, "looking for a colour or look")
-	finish(3, false, "not reached: no way to change his colour or look in Easy" if found3.is_empty() else "look controls seen: %s" % str(found3))
+	var skin3 := (m.pieces.values()[0] as MeshInstance3D).material_override as StandardMaterial3D
+	var c3a: Color = skin3.albedo_color if skin3 != null else Color(0, 0, 0)
+	var bc3 := find_btn("His colour")
+	say("   look button on the Easy column: %s, colour before %s" % [str(bc3 != null), str(c3a)])
+	var clicked3 := false
+	if bc3 != null:
+		clicked3 = await click_ctl(bc3)
+	await idle(4)
+	var c3b: Color = skin3.albedo_color if skin3 != null else Color(0, 0, 0)
+	await snap(3, "his colour changed")
+	finish(3, bc3 != null and clicked3 and not c3b.is_equal_approx(c3a), "His colour: the body went from %s to %s (%s)" % [str(c3a), str(c3b), m.ui_status.text])
 
 	# 4. PLAY IT BACK
 	start_goal(4, "play it back")

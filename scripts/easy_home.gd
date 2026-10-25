@@ -422,7 +422,7 @@ func build(root: Control) -> void:
 	_pbar_size.add_child(_pbar_bigger)
 	_pbar_smaller = _strip_button("eh_prop_smaller", "Shrink", "make the picked object 15 % smaller (one undo step; Ctrl+Z gives it back)", func(): m._prop_resize(1.0 / 1.15), Vector2(73, 40), 17)
 	_pbar_size.add_child(_pbar_smaller)
-	_pbar_colour = _strip_button("eh_prop_colour", "Colour", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
+	_pbar_colour = _strip_button("eh_prop_colour", "Colour it", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_colour)
 	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (Ctrl+Z puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_remove)

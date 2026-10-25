@@ -3461,8 +3461,9 @@ func _world() -> void:
 
 func _body() -> void:
 	var skin := StandardMaterial3D.new()
-	skin.albedo_color = Color(0.78, 0.72, 0.64)
+	skin.albedo_color = BODY_COLOURS[body_colour][1]
 	skin.roughness = 0.55
+	body_skin = skin
 	var mq := Overlays.mannequin(self, skin)
 	skel = mq[1]
 	bone_idx = mq[2]
@@ -6086,7 +6087,7 @@ func _snapshot() -> Dictionary:
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
-		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps,
+		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
@@ -6231,6 +6232,9 @@ func _restore(u: Dictionary) -> void:
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
+	if u.has("bcol") and int(u["bcol"]) != body_colour:
+		body_colour = int(u["bcol"])   # His colour, undone like the photo materials
+		_body_colour_show()
 	if u.has("bmats") and var_to_str(u["bmats"]) != var_to_str(body_mats):
 		body_mats = u["bmats"].duplicate()   # the photo materials on body parts, undone like a card (E15)
 		photomat.sync_body()
@@ -19571,6 +19575,25 @@ func _prop_colour() -> void:
 	_say("the %s is %s now" % [_prop_name(sel_prop), nxt])
 
 
+## HIS COLOUR (Easy's "His colour" button): the body's skin cycles skin, white, grey, blue, red, dark. The body parts with a
+## photo material keep it (Surface: material from a photo). One undo step; the colour is view state like the photo materials
+func _body_colour_next() -> void:
+	if body_skin == null:
+		_say("his colour: the body is not there yet")
+		return
+	_step_hint = "His colour"
+	_push_undo()
+	body_colour = (body_colour + 1) % BODY_COLOURS.size()
+	_body_colour_show()
+	_doc_line()
+	_say("his colour is %s now (Ctrl+Z gives the old one back)" % BODY_COLOURS[body_colour][0])
+
+
+func _body_colour_show() -> void:
+	if body_skin != null:
+		body_skin.albedo_color = BODY_COLOURS[body_colour][1]
+
+
 func _prop_del() -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
@@ -21092,6 +21115,10 @@ const MULTI_MAX := 4
 const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most this many frames (GDScript: a 300-frame clip takes minutes)
 var photomat := PhotoMaterialUI.new(self)   # MATERIAL FROM A PHOTO (scripts/photo_material_ui.gd, E15)
 var body_mats := {}   # part -> the name of its photo material (user://materials/<name>); view state, undone with the rest
+var body_skin: StandardMaterial3D   # the skin material every body part without a photo material wears (_body); His colour sets its albedo
+var body_colour := 0               # HIS COLOUR: the index in BODY_COLOURS; view state, undone with the rest (not saved, as body_mats is not)
+const BODY_COLOURS := [["skin", Color(0.78, 0.72, 0.64)], ["white", Color(0.93, 0.93, 0.91)], ["grey", Color(0.52, 0.53, 0.55)],
+	["blue", Color(0.25, 0.42, 0.78)], ["red", Color(0.74, 0.18, 0.16)], ["dark", Color(0.16, 0.15, 0.15)]]
 var refimg := RefImageUI.new(self)   # REFERENCE IMAGES (scripts/ref_image_ui.gd): a picture under or behind the figure, and Match
 var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
 var multicam_tool := "res://tools/see_video.py"
