@@ -209,6 +209,7 @@ def run_track(a, env, step, every=1, crop=None, hands=True, report=None, conf=0.
         else:
             print("note: no hand model at %s, the body is tracked without hands" % a.hand_model)
     pool = ThreadPoolExecutor(max_workers=1)
+    wpool = ThreadPoolExecutor(max_workers=1)   # SPEED: the per-wrist hand crops (crop mode) run here, in frame order
     px, py = (float(v) for v in a.pick.split(","))
     last = None
     frames = []
@@ -216,6 +217,17 @@ def run_track(a, env, step, every=1, crop=None, hands=True, report=None, conf=0.
     seen = 0
     with_hand = 0
     wmiss = {15: 0, 16: 0}   # consecutive probes with no hand, per wrist (this run's; see WRIST_DEAD_AFTER)
+    pend = None              # the last frame whose wrist hands are still running: (sampled index, frame, body, future)
+
+    def finish(p):
+        nonlocal with_hand
+        s, fr, body_xy, fut = p
+        hres = fut.result()
+        hands_out = match_hands(body_xy, hres, a.hand_reach) if hres is not None else {}
+        if hands_out:
+            fr["hands"] = hands_out
+            with_hand += 1
+        frames.append((s, fr))
     i = 0
     while True:
         ok, img = cap.read()
@@ -264,15 +276,25 @@ def run_track(a, env, step, every=1, crop=None, hands=True, report=None, conf=0.
             k = min(range(len(hips)), key=lambda n: (hips[n][0] - 0.5) ** 2 + (hips[n][1] - 0.5) ** 2)
             pose_xy = [_map_point(q, x0, y0, si, W, H) for q in res.pose_landmarks[k]]
             image = [[round(q.x, 4), round(q.y, 4), round(q.visibility, 3)] for q in pose_xy]
-            hres = wrist_hands(cv2, mp, wdet, img, pose_xy, W, H, s_idx, wmiss) if wdet is not None else None
+            hres = None
         fr = {"t": round(t, 3),
               "world": [[round(q.x, 4), round(q.y, 4), round(q.z, 4)] for q in res.pose_world_landmarks[k]],
               "image": image}
+        if crop is not None and wdet is not None:
+            # SPEED: this frame's wrist hands run on wpool while the next frame's pose runs here. wpool runs them one at a
+            # time in frame order, so wmiss and the detector see the same sequence as before; the frame is kept in order
+            if pend is not None:
+                finish(pend)
+            pend = (s_idx, fr, pose_xy, wpool.submit(wrist_hands, cv2, mp, wdet, img, pose_xy, W, H, s_idx, wmiss))
+            continue
         hands_out = match_hands(pose_xy, hres, a.hand_reach) if hres is not None else {}
         if hands_out:
             fr["hands"] = hands_out
             with_hand += 1
         frames.append((s_idx, fr))
+    if pend is not None:
+        finish(pend)
+    wpool.shutdown()
     return frames, lost, seen, with_hand, W, H
 
 
