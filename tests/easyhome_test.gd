@@ -2825,6 +2825,34 @@ func _init() -> void:
 	var med121: float = ts121[2] / 1000.0
 	ok(med121 <= 0.6 * 215.3, "121. card(1) Run: the click's synchronous build median %.1f ms over 5 reps (bar: <= 129.2 ms = 60 %% of the old median 215.3 ms)" % med121)
 
+	# 122. THE HANDS DO NOT MEET IN A JUMP (Nick: "hands touching each other after walking and jumping"): card(2) (Jump), every 1/30 s
+	# over the clip, the closest gap between the two hands' capsules (the hand and every finger of each side, palms and tips). Old code:
+	# the touch-down / absorb squat puts the two thumbs 2.2 cm into each other (min -2.2 cm). The bar: at least 1 cm apart everywhere.
+	# Old code: FAIL.
+	m.playing = false
+	m._new_scene()
+	await idle(3)
+	home.card(2)
+	await idle(4)
+	var gap122 := 1e9
+	var at122 := -1.0
+	var L122: float = m.S.length()
+	var t122 := 0.0
+	while t122 <= L122 + 1e-6:
+		m.playhead = t122
+		m._ps().apply(m.B, t122)
+		m._refresh()
+		for hl122 in ["hand_l"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_l")):
+			var al122: Array = m.B.cap(hl122)
+			for hr122 in ["hand_r"] + Body.FINGERS.filter(func(f): return String(f).ends_with("_r")):
+				var ar122: Array = m.B.cap(hr122)
+				var g122: float = Body.seg_seg(al122[0], al122[1], ar122[0], ar122[1]) - float(m.B.rad[hl122]) - float(m.B.rad[hr122])
+				if g122 < gap122:
+					gap122 = g122
+					at122 = t122
+		t122 += 1.0 / 30.0
+	ok(gap122 >= 0.01, "122. the Jump: the two hands' closest capsule gap over the clip %.1f cm at %.2f s (bar: >= 1 cm apart)" % [gap122 * 100.0, at122])
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
